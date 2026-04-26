@@ -14,6 +14,11 @@ const inferAgentFromMessageMock = vi.fn()
 const getChimmyMemoryContextMock = vi.fn()
 const resolveNormalizedLeagueContextMock = vi.fn()
 const resolveChimmyPersonalizationProfileMock = vi.fn()
+const resolveChimmyLeagueSelectionMock = vi.fn()
+const detectManagerAmbiguityMock = vi.fn()
+const buildChimmyStalenessWarningMock = vi.fn()
+const buildChimmySourceReferencesMock = vi.fn()
+const buildChimmySportDataDigestMock = vi.fn()
 const prismaUserProfileFindUniqueMock = vi.fn()
 const prismaAiCustomRuleFindManyMock = vi.fn()
 const previewSpendMock = vi.fn()
@@ -106,6 +111,17 @@ vi.mock("@/lib/chimmy-personalization/service", () => ({
   resolveChimmyPersonalizationProfile: resolveChimmyPersonalizationProfileMock,
 }))
 
+vi.mock("@/lib/chimmy/chimmy-league-resolution", () => ({
+  resolveChimmyLeagueSelection: resolveChimmyLeagueSelectionMock,
+  detectManagerAmbiguity: detectManagerAmbiguityMock,
+  buildChimmyStalenessWarning: buildChimmyStalenessWarningMock,
+  buildChimmySourceReferences: buildChimmySourceReferencesMock,
+}))
+
+vi.mock("@/lib/chimmy/chimmy-sport-data-digest", () => ({
+  buildChimmySportDataDigest: buildChimmySportDataDigestMock,
+}))
+
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     userProfile: { findUnique: prismaUserProfileFindUniqueMock },
@@ -136,6 +152,20 @@ describe("POST /api/chat/chimmy contract", () => {
     getChimmyMemoryContextMock.mockResolvedValue({ promptSection: "" })
     resolveNormalizedLeagueContextMock.mockResolvedValue({ ok: true, context: {} })
     resolveChimmyPersonalizationProfileMock.mockResolvedValue(null)
+    resolveChimmyLeagueSelectionMock.mockResolvedValue({
+      kind: "ask",
+      message: "Which league do you want me to use for this question?",
+      choices: [],
+      leagues: [],
+    })
+    detectManagerAmbiguityMock.mockReturnValue({ kind: "ok" })
+    buildChimmyStalenessWarningMock.mockReturnValue({
+      warning: null,
+      staleMinutes: 1,
+      thresholdMinutes: 10,
+    })
+    buildChimmySourceReferencesMock.mockReturnValue([])
+    buildChimmySportDataDigestMock.mockResolvedValue({ text: "", sources: [] })
     prismaUserProfileFindUniqueMock.mockResolvedValue(null)
     prismaAiCustomRuleFindManyMock.mockResolvedValue([])
     previewSpendMock.mockResolvedValue({
@@ -345,7 +375,13 @@ describe("POST /api/chat/chimmy contract", () => {
     expect(spendTokensForRuleMock).not.toHaveBeenCalled()
     const body = await res.json()
     expect(body.response).toContain("Accept the trade.")
-    expect(body.response).toContain("Chimmy routing")
+    expect(body.meta?.answerContract).toMatchObject({
+      answerType: "trade",
+      recommendation: expect.any(String),
+      confidence: {
+        level: expect.any(String),
+      },
+    })
   })
 
   it("skips token confirmation when preview does not require confirmation", async () => {
@@ -373,7 +409,22 @@ describe("POST /api/chat/chimmy contract", () => {
     )
     const body = await res.json()
     expect(body.response).toContain("Accept the trade.")
-    expect(body.response).toContain("Chimmy routing")
+    expect(body.meta?.mode).toBe("fast_take")
+  })
+
+  it("normalizes invalid mode inputs to fast_take and returns mode metadata", async () => {
+    const formData = new FormData()
+    formData.append("message", "Should I trade this player?")
+    formData.append("confirmTokenSpend", "true")
+    formData.append("leagueId", "league-1")
+    formData.append("assistantMode", "totally_invalid_mode")
+
+    const { POST } = await import("@/app/api/chat/chimmy/route")
+    const res = await POST(buildMultipartRequest(formData) as any)
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.meta?.mode).toBe("fast_take")
   })
 
   it("strips raw JSON context blobs from the displayed response text", async () => {
@@ -403,7 +454,6 @@ describe("POST /api/chat/chimmy contract", () => {
     expect(body.response).toContain(
       "Start Drake London over Christian Watson this week."
     )
-    expect(body.response).toContain("Chimmy routing")
   })
 
   it("returns 412 when league-specific request is missing league context", async () => {
@@ -416,6 +466,87 @@ describe("POST /api/chat/chimmy contract", () => {
     expect(res.status).toBe(412)
     await expect(res.json()).resolves.toMatchObject({
       error: expect.stringContaining("League context is required"),
+    })
+    expect(runUnifiedOrchestrationMock).not.toHaveBeenCalled()
+  })
+
+  it("does not require league grounding for global sports calendar questions", async () => {
+    buildChimmySportDataDigestMock.mockResolvedValueOnce({
+      text: "### NFL — Player news (DB / sports ingest)\n- NFL Draft starts April 30",
+      sources: ["player_news_NFL"],
+      freshness: {
+        overallLastSyncedAt: "2026-04-25T12:00:00.000Z",
+        perSource: {
+          player_news_NFL: "2026-04-25T12:00:00.000Z",
+        },
+      },
+    })
+
+    const formData = new FormData()
+    formData.append("message", "when is the nfl draft?")
+    formData.append("confirmTokenSpend", "true")
+
+    const { POST } = await import("@/app/api/chat/chimmy/route")
+    const res = await POST(buildMultipartRequest(formData) as any)
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.response).toContain("Accept the trade.")
+    expect(body.meta?.answerContract).toMatchObject({
+      answerType: "draft",
+      confidence: {
+        level: expect.any(String),
+      },
+    })
+    expect(body.meta?.syncFreshness).toMatchObject({
+      referenceTimezone: "America/New_York",
+      sportsDigest: {
+        overallLastSyncedAt: "2026-04-25T12:00:00.000Z",
+        perSource: {
+          player_news_NFL: "2026-04-25T12:00:00.000Z",
+        },
+      },
+    })
+    expect(runUnifiedOrchestrationMock).toHaveBeenCalled()
+  })
+
+  it("returns 412 with league choices when fuzzy league resolution is ambiguous", async () => {
+    resolveChimmyLeagueSelectionMock.mockResolvedValueOnce({
+      kind: "ambiguous",
+      message: "I found multiple league matches. Tell me which exact league to use.",
+      choices: [
+        {
+          leagueId: "league-1",
+          leagueName: "Kings League",
+          season: 2026,
+          platform: "sleeper",
+        },
+        {
+          leagueId: "league-2",
+          leagueName: "Kings Legacy",
+          season: 2026,
+          platform: "espn",
+        },
+      ],
+      leagues: [],
+    })
+
+    const formData = new FormData()
+    formData.append("message", "what is the draft order in kings?")
+
+    const { POST } = await import("@/app/api/chat/chimmy/route")
+    const res = await POST(buildMultipartRequest(formData) as any)
+
+    expect(res.status).toBe(412)
+    await expect(res.json()).resolves.toMatchObject({
+      error: expect.stringContaining("League context is required"),
+      details: {
+        message: "I found multiple league matches. Tell me which exact league to use.",
+        choices: [
+          expect.objectContaining({ leagueId: "league-1", leagueName: "Kings League" }),
+          expect.objectContaining({ leagueId: "league-2", leagueName: "Kings Legacy" }),
+        ],
+      },
     })
     expect(runUnifiedOrchestrationMock).not.toHaveBeenCalled()
   })

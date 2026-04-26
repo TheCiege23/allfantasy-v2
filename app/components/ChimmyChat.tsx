@@ -22,6 +22,7 @@ import {
 import { triggerChimmyVoiceListenNudge } from '@/lib/chimmy-chat/voiceEngagementNudge';
 import { formatChatMessageTimestamp, isChimmyMessageThreaded } from '@/app/dashboard/components/chat/chat-timestamps';
 import { ChimmyAssistantAvatar } from '@/app/dashboard/components/chat/ChimmyAssistantAvatar';
+import { useChimmyAutoTradeEval } from '@/hooks/useChimmyAutoTradeEval';
 import {
   DEFAULT_VOICE_ID,
   getChimmyVoiceLabel,
@@ -144,12 +145,34 @@ export default function ChimmyChat({
   const imageFileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<ChatMessage[]>(messages);
+  const sendMessageRef = useRef<(overrideText?: string) => Promise<void>>(() => Promise.resolve());
   messagesRef.current = messages;
 
   const suggestedChips = useMemo(() => {
     const name = chipContextLeagueName?.trim()
     return getDefaultChimmyChips({ leagueName: name ?? undefined, hasLeagues: !!name })
   }, [chipContextLeagueName])
+
+  const {
+    autoTradeEvalEnabled,
+    toggleAutoTradeEval,
+    autoTradeEvalReady,
+  } = useChimmyAutoTradeEval({
+    onEvent: (event) => {
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === event.eventId)) return prev
+        return [
+          ...prev,
+          {
+            id: event.eventId,
+            role: 'assistant',
+            content: event.message,
+            createdAt: Date.now(),
+          },
+        ]
+      })
+    },
+  })
 
   const hasUserMessage = useMemo(() => messages.some((m) => m.role === 'user'), [messages])
   const lastAssistantMessage = useMemo(() => {
@@ -234,6 +257,7 @@ export default function ChimmyChat({
       const transcript = event?.results?.[0]?.[0]?.transcript?.trim() || '';
       if (!transcript) return;
       setInput(transcript);
+      void sendMessageRef.current(transcript);
     };
 
     recognitionRef.current = recognition;
@@ -504,7 +528,6 @@ export default function ChimmyChat({
     }
   };
 
-  const sendMessageRef = useRef(sendMessage);
   sendMessageRef.current = sendMessage;
 
   useEffect(() => {
@@ -748,6 +771,26 @@ export default function ChimmyChat({
       {footerSlot ? (
         <div className="flex-shrink-0 border-t border-white/[0.07] bg-slate-900/95 px-2 py-2">{footerSlot}</div>
       ) : null}
+
+      <div className="flex-shrink-0 border-t border-white/[0.07] bg-slate-950/80 px-3 py-1.5">
+        <div className="flex items-center justify-between text-[11px] text-white/45">
+          <span>Auto trade eval</span>
+          <button
+            type="button"
+            onClick={toggleAutoTradeEval}
+            className={`rounded-md border px-2 py-0.5 transition ${
+              autoTradeEvalEnabled
+                ? 'border-cyan-400/30 bg-cyan-500/15 text-cyan-200'
+                : 'border-white/15 bg-white/[0.03] text-white/50'
+            }`}
+            aria-label="Toggle auto trade evaluation messages"
+            data-testid="chimmy-auto-trade-eval-toggle"
+            disabled={!autoTradeEvalReady}
+          >
+            {autoTradeEvalEnabled ? 'On' : 'Off'}
+          </button>
+        </div>
+      </div>
 
       <div className={`flex-shrink-0 border-t border-slate-800 bg-slate-900 ${embedded ? 'p-2' : 'p-5'}`}>
         {showPlayLastReplyBar && lastAssistantMessage ? (

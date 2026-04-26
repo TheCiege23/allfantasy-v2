@@ -38,6 +38,8 @@ export type DraftPickMetaWire = {
   nflTeam: string | null
   headshotUrl: string | null
   teamLogoUrl: string | null
+  /** D.6.3 — true when this pick was made by an AI / autopick manager. */
+  aiManager?: boolean | null
 }
 
 export type DraftChatAiMetadataWire = {
@@ -251,6 +253,9 @@ export function buildDraftChatWireMessage(
           nflTeam: typeof metaRecord.nflTeam === 'string' ? metaRecord.nflTeam : null,
           headshotUrl: typeof metaRecord.headshotUrl === 'string' ? metaRecord.headshotUrl : null,
           teamLogoUrl: typeof metaRecord.teamLogoUrl === 'string' ? metaRecord.teamLogoUrl : null,
+          // D.6.3 — preserved across the wire so the chat card can show the
+          // "AI Manager" badge when the pick was an autopick.
+          aiManager: metaRecord.aiManager === true ? true : null,
         }
       : null
 

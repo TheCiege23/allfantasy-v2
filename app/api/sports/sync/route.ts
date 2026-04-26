@@ -2,12 +2,22 @@ import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server';
 import { syncNFLTeamsToDb, syncNFLPlayersToDb, syncNFLScheduleToDb, syncNFLDepthChartsToDb, syncNFLTeamStatsToDb } from '@/lib/rolling-insights';
 import {
+  clearAPISportsDiagnostics,
+  getAPISportsDiagnostics,
   syncAPISportsTeamsToDb,
   syncAPISportsGamesToDb,
   syncAPISportsInjuriesToDb,
   syncAPISportsPlayersToIdentityMap,
   syncAPISportsStandingsToDb,
 } from '@/lib/api-sports';
+import {
+  clearAPIFootballDiagnostics,
+  getAPIFootballDiagnostics,
+  syncAPIFootballFixturesToDb,
+  syncAPIFootballPlayersToDb,
+  syncAPIFootballStandingsToDb,
+  syncAPIFootballTeamsToDb,
+} from '@/lib/api-football'
 import { syncClearSportsToDb } from '@/lib/clear-sports'
 
 export const POST = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSync" })(async (request: NextRequest) => {
@@ -25,6 +35,7 @@ export const POST = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSy
     const source = (body as Record<string, string>).source || 'all';
 
     const results: Record<string, unknown> = {};
+  const diagnostics: Record<string, unknown> = {};
     const startTime = Date.now();
 
     if (source === 'all' || source === 'rolling_insights') {
@@ -56,28 +67,68 @@ export const POST = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSy
 
     if (source === 'all' || source === 'api_sports') {
       if (syncType === 'all' || syncType === 'teams') {
-        const teamCount = await syncAPISportsTeamsToDb();
+        clearAPISportsDiagnostics()
+        const teamCount = await syncAPISportsTeamsToDb(season);
         results.as_teams = { synced: teamCount };
+        diagnostics.as_teams = getAPISportsDiagnostics()
       }
 
       if (syncType === 'all' || syncType === 'schedule' || syncType === 'games') {
+        clearAPISportsDiagnostics()
         const gameCount = await syncAPISportsGamesToDb(season);
         results.as_games = { synced: gameCount };
+        diagnostics.as_games = getAPISportsDiagnostics()
       }
 
       if (syncType === 'all' || syncType === 'injuries') {
+        clearAPISportsDiagnostics()
         const injuryCount = await syncAPISportsInjuriesToDb(season);
         results.as_injuries = { synced: injuryCount };
+        diagnostics.as_injuries = getAPISportsDiagnostics()
       }
 
       if (syncType === 'all' || syncType === 'standings') {
+        clearAPISportsDiagnostics()
         const standingsCount = await syncAPISportsStandingsToDb(season);
         results.as_standings = { synced: standingsCount };
+        diagnostics.as_standings = getAPISportsDiagnostics()
       }
 
       if (syncType === 'all' || syncType === 'identity') {
+        clearAPISportsDiagnostics()
         const identityResult = await syncAPISportsPlayersToIdentityMap(season);
         results.as_identity = identityResult;
+        diagnostics.as_identity = getAPISportsDiagnostics()
+      }
+    }
+
+    if (source === 'all' || source === 'api_football') {
+      if (syncType === 'all' || syncType === 'teams') {
+        clearAPIFootballDiagnostics()
+        const teamCount = await syncAPIFootballTeamsToDb({ season })
+        results.af_teams = { synced: teamCount }
+        diagnostics.af_teams = getAPIFootballDiagnostics()
+      }
+
+      if (syncType === 'all' || syncType === 'schedule' || syncType === 'games') {
+        clearAPIFootballDiagnostics()
+        const fixtureCount = await syncAPIFootballFixturesToDb({ season })
+        results.af_fixtures = { synced: fixtureCount }
+        diagnostics.af_fixtures = getAPIFootballDiagnostics()
+      }
+
+      if (syncType === 'all' || syncType === 'standings') {
+        clearAPIFootballDiagnostics()
+        const standingsCount = await syncAPIFootballStandingsToDb({ season })
+        results.af_standings = { synced: standingsCount }
+        diagnostics.af_standings = getAPIFootballDiagnostics()
+      }
+
+      if (syncType === 'all' || syncType === 'players') {
+        clearAPIFootballDiagnostics()
+        const playerCount = await syncAPIFootballPlayersToDb({ season })
+        results.af_players = { synced: playerCount }
+        diagnostics.af_players = getAPIFootballDiagnostics()
       }
     }
 
@@ -102,6 +153,7 @@ export const POST = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSy
       source,
       season: season || 'current',
       results,
+      diagnostics,
       durationMs: duration,
       timestamp: new Date().toISOString(),
     });
@@ -129,6 +181,7 @@ export const GET = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSyn
       riTeams, riPlayers, riGames, riStats,
       riDepthCharts, riTeamStats,
       asTeams, asGames, asInjuries,
+      afTeams, afGames, afPlayers,
       csTeams, csGames, csPlayers, csInjuries, csNews,
       espnLiveGames, espnNews,
       trendingCount,
@@ -143,6 +196,9 @@ export const GET = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSyn
       prisma.sportsTeam.count({ where: { source: 'api_sports' } }),
       prisma.sportsGame.count({ where: { source: 'api_sports' } }),
       prisma.sportsInjury.count({ where: { source: 'api_sports' } }),
+      prisma.sportsTeam.count({ where: { source: 'api_football' } }),
+      prisma.sportsGame.count({ where: { source: 'api_football' } }),
+      prisma.sportsPlayer.count({ where: { source: 'api_football' } }),
       prisma.sportsTeam.count({ where: { source: 'clear_sports' } }),
       prisma.sportsGame.count({ where: { source: 'clear_sports' } }),
       prisma.sportsPlayer.count({ where: { source: 'clear_sports' } }),
@@ -164,6 +220,12 @@ export const GET = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSyn
 
     const latestASSync = await prisma.sportsInjury.findFirst({
       where: { source: 'api_sports' },
+      orderBy: { fetchedAt: 'desc' },
+      select: { fetchedAt: true },
+    });
+
+    const latestAFSync = await prisma.sportsGame.findFirst({
+      where: { source: 'api_football' },
       orderBy: { fetchedAt: 'desc' },
       select: { fetchedAt: true },
     });
@@ -204,6 +266,13 @@ export const GET = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSyn
           injuries: asInjuries,
           standings: await prisma.sportsDataCache.count({ where: { cacheKey: { startsWith: 'NFL:standings:' } } }),
           lastSyncAt: latestASSync?.fetchedAt?.toISOString() || null,
+        },
+        api_football: {
+          teams: afTeams,
+          games: afGames,
+          players: afPlayers,
+          standings: await prisma.sportsDataCache.count({ where: { cacheKey: { startsWith: 'SOCCER:standings:' } } }),
+          lastSyncAt: latestAFSync?.fetchedAt?.toISOString() || null,
         },
         clear_sports: {
           teams: csTeams,

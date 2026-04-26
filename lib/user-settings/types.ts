@@ -3,8 +3,10 @@
  * Used across Sports App, Bracket Challenge, and AllFantasy Legacy.
  */
 
+import type { LanguageCode } from "@/lib/i18n/constants"
+
 export type ThemePreference = "dark" | "light" | "legacy" | "system"
-export type PreferredLanguage = "en" | "es"
+export type PreferredLanguage = LanguageCode
 
 /** Supported sport code (aligns with LeagueSport). */
 export type PreferredSportCode = string

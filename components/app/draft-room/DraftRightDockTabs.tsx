@@ -1,0 +1,171 @@
+'use client'
+
+/**
+ * D.6.1 — Sleeper-style right-dock tabs.
+ *
+ * One shared body slot. Three tabs:  QUEUE | ROSTER | CHAT
+ * Only the active tab fills the dock body. Inactive tab BODIES stay mounted
+ * (display:none via CSS) so:
+ *   - the Roster tab keeps updating in real-time when picks land while you're
+ *     looking at Queue
+ *   - the Chat scroll position survives a tab switch
+ *   - QueuePanel reorders / autopick / draft button state stays correct
+ *
+ * Persists the active tab across reloads via localStorage so power-users land
+ * on whichever tab they last used.
+ *
+ * Pure layout/UI — no draft-engine, timer-engine, or AI-ADP logic touched.
+ */
+
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
+
+export type DraftRightDockTab = 'queue' | 'roster' | 'chat'
+
+const TAB_PREF_KEY = 'af:draft-right-dock-active-tab'
+
+export interface DraftRightDockTabsProps {
+  queueBody: ReactNode
+  rosterBody: ReactNode
+  chatBody: ReactNode
+  /** Default tab when no preference stored. Spec calls for "Queue". */
+  defaultTab?: DraftRightDockTab
+  /** Override active tab from outside (e.g. tests / programmatic switch). */
+  activeTabOverride?: DraftRightDockTab | null
+  /** Optional badge counts surfaced on the tab labels (e.g. queue length). */
+  queueCount?: number
+  testIdBase?: string
+}
+
+const TABS: ReadonlyArray<{ id: DraftRightDockTab; label: string }> = [
+  { id: 'queue', label: 'Queue' },
+  { id: 'roster', label: 'Roster' },
+  { id: 'chat', label: 'Chat' },
+]
+
+export function DraftRightDockTabs({
+  queueBody,
+  rosterBody,
+  chatBody,
+  defaultTab = 'queue',
+  activeTabOverride = null,
+  queueCount,
+  testIdBase = 'draft-right-dock',
+}: DraftRightDockTabsProps) {
+  const [activeTab, setActiveTab] = useState<DraftRightDockTab>(defaultTab)
+
+  // Restore preference on first paint.
+  useEffect(() => {
+    try {
+      const v = window.localStorage.getItem(TAB_PREF_KEY)
+      if (v === 'queue' || v === 'roster' || v === 'chat') setActiveTab(v)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  // Persist on change.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(TAB_PREF_KEY, activeTab)
+    } catch {
+      /* ignore */
+    }
+  }, [activeTab])
+
+  const effectiveTab = activeTabOverride ?? activeTab
+
+  const onSelect = useCallback((id: DraftRightDockTab) => {
+    setActiveTab(id)
+  }, [])
+
+  return (
+    <section
+      data-testid={testIdBase}
+      data-active-tab={effectiveTab}
+      aria-label="Draft right dock"
+      className="flex h-full min-h-0 flex-col overflow-hidden bg-[#060d1d]"
+    >
+      {/* Tab header row. Active tab uses cyan-100 + bottom underline; inactives are muted. */}
+      <div
+        role="tablist"
+        aria-label="Draft right dock tabs"
+        data-testid={`${testIdBase}-tablist`}
+        className="grid shrink-0 grid-cols-3 border-b border-white/10 bg-[#0a1228]"
+      >
+        {TABS.map((tab) => {
+          const isActive = effectiveTab === tab.id
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              aria-controls={`${testIdBase}-panel-${tab.id}`}
+              id={`${testIdBase}-tab-${tab.id}`}
+              data-testid={`${testIdBase}-tab-${tab.id}`}
+              onClick={() => onSelect(tab.id)}
+              className={`relative flex items-center justify-center gap-1.5 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
+                isActive
+                  ? 'text-cyan-100'
+                  : 'text-white/55 hover:bg-white/5 hover:text-white/85'
+              }`}
+            >
+              <span>{tab.label}</span>
+              {tab.id === 'queue' && typeof queueCount === 'number' && queueCount > 0 ? (
+                <span
+                  className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-cyan-500/20 px-1 text-[9px] font-bold text-cyan-100"
+                  aria-label={`${queueCount} queued`}
+                  data-testid={`${testIdBase}-queue-count`}
+                >
+                  {queueCount}
+                </span>
+              ) : null}
+              {isActive ? (
+                <span
+                  aria-hidden
+                  className="absolute inset-x-2 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-cyan-400/70 via-cyan-300/85 to-violet-400/60 shadow-[0_0_12px_rgba(34,211,238,0.35)]"
+                />
+              ) : null}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Body. All three are mounted; only the active one is visible.
+          Hidden bodies use `hidden` (display:none) so React state survives
+          tab switches and timers/queues continue to render correctly. */}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <div
+          role="tabpanel"
+          id={`${testIdBase}-panel-queue`}
+          aria-labelledby={`${testIdBase}-tab-queue`}
+          data-testid={`${testIdBase}-panel-queue`}
+          aria-hidden={effectiveTab !== 'queue'}
+          className={effectiveTab === 'queue' ? 'flex h-full min-h-0 flex-col overflow-hidden' : 'hidden'}
+        >
+          {queueBody}
+        </div>
+        <div
+          role="tabpanel"
+          id={`${testIdBase}-panel-roster`}
+          aria-labelledby={`${testIdBase}-tab-roster`}
+          data-testid={`${testIdBase}-panel-roster`}
+          aria-hidden={effectiveTab !== 'roster'}
+          className={effectiveTab === 'roster' ? 'flex h-full min-h-0 flex-col overflow-hidden' : 'hidden'}
+        >
+          {rosterBody}
+        </div>
+        <div
+          role="tabpanel"
+          id={`${testIdBase}-panel-chat`}
+          aria-labelledby={`${testIdBase}-tab-chat`}
+          data-testid={`${testIdBase}-panel-chat`}
+          aria-hidden={effectiveTab !== 'chat'}
+          className={effectiveTab === 'chat' ? 'flex h-full min-h-0 flex-col overflow-hidden' : 'hidden'}
+        >
+          {chatBody}
+        </div>
+      </div>
+    </section>
+  )
+}

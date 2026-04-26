@@ -8,6 +8,35 @@ import {
 
 const BASE_URL = 'https://v1.american-football.api-sports.io';
 
+export interface ProviderCallDiagnostic {
+  provider: 'api_sports'
+  endpoint: string
+  params: Record<string, string>
+  url: string
+  status: number | null
+  ok: boolean
+  error: string | null
+  at: string
+}
+
+const apiSportsDiagnostics: ProviderCallDiagnostic[] = []
+const MAX_DIAGNOSTIC_ROWS = 100
+
+function pushApiSportsDiagnostic(row: ProviderCallDiagnostic) {
+  apiSportsDiagnostics.push(row)
+  if (apiSportsDiagnostics.length > MAX_DIAGNOSTIC_ROWS) {
+    apiSportsDiagnostics.splice(0, apiSportsDiagnostics.length - MAX_DIAGNOSTIC_ROWS)
+  }
+}
+
+export function clearAPISportsDiagnostics() {
+  apiSportsDiagnostics.length = 0
+}
+
+export function getAPISportsDiagnostics(): ProviderCallDiagnostic[] {
+  return apiSportsDiagnostics.map((row) => ({ ...row, params: { ...row.params } }))
+}
+
 const API_SPORTS_TEAM_MAP: Record<string, string> = {
   'Arizona Cardinals': 'ARI',
   'Atlanta Falcons': 'ATL',
@@ -61,13 +90,13 @@ function enqueueRequest<T>(fn: () => Promise<T>): Promise<T> {
   return queued;
 }
 
-async function apiSportsFetchInternal<T>(endpoint: string, params?: Record<string, string>): Promise<T> {
+async function apiSportsFetchInternal<T>(endpoint: string, params?: Record<string, string>, opts?: { bypassRateGuard?: boolean }): Promise<T> {
   const apiKey = process.env.APISPORTS_API_KEY || process.env.API_SPORTS_KEY;
   if (!apiKey) {
     throw new Error('APISPORTS_API_KEY not configured');
   }
 
-  if (!(await rateLimitManager.canCall('api_sports', endpoint))) {
+  if (!opts?.bypassRateGuard && !(await rateLimitManager.canCall('api_sports', endpoint))) {
     await rateLimitManager.recordCall('api_sports', endpoint, 429, 0, { cached: true, error: 'rate_limit_guard' })
     const fallbackType = endpoint.includes('injur')
       ? 'injuries'
@@ -90,8 +119,12 @@ async function apiSportsFetchInternal<T>(endpoint: string, params?: Record<strin
   }
 
   const url = new URL(`${BASE_URL}/${endpoint}`);
+  const paramCopy: Record<string, string> = {}
   if (params) {
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+    Object.entries(params).forEach(([k, v]) => {
+      url.searchParams.set(k, v)
+      paramCopy[k] = v
+    });
   }
 
   const controller = new AbortController();
@@ -110,6 +143,16 @@ async function apiSportsFetchInternal<T>(endpoint: string, params?: Record<strin
 
     if (!response.ok) {
       await rateLimitManager.recordCall('api_sports', endpoint, response.status, 0, { error: response.statusText })
+      pushApiSportsDiagnostic({
+        provider: 'api_sports',
+        endpoint,
+        params: paramCopy,
+        url: url.toString(),
+        status: response.status,
+        ok: false,
+        error: `HTTP ${response.status} ${response.statusText}`,
+        at: new Date().toISOString(),
+      })
       throw new Error(`API-Sports request failed: ${response.status} ${response.statusText}`);
     }
 
@@ -134,6 +177,16 @@ async function apiSportsFetchInternal<T>(endpoint: string, params?: Record<strin
 
     if (result.errors && Object.keys(result.errors).length > 0) {
       const errStr = JSON.stringify(result.errors);
+      pushApiSportsDiagnostic({
+        provider: 'api_sports',
+        endpoint,
+        params: paramCopy,
+        url: url.toString(),
+        status: response.status,
+        ok: false,
+        error: errStr,
+        at: new Date().toISOString(),
+      })
       if (errStr.includes('IP is not allowed')) {
         console.warn('[API-Sports] IP blocked by API-Sports. Pausing requests for 1 hour.');
         ipBlockedUntil = Date.now() + IP_BLOCK_COOLDOWN_MS;
@@ -141,9 +194,30 @@ async function apiSportsFetchInternal<T>(endpoint: string, params?: Record<strin
       throw new Error(`API-Sports error: ${errStr}`);
     }
 
+    pushApiSportsDiagnostic({
+      provider: 'api_sports',
+      endpoint,
+      params: paramCopy,
+      url: url.toString(),
+      status: response.status,
+      ok: true,
+      error: null,
+      at: new Date().toISOString(),
+    })
+
     return result.response as T;
   } catch (error) {
     clearTimeout(timeout);
+    pushApiSportsDiagnostic({
+      provider: 'api_sports',
+      endpoint,
+      params: paramCopy,
+      url: url.toString(),
+      status: null,
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+      at: new Date().toISOString(),
+    })
     await rateLimitManager.recordCall('api_sports', endpoint, 500, 0, {
       error: error instanceof Error ? error.message : String(error),
     })
@@ -151,8 +225,8 @@ async function apiSportsFetchInternal<T>(endpoint: string, params?: Record<strin
   }
 }
 
-async function apiSportsFetch<T>(endpoint: string, params?: Record<string, string>): Promise<T> {
-  return enqueueRequest(() => apiSportsFetchInternal<T>(endpoint, params));
+async function apiSportsFetch<T>(endpoint: string, params?: Record<string, string>, opts?: { bypassRateGuard?: boolean }): Promise<T> {
+  return enqueueRequest(() => apiSportsFetchInternal<T>(endpoint, params, opts));
 }
 
 export interface APISportsTeam {
@@ -255,8 +329,12 @@ export interface APISportsStanding {
   };
 }
 
-export async function fetchAPISportsTeams(): Promise<APISportsTeam[]> {
-  const data = await apiSportsFetch<APISportsTeam[]>('teams', { league: '1' });
+export async function fetchAPISportsTeams(season?: string): Promise<APISportsTeam[]> {
+  const currentSeason = season || getCurrentNFLSeasonForAPISports()
+  const data = await apiSportsFetch<APISportsTeam[]>('teams', {
+    league: '1',
+    season: currentSeason,
+  });
   return data || [];
 }
 
@@ -268,27 +346,110 @@ export async function fetchAPISportsPlayers(teamId: string, season: string): Pro
   return data || [];
 }
 
-export async function fetchAPISportsPlayerBySearch(search: string, season?: string): Promise<APISportsPlayer[]> {
-  const params: Record<string, string> = { search, league: '1' };
-  if (season) params.season = season;
-  const data = await apiSportsFetch<APISportsPlayer[]>('players', params);
+/**
+ * E.1.6 — API-Sports `/players?search=NAME` for NFL.
+ *
+ * Bug fixes vs. the previous implementation:
+ *   - Removed `league: '1'` — the NFL endpoint rejects this param ("The League
+ *     field do not exist.").
+ *   - Removed `season` — passing season silently makes API-Sports require a
+ *     `team` numeric id, which we don't have at this call site. The bare
+ *     `?search=NAME` form returns up to 9 candidates without that constraint.
+ *   - Sanitizes the search string to alphanumeric + space before sending —
+ *     the API rejects apostrophes/periods ("The Search field may only contain
+ *     alpha-numeric characters and spaces."), which was causing every
+ *     punctuation-outlier lookup (Ja'Marr Chase, A.J. Brown, …) to 400-error.
+ *
+ * The `season` parameter is accepted for backward compatibility but ignored.
+ */
+export async function fetchAPISportsPlayerBySearch(search: string, _season?: string): Promise<APISportsPlayer[]> {
+  const sanitized = (search ?? '')
+    .replace(/[^A-Za-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!sanitized) return [];
+  // E.1.6 — bypass the rate-limit fallback (which returns synthetic "Juan Cabada"
+  // test rows) so headshot lookups always hit the real API. Headshot backfills
+  // are low-volume by nature — at most a few hundred lookups per run — so the
+  // budget impact is negligible and a synthetic fallback would silently corrupt
+  // every player's resolved image.
+  const data = await apiSportsFetch<APISportsPlayer[]>(
+    'players',
+    { search: sanitized },
+    { bypassRateGuard: true },
+  );
   return data || [];
 }
 
 export async function fetchAPISportsInjuries(season: string): Promise<APISportsInjury[]> {
-  const data = await apiSportsFetch<APISportsInjury[]>('injuries', {
-    league: '1',
-    season,
-  });
-  return data || [];
+  const attempts: Array<Record<string, string> | undefined> = [
+    { season },
+    undefined,
+  ]
+
+  let lastError: unknown = null
+  for (const params of attempts) {
+    try {
+      const data = await apiSportsFetch<APISportsInjury[]>('injuries', params)
+      return data || []
+    } catch (error) {
+      lastError = error
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Failed to fetch API-Sports injuries')
 }
 
 export async function fetchAPISportsInjuriesByTeam(teamId: string, season: string): Promise<APISportsInjury[]> {
-  const data = await apiSportsFetch<APISportsInjury[]>('injuries', {
-    team: teamId,
-    season,
-  });
-  return data || [];
+  const attempts: Array<Record<string, string>> = [
+    { team: teamId, season },
+    { team: teamId },
+  ]
+
+  let lastError: unknown = null
+  for (const params of attempts) {
+    try {
+      const data = await apiSportsFetch<APISportsInjury[]>('injuries', params, { bypassRateGuard: true })
+      return data || []
+    } catch (error) {
+      lastError = error
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Failed to fetch API-Sports injuries by team')
+}
+
+async function fetchAPISportsInjuriesViaTeamFanout(season: string): Promise<APISportsInjury[]> {
+  let teams: APISportsTeam[] = []
+  try {
+    teams = await fetchAPISportsTeams(season)
+  } catch {
+    teams = await fetchAPISportsTeams()
+  }
+
+  if (teams.length === 0) return []
+
+  const byId = new Map<string, APISportsInjury>()
+  for (const team of teams) {
+    try {
+      const injuries = await fetchAPISportsInjuriesByTeam(String(team.id), season)
+      for (const [index, injury] of injuries.entries()) {
+        const row = injury as APISportsInjury & Record<string, unknown>
+        const playerId = row.player?.id ?? (row.player_id as number | string | undefined) ?? ''
+        const playerName = row.player?.name ?? (row.player_name as string | undefined) ?? ''
+        const injuryDate = row.date ?? (row.updated as string | undefined) ?? ''
+        const dedupeKey = row.id != null
+          ? `id:${String(row.id)}`
+          : `team:${team.id}:player:${String(playerId)}:${String(playerName).trim().toLowerCase()}:date:${String(injuryDate)}:i:${index}`
+
+        if (!byId.has(dedupeKey)) byId.set(dedupeKey, injury)
+      }
+    } catch {
+      continue
+    }
+  }
+
+  return [...byId.values()]
 }
 
 export async function fetchAPISportsGames(season: string): Promise<APISportsGame[]> {
@@ -517,18 +678,19 @@ export function getCurrentNFLSeasonForAPISports(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
-  return month >= 3 ? String(year) : String(year - 1);
+  return month >= 8 ? String(year) : String(year - 1);
 }
 
 export async function syncAPISportsInjuriesToDb(season?: string): Promise<number> {
   const currentSeason = season || getCurrentNFLSeasonForAPISports();
-  let injuries: APISportsInjury[];
+  let injuries: APISportsInjury[] = [];
 
   try {
-    injuries = await fetchAPISportsInjuries(currentSeason);
+    // The API-Sports NFL injuries endpoint is reliable only with team-based queries.
+    injuries = await fetchAPISportsInjuriesViaTeamFanout(currentSeason)
   } catch (error) {
-    console.error('[API-Sports] Failed to fetch injuries:', error);
-    return 0;
+    console.error('[API-Sports] Team-fanout injuries fetch failed:', error)
+    return 0
   }
 
   let synced = 0;
@@ -536,42 +698,64 @@ export async function syncAPISportsInjuriesToDb(season?: string): Promise<number
   const expiresAt = new Date(now.getTime() + 6 * 60 * 60 * 1000);
   const fanoutByPlayer = new Map<string, InjurySyncFanoutRow>();
 
-  for (const injury of injuries) {
-    const team = teamNameToAbbrev(injury.team?.name || null);
+  for (const [index, injury] of injuries.entries()) {
+    const row = injury as APISportsInjury & Record<string, unknown>
+    const playerIdRaw = row.player?.id ?? (row.player_id as number | string | undefined) ?? null
+    const playerNameRaw = row.player?.name ?? (row.player_name as string | undefined) ?? (row.name as string | undefined) ?? null
+    const teamIdRaw = row.team?.id ?? (row.team_id as number | string | undefined) ?? null
+    const teamNameRaw = row.team?.name ?? (row.team_name as string | undefined) ?? null
+    const typeRaw = row.type ?? (row.injury as string | null | undefined) ?? null
+    const statusRaw = row.status ?? (row.state as string | null | undefined) ?? null
+    const descriptionRaw = row.description ?? (row.details as string | null | undefined) ?? null
+    const dateRaw = row.date ?? (row.updated as string | null | undefined) ?? null
+
+    if (!playerIdRaw && !playerNameRaw) {
+      continue
+    }
+
+    const playerId = playerIdRaw != null ? String(playerIdRaw) : null
+    const playerName = (playerNameRaw || '').trim() || `Unknown ${playerId || 'player'}`
+    const teamId = teamIdRaw != null ? String(teamIdRaw) : null
+    const team = teamNameToAbbrev(teamNameRaw || null)
+    const externalId = row.id != null
+      ? String(row.id)
+      : `${playerId || 'p'}:${teamId || 't'}:${dateRaw || 'd'}:${index}`
+    const parsedDate = dateRaw ? new Date(String(dateRaw)) : null
+    const safeDate = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : null
 
     try {
       await prisma.sportsInjury.upsert({
         where: {
           sport_externalId_source: {
             sport: 'NFL',
-            externalId: String(injury.id),
+            externalId,
             source: 'api_sports',
           },
         },
         update: {
-          playerName: injury.player.name,
-          playerId: String(injury.player.id),
+          playerName,
+          playerId,
           team,
-          teamId: injury.team ? String(injury.team.id) : null,
-          type: injury.type,
-          status: injury.status,
-          description: injury.description,
-          date: injury.date ? new Date(injury.date) : null,
+          teamId,
+          type: typeRaw,
+          status: statusRaw,
+          description: descriptionRaw,
+          date: safeDate,
           season: parseInt(currentSeason),
           fetchedAt: now,
           expiresAt,
         },
         create: {
           sport: 'NFL',
-          externalId: String(injury.id),
-          playerName: injury.player.name,
-          playerId: String(injury.player.id),
+          externalId,
+          playerName,
+          playerId,
           team,
-          teamId: injury.team ? String(injury.team.id) : null,
-          type: injury.type,
-          status: injury.status,
-          description: injury.description,
-          date: injury.date ? new Date(injury.date) : null,
+          teamId,
+          type: typeRaw,
+          status: statusRaw,
+          description: descriptionRaw,
+          date: safeDate,
           season: parseInt(currentSeason),
           source: 'api_sports',
           fetchedAt: now,
@@ -579,20 +763,20 @@ export async function syncAPISportsInjuriesToDb(season?: string): Promise<number
         },
       });
       synced++;
-      if (shouldIncludeInjuryInFanoutBatch(injury.status)) {
-        const k = injury.player.name.trim().toLowerCase();
+      if (shouldIncludeInjuryInFanoutBatch(statusRaw)) {
+        const k = playerName.trim().toLowerCase();
         if (k) {
           fanoutByPlayer.set(k, {
-            playerName: injury.player.name,
+            playerName,
             team,
-            status: injury.status ?? '',
-            type: injury.type ?? null,
-            description: injury.description ?? null,
+            status: statusRaw ?? '',
+            type: typeRaw ?? null,
+            description: descriptionRaw ?? null,
           });
         }
       }
     } catch (err) {
-      console.error(`[API-Sports] Failed to sync injury for ${injury.player.name}:`, err);
+      console.error(`[API-Sports] Failed to sync injury for ${playerName}:`, err);
     }
   }
 
@@ -606,11 +790,12 @@ export async function syncAPISportsInjuriesToDb(season?: string): Promise<number
   return synced;
 }
 
-export async function syncAPISportsTeamsToDb(): Promise<number> {
+export async function syncAPISportsTeamsToDb(season?: string): Promise<number> {
+  const currentSeason = season || getCurrentNFLSeasonForAPISports()
   let teams: APISportsTeam[];
 
   try {
-    teams = await fetchAPISportsTeams();
+    teams = await fetchAPISportsTeams(currentSeason);
   } catch (error) {
     console.error('[API-Sports] Failed to fetch teams:', error);
     return 0;

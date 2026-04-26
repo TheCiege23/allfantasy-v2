@@ -808,18 +808,29 @@ export async function setTimerSeconds(
     version: { increment: 1 },
   }
   if (options?.resetCurrentTimer && (session.status === 'in_progress' || session.status === 'paused')) {
-    data.timerEndAt = new Date(Date.now() + sec * 1000)
-    data.pausedRemainingSeconds = null
-    if (
-      session.draftType === 'auction' &&
-      session.auctionState &&
-      typeof session.auctionState === 'object' &&
-      !Array.isArray(session.auctionState)
-    ) {
-      data.auctionState = {
-        ...(session.auctionState as Record<string, unknown>),
-        bidTimerEndAt: data.timerEndAt.toISOString(),
-      } as Prisma.InputJsonValue
+    if (session.status === 'paused') {
+      // Bug-stab: while the draft is paused, changing the timer length must NOT
+      // start a countdown. Stage the new value into pausedRemainingSeconds so
+      // that resumeDraft() picks it up (see line 704: `session.pausedRemainingSeconds
+      // ?? effectiveStored ?? 0`). Leaving `timerEndAt` untouched keeps the clock
+      // visibly frozen until the commissioner clicks Resume — at which point a
+      // fresh countdown starts with the new value, NOT the old timer or 30s.
+      data.pausedRemainingSeconds = sec
+    } else {
+      // Live (in_progress) — restart the current pick's countdown immediately.
+      data.timerEndAt = new Date(Date.now() + sec * 1000)
+      data.pausedRemainingSeconds = null
+      if (
+        session.draftType === 'auction' &&
+        session.auctionState &&
+        typeof session.auctionState === 'object' &&
+        !Array.isArray(session.auctionState)
+      ) {
+        data.auctionState = {
+          ...(session.auctionState as Record<string, unknown>),
+          bidTimerEndAt: data.timerEndAt.toISOString(),
+        } as Prisma.InputJsonValue
+      }
     }
   }
   await prisma.draftSession.update({

@@ -2,13 +2,13 @@
 
 import { useSession } from "next-auth/react";
 import { useLanguage } from "./LanguageProviderClient";
-import { getLanguageDisplayName } from "@/lib/i18n/constants";
+import { getLanguageDisplayName, SUPPORTED_LANGUAGES, type LanguageCode } from "@/lib/i18n/constants";
 
 export default function LanguageToggle() {
   const { data: session } = useSession();
   const { language, setLanguage, t } = useLanguage();
 
-  const selectLang = (lang: "en" | "es") => {
+  const selectLang = (lang: LanguageCode) => {
     setLanguage(lang);
     if (session?.user) {
       fetch("/api/user/profile", {
@@ -29,7 +29,7 @@ export default function LanguageToggle() {
       </span>
       <select
         value={language}
-        onChange={(event) => selectLang(event.target.value as "en" | "es")}
+        onChange={(event) => selectLang(event.target.value as LanguageCode)}
         aria-label={t("common.language")}
         className="rounded-full border px-3 py-1 pr-7 outline-none transition"
         style={{
@@ -38,10 +38,14 @@ export default function LanguageToggle() {
           color: "var(--text)",
         }}
       >
-        <option value="en">{getLanguageDisplayName("en")}</option>
-        <option value="es">{getLanguageDisplayName("es")}</option>
+        {SUPPORTED_LANGUAGES.map((lang) => (
+          <option key={lang} value={lang}>
+            {getLanguageDisplayName(lang)}
+          </option>
+        ))}
       </select>
     </div>
   );
 }
+
 

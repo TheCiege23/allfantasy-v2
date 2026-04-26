@@ -4,6 +4,10 @@ import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft, getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import { submitJuryVote } from '@/lib/survivor/SurvivorFinaleEngine'
 import { resolveSurvivorCurrentWeek } from '@/lib/survivor/SurvivorTimelineResolver'
+import { queueLeagueEventVideo } from '@/lib/fantasy-media/EventVideoAutomation'
+import { prisma } from '@/lib/prisma'
+import { getRosterTeamMap } from '@/lib/zombie/rosterTeamMap'
+import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,6 +61,66 @@ export async function POST(
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error ?? 'Failed to submit jury vote' }, { status: 400 })
+  }
+
+  if (result.state?.closed && result.state?.winnerRosterId) {
+    const uiSettings = await getDraftUISettingsForLeague(leagueId).catch(() => null)
+    if (!(uiSettings?.survivorFinaleAutoHeyGenEnabled ?? true)) {
+      return NextResponse.json({
+        ok: true,
+        winnerRosterId: result.state?.winnerRosterId ?? null,
+        closed: result.state?.closed ?? false,
+        votesSubmitted: result.state?.votesSubmitted ?? null,
+        votesRequired: result.state?.votesRequired ?? null,
+      })
+    }
+
+    const winnerRosterId = result.state.winnerRosterId
+    const [league, map] = await Promise.all([
+      prisma.league.findUnique({
+        where: { id: leagueId },
+        select: { name: true, sport: true },
+      }),
+      getRosterTeamMap(leagueId),
+    ])
+
+    const teamId = map.rosterIdToTeamId.get(winnerRosterId)
+    const winnerTeam = teamId
+      ? await prisma.leagueTeam.findUnique({
+          where: { id: teamId },
+          select: { teamName: true, ownerName: true },
+        })
+      : null
+
+    const winnerLabel =
+      winnerTeam?.teamName?.trim() ||
+      winnerTeam?.ownerName?.trim() ||
+      `Roster ${winnerRosterId.slice(0, 8)}`
+
+    const leagueName = league?.name?.trim() || 'Survivor League'
+    const script = [
+      `Survivor finale results for ${leagueName}.`,
+      `The jury vote is final. ${winnerLabel} has been crowned Sole Survivor.`,
+      `Votes submitted: ${result.state.votesSubmitted ?? 0} of ${result.state.votesRequired ?? 0}.`,
+    ].join(' ')
+
+    await queueLeagueEventVideo({
+      userId,
+      leagueId,
+      leagueName,
+      sport: String(league?.sport ?? 'nfl'),
+      title: `${leagueName} · Survivor Winner Reveal`,
+      script,
+      contentType: 'championship_recap',
+      eventType: 'survivor_winner_reveal',
+      eventPayload: {
+        week,
+        winnerRosterId,
+        winnerLabel,
+        votesSubmitted: result.state.votesSubmitted,
+        votesRequired: result.state.votesRequired,
+      },
+    })
   }
 
   return NextResponse.json({

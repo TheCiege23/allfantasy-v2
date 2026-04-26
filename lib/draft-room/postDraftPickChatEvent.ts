@@ -21,6 +21,16 @@ export type PostDraftPickChatEventInput = {
   playerId?: string | null
   /** NFL team abbreviation when known */
   nflTeam?: string | null
+  /** D.6.3 — player headshot URL (from DraftPick.playerImageUrl). Optional;
+   * the wire format and the renderer both gracefully degrade to initials. */
+  headshotUrl?: string | null
+  /** D.6.3 — NFL team logo URL when callers have one resolved.
+   * Caller-provided so this module stays free of asset-resolution side effects;
+   * the renderer falls back to displaying the team abbreviation when null. */
+  teamLogoUrl?: string | null
+  /** D.6.3 — true when this pick was made by an AI / autopick manager
+   * (drives the "AI Manager" badge on the pick card). */
+  aiManager?: boolean
 }
 
 async function resolveActorAppUserId(input: PostDraftPickChatEventInput): Promise<string | null> {
@@ -73,6 +83,16 @@ export async function postDraftPickChatEvent(input: PostDraftPickChatEventInput)
       ...(input.roundSlot != null ? { roundSlot: input.roundSlot, slot: input.roundSlot } : {}),
       ...(typeof input.playerId === 'string' && input.playerId.trim() ? { playerId: input.playerId.trim() } : {}),
       ...(typeof input.nflTeam === 'string' && input.nflTeam.trim() ? { nflTeam: input.nflTeam.trim() } : {}),
+      // D.6.3 — pick chat card metadata. headshot + team logo are persisted on
+      // the chat row so historical picks rehydrate correctly across reloads;
+      // aiManager flips the badge on the rendered card.
+      ...(typeof input.headshotUrl === 'string' && input.headshotUrl.trim()
+        ? { headshotUrl: input.headshotUrl.trim() }
+        : {}),
+      ...(typeof input.teamLogoUrl === 'string' && input.teamLogoUrl.trim()
+        ? { teamLogoUrl: input.teamLogoUrl.trim() }
+        : {}),
+      ...(input.aiManager === true ? { aiManager: true } : {}),
     },
   })
 }

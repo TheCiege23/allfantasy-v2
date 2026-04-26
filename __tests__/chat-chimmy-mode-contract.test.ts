@@ -1,0 +1,57 @@
+import { describe, expect, it } from 'vitest'
+
+import {
+  buildChimmyResponseForAssistantMode,
+  normalizeChimmyAssistantMode,
+} from '@/lib/chimmy-chat/assistant-mode'
+
+describe('Chimmy assistant mode contract', () => {
+  it('normalizes missing mode to fast_take', () => {
+    expect(normalizeChimmyAssistantMode(undefined)).toBe('fast_take')
+    expect(normalizeChimmyAssistantMode(null)).toBe('fast_take')
+    expect(normalizeChimmyAssistantMode('')).toBe('fast_take')
+  })
+
+  it('normalizes invalid mode to fast_take', () => {
+    expect(normalizeChimmyAssistantMode('invalid_mode')).toBe('fast_take')
+  })
+
+  it('accepts canonical modes unchanged', () => {
+    expect(normalizeChimmyAssistantMode('fast_take')).toBe('fast_take')
+    expect(normalizeChimmyAssistantMode('deep_analysis')).toBe('deep_analysis')
+    expect(normalizeChimmyAssistantMode('commissioner_view')).toBe('commissioner_view')
+    expect(normalizeChimmyAssistantMode('dynasty_lens')).toBe('dynasty_lens')
+    expect(normalizeChimmyAssistantMode('dfs_upside')).toBe('dfs_upside')
+  })
+
+  it('maps legacy mode words to canonical assistant modes', () => {
+    expect(normalizeChimmyAssistantMode('fast strategy')).toBe('fast_take')
+    expect(normalizeChimmyAssistantMode('deep dive')).toBe('deep_analysis')
+    expect(normalizeChimmyAssistantMode('commish tools')).toBe('commissioner_view')
+    expect(normalizeChimmyAssistantMode('dynasty')).toBe('dynasty_lens')
+    expect(normalizeChimmyAssistantMode('dfs optimizer')).toBe('dfs_upside')
+  })
+
+  it('fast_take response is shorter than deep_analysis for same content', () => {
+    const fullResponse = [
+      'Start Player A this week based on projected target share and red-zone usage.',
+      'Data: 28% target share over the last 3 games, opponent allows 17.2 fantasy points to WRs, and your alternate option has a tougher cornerback matchup.',
+      'Action: lock Player A in WR2 and monitor Sunday inactives 90 minutes before kickoff.',
+    ].join('\n\n')
+
+    const fastTake = buildChimmyResponseForAssistantMode({
+      mode: 'fast_take',
+      fullResponse,
+      shortAnswer: 'Start Player A this week.',
+    })
+    const deepAnalysis = buildChimmyResponseForAssistantMode({
+      mode: 'deep_analysis',
+      fullResponse,
+      shortAnswer: 'Start Player A this week.',
+    })
+
+    expect(fastTake.length).toBeLessThan(deepAnalysis.length)
+    expect(fastTake).toBe('Start Player A this week.')
+    expect(deepAnalysis).toBe(fullResponse)
+  })
+})

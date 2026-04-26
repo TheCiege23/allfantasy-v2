@@ -109,7 +109,7 @@ function ChimmyLeagueContextBar({
 }: {
   leagues: UserLeague[]
   activeLeagueId: string | null
-  onSelect: (id: string) => void
+  onSelect: (id: string | null) => void
 }) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -124,8 +124,8 @@ function ChimmyLeagueContextBar({
     return () => document.removeEventListener('mousedown', close)
   }, [])
 
-  const active = leagues.find((l) => l.id === activeLeagueId) ?? leagues[0]
-  if (!active) return null
+  const active = leagues.find((l) => l.id === activeLeagueId) ?? null
+  if (leagues.length === 0) return null
 
   return (
     <div ref={wrapRef} className="relative">
@@ -137,8 +137,13 @@ function ChimmyLeagueContextBar({
         }}
         className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.06] px-2.5 py-1 text-[14px] font-bold text-white/90"
       >
-        <LeagueAvatar league={active} size={22} />
-        <span className="min-w-0 flex-1 truncate text-left">{active.name}</span>
+        {active ? <LeagueAvatar league={active} size={22} /> : null}
+        <span className="min-w-0 flex-1 truncate text-left">{active?.name ?? 'All leagues'}</span>
+        {!active ? (
+          <span className="rounded-full border border-cyan-400/30 bg-cyan-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-200">
+            Global
+          </span>
+        ) : null}
         {leagues.length > 1 ? (
           <ChevronDown
             className={`h-3.5 w-3.5 shrink-0 text-white/45 transition-transform ${open ? 'rotate-180' : ''}`}
@@ -151,6 +156,22 @@ function ChimmyLeagueContextBar({
           className="absolute bottom-full left-0 z-50 mb-1 max-h-64 min-w-[200px] overflow-y-auto rounded-xl border border-white/[0.1] bg-[#0c0c1e] py-1 shadow-lg"
           role="listbox"
         >
+          <button
+            type="button"
+            role="option"
+            aria-selected={activeLeagueId == null}
+            onClick={() => {
+              onSelect(null)
+              setOpen(false)
+            }}
+            className={`flex w-full min-w-0 items-center gap-2 px-3 py-2 text-left text-[14px] font-bold transition-colors hover:bg-white/[0.06] ${
+              activeLeagueId == null
+                ? 'bg-cyan-500/15 text-cyan-200'
+                : 'text-white/80'
+            }`}
+          >
+            <span className="min-w-0 flex-1 truncate">All leagues</span>
+          </button>
           {leagues.map((l) => (
             <button
               key={l.id}
@@ -517,7 +538,7 @@ export function LeftChatPanel({
     if (activeLeagueIdProp) return
     setActiveChimmyLeagueId((prev) => {
       if (prev && leagues.some((l) => l.id === prev)) return prev
-      return leagues[0]?.id ?? null
+      return null
     })
   }, [leagues, activeLeagueIdProp])
 
@@ -533,7 +554,7 @@ export function LeftChatPanel({
   }, [activeLeagueIdProp, leagues])
 
   const activeChimmyLeague =
-    leagues.find((l) => l.id === activeChimmyLeagueId) ?? leagues[0] ?? null
+    leagues.find((l) => l.id === activeChimmyLeagueId) ?? null
 
   const { voiceId: selectedVoiceId, setVoiceId: handleVoiceChange } = useChimmyTtsVoiceSync()
 

@@ -12,6 +12,8 @@ import { getAiAdpForLeague } from '@/lib/ai-adp-engine'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { prisma } from '@/lib/prisma'
 import { resolveAiAdpFormatKeyFromSettings } from '@/lib/ai-adp-engine/segment-resolver'
+import { readAllFantasyAdpForLeague } from '@/lib/adp/readSnapshotForLeague'
+import type { DraftMode } from '@/lib/adp/computeAllFantasyAdp'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,6 +50,51 @@ export async function GET(
   const isDynasty = !!league.isDynasty
   const settings = (league.settings as Record<string, unknown>) ?? {}
   const formatKey = resolveAiAdpFormatKeyFromSettings(settings)
+
+  /**
+   * D.5-test — optional new-table source. Pass `?source=allfantasy` to read from
+   * the AllFantasyAdpSnapshot pipeline (fed by scripts/recompute-allfantasy-adp.ts).
+   * Pass `?draftMode=test` to surface seeded harness data for validation.
+   *
+   * Default behavior is unchanged: the legacy `getAiAdpForLeague` path runs and
+   * the production AI ADP keeps flowing exactly as before.
+   */
+  const sourceParam = req.nextUrl.searchParams?.get('source')?.toLowerCase()
+  const draftModeParam = req.nextUrl.searchParams?.get('draftMode')?.toLowerCase() as DraftMode | undefined
+  if (sourceParam === 'allfantasy') {
+    const draftMode: DraftMode =
+      draftModeParam === 'test' || draftModeParam === 'mock' ? draftModeParam : 'real'
+    const af = await readAllFantasyAdpForLeague(leagueId, { draftMode })
+    return NextResponse.json({
+      enabled,
+      source: 'allfantasy',
+      draftMode,
+      contextHash: af.contextHash,
+      entries: af.entries.map((e) => ({
+        playerName: e.playerName,
+        position: e.position,
+        team: e.team,
+        adp: e.adp,
+        sampleSize: e.sampleSize,
+        lowSample: e.lowSample,
+        sevenDayTrend: e.sevenDayTrend,
+        thirtyDayTrend: e.thirtyDayTrend,
+      })),
+      totalDrafts: af.totalDrafts,
+      totalPicks: 0,
+      computedAt: af.computedAt?.toISOString() ?? null,
+      segment: null,
+      lowSampleThreshold: 10,
+      stale: af.computedAt == null,
+      ageHours: af.computedAt
+        ? Math.round((Date.now() - af.computedAt.getTime()) / (60 * 60 * 1000))
+        : null,
+      message:
+        af.entries.length === 0
+          ? 'No AllFantasy AI ADP snapshot for this context yet. Run `npm run recompute:allfantasy-adp -- --apply` after seeding/collecting drafts.'
+          : null,
+    })
+  }
 
   const result = await getAiAdpForLeague(sport, isDynasty, formatKey)
   if (!result) {

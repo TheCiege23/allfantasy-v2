@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMe
 import Link from 'next/link'
 import { Send, Image as ImageIcon, Loader2, X, RefreshCw, Volume2, History, Save } from 'lucide-react'
 import { toast } from 'sonner'
-import { getDefaultChimmyChips, type ChimmyVoicePreset } from '@/lib/chimmy-interface'
+import { type ChimmyVoicePreset } from '@/lib/chimmy-interface'
 import {
   getAIThreadStorageKey,
   loadAIThreadMessages,
@@ -16,10 +16,11 @@ import type { AIChatContext } from '@/lib/chimmy-chat'
 import { loadChimmyConversation } from '@/lib/chimmy-conversation-service'
 import ChimmyMessageBubble, { type ChimmyMessageMeta } from './ChimmyMessageBubble'
 import ChimmyConversationThread from './ChimmyConversationThread'
-import ChimmyQuickPrompts from './ChimmyQuickPrompts'
+import ChimmyIntentChips from './ChimmyIntentChips'
 import ChimmyToolContext from './ChimmyToolContext'
 import ChimmyProviderIndicator from './ChimmyProviderIndicator'
 import ChimmyVoiceReadyControls from './ChimmyVoiceReadyControls'
+import ChimmyAssistantModeSelector from './ChimmyAssistantModeSelector'
 import SaveConversationDialog from './SaveConversationDialog'
 import ConversationHistorySidebar from './ConversationHistorySidebar'
 import { InContextMonetizationCard } from '@/components/monetization/InContextMonetizationCard'
@@ -28,6 +29,7 @@ import {
   CHIMMY_GENERIC_ERROR_MESSAGE,
   CHIMMY_PREMIUM_CTA_LABEL,
 } from '@/lib/chimmy-chat/response-copy'
+import { getChimmyFeatureFlags } from '@/lib/chimmy-chat/feature-flags'
 import {
   getVoiceConfig,
   playChimmyVoice,
@@ -38,6 +40,18 @@ import {
 import { DEFAULT_VOICE_ID, getChimmyVoiceLabel, readStoredChimmyVoiceId } from '@/lib/tts/voices'
 import { triggerChimmyVoiceListenNudge } from '@/lib/chimmy-chat/voiceEngagementNudge'
 import { normalizeToSupportedSport, SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope'
+import { useChimmyAutoTradeEval } from '@/hooks/useChimmyAutoTradeEval'
+import {
+  trackChimmyAIEvent,
+  trackChimmyModeChangeEvent,
+} from '@/lib/chimmy-chat/analytics-events-client'
+import { buildChimmyFeedbackEvent } from '@/lib/chimmy-chat/feedback-events'
+import {
+  DEFAULT_CHIMMY_ASSISTANT_MODE,
+  normalizeChimmyAssistantMode,
+  type ChimmyAssistantMode,
+} from '@/lib/chimmy-chat/assistant-mode'
+import type { ChimmyFollowUpChip } from '@/lib/chimmy-chat/smart-followups'
 
 export type ChimmyChatMessage = {
   id: string
@@ -185,11 +199,39 @@ export default function ChimmyChatShell({
   const [showHistorySidebar, setShowHistorySidebar] = useState(false)
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [isLoadingConversation, setIsLoadingConversation] = useState(false)
+  const [feedbackByMessageId, setFeedbackByMessageId] = useState<Record<string, 'helpful' | 'unhelpful'>>({})
+  const [assistantMode, setAssistantMode] = useState<ChimmyAssistantMode>(() =>
+    normalizeChimmyAssistantMode(strategyMode ?? DEFAULT_CHIMMY_ASSISTANT_MODE)
+  )
   const [scopeSport, setScopeSport] = useState<'all' | SupportedSport>(() =>
     sport ? resolveSportForAIChat(sport, null) : 'all'
   )
   const [scopeLeagueId, setScopeLeagueId] = useState<'all' | string>(() => leagueId ?? 'all')
   const [leagues, setLeagues] = useState<Array<{ id: string; name: string | null; sport: string }>>([])
+
+  const {
+    autoTradeEvalEnabled,
+    toggleAutoTradeEval,
+    autoTradeEvalReady,
+  } = useChimmyAutoTradeEval({
+    onEvent: (event) => {
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === event.eventId)) return prev
+        return [
+          ...prev,
+          {
+            id: event.eventId,
+            role: 'assistant',
+            content: event.message,
+            meta: {
+              recommendedTool: 'trade_analyzer',
+              dataSources: ['auto_trade_eval'],
+            },
+          },
+        ]
+      })
+    },
+  })
 
   useLayoutEffect(() => {
     setElevenLabsVoiceId(readStoredChimmyVoiceId())
@@ -230,6 +272,7 @@ export default function ChimmyChatShell({
   const imageFileInputRef = useRef<HTMLInputElement>(null)
   const initialPromptApplied = useRef(false)
   const sendingRef = useRef(false)
+  const sendMessageRef = useRef<((overrideText?: string) => Promise<void>) | null>(null)
 
   const filteredLeagues = useMemo(() => {
     if (scopeSport === 'all') return leagues
@@ -249,15 +292,6 @@ export default function ChimmyChatShell({
     }
     return leagueName ?? undefined
   }, [scopeLeagueId, leagues, leagueName])
-
-  const suggestedChips = useMemo(
-    () =>
-      getDefaultChimmyChips({
-        leagueName: displayLeagueName ?? undefined,
-        hasLeagues: leagues.length > 0 || !!displayLeagueName,
-      }),
-    [displayLeagueName, leagues.length]
-  )
 
   const hasUserMessage = useMemo(() => messages.some((m) => m.role === 'user'), [messages])
   const lastAssistantMessage = useMemo(() => {
@@ -296,10 +330,12 @@ export default function ChimmyChatShell({
       conversationId: conversationId ?? undefined,
       privateMode,
       targetUsername: targetUsername ?? undefined,
-      strategyMode: strategyMode ?? undefined,
+      assistantMode,
+      strategyMode: assistantMode,
       source: source ?? (privateMode ? "messages_dm_ai" : "messages_ai"),
     }
   }, [
+    assistantMode,
     conversationId,
     insightType,
     leagues,
@@ -309,11 +345,20 @@ export default function ChimmyChatShell({
     season,
     sleeperUsername,
     source,
-    strategyMode,
     targetUsername,
     teamId,
     week,
   ])
+  const analyticsSurface = useMemo(() => {
+    const sourceKey = (requestContext.source ?? '').toLowerCase()
+    if (sourceKey.includes('war_room')) return 'war_room' as const
+    if (sourceKey.includes('draft')) return 'draft_room' as const
+    if (sourceKey.includes('waiver')) return 'waiver' as const
+    if (sourceKey.includes('trade')) return 'trade' as const
+    if (sourceKey.includes('player')) return 'player_profile' as const
+    return requestContext.leagueId ? ('league' as const) : ('dashboard' as const)
+  }, [requestContext.leagueId, requestContext.source])
+  const analyticsMode = assistantMode
   const threadStorageKey = useMemo(
     () =>
       getAIThreadStorageKey({
@@ -328,6 +373,23 @@ export default function ChimmyChatShell({
   )
 
   const canCompare = lastMeta && Object.keys(lastMeta).length > 1
+  const chimmyFeatureFlags = useMemo(() => getChimmyFeatureFlags(), [])
+
+  useEffect(() => {
+    if (!chimmyFeatureFlags.assistantModes) return
+    if (typeof window === 'undefined') return
+    const storageKey = `chimmy:assistant-mode:${threadStorageKey}`
+    const rawStored = window.sessionStorage.getItem(storageKey)
+    if (!rawStored) return
+    setAssistantMode(normalizeChimmyAssistantMode(rawStored))
+  }, [chimmyFeatureFlags.assistantModes, threadStorageKey])
+
+  useEffect(() => {
+    if (!chimmyFeatureFlags.assistantModes) return
+    if (typeof window === 'undefined') return
+    const storageKey = `chimmy:assistant-mode:${threadStorageKey}`
+    window.sessionStorage.setItem(storageKey, assistantMode)
+  }, [assistantMode, chimmyFeatureFlags.assistantModes, threadStorageKey])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -431,7 +493,11 @@ export default function ChimmyChatShell({
     recognition.onresult = (e: any) => {
       const t = e?.results?.[0]?.[0]?.transcript?.trim() || ''
       if (t) {
-        setInput((prev) => (prev.trim().length > 0 ? `${prev.trim()} ${t}` : t))
+        setInput(t)
+        const send = sendMessageRef.current
+        if (send) {
+          void send(t)
+        }
       }
     }
     recognitionRef.current = recognition
@@ -513,10 +579,90 @@ export default function ChimmyChatShell({
     [elevenLabsVoiceId, handleStopVoice, isVoicePlaying, ttsUnavailable, voiceConfig, voiceMessageId]
   )
 
-  const handleFollowUp = useCallback((prompt: string) => {
-    setInput(prompt)
+  const handleFollowUp = useCallback((chip: ChimmyFollowUpChip) => {
+    setInput(chip.prompt)
     setInlineError(null)
-  }, [])
+    if (!chimmyFeatureFlags.aiKpiEvents) return
+    void trackChimmyAIEvent({
+      event_name: 'followup_click',
+      league_id: requestContext.leagueId ?? null,
+      surface: analyticsSurface,
+      mode: analyticsMode,
+      topic: lastAssistantMessage?.meta?.answerContract?.answerType,
+      action: 'followup_prompt_selected',
+      timestamp: new Date().toISOString(),
+      metadata: {
+        promptLength: chip.prompt.length,
+        promptOrigin: chip.origin,
+        answerType: lastAssistantMessage?.meta?.answerContract?.answerType ?? null,
+        assistantMode: analyticsMode,
+        surface: analyticsSurface,
+        previousMessageId: lastAssistantMessage?.id ?? null,
+        source: requestContext.source ?? null,
+      },
+    }).catch(() => {})
+  }, [
+    analyticsMode,
+    analyticsSurface,
+    chimmyFeatureFlags.aiKpiEvents,
+    lastAssistantMessage,
+    requestContext.leagueId,
+    requestContext.source,
+  ])
+
+  const handleAssistantModeChange = useCallback((nextModeRaw: string) => {
+    const nextMode = normalizeChimmyAssistantMode(nextModeRaw)
+    if (nextMode === assistantMode) return
+    const previousMode = assistantMode
+    setAssistantMode(nextMode)
+
+    if (!chimmyFeatureFlags.aiKpiEvents) return
+
+    void trackChimmyModeChangeEvent({
+      leagueId: requestContext.leagueId ?? null,
+      surface: analyticsSurface,
+      mode: nextMode,
+      topic: lastAssistantMessage?.meta?.answerContract?.answerType,
+      action: 'assistant_mode_selected',
+      previousMode,
+    }).catch(() => {})
+  }, [
+    analyticsSurface,
+    assistantMode,
+    chimmyFeatureFlags.aiKpiEvents,
+    lastAssistantMessage,
+    requestContext.leagueId,
+  ])
+
+  const handleFeedbackSubmit = useCallback((args: { messageId: string; feedback: 'helpful' | 'unhelpful' }) => {
+    setFeedbackByMessageId((prev) => ({
+      ...prev,
+      [args.messageId]: args.feedback,
+    }))
+
+    if (!chimmyFeatureFlags.aiKpiEvents) return
+
+    const message = messages.find((m) => m.id === args.messageId)
+
+    void trackChimmyAIEvent(
+      buildChimmyFeedbackEvent({
+        messageId: args.messageId,
+        feedback: args.feedback,
+        leagueId: requestContext.leagueId ?? null,
+        surface: analyticsSurface,
+        mode: analyticsMode,
+        source: requestContext.source ?? null,
+        topic: message?.meta?.answerContract?.answerType,
+      })
+    ).catch(() => {})
+  }, [
+    analyticsMode,
+    analyticsSurface,
+    chimmyFeatureFlags.aiKpiEvents,
+    messages,
+    requestContext.leagueId,
+    requestContext.source,
+  ])
 
   const handleSpeechInputToggle = useCallback(() => {
     if (!enableSpeechInput) return
@@ -552,6 +698,22 @@ export default function ChimmyChatShell({
         role: 'user',
         content: outgoingText.trim() || 'Analyze this screenshot.',
         imageUrl: image ? null : undefined,
+      }
+      if (chimmyFeatureFlags.aiKpiEvents) {
+        void trackChimmyAIEvent({
+          event_name: 'message_send',
+          league_id: requestContext.leagueId ?? null,
+          surface: analyticsSurface,
+          mode: analyticsMode,
+          topic: undefined,
+          action: 'message_submit',
+          timestamp: new Date().toISOString(),
+          metadata: {
+            messageLength: outgoingText.trim().length,
+            hasImage: Boolean(image),
+            source: requestContext.source ?? null,
+          },
+        }).catch(() => {})
       }
       const assistantMessageId = createMessageId()
       let streamedAssistantHandled = false
@@ -602,10 +764,14 @@ export default function ChimmyChatShell({
         role: 'assistant',
         content: reply,
         meta: {
+          mode: result.meta?.mode,
+          answerContract: result.meta?.answerContract,
           confidencePct: result.meta?.confidencePct,
           providerStatus,
           recommendedTool: result.meta?.recommendedTool,
           dataSources: result.meta?.dataSources,
+          sourceLinks: result.meta?.sourceLinks,
+          syncFreshness: result.meta?.syncFreshness,
           quantData: result.meta?.quantData,
           trendData: result.meta?.trendData,
           responseStructure: result.meta?.responseStructure,
@@ -644,31 +810,52 @@ export default function ChimmyChatShell({
           assistantMsg.meta?.variant === 'error' ||
           !result.ok,
       })
+      if (chimmyFeatureFlags.aiKpiEvents) {
+        void trackChimmyAIEvent({
+          event_name: 'response_rendered',
+          league_id: requestContext.leagueId ?? null,
+          surface: analyticsSurface,
+          mode: analyticsMode,
+          topic: result.meta?.answerContract?.answerType,
+          action: result.ok ? 'response_success' : 'response_error',
+          timestamp: new Date().toISOString(),
+          metadata: {
+            responseLength: reply.length,
+            streamed: streamedAssistantHandled,
+            upgradeRequired: Boolean(result.upgradeRequired),
+            source: requestContext.source ?? null,
+          },
+        }).catch(() => {})
+      }
     },
-    [handlePlayVoice, requestContext, ttsUnavailable, voiceConfig]
+    [analyticsMode, analyticsSurface, chimmyFeatureFlags.aiKpiEvents, handlePlayVoice, requestContext, ttsUnavailable, voiceConfig]
   )
 
-  const sendMessage = useCallback(async () => {
-    if (!input.trim() && !imageFile) return
+  const sendMessage = useCallback(async (overrideText?: string | unknown) => {
+    const normalizedOverride = typeof overrideText === 'string' ? overrideText : undefined
+    const outgoingText = (normalizedOverride ?? input).trim()
+    const fromSpeech = normalizedOverride !== undefined
+    if (!outgoingText && !imageFile) return
     if (sendingRef.current) return
     sendingRef.current = true
 
     const priorThread = messages
-    const outgoingText = input.trim() || 'Analyze this screenshot.'
-    const outImage = imageFile
+    const outImage = fromSpeech ? null : imageFile
 
     const userMsg: ChimmyChatMessage = {
       id: createMessageId(),
       role: 'user',
       content: outgoingText,
-      imageUrl: imagePreview || null,
+      imageUrl: fromSpeech ? null : imagePreview || null,
     }
     setMessages((prev) => [...prev, userMsg])
     setInput('')
-    setImagePreview(null)
-    setImageFile(null)
-    if (imageFileInputRef.current) {
-      imageFileInputRef.current.value = ''
+    if (!fromSpeech) {
+      setImagePreview(null)
+      setImageFile(null)
+      if (imageFileInputRef.current) {
+        imageFileInputRef.current.value = ''
+      }
     }
     setIsTyping(true)
     setLastMeta(null)
@@ -693,6 +880,8 @@ export default function ChimmyChatShell({
       sendingRef.current = false
     }
   }, [input, imageFile, imagePreview, messages, runSend])
+
+  sendMessageRef.current = sendMessage
 
   const handleRetry = useCallback(async () => {
     const lastUserIdx = messages.map((m) => m.role).lastIndexOf('user')
@@ -804,7 +993,7 @@ export default function ChimmyChatShell({
       <header className="flex items-center justify-between gap-3 p-3 sm:p-4 border-b border-white/10 bg-white/[0.03]">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center text-lg shrink-0">
-            ✦
+            *
           </div>
           <div className="min-w-0">
             <h2 className="font-semibold text-white truncate">Chimmy</h2>
@@ -874,6 +1063,11 @@ export default function ChimmyChatShell({
       </header>
 
       <div className="flex flex-wrap items-end gap-2 px-3 py-2 border-b border-white/10 bg-[#0a1228]/90">
+        <ChimmyAssistantModeSelector
+          enabled={chimmyFeatureFlags.assistantModes}
+          value={assistantMode}
+          onChange={handleAssistantModeChange}
+        />
         <label className="flex flex-col gap-1 min-w-[120px] flex-1 sm:flex-none">
           <span className="text-[10px] uppercase tracking-wide text-white/45">Sport</span>
           <select
@@ -922,6 +1116,24 @@ export default function ChimmyChatShell({
         </label>
       </div>
 
+      <div className="flex items-center justify-between border-b border-white/10 bg-[#080f22] px-3 py-1.5 text-[11px] text-white/45">
+        <span>Auto trade eval</span>
+        <button
+          type="button"
+          onClick={toggleAutoTradeEval}
+          className={`rounded-md border px-2 py-0.5 transition ${
+            autoTradeEvalEnabled
+              ? 'border-cyan-400/30 bg-cyan-500/15 text-cyan-200'
+              : 'border-white/15 bg-white/[0.03] text-white/50'
+          }`}
+          aria-label="Toggle auto trade evaluation messages"
+          data-testid="chimmy-shell-auto-trade-eval-toggle"
+          disabled={!autoTradeEvalReady}
+        >
+          {autoTradeEvalEnabled ? 'On' : 'Off'}
+        </button>
+      </div>
+
       <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
         <InContextMonetizationCard
           title="Chimmy message access"
@@ -939,24 +1151,37 @@ export default function ChimmyChatShell({
           />
         )}
 
-        {messages.length <= 1 && suggestedChips.length > 0 && (
-          <ChimmyQuickPrompts
-            chips={suggestedChips}
-            onSelect={setInput}
-            maxVisible={4}
-          />
-        )}
+        <ChimmyIntentChips
+          enabled={chimmyFeatureFlags.intentChips}
+          hasUserMessage={hasUserMessage}
+          leagueId={requestContext.leagueId ?? null}
+          leagueName={displayLeagueName ?? null}
+          surface={analyticsSurface}
+          assistantMode={analyticsMode}
+          source={requestContext.source ?? null}
+          onSendPrompt={(prompt) => sendMessage(prompt)}
+          onTrackEvent={
+            chimmyFeatureFlags.aiKpiEvents
+              ? (event) => trackChimmyAIEvent(event)
+              : undefined
+          }
+          maxVisible={4}
+        />
 
         <ChimmyConversationThread
           messages={messages}
           isTyping={isTyping}
           onFollowUpClick={handleFollowUp}
+          onFeedbackSubmit={handleFeedbackSubmit}
+          feedbackByMessageId={feedbackByMessageId}
           onPlayVoice={handlePlayVoice}
           onVoiceEnabledToggle={handleVoiceToggle}
           voiceEnabled={voiceConfig.enabled}
           voiceLoadingId={ttsLoading ? voiceMessageId : null}
           voicePlayingId={isVoicePlaying ? voiceMessageId : null}
           voiceDisplayName={getChimmyVoiceLabel(elevenLabsVoiceId)}
+          showTrustPanel={chimmyFeatureFlags.trustPanel}
+          enableFollowUps={chimmyFeatureFlags.followups}
           className="chimmy-conversation-thread"
         />
       </div>

@@ -21,6 +21,12 @@ import { loadLeagueSnapshotForUser } from '@/lib/chimmy/chimmy-league-snapshot'
 import { resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
 import type { NormalizedLeagueContext } from '@/lib/league-context-engine/types'
 import { buildChimmySportDataDigest } from '@/lib/chimmy/chimmy-sport-data-digest'
+import {
+  buildChimmySourceReferences,
+  buildChimmyStalenessWarning,
+  detectManagerAmbiguity,
+  resolveChimmyLeagueSelection,
+} from '@/lib/chimmy/chimmy-league-resolution'
 import { enrichChatWithData } from '@/lib/chat-data-enrichment'
 import {
   buildBehaviorRulesPrompt,
@@ -51,6 +57,14 @@ import { buildC2CContextForChimmy } from '@/lib/merged-devy-c2c/ai/c2cContextFor
 import { buildSalaryCapContextForChimmy } from '@/lib/salary-cap/ai/salaryCapContextForChimmy'
 import { buildDynastyContextForChimmy } from '@/lib/dynasty-core/dynastyContextForChimmy'
 import { CHIMMY_GENERIC_ERROR_MESSAGE } from '@/lib/chimmy-chat/response-copy'
+import {
+  buildChimmyResponseForAssistantMode,
+  normalizeChimmyAssistantMode,
+} from '@/lib/chimmy-chat/assistant-mode'
+import { getChimmyFeatureFlags } from '@/lib/chimmy-chat/feature-flags'
+import { buildChimmyAnswerContract } from '@/lib/chimmy-chat/response-contract'
+import { persistChimmyAIAnalyticsEvent } from '@/lib/chimmy-chat/analytics-events'
+import { checkChimmyHallucination } from '@/lib/chimmy-chat/hallucination-guard'
 import { isSupabaseConfigured, supabase } from '@/lib/supabaseClient'
 import {
   TokenInsufficientBalanceError,
@@ -174,6 +188,7 @@ const MAX_CONVERSATION_CONTENT_CHARS = 4_000
 const MAX_GENERIC_FIELD_CHARS = 120
 const MAX_USERNAME_CHARS = 80
 const MAX_SOURCE_CHARS = 64
+const MAX_ASSISTANT_MODE_CHARS = 32
 const MAX_STRATEGY_MODE_CHARS = 48
 const MAX_SPORT_CHARS = 32
 const MAX_LEAGUE_FORMAT_CHARS = 48
@@ -182,6 +197,7 @@ const MAX_TONE_CHARS = 48
 const MAX_DETAIL_LEVEL_CHARS = 32
 const MAX_RISK_MODE_CHARS = 32
 const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024
+const CHIMMY_REFERENCE_TIMEZONE = 'America/New_York'
 const ALLOWED_SCREENSHOT_TYPES = new Set([
   'image/jpeg',
   'image/png',
@@ -236,6 +252,8 @@ const ChimmyFormSchema = z.object({
   sessionId: optionalTrimmedStringField(MAX_GENERIC_FIELD_CHARS),
   privateMode: booleanFormField,
   targetUsername: optionalTrimmedStringField(MAX_USERNAME_CHARS),
+  assistantMode: optionalTrimmedStringField(MAX_ASSISTANT_MODE_CHARS),
+  mode: optionalTrimmedStringField(MAX_ASSISTANT_MODE_CHARS),
   strategyMode: optionalTrimmedStringField(MAX_STRATEGY_MODE_CHARS),
   source: optionalTrimmedStringField(MAX_SOURCE_CHARS),
   leagueId: optionalTrimmedStringField(MAX_GENERIC_FIELD_CHARS),
@@ -481,6 +499,9 @@ function requiresLeagueGrounding(args: {
 }): boolean {
   const message = args.message.toLowerCase()
   const source = String(args.source ?? '').toLowerCase()
+  const hasGlobalSportContext = /\b(nfl|nba|mlb|nhl|ncaaf|ncaab|soccer|world\s+cup|champions\s+league|fifa|ncaa)\b/.test(
+    message
+  )
 
   if (args.teamId) return true
   if (args.insightType === 'trade' || args.insightType === 'waiver' || args.insightType === 'dynasty') {
@@ -490,9 +511,19 @@ function requiresLeagueGrounding(args: {
     return true
   }
   if (['trade', 'waiver', 'roster'].includes(args.intent)) return true
+  if (args.intent === 'draft' && /\b(draft order|draft time|in\s+.+\s+league|my\s+draft|our\s+draft)\b/.test(message)) {
+    return true
+  }
+  if (/\b(draft order|draft time|waiver|trade|in\s+.+\s+league)\b/.test(message)) {
+    return true
+  }
   if (/\b(my team|my roster|my lineup|our team|future|next season|for my team)\b/.test(message)) {
     return true
   }
+
+  // Global sports Q&A (schedule/scores/standings/historic facts) should not hard-require
+  // a league context, even when terms like "draft" are present (e.g. "when is the NFL draft?").
+  if (hasGlobalSportContext) return false
 
   return false
 }
@@ -852,6 +883,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     sessionId: formData.get('sessionId'),
     privateMode: formData.get('privateMode'),
     targetUsername: formData.get('targetUsername'),
+    assistantMode: formData.get('assistantMode'),
+    mode: formData.get('mode'),
     strategyMode: formData.get('strategyMode'),
     source: formData.get('source'),
     leagueId: formData.get('leagueId'),
@@ -889,9 +922,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     sessionId: rawSessionId,
     privateMode,
     targetUsername,
+    assistantMode,
+    mode,
     strategyMode,
     source,
-    leagueId,
+    leagueId: requestedLeagueId,
     sleeperUsername,
     teamId,
     sport: sportRaw,
@@ -904,12 +939,69 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     week,
     insightType,
     sportScope,
-    leagueName: leagueNameHint,
+    leagueName: requestedLeagueNameHint,
     conversation: parsedConversation,
     hasImage,
   } = parseResult.data
+  const selectedAssistantMode = normalizeChimmyAssistantMode(
+    mode ?? assistantMode ?? strategyMode ?? riskMode
+  )
+  let leagueId = requestedLeagueId ?? null
+  let leagueNameHint = requestedLeagueNameHint ?? null
   const conversation = parsedConversation.slice(-MAX_CONVERSATION_CONTEXT_TURNS)
   const imageFile = imageValidation.file
+
+  const initialIntent = classifyPecrIntent(message)
+  const leagueGroundingRequired = requiresLeagueGrounding({
+    message,
+    intent: initialIntent,
+    source,
+    teamId: teamId ?? undefined,
+    leagueId: leagueId ?? undefined,
+    insightType,
+  })
+
+  let accessibleLeaguesForUser: Array<{ id: string; teams: Array<{ ownerName: string; teamName: string }> }> = []
+  if (leagueGroundingRequired && !leagueId) {
+    try {
+      const selection = await resolveChimmyLeagueSelection({
+        userId,
+        message,
+        leagueNameHint,
+        threshold: 0.85,
+      })
+      accessibleLeaguesForUser = selection.leagues.map((league) => ({
+        id: league.id,
+        teams: league.teams,
+      }))
+
+      if (selection.kind === 'selected') {
+        leagueId = selection.leagueId
+        leagueNameHint = selection.matchedLabel
+      } else {
+        return NextResponse.json(
+          {
+            ...buildLeagueGroundingErrorPayload(),
+            details: {
+              message: selection.message,
+              choices: selection.choices,
+            },
+          },
+          { status: 412 }
+        )
+      }
+    } catch {
+      return NextResponse.json(
+        {
+          ...buildLeagueGroundingErrorPayload(),
+          details: {
+            message: 'I could not resolve league matches right now. Please include an exact league name.',
+          },
+        },
+        { status: 412 }
+      )
+    }
+  }
 
   const leagueSnapshot =
     leagueId && userId ? await loadLeagueSnapshotForUser(userId, leagueId).catch(() => null) : null
@@ -929,16 +1021,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     sportScope === 'all' && !leagueSnapshot ? 'all' : (sportExplicit ?? leagueSnapshot?.sport ?? DEFAULT_SPORT)
 
   const sport: SupportedSport = sportExplicit ?? leagueSnapshot?.sport ?? DEFAULT_SPORT
-  const effectiveStrategyMode = strategyMode ?? riskMode
-  const initialIntent = classifyPecrIntent(message)
-  const leagueGroundingRequired = requiresLeagueGrounding({
+  const effectiveStrategyMode = selectedAssistantMode
+
+  const selectedLeagueForManagerCheck =
+    leagueId != null ? accessibleLeaguesForUser.find((league) => league.id === leagueId) ?? null : null
+  const managerAmbiguity = detectManagerAmbiguity({
     message,
-    intent: initialIntent,
-    source,
-    teamId: teamId ?? undefined,
-    leagueId: leagueId ?? undefined,
-    insightType,
+    league: selectedLeagueForManagerCheck,
   })
+  if (managerAmbiguity.kind === 'ambiguous') {
+    return NextResponse.json(
+      {
+        error: managerAmbiguity.message,
+        details: {
+          managerOptions: managerAmbiguity.options,
+          token: managerAmbiguity.token,
+        },
+      },
+      { status: 412 }
+    )
+  }
+
   const conversationId = buildChimmyConversationId({
     userId,
     leagueId: leagueId ?? null,
@@ -966,6 +1069,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json(buildLeagueGroundingErrorPayload(), { status: 412 })
   }
 
+  const staleness = buildChimmyStalenessWarning({
+    lastSyncedAt: leagueSnapshot?.lastSyncedAt ?? null,
+    intent: initialIntent,
+  })
+  const sourceReferences = buildChimmySourceReferences({
+    leagueId: leagueId ?? null,
+    intent: initialIntent,
+  })
+
   const domainInput = [message, ...conversation.map((turn) => turn.content)].join(' ')
   if (!hasSportsContent(domainInput, hasImage)) {
     return NextResponse.json({
@@ -991,6 +1103,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const dataSources: string[] = []
+  let chimmySportDigestFreshness: {
+    overallLastSyncedAt: string | null
+    perSource: Record<string, string | null>
+  } | null = null
 
   const screenshotTask: Promise<string | undefined> =
     hasImage && imageFile
@@ -1035,7 +1151,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }),
   ])
   const userTemporalContext = buildUserTemporalContextForAI({
-    timezone: profileClock?.timezone,
+    timezone: CHIMMY_REFERENCE_TIMEZONE,
     preferredLanguage: profileClock?.preferredLanguage,
   })
   const personalizationDirectives = personalizationResult
@@ -1054,7 +1170,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     (personalizationResult?.effective.storyContentPreferences.includes('likes-humor')
       ? 'engaging'
       : 'professional')
-  const effectiveStrategyModeFinal = strategyMode ?? effectiveRiskMode ?? effectiveStrategyMode
+  const effectiveStrategyModeFinal = selectedAssistantMode
 
   const screenshotSummary = screenshotResult.status === 'fulfilled' ? screenshotResult.value : undefined
   const insightSummary = insightResult.status === 'fulfilled' ? insightResult.value?.summary : undefined
@@ -1087,6 +1203,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   })
 
   const combinedMemorySection = [memPrompt.contextBlock, memorySection, personalizationDirectives, chimmyOrchestrationPrompt]
+    .concat(
+      staleness.warning
+        ? [`## DATA FRESHNESS\n${staleness.warning}\nAlways include this warning when answering.`]
+        : [],
+      sourceReferences.length > 0
+        ? [
+            `## SOURCE REFERENCES\n${sourceReferences
+              .map((reference) => `- ${reference.label}: ${reference.href}`)
+              .join('\n')}\nReference these links in responses when relevant.`,
+          ]
+        : []
+    )
     .filter(Boolean)
     .join('\n\n')
   const promptPrelude = [userTemporalContext.promptLine, behaviorRulesBlock, memPrompt.systemBlock]
@@ -1098,6 +1226,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (memorySection) dataSources.push('ai_memory', 'chat_history')
   if (memPrompt.contextBlock) dataSources.push('working_memory')
   if (personalizationDirectives) dataSources.push('chimmy_personalization')
+  if (sourceReferences.length > 0) dataSources.push('league_source_references')
+  if (staleness.warning) dataSources.push('stale_data_warning')
   dataSources.push('chimmy_orchestration')
 
   const baseUserMessageBody = buildUserMessage({
@@ -1379,11 +1509,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             legacyEnrichment.status === 'fulfilled' ? legacyEnrichment.value.context : ''
 
           try {
-            const digest = await buildChimmySportDataDigest({ sport: digestSport })
+            const digest = await buildChimmySportDataDigest({
+              sport: digestSport,
+              question: planInput.message,
+              includeNewsApi: false,
+              timezone: CHIMMY_REFERENCE_TIMEZONE,
+            })
+            chimmySportDigestFreshness = digest.freshness
             if (digest.text) {
               legacyEnrichmentContext = legacyEnrichmentContext
-                ? `${legacyEnrichmentContext}\n\n## CHIMMY SPORT DATA DIGEST (deterministic DB + optional NewsAPI)\n${digest.text}`
-                : `## CHIMMY SPORT DATA DIGEST (deterministic DB + optional NewsAPI)\n${digest.text}`
+                ? `${legacyEnrichmentContext}\n\n## CHIMMY SPORT DATA DIGEST (deterministic DB-backed sports ingest)\n${digest.text}`
+                : `## CHIMMY SPORT DATA DIGEST (deterministic DB-backed sports ingest)\n${digest.text}`
             }
           } catch {
             /* non-fatal */
@@ -1662,17 +1798,56 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     )
 
     const pecrOutput = pecrResult.output
+    if (chimmySportDigestFreshness) {
+      dataSources.push('sports_digest_db')
+    }
     const displayExplanation = appendOrchestrationFooterIfMissing(
       pecrOutput.sanitizedAiExplanation || '',
       chimmyOrchestrationMeta
     )
-    const finalAnswer = [displayExplanation, pecrOutput.sanitizedActionPlan].filter(Boolean).join('\n\n')
-    const builtInRuleCheck = checkBehaviorRules(finalAnswer, {
+    const displayWithStaleness = staleness.warning
+      ? `${displayExplanation}\n\nData freshness: ${staleness.warning}`
+      : displayExplanation
+    const finalAnswer = [displayWithStaleness, pecrOutput.sanitizedActionPlan].filter(Boolean).join('\n\n')
+
+    // Anti-hallucination check — deterministic scan before the response reaches the client.
+    const hallucinationCheck = checkChimmyHallucination(finalAnswer, {
+      groundingText: combinedMemorySection,
+      hasLeagueContext: Boolean(leagueId),
+      userMessage: message,
+    })
+    if (!hallucinationCheck.safe) {
+      persistChimmyAIAnalyticsEvent({
+        event_name: 'contract_validation_failed',
+        user_id: userId ?? 'anonymous',
+        league_id: leagueId ?? null,
+        surface: 'chimmy_chat',
+        mode: selectedAssistantMode,
+        topic: null,
+        action: hallucinationCheck.action,
+        timestamp: new Date().toISOString(),
+        metadata: {
+          issueCount: hallucinationCheck.issues.length,
+          hardIssues: hallucinationCheck.issues.filter((i) => i.severity === 'hard').length,
+          softIssues: hallucinationCheck.issues.filter((i) => i.severity === 'soft').length,
+          kinds: [...new Set(hallucinationCheck.issues.map((i) => i.kind))],
+        },
+      }).catch(() => {})
+    }
+    // Use potentially annotated/replaced display text going forward.
+    const guardedAnswer = hallucinationCheck.displayText
+    const modeAdjustedAnswer = buildChimmyResponseForAssistantMode({
+      mode: selectedAssistantMode,
+      fullResponse: guardedAnswer,
+      shortAnswer: pecrOutput.responseStructure.shortAnswer,
+    })
+
+    const builtInRuleCheck = checkBehaviorRules(modeAdjustedAnswer, {
       input: message,
       featureName: 'chimmy',
       contextBlock: combinedMemorySection,
     })
-    const customViolations = checkCustomRules(finalAnswer, customRules)
+    const customViolations = checkCustomRules(modeAdjustedAnswer, customRules)
     const allRuleViolations = [...builtInRuleCheck.violations, ...customViolations]
 
     logRuleViolations(userId, 'chimmy', allRuleViolations, pecrResult.iterations).catch(() => {})
@@ -1699,15 +1874,70 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       }),
     })
 
+    const answerContractResult = buildChimmyAnswerContract({
+      message,
+      insightType: insightType ?? null,
+      specialistAgent,
+      confidencePct: pecrOutput.responseContract.confidence ?? null,
+      stalenessWarning: staleness.warning,
+      staleMinutes: staleness.staleMinutes ?? null,
+      thresholdMinutes: staleness.thresholdMinutes ?? null,
+      dataSources,
+      sourceLinks: sourceReferences,
+      hasLeagueContext: Boolean(leagueId),
+      responseStructure: {
+        shortAnswer: pecrOutput.responseStructure.shortAnswer,
+        whatDataSays: pecrOutput.responseStructure.whatDataSays,
+        whatItMeans: pecrOutput.responseStructure.whatItMeans,
+        recommendedAction: pecrOutput.responseStructure.recommendedAction,
+        caveats: pecrOutput.responseStructure.caveats,
+      },
+      followUps: chimmyOrchestrationMeta.followUps,
+    })
+    const answerContract = answerContractResult.contract
+    if (answerContractResult.fallbackUsed) {
+      persistChimmyAIAnalyticsEvent({
+        event_name: 'formatter_fallback_used',
+        user_id: userId ?? 'anonymous',
+        league_id: leagueId ?? null,
+        surface: 'chimmy_chat',
+        mode: selectedAssistantMode,
+        topic: null,
+        action: 'fallback_triggered',
+        timestamp: new Date().toISOString(),
+        metadata: {
+          fallbackReason: answerContractResult.fallbackReason ?? 'unknown',
+          insightType: insightType ?? null,
+          specialistAgent: specialistAgent ?? null,
+        },
+      }).catch(() => {})
+    }
+    const chimmyFeatureFlags = getChimmyFeatureFlags()
+
     const meta = {
       assistant: 'Chimmy',
       conversationId,
+      mode: selectedAssistantMode,
       agent: specialistAgent,
+      answerContract,
+      featureFlags: chimmyFeatureFlags,
       confidencePct: pecrOutput.responseContract.confidence ?? undefined,
       providerStatus: pecrOutput.providerStatus,
       recommendedTool: pecrOutput.recommendedTool,
       orchestration: chimmyOrchestrationMeta,
       dataSources: dataSources.length ? dataSources : undefined,
+      sourceLinks: sourceReferences.length > 0 ? sourceReferences : undefined,
+      staleness: {
+        staleMinutes: staleness.staleMinutes,
+        thresholdMinutes: staleness.thresholdMinutes,
+        warning: staleness.warning,
+      },
+      syncFreshness: chimmySportDigestFreshness
+        ? {
+            referenceTimezone: CHIMMY_REFERENCE_TIMEZONE,
+            sportsDigest: chimmySportDigestFreshness,
+          }
+        : undefined,
       tokenSpend: spendLedger && tokenPreview
         ? {
             ruleCode: tokenPreview.ruleCode,
@@ -1725,7 +1955,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     if (userId) {
-      const assistantResponse = displayExplanation || CHIMMY_GENERIC_ERROR_MESSAGE
+      const assistantResponse = modeAdjustedAnswer || CHIMMY_GENERIC_ERROR_MESSAGE
       recordAIResponse(sessionId, userId, assistantResponse, 0.6).catch(() => {})
       if (/start|sit|accept|decline|add|drop/i.test(assistantResponse)) {
         recordDecision(sessionId, userId, assistantResponse.slice(0, 200), 0.8).catch(() => {})
@@ -1769,8 +1999,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json(
       {
-        response: displayExplanation || CHIMMY_GENERIC_ERROR_MESSAGE,
+        response: modeAdjustedAnswer || CHIMMY_GENERIC_ERROR_MESSAGE,
         sessionId,
+        contract: answerContract,
         meta,
       },
       {

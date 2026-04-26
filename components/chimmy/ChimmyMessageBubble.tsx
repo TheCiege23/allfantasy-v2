@@ -1,30 +1,28 @@
 'use client'
 
 import React from 'react'
-import { Volume2, Square, Loader2 } from 'lucide-react'
+import { Volume2, Square, Loader2, ThumbsUp, ThumbsDown } from 'lucide-react'
 import type { ChimmyMessageMeta } from '@/lib/chimmy-chat/types'
 import { SuggestedActionRenderer } from '@/lib/chimmy-chat/SuggestedActionRenderer'
 import {
   buildChimmyCollapsedSummary,
   isLongChimmyResponse,
 } from '@/lib/chimmy-chat/presentation'
-import {
-  getConfidenceDisplayText,
-  getConfidenceFromApiResponse,
-  shouldShowConfidence,
-} from '@/lib/chimmy-interface'
+import { buildSmartFollowUpChips, type ChimmyFollowUpChip } from '@/lib/chimmy-chat/smart-followups'
 import ChimmyResponseStructure from './ChimmyResponseStructure'
 import { ChimmyOrchestrationPanel } from './ChimmyOrchestrationPanel'
+import ChimmyTrustPanel from './ChimmyTrustPanel'
 
 export type { ChimmyMessageMeta } from '@/lib/chimmy-chat/types'
 
 export interface ChimmyMessageBubbleProps {
+  messageId?: string
   role: 'user' | 'assistant'
   content: string
   imageUrl?: string | null
   meta?: ChimmyMessageMeta | null
-  onFollowUpClick?: (prompt: string) => void
-  followUpChips?: { label: string; prompt: string }[]
+  onFollowUpClick?: (chip: ChimmyFollowUpChip) => void
+  followUpChips?: ChimmyFollowUpChip[]
   showVoiceButton?: boolean
   onVoiceToggle?: () => void
   onVoiceEnabledToggle?: () => void
@@ -35,6 +33,10 @@ export interface ChimmyMessageBubbleProps {
   voiceDisplayName?: string
   /** When true, renders the corner voice badge (only on last assistant reply) */
   isLastAssistantMessage?: boolean
+  onFeedbackSubmit?: (args: { messageId: string; feedback: 'helpful' | 'unhelpful' }) => void
+  feedbackSelection?: 'helpful' | 'unhelpful' | null
+  showTrustPanel?: boolean
+  enableFollowUps?: boolean
 }
 
 function renderContentWithLinks(text: string) {
@@ -66,6 +68,7 @@ function renderContentWithLinks(text: string) {
 }
 
 export default function ChimmyMessageBubble({
+  messageId,
   role,
   content,
   imageUrl,
@@ -80,6 +83,10 @@ export default function ChimmyMessageBubble({
   voicePlaying = false,
   voiceDisplayName = 'Voice',
   isLastAssistantMessage = false,
+  onFeedbackSubmit,
+  feedbackSelection = null,
+  showTrustPanel = true,
+  enableFollowUps = true,
 }: ChimmyMessageBubbleProps) {
   const isUser = role === 'user'
   const responseStructure = !isUser ? meta?.responseStructure : undefined
@@ -99,27 +106,16 @@ export default function ChimmyMessageBubble({
       : !hasResponseStructure ||
         hasInlineLinks ||
         (content.trim().length > (responseStructure?.shortAnswer?.trim().length ?? 0) + 90)
-  const confidenceDisplay = !isUser
-    ? getConfidenceFromApiResponse({
-        confidencePct: meta?.confidencePct,
-        quantData: meta?.quantData as { confidencePct?: number } | undefined,
-      })
-    : null
+
 
   const mergedFollowUpChips = React.useMemo(() => {
-    const fromOrchestration =
-      meta?.orchestration?.followUps?.map((f) => ({ label: f.label, prompt: f.prompt })) ?? []
-    const fromProps = followUpChips ?? []
-    const seen = new Set<string>()
-    const out: { label: string; prompt: string }[] = []
-    for (const c of [...fromOrchestration, ...fromProps]) {
-      if (seen.has(c.prompt)) continue
-      seen.add(c.prompt)
-      out.push(c)
-      if (out.length >= 5) break
-    }
-    return out
-  }, [meta?.orchestration?.followUps, followUpChips])
+    return buildSmartFollowUpChips({
+      contractFollowUps: meta?.answerContract?.followUps,
+      orchestrationFollowUps: meta?.orchestration?.followUps,
+      fallbackFollowUps: followUpChips,
+      limit: 5,
+    })
+  }, [meta?.answerContract?.followUps, meta?.orchestration?.followUps, followUpChips])
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -205,24 +201,54 @@ export default function ChimmyMessageBubble({
           </div>
         )}
 
-        {!isUser && meta && (
-          <div className="mt-3 pt-3 border-t border-white/10 flex flex-wrap items-center gap-2">
-            {confidenceDisplay && shouldShowConfidence(confidenceDisplay) && (
-              <span className="text-[10px] uppercase tracking-wider text-white/50">
-                {getConfidenceDisplayText(confidenceDisplay)}
-              </span>
-            )}
-            {meta.dataSources && meta.dataSources.length > 0 && (
-              <span className="text-[10px] text-white/50">
-                Sources: {meta.dataSources.slice(0, 2).join(', ')}
-              </span>
-            )}
-          </div>
+        {!isUser && meta && showTrustPanel && (
+          <ChimmyTrustPanel
+            confidencePct={meta.confidencePct}
+            confidenceBlock={meta.answerContract?.confidence}
+            dataSources={meta.dataSources}
+            syncFreshness={meta.syncFreshness}
+            sourceLinks={meta.sourceLinks}
+          />
         )}
         {!isUser && <SuggestedActionRenderer content={content} />}
 
         {!isUser && meta?.orchestration && (
           <ChimmyOrchestrationPanel orchestration={meta.orchestration} />
+        )}
+
+        {!isUser && isLastAssistantMessage && onFeedbackSubmit && messageId && (
+          <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3">
+            <button
+              type="button"
+              data-testid="chimmy-feedback-helpful"
+              data-selected={feedbackSelection === 'helpful' ? 'true' : 'false'}
+              onClick={() => onFeedbackSubmit({ messageId, feedback: 'helpful' })}
+              className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition ${
+                feedbackSelection === 'helpful'
+                  ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-100'
+                  : 'border-white/20 bg-white/5 text-white/70 hover:bg-white/10'
+              }`}
+              aria-label="Mark response as helpful"
+            >
+              <ThumbsUp className="h-3.5 w-3.5" />
+              Helpful
+            </button>
+            <button
+              type="button"
+              data-testid="chimmy-feedback-unhelpful"
+              data-selected={feedbackSelection === 'unhelpful' ? 'true' : 'false'}
+              onClick={() => onFeedbackSubmit({ messageId, feedback: 'unhelpful' })}
+              className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition ${
+                feedbackSelection === 'unhelpful'
+                  ? 'border-amber-300/40 bg-amber-500/15 text-amber-100'
+                  : 'border-white/20 bg-white/5 text-white/70 hover:bg-white/10'
+              }`}
+              aria-label="Mark response as unhelpful"
+            >
+              <ThumbsDown className="h-3.5 w-3.5" />
+              Unhelpful
+            </button>
+          </div>
         )}
 
         {!isUser && showVoiceButton && onVoiceToggle && (
@@ -266,13 +292,13 @@ export default function ChimmyMessageBubble({
           </div>
         )}
 
-        {!isUser && mergedFollowUpChips.length > 0 && onFollowUpClick && (
+        {!isUser && enableFollowUps && mergedFollowUpChips.length > 0 && onFollowUpClick && (
           <div className="mt-3 flex flex-wrap gap-2">
             {mergedFollowUpChips.map((chip) => (
               <button
                 key={chip.prompt}
                 type="button"
-                onClick={() => onFollowUpClick(chip.prompt)}
+                onClick={() => onFollowUpClick(chip)}
                 data-testid={`chimmy-follow-up-chip-${chip.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
                 className="rounded-lg border border-white/20 bg-white/5 px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10 transition min-h-[36px]"
               >

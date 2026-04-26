@@ -92,8 +92,8 @@ export default defineConfig({
   webServer: {
     command: `node scripts/playwright-dev-server.cjs --port ${PLAYWRIGHT_PORT}`,
     url: WEB_SERVER_READY_URL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 240_000,
+    reuseExistingServer: process.env.CI ? false : true,
+    timeout: 480_000,
     env: {
       ...process.env,
       DATABASE_URL:

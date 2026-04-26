@@ -34,6 +34,13 @@ const DL_POSITIONS = new Set(['DE', 'DT'])
 const DB_POSITIONS = new Set(['CB', 'S', 'SS', 'FS'])
 /** IDP FLEX: any IDP position. */
 const IDP_FLEX_POSITIONS = new Set(['DE', 'DT', 'LB', 'CB', 'S', 'SS', 'FS'])
+/** Defense alias group — Sleeper / pool data emits 'DEF' for team defenses,
+ * but the standard NFL roster slot uses 'DST', and some legacy/external feeds
+ * use 'D/ST'. Treat all three as equivalent for the position pill so clicking
+ * either DEF or DST returns the same defense rows. (The eligible-position
+ * helper in lib/draft-room/draft-pool-eligible-positions.ts already collapses
+ * these aliases on the eligibility side.) */
+const DEFENSE_POSITIONS = new Set(['DEF', 'DST', 'D/ST'])
 
 /**
  * Filter players by position. Use 'All' for no filter; 'FLEX' for RB/WR/TE.
@@ -64,6 +71,12 @@ export function filterByPosition(
   }
   if (positionFilter === 'IDP FLEX') {
     return players.filter((p) => IDP_FLEX_POSITIONS.has(p.position?.toUpperCase() ?? ''))
+  }
+  // Defense alias group: clicking 'DEF' or 'DST' (or 'D/ST') all match the
+  // same defense rows. Without this, NFL leagues with a 'DST' starter slot
+  // produced an empty pool because the resolver emits 'DEF' for team defenses.
+  if (DEFENSE_POSITIONS.has(positionFilter.toUpperCase())) {
+    return players.filter((p) => DEFENSE_POSITIONS.has((p.position ?? '').toUpperCase()))
   }
   return players.filter((p) => p.position === positionFilter)
 }

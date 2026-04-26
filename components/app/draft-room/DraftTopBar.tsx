@@ -259,18 +259,75 @@ export function DraftTopBar({
       )
     }
 
-    if (draftStatus === 'paused' && isCommissioner && onResume) {
+    /**
+     * D.6.2 — top-middle slot is now ALWAYS a prominent timer pill (image 5 spec).
+     *   - In-progress draft: live countdown (urgent low-time treatment when ≤10s).
+     *   - Paused (commissioner): the pill itself is the click target — clicking it
+     *     resumes the draft, with a "Resume" badge so the action is still discoverable.
+     *   - Paused (non-commissioner): static label.
+     *   - Pre-draft / not running: shows status label.
+     *
+     * The legacy "RESUME DRAFT" button-shaped CTA is gone; the clock is the focal
+     * point and replaces it. Keeps the resume action one-click for commissioners.
+     */
+    const showLiveTimer =
+      timerStatus === 'running' || timerStatus === 'paused' || timerStatus === 'expired'
+    const isPausedCommissioner = draftStatus === 'paused' && isCommissioner && Boolean(onResume)
+
+    if (showLiveTimer || isPausedCommissioner) {
+      const handlePillClick = isPausedCommissioner ? onResume : undefined
+      const sharedPill = (
+        <>
+          <Clock className="h-5 w-5 shrink-0 opacity-90" />
+          <span data-testid="draft-topbar-clock-time">{timerDisplay}</span>
+          {isPausedCommissioner ? (
+            <span className="rounded border border-emerald-300/45 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-50">
+              Resume
+            </span>
+          ) : draftStatus === 'paused' ? (
+            <span className="rounded border border-white/15 bg-white/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/75">
+              Paused
+            </span>
+          ) : null}
+        </>
+      )
+      const pillClassName = `inline-flex min-h-[52px] items-center gap-3 rounded-full border px-6 py-3 text-2xl font-extrabold tabular-nums shadow-[0_10px_32px_rgba(0,0,0,0.4)] transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 ${
+        urgentLowTimer
+          ? 'animate-pulse border-rose-400/55 bg-gradient-to-br from-rose-500/30 to-amber-500/20 text-rose-50'
+          : draftStatus === 'paused'
+            ? 'border-emerald-400/45 bg-gradient-to-br from-emerald-500/25 to-emerald-600/15 text-emerald-50 hover:brightness-110'
+            : 'border-cyan-400/40 bg-gradient-to-br from-cyan-500/22 to-violet-600/15 text-cyan-50'
+      } ${
+        handlePillClick
+          ? 'cursor-pointer hover:shadow-[0_14px_40px_rgba(34,211,238,0.25)] active:scale-[0.98] disabled:opacity-55'
+          : 'cursor-default'
+      }`
+      if (handlePillClick) {
+        return (
+          <button
+            type="button"
+            onClick={handlePillClick}
+            disabled={commissionerLoading}
+            aria-label="Resume draft"
+            title="Click to resume draft"
+            data-testid={isPausedCommissioner ? 'draft-topbar-resume-draft' : 'draft-topbar-clock'}
+            data-paused={draftStatus === 'paused' ? 'true' : 'false'}
+            data-urgent={urgentLowTimer ? 'true' : 'false'}
+            className={pillClassName}
+          >
+            {sharedPill}
+          </button>
+        )
+      }
       return (
-        <button
-          type="button"
-          onClick={onResume}
-          disabled={commissionerLoading}
-          data-testid="draft-topbar-resume-draft"
-          className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-emerald-400/40 bg-gradient-to-br from-emerald-500/25 to-emerald-600/15 px-5 py-3 text-sm font-semibold text-emerald-100 shadow-[0_8px_28px_rgba(16,185,129,0.2)] transition duration-150 hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/50 active:scale-[0.98] disabled:opacity-55"
+        <div
+          data-testid="draft-topbar-clock"
+          data-paused={draftStatus === 'paused' ? 'true' : 'false'}
+          data-urgent={urgentLowTimer ? 'true' : 'false'}
+          className={pillClassName}
         >
-          <Sparkles className="h-4 w-4" />
-          RESUME DRAFT
-        </button>
+          {sharedPill}
+        </div>
       )
     }
 

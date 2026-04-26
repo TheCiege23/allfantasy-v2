@@ -1,16 +1,24 @@
-/** Map LeagueSettings.pickTimerPreset + custom value to seconds (clamped 10..604800). */
+/** Map LeagueSettings.pickTimerPreset + custom value to seconds (clamped 10..604800).
+ *
+ * Sources every preset key from the canonical `TIMER_PRESETS` list in
+ * `lib/draft/timer-presets.ts` so this module can never drift out of sync with
+ * the dropdown UI again. (Prior versions held a hand-maintained subset that
+ * was missing `10s`, `60s`, `1200s`, `2h`, `4h`, `6h`, etc., causing those
+ * preset keys to silently fall through to the 120-second default — and `off`
+ * was missing entirely, returning 120 instead of 0.)
+ *
+ * Contract:
+ *   - 'off'    → 0   (caller treats <= 0 as "no timer")
+ *   - 'custom' → clamped(pickTimerCustomValue, 10..604800), default 120
+ *   - any preset value listed in TIMER_PRESETS → its seconds
+ *   - unknown key → 120 (defensive default)
+ */
+
+import { TIMER_PRESETS } from '@/lib/draft/timer-presets'
+
 const PRESET_TO_SEC: Record<string, number> = {
-  '30s': 30,
-  '60s': 60,
-  '90s': 90,
-  '120s': 120,
-  '300s': 300,
-  '600s': 600,
-  '1800s': 1800,
-  '3600s': 3600,
-  '3h': 10800,
-  '8h': 28800,
-  '24h': 86400,
+  off: 0,
+  ...Object.fromEntries(TIMER_PRESETS.map((p) => [p.value, p.seconds])),
 }
 
 export function pickTimerSecondsFromLeagueSettings(

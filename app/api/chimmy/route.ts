@@ -77,6 +77,7 @@ const ChimmyJsonRequestSchema = z.object({
     sessionId: z.string().trim().min(1).max(120).optional(),
     privateMode: z.boolean().optional(),
     targetUsername: z.string().trim().min(1).max(80).optional(),
+    assistantMode: z.string().trim().min(1).max(32).optional(),
     strategyMode: z.string().trim().min(1).max(48).optional(),
     source: z.string().trim().min(1).max(64).optional(),
     leagueFormat: z.string().trim().min(1).max(48).optional(),
@@ -418,6 +419,10 @@ function buildForwardedRequest(req: NextRequest, payload: z.infer<typeof ChimmyJ
   }
   if (payload.userContext.targetUsername) {
     formData.append('targetUsername', payload.userContext.targetUsername)
+  }
+  if (payload.userContext.assistantMode) {
+    formData.append('assistantMode', payload.userContext.assistantMode)
+    formData.append('mode', payload.userContext.assistantMode)
   }
   if (payload.userContext.strategyMode) {
     formData.append('strategyMode', payload.userContext.strategyMode)

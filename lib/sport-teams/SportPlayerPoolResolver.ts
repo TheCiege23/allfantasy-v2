@@ -117,9 +117,17 @@ export async function getPlayerPoolForSport(
     where.OR = dbPositionFilters.map((p) => ({ position: p }))
   }
 
+  const requestedTake = options?.limit ?? 2000
+  let take = requestedTake
+  const countFn = (prisma.sportsPlayer as { count?: (args: { where: typeof where }) => Promise<number> }).count
+  if (typeof countFn === 'function') {
+    const totalMatching = await countFn.call(prisma.sportsPlayer, { where })
+    take = Math.min(requestedTake, Math.max(totalMatching, 0))
+  }
+
   const rows = await prisma.sportsPlayer.findMany({
     where,
-    take: options?.limit ?? 2000,
+    ...(take > 0 ? { take } : {}),
     orderBy: { name: 'asc' },
   })
 
@@ -144,7 +152,7 @@ export async function getPlayerPoolForSport(
     image_url: (r as { imageUrl?: string | null }).imageUrl ?? null,
   }))
 
-  const limit = options?.limit ?? 2000
+  const limit = requestedTake
   const canFallbackIdpFromIdentity =
     sport === 'NFL' &&
     (normalizedPositions == null || normalizedPositions.some((p) => ['DE', 'DT', 'LB', 'CB', 'S'].includes(p)))

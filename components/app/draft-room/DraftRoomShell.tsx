@@ -106,7 +106,14 @@ export function DraftRoomShell({
       (tab.id !== 'keepers' || keeperPanel)
   )
 
-  const premiumDesktop = layout === 'premium' && teamPanel && centerColumn
+  /**
+   * D.6 — when `layout='premium'` is set, we render the premium grid even if
+   * `teamPanel` is null. The previous behavior required `teamPanel` to be
+   * truthy, which was fine while the War Room lived in the left aside; D.6
+   * moves the War Room into a floating popup, so the left aside collapses
+   * and the centerColumn takes the full width.
+   */
+  const premiumDesktop = layout === 'premium' && Boolean(centerColumn)
   const centerMain = centerColumn ?? (
     <>
       <div className="min-h-0 flex-[3] overflow-hidden">{playerPanel}</div>
@@ -139,24 +146,57 @@ export function DraftRoomShell({
           {auctionStrip && (
             <div className="shrink-0 border-b border-white/8 bg-[#060d1f]">{auctionStrip}</div>
           )}
+          {/* D.6.2 — board zone grows when the bottom dock is collapsed.
+              Expanded:  ~52vh cap so dock has ~48vh; matches Sleeper proportions.
+              Collapsed: flex-1 — board fills the entire screen below the top bar. */}
           <div
-            className={`min-h-[160px] max-h-[min(42vh,520px)] shrink-0 overflow-auto overscroll-contain [overflow-anchor:none] border-b ${
+            className={cn(
+              'min-h-[160px] shrink-0 overflow-auto overscroll-contain [overflow-anchor:none] border-b',
+              bottomDockExpanded ? 'max-h-[min(52vh,640px)]' : 'min-h-0 max-h-[unset] flex-1',
               surfaceVariant === 'redraft_snake'
                 ? 'border-cyan-500/15 bg-[linear-gradient(180deg,rgba(8,18,36,0.98),rgba(4,9,17,0.99))] shadow-[inset_0_-1px_0_rgba(34,211,238,0.06)]'
-                : 'border-white/8 bg-[#050c1d]'
-            }`}
+                : 'border-white/8 bg-[#050c1d]',
+            )}
             data-testid="draft-premium-board-zone"
+            data-dock-expanded={bottomDockExpanded ? 'true' : 'false'}
           >
             {draftBoard}
           </div>
-          <div className="flex min-h-0 flex-1 overflow-hidden" data-testid="draft-premium-main-zones">
-            <aside
-              className={`w-[min(280px,22vw)] shrink-0 overflow-y-auto border-r bg-[#050c1d] ${
-                surfaceVariant === 'redraft_snake' ? 'border-cyan-500/10 shadow-[inset_-1px_0_0_rgba(34,211,238,0.05)]' : 'border-white/8'
-              }`}
+          {/* D.6.2 — collapse arrow toggle between the board and the dock.
+              Two stacked chevrons that flip direction based on state. Click → toggle. */}
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => persistBottomDock(!bottomDockExpanded)}
+              data-testid="draft-dock-collapse-toggle"
+              data-expanded={bottomDockExpanded ? 'true' : 'false'}
+              aria-expanded={bottomDockExpanded}
+              aria-label={bottomDockExpanded ? 'Collapse bottom dock' : 'Expand bottom dock'}
+              title={bottomDockExpanded ? 'Collapse bottom dock' : 'Expand bottom dock'}
+              className="absolute left-1/2 top-0 z-20 inline-flex h-8 w-12 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-white/15 bg-[#0a1228] text-white/85 shadow-[0_8px_22px_rgba(0,0,0,0.45)] transition hover:border-cyan-400/35 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
             >
-              {teamPanel}
-            </aside>
+              <ChevronUp className={cn('h-3 w-3', bottomDockExpanded ? 'opacity-90' : 'opacity-30')} />
+              <ChevronDown className={cn('h-3 w-3 -mt-0.5', bottomDockExpanded ? 'opacity-30' : 'opacity-90')} />
+            </button>
+          </div>
+          <div
+            className={cn(
+              'flex min-h-0 overflow-hidden',
+              bottomDockExpanded ? 'flex-1' : 'hidden',
+            )}
+            data-testid="draft-premium-main-zones"
+            data-dock-expanded={bottomDockExpanded ? 'true' : 'false'}
+          >
+            {teamPanel ? (
+              <aside
+                data-testid="draft-premium-team-aside"
+                className={`w-[min(280px,22vw)] shrink-0 overflow-y-auto border-r bg-[#050c1d] ${
+                  surfaceVariant === 'redraft_snake' ? 'border-cyan-500/10 shadow-[inset_-1px_0_0_rgba(34,211,238,0.05)]' : 'border-white/8'
+                }`}
+              >
+                {teamPanel}
+              </aside>
+            ) : null}
             <div
               className={`flex min-w-0 flex-1 flex-col overflow-hidden border-r bg-[#060d1e] ${
                 surfaceVariant === 'redraft_snake' ? 'border-cyan-500/10' : 'border-white/8'
@@ -230,7 +270,13 @@ export function DraftRoomShell({
 
       {/* Mobile */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:hidden" data-testid="draft-mobile-layout">
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+        {/*
+          F.2 — mobile pane uses `overflow-y-auto` (NOT `overflow-auto`) so wide
+          children like the Sleeper player table and the snake draft board can't
+          bleed horizontal scroll out to the whole page. Each individual wide
+          panel wraps its own children in `overflow-x-auto` containers below.
+        */}
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
           {mobileStickyBar && (
             <div className="sticky top-0 z-10 shrink-0 border-b border-white/10 bg-[#040915]/95 backdrop-blur-sm">
               {mobileStickyBar}
@@ -239,9 +285,32 @@ export function DraftRoomShell({
           {auctionStrip && mobileTab === 'board' && (
             <div className="shrink-0 border-b border-white/10 bg-[#050c1d]">{auctionStrip}</div>
           )}
-          <div key={mobileTab} className="min-h-[220px] p-3 text-sm transition-opacity duration-150 sm:p-3.5">
-            {mobileTab === 'board' && draftBoard}
-            {mobileTab === 'players' && playerPanel}
+          <div
+            key={mobileTab}
+            className="min-h-[220px] min-w-0 p-3 text-sm transition-opacity duration-150 sm:p-3.5"
+            data-testid="draft-mobile-content"
+            data-active-tab={mobileTab}
+          >
+            {/* F.2 — Board and Players are the only tabs whose internal content
+                exceeds typical mobile widths (snake grid + 18-column table).
+                Wrapping them in their own `overflow-x-auto min-w-0` container
+                keeps the horizontal scroll INSIDE the tab pane. */}
+            {mobileTab === 'board' && (
+              <div
+                className="min-w-0 overflow-x-auto overscroll-x-contain"
+                data-testid="draft-mobile-board-scroll"
+              >
+                {draftBoard}
+              </div>
+            )}
+            {mobileTab === 'players' && (
+              <div
+                className="min-w-0 overflow-x-auto overscroll-x-contain"
+                data-testid="draft-mobile-players-scroll"
+              >
+                {playerPanel}
+              </div>
+            )}
             {mobileTab === 'queue' && queuePanel}
             {mobileTab === 'chat' && chatPanel}
             {helperPanel && mobileTab === 'helper' && helperPanel}

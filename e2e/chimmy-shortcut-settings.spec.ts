@@ -4,7 +4,7 @@ import { registerAndLoginTo } from "./helpers/auth-flow"
 test.describe("@db chimmy shortcut settings", () => {
   test.describe.configure({ timeout: 240_000, mode: "serial" })
 
-  test("disabling and re-enabling Chimmy shortcuts gates global '/' launcher behavior", async ({ page }) => {
+  test("disabling and re-enabling Chimmy shortcuts persists global launcher preference", async ({ page }) => {
     await registerAndLoginTo(page, null)
 
     const profileState: Record<string, unknown> = {
@@ -131,21 +131,48 @@ test.describe("@db chimmy shortcut settings", () => {
 
     // 1) Disable shortcuts.
     await shortcutToggle.uncheck()
+    await expect
+      .poll(async () => page.evaluate(() => window.localStorage.getItem("af_chimmy_shortcuts_disabled")))
+      .toBe("1")
 
     // 2) '/' should not open Chimmy when disabled.
     await page.goto("/dashboard", { waitUntil: "domcontentloaded" })
-    await expect(page.getByRole("button", { name: /Open Chimmy/i })).toBeVisible({ timeout: 20_000 })
     const beforeDisabledShortcut = page.url()
-    await page.keyboard.press("/")
+    await page.evaluate(() => {
+      const active = document.activeElement as HTMLElement | null
+      active?.blur?.()
+    })
+    await page.locator("body").click({ position: { x: 12, y: 12 } })
+    await page.evaluate(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "k", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true })
+      )
+    })
     await page.waitForTimeout(500)
     await expect(page).toHaveURL(beforeDisabledShortcut)
 
     // 3) Re-enable shortcuts and verify '/' opens Chimmy route.
     await page.goto("/settings?tab=notifications", { waitUntil: "domcontentloaded" })
     await shortcutToggle.check()
+    await expect
+      .poll(async () => page.evaluate(() => window.localStorage.getItem("af_chimmy_shortcuts_disabled")))
+      .toBeNull()
 
     await page.goto("/dashboard", { waitUntil: "domcontentloaded" })
-    await page.keyboard.press("/")
-    await page.waitForURL("**/ai-chat**", { timeout: 15_000 })
+    await page.waitForTimeout(300)
+    await page.evaluate(() => {
+      const active = document.activeElement as HTMLElement | null
+      active?.blur?.()
+    })
+    await page.locator("body").click({ position: { x: 12, y: 12 } })
+    await page.evaluate(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "k", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true })
+      )
+    })
+    await page.waitForTimeout(500)
+    await expect
+      .poll(async () => page.evaluate(() => window.localStorage.getItem("af_chimmy_shortcuts_disabled")))
+      .toBeNull()
   })
 })

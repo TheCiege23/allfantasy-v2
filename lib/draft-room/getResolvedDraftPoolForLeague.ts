@@ -4,6 +4,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { classifyAvatarSource } from '@/lib/draft-room/classify-avatar-source'
 import { getLiveADP } from '@/lib/adp-data'
 import { getPlayerPoolForLeague } from '@/lib/sport-teams/SportPlayerPoolResolver'
 import { normalizePlayerList, type NormalizedDraftEntry } from '@/lib/draft-asset-pipeline'
@@ -32,6 +33,7 @@ import {
   emptyNflDraftProjectionSplits,
   type NflDraftProjectionSplits,
 } from '@/lib/draft/analytics/nfl-draft-pool-projection-splits'
+import { loadNflRookieLookup, lookupYearsExp, type NflRookieLookup } from '@/lib/draft-room/nflRookieLookup'
 
 const DEFAULT_LIMIT = 300
 const DEVY_POOL_LIMIT = 200
@@ -79,6 +81,9 @@ export type DraftPoolRawRow = {
   fantasyPointsPerGame?: number | null
   lifetimeValue?: number | null
   nflDraftProjectionSplits?: NflDraftProjectionSplits
+  /** D.7 — Sleeper years_exp; 0 = rookie. Only attached for NFL pools. */
+  yearsExp?: number | null
+  isRookie?: boolean | null
 }
 
 export type GetResolvedDraftPoolOptions = {
@@ -126,7 +131,9 @@ function normalizeKeyPart(value: string | null | undefined): string {
 }
 
 function poolMergeCap(limit: number): number {
-  return Math.min(2200, Math.max(limit, 800))
+  // Must exceed ADP seed + essentially all SportsPlayer rows for NFL; otherwise
+  // merge stops early and deep roster + K/DST never surface in the draft room.
+  return Math.min(25_000, Math.max(limit * 14, 6000))
 }
 
 function enrichRawRowFromDbPool(existing: DraftPoolRawRow, p: SportPoolRow): void {
@@ -245,6 +252,10 @@ export async function getResolvedDraftPoolForLeague(
         leagueVariant: true,
         settings: true,
         starters: true,
+        season: true,
+        scoring: true,
+        isDynasty: true,
+        leagueSize: true,
         leagueSettings: { select: { draftType: true } },
       },
     }),
@@ -275,8 +286,12 @@ export async function getResolvedDraftPoolForLeague(
 
   type RawRow = DraftPoolRawRow
   let rawList: RawRow[] = []
+  const poolFetchLimit =
+    sport === 'NFL'
+      ? Math.min(50_000, Math.max(limit * 12, 16_000))
+      : Math.min(Math.max(limit * 4, 800), 2200)
   const poolRows = await getPlayerPoolForLeague(leagueId, sport, {
-    limit: Math.min(Math.max(limit * 4, 800), 2200),
+    limit: poolFetchLimit,
   }).catch(() => [] as Array<{
     full_name: string
     position: string
@@ -333,7 +348,7 @@ export async function getResolvedDraftPoolForLeague(
       seenAuction,
     )
   } else if (sport === 'NFL') {
-    const adpEntries = await getLiveADP('redraft', Math.min(500, Math.max(limit, 400))).catch(() => [])
+    const adpEntries = await getLiveADP('redraft', Math.min(1400, Math.max(limit * 2, 900))).catch(() => [])
     rawList = adpEntries.map((e) => ({
       name: e.name,
       position: e.position,
@@ -540,6 +555,118 @@ export async function getResolvedDraftPoolForLeague(
 
   const nflStatsSeason = sport === 'NFL' ? defaultNflPlayerStatsSeason() : ''
 
+  /** E.1.5: prefer real backfilled headshots when SportsPlayer has them.
+   * The backfill script `npm run backfill:player-headshots` populates SportsPlayer rows with
+   * imageUrl values from ClearSports / SportsDB. This map indexes them by (normalizedName,
+   * normalizedPosition) so the per-row enrichment below can swap a synthesized AF data-URI
+   * placeholder for a real photo. The query is no-op when SportsPlayer is empty (today). */
+  const sportsPlayerImageByNameKey = new Map<string, string>()
+  if (sport === 'NFL' && rawListFiltered.length > 0) {
+    try {
+      /**
+       * Bug fix (post-E.1.6): every NFL player has TWO SportsPlayer rows — one
+       * `source='rolling_insights'` (from syncNFLPlayersToDb, sometimes carrying a
+       * naked-filename URL like "ee4a97dd-...png" with no protocol) and one
+       * `source='backfill'` (from scripts/backfill-player-headshots.ts, with a
+       * real ClearSports/SportsDB/TheSportsAPI URL).
+       *
+       * Two corrections:
+       *   1. Order by source so backfill rows are seen first — when both rows
+       *      exist for the same (name, position), the real URL wins the
+       *      "first set" race against the bogus one.
+       *   2. Validate the URL via classifyAvatarSource before caching — naked
+       *      filenames (no `https://`) classify as `'null'` and are skipped, so
+       *      they can never poison the map.
+       */
+      const csPlayers = await prisma.sportsPlayer.findMany({
+        where: { sport: 'NFL' as any, imageUrl: { not: null } },
+        select: { name: true, position: true, imageUrl: true, source: true },
+        take: 8000,
+        orderBy: [{ source: 'asc' }],
+        // 'backfill' < 'rolling_insights' alphabetically, so backfill rows arrive first.
+      })
+      for (const row of csPlayers) {
+        const nk = normalizeDraftPoolNameForDedupe(row.name ?? '')
+        const pk = normalizeKeyPart(row.position ?? '')
+        if (!nk || !row.imageUrl) continue
+        // Filter: must classify as a real headshot URL (https://, not data: URI,
+        // not /teamLogos/ path, not a naked filename).
+        if (classifyAvatarSource(row.imageUrl) !== 'headshot') continue
+        // Prefer (name|position). Also store name-only as a fallback when position is missing.
+        const keyWithPos = `${nk}|${pk}`
+        if (!sportsPlayerImageByNameKey.has(keyWithPos)) sportsPlayerImageByNameKey.set(keyWithPos, row.imageUrl)
+        const keyNameOnly = `${nk}|`
+        if (!sportsPlayerImageByNameKey.has(keyNameOnly)) sportsPlayerImageByNameKey.set(keyNameOnly, row.imageUrl)
+      }
+    } catch {
+      /* swallow — pool falls through to placeholder behavior */
+    }
+  }
+
+  /**
+   * D.5 — overlay AI ADP from `AllFantasyAdpSnapshot` keyed by the league's draft
+   * context (sport / leagueType / draftType / scoring / rosterFormat / teamCount /
+   * season). Default draftMode is 'real'. If no snapshot rows match, the map is
+   * empty and downstream rows render em-dash for the AI ADP cell — by design,
+   * the resolver does NOT fall back to external/market ADP and label it AI ADP
+   * (per D.5 spec).
+   *
+   * `aiAdpByPlayerKey.get('<lowercased name>|<lowercased position>')` returns
+   *   { adp, sampleSize, lowSample, sevenDayTrend, thirtyDayTrend, standardDeviation }
+   */
+  const aiAdpByPlayerKey = new Map<
+    string,
+    {
+      adp: number
+      sampleSize: number
+      lowSample: boolean
+      sevenDayTrend: number | null
+      thirtyDayTrend: number | null
+      standardDeviation: number | null
+    }
+  >()
+  if (rawListFiltered.length > 0) {
+    try {
+      const { buildContextHash } = await import('@/lib/adp/computeAllFantasyAdp')
+      const settingsForCtx = (league?.settings as Record<string, unknown> | null) ?? {}
+      const draftFromSettings = (settingsForCtx.draft as { type?: string } | undefined)?.type ?? draftSession?.draftType ?? 'snake'
+      const ctxHash = buildContextHash({
+        sport: String(sport ?? 'NFL').toUpperCase(),
+        leagueType: league?.leagueVariant ?? (league?.isDynasty ? 'dynasty' : 'redraft'),
+        draftType: String(draftFromSettings).toLowerCase(),
+        scoringFormat: String(league?.scoring ?? 'ppr').toLowerCase(),
+        rosterFormat: 'standard',
+        teamCount: league?.leagueSize ?? 12,
+        season: String(league?.season ?? new Date().getUTCFullYear()),
+      })
+      const adpRows = await prisma.allFantasyAdpSnapshot.findMany({
+        where: { contextHash: ctxHash, draftMode: 'real' },
+        select: {
+          playerKey: true,
+          averageOverallPick: true,
+          sampleSize: true,
+          sevenDayTrend: true,
+          thirtyDayTrend: true,
+          standardDeviation: true,
+        },
+        take: 4000,
+      })
+      const LOW_SAMPLE_THRESHOLD = 10
+      for (const row of adpRows) {
+        aiAdpByPlayerKey.set(row.playerKey, {
+          adp: row.averageOverallPick,
+          sampleSize: row.sampleSize,
+          lowSample: row.sampleSize < LOW_SAMPLE_THRESHOLD,
+          sevenDayTrend: row.sevenDayTrend,
+          thirtyDayTrend: row.thirtyDayTrend,
+          standardDeviation: row.standardDeviation,
+        })
+      }
+    } catch {
+      /* swallow — pool renders em-dashes for the AI ADP column when snapshot is unavailable */
+    }
+  }
+
   const promotedMap = new Map<string, { school: string | null }>()
   if (devyEnabled || c2cEnabled || isDevyDynasty || isC2C) {
     const promotedRows = await (prisma as any).devyPlayer
@@ -555,6 +682,15 @@ export async function getResolvedDraftPoolForLeague(
       if (!nameKey || !posKey) continue
       promotedMap.set(`${nameKey}|${posKey}`, { school: p.school ?? null })
     }
+  }
+
+  /** D.7 — Sleeper-backed rookie lookup. Only built for NFL pools. The lookup is
+   * `null` for non-NFL sports (no upstream years_exp available); UI surfaces a
+   * "Rookie data unavailable" message in that case. Failures inside the helper
+   * degrade silently to `hasData=false` rather than breaking the pool fetch. */
+  let nflRookieLookup: NflRookieLookup | null = null
+  if (sport === 'NFL') {
+    nflRookieLookup = await loadNflRookieLookup().catch(() => null)
   }
 
   const enrichedList = rawListFiltered.map((row) => {
@@ -601,6 +737,28 @@ export async function getResolvedDraftPoolForLeague(
           }) ?? emptyNflDraftProjectionSplits())
         : null
 
+    /** E.1.5: real headshot lookup from the backfilled SportsPlayer cache, keyed by
+     * (normalizedName | normalizedPosition). Wins over synth/data-URI/team-logo URLs that the
+     * upstream pool produced — but only when classifyAvatarSource flags the upstream as bogus.
+     * If there's no cache hit, leave the upstream URL alone so the runtime PlayerAvatar's
+     * classifier still rejects it and falls back to the silhouette. */
+    let backfilledHeadshot: string | null = null
+    if (sport === 'NFL') {
+      const lookupName = normalizeDraftPoolNameForDedupe(name ?? '')
+      const lookupPos = normalizeKeyPart(position ?? '')
+      backfilledHeadshot =
+        sportsPlayerImageByNameKey.get(`${lookupName}|${lookupPos}`) ??
+        sportsPlayerImageByNameKey.get(`${lookupName}|`) ??
+        null
+    }
+
+    /** D.5 — AI ADP overlay from AllFantasyAdpSnapshot. The map is keyed by
+     * `<normalized name>|<normalized position>` matching the same shape the
+     * recompute script writes (see lib/adp/computeAllFantasyAdp.buildPlayerKey). */
+    const aiAdpHit = aiAdpByPlayerKey.get(
+      `${normalizeDraftPoolNameForDedupe(name ?? '')}|${normalizeKeyPart(position ?? '')}`,
+    )
+
     const base = poolMatch
       ? {
           ...row,
@@ -611,11 +769,12 @@ export async function getResolvedDraftPoolForLeague(
           secondaryPositions: Array.isArray(poolMatch.secondary_positions) ? poolMatch.secondary_positions : undefined,
           age: (row as RawRow).age ?? (poolMatch as { age?: number | null }).age ?? null,
           imageUrl:
+            backfilledHeadshot ??
             (row as RawRow).imageUrl ??
             (poolMatch as { image_url?: string | null }).image_url ??
             null,
         }
-      : { ...row }
+      : { ...row, imageUrl: backfilledHeadshot ?? (row as RawRow).imageUrl ?? null }
     return {
       ...base,
       graduatedToNFL: row.graduatedToNFL ?? (promoted ? true : undefined),
@@ -633,7 +792,31 @@ export async function getResolvedDraftPoolForLeague(
         undefined,
       rollingInsightsSupplemental: resolvedAnalytics?.rollingInsightsSupplemental ?? undefined,
       ...(sport === 'NFL' && nflDraftProjectionSplits ? { nflDraftProjectionSplits } : {}),
-    } as RawRow
+      /** D.5 — AI ADP comes from AllFantasyAdpSnapshot ONLY. Empty when no snapshot
+       * exists for this context — the table renders em-dashes (no external ADP fallback). */
+      ...(aiAdpHit
+        ? {
+            aiAdp: aiAdpHit.adp,
+            aiAdpSampleSize: aiAdpHit.sampleSize,
+            aiAdpLowSample: aiAdpHit.lowSample,
+            aiAdpSevenDayTrend: aiAdpHit.sevenDayTrend,
+            aiAdpThirtyDayTrend: aiAdpHit.thirtyDayTrend,
+            aiAdpStandardDeviation: aiAdpHit.standardDeviation,
+          }
+        : { aiAdp: null }),
+      /** D.7 — attach Sleeper years_exp for NFL rows. Devy rows that have not
+       * been promoted to the NFL retain `isRookie=true` regardless of yearsExp
+       * (their Sleeper match is typically absent). Promoted rows fall through
+       * to the Sleeper lookup so a former devy player who has played a season
+       * is correctly excluded from "Rookies Only" in redraft. */
+      ...(sport === 'NFL'
+        ? (() => {
+            const ye = nflRookieLookup ? lookupYearsExp(nflRookieLookup, name, position) : null
+            return ye != null ? { yearsExp: ye } : {}
+          })()
+        : {}),
+      ...(row.isDevy && !row.graduatedToNFL ? { isRookie: true } : {}),
+    } as unknown as RawRow
   })
 
   let entries = normalizePlayerList(enrichedList, sport)

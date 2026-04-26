@@ -7,7 +7,16 @@ import { usePlayerComparisonUIOptional } from '@/components/player-comparison-ui
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { applyDraftFilters, DRAFT_ROOM_I18N_KEYS, getPickConfirmationLabel, getPositionFilterOptionsForSport } from '@/lib/draft-room'
 import { DraftPlayerCard } from './DraftPlayerCard'
-import { NflDraftPoolStatsGroupHeader } from '@/components/app/draft-room/NflDraftPoolStatsStrip'
+import { SleeperPoolTable } from './SleeperPoolTable'
+import {
+  applyPoolSort,
+  nextSortState,
+  sortKeyForColumn,
+  type PoolSortKey,
+  type PoolSortState,
+} from './SleeperPoolSort'
+// NflDraftPoolStatsGroupHeader import removed in Slice D.1.5 Path B; re-add when D.2 ships the
+// Sleeper-style table mode and rows actually align to those columns.
 import { PlayerDetailModal, type DraftAssistantRoomContext } from './PlayerDetailModal'
 import type { PlayerDisplayModel } from '@/lib/draft-sports-models/types'
 import { normalizePlayer } from '@/lib/players/normalizePlayer'
@@ -15,6 +24,7 @@ import { DRAFT_ROOM } from '@/lib/analytics/eventNames'
 import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
 import type { DraftCopilotInsight } from '@/lib/draft-room/draft-copilot-types'
 import type { NflDraftProjectionSplits } from '@/lib/draft/analytics/nfl-draft-pool-projection-splits'
+import { isRookieEligibleForFilter } from '@/lib/draft-room/rookieFilterPredicate'
 
 const PLAYER_ROW_ESTIMATE_HEIGHT = 76
 /** Redraft rows use slightly taller estimate (chips + stats). */
@@ -68,6 +78,10 @@ export type PlayerEntry = {
   /** C2C: 'college' | 'pro' for Campus-to-Canton */
   poolType?: 'college' | 'pro'
   nflDraftProjectionSplits?: NflDraftProjectionSplits | null
+  /** D.7 — NFL years of pro experience (Sleeper). 0 = rookie, null/undefined = unknown. */
+  yearsExp?: number | null
+  /** D.7 — derived rookie flag (true when yearsExp === 0 or upstream marked as rookie). */
+  isRookie?: boolean
 }
 
 export type PlayerPanelProps = {
@@ -112,6 +126,12 @@ export type PlayerPanelProps = {
   /** War Room AI row hints keyed by `name|position` (lowercase). */
   aiRowBadges?: Record<string, 'ai_pick' | 'value' | 'risky'>
   presentationVariant?: 'default' | 'redraft_snake'
+  /** D.2 — explicit pool layout opt-out. Defaults to 'auto' which picks
+   * Sleeper-style table for NFL redraft/snake on desktop and falls back to
+   * the existing card layout everywhere else. Pass 'card' to force the legacy
+   * card layout (useful for non-NFL sports or modal/detail contexts that reuse
+   * PlayerPanel internals). */
+  poolLayout?: 'auto' | 'card' | 'sleeper_table'
   /** Redraft live room: player detail “copilot” copy from recommendations + War Room. */
   getDraftCopilotInsight?: (player: PlayerEntry) => DraftCopilotInsight | null
   /** Headline / injury / digest strip from assistant-context for the selected player. */
@@ -120,7 +140,8 @@ export type PlayerPanelProps = {
   isPlayerQueued?: (player: PlayerEntry) => boolean
 }
 
-type SortKey = 'adp' | 'name'
+/** D.3 — re-exposed from SleeperPoolSort. Kept as `SortKey` for legacy call sites. */
+type SortKey = PoolSortKey
 
 function PlayerListVirtualized({
   filtered,
@@ -326,6 +347,7 @@ function PlayerPanelInner({
   leagueId,
   aiRowBadges,
   presentationVariant = 'default',
+  poolLayout = 'auto',
   getDraftCopilotInsight,
   getAssistantRoomContext,
   isPlayerQueued,
@@ -340,6 +362,8 @@ function PlayerPanelInner({
   const [teamFilter, setTeamFilter] = useState('All')
   const [poolFilter, setPoolFilter] = useState<'All' | 'Pro' | 'Devy' | 'College'>('All')
   const [sortBy, setSortBy] = useState<SortKey>('adp')
+  /** D.3 — sort direction. Toolbar buttons + table headers both flip this when re-clicked. */
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [showRosterView, setShowRosterView] = useState(false)
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerEntry | null>(null)
   const [pendingNomination, setPendingNomination] = useState<PlayerEntry | null>(null)
@@ -356,6 +380,59 @@ function PlayerPanelInner({
     () => getPositionFilterOptionsForSport(sport, formatType),
     [sport, formatType],
   )
+
+  /**
+   * D.6.1 — pill counts. Shows `<drafted>/<available>` per position so the user can
+   * see at a glance "I've drafted 0 RBs out of 88 available". `drafted` comes from
+   * the viewer's currentRoster prop; `available` is the count of pool players that
+   * still match this position filter (excluding already-drafted players).
+   *
+   * For "All", `available` is the full undrafted pool.
+   */
+  const positionPillCounts = useMemo(() => {
+    const draftedByPos: Record<string, number> = {}
+    for (const r of currentRoster ?? []) {
+      const k = String(r.position ?? '').trim().toUpperCase()
+      if (!k) continue
+      draftedByPos[k] = (draftedByPos[k] ?? 0) + 1
+    }
+    const available = (filterValue: string): number => {
+      const v = filterValue.trim().toUpperCase()
+      if (v === 'ALL') {
+        return players.filter(
+          (p) => !isPlayerDraftedEntry(p, draftedNames, draftedPlayerIds),
+        ).length
+      }
+      return players.filter((p) => {
+        if (isPlayerDraftedEntry(p, draftedNames, draftedPlayerIds)) return false
+        const pos = String(p.position ?? '').trim().toUpperCase()
+        if (v === 'FLEX') return pos === 'RB' || pos === 'WR' || pos === 'TE'
+        if (v === 'IDP FLEX') return pos === 'DL' || pos === 'LB' || pos === 'DB'
+        if (v === 'OFFENSE') return pos === 'QB' || pos === 'RB' || pos === 'WR' || pos === 'TE'
+        // Bug-stab: NFL pool emits 'DEF' but the standard roster slot is 'DST';
+        // either pill must count both (and 'D/ST' if any legacy feed produced it).
+        if (v === 'DEF' || v === 'DST' || v === 'D/ST') {
+          return pos === 'DEF' || pos === 'DST' || pos === 'D/ST'
+        }
+        return pos === v
+      }).length
+    }
+    return positionOptions.map((opt) => {
+      const k = String(opt.value).trim().toUpperCase()
+      // Same alias group as the available-count above: DEF/DST/D/ST
+      // pillside drafted total should sum across all defense rows.
+      const draftedCount =
+        k === 'DEF' || k === 'DST' || k === 'D/ST'
+          ? (draftedByPos.DEF ?? 0) + (draftedByPos.DST ?? 0) + (draftedByPos['D/ST'] ?? 0)
+          : (draftedByPos[k] ?? 0)
+      return {
+        value: opt.value,
+        label: opt.label,
+        drafted: draftedCount,
+        available: available(String(opt.value)),
+      }
+    })
+  }, [positionOptions, players, currentRoster, draftedNames, draftedPlayerIds])
 
   const teamOptions = useMemo(() => {
     const teams = new Set(players.map((p) => p.team).filter(Boolean) as string[])
@@ -405,11 +482,12 @@ function PlayerPanelInner({
       list = list.filter((p) => watchlistKeys.has(watchKeyFor(p)))
     }
     if (rookiesOnly) {
-      list = list.filter((p) => {
-        if (p.isDevy) return true
-        const yr = String(p.classYearLabel ?? '').toLowerCase()
-        return yr.includes('rookie') || yr.includes('fr') || yr.includes('so') || yr.includes('jr') || yr.includes('sr')
-      })
+      list = list.filter((p) =>
+        isRookieEligibleForFilter(p, {
+          devyEnabled: devyConfig?.enabled,
+          c2cEnabled: c2cConfig?.enabled,
+        }),
+      )
     }
     if (teamFilter !== 'All') {
       list = list.filter((p) => p.team === teamFilter)
@@ -440,13 +518,9 @@ function PlayerPanelInner({
       const landingSpotMatch = Boolean(searchLower && (p.projectedLandingSpot ?? '').toLowerCase().includes(searchLower))
       return inResolved || schoolMatch || landingSpotMatch
     })
-    const adpVal = useAiAdp ? ((p: PlayerEntry) => p.aiAdp ?? p.adp ?? 999) : ((p: PlayerEntry) => p.adp ?? 999)
-    const nameVal = (p: PlayerEntry) => p.name
-    if (sortBy === 'adp') {
-      list = [...list].sort((a, b) => (adpVal(a) ?? 999) - (adpVal(b) ?? 999))
-    } else {
-      list = [...list].sort((a, b) => nameVal(a).localeCompare(nameVal(b)))
-    }
+    /** D.3 — single sort path covers both toolbar (adp/aiAdp/projected/name) and table-header
+     * sorts (bye/pts/avg + rushing/receiving/passing splits). Nulls always sort last; tiebreak is ADP asc then name asc. */
+    list = applyPoolSort(list, { key: sortBy, direction: sortDirection })
     return list
   }, [
     players,
@@ -464,8 +538,23 @@ function PlayerPanelInner({
     devyConfig?.enabled,
     c2cConfig?.enabled,
     sortBy,
+    sortDirection,
     useAiAdp,
   ])
+
+  /** D.7 — true when at least one row in the upstream pool has known years_exp
+   * metadata (or is a devy/college entry, which carries its own class-year
+   * signal). When false and the user toggles "Rookies Only", we surface a
+   * "Rookie data unavailable" message instead of a generic empty state. */
+  const rookieDataAvailable = useMemo(() => {
+    return players.some(
+      (p) =>
+        p.yearsExp != null ||
+        p.isRookie === true ||
+        p.isDevy === true ||
+        (p.classYearLabel != null && String(p.classYearLabel).trim() !== ''),
+    )
+  }, [players])
 
   const selectedIsWatchlisted = selectedPlayer ? watchlistKeys.has(watchKeyFor(selectedPlayer)) : false
 
@@ -492,6 +581,29 @@ function PlayerPanelInner({
     setSelectedPlayer(match)
     setSearchQuery(match.name)
   }, [selectedPlayerTarget?.name, selectedPlayerTarget?.position, players])
+
+  /** D.3 — single sort change entry point used by both the legacy toolbar buttons
+   * and the new SleeperPoolTable header buttons. Same key → flip direction; new
+   * key → switch to that key's default direction. */
+  const handleSortChange = useCallback(
+    (requestedKey: SortKey) => {
+      const next = nextSortState({ key: sortBy, direction: sortDirection }, requestedKey)
+      setSortBy(next.key)
+      setSortDirection(next.direction)
+    },
+    [sortBy, sortDirection],
+  )
+
+  /** D.3 — adapter used by SleeperPoolTable header buttons. The table emits column keys
+   * ('rk', 'player', 'avg', 'pa_int' …); we resolve them through `sortKeyForColumn`. */
+  const handleColumnHeaderSort = useCallback(
+    (columnKey: string) => {
+      const sortKey = sortKeyForColumn(columnKey)
+      if (!sortKey) return
+      handleSortChange(sortKey)
+    },
+    [handleSortChange],
+  )
 
   const onCompareTap = useCallback(
     (p: PlayerEntry) => {
@@ -608,25 +720,49 @@ function PlayerPanelInner({
               data-testid="draft-player-search-input"
             />
           </div>
-          <select
-            value={positionFilter}
-            onChange={(e) => {
-              const v = e.target.value
-              if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.FILTER_POSITION, { leagueId, value: v })
-              setPositionFilter(v)
-            }}
-            className={`min-h-[44px] rounded-xl border px-3 py-2 text-sm text-white shadow-sm touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
-              rs ? 'border-cyan-400/28 bg-[#081424]/95' : 'border-white/14 bg-[#0a1228]/95'
-            }`}
+          {/* D.6.1 — position pills replacing the legacy <select>. Each pill shows the
+              available pool count for that position; the active pill is highlighted with
+              the cyan→violet gradient that matches the rest of the Sleeper-style chrome.
+              The legacy `data-testid="draft-position-filter"` lives on the wrapper so e2e
+              selectors that expect to find it still resolve. */}
+          <div
+            role="radiogroup"
             aria-label="Position filter"
             data-testid="draft-position-filter"
+            className="flex min-h-[44px] flex-wrap items-center gap-1"
           >
-            {positionOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+            {positionPillCounts.map((opt) => {
+              const isActive = positionFilter === opt.value
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={isActive}
+                  data-testid={`draft-position-pill-${String(opt.value).toLowerCase().replace(/\s+/g, '-')}`}
+                  data-active={isActive ? 'true' : 'false'}
+                  onClick={() => {
+                    if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.FILTER_POSITION, { leagueId, value: opt.value })
+                    setPositionFilter(opt.value)
+                  }}
+                  className={`inline-flex h-8 items-center gap-1 rounded-full border px-2.5 text-[11px] font-semibold uppercase tracking-wider transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
+                    isActive
+                      ? 'border-cyan-400/45 bg-gradient-to-r from-cyan-500/22 to-violet-600/18 text-cyan-50 shadow-[0_0_14px_rgba(34,211,238,0.18)]'
+                      : 'border-white/15 bg-black/20 text-white/65 hover:border-white/28 hover:text-white/90'
+                  }`}
+                >
+                  <span>{opt.label}</span>
+                  <span
+                    className={`text-[9px] font-medium tabular-nums ${
+                      isActive ? 'text-cyan-100/85' : 'text-white/45'
+                    }`}
+                  >
+                    {opt.drafted}/{opt.available}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
           <select
             value={teamFilter}
             onChange={(e) => {
@@ -696,18 +832,42 @@ function PlayerPanelInner({
             type="button"
             onClick={() => {
               if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.SORT, { leagueId, by: 'adp' })
-              setSortBy('adp')
+              handleSortChange('adp')
             }}
             data-testid="draft-sort-adp"
             className={`min-h-[40px] rounded-lg px-3 py-2 text-xs touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-[0.98] ${sortBy === 'adp' ? 'border border-cyan-400/35 bg-gradient-to-r from-cyan-500/18 to-cyan-500/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.12)]' : 'border border-transparent text-white/72 hover:bg-white/10'}`}
           >
-            {useAiAdp ? 'AI ADP' : 'ADP'}
+            {/* D.6.1 — always 'ADP'. The morph to 'AI ADP' was creating a duplicate
+                AI ADP control next to the dedicated `draft-sort-ai-adp` button. */}
+            ADP
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.SORT, { leagueId, by: 'aiAdp' })
+              handleSortChange('aiAdp')
+            }}
+            data-testid="draft-sort-ai-adp"
+            className={`min-h-[40px] rounded-lg px-3 py-2 text-xs touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-[0.98] ${sortBy === 'aiAdp' ? 'border border-cyan-400/35 bg-gradient-to-r from-cyan-500/18 to-cyan-500/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.12)]' : 'border border-transparent text-white/72 hover:bg-white/10'}`}
+          >
+            AI ADP
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.SORT, { leagueId, by: 'projected' })
+              handleSortChange('projected')
+            }}
+            data-testid="draft-sort-projected"
+            className={`min-h-[40px] rounded-lg px-3 py-2 text-xs touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-[0.98] ${sortBy === 'projected' ? 'border border-cyan-400/35 bg-gradient-to-r from-cyan-500/18 to-cyan-500/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.12)]' : 'border border-transparent text-white/72 hover:bg-white/10'}`}
+          >
+            Proj
           </button>
           <button
             type="button"
             onClick={() => {
               if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.SORT, { leagueId, by: 'name' })
-              setSortBy('name')
+              handleSortChange('name')
             }}
             data-testid="draft-sort-name"
             className={`min-h-[40px] rounded-lg px-3 py-2 text-xs touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-[0.98] ${sortBy === 'name' ? 'border border-cyan-400/35 bg-gradient-to-r from-cyan-500/18 to-cyan-500/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.12)]' : 'border border-transparent text-white/72 hover:bg-white/10'}`}
@@ -785,16 +945,18 @@ function PlayerPanelInner({
             >
               Hide drafted
             </button>
-            {devyConfig?.enabled || c2cConfig?.enabled ? (
-              <button
-                type="button"
-                data-testid="draft-filter-rookies-only"
-                onClick={() => setRookiesOnly((v) => !v)}
-                className={`rounded border px-2 py-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/40 ${rookiesOnly ? 'border-violet-300/40 bg-violet-500/14 text-violet-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
-              >
-                Rookies only
-              </button>
-            ) : null}
+            {/* D.7 — Rookies Only filter. NFL redraft uses Sleeper `years_exp === 0`
+                via the resolved draft pool; devy/C2C leagues additionally include
+                isDevy / classYearLabel rows. When no rookie metadata is available
+                for the pool, the empty state surfaces "Rookie data unavailable". */}
+            <button
+              type="button"
+              data-testid="draft-filter-rookies-only"
+              onClick={() => setRookiesOnly((v) => !v)}
+              className={`rounded border px-2 py-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/40 ${rookiesOnly ? 'border-violet-300/40 bg-violet-500/14 text-violet-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
+            >
+              Rookies only
+            </button>
           </div>
           <button
             type="button"
@@ -942,47 +1104,111 @@ function PlayerPanelInner({
           </ul>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 px-4 py-14 text-center">
-            <p className="text-sm font-medium text-white/75">No players match your filters</p>
-            <p className="max-w-xs text-xs text-white/45">Widen search, reset position or team, or clear filters to see the pool again.</p>
-            <button
-              type="button"
-              onClick={clearAllFilters}
-              data-testid="draft-empty-clear-filters"
-              className="rounded-full border border-cyan-400/35 bg-cyan-500/12 px-4 py-2 text-xs font-medium text-cyan-100 transition hover:bg-cyan-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45"
-            >
-              Clear filters
-            </button>
+            {rookiesOnly && !rookieDataAvailable ? (
+              <>
+                <p
+                  className="text-sm font-medium text-white/75"
+                  data-testid="draft-rookie-data-unavailable"
+                >
+                  Rookie data unavailable for this pool.
+                </p>
+                <p className="max-w-xs text-xs text-white/45">
+                  We couldn’t resolve first-year status for any player in this pool. Toggle Rookies Only off to see the full list.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setRookiesOnly(false)}
+                  data-testid="draft-rookie-data-unavailable-clear"
+                  className="rounded-full border border-violet-400/35 bg-violet-500/12 px-4 py-2 text-xs font-medium text-violet-100 transition hover:bg-violet-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/45"
+                >
+                  Turn off Rookies Only
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-white/75">No players match your filters</p>
+                <p className="max-w-xs text-xs text-white/45">Widen search, reset position or team, or clear filters to see the pool again.</p>
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  data-testid="draft-empty-clear-filters"
+                  className="rounded-full border border-cyan-400/35 bg-cyan-500/12 px-4 py-2 text-xs font-medium text-cyan-100 transition hover:bg-cyan-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45"
+                >
+                  Clear filters
+                </button>
+              </>
+            )}
           </div>
         ) : (
-          <>
-            {rs && sport === 'NFL' ? (
-              <div className="sticky top-0 z-[6] mb-1.5 max-sm:hidden border-b border-cyan-500/25 bg-[#030912]/96 px-2 py-2 backdrop-blur-md sm:block sm:px-3">
-                <div className="overflow-x-auto overscroll-x-contain pl-[52px] [scrollbar-color:rgba(56,189,248,0.35)_rgba(15,23,42,0.5)]">
-                  <NflDraftPoolStatsGroupHeader />
-                </div>
+          (() => {
+            /**
+             * D.2 — choose between Sleeper-style dense table and legacy card layout.
+             *
+             * Auto rule: NFL pools render the table; everything else stays on cards.
+             * E.2.7 makes this safe — `nflDraftProjectionSplits` now hydrates with
+             * real PPG / passing / rushing / receiving values, so the table's stat
+             * columns aren't full of em-dashes.
+             *
+             * The horizontal-scroll container honors small viewports — on mobile,
+             * the table scrolls sideways rather than squishing column widths.
+             */
+            const useTable =
+              poolLayout === 'sleeper_table' ||
+              (poolLayout === 'auto' && sport === 'NFL')
+
+            if (!useTable) {
+              return (
+                <PlayerListVirtualized
+                  filtered={filtered}
+                  draftedNames={draftedNames}
+                  draftedPlayerIds={draftedIdsForRows}
+                  presentationVariant={presentationVariant}
+                  selectedPlayer={selectedPlayer}
+                  isPlayerQueued={isPlayerQueued}
+                  canDraft={canDraft}
+                  canNominate={canNominate}
+                  useAiAdp={useAiAdp}
+                  draftSport={sport}
+                  onDraftRequest={onMakePick}
+                  onAddToQueue={onAddToQueue}
+                  onNominateRequest={(player) => setPendingNomination(player)}
+                  onPlayerSelect={setSelectedPlayer}
+                  scrollRef={scrollRef}
+                  compareAnchor={compareAnchor}
+                  onCompareTap={onCompareTap}
+                  aiRowBadges={aiRowBadges}
+                />
+              )
+            }
+
+            return (
+              <div className="overflow-x-auto" data-testid="sleeper-pool-table-scroll">
+                <SleeperPoolTable
+                  filtered={filtered}
+                  draftedNames={draftedNames}
+                  draftedPlayerIds={draftedIdsForRows ?? null}
+                  selectedPlayer={selectedPlayer}
+                  isPlayerQueued={isPlayerQueued}
+                  isPlayerDrafted={(player) =>
+                    isPlayerDraftedEntry(player, draftedNames, draftedIdsForRows)
+                  }
+                  canDraft={canDraft}
+                  canNominate={canNominate}
+                  useAiAdp={useAiAdp}
+                  draftSport={sport}
+                  onDraftRequest={onMakePick}
+                  onAddToQueue={onAddToQueue}
+                  onNominateRequest={(player) => setPendingNomination(player)}
+                  onPlayerSelect={setSelectedPlayer}
+                  scrollRef={scrollRef}
+                  compareAnchor={compareAnchor}
+                  onCompareTap={onCompareTap}
+                  sortState={{ key: sortBy, direction: sortDirection }}
+                  onSortChange={handleColumnHeaderSort}
+                />
               </div>
-            ) : null}
-            <PlayerListVirtualized
-              filtered={filtered}
-              draftedNames={draftedNames}
-              draftedPlayerIds={draftedIdsForRows}
-              presentationVariant={presentationVariant}
-              selectedPlayer={selectedPlayer}
-              isPlayerQueued={isPlayerQueued}
-              canDraft={canDraft}
-              canNominate={canNominate}
-              useAiAdp={useAiAdp}
-              draftSport={sport}
-              onDraftRequest={onMakePick}
-              onAddToQueue={onAddToQueue}
-              onNominateRequest={(player) => setPendingNomination(player)}
-              onPlayerSelect={setSelectedPlayer}
-              scrollRef={scrollRef}
-              compareAnchor={compareAnchor}
-              onCompareTap={onCompareTap}
-              aiRowBadges={aiRowBadges}
-            />
-          </>
+            )
+          })()
         )}
       </div>
       {pendingNomination && (

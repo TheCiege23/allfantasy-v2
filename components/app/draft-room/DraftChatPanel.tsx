@@ -363,6 +363,16 @@ export function DraftChatPanel({
             if (m.isDraftPickEvent) {
               const meta = m.draftPickMeta
               const when = meta?.pickedAt ? new Date(meta.pickedAt) : new Date(m.at)
+              const headshot = meta?.headshotUrl ?? null
+              const isAi = meta?.aiManager === true
+              // D.6.3 — initials fallback when headshot is missing or fails.
+              const initials = (meta?.playerName ?? '')
+                .split(/\s+/)
+                .filter(Boolean)
+                .map((part) => part[0])
+                .slice(0, 2)
+                .join('')
+                .toUpperCase()
               return (
                 <div
                   key={m.id}
@@ -372,36 +382,88 @@ export function DraftChatPanel({
                       : 'border-emerald-400/25 bg-emerald-500/10'
                   }`}
                   data-testid="draft-chat-pick-event"
+                  data-ai-manager={isAi ? 'true' : 'false'}
                 >
                   <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-1.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-200/95">Pick</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-200/95">
+                      Pick{meta?.pickLabel ? ` ${meta.pickLabel}` : ''}
+                    </span>
                     <span className="text-[10px] text-white/55 tabular-nums">
                       {when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}
                     </span>
                   </div>
-                  <p className="mt-2 text-[13px] font-semibold leading-snug text-white">
-                    {meta?.playerName ?? m.text}
-                    {meta?.position ? (
-                      <span className="ml-1.5 text-[12px] font-medium text-white/65">{meta.position}</span>
-                    ) : null}
-                  </p>
-                  <p className="mt-1 text-[12px] text-emerald-100/90">
-                    <span className="text-white/50">To </span>
-                    {meta?.rosterDisplayName ?? 'Team'}
-                  </p>
-                  {(meta?.pickLabel || meta?.overall != null || meta?.round != null) && (
-                    <p className="mt-1.5 text-[10px] text-white/45">
-                      {meta?.round != null && meta?.roundSlot != null ? (
-                        <>
-                          Round {meta.round} · Pick {meta.roundSlot}
-                        </>
-                      ) : meta?.pickLabel ? (
-                        <>Round/pick {meta.pickLabel}</>
+                  <div className="mt-2 flex items-start gap-2.5">
+                    {/* D.6.3 — player headshot + initials fallback (no <Image> so SSR works
+                        for chat replay without next/image config). */}
+                    <div
+                      className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border border-white/15 bg-[#0a1228]"
+                      data-testid="draft-chat-pick-headshot"
+                    >
+                      {headshot ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={headshot}
+                          alt={meta?.playerName ?? 'Player'}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                          onError={(e) => {
+                            const el = e.currentTarget
+                            el.style.display = 'none'
+                            const sib = el.nextElementSibling as HTMLElement | null
+                            if (sib) sib.style.display = 'flex'
+                          }}
+                        />
                       ) : null}
-                      {meta?.overall != null ? <> · #{meta.overall} overall</> : null}
-                      {meta?.nflTeam ? <> · {meta.nflTeam}</> : null}
-                    </p>
-                  )}
+                      <div
+                        className="absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-white/70"
+                        style={{ display: headshot ? 'none' : 'flex' }}
+                      >
+                        {initials || '?'}
+                      </div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-semibold leading-snug text-white">
+                        {meta?.playerName ?? m.text}
+                        {meta?.position ? (
+                          <span className="ml-1.5 text-[12px] font-medium text-white/65">
+                            {meta.position}
+                          </span>
+                        ) : null}
+                        {meta?.nflTeam ? (
+                          <span className="ml-1.5 text-[11px] font-medium text-white/45">
+                            · {meta.nflTeam}
+                          </span>
+                        ) : null}
+                      </p>
+                      <p
+                        className="mt-1 text-[12px] text-emerald-100/90"
+                        data-testid="draft-chat-pick-drafter"
+                      >
+                        <span className="text-white/50">To </span>
+                        <span className="font-medium">{meta?.rosterDisplayName ?? 'Team'}</span>
+                        {isAi ? (
+                          <span
+                            className="ml-1.5 inline-flex items-center rounded-full border border-violet-400/35 bg-violet-500/15 px-1.5 py-[1px] text-[9px] font-semibold uppercase tracking-[0.14em] text-violet-100"
+                            data-testid="draft-chat-pick-ai-badge"
+                          >
+                            AI
+                          </span>
+                        ) : null}
+                      </p>
+                      {(meta?.overall != null || meta?.round != null) && (
+                        <p className="mt-1 text-[10px] text-white/45">
+                          {meta?.round != null && meta?.roundSlot != null ? (
+                            <>
+                              Round {meta.round} · Pick {meta.roundSlot}
+                            </>
+                          ) : meta?.pickLabel ? (
+                            <>Round/pick {meta.pickLabel}</>
+                          ) : null}
+                          {meta?.overall != null ? <> · #{meta.overall} overall</> : null}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )
             }

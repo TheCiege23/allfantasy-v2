@@ -188,8 +188,13 @@ export async function loadRollingInsightsSeasonByDraftPoolKey(options: {
 
   const namePosToRi = new Map<string, string>()
   for (const m of byName) {
+    /** E.2 bug fix: pool callers normalize pk via toLowerCase() (see getResolvedDraftPoolForLeague.ts
+     * `normalizeKeyPart`), so storing keys with `.toUpperCase()` here meant `namePosToRi.get(...)` at
+     * line 203 below never matched even when PlayerIdentityMap had the right rows. The audit found
+     * 0/146 mappings — partly because of empty source tables, partly because of THIS bug. Aligning
+     * to lowercase guarantees that once ingestion populates PlayerIdentityMap, matches will fire. */
     const nk = (m.normalizedName ?? '').trim().toLowerCase()
-    const pk = (m.position ?? '').trim().toUpperCase()
+    const pk = (m.position ?? '').trim().toLowerCase()
     if (nk && pk && m.rollingInsightsId) namePosToRi.set(`${nk}|${pk}`, m.rollingInsightsId)
   }
 

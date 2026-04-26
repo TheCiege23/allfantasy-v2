@@ -40,7 +40,9 @@ export function parseRollingInsightsStatsJson(raw: unknown): RollingInsightsTabl
     passAtt: num(s, 'passing_attempts'),
     passYd: num(s, 'passing_yards'),
     passTd: num(s, 'passing_touchdowns'),
-    passInt: num(s, 'interceptions'),
+    /** E.2.7 — RI's `player-stats/{year}/NFL` endpoint uses `passing_interceptions`,
+     * while `nflRoster.regularSeason` uses plain `interceptions`. Accept both. */
+    passInt: num(s, 'passing_interceptions', 'interceptions'),
   }
 }
 

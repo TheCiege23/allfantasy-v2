@@ -58,6 +58,10 @@ export type RawDraftPlayerLike = {
   } | null
   /** NFL draft pool: projection + split stats for grid UI (from `/draft/pool`). */
   nflDraftProjectionSplits?: NflDraftProjectionSplits | null
+  /** D.7 — NFL years of pro experience (Sleeper `years_exp`). 0 = rookie. */
+  yearsExp?: number | null
+  /** D.7 — explicit rookie marker (e.g. devy promoted to NFL). Falsy when unknown. */
+  isRookie?: boolean | null
   [key: string]: unknown
 }
 
@@ -199,6 +203,13 @@ export function normalizeDraftPlayer(
     graduatedToNFL: graduatedToNFL || undefined,
     poolType: raw.poolType ?? (isDevy ? 'college' : undefined),
     nflDraftProjectionSplits: raw.nflDraftProjectionSplits ?? undefined,
+    yearsExp:
+      raw.yearsExp != null && Number.isFinite(Number(raw.yearsExp)) ? Number(raw.yearsExp) : null,
+    isRookie:
+      raw.isRookie === true ||
+      (raw.yearsExp != null && Number.isFinite(Number(raw.yearsExp)) && Number(raw.yearsExp) === 0)
+        ? true
+        : undefined,
   }
 }
 

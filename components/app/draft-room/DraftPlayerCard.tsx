@@ -6,6 +6,7 @@ import type { NflDraftProjectionSplits } from '@/lib/draft/analytics/nfl-draft-p
 import { formatNflStatCell } from '@/lib/draft/analytics/nfl-draft-pool-projection-splits'
 import { NflDraftPoolStatsRow } from '@/components/app/draft-room/NflDraftPoolStatsStrip'
 import { LazyDraftImage } from './LazyDraftImage'
+import { PlayerAvatar } from './PlayerAvatar'
 import { normalizePlayer } from '@/lib/players/normalizePlayer'
 import { getPlayerImage } from '@/lib/players/getPlayerImage'
 import { DEFAULT_SPORT } from '@/lib/sport-scope'
@@ -74,6 +75,11 @@ function formatBye(v: number | null | undefined): string {
   return String(Math.floor(v))
 }
 
+/** E.1: thin wrapper around the shared PlayerAvatar so DraftPlayerCard's existing call sites
+ * keep their headshotUrl + displayName + size props but get the URL-classifier behavior
+ * (data URIs + team-logo paths fall through to silhouette+initials instead of being shown
+ * as the main avatar). Team-logo overlay is rendered separately by the card layout below
+ * (TeamLogoOrFallback), so we don't pass teamLogoUrl here. */
 function HeadshotOrFallback({
   headshotUrl,
   displayName,
@@ -87,32 +93,14 @@ function HeadshotOrFallback({
   className?: string
   testIdBase?: string
 }) {
-  const [imgError, setImgError] = useState(false)
-  const showImg = headshotUrl && !imgError
-
-  if (showImg) {
-    return (
-      <LazyDraftImage
-        src={headshotUrl}
-        alt=""
-        width={size}
-        height={size}
-        testId={`${testIdBase}-image`}
-        className={`rounded-full object-cover bg-white/10 ${className}`}
-        lazy
-        onError={() => setImgError(true)}
-      />
-    )
-  }
   return (
-    <div
-      data-testid={`${testIdBase}-fallback`}
-      className={`rounded-full bg-white/15 flex items-center justify-center text-white/70 font-semibold flex-shrink-0 ${className}`}
-      style={{ width: size, height: size, fontSize: Math.max(10, size * 0.4) }}
-      aria-hidden
-    >
-      {displayName ? displayName.charAt(0).toUpperCase() : '?'}
-    </div>
+    <PlayerAvatar
+      headshotUrl={headshotUrl}
+      displayName={displayName}
+      size={size}
+      testIdBase={testIdBase}
+      className={className}
+    />
   )
 }
 
@@ -483,7 +471,7 @@ function DraftPlayerCardInner({
       </div>
       </div>
       {showNflKickerSplits && nflDraftProjectionSplits?.kicking ? (
-        <div className="max-sm:hidden border-t border-white/[0.06] pt-1.5 sm:block sm:pl-[52px]">
+        <div className="border-t border-white/[0.06] pt-1.5 pl-2 sm:pl-[52px]">
           <p className="text-[10px] tabular-nums text-emerald-100/75">
             FG {formatNflStatCell(nflDraftProjectionSplits.kicking.fg)} · XP{' '}
             {formatNflStatCell(nflDraftProjectionSplits.kicking.xpt)}
@@ -491,7 +479,13 @@ function DraftPlayerCardInner({
         </div>
       ) : null}
       {showNflSplitGrid && nflDraftProjectionSplits ? (
-        <div className="max-sm:hidden border-t border-white/[0.06] pt-1.5 sm:block sm:pl-[52px]">
+        // Slice D.1.5: the per-row stat strip used to be hidden behind `max-sm:hidden sm:block`,
+        // which meant any pool panel narrower than 640px (the typical draft layout) had no visible
+        // stats and the column header at the top of the panel had nothing aligned beneath it.
+        // Now we always render it; the inner div allows horizontal scroll on narrow widths.
+        // mt-2 + bg accent gives the strip its own visual band so 13 dashes don't blend into the
+        // 1px border above.
+        <div className="mt-2 rounded-md bg-white/[0.03] border border-white/[0.06] py-1 px-2 sm:pl-[52px]">
           <div className="-mx-1 overflow-x-auto overscroll-x-contain px-1 [scrollbar-color:rgba(56,189,248,0.35)_rgba(15,23,42,0.5)]">
             <NflDraftPoolStatsRow splits={nflDraftProjectionSplits} />
           </div>

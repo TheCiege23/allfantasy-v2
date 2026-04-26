@@ -67,6 +67,23 @@ async function registerWithRetry(
   page: Page,
   credentials: TestCredentials
 ): Promise<void> {
+  // Wait for auth routes to be fully mounted before attempting registration
+  // This gives the dev server extra time to compile and mount the [...nextauth] catch-all route
+  const maxWarmupAttempts = 5
+  for (let attempt = 1; attempt <= maxWarmupAttempts; attempt++) {
+    try {
+      const warmupResponse = await page.request.get("/api/auth/csrf", { timeout: 10_000 })
+      if (warmupResponse.ok()) {
+        break // Routes are ready
+      }
+    } catch {
+      // Ignore warmup failures, keep retrying
+    }
+    if (attempt < maxWarmupAttempts) {
+      await delay(2000)
+    }
+  }
+
   const maxAttempts = 12
   let lastStatus = 0
   let lastBody = ""
@@ -122,7 +139,13 @@ async function registerWithRetry(
         lastBody.includes('"code":"DB_UNAVAILABLE"') ||
         lastBody.toLowerCase().includes("database temporarily unavailable"))
 
-    if (!isDbUnavailable || attempt === maxAttempts) {
+    const normalizedBody = lastBody.toLowerCase()
+    const isAuthRouteWarmupIssue =
+      (lastStatus === 400 && normalizedBody.includes("not supported by nextauth")) ||
+      normalizedBody.includes("cannot post /api/auth/register") ||
+      (lastStatus === 404 && normalizedBody.includes("this page could not be found"))
+
+    if ((!isDbUnavailable && !isAuthRouteWarmupIssue) || attempt === maxAttempts) {
       break
     }
 
@@ -228,8 +251,16 @@ async function loginWithRetryTo(
         return
       }
 
-      await page.goto(landingPath)
+      await page.goto(landingPath, { waitUntil: "domcontentloaded" })
       await page.waitForURL((url) => url.pathname === new URL(landingPath, url.origin).pathname)
+      
+            // Wait for main content to be visible before returning
+            // This ensures the page is not just loaded but also rendered
+            try {
+              await page.waitForSelector("main", { timeout: 15_000 })
+            } catch {
+              // main might not exist on all pages, that's OK
+            }
       return
     } catch (error) {
       lastError = String((error as Error)?.message ?? error)

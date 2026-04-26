@@ -15,6 +15,7 @@ import {
   type SupportedSport,
 } from "@/lib/sport-scope"
 import { formatInTimezone } from "@/lib/preferences/TimezoneFormattingResolver"
+import type { LanguageCode } from "@/lib/i18n/constants"
 import type { SettingsOnSave, SettingsProfile } from "./settings-types"
 
 export function PreferencesSettingsSection({
@@ -29,7 +30,7 @@ export function PreferencesSettingsSection({
   const { setMode } = useThemeMode()
   const { language, setLanguage, t, tInterpolate } = useLanguage()
   const [timezone, setTimezone] = useState(profile?.timezone ?? "")
-  const [lang, setLang] = useState<"en" | "es">(profile?.preferredLanguage ?? language)
+  const [lang, setLang] = useState<LanguageCode>((profile?.preferredLanguage ?? language) as LanguageCode)
   const [theme, setTheme] = useState<ThemeId>(() =>
     normalizeStoredTheme(profile?.themePreference ?? DEFAULT_THEME)
   )

@@ -155,7 +155,7 @@ export async function getLiveADP(
   const analyticsPlayers = await (prisma as any).playerAnalyticsSnapshot.findMany({
     where: {
       currentAdp: { not: null },
-      position: { in: ['QB', 'RB', 'WR', 'TE'] },
+      position: { in: ['QB', 'RB', 'WR', 'TE', 'K', 'DEF', 'DST'] },
     },
     select: {
       name: true,
@@ -167,7 +167,7 @@ export async function getLiveADP(
       rawData: true,
     },
     orderBy: { currentAdp: 'asc' },
-    take: 300,
+    take: 650,
   });
 
   for (const p of analyticsPlayers) {

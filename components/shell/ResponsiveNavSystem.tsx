@@ -102,15 +102,19 @@ export function ResponsiveNavSystem({
       return
     }
 
-    try {
-      const shortcutsDisabled = window.localStorage.getItem(CHIMMY_SHORTCUTS_DISABLED_KEY) === "1"
-      const hintSeen = window.localStorage.getItem(CHIMMY_SHORTCUT_HINT_SEEN_KEY) === "1"
-      setChimmyShortcutsEnabled(!shortcutsDisabled)
-      setShowShortcutHint(!shortcutsDisabled && !hintSeen)
-    } catch {
-      setChimmyShortcutsEnabled(true)
-      setShowShortcutHint(false)
+    const syncShortcutState = () => {
+      try {
+        const shortcutsDisabled = window.localStorage.getItem(CHIMMY_SHORTCUTS_DISABLED_KEY) === "1"
+        const hintSeen = window.localStorage.getItem(CHIMMY_SHORTCUT_HINT_SEEN_KEY) === "1"
+        setChimmyShortcutsEnabled(!shortcutsDisabled)
+        setShowShortcutHint(!shortcutsDisabled && !hintSeen)
+      } catch {
+        setChimmyShortcutsEnabled(true)
+        setShowShortcutHint(false)
+      }
     }
+
+    syncShortcutState()
 
     const onStorage = (event: StorageEvent) => {
       if (event.key === CHIMMY_SHORTCUTS_DISABLED_KEY) {
@@ -121,8 +125,16 @@ export function ResponsiveNavSystem({
       }
     }
 
+    const onSameTabShortcutChange = () => {
+      syncShortcutState()
+    }
+
     window.addEventListener("storage", onStorage)
-    return () => window.removeEventListener("storage", onStorage)
+    window.addEventListener("af:chimmy-shortcuts-changed", onSameTabShortcutChange)
+    return () => {
+      window.removeEventListener("storage", onStorage)
+      window.removeEventListener("af:chimmy-shortcuts-changed", onSameTabShortcutChange)
+    }
   }, [isAuthenticated])
 
   useEffect(() => {

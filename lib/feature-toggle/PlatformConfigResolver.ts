@@ -92,6 +92,44 @@ export async function isAnthropicChimmyEnabled(): Promise<boolean> {
   return getBoolean(FEATURE_KEYS.CHIMMY_ANTHROPIC)
 }
 
+export async function getChimmyPhaseFeatureFlags(): Promise<{
+  intentChips: boolean
+  assistantModes: boolean
+  followups: boolean
+  trustPanel: boolean
+  dailyDigest: boolean
+  voicePreview: boolean
+  aiKpiEvents: boolean
+}> {
+  const [
+    intentChips,
+    assistantModes,
+    followups,
+    trustPanel,
+    dailyDigest,
+    voicePreview,
+    aiKpiEvents,
+  ] = await Promise.all([
+    getBoolean(FEATURE_KEYS.CHIMMY_INTENT_CHIPS),
+    getBoolean(FEATURE_KEYS.CHIMMY_ASSISTANT_MODES),
+    getBoolean(FEATURE_KEYS.CHIMMY_FOLLOWUPS),
+    getBoolean(FEATURE_KEYS.CHIMMY_TRUST_PANEL),
+    getBoolean(FEATURE_KEYS.CHIMMY_DAILY_DIGEST),
+    getBoolean(FEATURE_KEYS.CHIMMY_VOICE_PREVIEW),
+    getBoolean(FEATURE_KEYS.CHIMMY_AI_KPI_EVENTS),
+  ])
+
+  return {
+    intentChips,
+    assistantModes,
+    followups,
+    trustPanel,
+    dailyDigest,
+    voicePreview,
+    aiKpiEvents,
+  }
+}
+
 /** Experimental legacy import enabled? */
 export async function isExperimentalLegacyImportEnabled(): Promise<boolean> {
   return getBoolean(FEATURE_KEYS.EXPERIMENTAL_LEGACY_IMPORT)

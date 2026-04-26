@@ -207,6 +207,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trades/check", tool: "
             seenTradeIds.push(existing.id)
             analyzedTrades.push({
               id: existing.id,
+              leagueId: existing.leagueId,
               leagueName: league.name,
               senderName: existing.senderName,
               receiverName: existing.receiverName,
@@ -319,6 +320,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trades/check", tool: "
 
         analyzedTrades.push({
           id: notification.id,
+          leagueId: league.id,
           leagueName: league.name,
           senderName,
           receiverName,
@@ -439,6 +441,7 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/trades/check", tool: "L
         
         return {
           id: t.id,
+          leagueId: t.leagueId,
           leagueName: leagueMap.get(t.leagueId) || 'Unknown',
           senderName: t.senderName,
           receiverName: t.receiverName,

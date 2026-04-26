@@ -1,4 +1,4 @@
-import { resolveLanguage, type LanguageCode } from "@/lib/i18n/constants"
+import { resolveLanguage } from "@/lib/i18n/constants"
 import { normalizeStoredTheme, type ThemeId } from "@/lib/theme/constants"
 import { isAllowedSignupTimezone, resolveSignupTimezone } from "@/lib/signup/TimezoneSelectorService"
 import type { ProfileUpdatePayload, PreferredLanguage, ThemePreference } from "./types"
@@ -44,13 +44,13 @@ function resolveLanguageWithFallback(
   fallback: string | null | undefined
 ): PreferredLanguage | null {
   if (typeof language === "string") {
-    return resolveLanguage(language) as LanguageCode
+    return resolveLanguage(language) as PreferredLanguage
   }
   if (language === null) return null
   if (typeof fallback === "string") {
-    return resolveLanguage(fallback) as LanguageCode
+    return resolveLanguage(fallback) as PreferredLanguage
   }
-  return resolveLanguage(null) as LanguageCode
+  return resolveLanguage(null) as PreferredLanguage
 }
 
 function resolveThemeWithFallback(

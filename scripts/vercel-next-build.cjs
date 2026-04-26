@@ -22,6 +22,8 @@ const routeDirsToDisable = [
   // Keep non-core diagnostic/dev surfaces out of production route budget.
   path.join('app', 'admin'),
   path.join('app', 'api', 'admin'),
+  path.join('app', 'api', 'cron'),
+  path.join('app', 'api', 'audio-metadata'),
   path.join('app', 'ai-lab'),
   path.join('app', 'lab'),
   path.join('app', 'bracket-review'),
@@ -29,21 +31,11 @@ const routeDirsToDisable = [
   path.join('app', 'manifest.experimental.webmanifest'),
 ]
 
-const ROUTE_ENTRY_BASENAMES = new Set([
-  'page.tsx',
-  'page.ts',
-  'route.ts',
-  'route.js',
-  'layout.tsx',
-  'layout.ts',
-  'loading.tsx',
-  'loading.ts',
-  'default.tsx',
-  'default.ts',
-])
-
 const movedFiles = []
 let cleanedUp = false
+const filesToKeep = new Set([
+  path.join('app', 'api', 'cron', '_auth.ts').replace(/\\/g, '/'),
+])
 
 function directoryExists(targetPath) {
   try {
@@ -62,7 +54,7 @@ function movePath(fromPath, toPath) {
   fs.renameSync(fromPath, toPath)
 }
 
-function collectRouteEntryFiles(rootPath) {
+function collectFilesUnderDir(rootPath) {
   if (!directoryExists(rootPath)) return []
   const discovered = []
   const stack = [rootPath]
@@ -77,9 +69,7 @@ function collectRouteEntryFiles(rootPath) {
         stack.push(absolutePath)
         continue
       }
-      if (ROUTE_ENTRY_BASENAMES.has(entry.name)) {
-        discovered.push(absolutePath)
-      }
+      discovered.push(absolutePath)
     }
   }
 
@@ -91,11 +81,15 @@ function disableNonProdRoutes() {
 
   for (const relativePath of routeDirsToDisable) {
     const sourcePath = path.join(repoRoot, relativePath)
-    const routeFiles = collectRouteEntryFiles(sourcePath)
+    const routeFiles = collectFilesUnderDir(sourcePath)
     if (routeFiles.length === 0) continue
 
     for (const routeFile of routeFiles) {
       const relativeFile = path.relative(repoRoot, routeFile)
+      const normalizedRelativeFile = relativeFile.replace(/\\/g, '/')
+      if (filesToKeep.has(normalizedRelativeFile)) {
+        continue
+      }
       const backupPath = path.join(backupRoot, relativeFile.replace(/[\\/]/g, '__'))
       movePath(routeFile, backupPath)
       movedFiles.push({ routeFile, backupPath, relativeFile })

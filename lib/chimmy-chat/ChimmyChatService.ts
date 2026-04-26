@@ -1,5 +1,6 @@
 import type {
   AIChatContext,
+  ChimmyAnswerContract,
   ChimmyMessageMeta,
   ChimmyResponseSectionTitles,
   ChimmyThreadMessage,
@@ -12,6 +13,10 @@ import {
   isChimmyPremiumGateResponse,
   resolveChimmyUpgradePath,
 } from "@/lib/chimmy-chat/response-copy"
+import {
+  DEFAULT_CHIMMY_ASSISTANT_MODE,
+  normalizeChimmyAssistantMode,
+} from "@/lib/chimmy-chat/assistant-mode"
 import { confirmTokenSpend } from "@/lib/tokens/client-confirm"
 import { prepareImageForChimmyUpload } from "@/lib/chimmy-chat/prepareImageForChimmyUpload"
 
@@ -63,6 +68,29 @@ function toMeta(rawMeta: unknown): ChimmyMessageMeta | undefined {
     meta.responseStructure && typeof meta.responseStructure === "object" && !Array.isArray(meta.responseStructure)
       ? (meta.responseStructure as Record<string, unknown>)
       : null
+  const syncFreshnessRaw =
+    meta.syncFreshness && typeof meta.syncFreshness === "object" && !Array.isArray(meta.syncFreshness)
+      ? (meta.syncFreshness as Record<string, unknown>)
+      : null
+  const sportsDigestRaw =
+    syncFreshnessRaw?.sportsDigest &&
+    typeof syncFreshnessRaw.sportsDigest === "object" &&
+    !Array.isArray(syncFreshnessRaw.sportsDigest)
+      ? (syncFreshnessRaw.sportsDigest as Record<string, unknown>)
+      : null
+  const perSourceRaw =
+    sportsDigestRaw?.perSource &&
+    typeof sportsDigestRaw.perSource === "object" &&
+    !Array.isArray(sportsDigestRaw.perSource)
+      ? (sportsDigestRaw.perSource as Record<string, unknown>)
+      : null
+  const normalizedPerSource = perSourceRaw
+    ? Object.fromEntries(
+        Object.entries(perSourceRaw)
+          .filter(([key, value]) => key.trim().length > 0 && (typeof value === "string" || value === null))
+          .map(([key, value]) => [key, value as string | null])
+      )
+    : undefined
   const shortAnswer =
     typeof responseStructureRaw?.shortAnswer === "string" ? responseStructureRaw.shortAnswer.trim() : ""
   const caveats = Array.isArray(responseStructureRaw?.caveats)
@@ -91,8 +119,37 @@ function toMeta(rawMeta: unknown): ChimmyMessageMeta | undefined {
     Object.values(sectionTitlesCandidate).some((v) => typeof v === "string" && v.length > 0)
       ? sectionTitlesCandidate
       : undefined
+  const answerContractRaw =
+    meta.answerContract && typeof meta.answerContract === "object" && !Array.isArray(meta.answerContract)
+      ? (meta.answerContract as Record<string, unknown>)
+      : null
+  const sourceLinksRaw = Array.isArray(meta.sourceLinks)
+    ? meta.sourceLinks
+    : []
+  const sourceLinks = sourceLinksRaw
+    .map((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return null
+      const entry = item as Record<string, unknown>
+      const label = typeof entry.label === "string" ? entry.label.trim() : ""
+      const href = typeof entry.href === "string" ? entry.href.trim() : ""
+      if (!label || !href) return null
+      return { label, href }
+    })
+    .filter((item): item is { label: string; href: string } => item != null)
+  const modeRaw =
+    typeof meta.mode === "string"
+      ? meta.mode
+      : typeof meta.assistantMode === "string"
+        ? meta.assistantMode
+        : undefined
+  const answerContract =
+    answerContractRaw && typeof answerContractRaw.answerType === "string"
+      ? (answerContractRaw as ChimmyAnswerContract)
+      : undefined
 
   return {
+    mode: modeRaw ? normalizeChimmyAssistantMode(modeRaw) : undefined,
+    answerContract,
     confidencePct: typeof meta.confidencePct === "number" ? meta.confidencePct : undefined,
     providerStatus:
       meta.providerStatus && typeof meta.providerStatus === "object" && !Array.isArray(meta.providerStatus)
@@ -104,6 +161,27 @@ function toMeta(rawMeta: unknown): ChimmyMessageMeta | undefined {
         ? (meta.orchestration as ChimmyMessageMeta["orchestration"])
         : undefined,
     dataSources: Array.isArray(meta.dataSources) ? meta.dataSources.filter((x): x is string => typeof x === "string") : undefined,
+    sourceLinks: sourceLinks.length > 0 ? sourceLinks : undefined,
+    syncFreshness:
+      syncFreshnessRaw
+        ? {
+            referenceTimezone:
+              typeof syncFreshnessRaw.referenceTimezone === "string"
+                ? syncFreshnessRaw.referenceTimezone
+                : undefined,
+            sportsDigest:
+              sportsDigestRaw
+                ? {
+                    overallLastSyncedAt:
+                      typeof sportsDigestRaw.overallLastSyncedAt === "string" ||
+                      sportsDigestRaw.overallLastSyncedAt === null
+                        ? (sportsDigestRaw.overallLastSyncedAt as string | null)
+                        : undefined,
+                    perSource: normalizedPerSource,
+                  }
+                : undefined,
+          }
+        : undefined,
     quantData: meta.quantData && typeof meta.quantData === "object" ? (meta.quantData as Record<string, unknown>) : undefined,
     trendData: meta.trendData && typeof meta.trendData === "object" ? (meta.trendData as Record<string, unknown>) : undefined,
     responseStructure:
@@ -166,6 +244,9 @@ export async function sendChimmyMessage(input: SendChimmyMessageInput): Promise<
   }
 
   const conversation = toConversationPayload(input.conversation)
+  const selectedMode = normalizeChimmyAssistantMode(
+    input.context?.assistantMode ?? input.context?.strategyMode ?? DEFAULT_CHIMMY_ASSISTANT_MODE,
+  )
   let fileForUpload = input.imageFile
   if (fileForUpload && fileForUpload.size > 0 && typeof window !== "undefined") {
     try {
@@ -204,7 +285,8 @@ export async function sendChimmyMessage(input: SendChimmyMessageInput): Promise<
       sessionId: input.context?.sessionId,
       privateMode: input.context?.privateMode,
       targetUsername: input.context?.targetUsername,
-      strategyMode: input.context?.strategyMode,
+      assistantMode: selectedMode,
+      strategyMode: selectedMode,
       source: input.context?.source,
       memory: input.context?.memory,
     },

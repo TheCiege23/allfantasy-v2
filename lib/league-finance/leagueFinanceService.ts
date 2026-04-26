@@ -10,9 +10,9 @@ import {
   payoutLifecycleMessage,
 } from '@/lib/league-finance/payoutLifecycle'
 
-/** Prisma `TransactionClient` is structurally compatible for these calls; avoid a TS union that blows the checker stack. */
+/** Prisma `TransactionClient` is structurally compatible for these calls. Cast avoids Prisma extension types blowing the checker stack (TS2321). */
 function dbClient(tx?: Prisma.TransactionClient): typeof prisma {
-  return (tx ?? prisma) as typeof prisma
+  return (tx ?? prisma) as any
 }
 
 export async function getOrCreateLeagueFinance(leagueId: string, tx?: Prisma.TransactionClient) {

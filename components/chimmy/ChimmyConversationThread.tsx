@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from 'react'
 import ChimmyMessageBubble, { type ChimmyMessageMeta } from './ChimmyMessageBubble'
+import type { ChimmyFollowUpChip } from '@/lib/chimmy-chat/smart-followups'
 
 export type ChimmyConversationMessage = {
   id: string
@@ -12,15 +13,21 @@ export type ChimmyConversationMessage = {
 }
 
 const FOLLOW_UP_CHIPS = [
-  { label: 'Explain that in more detail', prompt: 'Can you explain that in more detail?' },
-  { label: 'What should I do next?', prompt: 'What should I do next?' },
-  { label: 'What are the risks?', prompt: 'What are the risks or caveats?' },
-]
+  {
+    label: 'Explain that in more detail',
+    prompt: 'Can you explain that in more detail?',
+    origin: 'fallback',
+  },
+  { label: 'What should I do next?', prompt: 'What should I do next?', origin: 'fallback' },
+  { label: 'What are the risks?', prompt: 'What are the risks or caveats?', origin: 'fallback' },
+] satisfies ChimmyFollowUpChip[]
 
 export interface ChimmyConversationThreadProps {
   messages: ChimmyConversationMessage[]
   isTyping?: boolean
-  onFollowUpClick?: (prompt: string) => void
+  onFollowUpClick?: (chip: ChimmyFollowUpChip) => void
+  onFeedbackSubmit?: (args: { messageId: string; feedback: 'helpful' | 'unhelpful' }) => void
+  feedbackByMessageId?: Record<string, 'helpful' | 'unhelpful'>
   onPlayVoice?: (text: string, messageId: string) => void
   onVoiceEnabledToggle?: () => void
   voiceEnabled?: boolean
@@ -28,6 +35,8 @@ export interface ChimmyConversationThreadProps {
   voicePlayingId?: string | null
   /** Shown on the per-message TTS play button */
   voiceDisplayName?: string
+  showTrustPanel?: boolean
+  enableFollowUps?: boolean
   className?: string
 }
 
@@ -39,12 +48,16 @@ export default function ChimmyConversationThread({
   messages,
   isTyping = false,
   onFollowUpClick,
+  onFeedbackSubmit,
+  feedbackByMessageId = {},
   onPlayVoice,
   onVoiceEnabledToggle,
   voiceEnabled = true,
   voiceLoadingId = null,
   voicePlayingId = null,
   voiceDisplayName = 'Voice',
+  showTrustPanel = true,
+  enableFollowUps = true,
   className = '',
 }: ChimmyConversationThreadProps) {
   const endRef = useRef<HTMLDivElement>(null)
@@ -59,14 +72,18 @@ export default function ChimmyConversationThread({
         // Premium-lock and error replies should present a clear next step instead of generic follow-ups.
         <ChimmyMessageBubble
           key={msg.id}
+          messageId={msg.id}
           role={msg.role}
           content={msg.content}
           imageUrl={msg.imageUrl}
           meta={msg.meta}
+          onFeedbackSubmit={onFeedbackSubmit}
+          feedbackSelection={feedbackByMessageId[msg.id] ?? null}
           followUpChips={
             msg.role === 'assistant' &&
             i === messages.length - 1 &&
             !isTyping &&
+            enableFollowUps &&
             msg.meta?.variant !== 'premium_gate' &&
             msg.meta?.variant !== 'error'
               ? FOLLOW_UP_CHIPS
@@ -84,6 +101,8 @@ export default function ChimmyConversationThread({
           voiceLoading={voiceLoadingId === msg.id}
           voicePlaying={voicePlayingId === msg.id}
           voiceDisplayName={voiceDisplayName}
+          showTrustPanel={showTrustPanel}
+          enableFollowUps={enableFollowUps}
             isLastAssistantMessage={
               msg.role === 'assistant' &&
               i === messages.length - 1 &&

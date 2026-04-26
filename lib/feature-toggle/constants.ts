@@ -8,6 +8,13 @@ export const FEATURE_KEYS = {
   TOOL_TRADE_ANALYZER: "feature_tool_trade_analyzer",
   TOOL_RANKINGS: "feature_tool_rankings",
   CHIMMY_ANTHROPIC: "feature_chimmy_anthropic",
+  CHIMMY_INTENT_CHIPS: "feature_chimmy_intent_chips",
+  CHIMMY_ASSISTANT_MODES: "feature_chimmy_assistant_modes",
+  CHIMMY_FOLLOWUPS: "feature_chimmy_followups",
+  CHIMMY_TRUST_PANEL: "feature_chimmy_trust_panel",
+  CHIMMY_DAILY_DIGEST: "feature_chimmy_daily_digest",
+  CHIMMY_VOICE_PREVIEW: "feature_chimmy_voice_preview",
+  CHIMMY_AI_KPI_EVENTS: "feature_chimmy_ai_kpi_events",
   EXPERIMENTAL_LEGACY_IMPORT: "feature_experimental_legacy_import",
   EXPERIMENTAL_DYNASTY: "feature_experimental_dynasty",
 } as const

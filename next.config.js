@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
 
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
@@ -10,6 +10,11 @@ const nextConfig = {
         'fs/promises': false,
         path: false,
       };
+    }
+
+    if (dev && process.platform === 'win32') {
+      // Windows + webpack filesystem cache can intermittently corrupt .next vendor chunks.
+      config.cache = false;
     }
 
     config.ignoreWarnings = [
@@ -24,7 +29,7 @@ const nextConfig = {
   },
 
   experimental: {
-    instrumentationHook: true,
+    instrumentationHook: process.env.NODE_ENV === 'production' || process.env.AF_ENABLE_DEV_INSTRUMENTATION === '1',
     outputFileTracingIncludes: {
       "/api/**": ["./data/**"],
     },

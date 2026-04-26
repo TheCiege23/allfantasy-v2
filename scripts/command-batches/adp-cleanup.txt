@@ -1,0 +1,8 @@
+# Inspect what's currently seeded
+npm run seed:test-adp-drafts -- --cleanup
+
+# Delete seeded leagues + sessions + picks
+npm run seed:test-adp-drafts -- --cleanup --apply
+
+# Delete test snapshots from dev DB
+psql $env:DATABASE_URL -v ON_ERROR_STOP=1 -f scripts/command-batches/adp-cleanup.sql

@@ -265,6 +265,7 @@ export async function seedSleeperPlayers(input: {
     injuryNotes: player.injuryNotes,
     news: [],
     dataSource: seedData.source,
+    headshotUrl: player.headshotUrl,
   }))
 
   await prisma.sportsPlayer.deleteMany({
@@ -283,7 +284,7 @@ export async function seedSleeperPlayers(input: {
 
   if (sportsPlayerRecordAvailable) {
     await prisma.sportsPlayerRecord.deleteMany({
-      where: { sport },
+      where: { sport, dataSource: seedData.source },
     })
 
     for (const batch of chunk(sportsPlayerRecordRows, UPSERT_BATCH_SIZE)) {

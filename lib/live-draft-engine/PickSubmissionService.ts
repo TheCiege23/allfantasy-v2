@@ -506,6 +506,11 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
         roundSlot: pick.slot ?? slot,
         playerId: pick.playerId ?? input.playerId ?? null,
         nflTeam: pick.team ?? input.team ?? null,
+        // D.6.3 — pick chat card enrichments: headshot already lives on the
+        // saved pick (presentation pipeline resolves it during submission);
+        // aiManager is true whenever the pick came from autopick.
+        headshotUrl: pick.playerImageUrl ?? input.playerImageUrl ?? null,
+        aiManager: input.source === 'auto',
       }),
     )
     .catch(() => {})

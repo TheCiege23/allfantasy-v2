@@ -15,7 +15,6 @@ import {
 import {
   clearUnifiedAuthDestination,
   rememberUnifiedAuthDestination,
-  resolveUnifiedAuthDestinationForSignup,
 } from "@/lib/auth/UnifiedAuthOrchestrator"
 import { pickPostCredentialSignupNavigation } from "@/lib/auth/postSignupRedirectPolicy"
 import { getDisclaimerUrl, getTermsUrl, getPrivacyUrl } from "@/lib/legal/LegalRouteResolver"
@@ -82,7 +81,7 @@ const AVATAR_PRESET_EMOJIS: Record<AvatarPresetId, string> = {
   champion: "🤺",
 }
 
-type SignupStep = 1 | 2 | 3 | 4
+type SignupStep = 1 | 2
 
 function SignupContent() {
   const { t, language } = useLanguage()
@@ -90,15 +89,7 @@ function SignupContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const nextParam = searchParams?.get("next") ?? undefined
-  const callbackParam = searchParams?.get("callbackUrl") ?? undefined
-  const returnToParam = searchParams?.get("returnTo") ?? undefined
-  const intentParam = searchParams?.get("intent") ?? undefined
-  const redirectAfterSignup = resolveUnifiedAuthDestinationForSignup({
-    next: nextParam,
-    callbackUrl: callbackParam,
-    returnTo: returnToParam,
-    intent: intentParam,
-  })
+  const postSignupDestination = "/dashboard"
   const refParam = searchParams?.get("ref")?.trim() || undefined
 
   const [username, setUsername] = useState("")
@@ -123,6 +114,8 @@ function SignupContent() {
   const [phoneVerificationMessage, setPhoneVerificationMessage] = useState<string | null>(null)
   const [showDlModal, setShowDlModal] = useState(false)
   const [currentStep, setCurrentStep] = useState<SignupStep>(1)
+  const [showOptionalProfile, setShowOptionalProfile] = useState(false)
+  const [showOptionalPreferences, setShowOptionalPreferences] = useState(false)
   const [disclaimerScrolledToEnd, setDisclaimerScrolledToEnd] = useState(false)
   const [legacyImportMessage, setLegacyImportMessage] = useState<string | null>(null)
   const [ageConfirmed, setAgeConfirmed] = useState(false)
@@ -149,9 +142,7 @@ function SignupContent() {
   const stepLabels = useMemo(
     () => [
       { id: 1 as SignupStep, label: "Account" },
-      { id: 2 as SignupStep, label: "Profile" },
-      { id: 3 as SignupStep, label: "Prefs" },
-      { id: 4 as SignupStep, label: "Verify" },
+      { id: 2 as SignupStep, label: "Verify" },
     ],
     []
   )
@@ -194,6 +185,17 @@ function SignupContent() {
       return acc
     }, {})
   }, [])
+  const hasOptionalProfileValues = useMemo(() => {
+    return Boolean(
+      phone.trim() ||
+      avatarPreview ||
+      avatarPreset !== "crest" ||
+      legacyImportMessage
+    )
+  }, [phone, avatarPreview, avatarPreset, legacyImportMessage])
+  const hasOptionalPreferenceValues = useMemo(() => {
+    return timezone !== DEFAULT_SIGNUP_TIMEZONE || preferredLanguageTouched
+  }, [timezone, preferredLanguageTouched])
 
   const applyUsernameSuggestion = useCallback(async () => {
     const base = username.trim() || "user"
@@ -285,8 +287,8 @@ function SignupContent() {
   }
 
   useEffect(() => {
-    rememberUnifiedAuthDestination(redirectAfterSignup)
-  }, [redirectAfterSignup])
+    rememberUnifiedAuthDestination(postSignupDestination)
+  }, [postSignupDestination])
 
   useEffect(() => {
     if (preferredLanguageTouched) return
@@ -305,6 +307,18 @@ function SignupContent() {
       // no-op
     }
   }, [])
+
+  useEffect(() => {
+    if (hasOptionalProfileValues && !showOptionalProfile) {
+      setShowOptionalProfile(true)
+    }
+  }, [hasOptionalProfileValues, showOptionalProfile])
+
+  useEffect(() => {
+    if (hasOptionalPreferenceValues && !showOptionalPreferences) {
+      setShowOptionalPreferences(true)
+    }
+  }, [hasOptionalPreferenceValues, showOptionalPreferences])
 
   // Debounced username availability + profanity check
   useEffect(() => {
@@ -407,7 +421,7 @@ function SignupContent() {
       }
     }
 
-    if (step === 3) {
+    if (step === 1) {
       if (!timezone) {
         setError("Choose your timezone.")
         return false
@@ -427,7 +441,7 @@ function SignupContent() {
       setUsernameContinueAttempted(true)
     }
     if (!validateStep(step)) return
-    setCurrentStep(Math.min(4, step + 1) as SignupStep)
+    setCurrentStep(Math.min(2, step + 1) as SignupStep)
   }
 
   function handleBackStep(step: SignupStep) {
@@ -436,7 +450,7 @@ function SignupContent() {
   }
 
   function handleStepFormSubmit(e: React.FormEvent) {
-    if (currentStep < 4) {
+    if (currentStep < 2) {
       e.preventDefault()
       handleNextStep(currentStep)
       return
@@ -547,7 +561,7 @@ function SignupContent() {
       }
 
       const callbackTarget = resolvePostSignupCallbackUrl({
-        redirectAfterSignup,
+        redirectAfterSignup: postSignupDestination,
         verificationMethod: apiVerificationMethod,
       })
 
@@ -674,7 +688,7 @@ function SignupContent() {
               </span>
             </Link>
             <Link
-              href={loginUrlWithIntent(redirectAfterSignup)}
+              href={loginUrlWithIntent(postSignupDestination)}
               className="rounded-lg border px-4 py-2 text-sm font-medium transition hover:opacity-90"
               style={{ borderColor: "var(--border)", color: "var(--muted)" }}
             >
@@ -731,7 +745,7 @@ function SignupContent() {
                 </p>
               )}
               <Link
-                href={loginUrlWithIntent(redirectAfterSignup)}
+                href={loginUrlWithIntent(postSignupDestination)}
                 className="mt-6 inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90"
                 style={{
                   backgroundImage: "linear-gradient(90deg, var(--accent-cyan), #3b82f6)",
@@ -774,7 +788,7 @@ function SignupContent() {
             </span>
           </Link>
           <Link
-            href={loginUrlWithIntent(redirectAfterSignup)}
+            href={loginUrlWithIntent(postSignupDestination)}
             className="rounded-lg border px-4 py-2 text-sm font-medium transition hover:opacity-90"
             style={{ borderColor: "var(--border)", color: "var(--muted)" }}
           >
@@ -897,7 +911,7 @@ function SignupContent() {
             >
               <div className="rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
                 <div className="mb-5 text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--accent-emerald-strong)" }}>
-                  Step 1 of 4 — Account Details
+                  Step 1 of 2 — Account Setup
                 </div>
 
                 <div className="space-y-4">
@@ -1089,10 +1103,38 @@ function SignupContent() {
               </div>
             </section>
 
-            <section className={currentStep === 2 ? "block" : "hidden"}>
+            <section className={currentStep === 1 ? "block" : "hidden"}>
+              <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowOptionalProfile((prev) => !prev)}
+                    className="flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-sm font-medium transition hover:opacity-90"
+                    style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+                  >
+                    <span>Optional profile details</span>
+                    <span style={{ color: "var(--muted2)" }}>{showOptionalProfile ? "Hide" : "Add"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowOptionalPreferences((prev) => !prev)}
+                    className="flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-sm font-medium transition hover:opacity-90"
+                    style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+                  >
+                    <span>Preferences (timezone and language)</span>
+                    <span style={{ color: "var(--muted2)" }}>{showOptionalPreferences ? "Hide" : "Review"}</span>
+                  </button>
+                </div>
+                <p className="mt-3 text-xs" style={{ color: "var(--muted2)" }}>
+                  You can keep defaults and continue now, or expand these sections to personalize before verification.
+                </p>
+              </div>
+            </section>
+
+            <section className={currentStep === 1 && showOptionalProfile ? "block" : "hidden"}>
               <div className="rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
                 <div className="mb-5 text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--accent-emerald-strong)" }}>
-                  Step 2 of 4 — Your Profile
+                  Profile (optional)
                 </div>
 
                 <div className="mb-6">
@@ -1282,38 +1324,13 @@ function SignupContent() {
                   {legacyImportMessage && <p className="mt-3 text-xs" style={{ color: "var(--muted)" }}>{legacyImportMessage}</p>}
                 </div>
 
-                <div className="mt-6 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleBackStep(2)}
-                    className="flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition hover:opacity-90"
-                    style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <ArrowLeft className="h-4 w-4" /> Back
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleNextStep(2)}
-                    className="flex-[1.4] rounded-xl px-4 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90"
-                    style={{
-                      backgroundImage: "linear-gradient(90deg, var(--accent-cyan), #3b82f6)",
-                      color: "var(--on-accent-bg)",
-                    }}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      Continue <ArrowRight className="h-4 w-4" />
-                    </span>
-                  </button>
-                </div>
               </div>
             </section>
 
-            <section className={currentStep === 3 ? "block" : "hidden"}>
+            <section className={currentStep === 1 && showOptionalPreferences ? "block" : "hidden"}>
               <div className="rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
                 <div className="mb-5 text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--accent-emerald-strong)" }}>
-                  Step 3 of 4 — Your Preferences
+                  Preferences
                 </div>
 
                 <div className="mb-6">
@@ -1395,38 +1412,13 @@ function SignupContent() {
                   </div>
                 </div>
 
-                <div className="mt-6 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleBackStep(3)}
-                    className="flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition hover:opacity-90"
-                    style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <ArrowLeft className="h-4 w-4" /> Back
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleNextStep(3)}
-                    className="flex-[1.4] rounded-xl px-4 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90"
-                    style={{
-                      backgroundImage: "linear-gradient(90deg, var(--accent-cyan), #3b82f6)",
-                      color: "var(--on-accent-bg)",
-                    }}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      Continue <ArrowRight className="h-4 w-4" />
-                    </span>
-                  </button>
-                </div>
               </div>
             </section>
 
-            <section className={currentStep === 4 ? "block" : "hidden"}>
+            <section className={currentStep === 2 ? "block" : "hidden"}>
               <div className="rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
                 <div className="mb-5 text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--accent-emerald-strong)" }}>
-                  Step 4 of 4 — Verify &amp; Agree
+                  Step 2 of 2 — Verify &amp; Agree
                 </div>
 
                 <div className="mb-6">
@@ -1673,12 +1665,12 @@ function SignupContent() {
                   <div className="h-px flex-1" style={{ background: "var(--border)" }} />
                 </div>
 
-                <SocialLoginButtons callbackUrl={redirectAfterSignup} />
+                <SocialLoginButtons callbackUrl={postSignupDestination} />
 
                 <div className="mt-6 flex gap-3">
                   <button
                     type="button"
-                    onClick={() => handleBackStep(4)}
+                    onClick={() => handleBackStep(2)}
                     className="flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition hover:opacity-90"
                     style={{ borderColor: "var(--border)", color: "var(--muted)" }}
                   >
@@ -1724,7 +1716,7 @@ function SignupContent() {
 
             <p className="text-center text-sm" style={{ color: "var(--muted)" }}>
               {t("signup.alreadyHaveAccount")}{" "}
-              <Link href={loginUrlWithIntent(redirectAfterSignup)} className="underline" style={{ color: "var(--accent-cyan)" }}>
+              <Link href={loginUrlWithIntent(postSignupDestination)} className="underline" style={{ color: "var(--accent-cyan)" }}>
                 {t("common.signIn")}
               </Link>
             </p>

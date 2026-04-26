@@ -1,5 +1,9 @@
 import type { SupportedSport } from "@/lib/sport-scope"
 import type { ChimmyOrchestrationMeta } from "@/lib/chimmy-orchestration/types"
+import type { ChimmyAssistantMode } from "@/lib/chimmy-chat/assistant-mode"
+import type { ChimmyAnswerContract } from "@/lib/chimmy-chat/response-contract"
+
+export type { ChimmyAnswerContract }
 
 export type AIInsightType = "matchup" | "playoff" | "dynasty" | "trade" | "waiver" | "draft"
 
@@ -50,6 +54,7 @@ export type AIChatContext = {
   privateMode?: boolean
   targetUsername?: string
   strategyMode?: string
+  assistantMode?: ChimmyAssistantMode
   source?: AIContextSource
   /** Injected server Time Engine snapshot when available (never trust device clock alone). */
   afTimeContext?: Record<string, unknown> | null
@@ -82,15 +87,25 @@ export type ChimmyResponseStructure = {
 }
 
 export type ChimmyMessageMeta = {
+  mode?: ChimmyAssistantMode
+  answerContract?: ChimmyAnswerContract
   confidencePct?: number
   providerStatus?: ChimmyProviderStatus
   recommendedTool?: string
   /** Central routing + tool launches from Chimmy orchestration brain */
   orchestration?: ChimmyOrchestrationMeta | null
   dataSources?: string[]
+  syncFreshness?: {
+    referenceTimezone?: string
+    sportsDigest?: {
+      overallLastSyncedAt?: string | null
+      perSource?: Record<string, string | null>
+    }
+  }
   quantData?: Record<string, unknown>
   trendData?: Record<string, unknown>
   responseStructure?: ChimmyResponseStructure
+  sourceLinks?: { label: string; href: string }[]
   variant?: "premium_gate" | "error"
   ctaLabel?: string
   ctaHref?: string

@@ -219,6 +219,10 @@ export async function PATCH(
   if (typeof body.commissionerPauseControlsEnabled === 'boolean') uiPatch.commissionerPauseControlsEnabled = body.commissionerPauseControlsEnabled
   if (typeof body.allowPicksDuringOvernightPause === 'boolean')
     uiPatch.allowPicksDuringOvernightPause = body.allowPicksDuringOvernightPause
+  if (typeof body.guillotineAutoHeyGenEnabled === 'boolean')
+    uiPatch.guillotineAutoHeyGenEnabled = body.guillotineAutoHeyGenEnabled
+  if (typeof body.survivorFinaleAutoHeyGenEnabled === 'boolean')
+    uiPatch.survivorFinaleAutoHeyGenEnabled = body.survivorFinaleAutoHeyGenEnabled
   if (body.slowDraftPauseWindow !== undefined) {
     const w = body.slowDraftPauseWindow
     if (w == null || (typeof w === 'object' && typeof w.start === 'string' && typeof w.end === 'string' && typeof w.timezone === 'string')) {

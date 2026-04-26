@@ -17,11 +17,17 @@ import type { ToolContextSource } from './ToolContextToChimmyRouter'
 export function getDefaultChimmyChips(options?: {
   leagueName?: string
   hasLeagues?: boolean
+  source?: string | null
+  sport?: string | null
+  compact?: boolean
 }): ChimmySuggestedChip[] {
   const league = options?.leagueName?.trim()
   const hasLeagues = options?.hasLeagues ?? !!league
   const displayLeague = league || 'my league'
   const short = displayLeague.length > 12 ? `${displayLeague.slice(0, 12)}…` : displayLeague
+  const sourceKey = (options?.source ?? '').toLowerCase()
+  const sport = options?.sport?.trim() || 'your sport'
+  const compact = options?.compact ?? false
 
   const sixForLeague = (): ChimmySuggestedChip[] => [
     {
@@ -70,7 +76,65 @@ export function getDefaultChimmyChips(options?: {
     },
   ]
 
-  return sixForLeague()
+  const sourceBoost: ChimmySuggestedChip[] = sourceKey.includes('war_room')
+    ? [
+        {
+          id: 'chip-war-room-edges',
+          label: compact ? 'War Room edges' : 'War Room edge checks',
+          prompt: `Give me a ${sport} war room edge check: leverage spots, downside flags, and pivots for today.`,
+          category: 'war_room',
+        },
+        {
+          id: 'chip-war-room-pivots',
+          label: 'Pivot options',
+          prompt: `What are the best ${sport} pivot options if my top plays are over-owned or risky?`,
+          category: 'war_room',
+        },
+      ]
+    : sourceKey.includes('draft')
+      ? [
+          {
+            id: 'chip-draft-board',
+            label: compact ? 'Draft board attack' : 'Draft board attack plan',
+            prompt: `Build my next 3 picks strategy for ${displayLeague} based on roster needs and best value tiers.`,
+            category: 'draft',
+          },
+          {
+            id: 'chip-draft-fade',
+            label: 'Fade traps',
+            prompt: `Who are the risky draft traps right now and which safer pivots should I target?`,
+            category: 'draft',
+          },
+        ]
+      : sourceKey.includes('league')
+        ? [
+            {
+              id: 'chip-league-standings',
+              label: compact ? 'Standings path' : 'Path to playoffs',
+              prompt: `What is my clearest path to the playoffs in ${displayLeague} over the next 2 scoring periods?`,
+              category: 'league',
+            },
+          ]
+        : [
+            {
+              id: 'chip-dashboard-focus',
+              label: compact ? 'Biggest edge now' : 'Biggest edge this week',
+              prompt: 'What is the single highest-leverage move I should make this week?',
+              category: 'general',
+            },
+          ]
+
+  const ordered = [...sourceBoost, ...sixForLeague()]
+  const seenIds = new Set<string>()
+  const deduped: ChimmySuggestedChip[] = []
+  for (const chip of ordered) {
+    if (seenIds.has(chip.id)) continue
+    seenIds.add(chip.id)
+    deduped.push(chip)
+    if (deduped.length >= 8) break
+  }
+
+  return deduped
 }
 
 /**

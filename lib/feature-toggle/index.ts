@@ -28,6 +28,7 @@ export {
   isToolTradeAnalyzerEnabled,
   isToolRankingsEnabled,
   isAnthropicChimmyEnabled,
+  getChimmyPhaseFeatureFlags,
   isExperimentalLegacyImportEnabled,
   isExperimentalDynastyEnabled,
   getPlatformConfigSnapshot,

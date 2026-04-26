@@ -58,6 +58,10 @@ export interface DraftUISettings {
    * Does not block drafting; commissioner-only UX toggle.
    */
   roundOneHeyGenHighlightEnabled: boolean
+  /** Auto-generate HeyGen clips when guillotine elimination events are processed. */
+  guillotineAutoHeyGenEnabled: boolean
+  /** Auto-generate HeyGen winner reveal clip once survivor finale voting closes. */
+  survivorFinaleAutoHeyGenEnabled: boolean
 }
 
 const DRAFT_UI_DEFAULTS: DraftUISettings = {
@@ -80,6 +84,8 @@ const DRAFT_UI_DEFAULTS: DraftUISettings = {
   executionMode: 'live',
   roundOnePickAnnouncementEnabled: true,
   roundOneHeyGenHighlightEnabled: false,
+  guillotineAutoHeyGenEnabled: true,
+  survivorFinaleAutoHeyGenEnabled: true,
 }
 
 const SETTINGS_KEYS: Record<keyof DraftUISettings, string> = {
@@ -103,6 +109,8 @@ const SETTINGS_KEYS: Record<keyof DraftUISettings, string> = {
   executionMode: 'draft_execution_mode',
   roundOnePickAnnouncementEnabled: 'draft_round_one_pick_announcement_enabled',
   roundOneHeyGenHighlightEnabled: 'draft_round_one_heygen_highlight_enabled',
+  guillotineAutoHeyGenEnabled: 'draft_guillotine_auto_heygen_enabled',
+  survivorFinaleAutoHeyGenEnabled: 'draft_survivor_finale_auto_heygen_enabled',
 }
 
 function fromStorage(settings: Record<string, unknown>): DraftUISettings {
@@ -134,6 +142,12 @@ function fromStorage(settings: Record<string, unknown>): DraftUISettings {
     roundOneHeyGenHighlightEnabled:
       settings[SETTINGS_KEYS.roundOneHeyGenHighlightEnabled] as boolean ??
       DRAFT_UI_DEFAULTS.roundOneHeyGenHighlightEnabled,
+    guillotineAutoHeyGenEnabled:
+      settings[SETTINGS_KEYS.guillotineAutoHeyGenEnabled] as boolean ??
+      DRAFT_UI_DEFAULTS.guillotineAutoHeyGenEnabled,
+    survivorFinaleAutoHeyGenEnabled:
+      settings[SETTINGS_KEYS.survivorFinaleAutoHeyGenEnabled] as boolean ??
+      DRAFT_UI_DEFAULTS.survivorFinaleAutoHeyGenEnabled,
   }
 }
 
@@ -216,6 +230,10 @@ export async function updateDraftUISettings(
     next[SETTINGS_KEYS.roundOnePickAnnouncementEnabled] = patch.roundOnePickAnnouncementEnabled
   if (patch.roundOneHeyGenHighlightEnabled !== undefined)
     next[SETTINGS_KEYS.roundOneHeyGenHighlightEnabled] = patch.roundOneHeyGenHighlightEnabled
+  if (patch.guillotineAutoHeyGenEnabled !== undefined)
+    next[SETTINGS_KEYS.guillotineAutoHeyGenEnabled] = patch.guillotineAutoHeyGenEnabled
+  if (patch.survivorFinaleAutoHeyGenEnabled !== undefined)
+    next[SETTINGS_KEYS.survivorFinaleAutoHeyGenEnabled] = patch.survivorFinaleAutoHeyGenEnabled
 
   await prisma.league.update({
     where: { id: leagueId },

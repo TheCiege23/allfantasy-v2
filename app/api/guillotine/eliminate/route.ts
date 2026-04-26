@@ -7,9 +7,75 @@ import { runEliminationCheck } from '@/lib/guillotine/eliminationEngine'
 import { requireCommissionerRole } from '@/lib/league/permissions'
 import { isChopDay } from '@/lib/guillotine/sportConfig'
 import { postGuillotineEliminationToChat } from '@/lib/guillotine/guillotineChatPoster'
+import { queueLeagueEventVideo } from '@/lib/fantasy-media/EventVideoAutomation'
+import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
+
+async function queueGuillotineEliminationVideos(args: {
+  actorUserId: string
+  leagueId: string
+  leagueName: string
+  sport: string
+  scoringPeriod: number
+  seasonId: string
+  eliminated: {
+    rosterId: string
+    score: number
+    teamName: string | null
+    marginBelowSafe: number
+    wasTiebreaker: boolean
+    playersReleased: number
+  }[]
+  trigger: 'cron' | 'manual'
+}): Promise<void> {
+  const {
+    actorUserId,
+    leagueId,
+    leagueName,
+    sport,
+    scoringPeriod,
+    seasonId,
+    eliminated,
+    trigger,
+  } = args
+  if (!actorUserId || eliminated.length === 0) return
+
+  for (const elim of eliminated) {
+    const teamName = elim.teamName?.trim() || 'A team'
+    const tieNote = elim.wasTiebreaker ? ' The tiebreaker decided the chop.' : ''
+    const script = [
+      `Guillotine alert from ${leagueName}.`,
+      `${teamName} was chopped in period ${scoringPeriod} with ${elim.score.toFixed(1)} points.`,
+      `They finished ${elim.marginBelowSafe.toFixed(1)} points below the safe line.${tieNote}`,
+      `${elim.playersReleased} player(s) were released back into waivers.`,
+    ].join(' ')
+
+    const title = `${leagueName} · Guillotine Chop · ${teamName}`
+    await queueLeagueEventVideo({
+      userId: actorUserId,
+      leagueId,
+      leagueName,
+      sport,
+      title,
+      script,
+      contentType: 'league_recap',
+      eventType: 'guillotine_elimination',
+      eventPayload: {
+        seasonId,
+        scoringPeriod,
+        rosterId: elim.rosterId,
+        teamName,
+        score: elim.score,
+        marginBelowSafe: elim.marginBelowSafe,
+        wasTiebreaker: elim.wasTiebreaker,
+        playersReleased: elim.playersReleased,
+        trigger,
+      },
+    })
+  }
+}
 
 /**
  * Vercel cron calls GET with no query string — sweep active guillotine seasons using each linked RedraftSeason.currentWeek.
@@ -20,7 +86,10 @@ async function sweepActiveGuillotineSeasons() {
       status: { notIn: ['setup', 'complete'] },
       redraftSeasonId: { not: null },
     },
-    include: { redraftSeason: true },
+    include: {
+      redraftSeason: true,
+      league: { select: { userId: true, name: true, sport: true } },
+    },
   })
 
   const results: {
@@ -59,6 +128,20 @@ async function sweepActiveGuillotineSeasons() {
             elim.wasTiebreaker ?? false,
             elim.playersReleased ?? 0,
           ).catch(() => {})
+        }
+
+        const uiSettings = await getDraftUISettingsForLeague(g.leagueId).catch(() => null)
+        if (uiSettings?.guillotineAutoHeyGenEnabled ?? true) {
+          await queueGuillotineEliminationVideos({
+            actorUserId: g.league?.userId ?? '',
+            leagueId: g.leagueId,
+            leagueName: g.league?.name?.trim() || 'Guillotine League',
+            sport: String(g.league?.sport ?? g.sport ?? 'nfl'),
+            scoringPeriod,
+            seasonId: g.id,
+            eliminated,
+            trigger: 'cron',
+          }).catch(() => {})
         }
       }
 
@@ -108,7 +191,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'seasonId and scoringPeriod required' }, { status: 400 })
   }
 
-  const g = await prisma.guillotineSeason.findFirst({ where: { id: body.seasonId } })
+  const g = await prisma.guillotineSeason.findFirst({
+    where: { id: body.seasonId },
+    include: {
+      league: { select: { name: true, sport: true } },
+    },
+  })
   if (!g) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   try {
@@ -127,6 +215,23 @@ export async function POST(req: NextRequest) {
   const out = await runEliminationCheck(body.seasonId, body.scoringPeriod, {
     skipIfAlreadyProcessed: false,
   })
+
+  if (out.eliminated.length > 0) {
+    const uiSettings = await getDraftUISettingsForLeague(g.leagueId).catch(() => null)
+    if (uiSettings?.guillotineAutoHeyGenEnabled ?? true) {
+      await queueGuillotineEliminationVideos({
+        actorUserId: userId,
+        leagueId: g.leagueId,
+        leagueName: g.league?.name?.trim() || 'Guillotine League',
+        sport: String(g.league?.sport ?? g.sport ?? 'nfl'),
+        scoringPeriod: body.scoringPeriod,
+        seasonId: g.id,
+        eliminated: out.eliminated,
+        trigger: 'manual',
+      })
+    }
+  }
+
   return NextResponse.json(out)
 }
 

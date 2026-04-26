@@ -4262,4 +4262,10 @@ export const translations: Record<string, Record<string, string>> = {
     "bracket.page.cta.primary": "Crear tu bracket",
     "bracket.page.cta.secondary": "Probar ayuda de IA para brackets",
   },
+  // French translations (populated by Google Translate)
+  fr: {},
+  // Simplified Chinese translations (populated by Google Translate)
+  zh: {},
+  // Vietnamese translations (populated by Google Translate)
+  vi: {},
 };

@@ -390,7 +390,7 @@ const PLAYER_FIELDS = `
   positionCategory status DK_salary
   regularSeason {
     period passing_yards passing_touchdowns passing_attempts completions
-    interceptions passerRating rushing_yards rushing_touchdowns rushing_attempts
+    interceptions rushing_yards rushing_touchdowns rushing_attempts
     receptions receiving_yards receiving_touchdowns targets sacks tackles
     fumbles fumbles_lost DK_fantasy_points DK_fantasy_points_per_game
     games_played snap_count_offense snap_count_defense
@@ -398,7 +398,7 @@ const PLAYER_FIELDS = `
   }
   postSeason {
     period passing_yards passing_touchdowns passing_attempts completions
-    interceptions passerRating rushing_yards rushing_touchdowns rushing_attempts
+    interceptions rushing_yards rushing_touchdowns rushing_attempts
     receptions receiving_yards receiving_touchdowns targets sacks tackles
     fumbles fumbles_lost DK_fantasy_points DK_fantasy_points_per_game
     games_played snap_count_offense snap_count_defense
@@ -406,28 +406,165 @@ const PLAYER_FIELDS = `
   }
 `;
 
+/**
+ * E.2.6 — quality gate for REST `player-info/NFL` responses.
+ *
+ * The Rolling Insights REST `player-info/NFL` endpoint can return a "historical"
+ * dictionary of every NFL player ever (8k+ rows) with `team = null` and no
+ * `regularSeason` blocks — clearly unusable for a current draft pool. When that
+ * happens we want to fall through to the GraphQL `nflRoster` query, which returns
+ * current rosters with DK_fantasy_points + rushing/receiving/passing splits.
+ *
+ * A REST payload is "useful" iff at least 25% of rows have a real team. Stats
+ * coverage is tracked separately (see `withRegularSeason` / `withFantasyPoints`)
+ * but does not gate the REST/GraphQL choice — Rolling Insights returns season
+ * splits via a different endpoint (`player-stats/{year}/NFL`), not via the
+ * roster query, so a stats-less roster can still drive identity-map + SportsPlayer
+ * backfill. Empty REST → fall through (existing behavior). Historical REST
+ * (team=null) → fall through (new behavior, the fix).
+ *
+ * Returns a small struct so audit / debug callers can see why the gate fired.
+ */
+export interface NFLRosterPayloadQuality {
+  useful: boolean
+  total: number
+  withRealTeam: number
+  withRegularSeason: number
+  withFantasyPoints: number
+  reason: string
+}
+
+export function isUsefulNFLRosterPayload(
+  players: readonly RIPlayer[] | null | undefined,
+): NFLRosterPayloadQuality {
+  const total = Array.isArray(players) ? players.length : 0
+  if (!total) {
+    return {
+      useful: false,
+      total: 0,
+      withRealTeam: 0,
+      withRegularSeason: 0,
+      withFantasyPoints: 0,
+      reason: 'empty payload',
+    }
+  }
+
+  let withRealTeam = 0
+  let withRegularSeason = 0
+  let withFantasyPoints = 0
+  for (const p of players!) {
+    const teamAbbr = (p.team?.abbrv ?? '').trim().toUpperCase()
+    if (teamAbbr && teamAbbr !== 'UNK' && teamAbbr !== 'UNKNOWN' && teamAbbr !== 'FA') {
+      withRealTeam++
+    }
+    const season = Array.isArray(p.regularSeason) ? p.regularSeason[0] : null
+    if (season) {
+      withRegularSeason++
+      if (season.DK_fantasy_points != null) withFantasyPoints++
+    }
+  }
+
+  // Threshold: want at least 25% of rows on a real current team. The historical
+  // dump is essentially 0% — this comfortably distinguishes the two shapes
+  // without false-rejecting trimmed valid rosters. Stats coverage is INFORMATIONAL
+  // (audit surfaces it) — it does not gate REST↔GraphQL fallback.
+  const teamRatio = withRealTeam / total
+  const useful = teamRatio >= 0.25
+
+  let reason = 'ok'
+  if (useful && withRegularSeason === 0) {
+    reason = `useful (current rosters) but no regularSeason blocks — stats live on a separate endpoint`
+  } else if (!useful) {
+    reason = `historical-shape: only ${withRealTeam}/${total} rows have a real team (need >=25%)`
+  }
+
+  return { useful, total, withRealTeam, withRegularSeason, withFantasyPoints, reason }
+}
+
+/** Last quality probe captured by `fetchNFLRoster`. Read by the audit script for diagnostics. */
+export interface FetchNFLRosterAttempt {
+  source: 'rest' | 'graphql'
+  attempted: boolean
+  returned: number
+  quality?: NFLRosterPayloadQuality
+}
+
+export interface FetchNFLRosterTrace {
+  rest: FetchNFLRosterAttempt
+  graphql: FetchNFLRosterAttempt
+  finalSource: 'rest' | 'graphql' | 'none'
+}
+
+let lastFetchNFLRosterTrace: FetchNFLRosterTrace | null = null
+
+export function getLastFetchNFLRosterTrace(): FetchNFLRosterTrace | null {
+  return lastFetchNFLRosterTrace
+}
+
 export async function fetchNFLRoster(options: {
   season?: string;
   playerName?: string;
   teamId?: string;
   limit?: number;
 }): Promise<RIPlayer[]> {
-  const restRoster = await fetchRollingInsightsRest('players', options, normalizeRIPlayer);
+  const trace: FetchNFLRosterTrace = {
+    rest: { source: 'rest', attempted: true, returned: 0 },
+    graphql: { source: 'graphql', attempted: false, returned: 0 },
+    finalSource: 'none',
+  }
+
+  // E.2.6 — Default the season to RI's "YYYY-YYYY" format (e.g. "2025-2026"). The
+  // GraphQL `nflRoster` query without a season returns the full ~9k historical
+  // archive (every player ever) without team or stats; passing season filters
+  // down to the current ~1.9k roster. Plain "2025" is rejected by RI (returns 0)
+  // so we coerce to "2025-2026" automatically.
+  const normalizedSeason =
+    options.season && /^\d{4}$/.test(options.season.trim())
+      ? `${options.season.trim()}-${Number(options.season.trim()) + 1}`
+      : options.season ?? getCurrentNFLSeason()
+  const effectiveOptions = { ...options, season: normalizedSeason }
+
+  const restRoster = await fetchRollingInsightsRest('players', effectiveOptions, normalizeRIPlayer);
+  trace.rest.returned = Array.isArray(restRoster) ? restRoster.length : 0
+
   if (Array.isArray(restRoster) && restRoster.length > 0) {
-    return restRoster;
+    const quality = isUsefulNFLRosterPayload(restRoster)
+    trace.rest.quality = quality
+    if (quality.useful) {
+      trace.finalSource = 'rest'
+      lastFetchNFLRosterTrace = trace
+      return restRoster
+    }
+    console.warn(
+      `[RollingInsights] REST NFL roster not useful (${quality.reason}); falling back to GraphQL`,
+    )
   }
 
   const args: string[] = [];
-  if (options.season) args.push(`season: "${options.season}"`);
-  if (options.playerName) args.push(`playerName: "${options.playerName}"`);
-  if (options.teamId) args.push(`teamId: "${options.teamId}"`);
-  if (options.limit) args.push(`limit: ${options.limit}`);
+  if (effectiveOptions.season) args.push(`season: "${effectiveOptions.season}"`);
+  if (effectiveOptions.playerName) args.push(`playerName: "${effectiveOptions.playerName}"`);
+  if (effectiveOptions.teamId) args.push(`teamId: "${effectiveOptions.teamId}"`);
+  if (effectiveOptions.limit) args.push(`limit: ${effectiveOptions.limit}`);
 
   const argsStr = args.length ? `(${args.join(', ')})` : '';
   const query = `{ nflRoster${argsStr} { ${PLAYER_FIELDS} } }`;
 
-  const data = await graphqlQuery<{ nflRoster: RIPlayer[] }>(query);
-  return data.nflRoster || [];
+  trace.graphql.attempted = true
+  let gqlPlayers: RIPlayer[] = []
+  try {
+    const data = await graphqlQuery<{ nflRoster: RIPlayer[] }>(query);
+    gqlPlayers = (data.nflRoster ?? []).map((raw) => normalizeRIPlayer(raw) ?? raw).filter(Boolean) as RIPlayer[]
+  } catch (err) {
+    console.warn(
+      `[RollingInsights] GraphQL nflRoster failed:`,
+      err instanceof Error ? err.message : err,
+    )
+  }
+  trace.graphql.returned = gqlPlayers.length
+  trace.graphql.quality = isUsefulNFLRosterPayload(gqlPlayers)
+  trace.finalSource = gqlPlayers.length ? 'graphql' : 'none'
+  lastFetchNFLRosterTrace = trace
+  return gqlPlayers
 }
 
 export async function fetchNFLTeams(): Promise<RITeam[]> {
@@ -972,7 +1109,7 @@ const PLAYER_ENHANCED_FIELDS = `
   allStar { period count }
   regularSeason {
     period passing_yards passing_touchdowns passing_attempts completions
-    interceptions passerRating rushing_yards rushing_touchdowns rushing_attempts
+    interceptions rushing_yards rushing_touchdowns rushing_attempts
     receptions receiving_yards receiving_touchdowns targets sacks tackles
     fumbles fumbles_lost DK_fantasy_points DK_fantasy_points_per_game
     games_played snap_count_offense snap_count_defense snap_count_special_teams
@@ -983,7 +1120,7 @@ const PLAYER_ENHANCED_FIELDS = `
   }
   postSeason {
     period passing_yards passing_touchdowns passing_attempts completions
-    interceptions passerRating rushing_yards rushing_touchdowns rushing_attempts
+    interceptions rushing_yards rushing_touchdowns rushing_attempts
     receptions receiving_yards receiving_touchdowns targets sacks tackles
     fumbles fumbles_lost DK_fantasy_points DK_fantasy_points_per_game
     games_played snap_count_offense snap_count_defense snap_count_special_teams
@@ -1216,3 +1353,50 @@ export async function runRollingInsightsHealthCheck(): Promise<RollingInsightsHe
 }
 
 export { getCurrentNFLSeason, getAccessToken as testAuth };
+
+/**
+ * E.2.7 — fetch NFL per-player season stats from Rolling Insights
+ * REST `player-stats/{year}/NFL`. This is the endpoint that returns the rich
+ * `regular_season` blocks that `nflRoster` does not — DK fantasy points,
+ * passing/rushing/receiving splits, games_played, etc.
+ *
+ * Returns rows with the exact RI shape (`player_id`, `player`, `team`,
+ * `team_id`, `regular_season`, `postseason`). No normalization here — the
+ * caller writes `regular_season` directly to `PlayerSeasonStats.stats` so the
+ * existing `parseRollingInsightsStatsJson` consumer keeps working.
+ *
+ * Reuses `rollingInsightsProvider` (which already handles auth, REST/GraphQL
+ * probing, and the `projections` → `player-stats/{year}/NFL` path mapping).
+ */
+export interface RIPlayerSeasonStatsRow {
+  player_id: number | string
+  player: string
+  team?: string | null
+  team_id?: number | string | null
+  regular_season?: Record<string, number | null | undefined> | null
+  postseason?: Record<string, number | null | undefined> | null
+}
+
+export async function fetchNFLPlayerStats(options: {
+  season?: string
+}): Promise<RIPlayerSeasonStatsRow[]> {
+  // Normalize season the same way fetchNFLRoster does — RI accepts either plain
+  // year (e.g. "2024") or a "YYYY-YYYY" range. The projections endpoint expects
+  // a plain year in the URL path, so strip a trailing "-YYYY" if present.
+  const seasonRaw = options.season ?? String(new Date().getUTCFullYear())
+  const seasonForPath = seasonRaw.includes('-') ? seasonRaw.split('-')[0] : seasonRaw
+
+  const result = await rollingInsightsProvider({
+    sport: 'NFL',
+    dataType: 'projections',
+    query: { season: seasonForPath },
+  })
+  if (!Array.isArray(result.data)) return []
+  // Filter only rows that have an id and a name — anything else is unusable.
+  return (result.data as unknown[])
+    .filter((r): r is RIPlayerSeasonStatsRow => {
+      if (!r || typeof r !== 'object') return false
+      const o = r as Record<string, unknown>
+      return o.player_id != null && typeof o.player === 'string' && o.player.length > 0
+    })
+}

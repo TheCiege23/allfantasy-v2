@@ -12910,3 +12910,76 @@ enum LeagueSport {
   NCAAB
   SOCCER
 }
+
+/// TheAudioDB artist/album metadata mapped from player names (e.g., music interests).
+model AudioMetadata {
+  id              String   @id @default(cuid())
+  playerName      String   @map("player_name") @db.VarChar(255)
+  sport           String   @db.VarChar(16)
+  artistId        String   @map("artist_id") @db.VarChar(128)
+  artistName      String   @map("artist_name") @db.VarChar(255)
+  biography       String?  @map("biography") @db.Text
+  imageUrl        String?  @map("image_url") @db.Text
+  website         String?  @map("website") @db.Text
+  countryCode     String?  @map("country_code") @db.VarChar(2)
+  genres          String[] @default([])
+  
+  // Album info (if applicable)
+  albumName       String?  @map("album_name") @db.VarChar(255)
+  albumYear       Int?     @map("album_year")
+  albumCover      String?  @map("album_cover") @db.Text
+  
+  // Metadata
+  source          String   @default("theaudiodb") @db.VarChar(32)
+  confidence      Float    @default(0.5) // 0.0-1.0 for match quality
+  lastSyncedAt    DateTime @map("last_synced_at") @default(now()) @updatedAt
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@unique([playerName, sport], name: "uniq_audio_metadata_player_sport")
+  @@index([sport])
+  @@index([lastSyncedAt])
+  @@map("audio_metadata")
+}
+
+/// D.5-test — AllFantasy AI ADP snapshot. One row per (player, context, draftMode).
+/// `draftMode` separates `real` (production AllFantasy drafts), `mock` (mock-draft tool),
+/// and `test` (seeded harness drafts that must never leak into production AI ADP).
+/// `contextHash` collapses the (sport, leagueType, draftType, scoringFormat, rosterFormat,
+/// teamCount, season) tuple into a single string used as the natural key.
+model AllFantasyAdpSnapshot {
+  id                  String   @id @default(uuid())
+  /// Stable player identity — `${normalizedName}|${position}` so the resolver can join
+  /// pool rows without a real provider id (pool rows often use synthetic ids).
+  playerKey           String
+  playerName          String
+  sport               String   @db.VarChar(16)
+  leagueType          String   @db.VarChar(32)
+  draftType           String   @db.VarChar(32)
+  scoringFormat       String   @db.VarChar(32)
+  rosterFormat        String   @db.VarChar(32)
+  teamCount           Int
+  season              String   @db.VarChar(16)
+  /// `real` | `mock` | `test`. The recompute script writes one row per draftMode it sees.
+  draftMode           String   @db.VarChar(16)
+  sampleSize          Int
+  averageOverallPick  Float
+  averageRound        Float
+  averagePickInRound  Float
+  minOverallPick      Int
+  maxOverallPick      Int
+  /// Population standard deviation of overall picks. Null when sampleSize<2.
+  standardDeviation   Float?
+  /// Δ vs. the snapshot from 7 days ago for the same (player, context, draftMode); null when no prior snapshot exists.
+  sevenDayTrend       Float?
+  thirtyDayTrend      Float?
+  /// Pre-hashed context for unique constraint + fast lookup from the pool resolver.
+  contextHash         String   @db.VarChar(96)
+  lastUpdatedAt       DateTime @default(now()) @updatedAt
+  createdAt           DateTime @default(now())
+
+  @@unique([playerKey, contextHash, draftMode])
+  @@index([sport, season, draftMode])
+  @@index([contextHash, draftMode])
+  @@index([playerKey])
+  @@map("allfantasy_adp_snapshots")
+}

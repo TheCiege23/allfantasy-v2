@@ -122,4 +122,8 @@ export interface NormalizedDraftEntry {
   poolType?: 'college' | 'pro'
   /** NFL: season projections + splits for draft grid (optional). */
   nflDraftProjectionSplits?: NflDraftProjectionSplits | null
+  /** D.7 — NFL years of pro experience (from Sleeper). 0 = rookie. null/undefined when unknown. */
+  yearsExp?: number | null
+  /** D.7 — convenience flag derived during normalization (yearsExp === 0 || explicit upstream rookie marker). */
+  isRookie?: boolean
 }

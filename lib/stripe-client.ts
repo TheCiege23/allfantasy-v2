@@ -23,7 +23,7 @@ export function getStripeClient(): Stripe {
   const secretKey = getRequiredEnv("STRIPE_SECRET_KEY");
 
   stripeClient = new Stripe(secretKey, {
-    apiVersion: "2026-01-28.clover",
+    apiVersion: "2026-02-25.clover",
   });
 
   return stripeClient;

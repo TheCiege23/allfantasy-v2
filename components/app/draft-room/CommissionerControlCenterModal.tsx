@@ -933,6 +933,43 @@ export function CommissionerControlCenterModal({
                 {(ui.importEnabled ?? true) ? 'On' : 'Off'}
               </button>
             </label>
+
+            <div className="rounded-lg border border-cyan-300/15 bg-cyan-500/5 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-cyan-100/80">League Event Videos</p>
+              <p className="mt-1 text-[11px] text-white/65">
+                Controls automatic HeyGen clips for guillotine eliminations and survivor finale winner reveal.
+              </p>
+            </div>
+
+            <label className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/25 px-3 py-2">
+              <span className="text-white/90">Guillotine elimination auto-video</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={ui.guillotineAutoHeyGenEnabled ?? true}
+                disabled={settingsSaving}
+                data-testid="draft-commissioner-toggle-guillotine-auto-heygen"
+                onClick={() => handleToggle('guillotineAutoHeyGenEnabled', !(ui.guillotineAutoHeyGenEnabled ?? true))}
+                className={`rounded border px-3 py-1 text-xs ${(ui.guillotineAutoHeyGenEnabled ?? true) ? 'border-cyan-300/35 bg-cyan-500/12 text-cyan-100' : 'border-white/15 bg-black/30 text-white/70'}`}
+              >
+                {(ui.guillotineAutoHeyGenEnabled ?? true) ? 'On' : 'Off'}
+              </button>
+            </label>
+
+            <label className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/25 px-3 py-2">
+              <span className="text-white/90">Survivor winner reveal auto-video</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={ui.survivorFinaleAutoHeyGenEnabled ?? true}
+                disabled={settingsSaving}
+                data-testid="draft-commissioner-toggle-survivor-auto-heygen"
+                onClick={() => handleToggle('survivorFinaleAutoHeyGenEnabled', !(ui.survivorFinaleAutoHeyGenEnabled ?? true))}
+                className={`rounded border px-3 py-1 text-xs ${(ui.survivorFinaleAutoHeyGenEnabled ?? true) ? 'border-cyan-300/35 bg-cyan-500/12 text-cyan-100' : 'border-white/15 bg-black/30 text-white/70'}`}
+              >
+                {(ui.survivorFinaleAutoHeyGenEnabled ?? true) ? 'On' : 'Off'}
+              </button>
+            </label>
           </div>
         </section>
 

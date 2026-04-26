@@ -24,6 +24,7 @@ import { getPlayerImage, preloadPlayerImage } from '@/lib/players/getPlayerImage
 import type { NflDraftProjectionSplits } from '@/lib/draft/analytics/nfl-draft-pool-projection-splits'
 import { formatNflStatCell } from '@/lib/draft/analytics/nfl-draft-pool-projection-splits'
 import { NflDraftPoolStatsGroupHeader, NflDraftPoolStatsRow } from '@/components/app/draft-room/NflDraftPoolStatsStrip'
+import { PlayerAvatar } from '@/components/app/draft-room/PlayerAvatar'
 
 export interface PlayerDetailPlayer {
   id?: string | null
@@ -348,48 +349,23 @@ export function PlayerDetailModal(props: PlayerDetailModalProps) {
             }`}
           >
             <div className="flex items-start gap-5">
-              <div
-                className={`relative shrink-0 overflow-hidden rounded-xl border bg-black/40 ${
-                  rsModal ? 'h-36 w-36 border-cyan-400/20 shadow-[0_12px_40px_rgba(0,0,0,0.45)]' : 'h-28 w-28 border-white/10'
-                }`}
-              >
-                {headerImageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={headerImageUrl}
-                    alt=""
-                    className="h-full w-full object-cover"
-                    onError={(e) => {
-                      ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-                    }}
-                  />
-                ) : (
-                  <div
-                    className={`flex h-full w-full items-center justify-center font-black text-white/30 ${
-                      rsModal ? 'text-[28px]' : 'text-[22px]'
-                    }`}
-                  >
-                    {player.name
-                      .split(' ')
-                      .slice(0, 2)
-                      .map((w) => w[0])
-                      .join('')}
-                  </div>
-                )}
-                {(normalized?.teamLogoUrl ?? player.teamLogoUrl) ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={normalized?.teamLogoUrl ?? player.teamLogoUrl ?? ''}
-                    alt=""
-                    className={`absolute left-1 top-1 rounded-md border border-white/10 bg-black/60 object-contain p-0.5 ${
-                      rsModal ? 'h-9 w-9 shadow-md' : 'h-7 w-7'
-                    }`}
-                    onError={(e) => {
-                      ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-                    }}
-                  />
-                ) : null}
-              </div>
+              {/* E.1: shared PlayerAvatar replaces the previous inline `<img>` + initials block.
+                * The old code rendered headerImageUrl unconditionally — when the resolver returned
+                * a synthesized `data:image/svg+xml` URI containing the literal text "AF" as a fallback
+                * placeholder, the image loaded successfully and the user saw "AF" instead of the
+                * player's actual initials (Bijan Robinson should be "BR"). PlayerAvatar's
+                * URL classifier rejects data URIs and team logos so we always fall through to
+                * proper initials when there isn't a real photo. */}
+              <PlayerAvatar
+                headshotUrl={headerImageUrl}
+                displayName={player.name}
+                teamLogoUrl={normalized?.teamLogoUrl ?? player.teamLogoUrl ?? null}
+                teamAbbr={player.team ?? null}
+                position={player.position ?? null}
+                size={rsModal ? 144 : 112}
+                testIdBase="player-detail-avatar"
+                className={rsModal ? 'rounded-xl shadow-[0_12px_40px_rgba(0,0,0,0.45)]' : ''}
+              />
 
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">

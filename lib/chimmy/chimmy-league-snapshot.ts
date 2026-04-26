@@ -29,7 +29,19 @@ export async function loadLeagueSnapshotForUser(
   leagueId: string
 ): Promise<ChimmyLeagueSnapshot | null> {
   const row = await prisma.league.findFirst({
-    where: { id: leagueId, userId },
+    where: {
+      id: leagueId,
+      OR: [
+        { userId },
+        {
+          teams: {
+            some: {
+              claimedByUserId: userId,
+            },
+          },
+        },
+      ],
+    },
     select: {
       id: true,
       name: true,

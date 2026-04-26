@@ -1,0 +1,5 @@
+# Inspect seeded league/session/pick records only (no deletion)
+npm run seed:test-adp-drafts -- --cleanup
+
+# Inspect test snapshot count only (no deletion)
+psql $env:DATABASE_URL -v ON_ERROR_STOP=1 -f scripts/command-batches/adp-cleanup-safe.sql

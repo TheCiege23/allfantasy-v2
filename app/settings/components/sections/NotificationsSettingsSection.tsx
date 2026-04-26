@@ -211,6 +211,8 @@ export function NotificationsSettingsSection({
       } else {
         window.localStorage.setItem(CHIMMY_SHORTCUTS_DISABLED_KEY, "1")
       }
+      // Same-tab localStorage writes do not emit a "storage" event.
+      window.dispatchEvent(new Event("af:chimmy-shortcuts-changed"))
     } catch {
       // Ignore storage failures; shell defaults to enabled behavior.
     }

@@ -4,6 +4,8 @@ import React from 'react'
 import { ArrowLeft, ArrowLeftRight, ArrowRight, Gavel, History, Pencil } from 'lucide-react'
 import { withAlpha } from '@/lib/draft-room'
 import { LazyDraftImage } from './LazyDraftImage'
+import { PlayerAvatar } from './PlayerAvatar'
+import { isDefRowForAvatar } from '@/lib/draft-room/classify-avatar-source'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { buildDraftPlayerDisplayModel } from '@/lib/draft-sports-models/build-display-model'
 import { normalizePlayer } from '@/lib/players/normalizePlayer'
@@ -46,28 +48,32 @@ export type DraftBoardCellPick = {
 function TinyHeadshot({
   name,
   src,
+  position,
+  teamLogoUrl,
+  teamAbbr,
 }: {
   name: string | null
   src: string | null
+  /** F.1 — DEF picks render the team logo as the primary avatar. */
+  position?: string | null
+  /** F.1 — passed only for DEF picks; non-DEF cells keep the existing
+   * separate `TinyTeamLogo` badge so the layout doesn't change for normal players. */
+  teamLogoUrl?: string | null
+  teamAbbr?: string | null
 }) {
-  const [imgError, setImgError] = React.useState(false)
-  if (src && !imgError) {
-    return (
-      <LazyDraftImage
-        src={src}
-        alt=""
-        width={22}
-        height={22}
-        className="rounded-full object-cover bg-white/10 ring-1 ring-white/10"
-        lazy
-        onError={() => setImgError(true)}
-      />
-    )
-  }
+  /** E.1: delegate to the shared PlayerAvatar so the URL classifier (which rejects data URIs and
+   * team logos) is applied uniformly. The board cell stays at 22px and skips the team-logo badge
+   * because TinyTeamLogo is rendered separately in this layout. */
   return (
-    <span className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-full bg-white/12 text-[9px] font-bold text-white/80 ring-1 ring-white/10">
-      {String(name ?? '?').charAt(0).toUpperCase()}
-    </span>
+    <PlayerAvatar
+      headshotUrl={src}
+      displayName={name ?? ''}
+      teamLogoUrl={teamLogoUrl}
+      teamAbbr={teamAbbr}
+      position={position}
+      size={22}
+      testIdBase="draft-board-cell-headshot"
+    />
   )
 }
 
@@ -372,10 +378,20 @@ function DraftBoardCellInner({
         <div className="mt-0.5 flex min-h-0 flex-1 flex-col justify-between gap-1 overflow-hidden">
           <div className="flex min-w-0 items-start gap-1.5">
             <div className="relative shrink-0">
-              <TinyHeadshot name={pick.playerName} src={headshotSrc} />
-              <div className="absolute -bottom-0.5 -right-0.5 rounded border border-white/12 bg-[#232c40] p-px">
-                <TinyTeamLogo team={pick.team} src={teamLogoSrc} />
-              </div>
+              <TinyHeadshot
+                name={pick.playerName}
+                src={headshotSrc}
+                position={pick.position}
+                teamLogoUrl={teamLogoSrc}
+                teamAbbr={pick.team}
+              />
+              {/* F.1 — DEF picks already use the team logo as the primary avatar
+                  (see PlayerAvatar's DEF branch). Skip the duplicate corner overlay. */}
+              {isDefRowForAvatar(pick.position) ? null : (
+                <div className="absolute -bottom-0.5 -right-0.5 rounded border border-white/12 bg-[#232c40] p-px">
+                  <TinyTeamLogo team={pick.team} src={teamLogoSrc} />
+                </div>
+              )}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1">

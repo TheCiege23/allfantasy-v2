@@ -1,6 +1,11 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
+import {
+  isAllFantasyAdpEnabled,
+  resolveAllFantasyAdpDraftMode,
+  buildAllFantasyAdpUrl,
+} from '@/lib/adp/allFantasyAdpFlag'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
@@ -25,6 +30,13 @@ import { DraftHelperIntelligence } from '@/components/app/draft-room/DraftHelper
 import { calculateDraftHelperBadgeCount, hasDraftHelperContent } from '@/lib/draft-helper/calculateBadgeCount'
 import { useDraftHelperFloatingState } from '@/hooks/useDraftHelperFloatingState'
 import { DraftTeamPanel } from '@/components/app/draft-room/DraftTeamPanel'
+import { WarRoomPopup } from '@/components/app/draft-room/WarRoomPopup'
+import { DraftRightDockTabs } from '@/components/app/draft-room/DraftRightDockTabs'
+import {
+  ResultsRosterPanel,
+  type ResultsRosterPanelTeam,
+  type ResultsRosterPanelPick,
+} from '@/components/app/draft-room/ResultsRosterPanel'
 import { DraftRosterStrip } from '@/components/app/draft-room/DraftRosterStrip'
 import { DraftRoundOneAnnouncementOverlay } from '@/components/app/draft-room/DraftRoundOneAnnouncementOverlay'
 import type { PlayerEntry } from '@/components/app/draft-room/PlayerPanel'
@@ -246,6 +258,11 @@ export function DraftRoomPageClient({
   /** Browser timers are numeric IDs; avoids NodeJS.Timeout vs DOM mismatch in `tsc`. */
   const connectionDegradedTimerRef = useRef<number | null>(null)
   const [commissionerLoading, setCommissionerLoading] = useState(false)
+  /** Slice C.1: while a commissioner control or settings PATCH is in flight, the periodic
+   * live-sync poll must not overwrite our optimistic patch with the server's pre-action
+   * snapshot. Polling continues for queue/chat freshness — only the session/settings merges
+   * are skipped while the ref is > 0. */
+  const controlActionInflightRef = useRef(0)
   const [governanceBanner, setGovernanceBanner] = useState<{
     variant: 'success' | 'error' | 'info'
     message: string
@@ -288,6 +305,25 @@ export function DraftRoomPageClient({
     () => buildAiAdpLookupMaps(leagueAiAdp?.entries ?? null),
     [leagueAiAdp?.entries],
   )
+  /**
+   * D.5-proper — feature flag + dev-only draft-mode toggle for AllFantasy AI ADP.
+   *
+   * When `NEXT_PUBLIC_USE_ALLFANTASY_ADP=true`, the draft room hits the new
+   * `/api/.../ai-adp?source=allfantasy&draftMode=<mode>` endpoint and bypasses
+   * the legacy `lookupAiAdpMatch` client overlay so the resolver-provided
+   * `e.aiAdp` value is the single source of truth for the AI ADP column.
+   *
+   * `?adpMode=test` (URL) or `NEXT_PUBLIC_ALLFANTASY_ADP_DRAFT_MODE=test` (env)
+   * lets dev surface seeded harness data without polluting production.
+   */
+  const useAllFantasyAdp = useMemo(() => isAllFantasyAdpEnabled(), [])
+  const allFantasyAdpDraftMode = useMemo(() => {
+    const sp =
+      typeof window !== 'undefined' && window.location
+        ? new URLSearchParams(window.location.search)
+        : null
+    return resolveAllFantasyAdpDraftMode({ searchParams: sp })
+  }, [])
   const [autoPickFromQueue, setAutoPickFromQueue] = useState(false)
   const [awayMode, setAwayMode] = useState(false)
   const [aiQueueReorderEnabled, setAiQueueReorderEnabled] = useState(true)
@@ -479,7 +515,10 @@ export function DraftRoomPageClient({
           const name = e.name ?? e.display?.displayName ?? ''
           const position = e.position ?? e.display?.metadata?.position ?? ''
           const team = e.team ?? e.display?.metadata?.teamAbbreviation ?? null
-          const ai = draftUISettings?.aiAdpEnabled
+          // D.5-proper — when the AllFantasy snapshot flag is on, the resolver-provided
+          // `e.aiAdp` is the single source of truth. Skip the legacy lookup so we never
+          // overwrite resolver values with cross-context data.
+          const ai = draftUISettings?.aiAdpEnabled && !useAllFantasyAdp
             ? lookupAiAdpMatch(aiAdpLookupMaps, name, position, team)
             : null
           return {
@@ -489,9 +528,13 @@ export function DraftRoomPageClient({
             team,
             adp: e.adp ?? e.display?.stats?.adp ?? null,
             byeWeek: e.byeWeek ?? e.display?.metadata?.byeWeek ?? null,
-            aiAdp: draftUISettings?.aiAdpEnabled && ai ? ai.adp : (e.aiAdp ?? null),
-            aiAdpSampleSize: ai?.sampleSize,
-            aiAdpLowSample: ai?.lowSample,
+            aiAdp: useAllFantasyAdp
+              ? (e.aiAdp ?? null)
+              : draftUISettings?.aiAdpEnabled && ai
+                ? ai.adp
+                : (e.aiAdp ?? null),
+            aiAdpSampleSize: useAllFantasyAdp ? e.aiAdpSampleSize : ai?.sampleSize,
+            aiAdpLowSample: useAllFantasyAdp ? e.aiAdpLowSample : ai?.lowSample,
             display: e.display ?? null,
             isDevy: e.isDevy,
             school: e.school ?? null,
@@ -507,7 +550,8 @@ export function DraftRoomPageClient({
           const name = e.name ?? e.playerName ?? ''
           const position = e.position ?? ''
           const team = e.team ?? null
-          const ai = draftUISettings?.aiAdpEnabled
+          // D.5-proper — see note above; flag bypasses legacy lookup.
+          const ai = draftUISettings?.aiAdpEnabled && !useAllFantasyAdp
             ? lookupAiAdpMatch(aiAdpLookupMaps, name, position, team)
             : null
           return {
@@ -517,12 +561,16 @@ export function DraftRoomPageClient({
             team,
             adp: e.adp ?? e.rank ?? null,
             byeWeek: e.byeWeek ?? null,
-            aiAdp: draftUISettings?.aiAdpEnabled && ai ? ai.adp : (e.aiAdp ?? null),
-            aiAdpSampleSize: ai?.sampleSize,
-            aiAdpLowSample: ai?.lowSample,
+            aiAdp: useAllFantasyAdp
+              ? (e.aiAdp ?? null)
+              : draftUISettings?.aiAdpEnabled && ai
+                ? ai.adp
+                : (e.aiAdp ?? null),
+            aiAdpSampleSize: useAllFantasyAdp ? e.aiAdpSampleSize : ai?.sampleSize,
+            aiAdpLowSample: useAllFantasyAdp ? e.aiAdpLowSample : ai?.lowSample,
           }
         })
-  }, [draftPool, draftData, aiAdpLookupMaps, draftUISettings?.aiAdpEnabled])
+  }, [draftPool, draftData, aiAdpLookupMaps, draftUISettings?.aiAdpEnabled, useAllFantasyAdp])
 
   const commissionerPickEditorPlayers: CommissionerPickEditorPlayerOption[] = useMemo(() => {
     const filledPicks = (session?.picks ?? []).filter(
@@ -944,7 +992,8 @@ export function DraftRoomPageClient({
       const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/settings`, { cache: 'no-store' })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        if (data.draftUISettings) setDraftUISettings(data.draftUISettings)
+        // Don't clobber an optimistic toggle while a PATCH is still in flight.
+        if (data.draftUISettings && controlActionInflightRef.current === 0) setDraftUISettings(data.draftUISettings)
         if (typeof data.orphanAiProviderAvailable === 'boolean') {
           setOrphanAiProviderAvailableState(data.orphanAiProviderAvailable)
         }
@@ -1130,7 +1179,12 @@ export function DraftRoomPageClient({
       return
     }
     try {
-      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/ai-adp`, { cache: 'no-store' })
+      // D.5-proper — when the feature flag is on, hit the AllFantasy snapshot path.
+      // When off, keep the legacy URL so existing production traffic is unchanged.
+      const url = useAllFantasyAdp
+        ? buildAllFantasyAdpUrl(leagueId, { draftMode: allFantasyAdpDraftMode })
+        : `/api/leagues/${encodeURIComponent(leagueId)}/ai-adp`
+      const res = await fetch(url, { cache: 'no-store' })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
         setLeagueAiAdp({
@@ -1148,7 +1202,7 @@ export function DraftRoomPageClient({
     } catch {
       setLeagueAiAdp(draftUISettings?.aiAdpEnabled ? { enabled: true, entries: [], totalDrafts: 0, computedAt: null, stale: true, ageHours: null, message: 'AI ADP unavailable' } : null)
     }
-  }, [leagueId, draftUISettings?.aiAdpEnabled])
+  }, [leagueId, draftUISettings?.aiAdpEnabled, useAllFantasyAdp, allFantasyAdpDraftMode])
 
   const fetchSession = useCallback(async (): Promise<boolean> => {
     try {
@@ -1215,7 +1269,7 @@ export function DraftRoomPageClient({
         const data = await res.json().catch(() => ({}))
         if (!res.ok) return false
 
-        if (data.session) {
+        if (data.session && controlActionInflightRef.current === 0) {
           setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
         }
 
@@ -1945,6 +1999,66 @@ export function DraftRoomPageClient({
   const handleCommissionerAction = useCallback(
     async (action: string, payload?: Record<string, unknown>): Promise<CommissionerControlApiResult> => {
       setCommissionerLoading(true)
+      controlActionInflightRef.current += 1
+      /** Slice C.1: snapshot the current session so we can roll back on API failure, then
+       * apply an optimistic patch so the UI freezes/resumes/resets instantly while the
+       * /draft/controls POST is still in flight. The in-flight ref keeps the 2s live-sync
+       * poll from clobbering this patch with the server's pre-action snapshot. */
+      let priorSession: DraftSessionSnapshot | null = null
+      setSession((prev) => {
+        priorSession = prev
+        if (!prev) return prev
+        const liveRemaining =
+          prev.timer?.status === 'running' && typeof prev.timer.timerEndAt === 'string'
+            ? Math.max(0, Math.ceil((new Date(prev.timer.timerEndAt).getTime() - Date.now()) / 1000))
+            : prev.timer?.remainingSeconds ?? prev.pausedRemainingSeconds ?? prev.timerSeconds ?? null
+        if (action === 'pause') {
+          return {
+            ...prev,
+            status: 'paused',
+            pausedRemainingSeconds: liveRemaining,
+            timerEndAt: null,
+            timer: prev.timer
+              ? { ...prev.timer, status: 'paused', remainingSeconds: liveRemaining, pauseReason: 'commissioner' }
+              : prev.timer,
+          } as DraftSessionSnapshot
+        }
+        if (action === 'resume') {
+          const sec = prev.pausedRemainingSeconds ?? liveRemaining ?? prev.timerSeconds ?? null
+          const endAt = sec != null && sec > 0 ? new Date(Date.now() + sec * 1000).toISOString() : null
+          return {
+            ...prev,
+            status: 'in_progress',
+            pausedRemainingSeconds: null,
+            timerEndAt: endAt,
+            timer: prev.timer
+              ? { ...prev.timer, status: 'running', remainingSeconds: sec, timerEndAt: endAt, pauseReason: null }
+              : prev.timer,
+          } as DraftSessionSnapshot
+        }
+        if (action === 'reset_timer') {
+          const sec = prev.timerSeconds ?? liveRemaining ?? null
+          if (prev.status === 'in_progress' && sec != null && sec > 0) {
+            const endAt = new Date(Date.now() + sec * 1000).toISOString()
+            return {
+              ...prev,
+              timerEndAt: endAt,
+              pausedRemainingSeconds: null,
+              timer: prev.timer
+                ? { ...prev.timer, status: 'running', remainingSeconds: sec, timerEndAt: endAt, pauseReason: null }
+                : prev.timer,
+            } as DraftSessionSnapshot
+          }
+          if (prev.status === 'paused' && sec != null) {
+            return {
+              ...prev,
+              pausedRemainingSeconds: sec,
+              timer: prev.timer ? { ...prev.timer, status: 'paused', remainingSeconds: sec } : prev.timer,
+            } as DraftSessionSnapshot
+          }
+        }
+        return prev
+      })
       try {
         const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/controls`, {
           method: 'POST',
@@ -1962,6 +2076,7 @@ export function DraftRoomPageClient({
         if (!res.ok) {
           const msg = errMsg || `Commissioner action failed (${res.status}).`
           setGovernanceBanner({ variant: 'error', message: msg })
+          if (priorSession) setSession(priorSession)
           return { ok: false, error: msg }
         }
 
@@ -1989,9 +2104,11 @@ export function DraftRoomPageClient({
       } catch {
         const msg = 'Network error — try your commissioner action again.'
         setGovernanceBanner({ variant: 'error', message: msg })
+        if (priorSession) setSession(priorSession)
         return { ok: false, error: msg }
       } finally {
         setCommissionerLoading(false)
+        controlActionInflightRef.current = Math.max(0, controlActionInflightRef.current - 1)
       }
     },
     [
@@ -2075,13 +2192,38 @@ export function DraftRoomPageClient({
 
   const handleSettingsPatch = useCallback(
     async (patch: Partial<DraftUISettings>) => {
-      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/settings`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
+      /** Slice C.1: optimistic toggle. Without this, the commissioner control center toggles
+       * stay in their old position until the PATCH (slow in dev: cold Neon, AI side-effects)
+       * returns. Apply locally first, then bump the in-flight ref so a 2-second poll's
+       * fetchDraftSettings can't clobber the optimistic value mid-flight. Roll back on failure. */
+      let priorSettings: DraftUISettings | null = null
+      controlActionInflightRef.current += 1
+      setDraftUISettings((prev) => {
+        priorSettings = prev
+        if (!prev) return prev
+        return { ...prev, ...patch } as DraftUISettings
       })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok && data.draftUISettings) setDraftUISettings(data.draftUISettings)
+      try {
+        const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/settings`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (res.ok && data.draftUISettings) {
+          setDraftUISettings(data.draftUISettings)
+        } else if (!res.ok) {
+          if (priorSettings) setDraftUISettings(priorSettings)
+          const msg =
+            (typeof data?.error === 'string' && data.error) || `Failed to save draft setting (${res.status}).`
+          setGovernanceBanner({ variant: 'error', message: msg })
+        }
+      } catch {
+        if (priorSettings) setDraftUISettings(priorSettings)
+        setGovernanceBanner({ variant: 'error', message: 'Network error — try the toggle again.' })
+      } finally {
+        controlActionInflightRef.current = Math.max(0, controlActionInflightRef.current - 1)
+      }
     },
     [leagueId]
   )
@@ -2772,6 +2914,37 @@ export function DraftRoomPageClient({
   const aiAdpUnavailable = Boolean(draftUISettings?.aiAdpEnabled && !poolLoading && (!leagueAiAdp?.entries?.length && leagueAiAdp?.message))
   const aiAdpStaleWarning = Boolean(draftUISettings?.aiAdpEnabled && leagueAiAdp?.stale)
   const aiAdpLowSampleWarning = Boolean(leagueAiAdp?.entries?.some((e) => e.lowSample))
+
+  /**
+   * D.6 — Results / Roster panel data. Read-only view of every team's roster;
+   * defaults to the current user's team. Reuses session.slotOrder for team list
+   * + session.picks for drafted players.
+   */
+  const resultsRosterTeams = useMemo<ResultsRosterPanelTeam[]>(() => {
+    const order = session?.slotOrder ?? []
+    return order.map((s) => ({
+      rosterId: s.rosterId,
+      displayName: s.displayName?.trim() ? s.displayName : `Slot ${s.slot}`,
+      isCurrentUser: s.rosterId === (currentUserRosterId ?? null),
+      isAi: aiManagedRosterIds.includes(s.rosterId),
+    }))
+  }, [session?.slotOrder, currentUserRosterId, aiManagedRosterIds])
+
+  const resultsRosterPicks = useMemo<ResultsRosterPanelPick[]>(() => {
+    return (session?.picks ?? []).map((p) => ({
+      rosterId: p.rosterId,
+      playerName: p.playerName,
+      position: p.position,
+      team: p.team ?? null,
+      overall: p.overall,
+    }))
+  }, [session?.picks])
+
+  /**
+   * D.6 — War Room popup notification badge. Lights up when a fresh AI
+   * recommendation is available and the user hasn't opened the popup yet.
+   */
+  const warRoomHasNewIntel = Boolean(recommendationResult?.recommendation)
 
   const viewerDraftedPicks = useMemo(
     () => (session?.picks ?? []).filter((p) => p.rosterId === currentUserRosterId),
@@ -3928,7 +4101,10 @@ export function DraftRoomPageClient({
     <DraftRoomShell
       layout="premium"
       surfaceVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
-      teamPanel={<DraftTeamPanel {...draftTeamPanelProps} redraftStarterHints={redraftStarterHints} />}
+      // D.6 — War Room moved out of the left aside. teamPanel=null collapses the
+      // aside; the WarRoomPopup below renders the same DraftTeamPanel content as
+      // a floating bottom-right popup with notification badge.
+      teamPanel={null}
       centerColumn={
         <div
           className={
@@ -3939,9 +4115,10 @@ export function DraftRoomPageClient({
         >
           <div className="flex min-h-0 flex-1 flex-row overflow-hidden">
             <div
-              className={`flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden border-r ${
+              className={`flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden border-r xl:flex-[6] ${
                 presentationVariant === 'redraft_snake' ? 'border-cyan-500/10' : 'border-white/8'
               }`}
+              data-testid="draft-bottom-dock-pool"
             >
               {!isDraftCompleted ? (
                 <div className="min-h-0 flex-1 overflow-hidden">{playerPoolNode}</div>
@@ -3964,7 +4141,37 @@ export function DraftRoomPageClient({
               )}
             </div>
 
-            <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
+            {/* D.6 — at xl+ widths, render the 3-column dock (Queue | Results | Chat)
+                directly instead of the tab system. The tab system below stays for
+                narrower viewports as a graceful fallback. */}
+            {/* D.6.1 — single shared right-dock with QUEUE / ROSTER / CHAT tabs.
+                Only the active tab body is visible; inactive bodies stay mounted
+                (display:none) so Roster keeps updating in real-time when picks
+                land while you're looking at Queue, and Chat scroll position
+                survives a tab switch. */}
+            <div
+              className="hidden min-h-0 min-w-0 basis-0 flex-col overflow-hidden xl:flex xl:flex-[4]"
+              data-testid="draft-right-dock"
+            >
+              <DraftRightDockTabs
+                queueBody={<div className="flex h-full min-h-0 flex-col overflow-auto px-1.5 py-1">{queueStackNode}</div>}
+                rosterBody={
+                  <ResultsRosterPanel
+                    teams={resultsRosterTeams}
+                    picks={resultsRosterPicks}
+                    currentUserRosterId={currentUserRosterId ?? null}
+                    starterSlots={rosterConfig?.starterSlots ?? null}
+                    benchSlots={rosterConfig?.benchSlots ?? null}
+                    idpEnabled={Boolean(idpRosterSummary)}
+                  />
+                }
+                chatBody={<div className="flex h-full min-h-0 flex-col overflow-hidden">{chatPanelNode}</div>}
+                queueCount={draftIntel?.queue?.length ?? 0}
+                defaultTab="queue"
+              />
+            </div>
+
+            <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden xl:hidden">
               <div className="flex h-full min-h-0 w-full flex-col" data-testid="draft-bottom-dock-tabs">
                 <div
                   className={`grid ${isCommissioner ? 'grid-cols-4' : 'grid-cols-3'} gap-1 border-b px-2 py-1.5 ${
@@ -4388,23 +4595,12 @@ export function DraftRoomPageClient({
               in the header if this message persists.
             </div>
           ) : null}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1.5 lg:flex-row lg:gap-2.5 lg:items-stretch">
-            <LiveDraftStatusColumn
-              session={session as DraftSessionSnapshot}
-              queueEntries={queueFiltered}
-              leagueId={leagueId}
-              sport={effectiveDraftSport}
-              isCommissioner={isCommissioner}
-              onSessionUpdated={fetchSession}
-              poolPreview={draftPool?.entries ?? null}
-              onPoolPreviewSelect={handlePoolPreviewSelect}
-              poolSelectDisabled={pickSubmitting || !isCurrentUserOnClock}
-              showTimer={draftRoomState.sidebarTimerVisible}
-              hideFullDraftOrderList={session.draftType === 'snake'}
-              viewerRosterId={currentUserRosterId ?? null}
-              viewerRosterPicks={(session.picks ?? []).filter((p) => p.rosterId === currentUserRosterId)}
-              onClockSpotlight={onClockSpotlight}
-            />
+          {/* D.6.2 — LiveDraftStatusColumn removed from the live snake layout. Its content
+              (queue / timer / on-the-clock / pick history / pool preview) is now reachable via
+              the new D.6 right-dock tabs (Queue/Roster/Chat) and the player pool, so the legacy
+              left column was duplicating UI and crowding the board. The board now spans the
+              full width below the order strip. */}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1.5">
             <div className="flex min-h-[120px] min-w-0 flex-1 flex-col overflow-hidden lg:min-h-0">
               <div className="shrink-0">
                 <DraftTeamStrip
@@ -4488,6 +4684,14 @@ export function DraftRoomPageClient({
       mobileTab={mobileTab}
       onMobileTabChange={setMobileTab}
     />
+    {/* D.6 — Sleeper-style War Room as floating bottom-right popup. The same
+        DraftTeamPanel content that used to live in the left aside lives inside
+        the popup body now, so power users still have one-click access to
+        starter balance / positional mix / AI guidance, but the layout reclaims
+        that left column for the player table. */}
+    <WarRoomPopup hasNewIntel={warRoomHasNewIntel} triggerLabel="War Room">
+      <DraftTeamPanel {...draftTeamPanelProps} redraftStarterHints={redraftStarterHints} />
+    </WarRoomPopup>
     <DraftRoomSettingsModal
       open={draftRoomSettingsOpen}
       onClose={() => setDraftRoomSettingsOpen(false)}

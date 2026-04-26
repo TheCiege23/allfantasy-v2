@@ -62,21 +62,64 @@ export type GifSearchResult = {
   provider: "klipy" | "tenor" | "giphy"
 }
 
+function readNestedMediaUrl(layer: unknown, kind: "gif" | "webp" | "jpg"): string {
+  if (!layer || typeof layer !== "object") return ""
+  const bucket = (layer as Record<string, unknown>)[kind]
+  if (!bucket || typeof bucket !== "object") return ""
+  const u = (bucket as Record<string, unknown>).url
+  return typeof u === "string" ? u : ""
+}
+
+function readLegacyUrl(legacy: Record<string, unknown>, key: string): string {
+  const bucket = legacy[key]
+  if (!bucket || typeof bucket !== "object") return ""
+  const u = (bucket as Record<string, unknown>).url
+  return typeof u === "string" ? u : ""
+}
+
 function normalizeKlipyResults(payload: unknown): GifSearchResult[] {
   const wrapper = payload as { result?: boolean; data?: { data?: unknown[] } }
   const list = Array.isArray(wrapper?.data?.data) ? wrapper.data!.data! : []
-  const normalized: GifSearchResult[] = []
-  for (const entry of list) {
-    const obj = entry as Record<string, unknown>
-    const id = String(obj.id ?? "")
-    const files = (obj.files ?? {}) as Record<string, Record<string, unknown>>
-    const gif = files.gif
-    const gifSmall = files.gif_small
-    const webp = files.webp
-    const url = typeof gif?.url === "string" ? gif.url : typeof webp?.url === "string" ? webp.url : ""
-    const previewUrl = typeof gifSmall?.url === "string" ? gifSmall.url : url
-    if (!id || !url) continue
-    normalized.push({ id, url, previewUrl, provider: "klipy" })
+    const normalized: GifSearchResult[] = []
+    for (const entry of list) {
+      const obj = entry as Record<string, unknown>
+      const id = String(obj.id ?? "")
+      const modern = (obj.file ?? {}) as Record<string, unknown>
+      const hd = (modern.hd ?? {}) as Record<string, unknown>
+      const md = (modern.md ?? {}) as Record<string, unknown>
+      const sm = (modern.sm ?? {}) as Record<string, unknown>
+      const xs = (modern.xs ?? {}) as Record<string, unknown>
+      const legacy = (obj.files ?? {}) as Record<string, unknown>
+
+      const url =
+        readNestedMediaUrl(hd, "gif") ||
+        readNestedMediaUrl(md, "gif") ||
+        readNestedMediaUrl(sm, "gif") ||
+        readNestedMediaUrl(xs, "gif") ||
+        readNestedMediaUrl(hd, "webp") ||
+        readNestedMediaUrl(md, "webp") ||
+        readNestedMediaUrl(sm, "webp") ||
+        readNestedMediaUrl(xs, "webp") ||
+        readNestedMediaUrl(sm, "jpg") ||
+        readNestedMediaUrl(xs, "jpg") ||
+        readLegacyUrl(legacy, "gif") ||
+        readLegacyUrl(legacy, "webp") ||
+        readLegacyUrl(legacy, "mp4") ||
+        ""
+
+      if (!id || !url) continue
+      const preview =
+        readNestedMediaUrl(sm, "webp") ||
+        readNestedMediaUrl(sm, "gif") ||
+        readNestedMediaUrl(xs, "webp") ||
+        readNestedMediaUrl(xs, "gif") ||
+        readNestedMediaUrl(sm, "jpg") ||
+        readNestedMediaUrl(xs, "jpg") ||
+        readLegacyUrl(legacy, "gif_small") ||
+        readLegacyUrl(legacy, "webp") ||
+        url
+
+      normalized.push({ id, url, previewUrl: preview, provider: "klipy" })
   }
   return normalized
 }

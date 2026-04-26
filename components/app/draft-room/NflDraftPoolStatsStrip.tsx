@@ -12,6 +12,29 @@ function Cell({ children }: { children: React.ReactNode }) {
   return <div className="text-center tabular-nums text-white/88">{children}</div>
 }
 
+/** Slice D.1.5: a splits object can exist with every cell == 0 when the stats provider
+ * (Rolling Insights) didn't return data for the player. In that case, show aligned em-dash
+ * placeholders so the row visually matches the column header instead of looking like a
+ * row of zeroes (which incorrectly implies "0 yards" rather than "no data"). */
+function isAllZeroSplits(s: NflDraftProjectionSplits): boolean {
+  const cells: Array<number | null | undefined> = [
+    s.projectedPoints,
+    s.projectedPointsPerGame,
+    s.rushing?.att,
+    s.rushing?.yds,
+    s.rushing?.td,
+    s.receiving?.rec,
+    s.receiving?.yds,
+    s.receiving?.td,
+    s.passing?.cmp,
+    s.passing?.att,
+    s.passing?.yds,
+    s.passing?.td,
+    s.passing?.int,
+  ]
+  return cells.every((c) => c == null || c === 0)
+}
+
 export function NflDraftPoolStatsGroupHeader() {
   return (
     <div className="select-none">
@@ -47,8 +70,21 @@ export function NflDraftPoolStatsGroupHeader() {
 
 export function NflDraftPoolStatsRow({ splits }: { splits: NflDraftProjectionSplits }) {
   const s = splits
+  if (isAllZeroSplits(s)) {
+    return (
+      <div
+        className={`${NFL_DRAFT_POOL_STATS_GRID} py-1 text-[11px] leading-none`}
+        title="Stats unavailable for this player"
+        data-testid="nfl-draft-pool-stats-row-empty"
+      >
+        {Array.from({ length: 13 }).map((_, i) => (
+          <div key={i} className="text-center tabular-nums font-medium text-white/65">—</div>
+        ))}
+      </div>
+    )
+  }
   return (
-    <div className={`${NFL_DRAFT_POOL_STATS_GRID} text-[10px]`}>
+    <div className={`${NFL_DRAFT_POOL_STATS_GRID} text-[10px]`} data-testid="nfl-draft-pool-stats-row">
       <Cell>{formatNflStatCell(s.projectedPoints, 1)}</Cell>
       <Cell>{formatNflStatCell(s.projectedPointsPerGame, 1)}</Cell>
       <Cell>{formatNflStatCell(s.rushing.att)}</Cell>
