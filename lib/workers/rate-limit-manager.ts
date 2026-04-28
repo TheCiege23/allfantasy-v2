@@ -4,9 +4,12 @@ import { prisma } from '@/lib/prisma'
 
 export const RATE_LIMITS = {
   clearsports: { callsPerHour: 100, callsPerDay: 1000 },
-  api_sports: { callsPerHour: 100, callsPerDay: 1000 },
+  // API-Sports Pro plan (status endpoint): 7,500/day. Keep hourly guard conservative.
+  api_sports: { callsPerHour: 300, callsPerDay: 7500 },
+  // Soccer integration (`lib/api-football.ts`) uses this provider key.
+  api_football: { callsPerHour: 300, callsPerDay: 7500 },
   rolling_insights: { callsPerHour: 1000, callsPerDay: 10000 },
-  thesportsdb: { callsPerHour: 250, callsPerDay: 5000 },
+  thesportsdb: { callsPerHour: 6000, callsPerDay: 100000 }, // premium: 100/min = 6000/hr (free is 30/min)
   cfbd: { callsPerHour: 100, callsPerDay: 1000 },
   sleeper: { callsPerHour: 1000, callsPerDay: 10000 },
   yahoo: { callsPerHour: 200, callsPerDay: 2000 },

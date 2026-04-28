@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { getTheSportsDbApiKey } from '@/lib/env/sports-media-keys'
 
 type TheSportsDbEvent = {
   idEvent: string
@@ -129,9 +130,7 @@ function* eachDayIso(start: Date, end: Date) {
 export async function fetchTournamentEvents(
   season: number
 ): Promise<TheSportsDbEvent[]> {
-  const apiKey =
-    process.env.THESPORTSDB_API_KEY?.trim() ||
-    process.env.THEAUDIODB_API_KEY?.trim()
+  const apiKey = getTheSportsDbApiKey()
   const leagueId = process.env.THESPORTSDB_NCAAM_LEAGUE_ID || NCAAM_LEAGUE_ID
 
   const effectiveKey =

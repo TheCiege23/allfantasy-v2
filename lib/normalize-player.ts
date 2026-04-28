@@ -1,4 +1,4 @@
-import { sleeperHeadshotUrl, sleeperTeamLogoUrl, normalizeTeamAbbr, type SportKey } from './player-media-urls'
+import { sleeperHeadshotUrl, getTeamLogoUrl, normalizeTeamAbbr, type SportKey } from './player-media-urls'
 
 export type AnyPlayerLike = Record<string, unknown>
 
@@ -47,7 +47,7 @@ export function normalizePlayer(p: AnyPlayerLike, sport: SportKey = 'nfl'): Norm
   const teamLogoUrl =
     existingMedia?.teamLogoUrl ||
     (p?.teamLogoUrl as string) ||
-    (teamAbbr ? sleeperTeamLogoUrl(teamAbbr, sport) : null)
+    (teamAbbr ? getTeamLogoUrl(teamAbbr, sport) : null)
 
   return {
     id,

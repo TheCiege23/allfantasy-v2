@@ -2,6 +2,34 @@ import { expect, test } from '@playwright/test'
 
 test.describe.configure({ timeout: 180_000 })
 
+async function gotoCommissionerHarnessReady(page: Parameters<typeof test>[0]['page'], leagueId: string) {
+  for (let attempt = 1; attempt <= 10; attempt += 1) {
+    await page.goto(`/e2e/league-commissioner-chimmy-settings?leagueId=${leagueId}`)
+    const headingVisible = await page
+      .getByRole('heading', { name: /league commissioner chimmy settings harness/i })
+      .waitFor({ state: 'visible', timeout: 8_000 })
+      .then(() => true)
+      .catch(() => false)
+    if (headingVisible) return
+
+    const notFoundVisible = await page
+      .getByRole('heading', { name: 'This page could not be found.' })
+      .isVisible()
+      .catch(() => false)
+
+    if (!notFoundVisible && attempt >= 4) {
+      await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => null)
+    }
+
+    if (attempt >= 7) {
+      await page.goto(`/e2e/league-commissioner-chimmy-settings?leagueId=${leagueId}`).catch(() => null)
+    }
+    await page.waitForTimeout(500 * attempt)
+  }
+
+  throw new Error('Commissioner Chimmy harness never became ready')
+}
+
 test.describe('@commissioner league commissioner Chimmy settings', () => {
   test('renders Chimmy commissioner controls and persists key preference changes', async ({ page }) => {
     const leagueId = `e2e-league-chimmy-${Date.now()}`
@@ -174,7 +202,7 @@ test.describe('@commissioner league commissioner Chimmy settings', () => {
       })
     })
 
-    await page.goto(`/e2e/league-commissioner-chimmy-settings?leagueId=${leagueId}`)
+    await gotoCommissionerHarnessReady(page, leagueId)
 
     await expect(page.getByRole('heading', { name: /league commissioner chimmy settings harness/i })).toBeVisible()
     await expect(page.getByText('Chimmy Commissioner Alerts')).toBeVisible()

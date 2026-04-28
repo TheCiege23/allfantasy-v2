@@ -2,6 +2,7 @@
  * PlayerCardAnalyticsService — aggregates AI insights, meta trends, matchup predictions, career projections for player cards.
  */
 
+import crypto from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { openaiChatText } from '@/lib/openai-client'
 import { getPlayerMetaTrendsForMeta } from '@/lib/global-meta-engine/MetaQueryService'
@@ -326,8 +327,27 @@ export async function getPlayerCardAnalytics(
     )
   }
 
+  // ── AiResult cache gate ────────────────────────────────────────────────────
+  // Build deterministic key from the inputs that determine the AI output.
+  const aiCacheInput = JSON.stringify({ name: name.toLowerCase(), sport, season: input.season ?? null })
+  const inputHash = crypto.createHash('sha256').update(aiCacheInput).digest('hex')
+  const aiResultKey = `player-card-analytics:${inputHash}`
+  /** 12-hour TTL — stale enough to reduce OpenAI calls, fresh enough to reflect news changes. */
+  const AI_CACHE_TTL_MS = 12 * 60 * 60 * 1000
+  const aiCacheNow = new Date()
+
   let aiInsights: string | null = null
-  if (contextParts.length > 0) {
+
+  // Try cache first.
+  const cachedAiResult = await prisma.aiResult.findUnique({
+    where: { resultKey: aiResultKey },
+    select: { resultText: true, expiresAt: true },
+  }).catch(() => null)
+
+  if (cachedAiResult && cachedAiResult.resultText && (!cachedAiResult.expiresAt || cachedAiResult.expiresAt > aiCacheNow)) {
+    console.log(`[player-card-analytics] AiResult cache hit { key: '${aiResultKey.slice(0, 48)}...' }`)
+    aiInsights = cachedAiResult.resultText
+  } else if (contextParts.length > 0) {
     try {
       const res = await openaiChatText({
         messages: [
@@ -344,7 +364,29 @@ export async function getPlayerCardAnalytics(
         temperature: 0.5,
         maxTokens: 180,
       })
-      if (res.ok && res.text?.trim()) aiInsights = res.text.trim()
+      if (res.ok && res.text?.trim()) {
+        aiInsights = res.text.trim()
+        // Write result to AiResult cache (fire-and-forget).
+        const aiExpiresAt = new Date(Date.now() + AI_CACHE_TTL_MS)
+        prisma.aiResult.upsert({
+          where: { resultKey: aiResultKey },
+          update: { resultText: aiInsights, syncedAt: aiCacheNow, expiresAt: aiExpiresAt, status: 'ready', updatedAt: aiCacheNow },
+          create: {
+            resultKey: aiResultKey,
+            inputHash,
+            feature: 'player-card-analytics',
+            scopeType: 'player',
+            scopeId: playerId ?? name,
+            provider: 'openai',
+            status: 'ready',
+            inputJson: { name, sport, season: input.season ?? null, contextParts },
+            resultText: aiInsights,
+            syncedAt: aiCacheNow,
+            expiresAt: aiExpiresAt,
+          },
+        }).catch((e) => console.warn('[player-card-analytics] AiResult write failed:', e instanceof Error ? e.message : e))
+        console.log(`[player-card-analytics] AiResult cache miss — wrote new result { key: '${aiResultKey.slice(0, 48)}...' }`)
+      }
     } catch {
       aiInsights = null
     }

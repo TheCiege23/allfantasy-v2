@@ -1,6 +1,8 @@
 # Next / node
 node_modules/
 .next/
+.next-dev-local/
+.next-dev-local-uifix/
 out/
 dist/
 build/

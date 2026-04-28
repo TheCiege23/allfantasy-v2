@@ -1,0 +1,56 @@
+type AdpLikeEntry = {
+  name?: string | null
+  position?: string | null
+  team?: string | null
+  adp?: number | null
+  aiAdp?: number | null
+}
+
+function normalizeAdpValue(value: number | null | undefined): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  if (value <= 0) return null
+  return value
+}
+
+export function resolvePreferredAdp(
+  rawAdp: number | null | undefined,
+  averagedAdp: number | null | undefined,
+): number | null {
+  const raw = normalizeAdpValue(rawAdp)
+  if (raw != null) return raw
+  return normalizeAdpValue(averagedAdp)
+}
+
+export function compareDraftEntriesByStableRank(
+  a: AdpLikeEntry,
+  b: AdpLikeEntry,
+  indexA: number,
+  indexB: number,
+): number {
+  const adpA = normalizeAdpValue(a.adp)
+  const adpB = normalizeAdpValue(b.adp)
+  if (adpA != null && adpB != null && adpA !== adpB) return adpA - adpB
+  if (adpA != null && adpB == null) return -1
+  if (adpA == null && adpB != null) return 1
+
+  const aiA = normalizeAdpValue(a.aiAdp)
+  const aiB = normalizeAdpValue(b.aiAdp)
+  if (aiA != null && aiB != null && aiA !== aiB) return aiA - aiB
+  if (aiA != null && aiB == null) return -1
+  if (aiA == null && aiB != null) return 1
+
+  const nameCmp = String(a.name ?? '').localeCompare(String(b.name ?? ''), undefined, { sensitivity: 'base' })
+  if (nameCmp !== 0) return nameCmp
+
+  const posCmp = String(a.position ?? '').localeCompare(String(b.position ?? ''), undefined, {
+    sensitivity: 'base',
+  })
+  if (posCmp !== 0) return posCmp
+
+  const teamCmp = String(a.team ?? '').localeCompare(String(b.team ?? ''), undefined, {
+    sensitivity: 'base',
+  })
+  if (teamCmp !== 0) return teamCmp
+
+  return indexA - indexB
+}

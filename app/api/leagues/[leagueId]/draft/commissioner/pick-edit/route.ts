@@ -95,6 +95,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
     playerId: body.playerId ?? body.player_id ?? null,
     playerImageUrl,
     newRosterId: body.newRosterId ?? body.new_roster_id ?? null,
+    // Slice 2 — typed reason + this flag are required when the actor's roster
+    // is the affected one. The service throws SELF_BENEFIT_CONFIRM_REQUIRED
+    // (409) which the client surfaces as an inline confirm prompt.
+    confirmSelfBenefit: Boolean(body.confirmSelfBenefit ?? body.confirm_self_benefit),
   })
 
   if (!result.ok) {
@@ -110,6 +114,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
     }
     if (result.code === 'ROSTER_CONFIGURATION_INCOMPLETE') {
       return NextResponse.json(rosterConfigurationIncompleteBody(), { status: 400 })
+    }
+    if (result.status === 409 && result.code === 'SELF_BENEFIT_CONFIRM_REQUIRED') {
+      return NextResponse.json(
+        { error: result.error, code: result.code },
+        { status: 409 },
+      )
     }
     return NextResponse.json({ error: result.error, code: result.code }, { status: result.status })
   }

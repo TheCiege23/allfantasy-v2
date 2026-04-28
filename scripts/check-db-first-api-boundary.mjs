@@ -66,6 +66,18 @@ function getChangedFiles(base, head) {
 function getAllSourceFiles(rootDir) {
   const files = [];
   const stack = [rootDir];
+  const EXCLUDED_DIRS = new Set([
+    '.git',
+    'node_modules',
+    '.next',
+    '.next-dev-local',
+    '.next-dev-local-uifix',
+    'dist',
+    'build',
+    'coverage',
+    'playwright-report',
+    'test-results',
+  ]);
 
   while (stack.length > 0) {
     const current = stack.pop();
@@ -74,7 +86,7 @@ function getAllSourceFiles(rootDir) {
     }
 
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      if (entry.name === ".git" || entry.name === "node_modules" || entry.name === ".next") {
+      if (EXCLUDED_DIRS.has(entry.name)) {
         continue;
       }
 

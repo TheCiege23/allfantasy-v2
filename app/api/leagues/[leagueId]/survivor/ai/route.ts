@@ -14,12 +14,23 @@ import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
 import { isSurvivorLeague } from '@/lib/survivor/SurvivorLeagueConfig'
 import { buildSurvivorAIContext } from '@/lib/survivor/ai/SurvivorAIContext'
 import type { SurvivorAIType } from '@/lib/survivor/ai/SurvivorAIContext'
-import { generateSurvivorAI } from '@/lib/survivor/ai/SurvivorAIService'
+import {
+  buildSurvivorAiCacheContextSummary,
+  generateSurvivorAI,
+} from '@/lib/survivor/ai/SurvivorAIService'
 import { resolveSurvivorCurrentWeek } from '@/lib/survivor/SurvivorTimelineResolver'
 import { resolveSurvivorAiAccess } from '@/lib/survivor/survivor-ai-route-guard'
 import { TokenSpendService } from '@/lib/tokens/TokenSpendService'
+import {
+  buildAiCacheKey,
+  createSmokeAiResult,
+  isAiResultCacheSmokeProviderEnabled,
+  readAiResultCache,
+  writeAiResultCache,
+} from '@/lib/ai-result-cache'
 
 export const dynamic = 'force-dynamic'
+const SURVIVOR_AI_CACHE_TTL_MS = 30 * 60 * 1000
 
 const SurvivorAiPostSchema = z.object({
   type: z.string().optional(),
@@ -27,6 +38,41 @@ const SurvivorAiPostSchema = z.object({
   currentWeek: z.union([z.number(), z.string()]).optional().nullable(),
   confirmTokenSpend: z.boolean().optional().default(false),
 })
+
+function toDeterministicResponse(
+  deterministic: NonNullable<Awaited<ReturnType<typeof buildSurvivorAIContext>>>
+) {
+  return {
+    leagueId: deterministic.leagueId,
+    sport: deterministic.sport,
+    currentWeek: deterministic.currentWeek,
+    config: deterministic.config,
+    tribes: deterministic.tribes,
+    council: deterministic.council
+      ? {
+          id: deterministic.council.id,
+          week: deterministic.council.week,
+          phase: deterministic.council.phase,
+          attendingTribeId: deterministic.council.attendingTribeId,
+          voteDeadlineAt: deterministic.council.voteDeadlineAt.toISOString(),
+          closedAt: deterministic.council.closedAt?.toISOString() ?? null,
+          eliminatedRosterId: deterministic.council.eliminatedRosterId,
+        }
+      : null,
+    challenges: deterministic.challenges,
+    jury: deterministic.jury,
+    exileLeagueId: deterministic.exileLeagueId,
+    exileTokens: deterministic.exileTokens,
+    votedOutHistory: deterministic.votedOutHistory,
+    merged: deterministic.merged,
+    rosterDisplayNames: deterministic.rosterDisplayNames,
+    myRosterId: deterministic.myRosterId,
+    myIdols: deterministic.myIdols,
+    myActiveEffects: deterministic.myActiveEffects,
+    myExileStatus: deterministic.myExileStatus,
+    finale: deterministic.finale,
+  }
+}
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: string }> }) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string; email?: string | null } } | null
@@ -90,39 +136,66 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
     return NextResponse.json({ error: 'Could not build context' }, { status: 500 })
   }
 
+  const deterministicResponse = toDeterministicResponse(deterministic)
+  const cacheInputs = {
+    leagueId,
+    type,
+    requestedWeek,
+    currentWeek,
+    userId,
+    myRosterId: deterministic.myRosterId,
+    councilAttendingTribeId: deterministic.council?.attendingTribeId ?? null,
+    tribeIds: deterministic.tribes.map((tribe) => tribe.id).sort(),
+    contextSummary: buildSurvivorAiCacheContextSummary(deterministic),
+  }
+  const { resultKey, inputHash } = buildAiCacheKey('survivor-ai', cacheInputs)
+  const cached = await readAiResultCache(resultKey)
+  if (cached?.resultJson && typeof cached.resultJson === 'object') {
+    return NextResponse.json(cached.resultJson)
+  }
+
+  const smokeProviderEnabled = isAiResultCacheSmokeProviderEnabled()
+  if (smokeProviderEnabled) {
+    const smoke = createSmokeAiResult({
+      feature: 'survivor-ai',
+      leagueId,
+      route: '/api/leagues/[leagueId]/survivor/ai',
+      input: cacheInputs,
+    })
+    const smokePayload = {
+      deterministic: deterministicResponse,
+      narrative: smoke.text,
+      model: 'smoke-provider',
+      type,
+      tokenSpend: access.tokenSpend
+        ? {
+            ruleCode: access.ruleCode,
+            tokenCost: access.tokenPreview?.tokenCost ?? null,
+            balanceAfter: access.tokenSpend.balanceAfter,
+            ledgerId: access.tokenSpend.id,
+          }
+        : null,
+    }
+
+    await writeAiResultCache({
+      resultKey,
+      inputHash,
+      feature: 'survivor-ai',
+      scopeType: 'league',
+      scopeId: leagueId,
+      provider: 'smoke-provider',
+      inputJson: cacheInputs,
+      resultJson: smokePayload,
+      ttlMs: SURVIVOR_AI_CACHE_TTL_MS,
+    })
+
+    return NextResponse.json(smokePayload)
+  }
+
   try {
     const { narrative, model } = await generateSurvivorAI(deterministic, type, userId)
-    return NextResponse.json({
-      deterministic: {
-        leagueId: deterministic.leagueId,
-        sport: deterministic.sport,
-        currentWeek: deterministic.currentWeek,
-        config: deterministic.config,
-        tribes: deterministic.tribes,
-        council: deterministic.council
-          ? {
-              id: deterministic.council.id,
-              week: deterministic.council.week,
-              phase: deterministic.council.phase,
-              attendingTribeId: deterministic.council.attendingTribeId,
-              voteDeadlineAt: deterministic.council.voteDeadlineAt.toISOString(),
-              closedAt: deterministic.council.closedAt?.toISOString() ?? null,
-              eliminatedRosterId: deterministic.council.eliminatedRosterId,
-            }
-          : null,
-        challenges: deterministic.challenges,
-        jury: deterministic.jury,
-        exileLeagueId: deterministic.exileLeagueId,
-        exileTokens: deterministic.exileTokens,
-        votedOutHistory: deterministic.votedOutHistory,
-        merged: deterministic.merged,
-        rosterDisplayNames: deterministic.rosterDisplayNames,
-        myRosterId: deterministic.myRosterId,
-        myIdols: deterministic.myIdols,
-        myActiveEffects: deterministic.myActiveEffects,
-        myExileStatus: deterministic.myExileStatus,
-        finale: deterministic.finale,
-      },
+    const responsePayload = {
+      deterministic: deterministicResponse,
       narrative,
       model,
       type,
@@ -134,7 +207,22 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
             ledgerId: access.tokenSpend.id,
           }
         : null,
-    })
+    }
+
+    writeAiResultCache({
+      resultKey,
+      inputHash,
+      feature: 'survivor-ai',
+      scopeType: 'league',
+      scopeId: leagueId,
+      provider: 'openai',
+      model: model ?? 'gpt-4o',
+      inputJson: cacheInputs,
+      resultJson: responsePayload,
+      ttlMs: SURVIVOR_AI_CACHE_TTL_MS,
+    }).catch(() => undefined)
+
+    return NextResponse.json(responsePayload)
   } catch (e) {
     console.error('[survivor/ai]', e)
     if (refundLedgerId) {

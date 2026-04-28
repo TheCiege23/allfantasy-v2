@@ -20,6 +20,8 @@ export interface CommissionerPickEditClientParams {
   playerId?: string | null
   playerImageUrl?: string | null
   newRosterId?: string | null
+  /** Slice 2 — required when the server rejects with SELF_BENEFIT_CONFIRM_REQUIRED. */
+  confirmSelfBenefit?: boolean
 }
 
 export interface CommissionerPickEditWarning {

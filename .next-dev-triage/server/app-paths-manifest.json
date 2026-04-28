@@ -1,0 +1,3 @@
+{
+  "/api/leagues/[leagueId]/draft/session/route": "app/api/leagues/[leagueId]/draft/session/route.js"
+}

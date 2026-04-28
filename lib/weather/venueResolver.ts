@@ -3,7 +3,12 @@ import type { SupportedSport } from '@/lib/sport-scope'
 import { MLB_TEAM_BALLPARK } from '@/lib/weather/mlbTeamBallparks'
 import { NCAAF_TEAM_STADIUM } from '@/lib/weather/ncaafTeamStadiums'
 import { SOCCER_TEAM_GEOCODE_QUERY } from '@/lib/weather/soccerTeamGeocode'
-import { getWeatherForEvent, getWeatherForEventByAddress } from '@/lib/weather/weatherService'
+import {
+  TEAM_WINDOW_WEATHER_TTL_MS,
+  buildWeatherTeamWindowCacheKey,
+  getWeatherForEvent,
+  getWeatherForEventByAddress,
+} from '@/lib/weather/weatherService'
 
 export type ResolvedVenue =
   | {
@@ -74,10 +79,17 @@ export async function fetchWeatherForTeamHomeWindow(args: {
   teamAbbrev: string | null | undefined
   gameTime: Date
 }): Promise<import('@/lib/weather/weatherService').NormalizedWeather | null> {
+  const teamKey = normAbbrev(args.teamAbbrev) ?? 'unknown'
+  const cacheKey = buildWeatherTeamWindowCacheKey(teamKey, args.gameTime)
+
   if (args.sport === 'SOCCER') {
     const q = resolveSoccerGeocodeQuery(args.teamAbbrev)
     if (!q) return null
-    return getWeatherForEventByAddress(q, args.gameTime, { sport: 'SOCCER' })
+    return getWeatherForEventByAddress(q, args.gameTime, {
+      sport: 'SOCCER',
+      cacheKey,
+      ttlMs: TEAM_WINDOW_WEATHER_TTL_MS,
+    })
   }
 
   const v = resolveVenueForTeam({ sport: args.sport, teamAbbrev: args.teamAbbrev })
@@ -90,6 +102,8 @@ export async function fetchWeatherForTeamHomeWindow(args: {
       sport: args.sport,
       isDome: true,
       isIndoor: true,
+      cacheKey,
+      ttlMs: TEAM_WINDOW_WEATHER_TTL_MS,
     })
   }
   return getWeatherForEvent({
@@ -97,5 +111,7 @@ export async function fetchWeatherForTeamHomeWindow(args: {
     lng: v.lng,
     gameTime: args.gameTime,
     sport: args.sport,
+    cacheKey,
+    ttlMs: TEAM_WINDOW_WEATHER_TTL_MS,
   })
 }

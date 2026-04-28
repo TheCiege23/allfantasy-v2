@@ -11,6 +11,13 @@ import {
   nameForPlayer,
   rosterForOwner,
 } from '@/lib/ai/league-settings-ai/sleeper'
+import {
+  buildAiCacheKey,
+  createSmokeAiResult,
+  isAiResultCacheSmokeProviderEnabled,
+  readAiResultCache,
+  writeAiResultCache,
+} from '@/lib/ai-result-cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +56,8 @@ export async function POST(req: Request) {
   }
 
   try {
+    const smokeProviderEnabled = isAiResultCacheSmokeProviderEnabled()
+
     const bundle = await fetchSleeperLeagueBundle(sleeperId)
     const playersMap = await fetchPlayersMap(bundle.sport)
     const teams = await prisma.leagueTeam.findMany({
@@ -80,7 +89,95 @@ Provide up to 5 objects. dropPlayer should name a realistic cut from the user's 
 
     const userPayload = `League: ${String(bundle.league.name ?? '')} (${bundle.sport})\nMy roster (sample):\n${JSON.stringify(myRosterNames, null, 2)}\n\nTrending adds / available buzz (names only):\n${JSON.stringify(trendingNames, null, 2)}`
 
+    // ── AiResult cache gate (2h TTL — trending adds rotate intra-day) ─────────────────────
+    const WAIVER_RECS_TTL_MS = 2 * 60 * 60 * 1000
+    const weekTag = String(bundle.state?.week ?? 'offseason')
+    const { resultKey, inputHash } = buildAiCacheKey('waiver-recs', {
+      leagueId,
+      userId: targetUserId,
+      sport: bundle.sport,
+      week: weekTag,
+      rosterIds: myPlayerIds.slice(0, 40).sort(),
+    })
+    const cached = await readAiResultCache(resultKey)
+    if (cached?.resultJson) {
+      console.log(`[api/ai/waiver-recs] AiResult cache hit { league: '${leagueId}', user: '${targetUserId}', week: ${weekTag} }`)
+      if (smokeProviderEnabled) {
+        return NextResponse.json({
+          ok: true,
+          source: 'ai-result-cache',
+          resultKey,
+          recommendations: cached.resultJson,
+        })
+      }
+      return NextResponse.json(cached.resultJson)
+    }
+
+    if (smokeProviderEnabled) {
+      const smoke = createSmokeAiResult({
+        feature: 'waiver-recs',
+        leagueId,
+        route: '/api/ai/waiver-recs',
+        input: {
+          leagueId,
+          userId: targetUserId,
+          sport: bundle.sport,
+          week: weekTag,
+          rosterIds: myPlayerIds.slice(0, 40).sort(),
+        },
+      })
+      const smokeResult = {
+        recommendations: [
+          {
+            addPlayer: 'Smoke Add Candidate',
+            dropPlayer: 'bench stash',
+            rationale: smoke.text,
+          },
+        ],
+        meta: smoke.json,
+      }
+
+      await writeAiResultCache({
+        resultKey,
+        inputHash,
+        feature: 'waiver-recs',
+        scopeType: 'league',
+        scopeId: leagueId,
+        provider: 'smoke-provider',
+        inputJson: {
+          leagueId,
+          userId: targetUserId,
+          sport: bundle.sport,
+          week: weekTag,
+          smokeProvider: true,
+        },
+        resultJson: smokeResult,
+        ttlMs: WAIVER_RECS_TTL_MS,
+      })
+
+      return NextResponse.json({
+        ok: true,
+        source: 'smoke-provider',
+        resultKey,
+        recommendations: smokeResult,
+      })
+    }
+
     const raw = await callClaudeJson({ system, user: userPayload, userId: targetUserId })
+
+    // Write to AiResult cache (fire-and-forget).
+    writeAiResultCache({
+      resultKey,
+      inputHash,
+      feature: 'waiver-recs',
+      scopeType: 'league',
+      scopeId: leagueId,
+      provider: 'anthropic',
+      inputJson: { leagueId, userId: targetUserId, sport: bundle.sport, week: weekTag },
+      resultJson: raw,
+      ttlMs: WAIVER_RECS_TTL_MS,
+    }).catch(() => undefined)
+
     return NextResponse.json(raw)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Waiver recommendations failed'

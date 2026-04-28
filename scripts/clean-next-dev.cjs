@@ -52,11 +52,18 @@ function log(msg) {
   process.stdout.write(`[clean-next-dev] ${msg}\n`)
 }
 
+/** The Next.js build directory the dev server actually writes to. Honors
+ *  `AF_NEXT_DIST_DIR` (set by the `dev` and `dev:reset` npm scripts to
+ *  `.next-dev-local`) so corruption detection inspects the right place. */
+const DIST_DIR_REL = (process.env.AF_NEXT_DIST_DIR || '.next').replace(/\\/g, '/')
+
 /** Allow-list of paths that are safe to remove. ANY path passed to
- *  `removeIfPresent` must be one of these (or a child of `.next`). The
- *  function refuses anything else as a defense against typos / future bugs. */
+ *  `removeIfPresent` must be one of these (or a child of the active
+ *  Next.js dist dir). The function refuses anything else as a defense
+ *  against typos / future bugs. */
 const SAFE_ROOTS = new Set([
   '.next',
+  '.next-dev-local',
   'node_modules/.cache',
   '.swc',
   '.turbo',
@@ -66,9 +73,11 @@ function isSafePath(rootDir, target) {
   const rel = path.relative(rootDir, target).replace(/\\/g, '/')
   // Reject anything that escapes rootDir (relative path starting with `..`).
   if (rel.startsWith('..') || path.isAbsolute(rel)) return false
-  // Match exactly one of the safe roots, or be a descendant of `.next`.
+  // Match exactly one of the safe roots, or be a descendant of the active
+  // dist dir / .next / .next-dev-local.
   if (SAFE_ROOTS.has(rel)) return true
-  if (rel.startsWith('.next/')) return true
+  if (rel.startsWith('.next/') || rel.startsWith('.next-dev-local/')) return true
+  if (rel === DIST_DIR_REL || rel.startsWith(`${DIST_DIR_REL}/`)) return true
   return false
 }
 
@@ -139,8 +148,34 @@ function hasMissingVendorChunks(nextDir) {
   return false
 }
 
-function shouldResetNextArtifacts(rootDir) {
-  const nextDir = path.join(rootDir, '.next')
+/**
+ * Client `.next/static/chunks/webpack.js` missing or truncated often surfaces in the
+ * browser as `TypeError: Cannot read properties of undefined (reading 'call')` inside
+ * webpack's runtime (broken module factories after interrupted writes or HMR desync).
+ */
+function hasMissingOrTinyClientWebpackRuntime(nextDir) {
+  const chunksDir = path.join(nextDir, 'static', 'chunks')
+  const webpackPath = path.join(chunksDir, 'webpack.js')
+  if (!fs.existsSync(chunksDir)) {
+    return false
+  }
+  if (!fs.existsSync(webpackPath)) {
+    return true
+  }
+  try {
+    const { size } = fs.statSync(webpackPath)
+    // Real client webpack runtime is tens of KB; tiny files are almost always corruption.
+    if (size < 500) {
+      return true
+    }
+  } catch {
+    return true
+  }
+  return false
+}
+
+function shouldResetNextArtifacts(rootDir, distDirRel = DIST_DIR_REL) {
+  const nextDir = path.join(rootDir, distDirRel)
   const manifestPath = path.join(nextDir, 'build-manifest.json')
   const chunksDir = path.join(nextDir, 'static', 'chunks')
 
@@ -150,6 +185,10 @@ function shouldResetNextArtifacts(rootDir) {
 
   // Optional full reset for Windows dev sessions where cache corruption is frequent.
   if (WINDOWS && envFlag('AF_NEXT_DEV_CLEAN_ALWAYS')) {
+    return true
+  }
+
+  if (hasMissingOrTinyClientWebpackRuntime(nextDir)) {
     return true
   }
 
@@ -186,6 +225,9 @@ function main() {
   if (FLAG_DEEP) {
     log('deep clean requested')
     removeIfPresent(rootDir, '.next')
+    if (DIST_DIR_REL !== '.next') {
+      removeIfPresent(rootDir, DIST_DIR_REL)
+    }
     removeIfPresent(rootDir, 'node_modules/.cache')
     removeIfPresent(rootDir, '.swc')
     if (FLAG_VERBOSE) {
@@ -201,15 +243,15 @@ function main() {
   }
 
   if (!shouldResetNextArtifacts(rootDir)) {
-    if (FLAG_VERBOSE) log('no corruption detected; leaving .next intact')
+    if (FLAG_VERBOSE) log(`no corruption detected; leaving ${DIST_DIR_REL} intact`)
     return
   }
 
-  // Conservative path: only `.next` is wiped (matches historical behavior).
-  // The vendor-chunk corruption pattern is the most common Windows failure
-  // mode and is fully resolved by `.next` removal alone.
-  removeIfPresent(rootDir, '.next')
-  log('removed stale .next artifacts before dev startup')
+  // Conservative path: only the active dist dir is wiped (matches historical
+  // behavior). The vendor-chunk corruption pattern is the most common Windows
+  // failure mode and is fully resolved by removing the dist dir alone.
+  removeIfPresent(rootDir, DIST_DIR_REL)
+  log(`removed stale ${DIST_DIR_REL} artifacts before dev startup`)
 }
 
 // CommonJS exports for unit-testing the safety predicates without invoking
@@ -219,6 +261,7 @@ module.exports = {
   isSafePath,
   SAFE_ROOTS,
   hasMissingVendorChunks,
+  hasMissingOrTinyClientWebpackRuntime,
   shouldResetNextArtifacts,
 }
 

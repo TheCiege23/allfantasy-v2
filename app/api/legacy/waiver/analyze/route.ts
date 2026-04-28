@@ -44,6 +44,7 @@ import {
   buildLeagueWaiverProcessedNotification,
 } from '@/lib/legacy-tool/notifications'
 import { assertSleeperBoundaryForLeagueId } from '@/lib/legacy/sleeper-boundary'
+import { getOrCreateAiResult } from '@/lib/ai/ai-result-cache'
 
 const openai = getOpenAIRouteClient()
 
@@ -593,18 +594,75 @@ ${JSON.stringify(narrativeInput, null, 2)}
 
 Write narrative summary, per-player reasoning, and roster notes.`
 
-      const completion = await openai.chat.completions.create({
+      const narrativeCachePayload = {
+        feature: 'legacy-waiver-analyze-narrative',
+        leagueId: normalizedLeagueId,
+        userId: resolvedUserId || resolvedUsername,
+        sport: leagueInfo.sport || 'nfl',
+        season: String((leagueInfo as any)?.season || ''),
+        week: Number((leagueInfo as any)?.settings?.leg ?? 0),
+        scoringType,
+        isSF,
+        isTEP,
+        numTeams,
+        goal,
+        needs: [...needs].sort(),
+        surplus: [...surplus].sort(),
+        topDeterministicResults: deterministicResults.slice(0, 8).map((t) => ({
+          playerId: t.playerId,
+          playerName: t.playerName,
+          position: t.position,
+          team: t.team,
+          recommendation: t.recommendation,
+          compositeScore: t.compositeScore,
+          dimensions: t.dimensions,
+          topDrivers: t.topDrivers.map((d) => ({ id: d.id, score: d.score, direction: d.direction })),
+          dropCandidate: t.dropCandidate?.name || null,
+          faabBid: t.faabBid,
+        })),
+        promptVersion: 'v1',
+      }
+
+      const aiResult = await getOrCreateAiResult({
+        feature: 'legacy-waiver-analyze-narrative',
+        scopeType: 'league',
+        scopeId: normalizedLeagueId,
+        provider: 'openai',
         model: 'gpt-4o',
-        temperature: 0.5,
-        max_tokens: 1500,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: NARRATIVE_PROMPT },
-          { role: 'user', content: narrativeUserPrompt },
-        ],
+        payload: narrativeCachePayload,
+        ttlSeconds: 60 * 60,
+        onCacheMiss: async () => {
+          const completion = await openai.chat.completions.create({
+            model: 'gpt-4o',
+            temperature: 0.5,
+            max_tokens: 1500,
+            response_format: { type: 'json_object' },
+            messages: [
+              { role: 'system', content: NARRATIVE_PROMPT },
+              { role: 'user', content: narrativeUserPrompt },
+            ],
+          })
+
+          const content = completion.choices[0]?.message?.content || '{}'
+          return {
+            resultText: content,
+            resultJson: { content },
+            tokenPrompt: completion.usage?.prompt_tokens ?? null,
+            tokenOutput: completion.usage?.completion_tokens ?? null,
+          }
+        },
       })
 
-      const content = completion.choices[0]?.message?.content
+      if (aiResult.cacheHit) {
+        console.log(`[legacy-waiver/analyze] AI cache hit { leagueId: '${normalizedLeagueId}', userId: '${resolvedUserId || resolvedUsername}' }`)
+      } else {
+        console.log(`[legacy-waiver/analyze] AI cache miss { leagueId: '${normalizedLeagueId}', userId: '${resolvedUserId || resolvedUsername}', modelCallMs: ${aiResult.modelDurationMs ?? -1} }`)
+        console.log(`[legacy-waiver/analyze] saved AiResult { id: '${aiResult.row.id}', resultKey: '${aiResult.row.resultKey}' }`)
+      }
+
+      const content =
+        (typeof aiResult.row.resultText === 'string' && aiResult.row.resultText.trim()) ||
+        ((aiResult.row.resultJson as any)?.content as string | undefined)
       if (content) {
         const parsed = JSON.parse(content)
         summary = parsed.summary || ''

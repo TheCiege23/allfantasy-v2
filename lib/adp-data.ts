@@ -35,6 +35,24 @@ const FFC_FORMAT_MAP: Record<string, FFCScoringFormat> = {
 };
 
 let adpCache: { data: ADPEntry[]; ts: number; type: string } | null = null;
+
+/**
+ * Force-invalidate both the in-memory and DB-cached ADP entries so the next
+ * `getLiveADP` call re-fetches FFC + analytics fresh. Used by the commissioner
+ * "Refresh ADP" action when the pool's ADP column is empty/stale.
+ */
+export async function invalidateAdpCache(): Promise<{ deleted: number }> {
+  adpCache = null;
+  try {
+    const [multi, ffc] = await Promise.all([
+      prisma.sportsDataCache.deleteMany({ where: { cacheKey: { startsWith: 'adp-multi-' } } }),
+      prisma.sportsDataCache.deleteMany({ where: { cacheKey: { startsWith: 'ffc-adp-' } } }),
+    ]);
+    return { deleted: multi.count + ffc.count };
+  } catch {
+    return { deleted: 0 };
+  }
+}
 const CACHE_TTL = 5 * 60 * 1000;
 const DB_CACHE_TTL = 1000 * 60 * 60 * 24;
 
@@ -197,7 +215,16 @@ export async function getLiveADP(
 
   const ffcFormat: FFCScoringFormat = FFC_FORMAT_MAP[type] || 'standard';
   try {
-    const { players: ffcPlayers } = await fetchFFCADP(ffcFormat);
+    let { players: ffcPlayers } = await fetchFFCADP(ffcFormat);
+    // Off-season fallback: FFC publishes the new year's redraft ADP in summer.
+    // If the current year is empty, retry with last year so the pool still
+    // has ADP values to render.
+    if (ffcPlayers.length === 0) {
+      const lastYear = new Date().getFullYear() - 1;
+      console.log(`[adp] FFC ${new Date().getFullYear()} empty, falling back to ${lastYear}`);
+      const fallback = await fetchFFCADP(ffcFormat, 12, lastYear);
+      ffcPlayers = fallback.players;
+    }
     if (ffcPlayers.length > 0) {
       const existingNames = new Set(entries.map(e => e.name.toLowerCase()));
       for (const p of ffcPlayers) {

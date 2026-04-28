@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { fetchGameWeather } from '@/lib/openweathermap'
 import { fetchWeatherForTeamHomeWindow } from '@/lib/weather/venueResolver'
 import { defaultGameTimeForSport } from '@/lib/weather/defaultGameTimes'
+import { getCachedGameWeather } from '@/lib/weather/weatherService'
 import { normalizeToSupportedSport, SUPPORTED_SPORTS } from '@/lib/sport-scope'
 
 export const dynamic = 'force-dynamic'
@@ -10,7 +10,7 @@ const WEATHER_SUPPORTED = new Set(['NFL', 'NCAAF', 'MLB', 'SOCCER'])
 
 /**
  * GET /api/start-sit/weather?sport=nfl&team=BUF
- * Returns live OpenWeather-backed data: current conditions at venue (outdoor) or dome notice.
+ * Returns WeatherCache-first data: current venue conditions or dome notice plus forecast window.
  * Supports NFL, NCAAF, MLB (venue-based) and SOCCER (geocoded). Indoor sports return null forecast.
  */
 export async function GET(req: Request) {
@@ -47,7 +47,7 @@ export async function GET(req: Request) {
     })
   }
 
-  const live = sport === 'NFL' ? await fetchGameWeather(team) : null
+  const live = sport === 'NFL' ? await getCachedGameWeather({ sport, homeTeam: team }) : null
   const forecast = await fetchWeatherForTeamHomeWindow({
     sport,
     teamAbbrev: team,
@@ -59,6 +59,13 @@ export async function GET(req: Request) {
     team,
     live,
     forecast,
-    source: 'openweathermap',
+    meta: {
+      live: live?.meta ?? null,
+      forecast: forecast?.meta ?? null,
+    },
+    source:
+      live?.meta?.cacheHit || forecast?.meta?.cacheHit
+        ? 'weather-cache'
+        : 'openweathermap',
   })
 }

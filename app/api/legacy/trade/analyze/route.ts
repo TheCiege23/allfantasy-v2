@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { consumeRateLimit, getClientIp } from '@/lib/rate-limit'
 import { requireAuthOrOrigin, forbiddenResponse } from '@/lib/api-auth'
 import { openaiChatJson, parseJsonContentFromChatCompletion } from '@/lib/openai-client'
+import { getOrCreateAiResult } from '@/lib/ai/ai-result-cache'
 import { trackLegacyToolUsage } from '@/lib/analytics-server'
 import { evaluateTrade, formatEvaluationForAI, TradeAsset as TierTradeAsset, LeagueSettings, detectIDPFromRosterPositions, detectSFFromRosterPositions } from '@/lib/dynasty-tiers'
 import { getPlayerValuesForNames, formatValuesForPrompt, FantasyCalcSettings, calculateTradeBalance, getPickValue } from '@/lib/fantasycalc'
@@ -36,6 +37,7 @@ import { fuseDecisionScore } from '@/lib/legacy-tool/fusion'
 import { evaluateCommissionerAlert } from '@/lib/legacy-tool/fairness'
 import { normalizeGrokSignalsToDeltaEvents, persistGrokDeltaEvents } from '@/lib/legacy-tool/grok-delta'
 import { assertSleeperBoundaryForLeagueId } from '@/lib/legacy/sleeper-boundary'
+import { getTheSportsDbApiKey } from '@/lib/env/sports-media-keys'
 import {
   buildPrivateTradeCoachingNotification,
   buildLeagueTradeProcessedNotification,
@@ -412,10 +414,7 @@ function summarizeRoster(roster: RosteredPlayer[]) {
 }
 
 async function lookupSportsDbPlayers(args: { sport: Sport; names: string[] }) {
-  const apiKey =
-    process.env.THESPORTSDB_API_KEY?.trim() ||
-    process.env.THEAUDIODB_API_KEY?.trim() ||
-    ''
+  const apiKey = getTheSportsDbApiKey() || ''
   if (!apiKey) return { ok: false, reason: 'missing_api_key', players: [] as any[] }
 
   const uniq = Array.from(new Set(args.names.map((n) => n.trim()).filter(Boolean))).slice(0, 8)
@@ -2406,27 +2405,100 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
       .filter((s) => typeof s === 'string' && s.trim().length > 0)
       .join('\n\n')
 
-    const result = await openaiChatJson({
-      messages: [
-        { role: 'system', content: buildSystemPrompt(numTeams) },
-        { role: 'user', content: enrichedUserPrompt },
-      ],
-      temperature: 0.6,
-      maxTokens: 2800,
-    })
-
-    if (!result.ok) {
-      console.error('Trade Analyze OpenAI error:', {
-        status: result.status,
-        details: result.details?.slice?.(0, 500),
-      })
-      return NextResponse.json(
-        { error: 'Failed to analyze trade', details: String(result.details || '').slice(0, 500) },
-        { status: 500 }
-      )
+    const cachePayload = {
+      feature: 'legacy-trade-analyze',
+      leagueId: leagueId || null,
+      userId: sleeperA || null,
+      partnerId: sleeperB || null,
+      sport,
+      format,
+      leagueType,
+      idpEnabled,
+      season: String((league as any)?.season || ''),
+      week: Number((league as any)?.settings?.leg ?? 0),
+      numTeams,
+      scoringSettings: (league as any)?.scoring_settings || null,
+      rosterPositions: (league as any)?.roster_positions || null,
+      userRosterId: resolvedUserRosterId ?? null,
+      partnerRosterId: resolvedPartnerRosterId ?? null,
+      assetsA: assetsA.map((a: any) =>
+        a.type === 'player'
+          ? { type: 'player', id: a.player?.id || null, pos: a.player?.position || null }
+          : a.type === 'pick'
+            ? { type: 'pick', year: a.pick?.year ?? null, round: a.pick?.round ?? null, pickNumber: a.pick?.pickNumber ?? null }
+            : { type: 'faab', amount: a.amount ?? null }
+      ),
+      assetsB: assetsB.map((a: any) =>
+        a.type === 'player'
+          ? { type: 'player', id: a.player?.id || null, pos: a.player?.position || null }
+          : a.type === 'pick'
+            ? { type: 'pick', year: a.pick?.year ?? null, round: a.pick?.round ?? null, pickNumber: a.pick?.pickNumber ?? null }
+            : { type: 'faab', amount: a.amount ?? null }
+      ),
+      tradeGoal: reqData.tradeGoal || null,
+      tradeBalance: tradeBalance
+        ? {
+            sideAValue: tradeBalance.sideAValue,
+            sideBValue: tradeBalance.sideBValue,
+            percentDiff: tradeBalance.percentDiff,
+            verdict: tradeBalance.verdict,
+          }
+        : null,
+      tradeDriverData: tradeDriverData
+        ? {
+            totalScore: tradeDriverData.totalScore,
+            fairnessDelta: tradeDriverData.fairnessDelta,
+            scoringMode: tradeDriverData.scoringMode,
+            hasBehaviorData: tradeDriverData.hasBehaviorData,
+          }
+        : null,
+      newsSignals: (playerNews || []).map((n: any) => ({
+        id: n?.id || n?.playerId || n?.name || null,
+        sentiment: n?.sentiment || null,
+        updatedAt: n?.updatedAt || n?.timestamp || null,
+      })),
+      promptVersion: 'v1',
     }
 
-    const parsed = parseJsonContentFromChatCompletion(result.json)
+    const aiResult = await getOrCreateAiResult({
+      feature: 'legacy-trade-analyze',
+      scopeType: 'league',
+      scopeId: leagueId || `${normalizeName(sleeperA)}:${normalizeName(sleeperB)}`,
+      provider: 'openai',
+      model: 'gpt-4o',
+      payload: cachePayload,
+      ttlSeconds: 2 * 60 * 60,
+      onCacheMiss: async () => {
+        const result = await openaiChatJson({
+          messages: [
+            { role: 'system', content: buildSystemPrompt(numTeams) },
+            { role: 'user', content: enrichedUserPrompt },
+          ],
+          temperature: 0.6,
+          maxTokens: 2800,
+        })
+
+        if (!result.ok) {
+          throw new Error(String(result.details || 'Failed to analyze trade').slice(0, 500))
+        }
+
+        return {
+          resultText: null,
+          resultJson: { completion: result.json },
+          tokenPrompt: null,
+          tokenOutput: null,
+        }
+      },
+    })
+
+    if (aiResult.cacheHit) {
+      console.log(`[legacy-trade/analyze] AI cache hit { leagueId: '${leagueId || 'none'}', userA: '${sleeperA}', userB: '${sleeperB}' }`)
+    } else {
+      console.log(`[legacy-trade/analyze] AI cache miss { leagueId: '${leagueId || 'none'}', userA: '${sleeperA}', userB: '${sleeperB}', modelCallMs: ${aiResult.modelDurationMs ?? -1} }`)
+      console.log(`[legacy-trade/analyze] saved AiResult { id: '${aiResult.row.id}', resultKey: '${aiResult.row.resultKey}' }`)
+    }
+
+    const parsed = parseJsonContentFromChatCompletion((aiResult.row.resultJson as any)?.completion)
     if (!parsed) {
       return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 })
     }

@@ -14,6 +14,11 @@ import { getTribeForRoster } from './SurvivorTribeService'
 import { getMinigameDef } from './SurvivorMiniGameRegistry'
 import { parseTribeIdFromSource } from './constants'
 import { isSurvivorLeague } from './SurvivorLeagueConfig'
+import {
+  applySurvivorSitOutToMiniGames,
+  getEligibleSitOutCandidates,
+  nominateSurvivorSitOut,
+} from './SurvivorSitOutEngine'
 import type { SurvivorChallengeType } from './types'
 
 interface SurvivorRosterDisplayContext {
@@ -278,12 +283,76 @@ export async function processSurvivorOfficialCommand(
       handled: true,
       ok: false,
       status: 400,
-      error: 'Unknown command. Use @Chimmy vote [manager], @Chimmy jury vote [finalist], @Chimmy play idol [idol], @Chimmy play idol steal_player on [manager] pick [player], @Chimmy play idol swap_starter swap [bench] for [starter], @Chimmy submit challenge [choice], or @Chimmy confirm tribe decision [choice].',
+      error: 'Unknown command. Use @Chimmy vote [manager], @Chimmy jury vote [finalist], @Chimmy play idol [idol], @Chimmy sit out [manager], @Chimmy play idol steal_player on [manager] pick [player], @Chimmy play idol swap_starter swap [bench] for [starter], @Chimmy submit challenge [choice], or @Chimmy confirm tribe decision [choice].',
     }
   }
 
   const requestedWeek = normalizeRequestedWeek(input.week)
   const week = await resolveSurvivorCurrentWeek(leagueId, requestedWeek)
+
+  if (parsed.intent === 'sit_out_nominate') {
+    const sourceTribeId = parseTribeIdFromSource(source ?? null)
+    if (!sourceTribeId) {
+      return {
+        handled: true,
+        ok: false,
+        status: 400,
+        error: 'Sit-out nominations must be submitted from your tribe chat.',
+      }
+    }
+
+    const myTribe = await getTribeForRoster(leagueId, myRosterId)
+    if (!myTribe || myTribe.id !== sourceTribeId) {
+      return {
+        handled: true,
+        ok: false,
+        status: 403,
+        error: 'You can only nominate a sit-out from your own tribe chat.',
+      }
+    }
+
+    const rosterContext = await buildRosterDisplayContext(leagueId)
+    const targetRosterId = resolveRosterIdFromDisplayName(parsed.targetDisplayName, rosterContext)
+    if (!targetRosterId) {
+      const eligibleCandidates = await getEligibleSitOutCandidates(leagueId, myTribe.id, week)
+      const eligibleList = eligibleCandidates.map((candidate) => candidate.displayName).join(', ')
+      return {
+        handled: true,
+        ok: false,
+        status: 400,
+        error: eligibleList
+          ? `Could not find manager: ${parsed.targetDisplayName ?? 'Unknown manager'}. Eligible right now: ${eligibleList}.`
+          : `Could not find manager: ${parsed.targetDisplayName ?? 'Unknown manager'}. No eligible sit-out candidates right now.`,
+      }
+    }
+
+    const nomination = await nominateSurvivorSitOut({
+      leagueId,
+      week,
+      nominatorUserId: userId,
+      nominatorRosterId: myRosterId,
+      tribeId: myTribe.id,
+      nominatedRosterId: targetRosterId,
+      command: rawCommand,
+    })
+    if (!nomination.ok) {
+      const eligibleList = nomination.eligibleCandidates?.map((candidate) => candidate.displayName).join(', ')
+      return {
+        handled: true,
+        ok: false,
+        status: 400,
+        error: eligibleList ? `${nomination.error} Eligible right now: ${eligibleList}.` : nomination.error,
+      }
+    }
+
+    return {
+      handled: true,
+      ok: true,
+      status: 200,
+      intent: parsed.intent,
+      message: `${nomination.nominatedDisplayName} was nominated to sit out. This only becomes official if they click Yes.`,
+    }
+  }
 
   if (parsed.intent === 'jury_vote') {
     const [rosterContext, finaleState] = await Promise.all([
@@ -567,6 +636,20 @@ export async function processSurvivorOfficialCommand(
     } else if (definition?.submissionScope === 'both' && sourceTribeId && myTribe && sourceTribeId === myTribe.id) {
       rosterId = null
       tribeId = myTribe.id
+    }
+
+    const miniGameGuard = await applySurvivorSitOutToMiniGames({
+      leagueId,
+      week,
+      rosterId: myRosterId,
+    })
+    if (miniGameGuard.blocked) {
+      return {
+        handled: true,
+        ok: false,
+        status: 403,
+        error: `${miniGameGuard.reason ?? 'Sit-out is active for this week.'} Eligibility reason: sit-out accepted and locked.`,
+      }
     }
 
     const result = await submitChallengeAnswer(challenge.id, rosterId, tribeId, {

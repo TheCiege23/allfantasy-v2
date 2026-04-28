@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
+import { getOrCreateAiResult } from '@/lib/ai/ai-result-cache'
 
 const openai = getOpenAIRouteClient()
 
@@ -100,18 +101,70 @@ Propose a realistic trade package. Consider:
 - Whether the trade makes strategic sense for both sides
 - Future round picks the user could include as sweetener`
 
-    const completion = await openai.chat.completions.create({
+    const aiResult = await getOrCreateAiResult({
+      feature: 'mock-draft-trade-sim',
+      scopeType: 'user',
+      scopeId: session.user.id,
+      provider: 'openai',
       model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.7,
-      max_tokens: 1500,
+      ttlSeconds: 30 * 60,
+      payload: {
+        mockDraftSessionId: (typeof draftId === 'string' && draftId.trim()) || null,
+        leagueId: (typeof body?.leagueId === 'string' && body.leagueId.trim()) || null,
+        userId: session.user.id,
+        sport: String(body?.sport || 'NFL').toUpperCase(),
+        season: String(body?.season || ''),
+        draftType: String(body?.draftType || ''),
+        scoringFormat: String(leagueFormat || ''),
+        currentPick: {
+          round: Number(currentPick?.round || 0),
+          pick: Number(currentPick?.pick || 0),
+          overall: Number(pickNumber || 0),
+        },
+        direction,
+        teamNeeds: [
+          { manager: userTeam, type: 'user' },
+          ...nearbyPicks.map((p: any) => ({ manager: p.manager, overall: p.overall })),
+        ],
+        availablePlayerIds: nearbyPicks
+          .map((p: any) => p.playerId || p.playerName || null)
+          .filter(Boolean),
+        priorPickIds: draftResults
+          .filter((p: any) => Number(p.overall) < Number(pickNumber))
+          .map((p: any) => p.playerId || p.playerName || null)
+          .filter(Boolean),
+        userPicks: userPicks.map((p: any) => ({ overall: p.overall, player: p.playerName, position: p.position })),
+        promptVersion: 'v1',
+      },
+      onCacheMiss: async () => {
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.7,
+          max_tokens: 1500,
+        })
+
+        return {
+          resultText: completion.choices[0]?.message?.content || '',
+          resultJson: null,
+          tokenPrompt: null,
+          tokenOutput: null,
+        }
+      },
     })
 
-    const content = completion.choices[0]?.message?.content
+    if (aiResult.cacheHit) {
+      console.log(`[mock-draft/trade-sim] AI cache hit { userId: '${session.user.id}', pickNumber: ${pickNumber} }`)
+    } else {
+      console.log(`[mock-draft/trade-sim] AI cache miss { userId: '${session.user.id}', pickNumber: ${pickNumber}, modelCallMs: ${aiResult.modelDurationMs ?? -1} }`)
+      console.log(`[mock-draft/trade-sim] saved AiResult { id: '${aiResult.row.id}', resultKey: '${aiResult.row.resultKey}' }`)
+    }
+
+    const content = aiResult.row.resultText
     if (!content) {
       return NextResponse.json({ error: 'No response from AI' }, { status: 500 })
     }

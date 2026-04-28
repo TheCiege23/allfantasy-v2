@@ -8,6 +8,7 @@ import { prisma } from '@/lib/prisma'
 import { dispatchNotification } from '@/lib/notifications/NotificationDispatcher'
 import { createSystemMessage } from '@/lib/platform/chat-service'
 import { openaiChatText } from '@/lib/openai-client'
+import { buildAiCacheKey, readAiResultCache, writeAiResultCache } from '@/lib/ai-result-cache'
 import { analyzeLeagueGovernance } from './LeagueGovernanceAnalyzer'
 import { generateCommissionerAlerts } from './CommissionerAlertGenerator'
 import { generateLeagueInsights } from './LeagueInsightGenerator'
@@ -473,6 +474,9 @@ function buildDeterministicCommissionerAnswer(input: {
   ].join('\n')
 }
 
+/** 30-minute TTL — commissioner questions are highly variable but not real-time. */
+const COMMISSIONER_QUESTION_TTL_MS = 30 * 60 * 1000
+
 export async function answerAICommissionerQuestion(input: {
   leagueId: string
   question: string
@@ -488,6 +492,20 @@ export async function answerAICommissionerQuestion(input: {
     question: input.question,
     insights,
   })
+
+  // ── AiResult cache gate ───────────────────────────────────────────────────
+  const cacheInputs = {
+    leagueId: input.leagueId,
+    question: input.question.trim().toLowerCase(),
+    sport: insights.sport ?? null,
+    season: insights.season ?? null,
+  }
+  const { resultKey, inputHash } = buildAiCacheKey('commissioner-question', cacheInputs)
+  const cached = await readAiResultCache(resultKey)
+  if (cached?.resultText) {
+    console.log(`[ai-commissioner] AiResult cache hit { key: '${resultKey.slice(0, 48)}...' }`)
+    return { answer: cached.resultText, source: 'ai', insights }
+  }
 
   const aiResult = await openaiChatText({
     messages: [
@@ -517,9 +535,22 @@ export async function answerAICommissionerQuestion(input: {
   }).catch(() => null)
 
   const answer = aiResult?.ok && aiResult.text?.trim() ? aiResult.text.trim() : fallback
-  return {
-    answer,
-    source: aiResult?.ok && aiResult.text?.trim() ? 'ai' : 'template',
-    insights,
+  const source: 'ai' | 'template' = aiResult?.ok && aiResult.text?.trim() ? 'ai' : 'template'
+
+  // Write to AiResult cache on AI success (fire-and-forget).
+  if (source === 'ai') {
+    writeAiResultCache({
+      resultKey,
+      inputHash,
+      feature: 'commissioner-question',
+      scopeType: 'league',
+      scopeId: input.leagueId,
+      provider: 'openai',
+      inputJson: cacheInputs,
+      resultText: answer,
+      ttlMs: COMMISSIONER_QUESTION_TTL_MS,
+    }).catch(() => undefined)
   }
+
+  return { answer, source, insights }
 }

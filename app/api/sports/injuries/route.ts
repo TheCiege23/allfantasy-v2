@@ -17,7 +17,7 @@ export const GET = withApiUsage({ endpoint: "/api/sports/injuries", tool: "Sport
 
     if (refresh) {
       const [apiSportsResult, espnResult] = await Promise.allSettled([
-        syncAPISportsInjuriesToDb(season || undefined),
+        syncAPISportsInjuriesToDb(season ? { season } : undefined),
         syncESPNInjuriesToDb(),
       ]);
       if (apiSportsResult.status === 'rejected') {
@@ -50,7 +50,7 @@ export const GET = withApiUsage({ endpoint: "/api/sports/injuries", tool: "Sport
 
     if (stale && !refresh) {
       await Promise.allSettled([
-        syncAPISportsInjuriesToDb(season || undefined),
+        syncAPISportsInjuriesToDb(season ? { season } : undefined),
         syncESPNInjuriesToDb(),
       ]);
       const freshInjuries = await prisma.sportsInjury.findMany({

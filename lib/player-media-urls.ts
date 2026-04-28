@@ -19,31 +19,14 @@ const SLEEPER_NFL_HEADSHOT_BASE = 'https://sleepercdn.com/content/nfl/players/th
 const SLEEPER_NBA_HEADSHOT_BASE = 'https://sleepercdn.com/content/nba/players'
 const SLEEPER_MLB_HEADSHOT_BASE = 'https://sleepercdn.com/content/mlb/players'
 const SLEEPER_NHL_HEADSHOT_BASE = 'https://sleepercdn.com/content/nhl/players'
-const ESPN_LOGO_BASE = 'https://a.espncdn.com/i/teamlogos/nfl/500'
 const ESPN_PLAYER_HEADSHOT_BASE = 'https://a.espncdn.com/i/headshots'
-
-const ESPN_TEAM_MAP: Record<string, string> = {
-  ARI: 'ari', ATL: 'atl', BAL: 'bal', BUF: 'buf',
-  CAR: 'car', CHI: 'chi', CIN: 'cin', CLE: 'cle',
-  DAL: 'dal', DEN: 'den', DET: 'det', GB: 'gb',
-  HOU: 'hou', IND: 'ind', JAX: 'jax', KC: 'kc',
-  LAC: 'lac', LAR: 'lar', LV: 'lv', MIA: 'mia',
-  MIN: 'min', NE: 'ne', NO: 'no', NYG: 'nyg',
-  NYJ: 'nyj', PHI: 'phi', PIT: 'pit', SEA: 'sea',
-  SF: 'sf', TB: 'tb', TEN: 'ten', WAS: 'was',
-}
 
 export type SportKey = 'nfl' | 'nba' | 'mlb' | 'nhl' | 'ncaaf' | 'ncaab' | string
 
-/** NFL ESPN-style logo URL from abbrev; non-NFL uses TeamLogoResolver. */
+/** Team logo URL from the shared sport-team metadata registry. */
 export function getTeamLogoUrl(teamAbbr: string | null, sport: string = 'nfl'): string | null {
   if (!teamAbbr) return null
-  if (sport.toLowerCase() !== 'nfl') {
-    return getPrimaryLogoUrlForTeam(toSportType(sport), teamAbbr.trim())
-  }
-  const upper = teamAbbr.toUpperCase()
-  const key = ESPN_TEAM_MAP[upper]
-  return key ? `${ESPN_LOGO_BASE}/${key}.png` : null
+  return getPrimaryLogoUrlForTeam(toSportType(sport), teamAbbr.trim())
 }
 
 export function buildHeadshotUrl(playerId: string | null): string | null {
@@ -74,8 +57,7 @@ export function espnPlayerHeadshotUrl(espnPlayerId: string | null | undefined, s
 
 export function sleeperTeamLogoUrl(teamAbbr: string, sport: SportKey = 'nfl'): string | null {
   if (!teamAbbr) return null
-  if (sport === 'nfl') return `https://sleepercdn.com/images/team_logos/nfl/${teamAbbr.toLowerCase()}.png`
-  return getPrimaryLogoUrlForTeam(toSportType(String(sport)), teamAbbr.trim())
+  return getTeamLogoUrl(teamAbbr, String(sport))
 }
 
 export function normalizeTeamAbbr(team?: string | null): string | null {

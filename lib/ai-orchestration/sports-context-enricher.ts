@@ -345,6 +345,10 @@ export async function fetchSportsContextForEnvelope(
           position: row.position,
           adp: row.adp,
           source: row.source,
+          providerCount: (row as any).providerCount ?? null,
+          adpSpread: (row as any).adpSpread ?? null,
+          confidenceScore: (row as any).confidenceScore ?? null,
+          providerBreakdown: (row as any).providerBreakdown ?? null,
         }))
         trackSource('database_first', ['adp_data'])
       } else {
@@ -370,6 +374,10 @@ export async function fetchSportsContextForEnvelope(
             adp: row.adp,
             adpChange: row.adpChange,
             source: row.source,
+            providerCount: (row as any).providerCount ?? null,
+            adpSpread: (row as any).adpSpread ?? null,
+            confidenceScore: (row as any).confidenceScore ?? null,
+            providerBreakdown: (row as any).providerBreakdown ?? null,
           })),
           ...highImpactNews.slice(0, 12).map((row) => ({
             playerId: row.playerId,

@@ -5,12 +5,13 @@ import { prisma } from "@/lib/prisma"
 
 export const dynamic = "force-dynamic"
 
-export type SignInProviderId = "google" | "apple" | "facebook" | "instagram" | "x" | "tiktok"
+export type SignInProviderId = "google" | "spotify" | "apple" | "facebook" | "instagram" | "x" | "tiktok"
 
-const PROVIDER_IDS: SignInProviderId[] = ["google", "apple", "facebook", "instagram", "x", "tiktok"]
+const PROVIDER_IDS: SignInProviderId[] = ["google", "spotify", "apple", "facebook", "instagram", "x", "tiktok"]
 
 const PROVIDER_NAMES: Record<SignInProviderId, string> = {
   google: "Google",
+  spotify: "Spotify",
   apple: "Apple",
   facebook: "Facebook",
   instagram: "Instagram",
@@ -22,6 +23,8 @@ function isProviderConfigured(providerId: SignInProviderId): boolean {
   switch (providerId) {
     case "google":
       return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET)
+    case "spotify":
+      return !!(process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET)
     case "apple":
       return !!(process.env.APPLE_CLIENT_ID && process.env.APPLE_CLIENT_SECRET)
     case "facebook":

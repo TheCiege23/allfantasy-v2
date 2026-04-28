@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { getStrategyMetaReports } from '@/lib/strategy-meta'
+import { getOrCreateAiResult } from '@/lib/ai/ai-result-cache'
 
 const openai = getOpenAIRouteClient()
 
@@ -80,7 +81,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { leagueId, round, draftResults: clientDraft } = await req.json()
+    const body = await req.json()
+    const { leagueId, round, draftResults: clientDraft, mockDraftSessionId } = body
 
     if (!leagueId || !round) {
       return NextResponse.json({ error: 'leagueId and round are required' }, { status: 400 })
@@ -175,18 +177,79 @@ ${remainingRounds} rounds remain. Consider:
 
 Return needs analysis for ALL ${managers.length} teams.`
 
-    const completion = await openai.chat.completions.create({
+    const aiResult = await getOrCreateAiResult({
+      feature: 'mock-draft-needs',
+      scopeType: 'league',
+      scopeId: leagueId,
+      provider: 'openai',
       model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.5,
-      max_tokens: 4000,
+      ttlSeconds: 60 * 60,
+      payload: {
+        mockDraftSessionId: (typeof mockDraftSessionId === 'string' && mockDraftSessionId.trim()) || null,
+        leagueId,
+        userId: session.user.id,
+        sport: normalizedSport,
+        season: String((league as any)?.season || ''),
+        draftType: String((league as any)?.draftType || ''),
+        scoringFormat: String(league?.scoring || ''),
+        currentPick: {
+          round: Number(round || 0),
+          pick: 0,
+          overall: 0,
+        },
+        teamNeeds: Object.entries(needLevels)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([manager, level]) => ({
+            manager,
+            score: level.score,
+            topNeed: level.topNeed,
+            breakdown: Object.entries(level.breakdown)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([pos, score]) => ({ pos, score })),
+          })),
+        availablePlayerIds: [],
+        priorPickIds: picksThrough.map((p: any) => p.playerId || p.playerName || null).filter(Boolean),
+        managers: managers.slice().sort(),
+        rosterCounts: Object.entries(rosterCounts)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([manager, counts]) => ({
+            manager,
+            counts: Object.entries(counts)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([pos, value]) => ({ pos, value })),
+          })),
+        strategyMetaContext,
+        promptVersion: 'v1',
+      },
+      onCacheMiss: async () => {
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.5,
+          max_tokens: 4000,
+        })
+
+        return {
+          resultText: completion.choices[0]?.message?.content || '',
+          resultJson: null,
+          tokenPrompt: null,
+          tokenOutput: null,
+        }
+      },
     })
 
-    const content = completion.choices[0]?.message?.content
+    if (aiResult.cacheHit) {
+      console.log(`[mock-draft/needs] AI cache hit { leagueId: '${leagueId}', round: ${round} }`)
+    } else {
+      console.log(`[mock-draft/needs] AI cache miss { leagueId: '${leagueId}', round: ${round}, modelCallMs: ${aiResult.modelDurationMs ?? -1} }`)
+      console.log(`[mock-draft/needs] saved AiResult { id: '${aiResult.row.id}', resultKey: '${aiResult.row.resultKey}' }`)
+    }
+
+    const content = aiResult.row.resultText
     if (!content) {
       return NextResponse.json({ error: 'No response from AI' }, { status: 500 })
     }

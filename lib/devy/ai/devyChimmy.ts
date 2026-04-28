@@ -100,6 +100,114 @@ export type DraftStrategyResponse = {
   verdict: string
 }
 
+export async function buildDevyAiCacheContextSummary(input: {
+  leagueId?: string
+  managerId?: string
+  rosterId?: string
+  playerId?: string
+  season?: number | null
+  draftType?: string | null
+  currentPick?: number | null
+  position?: string | null
+  classFilter?: string | null
+  sessionId?: string | null
+  teamCount?: number | null
+  leagueExperience?: string | null
+  managerFamiliarity?: string | null
+}): Promise<Record<string, unknown>> {
+  if (!input.leagueId) {
+    return {
+      scope: 'global',
+      teamCount: input.teamCount ?? null,
+      leagueExperience: input.leagueExperience ?? null,
+      managerFamiliarity: input.managerFamiliarity ?? null,
+    }
+  }
+
+  const leagueId = input.leagueId
+  const [cfg, stateCount, devySlotCount, taxiSlotCount, transitions, playerState, importSession] = await Promise.all([
+    prisma.devyLeague.findUnique({
+      where: { leagueId },
+      select: {
+        startupDraftFormat: true,
+        futureDraftFormat: true,
+        taxiSlots: true,
+        devySlots: true,
+        maxDevyPerTeam: true,
+        taxiRookieOnly: true,
+        devyGradBehavior: true,
+      },
+    }),
+    prisma.devyPlayerState.count({ where: { leagueId } }),
+    prisma.devyDevySlot.count({ where: { leagueId } }),
+    prisma.devyTaxiSlot.count({ where: { leagueId } }),
+    input.season != null
+      ? prisma.devyRookieTransition.count({ where: { leagueId, nflEntryYear: input.season } })
+      : Promise.resolve(0),
+    input.playerId
+      ? prisma.devyPlayerState.findFirst({
+          where: { leagueId, playerId: input.playerId },
+          select: { playerId: true, playerName: true, position: true, bucketState: true },
+        })
+      : Promise.resolve(null),
+    input.sessionId
+      ? prisma.devyImportSession.findFirst({
+          where: { id: input.sessionId },
+          select: {
+            id: true,
+            leagueId: true,
+            status: true,
+            createdAt: true,
+            _count: {
+              select: {
+                sources: true,
+                importedSeasons: true,
+              },
+            },
+          },
+        })
+      : Promise.resolve(null),
+  ])
+
+  let managerSummary: Record<string, unknown> | null = null
+  if (input.rosterId) {
+    const [rosterStateCount, rosterPositions] = await Promise.all([
+      prisma.devyPlayerState.count({ where: { leagueId, rosterId: input.rosterId } }),
+      prisma.devyPlayerState.findMany({
+        where: { leagueId, rosterId: input.rosterId },
+        select: { playerId: true, position: true, bucketState: true },
+        take: 40,
+        orderBy: { playerId: 'asc' },
+      }),
+    ])
+    managerSummary = {
+      rosterId: input.rosterId,
+      rosterStateCount,
+      rosterPositions: rosterPositions.map((row) => `${row.playerId}:${row.position}:${row.bucketState}`),
+    }
+  }
+
+  return {
+    scope: 'league',
+    leagueId,
+    config: cfg ?? null,
+    stateCount,
+    devySlotCount,
+    taxiSlotCount,
+    transitionCountForSeason: transitions,
+    managerSummary,
+    playerSummary: playerState,
+    importSessionSummary: importSession,
+    actionContext: {
+      season: input.season ?? null,
+      draftType: input.draftType ?? null,
+      currentPick: input.currentPick ?? null,
+      position: input.position ?? null,
+      classFilter: input.classFilter ?? null,
+    },
+  }
+}
+
 // ─── Setup advisor ───────────────────────────────────────────────────────
 
 export async function getSetupRecommendation(

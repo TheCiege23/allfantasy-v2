@@ -5,6 +5,13 @@ import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { prisma } from '@/lib/prisma'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import {
+  buildAiCacheKey,
+  createSmokeAiResult,
+  isAiResultCacheSmokeProviderEnabled,
+  readAiResultCache,
+  writeAiResultCache,
+} from '@/lib/ai-result-cache'
+import {
   buildDisputeContext,
   explainTradeFairnessInsight,
   getTradeFairnessByTradeId,
@@ -15,6 +22,8 @@ import { runUnifiedOrchestration } from '@/lib/ai-orchestration'
 import { buildEnvelopeForTool, formatToolResult, validateToolOutput } from '@/lib/ai-tool-layer'
 
 export const dynamic = 'force-dynamic'
+
+const AI_COMMISSIONER_EXPLAIN_TTL_MS = 30 * 60 * 1000
 
 function getStructuredCandidate(response: {
   modelOutputs?: Array<{ model?: string; structured?: unknown }>
@@ -59,12 +68,66 @@ export async function POST(
   if (tradeId && !alertId) {
     const tradeInsight = await getTradeFairnessByTradeId({ leagueId, tradeId })
     if (!tradeInsight) return NextResponse.json({ error: 'Trade not found' }, { status: 404 })
+    const smokeProviderEnabled = isAiResultCacheSmokeProviderEnabled()
 
     const fallback = explainTradeFairnessInsight(tradeInsight)
     const tradeSport =
       typeof (tradeInsight as { sport?: string | null }).sport === 'string'
         ? (tradeInsight as { sport?: string | null }).sport
         : undefined
+    const cacheInputs = {
+      path: 'trade_fairness',
+      leagueId,
+      tradeId,
+      sport: tradeSport ?? null,
+      tradeInsight,
+    }
+    const { resultKey, inputHash } = buildAiCacheKey('ai-commissioner-explain', cacheInputs)
+    const cached = await readAiResultCache(resultKey)
+    if (cached?.resultJson && typeof cached.resultJson === 'object') {
+      return NextResponse.json(cached.resultJson)
+    }
+
+    if (smokeProviderEnabled) {
+      const smoke = createSmokeAiResult({
+        feature: 'ai-commissioner-explain',
+        leagueId,
+        route: '/api/leagues/[leagueId]/ai-commissioner/explain',
+        input: cacheInputs,
+      })
+      const smokeResponse = {
+        narrative: smoke.text,
+        source: 'ai' as const,
+        verdict: null,
+        sections: [
+          {
+            id: 'smoke_narrative',
+            title: 'Smoke Narrative',
+            content: smoke.text,
+            type: 'narrative' as const,
+          },
+        ],
+        factGuardWarnings: ['Smoke provider mode enabled: deterministic synthetic explanation.'],
+        context: {
+          leagueId,
+          type: 'trade_fairness',
+          tradeFairness: tradeInsight,
+        },
+      }
+      await writeAiResultCache({
+        resultKey,
+        inputHash,
+        feature: 'ai-commissioner-explain',
+        scopeType: 'league',
+        scopeId: leagueId,
+        provider: 'smoke-provider',
+        inputJson: cacheInputs,
+        resultJson: smokeResponse,
+        ttlMs: AI_COMMISSIONER_EXPLAIN_TTL_MS,
+      })
+      return NextResponse.json(smokeResponse)
+    }
+
     const envelope = buildEnvelopeForTool('trade_analyzer', {
       sport: tradeSport,
       leagueId,
@@ -118,7 +181,7 @@ export async function POST(
       factGuardWarnings = warnings.length ? warnings : undefined
     }
 
-    return NextResponse.json({
+    const responsePayload = {
       narrative,
       source,
       verdict,
@@ -129,7 +192,23 @@ export async function POST(
         type: 'trade_fairness',
         tradeFairness: tradeInsight,
       },
-    })
+    }
+
+    if (source === 'ai') {
+      writeAiResultCache({
+        resultKey,
+        inputHash,
+        feature: 'ai-commissioner-explain',
+        scopeType: 'league',
+        scopeId: leagueId,
+        provider: 'orchestration',
+        inputJson: cacheInputs,
+        resultJson: responsePayload,
+        ttlMs: AI_COMMISSIONER_EXPLAIN_TTL_MS,
+      }).catch(() => undefined)
+    }
+
+    return NextResponse.json(responsePayload)
   }
 
   const alert = await prisma.aiCommissionerAlert.findFirst({
@@ -172,6 +251,56 @@ export async function POST(
     disputeContext,
     prestigeContext,
     relatedManagerSummaries: relatedManagerSummaries.filter(Boolean),
+  }
+  const smokeProviderEnabled = isAiResultCacheSmokeProviderEnabled()
+  const cacheInputs = {
+    path: 'governance_alert',
+    leagueId,
+    alertId,
+    sport,
+    payload,
+  }
+  const { resultKey, inputHash } = buildAiCacheKey('ai-commissioner-explain', cacheInputs)
+  const cached = await readAiResultCache(resultKey)
+  if (cached?.resultJson && typeof cached.resultJson === 'object') {
+    return NextResponse.json(cached.resultJson)
+  }
+
+  if (smokeProviderEnabled) {
+    const smoke = createSmokeAiResult({
+      feature: 'ai-commissioner-explain',
+      leagueId,
+      route: '/api/leagues/[leagueId]/ai-commissioner/explain',
+      input: cacheInputs,
+    })
+    const smokeResponse = {
+      narrative: smoke.text,
+      source: 'ai' as const,
+      verdict: null,
+      sections: [
+        {
+          id: 'smoke_narrative',
+          title: 'Smoke Narrative',
+          content: smoke.text,
+          type: 'narrative' as const,
+        },
+      ],
+      factGuardWarnings: ['Smoke provider mode enabled: deterministic synthetic explanation.'],
+      context: payload,
+    }
+
+    await writeAiResultCache({
+      resultKey,
+      inputHash,
+      feature: 'ai-commissioner-explain',
+      scopeType: 'league',
+      scopeId: leagueId,
+      provider: 'smoke-provider',
+      inputJson: cacheInputs,
+      resultJson: smokeResponse,
+      ttlMs: AI_COMMISSIONER_EXPLAIN_TTL_MS,
+    })
+    return NextResponse.json(smokeResponse)
   }
 
   const fallback = `${alert.headline}: ${alert.summary} ${disputeContext.summary}`.trim()
@@ -238,12 +367,28 @@ export async function POST(
     factGuardWarnings = warnings.length ? warnings : undefined
   }
 
-  return NextResponse.json({
+  const responsePayload = {
     narrative,
     source,
     verdict,
     sections,
     factGuardWarnings,
     context: payload,
-  })
+  }
+
+  if (source === 'ai') {
+    writeAiResultCache({
+      resultKey,
+      inputHash,
+      feature: 'ai-commissioner-explain',
+      scopeType: 'league',
+      scopeId: leagueId,
+      provider: 'orchestration',
+      inputJson: cacheInputs,
+      resultJson: responsePayload,
+      ttlMs: AI_COMMISSIONER_EXPLAIN_TTL_MS,
+    }).catch(() => undefined)
+  }
+
+  return NextResponse.json(responsePayload)
 }

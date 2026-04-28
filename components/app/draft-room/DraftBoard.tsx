@@ -87,6 +87,17 @@ function describeBoardMode(
   return orderSourceLabel ? `Snake | ${orderSourceLabel}` : 'Snake'
 }
 
+function managerInitials(value: string): string {
+  const parts = String(value ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+  if (parts.length === 0) return 'AF'
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase()
+  return `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase()
+}
+
 function buildAuctionCellPick(
   pick: DraftPickSnapshot,
   tintHex: string,
@@ -339,6 +350,15 @@ function DraftBoardInner({
       : isSnakeRoundReversed(navigation.round, draftType, thirdRoundReversal)
         ? 'Owner flow reverses on this round.'
         : 'Owner flow runs in the original order on this round.'
+  const currentOwnerSlot = useMemo(() => {
+    if (draftType === 'auction' || currentOverallPick == null) return null
+    return getSlotInRoundForOverall({
+      overall: currentOverallPick,
+      teamCount,
+      draftType,
+      thirdRoundReversal,
+    })
+  }, [draftType, currentOverallPick, teamCount, thirdRoundReversal])
 
   return (
     <section
@@ -354,7 +374,7 @@ function DraftBoardInner({
         aria-hidden
       />
       <div
-        className={`border-b px-3 py-2.5 text-xs text-white/70 backdrop-blur-sm sm:px-4 ${rs ? 'border-cyan-500/10 bg-[#070f1d]/90' : 'border-white/[0.07] bg-[#060d1e]/80'}`}
+        className={`border-b px-3 py-3 text-xs text-white/70 backdrop-blur-sm sm:px-4 ${rs ? 'border-cyan-500/15 bg-[linear-gradient(180deg,rgba(7,15,29,0.96),rgba(6,13,30,0.9))]' : 'border-white/[0.08] bg-[linear-gradient(180deg,rgba(6,13,30,0.95),rgba(5,10,22,0.88))]'}`}
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -400,7 +420,7 @@ function DraftBoardInner({
                 data-testid="draft-board-prev-round"
                 onClick={() => setSelectedRound((prev) => Math.max(1, prev - 1))}
                 disabled={!navigation.canGoPrev}
-                className="rounded-lg border border-white/15 bg-black/30 px-2 py-1 text-[10px] text-white/75 shadow-sm transition duration-150 hover:bg-white/12 active:scale-95 disabled:opacity-40"
+                className="rounded-lg border border-white/20 bg-black/35 px-2 py-1 text-[10px] text-white/80 shadow-sm transition duration-150 hover:border-cyan-300/35 hover:bg-white/12 active:scale-95 disabled:opacity-40"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </button>
@@ -408,7 +428,7 @@ function DraftBoardInner({
                 value={navigation.round}
                 data-testid="draft-board-round-selector"
                 onChange={(event) => setSelectedRound(Math.max(1, Number(event.target.value) || 1))}
-                className="rounded-lg border border-white/15 bg-black/35 px-2 py-1 text-[10px] text-white shadow-inner"
+                className="rounded-lg border border-white/20 bg-black/40 px-2 py-1 text-[10px] text-white shadow-inner"
                 aria-label="Draft board round selector"
               >
                 {Array.from({ length: rounds }, (_, index) => index + 1).map((round) => (
@@ -422,7 +442,7 @@ function DraftBoardInner({
                 data-testid="draft-board-next-round"
                 onClick={() => setSelectedRound((prev) => Math.min(rounds, prev + 1))}
                 disabled={!navigation.canGoNext}
-                className="rounded-lg border border-white/15 bg-black/30 px-2 py-1 text-[10px] text-white/75 shadow-sm transition duration-150 hover:bg-white/12 active:scale-95 disabled:opacity-40"
+                className="rounded-lg border border-white/20 bg-black/35 px-2 py-1 text-[10px] text-white/80 shadow-sm transition duration-150 hover:border-cyan-300/35 hover:bg-white/12 active:scale-95 disabled:opacity-40"
               >
                 <ChevronRight className="h-3.5 w-3.5" />
               </button>
@@ -454,7 +474,7 @@ function DraftBoardInner({
       </div>
 
       <div
-        className="border-b border-white/[0.06] bg-black/20 px-3 py-2 text-[10px] text-white/50 sm:px-4"
+        className={`border-b px-3 py-2 text-[10px] sm:px-4 ${rs ? 'border-cyan-500/10 bg-cyan-500/[0.07] text-cyan-100/72' : 'border-white/[0.08] bg-white/[0.03] text-white/60'}`}
         data-testid="draft-board-round-label"
       >
         {draftType === 'auction'
@@ -560,7 +580,7 @@ function DraftBoardInner({
         <div className="snap-x snap-mandatory overflow-x-auto overflow-y-visible px-2 py-3 pb-4 [-webkit-overflow-scrolling:touch]">
           <div className="min-w-max" data-testid="draft-board-grid">
             <div
-              className={`sticky top-0 z-10 grid gap-1 border-b pb-1.5 backdrop-blur-md sm:gap-1.5 ${
+              className={`sticky top-0 z-10 grid gap-1.5 border-b pb-2 backdrop-blur-md sm:gap-2 ${
                 rs
                   ? 'border-cyan-500/15 bg-[rgba(7,15,36,0.92)] shadow-[0_16px_40px_rgba(0,0,0,0.45)]'
                   : 'border-white/[0.08] bg-[#070f24]/90 shadow-[0_12px_32px_rgba(0,0,0,0.35)]'
@@ -569,7 +589,7 @@ function DraftBoardInner({
               data-testid="draft-board-team-header"
             >
               <div
-                className={`flex h-9 items-center justify-center rounded-lg border text-[10px] font-bold uppercase tracking-[0.16em] shadow-inner ${
+                className={`flex h-10 items-center justify-center rounded-xl border text-[10px] font-bold uppercase tracking-[0.16em] shadow-inner ${
                   rs
                     ? 'border-cyan-500/25 bg-gradient-to-b from-[#102238] to-[#0a1528] text-cyan-100/65'
                     : 'border-white/12 bg-gradient-to-b from-[#0d1628] to-[#0a1228] text-white/50'
@@ -580,23 +600,33 @@ function DraftBoardInner({
               {orderedSlots.map((entry) => (
                 <div
                   key={entry.rosterId}
-                  className={`flex h-9 min-w-0 items-center rounded-lg border px-2 shadow-sm ${
+                  className={`group relative flex h-10 min-w-0 items-center gap-2 rounded-xl border px-2.5 shadow-sm transition duration-150 ${
+                    currentOwnerSlot === entry.slot
+                      ? 'ring-1 ring-cyan-300/70 border-cyan-300/55 shadow-[0_0_22px_rgba(34,211,238,0.2)]'
+                      : ''
+                  } ${
                     rs
-                      ? 'border-white/14 bg-gradient-to-b from-[#122338] to-[#0c1828]'
-                      : 'border-white/12 bg-gradient-to-b from-[#0d1628] to-[#0a1228]'
+                      ? 'border-white/16 bg-gradient-to-b from-[#122338] to-[#0c1828] hover:border-cyan-300/45'
+                      : 'border-white/14 bg-gradient-to-b from-[#0d1628] to-[#0a1228] hover:border-cyan-300/30'
                   }`}
                 >
-                  <span className="mr-1 shrink-0 text-[9px] font-semibold uppercase tracking-[0.14em] text-cyan-200/80">
+                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/[0.04] text-[9px] font-bold uppercase tracking-[0.08em] text-cyan-100/90">
+                    {managerInitials(entry.displayName)}
+                  </span>
+                  <span className="inline-flex shrink-0 rounded-md border border-cyan-400/25 bg-cyan-500/[0.08] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-cyan-100/80">
                     {entry.slot}
                   </span>
-                  <span className="truncate text-[10px] font-medium text-white/72" title={entry.displayName}>
+                  <span className="truncate text-[10px] font-medium text-white/78" title={entry.displayName}>
                     {entry.displayName}
                   </span>
+                  {currentOwnerSlot === entry.slot ? (
+                    <span className="ml-auto inline-flex h-2 w-2 shrink-0 rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.8)]" aria-hidden />
+                  ) : null}
                 </div>
               ))}
             </div>
 
-            <div className="space-y-2 pt-2">
+            <div className="space-y-2.5 pt-2">
               {visibleRounds.map((round) => (
                 <section key={round} data-testid={`draft-board-round-${round}`}>
                     <div
@@ -608,7 +638,11 @@ function DraftBoardInner({
                       const isSnake = draftType === 'snake'
                       return (
                         <div
-                          className="flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-lg border border-white/[0.1] bg-gradient-to-br from-[#0d1629] to-[#0a1228] text-[10px] text-white/75 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:min-h-[56px]"
+                          className={`flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-xl border text-[10px] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:min-h-[56px] ${
+                            round === 1
+                              ? 'border-amber-300/35 bg-gradient-to-br from-amber-500/18 via-[#1d2236] to-[#0a1228] text-amber-100/95'
+                              : 'border-white/[0.1] bg-gradient-to-br from-[#0d1629] to-[#0a1228] text-white/75'
+                          }`}
                           title={
                             isSnake
                               ? reversed
@@ -635,7 +669,7 @@ function DraftBoardInner({
                         return (
                           <div
                             key={`${round}-${slotEntry.slot}-missing`}
-                            className="min-h-[52px] rounded-md border border-red-500/20 bg-red-500/5 sm:min-h-[56px]"
+                            className="min-h-[52px] rounded-xl border border-dashed border-red-400/30 bg-red-500/8 sm:min-h-[56px]"
                             title="Missing cell data for this slot"
                           />
                         )

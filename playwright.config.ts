@@ -11,23 +11,11 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
-const PLAYWRIGHT_PORT = Number(process.env.PLAYWRIGHT_PORT ?? 3000);
+const PLAYWRIGHT_PORT = Number(process.env.PLAYWRIGHT_PORT ?? process.env.PORT ?? 3101);
 const PLAYWRIGHT_BASE_URL =
-  process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PLAYWRIGHT_PORT}`;
-
-/** Same origin/port Playwright uses in `use.baseURL` — must match `next dev -p PLAYWRIGHT_PORT`. */
-const PLAYWRIGHT_ORIGIN = PLAYWRIGHT_BASE_URL.replace(/\/$/, '');
-
-/**
- * Do not probe `/` alone: Next can accept connections while core client chunks
- * still 404 until compilation settles. `webServer.url` must be a string (not
- * an array — Playwright joins arrays into one invalid URL).
- *
- * `webpack.js` is a small, stable dev entry chunk; once it returns 200, the
- * static chunk pipeline is live. Deeper failures (e.g. `main-app.js`) are
- * caught by `attachDraftHarnessDiagnostics` in draft harness tests.
- */
-const WEB_SERVER_READY_URL = `${PLAYWRIGHT_ORIGIN}/_next/static/chunks/webpack.js`;
+  process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${PLAYWRIGHT_PORT}`;
+const PLAYWRIGHT_DIST_DIR =
+  process.env.AF_NEXT_DIST_DIR ?? process.env.PLAYWRIGHT_DIST_DIR ?? `.next-playwright-${PLAYWRIGHT_PORT}`;
 
 export default defineConfig({
   testDir: './e2e',
@@ -90,12 +78,16 @@ export default defineConfig({
 
   /* Run local dev server before tests (or reuse if already running). */
   webServer: {
-    command: `node scripts/playwright-dev-server.cjs --port ${PLAYWRIGHT_PORT}`,
-    url: WEB_SERVER_READY_URL,
-    reuseExistingServer: process.env.CI ? false : true,
-    timeout: 480_000,
+    command:
+      process.env.PLAYWRIGHT_DEV_COMMAND ??
+      `npx next dev -p ${PLAYWRIGHT_PORT} --hostname 127.0.0.1`,
+    port: PLAYWRIGHT_PORT,
+    reuseExistingServer: true,
+    timeout: 120_000,
     env: {
       ...process.env,
+      PORT: String(PLAYWRIGHT_PORT),
+      AF_NEXT_DIST_DIR: PLAYWRIGHT_DIST_DIR,
       DATABASE_URL:
         process.env.DATABASE_URL ??
         process.env.POSTGRES_PRISMA_URL ??

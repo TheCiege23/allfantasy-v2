@@ -1,7 +1,12 @@
 import { prisma } from '@/lib/prisma'
 import {
   fetchForecastWeatherAtTime,
+  fetchWeatherByCity,
+  fetchWeatherByCoords,
   type ForecastWeatherAtTime,
+  type GameWeather,
+  type WeatherData,
+  NFL_TEAM_VENUES,
   NFL_VENUE_COORDS,
 } from '@/lib/openweathermap'
 
@@ -27,6 +32,7 @@ type WeatherCacheDelegate = {
     fetchedAt: Date
     expiresAt: Date
     dataSource: string
+    apiResponseRaw?: unknown
   } | null>
 }
 
@@ -38,6 +44,22 @@ function weatherCacheDb(): WeatherCacheDelegate {
 const MS = 1000
 const MIN = 60 * MS
 const HOUR = 60 * MIN
+
+export const GAME_WEATHER_TTL_MS = 30 * MIN
+export const TEAM_WINDOW_WEATHER_TTL_MS = 60 * MIN
+export const CITY_WEATHER_TTL_MS = 30 * MIN
+export const COORDS_WEATHER_TTL_MS = 30 * MIN
+export const STATIC_WEATHER_TTL_MS = 6 * HOUR
+
+export type WeatherCacheMeta = {
+  cacheKey: string
+  cacheHit: boolean
+  degraded: boolean
+  stale: boolean
+}
+
+export type WeatherDataWithMeta = WeatherData & { meta: WeatherCacheMeta }
+export type GameWeatherWithMeta = GameWeather & { meta: WeatherCacheMeta }
 
 export type NormalizedWeather = {
   temperatureF: number
@@ -60,6 +82,7 @@ export type NormalizedWeather = {
   expiresAt: Date
   dataSource: string
   cacheHit: boolean
+  meta?: WeatherCacheMeta
 }
 
 export type WeatherLookupParams = {
@@ -71,15 +94,71 @@ export type WeatherLookupParams = {
   isIndoor?: boolean
   isDome?: boolean
   roofClosed?: boolean
+  cacheKey?: string
+  ttlMs?: number
   /** Skip DB read and force API fetch */
   forceRefresh?: boolean
+}
+
+type WeatherCacheRead = Awaited<ReturnType<WeatherCacheDelegate['findUnique']>>
+
+function normalizeCacheText(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function buildDateBucket(date: Date): string {
+  return date.toISOString().slice(0, 10)
+}
+
+function coordCachePart(value: number): string {
+  return value.toFixed(2)
+}
+
+export function buildWeatherGameCacheKey(sport: string, gameId: string): string {
+  return `weather:game:${sport.toLowerCase()}:${normalizeCacheText(gameId)}`
+}
+
+export function buildWeatherTeamWindowCacheKey(team: string, date: Date): string {
+  return `weather:team-window:${team.trim().toUpperCase()}:${buildDateBucket(date)}`
+}
+
+export function buildWeatherCityCacheKey(city: string, date: Date): string {
+  return `weather:city:${normalizeCacheText(city)}:${buildDateBucket(date)}`
+}
+
+export function buildWeatherCoordsCacheKey(lat: number, lng: number, date: Date): string {
+  return `weather:coords:${coordCachePart(lat)}:${coordCachePart(lng)}:${buildDateBucket(date)}`
+}
+
+function buildWeatherMeta(cacheKey: string, options?: Partial<Omit<WeatherCacheMeta, 'cacheKey'>>): WeatherCacheMeta {
+  return {
+    cacheKey,
+    cacheHit: options?.cacheHit ?? false,
+    degraded: options?.degraded ?? false,
+    stale: options?.stale ?? false,
+  }
+}
+
+function weatherLog(message: string, details: Record<string, unknown>): void {
+  console.info(`[weather] ${message}`, details)
+}
+
+function weatherWarn(message: string, details: Record<string, unknown>): void {
+  console.warn(`[weather] ${message}`, details)
 }
 
 function metersToMiles(m: number): number {
   return m / 1609.344
 }
 
-function computeExpiresAt(gameTime: Date, fetchedAt: Date): Date {
+function computeExpiresAt(gameTime: Date, fetchedAt: Date, ttlMs?: number): Date {
+  if (typeof ttlMs === 'number' && ttlMs > 0) {
+    return new Date(fetchedAt.getTime() + ttlMs)
+  }
   const hoursUntil = (gameTime.getTime() - fetchedAt.getTime()) / HOUR
   if (hoursUntil < 0) {
     return new Date(fetchedAt.getTime() + 10 * 365 * 24 * HOUR)
@@ -97,7 +176,7 @@ function computeExpiresAt(gameTime: Date, fetchedAt: Date): Date {
 }
 
 function buildCacheKey(lat: number, lng: number, gameTime: Date): string {
-  return `${lat.toFixed(2)}_${lng.toFixed(2)}_${gameTime.toISOString().slice(0, 13)}`
+  return buildWeatherCoordsCacheKey(lat, lng, gameTime)
 }
 
 function forecastToNormalized(
@@ -132,6 +211,7 @@ function forecastToNormalized(
     expiresAt,
     dataSource: 'openweathermap',
     cacheHit: ctx.cacheHit,
+    meta: undefined,
   }
 }
 
@@ -158,6 +238,43 @@ function indoorNormalized(params: WeatherLookupParams, fetchedAt: Date): Normali
     expiresAt: far,
     dataSource: 'none',
     cacheHit: false,
+    meta: undefined,
+  }
+}
+
+function currentWeatherToNormalized(
+  weather: WeatherData,
+  fetchedAt: Date,
+  expiresAt: Date,
+  ctx: {
+    isIndoor: boolean
+    isDome: boolean
+    roofClosed: boolean
+    cacheHit: boolean
+  }
+): NormalizedWeather {
+  return {
+    temperatureF: weather.temp,
+    feelsLikeF: weather.feelsLike,
+    windSpeedMph: weather.windSpeed,
+    windGustsMph: weather.windGust ?? 0,
+    windDirectionDeg: weather.windDeg,
+    precipChancePct: 0,
+    rainInches: weather.rain1h ? weather.rain1h * 0.0393701 : 0,
+    snowInches: weather.snow1h ? weather.snow1h * 0.0393701 : 0,
+    humidityPct: weather.humidity,
+    visibilityMiles: metersToMiles(weather.visibility),
+    conditionCode: weather.icon,
+    conditionLabel: weather.description || weather.condition,
+    cloudCoverPct: weather.clouds,
+    isIndoor: ctx.isIndoor,
+    isDome: ctx.isDome,
+    roofClosed: ctx.roofClosed,
+    fetchedAt,
+    expiresAt,
+    dataSource: 'openweathermap',
+    cacheHit: ctx.cacheHit,
+    meta: undefined,
   }
 }
 
@@ -251,7 +368,7 @@ function rowToNormalized(row: {
   fetchedAt: Date
   expiresAt: Date
   dataSource: string
-}): NormalizedWeather {
+}, meta?: WeatherCacheMeta): NormalizedWeather {
   return {
     temperatureF: row.temperatureF ?? 0,
     feelsLikeF: row.feelsLikeF ?? 0,
@@ -273,6 +390,48 @@ function rowToNormalized(row: {
     expiresAt: row.expiresAt,
     dataSource: row.dataSource,
     cacheHit: true,
+    meta,
+  }
+}
+
+function rowToWeatherData(row: NonNullable<WeatherCacheRead>, fallbackCity: string): WeatherData {
+  const raw = row.apiResponseRaw
+  if (raw && typeof raw === 'object') {
+    return raw as WeatherData
+  }
+
+  return {
+    city: fallbackCity,
+    temp: row.temperatureF ?? 0,
+    feelsLike: row.feelsLikeF ?? row.temperatureF ?? 0,
+    tempMin: row.temperatureF ?? 0,
+    tempMax: row.temperatureF ?? 0,
+    humidity: row.humidityPct ?? 0,
+    pressure: 0,
+    windSpeed: row.windSpeedMph ?? 0,
+    windGust: row.windGustsMph ?? null,
+    windDeg: row.windDirectionDeg ?? 0,
+    description: row.conditionLabel ?? '',
+    icon: row.conditionCode ?? '',
+    iconUrl: row.conditionCode
+      ? `https://openweathermap.org/img/wn/${row.conditionCode}@2x.png`
+      : '',
+    visibility: Math.round((row.visibilityMiles ?? 0) * 1609.344),
+    clouds: row.cloudCoverPct ?? 0,
+    rain1h: row.rainInches ? row.rainInches / 0.0393701 : null,
+    snow1h: row.snowInches ? row.snowInches / 0.0393701 : null,
+    condition: row.conditionLabel ?? row.conditionCode ?? 'Clear',
+    fantasyImpact: row.conditionLabel ?? 'Weather conditions cached',
+    fantasyImpactLevel: 'low',
+  }
+}
+
+async function readCachedWeather(cacheKey: string): Promise<WeatherCacheRead> {
+  try {
+    return await weatherCacheDb().findUnique({ where: { cacheKey } })
+  } catch (error) {
+    console.error('[weather] cache read failed:', error)
+    return null
   }
 }
 
@@ -282,26 +441,36 @@ export async function getWeatherForEvent(params: WeatherLookupParams): Promise<N
     return indoorNormalized(params, new Date())
   }
 
-  const cacheKey = buildCacheKey(lat, lng, gameTime)
+  const cacheKey = params.cacheKey ?? (params.eventId && params.sport
+    ? buildWeatherGameCacheKey(params.sport, params.eventId)
+    : buildCacheKey(lat, lng, gameTime))
   const now = new Date()
+  const cached = await readCachedWeather(cacheKey)
 
-  if (!params.forceRefresh) {
-    try {
-      const cached = await weatherCacheDb().findUnique({ where: { cacheKey } })
-      if (cached && cached.expiresAt > now) {
-        return rowToNormalized(cached)
-      }
-    } catch (e) {
-      console.error('[WeatherService] cache read failed:', e)
-    }
+  if (!params.forceRefresh && cached && cached.expiresAt > now) {
+    weatherLog('Weather cache hit', { cacheKey })
+    return rowToNormalized(cached, buildWeatherMeta(cacheKey, { cacheHit: true }))
   }
+
+  weatherLog('Weather cache miss', { cacheKey })
 
   try {
     const fetchedAt = new Date()
+    const liveStart = Date.now()
     const forecast = await fetchForecastWeatherAtTime(lat, lng, gameTime)
-    if (!forecast) return null
+    weatherLog(`live refresh durationMs=${Date.now() - liveStart}`, { cacheKey })
+    if (!forecast) {
+      if (cached) {
+        weatherWarn('stale fallback', { cacheKey })
+        return rowToNormalized(
+          cached,
+          buildWeatherMeta(cacheKey, { cacheHit: true, degraded: true, stale: true }),
+        )
+      }
+      return null
+    }
 
-    const expiresAt = computeExpiresAt(gameTime, fetchedAt)
+    const expiresAt = computeExpiresAt(gameTime, fetchedAt, params.ttlMs)
     const normalized = forecastToNormalized(forecast, fetchedAt, expiresAt, {
       isIndoor: false,
       isDome: false,
@@ -320,14 +489,240 @@ export async function getWeatherForEvent(params: WeatherLookupParams): Promise<N
         sport: params.sport,
         eventId: params.eventId,
       })
+      weatherLog('cache save', { cacheKey })
     } catch (e) {
       console.error('[WeatherService] cache write failed:', e)
     }
 
     return normalized
   } catch (error) {
+    if (cached) {
+      weatherWarn('stale fallback', { cacheKey })
+      return rowToNormalized(
+        cached,
+        buildWeatherMeta(cacheKey, { cacheHit: true, degraded: true, stale: true }),
+      )
+    }
     console.error('[WeatherService] getWeatherForEvent failed:', error)
     return null
+  }
+}
+
+export async function getCachedWeatherByCoords(args: {
+  lat: number
+  lng: number
+  referenceDate?: Date
+  ttlMs?: number
+  cacheKey?: string
+  city?: string
+}): Promise<{ weather: WeatherData | null; meta: WeatherCacheMeta }> {
+  const referenceDate = args.referenceDate ?? new Date()
+  const cacheKey = args.cacheKey ?? buildWeatherCoordsCacheKey(args.lat, args.lng, referenceDate)
+  const ttlMs = args.ttlMs ?? COORDS_WEATHER_TTL_MS
+  const now = new Date()
+  const cached = await readCachedWeather(cacheKey)
+
+  if (cached && cached.expiresAt > now) {
+    weatherLog('Weather cache hit', { cacheKey })
+    return {
+      weather: rowToWeatherData(cached, args.city ?? ''),
+      meta: buildWeatherMeta(cacheKey, { cacheHit: true }),
+    }
+  }
+
+  weatherLog('Weather cache miss', { cacheKey })
+
+  try {
+    const liveStart = Date.now()
+    const weather = await fetchWeatherByCoords(args.lat, args.lng)
+    weatherLog(`live refresh durationMs=${Date.now() - liveStart}`, { cacheKey })
+    if (!weather) {
+      if (cached) {
+        weatherWarn('stale fallback', { cacheKey })
+        return {
+          weather: rowToWeatherData(cached, args.city ?? ''),
+          meta: buildWeatherMeta(cacheKey, { cacheHit: true, degraded: true, stale: true }),
+        }
+      }
+      return { weather: null, meta: buildWeatherMeta(cacheKey) }
+    }
+
+    const fetchedAt = new Date()
+    const expiresAt = computeExpiresAt(referenceDate, fetchedAt, ttlMs)
+    try {
+      await persistWeatherCache({
+        cacheKey,
+        lat: args.lat,
+        lng: args.lng,
+        forecastForTime: referenceDate,
+        expiresAt,
+        normalized: currentWeatherToNormalized(weather, fetchedAt, expiresAt, {
+          isIndoor: false,
+          isDome: false,
+          roofClosed: false,
+          cacheHit: false,
+        }),
+        raw: weather,
+      })
+      weatherLog('cache save', { cacheKey })
+    } catch (error) {
+      console.error('[weather] cache write failed:', error)
+    }
+
+    return { weather, meta: buildWeatherMeta(cacheKey) }
+  } catch (error) {
+    if (cached) {
+      weatherWarn('stale fallback', { cacheKey })
+      return {
+        weather: rowToWeatherData(cached, args.city ?? ''),
+        meta: buildWeatherMeta(cacheKey, { cacheHit: true, degraded: true, stale: true }),
+      }
+    }
+    console.error('[weather] current weather fetch failed:', error)
+    return { weather: null, meta: buildWeatherMeta(cacheKey) }
+  }
+}
+
+export async function getCachedWeatherByCity(args: {
+  city: string
+  referenceDate?: Date
+  ttlMs?: number
+}): Promise<{ weather: WeatherData | null; meta: WeatherCacheMeta }> {
+  const referenceDate = args.referenceDate ?? new Date()
+  const cacheKey = buildWeatherCityCacheKey(args.city, referenceDate)
+  const cached = await readCachedWeather(cacheKey)
+  const now = new Date()
+
+  if (cached && cached.expiresAt > now) {
+    weatherLog('Weather cache hit', { cacheKey })
+    return {
+      weather: rowToWeatherData(cached, args.city),
+      meta: buildWeatherMeta(cacheKey, { cacheHit: true }),
+    }
+  }
+
+  weatherLog('Weather cache miss', { cacheKey })
+
+  try {
+    const liveStart = Date.now()
+    const weather = await fetchWeatherByCity(args.city)
+    weatherLog(`live refresh durationMs=${Date.now() - liveStart}`, { cacheKey })
+    if (!weather) {
+      if (cached) {
+        weatherWarn('stale fallback', { cacheKey })
+        return {
+          weather: rowToWeatherData(cached, args.city),
+          meta: buildWeatherMeta(cacheKey, { cacheHit: true, degraded: true, stale: true }),
+        }
+      }
+      return { weather: null, meta: buildWeatherMeta(cacheKey) }
+    }
+
+    const fetchedAt = new Date()
+    const expiresAt = computeExpiresAt(referenceDate, fetchedAt, args.ttlMs ?? CITY_WEATHER_TTL_MS)
+
+    try {
+      await persistWeatherCache({
+        cacheKey,
+        lat: 0,
+        lng: 0,
+        forecastForTime: referenceDate,
+        expiresAt,
+        normalized: currentWeatherToNormalized(weather, fetchedAt, expiresAt, {
+          isIndoor: false,
+          isDome: false,
+          roofClosed: false,
+          cacheHit: false,
+        }),
+        raw: weather,
+      })
+      weatherLog('cache save', { cacheKey })
+    } catch (error) {
+      console.error('[weather] cache write failed:', error)
+    }
+
+    return { weather, meta: buildWeatherMeta(cacheKey) }
+  } catch (error) {
+    if (cached) {
+      weatherWarn('stale fallback', { cacheKey })
+      return {
+        weather: rowToWeatherData(cached, args.city),
+        meta: buildWeatherMeta(cacheKey, { cacheHit: true, degraded: true, stale: true }),
+      }
+    }
+    console.error('[weather] city weather fetch failed:', error)
+    return { weather: null, meta: buildWeatherMeta(cacheKey) }
+  }
+}
+
+export async function getCachedGameWeather(args: {
+  sport?: string
+  homeTeam: string
+  gameId?: string
+  referenceDate?: Date
+  ttlMs?: number
+}): Promise<GameWeatherWithMeta | null> {
+  const sport = (args.sport ?? 'NFL').toUpperCase()
+  const normalizedTeam = args.homeTeam.trim().toUpperCase()
+  const cacheKey = buildWeatherGameCacheKey(sport, args.gameId ?? normalizedTeam)
+  const venueName = NFL_TEAM_VENUES[normalizedTeam]
+  if (!venueName) return null
+
+  const venueData = NFL_VENUE_COORDS[venueName]
+  if (!venueData) return null
+
+  if (venueData.dome) {
+    return {
+      venue: venueName,
+      homeTeam: normalizedTeam,
+      awayTeam: '',
+      weather: {
+        city: venueName,
+        temp: 72,
+        feelsLike: 72,
+        tempMin: 72,
+        tempMax: 72,
+        humidity: 50,
+        pressure: 1013,
+        windSpeed: 0,
+        windGust: null,
+        windDeg: 0,
+        description: 'Indoor stadium — climate controlled',
+        icon: '01d',
+        iconUrl: 'https://openweathermap.org/img/wn/01d@2x.png',
+        visibility: 10000,
+        clouds: 0,
+        rain1h: null,
+        snow1h: null,
+        condition: 'Dome',
+        fantasyImpact: 'Indoor stadium — no weather impact',
+        fantasyImpactLevel: 'none',
+      },
+      gameTime: (args.referenceDate ?? new Date()).toISOString(),
+      isDome: true,
+      meta: buildWeatherMeta(cacheKey, { cacheHit: true }),
+    }
+  }
+
+  const current = await getCachedWeatherByCoords({
+    lat: venueData.lat,
+    lng: venueData.lon,
+    referenceDate: args.referenceDate,
+    ttlMs: args.ttlMs ?? GAME_WEATHER_TTL_MS,
+    cacheKey,
+    city: venueName,
+  })
+
+  if (!current.weather) return null
+
+  return {
+    venue: venueName,
+    homeTeam: normalizedTeam,
+    awayTeam: '',
+    weather: current.weather,
+    gameTime: (args.referenceDate ?? new Date()).toISOString(),
+    isDome: false,
+    meta: current.meta,
   }
 }
 

@@ -8,6 +8,7 @@ import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
 
 export type QueuePanelProps = {
   queue: QueueEntry[]
+  playerMetaById?: Record<string, { headshotUrl?: string | null; teamLogoUrl?: string | null; adp?: number | null; rank?: number | null }>
   canDraft: boolean
   onRemove: (index: number) => void
   onReorder: (fromIndex: number, toIndex: number) => void
@@ -35,6 +36,7 @@ export type QueuePanelProps = {
 
 export function QueuePanel({
   queue,
+  playerMetaById,
   canDraft,
   onRemove,
   onReorder,
@@ -56,6 +58,28 @@ export function QueuePanel({
 }: QueuePanelProps) {
   const rs = presentationVariant === 'redraft_snake'
   const [dragIndex, setDragIndex] = useState<number | null>(null)
+
+  const resolveMeta = (entry: QueueEntry) => {
+    const fromMap =
+      entry.playerId && playerMetaById ? playerMetaById[entry.playerId] : undefined
+    const fromEntry = entry as QueueEntry & {
+      headshotUrl?: string | null
+      teamLogoUrl?: string | null
+      adp?: number | null
+      rank?: number | null
+    }
+    return {
+      headshotUrl: fromMap?.headshotUrl ?? fromEntry.headshotUrl ?? null,
+      teamLogoUrl: fromMap?.teamLogoUrl ?? fromEntry.teamLogoUrl ?? null,
+      adp: fromMap?.adp ?? fromEntry.adp ?? null,
+      rank: fromMap?.rank ?? fromEntry.rank ?? null,
+    }
+  }
+
+  const formatNumber = (value: number | null | undefined) => {
+    if (value == null || !Number.isFinite(value)) return null
+    return Number.isInteger(value) ? `${value}` : value.toFixed(1)
+  }
 
   return (
     <section
@@ -170,11 +194,13 @@ export function QueuePanel({
       )}
       <div className="flex-1 overflow-auto overscroll-contain p-2.5">
         {queue.length === 0 ? (
-          <div className="space-y-2 py-6 text-center">
-            <p className={`text-[11px] font-medium ${rs ? 'text-cyan-100/85' : 'text-white/60'}`}>Queue is empty</p>
-            <p className="mx-auto max-w-[260px] text-[10px] leading-relaxed text-white/42">
-              Add players from the pool with the + button. Top of queue can draft first when it&apos;s your turn (if auto-pick is on,
-              it uses this order).
+          <div className="space-y-2 rounded-xl border border-dashed border-cyan-400/25 bg-cyan-500/5 px-3 py-6 text-center">
+            <p className={`text-[11px] font-semibold ${rs ? 'text-cyan-100/85' : 'text-white/75'}`}>Queue is empty</p>
+            <p className="mx-auto max-w-[280px] text-[10px] leading-relaxed text-white/55">
+              Build a 3-5 player lane so your draft stays fast when the clock turns to you.
+            </p>
+            <p className="mx-auto max-w-[280px] text-[10px] leading-relaxed text-white/42">
+              Use + Queue from player rows, then drag or arrow reorder here.
             </p>
             {rs ? (
               <p className="text-[9px] text-white/35">
@@ -184,9 +210,14 @@ export function QueuePanel({
           </div>
         ) : (
           <ul className="space-y-2">
-            {queue.map((entry, index) => (
+            {queue.map((entry, index) => {
+              const meta = resolveMeta(entry)
+              const adpText = formatNumber(meta.adp)
+              const rankText = formatNumber(meta.rank)
+              const avatar = meta.headshotUrl ?? meta.teamLogoUrl ?? null
+              return (
               <li
-                key={`${entry.playerName}-${index}`}
+                key={`${entry.playerName}-${entry.playerId ?? index}`}
                 data-testid={`draft-queue-item-${index}`}
                 draggable
                 onDragStart={() => setDragIndex(index)}
@@ -197,15 +228,42 @@ export function QueuePanel({
                     setDragIndex(null)
                   }
                 }}
-                className={`flex items-center justify-between gap-2 rounded-xl border border-white/12 bg-[#0a1228] px-3 py-2.5 text-[11px] min-h-[52px] ${
+                className={`flex items-center justify-between gap-2 rounded-xl border border-white/12 bg-[linear-gradient(180deg,rgba(10,18,40,0.94),rgba(7,14,30,0.98))] px-3 py-2.5 text-[11px] min-h-[58px] ${
                   dragIndex === index ? 'opacity-60' : 'hover:bg-white/5'
                 }`}
               >
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2.5 min-w-0">
                   <span className="text-white/40 shrink-0 touch-none" aria-hidden><GripVertical className="h-4 w-4" /></span>
+                  <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/15 bg-[#111b33]">
+                    {avatar ? (
+                      <img
+                        src={avatar}
+                        alt={entry.playerName}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <span className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-cyan-100/80">
+                        {entry.position?.slice(0, 2) || 'PL'}
+                      </span>
+                    )}
+                  </div>
                   <div className="min-w-0">
                     <p className="truncate font-medium text-white">{entry.playerName}</p>
-                    <p className="text-[10px] text-white/55">{entry.position}{entry.team ? ` · ${entry.team}` : ''}</p>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px]">
+                      <span className="rounded border border-white/15 bg-white/5 px-1.5 py-[1px] text-white/75">
+                        {entry.position}
+                      </span>
+                      {entry.team ? (
+                        <span className="rounded border border-white/15 bg-white/5 px-1.5 py-[1px] text-white/65">{entry.team}</span>
+                      ) : null}
+                      {adpText ? (
+                        <span className="rounded border border-cyan-300/35 bg-cyan-500/12 px-1.5 py-[1px] text-cyan-100">ADP {adpText}</span>
+                      ) : null}
+                      {rankText ? (
+                        <span className="rounded border border-violet-300/30 bg-violet-500/10 px-1.5 py-[1px] text-violet-100">Rank {rankText}</span>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -250,7 +308,7 @@ export function QueuePanel({
                   </button>
                 </div>
               </li>
-            ))}
+            )})}
           </ul>
         )}
       </div>

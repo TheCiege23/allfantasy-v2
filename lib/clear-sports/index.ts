@@ -69,15 +69,45 @@ export async function fetchClearSportsTeams(sport: ClearSportsSport): Promise<Cl
   })).filter((t) => t.id && t.name)
 }
 
+// Sports with no /players endpoint in ClearSports API — roster data comes from
+// /player-stats?full_roster=true (NFL, NCAAF) or player-stats alone (NCAAB).
+const SPORTS_WITHOUT_PLAYERS_ENDPOINT: ClearSportsSport[] = ['NFL', 'NCAAF']
+
 export async function fetchClearSportsPlayers(
   sport: ClearSportsSport,
-  search: string,
+  teamId?: string,
 ): Promise<ClearSportsPlayer[]> {
-  if (!search.trim()) return []
   const league = leagueCodeForSport(sport)
+
+  // NFL and NCAAF have no /players endpoint — use player-stats with full_roster=true
+  if (SPORTS_WITHOUT_PLAYERS_ENDPOINT.includes(sport)) {
+    const params: Record<string, string> = { full_roster: 'true' }
+    if (teamId) params.team_id = teamId
+    const json = await clearSportsFetch<{ players?: unknown[] } | unknown[]>(`${league}/player-stats`, params)
+    const rows = rowsFrom(json, 'players')
+    return rows.map((p: any): ClearSportsPlayer => ({
+      id: String(p.id ?? p.player_id ?? p.playerId ?? p.slug ?? ''),
+      name: String(p.name ?? p.fullName ?? p.display_name ?? 'Unknown'),
+      position: p.position ?? p.pos ?? null,
+      teamId: p.team_id ? String(p.team_id) : (p.teamId ? String(p.teamId) : null),
+      teamAbbrev: normalizeTeamAbbrev(p.team_abbr || p.teamAbbrev || p.team || null),
+      number: typeof p.number === 'number' ? p.number : (p.jersey_number ?? null),
+      height: p.height ?? null,
+      weight: typeof p.weight === 'number' ? p.weight : null,
+      college: p.college ?? null,
+      dob: p.dob ?? p.birth_date ?? null,
+      status: p.status ?? null,
+      imageUrl: p.image_url ?? p.imageUrl ?? p.headshot ?? null,
+    })).filter((p) => p.id && p.name)
+  }
+
+  // NBA, NHL, MLB, NCAAB: use /players endpoint with optional team_id filter
+  // Note: ClearSports /players does NOT support name-search — we fetch all and let the caller filter.
+  const params: Record<string, string> = {}
+  if (teamId) params.team_id = teamId
   const json = await clearSportsFetch<{ players?: unknown[] } | unknown[]>(
     `${league}/players`,
-    { search: search.trim(), q: search.trim() },
+    Object.keys(params).length ? params : undefined,
   )
   const rows = rowsFrom(json, 'players')
   return rows.map((p: any): ClearSportsPlayer => ({

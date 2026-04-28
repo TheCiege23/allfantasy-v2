@@ -976,3 +976,5 @@ function TeamResultsCard({
     </div>
   )
 }
+
+export default PostDraftView

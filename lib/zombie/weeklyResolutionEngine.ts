@@ -11,6 +11,7 @@ import { notifyCommissioner } from '@/lib/zombie/commissionerNotificationService
 import { checkAllMatchupsComplete } from '@/lib/zombie/matchupCompletion'
 import { logAuditEntry } from '@/lib/zombie/auditService'
 import { getLeagueMode } from '@/lib/zombie/zombieLeagueMode'
+import { applyZombieHordeSitOutToScoring } from '@/lib/zombie/ZombieHordeSitOutEngine'
 
 export type WeeklyResolutionOptions = {
   /** Re-run infections + recap even if this week already resolved (stat corrections / commissioner). */
@@ -127,6 +128,22 @@ export async function runWeeklyResolution(
     }).catch(() => {})
   }
 
+  const sitOutScoring = await applyZombieHordeSitOutToScoring(z.leagueId, week)
+  if (sitOutScoring.sitOutExcludedUserIds.length > 0) {
+    await logAuditEntry(zombieLeagueId, {
+      category: 'horde_sit_out',
+      action: 'WEEKLY_SIT_OUT_EXCLUSION_APPLIED',
+      description: `Applied horde sit-out exclusion for ${sitOutScoring.sitOutExcludedUserIds.length} manager(s).`,
+      week,
+      actorRole: 'system',
+      newState: {
+        sitOutExcludedUserIds: sitOutScoring.sitOutExcludedUserIds,
+        hordeScoreBeforeSitOut: sitOutScoring.hordeScoreBeforeSitOut,
+        hordeScoreAfterSitOut: sitOutScoring.hordeScoreAfterSitOut,
+      },
+    }).catch(() => {})
+  }
+
   const teams = await prisma.zombieLeagueTeam.findMany({
     where: { leagueId: z.leagueId },
   })
@@ -217,7 +234,16 @@ export async function runWeeklyResolution(
     where: { leagueId: z.leagueId, week },
   })
 
-  await notifyCommissioner(z.leagueId, 'weekly_resolution_summary', `Week ${week} zombie resolution`, summaryText(infection.infectionsCreated, bashCount, maulCount, hordeSize, survivorCount, winningsSum, whisperer?.ambushesRemaining ?? 0), {
+  await notifyCommissioner(z.leagueId, 'weekly_resolution_summary', `Week ${week} zombie resolution`, summaryText(
+    infection.infectionsCreated,
+    bashCount,
+    maulCount,
+    hordeSize,
+    survivorCount,
+    winningsSum,
+    whisperer?.ambushesRemaining ?? 0,
+    sitOutScoring,
+  ), {
     week,
   })
 
@@ -234,12 +260,19 @@ function summaryText(
   survivors: number,
   winnings: number,
   ambushesLeft: number,
+  sitOutScoring: {
+    sitOutExcludedUserIds: string[]
+    hordeScoreBeforeSitOut: number
+    hordeScoreAfterSitOut: number
+  },
 ): string {
   return [
     `Infections: ${infections}`,
     `Bashings: ${bashings}`,
     `Maulings: ${maulings}`,
     `Horde: ${horde} | Survivors: ${survivors}`,
+    `Horde sit-out exclusions: ${sitOutScoring.sitOutExcludedUserIds.length}`,
+    `Horde score before/after sit-out: ${sitOutScoring.hordeScoreBeforeSitOut.toFixed(2)} / ${sitOutScoring.hordeScoreAfterSitOut.toFixed(2)}`,
     `Infection winnings delta (engine): ${winnings.toFixed(2)}`,
     `Ambushes remaining (Whisperer): ${ambushesLeft}`,
   ].join('\n')

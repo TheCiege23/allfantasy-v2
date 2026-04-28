@@ -2,9 +2,8 @@
  * E.1.5 — server-side player-headshot resolver.
  *
  * Resolves a real player headshot URL by checking, in order:
- *   1. ClearSports player search        (preferred — internal contract, full sport coverage)
- *   2. The Sports DB searchplayers.php  (fallback — public API, less complete coverage)
- *   3. SportsPlayer.image_url           (already-cached row, if present)
+ *   - NFL: TheSportsDB -> Sleeper -> API-Sports -> ClearSports -> SportsPlayer cache
+ *   - Other sports: ClearSports -> TheSportsDB -> API-Sports -> SportsPlayer cache
  *
  * If none of the above produce a valid HTTP/HTTPS image URL, returns
  * `{ imageUrl: null, source: 'none', confidence: 'none' }` so the UI's
@@ -22,12 +21,14 @@
 import { prisma } from '@/lib/prisma'
 import { clearSportsFetch } from '@/lib/clear-sports/client'
 import { theSportsDbProvider } from '@/lib/workers/providers/thesportsdb'
+import { sleeperChainProvider } from '@/lib/workers/providers/sleeper-chain'
 import { apiSportsProvider } from '@/lib/workers/providers/api-sports'
 import { classifyAvatarSource } from '@/lib/draft-room/classify-avatar-source'
 
 export type HeadshotProvider =
   | 'clearsports'
   | 'sportsdb'
+  | 'sleeper'
   | 'apisports'
   | 'sportsplayer'
   | 'none'
@@ -259,9 +260,10 @@ async function resolveOnce(
   const targetName = normalizePlayerName(input.name)
   const targetTeam = normalizeTeam(input.team ?? '')
   const targetPos = normalizePosition(input.position ?? '')
+  const isNfl = String(sport).trim().toUpperCase() === 'NFL'
 
-  // ── 1. ClearSports ──
-  if (targetName.length > 0) {
+  // ── 1. ClearSports (non-NFL primary) ──
+  if (!isNfl && targetName.length > 0) {
     const candidates = csByName.get(targetName) ?? []
     if (candidates.length === 1) {
       const url = getClearSportsImage(candidates[0]!)
@@ -320,7 +322,33 @@ async function resolveOnce(
     }
   }
 
-  // ── 3. TheSportsAPI (api-sports.io) ──
+  // ── 3. Sleeper (NFL first backup) ──
+  if (isNfl) {
+    for (const candidate of nameCandidates) {
+      try {
+        const result = await sleeperChainProvider.fetch({
+          sport,
+          dataType: 'player_headshots',
+          query: { search: candidate, teamCode: input.team ?? undefined },
+        })
+        const sleeperUrl =
+          result && typeof result === 'object' && 'headshotUrl' in (result as Record<string, unknown>)
+            ? String((result as { headshotUrl?: unknown }).headshotUrl ?? '')
+            : ''
+        if (isValidHeadshotUrl(sleeperUrl)) {
+          return {
+            imageUrl: sleeperUrl,
+            source: 'sleeper',
+            confidence: targetTeam ? 'name_team_position' : 'name_only',
+          }
+        }
+      } catch {
+        /* swallow — continue fallback chain */
+      }
+    }
+  }
+
+  // ── 4. TheSportsAPI (api-sports.io) ──
   // E.1.6 — third tier between SportsDB and the SportsPlayer cache. Recovers
   // headshots for the punctuation-outlier tail (Ja'Marr Chase, A.J. Brown,
   // Amon-Ra St. Brown, C.J. Stroud, D.K. Metcalf, Bo Nix, etc.) that SportsDB
@@ -352,7 +380,38 @@ async function resolveOnce(
     }
   }
 
-  // ── 4. SportsPlayer DB cache ──
+  // ── 5. ClearSports (NFL deep fallback only) ──
+  if (isNfl && targetName.length > 0) {
+    const candidates = csByName.get(targetName) ?? []
+    if (candidates.length === 1) {
+      const url = getClearSportsImage(candidates[0]!)
+      if (url) {
+        return {
+          imageUrl: url,
+          source: 'clearsports',
+          confidence: targetTeam || targetPos ? 'exact' : 'name_only',
+        }
+      }
+    } else if (candidates.length > 1) {
+      const exact = candidates.find(
+        (c) =>
+          (targetTeam && clearSportsTeamCode(c) === targetTeam) ||
+          (targetPos && normalizePosition(c.position ?? '') === targetPos),
+      )
+      if (exact) {
+        const url = getClearSportsImage(exact)
+        if (url) {
+          return {
+            imageUrl: url,
+            source: 'clearsports',
+            confidence: 'name_team_position',
+          }
+        }
+      }
+    }
+  }
+
+  // ── 6. SportsPlayer DB cache ──
   try {
     // Case-insensitive lookup. Limit to current sport.
     const rows = await prisma.sportsPlayer.findMany({

@@ -1,0 +1,587 @@
+/* Artist Browser Styles */
+.artist-browser {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+}
+
+.search-icon {
+  color: #7a8395;
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+}
+
+.search-input::placeholder {
+  color: #7a8395;
+}
+
+.artists-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.artists-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.artists-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.artist-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.artist-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.artist-image {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.artist-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.artist-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.artist-genre {
+  font-size: 11px;
+  color: #7a8395;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.play-button {
+  background: #e94560;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.play-button:hover {
+  background: #ff5a75;
+  transform: scale(1.05);
+}
+
+.favorite-button {
+  background: transparent;
+  border: none;
+  color: #7a8395;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.favorite-button:hover {
+  color: #e94560;
+}
+
+.favorite-button.active {
+  color: #e94560;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 20px;
+  text-align: center;
+  color: #7a8395;
+}
+
+.empty-state p {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #a8a9b4;
+}
+
+.empty-state small {
+  font-size: 12px;
+  color: #7a8395;
+}
+
+.empty-state svg {
+  opacity: 0.5;
+  margin-bottom: 12px;
+}
+
+/* Now Playing Styles */
+.now-playing {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+}
+
+.track-image {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  object-fit: cover;
+  margin-bottom: 8px;
+}
+
+.track-info {
+  text-align: center;
+  width: 100%;
+}
+
+.track-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 6px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-artist {
+  font-size: 12px;
+  color: #7a8395;
+  margin: 0;
+}
+
+.progress-bar {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.progress-slider {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  cursor: pointer;
+}
+
+.progress-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #e94560;
+  cursor: pointer;
+}
+
+.progress-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #e94560;
+  cursor: pointer;
+  border: none;
+}
+
+.progress-time {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #7a8395;
+}
+
+.playback-controls {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.control-button {
+  background: rgba(233, 69, 96, 0.2);
+  border: 1px solid #e94560;
+  border-radius: 6px;
+  color: #e94560;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.control-button:hover {
+  background: rgba(233, 69, 96, 0.3);
+  border-color: #ff5a75;
+  color: #ff5a75;
+}
+
+.queue-toggle {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  color: #a8a9b4;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.queue-toggle.active {
+  border-color: rgba(30, 215, 96, 0.45);
+  color: #1ed760;
+  background: rgba(30, 215, 96, 0.08);
+}
+
+.control-button.play-pause {
+  flex: 1;
+  padding: 10px;
+}
+
+.control-button.play-pause:hover {
+  transform: scale(1.05);
+}
+
+.control-button.spotify-link {
+  background: linear-gradient(90deg, rgba(30, 215, 96, 0.2), rgba(30, 215, 96, 0.1));
+  border-color: #1ed760;
+  color: #1ed760;
+  text-decoration: none;
+}
+
+.control-button.spotify-link:hover {
+  background: linear-gradient(90deg, rgba(30, 215, 96, 0.3), rgba(30, 215, 96, 0.2));
+  border-color: #1db954;
+  color: #1db954;
+}
+
+.control-button.favorite.active {
+  background: rgba(233, 69, 96, 0.3);
+  color: #ff5a75;
+}
+
+/* Favorite Tracks Styles */
+.favorite-tracks {
+  display: flex;
+  flex-direction: column;
+}
+
+.favorites-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.favorites-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.favorites-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.favorite-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.favorite-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.favorite-image {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.favorite-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.favorite-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.favorite-artist {
+  font-size: 11px;
+  color: #7a8395;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.favorite-date {
+  font-size: 10px;
+  color: #6a6b75;
+  margin-top: 2px;
+}
+
+.remove-button {
+  background: transparent;
+  border: none;
+  color: #7a8395;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.remove-button:hover {
+  color: #e94560;
+}
+
+.available-tracks {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.available-tracks-title {
+  font-size: 11px;
+  color: #7a8395;
+  margin-bottom: 6px;
+}
+
+.available-tracks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.available-track-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: #d6d7dd;
+  border-radius: 6px;
+  font-size: 11px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.available-track-item small {
+  color: #7a8395;
+}
+
+.available-track-item.active {
+  border-color: rgba(233, 69, 96, 0.45);
+  background: rgba(233, 69, 96, 0.12);
+}
+
+.playlists-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.playlist-create-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.playlist-io-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.playlist-card {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.playlist-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.playlist-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.playlist-tracks {
+  margin-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.playlist-track-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Genre Selector Styles */
+.genre-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.genre-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #a8a9b4;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.genre-select {
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.genre-select:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.genre-select:focus {
+  outline: none;
+  border-color: #e94560;
+  background: rgba(233, 69, 96, 0.1);
+}
+
+.genre-select option {
+  background: #16213e;
+  color: #fff;
+}
+
+.genre-tag {
+  display: inline-block;
+  padding: 4px 10px;
+  background: rgba(233, 69, 96, 0.2);
+  border: 1px solid #e94560;
+  border-radius: 12px;
+  color: #e94560;
+  font-size: 11px;
+  font-weight: 500;
+  width: fit-content;
+}
+
+@media (max-width: 640px) {
+  .floating-music-widget.expanded {
+    max-height: 80vh;
+  }
+
+  .artists-list,
+  .favorites-list {
+    max-height: 300px;
+  }
+
+  .playback-controls {
+    flex-direction: column;
+  }
+
+  .control-button {
+    width: 100%;
+  }
+}

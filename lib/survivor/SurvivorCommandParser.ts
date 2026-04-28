@@ -25,6 +25,11 @@ const CHALLENGE_PICK_PATTERNS = [
   /challenge\s+pick\s+(.+)/i,
   /submit\s+challenge\s+(.+)/i,
 ]
+const SIT_OUT_PATTERNS = [
+  /sit\s*out\s+(.+)/i,
+  /nominate\s+(.+)\s+to\s+sit(?:\s*out)?/i,
+  /(.+)\s+sit\s*out/i,
+]
 const IMMUNITY_PATTERNS = [
   /immunity\s+choice\s+(.+)/i,
   /immunity\s+(.+)/i,
@@ -106,6 +111,19 @@ export function parseSurvivorCommand(raw: string): SurvivorParsedCommand {
     }
   }
 
+  for (const pattern of SIT_OUT_PATTERNS) {
+    const m = withoutChimmy.match(pattern)
+    if (m) {
+      const target = m[1]?.trim()
+      if (!target) continue
+      return {
+        intent: 'sit_out_nominate',
+        targetDisplayName: target,
+        raw,
+      }
+    }
+  }
+
   for (const pattern of CHALLENGE_PICK_PATTERNS) {
     const m = withoutChimmy.match(pattern)
     if (m) {
@@ -148,6 +166,6 @@ export function parseSurvivorCommand(raw: string): SurvivorParsedCommand {
 export function looksLikeOfficialCommand(raw: string): boolean {
   const trimmed = raw.trim().toLowerCase()
   if (trimmed.startsWith(CHIMMY_PREFIX)) return true
-  const verbs = ['vote', 'jury vote', 'final vote', 'play idol', 'use idol', 'challenge pick', 'submit challenge', 'immunity', 'confirm minigame', 'confirm tribe decision']
+  const verbs = ['vote', 'jury vote', 'final vote', 'play idol', 'use idol', 'sit out', 'nominate', 'challenge pick', 'submit challenge', 'immunity', 'confirm minigame', 'confirm tribe decision']
   return verbs.some((v) => trimmed.startsWith(v))
 }

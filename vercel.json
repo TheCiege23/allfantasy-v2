@@ -13,8 +13,8 @@
       "schedule": "0 3 * * 1"
     },
     {
-      "path": "/api/cron/import-adp",
-      "schedule": "0 6 * * 2"
+      "path": "/api/cron/adp-refresh",
+      "schedule": "0 10 * * *"
     },
     {
       "path": "/api/cron/import-news",
@@ -58,7 +58,7 @@
     },
     {
       "path": "/api/cron/sync-sleeper-players",
-      "schedule": "0 4 * * 2"
+      "schedule": "0 4 * * *"
     },
     {
       "path": "/api/cron/import-college-stats",

@@ -87,7 +87,7 @@ export type DraftTopBarProps = {
   timerPauseReason?: 'commissioner' | 'overnight_window' | null
   /** ISO UTC when overnight quiet window ends (session.timer.overnightResumeAt). */
   overnightResumeAtIso?: string | null
-  /** Number of browsers currently viewing the draft room (from Supabase presence). */
+  /** Number of browsers currently viewing the draft room (from the live-draft presence channel). */
   onlineCount?: number
   /** `redraft_snake` — show format chips and slightly stronger header chrome (snake redraft live URL). */
   draftRoomPresentation?: 'default' | 'redraft_snake'
@@ -239,11 +239,28 @@ export function DraftTopBar({
     timerEndAtIso !== '' &&
     liveRemaining != null &&
     liveRemaining <= 10
+  /** Critical sub-tier: ≤5s → strong red ring + pulse (stronger than amber urgency). */
+  const criticalLowTimer =
+    timerStatus === 'running' &&
+    timerEndAtIso != null &&
+    timerEndAtIso !== '' &&
+    liveRemaining != null &&
+    liveRemaining <= 5
   const statusLabel = translateDraftStatus(draftStatus, t)
   const draftTypeLabel = translateDraftType(draftType, t)
   const timerModeLabel = translateTimerMode(timerMode, t)
 
   const centerCta = (() => {
+    /** Completed state: show a clear broadcast "Draft Complete" badge. */
+    if (draftStatus === 'completed') {
+      return (
+        <div className="inline-flex min-h-[44px] items-center gap-2.5 rounded-full border border-emerald-400/35 bg-gradient-to-br from-emerald-500/18 via-[#0a1228] to-[#070d18] px-5 py-2.5 text-sm font-bold text-emerald-50 shadow-[0_8px_28px_rgba(16,185,129,0.18)]">
+          <Sparkles className="h-4 w-4 shrink-0 text-emerald-300" />
+          <span>Draft Complete</span>
+        </div>
+      )
+    }
+
     if (draftStatus === 'pre_draft' && isCommissioner && onStartDraft) {
       return (
         <button
@@ -278,6 +295,12 @@ export function DraftTopBar({
       const handlePillClick = isPausedCommissioner ? onResume : undefined
       const sharedPill = (
         <>
+          {timerStatus === 'running' && !urgentLowTimer ? (
+            <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden>
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-300/55 opacity-65" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-cyan-300" />
+            </span>
+          ) : null}
           <Clock className="h-5 w-5 shrink-0 opacity-90" />
           <span data-testid="draft-topbar-clock-time">{timerDisplay}</span>
           {isPausedCommissioner ? (
@@ -292,11 +315,13 @@ export function DraftTopBar({
         </>
       )
       const pillClassName = `inline-flex min-h-[52px] items-center gap-3 rounded-full border px-6 py-3 text-2xl font-extrabold tabular-nums shadow-[0_10px_32px_rgba(0,0,0,0.4)] transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 ${
-        urgentLowTimer
-          ? 'animate-pulse border-rose-400/55 bg-gradient-to-br from-rose-500/30 to-amber-500/20 text-rose-50'
-          : draftStatus === 'paused'
-            ? 'border-emerald-400/45 bg-gradient-to-br from-emerald-500/25 to-emerald-600/15 text-emerald-50 hover:brightness-110'
-            : 'border-cyan-400/40 bg-gradient-to-br from-cyan-500/22 to-violet-600/15 text-cyan-50'
+        criticalLowTimer
+          ? 'animate-pulse border-rose-500/65 bg-gradient-to-br from-rose-600/35 to-rose-500/20 text-rose-50 ring-2 ring-rose-500/55 shadow-[0_0_48px_rgba(239,68,68,0.5)]'
+          : urgentLowTimer
+            ? 'animate-pulse border-rose-400/55 bg-gradient-to-br from-rose-500/30 to-amber-500/20 text-rose-50'
+            : draftStatus === 'paused'
+              ? 'border-emerald-400/45 bg-gradient-to-br from-emerald-500/25 to-emerald-600/15 text-emerald-50 hover:brightness-110'
+              : 'border-cyan-400/40 bg-gradient-to-br from-cyan-500/22 to-violet-600/15 text-cyan-50'
       } ${
         handlePillClick
           ? 'cursor-pointer hover:shadow-[0_14px_40px_rgba(34,211,238,0.25)] active:scale-[0.98] disabled:opacity-55'
@@ -420,19 +445,11 @@ export function DraftTopBar({
                   </span>
                 )}
               </div>
-              {rs ? (
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span className="inline-flex items-center rounded-full border border-emerald-400/40 bg-gradient-to-r from-emerald-500/18 to-emerald-600/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-50 shadow-[0_0_20px_rgba(16,185,129,0.18)]">
-                    Redraft
-                  </span>
-                  <span className="inline-flex items-center rounded-full border border-cyan-400/45 bg-gradient-to-r from-cyan-500/22 to-sky-600/12 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-50 shadow-[0_0_22px_rgba(34,211,238,0.2)]">
-                    Snake
-                  </span>
-                  <span className="inline-flex items-center rounded-full border border-violet-400/40 bg-gradient-to-r from-violet-500/18 to-fuchsia-600/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-violet-50">
-                    {sport}
-                  </span>
-                </div>
-              ) : null}
+              {/* G.1 — REDRAFT / SNAKE / NFL chip row removed.
+                  These chips were redundant: the same info already renders in the
+                  inline meta line below (`{teamCount} Teams · {rounds} Rounds ·
+                  {sport} · {draftTypeLabel}`). Removing them de-clutters the
+                  draft-room header without losing any information. */}
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#97a8d7]">
                 <span>{timerSummary}</span>
                 <span className="text-white/24">·</span>
@@ -463,7 +480,7 @@ export function DraftTopBar({
                   onClick={onCommissionerOpen}
                   data-testid="draft-topbar-commissioner-primary"
                   disabled={commissionerLoading}
-                  className="mt-3 inline-flex w-full max-w-xl items-center justify-center gap-2 rounded-xl border-2 border-amber-400/55 bg-[linear-gradient(135deg,rgba(251,191,36,0.22),rgba(124,58,237,0.18))] px-4 py-3 text-sm font-bold uppercase tracking-[0.14em] text-amber-50 shadow-[0_12px_40px_rgba(245,158,11,0.25)] transition duration-150 hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/55 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.99] sm:py-3.5"
+                  className="mt-2 inline-flex items-center gap-2 rounded-full border border-amber-400/45 bg-amber-500/15 px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-amber-100 shadow-[0_4px_20px_rgba(245,158,11,0.18)] transition duration-150 hover:bg-amber-500/22 hover:border-amber-400/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/55 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.99]"
                 >
                   <Shield className="h-5 w-5 shrink-0 text-amber-100" aria-hidden />
                   Commissioner control center
@@ -567,10 +584,12 @@ export function DraftTopBar({
 
             <div className="flex min-w-[7.25rem] flex-col items-stretch gap-0.5 sm:min-w-[8rem]">
               <div
-                className={`inline-flex min-h-[44px] min-w-full items-center gap-2 rounded-2xl border px-4 py-2 transition-all duration-200 sm:min-h-[52px] sm:justify-center ${TIMER_COLORS[timerStatus]} ${
-                  urgentLowTimer
-                    ? 'relative z-0 shadow-[0_0_48px_rgba(251,191,36,0.5)] ring-2 ring-amber-400/70 animate-pulse sm:scale-105'
-                    : rs
+                className={`inline-flex min-h-[44px] min-w-full items-center gap-2 rounded-2xl border px-4 py-2 transition-all duration-200 sm:min-h-[52px] sm:justify-center ${criticalLowTimer ? 'text-rose-50 border-rose-500/55 bg-rose-500/15' : TIMER_COLORS[timerStatus]} ${
+                  criticalLowTimer
+                    ? 'relative z-0 shadow-[0_0_56px_rgba(239,68,68,0.55)] ring-2 ring-rose-500/65 animate-pulse sm:scale-105'
+                    : urgentLowTimer
+                      ? 'relative z-0 shadow-[0_0_48px_rgba(251,191,36,0.5)] ring-2 ring-amber-400/70 animate-pulse sm:scale-105'
+                      : rs
                       ? 'shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_32px_rgba(0,0,0,0.35)]'
                       : 'shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
                 }`}

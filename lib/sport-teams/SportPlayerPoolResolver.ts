@@ -77,6 +77,32 @@ function normalizePoolPosition(sport: string, position: string | null): string {
   return raw
 }
 
+function isHttpImage(url: string | null | undefined): boolean {
+  return /^https?:\/\//i.test(String(url ?? '').trim())
+}
+
+function sourceRank(source: string | null | undefined): number {
+  const s = String(source ?? '').trim().toLowerCase()
+  if (s === 'thesportsdb') return 5
+  if (s === 'sleeper') return 4
+  if (s === 'api_sports' || s === 'api-sports') return 3
+  if (s === 'backfill') return 2
+  if (s === 'rolling_insights') return 1
+  return 0
+}
+
+function sportsPlayerQuality(row: {
+  imageUrl?: string | null
+  sleeperId?: string | null
+  source?: string | null
+}): number {
+  let score = 0
+  if (isHttpImage(row.imageUrl)) score += 100
+  if (String(row.sleeperId ?? '').trim()) score += 50
+  score += sourceRank(row.source) * 10
+  return score
+}
+
 function normalizePositionFilter(sport: string, position?: string): string[] | null {
   const raw = position?.trim()
   if (!raw) return null
@@ -131,7 +157,20 @@ export async function getPlayerPoolForSport(
     orderBy: { name: 'asc' },
   })
 
-  const primary = rows.map((r) => ({
+  // De-dupe by (name, position, team), preferring rows that have real image URLs
+  // and explicit sleeper IDs. Some imports write duplicate players across sources,
+  // and a low-quality duplicate can otherwise shadow a better row.
+  const bestByKey = new Map<string, (typeof rows)[number]>()
+  for (const row of rows) {
+    const key = `${String(row.name ?? '').trim().toLowerCase()}|${String(row.position ?? '').trim().toUpperCase()}|${String(row.team ?? '').trim().toUpperCase()}`
+    const current = bestByKey.get(key)
+    if (!current || sportsPlayerQuality(row) > sportsPlayerQuality(current)) {
+      bestByKey.set(key, row)
+    }
+  }
+  const dedupedRows = [...bestByKey.values()]
+
+  const primary = dedupedRows.map((r) => ({
     team_abbreviation: r.team ?? null,
     player_id: r.id,
     sport_type: sport as SportType,
@@ -151,6 +190,36 @@ export async function getPlayerPoolForSport(
     metadata: {},
     image_url: (r as { imageUrl?: string | null }).imageUrl ?? null,
   }))
+
+  if (sport === 'NFL') {
+    const existingDefTeams = new Set(
+      primary
+        .filter((p) => ['DEF', 'DST'].includes(String(p.position ?? '').trim().toUpperCase()))
+        .map((p) => String(p.team_abbreviation ?? '').trim().toUpperCase())
+        .filter(Boolean),
+    )
+    for (const [abbr, teamId] of teamIdByAbbrev.entries()) {
+      if (existingDefTeams.has(abbr)) continue
+      primary.push({
+        team_abbreviation: abbr,
+        player_id: `nfl:def:${abbr}`,
+        sport_type: sport as SportType,
+        league_variant: null,
+        team_id: teamId ?? null,
+        team: abbr,
+        full_name: `${abbr} Defense`,
+        position: 'DEF',
+        status: null,
+        injury_status: null,
+        external_source_id: `nfl:def:${abbr}`,
+        age: null,
+        experience: null,
+        secondary_positions: [],
+        metadata: { source: 'synthetic_team_defense' },
+        image_url: null,
+      })
+    }
+  }
 
   const limit = requestedTake
   const canFallbackIdpFromIdentity =

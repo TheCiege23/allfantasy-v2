@@ -1,11 +1,88 @@
 import { expect, test } from "@playwright/test"
 import { registerAndLoginTo } from "./helpers/auth-flow"
 
+function getShortcutToggle(page: Parameters<typeof test>[0]['page']) {
+  return page
+    .getByTestId("chimmy-shortcuts-toggle")
+    .or(page.getByRole("checkbox", { name: /enable chimmy global keyboard shortcuts/i }))
+    .first()
+}
+
+async function gotoNotificationsReady(page: Parameters<typeof test>[0]['page']) {
+  for (let attempt = 1; attempt <= 10; attempt += 1) {
+    await page.goto("/settings?tab=notifications", { waitUntil: "domcontentloaded" })
+    const toggleReady = await getShortcutToggle(page)
+      .waitFor({ state: "visible", timeout: 12_000 })
+      .then(() => true)
+      .catch(() => false)
+    if (toggleReady) return
+
+    const notFoundVisible = await page
+      .getByRole("heading", { name: "This page could not be found." })
+      .isVisible()
+      .catch(() => false)
+
+    if (!notFoundVisible && attempt >= 4) {
+      await page.reload({ waitUntil: "domcontentloaded" }).catch(() => null)
+    }
+    await page.waitForTimeout(500 * attempt)
+  }
+
+  throw new Error("Notifications settings never became ready")
+}
+
 test.describe("@db chimmy shortcut settings", () => {
   test.describe.configure({ timeout: 240_000, mode: "serial" })
 
   test("disabling and re-enabling Chimmy shortcuts persists global launcher preference", async ({ page }) => {
     await registerAndLoginTo(page, null)
+
+    await page.route("**/api/auth/session", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          user: {
+            id: "chimmy-shortcut-user",
+            name: "Chimmy Shortcut",
+            email: "chimmy.shortcut@example.com",
+          },
+          expires: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        }),
+      })
+    })
+
+    await page.route("**/api/auth/providers", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({}),
+      })
+    })
+
+    await page.route("**/api/auth/csrf", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ csrfToken: "chimmy-shortcut-csrf" }),
+      })
+    })
+
+    await page.route("**/api/auth/config-check", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true }),
+      })
+    })
+
+    await page.route("**/api/auth/_log", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true }),
+      })
+    })
 
     const profileState: Record<string, unknown> = {
       userId: "chimmy-shortcut-user",
@@ -118,8 +195,8 @@ test.describe("@db chimmy shortcut settings", () => {
       })
     })
 
-    await page.goto("/settings?tab=notifications", { waitUntil: "domcontentloaded" })
-    await expect(page.getByTestId("chimmy-shortcuts-toggle")).toBeVisible({ timeout: 20_000 })
+    await gotoNotificationsReady(page)
+    await expect(getShortcutToggle(page)).toBeVisible({ timeout: 20_000 })
 
     // Ensure deterministic baseline for this test run.
     await page.evaluate(() => {
@@ -127,7 +204,7 @@ test.describe("@db chimmy shortcut settings", () => {
       window.localStorage.removeItem("af_chimmy_shortcut_hint_seen")
     })
 
-    const shortcutToggle = page.getByTestId("chimmy-shortcuts-toggle")
+    const shortcutToggle = getShortcutToggle(page)
 
     // 1) Disable shortcuts.
     await shortcutToggle.uncheck()
@@ -152,7 +229,7 @@ test.describe("@db chimmy shortcut settings", () => {
     await expect(page).toHaveURL(beforeDisabledShortcut)
 
     // 3) Re-enable shortcuts and verify '/' opens Chimmy route.
-    await page.goto("/settings?tab=notifications", { waitUntil: "domcontentloaded" })
+    await gotoNotificationsReady(page)
     await shortcutToggle.check()
     await expect
       .poll(async () => page.evaluate(() => window.localStorage.getItem("af_chimmy_shortcuts_disabled")))

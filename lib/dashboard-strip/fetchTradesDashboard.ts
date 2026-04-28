@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '@/lib/prisma'
 import type { SleeperTransaction } from '@/lib/sleeper-client'
-import { getAllPlayers } from '@/lib/sleeper-client'
+import { getAllPlayers, getLeagueRosters, getLeagueTransactions, getLeagueUsers } from '@/lib/api-cache/SleeperCacheLayer'
 import type {
   PendingTrade,
   PendingTradeLeague,
@@ -10,7 +10,16 @@ import type {
 } from '@/app/dashboard/dashboardStripApiTypes'
 import { getChimmyOfficialTimePrefix } from '@/lib/time-engine/chimmyPromptPrefix'
 
-const SLEEPER = 'https://api.sleeper.app/v1' // db-first-exception: base URL constant for dashboard fan-out calls
+const TRADES_DASHBOARD_TTL_MS = 15 * 60 * 1000
+
+type TradesLeagueCacheEntry = {
+  league: PendingTradeLeague | null
+  totalPending: number
+}
+
+function buildTradesDashboardCacheKey(leagueId: string): string {
+  return `sleeper:dashboard:trades:${leagueId}`
+}
 
 type SleeperRoster = {
   roster_id?: number
@@ -160,37 +169,47 @@ export async function fetchTradesDashboard(userId: string): Promise<TradesDashbo
     const ownerSleeperId = league.teams[0]?.platformUserId?.trim()
     if (!ownerSleeperId) continue
 
+    const cacheKey = buildTradesDashboardCacheKey(league.platformLeagueId)
+    const cachedRow = await prisma.sportsDataCache.findUnique({ where: { cacheKey } }).catch(() => null)
+    const staleTrades = cachedRow?.data as TradesLeagueCacheEntry | null
+    if (cachedRow && cachedRow.expiresAt > new Date() && staleTrades) {
+      console.log(`[dashboard/trades] cache hit { leagueId: '${league.platformLeagueId}' }`)
+      totalPending += staleTrades.totalPending
+      if (staleTrades.league) {
+        tradesOut.push(staleTrades.league)
+      }
+      continue
+    }
+
     const leagueTrades: PendingTrade[] = []
     const prismaSport = String(league.sport)
 
     try {
-      const [rostersRes, usersRes] = await Promise.all([
-        fetch(`${SLEEPER}/league/${encodeURIComponent(league.platformLeagueId)}/rosters`, { next: { revalidate: 30 } }),
-        fetch(`${SLEEPER}/league/${encodeURIComponent(league.platformLeagueId)}/users`, { next: { revalidate: 120 } }),
+      console.log(`[dashboard/trades] live refresh { leagueId: '${league.platformLeagueId}', reason: '${cachedRow ? 'stale' : 'miss'}' }`)
+
+      const [rosters, users] = await Promise.all([
+        getLeagueRosters(league.platformLeagueId).catch(() => []),
+        getLeagueUsers(league.platformLeagueId).catch(() => []),
       ])
 
-      const rosters = rostersRes.ok ? ((await rostersRes.json()) as SleeperRoster[]) : []
-      const users = usersRes.ok ? ((await usersRes.json()) as SleeperUser[]) : []
-
       const roster = Array.isArray(rosters)
-        ? rosters.find((r) => String(r.owner_id) === String(ownerSleeperId))
+        ? (rosters as SleeperRoster[]).find((r) => String(r.owner_id) === String(ownerSleeperId))
         : undefined
-      const userRosterId = roster?.roster_id
-      if (userRosterId == null) continue
+      const userRosterId = Number(roster?.roster_id)
+      if (!Number.isFinite(userRosterId)) continue
 
-      const userById = new Map(users.map((u) => [u.user_id, u]))
+      const userById = new Map(
+        (Array.isArray(users) ? (users as SleeperUser[]) : [])
+          .filter((u) => typeof u.user_id === 'string')
+          .map((u) => [u.user_id, u]),
+      )
       const seenTx = new Set<string>()
 
       const playersMap: Record<string, { full_name?: string; first_name?: string; last_name?: string; position?: string; team?: string }> =
         prismaSport.toUpperCase() === 'NFL' ? (nflPlayers as Record<string, any>) : {}
 
       for (const week of weeksToScan) {
-        const txRes = await fetch(
-          `${SLEEPER}/league/${encodeURIComponent(league.platformLeagueId)}/transactions/${week}`,
-          { next: { revalidate: 15 } }
-        )
-        if (!txRes.ok) continue
-        const transactions = (await txRes.json()) as SleeperTransaction[]
+        const transactions = (await getLeagueTransactions(league.platformLeagueId, week).catch(() => [])) as SleeperTransaction[]
         if (!Array.isArray(transactions)) continue
 
         for (const tx of transactions) {
@@ -234,8 +253,47 @@ export async function fetchTradesDashboard(userId: string): Promise<TradesDashbo
         }
       }
     } catch {
+      if (staleTrades) {
+        console.log(`[dashboard/trades] stale fallback { leagueId: '${league.platformLeagueId}' }`)
+        totalPending += staleTrades.totalPending
+        if (staleTrades.league) {
+          tradesOut.push(staleTrades.league)
+        }
+        continue
+      }
       /* skip league */
     }
+
+    const leaguePayload =
+      leagueTrades.length > 0
+        ? {
+            leagueId: league.id,
+            leagueName: league.name ?? 'League',
+            leagueAvatar: league.avatarUrl ?? null,
+            sport: prismaSport,
+            trades: leagueTrades,
+          }
+        : null
+
+    await prisma.sportsDataCache.upsert({
+      where: { cacheKey },
+      create: {
+        cacheKey,
+        data: {
+          league: leaguePayload,
+          totalPending: leagueTrades.length,
+        } as unknown as object,
+        expiresAt: new Date(Date.now() + TRADES_DASHBOARD_TTL_MS),
+      },
+      update: {
+        data: {
+          league: leaguePayload,
+          totalPending: leagueTrades.length,
+        } as unknown as object,
+        expiresAt: new Date(Date.now() + TRADES_DASHBOARD_TTL_MS),
+      },
+    }).catch(() => {})
+    console.log(`[dashboard/trades] saved SportsDataCache { leagueId: '${league.platformLeagueId}', cacheKey: '${cacheKey}' }`)
 
     if (leagueTrades.length > 0) {
       totalPending += leagueTrades.length

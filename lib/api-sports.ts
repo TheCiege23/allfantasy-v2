@@ -8,6 +8,19 @@ import {
 
 const BASE_URL = 'https://v1.american-football.api-sports.io';
 
+const APISPORTS_LEAGUE_IDS = {
+  NFL: process.env.APISPORTS_NFL_LEAGUE_ID || '1',
+  NCAAF: process.env.APISPORTS_NCAAF_LEAGUE_ID || '2',
+} as const
+
+function resolveLeagueId(sport?: 'NFL' | 'NCAAF'): string {
+  return sport === 'NCAAF' ? APISPORTS_LEAGUE_IDS.NCAAF : APISPORTS_LEAGUE_IDS.NFL
+}
+
+function resolveDbSport(sport?: 'NFL' | 'NCAAF'): 'NFL' | 'NCAAF' {
+  return sport === 'NCAAF' ? 'NCAAF' : 'NFL'
+}
+
 export interface ProviderCallDiagnostic {
   provider: 'api_sports'
   endpoint: string
@@ -253,7 +266,7 @@ export interface APISportsPlayer {
   salary: string | null;
   experience: string | null;
   image: string | null;
-  team: {
+  team?: {
     id: number;
     name: string;
     logo: string | null;
@@ -329,10 +342,11 @@ export interface APISportsStanding {
   };
 }
 
-export async function fetchAPISportsTeams(season?: string): Promise<APISportsTeam[]> {
+export async function fetchAPISportsTeams(season?: string, opts?: { sport?: 'NFL' | 'NCAAF' }): Promise<APISportsTeam[]> {
   const currentSeason = season || getCurrentNFLSeasonForAPISports()
+  const leagueId = resolveLeagueId(opts?.sport)
   const data = await apiSportsFetch<APISportsTeam[]>('teams', {
-    league: '1',
+    league: leagueId,
     season: currentSeason,
   });
   return data || [];
@@ -362,7 +376,11 @@ export async function fetchAPISportsPlayers(teamId: string, season: string): Pro
  *
  * The `season` parameter is accepted for backward compatibility but ignored.
  */
-export async function fetchAPISportsPlayerBySearch(search: string, _season?: string): Promise<APISportsPlayer[]> {
+export async function fetchAPISportsPlayerBySearch(
+  search: string,
+  _season?: string,
+  opts?: { sport?: 'NFL' | 'NCAAF' }
+): Promise<APISportsPlayer[]> {
   const sanitized = (search ?? '')
     .replace(/[^A-Za-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
@@ -378,12 +396,62 @@ export async function fetchAPISportsPlayerBySearch(search: string, _season?: str
     { search: sanitized },
     { bypassRateGuard: true },
   );
-  return data || [];
+  const rows = data || []
+  if (rows.length === 0) return []
+
+  const dbSport = resolveDbSport(opts?.sport)
+  const ids = rows
+    .map((p) => String((p as APISportsPlayer & { player?: { id?: number } }).id ?? (p as APISportsPlayer & { player?: { id?: number } }).player?.id ?? ''))
+    .filter(Boolean)
+  const names = rows
+    .map((p) => normalizePlayerName(String((p as APISportsPlayer & { player?: { name?: string } }).name ?? (p as APISportsPlayer & { player?: { name?: string } }).player?.name ?? '')))
+    .filter(Boolean)
+
+  const [byIdRows, byNameRows] = await Promise.all([
+    ids.length > 0
+      ? prisma.playerIdentityMap.findMany({
+          where: { sport: dbSport, apiSportsId: { in: ids } },
+          select: { apiSportsId: true, currentTeam: true },
+        })
+      : Promise.resolve([]),
+    names.length > 0
+      ? prisma.playerIdentityMap.findMany({
+          where: { sport: dbSport, normalizedName: { in: names } },
+          select: { normalizedName: true, currentTeam: true },
+        })
+      : Promise.resolve([]),
+  ])
+
+  const teamById = new Map<string, string>()
+  for (const row of byIdRows) {
+    if (row.apiSportsId && row.currentTeam) teamById.set(String(row.apiSportsId), row.currentTeam)
+  }
+  const teamByName = new Map<string, string>()
+  for (const row of byNameRows) {
+    if (row.normalizedName && row.currentTeam) teamByName.set(row.normalizedName, row.currentTeam)
+  }
+
+  return rows.map((p) => {
+    if (p.team?.name) return p
+    const id = String((p as APISportsPlayer & { player?: { id?: number } }).id ?? (p as APISportsPlayer & { player?: { id?: number } }).player?.id ?? '')
+    const normalizedName = normalizePlayerName(String((p as APISportsPlayer & { player?: { name?: string } }).name ?? (p as APISportsPlayer & { player?: { name?: string } }).player?.name ?? ''))
+    const mappedTeam = teamById.get(id) || teamByName.get(normalizedName) || null
+    if (!mappedTeam) return p
+    return {
+      ...p,
+      team: {
+        id: 0,
+        name: mappedTeam,
+        logo: null,
+      },
+    }
+  })
 }
 
-export async function fetchAPISportsInjuries(season: string): Promise<APISportsInjury[]> {
+export async function fetchAPISportsInjuries(season: string, opts?: { sport?: 'NFL' | 'NCAAF' }): Promise<APISportsInjury[]> {
+  const leagueId = resolveLeagueId(opts?.sport)
   const attempts: Array<Record<string, string> | undefined> = [
-    { season },
+    { season, league: leagueId },
     undefined,
   ]
 
@@ -419,12 +487,15 @@ export async function fetchAPISportsInjuriesByTeam(teamId: string, season: strin
   throw lastError instanceof Error ? lastError : new Error('Failed to fetch API-Sports injuries by team')
 }
 
-async function fetchAPISportsInjuriesViaTeamFanout(season: string): Promise<APISportsInjury[]> {
+async function fetchAPISportsInjuriesViaTeamFanout(
+  season: string,
+  opts?: { sport?: 'NFL' | 'NCAAF' }
+): Promise<APISportsInjury[]> {
   let teams: APISportsTeam[] = []
   try {
-    teams = await fetchAPISportsTeams(season)
+    teams = await fetchAPISportsTeams(season, opts)
   } catch {
-    teams = await fetchAPISportsTeams()
+    teams = await fetchAPISportsTeams(undefined, opts)
   }
 
   if (teams.length === 0) return []
@@ -452,33 +523,39 @@ async function fetchAPISportsInjuriesViaTeamFanout(season: string): Promise<APIS
   return [...byId.values()]
 }
 
-export async function fetchAPISportsGames(season: string): Promise<APISportsGame[]> {
+export async function fetchAPISportsGames(season: string, opts?: { sport?: 'NFL' | 'NCAAF' }): Promise<APISportsGame[]> {
+  const leagueId = resolveLeagueId(opts?.sport)
   const data = await apiSportsFetch<APISportsGame[]>('games', {
-    league: '1',
+    league: leagueId,
     season,
   });
   return data || [];
 }
 
-export async function fetchAPISportsGamesByWeek(season: string, week: string): Promise<APISportsGame[]> {
+export async function fetchAPISportsGamesByWeek(season: string, week: string, opts?: { sport?: 'NFL' | 'NCAAF' }): Promise<APISportsGame[]> {
+  const leagueId = resolveLeagueId(opts?.sport)
   const data = await apiSportsFetch<APISportsGame[]>('games', {
-    league: '1',
+    league: leagueId,
     season,
     week,
   });
   return data || [];
 }
 
-export async function fetchAPISportsLiveGames(): Promise<APISportsGame[]> {
+export async function fetchAPISportsLiveGames(opts?: { sport?: 'NFL' | 'NCAAF' }): Promise<APISportsGame[]> {
+  const leagueId = resolveLeagueId(opts?.sport)
   const data = await apiSportsFetch<APISportsGame[]>('games', {
-    league: '1',
+    league: leagueId,
     live: 'all',
   });
   return data || [];
 }
 
-export async function fetchAPISportsStandings(season: string, opts?: { conference?: string; division?: string }): Promise<APISportsStanding[]> {
-  const params: Record<string, string> = { league: '1', season };
+export async function fetchAPISportsStandings(
+  season: string,
+  opts?: { conference?: string; division?: string; sport?: 'NFL' | 'NCAAF' }
+): Promise<APISportsStanding[]> {
+  const params: Record<string, string> = { league: resolveLeagueId(opts?.sport), season };
   if (opts?.conference) params.conference = opts.conference;
   if (opts?.division) params.division = opts.division;
   const data = await apiSportsFetch<APISportsStanding[]>('standings', params);
@@ -498,17 +575,17 @@ export interface APISportsDivision {
   league: { id: number; name: string; season: string };
 }
 
-export async function fetchAPISportsConferences(season: string): Promise<APISportsConference[]> {
+export async function fetchAPISportsConferences(season: string, opts?: { sport?: 'NFL' | 'NCAAF' }): Promise<APISportsConference[]> {
   const data = await apiSportsFetch<APISportsConference[]>('standings/conferences', {
-    league: '1',
+    league: resolveLeagueId(opts?.sport),
     season,
   });
   return data || [];
 }
 
-export async function fetchAPISportsDivisions(season: string): Promise<APISportsDivision[]> {
+export async function fetchAPISportsDivisions(season: string, opts?: { sport?: 'NFL' | 'NCAAF' }): Promise<APISportsDivision[]> {
   const data = await apiSportsFetch<APISportsDivision[]>('standings/divisions', {
-    league: '1',
+    league: resolveLeagueId(opts?.sport),
     season,
   });
   return data || [];
@@ -600,8 +677,11 @@ export async function fetchAPISportsOdds(gameId: string): Promise<APISportsOdds[
   return data || [];
 }
 
-export async function fetchAPISportsOddsBySeasonWeek(season: string, opts?: { bookmaker?: string }): Promise<APISportsOdds[]> {
-  const params: Record<string, string> = { league: '1', season };
+export async function fetchAPISportsOddsBySeasonWeek(
+  season: string,
+  opts?: { bookmaker?: string; sport?: 'NFL' | 'NCAAF' }
+): Promise<APISportsOdds[]> {
+  const params: Record<string, string> = { league: resolveLeagueId(opts?.sport), season };
   if (opts?.bookmaker) params.bookmaker = opts.bookmaker;
   const data = await apiSportsFetch<APISportsOdds[]>('odds', params);
   return data || [];
@@ -650,9 +730,9 @@ export async function fetchAPISportsTimezones(): Promise<string[]> {
   return data || [];
 }
 
-export async function fetchAPISportsGamesByDate(date: string): Promise<APISportsGame[]> {
+export async function fetchAPISportsGamesByDate(date: string, opts?: { sport?: 'NFL' | 'NCAAF' }): Promise<APISportsGame[]> {
   const data = await apiSportsFetch<APISportsGame[]>('games', {
-    league: '1',
+    league: resolveLeagueId(opts?.sport),
     date,
   });
   return data || [];
@@ -665,9 +745,9 @@ export async function fetchAPISportsH2H(team1Id: string, team2Id: string): Promi
   return data || [];
 }
 
-export async function fetchAPISportsGamesByTeam(teamId: string, season: string): Promise<APISportsGame[]> {
+export async function fetchAPISportsGamesByTeam(teamId: string, season: string, opts?: { sport?: 'NFL' | 'NCAAF' }): Promise<APISportsGame[]> {
   const data = await apiSportsFetch<APISportsGame[]>('games', {
-    league: '1',
+    league: resolveLeagueId(opts?.sport),
     season,
     team: teamId,
   });
@@ -681,13 +761,14 @@ export function getCurrentNFLSeasonForAPISports(): string {
   return month >= 8 ? String(year) : String(year - 1);
 }
 
-export async function syncAPISportsInjuriesToDb(season?: string): Promise<number> {
-  const currentSeason = season || getCurrentNFLSeasonForAPISports();
+export async function syncAPISportsInjuriesToDb(opts?: { season?: string; sport?: 'NFL' | 'NCAAF' }): Promise<number> {
+  const currentSeason = opts?.season || getCurrentNFLSeasonForAPISports();
+  const dbSport = resolveDbSport(opts?.sport)
   let injuries: APISportsInjury[] = [];
 
   try {
     // The API-Sports NFL injuries endpoint is reliable only with team-based queries.
-    injuries = await fetchAPISportsInjuriesViaTeamFanout(currentSeason)
+    injuries = await fetchAPISportsInjuriesViaTeamFanout(currentSeason, { sport: dbSport })
   } catch (error) {
     console.error('[API-Sports] Team-fanout injuries fetch failed:', error)
     return 0
@@ -727,7 +808,7 @@ export async function syncAPISportsInjuriesToDb(season?: string): Promise<number
       await prisma.sportsInjury.upsert({
         where: {
           sport_externalId_source: {
-            sport: 'NFL',
+            sport: dbSport,
             externalId,
             source: 'api_sports',
           },
@@ -746,7 +827,7 @@ export async function syncAPISportsInjuriesToDb(season?: string): Promise<number
           expiresAt,
         },
         create: {
-          sport: 'NFL',
+          sport: dbSport,
           externalId,
           playerName,
           playerId,
@@ -781,7 +862,7 @@ export async function syncAPISportsInjuriesToDb(season?: string): Promise<number
   }
 
   console.log(`[API-Sports] Synced ${synced}/${injuries.length} injuries`);
-  if (fanoutByPlayer.size > 0) {
+  if (dbSport === 'NFL' && fanoutByPlayer.size > 0) {
     const injuriesPayload = [...fanoutByPlayer.values()];
     void import('@/lib/realtime-events/injurySyncFanout')
       .then((m) => m.fanoutInjurySyncBatch({ sport: 'NFL', injuries: injuriesPayload }))
@@ -790,12 +871,13 @@ export async function syncAPISportsInjuriesToDb(season?: string): Promise<number
   return synced;
 }
 
-export async function syncAPISportsTeamsToDb(season?: string): Promise<number> {
-  const currentSeason = season || getCurrentNFLSeasonForAPISports()
+export async function syncAPISportsTeamsToDb(opts?: { season?: string; sport?: 'NFL' | 'NCAAF' }): Promise<number> {
+  const currentSeason = opts?.season || getCurrentNFLSeasonForAPISports()
+  const dbSport = resolveDbSport(opts?.sport)
   let teams: APISportsTeam[];
 
   try {
-    teams = await fetchAPISportsTeams(currentSeason);
+    teams = await fetchAPISportsTeams(currentSeason, { sport: dbSport });
   } catch (error) {
     console.error('[API-Sports] Failed to fetch teams:', error);
     return 0;
@@ -812,7 +894,7 @@ export async function syncAPISportsTeamsToDb(season?: string): Promise<number> {
       await prisma.sportsTeam.upsert({
         where: {
           sport_externalId_source: {
-            sport: 'NFL',
+            sport: dbSport,
             externalId: String(team.id),
             source: 'api_sports',
           },
@@ -826,7 +908,7 @@ export async function syncAPISportsTeamsToDb(season?: string): Promise<number> {
           expiresAt,
         },
         create: {
-          sport: 'NFL',
+          sport: dbSport,
           externalId: String(team.id),
           name: team.name,
           shortName: abbrev,
@@ -843,16 +925,17 @@ export async function syncAPISportsTeamsToDb(season?: string): Promise<number> {
     }
   }
 
-  console.log(`[API-Sports] Synced ${synced}/${teams.length} teams`);
+  console.log(`[API-Sports] Synced ${synced}/${teams.length} ${dbSport} teams`);
   return synced;
 }
 
-export async function syncAPISportsGamesToDb(season?: string): Promise<number> {
-  const currentSeason = season || getCurrentNFLSeasonForAPISports();
+export async function syncAPISportsGamesToDb(opts?: { season?: string; sport?: 'NFL' | 'NCAAF' }): Promise<number> {
+  const currentSeason = opts?.season || getCurrentNFLSeasonForAPISports();
+  const dbSport = resolveDbSport(opts?.sport)
   let games: APISportsGame[];
 
   try {
-    games = await fetchAPISportsGames(currentSeason);
+    games = await fetchAPISportsGames(currentSeason, { sport: dbSport });
   } catch (error) {
     console.error('[API-Sports] Failed to fetch games:', error);
     return 0;
@@ -871,7 +954,7 @@ export async function syncAPISportsGamesToDb(season?: string): Promise<number> {
       await prisma.sportsGame.upsert({
         where: {
           sport_externalId_source: {
-            sport: 'NFL',
+            sport: dbSport,
             externalId: String(g.game.id),
             source: 'api_sports',
           },
@@ -892,7 +975,7 @@ export async function syncAPISportsGamesToDb(season?: string): Promise<number> {
           expiresAt,
         },
         create: {
-          sport: 'NFL',
+          sport: dbSport,
           externalId: String(g.game.id),
           homeTeam,
           awayTeam,
@@ -916,17 +999,18 @@ export async function syncAPISportsGamesToDb(season?: string): Promise<number> {
     }
   }
 
-  console.log(`[API-Sports] Synced ${synced}/${games.length} games`);
+  console.log(`[API-Sports] Synced ${synced}/${games.length} ${dbSport} games`);
   return synced;
 }
 
-export async function syncAPISportsPlayersToIdentityMap(season?: string): Promise<{ linked: number; created: number }> {
-  const currentSeason = season || getCurrentNFLSeasonForAPISports();
+export async function syncAPISportsPlayersToIdentityMap(opts?: { season?: string; sport?: 'NFL' | 'NCAAF' }): Promise<{ linked: number; created: number }> {
+  const currentSeason = opts?.season || getCurrentNFLSeasonForAPISports();
+  const dbSport = resolveDbSport(opts?.sport)
   let linked = 0;
   let created = 0;
 
   const teams = await prisma.sportsTeam.findMany({
-    where: { sport: 'NFL', source: 'api_sports' },
+    where: { sport: dbSport, source: 'api_sports' },
     select: { externalId: true, shortName: true, name: true },
   });
 
@@ -953,7 +1037,7 @@ export async function syncAPISportsPlayersToIdentityMap(season?: string): Promis
           const teamAbbrev = teamNameToAbbrev(p.team?.name || team.name);
 
           const candidates = await prisma.playerIdentityMap.findMany({
-            where: { normalizedName, sport: 'NFL' },
+            where: { normalizedName, sport: dbSport },
           });
 
           if (candidates.length === 1) {
@@ -961,6 +1045,7 @@ export async function syncAPISportsPlayersToIdentityMap(season?: string): Promis
               where: { id: candidates[0].id },
               data: {
                 apiSportsId: String(p.id),
+                currentTeam: teamAbbrev,
                 lastSyncedAt: new Date(),
               },
             });
@@ -976,6 +1061,7 @@ export async function syncAPISportsPlayersToIdentityMap(season?: string): Promis
                 where: { id: match.id },
                 data: {
                   apiSportsId: String(p.id),
+                  currentTeam: teamAbbrev,
                   lastSyncedAt: new Date(),
                 },
               });
@@ -989,7 +1075,7 @@ export async function syncAPISportsPlayersToIdentityMap(season?: string): Promis
                 position,
                 currentTeam: teamAbbrev,
                 apiSportsId: String(p.id),
-                sport: 'NFL',
+                sport: dbSport,
                 lastSyncedAt: new Date(),
               },
             });
@@ -1009,16 +1095,355 @@ export async function syncAPISportsPlayersToIdentityMap(season?: string): Promis
     }
   }
 
-  console.log(`[API-Sports] Identity sync: ${linked} linked, ${created} created`);
+  console.log(`[API-Sports] ${dbSport} identity sync: ${linked} linked, ${created} created`);
   return { linked, created };
 }
 
-export async function syncAPISportsStandingsToDb(season?: string): Promise<number> {
-  const currentSeason = season || getCurrentNFLSeasonForAPISports();
+export interface APISportsPlayerSeasonStatsSyncOptions {
+  season?: string;
+  sport?: 'NFL' | 'NCAAF';
+  apply?: boolean;
+  limitPlayers?: number;
+  requireIdentity?: boolean;
+}
+
+export interface APISportsPlayerSeasonStatsSyncSample {
+  playerId: string;
+  playerName: string;
+  team: string | null;
+  position: string | null;
+  hasIdentity: boolean;
+  fantasyPoints: number | null;
+  fantasyPointsPerGame: number | null;
+  gamesPlayed: number | null;
+}
+
+export interface APISportsPlayerSeasonStatsSyncSummary {
+  sport: 'NFL' | 'NCAAF';
+  season: string;
+  apply: boolean;
+  requireIdentity: boolean;
+  playersScanned: number;
+  playerStatsFetched: number;
+  statsRowsAvailable: number;
+  rowsInserted: number;
+  rowsUpdated: number;
+  rowsSkippedMissingIdentity: number;
+  rowsSkippedNoStats: number;
+  rowsSkippedNoPlayerId: number;
+  endpointSuccesses: number;
+  endpointFailures: number;
+  identityMapGapSamples: Array<{ playerId: string; playerName: string; team: string | null }>;
+  sampleRecords: APISportsPlayerSeasonStatsSyncSample[];
+}
+
+function toStatKey(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function toStatValue(value: string | number | null): string | number | null {
+  if (value == null) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const numeric = Number.parseFloat(trimmed.replace(/,/g, ''));
+  if (Number.isFinite(numeric) && /^-?\d+(?:\.\d+)?$/.test(trimmed.replace(/,/g, ''))) {
+    return numeric;
+  }
+  return trimmed;
+}
+
+function pickNumericFromMap(
+  statsMap: Record<string, string | number | null>,
+  aliases: string[]
+): number | null {
+  for (const alias of aliases) {
+    const key = toStatKey(alias);
+    const value = statsMap[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+function normalizeAPISportsPlayerStatistics(rows: APISportsPlayerStatistics[]) {
+  const teams: Array<{
+    teamId: string;
+    teamName: string;
+    groups: Record<string, Record<string, string | number | null>>;
+  }> = [];
+  const flattened: Record<string, string | number | null> = {};
+  const flatByName: Record<string, string | number | null> = {};
+
+  for (const row of rows) {
+    for (const teamBlock of row.teams || []) {
+      const groups: Record<string, Record<string, string | number | null>> = {};
+      for (const group of teamBlock.groups || []) {
+        const groupKey = toStatKey(group.name || 'unknown_group');
+        const groupStats: Record<string, string | number | null> = {};
+        for (const stat of group.statistics || []) {
+          const statKey = toStatKey(stat.name || 'unknown_stat');
+          const statValue = toStatValue(stat.value ?? null);
+          groupStats[statKey] = statValue;
+          flattened[`${groupKey}.${statKey}`] = statValue;
+          flatByName[statKey] = statValue;
+        }
+        groups[groupKey] = groupStats;
+      }
+
+      teams.push({
+        teamId: String(teamBlock.team?.id ?? ''),
+        teamName: String(teamBlock.team?.name ?? '').trim(),
+        groups,
+      });
+    }
+  }
+
+  const gamesPlayed = pickNumericFromMap(flatByName, ['games', 'games played', 'gp']);
+  const fantasyPoints = pickNumericFromMap(flatByName, ['fantasy points', 'dk fantasy points', 'fanduel fantasy points']);
+  const fantasyPointsPerGame = pickNumericFromMap(flatByName, ['fantasy points per game', 'dk fantasy points per game']);
+
+  return {
+    teams,
+    flattened,
+    gamesPlayed,
+    fantasyPoints,
+    fantasyPointsPerGame,
+  };
+}
+
+export async function syncAPISportsPlayerSeasonStatsToDb(
+  opts: APISportsPlayerSeasonStatsSyncOptions = {}
+): Promise<APISportsPlayerSeasonStatsSyncSummary> {
+  const season = opts.season || getCurrentNFLSeasonForAPISports();
+  const sport = resolveDbSport(opts.sport);
+  const apply = opts.apply === true;
+  const requireIdentity = opts.requireIdentity !== false;
+  const limitPlayers = opts.limitPlayers && opts.limitPlayers > 0 ? opts.limitPlayers : null;
+
+  const summary: APISportsPlayerSeasonStatsSyncSummary = {
+    sport,
+    season,
+    apply,
+    requireIdentity,
+    playersScanned: 0,
+    playerStatsFetched: 0,
+    statsRowsAvailable: 0,
+    rowsInserted: 0,
+    rowsUpdated: 0,
+    rowsSkippedMissingIdentity: 0,
+    rowsSkippedNoStats: 0,
+    rowsSkippedNoPlayerId: 0,
+    endpointSuccesses: 0,
+    endpointFailures: 0,
+    identityMapGapSamples: [],
+    sampleRecords: [],
+  };
+
+  const [teamsFromDb, identityRows] = await Promise.all([
+    prisma.sportsTeam.findMany({
+      where: { sport, source: 'api_sports' },
+      select: { externalId: true, name: true, shortName: true },
+    }),
+    prisma.playerIdentityMap.findMany({
+      where: { sport },
+      select: {
+        apiSportsId: true,
+        normalizedName: true,
+        currentTeam: true,
+        position: true,
+      },
+    }),
+  ]);
+
+  const identityByApiSportsId = new Map<string, (typeof identityRows)[number]>();
+  const identityByNormalizedName = new Map<string, Array<(typeof identityRows)[number]>>();
+  for (const row of identityRows) {
+    if (row.apiSportsId) identityByApiSportsId.set(String(row.apiSportsId), row);
+    const key = (row.normalizedName || '').trim();
+    if (!key) continue;
+    const list = identityByNormalizedName.get(key) || [];
+    list.push(row);
+    identityByNormalizedName.set(key, list);
+  }
+
+  let teams = teamsFromDb;
+  if (teams.length === 0) {
+    try {
+      const fetchedTeams = await fetchAPISportsTeams(season, { sport });
+      teams = fetchedTeams.map((team) => ({
+        externalId: String(team.id),
+        name: team.name,
+        shortName: teamNameToAbbrev(team.name),
+      }));
+    } catch {
+      teams = [];
+    }
+  }
+
+  if (teams.length === 0) {
+    return summary;
+  }
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 6 * 60 * 60 * 1000);
+
+  outer: for (const team of teams) {
+    let players: APISportsPlayer[] = [];
+    try {
+      players = await fetchAPISportsPlayers(String(team.externalId), season);
+      summary.endpointSuccesses += 1;
+    } catch {
+      summary.endpointFailures += 1;
+      continue;
+    }
+
+    for (const player of players) {
+      if (limitPlayers != null && summary.playersScanned >= limitPlayers) break outer;
+
+      const playerId = String(player.id ?? '').trim();
+      const playerName = String(player.name ?? '').trim();
+      const normalizedName = normalizePlayerName(playerName);
+      const position = normalizePosition(player.position || player.group);
+      const apiTeam = teamNameToAbbrev(player.team?.name || team.name);
+
+      summary.playersScanned += 1;
+      if (!playerId || !playerName) {
+        summary.rowsSkippedNoPlayerId += 1;
+        continue;
+      }
+
+      let identity = identityByApiSportsId.get(playerId) || null;
+      if (!identity && normalizedName) {
+        const candidates = identityByNormalizedName.get(normalizedName) || [];
+        if (candidates.length === 1) identity = candidates[0];
+      }
+
+      if (!identity && requireIdentity) {
+        summary.rowsSkippedMissingIdentity += 1;
+        if (summary.identityMapGapSamples.length < 25) {
+          summary.identityMapGapSamples.push({
+            playerId,
+            playerName,
+            team: apiTeam,
+          });
+        }
+        continue;
+      }
+
+      let statRows: APISportsPlayerStatistics[] = [];
+      try {
+        statRows = await fetchAPISportsPlayerStatistics(playerId, season);
+        summary.endpointSuccesses += 1;
+      } catch {
+        summary.endpointFailures += 1;
+        continue;
+      }
+
+      if (!Array.isArray(statRows) || statRows.length === 0) {
+        summary.rowsSkippedNoStats += 1;
+        continue;
+      }
+
+      summary.playerStatsFetched += 1;
+      summary.statsRowsAvailable += statRows.length;
+
+      const normalized = normalizeAPISportsPlayerStatistics(statRows);
+      const teamForRow = identity?.currentTeam || apiTeam;
+      const positionForRow = position || identity?.position || null;
+      const key = {
+        sport_playerId_season_seasonType_source: {
+          sport,
+          playerId,
+          season,
+          seasonType: 'regular',
+          source: 'api_sports',
+        },
+      } as const;
+
+      const existing = await prisma.playerSeasonStats.findUnique({
+        where: {
+          sport_playerId_season_seasonType_source: key.sport_playerId_season_seasonType_source,
+        },
+        select: { id: true },
+      });
+
+      if (!apply) {
+        if (existing) summary.rowsUpdated += 1;
+        else summary.rowsInserted += 1;
+      } else {
+        await prisma.playerSeasonStats.upsert({
+          where: key,
+          update: {
+            playerName,
+            position: positionForRow,
+            team: teamForRow,
+            stats: {
+              provider: 'api_sports',
+              sport,
+              season,
+              fetchedAt: now.toISOString(),
+              teams: normalized.teams,
+              flattened: normalized.flattened,
+            } as object,
+            gamesPlayed: normalized.gamesPlayed != null ? Math.round(normalized.gamesPlayed) : null,
+            fantasyPoints: normalized.fantasyPoints,
+            fantasyPointsPerGame: normalized.fantasyPointsPerGame,
+            fetchedAt: now,
+            expiresAt,
+          },
+          create: {
+            sport,
+            playerId,
+            playerName,
+            season,
+            seasonType: 'regular',
+            position: positionForRow,
+            team: teamForRow,
+            stats: {
+              provider: 'api_sports',
+              sport,
+              season,
+              fetchedAt: now.toISOString(),
+              teams: normalized.teams,
+              flattened: normalized.flattened,
+            } as object,
+            gamesPlayed: normalized.gamesPlayed != null ? Math.round(normalized.gamesPlayed) : null,
+            fantasyPoints: normalized.fantasyPoints,
+            fantasyPointsPerGame: normalized.fantasyPointsPerGame,
+            source: 'api_sports',
+            fetchedAt: now,
+            expiresAt,
+          },
+        });
+        if (existing) summary.rowsUpdated += 1;
+        else summary.rowsInserted += 1;
+      }
+
+      if (summary.sampleRecords.length < 20) {
+        summary.sampleRecords.push({
+          playerId,
+          playerName,
+          team: teamForRow,
+          position: positionForRow,
+          hasIdentity: Boolean(identity),
+          fantasyPoints: normalized.fantasyPoints,
+          fantasyPointsPerGame: normalized.fantasyPointsPerGame,
+          gamesPlayed: normalized.gamesPlayed,
+        });
+      }
+    }
+  }
+
+  return summary;
+}
+
+export async function syncAPISportsStandingsToDb(opts?: { season?: string; sport?: 'NFL' | 'NCAAF' }): Promise<number> {
+  const currentSeason = opts?.season || getCurrentNFLSeasonForAPISports();
+  const dbSport = resolveDbSport(opts?.sport)
   let standings: APISportsStanding[];
 
   try {
-    standings = await fetchAPISportsStandings(currentSeason);
+    standings = await fetchAPISportsStandings(currentSeason, { sport: dbSport });
   } catch (error) {
     console.error('[API-Sports] Failed to fetch standings:', error);
     return 0;
@@ -1032,7 +1457,7 @@ export async function syncAPISportsStandingsToDb(season?: string): Promise<numbe
     const teamAbbrev = teamNameToAbbrev(s.team.name) || s.team.name;
 
     try {
-      const cacheKey = `NFL:standings:${currentSeason}:${teamAbbrev}`;
+      const cacheKey = `${dbSport}:standings:${currentSeason}:${teamAbbrev}`;
       await (prisma.sportsDataCache as any).upsert({
         where: { cacheKey },
         update: {
@@ -1049,6 +1474,7 @@ export async function syncAPISportsStandingsToDb(season?: string): Promise<numbe
             conference: s.group?.conference || null,
             division: s.group?.name || null,
             season: currentSeason,
+            sport: dbSport,
           } as object,
           expiresAt,
         },
@@ -1067,6 +1493,7 @@ export async function syncAPISportsStandingsToDb(season?: string): Promise<numbe
             conference: s.group?.conference || null,
             division: s.group?.name || null,
             season: currentSeason,
+            sport: dbSport,
           } as object,
           expiresAt,
         },
@@ -1077,7 +1504,7 @@ export async function syncAPISportsStandingsToDb(season?: string): Promise<numbe
     }
   }
 
-  console.log(`[API-Sports] Synced ${synced}/${standings.length} standings`);
+  console.log(`[API-Sports] Synced ${synced}/${standings.length} ${dbSport} standings`);
   return synced;
 }
 

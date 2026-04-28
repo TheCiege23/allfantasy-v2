@@ -2,9 +2,9 @@ import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { lookupBySleeperIds, lookupByNames } from '@/lib/unified-player-service'
 import { normalizeTeamAbbrev } from '@/lib/team-abbrev'
+import { getTeamLogoUrl as resolveTeamLogoUrl } from '@/lib/player-media-urls'
 
 const SLEEPER_HEADSHOT_BASE = 'https://sleepercdn.com/content/nfl/players/thumb'
-const ESPN_LOGO_BASE = 'https://a.espncdn.com/i/teamlogos/nfl/500'
 
 const ESPN_TEAM_MAP: Record<string, string> = {
   ARI: 'ari', ATL: 'atl', BAL: 'bal', BUF: 'buf',
@@ -21,8 +21,7 @@ function getTeamLogoUrl(teamAbbrev: string | null): string {
   if (!teamAbbrev) return ''
   const normalized = normalizeTeamAbbrev(teamAbbrev)
   if (!normalized) return ''
-  const key = ESPN_TEAM_MAP[normalized]
-  return key ? `${ESPN_LOGO_BASE}/${key}.png` : ''
+  return resolveTeamLogoUrl(normalized, 'nfl') ?? ''
 }
 
 function getPlayerHeadshotUrl(sleeperId: string): string {

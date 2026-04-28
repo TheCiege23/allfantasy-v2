@@ -1,0 +1,1 @@
+export { FloatingMusicWidget } from './FloatingMusicWidget';

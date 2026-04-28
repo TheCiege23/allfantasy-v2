@@ -1,28 +1,28 @@
 import type { Metadata } from 'next'
 import dynamic from 'next/dynamic'
 import { Suspense } from 'react'
-import type { Session } from 'next-auth'
-import { getServerSession } from 'next-auth'
 import { PageJsonLd } from '@/components/seo/JsonLd'
-import { authOptions } from '@/lib/auth'
+import { LandingInviteCapture } from '@/components/landing/LandingInviteCapture'
+import { getHomeInitialSession } from '@/lib/landing/get-home-initial-session'
+
+/**
+ * Client-only: SSR-bundling this module on Windows Next 14.2 reliably hits
+ * webpack-runtime `reading 'call'` at `next/image` and can corrupt `.next-dev-local`
+ * manifests (`React Client Manifest` / `entryCSSFiles` / empty JSON).
+ */
+const LandingPageClient = dynamic(() => import('@/components/landing/LandingPageClient'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex min-h-[40vh] items-center justify-center bg-[#110b1e] text-sm text-white/50">
+      Loading…
+    </div>
+  ),
+})
 import {
   buildSeoMeta,
   getSoftwareApplicationSchema,
   getWebPageSchema,
 } from '@/lib/seo'
-
-/**
- * Lazy chunk for the landing client avoids Next 14 static prerender failing with
- * webpack-runtime `Cannot read properties of undefined (reading 'call')` during RSC Flight deserialization.
- * Keep all imports above — do not place `export const` between import lines.
- */
-const LandingPageClient = dynamic(() => import('@/components/landing/LandingPageClient'), {
-  ssr: true,
-})
-
-const LandingInviteCapture = dynamic(() => import('@/components/landing/LandingInviteCapture').then((m) => m.LandingInviteCapture), {
-  ssr: false,
-})
 
 export const metadata: Metadata = buildSeoMeta({
   title: 'AllFantasy.ai — AI-Powered Fantasy Sports | NFL, NBA, NHL, MLB & More',
@@ -64,7 +64,7 @@ const HOME_SOFTWARE_APP_SCHEMA = getSoftwareApplicationSchema({
 })
 
 export default async function HomePage() {
-  const initialSession = (await getServerSession(authOptions as never)) as Session | null
+  const initialSession = await getHomeInitialSession()
 
   return (
     <>

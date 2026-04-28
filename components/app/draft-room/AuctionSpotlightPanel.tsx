@@ -209,3 +209,5 @@ export function AuctionSpotlightPanel({
     </section>
   )
 }
+
+export default AuctionSpotlightPanel

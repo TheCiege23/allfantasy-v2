@@ -8,6 +8,7 @@ import { buildFeedbackPromptBlock } from '@/lib/feedback-store'
 import { getUserTradeProfile } from '@/lib/trade-feedback-profile'
 import { executeSerperWebSearch, executeSerperNewsSearch } from '@/lib/serper'
 import { fetchFantasyCalcValues as fetchCalcValues } from '@/lib/fantasycalc'
+import { getOrCreateAiResult } from '@/lib/ai/ai-result-cache'
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -358,6 +359,147 @@ export const POST = withApiUsage({ endpoint: '/api/instant/improve-trade', tool:
       feedbackBlock: buildFeedbackPromptBlock(),
       userPreferenceProfile: userPreferenceProfile || undefined,
     })
+
+    // Deterministic cache path only (no streaming, no real-time tool calls).
+    if (!shouldStream && !useRealTimeNews) {
+      const deterministicPayload = {
+        feature: 'instant-improve-trade-suggestions',
+        contextId: typeof contextId === 'string' ? contextId : null,
+        tradeText,
+        currentVerdict: currentVerdict || 'unknown',
+        currentFairness: percentDiff,
+        leagueSize,
+        scoring,
+        isDynasty,
+        leagueSettings: leagueSettings || null,
+        userRoster: userRoster || null,
+        userFAABRemaining: userFAABRemaining ?? null,
+        userContentionWindow: userContentionWindow || null,
+        userRecord: userRecord || null,
+        fantasyCalcSnippet: fantasyCalcSnippet || null,
+        userPreferenceProfile: userPreferenceProfile || null,
+        promptVersion: 'v1',
+      }
+
+      const aiResult = await getOrCreateAiResult({
+        feature: 'instant-improve-trade-suggestions',
+        scopeType: 'context',
+        scopeId: (typeof contextId === 'string' && contextId.trim()) || `ip:${ip}`,
+        provider: 'openai+grok',
+        model: 'gpt-4o|grok-4-0709',
+        payload: deterministicPayload,
+        ttlSeconds: 60 * 60,
+        onCacheMiss: async () => {
+          const [grokResult, openaiResult] = await Promise.allSettled([
+            grokClient.chat.completions.create({
+              model: 'grok-4-0709',
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: 'Generate the counter-offer suggestions now. Return only JSON.' },
+              ],
+              temperature: 0.6,
+              max_tokens: 1800,
+              response_format: { type: 'json_object' },
+            }).then(r => r.choices[0]?.message?.content || '{}'),
+            openaiClient.chat.completions.create({
+              model: 'gpt-4o',
+              messages: [
+                {
+                  role: 'system',
+                  content: systemPrompt + '\n\nYou are the strategic verification brain. Focus on long-term dynasty implications, roster fit, risk assessment, and acceptance probability. Return only JSON.',
+                },
+                {
+                  role: 'user',
+                  content: 'Generate the counter-offer suggestions now. Focus on deep strategic reasoning and risk-adjusted value. Return only JSON.',
+                },
+              ],
+              temperature: 0.5,
+              max_tokens: 1400,
+              response_format: { type: 'json_object' },
+            }),
+          ])
+
+          const grokContent = grokResult.status === 'fulfilled'
+            ? grokResult.value
+            : '{"error": "Grok unavailable"}'
+          const openaiContent = openaiResult.status === 'fulfilled'
+            ? (openaiResult.value.choices[0]?.message?.content || '{}')
+            : '{"error": "OpenAI unavailable"}'
+
+          if (grokResult.status === 'rejected' && openaiResult.status === 'rejected') {
+            throw new Error('Both AI models are unavailable. Please try again.')
+          }
+
+          const hasSingleSource = grokResult.status === 'rejected' || openaiResult.status === 'rejected'
+          if (hasSingleSource) {
+            let parsedSingle: any
+            try { parsedSingle = JSON.parse(grokResult.status === 'rejected' ? openaiContent : grokContent) } catch {}
+            const directSuggestions = parsedSingle ? parseSuggestions(parsedSingle) : null
+            if (directSuggestions && directSuggestions.length > 0) {
+              return {
+                resultText: JSON.stringify({ suggestions: directSuggestions }),
+                resultJson: { suggestions: directSuggestions },
+                tokenPrompt: null,
+                tokenOutput: null,
+              }
+            }
+          }
+
+          const synthesis = await openaiClient.chat.completions.create({
+            model: 'gpt-4o',
+            messages: [
+              {
+                role: 'system',
+                content: `You are the final synthesizer combining two elite AI trade analysts. Merge Grok's real-time research with OpenAI's strategically deep suggestions into one cohesive, best-possible set of 3-5 counter-offers. Pick the strongest from both, deduplicate, and order by acceptance likelihood. Return ONLY valid JSON with "suggestions" array.`,
+              },
+              {
+                role: 'user',
+                content: `Grok (real-time research with web/X tools) output:\n${grokContent}\n\nOpenAI (strategic depth) output:\n${openaiContent}\n\nProduce the final merged 3-5 suggestions in exact JSON format.`,
+              },
+            ],
+            temperature: 0.4,
+            max_tokens: 1600,
+            response_format: { type: 'json_object' },
+          })
+
+          const rawContent = synthesis.choices[0]?.message?.content || '{}'
+          let parsed: any
+          try {
+            parsed = JSON.parse(rawContent)
+          } catch {
+            throw new Error('Could not parse AI suggestions. Please try again.')
+          }
+
+          const suggestions = parseSuggestions(parsed)
+          if (!suggestions || suggestions.length === 0) {
+            throw new Error('AI returned no suggestions. Please try again.')
+          }
+
+          return {
+            resultText: JSON.stringify({ suggestions }),
+            resultJson: { suggestions },
+            tokenPrompt: synthesis.usage?.prompt_tokens ?? null,
+            tokenOutput: synthesis.usage?.completion_tokens ?? null,
+          }
+        },
+      })
+
+      if (aiResult.cacheHit) {
+        console.log(`[instant/improve-trade] AI cache hit { contextId: '${(typeof contextId === 'string' && contextId.trim()) || 'none'}' }`)
+      } else {
+        console.log(`[instant/improve-trade] AI cache miss { contextId: '${(typeof contextId === 'string' && contextId.trim()) || 'none'}', modelCallMs: ${aiResult.modelDurationMs ?? -1} }`)
+        console.log(`[instant/improve-trade] saved AiResult { id: '${aiResult.row.id}', resultKey: '${aiResult.row.resultKey}' }`)
+      }
+
+      const cachedSuggestions = ((aiResult.row.resultJson as any)?.suggestions as any[]) || []
+      if (!Array.isArray(cachedSuggestions) || cachedSuggestions.length === 0) {
+        return NextResponse.json(
+          { error: 'AI returned no suggestions. Please try again.' },
+          { status: 500 }
+        )
+      }
+      return NextResponse.json({ suggestions: cachedSuggestions })
+    }
 
     if (req.signal?.aborted) {
       return new Response('Request aborted', { status: 499 })

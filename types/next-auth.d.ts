@@ -7,6 +7,8 @@ declare module "next-auth" {
       name?: string | null
       email?: string | null
       image?: string | null
+      /** True when user has linked Spotify (auth_accounts row). */
+      spotifyAccount?: boolean
     }
   }
 
@@ -15,6 +17,7 @@ declare module "next-auth" {
     name?: string | null
     email?: string | null
     image?: string | null
+    spotifyAccount?: boolean
   }
 }
 

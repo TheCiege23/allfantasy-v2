@@ -1,0 +1,1150 @@
+# DB-First Architecture Audit
+
+- Date: 2026-04-27
+- Files scanned: 7602
+- Findings: 10483
+
+## Summary
+
+- BAD: page load calls external API: 9
+- BAD: route rebuilds full draft pool: 77
+- BAD: frontend guesses image/logo: 1204
+- BAD: AI call without cache check: 59
+- BAD: fantasy points calculated every request: 27
+- OK: sync job only: 30
+- OK: backend reads DB: 9024
+- OK: exception annotated: 53
+
+## BAD: page load calls external API
+
+- app/league/[leagueId]/components/LeagueSettingsSubPanels.tsx:606 - frontend/page code references external API host
+  - const dr = await fetch(`https://api.sleeper.app/v1/draft/${c.draftId}`)
+- app/league/[leagueId]/components/LeagueSettingsSubPanels.tsx:633 - frontend/page code references external API host
+  - void fetch(`https://api.sleeper.app/v1/draft/${currentDraftId}/picks`)
+- lib/ai-tools-start-sit/opponentMatchup.ts:5 - non-ingestion library references external API host
+  - const SLEEPER = 'https://api.sleeper.app/v1'
+- lib/league-context-engine/resolvePeriod.ts:7 - non-ingestion library references external API host
+  - const SLEEPER_STATE = 'https://api.sleeper.app/v1/state'
+- lib/matchup-prep-dashboard/resolveMatchupOpponent.ts:6 - non-ingestion library references external API host
+  - const SLEEPER = 'https://api.sleeper.app/v1'
+- lib/mock-draft/adp-realtime-adjuster.ts:32 - non-ingestion library references external API host
+  - const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=40', {
+- lib/news/newsapi-cache.ts:305 - non-ingestion library references external API host
+  - const response = await fetch(`https://newsapi.org/v2/everything?${params.toString()}`, {
+- lib/news/newsapi-cache.ts:334 - non-ingestion library references external API host
+  - const response = await fetch(`https://newsapi.org/v2/top-headlines?${params.toString()}`, {
+- lib/sports-live-scores-service.ts:136 - non-ingestion library references external API host
+  - const url = `https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard`
+
+## BAD: route rebuilds full draft pool
+
+- app/api/devy/draft/route.ts:6 - draft pool assembly/refresh found in request-path code
+  - import { buildAnnualDraftPool } from '@/lib/devy/draftFormatEngine'
+- app/api/devy/draft/route.ts:31 - draft pool assembly/refresh found in request-path code
+  - const pool = await buildAnnualDraftPool(leagueId, season, draftType)
+- app/api/devy/draft/route.ts:52 - draft pool assembly/refresh found in request-path code
+  - const pool = await buildAnnualDraftPool(leagueId, season, draftType)
+- app/api/leagues/[leagueId]/draft/pool/route.ts:2 - draft pool assembly/refresh found in request-path code
+  - * GET: Normalized draft pool for league (sport-aware).
+- app/api/leagues/[leagueId]/draft/pool/route.ts:4 - draft pool assembly/refresh found in request-path code
+  - * Core implementation: `getResolvedDraftPoolForLeague`.
+- app/api/leagues/[leagueId]/draft/pool/route.ts:27 - draft pool assembly/refresh found in request-path code
+  - getResolvedDraftPoolForLeague,
+- app/api/leagues/[leagueId]/draft/pool/route.ts:30 - draft pool assembly/refresh found in request-path code
+  - } from '@/lib/draft-room/getResolvedDraftPoolForLeague'
+- app/api/leagues/[leagueId]/draft/pool/route.ts:36 - draft pool assembly/refresh found in request-path code
+  - /** @deprecated Import from `@/lib/draft-room/getResolvedDraftPoolForLeague` */
+- app/api/leagues/[leagueId]/draft/pool/route.ts:210 - draft pool assembly/refresh found in request-path code
+  - const resolved = await getResolvedDraftPoolForLeague(leagueId, {
+- app/api/leagues/[leagueId]/draft/pool/route.ts:335 - draft pool assembly/refresh found in request-path code
+  - { error: (e as Error).message ?? 'Failed to load draft pool' },
+- app/api/legacy/waiver/analyze/route.ts:22 - draft pool assembly/refresh found in request-path code
+  - import { attachPlayerMediaBatch } from '@/lib/player-media'
+- app/api/legacy/waiver/analyze/route.ts:726 - draft pool assembly/refresh found in request-path code
+  - ? await attachPlayerMediaBatch(waiverPlayerIds)
+- app/api/trade-evaluator/route.ts:43 - draft pool assembly/refresh found in request-path code
+  - import { attachPlayerMediaBatch } from '@/lib/player-media'
+- app/api/trade-evaluator/route.ts:525 - draft pool assembly/refresh found in request-path code
+  - ? await attachPlayerMediaBatch(playersToResolve)
+- app/api/trade-finder/matchmaking/route.ts:12 - draft pool assembly/refresh found in request-path code
+  - import { attachPlayerMediaBatch } from '@/lib/player-media'
+- app/api/trade-finder/matchmaking/route.ts:425 - draft pool assembly/refresh found in request-path code
+  - const mediaMap = await attachPlayerMediaBatch(
+- lib/ai/aiDraftHelper.ts:34 - draft pool assembly/refresh found in request-path code
+  - /** Starter-eligible positions for this league — same basis as draft pool (optional when no league template). */
+- lib/c2c/draftFormatEngine.ts:27 - draft pool assembly/refresh found in request-path code
+  - /** Draft pool layout per startup/future format. */
+- lib/data/adp.ts:104 - draft pool assembly/refresh found in request-path code
+  - await runAdpImporter({ sports: [normalizedSport] })
+- lib/data/adp.ts:113 - draft pool assembly/refresh found in request-path code
+  - runAdpImporter({ sports: [normalizedSport] })
+- lib/data/adp.ts:136 - draft pool assembly/refresh found in request-path code
+  - triggerBackgroundRefresh(`adp-trends:${playerId}`, () => runAdpImporter())
+- lib/data/adp.ts:168 - draft pool assembly/refresh found in request-path code
+  - await runAdpImporter({ sports: [normalizedSport] })
+- lib/data/adp.ts:192 - draft pool assembly/refresh found in request-path code
+  - triggerBackgroundRefresh(`positional-adp:${normalizedSport}:${position}`, () => runAdpImporter({ sports: [normalizedSport] }))
+- lib/data/league-home.ts:15 - draft pool assembly/refresh found in request-path code
+  - import { attachPlayerMediaBatch } from '@/lib/player-media'
+- lib/data/league-home.ts:118 - draft pool assembly/refresh found in request-path code
+  - type PlayerMediaBatchMap = Awaited<ReturnType<typeof attachPlayerMediaBatch>>
+- lib/data/league-home.ts:471 - draft pool assembly/refresh found in request-path code
+  - attachPlayerMediaBatch(uniqueIds.map((playerId) => ({ playerId, sport }))).catch((error) => {
+- lib/devy/draftFormatEngine.ts:30 - draft pool assembly/refresh found in request-path code
+  - /** Startup draft pool layout — format is locked at league creation. */
+- lib/devy/draftFormatEngine.ts:109 - draft pool assembly/refresh found in request-path code
+  - * Builds the annual draft pool. Wires to `Player` / college feeds when present; otherwise returns structural metadata only.
+- lib/devy/draftFormatEngine.ts:111 - draft pool assembly/refresh found in request-path code
+  - export async function buildAnnualDraftPool(
+- lib/devy/pool/DevyPoolManager.ts:2 - draft pool assembly/refresh found in request-path code
+  - * Devy Pool Manager — builds draft pools with strict pool separation. PROMPT 3/6.
+- lib/devy/pool/DevyPoolManager.ts:53 - draft pool assembly/refresh found in request-path code
+  - * Build the devy draft pool for a league:
+- lib/devy/pool/DevyPoolManager.ts:134 - draft pool assembly/refresh found in request-path code
+  - * Build the rookie draft pool for a league:
+- lib/devy/pool/DevyPoolManager.ts:161 - draft pool assembly/refresh found in request-path code
+  - * Check if a given pro player ID is eligible for the rookie draft pool in this league.
+- lib/devy/pool/DevyPoolManager.ts:170 - draft pool assembly/refresh found in request-path code
+  - * Check if a given devy player ID (pre-promotion) is eligible for the rookie draft pool.
+- lib/devy/pool/DevyPoolSeparation.ts:43 - draft pool assembly/refresh found in request-path code
+  - * Check if a player (by devyPlayerId) should be excluded from the rookie draft pool because
+- lib/draft/analytics/nfl-draft-pool-projection-splits.ts:2 - draft pool assembly/refresh found in request-path code
+  - * NFL draft pool: season projection + rushing/receiving/passing splits for Sleeper-style grid UI.
+- lib/draft/analytics/nfl-rolling-insights-draft-analytics.ts:3 - draft pool assembly/refresh found in request-path code
+  - * Single resolved analytics object per player for draft pool rows — no silent field-by-field mixing.
+- lib/draft/analytics/nfl-rolling-insights-draft-analytics.ts:61 - draft pool assembly/refresh found in request-path code
+  - * Resolve one player’s displayed PPG/LTV for the draft pool.
+- lib/draft/analytics/nfl-rolling-insights-draft-analytics.ts:140 - draft pool assembly/refresh found in request-path code
+  - * Batch-load Rolling Insights season rows for NFL draft pool rows (identity via PlayerIdentityMap).
+- lib/draft/analytics/nfl-rolling-insights-draft-analytics.ts:191 - draft pool assembly/refresh found in request-path code
+  - /** E.2 bug fix: pool callers normalize pk via toLowerCase() (see getResolvedDraftPoolForLeague.ts
+- lib/draft-ai-engine/index.ts:28 - draft pool assembly/refresh found in request-path code
+  - /** Same starter-eligible set as draft pool / autopick (omit bench-only union). */
+- lib/draft-asset-pipeline/DraftAssetPipelineService.ts:76 - draft pool assembly/refresh found in request-path code
+  - export function normalizePlayerList(
+- lib/draft-asset-pipeline/index.ts:14 - draft pool assembly/refresh found in request-path code
+  - normalizePlayerList,
+- lib/draft-helper/RecommendationEngine.ts:39 - draft pool assembly/refresh found in request-path code
+  - /** When set, need weights ignore positions outside this starter-eligible set (same as draft pool). */
+- lib/draft-room/ai-adp-lookup.ts:2 - draft pool assembly/refresh found in request-path code
+  - * Match AI ADP snapshot rows to draft pool players.
+- lib/draft-room/draft-pool-eligible-positions.ts:2 - draft pool assembly/refresh found in request-path code
+  - * Helpers for filtering draft pool rows against starter-eligible positions
+- lib/draft-room/getResolvedDraftPoolForLeague.ts:2 - draft pool assembly/refresh found in request-path code
+  - * Single server source for normalized draft pool rows (same enrichment as GET /draft/pool).
+- lib/draft-room/getResolvedDraftPoolForLeague.ts:9 - draft pool assembly/refresh found in request-path code
+  - import { normalizePlayerList, type NormalizedDraftEntry } from '@/lib/draft-asset-pipeline'
+- lib/draft-room/getResolvedDraftPoolForLeague.ts:226 - draft pool assembly/refresh found in request-path code
+  - await runAdpImporter({ sports: [sport] })
+- lib/draft-room/getResolvedDraftPoolForLeague.ts:472 - draft pool assembly/refresh found in request-path code
+  - * Builds the same normalized draft pool as GET `/api/leagues/[leagueId]/draft/pool`.
+- lib/draft-room/getResolvedDraftPoolForLeague.ts:474 - draft pool assembly/refresh found in request-path code
+  - export async function getResolvedDraftPoolForLeague(
+- lib/draft-room/getResolvedDraftPoolForLeague.ts:1184 - draft pool assembly/refresh found in request-path code
+  - let entries = normalizePlayerList(dedupedEnrichedList, sport)
+- lib/draft-room/nflRookieLookup.ts:7 - draft pool assembly/refresh found in request-path code
+  - * `<normalized name>|<position>` so the resolved draft pool can attach
+- lib/draft-room/player-canonical-identity.ts:18 - draft pool assembly/refresh found in request-path code
+  - * `getResolvedDraftPoolForLeague.ts`, which turned apostrophes into spaces and
+- lib/draft-room/rookieFilterPredicate.ts:2 - draft pool assembly/refresh found in request-path code
+  - * D.7 — pure predicate for the "Rookies Only" draft pool filter.
+- lib/draft-sports-models/normalize-draft-player.ts:59 - draft pool assembly/refresh found in request-path code
+  - /** NFL draft pool: projection + split stats for grid UI (from `/draft/pool`). */
+- lib/draft-sports-models/types.ts:94 - draft pool assembly/refresh found in request-path code
+  - /** Normalized draft pool entry: display model + draft-specific fields (ADP, etc.). */
+- lib/keeper/draftIntegration.ts:18 - draft pool assembly/refresh found in request-path code
+  - summary: `${locked.length} keeper slots applied; ${playersExcluded.length} players excluded from draft pool.`,
+- lib/league/faqGenerator.ts:352 - draft pool assembly/refresh found in request-path code
+  - All non-kept players return to the draft pool. A hybrid of redraft and dynasty.
+- lib/league/faqGenerator.ts:372 - draft pool assembly/refresh found in request-path code
+  - After keepers are locked, remaining players enter the draft pool.
+- lib/league/faqGenerator.ts:749 - draft pool assembly/refresh found in request-path code
+  - 2. DRAFT ELIGIBLE — Enters pro draft pool
+- lib/league/getEffectiveLeagueRosterTemplate.ts:47 - draft pool assembly/refresh found in request-path code
+  - * do not appear in the draft pool when the league has no K starter (only BN could hold a K otherwise).
+- lib/league/getEffectiveLeagueRosterTemplate.ts:116 - draft pool assembly/refresh found in request-path code
+  - * Positions that can fill a starting slot (`starterCount` &gt; 0). Draft pool / autopick / queue validation
+- lib/league/invalidateLeagueDraftCaches.ts:5 - draft pool assembly/refresh found in request-path code
+  - * After roster or template-affecting league updates: drop in-memory draft pool API cache,
+- lib/league/league-draft-template-payload.ts:30 - draft pool assembly/refresh found in request-path code
+  - /** Starter/flex starter paths only — same basis as draft pool filtering. */
+- lib/live-draft-engine/autopickBestAvailableSubmit.ts:13 - draft pool assembly/refresh found in request-path code
+  - import { getResolvedDraftPoolForLeague } from '@/lib/draft-room/getResolvedDraftPoolForLeague'
+- lib/live-draft-engine/autopickBestAvailableSubmit.ts:145 - draft pool assembly/refresh found in request-path code
+  - const resolved = await getResolvedDraftPoolForLeague(leagueId, {
+- lib/live-draft-engine/autopickBestAvailableSubmit.ts:160 - draft pool assembly/refresh found in request-path code
+  - console.warn('[autopick] getResolvedDraftPoolForLeague failed; using legacy fallback pool', err)
+- lib/live-draft-engine/RosterFitValidation.ts:23 - draft pool assembly/refresh found in request-path code
+  - * Uses the same effective template as the draft pool and roster gate.
+- lib/merged-devy-c2c/pool/C2CPoolSeparation.ts:84 - draft pool assembly/refresh found in request-path code
+  - if (isPro(id) && !isDevy(id)) errors.push(`College draft pool cannot contain pro player: ${id}`)
+- lib/mock-draft/mock-draft-pool-cache.ts:5 - draft pool assembly/refresh found in request-path code
+  - import { normalizePlayerList } from '@/lib/draft-asset-pipeline'
+- lib/mock-draft/mock-draft-pool-cache.ts:174 - draft pool assembly/refresh found in request-path code
+  - const normalized = normalizePlayerList(raw, sport)
+- lib/mock-draft/mock-draft-pool-cache.ts:270 - draft pool assembly/refresh found in request-path code
+  - const normalized = normalizePlayerList(rawNormalized, sport)
+- lib/player-media.ts:81 - draft pool assembly/refresh found in request-path code
+  - export async function attachPlayerMedia(player: {
+- lib/player-media.ts:187 - draft pool assembly/refresh found in request-path code
+  - export async function attachPlayerMediaBatch(
+- lib/player-media.ts:350 - draft pool assembly/refresh found in request-path code
+  - export async function attachPlayerMediaHistorical(
+- lib/rolling-insights.ts:414 - draft pool assembly/refresh found in request-path code
+  - * `regularSeason` blocks — clearly unusable for a current draft pool. When that
+
+## BAD: frontend guesses image/logo
+
+- app/af-legacy/components/mock-draft/MockDraftBoard.tsx:6 - media lookup/build logic found outside DB-backed asset layer
+  - import { teamLogoUrl } from '@/lib/media-url'
+- app/af-legacy/components/mock-draft/MockDraftBoard.tsx:98 - media lookup/build logic found outside DB-backed asset layer
+  - const src = team ? teamLogoUrl(team) : ''
+- app/af-legacy/page.tsx:16 - media lookup/build logic found outside DB-backed asset layer
+  - import { headshotUrl, teamLogoUrl } from '@/lib/media-url'
+- app/af-legacy/page.tsx:1302 - media lookup/build logic found outside DB-backed asset layer
+  - const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; imageUrl?: string }>>([])
+- app/af-legacy/page.tsx:2055 - media lookup/build logic found outside DB-backed asset layer
+  - if (p) items.push({ type: 'player', name: p.name, pos: p.pos, team, id, media: { headshotUrl: headshotUrl(id), teamLogoUrl: teamLogoUrl(team) } })
+- app/af-legacy/page.tsx:2071 - media lookup/build logic found outside DB-backed asset layer
+  - return { type: 'player' as const, name: p.name, pos: p.pos, team, id, media: { headshotUrl: headshotUrl(id), teamLogoUrl: teamLogoUrl(team) } }
+- app/af-legacy/page.tsx:2172 - media lookup/build logic found outside DB-backed asset layer
+  - headshotUrl: headshotUrl(id),
+- app/af-legacy/page.tsx:2173 - media lookup/build logic found outside DB-backed asset layer
+  - teamLogoUrl: team ? teamLogoUrl(team) : '',
+- app/af-legacy/page.tsx:2205 - media lookup/build logic found outside DB-backed asset layer
+  - return { id, name: p.name, pos: p.pos, team, media: { headshotUrl: id ? headshotUrl(id) : '', teamLogoUrl: team ? teamLogoUrl(team) : '' } }
+- app/af-legacy/page.tsx:3903 - media lookup/build logic found outside DB-backed asset layer
+  - const userMessage: { role: 'user' | 'assistant'; content: string; imageUrl?: string } = {
+- app/af-legacy/page.tsx:3906 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl: chatImagePreview || undefined,
+- app/af-legacy/page.tsx:12933 - media lookup/build logic found outside DB-backed asset layer
+  - src={headshotUrl(waiverAnalysis.one_move.player_id)}
+- app/af-legacy/page.tsx:13005 - media lookup/build logic found outside DB-backed asset layer
+  - src={headshotUrl(s.player_id)}
+- app/af-legacy/page.tsx:15634 - media lookup/build logic found outside DB-backed asset layer
+  - {msg.imageUrl && (
+- app/af-legacy/page.tsx:15636 - media lookup/build logic found outside DB-backed asset layer
+  - src={msg.imageUrl}
+- app/af-legacy/page.tsx:16517 - media lookup/build logic found outside DB-backed asset layer
+  - src={headshotUrl(pick.playerId)}
+- app/af-legacy/page.tsx:16588 - media lookup/build logic found outside DB-backed asset layer
+  - src={headshotUrl(playerId)}
+- app/af-legacy/page.tsx:16611 - media lookup/build logic found outside DB-backed asset layer
+  - src={teamLogoUrl(player.team)}
+- app/af-legacy/page.tsx:16650 - media lookup/build logic found outside DB-backed asset layer
+  - src={headshotUrl(playerId)}
+- app/af-legacy/page.tsx:16690 - media lookup/build logic found outside DB-backed asset layer
+  - src={headshotUrl(playerId)}
+- app/af-legacy/page.tsx:16731 - media lookup/build logic found outside DB-backed asset layer
+  - src={headshotUrl(playerId)}
+- app/af-legacy/trade-analyzer/page.tsx:26 - media lookup/build logic found outside DB-backed asset layer
+  - headshotUrl: string | null
+- app/af-legacy/trade-analyzer/page.tsx:27 - media lookup/build logic found outside DB-backed asset layer
+  - teamLogoUrl: string | null
+- app/api/bracket/leagues/[leagueId]/chat/route.ts:80 - media lookup/build logic found outside DB-backed asset layer
+  - const { message, type = "text", replyToId, imageUrl, metadata } = body
+- app/api/bracket/leagues/[leagueId]/chat/route.ts:105 - media lookup/build logic found outside DB-backed asset layer
+  - if (!imageUrl) return NextResponse.json({ error: "GIF URL required" }, { status: 400 })
+- app/api/bracket/leagues/[leagueId]/chat/route.ts:112 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl,
+- app/api/bracket/leagues/[leagueId]/chat/route.ts:121 - media lookup/build logic found outside DB-backed asset layer
+  - if (!imageUrl) return NextResponse.json({ error: "Image URL required" }, { status: 400 })
+- app/api/bracket/leagues/[leagueId]/chat/route.ts:128 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl,
+- app/api/chat/global-broadcast/route.ts:49 - media lookup/build logic found outside DB-backed asset layer
+  - image: body?.imageUrl ?? null,
+- app/api/chat/upload/route.ts:109 - media lookup/build logic found outside DB-backed asset layer
+  - // Persist `blob.url` in LeagueChatMessage.metadata (or imageUrl) as returned — do not replace with signed or proxied URLs.
+- app/api/community/discord/webhook/route.ts:34 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl: body.imageUrl ? String(body.imageUrl) : undefined,
+- app/api/community/reddit/ready/route.ts:25 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl: body.imageUrl ? String(body.imageUrl) : undefined,
+- app/api/creators/[creatorIdOrSlug]/branding/route.ts:35 - media lookup/build logic found outside DB-backed asset layer
+  - logoUrl: body.logoUrl ?? undefined,
+- app/api/creators/[creatorIdOrSlug]/branding/route.ts:36 - media lookup/build logic found outside DB-backed asset layer
+  - coverImageUrl: body.coverImageUrl ?? undefined,
+- app/api/draft/player-detail/route.ts:132 - media lookup/build logic found outside DB-backed asset layer
+  - headshotUrl: record?.headshotUrl ?? seed?.imageUrl ?? null,
+- app/api/draft/players/route.ts:25 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl: true,
+- app/api/draft/players/route.ts:44 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl: r.imageUrl,
+- app/api/league/chat/route.ts:27 - media lookup/build logic found outside DB-backed asset layer
+  - const g = meta.gifUrl ?? meta.previewUrl ?? meta.imageUrl
+- app/api/leagues/[leagueId]/draft/chat/route.ts:61 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl: string | null
+- app/api/leagues/[leagueId]/draft/chat/route.ts:80 - media lookup/build logic found outside DB-backed asset layer
+  - return { body: rest || text, type, imageUrl: url, mediaUrl: url }
+- app/api/leagues/[leagueId]/draft/chat/route.ts:82 - media lookup/build logic found outside DB-backed asset layer
+  - return { body: rest || text, type, imageUrl: null, mediaUrl: url }
+- app/api/leagues/[leagueId]/draft/chat/route.ts:87 - media lookup/build logic found outside DB-backed asset layer
+  - return { body: text, type: 'text', imageUrl: null, mediaUrl: null }
+- app/api/leagues/[leagueId]/draft/chat/route.ts:92 - media lookup/build logic found outside DB-backed asset layer
+  - return { body: text, type: 'gif', imageUrl: null, mediaUrl: url }
+- app/api/leagues/[leagueId]/draft/chat/route.ts:95 - media lookup/build logic found outside DB-backed asset layer
+  - return { body: text, type: 'image', imageUrl: url, mediaUrl: url }
+- app/api/leagues/[leagueId]/draft/chat/route.ts:98 - media lookup/build logic found outside DB-backed asset layer
+  - return { body: text, type: 'video', imageUrl: null, mediaUrl: url }
+- app/api/leagues/[leagueId]/draft/chat/route.ts:100 - media lookup/build logic found outside DB-backed asset layer
+  - return { body: text, type: 'link', imageUrl: null, mediaUrl: url }
+- app/api/leagues/[leagueId]/draft/chat/route.ts:183 - media lookup/build logic found outside DB-backed asset layer
+  - const imageUrl =
+- app/api/leagues/[leagueId]/draft/chat/route.ts:184 - media lookup/build logic found outside DB-backed asset layer
+  - typeof body?.imageUrl === 'string' && body.imageUrl.trim() ? body.imageUrl.trim() : null
+- app/api/leagues/[leagueId]/draft/chat/route.ts:200 - media lookup/build logic found outside DB-backed asset layer
+  - type: imageUrl ? 'image' : mediaPayload.type,
+- app/api/leagues/[leagueId]/draft/chat/route.ts:201 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl: imageUrl ?? mediaPayload.imageUrl,
+- app/api/leagues/[leagueId]/draft/commissioner/pick-edit/route.ts:80 - media lookup/build logic found outside DB-backed asset layer
+  - body.playerImageUrl ?? body.player_image_url ?? body.imageUrl ?? body.image_url ?? null
+- app/api/leagues/[leagueId]/draft/commissioner/pick-edit/route.ts:81 - media lookup/build logic found outside DB-backed asset layer
+  - const playerImageUrl =
+- app/api/leagues/[leagueId]/draft/commissioner/pick-edit/route.ts:96 - media lookup/build logic found outside DB-backed asset layer
+  - playerImageUrl,
+- app/api/leagues/[leagueId]/draft/pick/route.ts:94 - media lookup/build logic found outside DB-backed asset layer
+  - body.playerImageUrl ?? body.player_image_url ?? body.imageUrl ?? body.image_url ?? null
+- app/api/leagues/[leagueId]/draft/pick/route.ts:95 - media lookup/build logic found outside DB-backed asset layer
+  - const playerImageUrl =
+- app/api/leagues/[leagueId]/draft/pick/route.ts:105 - media lookup/build logic found outside DB-backed asset layer
+  - playerImageUrl,
+- app/api/legacy/chat/route.ts:125 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl?: string
+- app/api/legacy/chat/route.ts:513 - media lookup/build logic found outside DB-backed asset layer
+  - } else if (msg.imageUrl) {
+- app/api/legacy/chat/route.ts:521 - media lookup/build logic found outside DB-backed asset layer
+  - url: msg.imageUrl,
+- app/api/legacy/player-enrichment/route.ts:5 - media lookup/build logic found outside DB-backed asset layer
+  - import { getTeamLogoUrl as resolveTeamLogoUrl } from '@/lib/player-media-urls'
+- app/api/legacy/player-enrichment/route.ts:7 - media lookup/build logic found outside DB-backed asset layer
+  - const SLEEPER_HEADSHOT_BASE = 'https://sleepercdn.com/content/nfl/players/thumb'
+- app/api/legacy/player-enrichment/route.ts:20 - media lookup/build logic found outside DB-backed asset layer
+  - function getTeamLogoUrl(teamAbbrev: string | null): string {
+- app/api/legacy/player-enrichment/route.ts:24 - media lookup/build logic found outside DB-backed asset layer
+  - return resolveTeamLogoUrl(normalized, 'nfl') ?? ''
+- app/api/legacy/player-enrichment/route.ts:27 - media lookup/build logic found outside DB-backed asset layer
+  - function getPlayerHeadshotUrl(sleeperId: string): string {
+- app/api/legacy/player-enrichment/route.ts:28 - media lookup/build logic found outside DB-backed asset layer
+  - return `${SLEEPER_HEADSHOT_BASE}/${sleeperId}.jpg`
+- app/api/legacy/player-enrichment/route.ts:51 - media lookup/build logic found outside DB-backed asset layer
+  - headshotUrl: string
+- app/api/legacy/player-enrichment/route.ts:52 - media lookup/build logic found outside DB-backed asset layer
+  - teamLogoUrl: string
+- app/api/legacy/player-enrichment/route.ts:63 - media lookup/build logic found outside DB-backed asset layer
+  - headshotUrl: getPlayerHeadshotUrl(sleeperId),
+- app/api/legacy/player-enrichment/route.ts:64 - media lookup/build logic found outside DB-backed asset layer
+  - teamLogoUrl: player?.currentTeam ? getTeamLogoUrl(player.currentTeam) : '',
+- app/api/legacy/player-enrichment/route.ts:83 - media lookup/build logic found outside DB-backed asset layer
+  - headshotUrl: string
+- app/api/legacy/player-enrichment/route.ts:84 - media lookup/build logic found outside DB-backed asset layer
+  - teamLogoUrl: string
+- app/api/legacy/player-enrichment/route.ts:95 - media lookup/build logic found outside DB-backed asset layer
+  - headshotUrl: player?.sleeperId ? getPlayerHeadshotUrl(player.sleeperId) : '',
+- app/api/legacy/player-enrichment/route.ts:96 - media lookup/build logic found outside DB-backed asset layer
+  - teamLogoUrl: getTeamLogoUrl(player?.currentTeam || input.team || null),
+- app/api/legacy/player-enrichment/route.ts:122 - media lookup/build logic found outside DB-backed asset layer
+  - logoUrl: getTeamLogoUrl(normalized),
+- app/api/legacy/player-enrichment/route.ts:128 - media lookup/build logic found outside DB-backed asset layer
+  - allLogos[abbrev] = getTeamLogoUrl(abbrev)
+- app/api/legacy/player-enrichment/route.ts:133 - media lookup/build logic found outside DB-backed asset layer
+  - headshotUrlPattern: `${SLEEPER_HEADSHOT_BASE}/{sleeper_id}.jpg`,
+- app/api/legacy/trade/analyze/route.ts:523 - media lookup/build logic found outside DB-backed asset layer
+  - headshot: data?.headshot?.href || null,
+- app/api/legacy/waiver/analyze/route.ts:748 - media lookup/build logic found outside DB-backed asset layer
+  - media: topMedia?.media || { headshotUrl: null, teamLogoUrl: null },
+- app/api/legacy/waiver/analyze/route.ts:777 - media lookup/build logic found outside DB-backed asset layer
+  - media: resolved?.media || { headshotUrl: null, teamLogoUrl: null },
+- app/api/news-crawl/route.ts:17 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl?: string | null;
+- app/api/news-crawl/route.ts:124 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl: true,
+- app/api/news-crawl/route.ts:162 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl: n.imageUrl,
+- app/api/players/sync/route.ts:26 - media lookup/build logic found outside DB-backed asset layer
+  - playerImg: players[0]?.headshot_url || 'none',
+- app/api/podcast/episodes/[id]/route.ts:26 - media lookup/build logic found outside DB-backed asset layer
+  - playerImg: players[0]?.headshot_url || 'none',
+- app/api/share/payload/route.ts:35 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl: body.imageUrl,
+- app/api/shared/chat/threads/[threadId]/messages/route.ts:224 - media lookup/build logic found outside DB-backed asset layer
+  - const imageUrl =
+- app/api/shared/chat/threads/[threadId]/messages/route.ts:225 - media lookup/build logic found outside DB-backed asset layer
+  - typeof body?.imageUrl === 'string' && body.imageUrl.trim().length > 0 ? body.imageUrl.trim() : null
+- app/api/shared/chat/threads/[threadId]/messages/route.ts:248 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl,
+- app/api/shared/chat/threads/[threadId]/messages/route.ts:268 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl,
+- app/api/shared/chat/threads/[threadId]/messages/route.ts:305 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl,
+- app/api/sports/news/sync-helper.ts:62 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl: string | null;
+- app/api/sports/news/sync-helper.ts:296 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl: (a.images as Array<{ url?: string }> | undefined)?.[0]?.url || null,
+- app/api/sports/news/sync-helper.ts:460 - media lookup/build logic found outside DB-backed asset layer
+  - const imageUrl = a.urlToImage ? String(a.urlToImage) : null;
+- app/api/sports/news/sync-helper.ts:488 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl,
+- app/api/sports/news/sync-helper.ts:524 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl: article.imageUrl,
+- app/api/sports/news/sync-helper.ts:545 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl: article.imageUrl,
+- app/api/trade-evaluator/route.ts:550 - media lookup/build logic found outside DB-backed asset layer
+  - media: resolved?.media || { headshotUrl: null, teamLogoUrl: null },
+- app/api/trade-finder/matchmaking/route.ts:437 - media lookup/build logic found outside DB-backed asset layer
+  - media: { headshotUrl: null, teamLogoUrl: null },
+- app/api/trade-finder/matchmaking/route.ts:447 - media lookup/build logic found outside DB-backed asset layer
+  - media: resolved?.media || { headshotUrl: null, teamLogoUrl: null },
+- app/api/trade-value/player-detail/route.ts:35 - media lookup/build logic found outside DB-backed asset layer
+  - headshotUrl: row.headshotUrl ?? row.headshotUrlLg ?? row.headshotUrlSm,
+- app/api/trade-value/player-detail/route.ts:36 - media lookup/build logic found outside DB-backed asset layer
+  - logoUrl: row.logoUrl,
+- app/api/trade-value/player-search/route.ts:29 - media lookup/build logic found outside DB-backed asset layer
+  - headshotUrl: null as string | null,
+- app/api/trade-value/player-search/route.ts:68 - media lookup/build logic found outside DB-backed asset layer
+  - headshotUrl: row.headshotUrl ?? row.headshotUrlLg ?? row.headshotUrlSm,
+- app/api/trade-value/player-search/route.ts:88 - media lookup/build logic found outside DB-backed asset layer
+  - headshotUrl: row.headshotUrl ?? row.headshotUrlLg ?? row.headshotUrlSm,
+- app/api/yahoo/leagues/route.ts:257 - media lookup/build logic found outside DB-backed asset layer
+  - logoUrl: teamInfo.team_logos?.[0]?.team_logo?.url || null,
+- app/c2c/components/C2CCampusPlayerCard.tsx:42 - media lookup/build logic found outside DB-backed asset layer
+  - {player.schoolLogoUrl ? (
+- app/c2c/components/C2CCampusPlayerCard.tsx:44 - media lookup/build logic found outside DB-backed asset layer
+  - src={player.schoolLogoUrl}
+- app/c2c/components/c2cPlayerTypes.ts:11 - media lookup/build logic found outside DB-backed asset layer
+  - schoolLogoUrl?: string | null
+- app/c2c/[leagueId]/roster/C2CRosterClient.tsx:363 - media lookup/build logic found outside DB-backed asset layer
+  - schoolLogoUrl={p.schoolLogoUrl}
+- app/c2c/[leagueId]/roster/C2CRosterClient.tsx:383 - media lookup/build logic found outside DB-backed asset layer
+  - schoolLogoUrl={p.schoolLogoUrl}
+- app/components/ChimmyChat.tsx:454 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl: m.image ?? null,
+- app/components/InstantTradeAnalyzer.tsx:60 - media lookup/build logic found outside DB-backed asset layer
+  - function getPlayerHeadshotUrl(player: PlayerAsset): string | null {
+- app/components/InstantTradeAnalyzer.tsx:61 - media lookup/build logic found outside DB-backed asset layer
+  - if (player.espnId) return `https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/${player.espnId}.png&w=96&h=70&cb=1`
+- app/components/InstantTradeAnalyzer.tsx:66 - media lookup/build logic found outside DB-backed asset layer
+  - function getTeamLogoUrl(team: string): string | null {
+- app/components/InstantTradeAnalyzer.tsx:82 - media lookup/build logic found outside DB-backed asset layer
+  - function PlayerHeadshot({ player, size = 32 }: { player: PlayerAsset; size?: number }) {
+- app/components/InstantTradeAnalyzer.tsx:84 - media lookup/build logic found outside DB-backed asset layer
+  - const url = getPlayerHeadshotUrl(player)
+- app/components/InstantTradeAnalyzer.tsx:113 - media lookup/build logic found outside DB-backed asset layer
+  - const url = getTeamLogoUrl(team)
+- app/components/InstantTradeAnalyzer.tsx:219 - media lookup/build logic found outside DB-backed asset layer
+  - <PlayerHeadshot player={p} size={28} />
+- app/components/InstantTradeAnalyzer.tsx:259 - media lookup/build logic found outside DB-backed asset layer
+  - <PlayerHeadshot player={player} size={32} />
+- app/components/PlayerImage.tsx:6 - media lookup/build logic found outside DB-backed asset layer
+  - resolveHeadshot,
+- app/components/PlayerImage.tsx:7 - media lookup/build logic found outside DB-backed asset layer
+  - resolveHeadshotCandidates,
+- app/components/PlayerImage.tsx:15 - media lookup/build logic found outside DB-backed asset layer
+  - /** Rolling Insights or other primary headshot */
+- app/components/PlayerImage.tsx:16 - media lookup/build logic found outside DB-backed asset layer
+  - headshotUrl?: string | null
+- app/components/PlayerImage.tsx:29 - media lookup/build logic found outside DB-backed asset layer
+  - export type PlayerImageUrlOpts = {
+- app/components/PlayerImage.tsx:30 - media lookup/build logic found outside DB-backed asset layer
+  - headshotUrl?: string | null
+- app/components/PlayerImage.tsx:38 - media lookup/build logic found outside DB-backed asset layer
+  - /** First URL in the sport-specific headshot chain (for SSR or static markup). */
+- app/components/PlayerImage.tsx:39 - media lookup/build logic found outside DB-backed asset layer
+  - export function getPlayerImageUrl(
+- app/components/PlayerImage.tsx:43 - media lookup/build logic found outside DB-backed asset layer
+  - opts?: PlayerImageUrlOpts,
+- app/components/PlayerImage.tsx:53 - media lookup/build logic found outside DB-backed asset layer
+  - headshot_url: opts?.headshotUrl ?? undefined,
+- app/components/PlayerImage.tsx:59 - media lookup/build logic found outside DB-backed asset layer
+  - return resolveHeadshot(enriched)
+- app/components/PlayerImage.tsx:91 - media lookup/build logic found outside DB-backed asset layer
+  - headshotUrl,
+- app/components/PlayerImage.tsx:117 - media lookup/build logic found outside DB-backed asset layer
+  - headshot_url: headshotUrl ?? undefined,
+- app/components/PlayerImage.tsx:119 - media lookup/build logic found outside DB-backed asset layer
+  - return resolveHeadshotCandidates(enriched)
+- app/components/PlayerImage.tsx:120 - media lookup/build logic found outside DB-backed asset layer
+  - }, [sleeperId, sport, name, position, headshotUrl, espnId, riId, nbaId, mlbId, nhlId, pgaId])
+- app/components/PlayerImage.tsx:124 - media lookup/build logic found outside DB-backed asset layer
+  - }, [sleeperId, sport, espnId, riId, nbaId, mlbId, nhlId, pgaId, headshotUrl])
+- app/components/TeamLogo.tsx:9 - media lookup/build logic found outside DB-backed asset layer
+  - logoUrl?: string | null
+- app/components/TeamLogo.tsx:29 - media lookup/build logic found outside DB-backed asset layer
+  - export function TeamLogo({ teamAbbr, sport = 'nfl', logoUrl = null, size = 24, className = '' }: TeamLogoProps) {
+- app/components/TeamLogo.tsx:33 - media lookup/build logic found outside DB-backed asset layer
+  - const preferred = String(logoUrl ?? '').trim()
+- app/components/TeamLogo.tsx:35 - media lookup/build logic found outside DB-backed asset layer
+  - }, [teamAbbr, sport, logoUrl])
+- app/components/TeamLogo.tsx:39 - media lookup/build logic found outside DB-backed asset layer
+  - }, [teamAbbr, sport, logoUrl])
+- app/components/WaiverSuggestionCard.tsx:4 - media lookup/build logic found outside DB-backed asset layer
+  - import { headshotUrl, teamLogoUrl } from "@/lib/media-url";
+- app/components/WaiverSuggestionCard.tsx:74 - media lookup/build logic found outside DB-backed asset layer
+  - {headshotUrl(suggestion.player_id) ? (
+- app/components/WaiverSuggestionCard.tsx:76 - media lookup/build logic found outside DB-backed asset layer
+  - src={headshotUrl(suggestion.player_id)}
+- app/components/WaiverSuggestionCard.tsx:85 - media lookup/build logic found outside DB-backed asset layer
+  - {teamLogoUrl(suggestion.team) && (
+- app/components/WaiverSuggestionCard.tsx:87 - media lookup/build logic found outside DB-backed asset layer
+  - src={teamLogoUrl(suggestion.team)}
+- app/dashboard/components/chat/GlobalBroadcastModal.tsx:15 - media lookup/build logic found outside DB-backed asset layer
+  - imageUrl?: string
+- app/devy/components/DevyPlayerCard.tsx:17 - media lookup/build logic found outside DB-backed asset layer
+  - schoolLogoUrl?: string | null
+- app/devy/components/DevyPlayerCard.tsx:36 - media lookup/build logic found outside DB-backed asset layer
+  - schoolLogoUrl,
+- app/devy/components/DevyPlayerCard.tsx:86 - media lookup/build logic found outside DB-backed asset layer
+  - {schoolLogoUrl ? (
+- app/devy/components/DevyPlayerCard.tsx:87 - media lookup/build logic found outside DB-backed asset layer
+  - <img src={schoolLogoUrl} alt="" className="absolute bottom-0 right-0 h-5 w-5 rounded-sm object-cover" />
+
+## BAD: AI call without cache check
+
+- app/api/ai/chat/route.ts:416 - AI call detected in route; verify DB cache-by-hash before model call
+  - const streamResult = await openaiChatTextStream({
+- app/api/ai-features/route.ts:99 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/chat/chimmy/route.ts:704 - AI call detected in route; verify DB cache-by-hash before model call
+  - const response = await openai.chat.completions.create({
+- app/api/dynasty-outlook/route.ts:192 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/instant/improve-trade/route.ts:89 - AI call detected in route; verify DB cache-by-hash before model call
+  - const response = await grokClient.chat.completions.create({
+- app/api/instant/improve-trade/route.ts:394 - AI call detected in route; verify DB cache-by-hash before model call
+  - grokClient.chat.completions.create({
+- app/api/instant/improve-trade/route.ts:404 - AI call detected in route; verify DB cache-by-hash before model call
+  - openaiClient.chat.completions.create({
+- app/api/instant/improve-trade/route.ts:448 - AI call detected in route; verify DB cache-by-hash before model call
+  - const synthesis = await openaiClient.chat.completions.create({
+- app/api/instant/improve-trade/route.ts:510 - AI call detected in route; verify DB cache-by-hash before model call
+  - : grokClient.chat.completions.create({
+- app/api/instant/improve-trade/route.ts:523 - AI call detected in route; verify DB cache-by-hash before model call
+  - openaiClient.chat.completions.create({
+- app/api/instant/improve-trade/route.ts:590 - AI call detected in route; verify DB cache-by-hash before model call
+  - const synthesisStream = await openaiClient.chat.completions.create({
+- app/api/instant/improve-trade/route.ts:680 - AI call detected in route; verify DB cache-by-hash before model call
+  - const synthesis = await openaiClient.chat.completions.create({
+- app/api/league-story/route.ts:50 - AI call detected in route; verify DB cache-by-hash before model call
+  - const result = await openaiChatText({
+- app/api/leagues/[leagueId]/devy/ai/route.ts:85 - AI call detected in route; verify DB cache-by-hash before model call
+  - const res = await openaiChatText({
+- app/api/leagues/[leagueId]/draft/queue/ai-reorder/route.ts:150 - AI call detected in route; verify DB cache-by-hash before model call
+  - openaiChatText({
+- app/api/leagues/[leagueId]/draft/recap/route.ts:166 - AI call detected in route; verify DB cache-by-hash before model call
+  - openaiChatText({
+- app/api/leagues/[leagueId]/forecast-summary/route.ts:58 - AI call detected in route; verify DB cache-by-hash before model call
+  - const result = await openaiChatText({
+- app/api/leagues/[leagueId]/idp/ai/route.ts:89 - AI call detected in route; verify DB cache-by-hash before model call
+  - const res = await openaiChatText({
+- app/api/leagues/[leagueId]/merged-devy-c2c/ai/route.ts:96 - AI call detected in route; verify DB cache-by-hash before model call
+  - const res = await openaiChatText({
+- app/api/legacy/ai/run/route.ts:1014 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/legacy/ai-report/route.ts:120 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/legacy/chat/route.ts:548 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/legacy/community-insights/route.ts:85 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/legacy/compare/route.ts:409 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/legacy/devy-board/route.ts:279 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/legacy/devy-board/route.ts:499 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/legacy/feedback/route.ts:61 - AI call detected in route; verify DB cache-by-hash before model call
+  - const response = await openai.chat.completions.create({
+- app/api/legacy/player-finder/route.ts:148 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/legacy/rankings/analyze/route.ts:407 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/legacy/rankings/enhanced/route.ts:200 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/legacy/rankings/playoff-forecast/route.ts:398 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/legacy/trade/league-analyze/route.ts:712 - AI call detected in route; verify DB cache-by-hash before model call
+  - const aiResponse = await openai.chat.completions.create({
+- app/api/legacy/trade/league-analyze/route.ts:800 - AI call detected in route; verify DB cache-by-hash before model call
+  - openai.chat.completions.create({
+- app/api/legacy/trade-alternatives/route.ts:60 - AI call detected in route; verify DB cache-by-hash before model call
+  - const response = await openai.chat.completions.create({
+- app/api/legacy/trade-history/route.ts:557 - AI call detected in route; verify DB cache-by-hash before model call
+  - const response = await openai.chat.completions.create({
+- app/api/legacy/trades/check/route.ts:105 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/legacy/transfer/route.ts:347 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/legacy/transfer/route.ts:441 - AI call detected in route; verify DB cache-by-hash before model call
+  - const narrativeCompletion = await openai.chat.completions.create({
+- app/api/legacy/waiver/analyze/route.ts:635 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/market-alerts/route.ts:229 - AI call detected in route; verify DB cache-by-hash before model call
+  - const res = await openai.chat.completions.create({
+- app/api/mock-draft/ai-pick/route.ts:745 - AI call detected in route; verify DB cache-by-hash before model call
+  - const resp = await openai.chat.completions.create({
+- app/api/mock-draft/needs/route.ts:225 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/mock-draft/simulate/route.ts:429 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/mock-draft/simulate/route.ts:510 - AI call detected in route; verify DB cache-by-hash before model call
+  - const reasonCompletion = await openai.chat.completions.create({
+- app/api/mock-draft/trade-action/route.ts:140 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/mock-draft/trade-propose/route.ts:212 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/mock-draft/trade-sim/route.ts:140 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/mock-draft/trade-simulate/route.ts:192 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/mock-draft/update-weekly/route.ts:133 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/player-comparison/insight/route.ts:207 - AI call detected in route; verify DB cache-by-hash before model call
+  - const openai = await openaiChatText({
+- app/api/rankings/dynasty-roadmap/route.ts:129 - AI call detected in route; verify DB cache-by-hash before model call
+  - const response = await openai.chat.completions.create({
+- app/api/rankings/league-v2/route.ts:167 - AI call detected in route; verify DB cache-by-hash before model call
+  - const result = await openaiChatText({
+- app/api/rankings/route.ts:135 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/redraft-trade/route.ts:218 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/season-strategy/route.ts:703 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/start-sit/chimmy/route.ts:36 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/trade-partner/route.ts:39 - AI call detected in route; verify DB cache-by-hash before model call
+  - const completion = await openai.chat.completions.create({
+- app/api/waiver-ai/grok/route.ts:159 - AI call detected in route; verify DB cache-by-hash before model call
+  - const response = await grok.chat.completions.create({
+- app/api/waiver-ai/grok/route.ts:373 - AI call detected in route; verify DB cache-by-hash before model call
+  - const synthesis = await openai.chat.completions.create({
+
+## BAD: fantasy points calculated every request
+
+- app/api/ai/chat/route.ts:63 - fantasy points/projection calculation keyword in route path
+  - if (analytics.fantasyPointsPerGame) parts.push(`FPts/G: ${analytics.fantasyPointsPerGame.toFixed(1)}`)
+- app/api/coach/advice/route.ts:41 - fantasy points/projection calculation keyword in route path
+  - projectedPoints?: number;
+- app/api/coach/advice/route.ts:47 - fantasy points/projection calculation keyword in route path
+  - projectedPoints?: number;
+- app/api/idp/scores/route.ts:8 - fantasy points/projection calculation keyword in route path
+  - import { computeIdpFantasyPoints, getMergedScoringRulesForLeague } from '@/lib/idp/scoringEngine'
+- app/api/idp/scores/route.ts:22 - fantasy points/projection calculation keyword in route path
+  - fantasyPoints: number
+- app/api/idp/scores/route.ts:36 - fantasy points/projection calculation keyword in route path
+  - const { total, breakdown } = computeIdpFantasyPoints(line, rules)
+- app/api/idp/scores/route.ts:48 - fantasy points/projection calculation keyword in route path
+  - fantasyPoints: Math.round(total * 100) / 100,
+- app/api/legacy/cfb-players/route.ts:71 - fantasy points/projection calculation keyword in route path
+  - fantasyPoints?: number
+- app/api/legacy/cfb-players/route.ts:75 - fantasy points/projection calculation keyword in route path
+  - const enrichedRoster: Array<DevyPlayerValue & { fantasyPoints?: number }> = []
+- app/api/legacy/cfb-players/route.ts:95 - fantasy points/projection calculation keyword in route path
+  - fantasyPoints: player.fantasyPoints,
+- app/api/legacy/cfb-players/route.ts:113 - fantasy points/projection calculation keyword in route path
+  - fantasyPoints: player.fantasyPoints,
+- app/api/lineup/optimize/route.ts:41 - fantasy points/projection calculation keyword in route path
+  - projectedPoints?: number
+- app/api/lineup/optimize/route.ts:70 - fantasy points/projection calculation keyword in route path
+  - projectedPoints: p.projectedPoints,
+- app/api/lineup/optimize/route.ts:84 - fantasy points/projection calculation keyword in route path
+  - projectedPoints: Number(player.projectedPoints ?? 0),
+- app/api/players/rolling-insights/batch/route.ts:12 - fantasy points/projection calculation keyword in route path
+  - fantasyPointsPerGame: number | null
+- app/api/players/rolling-insights/batch/route.ts:13 - fantasy points/projection calculation keyword in route path
+  - fantasyPointsSeason: number | null
+- app/api/players/rolling-insights/batch/route.ts:96 - fantasy points/projection calculation keyword in route path
+  - fantasyPointsPerGame: true,
+- app/api/players/rolling-insights/batch/route.ts:97 - fantasy points/projection calculation keyword in route path
+  - fantasyPoints: true,
+- app/api/players/rolling-insights/batch/route.ts:107 - fantasy points/projection calculation keyword in route path
+  - fantasyPointsPerGame: number | null
+- app/api/players/rolling-insights/batch/route.ts:108 - fantasy points/projection calculation keyword in route path
+  - fantasyPointsSeason: number | null
+- app/api/players/rolling-insights/batch/route.ts:118 - fantasy points/projection calculation keyword in route path
+  - fantasyPointsPerGame: row.fantasyPointsPerGame ?? null,
+- app/api/players/rolling-insights/batch/route.ts:119 - fantasy points/projection calculation keyword in route path
+  - fantasyPointsSeason: row.fantasyPoints ?? null,
+- app/api/players/rolling-insights/batch/route.ts:150 - fantasy points/projection calculation keyword in route path
+  - fantasyPointsPerGame: latest?.fantasyPointsPerGame ?? null,
+- app/api/players/rolling-insights/batch/route.ts:151 - fantasy points/projection calculation keyword in route path
+  - fantasyPointsSeason: latest?.fantasyPointsSeason ?? null,
+- app/api/waiver-ai/grok/route.ts:51 - fantasy points/projection calculation keyword in route path
+  - projectedPoints: number;
+- app/api/waiver-ai/grok/route.ts:388 - fantasy points/projection calculation keyword in route path
+  - "projectedPoints": number,
+- app/api/waiver-ai/grok/route.ts:436 - fantasy points/projection calculation keyword in route path
+  - projectedPoints: Number.isFinite(Number(s?.projectedPoints)) ? Number(s.projectedPoints) : 0,
+
+## OK: sync job only
+
+- app/api/sports/news/sync-helper.ts:317 - external API call appears inside ingestion/sync path
+  - const url = `https://site.api.espn.com/apis/site/v2/sports/${path}/news?limit=${limit}${teamQ}`;
+- app/api/sports/news/sync-helper.ts:383 - external API call appears inside ingestion/sync path
+  - const response = await fetch(`https://newsapi.org/v2/everything?${params.toString()}`, {
+- app/api/sports/news/sync-helper.ts:425 - external API call appears inside ingestion/sync path
+  - const response = await fetch(`https://newsapi.org/v2/top-headlines?${params.toString()}`, {
+- lib/brackets/espn-playoff-sync.ts:94 - external API call appears inside ingestion/sync path
+  - const url = `https://site.api.espn.com/apis/site/v2/sports/${path}/standings`
+- lib/draft/sleeperSync.ts:41 - external API call appears inside ingestion/sync path
+  - const base = `https://api.sleeper.app/v1/draft/${encodeURIComponent(sleeperDraftId)}`
+- lib/draft/sleeperSync.ts:58 - external API call appears inside ingestion/sync path
+  - const uRes = await fetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueIdSleeper)}/users`, {
+- lib/league-import/commissionerGate.ts:43 - external API call appears inside ingestion/sync path
+  - const r = await fetch(`https://api.sleeper.app/v1/user/${encodeURIComponent(profile.sleeperUsername)}`)
+- lib/league-import/commissionerGate.ts:62 - external API call appears inside ingestion/sync path
+  - `https://api.sleeper.app/v1/league/${encodeURIComponent(sourceLeagueId)}/users`,
+- lib/league-import/sleeper/SleeperHistoricalDraftSyncService.ts:112 - external API call appears inside ingestion/sync path
+  - const tpRes = await fetch(`https://api.sleeper.app/v1/draft/${sourceDraftId}/traded_picks`)
+- lib/league-sync-core.ts:44 - external API call appears inside ingestion/sync path
+  - fetch(`https://api.sleeper.app/v1/league/${platformLeagueId}`),
+- lib/league-sync-core.ts:45 - external API call appears inside ingestion/sync path
+  - fetch(`https://api.sleeper.app/v1/league/${platformLeagueId}/rosters`),
+- lib/league-sync-core.ts:250 - external API call appears inside ingestion/sync path
+  - const leagueUrl = `https://fantasysports.yahooapis.com/fantasy/v2/league/${platformLeagueId}?format=json`;
+- lib/league-sync-core.ts:273 - external API call appears inside ingestion/sync path
+  - const settingsUrl = `https://fantasysports.yahooapis.com/fantasy/v2/league/${platformLeagueId}/settings?format=json`;
+- lib/league-sync-core.ts:286 - external API call appears inside ingestion/sync path
+  - const rostersUrl = `https://fantasysports.yahooapis.com/fantasy/v2/league/${platformLeagueId}/teams/roster?format=json`;
+- lib/leagues/runLeagueImportDetailSync.ts:55 - external API call appears inside ingestion/sync path
+  - `https://api.sleeper.app/v1/league/${encodeURIComponent(key.platformLeagueId)}`,
+- lib/sleeper-sync.ts:201 - external API call appears inside ingestion/sync path
+  - fetch(`https://api.sleeper.app/v1/league/${sleeperLeagueId}`),
+- lib/sleeper-sync.ts:202 - external API call appears inside ingestion/sync path
+  - fetch(`https://api.sleeper.app/v1/league/${sleeperLeagueId}/rosters`),
+- lib/sleeper-sync.ts:203 - external API call appears inside ingestion/sync path
+  - fetch(`https://api.sleeper.app/v1/league/${sleeperLeagueId}/users`),
+- lib/sleeper-sync.ts:275 - external API call appears inside ingestion/sync path
+  - const draftRes = await fetch(`https://api.sleeper.app/v1/draft/${draftId}`);
+- lib/workers/adp-importer.ts:148 - draft pool work appears in ingestion/worker context
+  - export async function runAdpImporter(options?: {
+- lib/workers/adp-refresh-service.ts:177 - draft pool work appears in ingestion/worker context
+  - const importerResult = await runAdpImporter({ sports: sportsProcessed })
+- lib/workers/draft-worker.ts:19 - draft pool work appears in ingestion/worker context
+  - getResolvedDraftPoolForLeague,
+- lib/workers/draft-worker.ts:21 - draft pool work appears in ingestion/worker context
+  - } from '@/lib/draft-room/getResolvedDraftPoolForLeague'
+- lib/workers/draft-worker.ts:111 - draft pool work appears in ingestion/worker context
+  - /** Same as headshotUrl when resolved from normalized draft pool. */
+- lib/workers/draft-worker.ts:335 - draft pool work appears in ingestion/worker context
+  - const resolved = await getResolvedDraftPoolForLeague(leagueId, {
+- lib/workers/newsapi-ingestion.ts:14 - external API call appears inside ingestion/sync path
+  - const NEWSAPI_BASE = 'https://newsapi.org/v2'
+- lib/workers/providers/espn.ts:87 - external API call appears inside ingestion/sync path
+  - const base = `https://site.api.espn.com/apis/site/v2/sports/${path.sport}/${path.league}`
+- scripts/compare-player-apis.ts:45 - external API call appears inside ingestion/sync path
+  - const res = await fetch('https://api.sleeper.app/v1/players/nfl')
+- scripts/sync-rookies-from-sleeper.ts:19 - external API call appears inside ingestion/sync path
+  - const SLEEPER_API = 'https://api.sleeper.app/v1'
+- scripts/sync-sleeper-players.ts:30 - external API call appears inside ingestion/sync path
+  - const SLEEPER_API = 'https://api.sleeper.app/v1/players/nfl'
+
+## OK: backend reads DB
+
+- app/api/ai/alerts/route.ts:4 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/ai/alerts/route.ts:36 - route/service includes direct Prisma read
+  - prisma.userProfile.findUnique({
+- app/api/ai/alerts/route.ts:54 - route/service includes direct Prisma read
+  - const league = await prisma.league.findUnique({
+- app/api/ai/chat/route.ts:4 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/ai/chat/route.ts:74 - route/service includes direct Prisma read
+  - const user = await prisma.legacyUser.findUnique({
+- app/api/ai/chat/route.ts:353 - route/service includes direct Prisma read
+  - const profileClock = await prisma.userProfile.findUnique({
+- app/api/ai/chimmy/route.ts:23 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/ai/chimmy/route.ts:283 - route/service includes direct Prisma read
+  - const lg = await prisma.league.findUnique({
+- app/api/ai/chimmy/route.ts:290 - route/service includes direct Prisma read
+  - const zLeague = await prisma.zombieLeague.findUnique({
+- app/api/ai/generate-image/route.ts:4 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/ai/generate-image/route.ts:20 - route/service includes direct Prisma read
+  - const profile = await prisma.userProfile.findFirst({
+- app/api/ai/history/route.ts:4 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/ai/history/route.ts:129 - route/service includes direct Prisma read
+  - const rows = await (prisma as any).aiOutput.findMany({
+- app/api/ai/matchup-preview/route.ts:4 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/ai/matchup-preview/route.ts:61 - route/service includes direct Prisma read
+  - const teams = await prisma.leagueTeam.findMany({
+- app/api/ai/saved-recommendations/route.ts:5 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/ai/saved-recommendations/route.ts:30 - route/service includes direct Prisma read
+  - const leagues = await prisma.league.findMany({
+- app/api/ai/trade-eval/route.ts:4 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma';
+- app/api/ai/trade-eval/route.ts:95 - route/service includes direct Prisma read
+  - const user = await prisma.legacyUser.findUnique({
+- app/api/ai/waiver/route.ts:7 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma';
+- app/api/ai/waiver/route.ts:35 - route/service includes direct Prisma read
+  - const user = await prisma.legacyUser.findUnique({
+- app/api/ai/waiver-recs/route.ts:4 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/ai/waiver-recs/route.ts:54 - route/service includes direct Prisma read
+  - const teams = await prisma.leagueTeam.findMany({
+- app/api/ai-features/route.ts:4 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/ai-features/route.ts:67 - route/service includes direct Prisma read
+  - const league = await prisma.league.findFirst({
+- app/api/ai-features/route.ts:78 - route/service includes direct Prisma read
+  - const userProfile = await prisma.userProfile.findUnique({ where: { userId: session.user.id } })
+- app/api/analytics/insight/route.ts:3 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma';
+- app/api/analytics/insight/route.ts:14 - route/service includes direct Prisma read
+  - await prisma.insightEvent.create({
+- app/api/analytics/track/route.ts:5 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma";
+- app/api/analytics/track/route.ts:13 - route/service includes direct Prisma read
+  - function sanitizeMeta(value: unknown): Prisma.InputJsonValue | undefined {
+- app/api/analytics/track/route.ts:19 - route/service includes direct Prisma read
+  - return JSON.parse(serialized) as Prisma.InputJsonValue;
+- app/api/analytics/track/route.ts:24 - route/service includes direct Prisma read
+  - } as Prisma.InputJsonValue;
+- app/api/analytics/track/route.ts:51 - route/service includes direct Prisma read
+  - await prisma.analyticsEvent.create({
+- app/api/app/leagues/[leagueId]/waivers/ai-advice/route.ts:3 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/app/leagues/[leagueId]/waivers/ai-advice/route.ts:7 - route/service includes direct Prisma read
+  - const league = await prisma.league.findFirst({
+- app/api/app/[...path]/route.ts:87 - route/service includes direct Prisma read
+  - const league = await (prisma as any).league.findUnique({
+- app/api/auth/check-username/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/auth/check-username/route.ts:34 - route/service includes direct Prisma read
+  - const existing = await prisma.appUser.findFirst({
+- app/api/auth/complete-profile/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/auth/complete-profile/route.ts:30 - route/service includes direct Prisma read
+  - const existingProfile = await (prisma as any).userProfile.findUnique({
+- app/api/auth/confirm-age/route.ts:4 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/auth/discord/callback/route.ts:5 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/auth/discord/callback/route.ts:95 - route/service includes direct Prisma read
+  - await prisma.userProfile.upsert({
+- app/api/auth/discord/disconnect/route.ts:4 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/auth/discord/disconnect/route.ts:16 - route/service includes direct Prisma read
+  - const profile = await prisma.userProfile.findUnique({
+- app/api/auth/discord/disconnect/route.ts:48 - route/service includes direct Prisma read
+  - await prisma.userProfile.update({
+- app/api/auth/mfl/route.ts:3 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/auth/mfl/route.ts:36 - route/service includes direct Prisma read
+  - await prisma.mFLConnection.upsert({
+- app/api/auth/password/reset/confirm/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/auth/password/reset/confirm/route.ts:27 - route/service includes direct Prisma read
+  - const profile = await (prisma as any).userProfile.findUnique({
+- app/api/auth/password/reset/confirm/route.ts:35 - route/service includes direct Prisma read
+  - const row = await (prisma as any).passwordResetToken.findFirst({
+- app/api/auth/password/reset/confirm/route.ts:67 - route/service includes direct Prisma read
+  - const user = await (prisma as any).appUser.findUnique({
+- app/api/auth/password/reset/confirm/route.ts:75 - route/service includes direct Prisma read
+  - const row = await (prisma as any).passwordResetToken.findFirst({
+- app/api/auth/password/reset/confirm/route.ts:112 - route/service includes direct Prisma read
+  - const row = await (prisma as any).passwordResetToken.findUnique({
+- app/api/auth/password/reset/request/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/auth/password/reset/request/route.ts:52 - route/service includes direct Prisma read
+  - const profile = await (prisma as any).userProfile.findUnique({
+- app/api/auth/password/reset/verify-code/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/auth/password/reset/verify-code/route.ts:22 - route/service includes direct Prisma read
+  - const profile = await (prisma as any).userProfile.findUnique({
+- app/api/auth/password/reset/verify-code/route.ts:28 - route/service includes direct Prisma read
+  - const user = await (prisma as any).appUser.findUnique({
+- app/api/auth/password/reset/verify-code/route.ts:39 - route/service includes direct Prisma read
+  - const row = await (prisma as any).passwordResetToken.findFirst({
+- app/api/auth/password/sync-neon/route.ts:4 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/auth/password/sync-neon/route.ts:75 - route/service includes direct Prisma read
+  - row = await prisma.appUser.findFirst({
+- app/api/auth/password/sync-neon/route.ts:86 - route/service includes direct Prisma read
+  - row = await prisma.appUser.findFirst({
+- app/api/auth/password/sync-neon/route.ts:123 - route/service includes direct Prisma read
+  - await prisma.appUser.update({
+- app/api/auth/password/sync-neon/route.ts:128 - route/service includes direct Prisma read
+  - console.error("[sync-neon] prisma.appUser.update failed:", err)
+- app/api/auth/pre-signup/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/auth/register/route.ts:3 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/auth/register/route.ts:47 - route/service includes direct Prisma read
+  - function getUniqueConstraintTarget(err: Prisma.PrismaClientKnownRequestError): string {
+- app/api/auth/register/route.ts:59 - route/service includes direct Prisma read
+  - if (err instanceof Prisma.PrismaClientInitializationError) return true
+- app/api/auth/register/route.ts:61 - route/service includes direct Prisma read
+  - if (err instanceof Prisma.PrismaClientKnownRequestError) {
+- app/api/auth/register/route.ts:62 - route/service includes direct Prisma read
+  - // Common transient/db connectivity issues from Prisma.
+- app/api/auth/register/route.ts:106 - route/service includes direct Prisma read
+  - function throwRegistrationConflict(err: Prisma.PrismaClientKnownRequestError): never {
+- app/api/auth/register/route.ts:130 - route/service includes direct Prisma read
+  - if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+- app/api/auth/register/route.ts:315 - route/service includes direct Prisma read
+  - prisma.appUser.findFirst({
+- app/api/auth/register/route.ts:391 - route/service includes direct Prisma read
+  - const created = await prisma.appUser.create({
+- app/api/auth/register/route.ts:405 - route/service includes direct Prisma read
+  - await prisma.userProfile.create({
+- app/api/auth/register/route.ts:414 - route/service includes direct Prisma read
+  - await prisma.appUser.delete({ where: { id: created.id } })
+- app/api/auth/register/route.ts:430 - route/service includes direct Prisma read
+  - return prisma.$transaction(async (tx) => {
+- app/api/auth/register/route.ts:536 - route/service includes direct Prisma read
+  - await prisma.appUser.update({
+- app/api/auth/register/route.ts:555 - route/service includes direct Prisma read
+  - await prisma.earlyAccessSignup.upsert({
+- app/api/auth/register/route.ts:661 - route/service includes direct Prisma read
+  - if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+- app/api/auth/spotify/callback/route.ts:5 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/auth/spotify/callback/route.ts:77 - route/service includes direct Prisma read
+  - await prisma.userProfile.update({
+- app/api/auth/spotify/disconnect/route.ts:4 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/auth/spotify/disconnect/route.ts:17 - route/service includes direct Prisma read
+  - await prisma.userProfile.update({
+- app/api/auth/spotify/refresh/route.ts:4 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/auth/spotify/refresh/route.ts:20 - route/service includes direct Prisma read
+  - const profile = await prisma.userProfile.findUnique({
+- app/api/auth/spotify/refresh/route.ts:51 - route/service includes direct Prisma read
+  - await prisma.userProfile.update({
+- app/api/auth/suggest-username/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/auth/suggest-username/route.ts:36 - route/service includes direct Prisma read
+  - const existing = await prisma.appUser.findFirst({
+- app/api/auth/verify-email/send/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/auth/verify-email/send/route.ts:26 - route/service includes direct Prisma read
+  - const user = await (prisma as any).appUser.findUnique({
+- app/api/auth/verify-email/send/route.ts:40 - route/service includes direct Prisma read
+  - const recentToken = await (prisma as any).emailVerifyToken.findFirst({
+- app/api/auth/yahoo/callback/route.ts:3 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/auth/yahoo/callback/route.ts:90 - route/service includes direct Prisma read
+  - await prisma.yahooConnection.upsert({
+- app/api/bestball/ai/draft-rec/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/bestball/ai/draft-rec/route.ts:30 - route/service includes direct Prisma read
+  - const template = await prisma.bestBallSportTemplate.findUnique({
+- app/api/bestball/ai/grade/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/bestball/ai/grade/route.ts:31 - route/service includes direct Prisma read
+  - const template = await prisma.bestBallSportTemplate.findUnique({
+- app/api/bestball/contest/advance/route.ts:4 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/bestball/contest/advance/route.ts:37 - route/service includes direct Prisma read
+  - const contest = await prisma.bestBallContest.findFirst({ where: { id: contestId } })
+- app/api/bestball/contest/enter/route.ts:4 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/bestball/contest/enter/route.ts:23 - route/service includes direct Prisma read
+  - const contest = await prisma.bestBallContest.findFirst({ where: { id: contestId } })
+- app/api/bestball/contest/enter/route.ts:29 - route/service includes direct Prisma read
+  - const n = await prisma.bestBallEntry.count({ where: { contestId, userId } })
+- app/api/bestball/contest/enter/route.ts:35 - route/service includes direct Prisma read
+  - const entry = await prisma.bestBallEntry.create({
+- app/api/bestball/contest/enter/route.ts:40 - route/service includes direct Prisma read
+  - entryNumber: (await prisma.bestBallEntry.count({ where: { contestId, userId } })) + 1,
+- app/api/bestball/contest/route.ts:4 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/bestball/contest/route.ts:16 - route/service includes direct Prisma read
+  - const contest = await prisma.bestBallContest.findFirst({
+- app/api/bestball/contest/route.ts:31 - route/service includes direct Prisma read
+  - const list = await prisma.bestBallContest.findMany({
+- app/api/bestball/contest/route.ts:78 - route/service includes direct Prisma read
+  - const contest = await prisma.bestBallContest.create({
+- app/api/bestball/optimize/route.ts:4 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/bestball/optimize/route.ts:24 - route/service includes direct Prisma read
+  - const roster = await prisma.redraftRoster.findFirst({
+- app/api/bestball/optimize/route.ts:33 - route/service includes direct Prisma read
+  - const row = await prisma.bestBallOptimizedLineup.findFirst({
+- app/api/bestball/optimize/route.ts:66 - route/service includes direct Prisma read
+  - const roster = await prisma.redraftRoster.findFirst({ where: { id: body.rosterId } })
+- app/api/bestball/optimize/route.ts:70 - route/service includes direct Prisma read
+  - const season = await prisma.redraftSeason.findFirst({ where: { id: roster.seasonId } })
+- app/api/bestball/optimize/route.ts:83 - route/service includes direct Prisma read
+  - const entry = await prisma.bestBallEntry.findFirst({ where: { id: body.entryId, userId } })
+- app/api/bestball/optimize/route.ts:85 - route/service includes direct Prisma read
+  - const contest = await prisma.bestBallContest.findFirst({ where: { id: entry.contestId } })
+- app/api/bestball/roster-validate/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/bestball/roster-validate/route.ts:22 - route/service includes direct Prisma read
+  - const template = await prisma.bestBallSportTemplate.findUnique({
+- app/api/bestball/settings/route.ts:4 - route/service includes direct Prisma read
+  - import { prisma } from '@/lib/prisma'
+- app/api/bestball/settings/route.ts:41 - route/service includes direct Prisma read
+  - const current = await prisma.league.findUnique({
+- app/api/bestball/settings/route.ts:115 - route/service includes direct Prisma read
+  - const league = await prisma.league.update({
+- app/api/blog/generate-and-save/route.ts:3 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/blog/generate-and-save/route.ts:31 - route/service includes direct Prisma read
+  - ? await prisma.blogArticle.findUnique({ where: { articleId: result.articleId } })
+- app/api/blog/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/blog/route.ts:23 - route/service includes direct Prisma read
+  - const list = await prisma.blogArticle.findMany({
+- app/api/blog/route.ts:77 - route/service includes direct Prisma read
+  - const article = await prisma.blogArticle.findUnique({ where: { articleId: result.articleId } })
+- app/api/blog/slug/[slug]/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/blog/slug/[slug]/route.ts:13 - route/service includes direct Prisma read
+  - const article = await prisma.blogArticle.findUnique({
+- app/api/blog/[articleId]/internal-links/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/blog/[articleId]/internal-links/route.ts:12 - route/service includes direct Prisma read
+  - const article = await prisma.blogArticle.findUnique({
+- app/api/blog/[articleId]/publish/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/blog/[articleId]/publish/route.ts:11 - route/service includes direct Prisma read
+  - const article = await prisma.blogArticle.findUnique({ where: { articleId } })
+- app/api/blog/[articleId]/publish/route.ts:52 - route/service includes direct Prisma read
+  - const article = await prisma.blogArticle.findUnique({ where: { articleId } })
+- app/api/blog/[articleId]/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/blog/[articleId]/route.ts:12 - route/service includes direct Prisma read
+  - const article = await prisma.blogArticle.findUnique({
+- app/api/blog/[articleId]/route.ts:71 - route/service includes direct Prisma read
+  - const article = await prisma.blogArticle.findUnique({
+- app/api/bracket/ai/matchup/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/bracket/ai/matchup/route.ts:159 - route/service includes direct Prisma read
+  - const tournament = await prisma.bracketTournament.findUnique({
+- app/api/bracket/ai/matchup/route.ts:189 - route/service includes direct Prisma read
+  - const savedProfile = await prisma.bracketRiskProfile.findUnique({
+- app/api/bracket/ai/pick-assist/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/bracket/ai/pick-assist/route.ts:21 - route/service includes direct Prisma read
+  - const entry = await prisma.bracketEntry.findUnique({
+- app/api/bracket/ai/pick-assist/route.ts:43 - route/service includes direct Prisma read
+  - prisma.bracketNode.findMany({
+- app/api/bracket/ai/pick-assist/route.ts:47 - route/service includes direct Prisma read
+  - prisma.bracketPick.findMany({ where: { entryId }, select: { nodeId: true } }),
+- app/api/bracket/ai/pick-assist/route.ts:52 - route/service includes direct Prisma read
+  - ? await prisma.sportsGame.findMany({ where: { id: { in: gameIds } }, select: { id: true, startTime: true } })
+- app/api/bracket/ai-assist/route.ts:2 - route/service includes direct Prisma read
+  - import { prisma } from "@/lib/prisma"
+- app/api/bracket/ai-assist/route.ts:21 - route/service includes direct Prisma read
+  - const entry = await prisma.bracketEntry.findUnique({
+- app/api/bracket/ai-assist/route.ts:43 - route/service includes direct Prisma read
+  - prisma.bracketNode.findMany({
+- app/api/bracket/ai-assist/route.ts:47 - route/service includes direct Prisma read
+  - prisma.bracketPick.findMany({ where: { entryId }, select: { nodeId: true } }),
+- app/api/bracket/ai-assist/route.ts:52 - route/service includes direct Prisma read
+  - ? await prisma.sportsGame.findMany({ where: { id: { in: gameIds } }, select: { id: true, startTime: true } })
+
+## OK: exception annotated
+
+- app/af-legacy/trade-analyzer/page.tsx:691 - line is explicitly annotated as temporary exception
+  - const res = await fetch(`https://api.sleeper.app/v1/user/${username}`) // db-first-exception: legacy trade analyzer bootstrap
+- app/af-legacy/trade-analyzer/page.tsx:695 - line is explicitly annotated as temporary exception
+  - const leaguesRes = await fetch(`https://api.sleeper.app/v1/user/${userData.user_id}/leagues/${sportLower}/2025`) // db-first-exception: legacy trade analyzer bootstrap
+- app/af-legacy/trade-analyzer/page.tsx:794 - line is explicitly annotated as temporary exception
+  - fetch(`https://api.sleeper.app/v1/league/${leagueIdToFetch}/traded_picks`), // db-first-exception: legacy trade analyzer league bootstrap
+- app/af-legacy/trade-analyzer/page.tsx:795 - line is explicitly annotated as temporary exception
+  - fetch(`https://api.sleeper.app/v1/league/${leagueIdToFetch}/drafts`), // db-first-exception: legacy trade analyzer league bootstrap
+- app/af-legacy/trade-analyzer/page.tsx:802 - line is explicitly annotated as temporary exception
+  - const rosterUsers = await fetch(`https://api.sleeper.app/v1/league/${leagueIdToFetch}/rosters`) // db-first-exception: legacy trade analyzer league bootstrap
+- app/af-legacy/trade-analyzer/page.tsx:844 - line is explicitly annotated as temporary exception
+  - fetch(`https://api.sleeper.app/v1/league/${leagueIdToFetch}/users`), // db-first-exception: legacy trade analyzer league bootstrap
+- app/af-legacy/trade-analyzer/page.tsx:845 - line is explicitly annotated as temporary exception
+  - fetch(`https://api.sleeper.app/v1/league/${leagueIdToFetch}/rosters`), // db-first-exception: legacy trade analyzer league bootstrap
+- app/af-legacy/trade-analyzer/page.tsx:1189 - line is explicitly annotated as temporary exception
+  - safeFetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(lid)}`).catch(() => null), // db-first-exception: legacy trade analyzer context hydration
+- app/af-legacy/trade-analyzer/page.tsx:1190 - line is explicitly annotated as temporary exception
+  - safeFetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(lid)}/users`).catch(() => null), // db-first-exception: legacy trade analyzer context hydration
+- app/api/auth/yahoo/callback/route.ts:70 - line is explicitly annotated as temporary exception
+  - const userResponse = await fetch('https://fantasysports.yahooapis.com/fantasy/v2/users;use_login=1?format=json', { // db-first-exception: user-delegated OAuth import, requires live accessToken
+- app/api/league/roster/route.ts:12 - line is explicitly annotated as temporary exception
+  - const SLEEPER = 'https://api.sleeper.app/v1' // db-first-exception: base URL constant, fetch calls use template literals
+- app/api/league/transfer/route.ts:48 - line is explicitly annotated as temporary exception
+  - const SLEEPER_BASE = 'https://api.sleeper.app/v1' // db-first-exception: league transfer is an explicit user-triggered import pipeline
+- app/api/league/trend/route.ts:13 - line is explicitly annotated as temporary exception
+  - const url = `https://api.sleeper.app/v1/players/${sport}/trending/${type}?lookback_hours=24&limit=25` // db-first-exception: pass-through trending endpoint requires near-real-time public feed
+- app/api/league/trend-board/route.ts:9 - line is explicitly annotated as temporary exception
+  - const SLEEPER = 'https://api.sleeper.app/v1' // db-first-exception: public league rosters for trend UI
+- app/api/legacy/trade/analyze/route.ts:459 - line is explicitly annotated as temporary exception
+  - const searchUrl = `https://site.web.api.espn.com/apis/common/v3/search?query=${encodeURIComponent(name)}&limit=5&type=player` // db-first-exception: ad-hoc player enrichment for on-demand trade analysis
+- app/api/legacy/trade/analyze/route.ts:480 - line is explicitly annotated as temporary exception
+  - const athleteUrl = `https://site.web.api.espn.com/apis/common/v3/sports/${sportPath}/athletes/${athlete.id}` // db-first-exception: ad-hoc player enrichment for on-demand trade analysis
+- app/api/music/artists/route.ts:110 - line is explicitly annotated as temporary exception
+  - // db-first-exception: TheAudioDB does not expose a working artist-by-genre endpoint for this widget,
+- app/api/news-crawl/route.ts:36 - line is explicitly annotated as temporary exception
+  - 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=25', // db-first-exception: live news requires real-time ESPN feed
+- app/api/news-crawl/route.ts:60 - line is explicitly annotated as temporary exception
+  - 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/injuries', // db-first-exception: live injury data requires real-time ESPN feed
+- app/api/yahoo/leagues/route.ts:98 - line is explicitly annotated as temporary exception
+  - 'https://fantasysports.yahooapis.com/fantasy/v2/users;use_login=1/games;game_keys=nfl,nba/leagues?format=json', // db-first-exception: user-delegated OAuth import, requires live accessToken
+- app/api/yahoo/leagues/route.ts:217 - line is explicitly annotated as temporary exception
+  - `https://fantasysports.yahooapis.com/fantasy/v2/league/${leagueKey}/teams?format=json`, // db-first-exception: user-delegated OAuth import, requires live accessToken
+- app/league/[leagueId]/components/LeagueSettingsSubPanels.tsx:591 - line is explicitly annotated as temporary exception
+  - const res = await fetch(`https://api.sleeper.app/v1/league/${id}`) // db-first-exception: draft history until AF stores drafts
+- app/league/[leagueId]/components/LeagueSettingsSubPanels.tsx:1204 - line is explicitly annotated as temporary exception
+  - const res = await fetch(`https://api.sleeper.app/v1/league/${id}`) // db-first-exception: historical league walk tool pending DB history table
+- league-transfer-route.ts:48 - line is explicitly annotated as temporary exception
+  - const SLEEPER_BASE = 'https://api.sleeper.app/v1' // db-first-exception: transfer adapter wrapper pending DB-backed migration
+- lib/admin-dashboard/SystemHealthResolver.ts:13 - line is explicitly annotated as temporary exception
+  - sleeper: "https://api.sleeper.app/v1/state/nfl", // db-first-exception: live provider health probe
+- lib/admin-dashboard/SystemHealthResolver.ts:14 - line is explicitly annotated as temporary exception
+  - yahoo: "https://fantasysports.yahooapis.com", // db-first-exception: live provider health probe
+- lib/admin-dashboard/SystemHealthResolver.ts:20 - line is explicitly annotated as temporary exception
+  - espn: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard", // db-first-exception: live provider health probe
+- lib/agents/workers/api-health-monitor.ts:299 - line is explicitly annotated as temporary exception
+  - checkPublicApi('https://api.sleeper.app/v1/state/nfl', 1500), // db-first-exception: live provider health probe
+- lib/agents/workers/api-health-monitor.ts:300 - line is explicitly annotated as temporary exception
+  - checkPublicApi('https://fantasysports.yahooapis.com', 2000), // db-first-exception: live provider health probe
+- lib/agents/workers/api-health-monitor.ts:301 - line is explicitly annotated as temporary exception
+  - checkPublicApi('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard', 2000), // db-first-exception: live provider health probe
+- lib/ai/league-settings-ai/sleeper.ts:1 - line is explicitly annotated as temporary exception
+  - const SLEEPER = 'https://api.sleeper.app/v1' // db-first-exception: temporary provider wrapper; migrate consumers to DB-backed settings snapshots
+- lib/api-cache/SleeperCacheLayer.ts:21 - line is explicitly annotated as temporary exception
+  - const BASE_URL = 'https://api.sleeper.app/v1' // db-first-exception: canonical cache gateway
+- lib/autocoach/status-sources/SleeperStatusAdapter.ts:43 - line is explicitly annotated as temporary exception
+  - const res = await fetch(`https://api.sleeper.app/v1/players/${key}`, { // db-first-exception: injury status ingestion adapter
+- lib/devy-classification.ts:344 - line is explicitly annotated as temporary exception
+  - const sleeperRes = await fetch('https://api.sleeper.app/v1/players/nfl') // db-first-exception: devy backfill utility path pending DB mirror
+- lib/espn-data.ts:9 - line is explicitly annotated as temporary exception
+  - const SITE_API = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl'; // db-first-exception: provider adapter layer
+- lib/espn-data.ts:10 - line is explicitly annotated as temporary exception
+  - const CORE_API = 'https://sports.core.api.espn.com/v2/sports/football/leagues/nfl'; // db-first-exception: provider adapter layer
+- lib/idp-kicker-values.ts:118 - line is explicitly annotated as temporary exception
+  - const res = await fetch('https://api.sleeper.app/v1/players/nfl') // db-first-exception: valuation fallback source pending DB cache wiring
+- lib/league-import/sleeper/SleeperLeagueFetchService.ts:19 - line is explicitly annotated as temporary exception
+  - const SLEEPER_BASE = 'https://api.sleeper.app/v1' // db-first-exception: ingestion service endpoint
+- lib/league-import/yahoo/YahooLeagueFetchService.ts:13 - line is explicitly annotated as temporary exception
+  - const YAHOO_API_BASE = 'https://fantasysports.yahooapis.com/fantasy/v2' // db-first-exception: ingestion service endpoint
+- lib/lineup-actions/sleeperLineupScan.ts:9 - line is explicitly annotated as temporary exception
+  - const SLEEPER = 'https://api.sleeper.app/v1' // db-first-exception: Sleeper public API base
+- lib/sleeper/user-lookup.ts:37 - line is explicitly annotated as temporary exception
+  - `https://api.sleeper.app/v1/user/${encodeURIComponent(candidate)}`, // db-first-exception: transitional lookup utility; migrate to shared user resolver
+- lib/sleeper-client.ts:1 - line is explicitly annotated as temporary exception
+  - const SLEEPER_API_BASE = 'https://api.sleeper.app/v1'; // db-first-exception: centralized provider client used by ingestion and controlled wrappers
+- lib/sports-router.ts:727 - line is explicitly annotated as temporary exception
+  - url = `https://site.api.espn.com/apis/site/v2/sports/${path}/teams`; // db-first-exception: provider router fallback pending DB-first news/schedule mirror
+- lib/sports-router.ts:731 - line is explicitly annotated as temporary exception
+  - url = `https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard`; // db-first-exception: provider router fallback pending DB-first news/schedule mirror
+- lib/sports-router.ts:734 - line is explicitly annotated as temporary exception
+  - url = `https://site.api.espn.com/apis/site/v2/sports/${path}/standings`; // db-first-exception: provider router fallback pending DB-first news/schedule mirror
+- lib/upstream-apis.ts:616 - line is explicitly annotated as temporary exception
+  - const headlinesUrl = `https://newsapi.org/v2/top-headlines?country=us&category=sports&pageSize=${limit}&apiKey=${newsApiKey}` // db-first-exception: emergency fallback when DB news is empty
+- lib/upstream-apis.ts:666 - line is explicitly annotated as temporary exception
+  - const everythingUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&sortBy=publishedAt&pageSize=${limit}&language=en&apiKey=${newsApiKey}` // db-first-exception: emergency fallback when DB news is emp
+- lib/upstream-apis.ts:704 - line is explicitly annotated as temporary exception
+  - 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=15' // db-first-exception: emergency fallback when DB news is empty
+- lib/workers/power-rankings-worker.ts:187 - line is explicitly annotated as temporary exception
+  - const sleeperLeagueUrl = `https://api.sleeper.app/v1/league/${encodeURIComponent( // db-first-exception: background ranking refresh worker pending DB snapshot source
+- scripts/audit-db-first-architecture.ts:80 - line is explicitly annotated as temporary exception
+  - const hasException = line.includes('db-first-exception')
+- scripts/check-db-first-api-boundary.mjs:134 - line is explicitly annotated as temporary exception
+  - if (line.includes("db-first-exception")) {
+- scripts/check-db-first-api-boundary.mjs:195 - line is explicitly annotated as temporary exception
+  - "Direct monitored data API calls are only allowed in ingestion/sync modules. Add 'db-first-exception: reason' only for temporary exceptions with a migration plan."
+- scripts/simulate-rank-theciege24.mjs:12 - line is explicitly annotated as temporary exception
+  - const url = `https://api.sleeper.app/v1/user/${SLEEPER_USER_ID}/leagues/nfl/${year}` // db-first-exception: local simulation script for rank what-if analysis

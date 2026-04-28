@@ -15,6 +15,9 @@ const hm = vi.hoisted(() => ({
   txAuditCreate: vi.fn(),
   txSessionUpdate: vi.fn(),
   txRosterCount: vi.fn(),
+  txRosterFindMany: vi.fn(),
+  resolveCurrentOnTheClock: vi.fn(),
+  resetTimer: vi.fn(),
   transaction: vi.fn(),
 }))
 
@@ -28,6 +31,11 @@ vi.mock('@/lib/league/invalidateLeagueDraftCaches', () => ({
 
 vi.mock('@/lib/live-draft-engine/DraftSessionService', () => ({
   buildSessionSnapshot: hm.buildSessionSnapshot,
+  resetTimer: hm.resetTimer,
+}))
+
+vi.mock('@/lib/live-draft-engine/CurrentOnTheClockResolver', () => ({
+  resolveCurrentOnTheClock: hm.resolveCurrentOnTheClock,
 }))
 
 vi.mock('@/lib/draft-defaults/DraftUISettingsResolver', () => ({
@@ -130,6 +138,9 @@ describe('commissionerPickEdit', () => {
       updatedAt: new Date().toISOString(),
     } as any)
     hm.invalidateLeagueDraftCaches.mockImplementation(() => {})
+    hm.resetTimer.mockResolvedValue(true)
+    hm.resolveCurrentOnTheClock.mockReturnValue(null)
+    hm.txRosterFindMany.mockResolvedValue([])
     hm.transaction.mockImplementation(async (fn: (tx: unknown) => Promise<boolean>) => {
       const tx = {
         draftSession: {
@@ -142,7 +153,7 @@ describe('commissionerPickEdit', () => {
           create: hm.txCreatePick,
         },
         draftPickAuditLog: { create: hm.txAuditCreate },
-        roster: { count: hm.txRosterCount },
+        roster: { count: hm.txRosterCount, findMany: hm.txRosterFindMany },
         devyPlayer: { findFirst: vi.fn().mockResolvedValue(null) },
       }
       return fn(tx as any)
@@ -452,5 +463,242 @@ describe('commissionerPickEdit', () => {
     })
     expect(out.ok).toBe(false)
     if (!out.ok) expect(out.status).toBe(409)
+  })
+
+  it('REMOVE current on-clock pick resets timer', async () => {
+    hm.txFindUnique.mockResolvedValue(pausedSession([basePick({ overall: 1 })]))
+    hm.resolveCurrentOnTheClock.mockReturnValue({ overall: 1 })
+    hm.txUpdatePick.mockResolvedValue({})
+    hm.txAuditCreate.mockResolvedValue({})
+    hm.txSessionUpdate.mockResolvedValue({})
+
+    const out = await commissionerPickEdit({
+      leagueId: 'league-1',
+      actorUserId: 'comm-1',
+      action: 'REMOVE_PLAYER_FROM_PICK',
+      overallPickNumber: 1,
+    })
+    expect(out.ok).toBe(true)
+    expect(hm.resetTimer).toHaveBeenCalledWith('league-1')
+  })
+
+  it('REMOVE past pick does not reset timer', async () => {
+    hm.txFindUnique.mockResolvedValue(
+      pausedSession([
+        basePick({ overall: 1, id: 'pick-1' }),
+        basePick({ overall: 2, id: 'pick-2', slot: 2, rosterId: 'r2' }),
+      ]),
+    )
+    hm.resolveCurrentOnTheClock.mockReturnValue({ overall: 2 })
+    hm.txUpdatePick.mockResolvedValue({})
+    hm.txAuditCreate.mockResolvedValue({})
+    hm.txSessionUpdate.mockResolvedValue({})
+
+    const out = await commissionerPickEdit({
+      leagueId: 'league-1',
+      actorUserId: 'comm-1',
+      action: 'REMOVE_PLAYER_FROM_PICK',
+      overallPickNumber: 1,
+    })
+    expect(out.ok).toBe(true)
+    expect(hm.resetTimer).not.toHaveBeenCalled()
+  })
+
+  it('REMOVE future pick does not reset timer', async () => {
+    hm.txFindUnique.mockResolvedValue(
+      pausedSession([
+        basePick({ overall: 1, id: 'pick-1' }),
+        basePick({ overall: 2, id: 'pick-2', slot: 2, rosterId: 'r2' }),
+        basePick({ overall: 3, id: 'pick-3', round: 2, slot: 2, rosterId: 'r2' }),
+      ]),
+    )
+    hm.resolveCurrentOnTheClock.mockReturnValue({ overall: 2 })
+    hm.txUpdatePick.mockResolvedValue({})
+    hm.txAuditCreate.mockResolvedValue({})
+    hm.txSessionUpdate.mockResolvedValue({})
+
+    const out = await commissionerPickEdit({
+      leagueId: 'league-1',
+      actorUserId: 'comm-1',
+      action: 'REMOVE_PLAYER_FROM_PICK',
+      overallPickNumber: 3,
+    })
+    expect(out.ok).toBe(true)
+    expect(hm.resetTimer).not.toHaveBeenCalled()
+  })
+
+  it('ASSIGN current on-clock pick resets timer', async () => {
+    hm.txFindUnique.mockResolvedValue(pausedSession([]))
+    hm.resolveCurrentOnTheClock.mockReturnValue({ overall: 1 })
+    hm.validateRosterFitForDraftPick.mockResolvedValue({ valid: true })
+    hm.resolveDraftPickPresentation.mockResolvedValue({ playerId: 'ext-1', playerImageUrl: null })
+    hm.txCreatePick.mockResolvedValue({ id: 'pick-1' })
+    hm.txAuditCreate.mockResolvedValue({})
+    hm.txSessionUpdate.mockResolvedValue({})
+
+    const out = await commissionerPickEdit({
+      leagueId: 'league-1',
+      actorUserId: 'comm-1',
+      action: 'ASSIGN_PLAYER_TO_PICK',
+      overallPickNumber: 1,
+      playerName: 'Now On Clock',
+      position: 'WR',
+    })
+    expect(out.ok).toBe(true)
+    expect(hm.resetTimer).toHaveBeenCalledWith('league-1')
+  })
+
+  it('ASSIGN past/future pick does not reset timer', async () => {
+    hm.txFindUnique.mockResolvedValue(pausedSession([]))
+    hm.resolveCurrentOnTheClock.mockReturnValue({ overall: 1 })
+    hm.validateRosterFitForDraftPick.mockResolvedValue({ valid: true })
+    hm.resolveDraftPickPresentation.mockResolvedValue({ playerId: 'ext-2', playerImageUrl: null })
+    hm.txCreatePick.mockResolvedValue({ id: 'pick-2' })
+    hm.txAuditCreate.mockResolvedValue({})
+    hm.txSessionUpdate.mockResolvedValue({})
+
+    const out = await commissionerPickEdit({
+      leagueId: 'league-1',
+      actorUserId: 'comm-1',
+      action: 'ASSIGN_PLAYER_TO_PICK',
+      overallPickNumber: 2,
+      playerName: 'Not On Clock',
+      position: 'TE',
+    })
+    expect(out.ok).toBe(true)
+    expect(hm.resetTimer).not.toHaveBeenCalled()
+  })
+
+  it('CHANGE_PICK_OWNER current empty pick resets timer', async () => {
+    hm.txFindUnique.mockResolvedValue(
+      pausedSession([
+        {
+          ...basePick(),
+          playerName: '',
+          position: 'EMPTY',
+          pickMetadata: { pickEditorEmpty: true },
+        },
+      ]),
+    )
+    hm.resolveCurrentOnTheClock.mockReturnValue({ overall: 1 })
+    hm.txRosterCount.mockResolvedValue(1)
+    hm.txUpdatePick.mockResolvedValue({})
+    hm.txAuditCreate.mockResolvedValue({})
+    hm.txSessionUpdate.mockResolvedValue({})
+
+    const out = await commissionerPickEdit({
+      leagueId: 'league-1',
+      actorUserId: 'comm-1',
+      action: 'CHANGE_PICK_OWNER',
+      overallPickNumber: 1,
+      newRosterId: 'r2',
+    })
+    expect(out.ok).toBe(true)
+    expect(hm.resetTimer).toHaveBeenCalledWith('league-1')
+  })
+
+  it('CHANGE_PICK_OWNER future empty pick does not reset timer', async () => {
+    hm.txFindUnique.mockResolvedValue(
+      pausedSession([
+        basePick({ overall: 1, id: 'pick-1' }),
+        {
+          ...basePick({ overall: 3, id: 'pick-3', round: 2, slot: 1 }),
+          playerName: '',
+          position: 'EMPTY',
+          pickMetadata: { pickEditorEmpty: true },
+        },
+      ]),
+    )
+    hm.resolveCurrentOnTheClock.mockReturnValue({ overall: 2 })
+    hm.txRosterCount.mockResolvedValue(1)
+    hm.txUpdatePick.mockResolvedValue({})
+    hm.txAuditCreate.mockResolvedValue({})
+    hm.txSessionUpdate.mockResolvedValue({})
+
+    const out = await commissionerPickEdit({
+      leagueId: 'league-1',
+      actorUserId: 'comm-1',
+      action: 'CHANGE_PICK_OWNER',
+      overallPickNumber: 3,
+      newRosterId: 'r2',
+    })
+    expect(out.ok).toBe(true)
+    expect(hm.resetTimer).not.toHaveBeenCalled()
+  })
+
+  it('CHANGE_PICK_OWNER filled pick does not reset timer', async () => {
+    hm.txFindUnique.mockResolvedValue(pausedSession([basePick({ overall: 1 })]))
+    hm.resolveCurrentOnTheClock.mockReturnValue({ overall: 1 })
+    hm.txRosterCount.mockResolvedValue(1)
+    hm.txUpdatePick.mockResolvedValue({})
+    hm.txAuditCreate.mockResolvedValue({})
+    hm.txSessionUpdate.mockResolvedValue({})
+
+    const out = await commissionerPickEdit({
+      leagueId: 'league-1',
+      actorUserId: 'comm-1',
+      action: 'CHANGE_PICK_OWNER',
+      overallPickNumber: 1,
+      newRosterId: 'r2',
+    })
+    expect(out.ok).toBe(true)
+    expect(hm.resetTimer).not.toHaveBeenCalled()
+  })
+
+  it('self-benefit without confirmation is rejected', async () => {
+    hm.txFindUnique.mockResolvedValue(pausedSession([basePick({ overall: 1, rosterId: 'r1' })]))
+    hm.txRosterFindMany.mockResolvedValue([{ id: 'r1', platformUserId: 'comm-1' }])
+
+    const out = await commissionerPickEdit({
+      leagueId: 'league-1',
+      actorUserId: 'comm-1',
+      action: 'REMOVE_PLAYER_FROM_PICK',
+      overallPickNumber: 1,
+      reason: 'cleanup',
+    })
+    expect(out.ok).toBe(false)
+    if (!out.ok) {
+      expect(out.status).toBe(409)
+      expect(out.code).toBe('SELF_BENEFIT_CONFIRM_REQUIRED')
+    }
+  })
+
+  it('self-benefit with confirmation is allowed and writes metadata', async () => {
+    hm.txFindUnique.mockResolvedValue(pausedSession([basePick({ overall: 1, rosterId: 'r1' })]))
+    hm.txRosterFindMany.mockResolvedValue([{ id: 'r1', platformUserId: 'comm-1' }])
+    hm.txUpdatePick.mockResolvedValue({})
+    hm.txAuditCreate.mockResolvedValue({})
+    hm.txSessionUpdate.mockResolvedValue({})
+
+    const out = await commissionerPickEdit({
+      leagueId: 'league-1',
+      actorUserId: 'comm-1',
+      action: 'REMOVE_PLAYER_FROM_PICK',
+      overallPickNumber: 1,
+      reason: 'Fixing my own mistaken autopick',
+      confirmSelfBenefit: true,
+    })
+    expect(out.ok).toBe(true)
+    const meta = hm.txAuditCreate.mock.calls.at(-1)?.[0]?.data?.metadata as Record<string, unknown>
+    expect(meta.selfBenefit).toBe(true)
+    expect(meta.selfBenefitConfirmed).toBe(true)
+    expect(meta.selfBenefitReason).toBe('Fixing my own mistaken autopick')
+  })
+
+  it('self-benefit with typed CONFIRM is allowed', async () => {
+    hm.txFindUnique.mockResolvedValue(pausedSession([basePick({ overall: 1, rosterId: 'r1' })]))
+    hm.txRosterFindMany.mockResolvedValue([{ id: 'r1', platformUserId: 'comm-1' }])
+    hm.txUpdatePick.mockResolvedValue({})
+    hm.txAuditCreate.mockResolvedValue({})
+    hm.txSessionUpdate.mockResolvedValue({})
+
+    const out = await commissionerPickEdit({
+      leagueId: 'league-1',
+      actorUserId: 'comm-1',
+      action: 'REMOVE_PLAYER_FROM_PICK',
+      overallPickNumber: 1,
+      reason: 'CONFIRM',
+    })
+    expect(out.ok).toBe(true)
   })
 })

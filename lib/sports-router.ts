@@ -41,6 +41,7 @@ import { logDiagnosticsEvent } from './provider-diagnostics';
 import { fetchWithChain } from '@/lib/workers/api-chain';
 import { isRollingInsightsEnabledForSport, legacySupportedSportToApiChain } from '@/lib/workers/api-config';
 import { getPlayersBySport } from '@/lib/sleeper-client';
+import { getTheSportsDbApiKeyOrFallback } from '@/lib/env/sports-media-keys';
 
 export type Sport = SupportedSport;
 export type DataType = 'teams' | 'players' | 'games' | 'stats' | 'standings' | 'schedule' | 'depth_charts' | 'team_stats';
@@ -618,7 +619,7 @@ async function fetchFromClearSports(
 }
 
 async function fetchFromTheSportsDB(sport: Sport, dataType: DataType, identifier?: string): Promise<unknown | null> {
-  const apiKey = process.env.THESPORTSDB_API_KEY?.trim() || process.env.THEAUDIODB_API_KEY?.trim() || '3';
+  const apiKey = getTheSportsDbApiKeyOrFallback('3');
   const leagueId = THESPORTSDB_LEAGUE_IDS[sport];
   if (!leagueId) return null;
 

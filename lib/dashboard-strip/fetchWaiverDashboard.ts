@@ -1,11 +1,16 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '@/lib/prisma'
 import { getTrendingPlayers } from '@/lib/sleeper-client'
+import { getLeagueRosters } from '@/lib/api-cache/SleeperCacheLayer'
 import type { WaiverDashboardResponse, WaiverDrop, WaiverLeagueRec, WaiverPickup } from '@/app/dashboard/dashboardStripApiTypes'
 import { getChimmyOfficialTimePrefix } from '@/lib/time-engine/chimmyPromptPrefix'
 import { estimateNextWaiversProcessUTC } from '@/lib/time-engine/estimateWaiverRun'
 
-const SLEEPER = 'https://api.sleeper.app/v1' // db-first-exception: base URL constant for dashboard fan-out calls
+const WAIVER_DASHBOARD_TTL_MS = 15 * 60 * 1000
+
+function buildWaiverDashboardCacheKey(leagueId: string): string {
+  return `sleeper:dashboard:waivers:${leagueId}`
+}
 
 type SleeperRoster = {
   roster_id?: number
@@ -141,6 +146,15 @@ export async function fetchWaiverDashboard(userId: string): Promise<WaiverDashbo
     const ownerSleeperId = league.teams[0]?.platformUserId?.trim() || sleeperUserId || null
     if (!ownerSleeperId) continue
 
+    const cacheKey = buildWaiverDashboardCacheKey(league.platformLeagueId)
+    const cachedRow = await prisma.sportsDataCache.findUnique({ where: { cacheKey } }).catch(() => null)
+    const staleRecommendation = cachedRow?.data as WaiverLeagueRec | null
+    if (cachedRow && cachedRow.expiresAt > new Date() && staleRecommendation) {
+      console.log(`[dashboard/waivers] cache hit { leagueId: '${league.platformLeagueId}' }`)
+      recommendations.push(staleRecommendation)
+      continue
+    }
+
     const prismaSport = String(league.sport)
     const sportKey = sleeperSportFromDb(prismaSport)
 
@@ -157,13 +171,9 @@ export async function fetchWaiverDashboard(userId: string): Promise<WaiverDashbo
     }
 
     try {
-      const [rostersRes, leagueRes] = await Promise.all([
-        fetch(`${SLEEPER}/league/${encodeURIComponent(league.platformLeagueId)}/rosters`, { next: { revalidate: 30 } }),
-        fetch(`${SLEEPER}/league/${encodeURIComponent(league.platformLeagueId)}`, { next: { revalidate: 120 } }),
-      ])
+      console.log(`[dashboard/waivers] live refresh { leagueId: '${league.platformLeagueId}', reason: '${cachedRow ? 'stale' : 'miss'}' }`)
 
-      const rosters = rostersRes.ok ? ((await rostersRes.json()) as SleeperRoster[]) : []
-      const leagueJson = leagueRes.ok ? ((await leagueRes.json()) as { settings?: Record<string, unknown> }) : null
+      const rosters = (await getLeagueRosters(league.platformLeagueId).catch(() => [])) as SleeperRoster[]
 
       const roster = Array.isArray(rosters)
         ? rosters.find((r) => String(r.owner_id) === String(ownerSleeperId))
@@ -260,7 +270,26 @@ export async function fetchWaiverDashboard(userId: string): Promise<WaiverDashbo
         }),
         waiverDeadline,
       }
+
+      await prisma.sportsDataCache.upsert({
+        where: { cacheKey },
+        create: {
+          cacheKey,
+          data: rec as unknown as object,
+          expiresAt: new Date(Date.now() + WAIVER_DASHBOARD_TTL_MS),
+        },
+        update: {
+          data: rec as unknown as object,
+          expiresAt: new Date(Date.now() + WAIVER_DASHBOARD_TTL_MS),
+        },
+      })
+      console.log(`[dashboard/waivers] saved SportsDataCache { leagueId: '${league.platformLeagueId}', cacheKey: '${cacheKey}' }`)
     } catch {
+      if (staleRecommendation) {
+        console.log(`[dashboard/waivers] stale fallback { leagueId: '${league.platformLeagueId}' }`)
+        recommendations.push(staleRecommendation)
+        continue
+      }
       rec.chimmyAdvice = 'Waiver data unavailable — check your league directly.'
     }
 

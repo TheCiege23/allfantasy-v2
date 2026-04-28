@@ -3,6 +3,8 @@ import type { SocialProvider } from '@/lib/auth/SocialProviderResolver'
 const PROVIDER_FALLBACK_MESSAGES: Record<SocialProvider, string> = {
   google:
     'Google sign-in is not configured for this environment. It will appear here when enabled.',
+  spotify:
+    'Spotify sign-in is not configured for this environment. It will appear here when enabled.',
   apple:
     'Apple sign-in is not configured for this environment. It will appear here when enabled.',
   facebook:
@@ -20,6 +22,7 @@ export function getProviderFallbackMessage(provider: SocialProvider): string {
 export function getProviderDisplayName(provider: SocialProvider): string {
   const map: Record<SocialProvider, string> = {
     google: 'Google',
+    spotify: 'Spotify',
     apple: 'Apple',
     facebook: 'Facebook',
     instagram: 'Instagram',

@@ -37,6 +37,8 @@ export type DraftPlayerCardProps = {
   graduatedToNFL?: boolean
   /** C2C: 'college' | 'pro' for Campus-to-Canton */
   poolType?: 'college' | 'pro'
+  /** Rookie indicator from normalized pool row when available. */
+  isRookie?: boolean
   /** Optional: primary action (e.g. Draft button) */
   primaryAction?: React.ReactNode
   /** Optional: secondary action (e.g. Add to queue) */
@@ -169,6 +171,7 @@ function DraftPlayerCardInner({
   projectedLandingSpot = null,
   graduatedToNFL = false,
   poolType,
+  isRookie = false,
   aiWarRoomBadge = null,
   presentationVariant = 'default',
   isSelected = false,
@@ -197,6 +200,7 @@ function DraftPlayerCardInner({
   const showPromoted = graduatedToNFL
   const showProBadge = poolType === 'pro'
   const showCollegeBadge = poolType === 'college' || (isDevy && !showProBadge)
+  const showRookieBadge = Boolean(isRookie)
 
   const normalized = useMemo(
     () =>
@@ -279,25 +283,36 @@ function DraftPlayerCardInner({
         }}
         role={onSelect ? 'button' : undefined}
         tabIndex={onSelect ? 0 : undefined}
-        className={`rounded-xl border bg-gradient-to-b from-[#1f2d47] to-[#141e35] p-3 shadow-lg transition duration-200 hover:border-white/28 hover:shadow-xl ${
+        className={`rounded-2xl border bg-gradient-to-b from-[#1b2f49] via-[#14263e] to-[#0f1a30] p-3.5 shadow-[0_18px_46px_rgba(0,0,0,0.35)] transition duration-200 hover:border-white/30 hover:shadow-[0_20px_52px_rgba(0,0,0,0.42)] ${
           isDrafted ? 'border-white/5 opacity-75' : 'border-white/12'
         } ${isDevy ? 'ring-1 ring-inset ring-violet-500/35' : ''}`}
       >
-        <div className="flex items-center gap-3">
-          <div className="relative h-11 w-11 shrink-0">
+        <div className="flex items-start gap-3.5">
+          <div className="relative h-[54px] w-[54px] shrink-0">
             <HeadshotOrFallback
               headshotUrl={headshotUrl}
               displayName={displayName}
-              size={44}
+              size={54}
               testIdBase={headshotTestBase}
             />
-            <div className="absolute -bottom-0.5 -right-0.5 rounded border border-white/15 bg-[#141e35] p-px shadow-sm">
-              <TeamLogoOrFallback logoUrl={teamLogoUrl} teamAbbr={teamAbbr} size={18} testIdBase={teamLogoTestBase} />
+            <div className="absolute -bottom-1 -right-1 rounded border border-white/18 bg-[#141e35] p-px shadow-md">
+              <TeamLogoOrFallback logoUrl={teamLogoUrl} teamAbbr={teamAbbr} size={20} testIdBase={teamLogoTestBase} />
             </div>
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <p className="font-bold text-white/98 truncate">{displayName}</p>
+              <p className="truncate text-[15px] font-bold tracking-tight text-white/98">{displayName}</p>
+              <span className="rounded-md border border-cyan-300/30 bg-cyan-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-cyan-100">
+                {position}
+              </span>
+              <span className="rounded-md border border-white/18 bg-white/[0.06] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/90">
+                {teamAbbr ?? 'FA'}
+              </span>
+              {showRookieBadge ? (
+                <span className="rounded-md border border-lime-300/40 bg-lime-500/18 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-lime-100">
+                  Rookie
+                </span>
+              ) : null}
               {devyLabel && (
                 <span className="rounded bg-violet-500/25 px-1.5 py-0.5 text-[10px] font-medium text-violet-200" title="Devy / college">
                   {devyLabel}
@@ -309,20 +324,27 @@ function DraftPlayerCardInner({
                 </span>
               )}
             </div>
-            <p className="mt-0.5 text-[11px] text-white/65">
-              {[teamAbbr ?? '—', position].filter(Boolean).join(' · ')}
+            <p className="mt-1 text-[11px] text-white/65">
+              {[adpMetricLabel, formatAdpDisplay(normalized.adp), 'Bye', formatBye(normalized.byeWeek)].join(' · ')}
             </p>
-            <p className="mt-0.5 text-[10px] text-white/45 line-clamp-2">{statLine}</p>
+            {injuryStatus ? (
+              <span className="mt-1 inline-flex max-w-full truncate rounded-md border border-rose-400/35 bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-rose-100">
+                {injuryStatus}
+              </span>
+            ) : null}
+            <p className="mt-1 text-[11px] text-white/78 line-clamp-2">{statLine}</p>
           </div>
           {(compareAction || primaryAction || secondaryAction) && (
             <div
-              className="flex shrink-0 gap-1"
+              className="mt-0.5 flex shrink-0 flex-col gap-1"
               onClick={(event) => event.stopPropagation()}
               onKeyDown={(event) => event.stopPropagation()}
             >
-              {compareAction}
-              {secondaryAction}
               {primaryAction}
+              <div className="flex items-center gap-1">
+                {compareAction}
+                {secondaryAction}
+              </div>
             </div>
           )}
         </div>
@@ -356,7 +378,7 @@ function DraftPlayerCardInner({
             }`
       } ${isDevy ? 'border-l-[3px] border-l-violet-500/70' : ''}`}
     >
-      <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
+      <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5">
       <div className={`relative shrink-0 ${rs ? 'h-11 w-11' : 'h-10 w-10'}`}>
         <HeadshotOrFallback
           headshotUrl={headshotUrl}
@@ -377,6 +399,19 @@ function DraftPlayerCardInner({
               {position}
             </span>
           )}
+          {!rs ? (
+            <span className="shrink-0 rounded-md border border-cyan-300/30 bg-cyan-500/12 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-cyan-100/90">
+              {position}
+            </span>
+          ) : null}
+          <span className="shrink-0 rounded-md border border-white/16 bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-white/88">
+            {teamAbbr ?? 'FA'}
+          </span>
+          {showRookieBadge ? (
+            <span className="shrink-0 rounded-md border border-lime-300/35 bg-lime-500/18 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-lime-100">
+              Rookie
+            </span>
+          ) : null}
           {isQueued && (
             <span
               className="shrink-0 rounded-full border border-amber-400/35 bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-100"

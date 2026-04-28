@@ -7,6 +7,13 @@
 import type { LeagueSport } from '@prisma/client'
 import type { NflDraftProjectionSplits } from '@/lib/draft/analytics/nfl-draft-pool-projection-splits'
 
+export type ProjectionSourceTag =
+  | 'rolling_insights'
+  | 'adp_position_fallback'
+  | 'kicker_adp_binned_fallback'
+  | 'rookie_adp_position_fallback'
+  | 'team_def_baseline_fallback'
+
 export type DraftSport = LeagueSport
 
 /** Team display for logos and abbreviations (normalized from any provider). */
@@ -54,6 +61,8 @@ export interface PlayerStatSnapshotModel {
     gamesPlayed?: number | null
     season?: string | null
   } | null
+  /** Identifies how fantasyPointsPerGame was produced. */
+  projectionSource?: ProjectionSourceTag | null
 }
 
 /** Draft-specific metadata (eligibility, injury, devy/C2C). */
@@ -126,4 +135,6 @@ export interface NormalizedDraftEntry {
   yearsExp?: number | null
   /** D.7 — convenience flag derived during normalization (yearsExp === 0 || explicit upstream rookie marker). */
   isRookie?: boolean
+  /** Identifies how fantasyPointsPerGame was produced. */
+  projectionSource?: ProjectionSourceTag | null
 }

@@ -2,6 +2,8 @@
  * DraftPlayerSearchResolver — filter players by search query and position for draft room.
  */
 
+import { canonicalName } from './player-canonical-identity'
+
 export type DraftPlayer = {
   name: string
   position: string
@@ -10,7 +12,19 @@ export type DraftPlayer = {
 }
 
 /**
- * Filter players by search query (name, team, position).
+ * Filter players by search query.
+ *
+ * Phase 3 — canonical-aware match. The legacy implementation did
+ * `p.name.toLowerCase().includes(q)` which means searching "AJ Brown"
+ * (no dots) failed against pool name "A.J. Brown" — confusing for users
+ * who type the way Sleeper shows the name. We now match against BOTH the
+ * raw lowercase name AND the canonicalized form (apostrophes/dots stripped,
+ * single-letter pairs collapsed) so "AJ Brown", "A.J. Brown", "Ja'Marr Chase",
+ * and "JaMarr Chase" all hit the same player.
+ *
+ * Suffixes are preserved so "Marvin Harrison Jr." searches the son and
+ * "Marvin Harrison" without the suffix matches BOTH father and son (intentional —
+ * the user can disambiguate by clicking).
  */
 export function filterBySearch(
   players: DraftPlayer[],
@@ -18,12 +32,15 @@ export function filterBySearch(
 ): DraftPlayer[] {
   const q = searchQuery.trim().toLowerCase()
   if (!q) return players
-  return players.filter(
-    (p) =>
-      p.name.toLowerCase().includes(q) ||
-      (p.team && p.team.toLowerCase().includes(q)) ||
-      p.position.toLowerCase().includes(q)
-  )
+  const canonQ = canonicalName(searchQuery)
+  return players.filter((p) => {
+    const lowerName = p.name.toLowerCase()
+    if (lowerName.includes(q)) return true
+    if (p.team && p.team.toLowerCase().includes(q)) return true
+    if (p.position.toLowerCase().includes(q)) return true
+    if (canonQ && canonicalName(p.name).includes(canonQ)) return true
+    return false
+  })
 }
 
 /** Offensive positions (NFL). */

@@ -15,6 +15,7 @@ import {
   RedraftTradeResult,
 } from '@/lib/redraft-tiers';
 import { AI_CORE_PERSONALITY, getModeInstructions, SIGNATURE_PHRASES } from '@/lib/ai-personality';
+import { getOrCreateAiResult } from '@/lib/ai/ai-result-cache'
 
 const openai = getOpenAIRouteClient();
 
@@ -168,21 +169,87 @@ ${parsed.data.receiverContext ? `Receiver Record: ${parsed.data.receiverContext.
 
 Explain this trade for the SENDER's perspective.`;
 
-    const completion = await openai.chat.completions.create({
+    const cachePayload = {
+      feature: 'redraft-trade-analysis',
+      userId: parsed.data.sleeper_username || null,
+      leagueSize: parsed.data.leagueSize,
+      scoring: parsed.data.scoring,
+      senderContext: parsed.data.senderContext ?? null,
+      receiverContext: parsed.data.receiverContext ?? null,
+      senderPlayers: parsed.data.senderPlayers.map((p) => ({
+        name: p.name,
+        position: p.position,
+        weeklyProjection: p.weeklyProjection,
+        remainingWeeks: p.remainingWeeks,
+        isStarterForTeam: p.isStarterForTeam,
+        playoffDifficultyRank: p.playoffDifficultyRank ?? null,
+        riskProfile: p.riskProfile ?? null,
+      })),
+      receiverPlayers: parsed.data.receiverPlayers.map((p) => ({
+        name: p.name,
+        position: p.position,
+        weeklyProjection: p.weeklyProjection,
+        remainingWeeks: p.remainingWeeks,
+        isStarterForTeam: p.isStarterForTeam,
+        playoffDifficultyRank: p.playoffDifficultyRank ?? null,
+        riskProfile: p.riskProfile ?? null,
+      })),
+      deterministicResult: {
+        senderTotalValue: deterministicResult.senderTotalValue,
+        receiverTotalValue: deterministicResult.receiverTotalValue,
+        valueRatio: deterministicResult.valueRatio,
+        verdict: deterministicResult.verdict,
+        winner: deterministicResult.winner,
+        senderGrade: deterministicResult.senderGrade,
+        receiverGrade: deterministicResult.receiverGrade,
+      },
+      promptVersion: 'v1',
+    }
+
+    const aiResult = await getOrCreateAiResult({
+      feature: 'redraft-trade-analysis',
+      scopeType: 'user',
+      scopeId: parsed.data.sleeper_username || 'anonymous',
+      provider: 'openai',
       model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
-      ],
-      temperature: 0.7,
-      max_tokens: 800,
-      response_format: { type: 'json_object' },
-    });
-    
-    let aiExplanation: any = {};
+      payload: cachePayload,
+      ttlSeconds: 2 * 60 * 60,
+      onCacheMiss: async () => {
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage },
+          ],
+          temperature: 0.7,
+          max_tokens: 800,
+          response_format: { type: 'json_object' },
+        })
+
+        const content = completion.choices[0]?.message?.content || '{}'
+        return {
+          resultText: content,
+          resultJson: { content },
+          tokenPrompt: completion.usage?.prompt_tokens ?? null,
+          tokenOutput: completion.usage?.completion_tokens ?? null,
+        }
+      },
+    })
+
+    if (aiResult.cacheHit) {
+      console.log(`[redraft-trade] AI cache hit { user: '${parsed.data.sleeper_username ?? 'anonymous'}' }`)
+    } else {
+      console.log(`[redraft-trade] AI cache miss { user: '${parsed.data.sleeper_username ?? 'anonymous'}', modelCallMs: ${aiResult.modelDurationMs ?? -1} }`)
+      console.log(`[redraft-trade] saved AiResult { id: '${aiResult.row.id}', resultKey: '${aiResult.row.resultKey}' }`)
+    }
+
+    let aiExplanation: any = {}
     try {
-      const content = completion.choices[0]?.message?.content || '{}';
-      aiExplanation = JSON.parse(content);
+      const content =
+        (typeof aiResult.row.resultText === 'string' && aiResult.row.resultText.trim()) ||
+        ((aiResult.row.resultJson as any)?.content as string | undefined) ||
+        '{}'
+      aiExplanation = JSON.parse(content)
     } catch (e) {
       aiExplanation = {
         headline: 'Trade evaluation complete',
@@ -190,7 +257,7 @@ Explain this trade for the SENDER's perspective.`;
         sender_perspective: '',
         receiver_perspective: '',
         counter_offers: [],
-      };
+      }
     }
     
     // Track usage

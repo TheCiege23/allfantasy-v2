@@ -10,6 +10,7 @@ export function getProviderConnectAction(providerId: SignInProviderId, configure
 
 const FALLBACK_MESSAGES: Record<SignInProviderId, string> = {
   google: "Google sign-in is not configured for this environment. It will appear when enabled.",
+  spotify: "Spotify sign-in is not configured for this environment. It will appear when enabled.",
   apple: "Apple sign-in is not configured for this environment. It will appear when enabled.",
   facebook: "Facebook sign-in is planned. Follow updates for when it's available.",
   instagram: "Instagram sign-in is planned. Follow updates for when it's available.",

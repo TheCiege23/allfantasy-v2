@@ -243,23 +243,23 @@ function DraftBoardCellInner({
     ? `Draft pick ${compactLabel}, empty slot`
     : `${pick.playerName ?? 'Player'}, ${pick.position ?? ''}, ${pick.team ?? ''}, pick ${compactLabel}`
 
-  const hoverLift = rs && !isEmpty ? 'hover:z-[1] hover:-translate-y-1 hover:scale-[1.02]' : 'hover:z-[1] hover:-translate-y-1.5 hover:scale-[1.03]'
+  const hoverLift = rs && !isEmpty ? 'hover:z-[1] hover:-translate-y-1 hover:scale-[1.015]' : 'hover:z-[1] hover:-translate-y-1 hover:scale-[1.02]'
 
   return (
     <div
-      className={`group relative flex h-[70px] min-h-[70px] flex-col overflow-hidden rounded-xl border px-2.5 pb-2 pt-2 text-[10px] backdrop-blur-sm transition-[border-color,box-shadow,transform] duration-200 ${hoverLift} hover:border-cyan-300/55 hover:shadow-2xl sm:h-[74px] sm:min-h-[74px] sm:px-2.5 sm:pb-2 sm:pt-2 ${
+      className={`group relative flex h-[70px] min-h-[70px] flex-col overflow-hidden rounded-xl border px-2.5 pb-2 pt-2 text-[10px] backdrop-blur-sm transition-[border-color,box-shadow,transform,background-color] duration-200 ${hoverLift} hover:border-cyan-300/55 hover:shadow-2xl sm:h-[74px] sm:min-h-[74px] sm:px-2.5 sm:pb-2 sm:pt-2 ${
         onTradeFromCell ? 'pr-7 sm:pr-8' : ''
       } ${
         isCurrentPick
           ? rs
-            ? 'border-cyan-300/90 bg-[radial-gradient(ellipse_at_50%_0%,rgba(34,211,238,0.35),transparent),linear-gradient(155deg,rgba(34,211,238,0.22),rgba(15,23,42,0.96))] shadow-[0_0_56px_rgba(34,211,238,0.55)] ring-2 ring-cyan-200/70'
-            : 'border-cyan-400/95 bg-gradient-to-br from-cyan-500/35 via-[#2a3d5a] to-[#1f2d47] shadow-[0_0_50px_rgba(34,211,238,0.6)] ring-2 ring-cyan-300/80'
+            ? 'animate-pulse border-cyan-300/90 bg-[radial-gradient(ellipse_at_50%_0%,rgba(34,211,238,0.35),transparent),linear-gradient(155deg,rgba(34,211,238,0.22),rgba(15,23,42,0.96))] shadow-[0_0_56px_rgba(34,211,238,0.55)] ring-2 ring-cyan-200/70'
+            : 'animate-pulse border-cyan-400/95 bg-gradient-to-br from-cyan-500/35 via-[#2a3d5a] to-[#1f2d47] shadow-[0_0_50px_rgba(34,211,238,0.6)] ring-2 ring-cyan-300/80'
           : isRecentPick
             ? rs
               ? 'border-emerald-400/70 bg-gradient-to-br from-emerald-500/28 to-[#142032] ring-1 ring-emerald-400/50 shadow-[0_0_36px_rgba(52,211,153,0.28)]'
               : 'border-emerald-400/80 bg-gradient-to-br from-emerald-500/25 to-[#2a3d5a] ring-1 ring-emerald-400/60 shadow-[0_0_32px_rgba(52,211,153,0.35)]'
             : isEmpty && rs
-              ? 'border border-dashed border-white/18 bg-[linear-gradient(145deg,rgba(15,23,42,0.5),rgba(8,15,28,0.85))] shadow-inner'
+              ? 'border border-dashed border-white/20 bg-[linear-gradient(145deg,rgba(15,23,42,0.5),rgba(8,15,28,0.85))] shadow-inner'
               : `border-cyan-400/35 bg-gradient-to-b from-[#2a3d5a] to-[#1a2844] ${rs ? 'shadow-lg' : 'shadow-xl'} ${highlightClass(pickHighlight)}`
       }`}
       style={tint ?? managerTint}
@@ -269,6 +269,7 @@ function DraftBoardCellInner({
       data-owner-roster={pick.ownerRosterId ?? ''}
       data-testid={`draft-board-cell-${pick.overall}`}
       data-recent={isRecentPick ? 'true' : 'false'}
+      data-current={isCurrentPick ? 'true' : 'false'}
       role="group"
       aria-label={ariaLabel}
     >
@@ -282,7 +283,11 @@ function DraftBoardCellInner({
           data-testid={`draft-board-cell-commish-edit-${pick.overall}`}
           title={`Edit pick ${pick.overall}`}
           aria-label={`Edit pick ${pick.overall}`}
-          className="absolute left-0.5 top-0.5 z-[2] inline-flex h-6 w-6 items-center justify-center rounded-md border border-amber-400/40 bg-amber-500/15 text-amber-100 opacity-0 shadow-sm backdrop-blur-sm transition duration-150 group-hover:opacity-100 hover:border-amber-300/60 hover:bg-amber-500/30 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50 active:scale-90"
+          /* G.1 — Always discoverable. Previously `opacity-0 group-hover:opacity-100`
+             made the pencil invisible until hover, which broke discoverability on
+             mobile (no hover) and made commissioners think the affordance didn't
+             exist. Now visible at half opacity by default; hover/focus brightens. */
+          className="absolute left-0.5 top-0.5 z-[2] inline-flex h-6 w-6 items-center justify-center rounded-md border border-amber-400/40 bg-amber-500/15 text-amber-100 opacity-60 shadow-sm backdrop-blur-sm transition duration-150 hover:border-amber-300/60 hover:bg-amber-500/30 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50 active:scale-90 group-hover:opacity-100"
         >
           <Pencil className="h-3 w-3" />
         </button>
@@ -349,14 +354,15 @@ function DraftBoardCellInner({
 
       {isEmpty ? (
         <div className="mt-auto flex min-h-0 flex-1 flex-col justify-end gap-0.5">
-          <p className={`text-[9px] font-medium uppercase tracking-[0.12em] ${rs ? 'text-cyan-200/35' : 'text-white/22'}`}>Open</p>
+          <p className={`text-[9px] font-semibold uppercase tracking-[0.14em] ${rs ? 'text-cyan-200/45' : 'text-white/28'}`}>Open Slot</p>
           <div className="flex items-end justify-between gap-2">
-            <div className="flex items-center gap-1 text-white/28">
+            <div className="flex items-center gap-1 text-white/38">
               {emptyCellDirection === 'reverse' ? (
                 <ArrowLeft className="h-3 w-3" aria-hidden />
               ) : (
                 <ArrowRight className="h-3 w-3" aria-hidden />
               )}
+              <span className="text-[8px] uppercase tracking-[0.12em]">Awaiting pick</span>
               {isCollegeRound ? (
                 <StatusBadge label="College" className="bg-violet-500/25 text-violet-200" />
               ) : isDevyRound ? (

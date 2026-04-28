@@ -10,6 +10,7 @@ import {
   submitChallengeAnswer,
   tallyChallengeResults,
 } from '@/lib/survivor/challengeEngine'
+import { applySurvivorSitOutToMiniGames } from '@/lib/survivor/SurvivorSitOutEngine'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -83,6 +84,29 @@ export async function POST(req: NextRequest) {
     if (!ch) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     const gate = await assertLeagueMember(ch.leagueId, userId)
     if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
+
+    const myRoster = await prisma.roster.findFirst({
+      where: { leagueId: ch.leagueId, platformUserId: userId },
+      select: { id: true },
+    })
+    if (!myRoster) return NextResponse.json({ error: 'Roster not found' }, { status: 403 })
+
+    if (rosterId && rosterId !== myRoster.id) {
+      return NextResponse.json({ error: 'You can only submit as your own roster' }, { status: 403 })
+    }
+
+    const sitOutGuard = await applySurvivorSitOutToMiniGames({
+      leagueId: ch.leagueId,
+      week: ch.week,
+      rosterId: myRoster.id,
+    })
+    if (sitOutGuard.blocked) {
+      return NextResponse.json(
+        { error: `${sitOutGuard.reason ?? 'Sit-out is active for this week.'} Eligibility reason: sit-out accepted and locked.` },
+        { status: 403 },
+      )
+    }
+
     const r = await submitChallengeAnswer(challengeId, rosterId, tribeId, submission)
     if (!r.ok) return NextResponse.json(r, { status: 400 })
     return NextResponse.json({ ok: true })

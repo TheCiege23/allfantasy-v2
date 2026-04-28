@@ -128,6 +128,7 @@ export type SurvivorCommandIntent =
   | 'vote'
   | 'jury_vote'
   | 'play_idol'
+  | 'sit_out_nominate'
   | 'challenge_pick'
   | 'immunity_choice'
   | 'confirm_minigame'

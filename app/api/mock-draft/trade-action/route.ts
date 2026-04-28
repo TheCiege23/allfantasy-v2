@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
 import { getLiveADP, formatADPForPrompt } from '@/lib/adp-data'
+import { getOrCreateAiResult } from '@/lib/ai/ai-result-cache'
 
 const openai = getOpenAIRouteClient()
 
@@ -100,21 +101,57 @@ export async function POST(req: NextRequest) {
         `#${p.overall} R${p.round}P${p.pick} — ${p.manager}${p.isUser ? ' [USER]' : ''}`
       ).join('\n')
 
-      const completion = await openai.chat.completions.create({
+      const aiResult = await getOrCreateAiResult({
+        feature: 'mock-draft-trade-action',
+        scopeType: 'league',
+        scopeId: leagueId,
+        provider: 'openai',
         model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: `You are an expert fantasy football draft simulator. A draft-day trade was accepted. Re-simulate all picks from pick #${tradePoint} onward with realistic ADP-based selections.
+        ttlSeconds: 30 * 60,
+        payload: {
+          mockDraftSessionId: mock.id,
+          leagueId,
+          userId: session.user.id,
+          sport: 'NFL',
+          season: String((league as any)?.season || ''),
+          draftType: String((league as any)?.draftType || ''),
+          scoringFormat: String(league?.scoring || ''),
+          currentPick: {
+            round: Number(userPick?.round || 0),
+            pick: Number(userPick?.pick || 0),
+            overall: Number(pickNumber || 0),
+          },
+          teamNeeds: [
+            { manager: userPick.manager, role: 'user' },
+            { manager: partnerPick.manager, role: 'partner' },
+          ],
+          availablePlayerIds: adpFallbackPool.slice(0, 250).map((p) => p.name),
+          priorPickIds: lockedPicks.map((p: any) => p.playerId || p.playerName || null).filter(Boolean),
+          slotsToRedraft: picksToRedraft.map((p) => ({ overall: p.overall, round: p.round, pick: p.pick, manager: p.manager })),
+          tradeAction: {
+            action,
+            pickNumber,
+            fromPick: proposal.fromPick,
+            tradePoint,
+          },
+          promptVersion: 'v1',
+        },
+        onCacheMiss: async () => {
+          const completion = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content: `You are an expert fantasy football draft simulator. A draft-day trade was accepted. Re-simulate all picks from pick #${tradePoint} onward with realistic ADP-based selections.
 
 Return valid JSON:
 { "picks": [{ "overall": number, "playerName": string, "position": string, "team": string, "confidence": number, "value": number, "notes": string }] }
 
 Rules: one entry per slot, use ADP data, no duplicates, no locked players, [USER] gets best-available, confidence 60-95.`,
-          },
-          {
-            role: 'user',
-            content: `Trade accepted in a ${leagueFormat} mock draft. "${userPick.manager}" traded pick #${pickNumber} to "${partnerPick.manager}" for pick #${proposal.fromPick}.
+              },
+              {
+                role: 'user',
+                content: `Trade accepted in a ${leagueFormat} mock draft. "${userPick.manager}" traded pick #${pickNumber} to "${partnerPick.manager}" for pick #${proposal.fromPick}.
 
 Locked players (before pick #${tradePoint}): ${Array.from(lockedPlayerNames).join(', ') || 'None'}
 
@@ -123,14 +160,30 @@ ${slotsToFill}
 ${adpContext}
 
 Return exactly ${picksToRedraft.length} picks.`,
-          },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.7,
-        max_tokens: 16000,
+              },
+            ],
+            response_format: { type: 'json_object' },
+            temperature: 0.7,
+            max_tokens: 16000,
+          })
+
+          return {
+            resultText: completion.choices[0]?.message?.content || '',
+            resultJson: null,
+            tokenPrompt: null,
+            tokenOutput: null,
+          }
+        },
       })
 
-      const content = completion.choices[0]?.message?.content
+      if (aiResult.cacheHit) {
+        console.log(`[mock-draft/trade-action] AI cache hit { leagueId: '${leagueId}', pickNumber: ${pickNumber} }`)
+      } else {
+        console.log(`[mock-draft/trade-action] AI cache miss { leagueId: '${leagueId}', pickNumber: ${pickNumber}, modelCallMs: ${aiResult.modelDurationMs ?? -1} }`)
+        console.log(`[mock-draft/trade-action] saved AiResult { id: '${aiResult.row.id}', resultKey: '${aiResult.row.resultKey}' }`)
+      }
+
+      const content = aiResult.row.resultText
       if (!content) {
         return NextResponse.json({ error: 'No response from AI' }, { status: 500 })
       }

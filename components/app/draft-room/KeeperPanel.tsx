@@ -430,3 +430,5 @@ export function KeeperPanel({
     </div>
   )
 }
+
+export default KeeperPanel

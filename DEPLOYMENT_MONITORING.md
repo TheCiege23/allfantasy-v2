@@ -1,3 +1,45 @@
+## Pre-Deploy Gate: Draft Pool Data-Quality
+
+Run before every production deploy that touches draft, player identity, or pool-related code:
+
+```powershell
+npm run draft-pool:sweep-multi-league
+```
+
+Exits non-zero on any failure — safe to add to CI pre-deploy step.
+Automated nightly check: `.github/workflows/draft-pool-data-quality-nightly.yml` (runs 10:00 UTC daily, opens issue on failure).
+
+**Status as of 2026-04-27:** 4/4 leagues PASS, 11/11 checks clean  
+`dupPlayerIds=0  dupSleeperIds=0  pairCollisions=0  missingHeadshots=0  missingTeamLogos=0  missingProjections=0  identityMissingSleeperForward=0  rookieSignalPct=99.16%`
+
+## Pre-Deploy Gate: AI Result Cache Wiring
+
+Run before deploys that touch AI routes/cache helpers:
+
+```powershell
+npx prisma validate
+npm run ai-result-cache:regression
+npm run ai-result-cache:audit
+```
+
+Expected:
+
+1. Prisma schema valid.
+2. Regression suite PASS (cache wiring + helper round trip).
+3. Audit command completes and reports feature row health.
+
+### Smoke-Provider Route Proof Policy
+
+Authenticated smoke-provider two-call route proof (`source: smoke-provider` then `source: ai-result-cache`) is a manual release check, not default CI:
+
+1. Requires authenticated browser context.
+2. Requires temporary Sleeper fixture lifecycle management.
+3. May interact with mutable daily limiter state (power-rankings).
+
+Use for release evidence when AI route behavior changes materially.
+
+---
+
 # Same-Day Rollout: trade/league-analyze AI Migration
 **Deployment Time:** 2026-04-21
 **Feature:** `NEXT_PUBLIC_USE_AI_TRADE_ANALYZE=true`

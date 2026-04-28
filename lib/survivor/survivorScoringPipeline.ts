@@ -11,6 +11,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { getSportSchedule } from './sportScheduleEngine'
+import { applySurvivorSitOutToScoring } from './SurvivorSitOutEngine'
 
 /**
  * Sync weekly scores for a survivor league from the sports data pipeline.
@@ -119,7 +120,19 @@ export async function syncSurvivorWeeklyScores(
     scoredPlayers++
   }
 
-  return { scoredPlayers, tribeScores }
+  await applySurvivorSitOutToScoring(leagueId, week)
+
+  const adjustedRows = await (prisma as any).survivorWeeklyScore.findMany({
+    where: { leagueId, week, countedTowardTribeTotal: true },
+    select: { tribeId: true, finalScore: true },
+  })
+  const adjustedTribeScores: Record<string, number> = {}
+  for (const row of adjustedRows) {
+    if (!row.tribeId) continue
+    adjustedTribeScores[row.tribeId] = (adjustedTribeScores[row.tribeId] ?? 0) + row.finalScore
+  }
+
+  return { scoredPlayers, tribeScores: adjustedTribeScores }
 }
 
 /**

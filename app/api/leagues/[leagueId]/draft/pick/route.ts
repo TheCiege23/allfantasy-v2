@@ -54,17 +54,6 @@ export async function POST(
   }
   const expectedRosterId = preSubmitSnapshot.currentPick.rosterId
 
-  // Determine the effective roster ID
-  let effectiveRosterId = rosterId ?? expectedRosterId
-
-  // Check if user is commissioner - if so, allow drafting for any roster
-  const isComm = await isCommissioner(leagueId, userId)
-  if (!isComm && effectiveRosterId !== expectedRosterId) {
-    return NextResponse.json({ error: 'Invalid roster for current pick' }, { status: 400 })
-  }
-  const canSubmit = await canSubmitPickForRoster(leagueId, userId, effectiveRosterId)
-  if (!canSubmit) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
   const rawSource = String(body.source ?? 'user').toLowerCase()
   const source: 'user' | 'auto' | 'commissioner' | 'keeper' | 'devy' | 'college' | 'promoted_devy' =
     rawSource === 'auto' ||
@@ -75,6 +64,20 @@ export async function POST(
     rawSource === 'promoted_devy'
       ? rawSource
       : 'user'
+
+  // Determine the effective roster ID
+  let effectiveRosterId = rosterId ?? expectedRosterId
+
+  // Check if user is commissioner - if so, allow drafting for any roster
+  const isComm = await isCommissioner(leagueId, userId)
+  if (source === 'commissioner' && !isComm) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  if (!isComm && effectiveRosterId !== expectedRosterId) {
+    return NextResponse.json({ error: 'Invalid roster for current pick' }, { status: 400 })
+  }
+  const canSubmit = await canSubmitPickForRoster(leagueId, userId, effectiveRosterId)
+  if (!canSubmit) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   await ensureDraftingLifecycleForActiveSession(leagueId, userId)
 

@@ -10,6 +10,7 @@ import type { LeagueRosterConfig } from '@/lib/vorp-engine'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { getStrategyMetaReports } from '@/lib/strategy-meta'
 import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
+import { getOrCreateAiResult } from '@/lib/ai/ai-result-cache'
 import { getLeagueInfo, getLeagueRosters } from '@/lib/sleeper-client'
 
 const openai = getOpenAIRouteClient()
@@ -165,22 +166,71 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rankings/enhanced", to
           })),
         }
 
-        const completion = await openai.chat.completions.create({
+        const userPrompt = `Generate a 3-5 year dynasty plan for this team:\n${JSON.stringify(planInput, null, 2)}`
+        const aiPayload = {
+          featureName: 'legacy-rankings-enhanced',
+          sport: normalizedSport,
+          season: String(league?.season || ''),
+          scoringFormat: ppr === 1 ? 'ppr' : ppr === 0.5 ? 'half_ppr' : 'standard',
+          leagueId,
+          week: Number(league?.settings?.leg || 0) || null,
+          view,
+          goal,
+          includePlan,
+          options: {
+            model: 'gpt-4o',
+            temperature: 0.5,
+            maxTokens: 600,
+            responseFormat: 'json_object',
+          },
+          systemPrompt: PLAN_SYSTEM_PROMPT,
+          userPrompt,
+          planInput,
+        }
+
+        const aiResult = await getOrCreateAiResult({
+          feature: 'legacy-rankings-enhanced-plan',
+          scopeType: 'league',
+          scopeId: leagueId,
+          provider: 'openai',
           model: 'gpt-4o',
-          temperature: 0.5,
-          max_tokens: 600,
-          response_format: { type: 'json_object' },
-          messages: [
-            { role: 'system', content: PLAN_SYSTEM_PROMPT },
-            { role: 'user', content: `Generate a 3-5 year dynasty plan for this team:\n${JSON.stringify(planInput, null, 2)}` },
-          ],
+          payload: aiPayload,
+          ttlSeconds: 4 * 60 * 60,
+          onCacheMiss: async () => {
+            const completion = await openai.chat.completions.create({
+              model: 'gpt-4o',
+              temperature: 0.5,
+              max_tokens: 600,
+              response_format: { type: 'json_object' },
+              messages: [
+                { role: 'system', content: PLAN_SYSTEM_PROMPT },
+                { role: 'user', content: userPrompt },
+              ],
+            })
+
+            const content = completion.choices[0]?.message?.content || '{"plan":[]}'
+            const parsed = JSON.parse(content)
+            return {
+              resultText: content,
+              resultJson: parsed,
+              tokenPrompt: completion.usage?.prompt_tokens ?? null,
+              tokenOutput: completion.usage?.completion_tokens ?? null,
+            }
+          },
         })
 
-        const content = completion.choices[0]?.message?.content
-        if (content) {
-          const parsed = JSON.parse(content)
-          aiPlan = Array.isArray(parsed.plan) ? parsed.plan.slice(0, 5) : []
+        if (aiResult.cacheHit) {
+          console.log(`[legacy-rankings/enhanced] AI cache hit { leagueId: '${leagueId}', view: '${view}', goal: '${goal}' }`)
+        } else {
+          console.log(`[legacy-rankings/enhanced] AI cache miss { leagueId: '${leagueId}', view: '${view}', goal: '${goal}', modelCallMs: ${aiResult.modelDurationMs ?? -1} }`)
+          console.log(`[legacy-rankings/enhanced] saved AiResult { id: '${aiResult.row.id}', resultKey: '${aiResult.row.resultKey}' }`)
         }
+
+        const parsed =
+          aiResult.row.resultJson && typeof aiResult.row.resultJson === 'object'
+            ? (aiResult.row.resultJson as Record<string, unknown>)
+            : JSON.parse(aiResult.row.resultText || '{"plan":[]}')
+        aiPlan = Array.isArray((parsed as any).plan) ? (parsed as any).plan.slice(0, 5) : []
       } catch (e) {
         console.error('AI plan generation failed:', e)
         aiPlan = [

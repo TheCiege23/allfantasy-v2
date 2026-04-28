@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { fetchWeatherByCity } from '@/lib/openweathermap';
-import { prisma } from '@/lib/prisma';
+import { CITY_WEATHER_TTL_MS, getCachedWeatherByCity } from '@/lib/weather/weatherService';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -9,14 +8,11 @@ export async function GET(req: Request) {
 
   if (!city || !gameDate) return NextResponse.json({ error: 'city & date required' }, { status: 400 });
 
-  const cacheKey = `weather-${city}-${gameDate}`;
-
-  const cached = await prisma.sportsDataCache.findUnique({ where: { cacheKey } });
-  if (cached && new Date(cached.expiresAt) > new Date()) {
-    return NextResponse.json(cached.data);
-  }
-
-  const weather = await fetchWeatherByCity(city);
+  const { weather, meta } = await getCachedWeatherByCity({
+    city,
+    referenceDate: new Date(gameDate),
+    ttlMs: CITY_WEATHER_TTL_MS,
+  });
   if (!weather) {
     return NextResponse.json({ error: 'Failed to fetch weather data' }, { status: 502 });
   }
@@ -34,12 +30,6 @@ export async function GET(req: Request) {
     fantasyImpactLevel: weather.fantasyImpactLevel,
   };
 
-  await prisma.sportsDataCache.upsert({
-    where: { cacheKey },
-    update: { data: gameWeather, expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7) },
-    create: { cacheKey, data: gameWeather, expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7) },
-  });
-
-  return NextResponse.json(gameWeather);
+  return NextResponse.json({ ...gameWeather, meta });
 }
 

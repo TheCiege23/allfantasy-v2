@@ -3,10 +3,11 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
-const PROVIDER_IDS = ["google", "apple", "facebook", "instagram", "x", "tiktok"] as const
+const PROVIDER_IDS = ["google", "spotify", "apple", "facebook", "instagram", "x", "tiktok"] as const
 type SignInProviderId = (typeof PROVIDER_IDS)[number]
 const PROVIDER_NAMES: Record<SignInProviderId, string> = {
   google: "Google",
+  spotify: "Spotify",
   apple: "Apple",
   facebook: "Facebook",
   instagram: "Instagram",
@@ -94,6 +95,8 @@ export async function DELETE(
         name: PROVIDER_NAMES[id],
         configured: id === "google"
           ? !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET)
+          : id === "spotify"
+            ? !!(process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET)
           : id === "apple"
             ? !!(process.env.APPLE_CLIENT_ID && process.env.APPLE_CLIENT_SECRET)
             : false,
@@ -136,6 +139,8 @@ export async function DELETE(
       name: PROVIDER_NAMES[id],
       configured: id === "google"
         ? !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET)
+        : id === "spotify"
+          ? !!(process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET)
         : id === "apple"
           ? !!(process.env.APPLE_CLIENT_ID && process.env.APPLE_CLIENT_SECRET)
           : false,

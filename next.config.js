@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
+const isProd = process.env.NODE_ENV === 'production';
+
 const nextConfig = {
   reactStrictMode: true,
+  distDir: process.env.AF_NEXT_DIST_DIR || (isProd ? '.next' : '.next-dev-local'),
 
   webpack: (config, { isServer, dev }) => {
     if (!isServer) {
@@ -51,6 +54,10 @@ const nextConfig = {
   allowedDevOrigins: [
     "http://127.0.0.1:3000",
     "http://localhost:3000",
+    "http://127.0.0.1:3001",
+    "http://localhost:3001",
+    "http://127.0.0.1:3010",
+    "http://localhost:3010",
     "http://127.0.0.1:5000",
     "http://localhost:5000",
   ],
@@ -74,7 +81,9 @@ const nextConfig = {
         headers: [
           {
             key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
+            value: isProd
+              ? "public, max-age=31536000, immutable"
+              : "no-cache, no-store, must-revalidate",
           },
         ],
       },

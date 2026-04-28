@@ -8,6 +8,10 @@ import { getStatus } from '@/lib/zombie/ZombieOwnerStatusService'
 import { getSerumBalance } from '@/lib/zombie/ZombieSerumEngine'
 import { getWeaponBalance } from '@/lib/zombie/ZombieWeaponEngine'
 import { getZombieLeagueConfig } from '@/lib/zombie/ZombieLeagueConfig'
+import {
+  applyZombieHordeSitOutToChallenges,
+  nominateZombieHordeSitOut,
+} from '@/lib/zombie/ZombieHordeSitOutEngine'
 
 export type ChimmyActionResult = {
   ok: boolean
@@ -22,6 +26,7 @@ export type ZombieChimmyIntent =
   | 'use_weapon'
   | 'declare_bomb'
   | 'trigger_ambush'
+  | 'horde_sit_out_nominate'
   | 'query_inventory'
   | 'query_role'
   | 'query_rules'
@@ -33,6 +38,15 @@ export type ZombieChimmyIntent =
 export function detectZombieChimmyIntent(rawMessage: string): ZombieChimmyIntent {
   const lower = rawMessage.toLowerCase()
   if (!lower.includes('@chimmy')) return 'unknown'
+
+  if (
+    /@chimmy\s+horde\s+sit\s*out\s+.+/i.test(rawMessage) ||
+    /@chimmy\s+sit\s*out\s+.+/i.test(rawMessage) ||
+    /@chimmy\s+nominate\s+.+\s+to\s+sit(?:\s*out)?/i.test(rawMessage) ||
+    /@chimmy\s+.+\s+sit\s*out/i.test(rawMessage)
+  ) {
+    return 'horde_sit_out_nominate'
+  }
 
   // Action intents (higher priority)
   if (lower.match(/ambush|trigger.*ambush/)) return 'trigger_ambush'
@@ -141,6 +155,29 @@ export async function handleZombieChimmyAction(
   const lower = rawMessage.toLowerCase()
 
   try {
+    if (intent === 'horde_sit_out_nominate') {
+      const nomination = await nominateZombieHordeSitOut({
+        leagueId,
+        week,
+        nominatorUserId: userId,
+        rawCommand: rawMessage,
+      })
+      if (!nomination.ok) {
+        const eligible = nomination.eligibleCandidates?.map((candidate) => candidate.displayName).join(', ')
+        return {
+          ok: false,
+          privateMessage: eligible
+            ? `${nomination.error} Eligible now: ${eligible}.`
+            : nomination.error,
+        }
+      }
+      return {
+        ok: true,
+        publicMessage: `${nomination.nominatedDisplayName} was nominated to sit out. They must accept for it to become official.`,
+        privateMessage: `Nomination submitted for ${nomination.nominatedDisplayName}. Waiting on Yes/No response.`,
+      }
+    }
+
     // Query intents (no @prisma action creation)
     if (intent === 'query_inventory') {
       const msg = await handleQueryInventory(leagueId, userId)
@@ -160,6 +197,20 @@ export async function handleZombieChimmyAction(
     }
 
     // Action intents (with audit)
+    if (intent === 'trigger_ambush' || intent === 'use_weapon' || intent === 'declare_bomb' || intent === 'activate_power') {
+      const challengeGuard = await applyZombieHordeSitOutToChallenges({
+        leagueId,
+        week,
+        userId,
+      })
+      if (challengeGuard.blocked) {
+        return {
+          ok: false,
+          privateMessage: `${challengeGuard.reason ?? 'Sit-out active for this week.'} You can still view status/inventory commands.`,
+        }
+      }
+    }
+
     if (intent === 'trigger_ambush') {
       const row = (await processAmbushFromChimmy(leagueId, userId, rawMessage, week)) as ZombieChimmyAction
       return {
@@ -247,6 +298,7 @@ export async function handleZombieChimmyAction(
           "⚠️ I didn't recognize that command. Try:\n" +
           '• `@Chimmy inventory` — Show your serums & weapons\n' +
           '• `@Chimmy role` — Show your status (Survivor/Zombie/Whisperer)\n' +
+          '• `@Chimmy horde sit out [manager]` — Nominate a horde sit-out\n' +
           '• `@Chimmy rules` — Show infection & serum rules\n' +
           '• `@Chimmy week` — Show this week\'s standings\n' +
           '• `@Chimmy revive` — Use serum to revive\n' +

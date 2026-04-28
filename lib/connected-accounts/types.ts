@@ -1,4 +1,4 @@
-export type SignInProviderId = "google" | "apple" | "facebook" | "instagram" | "x" | "tiktok"
+export type SignInProviderId = "google" | "spotify" | "apple" | "facebook" | "instagram" | "x" | "tiktok"
 
 export interface ProviderStatus {
   id: SignInProviderId

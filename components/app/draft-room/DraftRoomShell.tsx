@@ -51,11 +51,11 @@ const MOBILE_TAB_I18N: Record<MobileDraftTab, string> = {
 const MOBILE_TABS = [
   { id: 'board' as const, icon: LayoutGrid },
   { id: 'players' as const, icon: User },
+  { id: 'chat' as const, icon: MessageCircle },
   { id: 'queue' as const, icon: ListOrdered },
   { id: 'helper' as const, icon: Sparkles },
   { id: 'roster' as const, icon: Users },
   { id: 'keepers' as const, icon: Shield },
-  { id: 'chat' as const, icon: MessageCircle },
 ]
 
 export function DraftRoomShell({
@@ -105,6 +105,8 @@ export function DraftRoomShell({
       (tab.id !== 'roster' || rosterPanel) &&
       (tab.id !== 'keepers' || keeperPanel)
   )
+  const primaryMobileTabs = visibleTabs.filter((tab) => tab.id === 'board' || tab.id === 'players' || tab.id === 'chat')
+  const secondaryMobileTabs = visibleTabs.filter((tab) => tab.id !== 'board' && tab.id !== 'players' && tab.id !== 'chat')
 
   /**
    * D.6 — when `layout='premium'` is set, we render the premium grid even if
@@ -287,7 +289,7 @@ export function DraftRoomShell({
           )}
           <div
             key={mobileTab}
-            className="min-h-[220px] min-w-0 p-3 text-sm transition-opacity duration-150 sm:p-3.5"
+            className="min-h-[220px] min-w-0 p-3 pb-16 text-sm transition-opacity duration-150 sm:p-3.5 sm:pb-16"
             data-testid="draft-mobile-content"
             data-active-tab={mobileTab}
           >
@@ -318,11 +320,38 @@ export function DraftRoomShell({
             {keeperPanel && mobileTab === 'keepers' && keeperPanel}
           </div>
         </div>
+        {secondaryMobileTabs.length > 0 ? (
+          <div className="safe-area-bottom border-t border-white/10 bg-[#060d1f]/95 px-2 py-1.5">
+            <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+              {secondaryMobileTabs.map(({ id, icon: Icon }) => {
+                const label = t(MOBILE_TAB_I18N[id])
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => onMobileTabChange(id)}
+                    data-testid={`draft-mobile-tab-${id}`}
+                    className={`inline-flex min-h-[36px] shrink-0 touch-manipulation items-center gap-1.5 rounded-full border px-2.5 text-[10px] font-medium transition active:scale-[0.98] ${
+                      mobileTab === id
+                        ? 'border-cyan-400/45 bg-cyan-500/15 text-cyan-100'
+                        : 'border-white/15 bg-black/20 text-white/70'
+                    }`}
+                    aria-pressed={mobileTab === id}
+                    aria-label={label}
+                  >
+                    <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    <span>{label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ) : null}
         <nav
-          className="safe-area-bottom flex shrink-0 border-t border-white/10 bg-[#070f21]/95"
+          className="safe-area-bottom flex shrink-0 border-t border-cyan-400/20 bg-[#070f21]/95"
           aria-label={t('draftRoom.shell.aria.draftSections')}
         >
-          {visibleTabs.map(({ id, icon: Icon }) => {
+          {primaryMobileTabs.map(({ id, icon: Icon }) => {
             const label = t(MOBILE_TAB_I18N[id])
             return (
               <button
@@ -330,8 +359,10 @@ export function DraftRoomShell({
                 type="button"
                 onClick={() => onMobileTabChange(id)}
                 data-testid={`draft-mobile-tab-${id}`}
-                className={`flex min-h-[48px] flex-1 touch-manipulation flex-col items-center justify-center gap-0.5 py-2.5 text-[11px] active:scale-[0.98] ${
-                  mobileTab === id ? 'bg-cyan-500/10 text-cyan-200' : 'text-white/60'
+                className={`flex min-h-[52px] flex-1 touch-manipulation flex-col items-center justify-center gap-0.5 py-2 text-[11px] active:scale-[0.98] ${
+                  mobileTab === id
+                    ? 'bg-cyan-500/12 text-cyan-100 shadow-[inset_0_1px_0_rgba(34,211,238,0.2)]'
+                    : 'text-white/65 hover:text-white/85'
                 }`}
                 aria-pressed={mobileTab === id}
                 aria-label={label}

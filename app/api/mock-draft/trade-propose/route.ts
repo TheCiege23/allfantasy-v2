@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
+import { getOrCreateAiResult } from '@/lib/ai/ai-result-cache'
 
 const openai = getOpenAIRouteClient()
 
@@ -163,18 +164,79 @@ ${bestProposals.map((p, i) => `${i + 1}. ${p.fromTeam} (need score: ${p.theirNee
 Return exactly ${bestProposals.length} reasons in the "reasons" array.`
 
     try {
-      const completion = await openai.chat.completions.create({
+      const aiResult = await getOrCreateAiResult({
+        feature: 'mock-draft-trade-propose',
+        scopeType: 'league',
+        scopeId: leagueId,
+        provider: 'openai',
         model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.6,
-        max_tokens: 1000,
+        ttlSeconds: 30 * 60,
+        payload: {
+          mockDraftSessionId: draft.id,
+          leagueId,
+          userId: session.user.id,
+          sport: 'NFL',
+          season: String((league as any)?.season || ''),
+          draftType: String((league as any)?.draftType || ''),
+          scoringFormat: String(league?.scoring || ''),
+          currentPick: {
+            round: 0,
+            pick: 0,
+            overall: Number(bestProposals[0]?.pickOverall || 0),
+          },
+          teamNeeds: bestProposals.map((p) => ({
+            manager: p.fromTeam,
+            theirNeedScore: p.theirNeedScore,
+            theirTopNeed: p.theirTopNeed,
+            yourNeedScore: p.yourNeedScore,
+          })),
+          availablePlayerIds: bestProposals
+            .map((p) => `${p.fromPick}:${p.pickOverall}`)
+            .slice(0, 30),
+          priorPickIds: draftResults
+            .map((p: any) => p.playerId || p.playerName || null)
+            .filter(Boolean)
+            .slice(0, 400),
+          proposals: bestProposals.map((p) => ({
+            pickOverall: p.pickOverall,
+            fromTeam: p.fromTeam,
+            fromPick: p.fromPick,
+            direction: p.direction,
+            theirNeedScore: p.theirNeedScore,
+            theirTopNeed: p.theirTopNeed,
+            yourNeedScore: p.yourNeedScore,
+          })),
+          promptVersion: 'v1',
+        },
+        onCacheMiss: async () => {
+          const completion = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+            response_format: { type: 'json_object' },
+            temperature: 0.6,
+            max_tokens: 1000,
+          })
+
+          return {
+            resultText: completion.choices[0]?.message?.content || '',
+            resultJson: null,
+            tokenPrompt: null,
+            tokenOutput: null,
+          }
+        },
       })
 
-      const content = completion.choices[0]?.message?.content
+      if (aiResult.cacheHit) {
+        console.log(`[mock-draft/trade-propose] AI cache hit { leagueId: '${leagueId}' }`)
+      } else {
+        console.log(`[mock-draft/trade-propose] AI cache miss { leagueId: '${leagueId}', modelCallMs: ${aiResult.modelDurationMs ?? -1} }`)
+        console.log(`[mock-draft/trade-propose] saved AiResult { id: '${aiResult.row.id}', resultKey: '${aiResult.row.resultKey}' }`)
+      }
+
+      const content = aiResult.row.resultText
       if (content) {
         const parsed = JSON.parse(content)
         const reasons = parsed.reasons || []

@@ -83,14 +83,14 @@ export function DraftRightDockTabs({
       data-testid={testIdBase}
       data-active-tab={effectiveTab}
       aria-label="Draft right dock"
-      className="flex h-full min-h-0 flex-col overflow-hidden bg-[#060d1d]"
+      className="flex h-full min-h-0 flex-col overflow-hidden bg-[linear-gradient(180deg,#071328_0%,#050d1b_100%)]"
     >
       {/* Tab header row. Active tab uses cyan-100 + bottom underline; inactives are muted. */}
       <div
         role="tablist"
         aria-label="Draft right dock tabs"
         data-testid={`${testIdBase}-tablist`}
-        className="grid shrink-0 grid-cols-3 border-b border-white/10 bg-[#0a1228]"
+        className="grid shrink-0 grid-cols-3 border-b border-white/10 bg-[linear-gradient(180deg,rgba(10,18,40,0.95),rgba(8,15,33,0.9))]"
       >
         {TABS.map((tab) => {
           const isActive = effectiveTab === tab.id
@@ -113,7 +113,7 @@ export function DraftRightDockTabs({
               <span>{tab.label}</span>
               {tab.id === 'queue' && typeof queueCount === 'number' && queueCount > 0 ? (
                 <span
-                  className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-cyan-500/20 px-1 text-[9px] font-bold text-cyan-100"
+                  className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full border border-cyan-300/35 bg-cyan-500/20 px-1 text-[9px] font-bold text-cyan-100"
                   aria-label={`${queueCount} queued`}
                   data-testid={`${testIdBase}-queue-count`}
                 >

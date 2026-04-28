@@ -116,18 +116,30 @@ export default function LoginContent() {
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [adminModalOpen])
 
-  async function handlePasswordLogin(e: React.FormEvent) {
+  async function handlePasswordLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
-    if (!login.trim()) {
+    const form = e.currentTarget
+    const fd = new FormData(form)
+    const loginRaw =
+      (typeof fd.get("af-login") === "string" ? (fd.get("af-login") as string) : login) || ""
+    const passwordRaw =
+      (typeof fd.get("af-password") === "string" ? (fd.get("af-password") as string) : password) ||
+      ""
+    const loginTrimmed = loginRaw.trim()
+    const passwordValue = passwordRaw
+    setLogin(loginTrimmed)
+    setPassword(passwordValue)
+
+    if (!loginTrimmed) {
       setError("Please enter your email, username, or phone number.")
       return
     }
-    if (!password.trim()) {
+    if (!passwordValue.trim()) {
       setError("Please enter your password.")
       return
     }
-    const validation = validateSignInInput({ login, password })
+    const validation = validateSignInInput({ login: loginTrimmed, password: passwordValue })
     if (!validation.ok) {
       setError(validation.error ?? t("common.error.tryAgain"))
       return
@@ -137,8 +149,8 @@ export default function LoginContent() {
 
     try {
       const result = await signIn("credentials", {
-        login: login.trim(),
-        password,
+        login: loginTrimmed,
+        password: passwordValue,
         redirect: false,
         callbackUrl: postLoginRedirect,
       })
@@ -203,7 +215,8 @@ export default function LoginContent() {
         setError("Local dev sign-in failed. Check DEV_AUTH_BYPASS_ENABLED in .env.local.")
       } else {
         clearUnifiedAuthDestination()
-        router.replace(postLoginRedirect)
+        // Use a full navigation so the newly issued auth cookie is observed immediately.
+        window.location.assign(postLoginRedirect)
       }
     } catch {
       setError("Local dev sign-in failed. Check DEV_AUTH_BYPASS_ENABLED in .env.local.")
@@ -219,8 +232,8 @@ export default function LoginContent() {
       // Always route social sign-in through NextAuth (not Supabase) since the
       // entire app uses getServerSession / JWT for auth. Supabase OAuth creates a
       // separate session that NextAuth can't see, causing redirect loops.
-      if (provider === "google") {
-        await signIn("google", { callbackUrl: postLoginRedirect })
+      if (provider === "google" || provider === "spotify") {
+        await signIn(provider, { callbackUrl: postLoginRedirect })
         return
       }
 
@@ -339,6 +352,7 @@ export default function LoginContent() {
                 </div>
                 <input
                   id="login-identifier"
+                  name="af-login"
                   value={login}
                   onChange={(e) => setLogin(e.target.value)}
                   type="text"
@@ -360,6 +374,7 @@ export default function LoginContent() {
                 <div className="relative">
                   <input
                     id="login-password"
+                    name="af-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     type={showPassword ? "text" : "password"}
@@ -398,7 +413,7 @@ export default function LoginContent() {
 
               <button
                 type="submit"
-                disabled={loading || !login.trim() || !password.trim()}
+                disabled={loading}
                 className="flex w-full items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-cyan-500 to-blue-500 px-4 py-3.5 text-base font-bold text-white transition hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? (
@@ -442,6 +457,18 @@ export default function LoginContent() {
                   <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335" />
                 </svg>
                 <span>{socialLoadingProvider === "google" ? "Opening..." : "Continue with Google"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSocialProvider("spotify")}
+                disabled={socialLoadingProvider !== null}
+                className="flex w-full items-center justify-center gap-2.5 rounded-[10px] border border-violet-400/30 bg-[#1c1535] px-4 py-3 text-sm font-medium text-white transition hover:border-violet-300/45 hover:bg-[#211a3e] disabled:opacity-70"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle cx="12" cy="12" r="12" fill="#1DB954" />
+                  <path d="M16.8 16.64a.75.75 0 0 1-1.03.25c-2.8-1.71-6.32-2.1-10.45-1.13a.75.75 0 1 1-.34-1.46c4.52-1.05 8.43-.62 11.57 1.3.36.22.47.68.25 1.04Zm1.48-3.3a.95.95 0 0 1-1.3.31c-3.2-1.97-8.07-2.55-11.84-1.36a.95.95 0 0 1-.58-1.81c4.3-1.38 9.66-.72 13.4 1.57.45.28.6.86.32 1.3Zm.12-3.43C14.57 7.63 8.82 7.4 5.34 8.48a1.15 1.15 0 1 1-.68-2.2c4-1.22 10.43-.98 14.93 1.7a1.15 1.15 0 0 1-1.18 1.93Z" fill="#fff" />
+                </svg>
+                <span>{socialLoadingProvider === "spotify" ? "Opening..." : "Continue with Spotify"}</span>
               </button>
             </div>
 

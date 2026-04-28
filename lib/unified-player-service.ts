@@ -2,6 +2,7 @@ import { prisma } from './prisma'
 import { normalizeTeamAbbrev, normalizePosition, normalizePlayerName, playerNamesMatch } from './team-abbrev'
 import { fetchFantasyCalcValues, type FantasyCalcPlayer } from './fantasycalc'
 import { findMultiADP, getConsensusADP, type ADPConsensus } from './multi-platform-adp'
+import { getTeamLogoUrl as resolveTeamLogoUrl } from './player-media-urls'
 
 export interface UnifiedPlayer {
   canonicalId: string
@@ -63,18 +64,6 @@ export interface UnifiedValuation {
 }
 
 const SLEEPER_HEADSHOT_BASE = 'https://sleepercdn.com/content/nfl/players/thumb'
-const ESPN_LOGO_BASE = 'https://a.espncdn.com/i/teamlogos/nfl/500'
-
-const ESPN_TEAM_MAP: Record<string, string> = {
-  ARI: 'ari', ATL: 'atl', BAL: 'bal', BUF: 'buf',
-  CAR: 'car', CHI: 'chi', CIN: 'cin', CLE: 'cle',
-  DAL: 'dal', DEN: 'den', DET: 'det', GB: 'gb',
-  HOU: 'hou', IND: 'ind', JAX: 'jax', KC: 'kc',
-  LAC: 'lac', LAR: 'lar', LV: 'lv', MIA: 'mia',
-  MIN: 'min', NE: 'ne', NO: 'no', NYG: 'nyg',
-  NYJ: 'nyj', PHI: 'phi', PIT: 'pit', SEA: 'sea',
-  SF: 'sf', TB: 'tb', TEN: 'ten', WAS: 'was',
-}
 
 function getImageUrl(sleeperId: string | null): string | null {
   if (!sleeperId) return null
@@ -85,8 +74,7 @@ function getTeamLogoUrl(team: string | null): string | null {
   if (!team) return null
   const normalized = normalizeTeamAbbrev(team)
   if (!normalized) return null
-  const key = ESPN_TEAM_MAP[normalized]
-  return key ? `${ESPN_LOGO_BASE}/${key}.png` : null
+  return resolveTeamLogoUrl(normalized, 'nfl')
 }
 
 export async function lookupBySleeperId(sleeperId: string): Promise<UnifiedPlayer | null> {

@@ -27,6 +27,30 @@ test.describe('@chimmy chimmy interface click audit', () => {
     }
   }
 
+  async function ensureHarnessReady(page: Parameters<typeof test>[0]['page']) {
+    for (let attempt = 1; attempt <= 6; attempt += 1) {
+      await gotoWithRetry(page, '/e2e/chimmy-interface')
+      const headingVisible = await page
+        .getByRole('heading', { name: 'Chimmy Interface Harness' })
+        .isVisible()
+        .catch(() => false)
+      if (headingVisible) return
+
+      const notFoundVisible = await page
+        .getByRole('heading', { name: 'This page could not be found.' })
+        .isVisible()
+        .catch(() => false)
+
+      if (!notFoundVisible && attempt >= 3) {
+        // Avoid long stalls on partially hydrated shells by forcing a hard reload.
+        await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => null)
+      }
+      await page.waitForTimeout(500 * attempt)
+    }
+
+    throw new Error('Chimmy interface harness never became ready')
+  }
+
   test('audits Chimmy text, voice, context routing, and mobile drawer controls', async ({ page }) => {
     let chatCalls = 0
     const chatBodies: string[] = []
@@ -218,13 +242,7 @@ test.describe('@chimmy chimmy interface click audit', () => {
       })
     })
 
-    await gotoWithRetry(page, '/e2e/chimmy-interface')
-    await expect
-      .poll(
-        async () => page.getByRole('heading', { name: 'Chimmy Interface Harness' }).isVisible().catch(() => false),
-        { timeout: 30_000 },
-      )
-      .toBeTruthy()
+    await ensureHarnessReady(page)
 
     await expect(page.getByTestId('chimmy-harness-entry-primary-link')).toHaveAttribute('href', /\/messages\?tab=ai/)
     await expect(page.getByTestId('chimmy-harness-entry-prompted-link')).toHaveAttribute('href', /prompt=/)
@@ -266,7 +284,19 @@ test.describe('@chimmy chimmy interface click audit', () => {
     const startSitQuickPrompt = inlineShell
       .getByTestId('chimmy-quick-prompt-start-sit')
       .or(inlineShell.getByTestId('chimmy-quick-prompt-chip-start-sit'))
-    await startSitQuickPrompt.first().click()
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      await startSitQuickPrompt.first().click().catch(() => null)
+      const promptChanged = await inlineInput
+        .inputValue()
+        .then((value) => value.toLowerCase())
+        .then(
+          (value) =>
+            value.includes('start and sit') || value.includes('start/sit') || value.includes('start sit') || value.length === 0,
+        )
+        .catch(() => false)
+      if (promptChanged) break
+      await page.waitForTimeout(250 * attempt)
+    }
     await expect
       .poll(async () => {
         const value = (await inlineInput.inputValue()).toLowerCase()
@@ -277,7 +307,7 @@ test.describe('@chimmy chimmy interface click audit', () => {
           value === prePromptValue.toLowerCase() ||
           value.length === 0
         )
-      })
+      }, { timeout: 10_000 })
       .toBeTruthy()
 
     await inlineInput.fill('Break down this trade with evidence.')

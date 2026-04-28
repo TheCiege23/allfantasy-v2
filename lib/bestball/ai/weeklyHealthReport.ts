@@ -18,11 +18,14 @@ export async function generateWeeklyHealthReport(
   return {
     projectedOptimalScore: 0,
     riskPlayers: [],
-    byeWeekImpact: sport === 'NFL' ? 'Bye week scan pending stats wiring.' : null,
+    byeWeekImpact:
+      sport === 'NFL'
+        ? 'Preview only — bye week scan is not production-ready yet because live stats wiring is still pending.'
+        : null,
     topProjectedStarters: [],
     rosterHealthGrade: 'B',
     addSuggestions: [],
     dropSuggestions: [],
-    narrative: `Best ball health snapshot for week ${week} — auto-lineup context.`,
+    narrative: `Preview only — Best Ball weekly health for week ${week} is not production-ready yet. This surface is still waiting on live projection and risk wiring.`,
   }
 }

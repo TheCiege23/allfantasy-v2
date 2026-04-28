@@ -16,6 +16,7 @@ import { autoLogDecision } from '@/lib/decision-log'
 import { computeConfidenceRisk, getHistoricalHitRate } from '@/lib/analytics/confidence-risk-engine'
 import { buildLeagueDecisionContext, leagueContextToIntelligence } from '@/lib/trade-engine/league-context-assembler'
 import { getLeagueInfo, getLeagueRosters, getLeagueUsers, getPlayersBySport } from '@/lib/sleeper-client'
+import { getOrCreateAiResult } from '@/lib/ai/ai-result-cache'
 
 // Production hardening: Timeout guard and max duration
 export const maxDuration = 120 // 2 minutes for multi-API orchestration
@@ -680,13 +681,57 @@ Respond in JSON format:
   "overallStrategy": "Brief summary of best approach"
 }`
 
-        const aiResponse = await openai.chat.completions.create({
+        const aiNotesPayload = {
+          feature: 'legacy-trade-league-analyze-targeting-notes',
+          leagueId,
+          userId: sleeperUsername,
+          sport,
+          scoringType,
+          isSF,
+          isTEP,
+          numTeams,
+          topCandidates: deterministicTrades.validTrades.slice(0, 8).map((t) => ({
+            targetRosterId: t.toRosterId,
+            fairnessScore: t.fairnessScore,
+            acceptanceLabel: t.acceptanceLabel,
+            give: t.give.map((a) => ({ id: a.id || a.name, pos: a.pos, value: a.value })),
+            receive: t.receive.map((a) => ({ id: a.id || a.name, pos: a.pos, value: a.value })),
+          })),
+          promptVersion: 'v1',
+        }
+
+        const aiNotesResult = await getOrCreateAiResult({
+          feature: 'legacy-trade-league-analyze-targeting-notes',
+          scopeType: 'league',
+          scopeId: leagueId,
+          provider: 'openai',
           model: 'gpt-4o',
-          messages: [{ role: 'user', content: aiPrompt }],
-          temperature: 0.3,
+          payload: aiNotesPayload,
+          ttlSeconds: 2 * 60 * 60,
+          onCacheMiss: async () => {
+            const aiResponse = await openai.chat.completions.create({
+              model: 'gpt-4o',
+              messages: [{ role: 'user', content: aiPrompt }],
+              temperature: 0.3,
+            })
+
+            const content = aiResponse.choices[0]?.message?.content || '{}'
+            return {
+              resultText: content,
+              resultJson: { content },
+              tokenPrompt: aiResponse.usage?.prompt_tokens ?? null,
+              tokenOutput: aiResponse.usage?.completion_tokens ?? null,
+            }
+          },
         })
 
-        void aiResponse
+        if (aiNotesResult.cacheHit) {
+          console.log(`[legacy-trade/league-analyze] AI cache hit { leagueId: '${leagueId}', type: 'targeting-notes' }`)
+        } else {
+          console.log(`[legacy-trade/league-analyze] AI cache miss { leagueId: '${leagueId}', type: 'targeting-notes', modelCallMs: ${aiNotesResult.modelDurationMs ?? -1} }`)
+          console.log(`[legacy-trade/league-analyze] saved AiResult { id: '${aiNotesResult.row.id}', resultKey: '${aiNotesResult.row.resultKey}' }`)
+        }
+
         console.log('[AI Layer] Generated targeting notes')
       } catch (e) {
         console.error('Failed to get AI notes:', e)
@@ -716,13 +761,48 @@ Respond in JSON format:
     let aiDegraded = false
 
     try {
-      const completion = await withTimeout(
-        openai.chat.completions.create({
-          model: 'gpt-4o',
-          messages: [
-            {
-              role: 'system',
-              content: `You are the #1 dynasty fantasy football trade expert. Your valuations are BASED ON FANTASYCALC DATA (from ~1 million real fantasy trades). Return valid JSON only.
+      const aiSuggestionsPayload = {
+        feature: 'legacy-trade-league-analyze',
+        leagueId,
+        userId: sleeperUsername,
+        sport,
+        scoringType,
+        isSF,
+        isTEP,
+        numTeams,
+        userRosterId: userRoster.rosterId,
+        managerRosters: [userRoster, ...managerRosters].map((r) => ({
+          rosterId: r.rosterId,
+          userId: r.userId,
+          username: r.username,
+          record: r.record,
+          pointsFor: Number(r.pointsFor.toFixed(2)),
+          players: r.players.map((p) => ({ id: p.id, pos: p.pos, slot: p.slot })),
+        })),
+        fantasyCalcContext,
+        feedbackExamples,
+        preferencesPrompt,
+        tradeHistoryContext,
+        preAnalysisContext,
+        promptVersion: 'v1',
+      }
+
+      const aiSuggestionsResult = await getOrCreateAiResult({
+        feature: 'legacy-trade-league-analyze',
+        scopeType: 'league',
+        scopeId: leagueId,
+        provider: 'openai',
+        model: 'gpt-4o',
+        payload: aiSuggestionsPayload,
+        ttlSeconds: 2 * 60 * 60,
+        onCacheMiss: async () => {
+          const completion = await withTimeout(
+            openai.chat.completions.create({
+              model: 'gpt-4o',
+              messages: [
+                {
+                  role: 'system',
+                  content: `You are the #1 dynasty fantasy football trade expert. Your valuations are BASED ON FANTASYCALC DATA (from ~1 million real fantasy trades). Return valid JSON only.
 ${learningContext}
 
 YOUR GOAL: Find trades that give the USER a ~10% edge while still being acceptable to the other manager.
@@ -755,16 +835,36 @@ Each object must have:
 }
 
 Return JSON array of TradeSuggestion objects. Skip managers with no trade fit. Find the 2-5 BEST opportunities.`,
-            },
-            { role: 'user', content: prompt },
-          ],
-          temperature: 0.4,
-        }),
-        30000,  // 30 second timeout for OpenAI call
-        'OpenAI_TradeAnalysis'
-      )
+                },
+                { role: 'user', content: prompt },
+              ],
+              temperature: 0.4,
+            }),
+            30000,
+            'OpenAI_TradeAnalysis'
+          )
 
-      const aiResponse = completion.choices[0]?.message?.content || '[]'
+          const aiResponse = completion.choices[0]?.message?.content || '[]'
+          return {
+            resultText: aiResponse,
+            resultJson: { content: aiResponse },
+            tokenPrompt: completion.usage?.prompt_tokens ?? null,
+            tokenOutput: completion.usage?.completion_tokens ?? null,
+          }
+        },
+      })
+
+      if (aiSuggestionsResult.cacheHit) {
+        console.log(`[legacy-trade/league-analyze] AI cache hit { leagueId: '${leagueId}', userId: '${sleeperUsername}' }`)
+      } else {
+        console.log(`[legacy-trade/league-analyze] AI cache miss { leagueId: '${leagueId}', userId: '${sleeperUsername}', modelCallMs: ${aiSuggestionsResult.modelDurationMs ?? -1} }`)
+        console.log(`[legacy-trade/league-analyze] saved AiResult { id: '${aiSuggestionsResult.row.id}', resultKey: '${aiSuggestionsResult.row.resultKey}' }`)
+      }
+
+      const aiResponse =
+        (typeof aiSuggestionsResult.row.resultText === 'string' && aiSuggestionsResult.row.resultText.trim()) ||
+        ((aiSuggestionsResult.row.resultJson as any)?.content as string | undefined) ||
+        '[]'
 
       try {
         const cleaned = aiResponse.replace(/```json\n?|```\n?/g, '').trim()

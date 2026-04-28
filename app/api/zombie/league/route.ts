@@ -7,6 +7,7 @@ import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { getLeagueRole } from '@/lib/league/permissions'
 import { isZombieEligibleLeagueSport } from '@/lib/zombie/zombie-sport-eligibility'
 import { getRandomZombieTheme } from '@/lib/zombie/zombieBackgroundThemes'
+import { getZombieHordeSitOutStateForWeek } from '@/lib/zombie/ZombieHordeSitOutEngine'
 
 export const dynamic = 'force-dynamic'
 
@@ -202,6 +203,7 @@ export async function GET(req: Request) {
 
   const latestResolution = z.weeklyResolutions[0] ?? null
   const latestWeek = latestResolution?.week ?? Math.max(1, z.currentWeek || 1)
+  const sitOutState = await getZombieHordeSitOutStateForWeek(leagueId, latestWeek, session.user.id)
   const recentInfections = await prisma.zombieInfectionEvent.findMany({
     where: { zombieLeagueId: z.id },
     orderBy: { createdAt: 'desc' },
@@ -282,6 +284,17 @@ export async function GET(req: Request) {
       unread: unreadNotifications,
       actionRequired: actionRequiredNotifications,
       recent: commissionerNotifications,
+    },
+    hordeSitOuts: {
+      pending: sitOutState.pending,
+      accepted: sitOutState.accepted,
+      declined: sitOutState.declined,
+      myPendingResponse: sitOutState.myPending
+        ? {
+            sitOutId: sitOutState.myPending.id,
+            week: latestWeek,
+          }
+        : null,
     },
   })
 }

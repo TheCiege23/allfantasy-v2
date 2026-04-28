@@ -32,9 +32,102 @@ type AdpRow = {
   team: string
   adp: number
   adpChange: number | null
+  providerCount?: number | null
+  adpSpread?: number | null
+  confidenceScore?: number | null
+  providerBreakdown?: Record<string, number>
   week: number
   season: number
   source: string
+}
+
+const SOURCE_WEIGHTS: Record<string, number> = {
+  fantrax: 1.0,
+  sleeper: 0.95,
+  espn: 0.9,
+  mfl: 0.88,
+  nffc: 0.9,
+  ffc: 0.9,
+  rolling_insights: 0.92,
+  ai_adp: 0.85,
+}
+
+function sourceWeight(source: string): number {
+  return SOURCE_WEIGHTS[source] ?? 0.8
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function confidenceForConsensus(providerCount: number, spread: number): number {
+  // More independent providers with tighter spread => higher confidence.
+  const providerScore = clamp(providerCount / 4, 0, 1)
+  const spreadPenalty = clamp(spread / 60, 0, 1)
+  const raw = 0.3 + providerScore * 0.55 - spreadPenalty * 0.25
+  return Number(clamp(raw, 0.2, 0.98).toFixed(3))
+}
+
+function buildConsensusRows(input: {
+  sport: string
+  season: number
+  week: number
+  rows: AdpRow[]
+  previousMap: Map<string, number>
+}): AdpRow[] {
+  const { sport, season, week, rows, previousMap } = input
+  const grouped = new Map<string, AdpRow[]>()
+
+  for (const row of rows) {
+    if (row.source === 'consensus') continue
+    const key = `${row.sport}:${row.format}:${row.scoring}:${row.playerId}`
+    const bucket = grouped.get(key) ?? []
+    bucket.push(row)
+    grouped.set(key, bucket)
+  }
+
+  const consensusRows: AdpRow[] = []
+
+  for (const bucket of grouped.values()) {
+    if (!bucket.length) continue
+    const weighted = bucket.map((row) => ({
+      row,
+      weight: sourceWeight(row.source),
+    }))
+    const weightSum = weighted.reduce((sum, item) => sum + item.weight, 0)
+    if (weightSum <= 0) continue
+
+    const consensusAdp = weighted.reduce((sum, item) => sum + item.row.adp * item.weight, 0) / weightSum
+    const values = bucket.map((row) => row.adp)
+    const spread = values.length >= 2 ? Math.max(...values) - Math.min(...values) : 0
+    const providerBreakdown = Object.fromEntries(bucket.map((row) => [row.source, Number(row.adp.toFixed(2))]))
+    const providerCount = Object.keys(providerBreakdown).length
+
+    const base = bucket[0]
+    const key = `${sport}:${base.format}:${base.scoring}:${base.playerId}:consensus`
+    const adpValue = Number(consensusAdp.toFixed(2))
+
+    consensusRows.push({
+      sport,
+      format: base.format,
+      scoring: base.scoring,
+      playerId: base.playerId,
+      playerName: base.playerName,
+      position: base.position,
+      team: base.team,
+      adp: adpValue,
+      adpChange: previousMap.has(key) ? Number((adpValue - Number(previousMap.get(key))).toFixed(2)) : null,
+      providerCount,
+      adpSpread: Number(spread.toFixed(2)),
+      confidenceScore: confidenceForConsensus(providerCount, spread),
+      providerBreakdown,
+      week,
+      season,
+      source: 'consensus',
+    })
+  }
+
+  return consensusRows
 }
 
 async function loadPreviousMap(sport: string): Promise<Map<string, number>> {
@@ -54,7 +147,21 @@ async function loadPreviousMap(sport: string): Promise<Map<string, number>> {
 
 export async function runAdpImporter(options?: {
   sports?: string[]
-}): Promise<{ imported: number; sports: string[]; season: number; week: number }> {
+}): Promise<{
+  imported: number
+  sports: string[]
+  season: number
+  week: number
+  providerRowsRead: number
+  providerRowsWritten: number
+  consensusRowsAttempted: number
+  consensusRowsWritten: number
+  skippedRows: number
+  providerRowsReadBySport: Record<string, number>
+  providerRowsWrittenBySport: Record<string, number>
+  consensusRowsAttemptedBySport: Record<string, number>
+  consensusRowsBySport: Record<string, number>
+}> {
   const season = currentSeason()
   const week = currentWeekOfYear()
   const sports = Array.from(
@@ -62,6 +169,14 @@ export async function runAdpImporter(options?: {
   )
 
   let imported = 0
+  let providerRowsRead = 0
+  let providerRowsWritten = 0
+  let consensusRowsAttempted = 0
+  let consensusRowsWritten = 0
+  const providerRowsReadBySport: Record<string, number> = {}
+  const providerRowsWrittenBySport: Record<string, number> = {}
+  const consensusRowsAttemptedBySport: Record<string, number> = {}
+  const consensusRowsBySport: Record<string, number> = {}
   for (const sport of sports) {
     const previousMap = await loadPreviousMap(sport)
     const rows: AdpRow[] = []
@@ -165,12 +280,48 @@ export async function runAdpImporter(options?: {
     }
 
     if (rows.length === 0) continue
-    await prisma.adpDataRecord.createMany({
+    providerRowsRead += rows.length
+    providerRowsReadBySport[sport] = (providerRowsReadBySport[sport] ?? 0) + rows.length
+
+    const consensusRows = buildConsensusRows({
+      sport,
+      season,
+      week,
+      rows,
+      previousMap,
+    })
+    consensusRowsAttempted += consensusRows.length
+    consensusRowsAttemptedBySport[sport] = (consensusRowsAttemptedBySport[sport] ?? 0) + consensusRows.length
+
+    const providerInsert = await prisma.adpDataRecord.createMany({
       data: rows,
       skipDuplicates: true,
     })
-    imported += rows.length
+    const consensusInsert = await prisma.adpDataRecord.createMany({
+      data: consensusRows,
+      skipDuplicates: true,
+    })
+    providerRowsWritten += providerInsert.count
+    consensusRowsWritten += consensusInsert.count
+    providerRowsWrittenBySport[sport] = (providerRowsWrittenBySport[sport] ?? 0) + providerInsert.count
+    consensusRowsBySport[sport] = (consensusRowsBySport[sport] ?? 0) + consensusInsert.count
+    imported += providerInsert.count + consensusInsert.count
   }
 
-  return { imported, sports, season, week }
+  return {
+    imported,
+    sports,
+    season,
+    week,
+    providerRowsRead,
+    providerRowsWritten,
+    consensusRowsAttempted,
+    consensusRowsWritten,
+    providerRowsReadBySport,
+    providerRowsWrittenBySport,
+    consensusRowsAttemptedBySport,
+    consensusRowsBySport,
+    skippedRows:
+      providerRowsRead + consensusRowsAttempted - providerRowsWritten - consensusRowsWritten,
+  }
 }

@@ -19,6 +19,6 @@ export async function generateBestBallPowerRankings(
       { label: 'Depth Advantage', rosterIds: [] },
       { label: 'Struggling', rosterIds: [] },
     ],
-    weightsNote: '45% cumulative optimized points, 30% future ceiling, 25% depth — wiring pending.',
+    weightsNote: 'Preview only — Best Ball power rankings are not production-ready yet. Full weighting and live roster scoring wiring are still pending.',
   }
 }

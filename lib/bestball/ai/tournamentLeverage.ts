@@ -36,8 +36,8 @@ export async function generateTournamentLeverageReport(
     chalkyPlayers,
     differentiators: [],
     stackOpportunities: [],
-    ceilingScenario: `If your ${sport} core hits spike weeks together, this entry can win the pod.`,
+    ceilingScenario: `Preview only — if your ${sport} core hits spike weeks together, this entry can win the pod. Full leverage simulation is not production-ready yet.`,
     antiChalkRating: 'B',
-    leverageAlert: entry ? null : 'Entry not found',
+    leverageAlert: entry ? 'Preview only — tournament leverage modeling is still an early deterministic stub.' : 'Entry not found',
   }
 }

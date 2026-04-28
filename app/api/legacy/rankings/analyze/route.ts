@@ -2,6 +2,7 @@ import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
+import { getOrCreateAiResult } from '@/lib/ai/ai-result-cache'
 import { writeSnapshot } from '@/lib/trade-engine/snapshot-store'
 import { logUserEventByUsername } from '@/lib/user-events'
 import {
@@ -367,13 +368,66 @@ Top 3 teams: ${teamRankings
 
 Provide actionable insight about where this team stands and what they should focus on (contending now vs rebuilding).`
 
-      const completion = await openai.chat.completions.create({
+      const aiPayload = {
+        featureName: 'legacy-rankings-analyze',
+        sport: String(leagueData?.sport || 'nfl').toLowerCase(),
+        season: String(leagueData?.season || ''),
+        scoringFormat:
+          Number(leagueData?.scoring_settings?.rec || 0) === 1
+            ? 'ppr'
+            : Number(leagueData?.scoring_settings?.rec || 0) === 0.5
+              ? 'half_ppr'
+              : 'standard',
+        leagueId: league_id,
+        week: Number(leagueData?.settings?.leg || 0) || null,
+        userId: user.sleeperUserId,
+        userRank,
+        totalTeams: teamRankings.length,
+        rosterValueRank,
+        pointsForRank,
+        winRateRank,
+        futureOutlookRank,
+        options: {
+          model: 'gpt-4o',
+          maxTokens: 200,
+          temperature: 0.7,
+        },
+        prompt,
+      }
+
+      const aiResult = await getOrCreateAiResult({
+        feature: 'legacy-rankings-analyze-summary',
+        scopeType: 'league',
+        scopeId: league_id,
+        provider: 'openai',
         model: 'gpt-4o',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 200,
-        temperature: 0.7,
+        payload: aiPayload,
+        ttlSeconds: 2 * 60 * 60,
+        onCacheMiss: async () => {
+          const completion = await openai.chat.completions.create({
+            model: 'gpt-4o',
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 200,
+            temperature: 0.7,
+          })
+          const content = completion.choices[0]?.message?.content || ''
+          return {
+            resultText: content,
+            resultJson: { analysis: content },
+            tokenPrompt: completion.usage?.prompt_tokens ?? null,
+            tokenOutput: completion.usage?.completion_tokens ?? null,
+          }
+        },
       })
-      aiAnalysis = completion.choices[0]?.message?.content || ''
+
+      if (aiResult.cacheHit) {
+        console.log(`[legacy-rankings/analyze] AI cache hit { leagueId: '${league_id}', userId: '${user.sleeperUserId}' }`)
+      } else {
+        console.log(`[legacy-rankings/analyze] AI cache miss { leagueId: '${league_id}', userId: '${user.sleeperUserId}', modelCallMs: ${aiResult.modelDurationMs ?? -1} }`)
+        console.log(`[legacy-rankings/analyze] saved AiResult { id: '${aiResult.row.id}', resultKey: '${aiResult.row.resultKey}' }`)
+      }
+
+      aiAnalysis = (aiResult.row.resultText || '').trim()
     } catch (err) {
       console.error('AI analysis error:', err)
     }

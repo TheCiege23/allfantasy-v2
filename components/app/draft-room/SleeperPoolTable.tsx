@@ -226,24 +226,32 @@ function SleeperRow(props: SleeperRowProps) {
           testIdBase={`${testIdBase}-avatar`}
           highlighted={selected}
         />
-        <div className="flex min-w-0 flex-col">
-          <span
-            className="truncate text-[13px] font-semibold text-white/95"
-            data-testid={`${testIdBase}-name`}
-            title={
-              drafted
-                ? `${p.name} — already drafted`
-                : `${p.name}${p.position ? ` (${p.position}${p.team ? `, ${p.team}` : ''})` : ''} — click row to open detail`
-            }
-          >
-            {p.name}
+        {/* Phase 2 — readability fix.
+            Outer column: `min-w-0` so flex truncation works.
+            Inner row 1: name + Drafted badge as flex siblings (badge `flex-shrink-0`).
+                         Previous structure put the badge INSIDE the truncate span,
+                         which collapsed weirdly under `white-space: nowrap`.
+            Inner row 2: position/team as flex row, badge-style chips, no wrap. */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span
+              className="min-w-0 flex-1 truncate text-[13px] font-semibold text-white/95"
+              data-testid={`${testIdBase}-name`}
+              title={
+                drafted
+                  ? `${p.name} — already drafted`
+                  : `${p.name}${p.position ? ` (${p.position}${p.team ? `, ${p.team}` : ''})` : ''} — click row to open detail`
+              }
+            >
+              {p.name}
+            </span>
             {drafted ? (
-              <span className="ml-1.5 align-middle rounded border border-white/15 bg-white/[0.05] px-1 py-px text-[9px] uppercase tracking-wider text-white/55">
+              <span className="flex-shrink-0 rounded border border-white/15 bg-white/[0.05] px-1 py-px text-[9px] uppercase tracking-wider text-white/55">
                 Drafted
               </span>
             ) : null}
-          </span>
-          <span className="truncate text-[11px] text-white/55">
+          </div>
+          <span className="truncate whitespace-nowrap text-[11px] text-white/55">
             <span className="font-semibold text-white/72">{p.position || '—'}</span>
             {p.team ? <span className="ml-1.5 text-white/45">{p.team}</span> : null}
           </span>

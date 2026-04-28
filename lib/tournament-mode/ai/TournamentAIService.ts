@@ -3,6 +3,7 @@
  * AI never decides outcomes. PROMPT 4.
  */
 
+import { createHash } from 'crypto'
 import { openaiChatText } from '@/lib/openai-client'
 import { buildTournamentAIPrompt, type TournamentAIType } from './TournamentAIPrompts'
 
@@ -11,6 +12,16 @@ export interface TournamentAIResult {
   model?: string
   ok: boolean
   error?: string
+}
+
+export function buildTournamentAiCacheContextSummary(context: string): Record<string, unknown> {
+  const normalized = context.trim()
+  return {
+    contextLength: normalized.length,
+    contextHash: createHash('sha256').update(normalized).digest('hex'),
+    contextHead: normalized.slice(0, 600),
+    contextTail: normalized.slice(-300),
+  }
 }
 
 /**

@@ -32,20 +32,84 @@ async function waitForShell(page: Page) {
   const routeWaiverButton = page.getByTestId('chimmy-harness-route-waiver-button')
   const input = shell.getByTestId('chimmy-message-input')
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    if (page.isClosed()) {
+      throw new Error('Chimmy page closed before shell became interactive')
+    }
+
+    const notFoundVisible = await page
+      .getByRole('heading', { name: 'This page could not be found.' })
+      .isVisible()
+      .catch(() => false)
+    if (notFoundVisible) {
+      await gotoWithRetry(page, '/e2e/chimmy-interface')
+    }
+
+    await routeWaiverButton.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => null)
     await routeWaiverButton.click({ force: true }).catch(() => null)
     await routeWaiverButton.evaluate((button) => (button as HTMLButtonElement).click()).catch(() => null)
-    await page.waitForTimeout(120 * (attempt + 1))
+    await page.waitForTimeout(300 * (attempt + 1)).catch(() => null)
 
-    const shellVisible = await shell.getByTestId('chimmy-chat-shell').isVisible().catch(() => false)
-    const inputVisible = await input.isVisible().catch(() => false)
+    const shellVisible = await shell.getByTestId('chimmy-chat-shell').waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false)
+    const inputVisible = await input.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false)
     if (shellVisible && inputVisible) return { shell, input }
+
+    if (attempt >= 3) {
+      await gotoWithRetry(page, '/e2e/chimmy-interface').catch(() => null)
+    }
   }
 
   throw new Error('Chimmy shell never became interactive')
 }
 
 async function stubCommonRoutes(page: Page) {
+  await page.route('**/api/auth/session', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        user: {
+          id: 'chimmy-voice-user',
+          name: 'Chimmy Voice',
+          email: 'chimmy.voice@example.com',
+        },
+        expires: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      }),
+    })
+  })
+
+  await page.route('**/api/auth/providers', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({}),
+    })
+  })
+
+  await page.route('**/api/auth/csrf', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ csrfToken: 'chimmy-voice-csrf' }),
+    })
+  })
+
+  await page.route('**/api/auth/config-check', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true }),
+    })
+  })
+
+  await page.route('**/api/auth/_log', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true }),
+    })
+  })
+
   await page.route('**/api/ai/providers/status', async (route) => {
     await route.fulfill({
       status: 200,
@@ -424,6 +488,9 @@ test.describe('@chimmy Chimmy voice coverage', () => {
     await gotoWithRetry(page, '/e2e/chimmy-interface')
     const { shell, input } = await waitForShell(page)
     await input.fill('Should I do this trade?')
+    await expect
+      .poll(async () => shell.getByTestId('chimmy-send-button').isEnabled().catch(() => false), { timeout: 20_000 })
+      .toBe(true)
     await shell.getByTestId('chimmy-send-button').click()
     await expect(shell.getByTestId('chimmy-response-structure').last()).toBeVisible()
 

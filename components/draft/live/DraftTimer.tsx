@@ -24,10 +24,15 @@ export function DraftTimer({
     overnightResumeAtIso: timer.overnightResumeAt ?? null,
   })
   const sec = liveSec ?? timer.remainingSeconds
-  const urgent = useMemo(() => {
-    if (timer.status !== 'running') return false
+
+  /** Two urgency tiers: critical ≤5s (strong red pulse), urgent ≤15s (amber warning). */
+  const [critical, urgent] = useMemo(() => {
+    if (timer.status !== 'running') return [false, false]
     const n = liveSec ?? timer.remainingSeconds
-    return n != null && n <= 15
+    if (n == null) return [false, false]
+    if (n <= 5) return [true, false]
+    if (n <= 15) return [false, true]
+    return [false, false]
   }, [timer.status, timer.remainingSeconds, liveSec])
 
   const label =
@@ -41,34 +46,88 @@ export function DraftTimer({
             ? formatClockSeconds(sec)
             : '—'
 
+  const containerClass = critical
+    ? 'border-rose-500/60 bg-gradient-to-br from-rose-500/20 via-[#0a1228]/95 to-[#070d18]/95 shadow-[0_0_48px_rgba(239,68,68,0.55)] ring-2 ring-rose-500/50 scale-[1.04] animate-pulse'
+    : urgent
+      ? 'border-amber-400/50 bg-gradient-to-br from-amber-500/15 via-[#0a1228]/95 to-[#070d18]/95 shadow-[0_0_36px_rgba(251,191,46,0.45)] ring-2 ring-amber-400/55 scale-[1.02]'
+      : timer.status === 'paused'
+        ? 'border-amber-300/35 bg-gradient-to-br from-amber-500/10 via-[#0a1228]/95 to-[#070d18]/95 shadow-[0_0_20px_rgba(251,191,36,0.18)]'
+        : timer.status === 'expired'
+          ? 'border-rose-400/45 bg-gradient-to-br from-rose-500/15 via-[#0a1228]/95 to-[#070d18]/95 shadow-[0_0_28px_rgba(239,68,68,0.35)]'
+          : timer.status === 'none'
+            ? 'border-white/10 bg-[#0a1228]/80 shadow-none opacity-60'
+            : 'border-cyan-500/25 bg-gradient-to-br from-cyan-500/8 via-[#0a1228]/95 to-[#070d18]/95 shadow-[0_0_24px_rgba(34,211,238,0.12)]'
+
+  const labelText = critical
+    ? 'URGENT'
+    : urgent
+      ? 'PICK CLOCK'
+      : timer.status === 'paused'
+        ? 'PAUSED'
+        : timer.status === 'expired'
+          ? 'EXPIRED'
+          : 'PICK CLOCK'
+
+  const labelColor = critical
+    ? 'text-rose-200'
+    : urgent
+      ? 'text-amber-200'
+      : timer.status === 'paused'
+        ? 'text-amber-200/80'
+        : timer.status === 'expired'
+          ? 'text-rose-300/80'
+          : 'text-cyan-200/70'
+
+  const digitClass = critical
+    ? 'text-rose-50 text-4xl sm:text-5xl'
+    : urgent
+      ? 'text-amber-50 text-4xl sm:text-5xl'
+      : timer.status === 'paused'
+        ? 'text-amber-100/90 text-3xl'
+        : timer.status === 'expired'
+          ? 'text-rose-200 text-3xl'
+          : timer.status === 'none'
+            ? 'text-white/30 text-3xl'
+            : 'text-white text-3xl'
+
   return (
     <div
-      className={`rounded-2xl border bg-[#0a1228]/95 px-4 py-3 text-center transition-[box-shadow,transform] duration-300 ${
-        urgent
-          ? 'border-amber-400/50 shadow-[0_0_36px_rgba(251,191,46,0.45)] ring-2 ring-amber-400/55 scale-[1.02]'
-          : 'border-cyan-500/25 shadow-[0_0_24px_rgba(34,211,238,0.12)]'
-      } ${className}`}
+      className={`rounded-2xl border px-4 py-3 text-center transition-[box-shadow,transform,border-color] duration-300 ${containerClass} ${className}`}
       data-testid="draft-live-timer"
       role="timer"
       aria-live="polite"
       aria-label={timer.status === 'running' ? `Time remaining ${label}` : `Timer ${label}`}
     >
-      <p
-        className={`text-[10px] font-bold uppercase tracking-[0.2em] ${urgent ? 'text-amber-200' : 'text-cyan-200/70'}`}
-      >
-        Timer
-      </p>
-      <p
-        className={`mt-1 font-mono font-bold tabular-nums tracking-tight text-white ${
-          urgent ? 'animate-pulse text-amber-50 text-4xl sm:text-5xl' : 'text-3xl'
-        }`}
-      >
+      <div className="flex items-center justify-center gap-1.5">
+        {timer.status === 'running' && !critical && !urgent ? (
+          <span className="relative flex h-1.5 w-1.5 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400/60 opacity-70" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-cyan-400" />
+          </span>
+        ) : null}
+        <p className={`text-[10px] font-bold uppercase tracking-[0.2em] ${labelColor}`}>
+          {labelText}
+        </p>
+      </div>
+      <p className={`mt-1 font-mono font-bold tabular-nums tracking-tight ${digitClass}`}>
         {label}
       </p>
-      {timer.timerEndAt && timer.status === 'running' && !urgent ? (
-        <p className="mt-1 text-[10px] text-white/35">Ends {new Date(timer.timerEndAt).toLocaleTimeString()}</p>
+      {critical ? (
+        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-rose-200/90">
+          Hurry!
+        </p>
       ) : urgent ? (
-        <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-amber-200/90">Time running out</p>
+        <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-amber-200/90">
+          Time running out
+        </p>
+      ) : timer.status === 'paused' ? (
+        <p className="mt-1 text-[10px] font-medium text-amber-200/60">Draft clock is paused</p>
+      ) : timer.status === 'expired' ? (
+        <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-rose-300/80">
+          Pick overdue
+        </p>
+      ) : timer.timerEndAt && timer.status === 'running' ? (
+        <p className="mt-1 text-[10px] text-white/35">Ends {new Date(timer.timerEndAt).toLocaleTimeString()}</p>
       ) : null}
     </div>
   )

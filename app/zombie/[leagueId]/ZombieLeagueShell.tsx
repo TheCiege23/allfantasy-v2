@@ -4,9 +4,14 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
-import { AlertTriangle, RadioTower, ShieldAlert, Skull, Sparkles } from 'lucide-react'
+import { AlertTriangle, Bell, RadioTower, ShieldAlert, Skull, Sparkles } from 'lucide-react'
 import { CommissionerSettingsModal } from '@/app/league/[leagueId]/components/CommissionerSettingsModal'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+
+type ZombiePendingSitOutResponse = {
+  sitOutId: string | null
+  week: number
+}
 
 type ZMeta = {
   league?: {
@@ -30,6 +35,9 @@ type ZMeta = {
     unread?: number
     actionRequired?: number
   }
+  hordeSitOuts?: {
+    myPendingResponse?: ZombiePendingSitOutResponse | null
+  }
 }
 
 function navActive(pathname: string, href: string, lid: string): boolean {
@@ -52,6 +60,9 @@ export default function ZombieLeagueShell({
   const [meta, setMeta] = useState<ZMeta | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
   const [opsOpen, setOpsOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [submittingDecision, setSubmittingDecision] = useState<'yes' | 'no' | null>(null)
+  const [notificationError, setNotificationError] = useState<string | null>(null)
 
   useEffect(() => {
     fetch(`/api/zombie/league?leagueId=${encodeURIComponent(leagueId)}`, { credentials: 'include' })
@@ -71,6 +82,8 @@ export default function ZombieLeagueShell({
   const whispererCount = meta?.league?.counts?.whisperer ?? 0
   const unreadOps = meta?.commissionerNotifications?.unread ?? 0
   const urgentOps = meta?.commissionerNotifications?.actionRequired ?? 0
+  const pendingSitOut = meta?.hordeSitOuts?.myPendingResponse ?? null
+  const notificationCount = (pendingSitOut?.sitOutId ? 1 : 0) + unreadOps
 
   const desktopNav = useMemo(
     () =>
@@ -133,6 +146,46 @@ export default function ZombieLeagueShell({
     if (showComm) setOpsOpen(true)
   }
 
+  async function refreshMeta() {
+    try {
+      const response = await fetch(`/api/zombie/league?leagueId=${encodeURIComponent(leagueId)}`, {
+        credentials: 'include',
+      })
+      if (!response.ok) return
+      const data = (await response.json()) as ZMeta
+      setMeta(data)
+    } catch {
+      // Keep stale meta if refresh fails.
+    }
+  }
+
+  async function submitSitOutDecision(decision: 'yes' | 'no') {
+    if (!pendingSitOut?.sitOutId || submittingDecision) return
+    setSubmittingDecision(decision)
+    setNotificationError(null)
+    try {
+      const response = await fetch(
+        `/api/leagues/${leagueId}/zombie/horde-sit-outs/${pendingSitOut.sitOutId}/respond`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ decision }),
+        },
+      )
+      const payload = (await response.json().catch(() => ({}))) as { error?: string }
+      if (!response.ok) {
+        setNotificationError(payload.error ?? 'Unable to submit your horde sit-out response right now.')
+        return
+      }
+      await refreshMeta()
+    } catch {
+      setNotificationError('Network error while sending your horde sit-out response.')
+    } finally {
+      setSubmittingDecision(null)
+    }
+  }
+
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       <aside className="hidden w-[270px] shrink-0 border-r border-[var(--zombie-border)] bg-[radial-gradient(circle_at_top,_rgba(220,38,38,0.14),_transparent_35%),linear-gradient(180deg,#0a0b10_0%,#12141c_52%,#0c0d12_100%)] p-4 md:block">
@@ -166,6 +219,63 @@ export default function ZombieLeagueShell({
               <p className="mt-1 text-[16px] font-black text-sky-100">{itemCount}</p>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setNotificationsOpen((value) => !value)}
+            className="mt-4 flex min-h-[44px] w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-[12px] font-semibold text-white/85 transition hover:bg-white/[0.08]"
+          >
+            <span className="inline-flex items-center gap-2">
+              <Bell className="h-4 w-4" />
+              Horde alerts
+            </span>
+            {notificationCount > 0 ? (
+              <span className="rounded-full bg-red-500/20 px-2 py-1 text-[10px] font-bold text-red-100">
+                {notificationCount > 9 ? '9+' : notificationCount}
+              </span>
+            ) : (
+              <span className="text-[10px] text-white/45">Clear</span>
+            )}
+          </button>
+
+          {notificationsOpen ? (
+            <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-[11px] shadow-[0_0_30px_rgba(220,38,38,0.06)]">
+              {pendingSitOut?.sitOutId ? (
+                <div className="rounded-xl border border-amber-300/35 bg-amber-500/10 p-3">
+                  <p className="font-semibold text-amber-100">Horde sit-out nomination pending</p>
+                  <p className="mt-1 text-white/70">
+                    You were nominated to sit out for week {pendingSitOut.week}. Accept to lock yourself out of horde scoring and action commands for this week.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      className="rounded-md border border-emerald-300/40 bg-emerald-500/20 px-2 py-1 text-[11px] font-semibold text-emerald-100 disabled:opacity-50"
+                      onClick={() => void submitSitOutDecision('yes')}
+                      disabled={Boolean(submittingDecision)}
+                    >
+                      {submittingDecision === 'yes' ? 'Submitting...' : 'Yes, sit me out'}
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-md border border-rose-300/40 bg-rose-500/20 px-2 py-1 text-[11px] font-semibold text-rose-100 disabled:opacity-50"
+                      onClick={() => void submitSitOutDecision('no')}
+                      disabled={Boolean(submittingDecision)}
+                    >
+                      {submittingDecision === 'no' ? 'Submitting...' : 'No, keep me active'}
+                    </button>
+                  </div>
+                  {notificationError ? <p className="mt-2 text-rose-200">{notificationError}</p> : null}
+                </div>
+              ) : (
+                <p className="text-white/50">No personal horde alerts right now.</p>
+              )}
+              {showComm && unreadOps > 0 ? (
+                <p className="mt-3 text-white/55">
+                  Commissioner ops still has {urgentOps > 0 ? `${urgentOps} urgent` : `${unreadOps} unread`} notification{(urgentOps > 0 ? urgentOps : unreadOps) === 1 ? '' : 's'}.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           {showComm ? (
             <button
@@ -262,16 +372,62 @@ export default function ZombieLeagueShell({
               <span className="truncate text-[14px] font-semibold text-white">{title}</span>
               <p className="mt-1 text-[10px] uppercase tracking-[0.22em] text-white/45">{weekLine}</p>
             </div>
-            {showComm ? (
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={openOps}
-                className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] font-semibold text-amber-100"
+                onClick={() => setNotificationsOpen((value) => !value)}
+                className="relative rounded-xl border border-white/10 bg-white/5 p-2 text-white/85"
+                aria-label={notificationCount > 0 ? `Zombie notifications, ${notificationCount} items` : 'Zombie notifications'}
               >
-                {t('zombie.shell.opsShort')}
+                <Bell className="h-4 w-4" />
+                {notificationCount > 0 ? (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                    {notificationCount > 9 ? '9+' : notificationCount}
+                  </span>
+                ) : null}
               </button>
-            ) : null}
+              {showComm ? (
+                <button
+                  type="button"
+                  onClick={openOps}
+                  className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] font-semibold text-amber-100"
+                >
+                  {t('zombie.shell.opsShort')}
+                </button>
+              ) : null}
+            </div>
           </div>
+          {notificationsOpen ? (
+            <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3 text-[11px]">
+              {pendingSitOut?.sitOutId ? (
+                <>
+                  <p className="font-semibold text-amber-100">Horde sit-out nomination pending</p>
+                  <p className="mt-1 text-white/65">Week {pendingSitOut.week}. Respond here instead of calling the API manually.</p>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      className="rounded-md border border-emerald-300/40 bg-emerald-500/20 px-2 py-1 text-[11px] font-semibold text-emerald-100 disabled:opacity-50"
+                      onClick={() => void submitSitOutDecision('yes')}
+                      disabled={Boolean(submittingDecision)}
+                    >
+                      {submittingDecision === 'yes' ? 'Submitting...' : 'Yes'}
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-md border border-rose-300/40 bg-rose-500/20 px-2 py-1 text-[11px] font-semibold text-rose-100 disabled:opacity-50"
+                      onClick={() => void submitSitOutDecision('no')}
+                      disabled={Boolean(submittingDecision)}
+                    >
+                      {submittingDecision === 'no' ? 'Submitting...' : 'No'}
+                    </button>
+                  </div>
+                  {notificationError ? <p className="mt-2 text-rose-200">{notificationError}</p> : null}
+                </>
+              ) : (
+                <p className="text-white/50">No personal horde alerts right now.</p>
+              )}
+            </div>
+          ) : null}
           <div className="mt-3 grid grid-cols-4 gap-2 text-center text-[10px]">
             <div className="rounded-lg bg-white/5 px-2 py-2 text-white/70">
               <div className="text-white/40">{t('zombie.shell.alive')}</div>

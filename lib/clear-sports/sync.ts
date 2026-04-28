@@ -660,6 +660,14 @@ async function importNews(rows: Record<string, unknown>[]): Promise<number> {
   return imported
 }
 
+// Sports whose /players endpoint does not exist in ClearSports API.
+// For these, player roster data comes from /player-stats?full_roster=true.
+const DOMAINS_WITHOUT_PLAYERS_ENDPOINT = new Set(['nfl', 'ncaaf'])
+
+// Sports whose /players endpoint does not support name search (only team_id).
+// These are NBA, NHL, MLB — just fetch all via /players with no filter.
+const DOMAINS_WITH_PLAYERS_ENDPOINT = new Set(['nba', 'nhl', 'mlb', 'ncaab'])
+
 function endpointForEntity(domain: string, entity: ClearSportsEntity): string | null {
   switch (entity) {
     case 'teams':
@@ -667,7 +675,12 @@ function endpointForEntity(domain: string, entity: ClearSportsEntity): string | 
     case 'games':
       return `${domain}/games`
     case 'players':
-      return `${domain}/players`
+      // NFL and NCAAF have no /players endpoint — roster comes from /player-stats?full_roster=true
+      if (DOMAINS_WITHOUT_PLAYERS_ENDPOINT.has(domain)) return `${domain}/player-stats`
+      // NCAAB/NBA/NHL/MLB have /players endpoint
+      if (DOMAINS_WITH_PLAYERS_ENDPOINT.has(domain)) return `${domain}/players`
+      // Soccer leagues: no player endpoint documented
+      return null
     case 'injuries':
       return `${domain}/injury-stats`
     case 'team_stats':
@@ -782,6 +795,11 @@ export async function syncClearSportsToDb(options: ClearSportsSyncOptions = {}):
         const params: Record<string, string | number | undefined> = {}
         if (entity === 'games' || entity === 'injuries' || entity === 'team_stats' || entity === 'player_stats' || entity === 'odds') {
           params.season = season
+        }
+        // For NFL/NCAAF we route the 'players' entity to player-stats; full_roster=true returns the
+        // complete team roster rather than just in-game stat lines.
+        if (entity === 'players' && DOMAINS_WITHOUT_PLAYERS_ENDPOINT.has(domain)) {
+          params.full_roster = 'true'
         }
 
         await markEntitySyncStart(entityType, sport, key)

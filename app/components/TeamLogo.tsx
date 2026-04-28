@@ -6,6 +6,7 @@ import { getTeamLogoCandidates } from '@/lib/players/teamLogos'
 type TeamLogoProps = {
   teamAbbr: string
   sport?: string
+  logoUrl?: string | null
   size?: number
   className?: string
 }
@@ -25,13 +26,17 @@ function initials(abbr: string): string {
   return t || '?'
 }
 
-export function TeamLogo({ teamAbbr, sport = 'nfl', size = 24, className = '' }: TeamLogoProps) {
+export function TeamLogo({ teamAbbr, sport = 'nfl', logoUrl = null, size = 24, className = '' }: TeamLogoProps) {
   const [fallbackIndex, setFallbackIndex] = useState(0)
-  const urls = useMemo(() => getTeamLogoCandidates(teamAbbr, sport), [teamAbbr, sport])
+  const urls = useMemo(() => {
+    const base = getTeamLogoCandidates(teamAbbr, sport)
+    const preferred = String(logoUrl ?? '').trim()
+    return preferred ? [preferred, ...base.filter((u) => u !== preferred)] : base
+  }, [teamAbbr, sport, logoUrl])
 
   useEffect(() => {
     setFallbackIndex(0)
-  }, [teamAbbr, sport])
+  }, [teamAbbr, sport, logoUrl])
 
   if (!teamAbbr || teamAbbr === 'FA') {
     return (

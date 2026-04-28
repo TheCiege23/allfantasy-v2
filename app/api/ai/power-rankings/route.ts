@@ -9,6 +9,13 @@ import {
   fetchSleeperLeagueBundle,
   nameForPlayer,
 } from '@/lib/ai/league-settings-ai/sleeper'
+import {
+  buildAiCacheKey,
+  createSmokeAiResult,
+  isAiResultCacheSmokeProviderEnabled,
+  readAiResultCache,
+  writeAiResultCache,
+} from '@/lib/ai-result-cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,6 +63,8 @@ export async function POST(req: Request) {
   }
 
   try {
+    const smokeProviderEnabled = isAiResultCacheSmokeProviderEnabled()
+
     const bundle = await fetchSleeperLeagueBundle(sleeperId)
     const playersMap = await fetchPlayersMap(bundle.sport)
     const userById = new Map(bundle.users.map((u) => [u.user_id, u]))
@@ -84,6 +93,73 @@ export async function POST(req: Request) {
     const season = String(bundle.league.season ?? '')
     const scoring = JSON.stringify(bundle.league.scoring_settings ?? {}, null, 0).slice(0, 4000)
 
+    // ── AiResult cache gate (4h TTL — roster/record snapshot is stable intra-day) ──────────────────
+    const POWER_RANKINGS_TTL_MS = 4 * 60 * 60 * 1000
+    const weekTag = String(bundle.state?.week ?? 'offseason')
+    const { resultKey, inputHash } = buildAiCacheKey('power-rankings', {
+      leagueId,
+      sport: bundle.sport,
+      season,
+      week: weekTag,
+    })
+    const cached = await readAiResultCache(resultKey)
+    if (cached?.resultJson) {
+      console.log(`[api/ai/power-rankings] AiResult cache hit { league: '${leagueId}', week: ${weekTag} }`)
+      if (smokeProviderEnabled) {
+        return NextResponse.json({
+          ok: true,
+          source: 'ai-result-cache',
+          resultKey,
+          rankings: cached.resultJson,
+        })
+      }
+      return NextResponse.json(cached.resultJson)
+    }
+
+    if (smokeProviderEnabled) {
+      const smoke = createSmokeAiResult({
+        feature: 'power-rankings',
+        leagueId,
+        route: '/api/ai/power-rankings',
+        input: {
+          leagueId,
+          sport: bundle.sport,
+          season,
+          week: weekTag,
+        },
+      })
+      const smokeResult = {
+        rankings: teams
+          .slice(0, Math.max(1, Math.min(teams.length, 10)))
+          .map((team, idx) => ({
+            rank: idx + 1,
+            teamName: team.teamName,
+            ownerName: team.ownerName,
+            blurb: smoke.text,
+          })),
+        meta: smoke.json,
+      }
+
+      await writeAiResultCache({
+        resultKey,
+        inputHash,
+        feature: 'power-rankings',
+        scopeType: 'league',
+        scopeId: leagueId,
+        provider: 'smoke-provider',
+        inputJson: { leagueId, sport: bundle.sport, season, week: weekTag, smokeProvider: true },
+        resultJson: smokeResult,
+        ttlMs: POWER_RANKINGS_TTL_MS,
+      })
+
+      return NextResponse.json({
+        ok: true,
+        source: 'smoke-provider',
+        resultKey,
+        rankings: smokeResult,
+      })
+    }
+
     const system = `You are Chimmy, AllFantasy's fantasy sports analyst. The league runs on Sleeper. You must rank every team from 1 to N (N = number of teams) using roster quality and season points / record as signals. Respond with ONLY valid JSON (no markdown) in this exact shape:
 {"rankings":[{"rank":number,"teamName":string,"ownerName":string,"blurb":string}]}
 Each blurb is exactly one sentence. League context: sport=${bundle.sport}, season=${season}.`
@@ -91,6 +167,20 @@ Each blurb is exactly one sentence. League context: sport=${bundle.sport}, seaso
     const userPayload = `League: ${leagueName}\nScoring snapshot (truncated): ${scoring}\n\nTeams:\n${JSON.stringify(teams, null, 2)}`
 
     const raw = await callClaudeJson({ system, user: userPayload, userId })
+
+    // Write to AiResult cache (fire-and-forget).
+    writeAiResultCache({
+      resultKey,
+      inputHash,
+      feature: 'power-rankings',
+      scopeType: 'league',
+      scopeId: leagueId,
+      provider: 'anthropic',
+      inputJson: { leagueId, sport: bundle.sport, season, week: weekTag },
+      resultJson: raw,
+      ttlMs: POWER_RANKINGS_TTL_MS,
+    }).catch(() => undefined)
+
     return NextResponse.json(raw)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Power rankings failed'

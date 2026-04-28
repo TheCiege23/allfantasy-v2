@@ -296,11 +296,13 @@ describe('D.3 — PlayerPanel toolbar + table sync', () => {
     expect(src).toMatch(/const \[sortDirection, setSortDirection\] = useState<'asc' \| 'desc'>/)
   })
 
-  it('toolbar buttons go through handleSortChange (not setSortBy directly)', () => {
-    expect(src).toMatch(/handleSortChange\('adp'\)/)
-    expect(src).toMatch(/handleSortChange\('aiAdp'\)/)
-    expect(src).toMatch(/handleSortChange\('projected'\)/)
-    expect(src).toMatch(/handleSortChange\('name'\)/)
+  it('handleSortChange remains the canonical sort entry point (table column headers call it)', () => {
+    // G.1 — the four toolbar sort buttons (ADP / AI ADP / Proj / Name) were
+    // removed because they duplicated the SleeperPoolTable column-header
+    // sort UI. handleSortChange is still defined and is now invoked by
+    // handleColumnHeaderSort (passed to SleeperPoolTable.onSortChange).
+    expect(src).toMatch(/const handleSortChange = /)
+    expect(src).toMatch(/handleColumnHeaderSort/)
   })
 
   it('passes sortState + onSortChange into SleeperPoolTable', () => {

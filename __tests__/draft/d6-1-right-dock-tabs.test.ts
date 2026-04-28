@@ -123,12 +123,18 @@ describe('D.6.1 — Player pool filter bar redesign', () => {
     expect(src).not.toMatch(/data-testid="draft-sort-adp"[\s\S]{0,400}\{useAiAdp \? 'AI ADP' : 'ADP'\}/)
   })
 
-  it('keeps the dedicated AI ADP sort button (single AI ADP control)', () => {
-    expect(src).toMatch(/data-testid="draft-sort-ai-adp"/)
-    // Only one place in the toolbar should label something as "AI ADP" as a button label
-    // (the badge `<span>AI ADP</span>` and the toggle `Use AI ADP` are separate controls).
-    const aiAdpButtonLabels = src.match(/>\s*AI ADP\s*<\/button>/g) ?? []
-    expect(aiAdpButtonLabels.length).toBe(1)
+  it('toolbar sort buttons removed — column-header sort is the canonical UI (G.1 #1)', () => {
+    // G.1 — the four toolbar sort buttons (ADP / AI ADP / Proj / Name)
+    // were removed because they duplicated the SleeperPoolTable column-header
+    // sort. The "Use AI ADP" toggle, AI-ADP warnings, and "My roster" toggle
+    // remain in the row above the table.
+    expect(src).not.toMatch(/data-testid="draft-sort-ai-adp"/)
+    expect(src).not.toMatch(/data-testid="draft-sort-adp"/)
+    expect(src).not.toMatch(/data-testid="draft-sort-projected"/)
+    expect(src).not.toMatch(/data-testid="draft-sort-name"/)
+    // The single AI-ADP usage check still applies — only the "Use AI ADP"
+    // toggle label and the active-state badge remain.
+    expect(src).toMatch(/Use AI ADP/)
   })
 
   it('renders position pills with `<drafted>/<available>` counts (no <select>)', () => {

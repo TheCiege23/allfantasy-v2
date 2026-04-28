@@ -34,6 +34,7 @@ function read(rel: string): string {
 
 describe('F.2 — DraftRoomShell mobile structure', () => {
   const src = read('components/app/draft-room/DraftRoomShell.tsx')
+  const pageSrc = read('components/app/draft-room/DraftRoomPageClient.tsx')
 
   it('renders a dedicated mobile layout via md:hidden (no duplicate board on desktop)', () => {
     expect(src).toMatch(/data-testid="draft-mobile-layout"/)
@@ -75,6 +76,13 @@ describe('F.2 — DraftRoomShell mobile structure', () => {
     expect(src).toMatch(/\{mobileTab === 'queue' && queuePanel\}/)
     expect(src).toMatch(/\{mobileTab === 'chat' && chatPanel\}/)
     expect(src).toMatch(/rosterPanel && mobileTab === 'roster' && rosterPanel/)
+  })
+
+  it('mobile sticky bar is always enabled and includes a clock chip', () => {
+    expect(pageSrc).toMatch(/const showMobileStickyBar = true/)
+    expect(pageSrc).toMatch(/showMobileStickyBar \? \(/)
+    expect(pageSrc).toMatch(/>Clock<|Clock<\/span>/)
+    expect(pageSrc).toMatch(/data-testid="draft-mobile-current-pick"/)
   })
 })
 

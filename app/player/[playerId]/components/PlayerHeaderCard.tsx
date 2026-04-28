@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { TrendingUp, TrendingDown, Minus, AlertTriangle } from 'lucide-react'
 import type { PlayerIdentity } from '../PlayerProfileClient'
+import { getTeamLogoUrl } from '@/lib/player-media-urls'
 
 type OutlookSnippet = {
   currentValue?: number
@@ -72,7 +73,7 @@ export function PlayerHeaderCard({
       .catch(() => {})
   }, [player.name, player.sport])
 
-  const teamLogoUrl = `https://sleepercdn.com/images/team_logos/nfl/${player.team.toLowerCase()}.png`
+  const teamLogoUrl = getTeamLogoUrl(player.team, player.sport) ?? ''
   const injuryDisplay = outlook?.injuryStatus && outlook.injuryStatus !== 'Active' ? outlook.injuryStatus : player.status !== 'active' ? player.status : null
 
   return (

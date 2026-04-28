@@ -57,6 +57,23 @@ $env:DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_e2e"
 - Avoid using shared production-like DB URLs for this suite.
 - If you see `DB_UNAVAILABLE` or connection pool errors, switch to a dedicated local Postgres DB and rerun.
 
+## Required Chimmy Pre-Merge Gate
+
+For PRs that modify Chimmy behavior, this targeted Chromium E2E gate is required before merge.
+
+PowerShell:
+
+```powershell
+$env:CI='1'
+$env:PLAYWRIGHT_PORT='3101'
+npx playwright test e2e/chimmy-image-upload.spec.ts e2e/chimmy-interface-click-audit.spec.ts e2e/chimmy-shortcut-settings.spec.ts e2e/chimmy-voice.spec.ts e2e/league-commissioner-chimmy-settings.spec.ts --project=chromium --reporter=line --workers=1
+```
+
+Pass criteria:
+
+- `7 passed`
+- `0 failed`
+
 ## Click Audit Grouped Suite
 
 Run all click-audit specs (including Prompt 115 fantasy podcast + HeyGen video, Prompt 116 Grok social clip generator + optional auto-posting, admin social publish status drill-down, Prompt 117 player comparison lab, Prompt 118 fantasy news aggregator, Prompt 119 league power rankings, Prompt 120 fantasy coach mode, Prompt 121 viral social sharing, Prompt 122 automated blog engine + SEO, Prompt 123 unified AI interface architecture, Prompt 124 trade/waiver/rankings/draft/psychology tool layer audit, Prompt 125 league story creator / narrative AI / one-brain merge audit, Prompt 126 Chimmy AI chat interface + calm voice click audit, and Prompt 127 AI reliability / confidence / provider-failure click audit) via grep tag:

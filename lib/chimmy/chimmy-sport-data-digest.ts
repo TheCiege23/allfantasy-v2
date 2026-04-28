@@ -1,9 +1,9 @@
 import 'server-only'
 
 import { prisma } from '@/lib/prisma'
-import { fetchNewsAPIEverything } from '@/app/api/sports/news/sync-helper'
 import { getLatestNews } from '@/lib/data/news'
 import { getInjuryReport } from '@/lib/data/players'
+import { getNewsApiEverythingDbFirst } from '@/lib/news/newsapi-cache'
 import { SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope'
 
 const SPORT_NEWS_QUERY: Record<SupportedSport, string> = {
@@ -297,12 +297,13 @@ ${playerStatsRows
     }
   }
 
-  if (args.includeNewsApi !== false && process.env.NEWS_API_KEY) {
+  if (args.includeNewsApi !== false && (process.env.NEWS_API_KEY || process.env.NEWSAPI_KEY)) {
     try {
       const primary = args.sport === 'all' ? 'NFL' : args.sport
-      const articles = await fetchNewsAPIEverything(SPORT_NEWS_QUERY[primary], {
+      const { articles } = await getNewsApiEverythingDbFirst({
+        query: SPORT_NEWS_QUERY[primary],
+        sport: primary,
         pageSize: args.sport === 'all' ? 8 : 12,
-        impliedSport: primary,
         sortBy: 'publishedAt',
       })
       if (articles.length) {

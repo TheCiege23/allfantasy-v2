@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { trackLegacyToolUsage } from '@/lib/analytics-server'
 import { getAllPlayers, getLeagueRosters, getLeagueTransactions, getLeagueUsers } from '@/lib/sleeper-client'
+import { getOrCreateAiResult } from '@/lib/ai/ai-result-cache'
 
 type SleeperTransaction = {
   transaction_id: string
@@ -56,7 +57,8 @@ async function analyzeTrade(
   playersReceived: string[],
   picksGiven: string[],
   picksReceived: string[],
-  leagueName: string
+  leagueName: string,
+  opts?: { leagueId?: string | null; userId?: string | null }
 ) {
   const prompt = `Analyze this trade for the "sender" perspective (first person):
 
@@ -79,19 +81,61 @@ Return JSON only:
   "counterOffer": "Optional counter..."
 }`
 
-  const completion = await openai.chat.completions.create({
+  const cachePayload = {
+    feature: 'legacy-trades-check-analysis',
+    leagueId: opts?.leagueId ?? null,
+    userId: opts?.userId ?? null,
+    leagueName,
+    playersGiven: [...playersGiven].sort(),
+    playersReceived: [...playersReceived].sort(),
+    picksGiven: [...picksGiven].sort(),
+    picksReceived: [...picksReceived].sort(),
+    promptVersion: 'v1',
+  }
+
+  const aiResult = await getOrCreateAiResult({
+    feature: 'legacy-trades-check-analysis',
+    scopeType: 'league',
+    scopeId: opts?.leagueId ?? `global:${leagueName.toLowerCase()}`,
+    provider: 'openai',
     model: 'gpt-4o',
-    messages: [
-      { role: 'system', content: 'You are an elite dynasty fantasy football analyst. Return valid JSON only.' },
-      { role: 'user', content: prompt },
-    ],
-    max_tokens: 500,
-    temperature: 0.7,
+    payload: cachePayload,
+    ttlSeconds: 2 * 60 * 60,
+    onCacheMiss: async () => {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: 'You are an elite dynasty fantasy football analyst. Return valid JSON only.' },
+          { role: 'user', content: prompt },
+        ],
+        max_tokens: 500,
+        temperature: 0.7,
+      })
+
+      const content = completion.choices[0]?.message?.content || '{}'
+      return {
+        resultText: content,
+        resultJson: { content },
+        tokenPrompt: completion.usage?.prompt_tokens ?? null,
+        tokenOutput: completion.usage?.completion_tokens ?? null,
+      }
+    },
   })
 
-  const content = completion.choices[0]?.message?.content || '{}'
+  if (aiResult.cacheHit) {
+    console.log(`[legacy-trades/check] AI cache hit { leagueId: '${opts?.leagueId ?? 'unknown'}' }`)
+  } else {
+    console.log(`[legacy-trades/check] AI cache miss { leagueId: '${opts?.leagueId ?? 'unknown'}', modelCallMs: ${aiResult.modelDurationMs ?? -1} }`)
+    console.log(`[legacy-trades/check] saved AiResult { id: '${aiResult.row.id}', resultKey: '${aiResult.row.resultKey}' }`)
+  }
+
+  const cachedContent =
+    (typeof aiResult.row.resultText === 'string' && aiResult.row.resultText.trim()) ||
+    ((aiResult.row.resultJson as any)?.content as string | undefined) ||
+    '{}'
+
   try {
-    const cleaned = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    const cleaned = cachedContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
     return JSON.parse(cleaned)
   } catch {
     return {
@@ -287,7 +331,8 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trades/check", tool: "
             playersReceived,
             picksGiven,
             picksReceived,
-            league.name
+            league.name,
+            { leagueId: league.sleeperLeagueId, userId: legacyUser.id }
           )
         }
 

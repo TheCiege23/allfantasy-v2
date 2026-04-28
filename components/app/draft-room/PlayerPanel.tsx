@@ -209,7 +209,8 @@ function PlayerListVirtualized({
         const sel = selectedKey != null && rowKey(p) === selectedKey
         return (
           <div
-            key={p.id ?? p.name}
+            key={p.id ?? rowKey(p)}
+            ref={virtualizer.measureElement}
             style={{
               position: 'absolute',
               top: 0,
@@ -241,6 +242,7 @@ function PlayerListVirtualized({
               projectedLandingSpot={p.projectedLandingSpot}
               graduatedToNFL={p.graduatedToNFL}
               poolType={p.poolType}
+              isRookie={p.isRookie ?? false}
               nflDraftProjectionSplits={p.nflDraftProjectionSplits ?? null}
               testId={`draft-player-card-${virtualRow.index}`}
               onSelect={() => onPlayerSelect(p)}
@@ -827,53 +829,11 @@ function PlayerPanelInner({
         <div
           className={`flex flex-wrap items-center gap-1.5 border-b border-white/[0.06] px-2 py-2 sm:px-3 ${rs ? 'bg-[#050c18]/95' : 'bg-black/10'}`}
         >
-          <span className={`text-[10px] ${rs ? 'font-medium text-white/55' : 'text-white/50'}`}>Sort:</span>
-          <button
-            type="button"
-            onClick={() => {
-              if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.SORT, { leagueId, by: 'adp' })
-              handleSortChange('adp')
-            }}
-            data-testid="draft-sort-adp"
-            className={`min-h-[40px] rounded-lg px-3 py-2 text-xs touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-[0.98] ${sortBy === 'adp' ? 'border border-cyan-400/35 bg-gradient-to-r from-cyan-500/18 to-cyan-500/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.12)]' : 'border border-transparent text-white/72 hover:bg-white/10'}`}
-          >
-            {/* D.6.1 — always 'ADP'. The morph to 'AI ADP' was creating a duplicate
-                AI ADP control next to the dedicated `draft-sort-ai-adp` button. */}
-            ADP
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.SORT, { leagueId, by: 'aiAdp' })
-              handleSortChange('aiAdp')
-            }}
-            data-testid="draft-sort-ai-adp"
-            className={`min-h-[40px] rounded-lg px-3 py-2 text-xs touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-[0.98] ${sortBy === 'aiAdp' ? 'border border-cyan-400/35 bg-gradient-to-r from-cyan-500/18 to-cyan-500/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.12)]' : 'border border-transparent text-white/72 hover:bg-white/10'}`}
-          >
-            AI ADP
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.SORT, { leagueId, by: 'projected' })
-              handleSortChange('projected')
-            }}
-            data-testid="draft-sort-projected"
-            className={`min-h-[40px] rounded-lg px-3 py-2 text-xs touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-[0.98] ${sortBy === 'projected' ? 'border border-cyan-400/35 bg-gradient-to-r from-cyan-500/18 to-cyan-500/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.12)]' : 'border border-transparent text-white/72 hover:bg-white/10'}`}
-          >
-            Proj
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.SORT, { leagueId, by: 'name' })
-              handleSortChange('name')
-            }}
-            data-testid="draft-sort-name"
-            className={`min-h-[40px] rounded-lg px-3 py-2 text-xs touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-[0.98] ${sortBy === 'name' ? 'border border-cyan-400/35 bg-gradient-to-r from-cyan-500/18 to-cyan-500/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.12)]' : 'border border-transparent text-white/72 hover:bg-white/10'}`}
-          >
-            Name
-          </button>
+          {/* G.1 — Sort buttons (ADP / AI ADP / Proj / Name) removed.
+              They duplicated the SleeperPoolTable's clickable column headers, which
+              are the canonical sort UI. The "Use AI ADP" toggle, AI-ADP warnings,
+              and the "My roster / Pool" view-toggle remain in this row because they
+              don't belong on the table header. */}
           {useAiAdp && (
             <span className="rounded border border-cyan-300/25 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] text-cyan-100" title="Player order uses AI ADP">
               AI ADP

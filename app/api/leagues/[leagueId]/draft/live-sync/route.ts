@@ -22,20 +22,33 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ leagueId: s
   const allowed = await canAccessLeagueDraft(leagueId, userId)
   if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  await runAutomationTicksThrottled(leagueId)
-
   const url = req.nextUrl
   const since = url.searchParams.get('since') ?? undefined
   const includeQueue = url.searchParams.get('queue') !== '0'
   const includeChat = url.searchParams.get('chat') !== '0'
   const chatLimit = Math.min(Number(url.searchParams.get('chatLimit') || '80'), 100)
 
-  const payload = await buildDraftLiveSyncPayload(leagueId, userId, {
-    since,
-    includeQueue,
-    includeChat,
-    chatLimit,
-  })
+  try {
+    await runAutomationTicksThrottled(leagueId)
 
-  return NextResponse.json(payload)
+    const payload = await buildDraftLiveSyncPayload(leagueId, userId, {
+      since,
+      includeQueue,
+      includeChat,
+      chatLimit,
+    })
+
+    return NextResponse.json(payload)
+  } catch (error) {
+    console.error('[draft/live-sync GET]', leagueId, error)
+    return NextResponse.json({
+      leagueId,
+      updated: false,
+      updatedAt: null,
+      session: null,
+      ...(includeQueue ? { queue: [] } : {}),
+      ...(includeChat ? { messages: [], syncActive: false } : {}),
+      degraded: true,
+    })
+  }
 }

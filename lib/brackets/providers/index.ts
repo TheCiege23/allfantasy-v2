@@ -1,6 +1,7 @@
 import type { BracketDataProvider } from "./types"
 import { MockProvider } from "./mock-provider"
 import { HttpProvider } from "./http-provider"
+import { getTheSportsDbApiKey } from '@/lib/env/sports-media-keys'
 
 let cachedProvider: BracketDataProvider | null = null
 let cachedAt = 0
@@ -10,28 +11,26 @@ function buildProviders(): BracketDataProvider[] {
   const providers: BracketDataProvider[] = []
 
   const apiSportsKey = process.env.API_SPORTS_KEY
+  const ncaafLeagueId = process.env.APISPORTS_NCAAF_LEAGUE_ID || '2'
   if (apiSportsKey) {
     providers.push(
       new HttpProvider({
-        name: "API-Sports NCAAB",
+        name: "API-Sports NCAAF",
         id: "api-sports",
         baseUrl: "https://v1.american-football.api-sports.io",
         apiKey: apiSportsKey,
         endpoints: {
-          schedule: "/games?league=1&season={season}",
-          liveScores: "/games?live=all&league=1",
+          schedule: `/games?league=${ncaafLeagueId}&season={season}`,
+          liveScores: `/games?live=all&league=${ncaafLeagueId}`,
         },
         headers: {
-          "x-rapidapi-key": apiSportsKey,
-          "x-rapidapi-host": "v1.american-football.api-sports.io",
+          "x-apisports-key": apiSportsKey,
         },
       })
     )
   }
 
-  const theSportsDbKey =
-    process.env.THESPORTSDB_API_KEY?.trim() ||
-    process.env.THEAUDIODB_API_KEY?.trim()
+  const theSportsDbKey = getTheSportsDbApiKey()
   if (theSportsDbKey || process.env.NODE_ENV === "development") {
     providers.push(
       new HttpProvider({

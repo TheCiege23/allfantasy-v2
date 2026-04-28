@@ -5,6 +5,7 @@ import { assertLeagueMember } from '@/lib/league/league-access'
 import { isCommissioner } from '@/lib/commissioner/permissions'
 import {
   assertCommissioner,
+  buildDevyAiCacheContextSummary,
   generateAnnualTransitionReport,
   generateImportSummary,
   generateLeagueConstitution,
@@ -18,9 +19,17 @@ import {
   suggestPlayerMatches,
   evaluateDevyProspect,
 } from '@/lib/devy/ai/devyChimmy'
+import {
+  buildAiCacheKey,
+  createSmokeAiResult,
+  isAiResultCacheSmokeProviderEnabled,
+  readAiResultCache,
+  writeAiResultCache,
+} from '@/lib/ai-result-cache'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
+const DEVY_CHIMMY_CACHE_TTL_MS = 30 * 60 * 1000
 
 type Body = Record<string, unknown>
 
@@ -44,13 +53,73 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'action required' }, { status: 400 })
   }
 
+  const smokeProviderEnabled = isAiResultCacheSmokeProviderEnabled()
+
   try {
     switch (action) {
       case 'setup_recommendation': {
         const teamCount = num(body.teamCount) ?? 12
         const leagueExperience = str(body.experience) || str(body.leagueExperience) || 'mixed'
         const managerFamiliarity = str(body.managerFamiliarity) || 'mixed'
+        const cacheInputs = {
+          action,
+          userId,
+          teamCount,
+          leagueExperience,
+          managerFamiliarity,
+          contextSummary: await buildDevyAiCacheContextSummary({
+            teamCount,
+            leagueExperience,
+            managerFamiliarity,
+          }),
+        }
+        const { resultKey, inputHash } = buildAiCacheKey('devy-chimmy', cacheInputs)
+        const cached = await readAiResultCache(resultKey)
+        if (cached?.resultJson && typeof cached.resultJson === 'object') {
+          return NextResponse.json(cached.resultJson)
+        }
+        if (smokeProviderEnabled) {
+          const smoke = createSmokeAiResult({
+            feature: 'devy-chimmy',
+            route: '/api/devy/ai',
+            input: cacheInputs,
+          })
+          const smokePayload = {
+            startupFormat: 'combined',
+            futureDraftFormat: 'combined',
+            taxiSlots: 5,
+            devySlots: 10,
+            reasoning: smoke.text,
+            prosCons: ['Smoke provider fallback output.'],
+            warnings: ['Verify live Devy AI output before publishing settings guidance.'],
+          }
+          await writeAiResultCache({
+            resultKey,
+            inputHash,
+            feature: 'devy-chimmy',
+            scopeType: 'global',
+            scopeId: null,
+            provider: 'smoke-provider',
+            model: 'smoke-provider',
+            inputJson: cacheInputs,
+            resultJson: smokePayload,
+            ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+          })
+          return NextResponse.json(smokePayload)
+        }
         const data = await getSetupRecommendation(teamCount, leagueExperience, managerFamiliarity)
+        writeAiResultCache({
+          resultKey,
+          inputHash,
+          feature: 'devy-chimmy',
+          scopeType: 'global',
+          scopeId: null,
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          inputJson: cacheInputs,
+          resultJson: data,
+          ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+        }).catch(() => undefined)
         return NextResponse.json(data)
       }
 
@@ -79,7 +148,63 @@ export async function POST(req: NextRequest) {
           rid = rr?.id ?? ''
         }
         if (!rid) return NextResponse.json({ error: 'rosterId required' }, { status: 400 })
+        const cacheInputs = {
+          action,
+          leagueId,
+          userId,
+          managerId,
+          rosterId: rid,
+          contextSummary: await buildDevyAiCacheContextSummary({
+            leagueId,
+            managerId,
+            rosterId: rid,
+          }),
+        }
+        const { resultKey, inputHash } = buildAiCacheKey('devy-chimmy', cacheInputs)
+        const cached = await readAiResultCache(resultKey)
+        if (cached?.resultJson && typeof cached.resultJson === 'object') {
+          return NextResponse.json(cached.resultJson)
+        }
+        if (smokeProviderEnabled) {
+          const smoke = createSmokeAiResult({
+            feature: 'devy-chimmy',
+            leagueId,
+            route: '/api/devy/ai',
+            input: cacheInputs,
+          })
+          const smokePayload = {
+            mode: 'balanced',
+            pipelineScore: 50,
+            concerns: ['Smoke provider fallback output.'],
+            recommendations: [smoke.text],
+          }
+          await writeAiResultCache({
+            resultKey,
+            inputHash,
+            feature: 'devy-chimmy',
+            scopeType: 'league',
+            scopeId: leagueId,
+            provider: 'smoke-provider',
+            model: 'smoke-provider',
+            inputJson: cacheInputs,
+            resultJson: smokePayload,
+            ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+          })
+          return NextResponse.json(smokePayload)
+        }
         const data = await getPipelineHealthAnalysis(leagueId, rid)
+        writeAiResultCache({
+          resultKey,
+          inputHash,
+          feature: 'devy-chimmy',
+          scopeType: 'league',
+          scopeId: leagueId,
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          inputJson: cacheInputs,
+          resultJson: data,
+          ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+        }).catch(() => undefined)
         return NextResponse.json(data)
       }
 
@@ -109,7 +234,70 @@ export async function POST(req: NextRequest) {
         const managerRoster = await prisma.devyPlayerState.findMany({
           where: { leagueId, rosterId: rr.id },
         })
+        const cacheInputs = {
+          action,
+          leagueId,
+          userId,
+          managerId,
+          rosterId: rr.id,
+          playerId,
+          rosterStateSummary: managerRoster
+            .map((row) => `${row.playerId}:${row.position}:${row.bucketState}`)
+            .sort(),
+          contextSummary: await buildDevyAiCacheContextSummary({
+            leagueId,
+            managerId,
+            rosterId: rr.id,
+            playerId,
+          }),
+        }
+        const { resultKey, inputHash } = buildAiCacheKey('devy-chimmy', cacheInputs)
+        const cached = await readAiResultCache(resultKey)
+        if (cached?.resultJson && typeof cached.resultJson === 'object') {
+          return NextResponse.json(cached.resultJson)
+        }
+        if (smokeProviderEnabled) {
+          const smoke = createSmokeAiResult({
+            feature: 'devy-chimmy',
+            leagueId,
+            route: '/api/devy/ai',
+            input: cacheInputs,
+          })
+          const smokePayload = {
+            ceiling: 'medium (smoke fallback)',
+            timeline: 'Verify with live provider.',
+            fit: 'Roster fit requires live AI confirmation.',
+            grade: 'B',
+            risks: ['Smoke provider fallback output.'],
+            verdict: smoke.text,
+          }
+          await writeAiResultCache({
+            resultKey,
+            inputHash,
+            feature: 'devy-chimmy',
+            scopeType: 'league',
+            scopeId: leagueId,
+            provider: 'smoke-provider',
+            model: 'smoke-provider',
+            inputJson: cacheInputs,
+            resultJson: smokePayload,
+            ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+          })
+          return NextResponse.json(smokePayload)
+        }
         const data = await evaluateDevyProspect(playerId, leagueId, managerRoster)
+        writeAiResultCache({
+          resultKey,
+          inputHash,
+          feature: 'devy-chimmy',
+          scopeType: 'league',
+          scopeId: leagueId,
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          inputJson: cacheInputs,
+          resultJson: data,
+          ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+        }).catch(() => undefined)
         return NextResponse.json(data)
       }
 
@@ -120,7 +308,71 @@ export async function POST(req: NextRequest) {
         if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
         const m = await assertLeagueMember(leagueId, userId)
         if (!m.ok) return NextResponse.json({ error: 'Forbidden' }, { status: m.status })
+        const cacheInputs = {
+          action,
+          leagueId,
+          userId,
+          position: position ?? null,
+          classFilter: classFilter ?? null,
+          contextSummary: await buildDevyAiCacheContextSummary({
+            leagueId,
+            position: position ?? null,
+            classFilter: classFilter ?? null,
+          }),
+        }
+        const { resultKey, inputHash } = buildAiCacheKey('devy-chimmy', cacheInputs)
+        const cached = await readAiResultCache(resultKey)
+        if (cached?.resultJson && typeof cached.resultJson === 'object') {
+          return NextResponse.json(cached.resultJson)
+        }
+        if (smokeProviderEnabled) {
+          const smoke = createSmokeAiResult({
+            feature: 'devy-chimmy',
+            leagueId,
+            route: '/api/devy/ai',
+            input: cacheInputs,
+          })
+          const smokePayload = {
+            positionFilter: position,
+            classFilter,
+            entries: [
+              {
+                rank: 1,
+                name: 'Smoke Prospect',
+                school: null,
+                classYear: null,
+                grade: 'B',
+                note: smoke.text,
+              },
+            ],
+          }
+          await writeAiResultCache({
+            resultKey,
+            inputHash,
+            feature: 'devy-chimmy',
+            scopeType: 'league',
+            scopeId: leagueId,
+            provider: 'smoke-provider',
+            model: 'smoke-provider',
+            inputJson: cacheInputs,
+            resultJson: smokePayload,
+            ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+          })
+          return NextResponse.json(smokePayload)
+        }
         const data = await getDevyRankings(leagueId, position, classFilter)
+        writeAiResultCache({
+          resultKey,
+          inputHash,
+          feature: 'devy-chimmy',
+          scopeType: 'league',
+          scopeId: leagueId,
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          inputJson: cacheInputs,
+          resultJson: data,
+          ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+        }).catch(() => undefined)
         return NextResponse.json(data)
       }
 
@@ -156,7 +408,65 @@ export async function POST(req: NextRequest) {
           select: { id: true },
         })
         if (!rr) return NextResponse.json({ error: 'Roster not found' }, { status: 404 })
+        const cacheInputs = {
+          action,
+          leagueId,
+          userId,
+          managerId,
+          rosterId: rr.id,
+          playerId,
+          contextSummary: await buildDevyAiCacheContextSummary({
+            leagueId,
+            managerId,
+            rosterId: rr.id,
+            playerId,
+          }),
+        }
+        const { resultKey, inputHash } = buildAiCacheKey('devy-chimmy', cacheInputs)
+        const cached = await readAiResultCache(resultKey)
+        if (cached?.resultJson && typeof cached.resultJson === 'object') {
+          return NextResponse.json(cached.resultJson)
+        }
+        if (smokeProviderEnabled) {
+          const smoke = createSmokeAiResult({
+            feature: 'devy-chimmy',
+            leagueId,
+            route: '/api/devy/ai',
+            input: cacheInputs,
+          })
+          const smokePayload = {
+            recommendation: 'wait',
+            confidence: 0.5,
+            reasoning: smoke.text,
+            risk: 'Smoke provider fallback output.',
+          }
+          await writeAiResultCache({
+            resultKey,
+            inputHash,
+            feature: 'devy-chimmy',
+            scopeType: 'league',
+            scopeId: leagueId,
+            provider: 'smoke-provider',
+            model: 'smoke-provider',
+            inputJson: cacheInputs,
+            resultJson: smokePayload,
+            ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+          })
+          return NextResponse.json(smokePayload)
+        }
         const data = await getShouldIPromoteAnalysis(leagueId, rr.id, playerId)
+        writeAiResultCache({
+          resultKey,
+          inputHash,
+          feature: 'devy-chimmy',
+          scopeType: 'league',
+          scopeId: leagueId,
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          inputJson: cacheInputs,
+          resultJson: data,
+          ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+        }).catch(() => undefined)
         return NextResponse.json(data)
       }
 
@@ -179,7 +489,59 @@ export async function POST(req: NextRequest) {
         const g = await assertLeagueMember(row.leagueId, userId)
         if (!g.ok) return NextResponse.json({ error: 'Forbidden' }, { status: g.status })
         await assertCommissioner(row.leagueId, userId)
+        const cacheInputs = {
+          action,
+          leagueId: row.leagueId,
+          userId,
+          sessionId,
+          contextSummary: await buildDevyAiCacheContextSummary({
+            leagueId: row.leagueId,
+            sessionId,
+          }),
+        }
+        const { resultKey, inputHash } = buildAiCacheKey('devy-chimmy', cacheInputs)
+        const cached = await readAiResultCache(resultKey)
+        if (cached?.resultJson && typeof cached.resultJson === 'object') {
+          return NextResponse.json(cached.resultJson)
+        }
+        if (smokeProviderEnabled) {
+          const smoke = createSmokeAiResult({
+            feature: 'devy-chimmy',
+            leagueId: row.leagueId,
+            route: '/api/devy/ai',
+            input: cacheInputs,
+          })
+          const smokePayload = {
+            narrative: smoke.text,
+            auditConfidence: 'smoke-provider',
+          }
+          await writeAiResultCache({
+            resultKey,
+            inputHash,
+            feature: 'devy-chimmy',
+            scopeType: 'league',
+            scopeId: row.leagueId,
+            provider: 'smoke-provider',
+            model: 'smoke-provider',
+            inputJson: cacheInputs,
+            resultJson: smokePayload,
+            ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+          })
+          return NextResponse.json(smokePayload)
+        }
         const data = await generateImportSummary(sessionId)
+        writeAiResultCache({
+          resultKey,
+          inputHash,
+          feature: 'devy-chimmy',
+          scopeType: 'league',
+          scopeId: row.leagueId,
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          inputJson: cacheInputs,
+          resultJson: data,
+          ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+        }).catch(() => undefined)
         return NextResponse.json(data)
       }
 
@@ -194,7 +556,53 @@ export async function POST(req: NextRequest) {
         if (!(await isCommissioner(leagueId, userId))) {
           return NextResponse.json({ error: 'Commissioner only' }, { status: 403 })
         }
+        const cacheInputs = {
+          action,
+          leagueId,
+          userId,
+          message: message.trim().toLowerCase(),
+          contextSummary: await buildDevyAiCacheContextSummary({ leagueId }),
+        }
+        const { resultKey, inputHash } = buildAiCacheKey('devy-chimmy', cacheInputs)
+        const cached = await readAiResultCache(resultKey)
+        if (cached?.resultJson && typeof cached.resultJson === 'object') {
+          return NextResponse.json(cached.resultJson)
+        }
+        if (smokeProviderEnabled) {
+          const smoke = createSmokeAiResult({
+            feature: 'devy-chimmy',
+            leagueId,
+            route: '/api/devy/ai',
+            input: cacheInputs,
+          })
+          const smokePayload = { reply: smoke.text }
+          await writeAiResultCache({
+            resultKey,
+            inputHash,
+            feature: 'devy-chimmy',
+            scopeType: 'league',
+            scopeId: leagueId,
+            provider: 'smoke-provider',
+            model: 'smoke-provider',
+            inputJson: cacheInputs,
+            resultJson: smokePayload,
+            ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+          })
+          return NextResponse.json(smokePayload)
+        }
         const data = await handleCommissionerQuery(leagueId, userId, message)
+        writeAiResultCache({
+          resultKey,
+          inputHash,
+          feature: 'devy-chimmy',
+          scopeType: 'league',
+          scopeId: leagueId,
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          inputJson: cacheInputs,
+          resultJson: data,
+          ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+        }).catch(() => undefined)
         return NextResponse.json(data)
       }
 
@@ -203,8 +611,54 @@ export async function POST(req: NextRequest) {
         if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
         const m = await assertLeagueMember(leagueId, userId)
         if (!m.ok) return NextResponse.json({ error: 'Forbidden' }, { status: m.status })
+        const cacheInputs = {
+          action,
+          leagueId,
+          userId,
+          contextSummary: await buildDevyAiCacheContextSummary({ leagueId }),
+        }
+        const { resultKey, inputHash } = buildAiCacheKey('devy-chimmy', cacheInputs)
+        const cached = await readAiResultCache(resultKey)
+        if (cached?.resultJson && typeof cached.resultJson === 'object') {
+          return NextResponse.json(cached.resultJson)
+        }
+        if (smokeProviderEnabled) {
+          const smoke = createSmokeAiResult({
+            feature: 'devy-chimmy',
+            leagueId,
+            route: '/api/devy/ai',
+            input: cacheInputs,
+          })
+          const smokePayload = { text: smoke.text }
+          await writeAiResultCache({
+            resultKey,
+            inputHash,
+            feature: 'devy-chimmy',
+            scopeType: 'league',
+            scopeId: leagueId,
+            provider: 'smoke-provider',
+            model: 'smoke-provider',
+            inputJson: cacheInputs,
+            resultJson: smokePayload,
+            ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+          })
+          return NextResponse.json(smokePayload)
+        }
         const text = await generateLeagueConstitution(leagueId)
-        return NextResponse.json({ text })
+        const responsePayload = { text }
+        writeAiResultCache({
+          resultKey,
+          inputHash,
+          feature: 'devy-chimmy',
+          scopeType: 'league',
+          scopeId: leagueId,
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          inputJson: cacheInputs,
+          resultJson: responsePayload,
+          ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+        }).catch(() => undefined)
+        return NextResponse.json(responsePayload)
       }
 
       case 'annual_report': {
@@ -215,8 +669,55 @@ export async function POST(req: NextRequest) {
         }
         const m = await assertLeagueMember(leagueId, userId)
         if (!m.ok) return NextResponse.json({ error: 'Forbidden' }, { status: m.status })
+        const cacheInputs = {
+          action,
+          leagueId,
+          userId,
+          season,
+          contextSummary: await buildDevyAiCacheContextSummary({ leagueId, season }),
+        }
+        const { resultKey, inputHash } = buildAiCacheKey('devy-chimmy', cacheInputs)
+        const cached = await readAiResultCache(resultKey)
+        if (cached?.resultJson && typeof cached.resultJson === 'object') {
+          return NextResponse.json(cached.resultJson)
+        }
+        if (smokeProviderEnabled) {
+          const smoke = createSmokeAiResult({
+            feature: 'devy-chimmy',
+            leagueId,
+            route: '/api/devy/ai',
+            input: cacheInputs,
+          })
+          const smokePayload = { text: smoke.text }
+          await writeAiResultCache({
+            resultKey,
+            inputHash,
+            feature: 'devy-chimmy',
+            scopeType: 'league',
+            scopeId: leagueId,
+            provider: 'smoke-provider',
+            model: 'smoke-provider',
+            inputJson: cacheInputs,
+            resultJson: smokePayload,
+            ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+          })
+          return NextResponse.json(smokePayload)
+        }
         const text = await generateAnnualTransitionReport(leagueId, Math.floor(season))
-        return NextResponse.json({ text })
+        const responsePayload = { text }
+        writeAiResultCache({
+          resultKey,
+          inputHash,
+          feature: 'devy-chimmy',
+          scopeType: 'league',
+          scopeId: leagueId,
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          inputJson: cacheInputs,
+          resultJson: responsePayload,
+          ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+        }).catch(() => undefined)
+        return NextResponse.json(responsePayload)
       }
 
       case 'draft_advice': {
@@ -242,7 +743,70 @@ export async function POST(req: NextRequest) {
         })
         if (!rr) return NextResponse.json({ error: 'Roster not found' }, { status: 404 })
         const rostersState = await prisma.devyPlayerState.findMany({ where: { leagueId, rosterId: rr.id } })
+        const cacheInputs = {
+          action,
+          leagueId,
+          userId,
+          managerId,
+          rosterId: rr.id,
+          draftType,
+          currentPick: pick,
+          rosterStateSummary: rostersState
+            .map((row) => `${row.playerId}:${row.position}:${row.bucketState}`)
+            .sort(),
+          contextSummary: await buildDevyAiCacheContextSummary({
+            leagueId,
+            managerId,
+            rosterId: rr.id,
+            draftType,
+            currentPick: pick,
+          }),
+        }
+        const { resultKey, inputHash } = buildAiCacheKey('devy-chimmy', cacheInputs)
+        const cached = await readAiResultCache(resultKey)
+        if (cached?.resultJson && typeof cached.resultJson === 'object') {
+          return NextResponse.json(cached.resultJson)
+        }
+        if (smokeProviderEnabled) {
+          const smoke = createSmokeAiResult({
+            feature: 'devy-chimmy',
+            leagueId,
+            route: '/api/devy/ai',
+            input: cacheInputs,
+          })
+          const smokePayload = {
+            recommendation: smoke.text,
+            topOptions: ['Smoke BPA', 'Smoke positional scarcity play', 'Smoke devy upside swing'],
+            risk: 'Smoke provider fallback output.',
+            verdict: smoke.text,
+          }
+          await writeAiResultCache({
+            resultKey,
+            inputHash,
+            feature: 'devy-chimmy',
+            scopeType: 'league',
+            scopeId: leagueId,
+            provider: 'smoke-provider',
+            model: 'smoke-provider',
+            inputJson: cacheInputs,
+            resultJson: smokePayload,
+            ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+          })
+          return NextResponse.json(smokePayload)
+        }
         const data = await getDraftStrategyAdvice(leagueId, managerId, draftType, pick, rostersState)
+        writeAiResultCache({
+          resultKey,
+          inputHash,
+          feature: 'devy-chimmy',
+          scopeType: 'league',
+          scopeId: leagueId,
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          inputJson: cacheInputs,
+          resultJson: data,
+          ttlMs: DEVY_CHIMMY_CACHE_TTL_MS,
+        }).catch(() => undefined)
         return NextResponse.json(data)
       }
 

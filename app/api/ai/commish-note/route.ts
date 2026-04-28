@@ -4,6 +4,13 @@ import { authOptions } from '@/lib/auth'
 import { assertLeagueAccess, requireSleeper } from '@/lib/ai/league-settings-ai/access'
 import { callClaudeJson } from '@/lib/ai/league-settings-ai/claude'
 import { fetchSleeperLeagueBundle, readSleeperStateWeek } from '@/lib/ai/league-settings-ai/sleeper'
+import {
+  buildAiCacheKey,
+  createSmokeAiResult,
+  isAiResultCacheSmokeProviderEnabled,
+  readAiResultCache,
+  writeAiResultCache,
+} from '@/lib/ai-result-cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,13 +68,89 @@ export async function POST(req: Request) {
   const settingsSnippet = JSON.stringify(league.settings ?? {}, null, 2).slice(0, 6000)
 
   try {
+    const smokeProviderEnabled = isAiResultCacheSmokeProviderEnabled()
+
     const system = `You are Chimmy, AllFantasy's commissioner communications assistant. Draft a concise, friendly commissioner note ready to post to the league chat. Respond with ONLY valid JSON (no markdown):
 {"title":string,"body":string}
 Tone: clear, inclusive, no insults.`
 
     const userPayload = `League name: ${league.name ?? leagueId}\nSport: ${league.sport}\nOptional week focus: ${body.week ?? 'current'}\nCommissioner extra context:\n${(body.context ?? '').trim() || '(none)'}\n\nSleeper snapshot:\n${sleeperSummary || '(not available)'}\n\nSynced settings (truncated):\n${settingsSnippet}`
 
+    // ── AiResult cache gate (1h TTL — commissioner can regenerate explicitly) ───────────────
+    const COMMISH_NOTE_TTL_MS = 60 * 60 * 1000
+    const { resultKey, inputHash } = buildAiCacheKey('commish-note', {
+      leagueId,
+      sport: league.sport,
+      week: body.week ?? null,
+      context: (body.context ?? '').trim().toLowerCase() || null,
+    })
+    const cached = await readAiResultCache(resultKey)
+    if (cached?.resultJson) {
+      console.log(`[api/ai/commish-note] AiResult cache hit { league: '${leagueId}' }`)
+      if (smokeProviderEnabled) {
+        return NextResponse.json({
+          ok: true,
+          source: 'ai-result-cache',
+          resultKey,
+          data: cached.resultJson,
+        })
+      }
+      return NextResponse.json(cached.resultJson)
+    }
+
+    if (smokeProviderEnabled) {
+      const smoke = createSmokeAiResult({
+        feature: 'commish-note',
+        leagueId,
+        route: '/api/ai/commish-note',
+        input: {
+          leagueId,
+          week: body.week ?? null,
+          context: body.context ?? null,
+        },
+      })
+      const smokeResult = {
+        title: 'Smoke Commissioner Note',
+        body: smoke.text,
+        meta: smoke.json,
+      }
+
+      await writeAiResultCache({
+        resultKey,
+        inputHash,
+        feature: 'commish-note',
+        scopeType: 'league',
+        scopeId: leagueId,
+        provider: 'smoke-provider',
+        inputJson: { leagueId, sport: league.sport, week: body.week ?? null, smokeProvider: true },
+        resultJson: smokeResult,
+        ttlMs: COMMISH_NOTE_TTL_MS,
+      })
+
+      return NextResponse.json({
+        ok: true,
+        source: 'smoke-provider',
+        resultKey,
+        note: smoke.text,
+        data: smokeResult,
+      })
+    }
+
     const raw = await callClaudeJson({ system, user: userPayload, userId })
+
+    // Write to AiResult cache (fire-and-forget).
+    writeAiResultCache({
+      resultKey,
+      inputHash,
+      feature: 'commish-note',
+      scopeType: 'league',
+      scopeId: leagueId,
+      provider: 'anthropic',
+      inputJson: { leagueId, sport: league.sport, week: body.week ?? null },
+      resultJson: raw,
+      ttlMs: COMMISH_NOTE_TTL_MS,
+    }).catch(() => undefined)
+
     return NextResponse.json(raw)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Commissioner note failed'

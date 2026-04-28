@@ -17,6 +17,7 @@ import { getSurvivorConfig } from '@/lib/survivor/SurvivorLeagueConfig'
 import { scheduleTribalReminders } from '@/lib/survivor/notificationEngine'
 import { publishSurvivorRedraftEvent } from '@/lib/survivor/survivorRedraftStreamHub'
 import { SURVIVOR_SETTINGS_TRIBAL_VOTE_WINDOW_HOURS } from '@/lib/survivor/survivorCommissionerSettings'
+import { applySurvivorSitOutToScoring } from '@/lib/survivor/SurvivorSitOutEngine'
 
 async function sumRedraftStartersFantasy(
   rosterId: string,
@@ -242,6 +243,8 @@ export async function syncWeeklyScores(leagueId: string, week: number): Promise<
       },
     })
   }
+
+  await applySurvivorSitOutToScoring(leagueId, week)
 
   const scores = await prisma.survivorWeeklyScore.findMany({ where: { leagueId, week } })
   const byTribe = new Map<string, number>()

@@ -5,6 +5,37 @@
 import { prisma } from '@/lib/prisma'
 import { isCommissioner } from '@/lib/commissioner/permissions'
 
+function getDevBypassUserId(): string | null {
+  if (process.env.NODE_ENV === 'production') return null
+  if (process.env.DEV_AUTH_BYPASS_ENABLED?.trim() !== 'true') return null
+  return process.env.DEV_AUTH_BYPASS_USER_ID?.trim() || 'local-dev-user'
+}
+
+function isDevBypassUser(userId: string | undefined): boolean {
+  const devUserId = getDevBypassUserId()
+  return Boolean(userId && devUserId && userId === devUserId)
+}
+
+async function getDevBypassFallbackRosterId(
+  leagueId: string,
+  userId: string | undefined
+): Promise<string | null> {
+  if (!isDevBypassUser(userId)) return null
+
+  const roster = await prisma.roster.findFirst({
+    where: {
+      leagueId,
+      platformUserId: {
+        startsWith: 'orphan-',
+      },
+    },
+    select: { id: true },
+    orderBy: { createdAt: 'asc' },
+  })
+
+  return roster?.id ?? null
+}
+
 /**
  * User can view draft session if they are commissioner (league owner) or have their own roster in the league.
  */
@@ -15,7 +46,8 @@ export async function canAccessLeagueDraft(leagueId: string, userId: string | un
     where: { leagueId, platformUserId: userId },
     select: { id: true },
   })
-  return roster != null
+  if (roster) return true
+  return (await getDevBypassFallbackRosterId(leagueId, userId)) != null
 }
 
 /**
@@ -33,7 +65,12 @@ export async function canSubmitPickForRoster(
     select: { id: true, platformUserId: true },
   })
   if (!roster) return false
-  return roster.platformUserId === userId
+  if (roster.platformUserId === userId) return true
+
+  const devFallbackRosterId = await getDevBypassFallbackRosterId(leagueId, userId)
+  if (devFallbackRosterId && devFallbackRosterId === rosterId) return true
+
+  return false
 }
 
 /**
@@ -49,7 +86,8 @@ export async function getCurrentUserRosterIdForLeague(
     where: { leagueId, platformUserId: userId },
     select: { id: true },
   })
-  return roster?.id ?? null
+  if (roster) return roster.id
+  return getDevBypassFallbackRosterId(leagueId, userId)
 }
 
 /**

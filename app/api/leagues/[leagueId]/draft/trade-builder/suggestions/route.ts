@@ -17,6 +17,7 @@ import { getProviderStatus } from '@/lib/provider-config'
 import { openaiChatJson, parseJsonContentFromChatCompletion } from '@/lib/openai-client'
 import { buildDraftExecutionMetadata, evaluateAIInvocationPolicy, withTimeout } from '@/lib/draft-automation-policy'
 import { EntitlementResolver } from '@/lib/subscription/EntitlementResolver'
+import { getCanonicalDraftState } from '@/lib/draft/getCanonicalDraftState'
 import type { SlotOrderEntry, TradedPickRecord } from '@/lib/live-draft-engine/types'
 
 export const dynamic = 'force-dynamic'
@@ -242,9 +243,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
     })
   }
 
-  const ctxPicksMade = picks.length
-  const currentPick = (draftSession as { currentPick?: { overall: number; round: number; slot: number } | null })
+  const canonicalDraftState = await getCanonicalDraftState({
+    leagueId,
+    draftId: draftSession.id,
+  })
+  const ctxPicksMade = canonicalDraftState?.picksMade ?? (picks.length || 0)
+  const legacyCurrentPick = (draftSession as { currentPick?: { overall: number; round: number; slot: number } | null })
     .currentPick
+  const currentPick = canonicalDraftState?.nextPick?.overall
+    ? {
+        overall: canonicalDraftState.nextPick.overall,
+        round: canonicalDraftState.nextPick.round ?? 1,
+        slot: canonicalDraftState.nextPick.slot ?? 1,
+      }
+    : legacyCurrentPick
   const modeHint =
     suggestionKind === 'move_up'
       ? 'Prioritize trades that improve draft position soon without massive overpay.'

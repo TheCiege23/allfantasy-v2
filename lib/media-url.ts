@@ -1,8 +1,8 @@
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { getTeamLogoUrl as resolveTeamLogoUrl } from '@/lib/player-media-urls'
 
 const SLEEPER_HEADSHOT_BASE = 'https://sleepercdn.com/content/nfl/players/thumb'
 const ESPN_LOGO_BASE_BY_SPORT: Record<string, string> = {
-  NFL: 'https://a.espncdn.com/i/teamlogos/nfl/500',
   NBA: 'https://a.espncdn.com/i/teamlogos/nba/500',
   MLB: 'https://a.espncdn.com/i/teamlogos/mlb/500',
   NHL: 'https://a.espncdn.com/i/teamlogos/nhl/500',
@@ -30,12 +30,12 @@ export function headshotUrl(sleeperId?: string | null): string {
 export function teamLogoUrl(teamAbbr?: string | null, sport?: string | null): string {
   if (!teamAbbr) return ''
   const normalizedSport = normalizeToSupportedSport(sport ?? 'NFL')
-  const base = ESPN_LOGO_BASE_BY_SPORT[normalizedSport] ?? ESPN_LOGO_BASE_BY_SPORT.NFL
   const upper = teamAbbr.toUpperCase()
   if (normalizedSport === 'NFL') {
-    const key = NFL_TEAM_MAP[upper]
-    return key ? `${base}/${key}.png` : ''
+    return resolveTeamLogoUrl(upper, 'nfl') ?? ''
   }
+  const base = ESPN_LOGO_BASE_BY_SPORT[normalizedSport]
+  if (!base) return ''
   return `${base}/${upper.toLowerCase()}.png`
 }
 

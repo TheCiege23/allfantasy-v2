@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
 import { getLiveADP, formatADPForPrompt } from '@/lib/adp-data'
+import { getOrCreateAiResult } from '@/lib/ai/ai-result-cache'
 
 const openai = getOpenAIRouteClient()
 
@@ -156,18 +157,66 @@ ${adpContext}
 
 Return a "picks" array with exactly ${picksToRedraft.length} entries, one per slot above, using realistic ADP-based selections.`
 
-    const completion = await openai.chat.completions.create({
+    const aiResult = await getOrCreateAiResult({
+      feature: 'mock-draft-trade-simulate',
+      scopeType: 'league',
+      scopeId: leagueId,
+      provider: 'openai',
       model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.7,
-      max_tokens: 16000,
+      ttlSeconds: 30 * 60,
+      payload: {
+        mockDraftSessionId: draft.id,
+        leagueId,
+        userId: session.user.id,
+        sport: 'NFL',
+        season: String((league as any)?.season || ''),
+        draftType: String((league as any)?.draftType || ''),
+        scoringFormat: String(league?.scoring || ''),
+        currentPick: {
+          round: Number(userPick?.round || 0),
+          pick: Number(userPick?.pick || 0),
+          overall: Number(currentPick || 0),
+        },
+        direction,
+        tradePartnerPick: Number(tradePartner?.overall || tradePartnerPick || 0),
+        teamNeeds: [
+          { manager: userManager, role: 'user' },
+          { manager: partnerManager, role: 'partner' },
+        ],
+        availablePlayerIds: picksToRedraft.map((p) => p.playerId || p.playerName || null).filter(Boolean),
+        priorPickIds: lockedPicks.map((p: any) => p.playerId || p.playerName || null).filter(Boolean),
+        slotsToRedraft: picksToRedraft.map((p) => ({ overall: p.overall, round: p.round, pick: p.pick, manager: p.manager })),
+        promptVersion: 'v1',
+      },
+      onCacheMiss: async () => {
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.7,
+          max_tokens: 16000,
+        })
+
+        return {
+          resultText: completion.choices[0]?.message?.content || '',
+          resultJson: null,
+          tokenPrompt: null,
+          tokenOutput: null,
+        }
+      },
     })
 
-    const content = completion.choices[0]?.message?.content
+    if (aiResult.cacheHit) {
+      console.log(`[mock-draft/trade-simulate] AI cache hit { leagueId: '${leagueId}', currentPick: ${currentPick} }`)
+    } else {
+      console.log(`[mock-draft/trade-simulate] AI cache miss { leagueId: '${leagueId}', currentPick: ${currentPick}, modelCallMs: ${aiResult.modelDurationMs ?? -1} }`)
+      console.log(`[mock-draft/trade-simulate] saved AiResult { id: '${aiResult.row.id}', resultKey: '${aiResult.row.resultKey}' }`)
+    }
+
+    const content = aiResult.row.resultText
     if (!content) {
       return NextResponse.json({ error: 'No response from AI' }, { status: 500 })
     }

@@ -32,7 +32,7 @@ export function DraftHelperIntelligence({ aiFeatureStatus, sportsFeed }: DraftHe
           </h5>
           <div className="flex flex-wrap gap-1">
             {activeFeatures.map((feature) => (
-              <span key={feature.name} className="text-xs bg-green-500/20 text-green-300 px-2 py-1 rounded border border-green-500/30">
+              <span key={feature.name} className="rounded border border-emerald-400/30 bg-emerald-500/15 px-2 py-1 text-xs text-emerald-200">
                 ✓ {feature.name}
               </span>
             ))}
@@ -49,7 +49,7 @@ export function DraftHelperIntelligence({ aiFeatureStatus, sportsFeed }: DraftHe
           </h5>
           <div className="space-y-1">
             {headlines.map((headline, idx) => (
-              <div key={idx} className="text-xs bg-slate-900/50 p-2 rounded border border-slate-700/50">
+              <div key={idx} className="rounded border border-white/12 bg-[#0c1630]/80 p-2 text-xs">
                 <p className="text-slate-200 line-clamp-2">{headline.title}</p>
                 {headline.playerName && <p className="text-slate-500 text-[10px] mt-1">{headline.playerName}</p>}
               </div>
@@ -64,7 +64,7 @@ export function DraftHelperIntelligence({ aiFeatureStatus, sportsFeed }: DraftHe
           <h5 className="text-xs font-semibold text-slate-400 mb-2">Injury Updates</h5>
           <div className="space-y-1">
             {injuries.map((injury, idx) => (
-              <div key={idx} className="text-xs bg-red-500/10 p-2 rounded border border-red-500/20">
+              <div key={idx} className="rounded border border-rose-400/25 bg-rose-500/10 p-2 text-xs">
                 <p className="text-red-300 font-medium">{injury.playerName}</p>
                 {injury.status && <p className="text-red-200 text-[10px]">{injury.status}</p>}
                 {injury.note && <p className="text-slate-400 text-[10px] mt-0.5">{injury.note}</p>}

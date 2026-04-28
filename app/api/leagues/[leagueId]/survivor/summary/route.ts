@@ -33,6 +33,7 @@ import {
 } from '@/lib/survivor/survivorFairPlay'
 import { seasonWeekBoundsForSport } from '@/lib/survivor/survivorSeasonCalendar'
 import { extractLeadingTribeIcon } from '@/lib/survivor/survivorVisuals'
+import { getSurvivorSitOutStateForWeek } from '@/lib/survivor/SurvivorSitOutEngine'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,7 +58,7 @@ export async function GET(
   const requestedWeek = weekParam ? Math.max(1, parseInt(weekParam, 10)) || 1 : null
   const currentWeek = await resolveSurvivorCurrentWeek(leagueId, requestedWeek)
 
-  const [config, tribesRaw, council, challenges, jury, exileLeagueId, tokenStates, audit, merged, myRosterId, eliminatedRosterIds, mainLeagueRosters, finaleState, leagueSettingsRow] = await Promise.all([
+  const [config, tribesRaw, council, challenges, jury, exileLeagueId, tokenStates, audit, merged, myRosterId, eliminatedRosterIds, mainLeagueRosters, finaleState, leagueSettingsRow, sitOutState] = await Promise.all([
     getSurvivorConfig(leagueId),
     getTribesWithMembers(leagueId),
     getCouncil(leagueId, currentWeek),
@@ -75,6 +76,7 @@ export async function GET(
     }),
     getFinaleState(leagueId, currentWeek),
     prisma.league.findUnique({ where: { id: leagueId }, select: { settings: true } }),
+    getSurvivorSitOutStateForWeek(leagueId, currentWeek),
   ])
 
   if (!config) return NextResponse.json({ error: 'Config not found' }, { status: 500 })
@@ -302,6 +304,39 @@ export async function GET(
     myIdols,
     myActiveEffects,
     myExileStatus,
+    sitOuts: {
+      pending: sitOutState.pending.map((row) => ({
+        id: row.id,
+        week: row.week,
+        targetUserId: row.targetUserId,
+        targetTribeId: row.targetTribeId,
+        description: row.description,
+        createdAt: row.createdAt,
+      })),
+      accepted: sitOutState.accepted.map((row) => ({
+        id: row.id,
+        week: row.week,
+        targetUserId: row.targetUserId,
+        targetTribeId: row.targetTribeId,
+        description: row.description,
+        createdAt: row.createdAt,
+      })),
+      declined: sitOutState.declined.map((row) => ({
+        id: row.id,
+        week: row.week,
+        targetUserId: row.targetUserId,
+        targetTribeId: row.targetTribeId,
+        description: row.description,
+        createdAt: row.createdAt,
+      })),
+      myPendingResponse:
+        sitOutState.pending.find((row) => row.targetUserId === userId)
+          ? {
+              sitOutId: sitOutState.pending.find((row) => row.targetUserId === userId)?.id ?? null,
+              week: currentWeek,
+            }
+          : null,
+    },
     finale:
       finaleState.finalists.length > 0 || finaleState.closed
         ? {

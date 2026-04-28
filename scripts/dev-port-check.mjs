@@ -135,7 +135,10 @@ function lookupProcessNamePosix(pid) {
 
 function killHolder(holder) {
   if (IS_WINDOWS) {
-    const r = spawnSync('taskkill', ['/F', '/PID', String(holder.pid)], { encoding: 'utf8' })
+    // /T terminates the process subtree (children). Respawners are often stopped
+    // only by killing a higher parent; if this fails with Access denied, use
+    // Admin PowerShell and taskkill the root PID from the parent chain.
+    const r = spawnSync('taskkill', ['/F', '/T', '/PID', String(holder.pid)], { encoding: 'utf8' })
     if (r.status === 0) return { ok: true }
     return { ok: false, error: (r.stderr || r.stdout || '').trim() }
   }
@@ -164,7 +167,7 @@ function main() {
     log('')
     log('to free these ports, re-run with --kill, or manually:')
     if (IS_WINDOWS) {
-      for (const h of holders) log(`  taskkill /F /PID ${h.pid}`)
+      for (const h of holders) log(`  taskkill /F /T /PID ${h.pid}`)
     } else {
       for (const h of holders) log(`  kill ${h.pid}`)
     }
@@ -180,6 +183,19 @@ function main() {
       killed++
     } else {
       log(`FAILED to kill pid ${h.pid}: ${r.error}`)
+      const combined = `${r.error}`.toLowerCase()
+      if (IS_WINDOWS && /access|denied|privilege|not allowed/i.test(combined)) {
+        log('')
+        log('Windows refused termination (common for a protected or foreign integrity process).')
+        log('1) Open PowerShell as Administrator.')
+        log('2) Walk parents until you find the launcher root, e.g.:')
+        log(`     Get-CimInstance Win32_Process -Filter "ProcessId = ${h.pid}" | Select-Object Name,ParentProcessId,CommandLine`)
+        log('3) Kill the root of the tree (example):')
+        log('     taskkill /F /T /PID <rootPid>')
+        log('Or use Task Manager → Details → End process tree on the top parent.')
+      } else if (IS_WINDOWS) {
+        log('If the port comes back immediately, a parent may be respawning node — kill the root shell with taskkill /F /T /PID <parent>.')
+      }
       failed++
     }
   }

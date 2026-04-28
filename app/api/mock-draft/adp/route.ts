@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getLiveADP, fetchFFCADP, fetchAllFFCFormats, FFCScoringFormat } from '@/lib/adp-data'
-import { loadSportAwareDraftPlayerPool } from '@/lib/mock-draft/sport-player-pool'
-import { resolveSleeperIds } from '@/lib/sleeper/players-cache'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
-import { findMultiADP, type ADPFormat } from '@/lib/multi-platform-adp'
-import { normalizePlayerList } from '@/lib/draft-asset-pipeline'
+import { getCachedMockDraftPool } from '@/lib/mock-draft/mock-draft-pool-cache'
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -19,197 +15,25 @@ export async function GET(req: NextRequest) {
 
     const action = req.nextUrl.searchParams?.get('action') || 'live'
     const limit = Math.min(parseInt(req.nextUrl.searchParams?.get('limit') || '300'), 500)
-
-    if (action === 'ffc') {
-      const validFormats: FFCScoringFormat[] = ['standard', 'ppr', 'half-ppr', '2qb', 'dynasty', 'rookie']
-      const formatParam = req.nextUrl.searchParams?.get('format') || 'standard'
-      if (!validFormats.includes(formatParam as FFCScoringFormat)) {
-        return NextResponse.json({ error: `Invalid format. Must be one of: ${validFormats.join(', ')}` }, { status: 400 })
-      }
-      const format = formatParam as FFCScoringFormat
-      const teams = parseInt(req.nextUrl.searchParams?.get('teams') || '12')
-      const { players, meta } = await fetchFFCADP(format, teams)
-      return NextResponse.json({
-        entries: players.slice(0, limit),
-        count: players.length,
-        meta,
-        source: 'fantasyfootballcalculator.com',
-      })
-    }
-
-    if (action === 'ffc-all') {
-      const teams = parseInt(req.nextUrl.searchParams?.get('teams') || '12')
-      const allFormats = await fetchAllFFCFormats(teams)
-      const summary: Record<string, { count: number; meta: any }> = {}
-      for (const [format, data] of Object.entries(allFormats)) {
-        summary[format] = { count: data.players.length, meta: data.meta }
-      }
-      return NextResponse.json({
-        formats: summary,
-        source: 'fantasyfootballcalculator.com',
-      })
-    }
-
     const type = (req.nextUrl.searchParams?.get('type') || 'redraft') as 'dynasty' | 'redraft'
     const pool = req.nextUrl.searchParams?.get('pool') || 'all'
     const sport = normalizeToSupportedSport(req.nextUrl.searchParams?.get('sport') || DEFAULT_SPORT)
-
-    if (sport !== 'NFL') {
-      const players = await loadSportAwareDraftPlayerPool({ sport, limit })
-      const raw = players.map((player) => ({
-        name: player.name,
-        position: player.position,
-        team: player.team,
-        adp: player.adp,
-        playerId: player.playerId ?? null,
-        injuryStatus: null,
-      }))
-      const normalized = normalizePlayerList(raw, sport)
-      return NextResponse.json({
-        entries: players.map((player, index) => ({
-          name: player.name,
-          position: player.position,
-          team: player.team,
-          adp: player.adp,
-          adpFormatted: player.adp != null ? Number(player.adp).toFixed(1) : null,
-          adpTrend: null,
-          value: player.value ?? null,
-          sleeperId: player.playerId ?? null,
-          ffcPlayerId: null,
-          timesDrafted: null,
-          adpHigh: null,
-          adpLow: null,
-          adpStdev: null,
-          bye: null,
-          isRookie: false,
-          multiPlatformADP: null,
-          playerId: player.playerId ?? null,
-          byeWeek: normalized[index]?.byeWeek ?? null,
-          injuryStatus: normalized[index]?.injuryStatus ?? null,
-          display: normalized[index]?.display ?? null,
-          assets: normalized[index]?.display?.assets ?? null,
-          teamLogoUrl: normalized[index]?.display?.assets?.teamLogoUrl ?? null,
-          headshotUrl: normalized[index]?.display?.assets?.headshotUrl ?? null,
-        })),
-        count: players.length,
-        type,
-        pool,
-        sport: sport.toLowerCase(),
-        message: players.length > 0
-          ? `Loaded ${players.length} ${sport} players from the sport-specific player pool.`
-          : `No ${sport} players are available in the imported player pool yet.`,
-      })
-    }
-
-    let entries: Awaited<ReturnType<typeof getLiveADP>> = []
-
-    if (pool === 'rookie') {
-      const [devyEntries, ffcRookies] = await Promise.all([
-        getLiveADP('devy', limit).catch(() => []),
-        fetchFFCADP('rookie', 12).then(r => r.players).catch(() => []),
-      ])
-      const nameSet = new Set<string>()
-      for (const e of devyEntries) {
-        nameSet.add(e.name.toLowerCase())
-        entries.push(e)
-      }
-      for (const e of ffcRookies) {
-        if (!nameSet.has(e.name.toLowerCase())) {
-          nameSet.add(e.name.toLowerCase())
-          entries.push(e)
-        }
-      }
-      entries.sort((a, b) => a.adp - b.adp)
-      entries = entries.slice(0, limit)
-    } else if (pool === 'vet') {
-      entries = await getLiveADP(type, limit)
-      entries = entries.filter(e => e.source !== 'devy' && e.source !== 'rookie-db')
-    } else if (pool === 'combined') {
-      const [nflEntries, devyEntries] = await Promise.all([
-        getLiveADP(type, limit),
-        getLiveADP('devy', Math.floor(limit / 2)).catch(() => []),
-      ])
-      const nameSet = new Set<string>()
-      for (const e of nflEntries) {
-        nameSet.add(e.name.toLowerCase())
-        entries.push(e)
-      }
-      for (const e of devyEntries) {
-        if (!nameSet.has(e.name.toLowerCase())) {
-          nameSet.add(e.name.toLowerCase())
-          entries.push(e)
-        }
-      }
-      entries.sort((a, b) => a.adp - b.adp)
-      entries = entries.slice(0, limit)
-    } else {
-      entries = await getLiveADP(type, limit)
-    }
-
-    let sleeperIdMap: Record<string, string> = {}
-    try {
-      sleeperIdMap = await resolveSleeperIds(entries.map(e => e.name))
-    } catch {}
-
-    const adpFormat: ADPFormat = type === 'dynasty' ? 'dynasty' : 'redraft'
-
-    const rawNormalized = entries.map((e) => ({
-      name: e.name,
-      position: e.position,
-      team: e.team,
-      adp: e.adp,
-      byeWeek: e.bye ?? null,
-      playerId: sleeperIdMap[e.name] || null,
-    }))
-    const normalized = normalizePlayerList(rawNormalized, sport)
-
-    return NextResponse.json({
-      entries: entries.map((e, index) => {
-        const isRookie = e.source === 'devy' || e.source === 'rookie-db'
-        const mp = !isRookie ? findMultiADP(e.name, e.position, e.team || undefined) : null
-        const injuryStatus = mp?.health?.injury ?? mp?.health?.status ?? null
-        const display = normalized[index]?.display ?? null
-        return {
-          name: e.name,
-          position: e.position,
-          team: e.team,
-          adp: e.adp,
-          adpFormatted: e.adpFormatted,
-          adpTrend: e.adpTrend,
-          value: e.value,
-          sleeperId: sleeperIdMap[e.name] || null,
-          ffcPlayerId: e.ffcPlayerId,
-          timesDrafted: e.timesDrafted,
-          adpHigh: e.adpHigh,
-          adpLow: e.adpLow,
-          adpStdev: e.adpStdev,
-          bye: e.bye,
-          isRookie,
-          playerId: sleeperIdMap[e.name] || null,
-          byeWeek: normalized[index]?.byeWeek ?? e.bye ?? null,
-          injuryStatus: injuryStatus != null ? String(injuryStatus) : null,
-          display,
-          assets: display?.assets ?? null,
-          teamLogoUrl: display?.assets?.teamLogoUrl ?? null,
-          headshotUrl: display?.assets?.headshotUrl ?? null,
-          multiPlatformADP: mp ? {
-            format: adpFormat,
-            consensus: mp.consensus,
-            platformCount: mp.platformCount,
-            spread: mp.adpSpread,
-            redraft: mp.redraft,
-            dynastyADP: mp.dynasty.sleeper,
-            dynasty2QBADP: mp.dynasty2QB.sleeper,
-            aav: mp.aav.mfl ?? mp.aav.espn ?? null,
-            health: mp.health.status || mp.health.injury ? mp.health : null,
-          } : null,
-        }
-      }),
-      count: entries.length,
+    const { payload } = await getCachedMockDraftPool({
+      action,
       type,
       pool,
-      sport: sport.toLowerCase(),
+      sport,
+      limit,
+      leagueId: req.nextUrl.searchParams?.get('leagueId'),
+      mockDraftId: req.nextUrl.searchParams?.get('mockDraftId'),
+      draftType: req.nextUrl.searchParams?.get('draftType'),
+      scoring: req.nextUrl.searchParams?.get('scoring') || req.nextUrl.searchParams?.get('format'),
+      teamCount: Number(req.nextUrl.searchParams?.get('teamCount') || '0'),
+      season: req.nextUrl.searchParams?.get('season'),
+      forceRefresh: req.nextUrl.searchParams?.get('refresh') === '1',
     })
+
+    return NextResponse.json(payload)
   } catch (err: any) {
     console.error('[mock-draft/adp] Error:', err)
     return NextResponse.json({ error: err.message || 'Failed to fetch ADP' }, { status: 500 })

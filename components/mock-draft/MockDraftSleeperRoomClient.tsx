@@ -886,6 +886,10 @@ export default function MockDraftSleeperRoomClient() {
       pool,
       limit: '300',
       sport: nextSettings.sport.toLowerCase(),
+      leagueId: selectedLeague?.id ?? '',
+      draftType: nextSettings.draftType,
+      scoring: nextSettings.scoring,
+      teamCount: String(nextSettings.teamCount),
     })
     const response = await fetch(`/api/mock-draft/adp?${params.toString()}`)
     const payload = (await response.json().catch(() => ({}))) as { entries?: unknown[]; error?: string }
@@ -920,7 +924,7 @@ export default function MockDraftSleeperRoomClient() {
       .sort((left, right) => left.adp - right.adp)
 
     return mapped
-  }, [selectedLeague?.isDynasty])
+  }, [selectedLeague?.id, selectedLeague?.isDynasty])
 
   const startDraft = useCallback(async () => {
     try {

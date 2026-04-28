@@ -187,6 +187,33 @@ export function CommissionerControlCenterModal({
     }
   }
 
+  const handleRefreshAdp = async () => {
+    await run('refresh_adp', async () => {
+      try {
+        const res = await fetch(`/api/leagues/${leagueId}/draft/refresh-adp`, {
+          method: 'POST',
+          cache: 'no-store',
+        })
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean
+          error?: string
+          adpEntriesFetched?: number
+        }
+        if (!res.ok || !data.ok) {
+          return { ok: false, error: data.error ?? `Refresh failed (${res.status})` }
+        }
+        setActionApiError(
+          data.adpEntriesFetched && data.adpEntriesFetched > 0
+            ? `ADP refreshed (${data.adpEntriesFetched} players). Reload the pool to see updated values.`
+            : 'ADP cache cleared, but no entries were returned. Check the FantasyFootballCalculator API or analytics import.',
+        )
+        return { ok: true }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : 'Network error' }
+      }
+    })
+  }
+
   const handleSetTimer = () => {
     const sec = Math.max(0, Math.min(86400, parseInt(timerInput, 10) || 90))
     setTimerInput(String(sec))
@@ -459,6 +486,17 @@ export function CommissionerControlCenterModal({
                 >
                   <Play className="h-4 w-4" />
                   Force auto-pick now
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRefreshAdp}
+                  disabled={loading || actionLoading !== null}
+                  data-testid="draft-commissioner-refresh-adp"
+                  className="inline-flex items-center gap-2 rounded-lg border border-violet-300/30 bg-violet-500/12 px-3 py-2 text-sm text-violet-100 hover:bg-violet-500/20 disabled:opacity-50"
+                  title="Re-fetch ADP from FantasyFootballCalculator and refresh the player pool's ADP column"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  {actionLoading === 'refresh_adp' ? 'Refreshing ADP…' : 'Refresh ADP'}
                 </button>
                 {isAuctionDraft && (
                   <>
@@ -1157,3 +1195,5 @@ export function CommissionerControlCenterModal({
     </div>
   )
 }
+
+export default CommissionerControlCenterModal

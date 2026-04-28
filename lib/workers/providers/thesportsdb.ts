@@ -1,5 +1,6 @@
 import { normalizeTeamAbbrev } from '@/lib/team-abbrev'
 import { apiChainSportToDbSport, toApiChainSport, type ApiFetchParams, type ApiProvider } from '@/lib/workers/api-config'
+import { getTheSportsDbApiKeyOrFallback } from '@/lib/env/sports-media-keys'
 
 const THESPORTSDB_LEAGUE_IDS = {
   NFL: '4391',
@@ -12,7 +13,7 @@ const THESPORTSDB_LEAGUE_IDS = {
 } as const
 
 function apiKey(): string {
-  return process.env.THESPORTSDB_API_KEY?.trim() || process.env.THEAUDIODB_API_KEY?.trim() || '123'
+  return getTheSportsDbApiKeyOrFallback('123')
 }
 
 function leagueIdForSport(sport: string): string {
@@ -92,6 +93,7 @@ export const theSportsDbProvider: ApiProvider = {
       'schedule',
       'player_headshots',
       'team_logos',
+      'team_roster',
     ].includes(dataType),
   async fetch({ sport, dataType, query = {} }: ApiFetchParams) {
     const leagueId = leagueIdForSport(sport)
@@ -102,7 +104,11 @@ export const theSportsDbProvider: ApiProvider = {
     switch (dataType) {
       case 'teams': {
         if (!leagueId) return null
-        const data = await fetchTheSportsDb('lookup_all_teams.php', { id: leagueId })
+        // Use documented search_all_teams.php?l={leagueName} first, fall back to lookup by ID
+        const leagueName = sport === 'NFL' ? 'NFL' : sport === 'NBA' ? 'NBA' : sport === 'NHL' ? 'NHL' : sport === 'MLB' ? 'MLB' : null
+        const data = leagueName
+          ? await fetchTheSportsDb('search_all_teams.php', { l: leagueName })
+          : await fetchTheSportsDb('lookup_all_teams.php', { id: leagueId })
         const rows = asRows<Record<string, unknown>>(data, 'teams')
         return rows.map((team) => ({
           id: String(team.idTeam ?? ''),
@@ -115,7 +121,11 @@ export const theSportsDbProvider: ApiProvider = {
       }
       case 'players': {
         if (!search) return null
-        const data = await fetchTheSportsDb('searchplayers.php', { p: search })
+        // Pass team filter when available — searchplayers.php supports ?p=name&t=team
+        const playerSearchParams: Record<string, string> = { p: search }
+        if (teamName) playerSearchParams.t = teamName
+        else if (teamCode) playerSearchParams.t = teamCode
+        const data = await fetchTheSportsDb('searchplayers.php', playerSearchParams)
         const rows = asRows<Record<string, unknown>>(data, 'player')
         return rows
           .filter((player) => namesEqual(String(player.strSport ?? sport), sport) || sport === 'SOCCER')
@@ -132,6 +142,25 @@ export const theSportsDbProvider: ApiProvider = {
             source: 'thesportsdb',
           }))
           .filter((player) => player.id && player.name)
+      }
+      case 'team_roster': {
+        // lookup_all_players.php?id={teamId} — bulk roster for a single team
+        const teamId = toSearch(query.teamId ?? query.id)
+        if (!teamId) return null
+        const data = await fetchTheSportsDb('lookup_all_players.php', { id: teamId })
+        const rows = asRows<Record<string, unknown>>(data, 'player')
+        return rows.map((player) => ({
+          id: String(player.idPlayer ?? ''),
+          name: String(player.strPlayer ?? ''),
+          position: String(player.strPosition ?? '').trim() || null,
+          team: normalizeTeamAbbrev(String(player.strTeamShort ?? player.strTeam ?? '')) ?? null,
+          teamId: player.idTeam ? String(player.idTeam) : null,
+          height: String(player.strHeight ?? '').trim() || null,
+          weight: String(player.strWeight ?? '').trim() || null,
+          college: String(player.strCollege ?? '').trim() || null,
+          imageUrl: resolvePlayerImage(player),
+          source: 'thesportsdb',
+        })).filter((player) => player.id && player.name)
       }
       case 'games':
       case 'schedule': {

@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { z } from 'zod';
 import { isToolRankingsEnabled } from '@/lib/feature-toggle';
+import { getOrCreateAiResult } from '@/lib/ai/ai-result-cache'
 
 const openai = getOpenAIRouteClient()
 
@@ -84,14 +85,81 @@ Return a JSON object with a "teams" array. Each entry must have:
 
 Team external IDs: ${teams.map((t: any) => `${t.teamName}=${t.externalId}`).join(', ')}`;
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: prompt }],
-      response_format: { type: 'json_object' },
-    });
+    const stableTeamsInput = teams.map((t: any) => ({
+      externalId: String(t.externalId ?? ''),
+      teamName: String(t.teamName ?? ''),
+      ownerName: String(t.ownerName ?? ''),
+      wins: Number(t.wins ?? 0),
+      losses: Number(t.losses ?? 0),
+      ties: Number(t.ties ?? 0),
+      pointsFor: Number(t.pointsFor ?? 0),
+      pointsAgainst: Number(t.pointsAgainst ?? 0),
+      weeklyPoints: Array.isArray(t.performances)
+        ? t.performances.map((p: any) => Number(p.points ?? 0))
+        : [],
+    }))
+    const stablePlayersInput = cachedPlayers
+      .map((p: any) => ({
+        name: String(p.name ?? ''),
+        position: String(p.position ?? ''),
+        team: String(p.team ?? ''),
+      }))
+      .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name))
+      .slice(0, 15)
 
-    const result = JSON.parse(completion.choices[0].message.content || '{}');
-    const updates = result.teams || [];
+    const aiPayload = {
+      featureName: 'rankings',
+      sport: playerSport,
+      season: null,
+      scoringFormat: null,
+      leagueId,
+      week: null,
+      promptVersion: 'v1',
+      teams: stableTeamsInput,
+      players: stablePlayersInput,
+      options: {
+        model: 'gpt-4o-mini',
+        responseFormat: 'json_object',
+      },
+    }
+
+    const aiResult = await getOrCreateAiResult({
+      feature: 'rankings-power-scores',
+      scopeType: 'league',
+      scopeId: leagueId,
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      payload: aiPayload,
+      ttlSeconds: 4 * 60 * 60,
+      onCacheMiss: async () => {
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user', content: prompt }],
+          response_format: { type: 'json_object' },
+        })
+        const content = completion.choices[0]?.message?.content || '{}'
+        const parsed = JSON.parse(content)
+        return {
+          resultText: content,
+          resultJson: parsed,
+          tokenPrompt: completion.usage?.prompt_tokens ?? null,
+          tokenOutput: completion.usage?.completion_tokens ?? null,
+        }
+      },
+    })
+
+    if (aiResult.cacheHit) {
+      console.log(`[rankings] AI cache hit { leagueId: '${leagueId}' }`)
+    } else {
+      console.log(`[rankings] AI cache miss { leagueId: '${leagueId}', modelCallMs: ${aiResult.modelDurationMs ?? -1} }`)
+      console.log(`[rankings] saved AiResult { id: '${aiResult.row.id}', resultKey: '${aiResult.row.resultKey}' }`)
+    }
+
+    const result =
+      aiResult.row.resultJson && typeof aiResult.row.resultJson === 'object'
+        ? (aiResult.row.resultJson as Record<string, unknown>)
+        : JSON.parse(aiResult.row.resultText || '{}')
+    const updates = Array.isArray((result as any).teams) ? (result as any).teams : [];
 
     await Promise.all(
       updates.map(async (u: any) => {

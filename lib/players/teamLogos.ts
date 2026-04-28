@@ -5,6 +5,9 @@
  * `getRITeamLogoUrl` from `@/lib/players/ri-team-logos-server` in RSC/API routes only.
  */
 
+import { getPrimaryLogoUrlForTeam } from '@/lib/sport-teams/SportTeamMetadataRegistry'
+import type { SportType } from '@/lib/sport-teams/types'
+
 /** NBA Stats API / cdn.nba.com numeric team ids */
 export const NBA_TEAM_IDS: Record<string, number> = {
   ATL: 1610612737,
@@ -86,13 +89,24 @@ export const SPORT_TO_ESPN_TEAMLOGO: Record<string, string> = {
 
 const PGA_FALLBACK_LOGO = '/default-avatar.png'
 
+function toSportType(s: string): SportType {
+  const u = String(s ?? '').trim().toUpperCase()
+  if (u === 'NFL' || u === 'NBA' || u === 'MLB' || u === 'NHL' || u === 'NCAAF' || u === 'NCAAB' || u === 'SOCCER') {
+    return u as SportType
+  }
+  return 'NFL'
+}
+
 export function getTeamLogoUrl(teamAbbr: string, sport: string): string {
   if (!teamAbbr || teamAbbr === 'FA') return '/default-avatar.png'
+  const primaryFromRegistry = getPrimaryLogoUrlForTeam(toSportType(sport), teamAbbr.trim())
+  if (primaryFromRegistry) return primaryFromRegistry
+
   const abbr = teamAbbr.toUpperCase()
   const s = sport?.toUpperCase() ?? 'NFL'
 
   if (s === 'NFL') {
-    return `https://sleepercdn.com/images/team_logos/nfl/${teamAbbr.toLowerCase()}.jpg`
+    return `https://a.espncdn.com/i/teamlogos/nfl/500/${teamAbbr.toLowerCase()}.png`
   }
   if (s === 'NBA') {
     const id = NBA_TEAM_IDS[abbr]
@@ -133,6 +147,9 @@ export function getTeamLogoCandidates(teamAbbr: string, sport: string): string[]
   }
   if (s === 'NFL') {
     extra.push(`https://a.espncdn.com/i/teamlogos/nfl/500/${lower}.png`)
+    // Legacy/deep fallback only. Primary NFL path is DB/teamAsset -> ESPN/static.
+    extra.push(`https://sleepercdn.com/images/team_logos/nfl/${lower}.png`)
+    extra.push(`https://sleepercdn.com/images/team_logos/nfl/${lower}.jpg`)
   }
   if (s === 'NBA') {
     const id = NBA_TEAM_IDS[teamAbbr.toUpperCase()]

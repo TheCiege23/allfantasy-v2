@@ -1,13 +1,15 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  fetchWeatherByCity,
-  fetchWeatherByCoords,
-  fetchGameWeather,
   getVenueForTeam,
   isTeamDome,
 } from '@/lib/openweathermap';
-import { getWeatherForEvent } from '@/lib/weather/weatherService';
+import {
+  getCachedGameWeather,
+  getCachedWeatherByCity,
+  getCachedWeatherByCoords,
+  getWeatherForEvent,
+} from '@/lib/weather/weatherService';
 import { normalizeTeamAbbrev } from '@/lib/team-abbrev';
 
 export const dynamic = 'force-dynamic';
@@ -36,6 +38,7 @@ export const GET = withApiUsage({ endpoint: "/api/sports/weather", tool: "Sports
       return NextResponse.json({
         normalized,
         source: normalized?.cacheHit ? 'weather-cache' : 'openweathermap-forecast',
+        meta: normalized?.meta ?? null,
       });
     }
 
@@ -52,7 +55,7 @@ export const GET = withApiUsage({ endpoint: "/api/sports/weather", tool: "Sports
 
       const isDome = isTeamDome(normalized);
 
-      const gameWeather = await fetchGameWeather(normalized);
+      const gameWeather = await getCachedGameWeather({ homeTeam: normalized });
       if (!gameWeather) {
         return NextResponse.json(
           { error: 'Failed to fetch weather for venue' },
@@ -65,30 +68,36 @@ export const GET = withApiUsage({ endpoint: "/api/sports/weather", tool: "Sports
         venue,
         isDome,
         weather: gameWeather.weather,
-        source: isDome ? 'dome' : 'openweathermap',
+        meta: gameWeather.meta,
+        source: isDome ? 'dome' : (gameWeather.meta.cacheHit ? 'weather-cache' : 'openweathermap'),
       });
     }
 
     if (lat && lon) {
-      const weather = await fetchWeatherByCoords(parseFloat(lat), parseFloat(lon));
+      const result = await getCachedWeatherByCoords({
+        lat: parseFloat(lat),
+        lng: parseFloat(lon),
+      });
+      const weather = result.weather;
       if (!weather) {
         return NextResponse.json(
           { error: 'Failed to fetch weather' },
           { status: 502 }
         );
       }
-      return NextResponse.json({ weather, source: 'openweathermap' });
+      return NextResponse.json({ weather, meta: result.meta, source: result.meta.cacheHit ? 'weather-cache' : 'openweathermap' });
     }
 
     if (city) {
-      const weather = await fetchWeatherByCity(city);
+      const result = await getCachedWeatherByCity({ city });
+      const weather = result.weather;
       if (!weather) {
         return NextResponse.json(
           { error: 'Failed to fetch weather for city' },
           { status: 502 }
         );
       }
-      return NextResponse.json({ weather, source: 'openweathermap' });
+      return NextResponse.json({ weather, meta: result.meta, source: result.meta.cacheHit ? 'weather-cache' : 'openweathermap' });
     }
 
     const allTeams = [
@@ -101,7 +110,7 @@ export const GET = withApiUsage({ endpoint: "/api/sports/weather", tool: "Sports
     const outdoorTeams = allTeams.filter(t => !isTeamDome(t));
     const results = await Promise.all(
       outdoorTeams.slice(0, 5).map(async (t) => {
-        const gw = await fetchGameWeather(t);
+        const gw = await getCachedGameWeather({ homeTeam: t });
         return gw ? { team: t, venue: gw.venue, weather: gw.weather } : null;
       })
     );

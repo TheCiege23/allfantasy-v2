@@ -1,6 +1,74 @@
 import { prisma } from '@/lib/prisma'
 import type { ADPEntry } from '@/lib/adp-data'
 
+const ESPN_NEWS_TTL_MS = 45 * 60 * 1000
+
+type EspnNewsCacheRow = {
+  playerName?: string | null
+  title: string
+  content?: string | null
+  source: string
+}
+
+function buildEspnNewsCacheKey(sport: string, scope: string, dateBucket: string): string {
+  return `espn:news:${sport.toLowerCase()}:${scope}:${dateBucket}`
+}
+
+function currentUtcDateBucket(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+async function getCachedEspnNewsRows(): Promise<EspnNewsCacheRow[]> {
+  const cacheKey = buildEspnNewsCacheKey('nfl', 'all', currentUtcDateBucket())
+  const cached = await prisma.sportsDataCache.findUnique({ where: { cacheKey } }).catch(() => null)
+  if (cached && cached.expiresAt > new Date()) {
+    console.log(`[espn/news] ESPN cache hit { cacheKey: '${cacheKey}' }`)
+    return Array.isArray(cached.data) ? (cached.data as EspnNewsCacheRow[]) : []
+  }
+
+  const refreshStart = Date.now()
+  try {
+    console.log(`[espn/news] ESPN cache miss { cacheKey: '${cacheKey}' }`)
+    const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=40', {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(4000),
+    })
+    if (!res.ok) {
+      if (cached && Array.isArray(cached.data)) return cached.data as EspnNewsCacheRow[]
+      return []
+    }
+
+    const json = await res.json()
+    const articles = Array.isArray(json?.articles) ? json.articles : []
+    const rows = articles.map((a: any) => ({
+      playerName: null,
+      title: String(a?.headline || ''),
+      content: String(a?.description || a?.story || ''),
+      source: 'espn_live',
+    }))
+
+    await prisma.sportsDataCache.upsert({
+      where: { cacheKey },
+      create: {
+        cacheKey,
+        data: rows as unknown as object,
+        expiresAt: new Date(Date.now() + ESPN_NEWS_TTL_MS),
+      },
+      update: {
+        data: rows as unknown as object,
+        expiresAt: new Date(Date.now() + ESPN_NEWS_TTL_MS),
+      },
+    }).catch(() => {})
+
+    console.log(`[espn/news] live refresh durationMs=${Date.now() - refreshStart} cacheKey='${cacheKey}'`)
+    console.log(`[espn/news] cache save { cacheKey: '${cacheKey}' }`)
+    return rows
+  } catch {
+    if (cached && Array.isArray(cached.data)) return cached.data as EspnNewsCacheRow[]
+    return []
+  }
+}
+
 type AdpAdjustment = {
   name: string
   adjustedAdp: number
@@ -36,23 +104,7 @@ async function fetchRecentSportsSignals() {
     select: { playerName: true, title: true, content: true, source: true },
   }).catch(() => [])
 
-  const espnNews: Array<{ playerName?: string | null; title: string; content?: string | null; source: string }> = []
-  try {
-    const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=40', { // db-first-exception: short-term mock draft sentiment feed
-      cache: 'no-store',
-      signal: AbortSignal.timeout(4000),
-    })
-    if (res.ok) {
-      const json = await res.json()
-      const articles = Array.isArray(json?.articles) ? json.articles : []
-      for (const a of articles) {
-        const title = String(a?.headline || '')
-        const content = String(a?.description || a?.story || '')
-        espnNews.push({ playerName: null, title, content, source: 'espn_live' })
-      }
-    }
-  } catch {
-  }
+  const espnNews = await getCachedEspnNewsRows()
 
   return [...dbNews, ...espnNews]
 }

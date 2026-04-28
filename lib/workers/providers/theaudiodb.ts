@@ -2,10 +2,12 @@
  * TheAudioDB integration for sports player → artist mapping.
  * Fetch and store audio metadata (artist bio, albums, images).
  * 
- * API: https://www.theaudiodb.com/api/v1/json/2/
+ * API: https://www.theaudiodb.com/api/v1/json/{API_KEY}/
  */
 
-const THEAUDIODB_BASE = 'https://www.theaudiodb.com/api/v1/json/2'
+import { getTheAudioDbApiKeyOrFallback } from '@/lib/env/sports-media-keys'
+
+const THEAUDIODB_BASE = 'https://www.theaudiodb.com/api/v1/json'
 
 export interface TheAudioDBSearchResult {
   artists?: Array<{
@@ -34,7 +36,7 @@ export interface AudioMetadataPayload {
 }
 
 function getApiKey(): string {
-  return process.env.THEAUDIODB_API_KEY?.trim() || '123'
+  return getTheAudioDbApiKeyOrFallback('2')
 }
 
 /**
@@ -45,7 +47,7 @@ export async function searchArtist(artistName: string): Promise<AudioMetadataPay
   if (!artistName?.trim()) return null
 
   try {
-    const url = `${THEAUDIODB_BASE}/search.php?s=${encodeURIComponent(artistName)}&apikey=${getApiKey()}`
+    const url = `${THEAUDIODB_BASE}/${getApiKey()}/search.php?s=${encodeURIComponent(artistName)}`
     const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
     
     if (!res.ok) return null

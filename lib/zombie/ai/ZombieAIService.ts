@@ -21,6 +21,68 @@ export interface ZombieAIResult {
   model?: string
 }
 
+export function buildZombieAiCacheContextSummary(
+  ctx: ZombieAIDeterministicContext,
+): Record<string, unknown> {
+  return {
+    sport: ctx.sport,
+    week: ctx.week,
+    whispererRosterId: ctx.whispererRosterId,
+    survivorRosterIds: [...ctx.survivors].sort(),
+    zombieRosterIds: [...ctx.zombies].sort(),
+    statusSummary: [...ctx.statuses]
+      .map((entry) => `${entry.rosterId}:${entry.status}`)
+      .sort(),
+    movementWatchSummary: [...ctx.movementWatch]
+      .map((entry) => `${entry.rosterId}:${entry.leagueId}:${entry.reason}:${entry.projectedLevelId ?? 'none'}`)
+      .sort(),
+    myRosterId: ctx.myRosterId,
+    myResources: ctx.myResources,
+    winningsByRoster: Object.fromEntries(
+      Object.entries(ctx.winningsByRoster).sort(([a], [b]) => a.localeCompare(b)),
+    ),
+    serumBalanceByRoster: Object.fromEntries(
+      Object.entries(ctx.serumBalanceByRoster).sort(([a], [b]) => a.localeCompare(b)),
+    ),
+    weaponBalanceByRoster: Object.fromEntries(
+      Object.entries(ctx.weaponBalanceByRoster).sort(([a], [b]) => a.localeCompare(b)),
+    ),
+    chompinBlockCandidates: [...ctx.chompinBlockCandidates].sort(),
+    collusionFlags: [...ctx.collusionFlags]
+      .map((entry) => `${entry.rosterIdA}:${entry.rosterIdB}:${entry.flagType}`)
+      .sort(),
+    dangerousDropFlags: [...ctx.dangerousDropFlags]
+      .map((entry) => `${entry.rosterId}:${entry.playerId}:${entry.estimatedValue}:${entry.threshold}`)
+      .sort(),
+    historicalContext: ctx.historicalContext ?? null,
+    config: ctx.config,
+  }
+}
+
+export function buildZombieUniverseAiCacheContextSummary(
+  ctx: ZombieUniverseAIDeterministicContext,
+): Record<string, unknown> {
+  return {
+    sport: ctx.sport,
+    standings: [...ctx.standings]
+      .map((entry) => ({
+        leagueId: entry.leagueId,
+        rosterId: entry.rosterId,
+        levelName: entry.levelName,
+        status: entry.status,
+        totalPoints: entry.totalPoints,
+        winnings: entry.winnings,
+        serums: entry.serums,
+        weapons: entry.weapons,
+        weekKilled: entry.weekKilled,
+      }))
+      .sort((a, b) => `${a.leagueId}:${a.rosterId}`.localeCompare(`${b.leagueId}:${b.rosterId}`)),
+    movementProjections: [...ctx.movementProjections]
+      .map((entry) => `${entry.rosterId}:${entry.leagueId}:${entry.reason}:${entry.projectedLevelId ?? 'none'}`)
+      .sort(),
+  }
+}
+
 /**
  * Generate league-scoped Zombie AI narrative/advice from deterministic context.
  */

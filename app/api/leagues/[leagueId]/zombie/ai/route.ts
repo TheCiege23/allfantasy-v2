@@ -11,13 +11,25 @@ import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
 import { isZombieLeague } from '@/lib/zombie/ZombieLeagueConfig'
 import { buildZombieAIContext } from '@/lib/zombie/ai/ZombieAIContext'
 import type { ZombieAIType } from '@/lib/zombie/ai/ZombieAIContext'
-import { generateZombieAI } from '@/lib/zombie/ai/ZombieAIService'
+import {
+  buildZombieAiCacheContextSummary,
+  generateZombieAI,
+} from '@/lib/zombie/ai/ZombieAIService'
+import { getZombieHordeSitOutStateForWeek } from '@/lib/zombie/ZombieHordeSitOutEngine'
 import {
   FeatureGateService,
   isFeatureGateAccessError,
 } from '@/lib/subscription/FeatureGateService'
+import {
+  buildAiCacheKey,
+  createSmokeAiResult,
+  isAiResultCacheSmokeProviderEnabled,
+  readAiResultCache,
+  writeAiResultCache,
+} from '@/lib/ai-result-cache'
 
 export const dynamic = 'force-dynamic'
+const ZOMBIE_AI_CACHE_TTL_MS = 30 * 60 * 1000
 
 const VALID_TYPES: ZombieAIType[] = [
   'survival_strategy',
@@ -85,29 +97,103 @@ export async function POST(
     return NextResponse.json({ error: 'Could not build context' }, { status: 500 })
   }
 
+  const deterministicResponse = {
+    leagueId: deterministic.leagueId,
+    sport: deterministic.sport,
+    week: deterministic.week,
+    config: deterministic.config,
+    whispererRosterId: deterministic.whispererRosterId,
+    survivors: deterministic.survivors,
+    zombies: deterministic.zombies,
+    movementWatch: deterministic.movementWatch,
+    rosterDisplayNames: deterministic.rosterDisplayNames,
+    myRosterId: deterministic.myRosterId,
+    myResources: deterministic.myResources,
+    chompinBlockCandidates: deterministic.chompinBlockCandidates,
+    collusionFlags: deterministic.collusionFlags,
+    dangerousDropFlags: deterministic.dangerousDropFlags,
+  }
+
+  const sitOutState = await getZombieHordeSitOutStateForWeek(leagueId, week, userId)
+  const sitOutSummary = {
+    pendingUserIds: sitOutState.pending.map((row) => row.userId).sort(),
+    acceptedUserIds: sitOutState.accepted.map((row) => row.userId).sort(),
+    declinedUserIds: sitOutState.declined.map((row) => row.userId).sort(),
+    myPendingSitOutId: sitOutState.myPending?.id ?? null,
+  }
+
+  const cacheInputs = {
+    leagueId,
+    type,
+    week,
+    userId,
+    myRosterId: deterministic.myRosterId,
+    whispererRosterId: deterministic.whispererRosterId,
+    survivorRosterIds: deterministic.survivors.slice().sort(),
+    zombieRosterIds: deterministic.zombies.slice().sort(),
+    contextSummary: buildZombieAiCacheContextSummary(deterministic),
+    sitOutSummary,
+  }
+  const { resultKey, inputHash } = buildAiCacheKey('zombie-ai', cacheInputs)
+  const cached = await readAiResultCache(resultKey)
+  if (cached?.resultJson && typeof cached.resultJson === 'object') {
+    return NextResponse.json(cached.resultJson)
+  }
+
+  const smokeProviderEnabled = isAiResultCacheSmokeProviderEnabled()
+  if (smokeProviderEnabled) {
+    const smoke = createSmokeAiResult({
+      feature: 'zombie-ai',
+      leagueId,
+      route: '/api/leagues/[leagueId]/zombie/ai',
+      input: cacheInputs,
+    })
+    const smokePayload = {
+      deterministic: deterministicResponse,
+      narrative: smoke.text,
+      model: 'smoke-provider',
+      type,
+    }
+
+    await writeAiResultCache({
+      resultKey,
+      inputHash,
+      feature: 'zombie-ai',
+      scopeType: 'league',
+      scopeId: leagueId,
+      provider: 'smoke-provider',
+      model: 'smoke-provider',
+      inputJson: cacheInputs,
+      resultJson: smokePayload,
+      ttlMs: ZOMBIE_AI_CACHE_TTL_MS,
+    })
+
+    return NextResponse.json(smokePayload)
+  }
+
   try {
     const { narrative, model } = await generateZombieAI(deterministic, type, userId)
-    return NextResponse.json({
-      deterministic: {
-        leagueId: deterministic.leagueId,
-        sport: deterministic.sport,
-        week: deterministic.week,
-        config: deterministic.config,
-        whispererRosterId: deterministic.whispererRosterId,
-        survivors: deterministic.survivors,
-        zombies: deterministic.zombies,
-        movementWatch: deterministic.movementWatch,
-        rosterDisplayNames: deterministic.rosterDisplayNames,
-        myRosterId: deterministic.myRosterId,
-        myResources: deterministic.myResources,
-        chompinBlockCandidates: deterministic.chompinBlockCandidates,
-        collusionFlags: deterministic.collusionFlags,
-        dangerousDropFlags: deterministic.dangerousDropFlags,
-      },
+    const responsePayload = {
+      deterministic: deterministicResponse,
       narrative,
       model,
       type,
-    })
+    }
+
+    writeAiResultCache({
+      resultKey,
+      inputHash,
+      feature: 'zombie-ai',
+      scopeType: 'league',
+      scopeId: leagueId,
+      provider: 'openai',
+      model: model ?? 'gpt-4o-mini',
+      inputJson: cacheInputs,
+      resultJson: responsePayload,
+      ttlMs: ZOMBIE_AI_CACHE_TTL_MS,
+    }).catch(() => undefined)
+
+    return NextResponse.json(responsePayload)
   } catch (e) {
     console.error('[zombie/ai]', e)
     return NextResponse.json(

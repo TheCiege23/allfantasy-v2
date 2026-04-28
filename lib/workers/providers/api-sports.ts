@@ -25,7 +25,7 @@ function namesEqual(left: string | null | undefined, right: string | null | unde
 export const apiSportsProvider: ApiProvider = {
   name: 'api_sports',
   supports: ({ sport, dataType }: ApiFetchParams) =>
-    toApiChainSport(sport as string) === 'nfl' &&
+    ['nfl', 'ncaaf'].includes(toApiChainSport(sport as string) ?? '') &&
     [
       'teams',
       'players',
@@ -35,7 +35,9 @@ export const apiSportsProvider: ApiProvider = {
       'player_headshots',
       'team_logos',
     ].includes(dataType),
-  async fetch({ dataType, query = {} }: ApiFetchParams) {
+  async fetch({ sport, dataType, query = {} }: ApiFetchParams) {
+    const chainSport = toApiChainSport(String(sport ?? 'nfl')) ?? 'nfl'
+    const sportTag = chainSport === 'ncaaf' ? 'NCAAF' : 'NFL'
     const season = toSeason(query.season)
     const search = toSearch(query.search ?? query.playerName)
     const teamId = typeof query.teamId === 'string' ? query.teamId.trim() : ''
@@ -43,7 +45,7 @@ export const apiSportsProvider: ApiProvider = {
 
     switch (dataType) {
       case 'teams': {
-        const teams = await fetchAPISportsTeams()
+        const teams = await fetchAPISportsTeams(season, { sport: sportTag })
         return teams.map((team) => ({
           id: String(team.id),
           name: team.name,
@@ -55,7 +57,7 @@ export const apiSportsProvider: ApiProvider = {
       }
       case 'players': {
         const players = search
-          ? await fetchAPISportsPlayerBySearch(search, season)
+          ? await fetchAPISportsPlayerBySearch(search, season, { sport: sportTag })
           : teamId
             ? await fetchAPISportsPlayers(teamId, season)
             : []
@@ -76,7 +78,7 @@ export const apiSportsProvider: ApiProvider = {
       }
       case 'games':
       case 'schedule': {
-        const games = await fetchAPISportsGames(season)
+        const games = await fetchAPISportsGames(season, { sport: sportTag })
         return games.map((game) => ({
           id: String(game.game.id),
           homeTeam: teamNameToAbbrev(game.teams.home.name) ?? game.teams.home.name,
@@ -93,7 +95,7 @@ export const apiSportsProvider: ApiProvider = {
         }))
       }
       case 'injuries': {
-        const injuries = await fetchAPISportsInjuries(season)
+        const injuries = await fetchAPISportsInjuries(season, { sport: sportTag })
         return injuries.map((injury) => ({
           externalId: String(injury.id),
           playerId: String(injury.player?.id ?? injury.id),
@@ -108,7 +110,7 @@ export const apiSportsProvider: ApiProvider = {
       }
       case 'player_headshots': {
         if (!search) return null
-        const players = await fetchAPISportsPlayerBySearch(search, season)
+        const players = await fetchAPISportsPlayerBySearch(search, season, { sport: sportTag })
         const matched = players.find((player) => {
           const sameName = namesEqual(player.name, search)
           const sameTeam = !teamCode || teamNameToAbbrev(player.team?.name ?? null) === teamCode

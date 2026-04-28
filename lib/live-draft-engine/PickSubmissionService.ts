@@ -7,19 +7,11 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { assertDraftSessionBelongsToLeague } from '@/lib/engine-testing/hardening/engineInvariants'
 import { logEngineInvariantOptional } from '@/lib/engine-testing/runtime/invariantRuntime'
-import { computeTimerEndAt, isInsidePauseWindow } from './DraftTimerService'
-import { computeEffectivePickTimerSeconds } from './DraftSessionService'
-import { getDraftConfigForLeague } from '@/lib/draft-defaults/DraftRoomConfigResolver'
+import { computeTimerEndAt } from './DraftTimerService'
 import { validatePickSubmission, validateDevyEligibilityAsync, validateC2CEligibilityAsync } from './PickValidation'
 import { validateSpecialtyDraftPools } from './SpecialtyDraftPoolValidation'
 import { validateRosterFitForDraftPick } from './RosterFitValidation'
 import { resolveCurrentOnTheClock } from './CurrentOnTheClockResolver'
-import {
-  isDraftBoardFull,
-  isDraftPickRowEmpty,
-  resolveNextOpenPickOverall,
-  type DraftPickProgressRow,
-} from './draftPickEmpty'
 import { resolvePickOwner } from './PickOwnershipResolver'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { getManagerColorBySeed } from '@/lib/draft-room'
@@ -31,7 +23,6 @@ import { buildKeeperLocks } from './keeper/KeeperDraftOrder'
 import type { KeeperConfig, KeeperSelection } from './keeper/types'
 import { getSalaryCapConfig } from '@/lib/salary-cap/SalaryCapLeagueConfig'
 import { assignRookieContract } from '@/lib/salary-cap/RookieContractService'
-import { resolveDraftPickPresentation } from '@/lib/live-draft-engine/resolveDraftPickPresentation'
 
 export interface SubmitPickInput {
   leagueId: string
@@ -63,15 +54,6 @@ export interface SubmitPickResult {
  * Submit a pick. Validates slot, duplicate, then writes in a transaction.
  */
 export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResult> {
-  const { isLeagueRosterDraftReady } = await import('@/lib/league/league-roster-draft-gate')
-  if (!(await isLeagueRosterDraftReady(input.leagueId))) {
-    return {
-      success: false,
-      error: 'Roster configuration is incomplete.',
-      code: 'ROSTER_CONFIGURATION_INCOMPLETE',
-    }
-  }
-
   const session = await prisma.draftSession.findUnique({
     where: { leagueId: input.leagueId },
     include: { picks: { orderBy: { overall: 'asc' } } },
@@ -92,15 +74,10 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
   const tradedPicks = Array.isArray(tradedPicksRaw) ? tradedPicksRaw : []
   const teamCount = session.teamCount
   const totalPicks = session.rounds * teamCount
-  const progressPicks: DraftPickProgressRow[] = session.picks.map((p) => ({
-    overall: p.overall,
-    playerName: p.playerName,
-    position: p.position,
-    pickMetadata: (p as { pickMetadata?: unknown | null }).pickMetadata ?? null,
-  }))
+  const picksCount = session.picks.length
   const current = resolveCurrentOnTheClock({
     totalPicks,
-    picks: progressPicks,
+    picksCount,
     teamCount,
     draftType: session.draftType as 'snake' | 'linear' | 'auction',
     thirdRoundReversal: session.thirdRoundReversal,
@@ -108,39 +85,21 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
   })
   if (!current) return { success: false, error: 'Draft is complete or not started' }
 
-  const overall = current.overall
-  const round = current.round
+  const overall = picksCount + 1
+  const round = Math.ceil(overall / teamCount)
   const slot = current.slot
   const resolvedOwner = resolvePickOwner(round, slot, slotOrder, tradedPicks)
   const effectiveRosterId = input.rosterId ?? resolvedOwner?.rosterId ?? current.rosterId
   const onClockRosterId = resolvedOwner?.rosterId ?? current.rosterId
-  const filledPicksForDup = session.picks.filter((p) => !isDraftPickRowEmpty(p))
   const validation = validatePickSubmission({
     playerName: input.playerName,
     position: input.position,
     rosterId: effectiveRosterId,
     currentOnClockRosterId: onClockRosterId,
-    existingPicks: filledPicksForDup.map((p) => ({ playerName: p.playerName, position: p.position })),
+    existingPicks: session.picks.map((p) => ({ playerName: p.playerName, position: p.position })),
     sessionStatus: session.status,
   })
   if (!validation.valid) return { success: false, error: validation.error }
-
-  const uiSettings = await getDraftUISettingsForLeague(input.leagueId)
-  const overnightWindow =
-    uiSettings.timerMode === 'overnight_pause' && uiSettings.slowDraftPauseWindow
-      ? uiSettings.slowDraftPauseWindow
-      : null
-  if (
-    session.status === 'in_progress' &&
-    overnightWindow &&
-    isInsidePauseWindow(new Date(), overnightWindow) &&
-    !uiSettings.allowPicksDuringOvernightPause
-  ) {
-    const src = input.source ?? 'user'
-    if (src === 'user' || src === 'auto') {
-      return { success: false, error: 'Picks are paused during the overnight window.' }
-    }
-  }
 
   const keeperConfig = (session.keeperConfig ?? (session as any).keeperConfig) as KeeperConfig | null
   const keeperSelections = (session.keeperSelections ?? (session as any).keeperSelections) as KeeperSelection[] | null
@@ -168,12 +127,12 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
   const rosterFit = await validateRosterFitForDraftPick({
     leagueId: input.leagueId,
     rosterId: effectiveRosterId,
-    existingPicks: filledPicksForDup.map((p) => ({ rosterId: p.rosterId, position: p.position })),
+    existingPicks: session.picks.map((p) => ({ rosterId: p.rosterId, position: p.position })),
     newPickPosition: input.position,
   })
   if (!rosterFit.valid) return { success: false, error: rosterFit.error }
 
-  const roundForEligibility = round || Math.ceil(overall / teamCount) || 1
+  const roundForEligibility = Math.ceil((picksCount + 1) / teamCount) || 1
   const rawC2cConfig = session.c2cConfig ?? (session as any).c2cConfig
   const c2cConfig =
     rawC2cConfig && typeof rawC2cConfig === 'object' && (rawC2cConfig as any).enabled
@@ -230,22 +189,7 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     commissionerOverride: input.source === 'commissioner',
   })
   if (!specialtyPool.valid) return { success: false, error: specialtyPool.error }
-
-  const leagueForPresentation = await prisma.league.findUnique({
-    where: { id: input.leagueId },
-    select: { sport: true },
-  })
-  const leagueSport =
-    leagueForPresentation?.sport ?? (session as { sportType?: string | null }).sportType ?? 'NFL'
-  const presentation = await resolveDraftPickPresentation({
-    leagueSport,
-    playerName: input.playerName.trim(),
-    position: input.position.trim(),
-    team: input.team,
-    playerId: input.playerId,
-    playerImageUrl: input.playerImageUrl,
-  })
-
+  const uiSettings = await getDraftUISettingsForLeague(input.leagueId)
   let tradedPickMeta = owner?.tradedPickMeta ? { ...owner.tradedPickMeta } : null
   if (tradedPickMeta) {
     tradedPickMeta.showNewOwnerInRed = Boolean(uiSettings.tradedPickOwnerNameRedEnabled)
@@ -257,122 +201,54 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     }
   }
 
-  const [leagueSettingsRow, configRow] = await Promise.all([
-    prisma.leagueSettings.findUnique({ where: { leagueId: input.leagueId } }),
-    getDraftConfigForLeague(input.leagueId),
-  ])
-  const effectiveTimerSeconds = computeEffectivePickTimerSeconds(leagueSettingsRow, configRow, uiSettings)
-  const nextTimerEndAt =
-    effectiveTimerSeconds != null && effectiveTimerSeconds > 0
-      ? computeTimerEndAt(effectiveTimerSeconds)
-      : null
-
-  const expectedNextOverall = resolveNextOpenPickOverall(progressPicks, totalPicks)
-  if (expectedNextOverall !== overall) {
-    return { success: false, error: 'Draft state changed; please retry' }
-  }
+  const timerSeconds = session.timerSeconds ?? 90
+  const nextTimerEndAt = computeTimerEndAt(timerSeconds)
 
   let pick: any
-  let boardFullAfter = false
   try {
     pick = await prisma.$transaction(async (tx) => {
       const locked = await (tx as any).draftSession.findUnique({
         where: { id: session.id },
         include: { picks: { orderBy: { overall: 'asc' } } },
       })
-      if (!locked) {
+      if (!locked || locked.picks.length !== picksCount) {
         throw new Error('Draft state changed; please retry')
       }
-      const lockedProgress: DraftPickProgressRow[] = locked.picks.map((p: any) => ({
-        overall: p.overall,
-        playerName: p.playerName,
-        position: p.position,
-        pickMetadata: p.pickMetadata ?? null,
-      }))
-      const innerNext = resolveNextOpenPickOverall(lockedProgress, totalPicks)
-      if (innerNext !== overall) {
-        throw new Error('Draft state changed; please retry')
-      }
-
-      const existingRow = locked.picks.find((p: any) => p.overall === overall)
-      let saved: any
-      if (existingRow && isDraftPickRowEmpty(existingRow)) {
-        saved = await (tx as any).draftPick.update({
-          where: { id: existingRow.id },
-          data: {
-            rosterId: effectiveRosterId,
-            displayName,
-            originalRosterId: slotOriginalRosterId,
-            playerName: input.playerName.trim(),
-            position: input.position,
-            team: input.team ?? null,
-            byeWeek: input.byeWeek ?? null,
-            playerId: presentation.playerId,
-            playerImageUrl: presentation.playerImageUrl,
-            tradedPickMeta: tradedPickMeta ? (tradedPickMeta as any) : undefined,
-            source: input.source ?? 'user',
-            assetType,
-            pickMetadata: (input.pickMetadata ?? {}) as Prisma.InputJsonValue,
-            ownerUserId: input.madeByUserId ?? null,
-            pickedAt: new Date(),
-          },
-        })
-      } else if (!existingRow) {
-        saved = await (tx as any).draftPick.create({
-          data: {
-            sessionId: session.id,
-            sportType: (session as any).sportType ?? null,
-            overall,
-            round,
-            slot,
-            rosterId: effectiveRosterId,
-            originalRosterId: slotOriginalRosterId,
-            displayName,
-            playerName: input.playerName.trim(),
-            position: input.position,
-            team: input.team ?? null,
-            byeWeek: input.byeWeek ?? null,
-            playerId: presentation.playerId,
-            playerImageUrl: presentation.playerImageUrl,
-            tradedPickMeta: tradedPickMeta ? (tradedPickMeta as any) : undefined,
-            source: input.source ?? 'user',
-            assetType,
-            ...(input.pickMetadata != null
-              ? { pickMetadata: input.pickMetadata as Prisma.InputJsonValue }
-              : {}),
-            ownerUserId: input.madeByUserId ?? null,
-            pickedAt: new Date(),
-          },
-        })
-      } else {
-        throw new Error('Draft state changed; please retry')
-      }
-
-      const afterRows = await (tx as any).draftPick.findMany({
-        where: { sessionId: session.id },
-        orderBy: { overall: 'asc' },
+      const created = await (tx as any).draftPick.create({
+        data: {
+          sessionId: session.id,
+          sportType: (session as any).sportType ?? null,
+          overall,
+          round,
+          slot,
+          rosterId: effectiveRosterId,
+          originalRosterId: slotOriginalRosterId,
+          displayName,
+          playerName: input.playerName.trim(),
+          position: input.position,
+          team: input.team ?? null,
+          byeWeek: input.byeWeek ?? null,
+          playerId: input.playerId ?? null,
+          tradedPickMeta: tradedPickMeta ? (tradedPickMeta as any) : undefined,
+          source: input.source ?? 'user',
+          assetType,
+          ...(input.pickMetadata != null
+            ? { pickMetadata: input.pickMetadata as Prisma.InputJsonValue }
+            : {}),
+          ownerUserId: input.madeByUserId ?? null,
+        },
       })
-      const afterProgress: DraftPickProgressRow[] = afterRows.map((p: any) => ({
-        overall: p.overall,
-        playerName: p.playerName,
-        position: p.position,
-        pickMetadata: p.pickMetadata ?? null,
-      }))
-      boardFullAfter = isDraftBoardFull(afterProgress, totalPicks)
-
       await (tx as any).draftSession.update({
         where: { id: session.id },
         data: {
-          timerSeconds: effectiveTimerSeconds,
           timerEndAt: nextTimerEndAt,
-          overnightFrozenPickSeconds: null,
           pausedRemainingSeconds: null,
           status: 'in_progress',
           version: { increment: 1 },
           updatedAt: new Date(),
         },
       })
-      return saved
+      return created
     })
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -447,7 +323,7 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     // non-fatal
   }
 
-  if (boardFullAfter) {
+  if (overall >= totalPicks) {
     let completed = await completeDraftSession(input.leagueId)
     if (!completed) {
       completed = await completeDraftSession(input.leagueId)
@@ -506,11 +382,6 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
         roundSlot: pick.slot ?? slot,
         playerId: pick.playerId ?? input.playerId ?? null,
         nflTeam: pick.team ?? input.team ?? null,
-        // D.6.3 — pick chat card enrichments: headshot already lives on the
-        // saved pick (presentation pipeline resolves it during submission);
-        // aiManager is true whenever the pick came from autopick.
-        headshotUrl: pick.playerImageUrl ?? input.playerImageUrl ?? null,
-        aiManager: input.source === 'auto',
       }),
     )
     .catch(() => {})

@@ -13,8 +13,10 @@ const hm = vi.hoisted(() => ({
   draftPickCreate: vi.fn(),
   draftPickAuditLogCreate: vi.fn(),
   rosterCount: vi.fn(),
+  rosterFindMany: vi.fn(),
   prismaTransaction: vi.fn(),
   buildSessionSnapshot: vi.fn(),
+  resetTimer: vi.fn(),
   invalidateLeagueDraftCaches: vi.fn(),
   validateRosterFitForDraftPick: vi.fn(),
   validateSpecialtyDraftPools: vi.fn(),
@@ -54,6 +56,7 @@ vi.mock('@/lib/prisma', () => ({
 
 vi.mock('@/lib/live-draft-engine/DraftSessionService', () => ({
   buildSessionSnapshot: hm.buildSessionSnapshot,
+  resetTimer: hm.resetTimer,
 }))
 
 vi.mock('@/lib/league/invalidateLeagueDraftCaches', () => ({
@@ -174,6 +177,7 @@ beforeEach(() => {
   hm.isLeagueRosterDraftReady.mockResolvedValue(true)
   hm.draftSessionFindUnique.mockResolvedValue(makeSession())
   hm.buildSessionSnapshot.mockResolvedValue(makeSnapshot())
+  hm.resetTimer.mockResolvedValue(true)
   hm.invalidateLeagueDraftCaches.mockReturnValue(undefined)
   hm.validateRosterFitForDraftPick.mockResolvedValue({ valid: true })
   hm.validateSpecialtyDraftPools.mockReturnValue({ valid: true })
@@ -193,6 +197,7 @@ beforeEach(() => {
   hm.draftPickCreate.mockResolvedValue({ id: 'new-pick-id' })
   hm.draftSessionUpdate.mockResolvedValue({})
   hm.rosterCount.mockResolvedValue(1)
+  hm.rosterFindMany.mockResolvedValue([])
 
   hm.prismaTransaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
     const tx = {
@@ -206,7 +211,8 @@ beforeEach(() => {
         create: hm.draftPickCreate,
       },
       draftPickAuditLog: { create: hm.draftPickAuditLogCreate },
-      roster: { count: hm.rosterCount },
+      roster: { count: hm.rosterCount, findMany: hm.rosterFindMany },
+      devyPlayer: { findFirst: vi.fn().mockResolvedValue(null) },
     }
     return fn(tx)
   })

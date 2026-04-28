@@ -403,7 +403,7 @@ export async function fetchWithChain(
     }
   }
 
-  // 2. CACHE MISS — RI primary; ClearSports/TheSportsDB/api-sports fill gaps; Sleeper last for NFL injuries/players/images.
+  // 2. CACHE MISS — non-image stays RI-first; NFL image data uses explicit provider ordering.
   let result: ChainFetchResult | null = null
 
   const isImageDt = dt === 'player_headshots' || dt === 'team_logos'
@@ -418,16 +418,25 @@ export async function fetchWithChain(
   const fallbackParams: ApiFetchParams = { ...baseParams, dataType: fallbackDt }
 
   // Provider priority per product requirement:
-  //   Rolling Insights → TheSportsDB → API-Sports → ClearSports → Sleeper → ESPN
-  // Image data types still prefer ClearSports/TheSportsDB for headshot/logo coverage,
-  // because RI's image endpoints are inconsistent.
+  //   Non-image: Rolling Insights → TheSportsDB → API-Sports → ClearSports → Sleeper → ESPN
+  //   NFL images: TheSportsDB → Sleeper → API-Sports (then ClearSports/RI as deep fallback)
+  // Image data types bypass RI-first because image endpoint coverage is less consistent.
   if (isImageDt) {
-    result =
-      (await tryProviderBlock(clearSportsProvider, baseParams)) ??
-      (await tryProviderBlock(theSportsDbProvider, baseParams)) ??
-      (await tryProviderBlock(apiSportsProvider, baseParams)) ??
-      (await tryRollingInsightsBlock(params, chainSport, dt, merged)) ??
-      (await tryProviderBlock(sleeperChainProvider, baseParams))
+    if (chainSport === 'nfl') {
+      result =
+        (await tryProviderBlock(theSportsDbProvider, baseParams)) ??
+        (await tryProviderBlock(sleeperChainProvider, baseParams)) ??
+        (await tryProviderBlock(apiSportsProvider, baseParams)) ??
+        (await tryProviderBlock(clearSportsProvider, baseParams)) ??
+        (await tryRollingInsightsBlock(params, chainSport, dt, merged))
+    } else {
+      result =
+        (await tryProviderBlock(clearSportsProvider, baseParams)) ??
+        (await tryProviderBlock(theSportsDbProvider, baseParams)) ??
+        (await tryProviderBlock(apiSportsProvider, baseParams)) ??
+        (await tryRollingInsightsBlock(params, chainSport, dt, merged)) ??
+        (await tryProviderBlock(sleeperChainProvider, baseParams))
+    }
   } else {
     result = await tryRollingInsightsBlock(params, chainSport, dt, merged)
 

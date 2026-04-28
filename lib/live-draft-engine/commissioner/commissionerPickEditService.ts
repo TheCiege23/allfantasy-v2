@@ -46,6 +46,13 @@ export interface CommissionerPickEditParams {
   playerImageUrl?: string | null
   /** CHANGE_PICK_OWNER (required) or ASSIGN_PLAYER_TO_PICK (optional explicit owner). */
   newRosterId?: string | null
+  /**
+   * Slice 2 self-benefit policy. When the commissioner's own roster is the
+   * affected one (or the new owner of the pick), the action is allowed but
+   * gated on this flag + a typed reason. The audit metadata records
+   * `selfBenefit: true` so the league has a clear paper trail.
+   */
+  confirmSelfBenefit?: boolean
 }
 
 export type CommissionerPickEditResult =
@@ -250,6 +257,61 @@ export async function commissionerPickEdit(params: CommissionerPickEditParams): 
     const picks = session.picks as unknown as PickRow[]
     const leagueSport = session.league?.sport ?? session.sportType ?? 'NFL'
 
+    // ── Slice 2: on-clock detection ─────────────────────────────────────────
+    // The current on-clock pick is the next overall whose row is empty (or, on
+    // a contiguous board, picksCount + 1). REMOVE on the on-clock pick should
+    // restart the timer; ASSIGN to the on-clock empty pick should restart it;
+    // CHANGE_PICK_OWNER on an empty on-clock pick should restart it.
+    const { resolveCurrentOnTheClock } = await import('@/lib/live-draft-engine/CurrentOnTheClockResolver')
+    const totalPicksForBoard = session.rounds * teamCount
+    const onClockNow = resolveCurrentOnTheClock({
+      totalPicks: totalPicksForBoard,
+      picks: picks.map((p) => ({
+        overall: p.overall,
+        playerName: p.playerName,
+        position: p.position,
+        pickMetadata: p.pickMetadata,
+      })),
+      teamCount,
+      draftType: session.draftType as 'snake' | 'linear' | 'auction',
+      thirdRoundReversal: session.thirdRoundReversal,
+      slotOrder,
+    })
+    const onClockOverall = onClockNow?.overall ?? null
+
+    // ── Slice 2: self-benefit detection ─────────────────────────────────────
+    // Map league rosters → platformUserId so we can compare to actorUserId.
+    // We only need the rosters that could be affected by this action — the
+    // pick's current rosterId and any newRosterId for ASSIGN/CHANGE_OWNER.
+    const targetPickForSelfBenefit = picks.find((p) => p.overall === params.overallPickNumber)
+    const affectedRosterIds = new Set<string>()
+    if (targetPickForSelfBenefit?.rosterId) affectedRosterIds.add(targetPickForSelfBenefit.rosterId)
+    if (typeof params.newRosterId === 'string' && params.newRosterId.trim()) {
+      affectedRosterIds.add(params.newRosterId.trim())
+    }
+    let isSelfBenefit = false
+    if (affectedRosterIds.size > 0 && params.actorUserId) {
+      const rosters = await tx.roster.findMany({
+        where: { leagueId: params.leagueId, id: { in: [...affectedRosterIds] } },
+        select: { id: true, platformUserId: true },
+      })
+      isSelfBenefit = rosters.some(
+        (r) => r.platformUserId != null && r.platformUserId === params.actorUserId,
+      )
+    }
+    const trimmedReason = (params.reason ?? '').trim()
+    const typedSelfBenefitConfirm = /^confirm$/i.test(trimmedReason)
+    if (isSelfBenefit) {
+      if (!(params.confirmSelfBenefit || typedSelfBenefitConfirm) || !trimmedReason) {
+        throw Object.assign(
+          new Error(
+            'This edit affects your own roster. Provide a reason and either check the confirm box or type CONFIRM to proceed (the action is logged with selfBenefit=true).',
+          ),
+          { status: 409, code: 'SELF_BENEFIT_CONFIRM_REQUIRED' },
+        )
+      }
+    }
+
     let tradedPicksOut: TradedPickRecord[] | null = null
     let auditRow: {
       overallPickNumber: number
@@ -266,11 +328,22 @@ export async function commissionerPickEdit(params: CommissionerPickEditParams): 
     const mergeMetadata = (extra: Record<string, unknown>): Prisma.InputJsonValue => {
       const o: Record<string, unknown> = { action: params.action, ...extra }
       if (params.force) o.forced = true
+      // Slice 2 — write selfBenefit on the audit row whenever the actor's roster
+      // is affected. The action was already gated on confirmSelfBenefit + reason
+      // above; this just preserves the trail.
+      if (isSelfBenefit) {
+        o.selfBenefit = true
+        o.selfBenefitConfirmed = true
+        o.selfBenefitReason = trimmedReason
+      }
       for (const k of Object.keys(o)) {
         if (o[k] === undefined) delete o[k]
       }
       return o as Prisma.InputJsonValue
     }
+
+    // Slice 2 — set after the action runs so the post-tx hook can call resetTimer.
+    let shouldResetTimerAfterTx = false
 
     switch (params.action) {
       case 'REMOVE_PLAYER_FROM_PICK': {
@@ -281,6 +354,12 @@ export async function commissionerPickEdit(params: CommissionerPickEditParams): 
         if (isDraftPickRowEmpty(pick)) {
           throw Object.assign(new Error('This pick is already empty'), { status: 400 })
         }
+        // Product rule: REMOVE always resets the clock. Removing a populated
+        // pick rewinds the on-clock cursor to that earlier pick (or earlier),
+        // so the manager who now has to re-pick deserves a fresh window.
+        // Live → restarts active clock; paused → stages full timer for Resume.
+        // The reset happens post-tx so resetTimer reads updated session state.
+        shouldResetTimerAfterTx = true
         await tx.draftPick.update({
           where: { id: pick.id },
           data: {
@@ -415,6 +494,10 @@ export async function commissionerPickEdit(params: CommissionerPickEditParams): 
         if (overall < 1 || overall > totalPicks) {
           throw Object.assign(new Error('overallPickNumber is out of range for this draft'), { status: 400 })
         }
+        // Slice 2 — assigning a player TO the on-clock pick effectively makes
+        // the pick. Reset the timer so the next pick gets a fresh clock when
+        // the draft resumes. Past/future assigns leave the clock untouched.
+        if (onClockOverall === overall) shouldResetTimerAfterTx = true
         const playerName = String(params.playerName ?? '').trim()
         const position = String(params.position ?? '').trim()
         if (!playerName || !position) {
@@ -591,6 +674,13 @@ export async function commissionerPickEdit(params: CommissionerPickEditParams): 
         if (newRosterId === pick.rosterId) {
           throw Object.assign(new Error('Pick already assigned to this roster'), { status: 400 })
         }
+        // Slice 2 — swapping owner on the on-clock EMPTY pick resets the clock
+        // (the new owner needs a fresh window). If the pick already has a
+        // player, the swap is a paper transfer only — clock untouched.
+        // Future picks: also untouched.
+        if (onClockOverall === pick.overall && isDraftPickRowEmpty(pick)) {
+          shouldResetTimerAfterTx = true
+        }
 
         const slotEntry = slotOrder.find((e) => e.slot === pick.slot)
         if (!slotEntry) {
@@ -677,10 +767,10 @@ export async function commissionerPickEdit(params: CommissionerPickEditParams): 
       },
     })
 
-    return true
+    return { ok: true as const, shouldResetTimer: shouldResetTimerAfterTx }
   }, { timeout: 30_000, maxWait: 10_000 }).catch((e: unknown) => e)
 
-  if (audit !== true) {
+  if (!audit || typeof audit !== 'object' || !('ok' in audit) || (audit as { ok?: unknown }).ok !== true) {
     const err = audit as Error & { status?: number; code?: string; warnings?: Array<{ message: string }> }
     const status = typeof err.status === 'number' ? err.status : 500
     if (status === 409 && err.code === 'ROSTER_ELIGIBILITY') {
@@ -692,11 +782,34 @@ export async function commissionerPickEdit(params: CommissionerPickEditParams): 
         warnings: err.warnings,
       }
     }
+    // Slice 2 — surface self-benefit gate as a structured 409 the UI can
+    // recognize and render an inline confirmation prompt for.
+    if (status === 409 && err.code === 'SELF_BENEFIT_CONFIRM_REQUIRED') {
+      return {
+        ok: false,
+        status: 409,
+        error: err.message,
+        code: 'SELF_BENEFIT_CONFIRM_REQUIRED',
+      }
+    }
     if (status >= 400 && status < 500) {
       return { ok: false, status, error: err.message || 'Request failed' }
     }
     console.error('[commissionerPickEdit]', audit)
     return { ok: false, status: 500, error: 'Internal error' }
+  }
+
+  // Slice 2 — when the action affected the on-clock pick (REMOVE / ASSIGN /
+  // CHANGE_OWNER on empty), refresh the timer so the next manager gets a clean
+  // window when the commissioner Resumes the draft. resetTimer is safe to call
+  // while paused (it stages the value in pausedRemainingSeconds).
+  if ((audit as { shouldResetTimer?: boolean }).shouldResetTimer) {
+    try {
+      const { resetTimer } = await import('@/lib/live-draft-engine/DraftSessionService')
+      await resetTimer(params.leagueId)
+    } catch (err) {
+      console.error('[commissionerPickEdit] resetTimer failed (non-fatal)', err)
+    }
   }
 
   invalidateLeagueDraftCaches(params.leagueId)

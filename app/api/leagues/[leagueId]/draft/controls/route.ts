@@ -1,5 +1,5 @@
 /**
- * POST: Commissioner controls — pause, resume, reset_timer, undo_pick, force_autopick, complete.
+ * POST: Commissioner controls — start, pause, resume, reset_timer, undo_pick, force_autopick, complete, etc.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -15,6 +15,7 @@ import {
   resetDraftSession,
   buildSessionSnapshot,
   setTimerSeconds,
+  startDraftSession,
 } from '@/lib/live-draft-engine/DraftSessionService'
 import { resolveAuctionWin } from '@/lib/live-draft-engine/auction/AuctionEngine'
 import { runAuctionAutomationTick } from '@/lib/live-draft-engine/auction'
@@ -44,6 +45,7 @@ import {
   notifyDraftIntelPostDraftRecap,
   notifyDraftIntelQueueReady,
   notifyDraftIntelTierBreak,
+  notifyDraftStartingSoon,
 } from '@/lib/draft-notifications'
 import {
   publishDraftIntelForUpcomingManagers,
@@ -79,7 +81,22 @@ async function withViewerSession(
   }
 }
 
-const ALLOWED_ACTIONS = ['pause', 'resume', 'reset_timer', 'undo_pick', 'force_autopick', 'complete', 'set_timer_seconds', 'skip_pick', 'resolve_auction', 'auction_tick', 'slow_tick', 'keeper_tick', 'reset_draft']
+const ALLOWED_ACTIONS = [
+  'start',
+  'pause',
+  'resume',
+  'reset_timer',
+  'undo_pick',
+  'force_autopick',
+  'complete',
+  'set_timer_seconds',
+  'skip_pick',
+  'resolve_auction',
+  'auction_tick',
+  'slow_tick',
+  'keeper_tick',
+  'reset_draft',
+]
 
 type AutoPickCandidate = {
   playerName: string
@@ -146,6 +163,45 @@ export async function POST(
     )
   }
   try {
+    if (action === 'start') {
+      const started = await startDraftSession(leagueId)
+      if (!started.ok) {
+        if (started.reason === 'ROSTER_CONFIGURATION_INCOMPLETE') {
+          return NextResponse.json(rosterConfigurationIncompleteBody({ leagueId }), { status: 409 })
+        }
+        return NextResponse.json({ error: 'Cannot start draft' }, { status: 400 })
+      }
+      void notifyDraftStartingSoon(leagueId)
+      await runKeeperAutomationTick(leagueId).catch(() => {})
+      await runSlowDraftAutomationTick(leagueId).catch(() => {})
+      const snapshot = await buildSessionSnapshot(leagueId)
+      if (!snapshot) return NextResponse.json({ error: 'Failed to build session' }, { status: 500 })
+      void (async () => {
+        const states = await publishDraftIntelForUpcomingManagers({
+          leagueId,
+          trigger: 'n_minus_5',
+        }).catch(() => [])
+        for (const result of states) {
+          const state = result.state
+          await sendDraftIntelDm(state).catch(() => null)
+          if (state.status === 'active' && state.picksUntilUser === 5 && state.queue[0]) {
+            await notifyDraftIntelQueueReady(leagueId, state.rosterId, {
+              playerName: state.queue[0].playerName,
+              availabilityProbability: state.queue[0].availabilityProbability,
+            }).catch(() => null)
+          }
+          if (state.status === 'on_clock') {
+            await notifyDraftIntelOnClockUrgent(leagueId, state.rosterId, {
+              playerName: state.queue[0]?.playerName,
+              pickLabel: snapshot.currentPick?.pickLabel,
+            }).catch(() => null)
+          }
+        }
+      })()
+      const sessionSnapshot = await withViewerSession(leagueId, userId, snapshot)
+      return NextResponse.json({ ok: true, action: 'start', session: sessionSnapshot })
+    }
+
     const pauseControlAction = action === 'pause' || action === 'resume' || action === 'reset_timer'
     if (pauseControlAction) {
       const uiSettings = await getDraftUISettingsForLeague(leagueId)

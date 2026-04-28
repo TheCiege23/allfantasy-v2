@@ -74,6 +74,104 @@ export type C2CDraftAdvice = {
 
 export type ChimmyResponse = { reply: string }
 
+export async function buildC2CAiCacheContextSummary(input: {
+  leagueId?: string
+  managerId?: string
+  playerId?: string
+  week?: number | null
+  draftType?: string | null
+  pickNumber?: number | null
+  position?: string | null
+  sportPair?: string | null
+  teamCount?: number | null
+  experience?: string | null
+}): Promise<Record<string, unknown>> {
+  if (!input.leagueId) {
+    return {
+      scope: 'global',
+      sportPair: input.sportPair ?? null,
+      teamCount: input.teamCount ?? null,
+      experience: input.experience ?? null,
+    }
+  }
+
+  const leagueId = input.leagueId
+  const [cfg, totalPlayers, campusPlayers, cantonPlayers, playerRow] = await Promise.all([
+    prisma.c2CLeague.findUnique({
+      where: { leagueId },
+      select: {
+        sportPair: true,
+        scoringMode: true,
+        campusScoreWeight: true,
+        cantonScoreWeight: true,
+        startupDraftFormat: true,
+        futureDraftFormat: true,
+        devyScoringEnabled: true,
+      },
+    }),
+    prisma.c2CPlayerState.count({ where: { leagueId } }),
+    prisma.c2CPlayerState.count({ where: { leagueId, playerSide: 'campus' } }),
+    prisma.c2CPlayerState.count({ where: { leagueId, playerSide: 'canton' } }),
+    input.playerId
+      ? prisma.c2CPlayerState.findFirst({
+          where: { leagueId, playerId: input.playerId },
+          select: {
+            playerId: true,
+            playerSide: true,
+            position: true,
+            school: true,
+            classYear: true,
+            hasEnteredPro: true,
+            projectedDeclarationYear: true,
+            bucketState: true,
+          },
+        })
+      : Promise.resolve(null),
+  ])
+
+  let managerSummary: Record<string, unknown> | null = null
+  if (input.managerId) {
+    const roster = await prisma.redraftRoster.findFirst({
+      where: { leagueId, ownerId: input.managerId },
+      select: { id: true },
+    })
+    if (roster?.id) {
+      const [managerCampusCount, managerCantonCount] = await Promise.all([
+        prisma.c2CPlayerState.count({
+          where: { leagueId, rosterId: roster.id, playerSide: 'campus' },
+        }),
+        prisma.c2CPlayerState.count({
+          where: { leagueId, rosterId: roster.id, playerSide: 'canton' },
+        }),
+      ])
+      managerSummary = {
+        rosterId: roster.id,
+        campusCount: managerCampusCount,
+        cantonCount: managerCantonCount,
+      }
+    } else {
+      managerSummary = { rosterId: null }
+    }
+  }
+
+  return {
+    scope: 'league',
+    leagueId,
+    config: cfg ?? null,
+    totalPlayers,
+    campusPlayers,
+    cantonPlayers,
+    managerSummary,
+    playerSummary: playerRow,
+    actionContext: {
+      week: input.week ?? null,
+      draftType: input.draftType ?? null,
+      pickNumber: input.pickNumber ?? null,
+      position: input.position ?? null,
+    },
+  }
+}
+
 async function requireAfSub(): Promise<void> {
   await requireAfSubUserIdOrThrow()
 }

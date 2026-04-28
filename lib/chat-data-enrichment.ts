@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
-import { fetchGameWeather, isTeamDome, getVenueForTeam } from '@/lib/openweathermap'
-import { getWeatherForEvent } from '@/lib/weather/weatherService'
+import { getCachedGameWeather } from '@/lib/weather/weatherService'
 import { resolveVenueForTeam } from '@/lib/weather/venueResolver'
+import { fetchWeatherForTeamHomeWindow } from '@/lib/weather/venueResolver'
 import { defaultNflGameTime } from '@/lib/weather/defaultGameTimes'
 import { calculateWeatherImpact } from '@/lib/weather/weatherImpactEngine'
 import { normalizeTeamAbbrev } from '@/lib/team-abbrev'
@@ -258,43 +258,53 @@ export async function enrichChatWithData(
   if ((wantsWeather || options?.includeWeather) && teams.length > 0) {
     tasks.push((async () => {
       try {
+        const forecastTime = defaultNflGameTime()
         const weatherResults = await Promise.all(
           teams.slice(0, 4).map(async (team) => {
-            const venue = getVenueForTeam(team)
-            const isDome = isTeamDome(team)
+            const live = await getCachedGameWeather({ homeTeam: team, referenceDate: new Date() })
+            const forecast = await fetchWeatherForTeamHomeWindow({
+              sport: 'NFL',
+              teamAbbrev: team,
+              gameTime: forecastTime,
+            })
+            if (!live && !forecast) return null
+
+            const resolvedVenue = resolveVenueForTeam({ sport: 'NFL', teamAbbrev: team })
+            const venue = live?.venue ?? (resolvedVenue.kind !== 'none' ? resolvedVenue.label : 'Unknown')
+            const isDome = live?.isDome ?? Boolean(forecast?.isDome)
+            let forecastBlurb = ''
+            if (!isDome && forecast) {
+              const imp = calculateWeatherImpact('NFL', 'QB', forecast, 20)
+              forecastBlurb = ` Sunday-window forecast (${forecast.conditionLabel}, ${Math.round(forecast.temperatureF)}°F, ${Math.round(forecast.windSpeedMph)}mph wind, ~${Math.round(forecast.precipChancePct)}% precip): model vs ~20pt QB baseline ${imp.totalAdjustment >= 0 ? '+' : ''}${imp.totalAdjustment.toFixed(1)} pts — ${imp.shortReason}.`
+            }
+
             if (isDome) {
               return {
                 team,
-                venue: venue || 'Unknown',
+                venue,
                 isDome: true,
                 impact: 'Indoor stadium — no weather impact',
               }
             }
-            const gw = await fetchGameWeather(team)
-            if (!gw) return null
-            let forecastBlurb = ''
-            if (process.env.OPENWEATHERMAP_API_KEY?.trim() && !gw.isDome) {
-              const v = resolveVenueForTeam({ sport: 'NFL', teamAbbrev: team })
-              if (v.kind !== 'none' && !v.dome) {
-                const wx = await getWeatherForEvent({
-                  lat: v.lat,
-                  lng: v.lng,
-                  gameTime: defaultNflGameTime(),
-                  sport: 'NFL',
-                })
-                if (wx) {
-                  const imp = calculateWeatherImpact('NFL', 'QB', wx, 20)
-                  forecastBlurb = ` Sunday-window forecast (${wx.conditionLabel}, ${Math.round(wx.temperatureF)}°F, ${Math.round(wx.windSpeedMph)}mph wind, ~${Math.round(wx.precipChancePct)}% precip): model vs ~20pt QB baseline ${imp.totalAdjustment >= 0 ? '+' : ''}${imp.totalAdjustment.toFixed(1)} pts — ${imp.shortReason}.`
-                }
+
+            if (!live) {
+              return {
+                team,
+                venue,
+                isDome: false,
+                temp: forecast ? Math.round(forecast.temperatureF) : undefined,
+                wind: forecast ? Math.round(forecast.windSpeedMph) : undefined,
+                impact: forecastBlurb || 'Forecast context available from WeatherCache.',
               }
             }
+
             return {
               team,
-              venue: gw.venue,
+              venue,
               isDome: false,
-              temp: gw.weather.temp,
-              wind: gw.weather.windSpeed,
-              impact: gw.weather.fantasyImpact + forecastBlurb,
+              temp: live.weather.temp,
+              wind: live.weather.windSpeed,
+              impact: live.weather.fantasyImpact + forecastBlurb,
             }
           })
         )
@@ -303,7 +313,7 @@ export async function enrichChatWithData(
         if (validWeather.length > 0) {
           enrichSourcesUsed.push('weather')
           sources.weather = validWeather
-          contextParts.push(`\n## GAME-DAY WEATHER (OpenWeatherMap — current + typical Sunday forecast window)\n${validWeather.map(w =>
+          contextParts.push(`\n## GAME-DAY WEATHER (WeatherCache-first current + Sunday forecast window)\n${validWeather.map(w =>
             `- ${w.team} at ${w.venue}: ${w.isDome ? 'DOME (no weather impact)' : `${Math.round(w.temp!)}°F, ${Math.round(w.wind!)} mph wind`}${w.impact ? ' — ' + w.impact : ''}`
           ).join('\n')}`)
         }

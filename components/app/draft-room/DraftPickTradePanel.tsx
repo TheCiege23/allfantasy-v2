@@ -627,3 +627,5 @@ export function DraftPickTradePanel({
     />
   )
 }
+
+export default DraftPickTradePanel

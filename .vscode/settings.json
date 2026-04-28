@@ -1,4 +1,6 @@
 {
+  // Stable integrated terminal on Windows (Cursor/VS Code); avoids some launch/profile issues.
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
   // Prisma migrations are PostgreSQL; the MSSQL extension otherwise flags valid SQL.
   "mssql.validate.enable": false,
   // Disable MSSQL semantic error checking that can still surface in SQL files.

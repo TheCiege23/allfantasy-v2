@@ -13,7 +13,7 @@ async function hashOAuthOnlyPlaceholder(): Promise<string> {
   return bcrypt.hash(randomBytes(32).toString("hex"), OAUTH_PLACEHOLDER_BCRYPT_ROUNDS);
 }
 
-export type SocialAccountProvider = "google" | "apple";
+export type SocialAccountProvider = "google" | "apple" | "spotify";
 
 type LinkedSocialAuthUser = {
   id: string;

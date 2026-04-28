@@ -17,6 +17,7 @@ import { buildDraftExecutionMetadata, evaluateAIInvocationPolicy, withTimeout } 
 import { resolveOverallForRoundSlot } from '@/lib/live-draft-engine/draftPickTradeInventory'
 import { buildDraftPickTradeStructuredAnalysis } from '@/lib/live-draft-engine/draftPickTradeStructuredAnalysis'
 import { EntitlementResolver } from '@/lib/subscription/EntitlementResolver'
+import { getCanonicalDraftState } from '@/lib/draft/getCanonicalDraftState'
 import type { TradedPickRecord } from '@/lib/live-draft-engine/types'
 
 export const dynamic = 'force-dynamic'
@@ -149,9 +150,21 @@ export async function POST(
 
   const mySlotEntry = slotOrder.find((s) => s.rosterId === myRosterId)
   const partnerSlotEntry = slotOrder.find((s) => s.rosterId === receiverRosterId)
-  const picksMade = (draftSession.picks ?? []).length
-  const currentPick = (draftSession as { currentPick?: { overall: number; round: number; slot: number; rosterId?: string } | null })
+  const canonicalDraftState = await getCanonicalDraftState({
+    leagueId,
+    draftId: draftSession.id,
+  })
+  const picksMade = canonicalDraftState?.picksMade ?? (draftSession.picks ?? []).length
+  const legacyCurrentPick = (draftSession as { currentPick?: { overall: number; round: number; slot: number; rosterId?: string } | null })
     .currentPick
+  const currentPick = canonicalDraftState?.nextPick?.overall
+    ? {
+        overall: canonicalDraftState.nextPick.overall,
+        round: canonicalDraftState.nextPick.round ?? 1,
+        slot: canonicalDraftState.nextPick.slot ?? 1,
+        rosterId: canonicalDraftState.currentTeamId ?? undefined,
+      }
+    : legacyCurrentPick
 
   if (invocation.decision === 'allow_ai') {
     const aiResult = await withTimeout(

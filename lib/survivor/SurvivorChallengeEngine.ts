@@ -8,6 +8,7 @@ import { appendSurvivorAudit } from './SurvivorAuditLog'
 import { applyChallengeRewards } from './SurvivorEffectEngine'
 import { getMinigameDef } from './SurvivorMiniGameRegistry'
 import { SURVIVOR_MINI_GAME_CADENCE } from './constants'
+import { applySurvivorSitOutToMiniGames } from './SurvivorSitOutEngine'
 import type { SurvivorChallengeType } from './types'
 
 /** Resolve per-sport mini-game cadence (games per week + tribal-council day). */
@@ -81,6 +82,18 @@ export async function submitChallengeAnswer(
       select: { id: true },
     })
     if (!roster) return { ok: false, error: 'Roster not found for this challenge' }
+
+    const sitOutGuard = await applySurvivorSitOutToMiniGames({
+      leagueId: challenge.leagueId,
+      week: challenge.week,
+      rosterId,
+    })
+    if (sitOutGuard.blocked) {
+      return {
+        ok: false,
+        error: `${sitOutGuard.reason ?? 'Sit-out is active for this week.'} Eligibility reason: sit-out accepted and locked.`,
+      }
+    }
   }
 
   if (tribeId) {

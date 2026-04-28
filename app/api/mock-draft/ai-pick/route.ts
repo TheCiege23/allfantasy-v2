@@ -9,6 +9,7 @@ import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { getStrategyMetaReports } from '@/lib/strategy-meta'
 import { getInsightBundle } from '@/lib/ai-simulation-integration'
 import { computeDraftRecommendation } from '@/lib/draft-helper/RecommendationEngine'
+import { getOrCreateAiResult } from '@/lib/ai/ai-result-cache'
 
 const openai = getOpenAIRouteClient()
 
@@ -699,13 +700,72 @@ ${insightBundle?.contextText ? `Simulation/Warehouse context: ${insightBundle.co
 ${insightBundle ? `Model roles: DeepSeek ${insightBundle.modelResponsibilities.deepseek}; Grok ${insightBundle.modelResponsibilities.grok}; OpenAI ${insightBundle.modelResponsibilities.openai}.` : ''}
 Return exactly 2 concise sentences with clear action and fallback.`
 
-        const resp = await openai.chat.completions.create({
+        const aiResult = await getOrCreateAiResult({
+          feature: 'mock-draft-ai-pick-insight',
+          scopeType: 'league',
+          scopeId: (typeof leagueId === 'string' && leagueId.trim().length > 0) ? leagueId.trim() : `user:${session.user.id}`,
+          provider: 'openai',
           model: 'gpt-4o-mini',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 120,
-          temperature: 0.4,
+          ttlSeconds: 30 * 60,
+          payload: {
+            mockDraftSessionId:
+              (typeof (body as any)?.mockDraftSessionId === 'string' && (body as any).mockDraftSessionId.trim()) ||
+              (typeof (body as any)?.draftId === 'string' && (body as any).draftId.trim()) ||
+              null,
+            leagueId: (typeof leagueId === 'string' && leagueId.trim()) || null,
+            userId: session.user.id,
+            sport: normalizedSport,
+            season: String((body as any)?.season || ''),
+            draftType: String((body as any)?.draftType || ''),
+            scoringFormat: String((body as any)?.scoringFormat || ''),
+            currentPick: {
+              round: Number(round || 0),
+              pick: Number(pick || 0),
+              overall: Number(scored.overall || 0),
+            },
+            teamNeeds: Object.entries(scored.needs)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([pos, score]) => ({ pos, score })),
+            availablePlayerIds: safeAvailable
+              .map((p) => p.sleeperId || normalizeName(p.name))
+              .filter(Boolean)
+              .slice(0, 150),
+            priorPickIds: Array.isArray((body as any)?.priorPickIds) ? (body as any).priorPickIds.slice(0, 400) : [],
+            suggestions: suggestions.map((s) => ({
+              player: s.player,
+              position: s.position,
+              adp: s.adp ?? null,
+              confidence: s.confidence,
+              type: s.type,
+            })),
+            strategyMetaContext,
+            promptVersion: 'v1',
+          },
+          onCacheMiss: async () => {
+            const resp = await openai.chat.completions.create({
+              model: 'gpt-4o-mini',
+              messages: [{ role: 'user', content: prompt }],
+              max_tokens: 120,
+              temperature: 0.4,
+            })
+
+            return {
+              resultText: resp.choices[0]?.message?.content || '',
+              resultJson: null,
+              tokenPrompt: null,
+              tokenOutput: null,
+            }
+          },
         })
-        aiInsight = resp.choices[0]?.message?.content || ''
+
+        if (aiResult.cacheHit) {
+          console.log(`[mock-draft/ai-pick] AI cache hit { leagueId: '${(typeof leagueId === 'string' && leagueId.trim()) || 'none'}', action: 'dm-suggestion' }`)
+        } else {
+          console.log(`[mock-draft/ai-pick] AI cache miss { leagueId: '${(typeof leagueId === 'string' && leagueId.trim()) || 'none'}', action: 'dm-suggestion', modelCallMs: ${aiResult.modelDurationMs ?? -1} }`)
+          console.log(`[mock-draft/ai-pick] saved AiResult { id: '${aiResult.row.id}', resultKey: '${aiResult.row.resultKey}' }`)
+        }
+
+        aiInsight = aiResult.row.resultText || ''
       } catch {
         aiInsight = ''
       }

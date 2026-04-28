@@ -122,7 +122,7 @@ async function loadApiAdp(segment: DraftSegment): Promise<ADPRanking[]> {
       scoring: segment.scoring,
       season: currentSeason(),
       week: { lte: currentWeek() },
-      source: { notIn: ['ai_adp', 'allfantasy_app', 'custom'] },
+      source: { notIn: ['ai_adp', 'allfantasy_app', 'custom', 'consensus'] },
     },
     orderBy: [{ week: 'desc' }, { createdAt: 'desc' }],
     take: 4000,

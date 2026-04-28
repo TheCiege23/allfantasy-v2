@@ -21,6 +21,18 @@ import {
 import { syncClearSportsToDb } from '@/lib/clear-sports'
 
 export const POST = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSync" })(async (request: NextRequest) => {
+  /**
+   * Request examples (Bearer ADMIN_PASSWORD required):
+   *
+   * NFL teams sync:
+   * { "source": "api_sports", "type": "teams", "sport": "NFL", "season": "2025" }
+   *
+   * NCAAF games sync:
+   * { "source": "api_sports", "type": "games", "sport": "NCAAF", "season": "2025" }
+   *
+   * NCAAF full sync (teams + games + injuries + standings + identity):
+   * { "source": "api_sports", "type": "all", "sport": "NCAAF", "season": "2025" }
+   */
   const adminPassword = process.env.ADMIN_PASSWORD;
   const authHeader = request.headers.get('authorization');
 
@@ -33,6 +45,8 @@ export const POST = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSy
     const syncType = (body as Record<string, string>).type || 'all';
     const season = (body as Record<string, string>).season;
     const source = (body as Record<string, string>).source || 'all';
+    const requestedSport = String((body as Record<string, string>).sport || 'NFL').toUpperCase()
+    const apiSportsSport: 'NFL' | 'NCAAF' = requestedSport === 'NCAAF' ? 'NCAAF' : 'NFL'
 
     const results: Record<string, unknown> = {};
   const diagnostics: Record<string, unknown> = {};
@@ -66,39 +80,40 @@ export const POST = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSy
     }
 
     if (source === 'all' || source === 'api_sports') {
+      const asKeyPrefix = apiSportsSport === 'NCAAF' ? 'as_ncaaf' : 'as'
       if (syncType === 'all' || syncType === 'teams') {
         clearAPISportsDiagnostics()
-        const teamCount = await syncAPISportsTeamsToDb(season);
-        results.as_teams = { synced: teamCount };
-        diagnostics.as_teams = getAPISportsDiagnostics()
+        const teamCount = await syncAPISportsTeamsToDb({ season, sport: apiSportsSport });
+        results[`${asKeyPrefix}_teams`] = { synced: teamCount, sport: apiSportsSport };
+        diagnostics[`${asKeyPrefix}_teams`] = getAPISportsDiagnostics()
       }
 
       if (syncType === 'all' || syncType === 'schedule' || syncType === 'games') {
         clearAPISportsDiagnostics()
-        const gameCount = await syncAPISportsGamesToDb(season);
-        results.as_games = { synced: gameCount };
-        diagnostics.as_games = getAPISportsDiagnostics()
+        const gameCount = await syncAPISportsGamesToDb({ season, sport: apiSportsSport });
+        results[`${asKeyPrefix}_games`] = { synced: gameCount, sport: apiSportsSport };
+        diagnostics[`${asKeyPrefix}_games`] = getAPISportsDiagnostics()
       }
 
       if (syncType === 'all' || syncType === 'injuries') {
         clearAPISportsDiagnostics()
-        const injuryCount = await syncAPISportsInjuriesToDb(season);
-        results.as_injuries = { synced: injuryCount };
-        diagnostics.as_injuries = getAPISportsDiagnostics()
+        const injuryCount = await syncAPISportsInjuriesToDb({ season, sport: apiSportsSport });
+        results[`${asKeyPrefix}_injuries`] = { synced: injuryCount, sport: apiSportsSport };
+        diagnostics[`${asKeyPrefix}_injuries`] = getAPISportsDiagnostics()
       }
 
       if (syncType === 'all' || syncType === 'standings') {
         clearAPISportsDiagnostics()
-        const standingsCount = await syncAPISportsStandingsToDb(season);
-        results.as_standings = { synced: standingsCount };
-        diagnostics.as_standings = getAPISportsDiagnostics()
+        const standingsCount = await syncAPISportsStandingsToDb({ season, sport: apiSportsSport });
+        results[`${asKeyPrefix}_standings`] = { synced: standingsCount, sport: apiSportsSport };
+        diagnostics[`${asKeyPrefix}_standings`] = getAPISportsDiagnostics()
       }
 
       if (syncType === 'all' || syncType === 'identity') {
         clearAPISportsDiagnostics()
-        const identityResult = await syncAPISportsPlayersToIdentityMap(season);
-        results.as_identity = identityResult;
-        diagnostics.as_identity = getAPISportsDiagnostics()
+        const identityResult = await syncAPISportsPlayersToIdentityMap({ season, sport: apiSportsSport });
+        results[`${asKeyPrefix}_identity`] = { ...identityResult, sport: apiSportsSport };
+        diagnostics[`${asKeyPrefix}_identity`] = getAPISportsDiagnostics()
       }
     }
 
@@ -151,6 +166,7 @@ export const POST = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSy
       success: true,
       syncType,
       source,
+      sport: apiSportsSport,
       season: season || 'current',
       results,
       diagnostics,

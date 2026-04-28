@@ -5,6 +5,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { looksLikeSleeperExternalId } from '@/lib/draft-sports-models/player-asset-resolver'
+import { canonicalName } from '@/lib/draft-room/player-canonical-identity'
 
 /** RI must be at least this many ms newer than snapshot.updatedAt to replace PPG (default 60s). */
 export const RI_MIN_LEAD_OVER_SNAPSHOT_MS = Number(
@@ -186,7 +187,10 @@ export async function loadRollingInsightsSeasonByDraftPoolKey(options: {
     if (m.sleeperId && m.rollingInsightsId) sleeperToRi.set(m.sleeperId, m.rollingInsightsId)
   }
 
+  // E.3: detect ambiguous (name, position) pairs in PlayerIdentityMap to skip collisions.
+  // If multiple RI players match the same (normalizedName, position), skip to avoid silent data loss.
   const namePosToRi = new Map<string, string>()
+  const namePosAmbiguous = new Set<string>()
   for (const m of byName) {
     /** E.2 bug fix: pool callers normalize pk via toLowerCase() (see getResolvedDraftPoolForLeague.ts
      * `normalizeKeyPart`), so storing keys with `.toUpperCase()` here meant `namePosToRi.get(...)` at
@@ -195,17 +199,38 @@ export async function loadRollingInsightsSeasonByDraftPoolKey(options: {
      * to lowercase guarantees that once ingestion populates PlayerIdentityMap, matches will fire. */
     const nk = (m.normalizedName ?? '').trim().toLowerCase()
     const pk = (m.position ?? '').trim().toLowerCase()
-    if (nk && pk && m.rollingInsightsId) namePosToRi.set(`${nk}|${pk}`, m.rollingInsightsId)
+    if (nk && pk && m.rollingInsightsId) {
+      const k = `${nk}|${pk}`
+      if (namePosToRi.has(k)) {
+        // Collision: multiple identity rows share this (name, position) key.
+        // Mark ambiguous and remove from map to prevent silent data loss.
+        namePosAmbiguous.add(k)
+        namePosToRi.delete(k)
+      } else if (!namePosAmbiguous.has(k)) {
+        // Safe to add (no collision yet known).
+        namePosToRi.set(k, m.rollingInsightsId)
+      }
+    }
   }
+
+  let exactIdHits = 0
+  let nameFallbackHits = 0
+  let ambiguousSkips = 0
 
   for (const r of options.rows) {
     const key = `${r.nk}|${r.pk}`
     let riId: string | null = null
     if (r.sleeperCandidate && looksLikeSleeperExternalId(r.sleeperCandidate)) {
       riId = sleeperToRi.get(r.sleeperCandidate) ?? null
+      if (riId) exactIdHits += 1
     }
     if (!riId) {
-      riId = namePosToRi.get(`${r.nk}|${r.pk}`) ?? null
+      if (namePosAmbiguous.has(`${r.nk}|${r.pk}`)) {
+        ambiguousSkips += 1
+      } else {
+        riId = namePosToRi.get(`${r.nk}|${r.pk}`) ?? null
+        if (riId) nameFallbackHits += 1
+      }
     }
     if (riId) {
       identityByPoolKey.set(key, { rollingInsightsPlayerId: riId, confidence: 'high' })
@@ -293,4 +318,261 @@ export async function loadRollingInsightsStatsDetailByPlayerIds(
     })
   }
   return out
+}
+
+/**
+ * Fallback: load PlayerSeasonStats for pool rows that don't have RI identity mapping yet.
+ * Uses safe heuristics: exact ID match first, then name+position (only if unambiguous).
+ * Returns both season slices and diagnostic counters.
+ */
+export async function loadPlayerSeasonStatsFallback(options: {
+  rows: Array<{
+    poolKey: string
+    nk: string
+    pk: string
+    sleeperCandidate: string | null
+    existingRiId: string | null
+  }>
+}): Promise<{
+  seasonByPoolKey: Map<string, RollingInsightsSeasonSlice>
+  diagnostics: {
+    exactIdHits: number
+    namePositionHits: number
+    ambiguousSkips: number
+    misses: number
+  }
+}> {
+  const sport = 'NFL'
+  const seasonByPoolKey = new Map<string, RollingInsightsSeasonSlice>()
+  const diagnostics = { exactIdHits: 0, namePositionHits: 0, ambiguousSkips: 0, misses: 0 }
+
+  // Filter to rows without existing RI identity
+  const unidentifiedRows = options.rows.filter((r) => !r.existingRiId)
+  if (unidentifiedRows.length === 0) {
+    return { seasonByPoolKey, diagnostics }
+  }
+
+  // Build candidate sleeper ID set for Phase 1 exact match
+  const candidateSleeperIds = [
+    ...new Set(
+      unidentifiedRows
+        .map((r) => r.sleeperCandidate)
+        .filter((id): id is string => Boolean(id && looksLikeSleeperExternalId(id))),
+    ),
+  ]
+
+  // Phase 1: Sleeper ID → rollingInsightsId via PlayerIdentityMap → PlayerSeasonStats
+  const sleeperToRi = new Map<string, string>()
+  if (candidateSleeperIds.length > 0) {
+    const identityRows = await prisma.playerIdentityMap.findMany({
+      where: {
+        sport,
+        sleeperId: { in: candidateSleeperIds },
+        rollingInsightsId: { not: null },
+      },
+      select: { sleeperId: true, rollingInsightsId: true },
+    })
+    for (const row of identityRows) {
+      if (row.sleeperId && row.rollingInsightsId) sleeperToRi.set(row.sleeperId, row.rollingInsightsId)
+    }
+
+    if (sleeperToRi.size > 0) {
+      const riIds = [...new Set(sleeperToRi.values())]
+      const statsRows = await prisma.playerSeasonStats.findMany({
+        where: {
+          sport,
+          source: 'rolling_insights',
+          seasonType: 'regular',
+          playerId: { in: riIds },
+        },
+        select: {
+          playerId: true,
+          season: true,
+          fantasyPointsPerGame: true,
+          fantasyPoints: true,
+          gamesPlayed: true,
+          updatedAt: true,
+        },
+        orderBy: [{ playerId: 'asc' }, { season: 'desc' }, { updatedAt: 'desc' }],
+      })
+
+      const statsByRiId = new Map<string, (typeof statsRows)[0]>()
+      for (const row of statsRows) {
+        if (!statsByRiId.has(row.playerId)) statsByRiId.set(row.playerId, row)
+      }
+
+      for (const urow of unidentifiedRows) {
+        if (!urow.sleeperCandidate) continue
+        const riId = sleeperToRi.get(urow.sleeperCandidate)
+        if (riId && statsByRiId.has(riId)) {
+          const statsRow = statsByRiId.get(riId)!
+          seasonByPoolKey.set(urow.poolKey, {
+            fantasyPointsPerGame: statsRow.fantasyPointsPerGame ?? null,
+            fantasyPointsSeason: statsRow.fantasyPoints ?? null,
+            gamesPlayed: statsRow.gamesPlayed ?? null,
+            season: statsRow.season ?? null,
+            updatedAt: statsRow.updatedAt,
+          })
+          diagnostics.exactIdHits += 1
+        }
+      }
+    }
+  }
+
+  // Phase 2: name+position → rollingInsightsId (unambiguous only) → PlayerSeasonStats
+  const unmatched = unidentifiedRows.filter((r) => !seasonByPoolKey.has(r.poolKey))
+  if (unmatched.length > 0) {
+    const nkSet = [...new Set(unmatched.map((r) => r.nk).filter(Boolean))]
+
+    if (nkSet.length > 0) {
+      const identitiesByNamePos = await prisma.playerIdentityMap.findMany({
+        where: {
+          sport,
+          normalizedName: { in: nkSet },
+          rollingInsightsId: { not: null },
+        },
+        select: {
+          normalizedName: true,
+          position: true,
+          rollingInsightsId: true,
+        },
+      })
+
+      // Build name+position → rollingInsightsId lookup, detecting ambiguities
+      const namePosToRiId = new Map<string, string>()
+      const namePosAmbiguous = new Set<string>()
+      for (const ident of identitiesByNamePos) {
+        const nk = (ident.normalizedName ?? '').trim().toLowerCase()
+        const pk = (ident.position ?? '').trim().toLowerCase()
+        if (nk && pk && ident.rollingInsightsId) {
+          const key = `${nk}|${pk}`
+          if (namePosToRiId.has(key)) {
+            namePosAmbiguous.add(key)
+            namePosToRiId.delete(key)
+          } else if (!namePosAmbiguous.has(key)) {
+            namePosToRiId.set(key, ident.rollingInsightsId)
+          }
+        }
+      }
+
+      const unambiguousRiIds = [...new Set(namePosToRiId.values())]
+      if (unambiguousRiIds.length > 0) {
+        const fallbackStats = await prisma.playerSeasonStats.findMany({
+          where: {
+            sport,
+            source: 'rolling_insights',
+            seasonType: 'regular',
+            playerId: { in: unambiguousRiIds },
+          },
+          select: {
+            playerId: true,
+            season: true,
+            fantasyPointsPerGame: true,
+            fantasyPoints: true,
+            gamesPlayed: true,
+            updatedAt: true,
+          },
+          orderBy: [{ playerId: 'asc' }, { season: 'desc' }, { updatedAt: 'desc' }],
+        })
+
+        const statsByRiId = new Map<string, (typeof fallbackStats)[0]>()
+        for (const row of fallbackStats) {
+          if (!statsByRiId.has(row.playerId)) statsByRiId.set(row.playerId, row)
+        }
+
+        for (const urow of unmatched) {
+          if (seasonByPoolKey.has(urow.poolKey)) continue
+          const key = `${urow.nk}|${urow.pk}`
+          if (namePosAmbiguous.has(key)) {
+            diagnostics.ambiguousSkips += 1
+          } else {
+            const riId = namePosToRiId.get(key)
+            if (riId && statsByRiId.has(riId)) {
+              const statsRow = statsByRiId.get(riId)!
+              seasonByPoolKey.set(urow.poolKey, {
+                fantasyPointsPerGame: statsRow.fantasyPointsPerGame ?? null,
+                fantasyPointsSeason: statsRow.fantasyPoints ?? null,
+                gamesPlayed: statsRow.gamesPlayed ?? null,
+                season: statsRow.season ?? null,
+                updatedAt: statsRow.updatedAt,
+              })
+              diagnostics.namePositionHits += 1
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Phase 3: Direct PlayerSeasonStats.playerName normalization match (bypasses PlayerIdentityMap).
+  // Loads all NFL RI regular-season rows in memory, normalizes playerName with canonicalName(),
+  // and matches unidentified pool rows by normalized name+position with ambiguity detection.
+  const stillUnmatched = unidentifiedRows.filter((r) => !seasonByPoolKey.has(r.poolKey))
+  if (stillUnmatched.length > 0) {
+    const allStatsRows = await prisma.playerSeasonStats.findMany({
+      where: {
+        sport,
+        source: 'rolling_insights',
+        seasonType: 'regular',
+      },
+      select: {
+        playerId: true,
+        playerName: true,
+        position: true,
+        season: true,
+        fantasyPointsPerGame: true,
+        fantasyPoints: true,
+        gamesPlayed: true,
+        updatedAt: true,
+      },
+      orderBy: [{ playerId: 'asc' }, { season: 'desc' }, { updatedAt: 'desc' }],
+    })
+
+    // Build canonical name+position → stats row map with ambiguity detection
+    // Keep only the most recent row per playerId, then index by canonical key
+    const latestByPlayerId = new Map<string, (typeof allStatsRows)[0]>()
+    for (const row of allStatsRows) {
+      if (!latestByPlayerId.has(row.playerId)) latestByPlayerId.set(row.playerId, row)
+    }
+
+    const directNamePosMap = new Map<string, (typeof allStatsRows)[0]>()
+    const directNamePosAmbiguous = new Set<string>()
+    for (const row of latestByPlayerId.values()) {
+      const nk = canonicalName(row.playerName)
+      const pk = (row.position ?? '').trim().toLowerCase()
+      if (!nk || !pk) continue
+      const key = `${nk}|${pk}`
+      if (directNamePosMap.has(key)) {
+        directNamePosAmbiguous.add(key)
+        directNamePosMap.delete(key)
+      } else if (!directNamePosAmbiguous.has(key)) {
+        directNamePosMap.set(key, row)
+      }
+    }
+
+    for (const urow of stillUnmatched) {
+      if (seasonByPoolKey.has(urow.poolKey)) continue
+      const key = `${urow.nk}|${urow.pk}`
+      if (directNamePosAmbiguous.has(key)) {
+        diagnostics.ambiguousSkips += 1
+      } else {
+        const statsRow = directNamePosMap.get(key)
+        if (statsRow) {
+          seasonByPoolKey.set(urow.poolKey, {
+            fantasyPointsPerGame: statsRow.fantasyPointsPerGame ?? null,
+            fantasyPointsSeason: statsRow.fantasyPoints ?? null,
+            gamesPlayed: statsRow.gamesPlayed ?? null,
+            season: statsRow.season ?? null,
+            updatedAt: statsRow.updatedAt,
+          })
+          diagnostics.namePositionHits += 1
+        }
+      }
+    }
+  }
+
+  // Count remaining misses
+  diagnostics.misses = unidentifiedRows.length - seasonByPoolKey.size
+
+  return { seasonByPoolKey, diagnostics }
 }

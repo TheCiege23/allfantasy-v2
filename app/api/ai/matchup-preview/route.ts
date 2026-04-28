@@ -11,6 +11,13 @@ import {
   nameForPlayer,
   readSleeperStateWeek,
 } from '@/lib/ai/league-settings-ai/sleeper'
+import {
+  buildAiCacheKey,
+  createSmokeAiResult,
+  isAiResultCacheSmokeProviderEnabled,
+  readAiResultCache,
+  writeAiResultCache,
+} from '@/lib/ai-result-cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +56,8 @@ export async function POST(req: Request) {
   }
 
   try {
+    const smokeProviderEnabled = isAiResultCacheSmokeProviderEnabled()
+
     const bundle = await fetchSleeperLeagueBundle(sleeperId)
     const stateWeek = readSleeperStateWeek(bundle.state) ?? NaN
     const week =
@@ -112,7 +121,82 @@ winProbability is 0-100 for the requesting manager. keyMatchups are short bullet
 
     const userPayload = `League: ${String(bundle.league.name ?? '')} (${bundle.sport})\n${JSON.stringify(snapshot, null, 2)}`
 
+    // ── AiResult cache gate (2h TTL — scores change during games) ─────────────────────────
+    const MATCHUP_PREVIEW_TTL_MS = 2 * 60 * 60 * 1000
+    const { resultKey, inputHash } = buildAiCacheKey('matchup-preview', {
+      leagueId,
+      userId: targetUserId,
+      sport: bundle.sport,
+      week,
+    })
+    const cached = await readAiResultCache(resultKey)
+    if (cached?.resultJson) {
+      console.log(`[api/ai/matchup-preview] AiResult cache hit { league: '${leagueId}', user: '${targetUserId}', week: ${week} }`)
+      if (smokeProviderEnabled) {
+        return NextResponse.json({
+          ok: true,
+          source: 'ai-result-cache',
+          resultKey,
+          preview: cached.resultJson,
+        })
+      }
+      return NextResponse.json(cached.resultJson)
+    }
+
+    if (smokeProviderEnabled) {
+      const smoke = createSmokeAiResult({
+        feature: 'matchup-preview',
+        leagueId,
+        route: '/api/ai/matchup-preview',
+        input: {
+          leagueId,
+          userId: targetUserId,
+          sport: bundle.sport,
+          week,
+        },
+      })
+      const smokeResult = {
+        winProbability: 50,
+        keyMatchups: [smoke.text],
+        lineupRecommendation: 'Smoke-mode placeholder recommendation generated from deterministic input hash.',
+        meta: smoke.json,
+      }
+
+      await writeAiResultCache({
+        resultKey,
+        inputHash,
+        feature: 'matchup-preview',
+        scopeType: 'league',
+        scopeId: leagueId,
+        provider: 'smoke-provider',
+        inputJson: { leagueId, userId: targetUserId, sport: bundle.sport, week, smokeProvider: true },
+        resultJson: smokeResult,
+        ttlMs: MATCHUP_PREVIEW_TTL_MS,
+      })
+
+      return NextResponse.json({
+        ok: true,
+        source: 'smoke-provider',
+        resultKey,
+        preview: smokeResult,
+      })
+    }
+
     const raw = await callClaudeJson({ system, user: userPayload, userId: sessionUserId })
+
+    // Write to AiResult cache (fire-and-forget).
+    writeAiResultCache({
+      resultKey,
+      inputHash,
+      feature: 'matchup-preview',
+      scopeType: 'league',
+      scopeId: leagueId,
+      provider: 'anthropic',
+      inputJson: { leagueId, userId: targetUserId, sport: bundle.sport, week },
+      resultJson: raw,
+      ttlMs: MATCHUP_PREVIEW_TTL_MS,
+    }).catch(() => undefined)
+
     return NextResponse.json(raw)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Matchup preview failed'

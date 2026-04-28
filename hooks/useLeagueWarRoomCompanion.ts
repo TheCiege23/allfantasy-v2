@@ -194,7 +194,14 @@ export function useLeagueWarRoomCompanion({
     setLoading(true)
     setError(null)
     try {
-      const [sessionRes, poolRes, settingsRes, ctxRes, rosterCfgRes] = await Promise.all([
+      // Phase 3b — perf: drop `assistant-context` from this hook entirely.
+      // That endpoint takes ~68s on cold load (calls news/injury/AI providers).
+      // The War Room companion was firing it on every load AND every 45s poll,
+      // serializing the room render. The DraftRoomPageClient bootstrap already
+      // fetches ctx in the background; the companion's sportsFeed/digest will
+      // be empty here for the first poll, then a future architecture pass can
+      // share ctx via React context if needed.
+      const [sessionRes, poolRes, settingsRes, rosterCfgRes] = await Promise.all([
         fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/session`, {
           cache: 'no-store',
           signal: ac.signal,
@@ -207,20 +214,16 @@ export function useLeagueWarRoomCompanion({
           cache: 'no-store',
           signal: ac.signal,
         }),
-        fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/assistant-context`, {
-          cache: 'no-store',
-          signal: ac.signal,
-        }),
         fetch(`/api/leagues/${encodeURIComponent(leagueId)}/roster-config`, {
           cache: 'no-store',
           signal: ac.signal,
         }),
       ])
+      const ctxJson: AssistantContextJson = {}
 
       const sessionJson = await sessionRes.json().catch(() => ({}))
       const poolJson = await poolRes.json().catch(() => ({}))
       const settingsJson = (await settingsRes.json().catch(() => ({}))) as DraftSettingsJson
-      const ctxJson = (await ctxRes.json().catch(() => ({}))) as AssistantContextJson
       const rosterCfgJson = (await rosterCfgRes.json().catch(() => null)) as {
         orderedSlotLabels?: unknown
       } | null

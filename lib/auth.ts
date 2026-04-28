@@ -3,6 +3,7 @@ import { PHASE_PRODUCTION_BUILD } from "next/constants";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import AppleProvider from "next-auth/providers/apple";
+import SpotifyProvider from "next-auth/providers/spotify";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { resolveUnifiedAuthIdentity } from "@/lib/auth/AuthIdentityResolver";
@@ -299,6 +300,19 @@ if (appleClientId && appleClientSecret) {
   );
 }
 
+const spotifyClientId = process.env.SPOTIFY_CLIENT_ID;
+const spotifyClientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+
+if (spotifyClientId && spotifyClientSecret) {
+  providers.push(
+    SpotifyProvider({
+      clientId: spotifyClientId,
+      clientSecret: spotifyClientSecret,
+      allowDangerousEmailAccountLinking: true,
+    })
+  );
+}
+
 /** NextAuth reads `NEXTAUTH_URL` from the environment for OAuth redirects (set in Vercel to your canonical origin). */
 export const authOptions: NextAuthOptions = {
   secret: getAuthSecret(),
@@ -317,15 +331,21 @@ export const authOptions: NextAuthOptions = {
         return true;
       }
 
-      if (account.provider === "google" || account.provider === "apple") {
+      if (account.provider === "google" || account.provider === "apple" || account.provider === "spotify") {
         const runSocialLink = async (): Promise<true> => {
           const oauthEmail = resolveOAuthEmailFromCallback(user, profile);
           if (oauthEmail) {
             user.email = oauthEmail;
           }
 
+          const provider: "google" | "apple" | "spotify" =
+            account.provider === "google"
+              ? "google"
+              : account.provider === "apple"
+                ? "apple"
+                : "spotify";
           const linkedUser = await linkSocialAccountToAppUser({
-            provider: account.provider === "google" ? "google" : "apple",
+            provider,
             providerAccountId: account.providerAccountId,
             type: account.type,
             email: oauthEmail ?? user.email,
@@ -387,8 +407,24 @@ export const authOptions: NextAuthOptions = {
         session.user.image =
           typeof token.picture === "string" ? token.picture : session.user.image;
 
-        (session.user as { id?: string }).id =
-          typeof token.id === "string" ? token.id : undefined;
+        const userId = typeof token.id === "string" ? token.id : undefined;
+        if (userId) {
+          session.user.id = userId;
+        }
+
+        let spotifyLinked = false;
+        if (userId && process.env.NEXT_PHASE !== PHASE_PRODUCTION_BUILD) {
+          try {
+            const spotify = await prisma.authAccount.findFirst({
+              where: { userId, provider: "spotify" },
+              select: { id: true },
+            });
+            spotifyLinked = Boolean(spotify?.id);
+          } catch {
+            spotifyLinked = false;
+          }
+        }
+        session.user.spotifyAccount = spotifyLinked;
       }
 
       return session;

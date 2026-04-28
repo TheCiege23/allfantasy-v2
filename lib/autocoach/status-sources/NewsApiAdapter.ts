@@ -1,19 +1,8 @@
 import 'server-only'
 
 import type { NormalizedStatusHit } from './types'
-import { cachedFetch, cacheKey } from '@/lib/api-cache'
-
-function injuryQueryForSport(sport: string): string {
-  const s = sport.toUpperCase()
-  if (s === 'NFL') return '(ruled out OR inactive OR IR OR injured reserve) NFL'
-  if (s === 'NBA') return '(out OR DNP OR inactive OR suspended) NBA'
-  if (s === 'MLB') return '(injured list OR IL OR suspended) MLB'
-  if (s === 'NHL') return '(IR OR LTIR OR suspended) NHL'
-  if (s === 'NCAAF') return '(out OR suspended) college football'
-  if (s === 'NCAAB') return '(out OR suspended) college basketball'
-  if (s === 'SOCCER') return '(suspended OR injured OR out) soccer'
-  return `${sport} injury ruled out`
-}
+import { getInjuryNewsArticlesDbFirst } from '@/lib/news/newsapi-cache'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 const INJURY_RE = /(ruled out|placed on|inactive|suspended|injured list|\bIR\b|\bIL\b|scratches|scratch|out for|DNP)/i
 
@@ -26,46 +15,25 @@ function majorOutlet(name: string): boolean {
  * NewsAPI.org structured articles (optional; requires NEWS_API_KEY / NEWSAPI_KEY).
  */
 export async function fetchInjuryNewsArticles(sport: string, gameDate: string): Promise<NormalizedStatusHit[]> {
-  const key = cacheKey('newsapi-injuries', sport, gameDate)
-  return cachedFetch(key, 900, () => _fetchInjuryNewsUncached(sport, gameDate))
-}
-
-async function _fetchInjuryNewsUncached(sport: string, gameDate: string): Promise<NormalizedStatusHit[]> {
-  const apiKey = process.env.NEWS_API_KEY?.trim() || process.env.NEWSAPI_KEY?.trim()
-  if (!apiKey) {
+  const normalizedSport = normalizeToSupportedSport(sport)
+  const { articles } = await getInjuryNewsArticlesDbFirst({
+    sport: normalizedSport,
+    gameDate,
+  })
+  if (articles.length === 0) {
     return []
   }
 
-  const q = injuryQueryForSport(sport)
   try {
-    const params = new URLSearchParams({
-      q,
-      language: 'en',
-      sortBy: 'publishedAt',
-      from: gameDate,
-      pageSize: '40',
-      apiKey,
-    })
-    params.set('domains', 'bleacherreport.com,espn.com,cbssports.com,nfl.com,nba.com,mlb.com,nhl.com')
-
-    const res = await fetch(`https://newsapi.org/v2/everything?${params.toString()}`, { // db-first-exception: injury status ingestion adapter
-      cache: 'no-store',
-    })
-    if (!res.ok) {
-      console.warn('[NewsApiAdapter] everything failed:', res.status)
-      return []
-    }
-    const data = (await res.json()) as { articles?: Array<Record<string, unknown>> }
-    const articles = data.articles ?? []
     const out: NormalizedStatusHit[] = []
     const nameRe = /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})\b/g
 
-    for (const a of articles) {
-      const title = String(a.title ?? '')
-      const desc = String(a.description ?? '')
+    for (const article of articles) {
+      const title = String(article.title ?? '')
+      const desc = String(article.description ?? '')
       const combined = `${title} ${desc}`
       if (!INJURY_RE.test(combined)) continue
-      const sourceName = String((a.source as { name?: string } | undefined)?.name ?? 'news')
+      const sourceName = String(article.source ?? 'newsapi_everything')
 
       const candidates: string[] = []
       for (const m of combined.matchAll(nameRe)) {
@@ -82,11 +50,11 @@ async function _fetchInjuryNewsUncached(sport: string, gameDate: string): Promis
       const confidence = majorOutlet(sourceName) ? 0.85 : 0.6
       out.push({
         playerName,
-        sport: sport.toUpperCase(),
+        sport: normalizedSport,
         status,
         source: 'news_api',
         confidence,
-        sourceUrl: typeof a.url === 'string' ? a.url : undefined,
+        sourceUrl: article.url || undefined,
         rawText: title,
         gameDate,
       })

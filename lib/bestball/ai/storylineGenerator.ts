@@ -8,7 +8,7 @@ export async function generateBestBallWeeklyRecap(
   void contestId
   return {
     headline: `Week ${week} best ball recap`,
-    body: `League ${leagueId}: optimized lineups captured spike weeks — full narrative pending score feed.`,
+    body: `Preview only — League ${leagueId} best ball recap is not production-ready yet. Full narrative generation is waiting on the live score feed wiring.`,
     tags: ['best_ball', 'recap'],
   }
 }
@@ -22,7 +22,7 @@ export async function generateDraftStorylines(
   return [
     {
       headline: 'Draft storylines',
-      body: `${sport} best ball draft complete for league ${leagueId} — value and depth themes TBD.`,
+      body: `Preview only — ${sport} best ball draft storyline generation for league ${leagueId} is coming soon and is not production-ready yet.`,
       tags: ['best_ball', 'draft'],
     },
   ]

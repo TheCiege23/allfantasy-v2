@@ -26,28 +26,9 @@ import {
   evaluateAIInvocationPolicy,
   withTimeout,
 } from '@/lib/draft-automation-policy'
-import {
-  API_CACHE_TTL,
-  getApiCached,
-  setApiCached,
-} from '@/lib/api-performance'
+import { getCachedAiResult, saveAiResult } from '@/lib/ai/ai-result-cache'
 
 export const dynamic = 'force-dynamic'
-const DRAFT_QUEUE_AI_EXPLANATION_CACHE_CONTROL = 'private, max-age=60, stale-while-revalidate=120'
-
-function hashString(input: string): string {
-  let hash = 2166136261
-  for (let index = 0; index < input.length; index += 1) {
-    hash ^= input.charCodeAt(index)
-    hash +=
-      (hash << 1) +
-      (hash << 4) +
-      (hash << 7) +
-      (hash << 8) +
-      (hash << 24)
-  }
-  return (hash >>> 0).toString(16)
-}
 
 export async function POST(
   req: NextRequest,
@@ -147,18 +128,23 @@ export async function POST(
       .slice(0, 5)
       .map(([position, score]) => `${position}:${score}`)
       .join(', ')
-    const aiExplanationCacheKey = `draft_queue_ai_explanation:${leagueId}:${hashString(
-      JSON.stringify({ sport, lead, needContext, deterministic: result.explanation })
-    )}`
-    const cachedExplanation = getApiCached(aiExplanationCacheKey)
-    if (
-      cachedExplanation &&
-      cachedExplanation.body &&
-      typeof (cachedExplanation.body as { explanation?: unknown }).explanation === 'string'
-    ) {
-      explanation = String((cachedExplanation.body as { explanation?: string }).explanation)
+    const aiCachePayload = {
+      sport,
+      lead,
+      needContext,
+      deterministic: result.explanation,
+    }
+
+    const cachedExplanation = await getCachedAiResult({
+      feature: 'draft_queue_ai_explanation',
+      scopeType: 'league',
+      scopeId: leagueId,
+      payload: aiCachePayload,
+    })
+    if (cachedExplanation?.resultText && cachedExplanation.resultText.trim().length > 0) {
+      explanation = cachedExplanation.resultText.trim()
       aiUsed = true
-      reasonCode = 'ai_explanation_cache_hit'
+      reasonCode = 'ai_explanation_db_cache_hit'
     } else {
       const aiResult = await withTimeout(
         openaiChatText({
@@ -189,15 +175,18 @@ export async function POST(
         explanation = aiResult.value.text.trim()
         aiUsed = true
         reasonCode = 'ai_explanation_applied'
-        setApiCached(
-          aiExplanationCacheKey,
-          { explanation },
-          {
-            ttlMs: API_CACHE_TTL.MEDIUM,
-            status: 200,
-            headers: { 'Cache-Control': DRAFT_QUEUE_AI_EXPLANATION_CACHE_CONTROL },
-          }
-        )
+        await saveAiResult({
+          feature: 'draft_queue_ai_explanation',
+          scopeType: 'league',
+          scopeId: leagueId,
+          provider: 'openai',
+          model: aiResult.value.model,
+          payload: aiCachePayload,
+          resultText: explanation,
+          resultJson: { explanation },
+          ttlSeconds: 5 * 60,
+          status: 'ready',
+        })
       } else if (!aiResult.ok) {
         reasonCode = 'ai_timeout_deterministic_fallback'
       } else {

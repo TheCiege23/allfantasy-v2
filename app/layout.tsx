@@ -9,6 +9,7 @@ import { GlobalModeToggle } from '@/components/theme/GlobalModeToggle';
 import SessionAppProvider from '@/components/providers/SessionAppProvider';
 import { BackToTop } from '@/components/BackToTop';
 import { SpotifyMiniPlayer } from '@/components/spotify/SpotifyMiniPlayer';
+import { FloatingMusicWidget } from '@/components/MusicWidget';
 import { LanguageProviderClient } from '@/components/i18n/LanguageProviderClient';
 import { DefaultJsonLd } from '@/components/seo/JsonLd';
 import SyncProfilePreferences from '@/components/auth/SyncProfilePreferences';
@@ -256,6 +257,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Toaster position="top-center" richColors closeButton />
               <BackToTop />
               <SpotifyMiniPlayer />
+              <FloatingMusicWidget />
             </LanguageProviderClient>
           </ThemeProvider>
         </SessionAppProvider>

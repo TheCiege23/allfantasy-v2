@@ -106,7 +106,7 @@ export function WarRoomPopup({
         className={`fixed bottom-4 right-4 z-[60] inline-flex h-14 w-14 items-center justify-center rounded-full border-2 shadow-2xl shadow-black/50 transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 ${
           open
             ? 'border-cyan-400/55 bg-gradient-to-br from-cyan-500/30 to-violet-600/25 text-cyan-50'
-            : 'border-white/20 bg-[#0a1228] text-white/85 hover:border-cyan-400/35 hover:text-cyan-100'
+            : 'border-white/20 bg-[linear-gradient(150deg,#0a1228_0%,#101a34_100%)] text-white/85 hover:border-cyan-400/35 hover:text-cyan-100'
         }`}
       >
         {/* AF crest — simple wordmark; replace with logo image when assets land. */}
@@ -131,16 +131,19 @@ export function WarRoomPopup({
           role="dialog"
           aria-label={triggerLabel}
           data-testid={testIdBase}
-          className="fixed inset-x-0 bottom-0 z-[55] flex h-[80vh] flex-col overflow-hidden border-t border-white/15 bg-[#0a1228] shadow-2xl shadow-black/60 sm:bottom-20 sm:right-4 sm:left-auto sm:inset-x-auto sm:h-[min(560px,80vh)] sm:w-[min(380px,calc(100vw-2rem))] sm:rounded-xl sm:border"
+          className="fixed inset-x-0 bottom-0 z-[55] flex h-[80vh] flex-col overflow-hidden border-t border-cyan-400/20 bg-[linear-gradient(180deg,#0a1228_0%,#060f20_100%)] shadow-2xl shadow-black/60 sm:bottom-20 sm:right-4 sm:left-auto sm:inset-x-auto sm:h-[min(560px,80vh)] sm:w-[min(380px,calc(100vw-2rem))] sm:rounded-xl sm:border"
         >
-          <header className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-[#060d1d] px-3 py-2">
+          <header className="flex shrink-0 items-center justify-between gap-2 border-b border-cyan-400/15 bg-[linear-gradient(90deg,rgba(8,18,40,0.95),rgba(6,14,30,0.92))] px-3 py-2">
             <div className="flex items-center gap-2">
               <span className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-cyan-400/35 bg-gradient-to-br from-cyan-500/25 to-violet-600/20 text-[10px] font-extrabold text-cyan-50">
                 AF
               </span>
-              <span className="text-[12px] font-semibold uppercase tracking-[0.18em] text-white/85">
-                {triggerLabel}
-              </span>
+              <div className="flex flex-col leading-tight">
+                <span className="text-[12px] font-semibold uppercase tracking-[0.18em] text-white/90">
+                  {triggerLabel}
+                </span>
+                <span className="text-[9px] font-medium uppercase tracking-[0.14em] text-cyan-200/70">Command Center</span>
+              </div>
             </div>
             <button
               type="button"
