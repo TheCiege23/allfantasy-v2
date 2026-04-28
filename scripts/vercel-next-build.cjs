@@ -1,20 +1,11 @@
 const fs = require('fs')
 const path = require('path')
 const { spawn } = require('child_process')
+const { patchManifestRace } = require('./patch-manifest-race.cjs')
 
 const repoRoot = process.cwd()
 const backupRoot = path.join(repoRoot, '.next-build-disabled-routes')
 const nextBuildDir = path.join(repoRoot, '.next')
-const nextPagesManifestPluginPath = path.join(
-  repoRoot,
-  'node_modules',
-  'next',
-  'dist',
-  'build',
-  'webpack',
-  'plugins',
-  'pages-manifest-plugin.js'
-)
 const routeDirsToDisable = [
   path.join('app', 'e2e'),
   path.join('app', 'tools', 'social-share-engine-harness'),
@@ -111,37 +102,10 @@ function restoreNonProdRoutes() {
   fs.rmSync(backupRoot, { recursive: true, force: true })
 }
 
-function patchNextManifestMergeRace() {
-  if (!fs.existsSync(nextPagesManifestPluginPath)) return
-
-  const source = fs.readFileSync(nextPagesManifestPluginPath, 'utf8')
-  const original = `        const writeMergedManifest = async (manifestPath, entries)=>{\n            await _promises.default.mkdir(_path.default.dirname(manifestPath), {\n                recursive: true\n            });\n            await _promises.default.writeFile(manifestPath, JSON.stringify({\n                ...await _promises.default.readFile(manifestPath, "utf8").then((res)=>JSON.parse(res)).catch(()=>({})),\n                ...entries\n            }, null, 2));\n        };`
-
-  const oldPatched = `        const writeMergedManifest = async (manifestPath, entries)=>{\n            const lockPath = manifestPath + ".lock";\n            const acquireManifestLock = async ()=>{\n                for(let attempt = 0; attempt < 400; attempt++){\n                    try {\n                        return await _promises.default.open(lockPath, "wx");\n                    } catch (error) {\n                        if (!error || error.code !== "EEXIST") throw error;\n                        await new Promise((resolve)=>setTimeout(resolve, 25));\n                    }\n                }\n                throw new Error("__AF_MANIFEST_LOCK_PATCH__: timed out acquiring Next manifest lock for " + manifestPath);\n            };\n            const lockHandle = await acquireManifestLock();\n            try {\n                await _promises.default.mkdir(_path.default.dirname(manifestPath), {\n                    recursive: true\n                });\n                await _promises.default.writeFile(manifestPath, JSON.stringify({\n                    ...await _promises.default.readFile(manifestPath, "utf8").then((res)=>JSON.parse(res)).catch(()=>({})),\n                    ...entries\n                }, null, 2));\n            } finally {\n                await lockHandle.close().catch(()=>{});\n                await _promises.default.unlink(lockPath).catch(()=>{});\n            }\n        };`
-
-  const replacement = `        const writeMergedManifest = async (manifestPath, entries)=>{\n            await _promises.default.mkdir(_path.default.dirname(manifestPath), {\n                recursive: true\n            });\n            const lockPath = manifestPath + ".lock";\n            const acquireManifestLock = async ()=>{\n                for(let attempt = 0; attempt < 400; attempt++){\n                    try {\n                        return await _promises.default.open(lockPath, "wx");\n                    } catch (error) {\n                        if (!error || error.code !== "EEXIST") throw error;\n                        await new Promise((resolve)=>setTimeout(resolve, 25));\n                    }\n                }\n                throw new Error("__AF_MANIFEST_LOCK_PATCH__: timed out acquiring Next manifest lock for " + manifestPath);\n            };\n            const lockHandle = await acquireManifestLock();\n            try {\n                await _promises.default.writeFile(manifestPath, JSON.stringify({\n                    ...await _promises.default.readFile(manifestPath, "utf8").then((res)=>JSON.parse(res)).catch(()=>({})),\n                    ...entries\n                }, null, 2));\n            } finally {\n                await lockHandle.close().catch(()=>{});\n                await _promises.default.unlink(lockPath).catch(()=>{});\n            }\n        };`
-
-  let patched = source
-  if (patched.includes(oldPatched)) {
-    patched = patched.replace(oldPatched, replacement)
-  } else if (patched.includes(original)) {
-    patched = patched.replace(original, replacement)
-  } else if (patched.includes('__AF_MANIFEST_LOCK_PATCH__')) {
-    console.log('[vercel-next-build] Next pages-manifest-plugin manifest lock patch already current')
-    return
-  } else {
-    console.warn('[vercel-next-build] Skipped Next manifest race patch; upstream plugin shape changed.')
-    return
-  }
-
-  fs.writeFileSync(nextPagesManifestPluginPath, patched)
-  console.log('[vercel-next-build] Patched Next pages-manifest-plugin manifest merge race')
-}
-
 function run() {
   // Avoid stale build-manifest/chunk issues in cached CI environments.
   fs.rmSync(nextBuildDir, { recursive: true, force: true })
-  patchNextManifestMergeRace()
+  patchManifestRace(repoRoot)
   disableNonProdRoutes()
 
   const nextArgs = process.argv.slice(2)
