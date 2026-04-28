@@ -6,6 +6,8 @@
     "dev": "set AF_NEXT_DIST_DIR=.next-dev-local&& set NODE_OPTIONS=--max-old-space-size=4096&& npx -y node@20 scripts/clean-next-dev.cjs && npx -y node@20 node_modules/next/dist/bin/next dev",
     "dev:reset": "set AF_NEXT_DIST_DIR=.next-dev-local&& set NODE_OPTIONS=--max-old-space-size=4096&& npx -y node@20 scripts/clean-next-dev.cjs --deep && npx -y node@20 node_modules/next/dist/bin/next dev",
     "dev:stable": "set AF_NEXT_DIST_DIR=.next-dev-local&& set NODE_OPTIONS=--max-old-space-size=4096&& npx -y node@20 node_modules/next/dist/bin/next dev -p 3010 --hostname 127.0.0.1",
+    "dev:unix": "AF_NEXT_DIST_DIR=.next-dev-local NODE_OPTIONS=--max-old-space-size=4096 node scripts/clean-next-dev.cjs && AF_NEXT_DIST_DIR=.next-dev-local NODE_OPTIONS=--max-old-space-size=4096 node node_modules/next/dist/bin/next dev",
+    "dev:unix:stable": "AF_NEXT_DIST_DIR=.next-dev-local NODE_OPTIONS=--max-old-space-size=4096 node node_modules/next/dist/bin/next dev -p 3010 --hostname 127.0.0.1",
     "dev:ports": "node scripts/dev-port-check.mjs",
     "dev:kill": "node scripts/dev-port-check.mjs --kill",
     "build": "node scripts/vercel-next-build.cjs",

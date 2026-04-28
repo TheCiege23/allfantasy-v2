@@ -105,7 +105,15 @@ function restoreNonProdRoutes() {
 function run() {
   // Avoid stale build-manifest/chunk issues in cached CI environments.
   fs.rmSync(nextBuildDir, { recursive: true, force: true })
-  patchManifestRace(repoRoot)
+  const patchStatus = patchManifestRace(repoRoot)
+  if (patchStatus === 'skipped-missing') {
+    console.warn('[vercel-next-build] pages-manifest-plugin.js not found — manifest race patch skipped.')
+  } else if (patchStatus === 'skipped-shape-changed') {
+    console.warn(
+      '[vercel-next-build] Manifest race patch skipped — upstream plugin shape changed. ' +
+        'Update ORIGINAL in scripts/patch-manifest-race.cjs if concurrent build hangs occur.'
+    )
+  }
   disableNonProdRoutes()
 
   const nextArgs = process.argv.slice(2)
