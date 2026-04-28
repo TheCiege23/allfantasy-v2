@@ -302,7 +302,6 @@ describe('PickSubmissionService.ts — no forbidden patterns', () => {
   })
 
   it('no direct Supabase client calls (DB-first boundary)', () => {
-    const FORBIDDEN = 'supa' + 'base'
-    expect(src.toLowerCase()).not.toContain(FORBIDDEN)
+    expect(src.toLowerCase()).not.toContain('supabase')
   })
 })

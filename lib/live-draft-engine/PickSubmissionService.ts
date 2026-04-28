@@ -77,7 +77,7 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
   const totalPicks = session.rounds * teamCount
   // Use the picks array (not just picksCount) so that commissioner-cleared empty slots
   // (gap boards) are skipped and the correct next open overall is resolved.
-  const progressPicks = session.picks.map((p) => ({
+  const picksForResolver = session.picks.map((p) => ({
     overall: p.overall,
     playerName: p.playerName,
     position: p.position,
@@ -85,7 +85,7 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
   }))
   const current = resolveCurrentOnTheClock({
     totalPicks,
-    picks: progressPicks,
+    picks: picksForResolver,
     teamCount,
     draftType: session.draftType as 'snake' | 'linear' | 'auction',
     thirdRoundReversal: session.thirdRoundReversal,
