@@ -859,7 +859,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const imageValidation = validateScreenshotFile(formData.get('image'))
   if (imageValidation.error) {
-    return NextResponse.json({ error: imageValidation.error }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid request format.' }, { status: 400 })
   }
 
   let conversationPayload: unknown

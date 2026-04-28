@@ -191,7 +191,12 @@ export async function getPlayerPoolForSport(
     image_url: (r as { imageUrl?: string | null }).imageUrl ?? null,
   }))
 
-  if (sport === 'NFL') {
+  const IDP_INDIVIDUAL_POSITIONS = new Set(['DE', 'DT', 'LB', 'CB', 'S'])
+  const isIdpOnlyFilter =
+    normalizedPositions !== null &&
+    normalizedPositions.every((p) => IDP_INDIVIDUAL_POSITIONS.has(p) || p === 'IDP_FLEX')
+
+  if (sport === 'NFL' && !isIdpOnlyFilter) {
     const existingDefTeams = new Set(
       primary
         .filter((p) => ['DEF', 'DST'].includes(String(p.position ?? '').trim().toUpperCase()))
@@ -224,7 +229,8 @@ export async function getPlayerPoolForSport(
   const limit = requestedTake
   const canFallbackIdpFromIdentity =
     sport === 'NFL' &&
-    (normalizedPositions == null || normalizedPositions.some((p) => ['DE', 'DT', 'LB', 'CB', 'S'].includes(p)))
+    (normalizedPositions == null ||
+      normalizedPositions.some((p) => IDP_INDIVIDUAL_POSITIONS.has(p) || p === 'IDP_FLEX'))
 
   if (!canFallbackIdpFromIdentity || primary.length >= limit) {
     return primary

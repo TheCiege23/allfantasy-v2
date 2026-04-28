@@ -23,6 +23,10 @@ vi.mock('@/lib/prisma', () => ({
     playerSeasonStats: {
       findMany: playerSeasonStatsFindManyMock,
     },
+    aiResult: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      upsert: vi.fn().mockResolvedValue({}),
+    },
   },
 }))
 

@@ -52,6 +52,7 @@ vi.mock('@/lib/draft/analytics/nfl-rolling-insights-draft-analytics', () => ({
   loadRollingInsightsSeasonByDraftPoolKey: (...args: unknown[]) => hm.loadRollingInsightsSeasonByDraftPoolKey(...args),
   loadRollingInsightsStatsDetailByPlayerIds: (...args: unknown[]) =>
     hm.loadRollingInsightsStatsDetailByPlayerIds(...args),
+  loadPlayerSeasonStatsFallback: vi.fn(),
   resolveNflDraftPoolAnalytics: vi.fn(() => ({
     fantasyPointsPerGame: null,
     lifetimeValue: null,
