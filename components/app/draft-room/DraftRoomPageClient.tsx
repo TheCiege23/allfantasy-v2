@@ -2876,9 +2876,17 @@ export function DraftRoomPageClient({
     (fromIndex: number, toIndex: number) => {
       const drafted = new Set(session?.picks?.map((p) => normalizeDraftedPlayerName(p.playerName)) ?? [])
       const filtered = queue.filter((e) => !drafted.has(normalizeDraftedPlayerName(e.playerName)))
-      const next = [...filtered]
-      const [item] = next.splice(fromIndex, 1)
-      next.splice(toIndex, 0, item)
+      if (fromIndex < 0 || fromIndex >= filtered.length) return
+      // Reorder within the visible (non-drafted) sub-list
+      const reordered = [...filtered]
+      const [item] = reordered.splice(fromIndex, 1)
+      if (item === undefined) return
+      reordered.splice(toIndex, 0, item)
+      // Rebuild full queue: keep drafted entries in-place, replace non-drafted with reordered order
+      let reorderedIdx = 0
+      const next = queue.map((e) =>
+        drafted.has(normalizeDraftedPlayerName(e.playerName)) ? e : reordered[reorderedIdx++]!,
+      )
       setQueue(next)
       handleQueueSave(next)
     },

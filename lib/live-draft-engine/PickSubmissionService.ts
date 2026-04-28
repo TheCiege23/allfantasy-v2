@@ -23,6 +23,7 @@ import { buildKeeperLocks } from './keeper/KeeperDraftOrder'
 import type { KeeperConfig, KeeperSelection } from './keeper/types'
 import { getSalaryCapConfig } from '@/lib/salary-cap/SalaryCapLeagueConfig'
 import { assignRookieContract } from '@/lib/salary-cap/RookieContractService'
+import { isDraftBoardFull, isDraftPickRowEmpty } from './draftPickEmpty'
 
 export interface SubmitPickInput {
   leagueId: string
@@ -74,10 +75,17 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
   const tradedPicks = Array.isArray(tradedPicksRaw) ? tradedPicksRaw : []
   const teamCount = session.teamCount
   const totalPicks = session.rounds * teamCount
-  const picksCount = session.picks.length
+  // Use the picks array (not just picksCount) so that commissioner-cleared empty slots
+  // (gap boards) are skipped and the correct next open overall is resolved.
+  const progressPicks = session.picks.map((p) => ({
+    overall: p.overall,
+    playerName: p.playerName,
+    position: p.position,
+    pickMetadata: (p as { pickMetadata?: unknown | null }).pickMetadata ?? null,
+  }))
   const current = resolveCurrentOnTheClock({
     totalPicks,
-    picksCount,
+    picks: progressPicks,
     teamCount,
     draftType: session.draftType as 'snake' | 'linear' | 'auction',
     thirdRoundReversal: session.thirdRoundReversal,
@@ -85,7 +93,8 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
   })
   if (!current) return { success: false, error: 'Draft is complete or not started' }
 
-  const overall = picksCount + 1
+  // overall comes from the resolver so it correctly handles boards with gaps
+  const overall = current.overall
   const round = Math.ceil(overall / teamCount)
   const slot = current.slot
   const resolvedOwner = resolvePickOwner(round, slot, slotOrder, tradedPicks)
@@ -132,7 +141,7 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
   })
   if (!rosterFit.valid) return { success: false, error: rosterFit.error }
 
-  const roundForEligibility = Math.ceil((picksCount + 1) / teamCount) || 1
+  const roundForEligibility = round || 1
   const rawC2cConfig = session.c2cConfig ?? (session as any).c2cConfig
   const c2cConfig =
     rawC2cConfig && typeof rawC2cConfig === 'object' && (rawC2cConfig as any).enabled
@@ -211,8 +220,17 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
         where: { id: session.id },
         include: { picks: { orderBy: { overall: 'asc' } } },
       })
-      if (!locked || locked.picks.length !== picksCount) {
+      if (!locked) {
         throw new Error('Draft state changed; please retry')
+      }
+      const existingAtOverall = locked.picks.find((p: any) => p.overall === overall)
+      // If a real (non-empty) pick already landed at this slot, reject as stale
+      if (existingAtOverall && !isDraftPickRowEmpty(existingAtOverall)) {
+        throw new Error('Draft state changed; please retry')
+      }
+      // If a commissioner-cleared empty-slot row exists, delete it before inserting
+      if (existingAtOverall) {
+        await (tx as any).draftPick.delete({ where: { id: existingAtOverall.id } })
       }
       const created = await (tx as any).draftPick.create({
         data: {
@@ -338,6 +356,26 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
           totalPicks,
         })
       }
+    }
+  } else {
+    // For boards with commissioner-cleared gaps: the filled slot may not be the
+    // highest overall, but the board might now be complete. Check explicitly.
+    const allPickRows = await prisma.draftPick.findMany({
+      where: { sessionId: session.id },
+      select: { overall: true, playerName: true, position: true, pickMetadata: true },
+    })
+    if (
+      isDraftBoardFull(
+        allPickRows.map((p) => ({
+          overall: p.overall,
+          playerName: p.playerName,
+          position: p.position,
+          pickMetadata: (p as { pickMetadata?: unknown | null }).pickMetadata ?? null,
+        })),
+        totalPicks,
+      )
+    ) {
+      await completeDraftSession(input.leagueId)
     }
   }
 
