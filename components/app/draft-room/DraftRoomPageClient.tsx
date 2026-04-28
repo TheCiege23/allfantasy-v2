@@ -2884,11 +2884,13 @@ export function DraftRoomPageClient({
       reordered.splice(toIndex, 0, item)
       // Rebuild full queue: keep drafted entries in-place, replace non-drafted with reordered order
       let reorderedIdx = 0
-      const next = queue.map((e) => {
-        if (drafted.has(normalizeDraftedPlayerName(e.playerName))) return e
-        const replacement = reorderedIdx < reordered.length ? reordered[reorderedIdx++] : undefined
-        return replacement ?? e
-      })
+      const next = queue
+        .map((e) => {
+          if (drafted.has(normalizeDraftedPlayerName(e.playerName))) return e
+          if (reorderedIdx >= reordered.length) return undefined
+          return reordered[reorderedIdx++]
+        })
+        .filter((e): e is NonNullable<typeof e> => e !== undefined)
       setQueue(next)
       handleQueueSave(next)
     },

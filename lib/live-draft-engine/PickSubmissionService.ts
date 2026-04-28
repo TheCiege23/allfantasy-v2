@@ -141,7 +141,7 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
   })
   if (!rosterFit.valid) return { success: false, error: rosterFit.error }
 
-  const roundForEligibility = round || 1
+  const roundForEligibility = round ?? 1
   const rawC2cConfig = session.c2cConfig ?? (session as any).c2cConfig
   const c2cConfig =
     rawC2cConfig && typeof rawC2cConfig === 'object' && (rawC2cConfig as any).enabled
