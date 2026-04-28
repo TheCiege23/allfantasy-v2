@@ -220,9 +220,9 @@ describe('PickSubmissionService.ts — Bug 1: gap-aware overall resolution', () 
   const src = read(SERVICE_FILE)
 
   it('uses resolveCurrentOnTheClock with picks array (not picksCount)', () => {
-    // Must pass `picks: progressPicks` (the mapped array), not `picksCount`
+    // Must pass the mapped picks array (picksForResolver), not `picksCount`
     expect(src).toMatch(/resolveCurrentOnTheClock\(\{/)
-    expect(src).toMatch(/picks: progressPicks/)
+    expect(src).toMatch(/picks: picksForResolver/)
   })
 
   it('does NOT use the legacy picksCount+1 formula for overall', () => {
