@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { Suspense } from 'react'
 import DraftQueueHarnessClient from './DraftQueueHarnessClient'
 
 export const dynamic = 'force-dynamic'
@@ -8,5 +9,9 @@ export default function E2EDraftQueuePage() {
     notFound()
   }
 
-  return <DraftQueueHarnessClient />
+  return (
+    <Suspense>
+      <DraftQueueHarnessClient />
+    </Suspense>
+  )
 }
