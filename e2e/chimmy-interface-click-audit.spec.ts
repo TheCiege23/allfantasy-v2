@@ -315,7 +315,7 @@ test.describe('@chimmy chimmy interface click audit', () => {
     await expect.poll(() => chatCalls, { timeout: 30_000 }).toBeGreaterThanOrEqual(1)
     await expect(inlineShell.getByTestId('chimmy-response-structure').last()).toBeVisible()
     await expect(inlineShell.getByText(/Short answer/i)).toBeVisible()
-    await expect(inlineShell.getByText(/What the data says/i)).toBeVisible()
+    await expect(inlineShell.getByTestId('chimmy-response-structure').last().getByText(/What the data says/i)).toBeVisible()
     await expect(inlineShell.getByText(/Recommended action/i)).toBeVisible()
     await expect(inlineShell.getByTestId('chimmy-trust-panel').last()).toBeVisible()
 
