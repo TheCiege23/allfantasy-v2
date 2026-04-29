@@ -43,10 +43,11 @@ describe('LeagueShell — af-pre-draft-fix-action listener', () => {
    * the next `useEffect` / function boundary.
    */
   const sliceStart = src.indexOf('Slice H — listen for')
-  const sliceEnd = sliceStart >= 0 ? src.indexOf('}, [league.id])', sliceStart) : -1
+  const sliceEndNeedle = '}, [league.id, openLeagueSettingsModal])'
+  const sliceEnd = sliceStart >= 0 ? src.indexOf(sliceEndNeedle, sliceStart) : -1
   const sliceBody =
     sliceStart >= 0 && sliceEnd > sliceStart
-      ? src.slice(sliceStart, sliceEnd + '}, [league.id])'.length)
+      ? src.slice(sliceStart, sliceEnd + sliceEndNeedle.length)
       : ''
 
   it('Slice H useEffect block exists and is bounded', () => {
@@ -94,12 +95,8 @@ describe('LeagueShell — af-pre-draft-fix-action listener', () => {
     expect(sliceBody).not.toMatch(/window\.location\.(href|assign|replace)\s*[=(]/)
   })
 
-  it('declares useEffect dep array as [league.id] (no spurious dependencies that re-attach the listener)', () => {
-    // The listener body only references `league.id` and `openLeagueSettingsModal`.
-    // The latter is a stable closure within the same component instance, so
-    // it doesn't need to be a dep. Adding it would re-register the listener
-    // on every render — a leak risk if React 18 strict-mode double-invokes.
-    expect(sliceBody.endsWith('}, [league.id])')).toBe(true)
+  it('declares the complete useEffect dep array used by the listener', () => {
+    expect(sliceBody.endsWith(sliceEndNeedle)).toBe(true)
   })
 })
 

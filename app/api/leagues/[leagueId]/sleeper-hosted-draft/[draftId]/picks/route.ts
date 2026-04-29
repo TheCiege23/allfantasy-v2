@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { assertLeagueMemberWithCode } from '@/lib/league/league-access'
-import { fetchSleeperDraftPicksJson } from '@/lib/sleeper/sync/sleeperHostedDraftHistory'
+import {
+  fetchSleeperDraftPicksJson,
+  fetchSleeperLeagueDraftChain,
+} from '@/lib/sleeper/sync/sleeperHostedDraftHistory'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,12 +30,24 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden', code: access.code }, { status: access.httpStatus })
   }
 
-  if (String(access.league.platform).toLowerCase() !== 'sleeper') {
+  const league = access.league
+  if (String(league.platform).toLowerCase() !== 'sleeper') {
     return NextResponse.json({ error: 'Not a Sleeper-hosted league' }, { status: 400 })
+  }
+  const platformLeagueId = league.platformLeagueId?.trim()
+  if (!platformLeagueId) {
+    return NextResponse.json({ error: 'Missing platform league id' }, { status: 400 })
   }
 
   try {
-    const picks = await fetchSleeperDraftPicksJson(draftId)
+    const trimmedDraftId = draftId.trim()
+    const draftRows = await fetchSleeperLeagueDraftChain(platformLeagueId)
+    const draftBelongsToLeague = draftRows.some((row) => row.draftId === trimmedDraftId)
+    if (!draftBelongsToLeague) {
+      return NextResponse.json({ error: 'Draft not found for league' }, { status: 404 })
+    }
+
+    const picks = await fetchSleeperDraftPicksJson(trimmedDraftId)
     return NextResponse.json({ picks })
   } catch (e) {
     console.error('[sleeper-hosted-draft picks]', e)
