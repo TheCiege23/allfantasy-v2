@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useMemo, useState } from 'react'
 import { Shield } from 'lucide-react'
 import { PlayerImage } from '@/app/components/PlayerImage'
 
@@ -11,19 +12,17 @@ import { PlayerImage } from '@/app/components/PlayerImage'
  * Two modes:
  *
  *  - "Rich" mode — pass `playerId` (or `sleeperId`) and (optionally) `playerName`,
- *    `headshotUrl`, `position`, `team`, `espnId`, `sport`. The component delegates
- *    to `<PlayerImage>` from `app/components/PlayerImage.tsx` which walks the
- *    sport-specific provider chain and falls back to an initials placeholder
- *    when every provider 404s. Source priority for NFL today (in
- *    `lib/players/buildPlayerMap.ts:nflChain`):
- *      1. `headshotUrl` (caller-supplied; e.g. pre-resolved via
- *         `/api/player/resolve-headshot` which wraps TheSportsDB →
- *         Clearsports → API-Sports → SportsPlayer cache)
- *      2. Sleeper CDN thumb
- *      3. ESPN headshot
- *      4. Initials placeholder (final, never errors)
- *    `<PlayerImage>` uses an `onError` step-through with a hard cap (the chain
- *    is bounded and de-duped) so there is no infinite-error-loop risk.
+ *    `headshotUrl`, `position`, `team`, `espnId`, `sport`. When `useResolver`
+ *    is enabled for NFL dashboard surfaces, the component first asks the
+ *    authenticated server resolver for the best provider-backed headshot:
+ *      1. TheSportsDB
+ *      2. ClearSports
+ *      3. Sleeper CDN
+ *      4. ESPN fallback (via `<PlayerImage>`, only when `espnId` already exists)
+ *      5. Initials placeholder (final, never errors)
+ *    The rich mode still delegates rendering to `<PlayerImage>` from
+ *    `app/components/PlayerImage.tsx`, so `onError` fallback remains bounded and
+ *    safe with no infinite-error-loop risk.
  *
  *  - "Legacy" mode — pass `src` only. Renders a plain `<img>` with a shield
  *    silhouette when `src` is null. Preserves the original 33-line component's
@@ -53,6 +52,8 @@ export type PlayerHeadshotProps = {
   espnId?: string
   /** Rich mode — sport key (default NFL). */
   sport?: string
+  /** Rich mode — opt into the server-side NFL resolver for dashboard surfaces. */
+  useResolver?: boolean
   /** Rich mode — circular vs rounded card. */
   variant?: 'round' | 'card'
 
@@ -67,26 +68,117 @@ export type PlayerHeadshotProps = {
   className?: string
 }
 
+type ResolvedHeadshotEntry = {
+  headshotUrl: string | null
+}
+
+const resolvedHeadshotCache = new Map<string, Promise<ResolvedHeadshotEntry> | ResolvedHeadshotEntry>()
+
+function resolverCacheKey(props: PlayerHeadshotProps): string {
+  return JSON.stringify({
+    sport: String(props.sport ?? 'NFL').trim().toUpperCase(),
+    sleeperId: props.sleeperId ?? props.playerId ?? '',
+    playerName: props.playerName ?? '',
+    team: props.team ?? '',
+    position: props.position ?? '',
+  })
+}
+
+async function fetchResolvedHeadshot(props: PlayerHeadshotProps): Promise<ResolvedHeadshotEntry> {
+  const name = String(props.playerName ?? '').trim()
+  const sport = String(props.sport ?? 'NFL').trim().toUpperCase()
+  if (!name || sport !== 'NFL') {
+    return { headshotUrl: null }
+  }
+
+  const url = new URL('/api/player/resolve-headshot', window.location.origin)
+  url.searchParams.set('name', name)
+  url.searchParams.set('sport', sport)
+  if (props.team?.trim()) url.searchParams.set('team', props.team.trim())
+  if (props.position?.trim()) url.searchParams.set('position', props.position.trim())
+  if ((props.sleeperId ?? props.playerId)?.trim()) {
+    url.searchParams.set('sleeperId', (props.sleeperId ?? props.playerId ?? '').trim())
+  }
+
+  const response = await fetch(url.toString(), {
+    credentials: 'same-origin',
+    method: 'GET',
+  })
+  if (!response.ok) {
+    return { headshotUrl: null }
+  }
+  const data = (await response.json()) as { headshotUrl?: string | null }
+  return { headshotUrl: typeof data.headshotUrl === 'string' && data.headshotUrl.trim() ? data.headshotUrl : null }
+}
+
+function loadResolvedHeadshot(props: PlayerHeadshotProps): Promise<ResolvedHeadshotEntry> {
+  const key = resolverCacheKey(props)
+  const cached = resolvedHeadshotCache.get(key)
+  if (cached) {
+    return cached instanceof Promise ? cached : Promise.resolve(cached)
+  }
+  const pending = fetchResolvedHeadshot(props)
+    .then((result) => {
+      resolvedHeadshotCache.set(key, result)
+      return result
+    })
+    .catch(() => {
+      const fallback = { headshotUrl: null }
+      resolvedHeadshotCache.set(key, fallback)
+      return fallback
+    })
+  resolvedHeadshotCache.set(key, pending)
+  return pending
+}
+
 function isRichMode(props: PlayerHeadshotProps): boolean {
   return Boolean(props.playerId || props.sleeperId)
 }
 
+function RichPlayerHeadshot(props: PlayerHeadshotProps) {
+  const id = props.sleeperId ?? props.playerId ?? ''
+  const sport = String(props.sport ?? 'NFL').trim().toUpperCase()
+  const resolverEnabled = Boolean(props.useResolver && sport === 'NFL' && props.playerName?.trim())
+  const initialHeadshotUrl = useMemo(() => props.headshotUrl ?? null, [props.headshotUrl])
+  const [resolvedHeadshotUrl, setResolvedHeadshotUrl] = useState<string | null>(initialHeadshotUrl)
+
+  useEffect(() => {
+    setResolvedHeadshotUrl(props.headshotUrl ?? null)
+  }, [props.headshotUrl])
+
+  useEffect(() => {
+    if (!resolverEnabled) {
+      return
+    }
+    let cancelled = false
+    void loadResolvedHeadshot(props).then((result) => {
+      if (!cancelled && result.headshotUrl) {
+        setResolvedHeadshotUrl(result.headshotUrl)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [resolverEnabled, props])
+
+  return (
+    <PlayerImage
+      sleeperId={id}
+      sport={props.sport ?? 'NFL'}
+      name={props.playerName ?? props.alt ?? ''}
+      position={props.position ?? undefined}
+      headshotUrl={resolvedHeadshotUrl ?? undefined}
+      espnId={props.espnId}
+      size={props.size ?? 32}
+      variant={props.variant ?? 'round'}
+      className={props.className ?? ''}
+    />
+  )
+}
+
 export function PlayerHeadshot(props: PlayerHeadshotProps) {
   if (isRichMode(props)) {
-    const id = props.sleeperId ?? props.playerId ?? ''
-    return (
-      <PlayerImage
-        sleeperId={id}
-        sport={props.sport ?? 'NFL'}
-        name={props.playerName ?? props.alt ?? ''}
-        position={props.position ?? undefined}
-        headshotUrl={props.headshotUrl ?? undefined}
-        espnId={props.espnId}
-        size={props.size ?? 32}
-        variant={props.variant ?? 'round'}
-        className={props.className ?? ''}
-      />
-    )
+    return <RichPlayerHeadshot {...props} />
   }
 
   const size = props.size ?? 40

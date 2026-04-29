@@ -3,7 +3,8 @@
  *
  * Wraps `lib/player-assets/resolvePlayerHeadshot.ts` for callers (Roster /
  * Players-Waivers / Trades / Matchups) that want the full provider chain
- * (TheSportsDB → ClearSports → API-Sports → SportsPlayer cache for NFL)
+ * (TheSportsDB → ClearSports → Sleeper for NFL; UI then falls through to ESPN
+ * when an `espnId` already exists on the client)
  * resolved on the server, where the provider keys live.
  *
  * Auth: requires a signed-in user (`getServerSession`). Headshots are public

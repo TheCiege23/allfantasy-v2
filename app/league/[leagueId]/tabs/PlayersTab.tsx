@@ -505,6 +505,7 @@ export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
                       <PlayerHeadshot
                         sleeperId={p.id}
                         sport={resolvedSport}
+                        useResolver={sportU === 'NFL'}
                         playerName={p.name}
                         position={p.position}
                         espnId={players[p.id]?.espn_id}

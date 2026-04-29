@@ -5,8 +5,9 @@
  * through the shared `<PlayerHeadshot>` component, NOT directly through
  * `<PlayerImage>` or hard-coded `https://sleepercdn.com/...` URLs. Going
  * through the shared component guarantees the multi-tier fallback chain
- * (caller `headshotUrl` → Sleeper CDN → ESPN → initials placeholder) and a
- * stable empty state.
+ * (TheSportsDB → ClearSports → Sleeper → ESPN → initials placeholder) and a
+ * stable empty state, with the server resolver opt-in isolated to the NFL
+ * redraft dashboard tabs.
  *
  * Static-source assertions only — JSDOM-rendering the tabs would pull in the
  * full league context tree, which is beyond the scope of a regression lock.
@@ -46,6 +47,7 @@ describe('NFL redraft core — TeamTab uses PlayerHeadshot, not PlayerImage', ()
   it('forwards player name + position + team to the shared component', () => {
     // Names matter — the chain falls back to initials when every provider
     // 404s, and the alt text drives screen-reader output.
+    expect(src).toMatch(/<PlayerHeadshot[\s\S]*?useResolver=\{String\(sport \?\? ''\)\.trim\(\)\.toUpperCase\(\) === 'NFL'\}/)
     expect(src).toMatch(/<PlayerHeadshot[\s\S]*?playerName=\{label\}/)
     expect(src).toMatch(/<PlayerHeadshot[\s\S]*?position=\{resolved\.position\}/)
     expect(src).toMatch(/<PlayerHeadshot[\s\S]*?team=\{resolved\.team\}/)
@@ -81,6 +83,7 @@ describe('NFL redraft core — PlayersTab uses PlayerHeadshot, not PlayerImage',
   })
 
   it('forwards player name + position + team to the shared component', () => {
+    expect(src).toMatch(/<PlayerHeadshot[\s\S]*?useResolver=\{sportU === 'NFL'\}/)
     expect(src).toMatch(/<PlayerHeadshot[\s\S]*?playerName=\{p\.name\}/)
     expect(src).toMatch(/<PlayerHeadshot[\s\S]*?position=\{p\.position\}/)
     expect(src).toMatch(/<PlayerHeadshot[\s\S]*?team=\{p\.team\}/)
@@ -102,11 +105,19 @@ describe('PlayerHeadshot — rich + legacy modes', () => {
     expect(src).toMatch(/playerName\?:\s*string/)
     expect(src).toMatch(/headshotUrl\?:\s*string \| null/)
     expect(src).toMatch(/team\?:\s*string \| null/)
+    expect(src).toMatch(/useResolver\?:\s*boolean/)
   })
 
   it('rich mode delegates to the underlying PlayerImage chain', () => {
     expect(src).toMatch(/import \{ PlayerImage \} from '@\/app\/components\/PlayerImage'/)
     expect(src).toMatch(/<PlayerImage[\s\S]*?sleeperId=\{id\}/)
+  })
+
+  it('rich mode can opt into the server-side resolver route before falling through to PlayerImage', () => {
+    expect(src).toMatch(/fetchResolvedHeadshot/)
+    expect(src).toMatch(/new URL\('\/api\/player\/resolve-headshot'/)
+    expect(src).toMatch(/credentials:\s*'same-origin'/)
+    expect(src).toMatch(/headshotUrl=\{resolvedHeadshotUrl \?\? undefined\}/)
   })
 
   it('legacy mode preserves the {src, alt, size} contract for older callers', () => {

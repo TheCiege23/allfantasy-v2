@@ -340,6 +340,7 @@ function RosterRow({
         <PlayerHeadshot
           sleeperId={playerId}
           sport={sport}
+          useResolver={String(sport ?? '').trim().toUpperCase() === 'NFL'}
           playerName={label}
           position={resolved.position}
           espnId={players[playerId]?.espn_id}
