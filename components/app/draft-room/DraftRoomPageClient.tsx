@@ -53,6 +53,10 @@ const CommissionerControlCenterModal = dynamic(
 const PostDraftView = dynamic(() => import('@/components/app/draft-room/PostDraftView'), { ssr: false })
 const AuctionSpotlightPanel = dynamic(() => import('@/components/app/draft-room/AuctionSpotlightPanel'), { ssr: false })
 const KeeperPanel = dynamic(() => import('@/components/app/draft-room/KeeperPanel'), { ssr: false })
+const PreDraftWizard = dynamic(
+  () => import('@/components/commissioner/PreDraftWizard').then((m) => m.PreDraftWizard),
+  { ssr: false },
+)
 import type { DraftSessionSnapshot, QueueEntry } from '@/lib/live-draft-engine/types'
 import {
   buildDraftRoomCoreState,
@@ -217,7 +221,7 @@ function mergeDraftChatWire(
 }
 
 export function DraftRoomPageClient({
-  draftId: _draftId,
+  draftId,
   leagueId,
   leagueName,
   leagueLogoUrl,
@@ -245,6 +249,15 @@ export function DraftRoomPageClient({
   const [draftSessionAccess, setDraftSessionAccess] = useState<"ok" | "unauthorized" | "forbidden" | null>(null)
   /** True only after repeated failed draft session polls — not routine background sync (avoids top-bar flicker). */
   const [connectionDegraded, setConnectionDegraded] = useState(false)
+  /**
+   * Pre-draft validation wizard. Opened in-place when `handleStartDraft` runs
+   * the validation route and the report comes back with `canStartDraft: false`.
+   * Renders as an overlay above the existing DraftRoomShell — never replaces
+   * the shell, never navigates, never redirects. The unified-state contract
+   * locked by `__tests__/nfl-redraft-snake-draft-board-state.test.ts` (Commit
+   * E) is preserved.
+   */
+  const [showPreDraftValidationWizard, setShowPreDraftValidationWizard] = useState(false)
   const pollSessionFailStreakRef = useRef(0)
   /** Browser timers are numeric IDs; avoids NodeJS.Timeout vs DOM mismatch in `tsc`. */
   const connectionDegradedTimerRef = useRef<number | null>(null)
@@ -2283,10 +2296,41 @@ export function DraftRoomPageClient({
     if (session?.status === 'in_progress' && currentUserRosterId) fetchPendingTradesCount()
   }, [session?.status, currentUserRosterId, fetchPendingTradesCount])
 
-  /** Slice A — lifecycle: start updates `session` in place via `/draft/controls` (no router navigation; same `DraftBoard` mount). */
+  /**
+   * Slice F: pre-flight pre-draft validation. When `draftId` is set and the
+   * validation route returns `canStartDraft: false`, the wizard overlay
+   * opens above the same shell. Failed validation never moves the user.
+   *
+   * Slice A — lifecycle: start updates `session` in place via `/draft/controls`
+   * (no router navigation; same `DraftBoard` mount).
+   */
   const handleStartDraft = useCallback(async () => {
     try {
       setPickError(null)
+      // Pre-flight validation. Never blocks the start path on transient
+      // failures (network error / 5xx) — fails open to the existing
+      // commissioner-action path so a flaky route can't strand the draft.
+      if (draftId) {
+        try {
+          const validationRes = await fetch(
+            `/api/leagues/${encodeURIComponent(leagueId)}/draft/${encodeURIComponent(draftId)}/validate-pre-draft`,
+            { credentials: 'include' },
+          )
+          if (validationRes.ok) {
+            const validationReport = (await validationRes.json().catch(() => null)) as {
+              canStartDraft?: boolean
+            } | null
+            if (validationReport && validationReport.canStartDraft === false) {
+              setShowPreDraftValidationWizard(true)
+              return
+            }
+          }
+        } catch {
+          // Swallow — fail open to the existing start path. The wizard
+          // can still be opened on demand, but a broken validation route
+          // must not strand the commissioner.
+        }
+      }
       const result = await handleCommissionerAction('start')
       if (result.ok) {
         draftRoomPickTrace({ event: 'start-draft', leagueId, via: 'controls' })
@@ -2299,7 +2343,7 @@ export function DraftRoomPageClient({
       sendProductAnalyticsBeacon(DRAFT_ROOM.START_DRAFT, { leagueId, ok: false, error: true })
       setPickError('Could not start the draft. Try again.')
     }
-  }, [handleCommissionerAction, leagueId])
+  }, [handleCommissionerAction, leagueId, draftId])
 
   const handleSettingsPatch = useCallback(
     async (patch: Partial<DraftUISettings>) => {
@@ -4242,6 +4286,29 @@ export function DraftRoomPageClient({
 
   return (
     <>
+    {showPreDraftValidationWizard && draftId ? (
+      <div
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-[2px] p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pre-draft-validation-wizard-title"
+        data-testid="pre-draft-validation-wizard"
+      >
+        <div className="w-full max-w-xl rounded-2xl border border-white/[0.08] bg-[#0d1117] p-6 shadow-2xl">
+          <PreDraftWizard
+            leagueId={leagueId}
+            draftId={draftId}
+            onClose={() => setShowPreDraftValidationWizard(false)}
+            onValidationComplete={(canStart) => {
+              if (canStart) {
+                setShowPreDraftValidationWizard(false)
+                void handleCommissionerAction('start')
+              }
+            }}
+          />
+        </div>
+      </div>
+    ) : null}
     {presentationVariant === 'redraft_snake' && !isDynasty ? (
       <DraftRoundOneAnnouncementOverlay
         presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
