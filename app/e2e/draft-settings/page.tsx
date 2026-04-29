@@ -1,15 +1,16 @@
 import { notFound } from 'next/navigation'
 import DraftSettingsPanel from '@/components/app/settings/DraftSettingsPanel'
 
-export default function E2EDraftSettingsHarnessPage({
+export default async function E2EDraftSettingsHarnessPage({
   searchParams,
 }: {
-  searchParams: { leagueId?: string | string[] }
+  searchParams?: Promise<{ leagueId?: string | string[] }>
 }) {
   if (process.env.NODE_ENV === 'production') {
     notFound()
   }
-  const raw = searchParams.leagueId
+  const sp = searchParams ? await searchParams : {}
+  const raw = sp.leagueId
   const leagueId = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] ?? '' : ''
 
   return (
