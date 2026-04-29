@@ -24,6 +24,39 @@ const FIXTURE_LEAGUE_ID = 'e2e-nfl-redraft-fixture'
 const FIXTURE_USER_ID = 'e2e-commissioner'
 const FIXTURE_USER_NAME = 'E2E Commissioner'
 
+const fixtureTeams = [
+  {
+    id: 'team-1',
+    leagueId: FIXTURE_LEAGUE_ID,
+    externalId: 'team-1',
+    teamName: 'Midnight Routes',
+    ownerName: 'Casey Lane',
+    claimedByUserId: FIXTURE_USER_ID,
+    avatarUrl: null,
+    draftPosition: 1,
+  },
+  {
+    id: 'team-2',
+    leagueId: FIXTURE_LEAGUE_ID,
+    externalId: 'team-2',
+    teamName: 'Sunday Stack',
+    ownerName: 'Jules Carter',
+    claimedByUserId: 'e2e-manager-2',
+    avatarUrl: null,
+    draftPosition: 2,
+  },
+  {
+    id: 'team-3',
+    leagueId: FIXTURE_LEAGUE_ID,
+    externalId: 'team-3',
+    teamName: 'Goal Line Syndicate',
+    ownerName: 'Morgan Vale',
+    claimedByUserId: 'e2e-manager-3',
+    avatarUrl: null,
+    draftPosition: 3,
+  },
+] as unknown as LeagueTeam[]
+
 /**
  * Minimal League fixture. Casting through `unknown` is intentional — the real
  * Prisma row has dozens of nullable settings fields (waiver/playoff/IDP/devy
@@ -43,7 +76,12 @@ const fixtureLeague = {
   isDynasty: false,
   rosterSize: 16,
   status: 'pre_draft',
-  settings: {},
+  settings: {
+    inviteCode: 'E2E-INVITE',
+    draftType: 'snake',
+    pickTimerPreset: '120s',
+    draft_id: 'sleeper-e2e-draft',
+  },
   leagueType: 'redraft',
   leagueVariant: null,
   bestBallMode: false,
@@ -51,7 +89,7 @@ const fixtureLeague = {
   keeperPhaseActive: false,
   isCommissioner: true,
   lifecycleState: 'pre_draft',
-  teams: [] as LeagueTeam[],
+  teams: fixtureTeams,
   invites: [] as LeagueInvite[],
   rosters: [],
 } as unknown as League & {
@@ -79,7 +117,7 @@ export default function NflRedraftLeagueDashboardHarnessClient() {
         userId={FIXTURE_USER_ID}
         userName={FIXTURE_USER_NAME}
         userImage={null}
-        draftDateIso={null}
+        draftDateIso={'2026-09-03T00:30:00.000Z'}
         sleeperCommissionerId={null}
         sleeperUsersByPlatformId={{}}
         currentSleeperUserId={null}

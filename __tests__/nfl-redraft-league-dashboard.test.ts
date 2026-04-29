@@ -1,6 +1,13 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import { isNflRedraftCoreDashboardLeague } from '@/lib/league/is-nfl-redraft-core-dashboard'
 import { openChimmyWithPrompt } from '@/lib/dashboard/open-chimmy-with-prompt'
+
+const root = resolve(__dirname, '..')
+function read(rel: string): string {
+  return readFileSync(resolve(root, rel), 'utf8')
+}
 
 describe('NFL redraft league shell gating', () => {
   it('accepts standard NFL redraft', () => {
@@ -69,5 +76,41 @@ describe('openChimmyWithPrompt', () => {
       offA()
       offB()
     }
+  })
+})
+
+describe('NFL redraft pre-draft Home regression lock', () => {
+  const draftTabSrc = read('app/league/[leagueId]/tabs/DraftTab.tsx')
+  const leagueDraftResolverSrc = read('app/league/[leagueId]/draft/page.tsx')
+
+  it('enters the draft room through the safe league draft resolver instead of /draft/live', () => {
+    expect(draftTabSrc).toMatch(/const enterDraftRoomHref = `\/league\/\$\{league\.id\}\/draft`/)
+    expect(draftTabSrc).not.toMatch(/\/draft\/live\//)
+    expect(leagueDraftResolverSrc).toMatch(/redirect\(`\/draft\/\$\{ds\.id\}`\)/)
+  })
+
+  it('keeps Enter Draft Room explicitly user-driven and gated on the pre-draft state', () => {
+    expect(draftTabSrc).toMatch(/const canEnterDraftRoom = preDraft && Boolean\(league\.id\)/)
+    expect(draftTabSrc).toMatch(/disabled=\{!canEnterDraftRoom\}/)
+    expect(draftTabSrc).toContain('The live draft room only opens when you click Enter Draft Room.')
+  })
+
+  it('renders the required pre-draft Home setup copy and summary fields', () => {
+    expect(draftTabSrc).toContain('League fill')
+    expect(draftTabSrc).toContain('Draft type')
+    expect(draftTabSrc).toContain('Draft date')
+    expect(draftTabSrc).toContain('Pick timer')
+    expect(draftTabSrc).toContain('nfl-redraft-predraft-summary')
+  })
+
+  it('keeps the draft order block and its required empty state copy', () => {
+    expect(draftTabSrc).toContain('data-testid="nfl-redraft-draft-order"')
+    expect(draftTabSrc).toContain('Draft order has not been generated yet.')
+  })
+
+  it('keeps commissioner-only draft controls and wires draft-order generation to the existing endpoint', () => {
+    expect(draftTabSrc).toContain('data-testid="nfl-redraft-generate-draft-order"')
+    expect(draftTabSrc).toContain('data-testid="nfl-redraft-edit-draft-settings"')
+    expect(draftTabSrc).toMatch(/fetch\('\/api\/league\/settings\/randomize-order'/)
   })
 })

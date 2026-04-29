@@ -10,7 +10,7 @@ import { LeagueManagersStandingsSection } from '@/app/league/[leagueId]/componen
 import { LeagueRecentActivity } from '@/app/league/[leagueId]/components/LeagueRecentActivity'
 import type { LeagueSeasonSnapshot } from '@/lib/league/sort-teams-standings'
 import type { StandingsPresentation } from '@/app/league/[leagueId]/league-dashboard-types'
-import { getDraftIdFromSettings } from '@/app/league/[leagueId]/components/league-settings-modal-utils'
+import { getDraftIdFromSettings, getSleeperLikeBundle } from '@/app/league/[leagueId]/components/league-settings-modal-utils'
 import { IDPDraftFilters } from '@/app/idp/components/IDPDraftFilters'
 import { isNflRedraftCoreDashboardFromUserLeague } from '@/lib/league/is-nfl-redraft-core-dashboard'
 
@@ -41,6 +41,52 @@ function isPreDraftLeagueStatus(league: UserLeague): boolean {
     return false
   }
   return s.includes('draft') || s.includes('pre') || s === 'scheduled'
+}
+
+function formatDraftTypeLabel(type: unknown): string {
+  const normalized = String(type ?? '').trim().toLowerCase()
+  if (normalized === 'snake') return 'Snake Draft'
+  if (normalized === 'linear') return 'Linear Draft'
+  if (normalized === 'auction') return 'Auction Draft'
+  if (normalized === '3rd_reversal' || normalized === 'third_round_reversal') return '3rd Round Reversal'
+  return normalized ? normalized.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()) : 'Snake Draft'
+}
+
+function formatPickTimerLabel(preset: unknown, customValue: unknown): string {
+  const normalizedPreset = String(preset ?? '').trim().toLowerCase()
+  const customSeconds = typeof customValue === 'number' && Number.isFinite(customValue) ? customValue : null
+
+  const formatSeconds = (seconds: number): string => {
+    if (seconds >= 3600) {
+      const hours = seconds / 3600
+      return `${hours % 1 === 0 ? String(hours) : hours.toFixed(1)} Hours`
+    }
+    if (seconds >= 60) return `${Math.round(seconds / 60)} Mins`
+    return `${seconds} Secs`
+  }
+
+  if (normalizedPreset === 'custom' && customSeconds != null && customSeconds > 0) {
+    return formatSeconds(customSeconds)
+  }
+
+  const presetMatch = normalizedPreset.match(/^(\d+)s$/)
+  if (presetMatch) return formatSeconds(Number(presetMatch[1]))
+  if (normalizedPreset === 'none' || normalizedPreset === 'untimed') return 'Untimed'
+  return '120 Secs'
+}
+
+function formatDraftDateLabel(draftDateIso: string | null): string {
+  if (!draftDateIso) return 'Not scheduled yet'
+  const parsed = new Date(draftDateIso)
+  if (Number.isNaN(parsed.getTime())) return 'Not scheduled yet'
+  return parsed.toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 function NflRedraftDraftOrderBlock({
@@ -76,7 +122,7 @@ function NflRedraftDraftOrderBlock({
               className="rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-cyan-200 hover:bg-cyan-500/20"
               data-testid="nfl-redraft-generate-draft-order"
             >
-              Generate draft order
+              {hasOrder ? 'Regenerate draft order' : 'Generate draft order'}
             </button>
             <button
               type="button"
@@ -166,7 +212,13 @@ export function DraftTab({
   const isLeagueHome = mode === 'league'
   const router = useRouter()
   const searchParams = useSearchParams()
-  const filled = teams.length
+  const [displayTeams, setDisplayTeams] = useState<UserLeagueTeam[]>(teams)
+
+  useEffect(() => {
+    setDisplayTeams(teams)
+  }, [teams])
+
+  const filled = displayTeams.length
   const cap = league.teamCount
   const isFull = filled >= cap
   const justCreated = searchParams?.get('created') === '1'
@@ -268,10 +320,25 @@ export function DraftTab({
   const hasDraftTime = Boolean(draftDateIso && Number.isFinite(new Date(draftDateIso).getTime()))
   const timer = useDraftCountdown(hasDraftTime ? draftDateIso : null)
   const canSetDraftTime = isOwner || isCommissioner
+  const settingsBundle = useMemo(() => getSleeperLikeBundle(league.settings as unknown), [league.settings])
   const sleeperDraftId = useMemo(
     () => getDraftIdFromSettings(league.settings as unknown),
     [league.settings],
   )
+  const draftTypeLabel = useMemo(
+    () => formatDraftTypeLabel(settingsBundle.draftType ?? settingsBundle.draft_type),
+    [settingsBundle],
+  )
+  const pickTimerLabel = useMemo(
+    () => formatPickTimerLabel(settingsBundle.pickTimerPreset ?? settingsBundle.pick_timer_preset, settingsBundle.pickTimerCustomValue ?? settingsBundle.pick_timer_custom_value),
+    [settingsBundle],
+  )
+  const draftDateLabel = useMemo(() => formatDraftDateLabel(draftDateIso), [draftDateIso])
+  const leagueIdentityLabel = useMemo(() => {
+    const scoring = typeof league.scoring === 'string' && league.scoring.trim() ? league.scoring.replace(/_/g, ' ').toUpperCase() : 'REDRAFT'
+    return `${String(league.sport ?? 'NFL').toUpperCase()} • ${scoring}`
+  }, [league.scoring, league.sport])
+  const enterDraftRoomHref = `/league/${league.id}/draft`
 
   const handleSetTime = useCallback(() => {
     console.log('DraftTab: Set Time (stub)', { leagueId: league.id })
@@ -303,22 +370,48 @@ export function DraftTab({
     else router.push(`/league/${league.id}?view=settings`)
   }, [onOpenLeagueSettings, router, league.id])
 
-  const handleDraftRoom = useCallback(async () => {
+  const canEnterDraftRoom = preDraft && Boolean(league.id)
+
+  const handleDraftRoom = useCallback(() => {
+    if (!canEnterDraftRoom) return
+    router.push(enterDraftRoomHref)
+  }, [canEnterDraftRoom, enterDraftRoomHref, router])
+
+  const handleGenerateDraftOrder = useCallback(async () => {
+    if (!(isCommissioner || isOwner)) return
     try {
-      const res = await fetch('/api/draft/session/ensure', {
+      const res = await fetch('/api/league/settings/randomize-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leagueId: league.id }),
+        body: JSON.stringify({ leagueId: league.id, count: Math.max(1, Math.min(cap, 12)) }),
       })
-      if (!res.ok) return
-      const data = (await res.json()) as { draftSessionId?: string }
-      if (data.draftSessionId) {
-        router.push(`/draft/live/${data.draftSessionId}`)
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string
+        slots?: Array<{ slot: number; ownerId: string }>
       }
+      if (!res.ok) {
+        toast.error(typeof data.error === 'string' ? data.error : 'Could not generate draft order')
+        return
+      }
+
+      const slotByTeamId = new Map<string, number>()
+      for (const slot of data.slots ?? []) {
+        if (typeof slot.ownerId === 'string' && Number.isFinite(slot.slot)) {
+          slotByTeamId.set(slot.ownerId, slot.slot)
+        }
+      }
+
+      setDisplayTeams((currentTeams) =>
+        currentTeams.map((team) => ({
+          ...team,
+          draftPosition: slotByTeamId.get(team.id) ?? team.draftPosition ?? null,
+        })),
+      )
+      toast.success(slotByTeamId.size > 0 ? 'Draft order updated' : 'Draft order saved')
     } catch {
-      // ignore
+      toast.error('Could not generate draft order')
     }
-  }, [league.id, router])
+  }, [cap, isCommissioner, isOwner, league.id])
 
   return (
     <div className={isLeagueHome ? 'space-y-4' : 'space-y-4 p-5'}>
@@ -415,17 +508,9 @@ export function DraftTab({
             <div className="min-w-0 pr-2">
               <h2 className="text-base font-bold tracking-tight text-white sm:text-[17px]">Draftboard</h2>
               <p className="mt-1 text-[12px] font-normal leading-snug text-white/80 sm:text-[13px]">
-                {hasDraftTime && draftDateIso
-                  ? new Date(draftDateIso).toLocaleString(undefined, {
-                      weekday: 'short',
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    })
-                  : 'Draft time has not yet set'}
+                {draftDateLabel}
               </p>
+              <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200/70">{leagueIdentityLabel}</p>
             </div>
             <div className="flex shrink-0 gap-2">
               <button
@@ -485,6 +570,29 @@ export function DraftTab({
             </div>
           </div>
 
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-testid="nfl-redraft-predraft-summary">
+            <div className="rounded-2xl border border-white/[0.08] bg-black/20 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">League fill</p>
+              <p className="mt-1 text-sm font-semibold text-white">{filled}/{cap} teams joined</p>
+              <p className="mt-1 text-[11px] text-white/55">{isFull ? 'League is full and ready for draft setup.' : `${Math.max(cap - filled, 0)} spot${cap - filled === 1 ? '' : 's'} still open.`}</p>
+            </div>
+            <div className="rounded-2xl border border-white/[0.08] bg-black/20 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">Draft type</p>
+              <p className="mt-1 text-sm font-semibold text-white">{draftTypeLabel}</p>
+              <p className="mt-1 text-[11px] text-white/55">League setup card stays on Home until someone intentionally enters the draft room.</p>
+            </div>
+            <div className="rounded-2xl border border-white/[0.08] bg-black/20 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">Draft date</p>
+              <p className="mt-1 text-sm font-semibold text-white">{draftDateLabel}</p>
+              <p className="mt-1 text-[11px] text-white/55">Commissioners can edit this from draft settings.</p>
+            </div>
+            <div className="rounded-2xl border border-white/[0.08] bg-black/20 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">Pick timer</p>
+              <p className="mt-1 text-sm font-semibold text-white">{pickTimerLabel}</p>
+              <p className="mt-1 text-[11px] text-white/55">Applies once the live draft room opens.</p>
+            </div>
+          </div>
+
           {sleeperDraftId ? (
             <p className="mt-3 text-center text-[10px] text-white/35">
               Sleeper draft id: <span className="font-mono text-white/50">{sleeperDraftId}</span>
@@ -514,13 +622,20 @@ export function DraftTab({
               <button
                 type="button"
                 onClick={() => void handleDraftRoom()}
-                className="flex flex-1 items-center justify-center rounded-full border border-white/25 bg-white/10 px-5 py-3 text-[12px] font-bold uppercase tracking-wide text-white transition hover:bg-white/15"
+                disabled={!canEnterDraftRoom}
+                className="flex flex-1 items-center justify-center rounded-full border border-white/25 bg-white/10 px-5 py-3 text-[12px] font-bold uppercase tracking-wide text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
                 data-testid="league-draftboard-enter-room"
               >
                 Draft room
               </button>
             )}
           </div>
+
+          <p className="mt-3 text-center text-[11px] text-white/55" data-testid="league-draftboard-enter-room-help">
+            {canEnterDraftRoom
+              ? 'The live draft room only opens when you click Enter Draft Room.'
+              : 'Draft room entry is unavailable until this league is back in pre-draft.'}
+          </p>
         </div>
       </section>
       ) : null}
@@ -528,7 +643,7 @@ export function DraftTab({
       <LeagueManagersStandingsSection
         league={league}
         leagueId={league.id}
-        teams={teams}
+        teams={displayTeams}
         seasonSnapshot={seasonSnapshot}
         draftTabExtras={{ filled, cap, isFull, isOwner }}
         standingsPresentation={standingsPresentation}
@@ -537,10 +652,10 @@ export function DraftTab({
 
       {nflRedraftShell && !isLeagueHome && preDraft ? (
         <NflRedraftDraftOrderBlock
-          teams={teams}
+          teams={displayTeams}
           isCommissioner={Boolean(isCommissioner || isOwner)}
           onOpenDraftSettings={() => openSettingsDraft()}
-          onGenerateDraftOrder={() => openSettingsDraft()}
+          onGenerateDraftOrder={() => void handleGenerateDraftOrder()}
         />
       ) : null}
 
