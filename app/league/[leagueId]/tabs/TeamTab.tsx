@@ -344,6 +344,7 @@ function RosterRow({
           playerName={label}
           position={resolved.position}
           espnId={players[playerId]?.espn_id}
+          nbaId={players[playerId]?.nba_id}
           team={resolved.team}
           size={28}
           variant="round"

@@ -12,7 +12,7 @@ import { PlayerImage } from '@/app/components/PlayerImage'
  * Two modes:
  *
  *  - "Rich" mode — pass `playerId` (or `sleeperId`) and (optionally) `playerName`,
- *    `headshotUrl`, `position`, `team`, `espnId`, `sport`. When `useResolver`
+ *    `headshotUrl`, `position`, `team`, `espnId`, `nbaId`, `sport`. When `useResolver`
  *    is enabled for NFL dashboard surfaces, the component first asks the
  *    authenticated server resolver for the best provider-backed headshot:
  *      1. TheSportsDB
@@ -50,6 +50,8 @@ export type PlayerHeadshotProps = {
   position?: string | null
   /** Rich mode — ESPN player id; appended to the chain. */
   espnId?: string
+  /** Rich mode — NBA player id; appended to the chain for NBA headshots. */
+  nbaId?: string
   /** Rich mode — sport key (default NFL). */
   sport?: string
   /** Rich mode — opt into the server-side NFL resolver for dashboard surfaces. */
@@ -183,6 +185,7 @@ function RichPlayerHeadshot(props: PlayerHeadshotProps) {
       position={position ?? undefined}
       headshotUrl={resolvedHeadshotUrl ?? undefined}
       espnId={props.espnId}
+      nbaId={props.nbaId}
       size={props.size ?? 32}
       variant={props.variant ?? 'round'}
       className={props.className ?? ''}

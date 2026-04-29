@@ -509,6 +509,7 @@ export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
                         playerName={p.name}
                         position={p.position}
                         espnId={players[p.id]?.espn_id}
+                        nbaId={players[p.id]?.nba_id}
                         team={p.team}
                         size={28}
                         variant="round"
