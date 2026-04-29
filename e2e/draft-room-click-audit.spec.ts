@@ -1474,17 +1474,15 @@ async function readDraftBoardChromeSnapshot(page: Page) {
   }
 }
 
-/** After Start: grid + on-clock column + real timers (regression: shell mounts but board grid / live column never hydrates). */
+/** After Start: grid + live clock chrome (regression: shell mounts but board grid never hydrates). */
 async function assertLiveInProgressBoardSurface(page: Page) {
   const shell = page.getByTestId('draft-room-shell')
   const desktop = shell.getByTestId('draft-desktop-layout')
   const timeout = 20_000
   await expect(desktop.getByTestId('draft-board-grid')).toBeVisible({ timeout })
   await expect(desktop.getByTestId('draft-board-cell-1')).toBeVisible({ timeout })
-  await expect(desktop.getByTestId('draft-live-status-column')).toBeVisible({ timeout })
-  await expect(desktop.getByTestId('draft-on-the-clock')).toBeVisible({ timeout })
-  await expect(desktop.getByTestId('draft-live-timer')).toBeVisible({ timeout })
-  await expect(desktop.getByTestId('draft-live-timer')).toContainText(/\d+:\d{2}/, { timeout })
+  // D.6.2 removed LiveDraftStatusColumn; timer / on-clock moved to DraftTopBar.
+  await expect(shell.getByTestId('draft-topbar-on-clock-manager')).toBeVisible({ timeout })
   await expect(shell.getByTestId('draft-topbar-on-clock-manager')).toContainText(/Alpha/i, { timeout })
   const topTimer = shell.getByTestId('draft-topbar-timer-value')
   await expect(topTimer).toBeVisible({ timeout })
@@ -1507,9 +1505,12 @@ test.describe('@draft-room click audit', () => {
     const desktop = page.getByTestId('draft-desktop-layout')
 
     await expect(desktop.getByTestId('draft-board')).toBeVisible()
-    await expect(desktop.getByTestId('draft-live-status-column')).toBeVisible()
-    await expect(desktop.getByTestId('draft-on-the-clock')).toBeVisible()
-    await expect(desktop.getByTestId('draft-live-timer')).toBeVisible()
+    {
+      const shell = page.getByTestId('draft-room-shell')
+      await expect(shell.getByTestId('draft-topbar-on-clock-manager')).toBeVisible()
+      await expect(shell.getByTestId('draft-topbar-timer-value')).toBeVisible()
+      await expect(shell.getByTestId('draft-topbar-timer-value')).toContainText(/\d+:\d{2}/)
+    }
 
     const roundLabel = desktop.getByTestId('draft-board-round-label')
     for (let attempt = 0; attempt < 3; attempt += 1) {

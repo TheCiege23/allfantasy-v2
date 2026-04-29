@@ -2,8 +2,8 @@
  * E.1.5 — server-side player-headshot resolver.
  *
  * Resolves a real player headshot URL by checking, in order:
- *   - NFL: TheSportsDB -> Sleeper -> API-Sports -> ClearSports -> SportsPlayer cache
- *   - Other sports: ClearSports -> TheSportsDB -> API-Sports -> SportsPlayer cache
+ *   - NFL: TheSportsDB -> ClearSports -> Sleeper
+ *   - Other sports: ClearSports -> TheSportsDB
  *
  * If none of the above produce a valid HTTP/HTTPS image URL, returns
  * `{ imageUrl: null, source: 'none', confidence: 'none' }` so the UI's
@@ -22,15 +22,12 @@ import { prisma } from '@/lib/prisma'
 import { clearSportsFetch } from '@/lib/clear-sports/client'
 import { theSportsDbProvider } from '@/lib/workers/providers/thesportsdb'
 import { sleeperChainProvider } from '@/lib/workers/providers/sleeper-chain'
-import { apiSportsProvider } from '@/lib/workers/providers/api-sports'
 import { classifyAvatarSource } from '@/lib/draft-room/classify-avatar-source'
 
 export type HeadshotProvider =
+  | 'sleeper'
   | 'clearsports'
   | 'sportsdb'
-  | 'sleeper'
-  | 'apisports'
-  | 'sportsplayer'
   | 'none'
 export type HeadshotConfidence = 'exact' | 'name_team_position' | 'name_only' | 'none'
 
@@ -322,65 +319,7 @@ async function resolveOnce(
     }
   }
 
-  // ── 3. Sleeper (NFL first backup) ──
-  if (isNfl) {
-    for (const candidate of nameCandidates) {
-      try {
-        const result = await sleeperChainProvider.fetch({
-          sport,
-          dataType: 'player_headshots',
-          query: { search: candidate, teamCode: input.team ?? undefined },
-        })
-        const sleeperUrl =
-          result && typeof result === 'object' && 'headshotUrl' in (result as Record<string, unknown>)
-            ? String((result as { headshotUrl?: unknown }).headshotUrl ?? '')
-            : ''
-        if (isValidHeadshotUrl(sleeperUrl)) {
-          return {
-            imageUrl: sleeperUrl,
-            source: 'sleeper',
-            confidence: targetTeam ? 'name_team_position' : 'name_only',
-          }
-        }
-      } catch {
-        /* swallow — continue fallback chain */
-      }
-    }
-  }
-
-  // ── 4. TheSportsAPI (api-sports.io) ──
-  // E.1.6 — third tier between SportsDB and the SportsPlayer cache. Recovers
-  // headshots for the punctuation-outlier tail (Ja'Marr Chase, A.J. Brown,
-  // Amon-Ra St. Brown, C.J. Stroud, D.K. Metcalf, Bo Nix, etc.) that SportsDB
-  // misses because of its name indexing. Reuses the same variant generator so
-  // we hit api-sports.io with the same set of name shapes.
-  for (const candidate of nameCandidates) {
-    try {
-      const result = await apiSportsProvider.fetch({
-        sport,
-        dataType: 'player_headshots',
-        query: { search: candidate, teamCode: input.team ?? undefined },
-      })
-      const apiUrl =
-        result && typeof result === 'object' && 'headshotUrl' in (result as Record<string, unknown>)
-          ? String((result as { headshotUrl?: unknown }).headshotUrl ?? '')
-          : ''
-      if (isValidHeadshotUrl(apiUrl)) {
-        // Defensive: api-sports occasionally returns a generic placeholder for unknown
-        // players. classifyAvatarSource (data: URI / team-logo path checks) catches the
-        // common cases, and isValidHeadshotUrl wraps it.
-        return {
-          imageUrl: apiUrl,
-          source: 'apisports',
-          confidence: targetTeam ? 'name_team_position' : 'name_only',
-        }
-      }
-    } catch {
-      /* swallow — provider may be down or unconfigured */
-    }
-  }
-
-  // ── 5. ClearSports (NFL deep fallback only) ──
+  // ── 3. ClearSports (NFL secondary, non-NFL primary) ──
   if (isNfl && targetName.length > 0) {
     const candidates = csByName.get(targetName) ?? []
     if (candidates.length === 1) {
@@ -411,31 +350,30 @@ async function resolveOnce(
     }
   }
 
-  // ── 6. SportsPlayer DB cache ──
-  try {
-    // Case-insensitive lookup. Limit to current sport.
-    const rows = await prisma.sportsPlayer.findMany({
-      where: { sport, name: { contains: input.name, mode: 'insensitive' } },
-      select: { name: true, team: true, position: true, imageUrl: true },
-      take: 5,
-    })
-    const exact = rows.find(
-      (r) =>
-        normalizePlayerName(r.name) === targetName &&
-        (targetTeam ? normalizeTeam(r.team) === targetTeam : true) &&
-        (targetPos ? normalizePosition(r.position) === targetPos : true),
-    )
-    const fallback = rows.find((r) => normalizePlayerName(r.name) === targetName)
-    const picked = exact ?? fallback
-    if (picked && isValidHeadshotUrl(picked.imageUrl)) {
-      return {
-        imageUrl: picked.imageUrl,
-        source: 'sportsplayer',
-        confidence: exact ? 'name_team_position' : 'name_only',
+  // ── 4. Sleeper (NFL tertiary) ──
+  if (isNfl) {
+    for (const candidate of nameCandidates) {
+      try {
+        const result = await sleeperChainProvider.fetch({
+          sport,
+          dataType: 'player_headshots',
+          query: { search: candidate, teamCode: input.team ?? undefined },
+        })
+        const sleeperUrl =
+          result && typeof result === 'object' && 'headshotUrl' in (result as Record<string, unknown>)
+            ? String((result as { headshotUrl?: unknown }).headshotUrl ?? '')
+            : ''
+        if (isValidHeadshotUrl(sleeperUrl)) {
+          return {
+            imageUrl: sleeperUrl,
+            source: 'sleeper',
+            confidence: targetTeam ? 'name_team_position' : 'name_only',
+          }
+        }
+      } catch {
+        /* swallow — continue fallback chain */
       }
     }
-  } catch {
-    /* swallow */
   }
 
   return { imageUrl: null, source: 'none', confidence: 'none' }

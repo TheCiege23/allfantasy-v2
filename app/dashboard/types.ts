@@ -27,6 +27,12 @@ export interface UserLeague {
   draftDate?: string | null
   /** Prisma `League.leagueVariant` when provided (e.g. big_brother, zombie). */
   leagueVariant?: string | null
+  /** Prisma `League.leagueType` when provided (redraft, dynasty, keeper, …). */
+  leagueType?: string | null
+  /** Prisma `League.guillotineMode` when provided */
+  guillotineMode?: boolean | null
+  /** Prisma `League.keeperPhaseActive` when provided */
+  keeperPhaseActive?: boolean | null
   /** Prisma `League.bestBallMode` when provided */
   bestBallMode?: boolean | null
   /** True if the current user is commissioner (Sleeper is_owner sync) or owns a native AllFantasy league */

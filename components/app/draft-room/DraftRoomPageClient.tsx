@@ -53,6 +53,10 @@ const CommissionerControlCenterModal = dynamic(
 const PostDraftView = dynamic(() => import('@/components/app/draft-room/PostDraftView'), { ssr: false })
 const AuctionSpotlightPanel = dynamic(() => import('@/components/app/draft-room/AuctionSpotlightPanel'), { ssr: false })
 const KeeperPanel = dynamic(() => import('@/components/app/draft-room/KeeperPanel'), { ssr: false })
+const PreDraftWizard = dynamic(
+  () => import('@/components/commissioner/PreDraftWizard').then((m) => m.PreDraftWizard),
+  { ssr: false },
+)
 import type { DraftSessionSnapshot, QueueEntry } from '@/lib/live-draft-engine/types'
 import {
   buildDraftRoomCoreState,
@@ -217,7 +221,7 @@ function mergeDraftChatWire(
 }
 
 export function DraftRoomPageClient({
-  draftId: _draftId,
+  draftId,
   leagueId,
   leagueName,
   leagueLogoUrl,
@@ -245,6 +249,29 @@ export function DraftRoomPageClient({
   const [draftSessionAccess, setDraftSessionAccess] = useState<"ok" | "unauthorized" | "forbidden" | null>(null)
   /** True only after repeated failed draft session polls — not routine background sync (avoids top-bar flicker). */
   const [connectionDegraded, setConnectionDegraded] = useState(false)
+  /**
+   * Pre-draft validation wizard. Opened in-place when `handleStartDraft` runs
+   * the validation route and the report comes back with `canStartDraft: false`.
+   * Renders as an overlay above the existing DraftRoomShell — never replaces
+   * the shell, never navigates, never redirects. The unified-state contract
+   * locked by `__tests__/nfl-redraft-snake-draft-board-state.test.ts` (Commit
+   * E) is preserved.
+   */
+  const [showPreDraftValidationWizard, setShowPreDraftValidationWizard] = useState(false)
+  /**
+   * Slice J: in-place recovery state for `DRAFT_SESSION_MISMATCH` 409
+   * responses from the session route. When the server tells the client its
+   * view of the draft session is stale, we DO NOT navigate (no
+   * `router.push`, `router.replace`, or `window.location.replace`) — that
+   * would violate the unified-state contract locked by Commit E. Instead we
+   * flip this banner on, schedule a single in-place refetch via
+   * `fetchSession`, and clear the flag once the next response is 2xx.
+   * After 3 consecutive 409s the banner exposes an inline "Try again" button
+   * so the user can retry without leaving the room.
+   */
+  const [sessionMismatchRecovering, setSessionMismatchRecovering] = useState(false)
+  const sessionMismatchRetryTimerRef = useRef<number | null>(null)
+  const sessionMismatchAttemptsRef = useRef(0)
   const pollSessionFailStreakRef = useRef(0)
   /** Browser timers are numeric IDs; avoids NodeJS.Timeout vs DOM mismatch in `tsc`. */
   const connectionDegradedTimerRef = useRef<number | null>(null)
@@ -1267,8 +1294,33 @@ export function DraftRoomPageClient({
         setSession(null)
         return false
       }
+      // Slice J — 409 / DRAFT_SESSION_MISMATCH: the server has detected the
+      // client is reading a stale or non-canonical draft session for this
+      // league. Recover IN-PLACE: keep the same DraftRoomShell + DraftBoard
+      // mounted, show an inline banner, and schedule a single refetch.
+      // Never `router.push` / `router.replace` / `window.location` here —
+      // navigation breaks the unified-state contract locked by Commit E.
+      if (res.status === 409 && (data as { code?: unknown })?.code === 'DRAFT_SESSION_MISMATCH') {
+        setSessionMismatchRecovering(true)
+        sessionMismatchAttemptsRef.current += 1
+        if (sessionMismatchRetryTimerRef.current && typeof window !== 'undefined') {
+          window.clearTimeout(sessionMismatchRetryTimerRef.current)
+        }
+        // Cap at 3 retries — past that, the banner exposes an inline retry
+        // button instead of looping forever.
+        if (sessionMismatchAttemptsRef.current <= 3 && typeof window !== 'undefined') {
+          sessionMismatchRetryTimerRef.current = window.setTimeout(() => {
+            sessionMismatchRetryTimerRef.current = null
+            void fetchSession()
+          }, 800)
+        }
+        return false
+      }
       if (res.ok && data.session) {
         setDraftSessionAccess("ok")
+        // Recovered (idempotent — safe even if no prior mismatch was observed).
+        setSessionMismatchRecovering(false)
+        sessionMismatchAttemptsRef.current = 0
         setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
         // Store canonical state from the response for dev-mode divergence logging.
         if (data.canonicalDraftState && typeof data.canonicalDraftState === 'object') {
@@ -2283,10 +2335,41 @@ export function DraftRoomPageClient({
     if (session?.status === 'in_progress' && currentUserRosterId) fetchPendingTradesCount()
   }, [session?.status, currentUserRosterId, fetchPendingTradesCount])
 
-  /** Slice A — lifecycle: start updates `session` in place via `/draft/controls` (no router navigation; same `DraftBoard` mount). */
+  /**
+   * Slice F: pre-flight pre-draft validation. When `draftId` is set and the
+   * validation route returns `canStartDraft: false`, the wizard overlay
+   * opens above the same shell. Failed validation never moves the user.
+   *
+   * Slice A — lifecycle: start updates `session` in place via `/draft/controls`
+   * (no router navigation; same `DraftBoard` mount).
+   */
   const handleStartDraft = useCallback(async () => {
     try {
       setPickError(null)
+      // Pre-flight validation. Never blocks the start path on transient
+      // failures (network error / 5xx) — fails open to the existing
+      // commissioner-action path so a flaky route can't strand the draft.
+      if (draftId) {
+        try {
+          const validationRes = await fetch(
+            `/api/leagues/${encodeURIComponent(leagueId)}/draft/${encodeURIComponent(draftId)}/validate-pre-draft`,
+            { credentials: 'include' },
+          )
+          if (validationRes.ok) {
+            const validationReport = (await validationRes.json().catch(() => null)) as {
+              canStartDraft?: boolean
+            } | null
+            if (validationReport && validationReport.canStartDraft === false) {
+              setShowPreDraftValidationWizard(true)
+              return
+            }
+          }
+        } catch {
+          // Swallow — fail open to the existing start path. The wizard
+          // can still be opened on demand, but a broken validation route
+          // must not strand the commissioner.
+        }
+      }
       const result = await handleCommissionerAction('start')
       if (result.ok) {
         draftRoomPickTrace({ event: 'start-draft', leagueId, via: 'controls' })
@@ -2299,7 +2382,7 @@ export function DraftRoomPageClient({
       sendProductAnalyticsBeacon(DRAFT_ROOM.START_DRAFT, { leagueId, ok: false, error: true })
       setPickError('Could not start the draft. Try again.')
     }
-  }, [handleCommissionerAction, leagueId])
+  }, [handleCommissionerAction, leagueId, draftId])
 
   const handleSettingsPatch = useCallback(
     async (patch: Partial<DraftUISettings>) => {
@@ -4110,9 +4193,6 @@ export function DraftRoomPageClient({
       </div>
     ) : null
 
-  const showE2eLegacyLiveStatusColumn =
-    typeof window !== 'undefined' && window.location.pathname.startsWith('/e2e/draft-room')
-
   const OFFENSE_POS = new Set(['QB', 'RB', 'WR', 'TE', 'K'])
   const IDP_POS = new Set(['DE', 'DT', 'LB', 'CB', 'S', 'SS', 'FS'])
   const idpNeeds = formatType === 'IDP' && idpRosterSummary && (() => {
@@ -4245,6 +4325,62 @@ export function DraftRoomPageClient({
 
   return (
     <>
+    {showPreDraftValidationWizard && draftId ? (
+      <div
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-[2px] p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pre-draft-validation-wizard-title"
+        data-testid="pre-draft-validation-wizard"
+      >
+        <div className="w-full max-w-xl rounded-2xl border border-white/[0.08] bg-[#0d1117] p-6 shadow-2xl">
+          <PreDraftWizard
+            leagueId={leagueId}
+            draftId={draftId}
+            onClose={() => setShowPreDraftValidationWizard(false)}
+            onValidationComplete={(canStart) => {
+              if (canStart) {
+                setShowPreDraftValidationWizard(false)
+                void handleCommissionerAction('start')
+              }
+            }}
+            onFixAction={(action) => {
+              // Slice G — Target A: the draft route does NOT host
+              // `LeagueSettingsModal` (that modal lives on the league
+              // dashboard `/league/[id]` route via `LeagueShell`). Auto-
+              // opening it from here would require either a navigation
+              // call (forbidden by the unified-state contract locked in
+              // Commit E) or mounting the league shell inside the draft
+              // room (a separate refactor).
+              //
+              // For now we forward the canonical action key to the
+              // settings-fix-action event bus and close the wizard. The
+              // commissioner closes the draft tab and walks to League →
+              // Settings → {panel} themselves. Phase 2 will pick up
+              // `af-pre-draft-fix-action` on the dashboard side and deep-
+              // link into the right panel automatically.
+              const panelByAction: Record<string, string> = {
+                invite_managers: 'invite',
+                set_draft_order: 'draft',
+                configure_roster: 'roster',
+                configure_scoring: 'scoring',
+                fix_duplicate_managers: 'members-commish',
+                configure_draft_type: 'draft',
+              }
+              const panel = panelByAction[action] ?? null
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(
+                  new CustomEvent('af-pre-draft-fix-action', {
+                    detail: { leagueId, action, panel },
+                  }),
+                )
+              }
+              setShowPreDraftValidationWizard(false)
+            }}
+          />
+        </div>
+      </div>
+    ) : null}
     {presentationVariant === 'redraft_snake' && !isDynasty ? (
       <DraftRoundOneAnnouncementOverlay
         presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
@@ -4751,25 +4887,32 @@ export function DraftRoomPageClient({
               in the header if this message persists.
             </div>
           ) : null}
-          {/* D.6.2 removed the legacy live status column from production snake layout.
-              Keep an e2e-only mount for click-audit parity so existing harness locators
-              (draft-live-status-column / draft-on-the-clock / draft-live-timer) remain stable. */}
-          {showE2eLegacyLiveStatusColumn ? (
-            <div className="hidden min-h-0 w-full lg:flex">
-              <LiveDraftStatusColumn
-                session={session}
-                queueEntries={queueFiltered}
-                leagueId={leagueId}
-                sport={effectiveDraftSport}
-                isCommissioner={isCommissioner}
-                showTimer={!isAuctionDraft}
-                hideFullDraftOrderList={presentationVariant === 'redraft_snake' && !isDynasty}
-                viewerRosterId={currentUserRosterId ?? null}
-                viewerRosterPicks={myDraftedPicks}
-                onClockSpotlight={onClockSpotlight}
-              />
+          {sessionMismatchRecovering ? (
+            <div
+              role="status"
+              data-testid="draft-session-mismatch-banner"
+              className="flex w-full shrink-0 items-center justify-between gap-3 rounded-lg border border-cyan-400/40 bg-cyan-950/35 px-3 py-2 text-[11px] text-cyan-50"
+            >
+              <span>Draft status changed. Refreshing room state…</span>
+              {sessionMismatchAttemptsRef.current > 3 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    sessionMismatchAttemptsRef.current = 0
+                    void fetchSession()
+                  }}
+                  data-testid="draft-session-mismatch-retry"
+                  className="rounded-md border border-cyan-400/50 bg-cyan-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-cyan-100 hover:bg-cyan-500/25"
+                >
+                  Try again
+                </button>
+              ) : null}
             </div>
           ) : null}
+          {/* D.6.2 — LiveDraftStatusColumn removed from the live snake layout.
+              The status column produced a side-by-side split with the board that
+              cramped horizontal real estate. The clock pill in DraftTopBar and
+              the on-the-clock cell in DraftBoard now carry that information. */}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1.5">
             <div className="flex min-h-[120px] min-w-0 flex-1 flex-col overflow-hidden lg:min-h-0">
               <div className="shrink-0">

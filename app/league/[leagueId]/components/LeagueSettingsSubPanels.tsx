@@ -565,7 +565,7 @@ function DraftSeasonCard({ row }: { row: SeasonDraftRow }) {
 }
 
 function DraftResultsPanel({ ctx, isCommish }: { ctx: SubPanelContext; isCommish: boolean }) {
-  const platformLeagueId = ctx.platformLeagueId?.trim()
+  const afLeagueId = ctx.league.id
   const currentDraftId = getDraftIdFromSettings(ctx.league.settings)
   const [seasonDrafts, setSeasonDrafts] = useState<SeasonDraftRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -574,7 +574,7 @@ function DraftResultsPanel({ ctx, isCommish }: { ctx: SubPanelContext; isCommish
   const [picksLoading, setPicksLoading] = useState(false)
 
   useEffect(() => {
-    if (!platformLeagueId) {
+    if (!afLeagueId) {
       setLoading(false)
       setSeasonDrafts([])
       setErr(null)
@@ -585,30 +585,18 @@ function DraftResultsPanel({ ctx, isCommish }: { ctx: SubPanelContext; isCommish
     setErr(null)
     void (async () => {
       try {
-        const chain: { season: string; leagueId: string; draftId: string | null }[] = []
-        let id: string | null = platformLeagueId
-        for (let depth = 0; depth < 10 && id; depth++) {
-          const res = await fetch(`https://api.sleeper.app/v1/league/${id}`) // db-first-exception: draft history until AF stores drafts
-          if (!res.ok) break
-          const L = (await res.json()) as Record<string, unknown>
-          const season = String(L.season ?? '')
-          const did = L.draft_id != null ? String(L.draft_id) : null
-          chain.push({ season, leagueId: id, draftId: did })
-          const prev = L.previous_league_id
-          id = typeof prev === 'string' && prev && prev !== id ? prev : null
+        const res = await fetch(
+          `/api/leagues/${encodeURIComponent(afLeagueId)}/sleeper-hosted-draft-history`,
+          { credentials: 'include' },
+        )
+        const json = (await res.json().catch(() => ({}))) as { rows?: SeasonDraftRow[]; error?: string }
+        if (cancelled) return
+        if (!res.ok) {
+          setErr(json.error ?? 'Could not load draft history.')
+          setSeasonDrafts([])
+          return
         }
-        const rows: SeasonDraftRow[] = []
-        for (const c of chain) {
-          if (!c.draftId) {
-            rows.push({ ...c, draft: null })
-            continue
-          }
-          const dr = await fetch(`https://api.sleeper.app/v1/draft/${c.draftId}`)
-          const draft = dr.ok ? ((await dr.json()) as Record<string, unknown>) : null
-          if (cancelled) return
-          rows.push({ ...c, draft })
-        }
-        if (!cancelled) setSeasonDrafts(rows)
+        setSeasonDrafts(Array.isArray(json.rows) ? json.rows : [])
       } catch {
         if (!cancelled) {
           setErr('Could not load draft history.')
@@ -621,19 +609,23 @@ function DraftResultsPanel({ ctx, isCommish }: { ctx: SubPanelContext; isCommish
     return () => {
       cancelled = true
     }
-  }, [platformLeagueId])
+  }, [afLeagueId])
 
   useEffect(() => {
-    if (!currentDraftId) {
+    if (!currentDraftId || !afLeagueId) {
       setPicks(null)
       return
     }
     let cancelled = false
     setPicksLoading(true)
-    void fetch(`https://api.sleeper.app/v1/draft/${currentDraftId}/picks`)
+    void fetch(
+      `/api/leagues/${encodeURIComponent(afLeagueId)}/sleeper-hosted-draft/${encodeURIComponent(currentDraftId)}/picks`,
+      { credentials: 'include' },
+    )
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('picks'))))
-      .then((data) => {
-        if (!cancelled) setPicks(Array.isArray(data) ? data : [])
+      .then((data: unknown) => {
+        const body = data && typeof data === 'object' ? (data as { picks?: unknown }).picks : undefined
+        if (!cancelled) setPicks(Array.isArray(body) ? body : [])
       })
       .catch(() => {
         if (!cancelled) setPicks([])
@@ -644,10 +636,10 @@ function DraftResultsPanel({ ctx, isCommish }: { ctx: SubPanelContext; isCommish
     return () => {
       cancelled = true
     }
-  }, [currentDraftId])
+  }, [currentDraftId, afLeagueId])
 
-  if (!platformLeagueId) {
-    return <p className="text-[13px] text-white/45">No platform league id — draft history unavailable.</p>
+  if (!afLeagueId) {
+    return <p className="text-[13px] text-white/45">League unavailable — draft history unavailable.</p>
   }
   if (loading) return <p className="text-[13px] text-white/45">Loading drafts…</p>
   if (err) return <p className="text-[13px] text-rose-300">{err}</p>
@@ -880,6 +872,19 @@ export function SettingsSubPanelBody({
       return <CommishNotePanel ctx={ctx} />
     case 'commish-controls':
       return <CommishControlsPanel ctx={ctx} />
+    case 'audit-log':
+      return (
+        <div
+          data-testid="settings-audit-log-panel"
+          className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-5 text-[13px] leading-relaxed text-white/65"
+        >
+          <p className="mb-2 text-[14px] font-semibold text-white/85">Audit Log</p>
+          <p>
+            Audit logging is ready to be wired. Commissioner actions will appear
+            here once backend logging is enabled.
+          </p>
+        </div>
+      )
     case 'league-dues':
       return <LeagueDuesTrackerPanel ctx={ctx} />
     case 'ai-chimmy-setup':

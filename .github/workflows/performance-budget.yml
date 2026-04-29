@@ -119,6 +119,8 @@ jobs:
       NEXTAUTH_URL: http://127.0.0.1:3000
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
       DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+      # Dummy key so `next build` can statically evaluate legacy routes that construct OpenAI clients.
+      OPENAI_API_KEY: not-a-real-openai-key-ci-placeholder
       PERF_BASE_URL: http://127.0.0.1:3000
       PERF_BUDGET_LCP_MS: "3500"
       PERF_BUDGET_CLS: "0.15"

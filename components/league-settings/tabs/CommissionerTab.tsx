@@ -19,6 +19,17 @@ export function CommissionerTab({ ctx }: LeagueSettingsTabProps) {
       <LeagueDuesTrackerPanel leagueId={ctx.league.id} />
       <LeagueHistoryPanel leagueId={ctx.league.id} />
 
+      <section
+        data-testid="settings-audit-log-panel"
+        className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-5 text-[13px] leading-relaxed text-white/65"
+      >
+        <p className="mb-2 text-[14px] font-semibold text-white/85">Audit Log</p>
+        <p>
+          Audit logging is ready to be wired. Commissioner actions will appear
+          here once backend logging is enabled.
+        </p>
+      </section>
+
       {ctx.isHeadCommissioner ? (
         <DeleteLeagueFromAfPanel
           leagueId={ctx.league.id}

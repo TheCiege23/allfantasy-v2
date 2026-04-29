@@ -75,6 +75,7 @@ const GENERAL_CARDS: CardDef[] = [
   { id: 'co-owners', title: 'Manage Co Owners', description: 'Select co-owners to run your team', icon: UserPlus },
   { id: 'draft-results', title: 'Draft Results', description: 'View draft results for this league', icon: Grid },
   { id: 'league-history', title: 'League History', description: 'League history and past champions', icon: BookOpen },
+  { id: 'audit-log', title: 'Audit Log', description: 'Commissioner & league change history', icon: History },
 ]
 
 const COMMISH_CARDS: CardDef[] = [
