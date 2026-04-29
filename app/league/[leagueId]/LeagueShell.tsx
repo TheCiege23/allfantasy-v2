@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { normalizeOpenChatQueryParam } from '@/lib/dashboard/open-chat-query'
 import { LeagueLiveStrip } from '@/components/sports/LeagueLiveStrip'
 import { LeagueStoryCard } from '@/components/sports/LeagueStoryCard'
@@ -721,10 +721,10 @@ export function LeagueShell({
   const handlePlayerClick = (playerId: string) => setSelectedPlayer(playerId)
   const closePlayerCard = () => setSelectedPlayer(null)
 
-  const openLeagueSettingsModal = (initialPanel: string | null = null) => {
+  const openLeagueSettingsModal = useCallback((initialPanel: string | null = null) => {
     setSettingsInitialPanel(initialPanel)
     setSettingsOpen(true)
-  }
+  }, [])
 
   const closeLeagueSettingsModal = () => {
     setSettingsOpen(false)
@@ -743,7 +743,7 @@ export function LeagueShell({
     const q = params.toString()
     const base = pathname ?? `/league/${league.id}`
     router.replace(q ? `${base}?${q}` : base, { scroll: false })
-  }, [nflRedraftCore, searchParams, pathname, router, league.id])
+  }, [nflRedraftCore, searchParams, pathname, router, league.id, openLeagueSettingsModal])
 
   const settingsPanelDeepLinkRef = useRef<string | null>(null)
   /** Deep-link from draft room gear: `/league/{id}?settingsPanel=draft` opens Draft settings panel. */
@@ -761,7 +761,7 @@ export function LeagueShell({
     const q = params.toString()
     const base = pathname ?? `/league/${league.id}`
     router.replace(q ? `${base}?${q}` : base, { scroll: false })
-  }, [searchParams, pathname, router, league.id])
+  }, [searchParams, pathname, router, league.id, openLeagueSettingsModal])
 
   /**
    * Slice H — listen for the navigation-free `af-pre-draft-fix-action`
@@ -787,7 +787,7 @@ export function LeagueShell({
     }
     window.addEventListener('af-pre-draft-fix-action', handler)
     return () => window.removeEventListener('af-pre-draft-fix-action', handler)
-  }, [league.id])
+  }, [league.id, openLeagueSettingsModal])
 
   const specialtyAtmosphereMood = useMemo(() => {
     if (league.leagueVariant === 'survivor') {

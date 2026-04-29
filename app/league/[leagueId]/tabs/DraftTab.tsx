@@ -383,7 +383,7 @@ export function DraftTab({
       const res = await fetch('/api/league/settings/randomize-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leagueId: league.id, count: Math.max(1, Math.min(cap, 12)) }),
+        body: JSON.stringify({ leagueId: league.id, count: Math.max(1, cap) }),
       })
       const data = (await res.json().catch(() => ({}))) as {
         error?: string
