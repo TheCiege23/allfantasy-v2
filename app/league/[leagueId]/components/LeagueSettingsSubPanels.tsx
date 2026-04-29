@@ -880,6 +880,19 @@ export function SettingsSubPanelBody({
       return <CommishNotePanel ctx={ctx} />
     case 'commish-controls':
       return <CommishControlsPanel ctx={ctx} />
+    case 'audit-log':
+      return (
+        <div
+          data-testid="settings-audit-log-panel"
+          className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-5 text-[13px] leading-relaxed text-white/65"
+        >
+          <p className="mb-2 text-[14px] font-semibold text-white/85">Audit Log</p>
+          <p>
+            Audit logging is ready to be wired. Commissioner actions will appear
+            here once backend logging is enabled.
+          </p>
+        </div>
+      )
     case 'league-dues':
       return <LeagueDuesTrackerPanel ctx={ctx} />
     case 'ai-chimmy-setup':

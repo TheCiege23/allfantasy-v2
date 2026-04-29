@@ -993,7 +993,11 @@ export function LeagueShell({
               c2cLeagueActive={c2cConfig !== null}
               c2cConfig={c2cConfig}
               isCommissioner={isCommissioner}
-              onOpenCommissionerSettings={() => setCommissionerSettingsOpen(true)}
+              onOpenCommissionerSettings={() =>
+                nflRedraftCore
+                  ? openLeagueSettingsModal('commish-controls')
+                  : setCommissionerSettingsOpen(true)
+              }
               survivorLeagueActive={league.leagueVariant === 'survivor'}
               zombieLeagueActive={league.leagueVariant === 'zombie'}
               idpCapEnabled={idpCapEnabled}
@@ -1083,10 +1087,10 @@ export function LeagueShell({
 
       {portalMounted &&
       isCommissioner &&
+      !nflRedraftCore &&
       ((devyConfig !== null && devyConfig !== 'none') ||
         (c2cChecked && c2cConfig !== null) ||
-        league.leagueVariant === 'survivor' ||
-        nflRedraftCore)
+        league.leagueVariant === 'survivor')
         ? createPortal(
             <CommissionerSettingsModal
               leagueId={league.id}
