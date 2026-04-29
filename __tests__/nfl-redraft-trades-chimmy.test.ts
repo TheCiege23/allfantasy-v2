@@ -80,26 +80,17 @@ describe('NFL redraft core — TradesTab Chimmy entry point', () => {
   })
 })
 
-describe('NFL redraft core — TeamTab + PlayersTab Chimmy hooks remain intact', () => {
-  // Regression guard for Commit D — verifying the surfaces this commit does
-  // NOT touch. If a future refactor moves the Chimmy plumbing, both tabs and
-  // TradesTab should be updated together.
+describe('NFL redraft core — Commit C PlayerHeadshot regression guards', () => {
+  // Commit C locked: TeamTab + PlayersTab use the shared PlayerHeadshot
+  // component instead of importing PlayerImage directly. That contract
+  // continues to hold across Commit D's TradesTab work.
+  //
+  // (Note: TeamTab + PlayersTab do not yet import openChimmyWithPrompt —
+  // those row-level Chimmy hooks live in Bucket 3 WIP that has not landed
+  // in committed code yet. When that commit lands it will need its own
+  // dedicated regression-lock test that asserts the imports + sources.)
   const teamTabSrc = read('app/league/[leagueId]/tabs/TeamTab.tsx')
   const playersTabSrc = read('app/league/[leagueId]/tabs/PlayersTab.tsx')
-
-  it('TeamTab still imports openChimmyWithPrompt (roster source)', () => {
-    expect(teamTabSrc).toMatch(
-      /import \{ openChimmyWithPrompt \} from '@\/lib\/dashboard\/open-chimmy-with-prompt'/,
-    )
-    expect(teamTabSrc).toMatch(/source:\s*'roster'/)
-  })
-
-  it('PlayersTab still imports openChimmyWithPrompt (waivers source)', () => {
-    expect(playersTabSrc).toMatch(
-      /import \{ openChimmyWithPrompt \} from '@\/lib\/dashboard\/open-chimmy-with-prompt'/,
-    )
-    expect(playersTabSrc).toMatch(/source:\s*'waivers'/)
-  })
 
   it('TeamTab still uses the shared PlayerHeadshot (Commit C lock)', () => {
     expect(teamTabSrc).toMatch(

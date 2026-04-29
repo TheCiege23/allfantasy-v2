@@ -258,6 +258,20 @@ export function DraftRoomPageClient({
    * E) is preserved.
    */
   const [showPreDraftValidationWizard, setShowPreDraftValidationWizard] = useState(false)
+  /**
+   * Slice J: in-place recovery state for `DRAFT_SESSION_MISMATCH` 409
+   * responses from the session route. When the server tells the client its
+   * view of the draft session is stale, we DO NOT navigate (no
+   * `router.push`, `router.replace`, or `window.location.replace`) — that
+   * would violate the unified-state contract locked by Commit E. Instead we
+   * flip this banner on, schedule a single in-place refetch via
+   * `fetchSession`, and clear the flag once the next response is 2xx.
+   * After 3 consecutive 409s the banner exposes an inline "Try again" button
+   * so the user can retry without leaving the room.
+   */
+  const [sessionMismatchRecovering, setSessionMismatchRecovering] = useState(false)
+  const sessionMismatchRetryTimerRef = useRef<number | null>(null)
+  const sessionMismatchAttemptsRef = useRef(0)
   const pollSessionFailStreakRef = useRef(0)
   /** Browser timers are numeric IDs; avoids NodeJS.Timeout vs DOM mismatch in `tsc`. */
   const connectionDegradedTimerRef = useRef<number | null>(null)
@@ -1280,8 +1294,33 @@ export function DraftRoomPageClient({
         setSession(null)
         return false
       }
+      // Slice J — 409 / DRAFT_SESSION_MISMATCH: the server has detected the
+      // client is reading a stale or non-canonical draft session for this
+      // league. Recover IN-PLACE: keep the same DraftRoomShell + DraftBoard
+      // mounted, show an inline banner, and schedule a single refetch.
+      // Never `router.push` / `router.replace` / `window.location` here —
+      // navigation breaks the unified-state contract locked by Commit E.
+      if (res.status === 409 && (data as { code?: unknown })?.code === 'DRAFT_SESSION_MISMATCH') {
+        setSessionMismatchRecovering(true)
+        sessionMismatchAttemptsRef.current += 1
+        if (sessionMismatchRetryTimerRef.current && typeof window !== 'undefined') {
+          window.clearTimeout(sessionMismatchRetryTimerRef.current)
+        }
+        // Cap at 3 retries — past that, the banner exposes an inline retry
+        // button instead of looping forever.
+        if (sessionMismatchAttemptsRef.current <= 3 && typeof window !== 'undefined') {
+          sessionMismatchRetryTimerRef.current = window.setTimeout(() => {
+            sessionMismatchRetryTimerRef.current = null
+            void fetchSession()
+          }, 800)
+        }
+        return false
+      }
       if (res.ok && data.session) {
         setDraftSessionAccess("ok")
+        // Recovered (idempotent — safe even if no prior mismatch was observed).
+        setSessionMismatchRecovering(false)
+        sessionMismatchAttemptsRef.current = 0
         setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
         // Store canonical state from the response for dev-mode divergence logging.
         if (data.canonicalDraftState && typeof data.canonicalDraftState === 'object') {
@@ -4846,6 +4885,28 @@ export function DraftRoomPageClient({
             >
               Draft order is still syncing — board cells stay open below. Use <span className="font-semibold">Resync</span>{' '}
               in the header if this message persists.
+            </div>
+          ) : null}
+          {sessionMismatchRecovering ? (
+            <div
+              role="status"
+              data-testid="draft-session-mismatch-banner"
+              className="flex w-full shrink-0 items-center justify-between gap-3 rounded-lg border border-cyan-400/40 bg-cyan-950/35 px-3 py-2 text-[11px] text-cyan-50"
+            >
+              <span>Draft status changed. Refreshing room state…</span>
+              {sessionMismatchAttemptsRef.current > 3 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    sessionMismatchAttemptsRef.current = 0
+                    void fetchSession()
+                  }}
+                  data-testid="draft-session-mismatch-retry"
+                  className="rounded-md border border-cyan-400/50 bg-cyan-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-cyan-100 hover:bg-cyan-500/25"
+                >
+                  Try again
+                </button>
+              ) : null}
             </div>
           ) : null}
           {/* D.6.2 — LiveDraftStatusColumn removed from the live snake layout.

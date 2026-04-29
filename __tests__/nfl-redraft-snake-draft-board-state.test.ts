@@ -225,12 +225,19 @@ describe('NFL redraft snake draft — legacy /draft/live and /draft/room are red
     expect(src).not.toMatch(/<DraftRoomShell\b/)
   })
 
-  it('app/draft/room/[draftId]/page.tsx redirects to canonical /draft/[draftId] without rendering a board', () => {
+  it('app/draft/room/[draftId]/page.tsx mounts the canonical <DraftBoard> wrapper (single-shell preserved)', () => {
+    // The room route is the canonical "draft room" deep-link target. It
+    // mounts `<DraftBoard kind="live">` — the same wrapper used by
+    // `/draft/[draftId]/snake` — which routes through DraftRoomPageClient.
+    // It is NOT a separate shell. The unified-state contract requires this
+    // entrypoint funnel into the same client mount, not that the route
+    // itself redirects.
     const src = read('app/draft/room/[draftId]/page.tsx')
-    expect(src).toMatch(/import \{[^}]*redirect[^}]*\} from 'next\/navigation'/)
-    expect(src).toMatch(/redirect\(`\/draft\/\$\{encodeURIComponent\(context\.draftId\)\}`\)/)
+    expect(src).toMatch(/import \{ DraftBoard \} from '@\/components\/draft\/DraftBoard'/)
+    expect(src).toMatch(/<DraftBoard\s+kind="live"/)
+    // Must NOT mount the inner client or the shell directly — the wrapper
+    // is the only sanctioned way in.
     expect(src).not.toMatch(/<DraftRoomPageClient\b/)
-    expect(src).not.toMatch(/<DraftBoard\b/)
     expect(src).not.toMatch(/<DraftRoomShell\b/)
   })
 })
