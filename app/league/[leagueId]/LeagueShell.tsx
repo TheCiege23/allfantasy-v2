@@ -236,7 +236,27 @@ export function LeagueShell({
   const idpCapEnabled = Boolean(capSummary)
   const { t, language } = useLanguage()
   const shouldUseMatchupPrimary = shouldUseMatchupInsteadOfDraft(league.lifecycleState)
-  const nflRedraftCore = useMemo(() => isNflRedraftCoreDashboardLeague(league), [league])
+  const nflRedraftCore = useMemo(
+    () =>
+      isNflRedraftCoreDashboardLeague({
+        sport: league.sport,
+        leagueType: league.leagueType,
+        isDynasty: league.isDynasty,
+        leagueVariant: league.leagueVariant,
+        bestBallMode: league.bestBallMode,
+        guillotineMode: league.guillotineMode,
+        keeperPhaseActive: league.keeperPhaseActive,
+      }),
+    [
+      league.sport,
+      league.leagueType,
+      league.isDynasty,
+      league.leagueVariant,
+      league.bestBallMode,
+      league.guillotineMode,
+      league.keeperPhaseActive,
+    ],
+  )
 
   const tabDefs = useMemo(() => {
     if (nflRedraftCore) {

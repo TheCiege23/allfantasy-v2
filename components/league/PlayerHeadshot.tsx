@@ -136,22 +136,36 @@ function isRichMode(props: PlayerHeadshotProps): boolean {
 }
 
 function RichPlayerHeadshot(props: PlayerHeadshotProps) {
-  const id = props.sleeperId ?? props.playerId ?? ''
-  const sport = String(props.sport ?? 'NFL').trim().toUpperCase()
-  const resolverEnabled = Boolean(props.useResolver && sport === 'NFL' && props.playerName?.trim())
-  const initialHeadshotUrl = useMemo(() => props.headshotUrl ?? null, [props.headshotUrl])
+  const playerId = props.playerId
+  const sleeperId = props.sleeperId
+  const playerName = props.playerName
+  const headshotUrl = props.headshotUrl
+  const team = props.team
+  const position = props.position
+  const sportValue = props.sport
+  const id = sleeperId ?? playerId ?? ''
+  const sport = String(sportValue ?? 'NFL').trim().toUpperCase()
+  const resolverEnabled = Boolean(props.useResolver && sport === 'NFL' && playerName?.trim())
+  const initialHeadshotUrl = useMemo(() => headshotUrl ?? null, [headshotUrl])
   const [resolvedHeadshotUrl, setResolvedHeadshotUrl] = useState<string | null>(initialHeadshotUrl)
 
   useEffect(() => {
-    setResolvedHeadshotUrl(props.headshotUrl ?? null)
-  }, [props.headshotUrl])
+    setResolvedHeadshotUrl(headshotUrl ?? null)
+  }, [headshotUrl])
 
   useEffect(() => {
     if (!resolverEnabled) {
       return
     }
     let cancelled = false
-    void loadResolvedHeadshot(props).then((result) => {
+    void loadResolvedHeadshot({
+      playerId,
+      sleeperId,
+      playerName,
+      team,
+      position,
+      sport: sportValue,
+    }).then((result) => {
       if (!cancelled && result.headshotUrl) {
         setResolvedHeadshotUrl(result.headshotUrl)
       }
@@ -159,14 +173,14 @@ function RichPlayerHeadshot(props: PlayerHeadshotProps) {
     return () => {
       cancelled = true
     }
-  }, [resolverEnabled, props])
+  }, [resolverEnabled, playerId, sleeperId, playerName, team, position, sportValue])
 
   return (
     <PlayerImage
       sleeperId={id}
-      sport={props.sport ?? 'NFL'}
-      name={props.playerName ?? props.alt ?? ''}
-      position={props.position ?? undefined}
+      sport={sportValue ?? 'NFL'}
+      name={playerName ?? props.alt ?? ''}
+      position={position ?? undefined}
       headshotUrl={resolvedHeadshotUrl ?? undefined}
       espnId={props.espnId}
       size={props.size ?? 32}

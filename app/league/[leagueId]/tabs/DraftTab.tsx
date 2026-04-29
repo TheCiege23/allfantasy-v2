@@ -394,20 +394,26 @@ export function DraftTab({
         return
       }
 
-      const slotByTeamId = new Map<string, number>()
+      const slotByOwnerId = new Map<string, number>()
       for (const slot of data.slots ?? []) {
         if (typeof slot.ownerId === 'string' && Number.isFinite(slot.slot)) {
-          slotByTeamId.set(slot.ownerId, slot.slot)
+          slotByOwnerId.set(slot.ownerId, slot.slot)
         }
       }
 
       setDisplayTeams((currentTeams) =>
         currentTeams.map((team) => ({
           ...team,
-          draftPosition: slotByTeamId.get(team.id) ?? team.draftPosition ?? null,
+          draftPosition:
+            slotByOwnerId.get(team.id) ??
+            slotByOwnerId.get(team.claimedByUserId ?? '') ??
+            slotByOwnerId.get(team.platformUserId ?? '') ??
+            slotByOwnerId.get(team.externalId ?? '') ??
+            team.draftPosition ??
+            null,
         })),
       )
-      toast.success(slotByTeamId.size > 0 ? 'Draft order updated' : 'Draft order saved')
+      toast.success(slotByOwnerId.size > 0 ? 'Draft order updated' : 'Draft order saved')
     } catch {
       toast.error('Could not generate draft order')
     }
