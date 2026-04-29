@@ -4305,6 +4305,39 @@ export function DraftRoomPageClient({
                 void handleCommissionerAction('start')
               }
             }}
+            onFixAction={(action) => {
+              // Slice G — Target A: the draft route does NOT host
+              // `LeagueSettingsModal` (that modal lives on the league
+              // dashboard `/league/[id]` route via `LeagueShell`). Auto-
+              // opening it from here would require either a navigation
+              // call (forbidden by the unified-state contract locked in
+              // Commit E) or mounting the league shell inside the draft
+              // room (a separate refactor).
+              //
+              // For now we forward the canonical action key to the
+              // settings-fix-action event bus and close the wizard. The
+              // commissioner closes the draft tab and walks to League →
+              // Settings → {panel} themselves. Phase 2 will pick up
+              // `af-pre-draft-fix-action` on the dashboard side and deep-
+              // link into the right panel automatically.
+              const panelByAction: Record<string, string> = {
+                invite_managers: 'invite',
+                set_draft_order: 'draft',
+                configure_roster: 'roster',
+                configure_scoring: 'scoring',
+                fix_duplicate_managers: 'members-commish',
+                configure_draft_type: 'draft',
+              }
+              const panel = panelByAction[action] ?? null
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(
+                  new CustomEvent('af-pre-draft-fix-action', {
+                    detail: { leagueId, action, panel },
+                  }),
+                )
+              }
+              setShowPreDraftValidationWizard(false)
+            }}
           />
         </div>
       </div>

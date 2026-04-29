@@ -4,11 +4,30 @@ import { useState, useEffect } from 'react'
 import { CheckCircle, AlertCircle, XCircle, Loader } from 'lucide-react'
 import type { DraftValidationReport, ValidationResult } from '@/lib/draft/validation/DraftValidationOrchestrator'
 
+/**
+ * Canonical fix-action keys emitted by the validation orchestrator. Each key
+ * corresponds to a `LeagueSettingsModal` panel id; the parent component is
+ * responsible for the mapping (so this component stays navigation-free).
+ */
+export type PreDraftFixAction =
+  | 'invite_managers'
+  | 'set_draft_order'
+  | 'configure_roster'
+  | 'configure_scoring'
+  | 'fix_duplicate_managers'
+  | 'configure_draft_type'
+
 interface PreDraftWizardProps {
   leagueId: string
   draftId: string
   onClose: () => void
   onValidationComplete?: (canStart: boolean) => void
+  /**
+   * Parent-supplied handler for "Fix" button clicks. The wizard never
+   * navigates on its own — it forwards the canonical fix-action key and lets
+   * the parent (`DraftRoomPageClient`) deep-link the settings modal in place.
+   */
+  onFixAction?: (action: PreDraftFixAction) => void
 }
 
 interface ChecklistItemProps {
@@ -67,7 +86,13 @@ function ChecklistItem({ result, onFix }: ChecklistItemProps) {
   )
 }
 
-export function PreDraftWizard({ leagueId, draftId, onClose, onValidationComplete }: PreDraftWizardProps) {
+export function PreDraftWizard({
+  leagueId,
+  draftId,
+  onClose,
+  onValidationComplete,
+  onFixAction,
+}: PreDraftWizardProps) {
   const [report, setReport] = useState<DraftValidationReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -100,9 +125,19 @@ export function PreDraftWizard({ leagueId, draftId, onClose, onValidationComplet
   }
 
   const handleFixAction = (action: string) => {
-    // Route to appropriate fix UI based on action
-    console.log('[PreDraftWizard] fixing:', action)
-    // TODO: Implement route-based fixes (e.g., open settings modal, invite modal, etc.)
+    // Forward only the canonical action keys we know how to route. Unknown
+    // keys are ignored on the wizard side — the parent owns the mapping.
+    const canonical: PreDraftFixAction[] = [
+      'invite_managers',
+      'set_draft_order',
+      'configure_roster',
+      'configure_scoring',
+      'fix_duplicate_managers',
+      'configure_draft_type',
+    ]
+    if ((canonical as readonly string[]).includes(action)) {
+      onFixAction?.(action as PreDraftFixAction)
+    }
   }
 
   if (loading) {
