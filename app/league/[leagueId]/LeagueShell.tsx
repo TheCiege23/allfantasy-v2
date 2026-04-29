@@ -386,14 +386,21 @@ export function LeagueShell({
   }, [tabDefs])
 
   const nflMatchupLandingApplied = useRef(false)
+  const nflMatchupLandingDeepLinkSeen = useRef(false)
   useEffect(() => {
     nflMatchupLandingApplied.current = false
+    nflMatchupLandingDeepLinkSeen.current = false
   }, [league.id])
 
   /** NFL redraft in-season default: Matchups tab once per visit when no ?view= deep link. */
   useEffect(() => {
     const deepLink = searchParams?.get('view') ?? searchParams?.get('tab')
-    if (deepLink?.trim()) return
+    if (deepLink?.trim()) nflMatchupLandingDeepLinkSeen.current = true
+  }, [league.id, searchParams])
+
+  useEffect(() => {
+    const deepLink = searchParams?.get('view') ?? searchParams?.get('tab')
+    if (deepLink?.trim() || nflMatchupLandingDeepLinkSeen.current) return
     if (!nflRedraftCore || !shouldUseMatchupPrimary || nflMatchupLandingApplied.current) return
     const ids = new Set(tabDefs.map((t) => t.id))
     if (!ids.has('matchups')) return
