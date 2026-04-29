@@ -51,6 +51,20 @@ describe('NFL redraft league shell gating', () => {
       }),
     ).toBe(false)
   })
+
+  it('rejects NFL leagues without an explicit league type', () => {
+    expect(
+      isNflRedraftCoreDashboardLeague({
+        sport: 'NFL',
+        leagueType: null,
+        isDynasty: false,
+        leagueVariant: null,
+        bestBallMode: false,
+        guillotineMode: false,
+        keeperPhaseActive: false,
+      }),
+    ).toBe(false)
+  })
 })
 
 describe('openChimmyWithPrompt', () => {

@@ -34,7 +34,7 @@ export function isNflRedraftCoreDashboardLeague(league: NflRedraftCoreLeagueShap
   if (league.guillotineMode) return false
   if (league.keeperPhaseActive) return false
 
-  const lt = String(league.leagueType ?? 'redraft').toLowerCase()
+  const lt = typeof league.leagueType === 'string' ? league.leagueType.trim().toLowerCase() : ''
   if (lt !== 'redraft') return false
 
   const v = String(league.leagueVariant ?? '').trim().toLowerCase()
@@ -47,7 +47,7 @@ export function isNflRedraftCoreDashboardLeague(league: NflRedraftCoreLeagueShap
 export function isNflRedraftCoreDashboardFromUserLeague(league: UserLeague): boolean {
   return isNflRedraftCoreDashboardLeague({
     sport: league.sport,
-    leagueType: league.leagueType ?? 'redraft',
+    leagueType: league.leagueType ?? null,
     isDynasty: league.isDynasty ?? false,
     leagueVariant: league.leagueVariant ?? null,
     bestBallMode: league.bestBallMode ?? false,
