@@ -12,6 +12,7 @@ import type { LeagueSeasonSnapshot } from '@/lib/league/sort-teams-standings'
 import type { StandingsPresentation } from '@/app/league/[leagueId]/league-dashboard-types'
 import { getDraftIdFromSettings } from '@/app/league/[leagueId]/components/league-settings-modal-utils'
 import { IDPDraftFilters } from '@/app/idp/components/IDPDraftFilters'
+import { isNflRedraftCoreDashboardFromUserLeague } from '@/lib/league/is-nfl-redraft-core-dashboard'
 
 export type DraftTabProps = {
   league: UserLeague
@@ -29,6 +30,83 @@ export type DraftTabProps = {
    * `league` — same invite + team list + activity as draft, but no draftboard and no draft-position subtext (League tab).
    */
   mode?: 'draft' | 'league'
+  /** Opens full league settings modal (replaces `?view=settings` tab on NFL redraft). */
+  onOpenLeagueSettings?: (initialPanel?: string | null) => void
+}
+
+function isPreDraftLeagueStatus(league: UserLeague): boolean {
+  const s = String(league.status ?? '').toLowerCase()
+  if (!s) return true
+  if (s.includes('in_season') || s === 'in season' || s === 'complete' || s === 'postseason') {
+    return false
+  }
+  return s.includes('draft') || s.includes('pre') || s === 'scheduled'
+}
+
+function NflRedraftDraftOrderBlock({
+  teams,
+  isCommissioner,
+  onOpenDraftSettings,
+  onGenerateDraftOrder,
+}: {
+  teams: UserLeagueTeam[]
+  isCommissioner: boolean
+  onOpenDraftSettings: () => void
+  onGenerateDraftOrder: () => void
+}) {
+  const ordered = useMemo(() => {
+    const withPos = teams.filter((t) => t.draftPosition != null && Number.isFinite(t.draftPosition))
+    return [...withPos].sort((a, b) => (a.draftPosition ?? 0) - (b.draftPosition ?? 0))
+  }, [teams])
+  const hasOrder = ordered.length > 0
+
+  return (
+    <section
+      className="rounded-2xl border border-white/[0.08] bg-[#0c0c1e] p-4"
+      aria-label="Draft order"
+      data-testid="nfl-redraft-draft-order"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <h2 className="text-sm font-semibold text-white">Draft order</h2>
+        {isCommissioner ? (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onGenerateDraftOrder}
+              className="rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-cyan-200 hover:bg-cyan-500/20"
+              data-testid="nfl-redraft-generate-draft-order"
+            >
+              Generate draft order
+            </button>
+            <button
+              type="button"
+              onClick={onOpenDraftSettings}
+              className="rounded-lg border border-white/[0.12] bg-white/[0.06] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white/85 hover:bg-white/[0.1]"
+              data-testid="nfl-redraft-edit-draft-settings"
+            >
+              Edit draft settings
+            </button>
+          </div>
+        ) : null}
+      </div>
+      {!hasOrder ? (
+        <p className="mt-3 text-[12px] text-white/45">Draft order has not been generated yet.</p>
+      ) : (
+        <ol className="mt-3 space-y-2">
+          {ordered.map((t, i) => (
+            <li
+              key={t.id}
+              className="flex items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2 text-[12px]"
+            >
+              <span className="font-bold tabular-nums text-cyan-300">{i + 1}.</span>
+              <span className="min-w-0 flex-1 truncate font-semibold text-white">{t.teamName}</span>
+              <span className="shrink-0 text-[10px] text-white/40">Slot #{t.draftPosition}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  )
 }
 
 type TimerParts = { days: number; hours: number; mins: number; secs: number }
@@ -83,6 +161,7 @@ export function DraftTab({
   seasonSnapshot = null,
   standingsPresentation = { mode: 'standard' },
   mode = 'draft',
+  onOpenLeagueSettings,
 }: DraftTabProps) {
   const isLeagueHome = mode === 'league'
   const router = useRouter()
@@ -215,6 +294,14 @@ export function DraftTab({
       // ignore
     }
   }, [league.id, league.sport, router])
+
+  const nflRedraftShell = isNflRedraftCoreDashboardFromUserLeague(league)
+  const preDraft = isPreDraftLeagueStatus(league)
+
+  const openSettingsDraft = useCallback(() => {
+    if (onOpenLeagueSettings) onOpenLeagueSettings('draft')
+    else router.push(`/league/${league.id}?view=settings`)
+  }, [onOpenLeagueSettings, router, league.id])
 
   const handleDraftRoom = useCallback(async () => {
     try {
@@ -352,7 +439,7 @@ export function DraftTab({
               </button>
               <button
                 type="button"
-                onClick={() => router.push(`/league/${league.id}?view=settings`)}
+                onClick={() => openSettingsDraft()}
                 className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-[#0f1f52]/60 text-white shadow-inner backdrop-blur-sm transition hover:bg-[#0f1f52]/90"
                 aria-label="League and draft settings"
                 data-testid="league-draftboard-settings"
@@ -447,6 +534,15 @@ export function DraftTab({
         standingsPresentation={standingsPresentation}
         showDraftPositions={!isLeagueHome}
       />
+
+      {nflRedraftShell && !isLeagueHome && preDraft ? (
+        <NflRedraftDraftOrderBlock
+          teams={teams}
+          isCommissioner={Boolean(isCommissioner || isOwner)}
+          onOpenDraftSettings={() => openSettingsDraft()}
+          onGenerateDraftOrder={() => openSettingsDraft()}
+        />
+      ) : null}
 
       <LeagueRecentActivity leagueId={league.id} />
     </div>

@@ -4,6 +4,18 @@ export type TabDef = {
   icon?: string
 }
 
+/** NFL redraft simplified shell — settings use header gear only, not a tab. */
+export const NFL_REDRAFT_CORE_TAB_IDS = [
+  'home',
+  'roster',
+  'matchups',
+  'players',
+  'trades',
+  'league',
+] as const
+
+export type NflRedraftCoreTabId = (typeof NFL_REDRAFT_CORE_TAB_IDS)[number]
+
 /** Sleeper-style primary strip: Draft → Team (roster) → League → Players → Trend → Trades → Scores; extras after. */
 const NFL_TABS: TabDef[] = [
   { id: 'draft', label: 'Draft' },
@@ -107,7 +119,9 @@ export function getLeagueTabs(sport: string): TabDef[] {
 
 /** Maps tab id → i18n key under translations.en (`league.tab.*`). */
 const LEAGUE_TAB_I18N_KEY: Record<string, string> = {
+  home: 'league.tab.home',
   matchup: 'league.tab.matchup',
+  matchups: 'league.tab.matchups',
   draft: 'league.tab.draft',
   redraft: 'league.tab.redraft',
   team: 'league.tab.team',

@@ -41,6 +41,7 @@ import {
   Telescope,
   TreePalm,
   Trophy,
+  House,
   User,
   Users,
   Vote,
@@ -60,7 +61,13 @@ import AppShell from '@/app/components/AppShell'
 import { LeftChatPanel } from '@/app/dashboard/components/LeftChatPanel'
 import { RightControlPanel } from '@/app/dashboard/components/RightControlPanel'
 import type { UserLeague, UserLeagueTeam } from '@/app/dashboard/types'
-import { getLeagueTabs, leagueTabSportEmoji, localizeLeagueTabs, type TabDef } from './LeagueTabs'
+import {
+  getLeagueTabs,
+  leagueTabSportEmoji,
+  localizeLeagueTabs,
+  type TabDef,
+} from './LeagueTabs'
+import { isNflRedraftCoreDashboardLeague } from '@/lib/league/is-nfl-redraft-core-dashboard'
 import { DraftTab } from './tabs/DraftTab'
 import { TeamTab } from './tabs/TeamTab'
 import { LeagueTab } from './tabs/LeagueTab'
@@ -161,6 +168,9 @@ function prismaLeagueToUserLeague(
     sleeperLeagueId: l.platform === 'sleeper' ? l.platformLeagueId : undefined,
     draftDate: extra?.draftDate ?? undefined,
     leagueVariant: l.leagueVariant ?? undefined,
+    leagueType: l.leagueType ?? undefined,
+    guillotineMode: l.guillotineMode ?? undefined,
+    keeperPhaseActive: l.keeperPhaseActive ?? undefined,
   }
 }
 
@@ -225,7 +235,21 @@ export function LeagueShell({
   const idpCapEnabled = Boolean(capSummary)
   const { t, language } = useLanguage()
   const shouldUseMatchupPrimary = shouldUseMatchupInsteadOfDraft(league.lifecycleState)
+  const nflRedraftCore = useMemo(() => isNflRedraftCoreDashboardLeague(league), [league])
+
   const tabDefs = useMemo(() => {
+    if (nflRedraftCore) {
+      const core: TabDef[] = [
+        { id: 'home', label: 'Home' },
+        { id: 'roster', label: 'Roster' },
+        { id: 'matchups', label: 'Matchups' },
+        { id: 'players', label: 'Players' },
+        { id: 'trades', label: 'Trades' },
+        { id: 'league', label: 'League' },
+      ]
+      return localizeLeagueTabs(core, t)
+    }
+
     let base = getLeagueTabs(String(league.sport))
     if (league.bestBallMode) {
       const idx = base.findIndex((t) => t.id === 'redraft')
@@ -293,6 +317,7 @@ export function LeagueShell({
     const withSettings = [...base, { id: 'settings', label: '⚙ Settings' }]
     return localizeLeagueTabs(applyMatchupPrimaryTab(withSettings, shouldUseMatchupPrimary), t)
   }, [
+    nflRedraftCore,
     league.sport,
     league.lifecycleState,
     league.leagueType,
@@ -338,6 +363,22 @@ export function LeagueShell({
     const ids = new Set(tabDefs.map((t) => t.id))
     setActiveTab((prev) => (ids.has(prev) ? prev : tabDefs[0]?.id ?? 'draft'))
   }, [tabDefs])
+
+  const nflMatchupLandingApplied = useRef(false)
+  useEffect(() => {
+    nflMatchupLandingApplied.current = false
+  }, [league.id])
+
+  /** NFL redraft in-season default: Matchups tab once per visit when no ?view= deep link. */
+  useEffect(() => {
+    const deepLink = searchParams?.get('view') ?? searchParams?.get('tab')
+    if (deepLink?.trim()) return
+    if (!nflRedraftCore || !shouldUseMatchupPrimary || nflMatchupLandingApplied.current) return
+    const ids = new Set(tabDefs.map((t) => t.id))
+    if (!ids.has('matchups')) return
+    setActiveTab('matchups')
+    nflMatchupLandingApplied.current = true
+  }, [league.id, nflRedraftCore, shouldUseMatchupPrimary, tabDefs, searchParams])
 
   /** First load per league navigation: guillotine leagues open on the Guillotine hub (once per visit). */
   useEffect(() => {
@@ -409,21 +450,24 @@ export function LeagueShell({
     const raw = view ?? tabParam
     if (!raw) return
     const key = raw.trim().toLowerCase()
+    if (key === 'settings' && nflRedraftCore) return
     const sportU = String(league.sport ?? '').toUpperCase()
     const intelligenceFallback = sportU === 'NFL' || sportU === 'NCAAF' ? 'trend' : 'players'
     const map: Record<string, string> = {
-      team: 'team',
-      roster: 'team',
+      home: 'home',
+      team: nflRedraftCore ? 'roster' : 'team',
+      roster: nflRedraftCore ? 'roster' : 'team',
       squad: 'squad',
-      matchup: 'matchup',
-      scores: 'scores',
+      matchup: nflRedraftCore ? 'matchups' : 'matchup',
+      matchups: 'matchups',
+      scores: nflRedraftCore ? 'matchups' : 'scores',
       war_room: 'war_room',
       warroom: 'war_room',
       af_war_room: 'war_room',
       ai_coaching: 'ai_coaching',
       coaching: 'ai_coaching',
       ai_coach: 'ai_coaching',
-      draft: shouldUseMatchupPrimary ? 'matchup' : 'draft',
+      draft: nflRedraftCore ? 'home' : shouldUseMatchupPrimary ? 'matchup' : 'draft',
       redraft: 'redraft',
       trades: 'trades',
       league: 'league',
@@ -433,8 +477,8 @@ export function LeagueShell({
       guillotine: 'guillotine',
       bestball: 'bestball',
       keeper: 'keeper',
-      intelligence: intelligenceFallback,
-      trend: 'trend',
+      intelligence: nflRedraftCore ? 'players' : intelligenceFallback,
+      trend: nflRedraftCore ? 'players' : 'trend',
       standings: 'standings',
       fixtures: 'fixtures',
       transfers: 'transfers',
@@ -478,7 +522,7 @@ export function LeagueShell({
     if (!target) return
     const ids = new Set(tabDefs.map((t) => t.id))
     if (ids.has(target)) setActiveTab(target)
-  }, [searchParams, tabDefs, league.sport, shouldUseMatchupPrimary])
+  }, [searchParams, tabDefs, league.sport, shouldUseMatchupPrimary, nflRedraftCore])
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsInitialPanel, setSettingsInitialPanel] = useState<string | null>(null)
@@ -686,6 +730,20 @@ export function LeagueShell({
     setSettingsInitialPanel(null)
   }
 
+  /** `/league/[id]?view=settings` opens the modal (NFL redraft has no Settings tab). */
+  useEffect(() => {
+    if (!nflRedraftCore) return
+    const raw = (searchParams?.get('view') ?? searchParams?.get('tab') ?? '').trim().toLowerCase()
+    if (raw !== 'settings') return
+    openLeagueSettingsModal(null)
+    const params = new URLSearchParams(searchParams?.toString() ?? '')
+    params.delete('view')
+    params.delete('tab')
+    const q = params.toString()
+    const base = pathname ?? `/league/${league.id}`
+    router.replace(q ? `${base}?${q}` : base, { scroll: false })
+  }, [nflRedraftCore, searchParams, pathname, router, league.id])
+
   const settingsPanelDeepLinkRef = useRef<string | null>(null)
   /** Deep-link from draft room gear: `/league/{id}?settingsPanel=draft` opens Draft settings panel. */
   useEffect(() => {
@@ -767,21 +825,25 @@ export function LeagueShell({
 
   const draftTabForHero = useMemo(() => {
     const ids = new Set(tabDefs.map((x) => x.id))
-    const prefer = ['matchup', 'draft', 'roster', 'squad', 'leaderboard', 'my-picks'] as const
+    const prefer = nflRedraftCore
+      ? (['matchups', 'home', 'roster', 'players'] as const)
+      : (['matchup', 'draft', 'roster', 'squad', 'leaderboard', 'my-picks'] as const)
     for (const id of prefer) {
       if (ids.has(id)) return id
     }
     return tabDefs[0]?.id ?? 'draft'
-  }, [tabDefs])
+  }, [tabDefs, nflRedraftCore])
 
   const standingsTabForHero = useMemo(() => {
     const ids = new Set(tabDefs.map((x) => x.id))
-    const prefer = ['standings', 'table', 'leaderboard'] as const
+    const prefer = nflRedraftCore
+      ? (['league', 'matchups', 'home'] as const)
+      : (['standings', 'table', 'leaderboard'] as const)
     for (const id of prefer) {
       if (ids.has(id)) return id
     }
     return ids.has('scores') ? 'scores' : tabDefs[0]?.id ?? 'league'
-  }, [tabDefs])
+  }, [tabDefs, nflRedraftCore])
 
   return (
     <>
@@ -1004,6 +1066,7 @@ export function LeagueShell({
               idpPositionMode={idpUi?.positionMode ?? 'standard'}
               seasonSnapshot={seasonSnapshot}
               leagueDashboard={leagueDashboard}
+              onOpenLeagueSettingsModal={openLeagueSettingsModal}
             />
           </div>
         </main>
@@ -1022,7 +1085,8 @@ export function LeagueShell({
       isCommissioner &&
       ((devyConfig !== null && devyConfig !== 'none') ||
         (c2cChecked && c2cConfig !== null) ||
-        league.leagueVariant === 'survivor')
+        league.leagueVariant === 'survivor' ||
+        nflRedraftCore)
         ? createPortal(
             <CommissionerSettingsModal
               leagueId={league.id}
@@ -1111,7 +1175,7 @@ export function LeagueShell({
               initialActivePanel={settingsInitialPanel}
               onGoToDraftTab={() => {
                 closeLeagueSettingsModal()
-                setActiveTab(tabDefs[0]?.id ?? 'draft')
+                setActiveTab(nflRedraftCore ? 'home' : tabDefs[0]?.id ?? 'draft')
               }}
             />,
             document.body,
@@ -1181,6 +1245,7 @@ function LeagueTabRouter({
   idpPositionMode,
   seasonSnapshot,
   leagueDashboard,
+  onOpenLeagueSettingsModal,
 }: {
   activeTab: string
   tabDefs: TabDef[]
@@ -1198,6 +1263,7 @@ function LeagueTabRouter({
   idpPositionMode: string
   seasonSnapshot: LeagueSeasonSnapshot | null
   leagueDashboard: LeagueDashboardView
+  onOpenLeagueSettingsModal: (initialPanel?: string | null) => void
 }) {
   const router = useRouter()
   const tab = tabDefs.find((t) => t.id === activeTab)
@@ -1205,6 +1271,22 @@ function LeagueTabRouter({
   const sport = selectedLeague.sport
 
   switch (activeTab) {
+    case 'home':
+      return (
+        <DraftTab
+          league={selectedLeague}
+          teams={teamSlots}
+          isOwner={isOwner}
+          isCommissioner={isCommissioner}
+          inviteToken={inviteToken}
+          idpLeagueUi={idpLeagueActive}
+          seasonSnapshot={seasonSnapshot}
+          standingsPresentation={leagueDashboard.standings}
+          onOpenLeagueSettings={onOpenLeagueSettingsModal}
+        />
+      )
+    case 'matchups':
+      return <MatchupTabContainer league={selectedLeague} />
     case 'matchup':
       return <MatchupTabContainer league={selectedLeague} />
     case 'draft':
@@ -1218,6 +1300,7 @@ function LeagueTabRouter({
           idpLeagueUi={idpLeagueActive}
           seasonSnapshot={seasonSnapshot}
           standingsPresentation={leagueDashboard.standings}
+          onOpenLeagueSettings={onOpenLeagueSettingsModal}
         />
       )
     case 'redraft':
@@ -1363,7 +1446,9 @@ function LeagueTabRouter({
 }
 
 const LEAGUE_TAB_NAV_ICONS: Record<string, LucideIcon> = {
+  home: House,
   matchup: Swords,
+  matchups: Swords,
   draft: LayoutGrid,
   redraft: RotateCcw,
   team: User,
