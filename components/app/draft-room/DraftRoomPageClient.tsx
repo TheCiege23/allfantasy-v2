@@ -4110,9 +4110,6 @@ export function DraftRoomPageClient({
       </div>
     ) : null
 
-  const showE2eLegacyLiveStatusColumn =
-    typeof window !== 'undefined' && window.location.pathname.startsWith('/e2e/draft-room')
-
   const OFFENSE_POS = new Set(['QB', 'RB', 'WR', 'TE', 'K'])
   const IDP_POS = new Set(['DE', 'DT', 'LB', 'CB', 'S', 'SS', 'FS'])
   const idpNeeds = formatType === 'IDP' && idpRosterSummary && (() => {
@@ -4751,25 +4748,10 @@ export function DraftRoomPageClient({
               in the header if this message persists.
             </div>
           ) : null}
-          {/* D.6.2 removed the legacy live status column from production snake layout.
-              Keep an e2e-only mount for click-audit parity so existing harness locators
-              (draft-live-status-column / draft-on-the-clock / draft-live-timer) remain stable. */}
-          {showE2eLegacyLiveStatusColumn ? (
-            <div className="hidden min-h-0 w-full lg:flex">
-              <LiveDraftStatusColumn
-                session={session}
-                queueEntries={queueFiltered}
-                leagueId={leagueId}
-                sport={effectiveDraftSport}
-                isCommissioner={isCommissioner}
-                showTimer={!isAuctionDraft}
-                hideFullDraftOrderList={presentationVariant === 'redraft_snake' && !isDynasty}
-                viewerRosterId={currentUserRosterId ?? null}
-                viewerRosterPicks={myDraftedPicks}
-                onClockSpotlight={onClockSpotlight}
-              />
-            </div>
-          ) : null}
+          {/* D.6.2 — LiveDraftStatusColumn removed from the live snake layout.
+              The status column produced a side-by-side split with the board that
+              cramped horizontal real estate. The clock pill in DraftTopBar and
+              the on-the-clock cell in DraftBoard now carry that information. */}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1.5">
             <div className="flex min-h-[120px] min-w-0 flex-1 flex-col overflow-hidden lg:min-h-0">
               <div className="shrink-0">
