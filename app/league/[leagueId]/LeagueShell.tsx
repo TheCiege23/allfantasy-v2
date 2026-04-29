@@ -169,6 +169,7 @@ function prismaLeagueToUserLeague(
     draftDate: extra?.draftDate ?? undefined,
     leagueVariant: l.leagueVariant ?? undefined,
     leagueType: l.leagueType ?? undefined,
+    bestBallMode: l.bestBallMode ?? undefined,
     guillotineMode: l.guillotineMode ?? undefined,
     keeperPhaseActive: l.keeperPhaseActive ?? undefined,
   }
