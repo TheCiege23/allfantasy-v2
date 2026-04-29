@@ -42,6 +42,7 @@ function E2EDraftRoomHarnessInner() {
           sport={sport}
           isDynasty={false}
           isCommissioner={isCommissioner}
+          presentationVariant="redraft_snake"
         />
       )}
     </div>
