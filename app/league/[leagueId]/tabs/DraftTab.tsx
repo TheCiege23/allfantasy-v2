@@ -401,14 +401,17 @@ export function DraftTab({
         }
       }
 
+      const getSlotByOwnerId = (ownerId: string | null | undefined) =>
+        ownerId ? slotByOwnerId.get(ownerId) : undefined
+
       setDisplayTeams((currentTeams) =>
         currentTeams.map((team) => ({
           ...team,
           draftPosition:
-            slotByOwnerId.get(team.id) ??
-            slotByOwnerId.get(team.claimedByUserId ?? '') ??
-            slotByOwnerId.get(team.platformUserId ?? '') ??
-            slotByOwnerId.get(team.externalId ?? '') ??
+            getSlotByOwnerId(team.id) ??
+            getSlotByOwnerId(team.claimedByUserId) ??
+            getSlotByOwnerId(team.platformUserId) ??
+            getSlotByOwnerId(team.externalId) ??
             team.draftPosition ??
             null,
         })),
