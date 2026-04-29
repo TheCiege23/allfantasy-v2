@@ -11,7 +11,7 @@ import { useEntitlement } from '@/hooks/useEntitlement'
 import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
 import { isBestBallLeague } from '@/lib/autocoach/bestBallShared'
 import type { LeagueTeam } from '@prisma/client'
-import { PlayerImage } from '@/app/components/PlayerImage'
+import { PlayerHeadshot } from '@/components/league/PlayerHeadshot'
 import { TeamLogo } from '@/app/components/TeamLogo'
 import { getRosterPlayerIds } from '@/lib/waiver-wire/roster-utils'
 import type { UserLeague } from '@/app/dashboard/types'
@@ -337,13 +337,13 @@ function RosterRow({
         {leftBadge}
       </span>
       <div className="relative shrink-0">
-        <PlayerImage
+        <PlayerHeadshot
           sleeperId={playerId}
           sport={sport}
-          name={label}
+          playerName={label}
           position={resolved.position}
           espnId={players[playerId]?.espn_id}
-          nbaId={players[playerId]?.nba_id}
+          team={resolved.team}
           size={28}
           variant="round"
         />

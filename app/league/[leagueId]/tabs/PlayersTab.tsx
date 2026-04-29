@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Search, SlidersHorizontal } from 'lucide-react'
 import type { UserLeague } from '@/app/dashboard/types'
-import { PlayerImage } from '@/app/components/PlayerImage'
+import { PlayerHeadshot } from '@/components/league/PlayerHeadshot'
 import { TeamLogo } from '@/app/components/TeamLogo'
 import type { SlimPlayer } from '@/lib/hooks/useSleeperPlayers'
 import { useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
@@ -502,13 +502,13 @@ export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
                       className="flex min-w-0 flex-1 items-center gap-2 text-left"
                       data-testid={`players-tab-row-${p.id}`}
                     >
-                      <PlayerImage
+                      <PlayerHeadshot
                         sleeperId={p.id}
                         sport={resolvedSport}
-                        name={p.name}
+                        playerName={p.name}
                         position={p.position}
                         espnId={players[p.id]?.espn_id}
-                        nbaId={players[p.id]?.nba_id}
+                        team={p.team}
                         size={28}
                         variant="round"
                       />
