@@ -89,8 +89,8 @@ describe('NFL redraft pre-draft Home regression lock', () => {
     expect(leagueDraftResolverSrc).toMatch(/redirect\(`\/draft\/\$\{ds\.id\}`\)/)
   })
 
-  it('keeps Enter Draft Room explicitly user-driven and gated on the pre-draft state', () => {
-    expect(draftTabSrc).toMatch(/const canEnterDraftRoom = preDraft && Boolean\(league\.id\)/)
+  it('keeps Enter Draft Room explicitly user-driven and gated on draft-room states', () => {
+    expect(draftTabSrc).toMatch(/const canEnterDraftRoom = \(preDraft \|\| liveDraft\) && Boolean\(league\.id\)/)
     expect(draftTabSrc).toMatch(/disabled=\{!canEnterDraftRoom\}/)
     expect(draftTabSrc).toContain('The live draft room only opens when you click Enter Draft Room.')
   })

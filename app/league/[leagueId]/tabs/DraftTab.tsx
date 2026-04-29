@@ -43,6 +43,11 @@ function isPreDraftLeagueStatus(league: UserLeague): boolean {
   return s.includes('draft') || s.includes('pre') || s === 'scheduled'
 }
 
+function isLiveDraftLeagueStatus(league: UserLeague): boolean {
+  const s = String(league.status ?? '').toLowerCase()
+  return s === 'in_progress' || s === 'in progress' || s === 'active' || s === 'live' || s === 'paused'
+}
+
 function formatDraftTypeLabel(type: unknown): string {
   const normalized = String(type ?? '').trim().toLowerCase()
   if (normalized === 'snake') return 'Snake Draft'
@@ -364,13 +369,14 @@ export function DraftTab({
 
   const nflRedraftShell = isNflRedraftCoreDashboardFromUserLeague(league)
   const preDraft = isPreDraftLeagueStatus(league)
+  const liveDraft = isLiveDraftLeagueStatus(league)
 
   const openSettingsDraft = useCallback(() => {
     if (onOpenLeagueSettings) onOpenLeagueSettings('draft')
     else router.push(`/league/${league.id}?view=settings`)
   }, [onOpenLeagueSettings, router, league.id])
 
-  const canEnterDraftRoom = preDraft && Boolean(league.id)
+  const canEnterDraftRoom = (preDraft || liveDraft) && Boolean(league.id)
 
   const handleDraftRoom = useCallback(() => {
     if (!canEnterDraftRoom) return
@@ -643,7 +649,7 @@ export function DraftTab({
           <p className="mt-3 text-center text-[11px] text-white/55" data-testid="league-draftboard-enter-room-help">
             {canEnterDraftRoom
               ? 'The live draft room only opens when you click Enter Draft Room.'
-              : 'Draft room entry is unavailable until this league is back in pre-draft.'}
+              : 'Draft room entry is unavailable outside draft setup or live drafting.'}
           </p>
         </div>
       </section>
