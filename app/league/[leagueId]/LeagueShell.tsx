@@ -762,6 +762,32 @@ export function LeagueShell({
     router.replace(q ? `${base}?${q}` : base, { scroll: false })
   }, [searchParams, pathname, router, league.id])
 
+  /**
+   * Slice H — listen for the navigation-free `af-pre-draft-fix-action`
+   * CustomEvent the draft-room PreDraftWizard fires when a commissioner
+   * clicks a "Fix" button. The wizard's host (`DraftRoomPageClient`) cannot
+   * mount `LeagueSettingsModal` (a different route owns it), so it
+   * dispatches the event and closes itself; this listener picks it up on
+   * the dashboard side and opens the modal at the right panel.
+   *
+   * Scoped to this league only — a draft-room event from a different
+   * league is ignored. No router navigation, no `window.location` —
+   * Commit E's unified-state contract is preserved on both sides.
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ leagueId?: string; panel?: string | null }>).detail
+      if (!detail || detail.leagueId !== league.id) return
+      const panel = typeof detail.panel === 'string' && detail.panel.trim().length > 0
+        ? detail.panel.trim()
+        : null
+      openLeagueSettingsModal(panel)
+    }
+    window.addEventListener('af-pre-draft-fix-action', handler)
+    return () => window.removeEventListener('af-pre-draft-fix-action', handler)
+  }, [league.id])
+
   const specialtyAtmosphereMood = useMemo(() => {
     if (league.leagueVariant === 'survivor') {
       if (activeTab === 'survivor_tribal') return 'tribal'
