@@ -26,9 +26,9 @@ import { apiSportsProvider } from '@/lib/workers/providers/api-sports'
 import { classifyAvatarSource } from '@/lib/draft-room/classify-avatar-source'
 
 export type HeadshotProvider =
+  | 'sleeper'
   | 'clearsports'
   | 'sportsdb'
-  | 'sleeper'
   | 'apisports'
   | 'sportsplayer'
   | 'none'
@@ -348,7 +348,7 @@ async function resolveOnce(
     }
   }
 
-  // ── 4. TheSportsAPI (api-sports.io) ──
+  // ── 3. TheSportsAPI (api-sports.io) ──
   // E.1.6 — third tier between SportsDB and the SportsPlayer cache. Recovers
   // headshots for the punctuation-outlier tail (Ja'Marr Chase, A.J. Brown,
   // Amon-Ra St. Brown, C.J. Stroud, D.K. Metcalf, Bo Nix, etc.) that SportsDB
@@ -411,7 +411,7 @@ async function resolveOnce(
     }
   }
 
-  // ── 6. SportsPlayer DB cache ──
+  // ── 4. SportsPlayer DB cache ──
   try {
     // Case-insensitive lookup. Limit to current sport.
     const rows = await prisma.sportsPlayer.findMany({

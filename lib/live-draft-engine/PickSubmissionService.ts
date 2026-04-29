@@ -382,6 +382,8 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
         roundSlot: pick.slot ?? slot,
         playerId: pick.playerId ?? input.playerId ?? null,
         nflTeam: pick.team ?? input.team ?? null,
+        headshotUrl: pick.playerImageUrl ?? input.playerImageUrl ?? null,
+        aiManager: input.source === 'auto',
       }),
     )
     .catch(() => {})
