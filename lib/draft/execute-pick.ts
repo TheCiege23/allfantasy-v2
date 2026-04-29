@@ -5,6 +5,10 @@ import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { parseSessionKey } from '@/lib/draft/session-key'
 import { pickInRoundForOverall, roundForOverallPick, slotIndexForOverallPick } from '@/lib/draft/snake'
 import { createLeagueChatMessage } from '@/lib/league-chat/LeagueChatMessageService'
+import {
+  assertLegacyDraftRuntimeWriteAllowed,
+  LegacyDraftRuntimeWriteBlockedError,
+} from '@/lib/draft/legacy-runtime-write-guard'
 
 export async function executeDraftPick(args: {
   sessionId: string
@@ -22,6 +26,31 @@ export async function executeDraftPick(args: {
     parsed = parseSessionKey(sessionId)
   } catch {
     return { ok: false, error: 'Invalid sessionId', status: 400 }
+  }
+
+  // Slice L — block live-mode writes against the legacy DraftRoom runtime
+  // tables. Live picks must go through
+  // `lib/live-draft-engine/PickSubmissionService.submitPick` so the
+  // canonical `DraftPick` / `DraftSession` tables stay authoritative.
+  // Mock mode falls through to the legacy path unchanged.
+  try {
+    assertLegacyDraftRuntimeWriteAllowed({
+      route: 'lib/draft/execute-pick.ts:executeDraftPick',
+      operation: 'commit_pick',
+      sessionId: parsed.id,
+      mode: parsed.mode,
+    })
+  } catch (err) {
+    if (err instanceof LegacyDraftRuntimeWriteBlockedError) {
+      return {
+        ok: false,
+        error:
+          'Live-mode pick writes must go through the canonical draft authority. ' +
+          'Use POST /api/leagues/{leagueId}/draft/pick (submitPick) instead.',
+        status: 410,
+      }
+    }
+    throw err
   }
 
   const state = await prisma.draftRoomStateRow.findUnique({ where: { id: sessionId } })
