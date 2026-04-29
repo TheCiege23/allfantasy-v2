@@ -23,6 +23,8 @@ import { ProjectionDisplay } from '@/components/weather/ProjectionDisplay'
 import { placeholderBaselineProjection } from '@/components/weather/placeholderBaseline'
 import type { ExpandedStarterSlot } from '@/lib/league/lineup-expand-template'
 import { evaluateLineupLock } from '@/lib/league/lineup-lock'
+import { isNflRedraftCoreDashboardFromUserLeague } from '@/lib/league/is-nfl-redraft-core-dashboard'
+import { openChimmyWithPrompt } from '@/lib/dashboard/open-chimmy-with-prompt'
 import { TeamLineupSwapModal } from '@/components/league/TeamLineupSwapModal'
 import { StartVsComparisonLauncher } from '@/components/app/player-comparison/StartVsComparisonLauncher'
 import {
@@ -252,6 +254,29 @@ function slotBadgeClass(slot: string): string {
   return 'border-white/15 bg-white/10 text-white/60'
 }
 
+function buildNflRedraftRosterChimmyPrompt(args: {
+  playerName: string
+  teamAbbr: string
+  position: string
+  rosterSlot: string
+  leagueName: string
+  userQuestion: string
+}): string {
+  const q = args.userQuestion.trim()
+  const questionLine = q.length > 0 ? q : '(none)'
+  return [
+    'Analyze this NFL redraft roster player:',
+    `Player: ${args.playerName}`,
+    `Team: ${args.teamAbbr}`,
+    `Position: ${args.position}`,
+    `Roster slot: ${args.rosterSlot}`,
+    `League: ${args.leagueName}`,
+    `Question: ${questionLine}`,
+    '',
+    'Should I start, bench, trade, hold, or drop this player?',
+  ].join('\n')
+}
+
 function RosterRow({
   playerId,
   sport,
@@ -264,6 +289,9 @@ function RosterRow({
   onSlotClick,
   emptyLabel,
   issueHighlight,
+  chimmyNote,
+  onChimmyNoteChange,
+  onAskChimmy,
 }: {
   playerId: string
   sport: string
@@ -278,6 +306,10 @@ function RosterRow({
   emptyLabel?: string
   /** Roster legality / IR / taxi / slot lock highlight */
   issueHighlight?: boolean
+  /** NFL redraft core: local Chimmy note + open prompt (client-only v1). */
+  chimmyNote?: string
+  onChimmyNoteChange?: (value: string) => void
+  onAskChimmy?: () => void
 }) {
   const leftBadgeEarly = slotLabel ?? '—'
   const badgeClassEarly = slotLabel ? slotBadgeClass(slotLabel) : positionBadgeClass('—')
@@ -309,16 +341,12 @@ function RosterRow({
   const crestSport = sport
   const showCrest = isWeatherSensitiveSport(crestSport)
 
-  return (
-    <button
-      type="button"
-      onClick={() => onPlayerClick(playerId)}
-      className={[
-        'flex w-full items-center gap-2 rounded-lg border px-2 py-2 text-left transition hover:border-white/[0.08] hover:bg-white/[0.04]',
-        issueHighlight ? 'border-amber-500/45 bg-amber-500/10 ring-1 ring-amber-400/25' : 'border-transparent',
-      ].join(' ')}
-      data-testid={`roster-row-${playerId}`}
-    >
+  const rowBorderClass = issueHighlight
+    ? 'border-amber-500/45 bg-amber-500/10 ring-1 ring-amber-400/25'
+    : 'border-transparent'
+
+  const rowInner = (
+    <>
       <span
         role={onSlotClick ? 'button' : undefined}
         onClick={
@@ -400,6 +428,68 @@ function RosterRow({
         </span>
         <span className="w-10">—</span>
       </div>
+    </>
+  )
+
+  const chimmyEnabled = typeof onAskChimmy === 'function'
+
+  if (chimmyEnabled && onChimmyNoteChange) {
+    return (
+      <div
+        className={[
+          'flex flex-col rounded-lg border transition hover:border-white/[0.08]',
+          rowBorderClass,
+        ].join(' ')}
+        data-testid={`roster-row-${playerId}`}
+      >
+        <button
+          type="button"
+          onClick={() => onPlayerClick(playerId)}
+          className="flex w-full items-center gap-2 rounded-t-lg border-0 bg-transparent px-2 py-2 text-left hover:bg-white/[0.04]"
+        >
+          {rowInner}
+        </button>
+        <div
+          className="border-t border-white/[0.06] bg-[#040915]/90 px-2 pb-2 pt-1.5"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <label className="mb-1 block text-[9px] font-bold uppercase tracking-wide text-white/35" htmlFor={`chimmy-note-${playerId}`}>
+            Chimmy note
+          </label>
+          <textarea
+            id={`chimmy-note-${playerId}`}
+            value={chimmyNote ?? ''}
+            onChange={(e) => onChimmyNoteChange(e.target.value)}
+            placeholder="Optional context for Chimmy…"
+            rows={2}
+            data-testid={`roster-row-chimmy-note-${playerId}`}
+            className="mb-2 w-full resize-y rounded-md border border-white/[0.08] bg-[#0a1228] px-2 py-1.5 text-[11px] text-white/85 placeholder:text-white/25 focus:border-cyan-500/40 focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
+          />
+          <button
+            type="button"
+            onClick={() => onAskChimmy?.()}
+            data-testid={`roster-row-chimmy-ask-${playerId}`}
+            className="rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-cyan-100 hover:bg-cyan-500/20"
+          >
+            Ask Chimmy
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onPlayerClick(playerId)}
+      className={[
+        'flex w-full items-center gap-2 rounded-lg border px-2 py-2 text-left transition hover:border-white/[0.08] hover:bg-white/[0.04]',
+        rowBorderClass,
+      ].join(' ')}
+      data-testid={`roster-row-${playerId}`}
+    >
+      {rowInner}
     </button>
   )
 }
@@ -485,10 +575,43 @@ export function TeamTab({
     pick: { id: string; label: string; status: string } | null
     tradeChain: Array<{ tradeId: string; status: string; createdAt: string; summary: string }>
   } | null>(null)
+  const [chimmyNotesByPlayer, setChimmyNotesByPlayer] = useState<Record<string, string>>({})
   const proEnt = useEntitlement('pro_autocoach')
   const gateOptional = useSubscriptionGateOptional()
   const hasProAutoCoach = proEnt.hasAccess('pro_autocoach')
   const isBestBall = isBestBallLeague(league.leagueVariant ?? null, league.bestBallMode ?? null)
+
+  const nflRedraftCoreRoster = useMemo(
+    () => isNflRedraftCoreDashboardFromUserLeague(league),
+    [league],
+  )
+
+  const buildChimmyProps = useCallback(
+    (playerId: string, rosterSlotLabel: string) => {
+      if (!nflRedraftCoreRoster || !playerId?.trim()) return {}
+      const resolved = resolvePlayerName(playerId, players)
+      return {
+        chimmyNote: chimmyNotesByPlayer[playerId] ?? '',
+        onChimmyNoteChange: (v: string) =>
+          setChimmyNotesByPlayer((prev) => ({ ...prev, [playerId]: v })),
+        onAskChimmy: () => {
+          openChimmyWithPrompt({
+            leagueId: league.id,
+            source: 'roster',
+            prompt: buildNflRedraftRosterChimmyPrompt({
+              playerName: resolved.name,
+              teamAbbr: resolved.team && resolved.team !== 'FA' ? resolved.team : '—',
+              position: resolved.position || '—',
+              rosterSlot: rosterSlotLabel,
+              leagueName: String(league.name ?? 'League'),
+              userQuestion: chimmyNotesByPlayer[playerId] ?? '',
+            }),
+          })
+        },
+      }
+    },
+    [nflRedraftCoreRoster, chimmyNotesByPlayer, league.id, league.name, players],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -1119,6 +1242,7 @@ export function TeamTab({
                   slotLabel={sleeperStarterLabels[i]}
                   week={week}
                   season={seasonYear}
+                  {...buildChimmyProps(id, sleeperStarterLabels[i] ?? 'Starter')}
                 />
               ))}
             </div>
@@ -1138,6 +1262,7 @@ export function TeamTab({
                   onPlayerClick={onPlayerClick}
                   week={week}
                   season={seasonYear}
+                  {...buildChimmyProps(id, 'Bench')}
                 />
               ))}
             </div>
@@ -1158,6 +1283,7 @@ export function TeamTab({
                     onPlayerClick={onPlayerClick}
                     week={week}
                     season={seasonYear}
+                    {...buildChimmyProps(id, 'Taxi')}
                   />
                 ))}
               </div>
@@ -1179,6 +1305,7 @@ export function TeamTab({
                     onPlayerClick={onPlayerClick}
                     week={week}
                     season={seasonYear}
+                    {...buildChimmyProps(id, 'IR')}
                   />
                 ))}
               </div>
@@ -1241,6 +1368,7 @@ export function TeamTab({
                         }
                       : undefined
                   }
+                  {...buildChimmyProps(lineupLists.starters[i] ?? '', slot.label)}
                 />
               ))}
             </div>
@@ -1269,6 +1397,7 @@ export function TeamTab({
                         }
                       : undefined
                   }
+                  {...buildChimmyProps(id, 'BN')}
                 />
               ))}
             </div>
@@ -1299,6 +1428,7 @@ export function TeamTab({
                             }
                           : undefined
                       }
+                      {...buildChimmyProps(id, 'IR')}
                     />
                   ))
                 ) : (
@@ -1333,6 +1463,7 @@ export function TeamTab({
                             }
                           : undefined
                       }
+                      {...buildChimmyProps(id, 'TX')}
                     />
                   ))
                 ) : (
@@ -1367,6 +1498,7 @@ export function TeamTab({
                             }
                           : undefined
                       }
+                      {...buildChimmyProps(id, 'DV')}
                     />
                   ))
                 ) : (
@@ -1440,7 +1572,7 @@ export function TeamTab({
               </div>
             </div>
             <div className="space-y-1">
-              {dbParts.starters.map((id) => (
+              {dbParts.starters.map((id, i) => (
                 <RosterRow
                   key={id}
                   playerId={id}
@@ -1451,6 +1583,7 @@ export function TeamTab({
                   onPlayerClick={onPlayerClick}
                   week={week}
                   season={seasonYear}
+                  {...buildChimmyProps(id, `S${i + 1}`)}
                 />
               ))}
             </div>
@@ -1470,6 +1603,7 @@ export function TeamTab({
                   onPlayerClick={onPlayerClick}
                   week={week}
                   season={seasonYear}
+                  {...buildChimmyProps(id, 'Bench')}
                 />
               ))}
             </div>
@@ -1491,6 +1625,7 @@ export function TeamTab({
                       onPlayerClick={onPlayerClick}
                       week={week}
                       season={seasonYear}
+                      {...buildChimmyProps(id, 'IR')}
                     />
                   ))
                 ) : (
@@ -1516,6 +1651,7 @@ export function TeamTab({
                       onPlayerClick={onPlayerClick}
                       week={week}
                       season={seasonYear}
+                      {...buildChimmyProps(id, 'Taxi')}
                     />
                   ))
                 ) : (
