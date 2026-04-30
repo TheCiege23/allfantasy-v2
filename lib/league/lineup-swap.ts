@@ -21,6 +21,7 @@ export function buildLineupListsFromPlayerData(
 ): RosterLineupLists {
   const sections = getNormalizedLineupSections(playerData)
   let starters = idsFromSection(sections.starters)
+  let bench = idsFromSection(sections.bench)
   if (starters.length === 0 && playerData && typeof playerData === 'object' && !Array.isArray(playerData)) {
     const pd = playerData as Record<string, unknown>
     const raw = pd.starters
@@ -28,12 +29,43 @@ export function buildLineupListsFromPlayerData(
       starters = raw.map((x) => String(typeof x === 'string' ? x : (x as { id?: string }).id ?? '')).filter(Boolean)
     }
   }
+
+  // Final fallback for completed-draft rosters whose `finalizeRosterAssignments`
+  // step never produced `lineup_sections` (e.g. roster template was missing,
+  // finalize errored mid-flight, or completion happened on a code path that
+  // bypassed it). The `appendPickToRosterDraftSnapshot` write path always
+  // populates `playerData.draftPicks` during the draft, so we can derive a
+  // greedy starter→bench split in pick order. This is a safety net for the
+  // league dashboard Roster tab — `runPostDraftFinalizationArtifacts` remains
+  // the canonical materialization path; this fallback just stops the dashboard
+  // from rendering an empty roster while the heal happens.
+  if (starters.length === 0 && bench.length === 0 && playerData && typeof playerData === 'object' && !Array.isArray(playerData)) {
+    const pd = playerData as Record<string, unknown>
+    const draftPicks = Array.isArray(pd.draftPicks)
+      ? (pd.draftPicks as Array<Record<string, unknown>>)
+      : []
+    if (draftPicks.length > 0) {
+      const ids = draftPicks
+        .map((p) => {
+          const pid = p.playerId
+          if (typeof pid === 'string' && pid.trim()) return pid.trim()
+          const name = p.playerName
+          if (typeof name === 'string' && name.trim()) return name.trim()
+          return ''
+        })
+        .filter(Boolean)
+      const cap = Math.max(0, starterSlotCount)
+      starters = ids.slice(0, cap)
+      bench = ids.slice(cap)
+    }
+  }
+
   while (starters.length < starterSlotCount) starters.push('')
   if (starters.length > starterSlotCount) starters = starters.slice(0, starterSlotCount)
 
   return {
     starters,
-    bench: idsFromSection(sections.bench),
+    bench,
     ir: idsFromSection(sections.ir),
     taxi: idsFromSection(sections.taxi),
     devy: idsFromSection(sections.devy),
