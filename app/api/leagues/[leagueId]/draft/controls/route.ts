@@ -22,6 +22,7 @@ import { runAuctionAutomationTick } from '@/lib/live-draft-engine/auction'
 import { runKeeperAutomationTick } from '@/lib/live-draft-engine/keeper'
 import { runSlowDraftAutomationTick } from '@/lib/live-draft-engine/slow-draft/SlowDraftRuntimeService'
 import { submitPick } from '@/lib/live-draft-engine/PickSubmissionService'
+import { httpStatusForPickAuthorityCode, type PickAuthorityCode } from '@/lib/live-draft-engine/pickAuthorityCodes'
 import { appendPickToRosterDraftSnapshot, finalizeRosterAssignments } from '@/lib/live-draft-engine/RosterAssignmentService'
 import { resolveCurrentOnTheClock } from '@/lib/live-draft-engine/CurrentOnTheClockResolver'
 import { isDraftPickRowEmpty } from '@/lib/live-draft-engine/draftPickEmpty'
@@ -104,6 +105,14 @@ type AutoPickCandidate = {
   team: string | null
   playerId: string | null
   byeWeek: number | null
+}
+
+type SubmitPickFailureCode = Awaited<ReturnType<typeof submitPick>>['code']
+
+function httpStatusForSubmitPickFailure(code: SubmitPickFailureCode): number {
+  if (!code) return 400
+  if (code === 'ROSTER_CONFIGURATION_INCOMPLETE') return 409
+  return httpStatusForPickAuthorityCode(code as PickAuthorityCode)
 }
 
 function normalizeName(value: string): string {
@@ -435,7 +444,7 @@ export async function POST(
       }
 
       if (!result?.success || !selectedCandidate) {
-        const status = result?.code === 'ROSTER_CONFIGURATION_INCOMPLETE' ? 409 : 400
+        const status = httpStatusForSubmitPickFailure(result?.code)
         if (result?.code === 'ROSTER_CONFIGURATION_INCOMPLETE') {
           return NextResponse.json(
             rosterConfigurationIncompleteBody({
@@ -597,7 +606,7 @@ export async function POST(
         expectedOverall,
       })
       if (!result.success) {
-        const status = result.code === 'ROSTER_CONFIGURATION_INCOMPLETE' ? 409 : 400
+        const status = httpStatusForSubmitPickFailure(result.code)
         if (result.code === 'ROSTER_CONFIGURATION_INCOMPLETE') {
           return NextResponse.json(rosterConfigurationIncompleteBody({ leagueId, message: result.error }), {
             status,
