@@ -3078,6 +3078,9 @@ export function DraftRoomPageClient({
         position: p.position,
         overall: p.overall,
         rosterId: p.rosterId,
+        // Commit S — flow byeWeek through so the war room can detect
+        // bye-week clusters in the focus team's drafted starters.
+        byeWeek: (p as { byeWeek?: number | null }).byeWeek ?? null,
         isDevy: devyRoundsSet.has(p.round) || c2cCollegeRoundsSet.has(p.round),
       })),
       teamCount: session?.teamCount ?? 0,
