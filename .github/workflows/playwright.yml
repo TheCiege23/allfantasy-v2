@@ -7,7 +7,8 @@ on:
 jobs:
   test:
     name: Playwright (${{ matrix.lane }})
-    # Core e2e installs all browsers + full suite; 60m has timed out in CI. Other lanes stay capped.
+    # Core e2e installs all browsers + full suite; wall time has exceeded 60m/120m/2h in CI.
+    # Cap at GitHub max 360m. Bracket key matches matrix include (required for this workflow file).
     timeout-minutes: ${{ matrix['job-timeout'] }}
     runs-on: ubuntu-latest
     strategy:
@@ -15,7 +16,7 @@ jobs:
       matrix:
         include:
           - lane: core
-            job-timeout: 120
+            job-timeout: 360
           - lane: retention-engagement
             job-timeout: 60
           - lane: onboarding-activation
