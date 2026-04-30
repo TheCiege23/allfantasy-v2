@@ -384,10 +384,19 @@ export async function resolveBestAvailableAutopickCandidate(
 
 /**
  * Slow-draft cron: submit best-available after queue-first produced no pick.
+ *
+ * Commit Q — accepts an optional `expectedOverall` so callers (the
+ * cron tick, the autopick-expired route) can pass the overall they
+ * computed when resolving the on-clock state. Combined with Commit M's
+ * stale-overall guard inside `submitPick`, this short-circuits a
+ * doomed-pick race the moment another writer lands a pick first.
+ * Falling back to the in-tx `picks.length` guard alone would still be
+ * correct, but the explicit pass is cheap and clearer.
  */
 export async function submitBestAvailableAutopickForExpiredTimer(
   leagueId: string,
-  onClockRosterId: string
+  onClockRosterId: string,
+  expectedOverall?: number
 ): Promise<{ ok: true; pick: BestAvailableAutopickResolved } | { ok: false; error: 'no_pool' | 'submit_failed' }> {
   const { tryAiOpponentAutopickForExpiredTimer } = await import('@/lib/ai/opponents/liveDraftAiAutopick')
   const aiTry = await tryAiOpponentAutopickForExpiredTimer(leagueId, onClockRosterId)
@@ -405,6 +414,7 @@ export async function submitBestAvailableAutopickForExpiredTimer(
     byeWeek: selected.byeWeek ?? null,
     rosterId: onClockRosterId,
     source: 'auto',
+    expectedOverall,
   })
 
   if (!result.success) return { ok: false, error: 'submit_failed' }

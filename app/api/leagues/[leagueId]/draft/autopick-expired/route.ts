@@ -193,6 +193,14 @@ export async function POST(
     )
   }
 
+  // Commit Q — pass the resolved overall so submitPick can refuse with
+  // DRAFT_PICK_STALE_OVERALL (Commit M) when another writer landed a
+  // pick between this route's session read and the transactional commit.
+  // The route already short-reads the same DraftSession `picks` snapshot
+  // used to compute `current`, so `picks.length + 1` is the correct
+  // expectedOverall for the candidate we just resolved.
+  const expectedOverall = draftSession.picks.length + 1
+
   const result = await submitPick({
     leagueId,
     playerName: selected.playerName.trim(),
@@ -202,6 +210,7 @@ export async function POST(
     byeWeek: selected.byeWeek ?? null,
     rosterId,
     source: 'auto',
+    expectedOverall,
   })
 
   if (!result.success) {
