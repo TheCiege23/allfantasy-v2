@@ -454,7 +454,13 @@ export async function POST(
             { status },
           )
         }
-        return NextResponse.json({ error: result?.error ?? 'Unable to auto-pick a valid player.' }, { status })
+        return NextResponse.json(
+          {
+            error: result?.error ?? 'Unable to auto-pick a valid player.',
+            ...(result?.code ? { code: result.code } : {}),
+          },
+          { status },
+        )
       }
       if (result.snapshot?.rosterId) {
         void appendPickToRosterDraftSnapshot(leagueId, result.snapshot.rosterId, {
@@ -612,7 +618,10 @@ export async function POST(
             status,
           })
         }
-        return NextResponse.json({ error: result.error }, { status })
+        return NextResponse.json(
+          { error: result.error, ...(result.code ? { code: result.code } : {}) },
+          { status },
+        )
       }
       const snapshot = await buildSessionSnapshot(leagueId)
       void (async () => {
