@@ -24,7 +24,7 @@ import { DRAFT_ROOM } from '@/lib/analytics/eventNames'
 import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
 import type { DraftCopilotInsight } from '@/lib/draft-room/draft-copilot-types'
 import type { NflDraftProjectionSplits } from '@/lib/draft/analytics/nfl-draft-pool-projection-splits'
-import { isRookieEligibleForFilter } from '@/lib/draft-room/rookieFilterPredicate'
+import { isRookieEligibleForFilter, isVetEligibleForFilter } from '@/lib/draft-room/rookieFilterPredicate'
 
 const PLAYER_ROW_ESTIMATE_HEIGHT = 76
 /** Redraft rows use slightly taller estimate (chips + stats). */
@@ -371,6 +371,10 @@ function PlayerPanelInner({
   const [pendingNomination, setPendingNomination] = useState<PlayerEntry | null>(null)
   const [watchlistOnly, setWatchlistOnly] = useState(false)
   const [rookiesOnly, setRookiesOnly] = useState(false)
+  /** Commit N — companion to `rookiesOnly`. Mutually exclusive with rookies-only;
+   *  toggling one turns the other off so the user can't accidentally produce an
+   *  empty intersection. */
+  const [vetsOnly, setVetsOnly] = useState(false)
   const [hideDrafted, setHideDrafted] = useState(true)
   const [watchlistKeys, setWatchlistKeys] = useState<Set<string>>(new Set())
   const isDevyRound = Boolean(devyConfig?.enabled && !c2cConfig?.enabled && currentRound != null && devyConfig.devyRounds?.includes(currentRound))
@@ -491,6 +495,12 @@ function PlayerPanelInner({
         }),
       )
     }
+    // Commit N — Vets Only filter. Predicate is evidence-required (not a
+    // simple negation of rookie) so rows with missing metadata don't get
+    // accidentally counted as vets.
+    if (vetsOnly) {
+      list = list.filter((p) => isVetEligibleForFilter(p))
+    }
     if (teamFilter !== 'All') {
       list = list.filter((p) => p.team === teamFilter)
     }
@@ -531,6 +541,7 @@ function PlayerPanelInner({
     hideDrafted,
     watchlistOnly,
     rookiesOnly,
+    vetsOnly,
     watchlistKeys,
     watchKeyFor,
     searchQuery,
@@ -674,7 +685,29 @@ function PlayerPanelInner({
     setPoolFilter('All')
     setWatchlistOnly(false)
     setRookiesOnly(false)
+    setVetsOnly(false)
     setHideDrafted(true)
+  }, [])
+
+  /**
+   * Commit N — mutual exclusion between rookies-only and vets-only. Toggling
+   * one off when the other is being turned on prevents the empty
+   * intersection (a player can't be both a rookie and a vet).
+   */
+  const toggleRookiesOnly = useCallback(() => {
+    setRookiesOnly((v) => {
+      const next = !v
+      if (next) setVetsOnly(false)
+      return next
+    })
+  }, [])
+
+  const toggleVetsOnly = useCallback(() => {
+    setVetsOnly((v) => {
+      const next = !v
+      if (next) setRookiesOnly(false)
+      return next
+    })
   }, [])
 
   return (
@@ -912,10 +945,23 @@ function PlayerPanelInner({
             <button
               type="button"
               data-testid="draft-filter-rookies-only"
-              onClick={() => setRookiesOnly((v) => !v)}
+              onClick={toggleRookiesOnly}
+              aria-pressed={rookiesOnly}
               className={`rounded border px-2 py-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/40 ${rookiesOnly ? 'border-violet-300/40 bg-violet-500/14 text-violet-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
             >
               Rookies only
+            </button>
+            {/* Commit N — Vets Only companion filter. Evidence-required predicate
+                (yearsExp ≥ 1 or graduated devy); mutually exclusive with
+                rookies-only via toggleVetsOnly. */}
+            <button
+              type="button"
+              data-testid="draft-filter-vets-only"
+              onClick={toggleVetsOnly}
+              aria-pressed={vetsOnly}
+              className={`rounded border px-2 py-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${vetsOnly ? 'border-cyan-300/40 bg-cyan-500/14 text-cyan-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
+            >
+              Vets only
             </button>
           </div>
           <button
@@ -974,7 +1020,14 @@ function PlayerPanelInner({
             age: selectedPlayer.display?.metadata?.age ?? null,
             heightIn: null,
             weightLbs: null,
-            yearsExp: null,
+            // Commit N — pass the resolved Sleeper years_exp through so the
+            // detail modal can render rookie/vet status accurately. Was
+            // hardcoded to `null`, which silently dropped rookie metadata
+            // for every player on the board.
+            yearsExp:
+              typeof selectedPlayer.yearsExp === 'number' && Number.isFinite(selectedPlayer.yearsExp)
+                ? selectedPlayer.yearsExp
+                : null,
             jersey: null,
           }}
           sport={sport}
