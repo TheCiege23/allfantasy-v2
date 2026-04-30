@@ -1,9 +1,10 @@
 'use client'
 
-import { Bot, User, TrendingUp } from 'lucide-react'
+import { Bot, User, TrendingUp, AlertTriangle } from 'lucide-react'
 import type { SlotOrderEntry } from '@/lib/live-draft-engine/types'
 import type { RedraftStarterHint } from '@/lib/draft-room/redraftPlanningHints'
 import { DraftRosterStrip } from './DraftRosterStrip'
+import { computeTeamNeeds, detectByeWeekClusters } from '@/lib/draft-room/teamNeeds'
 
 export type DraftTeamPanelProps = {
   leagueName: string
@@ -16,6 +17,10 @@ export type DraftTeamPanelProps = {
     position: string
     overall: number
     rosterId: string
+    /** Commit S — bye week of the drafted player when available, used for
+     *  bye-week clustering warnings. Optional / null when upstream pool
+     *  row didn't carry one. */
+    byeWeek?: number | null
     isDevy?: boolean
     isTaxi?: boolean
   }>
@@ -73,6 +78,18 @@ export function DraftTeamPanel({
   const topNeed = Object.entries(counts).sort((a, b) => a[1] - b[1])[0]?.[0] ?? '—'
   const totalPicks = rounds * teamCount
   const picksRemaining = Math.max(0, totalPicks - leaguePicksMade)
+
+  // Commit S — explicit team-needs computation driven by the league's
+  // configured `starterSlots` (works for IDP / DEF / K / specialty
+  // leagues without a hardcoded position list). The legacy
+  // `redraftStarterHints` chip strip still renders above for the soft
+  // QB/RB/WR/TE balance heuristic; this row surfaces the rule-correct
+  // "have / target / remaining" against the actual roster template.
+  const teamNeeds = computeTeamNeeds({ picks: myPicks, starterSlots })
+  // Commit S — bye-week clustering: 3+ drafted starters sharing a bye
+  // is a real lineup risk. Empty / unknown byes are dropped silently
+  // so this section disappears for pools that don't carry bye data.
+  const byeClusters = detectByeWeekClusters(myPicks)
 
   return (
     <aside
@@ -134,7 +151,10 @@ export function DraftTeamPanel({
         </div>
       ) : null}
 
-      <div className="space-y-2 border-b border-white/8 px-3 py-2">
+      <div
+        className="space-y-2 border-b border-white/8 px-3 py-2"
+        data-testid="draft-team-panel-positional-mix"
+      >
         <p className="text-[9px] font-medium uppercase tracking-wider text-white/40">Positional mix</p>
         <div className="flex flex-wrap gap-1">
           {Object.entries(counts)
@@ -158,6 +178,67 @@ export function DraftTeamPanel({
         </div>
       </div>
 
+      {teamNeeds.length > 0 ? (
+        <div
+          className="space-y-1.5 border-b border-white/8 px-3 py-2"
+          data-testid="draft-team-panel-needs"
+        >
+          <p className="text-[9px] font-medium uppercase tracking-wider text-white/40">
+            Starter needs
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {teamNeeds.map((n) => (
+              <span
+                key={n.position}
+                data-testid={`draft-team-panel-need-${n.position.toLowerCase()}`}
+                data-tone={n.tone}
+                title={
+                  n.tone === 'thin'
+                    ? `${n.remaining} more ${n.position} needed for starting lineup`
+                    : n.tone === 'heavy'
+                      ? `Depth-overcommit at ${n.position}`
+                      : `${n.position} starters set`
+                }
+                className={`rounded border px-1.5 py-0.5 text-[9px] font-medium tabular-nums ${
+                  n.tone === 'thin'
+                    ? 'border-amber-400/40 bg-amber-500/12 text-amber-100'
+                    : n.tone === 'heavy'
+                      ? 'border-violet-400/35 bg-violet-500/12 text-violet-100'
+                      : 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100'
+                }`}
+              >
+                {n.position} {n.have}/{n.target}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {byeClusters.length > 0 ? (
+        <div
+          className="border-b border-amber-400/25 bg-amber-500/[0.07] px-3 py-2"
+          data-testid="draft-team-panel-bye-clusters"
+        >
+          <p className="flex items-center gap-1 text-[9px] font-medium uppercase tracking-wider text-amber-200/80">
+            <AlertTriangle className="h-3 w-3" aria-hidden />
+            Bye-week stack
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {byeClusters.map((c) => (
+              <li
+                key={c.byeWeek}
+                data-testid={`draft-team-panel-bye-cluster-${c.byeWeek}`}
+                className="text-[10px] text-amber-100/85"
+              >
+                <span className="font-semibold text-amber-50 tabular-nums">Week {c.byeWeek}</span>
+                <span className="text-amber-200/60"> · {c.count} starters</span>
+                <span className="text-amber-200/45"> ({c.positions.join(', ')})</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {showRosterStrip ? (
         <DraftRosterStrip
           picks={myPicks.map((p) => ({
@@ -177,7 +258,10 @@ export function DraftTeamPanel({
         />
       ) : null}
 
-      <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 py-2">
+      <div
+        className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 py-2"
+        data-testid="draft-team-panel-drafted-list"
+      >
         <p className="text-[9px] font-medium uppercase tracking-wider text-white/40">Drafted ({myPicks.length})</p>
         <ul className="space-y-1">
           {myPicks.length === 0 ? (

@@ -255,6 +255,12 @@ export async function processExpiredDraftPickForLeague(
     const draftRoomConfig = await getDraftConfigForLeague(leagueId)
     const autoPickBehavior = String(draftRoomConfig?.autopick_behavior ?? 'queue-first').toLowerCase()
 
+    // Commit Q — overall this expired-pick processor is targeting; flow
+    // it into both submitPick (skip) and the BPA autopick helper so the
+    // Commit-M stale-overall guard fires when another writer beats us
+    // to the commit.
+    const expectedOverall = session.picks.length + 1
+
     if (autoPickBehavior === 'skip') {
       const skip = await submitPick({
         leagueId,
@@ -262,6 +268,7 @@ export async function processExpiredDraftPickForLeague(
         position: 'SKIP',
         rosterId: onClockRosterId,
         source: 'auto',
+        expectedOverall,
       })
       if (!skip.success) {
         return { leagueId, outcome: 'error', message: skip.error ?? 'skip_submit_failed' }
@@ -283,7 +290,7 @@ export async function processExpiredDraftPickForLeague(
       return { leagueId, outcome: 'processed_skip' }
     }
 
-    const bpa = await submitBestAvailableAutopickForExpiredTimer(leagueId, onClockRosterId)
+    const bpa = await submitBestAvailableAutopickForExpiredTimer(leagueId, onClockRosterId, expectedOverall)
     if (!bpa.ok) {
       return {
         leagueId,

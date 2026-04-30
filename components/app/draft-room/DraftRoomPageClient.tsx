@@ -75,6 +75,7 @@ import {
   lookupAiAdpMatch,
 } from '@/lib/draft-room/ai-adp-lookup'
 import { buildDraftSummaryForAI, buildLiveDraftBrainPayload, canAddToQueue, getDefaultRosterSlotsForSport } from '@/lib/draft-room'
+import { computeTeamNeeds, detectByeWeekClusters } from '@/lib/draft-room/teamNeeds'
 import type { LiveDraftBrainEnvelope } from '@/lib/live-draft-brain/schemas'
 import { IdpDraftExplainerCard } from '@/components/idp/IdpDraftExplainerCard'
 import { confirmTokenSpend } from '@/lib/tokens/client-confirm'
@@ -3078,6 +3079,9 @@ export function DraftRoomPageClient({
         position: p.position,
         overall: p.overall,
         rosterId: p.rosterId,
+        // Commit S — flow byeWeek through so the war room can detect
+        // bye-week clusters in the focus team's drafted starters.
+        byeWeek: (p as { byeWeek?: number | null }).byeWeek ?? null,
         isDevy: devyRoundsSet.has(p.round) || c2cCollegeRoundsSet.has(p.round),
       })),
       teamCount: session?.teamCount ?? 0,
@@ -3541,6 +3545,22 @@ export function DraftRoomPageClient({
               slot: currentPick.slot,
               rosterId: currentPick.rosterId,
             },
+            // Commit U — forward Commit-S team-needs context so the AI
+            // helper can prompt against rule-correct positional gaps
+            // (driven by the league's actual starterSlots map, not a
+            // hardcoded NFL skill heuristic). Pure additive — the
+            // recommend route currently doesn't read this field, so
+            // older AI helpers continue to function unchanged. Bye-
+            // week clusters are surfaced for the same reason: helps the
+            // AI avoid recommending another player on an already-stacked
+            // bye week.
+            teamNeeds: computeTeamNeeds({
+              picks: myRoster.map((r) => ({ position: r.position })),
+              starterSlots: rosterConfig?.starterSlots ?? null,
+            }),
+            byeWeekClusters: detectByeWeekClusters(
+              myRoster.map((r) => ({ position: r.position, byeWeek: r.byeWeek })),
+            ),
           }),
         })
         const data = await res.json().catch(() => ({}))

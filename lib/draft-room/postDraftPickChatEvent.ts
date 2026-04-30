@@ -31,6 +31,13 @@ export type PostDraftPickChatEventInput = {
   /** D.6.3 — true when this pick was made by an AI / autopick manager
    * (drives the "AI Manager" badge on the pick card). */
   aiManager?: boolean
+  /** Commit T — true when this pick was committed via a commissioner
+   * action (force_autopick, skip_pick, or assigned-pick from the
+   * commissioner control center). Drives a distinct "Commissioner"
+   * badge on the chat pick card; mutually exclusive with `aiManager`
+   * by upstream invariant (source is one of 'auto' | 'commissioner' |
+   * 'user' | 'keeper' | 'devy' | 'college' | 'promoted_devy'). */
+  commissionerOverride?: boolean
 }
 
 async function resolveActorAppUserId(input: PostDraftPickChatEventInput): Promise<string | null> {
@@ -93,6 +100,11 @@ export async function postDraftPickChatEvent(input: PostDraftPickChatEventInput)
         ? { teamLogoUrl: input.teamLogoUrl.trim() }
         : {}),
       ...(input.aiManager === true ? { aiManager: true } : {}),
+      // Commit T — commissioner-pick badge metadata. Mutually exclusive
+      // with aiManager: when source is 'commissioner', aiManager stays
+      // false. Renderers can show "AI Manager" / "Commissioner" /
+      // neither based on which flag is present.
+      ...(input.commissionerOverride === true ? { commissionerOverride: true } : {}),
     },
   })
 }

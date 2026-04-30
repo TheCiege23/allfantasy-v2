@@ -10,6 +10,11 @@ import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft, getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
 import { submitPick } from '@/lib/live-draft-engine/PickSubmissionService'
+import {
+  DRAFT_PICK_NOT_ON_CLOCK,
+  httpStatusForPickAuthorityCode,
+  type PickAuthorityCode,
+} from '@/lib/live-draft-engine/pickAuthorityCodes'
 import { appendPickToRosterDraftSnapshot } from '@/lib/live-draft-engine/RosterAssignmentService'
 import { prisma } from '@/lib/prisma'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
@@ -90,7 +95,12 @@ export async function POST(
   const resolvedOwner = resolvePickOwner(current.round, current.slot, slotOrder, tradedPicks)
   const onClockRosterId = resolvedOwner?.rosterId ?? current.rosterId
   if (rosterId !== onClockRosterId) {
-    return NextResponse.json({ error: 'You are not on the clock' }, { status: 400 })
+    // Commit M — same structured code as the manual-pick route so
+    // clients can render a consistent inline error on lockout.
+    return NextResponse.json(
+      { error: 'You are not on the clock', code: DRAFT_PICK_NOT_ON_CLOCK },
+      { status: httpStatusForPickAuthorityCode(DRAFT_PICK_NOT_ON_CLOCK) },
+    )
   }
 
   const queueRow = draftSession.queues.find((q) => q.userId === userId)
@@ -183,6 +193,14 @@ export async function POST(
     )
   }
 
+  // Commit Q — pass the resolved overall so submitPick can refuse with
+  // DRAFT_PICK_STALE_OVERALL (Commit M) when another writer landed a
+  // pick between this route's session read and the transactional commit.
+  // The route already short-reads the same DraftSession `picks` snapshot
+  // used to compute `current`, so `picks.length + 1` is the correct
+  // expectedOverall for the candidate we just resolved.
+  const expectedOverall = draftSession.picks.length + 1
+
   const result = await submitPick({
     leagueId,
     playerName: selected.playerName.trim(),
@@ -192,10 +210,23 @@ export async function POST(
     byeWeek: selected.byeWeek ?? null,
     rosterId,
     source: 'auto',
+    expectedOverall,
   })
 
   if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: 400 })
+    // Commit M — propagate authority codes (race / stale / not-live)
+    // through the autopick path with the same status mapping as the
+    // manual-pick route.
+    const status =
+      result.code === 'ROSTER_CONFIGURATION_INCOMPLETE'
+        ? 409
+        : result.code
+          ? httpStatusForPickAuthorityCode(result.code as PickAuthorityCode)
+          : 400
+    return NextResponse.json(
+      { error: result.error, ...(result.code ? { code: result.code } : {}) },
+      { status },
+    )
   }
 
   const { notifyAutoPickFired, notifyOnTheClockAfterPick, notifyQueuePlayerUnavailable } = await import('@/lib/draft-notifications')

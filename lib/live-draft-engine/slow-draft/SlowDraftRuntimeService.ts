@@ -134,6 +134,15 @@ export async function tryQueueAutoPick(
   const draftEligiblePositions = rosterRules?.draftEligiblePositions
   const eligibleQueueCandidates = filterEntriesByDraftEligiblePositions(queueCandidates, draftEligiblePositions)
 
+  // Commit Q — pass `expectedOverall` to each submitPick attempt so the
+  // Commit-M stale-overall guard short-circuits the candidate loop the
+  // moment another writer (concurrent cron, manager browser pick, etc.)
+  // advances the draft. Without this, the loop would keep trying the
+  // next candidate against a stale view; submitPick's internal in-tx
+  // race guard still catches it, but bailing on the first STALE_OVERALL
+  // saves a flurry of doomed retries.
+  const expectedOverall = draftSession.picks.length + 1
+
   for (const entry of eligibleQueueCandidates.slice(0, 30)) {
     const attempt = await submitPick({
       leagueId,
@@ -143,9 +152,16 @@ export async function tryQueueAutoPick(
       playerId: entry.playerId ?? null,
       rosterId,
       source: 'auto',
+      expectedOverall,
     })
     if (attempt.success) {
       return { success: true, playerName: String(entry.playerName ?? '').trim(), queuePlayerUnavailable }
+    }
+    // Commit Q — bail on stale-overall: another writer landed a pick
+    // since we loaded the session. Re-running the cron tick will pick
+    // up the fresh state.
+    if (attempt.code === 'DRAFT_PICK_STALE_OVERALL' || attempt.code === 'DRAFT_PICK_RACE_RETRY') {
+      return { success: false, queuePlayerUnavailable }
     }
   }
 
@@ -296,6 +312,11 @@ export async function runSlowDraftAutomationTick(
       } else {
         const draftRoomConfig = await getDraftConfigForLeague(leagueId)
         const autoPickBehavior = String(draftRoomConfig?.autopick_behavior ?? 'queue-first').toLowerCase()
+        // Commit Q — overall the cron tick is targeting; passed through
+        // both the skip and the BPA fallback paths so the Commit-M
+        // stale-overall guard fires deterministically when another
+        // writer lands a pick first.
+        const expectedOverall = session.picks.length + 1
         if (autoPickBehavior === 'skip') {
           const skip = await submitPick({
             leagueId,
@@ -303,6 +324,7 @@ export async function runSlowDraftAutomationTick(
             position: 'SKIP',
             rosterId: onClockRosterId,
             source: 'auto',
+            expectedOverall,
           })
           if (skip.success) {
             changed = true
@@ -324,7 +346,7 @@ export async function runSlowDraftAutomationTick(
             })()
           }
         } else {
-          const bpa = await submitBestAvailableAutopickForExpiredTimer(leagueId, onClockRosterId)
+          const bpa = await submitBestAvailableAutopickForExpiredTimer(leagueId, onClockRosterId, expectedOverall)
           if (bpa.ok) {
             changed = true
             actions.push({ type: 'auto_pick', rosterId: onClockRosterId, playerName: bpa.pick.playerName })

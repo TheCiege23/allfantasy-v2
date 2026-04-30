@@ -8,6 +8,11 @@ import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft, canSubmitPickForRoster, getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import { isCommissioner } from '@/lib/commissioner/permissions'
 import { submitPick } from '@/lib/live-draft-engine/PickSubmissionService'
+import {
+  DRAFT_PICK_NOT_ON_CLOCK,
+  httpStatusForPickAuthorityCode,
+  type PickAuthorityCode,
+} from '@/lib/live-draft-engine/pickAuthorityCodes'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
 import { appendPickToRosterDraftSnapshot } from '@/lib/live-draft-engine/RosterAssignmentService'
 import {
@@ -74,7 +79,12 @@ export async function POST(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   if (!isComm && effectiveRosterId !== expectedRosterId) {
-    return NextResponse.json({ error: 'Invalid roster for current pick' }, { status: 400 })
+    // Commit M — surface a structured code so the client can show an
+    // inline "you're not on the clock" error instead of a generic 400.
+    return NextResponse.json(
+      { error: 'Invalid roster for current pick', code: DRAFT_PICK_NOT_ON_CLOCK },
+      { status: httpStatusForPickAuthorityCode(DRAFT_PICK_NOT_ON_CLOCK) },
+    )
   }
   const canSubmit = await canSubmitPickForRoster(leagueId, userId, effectiveRosterId)
   if (!canSubmit) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -98,6 +108,16 @@ export async function POST(
   const playerImageUrl =
     typeof rawImg === 'string' && rawImg.trim() ? rawImg.trim().slice(0, 2048) : null
 
+  // Commit M — accept an `expectedOverall` from the client so the
+  // authority can refuse stale submissions with `DRAFT_PICK_STALE_OVERALL`
+  // (HTTP 409). Client recovery is the same as Commit J's session
+  // mismatch path: refresh snapshot, resubmit with the new overall.
+  const rawExpectedOverall = body.expectedOverall ?? body.expected_overall ?? null
+  const expectedOverall =
+    typeof rawExpectedOverall === 'number' && Number.isFinite(rawExpectedOverall) && rawExpectedOverall > 0
+      ? Math.floor(rawExpectedOverall)
+      : undefined
+
   const result = await submitPick({
     leagueId,
     playerName: String(playerName).trim(),
@@ -112,16 +132,23 @@ export async function POST(
     madeByUserId: userId,
     pickMetadata,
     assetType: body.assetType ?? body.asset_type ?? undefined,
+    expectedOverall,
+    commissionerOverride: source === 'commissioner' && isComm,
   })
 
   if (!result.success) {
-    const status = result.code === 'ROSTER_CONFIGURATION_INCOMPLETE' ? 409 : 400
     if (result.code === 'ROSTER_CONFIGURATION_INCOMPLETE') {
       return NextResponse.json(
         rosterConfigurationIncompleteBody({ leagueId, message: result.error }),
-        { status },
+        { status: 409 },
       )
     }
+    // Commit M — every authority-layer refusal carries a structured
+    // PickAuthorityCode; route status comes from the central mapper so a
+    // future code addition can't drift between routes.
+    const status = result.code
+      ? httpStatusForPickAuthorityCode(result.code as PickAuthorityCode)
+      : 400
     return NextResponse.json(
       { error: result.error, ...(result.code ? { code: result.code } : {}) },
       { status },

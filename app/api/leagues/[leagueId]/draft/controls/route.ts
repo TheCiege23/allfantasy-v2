@@ -22,6 +22,7 @@ import { runAuctionAutomationTick } from '@/lib/live-draft-engine/auction'
 import { runKeeperAutomationTick } from '@/lib/live-draft-engine/keeper'
 import { runSlowDraftAutomationTick } from '@/lib/live-draft-engine/slow-draft/SlowDraftRuntimeService'
 import { submitPick } from '@/lib/live-draft-engine/PickSubmissionService'
+import { httpStatusForPickAuthorityCode, type PickAuthorityCode } from '@/lib/live-draft-engine/pickAuthorityCodes'
 import { appendPickToRosterDraftSnapshot, finalizeRosterAssignments } from '@/lib/live-draft-engine/RosterAssignmentService'
 import { resolveCurrentOnTheClock } from '@/lib/live-draft-engine/CurrentOnTheClockResolver'
 import { isDraftPickRowEmpty } from '@/lib/live-draft-engine/draftPickEmpty'
@@ -104,6 +105,14 @@ type AutoPickCandidate = {
   team: string | null
   playerId: string | null
   byeWeek: number | null
+}
+
+type SubmitPickFailureCode = Awaited<ReturnType<typeof submitPick>>['code']
+
+function httpStatusForSubmitPickFailure(code: SubmitPickFailureCode): number {
+  if (!code) return 400
+  if (code === 'ROSTER_CONFIGURATION_INCOMPLETE') return 409
+  return httpStatusForPickAuthorityCode(code as PickAuthorityCode)
 }
 
 function normalizeName(value: string): string {
@@ -207,7 +216,10 @@ export async function POST(
       const uiSettings = await getDraftUISettingsForLeague(leagueId)
       if (uiSettings.commissionerPauseControlsEnabled === false) {
         return NextResponse.json(
-          { error: 'Commissioner pause controls are disabled in automation settings' },
+          {
+            error: 'Commissioner pause controls are disabled in automation settings',
+            code: 'COMMISSIONER_PAUSE_DISABLED',
+          },
           { status: 400 }
         )
       }
@@ -249,7 +261,10 @@ export async function POST(
       const uiSettings = await getDraftUISettingsForLeague(leagueId)
       if (!uiSettings.commissionerForceAutoPickEnabled) {
         return NextResponse.json(
-          { error: 'Commissioner force auto-pick is disabled in draft settings' },
+          {
+            error: 'Commissioner force auto-pick is disabled in draft settings',
+            code: 'COMMISSIONER_FORCE_AUTOPICK_DISABLED',
+          },
           { status: 400 }
         )
       }
@@ -395,6 +410,13 @@ export async function POST(
       let result: Awaited<ReturnType<typeof submitPick>> | null = null
       let selectedCandidate: AutoPickCandidate | null = null
       const attempts = candidates.slice(0, 80)
+      // Commit R — pass the resolved overall through to submitPick so the
+      // Commit-M stale guard fires deterministically when a manager / cron
+      // lands a pick between this route's session read and the commissioner
+      // commit. Bail the candidate loop on a stale-overall / race-retry
+      // (rather than thrashing the whole 80-candidate list against a
+      // stale view) — same pattern as Commit Q's queue-first cron loop.
+      const expectedOverall = draftSession.picks.length + 1
       for (const candidate of attempts) {
         const attempt = await submitPick({
           leagueId,
@@ -405,16 +427,24 @@ export async function POST(
           byeWeek: candidate.byeWeek,
           rosterId: onClockRosterId,
           source: 'commissioner',
+          expectedOverall,
         })
         if (attempt.success) {
           result = attempt
           selectedCandidate = candidate
           break
         }
+        if (
+          attempt.code === 'DRAFT_PICK_STALE_OVERALL' ||
+          attempt.code === 'DRAFT_PICK_RACE_RETRY'
+        ) {
+          result = attempt
+          break
+        }
       }
 
       if (!result?.success || !selectedCandidate) {
-        const status = result?.code === 'ROSTER_CONFIGURATION_INCOMPLETE' ? 409 : 400
+        const status = httpStatusForSubmitPickFailure(result?.code)
         if (result?.code === 'ROSTER_CONFIGURATION_INCOMPLETE') {
           return NextResponse.json(
             rosterConfigurationIncompleteBody({
@@ -424,7 +454,13 @@ export async function POST(
             { status },
           )
         }
-        return NextResponse.json({ error: result?.error ?? 'Unable to auto-pick a valid player.' }, { status })
+        return NextResponse.json(
+          {
+            error: result?.error ?? 'Unable to auto-pick a valid player.',
+            ...(result?.code ? { code: result.code } : {}),
+          },
+          { status },
+        )
       }
       if (result.snapshot?.rosterId) {
         void appendPickToRosterDraftSnapshot(leagueId, result.snapshot.rosterId, {
@@ -507,7 +543,36 @@ export async function POST(
       })
     }
     if (action === 'set_timer_seconds') {
-      const seconds = Number(body.seconds ?? body.timerSeconds ?? 90)
+      // Commit R — reject obviously-bad timer values at the route layer with
+      // a structured `COMMISSIONER_TIMER_OUT_OF_RANGE` code so the client can
+      // render an inline validation error. The underlying
+      // `setTimerSeconds` helper already clamps to [0, 86400] silently;
+      // that's fine as a defense-in-depth floor but a UX-grade refusal here
+      // is what stops the commissioner from accidentally setting a 0s timer
+      // (which would make every pick auto-fire) or a multi-day timer (which
+      // would freeze the draft).
+      const TIMER_MIN_SECONDS = 5
+      const TIMER_MAX_SECONDS = 86400 // 24h — same upper bound as the helper
+      const rawSeconds = Number(body.seconds ?? body.timerSeconds ?? 90)
+      if (!Number.isFinite(rawSeconds)) {
+        return NextResponse.json(
+          {
+            error: 'Timer seconds must be a finite number.',
+            code: 'COMMISSIONER_TIMER_INVALID',
+          },
+          { status: 400 },
+        )
+      }
+      const seconds = Math.round(rawSeconds)
+      if (seconds < TIMER_MIN_SECONDS || seconds > TIMER_MAX_SECONDS) {
+        return NextResponse.json(
+          {
+            error: `Timer must be between ${TIMER_MIN_SECONDS} and ${TIMER_MAX_SECONDS} seconds.`,
+            code: 'COMMISSIONER_TIMER_OUT_OF_RANGE',
+          },
+          { status: 400 },
+        )
+      }
       const resetCurrentTimer = Boolean(body.resetCurrentTimer ?? body.reset_current_timer ?? true)
       const ok = await setTimerSeconds(leagueId, seconds, { resetCurrentTimer })
       if (!ok) return NextResponse.json({ error: 'Failed to set timer' }, { status: 400 })
@@ -523,10 +588,20 @@ export async function POST(
       const skipAllowed = String(draftConfig?.autopick_behavior ?? '').toLowerCase() === 'skip'
       if (!skipAllowed) {
         return NextResponse.json(
-          { error: 'Skip pick is disabled by league auto-pick rules (set auto-pick behavior to skip).' },
+          {
+            error: 'Skip pick is disabled by league auto-pick rules (set auto-pick behavior to skip).',
+            code: 'COMMISSIONER_SKIP_DISABLED',
+          },
           { status: 400 }
         )
       }
+      // Commit R — pass expectedOverall so Commit-M race semantics apply
+      // even on commissioner skip writes.
+      const skipSession = await prisma.draftSession.findUnique({
+        where: { leagueId },
+        select: { picks: { select: { id: true } } },
+      })
+      const expectedOverall = (skipSession?.picks.length ?? 0) + 1
       const result = await submitPick({
         leagueId,
         playerName: '(Skipped)',
@@ -534,15 +609,19 @@ export async function POST(
         team: null,
         byeWeek: null,
         source: 'commissioner',
+        expectedOverall,
       })
       if (!result.success) {
-        const status = result.code === 'ROSTER_CONFIGURATION_INCOMPLETE' ? 409 : 400
+        const status = httpStatusForSubmitPickFailure(result.code)
         if (result.code === 'ROSTER_CONFIGURATION_INCOMPLETE') {
           return NextResponse.json(rosterConfigurationIncompleteBody({ leagueId, message: result.error }), {
             status,
           })
         }
-        return NextResponse.json({ error: result.error }, { status })
+        return NextResponse.json(
+          { error: result.error, ...(result.code ? { code: result.code } : {}) },
+          { status },
+        )
       }
       const snapshot = await buildSessionSnapshot(leagueId)
       void (async () => {
