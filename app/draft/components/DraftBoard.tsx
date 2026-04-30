@@ -27,7 +27,10 @@ export function DraftBoard({ numTeams, numRounds, pickOrder, picks, currentOvera
   }, [picks])
 
   return (
-    <div className="flex max-h-[40vh] min-h-[200px] flex-col overflow-auto rounded-2xl border border-white/10 bg-gradient-to-b from-[#0c1220] via-[#080c14] to-[#06090f] shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_24px_48px_-12px_rgba(0,0,0,0.55)] ring-1 ring-white/[0.04]">
+    <div
+      data-testid="legacy-draft-board"
+      className="flex max-h-[40vh] min-h-[200px] flex-col overflow-auto rounded-2xl border border-white/10 bg-gradient-to-b from-[#0c1220] via-[#080c14] to-[#06090f] shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_24px_48px_-12px_rgba(0,0,0,0.55)] ring-1 ring-white/[0.04]"
+    >
       <div className="sticky left-0 top-0 z-20 flex border-b border-white/[0.06] bg-[#080c14]/95 pb-1.5 pl-[3.25rem] pt-2.5 backdrop-blur-md">
         <ManagerHeader slots={pickOrder} />
       </div>
