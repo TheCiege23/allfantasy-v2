@@ -21,13 +21,16 @@
 import { prisma } from '@/lib/prisma'
 import { clearSportsFetch } from '@/lib/clear-sports/client'
 import { theSportsDbProvider } from '@/lib/workers/providers/thesportsdb'
+import { apiSportsProvider } from '@/lib/workers/providers/api-sports'
 import { sleeperChainProvider } from '@/lib/workers/providers/sleeper-chain'
 import { classifyAvatarSource } from '@/lib/draft-room/classify-avatar-source'
 
 export type HeadshotProvider =
-  | 'sleeper'
   | 'clearsports'
   | 'sportsdb'
+  | 'apisports'
+  | 'sportsplayer'
+  | 'sleeper'
   | 'none'
 export type HeadshotConfidence = 'exact' | 'name_team_position' | 'name_only' | 'none'
 
@@ -319,7 +322,58 @@ async function resolveOnce(
     }
   }
 
-  // ── 3. ClearSports (NFL secondary, non-NFL primary) ──
+  // ── 3. TheSportsAPI (api-sports) ──
+  for (const candidate of nameCandidates) {
+    try {
+      const result = await apiSportsProvider.fetch({
+        sport,
+        dataType: 'player_headshots',
+        query: { search: candidate, teamCode: input.team ?? undefined },
+      })
+      const apiUrl =
+        result && typeof result === 'object' && 'headshotUrl' in (result as Record<string, unknown>)
+          ? String((result as { headshotUrl?: unknown }).headshotUrl ?? '')
+          : ''
+      if (isValidHeadshotUrl(apiUrl)) {
+        return {
+          imageUrl: apiUrl,
+          source: 'apisports',
+          confidence: targetTeam ? 'name_team_position' : 'name_only',
+        }
+      }
+    } catch {
+      /* swallow — provider may be down or unconfigured */
+    }
+  }
+
+  // ── 4. SportsPlayer DB cache ──
+  try {
+    const dbRows = await prisma.sportsPlayer.findMany({
+      where: {
+        sport,
+        name: { equals: input.name, mode: 'insensitive' },
+      },
+      select: { imageUrl: true, team: true, position: true },
+      take: 5,
+    })
+    const exact = dbRows.find((row) => {
+      const sameTeam = !targetTeam || normalizeTeam(row.team) === targetTeam
+      const samePos = !targetPos || normalizePosition(row.position) === targetPos
+      return sameTeam || samePos
+    }) ?? dbRows[0]
+
+    if (exact?.imageUrl && isValidHeadshotUrl(exact.imageUrl)) {
+      return {
+        imageUrl: exact.imageUrl,
+        source: 'sportsplayer',
+        confidence: targetTeam || targetPos ? 'exact' : 'name_only',
+      }
+    }
+  } catch {
+    /* swallow — db cache may be unavailable */
+  }
+
+  // ── 5. ClearSports (NFL secondary, non-NFL primary) ──
   if (isNfl && targetName.length > 0) {
     const candidates = csByName.get(targetName) ?? []
     if (candidates.length === 1) {
@@ -350,7 +404,7 @@ async function resolveOnce(
     }
   }
 
-  // ── 4. Sleeper (NFL tertiary) ──
+  // ── 6. Sleeper (NFL tertiary) ──
   if (isNfl) {
     for (const candidate of nameCandidates) {
       try {

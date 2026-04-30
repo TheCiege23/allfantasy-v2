@@ -116,7 +116,7 @@ describe('E.1.6 — resolvePlayerHeadshot wires TheSportsAPI as tier 3', () => {
   })
 
   it('HeadshotProvider type includes the new "apisports" source', () => {
-    expect(src).toMatch(/'clearsports'\s*\|\s*'sportsdb'\s*\|\s*'apisports'\s*\|\s*'sportsplayer'\s*\|\s*'none'/)
+    expect(src).toMatch(/'clearsports'\s*\|\s*'sportsdb'\s*\|\s*'apisports'\s*\|\s*'sportsplayer'\s*\|\s*'sleeper'\s*\|\s*'none'/)
   })
 
   it('apiSports tier sits AFTER SportsDB and BEFORE the SportsPlayer cache lookup', () => {

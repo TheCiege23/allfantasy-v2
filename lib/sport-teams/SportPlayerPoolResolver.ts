@@ -192,32 +192,35 @@ export async function getPlayerPoolForSport(
   }))
 
   if (sport === 'NFL') {
-    const existingDefTeams = new Set(
-      primary
-        .filter((p) => ['DEF', 'DST'].includes(String(p.position ?? '').trim().toUpperCase()))
-        .map((p) => String(p.team_abbreviation ?? '').trim().toUpperCase())
-        .filter(Boolean),
-    )
-    for (const [abbr, teamId] of teamIdByAbbrev.entries()) {
-      if (existingDefTeams.has(abbr)) continue
-      primary.push({
-        team_abbreviation: abbr,
-        player_id: `nfl:def:${abbr}`,
-        sport_type: sport as SportType,
-        league_variant: null,
-        team_id: teamId ?? null,
-        team: abbr,
-        full_name: `${abbr} Defense`,
-        position: 'DEF',
-        status: null,
-        injury_status: null,
-        external_source_id: `nfl:def:${abbr}`,
-        age: null,
-        experience: null,
-        secondary_positions: [],
-        metadata: { source: 'synthetic_team_defense' },
-        image_url: null,
-      })
+    const isIdpQuery = normalizedPositions?.some((p) => ['DE', 'DT', 'LB', 'CB', 'S'].includes(p))
+    if (!isIdpQuery) {
+      const existingDefTeams = new Set(
+        primary
+          .filter((p) => ['DEF', 'DST'].includes(String(p.position ?? '').trim().toUpperCase()))
+          .map((p) => String(p.team_abbreviation ?? '').trim().toUpperCase())
+          .filter(Boolean),
+      )
+      for (const [abbr, teamId] of teamIdByAbbrev.entries()) {
+        if (existingDefTeams.has(abbr)) continue
+        primary.push({
+          team_abbreviation: abbr,
+          player_id: `nfl:def:${abbr}`,
+          sport_type: sport as SportType,
+          league_variant: null,
+          team_id: teamId ?? null,
+          team: abbr,
+          full_name: `${abbr} Defense`,
+          position: 'DEF',
+          status: null,
+          injury_status: null,
+          external_source_id: `nfl:def:${abbr}`,
+          age: null,
+          experience: null,
+          secondary_positions: [],
+          metadata: { source: 'synthetic_team_defense' },
+          image_url: null,
+        })
+      }
     }
   }
 

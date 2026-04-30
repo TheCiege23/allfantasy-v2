@@ -102,6 +102,9 @@ describe('Redraft multi-sport route parity', () => {
 
     prismaMock.$transaction.mockImplementation(async (cb: any) => {
       const tx = {
+        league: {
+          update: vi.fn().mockResolvedValue({}),
+        },
         redraftSeason: {
           create: vi.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'rs-1', ...data })),
           findFirst: vi.fn().mockResolvedValue({ id: 'rs-1', sport: 'NFL', rosters: [], schedule: [] }),

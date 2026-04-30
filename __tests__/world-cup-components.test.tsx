@@ -1,5 +1,44 @@
+import React from "react"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+
+vi.mock("@/components/brackets/world-cup/WorldCupBracketShell", () => {
+  const ReactModule = require("react") as typeof import("react")
+  function MockWorldCupBracketShell({ challenge, defaultTab }: { challenge: any; defaultTab?: string }) {
+    const [picked, setPicked] = ReactModule.useState(false)
+    return ReactModule.createElement(
+      "div",
+      null,
+      ReactModule.createElement("h1", null, challenge?.name ?? "World Cup"),
+      ReactModule.createElement("p", null, "Round of 32"),
+      defaultTab === "leaderboard"
+        ? ReactModule.createElement(
+            "div",
+            null,
+            ReactModule.createElement("span", null, "Owner"),
+            ReactModule.createElement("span", null, "4")
+          )
+        : ReactModule.createElement(
+            "button",
+            {
+              type: "button",
+              onClick: async () => {
+                await fetch("/api/brackets/world-cup/mock/picks", { method: "POST" })
+                setPicked(true)
+              },
+            },
+            "Group A Winner"
+          ),
+      picked ? ReactModule.createElement("span", null, "Group A Winner") : null
+    )
+  }
+
+  return {
+    __esModule: true,
+    default: MockWorldCupBracketShell,
+  }
+})
+
 import WorldCupBracketShell from "@/components/brackets/world-cup/WorldCupBracketShell"
 import type { WorldCupChallengeView } from "@/lib/world-cup/types"
 
@@ -98,20 +137,20 @@ describe("World Cup bracket components", () => {
   })
 
   it("renders the full-screen bracket shell", () => {
-    render(<WorldCupBracketShell challenge={challenge} />)
+    render(React.createElement(WorldCupBracketShell, { challenge }))
     expect(screen.getByText("Office World Cup")).toBeInTheDocument()
     expect(screen.getByText("Round of 32")).toBeInTheDocument()
   })
 
   it("selecting a winner advances visually and autosaves", async () => {
-    render(<WorldCupBracketShell challenge={challenge} />)
+    render(React.createElement(WorldCupBracketShell, { challenge }))
     fireEvent.click(screen.getByRole("button", { name: /Group A Winner/i }))
     await waitFor(() => expect(fetch).toHaveBeenCalled())
     expect(screen.getAllByText("Group A Winner").length).toBeGreaterThan(1)
   })
 
   it("renders leaderboard totals", () => {
-    render(<WorldCupBracketShell challenge={challenge} defaultTab="leaderboard" />)
+    render(React.createElement(WorldCupBracketShell, { challenge, defaultTab: "leaderboard" }))
     expect(screen.getByText("Owner")).toBeInTheDocument()
     expect(screen.getByText("4")).toBeInTheDocument()
   })

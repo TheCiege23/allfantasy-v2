@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { POST as legacyPost } from '@/app/api/legacy/trade/league-analyze/route'
 
 vi.mock('@/lib/ai/openai-route-client', () => ({
@@ -69,19 +69,12 @@ vi.mock('@/lib/sleeper-client', () => ({
     '127': { full_name: 'Stefon Diggs', position: 'WR', team: 'BUF' },
     '128': { full_name: 'Austin Ekeler', position: 'RB', team: 'LAC' },
   })),
+  getSleeperUser: vi.fn(async (username) => ({
+    user_id: 'user-123',
+    username,
+    display_name: 'Test User',
+  })),
 }))
-
-vi.mock('@/lib/sleeper-client', async () => {
-  const actual = await vi.importActual('@/lib/sleeper-client')
-  return {
-    ...actual,
-    getSleeperUser: vi.fn(async (username) => ({
-      user_id: 'user-123',
-      username,
-      display_name: 'Test User',
-    })),
-  }
-})
 
 vi.mock('@/lib/fantasycalc', () => ({
   fetchFantasyCalcValues: vi.fn(async () => [
