@@ -40,7 +40,34 @@ export async function getWorldCupChallengeView(input: { challengeId: string; use
   const picks = participant ? await db().worldCupBracketPick.findMany({ where: { participantId: participant.id }, orderBy: { createdAt: "asc" } }) : []
   return serialize({ challenge: c, participant, picks, leaderboard: buildWorldCupLeaderboardRows({ participants: c.participants, matches: c.matches, scoring: c.scoringProfile }), userId, isAdmin: Boolean(input.isAdmin || isAdminEmailAllowed(input.user?.email)) })
 }
-export async function getWorldCupChallengeByInvite(inviteCode: string) { const i = await db().worldCupBracketInvite.findUnique({ where: { inviteCode }, include: { challenge: { include: { participants: true } } } }); if (!i || (i.expiresAt && new Date(i.expiresAt) <= new Date()) || (i.maxUses != null && i.useCount >= i.maxUses)) return null; const o = await db().appUser.findUnique({ where: { id: i.challenge.ownerUserId }, select: { displayName: true, username: true, email: true } }); return { inviteCode, challengeId: i.challenge.id, name: i.challenge.name, ownerName: o?.displayName || o?.username || o?.email?.split("@")[0] || "AllFantasy Manager", seasonYear: i.challenge.seasonYear, participantCount: i.challenge.participants.length, status: i.challenge.status, visibility: i.challenge.visibility } }
+export async function getWorldCupChallengeByInvite(inviteCode: string) {
+  try {
+    const i = await db().worldCupBracketInvite.findUnique({
+      where: { inviteCode },
+      include: { challenge: { include: { participants: true } } },
+    })
+    if (!i || (i.expiresAt && new Date(i.expiresAt) <= new Date()) || (i.maxUses != null && i.useCount >= i.maxUses)) return null
+
+    const o = await db().appUser.findUnique({
+      where: { id: i.challenge.ownerUserId },
+      select: { displayName: true, username: true, email: true },
+    })
+
+    return {
+      inviteCode,
+      challengeId: i.challenge.id,
+      name: i.challenge.name,
+      ownerName: o?.displayName || o?.username || o?.email?.split("@")[0] || "AllFantasy Manager",
+      seasonYear: i.challenge.seasonYear,
+      participantCount: i.challenge.participants.length,
+      status: i.challenge.status,
+      visibility: i.challenge.visibility,
+    }
+  } catch {
+    // If the DB is unavailable in local/dev, degrade to a 404 path instead of crashing this page.
+    return null
+  }
+}
 export async function joinWorldCupChallengeByInvite(input: { inviteCode: string; user: SessionUser }) { if (!input.user.id) throw new Error("Authenticated user required"); const i = await db().worldCupBracketInvite.findUnique({ where: { inviteCode: input.inviteCode }, include: { challenge: true } }); if (!i) throw new Error("Invite not found"); const name = await displayName(input.user); const p = await db().$transaction(async (tx: any) => { const existing = await tx.worldCupBracketParticipant.findUnique({ where: { challengeId_userId: { challengeId: i.challengeId, userId: input.user.id } } }); if (existing) return existing; const created = await tx.worldCupBracketParticipant.create({ data: { challengeId: i.challengeId, userId: input.user.id, displayName: name } }); await tx.worldCupBracketInvite.update({ where: { id: i.id }, data: { useCount: { increment: 1 } } }); return created }); return { challengeId: i.challengeId, participantId: p.id } }
 function side(match: any, pick: { selectedTeamId?: string | null; selectedSlotKey?: string | null }) { if (pick.selectedTeamId && pick.selectedTeamId === match.homeTeamId) return "home"; if (pick.selectedTeamId && pick.selectedTeamId === match.awayTeamId) return "away"; if (pick.selectedSlotKey && pick.selectedSlotKey === match.homeSlotKey) return "home"; if (pick.selectedSlotKey && pick.selectedSlotKey === match.awaySlotKey) return "away"; return null }
 export async function saveWorldCupPicks(input: { challengeId: string; userId: string; picks: Array<{ matchId: string; selectedTeamId?: string | null; selectedSlotKey?: string | null }> }) { const c = await db().worldCupBracketChallenge.findUnique({ where: { id: input.challengeId }, include: { matches: true, participants: { where: { userId: input.userId } } } }); if (!c) throw new Error("Challenge not found"); const participant = c.participants[0]; if (!participant) throw new Error("Join the bracket before making picks"); const byId = new Map<string, any>(c.matches.map((m: any) => [m.id, m] as [string, any])); await db().$transaction(async (tx: any) => { for (const pick of input.picks) { const m = byId.get(pick.matchId); if (!m) throw new Error("Match not found"); if (isWorldCupMatchLocked({ challenge: c, match: m })) throw new Error("This matchup is locked"); const s = side(m, pick); if (!s) throw new Error("Selected team is not in this matchup"); const selectedTeamId = s === "home" ? m.homeTeamId : m.awayTeamId, selectedSlotKey = s === "home" ? m.homeSlotKey : m.awaySlotKey, selectedTeamName = s === "home" ? m.homeTeamName : m.awayTeamName; await tx.worldCupBracketPick.upsert({ where: { matchId_participantId: { matchId: m.id, participantId: participant.id } }, create: { challengeId: c.id, participantId: participant.id, matchId: m.id, round: m.round, selectedTeamId, selectedSlotKey, selectedTeamName }, update: { selectedTeamId, selectedSlotKey, selectedTeamName, round: m.round, isCorrect: null, pointsAwarded: 0 } }); if (m.round === "final") await tx.worldCupBracketParticipant.update({ where: { id: participant.id }, data: { championPickTeamId: selectedTeamId, championPickName: selectedTeamName } }) } }); await recalculateWorldCupChallenge(c.id); return getWorldCupChallengeView({ challengeId: c.id, user: { id: input.userId } }) }
