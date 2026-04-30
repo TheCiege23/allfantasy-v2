@@ -103,6 +103,28 @@ export async function GET(req: NextRequest) {
   }
 
   if (league.platform !== 'sleeper') {
+    // Self-heal: if the league's draft is completed but post-draft
+    // finalization artifacts haven't been written to `Roster.playerData`
+    // yet (e.g. the route that normally fires this — `/draft/events` or
+    // `/draft/session` — was never hit before the user navigated to the
+    // dashboard), run the throttled finalization here. The throttle (60s
+    // success window) means dashboard reloads within the window skip the
+    // re-run; the first read after a completed draft pays the heal cost
+    // once, then the dashboard renders the materialized roster. Failures
+    // are swallowed by the throttled wrapper and `Roster.playerData.draftPicks`
+    // already provides a read-side fallback inside
+    // `buildLineupListsFromPlayerData`, so a heal failure does NOT leave
+    // the dashboard empty.
+    try {
+      const { syncPostDraftArtifactsIfCompletedThrottled } = await import(
+        '@/lib/live-draft-engine/postDraftFinalizeArtifacts'
+      )
+      await syncPostDraftArtifactsIfCompletedThrottled(leagueId)
+    } catch {
+      // Non-fatal: the helper already swallows + logs; this catch is
+      // belt-and-suspenders if the dynamic import itself fails.
+    }
+
     const roster = await prisma.roster.findFirst({
       where: { leagueId, platformUserId: targetUserId },
     })
