@@ -432,6 +432,14 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     // non-fatal: contract assignment failure should never block pick persistence
   }
 
+  // Commit T — pick announcement is the single emission site for the
+  // draft chat pick card. Reaches this point ONLY on the success path
+  // (failed picks return early with { success: false } before any of
+  // this runs), and is fire-and-forget with `.catch(() => {})` so a
+  // chat write failure cannot break pick execution. The aiManager and
+  // commissionerOverride badges flip based on `input.source` so the
+  // chat renderer can distinguish AI-autopick / commissioner / user
+  // picks without re-deriving from message text.
   void import('@/lib/draft-room/postDraftPickChatEvent')
     .then(({ postDraftPickChatEvent }) =>
       postDraftPickChatEvent({
@@ -449,6 +457,7 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
         nflTeam: pick.team ?? input.team ?? null,
         headshotUrl: pick.playerImageUrl ?? input.playerImageUrl ?? null,
         aiManager: input.source === 'auto',
+        commissionerOverride: input.source === 'commissioner',
       }),
     )
     .catch(() => {})
