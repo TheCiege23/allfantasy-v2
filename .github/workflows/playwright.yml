@@ -8,7 +8,7 @@ jobs:
   test:
     name: Playwright (${{ matrix.lane }})
     # Core e2e installs all browsers + full suite; 60m has timed out in CI. Other lanes stay capped.
-    timeout-minutes: ${{ matrix.job-timeout }}
+    timeout-minutes: ${{ matrix['job-timeout'] }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
