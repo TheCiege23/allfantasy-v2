@@ -1,8 +1,18 @@
 /**
  * Pick validation: no duplicate player, correct slot, session state, devy eligibility.
+ *
+ * Commit M — every refusal carries a stable `code` from
+ * `pickAuthorityCodes.ts` so the route layer can return a structured
+ * 400/403/409 and the client can render a precise inline error.
  */
 
 import { validateUniquePlayer } from '@/lib/mock-draft/draft-engine'
+import {
+  DRAFT_PICK_DUPLICATE_PLAYER,
+  DRAFT_PICK_NOT_LIVE,
+  DRAFT_PICK_NOT_ON_CLOCK,
+  type PickAuthorityCode,
+} from './pickAuthorityCodes'
 
 export interface ValidatePickInput {
   playerName: string
@@ -11,11 +21,18 @@ export interface ValidatePickInput {
   currentOnClockRosterId: string
   existingPicks: { playerName: string; position: string }[]
   sessionStatus: string
+  /**
+   * Commit M — when true, the caller is a commissioner correction flow
+   * (assign-pick / pick-edit). On-clock check is skipped; duplicate and
+   * not-live checks still apply. Defaults to false.
+   */
+  commissionerOverride?: boolean
 }
 
 export interface PickValidationResult {
   valid: boolean
   error?: string
+  code?: PickAuthorityCode
 }
 
 /**
@@ -23,10 +40,14 @@ export interface PickValidationResult {
  */
 export function validatePickSubmission(input: ValidatePickInput): PickValidationResult {
   if (input.sessionStatus !== 'in_progress' && input.sessionStatus !== 'paused') {
-    return { valid: false, error: 'Draft is not in progress' }
+    return { valid: false, error: 'Draft is not in progress', code: DRAFT_PICK_NOT_LIVE }
   }
-  if (input.rosterId !== input.currentOnClockRosterId) {
-    return { valid: false, error: 'This roster is not on the clock' }
+  if (!input.commissionerOverride && input.rosterId !== input.currentOnClockRosterId) {
+    return {
+      valid: false,
+      error: 'This roster is not on the clock',
+      code: DRAFT_PICK_NOT_ON_CLOCK,
+    }
   }
   const name = input.playerName?.trim()
   if (!name) {
@@ -48,7 +69,7 @@ export function validatePickSubmission(input: ValidatePickInput): PickValidation
     { overall: 0, round: 0, pick: 0, playerName: name, position: input.position, manager: '' },
   ])
   if (dupErrors.length > 0) {
-    return { valid: false, error: dupErrors[0] }
+    return { valid: false, error: dupErrors[0], code: DRAFT_PICK_DUPLICATE_PLAYER }
   }
   return { valid: true }
 }

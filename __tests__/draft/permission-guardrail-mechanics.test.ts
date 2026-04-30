@@ -399,7 +399,12 @@ describe('Phase 4 Slice 3 - permission and guardrail mechanics', () => {
     })
     const body = await res.json()
 
-    expect(res.status).toBe(400)
+    // Commit M — authority refusal now returns 403 with the structured
+    // `DRAFT_PICK_NOT_ON_CLOCK` code (was a generic 400). Status reflects
+    // the "Forbidden" semantics; the error string + submitPick-not-called
+    // contract stays unchanged.
+    expect(res.status).toBe(403)
+    expect(body?.code).toBe('DRAFT_PICK_NOT_ON_CLOCK')
     expect(String(body?.error ?? '')).toContain('Invalid roster')
     expect(mocks.submitPick).not.toHaveBeenCalled()
   })
