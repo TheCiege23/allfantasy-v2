@@ -242,7 +242,20 @@ function DraftPlayerCardInner({
   const teamLogoUrl = normalized.teamLogoUrl ?? assets?.teamLogoUrl ?? null
   const rowHeadshotSize = rs ? 44 : 40
   const rowLogoSize = rs ? 18 : 16
-  const statLine = normalized.stats?.summary ?? 'No stats available'
+  // Commit P — surface the explicit `projection` field as a stat-line
+  // fallback when the upstream summary is absent. Pre-Commit-P the row
+  // showed "No stats available" even when the resolver had a projected-
+  // points number on the normalized payload (the field was computed in
+  // `normalizePlayer` but never read by the card).
+  const projectedPoints =
+    typeof normalized.projection === 'number' && Number.isFinite(normalized.projection)
+      ? normalized.projection
+      : null
+  const statLine =
+    normalized.stats?.summary ??
+    (projectedPoints != null
+      ? `Proj ${projectedPoints.toFixed(1)} pts`
+      : 'No stats available')
   const headshotTestBase = testId ? `${testId}-headshot` : 'draft-player-headshot'
   const teamLogoTestBase = testId ? `${testId}-team-logo` : 'draft-player-team-logo'
 
@@ -393,7 +406,12 @@ function DraftPlayerCardInner({
 
       <div className="min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <p className={`truncate font-bold text-white ${rs ? 'text-[13px] tracking-tight' : ''}`}>{displayName}</p>
+          <p
+            className={`truncate font-bold text-white ${rs ? 'text-[13px] tracking-tight' : ''}`}
+            data-testid={testId ? `${testId}-name` : 'draft-player-name'}
+          >
+            {displayName}
+          </p>
           {rs && (
             <span className="shrink-0 rounded-md border border-white/15 bg-black/35 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-cyan-100/90">
               {position}
@@ -464,6 +482,7 @@ function DraftPlayerCardInner({
         </p>
         {injuryStatus ? (
           <span
+            data-testid={testId ? `${testId}-injury-status` : 'draft-player-injury-status'}
             className={`mt-0.5 inline-block max-w-full truncate rounded border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
               rs ? 'border-rose-400/35 bg-rose-500/15 text-rose-100' : 'border-rose-400/25 bg-rose-500/10 text-rose-100/90'
             }`}
@@ -471,7 +490,11 @@ function DraftPlayerCardInner({
             {injuryStatus}
           </span>
         ) : null}
-        <p className={`truncate ${rs ? 'mt-1 text-[10px] text-emerald-100/80' : 'text-[10px] text-cyan-100/55'}`} title={statLine}>
+        <p
+          data-testid={testId ? `${testId}-stats-summary` : 'draft-player-stats-summary'}
+          className={`truncate ${rs ? 'mt-1 text-[10px] text-emerald-100/80' : 'text-[10px] text-cyan-100/55'}`}
+          title={statLine}
+        >
           {statLine}
         </p>
         {rs &&
@@ -496,10 +519,21 @@ function DraftPlayerCardInner({
         >
           <div>
             <span className={rs ? 'text-[9px] font-medium text-white/45' : ''}>{adpMetricLabel}</span>{' '}
-            <span className="text-cyan-300">{formatAdpDisplay(normalized.adp)}</span>
+            <span
+              className="text-cyan-300"
+              data-testid={testId ? `${testId}-adp` : 'draft-player-adp'}
+            >
+              {formatAdpDisplay(normalized.adp)}
+            </span>
           </div>
           <div className={rs ? 'mt-0.5' : ''}>
-            Bye <span className="text-cyan-300">{formatBye(normalized.byeWeek)}</span>
+            Bye{' '}
+            <span
+              className="text-cyan-300"
+              data-testid={testId ? `${testId}-bye` : 'draft-player-bye'}
+            >
+              {formatBye(normalized.byeWeek)}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-1">{compareAction}{secondaryAction}{primaryAction}</div>
