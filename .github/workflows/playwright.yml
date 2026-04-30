@@ -7,12 +7,21 @@ on:
 jobs:
   test:
     name: Playwright (${{ matrix.lane }})
-    timeout-minutes: 60
+    # Core e2e installs all browsers + full suite; 60m has timed out in CI. Other lanes stay capped.
+    timeout-minutes: ${{ matrix.job-timeout }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        lane: [core, retention-engagement, onboarding-activation, referral-growth-db]
+        include:
+          - lane: core
+            job-timeout: 120
+          - lane: retention-engagement
+            job-timeout: 60
+          - lane: onboarding-activation
+            job-timeout: 60
+          - lane: referral-growth-db
+            job-timeout: 60
     services:
       postgres:
         image: postgres:16
