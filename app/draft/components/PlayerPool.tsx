@@ -104,18 +104,55 @@ export function PlayerPool({ sport, draftedIds, onDraft, onQueue, canDraft, onPl
     setWatchOnly((w) => !w)
   }, [])
 
+  // Commit W.2 — clear all active filters back to defaults. Used by the
+  // empty-state CTA so users who narrow themselves into zero results have
+  // a one-click recovery instead of having to manually un-toggle each
+  // filter.
+  const clearAllFilters = useCallback(() => {
+    setPos('ALL')
+    setSearch('')
+    setHideDrafted(true)
+    setWatchOnly(false)
+    setRookiesOnly(false)
+  }, [])
+
+  // Commit W.2 — true when at least one filter is narrowing the list.
+  // Drives whether the empty state shows the "Clear filters" CTA.
+  const hasActiveNarrowingFilter =
+    pos !== 'ALL' || debounced.length > 0 || watchOnly || rookiesOnly
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/[0.08] bg-[#0d1117]">
-      <div className="shrink-0 border-b border-white/[0.06] p-2">
-        <div className="flex flex-wrap gap-1">
+      {/* Commit W.2 — filter bar is now structurally separated from
+       *  results: position chips live in a single-row horizontal-scroll
+       *  strip (no wrap), the search input sits below them, and the
+       *  toggle row anchors the bottom of the filter zone. The
+       *  border-b divider makes it visually obvious where filters end
+       *  and the player list begins, so the chip strip can no longer
+       *  be mistaken for the player list itself. */}
+      <div
+        className="shrink-0 border-b-2 border-white/[0.10] bg-[#0a0e13] p-2"
+        data-testid="legacy-draft-pool-filter-bar"
+      >
+        <div
+          className="flex items-center gap-1 overflow-x-auto overscroll-x-contain whitespace-nowrap pb-1 [scrollbar-width:thin]"
+          data-testid="legacy-draft-pool-position-filter-bar"
+          role="radiogroup"
+          aria-label="Position filter"
+        >
           {posOptions.map((p) => (
             <button
               key={p}
               type="button"
+              role="radio"
+              aria-checked={pos === p}
+              data-testid={`legacy-draft-pool-position-filter-${p.toLowerCase()}`}
               onClick={() => setPos(p)}
               className={cn(
-                'rounded px-2 py-0.5 text-[10px] font-semibold',
-                pos === p ? 'bg-cyan-500/20 text-cyan-200' : 'bg-white/[0.04] text-white/45',
+                'shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40',
+                pos === p
+                  ? 'bg-cyan-500/25 text-cyan-100 ring-1 ring-cyan-400/40 shadow-[0_0_10px_rgba(34,211,238,0.18)]'
+                  : 'bg-white/[0.04] text-white/55 hover:bg-white/10 hover:text-white/80',
               )}
             >
               {p}
@@ -126,7 +163,8 @@ export function PlayerPool({ sport, draftedIds, onDraft, onQueue, canDraft, onPl
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search players…"
-          className="mt-2 w-full rounded border border-white/[0.08] bg-black/30 px-2 py-1 text-[11px] text-white"
+          className="mt-2 w-full rounded border border-white/[0.08] bg-black/30 px-2 py-1 text-[11px] text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/35"
+          data-testid="legacy-draft-pool-search"
         />
         <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-white/50">
           <label className="flex items-center gap-1">
@@ -143,7 +181,38 @@ export function PlayerPool({ sport, draftedIds, onDraft, onQueue, canDraft, onPl
           </label>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+      {/* Commit W.2 — results area carries its own testid + min-height
+       *  so the empty state always renders above-the-fold rather than
+       *  collapsing into a hidden zero-height region under the filter
+       *  bar. Empty-state copy + clear-filters CTA below replace what
+       *  was previously a silent empty <tbody>. */}
+      <div
+        className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]"
+        data-testid="legacy-draft-pool-results"
+      >
+        {filtered.length === 0 ? (
+          <div
+            className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-center"
+            data-testid="legacy-draft-pool-empty-state"
+          >
+            <p className="text-sm font-medium text-white/75">No players match your filters</p>
+            <p className="max-w-xs text-xs text-white/45">
+              {players.length === 0
+                ? 'Loading the player pool — give it a moment, or refresh the page if this persists.'
+                : 'Widen the search, switch position, or clear filters to see the pool again.'}
+            </p>
+            {hasActiveNarrowingFilter ? (
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                data-testid="legacy-draft-pool-clear-filters"
+                className="rounded-full border border-cyan-400/35 bg-cyan-500/[0.12] px-4 py-2 text-xs font-medium text-cyan-100 transition hover:bg-cyan-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45"
+              >
+                Clear filters
+              </button>
+            ) : null}
+          </div>
+        ) : (
         <table className="w-full text-left text-[10px]">
           <thead className="sticky top-0 bg-[#0d1117] text-white/40">
             <tr>
@@ -223,6 +292,7 @@ export function PlayerPool({ sport, draftedIds, onDraft, onQueue, canDraft, onPl
             ))}
           </tbody>
         </table>
+        )}
       </div>
     </div>
   )
