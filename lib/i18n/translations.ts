@@ -1104,6 +1104,9 @@ export const translations: Record<string, Record<string, string>> = {
     "draftRoom.legacy.startDraft": "Start draft",
     "draftRoom.legacy.draftChat": "Draft Chat",
     "draftRoom.legacy.chimmyChat": "Chimmy ✨",
+    "draftRoom.legacy.queueTab": "Queue",
+    "draftRoom.legacy.rosterTab": "Roster",
+    "draftRoom.legacy.aiTab": "AI",
     "draftRoom.legacy.leaguePrefix": "League",
     "draftRoom.legacy.roomPrefix": "Room",
     "draftRoom.legacy.bestBallBanner":

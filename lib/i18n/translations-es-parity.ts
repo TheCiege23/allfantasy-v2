@@ -371,6 +371,9 @@ export const translationsEsParity: Record<string, string> = {
   "draftRoom.legacy.startDraft": "Iniciar draft",
   "draftRoom.legacy.draftChat": "Chat del draft",
   "draftRoom.legacy.chimmyChat": "Chimmy ✨",
+  "draftRoom.legacy.queueTab": "Cola",
+  "draftRoom.legacy.rosterTab": "Plantilla",
+  "draftRoom.legacy.aiTab": "IA",
   "draftRoom.legacy.leaguePrefix": "Liga",
   "draftRoom.legacy.roomPrefix": "Sala",
   "draftRoom.legacy.bestBallBanner":

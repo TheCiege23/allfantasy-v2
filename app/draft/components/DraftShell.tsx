@@ -386,12 +386,27 @@ export function DraftShell({
           data-testid="draft-right-panel"
         >
           <div role="tablist" className="flex gap-1 border-b border-white/[0.06] px-2 pt-2">
+            {/* Commit W — translation lookup is hardened against missing keys.
+             *  `t()` returns the raw key string when a translation is absent
+             *  (e.g. `"draftRoom.legacy.queueTab"`), which is truthy, so
+             *  `?? 'Queue'` did not fall back. We now treat any returned
+             *  string that still equals the lookup key as a miss and use
+             *  the literal label. The translation source (EN + ES parity)
+             *  has also been updated with the missing keys so the literal
+             *  fallback is belt-and-suspenders, not the primary source. */}
             {([
-              { key: 'queue', label: t('draftRoom.legacy.queueTab') ?? 'Queue' },
-              { key: 'roster', label: t('draftRoom.legacy.rosterTab') ?? 'Roster' },
-              { key: 'chat', label: t('draftRoom.legacy.draftChat') ?? 'Chat' },
-              { key: 'ai', label: 'AI' },
+              { key: 'queue', i18nKey: 'draftRoom.legacy.queueTab', label: 'Queue' },
+              { key: 'roster', i18nKey: 'draftRoom.legacy.rosterTab', label: 'Roster' },
+              { key: 'chat', i18nKey: 'draftRoom.legacy.draftChat', label: 'Draft Chat' },
+              { key: 'ai', i18nKey: 'draftRoom.legacy.aiTab', label: 'AI' },
             ] as const).map((tab) => {
+              const translated = t(tab.i18nKey)
+              const resolvedLabel =
+                typeof translated === 'string' && translated && translated !== tab.i18nKey
+                  ? translated
+                  : tab.label
+              return { key: tab.key, label: resolvedLabel }
+            }).map((tab) => {
               const active = rightTab === tab.key
               const isAi = tab.key === 'ai'
               return (
