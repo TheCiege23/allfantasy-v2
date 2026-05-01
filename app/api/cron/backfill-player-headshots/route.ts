@@ -27,7 +27,8 @@
  * naturally rotates over successive cron runs without explicit cursors.
  *
  * Phase 1 scope (this branch):
- *   - Reads + writes `SportsPlayer.imageUrl` only.
+ *   - Reads + writes `SportsPlayer.imageUrl`, and touches `updatedAt` when
+ *     a scanned row has no replacement so unresolved rows do not block paging.
  *   - Source / confidence / lastCheckedAt metadata is returned in the JSON
  *     summary for cron-run observability but NOT persisted to the row yet.
  *   - Phase 2 follow-up branch will add `imageSource` / `imageLastCheckedAt`
@@ -56,6 +57,7 @@ const MAX_LIMIT = 500
 const invalidImageUrlFilters: Prisma.SportsPlayerWhereInput[] = [
   { imageUrl: { startsWith: 'data:' } },
   { imageUrl: { contains: '/teamLogos/', mode: 'insensitive' } },
+  { imageUrl: { contains: '/teamLogo/', mode: 'insensitive' } },
   { imageUrl: { not: { startsWith: 'http', mode: 'insensitive' } } },
 ]
 
@@ -96,6 +98,18 @@ function parseQuery(req: NextRequest): {
   const apply = url.searchParams.get('apply') === '1'
   const force = url.searchParams.get('force') === '1'
   return { sport, limit, apply, force }
+}
+
+async function touchScannedRow(id: string): Promise<boolean> {
+  try {
+    await prisma.sportsPlayer.update({
+      where: { id },
+      data: { updatedAt: new Date() },
+    })
+    return true
+  } catch {
+    return false
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -179,11 +193,17 @@ export async function GET(req: NextRequest) {
       if (summary.sampleNoMatch.length < 25) {
         summary.sampleNoMatch.push({ name: row.name, position: row.position, team: row.team })
       }
+      if (apply && !(await touchScannedRow(row.id))) {
+        summary.providerErrors += 1
+      }
       continue
     }
 
     if (!force && row.imageUrl && row.imageUrl === newUrl) {
       summary.skippedAlreadyValid += 1
+      if (apply && !(await touchScannedRow(row.id))) {
+        summary.providerErrors += 1
+      }
       continue
     }
 
