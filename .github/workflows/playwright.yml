@@ -6,13 +6,36 @@ on:
     branches: [ main, master ]
 jobs:
   test:
-    name: Playwright (${{ matrix.lane }})
-    timeout-minutes: 60
+    name: Playwright (${{ matrix.label }})
+    # Core e2e exceeded GitHub's 6h single-job cap; shard into 3 parallel jobs (each << 6h).
+    # Bracket key matches matrix include (required for this workflow file).
+    timeout-minutes: ${{ matrix['job-timeout'] }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        lane: [core, retention-engagement, onboarding-activation, referral-growth-db]
+        include:
+          - label: 'core 1/3'
+            lane: core-shard-1
+            shard: '1/3'
+            job-timeout: 180
+          - label: 'core 2/3'
+            lane: core-shard-2
+            shard: '2/3'
+            job-timeout: 180
+          - label: 'core 3/3'
+            lane: core-shard-3
+            shard: '3/3'
+            job-timeout: 180
+          - label: retention-engagement
+            lane: retention-engagement
+            job-timeout: 60
+          - label: onboarding-activation
+            lane: onboarding-activation
+            job-timeout: 60
+          - label: referral-growth-db
+            lane: referral-growth-db
+            job-timeout: 60
     services:
       postgres:
         image: postgres:16
@@ -38,7 +61,7 @@ jobs:
       if: matrix.lane == 'referral-growth-db'
       run: npm run test:foundation-apply-branches
     - name: Install Playwright Browsers
-      if: matrix.lane == 'core'
+      if: startsWith(matrix.lane, 'core-shard-')
       run: npx playwright install --with-deps
     - name: Install Playwright Chromium
       if: matrix.lane == 'referral-growth-db' || matrix.lane == 'onboarding-activation' || matrix.lane == 'retention-engagement'
@@ -76,13 +99,13 @@ jobs:
         DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
       run: npm run db:indexes:verify-platform-backend
     - name: Run Playwright tests (core)
-      if: matrix.lane == 'core'
+      if: startsWith(matrix.lane, 'core-shard-')
       env:
         DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
         DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
         NEXTAUTH_SECRET: ci-nextauth-secret
         NEXTAUTH_URL: http://localhost:3000
-      run: npm run test:e2e:core
+      run: npm run test:e2e:core -- --shard=${{ matrix.shard }}
     - name: Run Playwright tests (retention engagement)
       if: matrix.lane == 'retention-engagement'
       env:
