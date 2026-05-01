@@ -56,6 +56,21 @@ export async function appendPickToRosterDraftSnapshot(
   })
 }
 
+/** Roll-up counts from {@link finalizeRosterAssignments} (idempotent sync). */
+export type FinalizeRosterAssignmentsSummary = {
+  teamsSynced: number
+  playersSynced: number
+  skippedPlayers: number
+  missingRosterRows: number
+}
+
+const EMPTY_FINALIZE_SUMMARY: FinalizeRosterAssignmentsSummary = {
+  teamsSynced: 0,
+  playersSynced: 0,
+  skippedPlayers: 0,
+  missingRosterRows: 0,
+}
+
 /**
  * On draft completion: merge draft picks into each roster's playerData AND
  * materialize a starter/bench lineup using the league's sport-aware roster
@@ -66,16 +81,19 @@ export async function appendPickToRosterDraftSnapshot(
  * Existing lineups (manual edits, prior materialization) are NOT overwritten —
  * this is safe to re-run idempotently.
  */
-export async function finalizeRosterAssignments(leagueId: string): Promise<void> {
+export async function finalizeRosterAssignments(
+  leagueId: string,
+): Promise<FinalizeRosterAssignmentsSummary> {
   const session = await prisma.draftSession.findUnique({
     where: { leagueId },
     include: { picks: { orderBy: { overall: 'asc' } } },
   })
-  if (!session || session.status !== 'completed') return
+  if (!session || session.status !== 'completed') return EMPTY_FINALIZE_SUMMARY
 
   const rosterPayload = await getLeagueDraftTemplatePayload(leagueId).catch(() => null)
   const rosterTemplate = rosterPayload?.template ?? null
 
+  let skippedPlayers = 0
   const byRoster = new Map<string, AssignedPlayer[]>()
   for (const p of session.picks) {
     if (
@@ -85,6 +103,7 @@ export async function finalizeRosterAssignments(leagueId: string): Promise<void>
         pickMetadata: (p as { pickMetadata?: unknown | null }).pickMetadata ?? null,
       })
     ) {
+      skippedPlayers += 1
       continue
     }
     const list = byRoster.get(p.rosterId) ?? []
@@ -98,11 +117,18 @@ export async function finalizeRosterAssignments(leagueId: string): Promise<void>
     byRoster.set(p.rosterId, list)
   }
 
+  const playersSynced = [...byRoster.values()].reduce((acc, list) => acc + list.length, 0)
+  let teamsSynced = 0
+  let missingRosterRows = 0
+
   for (const [rosterId, players] of byRoster) {
     const roster = await prisma.roster.findFirst({
       where: { leagueId, id: rosterId },
     })
-    if (!roster) continue
+    if (!roster) {
+      missingRosterRows += 1
+      continue
+    }
     const data = (roster.playerData as Record<string, unknown>) ?? {}
 
     // Always refresh the flat draftPicks audit trail.
@@ -131,5 +157,8 @@ export async function finalizeRosterAssignments(leagueId: string): Promise<void>
       where: { id: rosterId },
       data: { playerData: nextPlayerData },
     })
+    teamsSynced += 1
   }
+
+  return { teamsSynced, playersSynced, skippedPlayers, missingRosterRows }
 }
