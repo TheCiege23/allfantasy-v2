@@ -137,32 +137,11 @@ test.describe('@db Auth password reset API E2E', () => {
     const fixture = buildFixture();
     await seedResetFixture(fixture);
 
-    // Verify seed data is visible in the DB before calling the API
-    const seedVerification = await withPgClient(async (client) => {
-      const profile = await client.query(
-        `select "userId" from user_profiles where phone = $1 limit 1`,
-        [fixture.phone]
-      );
-      const token = await client.query(
-        `select id from password_reset_tokens where "userId" = $1 limit 1`,
-        [fixture.userId]
-      );
-      return {
-        profileFound: (profile.rowCount ?? 0) > 0,
-        tokenFound: (token.rowCount ?? 0) > 0,
-        phone: fixture.phone,
-        userId: fixture.userId,
-      };
-    });
-    expect(seedVerification.profileFound, `Profile not seeded — phone: ${seedVerification.phone}`).toBe(true);
-    expect(seedVerification.tokenFound, `Token not seeded — userId: ${seedVerification.userId}`).toBe(true);
-
     try {
       const verifyResponse = await request.post('/api/auth/password/reset/verify-code', {
         data: { phone: fixture.phone, code: fixture.resetCode },
       });
-      const verifyBody = await verifyResponse.text();
-      expect(verifyResponse.status(), `verify-code body: ${verifyBody}`).toBe(200);
+      expect(verifyResponse.status()).toBe(200);
 
       const confirmResponse = await request.post('/api/auth/password/reset/confirm', {
         data: {
