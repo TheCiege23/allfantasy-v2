@@ -20,6 +20,7 @@
 
 import React, { useMemo } from 'react'
 import { Users } from 'lucide-react'
+import { PlayerAvatar } from './PlayerAvatar'
 
 export interface DraftRosterStripPick {
   playerName: string
@@ -29,6 +30,12 @@ export interface DraftRosterStripPick {
   isDevy?: boolean
   /** True when commissioner/manager flagged the player as taxi-squad eligible. */
   isTaxi?: boolean
+  /** Optional NFL team abbreviation (badge / DEF logo selection). */
+  team?: string | null
+  /** Optional headshot URL — falls back to silhouette+initials when missing. */
+  headshotUrl?: string | null
+  /** Optional team logo URL — DEF promotes to primary avatar; others render as bottom-right badge. */
+  teamLogoUrl?: string | null
 }
 
 export interface DraftRosterStripProps {
@@ -299,6 +306,15 @@ function RosterSection({
                 </span>
                 {slot.pick ? (
                   <>
+                    <PlayerAvatar
+                      headshotUrl={slot.pick.headshotUrl ?? null}
+                      teamLogoUrl={slot.pick.teamLogoUrl ?? null}
+                      teamAbbr={slot.pick.team ?? null}
+                      position={slot.pick.position}
+                      displayName={slot.pick.playerName}
+                      size={22}
+                      testIdBase={`draft-roster-strip-avatar-${title}-${idx}`}
+                    />
                     <span className="min-w-0 flex-1 truncate font-medium text-white/88">
                       {slot.pick.playerName}
                     </span>

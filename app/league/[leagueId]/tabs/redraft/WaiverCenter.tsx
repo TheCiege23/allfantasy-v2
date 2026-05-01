@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, TrendingUp, Zap } from 'lucide-react'
 import { ProjectionChip } from '@/components/sports/ProjectionCard'
+import { PlayerAvatar } from '@/components/app/draft-room/PlayerAvatar'
 
 type WaiverTarget = {
   name: string
@@ -12,6 +13,9 @@ type WaiverTarget = {
   priority: number
   reason: string
   projectedPoints?: number
+  /** Optional player headshot — falls back to silhouette+initials when missing. */
+  headshotUrl?: string | null
+  teamLogoUrl?: string | null
 }
 
 export function WaiverCenter({ seasonId, leagueId, sport }: { seasonId: string | null; leagueId?: string; sport?: string }) {
@@ -45,6 +49,8 @@ export function WaiverCenter({ seasonId, leagueId, sport }: { seasonId: string |
         priority: p.priority ?? p.score ?? (picks.length - i),
         reason: p.reason ?? p.rationale ?? p.note ?? '',
         projectedPoints: p.projectedPoints ?? p.expectedPoints ?? null,
+        headshotUrl: p.headshotUrl ?? p.imageUrl ?? p.photoUrl ?? null,
+        teamLogoUrl: p.teamLogoUrl ?? null,
       })))
     } catch {
       setError('Network error')
@@ -95,6 +101,15 @@ export function WaiverCenter({ seasonId, leagueId, sport }: { seasonId: string |
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/10 text-[10px] font-bold text-cyan-300">
                 {i + 1}
               </span>
+              <PlayerAvatar
+                headshotUrl={t.headshotUrl ?? null}
+                teamLogoUrl={t.teamLogoUrl ?? null}
+                teamAbbr={t.team}
+                position={t.position}
+                displayName={t.name}
+                size={32}
+                testIdBase={`waiver-target-avatar-${i}`}
+              />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-[12px] font-semibold text-white/80">{t.name}</span>

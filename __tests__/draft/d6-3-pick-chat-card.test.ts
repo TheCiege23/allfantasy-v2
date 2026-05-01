@@ -153,7 +153,11 @@ describe('D.6.3 — DraftChatPanel renders the rich pick card', () => {
   const src = read('components/app/draft-room/DraftChatPanel.tsx')
 
   it('headshot wrapper has its own testid for QA + e2e', () => {
-    expect(src).toMatch(/data-testid="draft-chat-pick-headshot"/)
+    // Player image now renders via shared PlayerAvatar; the testid base is preserved
+    // so e2e/QA selectors keep working (PlayerAvatar emits `${testIdBase}-root`,
+    // `${testIdBase}-image`, `${testIdBase}-fallback` in the DOM).
+    expect(src).toMatch(/testIdBase="draft-chat-pick-headshot"/)
+    expect(src).toMatch(/<PlayerAvatar/)
   })
 
   it('drafter name has its own testid (the "To {team}" line)', () => {
@@ -170,14 +174,13 @@ describe('D.6.3 — DraftChatPanel renders the rich pick card', () => {
     expect(src).toMatch(/data-ai-manager=\{isAi \? 'true' : 'false'\}/)
   })
 
-  it('falls back to player initials when headshotUrl is null', () => {
-    expect(src).toMatch(/initials \|\| '\?'/)
-    expect(src).toMatch(/style=\{\{ display: headshot \? 'none' : 'flex' \}\}/)
-  })
-
-  it('hides the broken <img> + reveals initials on error (lazy DOM swap)', () => {
-    expect(src).toMatch(/onError=\{\(e\) =>/)
-    expect(src).toMatch(/el\.style\.display = 'none'/)
+  it('delegates initials/silhouette fallback to shared PlayerAvatar', () => {
+    // PlayerAvatar centralizes: silhouette+initials when headshotUrl is null,
+    // initials when image fails to load, and DEF team-logo promotion. We assert
+    // the import + usage rather than reproducing the fallback markup here.
+    expect(src).toMatch(/import \{ PlayerAvatar \} from '\.\/PlayerAvatar'/)
+    expect(src).toMatch(/headshotUrl=\{headshot\}/)
+    expect(src).toMatch(/displayName=\{meta\?\.playerName \?\? 'Player'\}/)
   })
 
   it('preserves drafter name (rosterDisplayName) — D.6.3 must not lose it', () => {
