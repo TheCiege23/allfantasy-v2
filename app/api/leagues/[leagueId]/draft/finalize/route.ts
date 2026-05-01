@@ -13,6 +13,10 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: Request, ctx: { params: Promise<{ leagueId: string }> }) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const { leagueId } = await ctx.params
   if (!leagueId) {
     return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
