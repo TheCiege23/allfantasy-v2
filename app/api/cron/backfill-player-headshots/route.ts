@@ -14,8 +14,7 @@
  *
  * Schedule: daily at 5:15 AM UTC (low traffic). See `vercel.json`.
  *
- * Auth: requires `Authorization: Bearer <CRON_SECRET>` (Vercel cron sends
- *       this header automatically when configured). Returns 401 otherwise.
+ * Auth: requires the shared cron secret helper. Returns 401 otherwise.
  *
  * Modes:
  *   - default `apply=0` → dry-run; counts what would change without writing
@@ -37,6 +36,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import type { Prisma } from '@prisma/client'
+import { requireCronAuth } from '@/app/api/cron/_auth'
 import { prisma } from '@/lib/prisma'
 import {
   createBatchPlayerHeadshotResolver,
@@ -52,6 +53,11 @@ export const maxDuration = 300
 
 const DEFAULT_LIMIT = 100
 const MAX_LIMIT = 500
+const invalidImageUrlFilters: Prisma.SportsPlayerWhereInput[] = [
+  { imageUrl: { startsWith: 'data:' } },
+  { imageUrl: { contains: '/teamLogos/', mode: 'insensitive' } },
+  { imageUrl: { not: { startsWith: 'http' } } },
+]
 
 interface CronSummary {
   sport: string
@@ -77,22 +83,6 @@ interface CronSummary {
   sampleNoMatch: Array<{ name: string; position: string | null; team: string | null }>
 }
 
-/**
- * Authenticate the cron caller. Vercel sets `Authorization: Bearer
- * <CRON_SECRET>` automatically when a cron is configured in `vercel.json`.
- * Manual invocations (e.g. ad-hoc backfill) must provide the same header.
- */
-function isAuthorized(req: NextRequest): boolean {
-  const expected = process.env.CRON_SECRET
-  if (!expected) {
-    // Defensive: in environments where CRON_SECRET isn't set, refuse rather
-    // than allow unauthenticated access.
-    return false
-  }
-  const auth = req.headers.get('authorization') ?? ''
-  return auth === `Bearer ${expected}`
-}
-
 function parseQuery(req: NextRequest): {
   sport: string
   limit: number
@@ -109,7 +99,7 @@ function parseQuery(req: NextRequest): {
 }
 
 export async function GET(req: NextRequest) {
-  if (!isAuthorized(req)) {
+  if (!requireCronAuth(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -117,14 +107,14 @@ export async function GET(req: NextRequest) {
   const { sport, limit, apply, force } = parseQuery(req)
 
   // Pull oldest-touched rows first; rows with no image at all jump to the
-  // front. Force mode also scans rows whose existing `imageUrl` is invalid
-  // (data-URI / team-logo / non-HTTP).
+  // front. Default mode scans missing and known-invalid images; force mode
+  // additionally scans rows with valid existing headshots.
   const rows = await prisma.sportsPlayer.findMany({
     where: {
       sport,
       OR: force
         ? [{ imageUrl: null }, { imageUrl: { not: null } }]
-        : [{ imageUrl: null }],
+        : [{ imageUrl: null }, ...invalidImageUrlFilters],
     },
     select: {
       id: true,

@@ -4,8 +4,8 @@
  *
  * Pins the cron's invariants so a future refactor can't silently regress:
  *
- *   1. Auth — `Authorization: Bearer ${CRON_SECRET}` is required. Returns
- *      401 otherwise. If `CRON_SECRET` is unset, every request is refused.
+ *   1. Auth — delegates to the shared cron auth helper, preserving fallback
+ *      secrets and manual trigger headers.
  *   2. Provider order — owned by `lib/player-assets/resolvePlayerHeadshot.ts`.
  *      The cron uses `createBatchPlayerHeadshotResolver` (not its own
  *      provider chain), so the order is whatever the resolver enforces
@@ -74,18 +74,14 @@ describe('Cron route exists at the canonical path', () => {
 describe('Auth contract', () => {
   const src = read('app/api/cron/backfill-player-headshots/route.ts')
 
-  it('reads CRON_SECRET from process.env and refuses when unset', () => {
-    expect(src).toMatch(/const expected = process\.env\.CRON_SECRET/)
-    expect(src).toMatch(/if \(!expected\) \{[\s\S]+?return false/)
+  it('delegates to the shared cron auth helper', () => {
+    expect(src).toMatch(/import \{ requireCronAuth \} from '@\/app\/api\/cron\/_auth'/)
+    expect(src).toMatch(/if \(!requireCronAuth\(req\)\) \{/)
   })
 
-  it('compares against `Bearer <CRON_SECRET>` exactly (no prefix-only check)', () => {
-    expect(src).toMatch(/return auth === `Bearer \$\{expected\}`/)
-  })
-
-  it('returns 401 when isAuthorized is false', () => {
+  it('returns 401 when cron auth fails', () => {
     expect(src).toMatch(
-      /if \(!isAuthorized\(req\)\) \{[\s\S]+?return NextResponse\.json\(\{ error: 'Unauthorized' \}, \{ status: 401 \}\)/,
+      /if \(!requireCronAuth\(req\)\) \{[\s\S]+?return NextResponse\.json\(\{ error: 'Unauthorized' \}, \{ status: 401 \}\)/,
     )
   })
 })
@@ -179,9 +175,17 @@ describe('Pagination + ordering', () => {
     )
   })
 
+  it('default mode scans null and known invalid imageUrl patterns', () => {
+    expect(src).toMatch(/\{ imageUrl: \{ startsWith: 'data:' \} \}/)
+    expect(src).toMatch(/\{ imageUrl: \{ contains: '\/teamLogos\/', mode: 'insensitive' \} \}/)
+    expect(src).toMatch(
+      /\{ imageUrl: \{ not: \{ startsWith: 'http', mode: 'insensitive' \} \} \}/,
+    )
+  })
+
   it('force mode broadens the WHERE filter to include rows with existing imageUrl', () => {
     expect(src).toMatch(
-      /OR: force[\s\S]+?\[\{ imageUrl: null \}, \{ imageUrl: \{ not: null \} \}\][\s\S]+?\[\{ imageUrl: null \}\]/,
+      /OR: force[\s\S]+?\[\{ imageUrl: null \}, \{ imageUrl: \{ not: null \} \}\][\s\S]+?\[\s*\{ imageUrl: null \},[\s\S]+?\{ imageUrl: \{ startsWith: 'data:' \} \},[\s\S]+?\{ imageUrl: \{ contains: '\/teamLogos\/', mode: 'insensitive' \} \},[\s\S]+?\{ imageUrl: \{ not: \{ startsWith: 'http', mode: 'insensitive' \} \} \},[\s\S]+?\]/,
     )
   })
 })
