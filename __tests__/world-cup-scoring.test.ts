@@ -47,7 +47,7 @@ describe("World Cup scoring", () => {
         { participantId: "p1", pointsAwarded: 4, isCorrect: true },
         { participantId: "p2", pointsAwarded: 4, isCorrect: true },
       ],
-      matches: [{ status: "final", homeTeamId: "arg", awayTeamId: "bra", winnerTeamId: "arg" }],
+      matches: [{ round: "quarterfinal", status: "final", homeTeamId: "arg", awayTeamId: "bra", winnerTeamId: "arg" }],
     })
     expect(rows[0].id).toBe("p1")
     expect(rows[0].rank).toBe(1)
@@ -57,7 +57,7 @@ describe("World Cup scoring", () => {
     expect(
       isChampionStillAlive({
         championPickTeamId: "bra",
-        matches: [{ status: "final", homeTeamId: "arg", awayTeamId: "bra", winnerTeamId: "arg" }],
+        matches: [{ round: "quarterfinal", status: "final", homeTeamId: "arg", awayTeamId: "bra", winnerTeamId: "arg" }],
       })
     ).toBe(false)
   })

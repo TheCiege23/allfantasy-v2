@@ -29,7 +29,7 @@ export function isChampionStillAlive(p: (Pick<DbParticipant, "championPickTeamId
   if (!p) return false
   matches = matches ?? p.matches ?? []
   const id = p.championPickTeamId, name = p.championPickName; if (!id && !name) return false
-  return !matches.some((m) => m.status === "final" && (!m.round || m.round === "final") && (((id && (id === m.homeTeamId || id === m.awayTeamId)) || (name && (name === m.homeTeamName || name === m.awayTeamName))) && !((id && id === m.winnerTeamId) || (name && name === m.winnerTeamName))))
+  return !matches.some((m) => m.status === "final" && (((id && (id === m.homeTeamId || id === m.awayTeamId)) || (name && (name === m.homeTeamName || name === m.awayTeamName))) && !((id && id === m.winnerTeamId) || (name && name === m.winnerTeamName))))
 }
 export function buildWorldCupLeaderboardRows(input: { participants: Array<Partial<DbParticipant> & Pick<DbParticipant, "id" | "userId" | "displayName" | "joinedAt">>; picks?: Array<Partial<DbPick> & { participantId: string; pointsAwarded?: number; isCorrect?: boolean | null }>; matches: DbMatch[]; scoring?: Partial<WorldCupScoringValues> | null }): Array<WorldCupLeaderboardRow & { id: string }> {
   const rows = input.participants.map((p) => {
