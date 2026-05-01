@@ -299,7 +299,8 @@
       "Bash(taskkill //F //T //PID 20156)",
       "Bash(curl -sf -m 3 -o /dev/null http://localhost:62339/login)",
       "Bash(grep -n \"setInterval\\\\|setTimeout.*[0-9]\\\\{3,\\\\}\\\\|useEffect.*=>\\\\|const useLeagueWarRoomCompanion\" C:/Users/Guap_/allfantasy-v2-main/hooks/useLeagueWarRoomCompanion.ts)",
-      "Bash(curl -sf -m 3 -o /dev/null http://localhost:60220/login)"
+      "Bash(curl -sf -m 3 -o /dev/null http://localhost:60220/login)",
+      "Bash(gh run *)"
     ]
   }
 }
