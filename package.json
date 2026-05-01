@@ -80,7 +80,7 @@
     "test:foundation-apply-branches": "vitest run __tests__/apply-af-foundation-if-needed.test.ts --reporter=verbose",
     "test:i18n": "vitest run __tests__/i18n-placeholder-parity.test.ts",
     "test:e2e": "playwright test",
-    "test:e2e:core": "playwright test --grep-invert \"@db|@activation|@retention\"",
+    "test:e2e:core": "playwright test --grep-invert \"@db|@activation|@retention\" --project=chromium",
     "test:e2e:click-audits": "playwright test --grep \"click audit\"",
     "test:e2e:click-audits:chromium": "playwright test --grep \"click audit\" --project=chromium",
     "test:e2e:click-audits:list": "playwright test --grep \"click audit\" --list",
