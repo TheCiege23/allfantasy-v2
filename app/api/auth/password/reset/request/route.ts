@@ -6,6 +6,15 @@ import { logPasswordResetAudit } from "@/lib/auth/password-reset-audit"
 
 export const runtime = "nodejs"
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;")
+}
+
 export async function POST(req: Request) {
   try {
   const ip = getClientIp(req)
@@ -149,6 +158,7 @@ export async function POST(req: Request) {
 
   const nextPath = returnTo && returnTo.startsWith("/") ? returnTo : "/dashboard"
   const resetUrl = `${appBase}/reset-password?token=${encodeURIComponent(rawToken)}&returnTo=${encodeURIComponent(nextPath)}`
+  const escapedResetUrl = escapeHtml(resetUrl)
 
   try {
     const { getResendClient } = await import("@/lib/resend-client")
@@ -173,7 +183,7 @@ export async function POST(req: Request) {
   <div class="logo">AllFantasy.ai</div>
   <h2 style="margin:20px 0 8px;font-size:20px">Reset your password</h2>
   <p style="color:#94a3b8;margin:0 0 16px">Click the button below to set a new password. This link expires in 1 hour.</p>
-  <a href="${resetUrl}" class="btn">Reset Password</a>
+  <a href="${escapedResetUrl}" class="btn">Reset Password</a>
   <p class="footer">If you didn't request a password reset, you can ignore this email. Your password will not change.</p>
   <p class="footer">© AllFantasy.ai</p>
 </div>

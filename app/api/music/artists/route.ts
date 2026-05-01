@@ -81,7 +81,10 @@ async function fetchItunesArtists(query: string): Promise<ArtistSummary[]> {
 
 export async function POST(request: NextRequest) {
   try {
-    const { genre, query } = await request.json();
+    const body = await request
+      .json()
+      .catch(() => ({} as { genre?: unknown; query?: unknown }));
+    const { genre, query } = body;
     const genreLabel = typeof genre === 'string' ? genre.trim() : '';
     const searchQuery = typeof query === 'string' ? query.trim() : '';
     const isAllGenres = !genreLabel;

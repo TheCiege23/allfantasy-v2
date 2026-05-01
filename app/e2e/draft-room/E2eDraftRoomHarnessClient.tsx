@@ -1,54 +1,64 @@
 'use client'
 
+import { Suspense, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { DraftBoard } from '@/components/draft/DraftBoard'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
-/**
- * Playwright / local QA harness: mounts the same live draft stack as production snake routes
- * (`DraftBoard` → `DraftRoomPageClient` → shell, top bar, queue, chat, War Room).
- *
- * Uses `data-testid="e2e-draft-room-harness"` so Playwright health checks can assert
- * the harness mounted before opening the room.
- */
-export function E2eDraftRoomHarnessClient({
-  draftId,
-  leagueId,
-  leagueName,
-  sport,
-  isDynasty,
-  isCommissioner,
-  presentationVariant,
-  harnessStatus,
-}: {
-  draftId: string
-  leagueId: string
-  leagueName: string
-  sport: string
-  isDynasty: boolean
-  isCommissioner: boolean
-  presentationVariant?: 'default' | 'redraft_snake'
-  harnessStatus?: string
-}) {
+function E2EDraftRoomHarnessInner() {
+  const searchParams = useSearchParams()
+  const leagueId = searchParams.get('leagueId') ?? 'e2e-default-league'
+  const sport = normalizeToSupportedSport(searchParams.get('sport'))
+  const isCommissioner = searchParams.get('commissioner') !== '0'
+  const e2eRoom = searchParams.get('e2eRoom') === '1'
+
+  const [entered, setEntered] = useState(e2eRoom)
+
+  const draftId = useMemo(() => {
+    const safe = leagueId.replace(/[^a-zA-Z0-9-_]/g, '-').slice(0, 72)
+    return `e2e-${safe || 'league'}`
+  }, [leagueId])
+
   return (
-    <div
-      className={
-        presentationVariant === 'redraft_snake'
-          ? 'min-h-screen bg-[radial-gradient(ellipse_100%_60%_at_50%_0%,rgba(34,211,238,0.08),transparent_50%)]'
-          : 'min-h-screen'
-      }
-      data-testid="e2e-draft-room-harness"
-      data-harness-status={harnessStatus ?? ''}
-      data-harness-commissioner={isCommissioner ? '1' : '0'}
-    >
-      <DraftBoard
-        kind="live"
-        draftId={draftId}
-        leagueId={leagueId}
-        leagueName={leagueName}
-        sport={sport}
-        isDynasty={isDynasty}
-        isCommissioner={isCommissioner}
-        presentationVariant={presentationVariant}
-      />
+    <div className="min-h-screen bg-[#040915] p-4" data-testid="e2e-draft-room-harness">
+      {!entered ? (
+        <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4">
+          <p className="text-sm text-white/70">E2E draft room harness</p>
+          <button
+            type="button"
+            data-testid="draft-enter-room-button"
+            className="rounded-xl border border-cyan-500/40 bg-cyan-500/15 px-4 py-2 text-sm font-semibold text-cyan-100"
+            onClick={() => setEntered(true)}
+          >
+            Enter draft room
+          </button>
+        </div>
+      ) : (
+        <DraftBoard
+          kind="live"
+          draftId={draftId}
+          leagueId={leagueId}
+          leagueName={`E2E ${leagueId}`}
+          sport={sport}
+          isDynasty={false}
+          isCommissioner={isCommissioner}
+          presentationVariant="redraft_snake"
+        />
+      )}
     </div>
+  )
+}
+
+export default function E2EDraftRoomHarnessClient() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#040915] p-4" data-testid="e2e-draft-room-harness">
+          <p className="text-center text-white/75">Loading draft room…</p>
+        </div>
+      }
+    >
+      <E2EDraftRoomHarnessInner />
+    </Suspense>
   )
 }

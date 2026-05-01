@@ -4,7 +4,6 @@ node_modules/
 .next-playwright-*/
 .next-dev-local/
 .next-dev-local-uifix/
-.next-playwright-*/
 out/
 dist/
 build/
@@ -86,5 +85,6 @@ spotify-test-results-*.txt
 spotify-final-results.txt
 .tmp/
 
-# Background-task lock for Claude scheduled wakeups; regenerated per session.
+# Local build and background-task locks; regenerated per session.
+.next-build.lock
 .claude/scheduled_tasks.lock
