@@ -4,6 +4,7 @@ node_modules/
 .next-playwright-*/
 .next-dev-local/
 .next-dev-local-uifix/
+.next-playwright-*/
 out/
 dist/
 build/
