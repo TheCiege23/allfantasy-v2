@@ -217,9 +217,12 @@ export async function POST(
     // Commit M — propagate authority codes (race / stale / not-live)
     // through the autopick path with the same status mapping as the
     // manual-pick route.
-    const status = result.code
-      ? httpStatusForPickAuthorityCode(result.code as PickAuthorityCode)
-      : 400
+    const status =
+      result.code === 'ROSTER_CONFIGURATION_INCOMPLETE'
+        ? 409
+        : result.code
+          ? httpStatusForPickAuthorityCode(result.code as PickAuthorityCode)
+          : 400
     return NextResponse.json(
       { error: result.error, ...(result.code ? { code: result.code } : {}) },
       { status },
