@@ -366,14 +366,6 @@ export function DraftChatPanel({
               const when = meta?.pickedAt ? new Date(meta.pickedAt) : new Date(m.at)
               const headshot = meta?.headshotUrl ?? null
               const isAi = meta?.aiManager === true
-              // D.6.3 — initials fallback when headshot is missing or fails.
-              const initials = (meta?.playerName ?? '')
-                .split(/\s+/)
-                .filter(Boolean)
-                .map((part) => part[0])
-                .slice(0, 2)
-                .join('')
-                .toUpperCase()
               return (
                 <div
                   key={m.id}
