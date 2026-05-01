@@ -81,7 +81,6 @@ import { IdpDraftExplainerCard } from '@/components/idp/IdpDraftExplainerCard'
 import { confirmTokenSpend } from '@/lib/tokens/client-confirm'
 import { DRAFT_ROOM } from '@/lib/analytics/eventNames'
 import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
-import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient'
 import { computePicksUntilViewerTurn } from '@/lib/draft-room/computePicksUntilViewer'
 import { mergeDraftSessionSnapshot } from '@/lib/draft-room/mergeDraftSessionSnapshot'
 import { CommissionerPickEditorPanel, type CommissionerPickEditorPlayerOption } from '@/components/app/draft-room/CommissionerPickEditorPanel'
@@ -2102,52 +2101,9 @@ export function DraftRoomPageClient({
     return () => clearInterval(id)
   }, [leagueId, pollInterval])
 
-  // ── Supabase realtime: chat new-message trigger ──────────────────────────
-  // Subscribes to INSERT on league_chat_messages for this league.
-  // On new message, calls fetchChat() instead of appending raw payload to
-  // avoid ordering/dedup issues. Falls back silently when Supabase is not configured.
-  useEffect(() => {
-    if (!isSupabaseConfigured || !leagueId) return
-    const channel = supabase
-      .channel(`draft-chat-rt:${leagueId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'league_chat_messages', filter: `league_id=eq.${leagueId}` },
-        () => { void fetchChat() },
-      )
-      .subscribe()
-    return () => { void supabase.removeChannel(channel) }
-  }, [leagueId, fetchChat])
-
   // ── Supabase realtime: draft-room presence ────────────────────────────────
-  // Tracks how many browsers are currently viewing this draft room.
-  // Uses a stable session key so refreshes don't inflate the count.
-  const [onlineCount, setOnlineCount] = useState<number>(0)
-  useEffect(() => {
-    if (!isSupabaseConfigured || !leagueId) return
-    const sessionKey = (() => {
-      const k = 'af:draft-presence-key'
-      let key = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(k) : null
-      if (!key) {
-        key = Math.random().toString(36).slice(2)
-        if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(k, key)
-      }
-      return key
-    })()
-    const channel = supabase.channel(`draft-presence:${leagueId}`, {
-      config: { presence: { key: sessionKey } },
-    })
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        setOnlineCount(Object.keys(channel.presenceState()).length)
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track({ joined_at: new Date().toISOString() })
-        }
-      })
-    return () => { void supabase.removeChannel(channel) }
-  }, [leagueId])
+  // Presence tracking removed (Supabase removed). Online count is always 0.
+  const onlineCount = 0
 
   useEffect(() => {
     return () => {

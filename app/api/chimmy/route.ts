@@ -26,7 +26,6 @@ import {
 } from '@/lib/chimmy-chat/response-copy'
 import { buildChimmyResponseStructure } from '@/lib/chimmy-chat/presentation'
 import { requireFeatureEntitlement } from '@/lib/subscription/entitlement-middleware'
-import { isSupabaseConfigured, supabase } from '@/lib/supabaseClient'
 import { TokenSpendService } from '@/lib/tokens/TokenSpendService'
 
 const MAX_MESSAGE_CHARS = 4_000
@@ -300,31 +299,6 @@ function isAnthropicSupportedRequest(
   normalizedImage: UserContext['image']
 ): boolean {
   return !payload.image || Boolean(normalizedImage)
-}
-
-async function logAnthropicUsageToSupabase(args: {
-  userId: string
-  intent: string
-  tokensUsed: number
-  model: string
-}) {
-  if (!isSupabaseConfigured) return
-
-  try {
-    const { error } = await supabase.from('usage_logs').insert({
-      user_id: args.userId,
-      intent: args.intent,
-      tokens_used: args.tokensUsed,
-      model: args.model,
-      created_at: new Date().toISOString(),
-    })
-
-    if (error) {
-      console.error('[api/chimmy] Failed to write Anthropic usage log:', error.message)
-    }
-  } catch (error) {
-    console.error('[api/chimmy] Failed to write Anthropic usage log:', error)
-  }
 }
 
 async function refundAnthropicTokenFallbackIfNeeded(args: {
@@ -601,13 +575,6 @@ export async function POST(req: NextRequest) {
                 return
               }
 
-              await logAnthropicUsageToSupabase({
-                userId,
-                intent: result.intent,
-                tokensUsed: result.tokensUsed,
-                model: result.model,
-              })
-
               push('done', buildAnthropicSuccessPayload(result, parseResult.data.userContext.sessionId))
               controller.close()
             } catch (error) {
@@ -658,13 +625,6 @@ export async function POST(req: NextRequest) {
         { status: 200 }
       )
     }
-
-    await logAnthropicUsageToSupabase({
-      userId,
-      intent: result.intent,
-      tokensUsed: result.tokensUsed,
-      model: result.model,
-    })
 
     return NextResponse.json(
       buildAnthropicSuccessPayload(result, parseResult.data.userContext.sessionId),

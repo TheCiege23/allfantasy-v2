@@ -1,57 +1,17 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { signIn } from "next-auth/react"
 import {
   type SocialProvider,
   isSocialProviderEnabled,
 } from "@/lib/auth/SocialProviderResolver"
 import { buildProviderPendingHref } from "@/lib/auth/ProviderPendingFlow"
-import { buildSupabaseOAuthRedirectTo } from "@/lib/auth/SupabaseOAuthService"
-import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
 
 export default function SocialLoginButtons({ callbackUrl }: { callbackUrl: string }) {
   const router = useRouter()
   const [loadingProvider, setLoadingProvider] = useState<SocialProvider | null>(null)
-
-  useEffect(() => {
-    const syncProfile = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) return
-
-      await supabase.from("profiles").upsert({
-        id: user.id,
-        email: user.email,
-        avatar_url:
-          typeof user.user_metadata?.avatar_url === "string"
-            ? user.user_metadata.avatar_url
-            : null,
-      })
-    }
-
-    void syncProfile()
-  }, [])
-
-  const signInWithGoogleOAuth = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: buildSupabaseOAuthRedirectTo({ callbackUrl }) ?? undefined,
-      },
-    })
-  }
-
-  const signInWithAppleOAuth = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "apple",
-      options: {
-        redirectTo: buildSupabaseOAuthRedirectTo({ callbackUrl }) ?? undefined,
-      },
-    })
-  }
 
   const signInWithGoogle = () => {
     void handleProviderClick("google")
@@ -64,33 +24,16 @@ export default function SocialLoginButtons({ callbackUrl }: { callbackUrl: strin
   async function handleProviderClick(provider: SocialProvider) {
     if (loadingProvider) return
     setLoadingProvider(provider)
-    const googleEnabled = isSocialProviderEnabled("google")
-    const appleEnabled = isSocialProviderEnabled("apple")
 
     try {
-      if (provider === "google" && googleEnabled) {
+      // Google and Apple always attempt signIn directly — they have real OAuth credentials.
+      if (provider === "google" || provider === "apple") {
         await signIn(provider, { callbackUrl })
         return
       }
 
-      if (provider === "apple" && appleEnabled) {
-        await signIn(provider, { callbackUrl })
-        return
-      }
-
-      if (provider === "google" && isSupabaseConfigured) {
-        await signInWithGoogleOAuth()
-        return
-      }
-
-      if (provider === "apple" && isSupabaseConfigured) {
-        await signInWithAppleOAuth()
-        return
-      }
-
-      if (
-        isSocialProviderEnabled(provider)
-      ) {
+      // Other providers (Spotify etc.) check the enable flag first.
+      if (isSocialProviderEnabled(provider)) {
         await signIn(provider, { callbackUrl })
         return
       }

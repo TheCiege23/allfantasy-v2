@@ -24,9 +24,6 @@ const prismaAiCustomRuleFindManyMock = vi.fn()
 const previewSpendMock = vi.fn()
 const spendTokensForRuleMock = vi.fn()
 const refundSpendByLedgerMock = vi.fn()
-const supabaseInsertMock = vi.fn()
-const supabaseFromMock = vi.fn()
-
 vi.mock("next-auth", () => ({
   getServerSession: getServerSessionMock,
 }))
@@ -97,13 +94,6 @@ vi.mock("@/lib/tokens/TokenSpendService", () => ({
     previewSpend = previewSpendMock
     spendTokensForRule = spendTokensForRuleMock
     refundSpendByLedger = refundSpendByLedgerMock
-  },
-}))
-
-vi.mock("@/lib/supabaseClient", () => ({
-  isSupabaseConfigured: true,
-  supabase: {
-    from: supabaseFromMock,
   },
 }))
 
@@ -205,10 +195,6 @@ describe("POST /api/chat/chimmy contract", () => {
           },
         ],
       },
-    })
-    supabaseInsertMock.mockResolvedValue({ data: null, error: null })
-    supabaseFromMock.mockReturnValue({
-      insert: supabaseInsertMock,
     })
   })
 
@@ -332,33 +318,6 @@ describe("POST /api/chat/chimmy contract", () => {
         },
       },
     })
-  })
-
-  it("logs Supabase usage after a successful Chimmy run", async () => {
-    const formData = new FormData()
-    formData.append("message", "Should I trade this player?")
-    formData.append("confirmTokenSpend", "true")
-    formData.append("leagueId", "league-1")
-    formData.append("leagueFormat", "dynasty")
-    formData.append("scoring", "PPR")
-    formData.append("tone", "strategic")
-    formData.append("detailLevel", "concise")
-    formData.append("riskMode", "balanced")
-
-    const { POST } = await import("@/app/api/chat/chimmy/route")
-    const res = await POST(buildMultipartRequest(formData) as any)
-
-    expect(res.status).toBe(200)
-    expect(supabaseFromMock).toHaveBeenCalledWith("usage_logs")
-    expect(supabaseInsertMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        user_id: "user-1",
-        intent: "trade_analyzer",
-        tokens_used: 165,
-        model: "gpt-4o-mini",
-        created_at: expect.any(String),
-      })
-    )
   })
 
   it("continues the Chimmy run when token preview fails", async () => {

@@ -1,22 +1,10 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { sha256Hex } from "@/lib/tokens"
+import { sha256Hex, makeToken } from "@/lib/tokens"
 import { getClientIp, rateLimit } from "@/lib/rate-limit"
 import { logPasswordResetAudit } from "@/lib/auth/password-reset-audit"
 
 export const runtime = "nodejs"
-
-function buildPasswordResetRedirect(req: Request, returnTo: string | null): string {
-  const appBase =
-    process.env.NEXTAUTH_URL?.trim() ||
-    process.env.APP_BASE_URL?.trim() ||
-    process.env.APP_URL?.trim()
-
-  const origin = appBase || new URL(req.url).origin
-  const nextPath = returnTo && returnTo.startsWith("/") ? returnTo : "/reset-password"
-
-  return `${origin}/auth/callback?next=${encodeURIComponent(nextPath)}`
-}
 
 export async function POST(req: Request) {
   try {
@@ -124,35 +112,94 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true }, { status: 200 })
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-  const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
-  if (!supabaseUrl || !supabaseAnon) {
-    console.error("[pw-reset] Supabase not configured (NEXT_PUBLIC_SUPABASE_URL / ANON_KEY)")
+  // Look up user in app_users (credentials-based auth — not Supabase Auth)
+  const user = await (prisma as any).appUser.findUnique({
+    where: { email },
+    select: { id: true },
+  }).catch(() => null)
+
+  if (!user) {
+    // Don't reveal whether the email exists
+    void logPasswordResetAudit({
+      outcome: "email_user_not_found",
+      type: "email",
+      email,
+      ip,
+    })
     return NextResponse.json({ ok: true }, { status: 200 })
   }
 
-  const { createClient } = await import("@supabase/supabase-js")
-  const supabase = createClient(supabaseUrl, supabaseAnon)
-  const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: buildPasswordResetRedirect(req, returnTo),
+  const rawToken = makeToken(32)
+  const tokenHash = sha256Hex(rawToken)
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 60) // 1 hour
+
+  await (prisma as any).passwordResetToken.deleteMany({
+    where: { userId: user.id },
+  }).catch(() => {})
+
+  await (prisma as any).passwordResetToken.create({
+    data: { userId: user.id, tokenHash, expiresAt },
   })
 
-  if (resetErr) {
-    console.error("[pw-reset] resetPasswordForEmail:", { email, message: resetErr.message })
-    void logPasswordResetAudit({
-      outcome: "email_send_failed",
-      type: "email",
-      email,
-      ip,
-      detail: { provider: "supabase", message: resetErr.message },
+  const appBase =
+    process.env.NEXTAUTH_URL?.trim() ||
+    process.env.APP_BASE_URL?.trim() ||
+    process.env.APP_URL?.trim() ||
+    new URL(req.url).origin
+
+  const nextPath = returnTo && returnTo.startsWith("/") ? returnTo : "/dashboard"
+  const resetUrl = `${appBase}/reset-password?token=${encodeURIComponent(rawToken)}&returnTo=${encodeURIComponent(nextPath)}`
+
+  try {
+    const { getResendClient } = await import("@/lib/resend-client")
+    const { client, fromEmail } = getResendClient()
+    const result = await client.emails.send({
+      from: fromEmail || "AllFantasy.ai <noreply@allfantasy.ai>",
+      to: email,
+      subject: "Reset your AllFantasy password",
+      html: `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8">
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#e2e8f0;margin:0;padding:20px}
+  .container{max-width:520px;margin:0 auto;background:linear-gradient(135deg,#1e293b 0%,#0f172a 100%);border-radius:16px;padding:32px;border:1px solid #334155}
+  .logo{font-size:24px;font-weight:700;background:linear-gradient(90deg,#22d3ee,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .btn{display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#22d3ee,#a855f7);color:#fff;text-decoration:none;border-radius:8px;font-weight:600;margin:20px 0}
+  .footer{color:#64748b;font-size:12px;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">AllFantasy.ai</div>
+  <h2 style="margin:20px 0 8px;font-size:20px">Reset your password</h2>
+  <p style="color:#94a3b8;margin:0 0 16px">Click the button below to set a new password. This link expires in 1 hour.</p>
+  <a href="${resetUrl}" class="btn">Reset Password</a>
+  <p class="footer">If you didn't request a password reset, you can ignore this email. Your password will not change.</p>
+  <p class="footer">© AllFantasy.ai</p>
+</div>
+</body>
+</html>`,
     })
-  } else {
+    if ("error" in result && result.error) {
+      throw new Error(result.error.message || "Resend send error")
+    }
     void logPasswordResetAudit({
       outcome: "email_sent",
       type: "email",
+      userId: user.id,
       email,
       ip,
-      detail: { provider: "supabase" },
+      detail: { provider: "resend" },
+    })
+  } catch (error) {
+    console.error("[pw-reset] email send failed:", error)
+    void logPasswordResetAudit({
+      outcome: "email_send_failed",
+      type: "email",
+      userId: user.id,
+      email,
+      ip,
+      detail: { provider: "resend", error: error instanceof Error ? error.message : String(error) },
     })
   }
 

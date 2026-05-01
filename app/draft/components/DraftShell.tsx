@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { isSupabaseConfigured, supabase } from '@/lib/supabaseClient'
 import { slotIndexForOverallPick } from '@/lib/draft/snake'
 import type {
   DraftMode,
@@ -156,21 +155,6 @@ export function DraftShell({
           })
       })
   }, [sessionId])
-
-  useEffect(() => {
-    if (!isSupabaseConfigured || !state?.id) return
-    const ch = supabase
-      .channel(`draft-${state.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'draft_room_state', filter: `id=eq.${state.id}` },
-        () => void load(),
-      )
-      .subscribe()
-    return () => {
-      void supabase.removeChannel(ch)
-    }
-  }, [state?.id, load])
 
   const draftedIds = useMemo(() => new Set(picks.map((p) => p.playerId).filter(Boolean) as string[]), [picks])
 

@@ -8,7 +8,6 @@ interface Track {
   id: string;
   name: string;
   artist: string;
-  artistId?: string;
   image?: string;
   duration?: number;
   previewUrl?: string;

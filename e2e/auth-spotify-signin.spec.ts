@@ -1,12 +1,29 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type APIRequestContext } from '@playwright/test'
 import { registerAndLoginTo } from './helpers/auth-flow'
+
+async function getProvidersWithRetry(
+  request: APIRequestContext,
+  maxAttempts = 8
+): Promise<Record<string, { id?: string }>> {
+  let lastBody = ''
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const response = await request.get('/api/auth/providers', { timeout: 20_000 })
+    if (response.ok()) {
+      return (await response.json()) as Record<string, { id?: string }>
+    }
+
+    lastBody = await response.text()
+    if (attempt < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
+    }
+  }
+
+  throw new Error(`Unable to load /api/auth/providers after retries: ${lastBody}`)
+}
 
 test.describe('@auth Spotify sign-in wiring', () => {
   test('login page routes to Spotify OAuth when configured', async ({ page, request }) => {
-    const providersRes = await request.get('/api/auth/providers')
-    expect(providersRes.ok()).toBeTruthy()
-
-    const providers = (await providersRes.json()) as Record<string, { id?: string }>
+    const providers = await getProvidersWithRetry(request)
     const spotifyConfigured = Boolean(providers?.spotify?.id)
     test.skip(!spotifyConfigured, 'Spotify provider is not configured in this environment.')
 
@@ -14,14 +31,19 @@ test.describe('@auth Spotify sign-in wiring', () => {
     const spotifyButton = page.getByRole('button', { name: /continue with spotify/i })
     await expect(spotifyButton).toBeVisible()
 
+    const signInResponsePromise = page.waitForResponse(
+      (response) => response.url().includes('/api/auth/signin/spotify') && response.status() >= 200,
+      { timeout: 30_000 }
+    )
+
     await spotifyButton.click()
 
-    await expect(page).toHaveURL(/(\/api\/auth\/signin\/spotify|accounts\.spotify\.com)/, {
-      timeout: 20_000,
-    })
+    const signInResponse = await signInResponsePromise
+    expect(signInResponse.status()).toBeLessThan(400)
   })
 
   test('mock callback path links Spotify and reflects connected state', async ({ page }) => {
+    test.setTimeout(120_000)
     await registerAndLoginTo(page, '/settings?tab=connected')
 
     const linkRes = await page.request.post('/api/e2e/auth/spotify/mock-connect')

@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { parseSessionKey } from '@/lib/draft/session-key'
 import { slotIndexForOverallPick, roundForOverallPick } from '@/lib/draft/snake'
+import { undoLastPick } from '@/lib/live-draft-engine/DraftSessionService'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,51 +28,57 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid sessionId' }, { status: 400 })
   }
 
-  const state = await prisma.draftRoomStateRow.findUnique({ where: { id: sessionId } })
-  if (!state) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  }
-
   if (parsed.mode === 'mock') {
+    const state = await prisma.draftRoomStateRow.findUnique({ where: { id: sessionId } })
+    if (!state) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+
     const room = await prisma.mockDraftRoom.findUnique({ where: { id: parsed.id } })
     if (room?.createdById !== userId) {
       return NextResponse.json({ error: 'Commissioner only' }, { status: 403 })
     }
-  } else {
-    const league = await prisma.league.findFirst({
-      where: { id: parsed.id, userId },
-      select: { id: true },
+    const where = { roomId: parsed.id }
+    const last = await prisma.draftRoomPickRecord.findFirst({
+      where,
+      orderBy: { overallPick: 'desc' },
     })
-    if (!league) {
-      return NextResponse.json({ error: 'Commissioner only' }, { status: 403 })
+    if (!last) {
+      return NextResponse.json({ error: 'No picks to undo' }, { status: 400 })
     }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.draftRoomPickRecord.delete({ where: { id: last.id } })
+      const remaining = await tx.draftRoomPickRecord.count({ where })
+      const nextOverall = Math.max(1, remaining + 1)
+      const slot = slotIndexForOverallPick(nextOverall, state.numTeams)
+      await tx.draftRoomStateRow.update({
+        where: { id: sessionId },
+        data: {
+          status: remaining === 0 ? 'waiting' : 'active',
+          currentPick: nextOverall,
+          currentRound: roundForOverallPick(nextOverall, state.numTeams),
+          currentTeamIndex: slot,
+          updatedAt: new Date(),
+        },
+      })
+    })
+
+    return NextResponse.json({ success: true })
   }
 
-  const where = parsed.mode === 'mock' ? { roomId: parsed.id } : { leagueId: parsed.id }
-  const last = await prisma.draftRoomPickRecord.findFirst({
-    where,
-    orderBy: { overallPick: 'desc' },
+  const league = await prisma.league.findFirst({
+    where: { id: parsed.id, userId },
+    select: { id: true },
   })
-  if (!last) {
+  if (!league) {
+    return NextResponse.json({ error: 'Commissioner only' }, { status: 403 })
+  }
+
+  const undone = await undoLastPick(parsed.id)
+  if (!undone) {
     return NextResponse.json({ error: 'No picks to undo' }, { status: 400 })
   }
-
-  await prisma.$transaction(async (tx) => {
-    await tx.draftRoomPickRecord.delete({ where: { id: last.id } })
-    const remaining = await tx.draftRoomPickRecord.count({ where })
-    const nextOverall = Math.max(1, remaining + 1)
-    const slot = slotIndexForOverallPick(nextOverall, state.numTeams)
-    await tx.draftRoomStateRow.update({
-      where: { id: sessionId },
-      data: {
-        status: remaining === 0 ? 'waiting' : 'active',
-        currentPick: nextOverall,
-        currentRound: roundForOverallPick(nextOverall, state.numTeams),
-        currentTeamIndex: slot,
-        updatedAt: new Date(),
-      },
-    })
-  })
 
   return NextResponse.json({ success: true })
 }

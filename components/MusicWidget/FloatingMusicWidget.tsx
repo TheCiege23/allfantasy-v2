@@ -18,12 +18,6 @@ interface Position {
 
 export const FloatingMusicWidget: React.FC = () => {
   const pathname = usePathname();
-  if (pathname?.startsWith('/e2e')) return null;
-
-  return <FloatingMusicWidgetContent />;
-};
-
-const FloatingMusicWidgetContent: React.FC = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [position, setPosition] = useState<Position>({ x: 20, y: 80 });
@@ -112,6 +106,9 @@ const FloatingMusicWidgetContent: React.FC = () => {
     void playTrack(artist, track);
     setActiveTab('now-playing');
   };
+
+  // Must run after all hooks — early return before hooks breaks Rules of Hooks when pathname changes.
+  if (pathname?.startsWith('/e2e')) return null;
 
   return (
     <>
@@ -222,7 +219,7 @@ const FloatingMusicWidgetContent: React.FC = () => {
                 availableTracks={artistTracks}
                 onSelectTrack={(track) => {
                   const artist = {
-                    id: track.artistId || track.id,
+                    id: track.id,
                     name: track.artist,
                   };
                   handlePlayTrack(artist, track);
@@ -241,7 +238,7 @@ const FloatingMusicWidgetContent: React.FC = () => {
                 favorites={favorites}
                 onPlayTrack={(track) => {
                   const artist = {
-                    id: track.artistId || track.id,
+                    id: track.id,
                     name: track.artist,
                   };
                   handlePlayTrack(artist, track);
@@ -262,7 +259,7 @@ const FloatingMusicWidgetContent: React.FC = () => {
                 onImportPlaylists={replacePlaylists}
                 onPlayTrack={(track) => {
                   const artist = {
-                    id: track.artistId || track.id,
+                    id: track.id,
                     name: track.artist,
                   };
                   handlePlayTrack(artist, track);

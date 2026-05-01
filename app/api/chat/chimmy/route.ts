@@ -65,7 +65,6 @@ import { getChimmyFeatureFlags } from '@/lib/chimmy-chat/feature-flags'
 import { buildChimmyAnswerContract } from '@/lib/chimmy-chat/response-contract'
 import { persistChimmyAIAnalyticsEvent } from '@/lib/chimmy-chat/analytics-events'
 import { checkChimmyHallucination } from '@/lib/chimmy-chat/hallucination-guard'
-import { isSupabaseConfigured, supabase } from '@/lib/supabaseClient'
 import {
   TokenInsufficientBalanceError,
   TokenSpendConfirmationRequiredError,
@@ -653,31 +652,6 @@ function resolveUsageLogTokensUsed(modelOutputs?: Array<{
   return modelOutputs.reduce((sum, output) => {
     return sum + Math.max(0, output.tokensPrompt ?? 0) + Math.max(0, output.tokensCompletion ?? 0)
   }, 0)
-}
-
-async function logUsageToSupabase(args: {
-  userId: string
-  intent: string
-  tokensUsed: number
-  model: string
-}) {
-  if (!isSupabaseConfigured) return
-
-  try {
-    const { error } = await supabase.from('usage_logs').insert({
-      user_id: args.userId,
-      intent: args.intent,
-      tokens_used: args.tokensUsed,
-      model: args.model,
-      created_at: new Date().toISOString(),
-    })
-
-    if (error) {
-      console.error('[chat/chimmy] Failed to write usage log:', error.message)
-    }
-  } catch (error) {
-    console.error('[chat/chimmy] Failed to write usage log:', error)
-  }
 }
 
 function getVisionClient(): OpenAI | null {
@@ -1863,16 +1837,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           .map((violation) => violation.ruleId)
       )
     }
-
-    await logUsageToSupabase({
-      userId,
-      intent: specialistAgent,
-      tokensUsed: resolveUsageLogTokensUsed(pecrOutput.modelOutputs),
-      model: resolveUsageLogModel({
-        providerUsed: pecrOutput.responseContract.debugTrace?.providerUsed ?? null,
-        modelOutputs: pecrOutput.modelOutputs,
-      }),
-    })
 
     const answerContractResult = buildChimmyAnswerContract({
       message,

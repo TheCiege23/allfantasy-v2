@@ -9,7 +9,6 @@ const isAnthropicPipelineAvailableMock = vi.fn()
 const getServerSessionMock = vi.fn()
 const runAiProtectionMock = vi.fn()
 const requireFeatureEntitlementMock = vi.fn()
-const supabaseInsertMock = vi.fn()
 const refundSpendByLedgerMock = vi.fn()
 
 vi.mock("@/app/api/chat/chimmy/route", () => ({
@@ -40,15 +39,6 @@ vi.mock("@/lib/ai-protection", () => ({
 
 vi.mock("@/lib/subscription/entitlement-middleware", () => ({
   requireFeatureEntitlement: requireFeatureEntitlementMock,
-}))
-
-vi.mock("@/lib/supabaseClient", () => ({
-  isSupabaseConfigured: true,
-  supabase: {
-    from: () => ({
-      insert: supabaseInsertMock,
-    }),
-  },
 }))
 
 vi.mock("@/lib/tokens/TokenSpendService", () => ({
@@ -82,7 +72,6 @@ describe("POST /api/chimmy compatibility route", () => {
       tokenSpend: null,
       tokenPreview: null,
     })
-    supabaseInsertMock.mockResolvedValue({ error: null })
     refundSpendByLedgerMock.mockResolvedValue(null)
     streamAgentPipelineMock.mockReset()
   })
@@ -280,15 +269,6 @@ describe("POST /api/chimmy compatibility route", () => {
         confirmTokenSpend: true,
       })
     )
-    expect(supabaseInsertMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        user_id: "session-user",
-        intent: "trade_evaluation",
-        tokens_used: 143,
-        model: "claude-sonnet-4-6",
-      })
-    )
-
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({
       result: "Hold the core and ask for a better plus piece.",
