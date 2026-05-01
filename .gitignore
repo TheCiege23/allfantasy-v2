@@ -1,6 +1,7 @@
 # Next / node
 node_modules/
 .next/
+.next-playwright-*/
 .next-dev-local/
 .next-dev-local-uifix/
 out/
