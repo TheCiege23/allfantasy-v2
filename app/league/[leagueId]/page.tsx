@@ -256,7 +256,7 @@ export default async function LeaguePage({
                                   seasonSnapshot={seasonSnapshot}
                                   leagueDashboard={leagueDashboard}
                                 />
-              </div>div>
+              </div>
             )
   } catch (error) {
         if (isAppRouterRedirectError(error)) {
@@ -282,4 +282,4 @@ export default async function LeaguePage({
                               />
                     )
   }
-}</div>
+}
