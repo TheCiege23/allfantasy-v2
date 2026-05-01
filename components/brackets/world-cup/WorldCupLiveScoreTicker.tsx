@@ -1,0 +1,4 @@
+"use client"
+import { Radio } from "lucide-react"
+import type { WorldCupMatchView } from "@/lib/world-cup/types"
+export default function WorldCupLiveScoreTicker({ matches }: { matches: WorldCupMatchView[] }) { const active = matches.filter((m) => ["live", "halftime", "final"].includes(m.status)).slice(0, 8); if (!active.length) return null; return <div className="flex gap-2 overflow-x-auto border-b border-white/10 bg-black/40 px-3 py-2">{active.map((m) => <div key={m.id} className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] text-white/60"><Radio className="h-3 w-3 text-rose-300" /><span className="font-bold text-white/75">{m.homeTeamName}</span><span>{m.homeScore ?? "-"}</span><span>·</span><span>{m.awayScore ?? "-"}</span><span className="font-bold text-white/75">{m.awayTeamName}</span></div>)}</div> }
