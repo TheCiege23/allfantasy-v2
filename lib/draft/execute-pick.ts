@@ -3,7 +3,6 @@ import { recordAfLearningEvent } from '@/lib/ai-learning-system/recordEvent'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { parseSessionKey } from '@/lib/draft/session-key'
 import { pickInRoundForOverall, roundForOverallPick, slotIndexForOverallPick } from '@/lib/draft/snake'
-import { createLeagueChatMessage } from '@/lib/league-chat/LeagueChatMessageService'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
 import { canSubmitPickForRoster } from '@/lib/live-draft-engine/auth'
 import { submitPick } from '@/lib/live-draft-engine/PickSubmissionService'
@@ -100,12 +99,11 @@ export async function executeDraftPick(args: {
   const round = roundForOverallPick(overallPick, numTeams)
   const pickNumber = pickInRoundForOverall(overallPick, numTeams)
   const roomId = parsed.mode === 'mock' ? parsed.id : null
-  const leagueId = null
 
   await prisma.$transaction(async (tx) => {
     await tx.draftRoomPickRecord.create({
       data: {
-        leagueId,
+        leagueId: null,
         roomId,
         round,
         pickNumber,
@@ -180,7 +178,7 @@ export async function executeDraftPick(args: {
   await prisma.draftRoomChatMessage.create({
     data: {
       sessionKey: sessionId,
-      leagueId,
+      leagueId: null,
       roomId,
       userId: null,
       authorDisplayName: 'System',
@@ -188,13 +186,6 @@ export async function executeDraftPick(args: {
       type: 'system',
     },
   })
-
-  if (leagueId) {
-    await createLeagueChatMessage(leagueId, userId, `[Draft Room] ${sysMsg}`, {
-      type: 'text',
-      source: 'draft',
-    })
-  }
 
   return { ok: true, overallPick }
 }

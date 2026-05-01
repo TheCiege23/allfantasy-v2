@@ -35,9 +35,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ leagueId: stri
             ? 404
             : result.code === 'NOT_NFL_REDRAFT_CORE'
               ? 422
-              : result.code === 'LIFECYCLE_BLOCKED'
-                ? 423
-                : 400
+              : result.code === 'DRAFT_NOT_COMPLETED'
+                ? 409
+                : result.code === 'LIFECYCLE_BLOCKED'
+                  ? 423
+                  : 400
     return NextResponse.json({ error: result.message, code: result.code }, { status })
   }
 
