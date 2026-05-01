@@ -415,7 +415,7 @@ export async function GET(request: Request, context: WorldCupRouteContext) {
   const path = getPath(context)
 
   if (path.length === 1 && path[0] === "live") return getLiveMatches()
-  if (path.length === 3 && path[0] === "invite") return getInvite(path[1])
+  if (path.length === 2 && path[0] === "invite") return getInvite(path[1])
   if (path.length === 1) return getChallenge(request, path[0])
   if (path.length === 2 && path[1] === "leaderboard") return getLeaderboard(request, path[0])
   if (path.length === 2 && path[1] === "picks") return getPicks(path[0])
