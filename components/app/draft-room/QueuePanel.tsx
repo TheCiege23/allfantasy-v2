@@ -5,6 +5,7 @@ import { ListOrdered, GripVertical, X, Zap, UserMinus, Play } from 'lucide-react
 import type { QueueEntry } from '@/lib/live-draft-engine/types'
 import { DRAFT_ROOM } from '@/lib/analytics/eventNames'
 import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
+import { PlayerAvatar } from './PlayerAvatar'
 
 export type QueuePanelProps = {
   queue: QueueEntry[]
@@ -214,7 +215,6 @@ export function QueuePanel({
               const meta = resolveMeta(entry)
               const adpText = formatNumber(meta.adp)
               const rankText = formatNumber(meta.rank)
-              const avatar = meta.headshotUrl ?? meta.teamLogoUrl ?? null
               return (
               <li
                 key={`${entry.playerName}-${entry.playerId ?? index}`}
@@ -234,20 +234,15 @@ export function QueuePanel({
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <span className="text-white/40 shrink-0 touch-none" aria-hidden><GripVertical className="h-4 w-4" /></span>
-                  <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/15 bg-[#111b33]">
-                    {avatar ? (
-                      <img
-                        src={avatar}
-                        alt={entry.playerName}
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <span className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-cyan-100/80">
-                        {entry.position?.slice(0, 2) || 'PL'}
-                      </span>
-                    )}
-                  </div>
+                  <PlayerAvatar
+                    headshotUrl={meta.headshotUrl}
+                    teamLogoUrl={meta.teamLogoUrl}
+                    teamAbbr={entry.team}
+                    position={entry.position}
+                    displayName={entry.playerName}
+                    size={32}
+                    testIdBase={`draft-queue-avatar-${index}`}
+                  />
                   <div className="min-w-0">
                     <p className="truncate font-medium text-white">{entry.playerName}</p>
                     <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px]">

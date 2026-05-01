@@ -13,6 +13,7 @@ import {
   Video,
 } from 'lucide-react'
 import type { DraftChatWireMessage } from '@/lib/draft-room/draft-chat-contract'
+import { PlayerAvatar } from './PlayerAvatar'
 
 export type DraftChatReaction = {
   emoji: string
@@ -393,34 +394,17 @@ export function DraftChatPanel({
                     </span>
                   </div>
                   <div className="mt-2 flex items-start gap-2.5">
-                    {/* D.6.3 — player headshot + initials fallback (no <Image> so SSR works
-                        for chat replay without next/image config). */}
-                    <div
-                      className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border border-white/15 bg-[#0a1228]"
-                      data-testid="draft-chat-pick-headshot"
-                    >
-                      {headshot ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={headshot}
-                          alt={meta?.playerName ?? 'Player'}
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                          onError={(e) => {
-                            const el = e.currentTarget
-                            el.style.display = 'none'
-                            const sib = el.nextElementSibling as HTMLElement | null
-                            if (sib) sib.style.display = 'flex'
-                          }}
-                        />
-                      ) : null}
-                      <div
-                        className="absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-white/70"
-                        style={{ display: headshot ? 'none' : 'flex' }}
-                      >
-                        {initials || '?'}
-                      </div>
-                    </div>
+                    {/* D.6.3 — player headshot via shared PlayerAvatar (silhouette+initials fallback,
+                        DEF team-logo promotion, broken-load handling all centralized). */}
+                    <PlayerAvatar
+                      headshotUrl={headshot}
+                      teamLogoUrl={meta?.teamLogoUrl ?? null}
+                      teamAbbr={meta?.nflTeam ?? null}
+                      position={meta?.position ?? null}
+                      displayName={meta?.playerName ?? 'Player'}
+                      size={48}
+                      testIdBase="draft-chat-pick-headshot"
+                    />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-semibold leading-snug text-white">
                         {meta?.playerName ?? m.text}
@@ -563,41 +547,15 @@ export function DraftChatPanel({
               </div>
               {m.playerContext ? (
                 <div className="mt-2 flex gap-2 rounded-lg border border-white/12 bg-black/30 p-2">
-                  <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-white/15 bg-black/40">
-                    {m.playerContext.headshotUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={m.playerContext.headshotUrl}
-                        alt=""
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                        decoding="async"
-                        onError={(e) => {
-                          ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-                        }}
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-[11px] font-bold uppercase text-white/35">
-                        {(m.playerContext.playerName ?? '?')
-                          .split(/\s+/)
-                          .slice(0, 2)
-                          .map((w) => w[0])
-                          .join('')}
-                      </div>
-                    )}
-                    {m.playerContext.teamLogoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={m.playerContext.teamLogoUrl}
-                        alt=""
-                        className="absolute bottom-0.5 right-0.5 h-4 w-4 rounded border border-black/40 bg-black/70 object-contain"
-                        loading="lazy"
-                        onError={(e) => {
-                          ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-                        }}
-                      />
-                    ) : null}
-                  </div>
+                  <PlayerAvatar
+                    headshotUrl={m.playerContext.headshotUrl ?? null}
+                    teamLogoUrl={m.playerContext.teamLogoUrl ?? null}
+                    teamAbbr={m.playerContext.team ?? null}
+                    position={m.playerContext.position ?? null}
+                    displayName={m.playerContext.playerName ?? 'Player'}
+                    size={44}
+                    testIdBase="draft-chat-player-context-avatar"
+                  />
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <p className="truncate text-[11px] font-semibold text-white/92">
                       {m.playerContext.playerName ?? 'Player'}
