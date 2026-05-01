@@ -1,0 +1,5 @@
+{
+  "/api/auth/password/reset/verify-code/route": "app/api/auth/password/reset/verify-code/route.js",
+  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js",
+  "/api/auth/password/reset/confirm/route": "app/api/auth/password/reset/confirm/route.js"
+}
