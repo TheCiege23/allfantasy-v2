@@ -16,10 +16,13 @@ export async function POST(_request: Request, context: { params: { challengeId: 
 
   const challenge = await (prisma as any).worldCupBracketChallenge.findUnique({
     where: { id: params.data.challengeId },
-    select: { inviteCode: true },
+    select: { inviteCode: true, visibility: true },
   })
   if (!challenge) {
     return NextResponse.json({ error: "Challenge not found" }, { status: 404 })
+  }
+  if (challenge.visibility !== "public") {
+    return NextResponse.json({ error: "Invite required to join this bracket" }, { status: 403 })
   }
 
   const result = await joinWorldCupChallengeByInvite({
