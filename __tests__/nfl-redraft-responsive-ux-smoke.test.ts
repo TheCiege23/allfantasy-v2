@@ -231,9 +231,7 @@ describe('DraftChatPanel (Commit T) is read-only + empty/error tolerant', () => 
   it('exposes chat-panel + pick-event + composer testids', () => {
     expect(src).toMatch(/data-testid="draft-chat-panel"/)
     expect(src).toMatch(/data-testid="draft-chat-pick-event"/)
-    // Pick headshot now renders via shared PlayerAvatar; selector contract is
-    // preserved through testIdBase (DOM emits `-root`, `-image`, `-fallback`).
-    expect(src).toMatch(/testIdBase="draft-chat-pick-headshot"/)
+    expect(src).toMatch(/data-testid="draft-chat-pick-headshot"/)
     expect(src).toMatch(/data-testid="draft-chat-pick-drafter"/)
     expect(src).toMatch(/data-testid="draft-chat-pick-ai-badge"/)
   })
