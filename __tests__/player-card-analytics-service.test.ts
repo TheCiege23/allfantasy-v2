@@ -4,8 +4,6 @@ const playerFindFirstMock = vi.fn()
 const playerCareerProjectionFindFirstMock = vi.fn()
 const playerMetaTrendFindUniqueMock = vi.fn()
 const playerSeasonStatsFindManyMock = vi.fn()
-const aiResultFindUniqueMock = vi.fn()
-const aiResultUpsertMock = vi.fn()
 const openaiChatTextMock = vi.fn()
 const getPlayerMetaTrendsForMetaMock = vi.fn()
 const getPlayerAnalyticsMock = vi.fn()
@@ -26,8 +24,8 @@ vi.mock('@/lib/prisma', () => ({
       findMany: playerSeasonStatsFindManyMock,
     },
     aiResult: {
-      findUnique: aiResultFindUniqueMock,
-      upsert: aiResultUpsertMock,
+      findUnique: vi.fn().mockResolvedValue(null),
+      upsert: vi.fn().mockResolvedValue({}),
     },
   },
 }))
@@ -57,8 +55,6 @@ describe('PlayerCardAnalyticsService', () => {
     playerCareerProjectionFindFirstMock.mockResolvedValue(null)
     playerMetaTrendFindUniqueMock.mockResolvedValue(null)
     playerSeasonStatsFindManyMock.mockResolvedValue([])
-    aiResultFindUniqueMock.mockResolvedValue(null)
-    aiResultUpsertMock.mockResolvedValue({})
   })
 
   it('returns all analytics sections when core data exists', async () => {

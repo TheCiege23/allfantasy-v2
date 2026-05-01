@@ -14,16 +14,10 @@ const hm = vi.hoisted(() => ({
   draftSessionFindUnique: vi.fn(),
   playerAnalyticsFindMany: vi.fn(),
   devyPlayerFindMany: vi.fn(),
-  playerSeasonStatsFindMany: vi.fn(),
-  adpDataRecordFindFirst: vi.fn(),
-  adpDataRecordFindMany: vi.fn(),
-  injuryReportRecordFindMany: vi.fn(),
-  allFantasyAdpSnapshotFindMany: vi.fn(),
   getLiveADP: vi.fn(),
   getPlayerPoolForLeague: vi.fn(),
   loadRollingInsightsSeasonByDraftPoolKey: vi.fn(),
   loadRollingInsightsStatsDetailByPlayerIds: vi.fn(),
-  loadPlayerSeasonStatsFallback: vi.fn(),
 }))
 
 vi.mock('@/lib/prisma', () => ({
@@ -32,13 +26,6 @@ vi.mock('@/lib/prisma', () => ({
     draftSession: { findUnique: hm.draftSessionFindUnique },
     playerAnalyticsSnapshot: { findMany: hm.playerAnalyticsFindMany },
     devyPlayer: { findMany: hm.devyPlayerFindMany },
-    playerSeasonStats: { findMany: hm.playerSeasonStatsFindMany },
-    adpDataRecord: {
-      findFirst: hm.adpDataRecordFindFirst,
-      findMany: hm.adpDataRecordFindMany,
-    },
-    injuryReportRecord: { findMany: hm.injuryReportRecordFindMany },
-    allFantasyAdpSnapshot: { findMany: hm.allFantasyAdpSnapshotFindMany },
   },
 }))
 
@@ -65,7 +52,7 @@ vi.mock('@/lib/draft/analytics/nfl-rolling-insights-draft-analytics', () => ({
   loadRollingInsightsSeasonByDraftPoolKey: (...args: unknown[]) => hm.loadRollingInsightsSeasonByDraftPoolKey(...args),
   loadRollingInsightsStatsDetailByPlayerIds: (...args: unknown[]) =>
     hm.loadRollingInsightsStatsDetailByPlayerIds(...args),
-  loadPlayerSeasonStatsFallback: (...args: unknown[]) => hm.loadPlayerSeasonStatsFallback(...args),
+  loadPlayerSeasonStatsFallback: vi.fn(),
   resolveNflDraftPoolAnalytics: vi.fn(() => ({
     fantasyPointsPerGame: null,
     lifetimeValue: null,
@@ -161,20 +148,11 @@ describe('getResolvedDraftPoolForLeague', () => {
     })
     hm.playerAnalyticsFindMany.mockResolvedValue([])
     hm.devyPlayerFindMany.mockResolvedValue([])
-    hm.playerSeasonStatsFindMany.mockResolvedValue([])
-    hm.adpDataRecordFindFirst.mockResolvedValue(null)
-    hm.adpDataRecordFindMany.mockResolvedValue([])
-    hm.injuryReportRecordFindMany.mockResolvedValue([])
-    hm.allFantasyAdpSnapshotFindMany.mockResolvedValue([])
     hm.loadRollingInsightsSeasonByDraftPoolKey.mockResolvedValue({
       identityByPoolKey: new Map(),
       riSeasonByPlayerId: new Map(),
     })
     hm.loadRollingInsightsStatsDetailByPlayerIds.mockResolvedValue(new Map())
-    hm.loadPlayerSeasonStatsFallback.mockResolvedValue({
-      seasonByPoolKey: new Map(),
-      diagnostics: { exactIdHits: 0, namePositionHits: 0, ambiguousSkips: 0, misses: 0 },
-    })
   })
 
   it('returns empty pool when roster schema is not persisted', async () => {

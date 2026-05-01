@@ -191,43 +191,46 @@ export async function getPlayerPoolForSport(
     image_url: (r as { imageUrl?: string | null }).imageUrl ?? null,
   }))
 
-  if (sport === 'NFL') {
-    const isIdpQuery = normalizedPositions?.some((p) => ['DE', 'DT', 'LB', 'CB', 'S'].includes(p))
-    if (!isIdpQuery) {
-      const existingDefTeams = new Set(
-        primary
-          .filter((p) => ['DEF', 'DST'].includes(String(p.position ?? '').trim().toUpperCase()))
-          .map((p) => String(p.team_abbreviation ?? '').trim().toUpperCase())
-          .filter(Boolean),
-      )
-      for (const [abbr, teamId] of teamIdByAbbrev.entries()) {
-        if (existingDefTeams.has(abbr)) continue
-        primary.push({
-          team_abbreviation: abbr,
-          player_id: `nfl:def:${abbr}`,
-          sport_type: sport as SportType,
-          league_variant: null,
-          team_id: teamId ?? null,
-          team: abbr,
-          full_name: `${abbr} Defense`,
-          position: 'DEF',
-          status: null,
-          injury_status: null,
-          external_source_id: `nfl:def:${abbr}`,
-          age: null,
-          experience: null,
-          secondary_positions: [],
-          metadata: { source: 'synthetic_team_defense' },
-          image_url: null,
-        })
-      }
+  const IDP_INDIVIDUAL_POSITIONS = new Set(['DE', 'DT', 'LB', 'CB', 'S'])
+  const isIdpOnlyFilter =
+    normalizedPositions !== null &&
+    normalizedPositions.every((p) => IDP_INDIVIDUAL_POSITIONS.has(p) || p === 'IDP_FLEX')
+
+  if (sport === 'NFL' && !isIdpOnlyFilter) {
+    const existingDefTeams = new Set(
+      primary
+        .filter((p) => ['DEF', 'DST'].includes(String(p.position ?? '').trim().toUpperCase()))
+        .map((p) => String(p.team_abbreviation ?? '').trim().toUpperCase())
+        .filter(Boolean),
+    )
+    for (const [abbr, teamId] of teamIdByAbbrev.entries()) {
+      if (existingDefTeams.has(abbr)) continue
+      primary.push({
+        team_abbreviation: abbr,
+        player_id: `nfl:def:${abbr}`,
+        sport_type: sport as SportType,
+        league_variant: null,
+        team_id: teamId ?? null,
+        team: abbr,
+        full_name: `${abbr} Defense`,
+        position: 'DEF',
+        status: null,
+        injury_status: null,
+        external_source_id: `nfl:def:${abbr}`,
+        age: null,
+        experience: null,
+        secondary_positions: [],
+        metadata: { source: 'synthetic_team_defense' },
+        image_url: null,
+      })
     }
   }
 
   const limit = requestedTake
   const canFallbackIdpFromIdentity =
     sport === 'NFL' &&
-    (normalizedPositions == null || normalizedPositions.some((p) => ['DE', 'DT', 'LB', 'CB', 'S'].includes(p)))
+    (normalizedPositions == null ||
+      normalizedPositions.some((p) => IDP_INDIVIDUAL_POSITIONS.has(p) || p === 'IDP_FLEX'))
 
   if (!canFallbackIdpFromIdentity || primary.length >= limit) {
     return primary

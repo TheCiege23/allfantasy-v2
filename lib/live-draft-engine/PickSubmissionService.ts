@@ -9,12 +9,6 @@ import { assertDraftSessionBelongsToLeague } from '@/lib/engine-testing/hardenin
 import { logEngineInvariantOptional } from '@/lib/engine-testing/runtime/invariantRuntime'
 import { computeTimerEndAt } from './DraftTimerService'
 import { validatePickSubmission, validateDevyEligibilityAsync, validateC2CEligibilityAsync } from './PickValidation'
-import {
-  DRAFT_PICK_NOT_LIVE,
-  DRAFT_PICK_RACE_RETRY,
-  DRAFT_PICK_STALE_OVERALL,
-  type PickAuthorityCode,
-} from './pickAuthorityCodes'
 import { validateSpecialtyDraftPools } from './SpecialtyDraftPoolValidation'
 import { validateRosterFitForDraftPick } from './RosterFitValidation'
 import { resolveCurrentOnTheClock } from './CurrentOnTheClockResolver'
@@ -29,6 +23,7 @@ import { buildKeeperLocks } from './keeper/KeeperDraftOrder'
 import type { KeeperConfig, KeeperSelection } from './keeper/types'
 import { getSalaryCapConfig } from '@/lib/salary-cap/SalaryCapLeagueConfig'
 import { assignRookieContract } from '@/lib/salary-cap/RookieContractService'
+import { isDraftBoardFull, isDraftPickRowEmpty } from './draftPickEmpty'
 
 export interface SubmitPickInput {
   leagueId: string
@@ -47,38 +42,12 @@ export interface SubmitPickInput {
   /** Override asset classification (dispersal, pick_slot, etc.). */
   assetType?: 'player' | 'rookie_pick' | 'devy_pick' | 'dispersal_asset' | 'pick_slot' | 'c2c_college'
   pickMetadata?: Record<string, unknown> | null
-  /**
-   * Commit M — stale-pick guard. When the client sends the overall
-   * pick number it believes is on the clock, the authority rejects with
-   * `DRAFT_PICK_STALE_OVERALL` if the server has advanced past it. The
-   * route layer is expected to surface this as a 409 so the Commit J
-   * in-place session-mismatch handler can recover without a redirect.
-   *
-   * Optional. When omitted, the server falls back to the existing
-   * server-derived `picksCount + 1` and still relies on the in-tx race
-   * guard below.
-   */
-  expectedOverall?: number
-  /**
-   * Commit M — commissioner correction flag. When true:
-   *   - on-clock check is skipped (commissioner can assign any roster)
-   *   - duplicate/not-live/specialty/keeper checks still apply
-   *   - source MUST be `'commissioner'` (or `'auto'` for orphan AI fill)
-   * Defaults to false. The route layer is responsible for enforcing
-   * actual commissioner identity before setting this.
-   */
-  commissionerOverride?: boolean
 }
 
 export interface SubmitPickResult {
   success: boolean
   error?: string
-  /**
-   * Result code. `ROSTER_CONFIGURATION_INCOMPLETE` is preserved from the
-   * pre-Commit-M API surface; the additional `PickAuthorityCode` values
-   * are Commit-M structured codes for race / lockout outcomes.
-   */
-  code?: 'ROSTER_CONFIGURATION_INCOMPLETE' | PickAuthorityCode
+  code?: 'ROSTER_CONFIGURATION_INCOMPLETE'
   snapshot?: { sessionId: string; overall: number; pickLabel: string; rosterId: string }
 }
 
@@ -106,37 +75,26 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
   const tradedPicks = Array.isArray(tradedPicksRaw) ? tradedPicksRaw : []
   const teamCount = session.teamCount
   const totalPicks = session.rounds * teamCount
-  const picksCount = session.picks.length
+  // Use the picks array (not just picksCount) so that commissioner-cleared empty slots
+  // (gap boards) are skipped and the correct next open overall is resolved.
+  const picksForResolver = session.picks.map((p) => ({
+    overall: p.overall,
+    playerName: p.playerName,
+    position: p.position,
+    pickMetadata: (p as { pickMetadata?: unknown | null }).pickMetadata ?? null,
+  }))
   const current = resolveCurrentOnTheClock({
     totalPicks,
-    picksCount,
+    picks: picksForResolver,
     teamCount,
     draftType: session.draftType as 'snake' | 'linear' | 'auction',
     thirdRoundReversal: session.thirdRoundReversal,
     slotOrder,
   })
-  if (!current) {
-    return {
-      success: false,
-      error: 'Draft is complete or not started',
-      code: DRAFT_PICK_NOT_LIVE,
-    }
-  }
+  if (!current) return { success: false, error: 'Draft is complete or not started' }
 
-  const overall = picksCount + 1
-
-  // Commit M — stale-overall guard. If the client sent its expected
-  // overall pick number and the server has advanced past it, refuse with
-  // a structured 409. Cheap pre-tx check that lets the client display the
-  // exact mismatch (their N vs server's M) without a redirect.
-  if (typeof input.expectedOverall === 'number' && input.expectedOverall !== overall) {
-    return {
-      success: false,
-      error: `Pick number has advanced (you submitted for #${input.expectedOverall}, server is on #${overall}). Refresh and retry.`,
-      code: DRAFT_PICK_STALE_OVERALL,
-    }
-  }
-
+  // overall comes from the resolver so it correctly handles boards with gaps
+  const overall = current.overall
   const round = Math.ceil(overall / teamCount)
   const slot = current.slot
   const resolvedOwner = resolvePickOwner(round, slot, slotOrder, tradedPicks)
@@ -149,11 +107,8 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     currentOnClockRosterId: onClockRosterId,
     existingPicks: session.picks.map((p) => ({ playerName: p.playerName, position: p.position })),
     sessionStatus: session.status,
-    commissionerOverride: input.commissionerOverride === true || input.source === 'commissioner',
   })
-  if (!validation.valid) {
-    return { success: false, error: validation.error, code: validation.code }
-  }
+  if (!validation.valid) return { success: false, error: validation.error }
 
   const keeperConfig = (session.keeperConfig ?? (session as any).keeperConfig) as KeeperConfig | null
   const keeperSelections = (session.keeperSelections ?? (session as any).keeperSelections) as KeeperSelection[] | null
@@ -186,7 +141,7 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
   })
   if (!rosterFit.valid) return { success: false, error: rosterFit.error }
 
-  const roundForEligibility = Math.ceil((picksCount + 1) / teamCount) || 1
+  const roundForEligibility = round ?? 1
   const rawC2cConfig = session.c2cConfig ?? (session as any).c2cConfig
   const c2cConfig =
     rawC2cConfig && typeof rawC2cConfig === 'object' && (rawC2cConfig as any).enabled
@@ -265,8 +220,17 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
         where: { id: session.id },
         include: { picks: { orderBy: { overall: 'asc' } } },
       })
-      if (!locked || locked.picks.length !== picksCount) {
+      if (!locked) {
         throw new Error('Draft state changed; please retry')
+      }
+      const existingAtOverall = locked.picks.find((p: any) => p.overall === overall)
+      // If a real (non-empty) pick already landed at this slot, reject as stale
+      if (existingAtOverall && !isDraftPickRowEmpty(existingAtOverall)) {
+        throw new Error('Draft state changed; please retry')
+      }
+      // If a commissioner-cleared empty-slot row exists, delete it before inserting
+      if (existingAtOverall) {
+        await (tx as any).draftPick.delete({ where: { id: existingAtOverall.id } })
       }
       const created = await (tx as any).draftPick.create({
         data: {
@@ -305,22 +269,11 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
       return created
     })
   } catch (error) {
-    // Commit M — both the unique-constraint loss (P2002) and the
-    // application-level "picks.length advanced" guard mean a concurrent
-    // commit landed first. Same client recovery: refresh and retry.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      return {
-        success: false,
-        error: 'Draft state changed; please retry',
-        code: DRAFT_PICK_RACE_RETRY,
-      }
+      return { success: false, error: 'Draft state changed; please retry' }
     }
     if (error instanceof Error && /Draft state changed/.test(error.message)) {
-      return {
-        success: false,
-        error: 'Draft state changed; please retry',
-        code: DRAFT_PICK_RACE_RETRY,
-      }
+      return { success: false, error: 'Draft state changed; please retry' }
     }
     throw error
   }
@@ -404,6 +357,26 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
         })
       }
     }
+  } else {
+    // For boards with commissioner-cleared gaps: the filled slot may not be the
+    // highest overall, but the board might now be complete. Check explicitly.
+    const allPickRows = await prisma.draftPick.findMany({
+      where: { sessionId: session.id },
+      select: { overall: true, playerName: true, position: true, pickMetadata: true },
+    })
+    if (
+      isDraftBoardFull(
+        allPickRows.map((p) => ({
+          overall: p.overall,
+          playerName: p.playerName,
+          position: p.position,
+          pickMetadata: (p as { pickMetadata?: unknown | null }).pickMetadata ?? null,
+        })),
+        totalPicks,
+      )
+    ) {
+      await completeDraftSession(input.leagueId)
+    }
   }
 
   // ── Salary cap: auto-assign rookie contract on snake draft picks ──
@@ -432,14 +405,6 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     // non-fatal: contract assignment failure should never block pick persistence
   }
 
-  // Commit T — pick announcement is the single emission site for the
-  // draft chat pick card. Reaches this point ONLY on the success path
-  // (failed picks return early with { success: false } before any of
-  // this runs), and is fire-and-forget with `.catch(() => {})` so a
-  // chat write failure cannot break pick execution. The aiManager and
-  // commissionerOverride badges flip based on `input.source` so the
-  // chat renderer can distinguish AI-autopick / commissioner / user
-  // picks without re-deriving from message text.
   void import('@/lib/draft-room/postDraftPickChatEvent')
     .then(({ postDraftPickChatEvent }) =>
       postDraftPickChatEvent({
@@ -455,9 +420,6 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
         roundSlot: pick.slot ?? slot,
         playerId: pick.playerId ?? input.playerId ?? null,
         nflTeam: pick.team ?? input.team ?? null,
-        headshotUrl: pick.playerImageUrl ?? input.playerImageUrl ?? null,
-        aiManager: input.source === 'auto',
-        commissionerOverride: input.source === 'commissioner',
       }),
     )
     .catch(() => {})

@@ -1,64 +1,54 @@
-/**
- * D.5-scheduler — cron route for AllFantasy AI ADP recompute.
- *
- * Auth: CRON_SECRET via Authorization: Bearer <secret> or X-Cron-Secret header.
- * Default behavior: NFL, real-mode picks only, includeTest=false, apply=true.
- * Query params:
- *   - dryRun=true  → apply=false (manual ops escape hatch)
- *   - includeTest=true → opt in to test_seed / test mode picks
- *   - sport=<code> → upper-cased and forwarded
- *   - season=<id>  → narrows recompute
- *
- * Response:
- *   - 200 {ok:true, report}              — clean run
- *   - 207 {ok:false, report}             — report.errors non-empty
- *   - 401 {error:'Unauthorized'}         — missing/wrong secret
- *   - 500 {ok:false, error:<message>}    — recompute threw
- */
-
-import { NextResponse, type NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import { recomputeAllFantasyAdp } from '@/lib/adp/recomputeAllFantasyAdp'
-import { requireCronAuth } from '@/app/api/cron/_auth'
 
-export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
+function checkAuth(req: Request): boolean {
+  const secret = process.env.CRON_SECRET
+  if (!secret) return false
 
-async function handle(req: NextRequest): Promise<NextResponse> {
-  if (!requireCronAuth(req)) {
+  const authHeader = req.headers.get('authorization')
+  if (authHeader === `Bearer ${secret}`) return true
+
+  const cronHeader = req.headers.get('x-cron-secret')
+  if (cronHeader === secret) return true
+
+  return false
+}
+
+async function handleRequest(req: Request): Promise<NextResponse> {
+  if (!checkAuth(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const url = new URL(req.url)
-  const sportParam = url.searchParams.get('sport')
-  const seasonParam = url.searchParams.get('season')
+  const sport = (url.searchParams.get('sport') ?? 'NFL').toUpperCase()
+  const season = url.searchParams.get('season') ?? null
+  const draftMode = 'real' as const
   const includeTest = url.searchParams.get('includeTest') === 'true'
-  const dryRun = url.searchParams.get('dryRun') === 'true'
-
-  const args = {
-    sport: sportParam ? sportParam.toUpperCase() : 'NFL',
-    season: seasonParam ?? null,
-    draftMode: 'real' as const,
-    includeTest,
-    apply: !dryRun,
-  }
+  const apply = url.searchParams.get('dryRun') !== 'true'
 
   try {
-    const report = await recomputeAllFantasyAdp(args)
+    const report = await recomputeAllFantasyAdp({
+      sport,
+      season,
+      draftMode,
+      includeTest,
+      apply,
+    })
+
     const hasErrors = Array.isArray(report.errors) && report.errors.length > 0
-    return NextResponse.json(
-      { ok: !hasErrors, report },
-      { status: hasErrors ? 207 : 200 },
-    )
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ ok: false, error: message }, { status: 500 })
+    const status = hasErrors ? 207 : 200
+
+    return NextResponse.json({ ok: !hasErrors, report }, { status })
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e)
+    return NextResponse.json({ ok: false, error }, { status: 500 })
   }
 }
 
-export async function GET(req: NextRequest): Promise<NextResponse> {
-  return handle(req)
+export async function GET(req: Request): Promise<NextResponse> {
+  return handleRequest(req)
 }
 
-export async function POST(req: NextRequest): Promise<NextResponse> {
-  return handle(req)
+export async function POST(req: Request): Promise<NextResponse> {
+  return handleRequest(req)
 }

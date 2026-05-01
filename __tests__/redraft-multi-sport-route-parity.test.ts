@@ -118,6 +118,9 @@ describe('Redraft multi-sport route parity', () => {
         guillotineSeason: {
           findFirst: vi.fn().mockResolvedValue(null),
         },
+        league: {
+          update: vi.fn().mockResolvedValue({}),
+        },
       }
       return cb(tx)
     })
