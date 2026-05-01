@@ -1,17 +1,22 @@
 import { notFound } from 'next/navigation'
-import { Suspense } from 'react'
-import DraftSettingsHarnessClient from './DraftSettingsHarnessClient'
+import DraftSettingsPanel from '@/components/app/settings/DraftSettingsPanel'
 
-export const dynamic = 'force-dynamic'
-
-export default function E2EDraftSettingsPage() {
+export default async function E2EDraftSettingsHarnessPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ leagueId?: string | string[] }>
+}) {
   if (process.env.NODE_ENV === 'production') {
     notFound()
   }
+  const sp = searchParams ? await searchParams : {}
+  const raw = sp.leagueId
+  const leagueId = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] ?? '' : ''
 
   return (
-    <Suspense>
-      <DraftSettingsHarnessClient />
-    </Suspense>
+    <div className="min-h-screen bg-[#040915] p-4">
+      <h1 className="mb-4 text-lg font-semibold text-white">E2E draft settings harness</h1>
+      <DraftSettingsPanel leagueId={leagueId} />
+    </div>
   )
 }

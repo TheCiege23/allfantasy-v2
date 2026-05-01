@@ -1,17 +1,9 @@
 import { notFound } from 'next/navigation'
-import { Suspense } from 'react'
-import DraftRoomHarnessClient from './DraftRoomHarnessClient'
+import E2EDraftRoomHarnessClient from './E2EDraftRoomHarnessClient'
 
-export const dynamic = 'force-dynamic'
-
-export default function E2EDraftRoomPage() {
+export default function E2EDraftRoomHarnessPage() {
   if (process.env.NODE_ENV === 'production') {
     notFound()
   }
-
-  return (
-    <Suspense>
-      <DraftRoomHarnessClient />
-    </Suspense>
-  )
+  return <E2EDraftRoomHarnessClient />
 }

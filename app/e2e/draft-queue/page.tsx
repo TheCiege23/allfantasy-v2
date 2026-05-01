@@ -1,17 +1,9 @@
 import { notFound } from 'next/navigation'
-import { Suspense } from 'react'
-import DraftQueueHarnessClient from './DraftQueueHarnessClient'
+import E2EDraftQueueHarnessClient from './E2EDraftQueueHarnessClient'
 
-export const dynamic = 'force-dynamic'
-
-export default function E2EDraftQueuePage() {
+export default function E2EDraftQueueHarnessPage() {
   if (process.env.NODE_ENV === 'production') {
     notFound()
   }
-
-  return (
-    <Suspense>
-      <DraftQueueHarnessClient />
-    </Suspense>
-  )
+  return <E2EDraftQueueHarnessClient />
 }
