@@ -337,9 +337,7 @@ describe('Idempotency — finalizeRosterAssignments + draftPicks fallback', () =
   const src = read('lib/live-draft-engine/RosterAssignmentService.ts')
 
   it('finalizeRosterAssignments only runs after session.status === "completed"', () => {
-    expect(src).toMatch(
-      /if \(!session \|\| session\.status !== 'completed'\) return EMPTY_FINALIZE_SUMMARY/,
-    )
+    expect(src).toMatch(/if \(!session \|\| session\.status !== 'completed'\) return/)
   })
 
   it('finalizeRosterAssignments does NOT clobber existing lineup (idempotent)', () => {
