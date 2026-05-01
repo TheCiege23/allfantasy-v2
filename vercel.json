@@ -29,6 +29,10 @@
       "schedule": "0 2 * * 1"
     },
     {
+      "path": "/api/cron/backfill-player-headshots?sport=NFL&apply=1&limit=200",
+      "schedule": "15 5 * * *"
+    },
+    {
       "path": "/api/cron/health-check",
       "schedule": "* * * * *"
     },
