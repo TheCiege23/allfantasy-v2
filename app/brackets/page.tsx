@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { areBracketChallengesEnabled, getEnabledSports } from "@/lib/feature-toggle"
-import { Trophy, Plus, Users, ChevronRight, Star, Shield, Zap, Crown, ExternalLink, Sparkles, AlertTriangle, Scale, Heart } from "lucide-react"
+import { Trophy, Plus, Users, ChevronRight, Star, Shield, Zap, Crown, ExternalLink, Sparkles, AlertTriangle, Scale, Heart, Globe2 } from "lucide-react"
 import BracketShell from "@/components/bracket/BracketShell"
 import EngagementEventTracker from "@/components/engagement/EngagementEventTracker"
 import BracketHomeTabs from "@/components/bracket/BracketHomeTabs"
@@ -175,6 +175,15 @@ export default async function BracketsHomePage() {
                 >
                   <Users className="w-4 h-4" />
                   Join Pool
+                </Link>
+                <Link
+                  href="/brackets/world-cup"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border transition-all"
+                  style={{ borderColor: 'rgba(103,232,249,0.35)', color: 'rgba(207,250,254,0.95)', background: 'rgba(8,145,178,0.12)' }}
+                  data-testid="world-cup-bracket-card"
+                >
+                  <Globe2 className="w-4 h-4" />
+                  World Cup
                 </Link>
                 <Link
                   href="/brackets/discover"
