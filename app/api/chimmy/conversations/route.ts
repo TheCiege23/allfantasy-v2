@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 import { authOptions } from '@/lib/auth'
-import { isSupabaseConfigured, supabase } from '@/lib/supabaseClient'
+import { prisma } from '@/lib/prisma'
 
 const ConversationQuerySchema = z.object({
   limit: z.string().pipe(z.coerce.number().int().positive().default(20)),
@@ -31,31 +31,20 @@ export async function GET(req: NextRequest) {
       offset: searchParams.get('offset') ?? '0',
     })
 
-    if (!isSupabaseConfigured) {
-      return NextResponse.json(
-        { error: 'Supabase not configured', conversations: [], total: 0 },
-        { status: 503 }
-      )
-    }
-
-    // Query conversations for this user, sorted by most recent first
-    const { data: conversations, error: fetchError, count } = await supabase
-      .from('chat_conversations')
-      .select('id,title,messageCount,lastMessageAt,dataSources,createdAt,updatedAt', {
-        count: 'exact',
-      })
-      .eq('userId', session.user.id)
-      .order('lastMessageAt', { ascending: false })
-      .range(query.offset, query.offset + query.limit - 1)
-
-    if (fetchError) {
-      console.error('[GET /api/chimmy/conversations] fetch error:', fetchError)
-      return NextResponse.json({ error: 'Failed to fetch conversations' }, { status: 500 })
-    }
+    const [conversations, total] = await Promise.all([
+      prisma.chatConversation.findMany({
+        where: { userId: session.user.id },
+        select: { id: true, title: true, messageCount: true, lastMessageAt: true, dataSources: true, createdAt: true, updatedAt: true },
+        orderBy: { lastMessageAt: 'desc' },
+        skip: query.offset,
+        take: query.limit,
+      }),
+      prisma.chatConversation.count({ where: { userId: session.user.id } }),
+    ])
 
     return NextResponse.json({
-      conversations: conversations ?? [],
-      total: count ?? 0,
+      conversations,
+      total,
       limit: query.limit,
       offset: query.offset,
     })
@@ -79,28 +68,15 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}))
     const payload = SaveConversationSchema.parse(body)
 
-    if (!isSupabaseConfigured) {
-      return NextResponse.json({ error: 'Supabase not configured' }, { status: 503 })
-    }
-
-    // Insert new conversation
-    const { data: conversation, error: insertError } = await supabase
-      .from('chat_conversations')
-      .insert({
+    const conversation = await prisma.chatConversation.create({
+      data: {
         userId: session.user.id,
         title: payload.title,
         messageCount: payload.messageCount,
-        lastMessageAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
-      .select('id,title,messageCount,lastMessageAt,createdAt')
-      .single()
-
-    if (insertError) {
-      console.error('[POST /api/chimmy/conversations] insert error:', insertError)
-      return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 })
-    }
+        lastMessageAt: new Date(),
+      },
+      select: { id: true, title: true, messageCount: true, lastMessageAt: true, createdAt: true },
+    })
 
     return NextResponse.json(conversation, { status: 201 })
   } catch (err: unknown) {

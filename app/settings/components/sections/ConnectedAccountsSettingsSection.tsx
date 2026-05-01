@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { signIn } from "next-auth/react"
-import { supabase } from "@/lib/supabaseClient"
 import { DiscordIcon } from "@/app/components/icons/DiscordIcon"
 import { discordAvatarUrl } from "@/lib/discord/avatar"
 import {

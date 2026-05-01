@@ -3,13 +3,10 @@
 import Link from "next/link"
 import { useState, Suspense, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { signIn } from "next-auth/react"
 import { ArrowLeft, ArrowRight, Loader2, Eye, EyeOff, CheckCircle2, TriangleAlert } from "lucide-react"
 import { AuthStatusHeader, AuthStatusLoadingFallback, AuthStatusShell } from "@/components/auth/AuthStatusShell"
-import { clearUnifiedAuthDestination } from "@/lib/auth/UnifiedAuthOrchestrator"
-import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
 
-type AuthMode = "checking" | "token" | "supabase" | "none"
+type AuthMode = "checking" | "token" | "none"
 
 function ResetPasswordContent() {
   const router = useRouter()
@@ -30,20 +27,8 @@ function ResetPasswordContent() {
   useEffect(() => {
     if (token) {
       setAuthMode("token")
-      return
-    }
-    if (!isSupabaseConfigured) {
+    } else {
       setAuthMode("none")
-      return
-    }
-    let cancelled = false
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      if (cancelled) return
-      if (session?.user) setAuthMode("supabase")
-      else setAuthMode("none")
-    })
-    return () => {
-      cancelled = true
     }
   }, [token])
 
@@ -68,105 +53,6 @@ function ResetPasswordContent() {
 
     setLoading(true)
     try {
-      if (authMode === "supabase") {
-        const { data: updateData, error: updateErr } = await supabase.auth.updateUser({ password })
-        if (updateErr) {
-          setError(updateErr.message || "Could not update password.")
-          return
-        }
-
-        // Supabase may return a refreshed session on password update; client typings omit `session`.
-        const refreshed = updateData as typeof updateData & {
-          session?: { access_token?: string; user?: { email?: string } } | null
-        }
-
-        // Prefer token from updateUser response — getSession() can still hold a stale access_token before refresh.
-        const { data: sessAfterUpdate } = await supabase.auth.getSession()
-        const accessToken =
-          refreshed.session?.access_token ?? sessAfterUpdate.session?.access_token
-        const email =
-          refreshed.session?.user?.email?.trim() ??
-          refreshed.user?.email?.trim() ??
-          sessAfterUpdate.session?.user?.email?.trim() ??
-          ""
-
-        if (!accessToken) {
-          console.error("[reset-password] No access token after updateUser; cannot sync Neon")
-          setError(
-            "Your password was updated, but we could not sync your account. Please sign out and use \"Forgot password\" again, or try logging in with Google if you use it."
-          )
-          return
-        }
-
-        let syncRes: Response
-        try {
-          syncRes = await fetch("/api/auth/password/sync-neon", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify({
-              newPassword: password,
-              ...(email ? { email } : {}),
-            }),
-          })
-        } catch (fetchErr) {
-          console.error("[reset-password] sync-neon fetch failed:", fetchErr)
-          setError("Network error while saving your password. Check your connection and try again.")
-          return
-        }
-
-        const syncPayload = (await syncRes.json().catch(() => ({}))) as {
-          error?: string
-          message?: string
-          synced?: boolean
-        }
-
-        if (!syncRes.ok) {
-          console.error("[reset-password] sync-neon failed:", syncRes.status, syncPayload)
-          setError(
-            typeof syncPayload.message === "string" && syncPayload.message
-              ? syncPayload.message
-              : "Could not save your password to your AllFantasy account. Try again or contact support."
-          )
-          return
-        }
-
-        if (!syncPayload.synced) {
-          console.error("[reset-password] sync-neon returned without synced:true", syncPayload)
-          setError("Could not update your saved password. Please try again or use Forgot password.")
-          return
-        }
-
-        await supabase.auth.signOut().catch(() => {})
-
-        if (email) {
-          const signInResult = await signIn("credentials", {
-            login: email,
-            password,
-            redirect: false,
-            callbackUrl: safeReturnTo,
-          })
-          if (!signInResult?.error) {
-            clearUnifiedAuthDestination()
-            router.replace(safeReturnTo)
-            return
-          }
-          console.warn("[reset-password] credentials signIn after sync failed:", signInResult?.error)
-          setError(
-            "Your password was saved. Sign in on the next screen with your email and new password."
-          )
-          return
-        }
-
-        setSuccess(true)
-        setTimeout(() => {
-          window.location.href = `${loginHref}&reset=success`
-        }, 2000)
-        return
-      }
-
       const res = await fetch("/api/auth/password/reset/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -282,11 +168,7 @@ function ResetPasswordContent() {
 
         <AuthStatusHeader
           title="Set new password"
-          subtitle={
-            authMode === "supabase"
-              ? "Choose a new password for your AllFantasy account (verified via email link)."
-              : "Choose a strong new password for your AllFantasy account."
-          }
+          subtitle="Choose a strong new password for your AllFantasy account."
         />
 
         {error && (

@@ -1,14 +1,13 @@
 import { prisma } from '@/lib/prisma'
 import { recordAfLearningEvent } from '@/lib/ai-learning-system/recordEvent'
-import { resolveLeagueSport } from '@/lib/ai-learning-system/resolveLeagueSport'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { parseSessionKey } from '@/lib/draft/session-key'
 import { pickInRoundForOverall, roundForOverallPick, slotIndexForOverallPick } from '@/lib/draft/snake'
 import { createLeagueChatMessage } from '@/lib/league-chat/LeagueChatMessageService'
-import {
-  assertLegacyDraftRuntimeWriteAllowed,
-  LegacyDraftRuntimeWriteBlockedError,
-} from '@/lib/draft/legacy-runtime-write-guard'
+import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
+import { canSubmitPickForRoster } from '@/lib/live-draft-engine/auth'
+import { submitPick } from '@/lib/live-draft-engine/PickSubmissionService'
+import { assertLegacyDraftRuntimeWriteAllowed } from '@/lib/draft/legacy-runtime-write-guard'
 
 export async function executeDraftPick(args: {
   sessionId: string
@@ -28,30 +27,41 @@ export async function executeDraftPick(args: {
     return { ok: false, error: 'Invalid sessionId', status: 400 }
   }
 
-  // Slice L — block live-mode writes against the legacy DraftRoom runtime
-  // tables. Live picks must go through
-  // `lib/live-draft-engine/PickSubmissionService.submitPick` so the
-  // canonical `DraftPick` / `DraftSession` tables stay authoritative.
-  // Mock mode falls through to the legacy path unchanged.
-  try {
-    assertLegacyDraftRuntimeWriteAllowed({
-      route: 'lib/draft/execute-pick.ts:executeDraftPick',
-      operation: 'commit_pick',
-      sessionId: parsed.id,
-      mode: parsed.mode,
-    })
-  } catch (err) {
-    if (err instanceof LegacyDraftRuntimeWriteBlockedError) {
-      return {
-        ok: false,
-        error:
-          'Live-mode pick writes must go through the canonical draft authority. ' +
-          'Use POST /api/leagues/{leagueId}/draft/pick (submitPick) instead.',
-        status: 410,
-      }
+  if (parsed.mode === 'live') {
+    const snapshot = await buildSessionSnapshot(parsed.id)
+    if (!snapshot || snapshot.status !== 'in_progress' || !snapshot.currentPick) {
+      return { ok: false, error: 'Draft not active', status: 400 }
     }
-    throw err
+
+    const canSubmit = await canSubmitPickForRoster(parsed.id, userId, snapshot.currentPick.rosterId)
+    if (!canSubmit && !autopicked) {
+      return { ok: false, error: 'Not your pick', status: 403 }
+    }
+
+    const submitted = await submitPick({
+      leagueId: parsed.id,
+      rosterId: snapshot.currentPick.rosterId,
+      madeByUserId: autopicked ? null : userId,
+      source: autopicked ? 'auto' : 'user',
+      playerId,
+      playerName,
+      position,
+      team,
+    })
+
+    if (!submitted.success) {
+      return { ok: false, error: submitted.error ?? 'Failed to submit pick', status: 400 }
+    }
+
+    return { ok: true, overallPick: submitted.snapshot?.overall ?? snapshot.currentPick.overall }
   }
+
+  assertLegacyDraftRuntimeWriteAllowed({
+    route: 'lib/draft/execute-pick.ts',
+    operation: 'create DraftRoomPickRecord + update DraftRoomStateRow',
+    sessionId,
+    mode: parsed.mode,
+  })
 
   const state = await prisma.draftRoomStateRow.findUnique({ where: { id: sessionId } })
   if (!state || state.status === 'complete') {
@@ -80,32 +90,17 @@ export async function executeDraftPick(args: {
 
   const isCpu = onClock.startsWith('cpu-')
 
-  if (parsed.mode === 'mock') {
-    if (!isCpu && onClock !== userId && !autopicked) {
-      return { ok: false, error: 'Not your pick', status: 403 }
-    }
-    if (isCpu && !autopicked) {
-      return { ok: false, error: 'CPU is on the clock', status: 400 }
-    }
-  } else {
-    const teamRow = await prisma.leagueTeam.findFirst({
-      where: { id: onClock, leagueId: parsed.id },
-      select: { claimedByUserId: true, league: { select: { userId: true } } },
-    })
-    if (!teamRow) {
-      return { ok: false, error: 'Invalid team slot', status: 400 }
-    }
-    const isManager = teamRow.claimedByUserId === userId
-    const isCommish = teamRow.league.userId === userId
-    if (!autopicked && !isManager && !isCommish) {
-      return { ok: false, error: 'Not your pick', status: 403 }
-    }
+  if (!isCpu && onClock !== userId && !autopicked) {
+    return { ok: false, error: 'Not your pick', status: 403 }
+  }
+  if (isCpu && !autopicked) {
+    return { ok: false, error: 'CPU is on the clock', status: 400 }
   }
 
   const round = roundForOverallPick(overallPick, numTeams)
   const pickNumber = pickInRoundForOverall(overallPick, numTeams)
   const roomId = parsed.mode === 'mock' ? parsed.id : null
-  const leagueId = parsed.mode === 'live' ? parsed.id : null
+  const leagueId = null
 
   await prisma.$transaction(async (tx) => {
     await tx.draftRoomPickRecord.create({
@@ -154,24 +149,7 @@ export async function executeDraftPick(args: {
 
   void Promise.resolve()
     .then(async () => {
-      if (parsed.mode === 'live' && leagueId) {
-        const sport = await resolveLeagueSport(leagueId)
-        await recordAfLearningEvent({
-          eventType: 'draft_pick_made',
-          sport,
-          leagueId,
-          userId: isCpu ? null : userId,
-          source: 'draft_execute_pick',
-          payload: {
-            overallPick,
-            round,
-            pickNumber,
-            playerId,
-            position,
-            autopicked: Boolean(autopicked || isCpu),
-          },
-        })
-      } else if (parsed.mode === 'mock' && roomId) {
+      if (parsed.mode === 'mock' && roomId) {
         const room = await prisma.mockDraftRoom.findUnique({
           where: { id: roomId },
           select: { sport: true },
@@ -211,7 +189,7 @@ export async function executeDraftPick(args: {
     },
   })
 
-  if (parsed.mode === 'live' && leagueId) {
+  if (leagueId) {
     await createLeagueChatMessage(leagueId, userId, `[Draft Room] ${sysMsg}`, {
       type: 'text',
       source: 'draft',

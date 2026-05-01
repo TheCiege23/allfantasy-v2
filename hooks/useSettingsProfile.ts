@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
-import { supabase } from "@/lib/supabaseClient"
 import { dispatchStateRefreshEvent } from "@/lib/state-consistency/state-events"
 import type { UserProfileForSettings, ProfileUpdatePayload } from "@/lib/user-settings/types"
 
@@ -41,7 +40,6 @@ export function useSettingsProfile() {
       })
       if (settingsResult.ok && settingsResult.data?.profile?.userId) {
         setProfile(settingsResult.data.profile as UserProfileForSettings)
-        void supabase.auth.getSession().catch(() => {})
         return
       }
 
@@ -63,7 +61,6 @@ export function useSettingsProfile() {
       }
       if (profileResult.data.userId) {
         setProfile(profileResult.data as UserProfileForSettings)
-        void supabase.auth.getSession().catch(() => {})
       } else {
         setProfile(null)
       }

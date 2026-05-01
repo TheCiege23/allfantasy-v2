@@ -28,8 +28,6 @@ import {
   isSocialProviderEnabled,
 } from "@/lib/auth/SocialProviderResolver"
 import { buildProviderPendingHref } from "@/lib/auth/ProviderPendingFlow"
-import { buildSupabaseOAuthRedirectTo } from "@/lib/auth/SupabaseOAuthService"
-import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
 
 function resolveSuccessfulLoginRedirect(callbackUrl: string | null | undefined): string {
   if (typeof callbackUrl === "string") {
