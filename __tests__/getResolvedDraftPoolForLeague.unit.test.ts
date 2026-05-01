@@ -14,14 +14,6 @@ const hm = vi.hoisted(() => ({
   draftSessionFindUnique: vi.fn(),
   playerAnalyticsFindMany: vi.fn(),
   devyPlayerFindMany: vi.fn(),
-  // Commit O — restore prisma model mocks for callers the resolver picked up
-  // since the last test refresh:
-  //   * `playerSeasonStats.findMany`     — `position-aware-projection-fallback.loadBaselines`
-  //   * `adpDataRecord.findFirst/findMany` — DB-first ADP read (replaces getLiveADP for some paths)
-  //   * `injuryReportRecord.findMany`    — pool injury enrichment
-  //   * `allFantasyAdpSnapshot.findMany` — AI ADP overlay
-  // Pre-Commit-O the resolver would crash with "Cannot read properties of
-  // undefined (reading 'findMany')" before any assertion in the test ran.
   playerSeasonStatsFindMany: vi.fn(),
   adpDataRecordFindFirst: vi.fn(),
   adpDataRecordFindMany: vi.fn(),
@@ -31,9 +23,6 @@ const hm = vi.hoisted(() => ({
   getPlayerPoolForLeague: vi.fn(),
   loadRollingInsightsSeasonByDraftPoolKey: vi.fn(),
   loadRollingInsightsStatsDetailByPlayerIds: vi.fn(),
-  // Commit O — hoisted handle so each test can stub return shape if it
-  // exercises the PlayerSeasonStats fallback path. Default reset is in
-  // beforeEach below.
   loadPlayerSeasonStatsFallback: vi.fn(),
 }))
 
@@ -76,9 +65,6 @@ vi.mock('@/lib/draft/analytics/nfl-rolling-insights-draft-analytics', () => ({
   loadRollingInsightsSeasonByDraftPoolKey: (...args: unknown[]) => hm.loadRollingInsightsSeasonByDraftPoolKey(...args),
   loadRollingInsightsStatsDetailByPlayerIds: (...args: unknown[]) =>
     hm.loadRollingInsightsStatsDetailByPlayerIds(...args),
-  // Commit O — restore the missing mock export. Routed through the hoisted
-  // handle so each test can override the return shape if it exercises the
-  // PlayerSeasonStats fallback path; default reset lives in `beforeEach`.
   loadPlayerSeasonStatsFallback: (...args: unknown[]) => hm.loadPlayerSeasonStatsFallback(...args),
   resolveNflDraftPoolAnalytics: vi.fn(() => ({
     fantasyPointsPerGame: null,
@@ -175,9 +161,6 @@ describe('getResolvedDraftPoolForLeague', () => {
     })
     hm.playerAnalyticsFindMany.mockResolvedValue([])
     hm.devyPlayerFindMany.mockResolvedValue([])
-    // Commit O — default the new prisma model mocks to empty/null so the
-    // resolver paths that fetch DB-first ADP, injury overlays, or season
-    // baselines see "no data" unless a specific test stubs them.
     hm.playerSeasonStatsFindMany.mockResolvedValue([])
     hm.adpDataRecordFindFirst.mockResolvedValue(null)
     hm.adpDataRecordFindMany.mockResolvedValue([])
@@ -261,14 +244,6 @@ describe('getResolvedDraftPoolForLeague', () => {
 
   it('merges DB pool onto ADP rows preserving ADP order and enriching playerId, sleeperId, imageUrl, and display headshot', async () => {
     const getResolvedDraftPoolForLeague = await loadPool()
-    // Commit O — the resolver now reads ADP from `adpDataRecord` (DB-first
-    // path) in addition to `getLiveADP`. Stub both with the same two rows
-    // so the merge produces the entries the original assertion expects.
-    hm.adpDataRecordFindFirst.mockResolvedValue({ season: 2026, week: 1 })
-    hm.adpDataRecordFindMany.mockResolvedValue([
-      { playerName: 'Merge Adp Star', position: 'RB', team: 'ZZZ', source: 'market', adp: 1.5 },
-      { playerName: 'Later Adp', position: 'WR', team: 'AAA', source: 'market', adp: 99 },
-    ])
     hm.getLiveADP.mockResolvedValue([
       { name: 'Merge Adp Star', position: 'RB', team: 'ZZZ', adp: 1.5, bye: 5 },
       { name: 'Later Adp', position: 'WR', team: 'AAA', adp: 99, bye: 6 },

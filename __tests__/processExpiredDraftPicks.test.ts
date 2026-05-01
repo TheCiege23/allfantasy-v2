@@ -56,6 +56,7 @@ vi.mock('@/lib/live-draft-engine/RosterAssignmentService', () => ({
 
 vi.mock('@/lib/live-draft-engine/DraftSessionService', () => ({
   buildSessionSnapshot: hm.buildSessionSnapshot,
+  reconcileOvernightDraftTimerForLeague: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/lib/league/invalidateLeagueDraftCaches', () => ({
