@@ -206,7 +206,7 @@ export function PlayerPool({ sport, draftedIds, onDraft, onQueue, canDraft, onPl
                 type="button"
                 onClick={clearAllFilters}
                 data-testid="legacy-draft-pool-clear-filters"
-                className="rounded-full border border-cyan-400/35 bg-cyan-500/12 px-4 py-2 text-xs font-medium text-cyan-100 transition hover:bg-cyan-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45"
+                className="rounded-full border border-cyan-400/35 bg-cyan-500/[0.12] px-4 py-2 text-xs font-medium text-cyan-100 transition hover:bg-cyan-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45"
               >
                 Clear filters
               </button>
