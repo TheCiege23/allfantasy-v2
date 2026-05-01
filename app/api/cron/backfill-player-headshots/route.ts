@@ -56,7 +56,7 @@ const MAX_LIMIT = 500
 const invalidImageUrlFilters: Prisma.SportsPlayerWhereInput[] = [
   { imageUrl: { startsWith: 'data:' } },
   { imageUrl: { contains: '/teamLogos/', mode: 'insensitive' } },
-  { imageUrl: { not: { startsWith: 'http' } } },
+  { imageUrl: { not: { startsWith: 'http', mode: 'insensitive' } } },
 ]
 
 interface CronSummary {
@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
       sleeperId: true,
       imageUrl: true,
     },
-    orderBy: [{ imageUrl: 'asc' }, { updatedAt: 'asc' }],
+    orderBy: [{ imageUrl: { sort: 'asc', nulls: 'first' } }, { updatedAt: 'asc' }],
     take: limit,
   })
 

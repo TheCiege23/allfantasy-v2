@@ -18,8 +18,8 @@
  *   5. Dry-run default — `apply=0` (default) returns `wouldUpdate` counts
  *      without writing. `apply=1` performs `prisma.sportsPlayer.update`.
  *   6. Pagination — `limit` defaults to 100, capped at 500. Rows are
- *      ordered by `imageUrl` ascending then `updatedAt` ascending so the
- *      cron rotates through the universe naturally.
+ *      ordered by `imageUrl` ascending with NULLS FIRST, then `updatedAt`
+ *      ascending so the cron rotates through the universe naturally.
  *   7. Structured response — JSON summary includes per-source / per-
  *      confidence counters, sample updated/no-match rows, and run
  *      duration. Cron observability lives in this response.
@@ -169,9 +169,9 @@ describe('Pagination + ordering', () => {
     expect(src).toMatch(/Math\.min\(MAX_LIMIT, rawLimit\)/)
   })
 
-  it('orders by imageUrl asc then updatedAt asc so missing-image rows go first', () => {
+  it('orders by imageUrl asc nulls first then updatedAt asc so missing-image rows go first', () => {
     expect(src).toMatch(
-      /orderBy: \[\{ imageUrl: 'asc' \}, \{ updatedAt: 'asc' \}\]/,
+      /orderBy: \[\{ imageUrl: \{ sort: 'asc', nulls: 'first' \} \}, \{ updatedAt: 'asc' \}\]/,
     )
   })
 
