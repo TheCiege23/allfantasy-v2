@@ -60,7 +60,7 @@ model QuestionnaireResponse {
   @@index([email])
 }
 
-/// Row key is `cacheKey` (mapped column `key`) — unique by definition as @id.
+/// Row key is `cacheKey` (mapped column `key`) â€” unique by definition as @id.
 model SportsDataCache {
   cacheKey  String   @id @map("key")
   expiresAt DateTime
@@ -282,6 +282,29 @@ model SportsPlayerRecord {
   @@index([sport, name])
   @@index([lastUpdated])
   @@map("sports_players")
+}
+
+/// Audit trail for draft enrichment identity failures / low-confidence joins (AI & admin review).
+/// Does not affect draft mechanics — logging only.
+model PlayerIdentityMismatchLog {
+  id                   String   @id @default(cuid())
+  leagueId             String?  @map("league_id")
+  sport                String   @db.VarChar(16)
+  poolPlayerId         String?  @map("pool_player_id") @db.VarChar(128)
+  poolExternalId       String?  @map("pool_external_id") @db.VarChar(128)
+  sportsPlayerRecordId String?  @map("sports_player_record_id") @db.VarChar(128)
+  playerName           String?  @map("player_name") @db.VarChar(256)
+  position             String?  @db.VarChar(64)
+  team                 String?  @db.VarChar(64)
+  attemptedMatchType   String?  @map("attempted_match_type") @db.VarChar(32)
+  confidence           Decimal? @db.Decimal(5, 4)
+  reason               String   @db.VarChar(64)
+  details              Json?
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  @@index([sport, createdAt])
+  @@index([leagueId])
+  @@map("player_identity_mismatch_logs")
 }
 
 model TeamAsset {
@@ -578,7 +601,7 @@ model PlatformIdentity {
   /// AllFantasy user id (owner of this linked provider account).
   userId           String
   platform         String
-  /// Provider’s stable user id (e.g. Sleeper `user_id`) — not the AF primary key.
+  /// Providerâ€™s stable user id (e.g. Sleeper `user_id`) â€” not the AF primary key.
   platformUserId   String
   platformUsername String
   displayName      String?
@@ -764,7 +787,7 @@ model AnalyticsEvent {
   @@index([path, createdAt])
 }
 
-/// Append-only platform learning events (deterministic aggregates — not LLM training).
+/// Append-only platform learning events (deterministic aggregates â€” not LLM training).
 model AfLearningEvent {
   id        String   @id @default(cuid())
   eventType String   @map("event_type") @db.VarChar(64)
@@ -812,7 +835,7 @@ model AfLeagueLearningSnapshot {
   @@map("af_league_learning_snapshots")
 }
 
-/// User/manager behavior profile (soft personalization — never overrides injuries/locks/rules).
+/// User/manager behavior profile (soft personalization â€” never overrides injuries/locks/rules).
 model AfUserLearningProfile {
   userId     String   @id @map("user_id") @db.VarChar(64)
   features   Json
@@ -3142,9 +3165,32 @@ model WorldCupBracketInvite {
   @@map("world_cup_bracket_invites")
 }
 
-/// Cadence config for `AutomatedBlogEngine` — /api/cron/blog-autogen picks up
+/// Cadence config for `AutomatedBlogEngine` â€” /api/cron/blog-autogen picks up
 /// active rows whose `lastRunAt + cadenceDays` has elapsed, runs generateAndSaveDraft
-/// with the configured sport/category/topicHint, and records the outcome. Drafts land
+/// World Cup sync audit log â€” populated by /api/cron/world-cup-sync
+/// and the manual sync endpoint. Tracks success/partial/error states so
+/// ops can inspect last-run health without exposing API keys.
+model WorldCupSyncLog {
+  id            String    @id @default(cuid())
+  status        String    @db.VarChar(16)   // "success" | "partial" | "error"
+  source        String    @db.VarChar(32)   // "cron" | "admin" | "manual"
+  startedAt     DateTime  @map("started_at")
+  finishedAt    DateTime? @map("finished_at")
+  teamsSynced   Int       @default(0) @map("teams_synced")
+  fixturesSynced Int      @default(0) @map("fixtures_synced")
+  matchesUpdated Int      @default(0) @map("matches_updated")
+  bracketsUpdated Int     @default(0) @map("brackets_updated")
+  leaderboardsRecalculated Int @default(0) @map("leaderboards_recalculated")
+  summary       Json?
+  errorMessage  String?   @map("error_message")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("world_cup_sync_logs")
+}
+
+/// Cadence config for `AutomatedBlogEngine` â€” /api/cron/blog-autogen picks up
 /// in the existing blog article table for human review; when `autoPublish` is true the
 /// cron also calls the publish path inline after generation.
 model AutomatedBlogSchedule {
@@ -3193,9 +3239,9 @@ model BrandSocialAccount {
   @@map("brand_social_accounts")
 }
 
-/// A brand post — draft, scheduled, or sent. Each post is tied to a single
+/// A brand post â€” draft, scheduled, or sent. Each post is tied to a single
 /// `BrandSocialAccount`; cross-posting to multiple accounts = multiple rows with
-/// the same body. Status progression: draft → scheduled → publishing → sent | failed | cancelled.
+/// the same body. Status progression: draft â†’ scheduled â†’ publishing â†’ sent | failed | cancelled.
 model BrandSocialPost {
   id               String   @id @default(cuid())
   accountId        String
@@ -3245,7 +3291,7 @@ model AdminSubscriptionGrant {
   @@map("admin_subscription_grants")
 }
 
-/// Viral Loop Engine (PROMPT 291) — growth attribution: how each user entered (referral, league_invite, draft_share, ai_share, organic).
+/// Viral Loop Engine (PROMPT 291) â€” growth attribution: how each user entered (referral, league_invite, draft_share, ai_share, organic).
 model GrowthAttribution {
   id        String   @id @default(uuid())
   userId    String   @unique
@@ -3260,7 +3306,7 @@ model GrowthAttribution {
   @@map("growth_attributions")
 }
 
-/// Viral Invite Engine (PROMPT 142) — unified invite links for league, bracket, creator league, referral, reactivation, waitlist.
+/// Viral Invite Engine (PROMPT 142) â€” unified invite links for league, bracket, creator league, referral, reactivation, waitlist.
 model InviteLink {
   id              String            @id @default(uuid())
   type            String            @db.VarChar(24)
@@ -3303,7 +3349,7 @@ model InviteLinkEvent {
   @@map("invite_link_events")
 }
 
-/// Creator League System (PROMPT 141) — public creators run branded leagues and brackets.
+/// Creator League System (PROMPT 141) â€” public creators run branded leagues and brackets.
 model CreatorProfile {
   id                  String          @id @default(uuid())
   userId              String          @unique
@@ -3956,7 +4002,7 @@ model UserRivalry {
   @@map("user_rivalries")
 }
 
-/// Rivalry Engine — persisted rivalry record per league (manager/franchise pair, score, tier).
+/// Rivalry Engine â€” persisted rivalry record per league (manager/franchise pair, score, tier).
 model RivalryRecord {
   id              String         @id @default(cuid())
   leagueId        String         @db.VarChar(64)
@@ -3976,7 +4022,7 @@ model RivalryRecord {
   @@map("rivalry_records")
 }
 
-/// Rivalry Engine — timeline event for a rivalry (matchup, playoff, trade, championship, etc.).
+/// Rivalry Engine â€” timeline event for a rivalry (matchup, playoff, trade, championship, etc.).
 model RivalryEvent {
   id          String        @id @default(cuid())
   rivalryId   String
@@ -3993,7 +4039,7 @@ model RivalryEvent {
   @@map("rivalry_events")
 }
 
-/// Psychological Profiles Engine — behavior profile per manager per league.
+/// Psychological Profiles Engine â€” behavior profile per manager per league.
 model ManagerPsychProfile {
   id                  String                  @id @default(cuid())
   leagueId            String                  @db.VarChar(64)
@@ -4014,7 +4060,7 @@ model ManagerPsychProfile {
   @@map("manager_psych_profiles")
 }
 
-/// Psychological Profiles Engine — evidence backing a profile (draft, trade, waiver, etc.).
+/// Psychological Profiles Engine â€” evidence backing a profile (draft, trade, waiver, etc.).
 model ProfileEvidenceRecord {
   id              String               @id @default(cuid())
   managerId       String               @db.VarChar(128)
@@ -4032,7 +4078,7 @@ model ProfileEvidenceRecord {
   @@map("profile_evidence_records")
 }
 
-/// League Drama Engine — structured storyline event (revenge, upset, rivalry, streak, etc.).
+/// League Drama Engine â€” structured storyline event (revenge, upset, rivalry, streak, etc.).
 model DramaEvent {
   id                String   @id @default(cuid())
   leagueId          String   @db.VarChar(64)
@@ -4053,7 +4099,7 @@ model DramaEvent {
   @@map("drama_events")
 }
 
-/// League Drama Engine — timeline of event ids per league/season for ordered display.
+/// League Drama Engine â€” timeline of event ids per league/season for ordered display.
 model DramaTimelineRecord {
   id        String   @id @default(cuid())
   leagueId  String   @db.VarChar(64)
@@ -4067,7 +4113,7 @@ model DramaTimelineRecord {
   @@map("drama_timeline_records")
 }
 
-/// Reputation System — trust score per manager per league (evidence-based, configurable tiers).
+/// Reputation System â€” trust score per manager per league (evidence-based, configurable tiers).
 model ManagerReputationRecord {
   id                        String   @id @default(cuid())
   leagueId                  String   @db.VarChar(64)
@@ -4093,7 +4139,7 @@ model ManagerReputationRecord {
   @@map("manager_reputation_records")
 }
 
-/// Reputation System — evidence backing reputation scores (payments, lineup, trades, disputes, etc.).
+/// Reputation System â€” evidence backing reputation scores (payments, lineup, trades, disputes, etc.).
 model ReputationEvidenceRecord {
   id              String   @id @default(cuid())
   managerId       String   @db.VarChar(128)
@@ -4111,7 +4157,7 @@ model ReputationEvidenceRecord {
   @@map("reputation_evidence_records")
 }
 
-/// Reputation System — per-league configurable weight and tier config by sport/season.
+/// Reputation System â€” per-league configurable weight and tier config by sport/season.
 model ReputationConfigRecord {
   id             String   @id @default(cuid())
   leagueId       String   @db.VarChar(64)
@@ -4126,7 +4172,7 @@ model ReputationConfigRecord {
   @@map("reputation_config_records")
 }
 
-/// GM Economy — franchise profile per manager (cross-league career progression).
+/// GM Economy â€” franchise profile per manager (cross-league career progression).
 model ManagerFranchiseProfile {
   id                  String   @id @default(cuid())
   managerId           String   @unique @db.VarChar(128)
@@ -4144,7 +4190,7 @@ model ManagerFranchiseProfile {
   @@map("manager_franchise_profiles")
 }
 
-/// GM Economy — progression events (championship, playoff, league join, etc.) for timeline.
+/// GM Economy â€” progression events (championship, playoff, league join, etc.) for timeline.
 model GMProgressionEvent {
   id              String   @id @default(cuid())
   managerId       String   @db.VarChar(128)
@@ -4160,7 +4206,7 @@ model GMProgressionEvent {
   @@map("gm_progression_events")
 }
 
-/// Career XP — per-manager XP profile (total XP, tier, progress to next tier).
+/// Career XP â€” per-manager XP profile (total XP, tier, progress to next tier).
 model ManagerXPProfile {
   id           String   @id @default(cuid())
   managerId    String   @unique @db.VarChar(128)
@@ -4174,7 +4220,7 @@ model ManagerXPProfile {
   @@map("manager_xp_profiles")
 }
 
-/// Career XP — individual XP events (matchup win, playoff, championship, trade, etc.).
+/// Career XP â€” individual XP events (matchup win, playoff, championship, trade, etc.).
 model XPEvent {
   id        String   @id @default(cuid())
   managerId String   @db.VarChar(128)
@@ -4189,7 +4235,7 @@ model XPEvent {
   @@map("xp_events")
 }
 
-/// Awards Engine — fantasy awards per league/season (GM of the Year, Best Draft, etc.).
+/// Awards Engine â€” fantasy awards per league/season (GM of the Year, Best Draft, etc.).
 model AwardRecord {
   id        String   @id @default(cuid())
   leagueId  String   @db.VarChar(64)
@@ -4206,7 +4252,7 @@ model AwardRecord {
   @@map("award_records")
 }
 
-/// Record Books — historical records (highest score, longest streak, most trades, etc.).
+/// Record Books â€” historical records (highest score, longest streak, most trades, etc.).
 model RecordBookEntry {
   id         String   @id @default(cuid())
   sport      String   @db.VarChar(16)
@@ -4224,7 +4270,7 @@ model RecordBookEntry {
   @@map("record_book_entries")
 }
 
-/// League Economy — manager wallet (prestige currency). Cosmetic-only; never affects competitive balance.
+/// League Economy â€” manager wallet (prestige currency). Cosmetic-only; never affects competitive balance.
 model ManagerWallet {
   id              String   @id @default(cuid())
   managerId       String   @unique @db.VarChar(128)
@@ -4252,7 +4298,7 @@ model MarketplaceItem {
   @@map("marketplace_items")
 }
 
-/// Purchase record — one row per purchase (inventory = purchases by manager).
+/// Purchase record â€” one row per purchase (inventory = purchases by manager).
 model PurchaseRecord {
   id        String   @id @default(cuid())
   managerId String   @db.VarChar(128)
@@ -4265,7 +4311,7 @@ model PurchaseRecord {
   @@map("purchase_records")
 }
 
-/// AI Sports Media — generated league news and narratives (recaps, power rankings, etc.).
+/// AI Sports Media â€” generated league news and narratives (recaps, power rankings, etc.).
 model MediaArticle {
   id        String   @id @default(cuid())
   leagueId  String   @db.VarChar(64)
@@ -4281,7 +4327,7 @@ model MediaArticle {
   @@map("media_articles")
 }
 
-/// Automated Blog Engine — SEO blog articles (strategy, waiver, draft, rankings, etc.).
+/// Automated Blog Engine â€” SEO blog articles (strategy, waiver, draft, rankings, etc.).
 model BlogArticle {
   articleId      String           @id @default(cuid())
   title          String           @db.VarChar(512)
@@ -4347,7 +4393,7 @@ model BlogPublishLog {
   @@map("blog_publish_logs")
 }
 
-/// League Broadcast Mode — session for watch parties / streams / big screens.
+/// League Broadcast Mode â€” session for watch parties / streams / big screens.
 model BroadcastSession {
   id        String   @id @default(cuid())
   leagueId  String   @db.VarChar(64)
@@ -4360,7 +4406,7 @@ model BroadcastSession {
   @@map("broadcast_sessions")
 }
 
-/// AI Commentary Engine — narrated reactions (matchup, trade, waiver, playoff).
+/// AI Commentary Engine â€” narrated reactions (matchup, trade, waiver, playoff).
 model CommentaryEntry {
   id          String   @id @default(cuid())
   leagueId    String   @db.VarChar(64)
@@ -4378,7 +4424,7 @@ model CommentaryEntry {
 }
 
 model UserProfile {
-  /// AllFantasy account id (primary). Same as `AppUser.id` — canonical user key for the product.
+  /// AllFantasy account id (primary). Same as `AppUser.id` â€” canonical user key for the product.
   userId                    String              @id
   displayName               String?
   phone                     String?             @unique
@@ -4386,9 +4432,9 @@ model UserProfile {
   emailVerifiedAt           DateTime?
   ageConfirmedAt            DateTime?
   verificationMethod        VerificationMethod?
-  /// Current Sleeper handle (display); can change — do not use as primary key.
+  /// Current Sleeper handle (display); can change â€” do not use as primary key.
   sleeperUsername           String?
-  /// Stable Sleeper `user_id` from API — provider scope only; links imports to this AF user.
+  /// Stable Sleeper `user_id` from API â€” provider scope only; links imports to this AF user.
   sleeperUserId             String?             @unique
   sleeperLinkedAt           DateTime?
   sleeperVerifiedAt         DateTime?
@@ -4398,11 +4444,11 @@ model UserProfile {
   avatarPreset              String?
   preferredLanguage         String?
   timezone                  String?
-  /// Last device-reported IANA zone (browser `Intl`), for mismatch UX — not authoritative for locks.
+  /// Last device-reported IANA zone (browser `Intl`), for mismatch UX â€” not authoritative for locks.
   deviceTimezoneLastSeen    String?             @map("device_timezone_last_seen")
   /// Last device-reported local time (ISO); compare to server UTC only for skew detection.
   deviceTimeLastSeen        DateTime?           @map("device_time_last_seen")
-  /// True when account TZ ≠ device TZ or device clock skew exceeds threshold.
+  /// True when account TZ â‰  device TZ or device clock skew exceeds threshold.
   timeMismatchFlag          Boolean             @default(false) @map("time_mismatch_flag")
   /// When device time context was last persisted.
   lastTimeContextAt         DateTime?           @map("last_time_context_at")
@@ -4414,9 +4460,9 @@ model UserProfile {
   onboardingCompletedAt     DateTime?
   /// PROMPT 149: Dismissed retention nudge IDs -> ISO date, e.g. { "return_nudge_1": "2025-03-14T..." }
   retentionNudgeDismissedAt Json?
-  /// Aggregated scoring/league context after imports — feeds rankings / AI personalization.
+  /// Aggregated scoring/league context after imports â€” feeds rankings / AI personalization.
   rankingsContext           Json?
-  /// Discord OAuth (Tier 1) — optional guild from bot install flow (Tier 2).
+  /// Discord OAuth (Tier 1) â€” optional guild from bot install flow (Tier 2).
   discordUserId             String?             @unique
   discordUsername           String?
   discordEmail              String?
@@ -4425,7 +4471,7 @@ model UserProfile {
   discordRefreshToken       String?
   discordConnectedAt        DateTime?
   discordGuildId            String?
-  /// AF Commissioner subscription — unlocks premium league AI / playoff options.
+  /// AF Commissioner subscription â€” unlocks premium league AI / playoff options.
   afCommissionerSub         Boolean             @default(false)
   /// Denormalized from userSubscription (System B) for legacy gates and quick checks.
   afProSub                  Boolean             @default(false)
@@ -4517,7 +4563,7 @@ model DiscordLeagueChannel {
   @@map("discord_league_channels")
 }
 
-/// Dedup + audit for Discord ↔ AllFantasy message sync.
+/// Dedup + audit for Discord â†” AllFantasy message sync.
 model DiscordMessageLink {
   id               String   @id @default(cuid())
   leagueMessageId  String?
@@ -4565,7 +4611,7 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
-/// Canonical fantasy league lifecycle (draft → season → playoffs → archive).
+/// Canonical fantasy league lifecycle (draft â†’ season â†’ playoffs â†’ archive).
 enum LeagueLifecycleState {
   setup
   pre_draft
@@ -4637,7 +4683,7 @@ model League {
   irAllowNA                             Boolean                                @default(false)
   irAllowDNR                            Boolean                                @default(false)
   irAllowDoubtful                       Boolean                                @default(false)
-  /// Canonical league concept id (redraft, dynasty, guillotine, survivor, …). Aligns with `SettingsSnapshot.conceptRules` / preset engine.
+  /// Canonical league concept id (redraft, dynasty, guillotine, survivor, â€¦). Aligns with `SettingsSnapshot.conceptRules` / preset engine.
   leagueType                            String?                                @default("redraft")
   devyYear                              String?
   medianGame                            Boolean                                @default(false)
@@ -4663,7 +4709,7 @@ model League {
   aiPowerRankings                       Boolean                                @default(false)
   /// True when the importing user is Sleeper commissioner (is_owner) for current-season imports.
   isCommissioner                        Boolean                                @default(false)
-  /// Keeper league — max keepers per team per season (0 = effectively redraft for keepers).
+  /// Keeper league â€” max keepers per team per season (0 = effectively redraft for keepers).
   keeperCount                           Int?                                   @default(3)
   keeperCostSystem                      String?                                @default("round_based")
   keeperMaxYears                        Int?                                   @default(3)
@@ -4678,7 +4724,7 @@ model League {
   dynastySeasonPhase                    String?                                @default("regular")
   keeperConflictRule                    String?                                @default("player_chooses")
   keeperMissedDeadlineRule              String?                                @default("auto_no_keepers")
-  /// Best ball — standard | private_league | tournament
+  /// Best ball â€” standard | private_league | tournament
   bestBallVariant                       String?                                @default("standard")
   bestBallMode                          Boolean?                               @default(false)
   bbWaiversEnabled                      Boolean?                               @default(false)
@@ -4720,7 +4766,7 @@ model League {
   survivorMergeAtCount                  Int?                                   @default(10)
   survivorMergeTrigger                  String?                                @default("week")
   survivorMergeWeek                     Int?                                   @default(7)
-  /// Survivor social format — phase and commissioner-tunable rules (see also survivorConfig).
+  /// Survivor social format â€” phase and commissioner-tunable rules (see also survivorConfig).
   survivorMode                          Boolean?                               @default(false)
   survivorPhase                         String?                                @default("pre_draft")
   survivorPlayerCount                   Int?                                   @default(20)
@@ -4740,7 +4786,7 @@ model League {
   survivorTokenCap                      Int?
   /// When true, failed exile_sacrifice_bet removes wagered tokens.
   survivorExileHarshTokenLoss           Boolean?                               @default(false)
-  /// Commissioner kill switch — managers cannot use Chimmy AutoCoach when false (does not grant Pro).
+  /// Commissioner kill switch â€” managers cannot use Chimmy AutoCoach when false (does not grant Pro).
   autoCoachEnabled                      Boolean                                @default(true)
   importWins                            Int?                                   @map("import_wins")
   importLosses                          Int?                                   @map("import_losses")
@@ -4761,7 +4807,7 @@ model League {
   /// When true, member-facing moves are blocked unless a commissioner override path is used (still audited).
   locked                                Boolean                                @default(false)
   lifecycleMetadata                     Json?
-  /// Commissioner kill-switch — pauses scheduled processing hooks without changing lifecycle phase.
+  /// Commissioner kill-switch â€” pauses scheduled processing hooks without changing lifecycle phase.
   emergencyPaused                       Boolean                                @default(false)
   invites                               LeagueInvite[]
   managerClaims                         LeagueManagerClaim[]
@@ -5151,7 +5197,7 @@ model ImportReviewTask {
   @@map("import_review_tasks")
 }
 
-/// AI integrity monitoring — collusion / tanking flags (no chat content; evidence is on-field only).
+/// AI integrity monitoring â€” collusion / tanking flags (no chat content; evidence is on-field only).
 model IntegrityFlag {
   id                 String    @id @default(cuid())
   leagueId           String
@@ -5198,7 +5244,7 @@ model LeagueIntegritySettings {
   @@map("league_integrity_settings")
 }
 
-/// Per-user per-league Chimmy AutoCoach™ (AF Pro); commissioner can block via `League.autoCoachEnabled` + `blockedByCommissioner`.
+/// Per-user per-league Chimmy AutoCoachâ„¢ (AF Pro); commissioner can block via `League.autoCoachEnabled` + `blockedByCommissioner`.
 model AutoCoachSetting {
   id                    String    @id @default(cuid())
   userId                String
@@ -5278,7 +5324,7 @@ model PlayerStatusEvent {
 }
 
 /// Commissioner-managed draft room + draft-time AI toggles (one row per league).
-/// Canonical draft slice: also stored under `League.settings` as `SettingsSnapshot.draftSettings` — prefer updating both via `lib/league-contract` helpers when changing draft defaults.
+/// Canonical draft slice: also stored under `League.settings` as `SettingsSnapshot.draftSettings` â€” prefer updating both via `lib/league-contract` helpers when changing draft defaults.
 model LeagueSettings {
   id                       String    @id @default(cuid())
   leagueId                 String    @unique
@@ -5318,7 +5364,7 @@ model LeagueSettings {
   resetHistory             Json?
   updatedAt                DateTime  @updatedAt
   updatedBy                String?
-  /// AF War Room AI — commissioner / league-scoped toggles and defaults.
+  /// AF War Room AI â€” commissioner / league-scoped toggles and defaults.
   aiWarRoomEnabled         Boolean   @default(false)
   aiPlayerOutlookEnabled   Boolean   @default(true)
   aiPlayerCompareEnabled   Boolean   @default(true)
@@ -5668,7 +5714,7 @@ model LegacyTournamentMiniCommissioner {
   @@map("tournament_mini_commissioners")
 }
 
-/// Proposed league.settings patch — main commissioner must approve.
+/// Proposed league.settings patch â€” main commissioner must approve.
 model LegacyTournamentLeagueSettingRequest {
   id            String           @id @default(cuid())
   tournamentId  String
@@ -5703,7 +5749,7 @@ model LegacyTournamentWaitlistEntry {
   @@map("legacy_tournament_waitlist_entries")
 }
 
-/// Tournament-wide co-commissioner / staff with JSON permissions (dashboard, manageLeagues, …).
+/// Tournament-wide co-commissioner / staff with JSON permissions (dashboard, manageLeagues, â€¦).
 model LegacyTournamentStaff {
   id           String           @id @default(cuid())
   tournamentId String
@@ -6030,7 +6076,7 @@ model ChatEmoji {
 }
 
 /// League chat (main app League). Syncs with draft chat when liveDraftChatSyncEnabled during active draft.
-/// Rich media (gifId, attachments, poll) — store in `metadata` until migrated; see prisma/seeds/chat-media.ts header SQL.
+/// Rich media (gifId, attachments, poll) â€” store in `metadata` until migrated; see prisma/seeds/chat-media.ts header SQL.
 model LeagueChatMessage {
   id                String   @id @default(cuid())
   leagueId          String
@@ -6045,7 +6091,7 @@ model LeagueChatMessage {
   discordMessageId  String?  @db.VarChar(64)
   sourceDiscord     Boolean  @default(false)
   globalBroadcastId String?  @db.VarChar(64)
-  /// @chimmy private thread — only `visibleToUserId` should see the row when true.
+  /// @chimmy private thread â€” only `visibleToUserId` should see the row when true.
   isPrivate         Boolean  @default(false)
   mentionedUserIds  String[] @default([])
   messageSubtype    String?  @db.VarChar(32)
@@ -6355,7 +6401,7 @@ model FantasyStanding {
   @@map("standings")
 }
 
-/// Audit + idempotency for specialty league automation (guillotine, survivor, BB, …).
+/// Audit + idempotency for specialty league automation (guillotine, survivor, BB, â€¦).
 model SpecialtyAutomationRun {
   id             String                      @id @default(cuid())
   leagueId       String
@@ -6448,7 +6494,7 @@ model LeagueTeam {
   isOrphan            Boolean           @default(false)
   claimedByUserId     String?
   platformUserId      String?
-  /// Sleeper is_owner for this team’s user; co-commissioners are AF-only via isCoCommissioner.
+  /// Sleeper is_owner for this teamâ€™s user; co-commissioners are AF-only via isCoCommissioner.
   isCommissioner      Boolean           @default(false)
   isCoCommissioner    Boolean           @default(false)
   seasonChampionships LeagueSeason[]    @relation("LeagueSeasonChampion")
@@ -6465,7 +6511,7 @@ model LeagueTeam {
   @@map("league_teams")
 }
 
-/// League hierarchy — divisions (tiers) within a league for promotion/relegation.
+/// League hierarchy â€” divisions (tiers) within a league for promotion/relegation.
 model LeagueDivision {
   id        String       @id @default(cuid())
   leagueId  String       @db.VarChar(64)
@@ -6550,7 +6596,7 @@ model LeagueWaiverSettings {
   /// Max pending claims per roster for the next batch run (queue depth).
   claimLimitPerRun          Int?
   postGameWaiverBehavior    String?   @db.VarChar(48)
-  /// Multiple processing weekdays for daily waivers (JSON array of 0–6 or 1–7 depending on client)
+  /// Multiple processing weekdays for daily waivers (JSON array of 0â€“6 or 1â€“7 depending on client)
   processingDays            Json?
   freeAgentWindowRules      Json?
   dropRestrictions          Json?
@@ -6577,7 +6623,7 @@ model GuillotineLeagueConfig {
   teamsPerChop          Int      @default(1)
   /// When to run chop: immediate | after_stat_corrections | custom_cutoff
   correctionWindow      String   @default("after_stat_corrections") @db.VarChar(32)
-  /// Custom cutoff: ISO weekday (1–7) and/or time UTC (e.g. "Wednesday 14:00").
+  /// Custom cutoff: ISO weekday (1â€“7) and/or time UTC (e.g. "Wednesday 14:00").
   customCutoffDayOfWeek Int?
   customCutoffTimeUtc   String?  @db.VarChar(16)
   /// Hours after period end to wait for stat corrections (if correctionWindow = after_stat_corrections).
@@ -6796,7 +6842,7 @@ model SurvivorLeagueConfig {
   faqSeededAt                    DateTime?
   createdAt                      DateTime                @default(now())
   updatedAt                      DateTime                @updatedAt
-  /// Survivor engine v2 — confessionals, clue chains, minigame pool, exile variants, presets (see `lib/survivor/survivor-engine-spec-v2.ts`).
+  /// Survivor engine v2 â€” confessionals, clue chains, minigame pool, exile variants, presets (see `lib/survivor/survivor-engine-spec-v2.ts`).
   engineSpecV2                   Json?
   auditLog                       SurvivorAuditLog[]
   challenges                     SurvivorChallenge[]
@@ -7249,7 +7295,7 @@ model TokenPoolPick {
   @@map("survivor_token_pool_picks")
 }
 
-/// Exile parallel game — one row per Survivor-enabled league.
+/// Exile parallel game â€” one row per Survivor-enabled league.
 model ExileIsland {
   id                  String             @id @default(cuid())
   leagueId            String             @unique
@@ -7463,10 +7509,10 @@ model SurvivorGameState {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
   /// Snapshot of automation flags captured when the commissioner paused
-  /// the season — preserved across unrelated writes to lastError so that
+  /// the season â€” preserved across unrelated writes to lastError so that
   /// resume_season can restore the pre-pause state reliably.
   pausedSnapshot      Json?
-  /// Runtime state for engine v2 — confessionals index, clue-chain progress, story beats (see `lib/survivor/runtime/`).
+  /// Runtime state for engine v2 â€” confessionals index, clue-chain progress, story beats (see `lib/survivor/runtime/`).
   engineRuntimeV2     Json?
   league              League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
@@ -7684,7 +7730,7 @@ model BigBrotherLeagueConfig {
   evictionTieBreakMode                String                 @default("season_points") @db.VarChar(24)
   /// When true, automation does not advance week (commissioner can still force).
   weekProgressionPaused               Boolean                @default(false)
-  /// Twists, competition presets, optional America’s vote — see `lib/big-brother/big-brother-premium-engine-spec.ts`.
+  /// Twists, competition presets, optional Americaâ€™s vote â€” see `lib/big-brother/big-brother-premium-engine-spec.ts`.
   premiumEngineSpec                   Json?
   auditLog                            BigBrotherAuditLog[]
   cycles                              BigBrotherCycle[]
@@ -7916,7 +7962,7 @@ model ZombieLeague {
   whispererAmbushCount     Int                      @default(3)
   whispererIsPublic        Boolean                  @default(true)
   whispererSelectionMode   String                   @default("random")
-  /// 0=Sun … 6=Sat (UTC). Null = no scheduled weekly post.
+  /// 0=Sun â€¦ 6=Sat (UTC). Null = no scheduled weekly post.
   weeklyUpdateDay          Int?
   weeklyUpdateHour         Int?
   weeklyUpdateAutoPost     Boolean                  @default(true)
@@ -9268,9 +9314,9 @@ model C2CLeagueConfig {
   collegeDraftType                  String   @default("snake") @db.VarChar(16)
   rookiePickOrderMethod             String   @default("reverse_standings") @db.VarChar(32)
   collegePickOrderMethod            String   @default("reverse_standings") @db.VarChar(32)
-  /// PROMPT 3: Hybrid championship — weight for pro season (0–100); college = 100 - hybridProWeight.
+  /// PROMPT 3: Hybrid championship â€” weight for pro season (0â€“100); college = 100 - hybridProWeight.
   hybridProWeight                   Int      @default(60)
-  /// PROMPT 3: Hybrid championship — playoff qualification: pro_only | college_only | combined | weighted.
+  /// PROMPT 3: Hybrid championship â€” playoff qualification: pro_only | college_only | combined | weighted.
   hybridPlayoffQualification        String   @default("weighted") @db.VarChar(32)
   /// PROMPT 3: Hybrid championship tie-breaker: pro_first | college_first | total_points | head_to_head.
   hybridChampionshipTieBreaker      String   @default("total_points") @db.VarChar(32)
@@ -9514,7 +9560,7 @@ model ZombieTeamItem {
   usedOnUserId    String?
   usedEffect      String?
   activatesAtWeek Int?
-  /// ready | pending_activation — serum registers before kickoff, resolves at score finalization.
+  /// ready | pending_activation â€” serum registers before kickoff, resolves at score finalization.
   activationState String           @default("ready")
   team            ZombieLeagueTeam @relation(fields: [teamStatusId], references: [id], onDelete: Cascade)
 
@@ -10382,7 +10428,7 @@ model DraftSession {
   startedAt              DateTime?
   /// When `status=completed`.
   completedAt            DateTime?
-  /// rookie | startup | supplemental | dispersal | standard — informational for specialty pools.
+  /// rookie | startup | supplemental | dispersal | standard â€” informational for specialty pools.
   draftModeLabel         String?                  @db.VarChar(32)
   /// Dispersal / specialty: { eligibleRosterIds?: string[], protectedPlayerIds?: string[], allowedAssetTypes?: string[] }
   dispersalPoolConfig    Json?
@@ -10396,6 +10442,12 @@ model DraftSession {
   sportType              String?                  @db.VarChar(16)
   /// Commissioner AI draft managers: assignments (max 4 orphan rosters), trade rules, optional throttle metadata.
   commissionerAiManagers Json?
+  /// Slice 1: on-the-clock pick trade behavior â€” "inherit_remaining" (Sleeper-parity) or "reset_timer".
+  onClockTradeTimerBehavior  String  @default("inherit_remaining") @db.VarChar(32)
+  /// Slice 1: allow in-draft trading of already-drafted players (separate from pickTradeEnabled which gates pick trades).
+  inDraftPlayerTradesEnabled Boolean @default(true)
+  /// Slice 1: gate the per-user CSV custom rankings feature for this draft (queue/AI/autopick fallback).
+  customRankingsEnabled      Boolean @default(true)
   aiRecommendationLogs   AiRecommendationLog[]
   draftChatMessages      DraftChatMessage[]
   tradeProposals         DraftPickTradeProposal[]
@@ -10459,7 +10511,7 @@ model DraftPick {
   playerId         String?
   /// Optional UI metadata when pick was traded: { originalRosterId, previousOwnerName, newOwnerName, showNewOwnerInRed?, tintColor? }
   tradedPickMeta   Json?
-  /// Slot’s original roster before pick trades (audit / dispersal).
+  /// Slotâ€™s original roster before pick trades (audit / dispersal).
   originalRosterId String?
   /// player | rookie_pick | devy_pick | dispersal_asset | pick_slot | c2c_college
   assetType        String?      @default("player") @db.VarChar(24)
@@ -10591,7 +10643,7 @@ model DraftImportBackup {
   @@map("draft_import_backups")
 }
 
-/// AF War Room AI — persisted tier board / queue / ADP snapshot for replay and Chimmy context.
+/// AF War Room AI â€” persisted tier board / queue / ADP snapshot for replay and Chimmy context.
 model WarRoomSnapshot {
   id             String        @id @default(cuid())
   leagueId       String
@@ -10612,7 +10664,7 @@ model WarRoomSnapshot {
   @@map("war_room_snapshots")
 }
 
-/// AF War Room AI — cached AI player outlook blurb (deterministic + model refresh).
+/// AF War Room AI â€” cached AI player outlook blurb (deterministic + model refresh).
 model PlayerOutlook {
   id         String      @id @default(cuid())
   userId     String
@@ -10638,7 +10690,7 @@ model PlayerOutlook {
   @@map("player_outlooks")
 }
 
-/// AF War Room AI — inferred draft behavior for an opponent roster in a league season.
+/// AF War Room AI â€” inferred draft behavior for an opponent roster in a league season.
 model ManagerTendency {
   id             String      @id @default(cuid())
   leagueId       String
@@ -10658,7 +10710,7 @@ model ManagerTendency {
   @@map("manager_tendencies")
 }
 
-/// AF War Room AI — audit / telemetry for recommendations (Chimmy, waiver, trade hooks).
+/// AF War Room AI â€” audit / telemetry for recommendations (Chimmy, waiver, trade hooks).
 model AiRecommendationLog {
   id                 String        @id @default(cuid())
   userId             String
@@ -10908,7 +10960,7 @@ model PlatformNotification {
   @@map("platform_notifications")
 }
 
-/// Web Push subscription (PROMPT 304) — browser push for AI alerts, chat mentions, league updates.
+/// Web Push subscription (PROMPT 304) â€” browser push for AI alerts, chat mentions, league updates.
 model WebPushSubscription {
   id        String   @id @default(uuid())
   userId    String
@@ -10923,7 +10975,7 @@ model WebPushSubscription {
   @@map("web_push_subscriptions")
 }
 
-/// Retention & engagement — app user activity for recaps and personalization.
+/// Retention & engagement â€” app user activity for recaps and personalization.
 model EngagementEvent {
   id        String   @id @default(uuid())
   userId    String
@@ -11010,7 +11062,7 @@ model SocialClip {
   @@map("social_clips")
 }
 
-/// Grok-generated social content asset (captions, hashtags, card copy, etc.) — Prompt 116.
+/// Grok-generated social content asset (captions, hashtags, card copy, etc.) â€” Prompt 116.
 model SocialContentAsset {
   id                 String             @id @default(cuid())
   userId             String
@@ -11031,7 +11083,7 @@ model SocialContentAsset {
   @@map("social_content_assets")
 }
 
-/// Connected social account / publish target (X, Instagram, TikTok, etc.) — Prompt 116.
+/// Connected social account / publish target (X, Instagram, TikTok, etc.) â€” Prompt 116.
 model SocialPublishTarget {
   id                 String   @id @default(cuid())
   userId             String
@@ -11046,7 +11098,7 @@ model SocialPublishTarget {
   @@map("social_publish_targets")
 }
 
-/// Log of each publish attempt (asset + platform) — Prompt 116.
+/// Log of each publish attempt (asset + platform) â€” Prompt 116.
 model SocialPublishLog {
   id               String             @id @default(cuid())
   assetId          String
@@ -11061,7 +11113,7 @@ model SocialPublishLog {
   @@map("social_publish_logs")
 }
 
-/// Viral share moment (achievement/milestone) — Prompt 121.
+/// Viral share moment (achievement/milestone) â€” Prompt 121.
 model ShareableMoment {
   id          String            @id @default(cuid())
   userId      String
@@ -11080,7 +11132,7 @@ model ShareableMoment {
   @@map("shareable_moments")
 }
 
-/// Publish log for a shareable moment (X, Instagram, etc.) — Prompt 121.
+/// Publish log for a shareable moment (X, Instagram, etc.) â€” Prompt 121.
 model SharePublishLog {
   id               String          @id @default(cuid())
   shareId          String
@@ -11377,7 +11429,7 @@ model WalletLedgerEntry {
   @@map("wallet_ledger_entries")
 }
 
-/// Season + Playoff Probability Engine — forecast snapshot per league/season/week
+/// Season + Playoff Probability Engine â€” forecast snapshot per league/season/week
 model SeasonForecastSnapshot {
   id            String   @id @default(cuid())
   leagueId      String   @db.VarChar(64)
@@ -11394,7 +11446,7 @@ model SeasonForecastSnapshot {
   @@map("season_forecast_snapshots")
 }
 
-/// Dynasty Projection Engine — long-term outlook snapshot per team
+/// Dynasty Projection Engine â€” long-term outlook snapshot per team
 model DynastyProjectionSnapshot {
   id                        String   @id @default(cuid())
   leagueId                  String   @db.VarChar(64)
@@ -11420,7 +11472,7 @@ model DynastyProjectionSnapshot {
   @@map("dynasty_projection_snapshots")
 }
 
-/// Player Aging Curve & Career Projection — multi-year player-level projections
+/// Player Aging Curve & Career Projection â€” multi-year player-level projections
 model PlayerCareerProjection {
   id                   String   @id @default(cuid())
   sport                String   @db.VarChar(16)
@@ -11442,7 +11494,7 @@ model PlayerCareerProjection {
   @@map("player_career_projections")
 }
 
-/// Franchise Window Detection Engine — competitive lifecycle per team
+/// Franchise Window Detection Engine â€” competitive lifecycle per team
 model TeamWindowProfile {
   id                   String   @id @default(cuid())
   leagueId             String   @db.VarChar(64)
@@ -11465,7 +11517,7 @@ model TeamWindowProfile {
   @@map("team_window_profiles")
 }
 
-/// League Intelligence Graph — nodes (entities). sport optional for cross-sport filtering.
+/// League Intelligence Graph â€” nodes (entities). sport optional for cross-sport filtering.
 model GraphNode {
   id        String   @id @default(cuid())
   nodeId    String   @unique
@@ -11484,7 +11536,7 @@ model GraphNode {
   @@map("graph_nodes")
 }
 
-/// League Intelligence Graph — edges (relationships). edgeType: FACED, DEFEATED, TRADED_WITH, RIVAL_OF, etc.
+/// League Intelligence Graph â€” edges (relationships). edgeType: FACED, DEFEATED, TRADED_WITH, RIVAL_OF, etc.
 model GraphEdge {
   id         String   @id @default(cuid())
   edgeId     String   @unique
@@ -11505,7 +11557,7 @@ model GraphEdge {
   @@map("graph_edges")
 }
 
-/// League Intelligence Graph — snapshot summary per league/season
+/// League Intelligence Graph â€” snapshot summary per league/season
 model LeagueGraphSnapshot {
   id           String   @id @default(cuid())
   leagueId     String   @db.VarChar(64)
@@ -11539,7 +11591,7 @@ model LeaguePowerRankingSnapshot {
   @@map("league_power_ranking_snapshots")
 }
 
-/// Dynasty historical import — maps internal league to platform league id per season (for graph/history)
+/// Dynasty historical import â€” maps internal league to platform league id per season (for graph/history)
 model LeagueDynastySeason {
   id               String   @id @default(cuid())
   leagueId         String   @db.VarChar(64)
@@ -11555,7 +11607,7 @@ model LeagueDynastySeason {
   @@map("league_dynasty_seasons")
 }
 
-/// Dynasty backfill progress and observability — resumable, per-league
+/// Dynasty backfill progress and observability â€” resumable, per-league
 model DynastyBackfillStatus {
   id                String    @id @default(cuid())
   leagueId          String    @db.VarChar(64)
@@ -11948,7 +12000,7 @@ model SportConfig {
   sport                    String   @unique
   /// Legacy redraft: weekly | daily | per_match
   lineupFrequency          String
-  /// Legacy: points | categories — mirrors defaultScoringSystem when possible
+  /// Legacy: points | categories â€” mirrors defaultScoringSystem when possible
   scoringType              String
   hasIR                    Boolean  @default(true)
   hasTaxi                  Boolean  @default(false)
@@ -11958,7 +12010,7 @@ model SportConfig {
   statCategories           Json
   /// Human-readable label (e.g. "NFL Football")
   displayName              String   @default("")
-  /// URL slug — unique when set (seed backfills per sport)
+  /// URL slug â€” unique when set (seed backfills per sport)
   slug                     String?  @unique
   /// Centralized defaults (see lib/sportConfig)
   defaultScoringSystem     String   @default("points")
@@ -12195,7 +12247,7 @@ model RedraftLeagueTrade {
   @@map("redraft_league_trades")
 }
 
-/// User music favorites — tracks saved from TheAudioDB or Spotify
+/// User music favorites â€” tracks saved from TheAudioDB or Spotify
 model UserMusicFavorite {
   id         String   @id @default(cuid())
   userId     String
@@ -12645,7 +12697,7 @@ model KeeperAuditLog {
   @@map("keeper_audit_logs")
 }
 
-/// Best ball sport roster / lineup template (per sport × variant).
+/// Best ball sport roster / lineup template (per sport Ã— variant).
 model BestBallSportTemplate {
   id                String   @id @default(cuid())
   sport             String
@@ -13188,7 +13240,7 @@ model AiOpponentTradeCooldown {
   @@map("ai_opponent_trade_cooldowns")
 }
 
-/// Recent bot voice lines — anti-repeat / rate limiting for league feed flavor text.
+/// Recent bot voice lines â€” anti-repeat / rate limiting for league feed flavor text.
 model AiBotMessageHistory {
   id          String   @id @default(cuid())
   leagueId    String
@@ -13295,14 +13347,14 @@ model AudioMetadata {
   @@map("audio_metadata")
 }
 
-/// D.5-test — AllFantasy AI ADP snapshot. One row per (player, context, draftMode).
+/// D.5-test â€” AllFantasy AI ADP snapshot. One row per (player, context, draftMode).
 /// `draftMode` separates `real` (production AllFantasy drafts), `mock` (mock-draft tool),
 /// and `test` (seeded harness drafts that must never leak into production AI ADP).
 /// `contextHash` collapses the (sport, leagueType, draftType, scoringFormat, rosterFormat,
 /// teamCount, season) tuple into a single string used as the natural key.
 model AllFantasyAdpSnapshot {
   id                  String   @id @default(uuid())
-  /// Stable player identity — `${normalizedName}|${position}` so the resolver can join
+  /// Stable player identity â€” `${normalizedName}|${position}` so the resolver can join
   /// pool rows without a real provider id (pool rows often use synthetic ids).
   playerKey           String
   playerName          String
@@ -13323,7 +13375,7 @@ model AllFantasyAdpSnapshot {
   maxOverallPick      Int
   /// Population standard deviation of overall picks. Null when sampleSize<2.
   standardDeviation   Float?
-  /// Δ vs. the snapshot from 7 days ago for the same (player, context, draftMode); null when no prior snapshot exists.
+  /// Î” vs. the snapshot from 7 days ago for the same (player, context, draftMode); null when no prior snapshot exists.
   sevenDayTrend       Float?
   thirtyDayTrend      Float?
   /// Pre-hashed context for unique constraint + fast lookup from the pool resolver.

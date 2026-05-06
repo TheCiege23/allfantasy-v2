@@ -11,6 +11,7 @@ import type {
   PlayerStatSnapshotModel,
   TeamDisplayModel,
   NormalizedDraftEntry,
+  NflRookieYearsExpProvenance,
 } from './types'
 import type { NflDraftProjectionSplits } from '@/lib/draft/analytics/nfl-draft-pool-projection-splits'
 import { resolvePlayerAssets, buildTeamDisplayModel, looksLikeSleeperExternalId } from './player-asset-resolver'
@@ -62,6 +63,16 @@ export type RawDraftPlayerLike = {
   yearsExp?: number | null
   /** D.7 — explicit rookie marker (e.g. devy promoted to NFL). Falsy when unknown. */
   isRookie?: boolean | null
+  /** NFL: pool resolver provenance for Sleeper/import-backed yearsExp (diagnostics). */
+  rookieYearsExpSource?: NflRookieYearsExpProvenance | null
+  /** Block B.2-C — rookie inference inputs surfaced from the resolver for
+   * non-NFL sports. Carried through normalization so the client predicate
+   * can branch per sport without reaching into display.metadata. */
+  draftYear?: number | string | null
+  rookieYear?: number | string | null
+  debutYear?: number | string | null
+  firstSeasonYear?: number | string | null
+  classYear?: string | null
   [key: string]: unknown
 }
 
@@ -135,6 +146,13 @@ export function normalizeDraftPlayer(
     draftGrade: raw.draftGrade != null ? String(raw.draftGrade).trim() : null,
     projectedLandingSpot: raw.projectedLandingSpot != null ? String(raw.projectedLandingSpot).trim() : null,
     sport: sportNorm,
+    rookieYearsExpSource:
+      raw.rookieYearsExpSource === 'explicit_imported' ||
+      raw.rookieYearsExpSource === 'sleeper_live' ||
+      raw.rookieYearsExpSource === 'sleeper_db_cache' ||
+      raw.rookieYearsExpSource === 'analytics_veteran_inferred'
+        ? raw.rookieYearsExpSource
+        : undefined,
   }
 
   const fppg =
@@ -210,6 +228,16 @@ export function normalizeDraftPlayer(
       (raw.yearsExp != null && Number.isFinite(Number(raw.yearsExp)) && Number(raw.yearsExp) === 0)
         ? true
         : undefined,
+    // Block B.2-C — surface rookie inference inputs at the top level of the
+    // normalized entry so isRookieEligibleForFilter can branch per-sport without
+    // needing display.metadata. age is intentionally lifted to the top level
+    // here too (display.metadata.age remains for tab-header chips).
+    age: raw.age ?? undefined,
+    draftYear: raw.draftYear ?? undefined,
+    rookieYear: raw.rookieYear ?? undefined,
+    debutYear: raw.debutYear ?? undefined,
+    firstSeasonYear: raw.firstSeasonYear ?? undefined,
+    classYear: raw.classYear != null ? String(raw.classYear).trim() : undefined,
   }
 }
 

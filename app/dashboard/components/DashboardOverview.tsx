@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AiTimeContextPayload } from '@/lib/time-engine/types'
 import type { TradesDashboardResponse, WaiverDashboardResponse } from '@/app/dashboard/dashboardStripApiTypes'
@@ -33,6 +34,7 @@ import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { tInterpolate as interpolateI18nMessage } from '@/lib/i18n/tInterpolate'
 import { emptyLineupActionSummary } from '@/lib/lineup-actions/emptySummary'
 import { useDashboardToolLeague } from '@/hooks/useDashboardToolLeague'
+import { consumeDashboardRankRefreshPending } from '@/lib/import/dashboardRankRefresh'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
 const STRIP_FETCH_STALE_MS = 5 * 60_000
@@ -99,6 +101,7 @@ export function DashboardOverview({
   onOpenChimmy: _onOpenChimmy,
   initialUserRankPayload = null,
 }: DashboardOverviewProps) {
+  const router = useRouter()
   const { t, tInterpolate } = useLanguage()
   const { hasPro } = useEntitlements()
   const { selectedLeagueId, selectedLeague, setSelectedLeagueId } = useDashboardToolLeague(leagues)
@@ -139,6 +142,28 @@ export function DashboardOverview({
 
   /** Increment after legacy rankings import so rank widgets refetch `/api/user/rank`. */
   const [rankRefreshKey, setRankRefreshKey] = useState(0)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const u = new URL(window.location.href)
+      if (u.searchParams.get('rankSync') === '1') {
+        setRankRefreshKey((k) => k + 1)
+        u.searchParams.delete('rankSync')
+        window.history.replaceState({}, '', `${u.pathname}${u.search}${u.hash}`)
+        router.refresh()
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [router])
+
+  useEffect(() => {
+    if (consumeDashboardRankRefreshPending()) {
+      setRankRefreshKey((k) => k + 1)
+      router.refresh()
+    }
+  }, [router])
 
   /** Last successful `/api/dashboard/today-actions` refresh (lineup + waivers + trades + counts). */
   const stripFetchedAt = useRef<number | null>(null)
@@ -734,17 +759,33 @@ export function DashboardOverview({
           <button
             type="button"
             onClick={() => setChecklistExpanded(true)}
-            className="flex h-10 w-full cursor-pointer items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.04] px-4 text-[12px] text-white/50 transition hover:bg-white/[0.06]"
+            className="group relative flex h-10 w-full cursor-pointer items-center gap-3 overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.04] px-4 text-[12px] text-white/60 transition hover:border-white/12 hover:bg-white/[0.06]"
+            data-testid="dashboard-setup-collapsed"
           >
-            <span>
+            <span className="z-10 whitespace-nowrap text-white/70">
               {tInterpolate('dashboard.overview.setupCollapsed', { done: completedCount })}
             </span>
             <span
-              className="text-white/40 transition-transform"
+              className="z-10 ml-auto inline-flex items-center gap-1.5 text-white/40 transition-transform group-hover:text-white/70"
               aria-hidden
             >
+              <span className="text-[11px] font-medium tabular-nums">
+                {completedCount}/{checklistSteps.length}
+              </span>
               ›
             </span>
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-white/[0.04]"
+            />
+            <span
+              aria-hidden
+              data-testid="dashboard-setup-progress-fill"
+              style={{
+                width: `${Math.round((completedCount / Math.max(1, checklistSteps.length)) * 100)}%`,
+              }}
+              className="pointer-events-none absolute bottom-0 left-0 h-1 bg-gradient-to-r from-cyan-400 via-cyan-300 to-violet-400 shadow-[0_0_8px_rgba(34,211,238,0.45)] transition-[width] duration-300"
+            />
           </button>
         )}
 
@@ -757,40 +798,56 @@ export function DashboardOverview({
             <span className="font-bold text-cyan-400">{userName}</span>
           </h1>
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-2">
             <Link
               href="/create-league"
-              className="rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 px-4 py-2 text-sm font-semibold text-black"
+              className="touch-manipulation inline-flex min-h-[48px] w-full items-center justify-center rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 px-4 py-3 text-sm font-semibold text-black active:opacity-95 sm:w-auto sm:px-5 sm:py-2.5"
             >
               {t('dashboard.overview.createLeague')}
             </Link>
-            <button
-              type="button"
-              onClick={() => setQuickCreateOpen(true)}
-              className="rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-2 text-sm font-semibold text-purple-300 transition hover:bg-purple-500/20"
-            >
-              ✨ Quick Create
-            </button>
-            <button
-              type="button"
-              onClick={handleImport}
-              className="rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white"
-            >
-              {t('dashboard.overview.import')}
-            </button>
-            <Link
-              href="/find-league"
-              className="rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white"
-            >
-              {t('dashboard.overview.findLeague')}
-            </Link>
-            <Link
-              href="/brackets"
-              className="rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white"
-              data-testid="dashboard-brackets-link"
-            >
-              {t('dashboard.overview.brackets')}
-            </Link>
+            <div className="grid grid-cols-2 gap-2 sm:contents">
+              <button
+                type="button"
+                onClick={() => setQuickCreateOpen(true)}
+                className="touch-manipulation inline-flex min-h-[48px] w-full items-center justify-center rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2.5 text-sm font-semibold text-purple-300 transition hover:bg-purple-500/20 active:bg-purple-500/25 sm:w-auto sm:px-4 sm:py-2"
+              >
+                ✨ Quick Create
+              </button>
+              <button
+                type="button"
+                onClick={handleImport}
+                className="touch-manipulation inline-flex min-h-[48px] w-full items-center justify-center rounded-xl border border-white/20 px-3 py-2.5 text-sm font-semibold text-white active:bg-white/10 sm:w-auto sm:px-4 sm:py-2"
+              >
+                {t('dashboard.overview.import')}
+              </button>
+              <Link
+                href="/find-league"
+                className="touch-manipulation inline-flex min-h-[48px] w-full items-center justify-center rounded-xl border border-white/20 px-3 py-2.5 text-sm font-semibold text-white active:bg-white/10 sm:w-auto sm:px-4 sm:py-2"
+              >
+                {t('dashboard.overview.findLeague')}
+              </Link>
+              <Link
+                href="/brackets"
+                className="touch-manipulation inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[13px] font-semibold text-white/90 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto sm:px-3 sm:py-1.5"
+                data-testid="dashboard-brackets-link"
+              >
+                {t('dashboard.overview.brackets')}
+              </Link>
+              <Link
+                href="/af-legacy"
+                className="touch-manipulation inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[13px] font-semibold text-white/90 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto sm:px-3 sm:py-1.5"
+                data-testid="dashboard-legacy-link"
+              >
+                Legacy
+              </Link>
+              <Link
+                href="/tools"
+                className="touch-manipulation inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[13px] font-semibold text-white/90 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto sm:px-3 sm:py-1.5"
+                data-testid="dashboard-tools-link"
+              >
+                Tools
+              </Link>
+            </div>
             {/* Dispersal drafts link removed from dashboard overview */}
           </div>
         </section>

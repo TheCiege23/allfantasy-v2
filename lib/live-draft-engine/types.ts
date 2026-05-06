@@ -32,6 +32,11 @@ export interface DraftSessionSnapshot {
   rounds: number
   teamCount: number
   thirdRoundReversal: boolean
+  /** Slice 1 — typed draft session flags surfaced to client for read-consistency.
+   * Behavior wiring lands in later slices (6 trades, 8 custom rankings). */
+  onClockTradeTimerBehavior: 'inherit_remaining' | 'reset_timer'
+  inDraftPlayerTradesEnabled: boolean
+  customRankingsEnabled: boolean
   timerSeconds: number | null
   timerEndAt: string | null
   pausedRemainingSeconds: number | null
@@ -207,6 +212,13 @@ export interface QueueEntry {
   position: string
   team?: string | null
   playerId?: string | null
+  /** User pinned this row; AI reorder must not move it from its slot. */
+  lockedByUser?: boolean
+  /** Populated when queue row was written by AF Pro AI reorder persist path. */
+  isAiAdjusted?: boolean
+  /** 1-based rank before the last AI reorder (persist path). */
+  aiOriginalRank?: number | null
+  aiReason?: string | null
 }
 
 export type DraftEventType =

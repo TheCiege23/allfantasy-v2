@@ -10,6 +10,8 @@ import { isDraftPickRowEmptyFromSnapshot } from '@/lib/live-draft-engine/draftPi
 import { resolvePickOwner } from '@/lib/live-draft-engine/PickOwnershipResolver'
 import { getRoundNavigationState } from '@/lib/draft-room/DraftBoardRenderer'
 import { getManagerColorBySlot, withAlpha } from '@/lib/draft-room'
+import type { DraftRoomDisplayPlayerLike } from '@/lib/player-data/adapters/draftRoomDisplayFields'
+import { mergePoolPlayerIntoBoardPickDisplay } from '@/lib/player-data/adapters/draftRoomDisplayFields'
 
 export type DraftBoardProps = {
   picks: DraftPickSnapshot[]
@@ -50,6 +52,8 @@ export type DraftBoardProps = {
   canCommissionerEditPicks?: boolean
   /** Click handler for the commissioner edit affordance on a cell. */
   onCommissionerEditPick?: (overall: number) => void
+  /** Live draft pool rows by player id — enriches tiles only; does not change stored picks */
+  poolPlayerById?: Record<string, DraftRoomDisplayPlayerLike>
 }
 
 type SequentialBoardEntry = {
@@ -150,6 +154,7 @@ function DraftBoardInner({
   canCommissionerEditPicks = false,
   onCommissionerEditPick,
   presentationVariant = 'default',
+  poolPlayerById,
 }: DraftBoardProps) {
   const rs = presentationVariant === 'redraft_snake'
   const [viewMode, setViewMode] = useState<'all' | 'single'>('all')
@@ -257,34 +262,41 @@ function DraftBoardInner({
       const useLock = !existing && lock
 
       if (!byRoundSlot[round]) byRoundSlot[round] = new Map()
+      const basePick = {
+        overall,
+        round,
+        slot: ownerSlot,
+        pickLabel: `${round}.${pickInRound}`,
+        playerName: existing?.playerName ?? lock?.playerName ?? null,
+        position: existing?.position ?? lock?.position ?? null,
+        team: existing?.team ?? lock?.team ?? null,
+        playerId: existing?.playerId ?? lock?.playerId ?? null,
+        playerImageUrl: existing?.playerImageUrl ?? null,
+        sport: sport ?? null,
+        injuryStatus: (existing as { injuryStatus?: string | null } | undefined)?.injuryStatus ?? null,
+        byeWeek: existing?.byeWeek ?? null,
+        displayName: existing?.displayName ?? lock?.displayName ?? resolved?.displayName ?? null,
+        tradedPickMeta: resolvedTradedMeta,
+        managerTintColor: ownerColor.tintHex,
+        amount: existing?.amount ?? null,
+        isKeeper: useLock ?? undefined,
+        isDevyPick: isDevyPick || undefined,
+        isCollegePick: isCollegePick || undefined,
+        isProPick: isProPick || undefined,
+        isPromotedFromDevy: isPromotedFromDevy || undefined,
+        source: source || undefined,
+        ownerRosterId,
+      }
+      const pid = existing?.playerId ? String(existing.playerId).trim() : ''
+      const poolEntry = pid && poolPlayerById ? poolPlayerById[pid] : undefined
+      const mergedPick =
+        poolEntry && existing?.playerId
+          ? mergePoolPlayerIntoBoardPickDisplay(basePick, poolEntry)
+          : basePick
       byRoundSlot[round]!.set(ownerSlot, {
         round,
         overall,
-        pick: {
-          overall,
-          round,
-          slot: ownerSlot,
-          pickLabel: `${round}.${pickInRound}`,
-          playerName: existing?.playerName ?? lock?.playerName ?? null,
-          position: existing?.position ?? lock?.position ?? null,
-          team: existing?.team ?? lock?.team ?? null,
-          playerId: existing?.playerId ?? lock?.playerId ?? null,
-          playerImageUrl: existing?.playerImageUrl ?? null,
-          sport: sport ?? null,
-          injuryStatus: (existing as { injuryStatus?: string | null } | undefined)?.injuryStatus ?? null,
-          byeWeek: existing?.byeWeek ?? null,
-          displayName: existing?.displayName ?? lock?.displayName ?? resolved?.displayName ?? null,
-          tradedPickMeta: resolvedTradedMeta,
-          managerTintColor: ownerColor.tintHex,
-          amount: existing?.amount ?? null,
-          isKeeper: useLock ?? undefined,
-          isDevyPick: isDevyPick || undefined,
-          isCollegePick: isCollegePick || undefined,
-          isProPick: isProPick || undefined,
-          isPromotedFromDevy: isPromotedFromDevy || undefined,
-          source: source || undefined,
-          ownerRosterId,
-        },
+        pick: mergedPick,
       })
     }
 
@@ -303,6 +315,7 @@ function DraftBoardInner({
     devyRounds,
     c2cCollegeRounds,
     sport,
+    poolPlayerById,
   ])
 
   const auctionColumns = useMemo(() => {
@@ -316,7 +329,13 @@ function DraftBoardInner({
         const ownedPicks = picks
           .filter((pick) => pick.rosterId === entry.rosterId)
           .sort((a, b) => a.overall - b.overall)
-          .map((pick) => buildAuctionCellPick(pick, tintHex, sport, entry.rosterId))
+          .map((pick) => {
+            const base = buildAuctionCellPick(pick, tintHex, sport, entry.rosterId)
+            const pid = pick.playerId ? String(pick.playerId).trim() : ''
+            return pid && poolPlayerById?.[pid]
+              ? mergePoolPlayerIntoBoardPickDisplay(base, poolPlayerById[pid])
+              : base
+          })
 
         return {
           rosterId: entry.rosterId,
@@ -326,7 +345,7 @@ function DraftBoardInner({
           picks: ownedPicks,
         }
       })
-  }, [draftType, picks, slotOrder, sport])
+  }, [draftType, picks, slotOrder, sport, poolPlayerById])
 
   const navigation = getRoundNavigationState(selectedRound, rounds)
   const orderedSlots = useMemo(
@@ -374,7 +393,7 @@ function DraftBoardInner({
         aria-hidden
       />
       <div
-        className={`border-b px-3 py-3 text-xs text-white/70 backdrop-blur-sm sm:px-4 ${rs ? 'border-cyan-500/15 bg-[linear-gradient(180deg,rgba(7,15,29,0.96),rgba(6,13,30,0.9))]' : 'border-white/[0.08] bg-[linear-gradient(180deg,rgba(6,13,30,0.95),rgba(5,10,22,0.88))]'}`}
+        className={`border-b px-3 py-1.5 text-xs text-white/70 backdrop-blur-sm sm:px-4 ${rs ? 'border-cyan-500/15 bg-[linear-gradient(180deg,rgba(7,15,29,0.96),rgba(6,13,30,0.9))]' : 'border-white/[0.08] bg-[linear-gradient(180deg,rgba(6,13,30,0.95),rgba(5,10,22,0.88))]'}`}
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -474,7 +493,7 @@ function DraftBoardInner({
       </div>
 
       <div
-        className={`border-b px-3 py-2 text-[10px] sm:px-4 ${rs ? 'border-cyan-500/10 bg-cyan-500/[0.07] text-cyan-100/72' : 'border-white/[0.08] bg-white/[0.03] text-white/60'}`}
+        className={`border-b px-3 py-1 text-[10px] sm:px-4 ${rs ? 'border-cyan-500/10 bg-cyan-500/[0.07] text-cyan-100/72' : 'border-white/[0.08] bg-white/[0.03] text-white/60'}`}
         data-testid="draft-board-round-label"
       >
         {draftType === 'auction'
@@ -580,19 +599,17 @@ function DraftBoardInner({
         <div className="snap-x snap-mandatory overflow-x-auto overflow-y-visible px-2 py-3 pb-4 [-webkit-overflow-scrolling:touch]">
           <div className="min-w-max" data-testid="draft-board-grid">
             <div
-              className={`sticky top-0 z-10 grid gap-1.5 border-b pb-2 backdrop-blur-md sm:gap-2 ${
+              className={`sticky top-0 z-10 grid gap-1 border-b pb-2 backdrop-blur-md sm:gap-1.5 ${
                 rs
-                  ? 'border-cyan-500/15 bg-[rgba(7,15,36,0.92)] shadow-[0_16px_40px_rgba(0,0,0,0.45)]'
-                  : 'border-white/[0.08] bg-[#070f24]/90 shadow-[0_12px_32px_rgba(0,0,0,0.35)]'
+                  ? 'border-cyan-500/15 bg-[rgba(7,13,28,0.92)] shadow-[0_16px_40px_rgba(0,0,0,0.45)]'
+                  : 'border-white/[0.06] bg-[#070b18]/95 shadow-[0_12px_32px_rgba(0,0,0,0.35)]'
               }`}
-              style={{ gridTemplateColumns: `56px repeat(${teamCount}, minmax(104px, 1fr))` }}
+              style={{ gridTemplateColumns: `40px repeat(${teamCount}, minmax(96px, 1fr))` }}
               data-testid="draft-board-team-header"
             >
               <div
-                className={`flex h-10 items-center justify-center rounded-xl border text-[10px] font-bold uppercase tracking-[0.16em] shadow-inner ${
-                  rs
-                    ? 'border-cyan-500/25 bg-gradient-to-b from-[#102238] to-[#0a1528] text-cyan-100/65'
-                    : 'border-white/12 bg-gradient-to-b from-[#0d1628] to-[#0a1228] text-white/50'
+                className={`flex h-14 items-center justify-center text-[9px] font-bold uppercase tracking-[0.16em] ${
+                  rs ? 'text-cyan-100/55' : 'text-white/45'
                 }`}
               >
                 Rd
@@ -600,38 +617,38 @@ function DraftBoardInner({
               {orderedSlots.map((entry) => (
                 <div
                   key={entry.rosterId}
-                  className={`group relative flex h-10 min-w-0 items-center gap-2 rounded-xl border px-2.5 shadow-sm transition duration-150 ${
-                    currentOwnerSlot === entry.slot
-                      ? 'ring-1 ring-cyan-300/70 border-cyan-300/55 shadow-[0_0_22px_rgba(34,211,238,0.2)]'
-                      : ''
-                  } ${
-                    rs
-                      ? 'border-white/16 bg-gradient-to-b from-[#122338] to-[#0c1828] hover:border-cyan-300/45'
-                      : 'border-white/14 bg-gradient-to-b from-[#0d1628] to-[#0a1228] hover:border-cyan-300/30'
+                  className={`group relative flex h-14 min-w-0 flex-col items-center justify-center gap-1 px-1 transition duration-150 ${
+                    currentOwnerSlot === entry.slot ? 'text-cyan-100' : 'text-white/85'
                   }`}
                 >
-                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/[0.04] text-[9px] font-bold uppercase tracking-[0.08em] text-cyan-100/90">
+                  <span
+                    className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold uppercase tracking-[0.04em] shadow-sm ${
+                      currentOwnerSlot === entry.slot
+                        ? 'border-cyan-300/70 bg-cyan-500/15 text-cyan-50 shadow-[0_0_14px_rgba(34,211,238,0.35)]'
+                        : 'border-white/15 bg-white/[0.04] text-white/85'
+                    }`}
+                  >
                     {managerInitials(entry.displayName)}
                   </span>
-                  <span className="inline-flex shrink-0 rounded-md border border-cyan-400/25 bg-cyan-500/[0.08] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-cyan-100/80">
-                    {entry.slot}
-                  </span>
-                  <span className="truncate text-[10px] font-medium text-white/78" title={entry.displayName}>
+                  <span
+                    className="w-full truncate text-center text-[10px] font-medium leading-none"
+                    title={entry.displayName}
+                  >
                     {entry.displayName}
                   </span>
                   {currentOwnerSlot === entry.slot ? (
-                    <span className="ml-auto inline-flex h-2 w-2 shrink-0 rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.8)]" aria-hidden />
+                    <span className="absolute -top-0.5 right-1 inline-flex h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_rgba(34,211,238,0.8)]" aria-hidden />
                   ) : null}
                 </div>
               ))}
             </div>
 
-            <div className="space-y-2.5 pt-2">
+            <div className="space-y-1 pt-1">
               {visibleRounds.map((round) => (
                 <section key={round} data-testid={`draft-board-round-${round}`}>
                     <div
-                      className="grid gap-1.5 sm:gap-2"
-                      style={{ gridTemplateColumns: `56px repeat(${teamCount}, minmax(104px, 1fr))` }}
+                      className="grid gap-1 sm:gap-1.5"
+                      style={{ gridTemplateColumns: `40px repeat(${teamCount}, minmax(96px, 1fr))` }}
                     >
                     {(() => {
                       const reversed = isSnakeRoundReversed(round, draftType, thirdRoundReversal)

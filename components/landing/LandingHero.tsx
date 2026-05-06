@@ -68,13 +68,13 @@ export function PrimaryCTA() {
   const ctaLabel = t('landing.cta.openApp')
   return (
     <Link
-      href="/app"
+      href="/dashboard"
       prefetch={false}
       className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 px-7 py-3 text-base font-semibold text-black shadow-lg hover:from-cyan-400 hover:to-blue-400 active:scale-[0.98] transition-all focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-[var(--bg)]"
       onClick={() =>
         trackLandingCtaClick({
           cta_label: ctaLabel,
-          cta_destination: '/app',
+          cta_destination: '/dashboard',
           cta_type: 'primary',
           source: 'hero',
         })
@@ -129,7 +129,12 @@ export default function LandingHero() {
         {SUPPORTED_SPORTS.map((sport) => (
           <span
             key={sport}
-            className="rounded-full border border-white/10 bg-white/5 px-3 py-0.5 text-xs font-medium text-white/70"
+            className="rounded-full border px-3 py-0.5 text-xs font-medium"
+            style={{
+              borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)',
+              background: 'color-mix(in srgb, var(--panel2) 78%, transparent)',
+              color: 'var(--muted)',
+            }}
           >
             {SPORT_LABELS[sport] ?? sport}
           </span>

@@ -17,7 +17,10 @@ import {
   Settings2,
   Shield,
   Sparkles,
+  Tv,
   User,
+  Volume2,
+  VolumeX,
 } from 'lucide-react'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { formatTimerRemaining } from '@/lib/live-draft-engine/DraftTimerService'
@@ -33,6 +36,10 @@ export type DraftTopBarProps = {
   teamCount: number
   rounds: number
   currentManagerOnClock: string | null
+  /** Optional avatar for the on-clock roster from league chrome. */
+  currentManagerAvatarUrl?: string | null
+  /** When true, label on-clock state as "You're on the clock". */
+  isCurrentUserOnClock?: boolean
   pickLabel: string | null
   overallPickNumber: number | null
   timerStatus: 'running' | 'paused' | 'expired' | 'none'
@@ -91,6 +98,10 @@ export type DraftTopBarProps = {
   onlineCount?: number
   /** `redraft_snake` — show format chips and slightly stronger header chrome (snake redraft live URL). */
   draftRoomPresentation?: 'default' | 'redraft_snake'
+  /** Slice 2 — surface "3RR ON" badge in header meta line when commissioner enabled Third Round Reversal. */
+  thirdRoundReversal?: boolean
+  /** When set, the overflow menu shows a "Big Screen / Cast Board" entry that opens this URL in a new tab. */
+  bigScreenHref?: string | null
 }
 
 const TIMER_COLORS = {
@@ -122,6 +133,17 @@ function translateTimerMode(mode: TimerMode, t: (key: string) => string): string
   return mode.replace(/_/g, ' ')
 }
 
+function resolveDraftFormatLabel(
+  draftType: string,
+  thirdRoundReversal: boolean,
+): string {
+  const norm = draftType.trim().toLowerCase()
+  if (norm === 'auction') return 'Auction'
+  if (norm === 'linear') return 'Linear'
+  if (norm === 'snake') return thirdRoundReversal ? 'Snake + 3RR' : 'Snake'
+  return draftType
+}
+
 function formatTimerSummary(timerSeconds: number | null | undefined): string {
   if (!timerSeconds || timerSeconds <= 0) return 'Untimed picks'
   if (timerSeconds < 60) return `${timerSeconds} Seconds Per Pick`
@@ -145,6 +167,8 @@ export function DraftTopBar({
   teamCount,
   rounds,
   currentManagerOnClock,
+  currentManagerAvatarUrl = null,
+  isCurrentUserOnClock = false,
   pickLabel,
   overallPickNumber,
   timerStatus,
@@ -187,6 +211,8 @@ export function DraftTopBar({
   onToggleAutoPick,
   timerPauseReason = null,
   overnightResumeAtIso = null,
+  thirdRoundReversal = false,
+  bigScreenHref = null,
 }: DraftTopBarProps) {
   const { t } = useLanguage()
   const liveRemaining = useDraftCountdownSeconds(
@@ -198,6 +224,71 @@ export function DraftTopBar({
   const menuRef = useRef<HTMLDivElement | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [copyFeedback, setCopyFeedback] = useState<'idle' | 'copied'>('idle')
+
+  // Audible timer cue. Plays a short beep when the live countdown crosses 10s, 5s,
+  // and the final 3/2/1. Mute persists per-user via localStorage so commissioners
+  // running multi-day drafts can silence it for the night.
+  const [timerMuted, setTimerMuted] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      setTimerMuted(window.localStorage.getItem('af:draft-timer-mute') === '1')
+    } catch {
+      /* ignore storage failures (private mode, etc.) */
+    }
+  }, [])
+  const lastCountdownTickRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (timerMuted || timerStatus !== 'running' || liveRemaining == null) {
+      lastCountdownTickRef.current = liveRemaining ?? null
+      return
+    }
+    const prev = lastCountdownTickRef.current
+    lastCountdownTickRef.current = liveRemaining
+    if (prev == null || prev <= liveRemaining) return
+    const beepThresholds = new Set([10, 5, 3, 2, 1])
+    if (!beepThresholds.has(liveRemaining)) return
+    try {
+      type AudioCtor = new () => AudioContext
+      const w = window as Window & { AudioContext?: AudioCtor; webkitAudioContext?: AudioCtor }
+      const Ctor = w.AudioContext ?? w.webkitAudioContext
+      if (!Ctor) return
+      const ctx = new Ctor()
+      const oscillator = ctx.createOscillator()
+      const gain = ctx.createGain()
+      oscillator.connect(gain)
+      gain.connect(ctx.destination)
+      oscillator.type = 'sine'
+      oscillator.frequency.value = liveRemaining <= 3 ? 880 : liveRemaining === 5 ? 700 : 540
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18)
+      oscillator.start()
+      oscillator.stop(ctx.currentTime + 0.2)
+      oscillator.onended = () => {
+        try {
+          void ctx.close()
+        } catch {
+          /* ignore */
+        }
+      }
+    } catch {
+      /* Browser blocked audio (autoplay gesture not yet given) — silent failure is correct. */
+    }
+  }, [timerMuted, liveRemaining, timerStatus])
+  const handleToggleTimerMute = () => {
+    setTimerMuted((prev) => {
+      const next = !prev
+      try {
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem('af:draft-timer-mute', next ? '1' : '0')
+        }
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+  }
 
   useEffect(() => {
     if (!menuOpen) return
@@ -248,6 +339,7 @@ export function DraftTopBar({
     liveRemaining <= 5
   const statusLabel = translateDraftStatus(draftStatus, t)
   const draftTypeLabel = translateDraftType(draftType, t)
+  const draftFormatLabel = resolveDraftFormatLabel(draftType, thirdRoundReversal)
   const timerModeLabel = translateTimerMode(timerMode, t)
 
   const centerCta = (() => {
@@ -327,6 +419,17 @@ export function DraftTopBar({
           ? 'cursor-pointer hover:shadow-[0_14px_40px_rgba(34,211,238,0.25)] active:scale-[0.98] disabled:opacity-55'
           : 'cursor-default'
       }`
+      const pillTooltip = isPausedCommissioner
+        ? 'Click to resume the draft. Time remaining is restored from when it was paused.'
+        : draftStatus === 'paused'
+          ? 'Draft is paused by the commissioner. Resume from the commissioner control center.'
+          : criticalLowTimer
+            ? 'Pick clock under 5 seconds — autopick about to fire.'
+            : urgentLowTimer
+              ? 'Pick clock under 10 seconds.'
+              : timerStatus === 'expired'
+                ? 'Pick clock expired. Soft timer leagues wait for a manual pick.'
+                : 'On-the-clock pick timer.'
       if (handlePillClick) {
         return (
           <button
@@ -334,7 +437,7 @@ export function DraftTopBar({
             onClick={handlePillClick}
             disabled={commissionerLoading}
             aria-label="Resume draft"
-            title="Click to resume draft"
+            title={pillTooltip}
             data-testid={isPausedCommissioner ? 'draft-topbar-resume-draft' : 'draft-topbar-clock'}
             data-paused={draftStatus === 'paused' ? 'true' : 'false'}
             data-urgent={urgentLowTimer ? 'true' : 'false'}
@@ -349,6 +452,7 @@ export function DraftTopBar({
           data-testid="draft-topbar-clock"
           data-paused={draftStatus === 'paused' ? 'true' : 'false'}
           data-urgent={urgentLowTimer ? 'true' : 'false'}
+          title={pillTooltip}
           className={pillClassName}
         >
           {sharedPill}
@@ -386,7 +490,7 @@ export function DraftTopBar({
 
   return (
     <header
-      className={`relative border-b px-3 pb-3 pt-2.5 backdrop-blur-xl sm:px-4 ${
+      className={`relative border-b px-3 pb-2 pt-2 backdrop-blur-xl sm:px-4 ${
         rs
           ? 'border-cyan-400/25 bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(34,211,238,0.14),transparent),linear-gradient(180deg,#0b1829_0%,#060f1e_45%,#050814_100%)] shadow-[0_16px_56px_rgba(8,145,178,0.14)]'
           : 'border-white/[0.07] bg-gradient-to-b from-[#070d1c]/95 via-[#060b19]/98 to-[#050814]'
@@ -428,7 +532,7 @@ export function DraftTopBar({
 
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="truncate text-xl font-bold tracking-tight text-white drop-shadow-sm sm:text-[1.35rem]">
+                <h1 className="truncate text-lg font-bold tracking-tight text-white drop-shadow-sm sm:text-xl">
                   {leagueName}
                 </h1>
                 {onlineCount != null && onlineCount > 0 && (
@@ -459,7 +563,19 @@ export function DraftTopBar({
                 <span className="text-white/24">·</span>
                 <span className="text-white/55">{sport}</span>
                 <span className="text-white/24">·</span>
-                <span>{draftTypeLabel}</span>
+                <span title={`Draft type: ${draftTypeLabel}`}>{draftFormatLabel}</span>
+                {thirdRoundReversal ? (
+                  <>
+                    <span className="text-white/24">·</span>
+                    <span
+                      data-testid="draft-topbar-third-round-reversal-badge"
+                      title="Third Round Reversal: rounds 2 and 3 go in the same direction."
+                      className="inline-flex items-center rounded-md border border-cyan-300/35 bg-cyan-500/14 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-100"
+                    >
+                      3RR On
+                    </span>
+                  </>
+                ) : null}
                 <span className="text-white/24">·</span>
                 <button
                   type="button"
@@ -474,15 +590,36 @@ export function DraftTopBar({
                 </button>
                 {copyFeedback === 'copied' ? <span className="text-cyan-300">Copied</span> : null}
               </div>
+              <div
+                className="mt-2 grid grid-cols-2 gap-1.5 rounded-lg border border-white/10 bg-black/20 p-2 text-[10px] text-white/75 md:hidden"
+                data-testid="draft-topbar-mobile-compact"
+              >
+                <div className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1">
+                  <span className="block text-[9px] uppercase tracking-[0.14em] text-white/45">Format</span>
+                  <span className="block font-semibold text-cyan-100">{draftFormatLabel}</span>
+                </div>
+                <div className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1">
+                  <span className="block text-[9px] uppercase tracking-[0.14em] text-white/45">Status</span>
+                  <span className="block font-semibold text-white">{statusLabel}</span>
+                </div>
+                <div className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1">
+                  <span className="block text-[9px] uppercase tracking-[0.14em] text-white/45">Current</span>
+                  <span className="block font-semibold text-white">{pickLabel ?? '—'}</span>
+                </div>
+                <div className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1">
+                  <span className="block text-[9px] uppercase tracking-[0.14em] text-white/45">Clock</span>
+                  <span className="block font-semibold text-cyan-100">{timerDisplay}</span>
+                </div>
+              </div>
               {isCommissioner && onCommissionerOpen ? (
                 <button
                   type="button"
                   onClick={onCommissionerOpen}
                   data-testid="draft-topbar-commissioner-primary"
                   disabled={commissionerLoading}
-                  className="mt-2 inline-flex items-center gap-2 rounded-full border border-amber-400/45 bg-amber-500/15 px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-amber-100 shadow-[0_4px_20px_rgba(245,158,11,0.18)] transition duration-150 hover:bg-amber-500/22 hover:border-amber-400/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/55 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.99]"
+                  className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-amber-400/45 bg-amber-500/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-amber-100 shadow-[0_4px_20px_rgba(245,158,11,0.18)] transition duration-150 hover:bg-amber-500/22 hover:border-amber-400/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/55 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.99]"
                 >
-                  <Shield className="h-5 w-5 shrink-0 text-amber-100" aria-hidden />
+                  <Shield className="h-4 w-4 shrink-0 text-amber-100" aria-hidden />
                   Commissioner control center
                 </button>
               ) : null}
@@ -539,20 +676,33 @@ export function DraftTopBar({
                   Reset timer
                 </button>
               ) : null}
+              {onCommissionerOpen ? (
+                <button
+                  type="button"
+                  onClick={onCommissionerOpen}
+                  disabled={commissionerLoading}
+                  data-testid="draft-topbar-assign-pick-open"
+                  className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-violet-400/35 bg-violet-500/12 px-3.5 py-2 text-xs font-semibold text-violet-100 transition duration-150 hover:bg-violet-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/45 disabled:opacity-45"
+                  title="Open commissioner tools to assign or edit a pick"
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                  Assign pick
+                </button>
+              ) : null}
             </div>
           ) : null}
 
-          <div className="mt-3 flex flex-wrap items-center gap-2 sm:gap-2.5">
+          <div className="mt-2 flex flex-wrap items-center gap-2 sm:gap-2.5">
             {pickLabel ? (
               <div
-                className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 shadow-[0_4px_24px_rgba(34,211,238,0.12)] ring-1 ring-cyan-400/15 ${
+                className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 shadow-[0_4px_24px_rgba(34,211,238,0.12)] ring-1 ring-cyan-400/15 ${
                   rs
                     ? 'border-cyan-400/35 bg-gradient-to-br from-cyan-500/18 via-[#0c1828]/95 to-[#081018]/98 shadow-[0_8px_36px_rgba(34,211,238,0.18)]'
                     : 'border-cyan-400/25 bg-gradient-to-br from-cyan-500/[0.12] to-[#0a1528]/90'
                 }`}
               >
                 <Hash className="h-4 w-4 shrink-0 text-cyan-300" />
-                <span className="text-base font-bold tracking-tight text-white sm:text-lg">{pickLabel}</span>
+                <span className="text-sm font-bold tracking-tight text-white sm:text-base">{pickLabel}</span>
                 {overallPickNumber != null ? (
                   <span className="rounded-md bg-white/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-white/60">
                     #{overallPickNumber}
@@ -563,21 +713,40 @@ export function DraftTopBar({
 
             {currentManagerOnClock ? (
               <div
-                className={`inline-flex max-w-full items-center gap-2 rounded-xl border px-3.5 py-2 ring-1 ${
+                className={`inline-flex max-w-full items-center gap-2 rounded-xl border px-3 py-1.5 ring-1 ${
                   rs
                     ? 'border-violet-400/40 bg-[radial-gradient(ellipse_at_30%_0%,rgba(139,92,246,0.28),transparent),linear-gradient(145deg,rgba(109,40,217,0.22),rgba(8,15,28,0.96))] shadow-[0_12px_40px_rgba(139,92,246,0.22)] ring-violet-400/25'
                     : 'border-violet-400/25 bg-gradient-to-br from-violet-500/[0.14] to-[#0a1228]/95 shadow-[0_6px_28px_rgba(139,92,246,0.15)] ring-violet-400/10'
                 }`}
               >
-                <User className="h-4 w-4 shrink-0 text-violet-300" />
+                {currentManagerAvatarUrl ? (
+                  <Image
+                    src={currentManagerAvatarUrl}
+                    alt=""
+                    width={22}
+                    height={22}
+                    aria-hidden
+                    className="h-[22px] w-[22px] shrink-0 rounded-full border border-white/20 object-cover"
+                    unoptimized
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                    }}
+                  />
+                ) : (
+                  <User className="h-4 w-4 shrink-0 text-violet-300" />
+                )}
                 <span
-                  className="min-w-0 truncate text-base font-bold text-white sm:text-lg"
+                  className="min-w-0 truncate text-sm font-bold text-white sm:text-base"
                   data-testid="draft-topbar-on-clock-manager"
                 >
                   {currentManagerOnClock}
                 </span>
                 <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-violet-200/75">
-                  {isOrphanOnClock ? orphanModeLabel : t('draftRoom.topBar.onTheClock')}
+                  {isOrphanOnClock
+                    ? orphanModeLabel
+                    : isCurrentUserOnClock
+                      ? "You're on the clock"
+                      : t('draftRoom.topBar.onTheClock')}
                 </span>
               </div>
             ) : null}
@@ -652,6 +821,21 @@ export function DraftTopBar({
               aria-hidden
             />
             Auto-pick {autoPickEnabled ? 'On' : 'Off'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleToggleTimerMute}
+            data-testid="draft-topbar-timer-mute-toggle"
+            aria-pressed={timerMuted}
+            title={timerMuted ? 'Timer beeps muted — click to enable' : 'Mute timer beeps (10s / 5s / final)'}
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition duration-150 cursor-pointer ${
+              timerMuted
+                ? 'border-white/14 bg-white/6 text-white/55 hover:border-white/25 hover:bg-white/10'
+                : 'border-cyan-400/30 bg-cyan-500/12 text-cyan-100 shadow-[0_0_10px_rgba(34,211,238,0.12)] hover:bg-cyan-500/18'
+            }`}
+          >
+            {timerMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
           </button>
 
           {onTradesClick ? (
@@ -760,6 +944,25 @@ export function DraftTopBar({
                     </span>
                   </span>
                 </button>
+
+                {bigScreenHref ? (
+                  <Link
+                    href={bigScreenHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setMenuOpen(false)}
+                    data-testid="draft-topbar-big-screen"
+                    className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition duration-150 hover:bg-white/8"
+                  >
+                    <Tv className="mt-0.5 h-4 w-4 text-[#dbe1ff]" aria-hidden />
+                    <span>
+                      <span className="block text-sm font-semibold text-white">Big Screen Mode</span>
+                      <span className="block text-xs text-white/55">
+                        Read-only board view for casting to a TV.
+                      </span>
+                    </span>
+                  </Link>
+                ) : null}
 
                 {isCommissioner ? (
                   <button

@@ -13,13 +13,14 @@ type BottomTab = {
 
 const MOBILE_BOTTOM_TABS: BottomTab[] = [
   { href: "/dashboard", label: "Home", icon: Home },
-  { href: "/app", label: "Sports", icon: Volleyball },
+  { href: "/discover/leagues", label: "Sports", icon: Volleyball },
   { href: "/brackets", label: "Bracket", icon: Trophy },
   { href: "/messages", label: "Messages", icon: MessageCircle },
   { href: "/profile", label: "Profile", icon: User },
 ]
 
 const SPORTS_ACTIVE_PREFIXES = [
+  "/discover/",
   "/sports/",
   "/fantasy-football",
   "/fantasy-basketball",
@@ -35,7 +36,7 @@ export default function MobileBottomTabs() {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t px-2 py-2 backdrop-blur lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur lg:hidden"
       style={{
         borderColor: "var(--border)",
         background: "color-mix(in srgb, var(--panel) 92%, transparent)",

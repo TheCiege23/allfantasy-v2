@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { sha256Hex, makeToken } from "@/lib/tokens"
 import { getClientIp, rateLimit } from "@/lib/rate-limit"
 import { logPasswordResetAudit } from "@/lib/auth/password-reset-audit"
+import { getResendFromEmail } from "@/lib/resend-client"
+import { getPublicSiteOrigin } from "@/lib/site-public-origin"
 
 export const runtime = "nodejs"
 
@@ -13,6 +15,28 @@ function escapeHtml(value: string): string {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;")
+}
+
+function resolvePasswordResetAppBase(req: Request): string {
+  const requestOrigin = new URL(req.url).origin
+
+  if (process.env.NODE_ENV === "production") {
+    try {
+      const hostname = new URL(requestOrigin).hostname.toLowerCase()
+      if (hostname && hostname !== "localhost" && !hostname.endsWith(".vercel.app")) {
+        return requestOrigin
+      }
+    } catch {}
+
+    return getPublicSiteOrigin()
+  }
+
+  return (
+    process.env.NEXTAUTH_URL?.trim() ||
+    process.env.APP_BASE_URL?.trim() ||
+    process.env.APP_URL?.trim() ||
+    requestOrigin
+  )
 }
 
 export async function POST(req: Request) {
@@ -150,11 +174,41 @@ export async function POST(req: Request) {
     data: { userId: user.id, tokenHash, expiresAt },
   })
 
-  const appBase =
-    process.env.NEXTAUTH_URL?.trim() ||
-    process.env.APP_BASE_URL?.trim() ||
-    process.env.APP_URL?.trim() ||
-    new URL(req.url).origin
+  const resendApiKey = process.env.RESEND_API_KEY?.trim() || ""
+  if (!resendApiKey) {
+    console.error(
+      "[password/reset/request] RESEND_API_KEY is not set — password reset emails will not be delivered. Add RESEND_API_KEY (and verify RESEND_FROM domain) in Vercel / .env.local.",
+    )
+    void logPasswordResetAudit({
+      outcome: "email_provider_missing",
+      type: "email",
+      userId: user.id,
+      email,
+      ip,
+      detail: { reason: "RESEND_API_KEY unset" },
+    })
+    return NextResponse.json({ ok: true }, { status: 200 })
+  }
+
+  let fromEmail = ""
+  try {
+    fromEmail = getResendFromEmail()
+  } catch (error) {
+    console.error("[password/reset/request] sender identity missing:", error)
+    void logPasswordResetAudit({
+      outcome: "email_provider_missing",
+      type: "email",
+      userId: user.id,
+      email,
+      ip,
+      detail: {
+        reason: error instanceof Error ? error.message : String(error),
+      },
+    })
+    return NextResponse.json({ ok: true }, { status: 200 })
+  }
+
+  const appBase = resolvePasswordResetAppBase(req)
 
   const nextPath = returnTo && returnTo.startsWith("/") ? returnTo : "/dashboard"
   const resetUrl = `${appBase}/reset-password?token=${encodeURIComponent(rawToken)}&returnTo=${encodeURIComponent(nextPath)}`
@@ -162,9 +216,9 @@ export async function POST(req: Request) {
 
   try {
     const { getResendClient } = await import("@/lib/resend-client")
-    const { client, fromEmail } = getResendClient()
+    const { client } = getResendClient()
     const result = await client.emails.send({
-      from: fromEmail || "AllFantasy.ai <noreply@allfantasy.ai>",
+      from: fromEmail,
       to: email,
       subject: "Reset your AllFantasy password",
       html: `<!DOCTYPE html>
@@ -199,7 +253,7 @@ export async function POST(req: Request) {
       userId: user.id,
       email,
       ip,
-      detail: { provider: "resend" },
+      detail: { provider: "resend", fromEmail },
     })
   } catch (error) {
     console.error("[pw-reset] email send failed:", error)
@@ -209,7 +263,11 @@ export async function POST(req: Request) {
       userId: user.id,
       email,
       ip,
-      detail: { provider: "resend", error: error instanceof Error ? error.message : String(error) },
+      detail: {
+        provider: "resend",
+        fromEmail,
+        error: error instanceof Error ? error.message : String(error),
+      },
     })
   }
 

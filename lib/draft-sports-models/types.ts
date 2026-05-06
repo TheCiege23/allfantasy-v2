@@ -65,6 +65,13 @@ export interface PlayerStatSnapshotModel {
   projectionSource?: ProjectionSourceTag | null
 }
 
+/** NFL pool row: where `yearsExp` attached during pool resolution came from (diagnostics). */
+export type NflRookieYearsExpProvenance =
+  | 'explicit_imported'
+  | 'sleeper_live'
+  | 'sleeper_db_cache'
+  | 'analytics_veteran_inferred'
+
 /** Draft-specific metadata (eligibility, injury, devy/C2C). */
 export interface PlayerDraftMetadataModel {
   position: string
@@ -87,6 +94,8 @@ export interface PlayerDraftMetadataModel {
   draftGrade?: string | null
   projectedLandingSpot?: string | null
   sport: DraftSport
+  /** NFL: provenance for `yearsExp` when present (never inferred from undocumented RI fields). */
+  rookieYearsExpSource?: NflRookieYearsExpProvenance | null
 }
 
 /** Full normalized player for draft UIs (live, mock, auction, slow, keeper, devy, C2C). */
@@ -137,4 +146,13 @@ export interface NormalizedDraftEntry {
   isRookie?: boolean
   /** Identifies how fantasyPointsPerGame was produced. */
   projectionSource?: ProjectionSourceTag | null
+  /** Block B.2-C — rookie inference inputs surfaced from the resolver so the
+   * client predicate can branch per sport without reaching into display.metadata.
+   * All optional / string|number tolerant — upstream sources may use either shape. */
+  age?: number | string | null
+  draftYear?: number | string | null
+  rookieYear?: number | string | null
+  debutYear?: number | string | null
+  firstSeasonYear?: number | string | null
+  classYear?: string | null
 }

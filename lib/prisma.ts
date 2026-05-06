@@ -95,7 +95,131 @@ function applyNonProdConnectionGuardrails(rawUrl: string): string {
   }
 }
 
+function isPostgresUrl(value: string): boolean {
+  return /^postgres(ql)?:\/\//i.test(value);
+}
+
+/** True for Prisma Accelerate / Data Proxy style datasource URLs (not direct Postgres TCP). */
+function isPrismaProtocolUrl(value: string): boolean {
+  return /^prisma(\+postgres)?:\/\//i.test(value.trim());
+}
+
+/**
+ * Prisma validates `schema.prisma` `env("DATABASE_URL")` / `env("DIRECT_URL")` at runtime.
+ * If `.env` sets `DATABASE_URL=prisma://...` (Accelerate) but `resolveDatabaseUrl` picks a
+ * `postgresql://...` value from `POSTGRES_URL` / `POSTGRES_PRISMA_URL`, leaving the old
+ * `DATABASE_URL` in `process.env` can trigger P6001 ("URL must start with prisma://").
+ * When we connect with a direct Postgres URL, align env so validation matches the client.
+ */
+function syncPrismaEnvWithResolvedPostgresUrl(resolvedUrl: string): void {
+  if (!isPostgresUrl(resolvedUrl)) return;
+
+  const prevDb = process.env.DATABASE_URL?.trim() ?? "";
+  if (prevDb && !isPostgresUrl(prevDb)) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn(
+        "[Prisma] Replacing non-postgres DATABASE_URL in process.env with the resolved postgres URL " +
+          "(from lib/env/database-url.ts). Use postgresql:// for direct DB access; prisma:// is only for Accelerate."
+      );
+    }
+  }
+  process.env.DATABASE_URL = resolvedUrl;
+
+  const prevDirect = process.env.DIRECT_URL?.trim() ?? "";
+  if (
+    !prevDirect ||
+    !isPostgresUrl(prevDirect) ||
+    isPrismaProtocolUrl(prevDirect)
+  ) {
+    process.env.DIRECT_URL = resolvedUrl;
+  }
+}
+
+function normalizePrismaEngineForDatabaseUrl(databaseUrl: string): void {
+  if (!isPostgresUrl(databaseUrl)) return;
+
+  const engineType = process.env.PRISMA_CLIENT_ENGINE_TYPE?.trim().toLowerCase();
+  // Direct postgres URLs require the Node query engine. Data Proxy / mistaken env breaks queries.
+  if (
+    engineType === "dataproxy" ||
+    engineType === "data-proxy" ||
+    engineType === "accelerate"
+  ) {
+    process.env.PRISMA_CLIENT_ENGINE_TYPE = "library";
+  }
+}
+
+/**
+ * Build-phase stub: during `next build`'s static prerender, return a Proxy that
+ * answers every Prisma operation with an empty value. Without this, Server
+ * Components that hit the DB during prerender would attempt a real TCP connect
+ * to the noop fallback URL (postgresql://noop:noop@localhost:5432/noop), fail,
+ * and crash the build. At runtime the real Prisma client takes over via SSR.
+ *
+ * Read ops → null / []  |  count → 0  |  aggregate → {}  |  $transaction → runs
+ * its callback with the same stub. Pages that depend on real data will render
+ * an empty shell at build time and SSR with real data on first request.
+ */
+function createBuildPhaseStubClient(): ExtendedPrismaClient {
+  const noopAsync = async () => null;
+  const emptyArrayAsync = async () => [];
+  const zeroAsync = async () => 0;
+  const emptyObjectAsync = async () => ({});
+
+  const modelHandler: ProxyHandler<object> = {
+    get(_target, prop) {
+      const name = String(prop);
+      if (name === "findMany" || name === "groupBy") return emptyArrayAsync;
+      if (name === "count") return zeroAsync;
+      if (name === "aggregate") return emptyObjectAsync;
+      if (
+        name === "findUnique" ||
+        name === "findFirst" ||
+        name === "findUniqueOrThrow" ||
+        name === "findFirstOrThrow"
+      ) {
+        return noopAsync;
+      }
+      // Writes (create/update/delete/upsert/...) — should not be called during prerender.
+      // Return null instead of throwing so a stray write doesn't crash the build.
+      return noopAsync;
+    },
+  };
+
+  const stubClient: object = {};
+  const handler: ProxyHandler<object> = {
+    get(_target, prop) {
+      const name = String(prop);
+      if (name === "$transaction") {
+        return async (arg: unknown) => {
+          if (typeof arg === "function") {
+            return (arg as (tx: unknown) => Promise<unknown>)(stubProxy);
+          }
+          if (Array.isArray(arg)) return arg.map(() => null);
+          return null;
+        };
+      }
+      if (name === "$queryRaw" || name === "$queryRawUnsafe") return emptyArrayAsync;
+      if (name === "$executeRaw" || name === "$executeRawUnsafe") return zeroAsync;
+      if (name === "$connect" || name === "$disconnect") return async () => undefined;
+      if (name === "$on" || name === "$use") return () => undefined;
+      if (name === "$extends") return () => stubProxy;
+      // Default: treat any other top-level property as a Prisma model accessor.
+      return new Proxy({}, modelHandler);
+    },
+  };
+
+  const stubProxy = new Proxy(stubClient, handler);
+  return stubProxy as unknown as ExtendedPrismaClient;
+}
+
 function createPrismaClient() {
+  // Build-phase short-circuit. Prevents the prerender loop from opening a real
+  // socket to the noop URL when a Server Component queries the DB at build time.
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return createBuildPhaseStubClient();
+  }
+
   // Runtime URL: resolveDatabaseUrl() prefers DATABASE_URL / pooler keys before DIRECT_URL (see lib/env/database-url.ts).
   let databaseUrl: string;
   try {
@@ -111,15 +235,9 @@ function createPrismaClient() {
     }
   }
 
-  if (!process.env.DATABASE_URL?.trim()) {
-    process.env.DATABASE_URL = databaseUrl;
-  }
+  syncPrismaEnvWithResolvedPostgresUrl(databaseUrl);
 
-  // Schema uses `directUrl = env("DIRECT_URL")`. Some tooling expects it at runtime; mirror the
-  // resolved URL when unset so single-URL Vercel/Neon setups do not fail intermittently.
-  if (!process.env.DIRECT_URL?.trim()) {
-    process.env.DIRECT_URL = databaseUrl;
-  }
+  normalizePrismaEngineForDatabaseUrl(databaseUrl);
 
   const client = new PrismaClient({
     datasourceUrl: databaseUrl,

@@ -42,6 +42,8 @@ import {
   TreePalm,
   Trophy,
   House,
+  Bot,
+  X,
   User,
   Users,
   Vote,
@@ -91,6 +93,7 @@ import { LeagueSettingsModal } from './components/LeagueSettingsModal'
 import { CommissionerSettingsModal } from './components/CommissionerSettingsModal'
 import { useIdpCapSummary, useRedraftRosterId } from '@/app/idp/hooks/useIdpTeamCap'
 import { LeagueSettingsTab as LeagueSettingsContentTab } from './tabs/LeagueSettingsTab'
+import { postOpenDraftOverlayMessage } from '@/lib/dashboard/dashboard-draft-overlay-bridge'
 import { RedraftTab } from './tabs/RedraftTab'
 import { KeeperSelectionTab } from './tabs/KeeperSelectionTab'
 import { BestBallTab } from './tabs/BestBallTab'
@@ -172,6 +175,7 @@ function prismaLeagueToUserLeague(
     bestBallMode: l.bestBallMode ?? undefined,
     guillotineMode: l.guillotineMode ?? undefined,
     keeperPhaseActive: l.keeperPhaseActive ?? undefined,
+    isCommissioner: Boolean(l.isCommissioner),
   }
 }
 
@@ -200,6 +204,11 @@ export type LeagueShellProps = {
   seasonSnapshot?: LeagueSeasonSnapshot | null
   /** AF-native league settings copy + standings layout (divisions / guillotine / survivor). */
   leagueDashboard: LeagueDashboardView
+  /**
+   * When true, only the center column renders (no chat / My Leagues rails).
+   * Used when this shell is loaded inside the dashboard center panel (`?embed=1`).
+   */
+  embedMode?: boolean
 }
 
 export function LeagueShell({
@@ -221,6 +230,7 @@ export function LeagueShell({
   dispersalDraftInProgress = null,
   seasonSnapshot = null,
   leagueDashboard,
+  embedMode = false,
 }: LeagueShellProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -551,6 +561,18 @@ export function LeagueShell({
     const ids = new Set(tabDefs.map((t) => t.id))
     if (ids.has(target)) setActiveTab(target)
   }, [searchParams, tabDefs, league.sport, shouldUseMatchupPrimary, nflRedraftCore])
+
+  useEffect(() => {
+    const ids = new Set(tabDefs.map((t) => t.id))
+    if (!ids.has(activeTab)) return
+
+    const next = new URLSearchParams(searchParams?.toString() ?? '')
+    if (next.get('view') === activeTab) return
+
+    next.set('view', activeTab)
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false })
+  }, [activeTab, pathname, router, searchParams, tabDefs])
+
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsInitialPanel, setSettingsInitialPanel] = useState<string | null>(null)
@@ -725,6 +747,41 @@ export function LeagueShell({
     [allLeagues],
   )
 
+  const commissionerLeagues = useMemo(
+    () =>
+      leagueList
+        .filter((l) => l.isCommissioner)
+        .map((l) => ({ id: l.id, name: l.name, teamCount: l.teamCount ?? 0 })),
+    [leagueList],
+  )
+
+  const [mobileLeftOpen, setMobileLeftOpen] = useState(false)
+  const [mobileRightOpen, setMobileRightOpen] = useState(false)
+
+  const navigateDashboardHome = useCallback(() => {
+    if (embedMode && typeof window !== 'undefined' && window.parent !== window) {
+      try {
+        window.parent.location.assign('/dashboard')
+        return
+      } catch {
+        /* cross-origin or restricted — fall back */
+      }
+    }
+    router.push('/dashboard')
+  }, [embedMode, router])
+
+  const openLeagueChatOrNavigate = useCallback(() => {
+    if (embedMode && typeof window !== 'undefined' && window.parent !== window) {
+      try {
+        window.parent.dispatchEvent(new CustomEvent('af-dashboard-open-mobile-left'))
+        return
+      } catch {
+        /* fall through */
+      }
+    }
+    router.push(`/league/${league.id}?openChat=league`)
+  }, [embedMode, league.id, router])
+
   const settingsInviteCode =
     league.settings &&
     typeof league.settings === 'object' &&
@@ -737,13 +794,23 @@ export function LeagueShell({
   /** Sidebar rows navigate via `<Link>` (`getLeagueListDestinationHref`); avoid `router.push(/league/${id})` so tournament hub links work. */
   const handleLeagueSelect = (l: UserLeague | null) => {
     if (!l) {
-      router.push('/dashboard')
+      navigateDashboardHome()
     }
   }
 
   const handleImport = () => {
     router.push('/import')
   }
+
+  useEffect(() => {
+    const openMobileLeft = () => {
+      if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+        setMobileLeftOpen(true)
+      }
+    }
+    window.addEventListener('af-dashboard-open-mobile-left', openMobileLeft)
+    return () => window.removeEventListener('af-dashboard-open-mobile-left', openMobileLeft)
+  }, [])
 
   const handlePlayerClick = (playerId: string) => setSelectedPlayer(playerId)
   const closePlayerCard = () => setSelectedPlayer(null)
@@ -920,39 +987,55 @@ export function LeagueShell({
           tournamentName={tournamentHeroContext.tournamentName}
         />
       ) : null}
-      <AppShell
-        immersive={specialtyImmersive}
-        rightRailCollapsed={myLeaguesRail.collapsed}
-        onRightRailExpand={() => myLeaguesRail.setCollapsed(false)}
-        rightRailCollapsedHint={leagueList.length ? String(leagueList.length) : undefined}
-        leftPanel={
-          <LeftChatPanel
-            selectedLeague={selectedLeague}
-            activeLeagueId={league.id}
-            userId={userId}
-            userDisplayName={userName}
-            userImage={userImage}
-            rootId="league-left-chat"
-            leagues={leagueList}
-            discordConnected={discordConnected}
-            zombieChimmyPrefill={zombieChimmyPrefill}
-            initialOpenChat={initialOpenChat}
-          />
-        }
-        rightPanel={
-          <RightControlPanel
-            leagues={leagueList}
-            leaguesLoading={false}
-            selectedId={league.id}
-            activeLeagueId={league.id}
-            onSelectLeague={handleLeagueSelect}
-            userId={userId}
-            userName={userName}
-            userImage={userImage}
-            onImport={handleImport}
-            onRailCollapse={() => myLeaguesRail.setCollapsed(true)}
-          />
-        }
+      <div className="contents" data-league-id={league.id}>
+        <AppShell
+          immersive={specialtyImmersive && !embedMode}
+          embedCenterOnly={embedMode}
+          rootClassName={
+            embedMode
+              ? 'min-h-0 h-full flex-1'
+              : 'h-[calc(100dvh-8.5rem)] min-h-0 lg:h-[calc(100dvh-3.5rem)]'
+          }
+          rightRailCollapsed={myLeaguesRail.collapsed}
+          onRightRailExpand={() => myLeaguesRail.setCollapsed(false)}
+          rightRailCollapsedHint={leagueList.length ? String(leagueList.length) : undefined}
+          leftPanel={
+            embedMode ? (
+              <></>
+            ) : (
+              <LeftChatPanel
+                selectedLeague={selectedLeague}
+                activeLeagueId={league.id}
+                userId={userId}
+                userDisplayName={userName}
+                userImage={userImage}
+                rootId="league-left-chat"
+                leagues={leagueList}
+                discordConnected={discordConnected}
+                commissionerLeagues={commissionerLeagues}
+                zombieChimmyPrefill={zombieChimmyPrefill}
+                initialOpenChat={initialOpenChat}
+              />
+            )
+          }
+          rightPanel={
+            embedMode ? (
+              <></>
+            ) : (
+              <RightControlPanel
+                leagues={leagueList}
+                leaguesLoading={false}
+                selectedId={league.id}
+                activeLeagueId={league.id}
+                onSelectLeague={handleLeagueSelect}
+                userId={userId}
+                userName={userName}
+                userImage={userImage}
+                onImport={handleImport}
+                onRailCollapse={() => myLeaguesRail.setCollapsed(true)}
+              />
+            )
+          }
       >
         <main
           className={`relative z-[1] flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${
@@ -983,6 +1066,31 @@ export function LeagueShell({
           }
         >
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
+            {!embedMode ? (
+              <div className="shrink-0 border-b border-white/[0.08] bg-[#050814] px-3 py-2 md:hidden">
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMobileLeftOpen(true)}
+                    className="touch-manipulation inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-white active:bg-white/[0.08]"
+                    aria-label={t('dashboard.shell.openChat')}
+                  >
+                    <Bot className="h-5 w-5" aria-hidden />
+                  </button>
+                  <p className="min-w-0 flex-1 truncate text-center text-sm font-semibold text-white/90">
+                    {selectedLeague.name}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setMobileRightOpen(true)}
+                    className="touch-manipulation inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-white active:bg-white/[0.08]"
+                    aria-label={t('dashboard.shell.openMyLeagues')}
+                  >
+                    <LayoutGrid className="h-5 w-5" aria-hidden />
+                  </button>
+                </div>
+              </div>
+            ) : null}
             {showSpecialtyHero && specialtyHeroVariant ? (
               <SpecialtyLeagueHomeHero
                 leagueId={league.id}
@@ -999,7 +1107,7 @@ export function LeagueShell({
                 isHeadCommissioner={isHeadCommissioner}
                 onOpenDraftTab={() => setActiveTab(draftTabForHero)}
                 onOpenStandingsTab={() => setActiveTab(standingsTabForHero)}
-                onOpenChat={() => router.push(`/league/${league.id}?openChat=league`)}
+                onOpenChat={openLeagueChatOrNavigate}
                 onOpenSettings={() => openLeagueSettingsModal(null)}
                 onOpenCommissionerSettings={() => setCommissionerSettingsOpen(true)}
               />
@@ -1011,7 +1119,7 @@ export function LeagueShell({
                 sport={String(selectedLeague.sport)}
                 season={Number(selectedLeague.season ?? new Date().getFullYear())}
                 isCommissioner={isCommissioner}
-                onOpenChat={() => router.push(`/league/${league.id}?openChat=league`)}
+                onOpenChat={openLeagueChatOrNavigate}
                 onOpenSettings={() =>
                   isCommissioner
                     ? openLeagueSettingsModal('devy-command-center')
@@ -1038,7 +1146,7 @@ export function LeagueShell({
                       onLeaveLeague: () => setLeaveLeagueHintOpen(true),
                     }
               }
-              onGoHome={() => router.push('/dashboard')}
+              onGoHome={navigateDashboardHome}
               idpLeagueActive={idpUi?.active ?? false}
               idpViewMode={idpViewMode}
               onIdpViewModeChange={setIdpViewMode}
@@ -1061,19 +1169,43 @@ export function LeagueShell({
 
             {dispersalDraftInProgress ? (
               <div className="shrink-0 border-b border-cyan-500/20 bg-[#081226] px-4 py-2.5">
-                <Link
-                  href={`/league/${league.id}/dispersal-draft/${dispersalDraftInProgress.draftId}`}
-                  className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-cyan-100/95 hover:text-cyan-50"
-                >
-                  <span>
-                    {dispersalDraftInProgress.status === 'in_progress'
-                      ? 'Dispersal draft in progress — join the draft room to make picks.'
-                      : 'Dispersal draft open — continue setup or open the draft room.'}
-                  </span>
-                  <span className="font-semibold text-cyan-300 underline decoration-cyan-500/40 underline-offset-2">
-                    {dispersalDraftInProgress.status === 'in_progress' ? 'Join draft room →' : 'Open →'}
-                  </span>
-                </Link>
+                {embedMode ? (
+                  <button
+                    type="button"
+                    className="flex w-full flex-wrap items-center justify-between gap-2 text-left text-[12px] text-cyan-100/95 hover:text-cyan-50"
+                    data-testid="league-shell-dispersal-draft-embed-cta"
+                    onClick={() =>
+                      postOpenDraftOverlayMessage({
+                        leagueId: league.id,
+                        dispersalDraftId: dispersalDraftInProgress.draftId,
+                        source: 'LeagueShell-dispersal-banner',
+                      })
+                    }
+                  >
+                    <span>
+                      {dispersalDraftInProgress.status === 'in_progress'
+                        ? 'Dispersal draft in progress — join the draft room to make picks.'
+                        : 'Dispersal draft open — continue setup or open the draft room.'}
+                    </span>
+                    <span className="font-semibold text-cyan-300 underline decoration-cyan-500/40 underline-offset-2">
+                      {dispersalDraftInProgress.status === 'in_progress' ? 'Join draft room →' : 'Open →'}
+                    </span>
+                  </button>
+                ) : (
+                  <Link
+                    href={`/league/${league.id}/dispersal-draft/${dispersalDraftInProgress.draftId}`}
+                    className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-cyan-100/95 hover:text-cyan-50"
+                  >
+                    <span>
+                      {dispersalDraftInProgress.status === 'in_progress'
+                        ? 'Dispersal draft in progress — join the draft room to make picks.'
+                        : 'Dispersal draft open — continue setup or open the draft room.'}
+                    </span>
+                    <span className="font-semibold text-cyan-300 underline decoration-cyan-500/40 underline-offset-2">
+                      {dispersalDraftInProgress.status === 'in_progress' ? 'Join draft room →' : 'Open →'}
+                    </span>
+                  </Link>
+                )}
               </div>
             ) : null}
 
@@ -1125,10 +1257,107 @@ export function LeagueShell({
               seasonSnapshot={seasonSnapshot}
               leagueDashboard={leagueDashboard}
               onOpenLeagueSettingsModal={openLeagueSettingsModal}
+              dashboardEmbed={embedMode}
             />
           </div>
         </main>
-      </AppShell>
+        </AppShell>
+      </div>
+
+      {mobileLeftOpen ? (
+        <div
+          className="fixed inset-0 z-[60] bg-black/60 md:hidden"
+          role="presentation"
+          onClick={() => setMobileLeftOpen(false)}
+        >
+          <div
+            className="absolute inset-x-0 bottom-0 flex max-h-[85dvh] min-h-[50dvh] flex-col overflow-hidden rounded-t-[24px] border-t border-white/[0.07] bg-[#0a0a1f] pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-12px_48px_rgba(0,0,0,0.45)]"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('dashboard.shell.chat')}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-2">
+              <span className="h-1 w-10 shrink-0 rounded-full bg-white/20" aria-hidden />
+            </div>
+            <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3">
+              <p className="text-[10px] uppercase tracking-[0.08em] text-white/30">{t('dashboard.shell.chat')}</p>
+              <button
+                type="button"
+                onClick={() => setMobileLeftOpen(false)}
+                className="touch-manipulation inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.04] text-white"
+                aria-label={t('dashboard.shell.closeChat')}
+              >
+                <X className="h-5 w-5" aria-hidden />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <LeftChatPanel
+                selectedLeague={selectedLeague}
+                activeLeagueId={league.id}
+                userId={userId}
+                userDisplayName={userName}
+                userImage={userImage}
+                rootId={null}
+                leagues={leagueList}
+                discordConnected={discordConnected}
+                commissionerLeagues={commissionerLeagues}
+                zombieChimmyPrefill={zombieChimmyPrefill}
+                initialOpenChat={initialOpenChat}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {!embedMode && mobileRightOpen ? (
+        <div
+          className="fixed inset-0 z-[60] bg-black/60 md:hidden"
+          role="presentation"
+          onClick={() => setMobileRightOpen(false)}
+        >
+          <div
+            className="absolute inset-x-0 bottom-0 flex max-h-[90dvh] min-h-[50dvh] flex-col overflow-hidden rounded-t-[24px] border-t border-white/[0.07] bg-[#0a0a1f] pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-12px_48px_rgba(0,0,0,0.45)]"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('dashboard.right.myLeagues')}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-2">
+              <span className="h-1 w-10 shrink-0 rounded-full bg-white/20" aria-hidden />
+            </div>
+            <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3">
+              <p className="text-[10px] uppercase tracking-[0.08em] text-white/30">{t('dashboard.right.myLeagues')}</p>
+              <button
+                type="button"
+                onClick={() => setMobileRightOpen(false)}
+                className="touch-manipulation inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.04] text-white"
+                aria-label={t('dashboard.shell.closePanel')}
+              >
+                <X className="h-5 w-5" aria-hidden />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <div className="h-full w-full max-w-none">
+                <RightControlPanel
+                  leagues={leagueList}
+                  leaguesLoading={false}
+                  selectedId={league.id}
+                  activeLeagueId={league.id}
+                  onSelectLeague={handleLeagueSelect}
+                  userId={userId}
+                  userName={userName}
+                  userImage={userImage}
+                  onImport={handleImport}
+                  onAfterLeagueNavigate={() => setMobileRightOpen(false)}
+                  onSettingsNavigate={() => setMobileRightOpen(false)}
+                  onRailCollapse={() => myLeaguesRail.setCollapsed(true)}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {selectedPlayer ? (
         <PlayerStatCard
@@ -1304,6 +1533,7 @@ function LeagueTabRouter({
   seasonSnapshot,
   leagueDashboard,
   onOpenLeagueSettingsModal,
+  dashboardEmbed = false,
 }: {
   activeTab: string
   tabDefs: TabDef[]
@@ -1322,6 +1552,7 @@ function LeagueTabRouter({
   seasonSnapshot: LeagueSeasonSnapshot | null
   leagueDashboard: LeagueDashboardView
   onOpenLeagueSettingsModal: (initialPanel?: string | null) => void
+  dashboardEmbed?: boolean
 }) {
   const router = useRouter()
   const tab = tabDefs.find((t) => t.id === activeTab)
@@ -1341,6 +1572,7 @@ function LeagueTabRouter({
           seasonSnapshot={seasonSnapshot}
           standingsPresentation={leagueDashboard.standings}
           onOpenLeagueSettings={onOpenLeagueSettingsModal}
+          dashboardEmbed={dashboardEmbed}
         />
       )
     case 'matchups':
@@ -1359,6 +1591,7 @@ function LeagueTabRouter({
           seasonSnapshot={seasonSnapshot}
           standingsPresentation={leagueDashboard.standings}
           onOpenLeagueSettings={onOpenLeagueSettingsModal}
+          dashboardEmbed={dashboardEmbed}
         />
       )
     case 'redraft':
@@ -1454,6 +1687,7 @@ function LeagueTabRouter({
           inviteToken={inviteToken}
           idpLeagueUi={idpLeagueActive}
           userTeam={userTeam ? { id: userTeam.id, teamName: userTeam.teamName } : null}
+          dashboardEmbed={dashboardEmbed}
         />
       )
     case 'players':
@@ -1469,7 +1703,7 @@ function LeagueTabRouter({
     case 'finance':
       return <FinanceTab leagueId={leagueId} isCommissioner={isCommissioner} />
     case 'war_room':
-      return <WarRoomTab league={selectedLeague} sport={sport} />
+      return <WarRoomTab league={selectedLeague} sport={sport} dashboardEmbed={dashboardEmbed} />
     case 'ai_coaching':
       return <AICoachingTab league={selectedLeague} userTeam={userTeam} sport={sport} />
     case 'history':
@@ -1480,6 +1714,7 @@ function LeagueTabRouter({
           leagueId={leagueId}
           isCommissioner={isCommissioner}
           isHeadCommissioner={isHeadCommissioner}
+          dashboardEmbed={dashboardEmbed}
         />
       )
     case 'standings':
@@ -1679,12 +1914,21 @@ function LeagueHeader({
       >
         <div
           className={cn(
-            'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-fuchsia-500 via-rose-500 to-rose-700 text-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]',
+            'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] overflow-hidden',
             compactTitleRow && 'hidden',
+            !league.avatarUrl ? 'bg-gradient-to-br from-fuchsia-500 via-rose-500 to-rose-700 text-lg' : '',
           )}
           aria-hidden
         >
-          <span className="drop-shadow">{leagueTabSportEmoji(league.sport)}</span>
+          {league.avatarUrl ? (
+            <img
+              src={league.avatarUrl.startsWith('http') ? league.avatarUrl : `https://sleepercdn.com/avatars/${league.avatarUrl}`}
+              alt=""
+              className="h-10 w-10 object-cover rounded-xl"
+            />
+          ) : (
+            <span className="drop-shadow">{leagueTabSportEmoji(league.sport)}</span>
+          )}
         </div>
 
         <div
@@ -1697,6 +1941,16 @@ function LeagueHeader({
             <h1 className="max-w-full truncate text-base font-bold leading-tight text-white sm:text-[17px]">
               {league.name}
             </h1>
+            {isCommissioner ? (
+              <span
+                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-400/35 bg-amber-400/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-200/90"
+                data-testid="league-header-commissioner-badge"
+                title="You are a commissioner of this league"
+              >
+                <Crown className="h-2.5 w-2.5" aria-hidden />
+                Commish
+              </span>
+            ) : null}
             <span className="whitespace-normal text-[12px] leading-snug text-white/45 sm:text-[13px]">
               {league.season} {league.teamCount}-Team {league.isDynasty ? 'Dynasty' : 'Redraft'} {league.scoring}
             </span>
@@ -1917,7 +2171,7 @@ function LeagueHeader({
       </div>
 
       {idpLeagueActive && idpCapEnabled && capRosterId ? (
-        <div className="scrollbar-none mt-2 flex gap-1 overflow-x-auto border-t border-white/[0.05] px-5 py-2">
+        <div className="scrollbar-none -mx-1 mt-2 flex snap-x snap-mandatory gap-1 overflow-x-auto scroll-pb-1 border-t border-white/[0.05] px-4 py-2 sm:mx-0 sm:px-5 [-webkit-overflow-scrolling:touch]">
           {(
             [
               ['Roster', `/league/${leagueId}?view=team`],
@@ -1931,7 +2185,7 @@ function LeagueHeader({
             <Link
               key={label}
               href={href}
-              className="whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-1.5 text-[11px] font-semibold text-cyan-200/90 transition-colors hover:bg-cyan-500/10"
+              className="inline-flex snap-start min-h-[40px] shrink-0 touch-manipulation items-center whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-2 text-[11px] font-semibold text-cyan-200/90 transition-colors hover:bg-cyan-500/10"
               data-testid={`idp-cap-quick-${label.toLowerCase().replace(/\s+/g, '-')}`}
             >
               {label}
@@ -1941,7 +2195,7 @@ function LeagueHeader({
       ) : null}
 
       {c2cLeagueActive ? (
-        <div className="scrollbar-none mt-2 flex gap-1 overflow-x-auto border-t border-white/[0.05] px-5 py-2">
+        <div className="scrollbar-none -mx-1 mt-2 flex snap-x snap-mandatory gap-1 overflow-x-auto scroll-pb-1 border-t border-white/[0.05] px-4 py-2 sm:mx-0 sm:px-5 [-webkit-overflow-scrolling:touch]">
           {(
             [
               ['Roster', `/c2c/${leagueId}/roster`],
@@ -1962,7 +2216,7 @@ function LeagueHeader({
                   if (isCommissioner && onOpenCommissionerSettings) onOpenCommissionerSettings()
                   else onOpenLeagueSettingsModal()
                 }}
-                className="whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-1.5 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white"
+                className="inline-flex snap-start min-h-[40px] shrink-0 touch-manipulation items-center whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-2 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white"
                 data-testid={`c2c-quick-${label.toLowerCase()}`}
               >
                 {label}
@@ -1971,7 +2225,7 @@ function LeagueHeader({
               <Link
                 key={`c2c-${label}`}
                 href={href}
-                className="whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-1.5 text-[11px] font-semibold text-cyan-200/90 transition-colors hover:bg-cyan-500/10"
+                className="inline-flex snap-start min-h-[40px] shrink-0 touch-manipulation items-center whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-2 text-[11px] font-semibold text-cyan-200/90 transition-colors hover:bg-cyan-500/10"
                 data-testid={`c2c-quick-${label.toLowerCase()}`}
               >
                 {label}
@@ -1982,7 +2236,7 @@ function LeagueHeader({
       ) : null}
 
       {devyLeagueActive ? (
-        <div className="scrollbar-none mt-2 flex gap-1 overflow-x-auto border-t border-white/[0.05] px-5 py-2">
+        <div className="scrollbar-none -mx-1 mt-2 flex snap-x snap-mandatory gap-1 overflow-x-auto scroll-pb-1 border-t border-white/[0.05] px-4 py-2 sm:mx-0 sm:px-5 [-webkit-overflow-scrolling:touch]">
           {(
             [
               ['Roster', `/devy/${leagueId}/roster`],
@@ -2003,7 +2257,7 @@ function LeagueHeader({
                   if (isCommissioner && onOpenCommissionerSettings) onOpenCommissionerSettings()
                   else onOpenLeagueSettingsModal()
                 }}
-                className="whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-1.5 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white"
+                className="inline-flex snap-start min-h-[40px] shrink-0 touch-manipulation items-center whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-2 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white"
                 data-testid={`devy-quick-${label.toLowerCase()}`}
               >
                 {label}
@@ -2012,7 +2266,7 @@ function LeagueHeader({
               <Link
                 key={label}
                 href={href}
-                className="whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-1.5 text-[11px] font-semibold text-cyan-200/90 transition-colors hover:bg-cyan-500/10"
+                className="inline-flex snap-start min-h-[40px] shrink-0 touch-manipulation items-center whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-2 text-[11px] font-semibold text-cyan-200/90 transition-colors hover:bg-cyan-500/10"
                 data-testid={`devy-quick-${label.toLowerCase()}`}
               >
                 {label}
@@ -2023,7 +2277,7 @@ function LeagueHeader({
       ) : null}
 
       {survivorLeagueActive ? (
-        <div className="scrollbar-none mt-2 flex gap-1 overflow-x-auto border-t border-amber-500/15 bg-gradient-to-r from-amber-950/20 to-transparent px-5 py-2">
+        <div className="scrollbar-none -mx-1 mt-2 flex snap-x snap-mandatory gap-1 overflow-x-auto scroll-pb-1 border-t border-amber-500/15 bg-gradient-to-r from-amber-950/20 to-transparent px-4 py-2 sm:mx-0 sm:px-5 [-webkit-overflow-scrolling:touch]">
           {(
             [
               ['Island', `/league/${leagueId}?view=survivor`],
@@ -2046,7 +2300,7 @@ function LeagueHeader({
                   if (isCommissioner && onOpenCommissionerSettings) onOpenCommissionerSettings()
                   else onOpenLeagueSettingsModal()
                 }}
-                className="whitespace-nowrap rounded-lg border border-amber-500/25 bg-amber-950/25 px-3 py-1.5 text-[11px] font-semibold text-amber-100/95 transition-colors hover:bg-amber-500/15"
+                className="inline-flex snap-start min-h-[40px] shrink-0 touch-manipulation items-center whitespace-nowrap rounded-lg border border-amber-500/25 bg-amber-950/25 px-3 py-2 text-[11px] font-semibold text-amber-100/95 transition-colors hover:bg-amber-500/15"
                 data-testid="survivor-quick-commissioner"
               >
                 {label}
@@ -2055,7 +2309,7 @@ function LeagueHeader({
               <Link
                 key={`survivor-${label}`}
                 href={href}
-                className="whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-1.5 text-[11px] font-semibold text-amber-100/85 transition-colors hover:bg-amber-500/10"
+                className="inline-flex snap-start min-h-[40px] shrink-0 touch-manipulation items-center whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-2 text-[11px] font-semibold text-amber-100/85 transition-colors hover:bg-amber-500/10"
                 data-testid={`survivor-quick-${label.toLowerCase().replace(/\s+/g, '-')}`}
               >
                 {label}
@@ -2066,7 +2320,7 @@ function LeagueHeader({
       ) : null}
 
       {zombieLeagueActive ? (
-        <div className="scrollbar-none mt-2 flex gap-1 overflow-x-auto border-t border-violet-500/20 bg-gradient-to-r from-violet-950/25 to-transparent px-5 py-2">
+        <div className="scrollbar-none -mx-1 mt-2 flex snap-x snap-mandatory gap-1 overflow-x-auto scroll-pb-1 border-t border-violet-500/20 bg-gradient-to-r from-violet-950/25 to-transparent px-4 py-2 sm:mx-0 sm:px-5 [-webkit-overflow-scrolling:touch]">
           {(
             [
               ['Horde', `/league/${leagueId}?view=zombie`],
@@ -2085,7 +2339,7 @@ function LeagueHeader({
                   if (isCommissioner && onOpenCommissionerSettings) onOpenCommissionerSettings()
                   else onOpenLeagueSettingsModal()
                 }}
-                className="whitespace-nowrap rounded-lg border border-violet-500/30 bg-violet-950/30 px-3 py-1.5 text-[11px] font-semibold text-violet-100/95 transition-colors hover:bg-violet-500/15"
+                className="inline-flex snap-start min-h-[40px] shrink-0 touch-manipulation items-center whitespace-nowrap rounded-lg border border-violet-500/30 bg-violet-950/30 px-3 py-2 text-[11px] font-semibold text-violet-100/95 transition-colors hover:bg-violet-500/15"
                 data-testid="zombie-quick-commissioner"
               >
                 {label}
@@ -2094,7 +2348,7 @@ function LeagueHeader({
               <Link
                 key={`zombie-${label}`}
                 href={href}
-                className="whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-1.5 text-[11px] font-semibold text-violet-100/90 transition-colors hover:bg-violet-500/10"
+                className="inline-flex snap-start min-h-[40px] shrink-0 touch-manipulation items-center whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-2 text-[11px] font-semibold text-violet-100/90 transition-colors hover:bg-violet-500/10"
                 data-testid={`zombie-quick-${label.toLowerCase().replace(/\s+/g, '-')}`}
               >
                 {label}
@@ -2104,9 +2358,9 @@ function LeagueHeader({
         </div>
       ) : null}
 
-      <div className="scrollbar-none mt-2 px-4 pb-3 sm:px-5">
+      <div className="scrollbar-none mt-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:pb-3">
         <div
-          className="flex gap-1 overflow-x-auto rounded-xl border border-white/[0.1] bg-[#0a1228] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+          className="flex snap-x snap-mandatory gap-1 overflow-x-auto scroll-pb-1 rounded-xl border border-white/[0.1] bg-[#0a1228] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] [-webkit-overflow-scrolling:touch]"
           role="tablist"
           aria-label="League navigation"
         >
@@ -2123,7 +2377,7 @@ function LeagueHeader({
                 data-testid={`league-tab-${tab.id}`}
                 onClick={() => onTabChange(tab.id)}
                 className={cn(
-                  'flex min-h-[40px] min-w-0 shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-[10px] font-bold uppercase tracking-wide transition-colors sm:px-3 sm:text-[11px]',
+                  'touch-manipulation flex snap-start min-h-[44px] min-w-0 shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-[10px] font-bold uppercase tracking-wide transition-colors sm:min-h-[40px] sm:px-3 sm:text-[11px]',
                   isActive
                     ? 'bg-cyan-400 text-[#050814] shadow-sm'
                     : 'text-cyan-400/95 hover:bg-white/[0.06] hover:text-cyan-300',

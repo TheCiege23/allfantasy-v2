@@ -18,6 +18,8 @@ const hm = vi.hoisted(() => ({
   getPlayerPoolForLeague: vi.fn(),
   loadRollingInsightsSeasonByDraftPoolKey: vi.fn(),
   loadRollingInsightsStatsDetailByPlayerIds: vi.fn(),
+  adpDataFindFirst: vi.fn(),
+  adpDataFindMany: vi.fn(),
 }))
 
 vi.mock('@/lib/prisma', () => ({
@@ -26,6 +28,15 @@ vi.mock('@/lib/prisma', () => ({
     draftSession: { findUnique: hm.draftSessionFindUnique },
     playerAnalyticsSnapshot: { findMany: hm.playerAnalyticsFindMany },
     devyPlayer: { findMany: hm.devyPlayerFindMany },
+    injuryReportRecord: { findMany: vi.fn().mockResolvedValue([]) },
+    sportsPlayer: { findMany: vi.fn().mockResolvedValue([]) },
+    sportsPlayerRecord: { findMany: vi.fn().mockResolvedValue([]) },
+    adpDataRecord: {
+      findFirst: (...args: unknown[]) => hm.adpDataFindFirst(...args),
+      findMany: (...args: unknown[]) => hm.adpDataFindMany(...args),
+    },
+    allFantasyAdpSnapshot: { findMany: vi.fn().mockResolvedValue([]) },
+    playerSeasonStats: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }))
 
@@ -52,7 +63,10 @@ vi.mock('@/lib/draft/analytics/nfl-rolling-insights-draft-analytics', () => ({
   loadRollingInsightsSeasonByDraftPoolKey: (...args: unknown[]) => hm.loadRollingInsightsSeasonByDraftPoolKey(...args),
   loadRollingInsightsStatsDetailByPlayerIds: (...args: unknown[]) =>
     hm.loadRollingInsightsStatsDetailByPlayerIds(...args),
-  loadPlayerSeasonStatsFallback: vi.fn(),
+  loadPlayerSeasonStatsFallback: vi.fn().mockResolvedValue({
+    seasonByPoolKey: new Map(),
+    diagnostics: { exactIdHits: 0, namePositionHits: 0, ambiguousSkips: 0, misses: 0 },
+  }),
   resolveNflDraftPoolAnalytics: vi.fn(() => ({
     fantasyPointsPerGame: null,
     lifetimeValue: null,
@@ -153,6 +167,8 @@ describe('getResolvedDraftPoolForLeague', () => {
       riSeasonByPlayerId: new Map(),
     })
     hm.loadRollingInsightsStatsDetailByPlayerIds.mockResolvedValue(new Map())
+    hm.adpDataFindFirst.mockResolvedValue(null)
+    hm.adpDataFindMany.mockResolvedValue([])
   })
 
   it('returns empty pool when roster schema is not persisted', async () => {
@@ -222,6 +238,11 @@ describe('getResolvedDraftPoolForLeague', () => {
 
   it('merges DB pool onto ADP rows preserving ADP order and enriching playerId, sleeperId, imageUrl, and display headshot', async () => {
     const getResolvedDraftPoolForLeague = await loadPool()
+    hm.adpDataFindFirst.mockResolvedValue({ season: 2025, week: 1 })
+    hm.adpDataFindMany.mockResolvedValue([
+      { playerName: 'Merge Adp Star', position: 'RB', team: 'ZZZ', source: 'espn', adp: 1.5 },
+      { playerName: 'Later Adp', position: 'WR', team: 'AAA', source: 'espn', adp: 99 },
+    ])
     hm.getLiveADP.mockResolvedValue([
       { name: 'Merge Adp Star', position: 'RB', team: 'ZZZ', adp: 1.5, bye: 5 },
       { name: 'Later Adp', position: 'WR', team: 'AAA', adp: 99, bye: 6 },
@@ -316,6 +337,95 @@ describe('getResolvedDraftPoolForLeague', () => {
     expect(names.has('Alpha One')).toBe(false)
     expect(names.has('Beta Two')).toBe(false)
     expect(names.has('Gamma Three')).toBe(true)
+  })
+
+  it('Block B.2-A/C — non-NFL pool rows carry sport + age + rookie inference metadata through to normalized entries', async () => {
+    const getResolvedDraftPoolForLeague = await loadPool()
+
+    // Switch league to NBA so the resolver hits the non-NFL else branch.
+    hm.leagueFindUnique.mockResolvedValue({
+      sport: 'NBA',
+      leagueVariant: null,
+      settings: {},
+      starters: [{ slot: 'PG' }],
+      leagueSettings: { draftType: 'snake' },
+    })
+    // No ADP → forces SportsPlayer-fallback path (the branch that surfaces
+    // the rookie-inference fields from p.* into the rawList row).
+    hm.adpDataFindFirst.mockResolvedValue(null)
+    hm.adpDataFindMany.mockResolvedValue([])
+    hm.getLiveADP.mockResolvedValue([])
+    hm.getPlayerPoolForLeague.mockResolvedValue([
+      {
+        full_name: 'Rookie Guard',
+        position: 'PG',
+        team_abbreviation: 'BOS',
+        external_source_id: 'nba-rookie-1',
+        injury_status: null,
+        secondary_positions: [],
+        image_url: null,
+        player_id: null,
+        status: null,
+        age: 19,
+        draft_year: new Date().getFullYear(),
+        class_year: 'FR',
+        class_year_label: 'FR',
+      },
+      {
+        full_name: 'Mlb Debut',
+        position: 'PG',
+        team_abbreviation: 'BOS',
+        external_source_id: 'mlb-1',
+        injury_status: null,
+        secondary_positions: [],
+        image_url: null,
+        player_id: null,
+        status: null,
+        age: 22,
+        debut_year: new Date().getFullYear(),
+      },
+    ])
+
+    const res = await getResolvedDraftPoolForLeague('league-unit', {
+      effectiveLeagueTemplate: {
+        sport: 'NBA',
+        formatType: 'REDRAFT',
+        leagueVariant: null,
+        idpEnabled: false,
+        template: {
+          templateId: 'nba-unit',
+          sportType: 'NBA',
+          name: 'NBA unit',
+          formatType: 'REDRAFT',
+          slots: [slot('PG', ['PG'], 1, 0, 1), slot('BN', ['PG', 'SG', 'SF'], 0, 4, 2)],
+        },
+        allowedPositions: new Set(['PG', 'SG', 'SF']),
+        starterEligiblePositions: new Set(['PG']),
+        flexSlotNames: [],
+        superflexSlotNames: [],
+        hasPersistedRosterSchema: true,
+      } as EffectiveLeagueRosterTemplate,
+      limit: 50,
+    })
+
+    const rookie = res.entries.find((e) => e.name === 'Rookie Guard')
+    expect(rookie).toBeDefined()
+    // sport propagated through normalization (PlayerDisplayModel.sport).
+    expect(rookie!.display.sport).toBe('NBA')
+    // Top-level age lifted by Block B.2-C so the predicate can branch on it.
+    expect(rookie!.age).toBe(19)
+    // Year fields carried through verbatim.
+    expect(rookie!.draftYear).toBe(new Date().getFullYear())
+    // class_year (snake_case from upstream) → classYear (camelCase top level).
+    expect(rookie!.classYear).toBe('FR')
+    // class_year_label preserved on the existing top-level classYearLabel field.
+    expect(rookie!.classYearLabel).toBe('FR')
+
+    const debut = res.entries.find((e) => e.name === 'Mlb Debut')
+    expect(debut).toBeDefined()
+    // debut_year reaches the predicate as debutYear at the top level.
+    expect(debut!.debutYear).toBe(new Date().getFullYear())
+    expect(debut!.age).toBe(22)
   })
 
   it('attaches NFL projection splits using empty model when no projection data (no fake zeros)', async () => {

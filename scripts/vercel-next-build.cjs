@@ -20,6 +20,24 @@ const routeDirsToDisable = [
   path.join('app', 'bracket-review'),
   path.join('app', 'createor'),
   path.join('app', 'manifest.experimental.webmanifest'),
+  // Dev/test/lab routes — never needed in production (reduce Vercel route budget).
+  path.join('app', 'api', 'dev'),
+  path.join('app', 'api', 'e2e'),
+  path.join('app', 'api', 'lab'),
+  path.join('app', 'api', 'simulation-lab'),
+  // Pure redirect-alias pages — replaced by next.config.js redirects below.
+  path.join('app', 'march-madness'),
+  path.join('app', 'wallet', 'deposit'),
+  // Game modes deferred until launch — keeps Vercel route budget under 2048.
+  // Disable only the *route-bearing* subdirs; the `components/` subdirs stay
+  // because external code (e.g. CommissionerSettingsModal, components/zombie/*)
+  // imports shared zombie/survivor UI from them. Restore by removing these
+  // entries when zombie/survivor ship to prod users.
+  path.join('app', 'zombie', '[leagueId]'),
+  path.join('app', 'zombie', 'universe'),
+  path.join('app', 'survivor', '[leagueId]'),
+  path.join('app', 'api', 'zombie'),
+  path.join('app', 'api', 'survivor'),
 ]
 
 const movedFiles = []

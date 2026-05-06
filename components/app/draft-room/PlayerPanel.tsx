@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Search, User, Plus, GitCompare, X } from 'lucide-react'
+import { Search, User, Plus, GitCompare, LayoutGrid, Rows3, X } from 'lucide-react'
 import { usePlayerComparisonUIOptional } from '@/components/player-comparison-ui'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { applyDraftFilters, DRAFT_ROOM_I18N_KEYS, getPickConfirmationLabel, getPositionFilterOptionsForSport } from '@/lib/draft-room'
@@ -19,12 +19,26 @@ import {
 // Sleeper-style table mode and rows actually align to those columns.
 import { PlayerDetailModal, type DraftAssistantRoomContext } from './PlayerDetailModal'
 import type { PlayerDisplayModel } from '@/lib/draft-sports-models/types'
+import type { UnifiedPlayerProductView } from '@/lib/player-data/unifiedPlayerProductView'
 import { normalizePlayer } from '@/lib/players/normalizePlayer'
 import { DRAFT_ROOM } from '@/lib/analytics/eventNames'
 import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
 import type { DraftCopilotInsight } from '@/lib/draft-room/draft-copilot-types'
 import type { NflDraftProjectionSplits } from '@/lib/draft/analytics/nfl-draft-pool-projection-splits'
 import { isRookieEligibleForFilter, isVetEligibleForFilter } from '@/lib/draft-room/rookieFilterPredicate'
+import { sleeperPoolStatOptionsFromPositionFilter } from '@/lib/draft-room/sleeperPoolTableLayout'
+import { getDraftRoomRookieDataState, type DraftRoomRookiePlayerLike } from '@/lib/draft-room/draftPlayerRookie'
+import { buildRookieSignalDiagnostics } from '@/lib/draft-room/draftRoomRookieDiagnostics'
+import {
+  getDraftRoomPositionGroupCounts,
+  poolPlayerMatchesPositionPill,
+} from '@/lib/draft-room/draftPoolPositionGroups'
+import {
+  logDraftPoolAdpDiagnosticsIfNeeded,
+  logDraftPoolPositionDiagnosticsIfNeeded,
+} from '@/lib/draft-room/draftPoolDiagnostics'
+import { formatAiAdpUnavailableBanner } from '@/lib/draft-room/adpReadinessCopy'
+import { getDraftRoomDisplayHeadshot, getDraftRoomDisplayInjury } from '@/lib/player-data/adapters/draftRoomDisplayFields'
 
 const PLAYER_ROW_ESTIMATE_HEIGHT = 76
 /** Redraft rows use slightly taller estimate (chips + stats). */
@@ -82,6 +96,8 @@ export type PlayerEntry = {
   yearsExp?: number | null
   /** D.7 — derived rookie flag (true when yearsExp === 0 or upstream marked as rookie). */
   isRookie?: boolean
+  /** Provider-prioritized unified layer for fallback image/injury/source metadata */
+  unifiedProductView?: UnifiedPlayerProductView | null
 }
 
 export type PlayerPanelProps = {
@@ -138,6 +154,8 @@ export type PlayerPanelProps = {
   getAssistantRoomContext?: (player: PlayerEntry) => DraftAssistantRoomContext | null
   /** Mark rows that match the user's draft queue (best-effort name + position). */
   isPlayerQueued?: (player: PlayerEntry) => boolean
+  /** Calendar season for rookie-class inference (NFL/NCAAF draft year match). Defaults internally if omitted. */
+  draftSeasonYear?: number
 }
 
 /** D.3 — re-exposed from SleeperPoolSort. Kept as `SortKey` for legacy call sites. */
@@ -222,6 +240,7 @@ function PlayerListVirtualized({
           >
             <DraftPlayerCard
               display={p.display ?? null}
+              unifiedProductView={p.unifiedProductView ?? null}
               name={p.name}
               position={p.position}
               team={p.team}
@@ -353,6 +372,7 @@ function PlayerPanelInner({
   getDraftCopilotInsight,
   getAssistantRoomContext,
   isPlayerQueued,
+  draftSeasonYear,
 }: PlayerPanelProps) {
   const rs = presentationVariant === 'redraft_snake'
   const draftedIdsForRows = draftedPlayerIds?.size ? draftedPlayerIds : undefined
@@ -360,6 +380,8 @@ function PlayerPanelInner({
   const compareUi = usePlayerComparisonUIOptional()
   const [compareAnchor, setCompareAnchor] = useState<PlayerEntry | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  /** User-facing view-mode override; null defers to the auto rule below. */
+  const [viewModeOverride, setViewModeOverride] = useState<'sleeper_table' | 'card' | null>(null)
   const [positionFilter, setPositionFilter] = useState('All')
   const [teamFilter, setTeamFilter] = useState('All')
   const [poolFilter, setPoolFilter] = useState<'All' | 'Pro' | 'Devy' | 'College'>('All')
@@ -411,16 +433,10 @@ function PlayerPanelInner({
       }
       return players.filter((p) => {
         if (isPlayerDraftedEntry(p, draftedNames, draftedPlayerIds)) return false
-        const pos = String(p.position ?? '').trim().toUpperCase()
-        if (v === 'FLEX') return pos === 'RB' || pos === 'WR' || pos === 'TE'
-        if (v === 'IDP FLEX') return pos === 'DL' || pos === 'LB' || pos === 'DB'
-        if (v === 'OFFENSE') return pos === 'QB' || pos === 'RB' || pos === 'WR' || pos === 'TE'
-        // Bug-stab: NFL pool emits 'DEF' but the standard roster slot is 'DST';
-        // either pill must count both (and 'D/ST' if any legacy feed produced it).
-        if (v === 'DEF' || v === 'DST' || v === 'D/ST') {
-          return pos === 'DEF' || pos === 'DST' || pos === 'D/ST'
-        }
-        return pos === v
+        return poolPlayerMatchesPositionPill(p.position, filterValue, {
+          sport,
+          formatType,
+        })
       }).length
     }
     return positionOptions.map((opt) => {
@@ -428,9 +444,11 @@ function PlayerPanelInner({
       // Same alias group as the available-count above: DEF/DST/D/ST
       // pillside drafted total should sum across all defense rows.
       const draftedCount =
-        k === 'DEF' || k === 'DST' || k === 'D/ST'
-          ? (draftedByPos.DEF ?? 0) + (draftedByPos.DST ?? 0) + (draftedByPos['D/ST'] ?? 0)
-          : (draftedByPos[k] ?? 0)
+        k === 'K'
+          ? (draftedByPos.K ?? 0) + (draftedByPos.PK ?? 0)
+          : k === 'DEF' || k === 'DST' || k === 'D/ST'
+            ? (draftedByPos.DEF ?? 0) + (draftedByPos.DST ?? 0) + (draftedByPos['D/ST'] ?? 0)
+            : (draftedByPos[k] ?? 0)
       return {
         value: opt.value,
         label: opt.label,
@@ -438,12 +456,75 @@ function PlayerPanelInner({
         available: available(String(opt.value)),
       }
     })
-  }, [positionOptions, players, currentRoster, draftedNames, draftedPlayerIds])
+  }, [positionOptions, players, currentRoster, draftedNames, draftedPlayerIds, sport, formatType])
+
+  const rookieFilterContext = useMemo(
+    () => ({
+      sport,
+      seasonYear: draftSeasonYear,
+      devyEnabled: devyConfig?.enabled,
+      c2cEnabled: c2cConfig?.enabled,
+    }),
+    [sport, draftSeasonYear, devyConfig?.enabled, c2cConfig?.enabled],
+  )
+
+  const rookieDataState = useMemo(
+    () => getDraftRoomRookieDataState(players, rookieFilterContext),
+    [players, rookieFilterContext],
+  )
+
+  const hasSecondaryPoolFilters = useMemo(
+    () =>
+      searchQuery.trim().length > 0 ||
+      positionFilter !== 'All' ||
+      teamFilter !== 'All' ||
+      poolFilter !== 'All' ||
+      watchlistOnly ||
+      vetsOnly ||
+      !hideDrafted,
+    [searchQuery, positionFilter, teamFilter, poolFilter, watchlistOnly, vetsOnly, hideDrafted],
+  )
+
+  useEffect(() => {
+    if (players.length === 0) return
+    const undrafted = players.filter((p) => !isPlayerDraftedEntry(p, draftedNames, draftedPlayerIds))
+    const counts = getDraftRoomPositionGroupCounts(undrafted, { sport, formatType })
+    logDraftPoolPositionDiagnosticsIfNeeded({
+      sport,
+      leagueId: leagueId ?? null,
+      totalPlayers: undrafted.length,
+      counts,
+      samplePositions: undrafted.slice(0, 40).map((p) => String(p.position ?? '')),
+    })
+    let sys = 0
+    let ai = 0
+    let neither = 0
+    for (const p of undrafted) {
+      const hasS = p.adp != null && Number.isFinite(Number(p.adp))
+      const hasA = p.aiAdp != null && Number.isFinite(Number(p.aiAdp))
+      if (hasS) sys += 1
+      if (hasA) ai += 1
+      if (!hasS && !hasA) neither += 1
+    }
+    logDraftPoolAdpDiagnosticsIfNeeded({
+      sport,
+      leagueId: leagueId ?? null,
+      withSystemAdp: sys,
+      withAiAdp: ai,
+      withNeither: neither,
+    })
+  }, [players, draftedNames, draftedPlayerIds, sport, formatType, leagueId])
 
   const teamOptions = useMemo(() => {
     const teams = new Set(players.map((p) => p.team).filter(Boolean) as string[])
     return ['All', ...Array.from(teams).sort()]
   }, [players])
+
+  /** Aligns pool sort + Sleeper table columns with the active position pill (IDP / MLB SP / NHL G). */
+  const sleeperStatOpts = useMemo(
+    () => sleeperPoolStatOptionsFromPositionFilter(sport, positionFilter),
+    [sport, positionFilter],
+  )
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -488,12 +569,7 @@ function PlayerPanelInner({
       list = list.filter((p) => watchlistKeys.has(watchKeyFor(p)))
     }
     if (rookiesOnly) {
-      list = list.filter((p) =>
-        isRookieEligibleForFilter(p, {
-          devyEnabled: devyConfig?.enabled,
-          c2cEnabled: c2cConfig?.enabled,
-        }),
-      )
+      list = list.filter((p) => isRookieEligibleForFilter(p, rookieFilterContext))
     }
     // Commit N — Vets Only filter. Predicate is evidence-required (not a
     // simple negation of rookie) so rows with missing metadata don't get
@@ -532,7 +608,7 @@ function PlayerPanelInner({
     })
     /** D.3 — single sort path covers both toolbar (adp/aiAdp/projected/name) and table-header
      * sorts (bye/pts/avg + rushing/receiving/passing splits). Nulls always sort last; tiebreak is ADP asc then name asc. */
-    list = applyPoolSort(list, { key: sortBy, direction: sortDirection })
+    list = applyPoolSort<PlayerEntry>(list, { key: sortBy, direction: sortDirection }, sport, sleeperStatOpts)
     return list
   }, [
     players,
@@ -553,21 +629,22 @@ function PlayerPanelInner({
     sortBy,
     sortDirection,
     useAiAdp,
+    sport,
+    sleeperStatOpts,
+    rookieFilterContext,
   ])
 
-  /** D.7 — true when at least one row in the upstream pool has known years_exp
-   * metadata (or is a devy/college entry, which carries its own class-year
-   * signal). When false and the user toggles "Rookies Only", we surface a
-   * "Rookie data unavailable" message instead of a generic empty state. */
-  const rookieDataAvailable = useMemo(() => {
-    return players.some(
-      (p) =>
-        p.yearsExp != null ||
-        p.isRookie === true ||
-        p.isDevy === true ||
-        (p.classYearLabel != null && String(p.classYearLabel).trim() !== ''),
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return
+    if (!rookiesOnly) return
+    if (filtered.length > 0) return
+    if (players.length === 0) return
+    const seasonYear = rookieFilterContext.seasonYear ?? new Date().getUTCFullYear()
+    console.info(
+      '[draft-room] rookies-only empty — signal diagnostics',
+      buildRookieSignalDiagnostics(players as DraftRoomRookiePlayerLike[], sport, seasonYear),
     )
-  }, [players])
+  }, [rookiesOnly, filtered.length, players, sport, rookieFilterContext])
 
   const selectedIsWatchlisted = selectedPlayer ? watchlistKeys.has(watchKeyFor(selectedPlayer)) : false
 
@@ -611,11 +688,11 @@ function PlayerPanelInner({
    * ('rk', 'player', 'avg', 'pa_int' …); we resolve them through `sortKeyForColumn`. */
   const handleColumnHeaderSort = useCallback(
     (columnKey: string) => {
-      const sortKey = sortKeyForColumn(columnKey)
+      const sortKey = sortKeyForColumn(columnKey, sport)
       if (!sortKey) return
       handleSortChange(sortKey)
     },
-    [handleSortChange],
+    [handleSortChange, sport],
   )
 
   const onCompareTap = useCallback(
@@ -726,16 +803,7 @@ function PlayerPanelInner({
       <div
         className={`sticky top-0 z-20 shrink-0 border-b shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl ${rs ? 'border-cyan-500/12 bg-[rgba(6,14,28,0.97)]' : 'border-white/[0.08] bg-[#060d1e]/92'}`}
       >
-        {rs ? (
-          <div className="border-b border-cyan-500/10 px-3 py-2 sm:px-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-200/65">Player pool</p>
-            <p className="mt-0.5 text-[11px] text-white/55">
-              Best available · filter by roster need ·{' '}
-              {!showPoolFilter ? 'redraft rankings & projections' : 'switch pool when devy/C2C rounds apply'}
-            </p>
-          </div>
-        ) : null}
-        <div className={`flex flex-wrap items-center gap-2 border-b border-white/[0.06] p-2.5 sm:p-3 ${rs ? 'gap-y-2' : ''}`}>
+        <div className={`flex flex-wrap items-center gap-1.5 border-b border-white/[0.06] p-2 ${rs ? 'gap-y-1.5' : ''}`}>
           <div
             className={`flex min-h-[44px] flex-1 items-center gap-2 rounded-xl border px-3 py-2 shadow-inner touch-manipulation transition duration-150 focus-within:border-cyan-400/40 focus-within:ring-2 focus-within:ring-cyan-400/20 ${
               rs
@@ -817,6 +885,46 @@ function PlayerPanelInner({
               </option>
             ))}
           </select>
+          {/* View-mode toggle: Table (dense) ↔ Cards. Computes the same `useTable`
+              rule the body uses; clicking flips the override. Null override defers
+              to the auto rule (NFL → table, others → cards). */}
+          <div
+            role="radiogroup"
+            aria-label="Player pool view mode"
+            data-testid="draft-pool-view-mode"
+            className="ml-auto inline-flex items-center gap-1 rounded-xl border border-white/14 bg-[#0a1228]/95 p-0.5"
+          >
+            <button
+              type="button"
+              role="radio"
+              aria-checked={viewModeOverride === 'sleeper_table' || (viewModeOverride === null && (poolLayout === 'sleeper_table' || (poolLayout === 'auto' && sport === 'NFL')))}
+              onClick={() => setViewModeOverride('sleeper_table')}
+              data-testid="draft-pool-view-table"
+              title="Table view"
+              className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition ${
+                viewModeOverride === 'sleeper_table' || (viewModeOverride === null && (poolLayout === 'sleeper_table' || (poolLayout === 'auto' && sport === 'NFL')))
+                  ? 'bg-cyan-500/20 text-cyan-100 shadow-[0_0_10px_rgba(34,211,238,0.18)]'
+                  : 'text-white/55 hover:bg-white/[0.06] hover:text-white/85'
+              }`}
+            >
+              <Rows3 className="h-4 w-4" aria-hidden />
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={viewModeOverride === 'card' || (viewModeOverride === null && poolLayout !== 'sleeper_table' && !(poolLayout === 'auto' && sport === 'NFL'))}
+              onClick={() => setViewModeOverride('card')}
+              data-testid="draft-pool-view-cards"
+              title="Card view"
+              className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition ${
+                viewModeOverride === 'card' || (viewModeOverride === null && poolLayout !== 'sleeper_table' && !(poolLayout === 'auto' && sport === 'NFL'))
+                  ? 'bg-cyan-500/20 text-cyan-100 shadow-[0_0_10px_rgba(34,211,238,0.18)]'
+                  : 'text-white/55 hover:bg-white/[0.06] hover:text-white/85'
+              }`}
+            >
+              <LayoutGrid className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
           {showPoolFilter && (
             <select
               value={poolFilter}
@@ -890,8 +998,12 @@ function PlayerPanelInner({
             </label>
           )}
           {aiAdpUnavailable && (
-            <span className="text-[10px] text-amber-400/90" title={aiAdpUnavailableMessage ?? undefined}>
-              AI ADP data not ready
+            <span
+              className="text-[10px] text-amber-400/90"
+              data-testid="draft-ai-adp-unavailable-banner"
+              title={formatAiAdpUnavailableBanner(aiAdpUnavailableMessage) ?? undefined}
+            >
+              {formatAiAdpUnavailableBanner(aiAdpUnavailableMessage)}
             </span>
           )}
           {useAiAdp && aiAdpStaleWarning && !aiAdpUnavailable && (
@@ -1013,9 +1125,13 @@ function PlayerPanelInner({
             team: selectedPlayer.team ?? null,
             byeWeek: selectedPlayer.byeWeek ?? null,
             adp: useAiAdp ? (selectedPlayer.aiAdp ?? null) : (selectedPlayer.adp ?? null),
-            headshotUrl: selectedNormalized?.imageUrl ?? selectedPlayer.display?.assets?.headshotUrl ?? null,
+            headshotUrl:
+              getDraftRoomDisplayHeadshot(selectedPlayer) ??
+              selectedNormalized?.imageUrl ??
+              selectedPlayer.display?.assets?.headshotUrl ??
+              null,
             teamLogoUrl: selectedNormalized?.teamLogoUrl ?? selectedPlayer.display?.assets?.teamLogoUrl ?? null,
-            status: selectedPlayer.display?.metadata?.injuryStatus ?? null,
+            status: getDraftRoomDisplayInjury(selectedPlayer) ?? selectedPlayer.display?.metadata?.injuryStatus ?? null,
             college: selectedPlayer.school ?? selectedPlayer.display?.metadata?.collegeOrPipeline ?? null,
             age: selectedPlayer.display?.metadata?.age ?? null,
             heightIn: null,
@@ -1117,21 +1233,53 @@ function PlayerPanelInner({
           </ul>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 px-4 py-14 text-center">
-            {rookiesOnly && !rookieDataAvailable ? (
+            {players.length === 0 ? (
               <>
                 <p
                   className="text-sm font-medium text-white/75"
-                  data-testid="draft-rookie-data-unavailable"
+                  data-testid="draft-pool-empty-unloaded"
                 >
-                  Rookie data unavailable for this pool.
+                  No players loaded for this pool.
                 </p>
                 <p className="max-w-xs text-xs text-white/45">
-                  We couldn’t resolve first-year status for any player in this pool. Toggle Rookies Only off to see the full list.
+                  Wait for the pool to finish loading, or refresh the draft room if this persists.
+                </p>
+              </>
+            ) : rookiesOnly && !hasSecondaryPoolFilters && rookieDataState.reason === 'no_rookie_metadata' ? (
+              <>
+                <p
+                  className="text-sm font-medium text-white/75"
+                  data-testid="draft-rookie-metadata-missing"
+                >
+                  Rookie metadata is not available for this pool yet.
+                </p>
+                <p className="max-w-xs text-xs text-white/45">
+                  We could not read rookie signals (experience, flags, or draft year) on these rows. Toggle Rookies Only off to see the full list.
                 </p>
                 <button
                   type="button"
                   onClick={() => setRookiesOnly(false)}
                   data-testid="draft-rookie-data-unavailable-clear"
+                  className="rounded-full border border-violet-400/35 bg-violet-500/12 px-4 py-2 text-xs font-medium text-violet-100 transition hover:bg-violet-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/45"
+                >
+                  Turn off Rookies Only
+                </button>
+              </>
+            ) : rookiesOnly && !hasSecondaryPoolFilters && rookieDataState.reason === 'no_rookies_for_context' ? (
+              <>
+                <p
+                  className="text-sm font-medium text-white/75"
+                  data-testid="draft-rookie-none-for-context"
+                >
+                  No rookies found for this draft context.
+                </p>
+                <p className="max-w-xs text-xs text-white/45">
+                  The pool has rookie signals, but no players matched as rookies for this sport/season. Toggle Rookies Only off to see everyone.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setRookiesOnly(false)}
+                  data-testid="draft-rookie-none-for-context-clear"
                   className="rounded-full border border-violet-400/35 bg-violet-500/12 px-4 py-2 text-xs font-medium text-violet-100 transition hover:bg-violet-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/45"
                 >
                   Turn off Rookies Only
@@ -1166,8 +1314,10 @@ function PlayerPanelInner({
              * the table scrolls sideways rather than squishing column widths.
              */
             const useTable =
-              poolLayout === 'sleeper_table' ||
-              (poolLayout === 'auto' && sport === 'NFL')
+              viewModeOverride === 'sleeper_table' ||
+              (viewModeOverride === null &&
+                (poolLayout === 'sleeper_table' ||
+                  (poolLayout === 'auto' && sport === 'NFL')))
 
             if (!useTable) {
               return (
@@ -1209,6 +1359,7 @@ function PlayerPanelInner({
                   canNominate={canNominate}
                   useAiAdp={useAiAdp}
                   draftSport={sport}
+                  statColumnOptions={sleeperStatOpts}
                   onDraftRequest={onMakePick}
                   onAddToQueue={onAddToQueue}
                   onNominateRequest={(player) => setPendingNomination(player)}
