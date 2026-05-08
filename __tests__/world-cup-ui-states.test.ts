@@ -216,4 +216,30 @@ describe("World Cup pick readiness guards", () => {
       })
     ).toThrow("This matchup is not ready for picks yet.")
   })
+
+  it("fixtures_not_ready state has no pickable matches until team IDs are set", () => {
+    // Simulates the state shown to the user before Load Test Fixtures runs
+    const bracketMatches = Array.from({ length: 31 }, (_, idx) =>
+      makeMatch({
+        id: `m-${idx + 1}`,
+        matchNumber: idx + 1,
+        round: idx < 16 ? "round_of_32" : idx < 24 ? "round_of_16" : idx < 28 ? "quarterfinal" : idx < 30 ? "semifinal" : "final",
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: `TBD-H${idx + 1}`,
+        awayTeamName: `TBD-A${idx + 1}`,
+      })
+    )
+    expect(getWorldCupGuidedPicksState(bracketMatches)).toBe("fixtures_not_ready")
+    expect(bracketMatches.filter((m) => isWorldCupMatchPickable(m)).length).toBe(0)
+
+    // After Load Test Fixtures patches Round of 32 matches with real team IDs
+    const after = bracketMatches.map((m, idx) =>
+      idx < 16
+        ? { ...m, homeTeamId: `demo-home-${idx + 1}`, awayTeamId: `demo-away-${idx + 1}`, homeTeamName: `Team ${idx * 2 + 1}`, awayTeamName: `Team ${idx * 2 + 2}`, apiStatusShort: "TEST" }
+        : m
+    )
+    expect(getWorldCupGuidedPicksState(after)).toBe("ready")
+    expect(after.filter((m) => isWorldCupMatchPickable(m)).length).toBe(16)
+  })
 })

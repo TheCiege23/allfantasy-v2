@@ -970,8 +970,22 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
           )}
 
           {!isLocked && guidedPicksState === "fixtures_not_ready" && (
-            <div className="mx-4 mb-3 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-center text-[11px] text-amber-100">
-              Fixtures are loaded, but team matchups are not resolved yet. Run Sync Fixtures or use simulation/test data before making picks.
+            <div className="mx-4 mb-3 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+              <p className="mb-2 text-center">
+                Fixtures are loaded, but team matchups are not resolved yet. Run Sync Fixtures or use simulation/test data before making picks.
+              </p>
+              {(view.isOwner || view.isAdmin) && (
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => void handleLoadTestFixtures()}
+                    disabled={isLoadingTestFixtures || isSimulating}
+                    className="rounded-lg border border-amber-400/60 bg-amber-900/40 px-4 py-2 text-[12px] font-bold text-amber-100 hover:bg-amber-900/60 disabled:opacity-50"
+                  >
+                    {isLoadingTestFixtures ? "Loading..." : "↓ Load Test Fixtures"}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
