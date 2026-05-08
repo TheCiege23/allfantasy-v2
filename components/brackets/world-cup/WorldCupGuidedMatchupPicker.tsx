@@ -534,6 +534,10 @@ export default function WorldCupGuidedMatchupPicker({
     () => buildWorldCupProjectedMatches(matches, picks),
     [matches, picks]
   )
+  const hasPickableMatchups = useMemo(
+    () => projected.some((m) => m.homeTeamId !== null || m.awayTeamId !== null),
+    [projected]
+  )
 
   // Determine the current match to display
   const [currentMatchId, setCurrentMatchId] = useState<string | null>(() => {
@@ -559,7 +563,8 @@ export default function WorldCupGuidedMatchupPicker({
       setCurrentMatchId(unpicked.id)
       setShowComplete(false)
     } else {
-      setShowComplete(true)
+      setCurrentMatchId(null)
+      setShowComplete(isBracketComplete(matches, picks, includeThirdPlace))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialMatchId])
@@ -643,7 +648,8 @@ export default function WorldCupGuidedMatchupPicker({
     if (nextMatch) {
       setCurrentMatchId(nextMatch.id)
     } else {
-      setShowComplete(true)
+      setCurrentMatchId(null)
+      setShowComplete(isBracketComplete(matches, updatedPicks, includeThirdPlace))
     }
   }
 
@@ -824,7 +830,11 @@ export default function WorldCupGuidedMatchupPicker({
         ) : (
           <div className="flex flex-col items-center justify-center gap-4 py-16 text-center text-sm text-white/40">
             <Clock className="h-8 w-8" />
-            <p>Teams for this round will appear once earlier matches are picked.</p>
+            <p>
+              {hasPickableMatchups
+                ? "Teams for this round will appear once earlier matches are picked."
+                : "Guided picks are unavailable until challenge fixtures are synced with real team matchups."}
+            </p>
             <button
               type="button"
               onClick={onClose}

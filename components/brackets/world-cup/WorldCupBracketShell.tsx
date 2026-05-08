@@ -179,7 +179,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
     () => ({ done: picks.length, required: view.matches.length }),
     [picks.length, view.matches.length]
   )
-  const hasSyncedFixtures = view.matches.length > 0
+  const hasPickableFixtures = view.matches.some((match) => match.homeTeamId !== null || match.awayTeamId !== null)
 
   // ── Load entries on mount ────────────────────────────────────────────────
   useEffect(() => {
@@ -885,9 +885,9 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
             <div className="flex justify-center px-4 py-2">
               <button
                 type="button"
-                disabled={!hasSyncedFixtures}
+                disabled={!hasPickableFixtures}
                 onClick={() => {
-                  if (!hasSyncedFixtures) {
+                  if (!hasPickableFixtures) {
                     toast.info("Fixtures are not synced yet. Ask the challenge owner/admin to run Sync first.")
                     return
                   }
@@ -897,7 +897,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
                 className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:bg-cyan-300/45"
               >
                 <PlayCircle className="h-4 w-4" />
-                {!hasSyncedFixtures
+                {!hasPickableFixtures
                   ? "Fixtures Not Synced"
                   : remainingPicks === 0
                   ? "Review Guided Picks"
@@ -908,7 +908,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
             </div>
           )}
 
-          {!isLocked && !hasSyncedFixtures && (
+          {!isLocked && !hasPickableFixtures && (
             <div className="px-4 pb-3 text-center text-[11px] text-white/50">
               Picks open after World Cup fixtures are synced for this challenge.
             </div>
