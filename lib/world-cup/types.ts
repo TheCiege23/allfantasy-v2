@@ -86,6 +86,11 @@ export type WorldCupChallengeView = {
     effectivePickLockAt: string | null
     status: string
     includeThirdPlace: boolean
+    isTestMode: boolean
+    simulationEnabled: boolean
+    simulatedAt: string | null
+    simulationStatus: string | null
+    hasSimulatedResults: boolean
     lastSyncedAt: string | null
     createdAt: string
     updatedAt: string

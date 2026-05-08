@@ -36,6 +36,7 @@ function MatchChip({ match }: { match: WorldCupMatchView }) {
   const isFinal = isWorldCupMatchFinal(match)
   const statusLabel = formatWorldCupMatchStatus(match)
   const score = getWorldCupMatchDisplayScore(match)
+  const isSimulated = match.apiStatusShort === "SIM"
 
   return (
     <div className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/60">
@@ -48,6 +49,7 @@ function MatchChip({ match }: { match: WorldCupMatchView }) {
       {isFinal && (
         <span className="text-emerald-300 font-bold text-[10px]">FT</span>
       )}
+      {isSimulated && <span className="text-amber-300 font-bold text-[10px]">SIM</span>}
       <TeamChip name={match.homeTeamName || "TBD"} logo={match.homeTeamLogo} />
       <span className={`tabular-nums font-black ${isLive ? "text-white" : "text-white/50"}`}>
         {score}

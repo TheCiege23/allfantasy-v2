@@ -46,6 +46,9 @@ export default function WorldCupLeaderboard({
               ? ` Last updated ${new Date(view.challenge.lastSyncedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.`
               : " Not yet synced."}
           </p>
+          {(view.challenge.isTestMode || view.challenge.simulationEnabled || view.challenge.hasSimulatedResults) && (
+            <p className="mt-1 text-xs text-amber-300">Test Mode: leaderboard may reflect simulated results.</p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {!(view.isOwner || view.isAdmin) && (

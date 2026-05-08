@@ -151,6 +151,10 @@ Pass criteria:
 | POST | /api/brackets/world-cup/admin/sync-teams | Team sync (global) | Yes | Site admin |
 | POST | /api/brackets/world-cup/[challengeId]/admin/sync-fixtures | Fixture sync (challenge) | Yes | Owner/admin |
 | POST | /api/brackets/world-cup/[challengeId]/admin/sync-live | Live sync (challenge) | Yes | Owner/admin |
+| POST | /api/brackets/world-cup/[challengeId]/admin/simulate-match | Simulate one match result | Yes | Owner/admin |
+| POST | /api/brackets/world-cup/[challengeId]/admin/simulate-round | Simulate all matches in a round | Yes | Owner/admin |
+| POST | /api/brackets/world-cup/[challengeId]/admin/simulate-tournament | Simulate full tournament progression | Yes | Owner/admin |
+| POST | /api/brackets/world-cup/[challengeId]/admin/reset-simulation | Reset simulated outcomes | Yes | Owner/admin |
 
 ### Legacy compatibility multiplexer
 
@@ -278,3 +282,21 @@ npx tsc --noEmit 2>&1 | Select-String -Pattern "world-cup|WorldCup|worldCup" | S
 Expected outcome:
 - No World Cup-matching errors in output.
 - Non-zero exit is possible if unrelated non-World-Cup errors remain.
+
+## 14. How To Simulate Before Kickoff
+
+Use this to validate full bracket lifecycle before live fixtures start.
+
+1. Create a private challenge and ensure owner/admin access.
+2. In challenge settings, enable test mode and simulation enabled.
+3. Start with dry run for simulate-match and simulate-round to preview impact.
+4. Run simulate-match to validate single result entry and winner advancement.
+5. Run simulate-round to validate batch progression logic by strategy.
+6. Run simulate-tournament to validate champion resolution and leaderboard scoring.
+7. Run reset-simulation to clear simulated states while preserving user picks.
+8. Confirm UI markers: simulated match tags, ticker SIM status, and leaderboard test-mode notice.
+
+Safety rules:
+- Simulation routes are owner/admin gated.
+- Requests require explicit confirmation flags.
+- Public production leagues are blocked unless test mode/simulation mode is explicitly enabled.

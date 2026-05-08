@@ -7,6 +7,7 @@ import { isAdminEmailAllowed, isAuthorizedRequest } from "@/lib/adminAuth"
 import { prisma } from "@/lib/prisma"
 import { resolveAuthSecret } from "@/lib/auth/resolve-auth-secret"
 import { userCanManageWorldCupChallenge } from "@/lib/world-cup"
+import { getWorldCupSimulationAccessState, isWorldCupSimulationAllowed } from "@/lib/world-cup/worldCupSimulationService"
 
 export const worldCupChallengeParamsSchema = z.object({
   challengeId: z.string().min(1),
@@ -130,4 +131,36 @@ export async function assertWorldCupManager(
   }
 
   return { ok: true as const, challenge, isAdmin }
+}
+
+export async function assertWorldCupSimulationAccess(input: {
+  request: Request
+  challengeId: string
+  user: WorldCupApiSessionUser
+  confirmSimulation: boolean
+}) {
+  const manager = await assertWorldCupManager(input.request, input.challengeId, input.user)
+  if (!manager.ok) return manager
+
+  const simulationState = await getWorldCupSimulationAccessState(input.challengeId)
+  const access = isWorldCupSimulationAllowed({
+    challengeVisibility: simulationState.visibility,
+    isTestMode: simulationState.isTestMode,
+    simulationEnabled: simulationState.simulationEnabled,
+    confirmSimulation: input.confirmSimulation,
+  })
+
+  if (!access.allowed) {
+    return {
+      ok: false as const,
+      response: NextResponse.json({ error: access.reason ?? "Simulation is not allowed for this challenge" }, { status: 403 }),
+    }
+  }
+
+  return {
+    ok: true as const,
+    challenge: manager.challenge,
+    isAdmin: manager.isAdmin,
+    simulationState,
+  }
 }

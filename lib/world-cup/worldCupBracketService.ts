@@ -18,6 +18,30 @@ type SessionUser = { id?: string | null; email?: string | null; name?: string | 
 
 const iso = (v: Date | string | null | undefined) => (v ? (v instanceof Date ? v.toISOString() : new Date(v).toISOString()) : null)
 
+function readSimulationFlags(sourcePayload: unknown): {
+  isTestMode: boolean
+  simulationEnabled: boolean
+  simulatedAt: string | null
+  simulationStatus: string | null
+} {
+  const payload = sourcePayload as {
+    simulation?: {
+      isTestMode?: boolean
+      simulationEnabled?: boolean
+      simulatedAt?: string | null
+      simulationStatus?: string | null
+    }
+  } | null
+
+  const simulation = payload?.simulation
+  return {
+    isTestMode: Boolean(simulation?.isTestMode),
+    simulationEnabled: Boolean(simulation?.simulationEnabled),
+    simulatedAt: typeof simulation?.simulatedAt === "string" ? simulation.simulatedAt : null,
+    simulationStatus: typeof simulation?.simulationStatus === "string" ? simulation.simulationStatus : null,
+  }
+}
+
 function serializeWorldCupCreateError(error: unknown) {
   const value = error as {
     name?: string
@@ -216,6 +240,10 @@ function serialize(input: {
   isAdmin?: boolean
 }): WorldCupChallengeView {
   const c = input.challenge
+  const simulation = readSimulationFlags(c.sourcePayload)
+  const hasSimulatedResults = c.matches.some(
+    (m) => (m as Record<string, unknown>).apiStatusShort === "SIM"
+  )
   const effLock = resolveWorldCupEffectivePickLockAt({
     pickLockStrategy: c.pickLockStrategy,
     pickLockAt: c.pickLockAt,
@@ -237,6 +265,11 @@ function serialize(input: {
       effectivePickLockAt: iso(effLock),
       status: c.status,
       includeThirdPlace: Boolean(c.includeThirdPlace),
+      isTestMode: simulation.isTestMode,
+      simulationEnabled: simulation.simulationEnabled,
+      simulatedAt: simulation.simulatedAt,
+      simulationStatus: simulation.simulationStatus,
+      hasSimulatedResults,
       lastSyncedAt: iso(c.lastSyncedAt),
       createdAt: iso(c.createdAt) ?? new Date().toISOString(),
       updatedAt: iso(c.updatedAt) ?? new Date().toISOString(),
@@ -758,7 +791,50 @@ export async function updateWorldCupChallengeSettings(input: {
   pickLockStrategy?: "per_match" | "tournament_start"
   pickLockAt?: Date | null
   status?: string
+  isTestMode?: boolean
+  simulationEnabled?: boolean
+  simulationStatus?: string | null
+  simulatedAt?: Date | null
 }) {
+  let nextSourcePayload: Prisma.JsonObject | undefined
+  if (
+    input.isTestMode !== undefined ||
+    input.simulationEnabled !== undefined ||
+    input.simulationStatus !== undefined ||
+    input.simulatedAt !== undefined
+  ) {
+    const challenge = await prisma.worldCupBracketChallenge.findUnique({
+      where: { id: input.challengeId },
+      select: { sourcePayload: true },
+    })
+
+    const base =
+      challenge?.sourcePayload && typeof challenge.sourcePayload === "object" && !Array.isArray(challenge.sourcePayload)
+        ? ({ ...(challenge.sourcePayload as Prisma.JsonObject) } as Prisma.JsonObject)
+        : ({} as Prisma.JsonObject)
+
+    const simulationSource =
+      base.simulation && typeof base.simulation === "object" && !Array.isArray(base.simulation)
+        ? ({ ...(base.simulation as Prisma.JsonObject) } as Prisma.JsonObject)
+        : ({} as Prisma.JsonObject)
+
+    if (input.isTestMode !== undefined) {
+      simulationSource.isTestMode = input.isTestMode
+    }
+    if (input.simulationEnabled !== undefined) {
+      simulationSource.simulationEnabled = input.simulationEnabled
+    }
+    if (input.simulationStatus !== undefined) {
+      simulationSource.simulationStatus = input.simulationStatus
+    }
+    if (input.simulatedAt !== undefined) {
+      simulationSource.simulatedAt = input.simulatedAt ? input.simulatedAt.toISOString() : null
+    }
+
+    base.simulation = simulationSource
+    nextSourcePayload = base
+  }
+
   return prisma.worldCupBracketChallenge.update({
     where: { id: input.challengeId },
     data: {
@@ -767,6 +843,7 @@ export async function updateWorldCupChallengeSettings(input: {
       pickLockStrategy: input.pickLockStrategy,
       pickLockAt: input.pickLockAt,
       status: input.status,
+      sourcePayload: nextSourcePayload,
     },
   })
 }

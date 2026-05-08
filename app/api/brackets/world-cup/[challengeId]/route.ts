@@ -20,6 +20,9 @@ const patchWorldCupChallengeSchema = z.object({
   pickLockStrategy: z.enum(["per_match", "tournament_start"]).optional(),
   pickLockAt: z.string().datetime().nullable().optional(),
   status: z.enum(["setup", "open", "locked", "live", "final"]).optional(),
+  isTestMode: z.boolean().optional(),
+  simulationEnabled: z.boolean().optional(),
+  simulationStatus: z.string().min(1).max(64).nullable().optional(),
 })
 
 export async function GET(request: Request, context: { params: { challengeId: string } }) {
@@ -73,6 +76,10 @@ export async function PATCH(request: Request, context: { params: { challengeId: 
           ? null
           : undefined,
     status: parsed.data.status,
+    isTestMode: parsed.data.isTestMode,
+    simulationEnabled: parsed.data.simulationEnabled,
+    simulationStatus: parsed.data.simulationStatus,
+    simulatedAt: parsed.data.simulationStatus ? new Date() : undefined,
   })
 
   const view = await getWorldCupChallengeView({

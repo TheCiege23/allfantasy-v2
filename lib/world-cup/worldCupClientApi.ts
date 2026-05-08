@@ -269,6 +269,63 @@ export type WorldCupAdminSyncLiveResult = {
   dryRun: boolean
 }
 
+export type WorldCupAdminSimulationStrategy = "random" | "higher_seed" | "home" | "away"
+
+export type WorldCupAdminSimulationMatchResult = {
+  ok: boolean
+  result: {
+    challengeId: string
+    dryRun: boolean
+    updatedMatch: unknown
+    advancedMatchIds: string[]
+    recalculated: boolean
+    leaderboardTop: unknown[]
+  }
+}
+
+export type WorldCupAdminSimulationRoundResult = {
+  ok: boolean
+  result: {
+    challengeId: string
+    round: string
+    dryRun: boolean
+    strategy: WorldCupAdminSimulationStrategy
+    simulatedMatches: number
+    skippedMatches: number
+    skippedMatchIds: string[]
+  }
+}
+
+export type WorldCupAdminSimulationTournamentResult = {
+  ok: boolean
+  result: {
+    challengeId: string
+    dryRun: boolean
+    strategy: WorldCupAdminSimulationStrategy
+    rounds: Array<{
+      round: string
+      simulatedMatches: number
+      skippedMatches: number
+      skippedMatchIds: string[]
+    }>
+    champion: {
+      winnerTeamId: string | null
+      winnerTeamName: string | null
+    }
+    leaderboardTop: unknown[]
+  }
+}
+
+export type WorldCupAdminResetSimulationResult = {
+  ok: boolean
+  result: {
+    challengeId: string
+    dryRun: boolean
+    resetMatches: number
+    recalculated: boolean
+  }
+}
+
 export async function adminSyncWorldCupTeams(opts: {
   provider?: WorldCupAdminSyncProvider
   dryRun?: boolean
@@ -310,4 +367,83 @@ export async function adminSyncWorldCupLive(
   const data = await res.json()
   if (!res.ok) throw new Error((data as { error?: string }).error ?? "Sync live failed")
   return data as WorldCupAdminSyncLiveResult
+}
+
+export async function adminSimulateWorldCupMatch(
+  challengeId: string,
+  payload: {
+    matchId: string
+    winnerTeamId?: string | null
+    homeScore?: number | null
+    awayScore?: number | null
+    elapsedMinute?: number | null
+    dryRun?: boolean
+    status?: "scheduled" | "live" | "final"
+  }
+): Promise<WorldCupAdminSimulationMatchResult> {
+  const res = await apiFetch(
+    `/api/brackets/world-cup/${challengeId}/admin/simulate-match`,
+    {
+      method: "POST",
+      body: JSON.stringify({ ...payload, confirmSimulation: true }),
+    }
+  )
+  const data = await res.json()
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? "Simulate match failed")
+  return data as WorldCupAdminSimulationMatchResult
+}
+
+export async function adminSimulateWorldCupRound(
+  challengeId: string,
+  payload: {
+    round: "round_of_32" | "round_of_16" | "quarterfinal" | "semifinal" | "third_place" | "final"
+    strategy: WorldCupAdminSimulationStrategy
+    dryRun?: boolean
+  }
+): Promise<WorldCupAdminSimulationRoundResult> {
+  const res = await apiFetch(
+    `/api/brackets/world-cup/${challengeId}/admin/simulate-round`,
+    {
+      method: "POST",
+      body: JSON.stringify({ ...payload, confirmSimulation: true }),
+    }
+  )
+  const data = await res.json()
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? "Simulate round failed")
+  return data as WorldCupAdminSimulationRoundResult
+}
+
+export async function adminSimulateWorldCupTournament(
+  challengeId: string,
+  payload: {
+    strategy: WorldCupAdminSimulationStrategy
+    dryRun?: boolean
+  }
+): Promise<WorldCupAdminSimulationTournamentResult> {
+  const res = await apiFetch(
+    `/api/brackets/world-cup/${challengeId}/admin/simulate-tournament`,
+    {
+      method: "POST",
+      body: JSON.stringify({ ...payload, confirmSimulation: true }),
+    }
+  )
+  const data = await res.json()
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? "Simulate tournament failed")
+  return data as WorldCupAdminSimulationTournamentResult
+}
+
+export async function adminResetWorldCupSimulation(
+  challengeId: string,
+  payload?: { dryRun?: boolean }
+): Promise<WorldCupAdminResetSimulationResult> {
+  const res = await apiFetch(
+    `/api/brackets/world-cup/${challengeId}/admin/reset-simulation`,
+    {
+      method: "POST",
+      body: JSON.stringify({ ...(payload ?? {}), confirmSimulationReset: true }),
+    }
+  )
+  const data = await res.json()
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? "Reset simulation failed")
+  return data as WorldCupAdminResetSimulationResult
 }

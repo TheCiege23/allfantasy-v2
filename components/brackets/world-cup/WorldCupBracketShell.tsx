@@ -12,8 +12,13 @@ import type {
   WorldCupAdminSyncTeamsResult,
   WorldCupAdminSyncFixturesResult,
   WorldCupAdminSyncLiveResult,
+  WorldCupAdminSimulationStrategy,
 } from "@/lib/world-cup/worldCupClientApi"
 import {
+  adminResetWorldCupSimulation,
+  adminSimulateWorldCupMatch,
+  adminSimulateWorldCupRound,
+  adminSimulateWorldCupTournament,
   adminSyncWorldCupFixtures,
   adminSyncWorldCupLive,
   adminSyncWorldCupTeams,
@@ -64,6 +69,11 @@ function normalizeWorldCupView(input: WorldCupChallengeView | (Partial<WorldCupC
       effectivePickLockAt: raw?.effectivePickLockAt ?? null,
       status: raw?.status ?? "open",
       includeThirdPlace: Boolean(raw?.includeThirdPlace),
+      isTestMode: Boolean(raw?.isTestMode),
+      simulationEnabled: Boolean(raw?.simulationEnabled),
+      simulatedAt: raw?.simulatedAt ?? null,
+      simulationStatus: raw?.simulationStatus ?? null,
+      hasSimulatedResults: Boolean(raw?.hasSimulatedResults),
       lastSyncedAt: raw?.lastSyncedAt ?? null,
       createdAt: raw?.createdAt ?? new Date().toISOString(),
       updatedAt: raw?.updatedAt ?? new Date().toISOString(),
@@ -126,9 +136,23 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
   const [syncTeamsResult, setSyncTeamsResult] = useState<WorldCupAdminSyncTeamsResult | null>(null)
   const [syncFixturesResult, setSyncFixturesResult] = useState<WorldCupAdminSyncFixturesResult | null>(null)
   const [syncLiveResult, setSyncLiveResult] = useState<WorldCupAdminSyncLiveResult | null>(null)
+  const [simulationStrategy, setSimulationStrategy] = useState<WorldCupAdminSimulationStrategy>("random")
+  const [simulationDryRun, setSimulationDryRun] = useState(false)
+  const [simulationMatchId, setSimulationMatchId] = useState<string>("")
+  const [simulationResult, setSimulationResult] = useState<string | null>(null)
+  const [isSimulating, setIsSimulating] = useState(false)
+  const [isSavingSimulationMode, setIsSavingSimulationMode] = useState(false)
   const aiBuildAbortRef = useRef(false)
 
   const challengeId = view.challenge.id
+
+  const refreshChallengeView = useCallback(async () => {
+    const latest = await fetch(`/api/brackets/world-cup/${challengeId}`)
+    if (!latest.ok) return
+    const data = await latest.json()
+    const nextView = normalizeWorldCupView(data.view ?? data.challenge ?? data)
+    setView(nextView)
+  }, [challengeId])
   // Selected entry object
   const selectedEntry = useMemo(
     () => entries.find((e) => e.id === selectedEntryId) ?? null,
@@ -452,6 +476,132 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
     }
   }, [challengeId, syncProvider, syncDryRun])
 
+  const saveSimulationMode = useCallback(
+    async (patch: { isTestMode?: boolean; simulationEnabled?: boolean }) => {
+      setIsSavingSimulationMode(true)
+      try {
+        const res = await fetch(`/api/brackets/world-cup/${challengeId}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(patch),
+        })
+        const body = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          throw new Error((body as { error?: string }).error ?? "Failed to update simulation mode")
+        }
+        await refreshChallengeView()
+      } finally {
+        setIsSavingSimulationMode(false)
+      }
+    },
+    [challengeId, refreshChallengeView]
+  )
+
+  const runSimulateMatch = useCallback(async () => {
+    if (!simulationMatchId) {
+      toast.error("Select a match to simulate")
+      return
+    }
+
+    setIsSimulating(true)
+    setSimulationResult(null)
+    try {
+      const response = await adminSimulateWorldCupMatch(challengeId, {
+        matchId: simulationMatchId,
+        dryRun: simulationDryRun,
+        status: "final",
+      })
+      const advanced = response.result.advancedMatchIds.length
+      setSimulationResult(
+        simulationDryRun
+          ? `Dry run: simulated 1 match${advanced > 0 ? `, would advance ${advanced} next match slot(s)` : ""}`
+          : `Simulated 1 match${advanced > 0 ? ` and advanced ${advanced} next match slot(s)` : ""}`
+      )
+      if (!simulationDryRun) {
+        await refreshChallengeView()
+      }
+      toast.success(simulationDryRun ? "Dry run complete" : "Match simulated")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Simulate match failed")
+    } finally {
+      setIsSimulating(false)
+    }
+  }, [challengeId, refreshChallengeView, simulationDryRun, simulationMatchId, simulationStrategy])
+
+  const runSimulateRound = useCallback(async () => {
+    const nextRound =
+      view.matches.find((m) => m.status !== "final" && m.homeTeamName && m.awayTeamName)?.round ?? "round_of_32"
+    setIsSimulating(true)
+    setSimulationResult(null)
+    try {
+      const response = await adminSimulateWorldCupRound(challengeId, {
+        round: nextRound,
+        strategy: simulationStrategy,
+        dryRun: simulationDryRun,
+      })
+      setSimulationResult(
+        simulationDryRun
+          ? `Dry run: ${response.result.simulatedMatches} match(es) in ${nextRound} would be simulated`
+          : `Simulated ${response.result.simulatedMatches} match(es) in ${nextRound}`
+      )
+      if (!simulationDryRun) {
+        await refreshChallengeView()
+      }
+      toast.success(simulationDryRun ? "Round dry run complete" : "Round simulated")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Simulate round failed")
+    } finally {
+      setIsSimulating(false)
+    }
+  }, [challengeId, refreshChallengeView, simulationDryRun, simulationStrategy, view.matches])
+
+  const runSimulateTournament = useCallback(async () => {
+    setIsSimulating(true)
+    setSimulationResult(null)
+    try {
+      const response = await adminSimulateWorldCupTournament(challengeId, {
+        strategy: simulationStrategy,
+        dryRun: simulationDryRun,
+      })
+      setSimulationResult(
+        simulationDryRun
+          ? `Dry run: ${response.result.rounds.reduce((sum, r) => sum + r.simulatedMatches, 0)} matches would be simulated`
+          : `Tournament simulated. Champion: ${response.result.champion.winnerTeamName ?? "TBD"}`
+      )
+      if (!simulationDryRun) {
+        await refreshChallengeView()
+      }
+      toast.success(simulationDryRun ? "Tournament dry run complete" : "Tournament simulated")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Simulate tournament failed")
+    } finally {
+      setIsSimulating(false)
+    }
+  }, [challengeId, refreshChallengeView, simulationDryRun, simulationStrategy])
+
+  const runResetSimulation = useCallback(async () => {
+    setIsSimulating(true)
+    setSimulationResult(null)
+    try {
+      const response = await adminResetWorldCupSimulation(challengeId, {
+        dryRun: simulationDryRun,
+      })
+      setSimulationResult(
+        simulationDryRun
+          ? `Dry run: ${response.result.resetMatches} matches would be reset`
+          : `Reset ${response.result.resetMatches} matches to scheduled state`
+      )
+      if (!simulationDryRun) {
+        await refreshChallengeView()
+      }
+      toast.success(simulationDryRun ? "Reset dry run complete" : "Simulation reset")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Reset simulation failed")
+    } finally {
+      setIsSimulating(false)
+    }
+  }, [challengeId, refreshChallengeView, simulationDryRun])
+
   const saveStatus =
     saveState === "saving" ? "Saving..."
     : saveState === "saved" ? "Saved ✓"
@@ -692,6 +842,11 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
             {saveError}
           </div>
         )}
+        {(view.challenge.isTestMode || view.challenge.simulationEnabled || view.challenge.hasSimulatedResults) && (
+          <div className="mx-3 mb-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+            TEST MODE: results are simulated and can change leaderboard standings.
+          </div>
+        )}
         <WorldCupLiveScoreTicker matches={view.matches} />
         <nav className="hidden gap-1 px-5 pb-3 sm:flex">
           {TABS.map(({ id, icon: Icon, label }) => (
@@ -909,6 +1064,110 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
                   ))}
                 </div>
               </div>
+            </div>
+
+            <div className="mx-4 mb-4 rounded-xl border border-amber-300/20 bg-amber-500/[0.06] p-3">
+              <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-amber-200">
+                Simulation / Test Mode
+              </div>
+              <p className="mb-3 text-[11px] text-amber-100/80">
+                Testing only. Simulated results can change scores and leaderboard standings.
+              </p>
+
+              <div className="mb-3 flex flex-wrap items-center gap-3 text-[11px] text-white/70">
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={view.challenge.isTestMode}
+                    onChange={(e) => void saveSimulationMode({ isTestMode: e.target.checked })}
+                    disabled={isSavingSimulationMode || isSimulating}
+                    className="h-3.5 w-3.5 accent-amber-300"
+                  />
+                  Test mode
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={view.challenge.simulationEnabled}
+                    onChange={(e) => void saveSimulationMode({ simulationEnabled: e.target.checked })}
+                    disabled={isSavingSimulationMode || isSimulating}
+                    className="h-3.5 w-3.5 accent-amber-300"
+                  />
+                  Simulation enabled
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={simulationDryRun}
+                    onChange={(e) => setSimulationDryRun(e.target.checked)}
+                    disabled={isSimulating}
+                    className="h-3.5 w-3.5 accent-amber-300"
+                  />
+                  Dry run
+                </label>
+                <select
+                  value={simulationStrategy}
+                  onChange={(e) => setSimulationStrategy(e.target.value as WorldCupAdminSimulationStrategy)}
+                  disabled={isSimulating}
+                  className="rounded-lg border border-white/10 bg-zinc-900 px-2 py-1 text-[11px] text-white/80"
+                >
+                  <option value="random">Random</option>
+                  <option value="higher_seed">Higher seed</option>
+                  <option value="home">Home</option>
+                  <option value="away">Away</option>
+                </select>
+              </div>
+
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <select
+                  value={simulationMatchId}
+                  onChange={(e) => setSimulationMatchId(e.target.value)}
+                  disabled={isSimulating}
+                  className="min-w-[220px] rounded-lg border border-white/10 bg-zinc-900 px-2 py-1 text-[11px] text-white/80"
+                >
+                  <option value="">Select match for manual simulation</option>
+                  {view.matches.map((match) => (
+                    <option key={match.id} value={match.id}>
+                      M{match.matchNumber} · {match.homeTeamName} vs {match.awayTeamName}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => void runSimulateMatch()}
+                  disabled={isSimulating || !simulationMatchId}
+                  className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-bold text-white/80 disabled:opacity-50"
+                >
+                  Simulate Match
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void runSimulateRound()}
+                  disabled={isSimulating}
+                  className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-bold text-white/80 disabled:opacity-50"
+                >
+                  Simulate Round
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void runSimulateTournament()}
+                  disabled={isSimulating}
+                  className="rounded-lg border border-cyan-400/30 bg-cyan-900/30 px-3 py-1.5 text-[11px] font-bold text-cyan-100 disabled:opacity-50"
+                >
+                  Simulate Full Tournament
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void runResetSimulation()}
+                  disabled={isSimulating}
+                  className="rounded-lg border border-rose-400/30 bg-rose-900/20 px-3 py-1.5 text-[11px] font-bold text-rose-100 disabled:opacity-50"
+                >
+                  Reset Simulation
+                </button>
+              </div>
+
+              {simulationResult && <p className="text-[11px] text-white/70">{simulationResult}</p>}
             </div>
 
             {/* Data sync controls */}

@@ -53,3 +53,13 @@ This checklist is for Prompt 6 production hardening verification.
 1. As owner/admin, run integrity check from the shell panel.
 2. Verify stats render and errors/warnings display.
 3. Verify non-owner users do not see admin integrity controls.
+
+## Simulation / Test Mode
+
+1. As owner/admin, enable Test mode and Simulation enabled in the World Cup admin panel.
+2. Run Simulate Match on one unlocked matchup and verify the card shows a simulated indicator.
+3. Verify the winner advances into the expected next matchup slot.
+4. Run Simulate Round with each strategy option (random, higher seed, home, away).
+5. Run Simulate Full Tournament and verify champion, standings, and leaderboard update.
+6. Run Reset Simulation and verify match statuses/scores reset while entry picks remain.
+7. For production-safe validation, confirm admin routes require explicit confirmation flags.
