@@ -26,24 +26,31 @@ const patchWorldCupChallengeSchema = z.object({
 })
 
 export async function GET(request: Request, context: { params: { challengeId: string } }) {
-  const params = worldCupChallengeParamsSchema.safeParse(context.params)
-  if (!params.success) {
-    return NextResponse.json({ error: "Invalid challenge id" }, { status: 400 })
+  try {
+    const params = worldCupChallengeParamsSchema.safeParse(context.params)
+    if (!params.success) {
+      return NextResponse.json({ error: "Invalid challenge id" }, { status: 400 })
+    }
+
+    const user = await getWorldCupApiUser()
+    const isAdmin = await getWorldCupAdminState(request, user)
+    const view = await getWorldCupChallengeView({
+      challengeId: params.data.challengeId,
+      user,
+      isAdmin,
+    })
+
+    if (!view) {
+      return NextResponse.json({ error: "Challenge not found" }, { status: 404 })
+    }
+
+    return NextResponse.json(view)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    const stack = err instanceof Error ? err.stack : undefined
+    console.error("[world-cup/GET]", context.params?.challengeId, msg, stack)
+    return NextResponse.json({ error: "Internal server error", detail: msg }, { status: 500 })
   }
-
-  const user = await getWorldCupApiUser()
-  const isAdmin = await getWorldCupAdminState(request, user)
-  const view = await getWorldCupChallengeView({
-    challengeId: params.data.challengeId,
-    user,
-    isAdmin,
-  })
-
-  if (!view) {
-    return NextResponse.json({ error: "Challenge not found" }, { status: 404 })
-  }
-
-  return NextResponse.json(view)
 }
 
 export async function PATCH(request: Request, context: { params: { challengeId: string } }) {
