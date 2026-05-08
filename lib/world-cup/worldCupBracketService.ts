@@ -383,7 +383,12 @@ export async function getWorldCupChallengeView(input: { challengeId: string; use
       participants: { orderBy: [{ rank: "asc" }, { joinedAt: "asc" }] },
       entries: {
         include: {
-          picks: { include: { match: true } },
+          picks: {
+            // Guard against legacy bad rows (for example empty selected_team_name)
+            // so one malformed pick does not 500 the entire bracket page.
+            where: { selectedTeamName: { not: "" } },
+            include: { match: true },
+          },
           participant: {
             include: {
               user: { select: { username: true, avatarUrl: true, displayName: true } },
@@ -410,7 +415,8 @@ export async function getWorldCupChallengeView(input: { challengeId: string; use
   const picks =
     activeEntry ?
       await prisma.worldCupBracketPick.findMany({
-        where: { entryId: activeEntry.id },
+        // Keep page/API resilient if legacy rows contain empty team names.
+        where: { entryId: activeEntry.id, selectedTeamName: { not: "" } },
         orderBy: { createdAt: "asc" },
       })
     : []
