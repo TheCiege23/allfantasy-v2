@@ -1,9 +1,11 @@
 import { getServerSession } from "next-auth"
+import { getToken } from "next-auth/jwt"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { authOptions } from "@/lib/auth"
 import { isAdminEmailAllowed, isAuthorizedRequest } from "@/lib/adminAuth"
 import { prisma } from "@/lib/prisma"
+import { resolveAuthSecret } from "@/lib/auth/resolve-auth-secret"
 import { userCanManageWorldCupChallenge } from "@/lib/world-cup"
 
 export const worldCupChallengeParamsSchema = z.object({
@@ -25,23 +27,62 @@ export type WorldCupApiSessionUser = {
   name?: string | null
 }
 
-export async function getWorldCupApiUser(): Promise<WorldCupApiSessionUser | null> {
-  const session = (await getServerSession(authOptions as any)) as {
-    user?: { id?: string | null; email?: string | null; name?: string | null }
+function serializeWorldCupAuthError(error: unknown) {
+  const value = error as { name?: string; message?: string; code?: string }
+  return {
+    name: value?.name ?? "Error",
+    message: value?.message ?? "Unknown error",
+    code: typeof value?.code === "string" ? value.code : null,
+  }
+}
+
+async function getWorldCupApiUserFromToken(request?: Request): Promise<WorldCupApiSessionUser | null> {
+  if (!request) return null
+
+  const secret = resolveAuthSecret()
+  if (!secret) return null
+
+  const token = (await getToken({ req: request as any, secret })) as {
+    id?: string | null
+    sub?: string | null
+    email?: string | null
+    name?: string | null
   } | null
 
-  const id = session?.user?.id
+  const id = token?.id ?? token?.sub
   if (!id) return null
 
   return {
     id,
-    email: session?.user?.email ?? null,
-    name: session?.user?.name ?? null,
+    email: token?.email ?? null,
+    name: token?.name ?? null,
   }
 }
 
-export async function requireWorldCupApiUser() {
-  const user = await getWorldCupApiUser()
+export async function getWorldCupApiUser(request?: Request): Promise<WorldCupApiSessionUser | null> {
+  try {
+    const session = (await getServerSession(authOptions as any)) as {
+      user?: { id?: string | null; email?: string | null; name?: string | null }
+    } | null
+
+    const id = session?.user?.id
+    if (!id) {
+      return await getWorldCupApiUserFromToken(request)
+    }
+
+    return {
+      id,
+      email: session?.user?.email ?? null,
+      name: session?.user?.name ?? null,
+    }
+  } catch (error) {
+    console.error("[world-cup/auth] getServerSession failed", serializeWorldCupAuthError(error))
+    return await getWorldCupApiUserFromToken(request)
+  }
+}
+
+export async function requireWorldCupApiUser(request?: Request) {
+  const user = await getWorldCupApiUser(request)
   if (!user) {
     return {
       ok: false as const,

@@ -52,7 +52,7 @@ function serializeCreateError(error: unknown) {
 export async function POST(request: Request) {
   console.info("[world-cup/create] route reached")
 
-  const auth = await requireWorldCupApiUser()
+  const auth = await requireWorldCupApiUser(request)
   console.info("[world-cup/create] auth state", { hasUserId: auth.ok ? Boolean(auth.user.id) : false })
   if (!auth.ok) return auth.response
 

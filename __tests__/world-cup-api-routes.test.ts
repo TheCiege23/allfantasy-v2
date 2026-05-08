@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const getServerSessionMock = vi.hoisted(() => vi.fn())
+const getTokenMock = vi.hoisted(() => vi.fn())
 const createChallengeMock = vi.hoisted(() => vi.fn())
 const getChallengeViewMock = vi.hoisted(() => vi.fn())
 const savePicksMock = vi.hoisted(() => vi.fn())
@@ -14,6 +15,10 @@ const isAuthorizedRequestMock = vi.hoisted(() => vi.fn())
 
 vi.mock("next-auth", () => ({
   getServerSession: getServerSessionMock,
+}))
+
+vi.mock("next-auth/jwt", () => ({
+  getToken: getTokenMock,
 }))
 
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
@@ -61,6 +66,7 @@ describe("World Cup API catch-all route", () => {
   beforeEach(() => {
     vi.resetModules()
     getServerSessionMock.mockResolvedValue({ user: { id: "u1", email: "owner@example.com", name: "Owner" } })
+    getTokenMock.mockResolvedValue(null)
     createChallengeMock.mockResolvedValue({ challengeId: "wc1", inviteCode: "INVITE", inviteUrl: "http://localhost:3000/join/bracket/INVITE" })
     getChallengeViewMock.mockResolvedValue({ challenge: { id: "wc1" }, picks: [], leaderboard: [], scoring: {} })
     savePicksMock.mockResolvedValue({ challenge: { id: "wc1" }, picks: [{ matchId: "m1" }] })
@@ -153,6 +159,31 @@ describe("World Cup API catch-all route", () => {
         includeThirdPlace: true,
         maxParticipants: 64,
         maxEntriesPerParticipant: 3,
+      })
+    )
+  })
+
+  it("falls back to the auth token when getServerSession throws in the dedicated create route", async () => {
+    getServerSessionMock.mockRejectedValueOnce(new Error("session exploded"))
+    getTokenMock.mockResolvedValueOnce({
+      sub: "u1",
+      email: "owner@example.com",
+      name: "Owner",
+    })
+
+    const { POST } = await import("@/app/api/brackets/world-cup/create/route")
+    const res = await POST(
+      new Request("http://localhost/api/brackets/world-cup/create", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: "next-auth.session-token=abc" },
+        body: JSON.stringify({ name: "World Cup", seasonYear: 2026 }),
+      })
+    )
+
+    expect(res.status).toBe(200)
+    expect(createChallengeMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.objectContaining({ id: "u1", email: "owner@example.com", name: "Owner" }),
       })
     )
   })
