@@ -2945,25 +2945,27 @@ model AppUser {
   worldCupBracketChallengesOwned         WorldCupBracketChallenge[]       @relation("WorldCupBracketChallengeOwner")
   worldCupBracketParticipants            WorldCupBracketParticipant[]     @relation("WorldCupBracketParticipantUser")
   worldCupBracketInvitesCreated          WorldCupBracketInvite[]          @relation("WorldCupBracketInviteCreator")
+  worldCupBracketEntries                 WorldCupBracketEntry[]           @relation("WorldCupBracketEntryUser")
 
   @@map("app_users")
 }
 
 model WorldCupTeam {
   id                  String                       @id @default(cuid())
-  apiTeamId           Int?                         @unique
-  fifaCode            String?
+  apiTeamId           Int?                         @unique @map("api_team_id")
+  fifaCode            String?                      @map("fifa_code")
   name                String
   country             String
-  flagUrl             String?
-  logoUrl             String?
-  groupName           String?
-  qualificationStatus String                       @default("tbd")
-  sourcePayload       Json?
-  createdAt           DateTime                     @default(now())
-  updatedAt           DateTime                     @updatedAt
+  flagUrl             String?                      @map("flag_url")
+  logoUrl             String?                      @map("logo_url")
+  groupName           String?                      @map("group_name")
+  qualificationStatus String                       @default("tbd") @map("qualification_status")
+  sourcePayload       Json?                        @map("source_payload")
+  createdAt           DateTime                     @default(now()) @map("created_at")
+  updatedAt           DateTime                     @updatedAt @map("updated_at")
   slots               WorldCupBracketSlot[]
   championParticipants WorldCupBracketParticipant[] @relation("WorldCupChampionPick")
+  championEntries      WorldCupBracketEntry[]        @relation("WorldCupEntryChampionPick")
   homeMatches         WorldCupBracketMatch[]       @relation("WorldCupMatchHomeTeam")
   awayMatches         WorldCupBracketMatch[]       @relation("WorldCupMatchAwayTeam")
   winnerMatches       WorldCupBracketMatch[]       @relation("WorldCupMatchWinnerTeam")
@@ -2977,16 +2979,16 @@ model WorldCupTeam {
 model WorldCupBracketScoringProfile {
   id                 String                     @id @default(cuid())
   name               String
-  roundOf32Points    Int                        @default(1)
-  roundOf16Points    Int                        @default(2)
-  quarterFinalPoints Int                        @default(4)
-  semiFinalPoints    Int                        @default(8)
-  finalPoints        Int                        @default(16)
-  championBonusPoints Int                       @default(0)
-  thirdPlacePoints   Int?
-  upsetBonusEnabled  Boolean                    @default(false)
-  createdAt          DateTime                   @default(now())
-  updatedAt          DateTime                   @updatedAt
+  roundOf32Points    Int                        @default(10) @map("round_of_32_points")
+  roundOf16Points    Int                        @default(20) @map("round_of_16_points")
+  quarterFinalPoints Int                        @default(40) @map("quarter_final_points")
+  semiFinalPoints    Int                        @default(80) @map("semi_final_points")
+  finalPoints        Int                        @default(160) @map("final_points")
+  championBonusPoints Int                       @default(320) @map("champion_bonus_points")
+  thirdPlacePoints   Int?                       @map("third_place_points")
+  upsetBonusEnabled  Boolean                    @default(false) @map("upset_bonus_enabled")
+  createdAt          DateTime                   @default(now()) @map("created_at")
+  updatedAt          DateTime                   @updatedAt @map("updated_at")
   challenges         WorldCupBracketChallenge[]
 
   @@map("world_cup_bracket_scoring_profiles")
@@ -2995,25 +2997,28 @@ model WorldCupBracketScoringProfile {
 model WorldCupBracketChallenge {
   id               String                        @id @default(cuid())
   name             String
-  ownerUserId      String
-  seasonYear       Int                           @default(2026)
-  tournamentKey    String                        @default("fifa_world_cup")
-  inviteCode       String                        @unique
-  inviteUrl        String?
+  ownerUserId      String                        @map("owner_user_id")
+  seasonYear       Int                           @default(2026) @map("season_year")
+  tournamentKey    String                        @default("fifa_world_cup") @map("tournament_key")
+  inviteCode       String                        @unique @map("invite_code")
+  inviteUrl        String?                       @map("invite_url")
   visibility       String                        @default("private")
-  pickLockStrategy String                        @default("per_match")
-  pickLockAt       DateTime?
-  scoringProfileId String?
+  pickLockStrategy String                        @default("tournament_start") @map("pick_lock_strategy")
+  pickLockAt       DateTime?                     @map("pick_lock_at")
+  maxParticipants  Int                           @default(100) @map("max_participants")
+  maxEntriesPerParticipant Int                   @default(5) @map("max_entries_per_participant")
+  scoringProfileId String?                       @map("scoring_profile_id")
   status           String                        @default("open")
-  includeThirdPlace Boolean                      @default(false)
-  lastSyncedAt     DateTime?
-  sourcePayload    Json?
-  createdAt        DateTime                      @default(now())
-  updatedAt        DateTime                      @updatedAt
+  includeThirdPlace Boolean                      @default(false) @map("include_third_place")
+  lastSyncedAt     DateTime?                     @map("last_synced_at")
+  sourcePayload    Json?                         @map("source_payload")
+  createdAt        DateTime                      @default(now()) @map("created_at")
+  updatedAt        DateTime                      @updatedAt @map("updated_at")
   owner            AppUser                       @relation("WorldCupBracketChallengeOwner", fields: [ownerUserId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   scoringProfile   WorldCupBracketScoringProfile? @relation(fields: [scoringProfileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   slots            WorldCupBracketSlot[]
   participants     WorldCupBracketParticipant[]
+  entries          WorldCupBracketEntry[]
   matches          WorldCupBracketMatch[]
   picks            WorldCupBracketPick[]
   invites          WorldCupBracketInvite[]
@@ -3027,18 +3032,18 @@ model WorldCupBracketChallenge {
 
 model WorldCupBracketSlot {
   id            String                   @id @default(cuid())
-  challengeId   String
-  slotKey       String
+  challengeId   String                   @map("challenge_id")
+  slotKey       String                   @map("slot_key")
   round         String
   region        String?
-  sourceGroup   String?
-  sourceRank    String?
-  teamId        String?
-  displayName   String
-  lockedAt      DateTime?
-  isPlaceholder Boolean                  @default(true)
-  createdAt     DateTime                 @default(now())
-  updatedAt     DateTime                 @updatedAt
+  sourceGroup   String?                  @map("source_group")
+  sourceRank    String?                  @map("source_rank")
+  teamId        String?                  @map("team_id")
+  displayName   String                   @map("display_name")
+  lockedAt      DateTime?                @map("locked_at")
+  isPlaceholder Boolean                  @default(true) @map("is_placeholder")
+  createdAt     DateTime                 @default(now()) @map("created_at")
+  updatedAt     DateTime                 @updatedAt @map("updated_at")
   challenge     WorldCupBracketChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   team          WorldCupTeam?            @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
@@ -3049,23 +3054,56 @@ model WorldCupBracketSlot {
   @@map("world_cup_bracket_slots")
 }
 
+model WorldCupBracketEntry {
+  id                 String                    @id @default(cuid())
+  challengeId        String                    @map("challenge_id")
+  participantId      String                    @map("participant_id")
+  userId             String                    @map("user_id")
+  name               String
+  championTeamId     String?                   @map("champion_team_id")
+  championTeamName   String?                   @map("champion_team_name")
+  totalScore         Int                       @default(0) @map("total_score")
+  maxPossibleScore   Int                       @default(0) @map("max_possible_score")
+  correctPicks       Int                       @default(0) @map("correct_picks")
+  incorrectPicks     Int                       @default(0) @map("incorrect_picks")
+  rank               Int?
+  roundBreakdown     Json                      @default("{}") @map("round_breakdown")
+  isComplete         Boolean                   @default(false) @map("is_complete")
+  isLocked           Boolean                   @default(false) @map("is_locked")
+  submittedAt        DateTime?                 @map("submitted_at")
+  createdAt          DateTime                  @default(now()) @map("created_at")
+  updatedAt          DateTime                  @updatedAt @map("updated_at")
+  challenge          WorldCupBracketChallenge  @relation(fields: [challengeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  participant        WorldCupBracketParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user               AppUser                   @relation("WorldCupBracketEntryUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  championTeam       WorldCupTeam?             @relation("WorldCupEntryChampionPick", fields: [championTeamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  picks              WorldCupBracketPick[]
+
+  @@index([challengeId])
+  @@index([participantId])
+  @@index([userId])
+  @@index([challengeId, rank])
+  @@map("world_cup_bracket_entries")
+}
+
 model WorldCupBracketParticipant {
   id                 String                    @id @default(cuid())
-  challengeId        String
-  userId             String
-  displayName        String
-  joinedAt           DateTime                  @default(now())
-  totalScore         Int                       @default(0)
-  maxPossibleScore   Int                       @default(0)
-  championPickTeamId String?
-  championPickName   String?
-  correctPicks       Int                       @default(0)
+  challengeId        String                    @map("challenge_id")
+  userId             String                    @map("user_id")
+  displayName        String                    @map("display_name")
+  joinedAt           DateTime                  @default(now()) @map("joined_at")
+  totalScore         Int                       @default(0) @map("total_score")
+  maxPossibleScore   Int                       @default(0) @map("max_possible_score")
+  championPickTeamId String?                   @map("champion_pick_team_id")
+  championPickName   String?                   @map("champion_pick_name")
+  correctPicks       Int                       @default(0) @map("correct_picks")
   rank               Int?
-  roundBreakdown     Json?
+  roundBreakdown     Json?                     @map("round_breakdown")
   challenge          WorldCupBracketChallenge  @relation(fields: [challengeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   user               AppUser                   @relation("WorldCupBracketParticipantUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   championPickTeam   WorldCupTeam?             @relation("WorldCupChampionPick", fields: [championPickTeamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   picks              WorldCupBracketPick[]
+  entries            WorldCupBracketEntry[]
 
   @@unique([challengeId, userId])
   @@index([challengeId])
@@ -3076,32 +3114,39 @@ model WorldCupBracketParticipant {
 
 model WorldCupBracketMatch {
   id               String                    @id @default(cuid())
-  challengeId      String
-  apiFixtureId     Int?
+  challengeId      String                    @map("challenge_id")
+  apiFixtureId     Int?                      @map("api_fixture_id")
   round            String
-  roundIndex       Int
-  matchNumber      Int
-  homeSlotKey      String
-  awaySlotKey      String
-  homeTeamId       String?
-  awayTeamId       String?
-  homeTeamName     String
-  awayTeamName     String
-  homeTeamLogo     String?
-  awayTeamLogo     String?
-  homeScore        Int?
-  awayScore        Int?
-  homePenaltyScore Int?
-  awayPenaltyScore Int?
+  roundIndex       Int                       @map("round_index")
+  matchNumber      Int                       @map("match_number")
+  homeSlotKey      String                    @map("home_slot_key")
+  awaySlotKey      String                    @map("away_slot_key")
+  homeTeamId       String?                   @map("home_team_id")
+  awayTeamId       String?                   @map("away_team_id")
+  homeTeamName     String                    @map("home_team_name")
+  awayTeamName     String                    @map("away_team_name")
+  homeTeamLogo     String?                   @map("home_team_logo")
+  awayTeamLogo     String?                   @map("away_team_logo")
+  homeScore        Int?                      @map("home_score")
+  awayScore        Int?                      @map("away_score")
+  homePenaltyScore Int?                      @map("home_penalty_score")
+  awayPenaltyScore Int?                      @map("away_penalty_score")
   status           String                    @default("scheduled")
-  startsAt         DateTime?
-  winnerTeamId     String?
-  winnerTeamName   String?
-  nextMatchId      String?
-  nextMatchSlot    String?
-  sourcePayload    Json?
-  createdAt        DateTime                  @default(now())
-  updatedAt        DateTime                  @updatedAt
+  startsAt         DateTime?                 @map("starts_at")
+  winnerTeamId     String?                   @map("winner_team_id")
+  winnerTeamName   String?                   @map("winner_team_name")
+  nextMatchId      String?                   @map("next_match_id")
+  nextMatchSlot    String?                   @map("next_match_slot")
+  elapsedMinute    Int?                      @map("elapsed_minute")
+  injuryTime       Int?                      @map("injury_time")
+  period           String?
+  venueName        String?                   @map("venue_name")
+  venueCity        String?                   @map("venue_city")
+  apiStatusShort   String?                   @map("api_status_short")
+  lastScoreSyncedAt DateTime?               @map("last_score_synced_at")
+  sourcePayload    Json?                     @map("source_payload")
+  createdAt        DateTime                  @default(now()) @map("created_at")
+  updatedAt        DateTime                  @updatedAt @map("updated_at")
   challenge        WorldCupBracketChallenge  @relation(fields: [challengeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   homeTeam         WorldCupTeam?             @relation("WorldCupMatchHomeTeam", fields: [homeTeamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   awayTeam         WorldCupTeam?             @relation("WorldCupMatchAwayTeam", fields: [awayTeamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
@@ -3122,26 +3167,29 @@ model WorldCupBracketMatch {
 
 model WorldCupBracketPick {
   id               String                    @id @default(cuid())
-  challengeId      String
-  participantId    String
-  matchId          String
+  challengeId      String                    @map("challenge_id")
+  participantId    String                    @map("participant_id")
+  entryId          String                    @map("entry_id")
+  matchId          String                    @map("match_id")
   round            String
-  selectedTeamId   String?
-  selectedSlotKey  String?
-  selectedTeamName String
-  pointsAwarded    Int                       @default(0)
-  isCorrect        Boolean?
-  lockedAt         DateTime?
-  createdAt        DateTime                  @default(now())
-  updatedAt        DateTime                  @updatedAt
+  selectedTeamId   String?                   @map("selected_team_id")
+  selectedSlotKey  String?                   @map("selected_slot_key")
+  selectedTeamName String                    @map("selected_team_name")
+  pointsAwarded    Int                       @default(0) @map("points_awarded")
+  isCorrect        Boolean?                  @map("is_correct")
+  lockedAt         DateTime?                 @map("locked_at")
+  createdAt        DateTime                  @default(now()) @map("created_at")
+  updatedAt        DateTime                  @updatedAt @map("updated_at")
   challenge        WorldCupBracketChallenge  @relation(fields: [challengeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   participant      WorldCupBracketParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  entry            WorldCupBracketEntry      @relation(fields: [entryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   match            WorldCupBracketMatch      @relation(fields: [matchId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   selectedTeam     WorldCupTeam?             @relation("WorldCupPickSelectedTeam", fields: [selectedTeamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
-  @@unique([matchId, participantId])
+  @@unique([entryId, matchId])
   @@index([challengeId])
   @@index([participantId])
+  @@index([entryId])
   @@index([matchId])
   @@index([round])
   @@map("world_cup_bracket_picks")
@@ -3149,13 +3197,13 @@ model WorldCupBracketPick {
 
 model WorldCupBracketInvite {
   id              String                   @id @default(cuid())
-  challengeId     String
-  inviteCode      String                   @unique
-  createdByUserId String
-  expiresAt       DateTime?
-  maxUses         Int?
-  useCount        Int                      @default(0)
-  createdAt       DateTime                 @default(now())
+  challengeId     String                   @map("challenge_id")
+  inviteCode      String                   @unique @map("invite_code")
+  createdByUserId String                   @map("created_by_user_id")
+  expiresAt       DateTime?                @map("expires_at")
+  maxUses         Int?                     @map("max_uses")
+  useCount        Int                      @default(0) @map("use_count")
+  createdAt       DateTime                 @default(now()) @map("created_at")
   challenge       WorldCupBracketChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   createdByUser   AppUser                  @relation("WorldCupBracketInviteCreator", fields: [createdByUserId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 

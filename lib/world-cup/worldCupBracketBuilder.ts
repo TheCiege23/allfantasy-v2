@@ -1,6 +1,15 @@
 import type { WorldCupMatchSpec, WorldCupRound, WorldCupScoringValues, WorldCupSlotSpec } from "./types"
 
-export const DEFAULT_WORLD_CUP_SCORING: WorldCupScoringValues = { roundOf32Points: 1, roundOf16Points: 2, quarterFinalPoints: 4, semiFinalPoints: 8, finalPoints: 16, championBonusPoints: 0, thirdPlacePoints: 4 }
+/** NCAA-style doubling defaults for new World Cup scoring profiles. */
+export const DEFAULT_WORLD_CUP_SCORING: WorldCupScoringValues = {
+  roundOf32Points: 10,
+  roundOf16Points: 20,
+  quarterFinalPoints: 40,
+  semiFinalPoints: 80,
+  finalPoints: 160,
+  championBonusPoints: 320,
+  thirdPlacePoints: 4,
+}
 const POINT_KEY: Record<WorldCupRound, keyof WorldCupScoringValues> = { round_of_32: "roundOf32Points", round_of_16: "roundOf16Points", quarterfinal: "quarterFinalPoints", semifinal: "semiFinalPoints", third_place: "thirdPlacePoints", final: "finalPoints" }
 const R32: Array<[string, string, string, string]> = [
   ["A1", "Group A Winner", "B2", "Group B Runner-up"], ["C1", "Group C Winner", "D3", "Best 3rd Place Team 1"], ["E1", "Group E Winner", "F2", "Group F Runner-up"], ["G1", "Group G Winner", "H3", "Best 3rd Place Team 2"],
@@ -30,12 +39,97 @@ export function generateWorldCupBracketTemplate(params?: { includeThirdPlace?: b
   return { slots, matches, requiredPickCount: matches.length }
 }
 export const buildWorldCupBracketTemplate = generateWorldCupBracketTemplate
-export function isWorldCupMatchLocked(input: { challenge?: { pickLockStrategy?: string | null; pickLockAt?: Date | string | null; status?: string | null }; match?: { startsAt?: Date | string | null; status?: string | null }; pickLockStrategy?: string | null; pickLockAt?: Date | string | null; startsAt?: Date | string | null; status?: string | null; now?: Date }) {
+type LockMatchLike = { startsAt?: Date | string | null; status?: string | null }
+export type WorldCupChallengeLockReason = "manual_lock" | "tournament_started" | "entry_locked" | "none"
+export type WorldCupChallengeLockState = {
+  locked: boolean
+  reason: WorldCupChallengeLockReason
+  lockAt?: Date | string | null
+}
+
+/** Earliest scheduled kickoff for the challenge; used when pickLockStrategy is tournament_start and pickLockAt is unset. */
+export function inferWorldCupTournamentLockAt(matches: LockMatchLike[]): Date | null {
+  let best: Date | null = null
+  for (const m of matches) {
+    if (!m.startsAt) continue
+    const t = new Date(m.startsAt)
+    if (Number.isNaN(t.getTime())) continue
+    if (!best || t.getTime() < best.getTime()) best = t
+  }
+  return best
+}
+
+export function resolveWorldCupEffectivePickLockAt(input: {
+  pickLockStrategy?: string | null
+  pickLockAt?: Date | string | null
+  matches?: LockMatchLike[]
+}): Date | null {
+  const explicit = input.pickLockAt ? new Date(input.pickLockAt) : null
+  if (explicit && !Number.isNaN(explicit.getTime())) return explicit
+  if (input.pickLockStrategy === "tournament_start" && input.matches?.length) {
+    return inferWorldCupTournamentLockAt(input.matches)
+  }
+  return null
+}
+
+export function isWorldCupChallengeLocked(input: {
+  challenge: { pickLockStrategy?: string | null; pickLockAt?: Date | string | null; status?: string | null }
+  matches?: LockMatchLike[]
+  entry?: { isLocked?: boolean | null } | null
+  now?: Date
+}): WorldCupChallengeLockState {
+  const now = input.now ?? new Date()
+  const c = input.challenge
+  if (["final", "locked"].includes(c.status ?? "")) {
+    return { locked: true, reason: "manual_lock", lockAt: c.pickLockAt ?? null }
+  }
+
+  const strategy = c.pickLockStrategy ?? "per_match"
+  const at = resolveWorldCupEffectivePickLockAt({
+    pickLockStrategy: strategy,
+    pickLockAt: c.pickLockAt,
+    matches: input.matches,
+  })
+  if (strategy === "tournament_start" && at && now >= at) {
+    return { locked: true, reason: "tournament_started", lockAt: at }
+  }
+  if (input.entry?.isLocked) {
+    return { locked: true, reason: "entry_locked", lockAt: at ?? c.pickLockAt ?? null }
+  }
+  return { locked: false, reason: "none", lockAt: at ?? c.pickLockAt ?? null }
+}
+
+export function isWorldCupMatchLocked(input: {
+  challenge?: { pickLockStrategy?: string | null; pickLockAt?: Date | string | null; status?: string | null }
+  match?: LockMatchLike
+  matches?: LockMatchLike[]
+  pickLockStrategy?: string | null
+  pickLockAt?: Date | string | null
+  startsAt?: Date | string | null
+  status?: string | null
+  now?: Date
+}) {
   const challenge = input.challenge ?? input
   const match = input.match ?? input
-  const now = input.now ?? new Date(), strategy = challenge.pickLockStrategy ?? "per_match", lockAt = challenge.pickLockAt ? new Date(challenge.pickLockAt) : null, start = match.startsAt ? new Date(match.startsAt) : null
-  if (["final", "locked"].includes(challenge.status ?? "") || ["live", "halftime", "final"].includes(match.status ?? "")) return true
-  if (strategy === "tournament_start" && lockAt && now >= lockAt) return true
+  const now = input.now ?? new Date()
+  const strategy = challenge.pickLockStrategy ?? "per_match"
+  const challengeLock = isWorldCupChallengeLocked({ challenge, matches: input.matches, now })
+  if (challengeLock.locked) return true
+  const start = match.startsAt ? new Date(match.startsAt) : null
+  if (["live", "halftime", "final"].includes(match.status ?? "")) return true
   if (strategy === "per_match" && start && now >= start) return true
   return false
+}
+
+/** True when bracket picks cannot be edited (tournament-start lock, challenge locked, or live/final match). */
+export function isWorldCupBracketChallengePicksLocked(input: {
+  challenge: { pickLockStrategy?: string | null; pickLockAt?: Date | string | null; status?: string | null }
+  matches: LockMatchLike[]
+  now?: Date
+}) {
+  return isWorldCupChallengeLocked({
+    challenge: input.challenge,
+    matches: input.matches,
+    now: input.now,
+  }).locked
 }

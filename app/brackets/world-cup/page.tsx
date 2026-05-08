@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { getServerSession } from "next-auth"
-import { Globe2, Plus, Trophy, Users } from "lucide-react"
+import { Bot, Globe2, Lock, Plus, Sparkles, Trophy, Users } from "lucide-react"
 import { authOptions } from "@/lib/auth"
 import { listUserWorldCupChallenges } from "@/lib/world-cup"
 
@@ -17,6 +17,18 @@ type WorldCupChallengeSummary = {
   rank: number | null
 }
 
+const FEATURE_BULLETS = [
+  { icon: Users, text: "Create private or public World Cup bracket leagues." },
+  { icon: Users, text: "Up to 100 users per league." },
+  { icon: Trophy, text: "Up to 5 brackets per user — compete with multiple strategies." },
+  { icon: Trophy, text: "NCAA-style scoring — more points for later rounds." },
+  { icon: Sparkles, text: "Full-screen guided pick builder with AI matchup previews." },
+  { icon: Globe2, text: "Live score and match-minute tracking." },
+  { icon: Bot, text: "AI bracket builder fills unpicked matches automatically." },
+  { icon: Trophy, text: "Entry-level leaderboard — every bracket is ranked individually." },
+  { icon: Lock, text: "Brackets lock when the first World Cup match begins." },
+]
+
 export default async function WorldCupBracketsPage() {
   const session = (await getServerSession(authOptions as any)) as { user?: SessionUser } | null
   const userId = session?.user?.id ?? null
@@ -27,53 +39,77 @@ export default async function WorldCupBracketsPage() {
   return (
     <main className="min-h-screen bg-[#05070b] text-white">
       <section className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6">
+        {/* Nav row */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Link
             href="/brackets"
             className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-white/60 hover:text-white"
           >
-            Back to Brackets
+            ← Back to Brackets
           </Link>
-          <Link
-            href="/brackets/world-cup/create"
-            className="inline-flex items-center gap-2 rounded-lg bg-cyan-300 px-4 py-2 text-sm font-black text-black"
-          >
-            <Plus className="h-4 w-4" />
-            Create Challenge
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {userId && (
+              <Link
+                href="/brackets/world-cup/join"
+                className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-bold text-white/70 hover:bg-white/[0.08]"
+              >
+                Join with Invite Code
+              </Link>
+            )}
+            <Link
+              href="/brackets/world-cup/create"
+              className="inline-flex items-center gap-2 rounded-lg bg-cyan-300 px-4 py-2 text-sm font-black text-black"
+            >
+              <Plus className="h-4 w-4" />
+              Create Challenge
+            </Link>
+          </div>
         </div>
 
-        <header className="rounded-lg border border-white/10 bg-white/[0.04] p-5 sm:p-7">
-          <div className="mb-4 inline-flex rounded-lg bg-cyan-300 p-3 text-black">
-            <Globe2 className="h-6 w-6" />
+        {/* Hero */}
+        <header className="rounded-xl border border-white/10 bg-white/[0.04] p-6 sm:p-8">
+          <div className="mb-4 inline-flex rounded-xl bg-cyan-300 p-3 text-black">
+            <Globe2 className="h-7 w-7" />
           </div>
           <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
-            FIFA World Cup Bracket Challenge
+            World Cup Bracket Challenge
           </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/55">
-            Create an AllFantasy World Cup pool with Round of 32 placeholders, matchup-by-matchup
-            picks, invite links, live score sync, automatic advancement, and a ranked leaderboard.
+          <p className="mt-3 max-w-2xl text-base leading-7 text-white/60">
+            Create an NCAA-style bracket pool for the FIFA World Cup. Invite friends, make picks,
+            track live scores, and climb the leaderboard.
           </p>
+
+          {/* Feature bullets */}
+          <ul className="mt-5 grid gap-2 sm:grid-cols-2">
+            {FEATURE_BULLETS.map(({ icon: Icon, text }) => (
+              <li key={text} className="flex items-start gap-2 text-sm text-white/55">
+                <Icon className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300/70" />
+                {text}
+              </li>
+            ))}
+          </ul>
+
+          {/* CTA strip */}
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/brackets/world-cup/create"
+              className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-2.5 text-sm font-black text-black"
+            >
+              <Plus className="h-4 w-4" />
+              Create World Cup Bracket League
+            </Link>
+            {userId && (
+              <Link
+                href="/brackets/world-cup/join"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.05] px-5 py-2.5 text-sm font-bold text-white/75 hover:bg-white/[0.09]"
+              >
+                Join with Invite Code
+              </Link>
+            )}
+          </div>
         </header>
 
-        <section className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-            <Trophy className="mb-3 h-5 w-5 text-cyan-200" />
-            <div className="text-sm font-black">Sleeper-Style Picks</div>
-            <div className="mt-1 text-xs text-white/45">Pick winners through the champion.</div>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-            <Globe2 className="mb-3 h-5 w-5 text-cyan-200" />
-            <div className="text-sm font-black">Qualifier Placeholders</div>
-            <div className="mt-1 text-xs text-white/45">Slots resolve as teams qualify.</div>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-            <Users className="mb-3 h-5 w-5 text-cyan-200" />
-            <div className="text-sm font-black">Invite Leaderboard</div>
-            <div className="mt-1 text-xs text-white/45">Share a link and compete live.</div>
-          </div>
-        </section>
-
+        {/* Your challenges */}
         <section>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-black uppercase tracking-[0.16em] text-white/45">
@@ -81,41 +117,73 @@ export default async function WorldCupBracketsPage() {
             </h2>
             <span className="text-xs text-white/35">{challenges.length} joined</span>
           </div>
+
           {userId ? (
             challenges.length > 0 ? (
               <div className="grid gap-3">
-                {challenges.map((challenge) => (
-                  <Link
-                    key={challenge.id}
-                    href={`/brackets/world-cup/${challenge.id}`}
-                    className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.07]"
-                  >
-                    <div>
-                      <div className="font-black text-white">{challenge.name}</div>
-                      <div className="mt-1 text-xs text-white/45">
-                        {challenge.seasonYear} - {challenge.participantCount} participants - {challenge.status}
+                {challenges.map((challenge) => {
+                  const isLocked = challenge.status === "locked" || challenge.status === "final"
+                  return (
+                    <Link
+                      key={challenge.id}
+                      href={`/brackets/world-cup/${challenge.id}`}
+                      className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.07]"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate font-black text-white">{challenge.name}</span>
+                          {isLocked && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold text-white/40">
+                              <Lock className="h-2.5 w-2.5" />
+                              Locked
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 text-xs text-white/45">
+                          {challenge.seasonYear} · {challenge.participantCount} participant{challenge.participantCount !== 1 ? "s" : ""}
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-right text-xs text-white/45">
-                      <div className="font-black text-cyan-200">{challenge.totalScore} pts</div>
-                      <div>{challenge.rank ? `Rank ${challenge.rank}` : "Unranked"}</div>
-                    </div>
-                  </Link>
-                ))}
+                      <div className="ml-4 shrink-0 text-right text-xs text-white/45">
+                        <div className="font-black text-cyan-200">{challenge.totalScore} pts</div>
+                        <div>{challenge.rank ? `Rank #${challenge.rank}` : "Unranked"}</div>
+                      </div>
+                    </Link>
+                  )
+                })}
               </div>
             ) : (
-              <div className="rounded-lg border border-dashed border-white/15 bg-white/[0.03] p-6 text-sm text-white/55">
-                You have not joined a World Cup bracket challenge yet.
+              <div className="flex flex-col items-center gap-4 rounded-xl border border-dashed border-white/15 bg-white/[0.03] px-6 py-12 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-300/10">
+                  <Globe2 className="h-6 w-6 text-cyan-200" />
+                </div>
+                <div>
+                  <p className="font-black text-white">No challenges yet</p>
+                  <p className="mt-1 text-sm text-white/45">
+                    You haven't joined a World Cup bracket challenge yet.
+                  </p>
+                  <p className="mt-1 text-xs text-white/30">
+                    Create one and invite friends, or ask for an invite code.
+                  </p>
+                </div>
+                <Link
+                  href="/brackets/world-cup/create"
+                  className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-2.5 text-sm font-black text-black"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create World Cup Bracket League
+                </Link>
               </div>
             )
           ) : (
-            <div className="rounded-lg border border-white/10 bg-white/[0.04] p-5">
-              <p className="text-sm text-white/60">Sign in to create or join a World Cup bracket challenge.</p>
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] p-6">
+              <p className="text-sm text-white/60">
+                Sign in to create or join a World Cup bracket challenge.
+              </p>
               <Link
                 href="/login?next=/brackets/world-cup"
-                className="mt-4 inline-flex rounded-lg bg-cyan-300 px-4 py-2 text-sm font-black text-black"
+                className="mt-4 inline-flex rounded-xl bg-cyan-300 px-5 py-2.5 text-sm font-black text-black"
               >
-                Sign In
+                Sign In to Get Started
               </Link>
             </div>
           )}

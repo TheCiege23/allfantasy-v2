@@ -15,11 +15,13 @@ describe("World Cup scoring", () => {
         homeTeamName: "Argentina",
         awayTeamName: "Brazil",
         winnerTeamId: "arg",
+        homeSlotKey: "h",
+        awaySlotKey: "a",
       },
-      { selectedTeamId: "arg", selectedTeamName: "Argentina" },
+      { selectedTeamId: "arg", selectedTeamName: "Argentina", round: "quarterfinal" },
       DEFAULT_WORLD_CUP_SCORING
     )
-    expect(result).toEqual({ pointsAwarded: 4, isCorrect: true })
+    expect(result).toEqual({ pointsAwarded: DEFAULT_WORLD_CUP_SCORING.quarterFinalPoints, isCorrect: true })
   })
 
   it("uses penalty winner data from API-Football payloads", () => {
@@ -61,30 +63,76 @@ describe("World Cup scoring", () => {
       DEFAULT_WORLD_CUP_SCORING
     )
 
-    expect(result).toEqual({ isCorrect: true, pointsAwarded: 1 })
+    expect(result).toEqual({ isCorrect: true, pointsAwarded: DEFAULT_WORLD_CUP_SCORING.roundOf32Points })
   })
 
-  it("sorts leaderboard by score, champion alive, then joined date", () => {
+  it("sorts leaderboard by score, champion alive, then entry created date", () => {
     const rows = buildWorldCupLeaderboardRows({
-      participants: [
-        { id: "p1", userId: "u1", displayName: "A", joinedAt: new Date("2026-01-02"), maxPossibleScore: 40, championPickTeamId: "arg" },
-        { id: "p2", userId: "u2", displayName: "B", joinedAt: new Date("2026-01-01"), maxPossibleScore: 40, championPickTeamId: "bra" },
+      entries: [
+        {
+          id: "e1",
+          participantId: "p1",
+          userId: "u1",
+          name: "Bracket 1",
+          createdAt: new Date("2026-01-02"),
+          updatedAt: new Date("2026-01-02"),
+          championTeamId: "arg",
+          championTeamName: null,
+          picks: [{ round: "quarterfinal", pointsAwarded: 40, isCorrect: true }],
+          participant: { displayName: "A", user: { username: "ma", avatarUrl: null, displayName: null } },
+        },
+        {
+          id: "e2",
+          participantId: "p2",
+          userId: "u2",
+          name: "Bracket 1",
+          createdAt: new Date("2026-01-01"),
+          updatedAt: new Date("2026-01-01"),
+          championTeamId: "bra",
+          championTeamName: null,
+          picks: [{ round: "quarterfinal", pointsAwarded: 40, isCorrect: true }],
+          participant: { displayName: "B", user: { username: "mb", avatarUrl: null, displayName: null } },
+        },
       ],
-      picks: [
-        { participantId: "p1", pointsAwarded: 4, isCorrect: true },
-        { participantId: "p2", pointsAwarded: 4, isCorrect: true },
+      matches: [
+        {
+          id: "mf",
+          status: "final",
+          round: "final",
+          homeTeamId: "arg",
+          awayTeamId: "bra",
+          winnerTeamId: "arg",
+          homeTeamName: "Argentina",
+          awayTeamName: "Brazil",
+          winnerTeamName: "Argentina",
+          homeSlotKey: "h",
+          awaySlotKey: "a",
+        },
       ],
-      matches: [{ status: "final", homeTeamId: "arg", awayTeamId: "bra", winnerTeamId: "arg" }],
     })
-    expect(rows[0].id).toBe("p1")
+    expect(rows[0].entryId).toBe("e1")
     expect(rows[0].rank).toBe(1)
+    expect(rows[1].entryId).toBe("e2")
   })
 
   it("detects when a champion pick has been eliminated", () => {
     expect(
       isChampionStillAlive({
         championPickTeamId: "bra",
-        matches: [{ status: "final", homeTeamId: "arg", awayTeamId: "bra", winnerTeamId: "arg" }],
+        matches: [
+          {
+            id: "x",
+            status: "final",
+            round: "final",
+            homeTeamId: "arg",
+            awayTeamId: "bra",
+            winnerTeamId: "arg",
+            homeTeamName: "Argentina",
+            awayTeamName: "Brazil",
+            homeSlotKey: "h",
+            awaySlotKey: "a",
+          },
+        ],
       })
     ).toBe(false)
   })

@@ -35,7 +35,7 @@ const createWorldCupChallengeSchema = z.object({
   name: z.string().trim().min(2).max(80),
   seasonYear: z.coerce.number().int().min(2026).max(2100).default(2026),
   visibility: z.enum(["public", "private"]).default("private"),
-  pickLockStrategy: z.enum(["per_match", "tournament_start"]).default("per_match"),
+  pickLockStrategy: z.enum(["per_match", "tournament_start"]).default("tournament_start"),
   pickLockAt: z.string().datetime().nullable().optional(),
   includeThirdPlace: z.boolean().optional(),
   scoring: z

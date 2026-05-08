@@ -10,6 +10,11 @@ export const worldCupChallengeParamsSchema = z.object({
   challengeId: z.string().min(1),
 })
 
+export const worldCupEntryParamsSchema = z.object({
+  challengeId: z.string().min(1),
+  entryId: z.string().min(1),
+})
+
 export const worldCupInviteParamsSchema = z.object({
   inviteCode: z.string().min(4).max(64),
 })

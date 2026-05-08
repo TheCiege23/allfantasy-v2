@@ -4,7 +4,7 @@ import { WORLD_CUP_ROUNDS } from "@/lib/world-cup/types"
 import type { WorldCupChallengeView, WorldCupMatchView, WorldCupPickView, WorldCupRound } from "@/lib/world-cup/types"
 import WorldCupRoundColumn from "./WorldCupRoundColumn"
 function project(matches: WorldCupMatchView[], picks: WorldCupPickView[]) { const out = matches.map((m) => ({ ...m })); const byId = new Map(out.map((m) => [m.id, m])); const byPick = new Map(picks.map((p) => [p.matchId, p])); for (const m of out) { const p = byPick.get(m.id), n = m.nextMatchId ? byId.get(m.nextMatchId) : null; if (!p || !n || !m.nextMatchSlot) continue; const home = p.selectedSlotKey === m.homeSlotKey || Boolean(p.selectedTeamId && p.selectedTeamId === m.homeTeamId); const t = home ? { id: m.homeTeamId, name: m.homeTeamName, logo: m.homeTeamLogo, slot: m.homeSlotKey } : { id: m.awayTeamId, name: m.awayTeamName, logo: m.awayTeamLogo, slot: m.awaySlotKey }; if (m.nextMatchSlot === "home") { n.homeTeamId = t.id; n.homeTeamName = t.name; n.homeTeamLogo = t.logo; n.homeSlotKey = t.slot } else { n.awayTeamId = t.id; n.awayTeamName = t.name; n.awayTeamLogo = t.logo; n.awaySlotKey = t.slot } } return out }
-export default function WorldCupBracketBoard({ view, picks, onPick }: { view: WorldCupChallengeView; picks: WorldCupPickView[]; onPick: (match: WorldCupMatchView, side: "home" | "away") => void }) {
+export default function WorldCupBracketBoard({ view, picks, onPick, onOpenMatchupPicker }: { view: WorldCupChallengeView; picks: WorldCupPickView[]; onPick: (match: WorldCupMatchView, side: "home" | "away") => void; onOpenMatchupPicker?: (matchId: string) => void }) {
 	const matches = useMemo(() => project(view.matches, picks), [view.matches, picks])
 	const champion = picks.find((p) => p.round === "final")
 	const rounds = WORLD_CUP_ROUNDS.filter((r) => matches.some((m) => m.round === r && (r !== "third_place" || view.challenge.includeThirdPlace)))
@@ -28,6 +28,7 @@ export default function WorldCupBracketBoard({ view, picks, onPick }: { view: Wo
 						matches={matches.filter((m) => m.round === round)}
 						picks={picks}
 						onPick={onPick}
+						onOpenMatchupPicker={onOpenMatchupPicker}
 						lockStrategy={pickLockStrategy}
 						tournamentLockAt={pickLockAt}
 					/>

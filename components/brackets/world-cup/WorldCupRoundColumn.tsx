@@ -7,6 +7,7 @@ export default function WorldCupRoundColumn({
   matches,
   picks,
   onPick,
+  onOpenMatchupPicker,
   lockStrategy,
   tournamentLockAt,
 }: {
@@ -14,6 +15,7 @@ export default function WorldCupRoundColumn({
   matches: WorldCupMatchView[]
   picks: WorldCupPickView[]
   onPick: (match: WorldCupMatchView, side: "home" | "away") => void
+  onOpenMatchupPicker?: (matchId: string) => void
   lockStrategy?: string
   tournamentLockAt?: string | null
 }) {
@@ -46,6 +48,7 @@ export default function WorldCupRoundColumn({
               lockStrategy={lockStrategy}
               tournamentLockAt={tournamentLockAt}
               onPick={onPick}
+              onOpenMatchupPicker={onOpenMatchupPicker}
             />
           )
         })}
