@@ -31,8 +31,12 @@ import {
   saveWorldCupBracketEntryPick,
 } from "@/lib/world-cup/worldCupClientApi"
 import {
+  assertWorldCupPickPayloadReady,
   countRemainingPicks,
+  getWorldCupGuidedPicksState,
   getInvalidDownstreamPickIds,
+  getWorldCupUnpickableReason,
+  isWorldCupMatchPickable,
 } from "@/lib/world-cup/worldCupProjectedBracket"
 import {
   buildWorldCupProjectedMatches,
@@ -176,10 +180,19 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
   }, [selectedEntryId, entryPicks])
 
   const progress = useMemo(
-    () => ({ done: picks.length, required: view.matches.length }),
-    [picks.length, view.matches.length]
+    () => ({ done: picks.length, required: view.matches.filter(isWorldCupMatchPickable).length }),
+    [picks.length, view.matches]
   )
-  const hasPickableFixtures = view.matches.length > 0
+  const pickableMatches = useMemo(
+    () => view.matches.filter(isWorldCupMatchPickable),
+    [view.matches]
+  )
+  const guidedPicksState = useMemo(
+    () => getWorldCupGuidedPicksState(view.matches),
+    [view.matches]
+  )
+  const hasPickableFixtures = pickableMatches.length > 0
+  const unresolvedMatchesCount = view.matches.length - pickableMatches.length
 
   // ── Load entries on mount ────────────────────────────────────────────────
   useEffect(() => {
@@ -279,6 +292,17 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
     const selectedTeamId = side === "home" ? match.homeTeamId : match.awayTeamId
     const selectedSlotKey = side === "home" ? match.homeSlotKey : match.awaySlotKey
     const selectedTeamName = side === "home" ? match.homeTeamName : match.awayTeamName
+    const reason = getWorldCupUnpickableReason(match)
+    const sideIsPickable =
+      side === "home"
+        ? Boolean(match.homeTeamId && match.homeTeamName)
+        : Boolean(match.awayTeamId && match.awayTeamName)
+    if (!isWorldCupMatchPickable(match) || !sideIsPickable || !selectedTeamId) {
+      setSaveState("error")
+      setSaveError(`This matchup is not ready for picks yet (${reason}).`)
+      toast.error("This matchup is not ready for picks yet. Sync fixtures or use simulation data.")
+      return
+    }
     const invalidIds = getInvalidDownstreamPickIds(
       view.matches,
       currentPicks,
@@ -616,12 +640,12 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
     () =>
       selectedEntry
         ? countRemainingPicks(
-            view.matches,
+            pickableMatches,
             picks,
             view.challenge.includeThirdPlace
           )
         : 0,
-    [selectedEntry, view.matches, view.challenge.includeThirdPlace, picks]
+    [selectedEntry, pickableMatches, view.challenge.includeThirdPlace, picks]
   )
 
   // ── Guided picker save handler ───────────────────────────────────────────
@@ -633,6 +657,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
     ): Promise<WorldCupPickView[]> => {
       if (!selectedEntryId) throw new Error("No entry selected")
       if (isLocked) throw new Error("Bracket picks are locked")
+      assertWorldCupPickPayloadReady(payload)
 
       // Clear invalid downstream picks before saving the new one
       const invalidIds = getInvalidDownstreamPickIds(
@@ -888,7 +913,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
                 disabled={!hasPickableFixtures}
                 onClick={() => {
                   if (!hasPickableFixtures) {
-                    toast.info("Fixtures are not synced yet. Ask the challenge owner/admin to run Sync first.")
+                    toast.info("This matchup is not ready for picks yet. Sync fixtures or use simulation data.")
                     return
                   }
                   setGuidedInitialMatchId(null)
@@ -897,8 +922,10 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
                 className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:bg-cyan-300/45"
               >
                 <PlayCircle className="h-4 w-4" />
-                {!hasPickableFixtures
-                  ? "Fixtures Not Synced"
+                {guidedPicksState !== "ready"
+                  ? guidedPicksState === "fixtures_not_synced"
+                    ? "Fixtures Not Synced"
+                    : "Fixtures Not Ready"
                   : remainingPicks === 0
                   ? "Review Guided Picks"
                   : selectedEntry!.correctPicks > 0 || picks.length > 0
@@ -908,9 +935,21 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
             </div>
           )}
 
-          {!isLocked && !hasPickableFixtures && (
+          {!isLocked && guidedPicksState === "fixtures_not_synced" && (
             <div className="px-4 pb-3 text-center text-[11px] text-white/50">
               Picks open after World Cup fixtures are synced for this challenge.
+            </div>
+          )}
+
+          {!isLocked && guidedPicksState === "fixtures_not_ready" && (
+            <div className="mx-4 mb-3 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-center text-[11px] text-amber-100">
+              Fixtures are loaded, but team matchups are not resolved yet. Run Sync Fixtures or use simulation/test data before making picks.
+            </div>
+          )}
+
+          {(view.isOwner || view.isAdmin) && (
+            <div className="mx-4 mb-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] text-white/55">
+              Debug counts: total matches {view.matches.length} · pickable matches {pickableMatches.length} · unresolved matches {Math.max(unresolvedMatchesCount, 0)}
             </div>
           )}
 
@@ -1291,6 +1330,10 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
               picks={picks}
               onPick={persistPick}
               onOpenMatchupPicker={(matchId) => {
+                if (!hasPickableFixtures) {
+                  toast.info("This matchup is not ready for picks yet. Sync fixtures or use simulation data.")
+                  return
+                }
                 setGuidedInitialMatchId(matchId)
                 setIsGuidedPickerOpen(true)
               }}

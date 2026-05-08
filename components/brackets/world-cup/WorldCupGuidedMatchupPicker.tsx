@@ -34,10 +34,12 @@ import {
   countRemainingPicks,
   findFirstUnpickedMatch,
   findNextMatchInGuidedOrder,
+  getWorldCupUnpickableReason,
   getInvalidDownstreamPickIds,
   hasWorldCupPickSelection,
   getOrderedRounds,
   isBracketComplete,
+  isWorldCupMatchPickable,
 } from "@/lib/world-cup/worldCupProjectedBracket"
 import { getWorldCupAiMatchupPreview } from "@/lib/world-cup/worldCupClientApi"
 
@@ -129,7 +131,7 @@ function TeamCard({
     <button
       type="button"
       onClick={onPick}
-      disabled={isLocked || isSaving || tbd}
+      disabled={isLocked || isSaving || tbd || !teamId}
       className={[
         "relative flex w-full flex-col items-center gap-3 rounded-2xl border-2 px-6 py-8 text-center transition-all active:scale-[0.98]",
         "disabled:cursor-not-allowed",
@@ -526,7 +528,7 @@ export default function WorldCupGuidedMatchupPicker({
   }, [initialPicks])
 
   const orderedRounds = useMemo(
-    () => getOrderedRounds(matches, includeThirdPlace),
+    () => getOrderedRounds(matches.filter(isWorldCupMatchPickable), includeThirdPlace),
     [matches, includeThirdPlace]
   )
 
@@ -535,18 +537,30 @@ export default function WorldCupGuidedMatchupPicker({
     () => buildWorldCupProjectedMatches(matches, picks),
     [matches, picks]
   )
-  const hasPickableMatchups = useMemo(
-    () => projected.some((m) => m.homeTeamId !== null || m.awayTeamId !== null),
+  const pickableProjected = useMemo(
+    () => projected.filter(isWorldCupMatchPickable),
     [projected]
+  )
+  const unpickableDebug = useMemo(
+    () =>
+      matches
+        .filter((m) => !isWorldCupMatchPickable(m))
+        .slice(0, 5)
+        .map((m) => ({ matchNumber: m.matchNumber, reason: getWorldCupUnpickableReason(m) })),
+    [matches]
+  )
+  const hasPickableMatchups = useMemo(
+    () => pickableProjected.length > 0,
+    [pickableProjected]
   )
 
   // Determine the current match to display
   const [currentMatchId, setCurrentMatchId] = useState<string | null>(() => {
     if (initialMatchId) return initialMatchId
     const unpicked = findFirstUnpickedMatch(
-      buildWorldCupProjectedMatches(matches, initialPicks),
+      buildWorldCupProjectedMatches(matches, initialPicks).filter(isWorldCupMatchPickable),
       initialPicks,
-      getOrderedRounds(matches, includeThirdPlace)
+      getOrderedRounds(matches.filter(isWorldCupMatchPickable), includeThirdPlace)
     )
     return unpicked?.id ?? null
   })
@@ -555,27 +569,28 @@ export default function WorldCupGuidedMatchupPicker({
   useEffect(() => {
     if (!isOpen) return
     if (initialMatchId) {
-      setCurrentMatchId(initialMatchId)
+      const requested = projected.find((m) => m.id === initialMatchId)
+      setCurrentMatchId(requested && isWorldCupMatchPickable(requested) ? initialMatchId : null)
       setShowComplete(false)
       return
     }
-    const unpicked = findFirstUnpickedMatch(projected, picks, orderedRounds)
+    const unpicked = findFirstUnpickedMatch(pickableProjected, picks, orderedRounds)
     if (unpicked) {
       setCurrentMatchId(unpicked.id)
       setShowComplete(false)
     } else {
       setCurrentMatchId(null)
-      setShowComplete(isBracketComplete(matches, picks, includeThirdPlace))
+      setShowComplete(isBracketComplete(pickableProjected, picks, includeThirdPlace))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, initialMatchId])
+  }, [isOpen, initialMatchId, projected, pickableProjected, picks, orderedRounds, includeThirdPlace])
 
   // Detect completion
   useEffect(() => {
-    if (isBracketComplete(matches, picks, includeThirdPlace)) {
+    if (isBracketComplete(pickableProjected, picks, includeThirdPlace)) {
       setShowComplete(true)
     }
-  }, [matches, picks, includeThirdPlace])
+  }, [pickableProjected, picks, includeThirdPlace])
 
   const currentMatch = useMemo(
     () => projected.find((m) => m.id === currentMatchId) ?? null,
@@ -585,9 +600,9 @@ export default function WorldCupGuidedMatchupPicker({
   // Stats for header
   const totalRequired = useMemo(
     () =>
-      matches.filter((m) => m.round !== "third_place" || includeThirdPlace)
+      pickableProjected.filter((m) => m.round !== "third_place" || includeThirdPlace)
         .length,
-    [matches, includeThirdPlace]
+    [pickableProjected, includeThirdPlace]
   )
   const totalPicked = useMemo(
     () => picks.filter(hasWorldCupPickSelection).length,
@@ -596,9 +611,9 @@ export default function WorldCupGuidedMatchupPicker({
   const roundMatches = useMemo(
     () =>
       currentMatch
-        ? matches.filter((m) => m.round === currentMatch.round)
+        ? pickableProjected.filter((m) => m.round === currentMatch.round)
         : [],
-    [matches, currentMatch]
+    [pickableProjected, currentMatch]
   )
   const roundPickedCount = useMemo(
     () =>
@@ -611,18 +626,18 @@ export default function WorldCupGuidedMatchupPicker({
   // Navigation
   const canGoBack = useMemo(() => {
     if (!currentMatch) return false
-    const sameRound = projected
+    const sameRound = pickableProjected
       .filter((m) => m.round === currentMatch.round)
       .sort((a, b) => a.matchNumber - b.matchNumber)
     const idx = sameRound.findIndex((m) => m.id === currentMatch.id)
     if (idx > 0) return true
     const roundIdx = orderedRounds.indexOf(currentMatch.round)
     return roundIdx > 0
-  }, [currentMatch, projected, orderedRounds])
+  }, [currentMatch, pickableProjected, orderedRounds])
 
   function goBack() {
     if (!currentMatch) return
-    const sameRound = projected
+    const sameRound = pickableProjected
       .filter((m) => m.round === currentMatch.round)
       .sort((a, b) => a.matchNumber - b.matchNumber)
     const idx = sameRound.findIndex((m) => m.id === currentMatch.id)
@@ -633,7 +648,7 @@ export default function WorldCupGuidedMatchupPicker({
     const roundIdx = orderedRounds.indexOf(currentMatch.round)
     if (roundIdx > 0) {
       const prevRound = orderedRounds[roundIdx - 1]
-      const prevRoundMatches = projected
+      const prevRoundMatches = pickableProjected
         .filter((m) => m.round === prevRound)
         .sort((a, b) => a.matchNumber - b.matchNumber)
       if (prevRoundMatches.length > 0) {
@@ -645,7 +660,7 @@ export default function WorldCupGuidedMatchupPicker({
   function goToNext(afterMatchId: string, updatedPicks: WorldCupPickView[]) {
     const nextMatch = findNextMatchInGuidedOrder(
       afterMatchId,
-      buildWorldCupProjectedMatches(matches, updatedPicks),
+      buildWorldCupProjectedMatches(matches, updatedPicks).filter(isWorldCupMatchPickable),
       updatedPicks,
       orderedRounds
     )
@@ -665,7 +680,11 @@ export default function WorldCupGuidedMatchupPicker({
         side === "home" ? currentMatch.homeTeamId : currentMatch.awayTeamId
       const selectedSlotKey =
         side === "home" ? currentMatch.homeSlotKey : currentMatch.awaySlotKey
-      if (!selectedSlotKey) return
+      if (!selectedSlotKey || !selectedTeamId || !isWorldCupMatchPickable(currentMatch)) {
+        setSaveState("error")
+        setSaveError("This matchup is not ready for picks yet.")
+        return
+      }
 
       // Find invalid downstream picks we need to clear locally
       const invalidIds = getInvalidDownstreamPickIds(
@@ -837,8 +856,13 @@ export default function WorldCupGuidedMatchupPicker({
             <p>
               {hasPickableMatchups
                 ? "Teams for this round will appear once earlier matches are picked."
-                : "Guided picks are unavailable until challenge fixtures are synced with real team matchups."}
+                : "Fixtures are loaded, but real team matchups are not resolved yet."}
             </p>
+            {!hasPickableMatchups && unpickableDebug.length > 0 && (
+              <p className="max-w-xl text-[11px] text-white/35">
+                Debug: {unpickableDebug.map((item) => `M${item.matchNumber}:${item.reason}`).join(" · ")}
+              </p>
+            )}
             <button
               type="button"
               onClick={onClose}
@@ -1004,6 +1028,11 @@ function MatchView({
       {!isLocked && !isFinal && !pick && (
         <p className="text-center text-xs text-white/35">
           Tap a team to select the winner
+        </p>
+      )}
+      {!isWorldCupMatchPickable(match) && (
+        <p className="text-center text-xs text-amber-200/90">
+          This matchup is not ready for picks yet.
         </p>
       )}
       {pick && !isLocked && !isFinal && (

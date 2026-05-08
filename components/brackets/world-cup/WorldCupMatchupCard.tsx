@@ -9,6 +9,10 @@ import {
   isWorldCupMatchFinal,
   isWorldCupMatchLive,
 } from "@/lib/world-cup/worldCupMatchStatus"
+import {
+  getWorldCupUnpickableReason,
+  isWorldCupMatchPickable,
+} from "@/lib/world-cup/worldCupProjectedBracket"
 
 function Logo({ src, name }: { src?: string | null; name: string }) {
   return src ? (
@@ -57,6 +61,8 @@ export default function WorldCupMatchupCard({
   const pickLiveState = getWorldCupPickLiveState(match, pick)
   const statusLabel = formatWorldCupMatchStatus(match)
   const showScore = isLive || isFinal
+  const matchIsPickable = isWorldCupMatchPickable(match)
+  const unpickableReason = matchIsPickable ? null : getWorldCupUnpickableReason(match)
 
   const teams = [
     { side: "home" as const, slotKey: match.homeSlotKey, teamId: match.homeTeamId, name: match.homeTeamName, logo: match.homeTeamLogo, score: match.homeScore },
@@ -132,6 +138,11 @@ export default function WorldCupMatchupCard({
               Simulated
             </span>
           )}
+          {!matchIsPickable && !isFinal && (
+            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-200" title={unpickableReason ?? "unknown"}>
+              Not ready for picks
+            </span>
+          )}
           {/* Pick result badges */}
           {pickLiveState === "correct" && (
             <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-400/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-200">
@@ -202,9 +213,9 @@ export default function WorldCupMatchupCard({
             <button
               key={t.side}
               type="button"
-              disabled={locked}
-              onClick={() => !locked && onPick?.(match, t.side)}
-              title={locked ? "Picks are locked for this match" : undefined}
+              disabled={locked || !matchIsPickable}
+              onClick={() => locked || !matchIsPickable ? undefined : onPick?.(match, t.side)}
+              title={locked ? "Picks are locked for this match" : !matchIsPickable ? "This matchup is not ready for picks yet" : undefined}
               className={[
                 "flex h-14 w-full items-center gap-2 rounded-md border px-2 text-left transition",
                 winner ? "border-emerald-300/70 bg-emerald-400/[0.08]"
@@ -214,7 +225,7 @@ export default function WorldCupMatchupCard({
                 : selected ? "border-cyan-300/70 bg-cyan-300/10"
                 : teamIsLeading ? "border-white/20 bg-white/[0.06]"
                 : "border-white/10 bg-white/[0.03]",
-                locked ? "cursor-not-allowed opacity-60" : "hover:bg-white/[0.06]",
+                locked || !matchIsPickable ? "cursor-not-allowed opacity-60" : "hover:bg-white/[0.06]",
               ]
                 .filter(Boolean)
                 .join(" ")}
@@ -229,7 +240,7 @@ export default function WorldCupMatchupCard({
               {showScore && t.score != null && (
                 <span className={`text-sm font-black ${teamIsLeading ? "text-white" : "text-white/70"}`}>{t.score}</span>
               )}
-              {selected && !locked && !winner && !isFinal && <Check className="h-4 w-4 shrink-0 text-cyan-200" />}
+              {selected && !locked && matchIsPickable && !winner && !isFinal && <Check className="h-4 w-4 shrink-0 text-cyan-200" />}
               {selected && locked && !winner && <Lock className="h-3.5 w-3.5 shrink-0 text-white/25" />}
               {winner && <Trophy className="h-4 w-4 shrink-0 text-emerald-200" />}
               {selected && isFinal && !winner && <X className="h-3.5 w-3.5 shrink-0 text-rose-300/60" />}

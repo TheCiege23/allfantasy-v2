@@ -4,6 +4,49 @@ import {
   mapJoinError,
   formatWorldCupPlaceholder,
 } from "@/lib/world-cup/worldCupBracketUtils"
+import {
+  assertWorldCupPickPayloadReady,
+  getWorldCupGuidedPicksState,
+  getWorldCupUnpickableReason,
+  isWorldCupMatchPickable,
+} from "@/lib/world-cup/worldCupProjectedBracket"
+import type { WorldCupMatchView } from "@/lib/world-cup/types"
+
+function makeMatch(overrides: Partial<WorldCupMatchView> = {}): WorldCupMatchView {
+  return {
+    id: "m1",
+    apiFixtureId: null,
+    round: "round_of_32",
+    roundIndex: 1,
+    matchNumber: 1,
+    homeSlotKey: "A1",
+    awaySlotKey: "B2",
+    homeTeamId: "team-a",
+    awayTeamId: "team-b",
+    homeTeamName: "Argentina",
+    awayTeamName: "Brazil",
+    homeTeamLogo: null,
+    awayTeamLogo: null,
+    homeScore: null,
+    awayScore: null,
+    homePenaltyScore: null,
+    awayPenaltyScore: null,
+    status: "scheduled",
+    startsAt: null,
+    winnerTeamId: null,
+    winnerTeamName: null,
+    nextMatchId: null,
+    nextMatchSlot: null,
+    elapsedMinute: null,
+    injuryTime: null,
+    period: null,
+    venueName: null,
+    venueCity: null,
+    apiStatusShort: null,
+    lastScoreSyncedAt: null,
+    ...overrides,
+  }
+}
 
 describe("formatWorldCupPlaceholder", () => {
   it("formats group winner slots", () => {
@@ -103,5 +146,47 @@ describe("mapJoinError", () => {
     const result = mapJoinError("some unexpected error")
     expect(typeof result).toBe("string")
     expect(result.length).toBeGreaterThan(0)
+  })
+})
+
+describe("World Cup pick readiness guards", () => {
+  it("returns fixtures_not_synced when matches are empty", () => {
+    expect(getWorldCupGuidedPicksState([])).toBe("fixtures_not_synced")
+  })
+
+  it("returns fixtures_not_ready when matches exist without real team IDs", () => {
+    const unresolved = [
+      makeMatch({
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "A1",
+        awayTeamName: "B2",
+      }),
+    ]
+    expect(getWorldCupGuidedPicksState(unresolved)).toBe("fixtures_not_ready")
+  })
+
+  it("returns ready when at least one pickable match exists", () => {
+    expect(getWorldCupGuidedPicksState([makeMatch()])).toBe("ready")
+  })
+
+  it("reports missing_home_team reason for unresolved home team", () => {
+    const match = makeMatch({ homeTeamId: null })
+    expect(getWorldCupUnpickableReason(match)).toBe("missing_home_team")
+    expect(isWorldCupMatchPickable(match)).toBe(false)
+  })
+
+  it("reports missing_away_team reason for unresolved away team", () => {
+    const match = makeMatch({ awayTeamId: null })
+    expect(getWorldCupUnpickableReason(match)).toBe("missing_away_team")
+    expect(isWorldCupMatchPickable(match)).toBe(false)
+  })
+
+  it("throws clear guided save error when selectedTeamId is missing", () => {
+    expect(() =>
+      assertWorldCupPickPayloadReady({
+        selectedTeamId: null,
+      })
+    ).toThrow("This matchup is not ready for picks yet.")
   })
 })

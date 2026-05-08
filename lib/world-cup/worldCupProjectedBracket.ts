@@ -9,6 +9,69 @@
 import type { WorldCupMatchView, WorldCupPickView, WorldCupRound } from "./types"
 import { WORLD_CUP_ROUNDS } from "./types"
 
+export type WorldCupGuidedPickPayloadLike = {
+  selectedTeamId: string | null
+}
+
+export type WorldCupGuidedPicksState = "fixtures_not_synced" | "fixtures_not_ready" | "ready"
+
+export type WorldCupUnpickableReason =
+  | "missing_home_team"
+  | "missing_away_team"
+  | "placeholder_team"
+  | "final"
+  | "unknown"
+
+function normalizeTeamName(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase()
+}
+
+function isPlaceholderTeamName(value: string | null | undefined): boolean {
+  const normalized = normalizeTeamName(value)
+  if (!normalized) return true
+  if (normalized === "tbd" || normalized === "to be determined") return true
+  if (/^[a-h][12]$/.test(normalized)) return true
+  if (/^tbd\d+$/.test(normalized)) return true
+  return false
+}
+
+export function getWorldCupUnpickableReason(match: WorldCupMatchView): WorldCupUnpickableReason {
+  if (!match?.id) return "unknown"
+  if (match.status === "final") return "final"
+  if (!match.homeTeamId) return "missing_home_team"
+  if (!match.awayTeamId) return "missing_away_team"
+  if (
+    !match.homeTeamName ||
+    !match.awayTeamName ||
+    isPlaceholderTeamName(match.homeTeamName) ||
+    isPlaceholderTeamName(match.awayTeamName)
+  ) {
+    return "placeholder_team"
+  }
+  return "unknown"
+}
+
+export function isWorldCupMatchPickable(match: WorldCupMatchView): boolean {
+  if (!match?.id) return false
+  if (match.status === "final") return false
+  if (!match.homeTeamId || !match.awayTeamId) return false
+  if (!match.homeTeamName || !match.awayTeamName) return false
+  if (isPlaceholderTeamName(match.homeTeamName) || isPlaceholderTeamName(match.awayTeamName)) return false
+  return true
+}
+
+export function assertWorldCupPickPayloadReady(payload: WorldCupGuidedPickPayloadLike): void {
+  if (!payload.selectedTeamId) {
+    throw new Error("This matchup is not ready for picks yet.")
+  }
+}
+
+export function getWorldCupGuidedPicksState(matches: WorldCupMatchView[]): WorldCupGuidedPicksState {
+  if (matches.length === 0) return "fixtures_not_synced"
+  if (!matches.some((match) => isWorldCupMatchPickable(match))) return "fixtures_not_ready"
+  return "ready"
+}
+
 export function hasWorldCupPickSelection(pick: Pick<WorldCupPickView, "selectedTeamId" | "selectedSlotKey">): boolean {
   return Boolean(pick.selectedTeamId || pick.selectedSlotKey)
 }
@@ -122,7 +185,7 @@ export function findFirstUnpickedMatch(
     const unpicked = roundMatches.find(
       (m) =>
         !pickedMatchIds.has(m.id) &&
-        (m.homeTeamId !== null || m.awayTeamId !== null)
+        isWorldCupMatchPickable(m)
     )
     if (unpicked) return unpicked
   }
@@ -154,7 +217,7 @@ export function findNextMatchInGuidedOrder(
         m.round === current.round &&
         m.matchNumber > current.matchNumber &&
         !pickedMatchIds.has(m.id) &&
-        (m.homeTeamId !== null || m.awayTeamId !== null)
+        isWorldCupMatchPickable(m)
     )
     .sort((a, b) => a.matchNumber - b.matchNumber)
 
@@ -169,7 +232,7 @@ export function findNextMatchInGuidedOrder(
         (m) =>
           m.round === nextRound &&
           !pickedMatchIds.has(m.id) &&
-          (m.homeTeamId !== null || m.awayTeamId !== null)
+          isWorldCupMatchPickable(m)
       )
       .sort((a, b) => a.matchNumber - b.matchNumber)
     if (nextRoundMatches.length > 0) return nextRoundMatches[0]
