@@ -8,10 +8,18 @@ export const runtime = "nodejs"
 const createWorldCupChallengeSchema = z.object({
   name: z.string().trim().min(2).max(80),
   seasonYear: z.coerce.number().int().min(2026).max(2100).default(2026),
-  visibility: z.enum(["public", "private"]).default("private"),
-  pickLockStrategy: z.enum(["per_match", "tournament_start"]).default("tournament_start"),
+  visibility: z.enum(["public", "private"]).optional(),
+  privacy: z.enum(["public", "private"]).optional(),
+  isPrivate: z.boolean().optional(),
+  pickLockStrategy: z.enum(["per_match", "tournament_start"]).optional(),
+  lockRule: z.enum(["per_match", "tournament_start"]).optional(),
   pickLockAt: z.string().datetime().nullable().optional(),
   includeThirdPlace: z.boolean().optional(),
+  includeThirdPlaceMatch: z.boolean().optional(),
+  maxParticipants: z.coerce.number().int().min(2).max(100).optional(),
+  maxUsers: z.coerce.number().int().min(2).max(100).optional(),
+  maxEntriesPerParticipant: z.coerce.number().int().min(1).max(5).optional(),
+  bracketsPerUser: z.coerce.number().int().min(1).max(5).optional(),
   scoring: z
     .object({
       roundOf32Points: z.number().int().min(0).optional(),
@@ -25,32 +33,92 @@ const createWorldCupChallengeSchema = z.object({
     .optional(),
 })
 
+function serializeCreateError(error: unknown) {
+  const value = error as {
+    name?: string
+    message?: string
+    code?: string
+    meta?: unknown
+  }
+
+  return {
+    name: value?.name ?? "Error",
+    message: value?.message ?? "Unknown error",
+    code: typeof value?.code === "string" ? value.code : null,
+    meta: value?.meta ?? null,
+  }
+}
+
 export async function POST(request: Request) {
+  console.info("[world-cup/create] route reached")
+
   const auth = await requireWorldCupApiUser()
+  console.info("[world-cup/create] auth state", { hasUserId: auth.ok ? Boolean(auth.user.id) : false })
   if (!auth.ok) return auth.response
 
   const body = await request.json().catch(() => ({}))
+  console.info("[world-cup/create] parsed payload", {
+    name: typeof body?.name === "string" ? body.name : null,
+    seasonYear: body?.seasonYear ?? null,
+    visibility: body?.visibility ?? null,
+    privacy: body?.privacy ?? null,
+    isPrivate: body?.isPrivate ?? null,
+    pickLockStrategy: body?.pickLockStrategy ?? null,
+    lockRule: body?.lockRule ?? null,
+    includeThirdPlace: body?.includeThirdPlace ?? null,
+    includeThirdPlaceMatch: body?.includeThirdPlaceMatch ?? null,
+    maxParticipants: body?.maxParticipants ?? null,
+    maxUsers: body?.maxUsers ?? null,
+    maxEntriesPerParticipant: body?.maxEntriesPerParticipant ?? null,
+    bracketsPerUser: body?.bracketsPerUser ?? null,
+    hasScoring: Boolean(body?.scoring),
+  })
+
   const parsed = createWorldCupChallengeSchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request", issues: parsed.error.flatten() }, { status: 400 })
   }
 
-  const result = await createWorldCupBracketChallenge({
+  const normalized = {
     user: auth.user,
     name: parsed.data.name,
     seasonYear: parsed.data.seasonYear,
-    visibility: parsed.data.visibility,
-    pickLockStrategy: parsed.data.pickLockStrategy,
+    visibility:
+      parsed.data.visibility ??
+      parsed.data.privacy ??
+      (parsed.data.isPrivate === undefined ? "private" : parsed.data.isPrivate ? "private" : "public"),
+    pickLockStrategy: parsed.data.pickLockStrategy ?? parsed.data.lockRule ?? "tournament_start",
     pickLockAt: parsed.data.pickLockAt ? new Date(parsed.data.pickLockAt) : null,
-    includeThirdPlace: parsed.data.includeThirdPlace,
+    includeThirdPlace: parsed.data.includeThirdPlace ?? parsed.data.includeThirdPlaceMatch ?? false,
+    maxParticipants: parsed.data.maxParticipants ?? parsed.data.maxUsers ?? 100,
+    maxEntriesPerParticipant: parsed.data.maxEntriesPerParticipant ?? parsed.data.bracketsPerUser ?? 5,
     scoring: parsed.data.scoring,
+  } as const
+
+  console.info("[world-cup/create] normalized create data", {
+    userId: normalized.user.id,
+    seasonYear: normalized.seasonYear,
+    visibility: normalized.visibility,
+    pickLockStrategy: normalized.pickLockStrategy,
+    pickLockAt: normalized.pickLockAt?.toISOString() ?? null,
+    includeThirdPlace: normalized.includeThirdPlace,
+    maxParticipants: normalized.maxParticipants,
+    maxEntriesPerParticipant: normalized.maxEntriesPerParticipant,
+    hasScoring: Boolean(normalized.scoring),
   })
 
-  const challengeId = result.challengeId ?? (result as { id?: string }).id
-  return NextResponse.json({
-    ok: true,
-    ...result,
-    id: challengeId,
-    challenge: { id: challengeId },
-  })
+  try {
+    const result = await createWorldCupBracketChallenge(normalized)
+    const challengeId = result.challengeId ?? (result as { id?: string }).id
+
+    return NextResponse.json({
+      ok: true,
+      ...result,
+      id: challengeId,
+      challenge: { id: challengeId },
+    })
+  } catch (error) {
+    console.error("[world-cup/create] failed", serializeCreateError(error))
+    return NextResponse.json({ error: "Failed to create World Cup bracket challenge" }, { status: 500 })
+  }
 }

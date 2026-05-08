@@ -18,6 +18,22 @@ type SessionUser = { id?: string | null; email?: string | null; name?: string | 
 
 const iso = (v: Date | string | null | undefined) => (v ? (v instanceof Date ? v.toISOString() : new Date(v).toISOString()) : null)
 
+function serializeWorldCupCreateError(error: unknown) {
+  const value = error as {
+    name?: string
+    message?: string
+    code?: string
+    meta?: unknown
+  }
+
+  return {
+    name: value?.name ?? "Error",
+    message: value?.message ?? "Unknown error",
+    code: typeof value?.code === "string" ? value.code : null,
+    meta: value?.meta ?? null,
+  }
+}
+
 export function getWorldCupAppBaseUrl() {
   return (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/$/, "")
 }
@@ -56,6 +72,8 @@ export async function createWorldCupBracketChallenge(input: {
   pickLockStrategy?: "per_match" | "tournament_start"
   pickLockAt?: Date | null
   includeThirdPlace?: boolean
+  maxParticipants?: number
+  maxEntriesPerParticipant?: number
   scoring?: Partial<typeof DEFAULT_WORLD_CUP_SCORING>
 }) {
   if (!input.user.id) throw new Error("Authenticated user required")
@@ -64,66 +82,109 @@ export async function createWorldCupBracketChallenge(input: {
   const inviteUrl = `${getWorldCupAppBaseUrl()}/join/bracket/${inviteCode}`
   const template = generateWorldCupBracketTemplate({ includeThirdPlace: input.includeThirdPlace })
   const ownerDisplay = await displayName(input.user)
-  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const scoringProfile = await tx.worldCupBracketScoringProfile.create({
-      data: { name: "World Cup Standard", ...DEFAULT_WORLD_CUP_SCORING, ...(input.scoring ?? {}) },
-    })
-    const challenge = await tx.worldCupBracketChallenge.create({
-      data: {
-        name: input.name,
-        ownerUserId: userId,
-        seasonYear: input.seasonYear ?? 2026,
-        tournamentKey: WORLD_CUP_TOURNAMENT_KEY,
-        inviteCode,
-        inviteUrl,
-        visibility: input.visibility ?? "private",
-        pickLockStrategy: input.pickLockStrategy ?? "tournament_start",
-        pickLockAt: input.pickLockAt ?? null,
-        maxParticipants: 100,
-        maxEntriesPerParticipant: 5,
-        scoringProfileId: scoringProfile.id,
-        status: "open",
-        includeThirdPlace: Boolean(input.includeThirdPlace),
-      },
-    })
-    await tx.worldCupBracketSlot.createMany({ data: template.slots.map((s) => ({ challengeId: challenge.id, ...s })) })
-    const ids = new Map<number, string>()
-    template.matches.forEach((m) => ids.set(m.matchNumber, crypto.randomUUID()))
-    const requireMatchId = (matchNumber: number): string => {
-      const id = ids.get(matchNumber)
-      if (!id) throw new Error(`Missing generated match id for match ${matchNumber}`)
-      return id
-    }
-    await tx.worldCupBracketMatch.createMany({
-      data: template.matches.map((m) => ({
-        id: requireMatchId(m.matchNumber),
+  const maxParticipants = input.maxParticipants ?? 100
+  const maxEntriesPerParticipant = input.maxEntriesPerParticipant ?? 5
+
+  console.info("[world-cup/create] normalized create data", {
+    userId,
+    seasonYear: input.seasonYear ?? 2026,
+    visibility: input.visibility ?? "private",
+    pickLockStrategy: input.pickLockStrategy ?? "tournament_start",
+    pickLockAt: input.pickLockAt?.toISOString() ?? null,
+    includeThirdPlace: Boolean(input.includeThirdPlace),
+    maxParticipants,
+    maxEntriesPerParticipant,
+    slotCount: template.slots.length,
+    matchCount: template.matches.length,
+  })
+
+  try {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      console.info("[world-cup/create] step before scoring profile create", { userId })
+      const scoringProfile = await tx.worldCupBracketScoringProfile.create({
+        data: { name: "World Cup Standard", ...DEFAULT_WORLD_CUP_SCORING, ...(input.scoring ?? {}) },
+      })
+
+      console.info("[world-cup/create] step before challenge create", { userId, scoringProfileId: scoringProfile.id })
+      const challenge = await tx.worldCupBracketChallenge.create({
+        data: {
+          name: input.name,
+          ownerUserId: userId,
+          seasonYear: input.seasonYear ?? 2026,
+          tournamentKey: WORLD_CUP_TOURNAMENT_KEY,
+          inviteCode,
+          inviteUrl,
+          visibility: input.visibility ?? "private",
+          pickLockStrategy: input.pickLockStrategy ?? "tournament_start",
+          pickLockAt: input.pickLockAt ?? null,
+          maxParticipants,
+          maxEntriesPerParticipant,
+          scoringProfileId: scoringProfile.id,
+          status: "open",
+          includeThirdPlace: Boolean(input.includeThirdPlace),
+        },
+      })
+
+      console.info("[world-cup/create] step before slots/matches create", {
         challengeId: challenge.id,
-        round: m.round,
-        roundIndex: m.roundIndex,
-        matchNumber: m.matchNumber,
-        homeSlotKey: m.homeSlotKey,
-        awaySlotKey: m.awaySlotKey,
-        homeTeamName: m.homeTeamName,
-        awayTeamName: m.awayTeamName,
-        nextMatchId: m.nextMatchNumber ? ids.get(m.nextMatchNumber) ?? null : null,
-        nextMatchSlot: m.nextMatchSlot ?? null,
-      })),
-    })
-    const participant = await tx.worldCupBracketParticipant.create({
-      data: { challengeId: challenge.id, userId, displayName: ownerDisplay },
-    })
-    await tx.worldCupBracketEntry.create({
-      data: {
+        slotCount: template.slots.length,
+        matchCount: template.matches.length,
+      })
+      await tx.worldCupBracketSlot.createMany({ data: template.slots.map((s) => ({ challengeId: challenge.id, ...s })) })
+
+      const ids = new Map<number, string>()
+      template.matches.forEach((m) => ids.set(m.matchNumber, crypto.randomUUID()))
+      const requireMatchId = (matchNumber: number): string => {
+        const id = ids.get(matchNumber)
+        if (!id) throw new Error(`Missing generated match id for match ${matchNumber}`)
+        return id
+      }
+
+      await tx.worldCupBracketMatch.createMany({
+        data: template.matches.map((m) => ({
+          id: requireMatchId(m.matchNumber),
+          challengeId: challenge.id,
+          round: m.round,
+          roundIndex: m.roundIndex,
+          matchNumber: m.matchNumber,
+          homeSlotKey: m.homeSlotKey,
+          awaySlotKey: m.awaySlotKey,
+          homeTeamName: m.homeTeamName,
+          awayTeamName: m.awayTeamName,
+          nextMatchId: m.nextMatchNumber ? ids.get(m.nextMatchNumber) ?? null : null,
+          nextMatchSlot: m.nextMatchSlot ?? null,
+        })),
+      })
+
+      console.info("[world-cup/create] step before participant create", { challengeId: challenge.id, userId })
+      const participant = await tx.worldCupBracketParticipant.create({
+        data: { challengeId: challenge.id, userId, displayName: ownerDisplay },
+      })
+
+      console.info("[world-cup/create] step before default entry create", {
         challengeId: challenge.id,
         participantId: participant.id,
         userId,
-        name: "Bracket 1",
-      },
+      })
+      await tx.worldCupBracketEntry.create({
+        data: {
+          challengeId: challenge.id,
+          participantId: participant.id,
+          userId,
+          name: "Bracket 1",
+        },
+      })
+
+      console.info("[world-cup/create] step before invite create", { challengeId: challenge.id, userId })
+      await tx.worldCupBracketInvite.create({ data: { challengeId: challenge.id, inviteCode, createdByUserId: userId } })
+      return { challenge, participant }
     })
-    await tx.worldCupBracketInvite.create({ data: { challengeId: challenge.id, inviteCode, createdByUserId: userId } })
-    return { challenge, participant }
-  })
-  return { challengeId: result.challenge.id, participantId: result.participant.id, inviteCode, inviteUrl }
+
+    return { challengeId: result.challenge.id, participantId: result.participant.id, inviteCode, inviteUrl }
+  } catch (error) {
+    console.error("[world-cup/create] service failed", serializeWorldCupCreateError(error))
+    throw error
+  }
 }
 
 function serialize(input: {

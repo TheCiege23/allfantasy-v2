@@ -125,6 +125,38 @@ describe("World Cup API catch-all route", () => {
     expect(body.error).toBeTruthy()
   })
 
+  it("normalizes create payload aliases in the dedicated create route", async () => {
+    const { POST } = await import("@/app/api/brackets/world-cup/create/route")
+    const res = await POST(
+      new Request("http://localhost/api/brackets/world-cup/create", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "World Cup",
+          seasonYear: 2026,
+          privacy: "public",
+          lockRule: "per_match",
+          includeThirdPlaceMatch: true,
+          maxUsers: 64,
+          bracketsPerUser: 3,
+        }),
+      })
+    )
+
+    expect(res.status).toBe(200)
+    expect(createChallengeMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "World Cup",
+        seasonYear: 2026,
+        visibility: "public",
+        pickLockStrategy: "per_match",
+        includeThirdPlace: true,
+        maxParticipants: 64,
+        maxEntriesPerParticipant: 3,
+      })
+    )
+  })
+
   // ── Picks ────────────────────────────────────────────────────────────────────
 
   it("saves picks through the catch-all route", async () => {
