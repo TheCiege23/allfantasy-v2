@@ -4,6 +4,7 @@ const state = vi.hoisted(() => ({
   challenge: null as any,
   matches: [] as any[],
   picks: [{ id: "pick-1", entryId: "entry-1", matchId: "m1", selectedTeamId: "t1" }],
+  teams: [] as any[],
 }))
 
 const recalculateMock = vi.hoisted(() => vi.fn(async () => []))
@@ -35,6 +36,21 @@ vi.mock("@/lib/prisma", () => {
 
   return {
     prisma: {
+      worldCupTeam: {
+        findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) => {
+          const ids = new Set(where.id.in)
+          return state.teams.filter((row) => ids.has(row.id)).map((row) => ({ ...row }))
+        }),
+        upsert: vi.fn(async ({ where, create, update }: { where: { id: string }; create: any; update: any }) => {
+          const idx = state.teams.findIndex((row) => row.id === where.id)
+          if (idx >= 0) {
+            state.teams[idx] = { ...state.teams[idx], ...update }
+            return { ...state.teams[idx] }
+          }
+          state.teams.push({ ...create })
+          return { ...create }
+        }),
+      },
       worldCupBracketChallenge: {
         findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
           if (!state.challenge || state.challenge.id !== where.id) return null
@@ -59,6 +75,7 @@ vi.mock("@/lib/prisma", () => {
 })
 
 import {
+  loadWorldCupTestFixtures,
   resetWorldCupSimulation,
   simulateWorldCupMatchResult,
   simulateWorldCupRound,
@@ -104,6 +121,7 @@ describe("world cup simulation service", () => {
     recalculateMock.mockClear()
     state.challenge = baseChallenge()
     state.picks = [{ id: "pick-1", entryId: "entry-1", matchId: "m1", selectedTeamId: "t1" }]
+    state.teams = []
     state.matches = [
       makeMatch({
         id: "m1",
@@ -248,5 +266,45 @@ describe("world cup simulation service", () => {
     expect(result.recalculated).toBe(true)
     expect(state.matches.every((match) => match.status === "scheduled")).toBe(true)
     expect(state.picks).toEqual(picksBeforeReset)
+  })
+
+  it("loads demo test fixtures into first round without touching later rounds or picks", async () => {
+    state.matches = Array.from({ length: 31 }, (_, idx) => ({
+      id: `m${idx + 1}`,
+      challengeId: "c1",
+      round: idx < 16 ? "round_of_32" : idx < 24 ? "round_of_16" : idx < 28 ? "quarterfinal" : idx < 30 ? "semifinal" : "final",
+      matchNumber: idx + 1,
+      homeSlotKey: `H-${idx + 1}`,
+      awaySlotKey: `A-${idx + 1}`,
+      homeTeamId: null,
+      awayTeamId: null,
+      homeTeamName: "TBD",
+      awayTeamName: "TBD",
+      homeTeamLogo: null,
+      awayTeamLogo: null,
+      homeScore: null,
+      awayScore: null,
+      status: "scheduled",
+      winnerTeamId: null,
+      winnerTeamName: null,
+      nextMatchId: null,
+      nextMatchSlot: null,
+    }))
+
+    const picksBefore = JSON.parse(JSON.stringify(state.picks))
+    const result = await loadWorldCupTestFixtures("c1")
+
+    expect(result.success).toBe(true)
+    expect(result.matchesUpdated).toBe(16)
+    expect(result.pickableMatchesAfter).toBe(16)
+    expect(result.totalMatchesAfter).toBe(31)
+    expect(result.unresolvedMatchesAfter).toBe(15)
+    expect(state.teams.length).toBe(32)
+    expect(state.picks).toEqual(picksBefore)
+
+    const firstRound = state.matches.filter((m) => m.round === "round_of_32")
+    const laterRounds = state.matches.filter((m) => m.round !== "round_of_32")
+    expect(firstRound.every((m) => m.homeTeamId && m.awayTeamId)).toBe(true)
+    expect(laterRounds.every((m) => !m.homeTeamId && !m.awayTeamId)).toBe(true)
   })
 })

@@ -4,15 +4,18 @@ import { z } from "zod"
 const requireUserMock = vi.hoisted(() => vi.fn())
 const accessMock = vi.hoisted(() => vi.fn())
 const simulateMatchMock = vi.hoisted(() => vi.fn())
+const loadFixturesMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/app/api/brackets/world-cup/_utils", () => ({
   requireWorldCupApiUser: requireUserMock,
   assertWorldCupSimulationAccess: accessMock,
+  assertWorldCupManager: accessMock,
   worldCupChallengeParamsSchema: z.object({ challengeId: z.string().min(1) }),
 }))
 
 vi.mock("@/lib/world-cup/worldCupSimulationService", () => ({
   simulateWorldCupMatchResult: simulateMatchMock,
+  loadWorldCupTestFixtures: loadFixturesMock,
 }))
 
 describe("world cup simulation admin routes", () => {
@@ -24,6 +27,16 @@ describe("world cup simulation admin routes", () => {
     requireUserMock.mockResolvedValue({ ok: true, user: { id: "owner-1", email: "owner@example.com" } })
     accessMock.mockResolvedValue({ ok: true, challenge: { id: "c1" }, isAdmin: false })
     simulateMatchMock.mockResolvedValue({ challengeId: "c1", updatedMatch: { id: "m1" } })
+    loadFixturesMock.mockResolvedValue({
+      success: true,
+      teamsCreated: 32,
+      teamsUpdated: 0,
+      matchesUpdated: 16,
+      pickableMatchesAfter: 16,
+      totalMatchesAfter: 31,
+      unresolvedMatchesAfter: 15,
+      warnings: [],
+    })
   })
 
   it("enforces owner/admin simulation access", async () => {
@@ -97,5 +110,43 @@ describe("world cup simulation admin routes", () => {
 
     expect(res.status).toBe(403)
     expect(simulateMatchMock).not.toHaveBeenCalled()
+  })
+
+  it("requires confirmTestFixtures for load-test-fixtures route", async () => {
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/admin/load-test-fixtures/route")
+    const res = await POST(
+      new Request("http://localhost/api/brackets/world-cup/c1/admin/load-test-fixtures", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ dryRun: false }),
+      }),
+      { params: { challengeId: "c1" } }
+    )
+
+    expect(res.status).toBe(400)
+    expect(loadFixturesMock).not.toHaveBeenCalled()
+  })
+
+  it("requires owner/admin for load-test-fixtures route", async () => {
+    accessMock.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
+        headers: { "content-type": "application/json" },
+      }),
+    })
+
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/admin/load-test-fixtures/route")
+    const res = await POST(
+      new Request("http://localhost/api/brackets/world-cup/c1/admin/load-test-fixtures", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirmTestFixtures: true }),
+      }),
+      { params: { challengeId: "c1" } }
+    )
+
+    expect(res.status).toBe(403)
+    expect(loadFixturesMock).not.toHaveBeenCalled()
   })
 })

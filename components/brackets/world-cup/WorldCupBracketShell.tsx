@@ -15,6 +15,7 @@ import type {
   WorldCupAdminSimulationStrategy,
 } from "@/lib/world-cup/worldCupClientApi"
 import {
+  adminLoadWorldCupTestFixtures,
   adminResetWorldCupSimulation,
   adminSimulateWorldCupMatch,
   adminSimulateWorldCupRound,
@@ -146,6 +147,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
   const [simulationResult, setSimulationResult] = useState<string | null>(null)
   const [isSimulating, setIsSimulating] = useState(false)
   const [isSavingSimulationMode, setIsSavingSimulationMode] = useState(false)
+  const [isLoadingTestFixtures, setIsLoadingTestFixtures] = useState(false)
   const aiBuildAbortRef = useRef(false)
 
   const challengeId = view.challenge.id
@@ -624,6 +626,32 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
       toast.error(err instanceof Error ? err.message : "Reset simulation failed")
     } finally {
       setIsSimulating(false)
+    }
+  }, [challengeId, refreshChallengeView, simulationDryRun])
+
+  const handleLoadTestFixtures = useCallback(async () => {
+    const confirmed = window.confirm(
+      "Load demo teams into Round of 32 matches? This will populate 16 first-round matches with test teams so picks can be tested.\n\nExisting picks will not be deleted."
+    )
+    if (!confirmed) return
+
+    setIsLoadingTestFixtures(true)
+    try {
+      const response = await adminLoadWorldCupTestFixtures(challengeId, {
+        dryRun: simulationDryRun,
+      })
+      const data = response.result
+      const modeLabel = simulationDryRun ? "Dry run" : "Test fixtures loaded"
+      const msg = `${modeLabel}: ${data.matchesUpdated} matches updated, ${data.pickableMatchesAfter} pickable, ${data.unresolvedMatchesAfter} unresolved`
+      setSimulationResult(msg)
+      if (!simulationDryRun) {
+        await refreshChallengeView()
+      }
+      toast.success(simulationDryRun ? "Load Test Fixtures dry run complete" : "Test fixtures loaded successfully")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load test fixtures")
+    } finally {
+      setIsLoadingTestFixtures(false)
     }
   }, [challengeId, refreshChallengeView, simulationDryRun])
 
@@ -1125,6 +1153,21 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
               </div>
               <p className="mb-3 text-[11px] text-amber-100/80">
                 Testing only. Simulated results can change scores and leaderboard standings.
+              </p>
+
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleLoadTestFixtures()}
+                  disabled={isLoadingTestFixtures || isSimulating}
+                  title="Adds demo teams to unresolved Round of 32 matches so picks and simulation can be tested before real World Cup fixtures are synced."
+                  className="rounded-lg border border-amber-400/50 bg-amber-900/30 px-3 py-1.5 text-[11px] font-bold text-amber-100 hover:bg-amber-900/50 disabled:opacity-50"
+                >
+                  {isLoadingTestFixtures ? "Loading..." : "Load Test Fixtures"}
+                </button>
+              </div>
+              <p className="mb-3 text-[11px] text-amber-100/80">
+                Adds demo teams to unresolved Round of 32 matches so picks and simulation can be tested before real World Cup fixtures are synced.
               </p>
 
               <div className="mb-3 flex flex-wrap items-center gap-3 text-[11px] text-white/70">

@@ -702,3 +702,152 @@ export async function resetWorldCupSimulation(input: ResetSimulationInput) {
     recalculated: !input.dryRun,
   }
 }
+
+/**
+ * Load demo test fixtures into World Cup bracket.
+ *
+ * Admin-only operation to populate first-round matches with demo teams
+ * so the full pick flow can be tested before real fixture data is available.
+ */
+export async function loadWorldCupTestFixtures(
+  challengeId: string,
+  options: { dryRun?: boolean } = {}
+): Promise<{
+  success: boolean
+  teamsCreated: number
+  teamsUpdated: number
+  matchesUpdated: number
+  pickableMatchesAfter: number
+  totalMatchesAfter: number
+  unresolvedMatchesAfter: number
+  warnings: string[]
+}> {
+  const { WORLD_CUP_DEMO_TEAMS, buildWorldCupDemoRoundOf32Fixtures } = await import("./worldCupTestFixtures")
+
+  const warnings: string[] = []
+  let teamsCreated = 0
+  let teamsUpdated = 0
+  let matchesUpdated = 0
+
+  try {
+    const challenge = await prisma.worldCupBracketChallenge.findUnique({
+      where: { id: challengeId },
+      include: {
+        matches: {
+          orderBy: { matchNumber: "asc" },
+        },
+      },
+    })
+
+    if (!challenge) {
+      return {
+        success: false,
+        teamsCreated,
+        teamsUpdated,
+        matchesUpdated,
+        pickableMatchesAfter: 0,
+        totalMatchesAfter: 0,
+        unresolvedMatchesAfter: 0,
+        warnings: ["Challenge not found"],
+      }
+    }
+
+    const existingTeams = await prisma.worldCupTeam.findMany({
+      where: { id: { in: WORLD_CUP_DEMO_TEAMS.map((t) => t.id) } },
+      select: { id: true },
+    })
+    const existingTeamIds = new Set(existingTeams.map((t) => t.id))
+    teamsCreated = WORLD_CUP_DEMO_TEAMS.filter((t) => !existingTeamIds.has(t.id)).length
+    teamsUpdated = WORLD_CUP_DEMO_TEAMS.length - teamsCreated
+
+    const fixturePatches = buildWorldCupDemoRoundOf32Fixtures(challenge.matches)
+
+    if (!options.dryRun) {
+      for (const team of WORLD_CUP_DEMO_TEAMS) {
+        await prisma.worldCupTeam.upsert({
+          where: { id: team.id },
+          create: {
+            id: team.id,
+            name: team.name,
+            country: team.name,
+            fifaCode: team.fifaCode,
+            flagUrl: team.flagUrl,
+            logoUrl: team.flagUrl,
+            qualificationStatus: "qualified",
+            sourcePayload: { testFixture: true, seed: team.seed },
+          },
+          update: {
+            name: team.name,
+            country: team.name,
+            fifaCode: team.fifaCode,
+            flagUrl: team.flagUrl,
+            logoUrl: team.flagUrl,
+            sourcePayload: { testFixture: true, seed: team.seed },
+          },
+        })
+      }
+
+      for (const patch of fixturePatches) {
+        const match = challenge.matches.find((m) => m.id === patch.matchId)
+        if (!match) continue
+
+        if (match.status === "final" || match.apiStatusShort === "SIM") {
+          warnings.push(`Skipped match ${match.matchNumber} because it already has simulated/final results`)
+          continue
+        }
+
+        await prisma.worldCupBracketMatch.update({
+          where: { id: patch.matchId },
+          data: patch.data,
+        })
+        matchesUpdated += 1
+      }
+    } else {
+      matchesUpdated = fixturePatches.filter((patch) => {
+        const match = challenge.matches.find((m) => m.id === patch.matchId)
+        if (!match) return false
+        return !(match.status === "final" || match.apiStatusShort === "SIM")
+      }).length
+    }
+
+    const effectiveMatches = options.dryRun
+      ? challenge.matches.map((m) => {
+          const patch = fixturePatches.find((p) => p.matchId === m.id)
+          if (!patch) return m
+          if (m.status === "final" || m.apiStatusShort === "SIM") return m
+          return { ...m, ...patch.data }
+        })
+      : (
+          (await prisma.worldCupBracketChallenge.findUnique({
+            where: { id: challengeId },
+            include: { matches: { orderBy: { matchNumber: "asc" } } },
+          }))?.matches ?? challenge.matches
+        )
+
+    const pickableCount = effectiveMatches.filter((m) => Boolean(m.homeTeamId && m.awayTeamId) && m.status !== "final").length
+    const unresolvedCount = effectiveMatches.filter((m) => !m.homeTeamId || !m.awayTeamId).length
+
+    return {
+      success: true,
+      teamsCreated,
+      teamsUpdated,
+      matchesUpdated,
+      pickableMatchesAfter: pickableCount,
+      totalMatchesAfter: effectiveMatches.length,
+      unresolvedMatchesAfter: unresolvedCount,
+      warnings,
+    }
+  } catch (error) {
+    return {
+      success: false,
+      teamsCreated,
+      teamsUpdated,
+      matchesUpdated,
+      pickableMatchesAfter: 0,
+      totalMatchesAfter: 0,
+      unresolvedMatchesAfter: 0,
+      warnings: [error instanceof Error ? error.message : "Unknown error"],
+    }
+  }
+}
+

@@ -87,6 +87,7 @@ export default function WorldCupMatchupCard({
   const isPostponed = match.status === "postponed"
   const isCancelled = match.status === "cancelled"
   const isSimulated = match.apiStatusShort === "SIM"
+  const isTestFixture = match.apiStatusShort === "TEST"
 
   // Pick live state color helpers
   const pickStateBorderClass =
@@ -136,6 +137,11 @@ export default function WorldCupMatchupCard({
           {isSimulated && (
             <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-200">
               Simulated
+            </span>
+          )}
+          {isTestFixture && (
+            <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold text-sky-200">
+              Test Fixture
             </span>
           )}
           {!matchIsPickable && !isFinal && (

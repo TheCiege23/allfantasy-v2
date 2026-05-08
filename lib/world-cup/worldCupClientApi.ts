@@ -447,3 +447,33 @@ export async function adminResetWorldCupSimulation(
   if (!res.ok) throw new Error((data as { error?: string }).error ?? "Reset simulation failed")
   return data as WorldCupAdminResetSimulationResult
 }
+
+export type WorldCupAdminLoadTestFixturesResult = {
+  ok: boolean
+  result: {
+    success: boolean
+    teamsCreated: number
+    teamsUpdated: number
+    matchesUpdated: number
+    pickableMatchesAfter: number
+    totalMatchesAfter: number
+    unresolvedMatchesAfter: number
+    warnings: string[]
+  }
+}
+
+export async function adminLoadWorldCupTestFixtures(
+  challengeId: string,
+  payload?: { dryRun?: boolean }
+): Promise<WorldCupAdminLoadTestFixturesResult> {
+  const res = await apiFetch(
+    `/api/brackets/world-cup/${challengeId}/admin/load-test-fixtures`,
+    {
+      method: "POST",
+      body: JSON.stringify({ ...(payload ?? {}), confirmTestFixtures: true }),
+    }
+  )
+  const data = await res.json()
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? "Load test fixtures failed")
+  return data as WorldCupAdminLoadTestFixturesResult
+}

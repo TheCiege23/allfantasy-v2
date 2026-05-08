@@ -170,6 +170,33 @@ describe("World Cup pick readiness guards", () => {
     expect(getWorldCupGuidedPicksState([makeMatch()])).toBe("ready")
   })
 
+  it("moves from fixtures_not_ready to ready when first-round matches get team IDs", () => {
+    const unresolvedFirstRound = Array.from({ length: 16 }, (_, idx) =>
+      makeMatch({
+        id: `m-${idx + 1}`,
+        matchNumber: idx + 1,
+        round: "round_of_32",
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: `A${idx + 1}`,
+        awayTeamName: `B${idx + 1}`,
+      })
+    )
+    expect(getWorldCupGuidedPicksState(unresolvedFirstRound)).toBe("fixtures_not_ready")
+
+    const resolvedFirstRound = unresolvedFirstRound.map((match, idx) => ({
+      ...match,
+      homeTeamId: `demo-home-${idx + 1}`,
+      awayTeamId: `demo-away-${idx + 1}`,
+      homeTeamName: `Home ${idx + 1}`,
+      awayTeamName: `Away ${idx + 1}`,
+    }))
+
+    const pickableCount = resolvedFirstRound.filter((m) => isWorldCupMatchPickable(m)).length
+    expect(pickableCount).toBe(16)
+    expect(getWorldCupGuidedPicksState(resolvedFirstRound)).toBe("ready")
+  })
+
   it("reports missing_home_team reason for unresolved home team", () => {
     const match = makeMatch({ homeTeamId: null })
     expect(getWorldCupUnpickableReason(match)).toBe("missing_home_team")
