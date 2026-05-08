@@ -249,8 +249,8 @@ function DraftPlayerCardInner({
     unifiedProductView?.unified.headshotUrl ??
     null
   const teamLogoUrl = normalized.teamLogoUrl ?? assets?.teamLogoUrl ?? null
-  const rowHeadshotSize = rs ? 44 : 40
-  const rowLogoSize = rs ? 18 : 16
+  const rowHeadshotSize = rs ? 36 : 32
+  const rowLogoSize = rs ? 16 : 14
   // Commit P — surface the explicit `projection` field as a stat-line
   // fallback when the upstream summary is absent. Pre-Commit-P the row
   // showed "No stats available" even when the resolver had a projected-
@@ -386,7 +386,7 @@ function DraftPlayerCardInner({
       }}
       role={onSelect ? 'button' : undefined}
       tabIndex={onSelect ? 0 : undefined}
-      className={`group flex min-w-0 flex-col gap-1 rounded-xl border px-2.5 py-2 text-[11px] backdrop-blur-sm transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 active:scale-[0.98] ${
+      className={`group flex min-w-0 flex-col gap-0.5 rounded-xl border px-2 py-1.5 text-[11px] backdrop-blur-sm transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 active:scale-[0.98] ${
         rs
           ? `shadow-[0_8px_28px_rgba(0,0,0,0.35)] ${
               isDrafted
@@ -400,8 +400,8 @@ function DraftPlayerCardInner({
             }`
       } ${isDevy ? 'border-l-[3px] border-l-violet-500/70' : ''}`}
     >
-      <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5">
-      <div className={`relative shrink-0 ${rs ? 'h-11 w-11' : 'h-10 w-10'}`}>
+      <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
+      <div className={`relative shrink-0 ${rs ? 'h-9 w-9' : 'h-8 w-8'}`}>
         <HeadshotOrFallback
           headshotUrl={headshotUrl}
           displayName={displayName}

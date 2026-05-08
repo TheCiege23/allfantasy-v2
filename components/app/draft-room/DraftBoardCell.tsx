@@ -245,24 +245,26 @@ function DraftBoardCellInner({
     ? `Draft pick ${compactLabel}, empty slot`
     : `${pick.playerName ?? 'Player'}, ${pick.position ?? ''}, ${pick.team ?? ''}, pick ${compactLabel}`
 
-  const hoverLift = rs && !isEmpty ? 'hover:z-[1] hover:-translate-y-1 hover:scale-[1.015]' : 'hover:z-[1] hover:-translate-y-1 hover:scale-[1.02]'
+  const hoverLift = rs && !isEmpty ? 'hover:z-[1] hover:-translate-y-0.5 hover:scale-[1.01]' : 'hover:z-[1] hover:-translate-y-0.5 hover:scale-[1.01]'
 
   return (
     <div
-      className={`group relative flex h-[52px] min-h-[52px] flex-col overflow-hidden rounded-md border px-1.5 pb-1 pt-1 text-[10px] backdrop-blur-sm transition-[border-color,box-shadow,transform,background-color] duration-200 ${hoverLift} hover:border-cyan-300/55 hover:shadow-xl sm:h-[56px] sm:min-h-[56px] sm:px-2 sm:pb-1 sm:pt-1 ${
+      className={`group relative flex h-[44px] min-h-[44px] flex-col overflow-hidden rounded-[6px] border px-1 pb-0.5 pt-0.5 text-[9px] backdrop-blur-sm transition-[border-color,box-shadow,transform,background-color] duration-200 ${hoverLift} hover:border-cyan-300/45 hover:shadow-lg sm:h-[46px] sm:min-h-[46px] sm:px-1 sm:pb-0.5 sm:pt-0.5 ${
         onTradeFromCell ? 'pr-7 sm:pr-8' : ''
+      } ${
+        isCurrentPick ? 'draft-live-current-pick' : isRecentPick ? 'draft-live-recent-pick' : ''
       } ${
         isCurrentPick
           ? rs
-            ? 'animate-pulse border-cyan-300/90 bg-[radial-gradient(ellipse_at_50%_0%,rgba(34,211,238,0.35),transparent),linear-gradient(155deg,rgba(34,211,238,0.22),rgba(15,23,42,0.96))] shadow-[0_0_56px_rgba(34,211,238,0.55)] ring-2 ring-cyan-200/70'
-            : 'animate-pulse border-cyan-400/95 bg-gradient-to-br from-cyan-500/35 via-[#2a3d5a] to-[#1f2d47] shadow-[0_0_50px_rgba(34,211,238,0.6)] ring-2 ring-cyan-300/80'
+            ? 'border-[#f6c445]/70 bg-[radial-gradient(ellipse_at_50%_0%,rgba(246,196,69,0.34),transparent),linear-gradient(155deg,rgba(246,196,69,0.2),rgba(15,23,42,0.96))] shadow-[0_0_46px_rgba(246,196,69,0.4)] ring-1 ring-[#f6c445]/65'
+            : 'border-[#f6c445]/75 bg-gradient-to-br from-[#f6c445]/26 via-[#28344e] to-[#1b2438] shadow-[0_0_40px_rgba(246,196,69,0.35)] ring-1 ring-[#f6c445]/60'
           : isRecentPick
             ? rs
               ? 'border-emerald-400/70 bg-gradient-to-br from-emerald-500/28 to-[#142032] ring-1 ring-emerald-400/50 shadow-[0_0_36px_rgba(52,211,153,0.28)]'
               : 'border-emerald-400/80 bg-gradient-to-br from-emerald-500/25 to-[#2a3d5a] ring-1 ring-emerald-400/60 shadow-[0_0_32px_rgba(52,211,153,0.35)]'
             : isEmpty
-              ? 'border-transparent bg-[linear-gradient(145deg,rgba(15,23,42,0.45),rgba(8,15,28,0.78))]'
-              : `border-cyan-400/35 bg-gradient-to-b from-[#2a3d5a] to-[#1a2844] ${rs ? 'shadow-lg' : 'shadow-xl'} ${highlightClass(pickHighlight)}`
+              ? 'border-white/[0.05] bg-[linear-gradient(145deg,rgba(13,20,40,0.6),rgba(8,14,28,0.82))]'
+              : `border-white/[0.14] bg-gradient-to-b from-[#1c2742] to-[#162036] ${rs ? 'shadow-md' : 'shadow-lg'} ${highlightClass(pickHighlight)}`
       }`}
       style={tint ?? managerTint}
       data-overall={pick.overall}
@@ -289,7 +291,7 @@ function DraftBoardCellInner({
              Mobile (no hover) keeps a touch-friendly always-visible tap target via
              `md:opacity-0`: visible by default on small screens, hidden on md+ until
              hover/focus reveals it. */
-          className="absolute left-0.5 top-0.5 z-[2] inline-flex h-6 w-6 items-center justify-center rounded-md border border-amber-400/40 bg-amber-500/15 text-amber-100 opacity-90 shadow-sm backdrop-blur-sm transition duration-150 hover:border-amber-300/60 hover:bg-amber-500/30 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50 active:scale-90 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+          className="absolute left-0.5 top-0.5 z-[2] inline-flex h-6 w-6 items-center justify-center rounded-md border border-amber-400/40 bg-amber-500/15 text-amber-100 opacity-60 shadow-sm backdrop-blur-sm transition duration-150 hover:border-amber-300/60 hover:bg-amber-500/30 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50 active:scale-90 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
         >
           <Pencil className="h-3 w-3" />
         </button>
@@ -330,7 +332,7 @@ function DraftBoardCellInner({
         aria-hidden
       />
 
-      <div className="flex items-start justify-between gap-1">
+      <div className="flex items-start justify-between gap-0.5">
         <div className="flex min-w-0 flex-wrap items-center gap-0.5">
           {pick.isKeeper ? <StatusBadge label="K" className="bg-emerald-500/25 text-emerald-200" /> : null}
           {pick.isDevyPick ? <StatusBadge label="D" className="bg-violet-500/25 text-violet-200" /> : null}
@@ -349,7 +351,7 @@ function DraftBoardCellInner({
           ) : null}
         </div>
 
-        <span className="tabular-nums text-[11px] font-bold text-white/65" aria-hidden>
+        <span className="-mt-px tabular-nums text-[10px] font-semibold text-white/60" aria-hidden>
           {compactLabel}
         </span>
       </div>
@@ -381,8 +383,8 @@ function DraftBoardCellInner({
           ) : null}
         </div>
       ) : (
-        <div className="mt-0.5 flex min-h-0 flex-1 flex-col justify-between gap-1 overflow-hidden">
-          <div className="flex min-w-0 items-start gap-1.5">
+        <div className="mt-0.5 flex min-h-0 flex-1 flex-col justify-between gap-0.5 overflow-hidden">
+          <div className="flex min-w-0 items-start gap-1">
             <div className="relative shrink-0">
               <TinyHeadshot
                 name={pick.playerName}
@@ -401,7 +403,7 @@ function DraftBoardCellInner({
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1">
-                <span className="truncate font-bold leading-tight text-white/98 text-[11px]" title={pick.playerName ?? undefined}>
+                <span className="truncate font-semibold leading-tight text-white/95 text-[10px]" title={pick.playerName ?? undefined}>
                   {pick.playerName}
                 </span>
                 <PositionBadge pos={pick.position} />
@@ -411,7 +413,7 @@ function DraftBoardCellInner({
                   </span>
                 ) : null}
               </div>
-              <p className="truncate text-[9px] text-white/60">
+              <p className="truncate text-[8px] text-white/55">
                 {(pick.team ?? '—').toString()}
                 {pick.byeWeek != null && pick.byeWeek > 0 ? ` · Bye ${pick.byeWeek}` : ''}
               </p>

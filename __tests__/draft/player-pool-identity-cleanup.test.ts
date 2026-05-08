@@ -169,11 +169,11 @@ describe('Phase 2 — SleeperPoolTable readability constraints', () => {
   })
 
   it('name span has min-w-0 + flex-1 + truncate (so it consumes available width)', () => {
-    expect(src).toMatch(/min-w-0 flex-1 truncate text-\[13px\] font-semibold/)
+    expect(src).toMatch(/min-w-0 flex-1 truncate text-\[12px\] font-semibold/)
   })
 
   it('position/team line has whitespace-nowrap so QB/NYG never wraps to two lines', () => {
-    expect(src).toMatch(/truncate whitespace-nowrap text-\[11px\] text-white\/55/)
+    expect(src).toMatch(/truncate whitespace-nowrap text-\[10px\] text-white\/55/)
   })
 })
 

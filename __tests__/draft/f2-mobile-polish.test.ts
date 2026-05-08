@@ -55,7 +55,7 @@ describe('F.2 — DraftRoomShell mobile structure', () => {
   it('mobile content div has min-w-0 + a stable testid + active-tab data attr', () => {
     expect(src).toMatch(/data-testid="draft-mobile-content"/)
     expect(src).toMatch(/data-active-tab=\{mobileTab\}/)
-    expect(src).toMatch(/min-h-\[220px\] min-w-0 p-3/)
+    expect(src).toMatch(/min-h-\[220px\] min-w-0 p-2\.5/)
   })
 
   it('Board tab wraps its content in an overflow-x-auto scroll container', () => {
@@ -64,6 +64,7 @@ describe('F.2 — DraftRoomShell mobile structure', () => {
   })
 
   it('Players tab wraps its content in an overflow-x-auto scroll container', () => {
+    expect(src).toMatch(/data-testid="draft-mobile-players-sheet"/)
     expect(src).toMatch(/data-testid="draft-mobile-players-scroll"/)
     expect(src).toMatch(/min-w-0 overflow-x-auto overscroll-x-contain[\s\S]{0,200}data-testid="draft-mobile-players-scroll"/)
   })
@@ -115,6 +116,10 @@ describe('F.2 — DraftRoomShell mobile tab bar', () => {
   it('safe-area-bottom class respects iOS home indicator', () => {
     expect(src).toMatch(/safe-area-bottom/)
   })
+
+  it('renders a dedicated quick-dock row for non-primary tabs', () => {
+    expect(src).toMatch(/data-testid="draft-mobile-quick-dock"/)
+  })
 })
 
 describe('F.2 — DraftRightDockTabs is desktop-only on the mobile shell', () => {
@@ -145,7 +150,8 @@ describe('F.2 — WarRoomPopup mobile bottom sheet', () => {
   })
 
   it('docks to the bottom-right corner at ≥ sm (tablet + desktop)', () => {
-    expect(src).toMatch(/sm:bottom-20 sm:right-4 sm:left-auto sm:inset-x-auto/)
+    expect(src).toMatch(/sm:bottom-20 sm:right-4 sm:left-auto/)
+    expect(src).toMatch(/sm:inset-x-auto/)
     expect(src).toMatch(/sm:h-\[min\(560px,80vh\)\]/)
     expect(src).toMatch(/sm:w-\[min\(380px,calc\(100vw-2rem\)\)\]/)
     expect(src).toMatch(/sm:rounded-xl sm:border/)

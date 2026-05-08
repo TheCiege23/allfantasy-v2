@@ -976,6 +976,103 @@ html[data-mode="light"] .via-white\/10 { --tw-gradient-stops: var(--tw-gradient-
   50% { transform: scale(1.1); opacity: 1; }
   100% { transform: scale(1); opacity: 1; }
 }
+@keyframes draft-current-pick-pulse {
+  0%,
+  100% {
+    transform: translateZ(0) scale(1);
+    box-shadow: 0 0 0 rgba(246, 196, 69, 0), 0 0 20px rgba(246, 196, 69, 0.18);
+  }
+  45% {
+    transform: translateZ(0) scale(1.01);
+    box-shadow: 0 0 0 1px rgba(246, 196, 69, 0.32), 0 0 34px rgba(246, 196, 69, 0.42);
+  }
+}
+
+@keyframes draft-recent-pick-flash {
+  0% {
+    filter: saturate(1.2) brightness(1.05);
+    box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.4), 0 0 28px rgba(52, 211, 153, 0.35);
+  }
+  100% {
+    filter: saturate(1) brightness(1);
+    box-shadow: none;
+  }
+}
+
+@keyframes draft-queue-item-in {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes draft-activity-ticker-in {
+  0% {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes draft-banner-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.draft-live-current-pick {
+  animation: draft-current-pick-pulse 1.45s ease-in-out infinite;
+  will-change: transform, box-shadow;
+}
+
+.draft-live-recent-pick {
+  animation: draft-recent-pick-flash 900ms ease-out 1;
+}
+
+.draft-live-queue-item {
+  animation: draft-queue-item-in 220ms ease-out;
+  transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.draft-live-queue-item:hover {
+  transform: translateY(-1px);
+}
+
+.draft-live-action-btn {
+  transition: transform 120ms ease, border-color 140ms ease, background-color 140ms ease, box-shadow 160ms ease;
+}
+
+.draft-live-action-btn:active {
+  transform: scale(0.96);
+}
+
+.draft-live-activity-item {
+  animation: draft-activity-ticker-in 260ms ease-out both;
+}
+
+.draft-live-governance-banner,
+.draft-live-pause-banner {
+  animation: draft-banner-in 200ms ease-out;
+}
+
+.draft-live-focus-ring {
+  scroll-margin-top: 64px;
+  outline: 1px solid rgba(246, 196, 69, 0.5);
+  outline-offset: -1px;
+}
+
 @keyframes score-glow {
   0%, 100% { text-shadow: 0 0 8px currentColor; }
   50% { text-shadow: 0 0 20px currentColor; }
@@ -1276,6 +1373,19 @@ select, option {
   .zombie-panel-shine::after,
   .zombie-drift-particles {
     animation: none !important;
+  }
+  .draft-live-current-pick,
+  .draft-live-recent-pick,
+  .draft-live-queue-item,
+  .draft-live-activity-item,
+  .draft-live-governance-banner,
+  .draft-live-pause-banner {
+    animation: none !important;
+  }
+  .draft-live-queue-item,
+  .draft-live-action-btn,
+  .draft-live-focus-ring {
+    transition: none !important;
   }
 }
 

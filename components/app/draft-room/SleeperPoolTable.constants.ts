@@ -7,8 +7,8 @@
  * what keeps the test side fast + transform-safe.
  */
 
-export const SLEEPER_POOL_TABLE_ROW_HEIGHT = 40
-export const SLEEPER_POOL_TABLE_HEADER_HEIGHT = 32
+export const SLEEPER_POOL_TABLE_ROW_HEIGHT = 34
+export const SLEEPER_POOL_TABLE_HEADER_HEIGHT = 28
 
 export interface ColumnSpec {
   key: string

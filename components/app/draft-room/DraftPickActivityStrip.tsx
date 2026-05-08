@@ -34,14 +34,15 @@ export function DraftPickActivityStrip({
           {recent.length === 0 ? (
             <li className="text-[10px] text-white/35">No picks yet.</li>
           ) : (
-            recent.map((p) => (
+            recent.map((p, idx) => (
               <li
                 key={p.id}
-                className={`shrink-0 rounded-lg border px-2 py-1.5 text-[10px] md:shrink md:px-2 ${
+                className={`draft-live-activity-item shrink-0 rounded-lg border px-2 py-1.5 text-[10px] md:shrink md:px-2 ${
                   rs
                     ? 'border-white/12 bg-[linear-gradient(135deg,rgba(15,23,42,0.9),rgba(8,16,32,0.95))] shadow-[0_4px_16px_rgba(0,0,0,0.25)]'
                     : 'border-white/10 bg-[#0a1228]'
                 }`}
+                style={{ animationDelay: `${Math.min(idx, 6) * 28}ms` }}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium text-white/90 truncate">{p.playerName}</span>

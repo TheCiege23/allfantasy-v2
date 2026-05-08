@@ -149,25 +149,44 @@ export function QueuePanel({
 
   return (
     <section
-      className={`flex flex-col overflow-hidden rounded-xl border bg-[#060d1e] ${
+      className={`flex flex-col overflow-hidden rounded-lg border bg-[#101a30] ${
         rs ? 'border-cyan-500/25 shadow-[0_12px_40px_rgba(34,211,238,0.08),inset_0_1px_0_rgba(255,255,255,0.05)]' : 'border-white/10'
       }`}
       data-testid="draft-queue-panel"
     >
-      <div className={`flex items-center justify-between gap-2 border-b px-3 py-2.5 ${rs ? 'border-cyan-500/15 bg-[linear-gradient(90deg,rgba(34,211,238,0.08),transparent)]' : 'border-white/8'}`}>
+      <div className={`flex items-center justify-between gap-2 border-b px-2.5 py-1.5 ${rs ? 'border-cyan-500/15 bg-[linear-gradient(90deg,rgba(34,211,238,0.08),transparent)]' : 'border-white/[0.06]'}`}>
         <div className="flex items-center gap-2">
           <ListOrdered className="h-4 w-4 text-cyan-400" />
           <span className="text-sm font-semibold text-white">Queue</span>
         </div>
+        <label className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-[#0d1428] px-2 py-0.5 text-[9px] uppercase tracking-[0.12em] text-white/75">
+          <input
+            type="checkbox"
+            checked={autoPickFromQueue}
+            onChange={(e) => {
+              if (analyticsLeagueId) {
+                sendProductAnalyticsBeacon(DRAFT_ROOM.AUTOPICK_QUEUE, {
+                  leagueId: analyticsLeagueId,
+                  enabled: e.target.checked,
+                })
+              }
+              onAutoPickFromQueueChange(e.target.checked)
+            }}
+            disabled={!autoPickEnabled}
+            data-testid="draft-queue-autopick-toggle-header"
+            className="h-3 w-3 rounded border-white/20"
+          />
+          Auto-pick
+        </label>
       </div>
-      <div className="grid grid-cols-1 gap-2 border-b border-white/8 p-2.5 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-1.5 border-b border-white/[0.06] p-1.5 sm:grid-cols-2 lg:grid-cols-3">
         <input
           type="search"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search queued players"
           data-testid="draft-queue-search"
-          className="h-10 rounded-lg border border-white/15 bg-[#0b1328] px-3 text-xs text-white placeholder:text-white/45 outline-none transition focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-500/15"
+          className="h-8 rounded-lg border border-white/12 bg-[#0b1328] px-2.5 text-xs text-white placeholder:text-white/40 outline-none transition focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-500/15"
         />
         {/* Position filter — chip row matches the player pool's position pills
             so users see consistent affordances across both surfaces. */}
@@ -188,7 +207,7 @@ export function QueuePanel({
                 onClick={() => setPositionFilter(position)}
                 data-testid={`draft-queue-position-pill-${position.toLowerCase()}`}
                 data-active={isActive ? 'true' : 'false'}
-                className={`inline-flex h-8 items-center rounded-full border px-2.5 text-[11px] font-semibold uppercase tracking-wider transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
+                className={`inline-flex h-7 items-center rounded-full border px-2 text-[10px] font-semibold uppercase tracking-wider transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
                   isActive
                     ? 'border-cyan-400/45 bg-gradient-to-r from-cyan-500/22 to-violet-600/18 text-cyan-50 shadow-[0_0_14px_rgba(34,211,238,0.18)]'
                     : 'border-white/15 bg-black/20 text-white/65 hover:border-white/28 hover:text-white/90'
@@ -203,7 +222,7 @@ export function QueuePanel({
           value={sortMode}
           onChange={(e) => setSortMode(e.target.value as QueueSortMode)}
           data-testid="draft-queue-sort"
-          className="h-10 rounded-lg border border-white/15 bg-[#0b1328] px-3 text-xs text-white outline-none transition focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-500/15"
+          className="h-8 rounded-lg border border-white/12 bg-[#0b1328] px-2.5 text-xs text-white outline-none transition focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-500/15"
         >
           <option value="queue">Sort: Queue order</option>
           <option value="adp">Sort: ADP</option>
@@ -212,7 +231,7 @@ export function QueuePanel({
         </select>
       </div>
       {rs ? (
-        <details className="group border-b border-white/8" data-testid="draft-queue-ai-options">
+        <details className="group border-b border-white/[0.06]" data-testid="draft-queue-ai-options">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 text-[11px] font-semibold uppercase tracking-wide text-cyan-100/90 [&::-webkit-details-marker]:hidden">
             <span>Queue &amp; AI options</span>
             <ChevronDown
@@ -409,21 +428,21 @@ export function QueuePanel({
           Execution: {aiReorderExecutionMode === 'ai_explained' ? 'rules engine + AI explanation' : 'instant rules automation'}
         </p>
       )}
-      <div className="flex-1 overflow-auto overscroll-contain p-2.5">
+      <div className="flex-1 overflow-auto overscroll-contain p-1.5">
         {queue.length === 0 ? (
-          <div className="flex h-full min-h-[200px] flex-col items-center justify-center gap-2 px-4 py-8 text-center">
+          <div className="flex h-full min-h-[104px] flex-col items-center justify-center gap-1 px-3 py-3 text-center">
             <div
-              className={`flex h-14 w-14 items-center justify-center rounded-2xl border ${
+              className={`flex h-9 w-9 items-center justify-center rounded-xl border ${
                 rs ? 'border-cyan-400/25 bg-cyan-500/8' : 'border-white/10 bg-white/[0.03]'
               }`}
               aria-hidden
             >
-              <ListOrdered className={`h-7 w-7 ${rs ? 'text-cyan-200/70' : 'text-white/45'}`} />
+              <ListOrdered className={`h-4 w-4 ${rs ? 'text-cyan-200/70' : 'text-white/45'}`} />
             </div>
-            <p className={`text-sm font-semibold ${rs ? 'text-cyan-100/90' : 'text-white/85'}`}>
+            <p className={`text-xs font-semibold ${rs ? 'text-cyan-100/88' : 'text-white/82'}`}>
               No players in your queue
             </p>
-            <p className="max-w-[260px] text-[11px] leading-relaxed text-white/50">
+            <p className="max-w-[220px] text-[10px] leading-relaxed text-white/42">
               Add to queue from player list
             </p>
           </div>
@@ -433,7 +452,7 @@ export function QueuePanel({
             <p className="text-[10px] text-white/55">Adjust search, position, or sort to see queued players.</p>
           </div>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-1.5">
             {displayQueue.map(({ entry, queueIndex }, displayIndex) => {
               const meta = resolveMeta(entry)
               const adpText = formatNumber(meta.adp)
@@ -459,7 +478,7 @@ export function QueuePanel({
                     setDragIndex(null)
                   }
                 }}
-                className={`flex items-center justify-between gap-2 rounded-xl border border-white/12 bg-[linear-gradient(180deg,rgba(10,18,40,0.94),rgba(7,14,30,0.98))] px-3 py-2.5 text-[11px] min-h-[58px] ${
+                className={`draft-live-queue-item flex items-center justify-between gap-2 rounded-lg border border-white/[0.08] bg-[linear-gradient(180deg,rgba(10,18,40,0.94),rgba(7,14,30,0.98))] px-2.5 py-1.5 text-[11px] min-h-[46px] ${
                   dragIndex === displayIndex ? 'opacity-60' : 'hover:bg-white/5'
                 }`}
               >
@@ -513,7 +532,7 @@ export function QueuePanel({
                     }}
                     disabled={!canReorderVisually || displayIndex === 0}
                     data-testid={`draft-queue-move-up-${displayIndex}`}
-                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white/80 disabled:opacity-40 touch-manipulation"
+                    className="draft-live-action-btn min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white/80 disabled:opacity-40 touch-manipulation"
                     aria-label={`Move ${entry.playerName} up`}
                   >
                     ↑
@@ -528,7 +547,7 @@ export function QueuePanel({
                     }}
                     disabled={!canReorderVisually || displayIndex === displayQueue.length - 1}
                     data-testid={`draft-queue-move-down-${displayIndex}`}
-                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white/80 disabled:opacity-40 touch-manipulation"
+                    className="draft-live-action-btn min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white/80 disabled:opacity-40 touch-manipulation"
                     aria-label={`Move ${entry.playerName} down`}
                   >
                     ↓
@@ -538,7 +557,7 @@ export function QueuePanel({
                       type="button"
                       onClick={() => onDraftFromQueue(entry)}
                       data-testid="draft-queue-draft-button"
-                    className="min-h-[44px] inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/35 bg-cyan-500/12 px-3 py-2 text-xs text-cyan-100 hover:bg-cyan-500/20 touch-manipulation"
+                      className="draft-live-action-btn min-h-[44px] inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/35 bg-cyan-500/12 px-3 py-2 text-xs text-cyan-100 hover:bg-cyan-500/20 touch-manipulation"
                     >
                       <Play className="h-3.5 w-3.5" /> Draft
                     </button>
@@ -547,7 +566,7 @@ export function QueuePanel({
                     type="button"
                     onClick={() => onRemove(queueIndex)}
                     data-testid={`draft-queue-remove-${displayIndex}`}
-                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white/80 touch-manipulation"
+                    className="draft-live-action-btn min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white/80 touch-manipulation"
                     aria-label={`Remove ${entry.playerName} from queue`}
                   >
                     <X className="h-4 w-4" />

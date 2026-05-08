@@ -12,10 +12,10 @@
 
 import React, { useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { GitCompare, Plus } from 'lucide-react'
+import { AlertTriangle, Flame, GitCompare, Plus, Sparkles, TrendingUp } from 'lucide-react'
 
 import { PlayerAvatar } from './PlayerAvatar'
-import type { PlayerEntry } from './PlayerPanel'
+import type { DraftAiOverlaySignal, PlayerEntry } from './PlayerPanel'
 import { normalizePlayer } from '@/lib/players/normalizePlayer'
 import { getPlayerImage } from '@/lib/players/getPlayerImage'
 import type { NflDraftProjectionSplits } from '@/lib/draft/analytics/nfl-draft-pool-projection-splits'
@@ -75,6 +75,7 @@ export interface SleeperPoolTableProps {
   disableVirtualization?: boolean
   sortState?: PoolSortState | null
   onSortChange?: (columnKey: string) => void
+  aiOverlaySignals?: Record<string, DraftAiOverlaySignal>
 }
 
 function rowKey(p: PlayerEntry): string {
@@ -98,7 +99,7 @@ function Cell({
   return (
     <div
       style={{ width, minWidth: width, maxWidth: width }}
-      className={`flex items-center px-2 ${align === 'right' ? 'justify-end tabular-nums' : 'justify-start'} ${className}`}
+      className={`flex items-center px-1 ${align === 'right' ? 'justify-end tabular-nums' : 'justify-start'} ${className}`}
       title={title}
     >
       {children}
@@ -127,6 +128,7 @@ interface SleeperRowProps {
   onDraftRequest: () => void
   onNominateRequest?: () => void
   testIdBase: string
+  aiOverlaySignal?: DraftAiOverlaySignal
 }
 
 function SleeperRow(props: SleeperRowProps) {
@@ -151,6 +153,7 @@ function SleeperRow(props: SleeperRowProps) {
     onDraftRequest,
     onNominateRequest,
     testIdBase,
+    aiOverlaySignal,
   } = props
 
   const normalized = useMemo(
@@ -195,44 +198,122 @@ function SleeperRow(props: SleeperRowProps) {
           </Cell>
         )
       case 'player':
+        {
+          const showAi = Boolean(aiOverlaySignal)
+          const badgeTone =
+            aiOverlaySignal?.badge === 'ai_pick'
+              ? 'border-cyan-300/35 bg-cyan-500/14 text-cyan-100'
+              : aiOverlaySignal?.badge === 'risky'
+                ? 'border-amber-300/35 bg-amber-500/14 text-amber-100'
+                : 'border-emerald-300/35 bg-emerald-500/12 text-emerald-100'
+          const badgeLabel =
+            aiOverlaySignal?.badge === 'ai_pick'
+              ? 'Best pick'
+              : aiOverlaySignal?.badge === 'risky'
+                ? 'Boom'
+                : 'Value'
+          const confidencePct =
+            typeof aiOverlaySignal?.confidencePct === 'number' && Number.isFinite(aiOverlaySignal.confidencePct)
+              ? Math.max(0, Math.min(100, Math.round(aiOverlaySignal.confidencePct)))
+              : null
+          const nameTitle = drafted
+            ? `${p.name} — already drafted`
+            : `${p.name}${p.position ? ` (${p.position}${p.team ? `, ${p.team}` : ''})` : ''} — click row to open detail`
         return (
-          <Cell key={col.key} width={col.width} align="left" className="gap-2">
+          <Cell key={col.key} width={col.width} align="left" className="gap-1.5">
             <PlayerAvatar
               headshotUrl={headshotUrl}
               displayName={p.name}
               teamLogoUrl={teamLogoUrl}
               teamAbbr={p.team ?? null}
               position={p.position}
-              size={36}
+              size={28}
               testIdBase={`${testIdBase}-avatar`}
               highlighted={selected}
             />
             <div className="flex min-w-0 flex-1 flex-col">
-              <div className="flex min-w-0 items-center gap-1.5">
+              <div className="flex min-w-0 items-center gap-1">
                 <span
-                  className="min-w-0 flex-1 truncate text-[13px] font-semibold text-white/95"
+                  className="min-w-0 flex-1 truncate text-[12px] font-semibold text-white/95"
                   data-testid={`${testIdBase}-name`}
-                  title={
-                    drafted
-                      ? `${p.name} — already drafted`
-                      : `${p.name}${p.position ? ` (${p.position}${p.team ? `, ${p.team}` : ''})` : ''} — click row to open detail`
-                  }
+                  title={nameTitle}
                 >
                   {p.name}
                 </span>
                 {drafted ? (
-                  <span className="flex-shrink-0 rounded border border-white/15 bg-white/[0.05] px-1 py-px text-[9px] uppercase tracking-wider text-white/55">
+                  <span className="flex-shrink-0 rounded border border-white/15 bg-white/[0.05] px-1 py-px text-[9px] text-white/60">
                     Drafted
                   </span>
                 ) : null}
               </div>
-              <span className="truncate whitespace-nowrap text-[11px] text-white/55">
+              <span className="truncate whitespace-nowrap text-[10px] text-white/55">
                 <span className="font-semibold text-white/72">{p.position || '—'}</span>
-                {p.team ? <span className="ml-1.5 text-white/45">{p.team}</span> : null}
+                {p.team ? <span className="ml-1 text-white/45">{p.team}</span> : null}
               </span>
+              {showAi ? (
+                <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1">
+                  <span
+                    className={`inline-flex items-center gap-1 rounded border px-1 py-0.5 text-[8px] font-semibold uppercase tracking-[0.08em] ${badgeTone}`}
+                    title={aiOverlaySignal?.reason ?? aiOverlaySignal?.strategyNote ?? undefined}
+                    data-testid={`${testIdBase}-ai-badge`}
+                  >
+                    <Sparkles className="h-2.5 w-2.5" />
+                    {badgeLabel}
+                  </span>
+                  {aiOverlaySignal?.scarcityLevel ? (
+                    <span
+                      className="inline-flex items-center gap-1 rounded border border-violet-300/35 bg-violet-500/12 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-[0.08em] text-violet-100"
+                      title="Positional scarcity warning"
+                      data-testid={`${testIdBase}-ai-scarcity`}
+                    >
+                      <TrendingUp className="h-2.5 w-2.5" />
+                      Scarcity
+                    </span>
+                  ) : null}
+                  {aiOverlaySignal?.tierDropAlert ? (
+                    <span
+                      className="inline-flex items-center gap-1 rounded border border-amber-300/35 bg-amber-500/12 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-[0.08em] text-amber-100"
+                      title="Tier-drop alert"
+                      data-testid={`${testIdBase}-ai-tier-drop`}
+                    >
+                      <AlertTriangle className="h-2.5 w-2.5" />
+                      Tier drop
+                    </span>
+                  ) : null}
+                  {aiOverlaySignal?.boomBust ? (
+                    <span
+                      className={`inline-flex items-center gap-1 rounded border px-1 py-0.5 text-[8px] font-semibold uppercase tracking-[0.08em] ${
+                        aiOverlaySignal.boomBust === 'boom'
+                          ? 'border-rose-300/35 bg-rose-500/12 text-rose-100'
+                          : 'border-slate-300/35 bg-slate-500/12 text-slate-100'
+                      }`}
+                      title={aiOverlaySignal.boomBust === 'boom' ? 'Boom potential' : 'Bust risk'}
+                      data-testid={`${testIdBase}-ai-boom-bust`}
+                    >
+                      <Flame className="h-2.5 w-2.5" />
+                      {aiOverlaySignal.boomBust === 'boom' ? 'Boom' : 'Bust'}
+                    </span>
+                  ) : null}
+                  {confidencePct != null ? (
+                    <span
+                      className="inline-flex items-center gap-1 rounded border border-cyan-300/35 bg-cyan-500/10 px-1 py-0.5 text-[8px] font-semibold text-cyan-100"
+                      title={`AI confidence ${confidencePct}%`}
+                      data-testid={`${testIdBase}-ai-confidence`}
+                    >
+                      {confidencePct}%
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+              {showAi && confidencePct != null ? (
+                <div className="mt-0.5 h-1.5 w-full overflow-hidden rounded-full border border-cyan-400/20 bg-slate-900/80" data-testid={`${testIdBase}-ai-confidence-bar`}>
+                  <div className="h-full bg-gradient-to-r from-cyan-400/75 to-violet-400/75 transition-[width] duration-200" style={{ width: `${confidencePct}%` }} />
+                </div>
+              ) : null}
             </div>
           </Cell>
         )
+        }
       case 'adp':
         return (
           <Cell key={col.key} width={col.width} align="right">
@@ -287,13 +368,13 @@ function SleeperRow(props: SleeperRowProps) {
               }}
               aria-label={isCompareAnchor ? 'Clear compare selection' : `Compare ${p.name}`}
               data-testid={`${testIdBase}-compare`}
-              className={`inline-flex h-7 w-7 items-center justify-center rounded border transition ${
+              className={`draft-live-action-btn inline-flex h-6 w-6 items-center justify-center rounded border transition ${
                 isCompareAnchor
                   ? 'border-amber-400/60 bg-amber-500/15 text-amber-100'
                   : 'border-white/15 bg-black/25 text-white/65 hover:border-white/28 hover:bg-white/10'
               }`}
             >
-              <GitCompare className="h-3.5 w-3.5" />
+              <GitCompare className="h-3 w-3" />
             </button>
             <button
               type="button"
@@ -305,15 +386,18 @@ function SleeperRow(props: SleeperRowProps) {
               disabled={drafted}
               aria-label={`Queue ${p.name}`}
               data-testid={`${testIdBase}-queue`}
-              className={`inline-flex h-7 w-7 items-center justify-center rounded border transition ${
+              className={`draft-live-action-btn inline-flex h-6 w-6 items-center justify-center rounded border transition ${
                 drafted
                   ? 'cursor-not-allowed border-white/8 bg-black/20 text-white/25'
                   : queued
                     ? 'border-cyan-400/40 bg-cyan-500/15 text-cyan-100'
-                    : 'border-white/15 bg-black/25 text-white/65 hover:border-cyan-400/25 hover:bg-white/10'
+                    : aiOverlaySignal
+                      ? 'border-cyan-300/35 bg-cyan-500/10 text-cyan-100 hover:border-cyan-300/55 hover:bg-cyan-500/18'
+                      : 'border-white/15 bg-black/25 text-white/65 hover:border-cyan-400/25 hover:bg-white/10'
               }`}
+              title={aiOverlaySignal ? 'AI quick action: queue candidate' : undefined}
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-3 w-3" />
             </button>
             {canNominate && onNominateRequest ? (
               <button
@@ -323,7 +407,7 @@ function SleeperRow(props: SleeperRowProps) {
                   onNominateRequest()
                 }}
                 data-testid={`${testIdBase}-nominate`}
-                className="inline-flex h-7 items-center rounded border border-amber-400/45 bg-amber-500/15 px-2 text-[10px] font-semibold text-amber-100 hover:brightness-110"
+                className="draft-live-action-btn inline-flex h-6 items-center rounded border border-amber-400/45 bg-amber-500/15 px-2 text-[10px] font-semibold text-amber-100 hover:brightness-110"
               >
                 Nominate
               </button>
@@ -338,7 +422,7 @@ function SleeperRow(props: SleeperRowProps) {
                 }}
                 title={drafted ? 'Player already drafted' : !canDraft ? 'Not your turn' : 'Draft this player'}
                 data-testid={`${testIdBase}-draft`}
-                className={`inline-flex h-7 items-center rounded border px-2 text-[10px] font-semibold transition ${
+                className={`draft-live-action-btn inline-flex h-6 items-center rounded border px-2 text-[10px] font-semibold transition ${
                   drafted
                     ? 'cursor-not-allowed border-white/8 bg-white/[0.04] text-white/30'
                     : !canDraft
@@ -384,12 +468,12 @@ function SleeperRow(props: SleeperRowProps) {
         onSelect()
       }}
       style={{ height: rowHeight, minWidth }}
-      className={`flex items-stretch border-b border-white/5 text-xs transition-colors ${
+      className={`flex items-stretch border-b border-white/[0.06] text-xs transition-colors ${
         drafted
           ? 'bg-black/40 text-white/35'
           : selected
             ? 'bg-cyan-500/12 text-white/90'
-            : 'bg-transparent text-white/82 hover:bg-white/[0.05] cursor-pointer'
+            : 'bg-transparent text-white/82 hover:bg-white/[0.04] cursor-pointer'
       }`}
     >
       {layout.columns.map((col) => renderColumn(col))}
@@ -421,6 +505,7 @@ export function SleeperPoolTable(props: SleeperPoolTableProps) {
     disableVirtualization = false,
     sortState = null,
     onSortChange,
+    aiOverlaySignals,
   } = props
 
   const layout = useMemo(
@@ -457,7 +542,7 @@ export function SleeperPoolTable(props: SleeperPoolTableProps) {
       <div
         role="row"
         data-testid="sleeper-pool-table-header"
-        className="sticky top-0 z-10 flex items-center border-b border-white/10 bg-[#0a1228] text-[10px] font-semibold uppercase tracking-wider text-white/55"
+        className="sticky top-0 z-10 flex items-center border-b border-white/[0.06] bg-[#101a30] text-[8px] font-semibold uppercase tracking-[0.12em] text-[#94a3b8] shadow-[inset_0_-1px_0_rgba(255,255,255,0.04)]"
         style={{ height: SLEEPER_POOL_TABLE_HEADER_HEIGHT, minWidth }}
       >
         {layout.columns.map((col) => {
@@ -484,7 +569,7 @@ export function SleeperPoolTable(props: SleeperPoolTableProps) {
                   onClick={() => onSortChange?.(col.key)}
                   className={`inline-flex items-center gap-1 rounded px-1 py-px transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45 ${
                     isActiveSort
-                      ? 'text-cyan-100 underline decoration-cyan-300/55 decoration-2 underline-offset-[3px]'
+                      ? 'text-cyan-100 underline decoration-cyan-300/55 decoration-2 underline-offset-[2px]'
                       : 'text-white/55 hover:text-white/85'
                   }`}
                 >
@@ -543,6 +628,7 @@ export function SleeperPoolTable(props: SleeperPoolTableProps) {
                 onDraftRequest={() => onDraftRequest(p)}
                 onNominateRequest={onNominateRequest ? () => onNominateRequest(p) : undefined}
                 testIdBase={`sleeper-pool-row-${idx}`}
+                aiOverlaySignal={aiOverlaySignals?.[k]}
               />
             )
           })
@@ -586,6 +672,7 @@ export function SleeperPoolTable(props: SleeperPoolTableProps) {
                   onDraftRequest={() => onDraftRequest(p)}
                   onNominateRequest={onNominateRequest ? () => onNominateRequest(p) : undefined}
                   testIdBase={`sleeper-pool-row-${virtualRow.index}`}
+                  aiOverlaySignal={aiOverlaySignals?.[k]}
                 />
               </div>
             )

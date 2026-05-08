@@ -1414,10 +1414,24 @@ async function openDraftRoomHarness(page: Page, options?: OpenDraftRoomHarnessOp
 async function gotoDraftRoomHarness(page: Page, url: string) {
   let lastError: unknown = null
 
+  await expect
+    .poll(
+      async () => {
+        try {
+          const response = await page.request.get('/')
+          return response.status() > 0
+        } catch {
+          return false
+        }
+      },
+      { timeout: 120_000 },
+    )
+    .toBe(true)
+
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const navTimeout = attempt === 0 ? 45_000 : 30_000
-      await page.goto(url, { waitUntil: 'commit', timeout: navTimeout })
+      const navTimeout = attempt === 0 ? 90_000 : 60_000
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: navTimeout })
       // Accept either harness root or loading copy; openDraftRoomHarness owns the final interactive gate.
       await expect
         .poll(
@@ -1944,6 +1958,7 @@ test.describe('@draft-room click audit', () => {
     await gotoDraftRoomHarness(page, `/e2e/draft-room?leagueId=${leagueId}&sport=NFL&e2eRoom=1`)
     await openDraftRoomHarness(page, { e2eRoom: true })
     const mobile = page.getByTestId('draft-mobile-layout')
+    await expect(page.getByTestId('draft-mobile-quick-dock')).toBeVisible()
 
     // Helper: click a mobile tab by its testid via JS to bypass fixed-overlay intercepts
     async function mobileTabClick(testId: string) {
@@ -1988,6 +2003,8 @@ test.describe('@draft-room click audit', () => {
     await mobileTabClick('draft-mobile-tab-board')
     await page.getByTestId('draft-mobile-quick-queue').click()
     await expect(mobile.getByTestId('draft-queue-panel')).toBeVisible()
+    await page.getByTestId('draft-mobile-quick-roster').click()
+    await expect(mobile.getByTestId('draft-team-panel')).toBeVisible()
     await mobileTabClick('draft-mobile-tab-board')
     await page.getByTestId('draft-mobile-quick-chat').click()
     await expect(mobile.getByTestId('draft-chat-panel')).toBeVisible()

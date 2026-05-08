@@ -39,7 +39,7 @@ import {
 } from '@/components/app/draft-room/ResultsRosterPanel'
 import { DraftRosterStrip } from '@/components/app/draft-room/DraftRosterStrip'
 import { DraftRoundOneAnnouncementOverlay } from '@/components/app/draft-room/DraftRoundOneAnnouncementOverlay'
-import type { PlayerEntry } from '@/components/app/draft-room/PlayerPanel'
+import type { DraftAiOverlaySignal, PlayerEntry } from '@/components/app/draft-room/PlayerPanel'
 import type { RoundOneAnnouncementQueueItem } from '@/lib/draft-room/resolvePickAnnouncementAssets'
 import { resolvePickAnnouncementAssets } from '@/lib/draft-room/resolvePickAnnouncementAssets'
 import type { DraftWarRoomSnapshot } from '@/components/draft/ai/DraftWarRoom'
@@ -86,21 +86,9 @@ import { mergeDraftSessionSnapshot } from '@/lib/draft-room/mergeDraftSessionSna
 import { CommissionerPickEditorPanel, type CommissionerPickEditorPlayerOption } from '@/components/app/draft-room/CommissionerPickEditorPanel'
 import { CommissionerAuditLogList } from '@/components/app/draft-room/CommissionerAuditLogList'
 import { PreDraftSlotSetupCard } from '@/components/app/draft-room/PreDraftSlotSetupCard'
-import {
-  DRAFT_PICK_RACE_RETRY,
-  DRAFT_PICK_STALE_OVERALL,
-} from '@/lib/live-draft-engine/pickAuthorityCodes'
 import { isDraftPickRowEmptyFromSnapshot } from '@/lib/live-draft-engine/draftPickEmpty'
 import { draftRoomPickTrace, draftRoomWarn } from '@/lib/draft-room/draftRoomDevLog'
 import { buildDraftRoomPageDerivedState } from '@/lib/draft-room/buildDraftRoomPageDerivedState'
-import { getDraftPickActionState, normalizeDraftRosterId } from '@/lib/draft-room/draftPickEligibility'
-import { mapNormalizedDraftEntryToPlayerEntry } from '@/lib/player-data/adapters/draftRoomPlayerAdapter'
-import {
-  getDraftRoomDisplayExperienceBadge,
-  getDraftRoomDisplayHeadshot,
-  getDraftRoomDisplayInjury,
-} from '@/lib/player-data/adapters/draftRoomDisplayFields'
-import { logNormalizedPlayerDataDiagnostics } from '@/lib/player-data/providerFallbackDiagnostics'
 import { LEAGUE_DRAFT_ROOM_REVALIDATE } from '@/lib/draft-room/emitLeagueDraftRoomRevalidate'
 import { filterPlayersAvailableForDraftAi } from '@/lib/draft-room/availableForDraftAi'
 import { buildDraftRoomClientDiagnostics } from '@/lib/draft-room/player-pool-audit'
@@ -554,16 +542,41 @@ export function DraftRoomPageClient({
         : []
     const useNormalizedPool = Array.isArray(draftPool?.entries) && draftPool.entries.length > 0
     return useNormalizedPool
-      ? (rawEntries as NormalizedDraftEntry[]).map((e) =>
-          mapNormalizedDraftEntryToPlayerEntry(e, {
-            draftUISettings,
-            useAllFantasyAdp,
-            aiAdpLookupMaps,
-            soccerLeagueAugment: null,
-            includeUnifiedProduct: true,
-            includeProviderFallbackDiagnostics: false,
-          }),
-        )
+      ? (rawEntries as NormalizedDraftEntry[]).map((e) => {
+          const name = e.name ?? e.display?.displayName ?? ''
+          const position = e.position ?? e.display?.metadata?.position ?? ''
+          const team = e.team ?? e.display?.metadata?.teamAbbreviation ?? null
+          // D.5-proper — when the AllFantasy snapshot flag is on, the resolver-provided
+          // `e.aiAdp` is the single source of truth. Skip the legacy lookup so we never
+          // overwrite resolver values with cross-context data.
+          const ai = draftUISettings?.aiAdpEnabled && !useAllFantasyAdp
+            ? lookupAiAdpMatch(aiAdpLookupMaps, name, position, team)
+            : null
+          return {
+            id: e.playerId ?? e.display?.playerId ?? name,
+            name,
+            position,
+            team,
+            adp: e.adp ?? e.display?.stats?.adp ?? null,
+            byeWeek: e.byeWeek ?? e.display?.metadata?.byeWeek ?? null,
+            aiAdp: useAllFantasyAdp
+              ? (e.aiAdp ?? null)
+              : draftUISettings?.aiAdpEnabled && ai
+                ? ai.adp
+                : (e.aiAdp ?? null),
+            aiAdpSampleSize: useAllFantasyAdp ? e.aiAdpSampleSize : ai?.sampleSize,
+            aiAdpLowSample: useAllFantasyAdp ? e.aiAdpLowSample : ai?.lowSample,
+            display: e.display ?? null,
+            isDevy: e.isDevy,
+            school: e.school ?? null,
+            classYearLabel: e.classYearLabel ?? e.display?.metadata?.classYearLabel ?? null,
+            draftGrade: e.draftGrade ?? e.display?.metadata?.draftGrade ?? null,
+            projectedLandingSpot: e.projectedLandingSpot ?? e.display?.metadata?.projectedLandingSpot ?? null,
+            graduatedToNFL: e.graduatedToNFL,
+            poolType: e.poolType,
+            nflDraftProjectionSplits: e.nflDraftProjectionSplits ?? null,
+          }
+        })
       : rawEntries.map((e: any) => {
           const name = e.name ?? e.playerName ?? ''
           const position = e.position ?? ''
@@ -572,11 +585,6 @@ export function DraftRoomPageClient({
           const ai = draftUISettings?.aiAdpEnabled && !useAllFantasyAdp
             ? lookupAiAdpMatch(aiAdpLookupMaps, name, position, team)
             : null
-          const yeRaw = e.yearsExp ?? e.years_exp
-          const yearsExp =
-            yeRaw != null && Number.isFinite(Number(yeRaw)) ? Number(yeRaw) : null
-          const isRookieComputed =
-            e.isRookie === true ? true : yearsExp === 0 ? true : undefined
           return {
             id: e.id ?? e.playerId ?? name,
             name,
@@ -591,26 +599,9 @@ export function DraftRoomPageClient({
                 : (e.aiAdp ?? null),
             aiAdpSampleSize: useAllFantasyAdp ? e.aiAdpSampleSize : ai?.sampleSize,
             aiAdpLowSample: useAllFantasyAdp ? e.aiAdpLowSample : ai?.lowSample,
-            yearsExp,
-            isRookie: isRookieComputed,
           }
         })
-  }, [
-    draftPool,
-    draftData,
-    aiAdpLookupMaps,
-    draftUISettings?.aiAdpEnabled,
-    useAllFantasyAdp,
-  ])
-
-  const poolPlayerById = useMemo(() => {
-    const m: Record<string, PlayerEntry> = {}
-    for (const p of players) {
-      const pid = String(p.playerId ?? p.display?.playerId ?? p.id ?? '').trim()
-      if (pid) m[pid] = p
-    }
-    return m
-  }, [players])
+  }, [draftPool, draftData, aiAdpLookupMaps, draftUISettings?.aiAdpEnabled, useAllFantasyAdp])
 
   const playerAuditFingerprintRef = useRef('')
   useEffect(() => {
@@ -814,34 +805,28 @@ export function DraftRoomPageClient({
   const rosterConfigBlocked = Boolean(session?.rosterConfigurationIncomplete)
 
   const commissionerOfflinePick = Boolean(draftUISettings?.executionMode === 'offline' && isCommissioner)
+  const isCurrentUserOnClock = Boolean(
+    currentUserRosterId &&
+      draftCore?.draftStarted &&
+      draftCore.currentOverall > 0 &&
+      draftCore.currentTeamId === currentUserRosterId,
+  )
   const overnightBlocksUserPicks = Boolean(
     session?.status === 'in_progress' &&
       session.timer?.pauseReason === 'overnight_window' &&
       draftUISettings?.allowPicksDuringOvernightPause !== true,
   )
-  const pickActionState = useMemo(
+  const snakeCanDraftRaw = useMemo(
     () =>
-      getDraftPickActionState({
-        session,
-        draftCore,
-        currentPick,
-        currentUserRosterId,
-        overnightBlocksUserPicks,
-        pickSubmitting,
-        commissionerOfflinePick,
-      }),
-    [
-      session,
-      draftCore,
-      currentPick,
-      currentUserRosterId,
-      overnightBlocksUserPicks,
-      pickSubmitting,
-      commissionerOfflinePick,
-    ],
+      session != null &&
+      session.status === 'in_progress' &&
+      !overnightBlocksUserPicks &&
+      draftCore?.draftStarted === true &&
+      draftCore.currentOverall > 0 &&
+      pickSubmitting === false &&
+      (commissionerOfflinePick || isCurrentUserOnClock),
+    [session, draftCore, pickSubmitting, commissionerOfflinePick, isCurrentUserOnClock, overnightBlocksUserPicks],
   )
-  const isCurrentUserOnClock = pickActionState.viewerOnClock
-  const snakeCanDraftRaw = pickActionState.snakeCanDraftRaw
 
   const isAuctionDraft = session?.draftType === 'auction'
   const auctionNom = session?.auction
@@ -889,46 +874,6 @@ export function DraftRoomPageClient({
   )
 
   const canDraft = draftRoomState.canDraft
-
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'production') return
-    if (!session || !currentPick) return
-    const clockRid = normalizeDraftRosterId(currentPick.rosterId)
-    const viewerRid = normalizeDraftRosterId(currentUserRosterId)
-    const rosterIdsAlign = clockRid.length > 0 && viewerRid.length > 0 && clockRid === viewerRid
-    if (!rosterIdsAlign || session.status !== 'in_progress') return
-    if (rosterConfigBlocked) return
-    if (pickActionState.canPick && canDraft) return
-    console.warn('[draft-room] pick eligibility diagnostic (dev)', {
-      topBarOnClockRosterId: pickActionState.topBarOnClockRosterId,
-      viewerRosterId: pickActionState.viewerRosterId,
-      rawViewerRosterId: currentUserRosterId ?? null,
-      viewerOnClock: pickActionState.viewerOnClock,
-      denialReason: pickActionState.denialReason,
-      canDraft,
-      currentOverall: pickActionState.currentOverall,
-      draftCoreCurrentTeam: draftCore?.currentTeamId ?? null,
-      draftCoreCurrentOverall: draftCore?.currentOverall ?? null,
-      pickSubmitting,
-      overnightBlocksUserPicks,
-      sessionStatus: session.status,
-      timerStatus: session.timer?.status,
-      timerPauseReason: session.timer?.pauseReason ?? null,
-      commissionerOfflinePick,
-    })
-  }, [
-    session,
-    currentPick,
-    currentUserRosterId,
-    pickActionState,
-    canDraft,
-    draftCore?.currentTeamId,
-    draftCore?.currentOverall,
-    pickSubmitting,
-    overnightBlocksUserPicks,
-    rosterConfigBlocked,
-    commissionerOfflinePick,
-  ])
 
   useEffect(() => {
     if (!session) return
@@ -987,25 +932,12 @@ export function DraftRoomPageClient({
         })
       }
       if (res.ok && Array.isArray(data.entries)) {
-        const poolPayload = data as {
-          entries: NormalizedDraftEntry[]
-          sport?: string
-          devyConfig?: { enabled: boolean; devyRounds: number[] }
-          c2cConfig?: { enabled: boolean; collegeRounds: number[] }
-          isIdp?: boolean
-          normalizedPlayerDataDiagnostics?: import('@/lib/player-data/providerFallbackDiagnostics').ProviderFallbackDiagnostics[]
-        }
-        const { normalizedPlayerDataDiagnostics, ...rest } = poolPayload
-        logNormalizedPlayerDataDiagnostics('draft-room', normalizedPlayerDataDiagnostics, {
-          limit: 10,
-          enabled: process.env.NODE_ENV !== 'production',
-        })
         setDraftPool({
-          entries: rest.entries,
-          sport: rest.sport ?? sport,
-          devyConfig: rest.devyConfig,
-          c2cConfig: rest.c2cConfig,
-          isIdp: rest.isIdp,
+          entries: data.entries,
+          sport: data.sport ?? sport,
+          devyConfig: data.devyConfig,
+          c2cConfig: data.c2cConfig,
+          isIdp: data.isIdp,
         })
       } else {
         setDraftPool(null)
@@ -1340,30 +1272,10 @@ export function DraftRoomPageClient({
           message: data.message ?? null,
         })
       } else {
-        setLeagueAiAdp({
-          enabled: true,
-          entries: [],
-          totalDrafts: 0,
-          computedAt: null,
-          stale: true,
-          ageHours: null,
-          message: 'Not enough AllFantasy draft data yet',
-        })
+        setLeagueAiAdp({ enabled: true, entries: [], totalDrafts: 0, computedAt: null, stale: true, ageHours: null, message: 'AI ADP unavailable' })
       }
     } catch {
-      setLeagueAiAdp(
-        draftUISettings?.aiAdpEnabled
-          ? {
-              enabled: true,
-              entries: [],
-              totalDrafts: 0,
-              computedAt: null,
-              stale: true,
-              ageHours: null,
-              message: 'Not enough AllFantasy draft data yet',
-            }
-          : null,
-      )
+      setLeagueAiAdp(draftUISettings?.aiAdpEnabled ? { enabled: true, entries: [], totalDrafts: 0, computedAt: null, stale: true, ageHours: null, message: 'AI ADP unavailable' } : null)
     }
   }, [leagueId, draftUISettings?.aiAdpEnabled, useAllFantasyAdp, allFantasyAdpDraftMode])
 
@@ -2797,16 +2709,7 @@ export function DraftRoomPageClient({
           const detail =
             errText && codeText ? `${errText} (${codeText})` : errText ?? codeText ?? 'Pick failed. Try again.'
           draftRoomPickTrace({ event: 'pick-error', status: res.status, error: errText, code: codeText })
-          if (codeText === DRAFT_PICK_STALE_OVERALL || codeText === DRAFT_PICK_RACE_RETRY) {
-            await fetchSession()
-            await fetchQueue()
-            await fetchDraftPool()
-            setPickError(
-              'The draft board moved before your pick landed — state refreshed. Submit again when you are on the clock.',
-            )
-          } else {
-            setPickError(detail)
-          }
+          setPickError(detail)
         }
       } catch (err) {
         draftRoomWarn('pick-network', err)
@@ -3444,6 +3347,68 @@ export function DraftRoomPageClient({
     return out
   }, [warRoomData])
 
+  const aiOverlaySignals = useMemo(() => {
+    const out: Record<string, DraftAiOverlaySignal> = {}
+    const keyOf = (n: string, pos: string) => `${n.trim().toLowerCase()}|${pos.trim().toLowerCase()}`
+    const upsert = (name: string, position: string, patch: Partial<DraftAiOverlaySignal>) => {
+      const key = keyOf(name, position)
+      const base: DraftAiOverlaySignal = out[key] ?? { badge: 'value' }
+      out[key] = { ...base, ...patch }
+    }
+
+    if (warRoomData?.bestPick) {
+      upsert(warRoomData.bestPick.name, warRoomData.bestPick.position, {
+        badge: warRoomData.risk === 'high' ? 'risky' : 'ai_pick',
+        confidencePct: Math.max(0, Math.min(100, Math.round((warRoomData.confidence || 0) * 100))),
+        strategyNote: warRoomData.strategyTip || null,
+        reason: warRoomData.reasoning?.[0] ?? null,
+        boomBust: warRoomData.risk === 'high' ? 'boom' : null,
+      })
+      for (const alt of warRoomData.alternatives ?? []) {
+        upsert(alt.name, alt.position, { badge: 'value' })
+      }
+    }
+
+    const rr = recommendationResult
+    if (rr?.recommendation) {
+      const rec = rr.recommendation
+      upsert(rec.player.name, rec.player.position, {
+        badge: 'ai_pick',
+        confidencePct: Math.max(0, Math.min(100, Math.round((rec.confidence || 0) * 100))),
+        reason: rec.reason,
+      })
+      if (rr.scarcityInsight?.trim()) {
+        upsert(rec.player.name, rec.player.position, {
+          scarcityLevel: /urgent|run|thin|drying|scarce|drop/i.test(rr.scarcityInsight) ? 'high' : 'medium',
+          strategyNote: rr.scarcityInsight.trim(),
+        })
+      }
+      if (rr.reachWarning?.trim()) {
+        upsert(rec.player.name, rec.player.position, {
+          tierDropAlert: /tier|drop|window|run/i.test(rr.reachWarning),
+          boomBust: 'bust',
+        })
+      }
+      if (rr.valueWarning?.trim()) {
+        upsert(rec.player.name, rec.player.position, {
+          tierDropAlert: /tier|drop|window|run/i.test(rr.valueWarning) ? true : undefined,
+          strategyNote: rr.valueWarning.trim(),
+        })
+      }
+    }
+
+    for (const alt of recommendationResult?.alternatives ?? []) {
+      if (!alt?.player?.name || !alt?.player?.position) continue
+      upsert(alt.player.name, alt.player.position, {
+        badge: out[keyOf(alt.player.name, alt.player.position)]?.badge ?? 'value',
+        confidencePct: Math.max(0, Math.min(100, Math.round((alt.confidence || 0) * 100))),
+        reason: alt.reason,
+      })
+    }
+
+    return Object.keys(out).length > 0 ? out : undefined
+  }, [recommendationResult, warRoomData])
+
   const recommendedPlayerResolved = useMemo(() => {
     const r = recommendationResult?.recommendation
     if (!r) return null
@@ -3705,8 +3670,6 @@ export function DraftRoomPageClient({
     scheduleWarRoomFetch,
   ])
 
-  const draftSeasonYear = useMemo(() => new Date().getUTCFullYear(), [])
-
   const playerPoolNode = useMemo(
     () => (
       <SportAwareDraftRoom
@@ -3746,6 +3709,7 @@ export function DraftRoomPageClient({
         selectedPlayerTarget={helperSelectedPlayer}
         leagueId={leagueId}
         aiRowBadges={aiRowBadges}
+        aiOverlaySignals={aiOverlaySignals}
         getDraftCopilotInsight={presentationVariant === 'redraft_snake' ? getDraftCopilotInsight : undefined}
         getAssistantRoomContext={
           presentationVariant === 'redraft_snake' ? getAssistantRoomContext : undefined
@@ -3757,7 +3721,6 @@ export function DraftRoomPageClient({
               String(q.position).trim().toLowerCase() === String(p.position).trim().toLowerCase(),
           )
         }
-        draftSeasonYear={draftSeasonYear}
       />
     ),
     [
@@ -3787,150 +3750,13 @@ export function DraftRoomPageClient({
       helperSelectedPlayer,
       leagueId,
       aiRowBadges,
+      aiOverlaySignals,
       presentationVariant,
       getDraftCopilotInsight,
       getAssistantRoomContext,
-      draftSeasonYear,
     ]
   )
 
-  const queueStackNode = useMemo(
-    () => {
-      const queuePlayerMetaById = players.reduce<
-        Record<
-          string,
-          {
-            headshotUrl?: string | null
-            teamLogoUrl?: string | null
-            adp?: number | null
-            aiAdp?: number | null
-            injuryStatus?: string | null
-            experienceBadge?: string | null
-          }
-        >
-      >((acc, player) => {
-        const pid = String(player.playerId ?? player.display?.playerId ?? player.id ?? '').trim()
-        if (!pid) return acc
-        acc[pid] = {
-          headshotUrl:
-            getDraftRoomDisplayHeadshot(player) ??
-            player.display?.assets?.headshotUrl ??
-            player.display?.assets?.headshotFallbackUrl ??
-            null,
-          teamLogoUrl: player.display?.assets?.teamLogoUrl ?? player.display?.assets?.teamLogoFallbackUrl ?? null,
-          adp: player.adp ?? null,
-          aiAdp: player.aiAdp ?? null,
-          injuryStatus: getDraftRoomDisplayInjury(player),
-          experienceBadge: getDraftRoomDisplayExperienceBadge(player),
-        }
-        return acc
-      }, {})
-
-      return <div className={`space-y-4 p-2 ${presentationVariant === 'redraft_snake' ? 'rounded-xl bg-[linear-gradient(180deg,rgba(34,211,238,0.04),transparent)] p-3' : ''}`}>
-        <DraftIntelQueuePanel
-          loading={draftIntelLoading}
-          headline={draftIntel?.headline ?? null}
-          picksUntilUser={ribbonPicksUntilUser}
-          onClock={draftIntel?.status === 'on_clock' || isCurrentUserOnClock}
-          queue={draftIntelQueue}
-          canDraft={Boolean(canDraft && (draftIntel?.status === 'on_clock' || isCurrentUserOnClock))}
-          onDraftTopChoice={
-            canDraft && (draftIntel?.status === 'on_clock' || isCurrentUserOnClock) ? handleDraftIntelPick : undefined
-          }
-          presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
-          onAddIntelSuggestion={presentationVariant === 'redraft_snake' ? handleAddIntelQueueSuggestion : undefined}
-        />
-        <QueuePanel
-          queue={queueFiltered}
-          playerMetaById={queuePlayerMetaById}
-          canDraft={canDraft}
-          onRemove={handleRemoveFromQueue}
-          onReorder={handleReorderQueue}
-          onDraftFromQueue={canDraft && queueFiltered.length > 0 ? handleDraftFromQueue : undefined}
-          onAiReorder={handleAiReorderQueue}
-          aiReorderLoading={aiReorderLoading}
-          aiReorderEnabled={aiQueueReorderEnabled}
-          onAiReorderEnabledChange={draftUISettings?.aiQueueReorderEnabled ? setAiQueueReorderEnabled : undefined}
-          autoPickFromQueue={autoPickFromQueue}
-          onAutoPickFromQueueChange={setAutoPickFromQueue}
-          awayMode={awayMode}
-          onAwayModeChange={setAwayMode}
-          autoPickEnabled={autoPickEnabled}
-          nextQueuedAvailable={nextQueuedAvailable}
-          aiReorderExplanation={aiReorderExplanation}
-          aiReorderExecutionMode={aiReorderExecutionMode}
-          analyticsLeagueId={leagueId}
-          presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
-        />
-      </div>
-    },
-    [
-      players,
-      presentationVariant,
-      draftIntelLoading,
-      draftIntel?.headline,
-      ribbonPicksUntilUser,
-      draftIntel?.status,
-      draftIntelQueue,
-      handleAddIntelQueueSuggestion,
-      canDraft,
-      isCurrentUserOnClock,
-      handleDraftIntelPick,
-      queueFiltered,
-      handleRemoveFromQueue,
-      handleReorderQueue,
-      handleDraftFromQueue,
-      handleAiReorderQueue,
-      aiReorderLoading,
-      aiQueueReorderEnabled,
-      draftUISettings?.aiQueueReorderEnabled,
-      autoPickFromQueue,
-      awayMode,
-      autoPickEnabled,
-      nextQueuedAvailable,
-      aiReorderExplanation,
-      aiReorderExecutionMode,
-      leagueId,
-    ]
-  )
-
-  const chatPanelNode = useMemo(
-    () => (
-      <DraftChatDock
-        messages={chatMessagesWithAi}
-        onSend={handleSendChat}
-        sending={chatSending}
-        leagueChatSync={chatSyncActive}
-        isCommissioner={isCommissioner}
-        onBroadcast={isCommissioner ? handleBroadcastOpen : undefined}
-        onAiSuggestionClick={() => setMobileTab('helper')}
-        onReconnect={handleChatReconnect}
-        currentUserId={viewerAppUserId}
-        onReact={viewerAppUserId ? handleReactChat : undefined}
-        presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
-        sendError={chatSendError}
-        onDismissSendError={() => setChatSendError(null)}
-        leagueId={leagueId}
-        unreadCount={chatMessagesWithAi.filter((m) => m.unread).length}
-      />
-    ),
-    [
-      chatMessagesWithAi,
-      handleSendChat,
-      chatSending,
-      chatSendError,
-      chatSyncActive,
-      isCommissioner,
-      handleBroadcastOpen,
-      setMobileTab,
-      handleChatReconnect,
-      viewerAppUserId,
-      handleReactChat,
-      presentationVariant,
-    ]
-  )
-
-  // Calculate badge count for Draft Helper floating bubble
   const draftHelperBadgeCount = useMemo(
     () =>
       calculateDraftHelperBadgeCount({
@@ -4004,6 +3830,146 @@ export function DraftRoomPageClient({
       draftUISettings?.orphanTeamAiManagerEnabled,
       commissionerAiDraft?.assignedAiTeams,
       draftAssistantContext,
+    ]
+  )
+
+  const queueStackNode = useMemo(
+    () => {
+      const queuePlayerMetaById = players.reduce<Record<string, { headshotUrl?: string | null; teamLogoUrl?: string | null; adp?: number | null; rank?: number | null }>>((acc, player, idx) => {
+        const pid = String(player.playerId ?? player.display?.playerId ?? player.id ?? '').trim()
+        if (!pid) return acc
+        acc[pid] = {
+          headshotUrl: player.display?.assets?.headshotUrl ?? player.display?.assets?.headshotFallbackUrl ?? null,
+          teamLogoUrl: player.display?.assets?.teamLogoUrl ?? player.display?.assets?.teamLogoFallbackUrl ?? null,
+          adp: player.adp ?? null,
+          rank: Number.isFinite(player.aiAdp ?? NaN) ? (player.aiAdp ?? null) : idx + 1,
+        }
+        return acc
+      }, {})
+
+      return <div className={`space-y-1.5 p-1 ${presentationVariant === 'redraft_snake' ? 'rounded-lg border border-white/[0.06] bg-[linear-gradient(180deg,rgba(13,20,40,0.95),rgba(8,14,28,0.95))] p-1.5' : ''}`}>
+        {hasDraftHelperData ? (
+          <button
+            type="button"
+            onClick={() => floatingHelperState.setVisible(true)}
+            data-testid="draft-helper-docked-trigger"
+            className="flex w-full items-center justify-between rounded-lg border border-white/[0.08] bg-[linear-gradient(90deg,rgba(13,20,40,0.96),rgba(16,26,48,0.96))] px-2.5 py-1.5 text-left text-xs text-cyan-50 hover:bg-[linear-gradient(90deg,rgba(24,36,64,0.98),rgba(16,26,48,0.98))]"
+          >
+            <span>
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-200/80">Draft intelligence</span>
+              <span className="block text-[11px] text-white/72">Open Copilot, War Room, and AI context</span>
+            </span>
+            {draftHelperBadgeCount > 0 ? (
+              <span className="rounded-full border border-cyan-300/35 bg-cyan-500/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-100">
+                {draftHelperBadgeCount}
+              </span>
+            ) : null}
+          </button>
+        ) : null}
+        <DraftIntelQueuePanel
+          loading={draftIntelLoading}
+          headline={draftIntel?.headline ?? null}
+          picksUntilUser={ribbonPicksUntilUser}
+          onClock={draftIntel?.status === 'on_clock' || isCurrentUserOnClock}
+          queue={draftIntelQueue}
+          canDraft={Boolean(canDraft && (draftIntel?.status === 'on_clock' || isCurrentUserOnClock))}
+          onDraftTopChoice={
+            canDraft && (draftIntel?.status === 'on_clock' || isCurrentUserOnClock) ? handleDraftIntelPick : undefined
+          }
+          presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
+          onAddIntelSuggestion={presentationVariant === 'redraft_snake' ? handleAddIntelQueueSuggestion : undefined}
+        />
+        <QueuePanel
+          queue={queueFiltered}
+          playerMetaById={queuePlayerMetaById}
+          canDraft={canDraft}
+          onRemove={handleRemoveFromQueue}
+          onReorder={handleReorderQueue}
+          onDraftFromQueue={canDraft && queueFiltered.length > 0 ? handleDraftFromQueue : undefined}
+          onAiReorder={handleAiReorderQueue}
+          aiReorderLoading={aiReorderLoading}
+          aiReorderEnabled={aiQueueReorderEnabled}
+          onAiReorderEnabledChange={draftUISettings?.aiQueueReorderEnabled ? setAiQueueReorderEnabled : undefined}
+          autoPickFromQueue={autoPickFromQueue}
+          onAutoPickFromQueueChange={setAutoPickFromQueue}
+          awayMode={awayMode}
+          onAwayModeChange={setAwayMode}
+          autoPickEnabled={autoPickEnabled}
+          nextQueuedAvailable={nextQueuedAvailable}
+          aiReorderExplanation={aiReorderExplanation}
+          aiReorderExecutionMode={aiReorderExecutionMode}
+          analyticsLeagueId={leagueId}
+          presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
+        />
+      </div>
+    },
+    [
+      players,
+      presentationVariant,
+      draftIntelLoading,
+      draftIntel?.headline,
+      ribbonPicksUntilUser,
+      draftIntel?.status,
+      draftIntelQueue,
+      handleAddIntelQueueSuggestion,
+      canDraft,
+      isCurrentUserOnClock,
+      handleDraftIntelPick,
+      queueFiltered,
+      draftHelperBadgeCount,
+      handleRemoveFromQueue,
+      handleReorderQueue,
+      handleDraftFromQueue,
+      handleAiReorderQueue,
+      aiReorderLoading,
+      aiQueueReorderEnabled,
+      draftUISettings?.aiQueueReorderEnabled,
+      autoPickFromQueue,
+      awayMode,
+      autoPickEnabled,
+      nextQueuedAvailable,
+      aiReorderExplanation,
+      aiReorderExecutionMode,
+      floatingHelperState,
+      hasDraftHelperData,
+      leagueId,
+    ]
+  )
+
+  const chatPanelNode = useMemo(
+    () => (
+      <DraftChatDock
+        messages={chatMessagesWithAi}
+        onSend={handleSendChat}
+        sending={chatSending}
+        leagueChatSync={chatSyncActive}
+        isCommissioner={isCommissioner}
+        onBroadcast={isCommissioner ? handleBroadcastOpen : undefined}
+        onAiSuggestionClick={() => setMobileTab('helper')}
+        onReconnect={handleChatReconnect}
+        currentUserId={viewerAppUserId}
+        onReact={viewerAppUserId ? handleReactChat : undefined}
+        presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
+        sendError={chatSendError}
+        onDismissSendError={() => setChatSendError(null)}
+        leagueId={leagueId}
+        unreadCount={chatMessagesWithAi.filter((m) => m.unread).length}
+      />
+    ),
+    [
+      chatMessagesWithAi,
+      handleSendChat,
+      chatSending,
+      chatSendError,
+      chatSyncActive,
+      isCommissioner,
+      handleBroadcastOpen,
+      setMobileTab,
+      handleChatReconnect,
+      viewerAppUserId,
+      handleReactChat,
+      presentationVariant,
+      leagueId,
     ]
   )
 
@@ -4233,8 +4199,8 @@ export function DraftRoomPageClient({
 
   const mobileStickyBar =
     showMobileStickyBar ? (
-      <div className="space-y-2 px-3 py-2 text-xs">
-        <div className="flex items-center justify-between gap-2">
+      <div className="space-y-1.5 px-2.5 py-2 text-xs" data-testid="draft-mobile-sticky-bar">
+        <div className="flex items-center justify-between gap-1.5">
           {currentPick != null ? (
             <span className="font-medium text-cyan-200" data-testid="draft-mobile-current-pick">
               {currentPick.pickLabel}
@@ -4247,7 +4213,7 @@ export function DraftRoomPageClient({
               Draft room
             </span>
           )}
-          <div className="inline-flex items-center gap-1 rounded-full border border-cyan-300/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-100">
+          <div className="inline-flex items-center gap-1 rounded-full border border-cyan-300/30 bg-cyan-500/10 px-2 py-1 text-[10px] font-semibold text-cyan-100">
             <span className="text-cyan-200/80">Clock</span>
             <span className="font-mono tabular-nums">{mobileTimerLabel}</span>
           </div>
@@ -4263,12 +4229,12 @@ export function DraftRoomPageClient({
             ~{ribbonPicksUntilUser} pick{ribbonPicksUntilUser === 1 ? '' : 's'} until your turn
           </p>
         ) : null}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scroll-smooth" data-testid="draft-mobile-quick-actions">
           <button
             type="button"
             data-testid="draft-mobile-quick-search"
             onClick={openMobilePlayerSearch}
-            className="rounded border border-cyan-300/30 bg-cyan-500/10 px-2 py-1 text-[10px] text-cyan-100 whitespace-nowrap"
+            className="rounded border border-cyan-300/30 bg-cyan-500/10 px-2.5 py-1.5 text-[10px] text-cyan-100 whitespace-nowrap"
           >
             Search
           </button>
@@ -4276,15 +4242,23 @@ export function DraftRoomPageClient({
             type="button"
             data-testid="draft-mobile-quick-queue"
             onClick={() => setMobileTab('queue')}
-            className="rounded border border-white/20 bg-black/30 px-2 py-1 text-[10px] text-white/75 whitespace-nowrap"
+            className="rounded border border-white/20 bg-black/30 px-2.5 py-1.5 text-[10px] text-white/75 whitespace-nowrap"
           >
             Queue
           </button>
           <button
             type="button"
+            data-testid="draft-mobile-quick-roster"
+            onClick={() => setMobileTab('roster')}
+            className="rounded border border-white/20 bg-black/30 px-2.5 py-1.5 text-[10px] text-white/75 whitespace-nowrap"
+          >
+            Roster
+          </button>
+          <button
+            type="button"
             data-testid="draft-mobile-quick-chat"
             onClick={() => setMobileTab('chat')}
-            className="rounded border border-white/20 bg-black/30 px-2 py-1 text-[10px] text-white/75 whitespace-nowrap"
+            className="rounded border border-white/20 bg-black/30 px-2.5 py-1.5 text-[10px] text-white/75 whitespace-nowrap"
           >
             Chat
           </button>
@@ -4292,7 +4266,7 @@ export function DraftRoomPageClient({
             type="button"
             data-testid="draft-mobile-quick-helper"
             onClick={() => setMobileTab('helper')}
-            className="rounded border border-white/20 bg-black/30 px-2 py-1 text-[10px] text-white/75 whitespace-nowrap"
+            className="rounded border border-white/20 bg-black/30 px-2.5 py-1.5 text-[10px] text-white/75 whitespace-nowrap"
           >
             AI helper
           </button>
@@ -4452,28 +4426,20 @@ export function DraftRoomPageClient({
               }
             }}
             onFixAction={(action) => {
-              if (action === 'configure_roster' || action === 'configure_scoring') {
-                void (async () => {
-                  try {
-                    const res = await fetch(
-                      `/api/leagues/${encodeURIComponent(leagueId)}/draft/fix-setup`,
-                      {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          scope: action === 'configure_roster' ? 'roster' : 'scoring',
-                        }),
-                      },
-                    )
-                    if (res.ok && typeof window !== 'undefined') {
-                      window.dispatchEvent(new CustomEvent('af-pre-draft-checklist-refresh'))
-                    }
-                  } catch {
-                    /* non-fatal */
-                  }
-                })()
-                return
-              }
+              // Slice G — Target A: the draft route does NOT host
+              // `LeagueSettingsModal` (that modal lives on the league
+              // dashboard `/league/[id]` route via `LeagueShell`). Auto-
+              // opening it from here would require either a navigation
+              // call (forbidden by the unified-state contract locked in
+              // Commit E) or mounting the league shell inside the draft
+              // room (a separate refactor).
+              //
+              // For now we forward the canonical action key to the
+              // settings-fix-action event bus and close the wizard. The
+              // commissioner closes the draft tab and walks to League →
+              // Settings → {panel} themselves. Phase 2 will pick up
+              // `af-pre-draft-fix-action` on the dashboard side and deep-
+              // link into the right panel automatically.
               const panelByAction: Record<string, string> = {
                 invite_managers: 'invite',
                 set_draft_order: 'draft',
@@ -4522,7 +4488,7 @@ export function DraftRoomPageClient({
         >
           <div className="flex min-h-0 flex-1 flex-row overflow-hidden">
             <div
-              className={`flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden border-r xl:flex-[6] ${
+              className={`flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden border-r xl:flex-[13] ${
                 presentationVariant === 'redraft_snake' ? 'border-cyan-500/10' : 'border-white/8'
               }`}
               data-testid="draft-bottom-dock-pool"
@@ -4557,7 +4523,7 @@ export function DraftRoomPageClient({
                 land while you're looking at Queue, and Chat scroll position
                 survives a tab switch. */}
             <div
-              className="hidden min-h-0 min-w-0 basis-0 flex-col overflow-hidden xl:flex xl:flex-[4]"
+              className="hidden min-h-0 min-w-0 basis-0 flex-col overflow-hidden xl:flex xl:flex-[7]"
               data-testid="draft-right-dock"
             >
               <DraftRightDockTabs
@@ -4761,7 +4727,7 @@ export function DraftRoomPageClient({
       topBar={
         <>
           {pickError && (
-          <div className="flex items-center justify-between gap-2 border-b border-red-400/30 bg-red-500/10 px-4 py-2 text-sm text-red-100">
+          <div className="flex items-center justify-between gap-2 border-b border-red-400/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-100">
               <span>{pickError}</span>
               <button type="button" onClick={() => setPickError(null)} className="rounded px-2 py-1 text-red-200 hover:bg-red-500/20" aria-label="Dismiss">×</button>
             </div>
@@ -4770,7 +4736,7 @@ export function DraftRoomPageClient({
             <div
               role="status"
               aria-live="polite"
-              className="flex items-center justify-between gap-2 border-b border-emerald-400/35 bg-[linear-gradient(90deg,rgba(52,211,153,0.14),rgba(15,23,42,0.85))] px-4 py-2.5 text-sm text-emerald-50 shadow-[0_8px_32px_rgba(52,211,153,0.12)]"
+              className="flex items-center justify-between gap-2 border-b border-emerald-400/35 bg-[linear-gradient(90deg,rgba(52,211,153,0.14),rgba(15,23,42,0.85))] px-3 py-1.5 text-xs text-emerald-50 shadow-[0_8px_32px_rgba(52,211,153,0.12)]"
               data-testid="draft-pick-success-banner"
             >
               <span className="font-medium">
@@ -4791,7 +4757,7 @@ export function DraftRoomPageClient({
               role="alert"
               aria-live="assertive"
               data-testid="draft-roster-config-incomplete-banner"
-              className="flex flex-wrap items-center gap-2 border-b border-rose-400/35 bg-rose-950/45 px-4 py-2.5 text-sm text-rose-50"
+              className="flex flex-wrap items-center gap-2 border-b border-rose-400/35 bg-rose-950/45 px-3 py-1.5 text-xs text-rose-50"
             >
               <span className="font-semibold text-rose-100">Roster configuration incomplete.</span>
               <span className="text-rose-100/90">
@@ -4804,7 +4770,7 @@ export function DraftRoomPageClient({
               role={governanceBanner.variant === 'error' ? 'alert' : 'status'}
               aria-live={governanceBanner.variant === 'error' ? 'assertive' : 'polite'}
               data-testid="draft-governance-banner"
-              className={`flex items-center justify-between gap-2 border-b px-4 py-2.5 text-sm ${
+              className={`draft-live-governance-banner flex items-center justify-between gap-2 border-b px-3 py-1.5 text-xs ${
                 governanceBanner.variant === 'success'
                   ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-50'
                   : governanceBanner.variant === 'error'
@@ -4827,7 +4793,7 @@ export function DraftRoomPageClient({
               role="status"
               aria-live="polite"
               data-testid="draft-paused-room-banner"
-              className="flex items-center gap-2 border-b border-amber-400/35 bg-[linear-gradient(90deg,rgba(251,191,36,0.12),rgba(15,23,42,0.92))] px-4 py-2.5 text-sm text-amber-50"
+              className="draft-live-pause-banner flex items-center gap-2 border-b border-amber-400/35 bg-[linear-gradient(90deg,rgba(251,191,36,0.12),rgba(15,23,42,0.92))] px-3 py-1.5 text-xs text-amber-50"
             >
               <span className="font-semibold uppercase tracking-[0.12em] text-amber-200/95">Paused</span>
               <span className="text-amber-50/95">
@@ -4839,7 +4805,7 @@ export function DraftRoomPageClient({
               role="status"
               aria-live="polite"
               data-testid="draft-overnight-pause-banner"
-              className="flex flex-wrap items-center gap-2 border-b border-slate-400/35 bg-slate-900/80 px-4 py-2.5 text-sm text-slate-100"
+              className="flex flex-wrap items-center gap-2 border-b border-slate-400/35 bg-slate-900/80 px-3 py-1.5 text-xs text-slate-100"
             >
               <span className="font-semibold uppercase tracking-[0.12em] text-slate-200/95">Overnight pause</span>
               <span className="text-slate-100/90">
@@ -4853,7 +4819,7 @@ export function DraftRoomPageClient({
             <div
               role="status"
               data-testid="draft-clock-anchor-warning"
-              className="flex flex-wrap items-center justify-between gap-2 border-b border-cyan-400/30 bg-cyan-950/30 px-4 py-2.5 text-sm text-cyan-50"
+              className="flex flex-wrap items-center justify-between gap-2 border-b border-cyan-400/30 bg-cyan-950/30 px-3 py-1.5 text-xs text-cyan-50"
             >
               <span className="text-cyan-100/95">
                 Pick timer is syncing — tap <span className="font-semibold">Resync</span> if the clock stays blank.
@@ -4870,7 +4836,7 @@ export function DraftRoomPageClient({
             <div
               role="status"
               data-testid="draft-room-no-roster-banner"
-              className="border-b border-amber-400/40 bg-amber-950/35 px-4 py-2.5 text-sm text-amber-50"
+              className="border-b border-amber-400/40 bg-amber-950/35 px-3 py-1.5 text-xs text-amber-50"
             >
               <span className="font-semibold text-amber-100">No roster linked to your account in this league.</span>{' '}
               <span className="text-amber-100/85">
@@ -4886,7 +4852,6 @@ export function DraftRoomPageClient({
             teamCount={session.teamCount}
             rounds={session.rounds}
             currentManagerOnClock={currentPick?.displayName ?? null}
-            isCurrentUserOnClock={isCurrentUserOnClock}
             pickLabel={currentPick?.pickLabel ?? null}
             overallPickNumber={currentPick?.overall ?? null}
             timerStatus={draftRoomState.timerMode === 'blocked' ? 'none' : (session.timer?.status ?? 'none')}
@@ -4937,7 +4902,6 @@ export function DraftRoomPageClient({
             draftRoomPresentation={presentationVariant}
             onToggleAutoPick={handleToggleAutoPick}
             thirdRoundReversal={Boolean(session.thirdRoundReversal)}
-            bigScreenHref={draftId ? `/draft/${draftId}/bigscreen` : null}
           />
         </>
       }
@@ -5033,18 +4997,16 @@ export function DraftRoomPageClient({
               the on-the-clock cell in DraftBoard now carry that information. */}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1.5">
             <div className="flex min-h-[120px] min-w-0 flex-1 flex-col overflow-hidden lg:min-h-0">
-              {session?.draftType === 'auction' ? (
-                <div className="shrink-0">
-                  <DraftTeamStrip
-                    teamCount={safeBoardTeamCount}
-                    slotOrder={slotOrder}
-                    teamMetaByRoster={teamMetaByRoster}
-                    currentUserRosterId={currentUserRosterId ?? null}
-                    onClockRosterId={currentPick?.rosterId ?? null}
-                    canInvite={isCommissioner}
-                  />
-                </div>
-              ) : null}
+              <div className="shrink-0">
+                <DraftTeamStrip
+                  teamCount={safeBoardTeamCount}
+                  slotOrder={slotOrder}
+                  teamMetaByRoster={teamMetaByRoster}
+                  currentUserRosterId={currentUserRosterId ?? null}
+                  onClockRosterId={currentPick?.rosterId ?? null}
+                  canInvite={isCommissioner}
+                />
+              </div>
               <div className="min-h-0 flex-1 overflow-auto overscroll-contain [overflow-anchor:none]">
                 <DraftBoard
                   picks={session.picks ?? []}
@@ -5065,7 +5027,6 @@ export function DraftRoomPageClient({
                   aiManagedRosterIds={aiManagedRosterIds}
                   orderSourceLabel={boardOrderSourceLabel}
                   presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
-                  poolPlayerById={poolPlayerById}
                   onCellTrade={currentUserRosterId ? openPickTradeFromBoard : undefined}
                   onOpenTradeHistory={() => {
                     setTradeHistoryFocus(null)
@@ -5123,11 +5084,7 @@ export function DraftRoomPageClient({
         the popup body now, so power users still have one-click access to
         starter balance / positional mix / AI guidance, but the layout reclaims
         that left column for the player table. */}
-    <WarRoomPopup
-      hasNewIntel={warRoomHasNewIntel}
-      triggerLabel="War Room"
-      triggerPosition={presentationVariant === 'redraft_snake' ? 'bottom-left' : 'bottom-right'}
-    >
+    <WarRoomPopup hasNewIntel={warRoomHasNewIntel} triggerLabel="War Room">
       <DraftTeamPanel {...draftTeamPanelProps} redraftStarterHints={redraftStarterHints} />
     </WarRoomPopup>
     <DraftRoomSettingsModal
@@ -5243,9 +5200,6 @@ export function DraftRoomPageClient({
             currentUserRosterId={currentUserRosterId ?? null}
             tradePanelGeneration={tradePanelGeneration}
             initialTradeDraft={tradeInitialDraft}
-            onClockTradeTimerBehavior={
-              session.onClockTradeTimerBehavior === 'reset_timer' ? 'reset_timer' : 'inherit_remaining'
-            }
             onClose={() => setShowTradePanel(false)}
             onTradeAccepted={(updatedSession?: unknown) => {
               if (updatedSession != null)
@@ -5328,7 +5282,7 @@ export function DraftRoomPageClient({
         badgeCount={draftHelperBadgeCount}
         hasContent={hasDraftHelperData}
         onClick={() => floatingHelperState.setVisible(true)}
-        anchor={presentationVariant === 'redraft_snake' ? 'bottom-left' : 'bottom-right'}
+        className="xl:hidden"
       />
     )}
 

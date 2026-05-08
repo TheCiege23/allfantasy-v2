@@ -105,8 +105,8 @@ export function DraftRoomShell({
       (tab.id !== 'roster' || rosterPanel) &&
       (tab.id !== 'keepers' || keeperPanel)
   )
-  const primaryMobileTabs = visibleTabs.filter((tab) => tab.id === 'board' || tab.id === 'players' || tab.id === 'chat')
-  const secondaryMobileTabs = visibleTabs.filter((tab) => tab.id !== 'board' && tab.id !== 'players' && tab.id !== 'chat')
+  const primaryMobileTabs = visibleTabs.filter((tab) => tab.id === 'board' || tab.id === 'players')
+  const secondaryMobileTabs = visibleTabs.filter((tab) => tab.id !== 'board' && tab.id !== 'players')
 
   /**
    * D.6 — when `layout='premium'` is set, we render the premium grid even if
@@ -153,11 +153,11 @@ export function DraftRoomShell({
               Collapsed: flex-1 — board fills the entire screen below the top bar. */}
           <div
             className={cn(
-              'min-h-[240px] overflow-auto overscroll-contain [overflow-anchor:none] border-b',
-              bottomDockExpanded ? 'flex-1 basis-0' : 'flex-1',
+              'shrink-0 overflow-auto overscroll-contain [overflow-anchor:none] border-b',
+              bottomDockExpanded ? 'max-h-[min(52vh,640px)]' : 'min-h-0 max-h-[unset] flex-1',
               surfaceVariant === 'redraft_snake'
-                ? 'border-cyan-500/15 bg-[linear-gradient(180deg,rgba(8,18,36,0.98),rgba(4,9,17,0.99))] shadow-[inset_0_-1px_0_rgba(34,211,238,0.06)]'
-                : 'border-white/8 bg-[#050c1d]',
+                ? 'border-cyan-500/15 bg-[linear-gradient(180deg,rgba(10,22,44,0.98),rgba(6,12,22,0.99))] shadow-[inset_0_-1px_0_rgba(34,211,238,0.06)]'
+                : 'border-white/[0.06] bg-[#0d1428]',
             )}
             data-testid="draft-premium-board-zone"
             data-dock-expanded={bottomDockExpanded ? 'true' : 'false'}
@@ -183,8 +183,8 @@ export function DraftRoomShell({
           </div>
           <div
             className={cn(
-              'flex min-h-[240px] overflow-hidden',
-              bottomDockExpanded ? 'flex-1 basis-0' : 'hidden',
+              'flex min-h-0 overflow-hidden',
+              bottomDockExpanded ? 'flex-1' : 'hidden',
             )}
             data-testid="draft-premium-main-zones"
             data-dock-expanded={bottomDockExpanded ? 'true' : 'false'}
@@ -192,7 +192,7 @@ export function DraftRoomShell({
             {teamPanel ? (
               <aside
                 data-testid="draft-premium-team-aside"
-                className={`w-[min(280px,22vw)] shrink-0 overflow-y-auto border-r bg-[#050c1d] ${
+                className={`w-[min(280px,22vw)] shrink-0 overflow-y-auto border-r bg-[#0d1428] ${
                   surfaceVariant === 'redraft_snake' ? 'border-cyan-500/10 shadow-[inset_-1px_0_0_rgba(34,211,238,0.05)]' : 'border-white/8'
                 }`}
               >
@@ -200,7 +200,7 @@ export function DraftRoomShell({
               </aside>
             ) : null}
             <div
-              className={`flex min-w-0 flex-1 flex-col overflow-hidden border-r bg-[#060d1e] ${
+              className={`flex min-w-0 flex-1 flex-col overflow-hidden border-r bg-[#0f1a32] ${
                 surfaceVariant === 'redraft_snake' ? 'border-cyan-500/10' : 'border-white/8'
               }`}
             >
@@ -226,14 +226,14 @@ export function DraftRoomShell({
                 id="draft-premium-bottom-dock"
                 className={cn(
                   'flex w-full overflow-hidden transition-[max-height] duration-200 ease-out',
-                  bottomDockExpanded ? 'max-h-[min(220px,30vh)]' : 'max-h-0',
+                  bottomDockExpanded ? 'max-h-[min(280px,38vh)]' : 'max-h-0',
                 )}
                 data-testid="draft-premium-bottom-dock"
               >
                 <div
                   className={cn(
                     'flex w-full min-h-0 overflow-hidden',
-                    bottomDockExpanded ? 'h-[min(220px,30vh)] min-h-[140px]' : 'h-0 min-h-0',
+                  bottomDockExpanded ? 'h-[min(280px,38vh)] min-h-[160px]' : 'h-0 min-h-0',
                   )}
                 >
                   {bottomBar}
@@ -257,28 +257,28 @@ export function DraftRoomShell({
       ) : (
         <div className="hidden min-h-0 flex-1 flex-col overflow-hidden md:flex" data-testid="draft-desktop-layout">
           {auctionStrip && <div className="shrink-0 border-b border-white/8 bg-[#060d1f]">{auctionStrip}</div>}
-          <div className="min-h-[200px] flex-[2] overflow-auto overscroll-contain [overflow-anchor:none] border-b border-white/8 bg-[#050c1d]">
+          <div className="min-h-[180px] flex-[2] overflow-auto overscroll-contain [overflow-anchor:none] border-b border-white/8 bg-[#050c1d]">
             {draftBoard}
           </div>
           <div className="flex min-h-0 flex-1 overflow-hidden border-b border-white/8">
             <div className="min-w-0 flex-[3] overflow-hidden border-r border-white/8">{playerPanel}</div>
             <div className="min-w-0 flex-[2] overflow-hidden">{queuePanel}</div>
           </div>
-          <div className="min-h-0 w-full min-h-[min(28vh,360px)] flex-[1.5] overflow-hidden border-t border-white/8">
+          <div className="min-h-0 w-full min-h-[min(22vh,280px)] flex-[1.2] overflow-hidden border-t border-white/8">
             {chatPanel}
           </div>
         </div>
       )}
 
       {/* Mobile */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:hidden" data-testid="draft-mobile-layout">
+      <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-hidden md:hidden" data-testid="draft-mobile-layout">
         {/*
           F.2 — mobile pane uses `overflow-y-auto` (NOT `overflow-auto`) so wide
           children like the Sleeper player table and the snake draft board can't
           bleed horizontal scroll out to the whole page. Each individual wide
           panel wraps its own children in `overflow-x-auto` containers below.
         */}
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain scroll-smooth" data-testid="draft-mobile-scroll-root">
           {mobileStickyBar && (
             <div className="sticky top-0 z-10 shrink-0 border-b border-white/10 bg-[#040915]/95 backdrop-blur-sm">
               {mobileStickyBar}
@@ -289,7 +289,7 @@ export function DraftRoomShell({
           )}
           <div
             key={mobileTab}
-            className="min-h-[220px] min-w-0 p-3 pb-16 text-sm transition-opacity duration-150 sm:p-3.5 sm:pb-16"
+            className="min-h-[220px] min-w-0 p-2.5 pb-12 text-sm transition-opacity duration-150 sm:p-3 sm:pb-14"
             data-testid="draft-mobile-content"
             data-active-tab={mobileTab}
           >
@@ -299,7 +299,7 @@ export function DraftRoomShell({
                 keeps the horizontal scroll INSIDE the tab pane. */}
             {mobileTab === 'board' && (
               <div
-                className="min-w-0 overflow-x-auto overscroll-x-contain"
+                className="min-w-0 overflow-x-auto overscroll-x-contain scroll-smooth"
                 data-testid="draft-mobile-board-scroll"
               >
                 {draftBoard}
@@ -307,10 +307,18 @@ export function DraftRoomShell({
             )}
             {mobileTab === 'players' && (
               <div
-                className="min-w-0 overflow-x-auto overscroll-x-contain"
-                data-testid="draft-mobile-players-scroll"
+                className="overflow-hidden rounded-t-2xl border border-white/12 bg-[linear-gradient(180deg,rgba(9,17,34,0.96),rgba(7,12,24,0.98))] shadow-[0_-10px_30px_rgba(0,0,0,0.35)]"
+                data-testid="draft-mobile-players-sheet"
               >
-                {playerPanel}
+                <div className="flex justify-center py-2" aria-hidden>
+                  <span className="h-1 w-10 rounded-full bg-white/25" />
+                </div>
+                <div
+                  className="min-w-0 overflow-x-auto overscroll-x-contain scroll-smooth"
+                  data-testid="draft-mobile-players-scroll"
+                >
+                  {playerPanel}
+                </div>
               </div>
             )}
             {mobileTab === 'queue' && queuePanel}
@@ -321,8 +329,11 @@ export function DraftRoomShell({
           </div>
         </div>
         {secondaryMobileTabs.length > 0 ? (
-          <div className="safe-area-bottom border-t border-white/10 bg-[#060d1f]/95 px-2 py-1.5">
-            <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+          <div
+            className="safe-area-bottom border-t border-white/10 bg-[#060d1f]/95 px-2 pb-1 pt-1"
+            data-testid="draft-mobile-quick-dock"
+          >
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
               {secondaryMobileTabs.map(({ id, icon: Icon }) => {
                 const label = t(MOBILE_TAB_I18N[id])
                 return (
@@ -331,7 +342,7 @@ export function DraftRoomShell({
                     type="button"
                     onClick={() => onMobileTabChange(id)}
                     data-testid={`draft-mobile-tab-${id}`}
-                    className={`inline-flex min-h-[36px] shrink-0 touch-manipulation items-center gap-1.5 rounded-full border px-2.5 text-[10px] font-medium transition active:scale-[0.98] ${
+                    className={`inline-flex min-h-[38px] shrink-0 touch-manipulation items-center gap-1.5 rounded-full border px-3 text-[10px] font-medium transition active:scale-[0.98] ${
                       mobileTab === id
                         ? 'border-cyan-400/45 bg-cyan-500/15 text-cyan-100'
                         : 'border-white/15 bg-black/20 text-white/70'
@@ -349,6 +360,7 @@ export function DraftRoomShell({
         ) : null}
         <nav
           className="safe-area-bottom flex shrink-0 border-t border-cyan-400/20 bg-[#070f21]/95"
+          data-testid="draft-mobile-primary-nav"
           aria-label={t('draftRoom.shell.aria.draftSections')}
         >
           {primaryMobileTabs.map(({ id, icon: Icon }) => {

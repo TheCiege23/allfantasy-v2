@@ -83,14 +83,14 @@ export function DraftRightDockTabs({
       data-testid={testIdBase}
       data-active-tab={effectiveTab}
       aria-label="Draft right dock"
-      className="flex h-full min-h-0 flex-col overflow-hidden bg-[linear-gradient(180deg,#071328_0%,#050d1b_100%)]"
+      className="flex h-full min-h-0 flex-col overflow-hidden bg-[linear-gradient(180deg,#0d1428_0%,#0b1324_100%)]"
     >
       {/* Tab header row. Active tab uses cyan-100 + bottom underline; inactives are muted. */}
       <div
         role="tablist"
         aria-label="Draft right dock tabs"
         data-testid={`${testIdBase}-tablist`}
-        className="grid shrink-0 grid-cols-3 border-b border-white/10 bg-[linear-gradient(180deg,rgba(10,18,40,0.95),rgba(8,15,33,0.9))]"
+        className="grid shrink-0 grid-cols-3 border-b border-white/[0.06] bg-[#101a30]"
       >
         {TABS.map((tab) => {
           const isActive = effectiveTab === tab.id
@@ -104,7 +104,7 @@ export function DraftRightDockTabs({
               id={`${testIdBase}-tab-${tab.id}`}
               data-testid={`${testIdBase}-tab-${tab.id}`}
               onClick={() => onSelect(tab.id)}
-              className={`relative flex items-center justify-center gap-1.5 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
+              className={`relative flex items-center justify-center gap-1 py-1 text-[8px] font-semibold uppercase tracking-[0.14em] transition ${
                 isActive
                   ? 'text-cyan-100'
                   : 'text-white/55 hover:bg-white/5 hover:text-white/85'
@@ -123,7 +123,7 @@ export function DraftRightDockTabs({
               {isActive ? (
                 <span
                   aria-hidden
-                  className="absolute inset-x-2 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-cyan-400/70 via-cyan-300/85 to-violet-400/60 shadow-[0_0_12px_rgba(34,211,238,0.35)]"
+                  className="absolute inset-x-3 bottom-0 h-px rounded-full bg-cyan-300/90 shadow-[0_0_10px_rgba(34,211,238,0.3)]"
                 />
               ) : null}
             </button>

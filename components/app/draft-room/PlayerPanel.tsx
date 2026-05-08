@@ -40,10 +40,11 @@ import {
 import { formatAiAdpUnavailableBanner } from '@/lib/draft-room/adpReadinessCopy'
 import { getDraftRoomDisplayHeadshot, getDraftRoomDisplayInjury } from '@/lib/player-data/adapters/draftRoomDisplayFields'
 
-const PLAYER_ROW_ESTIMATE_HEIGHT = 76
+const PLAYER_ROW_ESTIMATE_HEIGHT = 56
 /** Redraft rows use slightly taller estimate (chips + stats). */
-const PLAYER_ROW_ESTIMATE_HEIGHT_REDRAFT = 104
+const PLAYER_ROW_ESTIMATE_HEIGHT_REDRAFT = 72
 const DRAFT_WATCHLIST_STORAGE_KEY = 'af:draft-room-watchlist-v1'
+const AI_ADP_NOT_READY_COPY = 'AI ADP data not ready'
 
 /** Align with draft room session: drafted name set is normalized lowercase. */
 function isPlayerNameDrafted(name: string, draftedNames: Set<string>): boolean {
@@ -100,6 +101,16 @@ export type PlayerEntry = {
   unifiedProductView?: UnifiedPlayerProductView | null
 }
 
+export type DraftAiOverlaySignal = {
+  badge: 'ai_pick' | 'value' | 'risky'
+  confidencePct?: number | null
+  scarcityLevel?: 'high' | 'medium' | null
+  tierDropAlert?: boolean
+  boomBust?: 'boom' | 'bust' | null
+  strategyNote?: string | null
+  reason?: string | null
+}
+
 export type PlayerPanelProps = {
   players: PlayerEntry[]
   draftedNames: Set<string>
@@ -141,6 +152,8 @@ export type PlayerPanelProps = {
   leagueId?: string
   /** War Room AI row hints keyed by `name|position` (lowercase). */
   aiRowBadges?: Record<string, 'ai_pick' | 'value' | 'risky'>
+  /** Rich inline AI overlays keyed by `name|position` (lowercase). */
+  aiOverlaySignals?: Record<string, DraftAiOverlaySignal>
   presentationVariant?: 'default' | 'redraft_snake'
   /** D.2 — explicit pool layout opt-out. Defaults to 'auto' which picks
    * Sleeper-style table for NFL redraft/snake on desktop and falls back to
@@ -367,6 +380,7 @@ function PlayerPanelInner({
   selectedPlayerTarget = null,
   leagueId,
   aiRowBadges,
+  aiOverlaySignals,
   presentationVariant = 'default',
   poolLayout = 'auto',
   getDraftCopilotInsight,
@@ -392,6 +406,7 @@ function PlayerPanelInner({
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerEntry | null>(null)
   const [pendingNomination, setPendingNomination] = useState<PlayerEntry | null>(null)
   const [watchlistOnly, setWatchlistOnly] = useState(false)
+  const [showAiOverlays, setShowAiOverlays] = useState(true)
   const [rookiesOnly, setRookiesOnly] = useState(false)
   /** Commit N — companion to `rookiesOnly`. Mutually exclusive with rookies-only;
    *  toggling one turns the other off so the user can't accidentally produce an
@@ -403,6 +418,7 @@ function PlayerPanelInner({
   const isCollegeRound = Boolean(c2cConfig?.enabled && currentRound != null && c2cConfig.collegeRounds?.includes(currentRound))
   const isProRound = Boolean(c2cConfig?.enabled && currentRound != null && !c2cConfig.collegeRounds?.includes(currentRound))
   const showPoolFilter = Boolean(devyConfig?.enabled || c2cConfig?.enabled)
+  const hasAiOverlaySignals = Boolean(aiOverlaySignals && Object.keys(aiOverlaySignals).length > 0)
 
   const positionOptions = useMemo(
     () => getPositionFilterOptionsForSport(sport, formatType),
@@ -791,8 +807,8 @@ function PlayerPanelInner({
     <section
       className={
         rs
-          ? 'relative flex h-full min-h-0 max-h-full flex-1 flex-col overflow-hidden rounded-2xl border border-cyan-500/20 bg-[linear-gradient(168deg,rgba(12,24,44,0.95)_0%,rgba(5,10,20,0.98)_100%)] shadow-[0_20px_64px_rgba(0,0,0,0.5),0_0_0_1px_rgba(34,211,238,0.05),inset_0_1px_0_rgba(255,255,255,0.05)]'
-          : 'relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/[0.09] bg-gradient-to-b from-[#070f22] via-[#060d1e] to-[#050a14] shadow-[0_16px_48px_rgba(0,0,0,0.4)]'
+          ? 'relative flex h-full min-h-0 max-h-full flex-1 flex-col overflow-hidden rounded-xl border border-cyan-500/20 bg-[linear-gradient(168deg,rgba(12,24,44,0.95)_0%,rgba(5,10,20,0.98)_100%)] shadow-[0_20px_64px_rgba(0,0,0,0.5),0_0_0_1px_rgba(34,211,238,0.05),inset_0_1px_0_rgba(255,255,255,0.05)]'
+          : 'relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-white/[0.09] bg-gradient-to-b from-[#070f22] via-[#060d1e] to-[#050a14] shadow-[0_16px_48px_rgba(0,0,0,0.4)]'
       }
       data-testid="draft-player-panel"
     >
@@ -801,14 +817,14 @@ function PlayerPanelInner({
         aria-hidden
       />
       <div
-        className={`sticky top-0 z-20 shrink-0 border-b shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl ${rs ? 'border-cyan-500/12 bg-[rgba(6,14,28,0.97)]' : 'border-white/[0.08] bg-[#060d1e]/92'}`}
+        className={`sticky top-0 z-20 shrink-0 border-b shadow-[0_8px_28px_rgba(0,0,0,0.4)] backdrop-blur-xl ${rs ? 'border-cyan-500/12 bg-[rgba(6,14,28,0.97)]' : 'border-white/[0.08] bg-[#060d1e]/92'}`}
       >
-        <div className={`flex flex-wrap items-center gap-1.5 border-b border-white/[0.06] p-2 ${rs ? 'gap-y-1.5' : ''}`}>
+        <div className={`flex flex-wrap items-center gap-1.5 border-b border-white/[0.06] px-2 py-1.5 ${rs ? 'gap-y-1' : ''}`}>
           <div
-            className={`flex min-h-[44px] flex-1 items-center gap-2 rounded-xl border px-3 py-2 shadow-inner touch-manipulation transition duration-150 focus-within:border-cyan-400/40 focus-within:ring-2 focus-within:ring-cyan-400/20 ${
+            className={`flex min-h-[34px] flex-1 items-center gap-1.5 rounded-full border px-2.5 py-1 shadow-inner touch-manipulation transition duration-150 focus-within:border-cyan-400/45 focus-within:ring-2 focus-within:ring-cyan-400/20 ${
               rs
-                ? 'min-w-[160px] border-cyan-400/25 bg-[#070f1c]/95 ring-1 ring-cyan-500/10'
-                : 'border-white/14 bg-[#0a1228]/95'
+                ? 'min-w-[150px] border-cyan-400/30 bg-[#0c162d]/95 ring-1 ring-cyan-500/10'
+                : 'border-white/[0.06] bg-[#101a30]/95'
             }`}
           >
             <Search className={`h-4 w-4 shrink-0 ${rs ? 'text-cyan-300/70' : 'text-white/50'}`} />
@@ -818,7 +834,7 @@ function PlayerPanelInner({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={rs ? 'Search name, team, school…' : 'Search players...'}
-              className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
+              className="min-w-0 flex-1 bg-transparent text-[12px] text-white placeholder:text-white/40 focus:outline-none"
               aria-label="Search players"
               data-testid="draft-player-search-input"
             />
@@ -832,7 +848,7 @@ function PlayerPanelInner({
             role="radiogroup"
             aria-label="Position filter"
             data-testid="draft-position-filter"
-            className="flex min-h-[44px] flex-wrap items-center gap-1"
+            className="flex h-8 min-w-0 flex-nowrap items-center gap-1 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {positionPillCounts.map((opt) => {
               const isActive = positionFilter === opt.value
@@ -848,15 +864,15 @@ function PlayerPanelInner({
                     if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.FILTER_POSITION, { leagueId, value: opt.value })
                     setPositionFilter(opt.value)
                   }}
-                  className={`inline-flex h-8 items-center gap-1 rounded-full border px-2.5 text-[11px] font-semibold uppercase tracking-wider transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
+                  className={`inline-flex h-6 shrink-0 items-center gap-1 rounded-full border px-2 text-[9px] font-semibold uppercase tracking-[0.12em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
                     isActive
-                      ? 'border-cyan-400/45 bg-gradient-to-r from-cyan-500/22 to-violet-600/18 text-cyan-50 shadow-[0_0_14px_rgba(34,211,238,0.18)]'
-                      : 'border-white/15 bg-black/20 text-white/65 hover:border-white/28 hover:text-white/90'
+                      ? 'border-cyan-400/55 bg-[#20d6d2]/20 text-cyan-50 shadow-[0_0_10px_rgba(32,214,210,0.24)]'
+                      : 'border-white/[0.06] bg-[#101a30] text-[#94a3b8] hover:border-white/20 hover:text-white/90'
                   }`}
                 >
                   <span>{opt.label}</span>
                   <span
-                    className={`text-[9px] font-medium tabular-nums ${
+                    className={`text-[8px] font-medium tabular-nums ${
                       isActive ? 'text-cyan-100/85' : 'text-white/45'
                     }`}
                   >
@@ -873,8 +889,8 @@ function PlayerPanelInner({
               if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.FILTER_TEAM, { leagueId, value: v })
               setTeamFilter(v)
             }}
-            className={`min-h-[44px] rounded-xl border px-3 py-2 text-sm text-white shadow-sm touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
-              rs ? 'border-cyan-400/28 bg-[#081424]/95' : 'border-white/14 bg-[#0a1228]/95'
+            className={`min-h-[34px] rounded-full border px-2.5 py-1 text-[12px] text-white shadow-sm touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
+              rs ? 'border-cyan-400/28 bg-[#0c162d]/95' : 'border-white/[0.06] bg-[#101a30]/95'
             }`}
             aria-label="Team filter"
             data-testid="draft-team-filter"
@@ -892,7 +908,7 @@ function PlayerPanelInner({
             role="radiogroup"
             aria-label="Player pool view mode"
             data-testid="draft-pool-view-mode"
-            className="ml-auto inline-flex items-center gap-1 rounded-xl border border-white/14 bg-[#0a1228]/95 p-0.5"
+            className="ml-auto inline-flex items-center gap-1 rounded-lg border border-white/[0.06] bg-[#101a30]/95 p-0.5"
           >
             <button
               type="button"
@@ -901,9 +917,9 @@ function PlayerPanelInner({
               onClick={() => setViewModeOverride('sleeper_table')}
               data-testid="draft-pool-view-table"
               title="Table view"
-              className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition ${
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition ${
                 viewModeOverride === 'sleeper_table' || (viewModeOverride === null && (poolLayout === 'sleeper_table' || (poolLayout === 'auto' && sport === 'NFL')))
-                  ? 'bg-cyan-500/20 text-cyan-100 shadow-[0_0_10px_rgba(34,211,238,0.18)]'
+                  ? 'bg-[#20d6d2]/20 text-cyan-100 shadow-[0_0_10px_rgba(32,214,210,0.2)]'
                   : 'text-white/55 hover:bg-white/[0.06] hover:text-white/85'
               }`}
             >
@@ -916,9 +932,9 @@ function PlayerPanelInner({
               onClick={() => setViewModeOverride('card')}
               data-testid="draft-pool-view-cards"
               title="Card view"
-              className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition ${
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition ${
                 viewModeOverride === 'card' || (viewModeOverride === null && poolLayout !== 'sleeper_table' && !(poolLayout === 'auto' && sport === 'NFL'))
-                  ? 'bg-cyan-500/20 text-cyan-100 shadow-[0_0_10px_rgba(34,211,238,0.18)]'
+                  ? 'bg-[#20d6d2]/20 text-cyan-100 shadow-[0_0_10px_rgba(32,214,210,0.2)]'
                   : 'text-white/55 hover:bg-white/[0.06] hover:text-white/85'
               }`}
             >
@@ -933,7 +949,7 @@ function PlayerPanelInner({
                 if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.POOL_FILTER, { leagueId, value: v })
                 setPoolFilter(v)
               }}
-              className="min-h-[44px] rounded-xl border border-white/14 bg-[#0a1228]/95 px-3 py-2 text-sm text-white shadow-sm touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+              className="min-h-[34px] rounded-full border border-white/[0.06] bg-[#101a30]/95 px-2.5 py-1 text-[12px] text-white shadow-sm touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
               aria-label="Pool filter"
               data-testid="draft-pool-filter"
             >
@@ -968,7 +984,7 @@ function PlayerPanelInner({
           </div>
         )}
         <div
-          className={`flex flex-wrap items-center gap-1.5 border-b border-white/[0.06] px-2 py-2 sm:px-3 ${rs ? 'bg-[#050c18]/95' : 'bg-black/10'}`}
+          className={`flex flex-wrap items-center gap-1.5 border-b border-white/[0.06] px-2 py-1.5 sm:px-3 ${rs ? 'bg-[#050c18]/95' : 'bg-black/10'}`}
         >
           {/* G.1 — Sort buttons (ADP / AI ADP / Proj / Name) removed.
               They duplicated the SleeperPoolTable's clickable column headers, which
@@ -981,7 +997,7 @@ function PlayerPanelInner({
             </span>
           )}
           {onUseAiAdpChange && (
-            <label className="min-h-[44px] flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-[10px] text-white/70 hover:bg-white/5 touch-manipulation transition">
+            <label className="min-h-[38px] flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[10px] text-white/70 hover:bg-white/5 touch-manipulation transition">
               <input
                 type="checkbox"
                 checked={useAiAdp}
@@ -1001,9 +1017,9 @@ function PlayerPanelInner({
             <span
               className="text-[10px] text-amber-400/90"
               data-testid="draft-ai-adp-unavailable-banner"
-              title={formatAiAdpUnavailableBanner(aiAdpUnavailableMessage) ?? undefined}
+              title={formatAiAdpUnavailableBanner(aiAdpUnavailableMessage) ?? AI_ADP_NOT_READY_COPY}
             >
-              {formatAiAdpUnavailableBanner(aiAdpUnavailableMessage)}
+              {formatAiAdpUnavailableBanner(aiAdpUnavailableMessage) ?? AI_ADP_NOT_READY_COPY}
             </span>
           )}
           {useAiAdp && aiAdpStaleWarning && !aiAdpUnavailable && (
@@ -1016,29 +1032,44 @@ function PlayerPanelInner({
               Low sample
             </span>
           )}
+          {hasAiOverlaySignals ? (
+            <button
+              type="button"
+              onClick={() => setShowAiOverlays((v) => !v)}
+              data-testid="draft-toggle-ai-overlays"
+              className={`min-h-[36px] rounded-lg border px-2.5 py-1 text-[10px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
+                showAiOverlays
+                  ? 'border-cyan-300/40 bg-cyan-500/14 text-cyan-100'
+                  : 'border-white/10 bg-black/20 text-white/65 hover:bg-white/10'
+              }`}
+              title="Toggle inline AI recommendation overlays"
+            >
+              AI overlays
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => setShowRosterView((v) => !v)}
             data-testid="draft-toggle-roster-view"
-            className="ml-auto min-h-[40px] flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-white/70 hover:bg-white/10 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 transition"
+            className="ml-auto min-h-[36px] flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] text-white/70 hover:bg-white/10 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 transition"
           >
             <User className="h-3.5 w-3.5" />
             {showRosterView ? 'Pool' : 'My roster'}
           </button>
         </div>
         <div
-          className={`flex flex-wrap items-center justify-between gap-2 border-b px-2 py-1.5 text-[10px] ${rs ? 'border-cyan-500/10 bg-black/20 text-white/60' : 'border-white/8 text-white/55'}`}
+          className={`flex flex-wrap items-center justify-between gap-1 border-b px-2 py-1 text-[10px] ${rs ? 'border-cyan-500/10 bg-[#0b1428]/95 text-white/60' : 'border-white/[0.06] bg-[#0b1428]/95 text-white/55'}`}
         >
           <span className={rs ? 'tabular-nums' : undefined}>
             <span className="font-semibold text-white/85">{filtered.length}</span> shown
             {hideDrafted ? <span className="text-white/45"> · drafted hidden</span> : null}
           </span>
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1">
             <button
               type="button"
               data-testid="draft-filter-watchlist-only"
               onClick={() => setWatchlistOnly((v) => !v)}
-              className={`rounded border px-2 py-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${watchlistOnly ? 'border-cyan-300/35 bg-cyan-500/12 text-cyan-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
+              className={`rounded-full border px-2 py-0.5 text-[9px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${watchlistOnly ? 'border-cyan-300/45 bg-[#20d6d2]/18 text-cyan-100' : 'border-white/[0.06] bg-[#101a30] text-[#94a3b8] hover:bg-white/10'}`}
             >
               Watchlist
             </button>
@@ -1046,7 +1077,7 @@ function PlayerPanelInner({
               type="button"
               data-testid="draft-filter-hide-drafted"
               onClick={() => setHideDrafted((v) => !v)}
-              className={`rounded border px-2 py-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${hideDrafted ? 'border-cyan-300/35 bg-cyan-500/12 text-cyan-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
+              className={`rounded-full border px-2 py-0.5 text-[9px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${hideDrafted ? 'border-cyan-300/45 bg-[#20d6d2]/18 text-cyan-100' : 'border-white/[0.06] bg-[#101a30] text-[#94a3b8] hover:bg-white/10'}`}
             >
               Hide drafted
             </button>
@@ -1059,7 +1090,7 @@ function PlayerPanelInner({
               data-testid="draft-filter-rookies-only"
               onClick={toggleRookiesOnly}
               aria-pressed={rookiesOnly}
-              className={`rounded border px-2 py-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/40 ${rookiesOnly ? 'border-violet-300/40 bg-violet-500/14 text-violet-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
+              className={`rounded-full border px-2 py-0.5 text-[9px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/40 ${rookiesOnly ? 'border-violet-300/40 bg-violet-500/14 text-violet-100' : 'border-white/[0.06] bg-[#101a30] text-[#94a3b8] hover:bg-white/10'}`}
             >
               Rookies only
             </button>
@@ -1071,7 +1102,7 @@ function PlayerPanelInner({
               data-testid="draft-filter-vets-only"
               onClick={toggleVetsOnly}
               aria-pressed={vetsOnly}
-              className={`rounded border px-2 py-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${vetsOnly ? 'border-cyan-300/40 bg-cyan-500/14 text-cyan-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
+              className={`rounded-full border px-2 py-0.5 text-[9px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${vetsOnly ? 'border-cyan-300/45 bg-[#20d6d2]/18 text-cyan-100' : 'border-white/[0.06] bg-[#101a30] text-[#94a3b8] hover:bg-white/10'}`}
             >
               Vets only
             </button>
@@ -1080,7 +1111,7 @@ function PlayerPanelInner({
             type="button"
             data-testid="draft-clear-filters"
             onClick={clearAllFilters}
-            className="rounded border border-white/15 bg-black/20 px-2 py-1 text-white/65 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+            className="rounded-full border border-white/[0.06] bg-[#101a30] px-2 py-0.5 text-[9px] text-[#94a3b8] transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
           >
             Clear filters
           </button>
@@ -1187,17 +1218,12 @@ function PlayerPanelInner({
       <div
         ref={scrollRef}
         data-testid="draft-player-list-scroll"
-        className={`min-h-0 flex-1 overscroll-contain p-2 pb-4 sm:p-3 ${
+        className={`min-h-0 flex-1 overscroll-contain p-2 pb-3 sm:p-2.5 ${
           rs
-            ? `max-h-[min(68vh,620px)] sm:max-h-[min(70vh,660px)] lg:max-h-[min(74vh,760px)] overflow-y-scroll bg-[linear-gradient(180deg,rgba(8,18,32,0.55),rgba(4,9,17,0.96))] [scrollbar-gutter:stable] [scrollbar-color:rgba(56,189,248,0.45)_rgba(15,23,42,0.55)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/80 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-500/40 [&::-webkit-scrollbar-thumb:hover]:bg-cyan-400/55`
+            ? `overflow-y-auto bg-[linear-gradient(180deg,rgba(8,18,32,0.55),rgba(4,9,17,0.96))] [scrollbar-gutter:stable] [scrollbar-color:rgba(56,189,248,0.45)_rgba(15,23,42,0.55)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/80 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-500/40 [&::-webkit-scrollbar-thumb:hover]:bg-cyan-400/55`
             : 'overflow-auto bg-[#050a14]/40'
         }`}
       >
-        {rs && !selectedPlayer && !showRosterView && !loading && filtered.length > 0 ? (
-          <div className="mb-2 rounded-lg border border-cyan-500/20 bg-gradient-to-r from-cyan-500/[0.07] to-transparent px-3 py-2 text-[10px] leading-snug text-cyan-100/85">
-            Select a player for projections, news, queue, compare, and draft actions.
-          </div>
-        ) : null}
         {loading ? (
           <div className="space-y-2 py-1" aria-busy="true" aria-label={t(DRAFT_ROOM_I18N_KEYS.playerPoolLoading)}>
             <p className="sr-only">{t(DRAFT_ROOM_I18N_KEYS.playerPoolLoading)}</p>
@@ -1367,6 +1393,7 @@ function PlayerPanelInner({
                   scrollRef={scrollRef}
                   compareAnchor={compareAnchor}
                   onCompareTap={onCompareTap}
+                  aiOverlaySignals={showAiOverlays ? aiOverlaySignals : undefined}
                   sortState={{ key: sortBy, direction: sortDirection }}
                   onSortChange={handleColumnHeaderSort}
                 />

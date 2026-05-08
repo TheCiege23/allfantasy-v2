@@ -52,7 +52,7 @@ export function DraftIntelQueuePanel({
       <div className="mt-1 space-y-2">
         {queue.length === 0 ? (
           <div
-            className="rounded-xl border border-white/10 bg-white/5 px-3 py-4 text-sm text-slate-300"
+            className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-3 text-sm text-slate-300"
             data-testid="draft-intel-empty"
           >
             {loading ? 'Refreshing draft intel…' : 'Chimmy will queue picks when you are five selections out.'}
@@ -61,7 +61,7 @@ export function DraftIntelQueuePanel({
           queue.map((entry) => (
             <div
               key={`${entry.rank}-${entry.playerName}`}
-              className="rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(12,24,45,0.7),rgba(6,14,28,0.9))] px-3 py-3 transition-all"
+              className="rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(12,24,45,0.7),rgba(6,14,28,0.9))] px-2.5 py-2 transition-all"
               data-testid={`draft-intel-entry-${entry.rank}`}
             >
               <div className="flex items-start justify-between gap-3">
@@ -158,8 +158,8 @@ export function DraftIntelQueuePanel({
           collapsedSubtitle={collapsedSummary}
           testId="draft-intel-accordion"
         >
-          <div className="rounded-xl border border-cyan-400/20 bg-black/20 p-3">
-            <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-white/10 pb-3">
+          <div className="rounded-lg border border-white/[0.06] bg-[#101a30]/90 p-2.5">
+            <div className="mb-2.5 flex flex-wrap items-start justify-between gap-2 border-b border-white/[0.06] pb-2.5">
               <div className="min-w-0">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300/75">AI queue · lookahead</p>
                 <p className="mt-1 text-sm font-semibold text-white" data-testid="draft-intel-headline">
