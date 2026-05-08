@@ -179,7 +179,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
     () => ({ done: picks.length, required: view.matches.length }),
     [picks.length, view.matches.length]
   )
-  const hasPickableFixtures = view.matches.some((match) => match.homeTeamId !== null || match.awayTeamId !== null)
+  const hasPickableFixtures = view.matches.length > 0
 
   // ── Load entries on mount ────────────────────────────────────────────────
   useEffect(() => {

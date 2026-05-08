@@ -9,6 +9,10 @@
 import type { WorldCupMatchView, WorldCupPickView, WorldCupRound } from "./types"
 import { WORLD_CUP_ROUNDS } from "./types"
 
+export function hasWorldCupPickSelection(pick: Pick<WorldCupPickView, "selectedTeamId" | "selectedSlotKey">): boolean {
+  return Boolean(pick.selectedTeamId || pick.selectedSlotKey)
+}
+
 // ── Projected bracket ─────────────────────────────────────────────────────────
 
 /**
@@ -26,7 +30,9 @@ export function buildWorldCupProjectedMatches(
 ): WorldCupMatchView[] {
   const out = matches.map((m) => ({ ...m }))
   const byId = new Map(out.map((m) => [m.id, m]))
-  const pickByMatchId = new Map(picks.map((p) => [p.matchId, p]))
+  const pickByMatchId = new Map(
+    picks.filter(hasWorldCupPickSelection).map((p) => [p.matchId, p])
+  )
 
   for (const m of out) {
     const pick = pickByMatchId.get(m.id)
@@ -103,7 +109,9 @@ export function findFirstUnpickedMatch(
   picks: WorldCupPickView[],
   orderedRounds: WorldCupRound[]
 ): WorldCupMatchView | null {
-  const pickedMatchIds = new Set(picks.map((p) => p.matchId))
+  const pickedMatchIds = new Set(
+    picks.filter(hasWorldCupPickSelection).map((p) => p.matchId)
+  )
 
   for (const round of orderedRounds) {
     const roundMatches = matches
@@ -135,7 +143,9 @@ export function findNextMatchInGuidedOrder(
   const current = matches.find((m) => m.id === matchId)
   if (!current) return findFirstUnpickedMatch(matches, picks, orderedRounds)
 
-  const pickedMatchIds = new Set(picks.map((p) => p.matchId))
+  const pickedMatchIds = new Set(
+    picks.filter(hasWorldCupPickSelection).map((p) => p.matchId)
+  )
 
   // Try to find next in the same round (higher matchNumber)
   const sameRound = matches
@@ -258,7 +268,9 @@ export function isBracketComplete(
   const required = matches.filter(
     (m) => m.round !== "third_place" || includeThirdPlace
   )
-  const pickedIds = new Set(picks.map((p) => p.matchId))
+  const pickedIds = new Set(
+    picks.filter(hasWorldCupPickSelection).map((p) => p.matchId)
+  )
   return required.every((m) => pickedIds.has(m.id))
 }
 
@@ -273,6 +285,8 @@ export function countRemainingPicks(
   const required = matches.filter(
     (m) => m.round !== "third_place" || includeThirdPlace
   )
-  const pickedIds = new Set(picks.map((p) => p.matchId))
+  const pickedIds = new Set(
+    picks.filter(hasWorldCupPickSelection).map((p) => p.matchId)
+  )
   return required.filter((m) => !pickedIds.has(m.id)).length
 }

@@ -35,6 +35,7 @@ import {
   findFirstUnpickedMatch,
   findNextMatchInGuidedOrder,
   getInvalidDownstreamPickIds,
+  hasWorldCupPickSelection,
   getOrderedRounds,
   isBracketComplete,
 } from "@/lib/world-cup/worldCupProjectedBracket"
@@ -588,7 +589,10 @@ export default function WorldCupGuidedMatchupPicker({
         .length,
     [matches, includeThirdPlace]
   )
-  const totalPicked = picks.length
+  const totalPicked = useMemo(
+    () => picks.filter(hasWorldCupPickSelection).length,
+    [picks]
+  )
   const roundMatches = useMemo(
     () =>
       currentMatch
@@ -599,7 +603,7 @@ export default function WorldCupGuidedMatchupPicker({
   const roundPickedCount = useMemo(
     () =>
       roundMatches.filter((m) =>
-        picks.some((p) => p.matchId === m.id)
+        picks.some((p) => p.matchId === m.id && hasWorldCupPickSelection(p))
       ).length,
     [roundMatches, picks]
   )
