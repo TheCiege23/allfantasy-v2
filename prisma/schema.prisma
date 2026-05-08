@@ -3099,6 +3099,8 @@ model WorldCupBracketParticipant {
   correctPicks       Int                       @default(0) @map("correct_picks")
   rank               Int?
   roundBreakdown     Json?                     @map("round_breakdown")
+  createdAt          DateTime                  @default(now()) @map("created_at")
+  updatedAt          DateTime                  @updatedAt @map("updated_at")
   challenge          WorldCupBracketChallenge  @relation(fields: [challengeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   user               AppUser                   @relation("WorldCupBracketParticipantUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   championPickTeam   WorldCupTeam?             @relation("WorldCupChampionPick", fields: [championPickTeamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
