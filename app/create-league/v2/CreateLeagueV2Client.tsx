@@ -28,6 +28,8 @@ import { getSportHue } from '@/lib/create-league-v2/sport-hues'
 import { SPORT_MEDIA } from '@/lib/create-league-v2/theme'
 import { resolveScoringPresetId } from '@/lib/league-creation-preset/scoring-presets'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { setClientLeagueCreateOptionsCatalog } from '@/lib/create-league-v2/options-catalog-client'
+import type { LeagueCreateOptionsCatalog } from '@/lib/league-creation/options-catalog-seed-data'
 
 export interface CreateLeagueV2ClientProps {
   userId: string
@@ -72,6 +74,34 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
     if (!hydrated) return
     persistV2State(state)
   }, [state, hydrated])
+
+  useEffect(() => {
+    let active = true
+
+    async function loadCatalog() {
+      try {
+        const res = await fetch('/api/leagues/create-options', { credentials: 'include' })
+        if (!res.ok) return
+        const json = (await res.json()) as { catalog?: LeagueCreateOptionsCatalog }
+        if (!active || !json.catalog) return
+
+        setClientLeagueCreateOptionsCatalog(json.catalog)
+        setState((prev) => {
+          const nextTimezone = prev.timezone?.trim() ? prev.timezone : json.catalog?.defaultTimezone ?? prev.timezone
+          if (nextTimezone === prev.timezone) return prev
+          return { ...prev, timezone: nextTimezone }
+        })
+      } catch {
+        // Keep local fallback behavior when catalog fetch fails.
+      }
+    }
+
+    void loadCatalog()
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   const effectiveType = getEffectiveLeagueType(state)
   const accent = useMemo(() => getAccent(effectiveType ?? undefined), [effectiveType])

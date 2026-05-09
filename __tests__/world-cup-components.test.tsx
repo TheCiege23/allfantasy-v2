@@ -1,6 +1,34 @@
 import { describe, expect, it, vi, beforeEach } from "vitest"
 import { render, screen, waitFor, fireEvent } from "@testing-library/react"
 
+const clientApiMocks = vi.hoisted(() => ({
+  listEntries: vi.fn(),
+  getEntry: vi.fn(),
+  adminLoadTestFixtures: vi.fn(),
+  adminResetSimulation: vi.fn(),
+  adminSimulateMatch: vi.fn(),
+  adminSimulateRound: vi.fn(),
+  adminSimulateTournament: vi.fn(),
+  adminSyncTeams: vi.fn(),
+  adminSyncFixtures: vi.fn(),
+  adminSyncLive: vi.fn(),
+  clearPicks: vi.fn(),
+  createEntry: vi.fn(),
+  deleteEntry: vi.fn(),
+  getIntegrityReport: vi.fn(),
+  renameEntry: vi.fn(),
+  savePick: vi.fn(),
+}))
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    back: vi.fn(),
+    push: vi.fn(),
+    refresh: vi.fn(),
+    replace: vi.fn(),
+  }),
+}))
+
 vi.mock("next/link", () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => (
     <a href={href}>{children}</a>
@@ -22,6 +50,27 @@ vi.mock("next/image", () => ({
 
 vi.mock("@/components/brackets/world-cup/WorldCupMatchupIntelligencePanel", () => ({
   default: () => <div data-testid="wc-intel-stub" />,
+}))
+
+vi.mock("@/lib/world-cup/worldCupClientApi", () => ({
+  adminLoadWorldCupTestFixtures: clientApiMocks.adminLoadTestFixtures,
+  adminResetWorldCupSimulation: clientApiMocks.adminResetSimulation,
+  adminSimulateWorldCupMatch: clientApiMocks.adminSimulateMatch,
+  adminSimulateWorldCupRound: clientApiMocks.adminSimulateRound,
+  adminSimulateWorldCupTournament: clientApiMocks.adminSimulateTournament,
+  adminSyncWorldCupFixtures: clientApiMocks.adminSyncFixtures,
+  adminSyncWorldCupLive: clientApiMocks.adminSyncLive,
+  adminSyncWorldCupTeams: clientApiMocks.adminSyncTeams,
+  clearWorldCupBracketEntryPicks: clientApiMocks.clearPicks,
+  createWorldCupBracketEntry: clientApiMocks.createEntry,
+  deleteWorldCupBracketEntry: clientApiMocks.deleteEntry,
+  getWorldCupIntegrityReport: clientApiMocks.getIntegrityReport,
+  getWorldCupBracketEntry: clientApiMocks.getEntry,
+  getEntryStatus: (entry: { isLocked?: boolean; isComplete?: boolean; correctPicks?: number; totalScore?: number }) =>
+    entry.isLocked ? "locked" : entry.isComplete ? "complete" : (entry.correctPicks ?? 0) > 0 || (entry.totalScore ?? 0) > 0 ? "in_progress" : "not_started",
+  listWorldCupBracketEntries: clientApiMocks.listEntries,
+  renameWorldCupBracketEntry: clientApiMocks.renameEntry,
+  saveWorldCupBracketEntryPick: clientApiMocks.savePick,
 }))
 
 function mockSettingsPayload(overrides: Partial<Record<string, unknown>> = {}) {
@@ -223,6 +272,182 @@ describe("World Cup mobile polish — matchup card & guided picker", () => {
     expect(screen.getByTestId("world-cup-guided-close")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Pick Brazil to win/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Pick France to win/i })).toBeInTheDocument()
+  })
+})
+
+function makeShellEntry(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "entry-1",
+    challengeId: "c1",
+    participantId: "participant-1",
+    userId: "user-1",
+    name: "Bracket 1",
+    championTeamId: null,
+    championTeamName: null,
+    totalScore: 0,
+    maxPossibleScore: 0,
+    correctPicks: 0,
+    incorrectPicks: 0,
+    rank: null,
+    roundBreakdown: {},
+    isComplete: false,
+    isLocked: false,
+    submittedAt: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  }
+}
+
+function makeShellMatch(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "m1",
+    apiFixtureId: null,
+    round: "round_of_32" as const,
+    roundIndex: 1,
+    matchNumber: 1,
+    homeSlotKey: "A1",
+    awaySlotKey: "B2",
+    homeTeamId: "demo_team_brazil",
+    awayTeamId: "demo_team_argentina",
+    homeTeamName: "Brazil",
+    awayTeamName: "Argentina",
+    homeTeamLogo: "https://flagcdn.com/w80/br.png",
+    awayTeamLogo: "https://flagcdn.com/w80/ar.png",
+    homeScore: null,
+    awayScore: null,
+    homePenaltyScore: null,
+    awayPenaltyScore: null,
+    status: "scheduled" as const,
+    startsAt: "2099-07-01T18:00:00.000Z",
+    winnerTeamId: null,
+    winnerTeamName: null,
+    nextMatchId: null,
+    nextMatchSlot: null,
+    elapsedMinute: null,
+    injuryTime: null,
+    period: null,
+    venueName: "MetLife Stadium",
+    venueCity: "East Rutherford",
+    apiStatusShort: "TEST",
+    lastScoreSyncedAt: null,
+    ...overrides,
+  }
+}
+
+function makeShellView(overrides: Record<string, unknown> = {}) {
+  const entry = makeShellEntry()
+  return {
+    challenge: {
+      id: "c1",
+      name: "Cup",
+      ownerUserId: "user-1",
+      seasonYear: 2026,
+      inviteCode: "INVITE",
+      inviteUrl: null,
+      visibility: "private" as const,
+      pickLockStrategy: "tournament_start" as const,
+      pickLockAt: null,
+      maxParticipants: 100,
+      maxEntriesPerParticipant: 5,
+      effectivePickLockAt: "2099-07-01T18:00:00.000Z",
+      status: "open",
+      includeThirdPlace: false,
+      isTestMode: true,
+      simulationEnabled: false,
+      simulatedAt: null,
+      simulationStatus: null,
+      hasSimulatedResults: false,
+      lastSyncedAt: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    },
+    scoring: {
+      roundOf32Points: 10,
+      roundOf16Points: 20,
+      quarterFinalPoints: 40,
+      semiFinalPoints: 80,
+      finalPoints: 160,
+      championBonusPoints: 320,
+      thirdPlacePoints: 4,
+    },
+    slots: [],
+    matches: [makeShellMatch()],
+    participant: {
+      id: "participant-1",
+      userId: "user-1",
+      displayName: "Owner",
+      joinedAt: "2026-01-01T00:00:00.000Z",
+      totalScore: 0,
+      maxPossibleScore: 0,
+      championPickTeamId: null,
+      championPickName: null,
+      correctPicks: 0,
+      rank: null,
+    },
+    activeEntry: { id: entry.id, name: entry.name },
+    entries: [{ id: entry.id, name: entry.name, createdAt: entry.createdAt, totalScore: 0, rank: null, isComplete: false }],
+    picks: [],
+    leaderboard: [],
+    isOwner: true,
+    isAdmin: false,
+    hasBracketBrainAi: true,
+    ...overrides,
+  }
+}
+
+describe("WorldCupBracketShell fixture readiness", () => {
+  beforeEach(() => {
+    clientApiMocks.listEntries.mockReset()
+    clientApiMocks.getEntry.mockReset()
+    clientApiMocks.adminLoadTestFixtures.mockReset()
+    clientApiMocks.listEntries.mockResolvedValue([makeShellEntry()])
+    clientApiMocks.getEntry.mockResolvedValue({ ...makeShellEntry(), picks: [] })
+    clientApiMocks.adminLoadTestFixtures.mockResolvedValue({
+      ok: true,
+      result: {
+        success: true,
+        teamsCreated: 32,
+        teamsUpdated: 0,
+        matchesUpdated: 16,
+        pickableMatchesAfter: 16,
+        totalMatchesAfter: 31,
+        unresolvedMatchesAfter: 15,
+        warnings: [],
+      },
+    })
+    vi.stubGlobal("fetch", vi.fn())
+  })
+
+  it("shows Seed Test Fixtures CTA for commissioner/admin when fixtures are missing", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(
+      <WorldCupBracketShell
+        initialView={makeShellView({
+          matches: [],
+          hasBracketBrainAi: true,
+        }) as any}
+      />
+    )
+
+    await waitFor(() => expect(clientApiMocks.listEntries).toHaveBeenCalled())
+    expect(screen.getAllByRole("button", { name: /Seed Test Fixtures/i }).length).toBeGreaterThan(0)
+  })
+
+  it("shows seeded matchups, enables guided picker, and renders Bracket Brain panel", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} />)
+
+    await waitFor(() => expect(screen.getAllByRole("button", { name: /Start Making Picks/i })[0]).toBeEnabled())
+    expect(screen.getByAltText("Brazil flag")).toBeInTheDocument()
+    expect(screen.getAllByText("Brazil").length).toBeGreaterThan(0)
+    expect(screen.queryByText("Fixtures Not Ready")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Start Making Picks/i })[0])
+
+    expect(await screen.findByTestId("world-cup-guided-close")).toBeInTheDocument()
+    expect(screen.getByTestId("wc-intel-stub")).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: /Pick Brazil to win/i }).length).toBeGreaterThan(0)
   })
 })
 

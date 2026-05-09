@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
 import type { AccentTone } from '@/lib/create-league-v2/theme'
 import type { CreateLeagueV2State } from '@/lib/create-league-v2/state'
@@ -18,6 +19,7 @@ import type { SupportedSport } from '@/lib/create-league-v2/state'
 import { GlassCard, SelectableCard, SectionHeader } from '@/components/create-league-v2/primitives'
 import { LEAGUE_TYPE_MEDIA } from '@/lib/create-league-v2/theme'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { getClientLeagueCreateOptionsCatalog } from '@/lib/create-league-v2/options-catalog-client'
 
 export type LeagueConceptCard = {
   id: LeagueTypeId | 'idp'
@@ -41,6 +43,11 @@ export const LEAGUE_CONCEPT_CARDS: LeagueConceptCard[] = [
   { id: 'tournament', title: 'Tournament', subtitle: 'Multi-league elimination event', icon: '⚔' },
   { id: 'big_brother', title: 'Big Brother', subtitle: 'Weekly nominations', icon: '◎' },
 ]
+
+const LEAGUE_CONCEPT_ICONS: Record<string, string> = LEAGUE_CONCEPT_CARDS.reduce<Record<string, string>>((acc, card) => {
+  acc[card.id] = card.icon
+  return acc
+}, {})
 
 function localizedConceptCard(
   t: (key: string) => string,
@@ -74,6 +81,23 @@ export function ConceptSelector({
 }) {
   const { t } = useLanguage()
   const effectiveType = getEffectiveLeagueType(state)
+  const conceptCards = useMemo(() => {
+    const catalog = getClientLeagueCreateOptionsCatalog()
+    if (!catalog?.concepts?.length) {
+      return LEAGUE_CONCEPT_CARDS
+    }
+
+    const cards = catalog.concepts
+      .filter((concept) => Boolean(LEAGUE_CONCEPT_ICONS[concept.id]))
+      .map((concept) => ({
+        id: concept.id as LeagueConceptCard['id'],
+        title: concept.title,
+        subtitle: concept.subtitle,
+        icon: LEAGUE_CONCEPT_ICONS[concept.id] ?? '◆',
+      }))
+
+    return cards.length > 0 ? cards : LEAGUE_CONCEPT_CARDS
+  }, [])
 
   function handleLeagueTypeSelect(card: LeagueConceptCard) {
     const patch: Partial<CreateLeagueV2State> = {}
@@ -125,7 +149,7 @@ export function ConceptSelector({
         hint={t('createLeague.section.conceptHint')}
       />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {LEAGUE_CONCEPT_CARDS.map((card) => {
+        {conceptCards.map((card) => {
           const copy = localizedConceptCard(t, card)
           return (
             <SelectableCard

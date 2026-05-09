@@ -12,6 +12,7 @@ export default function WorldCupBracketCreateModal() {
   const [visibility, setVisibility] = useState<"private" | "public">("private")
   const [lockStrategy, setLockStrategy] = useState<"per_match" | "tournament_start">("tournament_start")
   const [includeThirdPlace, setIncludeThirdPlace] = useState(false)
+  const [seedTestFixtures, setSeedTestFixtures] = useState(false)
   const [maxUsers, setMaxUsers] = useState(MAX_USERS)
   const [maxEntries, setMaxEntries] = useState(MAX_ENTRIES)
   const [loading, setLoading] = useState(false)
@@ -43,6 +44,8 @@ export default function WorldCupBracketCreateModal() {
           includeThirdPlace,
           maxParticipants: maxUsers,
           maxEntriesPerParticipant: maxEntries,
+          isTestMode: seedTestFixtures,
+          seedTestFixtures,
         }),
       })
 
@@ -66,7 +69,7 @@ export default function WorldCupBracketCreateModal() {
       }
 
       setStatus("opening")
-      router.push(`/brackets/world-cup/${createdId}`)
+      router.push(`/brackets/world-cup/${createdId}${seedTestFixtures ? "?guided=1" : ""}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create bracket")
       setStatus("idle")
@@ -248,6 +251,21 @@ export default function WorldCupBracketCreateModal() {
                 className="h-4 w-4 rounded"
               />
               Include third-place match
+            </label>
+
+            <label className="flex items-start gap-3 rounded-lg border border-amber-300/20 bg-amber-500/[0.06] p-3 text-sm font-bold text-amber-100">
+              <input
+                type="checkbox"
+                checked={seedTestFixtures}
+                onChange={(e) => setSeedTestFixtures(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded"
+              />
+              <span>
+                <span className="block">Seed Test Fixtures</span>
+                <span className="mt-0.5 block text-[11px] font-medium leading-5 text-amber-100/70">
+                  Adds mock Round of 32 teams, flags, kickoff times, and venues so this league is pickable immediately.
+                </span>
+              </span>
             </label>
 
             {status === "opening" && !error && (

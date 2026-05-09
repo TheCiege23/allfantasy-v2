@@ -16,6 +16,7 @@ import {
   KeeperAdvancedSettings,
   BestBallAdvancedSettings,
 } from '@/components/create-league'
+import { GlassCard, SectionHeader, Segmented } from '@/components/create-league-v2/primitives'
 
 export function CreateLeagueUnifiedForm({
   state,
@@ -58,6 +59,23 @@ export function CreateLeagueUnifiedForm({
 
   return (
     <div className="space-y-5">
+      <GlassCard>
+        <SectionHeader
+          title="Creation Mode"
+          hint="Quick uses tuned defaults. Advanced unlocks detailed setup options."
+        />
+        <Segmented
+          options={[
+            { value: 'quick', label: 'Quick', hint: 'Fast setup with defaults' },
+            { value: 'advanced', label: 'Advanced', hint: 'Configure league details now' },
+          ]}
+          value={state.creationMode}
+          onChange={(creationMode) => onChange({ creationMode })}
+          accent={accent}
+          ariaLabel="Creation mode"
+        />
+      </GlassCard>
+
       <ConceptSelector
         state={state}
         accent={accent}
@@ -96,7 +114,7 @@ export function CreateLeagueUnifiedForm({
         />
       </section>
 
-      {isDynastyConcept(effectiveType) && (
+      {state.creationMode === 'advanced' && isDynastyConcept(effectiveType) && (
         <DynastyAdvancedSettings
           state={state}
           accent={accent}
@@ -104,7 +122,7 @@ export function CreateLeagueUnifiedForm({
         />
       )}
 
-      {effectiveType === 'keeper' && (
+      {state.creationMode === 'advanced' && effectiveType === 'keeper' && (
         <KeeperAdvancedSettings
           state={state}
           accent={accent}
@@ -112,7 +130,7 @@ export function CreateLeagueUnifiedForm({
         />
       )}
 
-      {effectiveType === 'best_ball' && (
+      {state.creationMode === 'advanced' && effectiveType === 'best_ball' && (
         <BestBallAdvancedSettings
           state={state}
           accent={accent}

@@ -70,6 +70,7 @@ function leagueModeColumns(formatId: LeagueFormatId): Partial<Prisma.LeagueUnche
 export type CanonicalCreateTransactionResult = {
   leagueId: string
   homepageUrl: string
+  inviteUrl: string
 }
 
 export async function createCanonicalLeagueInTransaction(
@@ -138,9 +139,24 @@ export async function createCanonicalLeagueInTransaction(
       notes: '',
     },
     best_ball_settings: bestBallSettings ?? undefined,
+    league_finder_rank_window: {
+      creatorRankLevel,
+      minRankLevel,
+      maxRankLevel,
+    },
   }
 
   log?.('canonical_transaction_start', { appUserId, sport, formatId })
+
+  const userProfile = await tx.userProfile.findUnique({
+    where: { userId: appUserId },
+    select: { displayName: true, xpLevel: true, legacyCareerLevel: true },
+  })
+  const displayName = userProfile?.displayName ?? 'User'
+  const creatorRankLevelRaw = Number(userProfile?.xpLevel ?? userProfile?.legacyCareerLevel ?? 1)
+  const creatorRankLevel = Number.isFinite(creatorRankLevelRaw) ? Math.max(1, Math.floor(creatorRankLevelRaw)) : 1
+  const minRankLevel = Math.max(1, creatorRankLevel - 3)
+  const maxRankLevel = creatorRankLevel + 3
 
   const keeperBootstrap =
     formatId === 'keeper'
@@ -417,12 +433,6 @@ export async function createCanonicalLeagueInTransaction(
     },
   })
 
-  const userProfile = await tx.userProfile.findUnique({
-    where: { userId: appUserId },
-    select: { displayName: true },
-  })
-  const displayName = userProfile?.displayName ?? 'User'
-
   await tx.leagueTeam.create({
     data: {
       leagueId: league.id,
@@ -539,6 +549,68 @@ export async function createCanonicalLeagueInTransaction(
     })
   }
 
+  const invite = await tx.leagueInvite.create({
+    data: {
+      leagueId: league.id,
+      createdBy: appUserId,
+      maxUses: 50,
+      isActive: true,
+    },
+  })
+  const inviteUrl = `/join/${invite.token}`
+
+  const shouldPublishFinderListing =
+    bestBallSettings?.visibility === 'public' ||
+    ((body.conceptSetup ?? {}) as Record<string, unknown>).visibility === 'public' ||
+    ((body.conceptSetup ?? {}) as Record<string, unknown>).isPublic === true
+
+  if (shouldPublishFinderListing) {
+    await tx.findLeagueListing.upsert({
+      where: {
+        leagueId_rosterId: {
+          leagueId: league.id,
+          rosterId: roster.id,
+        },
+      },
+      create: {
+        leagueId: league.id,
+        rosterId: roster.id,
+        sport,
+        isActive: true,
+        headline: `${body.leagueName.trim()} | Rank ${minRankLevel}-${maxRankLevel}`,
+        body: JSON.stringify({
+          creatorRankLevel,
+          minRankLevel,
+          maxRankLevel,
+          concept: formatId,
+          teamCount: body.teamCount,
+          draftType: body.draftType,
+          scoringPreset: body.scoringPreset,
+          timezone: body.timezone ?? 'America/New_York',
+          language: body.language ?? 'en',
+          inviteUrl,
+        }),
+      },
+      update: {
+        sport,
+        isActive: true,
+        headline: `${body.leagueName.trim()} | Rank ${minRankLevel}-${maxRankLevel}`,
+        body: JSON.stringify({
+          creatorRankLevel,
+          minRankLevel,
+          maxRankLevel,
+          concept: formatId,
+          teamCount: body.teamCount,
+          draftType: body.draftType,
+          scoringPreset: body.scoringPreset,
+          timezone: body.timezone ?? 'America/New_York',
+          language: body.language ?? 'en',
+          inviteUrl,
+        }),
+      },
+    })
+  }
+
   const zombieTier =
     formatId === 'zombie' && body.conceptSetup && typeof body.conceptSetup === 'object'
       ? (body.conceptSetup.universe === 'MULTI_TIER' ? 'beta_trio' : 'single_gamma')
@@ -553,5 +625,5 @@ export async function createCanonicalLeagueInTransaction(
 
   log?.('canonical_transaction_success', { leagueId: league.id })
 
-  return { leagueId: league.id, homepageUrl }
+  return { leagueId: league.id, homepageUrl, inviteUrl }
 }

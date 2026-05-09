@@ -158,6 +158,33 @@ function mergeEntryScoresFromView(
   })
 }
 
+function entryClientsFromInitialView(view: WorldCupChallengeView): WorldCupBracketEntryClient[] {
+  const leaderboardByEntry = new Map(view.leaderboard.map((row) => [row.entryId, row]))
+  return view.entries.map((entry) => {
+    const leaderboard = leaderboardByEntry.get(entry.id)
+    return {
+      id: entry.id,
+      challengeId: view.challenge.id,
+      participantId: leaderboard?.participantId ?? view.participant?.id ?? "",
+      userId: leaderboard?.userId ?? view.participant?.userId ?? "",
+      name: entry.name,
+      championTeamId: leaderboard?.championTeamId ?? null,
+      championTeamName: leaderboard?.championPickName ?? null,
+      totalScore: leaderboard?.totalScore ?? entry.totalScore ?? 0,
+      maxPossibleScore: leaderboard?.maxPossibleScore ?? 0,
+      correctPicks: leaderboard?.correctPicks ?? 0,
+      incorrectPicks: leaderboard?.incorrectPicks ?? 0,
+      rank: leaderboard?.rank ?? entry.rank ?? null,
+      roundBreakdown: leaderboard?.roundBreakdown ?? {},
+      isComplete: entry.isComplete,
+      isLocked: false,
+      submittedAt: null,
+      createdAt: entry.createdAt,
+      updatedAt: leaderboard?.updatedAt ?? entry.createdAt,
+    }
+  })
+}
+
 export default function WorldCupBracketShell({
   initialView,
   challenge,
@@ -175,6 +202,14 @@ export default function WorldCupBracketShell({
 }) {
   const router = useRouter()
   const normalizedInitialView = normalizeWorldCupView(initialView ?? challenge)
+  const initialEntries = entryClientsFromInitialView(normalizedInitialView)
+  const initialSelectedEntryId =
+    initialEntryId && initialEntries.some((entry) => entry.id === initialEntryId)
+      ? initialEntryId
+      : normalizedInitialView.activeEntry?.id &&
+          initialEntries.some((entry) => entry.id === normalizedInitialView.activeEntry?.id)
+        ? normalizedInitialView.activeEntry.id
+        : initialEntries[0]?.id ?? null
   const [view, setView] = useState(normalizedInitialView)
   const [tab, setTab] = useState<Tab>(() => {
     if (
@@ -192,16 +227,34 @@ export default function WorldCupBracketShell({
   const [lockNow, setLockNow] = useState(() => new Date())
 
   // ── Entry state ──────────────────────────────────────────────────────────
-  const [entries, setEntries] = useState<WorldCupBracketEntryClient[]>([])
+  const [entries, setEntries] = useState<WorldCupBracketEntryClient[]>(initialEntries)
   const [entriesLoaded, setEntriesLoaded] = useState(false)
   const [isEntriesLoading, setIsEntriesLoading] = useState(false)
   const [isCreatingEntry, setIsCreatingEntry] = useState(false)
   const [isMutatingEntry, setIsMutatingEntry] = useState(false)
-  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(initialSelectedEntryId)
 
   // Picks per-entry: keyed by entryId → array of picks
-  const [entryPicks, setEntryPicks] = useState<Record<string, WorldCupPickView[]>>({})
-  const [loadedEntryPickIds, setLoadedEntryPickIds] = useState<Set<string>>(() => new Set())
+  const [entryPicks, setEntryPicks] = useState<Record<string, WorldCupPickView[]>>(() => {
+    if (
+      initialSelectedEntryId &&
+      normalizedInitialView.activeEntry?.id === initialSelectedEntryId &&
+      normalizedInitialView.picks.length > 0
+    ) {
+      return { [initialSelectedEntryId]: normalizedInitialView.picks }
+    }
+    return {}
+  })
+  const [loadedEntryPickIds, setLoadedEntryPickIds] = useState<Set<string>>(
+    () =>
+      new Set(
+        initialSelectedEntryId &&
+          normalizedInitialView.activeEntry?.id === initialSelectedEntryId &&
+          normalizedInitialView.picks.length > 0
+          ? [initialSelectedEntryId]
+          : []
+      )
+  )
 
   // ── Guided picker state ──────────────────────────────────────────────────
   const [isGuidedPickerOpen, setIsGuidedPickerOpen] = useState(false)
@@ -902,7 +955,7 @@ export default function WorldCupBracketShell({
 
   const handleLoadTestFixtures = useCallback(async () => {
     const confirmed = window.confirm(
-      "Load demo teams into Round of 32 matches? This will populate 16 first-round matches with test teams so picks can be tested.\n\nExisting picks will not be deleted."
+      "Seed demo teams into Round of 32 matches? This will populate 16 first-round matches with test teams so picks can be tested.\n\nExisting picks will not be deleted."
     )
     if (!confirmed) return
 
@@ -912,15 +965,15 @@ export default function WorldCupBracketShell({
         dryRun: simulationDryRun,
       })
       const data = response.result
-      const modeLabel = simulationDryRun ? "Dry run" : "Test fixtures loaded"
+      const modeLabel = simulationDryRun ? "Dry run" : "Test fixtures seeded"
       const msg = `${modeLabel}: ${data.matchesUpdated} matches updated, ${data.pickableMatchesAfter} pickable, ${data.unresolvedMatchesAfter} unresolved`
       setSimulationResult(msg)
       if (!simulationDryRun) {
         await refreshChallengeView()
       }
-      toast.success(simulationDryRun ? "Load Test Fixtures dry run complete" : "Test fixtures loaded successfully")
+      toast.success(simulationDryRun ? "Seed Test Fixtures dry run complete" : "Test fixtures seeded successfully")
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load test fixtures")
+      toast.error(err instanceof Error ? err.message : "Failed to seed test fixtures")
     } finally {
       setIsLoadingTestFixtures(false)
     }
@@ -972,6 +1025,10 @@ export default function WorldCupBracketShell({
           : remainingPicks > 0
             ? "Continue Guided Picks"
             : "Review Guided Picks"
+  const showSeedTestFixturesCta =
+    !isLocked &&
+    (view.isOwner || view.isAdmin) &&
+    (guidedPicksState === "fixtures_not_synced" || guidedPicksState === "fixtures_not_ready")
 
   useEffect(() => {
     if (!initialGuidedOpen || guidedAutoOpenedRef.current) return
@@ -1429,7 +1486,19 @@ export default function WorldCupBracketShell({
 
           {!isLocked && guidedPicksState === "fixtures_not_synced" && (
             <div className="px-4 pb-3 text-center text-[11px] text-white/50">
-              Picks open after World Cup fixtures are synced for this challenge.
+              <p>Picks open after World Cup fixtures are synced or test fixtures are seeded for this challenge.</p>
+              {showSeedTestFixturesCta && (
+                <div className="mt-2 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => void handleLoadTestFixtures()}
+                    disabled={isLoadingTestFixtures || isSimulating}
+                    className="rounded-lg border border-amber-400/60 bg-amber-900/40 px-4 py-2 text-[12px] font-bold text-amber-100 hover:bg-amber-900/60 disabled:opacity-50"
+                  >
+                    {isLoadingTestFixtures ? "Seeding..." : "Seed Test Fixtures"}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -1438,7 +1507,7 @@ export default function WorldCupBracketShell({
               <p className="mb-2 text-center">
                 Fixtures are loaded, but team matchups are not resolved yet. Run Sync Fixtures or use simulation/test data before making picks.
               </p>
-              {(view.isOwner || view.isAdmin) && (
+              {showSeedTestFixturesCta && (
                 <div className="flex justify-center">
                   <button
                     type="button"
@@ -1446,7 +1515,7 @@ export default function WorldCupBracketShell({
                     disabled={isLoadingTestFixtures || isSimulating}
                     className="rounded-lg border border-amber-400/60 bg-amber-900/40 px-4 py-2 text-[12px] font-bold text-amber-100 hover:bg-amber-900/60 disabled:opacity-50"
                   >
-                    {isLoadingTestFixtures ? "Loading..." : "↓ Load Test Fixtures"}
+                    {isLoadingTestFixtures ? "Seeding..." : "Seed Test Fixtures"}
                   </button>
                 </div>
               )}
@@ -1645,7 +1714,7 @@ export default function WorldCupBracketShell({
                   title="Adds demo teams to unresolved Round of 32 matches so picks and simulation can be tested before real World Cup fixtures are synced."
                   className="rounded-lg border border-amber-400/50 bg-amber-900/30 px-3 py-1.5 text-[11px] font-bold text-amber-100 hover:bg-amber-900/50 disabled:opacity-50"
                 >
-                  {isLoadingTestFixtures ? "Loading..." : "Load Test Fixtures"}
+                  {isLoadingTestFixtures ? "Seeding..." : "Seed Test Fixtures"}
                 </button>
               </div>
               <p className="mb-3 text-[11px] text-amber-100/80">
@@ -1875,14 +1944,14 @@ export default function WorldCupBracketShell({
                   )}
 
                   <div className="flex flex-wrap items-center gap-2">
-                    {guidedPicksState === "fixtures_not_ready" && (view.isOwner || view.isAdmin) ? (
+                    {showSeedTestFixturesCta ? (
                       <button
                         type="button"
                         onClick={() => void handleLoadTestFixtures()}
                         disabled={isLoadingTestFixtures || isSimulating}
                         className="rounded-lg border border-amber-400/60 bg-amber-900/40 px-3 py-2 text-[11px] font-bold text-amber-100 hover:bg-amber-900/60 disabled:opacity-50"
                       >
-                        {isLoadingTestFixtures ? "Loading..." : "↓ Load Test Fixtures"}
+                        {isLoadingTestFixtures ? "Seeding..." : "Seed Test Fixtures"}
                       </button>
                     ) : null}
                     {(view.isOwner || view.isAdmin) ? (

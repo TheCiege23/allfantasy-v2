@@ -19,11 +19,18 @@ import {
 import { getCreateLeagueDraftTypes } from '@/lib/league/format-engine'
 import { getGuillotineSportConfig } from '@/lib/guillotine/sportConfig'
 import { BEST_BALL_DRAFT_MODES } from '@/lib/bestball/rules'
+import { getClientLeagueCreateOptionsCatalog } from '@/lib/create-league-v2/options-catalog-client'
 
 // ── Sport filtering ─────────────────────────────────────────────────
 
 /** Which sports are allowed for a given league type? */
 export function getAllowedSportsForType(leagueType: LeagueTypeId): SupportedSport[] {
+  const catalog = getClientLeagueCreateOptionsCatalog()
+  const seeded = catalog?.allowedSportsByConcept?.[leagueType]
+  if (Array.isArray(seeded) && seeded.length > 0) {
+    return seeded.filter((s) => (SUPPORTED_SPORTS as readonly string[]).includes(s)) as SupportedSport[]
+  }
+
   // IDP availability is controlled by sport-scope (NFL + NCAAF today).
   const allowed = getAllowedSportsForLeagueType(leagueType)
   return allowed.filter((s) => (SUPPORTED_SPORTS as readonly string[]).includes(s)) as SupportedSport[]
@@ -98,6 +105,12 @@ export function getTeamCountOptions(
   leagueType: LeagueTypeId,
   soccerPipeline?: 'mls' | 'euro' | null
 ): number[] {
+  const catalog = getClientLeagueCreateOptionsCatalog()
+  const seeded = catalog?.teamCountOptionsByConceptSport?.[leagueType]?.[sport]
+  if (Array.isArray(seeded) && seeded.length > 0) {
+    return [...seeded]
+  }
+
   if (leagueType === 'tournament') {
     return [...TOURNAMENT_POOL_SIZES]
   }
@@ -154,9 +167,11 @@ export interface DraftTypeOption {
 
 /** Draft types to show in the create-league wizard for a given league type + sport. */
 export function getDraftTypeOptions(leagueType: LeagueTypeId, sport: SupportedSport = 'NFL'): DraftTypeOption[] {
-  // Use the create-league-specific list: snake-only for standard formats,
-  // full variant lists for devy/c2c/salary_cap.
-  const allowed = getCreateLeagueDraftTypes(sport, leagueType)
+  const catalog = getClientLeagueCreateOptionsCatalog()
+  const seeded = catalog?.allowedDraftTypesByConcept?.[leagueType]
+
+  // Use DB-seeded options first; fallback to format-engine allowlists when seed data is unavailable.
+  const allowed = Array.isArray(seeded) && seeded.length > 0 ? seeded : getCreateLeagueDraftTypes(sport, leagueType)
   const result: DraftTypeOption[] = []
 
   for (const dt of allowed) {

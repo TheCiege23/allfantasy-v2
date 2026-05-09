@@ -20,6 +20,11 @@ const createWorldCupChallengeSchema = z.object({
   maxUsers: z.coerce.number().int().min(2).max(100).optional(),
   maxEntriesPerParticipant: z.coerce.number().int().min(1).max(5).optional(),
   bracketsPerUser: z.coerce.number().int().min(1).max(5).optional(),
+  isTestMode: z.boolean().optional(),
+  simulationEnabled: z.boolean().optional(),
+  seedTestFixtures: z.boolean().optional(),
+  loadTestFixtures: z.boolean().optional(),
+  useTestFixtures: z.boolean().optional(),
   scoring: z
     .object({
       roundOf32Points: z.number().int().min(0).optional(),
@@ -71,6 +76,9 @@ export async function POST(request: Request) {
     maxUsers: body?.maxUsers ?? null,
     maxEntriesPerParticipant: body?.maxEntriesPerParticipant ?? null,
     bracketsPerUser: body?.bracketsPerUser ?? null,
+    isTestMode: body?.isTestMode ?? null,
+    simulationEnabled: body?.simulationEnabled ?? null,
+    seedTestFixtures: body?.seedTestFixtures ?? body?.loadTestFixtures ?? body?.useTestFixtures ?? null,
     hasScoring: Boolean(body?.scoring),
   })
 
@@ -92,6 +100,15 @@ export async function POST(request: Request) {
     includeThirdPlace: parsed.data.includeThirdPlace ?? parsed.data.includeThirdPlaceMatch ?? false,
     maxParticipants: parsed.data.maxParticipants ?? parsed.data.maxUsers ?? 100,
     maxEntriesPerParticipant: parsed.data.maxEntriesPerParticipant ?? parsed.data.bracketsPerUser ?? 5,
+    isTestMode: parsed.data.isTestMode ?? parsed.data.seedTestFixtures ?? parsed.data.loadTestFixtures ?? parsed.data.useTestFixtures ?? false,
+    simulationEnabled: parsed.data.simulationEnabled ?? false,
+    seedTestFixtures:
+      parsed.data.seedTestFixtures ??
+      parsed.data.loadTestFixtures ??
+      parsed.data.useTestFixtures ??
+      parsed.data.isTestMode ??
+      parsed.data.simulationEnabled ??
+      false,
     scoring: parsed.data.scoring,
   } as const
 
@@ -104,6 +121,9 @@ export async function POST(request: Request) {
     includeThirdPlace: normalized.includeThirdPlace,
     maxParticipants: normalized.maxParticipants,
     maxEntriesPerParticipant: normalized.maxEntriesPerParticipant,
+    isTestMode: normalized.isTestMode,
+    simulationEnabled: normalized.simulationEnabled,
+    seedTestFixtures: normalized.seedTestFixtures,
     hasScoring: Boolean(normalized.scoring),
   })
 

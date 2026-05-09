@@ -38,6 +38,11 @@ const createWorldCupChallengeSchema = z.object({
   pickLockStrategy: z.enum(["per_match", "tournament_start"]).default("tournament_start"),
   pickLockAt: z.string().datetime().nullable().optional(),
   includeThirdPlace: z.boolean().optional(),
+  isTestMode: z.boolean().optional(),
+  simulationEnabled: z.boolean().optional(),
+  seedTestFixtures: z.boolean().optional(),
+  loadTestFixtures: z.boolean().optional(),
+  useTestFixtures: z.boolean().optional(),
   scoring: z
     .object({
       roundOf32Points: z.number().int().min(0).optional(),
@@ -107,6 +112,15 @@ async function createChallenge(request: Request) {
     pickLockStrategy: parsed.data.pickLockStrategy,
     pickLockAt: parsed.data.pickLockAt ? new Date(parsed.data.pickLockAt) : null,
     includeThirdPlace: parsed.data.includeThirdPlace,
+    isTestMode: parsed.data.isTestMode ?? parsed.data.seedTestFixtures ?? parsed.data.loadTestFixtures ?? parsed.data.useTestFixtures ?? false,
+    simulationEnabled: parsed.data.simulationEnabled ?? false,
+    seedTestFixtures:
+      parsed.data.seedTestFixtures ??
+      parsed.data.loadTestFixtures ??
+      parsed.data.useTestFixtures ??
+      parsed.data.isTestMode ??
+      parsed.data.simulationEnabled ??
+      false,
     scoring: parsed.data.scoring,
   })
 

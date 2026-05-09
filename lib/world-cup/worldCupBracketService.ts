@@ -79,6 +79,113 @@ function serializeWorldCupCreateError(error: unknown) {
   }
 }
 
+function shouldSeedWorldCupTestFixturesOnCreate(input: {
+  isTestMode?: boolean
+  simulationEnabled?: boolean
+  seedTestFixtures?: boolean
+}) {
+  return Boolean(
+    input.seedTestFixtures ||
+      input.isTestMode ||
+      input.simulationEnabled ||
+      process.env.WORLD_CUP_SEED_TEST_FIXTURES_ON_CREATE === "true"
+  )
+}
+
+function buildWorldCupCreateSourcePayload(input: {
+  isTestMode: boolean
+  simulationEnabled: boolean
+  seedTestFixtures: boolean
+}): Prisma.JsonObject | undefined {
+  if (!input.isTestMode && !input.simulationEnabled && !input.seedTestFixtures) {
+    return undefined
+  }
+  return {
+    simulation: {
+      isTestMode: input.isTestMode || input.seedTestFixtures,
+      simulationEnabled: input.simulationEnabled,
+      testFixturesOnCreate: input.seedTestFixtures,
+      fixtureTemplate: input.seedTestFixtures ? "mock_round_of_32" : "slot_template",
+    },
+  }
+}
+
+async function createWorldCupBracketTemplateRows(
+  tx: Prisma.TransactionClient,
+  input: {
+    challengeId: string
+    includeThirdPlace?: boolean | null
+    createSlots?: boolean
+  }
+) {
+  const template = generateWorldCupBracketTemplate({
+    includeThirdPlace: Boolean(input.includeThirdPlace),
+  })
+  if (input.createSlots !== false) {
+    await tx.worldCupBracketSlot.createMany({
+      data: template.slots.map((s) => ({ challengeId: input.challengeId, ...s })),
+    })
+  }
+
+  const ids = new Map<number, string>()
+  template.matches.forEach((m) => ids.set(m.matchNumber, crypto.randomUUID()))
+  const requireMatchId = (matchNumber: number): string => {
+    const id = ids.get(matchNumber)
+    if (!id) throw new Error(`Missing generated match id for match ${matchNumber}`)
+    return id
+  }
+
+  await tx.worldCupBracketMatch.createMany({
+    data: template.matches.map((m) => ({
+      id: requireMatchId(m.matchNumber),
+      challengeId: input.challengeId,
+      round: m.round,
+      roundIndex: m.roundIndex,
+      matchNumber: m.matchNumber,
+      homeSlotKey: m.homeSlotKey,
+      awaySlotKey: m.awaySlotKey,
+      homeTeamName: m.homeTeamName,
+      awayTeamName: m.awayTeamName,
+      nextMatchId: m.nextMatchNumber ? ids.get(m.nextMatchNumber) ?? null : null,
+      nextMatchSlot: m.nextMatchSlot ?? null,
+    })),
+  })
+
+  return {
+    slotCount: template.slots.length,
+    matchCount: template.matches.length,
+  }
+}
+
+export async function ensureWorldCupBracketFixtureTemplate(challengeId: string) {
+  const challenge = await prisma.worldCupBracketChallenge.findUnique({
+    where: { id: challengeId },
+    select: {
+      id: true,
+      includeThirdPlace: true,
+      _count: { select: { slots: true, matches: true } },
+    },
+  })
+  if (!challenge) throw new Error("Challenge not found")
+  if (challenge._count.matches > 0) {
+    return {
+      created: false,
+      slotCount: challenge._count.slots,
+      matchCount: challenge._count.matches,
+    }
+  }
+
+  const created = await prisma.$transaction(async (tx) =>
+    createWorldCupBracketTemplateRows(tx, {
+      challengeId: challenge.id,
+      includeThirdPlace: challenge.includeThirdPlace,
+      createSlots: challenge._count.slots === 0,
+    })
+  )
+
+  return { created: true, ...created }
+}
+
 export function getWorldCupAppBaseUrl() {
   return (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/$/, "")
 }
@@ -120,6 +227,9 @@ export async function createWorldCupBracketChallenge(input: {
   maxParticipants?: number
   maxEntriesPerParticipant?: number
   scoring?: Partial<typeof DEFAULT_WORLD_CUP_SCORING>
+  isTestMode?: boolean
+  simulationEnabled?: boolean
+  seedTestFixtures?: boolean
 }) {
   if (!input.user.id) throw new Error("Authenticated user required")
   const userId = input.user.id
@@ -129,6 +239,7 @@ export async function createWorldCupBracketChallenge(input: {
   const ownerDisplay = await displayName(input.user)
   const maxParticipants = input.maxParticipants ?? 100
   const maxEntriesPerParticipant = input.maxEntriesPerParticipant ?? 5
+  const seedTestFixtures = shouldSeedWorldCupTestFixturesOnCreate(input)
 
   console.info("[world-cup/create] normalized create data", {
     userId,
@@ -139,6 +250,9 @@ export async function createWorldCupBracketChallenge(input: {
     includeThirdPlace: Boolean(input.includeThirdPlace),
     maxParticipants,
     maxEntriesPerParticipant,
+    isTestMode: Boolean(input.isTestMode),
+    simulationEnabled: Boolean(input.simulationEnabled),
+    seedTestFixtures,
     slotCount: template.slots.length,
     matchCount: template.matches.length,
   })
@@ -167,6 +281,11 @@ export async function createWorldCupBracketChallenge(input: {
           scoringProfileId: scoringProfile.id,
           status: "open",
           includeThirdPlace: Boolean(input.includeThirdPlace),
+          sourcePayload: buildWorldCupCreateSourcePayload({
+            isTestMode: Boolean(input.isTestMode),
+            simulationEnabled: Boolean(input.simulationEnabled),
+            seedTestFixtures,
+          }),
         },
       })
 
@@ -175,30 +294,9 @@ export async function createWorldCupBracketChallenge(input: {
         slotCount: template.slots.length,
         matchCount: template.matches.length,
       })
-      await tx.worldCupBracketSlot.createMany({ data: template.slots.map((s) => ({ challengeId: challenge.id, ...s })) })
-
-      const ids = new Map<number, string>()
-      template.matches.forEach((m) => ids.set(m.matchNumber, crypto.randomUUID()))
-      const requireMatchId = (matchNumber: number): string => {
-        const id = ids.get(matchNumber)
-        if (!id) throw new Error(`Missing generated match id for match ${matchNumber}`)
-        return id
-      }
-
-      await tx.worldCupBracketMatch.createMany({
-        data: template.matches.map((m) => ({
-          id: requireMatchId(m.matchNumber),
-          challengeId: challenge.id,
-          round: m.round,
-          roundIndex: m.roundIndex,
-          matchNumber: m.matchNumber,
-          homeSlotKey: m.homeSlotKey,
-          awaySlotKey: m.awaySlotKey,
-          homeTeamName: m.homeTeamName,
-          awayTeamName: m.awayTeamName,
-          nextMatchId: m.nextMatchNumber ? ids.get(m.nextMatchNumber) ?? null : null,
-          nextMatchSlot: m.nextMatchSlot ?? null,
-        })),
+      await createWorldCupBracketTemplateRows(tx, {
+        challengeId: challenge.id,
+        includeThirdPlace: input.includeThirdPlace,
       })
 
       console.info("[world-cup/create] step before participant create", { challengeId: challenge.id, userId })
@@ -226,6 +324,19 @@ export async function createWorldCupBracketChallenge(input: {
     })
 
     await ensureWorldCupCommissionerSettings(result.challenge.id)
+    let fixtureSeed: { success: boolean; matchesUpdated: number; warnings: string[] } | null = null
+    if (seedTestFixtures) {
+      const { loadWorldCupTestFixtures } = await import("./worldCupSimulationService")
+      fixtureSeed = await loadWorldCupTestFixtures(result.challenge.id, {
+        dryRun: false,
+      })
+      if (!fixtureSeed.success) {
+        console.warn("[world-cup/create] test fixture seed failed", {
+          challengeId: result.challenge.id,
+          warnings: fixtureSeed.warnings,
+        })
+      }
+    }
     emitWorldCupChallengeCreated(result.challenge.id, input.name)
     const firstEntry = await prisma.worldCupBracketEntry.findFirst({
       where: { challengeId: result.challenge.id, userId },
@@ -240,7 +351,14 @@ export async function createWorldCupBracketChallenge(input: {
       )
     }
 
-    return { challengeId: result.challenge.id, participantId: result.participant.id, inviteCode, inviteUrl }
+    return {
+      challengeId: result.challenge.id,
+      participantId: result.participant.id,
+      inviteCode,
+      inviteUrl,
+      fixturesSeeded: Boolean(fixtureSeed?.success && fixtureSeed.matchesUpdated > 0),
+      fixtureSeed,
+    }
   } catch (error) {
     console.error("[world-cup/create] service failed", serializeWorldCupCreateError(error))
     throw error

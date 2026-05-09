@@ -15,6 +15,7 @@ import {
 } from '@/lib/create-league-v2/rules-engine'
 import { GlassCard, SectionHeader, SelectableCard, Segmented } from '@/components/create-league-v2/primitives'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { getClientLeagueCreateOptionsCatalog } from '@/lib/create-league-v2/options-catalog-client'
 
 const SPORT_ICONS: Record<SupportedSport, string> = {
   NFL: '🏈',
@@ -59,10 +60,21 @@ export function SportScoringSelector({
     [effectiveType, state.sport, state.idpSelected],
   )
 
-  const scoringOptions = useMemo(
-    () => (presetCtx ? listScoringPresetOptions(presetCtx) : []),
-    [presetCtx?.leagueType, presetCtx?.sport, presetCtx?.idpSelected],
-  )
+  const scoringOptions = useMemo(() => {
+    if (!presetCtx) return []
+
+    const raw = listScoringPresetOptions(presetCtx)
+    const conceptId = state.idpSelected ? 'idp' : presetCtx.leagueType
+    const catalog = getClientLeagueCreateOptionsCatalog()
+    const allowed = catalog?.allowedScoringPresetsByConceptSport?.[conceptId]?.[presetCtx.sport]
+
+    if (!Array.isArray(allowed) || allowed.length === 0) {
+      return raw
+    }
+
+    const allowedSet = new Set(allowed)
+    return raw.filter((option) => allowedSet.has(option.id))
+  }, [presetCtx?.leagueType, presetCtx?.sport, presetCtx?.idpSelected, state.idpSelected])
 
   const isSoccer = state.sport === 'SOCCER'
 

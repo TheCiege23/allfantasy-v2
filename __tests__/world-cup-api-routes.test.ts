@@ -145,6 +145,8 @@ describe("World Cup API catch-all route", () => {
           includeThirdPlaceMatch: true,
           maxUsers: 64,
           bracketsPerUser: 3,
+          isTestMode: true,
+          seedTestFixtures: true,
         }),
       })
     )
@@ -159,6 +161,8 @@ describe("World Cup API catch-all route", () => {
         includeThirdPlace: true,
         maxParticipants: 64,
         maxEntriesPerParticipant: 3,
+        isTestMode: true,
+        seedTestFixtures: true,
       })
     )
   })

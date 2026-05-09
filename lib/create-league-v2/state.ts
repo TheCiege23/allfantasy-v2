@@ -45,6 +45,7 @@ export type DynastyVisibility = 'public' | 'private'
 export type DynastyMonetization = 'free' | 'paid'
 
 export type CreateLeagueSectionKey = 'concept' | 'sport' | 'teams' | 'draft'
+export type CreateMode = 'quick' | 'advanced'
 
 export type DynastyCommissionerAiToggles = {
   scoringRecommendations: boolean
@@ -133,6 +134,7 @@ function isKeeperSetupValid(k: KeeperSetupState): boolean {
 }
 
 export interface CreateLeagueV2State {
+  creationMode: CreateMode
   /** Null until the user explicitly picks a league concept (concept-first). */
   leagueType: LeagueTypeId | null
   /** IDP is a modifier, not a format. When true, leagueType stays 'redraft' and we pass leagueVariant: 'IDP'. */
@@ -249,6 +251,7 @@ export function getDefaultBestBallSetup(
 }
 
 export const DEFAULT_V2_STATE: CreateLeagueV2State = {
+  creationMode: 'quick',
   leagueType: null,
   idpSelected: false,
   sport: 'NFL',
