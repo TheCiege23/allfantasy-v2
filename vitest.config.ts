@@ -2,9 +2,10 @@ import { defineConfig } from 'vitest/config'
 import path from 'path'
 
 export default defineConfig({
-  esbuild: {
-    jsx: 'automatic',
-    jsxImportSource: 'react',
+  // Vite 8 (rolldown) uses oxc for transforms and can ignore esbuild JSX options.
+  // Configure oxc JSX explicitly so .tsx tests parse correctly.
+  oxc: {
+    jsx: { runtime: 'automatic', importSource: 'react' },
   },
   test: {
     environment: 'jsdom',

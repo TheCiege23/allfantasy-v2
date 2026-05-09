@@ -34,18 +34,14 @@ function renderPanel(props: Partial<React.ComponentProps<typeof QueuePanel>> = {
 }
 
 describe('QueuePanel — Draft button discoverability (Slice C followup)', () => {
-  it('shows the Draft button on the top queue entry even when off-clock (disabled state)', () => {
+  it('does not render Draft button when off-clock', () => {
     renderPanel({ canDraft: false })
-    const btn = screen.getByTestId('draft-queue-draft-button') as HTMLButtonElement
-    expect(btn).toBeTruthy()
-    expect(btn.disabled).toBe(true)
-    expect(btn.title).toMatch(/not on the clock/i)
+    expect(screen.queryByTestId('draft-queue-draft-button')).toBeNull()
   })
 
-  it('clicking the disabled Draft button does not invoke the handler', () => {
+  it('off-clock state never invokes draft handler', () => {
     const { onDraftFromQueue } = renderPanel({ canDraft: false })
-    const btn = screen.getByTestId('draft-queue-draft-button') as HTMLButtonElement
-    fireEvent.click(btn)
+    expect(screen.queryByTestId('draft-queue-draft-button')).toBeNull()
     expect(onDraftFromQueue).not.toHaveBeenCalled()
   })
 
@@ -56,5 +52,25 @@ describe('QueuePanel — Draft button discoverability (Slice C followup)', () =>
     fireEvent.click(btn)
     expect(onDraftFromQueue).toHaveBeenCalledTimes(1)
     expect(onDraftFromQueue.mock.calls[0][0].playerName).toBe('Jahmyr Gibbs')
+  })
+
+  it('renders queue AI overlay chips only when overlays are enabled', () => {
+    const aiOverlaySignals = {
+      'jahmyr gibbs|rb': {
+        badge: 'ai_pick' as const,
+        stackAvailable: true,
+        byeWeekConflict: true,
+      },
+    }
+
+    renderPanel({ canDraft: true, aiOverlaySignals, showAiOverlays: true })
+    expect(screen.getByText('Stack')).toBeTruthy()
+    expect(screen.getByText('Bye conflict')).toBeTruthy()
+
+    renderPanel({ canDraft: true, aiOverlaySignals, showAiOverlays: false })
+    const stackChips = screen.queryAllByText('Stack')
+    const byeConflictChips = screen.queryAllByText('Bye conflict')
+    expect(stackChips).toHaveLength(1)
+    expect(byeConflictChips).toHaveLength(1)
   })
 })
