@@ -84,7 +84,7 @@ describe("world cup simulation admin routes", () => {
       new Request("http://localhost/api/brackets/world-cup/c1/admin/sync-live", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider: "mock" }),
+        body: JSON.stringify({ provider: "mock", useLegacySingleProvider: true }),
       }),
       { params: { challengeId: "c1" } }
     )
@@ -99,6 +99,7 @@ describe("world cup simulation admin routes", () => {
     )
     await expect(res.json()).resolves.toMatchObject({
       ok: true,
+      mode: "legacy_single_provider",
       updated: 1,
       finalMatches: 1,
       recalculated: true,

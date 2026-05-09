@@ -21,7 +21,7 @@ export async function GET(_request: Request, context: { params: { inviteCode: st
   return NextResponse.json({ invite })
 }
 
-export async function POST(_request: Request, context: { params: { inviteCode: string } }) {
+export async function POST(request: Request, context: { params: { inviteCode: string } }) {
   const auth = await requireWorldCupApiUser()
   if (!auth.ok) return auth.response
 
@@ -30,14 +30,23 @@ export async function POST(_request: Request, context: { params: { inviteCode: s
     return NextResponse.json({ error: "Invalid invite code" }, { status: 400 })
   }
 
+  const body = await request.json().catch(() => ({}))
+  const joinPassword =
+    typeof (body as { joinPassword?: unknown }).joinPassword === "string"
+      ? (body as { joinPassword: string }).joinPassword
+      : undefined
+
   try {
     const result = await joinWorldCupChallengeByInvite({
       inviteCode: params.data.inviteCode,
       user: auth.user,
+      joinPassword,
     })
     return NextResponse.json({ ok: true, ...result })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to join bracket"
-    return NextResponse.json({ error: message }, { status: 400 })
+    const lower = message.toLowerCase()
+    const status = lower.includes("invalid join password") ? 401 : 400
+    return NextResponse.json({ error: message }, { status })
   }
 }

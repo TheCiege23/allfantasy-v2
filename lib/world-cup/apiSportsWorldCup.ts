@@ -2,7 +2,28 @@ import "server-only"
 import type { WorldCupMatchStatus, WorldCupRound } from "./types"
 const BASE_URL = "https://v3.football.api-sports.io"
 export type ApiFootballWorldCupTeam = { team: { id: number; name: string; code?: string | null; country?: string | null; logo?: string | null } }
-export type ApiFootballWorldCupFixture = { fixture: { id: number; date?: string | null; status?: { long?: string | null; short?: string | null } | null }; league: { id: number; season: number; round?: string | null }; teams: { home: { id: number; name: string; logo?: string | null; winner?: boolean | null }; away: { id: number; name: string; logo?: string | null; winner?: boolean | null } }; goals?: { home?: number | null; away?: number | null } | null; score?: { fulltime?: { home?: number | null; away?: number | null } | null; penalty?: { home?: number | null; away?: number | null } | null } | null }
+export type ApiFootballWorldCupFixture = {
+  fixture: {
+    id: number
+    date?: string | null
+    status?: {
+      long?: string | null
+      short?: string | null
+      elapsed?: number | null
+      extra?: number | null
+    } | null
+  }
+  league: { id: number; season: number; round?: string | null }
+  teams: {
+    home: { id: number; name: string; logo?: string | null; winner?: boolean | null }
+    away: { id: number; name: string; logo?: string | null; winner?: boolean | null }
+  }
+  goals?: { home?: number | null; away?: number | null } | null
+  score?: {
+    fulltime?: { home?: number | null; away?: number | null } | null
+    penalty?: { home?: number | null; away?: number | null } | null
+  } | null
+}
 export type NormalizedWorldCupFixture = { apiFixtureId: number; round: WorldCupRound | null; date: string | null; status: WorldCupMatchStatus; home: { apiTeamId: number; name: string; logo: string | null }; away: { apiTeamId: number; name: string; logo: string | null }; homeScore: number | null; awayScore: number | null; homePenaltyScore: number | null; awayPenaltyScore: number | null; winnerApiTeamId: number | null; winnerName: string | null; raw: ApiFootballWorldCupFixture }
 type ApiFootballEnvelope<T> = { response?: T[]; errors?: unknown }
 function getWorldCupApiKey() { const key = process.env.API_FOOTBALL_KEY || process.env.APISPORTS_FOOTBALL_KEY || process.env.API_SPORTS_KEY || process.env.RAPIDAPI_KEY; if (!key) throw new Error("API_FOOTBALL_KEY/API_SPORTS_KEY/RAPIDAPI_KEY is not configured"); return key }

@@ -23,17 +23,17 @@ export default function WorldCupBracketBoard({
 	const rounds = WORLD_CUP_ROUNDS.filter((r) => matches.some((m) => m.round === r && (r !== "third_place" || view.challenge.includeThirdPlace)))
 	const { pickLockStrategy, pickLockAt } = view.challenge
 	return (
-		<div className="min-h-full overflow-x-auto px-3 pb-6 pt-3 sm:px-5">
-			<div className="mb-4 flex min-w-max items-center gap-3">
-				<div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-4 py-3">
-					<div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/60">Champion Pick</div>
-					<div className="mt-1 text-lg font-black text-white">{champion?.selectedTeamName ?? "Not picked"}</div>
+		<div className="min-h-full touch-pan-x overflow-x-auto px-3 pb-6 pt-3 [-webkit-overflow-scrolling:touch] sm:px-5">
+			<div className="mb-3 flex min-w-0 flex-col gap-2 sm:mb-4 sm:min-w-max sm:flex-row sm:items-center sm:gap-3">
+				<div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 py-2.5 sm:px-4 sm:py-3">
+					<div className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-100/60 sm:text-[10px]">Champion Pick</div>
+					<div className="mt-0.5 truncate text-base font-black text-white sm:mt-1 sm:text-lg">{champion?.selectedTeamName ?? "Not picked"}</div>
 				</div>
-				<div className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/50">
+				<div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-[11px] leading-snug text-white/50 sm:px-4 sm:py-3 sm:text-xs">
 					Picks advance visually as soon as you choose a winner.
 				</div>
 			</div>
-			<div className="flex min-w-max gap-4">
+			<div className="flex min-w-max gap-3 sm:gap-4">
 				{rounds.map((round) => (
 					<WorldCupRoundColumn
 						key={round}

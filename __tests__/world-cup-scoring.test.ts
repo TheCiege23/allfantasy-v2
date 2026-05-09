@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { normalizeWorldCupFixture } from "@/lib/world-cup/apiSportsWorldCup"
 import { DEFAULT_WORLD_CUP_SCORING } from "@/lib/world-cup/worldCupBracketBuilder"
+import {
+  buildWorldCupRoundBreakdownRows,
+  getWorldCupPossiblePointsRemaining,
+  getWorldCupRankMovement,
+} from "@/lib/world-cup/worldCupLeaderboardService"
 import { buildWorldCupLeaderboardRows, evaluateWorldCupPick, isChampionStillAlive } from "@/lib/world-cup/worldCupScoringService"
 
 describe("World Cup scoring", () => {
@@ -403,5 +408,32 @@ describe("World Cup scoring", () => {
     expect(rows[0].entryId).toBe("locked-entry")
     expect(rows[0].totalScore).toBe(DEFAULT_WORLD_CUP_SCORING.roundOf32Points)
     expect(rows[0].correctPicks).toBe(1)
+  })
+})
+
+describe("worldCupLeaderboardService display helpers", () => {
+  it("computes possible points remaining from max ceiling minus current score", () => {
+    expect(getWorldCupPossiblePointsRemaining(40, 100)).toBe(60)
+    expect(getWorldCupPossiblePointsRemaining(100, 100)).toBe(0)
+  })
+
+  it("classifies rank movement between refreshes", () => {
+    expect(getWorldCupRankMovement(5, 3)).toBe("up")
+    expect(getWorldCupRankMovement(3, 5)).toBe("down")
+    expect(getWorldCupRankMovement(2, 2)).toBe("same")
+    expect(getWorldCupRankMovement(undefined, 1)).toBe("new")
+  })
+
+  it("builds round breakdown rows with earned vs per-correct weights", () => {
+    const rows = buildWorldCupRoundBreakdownRows(
+      { round_of_32: 10, final: 160 },
+      DEFAULT_WORLD_CUP_SCORING,
+      { includeThirdPlace: false }
+    )
+    expect(rows.find((r) => r.round === "round_of_32")?.pointsEarned).toBe(10)
+    expect(rows.find((r) => r.round === "final")?.pointsEarned).toBe(160)
+    expect(rows.find((r) => r.round === "final")?.pointsPerCorrect).toBe(
+      DEFAULT_WORLD_CUP_SCORING.finalPoints
+    )
   })
 })

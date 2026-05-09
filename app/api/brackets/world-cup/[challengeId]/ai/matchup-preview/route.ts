@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
+import { userHasBracketBrainAi } from "@/lib/bracket-brain/bracketBrainAccess"
 import { prisma } from "@/lib/prisma"
-import { openaiChatText } from "@/lib/openai-client"
-import {
-  estimateWorldCupWinProbability,
-  getWorldCupPickRecommendation,
-  getWorldCupUpsetRisk,
-} from "@/lib/world-cup/worldCupAiInsights"
+import { buildWorldCupMatchupIntelligence } from "@/lib/world-cup/worldCupAIService"
 import type { WorldCupAiMatchupPreview, WorldCupAiStrategy, WorldCupMatchView } from "@/lib/world-cup/types"
 import { requireWorldCupApiUser } from "../../../_utils"
 
@@ -39,6 +35,11 @@ export async function POST(
   }
 
   const { matchId, entryId, strategy } = body
+
+  const hasBracketBrainAi = await userHasBracketBrainAi(
+    userResult.user.id,
+    userResult.user.email ?? null
+  )
 
   // Challenge access
   const challenge = await (prisma as any).worldCupBracketChallenge.findUnique({
@@ -121,78 +122,28 @@ export async function POST(
       : null,
   }
 
-  // ── Deterministic analysis ─────────────────────────────────────────────────
-
-  const winProb = estimateWorldCupWinProbability(match)
-  const upsetRisk = getWorldCupUpsetRisk(match)
-  const rec = getWorldCupPickRecommendation(match, strategy as WorldCupAiStrategy)
-
-  const keyFactors = winProb.explanationFactors
-
-  // Build deterministic summary (used as fallback if AI is unavailable)
-  const homePct = Math.round(winProb.homeWinProbability * 100)
-  const awayPct = Math.round(winProb.awayWinProbability * 100)
-  const homeName = match.homeTeamName || match.homeSlotKey
-  const awayName = match.awayTeamName || match.awaySlotKey
-
-  const deterministicSummary =
-    `${rec.recommendedTeamName} recommended (${strategy} strategy). ` +
-    `Win probabilities: ${homeName} ${homePct}% vs ${awayName} ${awayPct}%. ` +
-    `Upset risk: ${upsetRisk}. ${rec.explanation}`
-
-  // ── Optional AI generative summary ────────────────────────────────────────
-
-  let summary = deterministicSummary
-  let generative = false
-
-  const openaiKey = process.env.OPENAI_API_KEY
-  if (openaiKey && match.homeTeamId && match.awayTeamId) {
-    const venue = match.venueName ? ` at ${match.venueName}${match.venueCity ? `, ${match.venueCity}` : ""}` : ""
-    const systemPrompt = `You are a World Cup bracket strategy assistant. Give a concise 2-sentence matchup preview for fantasy bracket picks. Be direct and factual. No caveats about real-time data.`
-    const userMessage =
-      `Match: ${homeName} vs ${awayName}${venue}.\n` +
-      `Win probability: ${homeName} ${homePct}%, ${awayName} ${awayPct}%.\n` +
-      `Upset risk: ${upsetRisk}. Strategy: ${strategy}.\n` +
-      `Key factors: ${keyFactors.join("; ")}.\n` +
-      `Provide a 2-sentence bracket strategy tip. End with the recommended pick: "${rec.recommendedTeamName}".`
-
-    try {
-      const aiResult = await openaiChatText({
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-        temperature: 0.4,
-        maxTokens: 150,
-        skipCache: false,
-      })
-
-      if (aiResult.ok && aiResult.text.trim().length > 20) {
-        summary = aiResult.text.trim()
-        generative = true
-      }
-    } catch {
-      // Fall through to deterministic summary
-    }
-  }
-
-  // ── Build response ─────────────────────────────────────────────────────────
+  const intelligence = await buildWorldCupMatchupIntelligence({
+    match,
+    strategy: strategy as WorldCupAiStrategy,
+    intent: "panel",
+    bracketBrainAiEntitled: hasBracketBrainAi,
+  })
 
   const preview: WorldCupAiMatchupPreview = {
-    matchId,
-    recommendedTeamId: rec.recommendedTeamId,
-    recommendedTeamName: rec.recommendedTeamName,
-    recommendedSide: rec.recommendedSide,
-    homeWinProbability: winProb.homeWinProbability,
-    awayWinProbability: winProb.awayWinProbability,
-    confidence: winProb.confidence,
-    upsetRisk,
-    keyFactors,
-    summary,
-    safePick: rec.safePick,
-    contrarianPick: rec.contrarianPick,
-    projectedScore: null,
-    generative,
+    matchId: intelligence.matchId,
+    recommendedTeamId: intelligence.recommendedTeamId,
+    recommendedTeamName: intelligence.recommendedTeamName,
+    recommendedSide: intelligence.recommendedSide,
+    homeWinProbability: intelligence.homeWinProbability,
+    awayWinProbability: intelligence.awayWinProbability,
+    confidence: intelligence.confidence,
+    upsetRisk: intelligence.upsetRisk,
+    keyFactors: intelligence.keyFactors,
+    summary: intelligence.summary,
+    safePick: intelligence.safePick,
+    contrarianPick: intelligence.contrarianPick,
+    projectedScore: intelligence.projectedScore ?? null,
+    generative: intelligence.generative,
   }
 
   return NextResponse.json({ success: true, preview })

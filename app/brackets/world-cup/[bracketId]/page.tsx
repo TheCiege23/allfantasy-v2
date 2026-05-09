@@ -14,7 +14,7 @@ export default async function WorldCupBracketChallengePage({
   searchParams,
 }: {
   params: { bracketId: string }
-  searchParams?: { tab?: string }
+  searchParams?: { tab?: string; guided?: string; entry?: string }
 }) {
   const session = (await getServerSession(authOptions as any)) as { user?: SessionUser } | null
   const isAdmin = hasWorldCupAdminPageSession()
@@ -28,9 +28,24 @@ export default async function WorldCupBracketChallengePage({
 
   const tab = searchParams?.tab
   const defaultTab =
-    tab === "leaderboard" || tab === "rules" || tab === "invite" || tab === "picks"
+    tab === "leaderboard" ||
+    tab === "rules" ||
+    tab === "invite" ||
+    tab === "picks" ||
+    tab === "settings" ||
+    tab === "commissioner"
       ? tab
       : "picks"
 
-  return <WorldCupBracketShell initialView={view} defaultTab={defaultTab} />
+  const initialGuidedOpen = searchParams?.guided === "1"
+  const initialEntryId = searchParams?.entry?.trim() || null
+
+  return (
+    <WorldCupBracketShell
+      initialView={view}
+      defaultTab={defaultTab}
+      initialGuidedOpen={initialGuidedOpen}
+      initialEntryId={initialEntryId}
+    />
+  )
 }

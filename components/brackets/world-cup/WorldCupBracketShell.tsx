@@ -1,7 +1,8 @@
 "use client"
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
-import { ArrowLeft, ArrowUp, Bot, Check, ChevronLeft, ClipboardList, Loader2, PlayCircle, RefreshCw, Share2, Sparkles, Trophy, Users } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { ArrowLeft, ArrowUp, Bot, Check, ChevronLeft, ClipboardList, Loader2, PlayCircle, RefreshCw, Settings, Share2, Sparkles, Trophy, Users } from "lucide-react"
 import { toast } from "sonner"
 import type { WorldCupAiBuilderProgress, WorldCupAiStrategy, WorldCupChallengeView, WorldCupMatchView, WorldCupPickView } from "@/lib/world-cup/types"
 import { isWorldCupChallengeLocked } from "@/lib/world-cup/worldCupBracketBuilder"
@@ -46,21 +47,36 @@ import {
   buildWorldCupProjectedMatches,
   getOrderedRounds,
 } from "@/lib/world-cup/worldCupProjectedBracket"
-import { getWorldCupPickRecommendation } from "@/lib/world-cup/worldCupAiInsights"
+import { calculateWorldCupBracketHealth, getWorldCupPickRecommendation } from "@/lib/world-cup/worldCupAiInsights"
 import WorldCupBracketBoard from "./WorldCupBracketBoard"
 import WorldCupBracketHealthCard from "./WorldCupBracketHealthCard"
 import WorldCupEntryDashboard from "./WorldCupEntryDashboard"
 import type { GuidedPickPayload } from "./WorldCupGuidedMatchupPicker"
 import WorldCupGuidedMatchupPicker from "./WorldCupGuidedMatchupPicker"
 import WorldCupInvitePanel from "./WorldCupInvitePanel"
+import WorldCupRoundBreakdown from "./WorldCupRoundBreakdown"
+import WorldCupScoreSummary from "./WorldCupScoreSummary"
 import WorldCupLeaderboard from "./WorldCupLeaderboard"
 import WorldCupLeaderboardInsights from "./WorldCupLeaderboardInsights"
 import WorldCupLiveScoreTicker from "./WorldCupLiveScoreTicker"
-type Tab = "picks" | "leaderboard" | "rules" | "invite"
-const TABS: Array<{ id: Tab; label: string; icon: typeof ClipboardList }> = [{ id: "picks", label: "Picks", icon: ClipboardList }, { id: "leaderboard", label: "Leaderboard", icon: Trophy }, { id: "rules", label: "Rules", icon: Users }, { id: "invite", label: "Invite", icon: Share2 }]
+import WorldCupBracketSettingsPanel from "./WorldCupBracketSettingsPanel"
+import WorldCupCommissionerBrainPanel from "./WorldCupCommissionerBrainPanel"
+type Tab = "picks" | "leaderboard" | "rules" | "invite" | "settings" | "commissioner"
+const BASE_TABS: Array<{ id: Tab; label: string; icon: typeof ClipboardList }> = [
+  { id: "picks", label: "Picks", icon: ClipboardList },
+  { id: "leaderboard", label: "Leaderboard", icon: Trophy },
+  { id: "rules", label: "Rules", icon: Users },
+  { id: "invite", label: "Invite", icon: Share2 },
+]
 function normalizeWorldCupView(input: WorldCupChallengeView | (Partial<WorldCupChallengeView> & { id?: string; name?: string }) | undefined): WorldCupChallengeView {
   const raw = input as any
-  if (raw?.challenge) return raw as WorldCupChallengeView
+  if (raw?.challenge) {
+    const v = raw as WorldCupChallengeView
+    return {
+      ...v,
+      hasBracketBrainAi: Boolean(v.hasBracketBrainAi),
+    }
+  }
   return {
     challenge: {
       id: raw?.id ?? "",
@@ -104,6 +120,7 @@ function normalizeWorldCupView(input: WorldCupChallengeView | (Partial<WorldCupC
     leaderboard: raw?.leaderboard ?? [],
     isOwner: Boolean(raw?.isOwner),
     isAdmin: Boolean(raw?.isAdmin),
+    hasBracketBrainAi: Boolean(raw?.hasBracketBrainAi),
   }
 }
 
@@ -141,10 +158,34 @@ function mergeEntryScoresFromView(
   })
 }
 
-export default function WorldCupBracketShell({ initialView, challenge, defaultTab = "picks" }: { initialView?: WorldCupChallengeView; challenge?: WorldCupChallengeView | any; defaultTab?: Tab }) {
+export default function WorldCupBracketShell({
+  initialView,
+  challenge,
+  defaultTab = "picks",
+  initialGuidedOpen = false,
+  initialEntryId = null,
+}: {
+  initialView?: WorldCupChallengeView
+  challenge?: WorldCupChallengeView | any
+  defaultTab?: Tab
+  /** From `?guided=1` after join — opens guided picker once picks are loaded */
+  initialGuidedOpen?: boolean
+  /** From `?entry=` — selects bracket entry after join */
+  initialEntryId?: string | null
+}) {
+  const router = useRouter()
   const normalizedInitialView = normalizeWorldCupView(initialView ?? challenge)
   const [view, setView] = useState(normalizedInitialView)
-  const [tab, setTab] = useState<Tab>(defaultTab)
+  const [tab, setTab] = useState<Tab>(() => {
+    if (
+      (defaultTab === "commissioner" || defaultTab === "settings") &&
+      !normalizedInitialView.isOwner &&
+      !normalizedInitialView.isAdmin
+    ) {
+      return "picks"
+    }
+    return defaultTab
+  })
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error" | "locked">("idle")
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -189,8 +230,27 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
   const [isLoadingTestFixtures, setIsLoadingTestFixtures] = useState(false)
   const aiBuildAbortRef = useRef(false)
   const pageScrollRef = useRef<HTMLDivElement | null>(null)
+  const guidedAutoOpenedRef = useRef(false)
 
   const challengeId = view.challenge.id
+
+  const showCommissionerTab = Boolean(view.isOwner || view.isAdmin)
+  const tabList = useMemo(() => {
+    const list = [...BASE_TABS]
+    if (showCommissionerTab) {
+      list.push({
+        id: "settings",
+        label: "Settings",
+        icon: Settings,
+      })
+      list.push({
+        id: "commissioner",
+        label: "Commissioner",
+        icon: Sparkles,
+      })
+    }
+    return list
+  }, [showCommissionerTab])
 
   const applyChallengeView = useCallback((nextView: WorldCupChallengeView) => {
     setView(nextView)
@@ -264,6 +324,27 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
     )
     return () => window.clearTimeout(timer)
   }, [lockState.lockAt, lockState.locked])
+
+  /** Keep lock countdown label fresh on phones while picks stay open */
+  useEffect(() => {
+    if (isLocked) return
+    const id = window.setInterval(() => setLockNow(new Date()), 30_000)
+    return () => window.clearInterval(id)
+  }, [isLocked])
+
+  const lockCountdownLabel = useMemo(() => {
+    if (isLocked) return null
+    if (!lockState.lockAt) return null
+    const ms = new Date(lockState.lockAt).getTime() - lockNow.getTime()
+    if (ms <= 0) return "Bracket locks soon"
+    const totalM = Math.floor(ms / 60000)
+    const d = Math.floor(totalM / 1440)
+    const h = Math.floor((totalM % 1440) / 60)
+    const m = totalM % 60
+    if (d > 0) return `${d}d ${h}h until picks lock`
+    if (h > 0) return `${h}h ${m}m until picks lock`
+    return `${Math.max(1, m)}m until picks lock`
+  }, [isLocked, lockState.lockAt, lockNow])
   // Picks for the selected entry.
   const picks: WorldCupPickView[] = useMemo(() => {
     if (!selectedEntryId) return []
@@ -311,6 +392,25 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
   const hasPickableFixtures = projectedPickableMatchCount > 0
   const unresolvedMatchesCount = view.matches.length - rawPickableMatches.length
 
+  const selectedLeaderboardRow = useMemo(
+    () => view.leaderboard.find((r) => r.entryId === selectedEntry?.id) ?? null,
+    [view.leaderboard, selectedEntry?.id]
+  )
+
+  const championStillAliveForSummary = useMemo(() => {
+    if (!selectedEntry) return true
+    if (selectedLeaderboardRow) return selectedLeaderboardRow.championStillAlive
+    return calculateWorldCupBracketHealth(
+      {
+        championTeamId: selectedEntry.championTeamId,
+        totalScore: selectedEntry.totalScore,
+        maxPossibleScore: selectedEntry.maxPossibleScore,
+      },
+      view.matches,
+      picks
+    ).championAlive
+  }, [selectedEntry, selectedLeaderboardRow, view.matches, picks])
+
   // ── Load entries on mount ────────────────────────────────────────────────
   useEffect(() => {
     if (!challengeId || entriesLoaded) return
@@ -326,10 +426,13 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
             typeof window !== "undefined"
               ? window.localStorage.getItem(getSelectedEntryStorageKey(challengeId))
               : null
+          const urlEntryId =
+            initialEntryId && rows.some((row) => row.id === initialEntryId) ? initialEntryId : null
           const activeEntryId =
-            storedEntryId && rows.some((row) => row.id === storedEntryId)
+            urlEntryId ??
+            (storedEntryId && rows.some((row) => row.id === storedEntryId)
               ? storedEntryId
-              : normalizedInitialView.activeEntry?.id ?? rows[0].id
+              : normalizedInitialView.activeEntry?.id ?? rows[0].id)
           const active = rows.find((row) => row.id === activeEntryId) ?? rows[0]
           setSelectedEntryId(active.id)
           persistSelectedEntryId(active.id)
@@ -343,8 +446,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
       })
       .catch(() => toast.error("Failed to load bracket entries"))
       .finally(() => setIsEntriesLoading(false))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [challengeId, persistSelectedEntryId])
+  }, [challengeId, persistSelectedEntryId, initialEntryId, normalizedInitialView.activeEntry?.id])
 
   // ── Entry management callbacks ───────────────────────────────────────────
   const handleCreateEntry = useCallback(async () => {
@@ -872,6 +974,34 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
             : "Review Guided Picks"
 
   useEffect(() => {
+    if (!initialGuidedOpen || guidedAutoOpenedRef.current) return
+    if (!selectedEntryId || !entriesLoaded) return
+    if (!loadedEntryPickIds.has(selectedEntryId)) return
+    const picksForEntry = entryPicks[selectedEntryId] ?? []
+    if (picksForEntry.length > 0) return
+    if (!guidedPickerAvailable) return
+
+    guidedAutoOpenedRef.current = true
+    setGuidedInitialMatchId(null)
+    setIsGuidedPickerOpen(true)
+
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href)
+      url.searchParams.delete("guided")
+      url.searchParams.delete("entry")
+      router.replace(url.pathname + (url.search ? url.search : ""))
+    }
+  }, [
+    initialGuidedOpen,
+    selectedEntryId,
+    entriesLoaded,
+    loadedEntryPickIds,
+    entryPicks,
+    guidedPickerAvailable,
+    router,
+  ])
+
+  useEffect(() => {
     if (process.env.NODE_ENV !== "development") return
     const tournamentStartAt =
       view.challenge.effectivePickLockAt ??
@@ -1102,8 +1232,8 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
 
   return (
     <div id="world-cup-top" className="fixed inset-0 z-50 flex flex-col bg-[#05070b] text-white">
-      <header className="shrink-0 border-b border-white/10 bg-zinc-950/95 backdrop-blur">
-        <div className="flex items-center gap-3 px-3 py-3 sm:px-5">
+      <header className="shrink-0 border-b border-white/10 bg-zinc-950/95 backdrop-blur pt-[env(safe-area-inset-top,0px)]">
+        <div className="flex items-center gap-2 px-3 py-2 sm:gap-3 sm:px-5 sm:py-3">
           {showBoard ? (
             <button
               type="button"
@@ -1111,25 +1241,45 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
                 setSelectedEntryId(null)
                 persistSelectedEntryId(null)
               }}
-              className="rounded-lg border border-white/10 bg-white/[0.04] p-2 text-white/70"
+              className="min-h-11 min-w-11 shrink-0 rounded-lg border border-white/10 bg-white/[0.04] p-2 text-white/70 touch-manipulation"
               title="Back to My Brackets"
+              aria-label="Back to My Brackets"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
           ) : (
-            <Link href="/brackets" className="rounded-lg border border-white/10 bg-white/[0.04] p-2 text-white/70">
+            <Link
+              href="/brackets"
+              className="min-h-11 min-w-11 shrink-0 rounded-lg border border-white/10 bg-white/[0.04] p-2 text-white/70 touch-manipulation"
+              aria-label="Back to brackets hub"
+            >
               <ArrowLeft className="h-4 w-4" />
             </Link>
           )}
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-base font-black text-white sm:text-lg">
+            <h1 className="truncate text-sm font-black leading-tight text-white sm:text-lg">
               {showBoard ? selectedEntry!.name : view.challenge.name}
             </h1>
-            <p className={`text-[11px] ${saveState === "locked" || saveState === "error" ? "text-rose-300" : "text-white/45"}`}>
-              {showBoard
-                ? `${progress.done} of ${progress.required} picks · ${saveStatus}`
-                : view.challenge.name}
+            <p className={`text-[10px] sm:text-[11px] ${saveState === "locked" || saveState === "error" ? "text-rose-300" : "text-white/45"}`}>
+              {showBoard ? (
+                <>
+                  <span className="block truncate text-white/55">{view.challenge.name}</span>
+                  <span className="mt-0.5 block">
+                    {progress.done} of {progress.required} picks · {saveStatus}
+                  </span>
+                </>
+              ) : (
+                <span className="line-clamp-2">{view.challenge.name}</span>
+              )}
             </p>
+            {lockCountdownLabel ? (
+              <p
+                data-testid="world-cup-lock-countdown"
+                className="mt-1 inline-flex max-w-full items-center rounded-md bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold text-amber-100/95"
+              >
+                {lockCountdownLabel}
+              </p>
+            ) : null}
           </div>
           {/* Entry switcher dropdown — visible when in board mode and multiple entries */}
           {showBoard && entries.length > 1 && (
@@ -1160,10 +1310,11 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
           <button
             type="button"
             onClick={() => setTab("invite")}
-            className="inline-flex items-center gap-2 rounded-lg bg-cyan-300 px-3 py-2 text-xs font-black text-black"
+            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-cyan-300 px-3 py-2 text-xs font-black text-black touch-manipulation sm:min-h-0 sm:min-w-0"
+            aria-label="Invite friends"
           >
-            <Share2 className="h-3.5 w-3.5" />
-            Invite
+            <Share2 className="h-3.5 w-3.5 shrink-0" />
+            <span className="hidden sm:inline">Invite</span>
           </button>
         </div>
         {saveError && (
@@ -1177,15 +1328,18 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
           </div>
         )}
         <WorldCupLiveScoreTicker matches={view.matches} />
-        <nav className="hidden gap-1 px-5 pb-3 sm:flex">
-          {TABS.map(({ id, icon: Icon, label }) => (
+        <nav
+          aria-label="Section tabs"
+          className="flex gap-1 overflow-x-auto px-3 pb-2 [scrollbar-width:none] sm:px-5 sm:pb-3 [&::-webkit-scrollbar]:hidden"
+        >
+          {tabList.map(({ id, icon: Icon, label }) => (
             <button
               key={id}
               type="button"
               onClick={() => setTab(id)}
-              className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${tab === id ? "bg-white text-black" : "bg-white/[0.04] text-white/55"}`}
+              className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold touch-manipulation ${tab === id ? "bg-white text-black" : "bg-white/[0.04] text-white/55"}`}
             >
-              <Icon className="h-3.5 w-3.5" />
+              <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
               {label}
             </button>
           ))}
@@ -1197,7 +1351,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
           data-testid="world-cup-sticky-subnav"
           className="sticky top-0 z-40 border-b border-white/10 bg-[#04060acc]/95 px-2 py-2 backdrop-blur sm:px-4"
         >
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:justify-center sm:pb-0">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:justify-center sm:pb-0 touch-pan-x">
             <JumpButton label="Top" onClick={() => scrollToAnchor("world-cup-top")} />
             <JumpButton label="Picks" onClick={() => scrollToAnchor("world-cup-picks", "picks")} />
             <JumpButton label="Bracket" onClick={() => scrollToAnchor("world-cup-bracket", "picks")} />
@@ -1207,22 +1361,46 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
           </div>
         </nav>
 
+        {tab === "picks" && showBoard ? (
+          <div className="sticky top-0 z-30 border-b border-white/10 bg-[#05070b]/92 px-3 py-2 backdrop-blur sm:hidden">
+            <button
+              data-testid="world-cup-mobile-start-picks-cta"
+              type="button"
+              disabled={!guidedPickerAvailable}
+              onClick={() => {
+                if (!guidedPickerAvailable) {
+                  toast.info("This matchup is not ready for picks yet. Sync fixtures or use simulation data.")
+                  return
+                }
+                setGuidedInitialMatchId(null)
+                setIsGuidedPickerOpen(true)
+              }}
+              className="flex w-full min-h-12 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-3 text-sm font-black text-black touch-manipulation disabled:bg-cyan-300/40 disabled:text-black/50"
+            >
+              <PlayCircle className="h-5 w-5 shrink-0" aria-hidden />
+              {guidedPickerLabel}
+            </button>
+          </div>
+        ) : null}
+
         {/* Entry header strip — shown when a bracket is open in picks tab */}
         {showBoard && (
         <div id="world-cup-picks" className="border-b border-white/[0.07] bg-white/[0.03] pb-2">
-          <div className="grid grid-cols-4 gap-px">
-            <EntryStatStrip label="Score" value={selectedEntry!.totalScore} />
-            <EntryStatStrip
-              label="Rank"
-              value={selectedEntry!.rank != null ? `#${selectedEntry!.rank}` : "—"}
-            />
-            <EntryStatStrip label="Correct" value={selectedEntry!.correctPicks} />
-            <EntryStatStrip
-              label="Champion"
-              value={selectedEntry!.championTeamName ?? "—"}
-              small
-            />
-          </div>
+          <WorldCupScoreSummary
+            entry={selectedEntry!}
+            leaderboardRow={selectedLeaderboardRow}
+            championStillAlive={championStillAliveForSummary}
+            isLocked={isLocked}
+            fixturesReady={hasPickableFixtures}
+            scoresSynced={Boolean(view.challenge.lastSyncedAt)}
+          />
+          <WorldCupRoundBreakdown
+            roundBreakdown={
+              selectedLeaderboardRow?.roundBreakdown ?? selectedEntry!.roundBreakdown ?? {}
+            }
+            scoring={view.scoring}
+            includeThirdPlace={view.challenge.includeThirdPlace}
+          />
           {/* Guided picks button */}
           {!isLocked ? (
             <div className="flex justify-center px-4 py-2">
@@ -1282,11 +1460,14 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
           )}
 
           {!isLocked && selectedEntry && (
-            <div className="mx-4 mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="mx-3 mb-4 max-h-[min(280px,45vh)] overflow-y-auto rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:mx-4 sm:max-h-none sm:overflow-visible">
               <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-cyan-300">
-                <Sparkles className="h-3.5 w-3.5" />
+                <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 AI Bracket Builder
               </div>
+              <p className="mb-2 text-[10px] text-white/35 sm:hidden">
+                Optional — scroll on small screens; guided picks above are the primary flow.
+              </p>
               <div className="flex flex-wrap gap-2">
                 {([
                   ["safe", "Safe"],
@@ -1792,6 +1973,22 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
             </ul>
           </div>
         ) : null}
+        {tab === "settings" ? (
+          <div id="world-cup-settings" className="mx-auto max-w-3xl px-2">
+            <WorldCupBracketSettingsPanel
+              challengeId={challengeId}
+              onSaved={() => void refreshChallengeView()}
+            />
+          </div>
+        ) : null}
+        {tab === "commissioner" ? (
+          <div id="world-cup-commissioner" className="mx-auto max-w-3xl px-2">
+            <WorldCupCommissionerBrainPanel
+              challengeId={challengeId}
+              onOpenLeagueSettings={() => setTab("settings")}
+            />
+          </div>
+        ) : null}
       </main>
 
       <button
@@ -1805,16 +2002,21 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
       </button>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 grid grid-cols-4 border-t border-white/10 bg-zinc-950/95 sm:hidden">
-        {TABS.map(({ id, icon: Icon, label }) => (
+      <nav
+        aria-label="Primary bracket tabs"
+        className="fixed inset-x-0 bottom-0 z-40 flex overflow-x-auto border-t border-white/10 bg-zinc-950/95 pb-[env(safe-area-inset-bottom,0px)] sm:hidden"
+      >
+        {tabList.map(({ id, icon: Icon, label }) => (
           <button
             key={id}
             type="button"
             onClick={() => setTab(id)}
-            className={`flex flex-col items-center gap-1 px-2 py-3 text-[10px] font-bold ${tab === id ? "text-cyan-200" : "text-white/45"}`}
+            className={`flex min-h-[52px] min-w-[68px] flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-bold touch-manipulation ${tab === id ? "text-cyan-200" : "text-white/45"}`}
           >
-            <Icon className="h-4 w-4" />
-            {label === "Leaderboard" ? "Board" : label}
+            <Icon className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="truncate">
+              {label === "Leaderboard" ? "Board" : label === "Commissioner" ? "Commish" : label === "Settings" ? "Setup" : label}
+            </span>
           </button>
         ))}
       </nav>
@@ -1834,6 +2036,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
           lockAt={view.challenge.pickLockAt}
           tournamentStartAt={view.challenge.effectivePickLockAt}
           includeThirdPlace={view.challenge.includeThirdPlace}
+          hasBracketBrainAi={view.hasBracketBrainAi}
           onClose={() => {
             setIsGuidedPickerOpen(false)
             setGuidedInitialMatchId(null)
@@ -1856,19 +2059,10 @@ function JumpButton({ label, onClick, disabled }: { label: string; onClick: () =
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="whitespace-nowrap rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[11px] font-bold text-white/70 disabled:cursor-not-allowed disabled:opacity-40"
+      className="whitespace-nowrap rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-[11px] font-bold text-white/70 touch-manipulation disabled:cursor-not-allowed disabled:opacity-40"
     >
       {label}
     </button>
-  )
-}
-
-function EntryStatStrip({ label, value, small }: { label: string; value: string | number; small?: boolean }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-2 px-3">
-      <div className="text-[9px] font-bold uppercase tracking-widest text-white/30">{label}</div>
-      <div className={`font-black text-white ${small ? "truncate max-w-[7rem] text-[11px]" : "text-sm"}`}>{value}</div>
-    </div>
   )
 }
 

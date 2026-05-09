@@ -133,6 +133,32 @@ export async function assertWorldCupManager(
   return { ok: true as const, challenge, isAdmin }
 }
 
+/** Allows challenge owner/admin OR any participant to read challenge-scoped resources (feed, etc.). */
+export async function assertWorldCupChallengeMemberOrManager(
+  request: Request,
+  challengeId: string,
+  user: WorldCupApiSessionUser
+) {
+  const manager = await assertWorldCupManager(request, challengeId, user)
+  if (manager.ok) return manager
+
+  if (manager.response.status === 404) return manager
+
+  const participant = await prisma.worldCupBracketParticipant.findUnique({
+    where: {
+      challengeId_userId: {
+        challengeId,
+        userId: user.id,
+      },
+    },
+    select: { id: true },
+  })
+
+  if (!participant) return manager
+
+  return { ok: true as const, challenge: null as any, isAdmin: false }
+}
+
 export async function assertWorldCupSimulationAccess(input: {
   request: Request
   challengeId: string

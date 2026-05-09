@@ -7,6 +7,7 @@ import type {
   WorldCupAiMatchupPreview,
   WorldCupAiStrategy,
   WorldCupLeaderboardRow,
+  WorldCupMatchupIntelligence,
   WorldCupPickView,
 } from "./types"
 
@@ -224,6 +225,24 @@ export async function getWorldCupAiMatchupPreview(
   const data = await res.json()
   if (!res.ok) throw new Error((data as { error?: string }).error ?? "AI preview failed")
   return (data as { preview: WorldCupAiMatchupPreview }).preview
+}
+
+export async function getWorldCupMatchupIntelligence(
+  challengeId: string,
+  entryId: string,
+  payload: {
+    matchId: string
+    strategy?: WorldCupAiStrategy
+    intent?: "panel" | "ask_ai" | "explain"
+  }
+): Promise<WorldCupMatchupIntelligence> {
+  const res = await apiFetch(
+    `/api/brackets/world-cup/${challengeId}/entries/${entryId}/ai/matchup`,
+    { method: "POST", body: JSON.stringify(payload) }
+  )
+  const data = await res.json()
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? "Matchup intelligence failed")
+  return (data as { intelligence: WorldCupMatchupIntelligence }).intelligence
 }
 
 // ── Status helper ─────────────────────────────────────────────────────────────

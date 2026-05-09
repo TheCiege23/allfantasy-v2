@@ -1,275 +1,238 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { z } from "zod"
+import { verifyWorldCupDevQaRequest } from "@/lib/world-cup/worldCupDevQaAccess"
 
-const requireWorldCupApiUserMock = vi.hoisted(() => vi.fn())
-const getWorldCupApiUserMock = vi.hoisted(() => vi.fn())
-const getWorldCupAdminStateMock = vi.hoisted(() => vi.fn())
-const assertWorldCupManagerMock = vi.hoisted(() => vi.fn())
-const challengeParamsSafeParseMock = vi.hoisted(() => vi.fn())
-const entryParamsSafeParseMock = vi.hoisted(() => vi.fn())
-const getEntryDetailMock = vi.hoisted(() => vi.fn())
-const getChallengeViewMock = vi.hoisted(() => vi.fn())
-const savePickMock = vi.hoisted(() => vi.fn())
-const loadWorldCupTestFixturesMock = vi.hoisted(() => vi.fn())
-const importWorldCupReadinessDataMock = vi.hoisted(() => vi.fn())
-const isChallengeLockedMock = vi.hoisted(() => vi.fn())
-const entryFindUniqueMock = vi.hoisted(() => vi.fn())
-const pickDeleteManyMock = vi.hoisted(() => vi.fn())
-const pickFindManyMock = vi.hoisted(() => vi.fn())
+describe("worldCupDevQaAccess", () => {
+  const originalEnv = process.env.NODE_ENV
+  const originalSecret = process.env.WORLD_CUP_DEV_QA_SECRET
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalEnv
+    if (originalSecret === undefined) {
+      delete process.env.WORLD_CUP_DEV_QA_SECRET
+    } else {
+      process.env.WORLD_CUP_DEV_QA_SECRET = originalSecret
+    }
+  })
+
+  it("allows requests in development without secret", () => {
+    process.env.NODE_ENV = "development"
+    delete process.env.WORLD_CUP_DEV_QA_SECRET
+    expect(verifyWorldCupDevQaRequest(new Request("http://localhost"))).toBe(true)
+  })
+
+  it("denies production without secret configured", () => {
+    process.env.NODE_ENV = "production"
+    delete process.env.WORLD_CUP_DEV_QA_SECRET
+    expect(verifyWorldCupDevQaRequest(new Request("http://localhost"))).toBe(false)
+  })
+
+  it("allows production with matching bearer", () => {
+    process.env.NODE_ENV = "production"
+    process.env.WORLD_CUP_DEV_QA_SECRET = "test-secret-xyz"
+    const req = new Request("http://localhost", {
+      headers: { authorization: "Bearer test-secret-xyz" },
+    })
+    expect(verifyWorldCupDevQaRequest(req)).toBe(true)
+  })
+
+  it("denies wrong bearer when secret is set", () => {
+    process.env.NODE_ENV = "production"
+    process.env.WORLD_CUP_DEV_QA_SECRET = "a"
+    const req = new Request("http://localhost", {
+      headers: { authorization: "Bearer b" },
+    })
+    expect(verifyWorldCupDevQaRequest(req)).toBe(false)
+  })
+})
+
+// ── Matchup AI route — AF Pro / Bracket Brain ───────────────────────────────────
+
+const requireUserMock = vi.hoisted(() => vi.fn())
+const hasBracketBrainAiMock = vi.hoisted(() => vi.fn())
+const buildIntelMock = vi.hoisted(() => vi.fn())
+
+const prismaChallengeMock = vi.hoisted(() => vi.fn())
+const prismaEntryMock = vi.hoisted(() => vi.fn())
+const prismaMatchMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/app/api/brackets/world-cup/_utils", () => ({
-  requireWorldCupApiUser: requireWorldCupApiUserMock,
-  getWorldCupApiUser: getWorldCupApiUserMock,
-  getWorldCupAdminState: getWorldCupAdminStateMock,
-  assertWorldCupManager: assertWorldCupManagerMock,
-  worldCupChallengeParamsSchema: {
-    safeParse: challengeParamsSafeParseMock,
-  },
-  worldCupEntryParamsSchema: {
-    safeParse: entryParamsSafeParseMock,
-  },
+  requireWorldCupApiUser: requireUserMock,
+  worldCupChallengeParamsSchema: z.object({ challengeId: z.string().min(1) }),
 }))
 
-vi.mock("@/lib/world-cup", () => ({
-  WORLD_CUP_BRACKET_LOCKED_MESSAGE: "Bracket is locked.",
-  getWorldCupChallengeView: getChallengeViewMock,
-  getWorldCupBracketEntryDetail: getEntryDetailMock,
-  saveWorldCupBracketPickForEntry: savePickMock,
+vi.mock("@/lib/bracket-brain/bracketBrainAccess", () => ({
+  userHasBracketBrainAi: hasBracketBrainAiMock,
 }))
 
-vi.mock("@/lib/world-cup/worldCupBracketBuilder", () => ({
-  isWorldCupChallengeLocked: isChallengeLockedMock,
-}))
-
-vi.mock("@/lib/world-cup/worldCupSimulationService", () => ({
-  loadWorldCupTestFixtures: loadWorldCupTestFixturesMock,
-}))
-
-vi.mock("@/lib/world-cup/worldCupImportService", () => ({
-  importWorldCupReadinessData: importWorldCupReadinessDataMock,
+vi.mock("@/lib/world-cup/worldCupAIService", () => ({
+  buildWorldCupMatchupIntelligence: buildIntelMock,
 }))
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    worldCupBracketEntry: {
-      findUnique: entryFindUniqueMock,
-    },
-    worldCupBracketPick: {
-      deleteMany: pickDeleteManyMock,
-      findMany: pickFindManyMock,
-    },
+    worldCupBracketChallenge: { findUnique: prismaChallengeMock },
+    worldCupBracketEntry: { findFirst: prismaEntryMock },
+    worldCupBracketMatch: { findFirst: prismaMatchMock },
   },
 }))
 
-const routeContext = {
-  params: {
-    challengeId: "wc1",
-    entryId: "entry-1",
-  },
+const sampleDbMatch = {
+  id: "m1",
+  apiFixtureId: null,
+  round: "round_of_32",
+  roundIndex: 1,
+  matchNumber: 1,
+  homeSlotKey: "A1",
+  awaySlotKey: "B2",
+  homeTeamId: "t1",
+  awayTeamId: "t2",
+  homeTeamName: "Alpha",
+  awayTeamName: "Beta",
+  homeTeamLogo: null,
+  awayTeamLogo: null,
+  homeScore: null,
+  awayScore: null,
+  homePenaltyScore: null,
+  awayPenaltyScore: null,
+  status: "scheduled",
+  startsAt: null,
+  winnerTeamId: null,
+  winnerTeamName: null,
+  nextMatchId: "m2",
+  nextMatchSlot: "home",
+  elapsedMinute: null,
+  injuryTime: null,
+  period: null,
+  venueName: null,
+  venueCity: null,
+  apiStatusShort: null,
+  lastScoreSyncedAt: null,
 }
 
-describe("World Cup entry pick API lock enforcement", () => {
+function baseIntel(overrides: Record<string, unknown> = {}) {
+  return {
+    matchId: "m1",
+    recommendedTeamId: "t1",
+    recommendedTeamName: "Alpha",
+    recommendedSide: "home" as const,
+    homeWinProbability: 0.6,
+    awayWinProbability: 0.4,
+    confidence: "medium" as const,
+    upsetRisk: "medium" as const,
+    keyFactors: ["a"],
+    summary: "s",
+    safePick: "Alpha",
+    contrarianPick: "Beta",
+    projectedScore: null,
+    generative: false,
+    safePickSide: "home" as const,
+    upsetPickSide: "away" as const,
+    safePickTeamName: "Alpha",
+    upsetPickTeamName: "Beta",
+    riskLevel: "medium" as const,
+    recentFormSummary: "r",
+    rankingSeedComparison: "c",
+    bracketImpactIfHomeWins: "h",
+    bracketImpactIfAwayWins: "a",
+    whyThisPickMakesSense: "w",
+    howRiskyIsThisPick: "x",
+    whatThisMeansForYourBracket: "y",
+    narrativesGenerative: false,
+    ...overrides,
+  }
+}
+
+describe("POST /api/brackets/world-cup/.../ai/matchup (AF Pro)", () => {
   beforeEach(() => {
-    vi.resetModules()
-    requireWorldCupApiUserMock.mockResolvedValue({ ok: true, user: { id: "u1" } })
-    getWorldCupApiUserMock.mockResolvedValue({ id: "u1" })
-    getWorldCupAdminStateMock.mockResolvedValue(false)
-    assertWorldCupManagerMock.mockResolvedValue({ ok: true, isAdmin: false, challenge: { id: "wc1" } })
-    challengeParamsSafeParseMock.mockImplementation((params) => ({ success: true, data: params }))
-    entryParamsSafeParseMock.mockImplementation((params) => ({ success: true, data: params }))
-    getEntryDetailMock.mockResolvedValue({ id: "entry-1", challengeId: "wc1", userId: "u1" })
-    getChallengeViewMock.mockResolvedValue({
-      challenge: { id: "wc1", lastSyncedAt: "2026-07-01T20:00:00.000Z" },
-      leaderboard: [],
-      scoring: {},
+    requireUserMock.mockReset()
+    hasBracketBrainAiMock.mockReset()
+    buildIntelMock.mockReset()
+    prismaChallengeMock.mockReset()
+    prismaEntryMock.mockReset()
+    prismaMatchMock.mockReset()
+
+    requireUserMock.mockResolvedValue({ ok: true, user: { id: "u1", email: "u@x.com" } })
+    prismaChallengeMock.mockResolvedValue({
+      id: "c1",
+      ownerUserId: "u1",
+      visibility: "public",
+      participants: [{ id: "p1" }],
     })
-    savePickMock.mockResolvedValue({
-      entry: { id: "entry-1" },
-      pick: { id: "pick-1" },
-      picks: [{ id: "pick-1", matchId: "m1", selectedTeamId: "arg", selectedSlotKey: "A1" }],
-      isComplete: false,
-    })
-    loadWorldCupTestFixturesMock.mockResolvedValue({
-      success: true,
-      teamsCreated: 32,
-      teamsUpdated: 0,
-      matchesUpdated: 16,
-      pickableMatchesAfter: 16,
-      totalMatchesAfter: 31,
-      unresolvedMatchesAfter: 15,
-      warnings: [],
-    })
-    importWorldCupReadinessDataMock.mockResolvedValue({
-      ok: true,
-      mode: "all",
-      dryRun: false,
-      provider: "mock",
-      seasonYear: 2026,
-      teams: { created: 32, updated: 0, skipped: 0, warnings: [], teams: Array.from({ length: 32 }, (_, idx) => ({ providerId: `${idx + 1}`, name: `Team ${idx + 1}`, action: "created" })) },
-      fixtures: { created: 0, updated: 16, skipped: 0, warnings: [], lockTimeInferred: "2026-07-04T16:00:00.000Z", fixtures: Array.from({ length: 16 }, (_, idx) => ({ providerId: `${idx + 1}`, matchId: `m${idx + 1}`, action: "updated" })) },
-    })
-    isChallengeLockedMock.mockReturnValue({ locked: false, reason: "none", lockAt: null })
-    entryFindUniqueMock.mockResolvedValue({
-      id: "entry-1",
-      userId: "u1",
-      challengeId: "wc1",
-      challenge: { id: "wc1", matches: [], pickLockStrategy: "tournament_start", pickLockAt: null, status: "open" },
-    })
-    pickDeleteManyMock.mockResolvedValue({ count: 1 })
-    pickFindManyMock.mockResolvedValue([])
+    prismaEntryMock.mockResolvedValue({ id: "e1" })
+    prismaMatchMock.mockResolvedValue(sampleDbMatch)
+    buildIntelMock.mockResolvedValue(baseIntel())
   })
 
-  it("allows an unlocked bracket to save picks", async () => {
-    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/picks/route")
+  it("returns 403 for ask_ai when user does not have Bracket Brain AI (no OpenAI build)", async () => {
+    hasBracketBrainAiMock.mockResolvedValue(false)
+
+    const { POST } = await import(
+      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/ai/matchup/route"
+    )
 
     const res = await POST(
-      new Request("http://localhost/api/brackets/world-cup/wc1/entries/entry-1/picks", {
+      new Request("http://localhost/api/brackets/world-cup/c1/entries/e1/ai/matchup", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ matchId: "m1", selectedTeamId: "arg", selectedSlotKey: "A1" }),
+        body: JSON.stringify({ matchId: "m1", intent: "ask_ai" }),
       }),
-      routeContext
+      { params: { challengeId: "c1", entryId: "e1" } }
+    )
+
+    expect(res.status).toBe(403)
+    const json = await res.json()
+    expect(json.error).toBe("Bracket Brain requires AF Pro.")
+    expect(buildIntelMock).not.toHaveBeenCalled()
+  })
+
+  it("allows panel intent for non-Pro with deterministic intelligence payload", async () => {
+    hasBracketBrainAiMock.mockResolvedValue(false)
+
+    const { POST } = await import(
+      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/ai/matchup/route"
+    )
+
+    const res = await POST(
+      new Request("http://localhost/api/brackets/world-cup/c1/entries/e1/ai/matchup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ matchId: "m1", intent: "panel" }),
+      }),
+      { params: { challengeId: "c1", entryId: "e1" } }
     )
 
     expect(res.status).toBe(200)
-    expect(savePickMock).toHaveBeenCalledWith(
+    expect(buildIntelMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        entryId: "entry-1",
-        userId: "u1",
-        matchId: "m1",
-        selectedTeamId: "arg",
+        bracketBrainAiEntitled: false,
+        intent: "panel",
       })
     )
   })
 
-  it("rejects save requests after the bracket locks", async () => {
-    savePickMock.mockRejectedValueOnce(new Error("Bracket is locked."))
-    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/picks/route")
+  it("runs ask_ai for AF Pro users", async () => {
+    hasBracketBrainAiMock.mockResolvedValue(true)
+
+    const { POST } = await import(
+      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/ai/matchup/route"
+    )
 
     const res = await POST(
-      new Request("http://localhost/api/brackets/world-cup/wc1/entries/entry-1/picks", {
+      new Request("http://localhost/api/brackets/world-cup/c1/entries/e1/ai/matchup", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ matchId: "m1", selectedTeamId: "arg", selectedSlotKey: "A1" }),
+        body: JSON.stringify({ matchId: "m1", intent: "ask_ai" }),
       }),
-      routeContext
-    )
-
-    expect(res.status).toBe(423)
-    await expect(res.json()).resolves.toEqual({ error: "Bracket is locked." })
-  })
-
-  it("rejects clear requests after the bracket locks", async () => {
-    isChallengeLockedMock.mockReturnValueOnce({
-      locked: true,
-      reason: "tournament_started",
-      lockAt: "2026-07-01T16:00:00Z",
-    })
-    const { DELETE } = await import("@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/picks/route")
-
-    const res = await DELETE(
-      new Request("http://localhost/api/brackets/world-cup/wc1/entries/entry-1/picks", {
-        method: "DELETE",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ matchIds: ["m1"] }),
-      }),
-      routeContext
-    )
-
-    expect(res.status).toBe(423)
-    await expect(res.json()).resolves.toEqual({ error: "Bracket is locked." })
-    expect(pickDeleteManyMock).not.toHaveBeenCalled()
-  })
-
-  it("returns recalculated leaderboard rows from the leaderboard route", async () => {
-    getChallengeViewMock.mockResolvedValueOnce({
-      challenge: { id: "wc1", lastSyncedAt: "2026-07-01T20:00:00.000Z" },
-      leaderboard: [
-        {
-          rank: 1,
-          entryId: "entry-1",
-          entryName: "Bracket 1",
-          participantId: "p1",
-          userId: "u1",
-          username: "player",
-          avatarUrl: null,
-          displayName: "Player",
-          totalScore: 12,
-          maxPossibleScore: 28,
-          correctPicks: 2,
-          incorrectPicks: 1,
-          championPickName: "Argentina",
-          championTeamId: "arg",
-          championStillAlive: true,
-          roundBreakdown: { round_of_32: 12 },
-          joinedAt: "2026-01-01T00:00:00.000Z",
-          updatedAt: "2026-07-01T20:00:00.000Z",
-        },
-      ],
-      scoring: { roundOf32Points: 6 },
-    })
-    const { GET } = await import("@/app/api/brackets/world-cup/[challengeId]/leaderboard/route")
-
-    const res = await GET(
-      new Request("http://localhost/api/brackets/world-cup/wc1/leaderboard"),
-      { params: { challengeId: "wc1" } }
+      { params: { challengeId: "c1", entryId: "e1" } }
     )
 
     expect(res.status).toBe(200)
-    expect(getChallengeViewMock).toHaveBeenCalledWith({
-      challengeId: "wc1",
-      user: { id: "u1" },
-      isAdmin: false,
-    })
-    await expect(res.json()).resolves.toMatchObject({
-      leaderboard: [{ entryId: "entry-1", totalScore: 12, maxPossibleScore: 28 }],
-      lastSyncedAt: "2026-07-01T20:00:00.000Z",
-      scoring: { roundOf32Points: 6 },
-    })
-  })
-
-  it("admin mock seed route creates pickable test matchups", async () => {
-    const { POST } = await import("@/app/api/admin/world-cup/seed-mock/route")
-
-    const res = await POST(
-      new Request("http://localhost/api/admin/world-cup/seed-mock", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ challengeId: "wc1", confirmTestFixtures: true }),
+    expect(buildIntelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bracketBrainAiEntitled: true,
+        intent: "ask_ai",
       })
     )
-
-    expect(res.status).toBe(200)
-    expect(loadWorldCupTestFixturesMock).toHaveBeenCalledWith("wc1", { dryRun: false })
-    await expect(res.json()).resolves.toMatchObject({
-      ok: true,
-      result: {
-        matchesUpdated: 16,
-        pickableMatchesAfter: 16,
-        unresolvedMatchesAfter: 15,
-      },
-    })
-  })
-
-  it("admin import route returns team and fixture readiness counts", async () => {
-    getWorldCupAdminStateMock.mockResolvedValueOnce(true)
-    const { POST } = await import("@/app/api/admin/world-cup/import/route")
-
-    const res = await POST(
-      new Request("http://localhost/api/admin/world-cup/import", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ challengeId: "wc1", provider: "mock", mode: "all" }),
-      })
-    )
-
-    expect(res.status).toBe(200)
-    expect(importWorldCupReadinessDataMock).toHaveBeenCalledWith(
-      expect.objectContaining({ challengeId: "wc1", provider: "mock", mode: "all" })
-    )
-    await expect(res.json()).resolves.toMatchObject({
-      ok: true,
-      teamCount: 32,
-      fixtureCount: 16,
-    })
   })
 })

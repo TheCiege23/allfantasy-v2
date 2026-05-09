@@ -2946,6 +2946,7 @@ model AppUser {
   worldCupBracketParticipants            WorldCupBracketParticipant[]     @relation("WorldCupBracketParticipantUser")
   worldCupBracketInvitesCreated          WorldCupBracketInvite[]          @relation("WorldCupBracketInviteCreator")
   worldCupBracketEntries                 WorldCupBracketEntry[]           @relation("WorldCupBracketEntryUser")
+  worldCupBracketChatEventsAuthored      WorldCupBracketChatEvent[]       @relation("WorldCupBracketChatEventActor")
 
   @@map("app_users")
 }
@@ -3012,10 +3013,16 @@ model WorldCupBracketChallenge {
   includeThirdPlace Boolean                      @default(false) @map("include_third_place")
   lastSyncedAt     DateTime?                     @map("last_synced_at")
   sourcePayload    Json?                         @map("source_payload")
+  /// Optional link to Bracket League pool chat (`bracket_league_messages`).
+  bracketLeagueId  String?                       @unique @map("bracket_league_id")
   createdAt        DateTime                      @default(now()) @map("created_at")
   updatedAt        DateTime                      @updatedAt @map("updated_at")
   owner            AppUser                       @relation("WorldCupBracketChallengeOwner", fields: [ownerUserId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   scoringProfile   WorldCupBracketScoringProfile? @relation(fields: [scoringProfileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  bracketLeague    BracketLeague?                @relation("BracketLeagueWorldCupChallenge", fields: [bracketLeagueId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  commissionerSettings WorldCupBracketCommissionerSettings?
+  eventState       WorldCupBracketEventState?
+  chatEvents       WorldCupBracketChatEvent[]
   slots            WorldCupBracketSlot[]
   participants     WorldCupBracketParticipant[]
   entries          WorldCupBracketEntry[]
@@ -3078,6 +3085,7 @@ model WorldCupBracketEntry {
   user               AppUser                   @relation("WorldCupBracketEntryUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   championTeam       WorldCupTeam?             @relation("WorldCupEntryChampionPick", fields: [championTeamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   picks              WorldCupBracketPick[]
+  chatEvents         WorldCupBracketChatEvent[]
 
   @@index([challengeId])
   @@index([participantId])
@@ -3213,6 +3221,55 @@ model WorldCupBracketInvite {
   @@index([createdByUserId])
   @@index([inviteCode])
   @@map("world_cup_bracket_invites")
+}
+
+/// Commissioner toggles + Bracket Brain preferences for a World Cup bracket challenge.
+model WorldCupBracketCommissionerSettings {
+  challengeId                  String   @id @map("challenge_id")
+  enableSystemEvents           Boolean  @default(true) @map("enable_system_events")
+  enableAiSummaries            Boolean  @default(false) @map("enable_ai_summaries")
+  enableUpsetAlerts            Boolean  @default(true) @map("enable_upset_alerts")
+  enableLeaderboardAlerts      Boolean  @default(true) @map("enable_leaderboard_alerts")
+  enableChampionBustAlerts     Boolean  @default(true) @map("enable_champion_bust_alerts")
+  enableLockReminders          Boolean  @default(true) @map("enable_lock_reminders")
+  updatedAt                    DateTime @updatedAt @map("updated_at")
+  challenge                    WorldCupBracketChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@map("world_cup_bracket_commissioner_settings")
+}
+
+/// Durable log + idempotent fan-out target for league chat / in-app feed.
+model WorldCupBracketChatEvent {
+  id               String                   @id @default(cuid())
+  challengeId      String                   @map("challenge_id")
+  bracketEntryId   String?                  @map("bracket_entry_id")
+  userId           String?                  @map("user_id")
+  eventType        String                   @map("event_type")
+  eventTitle       String                   @map("event_title")
+  eventBody        String                   @map("event_body")
+  metadata         Json?
+  idempotencyKey   String                   @map("idempotency_key")
+  isAiGenerated    Boolean                  @default(false) @map("is_ai_generated")
+  createdAt        DateTime                 @default(now()) @map("created_at")
+  challenge        WorldCupBracketChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  bracketEntry     WorldCupBracketEntry?    @relation(fields: [bracketEntryId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  user             AppUser?                 @relation("WorldCupBracketChatEventActor", fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@unique([challengeId, idempotencyKey])
+  @@index([challengeId, createdAt(sort: Desc)])
+  @@map("world_cup_bracket_chat_events")
+}
+
+/// Lightweight snapshot for derived alerts (lead changes, lock transitions).
+model WorldCupBracketEventState {
+  challengeId                  String   @id @map("challenge_id")
+  lastLeaderEntryId            String?  @map("last_leader_entry_id")
+  lastEmittedLockClosed        Boolean  @default(false) @map("last_emitted_lock_closed")
+  lastPerfectBracketCount      Int?     @map("last_perfect_bracket_count")
+  updatedAt                    DateTime @updatedAt @map("updated_at")
+  challenge                    WorldCupBracketChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@map("world_cup_bracket_event_state")
 }
 
 /// Cadence config for `AutomatedBlogEngine` â€” /api/cron/blog-autogen picks up
@@ -3739,6 +3796,7 @@ model BracketLeague {
   members         BracketLeagueMember[]
   payments        BracketPayment[]
   messages        BracketLeagueMessage[]
+  worldCupChallenge WorldCupBracketChallenge? @relation("BracketLeagueWorldCupChallenge")
 
   @@index([tournamentId])
   @@index([ownerId])

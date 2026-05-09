@@ -23,6 +23,7 @@ const patchWorldCupChallengeSchema = z.object({
   isTestMode: z.boolean().optional(),
   simulationEnabled: z.boolean().optional(),
   simulationStatus: z.string().min(1).max(64).nullable().optional(),
+  bracketLeagueId: z.string().min(8).nullable().optional(),
 })
 
 export async function GET(request: Request, context: { params: { challengeId: string } }) {
@@ -87,6 +88,9 @@ export async function PATCH(request: Request, context: { params: { challengeId: 
     simulationEnabled: parsed.data.simulationEnabled,
     simulationStatus: parsed.data.simulationStatus,
     simulatedAt: parsed.data.simulationStatus ? new Date() : undefined,
+    bracketLeagueId: Object.prototype.hasOwnProperty.call(parsed.data, "bracketLeagueId")
+      ? parsed.data.bracketLeagueId
+      : undefined,
   })
 
   const view = await getWorldCupChallengeView({

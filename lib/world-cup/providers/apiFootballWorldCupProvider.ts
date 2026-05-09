@@ -68,14 +68,8 @@ export class ApiFootballWorldCupProvider implements WorldCupDataProvider {
   }
 
   async getLiveFixtures(seasonYear: number): Promise<WorldCupProviderFixture[]> {
-    // api-football supports live=all but it requires a separate endpoint.
-    // For now, fall back to full fixture list and filter live/halftime in the sync service.
-    // TODO: implement https://v3.football.api-sports.io/fixtures?live=all&league=1&season=YEAR
-    // when confirmed endpoint is available and quota allows.
-    const all = await this.getFixtures(seasonYear)
-    return all.filter(
-      (f) => f.status === "live" || f.status === "halftime" || f.status === "extra_time"
-    )
+    // Must include finished fixtures so winners and final scores propagate to bracket rows.
+    return this.getFixtures(seasonYear)
   }
 
   async getFixtureById(
@@ -127,6 +121,15 @@ export class ApiFootballWorldCupProvider implements WorldCupDataProvider {
       winnerName = homeWon ? f.teams.home.name : f.teams.away.name
     }
 
+    const apiShort = f.fixture.status?.short ?? null
+    const apiShortU = apiShort?.toUpperCase() ?? ""
+    let period: string | null = null
+    if (["ET", "BT", "E1", "E2"].includes(apiShortU)) period = "extra_time"
+    else if (apiShortU === "P") period = "penalties"
+    else if (apiShortU === "1H") period = "first_half"
+    else if (apiShortU === "2H") period = "second_half"
+    else if (apiShortU === "HT") period = "halftime"
+
     return {
       providerId: String(f.fixture.id),
       homeProviderId: String(f.teams.home.id),
@@ -139,7 +142,10 @@ export class ApiFootballWorldCupProvider implements WorldCupDataProvider {
       roundName: round ?? f.league.round ?? null,
       stage: f.league.round ?? null,
       status,
-      apiStatusShort: f.fixture.status?.short ?? null,
+      period,
+      apiStatusShort: apiShort,
+      elapsedMinute: f.fixture.status?.elapsed ?? null,
+      injuryTime: f.fixture.status?.extra ?? null,
       homeScore,
       awayScore,
       homePenaltyScore: hp,

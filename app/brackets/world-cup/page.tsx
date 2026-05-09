@@ -48,6 +48,12 @@ export default async function WorldCupBracketsPage() {
             ← Back to Brackets
           </Link>
           <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/brackets/world-cup/discover"
+              className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-4 py-2 text-sm font-bold text-cyan-100 hover:bg-cyan-400/15"
+            >
+              Discover public leagues
+            </Link>
             {userId && (
               <Link
                 href="/brackets/world-cup/join"
@@ -97,6 +103,12 @@ export default async function WorldCupBracketsPage() {
             >
               <Plus className="h-4 w-4" />
               Create World Cup Bracket League
+            </Link>
+            <Link
+              href="/brackets/world-cup/discover"
+              className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-5 py-2.5 text-sm font-bold text-cyan-100 hover:bg-cyan-400/15"
+            >
+              Discover public leagues
             </Link>
             {userId && (
               <Link

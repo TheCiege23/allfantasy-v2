@@ -11,6 +11,7 @@ import {
 import { normalizeWorldCupRound } from "./apiSportsWorldCup"
 import { normalizeFifaTeamCode } from "./worldCupSeedData"
 import type { WorldCupRound } from "./types"
+import { emitWorldCupMatchTransitionEvents } from "./worldCupBracketLiveEventHooks"
 
 // ── Shared option types ───────────────────────────────────────────────────────
 
@@ -437,14 +438,16 @@ export type WorldCupLiveScoreSyncResult = {
   recalculated: boolean
 }
 
-export async function syncWorldCupLiveScores(
-  options: WorldCupSyncOptions & {
-    challengeId: string
-    recalculate?: boolean
-  }
+/**
+ * Applies provider fixture rows to a challenge's matches (by apiFixtureId).
+ * Shared by legacy single-provider sync and multi-provider fallback sync.
+ */
+export async function applyWorldCupLiveFixturesToChallenge(
+  challengeId: string,
+  liveFixtures: WorldCupProviderFixture[],
+  options: { dryRun?: boolean; recalculate?: boolean } = {}
 ): Promise<WorldCupLiveScoreSyncResult> {
-  const { dryRun = false, challengeId, recalculate = true, seasonYear = 2026 } =
-    options
+  const { dryRun = false, recalculate = true } = options
 
   const result: WorldCupLiveScoreSyncResult = {
     updated: 0,
@@ -454,22 +457,8 @@ export async function syncWorldCupLiveScores(
     recalculated: false,
   }
 
-  let liveFixtures: WorldCupProviderFixture[]
-  try {
-    const provider = await getWorldCupDataProvider(options.provider)
-    liveFixtures = provider.getLiveFixtures
-      ? await provider.getLiveFixtures(seasonYear)
-      : await provider.getFixtures(seasonYear)
-  } catch (err) {
-    if (err instanceof WorldCupProviderConfigError) {
-      result.warnings.push(err.message)
-      return result
-    }
-    throw err
-  }
-
   if (liveFixtures.length === 0) {
-    result.warnings.push("No live/updated fixtures returned by provider.")
+    result.warnings.push("No live/updated fixtures to apply.")
     return result
   }
 
@@ -499,7 +488,6 @@ export async function syncWorldCupLiveScores(
 
     const normalStatus = normalizeProviderStatus(f.status)
 
-    // Resolve winner team ID when final
     let winnerTeamId: string | null = match.winnerTeamId ?? null
     if (normalStatus === "final" && f.winnerProviderId) {
       const wApiId = Number(f.winnerProviderId)
@@ -537,14 +525,45 @@ export async function syncWorldCupLiveScores(
       continue
     }
 
+    const prevSnap = {
+      id: match.id,
+      homeTeamName: match.homeTeamName,
+      awayTeamName: match.awayTeamName,
+      status: typeof match.status === "string" ? match.status : "scheduled",
+      apiStatusShort: match.apiStatusShort ?? null,
+      homeSlotKey: match.homeSlotKey ?? null,
+      awaySlotKey: match.awaySlotKey ?? null,
+      homeTeamId: match.homeTeamId ?? null,
+      awayTeamId: match.awayTeamId ?? null,
+      winnerTeamId: match.winnerTeamId ?? null,
+    }
+
     const updated = await (prisma as any).worldCupBracketMatch.update({
       where: { id: match.id },
       data: scoreData,
     })
 
+    if (!dryRun) {
+      emitWorldCupMatchTransitionEvents({
+        challengeId,
+        prev: prevSnap,
+        match: {
+          id: updated.id,
+          homeTeamName: updated.homeTeamName,
+          awayTeamName: updated.awayTeamName,
+          status: typeof updated.status === "string" ? updated.status : normalStatus,
+          apiStatusShort: updated.apiStatusShort ?? null,
+          homeSlotKey: updated.homeSlotKey ?? null,
+          awaySlotKey: updated.awaySlotKey ?? null,
+          homeTeamId: updated.homeTeamId ?? null,
+          awayTeamId: updated.awayTeamId ?? null,
+          winnerTeamId: updated.winnerTeamId ?? null,
+        },
+      })
+    }
+
     if (normalStatus === "final") {
       result.finalMatches++
-      // Advance winner to next match if wired
       if (updated.nextMatchId && updated.nextMatchSlot && winnerTeamId) {
         const slot = updated.nextMatchSlot === "home" ? "home" : "away"
         await (prisma as any).worldCupBracketMatch.update({
@@ -564,7 +583,6 @@ export async function syncWorldCupLiveScores(
     result.updated++
   }
 
-  // Trigger recalculation after final score updates
   if (!dryRun && hadFinalUpdate && recalculate) {
     try {
       await recalculateWorldCupChallenge(challengeId)
@@ -577,6 +595,50 @@ export async function syncWorldCupLiveScores(
   }
 
   return result
+}
+
+export async function syncWorldCupLiveScores(
+  options: WorldCupSyncOptions & {
+    challengeId: string
+    recalculate?: boolean
+  }
+): Promise<WorldCupLiveScoreSyncResult> {
+  const { dryRun = false, challengeId, recalculate = true, seasonYear = 2026 } =
+    options
+
+  let liveFixtures: WorldCupProviderFixture[]
+  try {
+    const provider = await getWorldCupDataProvider(options.provider)
+    liveFixtures = provider.getLiveFixtures
+      ? await provider.getLiveFixtures(seasonYear)
+      : await provider.getFixtures(seasonYear)
+  } catch (err) {
+    if (err instanceof WorldCupProviderConfigError) {
+      return {
+        updated: 0,
+        skipped: 0,
+        finalMatches: 0,
+        warnings: [err.message],
+        recalculated: false,
+      }
+    }
+    throw err
+  }
+
+  if (liveFixtures.length === 0) {
+    return {
+      updated: 0,
+      skipped: 0,
+      finalMatches: 0,
+      warnings: ["No live/updated fixtures returned by provider."],
+      recalculated: false,
+    }
+  }
+
+  return applyWorldCupLiveFixturesToChallenge(challengeId, liveFixtures, {
+    dryRun,
+    recalculate,
+  })
 }
 
 // ── Status normalization (internal) ───────────────────────────────────────────

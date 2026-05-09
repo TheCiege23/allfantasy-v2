@@ -264,7 +264,7 @@ export function isWorldCupEntryCompleteFromSelections(input: {
   return [...requiredMatchIds].every((matchId) => pickedMatchIds.has(matchId))
 }
 
-function projectWorldCupMatchesForEntryCompletion(
+export function projectWorldCupMatchesForEntryCompletion(
   matches: Array<DbMatch>,
   picks: Array<Pick<DbPick, "matchId" | "selectedTeamId" | "selectedSlotKey">>
 ): DbMatch[] {
@@ -420,5 +420,16 @@ export async function recalculateWorldCupChallenge(challengeId: string) {
     }
   })
 
+  void import("./worldCupBracketRecalculateHooks")
+    .then((m) => m.afterWorldCupRecalculate(challengeId))
+    .catch(() => {})
+
   return refreshedRows
 }
+
+/** Display helpers for bracket shell / leaderboard UI */
+export {
+  buildWorldCupRoundBreakdownRows,
+  getWorldCupPossiblePointsRemaining,
+  getWorldCupRankMovement,
+} from "./worldCupLeaderboardService"

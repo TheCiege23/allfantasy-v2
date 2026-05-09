@@ -4,10 +4,12 @@ import type { Prisma } from "@prisma/client"
 import type { WorldCupBracketChallenge, WorldCupBracketEntry, WorldCupBracketMatch, WorldCupBracketParticipant, WorldCupBracketPick } from "@prisma/client"
 import { isAdminEmailAllowed } from "@/lib/adminAuth"
 import { prisma } from "@/lib/prisma"
+import { userHasBracketBrainAi } from "@/lib/bracket-brain/bracketBrainAccess"
 import { WORLD_CUP_TOURNAMENT_KEY, type WorldCupChallengeView } from "./types"
 import {
   DEFAULT_WORLD_CUP_SCORING,
   generateWorldCupBracketTemplate,
+  isWorldCupBracketChallengePicksLocked,
   isWorldCupChallengeLocked,
   isWorldCupMatchLocked,
   resolveWorldCupEffectivePickLockAt,
@@ -17,6 +19,18 @@ import {
   isWorldCupEntryCompleteFromSelections,
   recalculateWorldCupChallenge,
 } from "./worldCupScoringService"
+import { ensureWorldCupCommissionerSettings } from "./worldCupBracketEventService"
+import {
+  getWorldCupJoinPasswordHashFromPayload,
+  hashWorldCupJoinPassword,
+  parseWorldCupLeagueSettings,
+} from "./worldCupBracketSettingsService"
+import {
+  emitWorldCupChallengeCreated,
+  emitWorldCupBracketCompleted,
+  emitWorldCupEntryCreated,
+  emitWorldCupUserJoined,
+} from "./worldCupBracketLifecycleEvents"
 import { hasWorldCupPickSelection } from "./worldCupProjectedBracket"
 
 type SessionUser = { id?: string | null; email?: string | null; name?: string | null }
@@ -211,6 +225,21 @@ export async function createWorldCupBracketChallenge(input: {
       return { challenge, participant }
     })
 
+    await ensureWorldCupCommissionerSettings(result.challenge.id)
+    emitWorldCupChallengeCreated(result.challenge.id, input.name)
+    const firstEntry = await prisma.worldCupBracketEntry.findFirst({
+      where: { challengeId: result.challenge.id, userId },
+      orderBy: { createdAt: "asc" },
+    })
+    if (firstEntry) {
+      emitWorldCupEntryCreated(
+        result.challenge.id,
+        firstEntry.id,
+        userId,
+        firstEntry.name
+      )
+    }
+
     return { challengeId: result.challenge.id, participantId: result.participant.id, inviteCode, inviteUrl }
   } catch (error) {
     console.error("[world-cup/create] service failed", serializeWorldCupCreateError(error))
@@ -385,6 +414,7 @@ function serialize(input: {
     leaderboard: input.leaderboard,
     isOwner: Boolean(input.userId && input.userId === c.ownerUserId),
     isAdmin: Boolean(input.isAdmin),
+    hasBracketBrainAi: false,
   }
 }
 
@@ -455,7 +485,7 @@ export async function getWorldCupChallengeView(input: { challengeId: string; use
     scoring: c.scoringProfile,
   })
 
-  return serialize({
+  const baseView = serialize({
     challenge: { ...c, entries: c.entries },
     participant,
     activeEntry,
@@ -464,19 +494,40 @@ export async function getWorldCupChallengeView(input: { challengeId: string; use
     userId,
     isAdmin: Boolean(input.isAdmin || isAdminEmailAllowed(input.user?.email)),
   })
+
+  const hasBracketBrainAi = userId
+    ? await userHasBracketBrainAi(userId, input.user?.email ?? null)
+    : false
+
+  return { ...baseView, hasBracketBrainAi }
 }
 
 export async function getWorldCupChallengeByInvite(inviteCode: string) {
   try {
     const i = await prisma.worldCupBracketInvite.findUnique({
       where: { inviteCode },
-      include: { challenge: { include: { participants: true } } },
+      include: {
+        challenge: {
+          include: {
+            participants: true,
+            matches: { select: { startsAt: true, status: true } },
+          },
+        },
+      },
     })
     if (!i || (i.expiresAt && new Date(i.expiresAt) <= new Date()) || (i.maxUses != null && i.useCount >= i.maxUses)) return null
 
     const o = await prisma.appUser.findUnique({
       where: { id: i.challenge.ownerUserId },
       select: { displayName: true, username: true, email: true },
+    })
+
+    const { evaluateWorldCupNewParticipantJoinGate } = await import("./worldCupJoinGate")
+    const gate = evaluateWorldCupNewParticipantJoinGate({
+      challenge: i.challenge,
+      matches: i.challenge.matches,
+      sourcePayload: i.challenge.sourcePayload,
+      participantCount: i.challenge.participants.length,
     })
 
     return {
@@ -488,21 +539,39 @@ export async function getWorldCupChallengeByInvite(inviteCode: string) {
       participantCount: i.challenge.participants.length,
       status: i.challenge.status,
       visibility: i.challenge.visibility,
+      joinPreview: {
+        requiresJoinPassword: gate.requiresJoinPassword,
+        joinBlockedReason: gate.joinBlockedReason,
+        poolLocked: gate.poolLocked,
+        allowLateJoin: gate.allowLateJoin,
+        isFull: gate.isFull,
+        maxParticipants: gate.maxParticipants,
+      },
     }
   } catch {
     return null
   }
 }
 
-export async function joinWorldCupChallengeByInvite(input: { inviteCode: string; user: SessionUser }) {
+export async function joinWorldCupChallengeByInvite(input: {
+  inviteCode: string
+  user: SessionUser
+  joinPassword?: string | null
+}) {
   if (!input.user.id) throw new Error("Authenticated user required")
   const userId = input.user.id
   const i = await prisma.worldCupBracketInvite.findUnique({
     where: { inviteCode: input.inviteCode },
-    include: { challenge: true },
+    include: {
+      challenge: {
+        include: { matches: true },
+      },
+    },
   })
   if (!i) throw new Error("Invite not found")
+
   const name = await displayName(input.user)
+  let createdJoinEntryId: string | null = null
   const p = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const existing = await tx.worldCupBracketParticipant.findUnique({
       where: { challengeId_userId: { challengeId: i.challengeId, userId } },
@@ -510,24 +579,61 @@ export async function joinWorldCupChallengeByInvite(input: { inviteCode: string;
     if (existing) {
       const ec = await tx.worldCupBracketEntry.count({ where: { participantId: existing.id } })
       if (ec === 0) {
-        await tx.worldCupBracketEntry.create({
+        const e = await tx.worldCupBracketEntry.create({
           data: { challengeId: i.challengeId, participantId: existing.id, userId, name: "Bracket 1" },
         })
+        createdJoinEntryId = e.id
       }
-      return existing
+      return { participant: existing, joinedNew: false }
     }
+
+    const passwordHash = getWorldCupJoinPasswordHashFromPayload(i.challenge.sourcePayload)
+    if (passwordHash) {
+      const provided = input.joinPassword?.trim()
+      if (!provided || hashWorldCupJoinPassword(provided) !== passwordHash) {
+        throw new Error("Invalid join password.")
+      }
+    }
+
+    const leagueSettings = parseWorldCupLeagueSettings(i.challenge.sourcePayload)
+    const poolLocked = isWorldCupBracketChallengePicksLocked({
+      challenge: i.challenge,
+      matches: i.challenge.matches,
+    })
+    if (poolLocked && !leagueSettings.allowLateJoin) {
+      throw new Error("This bracket pool is locked and is not accepting new players.")
+    }
+
     const participantCount = await tx.worldCupBracketParticipant.count({ where: { challengeId: i.challengeId } })
     if (participantCount >= i.challenge.maxParticipants) throw new Error("This bracket challenge is full")
     const created = await tx.worldCupBracketParticipant.create({
       data: { challengeId: i.challengeId, userId, displayName: name },
     })
-    await tx.worldCupBracketEntry.create({
+    const e = await tx.worldCupBracketEntry.create({
       data: { challengeId: i.challengeId, participantId: created.id, userId, name: "Bracket 1" },
     })
+    createdJoinEntryId = e.id
     await tx.worldCupBracketInvite.update({ where: { id: i.id }, data: { useCount: { increment: 1 } } })
-    return created
+    return { participant: created, joinedNew: true }
   })
-  return { challengeId: i.challengeId, participantId: p.id }
+  if (p.joinedNew) {
+    emitWorldCupUserJoined(i.challengeId, userId, name)
+  }
+  if (createdJoinEntryId) {
+    emitWorldCupEntryCreated(i.challengeId, createdJoinEntryId, userId, "Bracket 1")
+  }
+
+  let entryId: string | null = createdJoinEntryId
+  if (!entryId) {
+    const first = await prisma.worldCupBracketEntry.findFirst({
+      where: { participantId: p.participant.id, challengeId: i.challengeId },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    })
+    entryId = first?.id ?? null
+  }
+
+  return { challengeId: i.challengeId, participantId: p.participant.id, entryId }
 }
 
 function side(match: WorldCupBracketMatch, pick: { selectedTeamId?: string | null; selectedSlotKey?: string | null }) {
@@ -624,11 +730,21 @@ export async function saveWorldCupPicks(input: {
 
   if (isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry }).locked) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
 
+  const wasComplete = Boolean(entry.isComplete)
+
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await savePicksForEntryTx(tx, { challenge: c, entry: { ...entry, participantId: participant.id, userId: input.userId }, picks: input.picks })
   })
 
   await recalculateWorldCupChallenge(c.id)
+
+  const entryAfter = await prisma.worldCupBracketEntry.findUnique({
+    where: { id: entry.id },
+    select: { isComplete: true, name: true },
+  })
+  if (!wasComplete && entryAfter?.isComplete) {
+    emitWorldCupBracketCompleted(c.id, entry.id, input.userId, entryAfter.name)
+  }
   return getWorldCupChallengeView({ challengeId: c.id, user: { id: input.userId } })
 }
 
@@ -686,7 +802,7 @@ export async function createWorldCupBracketEntry(input: { challengeId: string; u
   const count = await prisma.worldCupBracketEntry.count({ where: { participantId: participant.id } })
   if (count >= challenge.maxEntriesPerParticipant) throw new Error("Maximum bracket entries reached")
   const label = input.name?.trim() || `Bracket ${count + 1}`
-  return prisma.worldCupBracketEntry.create({
+  const row = await prisma.worldCupBracketEntry.create({
     data: {
       challengeId: input.challengeId,
       participantId: participant.id,
@@ -694,6 +810,8 @@ export async function createWorldCupBracketEntry(input: { challengeId: string; u
       name: label,
     },
   })
+  emitWorldCupEntryCreated(input.challengeId, row.id, input.userId, row.name)
+  return row
 }
 
 export async function renameWorldCupBracketEntry(input: { entryId: string; userId: string; name: string }) {
@@ -906,6 +1024,8 @@ export async function updateWorldCupChallengeSettings(input: {
   simulationEnabled?: boolean
   simulationStatus?: string | null
   simulatedAt?: Date | null
+  /** Optional Bracket League pool to mirror World Cup chat events into pool chat */
+  bracketLeagueId?: string | null
 }) {
   let nextSourcePayload: Prisma.JsonObject | undefined
   if (
@@ -955,6 +1075,9 @@ export async function updateWorldCupChallengeSettings(input: {
       pickLockAt: input.pickLockAt,
       status: input.status,
       sourcePayload: nextSourcePayload,
+      ...(Object.prototype.hasOwnProperty.call(input, "bracketLeagueId") && {
+        bracketLeagueId: input.bracketLeagueId,
+      }),
     },
   })
 }

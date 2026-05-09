@@ -5,7 +5,7 @@ import { requireWorldCupApiUser, worldCupChallengeParamsSchema } from "../../_ut
 
 export const runtime = "nodejs"
 
-export async function POST(_request: Request, context: { params: { challengeId: string } }) {
+export async function POST(request: Request, context: { params: { challengeId: string } }) {
   const auth = await requireWorldCupApiUser()
   if (!auth.ok) return auth.response
 
@@ -13,6 +13,12 @@ export async function POST(_request: Request, context: { params: { challengeId: 
   if (!params.success) {
     return NextResponse.json({ error: "Invalid challenge id" }, { status: 400 })
   }
+
+  const body = await request.json().catch(() => ({}))
+  const joinPassword =
+    typeof (body as { joinPassword?: unknown }).joinPassword === "string"
+      ? (body as { joinPassword: string }).joinPassword
+      : undefined
 
   const challenge = await (prisma as any).worldCupBracketChallenge.findUnique({
     where: { id: params.data.challengeId },
@@ -22,10 +28,17 @@ export async function POST(_request: Request, context: { params: { challengeId: 
     return NextResponse.json({ error: "Challenge not found" }, { status: 404 })
   }
 
-  const result = await joinWorldCupChallengeByInvite({
-    inviteCode: challenge.inviteCode,
-    user: auth.user,
-  })
-
-  return NextResponse.json({ ok: true, ...result })
+  try {
+    const result = await joinWorldCupChallengeByInvite({
+      inviteCode: challenge.inviteCode,
+      user: auth.user,
+      joinPassword,
+    })
+    return NextResponse.json({ ok: true, ...result })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to join bracket"
+    const lower = message.toLowerCase()
+    const status = lower.includes("invalid join password") ? 401 : 400
+    return NextResponse.json({ error: message }, { status })
+  }
 }

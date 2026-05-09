@@ -9,18 +9,11 @@ import {
   Clock,
   Lock,
   Radio,
-  Sparkles,
   Trophy,
   X,
 } from "lucide-react"
 import { WORLD_CUP_ROUND_LABELS } from "@/lib/world-cup/types"
-import type {
-  WorldCupAiMatchupPreview,
-  WorldCupAiStrategy,
-  WorldCupMatchView,
-  WorldCupPickView,
-  WorldCupRound,
-} from "@/lib/world-cup/types"
+import type { WorldCupMatchView, WorldCupPickView, WorldCupRound } from "@/lib/world-cup/types"
 import {
   formatWorldCupKickoffShort,
   formatWorldCupMatchStatus,
@@ -41,7 +34,7 @@ import {
   isBracketComplete,
   isWorldCupMatchPickable,
 } from "@/lib/world-cup/worldCupProjectedBracket"
-import { getWorldCupAiMatchupPreview } from "@/lib/world-cup/worldCupClientApi"
+import WorldCupMatchupIntelligencePanel from "@/components/brackets/world-cup/WorldCupMatchupIntelligencePanel"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -71,12 +64,12 @@ function TeamLogo({ src, name }: { src?: string | null; name: string }) {
         alt=""
         width={56}
         height={56}
-        className="h-14 w-14 rounded-full bg-white object-contain p-0.5"
+        className="h-16 w-16 rounded-full bg-white object-contain p-0.5 sm:h-14 sm:w-14"
       />
     )
   }
   return (
-    <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10 text-lg font-black text-white/60">
+    <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/10 text-xl font-black text-white/60 sm:h-14 sm:w-14 sm:text-lg">
       {name.slice(0, 2).toUpperCase()}
     </span>
   )
@@ -116,6 +109,7 @@ function TeamCard({
   isLocked,
   matchStatus,
   pickState,
+  aiStaged,
   onPick,
 }: {
   teamId: string | null
@@ -129,18 +123,22 @@ function TeamCard({
   isLocked: boolean
   matchStatus: string
   pickState?: "not_started" | "winning" | "drawing" | "losing" | "correct" | "incorrect" | "unknown"
+  aiStaged?: boolean
   onPick: () => void
 }) {
   const showScore = matchStatus === "live" || matchStatus === "halftime" || matchStatus === "final"
   const tbd = !teamId && teamName === "TBD"
 
+  const winLabel = `Pick ${teamName} to win`
   return (
     <button
       type="button"
       onClick={onPick}
       disabled={isLocked || isSaving || tbd || !teamId}
+      aria-pressed={isPicked}
+      aria-label={winLabel}
       className={[
-        "relative flex w-full flex-col items-center gap-3 rounded-2xl border-2 px-6 py-8 text-center transition-all active:scale-[0.98]",
+        "relative flex min-h-[148px] w-full touch-manipulation flex-col items-center justify-center gap-2 rounded-2xl border-2 px-4 py-7 text-center transition-all active:scale-[0.98] sm:min-h-0 sm:gap-3 sm:px-6 sm:py-8",
         "disabled:cursor-not-allowed",
         pickState === "correct"
           ? "border-emerald-400 bg-emerald-400/[0.10] shadow-[0_0_32px_rgba(52,211,153,0.15)]"
@@ -158,6 +156,8 @@ function TeamCard({
           ? "border-emerald-400 bg-emerald-400/[0.08]"
           : tbd
           ? "border-white/5 bg-white/[0.02] opacity-50"
+          : aiStaged
+          ? "border-cyan-300/90 bg-cyan-300/[0.14] shadow-[0_0_28px_rgba(103,232,249,0.25)]"
           : isLocked
           ? "border-white/10 bg-white/[0.04] opacity-70"
           : "border-white/15 bg-white/[0.05] hover:border-white/30 hover:bg-white/[0.09]",
@@ -185,7 +185,7 @@ function TeamCard({
       )}
 
       <TeamLogo src={teamLogo} name={teamName} />
-      <span className="hyphens-auto break-words text-xl font-black text-white">{teamName}</span>
+      <span className="hyphens-auto break-words px-1 text-lg font-black leading-tight text-white sm:text-xl">{teamName}</span>
       {showScore && (
         <span className="text-2xl font-black tabular-nums text-white/80">
           {score ?? 0}
@@ -313,183 +313,6 @@ function BracketCompleteView({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-// ── AI Preview Panel ──────────────────────────────────────────────────────────
-
-const STRATEGY_OPTIONS: { value: WorldCupAiStrategy; label: string; emoji: string }[] = [
-  { value: "safe", label: "Safe", emoji: "🛡️" },
-  { value: "balanced", label: "Balanced", emoji: "⚖️" },
-  { value: "upset", label: "Upset", emoji: "💥" },
-  { value: "chaos", label: "Chaos", emoji: "🌪️" },
-]
-
-function AiPreviewPanel({
-  challengeId,
-  entryId,
-  matchId,
-  homeName,
-  awayName,
-  onUsePick,
-  disabled,
-}: {
-  challengeId: string
-  entryId: string
-  matchId: string
-  homeName: string
-  awayName: string
-  onUsePick: (side: "home" | "away") => void
-  disabled: boolean
-}) {
-  const [strategy, setStrategy] = useState<WorldCupAiStrategy>("balanced")
-  const [preview, setPreview] = useState<WorldCupAiMatchupPreview | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setPreview(null)
-    setError(null)
-    setLoading(true)
-    getWorldCupAiMatchupPreview(challengeId, { matchId, entryId, strategy })
-      .then((p) => { if (!cancelled) { setPreview(p); setLoading(false) } })
-      .catch((e: unknown) => {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Failed to load AI preview")
-          setLoading(false)
-        }
-      })
-    return () => { cancelled = true }
-  }, [challengeId, entryId, matchId, strategy])
-
-  return (
-    <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3 space-y-3">
-      {/* Header */}
-      <div className="flex items-center gap-1.5">
-        <Sparkles className="h-3.5 w-3.5 text-cyan-300" />
-        <span className="text-[11px] font-bold text-cyan-300 uppercase tracking-wide">AI Matchup Preview</span>
-      </div>
-
-      {/* Strategy selector */}
-      <div className="flex gap-1.5 flex-wrap">
-        {STRATEGY_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => setStrategy(opt.value)}
-            className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors ${
-              strategy === opt.value
-                ? "bg-cyan-300 text-black"
-                : "bg-white/[0.06] text-white/60 hover:bg-white/10"
-            }`}
-          >
-            {opt.emoji} {opt.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
-      {loading && (
-        <div className="space-y-2 animate-pulse">
-          <div className="h-2.5 w-3/4 rounded bg-white/10" />
-          <div className="h-2.5 w-1/2 rounded bg-white/10" />
-          <div className="h-2.5 w-5/6 rounded bg-white/10" />
-        </div>
-      )}
-
-      {!loading && error && (
-        <p className="text-[11px] text-red-400">{error}</p>
-      )}
-
-      {!loading && preview && (
-        <div className="space-y-2">
-          {/* Win probability bars */}
-          <div className="space-y-1.5">
-            <ProbBar label={homeName} pct={Math.round(preview.homeWinProbability * 100)} side="home" />
-            <ProbBar label={awayName} pct={Math.round(preview.awayWinProbability * 100)} side="away" />
-          </div>
-
-          {/* Badges */}
-          <div className="flex gap-1.5 flex-wrap">
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${upsetBadgeClass(preview.upsetRisk)}`}>
-              Upset {preview.upsetRisk}
-            </span>
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${confidenceBadgeClass(preview.confidence)}`}>
-              Confidence: {preview.confidence}
-            </span>
-            {preview.generative && (
-              <span className="rounded-full bg-violet-500/20 px-2 py-0.5 text-[10px] font-bold text-violet-300">
-                AI
-              </span>
-            )}
-          </div>
-
-          {/* Key factors */}
-          {preview.keyFactors.length > 0 && (
-            <ul className="space-y-0.5">
-              {preview.keyFactors.slice(0, 3).map((f) => (
-                <li key={f} className="text-[10px] text-white/40 before:content-['·_']">{f}</li>
-              ))}
-            </ul>
-          )}
-
-          {/* Summary */}
-          <p className="text-[11px] text-white/70 leading-relaxed">{preview.summary}</p>
-
-          {/* Safe / Contrarian */}
-          <div className="grid grid-cols-2 gap-1.5 text-[10px]">
-            <div className="rounded-lg bg-white/[0.05] px-2 py-1.5">
-              <span className="block text-white/40 font-semibold uppercase text-[9px]">Safe Pick</span>
-              <span className="text-white/80 font-bold">{preview.safePick}</span>
-            </div>
-            <div className="rounded-lg bg-white/[0.05] px-2 py-1.5">
-              <span className="block text-white/40 font-semibold uppercase text-[9px]">Contrarian</span>
-              <span className="text-white/80 font-bold">{preview.contrarianPick}</span>
-            </div>
-          </div>
-
-          {/* Use AI Pick button */}
-          {!disabled && preview.recommendedSide && (
-            <button
-              type="button"
-              onClick={() => onUsePick(preview.recommendedSide!)}
-              className="w-full rounded-xl bg-cyan-300/90 py-2 text-xs font-black text-black hover:bg-cyan-300 transition-colors"
-            >
-              Use AI Pick · {preview.recommendedTeamName}
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ProbBar({ label, pct, side }: { label: string; pct: number; side: "home" | "away" }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="w-20 truncate text-[10px] text-white/50 text-right">{label}</span>
-      <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-500 ${side === "home" ? "bg-cyan-400" : "bg-violet-400"}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <span className="w-8 text-[10px] text-white/50">{pct}%</span>
-    </div>
-  )
-}
-
-function upsetBadgeClass(risk: "low" | "medium" | "high") {
-  if (risk === "high") return "bg-red-500/20 text-red-300"
-  if (risk === "medium") return "bg-amber-500/20 text-amber-300"
-  return "bg-green-500/20 text-green-300"
-}
-
-function confidenceBadgeClass(confidence: "low" | "medium" | "high") {
-  if (confidence === "high") return "bg-cyan-500/20 text-cyan-300"
-  if (confidence === "medium") return "bg-white/10 text-white/60"
-  return "bg-white/5 text-white/40"
-}
-
-
 export default function WorldCupGuidedMatchupPicker({
   challengeId,
   entryId,
@@ -503,6 +326,7 @@ export default function WorldCupGuidedMatchupPicker({
   lockAt = null,
   tournamentStartAt = null,
   includeThirdPlace = false,
+  hasBracketBrainAi = false,
   onClose,
   onSavePick,
   onPicksUpdated,
@@ -519,6 +343,8 @@ export default function WorldCupGuidedMatchupPicker({
   lockAt?: string | null
   tournamentStartAt?: string | null
   includeThirdPlace?: boolean
+  /** AF Pro — enables Bracket Brain AI actions in matchup intelligence. */
+  hasBracketBrainAi?: boolean
   onClose: () => void
   /** Called to persist a pick. Should throw on failure. */
   onSavePick: (
@@ -881,31 +707,32 @@ export default function WorldCupGuidedMatchupPicker({
       role="dialog"
       aria-modal="true"
       aria-label="Guided Matchup Picker"
-      className="fixed inset-0 z-[80] flex flex-col bg-[#05070b] text-white"
+      className="fixed inset-0 z-[80] flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#05070b] pt-[env(safe-area-inset-top)] text-white"
     >
       {/* ── Header ────────────────────────────────────────────────────────── */}
-      <header className="shrink-0 border-b border-white/10 bg-zinc-950/95 px-4 py-3 backdrop-blur">
-        <div className="flex items-center gap-3">
+      <header className="sticky top-0 z-10 shrink-0 border-b border-white/10 bg-zinc-950/95 px-3 py-2.5 backdrop-blur sm:px-4 sm:py-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-white/35">
+            <p className="truncate text-[10px] font-bold uppercase tracking-widest text-white/35">
               {entryName}
             </p>
-            <h1 className="text-base font-black text-white">
+            <h1 className="truncate text-sm font-black text-white sm:text-base">
               {headerTitle}
             </h1>
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-white/40">
+          <div className="flex shrink-0 items-center gap-1.5 text-xs text-white/40">
             <span className="tabular-nums">
               {totalPicked}/{totalRequired}
             </span>
           </div>
           <button
             type="button"
+            data-testid="world-cup-guided-close"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-white/60 hover:text-white"
+            className="flex min-h-11 min-w-11 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-white/80 hover:text-white"
             aria-label="Close guided picker"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" aria-hidden />
           </button>
         </div>
         {currentMatch && !guardedShowComplete && (
@@ -934,7 +761,7 @@ export default function WorldCupGuidedMatchupPicker({
       </header>
 
       {/* ── Body ──────────────────────────────────────────────────────────── */}
-      <main className="min-h-0 flex-1 overflow-y-auto">
+      <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
         {guardedShowComplete ? (
           <BracketCompleteView
             champion={champion}
@@ -950,6 +777,7 @@ export default function WorldCupGuidedMatchupPicker({
             onPick={handlePick}
             challengeId={challengeId}
             entryId={entryId}
+            hasBracketBrainAi={hasBracketBrainAi}
           />
         ) : (
           <div className="flex flex-col items-center justify-center gap-4 py-16 text-center text-sm text-white/40">
@@ -977,36 +805,41 @@ export default function WorldCupGuidedMatchupPicker({
 
       {/* ── Footer nav ────────────────────────────────────────────────────── */}
       {!guardedShowComplete && currentMatch && !isLocked && (
-        <footer className="shrink-0 border-t border-white/10 bg-zinc-950/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] pt-3">
-          <div className="flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={goBack}
-              disabled={!canGoBack || saveState === "saving"}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-xs font-bold text-white/60 disabled:opacity-30"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Back
-            </button>
+        <footer className="shrink-0 border-t border-white/10 bg-zinc-950/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] pt-2.5 sm:px-4 sm:pt-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <div className="order-2 grid grid-cols-2 gap-2 sm:order-1 sm:flex sm:flex-1 sm:justify-between">
+              <button
+                type="button"
+                onClick={goBack}
+                disabled={!canGoBack || saveState === "saving"}
+                className="inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-xs font-bold text-white/70 disabled:opacity-30 sm:min-h-0 sm:px-4 sm:py-2"
+              >
+                <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden />
+                Back
+              </button>
 
-            <div className="text-center text-[10px] text-white/30">
+              <button
+                type="button"
+                onClick={() => goToNext(currentMatch.id, picks)}
+                disabled={saveState === "saving"}
+                className="inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-xs font-bold text-white/70 disabled:opacity-30 sm:min-h-0 sm:px-4 sm:py-2"
+              >
+                Skip
+                <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+              </button>
+            </div>
+
+            <div
+              className="order-1 text-center text-[10px] leading-snug text-white/35 sm:order-2 sm:flex-1 sm:px-2"
+              data-testid="world-cup-guided-footer-context"
+            >
               Match {currentMatch.matchNumber}
               {currentMatch.startsAt ? (
-                <span className="ml-1">
-                  · {formatMatchDate(currentMatch.startsAt)}
+                <span className="mt-0.5 block sm:ml-1 sm:mt-0 sm:inline">
+                  {formatMatchDate(currentMatch.startsAt)}
                 </span>
               ) : null}
             </div>
-
-            <button
-              type="button"
-              onClick={() => goToNext(currentMatch.id, picks)}
-              disabled={saveState === "saving"}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-xs font-bold text-white/60 disabled:opacity-30"
-            >
-              Skip
-              <ChevronRight className="h-4 w-4" />
-            </button>
           </div>
         </footer>
       )}
@@ -1024,6 +857,7 @@ function MatchView({
   onPick,
   challengeId,
   entryId,
+  hasBracketBrainAi,
 }: {
   match: WorldCupMatchView
   pick: WorldCupPickView | null
@@ -1032,6 +866,7 @@ function MatchView({
   onPick: (side: "home" | "away") => void
   challengeId: string
   entryId: string
+  hasBracketBrainAi: boolean
 }) {
   const isSaving = saveState === "saving"
   const isFinal = isWorldCupMatchFinal(match)
@@ -1046,6 +881,11 @@ function MatchView({
   const awayPickState = pick?.selectedTeamId === match.awayTeamId ||
     (pick?.selectedSlotKey && pick.selectedSlotKey === match.awaySlotKey)
     ? pickLiveState : "not_started"
+
+  const [stagedSide, setStagedSide] = useState<"home" | "away" | null>(null)
+  useEffect(() => {
+    setStagedSide(null)
+  }, [match.id])
 
   return (
     <div className="flex flex-col gap-4 px-4 py-6 sm:py-10">
@@ -1070,14 +910,20 @@ function MatchView({
           <div className="text-xs text-cyan-300">Saving…</div>
         )}
         {saveState === "saved" && (
-          <div className="flex items-center gap-1 text-xs text-emerald-300">
-            <Check className="h-3.5 w-3.5" /> Saved
+          <div
+            className="flex flex-col items-center gap-1 text-xs text-emerald-300"
+            data-testid="world-cup-guided-next-transition"
+          >
+            <span className="flex items-center gap-1 font-bold">
+              <Check className="h-3.5 w-3.5 shrink-0" aria-hidden /> Saved
+            </span>
+            <span className="text-[11px] font-semibold text-emerald-200/90">Next matchup…</span>
           </div>
         )}
       </div>
 
       {/* vs. divider */}
-      <div className="flex flex-col items-stretch gap-3 sm:flex-row">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:gap-4">
         <TeamCard
           teamId={match.homeTeamId}
           teamName={match.homeTeamName || "TBD"}
@@ -1095,6 +941,7 @@ function MatchView({
           isLocked={isLocked || isFinal}
           matchStatus={match.status}
           pickState={homePickState as "not_started" | "winning" | "drawing" | "losing" | "correct" | "incorrect" | "unknown"}
+          aiStaged={stagedSide === "home"}
           onPick={() => onPick("home")}
         />
 
@@ -1121,6 +968,7 @@ function MatchView({
           isLocked={isLocked || isFinal}
           matchStatus={match.status}
           pickState={awayPickState as "not_started" | "winning" | "drawing" | "losing" | "correct" | "incorrect" | "unknown"}
+          aiStaged={stagedSide === "away"}
           onPick={() => onPick("away")}
         />
       </div>
@@ -1147,17 +995,24 @@ function MatchView({
         </p>
       )}
 
-      {/* AI Matchup Preview */}
+      {/* Matchup intelligence — scroll-contained on small screens so team picks stay primary */}
       {!isFinal && (
-        <AiPreviewPanel
-          challengeId={challengeId}
-          entryId={entryId}
-          matchId={match.id}
-          homeName={match.homeTeamName || match.homeSlotKey}
-          awayName={match.awayTeamName || match.awaySlotKey}
-          onUsePick={onPick}
-          disabled={isLocked}
-        />
+        <div className="max-sm:-mx-1 sm:mx-0">
+          <WorldCupMatchupIntelligencePanel
+            challengeId={challengeId}
+            entryId={entryId}
+            matchId={match.id}
+            homeName={match.homeTeamName || match.homeSlotKey}
+            awayName={match.awayTeamName || match.awaySlotKey}
+            disabled={isLocked}
+            hasBracketBrainAi={hasBracketBrainAi}
+            stagedSide={stagedSide}
+            onStageSide={setStagedSide}
+            onUseThisPick={(side) => {
+              void onPick(side)
+            }}
+          />
+        </div>
       )}
     </div>
   )

@@ -36,8 +36,13 @@ const SLOT_STRENGTH: Record<string, number> = {
 
 const DEFAULT_STRENGTH = 60
 
-function getSlotStrength(slotKey: string): number {
+/** Exported seed/strength proxy used for UI comparisons (0–100). */
+export function getWorldCupSeedStrength(slotKey: string): number {
   return SLOT_STRENGTH[slotKey] ?? DEFAULT_STRENGTH
+}
+
+function getSlotStrength(slotKey: string): number {
+  return getWorldCupSeedStrength(slotKey)
 }
 
 // ── Team strength ─────────────────────────────────────────────────────────────
