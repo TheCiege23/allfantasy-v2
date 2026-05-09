@@ -3,10 +3,14 @@ import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { getWorldCupRoundPoints, isWorldCupChallengeLocked } from "./worldCupBracketBuilder"
 import type { WorldCupLeaderboardRow, WorldCupRound, WorldCupScoringValues } from "./types"
+import {
+  hasWorldCupPickSelection,
+  isWorldCupMatchPickable,
+} from "./worldCupProjectedBracket"
 
 type DbMatch = {
   id: string
-  round: WorldCupRound
+  round: WorldCupRound | string
   homeSlotKey: string
   awaySlotKey: string
   homeTeamId: string | null
@@ -16,11 +20,14 @@ type DbMatch = {
   status: string
   winnerTeamId: string | null
   winnerTeamName: string | null
+  nextMatchId?: string | null
+  nextMatchSlot?: string | null
 }
 
 type DbPick = {
   id: string
-  round: WorldCupRound
+  matchId: string
+  round: WorldCupRound | string
   selectedTeamId: string | null
   selectedTeamName: string
   selectedSlotKey: string | null
@@ -38,6 +45,7 @@ type DbEntryForLb = {
   championTeamId?: string | null
   championTeamName?: string | null
   updatedAt: Date
+  submittedAt?: Date | null
   picks: DbPick[]
   participant?: {
     displayName: string
@@ -53,6 +61,56 @@ function winnerSlotKey(m: DbMatch) {
   return null
 }
 
+function normalizeTeamName(value?: string | null) {
+  return value?.trim().toLowerCase() ?? ""
+}
+
+function selectionPlayedInMatch(
+  pick: Partial<Pick<DbPick, "selectedTeamId" | "selectedTeamName" | "selectedSlotKey">>,
+  match: DbMatch
+) {
+  const selectedName = normalizeTeamName(pick.selectedTeamName)
+  return Boolean(
+    (pick.selectedTeamId &&
+      (pick.selectedTeamId === match.homeTeamId || pick.selectedTeamId === match.awayTeamId)) ||
+      (pick.selectedSlotKey &&
+        (pick.selectedSlotKey === match.homeSlotKey || pick.selectedSlotKey === match.awaySlotKey)) ||
+      (selectedName &&
+        (selectedName === normalizeTeamName(match.homeTeamName) ||
+          selectedName === normalizeTeamName(match.awayTeamName)))
+  )
+}
+
+function selectionWonMatch(
+  pick: Partial<Pick<DbPick, "selectedTeamId" | "selectedTeamName" | "selectedSlotKey">>,
+  match: DbMatch
+) {
+  const selectedName = normalizeTeamName(pick.selectedTeamName)
+  const winnerName = normalizeTeamName(match.winnerTeamName)
+  const slot = winnerSlotKey(match)
+  return Boolean(
+    (pick.selectedTeamId && match.winnerTeamId && pick.selectedTeamId === match.winnerTeamId) ||
+      (pick.selectedSlotKey && slot && pick.selectedSlotKey === slot) ||
+      (selectedName && winnerName && selectedName === winnerName)
+  )
+}
+
+function isWorldCupPickSelectionStillAlive(
+  pick: Partial<Pick<DbPick, "selectedTeamId" | "selectedTeamName" | "selectedSlotKey">>,
+  matches: DbMatch[]
+) {
+  if (!pick.selectedTeamId && !pick.selectedSlotKey && !normalizeTeamName(pick.selectedTeamName)) {
+    return false
+  }
+  return !matches.some(
+    (match) =>
+      match.status === "final" &&
+      Boolean(match.winnerTeamId || match.winnerTeamName) &&
+      selectionPlayedInMatch(pick, match) &&
+      !selectionWonMatch(pick, match)
+  )
+}
+
 export function evaluateWorldCupPick(
   pickOrMatch: Pick<DbPick, "round" | "selectedTeamId" | "selectedTeamName" | "selectedSlotKey"> | DbMatch,
   matchOrPick: DbMatch | Partial<Pick<DbPick, "round" | "selectedTeamId" | "selectedTeamName" | "selectedSlotKey">>,
@@ -61,6 +119,7 @@ export function evaluateWorldCupPick(
   const firstLooksLikeMatch = "status" in pickOrMatch && ("winnerTeamId" in pickOrMatch || "winnerTeamName" in pickOrMatch)
   const match = (firstLooksLikeMatch ? pickOrMatch : matchOrPick) as DbMatch
   const pick = (firstLooksLikeMatch ? matchOrPick : pickOrMatch) as Partial<Pick<DbPick, "round" | "selectedTeamId" | "selectedTeamName" | "selectedSlotKey">>
+  if (!hasWorldCupPickSelection(pick)) return { isCorrect: null, pointsAwarded: 0 }
   if (match.status !== "final" || (!match.winnerTeamId && !match.winnerTeamName)) return { isCorrect: null, pointsAwarded: 0 }
   const slot = winnerSlotKey(match)
   const isCorrect = Boolean(
@@ -87,12 +146,13 @@ export function isChampionStillAlive(
   const id = p.championTeamId ?? p.championPickTeamId
   const name = p.championTeamName ?? p.championPickName
   if (!id && !name) return false
-  return !matches.some(
-    (m) =>
-      m.status === "final" &&
-      (!m.round || m.round === "final") &&
-      (((id && (id === m.homeTeamId || id === m.awayTeamId)) || (name && (name === m.homeTeamName || name === m.awayTeamName))) &&
-        !((id && id === m.winnerTeamId) || (name && name === m.winnerTeamName)))
+  return isWorldCupPickSelectionStillAlive(
+    {
+      selectedTeamId: id ?? null,
+      selectedTeamName: name ?? "",
+      selectedSlotKey: null,
+    },
+    matches
   )
 }
 
@@ -102,8 +162,8 @@ export function buildWorldCupLeaderboardRows(input: {
   matches: DbMatch[]
   scoring?: Partial<WorldCupScoringValues> | null
 }): WorldCupLeaderboardRow[] {
-  const rows: WorldCupLeaderboardRow[] = input.entries.map((e) => {
-    const picks = e.picks
+  const rows = input.entries.map((e) => {
+    const picks = e.picks.filter(hasWorldCupPickSelection)
     const roundBreakdown: Record<string, number> = {}
     let totalScore = 0
     let maxPossibleScore = 0
@@ -115,11 +175,27 @@ export function buildWorldCupLeaderboardRows(input: {
       if (r.isCorrect === false) incorrectPicks++
       totalScore += r.pointsAwarded
       if (pick.round) roundBreakdown[pick.round] = (roundBreakdown[pick.round] ?? 0) + r.pointsAwarded
-      if (r.isCorrect !== false && pick.round) maxPossibleScore += r.pointsAwarded || getWorldCupRoundPoints(pick.round, input.scoring)
+      if (r.isCorrect === true) {
+        maxPossibleScore += r.pointsAwarded
+      } else if (
+        r.isCorrect === null &&
+        pick.round &&
+        isWorldCupPickSelectionStillAlive(pick, input.matches)
+      ) {
+        maxPossibleScore += getWorldCupRoundPoints(pick.round as WorldCupRound, input.scoring)
+      }
     }
     const joinedAt = e.createdAt instanceof Date ? e.createdAt.toISOString() : new Date(e.createdAt).toISOString()
     const updatedAt = e.updatedAt instanceof Date ? e.updatedAt.toISOString() : new Date(e.updatedAt).toISOString()
+    const submittedAt = e.submittedAt
+      ? e.submittedAt instanceof Date
+        ? e.submittedAt.toISOString()
+        : new Date(e.submittedAt).toISOString()
+      : null
     const u = e.participant?.user
+    const championPick = picks.find((x) => x.round === "final")
+    const championTeamId = e.championTeamId ?? championPick?.selectedTeamId ?? null
+    const championPickName = e.championTeamName ?? championPick?.selectedTeamName ?? null
     return {
       rank: 0,
       entryId: e.id,
@@ -133,24 +209,99 @@ export function buildWorldCupLeaderboardRows(input: {
       maxPossibleScore,
       correctPicks,
       incorrectPicks,
-      championPickName: e.championTeamName ?? picks.find((x) => x.round === "final")?.selectedTeamName ?? null,
-      championTeamId: e.championTeamId ?? null,
+      championPickName,
+      championTeamId,
       championStillAlive: isChampionStillAlive(
-        { championTeamId: e.championTeamId, championTeamName: e.championTeamName },
+        { championTeamId, championTeamName: championPickName },
         input.matches
       ),
       roundBreakdown,
       joinedAt,
       updatedAt,
+      submittedAt,
     }
   })
   rows.sort(
     (a, b) =>
       b.totalScore - a.totalScore ||
+      b.maxPossibleScore - a.maxPossibleScore ||
       Number(b.championStillAlive) - Number(a.championStillAlive) ||
+      (a.submittedAt && b.submittedAt
+        ? new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime()
+        : a.submittedAt
+          ? -1
+          : b.submittedAt
+            ? 1
+            : 0) ||
       new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime()
   )
-  return rows.map((r, i) => ({ ...r, rank: i + 1 }))
+  return rows.map(({ submittedAt, ...r }, i) => ({ ...r, rank: i + 1 }))
+}
+
+export function isWorldCupEntryCompleteFromSelections(input: {
+  matches: Array<DbMatch>
+  picks: Array<Pick<DbPick, "matchId" | "selectedTeamId" | "selectedSlotKey">>
+  includeThirdPlace?: boolean | null
+}): boolean {
+  const projectedMatches = projectWorldCupMatchesForEntryCompletion(input.matches, input.picks)
+  const requiredMatchIds = new Set(
+    projectedMatches
+      .filter(
+        (match) =>
+          (match.round !== "third_place" || Boolean(input.includeThirdPlace)) &&
+          isWorldCupMatchPickable(match)
+      )
+      .map((match) => match.id)
+  )
+  if (requiredMatchIds.size === 0) return false
+
+  const pickedMatchIds = new Set(
+    input.picks
+      .filter((pick) => requiredMatchIds.has(pick.matchId) && hasWorldCupPickSelection(pick))
+      .map((pick) => pick.matchId)
+  )
+
+  return [...requiredMatchIds].every((matchId) => pickedMatchIds.has(matchId))
+}
+
+function projectWorldCupMatchesForEntryCompletion(
+  matches: Array<DbMatch>,
+  picks: Array<Pick<DbPick, "matchId" | "selectedTeamId" | "selectedSlotKey">>
+): DbMatch[] {
+  const out = matches.map((match) => ({ ...match }))
+  const byId = new Map(out.map((match) => [match.id, match]))
+  const pickByMatchId = new Map(
+    picks.filter(hasWorldCupPickSelection).map((pick) => [pick.matchId, pick])
+  )
+
+  for (const match of out) {
+    const pick = pickByMatchId.get(match.id)
+    const next = match.nextMatchId ? byId.get(match.nextMatchId) : null
+    if (!pick || !next || !match.nextMatchSlot) continue
+
+    const pickedHome =
+      (pick.selectedTeamId && pick.selectedTeamId === match.homeTeamId) ||
+      (pick.selectedSlotKey && pick.selectedSlotKey === match.homeSlotKey)
+    const team = pickedHome
+      ? {
+          id: match.homeTeamId,
+          name: match.homeTeamName,
+        }
+      : {
+          id: match.awayTeamId,
+          name: match.awayTeamName,
+        }
+
+    if (match.nextMatchSlot === "home") {
+      next.homeTeamId = team.id
+      next.homeTeamName = team.name
+    } else {
+      next.awayTeamId = team.id
+      next.awayTeamName = team.name
+    }
+  }
+
+  return out
 }
 
 export async function recalculateWorldCupChallenge(challengeId: string) {
@@ -219,6 +370,16 @@ export async function recalculateWorldCupChallenge(challengeId: string) {
     })
 
     for (const row of refreshedRows) {
+      const freshEntry = fresh.entries.find(
+        (entry: { id: string }) => entry.id === row.entryId
+      )
+      const entryComplete = freshEntry
+        ? isWorldCupEntryCompleteFromSelections({
+            matches: fresh.matches as DbMatch[],
+            picks: freshEntry.picks,
+            includeThirdPlace: fresh.includeThirdPlace,
+          })
+        : false
       await tx.worldCupBracketEntry.update({
         where: { id: row.entryId },
         data: {
@@ -228,6 +389,8 @@ export async function recalculateWorldCupChallenge(challengeId: string) {
           incorrectPicks: row.incorrectPicks,
           rank: row.rank,
           roundBreakdown: row.roundBreakdown,
+          isComplete: entryComplete,
+          submittedAt: entryComplete ? freshEntry?.submittedAt ?? new Date() : null,
         },
       })
     }
@@ -241,7 +404,7 @@ export async function recalculateWorldCupChallenge(challengeId: string) {
 
     for (const p of fresh.participants) {
       const list = byParticipant.get(p.id) ?? []
-      const best = list.reduce<WorldCupLeaderboardRow | null>((acc, row) => (!acc || row.totalScore > acc.totalScore ? row : acc), null)
+      const best = list[0] ?? null
       await tx.worldCupBracketParticipant.update({
         where: { id: p.id },
         data: {

@@ -325,7 +325,10 @@
       "Bash(echo \"---exit:$?\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:59593)",
       "Bash(git check-ignore *)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:59593/dashboard)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:59593/dashboard)",
+      "Bash(git checkout *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(git pull *)"
     ]
   }
 }

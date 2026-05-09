@@ -93,7 +93,6 @@ import { LeagueSettingsModal } from './components/LeagueSettingsModal'
 import { CommissionerSettingsModal } from './components/CommissionerSettingsModal'
 import { useIdpCapSummary, useRedraftRosterId } from '@/app/idp/hooks/useIdpTeamCap'
 import { LeagueSettingsTab as LeagueSettingsContentTab } from './tabs/LeagueSettingsTab'
-import { postOpenDraftOverlayMessage } from '@/lib/dashboard/dashboard-draft-overlay-bridge'
 import { RedraftTab } from './tabs/RedraftTab'
 import { KeeperSelectionTab } from './tabs/KeeperSelectionTab'
 import { BestBallTab } from './tabs/BestBallTab'
@@ -204,11 +203,6 @@ export type LeagueShellProps = {
   seasonSnapshot?: LeagueSeasonSnapshot | null
   /** AF-native league settings copy + standings layout (divisions / guillotine / survivor). */
   leagueDashboard: LeagueDashboardView
-  /**
-   * When true, only the center column renders (no chat / My Leagues rails).
-   * Used when this shell is loaded inside the dashboard center panel (`?embed=1`).
-   */
-  embedMode?: boolean
 }
 
 export function LeagueShell({
@@ -230,7 +224,6 @@ export function LeagueShell({
   dispersalDraftInProgress = null,
   seasonSnapshot = null,
   leagueDashboard,
-  embedMode = false,
 }: LeagueShellProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -758,30 +751,6 @@ export function LeagueShell({
   const [mobileLeftOpen, setMobileLeftOpen] = useState(false)
   const [mobileRightOpen, setMobileRightOpen] = useState(false)
 
-  const navigateDashboardHome = useCallback(() => {
-    if (embedMode && typeof window !== 'undefined' && window.parent !== window) {
-      try {
-        window.parent.location.assign('/dashboard')
-        return
-      } catch {
-        /* cross-origin or restricted — fall back */
-      }
-    }
-    router.push('/dashboard')
-  }, [embedMode, router])
-
-  const openLeagueChatOrNavigate = useCallback(() => {
-    if (embedMode && typeof window !== 'undefined' && window.parent !== window) {
-      try {
-        window.parent.dispatchEvent(new CustomEvent('af-dashboard-open-mobile-left'))
-        return
-      } catch {
-        /* fall through */
-      }
-    }
-    router.push(`/league/${league.id}?openChat=league`)
-  }, [embedMode, league.id, router])
-
   const settingsInviteCode =
     league.settings &&
     typeof league.settings === 'object' &&
@@ -794,7 +763,7 @@ export function LeagueShell({
   /** Sidebar rows navigate via `<Link>` (`getLeagueListDestinationHref`); avoid `router.push(/league/${id})` so tournament hub links work. */
   const handleLeagueSelect = (l: UserLeague | null) => {
     if (!l) {
-      navigateDashboardHome()
+      router.push('/dashboard')
     }
   }
 
@@ -989,53 +958,40 @@ export function LeagueShell({
       ) : null}
       <div className="contents" data-league-id={league.id}>
         <AppShell
-          immersive={specialtyImmersive && !embedMode}
-          embedCenterOnly={embedMode}
-          rootClassName={
-            embedMode
-              ? 'min-h-0 h-full flex-1'
-              : 'h-[calc(100dvh-8.5rem)] min-h-0 lg:h-[calc(100dvh-3.5rem)]'
-          }
+          immersive={specialtyImmersive}
+          rootClassName="h-[calc(100dvh-8.5rem)] min-h-0 lg:h-[calc(100dvh-3.5rem)]"
           rightRailCollapsed={myLeaguesRail.collapsed}
           onRightRailExpand={() => myLeaguesRail.setCollapsed(false)}
           rightRailCollapsedHint={leagueList.length ? String(leagueList.length) : undefined}
           leftPanel={
-            embedMode ? (
-              <></>
-            ) : (
-              <LeftChatPanel
-                selectedLeague={selectedLeague}
-                activeLeagueId={league.id}
-                userId={userId}
-                userDisplayName={userName}
-                userImage={userImage}
-                rootId="league-left-chat"
-                leagues={leagueList}
-                discordConnected={discordConnected}
-                commissionerLeagues={commissionerLeagues}
-                zombieChimmyPrefill={zombieChimmyPrefill}
-                initialOpenChat={initialOpenChat}
-              />
-            )
-          }
-          rightPanel={
-            embedMode ? (
-              <></>
-            ) : (
-              <RightControlPanel
-                leagues={leagueList}
-                leaguesLoading={false}
-                selectedId={league.id}
-                activeLeagueId={league.id}
-                onSelectLeague={handleLeagueSelect}
-                userId={userId}
-                userName={userName}
-                userImage={userImage}
-                onImport={handleImport}
-                onRailCollapse={() => myLeaguesRail.setCollapsed(true)}
-              />
-            )
-          }
+          <LeftChatPanel
+            selectedLeague={selectedLeague}
+            activeLeagueId={league.id}
+            userId={userId}
+            userDisplayName={userName}
+            userImage={userImage}
+            rootId="league-left-chat"
+            leagues={leagueList}
+            discordConnected={discordConnected}
+            commissionerLeagues={commissionerLeagues}
+            zombieChimmyPrefill={zombieChimmyPrefill}
+            initialOpenChat={initialOpenChat}
+          />
+        }
+        rightPanel={
+          <RightControlPanel
+            leagues={leagueList}
+            leaguesLoading={false}
+            selectedId={league.id}
+            activeLeagueId={league.id}
+            onSelectLeague={handleLeagueSelect}
+            userId={userId}
+            userName={userName}
+            userImage={userImage}
+            onImport={handleImport}
+            onRailCollapse={() => myLeaguesRail.setCollapsed(true)}
+          />
+        }
       >
         <main
           className={`relative z-[1] flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${
@@ -1066,31 +1022,29 @@ export function LeagueShell({
           }
         >
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
-            {!embedMode ? (
-              <div className="shrink-0 border-b border-white/[0.08] bg-[#050814] px-3 py-2 md:hidden">
-                <div className="flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setMobileLeftOpen(true)}
-                    className="touch-manipulation inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-white active:bg-white/[0.08]"
-                    aria-label={t('dashboard.shell.openChat')}
-                  >
-                    <Bot className="h-5 w-5" aria-hidden />
-                  </button>
-                  <p className="min-w-0 flex-1 truncate text-center text-sm font-semibold text-white/90">
-                    {selectedLeague.name}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setMobileRightOpen(true)}
-                    className="touch-manipulation inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-white active:bg-white/[0.08]"
-                    aria-label={t('dashboard.shell.openMyLeagues')}
-                  >
-                    <LayoutGrid className="h-5 w-5" aria-hidden />
-                  </button>
-                </div>
+            <div className="shrink-0 border-b border-white/[0.08] bg-[#050814] px-3 py-2 md:hidden">
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMobileLeftOpen(true)}
+                  className="touch-manipulation inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-white active:bg-white/[0.08]"
+                  aria-label={t('dashboard.shell.openChat')}
+                >
+                  <Bot className="h-5 w-5" aria-hidden />
+                </button>
+                <p className="min-w-0 flex-1 truncate text-center text-sm font-semibold text-white/90">
+                  {selectedLeague.name}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setMobileRightOpen(true)}
+                  className="touch-manipulation inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-white active:bg-white/[0.08]"
+                  aria-label={t('dashboard.shell.openMyLeagues')}
+                >
+                  <LayoutGrid className="h-5 w-5" aria-hidden />
+                </button>
               </div>
-            ) : null}
+            </div>
             {showSpecialtyHero && specialtyHeroVariant ? (
               <SpecialtyLeagueHomeHero
                 leagueId={league.id}
@@ -1107,7 +1061,7 @@ export function LeagueShell({
                 isHeadCommissioner={isHeadCommissioner}
                 onOpenDraftTab={() => setActiveTab(draftTabForHero)}
                 onOpenStandingsTab={() => setActiveTab(standingsTabForHero)}
-                onOpenChat={openLeagueChatOrNavigate}
+                onOpenChat={() => router.push(`/league/${league.id}?openChat=league`)}
                 onOpenSettings={() => openLeagueSettingsModal(null)}
                 onOpenCommissionerSettings={() => setCommissionerSettingsOpen(true)}
               />
@@ -1119,7 +1073,7 @@ export function LeagueShell({
                 sport={String(selectedLeague.sport)}
                 season={Number(selectedLeague.season ?? new Date().getFullYear())}
                 isCommissioner={isCommissioner}
-                onOpenChat={openLeagueChatOrNavigate}
+                onOpenChat={() => router.push(`/league/${league.id}?openChat=league`)}
                 onOpenSettings={() =>
                   isCommissioner
                     ? openLeagueSettingsModal('devy-command-center')
@@ -1146,7 +1100,7 @@ export function LeagueShell({
                       onLeaveLeague: () => setLeaveLeagueHintOpen(true),
                     }
               }
-              onGoHome={navigateDashboardHome}
+              onGoHome={() => router.push('/dashboard')}
               idpLeagueActive={idpUi?.active ?? false}
               idpViewMode={idpViewMode}
               onIdpViewModeChange={setIdpViewMode}
@@ -1169,43 +1123,19 @@ export function LeagueShell({
 
             {dispersalDraftInProgress ? (
               <div className="shrink-0 border-b border-cyan-500/20 bg-[#081226] px-4 py-2.5">
-                {embedMode ? (
-                  <button
-                    type="button"
-                    className="flex w-full flex-wrap items-center justify-between gap-2 text-left text-[12px] text-cyan-100/95 hover:text-cyan-50"
-                    data-testid="league-shell-dispersal-draft-embed-cta"
-                    onClick={() =>
-                      postOpenDraftOverlayMessage({
-                        leagueId: league.id,
-                        dispersalDraftId: dispersalDraftInProgress.draftId,
-                        source: 'LeagueShell-dispersal-banner',
-                      })
-                    }
-                  >
-                    <span>
-                      {dispersalDraftInProgress.status === 'in_progress'
-                        ? 'Dispersal draft in progress — join the draft room to make picks.'
-                        : 'Dispersal draft open — continue setup or open the draft room.'}
-                    </span>
-                    <span className="font-semibold text-cyan-300 underline decoration-cyan-500/40 underline-offset-2">
-                      {dispersalDraftInProgress.status === 'in_progress' ? 'Join draft room →' : 'Open →'}
-                    </span>
-                  </button>
-                ) : (
-                  <Link
-                    href={`/league/${league.id}/dispersal-draft/${dispersalDraftInProgress.draftId}`}
-                    className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-cyan-100/95 hover:text-cyan-50"
-                  >
-                    <span>
-                      {dispersalDraftInProgress.status === 'in_progress'
-                        ? 'Dispersal draft in progress — join the draft room to make picks.'
-                        : 'Dispersal draft open — continue setup or open the draft room.'}
-                    </span>
-                    <span className="font-semibold text-cyan-300 underline decoration-cyan-500/40 underline-offset-2">
-                      {dispersalDraftInProgress.status === 'in_progress' ? 'Join draft room →' : 'Open →'}
-                    </span>
-                  </Link>
-                )}
+                <Link
+                  href={`/league/${league.id}/dispersal-draft/${dispersalDraftInProgress.draftId}`}
+                  className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-cyan-100/95 hover:text-cyan-50"
+                >
+                  <span>
+                    {dispersalDraftInProgress.status === 'in_progress'
+                      ? 'Dispersal draft in progress — join the draft room to make picks.'
+                      : 'Dispersal draft open — continue setup or open the draft room.'}
+                  </span>
+                  <span className="font-semibold text-cyan-300 underline decoration-cyan-500/40 underline-offset-2">
+                    {dispersalDraftInProgress.status === 'in_progress' ? 'Join draft room →' : 'Open →'}
+                  </span>
+                </Link>
               </div>
             ) : null}
 
@@ -1257,7 +1187,6 @@ export function LeagueShell({
               seasonSnapshot={seasonSnapshot}
               leagueDashboard={leagueDashboard}
               onOpenLeagueSettingsModal={openLeagueSettingsModal}
-              dashboardEmbed={embedMode}
             />
           </div>
         </main>
@@ -1310,7 +1239,7 @@ export function LeagueShell({
         </div>
       ) : null}
 
-      {!embedMode && mobileRightOpen ? (
+      {mobileRightOpen ? (
         <div
           className="fixed inset-0 z-[60] bg-black/60 md:hidden"
           role="presentation"
@@ -1533,7 +1462,6 @@ function LeagueTabRouter({
   seasonSnapshot,
   leagueDashboard,
   onOpenLeagueSettingsModal,
-  dashboardEmbed = false,
 }: {
   activeTab: string
   tabDefs: TabDef[]
@@ -1552,7 +1480,6 @@ function LeagueTabRouter({
   seasonSnapshot: LeagueSeasonSnapshot | null
   leagueDashboard: LeagueDashboardView
   onOpenLeagueSettingsModal: (initialPanel?: string | null) => void
-  dashboardEmbed?: boolean
 }) {
   const router = useRouter()
   const tab = tabDefs.find((t) => t.id === activeTab)
@@ -1572,7 +1499,6 @@ function LeagueTabRouter({
           seasonSnapshot={seasonSnapshot}
           standingsPresentation={leagueDashboard.standings}
           onOpenLeagueSettings={onOpenLeagueSettingsModal}
-          dashboardEmbed={dashboardEmbed}
         />
       )
     case 'matchups':
@@ -1591,7 +1517,6 @@ function LeagueTabRouter({
           seasonSnapshot={seasonSnapshot}
           standingsPresentation={leagueDashboard.standings}
           onOpenLeagueSettings={onOpenLeagueSettingsModal}
-          dashboardEmbed={dashboardEmbed}
         />
       )
     case 'redraft':
@@ -1687,7 +1612,6 @@ function LeagueTabRouter({
           inviteToken={inviteToken}
           idpLeagueUi={idpLeagueActive}
           userTeam={userTeam ? { id: userTeam.id, teamName: userTeam.teamName } : null}
-          dashboardEmbed={dashboardEmbed}
         />
       )
     case 'players':
@@ -1703,7 +1627,7 @@ function LeagueTabRouter({
     case 'finance':
       return <FinanceTab leagueId={leagueId} isCommissioner={isCommissioner} />
     case 'war_room':
-      return <WarRoomTab league={selectedLeague} sport={sport} dashboardEmbed={dashboardEmbed} />
+      return <WarRoomTab league={selectedLeague} sport={sport} />
     case 'ai_coaching':
       return <AICoachingTab league={selectedLeague} userTeam={userTeam} sport={sport} />
     case 'history':
@@ -1714,7 +1638,6 @@ function LeagueTabRouter({
           leagueId={leagueId}
           isCommissioner={isCommissioner}
           isHeadCommissioner={isHeadCommissioner}
-          dashboardEmbed={dashboardEmbed}
         />
       )
     case 'standings':

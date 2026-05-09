@@ -12,9 +12,16 @@ import {
   isWorldCupMatchLocked,
   resolveWorldCupEffectivePickLockAt,
 } from "./worldCupBracketBuilder"
-import { buildWorldCupLeaderboardRows, recalculateWorldCupChallenge } from "./worldCupScoringService"
+import {
+  buildWorldCupLeaderboardRows,
+  isWorldCupEntryCompleteFromSelections,
+  recalculateWorldCupChallenge,
+} from "./worldCupScoringService"
+import { hasWorldCupPickSelection } from "./worldCupProjectedBracket"
 
 type SessionUser = { id?: string | null; email?: string | null; name?: string | null }
+
+export const WORLD_CUP_BRACKET_LOCKED_MESSAGE = "Bracket is locked."
 
 const iso = (v: Date | string | null | undefined) => (v ? (v instanceof Date ? v.toISOString() : new Date(v).toISOString()) : null)
 
@@ -348,14 +355,22 @@ function serialize(input: {
     entries: input.challenge.entries
       .filter((e) => !input.userId || e.userId === input.userId)
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-      .map((e) => ({
-        id: e.id,
-        name: e.name,
-        createdAt: iso(e.createdAt) ?? new Date().toISOString(),
-        totalScore: e.totalScore,
-        rank: e.rank,
-        isComplete: e.isComplete,
-      })),
+      .map((e) => {
+        const isComplete = isWorldCupEntryCompleteFromSelections({
+          matches: c.matches as Parameters<typeof isWorldCupEntryCompleteFromSelections>[0]["matches"],
+          picks: e.picks ?? [],
+          includeThirdPlace: c.includeThirdPlace,
+        })
+
+        return {
+          id: e.id,
+          name: e.name,
+          createdAt: iso(e.createdAt) ?? new Date().toISOString(),
+          totalScore: e.totalScore,
+          rank: e.rank,
+          isComplete,
+        }
+      }),
     picks: input.picks.map((p) => ({
       id: p.id,
       matchId: p.matchId,
@@ -386,7 +401,13 @@ export async function getWorldCupChallengeView(input: { challengeId: string; use
           picks: {
             // Guard against legacy bad rows (for example empty selected_team_name)
             // so one malformed pick does not 500 the entire bracket page.
-            where: { selectedTeamName: { not: "" } },
+            where: {
+              selectedTeamName: { not: "" },
+              OR: [
+                { selectedTeamId: { not: null } },
+                { selectedSlotKey: { not: null } },
+              ],
+            },
             include: { match: true },
           },
           participant: {
@@ -416,7 +437,14 @@ export async function getWorldCupChallengeView(input: { challengeId: string; use
     activeEntry ?
       await prisma.worldCupBracketPick.findMany({
         // Keep page/API resilient if legacy rows contain empty team names.
-        where: { entryId: activeEntry.id, selectedTeamName: { not: "" } },
+        where: {
+          entryId: activeEntry.id,
+          selectedTeamName: { not: "" },
+          OR: [
+            { selectedTeamId: { not: null } },
+            { selectedSlotKey: { not: null } },
+          ],
+        },
         orderBy: { createdAt: "asc" },
       })
     : []
@@ -521,9 +549,8 @@ async function savePicksForEntryTx(
 ) {
   const { challenge: c, entry, picks: pickInputs } = input
   const lock = isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry })
-  if (lock.locked) throw new Error("Bracket picks are locked")
+  if (lock.locked) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
   const byId = new Map(c.matches.map((m) => [m.id, m] as const))
-  const requiredPickCount = c.matches.length
   for (const pick of pickInputs) {
     const m = byId.get(pick.matchId)
     if (!m) throw new Error("Match not found")
@@ -561,8 +588,15 @@ async function savePicksForEntryTx(
       })
     }
   }
-  const count = await tx.worldCupBracketPick.count({ where: { entryId: entry.id } })
-  const complete = count >= requiredPickCount
+  const savedPicks = await tx.worldCupBracketPick.findMany({
+    where: { entryId: entry.id },
+    select: { matchId: true, selectedTeamId: true, selectedSlotKey: true },
+  })
+  const complete = isWorldCupEntryCompleteFromSelections({
+    matches: c.matches as Parameters<typeof isWorldCupEntryCompleteFromSelections>[0]["matches"],
+    picks: savedPicks,
+    includeThirdPlace: c.includeThirdPlace,
+  })
   await tx.worldCupBracketEntry.update({
     where: { id: entry.id },
     data: { isComplete: complete, submittedAt: complete ? new Date() : null },
@@ -588,7 +622,7 @@ export async function saveWorldCupPicks(input: {
     })) ?? null
   if (!entry) throw new Error("No bracket entry found — create a bracket first")
 
-  if (isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry }).locked) throw new Error("Bracket picks are locked")
+  if (isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry }).locked) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
 
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await savePicksForEntryTx(tx, { challenge: c, entry: { ...entry, participantId: participant.id, userId: input.userId }, picks: input.picks })
@@ -599,9 +633,39 @@ export async function saveWorldCupPicks(input: {
 }
 
 export async function listWorldCupBracketEntries(input: { challengeId: string; userId: string }) {
-  return prisma.worldCupBracketEntry.findMany({
-    where: { challengeId: input.challengeId, userId: input.userId },
-    orderBy: { createdAt: "asc" },
+  const challenge = await prisma.worldCupBracketChallenge.findUnique({
+    where: { id: input.challengeId },
+    include: {
+      matches: true,
+      entries: {
+        where: { userId: input.userId },
+        include: {
+          picks: {
+            where: {
+              selectedTeamName: { not: "" },
+              OR: [
+                { selectedTeamId: { not: null } },
+                { selectedSlotKey: { not: null } },
+              ],
+            },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      },
+    },
+  })
+  if (!challenge) return []
+
+  return challenge.entries.map((entry: (typeof challenge.entries)[number]) => {
+    const { picks, ...entryData } = entry
+    return {
+      ...entryData,
+      isComplete: isWorldCupEntryCompleteFromSelections({
+        matches: challenge.matches as Parameters<typeof isWorldCupEntryCompleteFromSelections>[0]["matches"],
+        picks,
+        includeThirdPlace: challenge.includeThirdPlace,
+      }),
+    }
   })
 }
 
@@ -613,7 +677,7 @@ export async function createWorldCupBracketEntry(input: { challengeId: string; u
     select: { startsAt: true, status: true },
   })
   if (isWorldCupChallengeLocked({ challenge, matches: challengeMatches }).locked) {
-    throw new Error("Bracket picks are locked")
+    throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
   }
   const participant = await prisma.worldCupBracketParticipant.findUnique({
     where: { challengeId_userId: { challengeId: input.challengeId, userId: input.userId } },
@@ -642,7 +706,7 @@ export async function renameWorldCupBracketEntry(input: { entryId: string; userI
   })
   if (!entry || entry.userId !== input.userId) throw new Error("Entry not found")
   if (isWorldCupChallengeLocked({ challenge: entry.challenge, matches: entry.challenge.matches, entry }).locked) {
-    throw new Error("Bracket picks are locked")
+    throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
   }
   return prisma.worldCupBracketEntry.update({ where: { id: input.entryId }, data: { name: trimmed } })
 }
@@ -656,7 +720,7 @@ export async function deleteWorldCupBracketEntry(input: { entryId: string; userI
   const total = await prisma.worldCupBracketEntry.count({ where: { participantId: entry.participantId } })
   if (total <= 1) throw new Error("Cannot delete your only bracket entry")
   if (isWorldCupChallengeLocked({ challenge: entry.challenge, matches: entry.challenge.matches, entry }).locked) {
-    throw new Error("Bracket picks are locked")
+    throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
   }
   await prisma.worldCupBracketEntry.delete({ where: { id: input.entryId } })
 }
@@ -665,8 +729,24 @@ export async function getWorldCupBracketEntryDetail(input: { entryId: string; us
   const entry = await prisma.worldCupBracketEntry.findUnique({
     where: { id: input.entryId },
     include: {
-      challenge: { select: { id: true, ownerUserId: true } },
-      picks: { orderBy: { createdAt: "asc" } },
+      challenge: {
+        select: {
+          id: true,
+          ownerUserId: true,
+          includeThirdPlace: true,
+          matches: true,
+        },
+      },
+      picks: {
+        where: {
+          selectedTeamName: { not: "" },
+          OR: [
+            { selectedTeamId: { not: null } },
+            { selectedSlotKey: { not: null } },
+          ],
+        },
+        orderBy: { createdAt: "asc" },
+      },
       participant: true,
     },
   })
@@ -676,7 +756,22 @@ export async function getWorldCupBracketEntryDetail(input: { entryId: string; us
     (input.userId && entry.userId === input.userId) ||
     (input.userId && entry.challenge.ownerUserId === input.userId)
   if (!allowed) return null
-  return entry
+  const { challenge, picks, ...entryData } = entry
+  const realPicks = picks.filter(hasWorldCupPickSelection)
+  return {
+    ...entryData,
+    challenge: {
+      id: challenge.id,
+      ownerUserId: challenge.ownerUserId,
+      includeThirdPlace: challenge.includeThirdPlace,
+    },
+    picks: realPicks,
+    isComplete: isWorldCupEntryCompleteFromSelections({
+      matches: challenge.matches as Parameters<typeof isWorldCupEntryCompleteFromSelections>[0]["matches"],
+      picks: realPicks,
+      includeThirdPlace: challenge.includeThirdPlace,
+    }),
+  }
 }
 
 export async function saveWorldCupBracketPickForEntry(input: {
@@ -695,7 +790,7 @@ export async function saveWorldCupBracketPickForEntry(input: {
   const c = entry.challenge
   const m = c.matches.find((x: WorldCupBracketMatch) => x.id === input.matchId)
   if (!m) throw new Error("Match not found")
-  if (isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry }).locked) throw new Error("Bracket picks are locked")
+  if (isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry }).locked) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
 
   let selectedTeamId = input.selectedTeamId ?? null
   let selectedSlotKey = input.selectedSlotKey ?? null
@@ -720,13 +815,18 @@ export async function saveWorldCupBracketPickForEntry(input: {
   const savedPick = await prisma.worldCupBracketPick.findUnique({
     where: { entryId_matchId: { entryId: entry.id, matchId: input.matchId } },
   })
-  const matchCount = c.matches.length
-  const pickCount = updatedEntry ? await prisma.worldCupBracketPick.count({ where: { entryId: entry.id } }) : 0
+  const isComplete = updatedEntry
+    ? isWorldCupEntryCompleteFromSelections({
+        matches: c.matches as Parameters<typeof isWorldCupEntryCompleteFromSelections>[0]["matches"],
+        picks: updatedEntry.picks.filter(hasWorldCupPickSelection),
+        includeThirdPlace: c.includeThirdPlace,
+      })
+    : false
   return {
     entry: updatedEntry,
     pick: savedPick,
-    picks: updatedEntry?.picks ?? [],
-    isComplete: pickCount >= matchCount,
+    picks: updatedEntry?.picks.filter(hasWorldCupPickSelection) ?? [],
+    isComplete,
   }
 }
 
@@ -746,7 +846,7 @@ export async function saveWorldCupPicksForEntry(input: {
     where: { id: input.entryId, challengeId: input.challengeId, userId: input.userId },
   })
   if (!entry) throw new Error("Entry not found")
-  if (isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry }).locked) throw new Error("Bracket picks are locked")
+  if (isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry }).locked) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
 
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await savePicksForEntryTx(tx, {
@@ -760,13 +860,18 @@ export async function saveWorldCupPicksForEntry(input: {
     where: { id: entry.id },
     include: { picks: { orderBy: { createdAt: "asc" } } },
   })
-  const matchCount = c.matches.length
-  const pickCount = updatedEntry ? await prisma.worldCupBracketPick.count({ where: { entryId: entry.id } }) : 0
+  const isComplete = updatedEntry
+    ? isWorldCupEntryCompleteFromSelections({
+        matches: c.matches as Parameters<typeof isWorldCupEntryCompleteFromSelections>[0]["matches"],
+        picks: updatedEntry.picks.filter(hasWorldCupPickSelection),
+        includeThirdPlace: c.includeThirdPlace,
+      })
+    : false
   return {
     success: true as const,
     entry: updatedEntry,
-    picks: updatedEntry?.picks ?? [],
-    isComplete: pickCount >= matchCount,
+    picks: updatedEntry?.picks.filter(hasWorldCupPickSelection) ?? [],
+    isComplete,
   }
 }
 

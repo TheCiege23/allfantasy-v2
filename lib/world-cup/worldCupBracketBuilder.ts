@@ -90,7 +90,7 @@ export function isWorldCupChallengeLocked(input: {
     pickLockAt: c.pickLockAt,
     matches: input.matches,
   })
-  if (strategy === "tournament_start" && at && now >= at) {
+  if (at && now >= at) {
     return { locked: true, reason: "tournament_started", lockAt: at }
   }
   if (input.entry?.isLocked) {

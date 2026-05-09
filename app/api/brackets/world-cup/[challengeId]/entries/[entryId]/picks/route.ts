@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import { getWorldCupBracketEntryDetail, saveWorldCupBracketPickForEntry } from "@/lib/world-cup"
+import {
+  WORLD_CUP_BRACKET_LOCKED_MESSAGE,
+  getWorldCupBracketEntryDetail,
+  saveWorldCupBracketPickForEntry,
+} from "@/lib/world-cup"
 import { isWorldCupChallengeLocked } from "@/lib/world-cup/worldCupBracketBuilder"
 import { prisma } from "@/lib/prisma"
 import { requireWorldCupApiUser, worldCupEntryParamsSchema } from "../../../../_utils"
@@ -8,16 +12,26 @@ import { requireWorldCupApiUser, worldCupEntryParamsSchema } from "../../../../_
 export const runtime = "nodejs"
 
 const savePickBodySchema = z.object({
+  activeEntryId: z.string().min(1).optional(),
   matchId: z.string().min(1),
   selectedTeamId: z.string().nullable().optional(),
   selectedSide: z.enum(["home", "away"]).optional(),
   selectedSlotKey: z.string().nullable().optional(),
-  selectedTeamName: z.string().optional(),
+  selectedTeamName: z.string().nullable().optional(),
+  round: z.string().optional(),
+  sourceSlotKey: z.string().nullable().optional(),
+  nextMatchId: z.string().nullable().optional(),
+  nextMatchSlot: z.enum(["home", "away"]).nullable().optional(),
+  matchNumber: z.number().int().positive().optional(),
 })
 
 const clearPicksBodySchema = z.object({
   matchIds: z.array(z.string().min(1)).min(1).max(64),
 })
+
+function isLockedErrorMessage(message: string): boolean {
+  return message === WORLD_CUP_BRACKET_LOCKED_MESSAGE || message.toLowerCase().includes("locked")
+}
 
 export async function POST(request: Request, context: { params: { challengeId: string; entryId: string } }) {
   const auth = await requireWorldCupApiUser()
@@ -32,6 +46,9 @@ export async function POST(request: Request, context: { params: { challengeId: s
   const parsed = savePickBodySchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request", issues: parsed.error.flatten() }, { status: 400 })
+  }
+  if (parsed.data.activeEntryId && parsed.data.activeEntryId !== params.data.entryId) {
+    return NextResponse.json({ error: "Pick entry mismatch" }, { status: 400 })
   }
 
   try {
@@ -61,8 +78,10 @@ export async function POST(request: Request, context: { params: { challengeId: s
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to save pick"
-    const status = message.toLowerCase().includes("locked") ? 409 : 400
-    return NextResponse.json({ error: message }, { status })
+    if (isLockedErrorMessage(message)) {
+      return NextResponse.json({ error: WORLD_CUP_BRACKET_LOCKED_MESSAGE }, { status: 423 })
+    }
+    return NextResponse.json({ error: message }, { status: 400 })
   }
 }
 
@@ -114,7 +133,7 @@ export async function DELETE(
       entry,
     })
     if (lock.locked) {
-      return NextResponse.json({ error: "Bracket picks are locked" }, { status: 409 })
+      return NextResponse.json({ error: WORLD_CUP_BRACKET_LOCKED_MESSAGE }, { status: 423 })
     }
 
     // Delete only the specified matchIds for this entry
@@ -127,13 +146,23 @@ export async function DELETE(
 
     // Return remaining picks
     const remainingPicks = await prisma.worldCupBracketPick.findMany({
-      where: { entryId: params.data.entryId },
+      where: {
+        entryId: params.data.entryId,
+        selectedTeamName: { not: "" },
+        OR: [
+          { selectedTeamId: { not: null } },
+          { selectedSlotKey: { not: null } },
+        ],
+      },
       orderBy: { createdAt: "asc" },
     })
 
     return NextResponse.json({ success: true, picks: remainingPicks })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to clear picks"
+    if (isLockedErrorMessage(message)) {
+      return NextResponse.json({ error: WORLD_CUP_BRACKET_LOCKED_MESSAGE }, { status: 423 })
+    }
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

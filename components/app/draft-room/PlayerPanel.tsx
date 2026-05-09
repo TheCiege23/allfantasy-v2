@@ -104,8 +104,12 @@ export type PlayerEntry = {
 export type DraftAiOverlaySignal = {
   badge: 'ai_pick' | 'value' | 'risky'
   confidencePct?: number | null
+  valueDelta?: number | null
   scarcityLevel?: 'high' | 'medium' | null
   tierDropAlert?: boolean
+  stackAvailable?: boolean
+  byeWeekConflict?: boolean
+  safetyLevel?: 'safe' | 'upside' | null
   boomBust?: 'boom' | 'bust' | null
   strategyNote?: string | null
   reason?: string | null
@@ -154,6 +158,10 @@ export type PlayerPanelProps = {
   aiRowBadges?: Record<string, 'ai_pick' | 'value' | 'risky'>
   /** Rich inline AI overlays keyed by `name|position` (lowercase). */
   aiOverlaySignals?: Record<string, DraftAiOverlaySignal>
+  /** Shared AI overlay visibility state from parent surfaces (queue/helper/top bar). */
+  showAiOverlays?: boolean
+  /** Called when user toggles AI overlays from the pool toolbar. */
+  onShowAiOverlaysChange?: (value: boolean) => void
   presentationVariant?: 'default' | 'redraft_snake'
   /** D.2 — explicit pool layout opt-out. Defaults to 'auto' which picks
    * Sleeper-style table for NFL redraft/snake on desktop and falls back to
@@ -381,6 +389,8 @@ function PlayerPanelInner({
   leagueId,
   aiRowBadges,
   aiOverlaySignals,
+  showAiOverlays,
+  onShowAiOverlaysChange,
   presentationVariant = 'default',
   poolLayout = 'auto',
   getDraftCopilotInsight,
@@ -406,7 +416,8 @@ function PlayerPanelInner({
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerEntry | null>(null)
   const [pendingNomination, setPendingNomination] = useState<PlayerEntry | null>(null)
   const [watchlistOnly, setWatchlistOnly] = useState(false)
-  const [showAiOverlays, setShowAiOverlays] = useState(true)
+  const [showAiOverlaysLocal, setShowAiOverlaysLocal] = useState(true)
+  const aiOverlaysEnabled = showAiOverlays ?? showAiOverlaysLocal
   const [rookiesOnly, setRookiesOnly] = useState(false)
   /** Commit N — companion to `rookiesOnly`. Mutually exclusive with rookies-only;
    *  toggling one turns the other off so the user can't accidentally produce an
@@ -819,9 +830,9 @@ function PlayerPanelInner({
       <div
         className={`sticky top-0 z-20 shrink-0 border-b shadow-[0_8px_28px_rgba(0,0,0,0.4)] backdrop-blur-xl ${rs ? 'border-cyan-500/12 bg-[rgba(6,14,28,0.97)]' : 'border-white/[0.08] bg-[#060d1e]/92'}`}
       >
-        <div className={`flex flex-wrap items-center gap-1.5 border-b border-white/[0.06] px-2 py-1.5 ${rs ? 'gap-y-1' : ''}`}>
+        <div className={`flex flex-wrap items-center gap-1 border-b border-white/[0.05] px-2 py-1 ${rs ? 'gap-y-1' : ''}`}>
           <div
-            className={`flex min-h-[34px] flex-1 items-center gap-1.5 rounded-full border px-2.5 py-1 shadow-inner touch-manipulation transition duration-150 focus-within:border-cyan-400/45 focus-within:ring-2 focus-within:ring-cyan-400/20 ${
+            className={`flex min-h-[30px] flex-1 items-center gap-1.5 rounded-full border px-2 py-1 shadow-inner touch-manipulation transition duration-150 focus-within:border-cyan-400/45 focus-within:ring-2 focus-within:ring-cyan-400/20 ${
               rs
                 ? 'min-w-[150px] border-cyan-400/30 bg-[#0c162d]/95 ring-1 ring-cyan-500/10'
                 : 'border-white/[0.06] bg-[#101a30]/95'
@@ -848,7 +859,7 @@ function PlayerPanelInner({
             role="radiogroup"
             aria-label="Position filter"
             data-testid="draft-position-filter"
-            className="flex h-8 min-w-0 flex-nowrap items-center gap-1 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="flex h-7 min-w-0 flex-nowrap items-center gap-1 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {positionPillCounts.map((opt) => {
               const isActive = positionFilter === opt.value
@@ -864,7 +875,7 @@ function PlayerPanelInner({
                     if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.FILTER_POSITION, { leagueId, value: opt.value })
                     setPositionFilter(opt.value)
                   }}
-                  className={`inline-flex h-6 shrink-0 items-center gap-1 rounded-full border px-2 text-[9px] font-semibold uppercase tracking-[0.12em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
+                  className={`inline-flex h-[22px] shrink-0 items-center gap-1 rounded-full border px-2 text-[9px] font-semibold uppercase tracking-[0.12em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
                     isActive
                       ? 'border-cyan-400/55 bg-[#20d6d2]/20 text-cyan-50 shadow-[0_0_10px_rgba(32,214,210,0.24)]'
                       : 'border-white/[0.06] bg-[#101a30] text-[#94a3b8] hover:border-white/20 hover:text-white/90'
@@ -889,7 +900,7 @@ function PlayerPanelInner({
               if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.FILTER_TEAM, { leagueId, value: v })
               setTeamFilter(v)
             }}
-            className={`min-h-[34px] rounded-full border px-2.5 py-1 text-[12px] text-white shadow-sm touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
+            className={`min-h-[30px] rounded-full border px-2 py-1 text-[11px] text-white shadow-sm touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
               rs ? 'border-cyan-400/28 bg-[#0c162d]/95' : 'border-white/[0.06] bg-[#101a30]/95'
             }`}
             aria-label="Team filter"
@@ -917,7 +928,7 @@ function PlayerPanelInner({
               onClick={() => setViewModeOverride('sleeper_table')}
               data-testid="draft-pool-view-table"
               title="Table view"
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition ${
+              className={`inline-flex h-7 w-7 items-center justify-center rounded-md transition ${
                 viewModeOverride === 'sleeper_table' || (viewModeOverride === null && (poolLayout === 'sleeper_table' || (poolLayout === 'auto' && sport === 'NFL')))
                   ? 'bg-[#20d6d2]/20 text-cyan-100 shadow-[0_0_10px_rgba(32,214,210,0.2)]'
                   : 'text-white/55 hover:bg-white/[0.06] hover:text-white/85'
@@ -932,7 +943,7 @@ function PlayerPanelInner({
               onClick={() => setViewModeOverride('card')}
               data-testid="draft-pool-view-cards"
               title="Card view"
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition ${
+              className={`inline-flex h-7 w-7 items-center justify-center rounded-md transition ${
                 viewModeOverride === 'card' || (viewModeOverride === null && poolLayout !== 'sleeper_table' && !(poolLayout === 'auto' && sport === 'NFL'))
                   ? 'bg-[#20d6d2]/20 text-cyan-100 shadow-[0_0_10px_rgba(32,214,210,0.2)]'
                   : 'text-white/55 hover:bg-white/[0.06] hover:text-white/85'
@@ -949,7 +960,7 @@ function PlayerPanelInner({
                 if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.POOL_FILTER, { leagueId, value: v })
                 setPoolFilter(v)
               }}
-              className="min-h-[34px] rounded-full border border-white/[0.06] bg-[#101a30]/95 px-2.5 py-1 text-[12px] text-white shadow-sm touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+              className="min-h-[30px] rounded-full border border-white/[0.06] bg-[#101a30]/95 px-2 py-1 text-[11px] text-white shadow-sm touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
               aria-label="Pool filter"
               data-testid="draft-pool-filter"
             >
@@ -984,7 +995,7 @@ function PlayerPanelInner({
           </div>
         )}
         <div
-          className={`flex flex-wrap items-center gap-1.5 border-b border-white/[0.06] px-2 py-1.5 sm:px-3 ${rs ? 'bg-[#050c18]/95' : 'bg-black/10'}`}
+          className={`flex flex-wrap items-center gap-1 border-b border-white/[0.05] px-2 py-1 sm:px-3 ${rs ? 'bg-[#050c18]/95' : 'bg-black/10'}`}
         >
           {/* G.1 — Sort buttons (ADP / AI ADP / Proj / Name) removed.
               They duplicated the SleeperPoolTable's clickable column headers, which
@@ -997,7 +1008,7 @@ function PlayerPanelInner({
             </span>
           )}
           {onUseAiAdpChange && (
-            <label className="min-h-[38px] flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[10px] text-white/70 hover:bg-white/5 touch-manipulation transition">
+            <label className="min-h-[32px] flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-[10px] text-white/70 hover:bg-white/5 touch-manipulation transition">
               <input
                 type="checkbox"
                 checked={useAiAdp}
@@ -1035,10 +1046,14 @@ function PlayerPanelInner({
           {hasAiOverlaySignals ? (
             <button
               type="button"
-              onClick={() => setShowAiOverlays((v) => !v)}
+              onClick={() => {
+                const next = !aiOverlaysEnabled
+                if (onShowAiOverlaysChange) onShowAiOverlaysChange(next)
+                else setShowAiOverlaysLocal(next)
+              }}
               data-testid="draft-toggle-ai-overlays"
-              className={`min-h-[36px] rounded-lg border px-2.5 py-1 text-[10px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
-                showAiOverlays
+              className={`min-h-[30px] rounded-lg border px-2 py-1 text-[10px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
+                aiOverlaysEnabled
                   ? 'border-cyan-300/40 bg-cyan-500/14 text-cyan-100'
                   : 'border-white/10 bg-black/20 text-white/65 hover:bg-white/10'
               }`}
@@ -1051,7 +1066,7 @@ function PlayerPanelInner({
             type="button"
             onClick={() => setShowRosterView((v) => !v)}
             data-testid="draft-toggle-roster-view"
-            className="ml-auto min-h-[36px] flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] text-white/70 hover:bg-white/10 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 transition"
+            className="ml-auto min-h-[30px] flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] text-white/70 hover:bg-white/10 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 transition"
           >
             <User className="h-3.5 w-3.5" />
             {showRosterView ? 'Pool' : 'My roster'}
@@ -1393,7 +1408,7 @@ function PlayerPanelInner({
                   scrollRef={scrollRef}
                   compareAnchor={compareAnchor}
                   onCompareTap={onCompareTap}
-                  aiOverlaySignals={showAiOverlays ? aiOverlaySignals : undefined}
+                    aiOverlaySignals={aiOverlaysEnabled ? aiOverlaySignals : undefined}
                   sortState={{ key: sortBy, direction: sortDirection }}
                   onSortChange={handleColumnHeaderSort}
                 />

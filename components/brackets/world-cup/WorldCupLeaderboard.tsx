@@ -172,7 +172,7 @@ export default function WorldCupLeaderboard({
                   {/* Score */}
                   <div className="text-right">
                     <div className="text-xl font-black text-white">{row.totalScore}</div>
-                    <div className="text-[10px] text-white/35">max {row.maxPossibleScore}</div>
+                    <div className="text-[10px] text-white/35">possible {row.maxPossibleScore}</div>
                   </div>
                 </div>
               </div>

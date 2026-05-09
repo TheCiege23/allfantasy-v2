@@ -99,6 +99,8 @@
     "test:e2e:zombie": "playwright test e2e/zombie-league-focused.spec.ts --project=chromium",
     "test:e2e:draft-room": "playwright test --grep \"@draft-room|@mock-draft-room\"",
     "test:e2e:draft-room:chromium": "playwright test --grep \"@draft-room|@mock-draft-room\" --project=chromium",
+    "test:e2e:visual:draft-room": "playwright test e2e/draft-room-visual.spec.ts --project=chromium --reporter=line",
+    "test:e2e:visual:draft-room:update": "playwright test e2e/draft-room-visual.spec.ts --project=chromium --reporter=line --update-snapshots",
     "test:e2e:admin-timezone:core": "playwright test e2e/admin-timezone-smoke.spec.ts",
     "test:e2e:admin-timezone:heavy": "playwright test e2e/admin-timezone-heavy-tabs.spec.ts",
     "sync:fantasycalc-valuations": "tsx scripts/sync-fantasycalc-valuations.ts",

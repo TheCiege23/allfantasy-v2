@@ -13,6 +13,7 @@ import type {
   WorldCupPickView,
   WorldCupRound,
 } from "./types"
+import { hasWorldCupPickSelection } from "./worldCupProjectedBracket"
 
 // ── FIFA seed / rank lookup ───────────────────────────────────────────────────
 // Slot-key-based rough strength tier for the 2026 World Cup.
@@ -221,9 +222,10 @@ export function calculateWorldCupBracketHealth(
   matches: WorldCupMatchView[],
   picks: WorldCupPickView[]
 ): WorldCupBracketHealth {
-  const correct = picks.filter((p) => p.isCorrect === true).length
-  const incorrect = picks.filter((p) => p.isCorrect === false).length
-  const total = picks.length
+  const selectedPicks = picks.filter(hasWorldCupPickSelection)
+  const correct = selectedPicks.filter((p) => p.isCorrect === true).length
+  const incorrect = selectedPicks.filter((p) => p.isCorrect === false).length
+  const total = selectedPicks.length
 
   // Champion still alive?
   const championAlive = entry.championTeamId

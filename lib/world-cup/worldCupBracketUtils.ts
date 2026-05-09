@@ -59,9 +59,9 @@ export function formatWorldCupPlaceholder(
 
   const groupMatch = slotKey.match(/^([A-L])(1|2|3)$/)
   if (groupMatch) {
-    if (groupMatch[2] === "1") return `Group ${groupMatch[1]} Winner`
-    if (groupMatch[2] === "2") return `Group ${groupMatch[1]} Runner-up`
-    return "Best 3rd Place Qualifier"
+    if (groupMatch[2] === "1") return `Winner Group ${groupMatch[1]}`
+    if (groupMatch[2] === "2") return `Runner-up Group ${groupMatch[1]}`
+    return "Best 3rd Place"
   }
 
   const qualifierMatch = slotKey.match(/^TBD(\d+)$/)

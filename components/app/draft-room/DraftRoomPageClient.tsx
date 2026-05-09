@@ -358,6 +358,7 @@ export function DraftRoomPageClient({
   const [awayMode, setAwayMode] = useState(false)
   const [aiQueueReorderEnabled, setAiQueueReorderEnabled] = useState(true)
   const [draftAiExplanationEnabled, setDraftAiExplanationEnabled] = useState(false)
+  const [showAiOverlays, setShowAiOverlays] = useState(true)
   const [mobileTab, setMobileTabState] = useState<MobileDraftTab>('board')
   const [centerDockTab, setCenterDockTab] = useState<CenterDockTab>('queue')
   const [commissionerEditOverall, setCommissionerEditOverall] = useState<number | null>(null)
@@ -1222,6 +1223,7 @@ export function DraftRoomPageClient({
         awayMode?: boolean
         aiQueueReorderEnabled?: boolean
         draftAiExplanationEnabled?: boolean
+        showAiOverlays?: boolean
       }
       if (typeof parsed.autoPickFromQueue === 'boolean') setAutoPickFromQueue(parsed.autoPickFromQueue)
       if (typeof parsed.awayMode === 'boolean') setAwayMode(parsed.awayMode)
@@ -1230,6 +1232,9 @@ export function DraftRoomPageClient({
       }
       if (typeof parsed.draftAiExplanationEnabled === 'boolean') {
         setDraftAiExplanationEnabled(parsed.draftAiExplanationEnabled)
+      }
+      if (typeof parsed.showAiOverlays === 'boolean') {
+        setShowAiOverlays(parsed.showAiOverlays)
       }
     } catch {
       // Ignore malformed local preferences.
@@ -1241,12 +1246,26 @@ export function DraftRoomPageClient({
     try {
       window.localStorage.setItem(
         localPrefsKey,
-        JSON.stringify({ autoPickFromQueue, awayMode, aiQueueReorderEnabled, draftAiExplanationEnabled })
+        JSON.stringify({
+          autoPickFromQueue,
+          awayMode,
+          aiQueueReorderEnabled,
+          draftAiExplanationEnabled,
+          showAiOverlays,
+        })
       )
     } catch {
       // Ignore storage failures.
     }
-  }, [leagueId, localPrefsKey, autoPickFromQueue, awayMode, aiQueueReorderEnabled, draftAiExplanationEnabled])
+  }, [
+    leagueId,
+    localPrefsKey,
+    autoPickFromQueue,
+    awayMode,
+    aiQueueReorderEnabled,
+    draftAiExplanationEnabled,
+    showAiOverlays,
+  ])
 
   const fetchLeagueAiAdp = useCallback(async () => {
     if (!draftUISettings?.aiAdpEnabled) {
@@ -3350,6 +3369,23 @@ export function DraftRoomPageClient({
   const aiOverlaySignals = useMemo(() => {
     const out: Record<string, DraftAiOverlaySignal> = {}
     const keyOf = (n: string, pos: string) => `${n.trim().toLowerCase()}|${pos.trim().toLowerCase()}`
+    const resolveValueDelta = (name: string, position: string): number | null => {
+      const match = players.find(
+        (p) =>
+          p.name.trim().toLowerCase() === name.trim().toLowerCase() &&
+          p.position.trim().toLowerCase() === position.trim().toLowerCase(),
+      )
+      if (!match) return null
+      if (
+        match.adp == null ||
+        match.aiAdp == null ||
+        !Number.isFinite(Number(match.adp)) ||
+        !Number.isFinite(Number(match.aiAdp))
+      ) {
+        return null
+      }
+      return Number((Number(match.adp) - Number(match.aiAdp)).toFixed(1))
+    }
     const upsert = (name: string, position: string, patch: Partial<DraftAiOverlaySignal>) => {
       const key = keyOf(name, position)
       const base: DraftAiOverlaySignal = out[key] ?? { badge: 'value' }
@@ -3360,6 +3396,7 @@ export function DraftRoomPageClient({
       upsert(warRoomData.bestPick.name, warRoomData.bestPick.position, {
         badge: warRoomData.risk === 'high' ? 'risky' : 'ai_pick',
         confidencePct: Math.max(0, Math.min(100, Math.round((warRoomData.confidence || 0) * 100))),
+        valueDelta: resolveValueDelta(warRoomData.bestPick.name, warRoomData.bestPick.position),
         strategyNote: warRoomData.strategyTip || null,
         reason: warRoomData.reasoning?.[0] ?? null,
         boomBust: warRoomData.risk === 'high' ? 'boom' : null,
@@ -3375,6 +3412,7 @@ export function DraftRoomPageClient({
       upsert(rec.player.name, rec.player.position, {
         badge: 'ai_pick',
         confidencePct: Math.max(0, Math.min(100, Math.round((rec.confidence || 0) * 100))),
+        valueDelta: resolveValueDelta(rec.player.name, rec.player.position),
         reason: rec.reason,
       })
       if (rr.scarcityInsight?.trim()) {
@@ -3386,13 +3424,27 @@ export function DraftRoomPageClient({
       if (rr.reachWarning?.trim()) {
         upsert(rec.player.name, rec.player.position, {
           tierDropAlert: /tier|drop|window|run/i.test(rr.reachWarning),
+          safetyLevel: 'upside',
           boomBust: 'bust',
         })
       }
       if (rr.valueWarning?.trim()) {
         upsert(rec.player.name, rec.player.position, {
           tierDropAlert: /tier|drop|window|run/i.test(rr.valueWarning) ? true : undefined,
+          safetyLevel: 'safe',
           strategyNote: rr.valueWarning.trim(),
+        })
+      }
+      if (rr.stackInsight?.trim()) {
+        upsert(rec.player.name, rec.player.position, {
+          stackAvailable: true,
+          strategyNote: rr.stackInsight.trim(),
+        })
+      }
+      if (rr.byeNote?.trim()) {
+        upsert(rec.player.name, rec.player.position, {
+          byeWeekConflict: /conflict|collision|same bye|bye/i.test(rr.byeNote),
+          strategyNote: rr.byeNote.trim(),
         })
       }
     }
@@ -3402,12 +3454,38 @@ export function DraftRoomPageClient({
       upsert(alt.player.name, alt.player.position, {
         badge: out[keyOf(alt.player.name, alt.player.position)]?.badge ?? 'value',
         confidencePct: Math.max(0, Math.min(100, Math.round((alt.confidence || 0) * 100))),
+        valueDelta: resolveValueDelta(alt.player.name, alt.player.position),
+        safetyLevel: /safe|floor|stable/i.test(alt.reason)
+          ? 'safe'
+          : /upside|ceiling|swing|boom/i.test(alt.reason)
+            ? 'upside'
+            : null,
         reason: alt.reason,
       })
     }
 
     return Object.keys(out).length > 0 ? out : undefined
-  }, [recommendationResult, warRoomData])
+  }, [players, recommendationResult, warRoomData])
+
+  const recommendationOverlaySummary = useMemo(() => {
+    const rec = recommendationResult?.recommendation
+    if (!rec || !aiOverlaySignals) return null
+    const key = `${rec.player.name.trim().toLowerCase()}|${rec.player.position.trim().toLowerCase()}`
+    const signal = aiOverlaySignals[key]
+    if (!signal) return null
+    return {
+      label: signal.badge === 'ai_pick' ? 'Best pick' : signal.badge === 'risky' ? 'Upside' : 'Value',
+      playerName: rec.player.name,
+      position: rec.player.position,
+      team: rec.player.team ?? null,
+      confidencePct: signal.confidencePct ?? null,
+      valueDelta: signal.valueDelta ?? null,
+      stackAvailable: signal.stackAvailable ?? false,
+      byeWeekConflict: signal.byeWeekConflict ?? false,
+      safetyLevel: signal.safetyLevel ?? null,
+      note: signal.reason ?? signal.strategyNote ?? null,
+    }
+  }, [aiOverlaySignals, recommendationResult?.recommendation])
 
   const recommendedPlayerResolved = useMemo(() => {
     const r = recommendationResult?.recommendation
@@ -3710,6 +3788,8 @@ export function DraftRoomPageClient({
         leagueId={leagueId}
         aiRowBadges={aiRowBadges}
         aiOverlaySignals={aiOverlaySignals}
+        showAiOverlays={showAiOverlays}
+        onShowAiOverlaysChange={setShowAiOverlays}
         getDraftCopilotInsight={presentationVariant === 'redraft_snake' ? getDraftCopilotInsight : undefined}
         getAssistantRoomContext={
           presentationVariant === 'redraft_snake' ? getAssistantRoomContext : undefined
@@ -3751,6 +3831,7 @@ export function DraftRoomPageClient({
       leagueId,
       aiRowBadges,
       aiOverlaySignals,
+      showAiOverlays,
       presentationVariant,
       getDraftCopilotInsight,
       getAssistantRoomContext,
@@ -3899,6 +3980,8 @@ export function DraftRoomPageClient({
           aiReorderExplanation={aiReorderExplanation}
           aiReorderExecutionMode={aiReorderExecutionMode}
           analyticsLeagueId={leagueId}
+          aiOverlaySignals={aiOverlaySignals}
+          showAiOverlays={showAiOverlays}
           presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
         />
       </div>
@@ -3930,6 +4013,8 @@ export function DraftRoomPageClient({
       nextQueuedAvailable,
       aiReorderExplanation,
       aiReorderExecutionMode,
+      aiOverlaySignals,
+      showAiOverlays,
       floatingHelperState,
       hasDraftHelperData,
       leagueId,
@@ -4527,7 +4612,7 @@ export function DraftRoomPageClient({
               data-testid="draft-right-dock"
             >
               <DraftRightDockTabs
-                queueBody={<div className="flex h-full min-h-0 flex-col overflow-auto px-1.5 py-1">{queueStackNode}</div>}
+                queueBody={<div className="flex h-full min-h-0 flex-col overflow-auto bg-[linear-gradient(180deg,rgba(7,14,28,0.65),rgba(6,12,24,0.88))] px-1 py-1">{queueStackNode}</div>}
                 rosterBody={
                   <ResultsRosterPanel
                     teams={resultsRosterTeams}
@@ -4902,6 +4987,8 @@ export function DraftRoomPageClient({
             draftRoomPresentation={presentationVariant}
             onToggleAutoPick={handleToggleAutoPick}
             thirdRoundReversal={Boolean(session.thirdRoundReversal)}
+            aiRecommendationOverlay={showAiOverlays ? recommendationOverlaySummary : null}
+            showAiOverlays={showAiOverlays}
           />
         </>
       }
@@ -5307,6 +5394,8 @@ export function DraftRoomPageClient({
           round: currentPick?.round ?? 1,
           pick: currentPick?.slot ?? 1,
           sport: effectiveDraftSport,
+          showAiOverlays,
+          recommendationOverlay: recommendationOverlaySummary,
         }}
         intelligenceProps={{
           aiFeatureStatus: {
@@ -5326,6 +5415,16 @@ export function DraftRoomPageClient({
                 sourceKeys: draftAssistantContext.sportsFeed?.sourceKeys ?? [],
                 headlines: draftAssistantContext.headlines,
                 injuries: draftAssistantContext.injuries,
+              }
+            : null,
+          showAiOverlays,
+          recommendationOverlay: recommendationOverlaySummary
+            ? {
+                label: recommendationOverlaySummary.label,
+                confidencePct: recommendationOverlaySummary.confidencePct,
+                stackAvailable: recommendationOverlaySummary.stackAvailable,
+                byeWeekConflict: recommendationOverlaySummary.byeWeekConflict,
+                safetyLevel: recommendationOverlaySummary.safetyLevel,
               }
             : null,
         }}

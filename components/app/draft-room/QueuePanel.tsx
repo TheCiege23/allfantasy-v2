@@ -6,6 +6,7 @@ import type { QueueEntry } from '@/lib/live-draft-engine/types'
 import { DRAFT_ROOM } from '@/lib/analytics/eventNames'
 import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
 import { PlayerAvatar } from './PlayerAvatar'
+import type { DraftAiOverlaySignal } from './PlayerPanel'
 
 type QueueSortMode = 'queue' | 'name' | 'adp' | 'rank'
 
@@ -44,6 +45,10 @@ export type QueuePanelProps = {
   autoPickEnabled?: boolean
   /** When set, queue autopick/away/AI reorder emit product analytics beacons */
   analyticsLeagueId?: string
+  /** Rich inline AI overlays keyed by `name|position` (lowercase). */
+  aiOverlaySignals?: Record<string, DraftAiOverlaySignal>
+  /** Shared visibility toggle for AI overlays across pool/queue/helper/topbar. */
+  showAiOverlays?: boolean
   presentationVariant?: 'default' | 'redraft_snake'
 }
 
@@ -67,6 +72,8 @@ export function QueuePanel({
   aiReorderExecutionMode,
   autoPickEnabled = true,
   analyticsLeagueId,
+  aiOverlaySignals,
+  showAiOverlays = true,
   presentationVariant = 'default',
 }: QueuePanelProps) {
   const rs = presentationVariant === 'redraft_snake'
@@ -145,19 +152,22 @@ export function QueuePanel({
     positionFilter === 'ALL' &&
     normalizedQuery.length === 0
 
+  const overlayKeyFor = (name: string, position: string) =>
+    `${name.trim().toLowerCase()}|${position.trim().toLowerCase()}`
+
   const showFilteredEmptyState = queue.length > 0 && displayQueue.length === 0
 
   return (
     <section
       className={`flex flex-col overflow-hidden rounded-lg border bg-[#101a30] ${
-        rs ? 'border-cyan-500/25 shadow-[0_12px_40px_rgba(34,211,238,0.08),inset_0_1px_0_rgba(255,255,255,0.05)]' : 'border-white/10'
+        rs ? 'border-cyan-500/18 shadow-[0_10px_28px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.04)]' : 'border-white/[0.07]'
       }`}
       data-testid="draft-queue-panel"
     >
-      <div className={`flex items-center justify-between gap-2 border-b px-2.5 py-1.5 ${rs ? 'border-cyan-500/15 bg-[linear-gradient(90deg,rgba(34,211,238,0.08),transparent)]' : 'border-white/[0.06]'}`}>
+      <div className={`flex items-center justify-between gap-2 border-b px-2 py-1 ${rs ? 'border-cyan-500/12 bg-[linear-gradient(90deg,rgba(34,211,238,0.06),transparent)]' : 'border-white/[0.05]'}`}>
         <div className="flex items-center gap-2">
-          <ListOrdered className="h-4 w-4 text-cyan-400" />
-          <span className="text-sm font-semibold text-white">Queue</span>
+          <ListOrdered className="h-3.5 w-3.5 text-cyan-400" />
+          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-white/92">Queue</span>
         </div>
         <label className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-[#0d1428] px-2 py-0.5 text-[9px] uppercase tracking-[0.12em] text-white/75">
           <input
@@ -179,14 +189,14 @@ export function QueuePanel({
           Auto-pick
         </label>
       </div>
-      <div className="grid grid-cols-1 gap-1.5 border-b border-white/[0.06] p-1.5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-1 border-b border-white/[0.05] p-1.5 sm:grid-cols-2 lg:grid-cols-3">
         <input
           type="search"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search queued players"
           data-testid="draft-queue-search"
-          className="h-8 rounded-lg border border-white/12 bg-[#0b1328] px-2.5 text-xs text-white placeholder:text-white/40 outline-none transition focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-500/15"
+          className="h-7 rounded-lg border border-white/12 bg-[#0b1328] px-2 text-[11px] text-white placeholder:text-white/40 outline-none transition focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-500/15"
         />
         {/* Position filter — chip row matches the player pool's position pills
             so users see consistent affordances across both surfaces. */}
@@ -207,7 +217,7 @@ export function QueuePanel({
                 onClick={() => setPositionFilter(position)}
                 data-testid={`draft-queue-position-pill-${position.toLowerCase()}`}
                 data-active={isActive ? 'true' : 'false'}
-                className={`inline-flex h-7 items-center rounded-full border px-2 text-[10px] font-semibold uppercase tracking-wider transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
+                className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-semibold uppercase tracking-wider transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
                   isActive
                     ? 'border-cyan-400/45 bg-gradient-to-r from-cyan-500/22 to-violet-600/18 text-cyan-50 shadow-[0_0_14px_rgba(34,211,238,0.18)]'
                     : 'border-white/15 bg-black/20 text-white/65 hover:border-white/28 hover:text-white/90'
@@ -222,7 +232,7 @@ export function QueuePanel({
           value={sortMode}
           onChange={(e) => setSortMode(e.target.value as QueueSortMode)}
           data-testid="draft-queue-sort"
-          className="h-8 rounded-lg border border-white/12 bg-[#0b1328] px-2.5 text-xs text-white outline-none transition focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-500/15"
+          className="h-7 rounded-lg border border-white/12 bg-[#0b1328] px-2 text-[11px] text-white outline-none transition focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-500/15"
         >
           <option value="queue">Sort: Queue order</option>
           <option value="adp">Sort: ADP</option>
@@ -428,22 +438,22 @@ export function QueuePanel({
           Execution: {aiReorderExecutionMode === 'ai_explained' ? 'rules engine + AI explanation' : 'instant rules automation'}
         </p>
       )}
-      <div className="flex-1 overflow-auto overscroll-contain p-1.5">
+      <div className="flex-1 overflow-auto overscroll-contain p-1">
         {queue.length === 0 ? (
-          <div className="flex h-full min-h-[104px] flex-col items-center justify-center gap-1 px-3 py-3 text-center">
+          <div className="flex h-full min-h-[72px] flex-col items-center justify-center gap-1 px-2 py-2 text-center">
             <div
-              className={`flex h-9 w-9 items-center justify-center rounded-xl border ${
-                rs ? 'border-cyan-400/25 bg-cyan-500/8' : 'border-white/10 bg-white/[0.03]'
+              className={`flex h-7 w-7 items-center justify-center rounded-lg border ${
+                rs ? 'border-cyan-400/20 bg-cyan-500/8' : 'border-white/10 bg-white/[0.03]'
               }`}
               aria-hidden
             >
-              <ListOrdered className={`h-4 w-4 ${rs ? 'text-cyan-200/70' : 'text-white/45'}`} />
+              <ListOrdered className={`h-3.5 w-3.5 ${rs ? 'text-cyan-200/70' : 'text-white/45'}`} />
             </div>
-            <p className={`text-xs font-semibold ${rs ? 'text-cyan-100/88' : 'text-white/82'}`}>
+            <p className={`text-[11px] font-semibold ${rs ? 'text-cyan-100/88' : 'text-white/82'}`}>
               No players in your queue
             </p>
-            <p className="max-w-[220px] text-[10px] leading-relaxed text-white/42">
-              Add to queue from player list
+            <p className="max-w-[220px] text-[9px] leading-relaxed text-white/45">
+              Add from player pool to prep your next picks.
             </p>
           </div>
         ) : showFilteredEmptyState ? (
@@ -452,11 +462,33 @@ export function QueuePanel({
             <p className="text-[10px] text-white/55">Adjust search, position, or sort to see queued players.</p>
           </div>
         ) : (
-          <ul className="space-y-1.5">
+          <ul className="space-y-1">
             {displayQueue.map(({ entry, queueIndex }, displayIndex) => {
               const meta = resolveMeta(entry)
               const adpText = formatNumber(meta.adp)
               const aiAdpText = formatNumber(meta.aiAdp)
+              const valueDelta =
+                meta.adp != null && meta.aiAdp != null && Number.isFinite(meta.adp) && Number.isFinite(meta.aiAdp)
+                  ? Number((meta.adp - meta.aiAdp).toFixed(1))
+                  : null
+              const aiOverlaySignal =
+                showAiOverlays && aiOverlaySignals
+                  ? aiOverlaySignals[overlayKeyFor(entry.playerName, entry.position)]
+                  : undefined
+              const aiConfidencePct =
+                typeof aiOverlaySignal?.confidencePct === 'number' && Number.isFinite(aiOverlaySignal.confidencePct)
+                  ? Math.max(0, Math.min(100, Math.round(aiOverlaySignal.confidencePct)))
+                  : null
+              const queueValueDelta =
+                aiOverlaySignal?.valueDelta != null && Number.isFinite(aiOverlaySignal.valueDelta)
+                  ? Number(aiOverlaySignal.valueDelta.toFixed(1))
+                  : valueDelta
+              const aiBadgeLabel =
+                aiOverlaySignal?.badge === 'ai_pick'
+                  ? 'Best pick'
+                  : aiOverlaySignal?.badge === 'risky'
+                    ? 'Upside'
+                    : 'Value'
               return (
               <li
                 key={`${entry.playerName}-${entry.playerId ?? queueIndex}`}
@@ -478,7 +510,7 @@ export function QueuePanel({
                     setDragIndex(null)
                   }
                 }}
-                className={`draft-live-queue-item flex items-center justify-between gap-2 rounded-lg border border-white/[0.08] bg-[linear-gradient(180deg,rgba(10,18,40,0.94),rgba(7,14,30,0.98))] px-2.5 py-1.5 text-[11px] min-h-[46px] ${
+                className={`draft-live-queue-item flex items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-[linear-gradient(180deg,rgba(10,18,40,0.94),rgba(7,14,30,0.98))] px-2 py-1 text-[11px] min-h-[42px] transition-colors ${
                   dragIndex === displayIndex ? 'opacity-60' : 'hover:bg-white/5'
                 }`}
               >
@@ -490,12 +522,26 @@ export function QueuePanel({
                     teamAbbr={entry.team}
                     position={entry.position}
                     displayName={entry.playerName}
-                    size={32}
+                    size={28}
                     testIdBase={`draft-queue-avatar-${displayIndex}`}
                   />
                   <div className="min-w-0">
-                    <p className="truncate font-medium text-white">{entry.playerName}</p>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px]">
+                    <p className="truncate text-[11px] font-semibold tracking-tight text-white">{entry.playerName}</p>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[9px]">
+                      {aiOverlaySignal ? (
+                        <span
+                          className={`rounded border px-1.5 py-[1px] ${
+                            aiOverlaySignal.badge === 'ai_pick'
+                              ? 'border-cyan-300/35 bg-cyan-500/14 text-cyan-100'
+                              : aiOverlaySignal.badge === 'risky'
+                                ? 'border-amber-300/35 bg-amber-500/14 text-amber-100'
+                                : 'border-emerald-300/35 bg-emerald-500/12 text-emerald-100'
+                          }`}
+                          title={aiOverlaySignal.reason ?? aiOverlaySignal.strategyNote ?? 'AI recommendation tag'}
+                        >
+                          {aiBadgeLabel}
+                        </span>
+                      ) : null}
                       <span className="rounded border border-white/15 bg-white/5 px-1.5 py-[1px] text-white/75">
                         {entry.position}
                       </span>
@@ -508,6 +554,40 @@ export function QueuePanel({
                       {aiAdpText ? (
                         <span className="rounded border border-violet-300/30 bg-violet-500/10 px-1.5 py-[1px] text-violet-100">AI ADP {aiAdpText}</span>
                       ) : null}
+                      {queueValueDelta != null ? (
+                        <span
+                          className={`rounded border px-1.5 py-[1px] ${
+                            queueValueDelta >= 0
+                              ? 'border-emerald-300/35 bg-emerald-500/12 text-emerald-100'
+                              : 'border-amber-300/35 bg-amber-500/12 text-amber-100'
+                          }`}
+                          title={queueValueDelta >= 0 ? 'Value indicator' : 'Reach indicator'}
+                        >
+                          {queueValueDelta >= 0 ? `Value +${queueValueDelta}` : `Reach ${queueValueDelta}`}
+                        </span>
+                      ) : null}
+                      {aiOverlaySignal?.stackAvailable ? (
+                        <span className="rounded border border-violet-300/35 bg-violet-500/10 px-1.5 py-[1px] text-violet-100" title="Stack opportunity available">
+                          Stack
+                        </span>
+                      ) : null}
+                      {aiOverlaySignal?.byeWeekConflict ? (
+                        <span className="rounded border border-amber-300/35 bg-amber-500/10 px-1.5 py-[1px] text-amber-100" title="Potential bye-week conflict">
+                          Bye conflict
+                        </span>
+                      ) : null}
+                      {aiOverlaySignal?.safetyLevel ? (
+                        <span
+                          className={`rounded border px-1.5 py-[1px] ${
+                            aiOverlaySignal.safetyLevel === 'safe'
+                              ? 'border-sky-300/35 bg-sky-500/10 text-sky-100'
+                              : 'border-rose-300/35 bg-rose-500/10 text-rose-100'
+                          }`}
+                          title={aiOverlaySignal.safetyLevel === 'safe' ? 'Safer profile' : 'Upside profile'}
+                        >
+                          {aiOverlaySignal.safetyLevel === 'safe' ? 'Safe' : 'Upside'}
+                        </span>
+                      ) : null}
                       {meta.injuryStatus ? (
                         <span className="rounded border border-amber-400/35 bg-amber-500/12 px-1.5 py-[1px] text-amber-100">
                           {meta.injuryStatus}
@@ -519,9 +599,14 @@ export function QueuePanel({
                         </span>
                       ) : null}
                     </div>
+                    {aiConfidencePct != null ? (
+                      <div className="mt-1 h-1 w-full max-w-[180px] overflow-hidden rounded-full border border-cyan-400/20 bg-slate-900/80" title={`AI confidence ${aiConfidencePct}%`}>
+                        <div className="h-full bg-gradient-to-r from-cyan-400/75 to-violet-400/75" style={{ width: `${aiConfidencePct}%` }} />
+                      </div>
+                    ) : null}
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => {
@@ -532,7 +617,7 @@ export function QueuePanel({
                     }}
                     disabled={!canReorderVisually || displayIndex === 0}
                     data-testid={`draft-queue-move-up-${displayIndex}`}
-                    className="draft-live-action-btn min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white/80 disabled:opacity-40 touch-manipulation"
+                    className="draft-live-action-btn min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white/80 disabled:opacity-40 touch-manipulation"
                     aria-label={`Move ${entry.playerName} up`}
                   >
                     ↑
@@ -547,7 +632,7 @@ export function QueuePanel({
                     }}
                     disabled={!canReorderVisually || displayIndex === displayQueue.length - 1}
                     data-testid={`draft-queue-move-down-${displayIndex}`}
-                    className="draft-live-action-btn min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white/80 disabled:opacity-40 touch-manipulation"
+                    className="draft-live-action-btn min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white/80 disabled:opacity-40 touch-manipulation"
                     aria-label={`Move ${entry.playerName} down`}
                   >
                     ↓
@@ -557,7 +642,7 @@ export function QueuePanel({
                       type="button"
                       onClick={() => onDraftFromQueue(entry)}
                       data-testid="draft-queue-draft-button"
-                      className="draft-live-action-btn min-h-[44px] inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/35 bg-cyan-500/12 px-3 py-2 text-xs text-cyan-100 hover:bg-cyan-500/20 touch-manipulation"
+                      className="draft-live-action-btn min-h-[36px] inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/35 bg-cyan-500/12 px-2.5 py-1.5 text-[11px] font-semibold text-cyan-100 hover:bg-cyan-500/20 touch-manipulation"
                     >
                       <Play className="h-3.5 w-3.5" /> Draft
                     </button>
@@ -566,7 +651,7 @@ export function QueuePanel({
                     type="button"
                     onClick={() => onRemove(queueIndex)}
                     data-testid={`draft-queue-remove-${displayIndex}`}
-                    className="draft-live-action-btn min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white/80 touch-manipulation"
+                    className="draft-live-action-btn min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white/80 touch-manipulation"
                     aria-label={`Remove ${entry.playerName} from queue`}
                   >
                     <X className="h-4 w-4" />

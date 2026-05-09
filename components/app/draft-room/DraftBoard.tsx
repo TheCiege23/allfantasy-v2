@@ -632,15 +632,15 @@ function DraftBoardInner({
               {orderedSlots.map((entry) => (
                 <div
                   key={entry.rosterId}
-                  className={`group relative flex h-9 min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 transition duration-150 ${
+                  className={`group relative flex h-10 min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 transition duration-150 ${
                     currentOwnerSlot === entry.slot ? 'text-cyan-100' : 'text-white/85'
                   }`}
                 >
                   <span
-                    className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[8px] font-bold uppercase tracking-[0.03em] shadow-sm ${
+                    className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[9px] font-bold uppercase tracking-[0.03em] shadow-sm ${
                       currentOwnerSlot === entry.slot
-                        ? 'border-cyan-300/70 bg-cyan-500/15 text-cyan-50 shadow-[0_0_14px_rgba(34,211,238,0.35)]'
-                        : 'border-white/15 bg-white/[0.04] text-white/85'
+                        ? 'border-cyan-300/75 bg-cyan-500/20 text-cyan-50 shadow-[0_0_16px_rgba(34,211,238,0.40)]'
+                        : 'border-white/15 bg-white/[0.05] text-white/85'
                     }`}
                   >
                     {managerInitials(entry.displayName)}
@@ -652,17 +652,17 @@ function DraftBoardInner({
                     {entry.displayName}
                   </span>
                   {currentOwnerSlot === entry.slot ? (
-                    <span className="absolute -top-0.5 right-1 inline-flex h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_rgba(34,211,238,0.8)]" aria-hidden />
+                    <span className="absolute bottom-0 inset-x-2 h-[2px] rounded-full bg-cyan-300/60 shadow-[0_0_6px_rgba(34,211,238,0.6)]" aria-hidden />
                   ) : null}
                 </div>
               ))}
             </div>
 
-            <div className="space-y-0.5 pt-0.5">
+            <div className="space-y-[3px] pt-0.5">
               {visibleRounds.map((round) => (
                 <section key={round} data-testid={`draft-board-round-${round}`}>
                     <div
-                      className="grid gap-0.5 sm:gap-0.5"
+                      className="grid gap-[3px]"
                       style={{ gridTemplateColumns: `40px repeat(${teamCount}, minmax(88px, 1fr))` }}
                     >
                     {(() => {
@@ -726,46 +726,50 @@ function DraftBoardInner({
                           : 'forward'
 
                       return (
-                        <DraftBoardCell
+                        <div
                           key={`${round}-${slotEntry.slot}`}
-                          pick={pick}
-                          isEmpty={isPickDisplayEmpty}
-                          isCurrentPick={isCurrentPick}
-                          presentationVariant={presentationVariant}
-                          sport={sport}
-                          isRecentPick={Boolean(!isPickDisplayEmpty && overall === lastFilledPickOverall)}
-                          tradedPickColorMode={tradedPickColorMode}
-                          showNewOwnerInRed={showNewOwnerInRed}
-                          isDevyRound={devyRounds.includes(round) && isPickDisplayEmpty}
-                          isCollegeRound={c2cCollegeRounds.includes(round) && isPickDisplayEmpty}
-                          pickHighlight={isCurrentPick ? 'none' : pickHighlight(existing)}
-                          emptyCellDirection={emptyCellDirection}
-                          onTradeFromCell={
-                            currentUserRosterId && onCellTrade && pick.ownerRosterId && typeof pick.slot === 'number'
-                              ? () =>
-                                  onCellTrade({
-                                    round: pick.round,
-                                    ownerSlot: pick.slot,
-                                    ownerRosterId: pick.ownerRosterId ?? '',
-                                    overall: pick.overall,
-                                  })
-                              : undefined
-                          }
-                          onViewTradeHistory={
-                            onViewCellTradeHistory && pick.tradedPickMeta?.originalRosterId
-                              ? () =>
-                                  onViewCellTradeHistory({
-                                    round: pick.round,
-                                    originalRosterId: pick.tradedPickMeta!.originalRosterId!,
-                                  })
-                              : undefined
-                          }
-                          onCommissionerEditPick={
-                            canCommissionerEditPicks && onCommissionerEditPick
-                              ? () => onCommissionerEditPick(pick.overall)
-                              : undefined
-                          }
-                        />
+                          className="rounded-[9px] p-[1px] transition-colors bg-transparent"
+                        >
+                          <DraftBoardCell
+                            pick={pick}
+                            isEmpty={isPickDisplayEmpty}
+                            isCurrentPick={isCurrentPick}
+                            presentationVariant={presentationVariant}
+                            sport={sport}
+                            isRecentPick={Boolean(!isPickDisplayEmpty && overall === lastFilledPickOverall)}
+                            tradedPickColorMode={tradedPickColorMode}
+                            showNewOwnerInRed={showNewOwnerInRed}
+                            isDevyRound={devyRounds.includes(round) && isPickDisplayEmpty}
+                            isCollegeRound={c2cCollegeRounds.includes(round) && isPickDisplayEmpty}
+                            pickHighlight={isCurrentPick ? 'none' : pickHighlight(existing)}
+                            emptyCellDirection={emptyCellDirection}
+                            onTradeFromCell={
+                              currentUserRosterId && onCellTrade && pick.ownerRosterId && typeof pick.slot === 'number'
+                                ? () =>
+                                    onCellTrade({
+                                      round: pick.round,
+                                      ownerSlot: pick.slot,
+                                      ownerRosterId: pick.ownerRosterId ?? '',
+                                      overall: pick.overall,
+                                    })
+                                : undefined
+                            }
+                            onViewTradeHistory={
+                              onViewCellTradeHistory && pick.tradedPickMeta?.originalRosterId
+                                ? () =>
+                                    onViewCellTradeHistory({
+                                      round: pick.round,
+                                      originalRosterId: pick.tradedPickMeta!.originalRosterId!,
+                                    })
+                                : undefined
+                            }
+                            onCommissionerEditPick={
+                              canCommissionerEditPicks && onCommissionerEditPick
+                                ? () => onCommissionerEditPick(pick.overall)
+                                : undefined
+                            }
+                          />
+                        </div>
                       )
                     })}
                   </div>

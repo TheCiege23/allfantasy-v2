@@ -89,3 +89,4 @@ spotify-final-results.txt
 # Local build and background-task locks; regenerated per session.
 .next-build.lock
 .claude/scheduled_tasks.lock
+.env*.local

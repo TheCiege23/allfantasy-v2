@@ -99,7 +99,7 @@ function Cell({
   return (
     <div
       style={{ width, minWidth: width, maxWidth: width }}
-      className={`flex items-center px-1 ${align === 'right' ? 'justify-end tabular-nums' : 'justify-start'} ${className}`}
+      className={`flex items-center px-1.5 ${align === 'right' ? 'justify-end tabular-nums' : 'justify-start'} ${className}`}
       title={title}
     >
       {children}
@@ -192,7 +192,7 @@ function SleeperRow(props: SleeperRowProps) {
       case 'rk':
         return (
           <Cell key={col.key} width={col.width} align="right">
-            <span className="text-white/55 text-[11px] font-medium" data-testid={`${testIdBase}-rk`}>
+              <span className="text-white/45 text-[11px] font-medium" data-testid={`${testIdBase}-rk`}>
               {rank}
             </span>
           </Cell>
@@ -220,7 +220,7 @@ function SleeperRow(props: SleeperRowProps) {
             ? `${p.name} — already drafted`
             : `${p.name}${p.position ? ` (${p.position}${p.team ? `, ${p.team}` : ''})` : ''} — click row to open detail`
         return (
-          <Cell key={col.key} width={col.width} align="left" className="gap-1.5">
+          <Cell key={col.key} width={col.width} align="left" className="gap-2">
             <PlayerAvatar
               headshotUrl={headshotUrl}
               displayName={p.name}
@@ -234,7 +234,7 @@ function SleeperRow(props: SleeperRowProps) {
             <div className="flex min-w-0 flex-1 flex-col">
               <div className="flex min-w-0 items-center gap-1">
                 <span
-                  className="min-w-0 flex-1 truncate text-[12px] font-semibold text-white/95"
+                  className="min-w-0 flex-1 truncate text-[12px] font-semibold tracking-tight text-white"
                   data-testid={`${testIdBase}-name`}
                   title={nameTitle}
                 >
@@ -246,9 +246,9 @@ function SleeperRow(props: SleeperRowProps) {
                   </span>
                 ) : null}
               </div>
-              <span className="truncate whitespace-nowrap text-[10px] text-white/55">
-                <span className="font-semibold text-white/72">{p.position || '—'}</span>
-                {p.team ? <span className="ml-1 text-white/45">{p.team}</span> : null}
+              <span className="truncate whitespace-nowrap text-[10px] text-white/52">
+                <span className="font-semibold text-white/78">{p.position || '—'}</span>
+                {p.team ? <span className="ml-1 text-white/42">{p.team}</span> : null}
               </span>
               {showAi ? (
                 <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1">
@@ -368,13 +368,13 @@ function SleeperRow(props: SleeperRowProps) {
               }}
               aria-label={isCompareAnchor ? 'Clear compare selection' : `Compare ${p.name}`}
               data-testid={`${testIdBase}-compare`}
-              className={`draft-live-action-btn inline-flex h-6 w-6 items-center justify-center rounded border transition ${
+              className={`draft-live-action-btn inline-flex h-[22px] w-[22px] items-center justify-center rounded-md border transition ${
                 isCompareAnchor
                   ? 'border-amber-400/60 bg-amber-500/15 text-amber-100'
-                  : 'border-white/15 bg-black/25 text-white/65 hover:border-white/28 hover:bg-white/10'
+                  : 'border-white/10 bg-black/20 text-white/60 hover:border-white/22 hover:bg-white/8'
               }`}
             >
-              <GitCompare className="h-3 w-3" />
+              <GitCompare className="h-2.5 w-2.5" />
             </button>
             <button
               type="button"
@@ -386,18 +386,18 @@ function SleeperRow(props: SleeperRowProps) {
               disabled={drafted}
               aria-label={`Queue ${p.name}`}
               data-testid={`${testIdBase}-queue`}
-              className={`draft-live-action-btn inline-flex h-6 w-6 items-center justify-center rounded border transition ${
+              className={`draft-live-action-btn inline-flex h-[22px] w-[22px] items-center justify-center rounded-md border transition ${
                 drafted
                   ? 'cursor-not-allowed border-white/8 bg-black/20 text-white/25'
                   : queued
                     ? 'border-cyan-400/40 bg-cyan-500/15 text-cyan-100'
                     : aiOverlaySignal
                       ? 'border-cyan-300/35 bg-cyan-500/10 text-cyan-100 hover:border-cyan-300/55 hover:bg-cyan-500/18'
-                      : 'border-white/15 bg-black/25 text-white/65 hover:border-cyan-400/25 hover:bg-white/10'
+                      : 'border-white/10 bg-black/20 text-white/60 hover:border-cyan-400/22 hover:bg-white/8'
               }`}
               title={aiOverlaySignal ? 'AI quick action: queue candidate' : undefined}
             >
-              <Plus className="h-3 w-3" />
+              <Plus className="h-2.5 w-2.5" />
             </button>
             {canNominate && onNominateRequest ? (
               <button
@@ -407,7 +407,7 @@ function SleeperRow(props: SleeperRowProps) {
                   onNominateRequest()
                 }}
                 data-testid={`${testIdBase}-nominate`}
-                className="draft-live-action-btn inline-flex h-6 items-center rounded border border-amber-400/45 bg-amber-500/15 px-2 text-[10px] font-semibold text-amber-100 hover:brightness-110"
+                className="draft-live-action-btn inline-flex h-[22px] items-center rounded-md border border-amber-400/45 bg-amber-500/15 px-2 text-[9px] font-semibold text-amber-100 hover:brightness-110"
               >
                 Nominate
               </button>
@@ -422,7 +422,7 @@ function SleeperRow(props: SleeperRowProps) {
                 }}
                 title={drafted ? 'Player already drafted' : !canDraft ? 'Not your turn' : 'Draft this player'}
                 data-testid={`${testIdBase}-draft`}
-                className={`draft-live-action-btn inline-flex h-6 items-center rounded border px-2 text-[10px] font-semibold transition ${
+                className={`draft-live-action-btn inline-flex h-[22px] items-center rounded-md border px-2 text-[9px] font-semibold transition ${
                   drafted
                     ? 'cursor-not-allowed border-white/8 bg-white/[0.04] text-white/30'
                     : !canDraft
@@ -468,12 +468,14 @@ function SleeperRow(props: SleeperRowProps) {
         onSelect()
       }}
       style={{ height: rowHeight, minWidth }}
-      className={`flex items-stretch border-b border-white/[0.06] text-xs transition-colors ${
+      className={`flex items-stretch border-b border-white/[0.03] text-xs transition-[background-color,color,border-color] duration-150 ${
         drafted
-          ? 'bg-black/40 text-white/35'
+          ? 'bg-black/32 text-white/34'
           : selected
-            ? 'bg-cyan-500/12 text-white/90'
-            : 'bg-transparent text-white/82 hover:bg-white/[0.04] cursor-pointer'
+            ? 'bg-cyan-500/11 text-white/92'
+            : rank % 2 === 0
+              ? 'bg-white/[0.015] text-white/82 hover:bg-cyan-500/[0.08] cursor-pointer'
+              : 'bg-transparent text-white/82 hover:bg-cyan-500/[0.08] cursor-pointer'
       }`}
     >
       {layout.columns.map((col) => renderColumn(col))}
@@ -542,7 +544,7 @@ export function SleeperPoolTable(props: SleeperPoolTableProps) {
       <div
         role="row"
         data-testid="sleeper-pool-table-header"
-        className="sticky top-0 z-10 flex items-center border-b border-white/[0.06] bg-[#101a30] text-[8px] font-semibold uppercase tracking-[0.12em] text-[#94a3b8] shadow-[inset_0_-1px_0_rgba(255,255,255,0.04)]"
+        className="sticky top-0 z-10 flex items-center border-b border-white/[0.04] bg-[linear-gradient(180deg,#111c33_0%,#0d1628_100%)] text-[8px] font-semibold uppercase tracking-[0.12em] text-[#9fb0d6] shadow-[inset_0_-1px_0_rgba(255,255,255,0.03)]"
         style={{ height: SLEEPER_POOL_TABLE_HEADER_HEIGHT, minWidth }}
       >
         {layout.columns.map((col) => {
@@ -570,7 +572,7 @@ export function SleeperPoolTable(props: SleeperPoolTableProps) {
                   className={`inline-flex items-center gap-1 rounded px-1 py-px transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45 ${
                     isActiveSort
                       ? 'text-cyan-100 underline decoration-cyan-300/55 decoration-2 underline-offset-[2px]'
-                      : 'text-white/55 hover:text-white/85'
+                      : 'text-white/58 hover:text-white/88'
                   }`}
                 >
                   <span>{col.label}</span>

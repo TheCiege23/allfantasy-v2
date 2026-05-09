@@ -15,6 +15,13 @@ interface DraftHelperCopilotProps {
   round: number
   pick: number
   sport: string
+  showAiOverlays?: boolean
+  recommendationOverlay?: {
+    valueDelta?: number | null
+    stackAvailable?: boolean
+    byeWeekConflict?: boolean
+    safetyLevel?: 'safe' | 'upside' | null
+  } | null
 }
 
 export function DraftHelperCopilot({
@@ -25,6 +32,8 @@ export function DraftHelperCopilot({
   explanation,
   evidence,
   caveats,
+  showAiOverlays = true,
+  recommendationOverlay = null,
 }: DraftHelperCopilotProps) {
   if (!recommendation?.player?.name) {
     return (
@@ -55,6 +64,44 @@ export function DraftHelperCopilot({
             <div className="text-xs text-slate-500">confidence</div>
           </div>
         </div>
+        {showAiOverlays && recommendationOverlay ? (
+          <div className="mt-2 flex flex-wrap items-center gap-1 text-[10px]">
+            {recommendationOverlay.valueDelta != null && Number.isFinite(recommendationOverlay.valueDelta) ? (
+              <span
+                className={`rounded border px-1.5 py-0.5 ${
+                  recommendationOverlay.valueDelta >= 0
+                    ? 'border-emerald-300/35 bg-emerald-500/12 text-emerald-100'
+                    : 'border-amber-300/35 bg-amber-500/12 text-amber-100'
+                }`}
+              >
+                {recommendationOverlay.valueDelta >= 0
+                  ? `Value +${recommendationOverlay.valueDelta.toFixed(1)}`
+                  : `Reach ${recommendationOverlay.valueDelta.toFixed(1)}`}
+              </span>
+            ) : null}
+            {recommendationOverlay.stackAvailable ? (
+              <span className="rounded border border-violet-300/35 bg-violet-500/10 px-1.5 py-0.5 text-violet-100">
+                Stack available
+              </span>
+            ) : null}
+            {recommendationOverlay.byeWeekConflict ? (
+              <span className="rounded border border-amber-300/35 bg-amber-500/10 px-1.5 py-0.5 text-amber-100">
+                Bye-week conflict
+              </span>
+            ) : null}
+            {recommendationOverlay.safetyLevel ? (
+              <span
+                className={`rounded border px-1.5 py-0.5 ${
+                  recommendationOverlay.safetyLevel === 'safe'
+                    ? 'border-sky-300/35 bg-sky-500/10 text-sky-100'
+                    : 'border-rose-300/35 bg-rose-500/10 text-rose-100'
+                }`}
+              >
+                {recommendationOverlay.safetyLevel === 'safe' ? 'Safe profile' : 'Upside profile'}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       {/* Alternatives */}

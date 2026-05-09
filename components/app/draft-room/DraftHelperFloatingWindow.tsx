@@ -18,10 +18,26 @@ interface DraftHelperFloatingWindowProps {
   onToggleSection: (section: keyof DraftHelperFloatingWindowState['expandedSections']) => void
   badgeCount: number
   // Props that can be passed through to child components
-  copilotProps?: Partial<DraftHelperPanelProps>
+  copilotProps?: Partial<DraftHelperPanelProps> & {
+    showAiOverlays?: boolean
+    recommendationOverlay?: {
+      valueDelta?: number | null
+      stackAvailable?: boolean
+      byeWeekConflict?: boolean
+      safetyLevel?: 'safe' | 'upside' | null
+    } | null
+  }
   intelligenceProps?: {
     aiFeatureStatus?: DraftHelperPanelProps['aiFeatureStatus']
     sportsFeed?: DraftHelperPanelProps['sportsFeed']
+    showAiOverlays?: boolean
+    recommendationOverlay?: {
+      label?: string | null
+      confidencePct?: number | null
+      stackAvailable?: boolean
+      byeWeekConflict?: boolean
+      safetyLevel?: 'safe' | 'upside' | null
+    } | null
   }
 }
 
@@ -69,6 +85,8 @@ export function DraftHelperFloatingWindow({
           round={copilotProps.round ?? 1}
           pick={copilotProps.pick ?? 1}
           sport={copilotProps.sport ?? 'NFL'}
+          showAiOverlays={copilotProps.showAiOverlays ?? true}
+          recommendationOverlay={copilotProps.recommendationOverlay ?? null}
         />
       ) : (
         <div className="text-sm text-gray-300 p-2">Copilot data loading...</div>
@@ -88,6 +106,8 @@ export function DraftHelperFloatingWindow({
         <DraftHelperIntelligence
           aiFeatureStatus={intelligenceProps?.aiFeatureStatus}
           sportsFeed={intelligenceProps?.sportsFeed}
+          showAiOverlays={intelligenceProps?.showAiOverlays ?? true}
+          recommendationOverlay={intelligenceProps?.recommendationOverlay ?? null}
         />
       ),
     },

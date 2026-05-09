@@ -7,6 +7,7 @@ import type {
   WorldCupAiMatchupPreview,
   WorldCupAiStrategy,
   WorldCupLeaderboardRow,
+  WorldCupPickView,
 } from "./types"
 
 // ── Local types ──────────────────────────────────────────────────────────────
@@ -40,11 +41,17 @@ export type WorldCupBracketEntryClient = {
 }
 
 export type WorldCupEntryPickPayload = {
+  activeEntryId?: string
   matchId: string
   selectedTeamId?: string | null
-  selectedTeamName?: string
+  selectedTeamName?: string | null
   selectedSide?: "home" | "away"
   selectedSlotKey?: string | null
+  round?: string
+  sourceSlotKey?: string | null
+  nextMatchId?: string | null
+  nextMatchSlot?: "home" | "away" | null
+  matchNumber?: number
 }
 
 export type WorldCupEntryPickResult = {
@@ -53,6 +60,10 @@ export type WorldCupEntryPickResult = {
   pick: unknown
   picks: unknown[]
   isComplete: boolean
+}
+
+export type WorldCupBracketEntryDetailClient = WorldCupBracketEntryClient & {
+  picks?: WorldCupPickView[]
 }
 
 export type WorldCupEntryLeaderboardRow = WorldCupLeaderboardRow & {
@@ -111,14 +122,14 @@ export async function createWorldCupBracketEntry(
 export async function getWorldCupBracketEntry(
   challengeId: string,
   entryId: string
-): Promise<WorldCupBracketEntryClient | null> {
+): Promise<WorldCupBracketEntryDetailClient | null> {
   const res = await apiFetch(
     `/api/brackets/world-cup/${challengeId}/entries/${entryId}`
   )
   if (res.status === 404) return null
   if (!res.ok) throw new Error("Failed to load entry")
   const data = await res.json()
-  return (data.entry ?? null) as WorldCupBracketEntryClient | null
+  return (data.entry ?? null) as WorldCupBracketEntryDetailClient | null
 }
 
 export async function renameWorldCupBracketEntry(

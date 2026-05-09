@@ -166,7 +166,7 @@ function PositionBadge({ pos }: { pos: string | null }) {
   const p = (pos ?? '—').trim().slice(0, 4).toUpperCase()
   return (
     <span
-      className="inline-flex min-w-[1.5rem] shrink-0 items-center justify-center rounded-md border border-cyan-300/60 bg-gradient-to-r from-cyan-500/40 to-cyan-400/30 px-1 py-0.5 text-[8px] font-bold text-cyan-100 shadow-lg shadow-cyan-500/20"
+      className="inline-flex min-w-[1.5rem] shrink-0 items-center justify-center rounded-md border border-cyan-300/45 bg-cyan-500/25 px-1 py-0.5 text-[8px] font-bold text-cyan-100/95 shadow-sm"
       title={pos ?? undefined}
     >
       {p}
@@ -232,8 +232,8 @@ function DraftBoardCellInner({
   const managerTint =
     !tint && pick.managerTintColor
       ? {
-          borderColor: withAlpha(pick.managerTintColor, 0.32),
-          backgroundColor: withAlpha(pick.managerTintColor, 0.08),
+          borderColor: withAlpha(pick.managerTintColor, 0.40),
+          backgroundColor: withAlpha(pick.managerTintColor, 0.11),
         }
       : undefined
 
@@ -245,26 +245,26 @@ function DraftBoardCellInner({
     ? `Draft pick ${compactLabel}, empty slot`
     : `${pick.playerName ?? 'Player'}, ${pick.position ?? ''}, ${pick.team ?? ''}, pick ${compactLabel}`
 
-  const hoverLift = rs && !isEmpty ? 'hover:z-[1] hover:-translate-y-0.5 hover:scale-[1.01]' : 'hover:z-[1] hover:-translate-y-0.5 hover:scale-[1.01]'
+  const hoverLift = !isEmpty ? 'hover:z-[1] hover:-translate-y-px' : 'hover:z-[1]'
 
   return (
     <div
-      className={`group relative flex h-[44px] min-h-[44px] flex-col overflow-hidden rounded-[6px] border px-1 pb-0.5 pt-0.5 text-[9px] backdrop-blur-sm transition-[border-color,box-shadow,transform,background-color] duration-200 ${hoverLift} hover:border-cyan-300/45 hover:shadow-lg sm:h-[46px] sm:min-h-[46px] sm:px-1 sm:pb-0.5 sm:pt-0.5 ${
+      className={`group relative flex h-[44px] min-h-[44px] flex-col overflow-hidden rounded-[9px] border px-1 pb-0.5 pt-0.5 text-[9px] backdrop-blur-sm transition-[border-color,box-shadow,transform,background-color] duration-150 ${hoverLift} hover:border-cyan-300/28 hover:shadow-[0_6px_18px_rgba(3,10,28,0.48)] sm:h-[46px] sm:min-h-[46px] sm:px-1 sm:pb-0.5 sm:pt-0.5 ${
         onTradeFromCell ? 'pr-7 sm:pr-8' : ''
       } ${
         isCurrentPick ? 'draft-live-current-pick' : isRecentPick ? 'draft-live-recent-pick' : ''
       } ${
         isCurrentPick
           ? rs
-            ? 'border-[#f6c445]/70 bg-[radial-gradient(ellipse_at_50%_0%,rgba(246,196,69,0.34),transparent),linear-gradient(155deg,rgba(246,196,69,0.2),rgba(15,23,42,0.96))] shadow-[0_0_46px_rgba(246,196,69,0.4)] ring-1 ring-[#f6c445]/65'
-            : 'border-[#f6c445]/75 bg-gradient-to-br from-[#f6c445]/26 via-[#28344e] to-[#1b2438] shadow-[0_0_40px_rgba(246,196,69,0.35)] ring-1 ring-[#f6c445]/60'
+              ? 'border-[#f6c445]/50 bg-[radial-gradient(ellipse_at_50%_0%,rgba(246,196,69,0.24),transparent_70%),linear-gradient(155deg,rgba(246,196,69,0.15),rgba(15,23,42,0.95))] shadow-[0_0_32px_rgba(246,196,69,0.30)] ring-1 ring-[#f6c445]/48'
+            : 'border-[#f6c445]/50 bg-gradient-to-br from-[#f6c445]/18 via-[#252f48] to-[#16202f] shadow-[0_0_30px_rgba(246,196,69,0.28)] ring-1 ring-[#f6c445]/46'
           : isRecentPick
             ? rs
-              ? 'border-emerald-400/70 bg-gradient-to-br from-emerald-500/28 to-[#142032] ring-1 ring-emerald-400/50 shadow-[0_0_36px_rgba(52,211,153,0.28)]'
-              : 'border-emerald-400/80 bg-gradient-to-br from-emerald-500/25 to-[#2a3d5a] ring-1 ring-emerald-400/60 shadow-[0_0_32px_rgba(52,211,153,0.35)]'
+              ? 'border-emerald-400/42 bg-gradient-to-br from-emerald-500/18 via-[#142338] to-[#0f1c2e] ring-1 ring-emerald-400/38 shadow-[0_0_26px_rgba(52,211,153,0.22)]'
+              : 'border-emerald-400/46 bg-gradient-to-br from-emerald-500/18 via-[#1e2f46] to-[#172438] ring-1 ring-emerald-400/38 shadow-[0_0_24px_rgba(52,211,153,0.26)]'
             : isEmpty
-              ? 'border-white/[0.05] bg-[linear-gradient(145deg,rgba(13,20,40,0.6),rgba(8,14,28,0.82))]'
-              : `border-white/[0.14] bg-gradient-to-b from-[#1c2742] to-[#162036] ${rs ? 'shadow-md' : 'shadow-lg'} ${highlightClass(pickHighlight)}`
+              ? 'border-white/[0.025] bg-[rgba(7,11,22,0.64)]'
+              : `border-white/[0.10] bg-gradient-to-br from-[#1c2741] via-[#141e31] to-[#0f1928] ${rs ? 'shadow-[0_8px_22px_rgba(2,8,24,0.40)]' : 'shadow-[0_10px_24px_rgba(2,8,24,0.42)]'} ${highlightClass(pickHighlight)}`
       }`}
       style={tint ?? managerTint}
       data-overall={pick.overall}
@@ -328,7 +328,7 @@ function DraftBoardCellInner({
       ) : null}
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-px"
-        style={{ backgroundColor: withAlpha(pick.managerTintColor ?? '#94a3b8', isCurrentPick ? 0.78 : 0.38) }}
+        style={{ backgroundColor: withAlpha(pick.managerTintColor ?? '#94a3b8', isCurrentPick ? 0.88 : 0.36) }}
         aria-hidden
       />
 
@@ -351,20 +351,20 @@ function DraftBoardCellInner({
           ) : null}
         </div>
 
-        <span className="-mt-px tabular-nums text-[10px] font-semibold text-white/60" aria-hidden>
+        <span className="-mt-px tabular-nums text-[9px] font-medium text-white/38" aria-hidden>
           {compactLabel}
         </span>
       </div>
 
       {isEmpty ? (
         <div className="mt-auto flex min-h-0 flex-1 items-end justify-between gap-1">
-          <div className="flex min-w-0 items-center gap-1 text-white/55">
+          <div className="flex min-w-0 items-center gap-0.5 text-white/30">
             {emptyCellDirection === 'reverse' ? (
-              <ArrowLeft className="h-3 w-3 shrink-0" aria-hidden />
+              <ArrowLeft className="h-2.5 w-2.5 shrink-0" aria-hidden />
             ) : (
-              <ArrowRight className="h-3 w-3 shrink-0" aria-hidden />
+              <ArrowRight className="h-2.5 w-2.5 shrink-0" aria-hidden />
             )}
-            <span className="truncate text-[9px] font-medium" title={ownerLabel ?? 'Awaiting pick'}>
+            <span className="truncate text-[8px] font-normal" title={ownerLabel ?? 'Awaiting pick'}>
               {ownerLabel ?? 'Awaiting pick'}
             </span>
             {isCollegeRound ? (
@@ -403,7 +403,7 @@ function DraftBoardCellInner({
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1">
-                <span className="truncate font-semibold leading-tight text-white/95 text-[10px]" title={pick.playerName ?? undefined}>
+                <span className="truncate font-semibold leading-tight tracking-tight text-white text-[11px]" title={pick.playerName ?? undefined}>
                   {pick.playerName}
                 </span>
                 <PositionBadge pos={pick.position} />
@@ -413,7 +413,7 @@ function DraftBoardCellInner({
                   </span>
                 ) : null}
               </div>
-              <p className="truncate text-[8px] text-white/55">
+              <p className="truncate text-[8px] text-white/44">
                 {(pick.team ?? '—').toString()}
                 {pick.byeWeek != null && pick.byeWeek > 0 ? ` · Bye ${pick.byeWeek}` : ''}
               </p>

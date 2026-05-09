@@ -10,7 +10,23 @@ import type { WorldCupMatchView, WorldCupPickView, WorldCupRound } from "./types
 import { WORLD_CUP_ROUNDS } from "./types"
 
 export type WorldCupGuidedPickPayloadLike = {
-  selectedTeamId: string | null
+  selectedTeamId?: string | null
+  selectedSlotKey?: string | null
+}
+
+export type WorldCupPickSelectionLike = {
+  selectedTeamId?: string | null
+  selectedSlotKey?: string | null
+}
+
+export type WorldCupMatchPickabilityLike = {
+  id?: string | null
+  round?: WorldCupRound | string
+  status?: string | null
+  homeTeamId?: string | null
+  awayTeamId?: string | null
+  homeTeamName?: string | null
+  awayTeamName?: string | null
 }
 
 export type WorldCupGuidedPicksState = "fixtures_not_synced" | "fixtures_not_ready" | "ready"
@@ -35,7 +51,7 @@ function isPlaceholderTeamName(value: string | null | undefined): boolean {
   return false
 }
 
-export function getWorldCupUnpickableReason(match: WorldCupMatchView): WorldCupUnpickableReason {
+export function getWorldCupUnpickableReason(match: WorldCupMatchPickabilityLike): WorldCupUnpickableReason {
   if (!match?.id) return "unknown"
   if (match.status === "final") return "final"
   if (!match.homeTeamId) return "missing_home_team"
@@ -51,7 +67,7 @@ export function getWorldCupUnpickableReason(match: WorldCupMatchView): WorldCupU
   return "unknown"
 }
 
-export function isWorldCupMatchPickable(match: WorldCupMatchView): boolean {
+export function isWorldCupMatchPickable(match: WorldCupMatchPickabilityLike): boolean {
   if (!match?.id) return false
   if (match.status === "final") return false
   if (!match.homeTeamId || !match.awayTeamId) return false
@@ -61,7 +77,7 @@ export function isWorldCupMatchPickable(match: WorldCupMatchView): boolean {
 }
 
 export function assertWorldCupPickPayloadReady(payload: WorldCupGuidedPickPayloadLike): void {
-  if (!payload.selectedTeamId) {
+  if (!hasWorldCupPickSelection(payload)) {
     throw new Error("This matchup is not ready for picks yet.")
   }
 }
@@ -72,8 +88,8 @@ export function getWorldCupGuidedPicksState(matches: WorldCupMatchView[]): World
   return "ready"
 }
 
-export function hasWorldCupPickSelection(pick: Pick<WorldCupPickView, "selectedTeamId" | "selectedSlotKey">): boolean {
-  return Boolean(pick.selectedTeamId || pick.selectedSlotKey)
+export function hasWorldCupPickSelection(pick: WorldCupPickSelectionLike | null | undefined): boolean {
+  return Boolean(pick?.selectedTeamId || pick?.selectedSlotKey)
 }
 
 // ── Projected bracket ─────────────────────────────────────────────────────────
@@ -263,7 +279,9 @@ export function getInvalidDownstreamPickIds(
   newWinnerTeamId: string | null
 ): string[] {
   const byId = new Map(matches.map((m) => [m.id, m]))
-  const pickByMatchId = new Map(picks.map((p) => [p.matchId, p]))
+  const pickByMatchId = new Map(
+    picks.filter(hasWorldCupPickSelection).map((p) => [p.matchId, p])
+  )
   const invalidIds: string[] = []
 
   // Build the projected bracket using picks EXCEPT the changed one so we can
@@ -329,8 +347,11 @@ export function isBracketComplete(
   includeThirdPlace = false
 ): boolean {
   const required = matches.filter(
-    (m) => m.round !== "third_place" || includeThirdPlace
+    (m) =>
+      (m.round !== "third_place" || includeThirdPlace) &&
+      isWorldCupMatchPickable(m)
   )
+  if (required.length === 0) return false
   const pickedIds = new Set(
     picks.filter(hasWorldCupPickSelection).map((p) => p.matchId)
   )
@@ -346,7 +367,9 @@ export function countRemainingPicks(
   includeThirdPlace = false
 ): number {
   const required = matches.filter(
-    (m) => m.round !== "third_place" || includeThirdPlace
+    (m) =>
+      (m.round !== "third_place" || includeThirdPlace) &&
+      isWorldCupMatchPickable(m)
   )
   const pickedIds = new Set(
     picks.filter(hasWorldCupPickSelection).map((p) => p.matchId)

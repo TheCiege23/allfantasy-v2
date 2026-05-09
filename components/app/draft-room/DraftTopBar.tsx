@@ -102,6 +102,20 @@ export type DraftTopBarProps = {
   thirdRoundReversal?: boolean
   /** When set, the overflow menu shows a "Big Screen / Cast Board" entry that opens this URL in a new tab. */
   bigScreenHref?: string | null
+  /** Compact AI recommendation overlay for current-pick strip. */
+  aiRecommendationOverlay?: {
+    label?: string | null
+    playerName?: string | null
+    position?: string | null
+    team?: string | null
+    confidencePct?: number | null
+    valueDelta?: number | null
+    stackAvailable?: boolean
+    byeWeekConflict?: boolean
+    note?: string | null
+  } | null
+  /** Shared toggle controlling whether AI overlays are shown cross-surface. */
+  showAiOverlays?: boolean
 }
 
 const TIMER_COLORS = {
@@ -213,6 +227,8 @@ export function DraftTopBar({
   overnightResumeAtIso = null,
   thirdRoundReversal = false,
   bigScreenHref = null,
+  aiRecommendationOverlay = null,
+  showAiOverlays = true,
 }: DraftTopBarProps) {
   const { t } = useLanguage()
   const liveRemaining = useDraftCountdownSeconds(
@@ -490,7 +506,7 @@ export function DraftTopBar({
 
   return (
     <header
-      className={`relative border-b px-3 pb-1 pt-1 backdrop-blur-xl sm:px-4 ${
+      className={`relative border-b px-3 pb-0.5 pt-0.5 backdrop-blur-xl sm:px-4 ${
         rs
           ? 'border-cyan-400/25 bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(34,211,238,0.14),transparent),linear-gradient(180deg,#0b1829_0%,#060f1e_45%,#050814_100%)] shadow-[0_16px_56px_rgba(8,145,178,0.14)]'
           : 'border-white/[0.07] bg-gradient-to-b from-[#070d1c]/95 via-[#060b19]/98 to-[#050814]'
@@ -500,14 +516,14 @@ export function DraftTopBar({
         className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/25 to-transparent"
         aria-hidden
       />
-      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:gap-3">
+      <div className="grid gap-1.5 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:gap-2">
         <div className="min-w-0">
-          <div className="flex items-start gap-3">
+          <div className="flex items-start gap-2">
             {backHref ? (
               <Link
                 href={backHref}
                 data-testid="draft-back-button"
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.06] text-white/78 shadow-sm transition duration-150 hover:bg-white/12 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-95"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.06] text-white/78 shadow-sm transition duration-150 hover:bg-white/12 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-95"
                 aria-label={t('draftRoom.topBar.back')}
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -518,10 +534,10 @@ export function DraftTopBar({
               <Image
                 src={leagueLogoUrl}
                 alt=""
-                width={32}
-                height={32}
+                width={28}
+                height={28}
                 aria-hidden
-                className="h-8 w-8 shrink-0 rounded-lg border border-white/15 bg-gradient-to-br from-white/[0.08] to-white/[0.02] object-cover shadow-[0_4px_20px_rgba(0,0,0,0.35)] ring-1 ring-white/10"
+                className="h-7 w-7 shrink-0 rounded-lg border border-white/15 bg-gradient-to-br from-white/[0.08] to-white/[0.02] object-cover shadow-[0_4px_20px_rgba(0,0,0,0.35)] ring-1 ring-white/10"
                 data-testid="draft-topbar-league-logo"
                 unoptimized
                 onError={(e) => {
@@ -532,7 +548,7 @@ export function DraftTopBar({
 
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="truncate text-base font-bold tracking-tight text-white drop-shadow-sm sm:text-lg">
+                <h1 className="truncate text-sm font-bold tracking-tight text-white drop-shadow-sm sm:text-base">
                   {leagueName}
                 </h1>
                 {onlineCount != null && onlineCount > 0 && (
@@ -614,17 +630,17 @@ export function DraftTopBar({
             </div>
           </div>
 
-          <div className="mt-0.5 flex flex-wrap items-center gap-1 sm:gap-1">
+          <div className="mt-0 flex flex-wrap items-center gap-1 sm:gap-1">
             {pickLabel ? (
               <div
-                className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 shadow-[0_4px_24px_rgba(34,211,238,0.12)] ring-1 ring-cyan-400/15 ${
+                className={`inline-flex items-center gap-2 rounded-lg border px-2 py-1 shadow-[0_4px_24px_rgba(34,211,238,0.12)] ring-1 ring-cyan-400/15 ${
                   rs
                     ? 'border-cyan-400/35 bg-gradient-to-br from-cyan-500/18 via-[#0c1828]/95 to-[#081018]/98 shadow-[0_8px_36px_rgba(34,211,238,0.18)]'
                     : 'border-cyan-400/25 bg-gradient-to-br from-cyan-500/[0.12] to-[#0a1528]/90'
                 }`}
               >
                 <Hash className="h-4 w-4 shrink-0 text-cyan-300" />
-                <span className="text-sm font-bold tracking-tight text-white">{pickLabel}</span>
+                <span className="text-[13px] font-bold tracking-tight text-white">{pickLabel}</span>
                 {overallPickNumber != null ? (
                   <span className="rounded-md bg-white/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-white/60">
                     #{overallPickNumber}
@@ -635,7 +651,7 @@ export function DraftTopBar({
 
             {currentManagerOnClock ? (
               <div
-                className={`inline-flex max-w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 ring-1 ${
+                className={`inline-flex max-w-full items-center gap-1.5 rounded-lg border px-2 py-1 ring-1 ${
                   rs
                     ? 'border-violet-400/40 bg-[radial-gradient(ellipse_at_30%_0%,rgba(139,92,246,0.28),transparent),linear-gradient(145deg,rgba(109,40,217,0.22),rgba(8,15,28,0.96))] shadow-[0_12px_40px_rgba(139,92,246,0.22)] ring-violet-400/25'
                     : 'border-violet-400/25 bg-gradient-to-br from-violet-500/[0.14] to-[#0a1228]/95 shadow-[0_6px_28px_rgba(139,92,246,0.15)] ring-violet-400/10'
@@ -645,10 +661,10 @@ export function DraftTopBar({
                   <Image
                     src={currentManagerAvatarUrl}
                     alt=""
-                    width={22}
-                    height={22}
+                    width={20}
+                    height={20}
                     aria-hidden
-                    className="h-[22px] w-[22px] shrink-0 rounded-full border border-white/20 object-cover"
+                    className="h-5 w-5 shrink-0 rounded-full border border-white/20 object-cover"
                     unoptimized
                     onError={(e) => {
                       e.currentTarget.style.display = 'none'
@@ -658,12 +674,12 @@ export function DraftTopBar({
                   <User className="h-4 w-4 shrink-0 text-violet-300" />
                 )}
                 <span
-                  className="min-w-0 truncate text-sm font-bold text-white"
+                  className="min-w-0 truncate text-[13px] font-bold text-white"
                   data-testid="draft-topbar-on-clock-manager"
                 >
                   {currentManagerOnClock}
                 </span>
-                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-violet-200/75">
+                <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-violet-200/75">
                   {isOrphanOnClock
                     ? orphanModeLabel
                     : isCurrentUserOnClock
@@ -672,11 +688,45 @@ export function DraftTopBar({
                 </span>
               </div>
             ) : null}
+            {showAiOverlays && aiRecommendationOverlay ? (
+              <div
+                className="inline-flex max-w-full items-center gap-1 rounded-lg border border-cyan-300/35 bg-cyan-500/12 px-2 py-1 text-[10px] text-cyan-100"
+                data-testid="draft-topbar-ai-overlay"
+                title={aiRecommendationOverlay.note ?? 'AI recommendation overlay'}
+              >
+                {aiRecommendationOverlay.label ? (
+                  <span className="rounded border border-cyan-300/35 bg-cyan-500/20 px-1 py-0.5 font-semibold uppercase tracking-[0.1em] text-[9px]">
+                    {aiRecommendationOverlay.label}
+                  </span>
+                ) : null}
+                {aiRecommendationOverlay.playerName ? (
+                  <span className="truncate max-w-[120px] font-semibold text-white">
+                    {aiRecommendationOverlay.playerName}
+                  </span>
+                ) : null}
+                {aiRecommendationOverlay.valueDelta != null && Number.isFinite(aiRecommendationOverlay.valueDelta) ? (
+                  <span className={aiRecommendationOverlay.valueDelta >= 0 ? 'text-emerald-200' : 'text-amber-200'}>
+                    {aiRecommendationOverlay.valueDelta >= 0
+                      ? `Value +${aiRecommendationOverlay.valueDelta.toFixed(1)}`
+                      : `Reach ${aiRecommendationOverlay.valueDelta.toFixed(1)}`}
+                  </span>
+                ) : null}
+                {aiRecommendationOverlay.stackAvailable ? (
+                  <span className="text-violet-100">Stack</span>
+                ) : null}
+                {aiRecommendationOverlay.byeWeekConflict ? (
+                  <span className="text-amber-200">Bye conflict</span>
+                ) : null}
+                {aiRecommendationOverlay.confidencePct != null ? (
+                  <span className="text-cyan-100/85">{aiRecommendationOverlay.confidencePct}%</span>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
 
         <div
-          className="flex min-h-[40px] w-full items-center justify-center lg:w-auto lg:min-w-[11rem]"
+          className="flex min-h-[36px] w-full items-center justify-center lg:w-auto lg:min-w-[9.5rem]"
           data-testid="draft-topbar-center-slot"
         >
           {centerCta}

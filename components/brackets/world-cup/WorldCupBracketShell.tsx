@@ -27,6 +27,7 @@ import {
   createWorldCupBracketEntry,
   deleteWorldCupBracketEntry,
   getWorldCupIntegrityReport,
+  getWorldCupBracketEntry,
   listWorldCupBracketEntries,
   renameWorldCupBracketEntry,
   saveWorldCupBracketEntryPick,
@@ -34,9 +35,11 @@ import {
 import {
   assertWorldCupPickPayloadReady,
   countRemainingPicks,
+  findFirstUnpickedMatch,
   getWorldCupGuidedPicksState,
   getInvalidDownstreamPickIds,
   getWorldCupUnpickableReason,
+  hasWorldCupPickSelection,
   isWorldCupMatchPickable,
 } from "@/lib/world-cup/worldCupProjectedBracket"
 import {
@@ -104,6 +107,40 @@ function normalizeWorldCupView(input: WorldCupChallengeView | (Partial<WorldCupC
   }
 }
 
+function getSelectedEntryStorageKey(challengeId: string): string {
+  return `world-cup:selected-entry:${challengeId}`
+}
+
+function mergeEntryScoresFromView(
+  currentEntries: WorldCupBracketEntryClient[],
+  nextView: WorldCupChallengeView
+): WorldCupBracketEntryClient[] {
+  if (currentEntries.length === 0) return currentEntries
+  const summaries = new Map(nextView.entries.map((entry) => [entry.id, entry]))
+  const leaderboard = new Map(nextView.leaderboard.map((row) => [row.entryId, row]))
+
+  return currentEntries.map((entry) => {
+    const summary = summaries.get(entry.id)
+    const row = leaderboard.get(entry.id)
+    if (!summary && !row) return entry
+
+    return {
+      ...entry,
+      name: summary?.name ?? entry.name,
+      totalScore: row?.totalScore ?? summary?.totalScore ?? entry.totalScore,
+      maxPossibleScore: row?.maxPossibleScore ?? entry.maxPossibleScore,
+      correctPicks: row?.correctPicks ?? entry.correctPicks,
+      incorrectPicks: row?.incorrectPicks ?? entry.incorrectPicks,
+      rank: row?.rank ?? summary?.rank ?? entry.rank,
+      roundBreakdown: row?.roundBreakdown ?? entry.roundBreakdown,
+      championTeamId: row?.championTeamId ?? entry.championTeamId,
+      championTeamName: row?.championPickName ?? entry.championTeamName,
+      isComplete: summary?.isComplete ?? entry.isComplete,
+      updatedAt: row?.updatedAt ?? entry.updatedAt,
+    }
+  })
+}
+
 export default function WorldCupBracketShell({ initialView, challenge, defaultTab = "picks" }: { initialView?: WorldCupChallengeView; challenge?: WorldCupChallengeView | any; defaultTab?: Tab }) {
   const normalizedInitialView = normalizeWorldCupView(initialView ?? challenge)
   const [view, setView] = useState(normalizedInitialView)
@@ -111,6 +148,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error" | "locked">("idle")
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [lockNow, setLockNow] = useState(() => new Date())
 
   // ── Entry state ──────────────────────────────────────────────────────────
   const [entries, setEntries] = useState<WorldCupBracketEntryClient[]>([])
@@ -122,6 +160,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
 
   // Picks per-entry: keyed by entryId → array of picks
   const [entryPicks, setEntryPicks] = useState<Record<string, WorldCupPickView[]>>({})
+  const [loadedEntryPickIds, setLoadedEntryPickIds] = useState<Set<string>>(() => new Set())
 
   // ── Guided picker state ──────────────────────────────────────────────────
   const [isGuidedPickerOpen, setIsGuidedPickerOpen] = useState(false)
@@ -153,13 +192,46 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
 
   const challengeId = view.challenge.id
 
+  const applyChallengeView = useCallback((nextView: WorldCupChallengeView) => {
+    setView(nextView)
+    setEntries((prev) => mergeEntryScoresFromView(prev, nextView))
+  }, [])
+
+  const persistSelectedEntryId = useCallback(
+    (entryId: string | null) => {
+      if (typeof window === "undefined") return
+      const key = getSelectedEntryStorageKey(challengeId)
+      if (entryId) {
+        window.localStorage.setItem(key, entryId)
+      } else {
+        window.localStorage.removeItem(key)
+      }
+    },
+    [challengeId]
+  )
+
+  const markEntryPicksLoaded = useCallback((entryId: string, nextPicks: WorldCupPickView[]) => {
+    setEntryPicks((prev) => ({ ...prev, [entryId]: nextPicks }))
+    setLoadedEntryPickIds((prev) => {
+      const next = new Set(prev)
+      next.add(entryId)
+      return next
+    })
+  }, [])
+
   const refreshChallengeView = useCallback(async () => {
     const latest = await fetch(`/api/brackets/world-cup/${challengeId}`)
     if (!latest.ok) return
     const data = await latest.json()
     const nextView = normalizeWorldCupView(data.view ?? data.challenge ?? data)
-    setView(nextView)
-  }, [challengeId])
+    applyChallengeView(nextView)
+    try {
+      const refreshedEntries = await listWorldCupBracketEntries(challengeId)
+      setEntries(refreshedEntries)
+    } catch {
+      // The challenge view still carries leaderboard totals; entry-list refresh is best effort.
+    }
+  }, [applyChallengeView, challengeId])
   // Selected entry object
   const selectedEntry = useMemo(
     () => entries.find((e) => e.id === selectedEntryId) ?? null,
@@ -172,30 +244,72 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
         challenge: view.challenge,
         matches: view.matches,
         entry: selectedEntry,
+        now: lockNow,
       }),
-    [selectedEntry, view.challenge, view.matches]
+    [lockNow, selectedEntry, view.challenge, view.matches]
   )
   const isLocked = lockState.locked
-  // Picks for the selected entry (fall back to initial view picks for first entry)
+  useEffect(() => {
+    if (lockState.locked || !lockState.lockAt) return
+    const lockAt = new Date(lockState.lockAt)
+    if (Number.isNaN(lockAt.getTime())) return
+    const delay = lockAt.getTime() - Date.now()
+    if (delay <= 0) {
+      setLockNow(new Date())
+      return
+    }
+    const timer = window.setTimeout(
+      () => setLockNow(new Date()),
+      Math.min(delay + 100, 2_147_483_647)
+    )
+    return () => window.clearTimeout(timer)
+  }, [lockState.lockAt, lockState.locked])
+  // Picks for the selected entry.
   const picks: WorldCupPickView[] = useMemo(() => {
     if (!selectedEntryId) return []
     return entryPicks[selectedEntryId] ?? []
   }, [selectedEntryId, entryPicks])
 
-  const progress = useMemo(
-    () => ({ done: picks.length, required: view.matches.filter(isWorldCupMatchPickable).length }),
-    [picks.length, view.matches]
+  const completedPickCount = useMemo(
+    () => picks.filter(hasWorldCupPickSelection).length,
+    [picks]
+  )
+  const projectedMatches = useMemo(
+    () => buildWorldCupProjectedMatches(view.matches, picks),
+    [view.matches, picks]
   )
   const pickableMatches = useMemo(
+    () => projectedMatches.filter(isWorldCupMatchPickable),
+    [projectedMatches]
+  )
+  const rawPickableMatches = useMemo(
     () => view.matches.filter(isWorldCupMatchPickable),
     [view.matches]
   )
+  const progress = useMemo(
+    () => {
+      const required = pickableMatches.filter(
+        (match) =>
+          (match.round !== "third_place" || view.challenge.includeThirdPlace) &&
+          isWorldCupMatchPickable(match)
+      )
+      const requiredMatchIds = new Set(required.map((match) => match.id))
+      return {
+        done: picks.filter(
+          (pick) => requiredMatchIds.has(pick.matchId) && hasWorldCupPickSelection(pick)
+        ).length,
+        required: required.length,
+      }
+    },
+    [pickableMatches, picks, view.challenge.includeThirdPlace]
+  )
+  const projectedPickableMatchCount = pickableMatches.length
   const guidedPicksState = useMemo(
     () => getWorldCupGuidedPicksState(view.matches),
     [view.matches]
   )
-  const hasPickableFixtures = pickableMatches.length > 0
-  const unresolvedMatchesCount = view.matches.length - pickableMatches.length
+  const hasPickableFixtures = projectedPickableMatchCount > 0
+  const unresolvedMatchesCount = view.matches.length - rawPickableMatches.length
 
   // ── Load entries on mount ────────────────────────────────────────────────
   useEffect(() => {
@@ -205,19 +319,32 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
       .then((rows) => {
         setEntries(rows)
         setEntriesLoaded(true)
-        // Seed initial view picks for first entry if available
+        // Seed initial view picks only when they belong to the exact active entry,
+        // then hydrate the selected entry from the entry-detail API below.
         if (rows.length > 0) {
-          const first = rows[0]
-          setSelectedEntryId(first.id)
-          if (normalizedInitialView.picks.length > 0) {
-            setEntryPicks((prev) => ({ ...prev, [first.id]: normalizedInitialView.picks }))
+          const storedEntryId =
+            typeof window !== "undefined"
+              ? window.localStorage.getItem(getSelectedEntryStorageKey(challengeId))
+              : null
+          const activeEntryId =
+            storedEntryId && rows.some((row) => row.id === storedEntryId)
+              ? storedEntryId
+              : normalizedInitialView.activeEntry?.id ?? rows[0].id
+          const active = rows.find((row) => row.id === activeEntryId) ?? rows[0]
+          setSelectedEntryId(active.id)
+          persistSelectedEntryId(active.id)
+          if (
+            normalizedInitialView.activeEntry?.id === active.id &&
+            normalizedInitialView.picks.length > 0
+          ) {
+            setEntryPicks((prev) => ({ ...prev, [active.id]: normalizedInitialView.picks }))
           }
         }
       })
       .catch(() => toast.error("Failed to load bracket entries"))
       .finally(() => setIsEntriesLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [challengeId])
+  }, [challengeId, persistSelectedEntryId])
 
   // ── Entry management callbacks ───────────────────────────────────────────
   const handleCreateEntry = useCallback(async () => {
@@ -225,18 +352,50 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
     try {
       const entry = await createWorldCupBracketEntry(challengeId)
       setEntries((prev) => [...prev, entry])
+      markEntryPicksLoaded(entry.id, [])
       setSelectedEntryId(entry.id)
+      persistSelectedEntryId(entry.id)
       toast.success(`Created "${entry.name}"`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create bracket")
     } finally {
       setIsCreatingEntry(false)
     }
-  }, [challengeId])
+  }, [challengeId, markEntryPicksLoaded, persistSelectedEntryId])
 
   const handleSelectEntry = useCallback((entryId: string) => {
     setSelectedEntryId(entryId)
-  }, [])
+    persistSelectedEntryId(entryId)
+  }, [persistSelectedEntryId])
+
+  useEffect(() => {
+    if (!selectedEntryId) return
+    if (loadedEntryPickIds.has(selectedEntryId)) return
+
+    let cancelled = false
+    getWorldCupBracketEntry(challengeId, selectedEntryId)
+      .then((detail) => {
+        if (cancelled) return
+        const detailPicks = Array.isArray(detail?.picks)
+          ? (detail.picks as WorldCupPickView[])
+          : []
+        markEntryPicksLoaded(selectedEntryId, detailPicks)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setEntryPicks((prev) =>
+            Object.prototype.hasOwnProperty.call(prev, selectedEntryId)
+              ? prev
+              : { ...prev, [selectedEntryId]: [] }
+          )
+          toast.error("Failed to load picks for this bracket")
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [challengeId, loadedEntryPickIds, markEntryPicksLoaded, selectedEntryId])
 
   const handleRenameEntry = useCallback(
     async (entryId: string, name: string) => {
@@ -259,16 +418,21 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
       setIsMutatingEntry(true)
       try {
         await deleteWorldCupBracketEntry(challengeId, entryId)
-        setEntries((prev) => {
-          const next = prev.filter((e) => e.id !== entryId)
-          if (selectedEntryId === entryId) {
-            setSelectedEntryId(next[0]?.id ?? null)
-          }
-          return next
-        })
+        const nextEntries = entries.filter((e) => e.id !== entryId)
+        setEntries(nextEntries)
+        if (selectedEntryId === entryId) {
+          const nextSelectedEntryId = nextEntries[0]?.id ?? null
+          setSelectedEntryId(nextSelectedEntryId)
+          persistSelectedEntryId(nextSelectedEntryId)
+        }
         setEntryPicks((prev) => {
           const next = { ...prev }
           delete next[entryId]
+          return next
+        })
+        setLoadedEntryPickIds((prev) => {
+          const next = new Set(prev)
+          next.delete(entryId)
           return next
         })
         toast.success("Bracket deleted")
@@ -278,7 +442,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
         setIsMutatingEntry(false)
       }
     },
-    [challengeId, selectedEntryId]
+    [challengeId, entries, persistSelectedEntryId, selectedEntryId]
   )
 
   // ── Pick saving ──────────────────────────────────────────────────────────
@@ -288,7 +452,9 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
       return
     }
     if (isLocked) {
-      toast.error("Bracket picks are locked")
+      setSaveState("locked")
+      setSaveError("Bracket is locked.")
+      toast.error("Bracket is locked.")
       return
     }
     const currentPicks = entryPicks[selectedEntryId] ?? []
@@ -344,10 +510,17 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
       }
 
       const result = await saveWorldCupBracketEntryPick(challengeId, selectedEntryId, {
+        activeEntryId: selectedEntryId,
         matchId: match.id,
         selectedTeamId,
+        selectedTeamName,
         selectedSlotKey,
         selectedSide: side,
+        round: match.round,
+        sourceSlotKey: selectedSlotKey,
+        nextMatchId: match.nextMatchId,
+        nextMatchSlot: match.nextMatchSlot,
+        matchNumber: match.matchNumber,
       })
 
       // Refresh the full view for leaderboard / scoring updates
@@ -355,7 +528,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
       if (latest.ok) {
         const data = await latest.json()
         const nextView = normalizeWorldCupView(data.view ?? data.challenge ?? data)
-        setView(nextView)
+        applyChallengeView(nextView)
       }
 
       // Update entry in local list if returned
@@ -366,13 +539,10 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
       }
 
       // Replace optimistic picks with actual picks from response
-      const returnedPicks = Array.isArray(result.picks) ? result.picks : []
-      if (returnedPicks.length > 0) {
-        setEntryPicks((prev) => ({
-          ...prev,
-          [selectedEntryId]: returnedPicks as WorldCupPickView[],
-        }))
-      }
+      const returnedPicks = Array.isArray(result.picks)
+        ? (result.picks as WorldCupPickView[])
+        : currentPicks
+      markEntryPicksLoaded(selectedEntryId, returnedPicks)
 
       setSaveState("saved")
       if (invalidMatchIds.length > 0) {
@@ -384,7 +554,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
       const msg = err instanceof Error ? err.message : "Failed to save"
       if (msg.toLowerCase().includes("locked")) {
         setSaveState("locked")
-        setSaveError("This pick is locked — the match has already started.")
+        setSaveError("Bracket is locked.")
         // Roll back optimistic pick
         setEntryPicks((prev) => ({
           ...prev,
@@ -416,15 +586,10 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
               body: JSON.stringify({ challengeId }),
             })
           : await fetch(`/api/brackets/world-cup/${challengeId}/recalculate`, {
-              method: "POST",
-            })
+            method: "POST",
+          })
       if (res.ok) {
-        const latest = await fetch(`/api/brackets/world-cup/${challengeId}`)
-        if (latest.ok) {
-          const data = await latest.json()
-          const nextView = normalizeWorldCupView(data.view ?? data.challenge ?? data)
-          setView(nextView)
-        }
+        await refreshChallengeView()
       }
     })
   }
@@ -492,6 +657,9 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
         recalculate: true,
       })
       setSyncLiveResult(result)
+      if (!syncDryRun) {
+        await refreshChallengeView()
+      }
       toast.success(
         syncDryRun
           ? `Dry run: ${result.updated} live score(s) would be updated`
@@ -502,7 +670,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
     } finally {
       setIsSyncing(false)
     }
-  }, [challengeId, syncProvider, syncDryRun])
+  }, [challengeId, refreshChallengeView, syncProvider, syncDryRun])
 
   const saveSimulationMode = useCallback(
     async (patch: { isTestMode?: boolean; simulationEnabled?: boolean }) => {
@@ -657,7 +825,8 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
   }, [challengeId, refreshChallengeView, simulationDryRun])
 
   const saveStatus =
-    saveState === "saving" ? "Saving..."
+    isLocked ? "Bracket Locked"
+    : saveState === "saving" ? "Saving..."
     : saveState === "saved" ? "Saved ✓"
     : saveState === "locked" ? "Pick locked"
     : saveState === "error" ? "Save failed"
@@ -676,6 +845,69 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
         : 0,
     [selectedEntry, pickableMatches, view.challenge.includeThirdPlace, picks]
   )
+  const firstUnpickedMatchId = useMemo(
+    () =>
+      findFirstUnpickedMatch(
+        pickableMatches,
+        picks,
+        getOrderedRounds(pickableMatches, view.challenge.includeThirdPlace)
+      )?.id ?? null,
+    [pickableMatches, picks, view.challenge.includeThirdPlace]
+  )
+  const computedIsComplete =
+    projectedPickableMatchCount > 0 &&
+    completedPickCount > 0 &&
+    remainingPicks === 0
+  const guidedPickerAvailable =
+    !isLocked && projectedPickableMatchCount > 0 && (remainingPicks > 0 || computedIsComplete)
+  const guidedPickerLabel =
+    isLocked
+      ? "Bracket Locked"
+      : projectedPickableMatchCount === 0
+        ? "Fixtures Not Ready"
+        : completedPickCount === 0
+          ? "Start Making Picks"
+          : remainingPicks > 0
+            ? "Continue Guided Picks"
+            : "Review Guided Picks"
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return
+    const tournamentStartAt =
+      view.challenge.effectivePickLockAt ??
+      view.matches
+        .map((match) => match.startsAt)
+        .filter((value): value is string => Boolean(value))
+        .sort()[0] ??
+      null
+
+    console.debug("[WorldCupBracketShell:debug]", {
+      activeEntryId: selectedEntryId,
+      "activeEntry.picks.length": picks.length,
+      completedPickCount,
+      projectedPickableMatchCount,
+      remainingPickCount: remainingPicks,
+      isComplete: computedIsComplete,
+      entryIsCompleteFlag: selectedEntry?.isComplete ?? null,
+      firstUnpickedMatchId,
+      bracketLocked: isLocked,
+      lockAt: view.challenge.pickLockAt,
+      tournamentStartAt,
+    })
+  }, [
+    completedPickCount,
+    computedIsComplete,
+    firstUnpickedMatchId,
+    isLocked,
+    picks.length,
+    projectedPickableMatchCount,
+    remainingPicks,
+    selectedEntryId,
+    selectedEntry?.isComplete,
+    view.challenge.effectivePickLockAt,
+    view.challenge.pickLockAt,
+    view.matches,
+  ])
 
   // ── Guided picker save handler ───────────────────────────────────────────
   const handleGuidedSavePick = useCallback(
@@ -685,7 +917,10 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
       options?: { suppressToast?: boolean }
     ): Promise<WorldCupPickView[]> => {
       if (!selectedEntryId) throw new Error("No entry selected")
-      if (isLocked) throw new Error("Bracket picks are locked")
+      if (isLocked) throw new Error("Bracket is locked.")
+      if (payload.activeEntryId !== selectedEntryId) {
+        throw new Error("This pick belongs to a different bracket entry")
+      }
       assertWorldCupPickPayloadReady(payload)
 
       // Clear invalid downstream picks before saving the new one
@@ -709,10 +944,17 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
 
       // Save the actual pick
       const result = await saveWorldCupBracketEntryPick(challengeId, selectedEntryId, {
+        activeEntryId: selectedEntryId,
         matchId: payload.matchId,
         selectedTeamId: payload.selectedTeamId,
+        selectedTeamName: payload.selectedTeamName ?? undefined,
         selectedSlotKey: payload.selectedSlotKey,
         selectedSide: payload.selectedSide,
+        round: payload.round,
+        sourceSlotKey: payload.sourceSlotKey,
+        nextMatchId: payload.nextMatchId,
+        nextMatchSlot: payload.nextMatchSlot,
+        matchNumber: payload.matchNumber,
       })
 
       const returnedPicks = Array.isArray(result.picks)
@@ -720,7 +962,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
         : currentPicks
 
       // Update shell entry picks state
-      setEntryPicks((prev) => ({ ...prev, [selectedEntryId]: returnedPicks }))
+      markEntryPicksLoaded(selectedEntryId, returnedPicks)
 
       // Update entry metadata
       if (result.entry) {
@@ -739,7 +981,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
         .then((data) => {
           if (data) {
             const nextView = normalizeWorldCupView(data.view ?? data.challenge ?? data)
-            setView(nextView)
+            applyChallengeView(nextView)
           }
         })
         .catch(() => null)
@@ -756,7 +998,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
       return returnedPicks
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [challengeId, isLocked, selectedEntryId, view.matches]
+    [applyChallengeView, challengeId, isLocked, markEntryPicksLoaded, selectedEntryId, view.matches]
   )
 
     // ── AI bracket builder ───────────────────────────────────────────────────
@@ -778,7 +1020,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
               m.status !== "final" &&
               m.homeTeamId &&
               m.awayTeamId &&
-              !currentPicks.some((p) => p.matchId === m.id && p.selectedTeamId)
+              !currentPicks.some((p) => p.matchId === m.id && hasWorldCupPickSelection(p))
           )
         )
 
@@ -804,10 +1046,17 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
           }))
 
           const payload: GuidedPickPayload = {
+            activeEntryId: selectedEntryId,
             matchId: match.id,
             selectedTeamId: rec.recommendedTeamId,
+            selectedTeamName: rec.recommendedTeamName,
             selectedSlotKey: rec.recommendedSide === "home" ? match.homeSlotKey : match.awaySlotKey,
             selectedSide: rec.recommendedSide ?? "home",
+            round: match.round,
+            sourceSlotKey: rec.recommendedSide === "home" ? match.homeSlotKey : match.awaySlotKey,
+            nextMatchId: match.nextMatchId,
+            nextMatchSlot: match.nextMatchSlot,
+            matchNumber: match.matchNumber,
           }
 
           try {
@@ -858,7 +1107,10 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
           {showBoard ? (
             <button
               type="button"
-              onClick={() => setSelectedEntryId(null)}
+              onClick={() => {
+                setSelectedEntryId(null)
+                persistSelectedEntryId(null)
+              }}
               className="rounded-lg border border-white/10 bg-white/[0.04] p-2 text-white/70"
               title="Back to My Brackets"
             >
@@ -882,8 +1134,9 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
           {/* Entry switcher dropdown — visible when in board mode and multiple entries */}
           {showBoard && entries.length > 1 && (
             <select
+              data-testid="world-cup-entry-switcher"
               value={selectedEntryId ?? ""}
-              onChange={(e) => setSelectedEntryId(e.target.value)}
+              onChange={(e) => handleSelectEntry(e.target.value)}
               className="hidden rounded-lg border border-white/10 bg-zinc-900 px-2 py-1.5 text-xs text-white/80 sm:block"
             >
               {entries.map((e) => (
@@ -971,13 +1224,13 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
             />
           </div>
           {/* Guided picks button */}
-          {!isLocked && (
+          {!isLocked ? (
             <div className="flex justify-center px-4 py-2">
               <button
                 type="button"
-                disabled={!hasPickableFixtures}
+                disabled={!guidedPickerAvailable}
                 onClick={() => {
-                  if (!hasPickableFixtures) {
+                  if (!guidedPickerAvailable) {
                     toast.info("This matchup is not ready for picks yet. Sync fixtures or use simulation data.")
                     return
                   }
@@ -987,16 +1240,12 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
                 className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:bg-cyan-300/45"
               >
                 <PlayCircle className="h-4 w-4" />
-                {guidedPicksState !== "ready"
-                  ? guidedPicksState === "fixtures_not_synced"
-                    ? "Fixtures Not Synced"
-                    : "Fixtures Not Ready"
-                  : remainingPicks === 0
-                  ? "Review Guided Picks"
-                  : selectedEntry!.correctPicks > 0 || picks.length > 0
-                  ? "Continue Guided Picks"
-                  : "Start Guided Picks"}
+                {guidedPickerLabel}
               </button>
+            </div>
+          ) : (
+            <div className="flex justify-center px-4 py-2">
+              <span className="rounded-lg border border-rose-400/30 bg-rose-400/15 px-3 py-2 text-xs font-bold text-rose-100">Bracket Locked</span>
             </div>
           )}
 
@@ -1426,9 +1675,9 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
                   {!isLocked ? (
                     <button
                       type="button"
-                      disabled={!hasPickableFixtures}
+                      disabled={!guidedPickerAvailable}
                       onClick={() => {
-                        if (!hasPickableFixtures) {
+                        if (!guidedPickerAvailable) {
                           toast.info("This matchup is not ready for picks yet. Sync fixtures or use simulation data.")
                           return
                         }
@@ -1438,18 +1687,10 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
                       className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:bg-cyan-300/45"
                     >
                       <PlayCircle className="h-4 w-4" />
-                      {guidedPicksState !== "ready"
-                        ? guidedPicksState === "fixtures_not_synced"
-                          ? "Fixtures Not Synced"
-                          : "Fixtures Not Ready"
-                        : remainingPicks === 0
-                        ? "Review Guided Picks"
-                        : selectedEntry!.correctPicks > 0 || picks.length > 0
-                        ? "Continue Guided Picks"
-                        : "Start Guided Picks"}
+                      {guidedPickerLabel}
                     </button>
                   ) : (
-                    <span className="rounded-lg border border-rose-400/30 bg-rose-400/15 px-3 py-2 text-xs font-bold text-rose-100">Picks Locked</span>
+                    <span className="rounded-lg border border-rose-400/30 bg-rose-400/15 px-3 py-2 text-xs font-bold text-rose-100">Bracket Locked</span>
                   )}
 
                   <div className="flex flex-wrap items-center gap-2">
@@ -1490,6 +1731,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
                 <WorldCupBracketBoard
                   view={view}
                   picks={picks}
+                  isLocked={isLocked}
                   onPick={persistPick}
                   onOpenMatchupPicker={(matchId) => {
                     if (!hasPickableFixtures) {
@@ -1588,6 +1830,9 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
           isOpen={isGuidedPickerOpen}
           initialMatchId={guidedInitialMatchId}
           isLocked={isLocked}
+          entryIsComplete={selectedEntry.isComplete}
+          lockAt={view.challenge.pickLockAt}
+          tournamentStartAt={view.challenge.effectivePickLockAt}
           includeThirdPlace={view.challenge.includeThirdPlace}
           onClose={() => {
             setIsGuidedPickerOpen(false)
@@ -1596,7 +1841,7 @@ export default function WorldCupBracketShell({ initialView, challenge, defaultTa
           onSavePick={handleGuidedSavePick}
           onPicksUpdated={(updatedPicks) => {
             if (selectedEntryId) {
-              setEntryPicks((prev) => ({ ...prev, [selectedEntryId]: updatedPicks }))
+              markEntryPicksLoaded(selectedEntryId, updatedPicks)
             }
           }}
         />

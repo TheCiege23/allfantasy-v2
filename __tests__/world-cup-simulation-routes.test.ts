@@ -5,6 +5,7 @@ const requireUserMock = vi.hoisted(() => vi.fn())
 const accessMock = vi.hoisted(() => vi.fn())
 const simulateMatchMock = vi.hoisted(() => vi.fn())
 const loadFixturesMock = vi.hoisted(() => vi.fn())
+const syncLiveMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/app/api/brackets/world-cup/_utils", () => ({
   requireWorldCupApiUser: requireUserMock,
@@ -18,15 +19,27 @@ vi.mock("@/lib/world-cup/worldCupSimulationService", () => ({
   loadWorldCupTestFixtures: loadFixturesMock,
 }))
 
+vi.mock("@/lib/world-cup/worldCupDataSyncService", () => ({
+  syncWorldCupLiveScores: syncLiveMock,
+}))
+
 describe("world cup simulation admin routes", () => {
   beforeEach(() => {
     requireUserMock.mockReset()
     accessMock.mockReset()
     simulateMatchMock.mockReset()
+    syncLiveMock.mockReset()
 
     requireUserMock.mockResolvedValue({ ok: true, user: { id: "owner-1", email: "owner@example.com" } })
     accessMock.mockResolvedValue({ ok: true, challenge: { id: "c1" }, isAdmin: false })
     simulateMatchMock.mockResolvedValue({ challengeId: "c1", updatedMatch: { id: "m1" } })
+    syncLiveMock.mockResolvedValue({
+      updated: 1,
+      skipped: 0,
+      finalMatches: 1,
+      recalculated: true,
+      warnings: [],
+    })
     loadFixturesMock.mockResolvedValue({
       success: true,
       teamsCreated: 32,
@@ -63,6 +76,33 @@ describe("world cup simulation admin routes", () => {
 
     expect(res.status).toBe(403)
     expect(simulateMatchMock).not.toHaveBeenCalled()
+  })
+
+  it("sync-live recalculates the leaderboard after score updates", async () => {
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/admin/sync-live/route")
+    const res = await POST(
+      new Request("http://localhost/api/brackets/world-cup/c1/admin/sync-live", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider: "mock" }),
+      }),
+      { params: { challengeId: "c1" } }
+    )
+
+    expect(res.status).toBe(200)
+    expect(syncLiveMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        challengeId: "c1",
+        provider: "mock",
+        recalculate: true,
+      })
+    )
+    await expect(res.json()).resolves.toMatchObject({
+      ok: true,
+      updated: 1,
+      finalMatches: 1,
+      recalculated: true,
+    })
   })
 
   it("requires confirmSimulation in request body", async () => {

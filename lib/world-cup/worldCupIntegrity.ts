@@ -2,6 +2,7 @@ import "server-only"
 import { prisma } from "@/lib/prisma"
 import { isWorldCupChallengeLocked } from "./worldCupBracketBuilder"
 import type { WorldCupRound } from "./types"
+import { hasWorldCupPickSelection } from "./worldCupProjectedBracket"
 
 const WORLD_CUP_ROUNDS: readonly WorldCupRound[] = [
   "round_of_32",
@@ -45,6 +46,7 @@ type IntegrityPick = {
   entryId: string
   matchId: string
   selectedTeamId?: string | null
+  selectedSlotKey?: string | null
 }
 
 export type WorldCupChallengeIntegrityInput = {
@@ -218,6 +220,7 @@ export function validateWorldCupChallengeIntegrity(input: WorldCupChallengeInteg
   const completedMatches = input.matches.filter((m) => m.status === "final").length
   const liveMatches = input.matches.filter((m) => m.status === "live" || m.status === "halftime").length
   const lockedEntries = input.entries.filter((e) => Boolean(e.isLocked)).length
+  const completedPicks = input.picks.filter(hasWorldCupPickSelection).length
 
   return {
     ok: errors.length === 0,
@@ -227,7 +230,7 @@ export function validateWorldCupChallengeIntegrity(input: WorldCupChallengeInteg
       participants: input.participants.length,
       entries: input.entries.length,
       matches: input.matches.length,
-      picks: input.picks.length,
+      picks: completedPicks,
       completedMatches,
       liveMatches,
       lockedEntries,
@@ -243,7 +246,7 @@ export async function getWorldCupChallengeIntegrityReport(challengeId: string): 
       slots: { select: { id: true, slotKey: true } },
       participants: { select: { id: true, userId: true } },
       entries: { select: { id: true, participantId: true, userId: true, isLocked: true } },
-      picks: { select: { id: true, entryId: true, matchId: true, selectedTeamId: true } },
+      picks: { select: { id: true, entryId: true, matchId: true, selectedTeamId: true, selectedSlotKey: true } },
     },
   })
   if (!challenge) return null

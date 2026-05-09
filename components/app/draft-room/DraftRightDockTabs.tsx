@@ -83,14 +83,14 @@ export function DraftRightDockTabs({
       data-testid={testIdBase}
       data-active-tab={effectiveTab}
       aria-label="Draft right dock"
-      className="flex h-full min-h-0 flex-col overflow-hidden bg-[linear-gradient(180deg,#0d1428_0%,#0b1324_100%)]"
+      className="flex h-full min-h-0 flex-col overflow-hidden rounded-l-xl border-l border-white/[0.06] bg-[linear-gradient(180deg,#0d1428_0%,#0b1324_100%)]"
     >
       {/* Tab header row. Active tab uses cyan-100 + bottom underline; inactives are muted. */}
       <div
         role="tablist"
         aria-label="Draft right dock tabs"
         data-testid={`${testIdBase}-tablist`}
-        className="grid shrink-0 grid-cols-3 border-b border-white/[0.06] bg-[#101a30]"
+        className="grid shrink-0 grid-cols-3 border-b border-white/[0.05] bg-[#101a30]"
       >
         {TABS.map((tab) => {
           const isActive = effectiveTab === tab.id
@@ -107,13 +107,13 @@ export function DraftRightDockTabs({
               className={`relative flex items-center justify-center gap-1 py-1 text-[8px] font-semibold uppercase tracking-[0.14em] transition ${
                 isActive
                   ? 'text-cyan-100'
-                  : 'text-white/55 hover:bg-white/5 hover:text-white/85'
+                  : 'text-white/50 hover:bg-white/[0.04] hover:text-white/85'
               }`}
             >
               <span>{tab.label}</span>
               {tab.id === 'queue' && typeof queueCount === 'number' && queueCount > 0 ? (
                 <span
-                  className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full border border-cyan-300/35 bg-cyan-500/20 px-1 text-[9px] font-bold text-cyan-100"
+                  className="inline-flex h-3.5 min-w-[14px] items-center justify-center rounded-full border border-cyan-300/35 bg-cyan-500/20 px-1 text-[8px] font-bold text-cyan-100"
                   aria-label={`${queueCount} queued`}
                   data-testid={`${testIdBase}-queue-count`}
                 >
@@ -123,7 +123,7 @@ export function DraftRightDockTabs({
               {isActive ? (
                 <span
                   aria-hidden
-                  className="absolute inset-x-3 bottom-0 h-px rounded-full bg-cyan-300/90 shadow-[0_0_10px_rgba(34,211,238,0.3)]"
+                  className="absolute inset-x-4 bottom-0 h-px rounded-full bg-cyan-300/90 shadow-[0_0_10px_rgba(34,211,238,0.3)]"
                 />
               ) : null}
             </button>

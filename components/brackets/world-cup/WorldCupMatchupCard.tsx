@@ -14,9 +14,17 @@ import {
   isWorldCupMatchPickable,
 } from "@/lib/world-cup/worldCupProjectedBracket"
 
+function isImageAsset(src?: string | null): src is string {
+  return Boolean(src && (/^https?:\/\//i.test(src) || src.startsWith("/")))
+}
+
 function Logo({ src, name }: { src?: string | null; name: string }) {
-  return src ? (
-    <Image src={src} alt="" width={28} height={28} className="h-7 w-7 shrink-0 rounded-full bg-white object-contain p-0.5" />
+  return isImageAsset(src) ? (
+    <Image src={src} alt={`${name} flag`} width={28} height={28} className="h-7 w-7 shrink-0 rounded-full bg-white object-contain p-0.5" />
+  ) : src ? (
+    <span aria-label={`${name} flag`} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-lg">
+      {src}
+    </span>
   ) : (
     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-black text-white/70">
       {name.slice(0, 2).toUpperCase()}
@@ -98,7 +106,10 @@ export default function WorldCupMatchupCard({
     : "border-white/10"
 
   return (
-    <article className={`w-72 shrink-0 rounded-lg border bg-zinc-950/80 p-3 shadow-2xl shadow-black/30 transition ${pickStateBorderClass}`}>
+    <article
+      data-testid={`world-cup-match-${match.id}`}
+      className={`w-72 shrink-0 rounded-lg border bg-zinc-950/80 p-3 shadow-2xl shadow-black/30 transition ${pickStateBorderClass}`}
+    >
       {/* Header row — clicking opens guided picker */}
       <div
         className={`mb-2 flex items-center justify-between gap-2 ${onOpenMatchupPicker ? "cursor-pointer rounded hover:bg-white/[0.04] -mx-1 px-1 py-0.5 transition" : ""}`}
@@ -219,6 +230,8 @@ export default function WorldCupMatchupCard({
             <button
               key={t.side}
               type="button"
+              data-testid={`world-cup-team-${match.id}-${t.side}`}
+              aria-pressed={selected}
               disabled={locked || !matchIsPickable}
               onClick={() => locked || !matchIsPickable ? undefined : onPick?.(match, t.side)}
               title={locked ? "Picks are locked for this match" : !matchIsPickable ? "This matchup is not ready for picks yet" : undefined}
@@ -248,7 +261,12 @@ export default function WorldCupMatchupCard({
               )}
               {selected && !locked && matchIsPickable && !winner && !isFinal && <Check className="h-4 w-4 shrink-0 text-cyan-200" />}
               {selected && locked && !winner && <Lock className="h-3.5 w-3.5 shrink-0 text-white/25" />}
-              {winner && <Trophy className="h-4 w-4 shrink-0 text-emerald-200" />}
+              {winner && (
+                <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-black uppercase text-emerald-200">
+                  <Trophy className="h-4 w-4" />
+                  Winner
+                </span>
+              )}
               {selected && isFinal && !winner && <X className="h-3.5 w-3.5 shrink-0 text-rose-300/60" />}
             </button>
           )
