@@ -10,7 +10,7 @@ export default function WorldCupBracketBoard({ view, picks, onPick, onOpenMatchu
 	const rounds = WORLD_CUP_ROUNDS.filter((r) => matches.some((m) => m.round === r && (r !== "third_place" || view.challenge.includeThirdPlace)))
 	const { pickLockStrategy, pickLockAt } = view.challenge
 	return (
-		<div className="h-full min-h-[620px] overflow-x-auto overflow-y-auto px-3 pb-28 pt-3 sm:px-5 sm:pb-6">
+		<div className="min-h-full overflow-x-auto px-3 pb-6 pt-3 sm:px-5">
 			<div className="mb-4 flex min-w-max items-center gap-3">
 				<div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-4 py-3">
 					<div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/60">Champion Pick</div>

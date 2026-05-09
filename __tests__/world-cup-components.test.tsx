@@ -1,63 +1,116 @@
 import React from "react"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-
-vi.mock("@/components/brackets/world-cup/WorldCupBracketShell", () => {
-  const ReactModule = require("react") as typeof import("react")
-  function MockWorldCupBracketShell({ challenge, defaultTab }: { challenge: any; defaultTab?: string }) {
-    const [picked, setPicked] = ReactModule.useState(false)
-    return ReactModule.createElement(
-      "div",
-      null,
-      ReactModule.createElement("h1", null, challenge?.name ?? "World Cup"),
-      ReactModule.createElement("p", null, "Round of 32"),
-      defaultTab === "leaderboard"
-        ? ReactModule.createElement(
-            "div",
-            null,
-            ReactModule.createElement("span", null, "Owner"),
-            ReactModule.createElement("span", null, "4")
-          )
-        : ReactModule.createElement(
-            "button",
-            {
-              type: "button",
-              onClick: async () => {
-                await fetch("/api/brackets/world-cup/mock/picks", { method: "POST" })
-                setPicked(true)
-              },
-            },
-            "Group A Winner"
-          ),
-      picked ? ReactModule.createElement("span", null, "Group A Winner") : null
-    )
-  }
-
-  return {
-    __esModule: true,
-    default: MockWorldCupBracketShell,
-  }
-})
-
 import WorldCupBracketShell from "@/components/brackets/world-cup/WorldCupBracketShell"
-import type { WorldCupChallengeView } from "@/lib/world-cup/types"
 
-const challenge: WorldCupChallengeView = {
-  id: "wc1",
-  name: "Office World Cup",
-  ownerUserId: "u1",
-  ownerName: "Owner",
-  seasonYear: 2026,
-  inviteCode: "INVITE",
-  inviteUrl: "http://localhost:3000/join/bracket/INVITE",
-  visibility: "private",
-  pickLockStrategy: "per_match",
-  status: "open",
-  includeThirdPlace: false,
-  participantCount: 2,
-  isOwner: true,
-  isParticipant: true,
-  currentParticipantId: "p1",
+const listEntriesMock = vi.fn()
+
+vi.mock("next/link", () => ({
+  __esModule: true,
+  default: ({ href, children, ...props }: any) => (
+    <a href={typeof href === "string" ? href : "#"} {...props}>
+      {children}
+    </a>
+  ),
+}))
+
+vi.mock("@/lib/world-cup/worldCupClientApi", () => ({
+  listWorldCupBracketEntries: (...args: any[]) => listEntriesMock(...args),
+  adminLoadWorldCupTestFixtures: vi.fn().mockResolvedValue({ ok: true, result: { success: true, matchesUpdated: 16, pickableMatchesAfter: 16, unresolvedMatchesAfter: 15 } }),
+  adminResetWorldCupSimulation: vi.fn().mockResolvedValue({ ok: true, result: { resetMatches: 0 } }),
+  adminSimulateWorldCupMatch: vi.fn().mockResolvedValue({ ok: true, result: { advancedMatches: 0 } }),
+  adminSimulateWorldCupRound: vi.fn().mockResolvedValue({ ok: true, result: { simulatedMatches: 0 } }),
+  adminSimulateWorldCupTournament: vi.fn().mockResolvedValue({ ok: true, result: { rounds: [] } }),
+  adminSyncWorldCupFixtures: vi.fn().mockResolvedValue({ updated: 0, warnings: [] }),
+  adminSyncWorldCupLive: vi.fn().mockResolvedValue({ updated: 0, finalMatches: 0, recalculated: false, warnings: [] }),
+  adminSyncWorldCupTeams: vi.fn().mockResolvedValue({ created: 0, updated: 0, warnings: [] }),
+  clearWorldCupBracketEntryPicks: vi.fn().mockResolvedValue({}),
+  createWorldCupBracketEntry: vi.fn().mockResolvedValue({ id: "entry-2", name: "Bracket 2", totalScore: 0, rank: null, correctPicks: 0, championTeamName: null }),
+  deleteWorldCupBracketEntry: vi.fn().mockResolvedValue({}),
+  getWorldCupIntegrityReport: vi.fn().mockResolvedValue({ ok: true, errors: [], warnings: [], stats: { participants: 1, entries: 1, matches: 31, picks: 0 } }),
+  renameWorldCupBracketEntry: vi.fn().mockResolvedValue({ name: "Renamed" }),
+  saveWorldCupBracketEntryPick: vi.fn().mockResolvedValue({ ok: true, pick: null }),
+}))
+
+vi.mock("@/lib/world-cup/worldCupBracketBuilder", () => ({
+  isWorldCupChallengeLocked: vi.fn().mockReturnValue({ locked: false }),
+}))
+
+vi.mock("@/lib/world-cup/worldCupProjectedBracket", () => ({
+  assertWorldCupPickPayloadReady: vi.fn(),
+  buildWorldCupProjectedMatches: vi.fn().mockImplementation((matches: any[]) => matches),
+  countRemainingPicks: vi.fn().mockReturnValue(16),
+  getInvalidDownstreamPickIds: vi.fn().mockReturnValue([]),
+  getOrderedRounds: vi.fn().mockReturnValue(["round_of_32"]),
+  getWorldCupGuidedPicksState: vi.fn().mockReturnValue("fixtures_not_ready"),
+  getWorldCupUnpickableReason: vi.fn().mockReturnValue(null),
+  isWorldCupMatchPickable: vi.fn().mockReturnValue(false),
+}))
+
+vi.mock("@/lib/world-cup/worldCupAiInsights", () => ({
+  getWorldCupPickRecommendation: vi.fn().mockReturnValue({ recommendedTeamId: "t1", recommendedSide: "home" }),
+}))
+
+vi.mock("@/components/brackets/world-cup/WorldCupLiveScoreTicker", () => ({
+  __esModule: true,
+  default: () => <div>LiveTicker</div>,
+}))
+
+vi.mock("@/components/brackets/world-cup/WorldCupEntryDashboard", () => ({
+  __esModule: true,
+  default: () => <div>EntryDashboard</div>,
+}))
+
+vi.mock("@/components/brackets/world-cup/WorldCupBracketHealthCard", () => ({
+  __esModule: true,
+  default: () => <div>HealthCard</div>,
+}))
+
+vi.mock("@/components/brackets/world-cup/WorldCupLeaderboard", () => ({
+  __esModule: true,
+  default: () => <div>Leaderboard</div>,
+}))
+
+vi.mock("@/components/brackets/world-cup/WorldCupLeaderboardInsights", () => ({
+  __esModule: true,
+  default: () => <div>LeaderboardInsights</div>,
+}))
+
+vi.mock("@/components/brackets/world-cup/WorldCupInvitePanel", () => ({
+  __esModule: true,
+  default: () => <div>InvitePanel</div>,
+}))
+
+vi.mock("@/components/brackets/world-cup/WorldCupGuidedMatchupPicker", () => ({
+  __esModule: true,
+  default: () => null,
+}))
+
+const baseView: any = {
+  challenge: {
+    id: "wc1",
+    name: "Office World Cup",
+    ownerUserId: "u1",
+    seasonYear: 2026,
+    inviteCode: "INVITE",
+    inviteUrl: "http://localhost:3000/join/bracket/INVITE",
+    visibility: "private",
+    pickLockStrategy: "per_match",
+    pickLockAt: null,
+    maxParticipants: 100,
+    maxEntriesPerParticipant: 3,
+    effectivePickLockAt: null,
+    status: "open",
+    includeThirdPlace: false,
+    isTestMode: false,
+    simulationEnabled: false,
+    simulatedAt: null,
+    simulationStatus: null,
+    hasSimulatedResults: false,
+    lastSyncedAt: null,
+    createdAt: new Date("2026-01-01").toISOString(),
+    updatedAt: new Date("2026-01-02").toISOString(),
+  },
   scoring: {
     roundOf32Points: 1,
     roundOf16Points: 2,
@@ -74,85 +127,74 @@ const challenge: WorldCupChallengeView = {
       round: "round_of_32",
       roundIndex: 1,
       matchNumber: 1,
-      homeSlotKey: "GAW",
-      awaySlotKey: "B3-1",
-      homeTeamName: "Group A Winner",
-      awayTeamName: "Best 3rd Place 1",
-      status: "scheduled",
-      nextMatchId: "m2",
-      nextMatchSlot: "home",
-    },
-    {
-      id: "m2",
-      round: "round_of_16",
-      roundIndex: 2,
-      matchNumber: 17,
-      homeSlotKey: "M17-H",
-      awaySlotKey: "M17-A",
+      homeSlotKey: "A1",
+      awaySlotKey: "B2",
+      homeTeamId: null,
+      awayTeamId: null,
       homeTeamName: "TBD",
       awayTeamName: "TBD",
+      homeTeamLogo: null,
+      awayTeamLogo: null,
       status: "scheduled",
+      nextMatchId: null,
+      nextMatchSlot: null,
     },
   ],
+  participant: null,
+  activeEntry: null,
+  entries: [],
   picks: [],
-  leaderboard: [
-    {
-      id: "p1",
-      userId: "u1",
-      displayName: "Owner",
-      joinedAt: new Date("2026-01-01").toISOString(),
-      totalScore: 4,
-      maxPossibleScore: 40,
-      rank: 1,
-      correctPicks: 1,
-      championStillAlive: true,
-      roundBreakdown: { quarterfinal: 4 },
-    },
-  ],
+  leaderboard: [],
+  isOwner: true,
+  isAdmin: true,
 }
 
-describe("World Cup bracket components", () => {
+describe("World Cup bracket shell navigation", () => {
   beforeEach(() => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          challenge: {
-            ...challenge,
-            picks: [
-              {
-                id: "pick1",
-                matchId: "m1",
-                round: "round_of_32",
-                selectedSlotKey: "GAW",
-                selectedTeamName: "Group A Winner",
-                pointsAwarded: 0,
-              },
-            ],
-          },
-        }),
-      })
-    )
+    listEntriesMock.mockResolvedValue([
+      {
+        id: "entry-1",
+        name: "My Entry",
+        totalScore: 0,
+        rank: null,
+        correctPicks: 0,
+        championTeamName: null,
+      },
+    ])
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ view: baseView }) }))
   })
 
-  it("renders the full-screen bracket shell", () => {
-    render(React.createElement(WorldCupBracketShell, { challenge }))
-    expect(screen.getByText("Office World Cup")).toBeInTheDocument()
-    expect(screen.getByText("Round of 32")).toBeInTheDocument()
+  it("renders sticky nav buttons and anchors", async () => {
+    render(<WorldCupBracketShell initialView={baseView} />)
+
+    const stickySubnav = screen.getByTestId("world-cup-sticky-subnav")
+    expect(stickySubnav).toBeInTheDocument()
+    expect(within(stickySubnav).getByRole("button", { name: "Top" })).toBeInTheDocument()
+    expect(within(stickySubnav).getByRole("button", { name: "Picks" })).toBeInTheDocument()
+    expect(within(stickySubnav).getByRole("button", { name: "Bracket" })).toBeInTheDocument()
+    expect(within(stickySubnav).getByRole("button", { name: "Admin/Test" })).toBeInTheDocument()
+    expect(within(stickySubnav).getByRole("button", { name: "Leaderboard" })).toBeInTheDocument()
+    expect(within(stickySubnav).getByRole("button", { name: "Invite" })).toBeInTheDocument()
+
+    await waitFor(() => expect(document.getElementById("world-cup-picks")).toBeTruthy())
+    expect(document.getElementById("world-cup-top")).toBeTruthy()
+    expect(document.getElementById("world-cup-bracket")).toBeTruthy()
+    expect(document.getElementById("world-cup-admin")).toBeTruthy()
+
+    fireEvent.click(within(stickySubnav).getByRole("button", { name: "Leaderboard" }))
+    await waitFor(() => expect(document.getElementById("world-cup-leaderboard")).toBeTruthy())
+
+    fireEvent.click(within(stickySubnav).getByRole("button", { name: "Invite" }))
+    await waitFor(() => expect(document.getElementById("world-cup-invite")).toBeTruthy())
   })
 
-  it("selecting a winner advances visually and autosaves", async () => {
-    render(React.createElement(WorldCupBracketShell, { challenge }))
-    fireEvent.click(screen.getByRole("button", { name: /Group A Winner/i }))
-    await waitFor(() => expect(fetch).toHaveBeenCalled())
-    expect(screen.getAllByText("Group A Winner").length).toBeGreaterThan(1)
-  })
+  it("renders back-to-top, inline Load Test Fixtures, and bracket scroll wrapper", async () => {
+    render(<WorldCupBracketShell initialView={baseView} />)
 
-  it("renders leaderboard totals", () => {
-    render(React.createElement(WorldCupBracketShell, { challenge, defaultTab: "leaderboard" }))
-    expect(screen.getByText("Owner")).toBeInTheDocument()
-    expect(screen.getByText("4")).toBeInTheDocument()
+    expect(screen.getByTestId("world-cup-back-to-top")).toBeInTheDocument()
+
+    await waitFor(() => expect(screen.getAllByRole("button", { name: /Load Test Fixtures/i }).length).toBeGreaterThan(0))
+    expect(screen.getByTestId("world-cup-bracket-scroll")).toBeInTheDocument()
   })
 })
 
