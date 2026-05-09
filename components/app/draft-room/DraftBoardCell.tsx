@@ -256,8 +256,8 @@ function DraftBoardCellInner({
       } ${
         isCurrentPick
           ? rs
-              ? 'border-[#f6c445]/50 bg-[radial-gradient(ellipse_at_50%_0%,rgba(246,196,69,0.24),transparent_70%),linear-gradient(155deg,rgba(246,196,69,0.15),rgba(15,23,42,0.95))] shadow-[0_0_32px_rgba(246,196,69,0.30)] ring-1 ring-[#f6c445]/48'
-            : 'border-[#f6c445]/50 bg-gradient-to-br from-[#f6c445]/18 via-[#252f48] to-[#16202f] shadow-[0_0_30px_rgba(246,196,69,0.28)] ring-1 ring-[#f6c445]/46'
+            ? 'border-[#f6c445]/70 bg-[radial-gradient(ellipse_at_50%_0%,rgba(246,196,69,0.34),transparent),linear-gradient(155deg,rgba(246,196,69,0.2),rgba(15,23,42,0.96))] shadow-[0_0_46px_rgba(246,196,69,0.4)] ring-2 ring-[#f6c445]/70'
+            : 'border-[#f6c445]/75 bg-gradient-to-br from-[#f6c445]/26 via-[#28344e] to-[#1b2438] shadow-[0_0_40px_rgba(246,196,69,0.35)] ring-2 ring-[#f6c445]/70'
           : isRecentPick
             ? rs
               ? 'border-emerald-400/42 bg-gradient-to-br from-emerald-500/18 via-[#142338] to-[#0f1c2e] ring-1 ring-emerald-400/38 shadow-[0_0_26px_rgba(52,211,153,0.22)]'
@@ -327,8 +327,8 @@ function DraftBoardCellInner({
         </button>
       ) : null}
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-px"
-        style={{ backgroundColor: withAlpha(pick.managerTintColor ?? '#94a3b8', isCurrentPick ? 0.88 : 0.36) }}
+        className={`pointer-events-none absolute inset-x-0 top-0 ${isCurrentPick ? 'h-[2px] animate-pulse' : 'h-px'}`}
+        style={{ backgroundColor: withAlpha(pick.managerTintColor ?? '#94a3b8', isCurrentPick ? 1 : 0.38) }}
         aria-hidden
       />
 
