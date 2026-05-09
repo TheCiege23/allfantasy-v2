@@ -164,7 +164,7 @@ export function QueuePanel({
       }`}
       data-testid="draft-queue-panel"
     >
-      <div className={`flex items-center justify-between gap-2 border-b px-2 py-1 ${rs ? 'border-cyan-500/12 bg-[linear-gradient(90deg,rgba(34,211,238,0.06),transparent)]' : 'border-white/[0.05]'}`}>
+      <div className={`flex items-center justify-between gap-2 border-b px-2.5 py-1 ${rs ? 'border-cyan-500/15 bg-[linear-gradient(90deg,rgba(34,211,238,0.08),transparent)]' : 'border-white/[0.06]'}`}>
         <div className="flex items-center gap-2">
           <ListOrdered className="h-3.5 w-3.5 text-cyan-400" />
           <span className="text-xs font-semibold uppercase tracking-[0.12em] text-white/92">Queue</span>
@@ -189,7 +189,7 @@ export function QueuePanel({
           Auto-pick
         </label>
       </div>
-      <div className="grid grid-cols-1 gap-1 border-b border-white/[0.05] p-1.5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-1 border-b border-white/[0.06] p-1 sm:grid-cols-2 lg:grid-cols-3">
         <input
           type="search"
           value={searchQuery}
@@ -510,7 +510,7 @@ export function QueuePanel({
                     setDragIndex(null)
                   }
                 }}
-                className={`draft-live-queue-item flex items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-[linear-gradient(180deg,rgba(10,18,40,0.94),rgba(7,14,30,0.98))] px-2 py-1 text-[11px] min-h-[42px] transition-colors ${
+                className={`draft-live-queue-item flex items-center justify-between gap-2 rounded-lg border border-white/[0.08] bg-[linear-gradient(180deg,rgba(10,18,40,0.94),rgba(7,14,30,0.98))] px-2.5 py-1 text-[11px] min-h-[44px] ${
                   dragIndex === displayIndex ? 'opacity-60' : 'hover:bg-white/5'
                 }`}
               >
