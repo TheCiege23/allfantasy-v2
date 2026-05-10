@@ -731,6 +731,21 @@ export default function WorldCupBracketShell({
         existingPickMatchedBy: existingPick ? getWorldCupPickMatchMethod(existingPick, match) : null,
         downstreamPicksCleared: invalidMatchIds,
       })
+      if ([29, 30, 31].includes(match.matchNumber)) {
+        console.debug("[WorldCupBracketShell:save-pick:knockout-debug]", {
+          activeEntryId: selectedEntryId,
+          round: match.round,
+          matchNumber: match.matchNumber,
+          payload: {
+            matchId: match.id,
+            selectedTeamId,
+            selectedSlotKey,
+            selectedTeamName,
+            matchNumber: match.matchNumber,
+          },
+          downstreamPicksCleared: invalidMatchIds,
+        })
+      }
     }
 
     // Optimistic update
@@ -799,6 +814,18 @@ export default function WorldCupBracketShell({
         ? (result.picks as WorldCupPickView[])
         : currentPicks
       markEntryPicksLoaded(selectedEntryId, returnedPicks)
+
+      if (process.env.NODE_ENV === "development" && [29, 30, 31].includes(match.matchNumber)) {
+        const saved = findWorldCupPickForMatch(returnedPicks, match)
+        console.debug("[WorldCupBracketShell:save-pick:knockout-return]", {
+          activeEntryId: selectedEntryId,
+          round: match.round,
+          matchNumber: match.matchNumber,
+          returnedPickCount: returnedPicks.length,
+          matchedBy: saved ? getWorldCupPickMatchMethod(saved, match) : null,
+          savedPickId: saved?.id ?? null,
+        })
+      }
 
       setSaveState("saved")
       if (invalidMatchIds.length > 0) {

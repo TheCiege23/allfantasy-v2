@@ -1071,6 +1071,88 @@ describe("World Cup pick readiness guards", () => {
     expect(isWorldCupMatchPickable(quarterfinal)).toBe(true)
   })
 
+  it("prefers exact semifinal pick matchId over stale round+matchNumber fallback", () => {
+    const matches = [
+      makeMatch({
+        id: "m29",
+        round: "semifinal",
+        roundIndex: 4,
+        matchNumber: 29,
+        homeSlotKey: "W-M25",
+        awaySlotKey: "W-M26",
+        homeTeamId: "team-a",
+        awayTeamId: "team-b",
+        homeTeamName: "Brazil",
+        awayTeamName: "USA",
+        nextMatchId: "m31",
+        nextMatchSlot: "home",
+      }),
+      makeMatch({
+        id: "m30",
+        round: "semifinal",
+        roundIndex: 4,
+        matchNumber: 30,
+        homeSlotKey: "W-M27",
+        awaySlotKey: "W-M28",
+        homeTeamId: "team-c",
+        awayTeamId: "team-d",
+        homeTeamName: "Croatia",
+        awayTeamName: "Australia",
+        nextMatchId: "m31",
+        nextMatchSlot: "away",
+      }),
+      makeMatch({
+        id: "m31",
+        round: "final",
+        roundIndex: 5,
+        matchNumber: 31,
+        homeSlotKey: "W-M29",
+        awaySlotKey: "W-M30",
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Winner Match 29",
+        awayTeamName: "Winner Match 30",
+      }),
+    ]
+
+    const staleFallback = makePick({
+      id: "stale-m29",
+      matchId: "projected-semifinal-1",
+      round: "semifinal",
+      matchNumber: 29,
+      selectedTeamId: "team-old",
+      selectedSlotKey: "W-M25",
+      selectedTeamName: "Winner Match 25",
+    })
+    const canonical = makePick({
+      id: "m29-canonical",
+      matchId: "m29",
+      round: "semifinal",
+      matchNumber: 29,
+      selectedTeamId: "team-a",
+      selectedSlotKey: "W-M25",
+      selectedTeamName: "Brazil",
+    })
+    const semifinalTwo = makePick({
+      id: "m30-canonical",
+      matchId: "m30",
+      round: "semifinal",
+      matchNumber: 30,
+      selectedTeamId: "team-c",
+      selectedSlotKey: "W-M27",
+      selectedTeamName: "Croatia",
+    })
+
+    const picks = [staleFallback, canonical, semifinalTwo]
+    const projected = buildWorldCupProjectedMatches(matches, picks)
+
+    expect(findWorldCupPickForMatch(picks, matches[0])?.id).toBe("m29-canonical")
+    expect(projected.find((match) => match.id === "m31")).toMatchObject({
+      homeTeamName: "Brazil",
+      awayTeamName: "Croatia",
+    })
+  })
+
   it("clears dependent downstream picks without clearing the just-saved projected pick", () => {
     const matches = [
       makeMatch({ id: "m1", matchNumber: 1, nextMatchId: "m17", nextMatchSlot: "home" }),

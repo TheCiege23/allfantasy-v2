@@ -1044,6 +1044,106 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getAllByText("Brazil").length).toBeGreaterThan(0)
   })
 
+  it("keeps semifinal/final picks after reload and shows complete pick count", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    const matches = [
+      makeShellMatch({
+        id: "m29",
+        round: "semifinal" as const,
+        roundIndex: 1,
+        matchNumber: 29,
+        homeTeamId: "demo_team_brazil",
+        awayTeamId: "demo_team_usa",
+        homeTeamName: "Brazil",
+        awayTeamName: "USA",
+        homeSlotKey: "W-M25",
+        awaySlotKey: "W-M26",
+        nextMatchId: "m31",
+        nextMatchSlot: "home",
+      }),
+      makeShellMatch({
+        id: "m30",
+        round: "semifinal" as const,
+        roundIndex: 2,
+        matchNumber: 30,
+        homeTeamId: "demo_team_croatia",
+        awayTeamId: "demo_team_australia",
+        homeTeamName: "Croatia",
+        awayTeamName: "Australia",
+        homeSlotKey: "W-M27",
+        awaySlotKey: "W-M28",
+        nextMatchId: "m31",
+        nextMatchSlot: "away",
+      }),
+      makeShellMatch({
+        id: "m31",
+        round: "final" as const,
+        roundIndex: 1,
+        matchNumber: 31,
+        homeTeamId: "demo_team_brazil",
+        awayTeamId: "demo_team_croatia",
+        homeTeamName: "Brazil",
+        awayTeamName: "Croatia",
+        homeSlotKey: "W-M29",
+        awaySlotKey: "W-M30",
+      }),
+    ]
+    const picks = [
+      {
+        id: "pick-m29",
+        matchId: "m29",
+        matchNumber: 29,
+        round: "semifinal",
+        selectedTeamId: "demo_team_brazil",
+        selectedSlotKey: "W-M25",
+        selectedTeamName: "Brazil",
+        pointsAwarded: 0,
+        isCorrect: null,
+        lockedAt: null,
+      },
+      {
+        id: "pick-m30",
+        matchId: "m30",
+        matchNumber: 30,
+        round: "semifinal",
+        selectedTeamId: "demo_team_croatia",
+        selectedSlotKey: "W-M27",
+        selectedTeamName: "Croatia",
+        pointsAwarded: 0,
+        isCorrect: null,
+        lockedAt: null,
+      },
+      {
+        id: "pick-m31",
+        matchId: "m31",
+        matchNumber: 31,
+        round: "final",
+        selectedTeamId: "demo_team_brazil",
+        selectedSlotKey: "W-M29",
+        selectedTeamName: "Brazil",
+        pointsAwarded: 0,
+        isCorrect: null,
+        lockedAt: null,
+      },
+    ]
+
+    render(
+      <WorldCupBracketShell
+        initialView={makeShellView({
+          matches,
+          picks,
+        }) as any}
+      />
+    )
+
+    await waitFor(() => expect(screen.getByTestId("world-cup-match-m29")).toBeInTheDocument())
+    expect(within(screen.getByTestId("world-cup-match-m29")).getByRole("button", { name: /Selected: Brazil to win/i })).toHaveAttribute("aria-pressed", "true")
+    expect(within(screen.getByTestId("world-cup-match-m30")).getByRole("button", { name: /Selected: Croatia to win/i })).toHaveAttribute("aria-pressed", "true")
+    expect(within(screen.getByTestId("world-cup-match-m31")).getByRole("button", { name: /Selected: Brazil to win/i })).toHaveAttribute("aria-pressed", "true")
+
+    expect(screen.getByText(/3 of 3 picks/i)).toBeInTheDocument()
+  })
+
   it("keeps the selected entry active after save refresh returns a different activeEntry", async () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     const entry1 = makeShellEntry({ id: "entry-1", name: "Bracket 1" })

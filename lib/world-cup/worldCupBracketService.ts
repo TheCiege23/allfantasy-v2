@@ -826,7 +826,14 @@ async function savePicksForEntryTx(
   input: {
     challenge: WorldCupBracketChallenge & { matches: WorldCupBracketMatch[] }
     entry: WorldCupBracketEntry & { participantId: string; userId: string; isLocked?: boolean | null }
-    picks: Array<{ matchId: string; selectedTeamId?: string | null; selectedSlotKey?: string | null; selectedTeamName?: string | null }>
+    picks: Array<{
+      matchId: string
+      matchNumber?: number | null
+      round?: string | null
+      selectedTeamId?: string | null
+      selectedSlotKey?: string | null
+      selectedTeamName?: string | null
+    }>
   }
 ) {
   const { challenge: c, entry, picks: pickInputs } = input
@@ -836,6 +843,40 @@ async function savePicksForEntryTx(
   for (const pick of pickInputs) {
     const m = byId.get(pick.matchId)
     if (!m) throw new Error("Match not found")
+    const isStableRoundTarget =
+      (pick.matchNumber != null && pick.round && m.round === pick.round && m.matchNumber === pick.matchNumber) ||
+      m.matchNumber === 29 ||
+      m.matchNumber === 30 ||
+      m.matchNumber === 31
+
+    // Clean up legacy placeholder/projected rows that target the same knockout
+    // match by round+matchNumber but point at a different match id.
+    if (isStableRoundTarget) {
+      const conflictingRows = await tx.worldCupBracketPick.findMany({
+        where: {
+          entryId: entry.id,
+          round: m.round,
+          NOT: { matchId: m.id },
+        },
+        include: { match: { select: { matchNumber: true, id: true } } },
+      })
+      const conflictingIds = conflictingRows
+        .filter((row) => row.match?.matchNumber === m.matchNumber)
+        .map((row) => row.id)
+      if (conflictingIds.length > 0) {
+        await tx.worldCupBracketPick.deleteMany({ where: { id: { in: conflictingIds } } })
+      }
+      if (process.env.NODE_ENV === "development" && (m.matchNumber === 29 || m.matchNumber === 30 || m.matchNumber === 31)) {
+        console.debug("[world-cup:picks:cleanup-conflicts]", {
+          entryId: entry.id,
+          round: m.round,
+          matchNumber: m.matchNumber,
+          targetMatchId: m.id,
+          removedConflictingPickIds: conflictingIds,
+        })
+      }
+    }
+
     if (isWorldCupMatchLocked({ challenge: c, match: m, matches: c.matches })) throw new Error("This matchup is locked")
     const s = side(m, pick)
     if (!s && !pick.selectedTeamName) throw new Error("Selected team is not in this matchup")
@@ -866,6 +907,25 @@ async function savePicksForEntryTx(
         pointsAwarded: 0,
       },
     })
+    if (process.env.NODE_ENV === "development" && (m.matchNumber === 29 || m.matchNumber === 30 || m.matchNumber === 31)) {
+      const saved = await tx.worldCupBracketPick.findUnique({
+        where: { entryId_matchId: { entryId: entry.id, matchId: m.id } },
+        select: {
+          id: true,
+          matchId: true,
+          round: true,
+          selectedTeamId: true,
+          selectedSlotKey: true,
+          selectedTeamName: true,
+        },
+      })
+      console.debug("[world-cup:picks:saved-row]", {
+        entryId: entry.id,
+        matchNumber: m.matchNumber,
+        matchId: m.id,
+        savedPick: saved,
+      })
+    }
     if (m.round === "final") {
       await tx.worldCupBracketEntry.update({
         where: { id: entry.id },
@@ -1172,7 +1232,14 @@ export async function saveWorldCupBracketPickForEntry(input: {
     })
   }
 
-  const pickPayload = { matchId: m.id, selectedTeamId, selectedSlotKey, selectedTeamName }
+  const pickPayload = {
+    matchId: m.id,
+    matchNumber: m.matchNumber,
+    round: m.round,
+    selectedTeamId,
+    selectedSlotKey,
+    selectedTeamName,
+  }
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await savePicksForEntryTx(tx, {
       challenge: c,
@@ -1197,6 +1264,17 @@ export async function saveWorldCupBracketPickForEntry(input: {
       })
     : false
   const returnedPicks = updatedEntry?.picks.filter(hasWorldCupPickSelection).map(toWorldCupPickView) ?? []
+  if (process.env.NODE_ENV === "development" && (m.matchNumber === 29 || m.matchNumber === 30 || m.matchNumber === 31)) {
+    console.debug("[world-cup:picks:save-return]", {
+      entryId: entry.id,
+      round: m.round,
+      matchNumber: m.matchNumber,
+      requestedMatchId: input.matchId,
+      resolvedMatchId: m.id,
+      matchedBy: m.id === input.matchId ? "matchId" : "round_matchNumber",
+      returnedPickCount: returnedPicks.length,
+    })
+  }
   return {
     entry: updatedEntry,
     pick: savedPick,

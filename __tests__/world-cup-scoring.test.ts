@@ -7,6 +7,7 @@ import {
   getWorldCupRankMovement,
 } from "@/lib/world-cup/worldCupLeaderboardService"
 import { buildWorldCupLeaderboardRows, evaluateWorldCupPick, isChampionStillAlive } from "@/lib/world-cup/worldCupScoringService"
+import { countRemainingPicks, isBracketComplete } from "@/lib/world-cup/worldCupProjectedBracket"
 
 describe("World Cup scoring", () => {
   it("keeps pending matches at 0 points with a pending result", () => {
@@ -431,6 +432,94 @@ describe("World Cup scoring", () => {
     expect(rows[0].entryId).toBe("locked-entry")
     expect(rows[0].totalScore).toBe(DEFAULT_WORLD_CUP_SCORING.roundOf32Points)
     expect(rows[0].correctPicks).toBe(1)
+  })
+
+  it("treats canonical semifinal/final picks as complete when stale fallback rows also exist", () => {
+    const matches = [
+      {
+        id: "m29",
+        round: "semifinal",
+        status: "scheduled",
+        homeTeamId: "team-a",
+        awayTeamId: "team-b",
+        homeTeamName: "Brazil",
+        awayTeamName: "USA",
+        homeSlotKey: "W-M25",
+        awaySlotKey: "W-M26",
+      },
+      {
+        id: "m30",
+        round: "semifinal",
+        status: "scheduled",
+        homeTeamId: "team-c",
+        awayTeamId: "team-d",
+        homeTeamName: "Croatia",
+        awayTeamName: "Australia",
+        homeSlotKey: "W-M27",
+        awaySlotKey: "W-M28",
+      },
+      {
+        id: "m31",
+        round: "final",
+        status: "scheduled",
+        homeTeamId: "team-a",
+        awayTeamId: "team-c",
+        homeTeamName: "Brazil",
+        awayTeamName: "Croatia",
+        homeSlotKey: "W-M29",
+        awaySlotKey: "W-M30",
+      },
+    ]
+
+    const picks = [
+      {
+        id: "legacy-semifinal",
+        matchId: "projected-semifinal-1",
+        round: "semifinal",
+        matchNumber: 29,
+        selectedTeamId: "team-old",
+        selectedTeamName: "Winner Match 25",
+        selectedSlotKey: "W-M25",
+        pointsAwarded: 0,
+        isCorrect: null,
+      },
+      {
+        id: "semi-29",
+        matchId: "m29",
+        round: "semifinal",
+        matchNumber: 29,
+        selectedTeamId: "team-a",
+        selectedTeamName: "Brazil",
+        selectedSlotKey: "W-M25",
+        pointsAwarded: 0,
+        isCorrect: null,
+      },
+      {
+        id: "semi-30",
+        matchId: "m30",
+        round: "semifinal",
+        matchNumber: 30,
+        selectedTeamId: "team-c",
+        selectedTeamName: "Croatia",
+        selectedSlotKey: "W-M27",
+        pointsAwarded: 0,
+        isCorrect: null,
+      },
+      {
+        id: "final-31",
+        matchId: "m31",
+        round: "final",
+        matchNumber: 31,
+        selectedTeamId: "team-a",
+        selectedTeamName: "Brazil",
+        selectedSlotKey: "W-M29",
+        pointsAwarded: 0,
+        isCorrect: null,
+      },
+    ]
+
+    expect(countRemainingPicks(matches as any, picks as any)).toBe(0)
+    expect(isBracketComplete(matches as any, picks as any)).toBe(true)
   })
 })
 

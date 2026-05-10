@@ -84,10 +84,32 @@ export async function POST(request: Request, context: { params: { challengeId: s
       nextMatchId: parsed.data.nextMatchId,
       nextMatchSlot: parsed.data.nextMatchSlot,
     })
-    const view = await getWorldCupChallengeView({
+    let view = await getWorldCupChallengeView({
       challengeId: params.data.challengeId,
       user: auth.user,
     })
+    if (view && ((view.matches?.length ?? 0) === 0 || (view.slots?.length ?? 0) === 0)) {
+      const refreshedView = await getWorldCupChallengeView({
+        challengeId: params.data.challengeId,
+        user: auth.user,
+      })
+      if (refreshedView) {
+        view = refreshedView
+      }
+    }
+
+    if (process.env.NODE_ENV === "development" && [29, 30, 31].includes(parsed.data.matchNumber ?? -1)) {
+      console.debug("[world-cup:picks:save-response]", {
+        activeEntryId: parsed.data.activeEntryId ?? params.data.entryId,
+        matchId: parsed.data.matchId,
+        round: parsed.data.round ?? null,
+        matchNumber: parsed.data.matchNumber ?? null,
+        savedPickId: (result.pick as { id?: string } | null)?.id ?? null,
+        returnedPickCount: result.picks.length,
+        returnedViewMatches: view?.matches?.length ?? 0,
+        returnedViewSlots: view?.slots?.length ?? 0,
+      })
+    }
 
     return NextResponse.json({
       success: true,

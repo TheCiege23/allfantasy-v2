@@ -153,7 +153,48 @@ export function findWorldCupPickForMatch<T extends WorldCupPickMatchIdentityLike
   picks: T[],
   match: WorldCupMatchIdentityLike
 ): T | null {
-  return picks.find((pick) => hasWorldCupPickSelection(pick) && worldCupPickMatchesMatch(pick, match)) ?? null
+  const candidates = picks.filter(
+    (pick) => hasWorldCupPickSelection(pick) && worldCupPickMatchesMatch(pick, match)
+  )
+  if (candidates.length === 0) return null
+  if (candidates.length === 1) return candidates[0]
+
+  const ranked = candidates
+    .map((pick) => {
+      const method = getWorldCupPickMatchMethod(pick, match)
+      const exactMethodScore = method === "matchId" ? 2 : method === "round_matchNumber" ? 1 : 0
+
+      const matchTeamContext = match as {
+        homeTeamId?: string | null
+        awayTeamId?: string | null
+        homeSlotKey?: string | null
+        awaySlotKey?: string | null
+      }
+      const selectedTeamMatches =
+        Boolean(
+          pick.selectedTeamId &&
+            (pick.selectedTeamId === matchTeamContext.homeTeamId ||
+              pick.selectedTeamId === matchTeamContext.awayTeamId)
+        )
+      const selectedSlotMatches =
+        Boolean(
+          pick.selectedSlotKey &&
+            (pick.selectedSlotKey === matchTeamContext.homeSlotKey ||
+              pick.selectedSlotKey === matchTeamContext.awaySlotKey)
+        )
+      const contextScore = selectedTeamMatches || selectedSlotMatches ? 1 : 0
+
+      // Preserve stable ordering when scores tie.
+      const originalIndex = picks.indexOf(pick)
+      return {
+        pick,
+        score: exactMethodScore * 10 + contextScore,
+        originalIndex,
+      }
+    })
+    .sort((a, b) => b.score - a.score || b.originalIndex - a.originalIndex)
+
+  return ranked[0]?.pick ?? null
 }
 
 function normalizeApiStatus(value: string | null | undefined): string {
