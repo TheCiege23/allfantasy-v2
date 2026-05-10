@@ -532,6 +532,340 @@ describe("World Cup pick readiness guards", () => {
     expect(isWorldCupMatchPickable(nextRound!)).toBe(true)
   })
 
+  it("turns completed Round of 32 picks into pickable Round of 16 projected matchups", () => {
+    const matches = [
+      makeMatch({ id: "m1", matchNumber: 1, nextMatchId: "m17", nextMatchSlot: "home" }),
+      makeMatch({
+        id: "m2",
+        matchNumber: 2,
+        homeSlotKey: "C1",
+        awaySlotKey: "D2",
+        homeTeamId: "team-c",
+        awayTeamId: "team-d",
+        homeTeamName: "France",
+        awayTeamName: "Germany",
+        nextMatchId: "m17",
+        nextMatchSlot: "away",
+      }),
+      makeMatch({
+        id: "m17",
+        round: "round_of_16",
+        roundIndex: 2,
+        matchNumber: 17,
+        homeSlotKey: "W-M1",
+        awaySlotKey: "W-M2",
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Winner Match 1",
+        awayTeamName: "Winner Match 2",
+        status: "final",
+        homeScore: 2,
+        awayScore: 1,
+        winnerTeamName: "Best 3rd Place Team 1",
+        apiStatusShort: "SIM",
+      }),
+    ]
+    const savedPicks = [
+      makePick({ id: "p-m1", matchId: "m1", selectedTeamId: "team-a", selectedSlotKey: "A1", selectedTeamName: "Argentina" }),
+      makePick({ id: "p-m2", matchId: "m2", selectedTeamId: "team-d", selectedSlotKey: "D2", selectedTeamName: "Germany" }),
+    ]
+
+    const projected = buildWorldCupProjectedMatches(matches, savedPicks)
+    const roundOf16 = projected.find((match) => match.id === "m17")
+
+    expect(roundOf16).toMatchObject({
+      homeTeamId: "team-a",
+      awayTeamId: "team-d",
+      homeTeamName: "Argentina",
+      awayTeamName: "Germany",
+      status: "scheduled",
+      homeScore: null,
+      awayScore: null,
+      winnerTeamId: null,
+      winnerTeamName: null,
+      apiStatusShort: null,
+    })
+    expect(isWorldCupMatchPickable(roundOf16!)).toBe(true)
+    expect(findFirstUnpickedMatch(projected, savedPicks, getOrderedRounds(projected))?.id).toBe("m17")
+  })
+
+  it("keeps official final state when a real fixture result exists", () => {
+    const matches = [
+      makeMatch({ id: "m1", matchNumber: 1, nextMatchId: "m17", nextMatchSlot: "home" }),
+      makeMatch({
+        id: "m2",
+        matchNumber: 2,
+        homeSlotKey: "C1",
+        awaySlotKey: "D2",
+        homeTeamId: "team-c",
+        awayTeamId: "team-d",
+        homeTeamName: "France",
+        awayTeamName: "Germany",
+        nextMatchId: "m17",
+        nextMatchSlot: "away",
+      }),
+      makeMatch({
+        id: "m17",
+        apiFixtureId: 202617,
+        round: "round_of_16",
+        roundIndex: 2,
+        matchNumber: 17,
+        homeSlotKey: "W-M1",
+        awaySlotKey: "W-M2",
+        homeTeamId: "official-home",
+        awayTeamId: "official-away",
+        homeTeamName: "Official Home",
+        awayTeamName: "Official Away",
+        status: "final",
+        homeScore: 1,
+        awayScore: 0,
+        winnerTeamId: "team-a",
+        winnerTeamName: "Argentina",
+        apiStatusShort: "FT",
+      }),
+    ]
+    const savedPicks = [
+      makePick({ id: "p-m1", matchId: "m1", selectedTeamId: "team-a", selectedSlotKey: "A1", selectedTeamName: "Argentina" }),
+      makePick({ id: "p-m2", matchId: "m2", selectedTeamId: "team-d", selectedSlotKey: "D2", selectedTeamName: "Germany" }),
+    ]
+
+    const projected = buildWorldCupProjectedMatches(matches, savedPicks)
+    const official = projected.find((match) => match.id === "m17")
+
+    expect(official).toMatchObject({
+      status: "final",
+      homeScore: 1,
+      awayScore: 0,
+      winnerTeamId: "team-a",
+      winnerTeamName: "Argentina",
+      apiStatusShort: "FT",
+    })
+    expect(isWorldCupMatchPickable(official!)).toBe(false)
+  })
+
+  it("projects pickable winners through quarterfinals, semifinals, final, and champion", () => {
+    const matches = [
+      makeMatch({ id: "m1", matchNumber: 1, nextMatchId: "m17", nextMatchSlot: "home" }),
+      makeMatch({
+        id: "m2",
+        matchNumber: 2,
+        homeSlotKey: "C1",
+        awaySlotKey: "D2",
+        homeTeamId: "team-c",
+        awayTeamId: "team-d",
+        homeTeamName: "France",
+        awayTeamName: "Germany",
+        nextMatchId: "m17",
+        nextMatchSlot: "away",
+      }),
+      makeMatch({
+        id: "m3",
+        matchNumber: 3,
+        homeSlotKey: "E1",
+        awaySlotKey: "F2",
+        homeTeamId: "team-e",
+        awayTeamId: "team-f",
+        homeTeamName: "Spain",
+        awayTeamName: "Japan",
+        nextMatchId: "m18",
+        nextMatchSlot: "home",
+      }),
+      makeMatch({
+        id: "m4",
+        matchNumber: 4,
+        homeSlotKey: "G1",
+        awaySlotKey: "H2",
+        homeTeamId: "team-g",
+        awayTeamId: "team-h",
+        homeTeamName: "Portugal",
+        awayTeamName: "Uruguay",
+        nextMatchId: "m18",
+        nextMatchSlot: "away",
+      }),
+      makeMatch({
+        id: "m17",
+        round: "round_of_16",
+        roundIndex: 2,
+        matchNumber: 17,
+        homeSlotKey: "W-M1",
+        awaySlotKey: "W-M2",
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Winner Match 1",
+        awayTeamName: "Winner Match 2",
+        nextMatchId: "m25",
+        nextMatchSlot: "home",
+        status: "final",
+        apiStatusShort: "SIM",
+        homeScore: 1,
+        awayScore: 0,
+        winnerTeamName: "Winner Match 1",
+      }),
+      makeMatch({
+        id: "m18",
+        round: "round_of_16",
+        roundIndex: 2,
+        matchNumber: 18,
+        homeSlotKey: "W-M3",
+        awaySlotKey: "W-M4",
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Winner Match 3",
+        awayTeamName: "Winner Match 4",
+        nextMatchId: "m25",
+        nextMatchSlot: "away",
+        status: "final",
+        apiStatusShort: "TEST",
+        homeScore: 0,
+        awayScore: 3,
+        winnerTeamName: "Winner Match 4",
+      }),
+      makeMatch({
+        id: "m25",
+        round: "quarterfinal",
+        roundIndex: 3,
+        matchNumber: 25,
+        homeSlotKey: "W-M17",
+        awaySlotKey: "W-M18",
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Winner Match 17",
+        awayTeamName: "Winner Match 18",
+        nextMatchId: "m29",
+        nextMatchSlot: "home",
+        status: "final",
+        apiStatusShort: "SIM",
+      }),
+      makeMatch({
+        id: "m26",
+        round: "quarterfinal",
+        roundIndex: 3,
+        matchNumber: 26,
+        homeSlotKey: "I1",
+        awaySlotKey: "J2",
+        homeTeamId: "team-i",
+        awayTeamId: "team-j",
+        homeTeamName: "England",
+        awayTeamName: "Mexico",
+        nextMatchId: "m29",
+        nextMatchSlot: "away",
+      }),
+      makeMatch({
+        id: "m29",
+        round: "semifinal",
+        roundIndex: 4,
+        matchNumber: 29,
+        homeSlotKey: "W-M25",
+        awaySlotKey: "W-M26",
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Winner Match 25",
+        awayTeamName: "Winner Match 26",
+        nextMatchId: "m31",
+        nextMatchSlot: "home",
+        status: "final",
+        apiStatusShort: "SIM",
+      }),
+      makeMatch({
+        id: "m30",
+        round: "semifinal",
+        roundIndex: 4,
+        matchNumber: 30,
+        homeSlotKey: "K1",
+        awaySlotKey: "L2",
+        homeTeamId: "team-k",
+        awayTeamId: "team-l",
+        homeTeamName: "Netherlands",
+        awayTeamName: "Italy",
+        nextMatchId: "m31",
+        nextMatchSlot: "away",
+      }),
+      makeMatch({
+        id: "m31",
+        round: "final",
+        roundIndex: 5,
+        matchNumber: 31,
+        homeSlotKey: "W-M29",
+        awaySlotKey: "W-M30",
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Winner Match 29",
+        awayTeamName: "Winner Match 30",
+        status: "final",
+        apiStatusShort: "SIM",
+      }),
+    ]
+    const roundOf32Picks = [
+      makePick({ id: "p-m1", matchId: "m1", selectedTeamId: "team-a", selectedSlotKey: "A1", selectedTeamName: "Argentina" }),
+      makePick({ id: "p-m2", matchId: "m2", selectedTeamId: "team-d", selectedSlotKey: "D2", selectedTeamName: "Germany" }),
+      makePick({ id: "p-m3", matchId: "m3", selectedTeamId: "team-e", selectedSlotKey: "E1", selectedTeamName: "Spain" }),
+      makePick({ id: "p-m4", matchId: "m4", selectedTeamId: "team-g", selectedSlotKey: "G1", selectedTeamName: "Portugal" }),
+    ]
+    const afterRoundOf32 = buildWorldCupProjectedMatches(matches, roundOf32Picks)
+    expect(afterRoundOf32.find((match) => match.id === "m17")).toMatchObject({
+      homeTeamName: "Argentina",
+      awayTeamName: "Germany",
+      status: "scheduled",
+      apiStatusShort: null,
+    })
+    expect(afterRoundOf32.find((match) => match.id === "m18")).toMatchObject({
+      homeTeamName: "Spain",
+      awayTeamName: "Portugal",
+      status: "scheduled",
+      apiStatusShort: null,
+    })
+    expect(findFirstUnpickedMatch(afterRoundOf32, roundOf32Picks, getOrderedRounds(afterRoundOf32))?.id).toBe("m17")
+
+    const roundOf16Picks = [
+      ...roundOf32Picks,
+      makePick({ id: "p-m17", matchId: "m17", round: "round_of_16", selectedTeamId: "team-a", selectedSlotKey: "A1", selectedTeamName: "Argentina" }),
+      makePick({ id: "p-m18", matchId: "m18", round: "round_of_16", selectedTeamId: "team-e", selectedSlotKey: "E1", selectedTeamName: "Spain" }),
+    ]
+    const afterRoundOf16 = buildWorldCupProjectedMatches(matches, roundOf16Picks)
+    expect(afterRoundOf16.find((match) => match.id === "m25")).toMatchObject({
+      homeTeamName: "Argentina",
+      awayTeamName: "Spain",
+      status: "scheduled",
+      apiStatusShort: null,
+    })
+    expect(isWorldCupMatchPickable(afterRoundOf16.find((match) => match.id === "m25")!)).toBe(true)
+
+    const quarterfinalPicks = [
+      ...roundOf16Picks,
+      makePick({ id: "p-m25", matchId: "m25", round: "quarterfinal", selectedTeamId: "team-a", selectedSlotKey: "A1", selectedTeamName: "Argentina" }),
+      makePick({ id: "p-m26", matchId: "m26", round: "quarterfinal", selectedTeamId: "team-i", selectedSlotKey: "I1", selectedTeamName: "England" }),
+    ]
+    const afterQuarterfinals = buildWorldCupProjectedMatches(matches, quarterfinalPicks)
+    expect(afterQuarterfinals.find((match) => match.id === "m29")).toMatchObject({
+      homeTeamName: "Argentina",
+      awayTeamName: "England",
+      status: "scheduled",
+    })
+    expect(isWorldCupMatchPickable(afterQuarterfinals.find((match) => match.id === "m29")!)).toBe(true)
+
+    const semifinalPicks = [
+      ...quarterfinalPicks,
+      makePick({ id: "p-m29", matchId: "m29", round: "semifinal", selectedTeamId: "team-a", selectedSlotKey: "A1", selectedTeamName: "Argentina" }),
+      makePick({ id: "p-m30", matchId: "m30", round: "semifinal", selectedTeamId: "team-k", selectedSlotKey: "K1", selectedTeamName: "Netherlands" }),
+    ]
+    const afterSemifinals = buildWorldCupProjectedMatches(matches, semifinalPicks)
+    expect(afterSemifinals.find((match) => match.id === "m31")).toMatchObject({
+      homeTeamName: "Argentina",
+      awayTeamName: "Netherlands",
+      status: "scheduled",
+      apiStatusShort: null,
+    })
+    expect(isBracketComplete(afterSemifinals, semifinalPicks)).toBe(false)
+    expect(countRemainingPicks(afterSemifinals, semifinalPicks)).toBe(1)
+
+    const championPicks = [
+      ...semifinalPicks,
+      makePick({ id: "p-m31", matchId: "m31", round: "final", selectedTeamId: "team-a", selectedSlotKey: "A1", selectedTeamName: "Argentina" }),
+    ]
+    const afterChampion = buildWorldCupProjectedMatches(matches, championPicks)
+    expect(isBracketComplete(afterChampion, championPicks)).toBe(true)
+  })
+
   it("overlays saved picks without dropping seeded base matches", () => {
     const matches = [
       makeMatch({ id: "m1", matchNumber: 1, nextMatchId: "m17", nextMatchSlot: "home" }),

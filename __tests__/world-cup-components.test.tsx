@@ -644,6 +644,71 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(within(screen.getByRole("dialog", { name: /Guided Matchup Picker/i })).getByRole("button", { name: /Pick France to win/i })).toBeInTheDocument()
   })
 
+  it("opens projected Round of 16 matchups without simulated final state after Round of 32 picks", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    const seededMatches = makeShellSeededMatches().map((match) =>
+      match.id === "m17"
+        ? {
+            ...match,
+            status: "final",
+            apiStatusShort: "SIM",
+            homeScore: 2,
+            awayScore: 0,
+            winnerTeamName: "Best 3rd Place Team 1",
+          }
+        : match
+    )
+    const savedPicks = [
+      {
+        id: "pick-m1",
+        matchId: "m1",
+        round: "round_of_32",
+        selectedTeamId: "demo_team_brazil",
+        selectedSlotKey: "A1",
+        selectedTeamName: "Brazil",
+        pointsAwarded: 0,
+        isCorrect: null,
+        lockedAt: null,
+      },
+      {
+        id: "pick-m2",
+        matchId: "m2",
+        round: "round_of_32",
+        selectedTeamId: "demo_team_germany",
+        selectedSlotKey: "D2",
+        selectedTeamName: "Germany",
+        pointsAwarded: 0,
+        isCorrect: null,
+        lockedAt: null,
+      },
+    ]
+
+    render(
+      <WorldCupBracketShell
+        initialView={makeShellView({
+          matches: seededMatches,
+          picks: savedPicks,
+        }) as any}
+      />
+    )
+
+    await waitFor(() => expect(screen.getByTestId("world-cup-match-m17")).toBeInTheDocument())
+    const projectedRoundOf16 = screen.getByTestId("world-cup-match-m17")
+
+    expect(within(projectedRoundOf16).getByText("Brazil")).toBeInTheDocument()
+    expect(within(projectedRoundOf16).getByText("Germany")).toBeInTheDocument()
+    expect(within(projectedRoundOf16).queryByText(/^Final$/)).toBeNull()
+    expect(within(projectedRoundOf16).queryByText(/^Simulated$/)).toBeNull()
+    expect(within(projectedRoundOf16).queryByText(/^FT$/)).toBeNull()
+    expect(within(projectedRoundOf16).queryByTestId("wc-match-official-winner-m17")).toBeNull()
+
+    fireEvent.click(within(projectedRoundOf16).getByRole("button", { name: /Open guided picker for match 17/i }))
+
+    const dialog = await screen.findByRole("dialog", { name: /Guided Matchup Picker/i })
+    expect(within(dialog).getByRole("button", { name: /Pick Brazil to win/i })).toBeEnabled()
+    expect(within(dialog).getByRole("button", { name: /Pick Germany to win/i })).toBeEnabled()
+  })
+
   it("keeps the selected entry active after save refresh returns a different activeEntry", async () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     const entry1 = makeShellEntry({ id: "entry-1", name: "Bracket 1" })

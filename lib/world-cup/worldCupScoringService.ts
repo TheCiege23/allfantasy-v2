@@ -6,6 +6,7 @@ import type { WorldCupLeaderboardRow, WorldCupRound, WorldCupScoringValues } fro
 import {
   hasWorldCupPickSelection,
   isWorldCupMatchPickable,
+  resetWorldCupProjectedMatchStatus,
 } from "./worldCupProjectedBracket"
 
 type DbMatch = {
@@ -18,8 +19,18 @@ type DbMatch = {
   homeTeamName: string
   awayTeamName: string
   status: string
+  apiFixtureId?: number | null
+  homeScore?: number | null
+  awayScore?: number | null
+  homePenaltyScore?: number | null
+  awayPenaltyScore?: number | null
   winnerTeamId: string | null
   winnerTeamName: string | null
+  elapsedMinute?: number | null
+  injuryTime?: number | null
+  period?: string | null
+  apiStatusShort?: string | null
+  lastScoreSyncedAt?: Date | string | null
   nextMatchId?: string | null
   nextMatchSlot?: string | null
 }
@@ -291,6 +302,8 @@ export function projectWorldCupMatchesForEntryCompletion(
           id: match.awayTeamId,
           name: match.awayTeamName,
         }
+
+    resetWorldCupProjectedMatchStatus(next)
 
     if (match.nextMatchSlot === "home") {
       next.homeTeamId = team.id

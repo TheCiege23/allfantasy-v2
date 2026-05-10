@@ -29,6 +29,22 @@ export type WorldCupMatchPickabilityLike = {
   awayTeamName?: string | null
 }
 
+export type WorldCupProjectedMatchStatusLike = {
+  apiFixtureId?: number | null
+  status?: string | null
+  homeScore?: number | null
+  awayScore?: number | null
+  homePenaltyScore?: number | null
+  awayPenaltyScore?: number | null
+  winnerTeamId?: string | null
+  winnerTeamName?: string | null
+  elapsedMinute?: number | null
+  injuryTime?: number | null
+  period?: string | null
+  apiStatusShort?: string | null
+  lastScoreSyncedAt?: string | Date | null
+}
+
 export type WorldCupGuidedPicksState = "fixtures_not_synced" | "fixtures_not_ready" | "ready"
 
 export type WorldCupUnpickableReason =
@@ -92,6 +108,37 @@ export function hasWorldCupPickSelection(pick: WorldCupPickSelectionLike | null 
   return Boolean(pick?.selectedTeamId || pick?.selectedSlotKey)
 }
 
+function normalizeApiStatus(value: string | null | undefined): string {
+  return (value ?? "").trim().toUpperCase()
+}
+
+export function isOfficialWorldCupFixtureState(match: WorldCupProjectedMatchStatusLike): boolean {
+  const apiStatus = normalizeApiStatus(match.apiStatusShort)
+  if (apiStatus === "SIM" || apiStatus === "TEST") return false
+  if (match.apiFixtureId != null && (match.status === "live" || match.status === "halftime" || match.status === "final")) {
+    return true
+  }
+  return match.status === "final" && Boolean(match.winnerTeamId)
+}
+
+export function resetWorldCupProjectedMatchStatus<T extends WorldCupProjectedMatchStatusLike>(match: T): T {
+  if (isOfficialWorldCupFixtureState(match)) return match
+
+  match.status = "scheduled"
+  match.homeScore = null
+  match.awayScore = null
+  match.homePenaltyScore = null
+  match.awayPenaltyScore = null
+  match.winnerTeamId = null
+  match.winnerTeamName = null
+  match.elapsedMinute = null
+  match.injuryTime = null
+  match.period = null
+  match.apiStatusShort = null
+  match.lastScoreSyncedAt = null
+  return match
+}
+
 // ── Projected bracket ─────────────────────────────────────────────────────────
 
 /**
@@ -140,6 +187,8 @@ export function buildWorldCupProjectedMatches(
           logo: m.awayTeamLogo,
           slot: m.awaySlotKey,
         }
+
+    resetWorldCupProjectedMatchStatus(next)
 
     if (m.nextMatchSlot === "home") {
       next.homeTeamId = team.id
