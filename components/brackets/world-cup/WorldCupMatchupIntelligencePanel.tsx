@@ -5,6 +5,7 @@ import { AlertTriangle, Brain, Info, Sparkles, Target, Zap } from "lucide-react"
 import BracketBrainLockedCard from "@/components/bracket-brain/BracketBrainLockedCard"
 import type { WorldCupAiStrategy, WorldCupMatchupIntelligence } from "@/lib/world-cup/types"
 import { getWorldCupMatchupIntelligence } from "@/lib/world-cup/worldCupClientApi"
+import WorldCupTeamFlag from "./WorldCupTeamFlag"
 
 const STRATEGY_OPTIONS: { value: WorldCupAiStrategy; label: string; emoji: string }[] = [
   { value: "safe", label: "Safe", emoji: "🛡️" },
@@ -13,10 +14,21 @@ const STRATEGY_OPTIONS: { value: WorldCupAiStrategy; label: string; emoji: strin
   { value: "chaos", label: "Chaos", emoji: "🌪️" },
 ]
 
-function ProbBar({ label, pct, side }: { label: string; pct: number; side: "home" | "away" }) {
+function ProbBar({
+  label,
+  pct,
+  side,
+  flagUrl,
+}: {
+  label: string
+  pct: number
+  side: "home" | "away"
+  flagUrl?: string | null
+}) {
   return (
     <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-      <span className="max-w-[38%] min-w-0 truncate text-right text-[10px] text-white/50 sm:w-24 sm:max-w-none">
+      <span className="flex max-w-[38%] min-w-0 items-center justify-end gap-1 truncate text-right text-[10px] text-white/50 sm:w-24 sm:max-w-none">
+        <WorldCupTeamFlag flagUrl={flagUrl} teamName={label} size="xs" />
         {label}
       </span>
       <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/10">
@@ -44,6 +56,8 @@ export default function WorldCupMatchupIntelligencePanel({
   matchId,
   homeName,
   awayName,
+  homeLogo,
+  awayLogo,
   disabled,
   hasBracketBrainAi = false,
   stagedSide,
@@ -55,6 +69,8 @@ export default function WorldCupMatchupIntelligencePanel({
   matchId: string
   homeName: string
   awayName: string
+  homeLogo?: string | null
+  awayLogo?: string | null
   disabled: boolean
   /** AF Pro — enables Ask AI / Explain Matchup (server still enforces). */
   hasBracketBrainAi?: boolean
@@ -178,11 +194,13 @@ export default function WorldCupMatchupIntelligencePanel({
               label={homeName}
               pct={Math.round(intel.homeWinProbability * 100)}
               side="home"
+              flagUrl={homeLogo}
             />
             <ProbBar
               label={awayName}
               pct={Math.round(intel.awayWinProbability * 100)}
               side="away"
+              flagUrl={awayLogo}
             />
           </div>
 

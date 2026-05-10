@@ -6,6 +6,7 @@
 import type {
   WorldCupAiMatchupPreview,
   WorldCupAiStrategy,
+  WorldCupChallengeView,
   WorldCupLeaderboardRow,
   WorldCupMatchupIntelligence,
   WorldCupPickView,
@@ -61,6 +62,7 @@ export type WorldCupEntryPickResult = {
   pick: unknown
   picks: unknown[]
   isComplete: boolean
+  view?: WorldCupChallengeView
 }
 
 export type WorldCupBracketEntryDetailClient = WorldCupBracketEntryClient & {
@@ -484,6 +486,8 @@ export type WorldCupAdminLoadTestFixturesResult = {
     success: boolean
     teamsCreated: number
     teamsUpdated: number
+    templateMatchesCreated?: number
+    templateSlotsCreated?: number
     matchesUpdated: number
     pickableMatchesAfter: number
     totalMatchesAfter: number

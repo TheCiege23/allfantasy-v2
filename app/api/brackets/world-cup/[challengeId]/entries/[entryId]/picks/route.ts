@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import {
   WORLD_CUP_BRACKET_LOCKED_MESSAGE,
+  getWorldCupChallengeView,
   getWorldCupBracketEntryDetail,
   saveWorldCupBracketPickForEntry,
 } from "@/lib/world-cup"
@@ -68,6 +69,10 @@ export async function POST(request: Request, context: { params: { challengeId: s
       selectedSlotKey: parsed.data.selectedSlotKey,
       selectedSide: parsed.data.selectedSide,
     })
+    const view = await getWorldCupChallengeView({
+      challengeId: params.data.challengeId,
+      user: auth.user,
+    })
 
     return NextResponse.json({
       success: true,
@@ -75,6 +80,7 @@ export async function POST(request: Request, context: { params: { challengeId: s
       pick: result.pick,
       picks: result.picks,
       isComplete: result.isComplete,
+      view,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to save pick"

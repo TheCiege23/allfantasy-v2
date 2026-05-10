@@ -96,4 +96,31 @@ describe("WorldCupMatchupIntelligencePanel AF Pro gating", () => {
     expect(screen.getByTestId("wc-ai-ask-button")).not.toBeDisabled()
     expect(screen.getByTestId("wc-ai-explain-button")).not.toBeDisabled()
   })
+
+  it("uses the shared flag fallback for matchup display", async () => {
+    const WorldCupMatchupIntelligencePanel = (await import(
+      "@/components/brackets/world-cup/WorldCupMatchupIntelligencePanel"
+    )).default
+
+    render(
+      <WorldCupMatchupIntelligencePanel
+        challengeId="c1"
+        entryId="e1"
+        matchId="m1"
+        homeName="Brazil"
+        awayName="France"
+        homeLogo="https://flagcdn.com/w80/br.png"
+        awayLogo={null}
+        disabled={false}
+        hasBracketBrainAi
+        stagedSide={null}
+        onStageSide={() => {}}
+        onUseThisPick={() => {}}
+      />
+    )
+
+    await screen.findByTestId("world-cup-matchup-intelligence-panel")
+    expect(screen.getByAltText("Brazil flag")).toBeInTheDocument()
+    expect(screen.getByLabelText("France country code FRA")).toBeInTheDocument()
+  })
 })

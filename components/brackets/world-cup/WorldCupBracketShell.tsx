@@ -68,49 +68,87 @@ const BASE_TABS: Array<{ id: Tab; label: string; icon: typeof ClipboardList }> =
   { id: "rules", label: "Rules", icon: Users },
   { id: "invite", label: "Invite", icon: Share2 },
 ]
+
+const DEFAULT_WORLD_CUP_VIEW_SCORING = {
+  roundOf32Points: 10,
+  roundOf16Points: 20,
+  quarterFinalPoints: 40,
+  semiFinalPoints: 80,
+  finalPoints: 160,
+  championBonusPoints: 320,
+  thirdPlacePoints: 4,
+}
+
 function normalizeWorldCupView(input: WorldCupChallengeView | (Partial<WorldCupChallengeView> & { id?: string; name?: string }) | undefined): WorldCupChallengeView {
   const raw = input as any
+  const challengeRaw = raw?.challenge ?? raw ?? {}
   if (raw?.challenge) {
-    const v = raw as WorldCupChallengeView
+    const v = raw as Partial<WorldCupChallengeView>
     return {
       ...v,
+      challenge: {
+        id: challengeRaw?.id ?? "",
+        name: challengeRaw?.name ?? "World Cup Bracket",
+        ownerUserId: challengeRaw?.ownerUserId ?? "",
+        seasonYear: challengeRaw?.seasonYear ?? 2026,
+        inviteCode: challengeRaw?.inviteCode ?? "",
+        inviteUrl: challengeRaw?.inviteUrl ?? null,
+        visibility: challengeRaw?.visibility ?? "private",
+        pickLockStrategy: challengeRaw?.pickLockStrategy ?? "tournament_start",
+        pickLockAt: challengeRaw?.pickLockAt ?? null,
+        maxParticipants: challengeRaw?.maxParticipants ?? 100,
+        maxEntriesPerParticipant: challengeRaw?.maxEntriesPerParticipant ?? 5,
+        effectivePickLockAt: challengeRaw?.effectivePickLockAt ?? null,
+        status: challengeRaw?.status ?? "open",
+        includeThirdPlace: Boolean(challengeRaw?.includeThirdPlace),
+        isTestMode: Boolean(challengeRaw?.isTestMode),
+        simulationEnabled: Boolean(challengeRaw?.simulationEnabled),
+        simulatedAt: challengeRaw?.simulatedAt ?? null,
+        simulationStatus: challengeRaw?.simulationStatus ?? null,
+        hasSimulatedResults: Boolean(challengeRaw?.hasSimulatedResults),
+        lastSyncedAt: challengeRaw?.lastSyncedAt ?? null,
+        createdAt: challengeRaw?.createdAt ?? new Date().toISOString(),
+        updatedAt: challengeRaw?.updatedAt ?? new Date().toISOString(),
+      },
+      scoring: v.scoring ?? DEFAULT_WORLD_CUP_VIEW_SCORING,
+      slots: v.slots ?? [],
+      matches: v.matches ?? [],
+      participant: v.participant ?? null,
+      activeEntry: v.activeEntry ?? null,
+      entries: v.entries ?? [],
+      picks: v.picks ?? [],
+      leaderboard: v.leaderboard ?? [],
+      isOwner: Boolean(v.isOwner),
+      isAdmin: Boolean(v.isAdmin),
       hasBracketBrainAi: Boolean(v.hasBracketBrainAi),
     }
   }
   return {
     challenge: {
-      id: raw?.id ?? "",
-      name: raw?.name ?? "World Cup Bracket",
-      ownerUserId: raw?.ownerUserId ?? "",
-      seasonYear: raw?.seasonYear ?? 2026,
-      inviteCode: raw?.inviteCode ?? "",
-      inviteUrl: raw?.inviteUrl ?? null,
-      visibility: raw?.visibility ?? "private",
-      pickLockStrategy: raw?.pickLockStrategy ?? "tournament_start",
-      pickLockAt: raw?.pickLockAt ?? null,
-      maxParticipants: raw?.maxParticipants ?? 100,
-      maxEntriesPerParticipant: raw?.maxEntriesPerParticipant ?? 5,
-      effectivePickLockAt: raw?.effectivePickLockAt ?? null,
-      status: raw?.status ?? "open",
-      includeThirdPlace: Boolean(raw?.includeThirdPlace),
-      isTestMode: Boolean(raw?.isTestMode),
-      simulationEnabled: Boolean(raw?.simulationEnabled),
-      simulatedAt: raw?.simulatedAt ?? null,
-      simulationStatus: raw?.simulationStatus ?? null,
-      hasSimulatedResults: Boolean(raw?.hasSimulatedResults),
-      lastSyncedAt: raw?.lastSyncedAt ?? null,
-      createdAt: raw?.createdAt ?? new Date().toISOString(),
-      updatedAt: raw?.updatedAt ?? new Date().toISOString(),
+      id: challengeRaw?.id ?? "",
+      name: challengeRaw?.name ?? "World Cup Bracket",
+      ownerUserId: challengeRaw?.ownerUserId ?? "",
+      seasonYear: challengeRaw?.seasonYear ?? 2026,
+      inviteCode: challengeRaw?.inviteCode ?? "",
+      inviteUrl: challengeRaw?.inviteUrl ?? null,
+      visibility: challengeRaw?.visibility ?? "private",
+      pickLockStrategy: challengeRaw?.pickLockStrategy ?? "tournament_start",
+      pickLockAt: challengeRaw?.pickLockAt ?? null,
+      maxParticipants: challengeRaw?.maxParticipants ?? 100,
+      maxEntriesPerParticipant: challengeRaw?.maxEntriesPerParticipant ?? 5,
+      effectivePickLockAt: challengeRaw?.effectivePickLockAt ?? null,
+      status: challengeRaw?.status ?? "open",
+      includeThirdPlace: Boolean(challengeRaw?.includeThirdPlace),
+      isTestMode: Boolean(challengeRaw?.isTestMode),
+      simulationEnabled: Boolean(challengeRaw?.simulationEnabled),
+      simulatedAt: challengeRaw?.simulatedAt ?? null,
+      simulationStatus: challengeRaw?.simulationStatus ?? null,
+      hasSimulatedResults: Boolean(challengeRaw?.hasSimulatedResults),
+      lastSyncedAt: challengeRaw?.lastSyncedAt ?? null,
+      createdAt: challengeRaw?.createdAt ?? new Date().toISOString(),
+      updatedAt: challengeRaw?.updatedAt ?? new Date().toISOString(),
     },
-    scoring: raw?.scoring ?? {
-      roundOf32Points: 10,
-      roundOf16Points: 20,
-      quarterFinalPoints: 40,
-      semiFinalPoints: 80,
-      finalPoints: 160,
-      championBonusPoints: 320,
-      thirdPlacePoints: 4,
-    },
+    scoring: raw?.scoring ?? DEFAULT_WORLD_CUP_VIEW_SCORING,
     slots: raw?.slots ?? [],
     matches: raw?.matches ?? [],
     participant: raw?.participant ?? null,
@@ -183,6 +221,41 @@ function entryClientsFromInitialView(view: WorldCupChallengeView): WorldCupBrack
       updatedAt: leaderboard?.updatedAt ?? entry.createdAt,
     }
   })
+}
+
+function mergeWorldCupChallengeView(
+  currentView: WorldCupChallengeView,
+  nextView: WorldCupChallengeView
+): WorldCupChallengeView {
+  const sameChallenge =
+    !nextView.challenge.id ||
+    !currentView.challenge.id ||
+    nextView.challenge.id === currentView.challenge.id
+
+  if (!sameChallenge) return nextView
+
+  const keepCurrentMatches =
+    currentView.matches.length > 0 && nextView.matches.length === 0
+  const keepCurrentSlots =
+    currentView.slots.length > 0 && nextView.slots.length === 0
+
+  return {
+    ...currentView,
+    ...nextView,
+    challenge: {
+      ...currentView.challenge,
+      ...nextView.challenge,
+      id: nextView.challenge.id || currentView.challenge.id,
+    },
+    scoring: nextView.scoring ?? currentView.scoring,
+    slots: keepCurrentSlots ? currentView.slots : nextView.slots,
+    matches: keepCurrentMatches ? currentView.matches : nextView.matches,
+    entries: nextView.entries.length > 0 ? nextView.entries : currentView.entries,
+    leaderboard: nextView.leaderboard.length > 0 ? nextView.leaderboard : currentView.leaderboard,
+    participant: nextView.participant ?? currentView.participant,
+    activeEntry: nextView.activeEntry ?? currentView.activeEntry,
+    picks: nextView.picks,
+  }
 }
 
 export default function WorldCupBracketShell({
@@ -284,6 +357,7 @@ export default function WorldCupBracketShell({
   const aiBuildAbortRef = useRef(false)
   const pageScrollRef = useRef<HTMLDivElement | null>(null)
   const guidedAutoOpenedRef = useRef(false)
+  const latestViewRef = useRef(normalizedInitialView)
 
   const challengeId = view.challenge.id
 
@@ -305,9 +379,15 @@ export default function WorldCupBracketShell({
     return list
   }, [showCommissionerTab])
 
+  useEffect(() => {
+    latestViewRef.current = view
+  }, [view])
+
   const applyChallengeView = useCallback((nextView: WorldCupChallengeView) => {
-    setView(nextView)
-    setEntries((prev) => mergeEntryScoresFromView(prev, nextView))
+    const mergedView = mergeWorldCupChallengeView(latestViewRef.current, nextView)
+    latestViewRef.current = mergedView
+    setView(mergedView)
+    setEntries((prev) => mergeEntryScoresFromView(prev, mergedView))
   }, [])
 
   const persistSelectedEntryId = useCallback(
@@ -678,12 +758,17 @@ export default function WorldCupBracketShell({
         matchNumber: match.matchNumber,
       })
 
-      // Refresh the full view for leaderboard / scoring updates
-      const latest = await fetch(`/api/brackets/world-cup/${challengeId}`)
-      if (latest.ok) {
-        const data = await latest.json()
-        const nextView = normalizeWorldCupView(data.view ?? data.challenge ?? data)
-        applyChallengeView(nextView)
+      // Keep the base challenge matches from the full view; never replace them
+      // with the entry-only pick response.
+      if (result.view) {
+        applyChallengeView(normalizeWorldCupView(result.view))
+      } else {
+        const latest = await fetch(`/api/brackets/world-cup/${challengeId}`)
+        if (latest.ok) {
+          const data = await latest.json()
+          const nextView = normalizeWorldCupView(data.view ?? data.challenge ?? data)
+          applyChallengeView(nextView)
+        }
       }
 
       // Update entry in local list if returned
@@ -1162,16 +1247,21 @@ export default function WorldCupBracketShell({
         )
       }
 
-      // Refresh view for leaderboard
-      fetch(`/api/brackets/world-cup/${challengeId}`)
-        .then((r) => r.ok ? r.json() : null)
-        .then((data) => {
-          if (data) {
-            const nextView = normalizeWorldCupView(data.view ?? data.challenge ?? data)
-            applyChallengeView(nextView)
-          }
-        })
-        .catch(() => null)
+      // Refresh view for leaderboard without ever replacing the base match list
+      // with an entry-only save response.
+      if (result.view) {
+        applyChallengeView(normalizeWorldCupView(result.view))
+      } else {
+        fetch(`/api/brackets/world-cup/${challengeId}`)
+          .then((r) => r.ok ? r.json() : null)
+          .then((data) => {
+            if (data) {
+              const nextView = normalizeWorldCupView(data.view ?? data.challenge ?? data)
+              applyChallengeView(nextView)
+            }
+          })
+          .catch(() => null)
+      }
 
       if (!options?.suppressToast) {
         const cleared = invalidMatchIds.length

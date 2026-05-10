@@ -532,6 +532,53 @@ describe("World Cup pick readiness guards", () => {
     expect(isWorldCupMatchPickable(nextRound!)).toBe(true)
   })
 
+  it("overlays saved picks without dropping seeded base matches", () => {
+    const matches = [
+      makeMatch({ id: "m1", matchNumber: 1, nextMatchId: "m17", nextMatchSlot: "home" }),
+      makeMatch({
+        id: "m2",
+        matchNumber: 2,
+        homeSlotKey: "C1",
+        awaySlotKey: "D2",
+        homeTeamId: "team-c",
+        awayTeamId: "team-d",
+        homeTeamName: "France",
+        awayTeamName: "Japan",
+        nextMatchId: "m17",
+        nextMatchSlot: "away",
+      }),
+      makeMatch({
+        id: "m17",
+        round: "round_of_16",
+        roundIndex: 1,
+        matchNumber: 17,
+        homeSlotKey: "W-M1",
+        awaySlotKey: "W-M2",
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Winner Match 1",
+        awayTeamName: "Winner Match 2",
+      }),
+    ]
+    const savedPicks = [
+      makePick({
+        id: "p-m1",
+        matchId: "m1",
+        selectedTeamId: "team-a",
+        selectedSlotKey: "A1",
+        selectedTeamName: "Argentina",
+      }),
+    ]
+
+    const projected = buildWorldCupProjectedMatches(matches, savedPicks)
+
+    expect(projected.map((match) => match.id)).toEqual(["m1", "m2", "m17"])
+    expect(projected.find((match) => match.id === "m1")?.homeTeamName).toBe("Argentina")
+    expect(projected.find((match) => match.id === "m2")?.homeTeamName).toBe("France")
+    expect(projected.find((match) => match.id === "m17")?.homeTeamName).toBe("Argentina")
+    expect(findFirstUnpickedMatch(projected, savedPicks, getOrderedRounds(projected))?.id).toBe("m2")
+  })
+
   it("keeps an incomplete saved bracket incomplete after refresh", () => {
     const matches = [
       makeMatch({ id: "m1", matchNumber: 1, nextMatchId: "m3", nextMatchSlot: "home" }),

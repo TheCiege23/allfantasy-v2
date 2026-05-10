@@ -1,5 +1,4 @@
 "use client"
-import Image from "next/image"
 import { Check, Clock, Lock, Radio, Trophy, X } from "lucide-react"
 import type { WorldCupMatchView, WorldCupPickView } from "@/lib/world-cup/types"
 import {
@@ -14,24 +13,7 @@ import {
   hasWorldCupPickSelection,
   isWorldCupMatchPickable,
 } from "@/lib/world-cup/worldCupProjectedBracket"
-
-function isImageAsset(src?: string | null): src is string {
-  return Boolean(src && (/^https?:\/\//i.test(src) || src.startsWith("/")))
-}
-
-function Logo({ src, name }: { src?: string | null; name: string }) {
-  return isImageAsset(src) ? (
-    <Image src={src} alt={`${name} flag`} width={28} height={28} className="h-7 w-7 shrink-0 rounded-full bg-white object-contain p-0.5" />
-  ) : src ? (
-    <span aria-label={`${name} flag`} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-lg">
-      {src}
-    </span>
-  ) : (
-    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-black text-white/70">
-      {name.slice(0, 2).toUpperCase()}
-    </span>
-  )
-}
+import WorldCupTeamFlag from "./WorldCupTeamFlag"
 
 function formatLockTime(iso: string): string {
   try {
@@ -333,7 +315,7 @@ export default function WorldCupMatchupCard({
                 .filter(Boolean)
                 .join(" ")}
             >
-              <Logo src={t.logo} name={displayName} />
+              <WorldCupTeamFlag flagUrl={t.logo} teamName={displayName} size="sm" />
               <span className="min-w-0 flex-1 overflow-hidden">
                 <span className={`block truncate text-sm font-bold leading-tight ${isPlaceholder ? "italic text-white/40" : "text-white"}`}>
                   {displayName}

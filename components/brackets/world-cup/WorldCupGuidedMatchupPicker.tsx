@@ -1,5 +1,4 @@
 "use client"
-import Image from "next/image"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   AlertTriangle,
@@ -35,6 +34,7 @@ import {
   isWorldCupMatchPickable,
 } from "@/lib/world-cup/worldCupProjectedBracket"
 import WorldCupMatchupIntelligencePanel from "@/components/brackets/world-cup/WorldCupMatchupIntelligencePanel"
+import WorldCupTeamFlag from "@/components/brackets/world-cup/WorldCupTeamFlag"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -55,25 +55,6 @@ export type GuidedPickPayload = {
 type SaveState = "idle" | "saving" | "saved" | "error"
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
-
-function TeamLogo({ src, name }: { src?: string | null; name: string }) {
-  if (src) {
-    return (
-      <Image
-        src={src}
-        alt=""
-        width={56}
-        height={56}
-        className="h-16 w-16 rounded-full bg-white object-contain p-0.5 sm:h-14 sm:w-14"
-      />
-    )
-  }
-  return (
-    <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/10 text-xl font-black text-white/60 sm:h-14 sm:w-14 sm:text-lg">
-      {name.slice(0, 2).toUpperCase()}
-    </span>
-  )
-}
 
 function formatMatchDate(iso: string | null): string {
   if (!iso) return "Time TBD"
@@ -184,7 +165,7 @@ function TeamCard({
         </span>
       )}
 
-      <TeamLogo src={teamLogo} name={teamName} />
+      <WorldCupTeamFlag flagUrl={teamLogo} teamName={teamName} size="lg" />
       <span className="hyphens-auto break-words px-1 text-lg font-black leading-tight text-white sm:text-xl">{teamName}</span>
       {showScore && (
         <span className="text-2xl font-black tabular-nums text-white/80">
@@ -1004,6 +985,8 @@ function MatchView({
             matchId={match.id}
             homeName={match.homeTeamName || match.homeSlotKey}
             awayName={match.awayTeamName || match.awaySlotKey}
+            homeLogo={match.homeTeamLogo}
+            awayLogo={match.awayTeamLogo}
             disabled={isLocked}
             hasBracketBrainAi={hasBracketBrainAi}
             stagedSide={stagedSide}
