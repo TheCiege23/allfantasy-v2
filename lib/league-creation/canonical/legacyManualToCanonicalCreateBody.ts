@@ -5,9 +5,14 @@
  * Keep aligned with lib/create-league-v2/submit.ts (submitCreateLeagueV2) concept / preset selection.
  */
 
-import { getDefaultScoringPresetId } from '@/lib/league-creation-preset/scoring-presets'
+import {
+  isScoringPresetValidForContext,
+  resolveScoringPresetId,
+  type PresetCtx,
+} from '@/lib/league-creation-preset/scoring-presets'
 import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
 import type { SupportedSport } from '@/lib/create-league-v2/state'
+import { isFootballLike } from '@/lib/create-league-v2/state'
 import { normalizeToSupportedSport, supportsIdpLeagueSport } from '@/lib/sport-scope'
 import { normalizeBestBallSettings } from '@/lib/bestball/rules'
 
@@ -22,6 +27,61 @@ export type LegacyManualCanonicalBuildInput = {
   settingsWizard: Record<string, unknown> | undefined
   /** True when NFL IDP card / DYNASTY_IDP / explicit idp league type */
   isIdpRequested: boolean
+  /**
+   * Legacy wizard / Quick Create `scoring` field (e.g. PPR, HALF_PPR) when `scoringPresetId` is absent.
+   * Mapped to stable preset ids (fb_full_ppr, …) before canonical validation.
+   */
+  legacyScoringLabel?: string | null
+  /**
+   * When true and the wizard type is ambiguous (`redraft`), prefer `dynasty` (Quick Create sometimes leaves type as redraft).
+   */
+  preferDynastyConcept?: boolean
+}
+
+function mapLegacyScoringLabelToPresetCandidate(
+  sport: SupportedSport,
+  raw: string | undefined | null,
+  ctx: PresetCtx,
+): string | null {
+  if (raw == null) return null
+  const trimmed = String(raw).trim()
+  if (!trimmed) return null
+
+  if (isScoringPresetValidForContext(trimmed, ctx)) {
+    return trimmed
+  }
+
+  const norm = trimmed.toUpperCase().replace(/\s+/g, '_').replace(/-/g, '_')
+
+  if (isFootballLike(sport) && !ctx.idpSelected) {
+    const footballAlias: Record<string, string> = {
+      PPR: 'fb_full_ppr',
+      FULL_PPR: 'fb_full_ppr',
+      FULL: 'fb_full_ppr',
+      HALF_PPR: 'fb_half_ppr',
+      HALF: 'fb_half_ppr',
+      STANDARD: 'fb_standard',
+      NON_PPR: 'fb_standard',
+      STD: 'fb_standard',
+      NONPPR: 'fb_standard',
+    }
+    const mapped = footballAlias[norm]
+    if (mapped && isScoringPresetValidForContext(mapped, ctx)) return mapped
+  }
+
+  const pointsBySport: Partial<Record<SupportedSport, string>> = {
+    NBA: 'nba_points',
+    NCAAB: 'ncaab_points',
+    MLB: 'mlb_points',
+    NHL: 'nhl_points',
+    SOCCER: 'soc_points',
+  }
+  if ((norm === 'POINTS' || norm === 'DEFAULT' || norm === 'CLASSIC') && pointsBySport[sport]) {
+    const id = pointsBySport[sport]!
+    if (isScoringPresetValidForContext(id, ctx)) return id
+  }
+
+  return null
 }
 
 /**
@@ -38,18 +98,25 @@ export function buildLegacyManualCanonicalCreatePayload(input: LegacyManualCanon
     concept = 'idp'
   } else if (input.isIdpRequested && supportsIdpLeagueSport(sport) && (ltRaw === 'redraft' || ltRaw === '')) {
     concept = 'idp'
+  } else if (input.preferDynastyConcept === true && ltRaw === 'redraft') {
+    concept = 'dynasty'
   } else {
     concept = input.requestedLeagueType ?? 'redraft'
   }
 
-  const ctx = {
-    leagueType: (input.requestedLeagueType ?? 'redraft') as LeagueTypeId,
+  const ctx: PresetCtx = {
+    leagueType: (String(concept).toLowerCase() === 'dynasty'
+      ? 'dynasty'
+      : (input.requestedLeagueType ?? 'redraft')) as LeagueTypeId,
     sport: sport as SupportedSport,
     idpSelected: input.isIdpRequested,
   }
-  const scoringPreset =
+  const scoringPreset = resolveScoringPresetId(
     input.scoringPresetIdInput?.trim() ||
-    getDefaultScoringPresetId(ctx)
+      mapLegacyScoringLabelToPresetCandidate(sport, input.legacyScoringLabel, ctx) ||
+      '',
+    ctx,
+  )
 
   const draftType = input.requestedDraftType ?? 'snake'
 

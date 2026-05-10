@@ -107,7 +107,7 @@ export async function POST(req: Request) {
     isDynasty: isDynastyInput,
     isSuperflex,
     sport: sportInput,
-    leagueVariant: leagueVariantInput,
+    leagueVariant: leagueVariantFromBody,
     createFromSleeperImport,
     sleeperLeagueId,
     league_type: leagueTypeWizard,
@@ -130,6 +130,17 @@ export async function POST(req: Request) {
     scoringMode: scoringModeInput,
     categoryPresetId: categoryPresetIdInput,
   } = parsed.data;
+
+  /**
+   * Quick Create sets `leagueVariant` to the same string as `scoring`; that is not a real league variant.
+   * Strip it so draft-rule lookups and modifier detection do not see a bogus "format" token.
+   */
+  const leagueVariantEffective =
+    leagueVariantFromBody != null &&
+    scoringInput != null &&
+    String(leagueVariantFromBody).trim() === String(scoringInput).trim()
+      ? undefined
+      : leagueVariantFromBody;
 
   if (createFromSleeperImport && !sleeperLeagueId?.trim()) {
     return NextResponse.json({ error: 'sleeperLeagueId is required' }, { status: 400 });
@@ -206,7 +217,7 @@ export async function POST(req: Request) {
   }
   if (
     requestedDraftType &&
-    !isDraftTypeAllowedForSport(sport, requestedDraftType, leagueVariantInput ?? null)
+    !isDraftTypeAllowedForSport(sport, requestedDraftType, leagueVariantEffective ?? null)
   ) {
     return NextResponse.json(
       {
@@ -216,8 +227,8 @@ export async function POST(req: Request) {
     );
   }
   const isIdpRequested =
-    String(leagueVariantInput ?? '').toUpperCase() === 'IDP' ||
-    String(leagueVariantInput ?? '').toUpperCase() === 'DYNASTY_IDP' ||
+    String(leagueVariantEffective ?? '').toUpperCase() === 'IDP' ||
+    String(leagueVariantEffective ?? '').toUpperCase() === 'DYNASTY_IDP' ||
     String(requestedLeagueType ?? '').toLowerCase() === 'idp' ||
     String(requestedLeagueType ?? '').toLowerCase() === 'dynasty_idp';
   if (scoringPresetIdInput?.trim()) {
@@ -248,13 +259,13 @@ export async function POST(req: Request) {
     );
   }
   const isZombieLeagueType =
-    String(leagueVariantInput ?? '').toLowerCase() === 'zombie' ||
+    String(leagueVariantEffective ?? '').toLowerCase() === 'zombie' ||
     String(requestedLeagueType ?? '').toLowerCase() === 'zombie';
   const isDevyRequested =
-    String(leagueVariantInput ?? '').toLowerCase() === 'devy_dynasty' ||
+    String(leagueVariantEffective ?? '').toLowerCase() === 'devy_dynasty' ||
     String(requestedLeagueType ?? '').toLowerCase() === 'devy';
   const isC2CRequested =
-    String(leagueVariantInput ?? '').toLowerCase() === 'merged_devy_c2c' ||
+    String(leagueVariantEffective ?? '').toLowerCase() === 'merged_devy_c2c' ||
     String(requestedLeagueType ?? '').toLowerCase() === 'c2c';
   /** Zombie uses scoring variants (PPR, IDP, etc.) on `leagueVariant` — never treat as Devy/C2C dynasty-only. */
   if (!isZombieLeagueType && (isDevyRequested || isC2CRequested) && isDynastyInput === false) {
@@ -312,7 +323,7 @@ export async function POST(req: Request) {
     if (name == null) name = leagueDef.default_league_name_pattern;
     if (leagueSize == null) leagueSize = leagueDef.default_team_count;
     if (scoring == null) {
-      const isIdp = leagueVariantInput && ['IDP', 'DYNASTY_IDP'].includes(leagueVariantInput.toUpperCase());
+      const isIdp = leagueVariantEffective && ['IDP', 'DYNASTY_IDP'].includes(leagueVariantEffective.toUpperCase());
       scoring = isIdp ? 'IDP' : scoringDef.scoring_format;
     }
     if (isDynasty == null) isDynasty = false;
@@ -432,7 +443,7 @@ export async function POST(req: Request) {
       }
 
       const isGuillotineEarly =
-        String(leagueVariantInput ?? '').toLowerCase() === 'guillotine' ||
+        String(leagueVariantEffective ?? '').toLowerCase() === 'guillotine' ||
         String(requestedLeagueType ?? '').toLowerCase() === 'guillotine';
       if (isGuillotineEarly) {
         const { validateGuillotineCreation } = await import('@/lib/guillotine/GuillotineValidation');
@@ -476,6 +487,8 @@ export async function POST(req: Request) {
         soccerPipelineInput,
         settingsWizard: settingsWizard as Record<string, unknown> | undefined,
         isIdpRequested,
+        legacyScoringLabel: scoring != null ? String(scoring) : undefined,
+        preferDynastyConcept: isDynasty === true,
       });
       const sanitizedCanonical = stripForbiddenCreateLeagueFields(rawCanonical);
       const validatedCanonical = validateCreatePayload(sanitizedCanonical.body);
@@ -534,25 +547,25 @@ export async function POST(req: Request) {
       };
 
       const isGuillotine =
-        String(leagueVariantInput ?? '').toLowerCase() === 'guillotine' ||
+        String(leagueVariantEffective ?? '').toLowerCase() === 'guillotine' ||
         String(requestedLeagueType ?? '').toLowerCase() === 'guillotine';
       const isSalaryCap =
-        String(leagueVariantInput ?? '').toLowerCase() === 'salary_cap' ||
+        String(leagueVariantEffective ?? '').toLowerCase() === 'salary_cap' ||
         String(requestedLeagueType ?? '').toLowerCase() === 'salary_cap';
       const isSurvivor =
-        String(leagueVariantInput ?? '').toLowerCase() === 'survivor' ||
+        String(leagueVariantEffective ?? '').toLowerCase() === 'survivor' ||
         String(requestedLeagueType ?? '').toLowerCase() === 'survivor';
       const isDevy =
-        String(leagueVariantInput ?? '').toLowerCase() === 'devy_dynasty' ||
+        String(leagueVariantEffective ?? '').toLowerCase() === 'devy_dynasty' ||
         String(requestedLeagueType ?? '').toLowerCase() === 'devy';
       const isC2C =
-        String(leagueVariantInput ?? '').toLowerCase() === 'merged_devy_c2c' ||
+        String(leagueVariantEffective ?? '').toLowerCase() === 'merged_devy_c2c' ||
         String(requestedLeagueType ?? '').toLowerCase() === 'c2c';
       const isBigBrother =
-        String(leagueVariantInput ?? '').toLowerCase() === 'big_brother' ||
+        String(leagueVariantEffective ?? '').toLowerCase() === 'big_brother' ||
         String(requestedLeagueType ?? '').toLowerCase() === 'big_brother';
       const isZombie =
-        String(leagueVariantInput ?? '').toLowerCase() === 'zombie' ||
+        String(leagueVariantEffective ?? '').toLowerCase() === 'zombie' ||
         String(requestedLeagueType ?? '').toLowerCase() === 'zombie';
       const effectiveDynasty = isGuillotine ? false : isDevy || isC2C ? true : isDynasty === true;
 
@@ -613,7 +626,7 @@ export async function POST(req: Request) {
       resolveEffectiveLeagueVariant({
         sport,
         leagueType: requestedLeagueType ?? null,
-        requestedVariant: leagueVariantInput ?? null,
+        requestedVariant: leagueVariantEffective ?? null,
       }).variant ?? undefined;
     const effectiveDynastyForCreation = isDevyRequested || isC2CRequested || (isDynasty === true);
     const {
@@ -634,7 +647,7 @@ export async function POST(req: Request) {
       sport,
       leagueType: requestedLeagueType,
       draftType: requestedDraftType,
-      leagueVariant: leagueVariantInput,
+      leagueVariant: leagueVariantEffective,
       requestedModifiers: modifiers ?? [],
     });
     if (presetVariant === 'devy_dynasty' || presetVariant === 'merged_devy_c2c') {
@@ -841,7 +854,7 @@ export async function POST(req: Request) {
       initialSettings.inviteLink = buildLeagueInviteUrl(resolvedInviteCode, { params: { utm_campaign: 'league_invite' } });
     }
     const isGuillotineEarly =
-      String(leagueVariantInput ?? '').toLowerCase() === 'guillotine' ||
+      String(leagueVariantEffective ?? '').toLowerCase() === 'guillotine' ||
       String(requestedLeagueType ?? '').toLowerCase() === 'guillotine';
     if (isGuillotineEarly) {
       const { validateGuillotineCreation, normalizeGuillotineRosterMode } = await import('@/lib/guillotine/GuillotineValidation');
@@ -861,7 +874,7 @@ export async function POST(req: Request) {
     {
       const lt = String(initialSettings.league_type ?? (initialSettings as Record<string, unknown>).leagueType ?? '').toLowerCase();
       const isDevyCreate =
-        lt === 'devy' || String(leagueVariantInput ?? '').toLowerCase() === 'devy_dynasty';
+        lt === 'devy' || String(leagueVariantEffective ?? '').toLowerCase() === 'devy_dynasty';
       if (isDevyCreate) {
         const s = initialSettings as Record<string, unknown>;
         const fromCollege =
@@ -889,7 +902,7 @@ export async function POST(req: Request) {
     {
       const lt = String(initialSettings.league_type ?? (initialSettings as Record<string, unknown>).leagueType ?? '').toLowerCase();
       const isC2cCreate =
-        lt === 'c2c' || String(leagueVariantInput ?? '').toLowerCase() === 'merged_devy_c2c';
+        lt === 'c2c' || String(leagueVariantEffective ?? '').toLowerCase() === 'merged_devy_c2c';
       if (isC2cCreate) {
         const s = initialSettings as Record<string, unknown>;
         const fromCreation =
@@ -929,7 +942,7 @@ export async function POST(req: Request) {
       supportsKickers: initialSettings.use_kickers === true,
       supportsTeamDefense: initialSettings.use_team_defense === true,
       supportsIdp: isIdpRequested,
-      supportsDevy: (initialSettings.devy === true || String(requestedLeagueType ?? leagueVariantInput ?? '').toLowerCase() === 'devy' || String(leagueVariantInput ?? '').toLowerCase() === 'devy_dynasty'),
+      supportsDevy: (initialSettings.devy === true || String(requestedLeagueType ?? leagueVariantEffective ?? '').toLowerCase() === 'devy' || String(leagueVariantEffective ?? '').toLowerCase() === 'devy_dynasty'),
       supportsTaxi: (initialSettings.taxi_slots as number) > 0 || initialSettings.taxi === true,
       supportsIr: (initialSettings.ir_slots as number) > 0 || initialSettings.ir === true,
       supportsBracketMode: initialSettings.bracket_mode === true,
@@ -946,28 +959,28 @@ export async function POST(req: Request) {
       );
     }
     const isGuillotine =
-      String(leagueVariantInput ?? '').toLowerCase() === 'guillotine' ||
+      String(leagueVariantEffective ?? '').toLowerCase() === 'guillotine' ||
       String(requestedLeagueType ?? '').toLowerCase() === 'guillotine';
     const isSalaryCap =
-      String(leagueVariantInput ?? '').toLowerCase() === 'salary_cap' ||
+      String(leagueVariantEffective ?? '').toLowerCase() === 'salary_cap' ||
       String(requestedLeagueType ?? '').toLowerCase() === 'salary_cap';
     const isSurvivor =
-      String(leagueVariantInput ?? '').toLowerCase() === 'survivor' ||
+      String(leagueVariantEffective ?? '').toLowerCase() === 'survivor' ||
       String(requestedLeagueType ?? '').toLowerCase() === 'survivor';
     const isDevy =
-      String(leagueVariantInput ?? '').toLowerCase() === 'devy_dynasty' ||
+      String(leagueVariantEffective ?? '').toLowerCase() === 'devy_dynasty' ||
       String(requestedLeagueType ?? '').toLowerCase() === 'devy';
     const isC2C =
-      String(leagueVariantInput ?? '').toLowerCase() === 'merged_devy_c2c' ||
+      String(leagueVariantEffective ?? '').toLowerCase() === 'merged_devy_c2c' ||
       String(requestedLeagueType ?? '').toLowerCase() === 'c2c';
     const isBigBrother =
-      String(leagueVariantInput ?? '').toLowerCase() === 'big_brother' ||
+      String(leagueVariantEffective ?? '').toLowerCase() === 'big_brother' ||
       String(requestedLeagueType ?? '').toLowerCase() === 'big_brother';
     const isZombie =
-      String(leagueVariantInput ?? '').toLowerCase() === 'zombie' ||
+      String(leagueVariantEffective ?? '').toLowerCase() === 'zombie' ||
       String(requestedLeagueType ?? '').toLowerCase() === 'zombie';
     const effectiveDynasty = isGuillotine ? false : (isDevy || isC2C ? true : isDynasty);
-    const resolvedVariant = isGuillotine ? 'guillotine' : isSalaryCap ? 'salary_cap' : isSurvivor ? 'survivor' : isC2C ? 'merged_devy_c2c' : isDevy ? 'devy_dynasty' : isBigBrother ? 'big_brother' : isZombie ? 'zombie' : isIdpRequested ? (effectiveDynasty ? 'DYNASTY_IDP' : 'IDP') : (leagueVariantInput ?? null);
+    const resolvedVariant = isGuillotine ? 'guillotine' : isSalaryCap ? 'salary_cap' : isSurvivor ? 'survivor' : isC2C ? 'merged_devy_c2c' : isDevy ? 'devy_dynasty' : isBigBrother ? 'big_brother' : isZombie ? 'zombie' : isIdpRequested ? (effectiveDynasty ? 'DYNASTY_IDP' : 'IDP') : (leagueVariantEffective ?? null);
     // Canonical cross-module keys used by multi-sport services and downstream UIs.
     initialSettings.sport_type = sport;
     initialSettings.league_variant = resolvedVariant ?? null;
@@ -1000,7 +1013,7 @@ export async function POST(req: Request) {
         : 'America/New_York';
 
     const isSurvivorLeague =
-      String(leagueVariantInput ?? '').toLowerCase() === 'survivor' ||
+      String(leagueVariantEffective ?? '').toLowerCase() === 'survivor' ||
       String(requestedLeagueType ?? '').toLowerCase() === 'survivor';
     const survivorTribeCountColumn =
       isSurvivorLeague &&
@@ -1062,7 +1075,7 @@ export async function POST(req: Request) {
 
     try {
       const { runPostCreateInitialization } = await import('@/lib/league-defaults-orchestrator/LeagueDefaultsOrchestrator');
-      await runPostCreateInitialization(league.id, sport as string, resolvedVariant ?? leagueVariantInput ?? undefined);
+      await runPostCreateInitialization(league.id, sport as string, resolvedVariant ?? leagueVariantEffective ?? undefined);
     } catch (err) {
       console.warn('[league/create] Bootstrap non-fatal:', err);
     }
