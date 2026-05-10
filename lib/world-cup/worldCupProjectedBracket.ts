@@ -71,38 +71,93 @@ function normalizeTeamName(value: string | null | undefined): string {
   return (value ?? "").trim().toLowerCase()
 }
 
-function isPlaceholderTeamName(value: string | null | undefined): boolean {
+/**
+ * True when the label is still a bracket-template placeholder (group winner, 3rd-place slot, etc.)
+ * — not a resolved nation/club name.
+ */
+export function isWorldCupBracketPlaceholderLabel(value: string | null | undefined): boolean {
   const normalized = normalizeTeamName(value)
   if (!normalized) return true
   if (normalized === "tbd" || normalized === "to be determined") return true
   if (/^[a-h][12]$/.test(normalized)) return true
   if (/^tbd\d+$/.test(normalized)) return true
+  const raw = (value ?? "").trim()
+  if (/\bgroup\s+[a-h]\b/i.test(raw)) return true
+  if (/\b(best|top)\s*\d*\s*(third|3rd)\b/i.test(raw)) return true
+  if (/\b(best|worst)\s+.*\b(team|teams|place)\b/i.test(raw)) return true
+  if (/\b3(rd)?\s*place\b/i.test(raw)) return true
+  if (/\bthird\s*place\b/i.test(raw)) return true
+  if (/\bwinner\b/i.test(raw) && /\b(group|match|game|round|mf)\b/i.test(raw)) return true
+  if (/\b(match|game|mf)\s*\d+/i.test(raw) && /\b(winner|runner)\b/i.test(raw)) return true
+  if (/\brunner[\s-]?up\b/i.test(raw)) return true
   return false
+}
+
+/** @deprecated use isWorldCupBracketPlaceholderLabel — kept for older call sites */
+export function isPlaceholderTeamName(value: string | null | undefined): boolean {
+  return isWorldCupBracketPlaceholderLabel(value)
+}
+
+export type WorldCupProjectedSide = {
+  teamId: string | null
+  teamName: string
+  teamLogo: string | null
+  slotKey: string
+}
+
+/**
+ * Single source of truth for effective home/away teams and knockout pick readiness.
+ * Prefers real team ids + non-placeholder names once projection has filled the matchup.
+ */
+export function getWorldCupProjectedMatchTeams(match: WorldCupMatchView): {
+  home: WorldCupProjectedSide
+  away: WorldCupProjectedSide
+  readyForPicks: boolean
+} {
+  const homeSlot = String(match.homeSlotKey ?? "").trim()
+  const awaySlot = String(match.awaySlotKey ?? "").trim()
+  const homeNameRaw = (match.homeTeamName ?? "").trim()
+  const awayNameRaw = (match.awayTeamName ?? "").trim()
+
+  const home: WorldCupProjectedSide = {
+    teamId: match.homeTeamId ?? null,
+    teamName: homeNameRaw || homeSlot || "TBD",
+    teamLogo: match.homeTeamLogo ?? null,
+    slotKey: homeSlot,
+  }
+  const away: WorldCupProjectedSide = {
+    teamId: match.awayTeamId ?? null,
+    teamName: awayNameRaw || awaySlot || "TBD",
+    teamLogo: match.awayTeamLogo ?? null,
+    slotKey: awaySlot,
+  }
+
+  const readyForPicks =
+    match.status !== "final" &&
+    Boolean(home.teamId && away.teamId) &&
+    Boolean(homeNameRaw && awayNameRaw) &&
+    !isWorldCupBracketPlaceholderLabel(homeNameRaw) &&
+    !isWorldCupBracketPlaceholderLabel(awayNameRaw)
+
+  return { home, away, readyForPicks }
 }
 
 export function getWorldCupUnpickableReason(match: WorldCupMatchPickabilityLike): WorldCupUnpickableReason {
   if (!match?.id) return "unknown"
   if (match.status === "final") return "final"
-  if (!match.homeTeamId) return "missing_home_team"
-  if (!match.awayTeamId) return "missing_away_team"
-  if (
-    !match.homeTeamName ||
-    !match.awayTeamName ||
-    isPlaceholderTeamName(match.homeTeamName) ||
-    isPlaceholderTeamName(match.awayTeamName)
-  ) {
+  const eff = getWorldCupProjectedMatchTeams(match as WorldCupMatchView)
+  if (!eff.home.teamId) return "missing_home_team"
+  if (!eff.away.teamId) return "missing_away_team"
+  const hn = (match.homeTeamName ?? "").trim()
+  const an = (match.awayTeamName ?? "").trim()
+  if (!hn || !an || isWorldCupBracketPlaceholderLabel(hn) || isWorldCupBracketPlaceholderLabel(an)) {
     return "placeholder_team"
   }
   return "unknown"
 }
 
 export function isWorldCupMatchPickable(match: WorldCupMatchPickabilityLike): boolean {
-  if (!match?.id) return false
-  if (match.status === "final") return false
-  if (!match.homeTeamId || !match.awayTeamId) return false
-  if (!match.homeTeamName || !match.awayTeamName) return false
-  if (isPlaceholderTeamName(match.homeTeamName) || isPlaceholderTeamName(match.awayTeamName)) return false
-  return true
+  return getWorldCupProjectedMatchTeams(match as WorldCupMatchView).readyForPicks
 }
 
 export function assertWorldCupPickPayloadReady(payload: WorldCupGuidedPickPayloadLike): void {
@@ -231,29 +286,15 @@ export function resetWorldCupProjectedMatchStatus<T extends WorldCupProjectedMat
 
 // ── Projected bracket ─────────────────────────────────────────────────────────
 
-/**
- * Return a copy of `matches` with projected home/away teams filled in for later
- * rounds based on the picks the user has made so far.
- *
- * – Does NOT mutate the originals.
- * – For the first available round, teams come from the real match data.
- * – For later rounds, teams are derived from nextMatchId / nextMatchSlot and
- *   the entry's picks.
- */
-export function buildWorldCupProjectedMatches(
-  matches: WorldCupMatchView[],
-  picks: WorldCupPickView[]
-): WorldCupMatchView[] {
-  const out = matches.map((m) => ({ ...m }))
+function runWorldCupProjectionPass(out: WorldCupMatchView[], realPicks: WorldCupPickView[]): boolean {
   const byId = new Map(out.map((m) => [m.id, m]))
-  const realPicks = picks.filter(hasWorldCupPickSelection)
+  let changed = false
 
   for (const m of out) {
     const pick = findWorldCupPickForMatch(realPicks, m)
     const next = m.nextMatchId ? byId.get(m.nextMatchId) : null
     if (!pick || !next || !m.nextMatchSlot) continue
 
-    // Determine which team the user picked
     const pickedHome =
       (pick.selectedTeamId !== null &&
         pick.selectedTeamId !== undefined &&
@@ -267,28 +308,58 @@ export function buildWorldCupProjectedMatches(
           id: m.homeTeamId,
           name: m.homeTeamName,
           logo: m.homeTeamLogo,
-          slot: m.homeSlotKey,
         }
       : {
           id: m.awayTeamId,
           name: m.awayTeamName,
           logo: m.awayTeamLogo,
-          slot: m.awaySlotKey,
         }
+
+    if (!team.id) continue
 
     resetWorldCupProjectedMatchStatus(next)
 
+    const nextName = (team.name ?? "").trim()
+
     if (m.nextMatchSlot === "home") {
+      if (next.homeTeamId !== team.id || next.homeTeamName !== nextName || next.homeTeamLogo !== (team.logo ?? null)) {
+        changed = true
+      }
       next.homeTeamId = team.id
-      next.homeTeamName = team.name
-      next.homeTeamLogo = team.logo
-      next.homeSlotKey = team.slot
+      next.homeTeamName = team.name ?? ""
+      next.homeTeamLogo = team.logo ?? null
+      // Keep canonical bracket slot keys on `next` for pick matching / API validation — do not overwrite with feeder slot keys.
     } else {
+      if (next.awayTeamId !== team.id || next.awayTeamName !== nextName || next.awayTeamLogo !== (team.logo ?? null)) {
+        changed = true
+      }
       next.awayTeamId = team.id
-      next.awayTeamName = team.name
-      next.awayTeamLogo = team.logo
-      next.awaySlotKey = team.slot
+      next.awayTeamName = team.name ?? ""
+      next.awayTeamLogo = team.logo ?? null
     }
+  }
+
+  return changed
+}
+
+/**
+ * Return a copy of `matches` with projected home/away teams filled in for later
+ * rounds based on the picks the user has made so far.
+ *
+ * – Does NOT mutate the originals.
+ * – Multi-pass so projection can chain across rounds (R32 → R16 → QF → SF → Final).
+ * – Slot keys on downstream matches stay the bracket template keys; only team ids/names/logos advance.
+ */
+export function buildWorldCupProjectedMatches(
+  matches: WorldCupMatchView[],
+  picks: WorldCupPickView[]
+): WorldCupMatchView[] {
+  let out = matches.map((m) => ({ ...m }))
+  const realPicks = picks.filter(hasWorldCupPickSelection)
+
+  for (let pass = 0; pass < 32; pass++) {
+    const changed = runWorldCupProjectionPass(out, realPicks)
+    if (!changed) break
   }
 
   return out

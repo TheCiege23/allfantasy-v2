@@ -28,6 +28,7 @@ import {
   findFirstUnpickedMatch,
   findNextMatchInGuidedOrder,
   getWorldCupPickMatchMethod,
+  getWorldCupProjectedMatchTeams,
   getWorldCupUnpickableReason,
   getInvalidDownstreamPickIds,
   hasWorldCupPickSelection,
@@ -77,6 +78,20 @@ function formatMatchDate(iso: string | null): string {
 function formatScore(home: number | null, away: number | null): string {
   if (home === null || away === null) return ""
   return `${home} – ${away}`
+}
+
+/** Align saved picks with projected effective sides (slot key or `team:${id}` fallback). */
+function worldCupPickMatchesProjectedSide(
+  pick: WorldCupPickView | null,
+  side: { teamId: string | null; slotKey: string }
+): boolean {
+  if (!pick?.selectedTeamId && !pick?.selectedSlotKey) return false
+  if (pick.selectedTeamId && side.teamId && pick.selectedTeamId === side.teamId) return true
+  if (pick.selectedSlotKey) {
+    if (side.slotKey && pick.selectedSlotKey === side.slotKey) return true
+    if (side.teamId && pick.selectedSlotKey === `team:${side.teamId}`) return true
+  }
+  return false
 }
 
 // ── Team selection card ───────────────────────────────────────────────────────
@@ -366,11 +381,11 @@ export default function WorldCupGuidedMatchupPicker({
   )
   const unpickableDebug = useMemo(
     () =>
-      matches
+      projected
         .filter((m) => !isWorldCupMatchPickable(m))
         .slice(0, 5)
         .map((m) => ({ matchNumber: m.matchNumber, reason: getWorldCupUnpickableReason(m) })),
-    [matches]
+    [projected]
   )
   const hasPickableMatchups = useMemo(
     () => pickableProjected.length > 0,
@@ -565,13 +580,14 @@ export default function WorldCupGuidedMatchupPicker({
   const handlePick = useCallback(
     async (side: "home" | "away") => {
       if (!currentMatch || isLocked || saveState === "saving") return
-      const selectedTeamId =
-        side === "home" ? currentMatch.homeTeamId : currentMatch.awayTeamId
-      const selectedSlotKey =
-        side === "home" ? currentMatch.homeSlotKey : currentMatch.awaySlotKey
-      const selectedTeamName =
-        side === "home" ? currentMatch.homeTeamName : currentMatch.awayTeamName
-      if (!selectedSlotKey || !selectedTeamId || !isWorldCupMatchPickable(currentMatch)) {
+      const eff = getWorldCupProjectedMatchTeams(currentMatch)
+      const selectedTeamId = side === "home" ? eff.home.teamId : eff.away.teamId
+      let selectedSlotKey = side === "home" ? eff.home.slotKey : eff.away.slotKey
+      if (!String(selectedSlotKey ?? "").trim() && selectedTeamId) {
+        selectedSlotKey = `team:${selectedTeamId}`
+      }
+      const selectedTeamName = side === "home" ? eff.home.teamName : eff.away.teamName
+      if (!selectedTeamId || !eff.readyForPicks) {
         setSaveState("error")
         setSaveError("This matchup is not ready for picks yet.")
         return
@@ -866,6 +882,7 @@ function MatchView({
   entryId: string
   hasBracketBrainAi: boolean
 }) {
+  const eff = useMemo(() => getWorldCupProjectedMatchTeams(match), [match])
   const isSaving = saveState === "saving"
   const isFinal = isWorldCupMatchFinal(match)
   const isLive = isWorldCupMatchLive(match)
@@ -873,12 +890,32 @@ function MatchView({
   const pickLiveState = getWorldCupPickLiveState(match, pick)
   const scoreStr = showScore ? getWorldCupMatchDisplayScore(match) : null
 
-  const homePickState = pick?.selectedTeamId === match.homeTeamId ||
-    (pick?.selectedSlotKey && pick.selectedSlotKey === match.homeSlotKey)
-    ? pickLiveState : "not_started"
-  const awayPickState = pick?.selectedTeamId === match.awayTeamId ||
-    (pick?.selectedSlotKey && pick.selectedSlotKey === match.awaySlotKey)
-    ? pickLiveState : "not_started"
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return
+    if (![29, 30, 31].includes(match.matchNumber)) return
+    console.debug("[WorldCupGuidedMatchupPicker:knockout-projection]", {
+      matchNumber: match.matchNumber,
+      rawHomeSlotKey: match.homeSlotKey,
+      rawAwaySlotKey: match.awaySlotKey,
+      effectiveHomeTeam: eff.home,
+      effectiveAwayTeam: eff.away,
+      readyForPicks: eff.readyForPicks,
+      selectedPayload: pick
+        ? {
+            selectedTeamId: pick.selectedTeamId,
+            selectedSlotKey: pick.selectedSlotKey,
+            selectedTeamName: pick.selectedTeamName,
+          }
+        : null,
+    })
+  }, [eff, match.matchNumber, match.homeSlotKey, match.awaySlotKey, pick])
+
+  const homePickState = worldCupPickMatchesProjectedSide(pick, eff.home)
+    ? pickLiveState
+    : "not_started"
+  const awayPickState = worldCupPickMatchesProjectedSide(pick, eff.away)
+    ? pickLiveState
+    : "not_started"
 
   const [stagedSide, setStagedSide] = useState<"home" | "away" | null>(null)
   useEffect(() => {
@@ -923,17 +960,14 @@ function MatchView({
       {/* vs. divider */}
       <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:gap-4">
         <TeamCard
-          teamId={match.homeTeamId}
-          teamName={match.homeTeamName || "TBD"}
-          teamLogo={match.homeTeamLogo}
+          teamId={eff.home.teamId}
+          teamName={eff.home.teamName || "TBD"}
+          teamLogo={eff.home.teamLogo ?? match.homeTeamLogo}
           score={match.homeScore}
           penaltyScore={match.homePenaltyScore}
-          isWinner={isFinal && match.winnerTeamId === match.homeTeamId}
+          isWinner={isFinal && match.winnerTeamId === eff.home.teamId}
           isPicked={
-            pick !== null &&
-            (pick.selectedTeamId === match.homeTeamId ||
-              (pick.selectedSlotKey !== null &&
-                pick.selectedSlotKey === match.homeSlotKey))
+            pick !== null && worldCupPickMatchesProjectedSide(pick, eff.home)
           }
           isSaving={isSaving}
           isLocked={isLocked || isFinal}
@@ -950,17 +984,14 @@ function MatchView({
         </div>
 
         <TeamCard
-          teamId={match.awayTeamId}
-          teamName={match.awayTeamName || "TBD"}
-          teamLogo={match.awayTeamLogo}
+          teamId={eff.away.teamId}
+          teamName={eff.away.teamName || "TBD"}
+          teamLogo={eff.away.teamLogo ?? match.awayTeamLogo}
           score={match.awayScore}
           penaltyScore={match.awayPenaltyScore}
-          isWinner={isFinal && match.winnerTeamId === match.awayTeamId}
+          isWinner={isFinal && match.winnerTeamId === eff.away.teamId}
           isPicked={
-            pick !== null &&
-            (pick.selectedTeamId === match.awayTeamId ||
-              (pick.selectedSlotKey !== null &&
-                pick.selectedSlotKey === match.awaySlotKey))
+            pick !== null && worldCupPickMatchesProjectedSide(pick, eff.away)
           }
           isSaving={isSaving}
           isLocked={isLocked || isFinal}
@@ -1000,10 +1031,10 @@ function MatchView({
             challengeId={challengeId}
             entryId={entryId}
             matchId={match.id}
-            homeName={match.homeTeamName || match.homeSlotKey}
-            awayName={match.awayTeamName || match.awaySlotKey}
-            homeLogo={match.homeTeamLogo}
-            awayLogo={match.awayTeamLogo}
+            homeName={eff.home.teamName}
+            awayName={eff.away.teamName}
+            homeLogo={eff.home.teamLogo ?? match.homeTeamLogo}
+            awayLogo={eff.away.teamLogo ?? match.awayTeamLogo}
             disabled={isLocked}
             hasBracketBrainAi={hasBracketBrainAi}
             stagedSide={stagedSide}

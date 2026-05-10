@@ -35,6 +35,7 @@ import {
   buildWorldCupProjectedMatches,
   findWorldCupPickForMatch,
   getWorldCupPickMatchMethod,
+  getWorldCupProjectedMatchTeams,
   hasWorldCupPickSelection,
   isWorldCupMatchPickable,
 } from "./worldCupProjectedBracket"
@@ -93,6 +94,21 @@ function toWorldCupPickView(pick: WorldCupBracketPick & { match?: WorldCupBracke
     isCorrect: pick.isCorrect,
     lockedAt: iso(pick.lockedAt),
   }
+}
+
+/**
+ * Applies `buildWorldCupProjectedMatches` so knockout rounds show user-projected teams
+ * (semis/final) instead of DB placeholder labels.
+ */
+export function resolveWorldCupMatchViewWithEntryProjections(input: {
+  challengeMatches: WorldCupBracketMatch[]
+  entryPicks: (WorldCupBracketPick & { match?: WorldCupBracketMatch | null })[]
+  matchId: string
+}): WorldCupMatchView | null {
+  const matchViews = input.challengeMatches.map(toWorldCupMatchView)
+  const existingPicks = input.entryPicks.filter(hasWorldCupPickSelection).map(toWorldCupPickView)
+  const projected = buildWorldCupProjectedMatches(matchViews, existingPicks)
+  return projected.find((m) => m.id === input.matchId) ?? null
 }
 
 function readSimulationFlags(sourcePayload: unknown): {
@@ -817,6 +833,8 @@ function side(match: WorldCupBracketMatch, pick: { selectedTeamId?: string | nul
   if (pick.selectedTeamId && pick.selectedTeamId === match.awayTeamId) return "away"
   if (pick.selectedSlotKey && pick.selectedSlotKey === match.homeSlotKey) return "home"
   if (pick.selectedSlotKey && pick.selectedSlotKey === match.awaySlotKey) return "away"
+  if (pick.selectedSlotKey && match.homeTeamId && pick.selectedSlotKey === `team:${match.homeTeamId}`) return "home"
+  if (pick.selectedSlotKey && match.awayTeamId && pick.selectedSlotKey === `team:${match.awayTeamId}`) return "away"
   return null
 }
 
@@ -1188,29 +1206,42 @@ export async function saveWorldCupBracketPickForEntry(input: {
     throw new Error("This matchup is not ready for picks yet.")
   }
 
+  const effMatch = getWorldCupProjectedMatchTeams(projectedMatch)
+
   const sideFromSelection =
-    input.selectedTeamId && input.selectedTeamId === projectedMatch.homeTeamId
+    input.selectedTeamId && input.selectedTeamId === effMatch.home.teamId
       ? "home"
-      : input.selectedTeamId && input.selectedTeamId === projectedMatch.awayTeamId
+      : input.selectedTeamId && input.selectedTeamId === effMatch.away.teamId
         ? "away"
         : input.selectedSlotKey && input.selectedSlotKey === projectedMatch.homeSlotKey
           ? "home"
           : input.selectedSlotKey && input.selectedSlotKey === projectedMatch.awaySlotKey
             ? "away"
-            : input.selectedTeamName && input.selectedTeamName === projectedMatch.homeTeamName
+            : input.selectedSlotKey && effMatch.home.teamId && input.selectedSlotKey === `team:${effMatch.home.teamId}`
               ? "home"
-              : input.selectedTeamName && input.selectedTeamName === projectedMatch.awayTeamName
+              : input.selectedSlotKey && effMatch.away.teamId && input.selectedSlotKey === `team:${effMatch.away.teamId}`
                 ? "away"
-                : null
+                : input.selectedTeamName &&
+                    effMatch.home.teamName &&
+                    input.selectedTeamName.trim() === effMatch.home.teamName.trim()
+                  ? "home"
+                  : input.selectedTeamName &&
+                      effMatch.away.teamName &&
+                      input.selectedTeamName.trim() === effMatch.away.teamName.trim()
+                    ? "away"
+                    : null
   if (input.selectedSide && sideFromSelection && input.selectedSide !== sideFromSelection) {
     throw new Error("Selected team is not in this matchup")
   }
   const selectedSide = sideFromSelection ?? input.selectedSide ?? null
   if (!selectedSide) throw new Error("Selected team is not in this matchup")
 
-  const selectedTeamId = selectedSide === "home" ? projectedMatch.homeTeamId : projectedMatch.awayTeamId
-  const selectedSlotKey = selectedSide === "home" ? projectedMatch.homeSlotKey : projectedMatch.awaySlotKey
-  const selectedTeamName = selectedSide === "home" ? projectedMatch.homeTeamName : projectedMatch.awayTeamName
+  const selectedTeamId = selectedSide === "home" ? effMatch.home.teamId : effMatch.away.teamId
+  let selectedSlotKey = selectedSide === "home" ? effMatch.home.slotKey : effMatch.away.slotKey
+  if (!String(selectedSlotKey ?? "").trim() && selectedTeamId) {
+    selectedSlotKey = `team:${selectedTeamId}`
+  }
+  const selectedTeamName = selectedSide === "home" ? effMatch.home.teamName : effMatch.away.teamName
   const existingPick = findWorldCupPickForMatch(existingPicks, projectedMatch)
   const existingPickMatchedBy = existingPick ? getWorldCupPickMatchMethod(existingPick, projectedMatch) : null
   const nextMatchNumber = projectedMatches.find((match) => match.id === (input.nextMatchId ?? m.nextMatchId))?.matchNumber ?? null

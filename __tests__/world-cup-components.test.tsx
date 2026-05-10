@@ -347,6 +347,75 @@ describe("World Cup mobile polish — matchup card & guided picker", () => {
       expect(within(dialog).getByRole("img", { name: /Brazil flag/i })).toHaveTextContent("🇧🇷")
     })
   })
+
+  it("guided picker does not show not-ready when semifinal has projected Brazil vs USA", async () => {
+    const WorldCupGuidedMatchupPicker = (await import("@/components/brackets/world-cup/WorldCupGuidedMatchupPicker")).default
+    const sfMatch = {
+      ...sampleMatch,
+      id: "m29",
+      round: "semifinal" as const,
+      matchNumber: 29,
+      homeTeamId: "team-bra",
+      awayTeamId: "team-usa",
+      homeTeamName: "Brazil",
+      awayTeamName: "USA",
+      homeSlotKey: "W-M27",
+      awaySlotKey: "W-M28",
+    }
+    render(
+      <WorldCupGuidedMatchupPicker
+        challengeId="ch1"
+        entryId="e1"
+        entryName="Bracket 1"
+        matches={[sfMatch]}
+        picks={[]}
+        isOpen
+        initialMatchId="m29"
+        isLocked={false}
+        includeThirdPlace={false}
+        onClose={() => {}}
+        onSavePick={vi.fn().mockResolvedValue([])}
+      />
+    )
+
+    expect(screen.queryByText(/This matchup is not ready for picks yet/i)).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Pick Brazil to win/i })).not.toHaveAttribute("disabled")
+    expect(screen.getByRole("button", { name: /Pick USA to win/i })).not.toHaveAttribute("disabled")
+  })
+
+  it("guided picker shows not-ready when feeder teams are still unresolved placeholders", async () => {
+    const WorldCupGuidedMatchupPicker = (await import("@/components/brackets/world-cup/WorldCupGuidedMatchupPicker")).default
+    const sfMatch = {
+      ...sampleMatch,
+      id: "m29",
+      round: "semifinal" as const,
+      matchNumber: 29,
+      homeTeamId: null,
+      awayTeamId: null,
+      homeTeamName: "Winner Match 27",
+      awayTeamName: "Winner Match 28",
+      homeSlotKey: "W-M27",
+      awaySlotKey: "W-M28",
+    }
+    render(
+      <WorldCupGuidedMatchupPicker
+        challengeId="ch1"
+        entryId="e1"
+        entryName="Bracket 1"
+        matches={[sfMatch]}
+        picks={[]}
+        isOpen
+        initialMatchId="m29"
+        isLocked={false}
+        includeThirdPlace={false}
+        onClose={() => {}}
+        onSavePick={vi.fn().mockResolvedValue([])}
+      />
+    )
+
+    expect(screen.getByText(/Fixtures Not Ready/i)).toBeInTheDocument()
+    expect(screen.getByText(/M29:missing_home_team/)).toBeInTheDocument()
+  })
 })
 
 function makeShellEntry(overrides: Record<string, unknown> = {}) {
@@ -820,8 +889,11 @@ describe("WorldCupBracketShell fixture readiness", () => {
         matchNumber: 17,
         selectedTeamId: "demo_team_brazil",
         selectedTeamName: "Brazil",
-        selectedSlotKey: "A1",
+        selectedSlotKey: "W-M1",
+        selectedSide: "home",
+        sourceSlotKey: "W-M1",
         nextMatchId: "m25",
+        nextMatchSlot: "home",
       })
     ))
     expect(clientApiMocks.clearPicks).not.toHaveBeenCalled()

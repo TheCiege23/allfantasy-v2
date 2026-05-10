@@ -23,6 +23,7 @@ import {
   getOrderedRounds,
   getWorldCupPickMatchMethod,
   getWorldCupGuidedPicksState,
+  getWorldCupProjectedMatchTeams,
   getWorldCupUnpickableReason,
   hasWorldCupPickSelection,
   isBracketComplete,
@@ -1454,5 +1455,72 @@ describe("World Cup pick readiness guards", () => {
     )
     expect(getWorldCupGuidedPicksState(after)).toBe("ready")
     expect(after.filter((m) => isWorldCupMatchPickable(m)).length).toBe(16)
+  })
+})
+
+describe("World Cup projected knockout readiness (semifinal / final)", () => {
+  it("getWorldCupProjectedMatchTeams treats Brazil vs USA semifinal as ready when ids and names are real", () => {
+    const sf = makeMatch({
+      id: "m29",
+      round: "semifinal",
+      roundIndex: 4,
+      matchNumber: 29,
+      homeSlotKey: "W-M27",
+      awaySlotKey: "W-M28",
+      homeTeamId: "team-bra",
+      awayTeamId: "team-usa",
+      homeTeamName: "Brazil",
+      awayTeamName: "USA",
+    })
+    const eff = getWorldCupProjectedMatchTeams(sf)
+    expect(eff.readyForPicks).toBe(true)
+    expect(eff.home.teamName).toBe("Brazil")
+    expect(eff.away.teamName).toBe("USA")
+    expect(isWorldCupMatchPickable(sf)).toBe(true)
+  })
+
+  it("rejects placeholder-style labels even when team ids are present", () => {
+    const sf = makeMatch({
+      round: "semifinal",
+      matchNumber: 29,
+      homeTeamId: "x",
+      awayTeamId: "y",
+      homeTeamName: "Group D Winner",
+      awayTeamName: "Best 3rd Place Team 1",
+    })
+    expect(getWorldCupProjectedMatchTeams(sf).readyForPicks).toBe(false)
+    expect(isWorldCupMatchPickable(sf)).toBe(false)
+    expect(getWorldCupUnpickableReason(sf)).toBe("placeholder_team")
+  })
+
+  it("unresolved feeder slots stay not ready", () => {
+    const sf = makeMatch({
+      round: "semifinal",
+      matchNumber: 29,
+      homeTeamId: null,
+      awayTeamId: null,
+      homeTeamName: "Winner Match 27",
+      awayTeamName: "Winner Match 28",
+    })
+    expect(getWorldCupProjectedMatchTeams(sf).readyForPicks).toBe(false)
+    expect(getWorldCupUnpickableReason(sf)).toBe("missing_home_team")
+  })
+
+  it("projected final uses both semifinal winners and is pickable", () => {
+    const finalMatch = makeMatch({
+      id: "m31",
+      round: "final",
+      roundIndex: 5,
+      matchNumber: 31,
+      homeSlotKey: "W-M29",
+      awaySlotKey: "W-M30",
+      homeTeamId: "team-a",
+      awayTeamId: "team-k",
+      homeTeamName: "Argentina",
+      awayTeamName: "Netherlands",
+    })
+    const eff = getWorldCupProjectedMatchTeams(finalMatch)
+    expect(eff.readyForPicks).toBe(true)
+    expect(isWorldCupMatchPickable(finalMatch)).toBe(true)
   })
 })
