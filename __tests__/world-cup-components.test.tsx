@@ -992,9 +992,11 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(within(semifinal).getByText("USA")).toBeInTheDocument()
     expect(within(semifinal).queryByText(/^Final$/)).toBeNull()
     expect(within(semifinal).queryByText(/^Simulated$/)).toBeNull()
+    expect(screen.queryByText(/Bracket Locked/i)).toBeNull()
     fireEvent.click(within(semifinal).getByRole("button", { name: /Open guided picker for match 29/i }))
 
     const dialog = await screen.findByRole("dialog", { name: /Guided Matchup Picker/i })
+    expect(within(dialog).getByRole("button", { name: /Pick Brazil to win/i })).toBeEnabled()
     fireEvent.click(within(dialog).getByRole("button", { name: /Pick Brazil to win/i }))
 
     await waitFor(() => expect(clientApiMocks.savePick).toHaveBeenCalledWith(
@@ -1023,6 +1025,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     await waitFor(() => {
       expect(screen.getByTestId("world-cup-guided-footer-context")).toHaveTextContent(/Match 31/)
     })
+    expect(within(screen.getByRole("dialog", { name: /Guided Matchup Picker/i })).getByRole("button", { name: /Pick Brazil to win/i })).toBeEnabled()
     fireEvent.click(within(screen.getByRole("dialog", { name: /Guided Matchup Picker/i })).getByRole("button", { name: /Pick Brazil to win/i }))
 
     await waitFor(() => expect(clientApiMocks.savePick).toHaveBeenLastCalledWith(

@@ -269,6 +269,7 @@ describe("world cup simulation service", () => {
   })
 
   it("loads demo test fixtures into first round without touching later rounds or picks", async () => {
+    const staleKickoff = new Date("2020-01-01T00:00:00.000Z")
     state.matches = Array.from({ length: 31 }, (_, idx) => ({
       id: `m${idx + 1}`,
       challengeId: "c1",
@@ -285,6 +286,7 @@ describe("world cup simulation service", () => {
       homeScore: null,
       awayScore: null,
       status: "scheduled",
+      startsAt: staleKickoff,
       winnerTeamId: null,
       winnerTeamName: null,
       nextMatchId: null,
@@ -305,6 +307,7 @@ describe("world cup simulation service", () => {
     const firstRound = state.matches.filter((m) => m.round === "round_of_32")
     const laterRounds = state.matches.filter((m) => m.round !== "round_of_32")
     expect(firstRound.every((m) => m.homeTeamId && m.awayTeamId)).toBe(true)
+    expect(firstRound.every((m) => m.startsAt instanceof Date && m.startsAt.getTime() > Date.now())).toBe(true)
     expect(laterRounds.every((m) => !m.homeTeamId && !m.awayTeamId)).toBe(true)
   })
 })

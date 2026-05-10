@@ -12,7 +12,7 @@ import {
   validateTeamSeedRow,
 } from "@/lib/world-cup/worldCupSeedData"
 import { buildWorldCupDemoRoundOf32Fixtures } from "@/lib/world-cup/worldCupTestFixtures"
-import { isWorldCupChallengeLocked } from "@/lib/world-cup/worldCupBracketBuilder"
+import { isWorldCupChallengeLocked, isWorldCupMatchLocked } from "@/lib/world-cup/worldCupBracketBuilder"
 import {
   assertWorldCupPickPayloadReady,
   buildWorldCupProjectedMatches,
@@ -267,6 +267,87 @@ describe("World Cup pick readiness guards", () => {
 
     expect(lock.locked).toBe(true)
     expect(lock.reason).toBe("tournament_started")
+  })
+
+  it("does not globally lock test mode from stale seeded fixture kickoff times", () => {
+    const lock = isWorldCupChallengeLocked({
+      challenge: {
+        pickLockStrategy: "tournament_start",
+        pickLockAt: null,
+        status: "open",
+        isTestMode: true,
+      },
+      matches: [
+        {
+          startsAt: "2020-01-01T00:00:00Z",
+          status: "scheduled",
+          apiStatusShort: "TEST",
+        },
+      ],
+      now: new Date("2026-07-01T16:00:00Z"),
+    })
+
+    expect(lock.locked).toBe(false)
+    expect(lock.lockAt).toBeNull()
+  })
+
+  it("still locks test mode when explicit lockAt has passed", () => {
+    const lock = isWorldCupChallengeLocked({
+      challenge: {
+        pickLockStrategy: "tournament_start",
+        pickLockAt: "2026-07-01T15:00:00Z",
+        status: "open",
+        isTestMode: true,
+      },
+      matches: [
+        {
+          startsAt: "2020-01-01T00:00:00Z",
+          status: "scheduled",
+          apiStatusShort: "TEST",
+        },
+      ],
+      now: new Date("2026-07-01T16:00:00Z"),
+    })
+
+    expect(lock.locked).toBe(true)
+    expect(lock.reason).toBe("tournament_started")
+  })
+
+  it("keeps official per-match lock behavior after kickoff in non-test contests", () => {
+    const locked = isWorldCupMatchLocked({
+      challenge: {
+        pickLockStrategy: "per_match",
+        pickLockAt: null,
+        status: "open",
+      },
+      match: {
+        startsAt: "2026-07-01T12:00:00Z",
+        status: "scheduled",
+        apiStatusShort: null,
+      },
+      now: new Date("2026-07-01T12:00:01Z"),
+    })
+
+    expect(locked).toBe(true)
+  })
+
+  it("does not lock test/sim projected matches from stale SIM/TEST kickoff metadata", () => {
+    const locked = isWorldCupMatchLocked({
+      challenge: {
+        pickLockStrategy: "per_match",
+        pickLockAt: null,
+        status: "open",
+        isTestMode: true,
+      },
+      match: {
+        startsAt: "2020-01-01T00:00:00Z",
+        status: "scheduled",
+        apiStatusShort: "SIM",
+      },
+      now: new Date("2026-07-01T12:00:01Z"),
+    })
+
+    expect(locked).toBe(false)
   })
 
   it("does not seed pick rows during entry creation", () => {
@@ -884,6 +965,39 @@ describe("World Cup pick readiness guards", () => {
     ]
     const afterChampion = buildWorldCupProjectedMatches(matches, championPicks)
     expect(isBracketComplete(afterChampion, championPicks)).toBe(true)
+  })
+
+  it("supports 30 of 30 picks completed in test-mode style states", () => {
+    const matches = Array.from({ length: 31 }, (_, idx) =>
+      makeMatch({
+        id: `m-${idx + 1}`,
+        matchNumber: idx + 1,
+        homeSlotKey: `H${idx + 1}`,
+        awaySlotKey: `A${idx + 1}`,
+        homeTeamId: `team-home-${idx + 1}`,
+        awayTeamId: `team-away-${idx + 1}`,
+        homeTeamName: `Home ${idx + 1}`,
+        awayTeamName: `Away ${idx + 1}`,
+        status: idx === 30 ? "final" : "scheduled",
+        apiStatusShort: idx === 30 ? "FT" : "TEST",
+      })
+    )
+    const picks = matches
+      .slice(0, 30)
+      .map((match, idx) =>
+        makePick({
+          id: `p-${idx + 1}`,
+          matchId: match.id,
+          matchNumber: match.matchNumber,
+          selectedTeamId: match.homeTeamId,
+          selectedSlotKey: match.homeSlotKey,
+          selectedTeamName: match.homeTeamName,
+        })
+      )
+
+    expect(picks.filter(hasWorldCupPickSelection)).toHaveLength(30)
+    expect(countRemainingPicks(matches, picks)).toBe(0)
+    expect(isBracketComplete(matches, picks)).toBe(true)
   })
 
   it("keeps projected match identity stable across recompute with round and matchNumber fallback", () => {

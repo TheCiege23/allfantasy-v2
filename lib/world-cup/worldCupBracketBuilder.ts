@@ -40,11 +40,42 @@ export function generateWorldCupBracketTemplate(params?: { includeThirdPlace?: b
 }
 export const buildWorldCupBracketTemplate = generateWorldCupBracketTemplate
 type LockMatchLike = { startsAt?: Date | string | null; status?: string | null; apiStatusShort?: string | null }
+type LockChallengeLike = {
+  pickLockStrategy?: string | null
+  pickLockAt?: Date | string | null
+  status?: string | null
+  isTestMode?: boolean | null
+  settings?: { testMode?: boolean | null } | null
+  sourcePayload?: unknown
+}
 export type WorldCupChallengeLockReason = "manual_lock" | "tournament_started" | "entry_locked" | "none"
 export type WorldCupChallengeLockState = {
   locked: boolean
   reason: WorldCupChallengeLockReason
   lockAt?: Date | string | null
+}
+
+function isWorldCupTestModeChallenge(challenge: LockChallengeLike): boolean {
+  if (challenge.isTestMode === true) return true
+  if (challenge.settings?.testMode === true) return true
+
+  const payload = challenge.sourcePayload
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false
+
+  const root = payload as Record<string, unknown>
+  if (root.testMode === true) return true
+
+  const settings = root.settings
+  if (settings && typeof settings === "object" && !Array.isArray(settings)) {
+    if ((settings as Record<string, unknown>).testMode === true) return true
+  }
+
+  const simulation = root.simulation
+  if (simulation && typeof simulation === "object" && !Array.isArray(simulation)) {
+    if ((simulation as Record<string, unknown>).isTestMode === true) return true
+  }
+
+  return false
 }
 
 /** Earliest scheduled kickoff for the challenge; used when pickLockStrategy is tournament_start and pickLockAt is unset. */
@@ -73,7 +104,7 @@ export function resolveWorldCupEffectivePickLockAt(input: {
 }
 
 export function isWorldCupChallengeLocked(input: {
-  challenge: { pickLockStrategy?: string | null; pickLockAt?: Date | string | null; status?: string | null }
+  challenge: LockChallengeLike
   matches?: LockMatchLike[]
   entry?: { isLocked?: boolean | null } | null
   now?: Date
@@ -85,11 +116,17 @@ export function isWorldCupChallengeLocked(input: {
   }
 
   const strategy = c.pickLockStrategy ?? "per_match"
-  const at = resolveWorldCupEffectivePickLockAt({
-    pickLockStrategy: strategy,
-    pickLockAt: c.pickLockAt,
-    matches: input.matches,
-  })
+  const testMode = isWorldCupTestModeChallenge(c)
+  const explicitLockAt = c.pickLockAt ? new Date(c.pickLockAt) : null
+  const validExplicitLockAt =
+    explicitLockAt && !Number.isNaN(explicitLockAt.getTime()) ? explicitLockAt : null
+  const at = testMode
+    ? validExplicitLockAt
+    : resolveWorldCupEffectivePickLockAt({
+        pickLockStrategy: strategy,
+        pickLockAt: c.pickLockAt,
+        matches: input.matches,
+      })
   if (at && now >= at) {
     return { locked: true, reason: "tournament_started", lockAt: at }
   }
@@ -100,7 +137,7 @@ export function isWorldCupChallengeLocked(input: {
 }
 
 export function isWorldCupMatchLocked(input: {
-  challenge?: { pickLockStrategy?: string | null; pickLockAt?: Date | string | null; status?: string | null }
+  challenge?: LockChallengeLike
   match?: LockMatchLike
   matches?: LockMatchLike[]
   pickLockStrategy?: string | null
@@ -113,18 +150,21 @@ export function isWorldCupMatchLocked(input: {
   const match = input.match ?? input
   const now = input.now ?? new Date()
   const strategy = challenge.pickLockStrategy ?? "per_match"
+  const apiStatus = (match.apiStatusShort ?? "").trim().toUpperCase()
   const challengeLock = isWorldCupChallengeLocked({ challenge, matches: input.matches, now })
   if (challengeLock.locked) return true
   const start = match.startsAt ? new Date(match.startsAt) : null
-  const apiStatus = (match.apiStatusShort ?? "").trim().toUpperCase()
   if (["live", "halftime", "final"].includes(match.status ?? "") && apiStatus !== "SIM" && apiStatus !== "TEST") return true
-  if (strategy === "per_match" && start && now >= start) return true
+  if (strategy === "per_match" && start && now >= start) {
+    if (apiStatus === "SIM" || apiStatus === "TEST") return false
+    return true
+  }
   return false
 }
 
 /** True when bracket picks cannot be edited (tournament-start lock, challenge locked, or live/final match). */
 export function isWorldCupBracketChallengePicksLocked(input: {
-  challenge: { pickLockStrategy?: string | null; pickLockAt?: Date | string | null; status?: string | null }
+  challenge: LockChallengeLike
   matches: LockMatchLike[]
   now?: Date
 }) {

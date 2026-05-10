@@ -105,6 +105,23 @@ export function getWorldCupDemoStartTime(matchIndex: number): Date {
   return start
 }
 
+function getFutureSafeWorldCupDemoStartTime(
+  candidate: Date | string | null | undefined,
+  matchIndex: number
+): Date {
+  const fallback = getWorldCupDemoStartTime(matchIndex)
+  if (!candidate) return fallback
+
+  const parsed = new Date(candidate)
+  if (Number.isNaN(parsed.getTime())) return fallback
+
+  // Keep existing fixture times only when they are still safely in the future.
+  const minFuture = Date.now() + 30 * 60 * 1000
+  if (parsed.getTime() <= minFuture) return fallback
+
+  return parsed
+}
+
 function isRoundOf32(match: MatchLike): boolean {
   if (match.round === "round_of_32") return true
   return Number(match.roundIndex ?? 0) === 1
@@ -141,7 +158,7 @@ export function buildWorldCupDemoRoundOf32Fixtures(matches: MatchLike[]): WorldC
         awayTeamName: away.name,
         awayTeamLogo: away.flagUrl,
         status: "scheduled",
-        startsAt: match.startsAt ? new Date(match.startsAt) : getWorldCupDemoStartTime(i),
+        startsAt: getFutureSafeWorldCupDemoStartTime(match.startsAt, i),
         venueName: venue.venueName,
         venueCity: venue.venueCity,
         apiStatusShort: "TEST",
