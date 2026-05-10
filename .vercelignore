@@ -28,5 +28,5 @@ tmp-*
 artifacts
 design-refs
 _design-refs
-drafts
+/drafts
 docs
