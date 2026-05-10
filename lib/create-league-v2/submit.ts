@@ -214,6 +214,8 @@ function parseFieldErrors(json: Record<string, unknown>): CreateLeagueFieldError
     ? json.errors
     : Array.isArray(json.issues)
       ? json.issues
+      : Array.isArray(json.details)
+        ? json.details
       : []
   for (const item of raw as { path?: string; message?: string }[]) {
     const msg = typeof item?.message === 'string' ? item.message : ''
@@ -228,7 +230,39 @@ function parseFieldErrors(json: Record<string, unknown>): CreateLeagueFieldError
   return out
 }
 
+function issuesToMessage(raw: unknown): string {
+  if (!Array.isArray(raw)) return ''
+  const msgs = raw
+    .map((item) => {
+      if (typeof item === 'string') return item
+      if (item && typeof item === 'object' && typeof (item as { message?: unknown }).message === 'string') {
+        return String((item as { message: string }).message)
+      }
+      return null
+    })
+    .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+  return msgs.join('; ')
+}
+
 function formatErrorJson(json: Record<string, unknown>, resStatus: number): string {
+  if (typeof json.message === 'string' && json.message.trim().length > 0) return json.message
+  if (typeof json.error === 'string' && json.error.trim().length > 0) return json.error
+  if (typeof json.details === 'string' && json.details.trim().length > 0) return json.details
+
+  const detailsObjectMessage =
+    json.details && typeof json.details === 'object' && !Array.isArray(json.details)
+      ? (json.details as { message?: unknown }).message
+      : null
+  if (typeof detailsObjectMessage === 'string' && detailsObjectMessage.trim().length > 0) {
+    return detailsObjectMessage
+  }
+
+  const issuesFromJson = issuesToMessage(json.issues)
+  if (issuesFromJson) return issuesFromJson
+
+  const detailsFromJson = issuesToMessage(json.details)
+  if (detailsFromJson) return detailsFromJson
+
   const fromErrors = Array.isArray(json.errors)
     ? (json.errors as { message?: string }[])
         .map((e) => (typeof e?.message === 'string' ? e.message : null))
@@ -237,17 +271,46 @@ function formatErrorJson(json: Record<string, unknown>, resStatus: number): stri
     : ''
   if (fromErrors) return fromErrors
 
-  const legacyIssues = Array.isArray(json.issues)
-    ? (json.issues as { message?: string }[])
-        .map((i) => (typeof i?.message === 'string' ? i.message : null))
-        .filter(Boolean)
-        .join('; ')
-    : ''
-  if (legacyIssues) return legacyIssues
-
-  if (typeof json.error === 'string' && json.error.length > 0) return json.error
-  if (typeof json.detail === 'string' && json.detail.length > 0) return json.detail
+  if (typeof json.detail === 'string' && json.detail.trim().length > 0) return json.detail
   return `Create league failed (${resStatus})`
+}
+
+function summarizeSubmittedPayload(payload: unknown): Record<string, unknown> {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return { payloadType: typeof payload }
+  }
+
+  const body = payload as Record<string, unknown>
+  const conceptSetup =
+    body.conceptSetup && typeof body.conceptSetup === 'object' && !Array.isArray(body.conceptSetup)
+      ? (body.conceptSetup as Record<string, unknown>)
+      : null
+
+  const visibility =
+    typeof conceptSetup?.visibility === 'string'
+      ? conceptSetup.visibility
+      : conceptSetup?.isPublic === true
+        ? 'public'
+        : conceptSetup?.bestBall && typeof conceptSetup.bestBall === 'object'
+          ? (conceptSetup.bestBall as Record<string, unknown>).visibility ?? null
+          : null
+
+  return {
+    concept: typeof body.concept === 'string' ? body.concept : null,
+    sport: typeof body.sport === 'string' ? body.sport : null,
+    draftType: typeof body.draftType === 'string' ? body.draftType : null,
+    scoringPreset:
+      typeof body.scoringPreset === 'string'
+        ? body.scoringPreset
+        : typeof body.scoringPresetId === 'string'
+          ? body.scoringPresetId
+          : null,
+    teamCount: typeof body.teamCount === 'number' ? body.teamCount : null,
+    leagueName: typeof body.leagueName === 'string' ? body.leagueName : typeof body.name === 'string' ? body.name : null,
+    timezone: typeof body.timezone === 'string' ? body.timezone : null,
+    visibility,
+    hasConceptSetup: Boolean(conceptSetup),
+  }
 }
 
 // ── Main submit ─────────────────────────────────────────────────────
@@ -278,6 +341,13 @@ export async function submitCreateLeagueV2(state: CreateLeagueV2State): Promise<
       body: JSON.stringify(payload),
     })
   } catch (err) {
+    console.error('[create-league-v2] create request network failure', {
+      requestUrl: endpoint,
+      responseStatus: null,
+      responseJson: null,
+      payloadSummary: summarizeSubmittedPayload(payload),
+      error: err instanceof Error ? err.message : String(err),
+    })
     return { ok: false, error: err instanceof Error ? err.message : 'Network error' }
   }
 
@@ -289,6 +359,12 @@ export async function submitCreateLeagueV2(state: CreateLeagueV2State): Promise<
   }
 
   if (!res.ok) {
+    console.error('[create-league-v2] create request failed', {
+      requestUrl: endpoint,
+      responseStatus: res.status,
+      responseJson: json,
+      payloadSummary: summarizeSubmittedPayload(payload),
+    })
     return {
       ok: false,
       error: formatErrorJson(json, res.status),
@@ -297,6 +373,12 @@ export async function submitCreateLeagueV2(state: CreateLeagueV2State): Promise<
   }
 
   if (json.success === false) {
+    console.error('[create-league-v2] create response success=false', {
+      requestUrl: endpoint,
+      responseStatus: res.status,
+      responseJson: json,
+      payloadSummary: summarizeSubmittedPayload(payload),
+    })
     return {
       ok: false,
       error: formatErrorJson(json, res.status),

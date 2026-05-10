@@ -67,6 +67,23 @@ function leagueModeColumns(formatId: LeagueFormatId): Partial<Prisma.LeagueUnche
   }
 }
 
+function resolvePreferredManagerName(input: {
+  username?: string | null
+  displayName?: string | null
+  email?: string | null
+}): string {
+  const username = input.username?.trim()
+  if (username) return username
+
+  const displayName = input.displayName?.trim()
+  if (displayName) return displayName
+
+  const emailPrefix = input.email?.split('@')[0]?.trim()
+  if (emailPrefix) return emailPrefix
+
+  return 'User'
+}
+
 export type CanonicalCreateTransactionResult = {
   leagueId: string
   homepageUrl: string
@@ -122,6 +139,29 @@ export async function createCanonicalLeagueInTransaction(
       ? 'commissioner'
       : body.tradeReviewMode
 
+  log?.('canonical_transaction_start', { appUserId, sport, formatId })
+
+  const [userProfile, appUser] = await Promise.all([
+    tx.userProfile.findUnique({
+      where: { userId: appUserId },
+      select: { displayName: true, xpLevel: true, legacyCareerLevel: true },
+    }),
+    tx.appUser.findUnique({
+      where: { id: appUserId },
+      select: { username: true, email: true },
+    }),
+  ])
+
+  const managerName = resolvePreferredManagerName({
+    username: appUser?.username,
+    displayName: userProfile?.displayName,
+    email: appUser?.email,
+  })
+  const creatorRankLevelRaw = Number(userProfile?.xpLevel ?? userProfile?.legacyCareerLevel ?? 1)
+  const creatorRankLevel = Number.isFinite(creatorRankLevelRaw) ? Math.max(1, Math.floor(creatorRankLevelRaw)) : 1
+  const minRankLevel = Math.max(1, creatorRankLevel - 3)
+  const maxRankLevel = creatorRankLevel + 3
+
   const mergedSettings: Record<string, unknown> = {
     ...engine.settingsSnapshot,
     league_type: formatId,
@@ -145,18 +185,6 @@ export async function createCanonicalLeagueInTransaction(
       maxRankLevel,
     },
   }
-
-  log?.('canonical_transaction_start', { appUserId, sport, formatId })
-
-  const userProfile = await tx.userProfile.findUnique({
-    where: { userId: appUserId },
-    select: { displayName: true, xpLevel: true, legacyCareerLevel: true },
-  })
-  const displayName = userProfile?.displayName ?? 'User'
-  const creatorRankLevelRaw = Number(userProfile?.xpLevel ?? userProfile?.legacyCareerLevel ?? 1)
-  const creatorRankLevel = Number.isFinite(creatorRankLevelRaw) ? Math.max(1, Math.floor(creatorRankLevelRaw)) : 1
-  const minRankLevel = Math.max(1, creatorRankLevel - 3)
-  const maxRankLevel = creatorRankLevel + 3
 
   const keeperBootstrap =
     formatId === 'keeper'
@@ -361,6 +389,7 @@ export async function createCanonicalLeagueInTransaction(
       draftTimerSecondsDefault: timerSeconds,
       isPublic: bestBallSettings?.visibility === 'public',
       allowInviteLinks: true,
+      allowMemberInviteRankBypass: false,
       settingsJson: {
         tradeReviewMode: tradeReview,
         canonicalFormatId: formatId,
@@ -437,8 +466,8 @@ export async function createCanonicalLeagueInTransaction(
     data: {
       leagueId: league.id,
       externalId: roster.id,
-      ownerName: displayName,
-      teamName: `${displayName}'s Team`,
+      ownerName: managerName,
+      teamName: `${managerName}'s Team`,
       claimedByUserId: appUserId,
       platformUserId: appUserId,
       isCommissioner: true,
@@ -553,63 +582,70 @@ export async function createCanonicalLeagueInTransaction(
     data: {
       leagueId: league.id,
       createdBy: appUserId,
+      createdByRole: 'COMMISSIONER',
       maxUses: 50,
       isActive: true,
+      bypassRankGate: false,
     },
   })
   const inviteUrl = `/join/${invite.token}`
 
-  const shouldPublishFinderListing =
+  const conceptSetup = (body.conceptSetup ?? {}) as Record<string, unknown>
+  const visibility =
     bestBallSettings?.visibility === 'public' ||
-    ((body.conceptSetup ?? {}) as Record<string, unknown>).visibility === 'public' ||
-    ((body.conceptSetup ?? {}) as Record<string, unknown>).isPublic === true
+    conceptSetup.visibility === 'public' ||
+    conceptSetup.isPublic === true
+      ? 'public'
+      : 'private'
+  const isFinderListingActive = visibility === 'public'
+  const finderListingHeadline = `${body.leagueName.trim()} | Rank ${minRankLevel}-${maxRankLevel}`
+  const finderListingBody = JSON.stringify({
+    leagueId: league.id,
+    leagueName: body.leagueName.trim(),
+    concept: formatId,
+    sport,
+    draftType: body.draftType,
+    scoringPreset: body.scoringPreset,
+    currentTeams: 1,
+    maxTeams: body.teamCount,
+    creatorRankLevel,
+    minRankLevel,
+    maxRankLevel,
+    visibility,
+    teamCount: body.teamCount,
+    timezone: body.timezone ?? 'America/New_York',
+    language: body.language ?? 'en',
+    inviteUrl,
+  })
 
-  if (shouldPublishFinderListing) {
-    await tx.findLeagueListing.upsert({
-      where: {
-        leagueId_rosterId: {
-          leagueId: league.id,
-          rosterId: roster.id,
-        },
-      },
-      create: {
+  await tx.findLeagueListing.upsert({
+    where: {
+      leagueId_rosterId: {
         leagueId: league.id,
         rosterId: roster.id,
-        sport,
-        isActive: true,
-        headline: `${body.leagueName.trim()} | Rank ${minRankLevel}-${maxRankLevel}`,
-        body: JSON.stringify({
-          creatorRankLevel,
-          minRankLevel,
-          maxRankLevel,
-          concept: formatId,
-          teamCount: body.teamCount,
-          draftType: body.draftType,
-          scoringPreset: body.scoringPreset,
-          timezone: body.timezone ?? 'America/New_York',
-          language: body.language ?? 'en',
-          inviteUrl,
-        }),
       },
-      update: {
-        sport,
-        isActive: true,
-        headline: `${body.leagueName.trim()} | Rank ${minRankLevel}-${maxRankLevel}`,
-        body: JSON.stringify({
-          creatorRankLevel,
-          minRankLevel,
-          maxRankLevel,
-          concept: formatId,
-          teamCount: body.teamCount,
-          draftType: body.draftType,
-          scoringPreset: body.scoringPreset,
-          timezone: body.timezone ?? 'America/New_York',
-          language: body.language ?? 'en',
-          inviteUrl,
-        }),
-      },
-    })
-  }
+    },
+    create: {
+      leagueId: league.id,
+      rosterId: roster.id,
+      sport,
+      creatorRankLevel,
+      minRankLevel,
+      maxRankLevel,
+      isActive: isFinderListingActive,
+      headline: finderListingHeadline,
+      body: finderListingBody,
+    },
+    update: {
+      sport,
+      creatorRankLevel,
+      minRankLevel,
+      maxRankLevel,
+      isActive: isFinderListingActive,
+      headline: finderListingHeadline,
+      body: finderListingBody,
+    },
+  })
 
   const zombieTier =
     formatId === 'zombie' && body.conceptSetup && typeof body.conceptSetup === 'object'

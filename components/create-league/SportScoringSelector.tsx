@@ -5,17 +5,15 @@ import type { AccentTone } from '@/lib/create-league-v2/theme'
 import type { CreateLeagueV2State, SoccerPipeline, SupportedSport } from '@/lib/create-league-v2/state'
 import { SUPPORTED_SPORTS, getEffectiveLeagueType } from '@/lib/create-league-v2/state'
 import {
-  listScoringPresetOptions,
-  resolveScoringPresetId,
-} from '@/lib/league-creation-preset/scoring-presets'
-import {
   getDefaultTeamCount,
+  getScoringPresetOptionsForSelection,
   isIdpAvailableForSport,
   isSportAllowedForType,
+  resolveValidDraftTypeForSelection,
+  resolveValidScoringPresetIdForSelection,
 } from '@/lib/create-league-v2/rules-engine'
 import { GlassCard, SectionHeader, SelectableCard, Segmented } from '@/components/create-league-v2/primitives'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
-import { getClientLeagueCreateOptionsCatalog } from '@/lib/create-league-v2/options-catalog-client'
 
 const SPORT_ICONS: Record<SupportedSport, string> = {
   NFL: '🏈',
@@ -62,18 +60,7 @@ export function SportScoringSelector({
 
   const scoringOptions = useMemo(() => {
     if (!presetCtx) return []
-
-    const raw = listScoringPresetOptions(presetCtx)
-    const conceptId = state.idpSelected ? 'idp' : presetCtx.leagueType
-    const catalog = getClientLeagueCreateOptionsCatalog()
-    const allowed = catalog?.allowedScoringPresetsByConceptSport?.[conceptId]?.[presetCtx.sport]
-
-    if (!Array.isArray(allowed) || allowed.length === 0) {
-      return raw
-    }
-
-    const allowedSet = new Set(allowed)
-    return raw.filter((option) => allowedSet.has(option.id))
+    return getScoringPresetOptionsForSelection(presetCtx)
   }, [presetCtx?.leagueType, presetCtx?.sport, presetCtx?.idpSelected, state.idpSelected])
 
   const isSoccer = state.sport === 'SOCCER'
@@ -81,15 +68,23 @@ export function SportScoringSelector({
   function handleSportChange(sport: SupportedSport) {
     const patch: Partial<CreateLeagueV2State> = { sport }
     patch.soccerPipeline = sport === 'SOCCER' ? 'euro' : null
+    const nextSoccerPipeline = patch.soccerPipeline
+    const nextIdpSelected = state.idpSelected && isIdpAvailableForSport(sport)
     if (state.idpSelected && !isIdpAvailableForSport(sport)) {
       patch.idpSelected = false
     }
     if (effectiveType) {
-      patch.teamCount = getDefaultTeamCount(sport, effectiveType, patch.soccerPipeline ?? null)
-      patch.scoringPresetId = resolveScoringPresetId(state.scoringPresetId, {
+      patch.teamCount = getDefaultTeamCount(sport, effectiveType, nextSoccerPipeline)
+      patch.draftType = resolveValidDraftTypeForSelection({
         leagueType: effectiveType,
         sport,
-        idpSelected: patch.idpSelected ?? state.idpSelected,
+        idpSelected: nextIdpSelected,
+        currentDraftType: state.draftType,
+      })
+      patch.scoringPresetId = resolveValidScoringPresetIdForSelection(state.scoringPresetId, {
+        leagueType: effectiveType,
+        sport,
+        idpSelected: nextIdpSelected,
       })
     }
     patch.nameTouched = false

@@ -20,6 +20,11 @@ import { getCreateLeagueDraftTypes } from '@/lib/league/format-engine'
 import { getGuillotineSportConfig } from '@/lib/guillotine/sportConfig'
 import { BEST_BALL_DRAFT_MODES } from '@/lib/bestball/rules'
 import { getClientLeagueCreateOptionsCatalog } from '@/lib/create-league-v2/options-catalog-client'
+import {
+  listScoringPresetOptions,
+  resolveScoringPresetId,
+  type ScoringPresetOption,
+} from '@/lib/league-creation-preset/scoring-presets'
 
 // ── Sport filtering ─────────────────────────────────────────────────
 
@@ -170,8 +175,13 @@ export function getDraftTypeOptions(leagueType: LeagueTypeId, sport: SupportedSp
   const catalog = getClientLeagueCreateOptionsCatalog()
   const seeded = catalog?.allowedDraftTypesByConcept?.[leagueType]
 
-  // Use DB-seeded options first; fallback to format-engine allowlists when seed data is unavailable.
-  const allowed = Array.isArray(seeded) && seeded.length > 0 ? seeded : getCreateLeagueDraftTypes(sport, leagueType)
+  const sportAllowed = getCreateLeagueDraftTypes(sport, leagueType)
+  const seededNormalized = Array.isArray(seeded)
+    ? seeded
+        .map((dt) => resolveEffectiveDraftTypeForConcept(leagueType, dt))
+        .filter((dt) => sportAllowed.includes(dt as DraftTypeId))
+    : []
+  const allowed = seededNormalized.length > 0 ? seededNormalized : sportAllowed
   const result: DraftTypeOption[] = []
 
   for (const dt of allowed) {
@@ -258,4 +268,59 @@ export function isThirdRoundReversalAvailable(draftType: WizardDraftTypeId | str
 /** IDP is available for football (NFL + NCAAF). */
 export function isIdpAvailableForSport(sport: SupportedSport): boolean {
   return supportsIdpLeagueSport(sport)
+}
+
+type ScoringSelection = {
+  leagueType: LeagueTypeId
+  sport: SupportedSport
+  idpSelected: boolean
+}
+
+export function getScoringPresetOptionsForSelection(input: ScoringSelection): ScoringPresetOption[] {
+  const raw = listScoringPresetOptions(input)
+  const conceptId = input.idpSelected ? 'idp' : input.leagueType
+  const catalog = getClientLeagueCreateOptionsCatalog()
+  const allowed = catalog?.allowedScoringPresetsByConceptSport?.[conceptId]?.[input.sport]
+
+  if (!Array.isArray(allowed) || allowed.length === 0) {
+    return raw
+  }
+
+  const allowedSet = new Set(allowed)
+  const filtered = raw.filter((option) => allowedSet.has(option.id))
+  return filtered.length > 0 ? filtered : raw
+}
+
+export function resolveValidScoringPresetIdForSelection(
+  currentScoringPresetId: string,
+  input: ScoringSelection,
+): string {
+  const options = getScoringPresetOptionsForSelection(input)
+  if (options.length === 0) {
+    return resolveScoringPresetId(currentScoringPresetId, input)
+  }
+
+  const resolved = resolveScoringPresetId(currentScoringPresetId, input)
+  if (options.some((option) => option.id === resolved)) {
+    return resolved
+  }
+
+  return options[0]?.id ?? resolved
+}
+
+export function resolveValidDraftTypeForSelection(input: {
+  leagueType: LeagueTypeId
+  sport: SupportedSport
+  idpSelected: boolean
+  currentDraftType: WizardDraftTypeId | string
+}): WizardDraftTypeId {
+  const options = input.idpSelected
+    ? getIdpDraftTypeOptions()
+    : getDraftTypeOptions(input.leagueType, input.sport)
+
+  if (options.some((option) => option.id === input.currentDraftType)) {
+    return input.currentDraftType as WizardDraftTypeId
+  }
+
+  return options[0]?.id ?? 'snake'
 }

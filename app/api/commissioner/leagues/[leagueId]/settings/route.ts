@@ -2,9 +2,26 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { assertCommissioner } from "@/lib/commissioner/permissions"
+import { isAdminEmailAllowed, isAdminRole } from "@/lib/adminAuth"
 import { getLeagueConfiguration } from "@/lib/commissioner-settings"
 import { validateCommissionerPatch } from "@/lib/commissioner-settings"
 import type { LeagueSettingsPatch } from "@/lib/commissioner-settings/types"
+
+type SessionUser = {
+  id?: string
+  role?: string | null
+  email?: string | null
+}
+
+function isAdminUser(user: SessionUser | null | undefined): boolean {
+  return Boolean(user && (isAdminRole(user.role) || isAdminEmailAllowed(user.email)))
+}
+
+async function assertCommissionerOrAdmin(leagueId: string, user: SessionUser | null | undefined) {
+  if (!user?.id) throw new Error("Unauthorized")
+  if (isAdminUser(user)) return
+  await assertCommissioner(leagueId, user.id)
+}
 
 export async function GET(
   _req: Request,
@@ -27,11 +44,11 @@ export async function PATCH(
   req: Request,
   { params }: { params: { leagueId: string } }
 ) {
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const session = (await getServerSession(authOptions as any)) as { user?: SessionUser } | null
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   try {
-    await assertCommissioner(params.leagueId, userId)
+    await assertCommissionerOrAdmin(params.leagueId, session?.user)
   } catch {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }

@@ -42,6 +42,7 @@ import {
 } from '@/components/app/draft-room/ResultsRosterPanel'
 import { DraftRosterStrip } from '@/components/app/draft-room/DraftRosterStrip'
 import { DraftRoundOneAnnouncementOverlay } from '@/components/app/draft-room/DraftRoundOneAnnouncementOverlay'
+import { DraftIntroGate } from '@/components/draft/DraftIntroGate'
 import type { DraftAiOverlaySignal, PlayerEntry } from '@/components/app/draft-room/PlayerPanel'
 import type { RoundOneAnnouncementQueueItem } from '@/lib/draft-room/resolvePickAnnouncementAssets'
 import { resolvePickAnnouncementAssets } from '@/lib/draft-room/resolvePickAnnouncementAssets'
@@ -4202,6 +4203,11 @@ export function DraftRoomPageClient({
 
   return (
     <>
+    <DraftIntroGate
+      leagueId={leagueId}
+      draftSessionId={session.id}
+      shouldPlayIntro={true}
+    />
     {showPreDraftValidationWizard && draftId ? (
       <div
         className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-[2px] p-4"

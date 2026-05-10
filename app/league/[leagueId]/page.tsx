@@ -9,6 +9,8 @@ import type { LeagueSeasonSnapshot } from '@/lib/league/sort-teams-standings'
 import { buildLeagueDashboardView } from '@/lib/league/league-dashboard-view'
 import type { LeagueDashboardView } from './league-dashboard-types'
 import { resolveTournamentDestinationFromLeagueSettings } from '@/lib/dashboard/league-list-destination'
+import { normalizeOpenChatQueryParam } from '@/lib/dashboard/open-chat-query'
+import { isPostCreateLeagueShellHandoff } from '@/lib/league/post-create-navigation'
 import DashboardUnavailableState from '@/components/dashboard/DashboardUnavailableState'
 import {
     createDashboardRuntimeIssue,
@@ -18,6 +20,17 @@ import {
 import { isAppRouterRedirectError } from '@/lib/next/is-app-router-redirect-error'
 
 export const dynamic = 'force-dynamic'
+
+function firstSearchParam(value: string | string[] | undefined): string | null {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) return value[0] ?? null
+  return null
+}
+
+function isTruthySearchParam(value: string | string[] | undefined): boolean {
+  const normalized = firstSearchParam(value)?.trim().toLowerCase()
+  return normalized === '1' || normalized === 'true'
+}
 
 export default async function LeaguePage({
     params,
@@ -40,6 +53,10 @@ export default async function LeaguePage({
 
   const { leagueId } = await params
     const sp = searchParams ? await searchParams : {}
+        const createdFromLeagueCreate = isPostCreateLeagueShellHandoff(sp)
+        const defaultShowInvite = isTruthySearchParam(sp.showInvite)
+        const defaultOpenChat = normalizeOpenChatQueryParam(firstSearchParam(sp.openChat)) === 'league' ? 'league' : null
+        const shouldPlayIntro = isTruthySearchParam(sp.playIntro)
         const zc = sp.zombieChimmy
     const zombieChimmyPrefill = typeof zc === 'string' ? zc : Array.isArray(zc) ? zc[0] ?? null : null
     const embedRaw = sp.embed
@@ -139,7 +156,7 @@ export default async function LeaguePage({
             ? (league.settings as Record<string, unknown>)
                 : {}
             const tournamentHref = resolveTournamentDestinationFromLeagueSettings(leagueSettings)
-        if (tournamentHref) {
+        if (tournamentHref && !createdFromLeagueCreate) {
                 redirect(tournamentHref)
         }
 
@@ -262,6 +279,10 @@ export default async function LeaguePage({
                                   seasonSnapshot={seasonSnapshot}
                                   leagueDashboard={leagueDashboard}
                                   embedMode={embedMode}
+                                  createdFromLeagueCreate={createdFromLeagueCreate}
+                                  defaultShowInvite={defaultShowInvite}
+                                  defaultOpenChat={defaultOpenChat}
+                                  shouldPlayIntro={shouldPlayIntro}
                                 />
               </div>
             )

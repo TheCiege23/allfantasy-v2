@@ -6,15 +6,12 @@ import type { AccentTone } from '@/lib/create-league-v2/theme'
 import type { CreateLeagueV2State } from '@/lib/create-league-v2/state'
 import { SUPPORTED_SPORTS, getEffectiveLeagueType } from '@/lib/create-league-v2/state'
 import {
-  getDraftTypeOptions,
-  getIdpDraftTypeOptions,
   getDefaultTeamCount,
-  isDraftTypeAllowedForType,
-  isIdpDraftTypeAllowed,
   isIdpAvailableForSport,
   isSportAllowedForType,
+  resolveValidDraftTypeForSelection,
+  resolveValidScoringPresetIdForSelection,
 } from '@/lib/create-league-v2/rules-engine'
-import { resolveScoringPresetId } from '@/lib/league-creation-preset/scoring-presets'
 import type { SupportedSport } from '@/lib/create-league-v2/state'
 import { GlassCard, SelectableCard, SectionHeader } from '@/components/create-league-v2/primitives'
 import { LEAGUE_TYPE_MEDIA } from '@/lib/create-league-v2/theme'
@@ -101,42 +98,51 @@ export function ConceptSelector({
 
   function handleLeagueTypeSelect(card: LeagueConceptCard) {
     const patch: Partial<CreateLeagueV2State> = {}
+    let nextLeagueType: LeagueTypeId = card.id === 'idp' ? 'redraft' : card.id
+    let nextIdpSelected = card.id === 'idp'
+    let nextSport = state.sport
+    let nextSoccerPipeline = state.soccerPipeline
 
     if (card.id === 'idp') {
       patch.idpSelected = true
       patch.leagueType = 'redraft'
+      nextIdpSelected = true
+      nextLeagueType = 'redraft'
       if (!isIdpAvailableForSport(state.sport)) {
         patch.sport = 'NFL'
         patch.soccerPipeline = null
+        nextSport = 'NFL'
+        nextSoccerPipeline = null
       }
     } else {
       const selectedLeagueType: LeagueTypeId = card.id
       patch.idpSelected = false
       patch.leagueType = selectedLeagueType
+      nextIdpSelected = false
+      nextLeagueType = selectedLeagueType
       if (!isSportAllowedForType(state.sport, selectedLeagueType)) {
         const fallback = SUPPORTED_SPORTS.find((s) => isSportAllowedForType(s, selectedLeagueType))
         if (fallback) {
           patch.sport = fallback
           patch.soccerPipeline = fallback === 'SOCCER' ? 'euro' : null
+          nextSport = fallback
+          nextSoccerPipeline = fallback === 'SOCCER' ? 'euro' : null
         }
       }
     }
 
-    const resolvedType: LeagueTypeId = card.id === 'idp' ? 'redraft' : card.id
-    const draftIsAllowed =
-      card.id === 'idp' ? isIdpDraftTypeAllowed(state.draftType) : isDraftTypeAllowedForType(state.draftType, resolvedType)
-    if (!draftIsAllowed) {
-      const firstAllowed = card.id === 'idp' ? getIdpDraftTypeOptions() : getDraftTypeOptions(resolvedType)
-      patch.draftType = firstAllowed[0]?.id ?? 'snake'
-    }
-
-    const nextSport = (patch.sport ?? state.sport) as SupportedSport
-    const nextPipeline = patch.soccerPipeline ?? state.soccerPipeline
-    patch.teamCount = getDefaultTeamCount(nextSport, resolvedType, nextPipeline)
-    patch.scoringPresetId = resolveScoringPresetId(state.scoringPresetId, {
-      leagueType: resolvedType,
+    patch.draftType = resolveValidDraftTypeForSelection({
+      leagueType: nextLeagueType,
       sport: nextSport,
-      idpSelected: patch.idpSelected ?? state.idpSelected,
+      idpSelected: nextIdpSelected,
+      currentDraftType: state.draftType,
+    })
+
+    patch.teamCount = getDefaultTeamCount(nextSport as SupportedSport, nextLeagueType, nextSoccerPipeline)
+    patch.scoringPresetId = resolveValidScoringPresetIdForSelection(state.scoringPresetId, {
+      leagueType: nextLeagueType,
+      sport: nextSport as SupportedSport,
+      idpSelected: nextIdpSelected,
     })
     patch.nameTouched = false
     onChange(patch)

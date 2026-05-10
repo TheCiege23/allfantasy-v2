@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { validateFantasyInviteCode } from '@/lib/league-invite'
+import { resolveJoinRankGate } from '@/lib/league-join/resolveJoinRankGate'
 import { prisma } from '@/lib/prisma'
 import { assertPaidJoinAllowed, linkDuesToRoster } from '@/lib/league-finance/joinGate'
 import { claimPlaceholderRoster } from '@/lib/league-import/placeholderClaim'
@@ -59,6 +60,27 @@ export async function POST(req: NextRequest) {
     )
   }
   const result = validation.preview
+
+  const rankGate = await resolveJoinRankGate({
+    leagueId: result.leagueId,
+    inviteTokenOrCode: code,
+    userId,
+  })
+
+  if (!rankGate.allowed) {
+    const minRankLevel = rankGate.minRankLevel ?? 1
+    const maxRankLevel = rankGate.maxRankLevel ?? 1
+    return NextResponse.json(
+      {
+        error: 'RANK_GATE_BLOCKED',
+        message: `This league is open to users ranked Level ${minRankLevel} through Level ${maxRankLevel}. Ask the commissioner for a special invite.`,
+        minRankLevel,
+        maxRankLevel,
+        userRankLevel: rankGate.userRankLevel,
+      },
+      { status: 403 }
+    )
+  }
 
   const joinResult = await prisma.$transaction(async (tx) => {
     const existing = await tx.roster.findUnique({

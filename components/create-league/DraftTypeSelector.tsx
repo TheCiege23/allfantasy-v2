@@ -7,8 +7,6 @@ import { getEffectiveLeagueType } from '@/lib/create-league-v2/state'
 import {
   getDraftTypeOptions,
   getIdpDraftTypeOptions,
-  isDraftTypeAllowedForType,
-  isIdpDraftTypeAllowed,
   isThirdRoundReversalAvailable,
 } from '@/lib/create-league-v2/rules-engine'
 import { GlassCard, SectionHeader, Segmented, Toggle } from '@/components/create-league-v2/primitives'
@@ -43,7 +41,8 @@ export function DraftTypeSelector({
     [draftOptions, t],
   )
   const isSnake = state.draftType === 'snake'
-  const unlocked = Boolean(effectiveType && state.name.trim().length >= 3)
+  const unlocked = Boolean(effectiveType)
+  const hasCurrentDraftType = draftOptions.some((option) => option.id === state.draftType)
 
   useEffect(() => {
     const el = draftSectionRef.current
@@ -74,12 +73,7 @@ export function DraftTypeSelector({
             hint: dt.hint,
           }))}
           value={
-            effectiveType &&
-            (state.idpSelected
-              ? isIdpDraftTypeAllowed(state.draftType)
-              : isDraftTypeAllowedForType(state.draftType, effectiveType))
-              ? state.draftType
-              : draftOptions[0]?.id ?? 'snake'
+            effectiveType && hasCurrentDraftType ? state.draftType : draftOptions[0]?.id ?? 'snake'
           }
           onChange={(draftType) => onChange({ draftType })}
           accent={accent}

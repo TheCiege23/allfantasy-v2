@@ -8,6 +8,7 @@
  * - `guide=settings` — setup guide affordance.
  * - `openChat=league` — open league chat.
  * - `showInvite=1` — invite panel when applicable.
+ * - `playIntro=1` — reserve intro playback intent for league shell follow-up handling.
  *
  * Tournament exception: tournament creates always land on `/tournament/[tournamentId]?created=1&showInvite=1`,
  * bypassing league-shell query flags and feeder `leagueId` routing.
@@ -30,6 +31,7 @@ function appendCommonLeagueQuery(q: URLSearchParams, args: PostCreateLeagueHomeA
   q.set('created', '1')
   q.set('guide', 'settings')
   q.set('openChat', 'league')
+  q.set('playIntro', '1')
   if (args.allowInviteLink) q.set('showInvite', '1')
   const zt = args.zombieUniverseTier
   if (zt === 'beta_trio' || zt === 'alpha_hex') {

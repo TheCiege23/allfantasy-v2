@@ -160,6 +160,9 @@ export interface CreateLeagueV2State {
   language: string
   scoringSource: ScoringSource
   tradeReviewMode: TradeReviewMode
+  creatorRankLevel: number | null
+  minRankLevel: number | null
+  maxRankLevel: number | null
   dynasty: DynastySetupState
   keeper: KeeperSetupState
   bestBall: BestBallSetupState
@@ -269,6 +272,9 @@ export const DEFAULT_V2_STATE: CreateLeagueV2State = {
   language: 'en',
   scoringSource: 'af',
   tradeReviewMode: 'commissioner',
+  creatorRankLevel: null,
+  minRankLevel: null,
+  maxRankLevel: null,
   dynasty: getDefaultDynastySetup('NFL', 'snake'),
   keeper: getDefaultKeeperSetup(),
   bestBall: getDefaultBestBallSetup('NFL', 'standard', 'snake'),

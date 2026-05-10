@@ -7,6 +7,7 @@ import type { CreateLeagueV2State } from '@/lib/create-league-v2/state'
 import { getEffectiveLeagueType, isDynastyConcept } from '@/lib/create-league-v2/state'
 import type { CreateLeagueFieldErrors } from '@/lib/create-league-v2/submit'
 import { buildSuggestedLeagueName } from '@/lib/create-league-v2/suggested-league-name'
+import { CreateLeagueReviewStep } from '@/components/create-league-v2/CreateLeagueReviewStep'
 import {
   ConceptSelector,
   SportScoringSelector,
@@ -59,6 +60,13 @@ export function CreateLeagueUnifiedForm({
 
   return (
     <div className="space-y-5">
+      <ConceptSelector
+        state={state}
+        accent={accent}
+        onChange={onChange}
+        error={fe?.concept}
+      />
+
       <GlassCard>
         <SectionHeader
           title="Creation Mode"
@@ -76,13 +84,6 @@ export function CreateLeagueUnifiedForm({
         />
       </GlassCard>
 
-      <ConceptSelector
-        state={state}
-        accent={accent}
-        onChange={onChange}
-        error={fe?.concept}
-      />
-
       <section className={!effectiveType ? 'opacity-35' : undefined}>
         <SportScoringSelector
           state={state}
@@ -90,6 +91,16 @@ export function CreateLeagueUnifiedForm({
           onChange={onChange}
           sportError={fe?.sport}
           scoringError={fe?.scoringPreset}
+        />
+      </section>
+
+      <section className={!effectiveType ? 'opacity-35' : undefined}>
+        <DraftTypeSelector
+          state={state}
+          accent={accent}
+          onChange={onChange}
+          onDraftSectionVisible={onDraftSectionVisible}
+          draftError={fe?.draftType}
         />
       </section>
 
@@ -101,16 +112,6 @@ export function CreateLeagueUnifiedForm({
           commissionerFirstName={firstName}
           teamCountError={fe?.teamCount}
           leagueNameError={fe?.leagueName}
-        />
-      </section>
-
-      <section className={!effectiveType || state.name.trim().length < 3 ? 'opacity-35' : undefined}>
-        <DraftTypeSelector
-          state={state}
-          accent={accent}
-          onChange={onChange}
-          onDraftSectionVisible={onDraftSectionVisible}
-          draftError={fe?.draftType}
         />
       </section>
 
@@ -137,6 +138,8 @@ export function CreateLeagueUnifiedForm({
           onChange={onChange}
         />
       )}
+
+      {effectiveType ? <CreateLeagueReviewStep state={state} accent={accent} /> : null}
     </div>
   )
 }

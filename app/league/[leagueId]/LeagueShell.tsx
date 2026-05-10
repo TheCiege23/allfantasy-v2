@@ -115,6 +115,7 @@ import type { C2CConfigClient } from '@/lib/c2c/c2cUiLabels'
 import { c2cScoreModeChip, c2cSportPairShort } from '@/lib/c2c/c2cUiLabels'
 import { RenewLeagueBanner } from '@/components/league/RenewLeagueBanner'
 import { PostCreateSetupGuideBanner } from '@/components/league/PostCreateSetupGuideBanner'
+import { LeagueConceptIntroGate } from '@/components/league/LeagueConceptIntroGate'
 import { useMyLeaguesRailCollapse } from '@/hooks/useMyLeaguesRailCollapse'
 import { SpecialtyLeagueAtmosphere } from '@/components/league-atmosphere/SpecialtyLeagueAtmosphere'
 import { TournamentIntroVideoOverlay } from '@/components/tournament/TournamentIntroVideoOverlay'
@@ -203,6 +204,16 @@ export type LeagueShellProps = {
   seasonSnapshot?: LeagueSeasonSnapshot | null
   /** AF-native league settings copy + standings layout (divisions / guillotine / survivor). */
   leagueDashboard: LeagueDashboardView
+  /** True when user arrived from successful Create League post-create redirect. */
+  createdFromLeagueCreate?: boolean
+  /** Open invite panel by default on first render when true. */
+  defaultShowInvite?: boolean
+  /** Initial league chat selection from handoff query. */
+  defaultOpenChat?: 'league' | null
+  /** Reserved intro playback intent for Step 11 overlay work. */
+  shouldPlayIntro?: boolean
+  /** Embedded league hub mode from page-level query handoff. */
+  embedMode?: boolean
 }
 
 export function LeagueShell({
@@ -224,6 +235,11 @@ export function LeagueShell({
   dispersalDraftInProgress = null,
   seasonSnapshot = null,
   leagueDashboard,
+  createdFromLeagueCreate = false,
+  defaultShowInvite = false,
+  defaultOpenChat = null,
+  shouldPlayIntro = false,
+  embedMode = false,
 }: LeagueShellProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -231,8 +247,8 @@ export function LeagueShell({
   const searchParams = useSearchParams()
   const openChatQuery = searchParams?.get('openChat') ?? null
   const initialOpenChat = useMemo(
-    () => normalizeOpenChatQueryParam(openChatQuery) ?? 'league',
-    [openChatQuery],
+    () => defaultOpenChat ?? normalizeOpenChatQueryParam(openChatQuery) ?? 'league',
+    [defaultOpenChat, openChatQuery],
   )
   const { rosterId: capRosterId } = useRedraftRosterId(league.id)
   const { summary: capSummary } = useIdpCapSummary(league.id, capRosterId)
@@ -578,18 +594,6 @@ export function LeagueShell({
   const [commissionerSettingsOpen, setCommissionerSettingsOpen] = useState(false)
   const [c2cConfig, setC2cConfig] = useState<C2CConfigClient | null>(null)
   const [c2cChecked, setC2cChecked] = useState(false)
-  const conceptIntroVideoUrl = useMemo(() => {
-    const settings =
-      league.settings && typeof league.settings === 'object' && !Array.isArray(league.settings)
-        ? (league.settings as Record<string, unknown>)
-        : null
-    if (!settings) return null
-    const intro = settings.intro_video ?? settings.introVideo
-    if (!intro || typeof intro !== 'object' || Array.isArray(intro)) return null
-    const url = (intro as Record<string, unknown>).url
-    return typeof url === 'string' && url.trim().length > 0 ? url.trim() : null
-  }, [league.settings])
-
   useEffect(() => {
     setPortalMounted(true)
   }, [])
@@ -789,6 +793,14 @@ export function LeagueShell({
     setSettingsOpen(true)
   }, [])
 
+  const inviteAutoOpenedForLeague = useRef<string | null>(null)
+  useEffect(() => {
+    if (!defaultShowInvite) return
+    if (inviteAutoOpenedForLeague.current === league.id) return
+    inviteAutoOpenedForLeague.current = league.id
+    openLeagueSettingsModal('invite')
+  }, [defaultShowInvite, league.id, openLeagueSettingsModal])
+
   const closeLeagueSettingsModal = () => {
     setSettingsOpen(false)
     setSettingsInitialPanel(null)
@@ -956,7 +968,15 @@ export function LeagueShell({
           tournamentName={tournamentHeroContext.tournamentName}
         />
       ) : null}
-      <div className="contents" data-league-id={league.id}>
+      <LeagueConceptIntroGate
+        leagueId={league.id}
+        shouldPlayIntro={shouldPlayIntro}
+        leagueType={league.leagueType}
+        leagueVariant={league.leagueVariant}
+        isDynasty={league.isDynasty}
+        settings={league.settings}
+      />
+      <div className="contents" data-league-id={league.id} data-embed-mode={embedMode ? '1' : undefined}>
         <AppShell
           immersive={specialtyImmersive}
           rootClassName="h-[calc(100dvh-8.5rem)] min-h-0 lg:h-[calc(100dvh-3.5rem)]"
@@ -1139,7 +1159,7 @@ export function LeagueShell({
               </div>
             ) : null}
 
-            {isCommissioner ? (
+            {isCommissioner && createdFromLeagueCreate ? (
               <Suspense fallback={null}>
                 <PostCreateSetupGuideBanner leagueId={league.id} isCommissioner={isCommissioner} />
               </Suspense>

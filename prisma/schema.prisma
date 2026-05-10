@@ -2884,6 +2884,7 @@ model AppUser {
   leagueAuths                              LeagueAuth[]
   leagueChatMessages                       LeagueChatMessage[]
   leagueIntroViews                         LeagueIntroView[]
+  draftIntroViews                          DraftIntroView[]
   leagueTemplates                          LeagueTemplate[]
   leagues                                  League[]
   legacyTournamentStaffRoles               LegacyTournamentStaff[]
@@ -4944,6 +4945,7 @@ model League {
   devyRights                            DevyRights[]
   discordLeagueChannels                 DiscordLeagueChannel[]
   draftPickAuditLogs                    DraftPickAuditLog[]
+  draftIntroViews                       DraftIntroView[]
   draftRecaps                           DraftRecap[]
   draftSessions                         DraftSession?
   dynastyConfig                         DynastyLeagueConfig?
@@ -5635,6 +5637,24 @@ model LeagueIntroView {
   @@unique([leagueId, userId])
   @@index([userId, seenAt])
   @@map("league_intro_views")
+}
+
+model DraftIntroView {
+  id             String       @id @default(cuid())
+  leagueId       String
+  draftSessionId String
+  userId         String
+  draftTypeKey   String?
+  videoUrl       String?
+  seenAt         DateTime     @default(now())
+  league         League       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  draftSession   DraftSession @relation(fields: [draftSessionId], references: [id], onDelete: Cascade)
+  user           AppUser      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([draftSessionId, userId])
+  @@index([leagueId])
+  @@index([userId])
+  @@index([draftTypeKey])
 }
 
 /// User-created league templates: save and reuse league settings, draft settings, AI/automation toggles (PROMPT 209).
@@ -10568,6 +10588,7 @@ model DraftSession {
   aiRecommendationLogs       AiRecommendationLog[]
   draftChatMessages          DraftChatMessage[]
   tradeProposals             DraftPickTradeProposal[]
+  draftIntroViews            DraftIntroView[]
   picks                      DraftPick[]
   queueEntries               DraftQueueEntry[]
   queues                     DraftQueue[]

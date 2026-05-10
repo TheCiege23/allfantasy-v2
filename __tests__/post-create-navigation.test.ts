@@ -17,6 +17,7 @@ describe('post-create handoff normalization', () => {
     expect(u.searchParams.get('guide')).toBe('settings')
     expect(u.searchParams.get('openChat')).toBe('league')
     expect(u.searchParams.get('showInvite')).toBe('1')
+    expect(u.searchParams.get('playIntro')).toBe('1')
   })
 
   it('routes tournament create to /tournament/[id] even when a feeder leagueId is present', () => {

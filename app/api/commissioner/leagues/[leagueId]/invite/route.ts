@@ -3,11 +3,76 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
+import { getLeagueRole } from '@/lib/league/permissions'
+import { isAdminEmailAllowed, isAdminRole } from '@/lib/adminAuth'
 import {
   buildFantasyInviteLink,
   generateInviteToken,
   getDefaultFantasyInviteExpiry,
 } from '@/lib/league-invite'
+
+type SessionUser = {
+  id?: string
+  role?: string | null
+  email?: string | null
+}
+
+function resolveCreatedByRole(user: SessionUser): string {
+  if (isAdminRole(user.role) || isAdminEmailAllowed(user.email)) return 'ADMIN'
+  if (user.role && String(user.role).trim()) return String(user.role).toUpperCase()
+  return 'COMMISSIONER'
+}
+
+function isAdminUser(user: SessionUser): boolean {
+  return isAdminRole(user.role) || isAdminEmailAllowed(user.email)
+}
+
+async function canManageInviteBypass(leagueId: string, user: SessionUser): Promise<boolean> {
+  if (!user.id) return false
+  if (isAdminUser(user)) return true
+
+  const role = await getLeagueRole(leagueId, user.id)
+  if (role === 'commissioner' || role === 'co_commissioner') return true
+  if (role !== 'member') return false
+
+  const redraftSettings = await prisma.redraftLeagueExtendedSettings.findUnique({
+    where: { leagueId },
+    select: { allowMemberInviteRankBypass: true },
+  })
+  return Boolean(redraftSettings?.allowMemberInviteRankBypass)
+}
+
+async function upsertLeagueInvite(input: {
+  leagueId: string
+  inviteCode: string
+  createdByUserId: string
+  createdByRole?: string | null
+  inviteExpiresAt: string | null
+  bypassRankGate: boolean
+}) {
+  const expiresAt = input.inviteExpiresAt ? new Date(input.inviteExpiresAt) : null
+
+  await prisma.leagueInvite.upsert({
+    where: { token: input.inviteCode },
+    create: {
+      leagueId: input.leagueId,
+      token: input.inviteCode,
+      createdBy: input.createdByUserId,
+      createdByRole: input.createdByRole ?? null,
+      expiresAt,
+      bypassRankGate: input.bypassRankGate,
+      isActive: true,
+    },
+    update: {
+      leagueId: input.leagueId,
+      createdBy: input.createdByUserId,
+      createdByRole: input.createdByRole ?? null,
+      expiresAt,
+      bypassRankGate: input.bypassRankGate,
+      isActive: true,
+    },
+  })
+}
 
 function getBaseUrl(req?: NextRequest): string {
   if (req?.headers.get('x-forwarded-host')) {
@@ -70,7 +135,7 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: { leagueId: string } }
 ) {
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const session = (await getServerSession(authOptions as any)) as { user?: SessionUser } | null
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -101,22 +166,30 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { leagueId: string } }
 ) {
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const session = (await getServerSession(authOptions as any)) as { user?: SessionUser } | null
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  try {
-    await assertCommissioner(params.leagueId, userId)
-  } catch {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
   const body = await req.json().catch(() => ({}))
+  const bypassRankGate = body?.bypassRankGate === true
   const regenerate = body?.regenerate !== false
   const expiresInDays =
     typeof body?.expiresInDays === 'number' && Number.isFinite(body.expiresInDays)
       ? Math.max(1, Math.min(90, Math.trunc(body.expiresInDays)))
       : undefined
+
+  if (bypassRankGate) {
+    const canBypass = await canManageInviteBypass(params.leagueId, session?.user ?? {})
+    if (!canBypass) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+  } else {
+    try {
+      await assertCommissioner(params.leagueId, userId)
+    } catch {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+  }
 
   const league = await prisma.league.findUnique({
     where: { id: params.leagueId },
@@ -141,6 +214,19 @@ export async function POST(
   })
   const s = (updated.settings as Record<string, unknown>) || {}
   const normalizedExpiresAt = normalizeInviteExpiry(s.inviteExpiresAt)
+
+  const persistedInviteCode =
+    typeof s.inviteCode === 'string' && s.inviteCode.trim() ? s.inviteCode.trim() : inviteCode
+
+  await upsertLeagueInvite({
+    leagueId: params.leagueId,
+    inviteCode: persistedInviteCode,
+    createdByUserId: userId,
+    createdByRole: bypassRankGate ? 'COMMISSIONER' : resolveCreatedByRole(session?.user ?? {}),
+    inviteExpiresAt: normalizedExpiresAt,
+    bypassRankGate,
+  })
+
   return NextResponse.json({
     status: 'ok',
     inviteCode: s.inviteCode,
@@ -148,5 +234,6 @@ export async function POST(
     joinUrl,
     inviteExpiresAt: normalizedExpiresAt,
     inviteExpired: getInviteExpired(normalizedExpiresAt),
+    bypassRankGate,
   })
 }
