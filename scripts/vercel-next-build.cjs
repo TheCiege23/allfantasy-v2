@@ -44,6 +44,9 @@ const movedFiles = []
 let cleanedUp = false
 const filesToKeep = new Set([
   path.join('app', 'api', 'cron', '_auth.ts').replace(/\\/g, '/'),
+  path.join('app', 'api', 'cron', 'waivers', 'route.ts').replace(/\\/g, '/'),
+  path.join('app', 'api', 'admin', 'automation', 'health', 'route.ts').replace(/\\/g, '/'),
+  path.join('app', 'api', 'admin', 'automation', 'waivers', 'run', 'route.ts').replace(/\\/g, '/'),
 ])
 
 function directoryExists(targetPath) {
