@@ -2379,6 +2379,7 @@ export function DraftRoomPageClient({
       if (pickInflightRef.current) return
       pickInflightRef.current = true
       setPickSubmitting(true)
+      const _pickPerfStart = typeof performance !== 'undefined' ? performance.now() : Date.now()
       try {
         draftRoomPickTrace({
           event: 'pick-submit',
@@ -2428,9 +2429,17 @@ export function DraftRoomPageClient({
               (e) => normalizeDraftedPlayerName(e.playerName) !== normalizeDraftedPlayerName(player.name),
             ),
           )
-          await fetchQueue()
-          await fetchDraftPool()
+          // draftedNames derives from session.picks — player is already marked drafted above.
+          // Pool + queue revalidations are background-only; they must not block setPickSubmitting(false).
+          void fetchQueue()
+          void fetchDraftPool()
           void fetchDraftAssistantContext()
+          if (process.env.NODE_ENV !== 'production') {
+            console.info('[draft-perf] pick round-trip', {
+              playerName: player.name,
+              ms: Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - _pickPerfStart),
+            })
+          }
           pollSessionFailStreakRef.current = 0
           if (connectionDegradedTimerRef.current != null) {
             clearTimeout(connectionDegradedTimerRef.current)
@@ -2441,8 +2450,8 @@ export function DraftRoomPageClient({
           sendProductAnalyticsBeacon(DRAFT_ROOM.PICK, { leagueId, position: player.position, ok: false })
           draftRoomWarn('pick-missing-session', { status: res.status })
           await fetchSession()
-          await fetchQueue()
-          await fetchDraftPool()
+          void fetchQueue()
+          void fetchDraftPool()
           setPickError('Pick response was incomplete — draft state was refreshed.')
         } else {
           sendProductAnalyticsBeacon(DRAFT_ROOM.PICK, { leagueId, position: player.position, ok: false })

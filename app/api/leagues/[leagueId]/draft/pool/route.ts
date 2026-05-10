@@ -96,6 +96,29 @@ async function injectDraftPoolDiagnosticsIfRequested(
   }
 }
 
+/**
+ * Remove redundant constant fallback fields from every pool entry's display.assets.
+ * `headshotFallbackUrl` and `teamLogoFallbackUrl` are always the same encoded SVG string
+ * (defined in player-asset-resolver.ts) for every player — ~640 bytes × 300 players = ~190 KB
+ * of payload that the client never needs because `headshotUrl` already carries the fallback.
+ * Strips at read and write time so the DB cache also stays lean.
+ */
+function stripPoolEntryFallbacks(payload: DraftPoolResponseBody): DraftPoolResponseBody {
+  if (!Array.isArray(payload.entries) || payload.entries.length === 0) return payload
+  return {
+    ...payload,
+    entries: payload.entries.map((entry: unknown) => {
+      const e = entry as Record<string, unknown>
+      if (!e.display || typeof e.display !== 'object') return e
+      const display = e.display as Record<string, unknown>
+      if (!display.assets || typeof display.assets !== 'object') return e
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { headshotFallbackUrl: _hf, teamLogoFallbackUrl: _tf, headshotFallbackUsed: _hu, teamLogoFallbackUsed: _tu, ...assets } = display.assets as Record<string, unknown>
+      return { ...e, display: { ...display, assets } }
+    }),
+  }
+}
+
 function withDraftPoolMeta(
   payload: DraftPoolResponseBody,
   meta: Omit<DraftPoolResponseMeta, 'entryCount'> & { entryCount?: number },
@@ -164,13 +187,13 @@ export async function GET(
         select: { payload: true, entryCount: true, syncedAt: true },
       })
       if (dbCached?.payload && typeof dbCached.payload === 'object') {
-        const payload = withDraftPoolMeta(dbCached.payload as DraftPoolResponseBody, {
+        const payload = stripPoolEntryFallbacks(withDraftPoolMeta(dbCached.payload as DraftPoolResponseBody, {
           source: 'db-cache',
           entryCount: Number(dbCached.entryCount ?? 0),
           elapsedMs: Date.now() - routeStartedAt,
           cacheKey,
           cachedAt: dbCached.syncedAt instanceof Date ? dbCached.syncedAt.toISOString() : null,
-        })
+        }))
         console.info('[draft/pool GET] cache hit', {
           layer: 'db',
           leagueId,
@@ -200,13 +223,13 @@ export async function GET(
       cached.body && typeof cached.body === 'object' ? (cached.body as DraftPoolResponseBody) : ({ entries: [] } as DraftPoolResponseBody)
     const existingMeta =
       cachedBody.meta && typeof cachedBody.meta === 'object' ? (cachedBody.meta as Partial<DraftPoolResponseMeta>) : null
-    const payload = withDraftPoolMeta(cachedBody, {
+    const payload = stripPoolEntryFallbacks(withDraftPoolMeta(cachedBody, {
       source: existingMeta?.source === 'db-cache' ? 'db-cache' : 'rebuilt',
       entryCount: existingMeta?.entryCount,
       elapsedMs: Date.now() - routeStartedAt,
       cacheKey,
       cachedAt: typeof existingMeta?.cachedAt === 'string' ? existingMeta.cachedAt : null,
-    })
+    }))
     console.info('[draft/pool GET] cache hit', {
       layer: 'memory',
       leagueId,
@@ -277,7 +300,7 @@ export async function GET(
         return responsePayload
       }
 
-      const responsePayload = withDraftPoolMeta({
+      const responsePayload = stripPoolEntryFallbacks(withDraftPoolMeta({
         entries: resolved.entries,
         sport: resolved.sport,
         count: resolved.count,
@@ -292,7 +315,7 @@ export async function GET(
         elapsedMs: Date.now() - routeStartedAt,
         cacheKey,
         cachedAt: new Date().toISOString(),
-      })
+      }))
       setApiCached(cacheKey, responsePayload, {
         ttlMs: API_CACHE_TTL.MEDIUM, // Phase 3b — 5 min server-side cache (was SHORT/30s)
         status: 200,
