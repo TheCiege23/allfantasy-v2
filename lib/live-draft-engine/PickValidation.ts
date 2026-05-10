@@ -36,10 +36,14 @@ export interface PickValidationResult {
 }
 
 /**
- * Validate a pick submission. Session must be in_progress or paused (soft-pause
- * allows picks through while the UI shows a paused state).
+ * Validate a pick submission. Session must be in_progress, or paused with
+ * commissionerOverride (editor correction flow only — regular user picks are
+ * blocked while paused).
  */
 export function validatePickSubmission(input: ValidatePickInput): PickValidationResult {
+  if (input.sessionStatus === 'paused' && !input.commissionerOverride) {
+    return { valid: false, error: 'Draft is paused; picks not allowed', code: DRAFT_PICK_NOT_LIVE }
+  }
   if (input.sessionStatus !== 'in_progress' && input.sessionStatus !== 'paused') {
     return { valid: false, error: 'Draft is not in progress', code: DRAFT_PICK_NOT_LIVE }
   }

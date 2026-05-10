@@ -172,10 +172,10 @@ describe('Invariant 9: [draft-perf] resume timing log', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Invariant 10: PickValidation allows paused picks (soft-draft scenario)
+// Invariant 10: PickValidation paused-pick gate (regular blocked, commissioner allowed)
 // ---------------------------------------------------------------------------
 
-describe('Invariant 10: PickValidation allows picks while draft is paused', () => {
+describe('Invariant 10: PickValidation paused-pick authorization', () => {
   const base = {
     playerName: 'JaMarr Chase',
     position: 'WR',
@@ -185,18 +185,30 @@ describe('Invariant 10: PickValidation allows picks while draft is paused', () =
     sessionStatus: 'paused',
   }
 
-  it('paused session does NOT return DRAFT_PICK_NOT_LIVE', () => {
-    const result = validatePickSubmission(base)
-    expect(result.code).not.toBe(DRAFT_PICK_NOT_LIVE)
+  it('regular user pick while paused returns DRAFT_PICK_NOT_LIVE', () => {
+    const result = validatePickSubmission({ ...base, commissionerOverride: false })
+    expect(result.valid).toBe(false)
+    expect(result.code).toBe(DRAFT_PICK_NOT_LIVE)
   })
 
-  it('paused session with valid slot returns valid:true', () => {
+  it('paused pick without commissionerOverride returns DRAFT_PICK_NOT_LIVE', () => {
     const result = validatePickSubmission(base)
+    expect(result.valid).toBe(false)
+    expect(result.code).toBe(DRAFT_PICK_NOT_LIVE)
+  })
+
+  it('commissioner pick while paused (commissionerOverride:true) returns valid:true', () => {
+    const result = validatePickSubmission({ ...base, commissionerOverride: true })
     expect(result.valid).toBe(true)
   })
 
-  it('non-in_progress non-paused session still returns DRAFT_PICK_NOT_LIVE', () => {
-    const result = validatePickSubmission({ ...base, sessionStatus: 'completed' })
+  it('commissioner pick while paused does NOT return DRAFT_PICK_NOT_LIVE', () => {
+    const result = validatePickSubmission({ ...base, commissionerOverride: true })
+    expect(result.code).not.toBe(DRAFT_PICK_NOT_LIVE)
+  })
+
+  it('completed session returns DRAFT_PICK_NOT_LIVE (even with commissionerOverride)', () => {
+    const result = validatePickSubmission({ ...base, sessionStatus: 'completed', commissionerOverride: true })
     expect(result.valid).toBe(false)
     expect(result.code).toBe(DRAFT_PICK_NOT_LIVE)
   })
