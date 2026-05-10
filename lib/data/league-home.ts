@@ -15,6 +15,7 @@ import { getC2CConfig } from '@/lib/merged-devy-c2c/C2CLeagueConfig'
 import { attachPlayerMediaBatch } from '@/lib/player-media'
 import { getLeagueChatMessages } from '@/lib/league-chat/LeagueChatMessageService'
 import { getFormatIntroMetadata } from '@/lib/league/format-engine'
+import { resolveLeagueIntroFormatKey } from '@/lib/league/resolveLeagueIntroFormatKey'
 import type {
   LeagueActivityItem,
   LeagueBracketMatchup,
@@ -65,6 +66,8 @@ type LeagueContext = {
     leagueSize: number | null
     avatarUrl: string | null
     leagueVariant: string | null
+    /** Canonical format id (redraft, dynasty, guillotine, …) — use for intro/media, not `leagueVariant`. */
+    leagueType: string | null
     settings: Prisma.JsonValue | null
     scoring: string | null
     isDynasty: boolean
@@ -332,6 +335,7 @@ async function loadLeagueContext(leagueId: string, userId: string): Promise<Leag
         leagueSize: true,
         avatarUrl: true,
         leagueVariant: true,
+        leagueType: true,
         settings: true,
         scoring: true,
         isDynasty: true,
@@ -889,9 +893,14 @@ async function buildIntroVideoData(
       ? (settings.intro_video as Record<string, unknown>)
       : null
 
+  const introFormatKey = resolveLeagueIntroFormatKey({
+    leagueTypeColumn: context.league.leagueType,
+    settings,
+  })
+
   const derivedIntro = getFormatIntroMetadata({
     sport: context.league.sport,
-    leagueType: typeof settings.league_type === 'string' ? settings.league_type : context.league.leagueVariant,
+    leagueType: introFormatKey,
     leagueVariant: context.league.leagueVariant,
     requestedModifiers: Array.isArray(settings.format_modifiers)
       ? settings.format_modifiers.map((entry) => String(entry))
