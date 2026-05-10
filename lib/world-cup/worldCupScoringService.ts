@@ -4,7 +4,9 @@ import { prisma } from "@/lib/prisma"
 import { getWorldCupRoundPoints, isWorldCupChallengeLocked } from "./worldCupBracketBuilder"
 import type { WorldCupLeaderboardRow, WorldCupRound, WorldCupScoringValues } from "./types"
 import {
+  findWorldCupPickForMatch,
   hasWorldCupPickSelection,
+  isOfficialWorldCupFixtureState,
   isWorldCupMatchPickable,
   resetWorldCupProjectedMatchStatus,
 } from "./worldCupProjectedBracket"
@@ -38,6 +40,7 @@ type DbMatch = {
 type DbPick = {
   id: string
   matchId: string
+  matchNumber?: number | null
   round: WorldCupRound | string
   selectedTeamId: string | null
   selectedTeamName: string
@@ -116,6 +119,7 @@ function isWorldCupPickSelectionStillAlive(
   return !matches.some(
     (match) =>
       match.status === "final" &&
+      isOfficialWorldCupFixtureState(match) &&
       Boolean(match.winnerTeamId || match.winnerTeamName) &&
       selectionPlayedInMatch(pick, match) &&
       !selectionWonMatch(pick, match)
@@ -131,7 +135,13 @@ export function evaluateWorldCupPick(
   const match = (firstLooksLikeMatch ? pickOrMatch : matchOrPick) as DbMatch
   const pick = (firstLooksLikeMatch ? matchOrPick : pickOrMatch) as Partial<Pick<DbPick, "round" | "selectedTeamId" | "selectedTeamName" | "selectedSlotKey">>
   if (!hasWorldCupPickSelection(pick)) return { isCorrect: null, pointsAwarded: 0 }
-  if (match.status !== "final" || (!match.winnerTeamId && !match.winnerTeamName)) return { isCorrect: null, pointsAwarded: 0 }
+  if (
+    match.status !== "final" ||
+    !isOfficialWorldCupFixtureState(match) ||
+    (!match.winnerTeamId && !match.winnerTeamName)
+  ) {
+    return { isCorrect: null, pointsAwarded: 0 }
+  }
   const slot = winnerSlotKey(match)
   const isCorrect = Boolean(
     (pick.selectedTeamId && match.winnerTeamId && pick.selectedTeamId === match.winnerTeamId) ||
@@ -251,42 +261,30 @@ export function buildWorldCupLeaderboardRows(input: {
 
 export function isWorldCupEntryCompleteFromSelections(input: {
   matches: Array<DbMatch>
-  picks: Array<Pick<DbPick, "matchId" | "selectedTeamId" | "selectedSlotKey">>
+  picks: Array<Pick<DbPick, "matchId" | "round" | "selectedTeamId" | "selectedSlotKey"> & { matchNumber?: number | null }>
   includeThirdPlace?: boolean | null
 }): boolean {
   const projectedMatches = projectWorldCupMatchesForEntryCompletion(input.matches, input.picks)
-  const requiredMatchIds = new Set(
-    projectedMatches
-      .filter(
-        (match) =>
-          (match.round !== "third_place" || Boolean(input.includeThirdPlace)) &&
-          isWorldCupMatchPickable(match)
-      )
-      .map((match) => match.id)
+  const requiredMatches = projectedMatches.filter(
+    (match) =>
+      (match.round !== "third_place" || Boolean(input.includeThirdPlace)) &&
+      isWorldCupMatchPickable(match)
   )
-  if (requiredMatchIds.size === 0) return false
+  if (requiredMatches.length === 0) return false
 
-  const pickedMatchIds = new Set(
-    input.picks
-      .filter((pick) => requiredMatchIds.has(pick.matchId) && hasWorldCupPickSelection(pick))
-      .map((pick) => pick.matchId)
-  )
-
-  return [...requiredMatchIds].every((matchId) => pickedMatchIds.has(matchId))
+  return requiredMatches.every((match) => Boolean(findWorldCupPickForMatch(input.picks, match)))
 }
 
 export function projectWorldCupMatchesForEntryCompletion(
   matches: Array<DbMatch>,
-  picks: Array<Pick<DbPick, "matchId" | "selectedTeamId" | "selectedSlotKey">>
+  picks: Array<Pick<DbPick, "matchId" | "round" | "selectedTeamId" | "selectedSlotKey"> & { matchNumber?: number | null }>
 ): DbMatch[] {
   const out = matches.map((match) => ({ ...match }))
   const byId = new Map(out.map((match) => [match.id, match]))
-  const pickByMatchId = new Map(
-    picks.filter(hasWorldCupPickSelection).map((pick) => [pick.matchId, pick])
-  )
+  const realPicks = picks.filter(hasWorldCupPickSelection)
 
   for (const match of out) {
-    const pick = pickByMatchId.get(match.id)
+    const pick = findWorldCupPickForMatch(realPicks, match)
     const next = match.nextMatchId ? byId.get(match.nextMatchId) : null
     if (!pick || !next || !match.nextMatchSlot) continue
 

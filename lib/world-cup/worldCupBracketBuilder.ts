@@ -39,7 +39,7 @@ export function generateWorldCupBracketTemplate(params?: { includeThirdPlace?: b
   return { slots, matches, requiredPickCount: matches.length }
 }
 export const buildWorldCupBracketTemplate = generateWorldCupBracketTemplate
-type LockMatchLike = { startsAt?: Date | string | null; status?: string | null }
+type LockMatchLike = { startsAt?: Date | string | null; status?: string | null; apiStatusShort?: string | null }
 export type WorldCupChallengeLockReason = "manual_lock" | "tournament_started" | "entry_locked" | "none"
 export type WorldCupChallengeLockState = {
   locked: boolean
@@ -116,7 +116,8 @@ export function isWorldCupMatchLocked(input: {
   const challengeLock = isWorldCupChallengeLocked({ challenge, matches: input.matches, now })
   if (challengeLock.locked) return true
   const start = match.startsAt ? new Date(match.startsAt) : null
-  if (["live", "halftime", "final"].includes(match.status ?? "")) return true
+  const apiStatus = (match.apiStatusShort ?? "").trim().toUpperCase()
+  if (["live", "halftime", "final"].includes(match.status ?? "") && apiStatus !== "SIM" && apiStatus !== "TEST") return true
   if (strategy === "per_match" && start && now >= start) return true
   return false
 }

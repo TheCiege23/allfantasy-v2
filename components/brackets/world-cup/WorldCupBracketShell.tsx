@@ -36,12 +36,15 @@ import {
 import {
   assertWorldCupPickPayloadReady,
   countRemainingPicks,
+  findWorldCupPickForMatch,
   findFirstUnpickedMatch,
+  getWorldCupPickMatchMethod,
   getWorldCupGuidedPicksState,
   getInvalidDownstreamPickIds,
   getWorldCupUnpickableReason,
   hasWorldCupPickSelection,
   isWorldCupMatchPickable,
+  worldCupPickMatchesMatch,
 } from "@/lib/world-cup/worldCupProjectedBracket"
 import {
   buildWorldCupProjectedMatches,
@@ -507,11 +510,8 @@ export default function WorldCupBracketShell({
           (match.round !== "third_place" || view.challenge.includeThirdPlace) &&
           isWorldCupMatchPickable(match)
       )
-      const requiredMatchIds = new Set(required.map((match) => match.id))
       return {
-        done: picks.filter(
-          (pick) => requiredMatchIds.has(pick.matchId) && hasWorldCupPickSelection(pick)
-        ).length,
+        done: required.filter((match) => Boolean(findWorldCupPickForMatch(picks, match))).length,
         required: required.length,
       }
     },
@@ -716,6 +716,20 @@ export default function WorldCupBracketShell({
     const invalidMatchIds = invalidIds
       .map((id) => currentPicks.find((p) => p.id === id)?.matchId)
       .filter((mid): mid is string => mid !== undefined)
+      .filter((mid) => mid !== match.id)
+    const existingPick = findWorldCupPickForMatch(currentPicks, match)
+    if (process.env.NODE_ENV === "development") {
+      console.debug("[WorldCupBracketShell:save-pick]", {
+        activeEntryId: selectedEntryId,
+        matchId: match.id,
+        round: match.round,
+        matchNumber: match.matchNumber,
+        selectedTeamId,
+        selectedSlotKey,
+        existingPickMatchedBy: existingPick ? getWorldCupPickMatchMethod(existingPick, match) : null,
+        downstreamPicksCleared: invalidMatchIds,
+      })
+    }
 
     // Optimistic update
     const optimistic: WorldCupPickView = {
@@ -732,7 +746,7 @@ export default function WorldCupBracketShell({
     setEntryPicks((prev) => ({
       ...prev,
       [selectedEntryId]: [
-        ...(prev[selectedEntryId] ?? []).filter((p) => p.matchId !== match.id && !invalidIds.includes(p.id)),
+        ...(prev[selectedEntryId] ?? []).filter((p) => !worldCupPickMatchesMatch(p, match) && !invalidIds.includes(p.id)),
         optimistic,
       ],
     }))
@@ -1205,6 +1219,26 @@ export default function WorldCupBracketShell({
       const invalidMatchIds = invalidIds
         .map((id) => currentPicks.find((p) => p.id === id)?.matchId)
         .filter((mid): mid is string => mid !== undefined)
+        .filter((mid) => mid !== payload.matchId)
+      const projectedForSave = buildWorldCupProjectedMatches(view.matches, currentPicks)
+      const payloadMatch =
+        projectedForSave.find((match) => match.id === payload.matchId) ??
+        projectedForSave.find(
+          (match) => match.round === payload.round && match.matchNumber === payload.matchNumber
+        )
+      const existingPick = payloadMatch ? findWorldCupPickForMatch(currentPicks, payloadMatch) : null
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[WorldCupBracketShell:guided-save-pick]", {
+          activeEntryId: selectedEntryId,
+          matchId: payload.matchId,
+          round: payload.round,
+          matchNumber: payload.matchNumber,
+          selectedTeamId: payload.selectedTeamId,
+          selectedSlotKey: payload.selectedSlotKey,
+          existingPickMatchedBy: payloadMatch && existingPick ? getWorldCupPickMatchMethod(existingPick, payloadMatch) : null,
+          downstreamPicksCleared: invalidMatchIds,
+        })
+      }
 
       if (invalidMatchIds.length > 0) {
         await clearWorldCupBracketEntryPicks(
@@ -1297,7 +1331,7 @@ export default function WorldCupBracketShell({
               m.status !== "final" &&
               m.homeTeamId &&
               m.awayTeamId &&
-              !currentPicks.some((p) => p.matchId === m.id && hasWorldCupPickSelection(p))
+              !findWorldCupPickForMatch(currentPicks, m)
           )
         )
 

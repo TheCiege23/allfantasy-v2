@@ -5,7 +5,7 @@ import type { WorldCupBracketChallenge, WorldCupBracketEntry, WorldCupBracketMat
 import { isAdminEmailAllowed } from "@/lib/adminAuth"
 import { prisma } from "@/lib/prisma"
 import { userHasBracketBrainAi } from "@/lib/bracket-brain/bracketBrainAccess"
-import { WORLD_CUP_TOURNAMENT_KEY, type WorldCupChallengeView } from "./types"
+import { WORLD_CUP_TOURNAMENT_KEY, type WorldCupChallengeView, type WorldCupMatchView, type WorldCupPickView } from "./types"
 import {
   DEFAULT_WORLD_CUP_SCORING,
   generateWorldCupBracketTemplate,
@@ -31,13 +31,69 @@ import {
   emitWorldCupEntryCreated,
   emitWorldCupUserJoined,
 } from "./worldCupBracketLifecycleEvents"
-import { hasWorldCupPickSelection } from "./worldCupProjectedBracket"
+import {
+  buildWorldCupProjectedMatches,
+  findWorldCupPickForMatch,
+  getWorldCupPickMatchMethod,
+  hasWorldCupPickSelection,
+  isWorldCupMatchPickable,
+} from "./worldCupProjectedBracket"
 
 type SessionUser = { id?: string | null; email?: string | null; name?: string | null }
 
 export const WORLD_CUP_BRACKET_LOCKED_MESSAGE = "Bracket is locked."
 
 const iso = (v: Date | string | null | undefined) => (v ? (v instanceof Date ? v.toISOString() : new Date(v).toISOString()) : null)
+
+function toWorldCupMatchView(match: WorldCupBracketMatch): WorldCupMatchView {
+  return {
+    id: match.id,
+    apiFixtureId: match.apiFixtureId,
+    round: match.round as WorldCupMatchView["round"],
+    roundIndex: match.roundIndex,
+    matchNumber: match.matchNumber,
+    homeSlotKey: match.homeSlotKey,
+    awaySlotKey: match.awaySlotKey,
+    homeTeamId: match.homeTeamId,
+    awayTeamId: match.awayTeamId,
+    homeTeamName: match.homeTeamName,
+    awayTeamName: match.awayTeamName,
+    homeTeamLogo: match.homeTeamLogo,
+    awayTeamLogo: match.awayTeamLogo,
+    homeScore: match.homeScore,
+    awayScore: match.awayScore,
+    homePenaltyScore: match.homePenaltyScore,
+    awayPenaltyScore: match.awayPenaltyScore,
+    status: match.status as WorldCupMatchView["status"],
+    startsAt: iso(match.startsAt),
+    winnerTeamId: match.winnerTeamId,
+    winnerTeamName: match.winnerTeamName,
+    nextMatchId: match.nextMatchId,
+    nextMatchSlot: match.nextMatchSlot === "home" || match.nextMatchSlot === "away" ? match.nextMatchSlot : null,
+    elapsedMinute: match.elapsedMinute,
+    injuryTime: match.injuryTime,
+    period: match.period,
+    venueName: match.venueName,
+    venueCity: match.venueCity,
+    apiStatusShort: match.apiStatusShort,
+    lastScoreSyncedAt: iso(match.lastScoreSyncedAt),
+  }
+}
+
+function toWorldCupPickView(pick: WorldCupBracketPick & { match?: WorldCupBracketMatch | null }): WorldCupPickView {
+  return {
+    id: pick.id,
+    matchId: pick.matchId,
+    matchNumber: pick.match?.matchNumber ?? null,
+    round: pick.round as WorldCupPickView["round"],
+    selectedTeamId: pick.selectedTeamId,
+    selectedSlotKey: pick.selectedSlotKey,
+    selectedTeamName: pick.selectedTeamName,
+    pointsAwarded: pick.pointsAwarded,
+    isCorrect: pick.isCorrect,
+    lockedAt: iso(pick.lockedAt),
+  }
+}
 
 function readSimulationFlags(sourcePayload: unknown): {
   isTestMode: boolean
@@ -394,6 +450,7 @@ function serialize(input: {
   isAdmin?: boolean
 }): WorldCupChallengeView {
   const c = input.challenge
+  const matchById = new Map(c.matches.map((match) => [match.id, match] as const))
   const simulation = readSimulationFlags(c.sourcePayload)
   const hasSimulatedResults = c.matches.some(
     (m) => (m as Record<string, unknown>).apiStatusShort === "SIM"
@@ -521,6 +578,7 @@ function serialize(input: {
     picks: input.picks.map((p) => ({
       id: p.id,
       matchId: p.matchId,
+      matchNumber: (p as WorldCupBracketPick & { match?: WorldCupBracketMatch | null }).match?.matchNumber ?? matchById.get(p.matchId)?.matchNumber ?? null,
       round: p.round as WorldCupChallengeView["picks"][number]["round"],
       selectedTeamId: p.selectedTeamId,
       selectedSlotKey: p.selectedSlotKey,
@@ -768,7 +826,7 @@ async function savePicksForEntryTx(
   input: {
     challenge: WorldCupBracketChallenge & { matches: WorldCupBracketMatch[] }
     entry: WorldCupBracketEntry & { participantId: string; userId: string; isLocked?: boolean | null }
-    picks: Array<{ matchId: string; selectedTeamId?: string | null; selectedSlotKey?: string | null }>
+    picks: Array<{ matchId: string; selectedTeamId?: string | null; selectedSlotKey?: string | null; selectedTeamName?: string | null }>
   }
 ) {
   const { challenge: c, entry, picks: pickInputs } = input
@@ -780,10 +838,13 @@ async function savePicksForEntryTx(
     if (!m) throw new Error("Match not found")
     if (isWorldCupMatchLocked({ challenge: c, match: m, matches: c.matches })) throw new Error("This matchup is locked")
     const s = side(m, pick)
-    if (!s) throw new Error("Selected team is not in this matchup")
-    const selectedTeamId = s === "home" ? m.homeTeamId : m.awayTeamId
-    const selectedSlotKey = s === "home" ? m.homeSlotKey : m.awaySlotKey
-    const selectedTeamName = s === "home" ? m.homeTeamName : m.awayTeamName
+    if (!s && !pick.selectedTeamName) throw new Error("Selected team is not in this matchup")
+    const selectedTeamId = pick.selectedTeamId ?? (s === "home" ? m.homeTeamId : s === "away" ? m.awayTeamId : null)
+    const selectedSlotKey = pick.selectedSlotKey ?? (s === "home" ? m.homeSlotKey : s === "away" ? m.awaySlotKey : null)
+    const selectedTeamName = pick.selectedTeamName ?? (s === "home" ? m.homeTeamName : s === "away" ? m.awayTeamName : "")
+    if (!selectedTeamName || (!selectedTeamId && !selectedSlotKey)) {
+      throw new Error("Selected team is not in this matchup")
+    }
     await tx.worldCupBracketPick.upsert({
       where: { entryId_matchId: { entryId: entry.id, matchId: m.id } },
       create: {
@@ -814,7 +875,7 @@ async function savePicksForEntryTx(
   }
   const savedPicks = await tx.worldCupBracketPick.findMany({
     where: { entryId: entry.id },
-    select: { matchId: true, selectedTeamId: true, selectedSlotKey: true },
+    select: { matchId: true, round: true, selectedTeamId: true, selectedSlotKey: true },
   })
   const complete = isWorldCupEntryCompleteFromSelections({
     matches: c.matches as Parameters<typeof isWorldCupEntryCompleteFromSelections>[0]["matches"],
@@ -981,6 +1042,7 @@ export async function getWorldCupBracketEntryDetail(input: { entryId: string; us
             { selectedSlotKey: { not: null } },
           ],
         },
+        include: { match: true },
         orderBy: { createdAt: "asc" },
       },
       participant: true,
@@ -1001,7 +1063,7 @@ export async function getWorldCupBracketEntryDetail(input: { entryId: string; us
       ownerUserId: challenge.ownerUserId,
       includeThirdPlace: challenge.includeThirdPlace,
     },
-    picks: realPicks,
+    picks: realPicks.map(toWorldCupPickView),
     isComplete: isWorldCupEntryCompleteFromSelections({
       matches: challenge.matches as Parameters<typeof isWorldCupEntryCompleteFromSelections>[0]["matches"],
       picks: realPicks,
@@ -1015,26 +1077,100 @@ export async function saveWorldCupBracketPickForEntry(input: {
   userId: string
   matchId: string
   selectedTeamId?: string | null
+  selectedTeamName?: string | null
   selectedSlotKey?: string | null
   selectedSide?: "home" | "away"
+  round?: string | null
+  matchNumber?: number | null
+  nextMatchId?: string | null
+  nextMatchSlot?: "home" | "away" | null
 }) {
   const entry = await prisma.worldCupBracketEntry.findUnique({
     where: { id: input.entryId },
-    include: { challenge: { include: { matches: true } } },
+    include: {
+      picks: {
+        where: {
+          selectedTeamName: { not: "" },
+          OR: [
+            { selectedTeamId: { not: null } },
+            { selectedSlotKey: { not: null } },
+          ],
+        },
+        include: { match: true },
+        orderBy: { createdAt: "asc" },
+      },
+      challenge: { include: { matches: true } },
+    },
   })
   if (!entry || entry.userId !== input.userId) throw new Error("Entry not found")
   const c = entry.challenge
-  const m = c.matches.find((x: WorldCupBracketMatch) => x.id === input.matchId)
+  const m =
+    c.matches.find((x: WorldCupBracketMatch) => x.id === input.matchId) ??
+    (input.matchNumber && input.round
+      ? c.matches.find((x: WorldCupBracketMatch) => x.matchNumber === input.matchNumber && x.round === input.round)
+      : null)
   if (!m) throw new Error("Match not found")
   if (isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry }).locked) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
 
-  let selectedTeamId = input.selectedTeamId ?? null
-  let selectedSlotKey = input.selectedSlotKey ?? null
-  if (input.selectedSide) {
-    selectedTeamId = input.selectedSide === "home" ? m.homeTeamId : m.awayTeamId
-    selectedSlotKey = input.selectedSide === "home" ? m.homeSlotKey : m.awaySlotKey
+  const existingPicks = entry.picks.filter(hasWorldCupPickSelection).map(toWorldCupPickView)
+  const projectedMatches = buildWorldCupProjectedMatches(
+    c.matches.map(toWorldCupMatchView),
+    existingPicks
+  )
+  const projectedMatch =
+    projectedMatches.find((match) => match.id === m.id) ??
+    projectedMatches.find((match) => match.round === m.round && match.matchNumber === m.matchNumber)
+  if (!projectedMatch) throw new Error("Match not found")
+  if (isWorldCupMatchLocked({ challenge: c, match: projectedMatch, matches: c.matches })) {
+    throw new Error("This matchup is locked")
   }
-  const pickPayload = { matchId: input.matchId, selectedTeamId, selectedSlotKey }
+  if (!isWorldCupMatchPickable(projectedMatch)) {
+    throw new Error("This matchup is not ready for picks yet.")
+  }
+
+  const sideFromSelection =
+    input.selectedTeamId && input.selectedTeamId === projectedMatch.homeTeamId
+      ? "home"
+      : input.selectedTeamId && input.selectedTeamId === projectedMatch.awayTeamId
+        ? "away"
+        : input.selectedSlotKey && input.selectedSlotKey === projectedMatch.homeSlotKey
+          ? "home"
+          : input.selectedSlotKey && input.selectedSlotKey === projectedMatch.awaySlotKey
+            ? "away"
+            : input.selectedTeamName && input.selectedTeamName === projectedMatch.homeTeamName
+              ? "home"
+              : input.selectedTeamName && input.selectedTeamName === projectedMatch.awayTeamName
+                ? "away"
+                : null
+  if (input.selectedSide && sideFromSelection && input.selectedSide !== sideFromSelection) {
+    throw new Error("Selected team is not in this matchup")
+  }
+  const selectedSide = sideFromSelection ?? input.selectedSide ?? null
+  if (!selectedSide) throw new Error("Selected team is not in this matchup")
+
+  const selectedTeamId = selectedSide === "home" ? projectedMatch.homeTeamId : projectedMatch.awayTeamId
+  const selectedSlotKey = selectedSide === "home" ? projectedMatch.homeSlotKey : projectedMatch.awaySlotKey
+  const selectedTeamName = selectedSide === "home" ? projectedMatch.homeTeamName : projectedMatch.awayTeamName
+  const existingPick = findWorldCupPickForMatch(existingPicks, projectedMatch)
+  const existingPickMatchedBy = existingPick ? getWorldCupPickMatchMethod(existingPick, projectedMatch) : null
+
+  if (process.env.NODE_ENV === "development") {
+    console.debug("[world-cup:picks:save-resolved]", {
+      entryId: entry.id,
+      requestedMatchId: input.matchId,
+      savingPickMatchId: m.id,
+      round: m.round,
+      matchNumber: m.matchNumber,
+      selectedTeamId,
+      selectedSlotKey,
+      selectedTeamName,
+      existingPickMatchedBy,
+      nextMatchId: input.nextMatchId ?? m.nextMatchId,
+      nextMatchSlot: input.nextMatchSlot ?? m.nextMatchSlot,
+    })
+  }
+
+  const pickPayload = { matchId: m.id, selectedTeamId, selectedSlotKey, selectedTeamName }
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await savePicksForEntryTx(tx, {
       challenge: c,
@@ -1046,10 +1182,10 @@ export async function saveWorldCupBracketPickForEntry(input: {
 
   const updatedEntry = await prisma.worldCupBracketEntry.findUnique({
     where: { id: entry.id },
-    include: { picks: { orderBy: { createdAt: "asc" } } },
+    include: { picks: { include: { match: true }, orderBy: { createdAt: "asc" } } },
   })
   const savedPick = await prisma.worldCupBracketPick.findUnique({
-    where: { entryId_matchId: { entryId: entry.id, matchId: input.matchId } },
+    where: { entryId_matchId: { entryId: entry.id, matchId: m.id } },
   })
   const isComplete = updatedEntry
     ? isWorldCupEntryCompleteFromSelections({
@@ -1058,10 +1194,11 @@ export async function saveWorldCupBracketPickForEntry(input: {
         includeThirdPlace: c.includeThirdPlace,
       })
     : false
+  const returnedPicks = updatedEntry?.picks.filter(hasWorldCupPickSelection).map(toWorldCupPickView) ?? []
   return {
     entry: updatedEntry,
     pick: savedPick,
-    picks: updatedEntry?.picks.filter(hasWorldCupPickSelection) ?? [],
+    picks: returnedPicks,
     isComplete,
   }
 }

@@ -51,6 +51,16 @@ export async function POST(request: Request, context: { params: { challengeId: s
   if (parsed.data.activeEntryId && parsed.data.activeEntryId !== params.data.entryId) {
     return NextResponse.json({ error: "Pick entry mismatch" }, { status: 400 })
   }
+  if (process.env.NODE_ENV === "development") {
+    console.debug("[world-cup:picks:save-request]", {
+      activeEntryId: parsed.data.activeEntryId ?? params.data.entryId,
+      matchId: parsed.data.matchId,
+      round: parsed.data.round ?? null,
+      matchNumber: parsed.data.matchNumber ?? null,
+      selectedTeamId: parsed.data.selectedTeamId ?? null,
+      selectedSlotKey: parsed.data.selectedSlotKey ?? null,
+    })
+  }
 
   try {
     const entry = await getWorldCupBracketEntryDetail({
@@ -66,8 +76,13 @@ export async function POST(request: Request, context: { params: { challengeId: s
       userId: auth.user.id,
       matchId: parsed.data.matchId,
       selectedTeamId: parsed.data.selectedTeamId,
+      selectedTeamName: parsed.data.selectedTeamName,
       selectedSlotKey: parsed.data.selectedSlotKey,
       selectedSide: parsed.data.selectedSide,
+      round: parsed.data.round,
+      matchNumber: parsed.data.matchNumber,
+      nextMatchId: parsed.data.nextMatchId,
+      nextMatchSlot: parsed.data.nextMatchSlot,
     })
     const view = await getWorldCupChallengeView({
       challengeId: params.data.challengeId,

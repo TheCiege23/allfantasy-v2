@@ -31,6 +31,29 @@ describe("World Cup scoring", () => {
     expect(result).toEqual({ pointsAwarded: 0, isCorrect: null })
   })
 
+  it("does not score simulated test final metadata as an official result", () => {
+    const result = evaluateWorldCupPick(
+      {
+        id: "m17",
+        round: "round_of_16",
+        status: "final",
+        apiStatusShort: "SIM",
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Winner Match 1",
+        awayTeamName: "Winner Match 2",
+        winnerTeamId: null,
+        winnerTeamName: "Winner Match 1",
+        homeSlotKey: "W-M1",
+        awaySlotKey: "W-M2",
+      },
+      { selectedTeamId: "arg", selectedTeamName: "Argentina", selectedSlotKey: "A1", round: "round_of_16" },
+      DEFAULT_WORLD_CUP_SCORING
+    )
+
+    expect(result).toEqual({ pointsAwarded: 0, isCorrect: null })
+  })
+
   it("awards round points for correct final results", () => {
     const result = evaluateWorldCupPick(
       {

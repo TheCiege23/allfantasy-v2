@@ -1,7 +1,7 @@
 "use client"
 import { WORLD_CUP_ROUND_LABELS } from "@/lib/world-cup/types"
 import type { WorldCupMatchView, WorldCupPickView, WorldCupRound } from "@/lib/world-cup/types"
-import { hasWorldCupPickSelection } from "@/lib/world-cup/worldCupProjectedBracket"
+import { findWorldCupPickForMatch } from "@/lib/world-cup/worldCupProjectedBracket"
 import WorldCupMatchupCard from "./WorldCupMatchupCard"
 export default function WorldCupRoundColumn({
   round,
@@ -47,7 +47,7 @@ export default function WorldCupRoundColumn({
             <WorldCupMatchupCard
               key={match.id}
               match={match}
-              pick={picks.find((p) => p.matchId === match.id && hasWorldCupPickSelection(p))}
+              pick={findWorldCupPickForMatch(picks, match) ?? undefined}
               locked={locked}
               lockStrategy={lockStrategy}
               tournamentLockAt={tournamentLockAt}

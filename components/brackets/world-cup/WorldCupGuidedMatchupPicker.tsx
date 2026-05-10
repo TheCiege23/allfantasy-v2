@@ -24,14 +24,17 @@ import {
 import {
   buildWorldCupProjectedMatches,
   countRemainingPicks,
+  findWorldCupPickForMatch,
   findFirstUnpickedMatch,
   findNextMatchInGuidedOrder,
+  getWorldCupPickMatchMethod,
   getWorldCupUnpickableReason,
   getInvalidDownstreamPickIds,
   hasWorldCupPickSelection,
   getOrderedRounds,
   isBracketComplete,
   isWorldCupMatchPickable,
+  worldCupPickMatchesMatch,
 } from "@/lib/world-cup/worldCupProjectedBracket"
 import WorldCupMatchupIntelligencePanel from "@/components/brackets/world-cup/WorldCupMatchupIntelligencePanel"
 import WorldCupTeamFlag from "@/components/brackets/world-cup/WorldCupTeamFlag"
@@ -380,10 +383,7 @@ export default function WorldCupGuidedMatchupPicker({
   )
   const totalRequired = requiredPickableMatches.length
   const totalPicked = useMemo(() => {
-    const requiredMatchIds = new Set(requiredPickableMatches.map((m) => m.id))
-    return picks.filter(
-      (pick) => requiredMatchIds.has(pick.matchId) && hasWorldCupPickSelection(pick)
-    ).length
+    return requiredPickableMatches.filter((match) => Boolean(findWorldCupPickForMatch(picks, match))).length
   }, [requiredPickableMatches, picks])
   const remainingPickCount = useMemo(
     () => countRemainingPicks(pickableProjected, picks, includeThirdPlace),
@@ -489,7 +489,7 @@ export default function WorldCupGuidedMatchupPicker({
   const roundPickedCount = useMemo(
     () =>
       roundMatches.filter((m) =>
-        picks.some((p) => p.matchId === m.id && hasWorldCupPickSelection(p))
+        Boolean(findWorldCupPickForMatch(picks, m))
       ).length,
     [roundMatches, picks]
   )
@@ -540,13 +540,11 @@ export default function WorldCupGuidedMatchupPicker({
     if (nextMatch) {
       setCurrentMatchId(nextMatch.id)
     } else {
-      const requiredMatchIds = new Set(
-        nextPickableProjected
-          .filter((m) => m.round !== "third_place" || includeThirdPlace)
-          .map((m) => m.id)
+      const nextRequiredMatches = nextPickableProjected.filter(
+        (m) => m.round !== "third_place" || includeThirdPlace
       )
-      const nextPickedCount = updatedPicks.filter(
-        (pick) => requiredMatchIds.has(pick.matchId) && hasWorldCupPickSelection(pick)
+      const nextPickedCount = nextRequiredMatches.filter(
+        (match) => Boolean(findWorldCupPickForMatch(updatedPicks, match))
       ).length
       const nextRemainingCount = countRemainingPicks(
         nextPickableProjected,
@@ -586,6 +584,23 @@ export default function WorldCupGuidedMatchupPicker({
         currentMatch.id,
         selectedTeamId
       )
+      const invalidMatchIds = invalidIds
+        .map((id) => picks.find((p) => p.id === id)?.matchId)
+        .filter((matchId): matchId is string => Boolean(matchId))
+        .filter((matchId) => matchId !== currentMatch.id)
+      const existingPick = findWorldCupPickForMatch(picks, currentMatch)
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[WorldCupGuidedMatchupPicker:save-pick]", {
+          activeEntryId: entryId,
+          matchId: currentMatch.id,
+          round: currentMatch.round,
+          matchNumber: currentMatch.matchNumber,
+          selectedTeamId,
+          selectedSlotKey,
+          existingPickMatchedBy: existingPick ? getWorldCupPickMatchMethod(existingPick, currentMatch) : null,
+          downstreamPicksCleared: invalidMatchIds,
+        })
+      }
 
       // Optimistic local update — apply new pick and clear invalids
       const optimistic: WorldCupPickView = {
@@ -603,7 +618,7 @@ export default function WorldCupGuidedMatchupPicker({
       const optimisticPicks: WorldCupPickView[] = [
         ...picks.filter(
           (p) =>
-            p.matchId !== currentMatch.id &&
+            !worldCupPickMatchesMatch(p, currentMatch) &&
             !invalidIds.includes(p.id)
         ),
         optimistic,
@@ -663,7 +678,7 @@ export default function WorldCupGuidedMatchupPicker({
   if (!isOpen) return null
 
   const pick = currentMatch
-    ? picks.find((p) => p.matchId === currentMatch.id && hasWorldCupPickSelection(p)) ?? null
+    ? findWorldCupPickForMatch(picks, currentMatch)
     : null
   const champion = picks.find((p) => p.round === "final" && hasWorldCupPickSelection(p)) ?? null
   const guardedShowComplete = showComplete && computedIsComplete

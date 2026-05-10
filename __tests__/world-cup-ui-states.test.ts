@@ -17,9 +17,11 @@ import {
   assertWorldCupPickPayloadReady,
   buildWorldCupProjectedMatches,
   countRemainingPicks,
+  findWorldCupPickForMatch,
   findFirstUnpickedMatch,
   getInvalidDownstreamPickIds,
   getOrderedRounds,
+  getWorldCupPickMatchMethod,
   getWorldCupGuidedPicksState,
   getWorldCupUnpickableReason,
   hasWorldCupPickSelection,
@@ -864,6 +866,122 @@ describe("World Cup pick readiness guards", () => {
     ]
     const afterChampion = buildWorldCupProjectedMatches(matches, championPicks)
     expect(isBracketComplete(afterChampion, championPicks)).toBe(true)
+  })
+
+  it("keeps projected match identity stable across recompute with round and matchNumber fallback", () => {
+    const matches = [
+      makeMatch({ id: "m1", matchNumber: 1, nextMatchId: "m17", nextMatchSlot: "home" }),
+      makeMatch({
+        id: "m2",
+        matchNumber: 2,
+        homeSlotKey: "C1",
+        awaySlotKey: "D2",
+        homeTeamId: "team-c",
+        awayTeamId: "team-d",
+        homeTeamName: "France",
+        awayTeamName: "Germany",
+        nextMatchId: "m17",
+        nextMatchSlot: "away",
+      }),
+      makeMatch({
+        id: "m17",
+        round: "round_of_16",
+        roundIndex: 2,
+        matchNumber: 17,
+        homeSlotKey: "W-M1",
+        awaySlotKey: "W-M2",
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Winner Match 1",
+        awayTeamName: "Winner Match 2",
+        nextMatchId: "m25",
+        nextMatchSlot: "home",
+        status: "final",
+        apiStatusShort: "SIM",
+      }),
+      makeMatch({
+        id: "m25",
+        round: "quarterfinal",
+        roundIndex: 3,
+        matchNumber: 25,
+        homeSlotKey: "W-M17",
+        awaySlotKey: "W-M18",
+        homeTeamId: null,
+        awayTeamId: "team-x",
+        homeTeamName: "Winner Match 17",
+        awayTeamName: "England",
+        status: "final",
+        apiStatusShort: "SIM",
+      }),
+    ]
+    const picks = [
+      makePick({ id: "p-m1", matchId: "m1", selectedTeamId: "team-a", selectedSlotKey: "A1", selectedTeamName: "Argentina" }),
+      makePick({ id: "p-m2", matchId: "m2", selectedTeamId: "team-d", selectedSlotKey: "D2", selectedTeamName: "Germany" }),
+      makePick({
+        id: "p-m17-fallback",
+        matchId: "temporary-client-id",
+        matchNumber: 17,
+        round: "round_of_16",
+        selectedTeamId: "team-a",
+        selectedSlotKey: "A1",
+        selectedTeamName: "Argentina",
+      }),
+    ]
+
+    const afterRoundOf16 = buildWorldCupProjectedMatches(matches, picks)
+    const roundOf16 = afterRoundOf16.find((match) => match.id === "m17")!
+    const quarterfinal = afterRoundOf16.find((match) => match.id === "m25")!
+
+    expect(getWorldCupPickMatchMethod(picks[2], roundOf16)).toBe("round_matchNumber")
+    expect(findWorldCupPickForMatch(picks, roundOf16)?.id).toBe("p-m17-fallback")
+    expect(quarterfinal.homeTeamId).toBe("team-a")
+    expect(quarterfinal.homeTeamName).toBe("Argentina")
+    expect(isWorldCupMatchPickable(quarterfinal)).toBe(true)
+  })
+
+  it("clears dependent downstream picks without clearing the just-saved projected pick", () => {
+    const matches = [
+      makeMatch({ id: "m1", matchNumber: 1, nextMatchId: "m17", nextMatchSlot: "home" }),
+      makeMatch({
+        id: "m17",
+        round: "round_of_16",
+        roundIndex: 2,
+        matchNumber: 17,
+        homeSlotKey: "W-M1",
+        awaySlotKey: "W-M2",
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Winner Match 1",
+        awayTeamName: "Winner Match 2",
+        nextMatchId: "m25",
+        nextMatchSlot: "home",
+      }),
+      makeMatch({
+        id: "m25",
+        round: "quarterfinal",
+        roundIndex: 3,
+        matchNumber: 25,
+        homeSlotKey: "W-M17",
+        awaySlotKey: "W-M18",
+        homeTeamId: null,
+        awayTeamId: "team-x",
+        homeTeamName: "Winner Match 17",
+        awayTeamName: "England",
+      }),
+    ]
+    const picks = [
+      makePick({ id: "p-m1", matchId: "m1", selectedTeamId: "team-a", selectedSlotKey: "A1", selectedTeamName: "Argentina" }),
+      makePick({ id: "p-m17", matchId: "m17", matchNumber: 17, round: "round_of_16", selectedTeamId: "team-a", selectedSlotKey: "A1", selectedTeamName: "Argentina" }),
+      makePick({ id: "p-m25", matchId: "m25", matchNumber: 25, round: "quarterfinal", selectedTeamId: "team-a", selectedSlotKey: "A1", selectedTeamName: "Argentina" }),
+    ]
+
+    expect(getInvalidDownstreamPickIds(matches, picks, "m1", "team-b")).toEqual([
+      "p-m17",
+      "p-m25",
+    ])
+    expect(getInvalidDownstreamPickIds(matches, picks, "m17", "team-b")).toEqual([
+      "p-m25",
+    ])
   })
 
   it("overlays saved picks without dropping seeded base matches", () => {

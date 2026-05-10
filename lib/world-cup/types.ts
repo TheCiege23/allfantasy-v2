@@ -31,6 +31,7 @@ export type WorldCupParticipantView = {
 export type WorldCupPickView = {
   id: string
   matchId: string
+  matchNumber?: number | null
   round: WorldCupRound
   selectedTeamId: string | null
   selectedSlotKey: string | null

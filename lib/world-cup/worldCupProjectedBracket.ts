@@ -19,6 +19,18 @@ export type WorldCupPickSelectionLike = {
   selectedSlotKey?: string | null
 }
 
+export type WorldCupPickMatchIdentityLike = {
+  matchId?: string | null
+  round?: WorldCupRound | string | null
+  matchNumber?: number | null
+}
+
+export type WorldCupMatchIdentityLike = {
+  id?: string | null
+  round?: WorldCupRound | string | null
+  matchNumber?: number | null
+}
+
 export type WorldCupMatchPickabilityLike = {
   id?: string | null
   round?: WorldCupRound | string
@@ -108,6 +120,41 @@ export function hasWorldCupPickSelection(pick: WorldCupPickSelectionLike | null 
   return Boolean(pick?.selectedTeamId || pick?.selectedSlotKey)
 }
 
+export type WorldCupPickMatchMethod = "matchId" | "round_matchNumber"
+
+export function getWorldCupPickMatchMethod(
+  pick: WorldCupPickMatchIdentityLike | null | undefined,
+  match: WorldCupMatchIdentityLike | null | undefined
+): WorldCupPickMatchMethod | null {
+  if (!pick || !match) return null
+  if (pick.matchId && match.id && pick.matchId === match.id) return "matchId"
+  if (
+    pick.round &&
+    match.round &&
+    pick.round === match.round &&
+    pick.matchNumber != null &&
+    match.matchNumber != null &&
+    pick.matchNumber === match.matchNumber
+  ) {
+    return "round_matchNumber"
+  }
+  return null
+}
+
+export function worldCupPickMatchesMatch(
+  pick: WorldCupPickMatchIdentityLike | null | undefined,
+  match: WorldCupMatchIdentityLike | null | undefined
+): boolean {
+  return getWorldCupPickMatchMethod(pick, match) !== null
+}
+
+export function findWorldCupPickForMatch<T extends WorldCupPickMatchIdentityLike & WorldCupPickSelectionLike>(
+  picks: T[],
+  match: WorldCupMatchIdentityLike
+): T | null {
+  return picks.find((pick) => hasWorldCupPickSelection(pick) && worldCupPickMatchesMatch(pick, match)) ?? null
+}
+
 function normalizeApiStatus(value: string | null | undefined): string {
   return (value ?? "").trim().toUpperCase()
 }
@@ -156,12 +203,10 @@ export function buildWorldCupProjectedMatches(
 ): WorldCupMatchView[] {
   const out = matches.map((m) => ({ ...m }))
   const byId = new Map(out.map((m) => [m.id, m]))
-  const pickByMatchId = new Map(
-    picks.filter(hasWorldCupPickSelection).map((p) => [p.matchId, p])
-  )
+  const realPicks = picks.filter(hasWorldCupPickSelection)
 
   for (const m of out) {
-    const pick = pickByMatchId.get(m.id)
+    const pick = findWorldCupPickForMatch(realPicks, m)
     const next = m.nextMatchId ? byId.get(m.nextMatchId) : null
     if (!pick || !next || !m.nextMatchSlot) continue
 
@@ -237,10 +282,6 @@ export function findFirstUnpickedMatch(
   picks: WorldCupPickView[],
   orderedRounds: WorldCupRound[]
 ): WorldCupMatchView | null {
-  const pickedMatchIds = new Set(
-    picks.filter(hasWorldCupPickSelection).map((p) => p.matchId)
-  )
-
   for (const round of orderedRounds) {
     const roundMatches = matches
       .filter((m) => m.round === round)
@@ -249,7 +290,7 @@ export function findFirstUnpickedMatch(
     // Find the first in this round that is unpicked and has known teams
     const unpicked = roundMatches.find(
       (m) =>
-        !pickedMatchIds.has(m.id) &&
+        !findWorldCupPickForMatch(picks, m) &&
         isWorldCupMatchPickable(m)
     )
     if (unpicked) return unpicked
@@ -271,17 +312,13 @@ export function findNextMatchInGuidedOrder(
   const current = matches.find((m) => m.id === matchId)
   if (!current) return findFirstUnpickedMatch(matches, picks, orderedRounds)
 
-  const pickedMatchIds = new Set(
-    picks.filter(hasWorldCupPickSelection).map((p) => p.matchId)
-  )
-
   // Try to find next in the same round (higher matchNumber)
   const sameRound = matches
     .filter(
       (m) =>
         m.round === current.round &&
         m.matchNumber > current.matchNumber &&
-        !pickedMatchIds.has(m.id) &&
+        !findWorldCupPickForMatch(picks, m) &&
         isWorldCupMatchPickable(m)
     )
     .sort((a, b) => a.matchNumber - b.matchNumber)
@@ -296,7 +333,7 @@ export function findNextMatchInGuidedOrder(
       .filter(
         (m) =>
           m.round === nextRound &&
-          !pickedMatchIds.has(m.id) &&
+          !findWorldCupPickForMatch(picks, m) &&
           isWorldCupMatchPickable(m)
       )
       .sort((a, b) => a.matchNumber - b.matchNumber)
@@ -328,9 +365,6 @@ export function getInvalidDownstreamPickIds(
   newWinnerTeamId: string | null
 ): string[] {
   const byId = new Map(matches.map((m) => [m.id, m]))
-  const pickByMatchId = new Map(
-    picks.filter(hasWorldCupPickSelection).map((p) => [p.matchId, p])
-  )
   const invalidIds: string[] = []
 
   // Build the projected bracket using picks EXCEPT the changed one so we can
@@ -345,7 +379,7 @@ export function getInvalidDownstreamPickIds(
   let prevWinnerTeamId: string | null = null
 
   // Get current pick at changedMatch (the old pick, before the new selection)
-  const existingPickAtChanged = pickByMatchId.get(changedMatchId)
+  const existingPickAtChanged = findWorldCupPickForMatch(picks, changedMatch)
   if (existingPickAtChanged) {
     prevWinnerTeamId = existingPickAtChanged.selectedTeamId
   }
@@ -357,7 +391,7 @@ export function getInvalidDownstreamPickIds(
     const nextMatch = byId.get(cursor.nextMatchId)
     if (!nextMatch) break
 
-    const pickAtNext = pickByMatchId.get(nextMatch.id)
+    const pickAtNext = findWorldCupPickForMatch(picks, nextMatch)
     if (!pickAtNext) {
       // No pick here — nothing to invalidate downstream from here
       break
@@ -401,10 +435,7 @@ export function isBracketComplete(
       isWorldCupMatchPickable(m)
   )
   if (required.length === 0) return false
-  const pickedIds = new Set(
-    picks.filter(hasWorldCupPickSelection).map((p) => p.matchId)
-  )
-  return required.every((m) => pickedIds.has(m.id))
+  return required.every((m) => Boolean(findWorldCupPickForMatch(picks, m)))
 }
 
 /**
@@ -420,8 +451,5 @@ export function countRemainingPicks(
       (m.round !== "third_place" || includeThirdPlace) &&
       isWorldCupMatchPickable(m)
   )
-  const pickedIds = new Set(
-    picks.filter(hasWorldCupPickSelection).map((p) => p.matchId)
-  )
-  return required.filter((m) => !pickedIds.has(m.id)).length
+  return required.filter((m) => !findWorldCupPickForMatch(picks, m)).length
 }
