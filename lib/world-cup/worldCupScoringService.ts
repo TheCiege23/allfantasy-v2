@@ -22,6 +22,7 @@ type DbMatch = {
   awayTeamName: string
   status: string
   apiFixtureId?: number | null
+  startsAt?: Date | string | null
   homeScore?: number | null
   awayScore?: number | null
   homePenaltyScore?: number | null

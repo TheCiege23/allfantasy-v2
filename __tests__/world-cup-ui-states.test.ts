@@ -737,6 +737,10 @@ describe("World Cup pick readiness guards", () => {
         nextMatchSlot: "home",
         status: "final",
         apiStatusShort: "SIM",
+        startsAt: "2020-01-01T00:00:00.000Z",
+        homeScore: 3,
+        awayScore: 1,
+        winnerTeamName: "Best 3rd Place Team 1",
       }),
       makeMatch({
         id: "m26",
@@ -795,6 +799,10 @@ describe("World Cup pick readiness guards", () => {
         awayTeamName: "Winner Match 30",
         status: "final",
         apiStatusShort: "SIM",
+        startsAt: "2020-01-01T00:00:00.000Z",
+        homeScore: 3,
+        awayScore: 1,
+        winnerTeamName: "Best 3rd Place Team 1",
       }),
     ]
     const roundOf32Picks = [
@@ -842,6 +850,11 @@ describe("World Cup pick readiness guards", () => {
       homeTeamName: "Argentina",
       awayTeamName: "England",
       status: "scheduled",
+      startsAt: null,
+      homeScore: null,
+      awayScore: null,
+      winnerTeamName: null,
+      apiStatusShort: null,
     })
     expect(isWorldCupMatchPickable(afterQuarterfinals.find((match) => match.id === "m29")!)).toBe(true)
 
@@ -855,8 +868,13 @@ describe("World Cup pick readiness guards", () => {
       homeTeamName: "Argentina",
       awayTeamName: "Netherlands",
       status: "scheduled",
+      startsAt: null,
+      homeScore: null,
+      awayScore: null,
+      winnerTeamName: null,
       apiStatusShort: null,
     })
+    expect(isWorldCupMatchPickable(afterSemifinals.find((match) => match.id === "m31")!)).toBe(true)
     expect(isBracketComplete(afterSemifinals, semifinalPicks)).toBe(false)
     expect(countRemainingPicks(afterSemifinals, semifinalPicks)).toBe(1)
 
@@ -982,6 +1000,59 @@ describe("World Cup pick readiness guards", () => {
     expect(getInvalidDownstreamPickIds(matches, picks, "m17", "team-b")).toEqual([
       "p-m25",
     ])
+  })
+
+  it("changing a semifinal clears only the dependent final pick", () => {
+    const matches = [
+      makeMatch({
+        id: "m29",
+        round: "semifinal",
+        roundIndex: 4,
+        matchNumber: 29,
+        homeSlotKey: "W-M25",
+        awaySlotKey: "W-M26",
+        homeTeamId: "team-a",
+        awayTeamId: "team-b",
+        homeTeamName: "Brazil",
+        awayTeamName: "USA",
+        nextMatchId: "m31",
+        nextMatchSlot: "home",
+      }),
+      makeMatch({
+        id: "m30",
+        round: "semifinal",
+        roundIndex: 4,
+        matchNumber: 30,
+        homeSlotKey: "W-M27",
+        awaySlotKey: "W-M28",
+        homeTeamId: "team-c",
+        awayTeamId: "team-d",
+        homeTeamName: "Croatia",
+        awayTeamName: "Australia",
+        nextMatchId: "m31",
+        nextMatchSlot: "away",
+      }),
+      makeMatch({
+        id: "m31",
+        round: "final",
+        roundIndex: 5,
+        matchNumber: 31,
+        homeSlotKey: "W-M29",
+        awaySlotKey: "W-M30",
+        homeTeamId: "team-a",
+        awayTeamId: "team-c",
+        homeTeamName: "Brazil",
+        awayTeamName: "Croatia",
+      }),
+    ]
+    const picks = [
+      makePick({ id: "p-m29", matchId: "m29", matchNumber: 29, round: "semifinal", selectedTeamId: "team-a", selectedSlotKey: "W-M25", selectedTeamName: "Brazil" }),
+      makePick({ id: "p-m30", matchId: "m30", matchNumber: 30, round: "semifinal", selectedTeamId: "team-c", selectedSlotKey: "W-M27", selectedTeamName: "Croatia" }),
+      makePick({ id: "p-m31", matchId: "m31", matchNumber: 31, round: "final", selectedTeamId: "team-a", selectedSlotKey: "W-M29", selectedTeamName: "Brazil" }),
+    ]
+
+    expect(getInvalidDownstreamPickIds(matches, picks, "m29", "team-b")).toEqual(["p-m31"])
+    expect(getInvalidDownstreamPickIds(matches, picks, "m30", "team-d")).toEqual([])
   })
 
   it("overlays saved picks without dropping seeded base matches", () => {

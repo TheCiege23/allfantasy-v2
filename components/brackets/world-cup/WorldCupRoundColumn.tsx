@@ -33,6 +33,8 @@ export default function WorldCupRoundColumn({
       <div className="flex flex-col gap-3">
         {matches.map((match) => {
           const kickoffPast = Boolean(match.startsAt && new Date(match.startsAt) <= now)
+          const apiStatus = (match.apiStatusShort ?? "").trim().toUpperCase()
+          const nonOfficialTestState = apiStatus === "SIM" || apiStatus === "TEST"
           const tournamentPast = lockStrategy === "tournament_start" && tournamentLockAt
             ? new Date(tournamentLockAt) <= now
             : false
@@ -40,9 +42,10 @@ export default function WorldCupRoundColumn({
             isBracketLocked ||
             kickoffPast ||
             tournamentPast ||
-            match.status === "final" ||
-            match.status === "live" ||
-            match.status === "halftime"
+            (!nonOfficialTestState &&
+              (match.status === "final" ||
+                match.status === "live" ||
+                match.status === "halftime"))
           return (
             <WorldCupMatchupCard
               key={match.id}

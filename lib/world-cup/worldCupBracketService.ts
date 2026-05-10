@@ -1153,6 +1153,7 @@ export async function saveWorldCupBracketPickForEntry(input: {
   const selectedTeamName = selectedSide === "home" ? projectedMatch.homeTeamName : projectedMatch.awayTeamName
   const existingPick = findWorldCupPickForMatch(existingPicks, projectedMatch)
   const existingPickMatchedBy = existingPick ? getWorldCupPickMatchMethod(existingPick, projectedMatch) : null
+  const nextMatchNumber = projectedMatches.find((match) => match.id === (input.nextMatchId ?? m.nextMatchId))?.matchNumber ?? null
 
   if (process.env.NODE_ENV === "development") {
     console.debug("[world-cup:picks:save-resolved]", {
@@ -1164,6 +1165,7 @@ export async function saveWorldCupBracketPickForEntry(input: {
       selectedTeamId,
       selectedSlotKey,
       selectedTeamName,
+      nextMatchNumber,
       existingPickMatchedBy,
       nextMatchId: input.nextMatchId ?? m.nextMatchId,
       nextMatchSlot: input.nextMatchSlot ?? m.nextMatchSlot,

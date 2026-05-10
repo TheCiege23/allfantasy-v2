@@ -718,6 +718,7 @@ export default function WorldCupBracketShell({
       .filter((mid): mid is string => mid !== undefined)
       .filter((mid) => mid !== match.id)
     const existingPick = findWorldCupPickForMatch(currentPicks, match)
+    const nextMatchNumber = projectedMatches.find((projected) => projected.id === match.nextMatchId)?.matchNumber ?? null
     if (process.env.NODE_ENV === "development") {
       console.debug("[WorldCupBracketShell:save-pick]", {
         activeEntryId: selectedEntryId,
@@ -726,6 +727,7 @@ export default function WorldCupBracketShell({
         matchNumber: match.matchNumber,
         selectedTeamId,
         selectedSlotKey,
+        nextMatchNumber,
         existingPickMatchedBy: existingPick ? getWorldCupPickMatchMethod(existingPick, match) : null,
         downstreamPicksCleared: invalidMatchIds,
       })
@@ -1226,6 +1228,7 @@ export default function WorldCupBracketShell({
         projectedForSave.find(
           (match) => match.round === payload.round && match.matchNumber === payload.matchNumber
         )
+      const nextMatchNumber = projectedForSave.find((match) => match.id === payload.nextMatchId)?.matchNumber ?? null
       const existingPick = payloadMatch ? findWorldCupPickForMatch(currentPicks, payloadMatch) : null
       if (process.env.NODE_ENV === "development") {
         console.debug("[WorldCupBracketShell:guided-save-pick]", {
@@ -1235,6 +1238,7 @@ export default function WorldCupBracketShell({
           matchNumber: payload.matchNumber,
           selectedTeamId: payload.selectedTeamId,
           selectedSlotKey: payload.selectedSlotKey,
+          nextMatchNumber,
           existingPickMatchedBy: payloadMatch && existingPick ? getWorldCupPickMatchMethod(existingPick, payloadMatch) : null,
           downstreamPicksCleared: invalidMatchIds,
         })

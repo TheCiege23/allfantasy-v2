@@ -44,6 +44,7 @@ export type WorldCupMatchPickabilityLike = {
 export type WorldCupProjectedMatchStatusLike = {
   apiFixtureId?: number | null
   status?: string | null
+  startsAt?: string | Date | null
   homeScore?: number | null
   awayScore?: number | null
   homePenaltyScore?: number | null
@@ -172,6 +173,7 @@ export function resetWorldCupProjectedMatchStatus<T extends WorldCupProjectedMat
   if (isOfficialWorldCupFixtureState(match)) return match
 
   match.status = "scheduled"
+  match.startsAt = null
   match.homeScore = null
   match.awayScore = null
   match.homePenaltyScore = null

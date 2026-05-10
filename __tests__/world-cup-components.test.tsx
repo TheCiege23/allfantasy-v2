@@ -832,6 +832,215 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(within(screen.getByTestId("world-cup-match-m25")).getByText("Brazil")).toBeInTheDocument()
   })
 
+  it("saves projected semifinal and final picks without simulated final UI", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    const matches = [
+      makeShellMatch({
+        id: "m25",
+        round: "quarterfinal" as const,
+        roundIndex: 1,
+        matchNumber: 25,
+        homeTeamId: "demo_team_brazil",
+        awayTeamId: "demo_team_argentina",
+        homeTeamName: "Brazil",
+        awayTeamName: "Argentina",
+        homeSlotKey: "W-M17",
+        awaySlotKey: "W-M18",
+        nextMatchId: "m29",
+        nextMatchSlot: "home",
+      }),
+      makeShellMatch({
+        id: "m26",
+        round: "quarterfinal" as const,
+        roundIndex: 2,
+        matchNumber: 26,
+        homeTeamId: "demo_team_usa",
+        awayTeamId: "demo_team_mexico",
+        homeTeamName: "USA",
+        awayTeamName: "Mexico",
+        homeSlotKey: "W-M19",
+        awaySlotKey: "W-M20",
+        nextMatchId: "m29",
+        nextMatchSlot: "away",
+      }),
+      makeShellMatch({
+        id: "m27",
+        round: "quarterfinal" as const,
+        roundIndex: 3,
+        matchNumber: 27,
+        homeTeamId: "demo_team_croatia",
+        awayTeamId: "demo_team_germany",
+        homeTeamName: "Croatia",
+        awayTeamName: "Germany",
+        homeSlotKey: "W-M21",
+        awaySlotKey: "W-M22",
+        nextMatchId: "m30",
+        nextMatchSlot: "home",
+      }),
+      makeShellMatch({
+        id: "m28",
+        round: "quarterfinal" as const,
+        roundIndex: 4,
+        matchNumber: 28,
+        homeTeamId: "demo_team_australia",
+        awayTeamId: "demo_team_france",
+        homeTeamName: "Australia",
+        awayTeamName: "France",
+        homeSlotKey: "W-M23",
+        awaySlotKey: "W-M24",
+        nextMatchId: "m30",
+        nextMatchSlot: "away",
+      }),
+      makeShellMatch({
+        id: "m29",
+        round: "semifinal" as const,
+        roundIndex: 1,
+        matchNumber: 29,
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Winner Match 25",
+        awayTeamName: "Winner Match 26",
+        homeSlotKey: "W-M25",
+        awaySlotKey: "W-M26",
+        nextMatchId: "m31",
+        nextMatchSlot: "home",
+        status: "final",
+        apiStatusShort: "SIM",
+        startsAt: "2020-01-01T00:00:00.000Z",
+        homeScore: 3,
+        awayScore: 1,
+        winnerTeamName: "Best 3rd Place Team 1",
+      }),
+      makeShellMatch({
+        id: "m30",
+        round: "semifinal" as const,
+        roundIndex: 2,
+        matchNumber: 30,
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Winner Match 27",
+        awayTeamName: "Winner Match 28",
+        homeSlotKey: "W-M27",
+        awaySlotKey: "W-M28",
+        nextMatchId: "m31",
+        nextMatchSlot: "away",
+        status: "final",
+        apiStatusShort: "SIM",
+        startsAt: "2020-01-01T00:00:00.000Z",
+      }),
+      makeShellMatch({
+        id: "m31",
+        round: "final" as const,
+        roundIndex: 1,
+        matchNumber: 31,
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Winner Semifinal 1",
+        awayTeamName: "Winner Semifinal 2",
+        homeSlotKey: "W-M29",
+        awaySlotKey: "W-M30",
+        status: "final",
+        apiStatusShort: "SIM",
+        startsAt: "2020-01-01T00:00:00.000Z",
+        homeScore: 3,
+        awayScore: 1,
+        winnerTeamName: "Best 3rd Place Team 1",
+      }),
+    ]
+    const basePicks = [
+      { id: "pick-m25", matchId: "m25", matchNumber: 25, round: "quarterfinal", selectedTeamId: "demo_team_brazil", selectedSlotKey: "W-M17", selectedTeamName: "Brazil", pointsAwarded: 0, isCorrect: null, lockedAt: null },
+      { id: "pick-m26", matchId: "m26", matchNumber: 26, round: "quarterfinal", selectedTeamId: "demo_team_usa", selectedSlotKey: "W-M19", selectedTeamName: "USA", pointsAwarded: 0, isCorrect: null, lockedAt: null },
+      { id: "pick-m27", matchId: "m27", matchNumber: 27, round: "quarterfinal", selectedTeamId: "demo_team_croatia", selectedSlotKey: "W-M21", selectedTeamName: "Croatia", pointsAwarded: 0, isCorrect: null, lockedAt: null },
+      { id: "pick-m28", matchId: "m28", matchNumber: 28, round: "quarterfinal", selectedTeamId: "demo_team_australia", selectedSlotKey: "W-M23", selectedTeamName: "Australia", pointsAwarded: 0, isCorrect: null, lockedAt: null },
+      { id: "pick-m30", matchId: "m30", matchNumber: 30, round: "semifinal", selectedTeamId: "demo_team_croatia", selectedSlotKey: "W-M21", selectedTeamName: "Croatia", pointsAwarded: 0, isCorrect: null, lockedAt: null },
+    ]
+    const semifinalPick = { id: "pick-m29", matchId: "m29", matchNumber: 29, round: "semifinal", selectedTeamId: "demo_team_brazil", selectedSlotKey: "W-M17", selectedTeamName: "Brazil", pointsAwarded: 0, isCorrect: null, lockedAt: null }
+    const finalPick = { id: "pick-m31", matchId: "m31", matchNumber: 31, round: "final", selectedTeamId: "demo_team_brazil", selectedSlotKey: "W-M17", selectedTeamName: "Brazil", pointsAwarded: 0, isCorrect: null, lockedAt: null }
+    const picksAfterSemifinal = [...basePicks, semifinalPick]
+    const picksAfterFinal = [...picksAfterSemifinal, finalPick]
+    const makeView = (picks: typeof basePicks) => {
+      const view = makeShellView({ matches, picks }) as any
+      view.challenge.pickLockStrategy = "per_match"
+      view.challenge.pickLockAt = null
+      view.challenge.effectivePickLockAt = null
+      return view
+    }
+
+    clientApiMocks.clearPicks.mockResolvedValue([])
+    clientApiMocks.savePick
+      .mockResolvedValueOnce({
+        success: true,
+        entry: makeShellEntry({ isComplete: false }),
+        pick: semifinalPick,
+        picks: picksAfterSemifinal,
+        isComplete: false,
+        view: makeView(picksAfterSemifinal),
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        entry: makeShellEntry({ isComplete: true, championTeamId: "demo_team_brazil", championTeamName: "Brazil" }),
+        pick: finalPick,
+        picks: picksAfterFinal,
+        isComplete: true,
+        view: makeView(picksAfterFinal),
+      })
+
+    render(<WorldCupBracketShell initialView={makeView(basePicks)} />)
+
+    const semifinal = await screen.findByTestId("world-cup-match-m29")
+    expect(within(semifinal).getByText("Brazil")).toBeInTheDocument()
+    expect(within(semifinal).getByText("USA")).toBeInTheDocument()
+    expect(within(semifinal).queryByText(/^Final$/)).toBeNull()
+    expect(within(semifinal).queryByText(/^Simulated$/)).toBeNull()
+    fireEvent.click(within(semifinal).getByRole("button", { name: /Open guided picker for match 29/i }))
+
+    const dialog = await screen.findByRole("dialog", { name: /Guided Matchup Picker/i })
+    fireEvent.click(within(dialog).getByRole("button", { name: /Pick Brazil to win/i }))
+
+    await waitFor(() => expect(clientApiMocks.savePick).toHaveBeenCalledWith(
+      "c1",
+      "entry-1",
+      expect.objectContaining({
+        matchId: "m29",
+        round: "semifinal",
+        matchNumber: 29,
+        selectedTeamId: "demo_team_brazil",
+        nextMatchId: "m31",
+      })
+    ))
+    await waitFor(() => {
+      expect(within(screen.getByTestId("world-cup-match-m29")).getByRole("button", { name: /Selected: Brazil to win/i })).toHaveAttribute("aria-pressed", "true")
+    })
+
+    const final = screen.getByTestId("world-cup-match-m31")
+    expect(within(final).getByText("Brazil")).toBeInTheDocument()
+    expect(within(final).getByText("Croatia")).toBeInTheDocument()
+    expect(within(final).queryByText(/^Final$/)).toBeNull()
+    expect(within(final).queryByText(/^Simulated$/)).toBeNull()
+    expect(within(final).queryByText(/^FT$/)).toBeNull()
+    expect(within(final).queryByTestId("wc-match-official-winner-m31")).toBeNull()
+
+    await waitFor(() => {
+      expect(screen.getByTestId("world-cup-guided-footer-context")).toHaveTextContent(/Match 31/)
+    })
+    fireEvent.click(within(screen.getByRole("dialog", { name: /Guided Matchup Picker/i })).getByRole("button", { name: /Pick Brazil to win/i }))
+
+    await waitFor(() => expect(clientApiMocks.savePick).toHaveBeenLastCalledWith(
+      "c1",
+      "entry-1",
+      expect.objectContaining({
+        matchId: "m31",
+        round: "final",
+        matchNumber: 31,
+        selectedTeamId: "demo_team_brazil",
+      })
+    ))
+    await waitFor(() => {
+      expect(within(screen.getByTestId("world-cup-match-m31")).getByRole("button", { name: /Selected: Brazil to win/i })).toHaveAttribute("aria-pressed", "true")
+    })
+    expect(screen.getAllByText("Brazil").length).toBeGreaterThan(0)
+  })
+
   it("keeps the selected entry active after save refresh returns a different activeEntry", async () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     const entry1 = makeShellEntry({ id: "entry-1", name: "Bracket 1" })

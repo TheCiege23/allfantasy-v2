@@ -589,6 +589,7 @@ export default function WorldCupGuidedMatchupPicker({
         .filter((matchId): matchId is string => Boolean(matchId))
         .filter((matchId) => matchId !== currentMatch.id)
       const existingPick = findWorldCupPickForMatch(picks, currentMatch)
+      const nextMatchNumber = projected.find((match) => match.id === currentMatch.nextMatchId)?.matchNumber ?? null
       if (process.env.NODE_ENV === "development") {
         console.debug("[WorldCupGuidedMatchupPicker:save-pick]", {
           activeEntryId: entryId,
@@ -597,6 +598,7 @@ export default function WorldCupGuidedMatchupPicker({
           matchNumber: currentMatch.matchNumber,
           selectedTeamId,
           selectedSlotKey,
+          nextMatchNumber,
           existingPickMatchedBy: existingPick ? getWorldCupPickMatchMethod(existingPick, currentMatch) : null,
           downstreamPicksCleared: invalidMatchIds,
         })
