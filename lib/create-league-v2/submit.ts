@@ -9,6 +9,7 @@
 import type { CreateLeagueV2State } from './state'
 import { getDefaultKeeperSetup } from './state'
 import { getEffectiveLeagueType, isFootballLike, isDynastyConcept } from './state'
+import { finalizeCanonicalCreatePayload } from '@/lib/league-creation/normalizeCreateLeaguePayload'
 import { resolveEffectiveDraftType, isThirdRoundReversalAvailable } from '@/lib/create-league-v2/rules-engine'
 import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigation'
 import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
@@ -141,7 +142,7 @@ function buildCanonicalPayload(state: CreateLeagueV2State): Record<string, unkno
     payload.conceptSetup = conceptSetup
   }
 
-  return payload
+  return finalizeCanonicalCreatePayload(payload)
 }
 
 function buildTournamentPayload(state: CreateLeagueV2State) {
@@ -330,6 +331,10 @@ export async function submitCreateLeagueV2(state: CreateLeagueV2State): Promise<
     payload = buildTournamentPayload(state)
   } else {
     payload = buildCanonicalPayload(state)
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    console.info('[create-league-v2] normalized payload preview', summarizeSubmittedPayload(payload))
   }
 
   let res: Response

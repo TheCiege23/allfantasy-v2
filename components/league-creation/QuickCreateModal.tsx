@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { normalizeLegacyManualCreateBody } from '@/lib/league-creation/normalizeCreateLeaguePayload'
 
 type QuickCreateSettings = {
   name: string
@@ -79,26 +80,52 @@ export function QuickCreateModal({
     setCreating(true)
     setError(null)
     try {
+      const normalized = normalizeLegacyManualCreateBody({
+        name: settings.name,
+        sport: settings.sport,
+        leagueType: settings.leagueType,
+        draftType: settings.draftType,
+        leagueSize: settings.teamCount,
+        scoring: settings.scoring,
+        isDynasty: settings.isDynasty,
+        isSuperflex: settings.isSuperflex,
+        platform: 'manual',
+        settings: {
+          trade_review_mode: settings.tradeReviewMode,
+          waiver_type: settings.waiverType,
+          playoff_teams: settings.playoffTeams,
+          regular_season_weeks: settings.regularSeasonWeeks,
+        },
+      })
+      if (process.env.NODE_ENV === 'development') {
+        // Safe summary: no auth tokens; league name is user-visible in UI already.
+        console.info('[quick-create] normalized create body', {
+          sport: normalized.sport,
+          leagueType: normalized.leagueType,
+          draftType: normalized.draftType,
+          leagueSize: normalized.leagueSize,
+          scoring: normalized.scoring,
+          isDynasty: normalized.isDynasty,
+          leagueVariant: normalized.leagueVariant ?? null,
+          hasScoringPresetId: Boolean(normalized.scoringPresetId),
+        })
+      }
       const res = await fetch('/api/league/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: settings.name,
-          sport: settings.sport,
-          leagueType: settings.leagueType,
-          draftType: settings.draftType,
-          leagueSize: settings.teamCount,
-          scoring: settings.scoring,
-          isDynasty: settings.isDynasty,
-          isSuperflex: settings.isSuperflex,
-          leagueVariant: settings.scoring,
-          platform: 'manual',
-          settings: {
-            trade_review_mode: settings.tradeReviewMode,
-            waiver_type: settings.waiverType,
-            playoff_teams: settings.playoffTeams,
-            regular_season_weeks: settings.regularSeasonWeeks,
-          },
+          name: normalized.name,
+          sport: normalized.sport,
+          leagueType: normalized.leagueType,
+          draftType: normalized.draftType,
+          leagueSize: normalized.leagueSize,
+          scoring: normalized.scoring,
+          isDynasty: normalized.isDynasty,
+          isSuperflex: normalized.isSuperflex,
+          ...(normalized.leagueVariant ? { leagueVariant: normalized.leagueVariant } : {}),
+          ...(normalized.scoringPresetId ? { scoringPresetId: normalized.scoringPresetId } : {}),
+          platform: normalized.platform,
+          settings: normalized.settings,
         }),
       })
       if (!res.ok) {
