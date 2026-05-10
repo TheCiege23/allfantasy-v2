@@ -36,16 +36,11 @@ export interface PickValidationResult {
 }
 
 /**
- * Validate a pick submission. Caller must ensure session is in_progress.
- * Phase 1 hard-stop: paused drafts must reject all picks (manual, auto, AI).
- * See: docs/draft-runtime-authoritative-mutations.md (Tier 1 pause enforcement)
+ * Validate a pick submission. Session must be in_progress or paused (soft-pause
+ * allows picks through while the UI shows a paused state).
  */
 export function validatePickSubmission(input: ValidatePickInput): PickValidationResult {
-  // Phase 1: Hard-stop paused drafts - picks not allowed while paused
-  if (input.sessionStatus === 'paused') {
-    return { valid: false, error: 'Draft is paused; picks not allowed', code: DRAFT_PICK_NOT_LIVE }
-  }
-  if (input.sessionStatus !== 'in_progress') {
+  if (input.sessionStatus !== 'in_progress' && input.sessionStatus !== 'paused') {
     return { valid: false, error: 'Draft is not in progress', code: DRAFT_PICK_NOT_LIVE }
   }
   if (!input.commissionerOverride && input.rosterId !== input.currentOnClockRosterId) {
