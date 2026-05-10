@@ -406,6 +406,7 @@ export function DraftRoomPageClient({
   const [pickError, setPickError] = useState<string | null>(null)
   const [draftPool, setDraftPool] = useState<{ entries: NormalizedDraftEntry[]; sport: string; devyConfig?: { enabled: boolean; devyRounds: number[] }; c2cConfig?: { enabled: boolean; collegeRounds: number[] }; isIdp?: boolean } | null>(null)
   const [poolFetching, setPoolFetching] = useState(true)
+  const [poolError, setPoolError] = useState(false)
   const [draftAssistantContext, setDraftAssistantContext] = useState<{
     sport: string
     headlines: Array<{
@@ -900,6 +901,7 @@ export function DraftRoomPageClient({
       return
     }
     setPoolFetching(true)
+    setPoolError(false)
     const endpoint = `/api/leagues/${encodeURIComponent(leagueId)}/draft/pool`
     const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
     try {
@@ -928,6 +930,7 @@ export function DraftRoomPageClient({
         })
       } else {
         setDraftPool(null)
+        setPoolError(true)
       }
     } catch {
       if (process.env.NODE_ENV !== 'production') {
@@ -939,6 +942,7 @@ export function DraftRoomPageClient({
         })
       }
       setDraftPool(null)
+      setPoolError(true)
     } finally {
       setPoolFetching(false)
     }
@@ -3480,6 +3484,7 @@ export function DraftRoomPageClient({
         onMakePick={handleMakePick}
         currentRoster={currentRoster}
         loading={poolLoading}
+        poolError={poolError}
         useAiAdp={draftUISettings?.aiAdpEnabled ?? false}
         aiAdpUnavailable={aiAdpUnavailable}
         aiAdpUnavailableMessage={leagueAiAdp?.message ?? null}
@@ -3535,6 +3540,7 @@ export function DraftRoomPageClient({
       handleMakePick,
       currentRoster,
       poolLoading,
+      poolError,
       draftUISettings?.aiAdpEnabled,
       aiAdpUnavailable,
       leagueAiAdp?.message,
