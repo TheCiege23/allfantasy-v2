@@ -6,6 +6,7 @@ type DraftIntroVideoOverlayProps = {
   open: boolean
   draftTypeLabel: string
   videoSrc: string
+  posterSrc?: string | null
   onDismiss: () => void
 }
 
@@ -13,6 +14,7 @@ export function DraftIntroVideoOverlay({
   open,
   draftTypeLabel,
   videoSrc,
+  posterSrc = null,
   onDismiss,
 }: DraftIntroVideoOverlayProps) {
   if (!open) return null
@@ -53,6 +55,7 @@ export function DraftIntroVideoOverlay({
         </div>
         <video
           src={videoSrc}
+          poster={posterSrc ?? undefined}
           autoPlay
           muted
           playsInline

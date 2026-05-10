@@ -236,6 +236,9 @@ function mapLeague(rawValue: unknown): DashboardConnectedLeague | null {
       ? userRoleRaw
       : 'member'
 
+  const leagueTypeRaw =
+    toStringValue(raw.leagueType) || toStringValue((raw as Record<string, unknown>).league_type) || null
+
   return {
     id: selectedLeagueId,
     sourceLeagueId: sourceLeagueId || selectedLeagueId,
@@ -244,7 +247,21 @@ function mapLeague(rawValue: unknown): DashboardConnectedLeague | null {
     sport,
     leagueVariant:
       toStringValue(raw.leagueVariant) || toStringValue(raw.league_variant) || null,
+    leagueType: leagueTypeRaw,
+    guillotineMode:
+      raw.guillotineMode === true || raw.guillotine_mode === true
+        ? true
+        : raw.guillotineMode === false || raw.guillotine_mode === false
+          ? false
+          : null,
+    bestBallMode:
+      raw.bestBallMode === true || raw.best_ball_mode === true
+        ? true
+        : raw.bestBallMode === false || raw.best_ball_mode === false
+          ? false
+          : null,
     format:
+      leagueTypeRaw ||
       toStringValue(raw.leagueVariant) ||
       toStringValue(raw.league_variant) ||
       (toBooleanValue(raw.isDynasty) ? 'dynasty' : 'redraft'),
@@ -258,6 +275,7 @@ function mapLeague(rawValue: unknown): DashboardConnectedLeague | null {
     sleeperLeagueId: platform === 'sleeper' ? platformLeagueId ?? undefined : undefined,
     syncStatus: toStringValue(raw.syncStatus) || null,
     avatarUrl: toStringValue(raw.avatarUrl) || null,
+    logoUrl: toStringValue(raw.logoUrl) || null,
     platformLeagueId,
     isCommissioner: toBooleanValue(raw.isCommissioner),
     userRole,

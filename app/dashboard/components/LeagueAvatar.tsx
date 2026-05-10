@@ -12,8 +12,26 @@ function sleeperAvatarSrc(avatarUrl: string | null | undefined): string | null {
 }
 
 export function LeagueAvatar({ league, size = 32 }: { league: UserLeague; size?: number }) {
+  const customLogo = league.logoUrl?.trim()
   const sleeperUrl = sleeperAvatarSrc(league.avatarUrl ?? null)
   const [imgError, setImgError] = useState(false)
+
+  if (customLogo) {
+    const src =
+      customLogo.startsWith('http://') ||
+      customLogo.startsWith('https://') ||
+      customLogo.startsWith('/')
+        ? customLogo
+        : `/${customLogo.replace(/^\/+/, '')}`
+    return (
+      <img
+        src={src}
+        alt={league.name}
+        className="flex-shrink-0 rounded-[8px] object-cover"
+        style={{ width: size, height: size }}
+      />
+    )
+  }
 
   if (sleeperUrl && !imgError) {
     return (

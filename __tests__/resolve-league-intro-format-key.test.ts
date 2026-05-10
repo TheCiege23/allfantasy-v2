@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { getFormatIntroMetadata } from '@/lib/league/format-engine'
-import { getLeagueTypeMedia } from '@/lib/league-media/leagueTypeMedia'
+import {
+  getLeagueTypeMedia,
+  resolveLeagueCardTypeKey,
+  resolveLeagueConceptIntroKey,
+} from '@/lib/league-media/leagueTypeMedia'
 import { resolveLeagueIntroFormatKey } from '@/lib/league/resolveLeagueIntroFormatKey'
+import {
+  resolveDraftBoardImageUrl,
+  resolveDraftIntroPosterUrl,
+  resolveDraftIntroVideoUrl,
+} from '@/lib/draft/draft-intro-video'
 
 describe('resolveLeagueIntroFormatKey', () => {
   it('prefers Prisma leagueType column over settings', () => {
@@ -51,10 +60,11 @@ describe('resolveLeagueIntroFormatKey', () => {
 })
 
 describe('league type media (poster / video assets)', () => {
-  it('redraft uses neutral AllFantasy poster, not guillotine or another format’s image', () => {
+  it('redraft uses redraft intro + redraft art, not guillotine or another format’s image', () => {
     const m = getLeagueTypeMedia('redraft')
-    expect(m.introVideo).toBe('/league-type-redraft-intro.mp4')
-    expect(m.thumbnail).toBe('/af-crest.png')
+    expect(m.introVideo).toBe('/media/league-intros/redraft-league-intro.mp4')
+    expect(m.thumbnail).toBe('/images/league-types/redraft.png')
+    expect(m.defaultLeagueImageUrl).toBe('/images/league-types/redraft.png')
     expect(m.thumbnail).not.toMatch(/guillotine/i)
   })
 
@@ -71,8 +81,8 @@ describe('league type media (poster / video assets)', () => {
   it('unknown key falls back to redraft media bundle (neutral poster)', () => {
     const m = getLeagueTypeMedia('definitely_not_a_format')
     expect(m.key).toBe('definitely_not_a_format')
-    expect(m.introVideo).toBe('/league-type-redraft-intro.mp4')
-    expect(m.thumbnail).toBe('/af-crest.png')
+    expect(m.introVideo).toBe('/media/league-intros/redraft-league-intro.mp4')
+    expect(m.thumbnail).toBe('/images/league-types/redraft.png')
   })
 })
 
@@ -86,8 +96,8 @@ describe('intro video selection via getFormatIntroMetadata', () => {
       }),
       leagueVariant: 'guillotine',
     })
-    expect(meta.introVideo).toBe('/league-type-redraft-intro.mp4')
-    expect(meta.thumbnail).toBe('/af-crest.png')
+    expect(meta.introVideo).toBe('/media/league-intros/redraft-league-intro.mp4')
+    expect(meta.thumbnail).toBe('/images/league-types/redraft.png')
     expect(meta.title).toContain('Redraft')
   })
 
@@ -119,7 +129,7 @@ describe('intro video selection via getFormatIntroMetadata', () => {
       }),
       leagueVariant: 'fb_half_ppr',
     })
-    expect(meta.introVideo).toBe('/league-type-redraft-intro.mp4')
+    expect(meta.introVideo).toBe('/media/league-intros/redraft-league-intro.mp4')
   })
 
   it('unknown intro format key falls back to redraft media', () => {
@@ -130,7 +140,45 @@ describe('intro video selection via getFormatIntroMetadata', () => {
         settings: {},
       }),
     })
-    expect(meta.introVideo).toBe('/league-type-redraft-intro.mp4')
-    expect(meta.thumbnail).toBe('/af-crest.png')
+    expect(meta.introVideo).toBe('/media/league-intros/redraft-league-intro.mp4')
+    expect(meta.thumbnail).toBe('/images/league-types/redraft.png')
+  })
+})
+
+describe('canonical concept / draft media resolution', () => {
+  it('resolveLeagueConceptIntroKey: redraft column beats guillotine variant', () => {
+    expect(
+      resolveLeagueConceptIntroKey({
+        leagueType: 'redraft',
+        leagueVariant: 'guillotine',
+        settings: {},
+        isDynasty: false,
+      }),
+    ).toBe('redraft')
+  })
+
+  it('resolveLeagueCardTypeKey: My Leagues fallback art for redraft is redraft.png path', () => {
+    const url = getLeagueTypeMedia(
+      resolveLeagueCardTypeKey({
+        leagueType: 'redraft',
+        leagueVariant: 'guillotine',
+        settings: {},
+        isDynasty: false,
+      }),
+    ).defaultLeagueImageUrl
+    expect(url).toBe('/images/league-types/redraft.png')
+    expect(url).not.toMatch(/guillotine/i)
+  })
+
+  it('snake draft intro + board image paths', () => {
+    expect(resolveDraftIntroVideoUrl('snake')).toBe('/media/draft-intros/snake-draft-intro.mp4')
+    expect(resolveDraftIntroPosterUrl('snake')).toBe('/images/draft-types/snake-draft.png')
+    expect(resolveDraftBoardImageUrl('snake')).toBe('/images/draft-types/snake-draft.png')
+  })
+
+  it('redraft media paths never contain guillotine segment', () => {
+    const m = getLeagueTypeMedia('redraft')
+    const s = `${m.introVideo}${m.thumbnail}${m.defaultLeagueImageUrl}`
+    expect(s.toLowerCase()).not.toContain('guillotine')
   })
 })

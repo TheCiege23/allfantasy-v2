@@ -32,8 +32,8 @@ vi.mock('@/lib/prisma', () => ({
   },
 }))
 
-import { GET as getDraftIntroStatus } from '@/app/api/leagues/[leagueId]/draft/[draftSessionId]/intro-status/route'
-import { POST as postDraftIntroSeen } from '@/app/api/leagues/[leagueId]/draft/[draftSessionId]/intro-seen/route'
+import { GET as getDraftIntroStatus } from '@/app/api/leagues/[leagueId]/draft/[draftId]/intro-status/route'
+import { POST as postDraftIntroSeen } from '@/app/api/leagues/[leagueId]/draft/[draftId]/intro-seen/route'
 
 describe('draft intro routes', () => {
   beforeEach(() => {
@@ -49,7 +49,7 @@ describe('draft intro routes', () => {
     const res = await getDraftIntroStatus(
       new Request('http://localhost/api/leagues/league-1/draft/draft-1/intro-status'),
       {
-        params: Promise.resolve({ leagueId: 'league-1', draftSessionId: 'draft-1' }),
+        params: Promise.resolve({ leagueId: 'league-1', draftId: 'draft-1' }),
       },
     )
 
@@ -57,7 +57,8 @@ describe('draft intro routes', () => {
     await expect(res.json()).resolves.toEqual({
       seen: false,
       draftTypeKey: 'snake',
-      videoUrl: '/videos/drafts/snake-draft-intro.mp4',
+      videoUrl: '/media/draft-intros/snake-draft-intro.mp4',
+      posterUrl: '/images/draft-types/snake-draft.png',
     })
     expect(mocks.draftIntroFindUnique).toHaveBeenCalledWith({
       where: { draftSessionId_userId: { draftSessionId: 'draft-1', userId: 'user-1' } },
@@ -69,7 +70,7 @@ describe('draft intro routes', () => {
     const res = await postDraftIntroSeen(
       new Request('http://localhost/api/leagues/league-1/draft/draft-1/intro-seen', { method: 'POST' }),
       {
-        params: Promise.resolve({ leagueId: 'league-1', draftSessionId: 'draft-1' }),
+        params: Promise.resolve({ leagueId: 'league-1', draftId: 'draft-1' }),
       },
     )
 
@@ -89,7 +90,7 @@ describe('draft intro routes', () => {
     const res = await getDraftIntroStatus(
       new Request('http://localhost/api/leagues/league-1/draft/draft-1/intro-status'),
       {
-        params: Promise.resolve({ leagueId: 'league-1', draftSessionId: 'draft-1' }),
+        params: Promise.resolve({ leagueId: 'league-1', draftId: 'draft-1' }),
       },
     )
 

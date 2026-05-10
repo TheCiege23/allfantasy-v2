@@ -3,7 +3,11 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
-import { normalizeDraftTypeKey, resolveDraftIntroVideoUrl } from '@/lib/draft/draft-intro-video'
+import {
+  normalizeDraftTypeKey,
+  resolveDraftIntroPosterUrl,
+  resolveDraftIntroVideoUrl,
+} from '@/lib/draft/draft-intro-video'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,10 +64,12 @@ export async function GET(
 
   const draftTypeKey = normalizeDraftTypeKey(record?.draftTypeKey ?? draftSession.draftType)
   const videoUrl = record?.videoUrl ?? resolveDraftIntroVideoUrl(draftTypeKey)
+  const posterUrl = resolveDraftIntroPosterUrl(draftTypeKey)
 
   return NextResponse.json({
     seen: Boolean(record?.seenAt ?? record?.id),
     draftTypeKey: draftTypeKey || null,
     videoUrl,
+    posterUrl,
   })
 }

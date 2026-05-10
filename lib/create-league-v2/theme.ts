@@ -176,7 +176,7 @@ export const SPORT_MEDIA: Record<string, MediaAsset> = {
  * redraft hero (IDP is a redraft variant, tournament has no -intro).
  */
 export const LEAGUE_TYPE_MEDIA: Record<string, MediaAsset> = {
-  redraft: { video: '/league-type-redraft-intro.mp4', fallback: '/af-crest.png' },
+  redraft: { video: '/media/league-intros/redraft-league-intro.mp4', fallback: '/af-crest.png' },
   dynasty: { video: '/league-type-dynasty-intro.mp4', fallback: '/league-type-dynasty.mp4' },
   keeper: { video: '/league-type-keeper-intro.mp4', fallback: '/league-type-keeper.mp4' },
   best_ball: { video: '/league-type-best-ball-intro.mp4', fallback: '/league-type-best-ball.mp4' },

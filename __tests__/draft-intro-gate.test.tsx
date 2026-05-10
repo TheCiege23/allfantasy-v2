@@ -36,7 +36,12 @@ describe('DraftIntroGate', () => {
   it('renders overlay when unseen and video is available', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ seen: false, draftTypeKey: 'snake', videoUrl: '/videos/drafts/snake-draft-intro.mp4' }),
+      json: async () => ({
+        seen: false,
+        draftTypeKey: 'snake',
+        videoUrl: '/media/draft-intros/snake-draft-intro.mp4',
+        posterUrl: '/images/draft-types/snake-draft.png',
+      }),
     } as Response)
 
     render(
@@ -55,7 +60,12 @@ describe('DraftIntroGate', () => {
       .spyOn(global, 'fetch')
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ seen: false, draftTypeKey: 'snake', videoUrl: '/videos/drafts/snake-draft-intro.mp4' }),
+        json: async () => ({
+        seen: false,
+        draftTypeKey: 'snake',
+        videoUrl: '/media/draft-intros/snake-draft-intro.mp4',
+        posterUrl: '/images/draft-types/snake-draft.png',
+      }),
       } as Response)
       .mockResolvedValueOnce({
         ok: true,

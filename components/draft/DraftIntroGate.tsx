@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DraftIntroVideoOverlay } from '@/components/draft/DraftIntroVideoOverlay'
+import { resolveDraftIntroPosterUrl } from '@/lib/draft/draft-intro-video'
 
 type DraftIntroGateProps = {
   leagueId: string
@@ -100,6 +101,7 @@ export function DraftIntroGate({
   }, [markSeen])
 
   const draftTypeLabel = useMemo(() => draftTypeLabelFromKey(draftTypeKey), [draftTypeKey])
+  const posterSrc = useMemo(() => resolveDraftIntroPosterUrl(draftTypeKey), [draftTypeKey])
 
   if (!videoSrc) return null
 
@@ -108,6 +110,7 @@ export function DraftIntroGate({
       open={open}
       draftTypeLabel={draftTypeLabel}
       videoSrc={videoSrc}
+      posterSrc={posterSrc}
       onDismiss={dismiss}
     />
   )

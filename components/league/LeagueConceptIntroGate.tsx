@@ -4,22 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ConceptIntroVideoOverlay } from '@/components/league/ConceptIntroVideoOverlay'
 import { LEAGUE_CREATE_OPTIONS_CATALOG_V1 } from '@/lib/league-creation/options-catalog-seed-data'
 import { getConceptIntroVideoUrl } from '@/lib/league-creation/concept-intro-videos'
+import { getLeagueTypeMedia, resolveLeagueConceptIntroKey } from '@/lib/league-media/leagueTypeMedia'
 
 type LeagueConceptIntroGateProps = {
   leagueId: string
   shouldPlayIntro: boolean
   leagueType?: string | null
+  /** Modifier ids (scoring, specialty skins). Never overrides `leagueType` for intro media. */
   leagueVariant?: string | null
   isDynasty?: boolean | null
+  guillotineMode?: boolean | null
+  bestBallMode?: boolean | null
   settings?: unknown
-}
-
-const CONCEPT_ALIASES: Record<string, string> = {
-  bestball: 'best_ball',
-  devy_dynasty: 'devy',
-  merged_devy_c2c: 'c2c',
-  dynasty_idp: 'idp',
-  tournament_mode: 'tournament',
 }
 
 const CONCEPT_SEED = new Map(
@@ -32,26 +28,6 @@ const CONCEPT_SEED = new Map(
     },
   ]),
 )
-
-function normalizeConcept(raw: string | null | undefined): string {
-  const key = String(raw ?? '').trim().toLowerCase()
-  if (!key) return ''
-  return CONCEPT_ALIASES[key] ?? key
-}
-
-function resolveConceptKey(
-  leagueType?: string | null,
-  leagueVariant?: string | null,
-  isDynasty?: boolean | null,
-): string {
-  const variant = normalizeConcept(leagueVariant)
-  if (variant) return variant
-
-  const type = normalizeConcept(leagueType)
-  if (type) return type
-
-  return isDynasty ? 'dynasty' : 'redraft'
-}
 
 function readIntroSettingEnabled(settings: unknown): boolean {
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return true
@@ -97,28 +73,40 @@ export function LeagueConceptIntroGate({
   leagueType,
   leagueVariant,
   isDynasty,
+  guillotineMode,
+  bestBallMode,
   settings,
 }: LeagueConceptIntroGateProps) {
   const conceptKey = useMemo(
-    () => resolveConceptKey(leagueType, leagueVariant, isDynasty),
-    [leagueType, leagueVariant, isDynasty],
+    () =>
+      resolveLeagueConceptIntroKey({
+        leagueType,
+        leagueVariant,
+        settings,
+        isDynasty,
+        guillotineMode,
+        bestBallMode,
+      }),
+    [leagueType, leagueVariant, settings, isDynasty, guillotineMode, bestBallMode],
   )
   const seed = useMemo(() => CONCEPT_SEED.get(conceptKey) ?? null, [conceptKey])
+  const mediaBundle = useMemo(() => getLeagueTypeMedia(conceptKey), [conceptKey])
   const storedIntro = useMemo(() => readStoredIntro(settings), [settings])
   const introEnabled = useMemo(() => readIntroSettingEnabled(settings), [settings])
 
   const videoSrc = useMemo(() => {
     if (storedIntro.videoUrl) return storedIntro.videoUrl
     if (seed?.introVideoUrl) return seed.introVideoUrl
-    return getConceptIntroVideoUrl(conceptKey) ?? null
-  }, [conceptKey, seed, storedIntro.videoUrl])
+    return mediaBundle.introVideo || getConceptIntroVideoUrl(conceptKey) || null
+  }, [conceptKey, mediaBundle.introVideo, seed, storedIntro.videoUrl])
 
   const posterSrc = useMemo(() => {
     if (storedIntro.posterUrl) return storedIntro.posterUrl
-    return seed?.introPosterUrl ?? null
-  }, [seed, storedIntro.posterUrl])
+    if (seed?.introPosterUrl) return seed.introPosterUrl
+    return mediaBundle.thumbnail
+  }, [mediaBundle.thumbnail, seed, storedIntro.posterUrl])
 
-  const conceptLabel = seed?.title ?? (conceptKey.replace(/_/g, ' ') || 'League')
+  const conceptLabel = seed?.title ?? mediaBundle.label
 
   const [open, setOpen] = useState(false)
   const seenMarkedRef = useRef(false)
@@ -169,7 +157,7 @@ export function LeagueConceptIntroGate({
       },
       body: JSON.stringify({}),
     }).catch(() => {
-      // Best-effort write. The UI should still dismiss immediately.
+      // Best-effort write; UI dismiss remains immediate.
     })
   }, [leagueId])
 

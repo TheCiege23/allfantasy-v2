@@ -974,6 +974,8 @@ export function LeagueShell({
         leagueType={league.leagueType}
         leagueVariant={league.leagueVariant}
         isDynasty={league.isDynasty}
+        guillotineMode={league.guillotineMode}
+        bestBallMode={league.bestBallMode}
         settings={league.settings}
       />
       <div className="contents" data-league-id={league.id} data-embed-mode={embedMode ? '1' : undefined}>

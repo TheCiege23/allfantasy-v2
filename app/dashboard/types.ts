@@ -23,6 +23,8 @@ export interface UserLeague {
   sleeperLeagueId?: string
   /** Sleeper avatar id — resolved to sleepercdn.com/avatars/{id} in UI */
   avatarUrl?: string | null
+  /** Prisma `League.logoUrl` — commissioner-uploaded league logo (takes priority over type fallback). */
+  logoUrl?: string | null
   /** ISO string from league detail / Sleeper draft when available */
   draftDate?: string | null
   /** Prisma `League.leagueVariant` when provided (e.g. big_brother, zombie). */
