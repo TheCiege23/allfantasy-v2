@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -13,24 +13,24 @@ type SessionShape = {
   }
 } | null
 
-export async function POST(
+export async function GET(
   _req: Request,
-  { params }: { params: Promise<{ leagueId: string; draftSessionId: string }> },
+  { params }: { params: Promise<{ leagueId: string; draftId: string }> },
 ) {
   const session = (await getServerSession(authOptions as any)) as SessionShape
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { leagueId, draftSessionId } = await params
+  const { leagueId, draftId } = await params
   if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
-  if (!draftSessionId) return NextResponse.json({ error: 'Missing draftSessionId' }, { status: 400 })
+  if (!draftId) return NextResponse.json({ error: 'Missing draftId' }, { status: 400 })
 
   const allowed = await canAccessLeagueDraft(leagueId, userId)
   if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const draftSession = await prisma.draftSession.findFirst({
     where: {
-      id: draftSessionId,
+      id: draftId,
       leagueId,
     },
     select: {
@@ -43,31 +43,27 @@ export async function POST(
     return NextResponse.json({ error: 'Draft session not found' }, { status: 404 })
   }
 
-  const draftTypeKey = normalizeDraftTypeKey(draftSession.draftType)
-  const videoUrl = resolveDraftIntroVideoUrl(draftTypeKey)
-
-  await (prisma as any).draftIntroView.upsert({
+  const record = await (prisma as any).draftIntroView.findUnique({
     where: {
       draftSessionId_userId: {
-        draftSessionId,
+        draftSessionId: draftId,
         userId,
       },
     },
-    update: {
-      seenAt: new Date(),
-      draftTypeKey: draftTypeKey || null,
-      videoUrl,
-      leagueId,
-    },
-    create: {
-      leagueId,
-      draftSessionId,
-      userId,
-      draftTypeKey: draftTypeKey || null,
-      videoUrl,
-      seenAt: new Date(),
+    select: {
+      id: true,
+      seenAt: true,
+      draftTypeKey: true,
+      videoUrl: true,
     },
   })
 
-  return NextResponse.json({ ok: true })
+  const draftTypeKey = normalizeDraftTypeKey(record?.draftTypeKey ?? draftSession.draftType)
+  const videoUrl = record?.videoUrl ?? resolveDraftIntroVideoUrl(draftTypeKey)
+
+  return NextResponse.json({
+    seen: Boolean(record?.seenAt ?? record?.id),
+    draftTypeKey: draftTypeKey || null,
+    videoUrl,
+  })
 }
