@@ -12,7 +12,8 @@ const FALLBACK_THUMBNAIL = '/af-crest.png'
 const LEAGUE_TYPE_MEDIA_MAP: Record<string, Omit<LeagueTypeMedia, 'key'>> = {
   redraft: {
     label: 'Redraft',
-    thumbnail: '/league-type-dynasty.png',
+    /** No dedicated redraft poster in `public/` — use neutral crest, not another format’s art. */
+    thumbnail: FALLBACK_THUMBNAIL,
     selectionVideo: '/league-type-redraft-intro.mp4',
     introVideo: '/league-type-redraft-intro.mp4',
     thumbnailFallback: FALLBACK_THUMBNAIL,

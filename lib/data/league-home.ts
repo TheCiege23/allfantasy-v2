@@ -917,13 +917,32 @@ async function buildIntroVideoData(
     select: { id: true },
   })
 
+  /**
+   * When `League.leagueType` is set (canonical create/import), intro **video + poster** must match
+   * that format. Legacy `settings.intro_video` sometimes stored wrong URLs (e.g. guillotine assets for
+   * redraft); titles already came from derived metadata when absent, but thumbnail/video overrides caused
+   * mismatched artwork.
+   */
+  const hasCanonicalLeagueType =
+    typeof context.league.leagueType === 'string' && context.league.leagueType.trim().length > 0
+
+  const introVideo = hasCanonicalLeagueType
+    ? derivedIntro.introVideo
+    : typeof storedIntro?.introVideo === 'string'
+      ? storedIntro.introVideo
+      : derivedIntro.introVideo
+
+  const thumbnail = hasCanonicalLeagueType
+    ? derivedIntro.thumbnail
+    : typeof storedIntro?.thumbnail === 'string'
+      ? storedIntro.thumbnail
+      : derivedIntro.thumbnail
+
   return {
     title: typeof storedIntro?.title === 'string' ? storedIntro.title : derivedIntro.title,
     subtitle: typeof storedIntro?.subtitle === 'string' ? storedIntro.subtitle : derivedIntro.subtitle,
-    introVideo:
-      typeof storedIntro?.introVideo === 'string' ? storedIntro.introVideo : derivedIntro.introVideo,
-    thumbnail:
-      typeof storedIntro?.thumbnail === 'string' ? storedIntro.thumbnail : derivedIntro.thumbnail,
+    introVideo,
+    thumbnail,
     fallbackCopy:
       typeof storedIntro?.fallbackCopy === 'string'
         ? storedIntro.fallbackCopy
