@@ -58,6 +58,7 @@ import { getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import type { DraftSessionSnapshot } from '@/lib/live-draft-engine/types'
 import { getViewerAutopickPreference } from '@/lib/live-draft-engine/LiveDraftAutopickPreferenceService'
 import { EntitlementResolver } from '@/lib/subscription/EntitlementResolver'
+import { ensureDraftPoolReady } from '@/lib/draft-room/ensureDraftPoolReady'
 
 export const dynamic = 'force-dynamic'
 
@@ -177,6 +178,13 @@ export async function POST(
   }
   try {
     if (action === 'start') {
+      const poolReady = await ensureDraftPoolReady(leagueId)
+      if (!poolReady.ok) {
+        return NextResponse.json(
+          { error: poolReady.error, code: 'POOL_NOT_READY' },
+          { status: 503 },
+        )
+      }
       const started = await startDraftSession(leagueId)
       if (!started.ok) {
         if (started.reason === 'ROSTER_CONFIGURATION_INCOMPLETE') {
@@ -238,6 +246,13 @@ export async function POST(
       return NextResponse.json({ ok: true, action: 'pause', session: await withViewerSession(leagueId, userId, snapshot) })
     }
     if (action === 'resume') {
+      const poolReady = await ensureDraftPoolReady(leagueId)
+      if (!poolReady.ok) {
+        return NextResponse.json(
+          { error: poolReady.error, code: 'POOL_NOT_READY' },
+          { status: 503 },
+        )
+      }
       const ok = await resumeDraftSession(leagueId)
       if (!ok) return NextResponse.json({ error: 'Cannot resume draft' }, { status: 400 })
       const { notifyDraftResumed } = await import('@/lib/draft-notifications')
