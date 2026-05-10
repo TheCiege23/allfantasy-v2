@@ -31,11 +31,10 @@ export function DraftTypeSelector({
   const draftSectionRef = useRef<HTMLDivElement | null>(null)
   const [draftInView, setDraftInView] = useState(false)
 
-  const draftOptions = effectiveType
-    ? state.idpSelected
-      ? getIdpDraftTypeOptions()
-      : getDraftTypeOptions(effectiveType, state.sport)
-    : []
+  const draftOptions = useMemo(() => {
+    if (!effectiveType) return []
+    return state.idpSelected ? getIdpDraftTypeOptions() : getDraftTypeOptions(effectiveType, state.sport)
+  }, [effectiveType, state.idpSelected, state.sport])
   const localizedDraftOptions = useMemo(
     () => draftOptions.map((opt) => localizeDraftTypeOption(t, opt)),
     [draftOptions, t],
@@ -43,6 +42,12 @@ export function DraftTypeSelector({
   const isSnake = state.draftType === 'snake'
   const unlocked = Boolean(effectiveType)
   const hasCurrentDraftType = draftOptions.some((option) => option.id === state.draftType)
+
+  useEffect(() => {
+    if (!effectiveType || draftOptions.length === 0 || hasCurrentDraftType) return
+    const first = draftOptions[0]?.id
+    if (first) onChange({ draftType: first })
+  }, [effectiveType, draftOptions, hasCurrentDraftType, onChange, state.draftType])
 
   useEffect(() => {
     const el = draftSectionRef.current

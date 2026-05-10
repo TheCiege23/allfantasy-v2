@@ -2,8 +2,8 @@
 
 import { useMemo } from 'react'
 import type { AccentTone } from '@/lib/create-league-v2/theme'
-import type { CreateLeagueV2State } from '@/lib/create-league-v2/state'
-import { getEffectiveLeagueType } from '@/lib/create-league-v2/state'
+import type { CreateLeagueV2State, TradeReviewMode } from '@/lib/create-league-v2/state'
+import { getEffectiveLeagueType, isDynastyConcept } from '@/lib/create-league-v2/state'
 import { LEAGUE_TYPE_LABELS } from '@/lib/league-creation-wizard/league-type-registry'
 import { listScoringPresetOptions } from '@/lib/league-creation-preset/scoring-presets'
 import { getDraftTypeOptions } from '@/lib/create-league-v2/rules-engine'
@@ -19,6 +19,12 @@ const SPORT_LABELS: Record<string, string> = {
   NCAAF: 'NCAAF',
   NCAAB: 'NCAAB',
   SOCCER: 'Soccer',
+}
+
+const TRADE_REVIEW_LABEL: Record<TradeReviewMode, string> = {
+  none: 'No review',
+  commissioner: 'Commissioner',
+  league_vote: 'League vote',
 }
 
 /**
@@ -59,6 +65,27 @@ export function CreateLeagueSummary({
       ? `${state.bestBall.mode === 'underdog' ? 'Underdog-style' : 'Standard'} · ${state.bestBall.matchupFormat === 'cumulative' ? 'Cumulative' : 'H2H'}`
       : null
 
+  const visibilityLabel = useMemo(() => {
+    if (lt === 'best_ball') return state.bestBall.visibility === 'public' ? 'Public' : 'Private'
+    if (lt && isDynastyConcept(lt)) return state.dynasty.visibility === 'public' ? 'Public' : 'Private'
+    return 'Private (default)'
+  }, [lt, state.bestBall.visibility, state.dynasty.visibility])
+
+  const paidLabel = useMemo(() => {
+    if (lt && isDynastyConcept(lt)) return state.dynasty.monetization === 'paid' ? 'Paid intent' : 'Free'
+    return '—'
+  }, [lt, state.dynasty.monetization])
+
+  const waiverShort = useMemo(() => {
+    if (lt && isDynastyConcept(lt)) {
+      const d = state.dynasty
+      return d.waiverType === 'faab' ? `FAAB ${d.faabBudget}` : d.waiverType.replace('_', ' ')
+    }
+    return '—'
+  }, [lt, state.dynasty])
+
+  const languageShort = state.language === 'es' ? 'ES' : 'EN'
+
   return (
     <aside
       className={`${GLASS_SURFACE} relative overflow-hidden border-cyan-500/15 p-5 shadow-[0_0_60px_-20px_rgba(34,211,238,0.12)] sm:p-6 lg:sticky lg:top-24`}
@@ -94,9 +121,35 @@ export function CreateLeagueSummary({
             {state.name.trim() || '—'}
           </dd>
         </div>
-        <div className="flex justify-between gap-3">
+        <div className="flex justify-between gap-3 border-b border-white/[0.06] pb-2">
           <dt className="text-white/45">{t('createLeague.summary.draft')}</dt>
           <dd className="text-right font-medium text-white/90">{draftLabel}</dd>
+        </div>
+        <div className="flex justify-between gap-3 border-b border-white/[0.06] pb-2">
+          <dt className="text-white/45">Timezone</dt>
+          <dd className="max-w-[55%] truncate text-right font-medium text-white/90" title={state.timezone}>
+            {state.timezone?.trim() ? state.timezone : 'America/New_York'}
+          </dd>
+        </div>
+        <div className="flex justify-between gap-3 border-b border-white/[0.06] pb-2">
+          <dt className="text-white/45">Language</dt>
+          <dd className="text-right font-medium text-white/90">{languageShort}</dd>
+        </div>
+        <div className="flex justify-between gap-3 border-b border-white/[0.06] pb-2">
+          <dt className="text-white/45">Trade review</dt>
+          <dd className="text-right font-medium text-white/90">{TRADE_REVIEW_LABEL[state.tradeReviewMode]}</dd>
+        </div>
+        <div className="flex justify-between gap-3 border-b border-white/[0.06] pb-2">
+          <dt className="text-white/45">Waivers</dt>
+          <dd className="max-w-[58%] text-right font-medium text-white/90">{waiverShort}</dd>
+        </div>
+        <div className="flex justify-between gap-3 border-b border-white/[0.06] pb-2">
+          <dt className="text-white/45">Visibility</dt>
+          <dd className="text-right font-medium text-white/90">{visibilityLabel}</dd>
+        </div>
+        <div className="flex justify-between gap-3 border-b border-white/[0.06] pb-2">
+          <dt className="text-white/45">Paid / free</dt>
+          <dd className="text-right font-medium text-white/90">{paidLabel}</dd>
         </div>
         {bestBallLabel ? (
           <div className="flex justify-between gap-3 border-t border-white/[0.06] pt-2">

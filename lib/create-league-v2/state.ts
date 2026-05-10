@@ -126,13 +126,6 @@ export function getDefaultKeeperSetup(): KeeperSetupState {
   }
 }
 
-function isKeeperSetupValid(k: KeeperSetupState): boolean {
-  if (k.keeperMaxKeepers < 1 || k.keeperMaxKeepers > 32) return false
-  if (k.keeperMaxYears < 0 || k.keeperMaxYears > 20) return false
-  if (k.keeperRoundPenalty < 0 || k.keeperRoundPenalty > 10) return false
-  return true
-}
-
 export interface CreateLeagueV2State {
   creationMode: CreateMode
   /** Null until the user explicitly picks a league concept (concept-first). */
@@ -328,45 +321,7 @@ export function isDynastyConcept(type: LeagueTypeId | null): boolean {
 /** Mirrors server-side TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED; keep in sync. */
 export const TOURNAMENT_POOL_SIZE_OPTIONS: readonly number[] = [32, 64, 72, 96, 128, 144, 160, 192, 216, 224] as const
 
-export function isFormComplete(s: CreateLeagueV2State): boolean {
-  const lt = getEffectiveLeagueType(s)
-  if (!lt) return false
-  if (!s.sport) return false
-  if (!s.scoringPresetId?.trim()) return false
-  if (!(s.teamCount > 0)) return false
-  if (s.name.trim().length < 3 || s.name.trim().length > 100) return false
-  if (!s.draftType) return false
-
-  if (isDynastyConcept(lt)) {
-    const d = s.dynasty
-    if (d.draftMode === 'scheduled' && !d.draftDateUtc.trim()) return false
-    if (d.playoffTeamCount < 2 || d.playoffTeamCount > s.teamCount) return false
-    if (d.playoffByeCount < 0 || d.playoffByeCount >= d.playoffTeamCount) return false
-    if (d.benchCount < 0 || d.irCount < 0 || d.taxiSlotCount < 0) return false
-    if (d.rookieDraftRounds < 1 || d.futurePickTradeYears < 1) return false
-    if (d.waiverType === 'faab' && d.faabBudget < 1) return false
-  }
-
-  if (lt === 'keeper') {
-    const k = s.keeper ?? getDefaultKeeperSetup()
-    if (!isKeeperSetupValid(k)) return false
-  }
-
-  if (lt === 'best_ball') {
-    const bb = s.bestBall
-    if (!bb.lineupTemplateId.trim()) return false
-    if (!bb.rosterTemplateId.trim()) return false
-    if (bb.regularSeasonLength < 1 || bb.regularSeasonLength > 60) return false
-    if (bb.playoffTeams < 0 || bb.playoffTeams > s.teamCount) return false
-    if (bb.draftMode === 'snake' && bb.thirdRoundReversal && s.draftType !== 'snake') return false
-  }
-
-  if (lt === 'tournament') {
-    if (!TOURNAMENT_POOL_SIZE_OPTIONS.includes(s.tournamentPoolSize)) return false
-  }
-
-  return true
-}
+export { isFormComplete } from './form-completion'
 
 /** @deprecated Multi-step flow removed — kept for imports that still reference page ids. */
 export type V2PageId = 'setup' | 'identity' | 'scoring' | 'review'

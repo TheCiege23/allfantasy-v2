@@ -15,10 +15,10 @@ import {
   getDefaultKeeperSetup,
   loadPersistedV2State,
   persistV2State,
-  isFormComplete,
   getEffectiveLeagueType,
   type CreateLeagueV2State,
 } from '@/lib/create-league-v2/state'
+import { analyzeCreateLeagueCompletion } from '@/lib/create-league-v2/form-completion'
 import { submitCreateLeagueV2, type CreateLeagueFieldErrors } from '@/lib/create-league-v2/submit'
 import { CreateLeagueUnifiedForm } from '@/components/create-league-v2/CreateLeagueUnifiedForm'
 import { CreateLeagueSummary, CreateLeagueMedia } from '@/components/create-league'
@@ -138,6 +138,8 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
 
   const sportHue = getSportHue(state.sport)
 
+  const completionIssues = useMemo(() => analyzeCreateLeagueCompletion(state), [state])
+
   const handleSubmit = useCallback(async () => {
     setSubmitting(true)
     setSubmitError(null)
@@ -160,7 +162,7 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
     }
   }, [state, router, t])
 
-  const canCreate = isFormComplete(state)
+  const canCreate = completionIssues.length === 0
 
   const topError =
     submitError ??
@@ -199,6 +201,7 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
               accent={accent}
               onChange={onChange}
               fieldErrors={fieldErrors}
+              completionIssues={completionIssues}
             />
 
             {topError ? (

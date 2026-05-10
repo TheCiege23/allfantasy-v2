@@ -62,7 +62,13 @@ export function TeamNameSection({
             ? state.teamCount
             : teamCountOptions[0] ?? state.teamCount
         }
-        onChange={(teamCount) => onChange({ teamCount, nameTouched: false })}
+        onChange={(teamCount) => {
+          const patch: Partial<CreateLeagueV2State> = { teamCount, nameTouched: false }
+          if (effectiveType === 'tournament') {
+            patch.tournamentPoolSize = teamCount
+          }
+          onChange(patch)
+        }}
         accent={accent}
         ariaLabel={isTournament ? t('createLeague.team.ariaTournamentSize') : t('createLeague.team.ariaTeamCount')}
       />

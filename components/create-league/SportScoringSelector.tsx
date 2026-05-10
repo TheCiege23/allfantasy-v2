@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import type { AccentTone } from '@/lib/create-league-v2/theme'
 import type { CreateLeagueV2State, SoccerPipeline, SupportedSport } from '@/lib/create-league-v2/state'
 import { SUPPORTED_SPORTS, getEffectiveLeagueType } from '@/lib/create-league-v2/state'
@@ -62,6 +62,12 @@ export function SportScoringSelector({
     if (!presetCtx) return []
     return getScoringPresetOptionsForSelection(presetCtx)
   }, [presetCtx?.leagueType, presetCtx?.sport, presetCtx?.idpSelected, state.idpSelected])
+
+  useEffect(() => {
+    if (!effectiveType || scoringOptions.length === 0) return
+    if (scoringOptions.some((o) => o.id === state.scoringPresetId)) return
+    onChange({ scoringPresetId: scoringOptions[0]!.id })
+  }, [effectiveType, scoringOptions, state.scoringPresetId, onChange])
 
   const isSoccer = state.sport === 'SOCCER'
 

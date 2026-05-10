@@ -138,7 +138,11 @@ export function ConceptSelector({
       currentDraftType: state.draftType,
     })
 
-    patch.teamCount = getDefaultTeamCount(nextSport as SupportedSport, nextLeagueType, nextSoccerPipeline)
+    const nextTeamCount = getDefaultTeamCount(nextSport as SupportedSport, nextLeagueType, nextSoccerPipeline)
+    patch.teamCount = nextTeamCount
+    if (nextLeagueType === 'tournament') {
+      patch.tournamentPoolSize = nextTeamCount
+    }
     patch.scoringPresetId = resolveValidScoringPresetIdForSelection(state.scoringPresetId, {
       leagueType: nextLeagueType,
       sport: nextSport as SupportedSport,
