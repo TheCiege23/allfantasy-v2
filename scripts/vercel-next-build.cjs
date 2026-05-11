@@ -5,7 +5,8 @@ const { patchManifestRace } = require('./patch-manifest-race.cjs')
 
 const repoRoot = process.cwd()
 const backupRoot = path.join(repoRoot, '.next-build-disabled-routes')
-const nextBuildDir = path.join(repoRoot, '.next')
+const resolvedDistDir = process.env.AF_NEXT_DIST_DIR || '.next-build-fix'
+const nextBuildDir = path.join(repoRoot, resolvedDistDir)
 const routeDirsToDisable = [
   path.join('app', 'e2e'),
   path.join('app', 'tools', 'social-share-engine-harness'),
@@ -155,10 +156,18 @@ function run() {
   let child
   const childEnv = {
     ...process.env,
+    AF_NEXT_DIST_DIR: process.env.AF_NEXT_DIST_DIR || resolvedDistDir,
+    NEXT_TELEMETRY_DISABLED: process.env.NEXT_TELEMETRY_DISABLED || '1',
+    DISABLE_INSTRUMENTATION_DURING_BUILD:
+      process.env.DISABLE_INSTRUMENTATION_DURING_BUILD || '1',
     NODE_OPTIONS: process.env.NODE_OPTIONS?.includes('--max-old-space-size=')
       ? process.env.NODE_OPTIONS
       : [process.env.NODE_OPTIONS, '--max-old-space-size=8192'].filter(Boolean).join(' '),
   }
+
+  console.log(
+    `[vercel-next-build] Build distDir=${childEnv.AF_NEXT_DIST_DIR} telemetryDisabled=${childEnv.NEXT_TELEMETRY_DISABLED}`,
+  )
 
   try {
     child = spawn(process.execPath, [nextBin, 'build', ...nextArgs], {
