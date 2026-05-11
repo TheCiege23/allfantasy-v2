@@ -197,6 +197,27 @@ function run() {
   }
   disableNonProdRoutes()
 
+  // Workaround: Next.js 14 on Windows + Node ≥22 silently fails to write
+  // {distDir}/export/500.html during the pages-router static-render phase,
+  // then throws ENOENT when it tries to rename it to server/pages/500.html.
+  // Pre-seeding a minimal placeholder ensures the rename step always succeeds.
+  // If Next.js generates the real 500.html, it overwrites this before renaming.
+  const exportDir = path.join(nextBuildDir, 'export')
+  const placeholder500 = path.join(exportDir, '500.html')
+  try {
+    fs.mkdirSync(exportDir, { recursive: true })
+    if (!fs.existsSync(placeholder500)) {
+      fs.writeFileSync(
+        placeholder500,
+        '<!DOCTYPE html><html><head><title>Server Error</title></head><body><h1>500 - Server Error</h1></body></html>\n',
+        'utf8',
+      )
+      console.log('[vercel-next-build] Pre-seeded export/500.html placeholder')
+    }
+  } catch (err) {
+    console.warn(`[vercel-next-build] Could not pre-seed export/500.html: ${err.message}`)
+  }
+
   const nextArgs = process.argv.slice(2)
   const nextBin = path.join(repoRoot, 'node_modules', 'next', 'dist', 'bin', 'next')
   let child
