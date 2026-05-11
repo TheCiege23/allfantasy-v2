@@ -1,4 +1,4 @@
-import dynamic from 'next/dynamic'
+import nextDynamic from 'next/dynamic'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
@@ -21,7 +21,7 @@ import { isAppRouterRedirectError } from '@/lib/next/is-app-router-redirect-erro
 
 export const dynamic = 'force-dynamic'
 
-const LeagueShellClient = dynamic(() => import('./LeagueShell').then((mod) => mod.LeagueShell), {
+const LeagueShellClient = nextDynamic(() => import('./LeagueShell').then((mod) => mod.LeagueShell), {
   ssr: false,
 })
 
