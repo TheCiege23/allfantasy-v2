@@ -7,6 +7,7 @@ import type { CreateLeagueCompletionIssue } from '@/lib/create-league-v2/form-co
 import type { CreateLeagueV2State } from '@/lib/create-league-v2/state'
 import { getEffectiveLeagueType, isDynastyConcept } from '@/lib/create-league-v2/state'
 import type { CreateLeagueFieldErrors } from '@/lib/create-league-v2/submit'
+import type { HeroMediaFocus } from '@/lib/create-league-v2/media-priority'
 import { buildSuggestedLeagueName } from '@/lib/create-league-v2/suggested-league-name'
 import { CreateLeagueReviewStep } from '@/components/create-league-v2/CreateLeagueReviewStep'
 import { LeagueRegionalPreferencesCard } from '@/components/create-league-v2/LeagueRegionalPreferencesCard'
@@ -54,6 +55,7 @@ export function CreateLeagueUnifiedForm({
   onChange,
   onSwitchToAdvanced,
   onDraftSectionVisible,
+  onHeroMediaFocus,
   fieldErrors,
   completionIssues,
 }: {
@@ -62,6 +64,8 @@ export function CreateLeagueUnifiedForm({
   onChange: (patch: Partial<CreateLeagueV2State>) => void
   onSwitchToAdvanced?: () => void
   onDraftSectionVisible?: (visible: boolean) => void
+  /** Drives Create League hero preview: concept vs sport vs draft clip priority. */
+  onHeroMediaFocus?: (focus: HeroMediaFocus) => void
   fieldErrors?: CreateLeagueFieldErrors | null
   completionIssues?: CreateLeagueCompletionIssue[]
 }) {
@@ -136,7 +140,13 @@ export function CreateLeagueUnifiedForm({
             <div className="space-y-6">
               <section>
                 <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-white/75">Concept</h2>
-                <ConceptSelector state={state} accent={accent} onChange={onChange} error={fe?.concept} />
+                <ConceptSelector
+                  state={state}
+                  accent={accent}
+                  onChange={onChange}
+                  onConceptMediaFocus={() => onHeroMediaFocus?.('concept')}
+                  error={fe?.concept}
+                />
               </section>
 
               <section className={!effectiveType ? 'opacity-35' : undefined}>
@@ -145,6 +155,7 @@ export function CreateLeagueUnifiedForm({
                   state={state}
                   accent={accent}
                   onChange={onChange}
+                  onSportUserChange={() => onHeroMediaFocus?.('sport')}
                   sportError={fe?.sport}
                   scoringError={fe?.scoringPreset}
                 />
@@ -157,6 +168,7 @@ export function CreateLeagueUnifiedForm({
                   accent={accent}
                   onChange={onChange}
                   onDraftSectionVisible={onDraftSectionVisible}
+                  onDraftUserChange={() => onHeroMediaFocus?.('draft')}
                   draftError={fe?.draftType}
                 />
               </section>
@@ -205,7 +217,13 @@ export function CreateLeagueUnifiedForm({
             title="Basics"
             subtitle="Pick your league format and complete commissioner setup."
           >
-            <ConceptSelector state={state} accent={accent} onChange={onChange} error={fe?.concept} />
+            <ConceptSelector
+              state={state}
+              accent={accent}
+              onChange={onChange}
+              onConceptMediaFocus={() => onHeroMediaFocus?.('concept')}
+              error={fe?.concept}
+            />
           </FormFlowSection>
 
           <FormFlowSection step={2} title="Sport & scoring" subtitle="Presets are filtered for your sport and league format.">
@@ -214,6 +232,7 @@ export function CreateLeagueUnifiedForm({
                 state={state}
                 accent={accent}
                 onChange={onChange}
+                onSportUserChange={() => onHeroMediaFocus?.('sport')}
                 sportError={fe?.sport}
                 scoringError={fe?.scoringPreset}
               />
@@ -237,6 +256,7 @@ export function CreateLeagueUnifiedForm({
                 accent={accent}
                 onChange={onChange}
                 onDraftSectionVisible={onDraftSectionVisible}
+                onDraftUserChange={() => onHeroMediaFocus?.('draft')}
                 draftError={fe?.draftType}
               />
             </section>

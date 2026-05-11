@@ -69,11 +69,14 @@ export function ConceptSelector({
   state,
   accent,
   onChange,
+  onConceptMediaFocus,
   error,
 }: {
   state: CreateLeagueV2State
   accent: AccentTone
   onChange: (patch: Partial<CreateLeagueV2State>) => void
+  /** Called when the user selects a league concept (hero should prioritize concept video). */
+  onConceptMediaFocus?: () => void
   error?: string
 }) {
   const { t } = useLanguage()
@@ -97,6 +100,7 @@ export function ConceptSelector({
   }, [])
 
   function handleLeagueTypeSelect(card: LeagueConceptCard) {
+    onConceptMediaFocus?.()
     const patch: Partial<CreateLeagueV2State> = {}
     let nextLeagueType: LeagueTypeId = card.id === 'idp' ? 'redraft' : card.id
     let nextIdpSelected = card.id === 'idp'

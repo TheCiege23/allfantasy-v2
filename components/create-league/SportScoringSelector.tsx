@@ -39,12 +39,15 @@ export function SportScoringSelector({
   state,
   accent,
   onChange,
+  onSportUserChange,
   sportError,
   scoringError,
 }: {
   state: CreateLeagueV2State
   accent: AccentTone
   onChange: (patch: Partial<CreateLeagueV2State>) => void
+  /** Fires when the user picks a sport chip (hero should prioritize sport video). */
+  onSportUserChange?: () => void
   sportError?: string
   scoringError?: string
 }) {
@@ -72,6 +75,7 @@ export function SportScoringSelector({
   const isSoccer = state.sport === 'SOCCER'
 
   function handleSportChange(sport: SupportedSport) {
+    onSportUserChange?.()
     const patch: Partial<CreateLeagueV2State> = { sport }
     patch.soccerPipeline = sport === 'SOCCER' ? 'euro' : null
     const nextSoccerPipeline = patch.soccerPipeline

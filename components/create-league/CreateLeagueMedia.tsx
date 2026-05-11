@@ -2,7 +2,7 @@
 
 /**
  * Hero media for Create League — wraps the v2 video player with an AI-dashboard-style frame.
- * Video priority: concept → draft → sport (`resolveCreateLeagueHeroMedia`).
+ * Hero clip follows UI focus (concept / sport / draft); see `resolveCreateLeagueHeroMedia`.
  */
 
 import type { AccentTone } from '@/lib/create-league-v2/theme'

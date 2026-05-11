@@ -23,7 +23,7 @@ import { submitCreateLeagueV2, type CreateLeagueFieldErrors } from '@/lib/create
 import { CreateLeagueUnifiedForm } from '@/components/create-league-v2/CreateLeagueUnifiedForm'
 import { CreateLeagueSummary, CreateLeagueMedia } from '@/components/create-league'
 import { PrimaryCTA, SecondaryButton } from '@/components/create-league-v2/primitives'
-import { resolveCreateLeagueHeroMedia } from '@/lib/create-league-v2/media-priority'
+import { resolveCreateLeagueHeroMedia, type HeroMediaFocus } from '@/lib/create-league-v2/media-priority'
 import { getSportHue } from '@/lib/create-league-v2/sport-hues'
 import { SPORT_MEDIA } from '@/lib/create-league-v2/theme'
 import { resolveScoringPresetId } from '@/lib/league-creation-preset/scoring-presets'
@@ -135,6 +135,10 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
     })
   }, [])
 
+  const onHeroMediaFocus = useCallback((focus: HeroMediaFocus) => {
+    setMediaFocus(focus)
+  }, [])
+
   const setCreationMode = useCallback(
     (mode: 'quick' | 'advanced') => {
       onChange({ creationMode: mode })
@@ -168,8 +172,9 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
       draftType: state.draftType,
       idpSelected: state.idpSelected,
       draftEmphasis: false,
+      focus: mediaFocus,
     })
-  }, [effectiveType, state.sport, state.draftType, state.idpSelected, t])
+  }, [effectiveType, state.sport, state.draftType, state.idpSelected, mediaFocus, t])
 
   const sportHue = getSportHue(state.sport)
 
@@ -240,6 +245,7 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
               accent={accent}
               onChange={onChange}
               onSwitchToAdvanced={() => setCreationMode('advanced')}
+              onHeroMediaFocus={onHeroMediaFocus}
               fieldErrors={fieldErrors}
               completionIssues={completionIssues}
             />

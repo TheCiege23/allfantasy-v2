@@ -18,12 +18,15 @@ export function DraftTypeSelector({
   accent,
   onChange,
   onDraftSectionVisible,
+  onDraftUserChange,
   draftError,
 }: {
   state: CreateLeagueV2State
   accent: AccentTone
   onChange: (patch: Partial<CreateLeagueV2State>) => void
   onDraftSectionVisible?: (visible: boolean) => void
+  /** Fires when the user changes draft format via the control (not auto-correction effects). */
+  onDraftUserChange?: () => void
   draftError?: string
 }) {
   const { t } = useLanguage()
@@ -80,7 +83,10 @@ export function DraftTypeSelector({
           value={
             effectiveType && hasCurrentDraftType ? state.draftType : draftOptions[0]?.id ?? 'snake'
           }
-          onChange={(draftType) => onChange({ draftType })}
+          onChange={(draftType) => {
+            onDraftUserChange?.()
+            onChange({ draftType })
+          }}
           accent={accent}
           ariaLabel={t('createLeague.draft.ariaType')}
         />

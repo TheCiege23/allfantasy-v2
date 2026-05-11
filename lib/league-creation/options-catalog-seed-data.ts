@@ -24,6 +24,9 @@ export interface LeagueCreateOptionsCatalog {
 
 const ALL_SPORTS: SupportedSport[] = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER']
 
+/** Survivor format is not enabled for soccer in create-league until backend supports it. */
+const SURVIVOR_ALLOWED_SPORTS: SupportedSport[] = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB']
+
 export const LEAGUE_CREATE_OPTIONS_CATALOG_V1: LeagueCreateOptionsCatalog = {
   version: 1,
   defaultTimezone: 'America/New_York',
@@ -133,7 +136,7 @@ export const LEAGUE_CREATE_OPTIONS_CATALOG_V1: LeagueCreateOptionsCatalog = {
     c2c: ['NFL', 'NCAAF', 'NCAAB'],
     guillotine: ['NFL', 'NCAAF', 'NBA', 'NHL', 'MLB'],
     zombie: ['NFL', 'NBA', 'MLB', 'NHL'],
-    survivor: ALL_SPORTS,
+    survivor: SURVIVOR_ALLOWED_SPORTS,
     tournament: ALL_SPORTS,
     big_brother: ALL_SPORTS,
   },
@@ -231,7 +234,6 @@ export const LEAGUE_CREATE_OPTIONS_CATALOG_V1: LeagueCreateOptionsCatalog = {
       NHL: ['nhl_points'],
       NCAAF: ['ncaaf_half_ppr'],
       NCAAB: ['ncaab_points'],
-      SOCCER: ['soccer_classic'],
     },
     tournament: {
       NFL: ['fb_half_ppr', 'fb_ppr', 'fb_standard'],
@@ -331,7 +333,6 @@ export const LEAGUE_CREATE_OPTIONS_CATALOG_V1: LeagueCreateOptionsCatalog = {
       NHL: [16, 20, 24],
       NCAAF: [16, 20, 24],
       NCAAB: [16, 20, 24],
-      SOCCER: [16, 20, 24],
     },
     tournament: {
       NFL: [32, 64, 96, 128, 160, 192, 224],
