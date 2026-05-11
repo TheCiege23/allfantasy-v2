@@ -35,6 +35,8 @@ import WaiverPriorityCard from "@/components/waivers/WaiverPriorityCard"
 import CommissionerWaiverControls from "@/components/waivers/CommissionerWaiverControls"
 import PendingClaimsList, { buildPendingClaimPatch } from "@/components/waivers/PendingClaimsList"
 import WaiverResultsFeed from "@/components/waivers/WaiverResultsFeed"
+import AIWaiverRecommendationsPanel from "@/components/waivers/AIWaiverRecommendationsPanel"
+import CommissionerWaiverInsightsPanel from "@/components/waivers/CommissionerWaiverInsightsPanel"
 import { formatWaiverOutcomeLabel, outcomeCodeFromMetadata } from "@/lib/waiver-wire/waiver-outcome-labels"
 import type { UnifiedPlayerWireDto } from "@/lib/player-data/serializeUnifiedPlayerForApi"
 import { adaptWaiverWirePlayer } from "@/lib/player-data/adapters/waiverPlayerAdapter"
@@ -455,6 +457,15 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
     [history.transactions]
   )
 
+  const lastProcessedAt = useMemo(() => {
+    if (!history.transactions.length) return null
+    const ms = history.transactions
+      .map((tx) => new Date(tx.processedAt).getTime())
+      .filter((value) => Number.isFinite(value))
+      .sort((a, b) => b - a)[0]
+    return Number.isFinite(ms) ? new Date(ms).toISOString() : null
+  }, [history.transactions])
+
   const toggleWatchlist = (playerId: string) => {
     setWatchlistPlayerIds((prev) =>
       prev.includes(playerId) ? prev.filter((id) => id !== playerId) : [...prev, playerId]
@@ -690,6 +701,30 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
         </div>
       )}
 
+      <section className="rounded-xl border border-white/10 bg-black/20 p-4" data-testid="waiver-automation-status">
+        <h2 className="text-sm font-semibold text-white">Waiver automation status</h2>
+        <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
+          <StatusItem label="Next processing deadline" value={nextRunAt ? formatInTimezone(nextRunAt) : 'Not available yet'} />
+          <StatusItem label="Waiver type" value={getWaiverTypeLabel(settings?.waiverType ?? null)} />
+          {isFaab ? (
+            <StatusItem
+              label="Your FAAB remaining"
+              value={faabRemaining != null ? `$${faabRemaining}` : 'Not available yet'}
+            />
+          ) : (
+            <StatusItem
+              label="Your waiver priority"
+              value={waiverPriority != null ? `#${waiverPriority}` : 'Not available yet'}
+            />
+          )}
+          <StatusItem label="Pending claims" value={String(claims.length)} />
+          <StatusItem
+            label="Last waiver processed"
+            value={lastProcessedAt ? formatInTimezone(lastProcessedAt) : 'Not available yet'}
+          />
+        </div>
+      </section>
+
       <div className="flex gap-2 border-b border-white/10 pb-2">
         {(["available", "trending", "claimed", "dropped", "pending", "history"] as const).map((tab) => (
           <button
@@ -862,6 +897,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
                     dropPlayerPosition: t.dropPlayerPosition,
                     isDefensiveAdd: t.isDefensiveAdd,
                     isDefensiveDrop: t.isDefensiveDrop,
+                    outcomeLabel: 'Won',
                   }))}
                   formatTime={formatInTimezone}
                 />
@@ -883,7 +919,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
                             !
                           </span>
                           <div className="min-w-0">
-                            <div className="font-medium text-white">{headline}</div>
+                            <div className="font-medium text-white">Lost · {headline}</div>
                             <div className="text-xs text-white/70">
                               Add {c.addPlayerId}
                               {c.dropPlayerId && <> · Drop {c.dropPlayerId}</>}
@@ -913,6 +949,9 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
           )}
         </div>
       )}
+
+      <AIWaiverRecommendationsPanel leagueId={leagueId} />
+      <CommissionerWaiverInsightsPanel leagueId={leagueId} />
 
       <section id="waiver-ai-engine-panel" className="rounded-xl border border-cyan-500/20 bg-black/20 p-4" data-testid="waiver-ai-engine-panel">
         <InContextMonetizationCard
@@ -1099,6 +1138,15 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
           await submitClaimForPlayer(drawerPlayer, opts)
         }}
       />
+    </div>
+  )
+}
+
+function StatusItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-2">
+      <p className="text-white/45">{label}</p>
+      <p className="mt-0.5 text-white/90">{value}</p>
     </div>
   )
 }

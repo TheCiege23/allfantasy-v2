@@ -32,6 +32,42 @@ FCFS claims are processed at claim submit time, not via the batch cron.
 
 See [docs/af-pro-waiver-ai.md](./af-pro-waiver-ai.md).
 
+## User-facing waiver UI status
+
+Waiver automation status is surfaced in the league waiver wire page (`components/waiver-wire/WaiverWirePage.tsx`) using existing API fields only:
+
+- next waiver processing deadline (`state.nextRunAt`)
+- waiver type (`settings.waiverType`)
+- user FAAB remaining (FAAB leagues)
+- user waiver priority (rolling/reverse leagues)
+- pending claim count
+- last processed timestamp (derived from processed transactions)
+
+No background jobs are scheduled from UI actions in this phase.
+
+## Claim result visibility in UI
+
+Processed claims are visible in history tabs from existing waiver-wire APIs:
+
+- won claims (successful add/drop transaction rows)
+- lost claims (failed claim rows)
+- FAAB spent (when present)
+- failure reason (when present)
+- processing timestamp
+
+No new backend endpoint was added for this display.
+
+## AI panels and manual control
+
+AI panels on the waiver surface remain recommendation-only:
+
+- personal AF Pro recommendations panel
+- commissioner AF Commissioner insights panel
+
+These panels do not auto-submit waiver claims and do not auto-apply league settings changes.
+
+Reminder UI includes a placeholder "Waiver deadline reminders" toggle for AF Pro users only; no email/SMS scheduling is performed in this task.
+
 ## How it works
 
 1. **Discovery** loads leagues with **`WaiverClaim.status = pending`**, skips **`LeagueWaiverState.processingLocked`**, skips active **`WaiverRun.status = running`**, skips **`fcfs`** leagues (claims are handled at submit time per engine docs), and applies **`nextRunAt`** when present (skip if `now < nextRunAt`). If **`nextRunAt` is null**, leagues with pending claims are still eligible (**conservative fallback** until state backfills).

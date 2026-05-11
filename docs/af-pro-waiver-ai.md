@@ -162,6 +162,48 @@ UI components should render a locked card with:
 > "Unlock AF Pro to get add/drop suggestions, FAAB bids, roster-fit analysis, and waiver deadline reminders."  
 > **[Upgrade to AF Pro]** → `/pricing?plan=af-pro&feature=waiver-ai`
 
+## Waiver UI integration
+
+The league waiver experience now integrates AF-gated AI panels directly on the waiver surface:
+
+- Main waiver page: `components/waiver-wire/WaiverWirePage.tsx`
+- Personal recommendations panel: `components/waivers/AIWaiverRecommendationsPanel.tsx`
+- Commissioner panel: `components/waivers/CommissionerWaiverInsightsPanel.tsx`
+
+### What non-Pro users see
+
+- Core waiver wire remains fully usable (browse players, submit/cancel claims, view history).
+- AI recommendations panel shows a locked AF Pro state when API returns `AF_PRO_REQUIRED`.
+- Upgrade CTA points to `/pricing?plan=af-pro&feature=waiver-ai`.
+
+### What AF Pro users see
+
+- Personal AI recommendation list from `POST /api/ai/waivers/recommend` with:
+  - add player, drop player
+  - priority
+  - suggested FAAB bid (when available)
+  - confidence, risk, reasoning, tags
+  - "Ask Chimmy for deeper analysis" link via `deeperAnalysisPath`
+- Optional reminder toggle placeholder for waiver deadline reminders (no scheduling side effects yet).
+
+### What AF Commissioner users see
+
+- Commissioner-only panel from `POST /api/ai/waivers/commissioner-insights` with:
+  - `settingsHealth`
+  - `suspiciousPatterns`
+  - `fairnessWarnings`
+  - `recommendedSettingsChanges`
+- Non-entitled commissioners see locked AF Commissioner upgrade state:
+  - "League-wide AI waiver tools require AF Commissioner."
+  - CTA to `/pricing?plan=af-commissioner&feature=commissioner-waiver-ai`
+
+### Safety contract
+
+- AI remains recommendation-only.
+- No automatic waiver claim submission.
+- No automatic league settings changes.
+- No automatic league chat posting from AI panels.
+
 ## Scheduled waiver AI reminder (future)
 
 The `WAIVER_AI_REMINDER` notification type is implemented in `NotificationOutbox`.  
