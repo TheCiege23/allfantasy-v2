@@ -38,6 +38,8 @@ const routeDirsToDisable = [
   path.join('app', 'survivor', '[leagueId]'),
   path.join('app', 'api', 'zombie'),
   path.join('app', 'api', 'survivor'),
+  // AI waiver endpoints — keep only production ones in filesToKeep.
+  path.join('app', 'api', 'ai', 'waivers'),
 ]
 
 const movedFiles = []
@@ -47,6 +49,8 @@ const filesToKeep = new Set([
   path.join('app', 'api', 'cron', 'waivers', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'admin', 'automation', 'health', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'admin', 'automation', 'waivers', 'run', 'route.ts').replace(/\\/g, '/'),
+  path.join('app', 'api', 'ai', 'waivers', 'commissioner-insights', 'route.ts').replace(/\\/g, '/'),
+  path.join('app', 'api', 'ai', 'waivers', 'recommend', 'route.ts').replace(/\\/g, '/'),
 ])
 
 function directoryExists(targetPath) {
