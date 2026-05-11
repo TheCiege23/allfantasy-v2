@@ -127,6 +127,15 @@ import { DevyLeagueHomeHero } from '@/components/devy/DevyLeagueHomeHero'
 import { applyMatchupPrimaryTab, shouldUseMatchupInsteadOfDraft } from '@/lib/matchup-center/tabTransition'
 import { MatchupTabContainer } from '@/components/matchup-center/MatchupTabContainer'
 import { FinanceTab } from '@/components/league-finance/FinanceTab'
+import { SportAwareWaiverWire } from '@/components/waiver-wire/SportAwareWaiverWire'
+import {
+  buildLeagueSummaryLine,
+  formatConceptLabel,
+  formatDraftTypeLabel,
+  formatScoringPresetLabel,
+  leagueAvatarSrc,
+  readLeagueTimezone,
+} from './components/league-settings-modal-utils'
 
 export type SleeperMemberMap = Record<string, { display_name: string; avatar: string | null }>
 
@@ -168,6 +177,7 @@ function prismaLeagueToUserLeague(
     isDynasty: l.isDynasty,
     settings,
     avatarUrl: l.avatarUrl ?? undefined,
+    logoUrl: l.logoUrl ?? undefined,
     sleeperLeagueId: l.platform === 'sleeper' ? l.platformLeagueId : undefined,
     draftDate: extra?.draftDate ?? undefined,
     leagueVariant: l.leagueVariant ?? undefined,
@@ -255,6 +265,10 @@ export function LeagueShell({
   const idpCapEnabled = Boolean(capSummary)
   const { t, language } = useLanguage()
   const shouldUseMatchupPrimary = shouldUseMatchupInsteadOfDraft(league.lifecycleState)
+  const isPredraftLifecycle = useMemo(() => {
+    const state = String(league.lifecycleState ?? '').trim().toLowerCase()
+    return state === 'pre_draft' || state === 'predraft' || state === 'draft_setup' || state === 'setup'
+  }, [league.lifecycleState])
   const nflRedraftCore = useMemo(
     () =>
       isNflRedraftCoreDashboardLeague({
@@ -280,13 +294,15 @@ export function LeagueShell({
   const tabDefs = useMemo(() => {
     if (nflRedraftCore) {
       const core: TabDef[] = [
-        { id: 'home', label: 'Home' },
+        { id: 'home', label: isPredraftLifecycle ? 'Draft' : 'Home' },
         { id: 'roster', label: 'Roster' },
         { id: 'matchups', label: 'Matchups' },
         { id: 'players', label: 'Players' },
+        { id: 'waivers', label: 'Waivers' },
         { id: 'trades', label: 'Trades' },
         { id: 'league', label: 'League' },
       ]
+      if (isCommissioner) core.push({ id: 'settings', label: '⚙ Settings' })
       return localizeLeagueTabs(core, t)
     }
 
@@ -365,6 +381,7 @@ export function LeagueShell({
     league.bestBallMode,
     league.guillotineMode,
     league.leagueVariant,
+    isPredraftLifecycle,
     isCommissioner,
     shouldUseMatchupPrimary,
     t,
@@ -376,12 +393,14 @@ export function LeagueShell({
   const survivorLandingApplied = useRef(false)
   const zombieLandingApplied = useRef(false)
   const bigBrotherLandingApplied = useRef(false)
+  const predraftLandingApplied = useRef(false)
 
   useEffect(() => {
     guillotineLandingApplied.current = false
     survivorLandingApplied.current = false
     zombieLandingApplied.current = false
     bigBrotherLandingApplied.current = false
+    predraftLandingApplied.current = false
   }, [league.id])
 
   useEffect(() => {
@@ -426,6 +445,17 @@ export function LeagueShell({
     setActiveTab('matchups')
     nflMatchupLandingApplied.current = true
   }, [league.id, nflRedraftCore, shouldUseMatchupPrimary, tabDefs, searchParams])
+
+  /** Predraft leagues open on Draft/Draft Setup by default when no explicit deep link is provided. */
+  useEffect(() => {
+    const deepLink = searchParams?.get('view') ?? searchParams?.get('tab')
+    if (deepLink?.trim()) return
+    if (!isPredraftLifecycle || predraftLandingApplied.current) return
+    const ids = new Set(tabDefs.map((t) => t.id))
+    if (ids.has('draft')) setActiveTab('draft')
+    else if (ids.has('home')) setActiveTab('home')
+    predraftLandingApplied.current = true
+  }, [isPredraftLifecycle, tabDefs, searchParams])
 
   /** First load per league navigation: guillotine leagues open on the Guillotine hub (once per visit). */
   useEffect(() => {
@@ -519,7 +549,7 @@ export function LeagueShell({
       trades: 'trades',
       league: 'league',
       players: 'players',
-      waivers: 'players',
+      waivers: 'waivers',
       settings: 'settings',
       guillotine: 'guillotine',
       bestball: 'bestball',
@@ -806,6 +836,9 @@ export function LeagueShell({
     setSettingsInitialPanel(null)
   }
 
+  const blockConceptIntroForInvitePrefill =
+    defaultShowInvite && inviteAutoOpenedForLeague.current !== league.id
+
   /** `/league/[id]?view=settings` opens the modal (NFL redraft has no Settings tab). */
   useEffect(() => {
     if (!nflRedraftCore) return
@@ -970,7 +1003,8 @@ export function LeagueShell({
       ) : null}
       <LeagueConceptIntroGate
         leagueId={league.id}
-        shouldPlayIntro={shouldPlayIntro}
+        shouldPlayIntro={shouldPlayIntro && !blockConceptIntroForInvitePrefill}
+        blockedByModal={settingsOpen}
         leagueType={league.leagueType}
         leagueVariant={league.leagueVariant}
         isDynasty={league.isDynasty}
@@ -1638,6 +1672,8 @@ function LeagueTabRouter({
       )
     case 'players':
       return <PlayersTab league={selectedLeague} onPlayerClick={onPlayerClick} sport={sport} />
+    case 'waivers':
+      return <SportAwareWaiverWire leagueId={leagueId} />
     case 'trend':
       return <TrendTab league={selectedLeague} onPlayerClick={onPlayerClick} sport={sport} />
     case 'trades':
@@ -1694,6 +1730,7 @@ const LEAGUE_TAB_NAV_ICONS: Record<string, LucideIcon> = {
   squad: Users,
   league: Shield,
   players: Shirt,
+  waivers: ClipboardList,
   trend: LineChart,
   trades: ArrowLeftRight,
   scores: BarChart3,
@@ -1821,7 +1858,30 @@ function LeagueHeader({
 }) {
   const { t } = useLanguage()
   const [memberGearOpen, setMemberGearOpen] = useState(false)
+  const [headerAvatarFailed, setHeaderAvatarFailed] = useState(false)
   const memberGearWrapRef = useRef<HTMLDivElement>(null)
+  const headerAvatarSrc = leagueAvatarSrc(league.logoUrl ?? league.avatarUrl)
+  const draftTypeRaw =
+    (league.settings?.draftType as string | undefined) ?? (league.settings?.draft_type as string | undefined)
+  const headerSummary = buildLeagueSummaryLine({
+    sport: league.sport,
+    teamCount: league.teamCount,
+    concept: formatConceptLabel({
+      leagueType: league.leagueType,
+      leagueVariant: league.leagueVariant,
+      isDynasty: league.isDynasty,
+      guillotineMode: league.guillotineMode,
+      bestBallMode: league.bestBallMode,
+      fallbackFormat: league.format,
+    }),
+    draftType: formatDraftTypeLabel(draftTypeRaw),
+    scoringPreset: formatScoringPresetLabel(league.scoring, league.settings),
+    timezone: readLeagueTimezone(league.settings),
+  })
+
+  useEffect(() => {
+    setHeaderAvatarFailed(false)
+  }, [headerAvatarSrc])
 
   useEffect(() => {
     if (!memberGearOpen) return
@@ -1861,15 +1921,16 @@ function LeagueHeader({
           className={cn(
             'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] overflow-hidden',
             compactTitleRow && 'hidden',
-            !league.avatarUrl ? 'bg-gradient-to-br from-fuchsia-500 via-rose-500 to-rose-700 text-lg' : '',
+            !headerAvatarSrc || headerAvatarFailed ? 'bg-gradient-to-br from-fuchsia-500 via-rose-500 to-rose-700 text-lg' : '',
           )}
           aria-hidden
         >
-          {league.avatarUrl ? (
+          {headerAvatarSrc && !headerAvatarFailed ? (
             <img
-              src={league.avatarUrl.startsWith('http') ? league.avatarUrl : `https://sleepercdn.com/avatars/${league.avatarUrl}`}
+              src={headerAvatarSrc}
               alt=""
               className="h-10 w-10 object-cover rounded-xl"
+              onError={() => setHeaderAvatarFailed(true)}
             />
           ) : (
             <span className="drop-shadow">{leagueTabSportEmoji(league.sport)}</span>
@@ -1897,7 +1958,7 @@ function LeagueHeader({
               </span>
             ) : null}
             <span className="whitespace-normal text-[12px] leading-snug text-white/45 sm:text-[13px]">
-              {league.season} {league.teamCount}-Team {league.isDynasty ? 'Dynasty' : 'Redraft'} {league.scoring}
+              {headerSummary}
             </span>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">

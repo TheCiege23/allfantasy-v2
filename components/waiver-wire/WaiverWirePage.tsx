@@ -45,6 +45,8 @@ type WaiverSettings = {
   leagueId?: string
   sport?: string | null
   formatType?: string | null
+  lifecycleState?: string | null
+  status?: string | null
   waiverType?: string
   processingDayOfWeek?: number | null
   processingTimeUtc?: string | null
@@ -477,6 +479,13 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
     tiebreakRule: settings?.tiebreakRule ?? null,
     claimLimitPerPeriod: settings?.claimLimitPerPeriod ?? null,
   })
+  const likelyPredraftLimited = useMemo(() => {
+    const lifecycle = String(settings?.lifecycleState ?? settings?.status ?? '').trim().toLowerCase()
+    if (lifecycle === 'pre_draft' || lifecycle === 'predraft' || lifecycle === 'draft_setup' || lifecycle === 'setup') {
+      return true
+    }
+    return rosterPlayerIds.length === 0 && claims.length === 0 && history.transactions.length === 0
+  }, [settings?.lifecycleState, settings?.status, rosterPlayerIds.length, claims.length, history.transactions.length])
   const topWatchlistTargets = players
     .filter((p) => watchlistIdSet.has(p.id))
     .map((p) => p.name)
@@ -698,6 +707,12 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
       {loadError && (
         <div className="rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
           {loadError}
+        </div>
+      )}
+
+      {likelyPredraftLimited && (
+        <div className="rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-100" data-testid="waiver-predraft-limited-message">
+          Waivers are limited before the draft. Claims open after rosters are created.
         </div>
       )}
 

@@ -87,7 +87,7 @@ export default function AppShell({
       {/* Left chat rail */}
       <aside
         className={cn(
-          'hidden h-full w-[45%] min-h-0 flex-shrink-0 flex-col overflow-hidden transition-[width] duration-200 ease-out md:flex',
+          'hidden h-full min-h-0 flex-shrink-0 flex-col overflow-hidden transition-[width] duration-200 ease-out md:flex md:w-[clamp(300px,24vw,360px)]',
           leftRailClass,
         )}
         style={immersive ? undefined : { background: 'var(--panel2)' }}
@@ -100,7 +100,7 @@ export default function AppShell({
         className={cn(
           // flex-1 below md so the center column gets height when side rails are display:none
           'flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden transition-[flex] duration-200 ease-out',
-          rightRailCollapsed ? 'md:min-w-0 md:flex-1' : 'md:w-[35%] md:flex-none',
+          rightRailCollapsed ? 'md:min-w-0 md:flex-1' : 'md:min-w-0 md:flex-1 xl:min-w-[640px]',
         )}
         style={centerBg}
       >
@@ -111,7 +111,7 @@ export default function AppShell({
       <aside
         className={cn(
           'hidden h-full min-h-0 flex-shrink-0 overflow-hidden transition-[width] duration-200 ease-out md:flex',
-          rightRailCollapsed ? 'w-12 max-w-[3rem]' : 'w-[20%] max-w-[20%]',
+          rightRailCollapsed ? 'w-12 max-w-[3rem]' : 'w-[clamp(280px,22vw,340px)]',
           rightRailClass,
         )}
         style={immersive ? undefined : { background: 'var(--panel2)' }}
