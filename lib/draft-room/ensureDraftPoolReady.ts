@@ -1,18 +1,12 @@
 /**
- * Prewarm the draft pool DB cache before starting or resuming a draft.
+ * Draft pool cache readiness helpers for resume/start paths.
  *
- * Fast path: if draftPoolCache has any non-expired row for the league, the
- *            pool will return from DB cache on the next GET — return immediately.
+ * checkDraftPoolCacheFast — DB-only check, returns in <50 ms.
+ *   Use on resume/start: if cold, return POOL_NOT_READY immediately and let
+ *   the background build (already running via GET /draft/pool) finish first.
  *
- * Slow path: build getResolvedDraftPoolForLeague and persist to draftPoolCache
- *            using the same key the pool route uses for a standard (no-param)
- *            request, so the next GET /draft/pool hits the DB cache.
- *
- * Failure path: if building fails, return { ok: false } so the controls route
- *               can refuse to start/resume the timer.
- *
- * Called from /draft/controls before 'start' and 'resume' so the timer never
- * begins while managers are waiting for a cold pool load (60–90 s).
+ * ensureDraftPoolReady — full synchronous build + persist.
+ *   Call as fire-and-forget background trigger, or from non-latency-sensitive paths.
  */
 
 import { prisma } from '@/lib/prisma'
@@ -49,6 +43,52 @@ function buildPrewarmCacheKey(leagueId: string, rosterFp: string): string {
   return `draft_pool:${leagueId}:${rosterFp}:dbmerge_v4:nflproj_v1:api:GET:/api/leagues/${leagueId}/draft/pool`
 }
 
+/**
+ * Fast cache-only check: queries DB in <50 ms, never triggers a cold build.
+ * Returns { warm: true } when a non-expired row exists for the league so the
+ * resume/start path can proceed immediately without blocking on a pool build.
+ */
+export async function checkDraftPoolCacheFast(leagueId: string): Promise<{ warm: boolean }> {
+  const t = Date.now()
+  const model = getDraftPoolCacheModel()
+  if (!model) {
+    console.info('[draft-perf] pool fast-check: no model', { leagueId, ms: Date.now() - t })
+    return { warm: false }
+  }
+  try {
+    const fresh = await model.findFirst({
+      where: { leagueId, expiresAt: { gt: new Date() } },
+      select: { id: true },
+    })
+    const warm = Boolean(fresh)
+    console.info('[draft-perf] pool fast-check', { leagueId, warm, ms: Date.now() - t })
+    return { warm }
+  } catch (err) {
+    console.warn('[draft-perf] pool fast-check error (non-fatal):', (err as Error)?.message)
+    return { warm: false }
+  }
+}
+
+/**
+ * Fire-and-forget: triggers ensureDraftPoolReady in background so the caller
+ * can return immediately. Logs duration when the build finishes.
+ */
+export function triggerDraftPoolPrewarmBackground(leagueId: string): void {
+  const t = Date.now()
+  ensureDraftPoolReady(leagueId)
+    .then((result) => {
+      console.info('[draft-perf] background prewarm done', {
+        leagueId,
+        ok: result.ok,
+        source: result.ok ? result.source : undefined,
+        ms: Date.now() - t,
+      })
+    })
+    .catch((err) => {
+      console.warn('[draft-perf] background prewarm failed', { leagueId, ms: Date.now() - t, err: (err as Error)?.message })
+    })
+}
+
 export async function ensureDraftPoolReady(leagueId: string): Promise<EnsureDraftPoolReadyResult> {
   const model = getDraftPoolCacheModel()
 
@@ -57,10 +97,12 @@ export async function ensureDraftPoolReady(leagueId: string): Promise<EnsureDraf
   // presence of ANY row means a prior request already warmed this league.
   if (model) {
     try {
+      const t = Date.now()
       const fresh = await model.findFirst({
         where: { leagueId, expiresAt: { gt: new Date() } },
         select: { id: true },
       })
+      console.info('[draft-perf] ensureDraftPoolReady cache check', { leagueId, hit: Boolean(fresh), ms: Date.now() - t })
       if (fresh) return { ok: true, source: 'db-cache' }
     } catch {
       // DB cache table may not be generated yet — fall through to cold build
@@ -95,11 +137,13 @@ export async function ensureDraftPoolReady(leagueId: string): Promise<EnsureDraf
       }
     }
 
+    const coldBuildStart = Date.now()
     const resolved = await getResolvedDraftPoolForLeague(leagueId, {
       limit: 300,
       poolType: null,
       effectiveLeagueTemplate,
     })
+    console.info('[draft-perf] ensureDraftPoolReady cold build done', { leagueId, ms: Date.now() - coldBuildStart })
 
     if (model) {
       const expiresAt = new Date(Date.now() + Math.max(1, dbFirstMode.draftPoolCacheTtlSeconds) * 1000)

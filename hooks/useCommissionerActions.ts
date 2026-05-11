@@ -144,7 +144,18 @@ export function useCommissionerActions({
               : null
 
         if (!res.ok) {
+          const code = typeof data.code === 'string' ? data.code : null
           const msg = errMsg || `Commissioner action failed (${res.status}).`
+          if (code === 'POOL_NOT_READY') {
+            setGovernanceBanner({
+              variant: 'info',
+              message: 'Player pool is warming — this takes about 10 seconds. Try again shortly.',
+            })
+            if (priorSession) setSession(priorSession)
+            // Trigger pool warming in background so the next retry is fast.
+            void fetchDraftPool()
+            return { ok: false, error: msg }
+          }
           setGovernanceBanner({ variant: 'error', message: msg })
           if (priorSession) setSession(priorSession)
           return { ok: false, error: msg }

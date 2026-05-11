@@ -93,6 +93,7 @@ import { PreDraftSlotSetupCard } from '@/components/app/draft-room/PreDraftSlotS
 import { isDraftPickRowEmptyFromSnapshot } from '@/lib/live-draft-engine/draftPickEmpty'
 import { draftRoomPickTrace, draftRoomWarn } from '@/lib/draft-room/draftRoomDevLog'
 import { buildDraftRoomPageDerivedState } from '@/lib/draft-room/buildDraftRoomPageDerivedState'
+import { getPlayerImage, preloadPlayerImage } from '@/lib/players/getPlayerImage'
 import { LEAGUE_DRAFT_ROOM_REVALIDATE } from '@/lib/draft-room/emitLeagueDraftRoomRevalidate'
 import { filterPlayersAvailableForDraftAi } from '@/lib/draft-room/availableForDraftAi'
 import { buildDraftRoomClientDiagnostics } from '@/lib/draft-room/player-pool-audit'
@@ -929,6 +930,17 @@ export function DraftRoomPageClient({
           c2cConfig: data.c2cConfig,
           isIdp: data.isIdp,
         })
+        // Preload headshots for first 20 rows so browser cache is warm when
+        // IntersectionObserver fires for visible rows (P2 CDN latency mitigation).
+        const poolSport = data.sport ?? sport
+        for (const entry of (data.entries as Array<Record<string, unknown>>).slice(0, 20)) {
+          const url =
+            getPlayerImage(
+              { imageUrl: (entry.display as Record<string, unknown> | undefined)?.assets ? ((entry.display as Record<string, unknown>).assets as Record<string, unknown>).headshotUrl as string | null : null, name: String(entry.name ?? ''), id: String(entry.playerId ?? entry.id ?? '') },
+              poolSport,
+            ) ?? ((entry.display as Record<string, unknown> | undefined)?.assets as Record<string, unknown> | undefined)?.headshotUrl as string | null | undefined
+          preloadPlayerImage(url as string | null | undefined)
+        }
       } else {
         setDraftPool(null)
         setPoolError(true)

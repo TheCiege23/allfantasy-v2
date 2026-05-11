@@ -58,7 +58,7 @@ import { getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import type { DraftSessionSnapshot } from '@/lib/live-draft-engine/types'
 import { getViewerAutopickPreference } from '@/lib/live-draft-engine/LiveDraftAutopickPreferenceService'
 import { EntitlementResolver } from '@/lib/subscription/EntitlementResolver'
-import { ensureDraftPoolReady } from '@/lib/draft-room/ensureDraftPoolReady'
+import { checkDraftPoolCacheFast, ensureDraftPoolReady, triggerDraftPoolPrewarmBackground } from '@/lib/draft-room/ensureDraftPoolReady'
 
 export const dynamic = 'force-dynamic'
 
@@ -178,10 +178,13 @@ export async function POST(
   }
   try {
     if (action === 'start') {
-      const poolReady = await ensureDraftPoolReady(leagueId)
-      if (!poolReady.ok) {
+      const _startPoolCheck = Date.now()
+      const cacheWarm = await checkDraftPoolCacheFast(leagueId)
+      console.info('[draft-perf] start pool cache check', { leagueId, warm: cacheWarm.warm, ms: Date.now() - _startPoolCheck })
+      if (!cacheWarm.warm) {
+        triggerDraftPoolPrewarmBackground(leagueId)
         return NextResponse.json(
-          { error: poolReady.error, code: 'POOL_NOT_READY' },
+          { error: 'Player pool is warming — try again in a few seconds.', code: 'POOL_NOT_READY', warming: true },
           { status: 503 },
         )
       }
@@ -252,10 +255,16 @@ export async function POST(
     }
     if (action === 'resume') {
       const _resumeStart = Date.now()
-      const poolReady = await ensureDraftPoolReady(leagueId)
-      if (!poolReady.ok) {
+      const cacheWarm = await checkDraftPoolCacheFast(leagueId)
+      console.info('[draft-perf] resume pool cache check', { leagueId, warm: cacheWarm.warm, ms: Date.now() - _resumeStart })
+      if (!cacheWarm.warm) {
+        // Pool is cold — return immediately so the UI isn't frozen, and fire a
+        // background build. The frontend fetchDraftPool (already in-flight on
+        // page load) will write the DB cache; the commissioner can retry once
+        // the governance banner clears.
+        triggerDraftPoolPrewarmBackground(leagueId)
         return NextResponse.json(
-          { error: poolReady.error, code: 'POOL_NOT_READY' },
+          { error: 'Player pool is warming — try again in a few seconds.', code: 'POOL_NOT_READY', warming: true },
           { status: 503 },
         )
       }
@@ -265,7 +274,7 @@ export async function POST(
       notifyDraftResumed(leagueId).catch(() => {})
       // skipRepair: repair/reconcile not needed for a status-only transition.
       const snapshot = await buildSessionSnapshot(leagueId, new Date(), undefined, { skipRepair: true })
-      console.info('[draft-perf] resume controls', { ms: Date.now() - _resumeStart })
+      console.info('[draft-perf] resume controls total', { leagueId, ms: Date.now() - _resumeStart })
       return NextResponse.json({ ok: true, action: 'resume', session: snapshot })
     }
     if (action === 'reset_timer') {

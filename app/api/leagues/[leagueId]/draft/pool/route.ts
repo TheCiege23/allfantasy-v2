@@ -97,11 +97,19 @@ async function injectDraftPoolDiagnosticsIfRequested(
 }
 
 /**
- * Remove redundant constant fallback fields from every pool entry's display.assets.
- * `headshotFallbackUrl` and `teamLogoFallbackUrl` are always the same encoded SVG string
- * (defined in player-asset-resolver.ts) for every player — ~640 bytes × 300 players = ~190 KB
- * of payload that the client never needs because `headshotUrl` already carries the fallback.
- * Strips at read and write time so the DB cache also stays lean.
+ * Remove redundant and diagnostic-only fields from every pool entry to reduce
+ * response payload size. Stripped fields are never read by SleeperPoolTable:
+ *
+ *   display.assets: headshotFallbackUrl + teamLogoFallbackUrl — same encoded
+ *     SVG for every player (~640 bytes × 300 rows = ~190 KB). Already
+ *     stripped from DB cache rows so both paths benefit.
+ *
+ *   display.stats: rollingInsightsSupplemental — diagnostic supplement object,
+ *     not in DraftStatPlayerSource; never used by stat column rendering.
+ *     projectionSource — diagnostic tag duplicated at top-level NormalizedDraftEntry.
+ *
+ *   display.metadata: rookieYearsExpSource — provenance enum for debugging only;
+ *     never displayed, never filtered on.
  */
 function stripPoolEntryFallbacks(payload: DraftPoolResponseBody): DraftPoolResponseBody {
   if (!Array.isArray(payload.entries) || payload.entries.length === 0) return payload
@@ -111,10 +119,30 @@ function stripPoolEntryFallbacks(payload: DraftPoolResponseBody): DraftPoolRespo
       const e = entry as Record<string, unknown>
       if (!e.display || typeof e.display !== 'object') return e
       const display = e.display as Record<string, unknown>
-      if (!display.assets || typeof display.assets !== 'object') return e
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { headshotFallbackUrl: _hf, teamLogoFallbackUrl: _tf, headshotFallbackUsed: _hu, teamLogoFallbackUsed: _tu, ...assets } = display.assets as Record<string, unknown>
-      return { ...e, display: { ...display, assets } }
+
+      // Strip fallback SVGs from display.assets
+      let strippedDisplay = display
+      if (display.assets && typeof display.assets === 'object') {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { headshotFallbackUrl: _hf, teamLogoFallbackUrl: _tf, headshotFallbackUsed: _hu, teamLogoFallbackUsed: _tu, ...assets } = display.assets as Record<string, unknown>
+        strippedDisplay = { ...strippedDisplay, assets }
+      }
+
+      // Strip diagnostic-only stats fields
+      if (strippedDisplay.stats && typeof strippedDisplay.stats === 'object') {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { rollingInsightsSupplemental: _ris, projectionSource: _ps, ...stats } = strippedDisplay.stats as Record<string, unknown>
+        strippedDisplay = { ...strippedDisplay, stats }
+      }
+
+      // Strip diagnostic-only metadata fields
+      if (strippedDisplay.metadata && typeof strippedDisplay.metadata === 'object') {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { rookieYearsExpSource: _rys, ...metadata } = strippedDisplay.metadata as Record<string, unknown>
+        strippedDisplay = { ...strippedDisplay, metadata }
+      }
+
+      return { ...e, display: strippedDisplay }
     }),
   }
 }
