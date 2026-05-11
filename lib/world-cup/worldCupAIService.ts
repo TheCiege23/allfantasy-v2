@@ -13,6 +13,7 @@ import {
   getWorldCupPickRecommendation,
   getWorldCupUpsetRisk,
 } from "./worldCupAiInsights"
+import { getWorldCupProjectedMatchTeams } from "./worldCupProjectedBracket"
 import {
   buildRankingSeedComparison,
   describeBracketImpactIfTeamWins,
@@ -190,8 +191,9 @@ export async function buildWorldCupMatchupIntelligence(
 
   const homePct = Math.round(winProb.homeWinProbability * 100)
   const awayPct = Math.round(winProb.awayWinProbability * 100)
-  const homeName = match.homeTeamName || match.homeSlotKey
-  const awayName = match.awayTeamName || match.awaySlotKey
+  const eff = getWorldCupProjectedMatchTeams(match)
+  const homeName = eff.home.teamName
+  const awayName = eff.away.teamName
 
   const deterministicSummary =
     `${rec.recommendedTeamName} recommended (${strategy}). ${homeName} ${homePct}% vs ${awayName} ${awayPct}%. Upset risk: ${upsetRisk}. ${rec.explanation}`

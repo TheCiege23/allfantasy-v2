@@ -2949,6 +2949,8 @@ model AppUser {
   worldCupBracketInvitesCreated            WorldCupBracketInvite[]                @relation("WorldCupBracketInviteCreator")
   worldCupBracketEntries                   WorldCupBracketEntry[]                 @relation("WorldCupBracketEntryUser")
   worldCupBracketChatEventsAuthored        WorldCupBracketChatEvent[]             @relation("WorldCupBracketChatEventActor")
+  playoffBracketChallengesOwned            PlayoffBracketChallenge[]              @relation("PlayoffBracketChallengeOwner")
+  playoffBracketEntries                    PlayoffBracketEntry[]                  @relation("PlayoffBracketEntryUser")
 
   @@map("app_users")
 }
@@ -3272,6 +3274,94 @@ model WorldCupBracketEventState {
   challenge               WorldCupBracketChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@map("world_cup_bracket_event_state")
+}
+
+model PlayoffBracketChallenge {
+  id          String                @id @default(cuid())
+  ownerUserId String                @map("owner_user_id")
+  name        String
+  sport       String
+  seasonYear  Int                   @map("season_year")
+  status      String                @default("open")
+  isTestMode  Boolean               @default(false) @map("is_test_mode")
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+  owner       AppUser               @relation("PlayoffBracketChallengeOwner", fields: [ownerUserId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  entries     PlayoffBracketEntry[]
+  series      PlayoffBracketSeries[]
+  picks       PlayoffBracketPick[]
+
+  @@index([ownerUserId])
+  @@index([sport, seasonYear])
+  @@index([status])
+  @@map("playoff_bracket_challenges")
+}
+
+model PlayoffBracketEntry {
+  id          String               @id @default(cuid())
+  challengeId String               @map("challenge_id")
+  userId      String               @map("user_id")
+  name        String
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+  challenge   PlayoffBracketChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user        AppUser              @relation("PlayoffBracketEntryUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  picks       PlayoffBracketPick[]
+
+  @@index([challengeId])
+  @@index([userId])
+  @@index([challengeId, userId])
+  @@map("playoff_bracket_entries")
+}
+
+model PlayoffBracketSeries {
+  id               String                @id @default(cuid())
+  challengeId      String                @map("challenge_id")
+  round            String
+  roundIndex       Int                   @map("round_index")
+  seriesNumber     Int                   @map("series_number")
+  conference       String
+  homeSeed         Int                   @map("home_seed")
+  awaySeed         Int                   @map("away_seed")
+  homeTeamName     String                @map("home_team_name")
+  awayTeamName     String                @map("away_team_name")
+  winnerTeamName   String?               @map("winner_team_name")
+  bestOf           Int                   @default(7) @map("best_of")
+  status           String                @default("scheduled")
+  startsAt         DateTime?             @map("starts_at")
+  nextSeriesNumber Int?                  @map("next_series_number")
+  nextSeriesSlot   String?               @map("next_series_slot")
+  sourceSeriesHome Int?                  @map("source_series_home")
+  sourceSeriesAway Int?                  @map("source_series_away")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+  challenge        PlayoffBracketChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  picks            PlayoffBracketPick[]
+
+  @@unique([challengeId, seriesNumber])
+  @@index([challengeId])
+  @@index([round])
+  @@index([status])
+  @@map("playoff_bracket_series")
+}
+
+model PlayoffBracketPick {
+  id           String                @id @default(cuid())
+  challengeId  String                @map("challenge_id")
+  entryId      String                @map("entry_id")
+  seriesId     String                @map("series_id")
+  pickTeamName String                @map("pick_team_name")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+  challenge    PlayoffBracketChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  entry        PlayoffBracketEntry   @relation(fields: [entryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  series       PlayoffBracketSeries  @relation(fields: [seriesId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([entryId, seriesId])
+  @@index([challengeId])
+  @@index([entryId])
+  @@index([seriesId])
+  @@map("playoff_bracket_picks")
 }
 
 /// Cadence config for `AutomatedBlogEngine` â€” /api/cron/blog-autogen picks up

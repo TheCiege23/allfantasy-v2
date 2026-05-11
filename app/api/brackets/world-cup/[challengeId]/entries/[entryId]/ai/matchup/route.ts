@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { userHasBracketBrainAi } from "@/lib/bracket-brain/bracketBrainAccess"
 import { prisma } from "@/lib/prisma"
+import { resolveWorldCupMatchViewWithEntryProjections } from "@/lib/world-cup/worldCupBracketService"
 import { buildWorldCupMatchupIntelligence } from "@/lib/world-cup/worldCupAIService"
 import type { WorldCupAiStrategy, WorldCupMatchView } from "@/lib/world-cup/types"
 import { requireWorldCupApiUser } from "../../../../../_utils"
@@ -65,11 +66,28 @@ export async function POST(
 
   const entry = await (prisma as any).worldCupBracketEntry.findFirst({
     where: { id: entryId, challengeId, userId: userResult.user.id },
-    select: { id: true },
+    include: {
+      picks: {
+        where: {
+          selectedTeamName: { not: "" },
+          OR: [{ selectedTeamId: { not: null } }, { selectedSlotKey: { not: null } }],
+        },
+        include: { match: true },
+        orderBy: { createdAt: "asc" },
+      },
+      challenge: { include: { matches: true } },
+    },
   })
   if (!entry) {
     return NextResponse.json({ error: "Entry not found" }, { status: 404 })
   }
+
+  const challengeMatches = Array.isArray((entry as any)?.challenge?.matches)
+    ? ((entry as any).challenge.matches as unknown[])
+    : []
+  const entryPicks = Array.isArray((entry as any)?.picks)
+    ? ((entry as any).picks as unknown[])
+    : []
 
   const dbMatch = await (prisma as any).worldCupBracketMatch.findFirst({
     where: { id: matchId, challengeId },
@@ -79,40 +97,51 @@ export async function POST(
     return NextResponse.json({ error: "Match not found" }, { status: 404 })
   }
 
-  const match: WorldCupMatchView = {
-    id: dbMatch.id,
-    apiFixtureId: dbMatch.apiFixtureId ?? null,
-    round: dbMatch.round,
-    roundIndex: dbMatch.roundIndex,
-    matchNumber: dbMatch.matchNumber,
-    homeSlotKey: dbMatch.homeSlotKey,
-    awaySlotKey: dbMatch.awaySlotKey,
-    homeTeamId: dbMatch.homeTeamId ?? null,
-    awayTeamId: dbMatch.awayTeamId ?? null,
-    homeTeamName: dbMatch.homeTeamName ?? "",
-    awayTeamName: dbMatch.awayTeamName ?? "",
-    homeTeamLogo: dbMatch.homeTeamLogo ?? null,
-    awayTeamLogo: dbMatch.awayTeamLogo ?? null,
-    homeScore: dbMatch.homeScore ?? null,
-    awayScore: dbMatch.awayScore ?? null,
-    homePenaltyScore: dbMatch.homePenaltyScore ?? null,
-    awayPenaltyScore: dbMatch.awayPenaltyScore ?? null,
-    status: dbMatch.status,
-    startsAt: dbMatch.startsAt ? (dbMatch.startsAt as Date).toISOString() : null,
-    winnerTeamId: dbMatch.winnerTeamId ?? null,
-    winnerTeamName: dbMatch.winnerTeamName ?? null,
-    nextMatchId: dbMatch.nextMatchId ?? null,
-    nextMatchSlot: dbMatch.nextMatchSlot ?? null,
-    elapsedMinute: dbMatch.elapsedMinute ?? null,
-    injuryTime: dbMatch.injuryTime ?? null,
-    period: dbMatch.period ?? null,
-    venueName: dbMatch.venueName ?? null,
-    venueCity: dbMatch.venueCity ?? null,
-    apiStatusShort: dbMatch.apiStatusShort ?? null,
-    lastScoreSyncedAt: dbMatch.lastScoreSyncedAt
-      ? (dbMatch.lastScoreSyncedAt as Date).toISOString()
-      : null,
-  }
+  const projected =
+    challengeMatches.length > 0
+      ? resolveWorldCupMatchViewWithEntryProjections({
+          challengeMatches: challengeMatches as any,
+          entryPicks: entryPicks as any,
+          matchId,
+        })
+      : null
+
+  const match: WorldCupMatchView =
+    projected ??
+    ({
+      id: dbMatch.id,
+      apiFixtureId: dbMatch.apiFixtureId ?? null,
+      round: dbMatch.round,
+      roundIndex: dbMatch.roundIndex,
+      matchNumber: dbMatch.matchNumber,
+      homeSlotKey: dbMatch.homeSlotKey,
+      awaySlotKey: dbMatch.awaySlotKey,
+      homeTeamId: dbMatch.homeTeamId ?? null,
+      awayTeamId: dbMatch.awayTeamId ?? null,
+      homeTeamName: dbMatch.homeTeamName ?? "",
+      awayTeamName: dbMatch.awayTeamName ?? "",
+      homeTeamLogo: dbMatch.homeTeamLogo ?? null,
+      awayTeamLogo: dbMatch.awayTeamLogo ?? null,
+      homeScore: dbMatch.homeScore ?? null,
+      awayScore: dbMatch.awayScore ?? null,
+      homePenaltyScore: dbMatch.homePenaltyScore ?? null,
+      awayPenaltyScore: dbMatch.awayPenaltyScore ?? null,
+      status: dbMatch.status,
+      startsAt: dbMatch.startsAt ? (dbMatch.startsAt as Date).toISOString() : null,
+      winnerTeamId: dbMatch.winnerTeamId ?? null,
+      winnerTeamName: dbMatch.winnerTeamName ?? null,
+      nextMatchId: dbMatch.nextMatchId ?? null,
+      nextMatchSlot: dbMatch.nextMatchSlot ?? null,
+      elapsedMinute: dbMatch.elapsedMinute ?? null,
+      injuryTime: dbMatch.injuryTime ?? null,
+      period: dbMatch.period ?? null,
+      venueName: dbMatch.venueName ?? null,
+      venueCity: dbMatch.venueCity ?? null,
+      apiStatusShort: dbMatch.apiStatusShort ?? null,
+      lastScoreSyncedAt: dbMatch.lastScoreSyncedAt
+        ? (dbMatch.lastScoreSyncedAt as Date).toISOString()
+        : null,
+    } satisfies WorldCupMatchView)
 
   const intelligence = await buildWorldCupMatchupIntelligence({
     match,
