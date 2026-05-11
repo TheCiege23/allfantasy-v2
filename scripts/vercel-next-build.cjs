@@ -143,7 +143,14 @@ function restoreNonProdRoutes() {
 
 function run() {
   // Avoid stale build-manifest/chunk issues in cached CI environments.
-  fs.rmSync(nextBuildDir, { recursive: true, force: true })
+  // Guard: EPERM on Windows when a background process holds a handle on the dir.
+  try {
+    fs.rmSync(nextBuildDir, { recursive: true, force: true })
+  } catch (err) {
+    console.warn(
+      `[vercel-next-build] Could not remove ${nextBuildDir} (${err.code ?? err.message}) — continuing with existing dir.`
+    )
+  }
   const patchStatus = patchManifestRace(repoRoot)
   if (patchStatus === 'skipped-missing') {
     console.warn('[vercel-next-build] pages-manifest-plugin.js not found — manifest race patch skipped.')

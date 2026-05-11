@@ -158,30 +158,37 @@ export function buildLeagueSettingsRows(league: League): LeagueSettingsRow[] {
   return rows
 }
 
+type SurvivorTribeWithMembers = {
+  id: string
+  slotIndex: number
+  name: string | null
+  members: Array<{ rosterId: string }>
+}
+
 async function loadStandingsPresentation(league: League): Promise<StandingsPresentation> {
   const leagueId = league.id
 
   if (league.leagueVariant === 'survivor') {
-    let tribes = await prisma.survivorTribe.findMany({
+    let tribes: SurvivorTribeWithMembers[] = await prisma.survivorTribe.findMany({
       where: { leagueId, isMerged: false },
       include: { members: true },
       orderBy: { slotIndex: 'asc' },
-    }).catch(() => [] as typeof tribes)
+    }).catch(() => [] as SurvivorTribeWithMembers[])
     if (tribes.length === 0) {
       tribes = await prisma.survivorTribe.findMany({
         where: { leagueId },
         include: { members: true },
         orderBy: { slotIndex: 'asc' },
-      }).catch(() => [] as typeof tribes)
+      }).catch(() => [] as SurvivorTribeWithMembers[])
     }
     if (tribes.length > 0) {
       const map = await getRosterTeamMap(leagueId)
-      const presentationTribes = tribes.map((t) => ({
+      const presentationTribes = tribes.map((t: SurvivorTribeWithMembers) => ({
         tribeId: t.id,
         name: t.name || `Tribe ${t.slotIndex + 1}`,
         teamIds: t.members
-          .map((m) => map.rosterIdToTeamId.get(m.rosterId))
-          .filter((id): id is string => Boolean(id)),
+          .map((m: { rosterId: string }) => map.rosterIdToTeamId.get(m.rosterId))
+          .filter((id: string | null): id is string => Boolean(id)),
       }))
       return { mode: 'survivor', tribes: presentationTribes }
     }
