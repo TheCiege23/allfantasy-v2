@@ -5,7 +5,11 @@ const { patchManifestRace } = require('./patch-manifest-race.cjs')
 
 const repoRoot = process.cwd()
 const backupRoot = path.join(repoRoot, '.next-build-disabled-routes')
-const resolvedDistDir = process.env.AF_NEXT_DIST_DIR || '.next-build-fix'
+const isVercelBuild =
+  process.env.VERCEL === '1' ||
+  process.env.NOW_BUILDER ||
+  process.env.VERCEL_URL
+const resolvedDistDir = process.env.AF_NEXT_DIST_DIR || (isVercelBuild ? '.next' : '.next-build-fix')
 const nextBuildDir = path.join(repoRoot, resolvedDistDir)
 const routeDirsToDisable = [
   path.join('app', 'e2e'),
