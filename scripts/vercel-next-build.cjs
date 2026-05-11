@@ -38,8 +38,17 @@ const routeDirsToDisable = [
   path.join('app', 'survivor', '[leagueId]'),
   path.join('app', 'api', 'zombie'),
   path.join('app', 'api', 'survivor'),
-  // AI waiver endpoints — keep only production ones in filesToKeep.
-  path.join('app', 'api', 'ai', 'waivers'),
+  // Additional dev/preview/internal routes — safe to exclude, never called by production UI.
+  path.join('app', 'dev'),                    // /dev/d6-preview — dev-only preview page
+  path.join('app', 'api', 'test-keys'),       // /api/test-keys  — diagnostic API key checker
+  path.join('app', 'api', 'internal'),        // /api/internal/* — internal routes with no UI callers
+  path.join('app', 'app', 'simulation-lab'),  // /app/simulation-lab — lab UI (API side already excluded)
+  path.join('app', 'app', 'zombie-universe'), // /app/zombie-universe/* — zombie universe pages (feature deferred)
+  // World-cup bracket admin simulation tools — test/dev only, not called from any production UI.
+  // sync-fixtures, sync-live, and integrity are also admin-only with no production UI callers.
+  path.join('app', 'api', 'brackets', 'world-cup', '[challengeId]', 'admin'),
+  // Auth debug endpoint — admin-only debug tool, no production UI callers.
+  path.join('app', 'api', 'auth', 'admin-debug'),
 ]
 
 const movedFiles = []
