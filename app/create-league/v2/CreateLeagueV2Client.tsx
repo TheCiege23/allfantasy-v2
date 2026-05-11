@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { getAccent, PAGE_BG_CLASS, ambientGlowStyle } from '@/lib/create-league-v2/theme'
 import {
   DEFAULT_V2_STATE,
@@ -38,11 +38,19 @@ export interface CreateLeagueV2ClientProps {
 export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientProps) {
   const { t } = useLanguage()
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [state, setState] = useState<CreateLeagueV2State>(DEFAULT_V2_STATE)
   const [hydrated, setHydrated] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<CreateLeagueFieldErrors | null>(null)
+
+  const modeFromUrl = useMemo<'quick' | 'advanced' | null>(() => {
+    const raw = searchParams?.get('mode')?.trim().toLowerCase() ?? ''
+    if (raw === 'quick' || raw === 'advanced') return raw
+    return null
+  }, [searchParams])
 
   useEffect(() => {
     const persisted = loadPersistedV2State()
@@ -69,6 +77,11 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
     }
     setHydrated(true)
   }, [])
+
+  useEffect(() => {
+    if (!hydrated || !modeFromUrl) return
+    setState((prev) => (prev.creationMode === modeFromUrl ? prev : { ...prev, creationMode: modeFromUrl }))
+  }, [hydrated, modeFromUrl])
 
   useEffect(() => {
     if (!hydrated) return
@@ -121,6 +134,28 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
       return prev
     })
   }, [])
+
+  const setCreationMode = useCallback(
+    (mode: 'quick' | 'advanced') => {
+      onChange({ creationMode: mode })
+      const params = new URLSearchParams(searchParams?.toString() ?? '')
+      params.set('mode', mode)
+      const query = params.toString()
+      const nextUrl = query ? `${pathname}?${query}` : pathname
+      router.replace(nextUrl, { scroll: false })
+    },
+    [onChange, pathname, router, searchParams],
+  )
+
+  useEffect(() => {
+    if (!hydrated) return
+    if (modeFromUrl === state.creationMode) return
+    const params = new URLSearchParams(searchParams?.toString() ?? '')
+    params.set('mode', state.creationMode)
+    const query = params.toString()
+    const nextUrl = query ? `${pathname}?${query}` : pathname
+    router.replace(nextUrl, { scroll: false })
+  }, [hydrated, modeFromUrl, pathname, router, searchParams, state.creationMode])
 
   const heroMedia = useMemo(() => {
     if (!effectiveType) {
@@ -189,7 +224,11 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
             {t('createLeague.v2.eyebrow')}
           </p>
           <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">{t('createLeague.v2.title')}</h1>
-          <p className="mt-2 text-sm leading-relaxed text-white/50">{t('createLeague.v2.subtitle')}</p>
+          <p className="mt-2 text-sm leading-relaxed text-white/50">
+            {state.creationMode === 'advanced'
+              ? 'Advanced Create: customize league format, rules, trades, waivers, and commissioner settings.'
+              : 'Quick Create: launch fast with only the essentials, then fine-tune later if needed.'}
+          </p>
         </div>
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -200,6 +239,7 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
               state={state}
               accent={accent}
               onChange={onChange}
+              onSwitchToAdvanced={() => setCreationMode('advanced')}
               fieldErrors={fieldErrors}
               completionIssues={completionIssues}
             />

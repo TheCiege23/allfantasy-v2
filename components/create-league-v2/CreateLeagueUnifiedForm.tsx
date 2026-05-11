@@ -52,6 +52,7 @@ export function CreateLeagueUnifiedForm({
   state,
   accent,
   onChange,
+  onSwitchToAdvanced,
   onDraftSectionVisible,
   fieldErrors,
   completionIssues,
@@ -59,6 +60,7 @@ export function CreateLeagueUnifiedForm({
   state: CreateLeagueV2State
   accent: AccentTone
   onChange: (patch: Partial<CreateLeagueV2State>) => void
+  onSwitchToAdvanced?: () => void
   onDraftSectionVisible?: (visible: boolean) => void
   fieldErrors?: CreateLeagueFieldErrors | null
   completionIssues?: CreateLeagueCompletionIssue[]
@@ -89,9 +91,27 @@ export function CreateLeagueUnifiedForm({
 
   const fe = fieldErrors ?? undefined
   const blocking = completionIssues ?? []
+  const quickMode = state.creationMode === 'quick'
 
   return (
     <div className="space-y-8">
+      <GlassCard>
+        <SectionHeader
+          title="Creation mode"
+          hint="Quick uses tuned defaults. Advanced unlocks detailed setup options."
+        />
+        <Segmented
+          options={[
+            { value: 'quick', label: 'Quick', hint: 'Fast setup with defaults' },
+            { value: 'advanced', label: 'Advanced', hint: 'Configure league details now' },
+          ]}
+          value={state.creationMode}
+          onChange={(creationMode) => onChange({ creationMode })}
+          accent={accent}
+          ariaLabel="Creation mode"
+        />
+      </GlassCard>
+
       {blocking.length > 0 ? (
         <GlassCard className="border-amber-400/25 bg-amber-500/[0.06]">
           <SectionHeader
@@ -106,105 +126,164 @@ export function CreateLeagueUnifiedForm({
         </GlassCard>
       ) : null}
 
-      <FormFlowSection
-        step={1}
-        title="Basics"
-        subtitle="Pick your league format, then choose Quick setup or Advanced commissioner controls."
-      >
-        <ConceptSelector state={state} accent={accent} onChange={onChange} error={fe?.concept} />
+      {quickMode ? (
+        <>
+          <GlassCard data-testid="quick-create-form">
+            <SectionHeader
+              title="Quick Create"
+              hint="Set the essentials and create your league in one short step."
+            />
+            <div className="space-y-6">
+              <section>
+                <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-white/75">Concept</h2>
+                <ConceptSelector state={state} accent={accent} onChange={onChange} error={fe?.concept} />
+              </section>
 
-        <GlassCard>
-          <SectionHeader
-            title="Creation mode"
-            hint="Quick uses tuned defaults. Advanced unlocks detailed setup options."
-          />
-          <Segmented
-            options={[
-              { value: 'quick', label: 'Quick', hint: 'Fast setup with defaults' },
-              { value: 'advanced', label: 'Advanced', hint: 'Configure league details now' },
-            ]}
-            value={state.creationMode}
-            onChange={(creationMode) => onChange({ creationMode })}
-            accent={accent}
-            ariaLabel="Creation mode"
-          />
-        </GlassCard>
-      </FormFlowSection>
+              <section className={!effectiveType ? 'opacity-35' : undefined}>
+                <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-white/75">Sport & scoring</h2>
+                <SportScoringSelector
+                  state={state}
+                  accent={accent}
+                  onChange={onChange}
+                  sportError={fe?.sport}
+                  scoringError={fe?.scoringPreset}
+                />
+              </section>
 
-      <FormFlowSection step={2} title="Sport & scoring" subtitle="Presets are filtered for your sport and league format.">
-        <section className={!effectiveType ? 'opacity-35' : undefined}>
-          <SportScoringSelector
-            state={state}
-            accent={accent}
-            onChange={onChange}
-            sportError={fe?.sport}
-            scoringError={fe?.scoringPreset}
-          />
-        </section>
-      </FormFlowSection>
+              <section className={!effectiveType ? 'opacity-35' : undefined}>
+                <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-white/75">Draft</h2>
+                <DraftTypeSelector
+                  state={state}
+                  accent={accent}
+                  onChange={onChange}
+                  onDraftSectionVisible={onDraftSectionVisible}
+                  draftError={fe?.draftType}
+                />
+              </section>
 
-      <FormFlowSection
-        step={3}
-        title="Regional preferences"
-        subtitle="Timezone and language apply at creation; trade review controls how trades clear."
-      >
-        <section className={!effectiveType ? 'opacity-35' : undefined}>
-          <LeagueRegionalPreferencesCard state={state} accent={accent} onChange={onChange} />
-        </section>
-      </FormFlowSection>
+              <section className={!effectiveType || !state.scoringPresetId ? 'opacity-35' : undefined}>
+                <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-white/75">Teams & name</h2>
+                <TeamNameSection
+                  state={state}
+                  accent={accent}
+                  onChange={onChange}
+                  commissionerFirstName={firstName}
+                  teamCountError={fe?.teamCount}
+                  leagueNameError={fe?.leagueName}
+                />
+              </section>
 
-      <FormFlowSection step={4} title="Draft format" subtitle="Options depend on sport and league concept.">
-        <section className={!effectiveType ? 'opacity-35' : undefined}>
-          <DraftTypeSelector
-            state={state}
-            accent={accent}
-            onChange={onChange}
-            onDraftSectionVisible={onDraftSectionVisible}
-            draftError={fe?.draftType}
-          />
-        </section>
-      </FormFlowSection>
+              <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-[12px] text-white/70" data-testid="quick-create-summary">
+                {state.teamCount}-team {state.sport} {effectiveType ?? 'league'} · {state.draftType} draft
+              </div>
 
-      <FormFlowSection step={5} title="Teams & league name" subtitle="Pool or team count, then name your league.">
-        <section className={!effectiveType || !state.scoringPresetId ? 'opacity-35' : undefined}>
-          <TeamNameSection
-            state={state}
-            accent={accent}
-            onChange={onChange}
-            commissionerFirstName={firstName}
-            teamCountError={fe?.teamCount}
-            leagueNameError={fe?.leagueName}
-          />
-        </section>
-      </FormFlowSection>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange({ creationMode: 'advanced' })
+                  onSwitchToAdvanced?.()
+                }}
+                className="w-full rounded-xl border border-cyan-400/35 bg-cyan-500/10 px-4 py-2.5 text-[12px] font-semibold text-cyan-100 transition hover:bg-cyan-500/20"
+                data-testid="switch-to-advanced"
+              >
+                Customize advanced settings
+              </button>
+            </div>
+          </GlassCard>
+        </>
+      ) : (
+        <>
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] px-4 py-3" data-testid="advanced-create-heading">
+            <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-white/85">Advanced Create</h2>
+            <p className="mt-1 text-[12px] text-white/50">
+              Customize league format, rules, trades, waivers, and commissioner settings.
+            </p>
+          </div>
 
-      <FormFlowSection
-        step={6}
-        title="Advanced options"
-        subtitle="Shown when Advanced mode is on for formats that support deeper setup."
-      >
-        {state.creationMode === 'advanced' && isDynastyConcept(effectiveType) ? (
-          <DynastyAdvancedSettings state={state} accent={accent} onChange={onChange} />
-        ) : null}
+          <FormFlowSection
+            step={1}
+            title="Basics"
+            subtitle="Pick your league format and complete commissioner setup."
+          >
+            <ConceptSelector state={state} accent={accent} onChange={onChange} error={fe?.concept} />
+          </FormFlowSection>
 
-        {state.creationMode === 'advanced' && effectiveType === 'keeper' ? (
-          <KeeperAdvancedSettings state={state} accent={accent} onChange={onChange} />
-        ) : null}
+          <FormFlowSection step={2} title="Sport & scoring" subtitle="Presets are filtered for your sport and league format.">
+            <section className={!effectiveType ? 'opacity-35' : undefined}>
+              <SportScoringSelector
+                state={state}
+                accent={accent}
+                onChange={onChange}
+                sportError={fe?.sport}
+                scoringError={fe?.scoringPreset}
+              />
+            </section>
+          </FormFlowSection>
 
-        {state.creationMode === 'advanced' && effectiveType === 'best_ball' ? (
-          <BestBallAdvancedSettings state={state} accent={accent} onChange={onChange} />
-        ) : null}
+          <FormFlowSection
+            step={3}
+            title="Regional preferences"
+            subtitle="Timezone and language apply at creation; trade review controls how trades clear."
+          >
+            <section className={!effectiveType ? 'opacity-35' : undefined} data-testid="regional-preferences-section">
+              <LeagueRegionalPreferencesCard state={state} accent={accent} onChange={onChange} />
+            </section>
+          </FormFlowSection>
 
-        {state.creationMode === 'quick' || !effectiveType ? (
-          <p className="text-[11px] text-white/35">
-            {effectiveType ? 'Switch to Advanced mode above for full commissioner controls.' : 'Choose a concept to unlock advanced options.'}
-          </p>
-        ) : null}
-      </FormFlowSection>
+          <FormFlowSection step={4} title="Draft format" subtitle="Options depend on sport and league concept.">
+            <section className={!effectiveType ? 'opacity-35' : undefined}>
+              <DraftTypeSelector
+                state={state}
+                accent={accent}
+                onChange={onChange}
+                onDraftSectionVisible={onDraftSectionVisible}
+                draftError={fe?.draftType}
+              />
+            </section>
+          </FormFlowSection>
 
-      <FormFlowSection step={7} title="Review & create" subtitle="Confirm everything looks right, then use Create League below.">
-        {effectiveType ? <CreateLeagueReviewStep state={state} accent={accent} /> : null}
-      </FormFlowSection>
+          <FormFlowSection step={5} title="Teams & league name" subtitle="Pool or team count, then name your league.">
+            <section className={!effectiveType || !state.scoringPresetId ? 'opacity-35' : undefined}>
+              <TeamNameSection
+                state={state}
+                accent={accent}
+                onChange={onChange}
+                commissionerFirstName={firstName}
+                teamCountError={fe?.teamCount}
+                leagueNameError={fe?.leagueName}
+              />
+            </section>
+          </FormFlowSection>
+
+          <FormFlowSection
+            step={6}
+            title="Advanced options"
+            subtitle="Shown for formats that support deeper setup."
+          >
+            {isDynastyConcept(effectiveType) ? (
+              <DynastyAdvancedSettings state={state} accent={accent} onChange={onChange} />
+            ) : null}
+
+            {effectiveType === 'keeper' ? (
+              <KeeperAdvancedSettings state={state} accent={accent} onChange={onChange} />
+            ) : null}
+
+            {effectiveType === 'best_ball' ? (
+              <BestBallAdvancedSettings state={state} accent={accent} onChange={onChange} />
+            ) : null}
+
+            {!effectiveType ? (
+              <p className="text-[11px] text-white/35">Choose a concept to unlock advanced options.</p>
+            ) : null}
+          </FormFlowSection>
+
+          <div data-testid="advanced-review-section">
+            <FormFlowSection step={7} title="Review & create" subtitle="Confirm everything looks right, then use Create League below.">
+              {effectiveType ? <CreateLeagueReviewStep state={state} accent={accent} /> : null}
+            </FormFlowSection>
+          </div>
+        </>
+      )}
     </div>
   )
 }
