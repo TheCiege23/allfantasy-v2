@@ -45,6 +45,7 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<CreateLeagueFieldErrors | null>(null)
+  const [mediaFocus, setMediaFocus] = useState<HeroMediaFocus>('concept')
 
   const modeFromUrl = useMemo<'quick' | 'advanced' | null>(() => {
     const raw = searchParams?.get('mode')?.trim().toLowerCase() ?? ''
@@ -162,6 +163,7 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
   }, [hydrated, modeFromUrl, pathname, router, searchParams, state.creationMode])
 
   const heroMedia = useMemo(() => {
+    const safeMediaFocus = mediaFocus ?? 'concept'
     if (!effectiveType) {
       const sm = SPORT_MEDIA[state.sport] ?? SPORT_MEDIA.NFL
       return { ...sm, mediaKey: `sport:${state.sport}`, badge: t('createLeague.v2.hero.chooseConcept') }
@@ -172,7 +174,7 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
       draftType: state.draftType,
       idpSelected: state.idpSelected,
       draftEmphasis: false,
-      focus: mediaFocus,
+      focus: safeMediaFocus,
     })
   }, [effectiveType, state.sport, state.draftType, state.idpSelected, mediaFocus, t])
 
