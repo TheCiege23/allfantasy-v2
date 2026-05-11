@@ -49,11 +49,25 @@ export async function POST(
   const playerName = body.playerName ?? body.player_name
   const position = body.position ?? ''
   const rosterId = body.rosterId ?? body.roster_id ?? null
-  if (!playerName || !position) {
-    return NextResponse.json({ error: 'playerName and position required' }, { status: 400 })
+  if (!String(playerName ?? '').trim() || !position) {
+    console.info('[draft-pick-debug] pick route rejected: missing payload', {
+      playerNamePresent: Boolean(String(playerName ?? '').trim()),
+      positionPresent: Boolean(position),
+      rosterId,
+    })
+    return NextResponse.json(
+      { error: 'playerName and position required', code: 'DRAFT_PICK_INVALID_PAYLOAD' },
+      { status: 400 },
+    )
   }
+  console.info('[draft-pick-debug] pick route received', {
+    playerNamePresent: true,
+    playerIdPresent: Boolean(body.playerId ?? body.player_id),
+    source: String(body.source ?? 'user'),
+    rosterId,
+  })
 
-  const preSubmitSnapshot = await buildSessionSnapshot(leagueId)
+  const preSubmitSnapshot = await buildSessionSnapshot(leagueId, new Date(), undefined, { skipRepair: true })
   if (!preSubmitSnapshot?.currentPick) {
     return NextResponse.json({ error: 'Draft is complete or not started' }, { status: 400 })
   }
@@ -232,7 +246,7 @@ export async function POST(
     }
   } catch (_) {}
 
-  const updated = await buildSessionSnapshot(leagueId)
+  const updated = await buildSessionSnapshot(leagueId, new Date(), undefined, { skipRepair: true })
   const currentUserRosterId = await getCurrentUserRosterIdForLeague(leagueId, userId)
   void (async () => {
     const states = await publishDraftIntelForUpcomingManagers({

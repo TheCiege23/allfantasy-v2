@@ -2369,6 +2369,17 @@ export function DraftRoomPageClient({
             ? rawEntryPid
             : rawDisplayPid ?? rawEntryPid ?? null
       const playerImageUrl = player.display?.assets?.headshotUrl?.trim() || null
+      if (!player.name?.trim()) {
+        console.warn('[draft-pick-debug] handleMakePick blocked: playerName missing', {
+          playerNamePresent: false,
+          playerId: stablePlayerId,
+          position: player.position,
+          rosterId: currentUserRosterId,
+          currentOverall: draftCore?.currentOverall,
+        })
+        setPickError('Player name is missing — refresh the page and try again.')
+        return
+      }
       if (!isPickCommitAllowedByName({ canDraft: true, playerName: player.name, draftedNames })) {
         setPickError('That player is already drafted.')
         return
@@ -2384,9 +2395,11 @@ export function DraftRoomPageClient({
       try {
         draftRoomPickTrace({
           event: 'pick-submit',
-          playerName: player.name,
-          playerId: stablePlayerId,
+          playerNamePresent: Boolean(player.name?.trim()),
+          playerIdPresent: Boolean(stablePlayerId),
           position: player.position,
+          rosterId: currentUserRosterId,
+          currentOverall: draftCore?.currentOverall,
           leagueId,
         })
         const note = player.display?.metadata?.eligibilityNote?.toLowerCase() ?? ''

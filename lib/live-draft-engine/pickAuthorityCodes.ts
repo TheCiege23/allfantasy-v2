@@ -28,6 +28,7 @@ export const DRAFT_PICK_NOT_ON_CLOCK = 'DRAFT_PICK_NOT_ON_CLOCK' as const
 export const DRAFT_PICK_DUPLICATE_PLAYER = 'DRAFT_PICK_DUPLICATE_PLAYER' as const
 export const DRAFT_PICK_STALE_OVERALL = 'DRAFT_PICK_STALE_OVERALL' as const
 export const DRAFT_PICK_RACE_RETRY = 'DRAFT_PICK_RACE_RETRY' as const
+export const DRAFT_PICK_INVALID_PAYLOAD = 'DRAFT_PICK_INVALID_PAYLOAD' as const
 
 export type PickAuthorityCode =
   | typeof DRAFT_PICK_NOT_LIVE
@@ -35,6 +36,7 @@ export type PickAuthorityCode =
   | typeof DRAFT_PICK_DUPLICATE_PLAYER
   | typeof DRAFT_PICK_STALE_OVERALL
   | typeof DRAFT_PICK_RACE_RETRY
+  | typeof DRAFT_PICK_INVALID_PAYLOAD
 
 /**
  * HTTP status mapping for the route layer. Keep in lockstep with the

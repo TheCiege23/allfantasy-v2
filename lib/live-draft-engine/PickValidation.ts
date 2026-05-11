@@ -7,8 +7,10 @@
  */
 
 import { validateUniquePlayer } from '@/lib/mock-draft/draft-engine'
+import { isDraftPickRowEmpty } from './draftPickEmpty'
 import {
   DRAFT_PICK_DUPLICATE_PLAYER,
+  DRAFT_PICK_INVALID_PAYLOAD,
   DRAFT_PICK_NOT_LIVE,
   DRAFT_PICK_NOT_ON_CLOCK,
   type PickAuthorityCode,
@@ -56,14 +58,15 @@ export function validatePickSubmission(input: ValidatePickInput): PickValidation
   }
   const name = input.playerName?.trim()
   if (!name) {
-    return { valid: false, error: 'Player name is required' }
+    return { valid: false, error: 'Player name is required', code: DRAFT_PICK_INVALID_PAYLOAD }
   }
   const isSkip = (input.position || '').toUpperCase() === 'SKIP'
   if (isSkip) {
     return { valid: true }
   }
+  const cleanPicks = input.existingPicks.filter((p) => !isDraftPickRowEmpty(p))
   const dupErrors = validateUniquePlayer([
-    ...input.existingPicks.map((p) => ({
+    ...cleanPicks.map((p) => ({
       overall: 0,
       round: 0,
       pick: 0,
