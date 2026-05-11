@@ -10,6 +10,7 @@ function read(rel: string): string {
 describe('League shell layout and waivers integration', () => {
   const leagueShell = read('app/league/[leagueId]/LeagueShell.tsx')
   const leaguePage = read('app/league/[leagueId]/page.tsx')
+  const leagueShellClient = read('app/league/[leagueId]/LeagueShellClient.tsx')
   const appShell = read('app/components/AppShell.tsx')
   const leagueTabs = read('app/league/[leagueId]/LeagueTabs.tsx')
   const dashboardShell = read('app/dashboard/DashboardShell.tsx')
@@ -52,11 +53,39 @@ describe('League shell layout and waivers integration', () => {
     expect(sportAwareWaiverWire).toContain('return <WaiverWirePage leagueId={leagueId} />')
   })
 
-  it('mounts the league shell client-side and logs dev-only page load metadata', () => {
-    expect(leaguePage).toContain("import dynamic from 'next/dynamic'")
-    expect(leaguePage).toContain("const LeagueShellClient = dynamic(() => import('./LeagueShell').then((mod) => mod.LeagueShell), {")
-    expect(leaguePage).toContain("ssr: false")
-    expect(leaguePage).toContain("console.error('[league page] load failure', details)")
+  it('mounts the league shell via client-boundary wrapper', () => {
+    // page.tsx should import the client wrapper, not call nextDynamic directly
+    expect(leaguePage).toContain("import { LeagueShellClient } from './LeagueShellClient'")
+    expect(leaguePage).not.toContain("nextDynamic")
+    // client wrapper owns dynamic() + ssr:false
+    expect(leagueShellClient).toContain("'use client'")
+    expect(leagueShellClient).toContain("import dynamic from 'next/dynamic'")
+    expect(leagueShellClient).toContain("ssr: false")
+  })
+
+  it('logs league_dashboard_render_failed marker with full metadata in catch block', () => {
+    expect(leaguePage).toContain("marker: 'league_dashboard_render_failed'")
+    expect(leaguePage).toContain('userId: session?.user?.id ?? null')
+    expect(leaguePage).toContain("step: 'data_load'")
+    expect(leaguePage).toContain('errorName: error instanceof Error ? error.name')
+    // log function is NOT gated to dev-only; it always logs
+    expect(leaguePage).not.toContain("if (process.env.NODE_ENV === 'production') return")
+  })
+
+  it('renders League not found state when league record is absent', () => {
+    expect(leaguePage).toContain('"League not found"')
+  })
+
+  it('renders join/access state when user is not a league member', () => {
+    expect(leaguePage).toContain("\"You don't have access to this league\"")
+    expect(leaguePage).not.toContain("redirect('/dashboard')")
+  })
+
+  it('isolates loadStandingsPresentation division queries with .catch() fallbacks', () => {
+    const dashView = read('lib/league/league-dashboard-view.ts')
+    expect(dashView).toContain("listDivisionsByLeague(leagueId, { sport: String(league.sport) }).catch(() => [])")
+    expect(dashView).toContain("prisma.leagueTeam.count(")
+    expect(dashView).toContain("}).catch(() => 0)")
   })
 
   it('renders AF Pro waiver AI locked/recommendations panel within waiver page', () => {

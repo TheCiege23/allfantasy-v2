@@ -166,13 +166,13 @@ async function loadStandingsPresentation(league: League): Promise<StandingsPrese
       where: { leagueId, isMerged: false },
       include: { members: true },
       orderBy: { slotIndex: 'asc' },
-    })
+    }).catch(() => [] as typeof tribes)
     if (tribes.length === 0) {
       tribes = await prisma.survivorTribe.findMany({
         where: { leagueId },
         include: { members: true },
         orderBy: { slotIndex: 'asc' },
-      })
+      }).catch(() => [] as typeof tribes)
     }
     if (tribes.length > 0) {
       const map = await getRosterTeamMap(leagueId)
@@ -204,10 +204,10 @@ async function loadStandingsPresentation(league: League): Promise<StandingsPrese
     return { mode: 'guillotine', dangerByTeamId: {} }
   }
 
-  const divisions = await listDivisionsByLeague(leagueId, { sport: String(league.sport) })
+  const divisions = await listDivisionsByLeague(leagueId, { sport: String(league.sport) }).catch(() => [])
   const teamsWithDivision = await prisma.leagueTeam.count({
     where: { leagueId, divisionId: { not: null } },
-  })
+  }).catch(() => 0)
   if (divisions.length > 0 && teamsWithDivision > 0) {
     return {
       mode: 'divisions',

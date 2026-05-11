@@ -1,4 +1,3 @@
-import nextDynamic from 'next/dynamic'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
@@ -18,17 +17,14 @@ import {
     getDashboardRuntimeIssue,
 } from '@/lib/dashboard/runtime-issues'
 import { isAppRouterRedirectError } from '@/lib/next/is-app-router-redirect-error'
+import { LeagueShellClient } from './LeagueShellClient'
 
 export const dynamic = 'force-dynamic'
 
-const LeagueShellClient = nextDynamic(() => import('./LeagueShell').then((mod) => mod.LeagueShell), {
-  ssr: false,
-})
-
-function firstSearchParam(value: string | string[] | undefined): string | null {
-  if (typeof value === 'string') return value
-  if (Array.isArray(value)) return value[0] ?? null
-  return null
+// LeagueShellClient is imported directly — it owns the dynamic() call inside a client component.
+// This keeps next/dynamic with ssr:false inside a proper 'use client' boundary.
+const _unused = {
+  ssr: false,  // reminder: ssr:false is applied inside LeagueShellClient.tsx
 }
 
 function isTruthySearchParam(value: string | string[] | undefined): boolean {
@@ -37,14 +33,25 @@ function isTruthySearchParam(value: string | string[] | undefined): boolean {
 }
 
 function logLeaguePageFailure(details: {
+  marker: string
   leagueId: string
+  userId?: string | null
   selectedView: string | null
   selectedTab: string | null
+  step: string
   missingDataKey: string | null
   errorMessage: string
+  errorName: string
 }) {
-  if (process.env.NODE_ENV === 'production') return
-  console.error('[league page] load failure', details)
+  // Always log to server; never include stack in details (UI cannot read server logs).
+  // In dev, also emit to stderr so terminal shows it.
+  const { ...safeDetails } = details
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('[league page] load failure', safeDetails)
+  } else {
+    // In production, server logs are captured by Vercel log drain.
+    console.error(JSON.stringify({ level: 'error', ...safeDetails }))
+  }
 }
 
 export default async function LeaguePage({
@@ -162,7 +169,12 @@ export default async function LeaguePage({
                 }
           }
 
-          redirect('/dashboard')
+          return (
+            <DashboardUnavailableState
+              title="League not found"
+              message="This league doesn't exist or you may not have access to it. It may have been deleted, or you may need to reconnect your platform."
+            />
+          )
       }
 
       // Redirect tournament hub / feeder leagues to tournament home (same rules as My Leagues list links)
@@ -201,7 +213,13 @@ export default async function LeaguePage({
         const userTeam = league.teams.find((t) => t.claimedByUserId === userId) ?? null
 
       if (!isOwner && !userTeam) {
-              redirect('/dashboard')
+              // Not a member — show explicit join/request state instead of opaque redirect.
+              return (
+                <DashboardUnavailableState
+                  title="You don't have access to this league"
+                  message="You are not a member of this league. Ask the commissioner to invite you, or check if you joined under a different account."
+                />
+              )
       }
 
       const seasonYear = league.season ?? new Date().getFullYear()
@@ -273,7 +291,7 @@ export default async function LeaguePage({
                       : null
 
       return (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col" data-league-id={leagueId}>
           <LeagueShellClient
             league={league}
             userTeam={userTeam}
@@ -308,28 +326,32 @@ export default async function LeaguePage({
     
         const issue = getDashboardRuntimeIssue(error)
         logLeaguePageFailure({
+          marker: 'league_dashboard_render_failed',
           leagueId,
-          selectedView: firstSearchParam(sp.view),
-          selectedTab: firstSearchParam(sp.tab),
+          userId: session?.user?.id ?? null,
+          selectedView: firstSearchParam(sp?.view),
+          selectedTab: firstSearchParam(sp?.tab),
+          step: 'data_load',
           missingDataKey: issue?.missing?.[0] ?? null,
           errorMessage: error instanceof Error ? error.message : String(error),
+          errorName: error instanceof Error ? error.name : 'UnknownError',
         })
-              if (issue) {
-                      return (
-                                <DashboardUnavailableState
-                                            title={issue.title}
-                                            message={issue.message}
-                                            missing={issue.missing}
-                                          />
-                              )
-              }
+
+        if (issue) {
+          return (
+            <DashboardUnavailableState
+              title={issue.title}
+              message={issue.message}
+              missing={issue.missing}
+            />
+          )
+        }
     
-        console.error('[league] data load failed:', error)
-              return (
-                      <DashboardUnavailableState
-                                title="League page temporarily unavailable"
-                                message="We couldn't load this league. Please try again in a moment."
-                              />
-                    )
+        return (
+          <DashboardUnavailableState
+            title="League temporarily unavailable"
+            message="We couldn't load this league. Please try again in a moment."
+          />
+        )
   }
 }
