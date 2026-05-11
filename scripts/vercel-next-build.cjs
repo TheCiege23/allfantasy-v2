@@ -106,8 +106,18 @@ function collectFilesUnderDir(rootPath) {
   return discovered
 }
 
+function safeRmSync(targetPath) {
+  try {
+    fs.rmSync(targetPath, { recursive: true, force: true })
+  } catch (err) {
+    console.warn(
+      `[vercel-next-build] Could not remove ${targetPath} (${err.code ?? err.message}) — continuing.`
+    )
+  }
+}
+
 function disableNonProdRoutes() {
-  fs.rmSync(backupRoot, { recursive: true, force: true })
+  safeRmSync(backupRoot)
 
   for (const relativePath of routeDirsToDisable) {
     const sourcePath = path.join(repoRoot, relativePath)
@@ -138,18 +148,43 @@ function restoreNonProdRoutes() {
     console.log(`[vercel-next-build] Restored ${entry.relativeFile}`)
   }
 
-  fs.rmSync(backupRoot, { recursive: true, force: true })
+  safeRmSync(backupRoot)
+}
+
+function recoverStrandedBackup() {
+  // Self-heal: if a previous build crashed before restoreNonProdRoutes() ran,
+  // stale backup files may still exist. Restore them before proceeding.
+  if (!directoryExists(backupRoot)) return
+  const strandedFiles = collectFilesUnderDir(backupRoot)
+  if (strandedFiles.length === 0) return
+  console.warn(
+    `[vercel-next-build] Detected ${strandedFiles.length} stranded backup file(s) — restoring before build.`
+  )
+  for (const backupFile of strandedFiles) {
+    const basename = path.basename(backupFile)
+    const restoredRelative = basename.replace(/__/g, path.sep)
+    const destPath = path.join(repoRoot, restoredRelative)
+    try {
+      fs.mkdirSync(path.dirname(destPath), { recursive: true })
+      fs.renameSync(backupFile, destPath)
+      console.warn(`[vercel-next-build] Recovered ${restoredRelative}`)
+    } catch (err) {
+      console.warn(`[vercel-next-build] Could not recover ${restoredRelative}: ${err.message}`)
+    }
+  }
+  safeRmSync(backupRoot)
 }
 
 function run() {
+  // Self-heal stranded files from a previous crashed build.
+  recoverStrandedBackup()
+
   // Avoid stale build-manifest/chunk issues in cached CI environments.
   // Guard: EPERM on Windows when a background process holds a handle on the dir.
   try {
-    fs.rmSync(nextBuildDir, { recursive: true, force: true })
+    safeRmSync(nextBuildDir)
   } catch (err) {
-    console.warn(
-      `[vercel-next-build] Could not remove ${nextBuildDir} (${err.code ?? err.message}) — continuing with existing dir.`
-    )
+    // safeRmSync already handles errors; this catch is a no-op safety net
   }
   const patchStatus = patchManifestRace(repoRoot)
   if (patchStatus === 'skipped-missing') {
