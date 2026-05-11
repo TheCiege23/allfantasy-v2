@@ -38,14 +38,14 @@ describe('resolveCreateLeagueHeroMedia (focus)', () => {
   it('draft focus uses snake draft intro when present', () => {
     const m = resolveCreateLeagueHeroMedia({ ...base, focus: 'draft' })
     expect(m.mediaKey).toMatch(/^draft:snake/)
-    expect(m.video).toBe('/media/draft-intros/snake-draft-intro.mp4')
+    expect(m.video).toBe('/media/create-league/drafts/videos/Snake Draft.mp4')
     expect(m.badge).toBe('Draft format')
   })
 
   it('draft focus falls back to concept when draft asset missing', () => {
     const m = resolveCreateLeagueHeroMedia({
       ...base,
-      draftType: 'linear',
+      draftType: 'slow_draft',
       focus: 'draft',
     })
     expect(m.mediaKey).toMatch(/^concept:/)
@@ -54,22 +54,26 @@ describe('resolveCreateLeagueHeroMedia (focus)', () => {
 })
 
 describe('draft intro resolver (fail closed)', () => {
-  it('returns snake path under /media/draft-intros/', () => {
-    expect(resolveDraftIntroVideoUrl('snake')).toBe('/media/draft-intros/snake-draft-intro.mp4')
-    expect(resolveDraftIntroVideoUrl('devy_snake')).toBe('/media/draft-intros/snake-draft-intro.mp4')
+  it('returns packaged snake draft clip first', () => {
+    expect(resolveDraftIntroVideoUrl('snake')).toBe('/media/create-league/drafts/videos/Snake Draft.mp4')
+    expect(resolveDraftIntroVideoUrl('devy_snake')).toBe('/media/create-league/drafts/videos/Snake Draft.mp4')
+  })
+
+  it('returns shipped linear + auction clips', () => {
+    expect(resolveDraftIntroVideoUrl('linear')).toBe('/media/create-league/drafts/videos/Linear Draft.mp4')
+    expect(resolveDraftIntroVideoUrl('auction')).toBe('/media/create-league/drafts/videos/Auction Draft.mp4')
   })
 
   it('returns null for stems without shipped assets (no crash)', () => {
-    expect(resolveDraftIntroVideoUrl('linear')).toBeNull()
-    expect(resolveDraftIntroVideoUrl('auction')).toBeNull()
     expect(resolveDraftIntroVideoUrl('slow_draft')).toBeNull()
+    expect(resolveDraftIntroVideoUrl('mock_draft')).toBeNull()
   })
 
-  it('getDraftTypeMedia leaves selectionVideo empty when resolver fails closed', () => {
+  it('getDraftTypeMedia wires selectionVideo from resolver', () => {
     const linear = getDraftTypeMedia('linear')
-    expect(linear.selectionVideo).toBe('')
+    expect(linear.selectionVideo).toBe('/media/create-league/drafts/videos/Linear Draft.mp4')
     const snake = getDraftTypeMedia('snake')
-    expect(snake.selectionVideo).toBe('/media/draft-intros/snake-draft-intro.mp4')
+    expect(snake.selectionVideo).toBe('/media/create-league/drafts/videos/Snake Draft.mp4')
   })
 
   it('maps wizard ids to intro stems', () => {

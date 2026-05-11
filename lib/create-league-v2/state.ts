@@ -6,6 +6,7 @@
  */
 
 import type { LeagueTypeId, DraftTypeId } from '@/lib/league-creation-wizard/types'
+import { analyzeCreateLeagueCompletion } from '@/lib/create-league-v2/form-completion'
 import {
   getDefaultBestBallSettings,
   type BestBallCreateSettings,
@@ -362,7 +363,7 @@ export function canAdvance(page: V2PageId, state: CreateLeagueV2State): boolean 
     case 'scoring':
       return isScoringComplete(state)
     case 'review':
-      return isFormComplete(state)
+      return analyzeCreateLeagueCompletion(state).length === 0
   }
 }
 

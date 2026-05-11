@@ -8,6 +8,11 @@
  */
 
 import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
+import {
+  SPORT_VIDEO_PRIMARY,
+  SPORT_VIDEO_FALLBACK,
+  getSportPosterUrl,
+} from '@/lib/create-league-v2/create-league-media-assets'
 
 export type AccentTone = {
   /** Short label used in aria / tooltip. */
@@ -159,34 +164,112 @@ export type MediaAsset = {
   fallback?: string
 }
 
-/** Per-sport ambient loop shown on the Sport section. */
+/** Per-sport ambient loop — packaged `/media/create-league/sports/videos` first, legacy root mp4 as fallback. */
 export const SPORT_MEDIA: Record<string, MediaAsset> = {
-  NFL: { video: '/Football.mp4', poster: '/Football.png', fallback: '/af-crest.png' },
-  NBA: { video: '/Basketball.mp4', poster: '/Basketball.png', fallback: '/af-crest.png' },
-  MLB: { video: '/Baseball.mp4', poster: '/Baseball.png', fallback: '/af-crest.png' },
-  NHL: { video: '/Hockey.mp4', poster: '/Hockey.png', fallback: '/af-crest.png' },
-  NCAAF: { video: '/Football.mp4', poster: '/Football.png', fallback: '/af-crest.png' },
-  NCAAB: { video: '/Basketball.mp4', poster: '/Basketball.png', fallback: '/af-crest.png' },
-  SOCCER: { video: '/Soccer.mp4', poster: '/Soccer.png', fallback: '/af-crest.png' },
+  NFL: {
+    video: SPORT_VIDEO_PRIMARY.NFL,
+    poster: getSportPosterUrl('NFL'),
+    fallback: SPORT_VIDEO_FALLBACK.NFL,
+  },
+  NBA: {
+    video: SPORT_VIDEO_PRIMARY.NBA,
+    poster: getSportPosterUrl('NBA'),
+    fallback: SPORT_VIDEO_FALLBACK.NBA,
+  },
+  MLB: {
+    video: SPORT_VIDEO_PRIMARY.MLB,
+    poster: getSportPosterUrl('MLB'),
+    fallback: SPORT_VIDEO_FALLBACK.MLB,
+  },
+  NHL: {
+    video: SPORT_VIDEO_PRIMARY.NHL,
+    poster: getSportPosterUrl('NHL'),
+    fallback: SPORT_VIDEO_FALLBACK.NHL,
+  },
+  NCAAF: {
+    video: SPORT_VIDEO_PRIMARY.NCAAF,
+    poster: getSportPosterUrl('NCAAF'),
+    fallback: SPORT_VIDEO_FALLBACK.NCAAF,
+  },
+  NCAAB: {
+    video: SPORT_VIDEO_PRIMARY.NCAAB,
+    poster: getSportPosterUrl('NCAAB'),
+    fallback: SPORT_VIDEO_FALLBACK.NCAAB,
+  },
+  SOCCER: {
+    video: SPORT_VIDEO_PRIMARY.SOCCER,
+    poster: getSportPosterUrl('SOCCER'),
+    fallback: SPORT_VIDEO_FALLBACK.SOCCER,
+  },
 }
 
 /**
- * Per-league-type hero. Uses the cinematic "-intro" clip where available,
- * otherwise falls back to the shorter loop. IDP and tournament reuse the
- * redraft hero (IDP is a redraft variant, tournament has no -intro).
+ * Per-league-type hero — prefers `/media/create-league/concept/videos`, then legacy intros.
  */
 export const LEAGUE_TYPE_MEDIA: Record<string, MediaAsset> = {
-  redraft: { video: '/media/league-intros/redraft-league-intro.mp4', fallback: '/af-crest.png' },
-  dynasty: { video: '/league-type-dynasty-intro.mp4', fallback: '/league-type-dynasty.mp4' },
-  keeper: { video: '/league-type-keeper-intro.mp4', fallback: '/league-type-keeper.mp4' },
-  best_ball: { video: '/league-type-best-ball-intro.mp4', fallback: '/league-type-best-ball.mp4' },
-  idp: { video: '/league-type-idp-intro.mp4', fallback: '/league-type-idp.mp4' },
-  salary_cap: { video: '/league-type-salary-cap-intro.mp4', fallback: '/league-type-salary-cap.mp4' },
-  devy: { video: '/league-type-devy-intro.mp4', fallback: '/league-type-devy.mp4' },
-  c2c: { video: '/league-type-c2c-intro.mp4', fallback: '/league-type-c2c.mp4' },
-  guillotine: { video: '/league-type-guillotine-intro.mp4', fallback: '/league-type-guillotine.mp4' },
-  zombie: { video: '/league-type-zombie-intro.mp4', fallback: '/league-type-zombie.mp4' },
-  survivor: { video: '/league-type-survivor-intro.mp4', fallback: '/league-type-survivor.mp4' },
-  tournament: { video: '/league-type-tournament.mp4', fallback: '/af-crest.png' },
-  big_brother: { video: '/league-type-big-brother-intro.mp4', fallback: '/league-type-big-brother.mp4' },
+  redraft: {
+    video: '/media/create-league/concept/videos/Redraft.mp4',
+    poster: '/media/create-league/concept/thumbnails/Redraft.png',
+    fallback: '/media/league-intros/redraft-league-intro.mp4',
+  },
+  dynasty: {
+    video: '/media/create-league/concept/videos/Dynasty.mp4',
+    poster: '/media/create-league/concept/thumbnails/Dynasty.png',
+    fallback: '/league-type-dynasty-intro.mp4',
+  },
+  keeper: {
+    video: '/media/create-league/concept/videos/Keeper.mp4',
+    poster: '/media/create-league/concept/thumbnails/Keeper.png',
+    fallback: '/league-type-keeper-intro.mp4',
+  },
+  best_ball: {
+    video: '/media/create-league/concept/videos/BastBall.mp4',
+    poster: '/media/create-league/concept/thumbnails/BastBall.png',
+    fallback: '/league-type-best-ball-intro.mp4',
+  },
+  idp: {
+    video: '/media/create-league/concept/videos/IDP.mp4',
+    poster: '/media/create-league/concept/thumbnails/IDP.png',
+    fallback: '/league-type-idp-intro.mp4',
+  },
+  salary_cap: {
+    video: '/media/create-league/concept/videos/Salary%20Cap.mp4',
+    poster: '/media/create-league/concept/thumbnails/Salary%20Cap.png',
+    fallback: '/league-type-salary-cap-intro.mp4',
+  },
+  devy: {
+    video: '/media/create-league/concept/videos/Devy.mp4',
+    poster: '/media/create-league/concept/thumbnails/Devy.png',
+    fallback: '/league-type-devy-intro.mp4',
+  },
+  c2c: {
+    video: '/media/create-league/concept/videos/C2C.mp4',
+    poster: '/media/create-league/concept/thumbnails/C2C.png',
+    fallback: '/league-type-c2c-intro.mp4',
+  },
+  guillotine: {
+    video: '/media/create-league/concept/videos/Guillotine.mp4',
+    poster: '/media/create-league/concept/thumbnails/Guillotine.png',
+    fallback: '/league-type-guillotine-intro.mp4',
+  },
+  zombie: {
+    video: '/media/create-league/concept/videos/Zombie.mp4',
+    poster: '/media/create-league/concept/thumbnails/Zombie.png',
+    fallback: '/league-type-zombie-intro.mp4',
+  },
+  survivor: {
+    video: '/media/create-league/concept/videos/Survivor.mp4',
+    poster: '/media/create-league/concept/thumbnails/Survivor.png',
+    fallback: '/league-type-survivor-intro.mp4',
+  },
+  tournament: {
+    video: '/media/create-league/concept/videos/Tournament.mp4',
+    poster: '/media/create-league/concept/thumbnails/Tournament.png',
+    fallback: '/league-type-tournament.mp4',
+  },
+  big_brother: {
+    video: '/media/create-league/concept/videos/Big%20Brother.mp4',
+    poster: '/media/create-league/concept/thumbnails/Big%20Brother.png',
+    fallback: '/league-type-big-brother-intro.mp4',
+  },
 }

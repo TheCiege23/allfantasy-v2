@@ -6,9 +6,9 @@ const ROOT = path.join(process.cwd(), 'public')
 
 /** Wired by `fix(media): wire redraft and snake draft intro assets` — CI fails if bundles are missing. */
 const REQUIRED_RELATIVE = [
-  'media/league-intros/redraft-league-intro.mp4',
+  'media/create-league/concept/videos/Redraft.mp4',
   'images/league-types/redraft.png',
-  'media/draft-intros/snake-draft-intro.mp4',
+  'media/create-league/drafts/videos/Snake Draft.mp4',
   'images/draft-types/snake-draft.png',
 ]
 

@@ -174,6 +174,7 @@ export function ConceptSelector({
               title={copy.title}
               subtitle={copy.subtitle}
               icon={card.icon}
+              thumbnailSrc={card.id === 'idp' ? LEAGUE_TYPE_MEDIA.idp?.poster : LEAGUE_TYPE_MEDIA[card.id]?.poster}
             />
           )
         })}

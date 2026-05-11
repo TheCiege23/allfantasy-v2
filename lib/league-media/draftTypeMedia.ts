@@ -1,5 +1,5 @@
 import type { DraftTypeId } from '@/lib/league-creation-wizard/types'
-import { resolveDraftIntroStemFromWizardId, resolveDraftIntroVideoUrl } from '@/lib/draft/draft-intro-video'
+import { resolveDraftIntroStemFromWizardId, resolveDraftSelectionVideoUrl } from '@/lib/draft/draft-intro-video'
 
 export type DraftTypeMedia = {
   selectionVideo: string
@@ -11,7 +11,14 @@ export type DraftTypeMedia = {
 
 const FALLBACK = '/af-crest.png'
 
-/** Posters and defaults per wizard draft id; selection video comes from draft-intros resolver only. */
+/** Human-readable packaged thumbnails under /media/create-league/drafts/thumbnails/ */
+const DRAFT_PACKAGED_THUMB_LABEL: Record<string, string> = {
+  snake: 'Snake Draft',
+  linear: 'Linear Draft',
+  auction: 'Auction Draft',
+}
+
+/** Legacy row art when no packaged thumbnail applies */
 const DRAFT_TYPE_MEDIA_MAP: Record<string, Omit<DraftTypeMedia, 'selectionVideo'>> = {
   snake: {
     thumbnail: '/images/draft-types/snake-draft.png',
@@ -70,13 +77,48 @@ const DRAFT_TYPE_MEDIA_MAP: Record<string, Omit<DraftTypeMedia, 'selectionVideo'
   },
 }
 
-export function getDraftTypeMedia(id: DraftTypeId): DraftTypeMedia {
+/** Ordered thumbnail URL tries for Segmented / hero poster — first shipped wins at runtime via img onError elsewhere. */
+export function getDraftThumbnailCandidates(id: DraftTypeId): readonly string[] {
   const stem = resolveDraftIntroStemFromWizardId(id)
-  const selectionVideo = stem ? resolveDraftIntroVideoUrl(stem) ?? '' : ''
+  const ordered: string[] = []
+  const seen = new Set<string>()
+  const push = (u: string) => {
+    if (!seen.has(u)) {
+      seen.add(u)
+      ordered.push(u)
+    }
+  }
+
+  if (stem) {
+    const label = DRAFT_PACKAGED_THUMB_LABEL[stem]
+    if (label) {
+      for (const ext of ['png', 'jpg', 'webp'] as const) {
+        push(`/media/create-league/drafts/thumbnails/${label}.${ext}`)
+      }
+    }
+    const variants = [stem, stem.replace(/_/g, '-'), stem.replace(/-/g, '_')]
+    for (const k of variants) {
+      for (const ext of ['png', 'jpg', 'webp'] as const) {
+        push(`/media/create-league/drafts/thumbnails/${k}.${ext}`)
+      }
+    }
+  }
+
   const row = DRAFT_TYPE_MEDIA_MAP[id] ?? DRAFT_TYPE_MEDIA_MAP.snake!
+  push(row.thumbnail)
+
+  return ordered
+}
+
+export function getDraftTypeMedia(id: DraftTypeId): DraftTypeMedia {
+  const selectionVideo = resolveDraftSelectionVideoUrl(id)
+  const row = DRAFT_TYPE_MEDIA_MAP[id] ?? DRAFT_TYPE_MEDIA_MAP.snake!
+  const candidates = getDraftThumbnailCandidates(id)
+  const thumb = candidates[0] ?? row.thumbnail
   return {
     ...row,
     selectionVideo,
+    thumbnail: thumb,
     thumbnailFallback: row.thumbnailFallback ?? FALLBACK,
   }
 }

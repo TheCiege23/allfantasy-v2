@@ -9,7 +9,7 @@
  * glow as the user picks a league type.
  */
 
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { AccentTone } from '@/lib/create-league-v2/theme'
 import { GLASS_INNER, GLASS_SURFACE } from '@/lib/create-league-v2/theme'
 import type { V2PageId } from '@/lib/create-league-v2/state'
@@ -72,6 +72,71 @@ export function SectionHeader({
 
 // ── Selectable card (for league type + scoring source) ──────────────
 
+function CardTopImageOrIcon({
+  thumbnailSrc,
+  icon,
+  selected,
+  accent,
+  disabled,
+}: {
+  thumbnailSrc?: string | null
+  icon?: ReactNode
+  selected: boolean
+  accent: AccentTone
+  disabled: boolean
+}) {
+  const [imgFailed, setImgFailed] = useState(false)
+  const useImage = Boolean(thumbnailSrc?.trim()) && !imgFailed
+
+  if (thumbnailSrc?.trim()) {
+    return (
+      <div
+        className={`relative -mx-4 -mt-4 mb-2 w-[calc(100%+2rem)] overflow-hidden rounded-t-2xl border-b border-white/[0.06] ${
+          disabled ? 'opacity-40' : ''
+        }`}
+      >
+        {useImage ? (
+          <img
+            src={thumbnailSrc!}
+            alt=""
+            className="aspect-[16/10] w-full object-cover"
+            onError={() => setImgFailed(true)}
+          />
+        ) : (
+          <div className="flex aspect-[16/10] w-full min-h-[4.5rem] items-center justify-center bg-gradient-to-br from-white/[0.10] to-white/[0.02]">
+            {icon ? (
+              <span
+                className={`inline-flex h-12 w-12 items-center justify-center rounded-xl text-2xl ${
+                  selected
+                    ? `bg-white/[0.12] ${accent.text} shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]`
+                    : 'bg-white/[0.04] text-white/70'
+                }`}
+                aria-hidden
+              >
+                {icon}
+              </span>
+            ) : null}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (!icon) return null
+  return (
+    <span
+      className={`relative mb-1 inline-flex h-10 w-10 items-center justify-center rounded-xl text-lg transition-all duration-300 ${
+        selected
+          ? `bg-white/[0.12] ${accent.text} shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]`
+          : 'bg-white/[0.04] text-white/60 group-hover:bg-white/[0.08] group-hover:text-white/80'
+      }`}
+      aria-hidden
+    >
+      {icon}
+    </span>
+  )
+}
+
 export function SelectableCard({
   selected,
   onClick,
@@ -80,6 +145,7 @@ export function SelectableCard({
   subtitle,
   icon,
   disabled = false,
+  thumbnailSrc,
 }: {
   selected: boolean
   onClick: () => void
@@ -88,6 +154,8 @@ export function SelectableCard({
   subtitle?: string
   icon?: ReactNode
   disabled?: boolean
+  /** Packaged concept/sport thumbnail — on missing/broken image, gradient + icon fallback */
+  thumbnailSrc?: string | null
 }) {
   return (
     <button
@@ -110,18 +178,13 @@ export function SelectableCard({
           aria-hidden
         />
       )}
-      {icon ? (
-        <span
-          className={`relative mb-1 inline-flex h-10 w-10 items-center justify-center rounded-xl text-lg transition-all duration-300 ${
-            selected
-              ? `bg-white/[0.12] ${accent.text} shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]`
-              : 'bg-white/[0.04] text-white/60 group-hover:bg-white/[0.08] group-hover:text-white/80'
-          }`}
-          aria-hidden
-        >
-          {icon}
-        </span>
-      ) : null}
+      <CardTopImageOrIcon
+        thumbnailSrc={thumbnailSrc}
+        icon={icon}
+        selected={selected}
+        accent={accent}
+        disabled={disabled}
+      />
       <span className={`relative text-sm font-semibold transition-colors duration-200 ${selected ? 'text-white' : 'text-white/80 group-hover:text-white'}`}>{title}</span>
       {subtitle ? <span className="relative text-[11px] leading-snug text-white/45">{subtitle}</span> : null}
     </button>
@@ -334,6 +397,25 @@ export function GlassSelect<T extends string>({
 
 // ── Segmented control ────────────────────────────────────────────────
 
+function SegmentedMediaStrip({ src }: { src: string | null | undefined }) {
+  const [bad, setBad] = useState(!src?.trim())
+  if (!src?.trim() || bad) {
+    return (
+      <span
+        className="inline-flex h-9 w-12 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-white/[0.09] to-white/[0.02] text-[11px] text-white/45"
+        aria-hidden
+      >
+        ◇
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex h-9 w-12 shrink-0 overflow-hidden rounded-lg ring-1 ring-white/10">
+      <img src={src} alt="" className="h-full w-full object-cover" onError={() => setBad(true)} />
+    </span>
+  )
+}
+
 export function Segmented<T extends string>({
   options,
   value,
@@ -341,12 +423,14 @@ export function Segmented<T extends string>({
   accent,
   ariaLabel,
 }: {
-  options: readonly { value: T; label: string; hint?: string }[]
+  options: readonly { value: T; label: string; hint?: string; thumbnailSrc?: string | null }[]
   value: T
   onChange: (v: T) => void
   accent: AccentTone
   ariaLabel: string
 }) {
+  const useThumbnails = options.some((o) => Object.prototype.hasOwnProperty.call(o, 'thumbnailSrc'))
+
   return (
     <div
       role="radiogroup"
@@ -369,10 +453,15 @@ export function Segmented<T extends string>({
             }`}
             style={selected ? { boxShadow: `0 0 20px -6px ${accent.hex}` } : undefined}
           >
-            <span className="relative block">{opt.label}</span>
-            {opt.hint ? (
-              <span className="relative mt-0.5 block text-[10px] font-normal text-white/40">{opt.hint}</span>
-            ) : null}
+            <div className={`relative flex items-start gap-2.5 ${useThumbnails ? '' : ''}`}>
+              {useThumbnails ? <SegmentedMediaStrip src={'thumbnailSrc' in opt ? opt.thumbnailSrc : undefined} /> : null}
+              <div className="min-w-0 flex-1">
+                <span className="relative block">{opt.label}</span>
+                {opt.hint ? (
+                  <span className="relative mt-0.5 block text-[10px] font-normal text-white/40">{opt.hint}</span>
+                ) : null}
+              </div>
+            </div>
           </button>
         )
       })}

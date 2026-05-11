@@ -13,6 +13,7 @@ import {
   resolveValidScoringPresetIdForSelection,
 } from '@/lib/create-league-v2/rules-engine'
 import { GlassCard, SectionHeader, SelectableCard, Segmented } from '@/components/create-league-v2/primitives'
+import { getSportThumbnailCandidates } from '@/lib/create-league-v2/create-league-media-assets'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 const SPORT_ICONS: Record<SupportedSport, string> = {
@@ -121,6 +122,7 @@ export function SportScoringSelector({
               accent={accent}
               title={sport === 'SOCCER' ? t('createLeague.sport.soccer') : SPORT_LABELS[sport]}
               icon={<span className="text-lg">{SPORT_ICONS[sport]}</span>}
+              thumbnailSrc={getSportThumbnailCandidates(sport)[0]}
             />
           )
         })}

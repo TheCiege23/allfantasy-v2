@@ -11,7 +11,9 @@ import {
 } from '@/lib/create-league-v2/rules-engine'
 import { GlassCard, SectionHeader, Segmented, Toggle } from '@/components/create-league-v2/primitives'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import type { DraftTypeId } from '@/lib/league-creation-wizard/types'
 import { localizeDraftTypeOption } from '@/lib/i18n/createLeagueWire'
+import { getDraftTypeMedia } from '@/lib/league-media/draftTypeMedia'
 
 export function DraftTypeSelector({
   state,
@@ -79,6 +81,7 @@ export function DraftTypeSelector({
             value: dt.id,
             label: dt.label,
             hint: dt.hint,
+            thumbnailSrc: getDraftTypeMedia(dt.id as DraftTypeId).thumbnail,
           }))}
           value={
             effectiveType && hasCurrentDraftType ? state.draftType : draftOptions[0]?.id ?? 'snake'

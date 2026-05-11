@@ -57,7 +57,7 @@ describe('draft intro routes', () => {
     await expect(res.json()).resolves.toEqual({
       seen: false,
       draftTypeKey: 'snake',
-      videoUrl: '/media/draft-intros/snake-draft-intro.mp4',
+      videoUrl: '/media/create-league/drafts/videos/Snake Draft.mp4',
       posterUrl: '/images/draft-types/snake-draft.png',
     })
     expect(mocks.draftIntroFindUnique).toHaveBeenCalledWith({

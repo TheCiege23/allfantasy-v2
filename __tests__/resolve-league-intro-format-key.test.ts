@@ -171,7 +171,7 @@ describe('canonical concept / draft media resolution', () => {
   })
 
   it('snake draft intro + board image paths', () => {
-    expect(resolveDraftIntroVideoUrl('snake')).toBe('/media/draft-intros/snake-draft-intro.mp4')
+    expect(resolveDraftIntroVideoUrl('snake')).toBe('/media/create-league/drafts/videos/Snake Draft.mp4')
     expect(resolveDraftIntroPosterUrl('snake')).toBe('/images/draft-types/snake-draft.png')
     expect(resolveDraftBoardImageUrl('snake')).toBe('/images/draft-types/snake-draft.png')
   })

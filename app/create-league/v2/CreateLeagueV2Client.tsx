@@ -146,7 +146,8 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
       const params = new URLSearchParams(searchParams?.toString() ?? '')
       params.set('mode', mode)
       const query = params.toString()
-      const nextUrl = query ? `${pathname}?${query}` : pathname
+      const basePath = pathname ?? '/'
+      const nextUrl = query ? `${basePath}?${query}` : basePath
       router.replace(nextUrl, { scroll: false })
     },
     [onChange, pathname, router, searchParams],
@@ -158,7 +159,8 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
     const params = new URLSearchParams(searchParams?.toString() ?? '')
     params.set('mode', state.creationMode)
     const query = params.toString()
-    const nextUrl = query ? `${pathname}?${query}` : pathname
+    const basePath = pathname ?? '/'
+    const nextUrl = query ? `${basePath}?${query}` : basePath
     router.replace(nextUrl, { scroll: false })
   }, [hydrated, modeFromUrl, pathname, router, searchParams, state.creationMode])
 
