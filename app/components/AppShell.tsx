@@ -30,6 +30,8 @@ export type AppShellProps = {
    * Used when the same league hub is embedded in the dashboard center panel (see `?embed=1` on `/league/[id]`).
    */
   embedCenterOnly?: boolean
+  /** Desktop shell preset. Balanced uses adjacent 40/30/30 columns for league/dashboard views. */
+  layoutMode?: 'legacy-rail-clamp' | 'balanced-three-panel'
 }
 
 /**
@@ -47,6 +49,7 @@ export default function AppShell({
   immersive = false,
   rootClassName,
   embedCenterOnly = false,
+  layoutMode = 'legacy-rail-clamp',
 }: AppShellProps) {
   if (embedCenterOnly) {
     return (
@@ -72,22 +75,30 @@ export default function AppShell({
     : 'border-[var(--border)]'
   const centerBg = immersive ? { background: 'transparent' as const } : { background: 'var(--bg)' }
   const rootBg = immersive ? { background: 'transparent' as const } : { background: 'var(--bg)' }
+  const balancedDesktopLayout = layoutMode === 'balanced-three-panel'
+  const balancedDesktopColumns = rightRailCollapsed
+    ? 'md:[grid-template-columns:minmax(280px,40fr)_minmax(0,60fr)_3rem]'
+    : 'md:[grid-template-columns:minmax(280px,40fr)_minmax(0,30fr)_minmax(280px,30fr)]'
 
   return (
     <div
       className={cn(
-        'flex w-full min-h-0 overflow-hidden text-[var(--text)]',
+        'w-full min-h-0 overflow-hidden text-[var(--text)]',
         rootClassName ?? 'h-screen',
+        balancedDesktopLayout ? `grid grid-cols-1 ${balancedDesktopColumns}` : 'flex',
         immersive && 'relative z-[1]',
       )}
       style={rootBg}
       data-af-immersive={immersive ? '1' : undefined}
+      data-af-layout-mode={balancedDesktopLayout ? 'balanced-three-panel' : 'legacy-rail-clamp'}
       {...rootProps}
     >
       {/* Left chat rail */}
       <aside
         className={cn(
-          'hidden h-full min-h-0 flex-shrink-0 flex-col overflow-hidden transition-[width] duration-200 ease-out md:flex md:w-[clamp(300px,24vw,360px)]',
+          balancedDesktopLayout
+            ? 'hidden h-full min-h-0 flex-col overflow-hidden md:flex md:min-w-0'
+            : 'hidden h-full min-h-0 flex-shrink-0 flex-col overflow-hidden transition-[width] duration-200 ease-out md:flex md:w-[clamp(300px,24vw,360px)]',
           leftRailClass,
         )}
         style={immersive ? undefined : { background: 'var(--panel2)' }}
@@ -99,8 +110,10 @@ export default function AppShell({
       <div
         className={cn(
           // flex-1 below md so the center column gets height when side rails are display:none
-          'flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden transition-[flex] duration-200 ease-out',
-          rightRailCollapsed ? 'md:min-w-0 md:flex-1' : 'md:min-w-0 md:flex-1 xl:min-w-[640px]',
+          balancedDesktopLayout
+            ? 'flex min-h-0 min-w-0 w-full flex-col overflow-hidden'
+            : 'flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden transition-[flex] duration-200 ease-out',
+          !balancedDesktopLayout && (rightRailCollapsed ? 'md:min-w-0 md:flex-1' : 'md:min-w-0 md:flex-1 xl:min-w-[640px]'),
         )}
         style={centerBg}
       >
@@ -110,8 +123,10 @@ export default function AppShell({
       {/* Right: My Leagues — full strip or slim expand control */}
       <aside
         className={cn(
-          'hidden h-full min-h-0 flex-shrink-0 overflow-hidden transition-[width] duration-200 ease-out md:flex',
-          rightRailCollapsed ? 'w-12 max-w-[3rem]' : 'w-[clamp(280px,22vw,340px)]',
+          balancedDesktopLayout
+            ? 'hidden h-full min-h-0 overflow-hidden md:flex md:min-w-0'
+            : 'hidden h-full min-h-0 flex-shrink-0 overflow-hidden transition-[width] duration-200 ease-out md:flex',
+          rightRailCollapsed ? 'w-12 max-w-[3rem]' : balancedDesktopLayout ? 'w-full' : 'w-[clamp(280px,22vw,340px)]',
           rightRailClass,
         )}
         style={immersive ? undefined : { background: 'var(--panel2)' }}

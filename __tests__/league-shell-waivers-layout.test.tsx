@@ -9,17 +9,21 @@ function read(rel: string): string {
 
 describe('League shell layout and waivers integration', () => {
   const leagueShell = read('app/league/[leagueId]/LeagueShell.tsx')
+  const leaguePage = read('app/league/[leagueId]/page.tsx')
   const appShell = read('app/components/AppShell.tsx')
   const leagueTabs = read('app/league/[leagueId]/LeagueTabs.tsx')
+  const dashboardShell = read('app/dashboard/DashboardShell.tsx')
   const waiverWire = read('components/waiver-wire/WaiverWirePage.tsx')
   const waiverAiPanel = read('components/waivers/AIWaiverRecommendationsPanel.tsx')
   const commissionerPanel = read('components/waivers/CommissionerWaiverInsightsPanel.tsx')
   const sportAwareWaiverWire = read('components/waiver-wire/SportAwareWaiverWire.tsx')
 
-  it('uses full-width 3-column shell sizing with fixed desktop rails and flexible center', () => {
-    expect(appShell).toContain('md:w-[clamp(300px,24vw,360px)]')
-    expect(appShell).toContain('w-[clamp(280px,22vw,340px)]')
-    expect(appShell).toContain('md:min-w-0 md:flex-1 xl:min-w-[640px]')
+  it('uses the balanced three-panel desktop preset with adjacent 40/30/30 columns', () => {
+    expect(appShell).toContain("layoutMode?: 'legacy-rail-clamp' | 'balanced-three-panel'")
+    expect(appShell).toContain('md:[grid-template-columns:minmax(280px,40fr)_minmax(0,30fr)_minmax(280px,30fr)]')
+    expect(appShell).toContain("data-af-layout-mode={balancedDesktopLayout ? 'balanced-three-panel' : 'legacy-rail-clamp'}")
+    expect(dashboardShell).toContain('layoutMode="balanced-three-panel"')
+    expect(leagueShell).toContain('layoutMode="balanced-three-panel"')
   })
 
   it('keeps league chat as the default left chat tab for league pages', () => {
@@ -28,8 +32,8 @@ describe('League shell layout and waivers integration', () => {
 
   it('sets predraft default center tab to Draft/Draft Setup (draft or home)', () => {
     expect(leagueShell).toContain("const isPredraftLifecycle = useMemo(() =>")
-    expect(leagueShell).toContain("if (ids.has('draft')) setActiveTab('draft')")
-    expect(leagueShell).toContain("else if (ids.has('home')) setActiveTab('home')")
+    expect(leagueShell).toContain('Draft setup')
+    expect(leagueShell).toContain("if (isPredraftLifecycle) return renderPredraftDraftSetup()")
   })
 
   it('includes waivers in league tab definitions and nfl redraft core tabs', () => {
@@ -46,6 +50,13 @@ describe('League shell layout and waivers integration', () => {
     expect(leagueShell).toContain("case 'waivers':")
     expect(leagueShell).toContain("return <SportAwareWaiverWire leagueId={leagueId} />")
     expect(sportAwareWaiverWire).toContain('return <WaiverWirePage leagueId={leagueId} />')
+  })
+
+  it('mounts the league shell client-side and logs dev-only page load metadata', () => {
+    expect(leaguePage).toContain("import dynamic from 'next/dynamic'")
+    expect(leaguePage).toContain("const LeagueShellClient = dynamic(() => import('./LeagueShell').then((mod) => mod.LeagueShell), {")
+    expect(leaguePage).toContain("ssr: false")
+    expect(leaguePage).toContain("console.error('[league page] load failure', details)")
   })
 
   it('renders AF Pro waiver AI locked/recommendations panel within waiver page', () => {

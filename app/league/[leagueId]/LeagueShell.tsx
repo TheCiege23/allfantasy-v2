@@ -1014,6 +1014,7 @@ export function LeagueShell({
       />
       <div className="contents" data-league-id={league.id} data-embed-mode={embedMode ? '1' : undefined}>
         <AppShell
+          layoutMode="balanced-three-panel"
           immersive={specialtyImmersive}
           rootClassName="h-[calc(100dvh-8.5rem)] min-h-0 lg:h-[calc(100dvh-3.5rem)]"
           rightRailCollapsed={myLeaguesRail.collapsed}
@@ -1542,8 +1543,78 @@ function LeagueTabRouter({
   const tabLabel = tab?.label ?? activeTab
   const sport = selectedLeague.sport
 
+  const renderPredraftDraftSetup = () => {
+    const teamCount = selectedLeague.teamCount ?? teamSlots.length
+    const joinedTeams = teamSlots.filter((team) => Boolean(team.id)).length
+    const draftDateLabel = draftDateIso
+      ? new Date(draftDateIso).toLocaleString(undefined, {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+        })
+      : 'Not scheduled yet'
+
+    return (
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-5 lg:px-6">
+        <div className="space-y-4 rounded-[28px] border border-white/[0.08] bg-[#070a16]/90 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.25)]">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-200/75">Draft setup</p>
+              <h2 className="text-2xl font-semibold text-white">Draft room is not open yet</h2>
+              <p className="max-w-2xl text-sm leading-6 text-white/70">
+                This view stays lightweight until the league is ready. The shell remains visible, and the draft tab
+                can safely point here before the live room is available.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-right">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-100/70">League fill</p>
+              <p className="mt-1 text-lg font-semibold text-white">
+                {joinedTeams}/{teamCount}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-white/[0.08] bg-black/20 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">Draft date</p>
+              <p className="mt-1 text-sm font-semibold text-white">{draftDateLabel}</p>
+            </div>
+            <div className="rounded-2xl border border-white/[0.08] bg-black/20 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">Current tab</p>
+              <p className="mt-1 text-sm font-semibold text-white">Draft / Draft Setup</p>
+            </div>
+            <div className="rounded-2xl border border-white/[0.08] bg-black/20 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">Next step</p>
+              <p className="mt-1 text-sm font-semibold text-white">Open league settings or continue setup</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => onOpenLeagueSettingsModal()}
+              className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/20"
+            >
+              Open draft settings
+            </button>
+            <Link
+              href={`/league/${leagueId}?view=league`}
+              className="rounded-full border border-white/[0.12] bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.1]"
+            >
+              Go to League tab
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   switch (activeTab) {
     case 'home':
+      if (isPredraftLifecycle) return renderPredraftDraftSetup()
       return (
         <DraftTab
           league={selectedLeague}
@@ -1562,6 +1633,7 @@ function LeagueTabRouter({
     case 'matchup':
       return <MatchupTabContainer league={selectedLeague} />
     case 'draft':
+      if (isPredraftLifecycle) return renderPredraftDraftSetup()
       return (
         <DraftTab
           league={selectedLeague}

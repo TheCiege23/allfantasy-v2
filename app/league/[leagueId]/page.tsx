@@ -1,10 +1,10 @@
+import dynamic from 'next/dynamic'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getLeagueRole } from '@/lib/league/permissions'
 import { resolveDashboardAvatarUrl } from '@/lib/dashboard/resolve-dashboard-avatar'
-import { LeagueShell } from './LeagueShell'
 import type { LeagueSeasonSnapshot } from '@/lib/league/sort-teams-standings'
 import { buildLeagueDashboardView } from '@/lib/league/league-dashboard-view'
 import type { LeagueDashboardView } from './league-dashboard-types'
@@ -21,6 +21,10 @@ import { isAppRouterRedirectError } from '@/lib/next/is-app-router-redirect-erro
 
 export const dynamic = 'force-dynamic'
 
+const LeagueShellClient = dynamic(() => import('./LeagueShell').then((mod) => mod.LeagueShell), {
+  ssr: false,
+})
+
 function firstSearchParam(value: string | string[] | undefined): string | null {
   if (typeof value === 'string') return value
   if (Array.isArray(value)) return value[0] ?? null
@@ -30,6 +34,17 @@ function firstSearchParam(value: string | string[] | undefined): string | null {
 function isTruthySearchParam(value: string | string[] | undefined): boolean {
   const normalized = firstSearchParam(value)?.trim().toLowerCase()
   return normalized === '1' || normalized === 'true'
+}
+
+function logLeaguePageFailure(details: {
+  leagueId: string
+  selectedView: string | null
+  selectedTab: string | null
+  missingDataKey: string | null
+  errorMessage: string
+}) {
+  if (process.env.NODE_ENV === 'production') return
+  console.error('[league page] load failure', details)
 }
 
 export default async function LeaguePage({
@@ -258,40 +273,47 @@ export default async function LeaguePage({
                       : null
 
       return (
-              <div className="flex min-h-0 flex-1 flex-col">
-                      <LeagueShell
-                                  league={league}
-                                  userTeam={userTeam}
-                                  isOwner={isOwner}
-                                  isCommissioner={isCommissioner}
-                                  isHeadCommissioner={isHeadCommissioner}
-                                  allLeagues={allLeagues}
-                                  userId={userId}
-                                  userName={session.user.name ?? session.user.email ?? 'Manager'}
-                                  userImage={userImage}
-                                  draftDateIso={draftDateIso}
-                                  sleeperCommissionerId={sleeperCommissionerId}
-                                  sleeperUsersByPlatformId={sleeperUsersByPlatformId}
-                                  currentSleeperUserId={currentSleeperUserId}
-                                  discordConnected={Boolean(userProfile?.discordUserId)}
-                                  zombieChimmyPrefill={zombieChimmyPrefill}
-                                  dispersalDraftInProgress={null}
-                                  seasonSnapshot={seasonSnapshot}
-                                  leagueDashboard={leagueDashboard}
-                                  embedMode={embedMode}
-                                  createdFromLeagueCreate={createdFromLeagueCreate}
-                                  defaultShowInvite={defaultShowInvite}
-                                  defaultOpenChat={defaultOpenChat}
-                                  shouldPlayIntro={shouldPlayIntro}
-                                />
-              </div>
-            )
+        <div className="flex min-h-0 flex-1 flex-col">
+          <LeagueShellClient
+            league={league}
+            userTeam={userTeam}
+            isOwner={isOwner}
+            isCommissioner={isCommissioner}
+            isHeadCommissioner={isHeadCommissioner}
+            allLeagues={allLeagues}
+            userId={userId}
+            userName={session.user.name ?? session.user.email ?? 'Manager'}
+            userImage={userImage}
+            draftDateIso={draftDateIso}
+            sleeperCommissionerId={sleeperCommissionerId}
+            sleeperUsersByPlatformId={sleeperUsersByPlatformId}
+            currentSleeperUserId={currentSleeperUserId}
+            discordConnected={Boolean(userProfile?.discordUserId)}
+            zombieChimmyPrefill={zombieChimmyPrefill}
+            dispersalDraftInProgress={null}
+            seasonSnapshot={seasonSnapshot}
+            leagueDashboard={leagueDashboard}
+            embedMode={embedMode}
+            createdFromLeagueCreate={createdFromLeagueCreate}
+            defaultShowInvite={defaultShowInvite}
+            defaultOpenChat={defaultOpenChat}
+            shouldPlayIntro={shouldPlayIntro}
+          />
+        </div>
+      )
   } catch (error) {
         if (isAppRouterRedirectError(error)) {
                 throw error
         }
     
         const issue = getDashboardRuntimeIssue(error)
+        logLeaguePageFailure({
+          leagueId,
+          selectedView: firstSearchParam(sp.view),
+          selectedTab: firstSearchParam(sp.tab),
+          missingDataKey: issue?.missing?.[0] ?? null,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        })
               if (issue) {
                       return (
                                 <DashboardUnavailableState
