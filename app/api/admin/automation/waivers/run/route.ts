@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { getServerSession } from "next-auth"
 
 import { requireAdminOrBearer } from "@/lib/adminAuth"
+import { authOptions } from "@/lib/auth"
+import { isCommissioner } from "@/lib/commissioner/permissions"
 import { processLeagueWaiversJob } from "@/lib/automation/jobs/waivers/processLeagueWaiversJob"
 import { toErrorMessage } from "@/lib/automation/errors"
 
@@ -15,14 +18,12 @@ const bodySchema = z.object({
 
 /**
  * POST /api/admin/automation/waivers/run
- * Manual/automation trigger for a single league (admin session, bearer, or cron-style secret via `requireAdminOrBearer`).
- *
- * Does not replace `POST /api/waiver-wire/leagues/[leagueId]/process` (member/commissioner UX); this is operator-focused.
+ * Manual/automation trigger for a single league.
+ * - Admin or bearer: can run any league.
+ * - Authenticated commissioner: can run their own league.
+ * Does not replace `POST /api/waiver-wire/leagues/[leagueId]/process` (member/commissioner UX).
  */
 export async function POST(request: Request) {
-  const gate = await requireAdminOrBearer(request)
-  if (!gate.ok) return gate.res
-
   const json = await request.json().catch(() => ({}))
   const parsed = bodySchema.safeParse(json)
   if (!parsed.success) {
@@ -32,12 +33,41 @@ export async function POST(request: Request) {
     )
   }
 
+  const { leagueId, dryRun } = parsed.data
+
+  // Try admin/bearer first
+  const adminGate = await requireAdminOrBearer(request)
+  let actorUserId: string | null = adminGate.ok ? (adminGate.user?.id ?? null) : null
+  let trigger: "admin" | "manual" = "admin"
+
+  if (!adminGate.ok) {
+    // Fall back to commissioner-owns-league check
+    const session = (await getServerSession(authOptions as never)) as {
+      user?: { id?: string }
+    } | null
+    const sessionUserId = session?.user?.id
+    if (!sessionUserId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const membership = await isCommissioner(leagueId, sessionUserId)
+    if (!membership) {
+      return NextResponse.json(
+        { error: "Forbidden: admin access or commissioner role required" },
+        { status: 403 }
+      )
+    }
+
+    actorUserId = sessionUserId
+    trigger = "manual"
+  }
+
   try {
     const result = await processLeagueWaiversJob({
-      leagueId: parsed.data.leagueId,
-      trigger: "admin",
-      dryRun: parsed.data.dryRun,
-      actorUserId: gate.user?.id ?? null,
+      leagueId,
+      trigger,
+      dryRun,
+      actorUserId,
       scheduledFor: new Date(),
     })
 

@@ -186,6 +186,15 @@ export const ENTITLEMENTS = {
     upgradeLabel: 'Get AF Pro',
     highlightParam: 'waiver_ai',
   },
+  commissioner_waiver_ai: {
+    key: 'commissioner_waiver_ai',
+    label: 'Commissioner Waiver AI',
+    description: 'AI-powered league-wide waiver tools: settings health check, suspicious behavior detection, collusion risk, and fairness analysis.',
+    requiredPlan: ['af_commissioner', 'af_supreme'],
+    upgradeUrl: '/pricing',
+    upgradeLabel: 'Get AF Commissioner',
+    highlightParam: 'commissioner_waiver_ai',
+  },
   pro_trade_ai: {
     key: 'pro_trade_ai',
     label: 'AI Trade Analyzer',

@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { openaiChatJson, parseJsonContentFromChatCompletion } from '@/lib/openai-client'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { CHIMMY_WAIVER_SYSTEM_PROMPT } from '@/lib/ai-tools-waiver/chimmy-prompt'
+import { getUserAfProStatus, AfProRequiredError } from '@/lib/entitlements/afAccess'
 
 export async function POST(req: Request) {
   const ip = getClientIp(req as any) || 'unknown'
@@ -15,6 +16,12 @@ export async function POST(req: Request) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Sign in required' }, { status: 401 })
+  }
+
+  // AF Pro gate — Chimmy waiver analysis requires AF Pro
+  const hasAfPro = await getUserAfProStatus(session.user.id)
+  if (!hasAfPro) {
+    return NextResponse.json(new AfProRequiredError().toResponse(), { status: 402 })
   }
 
   let payload: Record<string, unknown> = {}

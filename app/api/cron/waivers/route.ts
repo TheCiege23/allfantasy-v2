@@ -43,11 +43,26 @@ export async function GET(request: Request) {
   const limitRaw = url.searchParams.get("limit")
   const limit = limitRaw ? Math.min(100, Math.max(1, Number(limitRaw) || 25)) : 25
 
-  const discoveredRows = await discoverDueWaiverLeagues({
-    limit,
-    leagueId,
-    now: new Date(),
-  })
+  let discoveredRows: Awaited<ReturnType<typeof discoverDueWaiverLeagues>>
+  try {
+    discoveredRows = await discoverDueWaiverLeagues({
+      limit,
+      leagueId,
+      now: new Date(),
+    })
+  } catch (discoverError: unknown) {
+    const safe =
+      process.env.NODE_ENV === "production"
+        ? "discovery_failed"
+        : toErrorMessage(discoverError)
+    await writeAutomationAuditLog({
+      action: "waivers.cron.discovery_failed",
+      entityType: "system",
+      entityId: "cron",
+      message: toErrorMessage(discoverError),
+    }).catch(() => {})
+    return NextResponse.json({ ok: false, error: safe }, { status: 500 })
+  }
 
   if (dryRun) {
     return NextResponse.json({

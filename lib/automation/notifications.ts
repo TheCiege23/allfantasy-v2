@@ -71,3 +71,37 @@ export async function enqueueUserNotification(input: {
     metadata: input.metadata,
   })
 }
+
+/**
+ * Enqueues a WAIVER_AI_REMINDER for an AF Pro user before the waiver deadline.
+ *
+ * Delivered via in_app channel only (no Resend/Twilio in this phase).
+ * The sendAfter date controls when the notification becomes visible.
+ *
+ * Future: schedule via Vercel Cron at `0 18 * * 2` (Tue 6pm UTC — configurable per league).
+ *
+ * @param userId      - AF Pro user to remind
+ * @param leagueId    - league the reminder is for
+ * @param sendBefore  - waiver deadline; notification enqueued sendBefore - buffer (or immediately if null)
+ */
+export async function enqueueWaiverAiReminder(input: {
+  userId: string
+  leagueId: string
+  sendBefore?: Date | null
+  metadata?: Prisma.InputJsonValue
+}): Promise<{ id: string }> {
+  const sendAfter = input.sendBefore
+    ? new Date(input.sendBefore.getTime() - 2 * 60 * 60 * 1000) // 2h before deadline
+    : null
+
+  return enqueueNotification({
+    userId: input.userId,
+    leagueId: input.leagueId,
+    channel: "in_app",
+    eventType: "WAIVER_AI_REMINDER",
+    title: "Waiver deadline approaching",
+    body: "Your AI waiver recommendations are ready. Check your top targets before the deadline.",
+    sendAfter,
+    metadata: input.metadata,
+  })
+}

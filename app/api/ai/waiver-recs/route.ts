@@ -18,6 +18,7 @@ import {
   readAiResultCache,
   writeAiResultCache,
 } from '@/lib/ai-result-cache'
+import { getUserAfProStatus, AfProRequiredError } from '@/lib/entitlements/afAccess'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +27,12 @@ export async function POST(req: Request) {
   const sessionUserId = session?.user?.id
   if (!sessionUserId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // AF Pro gate — personal AI waiver recommendations require AF Pro
+  const hasAfPro = await getUserAfProStatus(sessionUserId)
+  if (!hasAfPro) {
+    return NextResponse.json(new AfProRequiredError().toResponse(), { status: 402 })
   }
 
   let body: { leagueId?: string; userId?: string }

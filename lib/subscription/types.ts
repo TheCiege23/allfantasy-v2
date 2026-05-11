@@ -70,6 +70,8 @@ export type SubscriptionFeatureId =
   | 'war_room_pipeline_analysis'
   /** League hub AI Coaching tab + long-term coaching API (AF Pro — `af_pro_monthly` / `af_pro_yearly`). */
   | 'league_ai_coaching'
+  /** Commissioner-level AI waiver tools: settings health, suspicious behavior, collusion risk (AF Commissioner). */
+  | 'commissioner_waiver_ai'
 
 /** Plan slugs returned by entitlements API; used for hasAccess. */
 export type SubscriptionPlanId =
