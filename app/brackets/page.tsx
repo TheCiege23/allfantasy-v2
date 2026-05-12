@@ -59,8 +59,24 @@ export default async function BracketsHomePage() {
     )
   }
 
-  const myLeagues = userId
-    ? await (prisma as any).bracketLeagueMember.findMany({
+  const isMissingPlayoffTablesError = (err: unknown): boolean => {
+    if (!err) return false
+    const errObj = err as any
+    const errStr = String(err)
+    return (
+      errObj?.code === "P2021" ||
+      (errObj?.meta?.cause && String(errObj.meta.cause).includes("does not exist")) ||
+      (errObj?.message && errObj.message.includes("does not exist in the current database")) ||
+      errStr.includes("does not exist in the current database") ||
+      errStr.includes("playoff_bracket_challenges") ||
+      (errObj?.name && errObj.name.includes("PrismaClientKnownRequestError") && errStr.includes("does not exist"))
+    )
+  }
+
+  let myLeagues: any[] = []
+  if (userId) {
+    try {
+      myLeagues = await (prisma as any).bracketLeagueMember.findMany({
         where: { userId },
         include: {
           league: {
@@ -77,20 +93,13 @@ export default async function BracketsHomePage() {
         orderBy: { createdAt: "desc" },
         take: 20,
       })
-    : []
-
-  const isMissingPlayoffTablesError = (err: unknown): boolean => {
-    if (!err) return false
-    const errObj = err as any
-    const errStr = String(err)
-    return (
-      errObj?.code === "P2021" ||
-      (errObj?.meta?.cause && String(errObj.meta.cause).includes("does not exist")) ||
-      (errObj?.message && errObj.message.includes("does not exist in the current database")) ||
-      errStr.includes("does not exist in the current database") ||
-      errStr.includes("playoff_bracket_challenges") ||
-      (errObj?.name && errObj.name.includes("PrismaClientKnownRequestError") && errStr.includes("does not exist"))
-    )
+    } catch (err) {
+      if (isMissingPlayoffTablesError(err)) {
+        console.warn("[brackets] bracket league tables not yet available (missing table) — rendering with empty pools")
+      } else {
+        throw err
+      }
+    }
   }
 
   let myPlayoffChallenges: PlayoffHomeLeague[] = []

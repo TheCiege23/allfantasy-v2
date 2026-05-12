@@ -79,6 +79,22 @@ describe("app/brackets/page — P2021 playoff table missing", () => {
     expect(screen.getByTestId("bracket-home-tabs")).toBeInTheDocument()
   })
 
+  it("renders the page when bracketLeagueMember.findMany throws P2021", async () => {
+    const p2021 = Object.assign(
+      new Error("The table `public.bracket_league_members` does not exist in the current database."),
+      { code: "P2021" }
+    )
+    bracketLeagueMemberFindManyMock.mockRejectedValue(p2021)
+    playoffBracketChallengeFindManyMock.mockResolvedValue([])
+
+    const mod = await import("@/app/brackets/page")
+    const element = await (mod.default as () => Promise<React.ReactElement>)()
+    render(element)
+
+    expect(screen.getByTestId("bracket-home-tabs")).toBeInTheDocument()
+    expect(screen.getByTestId("my-pools-tab")).toHaveTextContent("pools:0")
+  })
+
   it("renders with empty playoff pools when P2021 is thrown", async () => {
     const p2021 = Object.assign(new Error("does not exist in the current database"), { code: "P2021" })
     playoffBracketChallengeFindManyMock.mockRejectedValue(p2021)
