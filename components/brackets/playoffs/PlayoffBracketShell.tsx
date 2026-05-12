@@ -24,9 +24,15 @@ export default function PlayoffBracketShell({ initialView }: Props) {
   const [refreshing, startRefreshing] = useTransition()
   const [creatingEntry, startCreatingEntry] = useTransition()
 
-  const pickCount = view.activeEntry?.pickCount ?? view.picks.length
-  const totalSeries = view.series.length
-  const viewerEntryCount = view.entries.filter((entry) => entry.userId === view.viewerUserId).length
+  const participants = Array.isArray(view.participants) ? view.participants : []
+  const entries = Array.isArray(view.entries) ? view.entries : []
+  const series = Array.isArray(view.series) ? view.series : []
+  const picks = Array.isArray(view.picks) ? view.picks : []
+  const rounds = Array.isArray(view.rounds) ? view.rounds : []
+
+  const pickCount = view.activeEntry?.pickCount ?? picks.length
+  const totalSeries = series.length
+  const viewerEntryCount = entries.filter((entry) => entry.userId === view.viewerUserId).length
   const canCreateEntry = viewerEntryCount < view.challenge.maxEntriesPerParticipant
   const title = useMemo(() => {
     const sportLabelMap: Record<string, string> = {
@@ -39,7 +45,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
   }, [view.challenge.sport])
   const leaderboardRows = useMemo(
     () =>
-      [...view.entries]
+      [...entries]
         .sort((a, b) => b.pickCount - a.pickCount)
         .map((entry, index) => ({
           rank: index + 1,
@@ -47,7 +53,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
           name: entry.name || `Bracket ${index + 1}`,
           picks: entry.pickCount,
         })),
-    [view.entries]
+    [entries]
   )
 
   function handlePick(seriesId: string, teamName: string) {
@@ -146,9 +152,9 @@ export default function PlayoffBracketShell({ initialView }: Props) {
             <Trophy className="h-4 w-4" />
             {pickCount}/{totalSeries} picks
           </span>
-          <span className="rounded-full bg-emerald-100 px-3 py-1 text-emerald-900">{view.challenge.sport.toUpperCase()}</span>
+          <span className="rounded-full bg-emerald-100 px-3 py-1 text-emerald-900">{String(view.challenge.sport ?? "").toUpperCase()}</span>
           <span className="rounded-full bg-indigo-100 px-3 py-1 text-indigo-900">
-            {view.participants.length} participant{view.participants.length !== 1 ? "s" : ""}
+            {participants.length} participant{participants.length !== 1 ? "s" : ""}
           </span>
           {saving ? <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-900">Saving pick...</span> : null}
           {view.challenge.isTestMode ? <span className="rounded-full bg-sky-100 px-3 py-1 text-sky-900">Test mode</span> : null}
@@ -176,7 +182,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
               className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Plus className="h-4 w-4" />
-              {view.entries.length === 0 ? "Fill In Bracket" : "Create Bracket Entry"}
+              {entries.length === 0 ? "Fill In Bracket" : "Create Bracket Entry"}
             </button>
             <button
               type="button"
@@ -228,10 +234,10 @@ export default function PlayoffBracketShell({ initialView }: Props) {
         <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">Participants</h2>
           <p className="mt-1 text-sm text-slate-600">
-            {view.participants.length} participant{view.participants.length !== 1 ? "s" : ""}
+            {participants.length} participant{participants.length !== 1 ? "s" : ""}
           </p>
           <ul className="mt-3 space-y-2">
-            {view.participants.map((participant) => (
+            {participants.map((participant) => (
               <li key={participant.userId} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm">
                 <span className="font-semibold text-slate-800">{participant.displayName}</span>
                 <span className="text-slate-600">{participant.entryCount} entries</span>
@@ -242,11 +248,11 @@ export default function PlayoffBracketShell({ initialView }: Props) {
 
         <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">Entries</h2>
-          {view.entries.length === 0 ? (
+          {entries.length === 0 ? (
             <p className="mt-2 text-sm text-slate-600">Create your first bracket</p>
           ) : (
             <ul className="mt-3 space-y-2">
-              {view.entries.map((entry, index) => (
+              {entries.map((entry, index) => (
                 <li key={entry.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
                   <div>
                     <p className="text-sm font-semibold text-slate-800">{entry.name || `Bracket ${index + 1}`}</p>
@@ -285,7 +291,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
       </section>
 
       {showBoard ? (
-        <PlayoffBracketBoard rounds={view.rounds} series={view.series} picks={view.picks} onPick={handlePick} />
+        <PlayoffBracketBoard rounds={rounds} series={series} picks={picks} onPick={handlePick} />
       ) : null}
     </div>
   )

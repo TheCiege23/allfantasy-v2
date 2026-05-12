@@ -25,9 +25,53 @@ function isMissingPlayoffTablesError(err: unknown): boolean {
   )
 }
 
+function isExpectedPlayoffRouteError(err: unknown): boolean {
+  if (!err) return false
+  if (isMissingPlayoffTablesError(err)) return true
+  const errObj = err as any
+  const errStr = String(err)
+  return (
+    errObj?.code === "P2025" ||
+    errObj?.name === "PrismaClientValidationError" ||
+    errStr.includes("PrismaClientValidationError") ||
+    errStr.includes("Unknown field") ||
+    errStr.includes("playoffBracketChallenge.findUnique")
+  )
+}
+
+function EmergencyPoolFallback() {
+  return (
+    <main className="mx-auto max-w-3xl p-6">
+      <div className="rounded-xl border border-slate-300 bg-white p-6 text-center shadow-sm">
+        <h1 className="text-xl font-semibold text-slate-900">Pool dashboard is temporarily unavailable</h1>
+        <p className="mt-2 text-sm text-slate-600">
+          We could not load this pool right now. You can still create or join pools from Brackets home.
+        </p>
+        <div className="mt-4 flex items-center justify-center gap-3">
+          <Link href="/brackets" className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700">
+            Back to Brackets
+          </Link>
+          <Link href="/brackets/leagues/new" className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">
+            Create Pool
+          </Link>
+          <Link href="/brackets/join" className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700">
+            Join Pool
+          </Link>
+        </div>
+      </div>
+    </main>
+  )
+}
+
 export async function generateMetadata({ params }: { params: { leagueId: string } }): Promise<Metadata> {
-  const session = (await getServerSession(authOptions as any)) as { user?: SessionUser } | null
+  let session: { user?: SessionUser } | null = null
   try {
+    session = (await getServerSession(authOptions as any)) as { user?: SessionUser } | null
+  } catch (err) {
+    console.warn("[brackets/leagues] metadata session lookup failed", { leagueId: params.leagueId, error: String(err) })
+  }
+  try {
+    console.warn("[brackets/leagues] checking playoff challenge", { leagueId: params.leagueId, phase: "metadata" })
     const playoffView = await getPlayoffBracketView({
       challengeId: params.leagueId,
       user: session?.user ?? null,
@@ -36,7 +80,11 @@ export async function generateMetadata({ params }: { params: { leagueId: string 
       return { title: playoffView.challenge.name }
     }
   } catch (err) {
-    if (!isMissingPlayoffTablesError(err)) throw err
+    if (!isExpectedPlayoffRouteError(err)) throw err
+    console.warn("[brackets/leagues] metadata fallback due to expected error", {
+      leagueId: params.leagueId,
+      error: String(err),
+    })
   }
   return { title: "Bracket Pool" }
 }
@@ -48,86 +96,115 @@ export default async function BracketLeagueDetailPage({
   params: { leagueId: string }
   searchParams?: { entryId?: string }
 }) {
-  const session = (await getServerSession(authOptions as any)) as { user?: SessionUser } | null
+  console.warn("[brackets/leagues] loading leagueId", { leagueId: params.leagueId })
 
-  let playoffView: Awaited<ReturnType<typeof getPlayoffBracketView>> = null
-  let playoffTableMissing = false
+  let session: { user?: SessionUser } | null = null
   try {
-    playoffView = await getPlayoffBracketView({
-      challengeId: params.leagueId,
-      user: session?.user ?? null,
-      requestedEntryId: searchParams?.entryId ?? null,
-    })
+    console.warn("[brackets/leagues] loading session", { leagueId: params.leagueId })
+    session = (await getServerSession(authOptions as any)) as { user?: SessionUser } | null
   } catch (err) {
-    if (isMissingPlayoffTablesError(err)) {
-      console.warn("[brackets/leagues] playoff tables not yet available (missing table) — rendering safe fallback")
-      playoffTableMissing = true
-    } else {
-      throw err
-    }
+    console.warn("[brackets/leagues] session lookup failed", { leagueId: params.leagueId, error: String(err) })
   }
 
-  if (playoffTableMissing) {
+  try {
+    let playoffView: Awaited<ReturnType<typeof getPlayoffBracketView>> = null
+    let playoffTableMissing = false
+    try {
+      console.warn("[brackets/leagues] checking playoff challenge", { leagueId: params.leagueId })
+      playoffView = await getPlayoffBracketView({
+        challengeId: params.leagueId,
+        user: session?.user ?? null,
+        requestedEntryId: searchParams?.entryId ?? null,
+      })
+    } catch (err) {
+      if (isExpectedPlayoffRouteError(err)) {
+        console.warn("[brackets/leagues] expected playoff load error", {
+          leagueId: params.leagueId,
+          error: String(err),
+        })
+        playoffTableMissing = true
+      } else {
+        throw err
+      }
+    }
+
+    if (playoffTableMissing) {
+      return (
+        <main className="mx-auto max-w-3xl p-6">
+          <div className="rounded-xl border border-slate-300 bg-white p-6 text-center shadow-sm">
+            <h1 className="text-xl font-semibold text-slate-900">Playoff pools are being prepared</h1>
+            <p className="mt-2 text-sm text-slate-600">
+              The playoff bracket system is being set up. Please check back shortly.
+            </p>
+            <div className="mt-4 flex items-center justify-center gap-3">
+              <Link href="/brackets" className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700">
+                Back to Brackets
+              </Link>
+            </div>
+          </div>
+        </main>
+      )
+    }
+
+    if (playoffView) {
+      console.warn("[brackets/leagues] rendering dashboard", {
+        route: "/brackets/leagues/[leagueId]",
+        leagueId: params.leagueId,
+        challengeId: playoffView.challenge.id,
+      })
+      if (process.env.NODE_ENV !== "production") {
+        console.info("[brackets] loaded dashboard id", {
+          route: "/brackets/leagues/[leagueId]",
+          leagueId: params.leagueId,
+          challengeId: playoffView.challenge.id,
+        })
+      }
+      return <PlayoffBracketShell initialView={playoffView} />
+    }
+
+    console.warn("[brackets/leagues] checking legacy league", { leagueId: params.leagueId })
+    const existingLeague = await (prisma as any).bracketLeague.findUnique({
+      where: { id: params.leagueId },
+      select: { id: true },
+    })
+
+    if (existingLeague?.id) {
+      if (process.env.NODE_ENV !== "production") {
+        console.info("[brackets] loaded dashboard id", {
+          route: "/brackets/leagues/[leagueId]",
+          leagueId: params.leagueId,
+          fallback: "/league/[leagueId]",
+        })
+      }
+      redirect(`/league/${params.leagueId}`)
+    }
+
     return (
       <main className="mx-auto max-w-3xl p-6">
         <div className="rounded-xl border border-slate-300 bg-white p-6 text-center shadow-sm">
-          <h1 className="text-xl font-semibold text-slate-900">Playoff pools are being prepared</h1>
+          <h1 className="text-xl font-semibold text-slate-900">Pool not found</h1>
           <p className="mt-2 text-sm text-slate-600">
-            The playoff bracket system is being set up. Please check back shortly.
+            We could not find a pool with that id. It may have been removed or the link is invalid.
           </p>
           <div className="mt-4 flex items-center justify-center gap-3">
             <Link href="/brackets" className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700">
               Back to Brackets
             </Link>
+            <Link href="/brackets/leagues/new" className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">
+              Create Pool
+            </Link>
           </div>
         </div>
       </main>
     )
-  }
-
-  if (playoffView) {
-    if (process.env.NODE_ENV !== "production") {
-      console.info("[brackets] loaded dashboard id", {
-        route: "/brackets/leagues/[leagueId]",
+  } catch (err) {
+    if (isExpectedPlayoffRouteError(err)) {
+      console.warn("[brackets/leagues] emergency fallback for expected route error", {
         leagueId: params.leagueId,
-        challengeId: playoffView.challenge.id,
+        error: String(err),
       })
+      return <EmergencyPoolFallback />
     }
-    return <PlayoffBracketShell initialView={playoffView} />
+    throw err
   }
-
-  const existingLeague = await (prisma as any).bracketLeague.findUnique({
-    where: { id: params.leagueId },
-    select: { id: true },
-  })
-
-  if (existingLeague?.id) {
-    if (process.env.NODE_ENV !== "production") {
-      console.info("[brackets] loaded dashboard id", {
-        route: "/brackets/leagues/[leagueId]",
-        leagueId: params.leagueId,
-        fallback: "/league/[leagueId]",
-      })
-    }
-    redirect(`/league/${params.leagueId}`)
-  }
-
-  return (
-    <main className="mx-auto max-w-3xl p-6">
-      <div className="rounded-xl border border-slate-300 bg-white p-6 text-center shadow-sm">
-        <h1 className="text-xl font-semibold text-slate-900">Pool not found</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          We could not find a pool with that id. It may have been removed or the link is invalid.
-        </p>
-        <div className="mt-4 flex items-center justify-center gap-3">
-          <Link href="/brackets" className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700">
-            Back to Brackets
-          </Link>
-          <Link href="/brackets/leagues/new" className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">
-            Create Pool
-          </Link>
-        </div>
-      </div>
-    </main>
-  )
 }

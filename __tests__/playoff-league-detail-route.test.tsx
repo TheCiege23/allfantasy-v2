@@ -107,6 +107,32 @@ describe("/brackets/leagues/[leagueId] detail route", () => {
     expect(screen.getByText("Playoff pools are being prepared")).toBeInTheDocument()
   })
 
+  it("renders safe fallback when playoff lookup throws PrismaClientValidationError", async () => {
+    const prismaValidation = Object.assign(
+      new Error("Unknown field `name` for select statement on model `AppUser`"),
+      { name: "PrismaClientValidationError" }
+    )
+    getPlayoffBracketViewMock.mockRejectedValue(prismaValidation)
+    bracketLeagueFindUniqueMock.mockResolvedValue(null)
+    const mod = await import("@/app/brackets/leagues/[leagueId]/page")
+
+    const element = await mod.default({ params: { leagueId: "broken-id" }, searchParams: {} })
+    render(element as React.ReactElement)
+    expect(screen.getByText("Playoff pools are being prepared")).toBeInTheDocument()
+  })
+
+  it("generateMetadata returns generic title when playoff lookup fails with expected error", async () => {
+    const prismaValidation = Object.assign(
+      new Error("Unknown field `name` for select statement on model `AppUser`"),
+      { name: "PrismaClientValidationError" }
+    )
+    getPlayoffBracketViewMock.mockRejectedValue(prismaValidation)
+    const mod = await import("@/app/brackets/leagues/[leagueId]/page")
+
+    const metadata = await mod.generateMetadata({ params: { leagueId: "broken-id" } })
+    expect(metadata.title).toBe("Bracket Pool")
+  })
+
   it("re-throws non-P2021 errors from getPlayoffBracketView", async () => {
     getPlayoffBracketViewMock.mockRejectedValue(new Error("unexpected DB error"))
     const mod = await import("@/app/brackets/leagues/[leagueId]/page")

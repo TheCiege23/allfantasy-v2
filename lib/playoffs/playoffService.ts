@@ -1,9 +1,15 @@
 import "server-only"
 import { prisma } from "@/lib/prisma"
 import { buildPlayoffTemplate, getPlayoffRoundOrder } from "./playoffTemplate"
-import type { PlayoffChallengeView, PlayoffSport } from "./types"
+import type { PlayoffChallengeListItem, PlayoffChallengeView, PlayoffCreateResponse, PlayoffSport } from "./types"
 
-type SessionUser = { id?: string | null; name?: string | null; email?: string | null }
+type SessionUser = {
+  id?: string | null
+  name?: string | null
+  displayName?: string | null
+  username?: string | null
+  email?: string | null
+}
 
 function toIso(value: Date | string | null | undefined): string | null {
   if (!value) return null
@@ -12,21 +18,45 @@ function toIso(value: Date | string | null | undefined): string | null {
 }
 
 function defaultEntryName(user: SessionUser): string {
-  if (user.name?.trim()) return `${user.name.trim()} Picks`
-  if (user.email?.trim()) return `${user.email.split("@")[0]} Picks`
-  return "My Playoff Bracket"
+  if (user.name?.trim()) return user.name.trim()
+  if (user.displayName?.trim()) return user.displayName.trim()
+  if (user.username?.trim()) return user.username.trim()
+  if (user.email?.trim()) return user.email.split("@")[0]
+  return "My"
+}
+
+export function getPlayoffSportTitle(sport: PlayoffSport | "fifa"): string {
+  if (sport === "nba") return "NBA Playoff Pool"
+  if (sport === "nhl") return "NHL Playoff Pool"
+  return "FIFA World Cup Pool"
+}
+
+function defaultChallengeName(sport: PlayoffSport): string {
+  return getPlayoffSportTitle(sport)
+}
+
+function sanitizeChallengeName(name: string | null | undefined, sport: PlayoffSport): string {
+  const trimmed = name?.trim() ?? ""
+  if (trimmed.length >= 2) return trimmed
+  return defaultChallengeName(sport)
+}
+
+function toInviteCode(challengeId: string): string {
+  return challengeId.slice(0, 8).toUpperCase()
 }
 
 export async function createPlayoffBracketChallenge(input: {
   user: SessionUser
-  name: string
+  name?: string
   sport: PlayoffSport
   seasonYear?: number
   isTestMode?: boolean
-}) {
+}): Promise<PlayoffCreateResponse> {
   if (!input.user.id) {
     throw new Error("Authenticated user required")
   }
+
+  const challengeName = sanitizeChallengeName(input.name, input.sport)
 
   const template = buildPlayoffTemplate({
     sport: input.sport,
@@ -38,19 +68,11 @@ export async function createPlayoffBracketChallenge(input: {
     const challenge = await (tx as any).playoffBracketChallenge.create({
       data: {
         ownerUserId: input.user.id,
-        name: input.name,
+        name: challengeName,
         sport: input.sport,
         seasonYear: input.seasonYear ?? new Date().getUTCFullYear(),
         status: "open",
         isTestMode: Boolean(input.isTestMode),
-      },
-    })
-
-    const entry = await (tx as any).playoffBracketEntry.create({
-      data: {
-        challengeId: challenge.id,
-        userId: input.user.id,
-        name: defaultEntryName(input.user),
       },
     })
 
@@ -78,21 +100,80 @@ export async function createPlayoffBracketChallenge(input: {
 
     return {
       challengeId: challenge.id as string,
-      entryId: entry.id as string,
+      entryId: null,
+      sport: input.sport,
+      name: challenge.name as string,
+      redirectUrl: `/brackets/playoffs/${challenge.id}`,
     }
   })
 
   return result
 }
 
+export async function listUserPlayoffChallenges(userId: string): Promise<PlayoffChallengeListItem[]> {
+  const challenges = await (prisma as any).playoffBracketChallenge.findMany({
+    where: {
+      OR: [
+        { ownerUserId: userId },
+        {
+          entries: {
+            some: { userId },
+          },
+        },
+      ],
+    },
+    include: {
+      entries: {
+        select: { userId: true },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  })
+
+  return challenges.map((challenge: any) => {
+    const participantUserIds = new Set<string>(challenge.entries.map((entry: any) => entry.userId))
+    participantUserIds.add(challenge.ownerUserId)
+
+    return {
+      challengeId: challenge.id,
+      sport: challenge.sport,
+      name: challenge.name,
+      redirectUrl: `/brackets/playoffs/${challenge.id}`,
+      seasonYear: challenge.seasonYear,
+      participantCount: participantUserIds.size,
+      entryCount: challenge.entries.length,
+      inviteCode: toInviteCode(challenge.id),
+    }
+  })
+}
+
 export async function getPlayoffBracketView(input: {
   challengeId: string
   user: SessionUser | null
+  requestedEntryId?: string | null
 }): Promise<PlayoffChallengeView | null> {
   const challenge = await (prisma as any).playoffBracketChallenge.findUnique({
     where: { id: input.challengeId },
     include: {
+      owner: {
+        select: {
+          id: true,
+          displayName: true,
+          username: true,
+          email: true,
+        },
+      },
       entries: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              displayName: true,
+              username: true,
+              email: true,
+            },
+          },
+        },
         orderBy: { createdAt: "asc" },
       },
       series: {
@@ -104,10 +185,20 @@ export async function getPlayoffBracketView(input: {
   if (!challenge) return null
 
   const userId = input.user?.id ?? null
+  const requestedEntry = input.requestedEntryId
+    ? challenge.entries.find((entry: { id: string; userId: string }) => {
+        if (entry.id !== input.requestedEntryId) return false
+        if (!userId) return true
+        return entry.userId === userId
+      })
+    : null
+
   const activeEntry =
+    requestedEntry ??
     (userId
       ? challenge.entries.find((entry: { userId: string }) => entry.userId === userId)
-      : challenge.entries[0]) ?? null
+      : challenge.entries[0]) ??
+    null
 
   const picks = activeEntry
     ? await (prisma as any).playoffBracketPick.findMany({
@@ -116,7 +207,49 @@ export async function getPlayoffBracketView(input: {
       })
     : []
 
+  const allEntryPicks = await (prisma as any).playoffBracketPick.findMany({
+    where: { challengeId: challenge.id },
+    select: { entryId: true },
+  })
+
+  const pickCountByEntryId = new Map<string, number>()
+  for (const pick of allEntryPicks) {
+    pickCountByEntryId.set(pick.entryId, (pickCountByEntryId.get(pick.entryId) ?? 0) + 1)
+  }
+
+  const challengeEntries = Array.isArray(challenge.entries) ? challenge.entries : []
+  const challengeSeries = Array.isArray(challenge.series) ? challenge.series : []
+  const totalSeries = challengeSeries.length
+  const participantMap = new Map<string, { userId: string; displayName: string; entryCount: number }>()
+  for (const entry of challengeEntries) {
+    const existing = participantMap.get(entry.userId)
+    const displayName =
+      entry.user?.displayName?.trim() ||
+      entry.user?.username?.trim() ||
+      entry.user?.email?.trim() ||
+      "Participant"
+    if (!existing) {
+      participantMap.set(entry.userId, { userId: entry.userId, displayName, entryCount: 1 })
+      continue
+    }
+    existing.entryCount += 1
+  }
+
+  if (!participantMap.has(challenge.ownerUserId)) {
+    const ownerDisplayName =
+      challenge.owner?.displayName?.trim() ||
+      challenge.owner?.username?.trim() ||
+      challenge.owner?.email?.trim() ||
+      "Commissioner"
+    participantMap.set(challenge.ownerUserId, {
+      userId: challenge.ownerUserId,
+      displayName: ownerDisplayName,
+      entryCount: 0,
+    })
+  }
+
   return {
+    viewerUserId: userId,
     challenge: {
       id: challenge.id,
       name: challenge.name,
@@ -125,24 +258,36 @@ export async function getPlayoffBracketView(input: {
       seasonYear: challenge.seasonYear,
       status: challenge.status,
       isTestMode: challenge.isTestMode,
+      visibility: "private",
+      maxParticipants: 100,
+      maxEntriesPerParticipant: 5,
+      scoringStyle: "series_winner",
+      lockRule: "first_tipoff",
+      inviteCode: toInviteCode(challenge.id),
+      inviteUrl: `/brackets/playoffs/${challenge.id}`,
       createdAt: toIso(challenge.createdAt) ?? new Date().toISOString(),
       updatedAt: toIso(challenge.updatedAt) ?? new Date().toISOString(),
     },
+    participants: Array.from(participantMap.values()),
     activeEntry: activeEntry
       ? {
           id: activeEntry.id,
           name: activeEntry.name,
           userId: activeEntry.userId,
+          pickCount: pickCountByEntryId.get(activeEntry.id) ?? 0,
+          isComplete: (pickCountByEntryId.get(activeEntry.id) ?? 0) >= totalSeries,
           createdAt: toIso(activeEntry.createdAt) ?? new Date().toISOString(),
         }
       : null,
-    entries: challenge.entries.map((entry: any) => ({
+    entries: challengeEntries.map((entry: any) => ({
       id: entry.id,
       name: entry.name,
       userId: entry.userId,
+      pickCount: pickCountByEntryId.get(entry.id) ?? 0,
+      isComplete: (pickCountByEntryId.get(entry.id) ?? 0) >= totalSeries,
       createdAt: toIso(entry.createdAt) ?? new Date().toISOString(),
     })),
-    series: challenge.series.map((series: any) => ({
+    series: challengeSeries.map((series: any) => ({
       id: series.id,
       round: series.round,
       roundIndex: series.roundIndex,
@@ -168,6 +313,57 @@ export async function getPlayoffBracketView(input: {
       updatedAt: toIso(pick.updatedAt) ?? new Date().toISOString(),
     })),
     rounds: getPlayoffRoundOrder(),
+  }
+}
+
+export async function createPlayoffBracketEntry(input: {
+  challengeId: string
+  user: SessionUser
+  name?: string
+}) {
+  if (!input.user.id) {
+    throw new Error("Authenticated user required")
+  }
+
+  const challenge = await (prisma as any).playoffBracketChallenge.findUnique({
+    where: { id: input.challengeId },
+    select: { id: true },
+  })
+  if (!challenge) {
+    throw new Error("Challenge not found")
+  }
+
+  const existingEntries = await (prisma as any).playoffBracketEntry.findMany({
+    where: {
+      challengeId: input.challengeId,
+      userId: input.user.id,
+    },
+    orderBy: { createdAt: "asc" },
+  })
+
+  if (existingEntries.length >= 5) {
+    throw new Error("Entry limit reached (max 5 per user)")
+  }
+
+  const ownerLabel = defaultEntryName(input.user)
+  const fallbackName = `${ownerLabel}'s Bracket ${existingEntries.length + 1}`
+  const name = input.name?.trim() ? input.name.trim() : fallbackName
+
+  const createdEntry = await (prisma as any).playoffBracketEntry.create({
+    data: {
+      challengeId: input.challengeId,
+      userId: input.user.id,
+      name,
+    },
+    select: {
+      id: true,
+    },
+  })
+
+  return {
+    challengeId: input.challengeId,
+    entryId: createdEntry.id as string,
+    redirectUrl: `/brackets/playoffs/${input.challengeId}?entryId=${createdEntry.id}`,
   }
 }
 
