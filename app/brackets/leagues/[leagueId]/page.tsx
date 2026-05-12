@@ -11,17 +11,25 @@ export const dynamic = "force-dynamic"
 
 type SessionUser = { id?: string | null; email?: string | null; name?: string | null }
 
+function isP2021(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false
+  const e = err as any
+  return e.code === "P2021" || (typeof e.message === "string" && e.message.includes("does not exist in the current database"))
+}
+
 export async function generateMetadata({ params }: { params: { leagueId: string } }): Promise<Metadata> {
   const session = (await getServerSession(authOptions as any)) as { user?: SessionUser } | null
-  const playoffView = await getPlayoffBracketView({
-    challengeId: params.leagueId,
-    user: session?.user ?? null,
-  })
-
-  if (playoffView) {
-    return { title: playoffView.challenge.name }
+  try {
+    const playoffView = await getPlayoffBracketView({
+      challengeId: params.leagueId,
+      user: session?.user ?? null,
+    })
+    if (playoffView) {
+      return { title: playoffView.challenge.name }
+    }
+  } catch (err) {
+    if (!isP2021(err)) throw err
   }
-
   return { title: "Bracket Pool" }
 }
 
@@ -34,11 +42,40 @@ export default async function BracketLeagueDetailPage({
 }) {
   const session = (await getServerSession(authOptions as any)) as { user?: SessionUser } | null
 
-  const playoffView = await getPlayoffBracketView({
-    challengeId: params.leagueId,
-    user: session?.user ?? null,
-    requestedEntryId: searchParams?.entryId ?? null,
-  })
+  let playoffView: Awaited<ReturnType<typeof getPlayoffBracketView>> = null
+  let playoffTableMissing = false
+  try {
+    playoffView = await getPlayoffBracketView({
+      challengeId: params.leagueId,
+      user: session?.user ?? null,
+      requestedEntryId: searchParams?.entryId ?? null,
+    })
+  } catch (err) {
+    if (isP2021(err)) {
+      console.warn("[brackets/leagues] playoff tables not yet available (P2021) — rendering safe fallback")
+      playoffTableMissing = true
+    } else {
+      throw err
+    }
+  }
+
+  if (playoffTableMissing) {
+    return (
+      <main className="mx-auto max-w-3xl p-6">
+        <div className="rounded-xl border border-slate-300 bg-white p-6 text-center shadow-sm">
+          <h1 className="text-xl font-semibold text-slate-900">Playoff pools are being prepared</h1>
+          <p className="mt-2 text-sm text-slate-600">
+            The playoff bracket system is being set up. Please check back shortly.
+          </p>
+          <div className="mt-4 flex items-center justify-center gap-3">
+            <Link href="/brackets" className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700">
+              Back to Brackets
+            </Link>
+          </div>
+        </div>
+      </main>
+    )
+  }
 
   if (playoffView) {
     if (process.env.NODE_ENV !== "production") {

@@ -79,8 +79,11 @@ export default async function BracketsHomePage() {
       })
     : []
 
-  const myPlayoffChallenges: PlayoffHomeLeague[] = userId
-      ? await (prisma as any).playoffBracketChallenge
+  let myPlayoffChallenges: PlayoffHomeLeague[] = []
+  let playoffTableMissing = false
+  if (userId) {
+    try {
+      const rows = await (prisma as any).playoffBracketChallenge
         .findMany({
             where: {
               OR: [
@@ -99,21 +102,23 @@ export default async function BracketsHomePage() {
           },
           orderBy: { createdAt: "desc" },
         })
-        .then((rows: any[]) => {
-          const uniqueBySport = new Map<string, PlayoffHomeLeague>()
-          for (const row of rows) {
-              const sport = String(row?.sport ?? "").toLowerCase()
-            if (sport !== "nba" && sport !== "nhl") continue
-            if (uniqueBySport.has(sport)) continue
-            uniqueBySport.set(sport, {
-                challengeId: row.id,
-              sport,
-                name: row.name,
-            })
-          }
-          return Array.from(uniqueBySport.values())
-        })
-    : []
+      const uniqueBySport = new Map<string, PlayoffHomeLeague>()
+      for (const row of rows) {
+        const sport = String(row?.sport ?? "").toLowerCase()
+        if (sport !== "nba" && sport !== "nhl") continue
+        if (uniqueBySport.has(sport)) continue
+        uniqueBySport.set(sport, { challengeId: row.id, sport, name: row.name })
+      }
+      myPlayoffChallenges = Array.from(uniqueBySport.values())
+    } catch (err: any) {
+      if (err?.code === "P2021" || (err?.message && err.message.includes("does not exist in the current database"))) {
+        console.warn("[brackets] playoff tables not yet available (P2021) — rendering without playoff My Pools")
+        playoffTableMissing = true
+      } else {
+        throw err
+      }
+    }
+  }
 
   const playoffBySport = new Map<string, PlayoffHomeLeague>(
     myPlayoffChallenges.map((challenge) => [challenge.sport.toLowerCase(), challenge])

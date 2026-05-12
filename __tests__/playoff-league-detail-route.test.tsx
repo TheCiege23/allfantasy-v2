@@ -95,4 +95,22 @@ describe("/brackets/leagues/[leagueId] detail route", () => {
     render(element as React.ReactElement)
     expect(screen.getByText("Pool not found")).toBeInTheDocument()
   })
+
+  it("renders safe fallback when P2021 missing table error is thrown", async () => {
+    const p2021 = Object.assign(new Error("The table `public.playoff_bracket_challenges` does not exist in the current database."), { code: "P2021" })
+    getPlayoffBracketViewMock.mockRejectedValue(p2021)
+    bracketLeagueFindUniqueMock.mockResolvedValue(null)
+    const mod = await import("@/app/brackets/leagues/[leagueId]/page")
+
+    const element = await mod.default({ params: { leagueId: "any-id" }, searchParams: {} })
+    render(element as React.ReactElement)
+    expect(screen.getByText("Playoff pools are being prepared")).toBeInTheDocument()
+  })
+
+  it("re-throws non-P2021 errors from getPlayoffBracketView", async () => {
+    getPlayoffBracketViewMock.mockRejectedValue(new Error("unexpected DB error"))
+    const mod = await import("@/app/brackets/leagues/[leagueId]/page")
+
+    await expect(mod.default({ params: { leagueId: "any-id" }, searchParams: {} })).rejects.toThrow("unexpected DB error")
+  })
 })
