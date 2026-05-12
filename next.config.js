@@ -1,4 +1,7 @@
 /** @type {import('next').NextConfig} */
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { withSentryConfig } = require('@sentry/nextjs')
+
 const isProd = process.env.NODE_ENV === 'production';
 
 const nextConfig = {
@@ -115,4 +118,32 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+// ── Sentry ────────────────────────────────────────────────────────────────────
+// Only wrap when a DSN is configured so local dev builds work without Sentry
+// credentials. The Sentry webpack plugin uploads source maps and injects the
+// SDK config files (sentry.*.config.ts) into the appropriate bundles.
+//
+// Required env vars for source-map upload (Vercel → Settings → Environment):
+//   SENTRY_AUTH_TOKEN   — project auth token from sentry.io
+//   SENTRY_ORG          — Sentry organization slug
+//   SENTRY_PROJECT      — Sentry project slug
+//   NEXT_PUBLIC_SENTRY_DSN or SENTRY_DSN  — DSN from project settings
+const hasSentryDsn =
+  !!(process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN)
+
+module.exports = hasSentryDsn
+  ? withSentryConfig(nextConfig, {
+      org: process.env.SENTRY_ORG ?? '',
+      project: process.env.SENTRY_PROJECT ?? '',
+      // Suppress verbose Sentry CLI output in non-CI environments.
+      silent: !process.env.CI,
+      // Upload client-side source maps for better stack traces.
+      widenClientFileUpload: true,
+      // Strip source maps from the deployed bundle (they're in Sentry).
+      hideSourceMaps: true,
+      // Suppress the Sentry logger in the bundle (saves ~7 kB).
+      disableLogger: true,
+      // We manage Vercel Cron Monitors separately.
+      automaticVercelMonitors: false,
+    })
+  : nextConfig;
