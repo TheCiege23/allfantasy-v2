@@ -79,6 +79,20 @@ export default async function BracketsHomePage() {
       })
     : []
 
+  const isMissingPlayoffTablesError = (err: unknown): boolean => {
+    if (!err) return false
+    const errObj = err as any
+    const errStr = String(err)
+    return (
+      errObj?.code === "P2021" ||
+      (errObj?.meta?.cause && String(errObj.meta.cause).includes("does not exist")) ||
+      (errObj?.message && errObj.message.includes("does not exist in the current database")) ||
+      errStr.includes("does not exist in the current database") ||
+      errStr.includes("playoff_bracket_challenges") ||
+      (errObj?.name && errObj.name.includes("PrismaClientKnownRequestError") && errStr.includes("does not exist"))
+    )
+  }
+
   let myPlayoffChallenges: PlayoffHomeLeague[] = []
   let playoffTableMissing = false
   if (userId) {
@@ -111,8 +125,8 @@ export default async function BracketsHomePage() {
       }
       myPlayoffChallenges = Array.from(uniqueBySport.values())
     } catch (err: any) {
-      if (err?.code === "P2021" || (err?.message && err.message.includes("does not exist in the current database"))) {
-        console.warn("[brackets] playoff tables not yet available (P2021) — rendering without playoff My Pools")
+      if (isMissingPlayoffTablesError(err)) {
+        console.warn("[brackets] playoff tables not yet available (missing table) — rendering without playoff My Pools")
         playoffTableMissing = true
       } else {
         throw err

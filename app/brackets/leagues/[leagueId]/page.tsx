@@ -11,10 +11,18 @@ export const dynamic = "force-dynamic"
 
 type SessionUser = { id?: string | null; email?: string | null; name?: string | null }
 
-function isP2021(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false
-  const e = err as any
-  return e.code === "P2021" || (typeof e.message === "string" && e.message.includes("does not exist in the current database"))
+function isMissingPlayoffTablesError(err: unknown): boolean {
+  if (!err) return false
+  const errObj = err as any
+  const errStr = String(err)
+  return (
+    errObj?.code === "P2021" ||
+    (errObj?.meta?.cause && String(errObj.meta.cause).includes("does not exist")) ||
+    (errObj?.message && errObj.message.includes("does not exist in the current database")) ||
+    errStr.includes("does not exist in the current database") ||
+    errStr.includes("playoff_bracket_challenges") ||
+    (errObj?.name && errObj.name.includes("PrismaClientKnownRequestError") && errStr.includes("does not exist"))
+  )
 }
 
 export async function generateMetadata({ params }: { params: { leagueId: string } }): Promise<Metadata> {
@@ -28,7 +36,7 @@ export async function generateMetadata({ params }: { params: { leagueId: string 
       return { title: playoffView.challenge.name }
     }
   } catch (err) {
-    if (!isP2021(err)) throw err
+    if (!isMissingPlayoffTablesError(err)) throw err
   }
   return { title: "Bracket Pool" }
 }
@@ -51,8 +59,8 @@ export default async function BracketLeagueDetailPage({
       requestedEntryId: searchParams?.entryId ?? null,
     })
   } catch (err) {
-    if (isP2021(err)) {
-      console.warn("[brackets/leagues] playoff tables not yet available (P2021) — rendering safe fallback")
+    if (isMissingPlayoffTablesError(err)) {
+      console.warn("[brackets/leagues] playoff tables not yet available (missing table) — rendering safe fallback")
       playoffTableMissing = true
     } else {
       throw err
