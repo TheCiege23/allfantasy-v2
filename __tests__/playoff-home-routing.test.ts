@@ -20,7 +20,7 @@ describe("playoff home card routing", () => {
       ]),
     })
 
-    expect(href).toBe("/brackets/playoffs/challenge-nba")
+    expect(href).toBe("/brackets/leagues/challenge-nba")
     expect(
       routing.resolvePlayoffCardMode({
         sport: "NBA",
@@ -48,7 +48,7 @@ describe("playoff home card routing", () => {
       playoffBySport: new Map([["nba", { challengeId: "challenge-nba-1", sport: "nba" }]]),
     })
 
-    expect(href).toBe("/brackets/playoffs/challenge-nba-1")
+    expect(href).toBe("/brackets/leagues/challenge-nba-1")
   })
 
   it("resolves My Pools NHL card href to dashboard route", () => {
@@ -60,7 +60,7 @@ describe("playoff home card routing", () => {
       playoffBySport: new Map([["nhl", { challengeId: "challenge-nhl-1", sport: "nhl" }]]),
     })
 
-    expect(href).toBe("/brackets/playoffs/challenge-nhl-1")
+    expect(href).toBe("/brackets/leagues/challenge-nhl-1")
   })
 
   it("resolves My Pools Soccer card href to dashboard route using persisted pool id", () => {
@@ -72,7 +72,7 @@ describe("playoff home card routing", () => {
       playoffBySport: new Map(),
     })
 
-    expect(href).toBe("/brackets/playoffs/league-soccer-1")
+    expect(href).toBe("/brackets/leagues/league-soccer-1")
     expect(href).not.toContain("sport=soccer")
   })
 
