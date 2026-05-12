@@ -3,6 +3,36 @@ const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
 const WINDOW_MS = 60 * 1000
 const MAX_REQUESTS = 5
 
+// ── Memory safety ─────────────────────────────────────────────────────────────
+// Hard cap on the in-process map. On Vercel, a single function instance may
+// serve thousands of requests before restarting. Without eviction the map
+// grows without bound (one entry per unique scope:action:user[:ip] triplet).
+const RATE_LIMIT_MAP_MAX_SIZE = 5_000
+
+/**
+ * Evict expired entries first; if the map is still over `maxSize`,
+ * remove the entries whose window resets soonest (LRU approximation).
+ * O(n) only when the map actually exceeds the cap — not on every call.
+ */
+function evictIfOversized(maxSize: number): void {
+  if (rateLimitMap.size <= maxSize) return
+  const now = Date.now()
+  // Pass 1: delete entries whose window has already expired
+  for (const [k, v] of rateLimitMap) {
+    if (now > v.resetTime) rateLimitMap.delete(k)
+    if (rateLimitMap.size <= maxSize) return
+  }
+  // Pass 2: still over limit — evict the 20% of entries with the lowest resetTime
+  if (rateLimitMap.size > maxSize) {
+    const entries = Array.from(rateLimitMap.entries())
+      .sort((a, b) => a[1].resetTime - b[1].resetTime)
+    const evictCount = Math.ceil(entries.length * 0.2)
+    for (let i = 0; i < evictCount; i++) {
+      rateLimitMap.delete(entries[i]![0])
+    }
+  }
+}
+
 // --- Backward-compatible helpers (do not remove) ---
 export function checkRateLimit(ip: string): boolean {
   const now = Date.now()
@@ -84,6 +114,9 @@ export function consumeRateLimit(args: {
     ? `${scope}:${action}:user:${u}:ip:${ip}`
     : `${scope}:${action}:user:${u}`
 
+  // Guard against unbounded growth on long-lived serverless instances
+  evictIfOversized(RATE_LIMIT_MAP_MAX_SIZE)
+
   const max = Math.max(1, Math.floor(args.maxRequests))
   const windowMs = Math.max(1000, Math.floor(args.windowMs))
 
@@ -153,10 +186,13 @@ export function buildRateLimit429(args: {
   }
 }
 
-// cleanup expired buckets
+// Cleanup expired buckets.
+// Interval is capped at 15 s so stale entries don't accumulate between calls
+// to consumeRateLimit on low-traffic instances.
+const EVICTION_INTERVAL_MS = Math.min(WINDOW_MS, 15_000)
 setInterval(() => {
   const now = Date.now()
-  Array.from(rateLimitMap.entries()).forEach(([k, v]) => {
+  for (const [k, v] of rateLimitMap) {
     if (now > v.resetTime) rateLimitMap.delete(k)
-  })
-}, WINDOW_MS)
+  }
+}, EVICTION_INTERVAL_MS).unref?.() // .unref() keeps the process from staying alive just for this timer
