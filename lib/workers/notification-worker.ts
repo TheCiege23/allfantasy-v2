@@ -7,6 +7,7 @@ import type { NotificationCategoryId } from "@/lib/notification-settings/types";
 import { dispatchNotification } from "@/lib/notifications/NotificationDispatcher";
 import { ENGINE } from "@/lib/analytics/eventNames";
 import { recordEngineTelemetrySample } from "@/lib/analytics/recordAnalyticsEvent";
+import { createTimer, logStructured } from "@/lib/logging/structured";
 
 export type NotificationJobResult = {
   ok: boolean;
@@ -31,45 +32,59 @@ function getConnection(): ConnectionOptions {
 async function processNotificationJob(
   job: Job<NotificationJobPayload, NotificationJobResult>
 ): Promise<NotificationJobResult> {
+  const timer = createTimer();
   const data = job.data;
-  if (!data?.userIds?.length || !data?.category || !data?.type || !data?.title) {
+
+  try {
+    if (!data?.userIds?.length || !data?.category || !data?.type || !data?.title) {
+      return {
+        ok: false,
+        jobId: job.id,
+        processedAt: new Date().toISOString(),
+        dispatched: 0,
+        error: "Missing required fields: userIds, category, type, title",
+      };
+    }
+
+    await dispatchNotification({
+      userIds: data.userIds,
+      category: data.category as NotificationCategoryId,
+      productType: data.productType,
+      type: data.type,
+      title: data.title,
+      body: data.body,
+      actionHref: data.actionHref,
+      actionLabel: data.actionLabel,
+      meta: data.meta,
+      severity: data.severity,
+    });
+
+    recordEngineTelemetrySample(ENGINE.NOTIFICATION_DISPATCH, {
+      meta: {
+        ok: true,
+        category: data.category,
+        type: data.type,
+        recipientCount: data.userIds.length,
+      },
+    });
+
     return {
-      ok: false,
+      ok: true,
       jobId: job.id,
       processedAt: new Date().toISOString(),
-      dispatched: 0,
-      error: "Missing required fields: userIds, category, type, title",
+      dispatched: data.userIds.length,
     };
+  } finally {
+    const durationMs = Math.round(timer.elapsedMs());
+    recordEngineTelemetrySample(ENGINE.JOB, {
+      meta: {
+        queue: QUEUE_NAMES.NOTIFICATIONS,
+        jobType: data?.type ?? "unknown",
+        jobId: job.id,
+        durationMs,
+      },
+    });
   }
-
-  await dispatchNotification({
-    userIds: data.userIds,
-    category: data.category as NotificationCategoryId,
-    productType: data.productType,
-    type: data.type,
-    title: data.title,
-    body: data.body,
-    actionHref: data.actionHref,
-    actionLabel: data.actionLabel,
-    meta: data.meta,
-    severity: data.severity,
-  });
-
-  recordEngineTelemetrySample(ENGINE.NOTIFICATION_DISPATCH, {
-    meta: {
-      ok: true,
-      category: data.category,
-      type: data.type,
-      recipientCount: data.userIds.length,
-    },
-  });
-
-  return {
-    ok: true,
-    jobId: job.id,
-    processedAt: new Date().toISOString(),
-    dispatched: data.userIds.length,
-  };
 }
 
 export function startNotificationWorker(): Worker<
@@ -77,7 +92,7 @@ export function startNotificationWorker(): Worker<
   NotificationJobResult
 > | null {
   if (!isRedisConfigured()) {
-    console.warn("[notification-worker] Redis not configured. Worker disabled.");
+    logStructured("warn", "notification_worker", "redis_not_configured");
     return null;
   }
 
@@ -95,15 +110,18 @@ export function startNotificationWorker(): Worker<
   );
 
   notificationWorker.on("completed", (job) => {
-    console.log("[notification-worker] completed", job.id);
+    logStructured("info", "notification_worker", "job_completed", { jobId: job.id });
   });
 
   notificationWorker.on("failed", (job, err) => {
-    console.error("[notification-worker] failed", job?.id, err?.message);
+    logStructured("error", "notification_worker", "job_failed", {
+      jobId: job?.id,
+      error: err?.message,
+    });
   });
 
   notificationWorker.on("error", (err) => {
-    console.error("[notification-worker] error", err);
+    logStructured("error", "notification_worker", "worker_error", { error: err?.message });
   });
 
   return notificationWorker;
