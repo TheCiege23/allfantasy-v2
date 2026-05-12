@@ -3,6 +3,11 @@ const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
 const WINDOW_MS = 60 * 1000
 const MAX_REQUESTS = 5
 
+/** Returns the current number of entries in the in-process rate-limit map (observability). */
+export function getRateLimitMapSize(): number {
+  return rateLimitMap.size
+}
+
 // ── Memory safety ─────────────────────────────────────────────────────────────
 // Hard cap on the in-process map. On Vercel, a single function instance may
 // serve thousands of requests before restarting. Without eviction the map

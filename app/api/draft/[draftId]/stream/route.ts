@@ -1,6 +1,8 @@
 import { requireDraftRouteUser, requireLiveDraftAccess } from '@/lib/draft/api-route-helpers'
 import { draftStreamStore } from '@/lib/draft/draft-stream-store'
 import { DraftWorker } from '@/lib/workers/draft-worker'
+import { recordEngineTelemetrySample } from '@/lib/analytics/recordAnalyticsEvent'
+import { ENGINE } from '@/lib/analytics/eventNames'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +18,13 @@ export async function GET(
     const userId = await requireDraftRouteUser()
     const { draftId } = await ctx.params
     await requireLiveDraftAccess(draftId, userId)
+
+    // Sampled: track SSE stream connections (equivalent to Pusher auth).
+    // Spikes here signal reconnect storms — e.g. all clients reconnecting
+    // after a server restart or Pusher channel drop.
+    recordEngineTelemetrySample(ENGINE.PUSHER_AUTH, {
+      meta: { draftId, userId },
+    })
 
     const worker = new DraftWorker({ viewerUserId: userId })
     const encoder = new TextEncoder()

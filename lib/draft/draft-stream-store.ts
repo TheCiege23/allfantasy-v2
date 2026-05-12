@@ -1,3 +1,13 @@
+import { logStructured } from '@/lib/logging/structured'
+
+// ── Lightweight delivery counters (reset per cold start) ─────────────────────
+// Exposed via getPusherPublishStats() for health-check visibility without
+// requiring an external metrics store.
+const publishCounters = { attempts: 0, deliveries: 0, errors: 0 }
+export function getStreamPublishStats() {
+  return { ...publishCounters }
+}
+
 type DraftStreamEventName =
   | 'connected'
   | 'draft_state'
@@ -51,8 +61,38 @@ class DraftStreamStore {
 
     const set = this.subscribers.get(draftId)
     if (!set?.size) return
+
+    publishCounters.attempts++
+    let delivered = 0
+    let errorCount = 0
+
     for (const subscriber of set) {
-      subscriber(event)
+      try {
+        subscriber(event)
+        delivered++
+      } catch (err) {
+        errorCount++
+        publishCounters.errors++
+        logStructured('error', 'draft_stream_store', 'subscriber_dispatch_error', {
+          draftId,
+          eventType: type,
+          error: err instanceof Error ? err.message : String(err),
+          failureRate: publishCounters.attempts > 0
+            ? (publishCounters.errors / publishCounters.attempts).toFixed(3)
+            : '0',
+        })
+      }
+    }
+    publishCounters.deliveries += delivered
+
+    if (errorCount > 0) {
+      logStructured('warn', 'draft_stream_store', 'partial_delivery', {
+        draftId,
+        eventType: type,
+        delivered,
+        errors: errorCount,
+        total: set.size,
+      })
     }
   }
 
