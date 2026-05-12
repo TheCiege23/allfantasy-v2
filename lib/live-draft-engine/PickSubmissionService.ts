@@ -30,6 +30,7 @@ import {
   DRAFT_PICK_STALE_OVERALL,
   type PickAuthorityCode,
 } from './pickAuthorityCodes'
+import { logStructured } from '@/lib/logging/structured'
 
 export interface SubmitPickInput {
   leagueId: string
@@ -333,7 +334,10 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     }
   } catch (e) {
     // Lifecycle transition is best-effort; don't fail the pick if it fails
-    console.error('[submitPick] Failed to transition league lifecycle:', e)
+    logStructured('error', 'submit_pick', 'lifecycle_transition_failed', {
+      leagueId: input.leagueId,
+      error: e instanceof Error ? e.message : String(e),
+    })
   }
 
   const pickLabel = `${round}.${slot.toString().padStart(2, '0')}`
@@ -390,10 +394,11 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
       const { repairDraftCompletionIfBoardFull } = await import('@/lib/live-draft-engine/postDraftFinalizeArtifacts')
       completed = await repairDraftCompletionIfBoardFull(input.leagueId)
       if (!completed) {
-        console.error('[submitPick] completeDraftSession/repair failed after final pick — completion may heal on next poll', {
+        logStructured('error', 'submit_pick', 'draft_completion_failed', {
           leagueId: input.leagueId,
           overall,
           totalPicks,
+          note: 'completion may heal on next state poll',
         })
       }
     }
@@ -434,7 +439,7 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
         overall,
         capYear
       ).catch((err: unknown) => {
-        console.error('[salary-cap] assignRookieContract failed', {
+        logStructured('error', 'submit_pick', 'salary_cap_contract_failed', {
           leagueId: input.leagueId,
           overall,
           error: String(err),
