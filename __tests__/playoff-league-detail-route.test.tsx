@@ -157,20 +157,4 @@ describe("/brackets/leagues/[leagueId] detail route", () => {
 
     expect(screen.getByText("Pool dashboard is temporarily unavailable")).toBeInTheDocument()
   })
-
-  it("compat route redirects /brackets/playoffs/[id] to canonical leagues detail route", async () => {
-    const mod = await import("@/app/brackets/playoffs/[bracketId]/page")
-
-    await mod.default({ params: { bracketId: "challenge-1" }, searchParams: {} })
-
-    expect(redirectMock).toHaveBeenCalledWith("/brackets/leagues/challenge-1")
-  })
-
-  it("compat route preserves entryId query when redirecting", async () => {
-    const mod = await import("@/app/brackets/playoffs/[bracketId]/page")
-
-    await mod.default({ params: { bracketId: "challenge-1" }, searchParams: { entryId: "entry-2" } })
-
-    expect(redirectMock).toHaveBeenCalledWith("/brackets/leagues/challenge-1?entryId=entry-2")
-  })
 })

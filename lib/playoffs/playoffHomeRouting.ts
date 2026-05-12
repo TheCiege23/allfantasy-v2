@@ -24,7 +24,7 @@ export function resolvePlayoffCardHref(input: {
     const bySport = input?.playoffBySport
     const existing = bySport instanceof Map ? bySport.get(normalizedSport) : undefined
     if (existing?.challengeId) {
-      return `/brackets/leagues/${existing.challengeId}`
+      return `/brackets/playoffs/${existing.challengeId}`
     }
 
     if (normalizedSport === "nba" || normalizedSport === "nhl") {
@@ -63,12 +63,12 @@ export function resolveMyPoolCardHref(input: MyPoolCardInput): string {
     if (normalizedSport === "nba" || normalizedSport === "nhl") {
       const existing = input?.playoffBySport instanceof Map ? input.playoffBySport.get(normalizedSport) : undefined
       if (existing?.challengeId) {
-        return `/brackets/leagues/${existing.challengeId}`
+        return `/brackets/playoffs/${existing.challengeId}`
       }
     }
 
     if (normalizedChallengeType.includes("playoff")) {
-      return `/brackets/leagues/${poolId}`
+      return `/brackets/playoffs/${poolId}`
     }
 
     return `/brackets/leagues/${poolId}`
