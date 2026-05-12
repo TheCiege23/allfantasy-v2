@@ -3,6 +3,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { withTimedRoute } from '@/lib/logging/withTimedRoute'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft, canSubmitPickForRoster, getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
@@ -31,10 +32,10 @@ import { rosterConfigurationIncompleteBody } from '@/lib/league/roster-configura
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(
+export const POST = withTimedRoute('draft_pick', async (
   req: NextRequest,
   ctx: { params: Promise<{ leagueId: string }> }
-) {
+) => {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -293,4 +294,4 @@ export async function POST(
           }
         : updated,
   })
-}
+})

@@ -3,6 +3,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { withTimedRoute } from '@/lib/logging/withTimedRoute'
+import { logStructured } from '@/lib/logging/structured'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
@@ -11,7 +13,7 @@ import { buildDraftLiveSyncPayload } from '@/lib/draft-room/buildDraftLiveSyncPa
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: NextRequest, ctx: { params: Promise<{ leagueId: string }> }) {
+export const GET = withTimedRoute('draft_live_sync', async (req: NextRequest, ctx: { params: Promise<{ leagueId: string }> }) => {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -40,7 +42,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ leagueId: s
 
     return NextResponse.json(payload)
   } catch (error) {
-    console.error('[draft/live-sync GET]', leagueId, error)
+    logStructured('error', 'draft_live_sync', 'request_failed', {
+      leagueId,
+      error: error instanceof Error ? error.message : String(error),
+    })
     return NextResponse.json({
       leagueId,
       updated: false,
@@ -51,4 +56,4 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ leagueId: s
       degraded: true,
     })
   }
-}
+})
