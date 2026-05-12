@@ -65,7 +65,10 @@ describe('League shell layout and waivers integration', () => {
 
   it('logs league_dashboard_render_failed marker with full metadata in catch block', () => {
     expect(leaguePage).toContain("marker: 'league_dashboard_render_failed'")
+    expect(leaguePage).toContain('leagueId')
     expect(leaguePage).toContain('userId: session?.user?.id ?? null')
+    expect(leaguePage).toContain('selectedView: firstSearchParam(sp?.view)')
+    expect(leaguePage).toContain('selectedTab: firstSearchParam(sp?.tab)')
     expect(leaguePage).toContain("step: 'data_load'")
     expect(leaguePage).toContain('errorName: error instanceof Error ? error.name')
     // log function is NOT gated to dev-only; it always logs
@@ -86,6 +89,20 @@ describe('League shell layout and waivers integration', () => {
     expect(dashView).toContain("listDivisionsByLeague(leagueId, { sport: String(league.sport) }).catch(() => [])")
     expect(dashView).toContain("prisma.leagueTeam.count(")
     expect(dashView).toContain("}).catch(() => 0)")
+  })
+
+  it('renders shell with safe fallback data when optional dashboard data loaders fail', () => {
+    expect(leaguePage).toContain('const defaultLeagueDashboardView: LeagueDashboardView = {')
+    expect(leaguePage).toContain('buildLeagueDashboardView(league).catch((err) => {')
+    expect(leaguePage).toContain('return defaultLeagueDashboardView')
+    // Optional draft/setup data is explicitly nullable so missing setup does not crash shell render.
+    expect(leaguePage).toContain('dispersalDraftInProgress={null}')
+  })
+
+  it('keeps predraft leagues on Draft Setup fallback instead of crashing when setup data is missing', () => {
+    expect(leagueShell).toContain('const isPredraftLifecycle = useMemo(() =>')
+    expect(leagueShell).toContain('const renderPredraftDraftSetup = () => {')
+    expect(leagueShell).toContain('if (isPredraftLifecycle) return renderPredraftDraftSetup()')
   })
 
   it('renders AF Pro waiver AI locked/recommendations panel within waiver page', () => {
