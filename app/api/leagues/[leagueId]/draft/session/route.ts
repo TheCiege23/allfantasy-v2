@@ -33,6 +33,9 @@ import {
 } from '@/lib/draft-notifications'
 import { rosterConfigurationIncompleteBody } from '@/lib/league/roster-configuration-gate-error'
 import { publishDraftIntelForUpcomingManagers, sendDraftIntelDm } from '@/lib/draft-intelligence'
+import { recordEngineTelemetrySample } from '@/lib/analytics/recordAnalyticsEvent'
+import { ENGINE } from '@/lib/analytics/eventNames'
+import { logStructured } from '@/lib/logging/structured'
 
 export const dynamic = 'force-dynamic'
 
@@ -163,21 +166,18 @@ export async function GET(
         }
 
         if (mismatches.length > 0) {
-          console.warn('[draft/session GET] canonical parity mismatch', {
+          logStructured('warn', 'draft_session_get', 'canonical_parity_mismatch', {
             leagueId,
             mismatches,
-            canonical: {
-              status: canonicalDraftState.status,
-              currentPickNumber: canonicalDraftState.currentPickNumber,
-              picksMade: canonicalDraftState.picksMade,
-            },
-            existing: current,
+            canonicalStatus: canonicalDraftState.status,
+            canonicalPick: canonicalDraftState.currentPickNumber,
+            canonicalPicksMade: canonicalDraftState.picksMade,
           })
         }
       }
     } catch (e) {
       canonicalParityCheckFailed = true
-      console.warn('[draft/session GET] canonical parity check failed (non-fatal)', {
+      logStructured('warn', 'draft_session_get', 'canonical_parity_check_failed', {
         leagueId,
         error: (e as Error)?.message ?? 'unknown error',
       })
@@ -218,9 +218,17 @@ export async function GET(
       }
     }
 
+    // Sampled: track state-poll volume to detect connection storms
+    recordEngineTelemetrySample(ENGINE.DRAFT_STATE_POLL, {
+      meta: { leagueId, userId },
+    })
+
     return NextResponse.json(responseBody)
   } catch (e) {
-    console.error('[draft/session GET]', e)
+    logStructured('error', 'draft_session_get', 'unhandled_error', {
+      leagueId,
+      error: (e as Error)?.message ?? String(e),
+    })
     return NextResponse.json({ error: 'Failed to load draft session' }, { status: 500 })
   }
 }

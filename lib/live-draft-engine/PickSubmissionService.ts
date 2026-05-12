@@ -31,6 +31,8 @@ import {
   type PickAuthorityCode,
 } from './pickAuthorityCodes'
 import { logStructured } from '@/lib/logging/structured'
+import { recordEngineTelemetrySample } from '@/lib/analytics/recordAnalyticsEvent'
+import { ENGINE } from '@/lib/analytics/eventNames'
 
 export interface SubmitPickInput {
   leagueId: string
@@ -303,6 +305,11 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     })
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      // Sampled metric: track race frequency so we can decide if pessimistic
+      // Redis locking is warranted (threshold: >2 % of picks in prod).
+      recordEngineTelemetrySample(ENGINE.DRAFT_PICK_RACE, {
+        meta: { leagueId: input.leagueId, reason: 'p2002_unique' },
+      })
       return {
         success: false,
         error: 'Draft state changed; please retry',
@@ -310,6 +317,9 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
       }
     }
     if (error instanceof Error && /Draft state changed/.test(error.message)) {
+      recordEngineTelemetrySample(ENGINE.DRAFT_PICK_RACE, {
+        meta: { leagueId: input.leagueId, reason: 'optimistic_sentinel' },
+      })
       return {
         success: false,
         error: 'Draft state changed; please retry',
@@ -318,6 +328,16 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     }
     throw error
   }
+
+  // Sampled: record successful pick submission for draft-room analytics.
+  recordEngineTelemetrySample(ENGINE.DRAFT_PICK_SUBMITTED, {
+    meta: {
+      leagueId: input.leagueId,
+      sessionId: session.id,
+      overall,
+      source: input.source ?? 'user',
+    },
+  })
 
   // Transition league lifecycle to drafting if this is the first pick and league is in pre_draft
   try {

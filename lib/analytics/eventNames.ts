@@ -67,4 +67,21 @@ export const ENGINE = {
   JOB: 'engine.job',
   API_FAILURE: 'engine.api_failure',
   NOTIFICATION_DISPATCH: 'engine.notification_dispatch',
+
+  // ── Draft room server-side telemetry ───────────────────────────────────────
+  // These events are written at 10 % sample rate (AF_ANALYTICS_ENGINE_SAMPLE_RATE)
+  // so they don't overwhelm the AnalyticsEvent table at peak draft volume.
+
+  /** A draft pick was accepted and persisted. */
+  DRAFT_PICK_SUBMITTED: 'engine.draft.pick_submitted',
+  /**
+   * A pick returned DRAFT_PICK_RACE_RETRY (P2002 unique-constraint collision or
+   * optimistic-lock sentinel mismatch). Track rate to decide if pessimistic
+   * Redis locking is warranted (threshold: >2 % of picks in prod).
+   */
+  DRAFT_PICK_RACE: 'engine.draft.pick_race',
+  /** GET /api/leagues/[id]/draft/session (state poll). */
+  DRAFT_STATE_POLL: 'engine.draft.state_poll',
+  /** POST /api/draft/[draftId]/pusher-auth (Pusher channel auth). */
+  PUSHER_AUTH: 'engine.draft.pusher_auth',
 } as const
