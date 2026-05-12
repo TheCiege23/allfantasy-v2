@@ -1,8 +1,11 @@
+"use client"
+
 import Link from 'next/link'
 import { resolveBracketChallengeLabel, resolveBracketSportUI } from '@/lib/bracket-challenge'
 
 type PoolItem = {
   id: string
+  href?: string
   name: string
   members: number
   entries: number
@@ -12,6 +15,12 @@ type PoolItem = {
 }
 
 export default function MyPoolsTab({ pools }: { pools: PoolItem[] }) {
+  function logPoolClick(poolId: string, href: string) {
+    if (process.env.NODE_ENV !== "production") {
+      console.info("[brackets] clicked pool id", { poolId, href })
+    }
+  }
+
   return (
     <section className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
       <div className="mb-3 flex items-center justify-between">
@@ -38,11 +47,16 @@ export default function MyPoolsTab({ pools }: { pools: PoolItem[] }) {
                   challengeType: p.challengeType,
                   bracketType: p.bracketType,
                 })
+                const href = p.href ?? `/brackets/leagues/${p.id}`
                 return (
                   <tr key={p.id} className="border-t border-white/10">
                     <td className="px-3 py-2">
                       <div className="flex flex-col gap-1">
-                        <Link href={`/brackets/leagues/${p.id}`} className="hover:underline">
+                        <Link
+                          href={href}
+                          className="hover:underline"
+                          onClick={() => logPoolClick(p.id, href)}
+                        >
                           {p.name}
                         </Link>
                         <div className="inline-flex items-center gap-1 text-[10px] text-white/60">

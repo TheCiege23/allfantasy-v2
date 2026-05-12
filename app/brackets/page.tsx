@@ -21,10 +21,16 @@ import {
 } from "@/lib/auth/PostAuthIntentRouter"
 import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
 import { resolveBracketChallengeLabel, resolveBracketSportUI } from "@/lib/bracket-challenge"
+import { resolveMyPoolCardHref, resolvePlayoffCardHref, resolvePlayoffCardMode } from "@/lib/playoffs"
 
 export const dynamic = "force-dynamic"
 
 type SessionUser = { id?: string; email?: string | null; name?: string | null }
+type PlayoffHomeLeague = {
+  challengeId: string
+  sport: "nba" | "nhl"
+  name: string
+}
 
 export default async function BracketsHomePage() {
   let session: { user?: SessionUser } | null = null
@@ -72,6 +78,46 @@ export default async function BracketsHomePage() {
         take: 20,
       })
     : []
+
+  const myPlayoffChallenges: PlayoffHomeLeague[] = userId
+      ? await (prisma as any).playoffBracketChallenge
+        .findMany({
+            where: {
+              OR: [
+                { ownerUserId: userId },
+                {
+                  entries: {
+                    some: { userId },
+                  },
+                },
+              ],
+            },
+            select: {
+              id: true,
+              name: true,
+              sport: true,
+          },
+          orderBy: { createdAt: "desc" },
+        })
+        .then((rows: any[]) => {
+          const uniqueBySport = new Map<string, PlayoffHomeLeague>()
+          for (const row of rows) {
+              const sport = String(row?.sport ?? "").toLowerCase()
+            if (sport !== "nba" && sport !== "nhl") continue
+            if (uniqueBySport.has(sport)) continue
+            uniqueBySport.set(sport, {
+                challengeId: row.id,
+              sport,
+                name: row.name,
+            })
+          }
+          return Array.from(uniqueBySport.values())
+        })
+    : []
+
+  const playoffBySport = new Map<string, PlayoffHomeLeague>(
+    myPlayoffChallenges.map((challenge) => [challenge.sport.toLowerCase(), challenge])
+  )
 
   const bracketSignupHref = buildSignupHrefWithIntent("/brackets")
   const bracketLoginHref = buildLoginHrefWithIntent("/brackets")
@@ -215,7 +261,7 @@ export default async function BracketsHomePage() {
                   {playoffSports.map(({ sport, ui }) => (
                     <Link
                       key={sport}
-                      href={`/brackets/leagues/new?sport=${encodeURIComponent(sport)}&challengeType=playoff_challenge`}
+                      href={resolvePlayoffCardHref({ sport, playoffBySport })}
                       className="rounded-xl px-3 py-2 text-xs font-semibold text-center transition flex items-center justify-center gap-2"
                       style={{ border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.8)' }}
                       data-testid={`bracket-playoff-sport-${sport}`}
@@ -226,7 +272,7 @@ export default async function BracketsHomePage() {
                       >
                         {ui.badge}
                       </span>
-                      <span>{ui.shortLabel}</span>
+                      <span>{ui.shortLabel} {resolvePlayoffCardMode({ sport, playoffBySport }) === "open" ? "Open" : "Create"}</span>
                     </Link>
                   ))}
                 </div>
@@ -242,10 +288,24 @@ export default async function BracketsHomePage() {
                       challengeType: m.league.scoringRules?.challengeType,
                       bracketType: m.league.scoringRules?.bracketType,
                     })
+                    const poolHref = resolveMyPoolCardHref({
+                      poolId: m.league.id,
+                      sport: m.league.tournament?.sport,
+                      challengeType: m.league.scoringRules?.challengeType,
+                      bracketType: m.league.scoringRules?.bracketType,
+                      playoffBySport,
+                    })
+                    if (process.env.NODE_ENV !== "production") {
+                      console.info("[brackets] pool card href", {
+                        poolId: m.league.id,
+                        sport: String(m.league.tournament?.sport ?? ""),
+                        href: poolHref,
+                      })
+                    }
                     return (
                       <Link
                         key={m.league.id}
-                        href={`/brackets/leagues/${m.league.id}`}
+                        href={poolHref}
                         className="flex items-center gap-3 p-3.5 rounded-xl transition group"
                         style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
                       >
@@ -290,6 +350,13 @@ export default async function BracketsHomePage() {
             <MyPoolsTab
               pools={myLeagues.map((m: any) => ({
                 id: m.league.id,
+                href: resolveMyPoolCardHref({
+                  poolId: m.league.id,
+                  sport: m.league.tournament?.sport,
+                  challengeType: m.league.scoringRules?.challengeType ?? null,
+                  bracketType: m.league.scoringRules?.bracketType ?? null,
+                  playoffBySport,
+                }),
                 name: m.league.name,
                 members: m.league._count.members,
                 entries: m.league._count.entries,
