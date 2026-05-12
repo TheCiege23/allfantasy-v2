@@ -114,6 +114,7 @@
     "ai-result-cache:audit": "node --env-file=.env --require ./scripts/_audit-preload.cjs --import tsx scripts/audit-ai-result-cache.ts",
     "ai-result-cache:regression": "node --env-file=.env --require ./scripts/_audit-preload.cjs --import tsx scripts/regression-ai-result-cache.ts",
     "perf:landing-budget": "node scripts/check-landing-performance.mjs",
+    "load-test:draft": "k6 run scripts/load-test/draft-pick.k6.js",
     "test:prompt2": "vitest run __tests__/sport-team-player-pool-mapping.test.ts __tests__/sport-default-roster-settings.test.ts __tests__/league-roster-validation-context.test.ts __tests__/league-creation-defaults-loader-variants.test.ts __tests__/prompt2-slot-flex-behavior.test.ts",
     "qa:legacy-smoke": "node scripts/legacy-feature-smoke-test.mjs",
     "qa:legacy-report": "node scripts/legacy-qa-report.mjs",
