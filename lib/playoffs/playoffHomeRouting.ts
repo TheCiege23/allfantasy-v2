@@ -17,36 +17,62 @@ export function resolvePlayoffCardHref(input: {
   sport: SupportedSport | string
   playoffBySport: Map<string, PlayoffChallengeRef>
 }): string {
-  const normalizedSport = String(input.sport).toLowerCase()
-  const existing = input.playoffBySport.get(normalizedSport)
-  if (existing?.challengeId) {
-    return `/brackets/playoffs/${existing.challengeId}`
+  try {
+    const normalizedSport = String(input?.sport ?? "").toLowerCase()
+    if (!normalizedSport) return "/brackets"
+
+    const bySport = input?.playoffBySport
+    const existing = bySport instanceof Map ? bySport.get(normalizedSport) : undefined
+    if (existing?.challengeId) {
+      return `/brackets/playoffs/${existing.challengeId}`
+    }
+
+    if (normalizedSport === "nba" || normalizedSport === "nhl") {
+      return "/brackets"
+    }
+
+    return "/brackets"
+  } catch {
+    return "/brackets"
   }
-  return `/brackets/playoffs/create?sport=${encodeURIComponent(normalizedSport)}`
 }
 
 export function resolvePlayoffCardMode(input: {
   sport: SupportedSport | string
   playoffBySport: Map<string, PlayoffChallengeRef>
 }): "open" | "create" {
-  const normalizedSport = String(input.sport).toLowerCase()
-  return input.playoffBySport.has(normalizedSport) ? "open" : "create"
+  try {
+    const normalizedSport = String(input?.sport ?? "").toLowerCase()
+    if (!normalizedSport) return "create"
+    const bySport = input?.playoffBySport
+    if (!(bySport instanceof Map)) return "create"
+    return bySport.has(normalizedSport) ? "open" : "create"
+  } catch {
+    return "create"
+  }
 }
 
 export function resolveMyPoolCardHref(input: MyPoolCardInput): string {
-  const normalizedSport = String(input.sport ?? "").toLowerCase()
-  const normalizedChallengeType = String(input.challengeType ?? input.bracketType ?? "").toLowerCase()
+  try {
+    const poolId = String(input?.poolId ?? "").trim()
+    if (!poolId) return "/brackets"
 
-  if (normalizedSport === "nba" || normalizedSport === "nhl") {
-    const existing = input.playoffBySport.get(normalizedSport)
-    if (existing?.challengeId) {
-      return `/brackets/playoffs/${existing.challengeId}`
+    const normalizedSport = String(input?.sport ?? "").toLowerCase()
+    const normalizedChallengeType = String(input?.challengeType ?? input?.bracketType ?? "").toLowerCase()
+
+    if (normalizedSport === "nba" || normalizedSport === "nhl") {
+      const existing = input?.playoffBySport instanceof Map ? input.playoffBySport.get(normalizedSport) : undefined
+      if (existing?.challengeId) {
+        return `/brackets/playoffs/${existing.challengeId}`
+      }
     }
-  }
 
-  if (normalizedChallengeType.includes("playoff")) {
-    return `/brackets/playoffs/${input.poolId}`
-  }
+    if (normalizedChallengeType.includes("playoff")) {
+      return `/brackets/playoffs/${poolId}`
+    }
 
-  return `/brackets/leagues/${input.poolId}`
+    return `/brackets/leagues/${poolId}`
+  } catch {
+    return "/brackets"
+  }
 }

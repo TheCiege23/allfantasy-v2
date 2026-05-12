@@ -7,6 +7,8 @@ const areBracketChallengesEnabledMock = vi.hoisted(() => vi.fn())
 const getEnabledSportsMock = vi.hoisted(() => vi.fn())
 const bracketLeagueMemberFindManyMock = vi.hoisted(() => vi.fn())
 const playoffBracketChallengeFindManyMock = vi.hoisted(() => vi.fn())
+const resolvePlayoffCardHrefMock = vi.hoisted(() => vi.fn(({ sport }: any) => `/brackets/playoffs/create?sport=${sport}`))
+const resolveMyPoolCardHrefMock = vi.hoisted(() => vi.fn(({ poolId }: any) => `/brackets/leagues/${poolId}`))
 
 vi.mock("next-auth", () => ({ getServerSession: getServerSessionMock }))
 vi.mock("@/lib/auth", () => ({ authOptions: {} }))
@@ -50,8 +52,8 @@ vi.mock("@/lib/bracket-challenge", () => ({
   resolveBracketSportUI: () => ({ badge: "NBA", shortLabel: "NBA", label: "NBA" }),
 }))
 vi.mock("@/lib/playoffs", () => ({
-  resolveMyPoolCardHref: ({ poolId }: any) => `/brackets/leagues/${poolId}`,
-  resolvePlayoffCardHref: ({ sport }: any) => `/brackets/playoffs/create?sport=${sport}`,
+  resolveMyPoolCardHref: resolveMyPoolCardHrefMock,
+  resolvePlayoffCardHref: resolvePlayoffCardHrefMock,
   resolvePlayoffCardMode: () => "create",
 }))
 
@@ -62,6 +64,18 @@ describe("app/brackets/page — P2021 playoff table missing", () => {
     areBracketChallengesEnabledMock.mockResolvedValue(true)
     getEnabledSportsMock.mockResolvedValue(["NFL", "NBA", "NHL"])
     bracketLeagueMemberFindManyMock.mockResolvedValue([])
+    playoffBracketChallengeFindManyMock.mockResolvedValue([])
+    resolvePlayoffCardHrefMock.mockImplementation(({ sport }: any) => `/brackets/playoffs/create?sport=${sport}`)
+  })
+
+  it("renders the page when session lookup throws", async () => {
+    getServerSessionMock.mockRejectedValue(new Error("session crashed"))
+
+    const mod = await import("@/app/brackets/page")
+    const element = await (mod.default as () => Promise<React.ReactElement>)()
+    render(element)
+
+    expect(screen.getByTestId("bracket-home-tabs")).toBeInTheDocument()
   })
 
   it("renders the page without playoff My Pools when P2021 is thrown", async () => {
@@ -107,10 +121,63 @@ describe("app/brackets/page — P2021 playoff table missing", () => {
     expect(screen.getByTestId("my-pools-tab")).toHaveTextContent("pools:0")
   })
 
-  it("re-throws non-P2021 errors from playoffBracketChallenge.findMany", async () => {
+  it("renders when bracketLeagueMember.findMany throws Prisma validation error", async () => {
+    const prismaValidation = Object.assign(
+      new Error("Unknown field `name` for select statement on model `AppUser`"),
+      { name: "PrismaClientValidationError" }
+    )
+    bracketLeagueMemberFindManyMock.mockRejectedValue(prismaValidation)
+
+    const mod = await import("@/app/brackets/page")
+    const element = await (mod.default as () => Promise<React.ReactElement>)()
+    render(element)
+
+    expect(screen.getByTestId("bracket-home-tabs")).toBeInTheDocument()
+  })
+
+  it("renders when playoffBracketChallenge.findMany throws Prisma validation error", async () => {
+    const prismaValidation = Object.assign(
+      new Error("Unknown field `name` for select statement on model `AppUser`"),
+      { name: "PrismaClientValidationError" }
+    )
+    playoffBracketChallengeFindManyMock.mockRejectedValue(prismaValidation)
+
+    const mod = await import("@/app/brackets/page")
+    const element = await (mod.default as () => Promise<React.ReactElement>)()
+    render(element)
+
+    expect(screen.getByTestId("bracket-home-tabs")).toBeInTheDocument()
+  })
+
+  it("renders when playoff lookup fails with not-a-function style error", async () => {
+    playoffBracketChallengeFindManyMock.mockRejectedValue(new TypeError("findMany is not a function"))
+
+    const mod = await import("@/app/brackets/page")
+    const element = await (mod.default as () => Promise<React.ReactElement>)()
+    render(element)
+
+    expect(screen.getByTestId("bracket-home-tabs")).toBeInTheDocument()
+  })
+
+  it("renders when resolvePlayoffCardHref throws", async () => {
+    resolvePlayoffCardHrefMock.mockImplementation(() => {
+      throw new TypeError("(0 , r.resolvePlayoffCardHref) is not a function")
+    })
+
+    const mod = await import("@/app/brackets/page")
+    const element = await (mod.default as () => Promise<React.ReactElement>)()
+    render(element)
+
+    expect(screen.getByTestId("bracket-home-tabs")).toBeInTheDocument()
+  })
+
+  it("renders when playoff query throws non-prisma runtime error", async () => {
     playoffBracketChallengeFindManyMock.mockRejectedValue(new Error("connection refused"))
 
     const mod = await import("@/app/brackets/page")
-    await expect((mod.default as () => Promise<React.ReactElement>)()).rejects.toThrow("connection refused")
+    const element = await (mod.default as () => Promise<React.ReactElement>)()
+    render(element)
+
+    expect(screen.getByTestId("bracket-home-tabs")).toBeInTheDocument()
   })
 })

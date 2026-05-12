@@ -4,17 +4,32 @@ import Link from 'next/link'
 import { resolveBracketChallengeLabel, resolveBracketSportUI } from '@/lib/bracket-challenge'
 
 type PoolItem = {
-  id: string
+  id?: string
   href?: string
-  name: string
-  members: number
-  entries: number
-  sport: string
+  name?: string
+  members?: number
+  entries?: number
+  sport?: string | null
   challengeType?: string | null
   bracketType?: string | null
 }
 
-export default function MyPoolsTab({ pools }: { pools: PoolItem[] }) {
+export default function MyPoolsTab({ pools }: { pools?: PoolItem[] | null }) {
+  const normalizedPools = Array.isArray(pools)
+    ? pools
+        .filter((pool): pool is PoolItem => Boolean(pool?.id))
+        .map((pool) => ({
+          id: String(pool.id),
+          href: typeof pool.href === "string" && pool.href.trim() ? pool.href : "/brackets",
+          name: typeof pool.name === "string" && pool.name.trim() ? pool.name : "Untitled Pool",
+          members: Number.isFinite(pool.members) ? Number(pool.members) : 0,
+          entries: Number.isFinite(pool.entries) ? Number(pool.entries) : 0,
+          sport: typeof pool.sport === "string" && pool.sport.trim() ? pool.sport : "BRACKET",
+          challengeType: pool.challengeType ?? null,
+          bracketType: pool.bracketType ?? null,
+        }))
+    : []
+
   function logPoolClick(poolId: string, href: string) {
     if (process.env.NODE_ENV !== "production") {
       console.info("[brackets] clicked pool id", { poolId, href })
@@ -27,8 +42,8 @@ export default function MyPoolsTab({ pools }: { pools: PoolItem[] }) {
         <h3 className="text-sm font-semibold text-white">My Pools</h3>
         <Link href="/brackets" className="text-xs text-cyan-300 hover:underline">View all</Link>
       </div>
-      {pools.length === 0 ? (
-        <p className="text-sm text-white/60">No pools yet. Create one to get started.</p>
+      {normalizedPools.length === 0 ? (
+        <p className="text-sm text-white/60">No pools yet. Create or join a pool to get started.</p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-white/10">
           <table className="min-w-full text-left text-xs text-white/80">
@@ -40,14 +55,14 @@ export default function MyPoolsTab({ pools }: { pools: PoolItem[] }) {
               </tr>
             </thead>
             <tbody>
-              {pools.slice(0, 6).map((p) => {
-                const sportUI = resolveBracketSportUI(p.sport)
+              {normalizedPools.slice(0, 6).map((p) => {
+                const sportUI = resolveBracketSportUI(p.sport ?? "BRACKET")
                 const challengeLabel = resolveBracketChallengeLabel({
-                  sport: p.sport,
+                  sport: p.sport ?? "BRACKET",
                   challengeType: p.challengeType,
                   bracketType: p.bracketType,
                 })
-                const href = p.href ?? `/brackets/leagues/${p.id}`
+                const href = p.href || "/brackets"
                 return (
                   <tr key={p.id} className="border-t border-white/10">
                     <td className="px-3 py-2">

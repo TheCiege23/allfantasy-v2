@@ -32,129 +32,268 @@ type PlayoffHomeLeague = {
   name: string
 }
 
-export default async function BracketsHomePage() {
-  let session: { user?: SessionUser } | null = null
-  try {
-    session = (await getServerSession(authOptions as any)) as {
-      user?: SessionUser
-    } | null
-  } catch (e) {
-    console.error("[brackets] session error:", e)
-  }
+function isExpectedBracketLoadError(err: unknown): boolean {
+  if (!err) return false
+  const errObj = err as any
+  const errStr = String(err)
+  return (
+    errObj?.code === "P2021" ||
+    errObj?.code === "P2022" ||
+    errObj?.code === "P2025" ||
+    errObj?.name === "PrismaClientValidationError" ||
+    errStr.includes("PrismaClientValidationError") ||
+    errStr.includes("does not exist in the current database") ||
+    errStr.includes("Unknown field") ||
+    errStr.includes("is not a function") ||
+    errStr.includes("is undefined") ||
+    errStr.includes("Cannot read")
+  )
+}
 
-  const user = session?.user as SessionUser | undefined
-  const userId = user?.id
+function sanitizeError(err: unknown): string {
+  const asString = String(err ?? "unknown")
+  return asString.length > 220 ? `${asString.slice(0, 220)}...` : asString
+}
 
-  const bracketsEnabled = await areBracketChallengesEnabled()
-  if (!bracketsEnabled) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="rounded-xl border p-6 max-w-md text-center" style={{ borderColor: "var(--border)" }}>
-          <AlertTriangle className="h-10 w-10 mx-auto mb-3" style={{ color: "var(--muted)" }} />
-          <h1 className="text-lg font-semibold mb-2" style={{ color: "var(--text)" }}>Bracket challenges are temporarily disabled</h1>
-          <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>This feature has been turned off by the platform. Check back later.</p>
-          <Link href="/dashboard" className="text-sm font-medium" style={{ color: "var(--accent)" }}>Back to dashboard</Link>
+function BracketHomeFallback({ sports }: { sports: string[] }) {
+  return (
+    <div className="min-h-screen mode-surface mode-readable">
+      <div className="mx-auto max-w-5xl space-y-4 p-4 sm:p-6">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <h1 className="text-xl font-bold text-white">Bracket Challenges</h1>
+          <p className="mt-2 text-sm text-white/70">
+            Pools could not be loaded. You can still create or join a pool.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href="/brackets/leagues/new" className="rounded-lg bg-sky-500 px-3 py-2 text-sm font-semibold text-white">
+              Create Pool
+            </Link>
+            <Link href="/brackets/join" className="rounded-lg border border-white/20 px-3 py-2 text-sm font-semibold text-white/85">
+              Join Pool
+            </Link>
+          </div>
         </div>
+
+        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <h2 className="text-sm font-semibold text-white">Sports</h2>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {sports.map((sport) => (
+              <Link
+                key={sport}
+                href="/brackets"
+                className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-center text-xs font-semibold text-white/80"
+              >
+                {String(sport).toUpperCase()}
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <h2 className="text-sm font-semibold text-white">My Pools</h2>
+          <p className="mt-2 text-sm text-white/65">No pools yet. Create or join a pool to get started.</p>
+        </section>
       </div>
-    )
-  }
+    </div>
+  )
+}
 
-  const isMissingPlayoffTablesError = (err: unknown): boolean => {
-    if (!err) return false
-    const errObj = err as any
-    const errStr = String(err)
-    return (
-      errObj?.code === "P2021" ||
-      (errObj?.meta?.cause && String(errObj.meta.cause).includes("does not exist")) ||
-      (errObj?.message && errObj.message.includes("does not exist in the current database")) ||
-      errStr.includes("does not exist in the current database") ||
-      errStr.includes("playoff_bracket_challenges") ||
-      (errObj?.name && errObj.name.includes("PrismaClientKnownRequestError") && errStr.includes("does not exist"))
-    )
+async function safeGetSessionUser() {
+  try {
+    const session = (await getServerSession(authOptions as any)) as { user?: SessionUser } | null
+    return session?.user as SessionUser | undefined
+  } catch (err) {
+    console.warn("[brackets/page] safeGetSessionUser fallback", {
+      route: "/brackets",
+      functionName: "safeGetSessionUser",
+      error: sanitizeError(err),
+    })
+    return undefined
   }
+}
 
-  let myLeagues: any[] = []
-  if (userId) {
-    try {
-      myLeagues = await (prisma as any).bracketLeagueMember.findMany({
-        where: { userId },
-        include: {
-          league: {
-            select: {
-              id: true,
-              name: true,
-              joinCode: true,
-              scoringRules: true,
-              tournament: { select: { name: true, season: true, sport: true } },
-              _count: { select: { members: true, entries: true } },
-            },
+async function safeGetLegacyBracketPools(userId: string | undefined) {
+  if (!userId) return []
+  try {
+    return await (prisma as any).bracketLeagueMember.findMany({
+      where: { userId },
+      include: {
+        league: {
+          select: {
+            id: true,
+            name: true,
+            joinCode: true,
+            scoringRules: true,
+            tournament: { select: { name: true, season: true, sport: true } },
+            _count: { select: { members: true, entries: true } },
           },
         },
-        orderBy: { createdAt: "desc" },
-        take: 20,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    })
+  } catch (err) {
+    if (!isExpectedBracketLoadError(err)) {
+      console.warn("[brackets/page] safeGetLegacyBracketPools unexpected fallback", {
+        route: "/brackets",
+        functionName: "safeGetLegacyBracketPools",
+        error: sanitizeError(err),
       })
-    } catch (err) {
-      if (isMissingPlayoffTablesError(err)) {
-        console.warn("[brackets] bracket league tables not yet available (missing table) — rendering with empty pools")
-      } else {
-        throw err
-      }
+      return []
     }
+    console.warn("[brackets/page] safeGetLegacyBracketPools expected fallback", {
+      route: "/brackets",
+      functionName: "safeGetLegacyBracketPools",
+      error: sanitizeError(err),
+    })
+    return []
   }
+}
 
-  let myPlayoffChallenges: PlayoffHomeLeague[] = []
-  let playoffTableMissing = false
-  if (userId) {
-    try {
-      const rows = await (prisma as any).playoffBracketChallenge
-        .findMany({
-            where: {
-              OR: [
-                { ownerUserId: userId },
-                {
-                  entries: {
-                    some: { userId },
-                  },
-                },
-              ],
+async function safeGetPlayoffPools(userId: string | undefined): Promise<PlayoffHomeLeague[]> {
+  if (!userId) return []
+  try {
+    const rows = await (prisma as any).playoffBracketChallenge.findMany({
+      where: {
+        OR: [
+          { ownerUserId: userId },
+          {
+            entries: {
+              some: { userId },
             },
-            select: {
-              id: true,
-              name: true,
-              sport: true,
           },
-          orderBy: { createdAt: "desc" },
-        })
-      const uniqueBySport = new Map<string, PlayoffHomeLeague>()
-      for (const row of rows) {
-        const sport = String(row?.sport ?? "").toLowerCase()
-        if (sport !== "nba" && sport !== "nhl") continue
-        if (uniqueBySport.has(sport)) continue
-        uniqueBySport.set(sport, { challengeId: row.id, sport, name: row.name })
-      }
-      myPlayoffChallenges = Array.from(uniqueBySport.values())
-    } catch (err: any) {
-      if (isMissingPlayoffTablesError(err)) {
-        console.warn("[brackets] playoff tables not yet available (missing table) — rendering without playoff My Pools")
-        playoffTableMissing = true
-      } else {
-        throw err
-      }
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        sport: true,
+      },
+      orderBy: { createdAt: "desc" },
+    })
+    const uniqueBySport = new Map<string, PlayoffHomeLeague>()
+    for (const row of rows ?? []) {
+      const sport = String(row?.sport ?? "").toLowerCase()
+      if (sport !== "nba" && sport !== "nhl") continue
+      if (uniqueBySport.has(sport)) continue
+      uniqueBySport.set(sport, { challengeId: row.id, sport, name: row.name })
     }
+    return Array.from(uniqueBySport.values())
+  } catch (err) {
+    if (!isExpectedBracketLoadError(err)) {
+      console.warn("[brackets/page] safeGetPlayoffPools unexpected fallback", {
+        route: "/brackets",
+        functionName: "safeGetPlayoffPools",
+        error: sanitizeError(err),
+      })
+      return []
+    }
+    console.warn("[brackets/page] safeGetPlayoffPools expected fallback", {
+      route: "/brackets",
+      functionName: "safeGetPlayoffPools",
+      error: sanitizeError(err),
+    })
+    return []
   }
+}
 
-  const playoffBySport = new Map<string, PlayoffHomeLeague>(
-    myPlayoffChallenges.map((challenge) => [challenge.sport.toLowerCase(), challenge])
-  )
+async function safeGetEnabledBracketSports() {
+  try {
+    const enabledSports = await getEnabledSports()
+    return enabledSports.length > 0 ? enabledSports : SUPPORTED_SPORTS
+  } catch (err) {
+    console.warn("[brackets/page] safeGetEnabledBracketSports fallback", {
+      route: "/brackets",
+      functionName: "safeGetEnabledBracketSports",
+      error: sanitizeError(err),
+    })
+    return SUPPORTED_SPORTS
+  }
+}
+
+export default async function BracketsHomePage() {
+  let user: SessionUser | undefined
+  let userId: string | undefined
+  let myLeagues: any[] = []
+  let myPlayoffChallenges: PlayoffHomeLeague[] = []
+  let visibleSports: string[] = SUPPORTED_SPORTS
+  let playoffBySport = new Map<string, PlayoffHomeLeague>()
+  let playoffSports: Array<{ sport: string; ui: ReturnType<typeof resolveBracketSportUI> }> = []
+
+  try {
+    const bracketsEnabled = await areBracketChallengesEnabled().catch(() => true)
+    if (!bracketsEnabled) {
+      return (
+        <div className="min-h-screen flex items-center justify-center p-6">
+          <div className="rounded-xl border p-6 max-w-md text-center" style={{ borderColor: "var(--border)" }}>
+            <AlertTriangle className="h-10 w-10 mx-auto mb-3" style={{ color: "var(--muted)" }} />
+            <h1 className="text-lg font-semibold mb-2" style={{ color: "var(--text)" }}>Bracket challenges are temporarily disabled</h1>
+            <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>This feature has been turned off by the platform. Check back later.</p>
+            <Link href="/dashboard" className="text-sm font-medium" style={{ color: "var(--accent)" }}>Back to dashboard</Link>
+          </div>
+        </div>
+      )
+    }
+
+    user = await safeGetSessionUser()
+    userId = user?.id
+    myLeagues = await safeGetLegacyBracketPools(userId)
+    myPlayoffChallenges = await safeGetPlayoffPools(userId)
+    visibleSports = await safeGetEnabledBracketSports()
+    playoffBySport = new Map<string, PlayoffHomeLeague>(
+      myPlayoffChallenges.map((challenge) => [challenge.sport.toLowerCase(), challenge])
+    )
+    playoffSports = visibleSports.map((sport) => ({
+      sport,
+      ui: resolveBracketSportUI(sport),
+    }))
+  } catch (err) {
+    console.warn("[brackets/page] emergency fallback", {
+      route: "/brackets",
+      functionName: "BracketsHomePage",
+      error: sanitizeError(err),
+    })
+    return <BracketHomeFallback sports={visibleSports} />
+  }
 
   const bracketSignupHref = buildSignupHrefWithIntent("/brackets")
   const bracketLoginHref = buildLoginHrefWithIntent("/brackets")
-  const enabledSports = await getEnabledSports()
-  const visibleSports = enabledSports.length > 0 ? enabledSports : SUPPORTED_SPORTS
-  const playoffSports = visibleSports.map((sport) => ({
-    sport,
-    ui: resolveBracketSportUI(sport),
-  }))
+  const safeMyLeagues = Array.isArray(myLeagues)
+    ? myLeagues.filter((row: any) => Boolean(row?.league?.id))
+    : []
+  const safeResolvePlayoffHref = (sport: string) => {
+    try {
+      if (typeof resolvePlayoffCardHref === "function") {
+        return resolvePlayoffCardHref({ sport, playoffBySport })
+      }
+    } catch (err) {
+      console.warn("[brackets/page] safeResolvePlayoffHref fallback", {
+        route: "/brackets",
+        functionName: "safeResolvePlayoffHref",
+        error: sanitizeError(err),
+      })
+    }
+    return "/brackets"
+  }
+  const safeResolveMyPoolHref = (input: {
+    poolId: string
+    sport: string | null | undefined
+    challengeType?: string | null
+    bracketType?: string | null
+  }) => {
+    try {
+      if (typeof resolveMyPoolCardHref === "function") {
+        return resolveMyPoolCardHref({ ...input, playoffBySport })
+      }
+    } catch (err) {
+      console.warn("[brackets/page] safeResolveMyPoolHref fallback", {
+        route: "/brackets",
+        functionName: "safeResolveMyPoolHref",
+        error: sanitizeError(err),
+      })
+    }
+    return "/brackets"
+  }
 
   return (
     <div className="min-h-screen mode-surface mode-readable">
@@ -289,7 +428,7 @@ export default async function BracketsHomePage() {
                   {playoffSports.map(({ sport, ui }) => (
                     <Link
                       key={sport}
-                      href={resolvePlayoffCardHref({ sport, playoffBySport })}
+                      href={safeResolvePlayoffHref(sport)}
                       className="rounded-xl px-3 py-2 text-xs font-semibold text-center transition flex items-center justify-center gap-2"
                       style={{ border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.8)' }}
                       data-testid={`bracket-playoff-sport-${sport}`}
@@ -306,22 +445,21 @@ export default async function BracketsHomePage() {
                 </div>
               </div>
 
-              {myLeagues.length > 0 ? (
+              {safeMyLeagues.length > 0 ? (
                 <div className="space-y-2">
                   <h2 className="text-xs font-bold uppercase tracking-wider px-1" style={{ color: 'rgba(255,255,255,0.35)' }}>My Pools</h2>
-                  {myLeagues.map((m: any) => {
+                  {safeMyLeagues.map((m: any) => {
                     const sportUI = resolveBracketSportUI(m.league.tournament?.sport ?? null)
                     const challengeLabel = resolveBracketChallengeLabel({
                       sport: m.league.tournament?.sport,
                       challengeType: m.league.scoringRules?.challengeType,
                       bracketType: m.league.scoringRules?.bracketType,
                     })
-                    const poolHref = resolveMyPoolCardHref({
+                    const poolHref = safeResolveMyPoolHref({
                       poolId: m.league.id,
                       sport: m.league.tournament?.sport,
                       challengeType: m.league.scoringRules?.challengeType,
                       bracketType: m.league.scoringRules?.bracketType,
-                      playoffBySport,
                     })
                     if (process.env.NODE_ENV !== "production") {
                       console.info("[brackets] pool card href", {
@@ -372,18 +510,17 @@ export default async function BracketsHomePage() {
       <BracketShell>
         <div className="space-y-4">
           <BracketHomeTabs
-            poolCount={myLeagues.length}
+            poolCount={safeMyLeagues.length}
           />
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
             <MyPoolsTab
-              pools={myLeagues.map((m: any) => ({
+              pools={safeMyLeagues.map((m: any) => ({
                 id: m.league.id,
-                href: resolveMyPoolCardHref({
+                href: safeResolveMyPoolHref({
                   poolId: m.league.id,
                   sport: m.league.tournament?.sport,
                   challengeType: m.league.scoringRules?.challengeType ?? null,
                   bracketType: m.league.scoringRules?.bracketType ?? null,
-                  playoffBySport,
                 }),
                 name: m.league.name,
                 members: m.league._count.members,
@@ -401,7 +538,7 @@ export default async function BracketsHomePage() {
             <JoinPoolTab />
             <StandingsTab />
             <BracketHistoryTab
-              pools={myLeagues.map((m: any) => ({
+              pools={safeMyLeagues.map((m: any) => ({
                 id: m.league.id,
                 name: m.league.name,
                 entries: m.league._count.entries,

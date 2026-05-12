@@ -39,6 +39,11 @@ function isExpectedPlayoffRouteError(err: unknown): boolean {
   )
 }
 
+function isRedirectControlFlow(err: unknown): boolean {
+  const errStr = String(err ?? "")
+  return errStr.includes("NEXT_REDIRECT")
+}
+
 function EmergencyPoolFallback() {
   return (
     <main className="mx-auto max-w-3xl p-6">
@@ -80,7 +85,13 @@ export async function generateMetadata({ params }: { params: { leagueId: string 
       return { title: playoffView.challenge.name }
     }
   } catch (err) {
-    if (!isExpectedPlayoffRouteError(err)) throw err
+    if (!isExpectedPlayoffRouteError(err)) {
+      console.warn("[brackets/leagues] metadata fallback due to unexpected error", {
+        leagueId: params.leagueId,
+        error: String(err),
+      })
+      return { title: "Bracket Pool" }
+    }
     console.warn("[brackets/leagues] metadata fallback due to expected error", {
       leagueId: params.leagueId,
       error: String(err),
@@ -198,6 +209,9 @@ export default async function BracketLeagueDetailPage({
       </main>
     )
   } catch (err) {
+    if (isRedirectControlFlow(err)) {
+      throw err
+    }
     if (isExpectedPlayoffRouteError(err)) {
       console.warn("[brackets/leagues] emergency fallback for expected route error", {
         leagueId: params.leagueId,
@@ -205,6 +219,10 @@ export default async function BracketLeagueDetailPage({
       })
       return <EmergencyPoolFallback />
     }
-    throw err
+    console.warn("[brackets/leagues] emergency fallback for unexpected route error", {
+      leagueId: params.leagueId,
+      error: String(err),
+    })
+    return <EmergencyPoolFallback />
   }
 }

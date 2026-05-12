@@ -24,25 +24,40 @@ export default function PlayoffBracketShell({ initialView }: Props) {
   const [refreshing, startRefreshing] = useTransition()
   const [creatingEntry, startCreatingEntry] = useTransition()
 
-  const participants = Array.isArray(view.participants) ? view.participants : []
-  const entries = Array.isArray(view.entries) ? view.entries : []
-  const series = Array.isArray(view.series) ? view.series : []
-  const picks = Array.isArray(view.picks) ? view.picks : []
-  const rounds = Array.isArray(view.rounds) ? view.rounds : []
+  const safeChallenge = {
+    id: view?.challenge?.id || "unknown-challenge",
+    sport: String(view?.challenge?.sport ?? "bracket").toLowerCase(),
+    name: view?.challenge?.name || "Pool Dashboard",
+    seasonYear: view?.challenge?.seasonYear ?? new Date().getUTCFullYear(),
+    maxEntriesPerParticipant: Number(view?.challenge?.maxEntriesPerParticipant ?? 5),
+    inviteUrl: view?.challenge?.inviteUrl || "/brackets",
+    inviteCode: view?.challenge?.inviteCode || "",
+    visibility: view?.challenge?.visibility || "private",
+    maxParticipants: Number(view?.challenge?.maxParticipants ?? 0),
+    scoringStyle: view?.challenge?.scoringStyle || "series_winner",
+    lockRule: view?.challenge?.lockRule || "first_tipoff",
+    isTestMode: Boolean(view?.challenge?.isTestMode),
+    ownerUserId: view?.challenge?.ownerUserId || null,
+  }
+  const participants = Array.isArray(view?.participants) ? view.participants : []
+  const entries = Array.isArray(view?.entries) ? view.entries : []
+  const series = Array.isArray(view?.series) ? view.series : []
+  const picks = Array.isArray(view?.picks) ? view.picks : []
+  const rounds = Array.isArray(view?.rounds) ? view.rounds : []
 
   const pickCount = view.activeEntry?.pickCount ?? picks.length
   const totalSeries = series.length
-  const viewerEntryCount = entries.filter((entry) => entry.userId === view.viewerUserId).length
-  const canCreateEntry = viewerEntryCount < view.challenge.maxEntriesPerParticipant
+  const viewerEntryCount = entries.filter((entry) => entry.userId === view?.viewerUserId).length
+  const canCreateEntry = viewerEntryCount < safeChallenge.maxEntriesPerParticipant
   const title = useMemo(() => {
     const sportLabelMap: Record<string, string> = {
       nba: "NBA",
       nhl: "NHL",
       soccer: "Soccer",
     }
-    const sportLabel = sportLabelMap[String(view.challenge.sport).toLowerCase()] ?? String(view.challenge.sport).toUpperCase()
+    const sportLabel = sportLabelMap[String(safeChallenge.sport).toLowerCase()] ?? String(safeChallenge.sport).toUpperCase()
     return `${sportLabel} Playoff Bracket`
-  }, [view.challenge.sport])
+  }, [safeChallenge.sport])
   const leaderboardRows = useMemo(
     () =>
       [...entries]
@@ -60,7 +75,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
     if (!view.activeEntry) return
     startSaving(async () => {
       const next = await savePlayoffBracketPickClient({
-        challengeId: view.challenge.id,
+        challengeId: safeChallenge.id,
         entryId: view.activeEntry!.id,
         seriesId,
         pickTeamName: teamName,
@@ -71,13 +86,13 @@ export default function PlayoffBracketShell({ initialView }: Props) {
 
   function handleRefresh() {
     startRefreshing(async () => {
-      const latest = await getPlayoffBracketViewClient(view.challenge.id)
+      const latest = await getPlayoffBracketViewClient(safeChallenge.id)
       setView(latest)
     })
   }
 
   function openEntry(entryId: string) {
-    const url = `/brackets/playoffs/${view.challenge.id}?entryId=${encodeURIComponent(entryId)}`
+    const url = `/brackets/playoffs/${safeChallenge.id}?entryId=${encodeURIComponent(entryId)}`
     router.push(url)
   }
 
@@ -85,19 +100,19 @@ export default function PlayoffBracketShell({ initialView }: Props) {
     startCreatingEntry(async () => {
       try {
         const nextEntryIndex = viewerEntryCount + 1
-        if (nextEntryIndex > view.challenge.maxEntriesPerParticipant) {
+        if (nextEntryIndex > safeChallenge.maxEntriesPerParticipant) {
           toast.error("Entry limit reached (max 5 per user)")
           return
         }
 
         const created = await createPlayoffBracketEntryClient({
-          challengeId: view.challenge.id,
+          challengeId: safeChallenge.id,
           name: `Bracket ${nextEntryIndex}`,
         })
 
         toast.success(`Bracket ${nextEntryIndex} created.`)
         router.push(created.redirectUrl)
-        const latest = await getPlayoffBracketViewClient(view.challenge.id)
+        const latest = await getPlayoffBracketViewClient(safeChallenge.id)
         setView(latest)
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to create entry"
@@ -108,8 +123,8 @@ export default function PlayoffBracketShell({ initialView }: Props) {
 
   async function copyInvite() {
     try {
-      const absoluteUrl = `${window.location.origin}${view.challenge.inviteUrl}`
-      await navigator.clipboard.writeText(`${absoluteUrl}?code=${view.challenge.inviteCode}`)
+      const absoluteUrl = `${window.location.origin}${safeChallenge.inviteUrl}`
+      await navigator.clipboard.writeText(`${absoluteUrl}?code=${safeChallenge.inviteCode}`)
       toast.success("Invite link copied")
     } catch {
       toast.error("Could not copy invite link")
@@ -125,7 +140,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
           <div>
             <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Sleeper-style board</p>
             <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{title}</h1>
-            <p className="mt-1 text-sm text-slate-700">{view.challenge.name} - {view.challenge.seasonYear}</p>
+            <p className="mt-1 text-sm text-slate-700">{safeChallenge.name} - {safeChallenge.seasonYear}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -139,7 +154,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
             </button>
             <button
               type="button"
-              onClick={() => router.push(`/brackets/playoffs/${view.challenge.id}?view=board`)}
+              onClick={() => router.push(`/brackets/playoffs/${safeChallenge.id}?view=board`)}
               className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
               <ArrowRightCircle className="h-4 w-4" />
@@ -152,12 +167,12 @@ export default function PlayoffBracketShell({ initialView }: Props) {
             <Trophy className="h-4 w-4" />
             {pickCount}/{totalSeries} picks
           </span>
-          <span className="rounded-full bg-emerald-100 px-3 py-1 text-emerald-900">{String(view.challenge.sport ?? "").toUpperCase()}</span>
+          <span className="rounded-full bg-emerald-100 px-3 py-1 text-emerald-900">{String(safeChallenge.sport ?? "").toUpperCase()}</span>
           <span className="rounded-full bg-indigo-100 px-3 py-1 text-indigo-900">
             {participants.length} participant{participants.length !== 1 ? "s" : ""}
           </span>
           {saving ? <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-900">Saving pick...</span> : null}
-          {view.challenge.isTestMode ? <span className="rounded-full bg-sky-100 px-3 py-1 text-sky-900">Test mode</span> : null}
+          {safeChallenge.isTestMode ? <span className="rounded-full bg-sky-100 px-3 py-1 text-sky-900">Test mode</span> : null}
         </div>
       </section>
 
@@ -165,12 +180,12 @@ export default function PlayoffBracketShell({ initialView }: Props) {
         <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">League Details</h2>
           <dl className="mt-3 grid grid-cols-2 gap-3 text-sm text-slate-700">
-            <div><dt className="font-semibold">Visibility</dt><dd>{view.challenge.visibility}</dd></div>
-            <div><dt className="font-semibold">Max Users</dt><dd>{view.challenge.maxParticipants}</dd></div>
-            <div><dt className="font-semibold">Brackets per User</dt><dd>{view.challenge.maxEntriesPerParticipant}</dd></div>
-            <div><dt className="font-semibold">Scoring Style</dt><dd>{view.challenge.scoringStyle}</dd></div>
-            <div><dt className="font-semibold">Lock Rule</dt><dd>{view.challenge.lockRule}</dd></div>
-            <div><dt className="font-semibold">Invite Code</dt><dd>{view.challenge.inviteCode}</dd></div>
+            <div><dt className="font-semibold">Visibility</dt><dd>{safeChallenge.visibility}</dd></div>
+            <div><dt className="font-semibold">Max Users</dt><dd>{safeChallenge.maxParticipants}</dd></div>
+            <div><dt className="font-semibold">Brackets per User</dt><dd>{safeChallenge.maxEntriesPerParticipant}</dd></div>
+            <div><dt className="font-semibold">Scoring Style</dt><dd>{safeChallenge.scoringStyle}</dd></div>
+            <div><dt className="font-semibold">Lock Rule</dt><dd>{safeChallenge.lockRule}</dd></div>
+            <div><dt className="font-semibold">Invite Code</dt><dd>{safeChallenge.inviteCode}</dd></div>
           </dl>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -186,7 +201,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
             </button>
             <button
               type="button"
-              onClick={() => router.push(`/brackets/playoffs/${view.challenge.id}?view=board`)}
+              onClick={() => router.push(`/brackets/playoffs/${safeChallenge.id}?view=board`)}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-sky-400 hover:text-sky-700"
             >
               Open Bracket
@@ -199,7 +214,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
               <Clipboard className="h-4 w-4" />
               Invite
             </button>
-            {view.challenge.ownerUserId === view.viewerUserId ? (
+            {safeChallenge.ownerUserId && safeChallenge.ownerUserId === view?.viewerUserId ? (
               <button
                 type="button"
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
@@ -217,7 +232,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
         <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">Invite Panel</h2>
           <p className="mt-2 text-sm text-slate-700">
-            Share this link: <span className="font-semibold">{view.challenge.inviteUrl}?code={view.challenge.inviteCode}</span>
+            Share this link: <span className="font-semibold">{safeChallenge.inviteUrl}?code={safeChallenge.inviteCode}</span>
           </p>
           <button
             type="button"
@@ -249,7 +264,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
         <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">Entries</h2>
           {entries.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-600">Create your first bracket</p>
+            <p className="mt-2 text-sm text-slate-600">Entries: none yet</p>
           ) : (
             <ul className="mt-3 space-y-2">
               {entries.map((entry, index) => (

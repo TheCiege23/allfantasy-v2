@@ -67,6 +67,21 @@ describe("/brackets/leagues/[leagueId] detail route", () => {
     expect((element as React.ReactElement).props.initialView.challenge.id).toBe("challenge-1")
   })
 
+  it("renders dashboard when NHL pool exists", async () => {
+    getPlayoffBracketViewMock.mockResolvedValue({
+      ...playoffView,
+      challenge: {
+        ...playoffView.challenge,
+        id: "challenge-nhl",
+        sport: "nhl",
+      },
+    })
+    const mod = await import("@/app/brackets/leagues/[leagueId]/page")
+
+    const element = await mod.default({ params: { leagueId: "challenge-nhl" }, searchParams: {} })
+    expect((element as React.ReactElement).props.initialView.challenge.id).toBe("challenge-nhl")
+  })
+
   it("does not render create pool form on existing pool detail route", async () => {
     getPlayoffBracketViewMock.mockResolvedValue(playoffView)
     const mod = await import("@/app/brackets/leagues/[leagueId]/page")
@@ -133,10 +148,13 @@ describe("/brackets/leagues/[leagueId] detail route", () => {
     expect(metadata.title).toBe("Bracket Pool")
   })
 
-  it("re-throws non-P2021 errors from getPlayoffBracketView", async () => {
+  it("renders emergency fallback for unexpected route errors", async () => {
     getPlayoffBracketViewMock.mockRejectedValue(new Error("unexpected DB error"))
     const mod = await import("@/app/brackets/leagues/[leagueId]/page")
 
-    await expect(mod.default({ params: { leagueId: "any-id" }, searchParams: {} })).rejects.toThrow("unexpected DB error")
+    const element = await mod.default({ params: { leagueId: "any-id" }, searchParams: {} })
+    render(element as React.ReactElement)
+
+    expect(screen.getByText("Pool dashboard is temporarily unavailable")).toBeInTheDocument()
   })
 })
