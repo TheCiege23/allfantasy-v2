@@ -20,9 +20,12 @@
  *   1 — one or more checks failed
  *
  * Optional env:
- *   STAGING_LEAGUE_ID  — a seeded league ID for draft-endpoint checks (default: skips draft-specific checks)
- *   STAGING_DRAFT_ID   — matching draft ID for SSE stream check
- *   VERBOSE=1          — print full response bodies on failure
+ *   STAGING_LEAGUE_ID    — a seeded league ID for draft-endpoint checks (default: skips draft-specific checks)
+ *   STAGING_DRAFT_ID     — matching draft ID for SSE stream check
+ *   VERBOSE=1            — print full response bodies on failure
+ *   VERCEL_BYPASS_SECRET — value for x-vercel-protection-bypass header; required when Vercel
+ *                          Preview Deployment Protection is enabled. Generate in:
+ *                          Vercel Dashboard → Project → Settings → Deployment Protection → Automation Bypass Secret
  */
 
 import { createWriteStream, existsSync } from 'node:fs'
@@ -33,6 +36,7 @@ const BASE_URL = (process.env.BASE_URL ?? 'https://www.allfantasy.ai').replace(/
 const VERBOSE = process.env.VERBOSE === '1'
 const LEAGUE_ID = process.env.STAGING_LEAGUE_ID ?? ''
 const DRAFT_ID = process.env.STAGING_DRAFT_ID ?? ''
+const BYPASS_SECRET = process.env.VERCEL_BYPASS_SECRET ?? ''
 const TIMEOUT_MS = 15_000
 
 // ── Utilities ────────────────────────────────────────────────────────────────
@@ -55,11 +59,25 @@ function fail(name, ms, reason) {
   console.log(`  ❌  ${name} (${ms}ms)  — ${reason}`)
 }
 
+// Inject Vercel bypass header on every request when VERCEL_BYPASS_SECRET is set.
+// This allows the validator to reach Preview deployments protected by Vercel
+// Deployment Protection without a browser session.
+function withBypassHeaders(headers = {}) {
+  if (!BYPASS_SECRET) return headers
+  return { ...headers, 'x-vercel-protection-bypass': BYPASS_SECRET }
+}
+
 async function fetchWithTimeout(url, init = {}) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+  // Merge bypass header into every outgoing request
+  const mergedInit = {
+    ...init,
+    headers: withBypassHeaders(init.headers ?? {}),
+    signal: controller.signal,
+  }
   try {
-    const res = await fetch(url, { ...init, signal: controller.signal })
+    const res = await fetch(url, mergedInit)
     clearTimeout(timer)
     return res
   } catch (err) {
@@ -154,7 +172,13 @@ async function checkPost(name, path, body, { expectedStatuses = [200, 400, 401, 
 
 // ── Check 1: Health endpoint ──────────────────────────────────────────────────
 
-console.log(`\n[staging-validate] Target: ${BASE_URL}\n`)
+console.log(`\n[staging-validate] Target: ${BASE_URL}`)
+if (BYPASS_SECRET) {
+  console.log(`[staging-validate] Vercel bypass: active (x-vercel-protection-bypass header set)`)
+} else {
+  console.log(`[staging-validate] Vercel bypass: not set — if Preview Protection is enabled, set VERCEL_BYPASS_SECRET`)
+}
+console.log('')
 console.log('── Health endpoint ─────────────────────────────────────')
 
 const healthUrl = `${BASE_URL}/api/health`
@@ -162,12 +186,35 @@ const { res: healthRes, ms: healthMs, err: healthErr } = await timedFetch(health
   headers: { Accept: 'application/json' },
 })
 
+// Detect Vercel Deployment Protection blocking with HTML 401 page
+if (healthRes && healthRes.status === 401) {
+  const ct = healthRes.headers.get('content-type') ?? ''
+  if (ct.includes('text/html')) {
+    console.log('')
+    console.log('  🔒  VERCEL DEPLOYMENT PROTECTION ACTIVE')
+    console.log('      All requests are returning 401 HTML (Vercel auth wall).')
+    console.log('      To bypass for automated testing:')
+    console.log('        1. Vercel Dashboard → Project → Settings → Deployment Protection')
+    console.log('        2. Enable "Automation Bypass Protection" → copy the secret')
+    console.log('        3. Re-run: VERCEL_BYPASS_SECRET=<secret> BASE_URL=<url> node scripts/staging-validate.mjs')
+    console.log('')
+    console.log('      For manual visual verification, open the preview URL in a browser')
+    console.log('      and authenticate through Vercel\'s OAuth.')
+    console.log('')
+    // Still attempt remaining checks — they'll all 401 but give a consistent picture
+  }
+}
+
 if (!healthRes || healthErr) {
   fail('/api/health reachable', healthMs, healthErr?.message ?? 'no response')
 } else {
   let healthData
   try { healthData = await healthRes.json() } catch (e) {
-    fail('/api/health valid JSON', healthMs, `Parse error: ${e.message}`)
+    if (healthRes.status === 401) {
+      fail('/api/health reachable (401 — Vercel protection)', healthMs, 'Preview Deployment Protection blocking; set VERCEL_BYPASS_SECRET to bypass')
+    } else {
+      fail('/api/health valid JSON', healthMs, `Parse error: ${e.message}`)
+    }
     healthData = null
   }
 
