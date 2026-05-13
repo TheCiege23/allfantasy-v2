@@ -158,3 +158,31 @@ describe("/brackets/leagues/[leagueId] detail route", () => {
     expect(screen.getByText("Pool dashboard is temporarily unavailable")).toBeInTheDocument()
   })
 })
+
+describe("/brackets/playoffs/[bracketId] compatibility route", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("redirects to canonical leagues detail route", async () => {
+    const mod = await import("@/app/brackets/playoffs/[bracketId]/page")
+
+    await mod.default({ params: { bracketId: "challenge-1" }, searchParams: {} })
+
+    expect(redirectMock).toHaveBeenCalledWith("/brackets/leagues/challenge-1")
+  })
+
+  it("preserves entryId when redirecting", async () => {
+    const mod = await import("@/app/brackets/playoffs/[bracketId]/page")
+
+    await mod.default({ params: { bracketId: "challenge-1" }, searchParams: { entryId: "entry-9" } })
+
+    expect(redirectMock).toHaveBeenCalledWith("/brackets/leagues/challenge-1?entryId=entry-9")
+  })
+
+  it("returns generic metadata", async () => {
+    const mod = await import("@/app/brackets/playoffs/[bracketId]/page")
+    const metadata = await mod.generateMetadata({ params: { bracketId: "challenge-1" } })
+    expect(metadata.title).toBe("Playoff Bracket")
+  })
+})

@@ -21,7 +21,7 @@ import {
 } from "@/lib/auth/PostAuthIntentRouter"
 import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
 import { resolveBracketChallengeLabel, resolveBracketSportUI } from "@/lib/bracket-challenge"
-import { resolveMyPoolCardHref, resolvePlayoffCardHref, resolvePlayoffCardMode } from "@/lib/playoffs"
+import { resolveMyPoolCardHref, resolvePlayoffCardHref, resolvePlayoffCardMode } from "@/lib/playoffs/playoffHomeRouting"
 
 export const dynamic = "force-dynamic"
 

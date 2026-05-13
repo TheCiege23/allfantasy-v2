@@ -6,7 +6,7 @@ describe("playoff home card routing", () => {
     expect(typeof routing.resolvePlayoffCardHref).toBe("function")
   })
 
-  it("routes existing NBA challenge card to dashboard route", () => {
+  it("routes existing NBA challenge card to canonical league dashboard route", () => {
     const href = routing.resolvePlayoffCardHref({
       sport: "NBA",
       playoffBySport: new Map([
@@ -20,7 +20,7 @@ describe("playoff home card routing", () => {
       ]),
     })
 
-    expect(href).toBe("/brackets/playoffs/challenge-nba")
+    expect(href).toBe("/brackets/leagues/challenge-nba")
     expect(
       routing.resolvePlayoffCardMode({
         sport: "NBA",
@@ -39,7 +39,7 @@ describe("playoff home card routing", () => {
     expect(routing.resolvePlayoffCardMode({ sport: "NHL", playoffBySport: new Map() })).toBe("create")
   })
 
-  it("resolves My Pools NBA card href to dashboard route", () => {
+  it("resolves My Pools NBA card href to canonical league dashboard route", () => {
     const href = routing.resolveMyPoolCardHref({
       poolId: "league-nba",
       sport: "NBA",
@@ -48,10 +48,10 @@ describe("playoff home card routing", () => {
       playoffBySport: new Map([["nba", { challengeId: "challenge-nba-1", sport: "nba" }]]),
     })
 
-    expect(href).toBe("/brackets/playoffs/challenge-nba-1")
+    expect(href).toBe("/brackets/leagues/challenge-nba-1")
   })
 
-  it("resolves My Pools NHL card href to dashboard route", () => {
+  it("resolves My Pools NHL card href to canonical league dashboard route", () => {
     const href = routing.resolveMyPoolCardHref({
       poolId: "league-nhl",
       sport: "NHL",
@@ -60,10 +60,10 @@ describe("playoff home card routing", () => {
       playoffBySport: new Map([["nhl", { challengeId: "challenge-nhl-1", sport: "nhl" }]]),
     })
 
-    expect(href).toBe("/brackets/playoffs/challenge-nhl-1")
+    expect(href).toBe("/brackets/leagues/challenge-nhl-1")
   })
 
-  it("resolves My Pools Soccer card href to dashboard route using persisted pool id", () => {
+  it("resolves My Pools Soccer card href to canonical league dashboard route using persisted pool id", () => {
     const href = routing.resolveMyPoolCardHref({
       poolId: "league-soccer-1",
       sport: "SOCCER",
@@ -72,7 +72,7 @@ describe("playoff home card routing", () => {
       playoffBySport: new Map(),
     })
 
-    expect(href).toBe("/brackets/playoffs/league-soccer-1")
+    expect(href).toBe("/brackets/leagues/league-soccer-1")
     expect(href).not.toContain("sport=soccer")
   })
 
