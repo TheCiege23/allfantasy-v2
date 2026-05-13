@@ -1,6 +1,11 @@
 /** @type {import('next').NextConfig} */
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { withSentryConfig } = require('@sentry/nextjs')
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+  openAnalyzer: false, // write HTML files without auto-opening a browser
+})
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -131,7 +136,7 @@ const nextConfig = {
 const hasSentryDsn =
   !!(process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN)
 
-module.exports = hasSentryDsn
+const configWithSentry = hasSentryDsn
   ? withSentryConfig(nextConfig, {
       org: process.env.SENTRY_ORG ?? '',
       project: process.env.SENTRY_PROJECT ?? '',
@@ -147,3 +152,9 @@ module.exports = hasSentryDsn
       automaticVercelMonitors: false,
     })
   : nextConfig;
+
+// ── Bundle analysis ───────────────────────────────────────────────────────────
+// Gated on ANALYZE=true so normal builds are unaffected.
+// Usage:  ANALYZE=true npm run build
+// Output: .next/analyze/client.html  and  .next/analyze/nodejs.html
+module.exports = withBundleAnalyzer(configWithSentry);
