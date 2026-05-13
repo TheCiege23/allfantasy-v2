@@ -27,6 +27,12 @@ const _unused = {
   ssr: false,  // reminder: ssr:false is applied inside LeagueShellClient.tsx
 }
 
+function firstSearchParam(value: string | string[] | undefined): string | null {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) return value[0] ?? null
+  return null
+}
+
 function isTruthySearchParam(value: string | string[] | undefined): boolean {
   const normalized = firstSearchParam(value)?.trim().toLowerCase()
   return normalized === '1' || normalized === 'true'
@@ -49,7 +55,6 @@ function logLeaguePageFailure(details: {
   if (process.env.NODE_ENV !== 'production') {
     console.error('[league page] load failure', safeDetails)
   } else {
-    // In production, server logs are captured by Vercel log drain.
     console.error(JSON.stringify({ level: 'error', ...safeDetails }))
   }
 }
@@ -74,18 +79,19 @@ export default async function LeaguePage({
     }
 
   const { leagueId } = await params
-    const sp = searchParams ? await searchParams : {}
-        const createdFromLeagueCreate = isPostCreateLeagueShellHandoff(sp)
-        const defaultShowInvite = isTruthySearchParam(sp.showInvite)
-        const defaultOpenChat = normalizeOpenChatQueryParam(firstSearchParam(sp.openChat)) === 'league' ? 'league' : null
-        const shouldPlayIntro = isTruthySearchParam(sp.playIntro)
-        const zc = sp.zombieChimmy
-    const zombieChimmyPrefill = typeof zc === 'string' ? zc : Array.isArray(zc) ? zc[0] ?? null : null
-    const embedRaw = sp.embed
-    const embedMode =
-          embedRaw === '1' ||
-          embedRaw === 'true' ||
-          (Array.isArray(embedRaw) && (embedRaw[0] === '1' || embedRaw[0] === 'true'))
+  const sp = searchParams ? await searchParams : {}
+  const createdFromLeagueCreate = isPostCreateLeagueShellHandoff(sp)
+  const defaultShowInvite = isTruthySearchParam(sp.showInvite)
+  const defaultOpenChat =
+    normalizeOpenChatQueryParam(firstSearchParam(sp.openChat)) === 'league' ? 'league' : null
+  const shouldPlayIntro = isTruthySearchParam(sp.playIntro)
+  const zc = sp.zombieChimmy
+  const zombieChimmyPrefill = typeof zc === 'string' ? zc : Array.isArray(zc) ? zc[0] ?? null : null
+  const embedRaw = sp.embed
+  const embedMode =
+    embedRaw === '1' ||
+    embedRaw === 'true' ||
+    (Array.isArray(embedRaw) && (embedRaw[0] === '1' || embedRaw[0] === 'true'))
 
   let session: {
         user?: { id?: string; name?: string | null; email?: string | null; image?: string | null }
@@ -325,6 +331,11 @@ export default async function LeaguePage({
         }
     
         const issue = getDashboardRuntimeIssue(error)
+        console.error('[league-page] failed to load league dashboard', {
+          leagueId,
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        })
         logLeaguePageFailure({
           marker: 'league_dashboard_render_failed',
           leagueId,
