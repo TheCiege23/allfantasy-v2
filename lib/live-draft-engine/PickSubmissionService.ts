@@ -33,6 +33,7 @@ import {
 import { logStructured } from '@/lib/logging/structured'
 import { recordEngineTelemetrySample } from '@/lib/analytics/recordAnalyticsEvent'
 import { ENGINE } from '@/lib/analytics/eventNames'
+import { withPickLock } from '@/lib/draft/draftLock'
 
 export interface SubmitPickInput {
   leagueId: string
@@ -65,9 +66,10 @@ export interface SubmitPickResult {
 }
 
 /**
- * Submit a pick. Validates slot, duplicate, then writes in a transaction.
+ * Internal: pick core logic — validation + transaction. Called under a distributed lock.
+ * Not exported; external callers use the `submitPick` wrapper below.
  */
-export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResult> {
+async function _submitPickCore(input: SubmitPickInput): Promise<SubmitPickResult> {
   const session = await prisma.draftSession.findUnique({
     where: { leagueId: input.leagueId },
     include: { picks: { orderBy: { overall: 'asc' } } },
@@ -499,4 +501,33 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     success: true,
     snapshot: { sessionId: session.id, overall: pick.overall, pickLabel, rosterId: effectiveRosterId },
   }
+}
+
+/**
+ * Submit a pick. Acquires a per-league distributed lock before running
+ * validation and the Prisma transaction.
+ *
+ * Layer order:
+ *   1. Redis SET NX (5 s TTL) — prevents concurrent writes across instances
+ *   2. Postgres AutomationLock fallback — when Redis unavailable
+ *   3. Optimistic sentinel (picksCountAtSubmit) inside transaction
+ *   4. Unique constraint on (sessionId, overall) — final DB safety net
+ *
+ * If both lock layers fail (infra outage), the request proceeds without a
+ * lock so active drafts are never blocked by a Redis/DB monitoring issue.
+ */
+export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResult> {
+  const lockResult = await withPickLock(input.leagueId, () => _submitPickCore(input))
+  if (!lockResult.acquired) {
+    // Competing instance is writing — tell client to refresh and retry.
+    recordEngineTelemetrySample(ENGINE.DRAFT_PICK_RACE, {
+      meta: { leagueId: input.leagueId, reason: 'lock_contended' },
+    })
+    return {
+      success: false,
+      error: 'Draft state changed; please retry',
+      code: DRAFT_PICK_RACE_RETRY,
+    }
+  }
+  return lockResult.value
 }

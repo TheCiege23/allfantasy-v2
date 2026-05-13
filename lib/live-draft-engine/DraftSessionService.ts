@@ -38,6 +38,8 @@ import { draftOrderSlotsToSlotOrder } from '@/lib/league/league-settings-draft-s
 import { pickTimerSecondsFromLeagueSettings } from '@/lib/league/league-settings-pick-timer'
 import { ENGAGEMENT } from '@/lib/analytics/eventNames'
 import { recordProductEvent } from '@/lib/analytics/recordAnalyticsEvent'
+import { withControlLock } from '@/lib/draft/draftLock'
+import { logStructured } from '@/lib/logging/structured'
 import { resolveWeightedLotterySlotOrderForLeague } from '@/lib/draft/resolve-draft-context'
 import { parseDispersalPoolConfig } from '@/lib/live-draft-engine/SpecialtyDraftPoolValidation'
 import { DRAFT_ROSTER_CONFIGURATION_CLIENT_MESSAGE } from '@/lib/league/roster-configuration-gate-error'
@@ -690,132 +692,153 @@ export async function startDraftSession(leagueId: string): Promise<StartDraftSes
 }
 
 export async function pauseDraftSession(leagueId: string, pausedByUserId?: string | null): Promise<boolean> {
-  const session = await prisma.draftSession.findUnique({ where: { leagueId } })
-  if (!session || session.status !== 'in_progress') return false
-  const now = new Date()
-  const frozen = session.overnightFrozenPickSeconds
-  const remaining =
-    frozen != null
-      ? frozen
-      : session.timerEndAt
-        ? Math.max(0, Math.ceil((session.timerEndAt.getTime() - now.getTime()) / 1000))
-        : session.timerSeconds ?? 0
-  await prisma.draftSession.update({
-    where: { id: session.id },
-    data: {
-      status: 'paused',
-      timerEndAt: null,
-      overnightFrozenPickSeconds: null,
-      pausedRemainingSeconds: remaining,
-      pausedByUserId: pausedByUserId ?? null,
-      version: { increment: 1 },
-    },
-  })
-  return true
-}
-
-export async function resumeDraftSession(leagueId: string): Promise<boolean> {
-  const session = await prisma.draftSession.findUnique({ where: { leagueId } })
-  if (!session || session.status !== 'paused') return false
-  const [ls, config, uiSettings] = await Promise.all([
-    prisma.leagueSettings.findUnique({ where: { leagueId } }),
-    getDraftConfigForLeague(leagueId),
-    getDraftUISettingsForLeague(leagueId),
-  ])
-  const effectiveStored = computeEffectivePickTimerSeconds(ls, config, uiSettings)
-  // Use stored remainder only when it's a positive number — 0 means the timer had
-  // already expired when the draft was paused, so restore the full configured clock.
-  const hasUsableRemaining =
-    typeof session.pausedRemainingSeconds === 'number' && session.pausedRemainingSeconds > 0
-  const sec = hasUsableRemaining ? session.pausedRemainingSeconds : (effectiveStored ?? 0)
-  const timerEndAt =
-    effectiveStored != null && effectiveStored > 0
-      ? new Date(Date.now() + sec * 1000)
-      : null
-  const auctionState =
-    session.draftType === 'auction' &&
-    session.auctionState &&
-    typeof session.auctionState === 'object' &&
-    !Array.isArray(session.auctionState)
-      ? (session.auctionState as Record<string, unknown>)
-      : null
-  await prisma.draftSession.update({
-    where: { id: session.id },
-    data: {
-      status: 'in_progress',
-      timerSeconds: effectiveStored,
-      timerEndAt,
-      pausedRemainingSeconds: null,
-      overnightFrozenPickSeconds: null,
-      pausedByUserId: null,
-      ...(auctionState
-        ? {
-            auctionState: {
-              ...auctionState,
-              ...(timerEndAt ? { bidTimerEndAt: timerEndAt.toISOString() } : { bidTimerEndAt: null }),
-            } as any,
-          }
-        : {}),
-      version: { increment: 1 },
-    },
-  })
-  return true
-}
-
-export async function resetTimer(leagueId: string): Promise<boolean> {
-  const session = await prisma.draftSession.findUnique({ where: { leagueId } })
-  if (!session || (session.status !== 'in_progress' && session.status !== 'paused')) return false
-  const [ls, config, uiSettings] = await Promise.all([
-    prisma.leagueSettings.findUnique({ where: { leagueId } }),
-    getDraftConfigForLeague(leagueId),
-    getDraftUISettingsForLeague(leagueId),
-  ])
-  const timerSeconds = computeEffectivePickTimerSeconds(ls, config, uiSettings)
-
-  /** Full clock refresh while commissioner-paused: stay paused; only refresh stored remainder (do not resume). */
-  if (session.status === 'paused') {
+  const lockResult = await withControlLock(leagueId, async () => {
+    const session = await prisma.draftSession.findUnique({ where: { leagueId } })
+    if (!session || session.status !== 'in_progress') return false
+    const now = new Date()
+    const frozen = session.overnightFrozenPickSeconds
+    const remaining =
+      frozen != null
+        ? frozen
+        : session.timerEndAt
+          ? Math.max(0, Math.ceil((session.timerEndAt.getTime() - now.getTime()) / 1000))
+          : session.timerSeconds ?? 0
     await prisma.draftSession.update({
       where: { id: session.id },
       data: {
-        timerSeconds,
+        status: 'paused',
+        timerEndAt: null,
         overnightFrozenPickSeconds: null,
-        pausedRemainingSeconds: timerSeconds ?? session.pausedRemainingSeconds,
+        pausedRemainingSeconds: remaining,
+        pausedByUserId: pausedByUserId ?? null,
         version: { increment: 1 },
       },
     })
     return true
-  }
-
-  const timerEndAt =
-    timerSeconds != null && timerSeconds > 0 ? new Date(Date.now() + timerSeconds * 1000) : null
-  const auctionState =
-    session.draftType === 'auction' &&
-    session.auctionState &&
-    typeof session.auctionState === 'object' &&
-    !Array.isArray(session.auctionState)
-      ? (session.auctionState as Record<string, unknown>)
-      : null
-  await prisma.draftSession.update({
-    where: { id: session.id },
-    data: {
-      status: 'in_progress',
-      timerSeconds,
-      timerEndAt,
-      pausedRemainingSeconds: null,
-      overnightFrozenPickSeconds: null,
-      pausedByUserId: null,
-      ...(auctionState
-        ? {
-            auctionState: {
-              ...auctionState,
-              ...(timerEndAt ? { bidTimerEndAt: timerEndAt.toISOString() } : { bidTimerEndAt: null }),
-            } as any,
-          }
-        : {}),
-      version: { increment: 1 },
-    },
   })
-  return true
+  if (!lockResult.acquired) {
+    logStructured('warn', 'draft_session_service', 'control_lock_contended', { leagueId, action: 'pause' })
+    return false
+  }
+  return lockResult.value
+}
+
+export async function resumeDraftSession(leagueId: string): Promise<boolean> {
+  const lockResult = await withControlLock(leagueId, async () => {
+    const session = await prisma.draftSession.findUnique({ where: { leagueId } })
+    if (!session || session.status !== 'paused') return false
+    const [ls, config, uiSettings] = await Promise.all([
+      prisma.leagueSettings.findUnique({ where: { leagueId } }),
+      getDraftConfigForLeague(leagueId),
+      getDraftUISettingsForLeague(leagueId),
+    ])
+    const effectiveStored = computeEffectivePickTimerSeconds(ls, config, uiSettings)
+    // Use stored remainder only when it's a positive number — 0 means the timer had
+    // already expired when the draft was paused, so restore the full configured clock.
+    const hasUsableRemaining =
+      typeof session.pausedRemainingSeconds === 'number' && session.pausedRemainingSeconds > 0
+    const sec = hasUsableRemaining ? session.pausedRemainingSeconds : (effectiveStored ?? 0)
+    const timerEndAt =
+      effectiveStored != null && effectiveStored > 0
+        ? new Date(Date.now() + sec * 1000)
+        : null
+    const auctionState =
+      session.draftType === 'auction' &&
+      session.auctionState &&
+      typeof session.auctionState === 'object' &&
+      !Array.isArray(session.auctionState)
+        ? (session.auctionState as Record<string, unknown>)
+        : null
+    await prisma.draftSession.update({
+      where: { id: session.id },
+      data: {
+        status: 'in_progress',
+        timerSeconds: effectiveStored,
+        timerEndAt,
+        pausedRemainingSeconds: null,
+        overnightFrozenPickSeconds: null,
+        pausedByUserId: null,
+        ...(auctionState
+          ? {
+              auctionState: {
+                ...auctionState,
+                ...(timerEndAt ? { bidTimerEndAt: timerEndAt.toISOString() } : { bidTimerEndAt: null }),
+              } as any,
+            }
+          : {}),
+        version: { increment: 1 },
+      },
+    })
+    return true
+  })
+  if (!lockResult.acquired) {
+    logStructured('warn', 'draft_session_service', 'control_lock_contended', { leagueId, action: 'resume' })
+    return false
+  }
+  return lockResult.value
+}
+
+export async function resetTimer(leagueId: string): Promise<boolean> {
+  const lockResult = await withControlLock(leagueId, async () => {
+    const session = await prisma.draftSession.findUnique({ where: { leagueId } })
+    if (!session || (session.status !== 'in_progress' && session.status !== 'paused')) return false
+    const [ls, config, uiSettings] = await Promise.all([
+      prisma.leagueSettings.findUnique({ where: { leagueId } }),
+      getDraftConfigForLeague(leagueId),
+      getDraftUISettingsForLeague(leagueId),
+    ])
+    const timerSeconds = computeEffectivePickTimerSeconds(ls, config, uiSettings)
+
+    /** Full clock refresh while commissioner-paused: stay paused; only refresh stored remainder (do not resume). */
+    if (session.status === 'paused') {
+      await prisma.draftSession.update({
+        where: { id: session.id },
+        data: {
+          timerSeconds,
+          overnightFrozenPickSeconds: null,
+          pausedRemainingSeconds: timerSeconds ?? session.pausedRemainingSeconds,
+          version: { increment: 1 },
+        },
+      })
+      return true
+    }
+
+    const timerEndAt =
+      timerSeconds != null && timerSeconds > 0 ? new Date(Date.now() + timerSeconds * 1000) : null
+    const auctionState =
+      session.draftType === 'auction' &&
+      session.auctionState &&
+      typeof session.auctionState === 'object' &&
+      !Array.isArray(session.auctionState)
+        ? (session.auctionState as Record<string, unknown>)
+        : null
+    await prisma.draftSession.update({
+      where: { id: session.id },
+      data: {
+        status: 'in_progress',
+        timerSeconds,
+        timerEndAt,
+        pausedRemainingSeconds: null,
+        overnightFrozenPickSeconds: null,
+        pausedByUserId: null,
+        ...(auctionState
+          ? {
+              auctionState: {
+                ...auctionState,
+                ...(timerEndAt ? { bidTimerEndAt: timerEndAt.toISOString() } : { bidTimerEndAt: null }),
+              } as any,
+            }
+          : {}),
+        version: { increment: 1 },
+      },
+    })
+    return true
+  })
+  if (!lockResult.acquired) {
+    logStructured('warn', 'draft_session_service', 'control_lock_contended', { leagueId, action: 'reset_timer' })
+    return false
+  }
+  return lockResult.value
 }
 
 /**

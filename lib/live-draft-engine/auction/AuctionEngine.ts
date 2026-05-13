@@ -5,6 +5,8 @@
 
 import { prisma } from '@/lib/prisma'
 import { canPlaceAuctionBid } from '@/lib/mock-draft/draft-engine'
+import { withAuctionLock } from '@/lib/draft/draftLock'
+import { logStructured } from '@/lib/logging/structured'
 import type {
   AuctionState,
   AuctionBudgets,
@@ -101,10 +103,9 @@ export function getMinNextBid(auctionState: AuctionState | null, minIncrement: n
 }
 
 /**
- * Nominate a player (put on the block). Resets bid to min, starts bid timer.
- * Caller must be the current nominator.
+ * Nomination core — runs under withAuctionLock; not exported directly.
  */
-export async function nominatePlayer(
+async function _nominatePlayerCore(
   leagueId: string,
   nomination: AuctionNomination,
   nominatorRosterId: string
@@ -186,9 +187,9 @@ export async function nominatePlayer(
 }
 
 /**
- * Place a bid. Validates minimum bid, budget, then updates high bidder and resets timer.
+ * Bid core — runs under withAuctionLock; not exported directly.
  */
-export async function placeBid(
+async function _placeBidCore(
   leagueId: string,
   rosterId: string,
   amount: number
@@ -277,7 +278,10 @@ export interface ResolveAuctionOptions {
   now?: Date
 }
 
-export async function resolveAuctionWin(
+/**
+ * Resolve core — runs under withAuctionLock; not exported directly.
+ */
+async function _resolveAuctionWinCore(
   leagueId: string,
   options?: ResolveAuctionOptions
 ): Promise<{
@@ -428,6 +432,67 @@ export async function resolveAuctionWin(
     winnerRosterId: winnerRosterId ?? undefined,
     amount: amount > 0 ? amount : undefined,
   }
+}
+
+// ── Distributed-lock public wrappers ─────────────────────────────────────────
+// Each auction mutation acquires a per-league Redis/Postgres lock before
+// executing the JSON read-modify-write sequence so concurrent bids and
+// nominations on separate Vercel instances can't silently overwrite each other.
+//
+// Fail-open: if both lock layers are unavailable, the core function runs
+// anyway — the Prisma transaction inside resolveAuctionWin is the last guard.
+
+/**
+ * Nominate a player for auction. Serialised by per-league auction lock.
+ */
+export async function nominatePlayer(
+  leagueId: string,
+  nomination: AuctionNomination,
+  nominatorRosterId: string
+): Promise<{ success: boolean; error?: string; code?: 'ROSTER_CONFIGURATION_INCOMPLETE' }> {
+  const result = await withAuctionLock(leagueId, () =>
+    _nominatePlayerCore(leagueId, nomination, nominatorRosterId)
+  )
+  if (!result.acquired) {
+    logStructured('warn', 'auction_engine', 'nomination_lock_contended', { leagueId })
+    return { success: false, error: 'Auction busy; another action is in progress. Please retry.' }
+  }
+  return result.value
+}
+
+/**
+ * Place an auction bid. Serialised by per-league auction lock.
+ */
+export async function placeBid(
+  leagueId: string,
+  rosterId: string,
+  amount: number
+): Promise<{ success: boolean; error?: string; code?: 'ROSTER_CONFIGURATION_INCOMPLETE' }> {
+  const result = await withAuctionLock(leagueId, () =>
+    _placeBidCore(leagueId, rosterId, amount)
+  )
+  if (!result.acquired) {
+    logStructured('warn', 'auction_engine', 'bid_lock_contended', { leagueId, rosterId })
+    return { success: false, error: 'Auction busy; another action is in progress. Please retry.' }
+  }
+  return result.value
+}
+
+/**
+ * Resolve the current auction (assign player to high bidder). Serialised by per-league auction lock.
+ */
+export async function resolveAuctionWin(
+  leagueId: string,
+  options?: ResolveAuctionOptions
+): Promise<{ success: boolean; error?: string; sold?: boolean; winnerRosterId?: string; amount?: number }> {
+  const result = await withAuctionLock(leagueId, () =>
+    _resolveAuctionWinCore(leagueId, options)
+  )
+  if (!result.acquired) {
+    logStructured('warn', 'auction_engine', 'resolve_lock_contended', { leagueId })
+    return { success: false, error: 'Auction busy; another action is in progress. Please retry.' }
+  }
+  return result.value
 }
 
 // ── Salary cap: assign contract when auction bid wins ────────────────────────

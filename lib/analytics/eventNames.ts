@@ -84,4 +84,16 @@ export const ENGINE = {
   DRAFT_STATE_POLL: 'engine.draft.state_poll',
   /** POST /api/draft/[draftId]/pusher-auth (Pusher channel auth). */
   PUSHER_AUTH: 'engine.draft.pusher_auth',
+
+  // ── Distributed lock telemetry ─────────────────────────────────────────────
+  /**
+   * Another Vercel instance held the per-league draft lock when this instance
+   * tried to acquire it. Signals a genuine concurrent write; client should 409.
+   */
+  DRAFT_LOCK_CONTENDED: 'engine.draft.lock_contended',
+  /**
+   * Redis + Postgres lock infrastructure both unavailable. Request proceeded
+   * without a lock (fail-open) — DB constraints remain the safety layer.
+   */
+  DRAFT_LOCK_TIMEOUT: 'engine.draft.lock_timeout',
 } as const
