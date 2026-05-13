@@ -1,11 +1,11 @@
-import type { PlayoffChallengeView, PlayoffSport } from "./types"
+import type { PlayoffChallengeListItem, PlayoffChallengeView, PlayoffCreateResponse, PlayoffSport } from "./types"
 
 export async function createPlayoffBracketChallengeClient(input: {
-  name: string
+  name?: string
   sport: PlayoffSport
   seasonYear: number
   isTestMode?: boolean
-}): Promise<{ challengeId: string; entryId: string }> {
+}): Promise<PlayoffCreateResponse> {
   const response = await fetch("/api/brackets/playoffs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -17,10 +17,33 @@ export async function createPlayoffBracketChallengeClient(input: {
     throw new Error(payload?.error ?? "Failed to create playoff bracket")
   }
 
+  if (!payload?.challengeId) {
+    throw new Error("Bracket was not created. Please try again.")
+  }
+
   return {
     challengeId: payload.challengeId,
-    entryId: payload.entryId,
+    entryId: payload.entryId ?? null,
+    sport: payload.sport,
+    name: payload.name,
+    redirectUrl: payload.redirectUrl ?? `/brackets/leagues/${payload.challengeId}`,
   }
+}
+
+export async function listPlayoffBracketChallengesClient(sport?: PlayoffSport): Promise<PlayoffChallengeListItem[]> {
+  const query = sport ? `?sport=${encodeURIComponent(sport)}` : ""
+  const response = await fetch(`/api/brackets/playoffs${query}`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+  })
+
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(payload?.error ?? "Failed to load playoff challenges")
+  }
+
+  return Array.isArray(payload?.challenges) ? payload.challenges : []
 }
 
 export async function getPlayoffBracketViewClient(challengeId: string): Promise<PlayoffChallengeView> {
@@ -59,4 +82,53 @@ export async function savePlayoffBracketPickClient(input: {
   }
 
   return payload.view as PlayoffChallengeView
+}
+
+export async function createPlayoffBracketEntryClient(input: {
+  challengeId: string
+  name?: string
+}): Promise<{ challengeId: string; entryId: string; redirectUrl: string }> {
+  const response = await fetch(`/api/brackets/playoffs/${input.challengeId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "create_entry",
+      name: input.name,
+    }),
+  })
+
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(payload?.error ?? "Failed to create playoff entry")
+  }
+
+  return {
+    challengeId: payload.challengeId,
+    entryId: payload.entryId,
+    redirectUrl: payload.redirectUrl,
+  }
+}
+
+export async function submitPlayoffBracketEntryClient(input: {
+  challengeId: string
+  entryId: string
+}): Promise<{ challengeId: string; entryId: string; redirectUrl: string }> {
+  const response = await fetch(`/api/brackets/playoffs/${input.challengeId}/entries/${input.entryId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "submit_entry",
+    }),
+  })
+
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(payload?.error ?? "Failed to submit playoff bracket")
+  }
+
+  return {
+    challengeId: payload.challengeId,
+    entryId: payload.entryId,
+    redirectUrl: payload.redirectUrl,
+  }
 }

@@ -26,10 +26,23 @@ import { resolveMyPoolCardHref, resolvePlayoffCardHref, resolvePlayoffCardMode }
 export const dynamic = "force-dynamic"
 
 type SessionUser = { id?: string; email?: string | null; name?: string | null }
-type PlayoffHomeLeague = {
+type PlayoffHomePool = {
   challengeId: string
   sport: "nba" | "nhl"
   name: string
+  members: number
+  entries: number
+}
+
+type HomePoolCard = {
+  id: string
+  href: string
+  name: string
+  members: number
+  entries: number
+  sport: string | null
+  challengeType: string | null
+  bracketType: string | null
 }
 
 function isExpectedBracketLoadError(err: unknown): boolean {
@@ -150,7 +163,7 @@ async function safeGetLegacyBracketPools(userId: string | undefined) {
   }
 }
 
-async function safeGetPlayoffPools(userId: string | undefined): Promise<PlayoffHomeLeague[]> {
+async function safeGetPlayoffPools(userId: string | undefined): Promise<PlayoffHomePool[]> {
   if (!userId) return []
   try {
     const rows = await (prisma as any).playoffBracketChallenge.findMany({
@@ -168,17 +181,45 @@ async function safeGetPlayoffPools(userId: string | undefined): Promise<PlayoffH
         id: true,
         name: true,
         sport: true,
+        ownerUserId: true,
+        entries: {
+          select: {
+            userId: true,
+          },
+        },
+        _count: {
+          select: {
+            entries: true,
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     })
-    const uniqueBySport = new Map<string, PlayoffHomeLeague>()
+    const pools: PlayoffHomePool[] = []
     for (const row of rows ?? []) {
+      const challengeId = typeof row?.id === "string" ? row.id.trim() : ""
       const sport = String(row?.sport ?? "").toLowerCase()
+      const name = typeof row?.name === "string" ? row.name.trim() : ""
+      if (!challengeId || !name) continue
       if (sport !== "nba" && sport !== "nhl") continue
-      if (uniqueBySport.has(sport)) continue
-      uniqueBySport.set(sport, { challengeId: row.id, sport, name: row.name })
+      const participantIds = new Set<string>()
+      if (typeof row?.ownerUserId === "string" && row.ownerUserId.trim()) {
+        participantIds.add(row.ownerUserId)
+      }
+      for (const entry of Array.isArray(row?.entries) ? row.entries : []) {
+        if (typeof entry?.userId === "string" && entry.userId.trim()) {
+          participantIds.add(entry.userId)
+        }
+      }
+      pools.push({
+        challengeId,
+        sport,
+        name,
+        members: participantIds.size,
+        entries: Number(row?._count?.entries ?? 0),
+      })
     }
-    return Array.from(uniqueBySport.values())
+    return pools
   } catch (err) {
     if (!isExpectedBracketLoadError(err)) {
       console.warn("[brackets/page] safeGetPlayoffPools unexpected fallback", {
@@ -195,6 +236,41 @@ async function safeGetPlayoffPools(userId: string | undefined): Promise<PlayoffH
     })
     return []
   }
+}
+
+function dedupeHomePools(pools: HomePoolCard[]): HomePoolCard[] {
+  const byPoolId = new Map<string, HomePoolCard>()
+  for (const pool of pools) {
+    const id = String(pool?.id ?? "").trim()
+    const name = String(pool?.name ?? "").trim()
+    if (!id || !name) continue
+    const current: HomePoolCard = {
+      id,
+      href: typeof pool?.href === "string" && pool.href.trim() ? pool.href : `/brackets/leagues/${id}`,
+      name,
+      members: Number.isFinite(pool?.members) ? Number(pool.members) : 0,
+      entries: Number.isFinite(pool?.entries) ? Number(pool.entries) : 0,
+      sport: typeof pool?.sport === "string" && pool.sport.trim() ? pool.sport : null,
+      challengeType: pool?.challengeType ?? null,
+      bracketType: pool?.bracketType ?? null,
+    }
+    const existing = byPoolId.get(id)
+    if (!existing) {
+      byPoolId.set(id, current)
+      continue
+    }
+    byPoolId.set(id, {
+      ...existing,
+      href: existing.href || current.href,
+      name: existing.name || current.name,
+      members: Math.max(existing.members, current.members),
+      entries: Math.max(existing.entries, current.entries),
+      sport: existing.sport || current.sport,
+      challengeType: existing.challengeType || current.challengeType,
+      bracketType: existing.bracketType || current.bracketType,
+    })
+  }
+  return Array.from(byPoolId.values())
 }
 
 async function safeGetEnabledBracketSports() {
@@ -215,9 +291,9 @@ export default async function BracketsHomePage() {
   let user: SessionUser | undefined
   let userId: string | undefined
   let myLeagues: any[] = []
-  let myPlayoffChallenges: PlayoffHomeLeague[] = []
+  let myPlayoffChallenges: PlayoffHomePool[] = []
   let visibleSports: string[] = SUPPORTED_SPORTS
-  let playoffBySport = new Map<string, PlayoffHomeLeague>()
+  let playoffBySport = new Map<string, PlayoffHomePool>()
   let playoffSports: Array<{ sport: string; ui: ReturnType<typeof resolveBracketSportUI> }> = []
 
   try {
@@ -240,9 +316,13 @@ export default async function BracketsHomePage() {
     myLeagues = await safeGetLegacyBracketPools(userId)
     myPlayoffChallenges = await safeGetPlayoffPools(userId)
     visibleSports = await safeGetEnabledBracketSports()
-    playoffBySport = new Map<string, PlayoffHomeLeague>(
-      myPlayoffChallenges.map((challenge) => [challenge.sport.toLowerCase(), challenge])
-    )
+    playoffBySport = myPlayoffChallenges.reduce((map, challenge) => {
+      const sport = challenge.sport.toLowerCase()
+      if (!map.has(sport)) {
+        map.set(sport, challenge)
+      }
+      return map
+    }, new Map<string, PlayoffHomePool>())
     playoffSports = visibleSports.map((sport) => ({
       sport,
       ui: resolveBracketSportUI(sport),
@@ -294,6 +374,33 @@ export default async function BracketsHomePage() {
     }
     return "/brackets"
   }
+  const combinedMyPools = dedupeHomePools([
+    ...safeMyLeagues.map((member: any) => ({
+      id: String(member.league.id),
+      href: safeResolveMyPoolHref({
+        poolId: member.league.id,
+        sport: member.league.tournament?.sport,
+        challengeType: member.league.scoringRules?.challengeType ?? null,
+        bracketType: member.league.scoringRules?.bracketType ?? null,
+      }),
+      name: member.league.name,
+      members: Number(member.league._count?.members ?? 0),
+      entries: Number(member.league._count?.entries ?? 0),
+      sport: member.league.tournament?.sport ?? null,
+      challengeType: member.league.scoringRules?.challengeType ?? null,
+      bracketType: member.league.scoringRules?.bracketType ?? null,
+    })),
+    ...myPlayoffChallenges.map((challenge) => ({
+      id: challenge.challengeId,
+      href: `/brackets/leagues/${challenge.challengeId}`,
+      name: challenge.name,
+      members: challenge.members,
+      entries: challenge.entries,
+      sport: challenge.sport,
+      challengeType: "playoff_challenge",
+      bracketType: null,
+    })),
+  ])
 
   return (
     <div className="min-h-screen mode-surface mode-readable">
@@ -445,33 +552,27 @@ export default async function BracketsHomePage() {
                 </div>
               </div>
 
-              {safeMyLeagues.length > 0 ? (
+              {combinedMyPools.length > 0 ? (
                 <div className="space-y-2">
                   <h2 className="text-xs font-bold uppercase tracking-wider px-1" style={{ color: 'rgba(255,255,255,0.35)' }}>My Pools</h2>
-                  {safeMyLeagues.map((m: any) => {
-                    const sportUI = resolveBracketSportUI(m.league.tournament?.sport ?? null)
+                  {combinedMyPools.map((pool) => {
+                    const sportUI = resolveBracketSportUI(pool.sport ?? null)
                     const challengeLabel = resolveBracketChallengeLabel({
-                      sport: m.league.tournament?.sport,
-                      challengeType: m.league.scoringRules?.challengeType,
-                      bracketType: m.league.scoringRules?.bracketType,
-                    })
-                    const poolHref = safeResolveMyPoolHref({
-                      poolId: m.league.id,
-                      sport: m.league.tournament?.sport,
-                      challengeType: m.league.scoringRules?.challengeType,
-                      bracketType: m.league.scoringRules?.bracketType,
+                      sport: pool.sport,
+                      challengeType: pool.challengeType,
+                      bracketType: pool.bracketType,
                     })
                     if (process.env.NODE_ENV !== "production") {
                       console.info("[brackets] pool card href", {
-                        poolId: m.league.id,
-                        sport: String(m.league.tournament?.sport ?? ""),
-                        href: poolHref,
+                        poolId: pool.id,
+                        sport: String(pool.sport ?? ""),
+                        href: pool.href,
                       })
                     }
                     return (
                       <Link
-                        key={m.league.id}
-                        href={poolHref}
+                        key={pool.id}
+                        href={pool.href}
                         className="flex items-center gap-3 p-3.5 rounded-xl transition group"
                         style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
                       >
@@ -479,12 +580,12 @@ export default async function BracketsHomePage() {
                           <span className="text-[10px] font-bold" style={{ color: '#7dd3fc' }}>{sportUI.badge}</span>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-sm truncate group-hover:text-white transition">{m.league.name}</div>
+                          <div className="font-semibold text-sm truncate group-hover:text-white transition">{pool.name}</div>
                           <div className="text-[11px] mt-0.5 truncate" style={{ color: 'rgba(255,255,255,0.45)' }}>
                             {challengeLabel}
                           </div>
                           <div className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                            {m.league._count.members} member{m.league._count.members !== 1 ? 's' : ''} &bull; {m.league._count.entries} bracket{m.league._count.entries !== 1 ? 's' : ''}
+                            {pool.members} member{pool.members !== 1 ? 's' : ''} &bull; {pool.entries} bracket{pool.entries !== 1 ? 's' : ''}
                           </div>
                         </div>
                         <ChevronRight className="w-4 h-4 shrink-0" style={{ color: 'rgba(255,255,255,0.2)' }} />
@@ -510,25 +611,11 @@ export default async function BracketsHomePage() {
       <BracketShell>
         <div className="space-y-4">
           <BracketHomeTabs
-            poolCount={safeMyLeagues.length}
+            poolCount={combinedMyPools.length}
           />
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
             <MyPoolsTab
-              pools={safeMyLeagues.map((m: any) => ({
-                id: m.league.id,
-                href: safeResolveMyPoolHref({
-                  poolId: m.league.id,
-                  sport: m.league.tournament?.sport,
-                  challengeType: m.league.scoringRules?.challengeType ?? null,
-                  bracketType: m.league.scoringRules?.bracketType ?? null,
-                }),
-                name: m.league.name,
-                members: m.league._count.members,
-                entries: m.league._count.entries,
-                sport: m.league.tournament?.sport ?? "NFL",
-                challengeType: m.league.scoringRules?.challengeType ?? null,
-                bracketType: m.league.scoringRules?.bracketType ?? null,
-              }))}
+              pools={combinedMyPools}
             />
             <BracketAICoachTab />
           </div>
@@ -538,13 +625,13 @@ export default async function BracketsHomePage() {
             <JoinPoolTab />
             <StandingsTab />
             <BracketHistoryTab
-              pools={safeMyLeagues.map((m: any) => ({
-                id: m.league.id,
-                name: m.league.name,
-                entries: m.league._count.entries,
-                sport: m.league.tournament?.sport ?? "NFL",
-                challengeType: m.league.scoringRules?.challengeType ?? null,
-                bracketType: m.league.scoringRules?.bracketType ?? null,
+              pools={combinedMyPools.map((pool) => ({
+                id: pool.id,
+                name: pool.name,
+                entries: pool.entries,
+                sport: pool.sport ?? "NFL",
+                challengeType: pool.challengeType,
+                bracketType: pool.bracketType,
               }))}
             />
           </div>

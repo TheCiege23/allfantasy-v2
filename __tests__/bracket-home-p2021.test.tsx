@@ -51,7 +51,7 @@ vi.mock("@/lib/bracket-challenge", () => ({
   resolveBracketChallengeLabel: () => "Bracket",
   resolveBracketSportUI: () => ({ badge: "NBA", shortLabel: "NBA", label: "NBA" }),
 }))
-vi.mock("@/lib/playoffs", () => ({
+vi.mock("@/lib/playoffs/playoffHomeRouting", () => ({
   resolveMyPoolCardHref: resolveMyPoolCardHrefMock,
   resolvePlayoffCardHref: resolvePlayoffCardHrefMock,
   resolvePlayoffCardMode: () => "create",
@@ -119,6 +119,35 @@ describe("app/brackets/page — P2021 playoff table missing", () => {
 
     // My Pools tab renders with 0 pools (graceful empty)
     expect(screen.getByTestId("my-pools-tab")).toHaveTextContent("pools:0")
+  })
+
+  it("dedupes duplicate pool rows before rendering My Pools", async () => {
+    bracketLeagueMemberFindManyMock.mockResolvedValue([
+      {
+        league: {
+          id: "league-1",
+          name: "NBA Finals Pool",
+          scoringRules: { challengeType: "playoff_challenge", bracketType: null },
+          tournament: { sport: "NBA" },
+          _count: { members: 4, entries: 12 },
+        },
+      },
+      {
+        league: {
+          id: "league-1",
+          name: "NBA Finals Pool Duplicate",
+          scoringRules: { challengeType: "playoff_challenge", bracketType: null },
+          tournament: { sport: "NBA" },
+          _count: { members: 1, entries: 1 },
+        },
+      },
+    ])
+
+    const mod = await import("@/app/brackets/page")
+    const element = await (mod.default as () => Promise<React.ReactElement>)()
+    render(element)
+
+    expect(screen.getByTestId("my-pools-tab")).toHaveTextContent("pools:1")
   })
 
   it("renders when bracketLeagueMember.findMany throws Prisma validation error", async () => {

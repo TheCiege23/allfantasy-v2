@@ -1,16 +1,14 @@
 "use client"
 
 import { useMemo, useState, useTransition } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { RefreshCw, Trophy, Plus, Users, Link2, Clipboard, Settings2, ArrowRightCircle } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { RefreshCw, Trophy, Plus, Link2, Clipboard, Settings2, ArrowRightCircle } from "lucide-react"
 import { toast } from "sonner"
 import type { PlayoffChallengeView } from "@/lib/playoffs/types"
 import {
   createPlayoffBracketEntryClient,
   getPlayoffBracketViewClient,
-  savePlayoffBracketPickClient,
 } from "@/lib/playoffs/playoffClientApi"
-import PlayoffBracketBoard from "./PlayoffBracketBoard"
 
 type Props = {
   initialView: PlayoffChallengeView
@@ -18,9 +16,7 @@ type Props = {
 
 export default function PlayoffBracketShell({ initialView }: Props) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [view, setView] = useState(initialView)
-  const [saving, startSaving] = useTransition()
   const [refreshing, startRefreshing] = useTransition()
   const [creatingEntry, startCreatingEntry] = useTransition()
 
@@ -42,22 +38,22 @@ export default function PlayoffBracketShell({ initialView }: Props) {
   const participants = Array.isArray(view?.participants) ? view.participants : []
   const entries = Array.isArray(view?.entries) ? view.entries : []
   const series = Array.isArray(view?.series) ? view.series : []
-  const picks = Array.isArray(view?.picks) ? view.picks : []
-  const rounds = Array.isArray(view?.rounds) ? view.rounds : []
-
-  const pickCount = view.activeEntry?.pickCount ?? picks.length
   const totalSeries = series.length
-  const viewerEntryCount = entries.filter((entry) => entry.userId === view?.viewerUserId).length
+  const myEntries = entries.filter((entry) => entry.userId === view?.viewerUserId)
+  const viewerEntryCount = myEntries.length
   const canCreateEntry = viewerEntryCount < safeChallenge.maxEntriesPerParticipant
-  const title = useMemo(() => {
-    const sportLabelMap: Record<string, string> = {
-      nba: "NBA",
-      nhl: "NHL",
-      soccer: "Soccer",
-    }
-    const sportLabel = sportLabelMap[String(safeChallenge.sport).toLowerCase()] ?? String(safeChallenge.sport).toUpperCase()
-    return `${sportLabel} Playoff Bracket`
-  }, [safeChallenge.sport])
+  const primaryEntry = useMemo(() => {
+    if (myEntries.length === 0) return null
+    const activeViewerEntry = view.activeEntry && view.activeEntry.userId === view?.viewerUserId
+      ? myEntries.find((entry) => entry.id === view.activeEntry?.id) ?? null
+      : null
+    return myEntries.find((entry) => !entry.isComplete) ?? activeViewerEntry ?? myEntries[0] ?? null
+  }, [myEntries, view.activeEntry, view?.viewerUserId])
+  const primaryButtonLabel = !primaryEntry
+    ? "Create Your First Bracket"
+    : primaryEntry.isComplete
+      ? "View/Edit Bracket"
+      : "Complete Bracket"
   const leaderboardRows = useMemo(
     () =>
       [...entries]
@@ -71,19 +67,6 @@ export default function PlayoffBracketShell({ initialView }: Props) {
     [entries]
   )
 
-  function handlePick(seriesId: string, teamName: string) {
-    if (!view.activeEntry) return
-    startSaving(async () => {
-      const next = await savePlayoffBracketPickClient({
-        challengeId: safeChallenge.id,
-        entryId: view.activeEntry!.id,
-        seriesId,
-        pickTeamName: teamName,
-      })
-      setView(next)
-    })
-  }
-
   function handleRefresh() {
     startRefreshing(async () => {
       const latest = await getPlayoffBracketViewClient(safeChallenge.id)
@@ -92,8 +75,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
   }
 
   function openEntry(entryId: string) {
-    const url = `/brackets/playoffs/${safeChallenge.id}?entryId=${encodeURIComponent(entryId)}`
-    router.push(url)
+    router.push(`/brackets/leagues/${safeChallenge.id}/entries/${encodeURIComponent(entryId)}`)
   }
 
   function handleCreateEntry() {
@@ -107,7 +89,6 @@ export default function PlayoffBracketShell({ initialView }: Props) {
 
         const created = await createPlayoffBracketEntryClient({
           challengeId: safeChallenge.id,
-          name: `Bracket ${nextEntryIndex}`,
         })
 
         toast.success(`Bracket ${nextEntryIndex} created.`)
@@ -131,16 +112,13 @@ export default function PlayoffBracketShell({ initialView }: Props) {
     }
   }
 
-  const showBoard = searchParams?.get("view") === "board"
-
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-5 p-4 sm:p-6">
       <section className="rounded-3xl border border-slate-300 bg-[linear-gradient(130deg,#fff7ed_0%,#ecfeff_45%,#eef2ff_100%)] p-6 shadow-[0_20px_50px_rgba(30,41,59,0.15)]">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Sleeper-style board</p>
-            <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{title}</h1>
-            <p className="mt-1 text-sm text-slate-700">{safeChallenge.name} - {safeChallenge.seasonYear}</p>
+            <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{safeChallenge.name}</h1>
+            <p className="mt-1 text-sm text-slate-700">{String(safeChallenge.sport ?? "").toUpperCase()} pool - {safeChallenge.seasonYear}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -152,26 +130,18 @@ export default function PlayoffBracketShell({ initialView }: Props) {
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
               Refresh
             </button>
-            <button
-              type="button"
-              onClick={() => router.push(`/brackets/playoffs/${safeChallenge.id}?view=board`)}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              <ArrowRightCircle className="h-4 w-4" />
-              Open Bracket
-            </button>
           </div>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-700">
           <span className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1 text-white">
             <Trophy className="h-4 w-4" />
-            {pickCount}/{totalSeries} picks
+            {entries.length} bracket{entries.length !== 1 ? "s" : ""}
           </span>
           <span className="rounded-full bg-emerald-100 px-3 py-1 text-emerald-900">{String(safeChallenge.sport ?? "").toUpperCase()}</span>
           <span className="rounded-full bg-indigo-100 px-3 py-1 text-indigo-900">
             {participants.length} participant{participants.length !== 1 ? "s" : ""}
           </span>
-          {saving ? <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-900">Saving pick...</span> : null}
+          <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-900">{totalSeries} series</span>
           {safeChallenge.isTestMode ? <span className="rounded-full bg-sky-100 px-3 py-1 text-sky-900">Test mode</span> : null}
         </div>
       </section>
@@ -191,21 +161,31 @@ export default function PlayoffBracketShell({ initialView }: Props) {
           <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={handleCreateEntry}
-              disabled={!canCreateEntry || creatingEntry}
+              onClick={() => {
+                if (!primaryEntry) {
+                  handleCreateEntry()
+                  return
+                }
+                openEntry(primaryEntry.id)
+              }}
+              disabled={creatingEntry}
               data-testid="playoff-fill-bracket-cta"
               className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Plus className="h-4 w-4" />
-              {entries.length === 0 ? "Fill In Bracket" : "Create Bracket Entry"}
+              <ArrowRightCircle className="h-4 w-4" />
+              {primaryButtonLabel}
             </button>
-            <button
-              type="button"
-              onClick={() => router.push(`/brackets/playoffs/${safeChallenge.id}?view=board`)}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-sky-400 hover:text-sky-700"
-            >
-              Open Bracket
-            </button>
+            {primaryEntry && canCreateEntry ? (
+              <button
+                type="button"
+                onClick={handleCreateEntry}
+                disabled={creatingEntry}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-sky-400 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Plus className="h-4 w-4" />
+                Create Another Bracket
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={copyInvite}
@@ -220,7 +200,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
               >
                 <Settings2 className="h-4 w-4" />
-                Settings
+                Commissioner Tools
               </button>
             ) : null}
           </div>
@@ -262,12 +242,12 @@ export default function PlayoffBracketShell({ initialView }: Props) {
         </article>
 
         <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">Entries</h2>
-          {entries.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-600">Entries: none yet</p>
+          <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">My Brackets / Entries</h2>
+          {myEntries.length === 0 ? (
+            <p className="mt-2 text-sm text-slate-600">You have not created a bracket in this pool yet.</p>
           ) : (
             <ul className="mt-3 space-y-2">
-              {entries.map((entry, index) => (
+              {myEntries.map((entry, index) => (
                 <li key={entry.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
                   <div>
                     <p className="text-sm font-semibold text-slate-800">{entry.name || `Bracket ${index + 1}`}</p>
@@ -280,7 +260,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
                     onClick={() => openEntry(entry.id)}
                     className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700"
                   >
-                    Open
+                    {entry.isComplete ? "View/Edit Bracket" : "Complete Bracket"}
                   </button>
                 </li>
               ))}
@@ -304,10 +284,6 @@ export default function PlayoffBracketShell({ initialView }: Props) {
           </ol>
         )}
       </section>
-
-      {showBoard ? (
-        <PlayoffBracketBoard rounds={rounds} series={series} picks={picks} onPick={handlePick} />
-      ) : null}
     </div>
   )
 }

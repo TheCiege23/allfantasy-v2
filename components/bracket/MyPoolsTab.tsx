@@ -16,18 +16,50 @@ type PoolItem = {
 
 export default function MyPoolsTab({ pools }: { pools?: PoolItem[] | null }) {
   const normalizedPools = Array.isArray(pools)
-    ? pools
-        .filter((pool): pool is PoolItem => Boolean(pool?.id))
-        .map((pool) => ({
-          id: String(pool.id),
-          href: typeof pool.href === "string" && pool.href.trim() ? pool.href : "/brackets",
-          name: typeof pool.name === "string" && pool.name.trim() ? pool.name : "Untitled Pool",
-          members: Number.isFinite(pool.members) ? Number(pool.members) : 0,
-          entries: Number.isFinite(pool.entries) ? Number(pool.entries) : 0,
-          sport: typeof pool.sport === "string" && pool.sport.trim() ? pool.sport : "BRACKET",
-          challengeType: pool.challengeType ?? null,
-          bracketType: pool.bracketType ?? null,
-        }))
+    ? Array.from(
+        pools.reduce((map, pool) => {
+          const id = typeof pool?.id === "string" ? pool.id.trim() : ""
+          if (!id) return map
+
+          const nextPool = {
+            id,
+            href: typeof pool.href === "string" && pool.href.trim() ? pool.href : `/brackets/leagues/${id}`,
+            name: typeof pool.name === "string" && pool.name.trim() ? pool.name : "Untitled Pool",
+            members: Number.isFinite(pool.members) ? Number(pool.members) : 0,
+            entries: Number.isFinite(pool.entries) ? Number(pool.entries) : 0,
+            sport: typeof pool.sport === "string" && pool.sport.trim() ? pool.sport : "BRACKET",
+            challengeType: pool.challengeType ?? null,
+            bracketType: pool.bracketType ?? null,
+          }
+
+          const existing = map.get(id)
+          if (!existing) {
+            map.set(id, nextPool)
+            return map
+          }
+
+          map.set(id, {
+            ...existing,
+            href: existing.href || nextPool.href,
+            name: existing.name || nextPool.name,
+            members: Math.max(existing.members, nextPool.members),
+            entries: Math.max(existing.entries, nextPool.entries),
+            sport: existing.sport || nextPool.sport,
+            challengeType: existing.challengeType || nextPool.challengeType,
+            bracketType: existing.bracketType || nextPool.bracketType,
+          })
+          return map
+        }, new Map<string, {
+          id: string
+          href: string
+          name: string
+          members: number
+          entries: number
+          sport: string
+          challengeType: string | null
+          bracketType: string | null
+        }>()).values()
+      )
     : []
 
   function logPoolClick(poolId: string, href: string) {

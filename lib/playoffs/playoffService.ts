@@ -45,6 +45,14 @@ function toInviteCode(challengeId: string): string {
   return challengeId.slice(0, 8).toUpperCase()
 }
 
+function toChallengeDashboardHref(challengeId: string): string {
+  return `/brackets/leagues/${challengeId}`
+}
+
+function toChallengeEntryHref(challengeId: string, entryId: string): string {
+  return `/brackets/leagues/${challengeId}/entries/${entryId}`
+}
+
 export async function createPlayoffBracketChallenge(input: {
   user: SessionUser
   name?: string
@@ -103,7 +111,7 @@ export async function createPlayoffBracketChallenge(input: {
       entryId: null,
       sport: input.sport,
       name: challenge.name as string,
-      redirectUrl: `/brackets/playoffs/${challenge.id}`,
+      redirectUrl: toChallengeDashboardHref(challenge.id as string),
     }
   })
 
@@ -138,7 +146,7 @@ export async function listUserPlayoffChallenges(userId: string): Promise<Playoff
       challengeId: challenge.id,
       sport: challenge.sport,
       name: challenge.name,
-      redirectUrl: `/brackets/playoffs/${challenge.id}`,
+      redirectUrl: toChallengeDashboardHref(challenge.id),
       seasonYear: challenge.seasonYear,
       participantCount: participantUserIds.size,
       entryCount: challenge.entries.length,
@@ -264,7 +272,7 @@ export async function getPlayoffBracketView(input: {
       scoringStyle: "series_winner",
       lockRule: "first_tipoff",
       inviteCode: toInviteCode(challenge.id),
-      inviteUrl: `/brackets/playoffs/${challenge.id}`,
+      inviteUrl: toChallengeDashboardHref(challenge.id),
       createdAt: toIso(challenge.createdAt) ?? new Date().toISOString(),
       updatedAt: toIso(challenge.updatedAt) ?? new Date().toISOString(),
     },
@@ -363,7 +371,52 @@ export async function createPlayoffBracketEntry(input: {
   return {
     challengeId: input.challengeId,
     entryId: createdEntry.id as string,
-    redirectUrl: `/brackets/playoffs/${input.challengeId}?entryId=${createdEntry.id}`,
+    redirectUrl: toChallengeEntryHref(input.challengeId, createdEntry.id as string),
+  }
+}
+
+export async function submitPlayoffBracketEntry(input: {
+  challengeId: string
+  entryId: string
+  userId: string
+}) {
+  const entry = await (prisma as any).playoffBracketEntry.findUnique({
+    where: { id: input.entryId },
+    select: {
+      id: true,
+      userId: true,
+      challengeId: true,
+    },
+  })
+
+  if (!entry || entry.challengeId !== input.challengeId || entry.userId !== input.userId) {
+    throw new Error("Entry not found")
+  }
+
+  const [seriesCount, pickCount] = await Promise.all([
+    (prisma as any).playoffBracketSeries.count({
+      where: { challengeId: input.challengeId },
+    }),
+    (prisma as any).playoffBracketPick.count({
+      where: {
+        challengeId: input.challengeId,
+        entryId: input.entryId,
+      },
+    }),
+  ])
+
+  if (seriesCount < 1) {
+    throw new Error("Bracket is not ready yet")
+  }
+
+  if (pickCount < seriesCount) {
+    throw new Error("Complete every series before submitting")
+  }
+
+  return {
+    challengeId: input.challengeId,
+    entryId: input.entryId,
+    redirectUrl: toChallengeDashboardHref(input.challengeId),
   }
 }
 

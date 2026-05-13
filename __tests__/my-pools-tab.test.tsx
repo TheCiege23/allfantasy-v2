@@ -33,6 +33,22 @@ describe("MyPoolsTab", () => {
     expect(screen.queryByText("Bad")).not.toBeInTheDocument()
   })
 
+  it("dedupes duplicate pool rows and keeps canonical pool href", () => {
+    render(
+      <MyPoolsTab
+        pools={[
+          { id: "pool-1", name: "NBA Finals Pool", href: "/brackets/leagues/pool-1", members: 4, entries: 12, sport: "NBA" },
+          { id: "pool-1", name: "Duplicate", href: "/brackets/leagues/pool-1", members: 1, entries: 1, sport: "NBA" },
+        ]}
+      />
+    )
+
+    expect(screen.getAllByRole("link", { name: "NBA Finals Pool" })).toHaveLength(1)
+    expect(screen.getByRole("link", { name: "NBA Finals Pool" })).toHaveAttribute("href", "/brackets/leagues/pool-1")
+    expect(screen.getByText("4")).toBeInTheDocument()
+    expect(screen.getByText("12")).toBeInTheDocument()
+  })
+
   it("renders empty state", () => {
     render(<MyPoolsTab pools={[]} />)
     expect(screen.getByText("No pools yet. Create or join a pool to get started.")).toBeInTheDocument()

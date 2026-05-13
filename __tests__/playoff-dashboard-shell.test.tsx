@@ -12,7 +12,6 @@ const toastSuccessMock = vi.hoisted(() => vi.fn())
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
-  useSearchParams: () => new URLSearchParams(),
 }))
 
 vi.mock("@/lib/playoffs/playoffClientApi", () => ({
@@ -45,7 +44,7 @@ function buildView(overrides: Partial<PlayoffChallengeView> = {}): PlayoffChalle
       scoringStyle: "series_winner",
       lockRule: "first_tipoff",
       inviteCode: "ABCDEFGH",
-      inviteUrl: "/brackets/playoffs/challenge-1",
+      inviteUrl: "/brackets/leagues/challenge-1",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     },
@@ -121,7 +120,7 @@ describe("PlayoffBracketShell dashboard", () => {
     expect(screen.queryByText("NCAA Bracket")).not.toBeInTheDocument()
   })
 
-  it("renders participants, entries, leaderboard, and Fill In Bracket CTA", () => {
+  it("renders participants, my brackets, leaderboard, and first-entry CTA", () => {
     render(
       <PlayoffBracketShell
         initialView={buildView({
@@ -133,26 +132,57 @@ describe("PlayoffBracketShell dashboard", () => {
     )
 
     expect(screen.getByRole("heading", { name: "Participants" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "Entries" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "My Brackets / Entries" })).toBeInTheDocument()
     expect(screen.getByTestId("playoff-dashboard-leaderboard")).toBeInTheDocument()
-    expect(screen.getByTestId("playoff-fill-bracket-cta")).toHaveTextContent("Fill In Bracket")
+    expect(screen.getByTestId("playoff-fill-bracket-cta")).toHaveTextContent("Create Your First Bracket")
   })
 
-  it("creates a bracket entry and redirects to board entry", async () => {
+  it("creates another bracket entry and redirects to canonical pool entry route", async () => {
     createPlayoffBracketEntryClientMock.mockResolvedValue({
       challengeId: "challenge-1",
       entryId: "entry-2",
-      redirectUrl: "/brackets/playoffs/challenge-1?entryId=entry-2",
+      redirectUrl: "/brackets/leagues/challenge-1/entries/entry-2",
     })
 
     render(<PlayoffBracketShell initialView={buildView()} />)
 
-    fireEvent.click(screen.getByRole("button", { name: "Create Bracket Entry" }))
+    fireEvent.click(screen.getByRole("button", { name: "Create Another Bracket" }))
 
     await waitFor(() => {
       expect(createPlayoffBracketEntryClientMock).toHaveBeenCalled()
-      expect(pushMock).toHaveBeenCalledWith("/brackets/playoffs/challenge-1?entryId=entry-2")
+      expect(pushMock).toHaveBeenCalledWith("/brackets/leagues/challenge-1/entries/entry-2")
     })
+  })
+
+  it("shows only the viewer's entries in My Brackets while keeping leaderboard entries", () => {
+    render(
+      <PlayoffBracketShell
+        initialView={buildView({
+          entries: [
+            {
+              id: "entry-1",
+              name: "My Bracket",
+              userId: "user-1",
+              pickCount: 4,
+              isComplete: false,
+              createdAt: new Date().toISOString(),
+            },
+            {
+              id: "entry-2",
+              name: "Other User Bracket",
+              userId: "user-2",
+              pickCount: 6,
+              isComplete: true,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        })}
+      />
+    )
+
+    expect(screen.getByText("My Bracket")).toBeInTheDocument()
+    expect(screen.getByText("#1 Other User Bracket")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Other User Bracket/i })).not.toBeInTheDocument()
   })
 
   it("blocks 6th entry creation", async () => {
@@ -174,8 +204,7 @@ describe("PlayoffBracketShell dashboard", () => {
       />
     )
 
-    const createButton = screen.getByRole("button", { name: "Create Bracket Entry" })
-    expect(createButton).toBeDisabled()
+    expect(screen.queryByRole("button", { name: "Create Another Bracket" })).not.toBeInTheDocument()
     expect(screen.getByText("Entry limit reached. Bracket 6 is blocked.")).toBeInTheDocument()
   })
 })
