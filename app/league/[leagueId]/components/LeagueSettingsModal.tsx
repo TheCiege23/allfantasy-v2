@@ -47,8 +47,13 @@ import { SubscriptionGateProvider } from '@/hooks/useSubscriptionGate'
 import LanguageToggle from '@/components/i18n/LanguageToggle'
 import { ThemeModeSelect } from '@/components/theme/ThemeModeSelect'
 import {
+  buildLeagueSummaryLine,
+  formatConceptLabel,
+  formatDraftTypeLabel,
+  formatScoringPresetLabel,
   initialsFromName,
   leagueAvatarSrc,
+  readLeagueTimezone,
   readStoredTab,
   writeStoredTab,
   type SettingsTabKey,
@@ -153,6 +158,7 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
   /** Avoid treating `!idpLeague` as definitive until `/idp/config` has responded (prevents flashing off IDP tab). */
   const [idpConfigLoaded, setIdpConfigLoaded] = useState(false)
   const [hasAfCommissionerSub, setHasAfCommissionerSub] = useState(false)
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false)
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)')
@@ -202,6 +208,11 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
       cancelled = true
     }
   }, [open, league.id])
+
+  useEffect(() => {
+    if (!open) return
+    setAvatarLoadFailed(false)
+  }, [open, displayLeague.logoUrl, displayLeague.avatarUrl, league.avatarUrl])
 
   useEffect(() => {
     if (!open) return
@@ -267,7 +278,29 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
     return AI_CARDS
   }, [mainTab])
 
-  const leagueAvatar = leagueAvatarSrc(displayLeague.avatarUrl ?? league.avatarUrl)
+  const draftTypeRaw =
+    (league.settings as { draftType?: unknown; draft_type?: unknown } | null | undefined)?.draftType ??
+    (league.settings as { draftType?: unknown; draft_type?: unknown } | null | undefined)?.draft_type
+  const leagueAvatar = leagueAvatarSrc(displayLeague.logoUrl ?? displayLeague.avatarUrl ?? league.avatarUrl)
+  const leagueSummary = useMemo(
+    () =>
+      buildLeagueSummaryLine({
+        sport: displayLeague.sport,
+        teamCount: displayLeague.teamCount,
+        concept: formatConceptLabel({
+          leagueType: displayLeague.leagueType,
+          leagueVariant: displayLeague.leagueVariant,
+          isDynasty: displayLeague.isDynasty,
+          guillotineMode: displayLeague.guillotineMode,
+          bestBallMode: displayLeague.bestBallMode,
+          fallbackFormat: displayLeague.format,
+        }),
+        draftType: formatDraftTypeLabel(draftTypeRaw),
+        scoringPreset: formatScoringPresetLabel(displayLeague.scoring, league.settings),
+        timezone: readLeagueTimezone(league.settings, displayLeague.timezone),
+      }),
+    [displayLeague, draftTypeRaw, league.settings],
+  )
   const panelTitle = activePanel ? PANEL_TITLES[activePanel] ?? 'Settings' : ''
 
   useEffect(() => {
@@ -357,8 +390,13 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
                   </button>
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border border-white/15 bg-white/10">
-                      {leagueAvatar ? (
-                        <img src={leagueAvatar} alt="" className="h-full w-full object-cover" />
+                      {leagueAvatar && !avatarLoadFailed ? (
+                        <img
+                          src={leagueAvatar}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          onError={() => setAvatarLoadFailed(true)}
+                        />
                       ) : (
                         <span className="flex h-full w-full items-center justify-center text-[13px] font-bold text-white/75">
                           {initialsFromName(displayLeague.name)}
@@ -369,7 +407,7 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
                       <h1 id="league-settings-modal-title" className="truncate text-lg font-bold text-white md:text-xl">
                         {displayLeague.name}
                       </h1>
-                      <p className="text-[13px] text-white/45">League Settings</p>
+                      <p className="truncate text-[13px] text-white/45">{leagueSummary}</p>
                     </div>
                   </div>
                 </div>

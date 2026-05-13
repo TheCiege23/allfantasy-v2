@@ -5,9 +5,15 @@ import { useMemo } from 'react'
 import type { UserLeague } from '@/app/dashboard/types'
 import type { LeagueSettingsModalLeague } from './LeagueSettingsSubPanels'
 import {
+  buildLeagueSummaryLine,
   extractWaiverScheduleLines,
+  formatConceptLabel,
+  formatDraftTypeLabel,
+  formatScoringPresetLabel,
   getSleeperLikeBundle,
   getSettingsRecord,
+  NOT_CONFIGURED_YET,
+  readLeagueTimezone,
   waiverTypeLabel,
 } from './league-settings-modal-utils'
 
@@ -50,7 +56,7 @@ export function LeagueRulesSummarySection({
       ? rosterPositions.join(', ')
       : typeof bundle.roster_positions === 'string'
         ? bundle.roster_positions
-        : '—'
+        : NOT_CONFIGURED_YET
 
   const playoffTeams = bundle.playoff_teams ?? settings.playoff_teams
   const playoffStart = bundle.playoff_week_start ?? settings.playoff_week_start
@@ -61,6 +67,16 @@ export function LeagueRulesSummarySection({
   const taxiSlots = bundle.taxi_slots ?? settings.taxi_slots
   const numTeams =
     typeof bundle.total_rosters === 'number' ? bundle.total_rosters : displayLeague.teamCount
+  const draftType = bundle.draft_type ?? bundle.draftType ?? settings.draftType ?? settings.draft_type
+  const concept = formatConceptLabel({
+    leagueType: displayLeague.leagueType,
+    leagueVariant: displayLeague.leagueVariant,
+    isDynasty: displayLeague.isDynasty,
+    guillotineMode: displayLeague.guillotineMode,
+    bestBallMode: displayLeague.bestBallMode,
+    fallbackFormat: displayLeague.format,
+  })
+  const timezone = readLeagueTimezone(league.settings)
 
   const waiverTime =
     bundle.waiver_min_time ?? settings.waiver_min_time ?? bundle.players_on_waiver_time ?? null
@@ -89,6 +105,21 @@ export function LeagueRulesSummarySection({
       </div>
 
       <div>
+        <SectionLabel>Basics</SectionLabel>
+        <SummaryRow
+          label="League summary"
+          value={buildLeagueSummaryLine({
+            sport: displayLeague.sport,
+            teamCount: numTeams,
+            concept,
+            draftType: formatDraftTypeLabel(draftType),
+            scoringPreset: formatScoringPresetLabel(displayLeague.scoring, league.settings),
+            timezone,
+          })}
+        />
+      </div>
+
+      <div>
         <SectionLabel>Roster construction</SectionLabel>
         <p className="text-[13px] leading-relaxed text-white/88">{rosterLine}</p>
       </div>
@@ -102,7 +133,7 @@ export function LeagueRulesSummarySection({
               ? `${playoffTeams} teams, starts week ${playoffStart}`
               : playoffTeams != null
                 ? `${playoffTeams} teams`
-                : '—'
+                : NOT_CONFIGURED_YET
           }
         />
       </div>
@@ -125,14 +156,14 @@ export function LeagueRulesSummarySection({
         {waiverMeta.clearWaivers ? (
           <p className="mt-2 text-[12px] text-white/70">{waiverMeta.clearWaivers}</p>
         ) : (
-          <SummaryRow label="Clear waivers" value="—" />
+          <SummaryRow label="Clear waivers" value={NOT_CONFIGURED_YET} />
         )}
       </div>
 
       <div>
         <SectionLabel>Waivers & budget</SectionLabel>
         <SummaryRow label="Waiver type" value={waiverTypeLabel(waiverType)} />
-        <SummaryRow label="Waiver / FAAB budget" value={waiverBudget != null ? `$${waiverBudget}` : '—'} />
+        <SummaryRow label="Waiver / FAAB budget" value={waiverBudget != null ? `$${waiverBudget}` : NOT_CONFIGURED_YET} />
         {waiverTime != null ? (
           <SummaryRow label="Waiver time" value={String(waiverTime)} />
         ) : null}
@@ -141,13 +172,13 @@ export function LeagueRulesSummarySection({
       <div>
         <SectionLabel>Roster slots</SectionLabel>
         <SummaryRow label="Teams" value={String(numTeams)} />
-        <SummaryRow label="Injured reserve" value={reserveSlots != null ? String(reserveSlots) : '—'} />
-        <SummaryRow label="Taxi" value={taxiSlots != null ? String(taxiSlots) : '—'} />
+        <SummaryRow label="Injured reserve" value={reserveSlots != null ? String(reserveSlots) : NOT_CONFIGURED_YET} />
+        <SummaryRow label="Taxi" value={taxiSlots != null ? String(taxiSlots) : NOT_CONFIGURED_YET} />
       </div>
 
       <div>
         <SectionLabel>Trades</SectionLabel>
-        <SummaryRow label="Trade deadline" value={tradeDl != null ? `Week ${tradeDl}` : '—'} />
+        <SummaryRow label="Trade deadline" value={tradeDl != null ? `Week ${tradeDl}` : NOT_CONFIGURED_YET} />
       </div>
 
       <p className="text-[11px] text-white/38">

@@ -164,6 +164,100 @@ export function leagueAvatarSrc(avatarUrl: string | null | undefined): string | 
   return sleeperAvatarUrl(avatarUrl)
 }
 
+function toRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return value as Record<string, unknown>
+}
+
+export const NOT_CONFIGURED_YET = 'Not configured yet'
+
+export function withNotConfigured(value: string | null | undefined): string {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  return trimmed.length > 0 ? trimmed : NOT_CONFIGURED_YET
+}
+
+export function formatDraftTypeLabel(raw: unknown): string {
+  const value = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+  if (!value) return NOT_CONFIGURED_YET
+  if (value === 'snake') return 'Snake Draft'
+  if (value === 'auction') return 'Auction Draft'
+  if (value === 'linear') return 'Linear Draft'
+  if (value === 'slow' || value === 'slow_draft') return 'Slow Draft'
+  return value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+export function formatConceptLabel(options: {
+  leagueType?: string | null
+  leagueVariant?: string | null
+  isDynasty?: boolean | null
+  bestBallMode?: boolean | null
+  guillotineMode?: boolean | null
+  fallbackFormat?: string | null
+}): string {
+  if (options.guillotineMode) return 'Guillotine'
+  if (options.bestBallMode) return 'Best Ball'
+  const variant = (options.leagueVariant ?? '').trim().toLowerCase()
+  if (variant === 'survivor') return 'Survivor'
+  if (variant === 'zombie') return 'Zombie'
+  if (variant === 'big_brother') return 'Big Brother'
+  if (variant === 'idp' || variant === 'dynasty_idp') return 'IDP'
+  if (variant === 'devy_dynasty') return 'Devy Dynasty'
+  if (variant === 'merged_devy_c2c') return 'C2C'
+
+  const leagueType = (options.leagueType ?? '').trim().toLowerCase()
+  if (leagueType === 'redraft') return 'Redraft'
+  if (leagueType === 'dynasty') return 'Dynasty'
+  if (leagueType === 'keeper') return 'Keeper'
+  if (leagueType === 'devy') return 'Devy'
+  if (leagueType === 'c2c') return 'C2C'
+
+  if (options.isDynasty) return 'Dynasty'
+  if ((options.fallbackFormat ?? '').trim()) {
+    return options.fallbackFormat!.replace(/[_-]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+  }
+  return NOT_CONFIGURED_YET
+}
+
+export function readLeagueTimezone(settings: unknown, fallback?: string | null): string {
+  const bundle = getSleeperLikeBundle(settings)
+  const root = getSettingsRecord(settings)
+  const nested = toRecord(bundle.settings)
+  const candidate =
+    bundle.timezone ??
+    bundle.time_zone ??
+    bundle.tz ??
+    root.timezone ??
+    root.time_zone ??
+    root.tz ??
+    nested.timezone ??
+    nested.time_zone ??
+    nested.tz ??
+    fallback
+  if (typeof candidate === 'string' && candidate.trim()) return candidate.trim()
+  return NOT_CONFIGURED_YET
+}
+
+export function formatScoringPresetLabel(scoring: string | null | undefined, settings: unknown): string {
+  if (typeof scoring === 'string' && scoring.trim()) return scoring.trim()
+  const bundle = getSleeperLikeBundle(settings)
+  const root = getSettingsRecord(settings)
+  const nested = toRecord(bundle.settings)
+  const candidate = bundle.scoring ?? bundle.scoring_type ?? root.scoring ?? nested.scoring
+  if (typeof candidate === 'string' && candidate.trim()) return candidate.trim()
+  return detectScoringFlavor(getScoringSettings(settings))
+}
+
+export function buildLeagueSummaryLine(options: {
+  sport: string
+  teamCount: number
+  concept: string
+  draftType: string
+  scoringPreset: string
+  timezone: string
+}): string {
+  return `${options.teamCount}-Team ${options.sport} ${options.concept} • ${options.draftType} • ${options.scoringPreset} • ${options.timezone}`
+}
+
 export function initialsFromName(name: string): string {
   const t = name.trim()
   if (!t) return 'AF'

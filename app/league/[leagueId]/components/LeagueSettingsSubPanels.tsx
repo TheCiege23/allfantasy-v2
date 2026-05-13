@@ -30,7 +30,11 @@ import { DiscordLeagueSyncPanel } from './DiscordLeagueSyncPanel'
 import { PlayoffSettingsEditor as PlayoffSettingsEditorLazy } from '@/components/league-settings/PlayoffSettingsEditor'
 import { RosterSettingsEditor as RosterSettingsEditorLazy } from '@/components/league-settings/RosterSettingsEditor'
 import {
+  buildLeagueSummaryLine,
   detectScoringFlavor,
+  formatConceptLabel,
+  formatDraftTypeLabel,
+  formatScoringPresetLabel,
   getDivisionCount,
   getDraftIdFromSettings,
   getScoringSettings,
@@ -39,6 +43,8 @@ import {
   groupRosterSlotCounts,
   initialsFromName,
   leagueAvatarSrc,
+  NOT_CONFIGURED_YET,
+  readLeagueTimezone,
   sleeperAvatarUrl,
   waiverTypeLabel,
 } from './league-settings-modal-utils'
@@ -175,7 +181,7 @@ function DivisionSettingsPanel({ ctx }: { ctx: SubPanelContext }) {
   const sleeperSettingsHref = ctx.sleeperLeagueId
     ? `https://sleeper.com/leagues/${ctx.sleeperLeagueId}/settings`
     : null
-  const label = count != null ? `${count} Division${count === 1 ? '' : 's'}` : '—'
+  const label = count != null ? `${count} Division${count === 1 ? '' : 's'}` : NOT_CONFIGURED_YET
 
   return (
     <div className="space-y-3">
@@ -334,8 +340,8 @@ function RosterSettingsReadonlyPanel({ ctx }: { ctx: SubPanelContext }) {
       )}
 
       <div className="overflow-hidden rounded-xl border border-white/[0.06] bg-[#0a1228]/60">
-        <Row label="IR slots" value={reserveSlots != null ? String(reserveSlots) : '—'} />
-        <Row label="Taxi slots" value={taxiSlots != null ? String(taxiSlots) : '—'} />
+        <Row label="IR slots" value={reserveSlots != null ? String(reserveSlots) : NOT_CONFIGURED_YET} />
+        <Row label="Taxi slots" value={taxiSlots != null ? String(taxiSlots) : NOT_CONFIGURED_YET} />
       </div>
       {sleeperSettingsHref ? (
         <SleeperLink href={sleeperSettingsHref}>Open roster settings in Sleeper →</SleeperLink>
@@ -348,26 +354,26 @@ function playoffRoundTypeLabel(v: unknown): string {
   if (v === 0 || v === '0') return 'One week per round'
   if (v === 1 || v === '1') return 'Two week championship'
   if (v === 2 || v === '2') return 'Two weeks per round'
-  return v != null && String(v).trim() ? String(v) : '—'
+  return v != null && String(v).trim() ? String(v) : NOT_CONFIGURED_YET
 }
 
 function playoffSeedTypeLabel(v: unknown): string {
   if (v === 0 || v === '0') return 'Default bracket side'
   if (v === 1 || v === '1') return 'Re-seed each round'
-  return v != null && String(v).trim() ? String(v) : '—'
+  return v != null && String(v).trim() ? String(v) : NOT_CONFIGURED_YET
 }
 
 function lowerBracketLabel(toilet: unknown, s: Record<string, unknown>): string {
   const t = toilet ?? s.toilet_bowl
   if (t === true || t === 1 || t === '1') return 'Toilet bowl'
   if (t === false || t === 0 || t === '0') return 'Consolation style'
-  return '—'
+  return NOT_CONFIGURED_YET
 }
 
 function yn(v: unknown): string {
   if (v === true || v === 1 || v === '1') return 'On'
   if (v === false || v === 0 || v === '0') return 'Off'
-  return '—'
+  return NOT_CONFIGURED_YET
 }
 
 function PlayoffSettingsReadonlyPanel({ ctx }: { ctx: SubPanelContext }) {
@@ -391,8 +397,8 @@ function PlayoffSettingsReadonlyPanel({ ctx }: { ctx: SubPanelContext }) {
         settings — open Sleeper to change brackets or seeding.
       </p>
       <div className="overflow-hidden rounded-xl border border-white/[0.06] bg-[#0a1228]/80">
-        <Row label="Playoffs start week" value={playoffStart != null ? `Week ${playoffStart}` : '—'} />
-        <Row label="Playoff teams" value={playoffTeams != null ? String(playoffTeams) : '—'} />
+        <Row label="Playoffs start week" value={playoffStart != null ? `Week ${playoffStart}` : NOT_CONFIGURED_YET} />
+        <Row label="Playoff teams" value={playoffTeams != null ? String(playoffTeams) : NOT_CONFIGURED_YET} />
         <Row label="Playoff rounds" value={playoffRoundTypeLabel(roundType)} />
         <Row label="Seeding rules" value={playoffSeedTypeLabel(seedType)} />
         <Row label="Lower bracket" value={lowerBracketLabel(toilet, settings)} />
@@ -423,7 +429,7 @@ function draftStatusBadge(status: string): { label: string; className: string } 
   if (s === 'missing' || s === 'no draft')
     return { label: 'NO DATA', className: 'border border-white/10 bg-white/[0.06] text-white/45' }
   return {
-    label: s.replace(/_/g, ' ').toUpperCase() || '—',
+    label: s.replace(/_/g, ' ').toUpperCase() || NOT_CONFIGURED_YET,
     className: 'border border-white/10 bg-white/[0.08] text-white/80',
   }
 }
@@ -433,11 +439,11 @@ function draftTypeDisplay(type: unknown): string {
   if (t === 'snake') return 'Snake Draft'
   if (t === 'linear') return 'Linear Draft'
   if (t === 'auction') return 'Auction Draft'
-  return t ? t.replace(/_/g, ' ') : '—'
+  return t ? t.replace(/_/g, ' ') : NOT_CONFIGURED_YET
 }
 
 function formatPickTimerSeconds(sec: unknown): string {
-  if (typeof sec !== 'number' || !Number.isFinite(sec) || sec <= 0) return '—'
+  if (typeof sec !== 'number' || !Number.isFinite(sec) || sec <= 0) return NOT_CONFIGURED_YET
   if (sec >= 3600) {
     const h = sec / 3600
     return `${h % 1 === 0 ? String(h) : h.toFixed(1)} Hours`
@@ -455,7 +461,7 @@ function formatPlayerPool(settings: Record<string, unknown>, meta: Record<string
     return v
       .replace(/_/g, ' ')
       .replace(/\b\w/g, (c) => c.toUpperCase())
-  return '—'
+  return NOT_CONFIGURED_YET
 }
 
 function parseDraftDetail(draft: Record<string, unknown> | null) {
@@ -468,7 +474,7 @@ function parseDraftDetail(draft: Record<string, unknown> | null) {
   const cpuOn = cpu === true || cpu === 1 || cpu === '1'
   return {
     typeLabel: draftTypeDisplay(draft.type),
-    roundsLabel: typeof rounds === 'number' && Number.isFinite(rounds) ? `${rounds} Rounds` : '—',
+    roundsLabel: typeof rounds === 'number' && Number.isFinite(rounds) ? `${rounds} Rounds` : NOT_CONFIGURED_YET,
     poolLabel: formatPlayerPool(settings, meta),
     timerLabel: formatPickTimerSeconds(pickTimer),
     cpuLabel: cpuOn ? 'CPU Autopick' : 'CPU off',
@@ -711,22 +717,39 @@ export function SettingsSubPanelBody({
   const flavor = detectScoringFlavor(scoring)
   const waiverRaw = bundle.waiver_type ?? settings.waiver_type
   const numTeams = typeof bundle.total_rosters === 'number' ? bundle.total_rosters : ctx.displayLeague.teamCount
-  const sport = String(bundle.sport ?? ctx.displayLeague.sport ?? '—')
-  const season = bundle.season != null ? String(bundle.season) : String(ctx.displayLeague.season ?? '—')
+  const sport = String(bundle.sport ?? ctx.displayLeague.sport ?? NOT_CONFIGURED_YET)
+  const season = bundle.season != null ? String(bundle.season) : String(ctx.displayLeague.season ?? NOT_CONFIGURED_YET)
   const playoffTeams = bundle.playoff_teams ?? settings.playoff_teams
   const playoffStart = bundle.playoff_week_start ?? settings.playoff_week_start
   const tradeDl = bundle.trade_deadline ?? settings.trade_deadline
   const waiverBudget = bundle.waiver_budget ?? settings.waiver_budget
   const draftId = getDraftIdFromSettings(ctx.league.settings)
+  const draftType = bundle.draft_type ?? bundle.draftType ?? settings.draftType ?? settings.draft_type
+  const concept = formatConceptLabel({
+    leagueType: ctx.displayLeague.leagueType,
+    leagueVariant: ctx.displayLeague.leagueVariant,
+    isDynasty: ctx.displayLeague.isDynasty,
+    guillotineMode: ctx.displayLeague.guillotineMode,
+    bestBallMode: ctx.displayLeague.bestBallMode,
+    fallbackFormat: ctx.displayLeague.format,
+  })
+  const timezone = readLeagueTimezone(ctx.league.settings)
 
   const sleeperSettingsHref = ctx.sleeperLeagueId
     ? `https://sleeper.com/leagues/${ctx.sleeperLeagueId}/settings`
     : null
   const mockDraftHref = ctx.sleeperLeagueId ? `https://sleeper.com/mock-draft/${ctx.sleeperLeagueId}` : null
-  const inviteUrl =
-    ctx.platformLeagueId.length > 0
-      ? `https://sleeper.com/leagues/${ctx.platformLeagueId}`
-      : 'https://sleeper.com/'
+  const inviteToken = typeof ctx.league.invites?.[0]?.token === 'string' ? ctx.league.invites[0].token.trim() : ''
+  const inviteUrl = useMemo(() => {
+    if (inviteToken.length > 0) {
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.allfantasy.com'
+      return `${origin}/join/${inviteToken}`
+    }
+    if (ctx.platformLeagueId.length > 0) {
+      return `https://sleeper.com/leagues/${ctx.platformLeagueId}`
+    }
+    return 'https://www.allfantasy.com/'
+  }, [ctx.platformLeagueId, inviteToken])
 
   switch (panelId) {
     case 'discord-sync':
@@ -738,15 +761,29 @@ export function SettingsSubPanelBody({
         <div className="space-y-1">
           <SectionTitle>League snapshot</SectionTitle>
           <Row label="League name" value={ctx.displayLeague.name} />
+          <Row
+            label="Summary"
+            value={buildLeagueSummaryLine({
+              sport,
+              teamCount: Number(numTeams) || ctx.displayLeague.teamCount,
+              concept,
+              draftType: formatDraftTypeLabel(draftType),
+              scoringPreset: formatScoringPresetLabel(ctx.displayLeague.scoring, ctx.league.settings),
+              timezone,
+            })}
+          />
           <Row label="Teams" value={String(numTeams)} />
           <Row label="Sport" value={sport} />
           <Row label="Season" value={season} />
-          <Row label="Scoring" value={flavor} />
+          <Row label="Concept" value={concept} />
+          <Row label="Draft type" value={formatDraftTypeLabel(draftType)} />
+          <Row label="Scoring" value={formatScoringPresetLabel(ctx.displayLeague.scoring, ctx.league.settings)} />
+          <Row label="Timezone" value={timezone} />
           <Row label="Waiver type" value={waiverTypeLabel(waiverRaw)} />
-          <Row label="FAAB budget" value={waiverBudget != null ? String(waiverBudget) : '—'} />
-          <Row label="Playoff teams" value={playoffTeams != null ? String(playoffTeams) : '—'} />
-          <Row label="Playoff start week" value={playoffStart != null ? String(playoffStart) : '—'} />
-          <Row label="Trade deadline week" value={tradeDl != null ? String(tradeDl) : '—'} />
+          <Row label="FAAB budget" value={waiverBudget != null ? String(waiverBudget) : NOT_CONFIGURED_YET} />
+          <Row label="Playoff teams" value={playoffTeams != null ? String(playoffTeams) : NOT_CONFIGURED_YET} />
+          <Row label="Playoff start week" value={playoffStart != null ? String(playoffStart) : NOT_CONFIGURED_YET} />
+          <Row label="Trade deadline week" value={tradeDl != null ? String(tradeDl) : NOT_CONFIGURED_YET} />
           {sleeperSettingsHref ? (
             <SleeperLink href={sleeperSettingsHref}>Open full settings in Sleeper →</SleeperLink>
           ) : null}
@@ -840,7 +877,14 @@ export function SettingsSubPanelBody({
     case 'notifications':
       return <NotificationsPanel />
     case 'invite':
-      return <InvitePanel inviteUrl={inviteUrl} filled={ctx.league.teams.length} total={numTeams} />
+      return (
+        <InvitePanel
+          inviteUrl={inviteUrl}
+          filled={ctx.league.teams.length}
+          total={numTeams}
+          isSleeperImported={ctx.league.platform === 'sleeper'}
+        />
+      )
     case 'co-owners':
       return <CoOwnersPanel ctx={ctx} />
     case 'draft-results':
@@ -984,11 +1028,11 @@ function DraftSubPanel({
   draftId: string | null
   onGoToDraftTab: () => void
 }) {
-  const status = String(bundle.status ?? '—')
-  const start = draftDateIso ? new Date(draftDateIso).toLocaleString() : '—'
+  const status = String(bundle.status ?? NOT_CONFIGURED_YET)
+  const start = draftDateIso ? new Date(draftDateIso).toLocaleString() : NOT_CONFIGURED_YET
   return (
     <div className="space-y-3">
-      <Row label="Draft ID" value={draftId ?? '—'} />
+      <Row label="Draft ID" value={draftId ?? NOT_CONFIGURED_YET} />
       <Row label="Status" value={status} />
       <Row label="Scheduled" value={start} />
       <div className="flex flex-col gap-2 pt-2">
@@ -1031,7 +1075,11 @@ function ScoringSubPanel({
       </div>
       <div className="space-y-0">
         {keys.map((k) => (
-          <Row key={k} label={k.replace(/_/g, ' ')} value={scoring[k] != null ? String(scoring[k]) : '—'} />
+          <Row
+            key={k}
+            label={k.replace(/_/g, ' ')}
+            value={scoring[k] != null ? String(scoring[k]) : NOT_CONFIGURED_YET}
+          />
         ))}
       </div>
       {sleeperSettingsHref ? (
@@ -1081,7 +1129,17 @@ function NotificationsPanel() {
   )
 }
 
-function InvitePanel({ inviteUrl, filled, total }: { inviteUrl: string; filled: number; total: number }) {
+function InvitePanel({
+  inviteUrl,
+  filled,
+  total,
+  isSleeperImported,
+}: {
+  inviteUrl: string
+  filled: number
+  total: number
+  isSleeperImported: boolean
+}) {
   const [copied, setCopied] = useState(false)
   const copy = () => {
     void navigator.clipboard.writeText(inviteUrl)
@@ -1111,7 +1169,11 @@ function InvitePanel({ inviteUrl, filled, total }: { inviteUrl: string; filled: 
           WhatsApp
         </a>
       </div>
-      <p className="text-[11px] text-white/35">Invite metadata from Sleeper may include invite_code when synced.</p>
+      <p className="text-[11px] text-white/35">
+        {isSleeperImported
+          ? 'Invite metadata from Sleeper may include invite_code when synced.'
+          : 'Share this invite link with league members. Ranking restrictions may apply unless a commissioner bypass invite is used.'}
+      </p>
     </div>
   )
 }
