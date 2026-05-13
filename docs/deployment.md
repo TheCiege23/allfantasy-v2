@@ -69,13 +69,22 @@ Run top-to-bottom before every production push.
 
 ## Staging deploy checklist
 
-- [ ] Deploy to Vercel Preview branch (auto-deployed on PR open)
-- [ ] `NEXTAUTH_URL` set to the preview URL for that branch (or use a stable staging slug)
-- [ ] All required vars set in Vercel Preview scope
-- [ ] `GET /api/health` → `env.valid:true` on the preview URL
-- [ ] Run Playwright E2E smoke tests against the preview URL: `npx playwright test --project=chromium`
-- [ ] Confirm draft room real-time picks work (SSE stream visible in Network tab)
-- [ ] Confirm auction nomination + bid flow (if auction draft type tested)
+> Full staging runbook with exact commands: **[docs/staging.md](./staging.md)**
+
+Quick checklist for each PR:
+
+- [ ] Push feature branch — Vercel auto-creates a Preview deployment
+- [ ] `NEXTAUTH_URL` set to the preview URL in Vercel Preview env (or use a stable staging alias)
+- [ ] All required vars set in Vercel Preview scope (see Required section above)
+- [ ] Run `npx prisma migrate deploy` against the staging Neon branch (`DIRECT_URL` = non-pooled staging URL)
+- [ ] Run HTTP smoke validation: `BASE_URL=https://<preview-url> npm run staging:validate`
+  - `GET /api/health` → `env.valid:true`, `database.connected:true`
+- [ ] Open draft room in browser — confirm SSE stream connects (Network tab → filter `stream`)
+- [ ] Verify draft pick flow end-to-end (submit pick, watch real-time update in second tab)
+- [ ] Verify reconnect: disable network 5s → re-enable → draft state recovers
+- [ ] Mobile check: 390px viewport, pick button accessible, timer visible
+- [ ] Run k6 load test: `k6 run --env BASE_URL=<preview-url> scripts/load-test/draft-pick.k6.js`
+  - All thresholds pass: p95 pick < 800ms, error rate < 5%
 
 ---
 
