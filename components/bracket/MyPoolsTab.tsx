@@ -14,6 +14,15 @@ type PoolItem = {
   bracketType?: string | null
 }
 
+function resolveBracketPoolHref(poolId: string, href?: string): string {
+  const canonicalHref = `/brackets/leagues/${poolId}`
+  if (typeof href !== "string") return canonicalHref
+  const trimmed = href.trim()
+  if (!trimmed) return canonicalHref
+  if (trimmed.startsWith("/brackets/leagues/")) return trimmed
+  return canonicalHref
+}
+
 export default function MyPoolsTab({ pools }: { pools?: PoolItem[] | null }) {
   const normalizedPools = Array.isArray(pools)
     ? Array.from(
@@ -23,7 +32,7 @@ export default function MyPoolsTab({ pools }: { pools?: PoolItem[] | null }) {
 
           const nextPool = {
             id,
-            href: typeof pool.href === "string" && pool.href.trim() ? pool.href : `/brackets/leagues/${id}`,
+            href: resolveBracketPoolHref(id, pool.href),
             name: typeof pool.name === "string" && pool.name.trim() ? pool.name : "Untitled Pool",
             members: Number.isFinite(pool.members) ? Number(pool.members) : 0,
             entries: Number.isFinite(pool.entries) ? Number(pool.entries) : 0,
@@ -94,7 +103,10 @@ export default function MyPoolsTab({ pools }: { pools?: PoolItem[] | null }) {
                   challengeType: p.challengeType,
                   bracketType: p.bracketType,
                 })
-                const href = p.href || "/brackets"
+                const href = resolveBracketPoolHref(p.id, p.href)
+                if (process.env.NODE_ENV !== "production") {
+                  console.info("[MyPoolsTab] pool href", { id: p.id, sport: p.sport, href })
+                }
                 return (
                   <tr key={p.id} className="border-t border-white/10">
                     <td className="px-3 py-2">

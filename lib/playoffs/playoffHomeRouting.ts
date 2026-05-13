@@ -57,20 +57,6 @@ export function resolveMyPoolCardHref(input: MyPoolCardInput): string {
     const poolId = String(input?.poolId ?? "").trim()
     if (!poolId) return "/brackets"
 
-    const normalizedSport = String(input?.sport ?? "").toLowerCase()
-    const normalizedChallengeType = String(input?.challengeType ?? input?.bracketType ?? "").toLowerCase()
-
-    if (normalizedSport === "nba" || normalizedSport === "nhl") {
-      const existing = input?.playoffBySport instanceof Map ? input.playoffBySport.get(normalizedSport) : undefined
-      if (existing?.challengeId) {
-        return `/brackets/leagues/${existing.challengeId}`
-      }
-    }
-
-    if (normalizedChallengeType.includes("playoff")) {
-      return `/brackets/leagues/${poolId}`
-    }
-
     return `/brackets/leagues/${poolId}`
   } catch {
     return "/brackets"

@@ -372,7 +372,7 @@ export default async function BracketsHomePage() {
         error: sanitizeError(err),
       })
     }
-    return "/brackets"
+    return input.poolId ? `/brackets/leagues/${input.poolId}` : "/brackets"
   }
   const combinedMyPools = dedupeHomePools([
     ...safeMyLeagues.map((member: any) => ({
