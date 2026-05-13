@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { getPlayoffBracketView } from "@/lib/playoffs/playoffService"
 import PlayoffBracketShell from "@/components/brackets/playoffs/PlayoffBracketShell"
+import { BracketLeagueShell } from "./BracketLeagueShell"
 
 export const dynamic = "force-dynamic"
 
@@ -180,14 +181,15 @@ export default async function BracketLeagueDetailPage({
     })
 
     if (existingLeague?.id) {
-      if (process.env.NODE_ENV !== "production") {
-        console.info("[brackets] loaded dashboard id", {
-          route: "/brackets/leagues/[leagueId]",
-          leagueId: params.leagueId,
-          fallback: "/league/[leagueId]",
-        })
-      }
-      redirect(`/league/${params.leagueId}`)
+      console.warn("[brackets/leagues] rendering legacy BracketLeague shell", {
+        leagueId: params.leagueId,
+      })
+      return (
+        <BracketLeagueShell
+          leagueId={params.leagueId}
+          userId={session?.user?.id ?? null}
+        />
+      )
     }
 
     return (
