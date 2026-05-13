@@ -744,9 +744,11 @@ function GifPicker({ onSelect, onClose }: { onSelect: (url: string) => void; onC
   const searchGifs = useCallback(async (q: string) => {
     setLoading(true)
     try {
+      const tenorKey = process.env.NEXT_PUBLIC_TENOR_API_KEY ?? ""
+      if (!tenorKey) { setLoading(false); return }
       const endpoint = q.trim()
-        ? `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(q)}&key=AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ&client_key=allfantasy&limit=20&media_filter=gif,tinygif`
-        : `https://tenor.googleapis.com/v2/featured?key=AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ&client_key=allfantasy&limit=20&media_filter=gif,tinygif`
+        ? `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(q)}&key=${tenorKey}&client_key=allfantasy&limit=20&media_filter=gif,tinygif`
+        : `https://tenor.googleapis.com/v2/featured?key=${tenorKey}&client_key=allfantasy&limit=20&media_filter=gif,tinygif`
       const res = await fetch(endpoint)
       if (res.ok) {
         const data = await res.json()
