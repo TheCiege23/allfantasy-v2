@@ -5,6 +5,32 @@
 
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  if (
+    process.env.DISABLE_INSTRUMENTATION_DURING_BUILD === "1" &&
+    process.env.NODE_ENV === "production"
+  ) {
+    return;
+  }
+
+  // ── Required env validation (runs before any request is served) ────────────
+  // Throws in production when DATABASE_URL / NEXTAUTH_SECRET / NEXTAUTH_URL are
+  // missing or invalid.  In dev/test it only logs — never blocks startup.
+  try {
+    const { assertProductionEnv } = await import("./lib/env/validateProductionEnv");
+    assertProductionEnv();
+  } catch (err) {
+    if (process.env.NODE_ENV === "production") {
+      // Re-throw so the Next.js process exits with a clear diagnostic message
+      // rather than silently serving requests with a broken configuration.
+      throw err;
+    }
+    // Non-fatal in development — local env may legitimately omit prod vars.
+    console.error(
+      "[EnvValidation] Startup validation failed (non-fatal in dev):",
+      err instanceof Error ? err.message : err
+    );
+  }
+
   try {
     const { logProviderStatus, logProviderStartupValidation } = await import("./lib/provider-config");
     logProviderStatus();

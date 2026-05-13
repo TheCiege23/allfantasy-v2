@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { hasDatabaseUrl } from '@/lib/env/database-url'
+import { validateProductionEnv, type EnvFeatureStatus } from '@/lib/env/validateProductionEnv'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,10 +28,35 @@ export async function GET() {
     }
   }
 
+  // Env validation — expose validity + feature flags (no error text in response).
+  let envStatus: { valid: boolean; errorCount: number; features: EnvFeatureStatus } = {
+    valid: false,
+    errorCount: -1,
+    features: {
+      redis: false,
+      redisFull: false,
+      sentry: false,
+      aiProviders: false,
+      email: false,
+      stripe: false,
+    },
+  }
+  try {
+    const result = validateProductionEnv()
+    envStatus = {
+      valid: result.valid,
+      errorCount: result.errors.length,
+      features: result.features,
+    }
+  } catch {
+    // Non-fatal — health check must always respond
+  }
+
   return NextResponse.json({
     ok: true,
     timestamp: new Date().toISOString(),
     database,
+    env: envStatus,
     analytics: {
       gaMeasurementId,
       hasMetaPixelId: Boolean(process.env.NEXT_PUBLIC_META_PIXEL_ID),
