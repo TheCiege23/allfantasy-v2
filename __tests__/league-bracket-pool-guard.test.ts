@@ -178,3 +178,50 @@ describe('canonicalizeProductRoute — bracket pool paths preserved', () => {
     expect(canonicalizeProductRoute('/api/auth/session')).toBe('/dashboard')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Loop regression tests — /brackets/leagues/[uuid] must NOT redirect to /league/[uuid]
+// (regression guard for the black-screen reload loop introduced when the bracket
+//  guard was added to /league/[id] without removing the reverse redirect in
+//  app/brackets/leagues/[leagueId]/page.tsx)
+//
+// These tests assert the guard + canonicalize contracts that together prevent the
+// /league → /brackets/leagues → /league → … infinite loop.
+// ---------------------------------------------------------------------------
+
+describe('redirect loop regression — bracket UUID must not round-trip to /league/[id]', () => {
+  const BRACKET_UUID = '3647f901-bed1-4508-b408-f265502ff492'
+
+  beforeEach(() => {
+    vi.resetModules()
+    hm.bracketLeagueFindUnique.mockReset()
+    hm.playoffBracketChallengeFindUnique.mockReset()
+    hm.worldCupBracketChallengeFindUnique.mockReset()
+  })
+
+  it('guard returns /brackets/leagues/[uuid] (not /league/[uuid]) for a BracketLeague row', async () => {
+    // Simulate: /league/[uuid] server page calls resolveBracketPoolRedirectUrl
+    hm.bracketLeagueFindUnique.mockResolvedValue({ id: BRACKET_UUID })
+    const result = await resolveGuard(BRACKET_UUID)
+    // Must redirect TO /brackets/leagues/…, never to /league/…
+    expect(result).toBe(`/brackets/leagues/${BRACKET_UUID}`)
+    expect(result).not.toMatch(/^\/league\//)
+  })
+
+  it('canonicalizeProductRoute never maps /brackets/leagues/[uuid] back to /league/[uuid]', () => {
+    // Simulate: canonicalize is applied to the post-auth callbackUrl
+    const url = `/brackets/leagues/${BRACKET_UUID}`
+    const canonical = canonicalizeProductRoute(url)
+    expect(canonical).toBe(url) // preserved as-is
+    expect(canonical).not.toMatch(/^\/league\//) // must NOT become /league/[uuid]
+  })
+
+  it('guard returns null for a normal fantasy league ID (no bracket tables match)', async () => {
+    // Simulate: /league/[id] must NOT redirect normal fantasy leagues to /brackets
+    hm.bracketLeagueFindUnique.mockResolvedValue(null)
+    hm.playoffBracketChallengeFindUnique.mockResolvedValue(null)
+    hm.worldCupBracketChallengeFindUnique.mockResolvedValue(null)
+    const result = await resolveGuard('normal-fantasy-league-id-abc123')
+    expect(result).toBeNull() // guard must not fire for normal leagues
+  })
+})

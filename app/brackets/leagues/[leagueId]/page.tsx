@@ -1,5 +1,4 @@
 import Link from "next/link"
-import { redirect } from "next/navigation"
 import type { Metadata } from "next"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
@@ -180,14 +179,33 @@ export default async function BracketLeagueDetailPage({
     })
 
     if (existingLeague?.id) {
-      if (process.env.NODE_ENV !== "production") {
-        console.info("[brackets] loaded dashboard id", {
-          route: "/brackets/leagues/[leagueId]",
-          leagueId: params.leagueId,
-          fallback: "/league/[leagueId]",
-        })
-      }
-      redirect(`/league/${params.leagueId}`)
+      // loop-guard: DO NOT redirect back to /league/[id] here.
+      // /league/[id] now calls resolveBracketPoolRedirectUrl() and redirects
+      // UUID bracket pools TO /brackets/leagues/[id], so redirecting back would
+      // create an infinite loop:  /league → /brackets/leagues → /league → …
+      // Instead, render a recovery UI so the user can navigate to Brackets home.
+      console.warn("[brackets/leagues] legacy BracketLeague UUID — rendering recovery UI (loop-guard)", {
+        leagueId: params.leagueId,
+      })
+      return (
+        <main className="mx-auto max-w-3xl p-6">
+          <div className="rounded-xl border border-slate-300 bg-white p-6 text-center shadow-sm">
+            <h1 className="text-xl font-semibold text-slate-900">This pool has been migrated</h1>
+            <p className="mt-2 text-sm text-slate-600">
+              This bracket pool is no longer accessible via this route. Please return to Brackets
+              home to find your pools.
+            </p>
+            <div className="mt-4 flex items-center justify-center gap-3">
+              <Link href="/brackets" className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700">
+                Back to Brackets
+              </Link>
+              <Link href="/brackets/leagues/new" className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">
+                Create Pool
+              </Link>
+            </div>
+          </div>
+        </main>
+      )
     }
 
     return (
