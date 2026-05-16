@@ -21,6 +21,12 @@ export type WorldCupSyncOptions = {
   seasonYear?: number
 }
 
+export type WorldCupOfficialGroupsReadiness = {
+  ready: boolean
+  assignedTeams: number
+  incompleteGroups: Array<{ groupName: string; teamCount: number; missingTeams: number }>
+}
+
 // ── Team sync ────────────────────────────────────────────────────────────────
 
 export type WorldCupTeamSyncResult = {
@@ -149,6 +155,42 @@ export async function syncWorldCupTeams(
   }
 
   return result
+}
+
+export async function getWorldCupOfficialGroupsReadiness(
+  options: Pick<WorldCupSyncOptions, "seasonYear"> = {}
+): Promise<WorldCupOfficialGroupsReadiness> {
+  void options.seasonYear
+  const rows = await (prisma as any).worldCupTeam.groupBy({
+    by: ["groupName"],
+    where: {
+      groupName: { not: null },
+      qualificationStatus: { not: "test" },
+    },
+    _count: { _all: true },
+  })
+
+  const counts = new Map<string, number>()
+  for (const row of rows as Array<{ groupName: string | null; _count: { _all: number } }>) {
+    if (row.groupName) counts.set(row.groupName, row._count._all)
+  }
+
+  const groupNames = Array.from({ length: 12 }, (_, index) =>
+    String.fromCharCode("A".charCodeAt(0) + index)
+  )
+  const incompleteGroups = groupNames
+    .map((groupName) => {
+      const teamCount = counts.get(groupName) ?? 0
+      return { groupName, teamCount, missingTeams: Math.max(0, 4 - teamCount) }
+    })
+    .filter((group) => group.missingTeams > 0)
+  const assignedTeams = Array.from(counts.values()).reduce((sum, count) => sum + count, 0)
+
+  return {
+    ready: assignedTeams >= 48 && incompleteGroups.length === 0,
+    assignedTeams,
+    incompleteGroups,
+  }
 }
 
 // ── Fixture sync ──────────────────────────────────────────────────────────────
@@ -639,6 +681,24 @@ export async function syncWorldCupLiveScores(
     dryRun,
     recalculate,
   })
+}
+
+export async function syncWorldCupProviderGroupStandings(
+  options: WorldCupSyncOptions & { challengeId: string }
+) {
+  const readiness = await getWorldCupOfficialGroupsReadiness({
+    seasonYear: options.seasonYear,
+  })
+
+  return {
+    updated: 0,
+    skipped: readiness.assignedTeams,
+    warnings: [
+      "Provider group standings sync is not implemented on this branch; teams/group readiness was checked instead.",
+    ],
+    groupsComplete: readiness.ready,
+    incompleteGroups: readiness.incompleteGroups,
+  }
 }
 
 // ── Status normalization (internal) ───────────────────────────────────────────

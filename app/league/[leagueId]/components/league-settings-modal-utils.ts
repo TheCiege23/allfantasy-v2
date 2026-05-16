@@ -45,6 +45,70 @@ export function detectScoringFlavor(scoringSettings: Record<string, number>): 'P
   return 'Standard'
 }
 
+export function formatConceptLabel(input: {
+  leagueType?: string | null
+  leagueVariant?: string | null
+  isDynasty?: boolean | null
+  guillotineMode?: boolean | null
+  bestBallMode?: boolean | null
+  fallbackFormat?: string | null
+}): string | null {
+  if (input.guillotineMode) return 'Guillotine'
+  if (input.bestBallMode) return 'Best Ball'
+  if (input.isDynasty) return 'Dynasty'
+
+  const raw = input.leagueVariant ?? input.leagueType ?? input.fallbackFormat
+  if (!raw?.trim()) return null
+  return raw
+    .trim()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+export function formatDraftTypeLabel(draftType?: string | null): string | null {
+  if (!draftType?.trim()) return null
+  return draftType
+    .trim()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+export function formatScoringPresetLabel(scoring?: string | null, settings?: unknown): string | null {
+  if (scoring?.trim()) return scoring.trim()
+  const flavor = detectScoringFlavor(getScoringSettings(settings))
+  return flavor === 'Custom' ? null : flavor
+}
+
+export function readLeagueTimezone(settings: unknown): string | null {
+  const s = getSleeperLikeBundle(settings)
+  const nested =
+    typeof s.settings === 'object' && s.settings && !Array.isArray(s.settings)
+      ? (s.settings as Record<string, unknown>)
+      : null
+  const raw = s.timezone ?? s.time_zone ?? nested?.timezone ?? nested?.time_zone
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : null
+}
+
+export function buildLeagueSummaryLine(input: {
+  sport?: string | null
+  teamCount?: number | null
+  concept?: string | null
+  draftType?: string | null
+  scoringPreset?: string | null
+  timezone?: string | null
+}): string {
+  return [
+    input.sport?.trim(),
+    Number.isFinite(input.teamCount ?? NaN) ? `${input.teamCount} teams` : null,
+    input.concept,
+    input.draftType,
+    input.scoringPreset,
+    input.timezone,
+  ]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join(' • ')
+}
+
 /** Human-readable label for a flat `scoring_settings` key (Sleeper-style). */
 export function humanizeScoringKey(key: string): string {
   const t = key.trim()

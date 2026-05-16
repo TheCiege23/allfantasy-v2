@@ -91,12 +91,7 @@ export async function getWorldCupOperationsReadiness(input: {
         startsAt: { not: null },
       },
     }),
-    prisma.worldCupGroupTeam.count({
-      where: {
-        ...(input.challengeId ? { challengeId: input.challengeId } : {}),
-        actualRank: { not: null },
-      },
-    }),
+    Promise.resolve(0),
   ])
 
   return {
