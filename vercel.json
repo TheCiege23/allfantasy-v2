@@ -275,6 +275,26 @@
     {
       "path": "/api/cron/draft-pool-prewarm",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/brackets/world-cup/cron/sync?job=teams&provider=apifootball",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/brackets/world-cup/cron/sync?job=fixtures&provider=apifootball",
+      "schedule": "30 8 * * *"
+    },
+    {
+      "path": "/api/brackets/world-cup/cron/sync?job=standings&provider=apifootball",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/brackets/world-cup/cron/sync?job=live&provider=apifootball&recalculate=true",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/brackets/world-cup/cron/sync?job=recalculate",
+      "schedule": "15 * * * *"
     }
   ]
 }
