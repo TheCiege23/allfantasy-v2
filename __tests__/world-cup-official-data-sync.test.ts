@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
     worldCupBracketMatch: {
       update: vi.fn(),
     },
-    worldCupGroupTeam: {
+    worldCupOfficialGroupStanding: {
       findUnique: vi.fn(),
       upsert: vi.fn(),
       updateMany: vi.fn(),
@@ -105,9 +105,9 @@ describe("World Cup official data sync", () => {
     })
     mocks.prisma.worldCupBracketChallenge.update.mockResolvedValue({})
     mocks.prisma.worldCupBracketMatch.update.mockResolvedValue({ id: "m1" })
-    mocks.prisma.worldCupGroupTeam.findUnique.mockResolvedValue(null)
-    mocks.prisma.worldCupGroupTeam.upsert.mockResolvedValue({})
-    mocks.prisma.worldCupGroupTeam.updateMany.mockResolvedValue({ count: 0 })
+    mocks.prisma.worldCupOfficialGroupStanding.findUnique.mockResolvedValue(null)
+    mocks.prisma.worldCupOfficialGroupStanding.upsert.mockResolvedValue({})
+    mocks.prisma.worldCupOfficialGroupStanding.updateMany.mockResolvedValue({ count: 0 })
   })
 
   it("stores group-stage provider fixtures without forcing them into bracket matches", async () => {
@@ -204,7 +204,7 @@ describe("World Cup official data sync", () => {
       "G",
       "H",
     ])
-    expect(mocks.prisma.worldCupGroupTeam.upsert).toHaveBeenCalledWith(
+    expect(mocks.prisma.worldCupOfficialGroupStanding.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({
           actualRank: 1,
@@ -214,7 +214,7 @@ describe("World Cup official data sync", () => {
         }),
       })
     )
-    expect(mocks.prisma.worldCupGroupTeam.updateMany).toHaveBeenCalledWith(
+    expect(mocks.prisma.worldCupOfficialGroupStanding.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           teamId: { in: expect.arrayContaining(["team-A3"]) },

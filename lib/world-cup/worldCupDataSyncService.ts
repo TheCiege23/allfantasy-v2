@@ -941,7 +941,7 @@ export async function syncWorldCupProviderGroupStandings(
     }
 
     try {
-      const existing = await (prisma as any).worldCupGroupTeam.findUnique({
+      const existing = await (prisma as any).worldCupOfficialGroupStanding.findUnique({
         where: {
           providerName_seasonYear_groupName_teamId: {
             providerName,
@@ -966,7 +966,7 @@ export async function syncWorldCupProviderGroupStandings(
         continue
       }
 
-      await (prisma as any).worldCupGroupTeam.upsert({
+      await (prisma as any).worldCupOfficialGroupStanding.upsert({
         where: {
           providerName_seasonYear_groupName_teamId: {
             providerName,
@@ -1062,12 +1062,12 @@ export async function syncWorldCupProviderGroupStandings(
   }))
 
   if (!options.dryRun) {
-    await (prisma as any).worldCupGroupTeam.updateMany({
+    await (prisma as any).worldCupOfficialGroupStanding.updateMany({
       where: { providerName, seasonYear },
       data: { isThirdPlaceAdvancer: false },
     })
     if (result.thirdPlaceAdvancers.length > 0) {
-      await (prisma as any).worldCupGroupTeam.updateMany({
+      await (prisma as any).worldCupOfficialGroupStanding.updateMany({
         where: {
           providerName,
           seasonYear,

@@ -91,7 +91,7 @@ export async function getWorldCupOperationsReadiness(input: {
         tournamentKey: "fifa_world_cup",
       },
     }),
-    prisma.worldCupGroupTeam.count({
+    prisma.worldCupOfficialGroupStanding.count({
       where: {
         seasonYear,
         actualRank: { not: null },

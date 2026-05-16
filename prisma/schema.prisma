@@ -2977,7 +2977,7 @@ model WorldCupTeam {
   officialHomeFixtures WorldCupOfficialFixture[]    @relation("WorldCupOfficialFixtureHomeTeam")
   officialAwayFixtures WorldCupOfficialFixture[]    @relation("WorldCupOfficialFixtureAwayTeam")
   officialWinnerFixtures WorldCupOfficialFixture[]  @relation("WorldCupOfficialFixtureWinnerTeam")
-  groupStandings       WorldCupGroupTeam[]          @relation("WorldCupGroupStandingTeam")
+  officialGroupStandings WorldCupOfficialGroupStanding[] @relation("WorldCupOfficialGroupStandingTeam")
   selectedInPicks      WorldCupBracketPick[]        @relation("WorldCupPickSelectedTeam")
 
   @@index([qualificationStatus])
@@ -3282,7 +3282,7 @@ model WorldCupOfficialFixture {
   @@map("world_cup_official_fixtures")
 }
 
-model WorldCupGroupTeam {
+model WorldCupOfficialGroupStanding {
   id                   String        @id @default(cuid())
   providerName         String        @map("provider_name") @db.VarChar(32)
   seasonYear           Int           @map("season_year")
@@ -3304,14 +3304,14 @@ model WorldCupGroupTeam {
   sourcePayload        Json?         @map("source_payload")
   createdAt            DateTime      @default(now()) @map("created_at")
   updatedAt            DateTime      @updatedAt @map("updated_at")
-  team                 WorldCupTeam  @relation("WorldCupGroupStandingTeam", fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team                 WorldCupTeam  @relation("WorldCupOfficialGroupStandingTeam", fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@unique([providerName, seasonYear, groupName, teamId])
   @@index([seasonYear, tournamentKey])
   @@index([teamId])
   @@index([groupName, actualRank])
   @@index([isThirdPlaceAdvancer])
-  @@map("world_cup_group_teams")
+  @@map("world_cup_official_group_standings")
 }
 
 /// Commissioner toggles + Bracket Brain preferences for a World Cup bracket challenge.

@@ -60,7 +60,7 @@ ALTER TABLE "world_cup_official_fixtures"
   ADD CONSTRAINT "world_cup_official_fixtures_winner_team_id_fkey"
   FOREIGN KEY ("winner_team_id") REFERENCES "world_cup_teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-CREATE TABLE "world_cup_group_teams" (
+CREATE TABLE "world_cup_official_group_standings" (
   "id" TEXT NOT NULL,
   "provider_name" VARCHAR(32) NOT NULL,
   "season_year" INTEGER NOT NULL,
@@ -82,16 +82,16 @@ CREATE TABLE "world_cup_group_teams" (
   "source_payload" JSONB,
   "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT "world_cup_group_teams_pkey" PRIMARY KEY ("id")
+  CONSTRAINT "world_cup_official_group_standings_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "world_cup_group_teams_provider_name_season_year_group_name_team_id_key"
-  ON "world_cup_group_teams"("provider_name", "season_year", "group_name", "team_id");
-CREATE INDEX "world_cup_group_teams_season_year_tournament_key_idx" ON "world_cup_group_teams"("season_year", "tournament_key");
-CREATE INDEX "world_cup_group_teams_team_id_idx" ON "world_cup_group_teams"("team_id");
-CREATE INDEX "world_cup_group_teams_group_name_actual_rank_idx" ON "world_cup_group_teams"("group_name", "actual_rank");
-CREATE INDEX "world_cup_group_teams_is_third_place_advancer_idx" ON "world_cup_group_teams"("is_third_place_advancer");
+CREATE UNIQUE INDEX "world_cup_official_group_standings_provider_name_season_year_group_name_team_id_key"
+  ON "world_cup_official_group_standings"("provider_name", "season_year", "group_name", "team_id");
+CREATE INDEX "world_cup_official_group_standings_season_year_tournament_key_idx" ON "world_cup_official_group_standings"("season_year", "tournament_key");
+CREATE INDEX "world_cup_official_group_standings_team_id_idx" ON "world_cup_official_group_standings"("team_id");
+CREATE INDEX "world_cup_official_group_standings_group_name_actual_rank_idx" ON "world_cup_official_group_standings"("group_name", "actual_rank");
+CREATE INDEX "world_cup_official_group_standings_is_third_place_advancer_idx" ON "world_cup_official_group_standings"("is_third_place_advancer");
 
-ALTER TABLE "world_cup_group_teams"
-  ADD CONSTRAINT "world_cup_group_teams_team_id_fkey"
+ALTER TABLE "world_cup_official_group_standings"
+  ADD CONSTRAINT "world_cup_official_group_standings_team_id_fkey"
   FOREIGN KEY ("team_id") REFERENCES "world_cup_teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
