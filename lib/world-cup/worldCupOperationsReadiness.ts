@@ -85,13 +85,18 @@ export async function getWorldCupOperationsReadiness(input: {
   const seasonYear = input.seasonYear ?? 2026
   const [groupsReadiness, fixtureCount, standingsCount] = await Promise.all([
     getWorldCupOfficialGroupsReadiness({ seasonYear }),
-    prisma.worldCupBracketMatch.count({
+    prisma.worldCupOfficialFixture.count({
       where: {
-        ...(input.challengeId ? { challengeId: input.challengeId } : {}),
-        startsAt: { not: null },
+        seasonYear,
+        tournamentKey: "fifa_world_cup",
       },
     }),
-    Promise.resolve(0),
+    prisma.worldCupGroupTeam.count({
+      where: {
+        seasonYear,
+        actualRank: { not: null },
+      },
+    }),
   ])
 
   return {

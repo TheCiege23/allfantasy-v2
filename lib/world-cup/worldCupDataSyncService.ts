@@ -7,11 +7,13 @@ import {
   type WorldCupProviderName,
   type WorldCupProviderTeam,
   type WorldCupProviderFixture,
+  type WorldCupProviderGroupStanding,
 } from "./worldCupDataProvider"
 import { normalizeWorldCupRound } from "./apiSportsWorldCup"
 import { normalizeFifaTeamCode } from "./worldCupSeedData"
 import type { WorldCupRound } from "./types"
 import { emitWorldCupMatchTransitionEvents } from "./worldCupBracketLiveEventHooks"
+import { getBestThirdPlaceTeams, type WorldCupGroupStanding } from "./worldCupGroupResolver"
 
 // ── Shared option types ───────────────────────────────────────────────────────
 
@@ -199,6 +201,9 @@ export type WorldCupFixtureSyncResult = {
   created: number
   updated: number
   skipped: number
+  officialFixturesCreated?: number
+  officialFixturesUpdated?: number
+  bracketMatchesUpdated?: number
   warnings: string[]
   lockTimeInferred: string | null
   fixtures: Array<{
@@ -206,6 +211,183 @@ export type WorldCupFixtureSyncResult = {
     matchId?: string
     action: "updated" | "skipped" | "no_match" | "error"
   }>
+}
+
+export type WorldCupGroupStandingsSyncResult = {
+  created: number
+  updated: number
+  skipped: number
+  warnings: string[]
+  groupsComplete: boolean
+  thirdPlaceAdvancers: Array<{ teamId: string; teamName: string; groupName: string }>
+  standings: Array<{ teamId?: string; teamName: string; groupName: string; rank: number; action: "created" | "updated" | "skipped" | "error" }>
+}
+
+const WORLD_CUP_TOURNAMENT_KEY = "fifa_world_cup"
+
+function providerNameFor(options: WorldCupSyncOptions) {
+  return (options.provider ?? process.env.WORLD_CUP_DATA_PROVIDER ?? "mock").toString()
+}
+
+function dateOrNull(value?: string | null) {
+  if (!value) return null
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+async function findTeamIdByProviderOrName(input: {
+  providerId?: string | null
+  name?: string | null
+  fifaCode?: string | null
+}) {
+  const apiTeamId =
+    input.providerId && !Number.isNaN(Number(input.providerId))
+      ? Number(input.providerId)
+      : null
+  if (apiTeamId) {
+    const row = await (prisma as any).worldCupTeam.findUnique({
+      where: { apiTeamId },
+      select: { id: true },
+    })
+    if (row?.id) return row.id as string
+  }
+
+  const fifaCode = normalizeFifaTeamCode(input.fifaCode)
+  if (fifaCode) {
+    const row = await (prisma as any).worldCupTeam.findFirst({
+      where: { fifaCode },
+      select: { id: true },
+    })
+    if (row?.id) return row.id as string
+  }
+
+  if (input.name?.trim()) {
+    const row = await (prisma as any).worldCupTeam.findFirst({
+      where: { name: { equals: input.name.trim(), mode: "insensitive" } },
+      select: { id: true },
+    })
+    if (row?.id) return row.id as string
+  }
+
+  return null
+}
+
+function isBracketRound(round: WorldCupRound | null) {
+  return Boolean(round)
+}
+
+function groupStandingsComplete(rows: WorldCupProviderGroupStanding[]) {
+  const groups = new Map<string, Set<number>>()
+  for (const row of rows) {
+    if (!row.groupName || !Number.isInteger(row.rank)) continue
+    const ranks = groups.get(row.groupName) ?? new Set<number>()
+    ranks.add(row.rank)
+    groups.set(row.groupName, ranks)
+  }
+
+  if (groups.size < 12) return false
+  for (const ranks of groups.values()) {
+    if (![1, 2, 3, 4].every((rank) => ranks.has(rank))) return false
+  }
+  return true
+}
+
+async function upsertOfficialWorldCupFixtures(input: {
+  fixtures: WorldCupProviderFixture[]
+  providerName: string
+  seasonYear: number
+  dryRun: boolean
+}) {
+  let created = 0
+  let updated = 0
+  const rows: Array<{ providerId: string; action: "created" | "updated" | "skipped" | "error"; officialFixtureId?: string }> = []
+  const warnings: string[] = []
+
+  for (const fixture of input.fixtures) {
+    try {
+      const existing = await (prisma as any).worldCupOfficialFixture.findUnique({
+        where: {
+          providerName_seasonYear_providerFixtureId: {
+            providerName: input.providerName,
+            seasonYear: input.seasonYear,
+            providerFixtureId: fixture.providerId,
+          },
+        },
+        select: { id: true },
+      })
+
+      if (input.dryRun) {
+        rows.push({ providerId: fixture.providerId, action: existing ? "updated" : "created" })
+        if (existing) updated++
+        else created++
+        continue
+      }
+
+      const [homeTeamId, awayTeamId, winnerTeamId] = await Promise.all([
+        findTeamIdByProviderOrName({ providerId: fixture.homeProviderId, name: fixture.homeName, fifaCode: fixture.homeFifaCode }),
+        findTeamIdByProviderOrName({ providerId: fixture.awayProviderId, name: fixture.awayName, fifaCode: fixture.awayFifaCode }),
+        findTeamIdByProviderOrName({ providerId: fixture.winnerProviderId, name: fixture.winnerName, fifaCode: fixture.winnerFifaCode }),
+      ])
+      const round = fixture.roundName ? normalizeWorldCupRound(fixture.roundName) : null
+      const data = {
+        tournamentKey: WORLD_CUP_TOURNAMENT_KEY,
+        round,
+        stage: fixture.stage ?? fixture.roundName ?? null,
+        groupName: fixture.groupName ?? null,
+        startsAt: dateOrNull(fixture.startsAt),
+        status: normalizeProviderStatus(fixture.status),
+        apiStatusShort: fixture.apiStatusShort ?? null,
+        elapsedMinute: fixture.elapsedMinute ?? null,
+        injuryTime: fixture.injuryTime ?? null,
+        period: fixture.period ?? null,
+        venueName: fixture.venueName ?? null,
+        venueCity: fixture.venueCity ?? null,
+        homeTeamId,
+        awayTeamId,
+        winnerTeamId,
+        homeProviderId: fixture.homeProviderId ?? null,
+        awayProviderId: fixture.awayProviderId ?? null,
+        winnerProviderId: fixture.winnerProviderId ?? null,
+        homeTeamName: fixture.homeName ?? null,
+        awayTeamName: fixture.awayName ?? null,
+        winnerTeamName: fixture.winnerName ?? null,
+        homeTeamLogo: fixture.homeLogo ?? null,
+        awayTeamLogo: fixture.awayLogo ?? null,
+        homeScore: fixture.homeScore ?? null,
+        awayScore: fixture.awayScore ?? null,
+        homePenaltyScore: fixture.homePenaltyScore ?? null,
+        awayPenaltyScore: fixture.awayPenaltyScore ?? null,
+        sourcePayload: fixture.raw ? (fixture.raw as object) : undefined,
+      }
+
+      const row = await (prisma as any).worldCupOfficialFixture.upsert({
+        where: {
+          providerName_seasonYear_providerFixtureId: {
+            providerName: input.providerName,
+            seasonYear: input.seasonYear,
+            providerFixtureId: fixture.providerId,
+          },
+        },
+        create: {
+          providerName: input.providerName,
+          providerFixtureId: fixture.providerId,
+          seasonYear: input.seasonYear,
+          ...data,
+        },
+        update: { ...data, updatedAt: new Date() },
+        select: { id: true },
+      })
+
+      rows.push({ providerId: fixture.providerId, action: existing ? "updated" : "created", officialFixtureId: row.id })
+      if (existing) updated++
+      else created++
+    } catch (err) {
+      rows.push({ providerId: fixture.providerId, action: "error" })
+      warnings.push(`Fixture ${fixture.providerId}: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  return { created, updated, rows, warnings }
 }
 
 export async function syncWorldCupFixtures(
@@ -221,6 +403,9 @@ export async function syncWorldCupFixtures(
     created: 0,
     updated: 0,
     skipped: 0,
+    officialFixturesCreated: 0,
+    officialFixturesUpdated: 0,
+    bracketMatchesUpdated: 0,
     warnings: [],
     lockTimeInferred: null,
     fixtures: [],
@@ -244,6 +429,20 @@ export async function syncWorldCupFixtures(
     )
     return result
   }
+
+  const providerName = providerNameFor(options)
+  const officialSync = await upsertOfficialWorldCupFixtures({
+    fixtures: providerFixtures,
+    providerName,
+    seasonYear,
+    dryRun,
+  })
+  result.created += officialSync.created
+  result.updated += officialSync.updated
+  result.officialFixturesCreated = officialSync.created
+  result.officialFixturesUpdated = officialSync.updated
+  result.warnings.push(...officialSync.warnings)
+  result.fixtures.push(...officialSync.rows)
 
   // Determine which challenges to update
   const challengeIds: string[] = challengeId
@@ -325,8 +524,10 @@ export async function syncWorldCupFixtures(
       }
 
       if (!match) {
-        result.fixtures.push({ providerId: f.providerId, action: "no_match" })
-        result.skipped++
+        if (isBracketRound(round)) {
+          result.fixtures.push({ providerId: f.providerId, action: "no_match" })
+          result.skipped++
+        }
         continue
       }
 
@@ -464,6 +665,7 @@ export async function syncWorldCupFixtures(
         action: "updated",
       })
       result.updated++
+      result.bracketMatchesUpdated = (result.bracketMatchesUpdated ?? 0) + 1
     }
   }
 
@@ -685,20 +887,202 @@ export async function syncWorldCupLiveScores(
 
 export async function syncWorldCupProviderGroupStandings(
   options: WorldCupSyncOptions & { challengeId: string }
-) {
-  const readiness = await getWorldCupOfficialGroupsReadiness({
-    seasonYear: options.seasonYear,
-  })
-
-  return {
+): Promise<WorldCupGroupStandingsSyncResult> {
+  const seasonYear = options.seasonYear ?? 2026
+  const providerName = providerNameFor(options)
+  const result: WorldCupGroupStandingsSyncResult = {
+    created: 0,
     updated: 0,
-    skipped: readiness.assignedTeams,
-    warnings: [
-      "Provider group standings sync is not implemented on this branch; teams/group readiness was checked instead.",
-    ],
-    groupsComplete: readiness.ready,
-    incompleteGroups: readiness.incompleteGroups,
+    skipped: 0,
+    warnings: [],
+    groupsComplete: false,
+    thirdPlaceAdvancers: [],
+    standings: [],
   }
+
+  let providerStandings: WorldCupProviderGroupStanding[]
+  try {
+    const provider = await getWorldCupDataProvider(options.provider)
+    if (!provider.getGroupStandings) {
+      result.warnings.push("standings_not_available_yet: provider does not expose group standings.")
+      return result
+    }
+    providerStandings = await provider.getGroupStandings(seasonYear)
+  } catch (err) {
+    if (err instanceof WorldCupProviderConfigError) {
+      result.warnings.push(err.message)
+      return result
+    }
+    throw err
+  }
+
+  if (providerStandings.length === 0) {
+    result.warnings.push("standings_not_available_yet: provider returned 0 group standings rows.")
+    return result
+  }
+
+  for (const standing of providerStandings) {
+    const teamId = await findTeamIdByProviderOrName({
+      providerId: standing.providerTeamId,
+      fifaCode: standing.fifaCode,
+      name: standing.teamName,
+    })
+
+    if (!teamId) {
+      result.skipped++
+      result.standings.push({
+        teamName: standing.teamName,
+        groupName: standing.groupName,
+        rank: standing.rank,
+        action: "skipped",
+      })
+      result.warnings.push(`Standing ${standing.groupName} ${standing.teamName}: team not found.`)
+      continue
+    }
+
+    try {
+      const existing = await (prisma as any).worldCupGroupTeam.findUnique({
+        where: {
+          providerName_seasonYear_groupName_teamId: {
+            providerName,
+            seasonYear,
+            groupName: standing.groupName,
+            teamId,
+          },
+        },
+        select: { id: true },
+      })
+
+      if (options.dryRun) {
+        result.standings.push({
+          teamId,
+          teamName: standing.teamName,
+          groupName: standing.groupName,
+          rank: standing.rank,
+          action: existing ? "updated" : "created",
+        })
+        if (existing) result.updated++
+        else result.created++
+        continue
+      }
+
+      await (prisma as any).worldCupGroupTeam.upsert({
+        where: {
+          providerName_seasonYear_groupName_teamId: {
+            providerName,
+            seasonYear,
+            groupName: standing.groupName,
+            teamId,
+          },
+        },
+        create: {
+          providerName,
+          seasonYear,
+          tournamentKey: WORLD_CUP_TOURNAMENT_KEY,
+          groupName: standing.groupName,
+          teamId,
+          providerTeamId: standing.providerTeamId ?? null,
+          teamName: standing.teamName,
+          actualRank: standing.rank,
+          points: standing.points,
+          goalDifference: standing.goalDifference,
+          goalsFor: standing.goalsFor,
+          goalsAgainst: standing.goalsAgainst ?? 0,
+          played: standing.played ?? 0,
+          wins: standing.wins ?? 0,
+          draws: standing.draws ?? 0,
+          losses: standing.losses ?? 0,
+          sourcePayload: standing.raw ? (standing.raw as object) : undefined,
+        },
+        update: {
+          providerTeamId: standing.providerTeamId ?? null,
+          teamName: standing.teamName,
+          actualRank: standing.rank,
+          points: standing.points,
+          goalDifference: standing.goalDifference,
+          goalsFor: standing.goalsFor,
+          goalsAgainst: standing.goalsAgainst ?? 0,
+          played: standing.played ?? 0,
+          wins: standing.wins ?? 0,
+          draws: standing.draws ?? 0,
+          losses: standing.losses ?? 0,
+          sourcePayload: standing.raw ? (standing.raw as object) : undefined,
+          updatedAt: new Date(),
+        },
+      })
+
+      result.standings.push({
+        teamId,
+        teamName: standing.teamName,
+        groupName: standing.groupName,
+        rank: standing.rank,
+        action: existing ? "updated" : "created",
+      })
+      if (existing) result.updated++
+      else result.created++
+    } catch (err) {
+      result.standings.push({
+        teamId,
+        teamName: standing.teamName,
+        groupName: standing.groupName,
+        rank: standing.rank,
+        action: "error",
+      })
+      result.warnings.push(`Standing ${standing.groupName} ${standing.teamName}: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  result.groupsComplete = groupStandingsComplete(providerStandings)
+  if (!result.groupsComplete) {
+    result.warnings.push("standings_not_available_yet: complete 12-group standings are not available.")
+    return result
+  }
+
+  const byGroup: Record<string, WorldCupGroupStanding[]> = {}
+  for (const row of result.standings) {
+    if (!row.teamId || row.action === "skipped" || row.action === "error") continue
+    const providerRow = providerStandings.find((standing) => standing.groupName === row.groupName && standing.rank === row.rank && standing.teamName === row.teamName)
+    if (!providerRow) continue
+    byGroup[row.groupName] = byGroup[row.groupName] ?? []
+    byGroup[row.groupName].push({
+      group: row.groupName,
+      teamId: row.teamId,
+      teamName: row.teamName,
+      points: providerRow.points,
+      goalDifference: providerRow.goalDifference,
+      goalsFor: providerRow.goalsFor,
+    })
+  }
+
+  const advancers = getBestThirdPlaceTeams(byGroup).slice(0, 8)
+  result.thirdPlaceAdvancers = advancers.map((row) => ({
+    teamId: row.teamId,
+    teamName: row.teamName,
+    groupName: row.group,
+  }))
+
+  if (!options.dryRun) {
+    await (prisma as any).worldCupGroupTeam.updateMany({
+      where: { providerName, seasonYear },
+      data: { isThirdPlaceAdvancer: false },
+    })
+    if (result.thirdPlaceAdvancers.length > 0) {
+      await (prisma as any).worldCupGroupTeam.updateMany({
+        where: {
+          providerName,
+          seasonYear,
+          teamId: { in: result.thirdPlaceAdvancers.map((row) => row.teamId) },
+        },
+        data: { isThirdPlaceAdvancer: true },
+      })
+    }
+  }
+
+  if (result.thirdPlaceAdvancers.length !== 8) {
+    result.warnings.push(`Expected 8 third-place advancers, found ${result.thirdPlaceAdvancers.length}.`)
+  }
+
+  return result
 }
 
 // ── Status normalization (internal) ───────────────────────────────────────────

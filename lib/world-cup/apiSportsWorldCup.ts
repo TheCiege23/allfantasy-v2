@@ -24,6 +24,20 @@ export type ApiFootballWorldCupFixture = {
     penalty?: { home?: number | null; away?: number | null } | null
   } | null
 }
+export type ApiFootballWorldCupStanding = {
+  rank: number
+  team: { id: number; name: string; logo?: string | null }
+  group?: string | null
+  points?: number | null
+  goalsDiff?: number | null
+  all?: {
+    played?: number | null
+    win?: number | null
+    draw?: number | null
+    lose?: number | null
+    goals?: { for?: number | null; against?: number | null } | null
+  } | null
+}
 export type NormalizedWorldCupFixture = { apiFixtureId: number; round: WorldCupRound | null; date: string | null; status: WorldCupMatchStatus; home: { apiTeamId: number; name: string; logo: string | null }; away: { apiTeamId: number; name: string; logo: string | null }; homeScore: number | null; awayScore: number | null; homePenaltyScore: number | null; awayPenaltyScore: number | null; winnerApiTeamId: number | null; winnerName: string | null; raw: ApiFootballWorldCupFixture }
 type ApiFootballEnvelope<T> = { response?: T[]; errors?: unknown }
 function getWorldCupApiKey() { const key = process.env.API_FOOTBALL_KEY || process.env.APISPORTS_FOOTBALL_KEY || process.env.API_SPORTS_KEY || process.env.RAPIDAPI_KEY; if (!key) throw new Error("API_FOOTBALL_KEY/API_SPORTS_KEY/RAPIDAPI_KEY is not configured"); return key }
@@ -38,6 +52,10 @@ async function apiFootballFetch<T>(endpoint: string, params: Record<string, stri
 }
 export async function fetchWorldCupTeams(seasonYear: number) { return apiFootballFetch<ApiFootballWorldCupTeam>("teams", { league: getWorldCupLeagueId(), season: String(seasonYear) }) }
 export async function fetchWorldCupFixtures(seasonYear: number) { return apiFootballFetch<ApiFootballWorldCupFixture>("fixtures", { league: getWorldCupLeagueId(), season: String(seasonYear) }) }
+export async function fetchWorldCupStandings(seasonYear: number) {
+  const rows = await apiFootballFetch<{ league?: { standings?: ApiFootballWorldCupStanding[][] | null } }>("standings", { league: getWorldCupLeagueId(), season: String(seasonYear) })
+  return rows.flatMap((row) => row.league?.standings ?? []).flat()
+}
 export function normalizeWorldCupStatus(short?: string | null, long?: string | null): WorldCupMatchStatus { const c = (short || long || "").toUpperCase(); if (["1H", "2H", "ET", "BT", "P", "LIVE"].includes(c)) return "live"; if (c === "HT") return "halftime"; if (["FT", "AET", "PEN"].includes(c) || long?.toLowerCase() === "match finished") return "final"; if (["PST", "SUSP", "INT"].includes(c)) return "postponed"; if (["CANC", "ABD", "AWD", "WO"].includes(c)) return "cancelled"; return "scheduled" }
 export function normalizeWorldCupRound(roundText?: string | null): WorldCupRound | null { const v = (roundText || "").toLowerCase(); if (v.includes("round of 32") || v.includes("1/16")) return "round_of_32"; if (v.includes("round of 16") || v.includes("1/8")) return "round_of_16"; if (v.includes("quarter")) return "quarterfinal"; if (v.includes("semi")) return "semifinal"; if (v.includes("3rd") || v.includes("third")) return "third_place"; if (v.includes("final")) return "final"; return null }
 export function normalizeWorldCupFixture(fixture: ApiFootballWorldCupFixture): NormalizedWorldCupFixture {

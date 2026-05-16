@@ -63,6 +63,23 @@ export type WorldCupProviderFixture = {
   raw?: unknown
 }
 
+export type WorldCupProviderGroupStanding = {
+  providerTeamId?: string | null
+  fifaCode?: string | null
+  teamName: string
+  groupName: string
+  rank: number
+  points: number
+  goalDifference: number
+  goalsFor: number
+  goalsAgainst?: number | null
+  played?: number | null
+  wins?: number | null
+  draws?: number | null
+  losses?: number | null
+  raw?: unknown
+}
+
 // ── Provider interface ────────────────────────────────────────────────────────
 
 export interface WorldCupDataProvider {
@@ -73,6 +90,9 @@ export interface WorldCupDataProvider {
 
   /** Fetch all fixtures for the given season year */
   getFixtures(seasonYear: number): Promise<WorldCupProviderFixture[]>
+
+  /** Fetch group standings for deriving Round of 32 slots after group play. */
+  getGroupStandings?(seasonYear: number): Promise<WorldCupProviderGroupStanding[]>
 
   /**
    * Fetch only live/in-progress fixtures.
