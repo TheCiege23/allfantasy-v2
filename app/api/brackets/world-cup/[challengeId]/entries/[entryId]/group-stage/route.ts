@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getWorldCupGroupStageView } from "@/lib/world-cup"
+import { getWorldCupGroupStageView } from "@/lib/world-cup/worldCupGroupStageService"
 import { requireWorldCupApiUser, worldCupEntryParamsSchema } from "../../../../_utils"
 
 export const runtime = "nodejs"

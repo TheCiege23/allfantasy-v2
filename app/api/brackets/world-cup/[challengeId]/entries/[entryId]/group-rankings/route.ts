@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import { WORLD_CUP_BRACKET_LOCKED_MESSAGE, saveWorldCupGroupRanking } from "@/lib/world-cup"
+import { WORLD_CUP_BRACKET_LOCKED_MESSAGE } from "@/lib/world-cup/worldCupBracketService"
+import { saveWorldCupGroupRanking } from "@/lib/world-cup/worldCupGroupStageService"
 import { requireWorldCupApiUser, worldCupEntryParamsSchema } from "../../../../_utils"
 
 export const runtime = "nodejs"
