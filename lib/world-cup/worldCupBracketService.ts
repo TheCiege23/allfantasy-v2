@@ -858,6 +858,7 @@ async function savePicksForEntryTx(
   const lock = isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry })
   if (lock.locked) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
   const byId = new Map(c.matches.map((m) => [m.id, m] as const))
+  let meaningfulPickChange = false
   for (const pick of pickInputs) {
     const m = byId.get(pick.matchId)
     if (!m) throw new Error("Match not found")
@@ -883,6 +884,7 @@ async function savePicksForEntryTx(
         .map((row) => row.id)
       if (conflictingIds.length > 0) {
         await tx.worldCupBracketPick.deleteMany({ where: { id: { in: conflictingIds } } })
+        meaningfulPickChange = true
       }
       if (process.env.NODE_ENV === "development" && (m.matchNumber === 29 || m.matchNumber === 30 || m.matchNumber === 31)) {
         console.debug("[world-cup:picks:cleanup-conflicts]", {
@@ -903,6 +905,22 @@ async function savePicksForEntryTx(
     const selectedTeamName = pick.selectedTeamName ?? (s === "home" ? m.homeTeamName : s === "away" ? m.awayTeamName : "")
     if (!selectedTeamName || (!selectedTeamId && !selectedSlotKey)) {
       throw new Error("Selected team is not in this matchup")
+    }
+    const existingPick = await tx.worldCupBracketPick.findUnique({
+      where: { entryId_matchId: { entryId: entry.id, matchId: m.id } },
+      select: {
+        selectedTeamId: true,
+        selectedSlotKey: true,
+        selectedTeamName: true,
+      },
+    })
+    if (
+      !existingPick ||
+      existingPick.selectedTeamId !== selectedTeamId ||
+      existingPick.selectedSlotKey !== selectedSlotKey ||
+      existingPick.selectedTeamName !== selectedTeamName
+    ) {
+      meaningfulPickChange = true
     }
     await tx.worldCupBracketPick.upsert({
       where: { entryId_matchId: { entryId: entry.id, matchId: m.id } },
@@ -962,7 +980,10 @@ async function savePicksForEntryTx(
   })
   await tx.worldCupBracketEntry.update({
     where: { id: entry.id },
-    data: { isComplete: complete, submittedAt: complete ? new Date() : null },
+    data: {
+      isComplete: complete,
+      submittedAt: complete && !meaningfulPickChange ? entry.submittedAt : null,
+    },
   })
 }
 

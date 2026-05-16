@@ -180,12 +180,18 @@ export async function DELETE(
     }
 
     // Delete only the specified matchIds for this entry
-    await prisma.worldCupBracketPick.deleteMany({
+    const deleted = await prisma.worldCupBracketPick.deleteMany({
       where: {
         entryId: params.data.entryId,
         matchId: { in: parsed.data.matchIds },
       },
     })
+    if (deleted.count > 0 && entry.submittedAt) {
+      await prisma.worldCupBracketEntry.update({
+        where: { id: params.data.entryId },
+        data: { submittedAt: null },
+      })
+    }
 
     // Return remaining picks
     const remainingPicks = await prisma.worldCupBracketPick.findMany({

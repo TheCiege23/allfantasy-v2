@@ -402,7 +402,7 @@ export async function recalculateWorldCupChallenge(challengeId: string) {
           rank: row.rank,
           roundBreakdown: row.roundBreakdown,
           isComplete: entryComplete,
-          submittedAt: entryComplete ? freshEntry?.submittedAt ?? new Date() : null,
+          submittedAt: entryComplete ? freshEntry?.submittedAt ?? null : null,
         },
       })
     }

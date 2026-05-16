@@ -252,7 +252,9 @@ export async function fetchWorldCupEntryCompletionReview(
   challengeId: string,
   entryId: string
 ): Promise<WorldCupEntryCompletionReviewClient> {
-  const res = await apiFetch(`/api/brackets/world-cup/${challengeId}/entries/${entryId}/finalize`)
+  const res = await apiFetch(`/api/brackets/world-cup/${challengeId}/entries/${entryId}/finalize`, {
+    cache: "no-store",
+  })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error((data as { error?: string }).error ?? "Failed to load completion review")
   return (data as { completion: WorldCupEntryCompletionReviewClient }).completion

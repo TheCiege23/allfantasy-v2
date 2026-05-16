@@ -2821,20 +2821,26 @@ export default function WorldCupBracketShell({
                       <div className="rounded-xl border border-emerald-300/25 bg-emerald-400/10 p-3 text-sm font-bold text-emerald-100">
                         Submitted. Edits remain available until lock deadline. Submitted {new Date(completionReview.submittedAt).toLocaleString()}.
                       </div>
-                    ) : (
+                    ) : completionReview.fullEntryComplete ? (
                       <div className="space-y-2">
-                        {completionReview.fullEntryComplete ? (
-                          <p className="text-xs font-bold text-cyan-100/80">Complete. You can still edit until lock deadline.</p>
-                        ) : null}
+                        <p className="text-xs font-bold text-cyan-100/80">Complete. You can still edit until lock deadline.</p>
                         <button
                           type="button"
                           onClick={() => void handleFinalizeEntry()}
-                          disabled={!completionReview.fullEntryComplete || isFinalizingEntry}
+                          disabled={isFinalizingEntry}
                           className="rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-45"
                         >
-                          {isFinalizingEntry ? "Finalizing..." : "Finalize Entry"}
+                          {isFinalizingEntry
+                            ? "Finalizing..."
+                            : completionReview.needsRefinalize || completionReview.isComplete
+                              ? "Re-finalize Entry"
+                              : "Finalize Entry"}
                         </button>
                       </div>
+                    ) : (
+                      <p className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-bold text-white/45">
+                        Complete all missing requirements to unlock Finalize.
+                      </p>
                     )}
                   </div>
                 ) : (

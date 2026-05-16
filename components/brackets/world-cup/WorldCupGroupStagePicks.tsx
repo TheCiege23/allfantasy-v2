@@ -16,7 +16,7 @@ type Props = {
   onCompletionChanged?: () => void
 }
 
-type GroupSaveState = "idle" | "saving" | "saved" | "error"
+type GroupSaveState = "idle" | "dirty" | "saving" | "saved" | "error"
 
 function orderedTeamIdsForGroup(view: WorldCupGroupStageViewClient, groupId: string): string[] {
   const group = view.groups.find((row) => row.id === groupId)
@@ -49,6 +49,23 @@ function moveItem(ids: string[], index: number, direction: -1 | 1) {
   next[index] = next[nextIndex]
   next[nextIndex] = current
   return next
+}
+
+function sameOrderedValues(a: string[], b: string[]) {
+  return a.length === b.length && a.every((value, index) => value === b[index])
+}
+
+function sameValueSet(a: string[], b: string[]) {
+  if (a.length !== b.length) return false
+  const sortedA = [...a].sort()
+  const sortedB = [...b].sort()
+  return sortedA.every((value, index) => value === sortedB[index])
+}
+
+function savedThirdPlaceTeamIds(view: WorldCupGroupStageViewClient): string[] {
+  return view.thirdPlaceAdvancerPicks
+    .filter((pick) => pick.isSelected)
+    .map((pick) => pick.teamId)
 }
 
 export default function WorldCupGroupStagePicks({ challengeId, entryId, onCompletionChanged }: Props) {
@@ -92,6 +109,9 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
   }, [challengeId, entryId])
 
   const isLocked = Boolean(view?.lock.isLocked)
+  const hasUnsavedThirdPlaceChanges = Boolean(
+    view && !sameValueSet([...thirdPlaceSelection], savedThirdPlaceTeamIds(view))
+  )
   const thirdPlaceCandidates = useMemo(() => {
     if (!view) return []
     return view.groups.map((group) => {
@@ -104,12 +124,16 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
 
   function setGroupOrder(groupId: string, orderedTeamIds: string[]) {
     setLocalOrders((prev) => ({ ...prev, [groupId]: orderedTeamIds }))
-    setSaveStates((prev) => ({ ...prev, [groupId]: "idle" }))
+    setSaveStates((prev) => ({ ...prev, [groupId]: "dirty" }))
   }
 
   async function saveGroup(groupId: string) {
     const orderedTeamIds = localOrders[groupId] ?? []
     const group = view?.groups.find((row) => row.id === groupId)
+    if (view && sameOrderedValues(orderedTeamIds, orderedTeamIdsForGroup(view, groupId))) {
+      setSaveStates((prev) => ({ ...prev, [groupId]: "saved" }))
+      return
+    }
     if (group && group.teams.length !== 4) {
       setSaveStates((prev) => ({ ...prev, [groupId]: "error" }))
       setError(`${group.displayName} needs 4 teams before it can be saved.`)
@@ -148,7 +172,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
       }
       return next
     })
-    setThirdPlaceStatus("idle")
+    setThirdPlaceStatus("dirty")
   }
 
   async function saveThirdPlace() {
@@ -229,6 +253,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
           const order = localOrders[group.id] ?? orderedTeamIdsForGroup(view, group.id)
           const state = saveStates[group.id] ?? "idle"
           const hasCompleteTeams = group.teams.length === 4 && order.length === 4
+          const hasUnsavedOrderChanges = !sameOrderedValues(order, orderedTeamIdsForGroup(view, group.id))
           return (
             <div key={group.id} data-testid={`world-cup-group-${group.groupKey}`} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
               <div className="mb-3 flex items-center justify-between gap-3">
@@ -272,13 +297,22 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                   {group.displayName} needs 4 teams before it can be saved.
                 </p>
               ) : null}
+              {hasUnsavedOrderChanges ? (
+                <p className="mt-3 rounded-lg border border-cyan-300/25 bg-cyan-400/10 px-3 py-2 text-xs font-bold text-cyan-100">
+                  Unsaved order change. Click Save Group before Review will count it.
+                </p>
+              ) : state === "saved" ? (
+                <p className="mt-3 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-100">
+                  Saved. Review uses this group order.
+                </p>
+              ) : null}
               <button
                 type="button"
                 onClick={() => void saveGroup(group.id)}
-                disabled={isLocked || state === "saving" || !hasCompleteTeams}
+                disabled={isLocked || state === "saving" || !hasCompleteTeams || !hasUnsavedOrderChanges}
                 className="mt-3 w-full rounded-xl bg-cyan-300 px-3 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:opacity-45"
               >
-                {state === "saving" ? "Saving..." : state === "saved" ? "Saved" : state === "error" ? "Retry Save" : "Save Group"}
+                {state === "saving" ? "Saving..." : state === "saved" && !hasUnsavedOrderChanges ? "Saved" : state === "error" ? "Retry Save" : "Save Group"}
               </button>
             </div>
           )
@@ -304,6 +338,15 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
           </p>
         ) : null}
         {thirdPlaceError ? <p className="mt-3 rounded-lg bg-rose-400/10 px-3 py-2 text-xs text-rose-100">{thirdPlaceError}</p> : null}
+        {hasUnsavedThirdPlaceChanges ? (
+          <p className="mt-3 rounded-lg border border-cyan-300/25 bg-cyan-400/10 px-3 py-2 text-xs font-bold text-cyan-100">
+            Unsaved third-place changes. Click Save Third-Place Advancers before Review will count them.
+          </p>
+        ) : thirdPlaceStatus === "saved" ? (
+          <p className="mt-3 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-100">
+            Third-place picks saved. Review uses these selections.
+          </p>
+        ) : null}
 
         <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {thirdPlaceCandidates.map((candidate) => (
@@ -329,7 +372,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
         <button
           type="button"
           onClick={() => void saveThirdPlace()}
-          disabled={isLocked || !view.completion.allGroupsRanked || thirdPlaceStatus === "saving"}
+          disabled={isLocked || !view.completion.allGroupsRanked || thirdPlaceStatus === "saving" || !hasUnsavedThirdPlaceChanges}
           className="mt-4 rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-45"
         >
           {thirdPlaceStatus === "saving" ? "Saving..." : thirdPlaceStatus === "saved" ? "Saved Third-Place Picks" : "Save Third-Place Advancers"}
