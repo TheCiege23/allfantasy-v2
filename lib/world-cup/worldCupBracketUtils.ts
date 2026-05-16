@@ -17,6 +17,61 @@ export type InviteInfo = {
   expiresAt?: string | null
 }
 
+export function normalizeWorldCupInviteOrigin(value: string | null | undefined): string | null {
+  const raw = value?.trim()
+  if (!raw) return null
+  try {
+    const url = new URL(raw)
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null
+    if (url.protocol === "http:" && url.hostname === "127.0.0.1" && url.port === "3010") {
+      return "http://localhost:3010"
+    }
+    return `${url.protocol}//${url.host}`
+  } catch {
+    return null
+  }
+}
+
+export function buildWorldCupInviteUrl(input: {
+  inviteCode?: string | null
+  origin?: string | null
+  configuredOrigin?: string | null
+  fallbackInviteUrl?: string | null
+}): string {
+  const inviteCode = input.inviteCode?.trim()
+  const invitePath = inviteCode ? `/join/bracket/${encodeURIComponent(inviteCode)}` : ""
+  const configuredOrigin = normalizeWorldCupInviteOrigin(input.configuredOrigin)
+  if (invitePath && configuredOrigin) return `${configuredOrigin}${invitePath}`
+
+  const browserOrigin = normalizeWorldCupInviteOrigin(input.origin)
+  if (invitePath && browserOrigin) return `${browserOrigin}${invitePath}`
+
+  const fallback = input.fallbackInviteUrl?.trim()
+  if (fallback) {
+    const fallbackOrigin = normalizeWorldCupInviteOrigin(fallback)
+    if (invitePath && fallbackOrigin?.startsWith("http://localhost:3000")) return invitePath
+    return fallback
+  }
+  return invitePath
+}
+
+export function getBrowserWorldCupInviteUrl(input: {
+  inviteCode?: string | null
+  fallbackInviteUrl?: string | null
+}): string {
+  return buildWorldCupInviteUrl({
+    inviteCode: input.inviteCode,
+    configuredOrigin:
+      typeof process !== "undefined"
+        ? process.env.NEXT_PUBLIC_APP_URL ??
+          process.env.NEXT_PUBLIC_SITE_URL ??
+          null
+        : null,
+    origin: typeof window !== "undefined" ? window.location.origin : null,
+    fallbackInviteUrl: input.fallbackInviteUrl,
+  })
+}
+
 /** Returns a human-readable block reason string, or null if the bracket is joinable. */
 export function getBracketBlockReason(invite: InviteInfo): string | null {
   if (invite.status === "final") return "This bracket challenge has ended."

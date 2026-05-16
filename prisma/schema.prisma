@@ -2979,6 +2979,9 @@ model WorldCupTeam {
   officialWinnerFixtures WorldCupOfficialFixture[]  @relation("WorldCupOfficialFixtureWinnerTeam")
   officialGroupStandings WorldCupOfficialGroupStanding[] @relation("WorldCupOfficialGroupStandingTeam")
   selectedInPicks      WorldCupBracketPick[]        @relation("WorldCupPickSelectedTeam")
+  groupTeams           WorldCupGroupTeam[]
+  groupRankingPicks    WorldCupGroupRankingPick[]
+  thirdPlacePicks      WorldCupThirdPlaceAdvancerPick[]
 
   @@index([qualificationStatus])
   @@index([name])
@@ -2995,6 +2998,10 @@ model WorldCupBracketScoringProfile {
   finalPoints         Int                        @default(160) @map("final_points")
   championBonusPoints Int                        @default(320) @map("champion_bonus_points")
   thirdPlacePoints    Int?                       @map("third_place_points")
+  groupExactPlacementPoints Int                  @default(5) @map("group_exact_placement_points")
+  groupQualifiedTeamPoints  Int                  @default(2) @map("group_qualified_team_points")
+  perfectGroupBonusPoints   Int                  @default(10) @map("perfect_group_bonus_points")
+  thirdPlaceAdvancerPoints  Int                  @default(5) @map("third_place_advancer_points")
   upsetBonusEnabled   Boolean                    @default(false) @map("upset_bonus_enabled")
   createdAt           DateTime                   @default(now()) @map("created_at")
   updatedAt           DateTime                   @updatedAt @map("updated_at")
@@ -3032,10 +3039,14 @@ model WorldCupBracketChallenge {
   eventState               WorldCupBracketEventState?
   chatEvents               WorldCupBracketChatEvent[]
   slots                    WorldCupBracketSlot[]
+  groups                   WorldCupGroup[]
+  groupTeams               WorldCupGroupTeam[]
   participants             WorldCupBracketParticipant[]
   entries                  WorldCupBracketEntry[]
   matches                  WorldCupBracketMatch[]
   picks                    WorldCupBracketPick[]
+  groupRankingPicks        WorldCupGroupRankingPick[]
+  thirdPlaceAdvancerPicks  WorldCupThirdPlaceAdvancerPick[]
   invites                  WorldCupBracketInvite[]
 
   @@index([ownerUserId])
@@ -3069,6 +3080,48 @@ model WorldCupBracketSlot {
   @@map("world_cup_bracket_slots")
 }
 
+model WorldCupGroup {
+  id                      String                           @id @default(cuid())
+  challengeId             String                           @map("challenge_id")
+  groupKey                String                           @map("group_key")
+  displayName             String                           @map("display_name")
+  sortOrder               Int                              @map("sort_order")
+  createdAt               DateTime                         @default(now()) @map("created_at")
+  updatedAt               DateTime                         @updatedAt @map("updated_at")
+  challenge               WorldCupBracketChallenge         @relation(fields: [challengeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  teams                   WorldCupGroupTeam[]
+  rankingPicks            WorldCupGroupRankingPick[]
+  thirdPlaceAdvancerPicks WorldCupThirdPlaceAdvancerPick[]
+
+  @@unique([challengeId, groupKey])
+  @@index([challengeId])
+  @@index([groupKey])
+  @@map("world_cup_groups")
+}
+
+model WorldCupGroupTeam {
+  id             String                   @id @default(cuid())
+  challengeId    String                   @map("challenge_id")
+  groupId        String                   @map("group_id")
+  teamId         String                   @map("team_id")
+  seedOrder      Int                      @map("seed_order")
+  actualRank     Int?                     @map("actual_rank")
+  points         Int?
+  goalDifference Int?                     @map("goal_difference")
+  goalsFor       Int?                     @map("goals_for")
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+  challenge      WorldCupBracketChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  group          WorldCupGroup            @relation(fields: [groupId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team           WorldCupTeam             @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([challengeId, groupId, teamId])
+  @@index([challengeId])
+  @@index([groupId])
+  @@index([teamId])
+  @@map("world_cup_group_teams")
+}
+
 model WorldCupBracketEntry {
   id               String                     @id @default(cuid())
   challengeId      String                     @map("challenge_id")
@@ -3093,6 +3146,8 @@ model WorldCupBracketEntry {
   user             AppUser                    @relation("WorldCupBracketEntryUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   championTeam     WorldCupTeam?              @relation("WorldCupEntryChampionPick", fields: [championTeamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   picks            WorldCupBracketPick[]
+  groupRankingPicks WorldCupGroupRankingPick[]
+  thirdPlaceAdvancerPicks WorldCupThirdPlaceAdvancerPick[]
   chatEvents       WorldCupBracketChatEvent[]
 
   @@index([challengeId])
@@ -3211,6 +3266,57 @@ model WorldCupBracketPick {
   @@index([matchId])
   @@index([round])
   @@map("world_cup_bracket_picks")
+}
+
+model WorldCupGroupRankingPick {
+  id             String                   @id @default(cuid())
+  challengeId    String                   @map("challenge_id")
+  entryId        String                   @map("entry_id")
+  groupId        String                   @map("group_id")
+  teamId         String                   @map("team_id")
+  predictedRank  Int                      @map("predicted_rank")
+  actualRank     Int?                     @map("actual_rank")
+  isCorrect      Boolean?                 @map("is_correct")
+  pointsAwarded  Int                      @default(0) @map("points_awarded")
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+  challenge      WorldCupBracketChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  entry          WorldCupBracketEntry     @relation(fields: [entryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  group          WorldCupGroup            @relation(fields: [groupId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team           WorldCupTeam             @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([entryId, groupId, predictedRank])
+  @@unique([entryId, groupId, teamId])
+  @@index([challengeId])
+  @@index([entryId])
+  @@index([groupId])
+  @@index([teamId])
+  @@map("world_cup_group_ranking_picks")
+}
+
+model WorldCupThirdPlaceAdvancerPick {
+  id             String                   @id @default(cuid())
+  challengeId    String                   @map("challenge_id")
+  entryId        String                   @map("entry_id")
+  groupId        String                   @map("group_id")
+  teamId         String                   @map("team_id")
+  isSelected     Boolean                  @default(true) @map("is_selected")
+  actualAdvanced Boolean?                 @map("actual_advanced")
+  isCorrect      Boolean?                 @map("is_correct")
+  pointsAwarded  Int                      @default(0) @map("points_awarded")
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+  challenge      WorldCupBracketChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  entry          WorldCupBracketEntry     @relation(fields: [entryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  group          WorldCupGroup            @relation(fields: [groupId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team           WorldCupTeam             @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([entryId, groupId])
+  @@index([challengeId])
+  @@index([entryId])
+  @@index([groupId])
+  @@index([teamId])
+  @@map("world_cup_third_place_advancer_picks")
 }
 
 model WorldCupBracketInvite {

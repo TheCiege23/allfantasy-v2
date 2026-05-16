@@ -1,0 +1,161 @@
+import "server-only"
+import { prisma } from "@/lib/prisma"
+import { isWorldCupChallengeLocked } from "./worldCupBracketBuilder"
+import { WORLD_CUP_BRACKET_LOCKED_MESSAGE } from "./worldCupBracketService"
+import {
+  getWorldCupGroupStageCompletionState,
+} from "./worldCupGroupStageScoringService"
+import { isWorldCupEntryCompleteFromSelections } from "./worldCupScoringService"
+
+export type WorldCupEntryCompletionReview = {
+  challengeId: string
+  entryId: string
+  groupStageComplete: boolean
+  knockoutComplete: boolean
+  fullEntryComplete: boolean
+  groupsRankedCount: number
+  missingGroups: string[]
+  thirdPlaceSelectedCount: number
+  missingKnockoutPicks: number
+  requiredKnockoutPicks: number
+  completedKnockoutPicks: number
+  isLocked: boolean
+  isComplete: boolean
+  submittedAt: string | null
+  staleSubmittedIncomplete: boolean
+  needsRefinalize: boolean
+}
+
+function rankedGroupKeys(input: {
+  groups: Array<{ id: string; groupKey: string }>
+  groupRankingPicks: Array<{ groupId: string; predictedRank: number }>
+}) {
+  const byGroup = new Map<string, Set<number>>()
+  for (const pick of input.groupRankingPicks) {
+    const ranks = byGroup.get(pick.groupId) ?? new Set<number>()
+    ranks.add(pick.predictedRank)
+    byGroup.set(pick.groupId, ranks)
+  }
+  return new Set(
+    input.groups
+      .filter((group) => {
+        const ranks = byGroup.get(group.id)
+        return ranks && [1, 2, 3, 4].every((rank) => ranks.has(rank))
+      })
+      .map((group) => group.groupKey)
+  )
+}
+
+export async function getWorldCupEntryCompletionReview(input: {
+  challengeId: string
+  entryId: string
+  userId: string
+}): Promise<WorldCupEntryCompletionReview> {
+  const entry = await prisma.worldCupBracketEntry.findUnique({
+    where: { id: input.entryId },
+    include: {
+      challenge: {
+        include: {
+          groups: { orderBy: { sortOrder: "asc" } },
+          matches: true,
+        },
+      },
+      picks: { include: { match: true } },
+      groupRankingPicks: true,
+      thirdPlaceAdvancerPicks: true,
+    },
+  })
+  if (!entry || entry.challengeId !== input.challengeId) throw new Error("Entry not found")
+  if (entry.userId !== input.userId && entry.challenge.ownerUserId !== input.userId) {
+    throw new Error("Entry not found")
+  }
+
+  const groupCompletion = getWorldCupGroupStageCompletionState({
+    groupRankingPicks: entry.groupRankingPicks,
+    thirdPlaceAdvancerPicks: entry.thirdPlaceAdvancerPicks,
+  })
+  const rankedKeys = rankedGroupKeys({
+    groups: entry.challenge.groups,
+    groupRankingPicks: entry.groupRankingPicks,
+  })
+  const missingGroups = entry.challenge.groups
+    .map((group) => group.groupKey)
+    .filter((groupKey) => !rankedKeys.has(groupKey))
+  const knockoutComplete = isWorldCupEntryCompleteFromSelections({
+    matches: entry.challenge.matches as Parameters<typeof isWorldCupEntryCompleteFromSelections>[0]["matches"],
+    picks: entry.picks,
+    includeThirdPlace: entry.challenge.includeThirdPlace,
+  })
+  const pickableKnockoutMatches = entry.challenge.matches.filter((match) => match.round !== "third_place" || entry.challenge.includeThirdPlace)
+  const completedKnockoutPicks = entry.picks.filter((pick) => pick.selectedTeamId || pick.selectedSlotKey).length
+  const requiredKnockoutPicks = pickableKnockoutMatches.length
+  const lock = isWorldCupChallengeLocked({
+    challenge: entry.challenge,
+    matches: entry.challenge.matches,
+    entry,
+  })
+  const fullEntryComplete = groupCompletion.groupStageComplete && knockoutComplete
+  const rawSubmittedAt = entry.submittedAt ? entry.submittedAt.toISOString() : null
+  const staleSubmittedIncomplete = Boolean(rawSubmittedAt && !fullEntryComplete)
+  const needsRefinalize = staleSubmittedIncomplete
+  const submittedAt = fullEntryComplete && !needsRefinalize ? rawSubmittedAt : null
+
+  return {
+    challengeId: input.challengeId,
+    entryId: input.entryId,
+    groupStageComplete: groupCompletion.groupStageComplete,
+    knockoutComplete,
+    fullEntryComplete,
+    groupsRankedCount: groupCompletion.groupsRankedCount,
+    missingGroups,
+    thirdPlaceSelectedCount: groupCompletion.thirdPlaceSelectedCount,
+    missingKnockoutPicks: Math.max(0, requiredKnockoutPicks - completedKnockoutPicks),
+    requiredKnockoutPicks,
+    completedKnockoutPicks,
+    isLocked: lock.locked,
+    isComplete: entry.isComplete,
+    submittedAt,
+    staleSubmittedIncomplete,
+    needsRefinalize,
+  }
+}
+
+export async function finalizeWorldCupEntry(input: {
+  challengeId: string
+  entryId: string
+  userId: string
+}) {
+  const review = await getWorldCupEntryCompletionReview(input)
+  if (review.isLocked) {
+    throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
+  }
+  if (!review.fullEntryComplete) {
+    const error = new Error("World Cup entry is incomplete.") as Error & {
+      completion?: WorldCupEntryCompletionReview
+    }
+    error.completion = review
+    throw error
+  }
+  if (review.submittedAt && !review.needsRefinalize) {
+    throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
+  }
+  const submittedAt = new Date()
+  const entry = await prisma.worldCupBracketEntry.update({
+    where: { id: input.entryId },
+    data: {
+      isComplete: true,
+      submittedAt,
+    },
+  })
+  return {
+    entry,
+    completion: {
+      ...review,
+      isComplete: true,
+      isLocked: review.isLocked,
+      submittedAt: submittedAt.toISOString(),
+      staleSubmittedIncomplete: false,
+      needsRefinalize: false,
+    },
+  }
+}

@@ -69,6 +69,89 @@ export type WorldCupBracketEntryDetailClient = WorldCupBracketEntryClient & {
   picks?: WorldCupPickView[]
 }
 
+export type WorldCupGroupStageTeamClient = {
+  id: string
+  teamId: string
+  name: string
+  country: string
+  fifaCode: string | null
+  flagUrl: string | null
+  logoUrl: string | null
+  seedOrder: number
+  actualRank: number | null
+  points: number | null
+  goalDifference: number | null
+  goalsFor: number | null
+}
+
+export type WorldCupGroupStageViewClient = {
+  challengeId: string
+  entryId: string
+  groups: Array<{
+    id: string
+    groupKey: string
+    displayName: string
+    sortOrder: number
+    teams: WorldCupGroupStageTeamClient[]
+  }>
+  groupRankingPicks: Array<{
+    id: string
+    groupId: string
+    teamId: string
+    predictedRank: number
+    actualRank: number | null
+    isCorrect: boolean | null
+    pointsAwarded: number
+  }>
+  thirdPlaceAdvancerPicks: Array<{
+    id: string
+    groupId: string
+    teamId: string
+    isSelected: boolean
+    actualAdvanced: boolean | null
+    isCorrect: boolean | null
+    pointsAwarded: number
+  }>
+  completion: {
+    groupsRankedCount: number
+    allGroupsRanked: boolean
+    thirdPlaceSelectedCount: number
+    thirdPlaceComplete: boolean
+    groupStageComplete: boolean
+  }
+  lock: {
+    isLocked: boolean
+    lockReason: string | null
+  }
+  warnings: Array<{ code: string; message: string; groupKey?: string }>
+}
+
+export type WorldCupEntryCompletionReviewClient = {
+  challengeId: string
+  entryId: string
+  groupStageComplete: boolean
+  knockoutComplete: boolean
+  fullEntryComplete: boolean
+  groupsRankedCount: number
+  missingGroups: string[]
+  thirdPlaceSelectedCount: number
+  missingKnockoutPicks: number
+  requiredKnockoutPicks: number
+  completedKnockoutPicks: number
+  isLocked: boolean
+  isComplete: boolean
+  submittedAt: string | null
+  staleSubmittedIncomplete?: boolean
+  needsRefinalize?: boolean
+}
+
+export type WorldCupEntryFinalizeResult = {
+  ok: boolean
+  entry: WorldCupBracketEntryClient
+  completion: WorldCupEntryCompletionReviewClient
+  view?: WorldCupChallengeView
+}
+
 export type WorldCupEntryLeaderboardRow = WorldCupLeaderboardRow & {
   championAlive?: boolean
 }
@@ -165,6 +248,35 @@ export async function deleteWorldCupBracketEntry(
   }
 }
 
+export async function fetchWorldCupEntryCompletionReview(
+  challengeId: string,
+  entryId: string
+): Promise<WorldCupEntryCompletionReviewClient> {
+  const res = await apiFetch(`/api/brackets/world-cup/${challengeId}/entries/${entryId}/finalize`)
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? "Failed to load completion review")
+  return (data as { completion: WorldCupEntryCompletionReviewClient }).completion
+}
+
+export async function finalizeWorldCupEntryClient(
+  challengeId: string,
+  entryId: string
+): Promise<WorldCupEntryFinalizeResult> {
+  const res = await apiFetch(`/api/brackets/world-cup/${challengeId}/entries/${entryId}/finalize`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const error = new Error((data as { error?: string }).error ?? "Failed to finalize entry") as Error & {
+      completion?: WorldCupEntryCompletionReviewClient
+    }
+    error.completion = (data as { completion?: WorldCupEntryCompletionReviewClient }).completion
+    throw error
+  }
+  return data as WorldCupEntryFinalizeResult
+}
+
 export async function saveWorldCupBracketEntryPick(
   challengeId: string,
   entryId: string,
@@ -197,6 +309,47 @@ export async function clearWorldCupBracketEntryPicks(
   const data = await res.json()
   if (!res.ok) throw new Error((data as { error?: string }).error ?? "Failed to clear picks")
   return (data as { picks: unknown[] }).picks ?? []
+}
+
+export async function fetchWorldCupGroupStageView(
+  challengeId: string,
+  entryId: string
+): Promise<WorldCupGroupStageViewClient> {
+  const res = await apiFetch(`/api/brackets/world-cup/${challengeId}/entries/${entryId}/group-stage`, {
+    cache: "no-store",
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? "Failed to load group stage")
+  return (data as { view: WorldCupGroupStageViewClient }).view
+}
+
+export async function saveWorldCupGroupRankingClient(
+  challengeId: string,
+  entryId: string,
+  groupId: string,
+  orderedTeamIds: string[]
+): Promise<WorldCupGroupStageViewClient> {
+  const res = await apiFetch(`/api/brackets/world-cup/${challengeId}/entries/${entryId}/group-rankings`, {
+    method: "POST",
+    body: JSON.stringify({ groupId, orderedTeamIds }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? "Failed to save group ranking")
+  return (data as { view: WorldCupGroupStageViewClient }).view
+}
+
+export async function saveWorldCupThirdPlaceAdvancersClient(
+  challengeId: string,
+  entryId: string,
+  input: { selectedTeamIds?: string[]; selectedGroupIds?: string[] }
+): Promise<WorldCupGroupStageViewClient> {
+  const res = await apiFetch(`/api/brackets/world-cup/${challengeId}/entries/${entryId}/third-place-advancers`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? "Failed to save third-place advancers")
+  return (data as { view: WorldCupGroupStageViewClient }).view
 }
 
 export async function getWorldCupIntegrityReport(
@@ -272,6 +425,9 @@ export type WorldCupAdminSyncTeamsResult = {
   created: number
   updated: number
   skipped: number
+  groupsAssigned?: number
+  officialGroupsReady?: boolean
+  incompleteGroups?: Array<{ groupName: string; teamCount: number; missingTeams: number }>
   warnings: string[]
   teamCount: number
   syncedAt: string
@@ -299,6 +455,21 @@ export type WorldCupAdminSyncLiveResult = {
   warnings: string[]
   syncedAt: string
   dryRun: boolean
+}
+
+export type WorldCupAdminSyncGroupStandingsResult = {
+  ok: boolean
+  provider: WorldCupAdminSyncProvider
+  result: {
+    challengeId: string
+    standingsReceived: number
+    groupsUpdated: number
+    groupTeamsUpdated: number
+    thirdPlaceTeamsUpdated: number
+    warnings?: string[]
+  }
+  view?: WorldCupChallengeView
+  syncedAt: string
 }
 
 export type WorldCupAdminSimulationStrategy = "random" | "higher_seed" | "home" | "away"
@@ -401,6 +572,19 @@ export async function adminSyncWorldCupLive(
   return data as WorldCupAdminSyncLiveResult
 }
 
+export async function adminSyncWorldCupGroupStandings(
+  challengeId: string,
+  opts: { provider?: WorldCupAdminSyncProvider }
+): Promise<WorldCupAdminSyncGroupStandingsResult> {
+  const res = await apiFetch(
+    `/api/brackets/world-cup/${challengeId}/admin/sync-group-standings`,
+    { method: "POST", body: JSON.stringify(opts) }
+  )
+  const data = await res.json()
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? "Sync group standings failed")
+  return data as WorldCupAdminSyncGroupStandingsResult
+}
+
 export async function adminSimulateWorldCupMatch(
   challengeId: string,
   payload: {
@@ -486,6 +670,7 @@ export type WorldCupAdminLoadTestFixturesResult = {
     success: boolean
     teamsCreated: number
     teamsUpdated: number
+    slotsUpdated?: number
     templateMatchesCreated?: number
     templateSlotsCreated?: number
     matchesUpdated: number
@@ -494,6 +679,7 @@ export type WorldCupAdminLoadTestFixturesResult = {
     unresolvedMatchesAfter: number
     warnings: string[]
   }
+  view?: WorldCupChallengeView
 }
 
 export async function adminLoadWorldCupTestFixtures(

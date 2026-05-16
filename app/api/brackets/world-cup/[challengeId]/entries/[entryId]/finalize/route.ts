@@ -1,0 +1,73 @@
+import { NextResponse } from "next/server"
+import {
+  WORLD_CUP_BRACKET_LOCKED_MESSAGE,
+  finalizeWorldCupEntry,
+  getWorldCupChallengeView,
+  getWorldCupEntryCompletionReview,
+} from "@/lib/world-cup"
+import { requireWorldCupApiUser, worldCupEntryParamsSchema } from "../../../../_utils"
+
+export const runtime = "nodejs"
+
+function completionFromError(error: unknown) {
+  return (error as { completion?: unknown })?.completion ?? null
+}
+
+function isLockedMessage(message: string) {
+  return message === WORLD_CUP_BRACKET_LOCKED_MESSAGE || message.toLowerCase().includes("locked")
+}
+
+export async function GET(request: Request, context: { params: { challengeId: string; entryId: string } }) {
+  const auth = await requireWorldCupApiUser(request)
+  if (!auth.ok) return auth.response
+
+  const params = worldCupEntryParamsSchema.safeParse(context.params)
+  if (!params.success) {
+    return NextResponse.json({ error: "Invalid parameters" }, { status: 400 })
+  }
+
+  try {
+    const completion = await getWorldCupEntryCompletionReview({
+      challengeId: params.data.challengeId,
+      entryId: params.data.entryId,
+      userId: auth.user.id,
+    })
+    return NextResponse.json({ ok: true, completion })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to load completion review"
+    return NextResponse.json({ error: message }, { status: message === "Entry not found" ? 404 : 400 })
+  }
+}
+
+export async function POST(request: Request, context: { params: { challengeId: string; entryId: string } }) {
+  const auth = await requireWorldCupApiUser(request)
+  if (!auth.ok) return auth.response
+
+  const params = worldCupEntryParamsSchema.safeParse(context.params)
+  if (!params.success) {
+    return NextResponse.json({ error: "Invalid parameters" }, { status: 400 })
+  }
+
+  try {
+    const result = await finalizeWorldCupEntry({
+      challengeId: params.data.challengeId,
+      entryId: params.data.entryId,
+      userId: auth.user.id,
+    })
+    const view = await getWorldCupChallengeView({
+      challengeId: params.data.challengeId,
+      user: auth.user,
+    })
+    return NextResponse.json({ ok: true, ...result, view })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to finalize entry"
+    if (isLockedMessage(message)) {
+      return NextResponse.json({ error: WORLD_CUP_BRACKET_LOCKED_MESSAGE }, { status: 423 })
+    }
+    const completion = completionFromError(error)
+    return NextResponse.json(
+      { error: message, completion },
+      { status: message === "Entry not found" ? 404 : 400 }
+    )
+  }
+}

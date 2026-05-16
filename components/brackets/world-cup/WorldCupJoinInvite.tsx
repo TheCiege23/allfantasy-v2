@@ -1,10 +1,13 @@
 "use client"
-import { useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { AlertTriangle, Calendar, Copy, Globe, Loader2, Lock, Share2, Trophy, Users } from "lucide-react"
+import { signupUrlWithReturnTo } from "@/lib/auth/auth-intent-resolver"
 import {
   type InviteInfo,
+  getBrowserWorldCupInviteUrl,
   getBracketBlockReason,
   mapJoinError,
 } from "@/lib/world-cup/worldCupBracketUtils"
@@ -14,28 +17,38 @@ export { getBracketBlockReason, mapJoinError }
 
 export default function WorldCupJoinInvite({ invite }: { invite: InviteInfo }) {
   const router = useRouter()
+  const { status } = useSession()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [joinPassword, setJoinPassword] = useState("")
+  const autoContinueAttemptedRef = useRef(false)
 
   const blockReason = getBracketBlockReason(invite)
-  const inviteUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/join/bracket/${invite.inviteCode}`
-    : `/join/bracket/${invite.inviteCode}`
+  const joinPath = `/join/bracket/${invite.inviteCode}`
+  const requiresJoinPassword = Boolean(invite.joinPreview?.requiresJoinPassword)
+  const isLocked = invite.status === "locked"
+  const canJoin = !blockReason && !isLocked
 
   async function copyLink() {
-    await navigator.clipboard?.writeText(inviteUrl).catch(() => {})
+    const currentInviteUrl = getBrowserWorldCupInviteUrl({ inviteCode: invite.inviteCode })
+    try {
+      await navigator.clipboard?.writeText(currentInviteUrl)
+    } catch {
+      // Clipboard can be unavailable in some browser contexts.
+    }
     setCopied(true)
     setTimeout(() => setCopied(false), 1400)
   }
 
   async function shareLink() {
+    const currentInviteUrl = getBrowserWorldCupInviteUrl({ inviteCode: invite.inviteCode })
     if (navigator.share) {
       try {
         await navigator.share({
           title: invite.name,
           text: `Join my ${invite.seasonYear} FIFA World Cup bracket challenge`,
-          url: inviteUrl,
+          url: currentInviteUrl,
         })
         return
       } catch {
@@ -45,32 +58,48 @@ export default function WorldCupJoinInvite({ invite }: { invite: InviteInfo }) {
     await copyLink()
   }
 
-  async function join() {
+  const join = useCallback(async (options?: { auto?: boolean }) => {
+    if (requiresJoinPassword && options?.auto) return
     setLoading(true)
     setError(null)
     try {
       const res = await fetch(`/api/brackets/world-cup/invite/${invite.inviteCode}/join`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          joinPassword: requiresJoinPassword ? joinPassword : undefined,
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         const mapped = mapJoinError(data.error ?? "")
         if (mapped === "__login__") {
-          router.push(`/login?callbackUrl=${encodeURIComponent(`/join/bracket/${invite.inviteCode}`)}`)
+          router.push(`/login?callbackUrl=${encodeURIComponent(joinPath)}&returnTo=${encodeURIComponent(joinPath)}`)
           return
         }
         throw new Error(mapped)
       }
-      router.push(`/brackets/world-cup/${data.challengeId}?tab=picks`)
+      router.push(`/brackets/world-cup/${data.challengeId}?tab=group-stage`)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not join bracket")
     } finally {
       setLoading(false)
     }
-  }
+  }, [invite.inviteCode, joinPassword, joinPath, requiresJoinPassword, router])
 
-  const isLocked = invite.status === "locked"
-  const canJoin = !blockReason && !isLocked
+  useEffect(() => {
+    if (status !== "authenticated") return
+    if (autoContinueAttemptedRef.current) return
+    if (!canJoin || requiresJoinPassword) return
+    autoContinueAttemptedRef.current = true
+    void join({ auto: true })
+  }, [canJoin, join, requiresJoinPassword, status])
+
+  useEffect(() => {
+    if (status !== "unauthenticated") return
+    if (!canJoin) return
+    router.push(`/login?callbackUrl=${encodeURIComponent(joinPath)}&returnTo=${encodeURIComponent(joinPath)}`)
+  }, [canJoin, joinPath, router, status])
 
   return (
     <div className="min-h-screen bg-[#05070b] px-4 py-10 text-white">
@@ -134,15 +163,31 @@ export default function WorldCupJoinInvite({ invite }: { invite: InviteInfo }) {
           {/* CTA */}
           <div className="mt-5 space-y-3">
             {canJoin ? (
-              <button
-                type="button"
-                onClick={join}
-                disabled={loading}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-300 px-4 py-3 text-sm font-black text-black disabled:opacity-60"
-              >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
-                Join and Make Picks
-              </button>
+              <>
+                {requiresJoinPassword ? (
+                  <label className="block text-xs font-bold text-white/65">
+                    Join password
+                    <input
+                      type="password"
+                      data-testid="world-cup-invite-join-password"
+                      value={joinPassword}
+                      onChange={(event) => setJoinPassword(event.target.value)}
+                      autoComplete="new-password"
+                      className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-300/45"
+                    />
+                  </label>
+                ) : null}
+                <button
+                  type="button"
+                  data-testid="world-cup-invite-join-submit"
+                  onClick={() => void join()}
+                  disabled={loading || (requiresJoinPassword && joinPassword.trim().length === 0)}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-300 px-4 py-3 text-sm font-black text-black disabled:opacity-60"
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
+                  Join and Make Picks
+                </button>
+              </>
             ) : (
               <Link
                 href={`/brackets/world-cup/${invite.challengeId}`}
@@ -171,6 +216,15 @@ export default function WorldCupJoinInvite({ invite }: { invite: InviteInfo }) {
                 Share
               </button>
             </div>
+
+          {canJoin ? (
+            <p className="mt-4 text-center text-xs text-white/45">
+              New to AllFantasy?{" "}
+              <Link href={signupUrlWithReturnTo(joinPath)} className="font-bold text-cyan-200 underline">
+                Create an account to join this pool.
+              </Link>
+            </p>
+          ) : null}
           </div>
         </div>
       </div>
