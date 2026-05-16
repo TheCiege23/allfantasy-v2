@@ -57,6 +57,7 @@ import {
 } from "@/lib/world-cup/worldCupProjectedBracket"
 import { calculateWorldCupBracketHealth, getWorldCupPickRecommendation } from "@/lib/world-cup/worldCupAiInsights"
 import { getBrowserWorldCupInviteUrl } from "@/lib/world-cup/worldCupBracketUtils"
+import { worldCupTabToQueryValue, type WorldCupBracketTab } from "@/lib/world-cup/worldCupTabs"
 import WorldCupBracketBoard from "./WorldCupBracketBoard"
 import WorldCupBracketHealthCard from "./WorldCupBracketHealthCard"
 import WorldCupEntryDashboard from "./WorldCupEntryDashboard"
@@ -73,7 +74,7 @@ import WorldCupLiveScoreTicker from "./WorldCupLiveScoreTicker"
 import WorldCupBracketSettingsPanel from "./WorldCupBracketSettingsPanel"
 import WorldCupCommissionerBrainPanel from "./WorldCupCommissionerBrainPanel"
 import WorldCupGroupStagePicks from "./WorldCupGroupStagePicks"
-type Tab = "home" | "group-stage" | "picks" | "review" | "leaderboard" | "rules" | "invite" | "settings" | "commissioner"
+type Tab = WorldCupBracketTab
 const BASE_TABS: Array<{ id: Tab; label: string; icon: typeof ClipboardList }> = [
   { id: "home", label: "Home", icon: Trophy },
   { id: "group-stage", label: "Group Stage", icon: ListOrdered },
@@ -434,7 +435,7 @@ export default function WorldCupBracketShell({
       const url = new URL(window.location.href)
       if (entryId) {
         const nextTab = targetTab ?? (tab === "group-stage" ? "group-stage" : "picks")
-        url.searchParams.set("tab", nextTab === "picks" ? "knockouts" : nextTab)
+        url.searchParams.set("tab", worldCupTabToQueryValue(nextTab))
         url.searchParams.set("entry", entryId)
       } else {
         url.searchParams.delete("entry")
@@ -456,8 +457,7 @@ export default function WorldCupBracketShell({
     (nextTab: Tab, entryId: string | null = selectedEntryId, mode: "push" | "replace" = "push") => {
       if (typeof window === "undefined") return
       const url = new URL(window.location.href)
-      const urlTab = nextTab === "picks" ? "knockouts" : nextTab
-      url.searchParams.set("tab", urlTab)
+      url.searchParams.set("tab", worldCupTabToQueryValue(nextTab))
       if (entryId) {
         url.searchParams.set("entry", entryId)
       } else {

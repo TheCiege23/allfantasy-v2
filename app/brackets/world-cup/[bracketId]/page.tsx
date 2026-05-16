@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { getWorldCupChallengeView } from "@/lib/world-cup"
 import { hasWorldCupAdminPageSession } from "@/lib/world-cup/adminPage"
+import { normalizeWorldCupBracketTab } from "@/lib/world-cup/worldCupTabs"
 import WorldCupBracketShell from "@/components/brackets/world-cup/WorldCupBracketShell"
 
 export const dynamic = "force-dynamic"
@@ -26,16 +27,7 @@ export default async function WorldCupBracketChallengePage({
 
   if (!view) notFound()
 
-  const tab = searchParams?.tab
-  const defaultTab =
-    tab === "leaderboard" ||
-    tab === "rules" ||
-    tab === "invite" ||
-    tab === "picks" ||
-    tab === "settings" ||
-    tab === "commissioner"
-      ? tab
-      : "picks"
+  const defaultTab = normalizeWorldCupBracketTab(searchParams?.tab)
 
   const initialGuidedOpen = searchParams?.guided === "1"
   const initialEntryId = searchParams?.entry?.trim() || null

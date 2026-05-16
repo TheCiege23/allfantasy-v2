@@ -4,6 +4,11 @@ import { render, screen, waitFor, fireEvent, within } from "@testing-library/rea
 const clientApiMocks = vi.hoisted(() => ({
   listEntries: vi.fn(),
   getEntry: vi.fn(),
+  fetchCompletionReview: vi.fn(),
+  finalizeEntry: vi.fn(),
+  fetchGroupStageView: vi.fn(),
+  saveGroupRanking: vi.fn(),
+  saveThirdPlaceAdvancers: vi.fn(),
   adminLoadTestFixtures: vi.fn(),
   adminResetSimulation: vi.fn(),
   adminSimulateMatch: vi.fn(),
@@ -20,13 +25,15 @@ const clientApiMocks = vi.hoisted(() => ({
   savePick: vi.fn(),
 }))
 
+const routerMocks = vi.hoisted(() => ({
+  back: vi.fn(),
+  push: vi.fn(),
+  refresh: vi.fn(),
+  replace: vi.fn(),
+}))
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({
-    back: vi.fn(),
-    push: vi.fn(),
-    refresh: vi.fn(),
-    replace: vi.fn(),
-  }),
+  useRouter: () => routerMocks,
 }))
 
 vi.mock("next/link", () => ({
@@ -52,6 +59,10 @@ vi.mock("@/components/brackets/world-cup/WorldCupMatchupIntelligencePanel", () =
   default: () => <div data-testid="wc-intel-stub" />,
 }))
 
+vi.mock("@/components/brackets/world-cup/WorldCupGroupStagePicks", () => ({
+  default: ({ entryId }: { entryId: string }) => <div data-testid="world-cup-group-stage-picks">Group stage {entryId}</div>,
+}))
+
 vi.mock("@/lib/world-cup/worldCupClientApi", () => ({
   adminLoadWorldCupTestFixtures: clientApiMocks.adminLoadTestFixtures,
   adminResetWorldCupSimulation: clientApiMocks.adminResetSimulation,
@@ -64,13 +75,18 @@ vi.mock("@/lib/world-cup/worldCupClientApi", () => ({
   clearWorldCupBracketEntryPicks: clientApiMocks.clearPicks,
   createWorldCupBracketEntry: clientApiMocks.createEntry,
   deleteWorldCupBracketEntry: clientApiMocks.deleteEntry,
+  fetchWorldCupEntryCompletionReview: clientApiMocks.fetchCompletionReview,
+  fetchWorldCupGroupStageView: clientApiMocks.fetchGroupStageView,
+  finalizeWorldCupEntryClient: clientApiMocks.finalizeEntry,
   getWorldCupIntegrityReport: clientApiMocks.getIntegrityReport,
   getWorldCupBracketEntry: clientApiMocks.getEntry,
   getEntryStatus: (entry: { isLocked?: boolean; isComplete?: boolean; correctPicks?: number; totalScore?: number }) =>
     entry.isLocked ? "locked" : entry.isComplete ? "complete" : (entry.correctPicks ?? 0) > 0 || (entry.totalScore ?? 0) > 0 ? "in_progress" : "not_started",
   listWorldCupBracketEntries: clientApiMocks.listEntries,
   renameWorldCupBracketEntry: clientApiMocks.renameEntry,
+  saveWorldCupGroupRankingClient: clientApiMocks.saveGroupRanking,
   saveWorldCupBracketEntryPick: clientApiMocks.savePick,
+  saveWorldCupThirdPlaceAdvancersClient: clientApiMocks.saveThirdPlaceAdvancers,
 }))
 
 function mockSettingsPayload(overrides: Partial<Record<string, unknown>> = {}) {
@@ -590,13 +606,38 @@ function makeShellView(overrides: Record<string, unknown> = {}) {
 
 describe("WorldCupBracketShell fixture readiness", () => {
   beforeEach(() => {
+    routerMocks.back.mockReset()
+    routerMocks.push.mockReset()
+    routerMocks.refresh.mockReset()
+    routerMocks.replace.mockReset()
     clientApiMocks.listEntries.mockReset()
     clientApiMocks.getEntry.mockReset()
+    clientApiMocks.fetchCompletionReview.mockReset()
+    clientApiMocks.finalizeEntry.mockReset()
+    clientApiMocks.fetchGroupStageView.mockReset()
+    clientApiMocks.saveGroupRanking.mockReset()
+    clientApiMocks.saveThirdPlaceAdvancers.mockReset()
     clientApiMocks.adminLoadTestFixtures.mockReset()
     clientApiMocks.clearPicks.mockReset()
     clientApiMocks.savePick.mockReset()
     clientApiMocks.listEntries.mockResolvedValue([makeShellEntry()])
     clientApiMocks.getEntry.mockResolvedValue({ ...makeShellEntry(), picks: [] })
+    clientApiMocks.fetchCompletionReview.mockResolvedValue({
+      challengeId: "c1",
+      entryId: "entry-1",
+      groupStageComplete: false,
+      knockoutComplete: false,
+      fullEntryComplete: false,
+      groupsRankedCount: 0,
+      missingGroups: ["A"],
+      thirdPlaceSelectedCount: 0,
+      missingKnockoutPicks: 1,
+      requiredKnockoutPicks: 1,
+      completedKnockoutPicks: 0,
+      isLocked: false,
+      isComplete: false,
+      submittedAt: null,
+    })
     clientApiMocks.adminLoadTestFixtures.mockResolvedValue({
       ok: true,
       result: {
@@ -611,6 +652,32 @@ describe("WorldCupBracketShell fixture readiness", () => {
       },
     })
     vi.stubGlobal("fetch", vi.fn())
+  })
+
+  it("renders Group Stage when initialized from the group-stage tab", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="group-stage" initialEntryId="entry-1" />)
+
+    expect(await screen.findByTestId("world-cup-group-stage-picks")).toHaveTextContent("entry-1")
+  })
+
+  it("renders Review when initialized from the review tab", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" initialEntryId="entry-1" />)
+
+    await waitFor(() => expect(clientApiMocks.fetchCompletionReview).toHaveBeenCalledWith("c1", "entry-1"))
+    expect(screen.getByText(/Review & Finalize/i)).toBeInTheDocument()
+  })
+
+  it("updates the URL with stable query tab values when switching tabs", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="group-stage" initialEntryId="entry-1" />)
+
+    fireEvent.click((await screen.findAllByRole("button", { name: /Knockouts/i }))[0])
+    expect(routerMocks.push).toHaveBeenLastCalledWith(expect.stringContaining("tab=knockouts"))
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Review/i })[0])
+    expect(routerMocks.push).toHaveBeenLastCalledWith(expect.stringContaining("tab=review"))
   })
 
   it("shows Seed Test Fixtures CTA for commissioner/admin when fixtures are missing", async () => {

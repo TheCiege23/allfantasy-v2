@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server"
 import {
   WORLD_CUP_BRACKET_LOCKED_MESSAGE,
-  finalizeWorldCupEntry,
   getWorldCupChallengeView,
+} from "@/lib/world-cup/worldCupBracketService"
+import {
+  finalizeWorldCupEntry,
   getWorldCupEntryCompletionReview,
-} from "@/lib/world-cup"
+} from "@/lib/world-cup/worldCupEntryFinalizeService"
 import { requireWorldCupApiUser, worldCupEntryParamsSchema } from "../../../../_utils"
 
 export const runtime = "nodejs"
