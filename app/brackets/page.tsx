@@ -22,6 +22,7 @@ import {
 import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
 import { resolveBracketChallengeLabel, resolveBracketSportUI } from "@/lib/bracket-challenge"
 import { resolveMyPoolCardHref, resolvePlayoffCardHref, resolvePlayoffCardMode } from "@/lib/playoffs/playoffHomeRouting"
+import { listUserWorldCupChallenges } from "@/lib/world-cup"
 
 export const dynamic = "force-dynamic"
 
@@ -29,6 +30,13 @@ type SessionUser = { id?: string; email?: string | null; name?: string | null }
 type PlayoffHomePool = {
   challengeId: string
   sport: "nba" | "nhl"
+  name: string
+  members: number
+  entries: number
+}
+
+type WorldCupHomePool = {
+  challengeId: string
   name: string
   members: number
   entries: number
@@ -43,6 +51,27 @@ type HomePoolCard = {
   sport: string | null
   challengeType: string | null
   bracketType: string | null
+}
+
+function isLegacyWorldCupPoolRow(member: any): boolean {
+  const league = member?.league
+  const sport = String(league?.tournament?.sport ?? "").toLowerCase()
+  const tournamentName = String(league?.tournament?.name ?? "").toLowerCase()
+  const leagueName = String(league?.name ?? "").toLowerCase()
+  const challengeType = String(league?.scoringRules?.challengeType ?? "").toLowerCase()
+  const bracketType = String(league?.scoringRules?.bracketType ?? "").toLowerCase()
+
+  return (
+    sport === "soccer" &&
+    (
+      tournamentName.includes("world cup") ||
+      leagueName.includes("world cup") ||
+      challengeType.includes("world_cup") ||
+      challengeType.includes("world-cup") ||
+      bracketType.includes("world_cup") ||
+      bracketType.includes("world-cup")
+    )
+  )
 }
 
 function isExpectedBracketLoadError(err: unknown): boolean {
@@ -238,6 +267,41 @@ async function safeGetPlayoffPools(userId: string | undefined): Promise<PlayoffH
   }
 }
 
+async function safeGetWorldCupPools(userId: string | undefined): Promise<WorldCupHomePool[]> {
+  if (!userId) return []
+  try {
+    const rows = await listUserWorldCupChallenges(userId)
+    return (rows ?? [])
+      .map((row: any) => {
+        const challengeId = typeof row?.id === "string" ? row.id.trim() : ""
+        const name = typeof row?.name === "string" ? row.name.trim() : ""
+        if (!challengeId || !name) return null
+        return {
+          challengeId,
+          name,
+          members: Number(row?.participantCount ?? 0),
+          entries: 1,
+        }
+      })
+      .filter(Boolean) as WorldCupHomePool[]
+  } catch (err) {
+    if (!isExpectedBracketLoadError(err)) {
+      console.warn("[brackets/page] safeGetWorldCupPools unexpected fallback", {
+        route: "/brackets",
+        functionName: "safeGetWorldCupPools",
+        error: sanitizeError(err),
+      })
+      return []
+    }
+    console.warn("[brackets/page] safeGetWorldCupPools expected fallback", {
+      route: "/brackets",
+      functionName: "safeGetWorldCupPools",
+      error: sanitizeError(err),
+    })
+    return []
+  }
+}
+
 function dedupeHomePools(pools: HomePoolCard[]): HomePoolCard[] {
   const byPoolId = new Map<string, HomePoolCard>()
   for (const pool of pools) {
@@ -292,6 +356,7 @@ export default async function BracketsHomePage() {
   let userId: string | undefined
   let myLeagues: any[] = []
   let myPlayoffChallenges: PlayoffHomePool[] = []
+  let myWorldCupChallenges: WorldCupHomePool[] = []
   let visibleSports: string[] = SUPPORTED_SPORTS
   let playoffBySport = new Map<string, PlayoffHomePool>()
   let playoffSports: Array<{ sport: string; ui: ReturnType<typeof resolveBracketSportUI> }> = []
@@ -315,6 +380,7 @@ export default async function BracketsHomePage() {
     userId = user?.id
     myLeagues = await safeGetLegacyBracketPools(userId)
     myPlayoffChallenges = await safeGetPlayoffPools(userId)
+    myWorldCupChallenges = await safeGetWorldCupPools(userId)
     visibleSports = await safeGetEnabledBracketSports()
     playoffBySport = myPlayoffChallenges.reduce((map, challenge) => {
       const sport = challenge.sport.toLowerCase()
@@ -339,7 +405,7 @@ export default async function BracketsHomePage() {
   const bracketSignupHref = buildSignupHrefWithIntent("/brackets")
   const bracketLoginHref = buildLoginHrefWithIntent("/brackets")
   const safeMyLeagues = Array.isArray(myLeagues)
-    ? myLeagues.filter((row: any) => Boolean(row?.league?.id))
+    ? myLeagues.filter((row: any) => Boolean(row?.league?.id) && !isLegacyWorldCupPoolRow(row))
     : []
   const safeResolvePlayoffHref = (sport: string) => {
     try {
@@ -399,6 +465,16 @@ export default async function BracketsHomePage() {
       sport: challenge.sport,
       challengeType: "playoff_challenge",
       bracketType: null,
+    })),
+    ...myWorldCupChallenges.map((challenge) => ({
+      id: challenge.challengeId,
+      href: `/brackets/world-cup/${challenge.challengeId}`,
+      name: challenge.name,
+      members: challenge.members,
+      entries: challenge.entries,
+      sport: "SOCCER",
+      challengeType: "world_cup",
+      bracketType: "world_cup",
     })),
   ])
 

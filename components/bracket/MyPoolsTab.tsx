@@ -19,6 +19,7 @@ function resolveBracketPoolHref(poolId: string, href?: string): string {
   if (typeof href !== "string") return canonicalHref
   const trimmed = href.trim()
   if (!trimmed) return canonicalHref
+  if (trimmed.startsWith("/brackets/world-cup/")) return trimmed
   if (trimmed.startsWith("/brackets/leagues/")) return trimmed
   return canonicalHref
 }

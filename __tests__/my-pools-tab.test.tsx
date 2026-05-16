@@ -88,6 +88,45 @@ describe("MyPoolsTab", () => {
     expect(link).toHaveAttribute("href", "/brackets/leagues/soccer-league-1")
   })
 
+  it("preserves current World Cup challenge hrefs", () => {
+    render(
+      <MyPoolsTab
+        pools={[
+          {
+            id: "world-cup-challenge-1",
+            name: "Current World Cup Challenge",
+            href: "/brackets/world-cup/world-cup-challenge-1",
+            members: 5,
+            entries: 1,
+            sport: "SOCCER",
+            challengeType: "world_cup",
+          },
+        ]}
+      />
+    )
+
+    const link = screen.getByRole("link", { name: "Current World Cup Challenge" })
+    expect(link).toHaveAttribute("href", "/brackets/world-cup/world-cup-challenge-1")
+  })
+
+  it("does not preserve unrelated non-brackets hrefs", () => {
+    render(
+      <MyPoolsTab
+        pools={[
+          {
+            id: "bad-world-cup-route",
+            name: "Bad World Cup Route",
+            href: "/world-cup/bad-world-cup-route",
+            sport: "SOCCER",
+          },
+        ]}
+      />
+    )
+
+    const link = screen.getByRole("link", { name: "Bad World Cup Route" })
+    expect(link).toHaveAttribute("href", "/brackets/leagues/bad-world-cup-route")
+  })
+
   it("defaults unknown bracket pool href to /brackets/leagues/[id]", () => {
     render(
       <MyPoolsTab
