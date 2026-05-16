@@ -57,6 +57,7 @@ export default function WorldCupMatchupCard({
   tournamentLockAt,
   onPick,
   onOpenMatchupPicker,
+  isSaving = false,
 }: {
   match: WorldCupMatchView
   pick?: WorldCupPickView
@@ -67,6 +68,7 @@ export default function WorldCupMatchupCard({
   tournamentLockAt?: string | null
   onPick?: (match: WorldCupMatchView, side: "home" | "away") => void
   onOpenMatchupPicker?: (matchId: string) => void
+  isSaving?: boolean
 }) {
   const isLive = isWorldCupMatchLive(match)
   const isFinal = isWorldCupMatchFinal(match)
@@ -75,6 +77,14 @@ export default function WorldCupMatchupCard({
   const showScore = isLive || isFinal
   const matchIsPickable = isWorldCupMatchPickable(match)
   const unpickableReason = matchIsPickable ? null : getWorldCupUnpickableReason(match)
+  const unpickableMessage =
+    unpickableReason === "final"
+      ? "This match is final."
+      : unpickableReason === "missing_home_team" ||
+          unpickableReason === "missing_away_team" ||
+          unpickableReason === "placeholder_team"
+        ? "Pick earlier round winners first."
+        : "Teams not available yet."
 
   const teams = [
     { side: "home" as const, slotKey: match.homeSlotKey, teamId: match.homeTeamId, name: match.homeTeamName, logo: match.homeTeamLogo, score: match.homeScore },
@@ -165,6 +175,11 @@ export default function WorldCupMatchupCard({
               Not ready for picks
             </span>
           )}
+          {isSaving ? (
+            <span className="rounded-full bg-cyan-300/15 px-2 py-0.5 text-[10px] font-bold text-cyan-100">
+              Saving...
+            </span>
+          ) : null}
           {/* Pick result badges */}
           {pickLiveState === "correct" && (
             <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-400/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-200">
@@ -235,6 +250,15 @@ export default function WorldCupMatchupCard({
         </div>
       )}
 
+      {!matchIsPickable && !isFinal ? (
+        <p
+          data-testid={`world-cup-match-disabled-reason-${match.id}`}
+          className="mb-2 rounded-lg border border-amber-300/20 bg-amber-500/10 px-2 py-1.5 text-[10px] font-bold text-amber-100"
+        >
+          {unpickableMessage}
+        </p>
+      ) : null}
+
       {/* Score row — shown during / after match */}
       {showScore && (
         <div
@@ -290,6 +314,13 @@ export default function WorldCupMatchupCard({
               : (match.awayScore ?? 0) > (match.homeScore ?? 0)
           )
 
+          const disabledReason = locked
+            ? "Picks are locked for this match"
+            : isSaving
+              ? "This pick is saving"
+              : !matchIsPickable
+                ? unpickableMessage
+                : undefined
           const pickAriaLabel = `${selected ? "Selected: " : "Pick "}${displayName} to win`
           return (
             <button
@@ -298,9 +329,9 @@ export default function WorldCupMatchupCard({
               data-testid={`world-cup-team-${match.id}-${t.side}`}
               aria-pressed={selected}
               aria-label={pickAriaLabel}
-              disabled={locked || !matchIsPickable}
-              onClick={() => locked || !matchIsPickable ? undefined : onPick?.(match, t.side)}
-              title={locked ? "Picks are locked for this match" : !matchIsPickable ? "This matchup is not ready for picks yet" : undefined}
+              disabled={locked || isSaving || !matchIsPickable}
+              onClick={() => locked || isSaving || !matchIsPickable ? undefined : onPick?.(match, t.side)}
+              title={disabledReason}
               className={[
                 "flex min-h-[3.5rem] w-full touch-manipulation items-center gap-2 rounded-md border px-2 py-1 text-left transition sm:h-14 sm:py-0",
                 winner ? "border-emerald-300/70 bg-emerald-400/[0.08]"
@@ -310,7 +341,7 @@ export default function WorldCupMatchupCard({
                 : selected ? "border-cyan-300/70 bg-cyan-300/10"
                 : teamIsLeading ? "border-white/20 bg-white/[0.06]"
                 : "border-white/10 bg-white/[0.03]",
-                locked || !matchIsPickable ? "cursor-not-allowed opacity-60" : "hover:bg-white/[0.06]",
+                locked || isSaving || !matchIsPickable ? "cursor-not-allowed opacity-60" : "hover:bg-white/[0.06]",
               ]
                 .filter(Boolean)
                 .join(" ")}

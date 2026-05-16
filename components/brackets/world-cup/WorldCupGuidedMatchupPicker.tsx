@@ -1010,7 +1010,9 @@ function MatchView({
       )}
       {!isWorldCupMatchPickable(match) && (
         <p className="text-center text-xs text-amber-200/90">
-          This matchup is not ready for picks yet.
+          {getWorldCupUnpickableReason(match) === "final"
+            ? "This match is final."
+            : "Pick earlier round winners first."}
         </p>
       )}
       {pick && !isLocked && !isFinal && (

@@ -358,6 +358,7 @@ export default function WorldCupBracketShell({
   // ── Guided picker state ──────────────────────────────────────────────────
   const [isGuidedPickerOpen, setIsGuidedPickerOpen] = useState(false)
   const [guidedInitialMatchId, setGuidedInitialMatchId] = useState<string | null>(null)
+  const [hasUnsavedGroupChanges, setHasUnsavedGroupChanges] = useState(false)
   const [dashboardPreviewMode, setDashboardPreviewMode] = useState<"starting" | "ai">("starting")
   const [completionReview, setCompletionReview] = useState<WorldCupEntryCompletionReviewClient | null>(null)
   const [completionError, setCompletionError] = useState<string | null>(null)
@@ -473,6 +474,26 @@ export default function WorldCupBracketShell({
       else router.push(nextUrl)
     },
     [router, selectedEntryId]
+  )
+
+  const confirmLeavingGroupStage = useCallback(() => {
+    if (tab !== "group-stage" || !hasUnsavedGroupChanges) return true
+    const message = "You have unsaved group changes. Save before leaving, or your changes will be discarded."
+    if (typeof window === "undefined") return true
+    const confirmed = window.confirm(message)
+    if (!confirmed) toast.info("Stayed on Group Stage. Save or discard your group changes before leaving.")
+    return confirmed
+  }, [hasUnsavedGroupChanges, tab])
+
+  const switchTab = useCallback(
+    (nextTab: Tab) => {
+      if (nextTab === tab) return
+      if (!confirmLeavingGroupStage()) return
+      if (tab === "group-stage") setHasUnsavedGroupChanges(false)
+      setTab(nextTab)
+      updateTabUrl(nextTab)
+    },
+    [confirmLeavingGroupStage, tab, updateTabUrl]
   )
 
   const markEntryPicksLoaded = useCallback((entryId: string, nextPicks: WorldCupPickView[]) => {
@@ -1316,6 +1337,19 @@ export default function WorldCupBracketShell({
       )?.id ?? null,
     [pickableMatches, picks, view.challenge.includeThirdPlace]
   )
+  const firstUnpickedMatch = useMemo(
+    () => projectedMatches.find((match) => match.id === firstUnpickedMatchId) ?? null,
+    [firstUnpickedMatchId, projectedMatches]
+  )
+  const blockedFuturePickCount = useMemo(
+    () =>
+      projectedMatches.filter(
+        (match) =>
+          (match.round !== "third_place" || view.challenge.includeThirdPlace) &&
+          !isWorldCupMatchPickable(match)
+      ).length,
+    [projectedMatches, view.challenge.includeThirdPlace]
+  )
   const computedIsComplete =
     projectedPickableMatchCount > 0 &&
     completedPickCount > 0 &&
@@ -1332,6 +1366,18 @@ export default function WorldCupBracketShell({
           : remainingPicks > 0
             ? "Continue Guided Picks"
             : "Review Guided Picks"
+  const openNextActionablePick = useCallback(() => {
+    if (!guidedPickerAvailable || !firstUnpickedMatchId) {
+      toast.info(
+        blockedFuturePickCount > 0
+          ? "Pick earlier round winners first. More matchups unlock as your bracket advances."
+          : "No available knockout picks are ready right now."
+      )
+      return
+    }
+    setGuidedInitialMatchId(firstUnpickedMatchId)
+    setIsGuidedPickerOpen(true)
+  }, [blockedFuturePickCount, firstUnpickedMatchId, guidedPickerAvailable])
   const showSeedTestFixturesCta =
     !isLocked &&
     (view.isOwner || view.isAdmin) &&
@@ -1629,6 +1675,8 @@ export default function WorldCupBracketShell({
     (anchorId: string, nextTab?: Tab) => {
       const tabChanged = Boolean(nextTab && tab !== nextTab)
       if (nextTab && tab !== nextTab) {
+        if (!confirmLeavingGroupStage()) return
+        if (tab === "group-stage") setHasUnsavedGroupChanges(false)
         setTab(nextTab)
         updateTabUrl(nextTab)
       }
@@ -1644,7 +1692,7 @@ export default function WorldCupBracketShell({
         )
       })
     },
-    [tab, updateTabUrl]
+    [confirmLeavingGroupStage, tab, updateTabUrl]
   )
 
   return (
@@ -1780,7 +1828,7 @@ export default function WorldCupBracketShell({
           ) : null}
           <button
             type="button"
-            onClick={() => setTab("invite")}
+            onClick={() => switchTab("invite")}
             className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-cyan-300 px-3 py-2 text-xs font-black text-black touch-manipulation sm:min-h-0 sm:min-w-0"
             aria-label="Invite friends"
           >
@@ -1807,10 +1855,7 @@ export default function WorldCupBracketShell({
             <button
               key={id}
               type="button"
-              onClick={() => {
-                setTab(id)
-                updateTabUrl(id)
-              }}
+              onClick={() => switchTab(id)}
               className={`inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide touch-manipulation ${tab === id ? "border-cyan-300/40 bg-cyan-300/15 text-cyan-50" : "border-transparent bg-white/[0.04] text-white/55"}`}
             >
               <Icon className="h-3 w-3 shrink-0" aria-hidden />
@@ -1849,14 +1894,7 @@ export default function WorldCupBracketShell({
               data-testid="world-cup-mobile-start-picks-cta"
               type="button"
               disabled={!guidedPickerAvailable}
-              onClick={() => {
-                if (!guidedPickerAvailable) {
-                  toast.info("This matchup is not ready for picks yet. Sync fixtures or use simulation data.")
-                  return
-                }
-                setGuidedInitialMatchId(null)
-                setIsGuidedPickerOpen(true)
-              }}
+              onClick={openNextActionablePick}
               className="flex w-full min-h-12 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-3 text-sm font-black text-black touch-manipulation disabled:bg-cyan-300/40 disabled:text-black/50"
             >
               <PlayCircle className="h-5 w-5 shrink-0" aria-hidden />
@@ -1889,14 +1927,7 @@ export default function WorldCupBracketShell({
               <button
                 type="button"
                 disabled={!guidedPickerAvailable}
-                onClick={() => {
-                  if (!guidedPickerAvailable) {
-                    toast.info("This matchup is not ready for picks yet. Sync fixtures or use simulation data.")
-                    return
-                  }
-                  setGuidedInitialMatchId(null)
-                  setIsGuidedPickerOpen(true)
-                }}
+                onClick={openNextActionablePick}
                 className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:bg-cyan-300/45"
               >
                 <PlayCircle className="h-4 w-4" />
@@ -2400,7 +2431,7 @@ export default function WorldCupBracketShell({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setTab("invite")}
+                    onClick={() => switchTab("invite")}
                     className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-bold text-white/75"
                   >
                     <Share2 className="h-4 w-4" />
@@ -2544,7 +2575,7 @@ export default function WorldCupBracketShell({
                       </button>
                       <button
                         type="button"
-                        onClick={() => setTab("settings")}
+                        onClick={() => switchTab("settings")}
                         className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold text-white/75"
                       >
                         Commissioner Settings
@@ -2571,7 +2602,7 @@ export default function WorldCupBracketShell({
                   )}
                   <button
                     type="button"
-                    onClick={() => setTab("leaderboard")}
+                    onClick={() => switchTab("leaderboard")}
                     className="mt-3 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold text-white/70"
                   >
                     Open Full Leaderboard
@@ -2591,14 +2622,7 @@ export default function WorldCupBracketShell({
                     <button
                       type="button"
                       disabled={!guidedPickerAvailable}
-                      onClick={() => {
-                        if (!guidedPickerAvailable) {
-                          toast.info("This matchup is not ready for picks yet. Sync fixtures or use simulation data.")
-                          return
-                        }
-                        setGuidedInitialMatchId(null)
-                        setIsGuidedPickerOpen(true)
-                      }}
+                      onClick={openNextActionablePick}
                       className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:bg-cyan-300/45"
                     >
                       <PlayCircle className="h-4 w-4" />
@@ -2607,6 +2631,21 @@ export default function WorldCupBracketShell({
                   ) : (
                     <span className="rounded-lg border border-rose-400/30 bg-rose-400/15 px-3 py-2 text-xs font-bold text-rose-100">Bracket Locked</span>
                   )}
+                  <div
+                    data-testid="world-cup-knockout-pick-guidance"
+                    className="min-w-[min(100%,24rem)] rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-[11px] text-white/55"
+                  >
+                    <p className="font-bold text-white/75">
+                      {progress.done}/{progress.required} currently available picks complete.
+                    </p>
+                    <p className="mt-1">
+                      {firstUnpickedMatch
+                        ? `Next pick: Match ${firstUnpickedMatch.matchNumber}.`
+                        : blockedFuturePickCount > 0
+                          ? "Pick earlier round winners first. More picks unlock as prior winners are selected."
+                          : "No available knockout picks are ready right now."}
+                    </p>
+                  </div>
                   {!isLocked && guidedPicksState !== "ready" ? (
                     <div className="min-w-[min(100%,22rem)] rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
                       <p className="font-bold">Knockout teams are not loaded yet.</p>
@@ -2698,7 +2737,9 @@ export default function WorldCupBracketShell({
               <WorldCupGroupStagePicks
                 challengeId={challengeId}
                 entryId={selectedEntry.id}
+                onDirtyChange={setHasUnsavedGroupChanges}
                 onCompletionChanged={() => {
+                  setHasUnsavedGroupChanges(false)
                   refreshCompletionReviewAfterMeaningfulEdit()
                 }}
               />
@@ -2907,7 +2948,7 @@ export default function WorldCupBracketShell({
           <div id="world-cup-commissioner" className="mx-auto max-w-3xl px-2">
             <WorldCupCommissionerBrainPanel
               challengeId={challengeId}
-              onOpenLeagueSettings={() => setTab("settings")}
+              onOpenLeagueSettings={() => switchTab("settings")}
             />
           </div>
         ) : null}
@@ -2932,10 +2973,7 @@ export default function WorldCupBracketShell({
           <button
             key={id}
             type="button"
-            onClick={() => {
-              setTab(id)
-              updateTabUrl(id)
-            }}
+            onClick={() => switchTab(id)}
             className={`flex min-h-[52px] min-w-[68px] flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-bold touch-manipulation ${tab === id ? "text-cyan-200" : "text-white/45"}`}
           >
             <Icon className="h-4 w-4 shrink-0" aria-hidden />

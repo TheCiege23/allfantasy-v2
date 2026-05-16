@@ -60,9 +60,20 @@ vi.mock("@/components/brackets/world-cup/WorldCupMatchupIntelligencePanel", () =
 }))
 
 vi.mock("@/components/brackets/world-cup/WorldCupGroupStagePicks", () => ({
-  default: ({ entryId, onCompletionChanged }: { entryId: string; onCompletionChanged?: () => void }) => (
+  default: ({
+    entryId,
+    onCompletionChanged,
+    onDirtyChange,
+  }: {
+    entryId: string
+    onCompletionChanged?: () => void
+    onDirtyChange?: (dirty: boolean) => void
+  }) => (
     <div data-testid="world-cup-group-stage-picks">
       Group stage {entryId}
+      <button type="button" onClick={() => onDirtyChange?.(true)}>
+        Mark Group Dirty Stub
+      </button>
       <button type="button" onClick={() => onCompletionChanged?.()}>
         Save Group Stub
       </button>
@@ -627,6 +638,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     clientApiMocks.adminLoadTestFixtures.mockReset()
     clientApiMocks.clearPicks.mockReset()
     clientApiMocks.savePick.mockReset()
+    vi.unstubAllGlobals()
     clientApiMocks.listEntries.mockResolvedValue([makeShellEntry()])
     clientApiMocks.getEntry.mockResolvedValue({ ...makeShellEntry(), picks: [] })
     clientApiMocks.fetchCompletionReview.mockResolvedValue({
@@ -755,6 +767,34 @@ describe("WorldCupBracketShell fixture readiness", () => {
     await waitFor(() => expect(clientApiMocks.fetchCompletionReview).toHaveBeenCalledTimes(2))
   })
 
+  it("warns before leaving Group Stage with unsaved group changes", async () => {
+    const confirm = vi.fn().mockReturnValue(false)
+    vi.stubGlobal("confirm", confirm)
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="group-stage" initialEntryId="entry-1" />)
+
+    fireEvent.click(await screen.findByRole("button", { name: /Mark Group Dirty Stub/i }))
+    fireEvent.click(screen.getAllByRole("button", { name: /Review/i })[0])
+
+    expect(confirm).toHaveBeenCalledWith("You have unsaved group changes. Save before leaving, or your changes will be discarded.")
+    expect(screen.getByTestId("world-cup-group-stage-picks")).toBeInTheDocument()
+    expect(clientApiMocks.fetchCompletionReview).not.toHaveBeenCalled()
+  })
+
+  it("does not warn after Group Stage changes are saved", async () => {
+    const confirm = vi.fn()
+    vi.stubGlobal("confirm", confirm)
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="group-stage" initialEntryId="entry-1" />)
+
+    fireEvent.click(await screen.findByRole("button", { name: /Mark Group Dirty Stub/i }))
+    fireEvent.click(screen.getByRole("button", { name: /Save Group Stub/i }))
+    fireEvent.click(screen.getAllByRole("button", { name: /Review/i })[0])
+
+    expect(confirm).not.toHaveBeenCalled()
+    await waitFor(() => expect(clientApiMocks.fetchCompletionReview).toHaveBeenCalledWith("c1", "entry-1"))
+  })
+
   it("allows re-finalize after a meaningful edit clears submitted state before lock", async () => {
     clientApiMocks.fetchCompletionReview.mockResolvedValueOnce({
       challengeId: "c1",
@@ -810,6 +850,76 @@ describe("WorldCupBracketShell fixture readiness", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /Review/i })[0])
 
     await waitFor(() => expect(clientApiMocks.fetchCompletionReview).toHaveBeenCalledTimes(2))
+  })
+
+  it("shows next actionable knockout pick guidance and opens guided picker there", async () => {
+    const seededMatches = makeShellSeededMatches()
+    const savedPick = {
+      id: "pick-m1",
+      matchId: "m1",
+      round: "round_of_32",
+      selectedTeamId: "demo_team_brazil",
+      selectedSlotKey: "A1",
+      selectedTeamName: "Brazil",
+      pointsAwarded: 0,
+      isCorrect: null,
+      lockedAt: null,
+    }
+    clientApiMocks.getEntry.mockResolvedValue({ ...makeShellEntry(), picks: [savedPick] })
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ matches: seededMatches, picks: [savedPick] }) as any} />)
+
+    expect(await screen.findByTestId("world-cup-knockout-pick-guidance")).toHaveTextContent("1/2 currently available picks complete.")
+    expect(screen.getByTestId("world-cup-knockout-pick-guidance")).toHaveTextContent("Next pick: Match 2.")
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Continue Guided Picks/i })[0])
+
+    const dialog = await screen.findByRole("dialog", { name: /Guided Matchup Picker/i })
+    expect(within(dialog).getByRole("button", { name: /Pick France to win/i })).toBeInTheDocument()
+  })
+
+  it("explains unresolved knockout matchups and dynamic available picks", async () => {
+    const seededMatches = makeShellSeededMatches()
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ matches: seededMatches }) as any} />)
+
+    expect(await screen.findByTestId("world-cup-knockout-pick-guidance")).toHaveTextContent("0/2 currently available picks complete.")
+    expect(screen.getByTestId("world-cup-match-disabled-reason-m17")).toHaveTextContent("Pick earlier round winners first.")
+    expect(screen.getByTestId("world-cup-knockout-board-scroll")).toBeInTheDocument()
+  })
+
+  it("blocks duplicate clicks while a knockout pick is saving", async () => {
+    let resolveSave: (value: unknown) => void = () => {}
+    clientApiMocks.savePick.mockReturnValue(new Promise((resolve) => {
+      resolveSave = resolve
+    }))
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} />)
+
+    const brazilButton = await screen.findByRole("button", { name: /Pick Brazil to win/i })
+    fireEvent.click(brazilButton)
+    fireEvent.click(brazilButton)
+
+    expect(clientApiMocks.savePick).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.getByRole("button", { name: /Pick Argentina to win/i })).toBeDisabled())
+
+    resolveSave({
+      success: true,
+      entry: makeShellEntry(),
+      pick: {
+        id: "pick-m1",
+        matchId: "m1",
+        round: "round_of_32",
+        selectedTeamId: "demo_team_brazil",
+        selectedSlotKey: "A1",
+        selectedTeamName: "Brazil",
+        pointsAwarded: 0,
+        isCorrect: null,
+        lockedAt: null,
+      },
+      picks: [],
+      isComplete: false,
+    })
   })
 
   it("refreshes Review after finalize succeeds", async () => {

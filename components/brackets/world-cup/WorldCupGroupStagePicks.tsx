@@ -14,6 +14,7 @@ type Props = {
   challengeId: string
   entryId: string
   onCompletionChanged?: () => void
+  onDirtyChange?: (hasUnsavedChanges: boolean) => void
 }
 
 type GroupSaveState = "idle" | "dirty" | "saving" | "saved" | "error"
@@ -68,7 +69,7 @@ function savedThirdPlaceTeamIds(view: WorldCupGroupStageViewClient): string[] {
     .map((pick) => pick.teamId)
 }
 
-export default function WorldCupGroupStagePicks({ challengeId, entryId, onCompletionChanged }: Props) {
+export default function WorldCupGroupStagePicks({ challengeId, entryId, onCompletionChanged, onDirtyChange }: Props) {
   const [view, setView] = useState<WorldCupGroupStageViewClient | null>(null)
   const [localOrders, setLocalOrders] = useState<Record<string, string[]>>({})
   const [saveStates, setSaveStates] = useState<Record<string, GroupSaveState>>({})
@@ -112,6 +113,21 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
   const hasUnsavedThirdPlaceChanges = Boolean(
     view && !sameValueSet([...thirdPlaceSelection], savedThirdPlaceTeamIds(view))
   )
+  const hasUnsavedGroupOrderChanges = Boolean(
+    view?.groups.some((group) =>
+      !sameOrderedValues(
+        localOrders[group.id] ?? orderedTeamIdsForGroup(view, group.id),
+        orderedTeamIdsForGroup(view, group.id)
+      )
+    )
+  )
+  const hasUnsavedChanges = hasUnsavedGroupOrderChanges || hasUnsavedThirdPlaceChanges
+
+  useEffect(() => {
+    onDirtyChange?.(hasUnsavedChanges)
+    return () => onDirtyChange?.(false)
+  }, [hasUnsavedChanges, onDirtyChange])
+
   const thirdPlaceCandidates = useMemo(() => {
     if (!view) return []
     return view.groups.map((group) => {

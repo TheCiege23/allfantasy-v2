@@ -10,12 +10,14 @@ export default function WorldCupBracketBoard({
 	picks,
 	onPick,
 	onOpenMatchupPicker,
+	savingMatchIds,
 	isLocked = false,
 }: {
 	view: WorldCupChallengeView
 	picks: WorldCupPickView[]
 	onPick: (match: WorldCupMatchView, side: "home" | "away") => void
 	onOpenMatchupPicker?: (matchId: string) => void
+	savingMatchIds?: Set<string>
 	isLocked?: boolean
 }) {
 	const matches = useMemo(() => buildWorldCupProjectedMatches(view.matches, picks), [view.matches, picks])
@@ -23,7 +25,7 @@ export default function WorldCupBracketBoard({
 	const rounds = WORLD_CUP_ROUNDS.filter((r) => matches.some((m) => m.round === r && (r !== "third_place" || view.challenge.includeThirdPlace)))
 	const { pickLockStrategy, pickLockAt } = view.challenge
 	return (
-		<div className="min-h-full touch-pan-x overflow-x-auto px-3 pb-6 pt-3 [-webkit-overflow-scrolling:touch] sm:px-5">
+		<div data-testid="world-cup-knockout-board-scroll" className="min-h-full scroll-pt-32 touch-pan-x overflow-x-auto px-3 pb-6 pt-6 [-webkit-overflow-scrolling:touch] sm:px-5 sm:pt-8">
 			<div className="mb-3 flex min-w-0 flex-col gap-2 sm:mb-4 sm:min-w-max sm:flex-row sm:items-center sm:gap-3">
 				<div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 py-2.5 sm:px-4 sm:py-3">
 					<div className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-100/60 sm:text-[10px]">Champion Pick</div>
@@ -42,6 +44,7 @@ export default function WorldCupBracketBoard({
 						picks={picks}
 						onPick={onPick}
 						onOpenMatchupPicker={onOpenMatchupPicker}
+						savingMatchIds={savingMatchIds}
 						isBracketLocked={isLocked}
 						lockStrategy={pickLockStrategy}
 						tournamentLockAt={pickLockAt}
