@@ -60,7 +60,14 @@ vi.mock("@/components/brackets/world-cup/WorldCupMatchupIntelligencePanel", () =
 }))
 
 vi.mock("@/components/brackets/world-cup/WorldCupGroupStagePicks", () => ({
-  default: ({ entryId }: { entryId: string }) => <div data-testid="world-cup-group-stage-picks">Group stage {entryId}</div>,
+  default: ({ entryId, onCompletionChanged }: { entryId: string; onCompletionChanged?: () => void }) => (
+    <div data-testid="world-cup-group-stage-picks">
+      Group stage {entryId}
+      <button type="button" onClick={() => onCompletionChanged?.()}>
+        Save Group Stub
+      </button>
+    </div>
+  ),
 }))
 
 vi.mock("@/lib/world-cup/worldCupClientApi", () => ({
@@ -667,6 +674,83 @@ describe("WorldCupBracketShell fixture readiness", () => {
 
     await waitFor(() => expect(clientApiMocks.fetchCompletionReview).toHaveBeenCalledWith("c1", "entry-1"))
     expect(screen.getByText(/Review & Finalize/i)).toBeInTheDocument()
+  })
+
+  it("auto-selects an entry and fetches Review when initialized from the review tab without an entry query", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" />)
+
+    await waitFor(() => expect(clientApiMocks.fetchCompletionReview).toHaveBeenCalledWith("c1", "entry-1"))
+    expect(screen.getByTestId("world-cup-review-panel")).toBeInTheDocument()
+  })
+
+  it("shows Finalize when the server review says the entry is complete", async () => {
+    clientApiMocks.fetchCompletionReview.mockResolvedValueOnce({
+      challengeId: "c1",
+      entryId: "entry-1",
+      groupStageComplete: true,
+      knockoutComplete: true,
+      fullEntryComplete: true,
+      groupsRankedCount: 12,
+      missingGroups: [],
+      thirdPlaceSelectedCount: 8,
+      missingKnockoutPicks: 0,
+      requiredKnockoutPicks: 16,
+      completedKnockoutPicks: 16,
+      isLocked: false,
+      isComplete: false,
+      submittedAt: null,
+    })
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" />)
+
+    expect(await screen.findByRole("button", { name: /Finalize Entry/i })).toBeEnabled()
+  })
+
+  it("shows missing requirements when the server review says the entry is incomplete", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" />)
+
+    expect(await screen.findByText(/Missing requirements/i)).toBeInTheDocument()
+    expect(screen.getByText(/Missing group rankings: A/i)).toBeInTheDocument()
+    expect(screen.getByText(/Third-place advancers selected: 0\/8/i)).toBeInTheDocument()
+    expect(screen.getByText(/Missing knockout picks: 1/i)).toBeInTheDocument()
+  })
+
+  it("refreshes Review after a group-stage save callback", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" />)
+
+    await waitFor(() => expect(clientApiMocks.fetchCompletionReview).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getAllByRole("button", { name: /Group Stage/i })[0])
+    fireEvent.click(await screen.findByRole("button", { name: /Save Group Stub/i }))
+    fireEvent.click(screen.getAllByRole("button", { name: /Review/i })[0])
+
+    await waitFor(() => expect(clientApiMocks.fetchCompletionReview).toHaveBeenCalledTimes(2))
+  })
+
+  it("allows re-finalize after a meaningful edit clears submitted state before lock", async () => {
+    clientApiMocks.fetchCompletionReview.mockResolvedValueOnce({
+      challengeId: "c1",
+      entryId: "entry-1",
+      groupStageComplete: true,
+      knockoutComplete: true,
+      fullEntryComplete: true,
+      groupsRankedCount: 12,
+      missingGroups: [],
+      thirdPlaceSelectedCount: 8,
+      missingKnockoutPicks: 0,
+      requiredKnockoutPicks: 16,
+      completedKnockoutPicks: 16,
+      isLocked: false,
+      isComplete: true,
+      submittedAt: null,
+      needsRefinalize: true,
+    })
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" />)
+
+    expect(await screen.findByRole("button", { name: /Finalize Entry/i })).toBeEnabled()
   })
 
   it("updates the URL with stable query tab values when switching tabs", async () => {

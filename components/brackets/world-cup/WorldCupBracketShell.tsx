@@ -292,7 +292,12 @@ export default function WorldCupBracketShell({
   const router = useRouter()
   const normalizedInitialView = normalizeWorldCupView(initialView ?? challenge)
   const initialEntries = entryClientsFromInitialView(normalizedInitialView)
-  const shouldAutoSelectInitialEntry = defaultTab === "picks" || Boolean(initialEntryId) || initialGuidedOpen
+  const shouldAutoSelectInitialEntry =
+    defaultTab === "picks" ||
+    defaultTab === "group-stage" ||
+    defaultTab === "review" ||
+    Boolean(initialEntryId) ||
+    initialGuidedOpen
   const initialSelectedEntryId =
     shouldAutoSelectInitialEntry
       ? initialEntryId && initialEntries.some((entry) => entry.id === initialEntryId)
@@ -782,6 +787,12 @@ export default function WorldCupBracketShell({
     }
   }, [challengeId, selectedEntryId])
 
+  const refreshCompletionReviewAfterMeaningfulEdit = useCallback(() => {
+    setCompletionReview(null)
+    setCompletionError(null)
+    if (tab === "review") void loadCompletionReview()
+  }, [loadCompletionReview, tab])
+
   useEffect(() => {
     if (tab !== "review" || !selectedEntryId) return
     void loadCompletionReview()
@@ -949,6 +960,7 @@ export default function WorldCupBracketShell({
         ? (result.picks as WorldCupPickView[])
         : currentPicks
       markEntryPicksLoaded(selectedEntryId, returnedPicks)
+      refreshCompletionReviewAfterMeaningfulEdit()
 
       if (process.env.NODE_ENV === "development" && [29, 30, 31].includes(match.matchNumber)) {
         const saved = findWorldCupPickForMatch(returnedPicks, match)
@@ -1492,6 +1504,7 @@ export default function WorldCupBracketShell({
 
       // Update shell entry picks state
       markEntryPicksLoaded(selectedEntryId, returnedPicks)
+      refreshCompletionReviewAfterMeaningfulEdit()
 
       // Update entry metadata
       if (result.entry) {
@@ -1522,7 +1535,7 @@ export default function WorldCupBracketShell({
       return returnedPicks
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [applyChallengeView, challengeId, isLocked, markEntryPicksLoaded, selectedEntryId, view.matches]
+    [applyChallengeView, challengeId, isLocked, markEntryPicksLoaded, refreshCompletionReviewAfterMeaningfulEdit, selectedEntryId, view.matches]
   )
 
     // ── AI bracket builder ───────────────────────────────────────────────────
@@ -2686,7 +2699,7 @@ export default function WorldCupBracketShell({
                 challengeId={challengeId}
                 entryId={selectedEntry.id}
                 onCompletionChanged={() => {
-                  if (completionReview || tab === "review") void loadCompletionReview()
+                  refreshCompletionReviewAfterMeaningfulEdit()
                 }}
               />
             ) : (
