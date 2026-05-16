@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   getWorldCupDataProvider: vi.fn(),
+  fetchWorldCupStandings: vi.fn(),
   recalculateWorldCupChallenge: vi.fn(),
   emitWorldCupMatchTransitionEvents: vi.fn(),
   prisma: {
@@ -39,6 +40,15 @@ vi.mock("@/lib/world-cup/worldCupDataProvider", async () => {
   return {
     ...actual,
     getWorldCupDataProvider: mocks.getWorldCupDataProvider,
+  }
+})
+vi.mock("@/lib/world-cup/apiSportsWorldCup", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/world-cup/apiSportsWorldCup")>(
+    "@/lib/world-cup/apiSportsWorldCup"
+  )
+  return {
+    ...actual,
+    fetchWorldCupStandings: mocks.fetchWorldCupStandings,
   }
 })
 vi.mock("@/lib/world-cup/worldCupScoringService", () => ({
@@ -222,5 +232,32 @@ describe("World Cup official data sync", () => {
         data: { isThirdPlaceAdvancer: true },
       })
     )
+  })
+
+  it("ignores provider standings rows that are not official World Cup groups", async () => {
+    process.env.API_SPORTS_KEY = "test-key"
+    const { ApiFootballWorldCupProvider } = await import(
+      "@/lib/world-cup/providers/apiFootballWorldCupProvider"
+    )
+    mocks.fetchWorldCupStandings.mockResolvedValue([
+      {
+        rank: 1,
+        team: { id: 1, name: "USA" },
+        group: "Ranking of third-placed teams",
+        points: 0,
+      },
+      {
+        rank: 1,
+        team: { id: 2, name: "Mexico" },
+        group: "Group A",
+        points: 0,
+      },
+    ])
+
+    const provider = new ApiFootballWorldCupProvider()
+    const rows = await provider.getGroupStandings(2026)
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ teamName: "Mexico", groupName: "A" })
   })
 })

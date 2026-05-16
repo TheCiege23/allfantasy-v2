@@ -77,22 +77,28 @@ export class ApiFootballWorldCupProvider implements WorldCupDataProvider {
   async getGroupStandings(seasonYear: number): Promise<WorldCupProviderGroupStanding[]> {
     this.checkConfig()
     const rows = await fetchWorldCupStandings(seasonYear)
-    return rows.map((row) => ({
-      providerTeamId: String(row.team.id),
-      fifaCode: null,
-      teamName: row.team.name,
-      groupName: normalizeApiFootballGroupName(row.group),
-      rank: row.rank,
-      points: row.points ?? 0,
-      goalDifference: row.goalsDiff ?? 0,
-      goalsFor: row.all?.goals?.for ?? 0,
-      goalsAgainst: row.all?.goals?.against ?? 0,
-      played: row.all?.played ?? 0,
-      wins: row.all?.win ?? 0,
-      draws: row.all?.draw ?? 0,
-      losses: row.all?.lose ?? 0,
-      raw: row,
-    }))
+    return rows
+      .map((row) => ({
+        row,
+        groupName: normalizeApiFootballGroupName(row.group),
+      }))
+      .filter(({ groupName }) => /^[A-L]$/.test(groupName))
+      .map(({ row, groupName }) => ({
+        providerTeamId: String(row.team.id),
+        fifaCode: null,
+        teamName: row.team.name,
+        groupName,
+        rank: row.rank,
+        points: row.points ?? 0,
+        goalDifference: row.goalsDiff ?? 0,
+        goalsFor: row.all?.goals?.for ?? 0,
+        goalsAgainst: row.all?.goals?.against ?? 0,
+        played: row.all?.played ?? 0,
+        wins: row.all?.win ?? 0,
+        draws: row.all?.draw ?? 0,
+        losses: row.all?.lose ?? 0,
+        raw: row,
+      }))
   }
 
   async getFixtureById(
