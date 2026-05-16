@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { requireCronAuth } from "@/app/api/cron/_auth"
+import { WorldCupProviderConfigError } from "@/lib/world-cup/worldCupDataProvider"
 import {
   recalculateWorldCupChallenge,
   syncWorldCupFixtures,
@@ -28,6 +29,74 @@ const bodySchema = z.object({
   recalculate: booleanLike.optional().default(true),
 })
 
+function cleanEnv(value?: string | null) {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : null
+}
+
+function resolveProviderName(provider?: z.infer<typeof bodySchema>["provider"]) {
+  return provider ?? cleanEnv(process.env.WORLD_CUP_DATA_PROVIDER) ?? "mock"
+}
+
+function hasApiFootballKey() {
+  return Boolean(
+    cleanEnv(process.env.API_SPORTS_KEY) ??
+      cleanEnv(process.env.API_FOOTBALL_KEY) ??
+      cleanEnv(process.env.APISPORTS_FOOTBALL_KEY) ??
+      cleanEnv(process.env.RAPIDAPI_KEY)
+  )
+}
+
+function assertWorldCupCronEnvironment(input: z.infer<typeof bodySchema>) {
+  const provider = resolveProviderName(input.provider)
+  if (provider === "apifootball" && !hasApiFootballKey()) {
+    throw new WorldCupProviderConfigError(
+      "apifootball",
+      "No API key configured. Set API_SPORTS_KEY or API_FOOTBALL_KEY in your environment."
+    )
+  }
+}
+
+type WorldCupCronErrorKind =
+  | "missing_provider_key"
+  | "unsupported_provider"
+  | "provider_fetch_failed"
+  | "database_write_failed"
+  | "sync_service_failed"
+
+function sanitizeErrorMessage(message: string) {
+  return message
+    .replace(/(x-apisports-key=)[^&\s]+/gi, "$1[redacted]")
+    .replace(/(key=)[^&\s]+/gi, "$1[redacted]")
+    .replace(/(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, "$1[redacted]")
+}
+
+function classifyCronError(error: unknown): {
+  kind: WorldCupCronErrorKind
+  message: string
+  provider?: string
+} {
+  if (error instanceof WorldCupProviderConfigError) {
+    const message = sanitizeErrorMessage(error.message)
+    return {
+      kind: /not configured|no api key|api key/i.test(message)
+        ? "missing_provider_key"
+        : "unsupported_provider",
+      message,
+      provider: error.provider,
+    }
+  }
+
+  const message = sanitizeErrorMessage(error instanceof Error ? error.message : String(error))
+  if (/api-football|apisports|sportsdata|fetch|network|response\.json|unexpected token/i.test(message)) {
+    return { kind: "provider_fetch_failed", message }
+  }
+  if (/prisma|database|worldCup|unique constraint|foreign key|timed out|connection/i.test(message)) {
+    return { kind: "database_write_failed", message }
+  }
+  return { kind: "sync_service_failed", message }
+}
+
 async function getCronChallengeIds(challengeId?: string) {
   if (challengeId) return [challengeId]
   const rows = await prisma.worldCupBracketChallenge.findMany({
@@ -45,7 +114,9 @@ function isWorldCupCronAuthorized(request: NextRequest) {
 
 async function runWorldCupCronSync(input: z.infer<typeof bodySchema>) {
   const { job, challengeId, provider, seasonYear, dryRun, recalculate } = input
-  const challengeIds = await getCronChallengeIds(challengeId)
+  assertWorldCupCronEnvironment(input)
+  const challengeIds =
+    job === "teams" ? (challengeId ? [challengeId] : []) : await getCronChallengeIds(challengeId)
   const result: Record<string, unknown> = { job, challengeIds, dryRun }
 
   if (job === "teams" || job === "all") {
@@ -103,6 +174,31 @@ function jsonResult(result: Record<string, unknown>) {
   })
 }
 
+function jsonError(error: unknown, input?: Partial<z.infer<typeof bodySchema>>) {
+  const classified = classifyCronError(error)
+  console.error("[world-cup-cron-sync] job failed", {
+    job: input?.job,
+    provider: input?.provider ?? classified.provider,
+    seasonYear: input?.seasonYear,
+    dryRun: input?.dryRun,
+    kind: classified.kind,
+    message: classified.message,
+  })
+
+  return NextResponse.json(
+    {
+      ok: false,
+      error: classified.kind,
+      message: classified.message,
+      job: input?.job ?? null,
+      provider: input?.provider ?? classified.provider ?? null,
+      seasonYear: input?.seasonYear ?? null,
+      syncedAt: new Date().toISOString(),
+    },
+    { status: 500 }
+  )
+}
+
 export async function GET(request: NextRequest) {
   if (!isWorldCupCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -113,7 +209,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request", issues: parsed.error.flatten() }, { status: 400 })
   }
 
-  return jsonResult(await runWorldCupCronSync(parsed.data))
+  try {
+    return jsonResult(await runWorldCupCronSync(parsed.data))
+  } catch (error) {
+    return jsonError(error, parsed.data)
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -127,5 +227,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request", issues: parsed.error.flatten() }, { status: 400 })
   }
 
-  return jsonResult(await runWorldCupCronSync(parsed.data))
+  try {
+    return jsonResult(await runWorldCupCronSync(parsed.data))
+  } catch (error) {
+    return jsonError(error, parsed.data)
+  }
 }

@@ -34,6 +34,7 @@ describe("World Cup cron sync route", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubEnv("WORLD_CUP_CRON_SECRET", "cron-secret")
+    vi.stubEnv("API_SPORTS_KEY", "api-key")
     serviceMocks.prisma.worldCupBracketChallenge.findMany.mockResolvedValue([{ id: "c1" }])
     serviceMocks.syncWorldCupLiveScores.mockResolvedValue({
       updated: 1,
@@ -74,12 +75,71 @@ describe("World Cup cron sync route", () => {
     const { GET } = await import("@/app/api/brackets/world-cup/cron/sync/route")
 
     const response = await GET(req("https://www.allfantasy.ai/api/brackets/world-cup/cron/sync?job=teams&provider=apifootball", "cron-secret"))
+    const body = await response.json()
 
     expect(response.status).toBe(200)
+    expect(body.ok).toBe(true)
+    expect(body.result.teams).toEqual({ created: 0, updated: 0, skipped: 0, warnings: [] })
+    expect(serviceMocks.prisma.worldCupBracketChallenge.findMany).not.toHaveBeenCalled()
     expect(serviceMocks.syncWorldCupTeams).toHaveBeenCalledWith({
       provider: "apifootball",
       seasonYear: 2026,
       dryRun: false,
+    })
+  })
+
+  it("returns clear JSON when API-Football key is missing", async () => {
+    vi.stubEnv("API_SPORTS_KEY", "")
+    vi.stubEnv("API_FOOTBALL_KEY", "")
+    vi.stubEnv("APISPORTS_FOOTBALL_KEY", "")
+    vi.stubEnv("RAPIDAPI_KEY", "")
+    const { GET } = await import("@/app/api/brackets/world-cup/cron/sync/route")
+
+    const response = await GET(req("https://www.allfantasy.ai/api/brackets/world-cup/cron/sync?job=teams&provider=apifootball", "cron-secret"))
+    const body = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(body).toMatchObject({
+      ok: false,
+      error: "missing_provider_key",
+      job: "teams",
+      provider: "apifootball",
+      seasonYear: 2026,
+    })
+    expect(JSON.stringify(body)).not.toContain("api-key")
+    expect(serviceMocks.syncWorldCupTeams).not.toHaveBeenCalled()
+  })
+
+  it("returns clear JSON when provider fetch fails", async () => {
+    serviceMocks.syncWorldCupTeams.mockRejectedValue(new Error("API-Football teams failed: 403 Forbidden"))
+    const { GET } = await import("@/app/api/brackets/world-cup/cron/sync/route")
+
+    const response = await GET(req("https://www.allfantasy.ai/api/brackets/world-cup/cron/sync?job=teams&provider=apifootball", "cron-secret"))
+    const body = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(body).toMatchObject({
+      ok: false,
+      error: "provider_fetch_failed",
+      job: "teams",
+      provider: "apifootball",
+    })
+    expect(body.message).toContain("API-Football teams failed")
+  })
+
+  it("returns clear JSON when sync/database work fails", async () => {
+    serviceMocks.syncWorldCupTeams.mockRejectedValue(new Error("PrismaClientKnownRequestError: unique constraint failed"))
+    const { GET } = await import("@/app/api/brackets/world-cup/cron/sync/route")
+
+    const response = await GET(req("https://www.allfantasy.ai/api/brackets/world-cup/cron/sync?job=teams&provider=apifootball", "cron-secret"))
+    const body = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(body).toMatchObject({
+      ok: false,
+      error: "database_write_failed",
+      job: "teams",
+      provider: "apifootball",
     })
   })
 })
