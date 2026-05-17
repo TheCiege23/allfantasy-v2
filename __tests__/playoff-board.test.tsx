@@ -186,6 +186,7 @@ describe("PlayoffBracketBoard", () => {
           liveHomeScore: 84,
           liveAwayScore: 79,
           liveStatus: "3Q",
+          venue: null,
         }
       : item
     )
@@ -195,7 +196,37 @@ describe("PlayoffBracketBoard", () => {
     expect(screen.getByTestId("playoff-series-summary-s1")).toHaveTextContent("Celtics lead series 3-1")
     expect(screen.getByTestId("playoff-series-next-s1")).toHaveTextContent("Next:")
     expect(screen.getByTestId("playoff-series-next-s1")).toHaveTextContent("TBD")
-    expect(screen.getByTestId("playoff-series-live-s1")).toHaveTextContent("Live: Celtics 84, Heat 79 - 3Q")
+    expect(screen.getByTestId("playoff-series-venue-s1")).toHaveTextContent("Venue TBD")
+    expect(screen.getByTestId("playoff-series-live-s1")).toHaveTextContent("Live: Celtics 84, Heat 79 — 3Q")
+  })
+
+  it("renders broadcast, venue, and final game score on card", () => {
+    const richSeries = series.map((item) => item.id === "s1"
+      ? {
+          ...item,
+          nextGameAt: "2099-05-21T20:30:00.000Z",
+          broadcastNetwork: "ESPN",
+          venue: "Madison Square Garden",
+          providerGamesJson: [
+            {
+              homeTeam: "Celtics",
+              awayTeam: "Heat",
+              homeScore: 111,
+              awayScore: 104,
+              status: "STATUS_FINAL",
+              statusDetail: "Final",
+              startTime: "2099-05-19T20:30:00.000Z",
+            },
+          ],
+        }
+      : item
+    )
+
+    render(<PlayoffBracketBoard rounds={[...rounds]} series={richSeries} picks={picks} />)
+
+    expect(screen.getByTestId("playoff-series-next-s1")).toHaveTextContent("ESPN")
+    expect(screen.getByTestId("playoff-series-venue-s1")).toHaveTextContent("At Madison Square Garden")
+    expect(screen.getByTestId("playoff-series-final-s1")).toHaveTextContent("Final: Celtics 111, Heat 104")
   })
 
   it("does not show pick result badges by default", () => {
@@ -238,6 +269,57 @@ describe("PlayoffBracketBoard", () => {
     expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Wrong +0")
   })
 
+  it("keeps a wrong saved user pick highlighted when official winner differs", () => {
+    render(
+      <PlayoffBracketBoard
+        rounds={[...rounds]}
+        series={series.map((item) => item.id === "s1"
+          ? {
+              ...item,
+              homeTeamName: "Boston Celtics",
+              awayTeamName: "Philadelphia 76ers",
+              winnerTeamName: "Philadelphia 76ers",
+              seriesSummary: "Philadelphia 76ers win series 4-2",
+              status: "final" as const,
+            }
+          : item)}
+        picks={[{ id: "p1", entryId: "e1", seriesId: "s1", pickTeamName: "Boston Celtics", createdAt: "", updatedAt: "" }]}
+        showPickResults
+      />
+    )
+
+    expect(screen.getByRole("button", { name: "Boston Celtics" })).toHaveClass("border-amber-500")
+    expect(screen.getByRole("button", { name: "Philadelphia 76ers" })).not.toHaveClass("border-amber-500")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Your pick: Boston Celtics")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Wrong +0")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Result: Philadelphia 76ers win series 4-2")
+  })
+
+  it("does not highlight official winner when no user pick is saved", () => {
+    render(
+      <PlayoffBracketBoard
+        rounds={[...rounds]}
+        series={series.map((item) => item.id === "s1"
+          ? {
+              ...item,
+              homeTeamName: "Boston Celtics",
+              awayTeamName: "Philadelphia 76ers",
+              winnerTeamName: "Philadelphia 76ers",
+              seriesSummary: "Philadelphia 76ers win series 4-2",
+              status: "final" as const,
+            }
+          : item)}
+        picks={[]}
+        showPickResults
+      />
+    )
+
+    expect(screen.getByRole("button", { name: "Boston Celtics" })).not.toHaveClass("border-amber-500")
+    expect(screen.getByRole("button", { name: "Philadelphia 76ers" })).not.toHaveClass("border-amber-500")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Your pick: No Pick")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("No Pick")
+  })
+
   it("renders NHL no-pick result when official winner exists without a user pick", () => {
     render(
       <PlayoffBracketBoard
@@ -278,7 +360,7 @@ describe("playoff bracket projection", () => {
     expect(projected.find((item) => item.id === "s9")?.homeTeamName).toBe("Celtics")
   })
 
-  it("projects later-round teams from official winners before user picks", () => {
+  it("projects later-round teams from user picks before official winners in user projection mode", () => {
     const projected = buildProjectedPlayoffSeries(
       series.map((item) => item.id === "s1" ? { ...item, winnerTeamName: "Celtics" } : item),
       [
@@ -291,6 +373,25 @@ describe("playoff bracket projection", () => {
           updatedAt: new Date().toISOString(),
         },
       ]
+    )
+
+    expect(projected.find((item) => item.id === "s9")?.homeTeamName).toBe("Heat")
+  })
+
+  it("projects later-round teams from official winners when user picks are excluded", () => {
+    const projected = buildProjectedPlayoffSeries(
+      series.map((item) => item.id === "s1" ? { ...item, winnerTeamName: "Celtics" } : item),
+      [
+        {
+          id: "p1",
+          entryId: "entry-1",
+          seriesId: "s1",
+          pickTeamName: "Heat",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ],
+      { includeUserPicks: false }
     )
 
     expect(projected.find((item) => item.id === "s9")?.homeTeamName).toBe("Celtics")

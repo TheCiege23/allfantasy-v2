@@ -12,13 +12,15 @@ function resolveProjectedTeamName(
   sourceSeriesNumber: number | null,
   fallbackName: string,
   bySeriesNumber: Map<number, PlayoffSeriesView>,
-  picks: PlayoffPickView[]
+  picks: PlayoffPickView[],
+  includeUserPicks: boolean,
 ): string {
   if (isOfficialTeamName(fallbackName)) return fallbackName
   if (!sourceSeriesNumber) return fallbackName
   const source = bySeriesNumber.get(sourceSeriesNumber)
   if (!source) return fallbackName
-  return source.winnerTeamName?.trim() || pickForSeries(picks, source.id)?.pickTeamName || fallbackName
+  const savedPick = includeUserPicks ? pickForSeries(picks, source.id)?.pickTeamName?.trim() : null
+  return savedPick || source.winnerTeamName?.trim() || fallbackName
 }
 
 export function isOfficialTeamName(value: string | null | undefined): boolean {
@@ -39,8 +41,8 @@ export function buildProjectedPlayoffSeries(
 
   return series.map((item) => ({
     ...item,
-    homeTeamName: resolveProjectedTeamName(item, item.sourceSeriesHome, item.homeTeamName, bySeriesNumber, includeUserPicks ? picks : []),
-    awayTeamName: resolveProjectedTeamName(item, item.sourceSeriesAway, item.awayTeamName, bySeriesNumber, includeUserPicks ? picks : []),
+    homeTeamName: resolveProjectedTeamName(item, item.sourceSeriesHome, item.homeTeamName, bySeriesNumber, picks, includeUserPicks),
+    awayTeamName: resolveProjectedTeamName(item, item.sourceSeriesAway, item.awayTeamName, bySeriesNumber, picks, includeUserPicks),
   }))
 }
 

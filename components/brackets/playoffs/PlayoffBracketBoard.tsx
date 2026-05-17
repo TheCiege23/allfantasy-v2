@@ -40,6 +40,26 @@ function getPickForSeries(picks: PlayoffPickView[], seriesId: string): PlayoffPi
   return picks.find((pick) => pick.seriesId === seriesId) ?? null
 }
 
+function normalizedPickName(value: string | null | undefined): string {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function containsWholeTeamName(value: string, target: string): boolean {
+  if (!value || !target) return false
+  return new RegExp(`(^| )${target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}( |$)`).test(value)
+}
+
+function pickMatchesTeam(pickTeamName: string | null | undefined, teamName: string): boolean {
+  const pick = normalizedPickName(pickTeamName)
+  const team = normalizedPickName(teamName)
+  if (!pick || !team) return false
+  return pick === team || containsWholeTeamName(pick, team) || containsWholeTeamName(team, pick)
+}
+
 function formatGameTime(value: string | null | undefined): string | null {
   if (!value) return null
   const date = new Date(value)
@@ -51,6 +71,25 @@ function formatGameTime(value: string | null | undefined): string | null {
     hour: "numeric",
     minute: "2-digit",
   }).format(date)
+}
+
+function isFinalStatus(value: string | null | undefined): boolean {
+  return /\bfinal\b/i.test(String(value ?? ""))
+}
+
+function latestFinalGame(item: PlayoffSeriesView): { homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null } | null {
+  const games = Array.isArray(item.providerGamesJson) ? item.providerGamesJson : []
+  const finalGame = games
+    .filter((game): game is Record<string, unknown> => !!game && typeof game === "object" && !Array.isArray(game))
+    .filter((game) => isFinalStatus(`${String(game.status ?? "")} ${String(game.statusDetail ?? "")}`))
+    .sort((a, b) => new Date(String(b.startTime ?? "")).getTime() - new Date(String(a.startTime ?? "")).getTime())[0]
+  if (!finalGame) return null
+  return {
+    homeTeam: String(finalGame.homeTeam ?? item.homeTeamName),
+    awayTeam: String(finalGame.awayTeam ?? item.awayTeamName),
+    homeScore: typeof finalGame.homeScore === "number" ? finalGame.homeScore : null,
+    awayScore: typeof finalGame.awayScore === "number" ? finalGame.awayScore : null,
+  }
 }
 
 export default function PlayoffBracketBoard({
@@ -94,6 +133,7 @@ export default function PlayoffBracketBoard({
                   const isSaved = savedSeriesIds?.has(item.id) ?? false
                   const isNext = nextSeriesId === item.id
                   const pickResult = getPlayoffPickResult(item, pick)
+                  const finalGame = latestFinalGame(item)
                   return (
                     <article
                       key={item.id}
@@ -141,7 +181,7 @@ export default function PlayoffBracketBoard({
                       ) : null}
                       <div className="space-y-2">
                         {[item.homeTeamName, item.awayTeamName].map((teamName) => {
-                          const selected = pick?.pickTeamName === teamName
+                          const selected = pickMatchesTeam(pick?.pickTeamName, teamName)
                           const disabled = Boolean(lockedReason) || unresolved || isSaving
                           return (
                             <button
@@ -167,12 +207,19 @@ export default function PlayoffBracketBoard({
                         </p>
                         {item.liveStatus ? (
                           <p data-testid={`playoff-series-live-${item.id}`} className="text-emerald-700">
-                            Live: {item.homeTeamName} {item.liveHomeScore ?? "-"}, {item.awayTeamName} {item.liveAwayScore ?? "-"} - {item.liveStatus}
+                            Live: {item.homeTeamName} {item.liveHomeScore ?? "-"}, {item.awayTeamName} {item.liveAwayScore ?? "-"} — {item.liveStatus}
+                          </p>
+                        ) : null}
+                        {!item.liveStatus && finalGame ? (
+                          <p data-testid={`playoff-series-final-${item.id}`} className="text-slate-700">
+                            Final: {finalGame.homeTeam} {finalGame.homeScore ?? "-"}, {finalGame.awayTeam} {finalGame.awayScore ?? "-"}
                           </p>
                         ) : null}
                         <p data-testid={`playoff-series-next-${item.id}`}>
-                          Next: {formatGameTime(item.nextGameAt) ?? "TBD"} - {item.broadcastNetwork || "TBD"}
-                          {item.venue ? ` - ${item.venue}` : ""}
+                          Next: {formatGameTime(item.nextGameAt) ?? "TBD"} — {item.broadcastNetwork || "TBD"}
+                        </p>
+                        <p data-testid={`playoff-series-venue-${item.id}`}>
+                          {item.venue ? `At ${item.venue}` : "Venue TBD"}
                         </p>
                       </div>
                       {showPickResults ? (

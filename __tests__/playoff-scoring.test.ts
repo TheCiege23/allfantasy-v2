@@ -69,4 +69,26 @@ describe("playoff scoring", () => {
       pickTeamName: null,
     })
   })
+
+  it("scores a Boston pick as wrong when Philadelphia is the official winner", () => {
+    expect(getPlayoffPickResult(
+      { winnerTeamName: "Philadelphia 76ers", seriesSummary: "Philadelphia 76ers win series 4-2" },
+      { pickTeamName: "Boston Celtics" },
+    )).toMatchObject({
+      status: "wrong",
+      points: 0,
+      pickTeamName: "Boston Celtics",
+      winnerTeamName: "Philadelphia 76ers",
+      seriesSummary: "Philadelphia 76ers win series 4-2",
+    })
+
+    expect(scorePlayoffEntryPicks(
+      [{ id: "series-1", winnerTeamName: "Philadelphia 76ers" }],
+      [{ seriesId: "series-1", pickTeamName: "Boston Celtics" }],
+    )).toEqual({
+      totalScore: 0,
+      correctPicks: 0,
+      resolvedPicks: 1,
+    })
+  })
 })
