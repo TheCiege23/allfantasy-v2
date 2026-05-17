@@ -27,6 +27,8 @@ type Props = {
   initialView: PlayoffChallengeView
 }
 
+type PlayoffProjectionMode = "official" | "user_projection"
+
 export default function PlayoffBracketEntryShell({ initialView }: Props) {
   const router = useRouter()
   const { data: session } = useSession()
@@ -47,7 +49,8 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
   const rounds = Array.isArray(view.rounds) ? view.rounds : []
   const officialSeries = useMemo(() => buildProjectedPlayoffSeries(series, picks, { includeUserPicks: false }), [series, picks])
   const myProjectedSeries = useMemo(() => buildProjectedPlayoffSeries(series, picks, { includeUserPicks: true }), [series, picks])
-  const projectedSeries = showUserProjection ? myProjectedSeries : officialSeries
+  const projectionMode: PlayoffProjectionMode = showUserProjection ? "official" : "user_projection"
+  const projectedSeries = projectionMode === "user_projection" ? myProjectedSeries : officialSeries
   const totalSeries = series.length
   const pickCount = activeEntry?.pickCount ?? picks.length
   const lockRule = view.challenge.lockRule ?? view.challenge.config?.lockRule ?? "series_start"
@@ -59,15 +62,13 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
   const canUseLatePicks = view.lockDiagnostics?.viewerCanLatePick ?? (view.challenge.ownerUserId === view.viewerUserId || view.challenge.isTestMode || hasAdminPoolAccess)
   const showLockDiagnostics = canSyncSeries || canUseLatePicks
   const completion = useMemo(
-    () => showUserProjection
-      ? getPlayoffCompletionSummary(myProjectedSeries, picks, {
-          lockRule,
-          isPoolOwner: view.challenge.ownerUserId === view.viewerUserId,
-          isTestMode: view.challenge.isTestMode,
-          hasPoolAdminAccess,
-        })
-      : view.completion,
-    [showUserProjection, myProjectedSeries, picks, lockRule, view.challenge.ownerUserId, view.challenge.isTestMode, view.viewerUserId, hasPoolAdminAccess, view.completion],
+    () => view.completion ?? getPlayoffCompletionSummary(myProjectedSeries, picks, {
+      lockRule,
+      isPoolOwner: view.challenge.ownerUserId === view.viewerUserId,
+      isTestMode: view.challenge.isTestMode,
+      hasPoolAdminAccess: hasAdminPoolAccess,
+    }),
+    [projectionMode, myProjectedSeries, picks, lockRule, view.challenge.ownerUserId, view.challenge.isTestMode, view.viewerUserId, hasAdminPoolAccess, view.completion],
   )
   const requiredSeriesIds = useMemo(() => new Set(completion?.missingRequiredSeriesIds ?? []), [completion?.missingRequiredSeriesIds])
   const nextActionableSeries = useMemo(() => {
@@ -80,11 +81,11 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
     return getNextActionablePlayoffSeries(projectedSeries, picks)
   }, [projectedSeries, picks, completion?.missingRequiredSeriesIds])
   const pickResultSummary = useMemo(
-    () => projectedSeries.map((item) => ({
+    () => series.map((item) => ({
       series: item,
       result: getPlayoffPickResult(item, picks.find((pick) => pick.seriesId === item.id)),
     })),
-    [projectedSeries, picks],
+    [series, picks],
   )
   const completionMode = completion?.mode ?? "full_bracket_required"
   const canSubmit = Boolean(activeEntry) && Boolean(completion?.isSubmittable ?? (totalSeries > 0 && pickCount >= totalSeries))
@@ -290,7 +291,7 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-sky-400"
                 data-testid="playoff-user-projection-toggle"
               >
-                {showUserProjection ? "Show Official Bracket" : "Show My Projection"}
+                {projectionMode === "official" ? "Show My Projection" : "Show Official Bracket"}
               </button>
             ) : null}
             <p className="w-full text-xs font-semibold text-slate-500">
@@ -378,7 +379,8 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
         savedSeriesIds={savedSeriesIds}
         nextSeriesId={nextActionableSeries?.id ?? null}
         showPickResults={canShowPickResultsToggle && showPickResults}
-        officialBracketMode={hasOfficialSyncedSeries && !showUserProjection}
+        officialBracketMode={projectionMode === "official"}
+        projectionMode={projectionMode}
         lockRule={lockRule}
         canUseLatePicks={canUseLatePicks}
         showLockDiagnostics={showLockDiagnostics}

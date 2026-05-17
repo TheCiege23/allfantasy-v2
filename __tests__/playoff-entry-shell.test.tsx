@@ -109,6 +109,62 @@ function playoffSeries(overrides: Partial<PlayoffChallengeView["series"][number]
   }
 }
 
+function bostonPhiladelphiaProjectionView(overrides: Partial<PlayoffChallengeView> = {}): PlayoffChallengeView {
+  return buildEntryView({
+    activeEntry: { id: "entry-1", name: "Bracket 1", userId: "user-1", pickCount: 2, isComplete: false, createdAt: "" },
+    picks: [
+      { id: "p1", entryId: "entry-1", seriesId: "s1", pickTeamName: "Boston Celtics", createdAt: "", updatedAt: "" },
+      { id: "p2", entryId: "entry-1", seriesId: "s2", pickTeamName: "New York Knicks", createdAt: "", updatedAt: "" },
+    ],
+    series: [
+      playoffSeries({
+        id: "s1",
+        seriesNumber: 1,
+        homeTeamName: "Boston Celtics",
+        awayTeamName: "Philadelphia 76ers",
+        winnerTeamName: "Philadelphia 76ers",
+        seriesSummary: "Philadelphia 76ers win series 4-2",
+        status: "final",
+        lastSyncedAt: new Date().toISOString(),
+      }),
+      playoffSeries({
+        id: "s2",
+        seriesNumber: 2,
+        homeTeamName: "New York Knicks",
+        awayTeamName: "Indiana Pacers",
+        winnerTeamName: "New York Knicks",
+        seriesSummary: "New York Knicks win series 4-1",
+        status: "final",
+        lastSyncedAt: new Date().toISOString(),
+      }),
+      playoffSeries({
+        id: "s9",
+        round: "conference_semifinals",
+        roundIndex: 2,
+        seriesNumber: 9,
+        homeSeed: 0,
+        awaySeed: 0,
+        homeTeamName: "Winner S1",
+        awayTeamName: "Winner S2",
+        winnerTeamName: null,
+        sourceSeriesHome: 1,
+        sourceSeriesAway: 2,
+      }),
+    ],
+    completion: {
+      mode: "available_picks_only",
+      isSubmittable: true,
+      requiredPickCount: 3,
+      savedRequiredPickCount: 2,
+      totalSeriesCount: 3,
+      unavailableSeriesCount: 0,
+      missingRequiredSeriesIds: ["s9"],
+      message: "Pick the projected semifinal.",
+    },
+    ...overrides,
+  })
+}
+
 describe("PlayoffBracketEntryShell", () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -213,6 +269,96 @@ describe("PlayoffBracketEntryShell", () => {
     fireEvent.click(screen.getByTestId("playoff-show-pick-results-toggle"))
     expect(screen.getByTestId("playoff-series-pick-result-s9")).toHaveTextContent("Your pick: No Pick")
     expect(screen.getByTestId("playoff-series-pick-result-s9")).toHaveTextContent("No Pick")
+  })
+
+  it("keeps Boston as the default My Projection source when Philadelphia is the official winner", () => {
+    render(<PlayoffBracketEntryShell initialView={bostonPhiladelphiaProjectionView()} />)
+
+    const semifinal = screen.getByTestId("playoff-series-s9")
+    expect(screen.getByTestId("playoff-user-projection-toggle")).toHaveTextContent("Show Official Bracket")
+    expect(semifinal).toHaveTextContent("Boston Celtics")
+    expect(semifinal).toHaveTextContent("New York Knicks")
+    expect(semifinal).not.toHaveTextContent("Philadelphia 76ers")
+    expect(screen.getByTestId("playoff-entry-review-summary")).toHaveTextContent("Your pick: Boston Celtics")
+  })
+
+  it("keeps Boston after save response refresh when Philadelphia is the official winner", async () => {
+    const initialView = bostonPhiladelphiaProjectionView({
+      picks: [
+        { id: "p1", entryId: "entry-1", seriesId: "s1", pickTeamName: "Boston Celtics", createdAt: "", updatedAt: "" },
+        { id: "p2", entryId: "entry-1", seriesId: "s2", pickTeamName: "New York Knicks", createdAt: "", updatedAt: "" },
+      ],
+    })
+    const savedView = bostonPhiladelphiaProjectionView({
+      activeEntry: { id: "entry-1", name: "Bracket 1", userId: "user-1", pickCount: 3, isComplete: false, createdAt: "" },
+      picks: [
+        ...initialView.picks,
+        { id: "p9", entryId: "entry-1", seriesId: "s9", pickTeamName: "Boston Celtics", createdAt: "", updatedAt: "" },
+      ],
+      completion: {
+        mode: "available_picks_only",
+        isSubmittable: true,
+        requiredPickCount: 3,
+        savedRequiredPickCount: 3,
+        totalSeriesCount: 3,
+        unavailableSeriesCount: 0,
+        missingRequiredSeriesIds: [],
+        message: "All available picks are complete.",
+      },
+    })
+    savePlayoffBracketPickClientMock.mockResolvedValue(savedView)
+
+    render(<PlayoffBracketEntryShell initialView={initialView} />)
+    fireEvent.click(screen.getByTestId("playoff-series-s9").querySelector("button") as HTMLButtonElement)
+
+    await waitFor(() => {
+      const semifinal = screen.getByTestId("playoff-series-s9")
+      expect(semifinal).toHaveTextContent("Boston Celtics")
+      expect(semifinal).not.toHaveTextContent("Philadelphia 76ers")
+      expect(screen.getByTestId("playoff-entry-review-summary")).toHaveTextContent("Your pick: Boston Celtics")
+    })
+  })
+
+  it("shows Philadelphia only in Official Bracket mode without marking it as the user pick", () => {
+    render(<PlayoffBracketEntryShell initialView={bostonPhiladelphiaProjectionView()} />)
+
+    fireEvent.click(screen.getByTestId("playoff-user-projection-toggle"))
+
+    const semifinal = screen.getByTestId("playoff-series-s9")
+    expect(screen.getByTestId("playoff-user-projection-toggle")).toHaveTextContent("Show My Projection")
+    expect(semifinal).toHaveTextContent("Philadelphia 76ers")
+    expect(semifinal).toHaveTextContent("New York Knicks")
+    const phillyButton = Array.from(semifinal.querySelectorAll("button")).find((button) => button.textContent === "Philadelphia 76ers")
+    expect(phillyButton).not.toHaveClass("border-amber-500")
+  })
+
+  it("shows saved Boston as Wrong +0 against Philadelphia after results sync", () => {
+    render(<PlayoffBracketEntryShell initialView={bostonPhiladelphiaProjectionView()} />)
+
+    fireEvent.click(screen.getByTestId("playoff-show-pick-results-toggle"))
+
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Your pick: Boston Celtics")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Wrong +0")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Result: Philadelphia 76ers win series 4-2")
+    expect(screen.getByTestId("playoff-entry-review-summary")).toHaveTextContent("Your pick: Boston Celtics")
+    expect(screen.getByTestId("playoff-entry-review-summary")).toHaveTextContent("Wrong +0")
+  })
+
+  it("shows saved Boston as pending before results sync", () => {
+    render(
+      <PlayoffBracketEntryShell
+        initialView={bostonPhiladelphiaProjectionView({
+          series: bostonPhiladelphiaProjectionView().series.map((item) => item.id === "s1"
+            ? { ...item, winnerTeamName: null, seriesSummary: "Series scheduled", status: "scheduled" }
+            : item),
+        })}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId("playoff-show-pick-results-toggle"))
+
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Your pick: Boston Celtics")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Pending")
   })
 
   it("hides unsafe sync action for non-owner entry viewers", () => {

@@ -93,6 +93,109 @@ describe("playoff entry service", () => {
     }))
   })
 
+  it("reloads saved Boston pick after provider result says Philadelphia", async () => {
+    const now = new Date("2026-05-20T00:00:00.000Z")
+    challengeFindUniqueMock.mockResolvedValue({
+      id: "challenge-1",
+      name: "NBA Playoff Pool",
+      ownerUserId: "owner-1",
+      sport: "nba",
+      seasonYear: 2026,
+      status: "open",
+      isTestMode: true,
+      config: { lockRule: "none" },
+      createdAt: now,
+      updatedAt: now,
+      owner: { displayName: "Owner", username: "owner", email: "owner@example.com" },
+      entries: [
+        {
+          id: "entry-1",
+          name: "Bracket 1",
+          userId: "user-1",
+          createdAt: now,
+          user: { displayName: "Tester", username: "tester", email: "tester@example.com" },
+        },
+      ],
+      series: [
+        {
+          id: "s1",
+          round: "round_1",
+          roundIndex: 1,
+          seriesNumber: 1,
+          conference: "east",
+          homeSeed: 1,
+          awaySeed: 8,
+          homeTeamName: "Boston Celtics",
+          awayTeamName: "Philadelphia 76ers",
+          winnerTeamName: "Philadelphia 76ers",
+          bestOf: 7,
+          status: "final",
+          startsAt: null,
+          homeTeamWins: 2,
+          awayTeamWins: 4,
+          seriesSummary: "Philadelphia 76ers win series 4-2",
+          nextGameAt: null,
+          venue: null,
+          broadcastNetwork: null,
+          liveHomeScore: null,
+          liveAwayScore: null,
+          liveStatus: null,
+          providerGamesJson: null,
+          lastSyncedAt: now,
+          nextSeriesNumber: 9,
+          nextSeriesSlot: "home",
+          sourceSeriesHome: null,
+          sourceSeriesAway: null,
+        },
+        {
+          id: "s9",
+          round: "conference_semifinals",
+          roundIndex: 2,
+          seriesNumber: 9,
+          conference: "east",
+          homeSeed: 0,
+          awaySeed: 0,
+          homeTeamName: "Winner S1",
+          awayTeamName: "Winner S2",
+          winnerTeamName: null,
+          bestOf: 7,
+          status: "scheduled",
+          startsAt: null,
+          homeTeamWins: 0,
+          awayTeamWins: 0,
+          seriesSummary: null,
+          nextGameAt: null,
+          venue: null,
+          broadcastNetwork: null,
+          liveHomeScore: null,
+          liveAwayScore: null,
+          liveStatus: null,
+          providerGamesJson: null,
+          lastSyncedAt: null,
+          nextSeriesNumber: 13,
+          nextSeriesSlot: "home",
+          sourceSeriesHome: 1,
+          sourceSeriesAway: 2,
+        },
+      ],
+    })
+    pickFindManyMock
+      .mockResolvedValueOnce([{ id: "p1", entryId: "entry-1", seriesId: "s1", pickTeamName: "Boston Celtics", createdAt: now, updatedAt: now }])
+      .mockResolvedValueOnce([{ entryId: "entry-1", seriesId: "s1", pickTeamName: "Boston Celtics" }])
+
+    const { getPlayoffBracketView } = await import("@/lib/playoffs/playoffService")
+    const view = await getPlayoffBracketView({
+      challengeId: "challenge-1",
+      user: { id: "user-1", email: "tester@example.com", name: "Tester" },
+      requestedEntryId: "entry-1",
+    })
+
+    expect(view?.picks).toEqual([
+      expect.objectContaining({ seriesId: "s1", pickTeamName: "Boston Celtics" }),
+    ])
+    expect(view?.series.find((item) => item.id === "s1")?.winnerTeamName).toBe("Philadelphia 76ers")
+  })
+
   it("creates entry when user has fewer than 5 entries", async () => {
     entryFindManyMock.mockResolvedValue([{ id: "entry-1" }])
     entryCreateMock.mockResolvedValue({ id: "entry-2" })

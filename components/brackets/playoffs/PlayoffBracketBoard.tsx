@@ -20,6 +20,7 @@ type Props = {
   nextSeriesId?: string | null
   showPickResults?: boolean
   officialBracketMode?: boolean
+  projectionMode?: "official" | "user_projection"
   lockRule?: string | null
   canUseLatePicks?: boolean
   showLockDiagnostics?: boolean
@@ -143,6 +144,7 @@ export default function PlayoffBracketBoard({
   nextSeriesId,
   showPickResults = false,
   officialBracketMode = false,
+  projectionMode = officialBracketMode ? "official" : "user_projection",
   lockRule = null,
   canUseLatePicks = false,
   showLockDiagnostics = false,
@@ -173,6 +175,11 @@ export default function PlayoffBracketBoard({
                   const isSaved = savedSeriesIds?.has(item.id) ?? false
                   const isNext = nextSeriesId === item.id
                   const pickResult = getPlayoffPickResult(item, pick)
+                  const advancedFrom = item.sourceSeriesHome || item.sourceSeriesAway
+                    ? projectionMode === "user_projection"
+                      ? pick ? "user_pick" : "unresolved"
+                      : item.winnerTeamName ? "official_winner" : "unresolved"
+                    : "unresolved"
                   const finalGame = latestFinalGame(item)
                   const nextGameLabel = formatGameTime(item.nextGameAt) ?? providerNextGameDateLabel(item) ?? "TBD"
                   return (
@@ -218,6 +225,8 @@ export default function PlayoffBracketBoard({
                           className="mb-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-500"
                         >
                           lockRule={String(lockRule ?? "series_start")}; allowTestLatePicks={String(lockDiagnostics?.allowTestLatePicks ?? false)}; viewerCanLatePick={String(lockDiagnostics?.viewerCanLatePick ?? latePicksEnabled)}; reason={lockedReason ?? "unlocked"}
+                          <br />
+                          savedPickTeamName={pick?.pickTeamName ?? "none"}; winnerTeamName={item.winnerTeamName ?? "none"}; projectionMode={projectionMode}; advancedFrom={advancedFrom}
                         </div>
                       ) : null}
                       <div className="space-y-2">
