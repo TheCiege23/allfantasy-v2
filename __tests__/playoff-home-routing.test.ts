@@ -6,7 +6,7 @@ describe("playoff home card routing", () => {
     expect(typeof routing.resolvePlayoffCardHref).toBe("function")
   })
 
-  it("routes existing NBA challenge card to canonical league dashboard route", () => {
+  it("routes NBA sport card to the normal create form even when pools exist", () => {
     const href = routing.resolvePlayoffCardHref({
       sport: "NBA",
       playoffBySport: new Map([
@@ -20,7 +20,7 @@ describe("playoff home card routing", () => {
       ]),
     })
 
-    expect(href).toBe("/brackets/leagues/challenge-nba")
+    expect(href).toBe("/brackets/leagues/new?sport=nba&challengeType=playoff_challenge")
     expect(
       routing.resolvePlayoffCardMode({
         sport: "NBA",
@@ -29,13 +29,13 @@ describe("playoff home card routing", () => {
     ).toBe("open")
   })
 
-  it("falls back to /brackets when no NHL challenge exists", () => {
+  it("routes NHL sport card to the normal create form when no challenge exists", () => {
     const href = routing.resolvePlayoffCardHref({
       sport: "NHL",
       playoffBySport: new Map(),
     })
 
-    expect(href).toBe("/brackets")
+    expect(href).toBe("/brackets/leagues/new?sport=nhl&challengeType=playoff_challenge")
     expect(routing.resolvePlayoffCardMode({ sport: "NHL", playoffBySport: new Map() })).toBe("create")
   })
 

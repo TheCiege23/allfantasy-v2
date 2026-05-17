@@ -21,14 +21,8 @@ export function resolvePlayoffCardHref(input: {
     const normalizedSport = String(input?.sport ?? "").toLowerCase()
     if (!normalizedSport) return "/brackets"
 
-    const bySport = input?.playoffBySport
-    const existing = bySport instanceof Map ? bySport.get(normalizedSport) : undefined
-    if (existing?.challengeId) {
-      return `/brackets/leagues/${existing.challengeId}`
-    }
-
     if (normalizedSport === "nba" || normalizedSport === "nhl") {
-      return "/brackets"
+      return `/brackets/leagues/new?sport=${normalizedSport}&challengeType=playoff_challenge`
     }
 
     return "/brackets"

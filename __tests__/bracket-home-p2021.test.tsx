@@ -8,7 +8,7 @@ const getEnabledSportsMock = vi.hoisted(() => vi.fn())
 const bracketLeagueMemberFindManyMock = vi.hoisted(() => vi.fn())
 const playoffBracketChallengeFindManyMock = vi.hoisted(() => vi.fn())
 const listUserWorldCupChallengesMock = vi.hoisted(() => vi.fn())
-const resolvePlayoffCardHrefMock = vi.hoisted(() => vi.fn(({ sport }: any) => `/brackets/playoffs/create?sport=${sport}`))
+const resolvePlayoffCardHrefMock = vi.hoisted(() => vi.fn(({ sport }: any) => `/brackets/leagues/new?sport=${String(sport).toLowerCase()}&challengeType=playoff_challenge`))
 const resolveMyPoolCardHrefMock = vi.hoisted(() => vi.fn(({ poolId }: any) => `/brackets/leagues/${poolId}`))
 
 vi.mock("next-auth", () => ({ getServerSession: getServerSessionMock }))
@@ -57,10 +57,16 @@ vi.mock("@/components/bracket/BracketHistoryTab", () => ({ default: () => null }
 vi.mock("@/components/engagement/EngagementEventTracker", () => ({ default: () => null }))
 vi.mock("next/image", () => ({ default: (p: any) => <img {...p} /> }))
 vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: any) => <a href={href} {...rest}>{children}</a> }))
+vi.mock("@/components/bracket/QuickCreatePlayoffPoolButton", () => ({
+  default: ({ sport, label }: any) => <button data-testid={`quick-create-${sport}-pool-button`}>{label}</button>,
+}))
 vi.mock("@/lib/sport-scope", () => ({ SUPPORTED_SPORTS: ["NFL", "NBA", "NHL"] }))
 vi.mock("@/lib/bracket-challenge", () => ({
   resolveBracketChallengeLabel: () => "Bracket",
-  resolveBracketSportUI: () => ({ badge: "NBA", shortLabel: "NBA", label: "NBA" }),
+  resolveBracketSportUI: (sport: string) => {
+    const label = String(sport ?? "NBA").toUpperCase()
+    return { badge: label, shortLabel: label, label }
+  },
 }))
 vi.mock("@/lib/playoffs/playoffHomeRouting", () => ({
   resolveMyPoolCardHref: resolveMyPoolCardHrefMock,
@@ -77,7 +83,7 @@ describe("app/brackets/page — P2021 playoff table missing", () => {
     bracketLeagueMemberFindManyMock.mockResolvedValue([])
     playoffBracketChallengeFindManyMock.mockResolvedValue([])
     listUserWorldCupChallengesMock.mockResolvedValue([])
-    resolvePlayoffCardHrefMock.mockImplementation(({ sport }: any) => `/brackets/playoffs/create?sport=${sport}`)
+    resolvePlayoffCardHrefMock.mockImplementation(({ sport }: any) => `/brackets/leagues/new?sport=${String(sport).toLowerCase()}&challengeType=playoff_challenge`)
   })
 
   it("renders the page when session lookup throws", async () => {
@@ -210,6 +216,30 @@ describe("app/brackets/page — P2021 playoff table missing", () => {
     render(element)
 
     expect(screen.getByTestId("world-cup-bracket-card")).toHaveAttribute("href", "/brackets/world-cup")
+  })
+
+  it("routes NBA and NHL sport cards to normal create forms", async () => {
+    const mod = await import("@/app/brackets/page")
+    const element = await (mod.default as () => Promise<React.ReactElement>)()
+    render(element)
+
+    expect(screen.getByTestId("bracket-playoff-sport-NBA")).toHaveAttribute(
+      "href",
+      "/brackets/leagues/new?sport=nba&challengeType=playoff_challenge",
+    )
+    expect(screen.getByTestId("bracket-playoff-sport-NHL")).toHaveAttribute(
+      "href",
+      "/brackets/leagues/new?sport=nhl&challengeType=playoff_challenge",
+    )
+  })
+
+  it("renders explicit quick create buttons separately from normal create cards", async () => {
+    const mod = await import("@/app/brackets/page")
+    const element = await (mod.default as () => Promise<React.ReactElement>)()
+    render(element)
+
+    expect(screen.getByTestId("quick-create-nba-pool-button")).toHaveTextContent("Quick Create NBA Pool")
+    expect(screen.getByTestId("quick-create-nhl-pool-button")).toHaveTextContent("Quick Create NHL Pool")
   })
 
   it("routes active World Cup challenge cards to the current World Cup challenge page", async () => {

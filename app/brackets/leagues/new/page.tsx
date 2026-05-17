@@ -6,6 +6,8 @@ import { ArrowLeft, Loader2, Globe, Lock, Trophy, Goal } from "lucide-react"
 import { SUPPORTED_SPORTS, normalizeToSupportedSport } from "@/lib/sport-scope"
 import { getRoundPointsSummary } from "@/lib/bracket-challenge"
 import { CommissionerFanCredSetupNotice } from "@/components/legal/CommissionerFanCredSetupNotice"
+import { createPlayoffBracketChallengeClient } from "@/lib/playoffs/playoffClientApi"
+import { defaultPlayoffChallengeConfig, isAfCommissionerSubscriber, sanitizePlayoffChallengeConfig } from "@/lib/playoffs/playoffChallengeConfig"
 
 const SCORING_OPTIONS = [
   { value: "momentum", label: "Standard (1-2-4-8-16-32)" },
@@ -49,6 +51,8 @@ export default function NewBracketLeaguePage() {
   const [sport, setSport] = useState<string>("NCAAB")
   const [challengeType, setChallengeType] = useState<ChallengeType>("playoff_challenge")
   const [isPublic, setIsPublic] = useState(false)
+  const [maxUsers, setMaxUsers] = useState(50)
+  const [lockRule, setLockRule] = useState("series_start")
   const [scoringMode, setScoringMode] = useState<string>("momentum")
   const [maxEntriesPerUser, setMaxEntriesPerUser] = useState(1)
   const [tiebreakerEnabled, setTiebreakerEnabled] = useState(true)
@@ -58,6 +62,8 @@ export default function NewBracketLeaguePage() {
   const [showAgeConfirm, setShowAgeConfirm] = useState(false)
   const [ageConfirming, setAgeConfirming] = useState(false)
   const router = useRouter()
+  const isPlayoffPool = challengeType === "playoff_challenge" && (sport === "NBA" || sport === "NHL")
+  const isAfCommissioner = isAfCommissionerSubscriber(null)
 
   useEffect(() => {
     const requestedSport = searchParams?.get("sport")
@@ -114,6 +120,29 @@ export default function NewBracketLeaguePage() {
     const returnTo = `/brackets/leagues/new?sport=${encodeURIComponent(sport)}&challengeType=${encodeURIComponent(challengeType)}`
 
     try {
+      if (isPlayoffPool) {
+        const playoffSport = sport.toLowerCase() as "nba" | "nhl"
+        const config = sanitizePlayoffChallengeConfig(
+          defaultPlayoffChallengeConfig({
+            visibility: isPublic ? "public" : "private",
+            maxParticipants: maxUsers,
+            maxEntriesPerParticipant: maxEntriesPerUser,
+            scoringStyle: scoringMode,
+            lockRule,
+          }),
+          { afCommissionerEnabled: isAfCommissioner },
+        )
+        const result = await createPlayoffBracketChallengeClient({
+          name: name.trim(),
+          sport: playoffSport,
+          seasonYear: season,
+          isTestMode: false,
+          config,
+        })
+        router.push(result.redirectUrl)
+        return
+      }
+
       const res = await fetch("/api/bracket/leagues", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -342,6 +371,36 @@ export default function NewBracketLeaguePage() {
           </div>
 
           <div className="mode-panel-soft rounded-xl p-3.5">
+            <label className="text-xs font-semibold" style={{ color: "var(--accent)" }}>Max Users</label>
+            <input
+              type="number"
+              min={2}
+              max={500}
+              className="mt-2 w-full rounded-lg border px-3 py-2 text-sm bg-transparent"
+              style={{ borderColor: "var(--border)", color: "var(--text)" }}
+              value={maxUsers}
+              onChange={(e) => setMaxUsers(Number(e.target.value) || 50)}
+              disabled={loading}
+              data-testid="bracket-create-max-users-input"
+            />
+          </div>
+
+          <div className="mode-panel-soft rounded-xl p-3.5">
+            <label className="text-xs font-semibold" style={{ color: "var(--accent)" }}>Lock Rule</label>
+            <select
+              className="mt-2 w-full rounded-lg px-3 py-2 text-sm"
+              style={{ border: "1px solid var(--border)", background: "color-mix(in srgb, var(--panel2) 88%, transparent)", color: "var(--text)" }}
+              value={lockRule}
+              onChange={(e) => setLockRule(e.target.value)}
+              disabled={loading}
+              data-testid="bracket-create-lock-rule-select"
+            >
+              <option value="series_start">Lock each series at start</option>
+              <option value="pool_start">Lock all picks at pool start</option>
+            </select>
+          </div>
+
+          <div className="mode-panel-soft rounded-xl p-3.5">
             <label className="text-xs font-semibold" style={{ color: "var(--accent)" }}>Entries Per User</label>
             <div className="mt-2 flex items-center gap-3">
               <input
@@ -357,6 +416,60 @@ export default function NewBracketLeaguePage() {
               <span className="w-8 text-sm font-semibold mode-text">{maxEntriesPerUser}</span>
             </div>
           </div>
+
+          <details
+            className="mode-panel-soft rounded-xl p-3.5"
+            data-testid="af-commissioner-options"
+          >
+            <summary className="cursor-pointer text-sm font-bold mode-text">
+              AF Commissioner Options {isAfCommissioner ? "" : "(Locked Preview)"}
+            </summary>
+            <p className="mt-2 text-xs mode-muted">
+              Premium controls are prepared for pool setup. AI tools flag issues for commissioner review only; they do not accuse, punish, remove, or ban users.
+            </p>
+            <div className="mt-3 grid gap-2 text-xs mode-muted">
+              {[
+                "Include NBA Play-In Tournament",
+                "Exact series score picks",
+                "Series length bonus",
+                "Upset bonus",
+                "Spread prediction",
+                "Over/Under prediction",
+                "Custom scoring values",
+                "AI Anti-Collusion Monitor",
+                "Duplicate Entry Detection",
+                "AI Pool Health Report",
+                "AI Scoring Explainer",
+                "AI Dispute Assistant",
+                "AI Bracket Integrity Check",
+                "Auto-remind incomplete brackets",
+                "Auto-lock entries at deadline",
+                "Auto-recalculate after provider sync",
+                "Auto-post scoring updates (requires chat)",
+                "Hide picks until lock",
+                "Approval required to join",
+                "Password-protected pool",
+                "Co-commissioners",
+                "Custom pool logo and banner",
+                "Export leaderboard and picks CSV",
+              ].map((label) => (
+                <label key={label} className="flex items-center gap-2 rounded-lg border px-2 py-1.5" style={{ borderColor: "var(--border)" }}>
+                  <input type="checkbox" disabled={!isAfCommissioner || loading} data-testid={`af-commissioner-option-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+            {!isAfCommissioner ? (
+              <a
+                href="/pricing"
+                className="mt-3 inline-flex rounded-lg border px-3 py-2 text-xs font-semibold"
+                style={{ borderColor: "var(--border)", color: "var(--accent)" }}
+                data-testid="af-commissioner-upgrade-link"
+              >
+                Upgrade to AF Commissioner
+              </a>
+            ) : null}
+          </details>
 
           <div className="mode-panel-soft rounded-xl p-3.5">
             <label className="text-xs font-semibold" style={{ color: "var(--accent)" }}>Tiebreaker</label>

@@ -1,10 +1,11 @@
-import type { PlayoffChallengeListItem, PlayoffChallengeView, PlayoffCreateResponse, PlayoffSport } from "./types"
+import type { PlayoffChallengeConfig, PlayoffChallengeListItem, PlayoffChallengeView, PlayoffCreateResponse, PlayoffSport } from "./types"
 
 export async function createPlayoffBracketChallengeClient(input: {
   name?: string
   sport: PlayoffSport
   seasonYear: number
   isTestMode?: boolean
+  config?: Partial<PlayoffChallengeConfig>
 }): Promise<PlayoffCreateResponse> {
   const response = await fetch("/api/brackets/playoffs", {
     method: "POST",

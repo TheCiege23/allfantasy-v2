@@ -44,7 +44,15 @@ describe("playoff create/list route", () => {
       new Request("http://localhost/api/brackets/playoffs", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sport: "nba", seasonYear: 2026 }),
+        body: JSON.stringify({
+          sport: "nba",
+          seasonYear: 2026,
+          config: {
+            visibility: "public",
+            includePlayIn: true,
+            pickSpread: true,
+          },
+        }),
       })
     )
 
@@ -53,6 +61,13 @@ describe("playoff create/list route", () => {
     expect(payload.challengeId).toBe("challenge-nba")
     expect(payload.redirectUrl).toBe("/brackets/leagues/challenge-nba")
     expect(payload.sport).toBe("nba")
+    expect(createPlayoffBracketChallengeMock).toHaveBeenCalledWith(expect.objectContaining({
+      config: expect.objectContaining({
+        visibility: "public",
+        includePlayIn: true,
+        pickSpread: true,
+      }),
+    }))
   })
 
   it("returns challengeId and redirectUrl for NHL create", async () => {

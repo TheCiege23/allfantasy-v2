@@ -12,6 +12,7 @@ import MyPoolsTab from "@/components/bracket/MyPoolsTab"
 import BracketAICoachTab from "@/components/bracket/BracketAICoachTab"
 import CreatePoolTab from "@/components/bracket/CreatePoolTab"
 import PlayoffChallengeTab from "@/components/bracket/PlayoffChallengeTab"
+import QuickCreatePlayoffPoolButton from "@/components/bracket/QuickCreatePlayoffPoolButton"
 import JoinPoolTab from "@/components/bracket/JoinPoolTab"
 import StandingsTab from "@/components/bracket/StandingsTab"
 import BracketHistoryTab from "@/components/bracket/BracketHistoryTab"
@@ -616,21 +617,33 @@ export default async function BracketsHomePage() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {playoffSports.map(({ sport, ui }) => (
-                    <Link
+                    <div
                       key={sport}
-                      href={safeResolvePlayoffHref(sport)}
-                      className="rounded-xl px-3 py-2 text-xs font-semibold text-center transition flex items-center justify-center gap-2"
+                      className="rounded-xl px-3 py-2 text-xs font-semibold text-center transition"
                       style={{ border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.8)' }}
-                      data-testid={`bracket-playoff-sport-${sport}`}
                     >
-                      <span
-                        className="inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[9px] font-bold"
-                        style={{ background: 'rgba(56,189,248,0.15)', color: 'rgba(186,230,253,0.95)' }}
+                      <Link
+                        href={safeResolvePlayoffHref(sport)}
+                        className="flex items-center justify-center gap-2"
+                        data-testid={`bracket-playoff-sport-${sport}`}
                       >
-                        {ui.badge}
-                      </span>
-                      <span>{ui.shortLabel} {resolvePlayoffCardMode({ sport, playoffBySport }) === "open" ? "Open" : "Create"}</span>
-                    </Link>
+                        <span
+                          className="inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[9px] font-bold"
+                          style={{ background: 'rgba(56,189,248,0.15)', color: 'rgba(186,230,253,0.95)' }}
+                        >
+                          {ui.badge}
+                        </span>
+                        <span>{ui.shortLabel} Create</span>
+                      </Link>
+                      {(sport === "NBA" || sport === "NHL") ? (
+                        <div className="mt-2">
+                          <QuickCreatePlayoffPoolButton
+                            sport={sport.toLowerCase() as "nba" | "nhl"}
+                            label={`Quick Create ${ui.shortLabel} Pool`}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
                   ))}
                 </div>
               </div>

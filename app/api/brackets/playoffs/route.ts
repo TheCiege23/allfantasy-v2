@@ -11,6 +11,7 @@ const createPlayoffChallengeSchema = z.object({
   sport: z.enum(["nba", "nhl"]),
   seasonYear: z.coerce.number().int().min(2024).max(2100).optional(),
   isTestMode: z.boolean().optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
 })
 
 export async function GET(request: Request) {
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
       sport: parsed.data.sport,
       seasonYear: parsed.data.seasonYear,
       isTestMode: parsed.data.isTestMode,
+      config: parsed.data.config as any,
     })
 
     return NextResponse.json({
