@@ -113,6 +113,31 @@ describe("PlayoffBracketShell dashboard", () => {
     expect(screen.getByRole("heading", { name: "NHL Playoff Bracket" })).toBeInTheDocument()
   })
 
+  it("uses scored leaderboard copy when saved picks have resolved results even with zero points", () => {
+    render(
+      <PlayoffBracketShell
+        initialView={buildView({
+          entries: [
+            {
+              id: "entry-1",
+              name: "Wrong Bracket",
+              userId: "user-1",
+              pickCount: 1,
+              isComplete: true,
+              totalScore: 0,
+              correctPicks: 0,
+              resolvedPicks: 1,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        })}
+      />
+    )
+
+    expect(screen.getByText("Scored leaderboard from completed series results.")).toBeInTheDocument()
+    expect(screen.getByText(/0 pts · 0\/1 correct · 1 picks/)).toBeInTheDocument()
+  })
+
   it("renders Soccer dashboard title and does not show NCAA label", () => {
     render(
       <PlayoffBracketShell

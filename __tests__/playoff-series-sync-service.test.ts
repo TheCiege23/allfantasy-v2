@@ -854,6 +854,20 @@ describe("syncPlayoffChallengeSeries", () => {
 
     expect(result.mode).toBe("results_only")
     expect(result.winnersUpdated).toBe(1)
+    expect(result.diagnostics.completedProviderSeries).toBe(1)
+    expect(result.diagnostics.completedSeriesWithWinner).toBe(1)
+    expect(result.diagnostics.completedSeriesWithoutWinner).toBe(0)
+    expect(result.diagnostics.resultsOnlyStrippedWinners).toBe(false)
+    expect(result.diagnostics.resultPersistenceExamples).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        seriesNumber: 1,
+        providerStatus: "final",
+        persistedStatus: "final",
+        providerWinner: "Celtics",
+        persistedWinner: "Celtics",
+        seriesSummary: "Celtics win series 4-1",
+      }),
+    ]))
     expect(seriesUpdateMock).toHaveBeenCalledWith({
       where: { id: "series-1" },
       data: expect.objectContaining({
@@ -862,6 +876,75 @@ describe("syncPlayoffChallengeSeries", () => {
         status: "final",
         winnerTeamName: "Celtics",
         seriesSummary: "Celtics win series 4-1",
+      }),
+    })
+    expect(pickUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it("teams_schedule_only strips winner fields and keeps picks untouched", async () => {
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      mode: "teams_schedule_only",
+      provider: async () => ({
+        source: "test_provider",
+        games: [
+          playoffGame("BOS", "MIA", 100, 90, "2026-05-01T00:00:00.000Z"),
+          playoffGame("MIA", "BOS", 88, 102, "2026-05-03T00:00:00.000Z"),
+          playoffGame("BOS", "MIA", 97, 100, "2026-05-05T00:00:00.000Z"),
+          playoffGame("MIA", "BOS", 90, 111, "2026-05-07T00:00:00.000Z"),
+          playoffGame("BOS", "MIA", 100, 95, "2026-05-09T00:00:00.000Z"),
+        ],
+      }),
+    })
+
+    expect(result.winnersUpdated).toBe(0)
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-1" },
+      data: expect.objectContaining({
+        status: "scheduled",
+        winnerTeamName: null,
+        homeTeamWins: 0,
+        awayTeamWins: 0,
+        seriesSummary: "Series scheduled",
+      }),
+    })
+    expect(pickUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it("results_only warns when completed provider series have no score winner source", async () => {
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      mode: "results_only",
+      provider: async () => ({
+        source: "test_provider",
+        games: [
+          {
+            gameId: "scoreless-final-1",
+            homeTeam: "BOS",
+            awayTeam: "MIA",
+            homeTeamFull: "Celtics",
+            awayTeamFull: "Heat",
+            completed: true,
+            status: "STATUS_FINAL",
+            statusDetail: "Final",
+            startTime: "2026-05-01T00:00:00.000Z",
+          },
+        ],
+      }),
+    })
+
+    expect(result.winnersUpdated).toBe(0)
+    expect(result.warnings).toContain("Results sync matched completed series but found no winner data to persist.")
+    expect(result.diagnostics.completedProviderSeries).toBe(1)
+    expect(result.diagnostics.completedSeriesWithoutWinner).toBe(1)
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-1" },
+      data: expect.objectContaining({
+        status: "final",
+        winnerTeamName: null,
+        seriesSummary: "Series starts TBD",
       }),
     })
     expect(pickUpsertMock).not.toHaveBeenCalled()

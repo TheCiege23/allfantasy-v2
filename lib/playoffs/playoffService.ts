@@ -352,6 +352,7 @@ export async function getPlayoffBracketView(input: {
           isComplete: activeEntry.id === completionEntryId ? completion.isSubmittable : (pickCountByEntryId.get(activeEntry.id) ?? 0) >= totalSeries,
           totalScore: scoreByEntryId.get(activeEntry.id)?.totalScore ?? 0,
           correctPicks: scoreByEntryId.get(activeEntry.id)?.correctPicks ?? 0,
+          resolvedPicks: scoreByEntryId.get(activeEntry.id)?.resolvedPicks ?? 0,
           createdAt: toIso(activeEntry.createdAt) ?? new Date().toISOString(),
         }
       : null,
@@ -363,6 +364,7 @@ export async function getPlayoffBracketView(input: {
       isComplete: entry.id === completionEntryId ? completion.isSubmittable : (pickCountByEntryId.get(entry.id) ?? 0) >= totalSeries,
       totalScore: scoreByEntryId.get(entry.id)?.totalScore ?? 0,
       correctPicks: scoreByEntryId.get(entry.id)?.correctPicks ?? 0,
+      resolvedPicks: scoreByEntryId.get(entry.id)?.resolvedPicks ?? 0,
       createdAt: toIso(entry.createdAt) ?? new Date().toISOString(),
     })),
     series: challengeSeries.map((series: any) => ({

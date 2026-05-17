@@ -75,7 +75,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
       : "Complete Bracket"
   const leaderboardRows = useMemo(
     () => {
-      const hasScoredResults = entries.some((entry) => (entry.totalScore ?? 0) > 0 || (entry.correctPicks ?? 0) > 0)
+      const hasScoredResults = entries.some((entry) => (entry.resolvedPicks ?? 0) > 0 || (entry.totalScore ?? 0) > 0 || (entry.correctPicks ?? 0) > 0)
       return [...entries]
         .sort((a, b) => {
           if (hasScoredResults) {
@@ -90,6 +90,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
           picks: entry.pickCount,
           totalScore: entry.totalScore ?? 0,
           correctPicks: entry.correctPicks ?? 0,
+          resolvedPicks: entry.resolvedPicks ?? 0,
           hasScoredResults,
         }))
     },
@@ -457,7 +458,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
               <li key={row.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm">
                 <span className="font-semibold text-slate-800">#{row.rank} {row.name}</span>
                 <span className="text-slate-600">
-                  {row.hasScoredResults ? `${row.totalScore} pts · ${row.correctPicks} correct · ` : ""}
+                  {row.hasScoredResults ? `${row.totalScore} pts · ${row.correctPicks}/${row.resolvedPicks} correct · ` : ""}
                   {row.picks} picks
                 </span>
               </li>

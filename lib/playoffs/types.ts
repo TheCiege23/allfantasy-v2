@@ -102,6 +102,7 @@ export type PlayoffChallengeView = {
     isComplete: boolean
     totalScore?: number
     correctPicks?: number
+    resolvedPicks?: number
     createdAt: string
   } | null
   entries: Array<{
@@ -112,6 +113,7 @@ export type PlayoffChallengeView = {
     isComplete: boolean
     totalScore?: number
     correctPicks?: number
+    resolvedPicks?: number
     createdAt: string
   }>
   series: PlayoffSeriesView[]

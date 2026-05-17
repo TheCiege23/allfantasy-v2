@@ -52,6 +52,7 @@ type PlayoffSeriesAggregate = {
   liveAwayScore: number | null
   liveStatus: string | null
   providerGamesJson: unknown[]
+  completedWithoutWinnerSource: boolean
 }
 
 type ProviderSeriesGroup = {
@@ -134,6 +135,15 @@ type UpdatedSeriesDiagnostic = {
   status?: string | null
 }
 
+type ResultPersistenceDiagnostic = {
+  seriesNumber: number
+  providerStatus: string | null
+  persistedStatus: string
+  providerWinner: string | null
+  persistedWinner: string | null
+  seriesSummary: string | null
+}
+
 type ProviderAssignmentDiagnostic = TeamPairDiagnostic & {
   assignedSeriesNumber?: number | null
   assignedSeriesId?: string | null
@@ -173,6 +183,11 @@ export type PlayoffSyncDiagnostics = {
   unmappedProviderSeries: TeamPairDiagnostic[]
   conflictingSlotAssignments: SlotAssignmentWarning[]
   expectedVsActualSlotExamples: ProviderAssignmentDiagnostic[]
+  completedProviderSeries: number
+  completedSeriesWithWinner: number
+  completedSeriesWithoutWinner: number
+  resultsOnlyStrippedWinners: boolean
+  resultPersistenceExamples: ResultPersistenceDiagnostic[]
   templateReplacementCount: number
   updatedSeriesExamples: UpdatedSeriesDiagnostic[]
   scheduleSupplementProvider: "espn_live" | "rolling_insights_live" | "none"
@@ -397,6 +412,11 @@ export async function fetchRollingInsightsPostseasonScheduleGames(input: {
       unmappedProviderSeries: [],
       conflictingSlotAssignments: [],
       expectedVsActualSlotExamples: [],
+      completedProviderSeries: 0,
+      completedSeriesWithWinner: 0,
+      completedSeriesWithoutWinner: 0,
+      resultsOnlyStrippedWinners: false,
+      resultPersistenceExamples: [],
       templateReplacementCount: 0,
       updatedSeriesExamples: [],
       scheduleSupplementProvider: "none",
@@ -488,6 +508,11 @@ export async function fetchLivePlayoffSeriesGames(input: {
           unmappedProviderSeries: [],
           conflictingSlotAssignments: [],
           expectedVsActualSlotExamples: [],
+          completedProviderSeries: 0,
+          completedSeriesWithWinner: 0,
+          completedSeriesWithoutWinner: 0,
+          resultsOnlyStrippedWinners: false,
+          resultPersistenceExamples: [],
           templateReplacementCount: 0,
           updatedSeriesExamples: [],
           scheduleSupplementProvider: "none",
@@ -541,6 +566,11 @@ export async function fetchLivePlayoffSeriesGames(input: {
       unmappedProviderSeries: [],
       conflictingSlotAssignments: [],
       expectedVsActualSlotExamples: [],
+      completedProviderSeries: 0,
+      completedSeriesWithWinner: 0,
+      completedSeriesWithoutWinner: 0,
+      resultsOnlyStrippedWinners: false,
+      resultPersistenceExamples: [],
       templateReplacementCount: 0,
       updatedSeriesExamples: [],
       scheduleSupplementProvider: "none",
@@ -572,8 +602,10 @@ function isFinalGame(game: PlayoffSeriesSyncGame): boolean {
 
 function winnerFromGame(game: PlayoffSeriesSyncGame): string | null {
   if (!isFinalGame(game)) return null
-  const homeScore = Number(game.homeScore ?? 0)
-  const awayScore = Number(game.awayScore ?? 0)
+  if (game.homeScore == null || game.awayScore == null) return null
+  const homeScore = Number(game.homeScore)
+  const awayScore = Number(game.awayScore)
+  if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) return null
   if (homeScore === awayScore) return null
   return homeScore > awayScore
     ? displayName(game.homeTeamFull || game.homeTeam)
@@ -1076,12 +1108,14 @@ function aggregateSeriesGames(series: any, games: PlayoffSeriesSyncGame[]): Play
   let awayWins = 0
   let hasLive = false
   let hasScheduled = false
+  let hasFinal = false
 
   for (const game of games) {
     const status = statusFromGame(game)
     if (status === "in_progress") hasLive = true
     if (status === "scheduled") hasScheduled = true
     if (!isFinalGame(game)) continue
+    hasFinal = true
     const winner = winnerFromGame(game)
     if (!winner) continue
     if (sameTeam(winner, series.homeTeamName) || sameTeam(winner, game.homeTeam) || sameTeam(winner, game.homeTeamFull)) {
@@ -1096,10 +1130,13 @@ function aggregateSeriesGames(series: any, games: PlayoffSeriesSyncGame[]): Play
     : awayWins >= winsNeeded
       ? displayName(series.awayTeamName || awayTeamName)
       : null
+  const completedWithoutWinnerSource = hasFinal && !winnerTeamName && homeWins === 0 && awayWins === 0 && !hasScheduled && !hasLive
   const status = winnerTeamName
     ? "final"
     : hasLive
       ? "in_progress"
+      : completedWithoutWinnerSource
+        ? "final"
       : hasScheduled
         ? "scheduled"
         : homeWins > 0 || awayWins > 0
@@ -1128,6 +1165,7 @@ function aggregateSeriesGames(series: any, games: PlayoffSeriesSyncGame[]): Play
     liveAwayScore: activeGame?.awayScore ?? null,
     liveStatus: activeGame?.statusDetail ?? activeGame?.status ?? null,
     providerGamesJson: games.map(safeProviderGame),
+    completedWithoutWinnerSource,
   }
 }
 
@@ -1158,6 +1196,7 @@ function aggregateProviderSeriesGroup(group: ProviderSeriesGroup, bestOf = 7): P
     liveAwayScore: null,
     liveStatus: null,
     providerGamesJson: group.games.map(safeProviderGame),
+    completedWithoutWinnerSource: false,
   }
 }
 
@@ -1419,6 +1458,11 @@ export async function syncPlayoffChallengeSeries(input: {
     unmappedProviderSeries: payload.diagnostics?.unmappedProviderSeries ?? [],
     conflictingSlotAssignments: payload.diagnostics?.conflictingSlotAssignments ?? [],
     expectedVsActualSlotExamples: payload.diagnostics?.expectedVsActualSlotExamples ?? [],
+    completedProviderSeries: payload.diagnostics?.completedProviderSeries ?? 0,
+    completedSeriesWithWinner: payload.diagnostics?.completedSeriesWithWinner ?? 0,
+    completedSeriesWithoutWinner: payload.diagnostics?.completedSeriesWithoutWinner ?? 0,
+    resultsOnlyStrippedWinners: payload.diagnostics?.resultsOnlyStrippedWinners ?? false,
+    resultPersistenceExamples: payload.diagnostics?.resultPersistenceExamples ?? [],
     templateReplacementCount: 0,
     updatedSeriesExamples: [],
     scheduleSupplementProvider: "none",
@@ -1485,6 +1529,7 @@ export async function syncPlayoffChallengeSeries(input: {
   diagnostics.expectedVsActualSlotExamples = templateReplacementResult.expectedVsActual.slice(0, 12)
   let templateReplacementCount = 0
   const updatedSeriesExamples: UpdatedSeriesDiagnostic[] = []
+  const resultPersistenceExamples: ResultPersistenceDiagnostic[] = []
   const officialWinnerBySeriesId = new Map<string, string>()
 
   for (const series of challenge.series) {
@@ -1546,6 +1591,28 @@ export async function syncPlayoffChallengeSeries(input: {
       ? (aggregate.liveStatus ? "in_progress" : "scheduled")
       : aggregate.status
     const nextSeriesSummary = teamsScheduleOnly ? scheduleSafeSeriesSummary(aggregate) : aggregate.seriesSummary
+    const providerCompleted = aggregate.status === "final" || aggregate.games.some((game) => statusFromGame(game) === "final")
+    if (providerCompleted) {
+      diagnostics.completedProviderSeries += 1
+      if (nextWinnerTeamName) {
+        diagnostics.completedSeriesWithWinner += 1
+      } else {
+        diagnostics.completedSeriesWithoutWinner += 1
+      }
+    }
+    if (teamsScheduleOnly && aggregate.winnerTeamName) {
+      diagnostics.resultsOnlyStrippedWinners = mode === "results_only"
+    }
+    if (resultPersistenceExamples.length < 8 && (resultsOnly || providerCompleted)) {
+      resultPersistenceExamples.push({
+        seriesNumber: Number(series.seriesNumber ?? 0),
+        providerStatus: aggregate.status,
+        persistedStatus: nextStatus,
+        providerWinner: aggregate.winnerTeamName,
+        persistedWinner: nextWinnerTeamName,
+        seriesSummary: nextSeriesSummary,
+      })
+    }
     const previousTeams = [series.homeTeamName, series.awayTeamName].map((name) => normalizeName(name).toLowerCase())
     const nextTeams = [nextHomeTeamName, nextAwayTeamName].map((name) => normalizeName(name).toLowerCase())
     const teamsChanged = !previousTeams.every((name) => nextTeams.includes(name))
@@ -1593,6 +1660,12 @@ export async function syncPlayoffChallengeSeries(input: {
     if (nextWinnerTeamName) {
       officialWinnerBySeriesId.set(series.id, nextWinnerTeamName)
     }
+  }
+
+  diagnostics.resultPersistenceExamples = resultPersistenceExamples
+  diagnostics.resultsOnlyStrippedWinners = mode === "results_only" ? false : diagnostics.resultsOnlyStrippedWinners
+  if (mode === "results_only" && diagnostics.completedProviderSeries > 0 && winnersUpdated === 0) {
+    warnings.push("Results sync matched completed series but found no winner data to persist.")
   }
 
   if (invalidatedSeriesIds.size > 0) {

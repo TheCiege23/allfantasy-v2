@@ -397,6 +397,11 @@ describe("playoff entry service", () => {
       providerGamesJson: [{ homeTeam: "Knicks", awayTeam: "Hawks" }],
     })
     expect(view?.challenge.lockRule).toBe("series_start")
+    expect(view?.activeEntry).toMatchObject({
+      totalScore: 0,
+      correctPicks: 0,
+      resolvedPicks: 0,
+    })
     expect(view?.lockDiagnostics).toMatchObject({
       lockRule: "series_start",
       allowTestLatePicks: false,
