@@ -651,4 +651,100 @@ describe("playoff entry service", () => {
       create: expect.objectContaining({ seriesId: "s9", pickTeamName: "Celtics" }),
     }))
   })
+
+  it("allows valid projected Conference Finals picks from saved semifinal picks in no-lock test pools", async () => {
+    entryFindUniqueMock.mockResolvedValue({ id: "entry-1", userId: "user-1", challengeId: "challenge-1" })
+    seriesFindUniqueMock.mockResolvedValue({
+      id: "s13",
+      challengeId: "challenge-1",
+      status: "scheduled",
+      startsAt: null,
+      homeTeamName: "East Winner A",
+      awayTeamName: "East Winner B",
+      challenge: { config: { lockRule: "none" }, ownerUserId: "user-1", isTestMode: true },
+    })
+    seriesFindManyMock.mockResolvedValue([
+      {
+        id: "s9",
+        challengeId: "challenge-1",
+        roundIndex: 2,
+        seriesNumber: 9,
+        homeTeamName: "Celtics",
+        awayTeamName: "Knicks",
+        sourceSeriesHome: 1,
+        sourceSeriesAway: 2,
+      },
+      {
+        id: "s10",
+        challengeId: "challenge-1",
+        roundIndex: 2,
+        seriesNumber: 10,
+        homeTeamName: "Pacers",
+        awayTeamName: "Cavaliers",
+        sourceSeriesHome: 3,
+        sourceSeriesAway: 4,
+      },
+      {
+        id: "s13",
+        challengeId: "challenge-1",
+        roundIndex: 3,
+        seriesNumber: 13,
+        homeTeamName: "East Winner A",
+        awayTeamName: "East Winner B",
+        sourceSeriesHome: 9,
+        sourceSeriesAway: 10,
+      },
+    ])
+    pickFindManyMock.mockResolvedValue([
+      { id: "p9", seriesId: "s9", pickTeamName: "Celtics" },
+      { id: "p10", seriesId: "s10", pickTeamName: "Pacers" },
+    ])
+    pickUpsertMock.mockResolvedValue({ id: "p13", seriesId: "s13", pickTeamName: "Celtics" })
+
+    const { savePlayoffBracketPick } = await import("@/lib/playoffs/playoffService")
+    await savePlayoffBracketPick({
+      challengeId: "challenge-1",
+      entryId: "entry-1",
+      userId: "user-1",
+      seriesId: "s13",
+      pickTeamName: "Celtics",
+    })
+
+    expect(pickUpsertMock).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ seriesId: "s13", pickTeamName: "Celtics" }),
+    }))
+  })
+
+  it("rejects arbitrary projected Conference Finals team names", async () => {
+    entryFindUniqueMock.mockResolvedValue({ id: "entry-1", userId: "user-1", challengeId: "challenge-1" })
+    seriesFindUniqueMock.mockResolvedValue({
+      id: "s13",
+      challengeId: "challenge-1",
+      status: "scheduled",
+      startsAt: null,
+      homeTeamName: "East Winner A",
+      awayTeamName: "East Winner B",
+      challenge: { config: { lockRule: "none" }, ownerUserId: "user-1", isTestMode: true },
+    })
+    seriesFindManyMock.mockResolvedValue([
+      { id: "s9", challengeId: "challenge-1", roundIndex: 2, seriesNumber: 9, homeTeamName: "Celtics", awayTeamName: "Knicks", sourceSeriesHome: 1, sourceSeriesAway: 2 },
+      { id: "s10", challengeId: "challenge-1", roundIndex: 2, seriesNumber: 10, homeTeamName: "Pacers", awayTeamName: "Cavaliers", sourceSeriesHome: 3, sourceSeriesAway: 4 },
+      { id: "s13", challengeId: "challenge-1", roundIndex: 3, seriesNumber: 13, homeTeamName: "East Winner A", awayTeamName: "East Winner B", sourceSeriesHome: 9, sourceSeriesAway: 10 },
+    ])
+    pickFindManyMock.mockResolvedValue([
+      { id: "p9", seriesId: "s9", pickTeamName: "Celtics" },
+      { id: "p10", seriesId: "s10", pickTeamName: "Pacers" },
+    ])
+
+    const { savePlayoffBracketPick } = await import("@/lib/playoffs/playoffService")
+    await expect(savePlayoffBracketPick({
+      challengeId: "challenge-1",
+      entryId: "entry-1",
+      userId: "user-1",
+      seriesId: "s13",
+      pickTeamName: "Lakers",
+    })).rejects.toThrow("Pick team must be one of the teams in this series")
+
+    expect(pickUpsertMock).not.toHaveBeenCalled()
+  })
 })

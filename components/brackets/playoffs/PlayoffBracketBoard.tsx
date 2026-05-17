@@ -73,6 +73,46 @@ function formatGameTime(value: string | null | undefined): string | null {
   }).format(date)
 }
 
+function formatGameDateOnly(value: string | null | undefined): string | null {
+  const raw = String(value ?? "").trim()
+  if (!raw) return null
+  const normalized = /^\d{8}$/.test(raw)
+    ? `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`
+    : raw
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!match) return null
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])))
+  if (!Number.isFinite(date.getTime())) return null
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(date)
+}
+
+function providerNextGameDateLabel(item: PlayoffSeriesView): string | null {
+  if (item.nextGameDateLabel) return item.nextGameDateLabel
+  const games = Array.isArray(item.providerGamesJson) ? item.providerGamesJson : []
+  const now = Date.now()
+  const nextGame = games
+    .filter((game): game is Record<string, unknown> => !!game && typeof game === "object" && !Array.isArray(game))
+    .map((game) => String(game.startTime ?? ""))
+    .filter(Boolean)
+    .sort((a, b) => {
+      const aTime = Date.parse(/^\d{8}$/.test(a) ? `${a.slice(0, 4)}-${a.slice(4, 6)}-${a.slice(6, 8)}T00:00:00.000Z` : a)
+      const bTime = Date.parse(/^\d{8}$/.test(b) ? `${b.slice(0, 4)}-${b.slice(4, 6)}-${b.slice(6, 8)}T00:00:00.000Z` : b)
+      const safeA = Number.isFinite(aTime) ? aTime : Number.MAX_SAFE_INTEGER
+      const safeB = Number.isFinite(bTime) ? bTime : Number.MAX_SAFE_INTEGER
+      return safeA - safeB
+    })
+    .find((startTime) => {
+      const time = Date.parse(/^\d{8}$/.test(startTime) ? `${startTime.slice(0, 4)}-${startTime.slice(4, 6)}-${startTime.slice(6, 8)}T00:00:00.000Z` : startTime)
+      return !Number.isFinite(time) || time >= now || Boolean(formatGameDateOnly(startTime))
+    })
+  return formatGameDateOnly(nextGame)
+}
+
 function isFinalStatus(value: string | null | undefined): boolean {
   return /\bfinal\b/i.test(String(value ?? ""))
 }
@@ -134,6 +174,7 @@ export default function PlayoffBracketBoard({
                   const isNext = nextSeriesId === item.id
                   const pickResult = getPlayoffPickResult(item, pick)
                   const finalGame = latestFinalGame(item)
+                  const nextGameLabel = formatGameTime(item.nextGameAt) ?? providerNextGameDateLabel(item) ?? "TBD"
                   return (
                     <article
                       key={item.id}
@@ -216,7 +257,7 @@ export default function PlayoffBracketBoard({
                           </p>
                         ) : null}
                         <p data-testid={`playoff-series-next-${item.id}`}>
-                          Next: {formatGameTime(item.nextGameAt) ?? "TBD"} — {item.broadcastNetwork || "TBD"}
+                          Next: {nextGameLabel} — {item.broadcastNetwork || "TBD"}
                         </p>
                         <p data-testid={`playoff-series-venue-${item.id}`}>
                           {item.venue ? `At ${item.venue}` : "Venue TBD"}

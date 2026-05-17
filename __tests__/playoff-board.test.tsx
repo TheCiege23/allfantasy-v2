@@ -378,6 +378,100 @@ describe("playoff bracket projection", () => {
     expect(projected.find((item) => item.id === "s9")?.homeTeamName).toBe("Heat")
   })
 
+  it("projects NBA Conference Finals and Finals from saved user picks", () => {
+    const fullSeries: PlayoffSeriesView[] = [
+      ...series,
+      {
+        ...series[1],
+        id: "s2",
+        seriesNumber: 2,
+        homeTeamName: "Knicks",
+        awayTeamName: "76ers",
+        sourceSeriesHome: null,
+        sourceSeriesAway: null,
+      },
+      {
+        ...series[1],
+        id: "s10",
+        seriesNumber: 10,
+        homeTeamName: "Winner S3",
+        awayTeamName: "Winner S4",
+        sourceSeriesHome: 3,
+        sourceSeriesAway: 4,
+      },
+      {
+        ...series[1],
+        id: "s3",
+        seriesNumber: 3,
+        homeTeamName: "Bucks",
+        awayTeamName: "Pacers",
+        sourceSeriesHome: null,
+        sourceSeriesAway: null,
+      },
+      {
+        ...series[1],
+        id: "s4",
+        seriesNumber: 4,
+        homeTeamName: "Cavaliers",
+        awayTeamName: "Magic",
+        sourceSeriesHome: null,
+        sourceSeriesAway: null,
+      },
+      {
+        ...series[1],
+        id: "s13",
+        round: "conference_finals",
+        roundIndex: 3,
+        seriesNumber: 13,
+        homeTeamName: "East Winner A",
+        awayTeamName: "East Winner B",
+        sourceSeriesHome: 9,
+        sourceSeriesAway: 10,
+      },
+      {
+        ...series[1],
+        id: "s14",
+        round: "conference_finals",
+        roundIndex: 3,
+        seriesNumber: 14,
+        homeTeamName: "Thunder",
+        awayTeamName: "Timberwolves",
+        sourceSeriesHome: null,
+        sourceSeriesAway: null,
+      },
+      {
+        ...series[1],
+        id: "s15",
+        round: "finals",
+        roundIndex: 4,
+        seriesNumber: 15,
+        homeTeamName: "East Champion",
+        awayTeamName: "West Champion",
+        sourceSeriesHome: 13,
+        sourceSeriesAway: 14,
+      },
+    ]
+    const projected = buildProjectedPlayoffSeries(fullSeries, [
+      { id: "p1", entryId: "entry-1", seriesId: "s1", pickTeamName: "Celtics", createdAt: "", updatedAt: "" },
+      { id: "p2", entryId: "entry-1", seriesId: "s2", pickTeamName: "Knicks", createdAt: "", updatedAt: "" },
+      { id: "p3", entryId: "entry-1", seriesId: "s3", pickTeamName: "Pacers", createdAt: "", updatedAt: "" },
+      { id: "p4", entryId: "entry-1", seriesId: "s4", pickTeamName: "Cavaliers", createdAt: "", updatedAt: "" },
+      { id: "p9", entryId: "entry-1", seriesId: "s9", pickTeamName: "Celtics", createdAt: "", updatedAt: "" },
+      { id: "p10", entryId: "entry-1", seriesId: "s10", pickTeamName: "Pacers", createdAt: "", updatedAt: "" },
+      { id: "p13", entryId: "entry-1", seriesId: "s13", pickTeamName: "Celtics", createdAt: "", updatedAt: "" },
+      { id: "p14", entryId: "entry-1", seriesId: "s14", pickTeamName: "Thunder", createdAt: "", updatedAt: "" },
+    ])
+
+    expect(projected.find((item) => item.id === "s13")).toMatchObject({
+      homeTeamName: "Celtics",
+      awayTeamName: "Pacers",
+    })
+    expect(projected.find((item) => item.id === "s15")).toMatchObject({
+      homeTeamName: "Celtics",
+      awayTeamName: "Thunder",
+    })
+  })
+
   it("projects later-round teams from official winners when user picks are excluded", () => {
     const projected = buildProjectedPlayoffSeries(
       series.map((item) => item.id === "s1" ? { ...item, winnerTeamName: "Celtics" } : item),
@@ -410,6 +504,31 @@ describe("playoff bracket projection", () => {
       homeTeamName: "Celtics",
       awayTeamName: "Knicks",
     })
+  })
+
+  it("renders date-only next game schedule with TBD time and venue", () => {
+    render(
+      <PlayoffBracketBoard
+        rounds={[...rounds]}
+        series={series.map((item) => item.id === "s9"
+          ? {
+              ...item,
+              homeTeamName: "Thunder",
+              awayTeamName: "Nuggets",
+              providerGamesJson: [{
+                homeTeam: "Thunder",
+                awayTeam: "Nuggets",
+                startTime: "2026-05-18",
+                status: "STATUS_SCHEDULED",
+              }],
+            }
+          : item)}
+        picks={[]}
+      />
+    )
+
+    expect(screen.getByTestId("playoff-series-next-s9")).toHaveTextContent("Next: Mon, May 18 — TBD")
+    expect(screen.getByTestId("playoff-series-venue-s9")).toHaveTextContent("Venue TBD")
   })
 
   it("finds next actionable projected series", () => {

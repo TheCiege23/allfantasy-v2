@@ -166,6 +166,7 @@ export type PlayoffSeriesView = {
   liveStatus?: string | null
   providerGamesJson?: unknown
   lastSyncedAt?: string | null
+  nextGameDateLabel?: string | null
   nextSeriesNumber: number | null
   nextSeriesSlot: PlayoffSeriesSlot | null
   sourceSeriesHome: number | null

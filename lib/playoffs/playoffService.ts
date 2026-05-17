@@ -390,6 +390,7 @@ export async function getPlayoffBracketView(input: {
       liveStatus: series.liveStatus ?? null,
       providerGamesJson: series.providerGamesJson ?? null,
       lastSyncedAt: toIso(series.lastSyncedAt),
+      nextGameDateLabel: null,
       nextSeriesNumber: series.nextSeriesNumber,
       nextSeriesSlot: series.nextSeriesSlot,
       sourceSeriesHome: series.sourceSeriesHome,

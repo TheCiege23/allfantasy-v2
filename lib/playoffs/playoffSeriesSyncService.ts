@@ -56,6 +56,7 @@ type PlayoffSeriesAggregate = {
 
 type ProviderSeriesGroup = {
   key: string
+  order: number
   roundIndex: number
   conference: "east" | "west" | null
   eventName: string | null
@@ -114,6 +115,7 @@ type TeamPairDiagnostic = {
   awayTeam: string
   eventName?: string | null
   status?: string | null
+  startTime?: string | null
 }
 
 type EventNameRoundMapDiagnostic = {
@@ -156,6 +158,8 @@ export type PlayoffSyncDiagnostics = {
   broadcastFieldsFound: number
   venueFieldsFound: number
   unmatchedScheduleExamples: TeamPairDiagnostic[]
+  scheduleDateKnownButTimeMissing: number
+  nextGameDateOnlyExamples: TeamPairDiagnostic[]
   noMatchReason?: string | null
 }
 
@@ -204,6 +208,8 @@ export type RefreshPlayoffScheduleMetadataResult = {
     | "broadcastFieldsFound"
     | "venueFieldsFound"
     | "unmatchedScheduleExamples"
+    | "scheduleDateKnownButTimeMissing"
+    | "nextGameDateOnlyExamples"
   >
 }
 
@@ -367,6 +373,8 @@ export async function fetchRollingInsightsPostseasonScheduleGames(input: {
       broadcastFieldsFound: 0,
       venueFieldsFound: 0,
       unmatchedScheduleExamples: [],
+      scheduleDateKnownButTimeMissing: 0,
+      nextGameDateOnlyExamples: [],
       noMatchReason: null,
     },
   }
@@ -447,6 +455,8 @@ export async function fetchLivePlayoffSeriesGames(input: {
           broadcastFieldsFound: 0,
           venueFieldsFound: 0,
           unmatchedScheduleExamples: [],
+          scheduleDateKnownButTimeMissing: 0,
+          nextGameDateOnlyExamples: [],
           noMatchReason: null,
         },
       }
@@ -489,6 +499,8 @@ export async function fetchLivePlayoffSeriesGames(input: {
       broadcastFieldsFound: 0,
       venueFieldsFound: 0,
       unmatchedScheduleExamples: [],
+      scheduleDateKnownButTimeMissing: 0,
+      nextGameDateOnlyExamples: [],
       noMatchReason: null,
     },
   }
@@ -587,7 +599,7 @@ function pairKey(homeTeam: string | null | undefined, awayTeam: string | null | 
 
 function buildProviderSeriesGroups(games: PlayoffSeriesSyncGame[], sport?: PlayoffSport): ProviderSeriesGroup[] {
   const byKey = new Map<string, ProviderSeriesGroup>()
-  for (const game of games) {
+  for (const [index, game] of games.entries()) {
     const roundIndex = roundIndexFromGame(game, sport)
     if (!roundIndex) continue
     const homeTeamName = displayName(game.homeTeamFull || game.homeTeam)
@@ -601,6 +613,7 @@ function buildProviderSeriesGroups(games: PlayoffSeriesSyncGame[], sport?: Playo
     }
     byKey.set(key, {
       key,
+      order: index,
       roundIndex,
       conference: conferenceFromEventName(game),
       eventName: game.eventName ?? null,
@@ -609,7 +622,7 @@ function buildProviderSeriesGroups(games: PlayoffSeriesSyncGame[], sport?: Playo
       games: [game],
     })
   }
-  return Array.from(byKey.values()).sort((a, b) => a.roundIndex - b.roundIndex || a.key.localeCompare(b.key))
+  return Array.from(byKey.values()).sort((a, b) => a.roundIndex - b.roundIndex || a.order - b.order)
 }
 
 function sampleGameDiagnostics(games: PlayoffSeriesSyncGame[]): TeamPairDiagnostic[] {
@@ -619,6 +632,7 @@ function sampleGameDiagnostics(games: PlayoffSeriesSyncGame[]): TeamPairDiagnost
     awayTeam: displayName(game.awayTeamFull || game.awayTeam),
     eventName: game.eventName ?? null,
     status: game.status ?? game.statusDetail ?? null,
+    startTime: game.startTime ?? null,
   }))
 }
 
@@ -670,7 +684,7 @@ function sortProviderGroupsForReplacement(groups: ProviderSeriesGroup[]): Provid
     const conferenceA = a.conference ?? ""
     const conferenceB = b.conference ?? ""
     if (conferenceA !== conferenceB) return conferenceA.localeCompare(conferenceB)
-    return a.key.localeCompare(b.key)
+    return a.order - b.order
   })
 }
 
@@ -705,7 +719,6 @@ function assignReplacementGroupsByConference(map: Map<string, ProviderSeriesGrou
     const seriesForConference = roundSeries.filter((series) => String(series.conference ?? "unknown") === conference)
     const groupsForConference = sortProviderGroupsForReplacement(groupsByConference.get(conference) ?? [])
     if (groupsForConference.length === 0) continue
-    if (groupsForConference.length < seriesForConference.length) continue
     seriesForConference.forEach((series, index) => {
       const group = groupsForConference[index]
       if (group) map.set(series.id, group)
@@ -735,13 +748,25 @@ function gameStartTime(game: PlayoffSeriesSyncGame): number {
   return game.startTime ? new Date(game.startTime).getTime() : Number.NaN
 }
 
+function isDateOnlyStartTime(value: string | null | undefined): boolean {
+  const text = String(value ?? "").trim()
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) || /^\d{8}$/.test(text)
+}
+
+function hasKnownStartDate(value: string | null | undefined): boolean {
+  const text = String(value ?? "").trim()
+  if (!text) return false
+  if (isDateOnlyStartTime(text)) return true
+  return Number.isFinite(new Date(text).getTime())
+}
+
 function nextScheduledGame(games: PlayoffSeriesSyncGame[]): PlayoffSeriesSyncGame | null {
   const now = Date.now()
   return games
     .filter((game) => {
       const status = statusFromGame(game)
       const start = gameStartTime(game)
-      return status === "in_progress" || status === "scheduled" && (!Number.isFinite(start) || start >= now)
+      return status === "in_progress" || status === "scheduled" && (!Number.isFinite(start) || isDateOnlyStartTime(game.startTime) || start >= now)
     })
     .sort((a, b) => {
       const aStatus = statusFromGame(a)
@@ -840,7 +865,7 @@ function aggregateSeriesGames(series: any, games: PlayoffSeriesSyncGame[]): Play
     awayTeamName,
     roundIndex: Number(series.roundIndex ?? roundIndexFromGame(games[0]) ?? 0),
     seriesSummary,
-    nextGameAt: nextGame?.startTime ? new Date(nextGame.startTime) : null,
+    nextGameAt: nextGame?.startTime && !isDateOnlyStartTime(nextGame.startTime) ? new Date(nextGame.startTime) : null,
     venue: nextGame?.venue ?? null,
     broadcastNetwork: nextGame?.broadcast ?? null,
     liveHomeScore: activeGame?.homeScore ?? null,
@@ -993,6 +1018,8 @@ export async function refreshPlayoffScheduleMetadataForChallenge(input: {
       broadcastFieldsFound: supplementDiagnostics.broadcastFieldsFound,
       venueFieldsFound: supplementDiagnostics.venueFieldsFound,
       unmatchedScheduleExamples: supplementDiagnostics.unmatchedScheduleExamples,
+      scheduleDateKnownButTimeMissing: supplementDiagnostics.scheduleDateKnownButTimeMissing,
+      nextGameDateOnlyExamples: supplementDiagnostics.nextGameDateOnlyExamples,
     },
   }
 }
@@ -1032,7 +1059,9 @@ function scheduleSupplementDiagnostics(input: {
   const matchedGameKeys = new Set<string>()
   let scheduleGamesMatched = 0
   let liveGamesMatched = 0
+  let scheduleDateKnownButTimeMissing = 0
   const unmatchedGames: PlayoffSeriesSyncGame[] = []
+  const dateOnlyGames: PlayoffSeriesSyncGame[] = []
   for (const game of input.games) {
     const matched = input.series.some((series) => gameMatchesSeries(series, game))
     if (!matched) {
@@ -1042,6 +1071,10 @@ function scheduleSupplementDiagnostics(input: {
     matchedGameKeys.add(gameKey(game))
     scheduleGamesMatched += 1
     if (statusFromGame(game) === "in_progress") liveGamesMatched += 1
+    if (isDateOnlyStartTime(game.startTime) || (hasKnownStartDate(game.startTime) && !Number.isFinite(gameStartTime(game)))) {
+      scheduleDateKnownButTimeMissing += 1
+      dateOnlyGames.push(game)
+    }
   }
   return {
     scheduleSupplementProvider: input.source,
@@ -1051,6 +1084,8 @@ function scheduleSupplementDiagnostics(input: {
     broadcastFieldsFound: input.games.filter((game) => !!game.broadcast).length,
     venueFieldsFound: input.games.filter((game) => !!game.venue).length,
     unmatchedScheduleExamples: sampleGameDiagnostics(unmatchedGames),
+    scheduleDateKnownButTimeMissing,
+    nextGameDateOnlyExamples: sampleGameDiagnostics(dateOnlyGames),
     matchedGameKeys,
   }
 }
@@ -1128,6 +1163,8 @@ export async function syncPlayoffChallengeSeries(input: {
     broadcastFieldsFound: 0,
     venueFieldsFound: 0,
     unmatchedScheduleExamples: [],
+    scheduleDateKnownButTimeMissing: 0,
+    nextGameDateOnlyExamples: [],
     noMatchReason: null,
   }
 
@@ -1153,6 +1190,8 @@ export async function syncPlayoffChallengeSeries(input: {
   diagnostics.broadcastFieldsFound = supplementDiagnostics.broadcastFieldsFound
   diagnostics.venueFieldsFound = supplementDiagnostics.venueFieldsFound
   diagnostics.unmatchedScheduleExamples = supplementDiagnostics.unmatchedScheduleExamples
+  diagnostics.scheduleDateKnownButTimeMissing = supplementDiagnostics.scheduleDateKnownButTimeMissing
+  diagnostics.nextGameDateOnlyExamples = supplementDiagnostics.nextGameDateOnlyExamples
 
   let seriesUpdated = 0
   let winnersUpdated = 0
@@ -1186,7 +1225,9 @@ export async function syncPlayoffChallengeSeries(input: {
         if (usedGroupKeys.has(group.key)) return false
         if (group.roundIndex !== Number(series.roundIndex)) return false
         if (gameMatchesSeries(series, group.games[0])) return true
-        return isTemplateSeries(series)
+        if (!isTemplateSeries(series)) return false
+        const seriesConference = String(series.conference ?? "").toLowerCase()
+        return !group.conference || !seriesConference || group.conference === seriesConference
       }) ?? null
       if (matchedGroup) {
         aggregate = aggregateProviderSeriesGroup(matchedGroup, Number(series.bestOf ?? 7))

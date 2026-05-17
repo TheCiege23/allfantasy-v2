@@ -17,6 +17,7 @@ import {
   getNextActionablePlayoffSeries,
   isPlayoffSeriesResolved,
 } from "@/lib/playoffs/playoffBracketProjection"
+import { getPlayoffCompletionSummary } from "@/lib/playoffs/playoffCompletion"
 import { getPlayoffPickResult } from "@/lib/playoffs/playoffScoring"
 import { hasPoolAdminAccess } from "@/lib/auth/admin"
 import PlayoffBracketBoard from "./PlayoffBracketBoard"
@@ -44,24 +45,9 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
   const series = Array.isArray(view.series) ? view.series : []
   const picks = Array.isArray(view.picks) ? view.picks : []
   const rounds = Array.isArray(view.rounds) ? view.rounds : []
-  const projectedSeries = useMemo(() => buildProjectedPlayoffSeries(series, picks, { includeUserPicks: showUserProjection }), [series, picks, showUserProjection])
-  const requiredSeriesIds = new Set(view.completion?.missingRequiredSeriesIds ?? [])
-  const nextActionableSeries = useMemo(() => {
-    if (requiredSeriesIds.size > 0) {
-      return projectedSeries
-        .slice()
-        .sort((a, b) => a.roundIndex - b.roundIndex || a.seriesNumber - b.seriesNumber)
-        .find((item) => requiredSeriesIds.has(item.id)) ?? null
-    }
-    return getNextActionablePlayoffSeries(projectedSeries, picks)
-  }, [projectedSeries, picks, view.completion?.missingRequiredSeriesIds])
-  const pickResultSummary = useMemo(
-    () => projectedSeries.map((item) => ({
-      series: item,
-      result: getPlayoffPickResult(item, picks.find((pick) => pick.seriesId === item.id)),
-    })),
-    [projectedSeries, picks],
-  )
+  const officialSeries = useMemo(() => buildProjectedPlayoffSeries(series, picks, { includeUserPicks: false }), [series, picks])
+  const myProjectedSeries = useMemo(() => buildProjectedPlayoffSeries(series, picks, { includeUserPicks: true }), [series, picks])
+  const projectedSeries = showUserProjection ? myProjectedSeries : officialSeries
   const totalSeries = series.length
   const pickCount = activeEntry?.pickCount ?? picks.length
   const lockRule = view.challenge.lockRule ?? view.challenge.config?.lockRule ?? "series_start"
@@ -72,7 +58,34 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
   const canShowPickResultsToggle = activeEntry?.userId === view.viewerUserId || view.challenge.ownerUserId === view.viewerUserId || hasAdminPoolAccess
   const canUseLatePicks = view.lockDiagnostics?.viewerCanLatePick ?? (view.challenge.ownerUserId === view.viewerUserId || view.challenge.isTestMode || hasAdminPoolAccess)
   const showLockDiagnostics = canSyncSeries || canUseLatePicks
-  const completion = view.completion
+  const completion = useMemo(
+    () => showUserProjection
+      ? getPlayoffCompletionSummary(myProjectedSeries, picks, {
+          lockRule,
+          isPoolOwner: view.challenge.ownerUserId === view.viewerUserId,
+          isTestMode: view.challenge.isTestMode,
+          hasPoolAdminAccess,
+        })
+      : view.completion,
+    [showUserProjection, myProjectedSeries, picks, lockRule, view.challenge.ownerUserId, view.challenge.isTestMode, view.viewerUserId, hasPoolAdminAccess, view.completion],
+  )
+  const requiredSeriesIds = useMemo(() => new Set(completion?.missingRequiredSeriesIds ?? []), [completion?.missingRequiredSeriesIds])
+  const nextActionableSeries = useMemo(() => {
+    if (requiredSeriesIds.size > 0) {
+      return projectedSeries
+        .slice()
+        .sort((a, b) => a.roundIndex - b.roundIndex || a.seriesNumber - b.seriesNumber)
+        .find((item) => requiredSeriesIds.has(item.id)) ?? null
+    }
+    return getNextActionablePlayoffSeries(projectedSeries, picks)
+  }, [projectedSeries, picks, completion?.missingRequiredSeriesIds])
+  const pickResultSummary = useMemo(
+    () => projectedSeries.map((item) => ({
+      series: item,
+      result: getPlayoffPickResult(item, picks.find((pick) => pick.seriesId === item.id)),
+    })),
+    [projectedSeries, picks],
+  )
   const completionMode = completion?.mode ?? "full_bracket_required"
   const canSubmit = Boolean(activeEntry) && Boolean(completion?.isSubmittable ?? (totalSeries > 0 && pickCount >= totalSeries))
   const submitBlockedMessage = completion?.message ?? "Complete every series before submitting this bracket."

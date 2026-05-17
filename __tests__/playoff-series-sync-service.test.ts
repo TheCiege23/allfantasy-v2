@@ -586,6 +586,54 @@ describe("syncPlayoffChallengeSeries", () => {
     expect(pickUpsertMock).not.toHaveBeenCalled()
   })
 
+  it("schedule metadata refresh preserves date-only starts and reports diagnostics", async () => {
+    challengeFindUniqueMock.mockResolvedValue({
+      ...baseChallenge,
+      series: [{
+        ...baseChallenge.series[0],
+        id: "series-west-semi",
+        roundIndex: 2,
+        seriesNumber: 11,
+        conference: "west",
+        homeTeamName: "Thunder",
+        awayTeamName: "Nuggets",
+      }],
+    })
+    const { refreshPlayoffScheduleMetadataForChallenge } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await refreshPlayoffScheduleMetadataForChallenge({
+      challengeId: "challenge-1",
+      scheduleSupplementProvider: async () => ({
+        source: "espn_live",
+        warnings: [],
+        games: [
+          scheduledSupplementGame("OKC", "DEN", "2026-05-18", {
+            homeTeamFull: "Thunder",
+            awayTeamFull: "Nuggets",
+            venue: null,
+            broadcast: null,
+          }),
+        ],
+      }),
+    })
+
+    expect(result.updatedSeries).toBe(1)
+    expect(result.diagnostics.scheduleDateKnownButTimeMissing).toBe(1)
+    expect(result.diagnostics.nextGameDateOnlyExamples).toEqual(expect.arrayContaining([
+      expect.objectContaining({ homeTeam: "Thunder", awayTeam: "Nuggets", startTime: "2026-05-18" }),
+    ]))
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-west-semi" },
+      data: expect.objectContaining({
+        nextGameAt: null,
+        venue: null,
+        broadcastNetwork: null,
+        providerGamesJson: expect.arrayContaining([
+          expect.objectContaining({ startTime: "2026-05-18" }),
+        ]),
+      }),
+    })
+  })
+
   it("schedule metadata refresh dryRun returns diagnostics without writing series", async () => {
     const { refreshPlayoffScheduleMetadataForChallenge } = await import("@/lib/playoffs/playoffSeriesSyncService")
     const result = await refreshPlayoffScheduleMetadataForChallenge({
@@ -1029,6 +1077,45 @@ describe("syncPlayoffChallengeSeries", () => {
       expect.objectContaining({ eventName: "Conference Finals", round: 3 }),
       expect.objectContaining({ eventName: "NBA Finals", round: 4 }),
     ]))
+  })
+
+  it("maps known NBA West Semifinals into the correct S11-S12 official slots", async () => {
+    const liveScores = await import("@/lib/sports-live-scores-service")
+    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NBA", 2026, [
+      scheduleRow("NBA", "Postseason", "West Semifinals", null as any, "Thunder", "Nuggets", "scheduled", "2026-05-18"),
+      scheduleRow("NBA", "Postseason", "West Semifinals", null as any, "Timberwolves", "Mavericks", "scheduled", "2026-05-18"),
+    ] as any))
+    challengeFindUniqueMock.mockResolvedValue({
+      ...baseChallenge,
+      series: [
+        playoffSeriesSlot("s9", 2, 9, "east", "Winner S1", "Winner S2", 1, 2),
+        playoffSeriesSlot("s10", 2, 10, "east", "Winner S3", "Winner S4", 3, 4),
+        playoffSeriesSlot("s11", 2, 11, "west", "Winner S5", "Winner S6", 5, 6),
+        playoffSeriesSlot("s12", 2, 12, "west", "Winner S7", "Winner S8", 7, 8),
+      ],
+    })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      scheduleSupplementProvider: async () => ({ source: "none", games: [] }),
+    })
+
+    expect(result.diagnostics.providerSeriesByRound).toMatchObject({ "2": 2 })
+    expect(seriesUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "s11" },
+      data: expect.objectContaining({
+        homeTeamName: "Thunder",
+        awayTeamName: "Nuggets",
+      }),
+    }))
+    expect(seriesUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "s12" },
+      data: expect.objectContaining({
+        homeTeamName: "Timberwolves",
+        awayTeamName: "Mavericks",
+      }),
+    }))
   })
 
   it("maps NHL event names to bracket rounds", async () => {
