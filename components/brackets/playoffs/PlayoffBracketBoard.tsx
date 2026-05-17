@@ -33,6 +33,19 @@ function getSeriesLockedReason(series: PlayoffSeriesView, globallyLocked: boolea
   return null
 }
 
+function formatGameTime(value: string | null | undefined): string | null {
+  if (!value) return null
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return null
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date)
+}
+
 export default function PlayoffBracketBoard({
   rounds,
   series,
@@ -115,6 +128,20 @@ export default function PlayoffBracketBoard({
                             </button>
                           )
                         })}
+                      </div>
+                      <div className="mt-2 space-y-1 rounded-lg bg-slate-50 px-2 py-2 text-xs font-semibold text-slate-600">
+                        <p data-testid={`playoff-series-summary-${item.id}`}>
+                          {item.seriesSummary || "Series starts TBD"}
+                        </p>
+                        {item.liveStatus ? (
+                          <p data-testid={`playoff-series-live-${item.id}`} className="text-emerald-700">
+                            Live: {item.homeTeamName} {item.liveHomeScore ?? "-"}, {item.awayTeamName} {item.liveAwayScore ?? "-"} - {item.liveStatus}
+                          </p>
+                        ) : null}
+                        <p data-testid={`playoff-series-next-${item.id}`}>
+                          Next: {formatGameTime(item.nextGameAt) ?? "TBD"} - {item.broadcastNetwork || "TBD"}
+                          {item.venue ? ` - ${item.venue}` : ""}
+                        </p>
                       </div>
                       <div className="mt-2 text-xs text-slate-500">
                         {item.conference === "finals" ? "Cup Finals" : `${item.conference.toUpperCase()} Conference`}

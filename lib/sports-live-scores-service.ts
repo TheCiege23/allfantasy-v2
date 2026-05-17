@@ -61,6 +61,9 @@ export interface RollingInsightsScheduleGameRow {
   awayScore: number | null
   startsAt: string
   status: string
+  statusDetail?: string | null
+  venue?: string | null
+  broadcast?: string | null
   completed: boolean
 }
 
@@ -275,6 +278,9 @@ export function mapRollingInsightsScheduleRow(
     awayScore: asNullableFiniteInt(raw.awayScore ?? raw.away_score ?? raw.away_team_score ?? raw.away_points),
     startsAt,
     status,
+    statusDetail: String(raw.statusDetail ?? raw.status_detail ?? raw.game_status_detail ?? raw.status ?? '').trim() || null,
+    venue: typeof (raw.venue ?? raw.venue_name ?? raw.site) === 'string' ? String(raw.venue ?? raw.venue_name ?? raw.site) : null,
+    broadcast: typeof (raw.broadcast ?? raw.broadcast_network ?? raw.tv ?? raw.network) === 'string' ? String(raw.broadcast ?? raw.broadcast_network ?? raw.tv ?? raw.network) : null,
     completed: statusLower.includes('final') || statusLower.includes('completed'),
   }
 }

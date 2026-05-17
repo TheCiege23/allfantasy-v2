@@ -118,6 +118,62 @@ describe("syncPlayoffChallengeSeries", () => {
       data: expect.objectContaining({
         status: "final",
         winnerTeamName: "Celtics",
+        homeTeamWins: 4,
+        awayTeamWins: 1,
+        seriesSummary: "Celtics win series 4-1",
+      }),
+    })
+  })
+
+  it("persists series summary variants and live score details", async () => {
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      provider: async () => ({
+        source: "test_provider",
+        games: [
+          playoffGame("BOS", "MIA", 100, 90, "2026-05-01T00:00:00.000Z"),
+          playoffGame("MIA", "BOS", 88, 102, "2026-05-03T00:00:00.000Z"),
+          {
+            homeTeam: "BOS",
+            awayTeam: "MIA",
+            homeTeamFull: "Celtics",
+            awayTeamFull: "Heat",
+            homeScore: 84,
+            awayScore: 79,
+            completed: false,
+            status: "inprogress",
+            statusDetail: "3Q",
+            startTime: "2026-05-05T00:00:00.000Z",
+            venue: "TD Garden",
+            broadcast: "ESPN",
+          },
+          {
+            homeTeam: "MIA",
+            awayTeam: "BOS",
+            homeTeamFull: "Heat",
+            awayTeamFull: "Celtics",
+            completed: false,
+            status: "scheduled",
+            statusDetail: "Scheduled",
+            startTime: "2099-05-07T00:00:00.000Z",
+          },
+        ],
+      }),
+    })
+
+    expect(result.seriesUpdated).toBe(1)
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-1" },
+      data: expect.objectContaining({
+        homeTeamWins: 2,
+        awayTeamWins: 0,
+        seriesSummary: "Celtics leads series 2-0",
+        liveHomeScore: 84,
+        liveAwayScore: 79,
+        liveStatus: "3Q",
+        broadcastNetwork: "ESPN",
+        venue: "TD Garden",
       }),
     })
   })
@@ -148,7 +204,9 @@ describe("syncPlayoffChallengeSeries", () => {
             awayTeamFull: "Islanders",
             completed: false,
             statusDetail: "Scheduled",
-            startTime: "2026-05-01T00:00:00.000Z",
+            startTime: "2099-05-01T00:00:00.000Z",
+            venue: "Madison Square Garden",
+            broadcast: "TNT",
           },
         ],
       }),
@@ -161,6 +219,13 @@ describe("syncPlayoffChallengeSeries", () => {
       data: expect.objectContaining({
         status: "scheduled",
         winnerTeamName: null,
+        seriesSummary: "Series starts TBD",
+        nextGameAt: new Date("2099-05-01T00:00:00.000Z"),
+        venue: "Madison Square Garden",
+        broadcastNetwork: "TNT",
+        providerGamesJson: expect.arrayContaining([
+          expect.objectContaining({ homeTeam: "Rangers", awayTeam: "Islanders", broadcast: "TNT" }),
+        ]),
       }),
     })
   })

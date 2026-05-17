@@ -1,9 +1,10 @@
 import "server-only"
 import { prisma } from "@/lib/prisma"
 import { buildPlayoffTemplate, getPlayoffRoundOrder } from "./playoffTemplate"
-import type { PlayoffChallengeListItem, PlayoffChallengeView, PlayoffCreateResponse, PlayoffSport } from "./types"
+import type { PlayoffChallengeConfig, PlayoffChallengeListItem, PlayoffChallengeView, PlayoffCreateResponse, PlayoffSport } from "./types"
 import { getDependentPlayoffSeriesIds, isOfficialTeamName } from "./playoffBracketProjection"
 import { scorePlayoffEntryPicks } from "./playoffScoring"
+import { defaultPlayoffChallengeConfig, isAfCommissionerSubscriber, sanitizePlayoffChallengeConfig } from "./playoffChallengeConfig"
 
 type SessionUser = {
   id?: string | null
@@ -61,12 +62,16 @@ export async function createPlayoffBracketChallenge(input: {
   sport: PlayoffSport
   seasonYear?: number
   isTestMode?: boolean
+  config?: Partial<PlayoffChallengeConfig> | null
 }): Promise<PlayoffCreateResponse> {
   if (!input.user.id) {
     throw new Error("Authenticated user required")
   }
 
   const challengeName = sanitizeChallengeName(input.name, input.sport)
+  const config = sanitizePlayoffChallengeConfig(input.config, {
+    afCommissionerEnabled: isAfCommissionerSubscriber(input.user),
+  })
 
   const template = buildPlayoffTemplate({
     sport: input.sport,
@@ -83,6 +88,7 @@ export async function createPlayoffBracketChallenge(input: {
         seasonYear: input.seasonYear ?? new Date().getUTCFullYear(),
         status: "open",
         isTestMode: Boolean(input.isTestMode),
+        config,
       },
     })
 
@@ -153,6 +159,7 @@ export async function listUserPlayoffChallenges(userId: string): Promise<Playoff
       participantCount: participantUserIds.size,
       entryCount: challenge.entries.length,
       inviteCode: toInviteCode(challenge.id),
+      config: challenge.config ?? defaultPlayoffChallengeConfig(),
     }
   })
 }
@@ -278,11 +285,12 @@ export async function getPlayoffBracketView(input: {
       seasonYear: challenge.seasonYear,
       status: challenge.status,
       isTestMode: challenge.isTestMode,
-      visibility: "private",
-      maxParticipants: 100,
-      maxEntriesPerParticipant: 5,
-      scoringStyle: "series_winner",
-      lockRule: "first_tipoff",
+      visibility: challenge.config?.visibility ?? "private",
+      maxParticipants: challenge.config?.maxParticipants ?? 50,
+      maxEntriesPerParticipant: challenge.config?.maxEntriesPerParticipant ?? 1,
+      scoringStyle: challenge.config?.scoringStyle ?? "standard",
+      lockRule: challenge.config?.lockRule ?? "series_start",
+      config: challenge.config ?? defaultPlayoffChallengeConfig(),
       inviteCode: toInviteCode(challenge.id),
       inviteUrl: toChallengeDashboardHref(challenge.id),
       createdAt: toIso(challenge.createdAt) ?? new Date().toISOString(),
@@ -325,6 +333,17 @@ export async function getPlayoffBracketView(input: {
       bestOf: series.bestOf,
       status: series.status,
       startsAt: toIso(series.startsAt),
+      homeTeamWins: series.homeTeamWins ?? 0,
+      awayTeamWins: series.awayTeamWins ?? 0,
+      seriesSummary: series.seriesSummary ?? null,
+      nextGameAt: toIso(series.nextGameAt),
+      venue: series.venue ?? null,
+      broadcastNetwork: series.broadcastNetwork ?? null,
+      liveHomeScore: series.liveHomeScore ?? null,
+      liveAwayScore: series.liveAwayScore ?? null,
+      liveStatus: series.liveStatus ?? null,
+      providerGamesJson: series.providerGamesJson ?? null,
+      lastSyncedAt: toIso(series.lastSyncedAt),
       nextSeriesNumber: series.nextSeriesNumber,
       nextSeriesSlot: series.nextSeriesSlot,
       sourceSeriesHome: series.sourceSeriesHome,

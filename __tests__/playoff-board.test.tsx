@@ -116,6 +116,28 @@ describe("PlayoffBracketBoard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Knicks" }))
     expect(onPick).not.toHaveBeenCalled()
   })
+
+  it("renders series summary, next game fallback, and live score", () => {
+    const richSeries = series.map((item) => item.id === "s1"
+      ? {
+          ...item,
+          seriesSummary: "Celtics lead series 3-1",
+          nextGameAt: "2099-05-21T20:30:00.000Z",
+          broadcastNetwork: null,
+          liveHomeScore: 84,
+          liveAwayScore: 79,
+          liveStatus: "3Q",
+        }
+      : item
+    )
+
+    render(<PlayoffBracketBoard rounds={[...rounds]} series={richSeries} picks={picks} />)
+
+    expect(screen.getByTestId("playoff-series-summary-s1")).toHaveTextContent("Celtics lead series 3-1")
+    expect(screen.getByTestId("playoff-series-next-s1")).toHaveTextContent("Next:")
+    expect(screen.getByTestId("playoff-series-next-s1")).toHaveTextContent("TBD")
+    expect(screen.getByTestId("playoff-series-live-s1")).toHaveTextContent("Live: Celtics 84, Heat 79 - 3Q")
+  })
 })
 
 describe("playoff bracket projection", () => {

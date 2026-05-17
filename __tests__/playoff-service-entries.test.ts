@@ -12,11 +12,14 @@ const pickFindManyMock = vi.hoisted(() => vi.fn())
 const pickDeleteManyMock = vi.hoisted(() => vi.fn())
 const pickUpsertMock = vi.hoisted(() => vi.fn())
 const transactionMock = vi.hoisted(() => vi.fn())
+const challengeCreateMock = vi.hoisted(() => vi.fn())
+const seriesCreateManyMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     playoffBracketChallenge: {
       findUnique: challengeFindUniqueMock,
+      create: challengeCreateMock,
     },
     playoffBracketEntry: {
       findMany: entryFindManyMock,
@@ -27,6 +30,7 @@ vi.mock("@/lib/prisma", () => ({
       count: seriesCountMock,
       findUnique: seriesFindUniqueMock,
       findMany: seriesFindManyMock,
+      createMany: seriesCreateManyMock,
     },
     playoffBracketPick: {
       count: pickCountMock,
@@ -48,8 +52,45 @@ describe("playoff entry service", () => {
           deleteMany: pickDeleteManyMock,
           upsert: pickUpsertMock,
         },
+        playoffBracketChallenge: {
+          create: challengeCreateMock,
+        },
+        playoffBracketSeries: {
+          createMany: seriesCreateManyMock,
+        },
       })
     )
+  })
+
+  it("creates multiple NBA playoff challenge rows separately", async () => {
+    challengeCreateMock
+      .mockResolvedValueOnce({ id: "challenge-1", name: "Friends NBA Pool" })
+      .mockResolvedValueOnce({ id: "challenge-2", name: "Work NBA Pool" })
+    seriesCreateManyMock.mockResolvedValue({ count: 15 })
+
+    const { createPlayoffBracketChallenge } = await import("@/lib/playoffs/playoffService")
+    const first = await createPlayoffBracketChallenge({
+      user: { id: "user-1" },
+      name: "Friends NBA Pool",
+      sport: "nba",
+      seasonYear: 2026,
+    })
+    const second = await createPlayoffBracketChallenge({
+      user: { id: "user-1" },
+      name: "Work NBA Pool",
+      sport: "nba",
+      seasonYear: 2026,
+    })
+
+    expect(first.challengeId).toBe("challenge-1")
+    expect(second.challengeId).toBe("challenge-2")
+    expect(challengeCreateMock).toHaveBeenCalledTimes(2)
+    expect(challengeCreateMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      data: expect.objectContaining({
+        sport: "nba",
+        config: expect.objectContaining({ includePlayIn: false }),
+      }),
+    }))
   })
 
   it("creates entry when user has fewer than 5 entries", async () => {
@@ -108,6 +149,82 @@ describe("playoff entry service", () => {
     expect(getPlayoffSportTitle("nba")).toBe("NBA Playoff Pool")
     expect(getPlayoffSportTitle("nhl")).toBe("NHL Playoff Pool")
     expect(getPlayoffSportTitle("fifa")).toBe("FIFA World Cup Pool")
+  })
+
+  it("returns provider series metadata from the playoff view", async () => {
+    const now = new Date("2026-05-21T20:30:00.000Z")
+    challengeFindUniqueMock.mockResolvedValue({
+      id: "challenge-1",
+      ownerUserId: "user-1",
+      name: "NBA Pool",
+      sport: "nba",
+      seasonYear: 2026,
+      status: "open",
+      isTestMode: false,
+      createdAt: now,
+      updatedAt: now,
+      owner: { id: "user-1", displayName: "Owner", username: null, email: null },
+      entries: [
+        {
+          id: "entry-1",
+          userId: "user-1",
+          name: "Entry",
+          createdAt: now,
+          user: { id: "user-1", displayName: "Owner", username: null, email: null },
+        },
+      ],
+      series: [
+        {
+          id: "s1",
+          round: "round_1",
+          roundIndex: 1,
+          seriesNumber: 1,
+          conference: "east",
+          homeSeed: 1,
+          awaySeed: 8,
+          homeTeamName: "Knicks",
+          awayTeamName: "Hawks",
+          winnerTeamName: "Knicks",
+          bestOf: 7,
+          status: "final",
+          startsAt: now,
+          homeTeamWins: 4,
+          awayTeamWins: 0,
+          seriesSummary: "Knicks win series 4-0",
+          nextGameAt: null,
+          venue: "Madison Square Garden",
+          broadcastNetwork: "TNT",
+          liveHomeScore: null,
+          liveAwayScore: null,
+          liveStatus: null,
+          providerGamesJson: [{ homeTeam: "Knicks", awayTeam: "Hawks" }],
+          lastSyncedAt: now,
+          nextSeriesNumber: 9,
+          nextSeriesSlot: "home",
+          sourceSeriesHome: null,
+          sourceSeriesAway: null,
+        },
+      ],
+    })
+    pickFindManyMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+
+    const { getPlayoffBracketView } = await import("@/lib/playoffs/playoffService")
+    const view = await getPlayoffBracketView({
+      challengeId: "challenge-1",
+      user: { id: "user-1" },
+      requestedEntryId: "entry-1",
+    })
+
+    expect(view?.series[0]).toMatchObject({
+      homeTeamWins: 4,
+      awayTeamWins: 0,
+      seriesSummary: "Knicks win series 4-0",
+      venue: "Madison Square Garden",
+      broadcastNetwork: "TNT",
+      providerGamesJson: [{ homeTeam: "Knicks", awayTeam: "Hawks" }],
+    })
   })
 
   it("clears downstream picks when an earlier pick changes", async () => {

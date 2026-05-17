@@ -23,6 +23,8 @@ export type PlayoffSeriesSyncGame = {
   status?: string | null
   statusDetail?: string | null
   startTime?: string | null
+  venue?: string | null
+  broadcast?: string | null
   providerRound?: number | null
   eventName?: string | null
   seasonType?: string | null
@@ -38,6 +40,14 @@ type PlayoffSeriesAggregate = {
   homeTeamName: string
   awayTeamName: string
   roundIndex: number
+  seriesSummary: string
+  nextGameAt: Date | null
+  venue: string | null
+  broadcastNetwork: string | null
+  liveHomeScore: number | null
+  liveAwayScore: number | null
+  liveStatus: string | null
+  providerGamesJson: unknown[]
 }
 
 type ProviderSeriesGroup = {
@@ -187,6 +197,8 @@ function rowToSyncGame(row: LiveScoreRow): PlayoffSeriesSyncGame {
     status: row.status,
     statusDetail: row.statusDetail,
     startTime: row.startTime,
+    venue: row.venue,
+    broadcast: row.broadcast,
   }
 }
 
@@ -200,8 +212,10 @@ function scheduleRowToSyncGame(row: RollingInsightsScheduleGameRow): PlayoffSeri
     awayScore: row.awayScore,
     completed: row.completed,
     status: row.status,
-    statusDetail: row.status,
+    statusDetail: row.statusDetail ?? row.status,
     startTime: row.startsAt,
+    venue: row.venue,
+    broadcast: row.broadcast,
     providerRound: row.round,
     eventName: row.eventName,
     seasonType: row.seasonType,
@@ -626,6 +640,57 @@ function earliestStart(games: PlayoffSeriesSyncGame[]): Date | null {
   return times.length > 0 ? new Date(times[0]) : null
 }
 
+function gameStartTime(game: PlayoffSeriesSyncGame): number {
+  return game.startTime ? new Date(game.startTime).getTime() : Number.NaN
+}
+
+function nextScheduledGame(games: PlayoffSeriesSyncGame[]): PlayoffSeriesSyncGame | null {
+  const now = Date.now()
+  return games
+    .filter((game) => {
+      const status = statusFromGame(game)
+      const start = gameStartTime(game)
+      return status === "in_progress" || status === "scheduled" && (!Number.isFinite(start) || start >= now)
+    })
+    .sort((a, b) => {
+      const aStatus = statusFromGame(a)
+      const bStatus = statusFromGame(b)
+      if (aStatus !== bStatus) return aStatus === "in_progress" ? -1 : 1
+      return (gameStartTime(a) || Number.MAX_SAFE_INTEGER) - (gameStartTime(b) || Number.MAX_SAFE_INTEGER)
+    })[0] ?? null
+}
+
+function liveGame(games: PlayoffSeriesSyncGame[]): PlayoffSeriesSyncGame | null {
+  return games.find((game) => statusFromGame(game) === "in_progress") ?? null
+}
+
+function buildSeriesSummary(homeTeamName: string, awayTeamName: string, homeWins: number, awayWins: number, winnerTeamName: string | null): string {
+  if (winnerTeamName) {
+    const verb = winnerTeamName.toLowerCase().endsWith("s") ? "win" : "wins"
+    return `${winnerTeamName} ${verb} series ${homeWins}-${awayWins}`
+  }
+  if (homeWins === 0 && awayWins === 0) return "Series starts TBD"
+  if (homeWins === awayWins) return `Series tied ${homeWins}-${awayWins}`
+  const leader = homeWins > awayWins ? homeTeamName : awayTeamName
+  return `${leader} leads series ${Math.max(homeWins, awayWins)}-${Math.min(homeWins, awayWins)}`
+}
+
+function safeProviderGame(game: PlayoffSeriesSyncGame) {
+  return {
+    homeTeam: displayName(game.homeTeamFull || game.homeTeam),
+    awayTeam: displayName(game.awayTeamFull || game.awayTeam),
+    homeScore: game.homeScore ?? null,
+    awayScore: game.awayScore ?? null,
+    status: game.status ?? null,
+    statusDetail: game.statusDetail ?? null,
+    startTime: game.startTime ?? null,
+    venue: game.venue ?? null,
+    broadcast: game.broadcast ?? null,
+    eventName: game.eventName ?? null,
+    seasonType: game.seasonType ?? null,
+  }
+}
+
 function aggregateSeriesGames(series: any, games: PlayoffSeriesSyncGame[]): PlayoffSeriesAggregate | null {
   if (games.length === 0) return null
   const homeTeamName = displayName(games[0].homeTeamFull || games[0].homeTeam || series.homeTeamName)
@@ -666,6 +731,10 @@ function aggregateSeriesGames(series: any, games: PlayoffSeriesSyncGame[]): Play
           ? "in_progress"
           : "scheduled"
 
+  const nextGame = nextScheduledGame(games)
+  const activeGame = liveGame(games)
+  const seriesSummary = buildSeriesSummary(homeTeamName, awayTeamName, homeWins, awayWins, winnerTeamName)
+
   return {
     games,
     homeWins,
@@ -676,6 +745,14 @@ function aggregateSeriesGames(series: any, games: PlayoffSeriesSyncGame[]): Play
     homeTeamName,
     awayTeamName,
     roundIndex: Number(series.roundIndex ?? roundIndexFromGame(games[0]) ?? 0),
+    seriesSummary,
+    nextGameAt: nextGame?.startTime ? new Date(nextGame.startTime) : null,
+    venue: nextGame?.venue ?? null,
+    broadcastNetwork: nextGame?.broadcast ?? null,
+    liveHomeScore: activeGame?.homeScore ?? null,
+    liveAwayScore: activeGame?.awayScore ?? null,
+    liveStatus: activeGame?.statusDetail ?? activeGame?.status ?? null,
+    providerGamesJson: games.map(safeProviderGame),
   }
 }
 
@@ -698,6 +775,14 @@ function aggregateProviderSeriesGroup(group: ProviderSeriesGroup, bestOf = 7): P
     homeTeamName: group.homeTeamName,
     awayTeamName: group.awayTeamName,
     roundIndex: group.roundIndex,
+    seriesSummary: "Series starts TBD",
+    nextGameAt: earliestStart(group.games),
+    venue: null,
+    broadcastNetwork: null,
+    liveHomeScore: null,
+    liveAwayScore: null,
+    liveStatus: null,
+    providerGamesJson: group.games.map(safeProviderGame),
   }
 }
 
@@ -825,6 +910,17 @@ export async function syncPlayoffChallengeSeries(input: {
         status: aggregate.status,
         startsAt: aggregate.startsAt,
         winnerTeamName: aggregate.winnerTeamName,
+        homeTeamWins: aggregate.homeWins,
+        awayTeamWins: aggregate.awayWins,
+        seriesSummary: aggregate.seriesSummary,
+        nextGameAt: aggregate.nextGameAt,
+        venue: aggregate.venue,
+        broadcastNetwork: aggregate.broadcastNetwork,
+        liveHomeScore: aggregate.liveHomeScore,
+        liveAwayScore: aggregate.liveAwayScore,
+        liveStatus: aggregate.liveStatus,
+        providerGamesJson: aggregate.providerGamesJson,
+        lastSyncedAt: new Date(),
       },
     })
     seriesUpdated += 1
