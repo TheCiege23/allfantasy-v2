@@ -85,6 +85,8 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
       ? "Complete for available picks"
       : "Incomplete"
   const hasOfficialSyncedSeries = series.some((item) => item.lastSyncedAt || item.providerGamesJson || item.seriesSummary || item.winnerTeamName || isPlayoffSeriesResolved(item))
+  const hasSyncedResults = series.some((item) => Boolean(item.winnerTeamName))
+  const showResultsSyncCallout = canSyncSeries && activeEntry.isComplete && completionMode === "available_picks_only" && !hasSyncedResults
 
   if (!activeEntry) {
     return null
@@ -308,18 +310,32 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
         ) : null}
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="playoff-entry-review-summary">
+      <section className="rounded-2xl border border-sky-200 bg-white p-4 shadow-sm" data-testid="playoff-entry-review-summary">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">Review Picks</h2>
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-sky-700">Review Area</p>
+            <h2 className="mt-1 text-lg font-black tracking-tight text-slate-900">Review Picks</h2>
             <p className="mt-1 text-sm text-slate-600">Official results are for verification only. Submitting does not create or change picks.</p>
+            <p data-testid="playoff-entry-review-results-note" className="mt-2 text-sm font-semibold text-slate-700">
+              {hasSyncedResults
+                ? "Official results are synced. Correct/Wrong badges reflect your saved picks."
+                : "Results have not been synced yet. Your picks will show Pending until the commissioner runs Sync results only."}
+            </p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
             {reviewBadge}
           </span>
         </div>
+        {showResultsSyncCallout ? (
+          <div
+            data-testid="playoff-entry-sync-results-callout"
+            className="mt-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800"
+          >
+            To verify right/wrong picks, return to the pool dashboard and run Sync results only.
+          </div>
+        ) : null}
         <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {pickResultSummary.slice(0, 6).map(({ series: item, result }) => (
+          {pickResultSummary.map(({ series: item, result }) => (
             <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
               <div className="flex items-center justify-between gap-2">
                 <span>Series {item.seriesNumber}</span>

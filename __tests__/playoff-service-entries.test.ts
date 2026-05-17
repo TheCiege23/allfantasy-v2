@@ -301,6 +301,76 @@ describe("playoff entry service", () => {
     })
   })
 
+  it("loads saved picks for the requested playoff entry after reload", async () => {
+    const now = new Date("2026-05-21T20:30:00.000Z")
+    challengeFindUniqueMock.mockResolvedValue({
+      id: "challenge-1",
+      ownerUserId: "user-1",
+      name: "NBA Pool",
+      sport: "nba",
+      seasonYear: 2026,
+      status: "open",
+      isTestMode: true,
+      createdAt: now,
+      updatedAt: now,
+      owner: { id: "user-1", displayName: "Owner", username: null, email: null },
+      entries: [
+        { id: "entry-1", userId: "user-1", name: "Entry 1", createdAt: now, user: { id: "user-1", displayName: "Owner", username: null, email: null } },
+        { id: "entry-2", userId: "user-1", name: "Entry 2", createdAt: now, user: { id: "user-1", displayName: "Owner", username: null, email: null } },
+      ],
+      series: [
+        {
+          id: "s1",
+          round: "round_1",
+          roundIndex: 1,
+          seriesNumber: 1,
+          conference: "east",
+          homeSeed: 1,
+          awaySeed: 8,
+          homeTeamName: "Detroit Pistons",
+          awayTeamName: "Philadelphia 76ers",
+          winnerTeamName: null,
+          bestOf: 7,
+          status: "scheduled",
+          startsAt: null,
+          homeTeamWins: 0,
+          awayTeamWins: 0,
+          seriesSummary: null,
+          nextGameAt: null,
+          venue: null,
+          broadcastNetwork: null,
+          liveHomeScore: null,
+          liveAwayScore: null,
+          liveStatus: null,
+          providerGamesJson: null,
+          lastSyncedAt: null,
+          nextSeriesNumber: 9,
+          nextSeriesSlot: "home",
+          sourceSeriesHome: null,
+          sourceSeriesAway: null,
+        },
+      ],
+    })
+    pickFindManyMock
+      .mockResolvedValueOnce([{ id: "p2", entryId: "entry-2", seriesId: "s1", pickTeamName: "Detroit Pistons", createdAt: now, updatedAt: now }])
+      .mockResolvedValueOnce([
+        { entryId: "entry-1", seriesId: "s1", pickTeamName: "Philadelphia 76ers" },
+        { entryId: "entry-2", seriesId: "s1", pickTeamName: "Detroit Pistons" },
+      ])
+
+    const { getPlayoffBracketView } = await import("@/lib/playoffs/playoffService")
+    const view = await getPlayoffBracketView({
+      challengeId: "challenge-1",
+      user: { id: "user-1" },
+      requestedEntryId: "entry-2",
+    })
+
+    expect(view?.activeEntry?.id).toBe("entry-2")
+    expect(view?.picks).toEqual([
+      expect.objectContaining({ entryId: "entry-2", seriesId: "s1", pickTeamName: "Detroit Pistons" }),
+    ])
+  })
+
   it("clears downstream picks when an earlier pick changes", async () => {
     entryFindUniqueMock.mockResolvedValue({ id: "entry-1", userId: "user-1", challengeId: "challenge-1" })
     seriesFindUniqueMock.mockResolvedValue({

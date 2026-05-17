@@ -86,6 +86,29 @@ function buildEntryView(overrides: Partial<PlayoffChallengeView> = {}): PlayoffC
   }
 }
 
+function playoffSeries(overrides: Partial<PlayoffChallengeView["series"][number]> = {}): PlayoffChallengeView["series"][number] {
+  return {
+    id: "s1",
+    round: "round_1",
+    roundIndex: 1,
+    seriesNumber: 1,
+    conference: "east",
+    homeSeed: 1,
+    awaySeed: 8,
+    homeTeamName: "Detroit Pistons",
+    awayTeamName: "Philadelphia 76ers",
+    winnerTeamName: null,
+    bestOf: 7,
+    status: "scheduled",
+    startsAt: null,
+    nextSeriesNumber: 9,
+    nextSeriesSlot: "home",
+    sourceSeriesHome: null,
+    sourceSeriesAway: null,
+    ...overrides,
+  }
+}
+
 describe("PlayoffBracketEntryShell", () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -300,6 +323,128 @@ describe("PlayoffBracketEntryShell", () => {
     }))
   })
 
+  it("updates board and Review Picks immediately after saving a pick", async () => {
+    const initialView = buildEntryView({
+      series: [playoffSeries()],
+      completion: {
+        mode: "available_picks_only",
+        isSubmittable: false,
+        requiredPickCount: 1,
+        savedRequiredPickCount: 0,
+        totalSeriesCount: 1,
+        unavailableSeriesCount: 0,
+        missingRequiredSeriesIds: ["s1"],
+        message: "Complete all currently available series before submitting this test bracket.",
+      },
+    })
+    const savedView = {
+      ...initialView,
+      activeEntry: initialView.activeEntry ? { ...initialView.activeEntry, pickCount: 1 } : null,
+      picks: [{ id: "p1", entryId: "entry-1", seriesId: "s1", pickTeamName: "Detroit Pistons", createdAt: "", updatedAt: "" }],
+      completion: {
+        mode: "available_picks_only" as const,
+        isSubmittable: true,
+        requiredPickCount: 1,
+        savedRequiredPickCount: 1,
+        totalSeriesCount: 1,
+        unavailableSeriesCount: 0,
+        missingRequiredSeriesIds: [],
+        message: "All available picks are complete.",
+      },
+    }
+    savePlayoffBracketPickClientMock.mockResolvedValue(savedView)
+
+    render(<PlayoffBracketEntryShell initialView={initialView} />)
+
+    expect(screen.getByTestId("playoff-entry-review-summary")).toHaveTextContent("Your pick: No Pick")
+    fireEvent.click(screen.getByRole("button", { name: "Detroit Pistons" }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("playoff-entry-review-summary")).toHaveTextContent("Your pick: Detroit Pistons")
+      expect(screen.getByRole("button", { name: "Detroit Pistons" })).toHaveClass("border-amber-500")
+      expect(screen.getByRole("button", { name: "Submit Available Picks" })).not.toBeDisabled()
+    })
+  })
+
+  it("updates Review Picks after changing a saved pick", async () => {
+    const initialView = buildEntryView({
+      activeEntry: { id: "entry-1", name: "Bracket 1", userId: "user-1", pickCount: 1, isComplete: false, createdAt: "" },
+      series: [playoffSeries()],
+      picks: [{ id: "p1", entryId: "entry-1", seriesId: "s1", pickTeamName: "Detroit Pistons", createdAt: "", updatedAt: "" }],
+      completion: {
+        mode: "available_picks_only",
+        isSubmittable: true,
+        requiredPickCount: 1,
+        savedRequiredPickCount: 1,
+        totalSeriesCount: 1,
+        unavailableSeriesCount: 0,
+        missingRequiredSeriesIds: [],
+        message: "All available picks are complete.",
+      },
+    })
+    savePlayoffBracketPickClientMock.mockResolvedValue({
+      ...initialView,
+      picks: [{ id: "p1", entryId: "entry-1", seriesId: "s1", pickTeamName: "Philadelphia 76ers", createdAt: "", updatedAt: "" }],
+    })
+
+    render(<PlayoffBracketEntryShell initialView={initialView} />)
+
+    expect(screen.getByTestId("playoff-entry-review-summary")).toHaveTextContent("Your pick: Detroit Pistons")
+    fireEvent.click(screen.getByRole("button", { name: "Philadelphia 76ers" }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("playoff-entry-review-summary")).toHaveTextContent("Your pick: Philadelphia 76ers")
+      expect(screen.getByRole("button", { name: "Philadelphia 76ers" })).toHaveClass("border-amber-500")
+    })
+  })
+
+  it("shows saved picks in Review Picks after a reloaded entry view", () => {
+    render(
+      <PlayoffBracketEntryShell
+        initialView={buildEntryView({
+          activeEntry: { id: "entry-1", name: "Bracket 1", userId: "user-1", pickCount: 1, isComplete: false, createdAt: "" },
+          series: [playoffSeries()],
+          picks: [{ id: "p1", entryId: "entry-1", seriesId: "s1", pickTeamName: "Detroit Pistons", createdAt: "", updatedAt: "" }],
+        })}
+      />
+    )
+
+    expect(screen.getByTestId("playoff-entry-review-summary")).toHaveTextContent("Your pick: Detroit Pistons")
+    expect(screen.getByRole("button", { name: "Detroit Pistons" })).toHaveClass("border-amber-500")
+  })
+
+  it("shows round 2 saved picks in Review Picks", () => {
+    render(
+      <PlayoffBracketEntryShell
+        initialView={buildEntryView({
+          activeEntry: { id: "entry-1", name: "Bracket 1", userId: "user-1", pickCount: 1, isComplete: false, createdAt: "" },
+          series: [
+            playoffSeries({ id: "s1", seriesNumber: 1 }),
+            playoffSeries({ id: "s2", seriesNumber: 2, homeTeamName: "New York Knicks", awayTeamName: "Indiana Pacers" }),
+            playoffSeries({
+              id: "s9",
+              round: "conference_semifinals",
+              roundIndex: 2,
+              seriesNumber: 9,
+              homeSeed: 0,
+              awaySeed: 0,
+              homeTeamName: "Boston Celtics",
+              awayTeamName: "Cleveland Cavaliers",
+              nextSeriesNumber: 13,
+              sourceSeriesHome: 1,
+              sourceSeriesAway: 2,
+            }),
+          ],
+          picks: [{ id: "p9", entryId: "entry-1", seriesId: "s9", pickTeamName: "Boston Celtics", createdAt: "", updatedAt: "" }],
+        })}
+      />
+    )
+
+    const review = screen.getByTestId("playoff-entry-review-summary")
+    expect(review).toHaveTextContent("Series 9")
+    expect(review).toHaveTextContent("Your pick: Boston Celtics")
+  })
+
   it("allows partial verification submit when all available series are picked", () => {
     submitPlayoffBracketEntryClientMock.mockResolvedValue({
       challengeId: "challenge-1",
@@ -382,6 +527,8 @@ describe("PlayoffBracketEntryShell", () => {
 
     expect(screen.getByTestId("playoff-entry-partial-submit-note")).toHaveTextContent("Later official matchups are still TBD and will remain pending.")
     expect(screen.getByTestId("playoff-entry-review-summary")).toHaveTextContent("Partial verification submitted")
+    expect(screen.getByTestId("playoff-entry-review-results-note")).toHaveTextContent("Results have not been synced yet. Your picks will show Pending until the commissioner runs Sync results only.")
+    expect(screen.getByTestId("playoff-entry-sync-results-callout")).toHaveTextContent("To verify right/wrong picks, return to the pool dashboard and run Sync results only.")
     fireEvent.click(screen.getByRole("button", { name: "Submit Available Picks" }))
     expect(submitPlayoffBracketEntryClientMock).toHaveBeenCalledWith({
       challengeId: "challenge-1",
@@ -521,5 +668,62 @@ describe("PlayoffBracketEntryShell", () => {
     expect(review).toHaveTextContent("Wrong +0")
     expect(review).toHaveTextContent("No Pick")
     expect(review).toHaveTextContent("Result: Knicks win series 4-0")
+    expect(screen.getByTestId("playoff-entry-review-results-note")).toHaveTextContent("Official results are synced. Correct/Wrong badges reflect your saved picks.")
+  })
+
+  it("explains pending review state before results sync for normal users without commissioner callout", () => {
+    render(
+      <PlayoffBracketEntryShell
+        initialView={buildEntryView({
+          viewerUserId: "user-2",
+          challenge: { ...buildEntryView().challenge, ownerUserId: "owner-user" },
+          activeEntry: {
+            id: "entry-1",
+            name: "Bracket 1",
+            userId: "user-2",
+            pickCount: 1,
+            isComplete: true,
+            createdAt: new Date().toISOString(),
+          },
+          picks: [{ id: "p1", entryId: "entry-1", seriesId: "s1", pickTeamName: "Knicks", createdAt: "", updatedAt: "" }],
+          series: [
+            {
+              id: "s1",
+              round: "round_1",
+              roundIndex: 1,
+              seriesNumber: 1,
+              conference: "east",
+              homeSeed: 1,
+              awaySeed: 8,
+              homeTeamName: "Knicks",
+              awayTeamName: "Hawks",
+              winnerTeamName: null,
+              seriesSummary: "Series scheduled",
+              bestOf: 7,
+              status: "scheduled",
+              startsAt: null,
+              nextSeriesNumber: 9,
+              nextSeriesSlot: "home",
+              sourceSeriesHome: null,
+              sourceSeriesAway: null,
+            },
+          ],
+          completion: {
+            mode: "available_picks_only",
+            isSubmittable: true,
+            requiredPickCount: 1,
+            savedRequiredPickCount: 1,
+            totalSeriesCount: 1,
+            unavailableSeriesCount: 0,
+            missingRequiredSeriesIds: [],
+            message: "All available picks are complete.",
+          },
+        })}
+      />
+    )
+
+    expect(screen.getByTestId("playoff-entry-review-results-note")).toHaveTextContent("Results have not been synced yet. Your picks will show Pending until the commissioner runs Sync results only.")
+    expect(screen.queryByTestId("playoff-entry-sync-results-callout")).not.toBeInTheDocument()
+    expect(screen.getByTestId("playoff-entry-review-summary")).toHaveTextContent("Pending")
   })
 })
