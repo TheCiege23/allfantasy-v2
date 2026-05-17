@@ -71,6 +71,14 @@ type ProviderAttemptDiagnostic = {
   warning?: string
 }
 
+type ProviderSeasonAttemptDiagnostic = {
+  provider: string
+  seasonYear: number
+  rowsReturned: number
+  postseasonRows: number
+  warning?: string
+}
+
 type TeamPairDiagnostic = {
   round?: number | null
   homeTeam: string
@@ -81,6 +89,10 @@ type TeamPairDiagnostic = {
 
 export type PlayoffSyncDiagnostics = {
   seasonYear: number
+  challengeSeasonYear: number
+  selectedProviderSeason: number | null
+  providerSeasonAttempts: ProviderSeasonAttemptDiagnostic[]
+  seasonSelectionExplanation?: string | null
   sport: PlayoffSport
   selectedProvider: string
   providerAttempts: ProviderAttemptDiagnostic[]
@@ -94,6 +106,9 @@ export type SyncPlayoffChallengeSeriesResult = {
   challengeId: string
   sport: PlayoffSport
   source: string
+  challengeSeasonYear: number
+  selectedProviderSeason: number | null
+  providerSeasonAttempts: ProviderSeasonAttemptDiagnostic[]
   attemptedProviders: string[]
   postseasonGames: number
   gamesSeen: number
@@ -167,17 +182,47 @@ function isPostseasonRow(row: RollingInsightsScheduleGameRow): boolean {
   return row.seasonType.toLowerCase() === "postseason"
 }
 
+function candidateProviderSeasons(seasonYear: number): number[] {
+  const currentYear = new Date().getUTCFullYear()
+  return Array.from(new Set([seasonYear, seasonYear - 1, currentYear, currentYear - 1].filter(Number.isFinite)))
+}
+
+function seasonSelectionExplanation(challengeSeasonYear: number, selectedProviderSeason: number | null): string | null {
+  if (!selectedProviderSeason || selectedProviderSeason === challengeSeasonYear) return null
+  return `Rolling Insights uses season start year; ${selectedProviderSeason} was selected for the ${selectedProviderSeason}-${String(challengeSeasonYear).slice(-2)} season.`
+}
+
 export async function fetchRollingInsightsPostseasonScheduleGames(input: {
   sport: PlayoffSport
   seasonYear: number
 }): Promise<{ source: string; games: PlayoffSeriesSyncGame[]; warnings: string[]; attemptedProviders: string[]; diagnostics: PlayoffSyncDiagnostics }> {
   const leagueSport = SPORT_TO_LEAGUE_SPORT[input.sport]
-  const rows = await fetchRollingInsightsScheduleSeason(leagueSport, input.seasonYear, { forceRefresh: true })
-  const postseasonRows = rows.filter(isPostseasonRow)
-  const games = postseasonRows.map(scheduleRowToSyncGame)
-  const warnings = postseasonRows.length === 0
-    ? [`No ${input.sport.toUpperCase()} postseason games returned from Rolling Insights schedule-season for season ${input.seasonYear}.`]
+  const providerSeasonAttempts: ProviderSeasonAttemptDiagnostic[] = []
+  let selectedRows: RollingInsightsScheduleGameRow[] = []
+  let selectedProviderSeason: number | null = null
+  for (const providerSeason of candidateProviderSeasons(input.seasonYear)) {
+    const rows = await fetchRollingInsightsScheduleSeason(leagueSport, providerSeason, { forceRefresh: true })
+    const postseasonRows = rows.filter(isPostseasonRow)
+    providerSeasonAttempts.push({
+      provider: "rolling_insights_schedule_season",
+      seasonYear: providerSeason,
+      rowsReturned: rows.length,
+      postseasonRows: postseasonRows.length,
+      warning: postseasonRows.length === 0
+        ? `No ${input.sport.toUpperCase()} postseason games returned from Rolling Insights schedule-season for season ${providerSeason}.`
+        : undefined,
+    })
+    if (postseasonRows.length > 0) {
+      selectedRows = postseasonRows
+      selectedProviderSeason = providerSeason
+      break
+    }
+  }
+  const games = selectedRows.map(scheduleRowToSyncGame)
+  const warnings = games.length === 0
+    ? [`No ${input.sport.toUpperCase()} postseason games returned from Rolling Insights schedule-season for candidate seasons ${providerSeasonAttempts.map((attempt) => attempt.seasonYear).join(", ")}.`]
     : []
+  const explanation = seasonSelectionExplanation(input.seasonYear, selectedProviderSeason)
   return {
     source: "rolling_insights_schedule_season",
     games,
@@ -185,14 +230,18 @@ export async function fetchRollingInsightsPostseasonScheduleGames(input: {
     attemptedProviders: ["rolling_insights_schedule_season"],
     diagnostics: {
       seasonYear: input.seasonYear,
+      challengeSeasonYear: input.seasonYear,
+      selectedProviderSeason,
+      providerSeasonAttempts,
+      seasonSelectionExplanation: explanation,
       sport: input.sport,
       selectedProvider: "rolling_insights_schedule_season",
       providerAttempts: [{
         provider: "rolling_insights_schedule_season",
         source: "rolling_insights_schedule_season",
-        seasonYear: input.seasonYear,
+        seasonYear: selectedProviderSeason ?? input.seasonYear,
         sport: input.sport,
-        gamesReturned: rows.length,
+        gamesReturned: selectedRows.length,
         postseasonGames: games.length,
         warning: warnings[0],
       }],
@@ -212,11 +261,12 @@ export async function fetchLivePlayoffSeriesGames(input: {
   const providerPreference = input.providerPreference ?? "auto"
   const attemptedProviders: string[] = []
   const providerAttempts: ProviderAttemptDiagnostic[] = []
+  let providerSeasonAttempts: ProviderSeasonAttemptDiagnostic[] = []
   const providerOrder = providerPreference === "espn"
     ? ["espn_live"]
     : providerPreference === "rolling_insights"
       ? ["rolling_insights_schedule_season", "rolling_insights"]
-      : ["rolling_insights_schedule_season", "rolling_insights", "espn_live"]
+      : ["rolling_insights_schedule_season", "rolling_insights"]
   const providerLabels: Record<string, string> = {
     rolling_insights_schedule_season: "Rolling Insights schedule-season",
     rolling_insights: "Rolling Insights",
@@ -225,17 +275,23 @@ export async function fetchLivePlayoffSeriesGames(input: {
 
   for (const providerName of providerOrder) {
     attemptedProviders.push(providerName)
-    const games = providerName === "rolling_insights_schedule_season"
-      ? (await fetchRollingInsightsPostseasonScheduleGames(input)).games
+    const schedulePayload = providerName === "rolling_insights_schedule_season"
+      ? await fetchRollingInsightsPostseasonScheduleGames(input)
+      : null
+    if (schedulePayload) {
+      providerSeasonAttempts = schedulePayload.diagnostics.providerSeasonAttempts
+    }
+    const games = schedulePayload
+      ? schedulePayload.games
       : (providerName === "espn_live"
-        ? await fetchEspnScoreboard(leagueSport)
-        : await fetchRollingInsightsScoreboard(leagueSport, { forceRefresh: true }))
-          .filter((row) => row.season === input.seasonYear || !Number.isFinite(row.season))
-          .map(rowToSyncGame)
+          ? await fetchEspnScoreboard(leagueSport)
+          : await fetchRollingInsightsScoreboard(leagueSport, { forceRefresh: true }))
+        .filter((row) => row.season === input.seasonYear || !Number.isFinite(row.season))
+        .map(rowToSyncGame)
     providerAttempts.push({
       provider: providerName,
       source: providerName,
-      seasonYear: input.seasonYear,
+      seasonYear: schedulePayload?.diagnostics.selectedProviderSeason ?? input.seasonYear,
       sport: input.sport,
       gamesReturned: games.length,
       postseasonGames: games.filter((game) => String(game.seasonType ?? "").toLowerCase() === "postseason").length,
@@ -249,9 +305,13 @@ export async function fetchLivePlayoffSeriesGames(input: {
         attemptedProviders,
         diagnostics: {
           seasonYear: input.seasonYear,
+          challengeSeasonYear: input.seasonYear,
+          selectedProviderSeason: schedulePayload?.diagnostics.selectedProviderSeason ?? input.seasonYear,
+          providerSeasonAttempts: schedulePayload?.diagnostics.providerSeasonAttempts ?? [],
+          seasonSelectionExplanation: schedulePayload?.diagnostics.seasonSelectionExplanation ?? null,
           sport: input.sport,
           selectedProvider: providerName,
-          providerAttempts,
+          providerAttempts: schedulePayload?.diagnostics.providerAttempts ?? providerAttempts,
           existingSeriesExamples: [],
           providerGameExamples: sampleGameDiagnostics(games),
           providerSeriesExamples: sampleSeriesDiagnostics(buildProviderSeriesGroups(games)),
@@ -270,6 +330,14 @@ export async function fetchLivePlayoffSeriesGames(input: {
     attemptedProviders,
     diagnostics: {
       seasonYear: input.seasonYear,
+      challengeSeasonYear: input.seasonYear,
+      selectedProviderSeason: null,
+      providerSeasonAttempts: providerAttempts
+        .filter((attempt) => attempt.provider === "rolling_insights_schedule_season")
+        .length > 0
+          ? providerSeasonAttempts
+          : [],
+      seasonSelectionExplanation: null,
       sport: input.sport,
       selectedProvider: attemptedProviders[attemptedProviders.length - 1] ?? "none",
       providerAttempts,
@@ -515,6 +583,10 @@ export async function syncPlayoffChallengeSeries(input: {
   warnings.push(...(payload.warnings ?? []))
   const diagnostics: PlayoffSyncDiagnostics = {
     seasonYear: challenge.seasonYear,
+    challengeSeasonYear: payload.diagnostics?.challengeSeasonYear ?? challenge.seasonYear,
+    selectedProviderSeason: payload.diagnostics?.selectedProviderSeason ?? null,
+    providerSeasonAttempts: payload.diagnostics?.providerSeasonAttempts ?? [],
+    seasonSelectionExplanation: payload.diagnostics?.seasonSelectionExplanation ?? null,
     sport,
     selectedProvider: payload.source,
     providerAttempts: payload.diagnostics?.providerAttempts ?? [],
@@ -612,6 +684,9 @@ export async function syncPlayoffChallengeSeries(input: {
     challengeId: challenge.id,
     sport,
     source: payload.source,
+    challengeSeasonYear: challenge.seasonYear,
+    selectedProviderSeason: diagnostics.selectedProviderSeason,
+    providerSeasonAttempts: diagnostics.providerSeasonAttempts,
     attemptedProviders,
     postseasonGames: payload.games.filter((game) => String(game.seasonType ?? "").toLowerCase() === "postseason").length,
     gamesSeen: payload.games.length,

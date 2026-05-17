@@ -94,6 +94,12 @@ describe("PlayoffBracketEntryShell", () => {
         attemptedProviders: ["rolling_insights_schedule_season"],
         source: "rolling_insights_schedule_season",
         sport: "nba",
+        challengeSeasonYear: 2026,
+        selectedProviderSeason: 2025,
+        providerSeasonAttempts: [
+          { provider: "rolling_insights_schedule_season", seasonYear: 2026, rowsReturned: 0, postseasonRows: 0 },
+          { provider: "rolling_insights_schedule_season", seasonYear: 2025, rowsReturned: 1379, postseasonRows: 74 },
+        ],
         seasonYear: 2026,
         postseasonGames: 0,
         gamesSeen: 0,
@@ -105,6 +111,13 @@ describe("PlayoffBracketEntryShell", () => {
         unmatchedExamples: [],
         diagnostics: {
           seasonYear: 2026,
+          challengeSeasonYear: 2026,
+          selectedProviderSeason: 2025,
+          providerSeasonAttempts: [
+            { provider: "rolling_insights_schedule_season", seasonYear: 2026, rowsReturned: 0, postseasonRows: 0 },
+            { provider: "rolling_insights_schedule_season", seasonYear: 2025, rowsReturned: 1379, postseasonRows: 74 },
+          ],
+          seasonSelectionExplanation: "Rolling Insights uses season start year; 2025 was selected for the 2025-26 season.",
           sport: "nba",
           selectedProvider: "rolling_insights_schedule_season",
           providerAttempts: [{ provider: "rolling_insights_schedule_season", gamesReturned: 0 }],
@@ -125,6 +138,7 @@ describe("PlayoffBracketEntryShell", () => {
       expect(toastWarningMock).toHaveBeenCalledWith("No playoff series matched provider games.")
     })
     expect(screen.getByTestId("playoff-entry-sync-diagnostics")).toHaveTextContent("existingSeriesExamples")
+    expect(screen.getByTestId("playoff-entry-sync-diagnostics")).toHaveTextContent("Rolling Insights uses season start year")
 
     fetchMock.mockRestore()
   })

@@ -210,6 +210,12 @@ describe("PlayoffBracketShell dashboard", () => {
         attemptedProviders: ["rolling_insights_schedule_season", "rolling_insights", "espn_live"],
         source: "espn_live",
         sport: "nba",
+        challengeSeasonYear: 2026,
+        selectedProviderSeason: 2025,
+        providerSeasonAttempts: [
+          { provider: "rolling_insights_schedule_season", seasonYear: 2026, rowsReturned: 0, postseasonRows: 0 },
+          { provider: "rolling_insights_schedule_season", seasonYear: 2025, rowsReturned: 1379, postseasonRows: 74 },
+        ],
         seasonYear: 2026,
         postseasonGames: 0,
         gamesSeen: 1,
@@ -221,6 +227,13 @@ describe("PlayoffBracketShell dashboard", () => {
         unmatchedExamples: [{ homeTeam: "Knicks", awayTeam: "Pacers", round: 1 }],
         diagnostics: {
           seasonYear: 2026,
+          challengeSeasonYear: 2026,
+          selectedProviderSeason: 2025,
+          providerSeasonAttempts: [
+            { provider: "rolling_insights_schedule_season", seasonYear: 2026, rowsReturned: 0, postseasonRows: 0 },
+            { provider: "rolling_insights_schedule_season", seasonYear: 2025, rowsReturned: 1379, postseasonRows: 74 },
+          ],
+          seasonSelectionExplanation: "Rolling Insights uses season start year; 2025 was selected for the 2025-26 season.",
           sport: "nba",
           selectedProvider: "espn_live",
           providerAttempts: [{ provider: "espn_live", gamesReturned: 1, postseasonGames: 0 }],
@@ -269,6 +282,7 @@ describe("PlayoffBracketShell dashboard", () => {
     })
     expect(screen.getByTestId("playoff-sync-diagnostics")).toHaveTextContent("rolling_insights_schedule_season")
     expect(screen.getByTestId("playoff-sync-diagnostics")).toHaveTextContent("existingSeriesExamples")
+    expect(screen.getByTestId("playoff-sync-diagnostics")).toHaveTextContent("Rolling Insights uses season start year")
 
     fetchMock.mockRestore()
   })

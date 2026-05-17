@@ -274,6 +274,7 @@ describe("syncPlayoffChallengeSeries", () => {
   it("falls back from empty Rolling Insights rows to ESPN games", async () => {
     const { fetchLivePlayoffSeriesGames } = await import("@/lib/playoffs/playoffSeriesSyncService")
     const liveScores = await import("@/lib/sports-live-scores-service")
+    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeason").mockResolvedValue([])
     vi.spyOn(liveScores, "fetchRollingInsightsScoreboard").mockResolvedValue([])
     vi.spyOn(liveScores, "fetchEspnScoreboard").mockResolvedValue([
       {
@@ -305,10 +306,10 @@ describe("syncPlayoffChallengeSeries", () => {
 
     const result = await fetchLivePlayoffSeriesGames({ sport: "nba", seasonYear: 2026 })
 
-    expect(result.source).toBe("espn_live")
-    expect(result.attemptedProviders).toEqual(["rolling_insights_schedule_season", "rolling_insights", "espn_live"])
-    expect(result.games).toHaveLength(1)
-    expect(result.warnings).toEqual([])
+    expect(result.source).toBe("rolling_insights")
+    expect(result.attemptedProviders).toEqual(["rolling_insights_schedule_season", "rolling_insights"])
+    expect(result.games).toHaveLength(0)
+    expect(result.warnings).toContain("No NBA games returned from Rolling Insights schedule-season or Rolling Insights for season 2026.")
   })
 
   it("reports all attempted providers when Rolling Insights and ESPN are empty", async () => {
@@ -319,9 +320,9 @@ describe("syncPlayoffChallengeSeries", () => {
 
     const result = await fetchLivePlayoffSeriesGames({ sport: "nba", seasonYear: 2026 })
 
-    expect(result.source).toBe("espn_live")
-    expect(result.attemptedProviders).toEqual(["rolling_insights_schedule_season", "rolling_insights", "espn_live"])
-    expect(result.warnings).toContain("No NBA games returned from Rolling Insights schedule-season or Rolling Insights or ESPN for season 2026.")
+    expect(result.source).toBe("rolling_insights")
+    expect(result.attemptedProviders).toEqual(["rolling_insights_schedule_season", "rolling_insights"])
+    expect(result.warnings).toContain("No NBA games returned from Rolling Insights schedule-season or Rolling Insights for season 2026.")
   })
 
   it("can force ESPN-only provider attempts for smoke testing", async () => {
@@ -366,6 +367,47 @@ describe("syncPlayoffChallengeSeries", () => {
         awayTeamName: "Miami Heat",
         status: "scheduled",
         winnerTeamName: null,
+      }),
+    })
+  })
+
+  it("selects the season-start provider year when 2026 has no postseason rows and 2025 does", async () => {
+    const liveScores = await import("@/lib/sports-live-scores-service")
+    const scheduleSpy = vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeason").mockImplementation(async (_sport, seasonYear) => {
+      if (seasonYear === 2025) {
+        return [
+          scheduleRow("NBA", "Postseason", "First Round", 1, "Boston Celtics", "Miami Heat", "scheduled", "2026-04-20T00:00:00.000Z"),
+        ] as any
+      }
+      return []
+    })
+    const espnSpy = vi.spyOn(liveScores, "fetchEspnScoreboard").mockResolvedValue([])
+    challengeFindUniqueMock.mockResolvedValue({
+      ...baseChallenge,
+      seasonYear: 2026,
+      series: [{ ...baseChallenge.series[0], homeTeamName: "E1", awayTeamName: "E8" }],
+    })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({ challengeId: "challenge-1" })
+
+    expect(scheduleSpy).toHaveBeenCalledWith("NBA", 2026, { forceRefresh: true })
+    expect(scheduleSpy).toHaveBeenCalledWith("NBA", 2025, { forceRefresh: true })
+    expect(espnSpy).not.toHaveBeenCalled()
+    expect(result.challengeSeasonYear).toBe(2026)
+    expect(result.selectedProviderSeason).toBe(2025)
+    expect(result.providerSeasonAttempts).toEqual([
+      expect.objectContaining({ seasonYear: 2026, rowsReturned: 0, postseasonRows: 0 }),
+      expect.objectContaining({ seasonYear: 2025, rowsReturned: 1, postseasonRows: 1 }),
+    ])
+    expect(result.diagnostics.selectedProviderSeason).toBe(2025)
+    expect(result.diagnostics.seasonSelectionExplanation).toBe("Rolling Insights uses season start year; 2025 was selected for the 2025-26 season.")
+    expect(result.seriesUpdated).toBe(1)
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-1" },
+      data: expect.objectContaining({
+        homeTeamName: "Boston Celtics",
+        awayTeamName: "Miami Heat",
       }),
     })
   })
@@ -487,8 +529,10 @@ describe("syncPlayoffChallengeSeries", () => {
     const { fetchLivePlayoffSeriesGames } = await import("@/lib/playoffs/playoffSeriesSyncService")
     const result = await fetchLivePlayoffSeriesGames({ sport: "nba", seasonYear: 2026 })
 
-    expect(result.source).toBe("espn_live")
-    expect(result.attemptedProviders).toEqual(["rolling_insights_schedule_season", "rolling_insights", "espn_live"])
+    expect(result.source).toBe("rolling_insights")
+    expect(result.attemptedProviders).toEqual(["rolling_insights_schedule_season", "rolling_insights"])
+    expect(result.diagnostics.providerSeasonAttempts.length).toBeGreaterThanOrEqual(2)
+    expect(result.warnings).toContain("No NBA games returned from Rolling Insights schedule-season or Rolling Insights for season 2026.")
   })
 })
 
