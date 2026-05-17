@@ -118,6 +118,7 @@ export type PlayoffChallengeView = {
   picks: PlayoffPickView[]
   rounds: PlayoffRoundKey[]
   lockDiagnostics?: PlayoffLockDiagnostics | null
+  completion?: PlayoffCompletionView | null
 }
 
 export type PlayoffLockDiagnostics = {
@@ -127,6 +128,17 @@ export type PlayoffLockDiagnostics = {
   isPoolOwner: boolean
   isTestMode: boolean
   hasPoolAdminAccess: boolean
+}
+
+export type PlayoffCompletionView = {
+  mode: "full_bracket_required" | "available_picks_only"
+  isSubmittable: boolean
+  requiredPickCount: number
+  savedRequiredPickCount: number
+  totalSeriesCount: number
+  unavailableSeriesCount: number
+  missingRequiredSeriesIds: string[]
+  message: string
 }
 
 export type PlayoffSeriesView = {

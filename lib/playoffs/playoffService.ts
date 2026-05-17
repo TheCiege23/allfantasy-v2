@@ -7,6 +7,7 @@ import { getDependentPlayoffSeriesIds, isOfficialTeamName } from "./playoffBrack
 import { allowsPlayoffLatePicks, canUsePlayoffLatePicks, getPlayoffSeriesLockedReason } from "./playoffLocking"
 import { scorePlayoffEntryPicks } from "./playoffScoring"
 import { defaultPlayoffChallengeConfig, isAfCommissionerSubscriber, sanitizePlayoffChallengeConfig } from "./playoffChallengeConfig"
+import { getPlayoffCompletionSummary } from "./playoffCompletion"
 
 type SessionUser = {
   id?: string | null
@@ -255,12 +256,22 @@ export async function getPlayoffBracketView(input: {
       : challenge.entries[0]) ??
     null
 
+  const challengeEntries = Array.isArray(challenge.entries) ? challenge.entries : []
+  const challengeSeries = Array.isArray(challenge.series) ? challenge.series : []
+  const totalSeries = challengeSeries.length
+  const completionEntryId = activeEntry?.id ?? null
   const picks = activeEntry
     ? await (prisma as any).playoffBracketPick.findMany({
         where: { entryId: activeEntry.id },
         orderBy: [{ createdAt: "asc" }],
       })
     : []
+  const completion = getPlayoffCompletionSummary(challengeSeries, picks, {
+    lockRule,
+    isPoolOwner,
+    isTestMode: challenge.isTestMode === true,
+    hasPoolAdminAccess: viewerHasPoolAdminAccess,
+  })
 
   const allEntryPicks = await (prisma as any).playoffBracketPick.findMany({
     where: { challengeId: challenge.id },
@@ -272,9 +283,6 @@ export async function getPlayoffBracketView(input: {
     pickCountByEntryId.set(pick.entryId, (pickCountByEntryId.get(pick.entryId) ?? 0) + 1)
   }
 
-  const challengeEntries = Array.isArray(challenge.entries) ? challenge.entries : []
-  const challengeSeries = Array.isArray(challenge.series) ? challenge.series : []
-  const totalSeries = challengeSeries.length
   const scoreByEntryId = new Map<string, ReturnType<typeof scorePlayoffEntryPicks>>()
   for (const entry of challengeEntries) {
     scoreByEntryId.set(
@@ -341,7 +349,7 @@ export async function getPlayoffBracketView(input: {
           name: activeEntry.name,
           userId: activeEntry.userId,
           pickCount: pickCountByEntryId.get(activeEntry.id) ?? 0,
-          isComplete: (pickCountByEntryId.get(activeEntry.id) ?? 0) >= totalSeries,
+          isComplete: activeEntry.id === completionEntryId ? completion.isSubmittable : (pickCountByEntryId.get(activeEntry.id) ?? 0) >= totalSeries,
           totalScore: scoreByEntryId.get(activeEntry.id)?.totalScore ?? 0,
           correctPicks: scoreByEntryId.get(activeEntry.id)?.correctPicks ?? 0,
           createdAt: toIso(activeEntry.createdAt) ?? new Date().toISOString(),
@@ -352,7 +360,7 @@ export async function getPlayoffBracketView(input: {
       name: entry.name,
       userId: entry.userId,
       pickCount: pickCountByEntryId.get(entry.id) ?? 0,
-      isComplete: (pickCountByEntryId.get(entry.id) ?? 0) >= totalSeries,
+      isComplete: entry.id === completionEntryId ? completion.isSubmittable : (pickCountByEntryId.get(entry.id) ?? 0) >= totalSeries,
       totalScore: scoreByEntryId.get(entry.id)?.totalScore ?? 0,
       correctPicks: scoreByEntryId.get(entry.id)?.correctPicks ?? 0,
       createdAt: toIso(entry.createdAt) ?? new Date().toISOString(),
@@ -403,6 +411,16 @@ export async function getPlayoffBracketView(input: {
       isPoolOwner,
       isTestMode: challenge.isTestMode === true,
       hasPoolAdminAccess: viewerHasPoolAdminAccess,
+    },
+    completion: {
+      mode: completion.mode,
+      isSubmittable: completion.isSubmittable,
+      requiredPickCount: completion.requiredPickCount,
+      savedRequiredPickCount: completion.savedRequiredPickCount,
+      totalSeriesCount: completion.totalSeriesCount,
+      unavailableSeriesCount: completion.unavailableSeriesCount,
+      missingRequiredSeriesIds: completion.missingRequiredSeriesIds,
+      message: completion.message,
     },
   }
 }
@@ -462,6 +480,7 @@ export async function submitPlayoffBracketEntry(input: {
   challengeId: string
   entryId: string
   userId: string
+  user?: SessionUser | null
 }) {
   const entry = await (prisma as any).playoffBracketEntry.findUnique({
     where: { id: input.entryId },
@@ -469,6 +488,13 @@ export async function submitPlayoffBracketEntry(input: {
       id: true,
       userId: true,
       challengeId: true,
+      challenge: {
+        select: {
+          config: true,
+          isTestMode: true,
+          ownerUserId: true,
+        },
+      },
     },
   })
 
@@ -476,24 +502,36 @@ export async function submitPlayoffBracketEntry(input: {
     throw new Error("Entry not found")
   }
 
-  const [seriesCount, pickCount] = await Promise.all([
-    (prisma as any).playoffBracketSeries.count({
+  const [series, picks] = await Promise.all([
+    (prisma as any).playoffBracketSeries.findMany({
       where: { challengeId: input.challengeId },
+      orderBy: [{ roundIndex: "asc" }, { seriesNumber: "asc" }],
     }),
-    (prisma as any).playoffBracketPick.count({
+    (prisma as any).playoffBracketPick.findMany({
       where: {
         challengeId: input.challengeId,
         entryId: input.entryId,
       },
+      select: { id: true, entryId: true, seriesId: true, pickTeamName: true, createdAt: true, updatedAt: true },
     }),
   ])
 
-  if (seriesCount < 1) {
+  if (series.length < 1) {
     throw new Error("Bracket is not ready yet")
   }
 
-  if (pickCount < seriesCount) {
-    throw new Error("Complete every series before submitting")
+  const lockRule = sanitizePlayoffChallengeConfig(entry.challenge?.config ?? null, {
+    afCommissionerEnabled: isAfCommissionerSubscriber(input.user),
+  }).lockRule
+  const completion = getPlayoffCompletionSummary(series, picks, {
+    lockRule,
+    isPoolOwner: entry.challenge?.ownerUserId === input.userId,
+    isTestMode: entry.challenge?.isTestMode === true,
+    hasPoolAdminAccess: hasPoolAdminAccess(input.user),
+  })
+
+  if (!completion.isSubmittable) {
+    throw new Error(completion.message)
   }
 
   return {

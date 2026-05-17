@@ -29,6 +29,7 @@ export async function POST(request: Request, context: { params: { challengeId: s
       challengeId: params.data.challengeId,
       entryId: params.data.entryId,
       userId: auth.user.id,
+      user: auth.user,
     })
 
     return NextResponse.json({ ok: true, ...result })

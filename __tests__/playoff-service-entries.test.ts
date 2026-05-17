@@ -130,8 +130,8 @@ describe("playoff entry service", () => {
 
   it("submits a complete entry back to the pool dashboard", async () => {
     entryFindUniqueMock.mockResolvedValue({ id: "entry-2", userId: "user-1", challengeId: "challenge-1" })
-    seriesCountMock.mockResolvedValue(15)
-    pickCountMock.mockResolvedValue(15)
+    seriesFindManyMock.mockResolvedValue([{ id: "s1", homeTeamName: "Knicks", awayTeamName: "Hawks", status: "scheduled", startsAt: null }])
+    pickFindManyMock.mockResolvedValue([{ id: "p1", entryId: "entry-2", seriesId: "s1", pickTeamName: "Knicks", createdAt: "", updatedAt: "" }])
 
     const { submitPlayoffBracketEntry } = await import("@/lib/playoffs/playoffService")
 
@@ -142,6 +142,74 @@ describe("playoff entry service", () => {
     })
 
     expect(result.redirectUrl).toBe("/brackets/leagues/challenge-1")
+  })
+
+  it("submits available picks only for no-lock admin verification pools", async () => {
+    entryFindUniqueMock.mockResolvedValue({
+      id: "entry-2",
+      userId: "admin-user",
+      challengeId: "challenge-1",
+      challenge: { config: { lockRule: "none" }, ownerUserId: "owner-user", isTestMode: false },
+    })
+    seriesFindManyMock.mockResolvedValue([
+      { id: "s1", homeTeamName: "Knicks", awayTeamName: "Hawks", status: "in_progress", startsAt: new Date("2026-05-01T00:00:00.000Z"), roundIndex: 1, seriesNumber: 1 },
+      { id: "s9", homeTeamName: "Winner S1", awayTeamName: "Winner S2", status: "scheduled", startsAt: null, roundIndex: 2, seriesNumber: 9 },
+    ])
+    pickFindManyMock.mockResolvedValue([{ id: "p1", entryId: "entry-2", seriesId: "s1", pickTeamName: "Knicks", createdAt: "", updatedAt: "" }])
+
+    const { submitPlayoffBracketEntry } = await import("@/lib/playoffs/playoffService")
+    const result = await submitPlayoffBracketEntry({
+      challengeId: "challenge-1",
+      entryId: "entry-2",
+      userId: "admin-user",
+      user: { id: "admin-user", email: "Cjabar.henson@gmail.com" },
+    })
+
+    expect(result.redirectUrl).toBe("/brackets/leagues/challenge-1")
+  })
+
+  it("blocks available-only submit when an available series is missing", async () => {
+    entryFindUniqueMock.mockResolvedValue({
+      id: "entry-2",
+      userId: "admin-user",
+      challengeId: "challenge-1",
+      challenge: { config: { lockRule: "none" }, ownerUserId: "owner-user", isTestMode: false },
+    })
+    seriesFindManyMock.mockResolvedValue([
+      { id: "s1", homeTeamName: "Knicks", awayTeamName: "Hawks", status: "in_progress", startsAt: new Date("2026-05-01T00:00:00.000Z"), roundIndex: 1, seriesNumber: 1 },
+      { id: "s9", homeTeamName: "Winner S1", awayTeamName: "Winner S2", status: "scheduled", startsAt: null, roundIndex: 2, seriesNumber: 9 },
+    ])
+    pickFindManyMock.mockResolvedValue([])
+
+    const { submitPlayoffBracketEntry } = await import("@/lib/playoffs/playoffService")
+    await expect(submitPlayoffBracketEntry({
+      challengeId: "challenge-1",
+      entryId: "entry-2",
+      userId: "admin-user",
+      user: { id: "admin-user", email: "Cjabar.henson@gmail.com" },
+    })).rejects.toThrow("Complete all currently available series before submitting this test bracket.")
+  })
+
+  it("does not allow normal users to partial-submit strict pools", async () => {
+    entryFindUniqueMock.mockResolvedValue({
+      id: "entry-2",
+      userId: "user-1",
+      challengeId: "challenge-1",
+      challenge: { config: { lockRule: "series_start" }, ownerUserId: "owner-user", isTestMode: false },
+    })
+    seriesFindManyMock.mockResolvedValue([
+      { id: "s1", homeTeamName: "Knicks", awayTeamName: "Hawks", status: "scheduled", startsAt: null, roundIndex: 1, seriesNumber: 1 },
+      { id: "s9", homeTeamName: "Winner S1", awayTeamName: "Winner S2", status: "scheduled", startsAt: null, roundIndex: 2, seriesNumber: 9 },
+    ])
+    pickFindManyMock.mockResolvedValue([{ id: "p1", entryId: "entry-2", seriesId: "s1", pickTeamName: "Knicks", createdAt: "", updatedAt: "" }])
+
+    const { submitPlayoffBracketEntry } = await import("@/lib/playoffs/playoffService")
+    await expect(submitPlayoffBracketEntry({
+      challengeId: "challenge-1",
+      entryId: "entry-2",
+      userId: "user-1",
+      user: { id: "user-1", email: "user@example.com" },
+    })).rejects.toThrow("Complete every series before submitting this bracket.")
   })
 
   it("provides sport-specific naming helpers", async () => {

@@ -300,6 +300,95 @@ describe("PlayoffBracketEntryShell", () => {
     }))
   })
 
+  it("allows partial verification submit when all available series are picked", () => {
+    submitPlayoffBracketEntryClientMock.mockResolvedValue({
+      challengeId: "challenge-1",
+      entryId: "entry-1",
+      redirectUrl: "/brackets/leagues/challenge-1",
+    })
+    const view = buildEntryView({
+      viewerUserId: "admin-user",
+      challenge: { ...buildEntryView().challenge, ownerUserId: "owner-user", isTestMode: false, lockRule: "none" },
+      activeEntry: {
+        id: "entry-1",
+        name: "Bracket 1",
+        userId: "admin-user",
+        pickCount: 1,
+        isComplete: true,
+        createdAt: new Date().toISOString(),
+      },
+      picks: [{ id: "p1", entryId: "entry-1", seriesId: "s1", pickTeamName: "Knicks", createdAt: "", updatedAt: "" }],
+      series: [
+        {
+          id: "s1",
+          round: "round_1",
+          roundIndex: 1,
+          seriesNumber: 1,
+          conference: "east",
+          homeSeed: 1,
+          awaySeed: 8,
+          homeTeamName: "Knicks",
+          awayTeamName: "Hawks",
+          winnerTeamName: null,
+          bestOf: 7,
+          status: "in_progress",
+          startsAt: null,
+          nextSeriesNumber: 9,
+          nextSeriesSlot: "home",
+          sourceSeriesHome: null,
+          sourceSeriesAway: null,
+        },
+        {
+          id: "s9",
+          round: "conference_semifinals",
+          roundIndex: 2,
+          seriesNumber: 9,
+          conference: "east",
+          homeSeed: 0,
+          awaySeed: 0,
+          homeTeamName: "Winner S1",
+          awayTeamName: "Winner S2",
+          winnerTeamName: null,
+          bestOf: 7,
+          status: "scheduled",
+          startsAt: null,
+          nextSeriesNumber: 13,
+          nextSeriesSlot: "home",
+          sourceSeriesHome: 1,
+          sourceSeriesAway: 2,
+        },
+      ],
+      lockDiagnostics: {
+        lockRule: "none",
+        allowTestLatePicks: true,
+        viewerCanLatePick: true,
+        isPoolOwner: false,
+        isTestMode: false,
+        hasPoolAdminAccess: true,
+      },
+      completion: {
+        mode: "available_picks_only",
+        isSubmittable: true,
+        requiredPickCount: 1,
+        savedRequiredPickCount: 1,
+        totalSeriesCount: 2,
+        unavailableSeriesCount: 1,
+        missingRequiredSeriesIds: [],
+        message: "Complete all currently available series before submitting this test bracket.",
+      },
+    })
+
+    render(<PlayoffBracketEntryShell initialView={view} />)
+
+    expect(screen.getByTestId("playoff-entry-partial-submit-note")).toHaveTextContent("Later official matchups are still TBD and will remain pending.")
+    expect(screen.getByTestId("playoff-entry-review-summary")).toHaveTextContent("Partial verification submitted")
+    fireEvent.click(screen.getByRole("button", { name: "Submit Available Picks" }))
+    expect(submitPlayoffBracketEntryClientMock).toHaveBeenCalledWith({
+      challengeId: "challenge-1",
+      entryId: "entry-1",
+    })
+  })
+
   it("toggles pick result verification display without saving data", () => {
     render(
       <PlayoffBracketEntryShell

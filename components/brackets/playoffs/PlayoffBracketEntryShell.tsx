@@ -45,7 +45,16 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
   const picks = Array.isArray(view.picks) ? view.picks : []
   const rounds = Array.isArray(view.rounds) ? view.rounds : []
   const projectedSeries = useMemo(() => buildProjectedPlayoffSeries(series, picks, { includeUserPicks: showUserProjection }), [series, picks, showUserProjection])
-  const nextActionableSeries = useMemo(() => getNextActionablePlayoffSeries(projectedSeries, picks), [projectedSeries, picks])
+  const requiredSeriesIds = new Set(view.completion?.missingRequiredSeriesIds ?? [])
+  const nextActionableSeries = useMemo(() => {
+    if (requiredSeriesIds.size > 0) {
+      return projectedSeries
+        .slice()
+        .sort((a, b) => a.roundIndex - b.roundIndex || a.seriesNumber - b.seriesNumber)
+        .find((item) => requiredSeriesIds.has(item.id)) ?? null
+    }
+    return getNextActionablePlayoffSeries(projectedSeries, picks)
+  }, [projectedSeries, picks, view.completion?.missingRequiredSeriesIds])
   const pickResultSummary = useMemo(
     () => projectedSeries.map((item) => ({
       series: item,
@@ -56,7 +65,6 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
   const totalSeries = series.length
   const pickCount = activeEntry?.pickCount ?? picks.length
   const lockRule = view.challenge.lockRule ?? view.challenge.config?.lockRule ?? "series_start"
-  const canSubmit = Boolean(activeEntry) && totalSeries > 0 && pickCount >= totalSeries
   const hasTemplateSeries = series.some((item) => /^Winner\s+S\d+$/i.test(item.homeTeamName) || /^Winner\s+S\d+$/i.test(item.awayTeamName)) ||
     (view.challenge.isTestMode && !series.some((item) => item.winnerTeamName || item.status === "in_progress" || item.status === "final"))
   const hasAdminPoolAccess = hasPoolAdminAccess(session?.user) || view.lockDiagnostics?.hasPoolAdminAccess === true
@@ -64,6 +72,18 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
   const canShowPickResultsToggle = activeEntry?.userId === view.viewerUserId || view.challenge.ownerUserId === view.viewerUserId || hasAdminPoolAccess
   const canUseLatePicks = view.lockDiagnostics?.viewerCanLatePick ?? (view.challenge.ownerUserId === view.viewerUserId || view.challenge.isTestMode || hasAdminPoolAccess)
   const showLockDiagnostics = canSyncSeries || canUseLatePicks
+  const completion = view.completion
+  const completionMode = completion?.mode ?? "full_bracket_required"
+  const canSubmit = Boolean(activeEntry) && Boolean(completion?.isSubmittable ?? (totalSeries > 0 && pickCount >= totalSeries))
+  const submitBlockedMessage = completion?.message ?? "Complete every series before submitting this bracket."
+  const submitButtonLabel = completionMode === "available_picks_only" ? "Submit Available Picks" : "Submit Bracket"
+  const reviewBadge = activeEntry.isComplete
+    ? completionMode === "available_picks_only"
+      ? "Partial verification submitted"
+      : "Complete"
+    : canSubmit && completionMode === "available_picks_only"
+      ? "Complete for available picks"
+      : "Incomplete"
   const hasOfficialSyncedSeries = series.some((item) => item.lastSyncedAt || item.providerGamesJson || item.seriesSummary || item.winnerTeamName || isPlayoffSeriesResolved(item))
 
   if (!activeEntry) {
@@ -224,11 +244,18 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
             ) : null}
             <p data-testid="playoff-next-pick-guidance" className="mt-2 text-sm font-semibold text-slate-700">
               {nextActionableSeries
-                ? `${pickCount}/${totalSeries} picks complete. Next pick: Series ${nextActionableSeries.seriesNumber}.`
-                : pickCount >= totalSeries
-                  ? "All series picks are complete."
+                ? `${completion?.savedRequiredPickCount ?? pickCount}/${completion?.requiredPickCount ?? totalSeries} required picks complete. Next pick: Series ${nextActionableSeries.seriesNumber}.`
+                : canSubmit
+                  ? completionMode === "available_picks_only"
+                    ? "All currently available series are picked."
+                    : "All series picks are complete."
                   : "No later-round picks are available yet. Pick earlier round winners first."}
             </p>
+            {completionMode === "available_picks_only" && (completion?.unavailableSeriesCount ?? 0) > 0 ? (
+              <p data-testid="playoff-entry-partial-submit-note" className="mt-2 text-sm font-semibold text-sky-700">
+                Later official matchups are still TBD and will remain pending.
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
             {canShowPickResultsToggle ? (
@@ -269,12 +296,12 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
               className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <CheckCircle2 className="h-4 w-4" />
-              {dirtySinceSubmit && activeEntry.isComplete ? "Re-Submit Bracket" : "Submit Bracket"}
+              {dirtySinceSubmit && activeEntry.isComplete ? `Re-${submitButtonLabel}` : submitButtonLabel}
             </button>
           </div>
         </div>
         {!canSubmit ? (
-          <p className="mt-3 text-sm text-amber-700">Complete every series before submitting this bracket.</p>
+          <p className="mt-3 text-sm text-amber-700">{submitBlockedMessage}</p>
         ) : null}
         {dirtySinceSubmit ? (
           <p className="mt-3 text-sm text-sky-700">You changed a submitted bracket. Re-submit to confirm the latest picks.</p>
@@ -288,7 +315,7 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
             <p className="mt-1 text-sm text-slate-600">Official results are for verification only. Submitting does not create or change picks.</p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-            {activeEntry.isComplete ? "Submitted/complete ready" : "Incomplete"}
+            {reviewBadge}
           </span>
         </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
