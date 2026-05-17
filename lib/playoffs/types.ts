@@ -53,6 +53,8 @@ export type PlayoffSeriesView = {
   startsAt: string | null
   nextSeriesNumber: number | null
   nextSeriesSlot: PlayoffSeriesSlot | null
+  sourceSeriesHome: number | null
+  sourceSeriesAway: number | null
 }
 
 export type PlayoffPickView = {

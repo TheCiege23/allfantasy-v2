@@ -1,16 +1,41 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import { createPlayoffBracketChallenge } from "@/lib/playoffs/playoffService"
+import { createPlayoffBracketChallenge, listUserPlayoffChallenges } from "@/lib/playoffs/playoffService"
+import type { PlayoffSport } from "@/lib/playoffs/types"
 import { requireWorldCupApiUser } from "./_utils"
 
 export const runtime = "nodejs"
 
 const createPlayoffChallengeSchema = z.object({
-  name: z.string().trim().min(2).max(80),
+  name: z.string().trim().min(2).max(80).optional(),
   sport: z.enum(["nba", "nhl"]),
   seasonYear: z.coerce.number().int().min(2024).max(2100).optional(),
   isTestMode: z.boolean().optional(),
 })
+
+export async function GET(request: Request) {
+  const auth = await requireWorldCupApiUser(request)
+  if (!auth.ok) return auth.response
+
+  const { searchParams } = new URL(request.url)
+  const sportParam = searchParams.get("sport")
+  const sport = sportParam === "nba" || sportParam === "nhl" ? sportParam : null
+
+  try {
+    const challenges = await listUserPlayoffChallenges(auth.user.id)
+    return NextResponse.json({
+      ok: true,
+      challenges: sport ? challenges.filter((challenge) => challenge.sport === sport) : challenges,
+    })
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Failed to load playoff challenges",
+      },
+      { status: 500 }
+    )
+  }
+}
 
 export async function POST(request: Request) {
   const auth = await requireWorldCupApiUser(request)
@@ -35,6 +60,9 @@ export async function POST(request: Request) {
       ok: true,
       challengeId: result.challengeId,
       entryId: result.entryId,
+      sport: result.sport as PlayoffSport,
+      name: result.name,
+      redirectUrl: result.redirectUrl,
     })
   } catch (error) {
     return NextResponse.json(

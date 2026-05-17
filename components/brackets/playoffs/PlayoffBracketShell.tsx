@@ -271,6 +271,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="playoff-dashboard-leaderboard">
         <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">Leaderboard</h2>
+        <p className="mt-1 text-xs font-semibold text-slate-500">Pick-count leaderboard. Live scoring is not wired yet.</p>
         {leaderboardRows.length === 0 ? (
           <p className="mt-2 text-sm text-slate-600">No leaderboard entries yet.</p>
         ) : (

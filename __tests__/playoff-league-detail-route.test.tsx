@@ -91,14 +91,16 @@ describe("/brackets/leagues/[leagueId] detail route", () => {
     expect(screen.queryByText("Create Bracket Challenge Pool")).not.toBeInTheDocument()
   })
 
-  it("redirects to league dashboard for existing non-playoff pool", async () => {
+  it("renders migrated recovery UI for existing non-playoff pool", async () => {
     getPlayoffBracketViewMock.mockResolvedValue(null)
     bracketLeagueFindUniqueMock.mockResolvedValue({ id: "league-123" })
     const mod = await import("@/app/brackets/leagues/[leagueId]/page")
 
-    await mod.default({ params: { leagueId: "league-123" }, searchParams: {} })
+    const element = await mod.default({ params: { leagueId: "league-123" }, searchParams: {} })
+    render(element as React.ReactElement)
 
-    expect(redirectMock).toHaveBeenCalledWith("/league/league-123")
+    expect(screen.getByText("This pool has been migrated")).toBeInTheDocument()
+    expect(redirectMock).not.toHaveBeenCalled()
   })
 
   it("shows friendly not-found state for missing pool", async () => {

@@ -134,6 +134,7 @@ describe("PlayoffBracketShell dashboard", () => {
     expect(screen.getByRole("heading", { name: "Participants" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "My Brackets / Entries" })).toBeInTheDocument()
     expect(screen.getByTestId("playoff-dashboard-leaderboard")).toBeInTheDocument()
+    expect(screen.getByText("Pick-count leaderboard. Live scoring is not wired yet.")).toBeInTheDocument()
     expect(screen.getByTestId("playoff-fill-bracket-cta")).toHaveTextContent("Create Your First Bracket")
   })
 

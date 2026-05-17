@@ -2,6 +2,7 @@ import "server-only"
 import { prisma } from "@/lib/prisma"
 import { buildPlayoffTemplate, getPlayoffRoundOrder } from "./playoffTemplate"
 import type { PlayoffChallengeListItem, PlayoffChallengeView, PlayoffCreateResponse, PlayoffSport } from "./types"
+import { getDependentPlayoffSeriesIds } from "./playoffBracketProjection"
 
 type SessionUser = {
   id?: string | null
@@ -311,6 +312,8 @@ export async function getPlayoffBracketView(input: {
       startsAt: toIso(series.startsAt),
       nextSeriesNumber: series.nextSeriesNumber,
       nextSeriesSlot: series.nextSeriesSlot,
+      sourceSeriesHome: series.sourceSeriesHome,
+      sourceSeriesAway: series.sourceSeriesAway,
     })),
     picks: picks.map((pick: any) => ({
       id: pick.id,
@@ -445,6 +448,8 @@ export async function savePlayoffBracketPick(input: {
     select: {
       id: true,
       challengeId: true,
+      status: true,
+      startsAt: true,
       homeTeamName: true,
       awayTeamName: true,
     },
@@ -454,26 +459,81 @@ export async function savePlayoffBracketPick(input: {
     throw new Error("Series not found")
   }
 
-  if (![series.homeTeamName, series.awayTeamName].includes(input.pickTeamName)) {
+  if (series.status === "in_progress" || series.status === "final") {
+    throw new Error("Picks are locked for this series")
+  }
+
+  if (series.startsAt && new Date(series.startsAt).getTime() <= Date.now()) {
+    throw new Error("Picks are locked for this series")
+  }
+
+  const allSeries = await (prisma as any).playoffBracketSeries.findMany({
+    where: { challengeId: input.challengeId },
+    orderBy: [{ roundIndex: "asc" }, { seriesNumber: "asc" }],
+  })
+
+  const picks = await (prisma as any).playoffBracketPick.findMany({
+    where: { entryId: input.entryId },
+  })
+
+  const dependentSeriesIds = getDependentPlayoffSeriesIds(input.seriesId, allSeries)
+  const projectedPickBySeriesNumber = new Map<number, string>()
+  for (const item of allSeries) {
+    const pick = picks.find((candidate: any) => candidate.seriesId === item.id)
+    if (item.id === input.seriesId) {
+      projectedPickBySeriesNumber.set(item.seriesNumber, input.pickTeamName)
+    } else if (pick && !dependentSeriesIds.has(item.id)) {
+      projectedPickBySeriesNumber.set(item.seriesNumber, pick.pickTeamName)
+    }
+  }
+
+  const selectedSeries = allSeries.find((item: any) => item.id === input.seriesId) ?? series
+  const homeName = selectedSeries.sourceSeriesHome
+    ? projectedPickBySeriesNumber.get(selectedSeries.sourceSeriesHome) ?? selectedSeries.homeTeamName
+    : selectedSeries.homeTeamName
+  const awayName = selectedSeries.sourceSeriesAway
+    ? projectedPickBySeriesNumber.get(selectedSeries.sourceSeriesAway) ?? selectedSeries.awayTeamName
+    : selectedSeries.awayTeamName
+
+  if (selectedSeries.sourceSeriesHome && !projectedPickBySeriesNumber.has(selectedSeries.sourceSeriesHome)) {
+    throw new Error("Pick earlier round winners first.")
+  }
+
+  if (selectedSeries.sourceSeriesAway && !projectedPickBySeriesNumber.has(selectedSeries.sourceSeriesAway)) {
+    throw new Error("Pick earlier round winners first.")
+  }
+
+  if (![homeName, awayName].includes(input.pickTeamName)) {
     throw new Error("Pick team must be one of the teams in this series")
   }
 
-  const pick = await (prisma as any).playoffBracketPick.upsert({
-    where: {
-      entryId_seriesId: {
+  const pick = await prisma.$transaction(async (tx) => {
+    if (dependentSeriesIds.size > 0) {
+      await (tx as any).playoffBracketPick.deleteMany({
+        where: {
+          entryId: input.entryId,
+          seriesId: { in: Array.from(dependentSeriesIds) },
+        },
+      })
+    }
+
+    return (tx as any).playoffBracketPick.upsert({
+      where: {
+        entryId_seriesId: {
+          entryId: input.entryId,
+          seriesId: input.seriesId,
+        },
+      },
+      create: {
+        challengeId: input.challengeId,
         entryId: input.entryId,
         seriesId: input.seriesId,
+        pickTeamName: input.pickTeamName,
       },
-    },
-    create: {
-      challengeId: input.challengeId,
-      entryId: input.entryId,
-      seriesId: input.seriesId,
-      pickTeamName: input.pickTeamName,
-    },
-    update: {
-      pickTeamName: input.pickTeamName,
-    },
+      update: {
+        pickTeamName: input.pickTeamName,
+      },
+    })
   })
 
   return pick

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useMemo, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, CheckCircle2, Loader2 } from "lucide-react"
@@ -10,6 +10,7 @@ import {
   savePlayoffBracketPickClient,
   submitPlayoffBracketEntryClient,
 } from "@/lib/playoffs/playoffClientApi"
+import { buildProjectedPlayoffSeries, getNextActionablePlayoffSeries } from "@/lib/playoffs/playoffBracketProjection"
 import PlayoffBracketBoard from "./PlayoffBracketBoard"
 
 type Props = {
@@ -22,11 +23,15 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
   const [dirtySinceSubmit, setDirtySinceSubmit] = useState(false)
   const [saving, startSaving] = useTransition()
   const [submitting, startSubmitting] = useTransition()
+  const [savingSeriesIds, setSavingSeriesIds] = useState<Set<string>>(new Set())
+  const [savedSeriesIds, setSavedSeriesIds] = useState<Set<string>>(new Set())
 
   const activeEntry = view.activeEntry
   const series = Array.isArray(view.series) ? view.series : []
   const picks = Array.isArray(view.picks) ? view.picks : []
   const rounds = Array.isArray(view.rounds) ? view.rounds : []
+  const projectedSeries = useMemo(() => buildProjectedPlayoffSeries(series, picks), [series, picks])
+  const nextActionableSeries = useMemo(() => getNextActionablePlayoffSeries(projectedSeries, picks), [projectedSeries, picks])
   const totalSeries = series.length
   const pickCount = activeEntry?.pickCount ?? picks.length
   const canSubmit = Boolean(activeEntry) && totalSeries > 0 && pickCount >= totalSeries
@@ -36,8 +41,15 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
   }
 
   function handlePick(seriesId: string, teamName: string) {
+    if (savingSeriesIds.has(seriesId)) return
     const entryId = activeEntry.id
     const wasSubmitted = Boolean(view.activeEntry?.isComplete)
+    setSavingSeriesIds((current) => new Set(current).add(seriesId))
+    setSavedSeriesIds((current) => {
+      const next = new Set(current)
+      next.delete(seriesId)
+      return next
+    })
     startSaving(async () => {
       try {
         const next = await savePlayoffBracketPickClient({
@@ -48,9 +60,25 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
         })
         setView(next)
         setDirtySinceSubmit((current) => current || wasSubmitted)
+        setSavedSeriesIds((current) => new Set(current).add(seriesId))
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Unable to save pick")
+      } finally {
+        setSavingSeriesIds((current) => {
+          const next = new Set(current)
+          next.delete(seriesId)
+          return next
+        })
       }
+    })
+  }
+
+  function continuePicking() {
+    if (!nextActionableSeries) return
+    document.getElementById(`playoff-series-${nextActionableSeries.id}`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+      inline: "center",
     })
   }
 
@@ -99,18 +127,35 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
           <div>
             <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">Bracket Entry</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Picks save automatically. Finish every series, then submit to return to the pool dashboard.
+              Picks save automatically. Finish available series first, then projected later rounds unlock.
+            </p>
+            <p data-testid="playoff-next-pick-guidance" className="mt-2 text-sm font-semibold text-slate-700">
+              {nextActionableSeries
+                ? `${pickCount}/${totalSeries} picks complete. Next pick: Series ${nextActionableSeries.seriesNumber}.`
+                : pickCount >= totalSeries
+                  ? "All series picks are complete."
+                  : "No later-round picks are available yet. Pick earlier round winners first."}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!canSubmit || submitting}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <CheckCircle2 className="h-4 w-4" />
-            {dirtySinceSubmit && activeEntry.isComplete ? "Re-Submit Bracket" : "Submit Bracket"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={continuePicking}
+              disabled={!nextActionableSeries}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Continue Picking
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!canSubmit || submitting}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              {dirtySinceSubmit && activeEntry.isComplete ? "Re-Submit Bracket" : "Submit Bracket"}
+            </button>
+          </div>
         </div>
         {!canSubmit ? (
           <p className="mt-3 text-sm text-amber-700">Complete every series before submitting this bracket.</p>
@@ -120,7 +165,15 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
         ) : null}
       </section>
 
-      <PlayoffBracketBoard rounds={rounds} series={series} picks={picks} onPick={handlePick} />
+      <PlayoffBracketBoard
+        rounds={rounds}
+        series={projectedSeries}
+        picks={picks}
+        onPick={handlePick}
+        savingSeriesIds={savingSeriesIds}
+        savedSeriesIds={savedSeriesIds}
+        nextSeriesId={nextActionableSeries?.id ?? null}
+      />
     </div>
   )
 }
