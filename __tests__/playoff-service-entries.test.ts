@@ -182,8 +182,67 @@ describe("playoff entry service", () => {
         seriesId: "s1",
         pickTeamName: "Celtics",
       })
-    ).rejects.toThrow("Picks are locked for this series")
+    ).rejects.toThrow("Series already started/locked")
 
     expect(pickUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it("allows provider-synced later-round picks without earlier user picks when unlocked", async () => {
+    entryFindUniqueMock.mockResolvedValue({ id: "entry-1", userId: "user-1", challengeId: "challenge-1" })
+    seriesFindUniqueMock.mockResolvedValue({
+      id: "s9",
+      challengeId: "challenge-1",
+      status: "scheduled",
+      startsAt: null,
+      homeTeamName: "Celtics",
+      awayTeamName: "Knicks",
+    })
+    seriesFindManyMock.mockResolvedValue([
+      {
+        id: "s1",
+        challengeId: "challenge-1",
+        roundIndex: 1,
+        seriesNumber: 1,
+        homeTeamName: "Celtics",
+        awayTeamName: "Hawks",
+        sourceSeriesHome: null,
+        sourceSeriesAway: null,
+      },
+      {
+        id: "s2",
+        challengeId: "challenge-1",
+        roundIndex: 1,
+        seriesNumber: 2,
+        homeTeamName: "Knicks",
+        awayTeamName: "76ers",
+        sourceSeriesHome: null,
+        sourceSeriesAway: null,
+      },
+      {
+        id: "s9",
+        challengeId: "challenge-1",
+        roundIndex: 2,
+        seriesNumber: 9,
+        homeTeamName: "Celtics",
+        awayTeamName: "Knicks",
+        sourceSeriesHome: 1,
+        sourceSeriesAway: 2,
+      },
+    ])
+    pickFindManyMock.mockResolvedValue([])
+    pickUpsertMock.mockResolvedValue({ id: "p9", seriesId: "s9", pickTeamName: "Celtics" })
+
+    const { savePlayoffBracketPick } = await import("@/lib/playoffs/playoffService")
+    await savePlayoffBracketPick({
+      challengeId: "challenge-1",
+      entryId: "entry-1",
+      userId: "user-1",
+      seriesId: "s9",
+      pickTeamName: "Celtics",
+    })
+
+    expect(pickUpsertMock).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ seriesId: "s9", pickTeamName: "Celtics" }),
+    }))
   })
 })

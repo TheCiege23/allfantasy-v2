@@ -88,6 +88,34 @@ describe("PlayoffBracketBoard", () => {
     expect(screen.getByRole("button", { name: "Heat" })).toBeDisabled()
     expect(screen.getByText("Saving...")).toBeInTheDocument()
   })
+
+  it("renders provider-synced later-round teams without unresolved helper text", () => {
+    const providerSynced = series.map((item) => item.id === "s9"
+      ? { ...item, homeTeamName: "Celtics", awayTeamName: "Knicks" }
+      : item
+    )
+
+    render(<PlayoffBracketBoard rounds={[...rounds]} series={providerSynced} picks={picks} />)
+
+    const syncedSeries = screen.getByTestId("playoff-series-s9")
+    expect(screen.queryByTestId("playoff-series-disabled-reason-s9")).not.toBeInTheDocument()
+    expect(syncedSeries).toHaveTextContent("Celtics")
+    expect(syncedSeries).toHaveTextContent("Knicks")
+  })
+
+  it("disables locked synced series before click with clear reason", () => {
+    const onPick = vi.fn()
+    const lockedSeries = series.map((item) => item.id === "s9"
+      ? { ...item, homeTeamName: "Celtics", awayTeamName: "Knicks", status: "in_progress" as const }
+      : item
+    )
+
+    render(<PlayoffBracketBoard rounds={[...rounds]} series={lockedSeries} picks={picks} onPick={onPick} />)
+
+    expect(screen.getByTestId("playoff-series-disabled-reason-s9")).toHaveTextContent("Series already started/locked")
+    fireEvent.click(screen.getByRole("button", { name: "Knicks" }))
+    expect(onPick).not.toHaveBeenCalled()
+  })
 })
 
 describe("playoff bracket projection", () => {
@@ -122,6 +150,21 @@ describe("playoff bracket projection", () => {
     )
 
     expect(projected.find((item) => item.id === "s9")?.homeTeamName).toBe("Celtics")
+  })
+
+  it("keeps provider-synced later-round teams even without prior-round picks", () => {
+    const projected = buildProjectedPlayoffSeries(
+      series.map((item) => item.id === "s9"
+        ? { ...item, homeTeamName: "Celtics", awayTeamName: "Knicks" }
+        : item
+      ),
+      []
+    )
+
+    expect(projected.find((item) => item.id === "s9")).toMatchObject({
+      homeTeamName: "Celtics",
+      awayTeamName: "Knicks",
+    })
   })
 
   it("finds next actionable projected series", () => {

@@ -13,10 +13,19 @@ function resolveProjectedTeamName(
   bySeriesNumber: Map<number, PlayoffSeriesView>,
   picks: PlayoffPickView[]
 ): string {
+  if (isOfficialTeamName(fallbackName)) return fallbackName
   if (!sourceSeriesNumber) return fallbackName
   const source = bySeriesNumber.get(sourceSeriesNumber)
   if (!source) return fallbackName
   return source.winnerTeamName?.trim() || pickForSeries(picks, source.id)?.pickTeamName || fallbackName
+}
+
+export function isOfficialTeamName(value: string | null | undefined): boolean {
+  const name = String(value ?? "").trim()
+  if (!name) return false
+  return !/^Winner\s+S\d+$/i.test(name) &&
+    !/Champion$/i.test(name) &&
+    !/Winner\s+[AB]$/i.test(name)
 }
 
 export function buildProjectedPlayoffSeries(
@@ -33,12 +42,7 @@ export function buildProjectedPlayoffSeries(
 }
 
 export function isPlayoffSeriesResolved(series: PlayoffSeriesView): boolean {
-  return !/^Winner\s+S\d+$/i.test(series.homeTeamName) &&
-    !/^Winner\s+S\d+$/i.test(series.awayTeamName) &&
-    !/Champion$/i.test(series.homeTeamName) &&
-    !/Champion$/i.test(series.awayTeamName) &&
-    !/Winner\s+[AB]$/i.test(series.homeTeamName) &&
-    !/Winner\s+[AB]$/i.test(series.awayTeamName)
+  return isOfficialTeamName(series.homeTeamName) && isOfficialTeamName(series.awayTeamName)
 }
 
 export function getNextActionablePlayoffSeries(

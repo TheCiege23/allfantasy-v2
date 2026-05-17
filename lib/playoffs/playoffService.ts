@@ -2,7 +2,7 @@ import "server-only"
 import { prisma } from "@/lib/prisma"
 import { buildPlayoffTemplate, getPlayoffRoundOrder } from "./playoffTemplate"
 import type { PlayoffChallengeListItem, PlayoffChallengeView, PlayoffCreateResponse, PlayoffSport } from "./types"
-import { getDependentPlayoffSeriesIds } from "./playoffBracketProjection"
+import { getDependentPlayoffSeriesIds, isOfficialTeamName } from "./playoffBracketProjection"
 import { scorePlayoffEntryPicks } from "./playoffScoring"
 
 type SessionUser = {
@@ -474,12 +474,16 @@ export async function savePlayoffBracketPick(input: {
     throw new Error("Series not found")
   }
 
-  if (series.status === "in_progress" || series.status === "final") {
-    throw new Error("Picks are locked for this series")
+  if (series.status === "final") {
+    throw new Error("Series completed")
+  }
+
+  if (series.status === "in_progress") {
+    throw new Error("Series already started/locked")
   }
 
   if (series.startsAt && new Date(series.startsAt).getTime() <= Date.now()) {
-    throw new Error("Picks are locked for this series")
+    throw new Error("Series already started/locked")
   }
 
   const allSeries = await (prisma as any).playoffBracketSeries.findMany({
@@ -503,18 +507,18 @@ export async function savePlayoffBracketPick(input: {
   }
 
   const selectedSeries = allSeries.find((item: any) => item.id === input.seriesId) ?? series
-  const homeName = selectedSeries.sourceSeriesHome
+  const homeName = selectedSeries.sourceSeriesHome && !isOfficialTeamName(selectedSeries.homeTeamName)
     ? projectedPickBySeriesNumber.get(selectedSeries.sourceSeriesHome) ?? selectedSeries.homeTeamName
     : selectedSeries.homeTeamName
-  const awayName = selectedSeries.sourceSeriesAway
+  const awayName = selectedSeries.sourceSeriesAway && !isOfficialTeamName(selectedSeries.awayTeamName)
     ? projectedPickBySeriesNumber.get(selectedSeries.sourceSeriesAway) ?? selectedSeries.awayTeamName
     : selectedSeries.awayTeamName
 
-  if (selectedSeries.sourceSeriesHome && !projectedPickBySeriesNumber.has(selectedSeries.sourceSeriesHome)) {
+  if (selectedSeries.sourceSeriesHome && !isOfficialTeamName(selectedSeries.homeTeamName) && !projectedPickBySeriesNumber.has(selectedSeries.sourceSeriesHome)) {
     throw new Error("Pick earlier round winners first.")
   }
 
-  if (selectedSeries.sourceSeriesAway && !projectedPickBySeriesNumber.has(selectedSeries.sourceSeriesAway)) {
+  if (selectedSeries.sourceSeriesAway && !isOfficialTeamName(selectedSeries.awayTeamName) && !projectedPickBySeriesNumber.has(selectedSeries.sourceSeriesAway)) {
     throw new Error("Pick earlier round winners first.")
   }
 

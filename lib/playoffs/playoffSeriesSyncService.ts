@@ -464,8 +464,8 @@ function roundIndexFromGame(game: PlayoffSeriesSyncGame, sport?: PlayoffSport): 
   } else if (sport === "nhl") {
     if (/\bstanley cup final\b|\bstanley cup finals\b/.test(eventName)) return 4
     if (/\bconference finals?\b|\beast finals?\b|\bwest finals?\b|\beastern conference finals?\b|\bwestern conference finals?\b/.test(eventName)) return 3
-    if (/\b2nd round\b|\bsecond round\b/.test(eventName)) return 2
-    if (/\b1st round\b|\bfirst round\b/.test(eventName)) return 1
+    if (/\b2nd round\b|\bsecond round\b|\bround 2\b/.test(eventName)) return 2
+    if (/\b1st round\b|\bfirst round\b|\bround 1\b/.test(eventName)) return 1
   }
   if (eventName.includes("final") && !eventName.includes("conference")) return 4
   if (eventName.includes("conference")) return 3
@@ -538,7 +538,7 @@ function sampleEventNameRoundDiagnostics(games: PlayoffSeriesSyncGame[], sport: 
       round: roundIndexFromGame(game, sport),
       ignored: isPlayInGame(game) || undefined,
     })
-    if (byName.size >= 8) break
+    if (byName.size >= 12) break
   }
   return Array.from(byName.values())
 }
@@ -571,20 +571,33 @@ function sortProviderGroupsForReplacement(groups: ProviderSeriesGroup[]): Provid
 
 function mapTemplateReplacementGroups(seriesList: any[], groups: ProviderSeriesGroup[]): Map<string, ProviderSeriesGroup> {
   const map = new Map<string, ProviderSeriesGroup>()
-  const firstRoundTemplateSeries = sortSeriesForReplacement(
-    seriesList.filter((series) => Number(series.roundIndex) === 1 && !series.sourceSeriesHome && !series.sourceSeriesAway)
-  )
-  if (firstRoundTemplateSeries.length === 0) return map
+  for (const roundIndex of [1, 2, 3, 4]) {
+    const roundSeries = sortSeriesForReplacement(
+      seriesList.filter((series) => Number(series.roundIndex) === roundIndex)
+    )
+    if (roundSeries.length === 0) continue
+    const roundGroups = groups.filter((group) => group.roundIndex === roundIndex)
+    if (roundGroups.length === 0) continue
+    assignReplacementGroupsByConference(map, roundSeries, roundGroups)
+    if (roundIndex === 4 && !Array.from(map.keys()).some((id) => roundSeries.some((series) => series.id === id)) && roundGroups.length >= roundSeries.length) {
+      sortSeriesForReplacement(roundSeries).forEach((series, index) => {
+        const group = sortProviderGroupsForReplacement(roundGroups)[index]
+        if (group) map.set(series.id, group)
+      })
+    }
+  }
+  return map
+}
 
-  const firstRoundGroups = groups.filter((group) => group.roundIndex === 1)
+function assignReplacementGroupsByConference(map: Map<string, ProviderSeriesGroup>, roundSeries: any[], roundGroups: ProviderSeriesGroup[]) {
   const groupsByConference = new Map<string, ProviderSeriesGroup[]>()
-  for (const group of firstRoundGroups) {
+  for (const group of roundGroups) {
     const key = group.conference ?? "unknown"
     groupsByConference.set(key, [...(groupsByConference.get(key) ?? []), group])
   }
 
-  for (const conference of new Set(firstRoundTemplateSeries.map((series) => String(series.conference ?? "unknown")))) {
-    const seriesForConference = firstRoundTemplateSeries.filter((series) => String(series.conference ?? "unknown") === conference)
+  for (const conference of new Set(roundSeries.map((series) => String(series.conference ?? "unknown")))) {
+    const seriesForConference = roundSeries.filter((series) => String(series.conference ?? "unknown") === conference)
     const groupsForConference = sortProviderGroupsForReplacement(groupsByConference.get(conference) ?? [])
     if (groupsForConference.length === 0) continue
     if (groupsForConference.length < seriesForConference.length) continue
@@ -593,15 +606,6 @@ function mapTemplateReplacementGroups(seriesList: any[], groups: ProviderSeriesG
       if (group) map.set(series.id, group)
     })
   }
-
-  if (map.size === 0 && firstRoundGroups.length >= firstRoundTemplateSeries.length) {
-    const sortedGroups = sortProviderGroupsForReplacement(firstRoundGroups)
-    firstRoundTemplateSeries.forEach((series, index) => {
-      const group = sortedGroups[index]
-      if (group) map.set(series.id, group)
-    })
-  }
-  return map
 }
 
 function sampleExistingSeriesDiagnostics(series: any[]): TeamPairDiagnostic[] {
@@ -776,9 +780,6 @@ export async function syncPlayoffChallengeSeries(input: {
   const updatedSeriesExamples: UpdatedSeriesDiagnostic[] = []
 
   for (const series of challenge.series) {
-    if (series.sourceSeriesHome || series.sourceSeriesAway) {
-      continue
-    }
     const replacementGroup = templateReplacementGroups.get(series.id) ?? null
     const seriesGames = gamesForSeries(series, payload.games)
     let matchedGroup: ProviderSeriesGroup | null = replacementGroup

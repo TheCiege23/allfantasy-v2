@@ -25,6 +25,14 @@ function getPickForSeries(picks: PlayoffPickView[], seriesId: string): PlayoffPi
   return picks.find((pick) => pick.seriesId === seriesId) ?? null
 }
 
+function getSeriesLockedReason(series: PlayoffSeriesView, globallyLocked: boolean): string | null {
+  if (series.status === "final") return "Series completed"
+  if (series.status === "in_progress") return "Series already started/locked"
+  if (series.startsAt && new Date(series.startsAt).getTime() <= Date.now()) return "Series already started/locked"
+  if (globallyLocked) return "Series already started/locked"
+  return null
+}
+
 export default function PlayoffBracketBoard({
   rounds,
   series,
@@ -53,6 +61,7 @@ export default function PlayoffBracketBoard({
                 {roundSeries.map((item) => {
                   const pick = getPickForSeries(picks, item.id)
                   const unresolved = !isPlayoffSeriesResolved(item)
+                  const lockedReason = getSeriesLockedReason(item, locked)
                   const isSaving = savingSeriesIds?.has(item.id) ?? false
                   const isSaved = savedSeriesIds?.has(item.id) ?? false
                   const isNext = nextSeriesId === item.id
@@ -77,16 +86,24 @@ export default function PlayoffBracketBoard({
                           {PLAYOFF_UNRESOLVED_SERIES_MESSAGE}
                         </p>
                       ) : null}
+                      {!unresolved && lockedReason ? (
+                        <p
+                          data-testid={`playoff-series-disabled-reason-${item.id}`}
+                          className="mb-2 rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700"
+                        >
+                          {lockedReason}
+                        </p>
+                      ) : null}
                       <div className="space-y-2">
                         {[item.homeTeamName, item.awayTeamName].map((teamName) => {
                           const selected = pick?.pickTeamName === teamName
-                          const disabled = locked || unresolved || isSaving
+                          const disabled = Boolean(lockedReason) || unresolved || isSaving
                           return (
                             <button
                               key={`${item.id}:${teamName}`}
                               type="button"
                               disabled={disabled}
-                              title={locked ? "Picks are locked for this series" : unresolved ? PLAYOFF_UNRESOLVED_SERIES_MESSAGE : isSaving ? "This pick is saving" : undefined}
+                              title={lockedReason ?? (unresolved ? PLAYOFF_UNRESOLVED_SERIES_MESSAGE : isSaving ? "This pick is saving" : undefined)}
                               onClick={() => disabled ? undefined : onPick?.(item.id, teamName)}
                               className={`w-full rounded-lg border px-3 py-2 text-left text-sm font-semibold transition ${
                                 selected

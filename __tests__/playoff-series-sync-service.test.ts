@@ -441,6 +441,11 @@ describe("syncPlayoffChallengeSeries", () => {
     vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NHL", 2026, [
       scheduleRow("NHL", "Postseason", "First Round", null as any, "Panthers", "Lightning", "scheduled", "2026-04-20T00:00:00.000Z"),
       scheduleRow("NHL", "Postseason", "Second Round", null as any, "Panthers", "Maple Leafs", "scheduled", "2026-05-01T00:00:00.000Z"),
+      scheduleRow("NHL", "Postseason", "East Round 1:", null as any, "Capitals", "Canadiens", "scheduled", "2026-04-21T00:00:00.000Z"),
+      scheduleRow("NHL", "Postseason", "West Round 1:", null as any, "Jets", "Blues", "scheduled", "2026-04-21T00:00:00.000Z"),
+      scheduleRow("NHL", "Postseason", "East Round 2", null as any, "Capitals", "Hurricanes", "scheduled", "2026-05-02T00:00:00.000Z"),
+      scheduleRow("NHL", "Postseason", "West Round 2", null as any, "Stars", "Avalanche", "scheduled", "2026-05-02T00:00:00.000Z"),
+      scheduleRow("NHL", "Postseason", "East Conference Finals", null as any, "Panthers", "Hurricanes", "scheduled", "2026-05-16T00:00:00.000Z"),
       scheduleRow("NHL", "Postseason", "Conference Finals", null as any, "Panthers", "Hurricanes", "scheduled", "2026-05-15T00:00:00.000Z"),
       scheduleRow("NHL", "Postseason", "Stanley Cup Final", null as any, "Panthers", "Oilers", "scheduled", "2026-06-01T00:00:00.000Z"),
     ] as any))
@@ -453,12 +458,67 @@ describe("syncPlayoffChallengeSeries", () => {
     const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
     const result = await syncPlayoffChallengeSeries({ challengeId: "challenge-1" })
 
-    expect(result.diagnostics.providerSeriesByRound).toMatchObject({ "1": 1, "2": 1, "3": 1, "4": 1 })
+    expect(result.diagnostics.providerSeriesByRound).toMatchObject({ "1": 3, "2": 3, "3": 1, "4": 1 })
     expect(result.diagnostics.eventNameRoundMapExamples).toEqual(expect.arrayContaining([
       expect.objectContaining({ eventName: "First Round", round: 1 }),
       expect.objectContaining({ eventName: "Second Round", round: 2 }),
+      expect.objectContaining({ eventName: "East Round 1:", round: 1 }),
+      expect.objectContaining({ eventName: "West Round 1:", round: 1 }),
+      expect.objectContaining({ eventName: "East Round 2", round: 2 }),
+      expect.objectContaining({ eventName: "West Round 2", round: 2 }),
+      expect.objectContaining({ eventName: "East Conference Finals", round: 3 }),
       expect.objectContaining({ eventName: "Conference Finals", round: 3 }),
       expect.objectContaining({ eventName: "Stanley Cup Final", round: 4 }),
+    ]))
+  })
+
+  it("builds NHL provider series from a 66-game postseason sample", async () => {
+    const liveScores = await import("@/lib/sports-live-scores-service")
+    const rows = [
+      ...repeatSportSeriesGames("NHL", "East Round 1:", "Capitals", "Canadiens", 4),
+      ...repeatSportSeriesGames("NHL", "East Round 1:", "Maple Leafs", "Senators", 4),
+      ...repeatSportSeriesGames("NHL", "East Round 1:", "Lightning", "Panthers", 4),
+      ...repeatSportSeriesGames("NHL", "East Round 1:", "Hurricanes", "Devils", 4),
+      ...repeatSportSeriesGames("NHL", "West Round 1:", "Jets", "Blues", 4),
+      ...repeatSportSeriesGames("NHL", "West Round 1:", "Stars", "Avalanche", 4),
+      ...repeatSportSeriesGames("NHL", "West Round 1:", "Golden Knights", "Wild", 4),
+      ...repeatSportSeriesGames("NHL", "West Round 1:", "Kings", "Oilers", 4),
+      ...repeatSportSeriesGames("NHL", "East Round 2", "Capitals", "Hurricanes", 4),
+      ...repeatSportSeriesGames("NHL", "East Round 2", "Maple Leafs", "Panthers", 4),
+      ...repeatSportSeriesGames("NHL", "West Round 2", "Jets", "Stars", 4),
+      ...repeatSportSeriesGames("NHL", "West Round 2", "Golden Knights", "Oilers", 4),
+      ...repeatSportSeriesGames("NHL", "East Conference Finals", "Panthers", "Hurricanes", 5),
+      ...repeatSportSeriesGames("NHL", "West Conference Finals", "Stars", "Oilers", 5),
+      ...repeatSportSeriesGames("NHL", "Stanley Cup Final", "Panthers", "Oilers", 8),
+    ]
+    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NHL", 2026, rows as any))
+    challengeFindUniqueMock.mockResolvedValue({
+      ...baseChallenge,
+      sport: "nhl",
+      series: [
+        firstRoundSeries("s1", 1, "east", "Rangers", "Red Wings"),
+        firstRoundSeries("s2", 2, "east", "Hurricanes", "Islanders"),
+        firstRoundSeries("s3", 3, "east", "Panthers", "Lightning"),
+        firstRoundSeries("s4", 4, "east", "Maple Leafs", "Bruins"),
+        firstRoundSeries("s5", 5, "west", "Stars", "Predators"),
+        firstRoundSeries("s6", 6, "west", "Avalanche", "Jets"),
+        firstRoundSeries("s7", 7, "west", "Canucks", "Golden Knights"),
+        firstRoundSeries("s8", 8, "west", "Oilers", "Kings"),
+      ],
+    })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({ challengeId: "challenge-1" })
+
+    expect(result.postseasonGames).toBe(66)
+    expect(result.seriesReturned).toBe(15)
+    expect(result.seriesUpdated).toBe(8)
+    expect(result.diagnostics.providerSeriesByRound).toMatchObject({ "1": 8, "2": 4, "3": 2, "4": 1 })
+    expect(result.diagnostics.eventNameRoundMapExamples).toEqual(expect.arrayContaining([
+      expect.objectContaining({ eventName: "East Round 1:", round: 1 }),
+      expect.objectContaining({ eventName: "West Round 1:", round: 1 }),
+      expect.objectContaining({ eventName: "East Round 2", round: 2 }),
+      expect.objectContaining({ eventName: "West Round 2", round: 2 }),
     ]))
   })
 
@@ -514,6 +574,52 @@ describe("syncPlayoffChallengeSeries", () => {
       newAwayTeam: "76ers",
       eventName: "East 1st Round:",
       status: "scheduled",
+    })
+  })
+
+  it("maps provider rounds into S9-S12, S13-S14, and S15 slots", async () => {
+    const liveScores = await import("@/lib/sports-live-scores-service")
+    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NBA", 2026, [
+      scheduleRow("NBA", "Postseason", "East Semifinals", null as any, "Celtics", "Knicks", "scheduled", "2026-05-01T00:00:00.000Z"),
+      scheduleRow("NBA", "Postseason", "West Semifinals", null as any, "Nuggets", "Mavericks", "scheduled", "2026-05-01T00:00:00.000Z"),
+      scheduleRow("NBA", "Postseason", "Conference Finals", null as any, "Celtics", "Pacers", "scheduled", "2026-05-15T00:00:00.000Z"),
+      scheduleRow("NBA", "Postseason", "Conference Finals", null as any, "Nuggets", "Mavericks", "scheduled", "2026-05-15T00:00:00.000Z"),
+      scheduleRow("NBA", "Postseason", "NBA Finals", null as any, "Knicks", "Mavericks", "scheduled", "2026-06-01T00:00:00.000Z"),
+    ] as any))
+    challengeFindUniqueMock.mockResolvedValue({
+      ...baseChallenge,
+      series: [
+        playoffSeriesSlot("s9", 2, 9, "east", "Winner S1", "Winner S2", 1, 2),
+        playoffSeriesSlot("s11", 2, 11, "west", "Winner S5", "Winner S6", 5, 6),
+        playoffSeriesSlot("s13", 3, 13, "east", "Winner S9", "Winner S10", 9, 10),
+        playoffSeriesSlot("s14", 3, 14, "west", "Winner S11", "Winner S12", 11, 12),
+        playoffSeriesSlot("s15", 4, 15, "finals", "East Champion", "West Champion", 13, 14),
+      ],
+    })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({ challengeId: "challenge-1" })
+
+    expect(result.seriesUpdated).toBe(5)
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "s9" },
+      data: expect.objectContaining({ homeTeamName: "Celtics", awayTeamName: "Knicks" }),
+    })
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "s11" },
+      data: expect.objectContaining({ homeTeamName: "Nuggets", awayTeamName: "Mavericks" }),
+    })
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "s13" },
+      data: expect.objectContaining({ homeTeamName: "Celtics", awayTeamName: "Pacers" }),
+    })
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "s14" },
+      data: expect.objectContaining({ homeTeamName: "Nuggets", awayTeamName: "Mavericks" }),
+    })
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "s15" },
+      data: expect.objectContaining({ homeTeamName: "Knicks", awayTeamName: "Mavericks" }),
     })
   })
 
@@ -874,8 +980,12 @@ function scheduleResult(sport: "NBA" | "NHL", seasonYear: number, rows: any[]) {
 }
 
 function repeatSeriesGames(eventName: string, homeTeam: string, awayTeam: string, count: number) {
+  return repeatSportSeriesGames("NBA", eventName, homeTeam, awayTeam, count)
+}
+
+function repeatSportSeriesGames(sport: "NBA" | "NHL", eventName: string, homeTeam: string, awayTeam: string, count: number) {
   return Array.from({ length: count }).map((_, index) =>
-    scheduleRow("NBA", "Postseason", eventName, null as any, homeTeam, awayTeam, "scheduled", `2026-04-${String(index + 10).padStart(2, "0")}T00:00:00.000Z`)
+    scheduleRow(sport, "Postseason", eventName, null as any, homeTeam, awayTeam, "scheduled", `2026-04-${String(index + 10).padStart(2, "0")}T00:00:00.000Z`)
   )
 }
 
@@ -890,5 +1000,36 @@ function firstRoundSeries(id: string, seriesNumber: number, conference: "east" |
     awayTeamName,
     sourceSeriesHome: null,
     sourceSeriesAway: null,
+  }
+}
+
+function playoffSeriesSlot(
+  id: string,
+  roundIndex: number,
+  seriesNumber: number,
+  conference: "east" | "west" | "finals",
+  homeTeamName: string,
+  awayTeamName: string,
+  sourceSeriesHome: number | null,
+  sourceSeriesAway: number | null,
+) {
+  const round = roundIndex === 1
+    ? "round_1"
+    : roundIndex === 2
+      ? "conference_semifinals"
+      : roundIndex === 3
+        ? "conference_finals"
+        : "finals"
+  return {
+    ...baseChallenge.series[0],
+    id,
+    round,
+    roundIndex,
+    seriesNumber,
+    conference,
+    homeTeamName,
+    awayTeamName,
+    sourceSeriesHome,
+    sourceSeriesAway,
   }
 }
