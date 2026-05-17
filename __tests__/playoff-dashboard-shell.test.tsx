@@ -247,6 +247,41 @@ describe("PlayoffBracketShell dashboard", () => {
     fetchMock.mockRestore()
   })
 
+  it("does not show sync action to a non-owner", () => {
+    render(
+      <PlayoffBracketShell
+        initialView={buildView({
+          viewerUserId: "user-2",
+          challenge: { ...buildView().challenge, ownerUserId: "user-1", isTestMode: true },
+          series: [
+            {
+              id: "s9",
+              round: "conference_semifinals",
+              roundIndex: 2,
+              seriesNumber: 9,
+              conference: "east",
+              homeSeed: 0,
+              awaySeed: 0,
+              homeTeamName: "Winner S1",
+              awayTeamName: "Winner S2",
+              winnerTeamName: null,
+              bestOf: 7,
+              status: "scheduled",
+              startsAt: null,
+              nextSeriesNumber: 13,
+              nextSeriesSlot: "home",
+              sourceSeriesHome: 1,
+              sourceSeriesAway: 2,
+            },
+          ],
+        })}
+      />
+    )
+
+    expect(screen.getByTestId("playoff-template-warning")).toBeInTheDocument()
+    expect(screen.queryByTestId("playoff-sync-series-button")).not.toBeInTheDocument()
+  })
+
   it("shows only the viewer's entries in My Brackets while keeping leaderboard entries", () => {
     render(
       <PlayoffBracketShell

@@ -265,6 +265,35 @@ describe("app/brackets/page — P2021 playoff table missing", () => {
     )
   })
 
+  it("renders multiple NBA playoff challenge rows as separate My Pools cards", async () => {
+    playoffBracketChallengeFindManyMock.mockResolvedValue([
+      {
+        id: "nba-friends",
+        name: "NBA Friends Pool",
+        sport: "NBA",
+        ownerUserId: "u1",
+        entries: [{ userId: "u1" }],
+        _count: { entries: 1 },
+      },
+      {
+        id: "nba-work",
+        name: "NBA Work Pool",
+        sport: "NBA",
+        ownerUserId: "u1",
+        entries: [{ userId: "u1" }, { userId: "u2" }],
+        _count: { entries: 2 },
+      },
+    ])
+
+    const mod = await import("@/app/brackets/page")
+    const element = await (mod.default as () => Promise<React.ReactElement>)()
+    render(element)
+
+    expect(screen.getByTestId("my-pools-tab")).toHaveTextContent("pools:2")
+    expect(screen.getByTestId("my-pool-nba-friends")).toHaveAttribute("href", "/brackets/leagues/nba-friends")
+    expect(screen.getByTestId("my-pool-nba-work")).toHaveAttribute("href", "/brackets/leagues/nba-work")
+  })
+
   it("renders when bracketLeagueMember.findMany throws Prisma validation error", async () => {
     const prismaValidation = Object.assign(
       new Error("Unknown field `name` for select statement on model `AppUser`"),

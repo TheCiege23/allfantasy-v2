@@ -79,13 +79,17 @@ function isLegacyPlayoffPoolRow(member: any): boolean {
   const sport = String(league?.tournament?.sport ?? "").toUpperCase()
   const challengeType = String(league?.scoringRules?.challengeType ?? "").toLowerCase()
   const bracketType = String(league?.scoringRules?.bracketType ?? "").toLowerCase()
+  const leagueName = String(league?.name ?? "").toLowerCase()
+  const tournamentName = String(league?.tournament?.name ?? "").toLowerCase()
+  const looksLikePlayoff =
+    challengeType.includes("playoff") ||
+    bracketType.includes("playoff") ||
+    leagueName.includes("playoff") ||
+    tournamentName.includes("playoff")
 
   return (
     (sport === "NBA" || sport === "NHL") &&
-    (
-      challengeType === "playoff_challenge" ||
-      bracketType === "playoff_challenge"
-    )
+    looksLikePlayoff
   )
 }
 

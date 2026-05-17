@@ -17,9 +17,17 @@ export type PlayoffChallengeView = {
     seasonYear: number
     status: string
     isTestMode: boolean
+    maxEntriesPerParticipant?: number
+    inviteUrl?: string
+    inviteCode?: string
+    visibility?: string
+    maxParticipants?: number
+    scoringStyle?: string
+    lockRule?: string
     createdAt: string
     updatedAt: string
   }
+  viewerUserId?: string | null
   activeEntry: {
     id: string
     name: string

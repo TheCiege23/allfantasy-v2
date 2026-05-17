@@ -3,10 +3,11 @@
 import { useMemo, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, CheckCircle2, Loader2 } from "lucide-react"
+import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import type { PlayoffChallengeView } from "@/lib/playoffs/types"
 import {
+  getPlayoffBracketViewClient,
   savePlayoffBracketPickClient,
   submitPlayoffBracketEntryClient,
 } from "@/lib/playoffs/playoffClientApi"
@@ -23,6 +24,7 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
   const [dirtySinceSubmit, setDirtySinceSubmit] = useState(false)
   const [saving, startSaving] = useTransition()
   const [submitting, startSubmitting] = useTransition()
+  const [syncingSeries, startSyncingSeries] = useTransition()
   const [savingSeriesIds, setSavingSeriesIds] = useState<Set<string>>(new Set())
   const [savedSeriesIds, setSavedSeriesIds] = useState<Set<string>>(new Set())
 
@@ -35,6 +37,9 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
   const totalSeries = series.length
   const pickCount = activeEntry?.pickCount ?? picks.length
   const canSubmit = Boolean(activeEntry) && totalSeries > 0 && pickCount >= totalSeries
+  const hasTemplateSeries = series.some((item) => /^Winner\s+S\d+$/i.test(item.homeTeamName) || /^Winner\s+S\d+$/i.test(item.awayTeamName)) ||
+    (view.challenge.isTestMode && !series.some((item) => item.winnerTeamName || item.status === "in_progress" || item.status === "final"))
+  const canSyncSeries = view.challenge.ownerUserId === view.viewerUserId
 
   if (!activeEntry) {
     return null
@@ -97,6 +102,31 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
     })
   }
 
+  function handleSyncSeries() {
+    startSyncingSeries(async () => {
+      try {
+        const response = await fetch(`/api/brackets/playoffs/${view.challenge.id}/admin/sync-series`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        })
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Failed to sync playoff series")
+        }
+        const warnings = Array.isArray(payload?.warnings) ? payload.warnings : []
+        if (warnings.length > 0) {
+          toast.warning(warnings[0])
+        } else {
+          toast.success("Playoff series synced.")
+        }
+        const latest = await getPlayoffBracketViewClient(view.challenge.id)
+        setView(latest)
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to sync playoff series")
+      }
+    })
+  }
+
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-5 p-4 sm:p-6">
       <section className="rounded-3xl border border-slate-300 bg-[linear-gradient(130deg,#fff7ed_0%,#ecfeff_45%,#eef2ff_100%)] p-6 shadow-[0_20px_50px_rgba(30,41,59,0.15)]">
@@ -120,6 +150,25 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
             ) : null}
           </div>
         </div>
+        {hasTemplateSeries ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              <span data-testid="playoff-entry-template-warning">Template teams shown until playoff series sync runs.</span>
+            </div>
+            {canSyncSeries ? (
+              <button
+                type="button"
+                onClick={handleSyncSeries}
+                disabled={syncingSeries}
+                data-testid="playoff-entry-sync-series-button"
+                className="rounded-xl border border-amber-400 bg-white px-3 py-1.5 text-xs font-bold text-amber-900 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {syncingSeries ? "Syncing..." : "Sync current playoff series"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
