@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { useMemo, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { RefreshCw, Trophy, Plus, Link2, Clipboard, Settings2, ArrowRightCircle, AlertTriangle } from "lucide-react"
@@ -17,14 +17,25 @@ type Props = {
   initialView: PlayoffChallengeView
 }
 
+type PlayoffDashboardSyncMode = "teams_schedule_only" | "results_only" | "official_bracket" | "autofill_results"
+
+const SYNC_SUCCESS_MESSAGES: Record<PlayoffDashboardSyncMode, string> = {
+  teams_schedule_only: "Teams and schedule updated. User picks were not changed.",
+  results_only: "Results synced. Reopen the entry or use Show Pick Results to verify Correct/Wrong picks.",
+  official_bracket: "Official bracket data synced. User picks were not changed.",
+  autofill_results: "Testing only sync completed. Picks were filled from official winners.",
+}
+
 export default function PlayoffBracketShell({ initialView }: Props) {
   const router = useRouter()
   const { data: session } = useSession()
+  const syncToolsRef = useRef<HTMLElement | null>(null)
   const [view, setView] = useState(initialView)
   const [refreshing, startRefreshing] = useTransition()
   const [creatingEntry, startCreatingEntry] = useTransition()
   const [syncingSeries, startSyncingSeries] = useTransition()
   const [syncDiagnostics, setSyncDiagnostics] = useState<unknown>(null)
+  const [syncStatus, setSyncStatus] = useState<{ type: "success" | "error"; message: string } | null>(null)
 
   const safeChallenge = {
     id: view?.challenge?.id || "unknown-challenge",
@@ -85,7 +96,9 @@ export default function PlayoffBracketShell({ initialView }: Props) {
     [entries]
   )
   const hasScoredLeaderboard = leaderboardRows.some((row) => row.hasScoredResults)
-  const canManagePlayoffPool = safeChallenge.ownerUserId === view?.viewerUserId || hasPoolAdminAccess(session?.user)
+  const hasAdminAccess = hasPoolAdminAccess(session?.user)
+  const canManagePlayoffPool = safeChallenge.ownerUserId === view?.viewerUserId || hasAdminAccess
+  const canUseAutofillResults = safeChallenge.isTestMode && hasAdminAccess
 
   function handleRefresh() {
     startRefreshing(async () => {
@@ -122,9 +135,10 @@ export default function PlayoffBracketShell({ initialView }: Props) {
     })
   }
 
-  function handleSyncSeries(mode: "teams_schedule_only" | "results_only" | "official_bracket" | "autofill_results" = "official_bracket") {
+  function handleSyncSeries(mode: PlayoffDashboardSyncMode = "official_bracket") {
     startSyncingSeries(async () => {
       try {
+        setSyncStatus(null)
         const response = await fetch(`/api/brackets/playoffs/${safeChallenge.id}/admin/sync-series?mode=${mode}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -137,17 +151,9 @@ export default function PlayoffBracketShell({ initialView }: Props) {
         const warnings = Array.isArray(payload?.warnings) ? payload.warnings : []
         const ignoredPlayInGames = Number(payload?.diagnostics?.ignoredPlayInGames ?? 0)
         const trueWarnings = warnings.filter((warning: unknown) => !String(warning).toLowerCase().includes("play-in games ignored"))
+        const successMessage = SYNC_SUCCESS_MESSAGES[mode]
         if (Number(payload?.seriesUpdated ?? 0) > 0) {
-          const autoFilled = Number(payload?.picksAutoFilled ?? 0)
-          toast.success(
-            mode === "autofill_results"
-              ? `${autoFilled} test picks auto-filled from official winners.`
-              : mode === "teams_schedule_only"
-                ? `${payload.seriesUpdated} series teams/schedule synced. Winners were not imported.`
-                : mode === "results_only"
-                  ? `${payload.seriesUpdated} series results synced. Finalized picks can now be verified.`
-                  : `${payload.seriesUpdated} playoff series updated. User picks were not filled.`
-          )
+          toast.success(successMessage)
           if (ignoredPlayInGames > 0) {
             toast.info("Play-In games were ignored for this bracket.")
           }
@@ -157,20 +163,15 @@ export default function PlayoffBracketShell({ initialView }: Props) {
         } else if (trueWarnings.length > 0) {
           toast.warning(trueWarnings[0])
         } else {
-          toast.success(
-            mode === "autofill_results"
-              ? "Auto-fill test sync completed."
-              : mode === "teams_schedule_only"
-                ? "Teams and schedule synced. Winners were not imported."
-                : mode === "results_only"
-                  ? "Results synced. Finalized picks can now be verified."
-                  : "Official playoff data synced. User picks were not filled."
-          )
+          toast.success(successMessage)
         }
+        setSyncStatus({ type: "success", message: successMessage })
         const latest = await getPlayoffBracketViewClient(safeChallenge.id)
         setView(latest)
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to sync playoff series")
+        const message = error instanceof Error ? error.message : "Failed to sync playoff series"
+        setSyncStatus({ type: "error", message })
+        toast.error(message)
       }
     })
   }
@@ -223,52 +224,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
               <AlertTriangle className="h-4 w-4" />
               <span data-testid="playoff-template-warning">Template teams shown until playoff series sync runs. Teams/Schedule sync does not import winners. Results sync scores finalized picks.</span>
             </div>
-            {canManagePlayoffPool ? (
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleSyncSeries("official_bracket")}
-                  disabled={syncingSeries}
-                  data-testid="playoff-sync-series-button"
-                  className="rounded-xl border border-amber-400 bg-white px-3 py-1.5 text-xs font-bold text-amber-900 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {syncingSeries ? "Syncing..." : "Sync official bracket"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSyncSeries("teams_schedule_only")}
-                  disabled={syncingSeries}
-                  data-testid="playoff-sync-schedule-only-button"
-                  className="rounded-xl border border-amber-300 bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-900 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Sync teams/schedule only
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSyncSeries("results_only")}
-                  disabled={syncingSeries}
-                  data-testid="playoff-sync-results-only-button"
-                  className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Sync results only
-                </button>
-                {safeChallenge.isTestMode ? (
-                  <button
-                    type="button"
-                    onClick={() => handleSyncSeries("autofill_results")}
-                    disabled={syncingSeries}
-                    data-testid="playoff-sync-autofill-results-button"
-                    className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Auto-fill official results for testing
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
           </div>
-        ) : null}
-        {canManagePlayoffPool ? (
-          <PlayoffSyncDiagnosticsPanel diagnostics={syncDiagnostics} />
         ) : null}
       </section>
 
@@ -323,6 +279,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
             {canManagePlayoffPool ? (
               <button
                 type="button"
+                onClick={() => syncToolsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
               >
                 <Settings2 className="h-4 w-4" />
@@ -350,6 +307,92 @@ export default function PlayoffBracketShell({ initialView }: Props) {
           </button>
         </article>
       </section>
+
+      {canManagePlayoffPool ? (
+        <section
+          ref={syncToolsRef}
+          id="playoff-commissioner-sync-tools"
+          data-testid="playoff-commissioner-sync-tools"
+          className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">Commissioner Sync Tools</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Provider sync updates official NBA/NHL playoff data. User picks are not created unless the testing-only auto-fill action is used.
+              </p>
+            </div>
+            {syncingSeries ? (
+              <span className="inline-flex items-center gap-2 rounded-full bg-sky-100 px-3 py-1 text-xs font-bold text-sky-800">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                Syncing
+              </span>
+            ) : null}
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => handleSyncSeries("teams_schedule_only")}
+              disabled={syncingSeries}
+              data-testid="playoff-sync-schedule-only-button"
+              className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-left disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <span className="block text-sm font-black text-amber-950">Sync teams/schedule only</span>
+              <span className="mt-1 block text-xs font-semibold text-amber-800">Loads teams, dates, venues, broadcast. Does not import winners.</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSyncSeries("results_only")}
+              disabled={syncingSeries}
+              data-testid="playoff-sync-results-only-button"
+              className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-left disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <span className="block text-sm font-black text-emerald-950">Sync results only</span>
+              <span className="mt-1 block text-xs font-semibold text-emerald-800">Imports final winners/results and scores saved picks.</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSyncSeries("official_bracket")}
+              disabled={syncingSeries}
+              data-testid="playoff-sync-series-button"
+              className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 text-left disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <span className="block text-sm font-black text-sky-950">Sync official bracket</span>
+              <span className="mt-1 block text-xs font-semibold text-sky-800">Updates all known official bracket data. Does not fill user picks.</span>
+            </button>
+          </div>
+
+          {canUseAutofillResults ? (
+            <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3">
+              <button
+                type="button"
+                onClick={() => handleSyncSeries("autofill_results")}
+                disabled={syncingSeries}
+                data-testid="playoff-sync-autofill-results-button"
+                className="rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm font-bold text-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Auto-fill official results
+              </button>
+              <p className="mt-2 text-xs font-semibold text-rose-800">Testing only — fills picks from official winners.</p>
+            </div>
+          ) : null}
+
+          {syncStatus ? (
+            <p
+              data-testid="playoff-sync-status-message"
+              className={`mt-3 rounded-xl border px-3 py-2 text-sm font-semibold ${
+                syncStatus.type === "success"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-rose-200 bg-rose-50 text-rose-800"
+              }`}
+            >
+              {syncStatus.message}
+            </p>
+          ) : null}
+          <PlayoffSyncDiagnosticsPanel diagnostics={syncDiagnostics} />
+        </section>
+      ) : null}
 
       <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
         <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

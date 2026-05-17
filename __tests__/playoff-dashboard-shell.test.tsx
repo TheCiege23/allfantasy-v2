@@ -372,11 +372,12 @@ describe("PlayoffBracketShell dashboard", () => {
     fireEvent.click(screen.getByTestId("playoff-sync-series-button"))
 
     await waitFor(() => {
-      expect(toastSuccessMock).toHaveBeenCalledWith("8 playoff series updated. User picks were not filled.")
+      expect(toastSuccessMock).toHaveBeenCalledWith("Official bracket data synced. User picks were not changed.")
       expect(toastInfoMock).toHaveBeenCalledWith("Play-In games were ignored for this bracket.")
       expect(toastWarningMock).not.toHaveBeenCalled()
     })
     expect(screen.getByTestId("playoff-sync-diagnostics")).toHaveTextContent("updatedSeriesExamples")
+    expect(screen.getByTestId("playoff-sync-status-message")).toHaveTextContent("Official bracket data synced. User picks were not changed.")
 
     fetchMock.mockRestore()
   })
@@ -413,7 +414,10 @@ describe("PlayoffBracketShell dashboard", () => {
     )
 
     expect(screen.getByTestId("playoff-template-warning")).toBeInTheDocument()
+    expect(screen.queryByTestId("playoff-commissioner-sync-tools")).not.toBeInTheDocument()
     expect(screen.queryByTestId("playoff-sync-series-button")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("playoff-sync-schedule-only-button")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("playoff-sync-results-only-button")).not.toBeInTheDocument()
   })
 
   it("shows playoff commissioner sync controls to the all-access account", () => {
@@ -457,6 +461,7 @@ describe("PlayoffBracketShell dashboard", () => {
       />
     )
 
+    expect(screen.getByTestId("playoff-commissioner-sync-tools")).toHaveTextContent("Commissioner Sync Tools")
     expect(screen.getByTestId("playoff-sync-series-button")).toBeInTheDocument()
     expect(screen.getByTestId("playoff-sync-schedule-only-button")).toBeInTheDocument()
     expect(screen.getByTestId("playoff-sync-results-only-button")).toBeInTheDocument()
@@ -464,12 +469,12 @@ describe("PlayoffBracketShell dashboard", () => {
     expect(screen.getByText("Commissioner Tools")).toBeInTheDocument()
   })
 
-  it("exposes separate schedule-only and test autofill sync modes for test pools", async () => {
+  it("exposes separate official, schedule-only, and results-only sync modes for owners", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       json: async () => ({
         ok: true,
-        mode: "schedule_only",
+        mode: "teams_schedule_only",
         warnings: [],
         seriesUpdated: 1,
         picksAutoFilled: 0,
@@ -509,75 +514,39 @@ describe("PlayoffBracketShell dashboard", () => {
     fireEvent.click(screen.getByTestId("playoff-sync-schedule-only-button"))
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith("/api/brackets/playoffs/challenge-1/admin/sync-series?mode=teams_schedule_only", expect.objectContaining({ method: "POST" }))
+      expect(toastSuccessMock).toHaveBeenCalledWith("Teams and schedule updated. User picks were not changed.")
     })
 
-    render(
-      <PlayoffBracketShell
-        initialView={buildView({
-          challenge: { ...buildView().challenge, isTestMode: true },
-          series: [
-            {
-              id: "s9",
-              round: "conference_semifinals",
-              roundIndex: 2,
-              seriesNumber: 9,
-              conference: "east",
-              homeSeed: 0,
-              awaySeed: 0,
-              homeTeamName: "Winner S1",
-              awayTeamName: "Winner S2",
-              winnerTeamName: null,
-              bestOf: 7,
-              status: "scheduled",
-              startsAt: null,
-              nextSeriesNumber: 13,
-              nextSeriesSlot: "home",
-              sourceSeriesHome: 1,
-              sourceSeriesAway: 2,
-            },
-          ],
-        })}
-      />
-    )
-    const resultsButtons = screen.getAllByTestId("playoff-sync-results-only-button")
-    fireEvent.click(resultsButtons[resultsButtons.length - 1])
+    fireEvent.click(screen.getByTestId("playoff-sync-results-only-button"))
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith("/api/brackets/playoffs/challenge-1/admin/sync-series?mode=results_only", expect.objectContaining({ method: "POST" }))
+      expect(toastSuccessMock).toHaveBeenCalledWith("Results synced. Reopen the entry or use Show Pick Results to verify Correct/Wrong picks.")
     })
+    expect(screen.getByTestId("playoff-sync-status-message")).toHaveTextContent("Results synced. Reopen the entry or use Show Pick Results to verify Correct/Wrong picks.")
 
-    render(
-      <PlayoffBracketShell
-        initialView={buildView({
-          challenge: { ...buildView().challenge, isTestMode: true },
-          series: [
-            {
-              id: "s9",
-              round: "conference_semifinals",
-              roundIndex: 2,
-              seriesNumber: 9,
-              conference: "east",
-              homeSeed: 0,
-              awaySeed: 0,
-              homeTeamName: "Winner S1",
-              awayTeamName: "Winner S2",
-              winnerTeamName: null,
-              bestOf: 7,
-              status: "scheduled",
-              startsAt: null,
-              nextSeriesNumber: 13,
-              nextSeriesSlot: "home",
-              sourceSeriesHome: 1,
-              sourceSeriesAway: 2,
-            },
-          ],
-        })}
-      />
-    )
-
-    const autofillButtons = screen.getAllByTestId("playoff-sync-autofill-results-button")
-    fireEvent.click(autofillButtons[autofillButtons.length - 1])
+    fireEvent.click(screen.getByTestId("playoff-sync-series-button"))
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith("/api/brackets/playoffs/challenge-1/admin/sync-series?mode=autofill_results", expect.objectContaining({ method: "POST" }))
+      expect(fetchMock).toHaveBeenCalledWith("/api/brackets/playoffs/challenge-1/admin/sync-series?mode=official_bracket", expect.objectContaining({ method: "POST" }))
+      expect(toastSuccessMock).toHaveBeenCalledWith("Official bracket data synced. User picks were not changed.")
+    })
+    expect(screen.queryByTestId("playoff-sync-autofill-results-button")).not.toBeInTheDocument()
+
+    fetchMock.mockRestore()
+  })
+
+  it("shows a safe inline error when commissioner sync fails", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: "Provider unavailable" }),
+    } as Response)
+
+    render(<PlayoffBracketShell initialView={buildView()} />)
+
+    fireEvent.click(screen.getByTestId("playoff-sync-results-only-button"))
+
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith("Provider unavailable")
+      expect(screen.getByTestId("playoff-sync-status-message")).toHaveTextContent("Provider unavailable")
     })
 
     fetchMock.mockRestore()
