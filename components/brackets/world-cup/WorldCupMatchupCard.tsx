@@ -114,8 +114,8 @@ export default function WorldCupMatchupCard({
 
   // Pick live state color helpers
   const pickStateBorderClass =
-    pickLiveState === "correct" ? "border-emerald-400/60 shadow-[0_0_12px_rgba(52,211,153,0.12)]"
-    : pickLiveState === "incorrect" ? "border-rose-400/30"
+    pickLiveState === "correct" ? "border-cyan-300/80 shadow-[0_0_0_1px_rgba(103,232,249,0.28)]"
+    : pickLiveState === "incorrect" ? "border-rose-400/70 shadow-[0_0_0_1px_rgba(251,113,133,0.2)]"
     : pickLiveState === "winning" ? "border-cyan-300/50"
     : pickLiveState === "losing" ? "border-rose-400/30"
     : "border-white/10"

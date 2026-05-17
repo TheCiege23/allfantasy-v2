@@ -42,6 +42,41 @@ function findTeam(groupTeams: WorldCupGroupStageTeamClient[], teamId: string) {
   return groupTeams.find((team) => team.teamId === teamId) ?? null
 }
 
+function resultBorderClass(status: "correct" | "wrong" | "pending" | "none") {
+  if (status === "correct") return "border-cyan-300/80 shadow-[0_0_0_1px_rgba(103,232,249,0.28)]"
+  if (status === "wrong") return "border-rose-400/70 shadow-[0_0_0_1px_rgba(251,113,133,0.2)]"
+  if (status === "pending") return "border-amber-300/70 shadow-[0_0_0_1px_rgba(252,211,77,0.22)]"
+  return "border-white/10"
+}
+
+function resultBadge(status: "correct" | "wrong" | "pending" | "none", pointsAwarded = 0) {
+  if (status === "correct") return { label: `Correct +${pointsAwarded}`, className: "border-cyan-300/30 bg-cyan-300/10 text-cyan-100" }
+  if (status === "wrong") return { label: "Wrong +0", className: "border-rose-300/30 bg-rose-400/10 text-rose-100" }
+  if (status === "pending") return { label: "Pending", className: "border-amber-300/25 bg-amber-400/10 text-amber-100" }
+  return null
+}
+
+function groupPickForTeam(view: WorldCupGroupStageViewClient, groupId: string, teamId: string) {
+  return view.groupRankingPicks.find((pick) => pick.groupId === groupId && pick.teamId === teamId) ?? null
+}
+
+function groupRankingResultStatus(view: WorldCupGroupStageViewClient, groupId: string, teamId: string) {
+  const pick = groupPickForTeam(view, groupId, teamId)
+  if (!pick) return "none"
+  if (pick.isCorrect === true) return "correct"
+  if (pick.isCorrect === false) return "wrong"
+  return pick.actualRank ? "pending" : "pending"
+}
+
+function thirdPlaceResultStatus(view: WorldCupGroupStageViewClient, teamId: string | null | undefined) {
+  if (!teamId) return "none"
+  const pick = view.thirdPlaceAdvancerPicks.find((row) => row.teamId === teamId && row.isSelected)
+  if (!pick) return "none"
+  if (pick.isCorrect === true) return "correct"
+  if (pick.isCorrect === false) return "wrong"
+  return "pending"
+}
+
 function moveItem(ids: string[], index: number, direction: -1 | 1) {
   const nextIndex = index + direction
   if (nextIndex < 0 || nextIndex >= ids.length) return ids
@@ -279,13 +314,29 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
               <div className="space-y-2">
                 {order.map((teamId, index) => {
                   const team = findTeam(group.teams, teamId)
+                  const pick = groupPickForTeam(view, group.id, teamId)
+                  const status = groupRankingResultStatus(view, group.id, teamId)
+                  const badge = resultBadge(status, pick?.pointsAwarded ?? 0)
                   return (
-                    <div key={teamId} className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-2 py-2">
+                    <div
+                      key={teamId}
+                      data-testid={`world-cup-group-pick-result-${group.groupKey}-${teamId}`}
+                      data-result-state={status}
+                      className={`flex items-center gap-2 rounded-xl border bg-black/20 px-2 py-2 ${resultBorderClass(status)}`}
+                    >
                       <span className="w-7 shrink-0 text-center text-sm font-black text-cyan-100">{index + 1}</span>
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-bold text-white">{team?.name ?? teamId}</div>
-                        <div className="truncate text-xs text-white/40">{team?.country ?? "Team"}</div>
+                        <div className="truncate text-xs text-white/40">
+                          {team?.country ?? "Team"}
+                          {team?.actualRank ? ` · Actual #${team.actualRank}` : ""}
+                        </div>
                       </div>
+                      {badge ? (
+                        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-black ${badge.className}`}>
+                          {badge.label}
+                        </span>
+                      ) : null}
                       <div className="flex shrink-0 gap-1">
                         <button
                           type="button"
@@ -368,7 +419,9 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
           {thirdPlaceCandidates.map((candidate) => (
             <label
               key={candidate.groupId}
-              className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/75"
+              data-testid={`world-cup-third-place-result-${candidate.groupKey}`}
+              data-result-state={thirdPlaceResultStatus(view, candidate.team?.teamId)}
+              className={`flex items-center gap-3 rounded-xl border bg-black/20 px-3 py-2 text-sm text-white/75 ${resultBorderClass(thirdPlaceResultStatus(view, candidate.team?.teamId))}`}
             >
               <input
                 type="checkbox"
@@ -381,6 +434,17 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                 <span className="block text-xs font-black uppercase text-white/40">{candidate.displayName}</span>
                 <span className="block truncate font-bold text-white">{candidate.team?.name ?? "No 3rd-place pick yet"}</span>
               </span>
+              {(() => {
+                const pick = candidate.team?.teamId
+                  ? view.thirdPlaceAdvancerPicks.find((row) => row.teamId === candidate.team?.teamId && row.isSelected)
+                  : null
+                const badge = resultBadge(thirdPlaceResultStatus(view, candidate.team?.teamId), pick?.pointsAwarded ?? 0)
+                return badge ? (
+                  <span className={`ml-auto shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-black ${badge.className}`}>
+                    {badge.label}
+                  </span>
+                ) : null
+              })()}
             </label>
           ))}
         </div>

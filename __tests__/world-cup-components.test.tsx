@@ -302,6 +302,36 @@ describe("World Cup mobile polish — matchup card & guided picker", () => {
     })
   })
 
+  it("matchup card uses AF cyan result border for correct saved picks", async () => {
+    const WorldCupMatchupCard = (await import("@/components/brackets/world-cup/WorldCupMatchupCard")).default
+    render(
+      <WorldCupMatchupCard
+        match={{
+          ...sampleMatch,
+          status: "final",
+          winnerTeamId: "t1",
+          winnerTeamName: "Brazil",
+          homeScore: 2,
+          awayScore: 1,
+        }}
+        pick={{
+          id: "pick-1",
+          matchId: "m1",
+          round: "round_of_32",
+          selectedTeamId: "t1",
+          selectedSlotKey: "H1",
+          selectedTeamName: "Brazil",
+          pointsAwarded: 10,
+          isCorrect: true,
+          lockedAt: null,
+        }}
+      />
+    )
+
+    expect(screen.getByTestId("world-cup-match-m1")).toHaveClass("border-cyan-300/80")
+    expect(screen.getByTestId("wc-match-pick-visual")).toHaveAttribute("data-state", "correct")
+  })
+
   it("guided picker renders close control and team pick labels", async () => {
     const WorldCupGuidedMatchupPicker = (await import("@/components/brackets/world-cup/WorldCupGuidedMatchupPicker")).default
     const onSavePick = vi.fn().mockResolvedValue([])
@@ -622,6 +652,44 @@ function makeShellView(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function makeShellGroupStageView(overrides: Record<string, unknown> = {}) {
+  return {
+    challengeId: "c1",
+    entryId: "entry-1",
+    groups: [{
+      id: "group-a",
+      groupKey: "A",
+      displayName: "Group A",
+      sortOrder: 1,
+      teams: [
+        { id: "gt-1", teamId: "team-a", name: "Argentina", country: "Argentina", fifaCode: "ARG", flagUrl: null, logoUrl: null, seedOrder: 1, actualRank: 1, points: 9, goalDifference: 4, goalsFor: 7 },
+        { id: "gt-2", teamId: "team-b", name: "Brazil", country: "Brazil", fifaCode: "BRA", flagUrl: null, logoUrl: null, seedOrder: 2, actualRank: 3, points: 4, goalDifference: 0, goalsFor: 4 },
+        { id: "gt-3", teamId: "team-c", name: "Canada", country: "Canada", fifaCode: "CAN", flagUrl: null, logoUrl: null, seedOrder: 3, actualRank: null, points: null, goalDifference: null, goalsFor: null },
+        { id: "gt-4", teamId: "team-d", name: "Denmark", country: "Denmark", fifaCode: "DEN", flagUrl: null, logoUrl: null, seedOrder: 4, actualRank: 4, points: 1, goalDifference: -4, goalsFor: 2 },
+      ],
+    }],
+    groupRankingPicks: [
+      { id: "grp-1", groupId: "group-a", teamId: "team-a", predictedRank: 1, actualRank: 1, isCorrect: true, pointsAwarded: 5 },
+      { id: "grp-2", groupId: "group-a", teamId: "team-b", predictedRank: 2, actualRank: 3, isCorrect: false, pointsAwarded: 0 },
+      { id: "grp-3", groupId: "group-a", teamId: "team-c", predictedRank: 3, actualRank: null, isCorrect: null, pointsAwarded: 0 },
+      { id: "grp-4", groupId: "group-a", teamId: "team-d", predictedRank: 4, actualRank: 4, isCorrect: true, pointsAwarded: 5 },
+    ],
+    thirdPlaceAdvancerPicks: [
+      { id: "tp-1", groupId: "group-a", teamId: "team-c", isSelected: true, actualAdvanced: null, isCorrect: null, pointsAwarded: 0 },
+    ],
+    completion: {
+      groupsRankedCount: 1,
+      allGroupsRanked: false,
+      thirdPlaceSelectedCount: 1,
+      thirdPlaceComplete: false,
+      groupStageComplete: false,
+    },
+    lock: { isLocked: false, lockReason: null },
+    warnings: [],
+    ...overrides,
+  }
+}
+
 describe("WorldCupBracketShell fixture readiness", () => {
   beforeEach(() => {
     routerMocks.back.mockReset()
@@ -657,6 +725,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
       isComplete: false,
       submittedAt: null,
     })
+    clientApiMocks.fetchGroupStageView.mockResolvedValue(makeShellGroupStageView())
     clientApiMocks.adminLoadTestFixtures.mockResolvedValue({
       ok: true,
       result: {
@@ -693,7 +762,21 @@ describe("WorldCupBracketShell fixture readiness", () => {
     render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" />)
 
     await waitFor(() => expect(clientApiMocks.fetchCompletionReview).toHaveBeenCalledWith("c1", "entry-1"))
+    await waitFor(() => expect(clientApiMocks.fetchGroupStageView).toHaveBeenCalledWith("c1", "entry-1"))
     expect(screen.getByTestId("world-cup-review-panel")).toBeInTheDocument()
+  })
+
+  it("Review shows saved Group Stage and third-place picks separately from official results", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" />)
+
+    const savedPicks = await screen.findByTestId("world-cup-review-saved-picks")
+    expect(within(savedPicks).getByTestId("world-cup-review-group-A")).toHaveTextContent("#1 Argentina")
+    expect(within(savedPicks).getByTestId("world-cup-review-group-A")).toHaveTextContent("Correct +5")
+    expect(within(savedPicks).getByTestId("world-cup-review-group-A")).toHaveTextContent("#2 Brazil")
+    expect(within(savedPicks).getByTestId("world-cup-review-group-A")).toHaveTextContent("Wrong +0")
+    expect(savedPicks).toHaveTextContent("Canada")
+    expect(savedPicks).toHaveTextContent("Pending")
   })
 
   it("shows Finalize when the server review says the entry is complete", async () => {
@@ -731,6 +814,16 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getByText(/Complete all missing requirements to unlock Finalize/i)).toBeInTheDocument()
   })
 
+  it("hides admin and simulation shortcuts from normal users", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} />)
+
+    await waitFor(() => expect(clientApiMocks.listEntries).toHaveBeenCalled())
+    expect(screen.queryByRole("button", { name: /Admin\/Test/i })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Simulation \/ Test Mode/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Commissioner/i })).not.toBeInTheDocument()
+  })
+
   it("shows submitted state when the entry is already finalized", async () => {
     clientApiMocks.fetchCompletionReview.mockResolvedValueOnce({
       challengeId: "c1",
@@ -760,11 +853,13 @@ describe("WorldCupBracketShell fixture readiness", () => {
     render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" />)
 
     await waitFor(() => expect(clientApiMocks.fetchCompletionReview).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(clientApiMocks.fetchGroupStageView).toHaveBeenCalledTimes(1))
     fireEvent.click(screen.getAllByRole("button", { name: /Group Stage/i })[0])
     fireEvent.click(await screen.findByRole("button", { name: /Save Group Stub/i }))
     fireEvent.click(screen.getAllByRole("button", { name: /Review/i })[0])
 
     await waitFor(() => expect(clientApiMocks.fetchCompletionReview).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(clientApiMocks.fetchGroupStageView).toHaveBeenCalledTimes(2))
   })
 
   it("warns before leaving Group Stage with unsaved group changes", async () => {

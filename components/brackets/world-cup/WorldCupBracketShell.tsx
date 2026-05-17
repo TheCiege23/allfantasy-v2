@@ -16,6 +16,7 @@ import type {
   WorldCupAdminSyncLiveResult,
   WorldCupAdminSimulationStrategy,
   WorldCupEntryCompletionReviewClient,
+  WorldCupGroupStageViewClient,
 } from "@/lib/world-cup/worldCupClientApi"
 import {
   adminLoadWorldCupTestFixtures,
@@ -31,6 +32,7 @@ import {
   createWorldCupBracketEntry,
   deleteWorldCupBracketEntry,
   fetchWorldCupEntryCompletionReview,
+  fetchWorldCupGroupStageView,
   finalizeWorldCupEntryClient,
   getWorldCupIntegrityReport,
   getWorldCupBracketEntry,
@@ -274,6 +276,26 @@ function mergeWorldCupChallengeView(
   }
 }
 
+function worldCupReviewStatusClass(status: "correct" | "wrong" | "pending") {
+  if (status === "correct") return "border-cyan-300/35 bg-cyan-300/10 text-cyan-100"
+  if (status === "wrong") return "border-rose-300/35 bg-rose-400/10 text-rose-100"
+  return "border-amber-300/30 bg-amber-400/10 text-amber-100"
+}
+
+function worldCupReviewStatusLabel(input: { isCorrect?: boolean | null; pointsAwarded?: number | null }) {
+  if (input.isCorrect === true) return { status: "correct" as const, label: `Correct +${input.pointsAwarded ?? 0}` }
+  if (input.isCorrect === false) return { status: "wrong" as const, label: "Wrong +0" }
+  return { status: "pending" as const, label: "Pending" }
+}
+
+function teamNameFromGroupStageReview(view: WorldCupGroupStageViewClient, teamId: string) {
+  for (const group of view.groups) {
+    const team = group.teams.find((row) => row.teamId === teamId)
+    if (team) return team.name
+  }
+  return teamId
+}
+
 export default function WorldCupBracketShell({
   initialView,
   challenge,
@@ -363,6 +385,8 @@ export default function WorldCupBracketShell({
   const [completionReview, setCompletionReview] = useState<WorldCupEntryCompletionReviewClient | null>(null)
   const [completionError, setCompletionError] = useState<string | null>(null)
   const [isCompletionLoading, setIsCompletionLoading] = useState(false)
+  const [reviewGroupStageView, setReviewGroupStageView] = useState<WorldCupGroupStageViewClient | null>(null)
+  const [reviewGroupStageError, setReviewGroupStageError] = useState<string | null>(null)
   const [isFinalizingEntry, setIsFinalizingEntry] = useState(false)
   const [aiBuilder, setAiBuilder] = useState<WorldCupAiBuilderProgress>({
     state: "idle", current: 0, total: 0, message: "",
@@ -704,6 +728,8 @@ export default function WorldCupBracketShell({
     setSelectedEntryId(entryId)
     setCompletionReview(null)
     setCompletionError(null)
+    setReviewGroupStageView(null)
+    setReviewGroupStageError(null)
     persistSelectedEntryId(entryId)
     setTab((current) => current === "group-stage" ? "group-stage" : "picks")
     syncSelectedEntryUrl(entryId, "push")
@@ -798,11 +824,18 @@ export default function WorldCupBracketShell({
     if (!selectedEntryId) return
     setIsCompletionLoading(true)
     setCompletionError(null)
+    setReviewGroupStageError(null)
     try {
-      const review = await fetchWorldCupEntryCompletionReview(challengeId, selectedEntryId)
+      const [review, groupStageView] = await Promise.all([
+        fetchWorldCupEntryCompletionReview(challengeId, selectedEntryId),
+        fetchWorldCupGroupStageView(challengeId, selectedEntryId),
+      ])
       setCompletionReview(review)
+      setReviewGroupStageView(groupStageView)
     } catch (err) {
-      setCompletionError(err instanceof Error ? err.message : "Failed to load completion review")
+      const message = err instanceof Error ? err.message : "Failed to load completion review"
+      setCompletionError(message)
+      setReviewGroupStageError(message)
     } finally {
       setIsCompletionLoading(false)
     }
@@ -811,6 +844,8 @@ export default function WorldCupBracketShell({
   const refreshCompletionReviewAfterMeaningfulEdit = useCallback(() => {
     setCompletionReview(null)
     setCompletionError(null)
+    setReviewGroupStageView(null)
+    setReviewGroupStageError(null)
     if (tab === "review") void loadCompletionReview()
   }, [loadCompletionReview, tab])
 
@@ -1882,7 +1917,9 @@ export default function WorldCupBracketShell({
                 if (nestedBoard) nestedBoard.scrollLeft = 0
               })
             }} />
-            <JumpButton label="Admin/Test" disabled={!(view.isOwner || view.isAdmin)} onClick={() => scrollToAnchor("world-cup-admin", "picks")} />
+            {(view.isOwner || view.isAdmin) ? (
+              <JumpButton label="Admin/Test" onClick={() => scrollToAnchor("world-cup-admin", "picks")} />
+            ) : null}
             <JumpButton label="Leaderboard" onClick={() => scrollToAnchor("world-cup-leaderboard", "leaderboard")} />
             <JumpButton label="Invite" onClick={() => scrollToAnchor("world-cup-invite", "invite")} />
           </div>
@@ -2830,6 +2867,104 @@ export default function WorldCupBracketShell({
                       <p className="mt-1 text-xs leading-5 text-white/50">
                         Scores update as official or test results become available. Finalizing locks your entry; it does not award fake points.
                       </p>
+                    </div>
+
+                    <div data-testid="world-cup-review-saved-picks" className="space-y-3">
+                      <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="text-sm font-black text-white">Saved Group Stage Picks</p>
+                          <span className="text-[10px] font-bold uppercase tracking-wide text-white/35">
+                            User picks · official results shown separately
+                          </span>
+                        </div>
+                        {reviewGroupStageError ? (
+                          <p className="mt-2 rounded-lg border border-rose-300/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
+                            {reviewGroupStageError}
+                          </p>
+                        ) : reviewGroupStageView ? (
+                          <div className="mt-3 grid gap-2 md:grid-cols-2">
+                            {reviewGroupStageView.groups.map((group) => {
+                              const groupPicks = reviewGroupStageView.groupRankingPicks
+                                .filter((pick) => pick.groupId === group.id)
+                                .sort((a, b) => a.predictedRank - b.predictedRank)
+                              return (
+                                <div key={group.id} data-testid={`world-cup-review-group-${group.groupKey}`} className="rounded-lg border border-white/10 bg-white/[0.035] p-2">
+                                  <div className="mb-2 flex items-center justify-between gap-2">
+                                    <p className="text-xs font-black text-white">{group.displayName}</p>
+                                    <span className="text-[10px] text-white/35">{groupPicks.length}/4 saved</span>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    {groupPicks.length > 0 ? groupPicks.map((pick) => {
+                                      const result = worldCupReviewStatusLabel(pick)
+                                      return (
+                                        <div key={pick.id} data-result-state={result.status} className="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-black/25 px-2 py-1.5 text-xs">
+                                          <span className="min-w-0 truncate text-white/75">
+                                            #{pick.predictedRank} {teamNameFromGroupStageReview(reviewGroupStageView, pick.teamId)}
+                                          </span>
+                                          <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-black ${worldCupReviewStatusClass(result.status)}`}>
+                                            {result.label}
+                                          </span>
+                                        </div>
+                                      )
+                                    }) : (
+                                      <p className="rounded-md border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-xs text-amber-100">No saved ranking yet.</p>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-xs text-white/40">Loading saved group-stage picks...</p>
+                        )}
+                      </div>
+
+                      <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                        <p className="text-sm font-black text-white">Saved Third-Place Advancers</p>
+                        {reviewGroupStageView ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {reviewGroupStageView.thirdPlaceAdvancerPicks.filter((pick) => pick.isSelected).length > 0 ? (
+                              reviewGroupStageView.thirdPlaceAdvancerPicks.filter((pick) => pick.isSelected).map((pick) => {
+                                const result = worldCupReviewStatusLabel(pick)
+                                return (
+                                  <span key={pick.id} data-result-state={result.status} className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-bold ${worldCupReviewStatusClass(result.status)}`}>
+                                    {teamNameFromGroupStageReview(reviewGroupStageView, pick.teamId)}
+                                    <span className="text-[10px] opacity-80">{result.label}</span>
+                                  </span>
+                                )
+                              })
+                            ) : (
+                              <p className="rounded-md border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-xs text-amber-100">No saved third-place advancers yet.</p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-xs text-white/40">Loading saved third-place picks...</p>
+                        )}
+                      </div>
+
+                      <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                        <p className="text-sm font-black text-white">Saved Knockout Picks</p>
+                        <div className="mt-2 space-y-1.5">
+                          {picks.filter(hasWorldCupPickSelection).length > 0 ? (
+                            picks.filter(hasWorldCupPickSelection).map((pick) => {
+                              const match = projectedMatches.find((row) => row.id === pick.matchId || row.matchNumber === pick.matchNumber)
+                              const result = worldCupReviewStatusLabel(pick)
+                              return (
+                                <div key={pick.id} data-testid={`world-cup-review-knockout-pick-${pick.matchId}`} data-result-state={result.status} className="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2 py-1.5 text-xs">
+                                  <span className="min-w-0 truncate text-white/75">
+                                    {match ? `Match ${match.matchNumber} · ` : ""}{pick.selectedTeamName}
+                                  </span>
+                                  <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-black ${worldCupReviewStatusClass(result.status)}`}>
+                                    {result.label}
+                                  </span>
+                                </div>
+                              )
+                            })
+                          ) : (
+                            <p className="rounded-md border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-xs text-amber-100">No saved knockout picks yet.</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     {!completionReview.fullEntryComplete ? (
