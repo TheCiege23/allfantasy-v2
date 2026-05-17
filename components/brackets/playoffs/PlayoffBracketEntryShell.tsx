@@ -29,6 +29,7 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
   const [savingSeriesIds, setSavingSeriesIds] = useState<Set<string>>(new Set())
   const [savedSeriesIds, setSavedSeriesIds] = useState<Set<string>>(new Set())
   const [syncDiagnostics, setSyncDiagnostics] = useState<unknown>(null)
+  const [showPickResults, setShowPickResults] = useState(false)
 
   const activeEntry = view.activeEntry
   const series = Array.isArray(view.series) ? view.series : []
@@ -42,6 +43,7 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
   const hasTemplateSeries = series.some((item) => /^Winner\s+S\d+$/i.test(item.homeTeamName) || /^Winner\s+S\d+$/i.test(item.awayTeamName)) ||
     (view.challenge.isTestMode && !series.some((item) => item.winnerTeamName || item.status === "in_progress" || item.status === "final"))
   const canSyncSeries = view.challenge.ownerUserId === view.viewerUserId
+  const canShowPickResultsToggle = activeEntry?.userId === view.viewerUserId || view.challenge.ownerUserId === view.viewerUserId
 
   if (!activeEntry) {
     return null
@@ -203,6 +205,16 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            {canShowPickResultsToggle ? (
+              <button
+                type="button"
+                onClick={() => setShowPickResults((value) => !value)}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-emerald-400"
+                data-testid="playoff-show-pick-results-toggle"
+              >
+                {showPickResults ? "Hide Pick Results" : "Show Pick Results"}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={continuePicking}
@@ -238,6 +250,7 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
         savingSeriesIds={savingSeriesIds}
         savedSeriesIds={savedSeriesIds}
         nextSeriesId={nextActionableSeries?.id ?? null}
+        showPickResults={canShowPickResultsToggle && showPickResults}
       />
     </div>
   )

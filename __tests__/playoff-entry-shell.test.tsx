@@ -158,4 +158,49 @@ describe("PlayoffBracketEntryShell", () => {
     expect(screen.getByTestId("playoff-entry-template-warning")).toBeInTheDocument()
     expect(screen.queryByTestId("playoff-entry-sync-series-button")).not.toBeInTheDocument()
   })
+
+  it("toggles pick result verification display without saving data", () => {
+    render(
+      <PlayoffBracketEntryShell
+        initialView={buildEntryView({
+          activeEntry: {
+            id: "entry-1",
+            name: "Bracket 1",
+            userId: "user-1",
+            pickCount: 1,
+            isComplete: false,
+            createdAt: new Date().toISOString(),
+          },
+          picks: [{ id: "p1", entryId: "entry-1", seriesId: "s1", pickTeamName: "Knicks", createdAt: "", updatedAt: "" }],
+          series: [
+            {
+              id: "s1",
+              round: "round_1",
+              roundIndex: 1,
+              seriesNumber: 1,
+              conference: "east",
+              homeSeed: 1,
+              awaySeed: 8,
+              homeTeamName: "Knicks",
+              awayTeamName: "Hawks",
+              winnerTeamName: "Knicks",
+              seriesSummary: "Knicks win series 4-0",
+              bestOf: 7,
+              status: "final",
+              startsAt: null,
+              nextSeriesNumber: 9,
+              nextSeriesSlot: "home",
+              sourceSeriesHome: null,
+              sourceSeriesAway: null,
+            },
+          ],
+        })}
+      />
+    )
+
+    expect(screen.queryByTestId("playoff-series-pick-result-s1")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByTestId("playoff-show-pick-results-toggle"))
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Correct +1")
+    expect(savePlayoffBracketPickClientMock).not.toHaveBeenCalled()
+  })
 })

@@ -2,6 +2,7 @@
 
 import type { PlayoffPickView, PlayoffRoundKey, PlayoffSeriesView } from "@/lib/playoffs/types"
 import { isPlayoffSeriesResolved, PLAYOFF_UNRESOLVED_SERIES_MESSAGE } from "@/lib/playoffs/playoffBracketProjection"
+import { getPlayoffPickResult } from "@/lib/playoffs/playoffScoring"
 
 type Props = {
   rounds: PlayoffRoundKey[]
@@ -12,6 +13,7 @@ type Props = {
   savingSeriesIds?: Set<string>
   savedSeriesIds?: Set<string>
   nextSeriesId?: string | null
+  showPickResults?: boolean
 }
 
 const ROUND_LABELS: Record<PlayoffRoundKey, string> = {
@@ -55,6 +57,7 @@ export default function PlayoffBracketBoard({
   savingSeriesIds,
   savedSeriesIds,
   nextSeriesId,
+  showPickResults = false,
 }: Props) {
   return (
     <div className="relative overflow-x-auto rounded-3xl border border-slate-300/80 bg-[linear-gradient(180deg,#fdfcf8_0%,#f4f7ff_100%)] p-4 shadow-[0_18px_48px_rgba(15,23,42,0.12)]">
@@ -78,6 +81,7 @@ export default function PlayoffBracketBoard({
                   const isSaving = savingSeriesIds?.has(item.id) ?? false
                   const isSaved = savedSeriesIds?.has(item.id) ?? false
                   const isNext = nextSeriesId === item.id
+                  const pickResult = getPlayoffPickResult(item, pick)
                   return (
                     <article
                       key={item.id}
@@ -143,6 +147,36 @@ export default function PlayoffBracketBoard({
                           {item.venue ? ` - ${item.venue}` : ""}
                         </p>
                       </div>
+                      {showPickResults ? (
+                        <div
+                          className="mt-2 space-y-1 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700"
+                          data-testid={`playoff-series-pick-result-${item.id}`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span>Your pick: {pickResult.pickTeamName ?? "No Pick"}</span>
+                            <span
+                              className={
+                                pickResult.status === "correct"
+                                  ? "text-emerald-700"
+                                  : pickResult.status === "wrong"
+                                    ? "text-rose-700"
+                                    : "text-slate-500"
+                              }
+                            >
+                              {pickResult.status === "correct"
+                                ? `Correct +${pickResult.points}`
+                                : pickResult.status === "wrong"
+                                  ? `Wrong +${pickResult.points}`
+                                  : pickResult.status === "pending"
+                                    ? "Pending"
+                                    : "No Pick"}
+                            </span>
+                          </div>
+                          <p className="text-slate-500">
+                            Result: {pickResult.seriesSummary ?? (pickResult.winnerTeamName ? `${pickResult.winnerTeamName} wins` : "Result pending")}
+                          </p>
+                        </div>
+                      ) : null}
                       <div className="mt-2 text-xs text-slate-500">
                         {item.conference === "finals" ? "Cup Finals" : `${item.conference.toUpperCase()} Conference`}
                       </div>

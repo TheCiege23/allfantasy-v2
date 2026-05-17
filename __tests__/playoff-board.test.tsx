@@ -138,6 +138,46 @@ describe("PlayoffBracketBoard", () => {
     expect(screen.getByTestId("playoff-series-next-s1")).toHaveTextContent("TBD")
     expect(screen.getByTestId("playoff-series-live-s1")).toHaveTextContent("Live: Celtics 84, Heat 79 - 3Q")
   })
+
+  it("does not show pick result badges by default", () => {
+    render(
+      <PlayoffBracketBoard
+        rounds={[...rounds]}
+        series={series.map((item) => item.id === "s1" ? { ...item, winnerTeamName: "Celtics", seriesSummary: "Celtics win series 4-1" } : item)}
+        picks={[{ id: "p1", entryId: "e1", seriesId: "s1", pickTeamName: "Celtics", createdAt: "", updatedAt: "" }]}
+      />
+    )
+
+    expect(screen.queryByTestId("playoff-series-pick-result-s1")).not.toBeInTheDocument()
+  })
+
+  it("renders correct pick badge when verification is enabled", () => {
+    render(
+      <PlayoffBracketBoard
+        rounds={[...rounds]}
+        series={series.map((item) => item.id === "s1" ? { ...item, winnerTeamName: "Celtics", seriesSummary: "Celtics win series 4-1" } : item)}
+        picks={[{ id: "p1", entryId: "e1", seriesId: "s1", pickTeamName: "Celtics", createdAt: "", updatedAt: "" }]}
+        showPickResults
+      />
+    )
+
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Your pick: Celtics")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Correct +1")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Result: Celtics win series 4-1")
+  })
+
+  it("renders wrong pick badge when verification is enabled", () => {
+    render(
+      <PlayoffBracketBoard
+        rounds={[...rounds]}
+        series={series.map((item) => item.id === "s1" ? { ...item, winnerTeamName: "Heat", seriesSummary: "Heat win series 4-2" } : item)}
+        picks={[{ id: "p1", entryId: "e1", seriesId: "s1", pickTeamName: "Celtics", createdAt: "", updatedAt: "" }]}
+        showPickResults
+      />
+    )
+
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Wrong +0")
+  })
 })
 
 describe("playoff bracket projection", () => {
