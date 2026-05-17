@@ -467,6 +467,32 @@ describe("PlayoffBracketShell dashboard", () => {
     expect(screen.getByTestId("playoff-sync-results-only-button")).toBeInTheDocument()
     expect(screen.getByTestId("playoff-sync-autofill-results-button")).toBeInTheDocument()
     expect(screen.getByText("Commissioner Tools")).toBeInTheDocument()
+    expect(screen.getByTestId("playoff-sync-tools-visibility-debug")).toHaveTextContent("syncToolsVisible=true")
+    expect(screen.getByTestId("playoff-sync-tools-visibility-debug")).toHaveTextContent("isAdmin=true")
+  })
+
+  it("shows playoff commissioner sync controls when server lock diagnostics grant admin access", () => {
+    render(
+      <PlayoffBracketShell
+        initialView={buildView({
+          viewerUserId: "user-2",
+          challenge: { ...buildView().challenge, ownerUserId: "user-1", isTestMode: true },
+          lockDiagnostics: {
+            lockRule: "none",
+            allowTestLatePicks: true,
+            viewerCanLatePick: true,
+            isPoolOwner: false,
+            isTestMode: true,
+            hasPoolAdminAccess: true,
+          },
+        })}
+      />
+    )
+
+    expect(screen.getByTestId("playoff-commissioner-sync-tools")).toHaveTextContent("Commissioner Sync Tools")
+    expect(screen.getByTestId("playoff-sync-results-only-button")).toBeInTheDocument()
+    expect(screen.getByTestId("playoff-sync-tools-visibility-debug")).toHaveTextContent("isOwner=false")
+    expect(screen.getByTestId("playoff-sync-tools-visibility-debug")).toHaveTextContent("hasPoolAdminAccess=true")
   })
 
   it("exposes separate official, schedule-only, and results-only sync modes for owners", async () => {

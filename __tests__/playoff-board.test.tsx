@@ -619,6 +619,90 @@ describe("playoff bracket projection", () => {
     })
   })
 
+  it("projects West semifinals from S5-S6 and S7-S8 saved picks", () => {
+    const westSeries: PlayoffSeriesView[] = [
+      {
+        ...series[0],
+        id: "s5",
+        seriesNumber: 5,
+        conference: "west",
+        homeTeamName: "Oklahoma City Thunder",
+        awayTeamName: "Memphis Grizzlies",
+        nextSeriesNumber: 11,
+        nextSeriesSlot: "home",
+      },
+      {
+        ...series[0],
+        id: "s6",
+        seriesNumber: 6,
+        conference: "west",
+        homeTeamName: "Minnesota Timberwolves",
+        awayTeamName: "Los Angeles Lakers",
+        nextSeriesNumber: 11,
+        nextSeriesSlot: "away",
+      },
+      {
+        ...series[0],
+        id: "s7",
+        seriesNumber: 7,
+        conference: "west",
+        homeTeamName: "Denver Nuggets",
+        awayTeamName: "LA Clippers",
+        nextSeriesNumber: 12,
+        nextSeriesSlot: "home",
+      },
+      {
+        ...series[0],
+        id: "s8",
+        seriesNumber: 8,
+        conference: "west",
+        homeTeamName: "Golden State Warriors",
+        awayTeamName: "Houston Rockets",
+        nextSeriesNumber: 12,
+        nextSeriesSlot: "away",
+      },
+      {
+        ...series[1],
+        id: "s11",
+        seriesNumber: 11,
+        conference: "west",
+        homeTeamName: "Winner S5",
+        awayTeamName: "Winner S6",
+        sourceSeriesHome: 5,
+        sourceSeriesAway: 6,
+      },
+      {
+        ...series[1],
+        id: "s12",
+        seriesNumber: 12,
+        conference: "west",
+        homeTeamName: "Winner S7",
+        awayTeamName: "Winner S8",
+        sourceSeriesHome: 7,
+        sourceSeriesAway: 8,
+      },
+    ]
+    const projected = buildProjectedPlayoffSeries(westSeries, [
+      { id: "p5", entryId: "entry-1", seriesId: "s5", pickTeamName: "Oklahoma City Thunder", createdAt: "", updatedAt: "" },
+      { id: "p6", entryId: "entry-1", seriesId: "s6", pickTeamName: "Minnesota Timberwolves", createdAt: "", updatedAt: "" },
+      { id: "p7", entryId: "entry-1", seriesId: "s7", pickTeamName: "Denver Nuggets", createdAt: "", updatedAt: "" },
+      { id: "p8", entryId: "entry-1", seriesId: "s8", pickTeamName: "Golden State Warriors", createdAt: "", updatedAt: "" },
+    ])
+
+    expect(projected.find((item) => item.id === "s11")).toMatchObject({
+      homeTeamName: "Oklahoma City Thunder",
+      awayTeamName: "Minnesota Timberwolves",
+    })
+    expect(projected.find((item) => item.id === "s12")).toMatchObject({
+      homeTeamName: "Denver Nuggets",
+      awayTeamName: "Golden State Warriors",
+    })
+    expect(projected.find((item) => item.id === "s11")).not.toMatchObject({
+      homeTeamName: "San Antonio Spurs",
+      awayTeamName: "Oklahoma City Thunder",
+    })
+  })
+
   it("projects later-round teams from official winners when user picks are excluded", () => {
     const projected = buildProjectedPlayoffSeries(
       series.map((item) => item.id === "s1" ? { ...item, winnerTeamName: "Celtics" } : item),

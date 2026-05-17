@@ -96,9 +96,12 @@ export default function PlayoffBracketShell({ initialView }: Props) {
     [entries]
   )
   const hasScoredLeaderboard = leaderboardRows.some((row) => row.hasScoredResults)
-  const hasAdminAccess = hasPoolAdminAccess(session?.user)
+  const hasClientAdminAccess = hasPoolAdminAccess(session?.user)
+  const hasServerAdminAccess = view.lockDiagnostics?.hasPoolAdminAccess === true
+  const hasAdminAccess = hasClientAdminAccess || hasServerAdminAccess
   const canManagePlayoffPool = safeChallenge.ownerUserId === view?.viewerUserId || hasAdminAccess
   const canUseAutofillResults = safeChallenge.isTestMode && hasAdminAccess
+  const isOwner = safeChallenge.ownerUserId === view?.viewerUserId
 
   function handleRefresh() {
     startRefreshing(async () => {
@@ -320,6 +323,9 @@ export default function PlayoffBracketShell({ initialView }: Props) {
               <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">Commissioner Sync Tools</h2>
               <p className="mt-1 text-sm text-slate-600">
                 Provider sync updates official NBA/NHL playoff data. User picks are not created unless the testing-only auto-fill action is used.
+              </p>
+              <p data-testid="playoff-sync-tools-visibility-debug" className="mt-1 text-xs font-semibold text-slate-500">
+                syncToolsVisible=true; isOwner={String(isOwner)}; isAdmin={String(hasAdminAccess)}; hasPoolAdminAccess={String(hasAdminAccess)}
               </p>
             </div>
             {syncingSeries ? (

@@ -1082,14 +1082,18 @@ describe("syncPlayoffChallengeSeries", () => {
   it("maps known NBA West Semifinals into the correct S11-S12 official slots", async () => {
     const liveScores = await import("@/lib/sports-live-scores-service")
     vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NBA", 2026, [
-      scheduleRow("NBA", "Postseason", "West Semifinals", null as any, "Thunder", "Nuggets", "scheduled", "2026-05-18"),
-      scheduleRow("NBA", "Postseason", "West Semifinals", null as any, "Timberwolves", "Mavericks", "scheduled", "2026-05-18"),
+      scheduleRow("NBA", "Postseason", "West Semifinals", null as any, "Spurs", "Thunder", "scheduled", "2026-05-18"),
+      scheduleRow("NBA", "Postseason", "West Semifinals", null as any, "Thunder", "Timberwolves", "scheduled", "2026-05-18"),
     ] as any))
     challengeFindUniqueMock.mockResolvedValue({
       ...baseChallenge,
       series: [
         playoffSeriesSlot("s9", 2, 9, "east", "Winner S1", "Winner S2", 1, 2),
         playoffSeriesSlot("s10", 2, 10, "east", "Winner S3", "Winner S4", 3, 4),
+        { ...firstRoundSeries("s5", 5, "west", "Thunder", "Warriors"), winnerTeamName: "Thunder" },
+        { ...firstRoundSeries("s6", 6, "west", "Timberwolves", "Lakers"), winnerTeamName: "Timberwolves" },
+        { ...firstRoundSeries("s7", 7, "west", "Spurs", "Mavericks"), winnerTeamName: "Spurs" },
+        { ...firstRoundSeries("s8", 8, "west", "Nuggets", "Pelicans"), winnerTeamName: "Nuggets" },
         playoffSeriesSlot("s11", 2, 11, "west", "Winner S5", "Winner S6", 5, 6),
         playoffSeriesSlot("s12", 2, 12, "west", "Winner S7", "Winner S8", 7, 8),
       ],
@@ -1106,16 +1110,29 @@ describe("syncPlayoffChallengeSeries", () => {
       where: { id: "s11" },
       data: expect.objectContaining({
         homeTeamName: "Thunder",
-        awayTeamName: "Nuggets",
+        awayTeamName: "Timberwolves",
       }),
     }))
     expect(seriesUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: "s12" },
       data: expect.objectContaining({
-        homeTeamName: "Timberwolves",
-        awayTeamName: "Mavericks",
+        homeTeamName: "Spurs",
+        awayTeamName: "Thunder",
       }),
     }))
+    expect(result.diagnostics.providerAssignments).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        homeTeam: "Thunder",
+        awayTeam: "Timberwolves",
+        assignedSeriesNumber: 11,
+        assignmentReason: "source_winners",
+      }),
+      expect.objectContaining({
+        homeTeam: "Spurs",
+        awayTeam: "Thunder",
+        assignedSeriesNumber: 12,
+      }),
+    ]))
   })
 
   it("maps NHL event names to bracket rounds", async () => {

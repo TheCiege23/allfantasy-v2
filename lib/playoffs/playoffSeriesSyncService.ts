@@ -134,6 +134,12 @@ type UpdatedSeriesDiagnostic = {
   status?: string | null
 }
 
+type ProviderAssignmentDiagnostic = TeamPairDiagnostic & {
+  assignedSeriesNumber?: number | null
+  assignedSeriesId?: string | null
+  assignmentReason?: string | null
+}
+
 export type PlayoffSyncDiagnostics = {
   seasonYear: number
   challengeSeasonYear: number
@@ -149,6 +155,7 @@ export type PlayoffSyncDiagnostics = {
   ignoredPlayInGames: number
   eventNameRoundMapExamples: EventNameRoundMapDiagnostic[]
   providerSeriesByRound: Record<string, number>
+  providerAssignments: ProviderAssignmentDiagnostic[]
   templateReplacementCount: number
   updatedSeriesExamples: UpdatedSeriesDiagnostic[]
   scheduleSupplementProvider: "espn_live" | "rolling_insights_live" | "none"
@@ -364,6 +371,7 @@ export async function fetchRollingInsightsPostseasonScheduleGames(input: {
       ignoredPlayInGames: games.filter(isPlayInGame).length,
       eventNameRoundMapExamples: sampleEventNameRoundDiagnostics(games, input.sport),
       providerSeriesByRound: providerSeriesByRound(buildProviderSeriesGroups(games, input.sport)),
+      providerAssignments: [],
       templateReplacementCount: 0,
       updatedSeriesExamples: [],
       scheduleSupplementProvider: "none",
@@ -446,6 +454,7 @@ export async function fetchLivePlayoffSeriesGames(input: {
           ignoredPlayInGames: games.filter(isPlayInGame).length,
           eventNameRoundMapExamples: sampleEventNameRoundDiagnostics(games, input.sport),
           providerSeriesByRound: providerSeriesByRound(buildProviderSeriesGroups(games, input.sport)),
+          providerAssignments: [],
           templateReplacementCount: 0,
           updatedSeriesExamples: [],
           scheduleSupplementProvider: "none",
@@ -490,6 +499,7 @@ export async function fetchLivePlayoffSeriesGames(input: {
       ignoredPlayInGames: 0,
       eventNameRoundMapExamples: [],
       providerSeriesByRound: {},
+      providerAssignments: [],
       templateReplacementCount: 0,
       updatedSeriesExamples: [],
       scheduleSupplementProvider: "none",
@@ -688,8 +698,50 @@ function sortProviderGroupsForReplacement(groups: ProviderSeriesGroup[]): Provid
   })
 }
 
-function mapTemplateReplacementGroups(seriesList: any[], groups: ProviderSeriesGroup[]): Map<string, ProviderSeriesGroup> {
+function groupMatchesSourceWinners(
+  series: any,
+  group: ProviderSeriesGroup,
+  bySeriesNumber: Map<number, any>
+): boolean {
+  const sourceNumbers = [series.sourceSeriesHome, series.sourceSeriesAway]
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value))
+  if (sourceNumbers.length === 0) return false
+
+  const sourceWinnerNames = sourceNumbers
+    .map((seriesNumber) => bySeriesNumber.get(seriesNumber)?.winnerTeamName)
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+  if (sourceWinnerNames.length !== sourceNumbers.length) return false
+
+  const providerTeams = [group.homeTeamName, group.awayTeamName]
+  return sourceWinnerNames.every((winnerName) => providerTeams.some((teamName) => sameTeam(winnerName, teamName)))
+}
+
+function assignmentDiagnostic(
+  group: ProviderSeriesGroup,
+  series: any,
+  assignmentReason: string,
+): ProviderAssignmentDiagnostic {
+  return {
+    round: group.roundIndex,
+    homeTeam: group.homeTeamName,
+    awayTeam: group.awayTeamName,
+    eventName: group.eventName ?? group.games[0]?.eventName ?? null,
+    status: group.games[0]?.status ?? group.games[0]?.statusDetail ?? null,
+    startTime: group.games[0]?.startTime ?? null,
+    assignedSeriesNumber: Number(series.seriesNumber ?? null),
+    assignedSeriesId: String(series.id ?? ""),
+    assignmentReason,
+  }
+}
+
+function mapTemplateReplacementGroups(seriesList: any[], groups: ProviderSeriesGroup[]): {
+  map: Map<string, ProviderSeriesGroup>
+  assignments: ProviderAssignmentDiagnostic[]
+} {
   const map = new Map<string, ProviderSeriesGroup>()
+  const assignments: ProviderAssignmentDiagnostic[] = []
+  const bySeriesNumber = new Map(seriesList.map((series) => [Number(series.seriesNumber), series]))
   for (const roundIndex of [1, 2, 3, 4]) {
     const roundSeries = sortSeriesForReplacement(
       seriesList.filter((series) => Number(series.roundIndex) === roundIndex)
@@ -697,18 +749,27 @@ function mapTemplateReplacementGroups(seriesList: any[], groups: ProviderSeriesG
     if (roundSeries.length === 0) continue
     const roundGroups = groups.filter((group) => group.roundIndex === roundIndex)
     if (roundGroups.length === 0) continue
-    assignReplacementGroupsByConference(map, roundSeries, roundGroups)
+    assignReplacementGroupsByConference(map, assignments, roundSeries, roundGroups, bySeriesNumber)
     if (roundIndex === 4 && !Array.from(map.keys()).some((id) => roundSeries.some((series) => series.id === id)) && roundGroups.length >= roundSeries.length) {
       sortSeriesForReplacement(roundSeries).forEach((series, index) => {
         const group = sortProviderGroupsForReplacement(roundGroups)[index]
-        if (group) map.set(series.id, group)
+        if (group) {
+          map.set(series.id, group)
+          assignments.push(assignmentDiagnostic(group, series, "finals_order"))
+        }
       })
     }
   }
-  return map
+  return { map, assignments }
 }
 
-function assignReplacementGroupsByConference(map: Map<string, ProviderSeriesGroup>, roundSeries: any[], roundGroups: ProviderSeriesGroup[]) {
+function assignReplacementGroupsByConference(
+  map: Map<string, ProviderSeriesGroup>,
+  assignments: ProviderAssignmentDiagnostic[],
+  roundSeries: any[],
+  roundGroups: ProviderSeriesGroup[],
+  bySeriesNumber: Map<number, any>
+) {
   const groupsByConference = new Map<string, ProviderSeriesGroup[]>()
   for (const group of roundGroups) {
     const key = group.conference ?? "unknown"
@@ -718,11 +779,22 @@ function assignReplacementGroupsByConference(map: Map<string, ProviderSeriesGrou
   for (const conference of new Set(roundSeries.map((series) => String(series.conference ?? "unknown")))) {
     const seriesForConference = roundSeries.filter((series) => String(series.conference ?? "unknown") === conference)
     const groupsForConference = sortProviderGroupsForReplacement(groupsByConference.get(conference) ?? [])
+    const remainingGroups = [...groupsForConference]
     if (groupsForConference.length === 0) continue
-    seriesForConference.forEach((series, index) => {
-      const group = groupsForConference[index]
-      if (group) map.set(series.id, group)
-    })
+    for (const series of seriesForConference) {
+      const compatibleIndex = remainingGroups.findIndex((group) => groupMatchesSourceWinners(series, group, bySeriesNumber))
+      if (compatibleIndex < 0) continue
+      const [group] = remainingGroups.splice(compatibleIndex, 1)
+      map.set(series.id, group)
+      assignments.push(assignmentDiagnostic(group, series, "source_winners"))
+    }
+    for (const series of seriesForConference) {
+      if (map.has(series.id)) continue
+      const group = remainingGroups.shift()
+      if (!group) continue
+      map.set(series.id, group)
+      assignments.push(assignmentDiagnostic(group, series, "conference_order"))
+    }
   }
 }
 
@@ -1154,6 +1226,7 @@ export async function syncPlayoffChallengeSeries(input: {
     ignoredPlayInGames: payload.diagnostics?.ignoredPlayInGames ?? payload.games.filter(isPlayInGame).length,
     eventNameRoundMapExamples: payload.diagnostics?.eventNameRoundMapExamples ?? sampleEventNameRoundDiagnostics(payload.games, sport),
     providerSeriesByRound: payload.diagnostics?.providerSeriesByRound ?? {},
+    providerAssignments: payload.diagnostics?.providerAssignments ?? [],
     templateReplacementCount: 0,
     updatedSeriesExamples: [],
     scheduleSupplementProvider: "none",
@@ -1203,7 +1276,9 @@ export async function syncPlayoffChallengeSeries(input: {
   diagnostics.providerSeriesByRound = providerSeriesByRound(providerSeriesGroups)
   const usedGroupKeys = new Set<string>()
   const invalidatedSeriesIds = new Set<string>()
-  const templateReplacementGroups = mapTemplateReplacementGroups(challenge.series, providerSeriesGroups)
+  const templateReplacementResult = mapTemplateReplacementGroups(challenge.series, providerSeriesGroups)
+  const templateReplacementGroups = templateReplacementResult.map
+  diagnostics.providerAssignments = templateReplacementResult.assignments
   let templateReplacementCount = 0
   const updatedSeriesExamples: UpdatedSeriesDiagnostic[] = []
   const officialWinnerBySeriesId = new Map<string, string>()
