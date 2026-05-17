@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { buildPlayoffTemplate, getPlayoffRoundOrder } from "./playoffTemplate"
 import type { PlayoffChallengeListItem, PlayoffChallengeView, PlayoffCreateResponse, PlayoffSport } from "./types"
 import { getDependentPlayoffSeriesIds } from "./playoffBracketProjection"
+import { scorePlayoffEntryPicks } from "./playoffScoring"
 
 type SessionUser = {
   id?: string | null
@@ -218,7 +219,7 @@ export async function getPlayoffBracketView(input: {
 
   const allEntryPicks = await (prisma as any).playoffBracketPick.findMany({
     where: { challengeId: challenge.id },
-    select: { entryId: true },
+    select: { entryId: true, seriesId: true, pickTeamName: true },
   })
 
   const pickCountByEntryId = new Map<string, number>()
@@ -229,6 +230,16 @@ export async function getPlayoffBracketView(input: {
   const challengeEntries = Array.isArray(challenge.entries) ? challenge.entries : []
   const challengeSeries = Array.isArray(challenge.series) ? challenge.series : []
   const totalSeries = challengeSeries.length
+  const scoreByEntryId = new Map<string, ReturnType<typeof scorePlayoffEntryPicks>>()
+  for (const entry of challengeEntries) {
+    scoreByEntryId.set(
+      entry.id,
+      scorePlayoffEntryPicks(
+        challengeSeries.map((series: any) => ({ id: series.id, winnerTeamName: series.winnerTeamName })),
+        allEntryPicks.filter((pick: any) => pick.entryId === entry.id)
+      )
+    )
+  }
   const participantMap = new Map<string, { userId: string; displayName: string; entryCount: number }>()
   for (const entry of challengeEntries) {
     const existing = participantMap.get(entry.userId)
@@ -285,6 +296,8 @@ export async function getPlayoffBracketView(input: {
           userId: activeEntry.userId,
           pickCount: pickCountByEntryId.get(activeEntry.id) ?? 0,
           isComplete: (pickCountByEntryId.get(activeEntry.id) ?? 0) >= totalSeries,
+          totalScore: scoreByEntryId.get(activeEntry.id)?.totalScore ?? 0,
+          correctPicks: scoreByEntryId.get(activeEntry.id)?.correctPicks ?? 0,
           createdAt: toIso(activeEntry.createdAt) ?? new Date().toISOString(),
         }
       : null,
@@ -294,6 +307,8 @@ export async function getPlayoffBracketView(input: {
       userId: entry.userId,
       pickCount: pickCountByEntryId.get(entry.id) ?? 0,
       isComplete: (pickCountByEntryId.get(entry.id) ?? 0) >= totalSeries,
+      totalScore: scoreByEntryId.get(entry.id)?.totalScore ?? 0,
+      correctPicks: scoreByEntryId.get(entry.id)?.correctPicks ?? 0,
       createdAt: toIso(entry.createdAt) ?? new Date().toISOString(),
     })),
     series: challengeSeries.map((series: any) => ({

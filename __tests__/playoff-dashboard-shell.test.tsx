@@ -134,8 +134,43 @@ describe("PlayoffBracketShell dashboard", () => {
     expect(screen.getByRole("heading", { name: "Participants" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "My Brackets / Entries" })).toBeInTheDocument()
     expect(screen.getByTestId("playoff-dashboard-leaderboard")).toBeInTheDocument()
-    expect(screen.getByText("Pick-count leaderboard. Live scoring is not wired yet.")).toBeInTheDocument()
+    expect(screen.getByText("Pick-count leaderboard until series results sync.")).toBeInTheDocument()
     expect(screen.getByTestId("playoff-fill-bracket-cta")).toHaveTextContent("Create Your First Bracket")
+  })
+
+  it("ranks leaderboard by synced score when results exist", () => {
+    render(
+      <PlayoffBracketShell
+        initialView={buildView({
+          entries: [
+            {
+              id: "entry-1",
+              name: "Wrong Bracket",
+              userId: "user-1",
+              pickCount: 15,
+              isComplete: true,
+              totalScore: 0,
+              correctPicks: 0,
+              createdAt: new Date().toISOString(),
+            },
+            {
+              id: "entry-2",
+              name: "Correct Bracket",
+              userId: "user-2",
+              pickCount: 10,
+              isComplete: false,
+              totalScore: 1,
+              correctPicks: 1,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        })}
+      />
+    )
+
+    expect(screen.getByText("Scored leaderboard from completed series results.")).toBeInTheDocument()
+    expect(screen.getByText("#1 Correct Bracket")).toBeInTheDocument()
+    expect(screen.getByText(/1 pts/)).toBeInTheDocument()
   })
 
   it("creates another bracket entry and redirects to canonical pool entry route", async () => {

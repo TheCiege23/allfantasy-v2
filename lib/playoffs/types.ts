@@ -24,12 +24,20 @@ export type PlayoffChallengeView = {
     id: string
     name: string
     userId: string
+    pickCount: number
+    isComplete: boolean
+    totalScore?: number
+    correctPicks?: number
     createdAt: string
   } | null
   entries: Array<{
     id: string
     name: string
     userId: string
+    pickCount: number
+    isComplete: boolean
+    totalScore?: number
+    correctPicks?: number
     createdAt: string
   }>
   series: PlayoffSeriesView[]

@@ -55,17 +55,28 @@ export default function PlayoffBracketShell({ initialView }: Props) {
       ? "View/Edit Bracket"
       : "Complete Bracket"
   const leaderboardRows = useMemo(
-    () =>
-      [...entries]
-        .sort((a, b) => b.pickCount - a.pickCount)
+    () => {
+      const hasScoredResults = entries.some((entry) => (entry.totalScore ?? 0) > 0 || (entry.correctPicks ?? 0) > 0)
+      return [...entries]
+        .sort((a, b) => {
+          if (hasScoredResults) {
+            return (b.totalScore ?? 0) - (a.totalScore ?? 0) || (b.correctPicks ?? 0) - (a.correctPicks ?? 0) || b.pickCount - a.pickCount
+          }
+          return b.pickCount - a.pickCount
+        })
         .map((entry, index) => ({
           rank: index + 1,
           id: entry.id,
           name: entry.name || `Bracket ${index + 1}`,
           picks: entry.pickCount,
-        })),
+          totalScore: entry.totalScore ?? 0,
+          correctPicks: entry.correctPicks ?? 0,
+          hasScoredResults,
+        }))
+    },
     [entries]
   )
+  const hasScoredLeaderboard = leaderboardRows.some((row) => row.hasScoredResults)
 
   function handleRefresh() {
     startRefreshing(async () => {
@@ -271,7 +282,9 @@ export default function PlayoffBracketShell({ initialView }: Props) {
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="playoff-dashboard-leaderboard">
         <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">Leaderboard</h2>
-        <p className="mt-1 text-xs font-semibold text-slate-500">Pick-count leaderboard. Live scoring is not wired yet.</p>
+        <p className="mt-1 text-xs font-semibold text-slate-500">
+          {hasScoredLeaderboard ? "Scored leaderboard from completed series results." : "Pick-count leaderboard until series results sync."}
+        </p>
         {leaderboardRows.length === 0 ? (
           <p className="mt-2 text-sm text-slate-600">No leaderboard entries yet.</p>
         ) : (
@@ -279,7 +292,10 @@ export default function PlayoffBracketShell({ initialView }: Props) {
             {leaderboardRows.map((row) => (
               <li key={row.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm">
                 <span className="font-semibold text-slate-800">#{row.rank} {row.name}</span>
-                <span className="text-slate-600">{row.picks} picks</span>
+                <span className="text-slate-600">
+                  {row.hasScoredResults ? `${row.totalScore} pts · ${row.correctPicks} correct · ` : ""}
+                  {row.picks} picks
+                </span>
               </li>
             ))}
           </ol>
