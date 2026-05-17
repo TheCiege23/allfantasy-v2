@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { RefreshCw, Trophy, Plus, Link2, Clipboard, Settings2, ArrowRightCircle } from "lucide-react"
+import { RefreshCw, Trophy, Plus, Link2, Clipboard, Settings2, ArrowRightCircle, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import type { PlayoffChallengeView } from "@/lib/playoffs/types"
 import {
@@ -19,6 +19,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
   const [view, setView] = useState(initialView)
   const [refreshing, startRefreshing] = useTransition()
   const [creatingEntry, startCreatingEntry] = useTransition()
+  const [syncingSeries, startSyncingSeries] = useTransition()
 
   const safeChallenge = {
     id: view?.challenge?.id || "unknown-challenge",
@@ -39,6 +40,8 @@ export default function PlayoffBracketShell({ initialView }: Props) {
   const entries = Array.isArray(view?.entries) ? view.entries : []
   const series = Array.isArray(view?.series) ? view.series : []
   const totalSeries = series.length
+  const hasTemplateSeries = series.some((item) => /^Winner\s+S\d+$/i.test(item.homeTeamName) || /^Winner\s+S\d+$/i.test(item.awayTeamName)) ||
+    (safeChallenge.isTestMode && !series.some((item) => item.winnerTeamName || item.status === "in_progress" || item.status === "final"))
   const myEntries = entries.filter((entry) => entry.userId === view?.viewerUserId)
   const viewerEntryCount = myEntries.length
   const canCreateEntry = viewerEntryCount < safeChallenge.maxEntriesPerParticipant
@@ -113,6 +116,31 @@ export default function PlayoffBracketShell({ initialView }: Props) {
     })
   }
 
+  function handleSyncSeries() {
+    startSyncingSeries(async () => {
+      try {
+        const response = await fetch(`/api/brackets/playoffs/${safeChallenge.id}/admin/sync-series`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        })
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Failed to sync playoff series")
+        }
+        const warnings = Array.isArray(payload?.warnings) ? payload.warnings : []
+        if (warnings.length > 0) {
+          toast.warning(warnings[0])
+        } else {
+          toast.success("Playoff series synced.")
+        }
+        const latest = await getPlayoffBracketViewClient(safeChallenge.id)
+        setView(latest)
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to sync playoff series")
+      }
+    })
+  }
+
   async function copyInvite() {
     try {
       const absoluteUrl = `${window.location.origin}${safeChallenge.inviteUrl}`
@@ -155,6 +183,25 @@ export default function PlayoffBracketShell({ initialView }: Props) {
           <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-900">{totalSeries} series</span>
           {safeChallenge.isTestMode ? <span className="rounded-full bg-sky-100 px-3 py-1 text-sky-900">Test mode</span> : null}
         </div>
+        {hasTemplateSeries ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              <span data-testid="playoff-template-warning">Template teams shown until playoff series sync runs.</span>
+            </div>
+            {safeChallenge.ownerUserId === view?.viewerUserId ? (
+              <button
+                type="button"
+                onClick={handleSyncSeries}
+                disabled={syncingSeries}
+                data-testid="playoff-sync-series-button"
+                className="rounded-xl border border-amber-400 bg-white px-3 py-1.5 text-xs font-bold text-amber-900 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {syncingSeries ? "Syncing..." : "Sync current playoff series"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[1.25fr_1fr]">

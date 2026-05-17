@@ -74,6 +74,21 @@ function isLegacyWorldCupPoolRow(member: any): boolean {
   )
 }
 
+function isLegacyPlayoffPoolRow(member: any): boolean {
+  const league = member?.league
+  const sport = String(league?.tournament?.sport ?? "").toUpperCase()
+  const challengeType = String(league?.scoringRules?.challengeType ?? "").toLowerCase()
+  const bracketType = String(league?.scoringRules?.bracketType ?? "").toLowerCase()
+
+  return (
+    (sport === "NBA" || sport === "NHL") &&
+    (
+      challengeType === "playoff_challenge" ||
+      bracketType === "playoff_challenge"
+    )
+  )
+}
+
 function isExpectedBracketLoadError(err: unknown): boolean {
   if (!err) return false
   const errObj = err as any
@@ -405,7 +420,7 @@ export default async function BracketsHomePage() {
   const bracketSignupHref = buildSignupHrefWithIntent("/brackets")
   const bracketLoginHref = buildLoginHrefWithIntent("/brackets")
   const safeMyLeagues = Array.isArray(myLeagues)
-    ? myLeagues.filter((row: any) => Boolean(row?.league?.id) && !isLegacyWorldCupPoolRow(row))
+    ? myLeagues.filter((row: any) => Boolean(row?.league?.id) && !isLegacyWorldCupPoolRow(row) && !isLegacyPlayoffPoolRow(row))
     : []
   const safeResolvePlayoffHref = (sport: string) => {
     try {

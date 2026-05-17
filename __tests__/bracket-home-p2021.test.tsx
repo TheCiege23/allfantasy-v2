@@ -133,13 +133,34 @@ describe("app/brackets/page — P2021 playoff table missing", () => {
     expect(screen.getByTestId("my-pools-tab")).toHaveTextContent("pools:0")
   })
 
-  it("dedupes duplicate pool rows before rendering My Pools", async () => {
+  it("hides migrated legacy NBA playoff pools from active My Pools", async () => {
+    bracketLeagueMemberFindManyMock.mockResolvedValue([
+      {
+        league: {
+          id: "legacy-nba-playoff-league",
+          name: "Legacy NBA Finals Pool",
+          scoringRules: { challengeType: "playoff_challenge", bracketType: null },
+          tournament: { sport: "NBA" },
+          _count: { members: 4, entries: 12 },
+        },
+      },
+    ])
+
+    const mod = await import("@/app/brackets/page")
+    const element = await (mod.default as () => Promise<React.ReactElement>)()
+    render(element)
+
+    expect(screen.getByTestId("my-pools-tab")).toHaveTextContent("pools:0")
+    expect(screen.queryByTestId("my-pool-legacy-nba-playoff-league")).not.toBeInTheDocument()
+  })
+
+  it("dedupes duplicate non-playoff pool rows before rendering My Pools", async () => {
     bracketLeagueMemberFindManyMock.mockResolvedValue([
       {
         league: {
           id: "league-1",
           name: "NBA Finals Pool",
-          scoringRules: { challengeType: "playoff_challenge", bracketType: null },
+          scoringRules: { challengeType: null, bracketType: null },
           tournament: { sport: "NBA" },
           _count: { members: 4, entries: 12 },
         },
@@ -148,7 +169,7 @@ describe("app/brackets/page — P2021 playoff table missing", () => {
         league: {
           id: "league-1",
           name: "NBA Finals Pool Duplicate",
-          scoringRules: { challengeType: "playoff_challenge", bracketType: null },
+          scoringRules: { challengeType: null, bracketType: null },
           tournament: { sport: "NBA" },
           _count: { members: 1, entries: 1 },
         },

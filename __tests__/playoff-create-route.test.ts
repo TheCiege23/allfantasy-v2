@@ -1,15 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const createPlayoffBracketChallengeMock = vi.hoisted(() => vi.fn())
+const createPlayoffBracketEntryMock = vi.hoisted(() => vi.fn())
+const getPlayoffBracketViewMock = vi.hoisted(() => vi.fn())
 const listUserPlayoffChallengesMock = vi.hoisted(() => vi.fn())
 const requireWorldCupApiUserMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/lib/playoffs/playoffService", () => ({
   createPlayoffBracketChallenge: createPlayoffBracketChallengeMock,
+  createPlayoffBracketEntry: createPlayoffBracketEntryMock,
+  getPlayoffBracketView: getPlayoffBracketViewMock,
   listUserPlayoffChallenges: listUserPlayoffChallengesMock,
 }))
 
 vi.mock("@/app/api/brackets/playoffs/_utils", () => ({
+  playoffChallengeParamsSchema: {
+    safeParse: (params: any) => params?.challengeId ? { success: true, data: params } : { success: false },
+  },
   requireWorldCupApiUser: requireWorldCupApiUserMock,
 }))
 
@@ -97,5 +104,46 @@ describe("playoff create/list route", () => {
     expect(payload.challenges).toHaveLength(1)
     expect(payload.challenges[0].sport).toBe("nhl")
     expect(payload.challenges[0].challengeId).toBe("challenge-nhl")
+  })
+
+  it("creates a playoff entry from the challenge detail route", async () => {
+    createPlayoffBracketEntryMock.mockResolvedValue({
+      challengeId: "challenge-nba",
+      entryId: "entry-1",
+      redirectUrl: "/brackets/leagues/challenge-nba/entries/entry-1",
+    })
+    const { POST } = await import("@/app/api/brackets/playoffs/[challengeId]/route")
+
+    const response = await POST(
+      new Request("http://localhost/api/brackets/playoffs/challenge-nba", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "create_entry" }),
+      }),
+      { params: { challengeId: "challenge-nba" } }
+    )
+
+    expect(response.status).toBe(200)
+    const payload = await response.json()
+    expect(payload.redirectUrl).toBe("/brackets/leagues/challenge-nba/entries/entry-1")
+  })
+
+  it("returns a clear create-entry error when max entries are reached", async () => {
+    createPlayoffBracketEntryMock.mockRejectedValue(new Error("Entry limit reached (max 5 per user)"))
+    const { POST } = await import("@/app/api/brackets/playoffs/[challengeId]/route")
+
+    const response = await POST(
+      new Request("http://localhost/api/brackets/playoffs/challenge-nba", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "create_entry" }),
+      }),
+      { params: { challengeId: "challenge-nba" } }
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Entry limit reached (max 5 per user)",
+    })
   })
 })

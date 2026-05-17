@@ -9,6 +9,7 @@ const getPlayoffBracketViewClientMock = vi.hoisted(() => vi.fn())
 const savePlayoffBracketPickClientMock = vi.hoisted(() => vi.fn())
 const toastErrorMock = vi.hoisted(() => vi.fn())
 const toastSuccessMock = vi.hoisted(() => vi.fn())
+const toastWarningMock = vi.hoisted(() => vi.fn())
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
@@ -24,6 +25,7 @@ vi.mock("sonner", () => ({
   toast: {
     success: toastSuccessMock,
     error: toastErrorMock,
+      warning: toastWarningMock,
   },
 }))
 
@@ -188,6 +190,61 @@ describe("PlayoffBracketShell dashboard", () => {
       expect(createPlayoffBracketEntryClientMock).toHaveBeenCalled()
       expect(pushMock).toHaveBeenCalledWith("/brackets/leagues/challenge-1/entries/entry-2")
     })
+  })
+
+  it("opens an existing entry from the Complete Bracket CTA", () => {
+    render(<PlayoffBracketShell initialView={buildView()} />)
+
+    fireEvent.click(screen.getByTestId("playoff-fill-bracket-cta"))
+
+    expect(pushMock).toHaveBeenCalledWith("/brackets/leagues/challenge-1/entries/entry-1")
+    expect(createPlayoffBracketEntryClientMock).not.toHaveBeenCalled()
+  })
+
+  it("shows template warning until series sync runs and calls sync route", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true, warnings: ["No playoff series matched provider games."] }),
+    } as Response)
+    getPlayoffBracketViewClientMock.mockResolvedValue(buildView())
+    render(
+      <PlayoffBracketShell
+        initialView={buildView({
+          challenge: { ...buildView().challenge, isTestMode: true },
+          series: [
+            {
+              id: "s9",
+              round: "conference_semifinals",
+              roundIndex: 2,
+              seriesNumber: 9,
+              conference: "east",
+              homeSeed: 0,
+              awaySeed: 0,
+              homeTeamName: "Winner S1",
+              awayTeamName: "Winner S2",
+              winnerTeamName: null,
+              bestOf: 7,
+              status: "scheduled",
+              startsAt: null,
+              nextSeriesNumber: 13,
+              nextSeriesSlot: "home",
+              sourceSeriesHome: 1,
+              sourceSeriesAway: 2,
+            },
+          ],
+        })}
+      />
+    )
+
+    expect(screen.getByTestId("playoff-template-warning")).toHaveTextContent("Template teams shown until playoff series sync runs.")
+    fireEvent.click(screen.getByTestId("playoff-sync-series-button"))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/brackets/playoffs/challenge-1/admin/sync-series", expect.objectContaining({ method: "POST" }))
+      expect(toastWarningMock).toHaveBeenCalledWith("No playoff series matched provider games.")
+    })
+
+    fetchMock.mockRestore()
   })
 
   it("shows only the viewer's entries in My Brackets while keeping leaderboard entries", () => {
