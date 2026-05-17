@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import {
   syncPlayoffChallengeSeries,
+  type PlayoffSeriesSyncMode,
   type PlayoffSeriesSyncProviderPreference,
 } from "@/lib/playoffs/playoffSeriesSyncService"
 import { playoffChallengeParamsSchema } from "../../../_utils"
@@ -13,6 +14,8 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 type SessionUser = { id?: string | null }
+
+const SYNC_MODES: PlayoffSeriesSyncMode[] = ["schedule_only", "official_bracket", "autofill_results"]
 
 async function canSyncChallenge(request: Request, challengeId: string): Promise<boolean> {
   const devOpen =
@@ -44,11 +47,16 @@ export async function POST(request: Request, context: { params: { challengeId: s
   try {
     const url = new URL(request.url)
     const providerParam = url.searchParams.get("provider")
+    const modeParam = url.searchParams.get("mode")
     const providerPreference: PlayoffSeriesSyncProviderPreference =
       providerParam === "espn" || providerParam === "rolling_insights" ? providerParam : "auto"
+    const mode: PlayoffSeriesSyncMode = SYNC_MODES.includes(modeParam as PlayoffSeriesSyncMode)
+      ? modeParam as PlayoffSeriesSyncMode
+      : "official_bracket"
     const result = await syncPlayoffChallengeSeries({
       challengeId: params.data.challengeId,
       providerPreference,
+      mode,
     })
     return NextResponse.json(result)
   } catch (error) {

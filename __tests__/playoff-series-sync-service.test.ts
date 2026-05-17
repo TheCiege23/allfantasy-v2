@@ -1,19 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const challengeFindUniqueMock = vi.hoisted(() => vi.fn())
+const entryFindManyMock = vi.hoisted(() => vi.fn())
 const seriesUpdateMock = vi.hoisted(() => vi.fn())
 const pickDeleteManyMock = vi.hoisted(() => vi.fn())
+const pickUpsertMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     playoffBracketChallenge: {
       findUnique: challengeFindUniqueMock,
     },
+    playoffBracketEntry: {
+      findMany: entryFindManyMock,
+    },
     playoffBracketSeries: {
       update: seriesUpdateMock,
     },
     playoffBracketPick: {
       deleteMany: pickDeleteManyMock,
+      upsert: pickUpsertMock,
     },
   },
 }))
@@ -63,7 +69,9 @@ describe("syncPlayoffChallengeSeries", () => {
     vi.clearAllMocks()
     vi.stubEnv("ROLLING_INSIGHTS_RSC_TOKEN", "test-rsc-token")
     challengeFindUniqueMock.mockResolvedValue(baseChallenge)
+    entryFindManyMock.mockResolvedValue([{ id: "entry-1" }])
     pickDeleteManyMock.mockResolvedValue({ count: 0 })
+    pickUpsertMock.mockResolvedValue({ id: "pick-1" })
   })
 
   it("aggregates NBA final games and waits for 4 wins before setting a series winner", async () => {
@@ -336,6 +344,128 @@ describe("syncPlayoffChallengeSeries", () => {
     expect(result.warnings).toContain("No playoff series matched provider games.")
     expect(result.attemptedProviders).toEqual(["test_provider"])
     expect(seriesUpdateMock).not.toHaveBeenCalled()
+    expect(pickUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it("NBA default official sync does not create user pick rows", async () => {
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      provider: async () => ({
+        source: "test_provider",
+        games: [
+          playoffGame("BOS", "MIA", 100, 90, "2026-05-01T00:00:00.000Z"),
+          playoffGame("MIA", "BOS", 88, 102, "2026-05-03T00:00:00.000Z"),
+          playoffGame("BOS", "MIA", 97, 100, "2026-05-05T00:00:00.000Z"),
+          playoffGame("MIA", "BOS", 90, 111, "2026-05-07T00:00:00.000Z"),
+          playoffGame("BOS", "MIA", 100, 95, "2026-05-09T00:00:00.000Z"),
+        ],
+      }),
+    })
+
+    expect(result.sport).toBe("nba")
+    expect(result.mode).toBe("official_bracket")
+    expect(result.picksAutoFilled).toBe(0)
+    expect(pickUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it("NHL default official sync does not create user pick rows", async () => {
+    challengeFindUniqueMock.mockResolvedValue({
+      ...baseChallenge,
+      sport: "nhl",
+      series: [{ ...baseChallenge.series[0], homeTeamName: "Rangers", awayTeamName: "Islanders" }],
+    })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      provider: async () => ({
+        source: "test_provider",
+        games: [
+          playoffGame("NYR", "NYI", 4, 1, "2026-05-01T00:00:00.000Z"),
+        ],
+      }),
+    })
+
+    expect(result.sport).toBe("nhl")
+    expect(result.mode).toBe("official_bracket")
+    expect(result.picksAutoFilled).toBe(0)
+    expect(pickUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it("schedule-only mode updates metadata without replacing official slot teams", async () => {
+    challengeFindUniqueMock.mockResolvedValue({
+      ...baseChallenge,
+      series: [{ ...baseChallenge.series[0], homeTeamName: "E1", awayTeamName: "E8" }],
+    })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      mode: "schedule_only",
+      provider: async () => ({
+        source: "test_provider",
+        games: [{
+          ...playoffGame("BOS", "MIA", 100, 90, "2026-05-01T00:00:00.000Z"),
+          providerRound: 1,
+          eventName: "East 1st Round:",
+        }],
+      }),
+    })
+
+    expect(result.mode).toBe("schedule_only")
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-1" },
+      data: expect.objectContaining({
+        homeTeamName: "E1",
+        awayTeamName: "E8",
+        seriesSummary: "Celtics leads series 1-0",
+      }),
+    })
+    expect(pickUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it("blocks autofill results outside test pools", async () => {
+    challengeFindUniqueMock.mockResolvedValue({ ...baseChallenge, isTestMode: false })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    await expect(syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      mode: "autofill_results",
+      provider: async () => ({ source: "test_provider", games: [] }),
+    })).rejects.toThrow("Auto-fill official results is only available for commissioner test pools")
+
+    expect(pickUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it("autofill results writes official winners only for test verification pools", async () => {
+    challengeFindUniqueMock.mockResolvedValue({ ...baseChallenge, isTestMode: true })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      mode: "autofill_results",
+      provider: async () => ({
+        source: "test_provider",
+        games: [
+          playoffGame("BOS", "MIA", 100, 90, "2026-05-01T00:00:00.000Z"),
+          playoffGame("MIA", "BOS", 88, 102, "2026-05-03T00:00:00.000Z"),
+          playoffGame("BOS", "MIA", 97, 100, "2026-05-05T00:00:00.000Z"),
+          playoffGame("MIA", "BOS", 90, 111, "2026-05-07T00:00:00.000Z"),
+          playoffGame("BOS", "MIA", 100, 95, "2026-05-09T00:00:00.000Z"),
+        ],
+      }),
+    })
+
+    expect(result.mode).toBe("autofill_results")
+    expect(result.picksAutoFilled).toBe(1)
+    expect(pickUpsertMock).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({
+        entryId: "entry-1",
+        seriesId: "series-1",
+        pickTeamName: "Celtics",
+      }),
+    }))
   })
 
   it("returns safe diagnostics when provider games do not match existing series", async () => {

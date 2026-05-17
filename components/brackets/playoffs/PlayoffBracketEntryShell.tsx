@@ -11,7 +11,11 @@ import {
   savePlayoffBracketPickClient,
   submitPlayoffBracketEntryClient,
 } from "@/lib/playoffs/playoffClientApi"
-import { buildProjectedPlayoffSeries, getNextActionablePlayoffSeries } from "@/lib/playoffs/playoffBracketProjection"
+import {
+  buildProjectedPlayoffSeries,
+  getNextActionablePlayoffSeries,
+  isPlayoffSeriesResolved,
+} from "@/lib/playoffs/playoffBracketProjection"
 import PlayoffBracketBoard from "./PlayoffBracketBoard"
 import PlayoffSyncDiagnosticsPanel from "./PlayoffSyncDiagnosticsPanel"
 
@@ -30,12 +34,13 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
   const [savedSeriesIds, setSavedSeriesIds] = useState<Set<string>>(new Set())
   const [syncDiagnostics, setSyncDiagnostics] = useState<unknown>(null)
   const [showPickResults, setShowPickResults] = useState(false)
+  const [showUserProjection, setShowUserProjection] = useState(false)
 
   const activeEntry = view.activeEntry
   const series = Array.isArray(view.series) ? view.series : []
   const picks = Array.isArray(view.picks) ? view.picks : []
   const rounds = Array.isArray(view.rounds) ? view.rounds : []
-  const projectedSeries = useMemo(() => buildProjectedPlayoffSeries(series, picks), [series, picks])
+  const projectedSeries = useMemo(() => buildProjectedPlayoffSeries(series, picks, { includeUserPicks: showUserProjection }), [series, picks, showUserProjection])
   const nextActionableSeries = useMemo(() => getNextActionablePlayoffSeries(projectedSeries, picks), [projectedSeries, picks])
   const totalSeries = series.length
   const pickCount = activeEntry?.pickCount ?? picks.length
@@ -44,6 +49,7 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
     (view.challenge.isTestMode && !series.some((item) => item.winnerTeamName || item.status === "in_progress" || item.status === "final"))
   const canSyncSeries = view.challenge.ownerUserId === view.viewerUserId
   const canShowPickResultsToggle = activeEntry?.userId === view.viewerUserId || view.challenge.ownerUserId === view.viewerUserId
+  const hasOfficialSyncedSeries = series.some((item) => item.lastSyncedAt || item.providerGamesJson || item.seriesSummary || item.winnerTeamName || isPlayoffSeriesResolved(item))
 
   if (!activeEntry) {
     return null
@@ -109,7 +115,7 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
   function handleSyncSeries() {
     startSyncingSeries(async () => {
       try {
-        const response = await fetch(`/api/brackets/playoffs/${view.challenge.id}/admin/sync-series`, {
+        const response = await fetch(`/api/brackets/playoffs/${view.challenge.id}/admin/sync-series?mode=official_bracket`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
         })
@@ -122,7 +128,7 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
         const ignoredPlayInGames = Number(payload?.diagnostics?.ignoredPlayInGames ?? 0)
         const trueWarnings = warnings.filter((warning: unknown) => !String(warning).toLowerCase().includes("play-in games ignored"))
         if (Number(payload?.seriesUpdated ?? 0) > 0) {
-          toast.success(`${payload.seriesUpdated} playoff series updated from Rolling Insights.`)
+          toast.success(`${payload.seriesUpdated} playoff series updated. User picks were not filled.`)
           if (ignoredPlayInGames > 0) {
             toast.info("Play-In games were ignored for this bracket.")
           }
@@ -132,7 +138,7 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
         } else if (trueWarnings.length > 0) {
           toast.warning(trueWarnings[0])
         } else {
-          toast.success("Playoff series synced.")
+          toast.success("Official playoff data synced. User picks were not filled.")
         }
         const latest = await getPlayoffBracketViewClient(view.challenge.id)
         setView(latest)
@@ -169,7 +175,7 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
-              <span data-testid="playoff-entry-template-warning">Template teams shown until playoff series sync runs.</span>
+              <span data-testid="playoff-entry-template-warning">Template teams shown until playoff series sync runs. Syncing official data does not fill user picks.</span>
             </div>
             {canSyncSeries ? (
               <button
@@ -179,7 +185,7 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
                 data-testid="playoff-entry-sync-series-button"
                 className="rounded-xl border border-amber-400 bg-white px-3 py-1.5 text-xs font-bold text-amber-900 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {syncingSeries ? "Syncing..." : "Sync current playoff series"}
+                {syncingSeries ? "Syncing..." : "Sync official data"}
               </button>
             ) : null}
           </div>
@@ -215,6 +221,19 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
                 {showPickResults ? "Hide Pick Results" : "Show Pick Results"}
               </button>
             ) : null}
+            {hasOfficialSyncedSeries ? (
+              <button
+                type="button"
+                onClick={() => setShowUserProjection((value) => !value)}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-sky-400"
+                data-testid="playoff-user-projection-toggle"
+              >
+                {showUserProjection ? "Show Official Bracket" : "Show My Projection"}
+              </button>
+            ) : null}
+            <p className="w-full text-xs font-semibold text-slate-500">
+              Syncing official data does not fill user picks.
+            </p>
             <button
               type="button"
               onClick={continuePicking}
@@ -251,6 +270,7 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
         savedSeriesIds={savedSeriesIds}
         nextSeriesId={nextActionableSeries?.id ?? null}
         showPickResults={canShowPickResultsToggle && showPickResults}
+        officialBracketMode={hasOfficialSyncedSeries && !showUserProjection}
       />
     </div>
   )

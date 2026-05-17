@@ -1,7 +1,11 @@
 "use client"
 
 import type { PlayoffPickView, PlayoffRoundKey, PlayoffSeriesView } from "@/lib/playoffs/types"
-import { isPlayoffSeriesResolved, PLAYOFF_UNRESOLVED_SERIES_MESSAGE } from "@/lib/playoffs/playoffBracketProjection"
+import {
+  isPlayoffSeriesResolved,
+  PLAYOFF_OFFICIAL_MATCHUP_TBD_MESSAGE,
+  PLAYOFF_UNRESOLVED_SERIES_MESSAGE,
+} from "@/lib/playoffs/playoffBracketProjection"
 import { getPlayoffPickResult } from "@/lib/playoffs/playoffScoring"
 
 type Props = {
@@ -14,6 +18,7 @@ type Props = {
   savedSeriesIds?: Set<string>
   nextSeriesId?: string | null
   showPickResults?: boolean
+  officialBracketMode?: boolean
 }
 
 const ROUND_LABELS: Record<PlayoffRoundKey, string> = {
@@ -58,6 +63,7 @@ export default function PlayoffBracketBoard({
   savedSeriesIds,
   nextSeriesId,
   showPickResults = false,
+  officialBracketMode = false,
 }: Props) {
   return (
     <div className="relative overflow-x-auto rounded-3xl border border-slate-300/80 bg-[linear-gradient(180deg,#fdfcf8_0%,#f4f7ff_100%)] p-4 shadow-[0_18px_48px_rgba(15,23,42,0.12)]">
@@ -77,6 +83,7 @@ export default function PlayoffBracketBoard({
                 {roundSeries.map((item) => {
                   const pick = getPickForSeries(picks, item.id)
                   const unresolved = !isPlayoffSeriesResolved(item)
+                  const unresolvedMessage = officialBracketMode ? PLAYOFF_OFFICIAL_MATCHUP_TBD_MESSAGE : PLAYOFF_UNRESOLVED_SERIES_MESSAGE
                   const lockedReason = getSeriesLockedReason(item, locked)
                   const isSaving = savingSeriesIds?.has(item.id) ?? false
                   const isSaved = savedSeriesIds?.has(item.id) ?? false
@@ -100,7 +107,7 @@ export default function PlayoffBracketBoard({
                           data-testid={`playoff-series-disabled-reason-${item.id}`}
                           className="mb-2 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800"
                         >
-                          {PLAYOFF_UNRESOLVED_SERIES_MESSAGE}
+                          {unresolvedMessage}
                         </p>
                       ) : null}
                       {!unresolved && lockedReason ? (
@@ -120,7 +127,7 @@ export default function PlayoffBracketBoard({
                               key={`${item.id}:${teamName}`}
                               type="button"
                               disabled={disabled}
-                              title={lockedReason ?? (unresolved ? PLAYOFF_UNRESOLVED_SERIES_MESSAGE : isSaving ? "This pick is saving" : undefined)}
+                              title={lockedReason ?? (unresolved ? unresolvedMessage : isSaving ? "This pick is saving" : undefined)}
                               onClick={() => disabled ? undefined : onPick?.(item.id, teamName)}
                               className={`w-full rounded-lg border px-3 py-2 text-left text-sm font-semibold transition ${
                                 selected

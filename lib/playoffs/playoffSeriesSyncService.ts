@@ -74,6 +74,8 @@ export type PlayoffSeriesSyncProvider = (input: {
 
 export type PlayoffSeriesSyncProviderPreference = "auto" | "rolling_insights" | "espn"
 
+export type PlayoffSeriesSyncMode = "schedule_only" | "official_bracket" | "autofill_results"
+
 type ProviderAttemptDiagnostic = {
   provider: string
   source: string
@@ -141,6 +143,7 @@ export type SyncPlayoffChallengeSeriesResult = {
   ok: boolean
   challengeId: string
   sport: PlayoffSport
+  mode: PlayoffSeriesSyncMode
   source: string
   challengeSeasonYear: number
   selectedProviderSeason: number | null
@@ -153,6 +156,7 @@ export type SyncPlayoffChallengeSeriesResult = {
   seriesMatched: number
   seriesUpdated: number
   winnersUpdated: number
+  picksAutoFilled: number
   warnings: string[]
   unmatchedExamples: Array<{ homeTeam: string; awayTeam: string; eventName?: string | null; round?: number | null }>
   diagnostics: PlayoffSyncDiagnostics
@@ -798,8 +802,10 @@ export async function syncPlayoffChallengeSeries(input: {
   challengeId: string
   provider?: PlayoffSeriesSyncProvider
   providerPreference?: PlayoffSeriesSyncProviderPreference
+  mode?: PlayoffSeriesSyncMode
 }): Promise<SyncPlayoffChallengeSeriesResult> {
   const warnings: string[] = []
+  const mode = input.mode ?? "official_bracket"
   const challenge = await (prisma as any).playoffBracketChallenge.findUnique({
     where: { id: input.challengeId },
     include: {
@@ -816,6 +822,10 @@ export async function syncPlayoffChallengeSeries(input: {
   const sport = String(challenge.sport ?? "").toLowerCase()
   if (sport !== "nba" && sport !== "nhl") {
     throw new Error("Only NBA and NHL playoff sync is supported")
+  }
+
+  if (mode === "autofill_results" && !challenge.isTestMode) {
+    throw new Error("Auto-fill official results is only available for commissioner test pools")
   }
 
   const provider = input.provider ?? fetchLivePlayoffSeriesGames
@@ -863,6 +873,7 @@ export async function syncPlayoffChallengeSeries(input: {
   const templateReplacementGroups = mapTemplateReplacementGroups(challenge.series, providerSeriesGroups)
   let templateReplacementCount = 0
   const updatedSeriesExamples: UpdatedSeriesDiagnostic[] = []
+  const officialWinnerBySeriesId = new Map<string, string>()
 
   for (const series of challenge.series) {
     const replacementGroup = templateReplacementGroups.get(series.id) ?? null
@@ -895,18 +906,21 @@ export async function syncPlayoffChallengeSeries(input: {
     for (const game of aggregateGames) {
       matchedGameKeys.add(gameKey(game))
     }
+    const shouldUpdateOfficialTeams = mode !== "schedule_only"
+    const nextHomeTeamName = shouldUpdateOfficialTeams ? aggregate.homeTeamName : series.homeTeamName
+    const nextAwayTeamName = shouldUpdateOfficialTeams ? aggregate.awayTeamName : series.awayTeamName
     const previousTeams = [series.homeTeamName, series.awayTeamName].map((name) => normalizeName(name).toLowerCase())
-    const nextTeams = [aggregate.homeTeamName, aggregate.awayTeamName].map((name) => normalizeName(name).toLowerCase())
+    const nextTeams = [nextHomeTeamName, nextAwayTeamName].map((name) => normalizeName(name).toLowerCase())
     const teamsChanged = !previousTeams.every((name) => nextTeams.includes(name))
-    if (teamsChanged) {
+    if (shouldUpdateOfficialTeams && teamsChanged) {
       invalidatedSeriesIds.add(series.id)
     }
 
     await (prisma as any).playoffBracketSeries.update({
       where: { id: series.id },
       data: {
-        homeTeamName: aggregate.homeTeamName,
-        awayTeamName: aggregate.awayTeamName,
+        homeTeamName: nextHomeTeamName,
+        awayTeamName: nextAwayTeamName,
         status: aggregate.status,
         startsAt: aggregate.startsAt,
         winnerTeamName: aggregate.winnerTeamName,
@@ -929,13 +943,16 @@ export async function syncPlayoffChallengeSeries(input: {
         round: Number(series.roundIndex ?? aggregate.roundIndex),
         oldHomeTeam: displayName(series.homeTeamName),
         oldAwayTeam: displayName(series.awayTeamName),
-        newHomeTeam: aggregate.homeTeamName,
-        newAwayTeam: aggregate.awayTeamName,
+        newHomeTeam: nextHomeTeamName,
+        newAwayTeam: nextAwayTeamName,
         eventName: matchedGroup?.eventName ?? aggregateGames[0]?.eventName ?? null,
         status: aggregate.status,
       })
     }
     if (aggregate.winnerTeamName) winnersUpdated += 1
+    if (aggregate.winnerTeamName) {
+      officialWinnerBySeriesId.set(series.id, aggregate.winnerTeamName)
+    }
   }
 
   if (invalidatedSeriesIds.size > 0) {
@@ -951,6 +968,36 @@ export async function syncPlayoffChallengeSeries(input: {
         },
       },
     })
+  }
+
+  let picksAutoFilled = 0
+  if (mode === "autofill_results") {
+    const entries = await (prisma as any).playoffBracketEntry.findMany({
+      where: { challengeId: challenge.id },
+      select: { id: true },
+    })
+    for (const entry of entries) {
+      for (const [seriesId, winnerTeamName] of officialWinnerBySeriesId) {
+        await (prisma as any).playoffBracketPick.upsert({
+          where: {
+            entryId_seriesId: {
+              entryId: entry.id,
+              seriesId,
+            },
+          },
+          create: {
+            challengeId: challenge.id,
+            entryId: entry.id,
+            seriesId,
+            pickTeamName: winnerTeamName,
+          },
+          update: {
+            pickTeamName: winnerTeamName,
+          },
+        })
+        picksAutoFilled += 1
+      }
+    }
   }
 
   if (seriesUpdated === 0) {
@@ -976,6 +1023,7 @@ export async function syncPlayoffChallengeSeries(input: {
     ok: warnings.length === 0 || seriesUpdated > 0,
     challengeId: challenge.id,
     sport,
+    mode,
     source: payload.source,
     challengeSeasonYear: challenge.seasonYear,
     selectedProviderSeason: diagnostics.selectedProviderSeason,
@@ -988,6 +1036,7 @@ export async function syncPlayoffChallengeSeries(input: {
     seriesMatched,
     seriesUpdated,
     winnersUpdated,
+    picksAutoFilled,
     warnings,
     unmatchedExamples: trueUnmatchedGames.slice(0, 5).map((game) => ({
       homeTeam: displayName(game.homeTeamFull || game.homeTeam),

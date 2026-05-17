@@ -118,10 +118,10 @@ export default function PlayoffBracketShell({ initialView }: Props) {
     })
   }
 
-  function handleSyncSeries() {
+  function handleSyncSeries(mode: "schedule_only" | "official_bracket" | "autofill_results" = "official_bracket") {
     startSyncingSeries(async () => {
       try {
-        const response = await fetch(`/api/brackets/playoffs/${safeChallenge.id}/admin/sync-series`, {
+        const response = await fetch(`/api/brackets/playoffs/${safeChallenge.id}/admin/sync-series?mode=${mode}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
         })
@@ -134,7 +134,11 @@ export default function PlayoffBracketShell({ initialView }: Props) {
         const ignoredPlayInGames = Number(payload?.diagnostics?.ignoredPlayInGames ?? 0)
         const trueWarnings = warnings.filter((warning: unknown) => !String(warning).toLowerCase().includes("play-in games ignored"))
         if (Number(payload?.seriesUpdated ?? 0) > 0) {
-          toast.success(`${payload.seriesUpdated} playoff series updated from Rolling Insights.`)
+          const autoFilled = Number(payload?.picksAutoFilled ?? 0)
+          toast.success(mode === "autofill_results"
+            ? `${autoFilled} test picks auto-filled from official winners.`
+            : `${payload.seriesUpdated} playoff series updated. User picks were not filled.`
+          )
           if (ignoredPlayInGames > 0) {
             toast.info("Play-In games were ignored for this bracket.")
           }
@@ -144,7 +148,10 @@ export default function PlayoffBracketShell({ initialView }: Props) {
         } else if (trueWarnings.length > 0) {
           toast.warning(trueWarnings[0])
         } else {
-          toast.success("Playoff series synced.")
+          toast.success(mode === "autofill_results"
+            ? "Auto-fill test sync completed."
+            : "Official playoff data synced. User picks were not filled."
+          )
         }
         const latest = await getPlayoffBracketViewClient(safeChallenge.id)
         setView(latest)
@@ -200,18 +207,40 @@ export default function PlayoffBracketShell({ initialView }: Props) {
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
-              <span data-testid="playoff-template-warning">Template teams shown until playoff series sync runs.</span>
+              <span data-testid="playoff-template-warning">Template teams shown until playoff series sync runs. Syncing official data does not fill user picks.</span>
             </div>
             {safeChallenge.ownerUserId === view?.viewerUserId ? (
-              <button
-                type="button"
-                onClick={handleSyncSeries}
-                disabled={syncingSeries}
-                data-testid="playoff-sync-series-button"
-                className="rounded-xl border border-amber-400 bg-white px-3 py-1.5 text-xs font-bold text-amber-900 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {syncingSeries ? "Syncing..." : "Sync current playoff series"}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSyncSeries("official_bracket")}
+                  disabled={syncingSeries}
+                  data-testid="playoff-sync-series-button"
+                  className="rounded-xl border border-amber-400 bg-white px-3 py-1.5 text-xs font-bold text-amber-900 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {syncingSeries ? "Syncing..." : "Sync official data"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSyncSeries("schedule_only")}
+                  disabled={syncingSeries}
+                  data-testid="playoff-sync-schedule-only-button"
+                  className="rounded-xl border border-amber-300 bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-900 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Schedule/status only
+                </button>
+                {safeChallenge.isTestMode ? (
+                  <button
+                    type="button"
+                    onClick={() => handleSyncSeries("autofill_results")}
+                    disabled={syncingSeries}
+                    data-testid="playoff-sync-autofill-results-button"
+                    className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Auto-fill official results for testing
+                  </button>
+                ) : null}
+              </div>
             ) : null}
           </div>
         ) : null}

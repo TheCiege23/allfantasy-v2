@@ -136,13 +136,54 @@ describe("PlayoffBracketEntryShell", () => {
     fireEvent.click(screen.getByTestId("playoff-entry-sync-series-button"))
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith("/api/brackets/playoffs/challenge-1/admin/sync-series", expect.objectContaining({ method: "POST" }))
+      expect(fetchMock).toHaveBeenCalledWith("/api/brackets/playoffs/challenge-1/admin/sync-series?mode=official_bracket", expect.objectContaining({ method: "POST" }))
       expect(toastWarningMock).toHaveBeenCalledWith("No playoff series matched provider games.")
     })
     expect(screen.getByTestId("playoff-entry-sync-diagnostics")).toHaveTextContent("existingSeriesExamples")
     expect(screen.getByTestId("playoff-entry-sync-diagnostics")).toHaveTextContent("Rolling Insights uses season start year")
 
     fetchMock.mockRestore()
+  })
+
+  it("shows official synced teams without treating them as user picks", () => {
+    render(
+      <PlayoffBracketEntryShell
+        initialView={buildEntryView({
+          picks: [],
+          series: [
+            {
+              id: "s9",
+              round: "conference_semifinals",
+              roundIndex: 2,
+              seriesNumber: 9,
+              conference: "east",
+              homeSeed: 0,
+              awaySeed: 0,
+              homeTeamName: "Knicks",
+              awayTeamName: "Pacers",
+              winnerTeamName: "Knicks",
+              seriesSummary: "Knicks win series 4-0",
+              bestOf: 7,
+              status: "final",
+              startsAt: null,
+              providerGamesJson: [{ homeTeam: "Knicks", awayTeam: "Pacers" }],
+              lastSyncedAt: new Date().toISOString(),
+              nextSeriesNumber: 13,
+              nextSeriesSlot: "home",
+              sourceSeriesHome: 1,
+              sourceSeriesAway: 2,
+            },
+          ],
+        })}
+      />
+    )
+
+    const seriesCard = screen.getByTestId("playoff-series-s9")
+    expect(seriesCard).toHaveTextContent("Knicks")
+    expect(seriesCard.querySelector(".border-amber-500")).toBeNull()
+    fireEvent.click(screen.getByTestId("playoff-show-pick-results-toggle"))
+    expect(screen.getByTestId("playoff-series-pick-result-s9")).toHaveTextContent("Your pick: No Pick")
+    expect(screen.getByTestId("playoff-series-pick-result-s9")).toHaveTextContent("No Pick")
   })
 
   it("hides unsafe sync action for non-owner entry viewers", () => {

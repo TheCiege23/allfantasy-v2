@@ -279,7 +279,7 @@ describe("PlayoffBracketShell dashboard", () => {
     fireEvent.click(screen.getByTestId("playoff-sync-series-button"))
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith("/api/brackets/playoffs/challenge-1/admin/sync-series", expect.objectContaining({ method: "POST" }))
+      expect(fetchMock).toHaveBeenCalledWith("/api/brackets/playoffs/challenge-1/admin/sync-series?mode=official_bracket", expect.objectContaining({ method: "POST" }))
       expect(toastWarningMock).toHaveBeenCalledWith("No playoff series matched provider games.")
     })
     expect(screen.getByTestId("playoff-sync-diagnostics")).toHaveTextContent("rolling_insights_schedule_season")
@@ -366,7 +366,7 @@ describe("PlayoffBracketShell dashboard", () => {
     fireEvent.click(screen.getByTestId("playoff-sync-series-button"))
 
     await waitFor(() => {
-      expect(toastSuccessMock).toHaveBeenCalledWith("8 playoff series updated from Rolling Insights.")
+      expect(toastSuccessMock).toHaveBeenCalledWith("8 playoff series updated. User picks were not filled.")
       expect(toastInfoMock).toHaveBeenCalledWith("Play-In games were ignored for this bracket.")
       expect(toastWarningMock).not.toHaveBeenCalled()
     })
@@ -408,6 +408,91 @@ describe("PlayoffBracketShell dashboard", () => {
 
     expect(screen.getByTestId("playoff-template-warning")).toBeInTheDocument()
     expect(screen.queryByTestId("playoff-sync-series-button")).not.toBeInTheDocument()
+  })
+
+  it("exposes separate schedule-only and test autofill sync modes for test pools", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        mode: "schedule_only",
+        warnings: [],
+        seriesUpdated: 1,
+        picksAutoFilled: 0,
+        diagnostics: {},
+      }),
+    } as Response)
+
+    render(
+      <PlayoffBracketShell
+        initialView={buildView({
+          challenge: { ...buildView().challenge, isTestMode: true },
+          series: [
+            {
+              id: "s9",
+              round: "conference_semifinals",
+              roundIndex: 2,
+              seriesNumber: 9,
+              conference: "east",
+              homeSeed: 0,
+              awaySeed: 0,
+              homeTeamName: "Winner S1",
+              awayTeamName: "Winner S2",
+              winnerTeamName: null,
+              bestOf: 7,
+              status: "scheduled",
+              startsAt: null,
+              nextSeriesNumber: 13,
+              nextSeriesSlot: "home",
+              sourceSeriesHome: 1,
+              sourceSeriesAway: 2,
+            },
+          ],
+        })}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId("playoff-sync-schedule-only-button"))
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/brackets/playoffs/challenge-1/admin/sync-series?mode=schedule_only", expect.objectContaining({ method: "POST" }))
+    })
+
+    render(
+      <PlayoffBracketShell
+        initialView={buildView({
+          challenge: { ...buildView().challenge, isTestMode: true },
+          series: [
+            {
+              id: "s9",
+              round: "conference_semifinals",
+              roundIndex: 2,
+              seriesNumber: 9,
+              conference: "east",
+              homeSeed: 0,
+              awaySeed: 0,
+              homeTeamName: "Winner S1",
+              awayTeamName: "Winner S2",
+              winnerTeamName: null,
+              bestOf: 7,
+              status: "scheduled",
+              startsAt: null,
+              nextSeriesNumber: 13,
+              nextSeriesSlot: "home",
+              sourceSeriesHome: 1,
+              sourceSeriesAway: 2,
+            },
+          ],
+        })}
+      />
+    )
+
+    const autofillButtons = screen.getAllByTestId("playoff-sync-autofill-results-button")
+    fireEvent.click(autofillButtons[autofillButtons.length - 1])
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/brackets/playoffs/challenge-1/admin/sync-series?mode=autofill_results", expect.objectContaining({ method: "POST" }))
+    })
+
+    fetchMock.mockRestore()
   })
 
   it("shows only the viewer's entries in My Brackets while keeping leaderboard entries", () => {

@@ -103,6 +103,13 @@ describe("PlayoffBracketBoard", () => {
     expect(syncedSeries).toHaveTextContent("Knicks")
   })
 
+  it("shows official matchup TBD in official bracket mode when later-round teams are unknown", () => {
+    render(<PlayoffBracketBoard rounds={[...rounds]} series={series} picks={picks} officialBracketMode />)
+
+    expect(screen.getByTestId("playoff-series-disabled-reason-s9")).toHaveTextContent("Official matchup TBD.")
+    expect(screen.queryByText("Pick earlier round winners first.")).not.toBeInTheDocument()
+  })
+
   it("disables locked synced series before click with clear reason", () => {
     const onPick = vi.fn()
     const lockedSeries = series.map((item) => item.id === "s9"
@@ -177,6 +184,29 @@ describe("PlayoffBracketBoard", () => {
     )
 
     expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Wrong +0")
+  })
+
+  it("renders NHL no-pick result when official winner exists without a user pick", () => {
+    render(
+      <PlayoffBracketBoard
+        rounds={[...rounds]}
+        series={series.map((item) => item.id === "s1"
+          ? {
+              ...item,
+              homeTeamName: "Rangers",
+              awayTeamName: "Islanders",
+              winnerTeamName: "Rangers",
+              seriesSummary: "Rangers win series 4-2",
+            }
+          : item)}
+        picks={[]}
+        showPickResults
+      />
+    )
+
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Your pick: No Pick")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("No Pick")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).not.toHaveTextContent("Correct +1")
   })
 })
 

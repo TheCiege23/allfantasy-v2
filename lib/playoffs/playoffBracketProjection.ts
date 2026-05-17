@@ -1,6 +1,7 @@
 import type { PlayoffPickView, PlayoffSeriesView } from "./types"
 
 export const PLAYOFF_UNRESOLVED_SERIES_MESSAGE = "Pick earlier round winners first."
+export const PLAYOFF_OFFICIAL_MATCHUP_TBD_MESSAGE = "Official matchup TBD."
 
 function pickForSeries(picks: PlayoffPickView[], seriesId: string): PlayoffPickView | null {
   return picks.find((pick) => pick.seriesId === seriesId) ?? null
@@ -30,14 +31,16 @@ export function isOfficialTeamName(value: string | null | undefined): boolean {
 
 export function buildProjectedPlayoffSeries(
   series: PlayoffSeriesView[],
-  picks: PlayoffPickView[]
+  picks: PlayoffPickView[],
+  options: { includeUserPicks?: boolean } = {}
 ): PlayoffSeriesView[] {
+  const includeUserPicks = options.includeUserPicks ?? true
   const bySeriesNumber = new Map(series.map((item) => [item.seriesNumber, item]))
 
   return series.map((item) => ({
     ...item,
-    homeTeamName: resolveProjectedTeamName(item, item.sourceSeriesHome, item.homeTeamName, bySeriesNumber, picks),
-    awayTeamName: resolveProjectedTeamName(item, item.sourceSeriesAway, item.awayTeamName, bySeriesNumber, picks),
+    homeTeamName: resolveProjectedTeamName(item, item.sourceSeriesHome, item.homeTeamName, bySeriesNumber, includeUserPicks ? picks : []),
+    awayTeamName: resolveProjectedTeamName(item, item.sourceSeriesAway, item.awayTeamName, bySeriesNumber, includeUserPicks ? picks : []),
   }))
 }
 
