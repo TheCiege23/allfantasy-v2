@@ -1,9 +1,10 @@
 import "server-only"
 import { prisma } from "@/lib/prisma"
+import { hasPoolAdminAccess } from "@/lib/auth/admin"
 import { buildPlayoffTemplate, getPlayoffRoundOrder } from "./playoffTemplate"
 import type { PlayoffChallengeConfig, PlayoffChallengeListItem, PlayoffChallengeView, PlayoffCreateResponse, PlayoffSport } from "./types"
 import { getDependentPlayoffSeriesIds, isOfficialTeamName } from "./playoffBracketProjection"
-import { getPlayoffSeriesLockedReason } from "./playoffLocking"
+import { allowsPlayoffLatePicks, canUsePlayoffLatePicks, getPlayoffSeriesLockedReason } from "./playoffLocking"
 import { scorePlayoffEntryPicks } from "./playoffScoring"
 import { defaultPlayoffChallengeConfig, isAfCommissionerSubscriber, sanitizePlayoffChallengeConfig } from "./playoffChallengeConfig"
 
@@ -227,6 +228,18 @@ export async function getPlayoffBracketView(input: {
   if (!challenge) return null
 
   const userId = input.user?.id ?? null
+  const config = sanitizePlayoffChallengeConfig(challenge.config ?? null, {
+    afCommissionerEnabled: isAfCommissionerSubscriber(input.user),
+  })
+  const lockRule = config.lockRule
+  const isPoolOwner = Boolean(userId && challenge.ownerUserId === userId)
+  const viewerHasPoolAdminAccess = hasPoolAdminAccess(input.user)
+  const viewerCanLatePick = canUsePlayoffLatePicks({
+    lockRule,
+    isPoolOwner,
+    isTestMode: challenge.isTestMode === true,
+    hasPoolAdminAccess: viewerHasPoolAdminAccess,
+  })
   const requestedEntry = input.requestedEntryId
     ? challenge.entries.find((entry: { id: string; userId: string }) => {
         if (entry.id !== input.requestedEntryId) return false
@@ -310,12 +323,12 @@ export async function getPlayoffBracketView(input: {
       seasonYear: challenge.seasonYear,
       status: challenge.status,
       isTestMode: challenge.isTestMode,
-      visibility: challenge.config?.visibility ?? "private",
-      maxParticipants: challenge.config?.maxParticipants ?? 50,
-      maxEntriesPerParticipant: challenge.config?.maxEntriesPerParticipant ?? 1,
-      scoringStyle: challenge.config?.scoringStyle ?? "standard",
-      lockRule: challenge.config?.lockRule ?? "series_start",
-      config: challenge.config ?? defaultPlayoffChallengeConfig(),
+      visibility: config.visibility,
+      maxParticipants: config.maxParticipants,
+      maxEntriesPerParticipant: config.maxEntriesPerParticipant,
+      scoringStyle: config.scoringStyle,
+      lockRule,
+      config,
       inviteCode: toInviteCode(challenge.id),
       inviteUrl: toChallengeDashboardHref(challenge.id),
       createdAt: toIso(challenge.createdAt) ?? new Date().toISOString(),
@@ -383,6 +396,14 @@ export async function getPlayoffBracketView(input: {
       updatedAt: toIso(pick.updatedAt) ?? new Date().toISOString(),
     })),
     rounds: getPlayoffRoundOrder(),
+    lockDiagnostics: {
+      lockRule,
+      allowTestLatePicks: allowsPlayoffLatePicks(lockRule),
+      viewerCanLatePick,
+      isPoolOwner,
+      isTestMode: challenge.isTestMode === true,
+      hasPoolAdminAccess: viewerHasPoolAdminAccess,
+    },
   }
 }
 
@@ -486,6 +507,7 @@ export async function savePlayoffBracketPick(input: {
   challengeId: string
   entryId: string
   userId: string
+  user?: SessionUser | null
   seriesId: string
   pickTeamName: string
 }) {
@@ -525,13 +547,16 @@ export async function savePlayoffBracketPick(input: {
     throw new Error("Series not found")
   }
 
-  const lockRule = series.challenge?.config?.lockRule ?? "series_start"
+  const lockRule = sanitizePlayoffChallengeConfig(series.challenge?.config ?? null, {
+    afCommissionerEnabled: isAfCommissionerSubscriber(input.user),
+  }).lockRule
   const lockedReason = getPlayoffSeriesLockedReason({
     status: series.status,
     startsAt: toIso(series.startsAt),
   }, lockRule, {
     isPoolOwner: series.challenge?.ownerUserId === input.userId,
     isTestMode: series.challenge?.isTestMode === true,
+    hasPoolAdminAccess: hasPoolAdminAccess(input.user),
   })
   if (lockedReason) {
     throw new Error(lockedReason)

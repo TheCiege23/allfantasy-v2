@@ -10,14 +10,19 @@ export function canUsePlayoffLatePicks(input: {
   lockRule: string | null | undefined
   isPoolOwner?: boolean
   isTestMode?: boolean
+  hasPoolAdminAccess?: boolean
 }): boolean {
-  return allowsPlayoffLatePicks(input.lockRule) && (input.isPoolOwner === true || input.isTestMode === true)
+  return allowsPlayoffLatePicks(input.lockRule) && (
+    input.isPoolOwner === true ||
+    input.isTestMode === true ||
+    input.hasPoolAdminAccess === true
+  )
 }
 
 export function getPlayoffSeriesLockedReason(
   series: Pick<PlayoffSeriesView, "status" | "startsAt">,
   lockRule: string | null | undefined,
-  options: { isPoolOwner?: boolean; isTestMode?: boolean } = {},
+  options: { isPoolOwner?: boolean; isTestMode?: boolean; hasPoolAdminAccess?: boolean } = {},
 ): string | null {
   if (canUsePlayoffLatePicks({ lockRule, ...options })) return null
   if (series.status === "final") return "Series completed"

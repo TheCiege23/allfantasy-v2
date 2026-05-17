@@ -117,6 +117,16 @@ export type PlayoffChallengeView = {
   series: PlayoffSeriesView[]
   picks: PlayoffPickView[]
   rounds: PlayoffRoundKey[]
+  lockDiagnostics?: PlayoffLockDiagnostics | null
+}
+
+export type PlayoffLockDiagnostics = {
+  lockRule: string
+  allowTestLatePicks: boolean
+  viewerCanLatePick: boolean
+  isPoolOwner: boolean
+  isTestMode: boolean
+  hasPoolAdminAccess: boolean
 }
 
 export type PlayoffSeriesView = {

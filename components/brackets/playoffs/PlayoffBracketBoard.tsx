@@ -22,6 +22,11 @@ type Props = {
   officialBracketMode?: boolean
   lockRule?: string | null
   canUseLatePicks?: boolean
+  showLockDiagnostics?: boolean
+  lockDiagnostics?: {
+    allowTestLatePicks: boolean
+    viewerCanLatePick: boolean
+  } | null
 }
 
 const ROUND_LABELS: Record<PlayoffRoundKey, string> = {
@@ -61,8 +66,10 @@ export default function PlayoffBracketBoard({
   officialBracketMode = false,
   lockRule = null,
   canUseLatePicks = false,
+  showLockDiagnostics = false,
+  lockDiagnostics = null,
 }: Props) {
-  const latePicksEnabled = canUsePlayoffLatePicks({ lockRule, isPoolOwner: canUseLatePicks })
+  const latePicksEnabled = canUsePlayoffLatePicks({ lockRule, hasPoolAdminAccess: canUseLatePicks })
   return (
     <div className="relative overflow-x-auto rounded-3xl border border-slate-300/80 bg-[linear-gradient(180deg,#fdfcf8_0%,#f4f7ff_100%)] p-4 shadow-[0_18px_48px_rgba(15,23,42,0.12)]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_10%,rgba(251,191,36,0.18),transparent_40%),radial-gradient(circle_at_90%_15%,rgba(14,165,233,0.2),transparent_35%)]" />
@@ -82,7 +89,7 @@ export default function PlayoffBracketBoard({
                   const pick = getPickForSeries(picks, item.id)
                   const unresolved = !isPlayoffSeriesResolved(item)
                   const unresolvedMessage = officialBracketMode ? PLAYOFF_OFFICIAL_MATCHUP_TBD_MESSAGE : PLAYOFF_UNRESOLVED_SERIES_MESSAGE
-                  const lockedReason = locked ? "Series already started/locked" : getPlayoffSeriesLockedReason(item, lockRule, { isPoolOwner: canUseLatePicks })
+                  const lockedReason = locked ? "Series already started/locked" : getPlayoffSeriesLockedReason(item, lockRule, { hasPoolAdminAccess: canUseLatePicks })
                   const isSaving = savingSeriesIds?.has(item.id) ?? false
                   const isSaved = savedSeriesIds?.has(item.id) ?? false
                   const isNext = nextSeriesId === item.id
@@ -123,6 +130,14 @@ export default function PlayoffBracketBoard({
                         >
                           Late/test picks enabled.
                         </p>
+                      ) : null}
+                      {showLockDiagnostics ? (
+                        <div
+                          data-testid={`playoff-series-lock-diagnostics-${item.id}`}
+                          className="mb-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-500"
+                        >
+                          lockRule={String(lockRule ?? "series_start")}; allowTestLatePicks={String(lockDiagnostics?.allowTestLatePicks ?? false)}; viewerCanLatePick={String(lockDiagnostics?.viewerCanLatePick ?? latePicksEnabled)}; reason={lockedReason ?? "unlocked"}
+                        </div>
                       ) : null}
                       <div className="space-y-2">
                         {[item.homeTeamName, item.awayTeamName].map((teamName) => {

@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import type { PlayoffChallengeView } from "@/lib/playoffs/types"
@@ -17,6 +18,7 @@ import {
   isPlayoffSeriesResolved,
 } from "@/lib/playoffs/playoffBracketProjection"
 import { getPlayoffPickResult } from "@/lib/playoffs/playoffScoring"
+import { hasPoolAdminAccess } from "@/lib/auth/admin"
 import PlayoffBracketBoard from "./PlayoffBracketBoard"
 import PlayoffSyncDiagnosticsPanel from "./PlayoffSyncDiagnosticsPanel"
 
@@ -26,6 +28,7 @@ type Props = {
 
 export default function PlayoffBracketEntryShell({ initialView }: Props) {
   const router = useRouter()
+  const { data: session } = useSession()
   const [view, setView] = useState(initialView)
   const [dirtySinceSubmit, setDirtySinceSubmit] = useState(false)
   const [saving, startSaving] = useTransition()
@@ -56,9 +59,11 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
   const canSubmit = Boolean(activeEntry) && totalSeries > 0 && pickCount >= totalSeries
   const hasTemplateSeries = series.some((item) => /^Winner\s+S\d+$/i.test(item.homeTeamName) || /^Winner\s+S\d+$/i.test(item.awayTeamName)) ||
     (view.challenge.isTestMode && !series.some((item) => item.winnerTeamName || item.status === "in_progress" || item.status === "final"))
-  const canSyncSeries = view.challenge.ownerUserId === view.viewerUserId
-  const canShowPickResultsToggle = activeEntry?.userId === view.viewerUserId || view.challenge.ownerUserId === view.viewerUserId
-  const canUseLatePicks = view.challenge.ownerUserId === view.viewerUserId || view.challenge.isTestMode
+  const hasAdminPoolAccess = hasPoolAdminAccess(session?.user) || view.lockDiagnostics?.hasPoolAdminAccess === true
+  const canSyncSeries = view.challenge.ownerUserId === view.viewerUserId || hasAdminPoolAccess
+  const canShowPickResultsToggle = activeEntry?.userId === view.viewerUserId || view.challenge.ownerUserId === view.viewerUserId || hasAdminPoolAccess
+  const canUseLatePicks = view.lockDiagnostics?.viewerCanLatePick ?? (view.challenge.ownerUserId === view.viewerUserId || view.challenge.isTestMode || hasAdminPoolAccess)
+  const showLockDiagnostics = canSyncSeries || canUseLatePicks
   const hasOfficialSyncedSeries = series.some((item) => item.lastSyncedAt || item.providerGamesJson || item.seriesSummary || item.winnerTeamName || isPlayoffSeriesResolved(item))
 
   if (!activeEntry) {
@@ -212,6 +217,11 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
             <p className="mt-1 text-sm text-slate-600">
               Picks save automatically. Finish available series first, then projected later rounds unlock.
             </p>
+            {showLockDiagnostics ? (
+              <p data-testid="playoff-entry-lock-diagnostics" className="mt-2 text-xs font-semibold text-slate-500">
+                lockRule={lockRule}; allowTestLatePicks={String(view.lockDiagnostics?.allowTestLatePicks ?? false)}; viewerCanLatePick={String(canUseLatePicks)}
+              </p>
+            ) : null}
             <p data-testid="playoff-next-pick-guidance" className="mt-2 text-sm font-semibold text-slate-700">
               {nextActionableSeries
                 ? `${pickCount}/${totalSeries} picks complete. Next pick: Series ${nextActionableSeries.seriesNumber}.`
@@ -315,6 +325,8 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
         officialBracketMode={hasOfficialSyncedSeries && !showUserProjection}
         lockRule={lockRule}
         canUseLatePicks={canUseLatePicks}
+        showLockDiagnostics={showLockDiagnostics}
+        lockDiagnostics={view.lockDiagnostics}
       />
     </div>
   )

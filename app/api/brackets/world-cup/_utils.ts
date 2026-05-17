@@ -26,6 +26,7 @@ export type WorldCupApiSessionUser = {
   id: string
   email?: string | null
   name?: string | null
+  username?: string | null
 }
 
 function serializeWorldCupAuthError(error: unknown) {
@@ -48,6 +49,7 @@ async function getWorldCupApiUserFromToken(request?: Request): Promise<WorldCupA
     sub?: string | null
     email?: string | null
     name?: string | null
+    username?: string | null
   } | null
 
   const id = token?.id ?? token?.sub
@@ -57,13 +59,14 @@ async function getWorldCupApiUserFromToken(request?: Request): Promise<WorldCupA
     id,
     email: token?.email ?? null,
     name: token?.name ?? null,
+    username: token?.username ?? null,
   }
 }
 
 export async function getWorldCupApiUser(request?: Request): Promise<WorldCupApiSessionUser | null> {
   try {
     const session = (await getServerSession(authOptions as any)) as {
-      user?: { id?: string | null; email?: string | null; name?: string | null }
+      user?: { id?: string | null; email?: string | null; name?: string | null; username?: string | null }
     } | null
 
     const id = session?.user?.id
@@ -75,6 +78,7 @@ export async function getWorldCupApiUser(request?: Request): Promise<WorldCupApi
       id,
       email: session?.user?.email ?? null,
       name: session?.user?.name ?? null,
+      username: session?.user?.username ?? null,
     }
   } catch (error) {
     console.error("[world-cup/auth] getServerSession failed", serializeWorldCupAuthError(error))

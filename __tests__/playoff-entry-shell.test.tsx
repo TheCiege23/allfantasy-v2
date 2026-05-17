@@ -11,9 +11,14 @@ const toastWarningMock = vi.hoisted(() => vi.fn())
 const toastErrorMock = vi.hoisted(() => vi.fn())
 const toastSuccessMock = vi.hoisted(() => vi.fn())
 const toastInfoMock = vi.hoisted(() => vi.fn())
+const useSessionMock = vi.hoisted(() => vi.fn())
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
+}))
+
+vi.mock("next-auth/react", () => ({
+  useSession: useSessionMock,
 }))
 
 vi.mock("@/lib/playoffs/playoffClientApi", () => ({
@@ -84,6 +89,7 @@ function buildEntryView(overrides: Partial<PlayoffChallengeView> = {}): PlayoffC
 describe("PlayoffBracketEntryShell", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useSessionMock.mockReturnValue({ data: null })
     getPlayoffBracketViewClientMock.mockResolvedValue(buildEntryView())
   })
 
@@ -198,6 +204,100 @@ describe("PlayoffBracketEntryShell", () => {
 
     expect(screen.getByTestId("playoff-entry-template-warning")).toBeInTheDocument()
     expect(screen.queryByTestId("playoff-entry-sync-series-button")).not.toBeInTheDocument()
+  })
+
+  it("allows all-access admin late picks after schedule sync on no-lock pools", () => {
+    const onPickView = buildEntryView({
+      viewerUserId: "admin-user",
+      challenge: {
+        ...buildEntryView().challenge,
+        ownerUserId: "owner-user",
+        isTestMode: false,
+        lockRule: "none",
+        config: {
+          visibility: "private",
+          maxParticipants: 50,
+          maxEntriesPerParticipant: 1,
+          scoringStyle: "standard",
+          lockRule: "none",
+          inviteBehavior: "invite_code",
+          includePlayIn: false,
+          pickSeriesScore: false,
+          pickSeriesLength: false,
+          pickSpread: false,
+          pickOverUnder: false,
+          scoring: {
+            seriesWinnerPoints: 5,
+            exactSeriesScoreBonus: 5,
+            seriesLengthBonus: 2,
+            upsetBonusPoints: 2,
+            spreadPickPoints: 2,
+            overUnderPickPoints: 2,
+          },
+          afCommissioner: {
+            advancedScoring: { exactSeriesScore: false, seriesLengthBonus: false, upsetBonus: false, spreadPrediction: false, overUnderPrediction: false, customPointValues: false },
+            aiTools: { antiCollusion: false, duplicateEntryDetection: false, scoringExplainers: false, poolHealthReport: false, disputeAssistant: false, bracketIntegrityCheck: false },
+            automation: { incompleteBracketReminders: false, autoLockAtDeadline: true, autoRecalculateAfterSync: true, autoPostScoringUpdates: false, autoPostSeriesRecaps: false },
+            privacy: { hidePicksUntilLock: false, approvalRequired: false, passwordProtected: false, coCommissioners: false },
+            branding: { customLogo: false, customBanner: false, customWelcomeMessage: false, customRulesPage: false },
+            exports: { leaderboardCsv: false, picksCsv: false, printableBracket: false, auditLog: false },
+          },
+        },
+      },
+      activeEntry: {
+        id: "entry-1",
+        name: "Bracket 1",
+        userId: "admin-user",
+        pickCount: 0,
+        isComplete: false,
+        createdAt: new Date().toISOString(),
+      },
+      series: [
+        {
+          id: "s1",
+          round: "round_1",
+          roundIndex: 1,
+          seriesNumber: 1,
+          conference: "east",
+          homeSeed: 1,
+          awaySeed: 8,
+          homeTeamName: "Knicks",
+          awayTeamName: "Hawks",
+          winnerTeamName: null,
+          bestOf: 7,
+          status: "in_progress",
+          startsAt: new Date("2026-05-01T00:00:00.000Z").toISOString(),
+          nextSeriesNumber: 9,
+          nextSeriesSlot: "home",
+          sourceSeriesHome: null,
+          sourceSeriesAway: null,
+          lastSyncedAt: new Date().toISOString(),
+        },
+      ],
+      lockDiagnostics: {
+        lockRule: "none",
+        allowTestLatePicks: true,
+        viewerCanLatePick: true,
+        isPoolOwner: false,
+        isTestMode: false,
+        hasPoolAdminAccess: true,
+      },
+    })
+    useSessionMock.mockReturnValue({
+      data: { user: { email: "Cjabar.henson@gmail.com", username: "TheCiege26", name: "TheCiege26" } },
+    })
+    savePlayoffBracketPickClientMock.mockResolvedValue(onPickView)
+
+    render(<PlayoffBracketEntryShell initialView={onPickView} />)
+
+    expect(screen.getByTestId("playoff-entry-lock-diagnostics")).toHaveTextContent("lockRule=none")
+    expect(screen.getByTestId("playoff-series-late-picks-s1")).toHaveTextContent("Late/test picks enabled.")
+    expect(screen.queryByTestId("playoff-series-disabled-reason-s1")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Knicks" }))
+    expect(savePlayoffBracketPickClientMock).toHaveBeenCalledWith(expect.objectContaining({
+      seriesId: "s1",
+      pickTeamName: "Knicks",
+    }))
   })
 
   it("toggles pick result verification display without saving data", () => {

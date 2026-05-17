@@ -139,6 +139,43 @@ describe("PlayoffBracketBoard", () => {
     expect(onPick).toHaveBeenCalledWith("s9", "Knicks")
   })
 
+  it("shows lock diagnostics for no-lock late pick context", () => {
+    const startedSeries = series.map((item) => item.id === "s9"
+      ? { ...item, homeTeamName: "Celtics", awayTeamName: "Knicks", status: "in_progress" as const }
+      : item
+    )
+
+    render(
+      <PlayoffBracketBoard
+        rounds={[...rounds]}
+        series={startedSeries}
+        picks={picks}
+        lockRule="none"
+        canUseLatePicks
+        showLockDiagnostics
+        lockDiagnostics={{ allowTestLatePicks: true, viewerCanLatePick: true }}
+      />
+    )
+
+    expect(screen.getByTestId("playoff-series-lock-diagnostics-s9")).toHaveTextContent("lockRule=none")
+    expect(screen.getByTestId("playoff-series-lock-diagnostics-s9")).toHaveTextContent("viewerCanLatePick=true")
+    expect(screen.getByTestId("playoff-series-lock-diagnostics-s9")).toHaveTextContent("reason=unlocked")
+  })
+
+  it("keeps started series locked for strict/default pools", () => {
+    const onPick = vi.fn()
+    const startedSeries = series.map((item) => item.id === "s9"
+      ? { ...item, homeTeamName: "Celtics", awayTeamName: "Knicks", status: "in_progress" as const }
+      : item
+    )
+
+    render(<PlayoffBracketBoard rounds={[...rounds]} series={startedSeries} picks={picks} onPick={onPick} lockRule="series_start" canUseLatePicks />)
+
+    expect(screen.getByTestId("playoff-series-disabled-reason-s9")).toHaveTextContent("Series already started/locked")
+    fireEvent.click(screen.getByRole("button", { name: "Knicks" }))
+    expect(onPick).not.toHaveBeenCalled()
+  })
+
   it("renders series summary, next game fallback, and live score", () => {
     const richSeries = series.map((item) => item.id === "s1"
       ? {

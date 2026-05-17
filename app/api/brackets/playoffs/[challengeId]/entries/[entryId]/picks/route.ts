@@ -30,6 +30,7 @@ export async function POST(request: Request, context: { params: { challengeId: s
       challengeId: params.data.challengeId,
       entryId: params.data.entryId,
       userId: auth.user.id,
+      user: auth.user,
       seriesId: parsed.data.seriesId,
       pickTeamName: parsed.data.pickTeamName,
     })

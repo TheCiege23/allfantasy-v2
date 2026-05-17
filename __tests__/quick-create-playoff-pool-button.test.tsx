@@ -39,6 +39,7 @@ describe("QuickCreatePlayoffPoolButton", () => {
         config: expect.objectContaining({
           visibility: "private",
           maxEntriesPerParticipant: 1,
+          lockRule: "series_start",
           includePlayIn: false,
           pickSeriesScore: false,
           pickSpread: false,
@@ -65,6 +66,8 @@ describe("QuickCreatePlayoffPoolButton", () => {
         visibility: "private",
         maxUsers: 50,
         bracketsPerUser: 1,
+        lockRule: "series_start",
+        config: expect.objectContaining({ lockRule: "series_start" }),
       }))
       expect(pushMock).toHaveBeenCalledWith("/brackets/leagues/challenge-nhl")
     })
