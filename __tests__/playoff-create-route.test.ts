@@ -96,6 +96,94 @@ describe("playoff create/list route", () => {
     expect(payload.sport).toBe("nhl")
   })
 
+  it("accepts normal form payload fields for NBA create", async () => {
+    createPlayoffBracketChallengeMock.mockResolvedValue({
+      challengeId: "challenge-nba-form",
+      entryId: null,
+      sport: "nba",
+      name: "Friends NBA",
+      redirectUrl: "/brackets/leagues/challenge-nba-form",
+    })
+
+    const { POST } = await import("@/app/api/brackets/playoffs/route")
+    const response = await POST(
+      new Request("http://localhost/api/brackets/playoffs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "Friends NBA",
+          sport: "nba",
+          visibility: "private",
+          maxUsers: 40,
+          bracketsPerUser: 1,
+          scoringStyle: "standard",
+          lockRule: "series_start",
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(createPlayoffBracketChallengeMock).toHaveBeenCalledWith(expect.objectContaining({
+      config: expect.objectContaining({
+        visibility: "private",
+        maxParticipants: 40,
+        maxEntriesPerParticipant: 1,
+        scoringStyle: "standard",
+        lockRule: "series_start",
+      }),
+    }))
+  })
+
+  it("returns safe JSON error if playoff challenge create throws", async () => {
+    createPlayoffBracketChallengeMock.mockRejectedValue(new Error("database exploded with internal detail"))
+
+    const { POST } = await import("@/app/api/brackets/playoffs/route")
+    const response = await POST(
+      new Request("http://localhost/api/brackets/playoffs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sport: "nhl", seasonYear: 2026 }),
+      })
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      code: "PLAYOFF_CREATE_FAILED",
+      message: "Playoff pool creation failed. Please try again.",
+      details: { reason: "database exploded with internal detail" },
+    })
+  })
+
+  it("falls back to standard create when config column migration is pending", async () => {
+    createPlayoffBracketChallengeMock
+      .mockRejectedValueOnce(Object.assign(new Error("Unknown arg `config`"), { code: "P2022" }))
+      .mockResolvedValueOnce({
+        challengeId: "challenge-fallback",
+        entryId: null,
+        sport: "nba",
+        name: "NBA Pool",
+        redirectUrl: "/brackets/leagues/challenge-fallback",
+      })
+
+    const { POST } = await import("@/app/api/brackets/playoffs/route")
+    const response = await POST(
+      new Request("http://localhost/api/brackets/playoffs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sport: "nba", config: { visibility: "public" } }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    const payload = await response.json()
+    expect(payload.warning).toMatchObject({ code: "PLAYOFF_CONFIG_MIGRATION_PENDING" })
+    expect(createPlayoffBracketChallengeMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      config: null,
+      options: { includeConfig: false },
+    }))
+  })
+
   it("returns NHL challenge from list response for home/discover consumption", async () => {
     listUserPlayoffChallengesMock.mockResolvedValue([
       {

@@ -57,6 +57,11 @@ describe("/brackets/leagues/new create page", () => {
       expect(createPlayoffMock).toHaveBeenCalledWith(expect.objectContaining({
         name: "Friends NBA Pool",
         sport: "nba",
+        visibility: "private",
+        maxUsers: 50,
+        bracketsPerUser: 1,
+        scoringStyle: "momentum",
+        lockRule: "series_start",
         config: expect.objectContaining({
           includePlayIn: false,
           pickSpread: false,
@@ -66,6 +71,19 @@ describe("/brackets/leagues/new create page", () => {
       }))
       expect(pushMock).toHaveBeenCalledWith("/brackets/leagues/challenge-nba")
     })
+  })
+
+  it("shows safe server errors from playoff create", async () => {
+    createPlayoffMock.mockRejectedValue(new Error("Playoff pool creation needs the latest database migration."))
+    searchParamsMock.mockReturnValue(new URLSearchParams("sport=nba&challengeType=playoff_challenge"))
+    render(<NewBracketLeaguePage />)
+
+    fireEvent.change(screen.getByTestId("bracket-create-name-input"), {
+      target: { value: "Friends NBA Pool" },
+    })
+    fireEvent.click(screen.getByTestId("bracket-create-submit-button"))
+
+    expect(await screen.findByText("Playoff pool creation needs the latest database migration.")).toBeInTheDocument()
   })
 
   it("renders locked AF Commissioner preview and upgrade link", () => {

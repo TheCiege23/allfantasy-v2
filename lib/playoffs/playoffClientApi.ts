@@ -5,6 +5,11 @@ export async function createPlayoffBracketChallengeClient(input: {
   sport: PlayoffSport
   seasonYear: number
   isTestMode?: boolean
+  visibility?: "private" | "public"
+  maxUsers?: number
+  bracketsPerUser?: number
+  scoringStyle?: string
+  lockRule?: string
   config?: Partial<PlayoffChallengeConfig>
 }): Promise<PlayoffCreateResponse> {
   const response = await fetch("/api/brackets/playoffs", {
@@ -15,7 +20,7 @@ export async function createPlayoffBracketChallengeClient(input: {
 
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(payload?.error ?? "Failed to create playoff bracket")
+    throw new Error(payload?.message ?? payload?.error ?? "Failed to create playoff bracket")
   }
 
   if (!payload?.challengeId) {

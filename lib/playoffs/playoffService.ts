@@ -14,6 +14,11 @@ type SessionUser = {
   email?: string | null
 }
 
+type CreatePlayoffChallengeOptions = {
+  includeConfig?: boolean
+  includeSeriesProviderMetadata?: boolean
+}
+
 function toIso(value: Date | string | null | undefined): string | null {
   if (!value) return null
   if (value instanceof Date) return value.toISOString()
@@ -63,6 +68,7 @@ export async function createPlayoffBracketChallenge(input: {
   seasonYear?: number
   isTestMode?: boolean
   config?: Partial<PlayoffChallengeConfig> | null
+  options?: CreatePlayoffChallengeOptions
 }): Promise<PlayoffCreateResponse> {
   if (!input.user.id) {
     throw new Error("Authenticated user required")
@@ -80,16 +86,19 @@ export async function createPlayoffBracketChallenge(input: {
   })
 
   const result = await prisma.$transaction(async (tx) => {
+    const challengeData: Record<string, unknown> = {
+      ownerUserId: input.user.id,
+      name: challengeName,
+      sport: input.sport,
+      seasonYear: input.seasonYear ?? new Date().getUTCFullYear(),
+      status: "open",
+      isTestMode: Boolean(input.isTestMode),
+    }
+    if (input.options?.includeConfig !== false) {
+      challengeData.config = config
+    }
     const challenge = await (tx as any).playoffBracketChallenge.create({
-      data: {
-        ownerUserId: input.user.id,
-        name: challengeName,
-        sport: input.sport,
-        seasonYear: input.seasonYear ?? new Date().getUTCFullYear(),
-        status: "open",
-        isTestMode: Boolean(input.isTestMode),
-        config,
-      },
+      data: challengeData,
     })
 
     await (tx as any).playoffBracketSeries.createMany({
@@ -111,6 +120,21 @@ export async function createPlayoffBracketChallenge(input: {
         nextSeriesSlot: series.nextSeriesSlot,
         sourceSeriesHome: series.sourceSeriesHome,
         sourceSeriesAway: series.sourceSeriesAway,
+        ...(input.options?.includeSeriesProviderMetadata === false
+          ? {}
+          : {
+              homeTeamWins: 0,
+              awayTeamWins: 0,
+              seriesSummary: null,
+              nextGameAt: null,
+              venue: null,
+              broadcastNetwork: null,
+              liveHomeScore: null,
+              liveAwayScore: null,
+              liveStatus: null,
+              providerGamesJson: null,
+              lastSyncedAt: null,
+            }),
       })),
     })
 

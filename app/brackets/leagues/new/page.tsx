@@ -137,6 +137,11 @@ export default function NewBracketLeaguePage() {
           sport: playoffSport,
           seasonYear: season,
           isTestMode: false,
+          visibility: isPublic ? "public" : "private",
+          maxUsers,
+          bracketsPerUser: maxEntriesPerUser,
+          scoringStyle: scoringMode,
+          lockRule,
           config,
         })
         router.push(result.redirectUrl)
@@ -180,8 +185,8 @@ export default function NewBracketLeaguePage() {
         return
       }
       router.push(`/brackets/leagues/${data.leagueId}`)
-    } catch {
-      setError("Something went wrong. Please try again.")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.")
     } finally {
       setLoading(false)
     }
