@@ -77,20 +77,8 @@ function isLegacyWorldCupPoolRow(member: any): boolean {
 function isLegacyPlayoffPoolRow(member: any): boolean {
   const league = member?.league
   const sport = String(league?.tournament?.sport ?? "").toUpperCase()
-  const challengeType = String(league?.scoringRules?.challengeType ?? "").toLowerCase()
-  const bracketType = String(league?.scoringRules?.bracketType ?? "").toLowerCase()
-  const leagueName = String(league?.name ?? "").toLowerCase()
-  const tournamentName = String(league?.tournament?.name ?? "").toLowerCase()
-  const looksLikePlayoff =
-    challengeType.includes("playoff") ||
-    bracketType.includes("playoff") ||
-    leagueName.includes("playoff") ||
-    tournamentName.includes("playoff")
 
-  return (
-    (sport === "NBA" || sport === "NHL") &&
-    looksLikePlayoff
-  )
+  return sport === "NBA" || sport === "NHL"
 }
 
 function isExpectedBracketLoadError(err: unknown): boolean {

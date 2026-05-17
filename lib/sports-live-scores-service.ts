@@ -128,7 +128,7 @@ interface ESPNEvent {
   competitions: ESPNCompetition[]
 }
 
-async function fetchEspnScoreboard(sport: LeagueSport): Promise<LiveScoreRow[]> {
+export async function fetchEspnScoreboard(sport: LeagueSport): Promise<LiveScoreRow[]> {
   const path = ESPN_SPORT_SITE_PATH[sport]
   if (!path) return []
 
@@ -173,6 +173,28 @@ async function fetchEspnScoreboard(sport: LeagueSport): Promise<LiveScoreRow[]> 
     console.error('[LiveScores] ESPN fetch failed:', sport, e)
     return []
   }
+}
+
+export async function fetchRollingInsightsScoreboard(
+  sport: LeagueSport,
+  options: { forceRefresh?: boolean } = {},
+): Promise<LiveScoreRow[]> {
+  const chainSport = legacySupportedSportToApiChain(sport)
+  const ri = await fetchWithChain({
+    sport: chainSport,
+    dataType: 'scores',
+    query: { season: String(new Date().getFullYear()) },
+    forceRefresh: options.forceRefresh === true,
+  })
+
+  const rawList = Array.isArray(ri.data) ? ri.data : []
+  const fromRi: LiveScoreRow[] = []
+  for (const item of rawList) {
+    if (!item || typeof item !== 'object') continue
+    const row = mapChainScoreToLiveScore(item as Record<string, unknown>, sport)
+    if (row) fromRi.push(row)
+  }
+  return fromRi
 }
 
 async function syncLiveScoresToDb(sport: LeagueSport, scores: LiveScoreRow[], source: string): Promise<number> {
@@ -317,21 +339,7 @@ export async function getLiveScoresForSport(options: {
   let fetchedAt: string | null = cachedGames[0]?.fetchedAt?.toISOString() ?? null
 
   if (refresh || stale) {
-    const chainSport = legacySupportedSportToApiChain(sport)
-    const ri = await fetchWithChain({
-      sport: chainSport,
-      dataType: 'scores',
-      query: { season: String(new Date().getFullYear()) },
-      forceRefresh: refresh,
-    })
-
-    const rawList = Array.isArray(ri.data) ? ri.data : []
-    const fromRi: LiveScoreRow[] = []
-    for (const item of rawList) {
-      if (!item || typeof item !== 'object') continue
-      const row = mapChainScoreToLiveScore(item as Record<string, unknown>, sport)
-      if (row) fromRi.push(row)
-    }
+    const fromRi = await fetchRollingInsightsScoreboard(sport, { forceRefresh: refresh })
 
     if (fromRi.length > 0) {
       await syncLiveScoresToDb(sport, fromRi, 'rolling_insights')

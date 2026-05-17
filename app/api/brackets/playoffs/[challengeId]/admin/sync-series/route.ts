@@ -3,7 +3,10 @@ import { requireCronAuth } from "@/app/api/cron/_auth"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { syncPlayoffChallengeSeries } from "@/lib/playoffs/playoffSeriesSyncService"
+import {
+  syncPlayoffChallengeSeries,
+  type PlayoffSeriesSyncProviderPreference,
+} from "@/lib/playoffs/playoffSeriesSyncService"
 import { playoffChallengeParamsSchema } from "../../../_utils"
 
 export const runtime = "nodejs"
@@ -39,8 +42,13 @@ export async function POST(request: Request, context: { params: { challengeId: s
   }
 
   try {
+    const url = new URL(request.url)
+    const providerParam = url.searchParams.get("provider")
+    const providerPreference: PlayoffSeriesSyncProviderPreference =
+      providerParam === "espn" || providerParam === "rolling_insights" ? providerParam : "auto"
     const result = await syncPlayoffChallengeSeries({
       challengeId: params.data.challengeId,
+      providerPreference,
     })
     return NextResponse.json(result)
   } catch (error) {

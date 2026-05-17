@@ -16,7 +16,7 @@ function resolveProjectedTeamName(
   if (!sourceSeriesNumber) return fallbackName
   const source = bySeriesNumber.get(sourceSeriesNumber)
   if (!source) return fallbackName
-  return pickForSeries(picks, source.id)?.pickTeamName ?? fallbackName
+  return source.winnerTeamName?.trim() || pickForSeries(picks, source.id)?.pickTeamName || fallbackName
 }
 
 export function buildProjectedPlayoffSeries(

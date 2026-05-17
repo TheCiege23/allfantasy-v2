@@ -106,6 +106,24 @@ describe("playoff bracket projection", () => {
     expect(projected.find((item) => item.id === "s9")?.homeTeamName).toBe("Celtics")
   })
 
+  it("projects later-round teams from official winners before user picks", () => {
+    const projected = buildProjectedPlayoffSeries(
+      series.map((item) => item.id === "s1" ? { ...item, winnerTeamName: "Celtics" } : item),
+      [
+        {
+          id: "p1",
+          entryId: "entry-1",
+          seriesId: "s1",
+          pickTeamName: "Heat",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ]
+    )
+
+    expect(projected.find((item) => item.id === "s9")?.homeTeamName).toBe("Celtics")
+  })
+
   it("finds next actionable projected series", () => {
     expect(getNextActionablePlayoffSeries(series, [])?.id).toBe("s1")
   })

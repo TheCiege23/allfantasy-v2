@@ -154,23 +154,44 @@ describe("app/brackets/page — P2021 playoff table missing", () => {
     expect(screen.queryByTestId("my-pool-legacy-nba-playoff-league")).not.toBeInTheDocument()
   })
 
+  it("hides legacy NBA rows even when old metadata has no playoff marker", async () => {
+    bracketLeagueMemberFindManyMock.mockResolvedValue([
+      {
+        league: {
+          id: "legacy-nba-generic-league",
+          name: "Friends Bracket Pool",
+          scoringRules: { challengeType: null, bracketType: null },
+          tournament: { name: "NBA", sport: "NBA" },
+          _count: { members: 4, entries: 12 },
+        },
+      },
+    ])
+
+    const mod = await import("@/app/brackets/page")
+    const element = await (mod.default as () => Promise<React.ReactElement>)()
+    render(element)
+
+    expect(screen.getByTestId("my-pools-tab")).toHaveTextContent("pools:0")
+    expect(screen.queryByTestId("my-pool-legacy-nba-generic-league")).not.toBeInTheDocument()
+  })
+
   it("dedupes duplicate non-playoff pool rows before rendering My Pools", async () => {
     bracketLeagueMemberFindManyMock.mockResolvedValue([
       {
         league: {
           id: "league-1",
-          name: "NBA Finals Pool",
+          name: "NFL Pickem Pool",
           scoringRules: { challengeType: null, bracketType: null },
-          tournament: { sport: "NBA" },
+          tournament: { sport: "NFL" },
           _count: { members: 4, entries: 12 },
         },
       },
       {
         league: {
           id: "league-1",
-          name: "NBA Finals Pool Duplicate",
+          name: "NFL Pickem Pool Duplicate",
           scoringRules: { challengeType: null, bracketType: null },
-          tournament: { sport: "NBA" },
+          tournament: { sport: "NFL" },
           _count: { members: 1, entries: 1 },
         },
       },
