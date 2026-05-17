@@ -372,6 +372,136 @@ describe("syncPlayoffChallengeSeries", () => {
     })
   })
 
+  it("maps NBA event names to bracket rounds and ignores play-in rows", async () => {
+    const liveScores = await import("@/lib/sports-live-scores-service")
+    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NBA", 2026, [
+      scheduleRow("NBA", "Postseason", "East Play-In Tournament", null as any, "Bulls", "Hawks", "completed", "2026-04-15T00:00:00.000Z", 100, 90),
+      scheduleRow("NBA", "Postseason", "West Play-In Tournament", null as any, "Kings", "Mavericks", "completed", "2026-04-15T00:00:00.000Z", 100, 90),
+      scheduleRow("NBA", "Postseason", "East 1st Round:", null as any, "Celtics", "76ers", "scheduled", "2026-04-20T00:00:00.000Z"),
+      scheduleRow("NBA", "Postseason", "West 1st Round:", null as any, "Thunder", "Warriors", "scheduled", "2026-04-20T00:00:00.000Z"),
+      scheduleRow("NBA", "Postseason", "East Semifinals", 4, "Celtics", "Magic", "scheduled", "2026-05-01T00:00:00.000Z"),
+      scheduleRow("NBA", "Postseason", "Conference Finals", null as any, "Celtics", "Knicks", "scheduled", "2026-05-15T00:00:00.000Z"),
+      scheduleRow("NBA", "Postseason", "NBA Finals", null as any, "Celtics", "Thunder", "scheduled", "2026-06-01T00:00:00.000Z"),
+    ] as any))
+    vi.spyOn(liveScores, "fetchRollingInsightsScoreboard").mockResolvedValue([])
+    challengeFindUniqueMock.mockResolvedValue({
+      ...baseChallenge,
+      series: [
+        { ...baseChallenge.series[0], id: "series-1", roundIndex: 1, conference: "east", seriesNumber: 1, homeTeamName: "E1", awayTeamName: "E8" },
+        { ...baseChallenge.series[0], id: "series-5", roundIndex: 1, conference: "west", seriesNumber: 5, homeTeamName: "W1", awayTeamName: "W8" },
+      ],
+    })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({ challengeId: "challenge-1" })
+
+    expect(result.seriesReturned).toBe(5)
+    expect(result.diagnostics.ignoredPlayInGames).toBe(2)
+    expect(result.diagnostics.providerSeriesByRound).toMatchObject({ "1": 2, "2": 1, "3": 1, "4": 1 })
+    expect(result.diagnostics.eventNameRoundMapExamples).toEqual(expect.arrayContaining([
+      expect.objectContaining({ eventName: "East Play-In Tournament", round: null, ignored: true }),
+      expect.objectContaining({ eventName: "East 1st Round:", round: 1 }),
+      expect.objectContaining({ eventName: "West 1st Round:", round: 1 }),
+      expect.objectContaining({ eventName: "East Semifinals", round: 2 }),
+      expect.objectContaining({ eventName: "Conference Finals", round: 3 }),
+      expect.objectContaining({ eventName: "NBA Finals", round: 4 }),
+    ]))
+  })
+
+  it("maps NHL event names to bracket rounds", async () => {
+    const liveScores = await import("@/lib/sports-live-scores-service")
+    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NHL", 2026, [
+      scheduleRow("NHL", "Postseason", "First Round", null as any, "Panthers", "Lightning", "scheduled", "2026-04-20T00:00:00.000Z"),
+      scheduleRow("NHL", "Postseason", "Second Round", null as any, "Panthers", "Maple Leafs", "scheduled", "2026-05-01T00:00:00.000Z"),
+      scheduleRow("NHL", "Postseason", "Conference Finals", null as any, "Panthers", "Hurricanes", "scheduled", "2026-05-15T00:00:00.000Z"),
+      scheduleRow("NHL", "Postseason", "Stanley Cup Final", null as any, "Panthers", "Oilers", "scheduled", "2026-06-01T00:00:00.000Z"),
+    ] as any))
+    challengeFindUniqueMock.mockResolvedValue({
+      ...baseChallenge,
+      sport: "nhl",
+      series: [{ ...baseChallenge.series[0], roundIndex: 1, conference: "east", homeTeamName: "E1", awayTeamName: "E8" }],
+    })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({ challengeId: "challenge-1" })
+
+    expect(result.diagnostics.providerSeriesByRound).toMatchObject({ "1": 1, "2": 1, "3": 1, "4": 1 })
+    expect(result.diagnostics.eventNameRoundMapExamples).toEqual(expect.arrayContaining([
+      expect.objectContaining({ eventName: "First Round", round: 1 }),
+      expect.objectContaining({ eventName: "Second Round", round: 2 }),
+      expect.objectContaining({ eventName: "Conference Finals", round: 3 }),
+      expect.objectContaining({ eventName: "Stanley Cup Final", round: 4 }),
+    ]))
+  })
+
+  it("builds multiple provider series from a 74-game NBA postseason sample and replaces first-round templates", async () => {
+    const liveScores = await import("@/lib/sports-live-scores-service")
+    const rows = [
+      ...repeatSeriesGames("East Play-In Tournament", "Bulls", "Hawks", 2),
+      ...repeatSeriesGames("East 1st Round:", "Celtics", "76ers", 4),
+      ...repeatSeriesGames("East 1st Round:", "Cavaliers", "Magic", 4),
+      ...repeatSeriesGames("East 1st Round:", "Knicks", "Heat", 4),
+      ...repeatSeriesGames("East 1st Round:", "Bucks", "Pacers", 4),
+      ...repeatSeriesGames("West 1st Round:", "Thunder", "Warriors", 4),
+      ...repeatSeriesGames("West 1st Round:", "Nuggets", "Lakers", 4),
+      ...repeatSeriesGames("West 1st Round:", "Timberwolves", "Suns", 4),
+      ...repeatSeriesGames("West 1st Round:", "Mavericks", "Pelicans", 4),
+      ...repeatSeriesGames("East Semifinals", "Celtics", "Magic", 4),
+      ...repeatSeriesGames("East Semifinals", "Knicks", "Pacers", 4),
+      ...repeatSeriesGames("West Semifinals", "Thunder", "Lakers", 4),
+      ...repeatSeriesGames("West Semifinals", "Timberwolves", "Mavericks", 4),
+      ...repeatSeriesGames("Conference Finals", "Celtics", "Knicks", 5),
+      ...repeatSeriesGames("Conference Finals", "Thunder", "Timberwolves", 5),
+      ...repeatSeriesGames("NBA Finals", "Celtics", "Thunder", 14),
+    ]
+    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NBA", 2026, rows as any))
+    challengeFindUniqueMock.mockResolvedValue({
+      ...baseChallenge,
+      series: [
+        firstRoundSeries("s1", 1, "east", "Celtics", "76ers"),
+        firstRoundSeries("s2", 2, "east", "Cavaliers", "Magic"),
+        firstRoundSeries("s3", 3, "east", "Knicks", "Heat"),
+        firstRoundSeries("s4", 4, "east", "Bucks", "Pacers"),
+        firstRoundSeries("s5", 5, "west", "Thunder", "Warriors"),
+        firstRoundSeries("s6", 6, "west", "Nuggets", "Lakers"),
+        firstRoundSeries("s7", 7, "west", "Timberwolves", "Suns"),
+        firstRoundSeries("s8", 8, "west", "Mavericks", "Pelicans"),
+      ],
+    })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({ challengeId: "challenge-1" })
+
+    expect(result.postseasonGames).toBe(74)
+    expect(result.seriesReturned).toBeGreaterThanOrEqual(15)
+    expect(result.seriesUpdated).toBe(8)
+    expect(result.diagnostics.templateReplacementCount).toBe(8)
+    expect(result.diagnostics.ignoredPlayInGames).toBe(2)
+    expect(result.diagnostics.providerSeriesByRound).toMatchObject({ "1": 8, "2": 4, "3": 2, "4": 1 })
+  })
+
+  it("clears invalid picks when provider teams replace template teams", async () => {
+    const liveScores = await import("@/lib/sports-live-scores-service")
+    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NBA", 2026, [
+      scheduleRow("NBA", "Postseason", "East 1st Round:", null as any, "Celtics", "76ers", "scheduled", "2026-04-20T00:00:00.000Z"),
+    ] as any))
+    challengeFindUniqueMock.mockResolvedValue({
+      ...baseChallenge,
+      series: [firstRoundSeries("series-1", 1, "east", "E1", "E8")],
+    })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    await syncPlayoffChallengeSeries({ challengeId: "challenge-1" })
+
+    expect(pickDeleteManyMock).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        challengeId: "challenge-1",
+        seriesId: { in: ["series-1"] },
+        NOT: { pickTeamName: { in: expect.arrayContaining(["Celtics", "76ers"]) } },
+      }),
+    })
+  })
+
   it("selects the season-start provider year when 2026 has no postseason rows and 2025 does", async () => {
     const liveScores = await import("@/lib/sports-live-scores-service")
     const scheduleSpy = vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockImplementation(async (sport, seasonYear) => {
@@ -703,5 +833,25 @@ function scheduleResult(sport: "NBA" | "NHL", seasonYear: number, rows: any[]) {
       endpointKind: "schedule-season",
       sanitizedUrl: `https://rest.datafeeds.rolling-insights.com/api/v1/schedule-season/${seasonYear}/${sport}?RSC_token=<redacted>`,
     },
+  }
+}
+
+function repeatSeriesGames(eventName: string, homeTeam: string, awayTeam: string, count: number) {
+  return Array.from({ length: count }).map((_, index) =>
+    scheduleRow("NBA", "Postseason", eventName, null as any, homeTeam, awayTeam, "scheduled", `2026-04-${String(index + 10).padStart(2, "0")}T00:00:00.000Z`)
+  )
+}
+
+function firstRoundSeries(id: string, seriesNumber: number, conference: "east" | "west", homeTeamName: string, awayTeamName: string) {
+  return {
+    ...baseChallenge.series[0],
+    id,
+    roundIndex: 1,
+    seriesNumber,
+    conference,
+    homeTeamName,
+    awayTeamName,
+    sourceSeriesHome: null,
+    sourceSeriesAway: null,
   }
 }

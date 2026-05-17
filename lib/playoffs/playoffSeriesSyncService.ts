@@ -43,6 +43,8 @@ type PlayoffSeriesAggregate = {
 type ProviderSeriesGroup = {
   key: string
   roundIndex: number
+  conference: "east" | "west" | null
+  eventName: string | null
   homeTeamName: string
   awayTeamName: string
   games: PlayoffSeriesSyncGame[]
@@ -89,6 +91,12 @@ type TeamPairDiagnostic = {
   status?: string | null
 }
 
+type EventNameRoundMapDiagnostic = {
+  eventName: string | null
+  round: number | null
+  ignored?: boolean
+}
+
 export type PlayoffSyncDiagnostics = {
   seasonYear: number
   challengeSeasonYear: number
@@ -101,6 +109,11 @@ export type PlayoffSyncDiagnostics = {
   existingSeriesExamples: TeamPairDiagnostic[]
   providerGameExamples: TeamPairDiagnostic[]
   providerSeriesExamples: TeamPairDiagnostic[]
+  ignoredPlayInGames: number
+  eventNameRoundMapExamples: EventNameRoundMapDiagnostic[]
+  providerSeriesByRound: Record<string, number>
+  templateReplacementCount: number
+  noMatchReason?: string | null
 }
 
 export type SyncPlayoffChallengeSeriesResult = {
@@ -145,6 +158,10 @@ function sameTeam(a: string | null | undefined, b: string | null | undefined): b
 function isPlaceholderTeamName(value: string | null | undefined): boolean {
   const name = String(value ?? "").trim()
   return /^([A-Z]+[0-9]+|Winner\s+S\d+|Winner\s+\w+)$/i.test(name)
+}
+
+function isTemplateSeries(series: any): boolean {
+  return isPlaceholderTeamName(series.homeTeamName) || isPlaceholderTeamName(series.awayTeamName)
 }
 
 function rowToSyncGame(row: LiveScoreRow): PlayoffSeriesSyncGame {
@@ -251,7 +268,12 @@ export async function fetchRollingInsightsPostseasonScheduleGames(input: {
       }],
       existingSeriesExamples: [],
       providerGameExamples: sampleGameDiagnostics(games),
-      providerSeriesExamples: sampleSeriesDiagnostics(buildProviderSeriesGroups(games)),
+      providerSeriesExamples: sampleSeriesDiagnostics(buildProviderSeriesGroups(games, input.sport)),
+      ignoredPlayInGames: games.filter(isPlayInGame).length,
+      eventNameRoundMapExamples: sampleEventNameRoundDiagnostics(games, input.sport),
+      providerSeriesByRound: providerSeriesByRound(buildProviderSeriesGroups(games, input.sport)),
+      templateReplacementCount: 0,
+      noMatchReason: null,
     },
   }
 }
@@ -318,7 +340,12 @@ export async function fetchLivePlayoffSeriesGames(input: {
           providerAttempts: schedulePayload?.diagnostics.providerAttempts ?? providerAttempts,
           existingSeriesExamples: [],
           providerGameExamples: sampleGameDiagnostics(games),
-          providerSeriesExamples: sampleSeriesDiagnostics(buildProviderSeriesGroups(games)),
+          providerSeriesExamples: sampleSeriesDiagnostics(buildProviderSeriesGroups(games, input.sport)),
+          ignoredPlayInGames: games.filter(isPlayInGame).length,
+          eventNameRoundMapExamples: sampleEventNameRoundDiagnostics(games, input.sport),
+          providerSeriesByRound: providerSeriesByRound(buildProviderSeriesGroups(games, input.sport)),
+          templateReplacementCount: 0,
+          noMatchReason: null,
         },
       }
     }
@@ -348,6 +375,11 @@ export async function fetchLivePlayoffSeriesGames(input: {
       existingSeriesExamples: [],
       providerGameExamples: [],
       providerSeriesExamples: [],
+      ignoredPlayInGames: 0,
+      eventNameRoundMapExamples: [],
+      providerSeriesByRound: {},
+      templateReplacementCount: 0,
+      noMatchReason: null,
     },
   }
 }
@@ -392,14 +424,41 @@ function gamesForSeries(series: any, games: PlayoffSeriesSyncGame[]): PlayoffSer
   })
 }
 
-function roundIndexFromGame(game: PlayoffSeriesSyncGame): number | null {
-  const explicit = Number(game.providerRound)
-  if (Number.isFinite(explicit) && explicit > 0) return explicit
-  const eventName = String(game.eventName ?? "").toLowerCase()
+function normalizedEventName(game: PlayoffSeriesSyncGame): string {
+  return String(game.eventName ?? "").toLowerCase().replace(/[:\-]/g, " ").replace(/\s+/g, " ").trim()
+}
+
+function isPlayInGame(game: PlayoffSeriesSyncGame): boolean {
+  return /\bplay\s*in\b/.test(normalizedEventName(game))
+}
+
+function conferenceFromEventName(game: PlayoffSeriesSyncGame): "east" | "west" | null {
+  const eventName = normalizedEventName(game)
+  if (/\beast\b|\beastern\b/.test(eventName)) return "east"
+  if (/\bwest\b|\bwestern\b/.test(eventName)) return "west"
+  return null
+}
+
+function roundIndexFromGame(game: PlayoffSeriesSyncGame, sport?: PlayoffSport): number | null {
+  const eventName = normalizedEventName(game)
+  if (isPlayInGame(game)) return null
+  if (sport === "nba") {
+    if (/\bnba finals?\b/.test(eventName)) return 4
+    if (/\bconference finals?\b|\beast finals?\b|\bwest finals?\b|\beastern conference finals?\b|\bwestern conference finals?\b/.test(eventName)) return 3
+    if (/\bsemifinals?\b|\bsemi finals?\b|\bconference semifinals?\b|\beast semifinals?\b|\bwest semifinals?\b/.test(eventName)) return 2
+    if (/\b1st round\b|\bfirst round\b/.test(eventName)) return 1
+  } else if (sport === "nhl") {
+    if (/\bstanley cup final\b|\bstanley cup finals\b/.test(eventName)) return 4
+    if (/\bconference finals?\b|\beast finals?\b|\bwest finals?\b|\beastern conference finals?\b|\bwestern conference finals?\b/.test(eventName)) return 3
+    if (/\b2nd round\b|\bsecond round\b/.test(eventName)) return 2
+    if (/\b1st round\b|\bfirst round\b/.test(eventName)) return 1
+  }
   if (eventName.includes("final") && !eventName.includes("conference")) return 4
   if (eventName.includes("conference")) return 3
   if (eventName.includes("second") || eventName.includes("semifinal") || eventName.includes("semifinals")) return 2
-  if (eventName.includes("first")) return 1
+  if (eventName.includes("first") || eventName.includes("1st round")) return 1
+  const explicit = Number(game.providerRound)
+  if (Number.isFinite(explicit) && explicit > 0) return explicit
   return null
 }
 
@@ -407,10 +466,10 @@ function pairKey(homeTeam: string | null | undefined, awayTeam: string | null | 
   return [normalizeName(homeTeam).toLowerCase(), normalizeName(awayTeam).toLowerCase()].sort().join("__")
 }
 
-function buildProviderSeriesGroups(games: PlayoffSeriesSyncGame[]): ProviderSeriesGroup[] {
+function buildProviderSeriesGroups(games: PlayoffSeriesSyncGame[], sport?: PlayoffSport): ProviderSeriesGroup[] {
   const byKey = new Map<string, ProviderSeriesGroup>()
   for (const game of games) {
-    const roundIndex = roundIndexFromGame(game)
+    const roundIndex = roundIndexFromGame(game, sport)
     if (!roundIndex) continue
     const homeTeamName = displayName(game.homeTeamFull || game.homeTeam)
     const awayTeamName = displayName(game.awayTeamFull || game.awayTeam)
@@ -424,6 +483,8 @@ function buildProviderSeriesGroups(games: PlayoffSeriesSyncGame[]): ProviderSeri
     byKey.set(key, {
       key,
       roundIndex,
+      conference: conferenceFromEventName(game),
+      eventName: game.eventName ?? null,
       homeTeamName,
       awayTeamName,
       games: [game],
@@ -447,9 +508,86 @@ function sampleSeriesDiagnostics(groups: ProviderSeriesGroup[]): TeamPairDiagnos
     round: group.roundIndex,
     homeTeam: group.homeTeamName,
     awayTeam: group.awayTeamName,
-    eventName: group.games[0]?.eventName ?? null,
+    eventName: group.eventName ?? group.games[0]?.eventName ?? null,
     status: group.games[0]?.status ?? group.games[0]?.statusDetail ?? null,
   }))
+}
+
+function sampleEventNameRoundDiagnostics(games: PlayoffSeriesSyncGame[], sport: PlayoffSport): EventNameRoundMapDiagnostic[] {
+  const byName = new Map<string, EventNameRoundMapDiagnostic>()
+  for (const game of games) {
+    const eventName = game.eventName ?? null
+    const key = String(eventName ?? "")
+    if (byName.has(key)) continue
+    byName.set(key, {
+      eventName,
+      round: roundIndexFromGame(game, sport),
+      ignored: isPlayInGame(game) || undefined,
+    })
+    if (byName.size >= 8) break
+  }
+  return Array.from(byName.values())
+}
+
+function providerSeriesByRound(groups: ProviderSeriesGroup[]): Record<string, number> {
+  return groups.reduce<Record<string, number>>((acc, group) => {
+    const key = String(group.roundIndex)
+    acc[key] = (acc[key] ?? 0) + 1
+    return acc
+  }, {})
+}
+
+function sortSeriesForReplacement(series: any[]): any[] {
+  return [...series].sort((a, b) => {
+    const conferenceA = String(a.conference ?? "")
+    const conferenceB = String(b.conference ?? "")
+    if (conferenceA !== conferenceB) return conferenceA.localeCompare(conferenceB)
+    return Number(a.seriesNumber ?? 0) - Number(b.seriesNumber ?? 0)
+  })
+}
+
+function sortProviderGroupsForReplacement(groups: ProviderSeriesGroup[]): ProviderSeriesGroup[] {
+  return [...groups].sort((a, b) => {
+    const conferenceA = a.conference ?? ""
+    const conferenceB = b.conference ?? ""
+    if (conferenceA !== conferenceB) return conferenceA.localeCompare(conferenceB)
+    return a.key.localeCompare(b.key)
+  })
+}
+
+function mapTemplateReplacementGroups(seriesList: any[], groups: ProviderSeriesGroup[]): Map<string, ProviderSeriesGroup> {
+  const map = new Map<string, ProviderSeriesGroup>()
+  const firstRoundTemplateSeries = sortSeriesForReplacement(
+    seriesList.filter((series) => Number(series.roundIndex) === 1 && !series.sourceSeriesHome && !series.sourceSeriesAway)
+  )
+  if (firstRoundTemplateSeries.length === 0) return map
+
+  const firstRoundGroups = groups.filter((group) => group.roundIndex === 1)
+  const groupsByConference = new Map<string, ProviderSeriesGroup[]>()
+  for (const group of firstRoundGroups) {
+    const key = group.conference ?? "unknown"
+    groupsByConference.set(key, [...(groupsByConference.get(key) ?? []), group])
+  }
+
+  for (const conference of new Set(firstRoundTemplateSeries.map((series) => String(series.conference ?? "unknown")))) {
+    const seriesForConference = firstRoundTemplateSeries.filter((series) => String(series.conference ?? "unknown") === conference)
+    const groupsForConference = sortProviderGroupsForReplacement(groupsByConference.get(conference) ?? [])
+    if (groupsForConference.length === 0) continue
+    if (groupsForConference.length < seriesForConference.length) continue
+    seriesForConference.forEach((series, index) => {
+      const group = groupsForConference[index]
+      if (group) map.set(series.id, group)
+    })
+  }
+
+  if (map.size === 0 && firstRoundGroups.length >= firstRoundTemplateSeries.length) {
+    const sortedGroups = sortProviderGroupsForReplacement(firstRoundGroups)
+    firstRoundTemplateSeries.forEach((series, index) => {
+      const group = sortedGroups[index]
+      if (group) map.set(series.id, group)
+    })
+  }
+  return map
 }
 
 function sampleExistingSeriesDiagnostics(series: any[]): TeamPairDiagnostic[] {
@@ -601,6 +739,11 @@ export async function syncPlayoffChallengeSeries(input: {
     providerSeriesExamples: payload.diagnostics?.providerSeriesExamples?.length
       ? payload.diagnostics.providerSeriesExamples
       : [],
+    ignoredPlayInGames: payload.diagnostics?.ignoredPlayInGames ?? payload.games.filter(isPlayInGame).length,
+    eventNameRoundMapExamples: payload.diagnostics?.eventNameRoundMapExamples ?? sampleEventNameRoundDiagnostics(payload.games, sport),
+    providerSeriesByRound: payload.diagnostics?.providerSeriesByRound ?? {},
+    templateReplacementCount: 0,
+    noMatchReason: null,
   }
 
   let seriesUpdated = 0
@@ -608,28 +751,39 @@ export async function syncPlayoffChallengeSeries(input: {
   let gamesMatched = 0
   let seriesMatched = 0
   const matchedGameKeys = new Set<string>()
-  const providerSeriesGroups = buildProviderSeriesGroups(payload.games)
+  const providerSeriesGroups = buildProviderSeriesGroups(payload.games, sport)
   diagnostics.providerSeriesExamples = sampleSeriesDiagnostics(providerSeriesGroups)
+  diagnostics.providerSeriesByRound = providerSeriesByRound(providerSeriesGroups)
   const usedGroupKeys = new Set<string>()
   const invalidatedSeriesIds = new Set<string>()
+  const templateReplacementGroups = mapTemplateReplacementGroups(challenge.series, providerSeriesGroups)
+  let templateReplacementCount = 0
 
   for (const series of challenge.series) {
     if (series.sourceSeriesHome || series.sourceSeriesAway) {
       continue
     }
+    const replacementGroup = templateReplacementGroups.get(series.id) ?? null
     const seriesGames = gamesForSeries(series, payload.games)
-    let aggregate = aggregateSeriesGames(series, seriesGames)
-    let matchedGroup: ProviderSeriesGroup | null = null
+    let matchedGroup: ProviderSeriesGroup | null = replacementGroup
+    let aggregate = matchedGroup ? aggregateProviderSeriesGroup(matchedGroup, Number(series.bestOf ?? 7)) : aggregateSeriesGames(series, seriesGames)
+    if (matchedGroup) {
+      usedGroupKeys.add(matchedGroup.key)
+      templateReplacementCount += 1
+    }
     if (!aggregate) {
-      matchedGroup = providerSeriesGroups.find((group) => {
+      matchedGroup = templateReplacementGroups.get(series.id) ?? providerSeriesGroups.find((group) => {
         if (usedGroupKeys.has(group.key)) return false
         if (group.roundIndex !== Number(series.roundIndex)) return false
         if (gameMatchesSeries(series, group.games[0])) return true
-        return isPlaceholderTeamName(series.homeTeamName) || isPlaceholderTeamName(series.awayTeamName)
+        return isTemplateSeries(series)
       }) ?? null
       if (matchedGroup) {
         aggregate = aggregateProviderSeriesGroup(matchedGroup, Number(series.bestOf ?? 7))
         usedGroupKeys.add(matchedGroup.key)
+        if (templateReplacementGroups.get(series.id)?.key === matchedGroup.key) {
+          templateReplacementCount += 1
+        }
       }
     }
     if (!aggregate) continue
@@ -677,7 +831,11 @@ export async function syncPlayoffChallengeSeries(input: {
 
   if (seriesUpdated === 0) {
     warnings.push("No playoff series matched provider games.")
+    diagnostics.noMatchReason = providerSeriesGroups.length === 0
+      ? "No provider playoff series could be built after event name round mapping."
+      : "Provider playoff series were built, but none matched existing bracket series or eligible template slots."
   }
+  diagnostics.templateReplacementCount = templateReplacementCount
   const unmatchedGames = payload.games.filter((game) => !matchedGameKeys.has(gameKey(game)))
   if (unmatchedGames.length > 0) {
     warnings.push(`${unmatchedGames.length} provider games did not match playoff series.`)
