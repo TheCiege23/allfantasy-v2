@@ -133,6 +133,19 @@ function latestFinalGame(item: PlayoffSeriesView): { homeTeam: string; awayTeam:
   }
 }
 
+function getSeriesCardBorderClass(showPickResults: boolean, status: ReturnType<typeof getPlayoffPickResult>["status"], isNext: boolean): string {
+  if (!showPickResults) {
+    return isNext ? "border-sky-400" : "border-slate-200"
+  }
+  if (status === "correct") {
+    return "border-2 border-cyan-400 shadow-[0_0_0_1px_rgba(34,211,238,0.35)]"
+  }
+  if (status === "wrong") {
+    return "border-2 border-rose-500 shadow-[0_0_0_1px_rgba(244,63,94,0.25)]"
+  }
+  return "border-2 border-amber-400 shadow-[0_0_0_1px_rgba(251,191,36,0.3)]"
+}
+
 export default function PlayoffBracketBoard({
   rounds,
   series,
@@ -175,6 +188,7 @@ export default function PlayoffBracketBoard({
                   const isSaved = savedSeriesIds?.has(item.id) ?? false
                   const isNext = nextSeriesId === item.id
                   const pickResult = getPlayoffPickResult(item, pick)
+                  const seriesCardBorderClass = getSeriesCardBorderClass(showPickResults, pickResult.status, isNext)
                   const advancedFrom = item.sourceSeriesHome || item.sourceSeriesAway
                     ? projectionMode === "user_projection"
                       ? pick ? "user_pick" : "unresolved"
@@ -187,7 +201,7 @@ export default function PlayoffBracketBoard({
                       key={item.id}
                       id={`playoff-series-${item.id}`}
                       data-testid={`playoff-series-${item.id}`}
-                      className={`rounded-xl border bg-white p-3 shadow-sm ${isNext ? "border-sky-400" : "border-slate-200"}`}
+                      className={`rounded-xl border bg-white p-3 shadow-sm ${seriesCardBorderClass}`}
                     >
                       <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500">
                         <span>S{item.seriesNumber}</span>

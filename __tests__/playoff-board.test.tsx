@@ -49,6 +49,18 @@ const series: PlayoffSeriesView[] = [
 
 const picks: PlayoffPickView[] = []
 
+function playoffPick(overrides: Partial<PlayoffPickView>): PlayoffPickView {
+  return {
+    id: "p1",
+    entryId: "e1",
+    seriesId: "s1",
+    pickTeamName: "Celtics",
+    createdAt: "",
+    updatedAt: "",
+    ...overrides,
+  }
+}
+
 describe("PlayoffBracketBoard", () => {
   it("renders round columns and series cards", () => {
     render(<PlayoffBracketBoard rounds={[...rounds]} series={series} picks={picks} />)
@@ -234,11 +246,27 @@ describe("PlayoffBracketBoard", () => {
       <PlayoffBracketBoard
         rounds={[...rounds]}
         series={series.map((item) => item.id === "s1" ? { ...item, winnerTeamName: "Celtics", seriesSummary: "Celtics win series 4-1" } : item)}
-        picks={[{ id: "p1", entryId: "e1", seriesId: "s1", pickTeamName: "Celtics", createdAt: "", updatedAt: "" }]}
+        picks={[playoffPick({ pickTeamName: "Celtics" })]}
       />
     )
 
     expect(screen.queryByTestId("playoff-series-pick-result-s1")).not.toBeInTheDocument()
+  })
+
+  it("does not apply result border classes when verification is disabled", () => {
+    render(
+      <PlayoffBracketBoard
+        rounds={[...rounds]}
+        series={series.map((item) => item.id === "s1" ? { ...item, winnerTeamName: "Celtics", seriesSummary: "Celtics win series 4-1" } : item)}
+        picks={[playoffPick({ pickTeamName: "Celtics" })]}
+      />
+    )
+
+    const matchupCard = screen.getByTestId("playoff-series-s1")
+    expect(matchupCard).toHaveClass("border-slate-200")
+    expect(matchupCard).not.toHaveClass("border-cyan-400")
+    expect(matchupCard).not.toHaveClass("border-rose-500")
+    expect(matchupCard).not.toHaveClass("border-amber-400")
   })
 
   it("renders correct pick badge when verification is enabled", () => {
@@ -246,11 +274,12 @@ describe("PlayoffBracketBoard", () => {
       <PlayoffBracketBoard
         rounds={[...rounds]}
         series={series.map((item) => item.id === "s1" ? { ...item, winnerTeamName: "Celtics", seriesSummary: "Celtics win series 4-1" } : item)}
-        picks={[{ id: "p1", entryId: "e1", seriesId: "s1", pickTeamName: "Celtics", createdAt: "", updatedAt: "" }]}
+        picks={[playoffPick({ pickTeamName: "Celtics" })]}
         showPickResults
       />
     )
 
+    expect(screen.getByTestId("playoff-series-s1")).toHaveClass("border-cyan-400")
     expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Your pick: Celtics")
     expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Correct +1")
     expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Result: Celtics win series 4-1")
@@ -261,12 +290,43 @@ describe("PlayoffBracketBoard", () => {
       <PlayoffBracketBoard
         rounds={[...rounds]}
         series={series.map((item) => item.id === "s1" ? { ...item, winnerTeamName: "Heat", seriesSummary: "Heat win series 4-2" } : item)}
-        picks={[{ id: "p1", entryId: "e1", seriesId: "s1", pickTeamName: "Celtics", createdAt: "", updatedAt: "" }]}
+        picks={[playoffPick({ pickTeamName: "Celtics" })]}
         showPickResults
       />
     )
 
+    expect(screen.getByTestId("playoff-series-s1")).toHaveClass("border-rose-500")
     expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Wrong +0")
+  })
+
+  it("applies an amber result border for no-pick series when verification is enabled", () => {
+    render(
+      <PlayoffBracketBoard
+        rounds={[...rounds]}
+        series={series.map((item) => item.id === "s1" ? { ...item, winnerTeamName: "Heat", seriesSummary: "Heat win series 4-2" } : item)}
+        picks={[]}
+        showPickResults
+      />
+    )
+
+    expect(screen.getByTestId("playoff-series-s1")).toHaveClass("border-amber-400")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Your pick: No Pick")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("No Pick")
+  })
+
+  it("applies an amber result border for pending saved picks when verification is enabled", () => {
+    render(
+      <PlayoffBracketBoard
+        rounds={[...rounds]}
+        series={series.map((item) => item.id === "s1" ? { ...item, winnerTeamName: null, seriesSummary: "Celtics lead series 2-1" } : item)}
+        picks={[playoffPick({ pickTeamName: "Celtics" })]}
+        showPickResults
+      />
+    )
+
+    expect(screen.getByTestId("playoff-series-s1")).toHaveClass("border-amber-400")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Your pick: Celtics")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Pending")
   })
 
   it("keeps a wrong saved user pick highlighted when official winner differs", () => {
@@ -283,7 +343,7 @@ describe("PlayoffBracketBoard", () => {
               status: "final" as const,
             }
           : item)}
-        picks={[{ id: "p1", entryId: "e1", seriesId: "s1", pickTeamName: "Boston Celtics", createdAt: "", updatedAt: "" }]}
+        picks={[playoffPick({ pickTeamName: "Boston Celtics" })]}
         showPickResults
       />
     )
@@ -316,6 +376,7 @@ describe("PlayoffBracketBoard", () => {
 
     expect(screen.getByRole("button", { name: "Boston Celtics" })).not.toHaveClass("border-amber-500")
     expect(screen.getByRole("button", { name: "Philadelphia 76ers" })).not.toHaveClass("border-amber-500")
+    expect(screen.getByTestId("playoff-series-s1")).toHaveClass("border-amber-400")
     expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Your pick: No Pick")
     expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("No Pick")
   })
