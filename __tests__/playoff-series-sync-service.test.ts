@@ -881,6 +881,63 @@ describe("syncPlayoffChallengeSeries", () => {
     expect(pickUpsertMock).not.toHaveBeenCalled()
   })
 
+  it("results_only uses final score supplement to compute a winner from scoreless schedule-season rows", async () => {
+    const liveScores = await import("@/lib/sports-live-scores-service")
+    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NBA", 2026, [
+      scheduleRow("NBA", "Postseason", "East 1st Round:", null as any, "Boston Celtics", "Philadelphia 76ers", "final", "2026-04-20T00:00:00.000Z"),
+      scheduleRow("NBA", "Postseason", "East 1st Round:", null as any, "Philadelphia 76ers", "Boston Celtics", "final", "2026-04-22T00:00:00.000Z"),
+      scheduleRow("NBA", "Postseason", "East 1st Round:", null as any, "Boston Celtics", "Philadelphia 76ers", "final", "2026-04-24T00:00:00.000Z"),
+      scheduleRow("NBA", "Postseason", "East 1st Round:", null as any, "Philadelphia 76ers", "Boston Celtics", "final", "2026-04-26T00:00:00.000Z"),
+      scheduleRow("NBA", "Postseason", "East 1st Round:", null as any, "Boston Celtics", "Philadelphia 76ers", "final", "2026-04-28T00:00:00.000Z"),
+      scheduleRow("NBA", "Postseason", "East 1st Round:", null as any, "Philadelphia 76ers", "Boston Celtics", "final", "2026-04-30T00:00:00.000Z"),
+    ] as any))
+    challengeFindUniqueMock.mockResolvedValue({
+      ...baseChallenge,
+      series: [{ ...baseChallenge.series[0], homeTeamName: "Boston Celtics", awayTeamName: "Philadelphia 76ers" }],
+    })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      mode: "results_only",
+      scheduleSupplementProvider: async () => ({ source: "none", games: [] }),
+      finalScoreSupplementProvider: async (_input) => ({
+        source: "espn_final_scores",
+        games: [
+          { ...playoffGame("BOS", "PHI", 100, 108, "2026-04-20T00:00:00.000Z"), homeTeamFull: "Boston Celtics" },
+          { ...playoffGame("PHI", "BOS", 111, 106, "2026-04-22T00:00:00.000Z"), awayTeamFull: "Boston Celtics" },
+          { ...playoffGame("BOS", "PHI", 103, 98, "2026-04-24T00:00:00.000Z"), homeTeamFull: "Boston Celtics" },
+          { ...playoffGame("PHI", "BOS", 109, 115, "2026-04-26T00:00:00.000Z"), awayTeamFull: "Boston Celtics" },
+          { ...playoffGame("BOS", "PHI", 101, 104, "2026-04-28T00:00:00.000Z"), homeTeamFull: "Boston Celtics" },
+          { ...playoffGame("PHI", "BOS", 99, 96, "2026-04-30T00:00:00.000Z"), awayTeamFull: "Boston Celtics" },
+        ],
+      }),
+    })
+
+    expect(result.winnersUpdated).toBe(1)
+    expect(result.diagnostics.finalScoreSupplementProvider).toBe("espn_final_scores")
+    expect(result.diagnostics.finalScoreDatesFetched).toBe(6)
+    expect(result.diagnostics.finalScoreRowsSeen).toBe(6)
+    expect(result.diagnostics.finalScoreRowsMatched).toBe(6)
+    expect(result.diagnostics.seriesWinsComputed).toBe(1)
+    expect(result.diagnostics.seriesWinnersComputed).toBe(1)
+    expect(result.diagnostics.completedSeriesWithWinner).toBe(1)
+    expect(result.warnings).toContain("Rolling Insights schedule-season had completed series but no scores; espn_final_scores final score supplement found 6 matched games.")
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-1" },
+      data: expect.objectContaining({
+        homeTeamName: "Boston Celtics",
+        awayTeamName: "Philadelphia 76ers",
+        status: "final",
+        winnerTeamName: "Philadelphia 76ers",
+        homeTeamWins: 2,
+        awayTeamWins: 4,
+        seriesSummary: "Philadelphia 76ers win series 4-2",
+      }),
+    })
+    expect(pickUpsertMock).not.toHaveBeenCalled()
+  })
+
   it("teams_schedule_only strips winner fields and keeps picks untouched", async () => {
     const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
     const result = await syncPlayoffChallengeSeries({

@@ -817,6 +817,57 @@ describe("PlayoffBracketEntryShell", () => {
     expect(screen.getByTestId("playoff-entry-review-results-note")).toHaveTextContent("Official results are synced. Correct/Wrong badges reflect your saved picks.")
   })
 
+  it("shows Wrong +0 after results_only persists a different official winner", () => {
+    render(
+      <PlayoffBracketEntryShell
+        initialView={buildEntryView({
+          activeEntry: { id: "entry-1", name: "Bracket 1", userId: "user-1", pickCount: 1, isComplete: true, createdAt: "" },
+          picks: [{ id: "p1", entryId: "entry-1", seriesId: "s1", pickTeamName: "Boston Celtics", createdAt: "", updatedAt: "" }],
+          series: [
+            playoffSeries({
+              id: "s1",
+              homeTeamName: "Boston Celtics",
+              awayTeamName: "Philadelphia 76ers",
+              winnerTeamName: "Philadelphia 76ers",
+              seriesSummary: "Philadelphia 76ers win series 4-2",
+              status: "final",
+            }),
+          ],
+        })}
+      />
+    )
+
+    const review = screen.getByTestId("playoff-entry-review-summary")
+    expect(review).toHaveTextContent("Wrong +0")
+    expect(review).toHaveTextContent("Your pick: Boston Celtics")
+    expect(review).toHaveTextContent("Result: Philadelphia 76ers win series 4-2")
+  })
+
+  it("shows Correct +1 after results_only persists the saved pick as official winner", () => {
+    render(
+      <PlayoffBracketEntryShell
+        initialView={buildEntryView({
+          activeEntry: { id: "entry-1", name: "Bracket 1", userId: "user-1", pickCount: 1, isComplete: true, createdAt: "" },
+          picks: [{ id: "p1", entryId: "entry-1", seriesId: "s1", pickTeamName: "Philadelphia 76ers", createdAt: "", updatedAt: "" }],
+          series: [
+            playoffSeries({
+              id: "s1",
+              homeTeamName: "Boston Celtics",
+              awayTeamName: "Philadelphia 76ers",
+              winnerTeamName: "Philadelphia 76ers",
+              seriesSummary: "Philadelphia 76ers win series 4-2",
+              status: "final",
+            }),
+          ],
+        })}
+      />
+    )
+
+    const review = screen.getByTestId("playoff-entry-review-summary")
+    expect(review).toHaveTextContent("Correct +1")
+    expect(review).toHaveTextContent("Your pick: Philadelphia 76ers")
+  })
+
   it("explains pending review state before results sync for normal users without commissioner callout", () => {
     render(
       <PlayoffBracketEntryShell
