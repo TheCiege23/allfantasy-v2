@@ -9,6 +9,7 @@ import {
   createPlayoffBracketEntryClient,
   getPlayoffBracketViewClient,
 } from "@/lib/playoffs/playoffClientApi"
+import PlayoffSyncDiagnosticsPanel from "./PlayoffSyncDiagnosticsPanel"
 
 type Props = {
   initialView: PlayoffChallengeView
@@ -20,6 +21,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
   const [refreshing, startRefreshing] = useTransition()
   const [creatingEntry, startCreatingEntry] = useTransition()
   const [syncingSeries, startSyncingSeries] = useTransition()
+  const [syncDiagnostics, setSyncDiagnostics] = useState<unknown>(null)
 
   const safeChallenge = {
     id: view?.challenge?.id || "unknown-challenge",
@@ -127,6 +129,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
         if (!response.ok) {
           throw new Error(payload?.error ?? "Failed to sync playoff series")
         }
+        setSyncDiagnostics(payload)
         const warnings = Array.isArray(payload?.warnings) ? payload.warnings : []
         if (warnings.length > 0) {
           toast.warning(warnings[0])
@@ -201,6 +204,9 @@ export default function PlayoffBracketShell({ initialView }: Props) {
               </button>
             ) : null}
           </div>
+        ) : null}
+        {safeChallenge.ownerUserId === view?.viewerUserId ? (
+          <PlayoffSyncDiagnosticsPanel diagnostics={syncDiagnostics} />
         ) : null}
       </section>
 

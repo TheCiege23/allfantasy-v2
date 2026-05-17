@@ -13,6 +13,7 @@ import {
 } from "@/lib/playoffs/playoffClientApi"
 import { buildProjectedPlayoffSeries, getNextActionablePlayoffSeries } from "@/lib/playoffs/playoffBracketProjection"
 import PlayoffBracketBoard from "./PlayoffBracketBoard"
+import PlayoffSyncDiagnosticsPanel from "./PlayoffSyncDiagnosticsPanel"
 
 type Props = {
   initialView: PlayoffChallengeView
@@ -27,6 +28,7 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
   const [syncingSeries, startSyncingSeries] = useTransition()
   const [savingSeriesIds, setSavingSeriesIds] = useState<Set<string>>(new Set())
   const [savedSeriesIds, setSavedSeriesIds] = useState<Set<string>>(new Set())
+  const [syncDiagnostics, setSyncDiagnostics] = useState<unknown>(null)
 
   const activeEntry = view.activeEntry
   const series = Array.isArray(view.series) ? view.series : []
@@ -113,6 +115,7 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
         if (!response.ok) {
           throw new Error(payload?.error ?? "Failed to sync playoff series")
         }
+        setSyncDiagnostics(payload)
         const warnings = Array.isArray(payload?.warnings) ? payload.warnings : []
         if (warnings.length > 0) {
           toast.warning(warnings[0])
@@ -168,6 +171,9 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
               </button>
             ) : null}
           </div>
+        ) : null}
+        {canSyncSeries ? (
+          <PlayoffSyncDiagnosticsPanel diagnostics={syncDiagnostics} testId="playoff-entry-sync-diagnostics" />
         ) : null}
       </section>
 

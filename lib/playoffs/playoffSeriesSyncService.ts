@@ -56,9 +56,38 @@ export type PlayoffSeriesSyncProvider = (input: {
   games: PlayoffSeriesSyncGame[]
   warnings?: string[]
   attemptedProviders?: string[]
+  diagnostics?: PlayoffSyncDiagnostics
 }>
 
 export type PlayoffSeriesSyncProviderPreference = "auto" | "rolling_insights" | "espn"
+
+type ProviderAttemptDiagnostic = {
+  provider: string
+  source: string
+  seasonYear: number
+  sport: PlayoffSport
+  gamesReturned: number
+  postseasonGames: number
+  warning?: string
+}
+
+type TeamPairDiagnostic = {
+  round?: number | null
+  homeTeam: string
+  awayTeam: string
+  eventName?: string | null
+  status?: string | null
+}
+
+export type PlayoffSyncDiagnostics = {
+  seasonYear: number
+  sport: PlayoffSport
+  selectedProvider: string
+  providerAttempts: ProviderAttemptDiagnostic[]
+  existingSeriesExamples: TeamPairDiagnostic[]
+  providerGameExamples: TeamPairDiagnostic[]
+  providerSeriesExamples: TeamPairDiagnostic[]
+}
 
 export type SyncPlayoffChallengeSeriesResult = {
   ok: boolean
@@ -75,6 +104,7 @@ export type SyncPlayoffChallengeSeriesResult = {
   winnersUpdated: number
   warnings: string[]
   unmatchedExamples: Array<{ homeTeam: string; awayTeam: string; eventName?: string | null; round?: number | null }>
+  diagnostics: PlayoffSyncDiagnostics
 }
 
 const SPORT_TO_LEAGUE_SPORT: Record<PlayoffSport, LeagueSport> = {
@@ -140,17 +170,36 @@ function isPostseasonRow(row: RollingInsightsScheduleGameRow): boolean {
 export async function fetchRollingInsightsPostseasonScheduleGames(input: {
   sport: PlayoffSport
   seasonYear: number
-}): Promise<{ source: string; games: PlayoffSeriesSyncGame[]; warnings: string[]; attemptedProviders: string[] }> {
+}): Promise<{ source: string; games: PlayoffSeriesSyncGame[]; warnings: string[]; attemptedProviders: string[]; diagnostics: PlayoffSyncDiagnostics }> {
   const leagueSport = SPORT_TO_LEAGUE_SPORT[input.sport]
   const rows = await fetchRollingInsightsScheduleSeason(leagueSport, input.seasonYear, { forceRefresh: true })
   const postseasonRows = rows.filter(isPostseasonRow)
+  const games = postseasonRows.map(scheduleRowToSyncGame)
+  const warnings = postseasonRows.length === 0
+    ? [`No ${input.sport.toUpperCase()} postseason games returned from Rolling Insights schedule-season for season ${input.seasonYear}.`]
+    : []
   return {
     source: "rolling_insights_schedule_season",
-    games: postseasonRows.map(scheduleRowToSyncGame),
-    warnings: postseasonRows.length === 0
-      ? [`No ${input.sport.toUpperCase()} postseason games returned from Rolling Insights schedule-season for season ${input.seasonYear}.`]
-      : [],
+    games,
+    warnings,
     attemptedProviders: ["rolling_insights_schedule_season"],
+    diagnostics: {
+      seasonYear: input.seasonYear,
+      sport: input.sport,
+      selectedProvider: "rolling_insights_schedule_season",
+      providerAttempts: [{
+        provider: "rolling_insights_schedule_season",
+        source: "rolling_insights_schedule_season",
+        seasonYear: input.seasonYear,
+        sport: input.sport,
+        gamesReturned: rows.length,
+        postseasonGames: games.length,
+        warning: warnings[0],
+      }],
+      existingSeriesExamples: [],
+      providerGameExamples: sampleGameDiagnostics(games),
+      providerSeriesExamples: sampleSeriesDiagnostics(buildProviderSeriesGroups(games)),
+    },
   }
 }
 
@@ -158,10 +207,11 @@ export async function fetchLivePlayoffSeriesGames(input: {
   sport: PlayoffSport
   seasonYear: number
   providerPreference?: PlayoffSeriesSyncProviderPreference
-}): Promise<{ source: string; games: PlayoffSeriesSyncGame[]; warnings: string[]; attemptedProviders: string[] }> {
+}): Promise<{ source: string; games: PlayoffSeriesSyncGame[]; warnings: string[]; attemptedProviders: string[]; diagnostics: PlayoffSyncDiagnostics }> {
   const leagueSport = SPORT_TO_LEAGUE_SPORT[input.sport]
   const providerPreference = input.providerPreference ?? "auto"
   const attemptedProviders: string[] = []
+  const providerAttempts: ProviderAttemptDiagnostic[] = []
   const providerOrder = providerPreference === "espn"
     ? ["espn_live"]
     : providerPreference === "rolling_insights"
@@ -182,8 +232,31 @@ export async function fetchLivePlayoffSeriesGames(input: {
         : await fetchRollingInsightsScoreboard(leagueSport, { forceRefresh: true }))
           .filter((row) => row.season === input.seasonYear || !Number.isFinite(row.season))
           .map(rowToSyncGame)
+    providerAttempts.push({
+      provider: providerName,
+      source: providerName,
+      seasonYear: input.seasonYear,
+      sport: input.sport,
+      gamesReturned: games.length,
+      postseasonGames: games.filter((game) => String(game.seasonType ?? "").toLowerCase() === "postseason").length,
+      warning: games.length === 0 ? `${providerName} returned no usable ${input.sport.toUpperCase()} games for season ${input.seasonYear}.` : undefined,
+    })
     if (games.length > 0) {
-      return { source: providerName, games, warnings: [], attemptedProviders }
+      return {
+        source: providerName,
+        games,
+        warnings: [],
+        attemptedProviders,
+        diagnostics: {
+          seasonYear: input.seasonYear,
+          sport: input.sport,
+          selectedProvider: providerName,
+          providerAttempts,
+          existingSeriesExamples: [],
+          providerGameExamples: sampleGameDiagnostics(games),
+          providerSeriesExamples: sampleSeriesDiagnostics(buildProviderSeriesGroups(games)),
+        },
+      }
     }
   }
 
@@ -195,6 +268,15 @@ export async function fetchLivePlayoffSeriesGames(input: {
       `No ${input.sport.toUpperCase()} games returned from ${attemptedLabels.join(" or ")} for season ${input.seasonYear}.`,
     ],
     attemptedProviders,
+    diagnostics: {
+      seasonYear: input.seasonYear,
+      sport: input.sport,
+      selectedProvider: attemptedProviders[attemptedProviders.length - 1] ?? "none",
+      providerAttempts,
+      existingSeriesExamples: [],
+      providerGameExamples: [],
+      providerSeriesExamples: [],
+    },
   }
 }
 
@@ -276,6 +358,36 @@ function buildProviderSeriesGroups(games: PlayoffSeriesSyncGame[]): ProviderSeri
     })
   }
   return Array.from(byKey.values()).sort((a, b) => a.roundIndex - b.roundIndex || a.key.localeCompare(b.key))
+}
+
+function sampleGameDiagnostics(games: PlayoffSeriesSyncGame[]): TeamPairDiagnostic[] {
+  return games.slice(0, 3).map((game) => ({
+    round: game.providerRound ?? null,
+    homeTeam: displayName(game.homeTeamFull || game.homeTeam),
+    awayTeam: displayName(game.awayTeamFull || game.awayTeam),
+    eventName: game.eventName ?? null,
+    status: game.status ?? game.statusDetail ?? null,
+  }))
+}
+
+function sampleSeriesDiagnostics(groups: ProviderSeriesGroup[]): TeamPairDiagnostic[] {
+  return groups.slice(0, 3).map((group) => ({
+    round: group.roundIndex,
+    homeTeam: group.homeTeamName,
+    awayTeam: group.awayTeamName,
+    eventName: group.games[0]?.eventName ?? null,
+    status: group.games[0]?.status ?? group.games[0]?.statusDetail ?? null,
+  }))
+}
+
+function sampleExistingSeriesDiagnostics(series: any[]): TeamPairDiagnostic[] {
+  return series.slice(0, 5).map((item) => ({
+    round: Number(item.roundIndex ?? null),
+    homeTeam: displayName(item.homeTeamName),
+    awayTeam: displayName(item.awayTeamName),
+    eventName: null,
+    status: item.status ?? null,
+  }))
 }
 
 function earliestStart(games: PlayoffSeriesSyncGame[]): Date | null {
@@ -401,6 +513,19 @@ export async function syncPlayoffChallengeSeries(input: {
   })
   const attemptedProviders = payload.attemptedProviders ?? [payload.source].filter(Boolean)
   warnings.push(...(payload.warnings ?? []))
+  const diagnostics: PlayoffSyncDiagnostics = {
+    seasonYear: challenge.seasonYear,
+    sport,
+    selectedProvider: payload.source,
+    providerAttempts: payload.diagnostics?.providerAttempts ?? [],
+    existingSeriesExamples: sampleExistingSeriesDiagnostics(challenge.series),
+    providerGameExamples: payload.diagnostics?.providerGameExamples?.length
+      ? payload.diagnostics.providerGameExamples
+      : sampleGameDiagnostics(payload.games),
+    providerSeriesExamples: payload.diagnostics?.providerSeriesExamples?.length
+      ? payload.diagnostics.providerSeriesExamples
+      : [],
+  }
 
   let seriesUpdated = 0
   let winnersUpdated = 0
@@ -408,6 +533,7 @@ export async function syncPlayoffChallengeSeries(input: {
   let seriesMatched = 0
   const matchedGameKeys = new Set<string>()
   const providerSeriesGroups = buildProviderSeriesGroups(payload.games)
+  diagnostics.providerSeriesExamples = sampleSeriesDiagnostics(providerSeriesGroups)
   const usedGroupKeys = new Set<string>()
   const invalidatedSeriesIds = new Set<string>()
 
@@ -501,5 +627,6 @@ export async function syncPlayoffChallengeSeries(input: {
       eventName: game.eventName ?? null,
       round: game.providerRound ?? null,
     })),
+    diagnostics,
   }
 }

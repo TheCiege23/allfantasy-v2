@@ -247,8 +247,8 @@ export function mapRollingInsightsScheduleRow(
     seasonType: String(raw.season_type ?? raw.seasonType ?? '').trim(),
     eventName: String(raw.event_name ?? raw.eventName ?? raw.round_name ?? '').trim(),
     round: asNullableFiniteInt(raw.round),
-    homeTeam: normalizeTeamAbbrev(homeRaw) || homeRaw,
-    awayTeam: normalizeTeamAbbrev(awayRaw) || awayRaw,
+    homeTeam: homeRaw,
+    awayTeam: awayRaw,
     homeTeamId: raw.home_team_ID != null || raw.homeTeamId != null ? String(raw.home_team_ID ?? raw.homeTeamId) : null,
     awayTeamId: raw.away_team_ID != null || raw.awayTeamId != null ? String(raw.away_team_ID ?? raw.awayTeamId) : null,
     homeScore: asNullableFiniteInt(raw.homeScore ?? raw.home_score ?? raw.home_team_score ?? raw.home_points),
@@ -257,6 +257,27 @@ export function mapRollingInsightsScheduleRow(
     status,
     completed: statusLower.includes('final') || statusLower.includes('completed'),
   }
+}
+
+function collectScheduleItems(value: unknown, sport: LeagueSport): unknown[] {
+  if (Array.isArray(value)) return value
+  if (!value || typeof value !== 'object') return []
+  const obj = value as Record<string, unknown>
+  const preferredKeys = [
+    sport,
+    sport.toLowerCase(),
+    sport.toUpperCase(),
+    'data',
+    'results',
+    'items',
+    'schedule',
+    'games',
+  ]
+  for (const key of preferredKeys) {
+    const nested = obj[key]
+    if (Array.isArray(nested)) return nested
+  }
+  return Object.values(obj).flatMap((nested) => Array.isArray(nested) ? nested : [])
 }
 
 export async function fetchRollingInsightsScheduleSeason(
@@ -272,7 +293,7 @@ export async function fetchRollingInsightsScheduleSeason(
     forceRefresh: options.forceRefresh === true,
   })
 
-  const rawList = Array.isArray(schedule.data) ? schedule.data : []
+  const rawList = collectScheduleItems(schedule.data, sport)
   const rows: RollingInsightsScheduleGameRow[] = []
   for (const item of rawList) {
     if (!item || typeof item !== 'object') continue

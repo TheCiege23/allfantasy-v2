@@ -204,7 +204,31 @@ describe("PlayoffBracketShell dashboard", () => {
   it("shows template warning until series sync runs and calls sync route", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
-      json: async () => ({ ok: true, warnings: ["No playoff series matched provider games."] }),
+      json: async () => ({
+        ok: true,
+        warnings: ["No playoff series matched provider games."],
+        attemptedProviders: ["rolling_insights_schedule_season", "rolling_insights", "espn_live"],
+        source: "espn_live",
+        sport: "nba",
+        seasonYear: 2026,
+        postseasonGames: 0,
+        gamesSeen: 1,
+        gamesMatched: 0,
+        seriesReturned: 0,
+        seriesMatched: 0,
+        seriesUpdated: 0,
+        winnersUpdated: 0,
+        unmatchedExamples: [{ homeTeam: "Knicks", awayTeam: "Pacers", round: 1 }],
+        diagnostics: {
+          seasonYear: 2026,
+          sport: "nba",
+          selectedProvider: "espn_live",
+          providerAttempts: [{ provider: "espn_live", gamesReturned: 1, postseasonGames: 0 }],
+          existingSeriesExamples: [{ round: 1, homeTeam: "E1", awayTeam: "E8" }],
+          providerGameExamples: [{ round: 1, homeTeam: "Knicks", awayTeam: "Pacers" }],
+          providerSeriesExamples: [{ round: 1, homeTeam: "Knicks", awayTeam: "Pacers" }],
+        },
+      }),
     } as Response)
     getPlayoffBracketViewClientMock.mockResolvedValue(buildView())
     render(
@@ -243,6 +267,8 @@ describe("PlayoffBracketShell dashboard", () => {
       expect(fetchMock).toHaveBeenCalledWith("/api/brackets/playoffs/challenge-1/admin/sync-series", expect.objectContaining({ method: "POST" }))
       expect(toastWarningMock).toHaveBeenCalledWith("No playoff series matched provider games.")
     })
+    expect(screen.getByTestId("playoff-sync-diagnostics")).toHaveTextContent("rolling_insights_schedule_season")
+    expect(screen.getByTestId("playoff-sync-diagnostics")).toHaveTextContent("existingSeriesExamples")
 
     fetchMock.mockRestore()
   })

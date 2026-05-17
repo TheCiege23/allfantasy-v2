@@ -88,7 +88,31 @@ describe("PlayoffBracketEntryShell", () => {
   it("shows template warning and owner sync action on entry page", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
-      json: async () => ({ ok: true, warnings: ["No playoff series matched provider games."] }),
+      json: async () => ({
+        ok: true,
+        warnings: ["No playoff series matched provider games."],
+        attemptedProviders: ["rolling_insights_schedule_season"],
+        source: "rolling_insights_schedule_season",
+        sport: "nba",
+        seasonYear: 2026,
+        postseasonGames: 0,
+        gamesSeen: 0,
+        gamesMatched: 0,
+        seriesReturned: 0,
+        seriesMatched: 0,
+        seriesUpdated: 0,
+        winnersUpdated: 0,
+        unmatchedExamples: [],
+        diagnostics: {
+          seasonYear: 2026,
+          sport: "nba",
+          selectedProvider: "rolling_insights_schedule_season",
+          providerAttempts: [{ provider: "rolling_insights_schedule_season", gamesReturned: 0 }],
+          existingSeriesExamples: [{ round: 2, homeTeam: "Winner S1", awayTeam: "Winner S2" }],
+          providerGameExamples: [],
+          providerSeriesExamples: [],
+        },
+      }),
     } as Response)
 
     render(<PlayoffBracketEntryShell initialView={buildEntryView()} />)
@@ -100,6 +124,7 @@ describe("PlayoffBracketEntryShell", () => {
       expect(fetchMock).toHaveBeenCalledWith("/api/brackets/playoffs/challenge-1/admin/sync-series", expect.objectContaining({ method: "POST" }))
       expect(toastWarningMock).toHaveBeenCalledWith("No playoff series matched provider games.")
     })
+    expect(screen.getByTestId("playoff-entry-sync-diagnostics")).toHaveTextContent("existingSeriesExamples")
 
     fetchMock.mockRestore()
   })
