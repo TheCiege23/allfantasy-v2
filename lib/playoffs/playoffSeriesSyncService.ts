@@ -3,8 +3,10 @@ import type { LeagueSport } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import {
   fetchEspnScoreboard,
+  fetchRollingInsightsScheduleSeason,
   fetchRollingInsightsScoreboard,
   type LiveScoreRow,
+  type RollingInsightsScheduleGameRow,
 } from "@/lib/sports-live-scores-service"
 import { normalizeTeamAbbrev } from "@/lib/team-abbrev"
 import type { PlayoffSport } from "./types"
@@ -20,6 +22,9 @@ export type PlayoffSeriesSyncGame = {
   status?: string | null
   statusDetail?: string | null
   startTime?: string | null
+  providerRound?: number | null
+  eventName?: string | null
+  seasonType?: string | null
 }
 
 type PlayoffSeriesAggregate = {
@@ -31,6 +36,15 @@ type PlayoffSeriesAggregate = {
   winnerTeamName: string | null
   homeTeamName: string
   awayTeamName: string
+  roundIndex: number
+}
+
+type ProviderSeriesGroup = {
+  key: string
+  roundIndex: number
+  homeTeamName: string
+  awayTeamName: string
+  games: PlayoffSeriesSyncGame[]
 }
 
 export type PlayoffSeriesSyncProvider = (input: {
@@ -52,11 +66,15 @@ export type SyncPlayoffChallengeSeriesResult = {
   sport: PlayoffSport
   source: string
   attemptedProviders: string[]
+  postseasonGames: number
   gamesSeen: number
   gamesMatched: number
+  seriesReturned: number
+  seriesMatched: number
   seriesUpdated: number
   winnersUpdated: number
   warnings: string[]
+  unmatchedExamples: Array<{ homeTeam: string; awayTeam: string; eventName?: string | null; round?: number | null }>
 }
 
 const SPORT_TO_LEAGUE_SPORT: Record<PlayoffSport, LeagueSport> = {
@@ -77,6 +95,11 @@ function sameTeam(a: string | null | undefined, b: string | null | undefined): b
   return normalizeName(a).toLowerCase() === normalizeName(b).toLowerCase()
 }
 
+function isPlaceholderTeamName(value: string | null | undefined): boolean {
+  const name = String(value ?? "").trim()
+  return /^([A-Z]+[0-9]+|Winner\s+S\d+|Winner\s+\w+)$/i.test(name)
+}
+
 function rowToSyncGame(row: LiveScoreRow): PlayoffSeriesSyncGame {
   return {
     homeTeam: row.homeTeam,
@@ -92,6 +115,45 @@ function rowToSyncGame(row: LiveScoreRow): PlayoffSeriesSyncGame {
   }
 }
 
+function scheduleRowToSyncGame(row: RollingInsightsScheduleGameRow): PlayoffSeriesSyncGame {
+  return {
+    homeTeam: row.homeTeam,
+    awayTeam: row.awayTeam,
+    homeTeamFull: row.homeTeam,
+    awayTeamFull: row.awayTeam,
+    homeScore: row.homeScore,
+    awayScore: row.awayScore,
+    completed: row.completed,
+    status: row.status,
+    statusDetail: row.status,
+    startTime: row.startsAt,
+    providerRound: row.round,
+    eventName: row.eventName,
+    seasonType: row.seasonType,
+  }
+}
+
+function isPostseasonRow(row: RollingInsightsScheduleGameRow): boolean {
+  return row.seasonType.toLowerCase() === "postseason"
+}
+
+export async function fetchRollingInsightsPostseasonScheduleGames(input: {
+  sport: PlayoffSport
+  seasonYear: number
+}): Promise<{ source: string; games: PlayoffSeriesSyncGame[]; warnings: string[]; attemptedProviders: string[] }> {
+  const leagueSport = SPORT_TO_LEAGUE_SPORT[input.sport]
+  const rows = await fetchRollingInsightsScheduleSeason(leagueSport, input.seasonYear, { forceRefresh: true })
+  const postseasonRows = rows.filter(isPostseasonRow)
+  return {
+    source: "rolling_insights_schedule_season",
+    games: postseasonRows.map(scheduleRowToSyncGame),
+    warnings: postseasonRows.length === 0
+      ? [`No ${input.sport.toUpperCase()} postseason games returned from Rolling Insights schedule-season for season ${input.seasonYear}.`]
+      : [],
+    attemptedProviders: ["rolling_insights_schedule_season"],
+  }
+}
+
 export async function fetchLivePlayoffSeriesGames(input: {
   sport: PlayoffSport
   seasonYear: number
@@ -103,21 +165,23 @@ export async function fetchLivePlayoffSeriesGames(input: {
   const providerOrder = providerPreference === "espn"
     ? ["espn_live"]
     : providerPreference === "rolling_insights"
-      ? ["rolling_insights"]
-      : ["rolling_insights", "espn_live"]
+      ? ["rolling_insights_schedule_season", "rolling_insights"]
+      : ["rolling_insights_schedule_season", "rolling_insights", "espn_live"]
   const providerLabels: Record<string, string> = {
+    rolling_insights_schedule_season: "Rolling Insights schedule-season",
     rolling_insights: "Rolling Insights",
     espn_live: "ESPN",
   }
 
   for (const providerName of providerOrder) {
     attemptedProviders.push(providerName)
-    const rows = providerName === "espn_live"
-      ? await fetchEspnScoreboard(leagueSport)
-      : await fetchRollingInsightsScoreboard(leagueSport, { forceRefresh: true })
-    const games = rows
-      .filter((row) => row.season === input.seasonYear || !Number.isFinite(row.season))
-      .map(rowToSyncGame)
+    const games = providerName === "rolling_insights_schedule_season"
+      ? (await fetchRollingInsightsPostseasonScheduleGames(input)).games
+      : (providerName === "espn_live"
+        ? await fetchEspnScoreboard(leagueSport)
+        : await fetchRollingInsightsScoreboard(leagueSport, { forceRefresh: true }))
+          .filter((row) => row.season === input.seasonYear || !Number.isFinite(row.season))
+          .map(rowToSyncGame)
     if (games.length > 0) {
       return { source: providerName, games, warnings: [], attemptedProviders }
     }
@@ -166,7 +230,52 @@ function gameMatchesSeries(series: any, game: PlayoffSeriesSyncGame): boolean {
 }
 
 function gamesForSeries(series: any, games: PlayoffSeriesSyncGame[]): PlayoffSeriesSyncGame[] {
-  return games.filter((game) => gameMatchesSeries(series, game))
+  return games.filter((game) => {
+    if (Number.isFinite(Number(game.providerRound)) && Number(game.providerRound) !== Number(series.roundIndex)) {
+      return false
+    }
+    return gameMatchesSeries(series, game)
+  })
+}
+
+function roundIndexFromGame(game: PlayoffSeriesSyncGame): number | null {
+  const explicit = Number(game.providerRound)
+  if (Number.isFinite(explicit) && explicit > 0) return explicit
+  const eventName = String(game.eventName ?? "").toLowerCase()
+  if (eventName.includes("final") && !eventName.includes("conference")) return 4
+  if (eventName.includes("conference")) return 3
+  if (eventName.includes("second") || eventName.includes("semifinal") || eventName.includes("semifinals")) return 2
+  if (eventName.includes("first")) return 1
+  return null
+}
+
+function pairKey(homeTeam: string | null | undefined, awayTeam: string | null | undefined): string {
+  return [normalizeName(homeTeam).toLowerCase(), normalizeName(awayTeam).toLowerCase()].sort().join("__")
+}
+
+function buildProviderSeriesGroups(games: PlayoffSeriesSyncGame[]): ProviderSeriesGroup[] {
+  const byKey = new Map<string, ProviderSeriesGroup>()
+  for (const game of games) {
+    const roundIndex = roundIndexFromGame(game)
+    if (!roundIndex) continue
+    const homeTeamName = displayName(game.homeTeamFull || game.homeTeam)
+    const awayTeamName = displayName(game.awayTeamFull || game.awayTeam)
+    if (!homeTeamName || !awayTeamName) continue
+    const key = `${roundIndex}:${pairKey(homeTeamName, awayTeamName)}`
+    const existing = byKey.get(key)
+    if (existing) {
+      existing.games.push(game)
+      continue
+    }
+    byKey.set(key, {
+      key,
+      roundIndex,
+      homeTeamName,
+      awayTeamName,
+      games: [game],
+    })
+  }
+  return Array.from(byKey.values()).sort((a, b) => a.roundIndex - b.roundIndex || a.key.localeCompare(b.key))
 }
 
 function earliestStart(games: PlayoffSeriesSyncGame[]): Date | null {
@@ -226,6 +335,29 @@ function aggregateSeriesGames(series: any, games: PlayoffSeriesSyncGame[]): Play
     winnerTeamName,
     homeTeamName,
     awayTeamName,
+    roundIndex: Number(series.roundIndex ?? roundIndexFromGame(games[0]) ?? 0),
+  }
+}
+
+function aggregateProviderSeriesGroup(group: ProviderSeriesGroup, bestOf = 7): PlayoffSeriesAggregate {
+  return aggregateSeriesGames(
+    {
+      roundIndex: group.roundIndex,
+      homeTeamName: group.homeTeamName,
+      awayTeamName: group.awayTeamName,
+      bestOf,
+    },
+    group.games
+  ) ?? {
+    games: group.games,
+    homeWins: 0,
+    awayWins: 0,
+    status: "scheduled",
+    startsAt: earliestStart(group.games),
+    winnerTeamName: null,
+    homeTeamName: group.homeTeamName,
+    awayTeamName: group.awayTeamName,
+    roundIndex: group.roundIndex,
   }
 }
 
@@ -273,23 +405,50 @@ export async function syncPlayoffChallengeSeries(input: {
   let seriesUpdated = 0
   let winnersUpdated = 0
   let gamesMatched = 0
+  let seriesMatched = 0
   const matchedGameKeys = new Set<string>()
+  const providerSeriesGroups = buildProviderSeriesGroups(payload.games)
+  const usedGroupKeys = new Set<string>()
+  const invalidatedSeriesIds = new Set<string>()
 
   for (const series of challenge.series) {
-    if (series.sourceSeriesHome || series.sourceSeriesAway) continue
+    if (series.sourceSeriesHome || series.sourceSeriesAway) {
+      continue
+    }
     const seriesGames = gamesForSeries(series, payload.games)
-    const aggregate = aggregateSeriesGames(series, seriesGames)
+    let aggregate = aggregateSeriesGames(series, seriesGames)
+    let matchedGroup: ProviderSeriesGroup | null = null
+    if (!aggregate) {
+      matchedGroup = providerSeriesGroups.find((group) => {
+        if (usedGroupKeys.has(group.key)) return false
+        if (group.roundIndex !== Number(series.roundIndex)) return false
+        if (gameMatchesSeries(series, group.games[0])) return true
+        return isPlaceholderTeamName(series.homeTeamName) || isPlaceholderTeamName(series.awayTeamName)
+      }) ?? null
+      if (matchedGroup) {
+        aggregate = aggregateProviderSeriesGroup(matchedGroup, Number(series.bestOf ?? 7))
+        usedGroupKeys.add(matchedGroup.key)
+      }
+    }
     if (!aggregate) continue
-    gamesMatched += seriesGames.length
-    for (const game of seriesGames) {
+    const aggregateGames = matchedGroup?.games ?? seriesGames
+    gamesMatched += aggregateGames.length
+    seriesMatched += 1
+    for (const game of aggregateGames) {
       matchedGameKeys.add(gameKey(game))
+    }
+    const previousTeams = [series.homeTeamName, series.awayTeamName].map((name) => normalizeName(name).toLowerCase())
+    const nextTeams = [aggregate.homeTeamName, aggregate.awayTeamName].map((name) => normalizeName(name).toLowerCase())
+    const teamsChanged = !previousTeams.every((name) => nextTeams.includes(name))
+    if (teamsChanged) {
+      invalidatedSeriesIds.add(series.id)
     }
 
     await (prisma as any).playoffBracketSeries.update({
       where: { id: series.id },
       data: {
-        homeTeamName: displayName(series.homeTeamName || aggregate.homeTeamName),
-        awayTeamName: displayName(series.awayTeamName || aggregate.awayTeamName),
+        homeTeamName: aggregate.homeTeamName,
+        awayTeamName: aggregate.awayTeamName,
         status: aggregate.status,
         startsAt: aggregate.startsAt,
         winnerTeamName: aggregate.winnerTeamName,
@@ -297,6 +456,21 @@ export async function syncPlayoffChallengeSeries(input: {
     })
     seriesUpdated += 1
     if (aggregate.winnerTeamName) winnersUpdated += 1
+  }
+
+  if (invalidatedSeriesIds.size > 0) {
+    const officialTeamNames = Array.from(new Set(providerSeriesGroups.flatMap((group) => [group.homeTeamName, group.awayTeamName])))
+    await (prisma as any).playoffBracketPick.deleteMany({
+      where: {
+        challengeId: challenge.id,
+        seriesId: { in: Array.from(invalidatedSeriesIds) },
+        NOT: {
+          pickTeamName: {
+            in: officialTeamNames,
+          },
+        },
+      },
+    })
   }
 
   if (seriesUpdated === 0) {
@@ -313,10 +487,19 @@ export async function syncPlayoffChallengeSeries(input: {
     sport,
     source: payload.source,
     attemptedProviders,
+    postseasonGames: payload.games.filter((game) => String(game.seasonType ?? "").toLowerCase() === "postseason").length,
     gamesSeen: payload.games.length,
     gamesMatched,
+    seriesReturned: providerSeriesGroups.length,
+    seriesMatched,
     seriesUpdated,
     winnersUpdated,
     warnings,
+    unmatchedExamples: unmatchedGames.slice(0, 5).map((game) => ({
+      homeTeam: displayName(game.homeTeamFull || game.homeTeam),
+      awayTeam: displayName(game.awayTeamFull || game.awayTeam),
+      eventName: game.eventName ?? null,
+      round: game.providerRound ?? null,
+    })),
   }
 }

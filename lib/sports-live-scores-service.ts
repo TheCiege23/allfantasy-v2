@@ -46,9 +46,32 @@ export interface LiveScoreRow {
   season: number
 }
 
+export interface RollingInsightsScheduleGameRow {
+  sport: LeagueSport
+  gameId: string
+  season: number
+  seasonType: string
+  eventName: string
+  round: number | null
+  homeTeam: string
+  awayTeam: string
+  homeTeamId: string | null
+  awayTeamId: string | null
+  homeScore: number | null
+  awayScore: number | null
+  startsAt: string
+  status: string
+  completed: boolean
+}
+
 function asFiniteInt(v: unknown): number {
   const n = typeof v === 'number' ? v : Number.parseInt(String(v ?? ''), 10)
   return Number.isFinite(n) ? n : 0
+}
+
+function asNullableFiniteInt(v: unknown): number | null {
+  const n = typeof v === 'number' ? v : Number.parseInt(String(v ?? ''), 10)
+  return Number.isFinite(n) ? n : null
 }
 
 /** Map Rolling Insights / chain score rows into the widget contract. */
@@ -195,6 +218,68 @@ export async function fetchRollingInsightsScoreboard(
     if (row) fromRi.push(row)
   }
   return fromRi
+}
+
+export function mapRollingInsightsScheduleRow(
+  raw: Record<string, unknown>,
+  sport: LeagueSport,
+  seasonYear: number,
+): RollingInsightsScheduleGameRow | null {
+  const gameId = String(raw.game_ID ?? raw.gameId ?? raw.game_id ?? raw.id ?? raw.externalId ?? '').trim()
+  const homeRaw = String(raw.home_team ?? raw.homeTeam ?? raw.home ?? '').trim()
+  const awayRaw = String(raw.away_team ?? raw.awayTeam ?? raw.away ?? '').trim()
+  if (!gameId || !homeRaw || !awayRaw) return null
+
+  const status = String(raw.status ?? raw.game_status ?? raw.state ?? 'scheduled').trim() || 'scheduled'
+  const statusLower = status.toLowerCase()
+  const dateRaw = raw.game_time ?? raw.startTime ?? raw.start_time ?? raw.date
+  const startsAt =
+    typeof dateRaw === 'string'
+      ? dateRaw
+      : dateRaw instanceof Date
+        ? dateRaw.toISOString()
+        : ''
+
+  return {
+    sport,
+    gameId,
+    season: asFiniteInt(raw.season ?? raw.season_year) || seasonYear,
+    seasonType: String(raw.season_type ?? raw.seasonType ?? '').trim(),
+    eventName: String(raw.event_name ?? raw.eventName ?? raw.round_name ?? '').trim(),
+    round: asNullableFiniteInt(raw.round),
+    homeTeam: normalizeTeamAbbrev(homeRaw) || homeRaw,
+    awayTeam: normalizeTeamAbbrev(awayRaw) || awayRaw,
+    homeTeamId: raw.home_team_ID != null || raw.homeTeamId != null ? String(raw.home_team_ID ?? raw.homeTeamId) : null,
+    awayTeamId: raw.away_team_ID != null || raw.awayTeamId != null ? String(raw.away_team_ID ?? raw.awayTeamId) : null,
+    homeScore: asNullableFiniteInt(raw.homeScore ?? raw.home_score ?? raw.home_team_score ?? raw.home_points),
+    awayScore: asNullableFiniteInt(raw.awayScore ?? raw.away_score ?? raw.away_team_score ?? raw.away_points),
+    startsAt,
+    status,
+    completed: statusLower.includes('final') || statusLower.includes('completed'),
+  }
+}
+
+export async function fetchRollingInsightsScheduleSeason(
+  sport: LeagueSport,
+  seasonYear: number,
+  options: { forceRefresh?: boolean } = {},
+): Promise<RollingInsightsScheduleGameRow[]> {
+  const chainSport = legacySupportedSportToApiChain(sport)
+  const schedule = await fetchWithChain({
+    sport: chainSport,
+    dataType: 'schedule',
+    query: { season: String(seasonYear) },
+    forceRefresh: options.forceRefresh === true,
+  })
+
+  const rawList = Array.isArray(schedule.data) ? schedule.data : []
+  const rows: RollingInsightsScheduleGameRow[] = []
+  for (const item of rawList) {
+    if (!item || typeof item !== 'object') continue
+    const row = mapRollingInsightsScheduleRow(item as Record<string, unknown>, sport, seasonYear)
+    if (row) rows.push(row)
+  }
+  return rows
 }
 
 async function syncLiveScoresToDb(sport: LeagueSport, scores: LiveScoreRow[], source: string): Promise<number> {

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const challengeFindUniqueMock = vi.hoisted(() => vi.fn())
 const seriesUpdateMock = vi.hoisted(() => vi.fn())
+const pickDeleteManyMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -10,6 +11,9 @@ vi.mock("@/lib/prisma", () => ({
     },
     playoffBracketSeries: {
       update: seriesUpdateMock,
+    },
+    playoffBracketPick: {
+      deleteMany: pickDeleteManyMock,
     },
   },
 }))
@@ -57,6 +61,7 @@ describe("syncPlayoffChallengeSeries", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     challengeFindUniqueMock.mockResolvedValue(baseChallenge)
+    pickDeleteManyMock.mockResolvedValue({ count: 0 })
   })
 
   it("aggregates NBA final games and waits for 4 wins before setting a series winner", async () => {
@@ -273,7 +278,7 @@ describe("syncPlayoffChallengeSeries", () => {
     const result = await fetchLivePlayoffSeriesGames({ sport: "nba", seasonYear: 2026 })
 
     expect(result.source).toBe("espn_live")
-    expect(result.attemptedProviders).toEqual(["rolling_insights", "espn_live"])
+    expect(result.attemptedProviders).toEqual(["rolling_insights_schedule_season", "rolling_insights", "espn_live"])
     expect(result.games).toHaveLength(1)
     expect(result.warnings).toEqual([])
   })
@@ -287,8 +292,8 @@ describe("syncPlayoffChallengeSeries", () => {
     const result = await fetchLivePlayoffSeriesGames({ sport: "nba", seasonYear: 2026 })
 
     expect(result.source).toBe("espn_live")
-    expect(result.attemptedProviders).toEqual(["rolling_insights", "espn_live"])
-    expect(result.warnings).toContain("No NBA games returned from Rolling Insights or ESPN for season 2026.")
+    expect(result.attemptedProviders).toEqual(["rolling_insights_schedule_season", "rolling_insights", "espn_live"])
+    expect(result.warnings).toContain("No NBA games returned from Rolling Insights schedule-season or Rolling Insights or ESPN for season 2026.")
   })
 
   it("can force ESPN-only provider attempts for smoke testing", async () => {
@@ -307,4 +312,154 @@ describe("syncPlayoffChallengeSeries", () => {
     expect(result.attemptedProviders).toEqual(["espn_live"])
     expect(result.warnings).toContain("No NBA games returned from ESPN for season 2026.")
   })
+
+  it("normalizes NBA schedule-season postseason rows and updates template teams", async () => {
+    const liveScores = await import("@/lib/sports-live-scores-service")
+    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeason").mockResolvedValue([
+      scheduleRow("NBA", "Postseason", "First Round", 1, "Boston Celtics", "Miami Heat", "scheduled", "2026-04-20T00:00:00.000Z"),
+      scheduleRow("NBA", "Regular Season", "Regular Season", 0, "Lakers", "Warriors", "final", "2026-01-01T00:00:00.000Z"),
+    ] as any)
+    challengeFindUniqueMock.mockResolvedValue({
+      ...baseChallenge,
+      series: [{ ...baseChallenge.series[0], homeTeamName: "E1", awayTeamName: "E8" }],
+    })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({ challengeId: "challenge-1" })
+
+    expect(result.source).toBe("rolling_insights_schedule_season")
+    expect(result.postseasonGames).toBe(1)
+    expect(result.seriesReturned).toBe(1)
+    expect(result.seriesMatched).toBe(1)
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-1" },
+      data: expect.objectContaining({
+        homeTeamName: "Boston Celtics",
+        awayTeamName: "Miami Heat",
+        status: "scheduled",
+        winnerTeamName: null,
+      }),
+    })
+  })
+
+  it("normalizes NHL schedule-season postseason rows and maps Stanley Cup Final to round 4", async () => {
+    const liveScores = await import("@/lib/sports-live-scores-service")
+    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeason").mockResolvedValue([
+      scheduleRow("NHL", "Postseason", "Stanley Cup Final", 4, "Panthers", "Oilers", "completed", "2026-06-01T00:00:00.000Z", 4, 1),
+    ] as any)
+    challengeFindUniqueMock.mockResolvedValue({
+      ...baseChallenge,
+      sport: "nhl",
+      series: [{ ...baseChallenge.series[0], roundIndex: 4, homeTeamName: "Winner East", awayTeamName: "Winner West" }],
+    })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({ challengeId: "challenge-1" })
+
+    expect(result.sport).toBe("nhl")
+    expect(result.postseasonGames).toBe(1)
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-1" },
+      data: expect.objectContaining({
+        homeTeamName: "Panthers",
+        awayTeamName: "Oilers",
+      }),
+    })
+  })
+
+  it("sets a schedule-season series winner when one team reaches four completed wins", async () => {
+    const liveScores = await import("@/lib/sports-live-scores-service")
+    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeason").mockResolvedValue([
+      scheduleRow("NBA", "Postseason", "First Round", 1, "Boston Celtics", "Miami Heat", "completed", "2026-04-20T00:00:00.000Z", 100, 90),
+      scheduleRow("NBA", "Postseason", "First Round", 1, "Miami Heat", "Boston Celtics", "completed", "2026-04-22T00:00:00.000Z", 90, 110),
+      scheduleRow("NBA", "Postseason", "First Round", 1, "Boston Celtics", "Miami Heat", "completed", "2026-04-24T00:00:00.000Z", 101, 99),
+      scheduleRow("NBA", "Postseason", "First Round", 1, "Miami Heat", "Boston Celtics", "completed", "2026-04-26T00:00:00.000Z", 91, 99),
+    ] as any)
+    challengeFindUniqueMock.mockResolvedValue({
+      ...baseChallenge,
+      series: [{ ...baseChallenge.series[0], homeTeamName: "E1", awayTeamName: "E8" }],
+    })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({ challengeId: "challenge-1" })
+
+    expect(result.winnersUpdated).toBe(1)
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-1" },
+      data: expect.objectContaining({
+        status: "final",
+        winnerTeamName: "Boston Celtics",
+      }),
+    })
+  })
+
+  it("falls back to live and ESPN providers when schedule-season is empty", async () => {
+    const liveScores = await import("@/lib/sports-live-scores-service")
+    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeason").mockResolvedValue([])
+    vi.spyOn(liveScores, "fetchRollingInsightsScoreboard").mockResolvedValue([])
+    vi.spyOn(liveScores, "fetchEspnScoreboard").mockResolvedValue([
+      {
+        gameId: "espn-1",
+        homeTeam: "BOS",
+        homeTeamFull: "Celtics",
+        homeLogo: "",
+        homeScore: 100,
+        homeRecord: null,
+        awayTeam: "MIA",
+        awayTeamFull: "Heat",
+        awayLogo: "",
+        awayScore: 90,
+        awayRecord: null,
+        status: "STATUS_FINAL",
+        statusDetail: "Final",
+        period: 4,
+        clock: "",
+        completed: true,
+        startTime: "2026-05-01T00:00:00.000Z",
+        venue: null,
+        broadcast: null,
+        odds: null,
+        overUnder: null,
+        week: null,
+        season: 2026,
+      },
+    ])
+
+    const { fetchLivePlayoffSeriesGames } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await fetchLivePlayoffSeriesGames({ sport: "nba", seasonYear: 2026 })
+
+    expect(result.source).toBe("espn_live")
+    expect(result.attemptedProviders).toEqual(["rolling_insights_schedule_season", "rolling_insights", "espn_live"])
+  })
 })
+
+function scheduleRow(
+  sport: "NBA" | "NHL",
+  seasonType: string,
+  eventName: string,
+  round: number,
+  homeTeam: string,
+  awayTeam: string,
+  status: string,
+  gameTime: string,
+  homeScore?: number,
+  awayScore?: number,
+) {
+  return {
+    sport,
+    gameId: `${homeTeam}-${awayTeam}-${gameTime}`,
+    season: 2026,
+    seasonType,
+    eventName,
+    round,
+    homeTeam,
+    awayTeam,
+    homeTeamId: `${homeTeam}-id`,
+    awayTeamId: `${awayTeam}-id`,
+    homeScore: homeScore ?? null,
+    awayScore: awayScore ?? null,
+    startsAt: gameTime,
+    status,
+    completed: status === "final" || status === "completed",
+  }
+}
