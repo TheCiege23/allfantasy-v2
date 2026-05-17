@@ -396,6 +396,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
+        token.username = (user as { username?: string | null }).username ?? null;
         token.picture = user.image;
       }
 
@@ -406,6 +407,8 @@ export const authOptions: NextAuthOptions = {
         session.user.email = typeof token.email === "string" ? token.email : session.user.email;
         session.user.name =
           typeof token.name === "string" ? token.name : session.user.name;
+        session.user.username =
+          typeof token.username === "string" ? token.username : null;
         session.user.image =
           typeof token.picture === "string" ? token.picture : session.user.image;
 

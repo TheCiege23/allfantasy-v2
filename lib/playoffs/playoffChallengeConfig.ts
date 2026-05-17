@@ -1,7 +1,8 @@
 import type { PlayoffChallengeConfig } from "./types"
+import { isAfCommissioner } from "@/lib/auth/admin"
 
-export function isAfCommissionerSubscriber(_user?: { id?: string | null } | null): boolean {
-  return false
+export function isAfCommissionerSubscriber(user?: { id?: string | null; email?: string | null; username?: string | null; name?: string | null } | null): boolean {
+  return isAfCommissioner(user)
 }
 
 export function defaultPlayoffChallengeConfig(input: {

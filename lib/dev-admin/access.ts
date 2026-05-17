@@ -1,5 +1,6 @@
 import type { EntitlementStatus, SubscriptionPlanId } from "@/lib/subscription/types"
 import { isAdminEmailAllowed } from "@/lib/adminAuth"
+import { isAllFantasyTestEmail } from "@/lib/auth/admin"
 import { getTokenSpendRuleMatrixEntry, type TokenPricingTier } from "@/lib/tokens/pricing-matrix"
 
 const DEV_ADMIN_PLANS: readonly SubscriptionPlanId[] = ["all_access"]
@@ -63,11 +64,6 @@ type DevAdminTokenLedgerEntryView = {
 const STATIC_ADMIN_USER_IDS = new Set<string>([
   '944bb9f1-7a25-455b-8ef2-66146dbf3553', // theciege24 — app owner (supabase)
   '3a7ffd10-b1a5-4a40-8d07-232364596735', // TheCiege24 — current app owner account
-])
-
-/** App owner emails — always bypass subscriptions and token charges regardless of user ID. */
-const STATIC_ADMIN_EMAILS = new Set<string>([
-  'cjabar.henson@gmail.com', // theciege24 — app owner
 ])
 
 function parseDevAdminUserIds(rawValue: string | undefined): Set<string> {
@@ -142,8 +138,8 @@ export function isSubscriptionEntitlementBypassUserId(
   userId: string | null | undefined,
   email?: string | null
 ): boolean {
-  // Static super-admin emails always bypass
-  if (email && STATIC_ADMIN_EMAILS.has(email.trim().toLowerCase())) return true
+  // Static + configured all-access emails always bypass
+  if (isAllFantasyTestEmail(email)) return true
   const normalizedUserId = String(userId ?? "").trim()
   if (normalizedUserId) {
     if (parseDevAdminUserIds(process.env.AI_ENTITLEMENT_BYPASS_USER_IDS).has(normalizedUserId)) {

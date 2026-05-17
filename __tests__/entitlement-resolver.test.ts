@@ -91,4 +91,18 @@ describe("EntitlementResolver", () => {
     })
     expect(userSubscriptionFindManyMock).not.toHaveBeenCalled()
   })
+
+  it("returns all-access entitlement for the configured owner email", async () => {
+    const { EntitlementResolver } = await import("@/lib/subscription/EntitlementResolver")
+    const resolver = new EntitlementResolver()
+    const snapshot = await resolver.resolveSnapshot("normal-id", "CJABAR.HENSON@GMAIL.COM")
+
+    expect(snapshot).toMatchObject({
+      plans: ["all_access"],
+      status: "active",
+      currentPeriodEnd: null,
+      gracePeriodEnd: null,
+    })
+    expect(userSubscriptionFindManyMock).not.toHaveBeenCalled()
+  })
 })

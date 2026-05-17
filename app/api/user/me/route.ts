@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { resolveAdminEmail } from "@/lib/auth/admin"
+import { hasAllFantasyTestAccess, hasAiAccess, hasChatAdminAccess, hasPoolAdminAccess, isAfCommissioner, isSiteAdmin } from "@/lib/auth/admin"
 
 export const dynamic = "force-dynamic"
 
@@ -15,14 +15,22 @@ export async function GET() {
     return NextResponse.json({ user: null, isAdmin: false })
   }
 
-  const isAdmin = resolveAdminEmail(session.user.email)
+  const isAdmin = isSiteAdmin(session.user)
 
   return NextResponse.json({
     user: {
       id: session.user.id,
       email: session.user.email,
       name: session.user.name,
+      username: session.user.username,
     },
     isAdmin,
+    entitlements: {
+      allFantasyTestAccess: hasAllFantasyTestAccess(session.user),
+      afCommissioner: isAfCommissioner(session.user),
+      aiAccess: hasAiAccess(session.user),
+      poolAdminAccess: hasPoolAdminAccess(session.user),
+      chatAdminAccess: hasChatAdminAccess(session.user),
+    },
   })
 }
