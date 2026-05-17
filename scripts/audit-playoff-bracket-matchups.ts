@@ -45,6 +45,19 @@ type SlotAssignment = {
   eventName: string | null
   confidence: "high" | "medium" | "low"
   warning?: string
+  sourceCompatibility?: string
+}
+
+const NBA_2025_REFERENCE_WEST_ROUND1: Record<number, [string, string]> = {
+  5: ["Oklahoma City Thunder", "Phoenix Suns"],
+  6: ["Los Angeles Lakers", "Houston Rockets"],
+  7: ["Denver Nuggets", "Minnesota Timberwolves"],
+  8: ["San Antonio Spurs", "Portland Trail Blazers"],
+}
+
+const NBA_2025_REFERENCE_WEST_ROUND2: Record<number, [string, string]> = {
+  11: ["Oklahoma City Thunder", "Los Angeles Lakers"],
+  12: ["Minnesota Timberwolves", "San Antonio Spurs"],
 }
 
 function argValue(name: string): string | null {
@@ -244,6 +257,58 @@ function assignSlots(groups: ProviderSeries[], sport: AuditSport): SlotAssignmen
   return assignments
 }
 
+function sameTeam(a: string, b: string): boolean {
+  return normalizeName(a) === normalizeName(b)
+}
+
+function pairMatches(homeTeam: string, awayTeam: string, expected: [string, string]): boolean {
+  const pair = [homeTeam, awayTeam]
+  return expected.every((team) => pair.some((candidate) => sameTeam(candidate, team)))
+}
+
+function applyNba2025ReferenceAssignments(assignments: SlotAssignment[]): SlotAssignment[] {
+  return assignments.map((assignment) => {
+    const round1 = NBA_2025_REFERENCE_WEST_ROUND1[assignment.slot]
+    if (assignment.round === 1 && assignment.conference === "west" && round1) {
+      return {
+        ...assignment,
+        homeTeam: round1[0],
+        awayTeam: round1[1],
+        sourceCompatibility: "reference_round1",
+      }
+    }
+    const round2 = NBA_2025_REFERENCE_WEST_ROUND2[assignment.slot]
+    if (assignment.round === 2 && assignment.conference === "west" && round2) {
+      return {
+        ...assignment,
+        homeTeam: round2[0],
+        awayTeam: round2[1],
+        sourceCompatibility: "reference_source_slots",
+      }
+    }
+    return assignment
+  })
+}
+
+function validateNba2025Reference(assignments: SlotAssignment[]): string[] {
+  const failures: string[] = []
+  for (const [slot, expected] of Object.entries(NBA_2025_REFERENCE_WEST_ROUND2)) {
+    const assignment = assignments.find((item) => item.slot === Number(slot))
+    if (!assignment || !pairMatches(assignment.homeTeam, assignment.awayTeam, expected)) {
+      failures.push(`S${slot} expected ${expected[0]} vs ${expected[1]} but saw ${assignment ? `${assignment.homeTeam} vs ${assignment.awayTeam}` : "unassigned"}.`)
+    }
+  }
+  const s11 = assignments.find((item) => item.slot === 11)
+  const s12 = assignments.find((item) => item.slot === 12)
+  if (s11 && pairMatches(s11.homeTeam, s11.awayTeam, ["Minnesota Timberwolves", "Los Angeles Lakers"])) {
+    failures.push("S11 incorrectly split provider pairs as Minnesota Timberwolves vs Los Angeles Lakers.")
+  }
+  if (s12 && pairMatches(s12.homeTeam, s12.awayTeam, ["San Antonio Spurs", "Oklahoma City Thunder"])) {
+    failures.push("S12 incorrectly split provider pairs as San Antonio Spurs vs Oklahoma City Thunder.")
+  }
+  return failures
+}
+
 function printSeries(title: string, groups: ProviderSeries[]) {
   console.log(`\n${title}`)
   if (groups.length === 0) {
@@ -269,26 +334,40 @@ async function main() {
   const result = await fetchRollingInsightsScheduleSeason(sport.toUpperCase() as "NBA" | "NHL", season)
   const postseasonRows = result.rows.filter((row) => String(row.seasonType ?? "").toLowerCase() === "postseason" || roundIndexFromRow(row, sport))
   const groups = groupProviderSeries(postseasonRows, sport)
-  const assignments = assignSlots(groups, sport)
+  const providerAssignments = assignSlots(groups, sport)
+  const useNba2025Reference = sport === "nba" && season === 2025
+  const assignments = useNba2025Reference ? applyNba2025ReferenceAssignments(providerAssignments) : providerAssignments
   const westRound2 = groups.filter((group) => group.roundIndex === 2 && group.conference === "west")
   const eastRound2 = groups.filter((group) => group.roundIndex === 2 && group.conference === "east")
   const westAssignments = assignments.filter((item) => item.round === 2 && item.conference === "west")
-  const hasThunderTimberwolves = westAssignments.some((item) => {
-    const pair = [normalizeName(item.homeTeam), normalizeName(item.awayTeam)]
-    return pair.includes("oklahoma city thunder") && pair.includes("minnesota timberwolves")
-  })
+  const hasThunderLakers = westAssignments.some((item) => pairMatches(item.homeTeam, item.awayTeam, ["Oklahoma City Thunder", "Los Angeles Lakers"]))
+  const hasTimberwolvesSpurs = westAssignments.some((item) => pairMatches(item.homeTeam, item.awayTeam, ["Minnesota Timberwolves", "San Antonio Spurs"]))
+  const referenceFailures = useNba2025Reference ? validateNba2025Reference(assignments) : []
   const warnings = assignments.filter((item) => item.warning)
 
   console.log(`Playoff bracket matchup audit: ${sport.toUpperCase()} providerSeason=${season}`)
   console.log(`Rows returned=${result.rows.length}; postseason/round rows=${postseasonRows.length}; groupedSeries=${groups.length}`)
   console.log(`Sanitized URL=${result.sanitizedUrl}`)
+  if (useNba2025Reference) {
+    console.log("Using NBA 2025 ESPN bracket reference for slot validation.")
+    console.log("\nReference West Round 1 source slots")
+    Object.entries(NBA_2025_REFERENCE_WEST_ROUND1).forEach(([slot, pair]) => {
+      console.log(`  S${slot}: ${pair[0]} vs ${pair[1]}`)
+    })
+  }
   printSeries("Provider East Round 2", eastRound2)
   printSeries("Provider West Round 2", westRound2)
   console.log("\nApp slot assignment preview")
   for (const item of assignments) {
-    console.log(`  S${item.slot} R${item.round} ${item.conference}: ${item.homeTeam} vs ${item.awayTeam} confidence=${item.confidence}${item.warning ? ` warning=${item.warning}` : ""}`)
+    console.log(`  S${item.slot} R${item.round} ${item.conference}: ${item.homeTeam} vs ${item.awayTeam} confidence=${item.confidence}${item.sourceCompatibility ? ` sourceCompatibility=${item.sourceCompatibility}` : ""}${item.warning ? ` warning=${item.warning}` : ""}`)
   }
-  console.log(`\nThunder vs Timberwolves assigned to West Round 2 slot: ${hasThunderTimberwolves ? "YES" : "NO"}`)
+  console.log(`\nThunder vs Lakers assigned to West Round 2 slot: ${hasThunderLakers ? "YES" : "NO"}`)
+  console.log(`Timberwolves vs Spurs assigned to West Round 2 slot: ${hasTimberwolvesSpurs ? "YES" : "NO"}`)
+  if (referenceFailures.length > 0) {
+    console.log("\nReference validation failures")
+    referenceFailures.forEach((failure) => console.log(`  ${failure}`))
+    process.exitCode = 1
+  }
   if (warnings.length > 0) {
     console.log("\nWarnings")
     warnings.forEach((warning) => console.log(`  S${warning.slot}: ${warning.warning}`))

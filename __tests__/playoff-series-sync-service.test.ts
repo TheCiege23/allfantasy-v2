@@ -1079,21 +1079,25 @@ describe("syncPlayoffChallengeSeries", () => {
     ]))
   })
 
-  it("maps known NBA West Semifinals into the correct S11-S12 official slots", async () => {
+  it("maps NBA 2025 official West Semifinals by source-slot compatibility", async () => {
     const liveScores = await import("@/lib/sports-live-scores-service")
     vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NBA", 2026, [
-      scheduleRow("NBA", "Postseason", "West Semifinals", null as any, "Thunder", "Timberwolves", "scheduled", "2026-05-18"),
-      scheduleRow("NBA", "Postseason", "West Semifinals", null as any, "Spurs", "Thunder", "scheduled", "2026-05-18"),
+      scheduleRow("NBA", "Postseason", "West 1st Round:", null as any, "Oklahoma City Thunder", "Phoenix Suns", "scheduled", "2026-04-20"),
+      scheduleRow("NBA", "Postseason", "West 1st Round:", null as any, "Los Angeles Lakers", "Houston Rockets", "scheduled", "2026-04-20"),
+      scheduleRow("NBA", "Postseason", "West 1st Round:", null as any, "Denver Nuggets", "Minnesota Timberwolves", "scheduled", "2026-04-20"),
+      scheduleRow("NBA", "Postseason", "West 1st Round:", null as any, "San Antonio Spurs", "Portland Trail Blazers", "scheduled", "2026-04-20"),
+      scheduleRow("NBA", "Postseason", "West Semifinals", null as any, "Minnesota Timberwolves", "San Antonio Spurs", "scheduled", "2026-05-18"),
+      scheduleRow("NBA", "Postseason", "West Semifinals", null as any, "Oklahoma City Thunder", "Los Angeles Lakers", "scheduled", "2026-05-18"),
     ] as any))
     challengeFindUniqueMock.mockResolvedValue({
       ...baseChallenge,
       series: [
         playoffSeriesSlot("s9", 2, 9, "east", "Winner S1", "Winner S2", 1, 2),
         playoffSeriesSlot("s10", 2, 10, "east", "Winner S3", "Winner S4", 3, 4),
-        { ...firstRoundSeries("s5", 5, "west", "Thunder", "Warriors"), winnerTeamName: "Thunder" },
-        { ...firstRoundSeries("s6", 6, "west", "Timberwolves", "Lakers"), winnerTeamName: "Timberwolves" },
-        { ...firstRoundSeries("s7", 7, "west", "Spurs", "Mavericks"), winnerTeamName: "Spurs" },
-        { ...firstRoundSeries("s8", 8, "west", "Nuggets", "Pelicans"), winnerTeamName: "Nuggets" },
+        firstRoundSeries("s5", 5, "west", "Oklahoma City Thunder", "Phoenix Suns"),
+        firstRoundSeries("s6", 6, "west", "Los Angeles Lakers", "Houston Rockets"),
+        firstRoundSeries("s7", 7, "west", "Denver Nuggets", "Minnesota Timberwolves"),
+        firstRoundSeries("s8", 8, "west", "San Antonio Spurs", "Portland Trail Blazers"),
         playoffSeriesSlot("s11", 2, 11, "west", "Winner S5", "Winner S6", 5, 6),
         playoffSeriesSlot("s12", 2, 12, "west", "Winner S7", "Winner S8", 7, 8),
       ],
@@ -1109,8 +1113,8 @@ describe("syncPlayoffChallengeSeries", () => {
     expect(seriesUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: "s11" },
       data: expect.objectContaining({
-        homeTeamName: "Thunder",
-        awayTeamName: "Timberwolves",
+        homeTeamName: "Oklahoma City Thunder",
+        awayTeamName: "Los Angeles Lakers",
         sourceSeriesHome: 5,
         sourceSeriesAway: 6,
       }),
@@ -1118,31 +1122,41 @@ describe("syncPlayoffChallengeSeries", () => {
     expect(seriesUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: "s12" },
       data: expect.objectContaining({
-        homeTeamName: "Spurs",
-        awayTeamName: "Thunder",
+        homeTeamName: "Minnesota Timberwolves",
+        awayTeamName: "San Antonio Spurs",
+        sourceSeriesHome: 7,
+        sourceSeriesAway: 8,
       }),
     }))
     expect(result.diagnostics.providerAssignments).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        homeTeam: "Thunder",
-        awayTeam: "Timberwolves",
+        homeTeam: "Oklahoma City Thunder",
+        awayTeam: "Los Angeles Lakers",
         assignedSeriesNumber: 11,
-        assignmentReason: "provider_round_order",
+        assignmentReason: "source_slot_compatibility",
         confidence: "high",
       }),
       expect.objectContaining({
-        homeTeam: "Spurs",
-        awayTeam: "Thunder",
+        homeTeam: "Minnesota Timberwolves",
+        awayTeam: "San Antonio Spurs",
         assignedSeriesNumber: 12,
+        assignmentReason: "source_slot_compatibility",
       }),
     ]))
     expect(result.diagnostics.providerRound2WestSeries).toEqual(expect.arrayContaining([
-      expect.objectContaining({ homeTeam: "Thunder", awayTeam: "Timberwolves" }),
+      expect.objectContaining({ homeTeam: "Oklahoma City Thunder", awayTeam: "Los Angeles Lakers" }),
+      expect.objectContaining({ homeTeam: "Minnesota Timberwolves", awayTeam: "San Antonio Spurs" }),
     ]))
     expect(result.diagnostics.officialSeriesSlotAssignments).toEqual(expect.arrayContaining([
-      expect.objectContaining({ assignedSeriesNumber: 11, homeTeam: "Thunder", awayTeam: "Timberwolves" }),
-      expect.objectContaining({ assignedSeriesNumber: 12, homeTeam: "Spurs", awayTeam: "Thunder" }),
+      expect.objectContaining({ assignedSeriesNumber: 11, homeTeam: "Oklahoma City Thunder", awayTeam: "Los Angeles Lakers" }),
+      expect.objectContaining({ assignedSeriesNumber: 12, homeTeam: "Minnesota Timberwolves", awayTeam: "San Antonio Spurs" }),
     ]))
+    expect(seriesUpdateMock).not.toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ homeTeamName: "Minnesota Timberwolves", awayTeamName: "Los Angeles Lakers" }),
+    }))
+    expect(seriesUpdateMock).not.toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ homeTeamName: "San Antonio Spurs", awayTeamName: "Oklahoma City Thunder" }),
+    }))
   })
 
   it("maps NHL event names to bracket rounds", async () => {

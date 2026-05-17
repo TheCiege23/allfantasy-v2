@@ -803,6 +803,18 @@ function seriesContainsTeam(series: any, teamName: string): boolean {
     sameTeam(series.winnerTeamName, teamName)
 }
 
+function effectiveSeriesForSourceLookup(seriesList: any[], replacementMap: Map<string, ProviderSeriesGroup>): any[] {
+  return seriesList.map((series) => {
+    const replacement = replacementMap.get(series.id)
+    if (!replacement) return series
+    return {
+      ...series,
+      homeTeamName: replacement.homeTeamName,
+      awayTeamName: replacement.awayTeamName,
+    }
+  })
+}
+
 function sourceSeriesForProviderTeam(seriesList: any[], teamName: string, conference: string): any | null {
   const candidates = seriesList
     .filter((series) => Number(series.roundIndex) === 1)
@@ -810,6 +822,23 @@ function sourceSeriesForProviderTeam(seriesList: any[], teamName: string, confer
     .filter((series) => seriesContainsTeam(series, teamName))
     .sort((a, b) => Number(a.seriesNumber ?? 0) - Number(b.seriesNumber ?? 0))
   return candidates[0] ?? null
+}
+
+function groupMatchesSourceSlots(
+  series: any,
+  group: ProviderSeriesGroup,
+  sourceSeriesByNumber: Map<number, any>
+): boolean {
+  const sourceHome = sourceSeriesByNumber.get(Number(series.sourceSeriesHome))
+  const sourceAway = sourceSeriesByNumber.get(Number(series.sourceSeriesAway))
+  if (!sourceHome || !sourceAway) return false
+  const groupTeams = [group.homeTeamName, group.awayTeamName]
+  const homeMatches = groupTeams.some((teamName) => seriesContainsTeam(sourceHome, teamName))
+  const awayMatches = groupTeams.some((teamName) => seriesContainsTeam(sourceAway, teamName))
+  const bothTeamsCovered = groupTeams.every((teamName) =>
+    seriesContainsTeam(sourceHome, teamName) || seriesContainsTeam(sourceAway, teamName)
+  )
+  return homeMatches && awayMatches && bothTeamsCovered
 }
 
 function mapTemplateReplacementGroups(seriesList: any[], groups: ProviderSeriesGroup[]): {
@@ -882,14 +911,37 @@ function assignReplacementGroupsByConference(
       })
     }
     if (Number(seriesForConference[0]?.roundIndex ?? groupsForConference[0]?.roundIndex ?? 0) === 2) {
+      const sourceLookupSeries = effectiveSeriesForSourceLookup(allSeries, map)
+      const sourceSeriesByNumber = new Map(sourceLookupSeries.map((series) => [Number(series.seriesNumber), series]))
       for (const series of seriesForConference) {
-        const group = remainingGroups.shift()
+        const compatibleIndex = remainingGroups.findIndex((group) => groupMatchesSourceSlots(series, group, sourceSeriesByNumber))
+        const group = compatibleIndex >= 0 ? remainingGroups.splice(compatibleIndex, 1)[0] : remainingGroups.shift()
         if (!group) continue
+        const matchedBySourceSlots = compatibleIndex >= 0
         map.set(series.id, group)
-        assignments.push(assignmentDiagnostic(group, series, "provider_round_order", group.conference ? "high" : "medium"))
-        expectedVsActual.push(assignmentDiagnostic(group, series, "provider_round_order", group.conference ? "high" : "medium"))
-        const sourceHome = sourceSeriesForProviderTeam(allSeries, group.homeTeamName, conference)
-        const sourceAway = sourceSeriesForProviderTeam(allSeries, group.awayTeamName, conference)
+        assignments.push(assignmentDiagnostic(
+          group,
+          series,
+          matchedBySourceSlots ? "source_slot_compatibility" : "provider_round_order",
+          matchedBySourceSlots ? "high" : group.conference ? "medium" : "low"
+        ))
+        expectedVsActual.push(assignmentDiagnostic(
+          group,
+          series,
+          matchedBySourceSlots ? "source_slot_compatibility" : "provider_round_order",
+          matchedBySourceSlots ? "high" : group.conference ? "medium" : "low"
+        ))
+        if (!matchedBySourceSlots) {
+          warnings.push({
+            round: 2,
+            conference,
+            slot: Number(series.seriesNumber ?? null),
+            providerSeries: `${group.homeTeamName} vs ${group.awayTeamName}`,
+            message: "Round 2 provider pair did not match this slot's Round 1 sources; assigned by provider order fallback.",
+          })
+        }
+        const sourceHome = sourceSeriesForProviderTeam(sourceLookupSeries, group.homeTeamName, conference)
+        const sourceAway = sourceSeriesForProviderTeam(sourceLookupSeries, group.awayTeamName, conference)
         if (sourceHome && sourceAway && sourceHome.id !== sourceAway.id) {
           sourceUpdates.set(series.id, {
             sourceSeriesHome: Number(sourceHome.seriesNumber),

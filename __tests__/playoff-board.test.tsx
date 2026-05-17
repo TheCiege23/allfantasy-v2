@@ -636,8 +636,8 @@ describe("playoff bracket projection", () => {
         id: "s6",
         seriesNumber: 6,
         conference: "west",
-        homeTeamName: "Minnesota Timberwolves",
-        awayTeamName: "Los Angeles Lakers",
+        homeTeamName: "Los Angeles Lakers",
+        awayTeamName: "Houston Rockets",
         nextSeriesNumber: 11,
         nextSeriesSlot: "away",
       },
@@ -656,8 +656,8 @@ describe("playoff bracket projection", () => {
         id: "s8",
         seriesNumber: 8,
         conference: "west",
-        homeTeamName: "Golden State Warriors",
-        awayTeamName: "Houston Rockets",
+        homeTeamName: "San Antonio Spurs",
+        awayTeamName: "Portland Trail Blazers",
         nextSeriesNumber: 12,
         nextSeriesSlot: "away",
       },
@@ -684,20 +684,24 @@ describe("playoff bracket projection", () => {
     ]
     const projected = buildProjectedPlayoffSeries(westSeries, [
       { id: "p5", entryId: "entry-1", seriesId: "s5", pickTeamName: "Oklahoma City Thunder", createdAt: "", updatedAt: "" },
-      { id: "p6", entryId: "entry-1", seriesId: "s6", pickTeamName: "Minnesota Timberwolves", createdAt: "", updatedAt: "" },
-      { id: "p7", entryId: "entry-1", seriesId: "s7", pickTeamName: "Denver Nuggets", createdAt: "", updatedAt: "" },
-      { id: "p8", entryId: "entry-1", seriesId: "s8", pickTeamName: "Golden State Warriors", createdAt: "", updatedAt: "" },
+      { id: "p6", entryId: "entry-1", seriesId: "s6", pickTeamName: "Los Angeles Lakers", createdAt: "", updatedAt: "" },
+      { id: "p7", entryId: "entry-1", seriesId: "s7", pickTeamName: "Minnesota Timberwolves", createdAt: "", updatedAt: "" },
+      { id: "p8", entryId: "entry-1", seriesId: "s8", pickTeamName: "San Antonio Spurs", createdAt: "", updatedAt: "" },
     ])
 
     expect(projected.find((item) => item.id === "s11")).toMatchObject({
       homeTeamName: "Oklahoma City Thunder",
-      awayTeamName: "Minnesota Timberwolves",
+      awayTeamName: "Los Angeles Lakers",
     })
     expect(projected.find((item) => item.id === "s12")).toMatchObject({
-      homeTeamName: "Denver Nuggets",
-      awayTeamName: "Golden State Warriors",
+      homeTeamName: "Minnesota Timberwolves",
+      awayTeamName: "San Antonio Spurs",
     })
     expect(projected.find((item) => item.id === "s11")).not.toMatchObject({
+      homeTeamName: "Minnesota Timberwolves",
+      awayTeamName: "Los Angeles Lakers",
+    })
+    expect(projected.find((item) => item.id === "s12")).not.toMatchObject({
       homeTeamName: "San Antonio Spurs",
       awayTeamName: "Oklahoma City Thunder",
     })
