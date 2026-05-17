@@ -747,4 +747,128 @@ describe("playoff entry service", () => {
 
     expect(pickUpsertMock).not.toHaveBeenCalled()
   })
+
+  it("allows projected later-round pick from saved user pick when official winner differs", async () => {
+    entryFindUniqueMock.mockResolvedValue({ id: "entry-1", userId: "user-1", challengeId: "challenge-1" })
+    seriesFindUniqueMock.mockResolvedValue({
+      id: "s9",
+      challengeId: "challenge-1",
+      status: "scheduled",
+      startsAt: null,
+      homeTeamName: "Winner S1",
+      awayTeamName: "Winner S2",
+      challenge: { config: { lockRule: "none" }, ownerUserId: "user-1", isTestMode: true },
+    })
+    seriesFindManyMock.mockResolvedValue([
+      {
+        id: "s1",
+        challengeId: "challenge-1",
+        roundIndex: 1,
+        seriesNumber: 1,
+        homeTeamName: "Boston Celtics",
+        awayTeamName: "Philadelphia 76ers",
+        winnerTeamName: "Philadelphia 76ers",
+        sourceSeriesHome: null,
+        sourceSeriesAway: null,
+      },
+      {
+        id: "s2",
+        challengeId: "challenge-1",
+        roundIndex: 1,
+        seriesNumber: 2,
+        homeTeamName: "Knicks",
+        awayTeamName: "Pacers",
+        winnerTeamName: "Knicks",
+        sourceSeriesHome: null,
+        sourceSeriesAway: null,
+      },
+      {
+        id: "s9",
+        challengeId: "challenge-1",
+        roundIndex: 2,
+        seriesNumber: 9,
+        homeTeamName: "Winner S1",
+        awayTeamName: "Winner S2",
+        sourceSeriesHome: 1,
+        sourceSeriesAway: 2,
+      },
+    ])
+    pickFindManyMock.mockResolvedValue([
+      { id: "p1", seriesId: "s1", pickTeamName: "Boston Celtics" },
+      { id: "p2", seriesId: "s2", pickTeamName: "Pacers" },
+    ])
+    pickUpsertMock.mockResolvedValue({ id: "p9", seriesId: "s9", pickTeamName: "Boston Celtics" })
+
+    const { savePlayoffBracketPick } = await import("@/lib/playoffs/playoffService")
+    await savePlayoffBracketPick({
+      challengeId: "challenge-1",
+      entryId: "entry-1",
+      userId: "user-1",
+      seriesId: "s9",
+      pickTeamName: "Boston Celtics",
+    })
+
+    expect(pickUpsertMock).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ seriesId: "s9", pickTeamName: "Boston Celtics" }),
+    }))
+  })
+
+  it("rejects official winner as later-round pick when no saved source pick exists", async () => {
+    entryFindUniqueMock.mockResolvedValue({ id: "entry-1", userId: "user-1", challengeId: "challenge-1" })
+    seriesFindUniqueMock.mockResolvedValue({
+      id: "s9",
+      challengeId: "challenge-1",
+      status: "scheduled",
+      startsAt: null,
+      homeTeamName: "Winner S1",
+      awayTeamName: "Winner S2",
+      challenge: { config: { lockRule: "none" }, ownerUserId: "user-1", isTestMode: true },
+    })
+    seriesFindManyMock.mockResolvedValue([
+      {
+        id: "s1",
+        challengeId: "challenge-1",
+        roundIndex: 1,
+        seriesNumber: 1,
+        homeTeamName: "Boston Celtics",
+        awayTeamName: "Philadelphia 76ers",
+        winnerTeamName: "Philadelphia 76ers",
+        sourceSeriesHome: null,
+        sourceSeriesAway: null,
+      },
+      {
+        id: "s2",
+        challengeId: "challenge-1",
+        roundIndex: 1,
+        seriesNumber: 2,
+        homeTeamName: "Knicks",
+        awayTeamName: "Pacers",
+        winnerTeamName: "Knicks",
+        sourceSeriesHome: null,
+        sourceSeriesAway: null,
+      },
+      {
+        id: "s9",
+        challengeId: "challenge-1",
+        roundIndex: 2,
+        seriesNumber: 9,
+        homeTeamName: "Winner S1",
+        awayTeamName: "Winner S2",
+        sourceSeriesHome: 1,
+        sourceSeriesAway: 2,
+      },
+    ])
+    pickFindManyMock.mockResolvedValue([{ id: "p2", seriesId: "s2", pickTeamName: "Pacers" }])
+
+    const { savePlayoffBracketPick } = await import("@/lib/playoffs/playoffService")
+    await expect(savePlayoffBracketPick({
+      challengeId: "challenge-1",
+      entryId: "entry-1",
+      userId: "user-1",
+      seriesId: "s9",
+      pickTeamName: "Philadelphia 76ers",
+    })).rejects.toThrow("Pick earlier round winners first.")
+
+    expect(pickUpsertMock).not.toHaveBeenCalled()
+  })
 })

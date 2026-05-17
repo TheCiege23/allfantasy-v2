@@ -15,12 +15,15 @@ function resolveProjectedTeamName(
   picks: PlayoffPickView[],
   includeUserPicks: boolean,
 ): string {
-  if (isOfficialTeamName(fallbackName)) return fallbackName
   if (!sourceSeriesNumber) return fallbackName
   const source = bySeriesNumber.get(sourceSeriesNumber)
+  if (includeUserPicks) {
+    const savedPick = source ? pickForSeries(picks, source.id)?.pickTeamName?.trim() : null
+    return savedPick || `Winner S${sourceSeriesNumber}`
+  }
   if (!source) return fallbackName
-  const savedPick = includeUserPicks ? pickForSeries(picks, source.id)?.pickTeamName?.trim() : null
-  return savedPick || source.winnerTeamName?.trim() || fallbackName
+  if (isOfficialTeamName(fallbackName)) return fallbackName
+  return source.winnerTeamName?.trim() || fallbackName
 }
 
 export function isOfficialTeamName(value: string | null | undefined): boolean {

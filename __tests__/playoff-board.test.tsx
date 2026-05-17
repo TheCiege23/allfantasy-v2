@@ -378,6 +378,153 @@ describe("playoff bracket projection", () => {
     expect(projected.find((item) => item.id === "s9")?.homeTeamName).toBe("Heat")
   })
 
+  it("advances Boston Celtics in My Projection when official winner is Philadelphia 76ers", () => {
+    const projected = buildProjectedPlayoffSeries(
+      series.map((item) => item.id === "s1"
+        ? {
+            ...item,
+            homeTeamName: "Boston Celtics",
+            awayTeamName: "Philadelphia 76ers",
+            winnerTeamName: "Philadelphia 76ers",
+            seriesSummary: "Philadelphia 76ers win series 4-2",
+          }
+        : item),
+      [
+        {
+          id: "p1",
+          entryId: "entry-1",
+          seriesId: "s1",
+          pickTeamName: "Boston Celtics",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ],
+      { includeUserPicks: true }
+    )
+
+    expect(projected.find((item) => item.id === "s9")?.homeTeamName).toBe("Boston Celtics")
+    expect(projected.find((item) => item.id === "s9")?.homeTeamName).not.toBe("Philadelphia 76ers")
+  })
+
+  it("does not advance official winners in My Projection when no saved pick exists", () => {
+    const projected = buildProjectedPlayoffSeries(
+      series.map((item) => item.id === "s1"
+        ? {
+            ...item,
+            homeTeamName: "Boston Celtics",
+            awayTeamName: "Philadelphia 76ers",
+            winnerTeamName: "Philadelphia 76ers",
+          }
+        : item),
+      [],
+      { includeUserPicks: true }
+    )
+
+    expect(projected.find((item) => item.id === "s9")?.homeTeamName).toBe("Winner S1")
+  })
+
+  it("advances official winners only when user picks are excluded", () => {
+    const projected = buildProjectedPlayoffSeries(
+      series.map((item) => item.id === "s1"
+        ? {
+            ...item,
+            homeTeamName: "Boston Celtics",
+            awayTeamName: "Philadelphia 76ers",
+            winnerTeamName: "Philadelphia 76ers",
+          }
+        : item),
+      [
+        {
+          id: "p1",
+          entryId: "entry-1",
+          seriesId: "s1",
+          pickTeamName: "Boston Celtics",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ],
+      { includeUserPicks: false }
+    )
+
+    expect(projected.find((item) => item.id === "s9")?.homeTeamName).toBe("Philadelphia 76ers")
+  })
+
+  it("keeps saved Boston pick highlighted and wrong after Philadelphia result sync", () => {
+    render(
+      <PlayoffBracketBoard
+        rounds={[...rounds]}
+        series={series.map((item) => item.id === "s1"
+          ? {
+              ...item,
+              homeTeamName: "Boston Celtics",
+              awayTeamName: "Philadelphia 76ers",
+              winnerTeamName: "Philadelphia 76ers",
+              seriesSummary: "Philadelphia 76ers win series 4-2",
+            }
+          : item)}
+        picks={[{
+          id: "p1",
+          entryId: "entry-1",
+          seriesId: "s1",
+          pickTeamName: "Boston Celtics",
+          createdAt: "",
+          updatedAt: "",
+        }]}
+        showPickResults
+      />
+    )
+
+    expect(screen.getByRole("button", { name: "Boston Celtics" })).toHaveClass("border-amber-500")
+    expect(screen.getByRole("button", { name: "Philadelphia 76ers" })).not.toHaveClass("border-amber-500")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Your pick: Boston Celtics")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Wrong +0")
+    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Result: Philadelphia 76ers win series 4-2")
+  })
+
+  it("preserves saved pick name when projected team label differs", () => {
+    const projected = buildProjectedPlayoffSeries(
+      series.map((item) => item.id === "s1"
+        ? {
+            ...item,
+            homeTeamName: "Celtics",
+            awayTeamName: "76ers",
+            winnerTeamName: "76ers",
+          }
+        : item),
+      [{
+        id: "p1",
+        entryId: "entry-1",
+        seriesId: "s1",
+        pickTeamName: "Boston Celtics",
+        createdAt: "",
+        updatedAt: "",
+      }]
+    )
+
+    expect(projected.find((item) => item.id === "s9")?.homeTeamName).toBe("Boston Celtics")
+  })
+
+  it("uses NHL saved picks instead of official winners in My Projection", () => {
+    const nhlSeries = series.map((item) => item.id === "s1"
+      ? {
+          ...item,
+          homeTeamName: "New York Rangers",
+          awayTeamName: "New York Islanders",
+          winnerTeamName: "New York Islanders",
+        }
+      : item)
+    const projected = buildProjectedPlayoffSeries(nhlSeries, [{
+      id: "p1",
+      entryId: "entry-1",
+      seriesId: "s1",
+      pickTeamName: "New York Rangers",
+      createdAt: "",
+      updatedAt: "",
+    }])
+
+    expect(projected.find((item) => item.id === "s9")?.homeTeamName).toBe("New York Rangers")
+  })
+
   it("projects NBA Conference Finals and Finals from saved user picks", () => {
     const fullSeries: PlayoffSeriesView[] = [
       ...series,
@@ -491,18 +638,35 @@ describe("playoff bracket projection", () => {
     expect(projected.find((item) => item.id === "s9")?.homeTeamName).toBe("Celtics")
   })
 
-  it("keeps provider-synced later-round teams even without prior-round picks", () => {
+  it("keeps provider-synced later-round teams in official bracket mode", () => {
     const projected = buildProjectedPlayoffSeries(
       series.map((item) => item.id === "s9"
         ? { ...item, homeTeamName: "Celtics", awayTeamName: "Knicks" }
         : item
       ),
-      []
+      [],
+      { includeUserPicks: false }
     )
 
     expect(projected.find((item) => item.id === "s9")).toMatchObject({
       homeTeamName: "Celtics",
       awayTeamName: "Knicks",
+    })
+  })
+
+  it("does not keep provider-synced source-linked teams in My Projection without saved picks", () => {
+    const projected = buildProjectedPlayoffSeries(
+      series.map((item) => item.id === "s9"
+        ? { ...item, homeTeamName: "Celtics", awayTeamName: "Knicks" }
+        : item
+      ),
+      [],
+      { includeUserPicks: true }
+    )
+
+    expect(projected.find((item) => item.id === "s9")).toMatchObject({
+      homeTeamName: "Winner S1",
+      awayTeamName: "Winner S2",
     })
   })
 
