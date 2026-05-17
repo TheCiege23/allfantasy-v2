@@ -23,11 +23,13 @@ export const ESPN_SPORT_SITE_PATH: Record<LeagueSport, string | null> = {
 export interface LiveScoreRow {
   gameId: string
   homeTeam: string
+  homeTeamId?: string | null
   homeTeamFull: string
   homeLogo: string
   homeScore: number
   homeRecord: string | null
   awayTeam: string
+  awayTeamId?: string | null
   awayTeamFull: string
   awayLogo: string
   awayScore: number
@@ -119,11 +121,13 @@ export function mapChainScoreToLiveScore(raw: Record<string, unknown>, _sport: L
   return {
     gameId,
     homeTeam,
+    homeTeamId: typeof raw.homeTeamId === 'string' ? raw.homeTeamId : typeof raw.home_team_ID === 'string' ? raw.home_team_ID : null,
     homeTeamFull: String(raw.homeTeamFull ?? raw.homeName ?? homeRaw),
     homeLogo: String(raw.homeLogo ?? raw.home_logo ?? ''),
     homeScore: asFiniteInt(raw.homeScore ?? raw.home_score),
     homeRecord: typeof raw.homeRecord === 'string' ? raw.homeRecord : null,
     awayTeam,
+    awayTeamId: typeof raw.awayTeamId === 'string' ? raw.awayTeamId : typeof raw.away_team_ID === 'string' ? raw.away_team_ID : null,
     awayTeamFull: String(raw.awayTeamFull ?? raw.awayName ?? awayRaw),
     awayLogo: String(raw.awayLogo ?? raw.away_logo ?? ''),
     awayScore: asFiniteInt(raw.awayScore ?? raw.away_score),
@@ -174,29 +178,52 @@ interface ESPNEvent {
   competitions: ESPNCompetition[]
 }
 
-export async function fetchEspnScoreboard(sport: LeagueSport): Promise<LiveScoreRow[]> {
+function formatEspnDate(date: Date): string {
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
+  return `${year}${month}${day}`
+}
+
+function dedupeLiveScoreRows(rows: LiveScoreRow[]): LiveScoreRow[] {
+  const byId = new Map<string, LiveScoreRow>()
+  for (const row of rows) {
+    byId.set(row.gameId, row)
+  }
+  return Array.from(byId.values())
+}
+
+export async function fetchEspnScoreboard(
+  sport: LeagueSport,
+  options: { dates?: string[] } = {},
+): Promise<LiveScoreRow[]> {
   const path = ESPN_SPORT_SITE_PATH[sport]
   if (!path) return []
 
   try {
-    const url = `https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard`
-    const response = await fetch(url, { cache: 'no-store' })
-    if (!response.ok) return []
-    const data = (await response.json()) as { events?: ESPNEvent[] }
-    const events = data.events || []
-
-    return events.map((event) => {
+    const dates = options.dates?.length ? options.dates : [null]
+    const rows: LiveScoreRow[] = []
+    for (const date of dates) {
+      const url = new URL(`https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard`)
+      if (date) url.searchParams.set('dates', date)
+      const response = await fetch(url.toString(), { cache: 'no-store' })
+      if (!response.ok) continue
+      const data = (await response.json()) as { events?: ESPNEvent[] }
+      const events = data.events || []
+      rows.push(...events.map((event) => {
       const comp = event.competitions[0]
       const home = comp.competitors.find((c) => c.homeAway === 'home')!
       const away = comp.competitors.find((c) => c.homeAway === 'away')!
       return {
         gameId: event.id,
         homeTeam: normalizeTeamAbbrev(home.team.abbreviation) || home.team.abbreviation,
+        homeTeamId: home.team.id,
         homeTeamFull: home.team.displayName,
         homeLogo: home.team.logo,
         homeScore: parseInt(home.score, 10) || 0,
         homeRecord: home.records?.[0]?.summary ?? null,
         awayTeam: normalizeTeamAbbrev(away.team.abbreviation) || away.team.abbreviation,
+        awayTeamId: away.team.id,
         awayTeamFull: away.team.displayName,
         awayLogo: away.team.logo,
         awayScore: parseInt(away.score, 10) || 0,
@@ -214,11 +241,21 @@ export async function fetchEspnScoreboard(sport: LeagueSport): Promise<LiveScore
         week: event.week?.number ?? null,
         season: event.season.year,
       }
-    })
+      }))
+    }
+    return dedupeLiveScoreRows(rows)
   } catch (e) {
     console.error('[LiveScores] ESPN fetch failed:', sport, e)
     return []
   }
+}
+
+export function buildEspnScoreboardDateWindow(days = 7, start = new Date()): string[] {
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date(start)
+    date.setUTCDate(start.getUTCDate() + index)
+    return formatEspnDate(date)
+  })
 }
 
 export async function fetchRollingInsightsScoreboard(

@@ -46,12 +46,14 @@ function playoffGame(homeTeam: string, awayTeam: string, homeScore: number, away
   const fullNames: Record<string, string> = {
     BOS: "Celtics",
     MIA: "Heat",
+    PHI: "Philadelphia 76ers",
     NYK: "Knicks",
     IND: "Pacers",
     NYR: "Rangers",
     NYI: "Islanders",
   }
   return {
+    gameId: `${homeTeam}-${awayTeam}-${startTime}`,
     homeTeam,
     awayTeam,
     homeTeamFull: fullNames[homeTeam] ?? homeTeam,
@@ -62,6 +64,16 @@ function playoffGame(homeTeam: string, awayTeam: string, homeScore: number, away
     status: "STATUS_FINAL",
     statusDetail: "Final",
     startTime,
+  }
+}
+
+function scheduledSupplementGame(homeTeam: string, awayTeam: string, startTime: string, options: Partial<ReturnType<typeof playoffGame>> = {}) {
+  return {
+    ...playoffGame(homeTeam, awayTeam, 0, 0, startTime),
+    completed: false,
+    status: "STATUS_SCHEDULED",
+    statusDetail: "Scheduled",
+    ...options,
   }
 }
 
@@ -282,6 +294,317 @@ describe("syncPlayoffChallengeSeries", () => {
         winnerTeamName: null,
       }),
     })
+  })
+
+  it("ESPN NBA schedule supplement updates nextGameAt without replacing teams", async () => {
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      provider: async () => ({
+        source: "rolling_insights_schedule_season",
+        games: [
+          { ...scheduledSupplementGame("BOS", "MIA", "2026-05-01T00:00:00.000Z"), eventName: "East 1st Round:", seasonType: "Postseason" },
+        ],
+      }),
+      scheduleSupplementProvider: async () => ({
+        source: "espn_live",
+        games: [
+          scheduledSupplementGame("BOS", "MIA", "2099-05-21T00:30:00.000Z", {
+            venue: "TD Garden",
+            broadcast: "ESPN",
+          }),
+        ],
+      }),
+    })
+
+    expect(result.diagnostics.scheduleSupplementProvider).toBe("espn_live")
+    expect(result.diagnostics.scheduleGamesSeen).toBe(1)
+    expect(result.diagnostics.scheduleGamesMatched).toBe(1)
+    expect(result.diagnostics.broadcastFieldsFound).toBe(1)
+    expect(result.diagnostics.venueFieldsFound).toBe(1)
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-1" },
+      data: expect.objectContaining({
+        homeTeamName: "Celtics",
+        awayTeamName: "Heat",
+        nextGameAt: new Date("2099-05-21T00:30:00.000Z"),
+        venue: "TD Garden",
+        broadcastNetwork: "ESPN",
+      }),
+    })
+  })
+
+  it("ESPN NHL schedule supplement updates only NHL matching series", async () => {
+    challengeFindUniqueMock.mockResolvedValue({
+      ...baseChallenge,
+      sport: "nhl",
+      series: [{ ...baseChallenge.series[0], homeTeamName: "Rangers", awayTeamName: "Islanders" }],
+    })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      provider: async () => ({
+        source: "rolling_insights_schedule_season",
+        games: [
+          { ...scheduledSupplementGame("NYR", "NYI", "2026-05-01T00:00:00.000Z"), eventName: "East Round 1:", seasonType: "Postseason" },
+        ],
+      }),
+      scheduleSupplementProvider: async () => ({
+        source: "espn_live",
+        games: [
+          scheduledSupplementGame("NYR", "NYI", "2099-05-21T23:00:00.000Z", {
+            venue: "Madison Square Garden",
+            broadcast: "TNT",
+          }),
+        ],
+      }),
+    })
+
+    expect(result.sport).toBe("nhl")
+    expect(result.diagnostics.scheduleGamesMatched).toBe(1)
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-1" },
+      data: expect.objectContaining({
+        homeTeamName: "Rangers",
+        awayTeamName: "Islanders",
+        nextGameAt: new Date("2099-05-21T23:00:00.000Z"),
+        venue: "Madison Square Garden",
+        broadcastNetwork: "TNT",
+      }),
+    })
+  })
+
+  it("does not apply an NBA supplement game to an NHL bracket", async () => {
+    challengeFindUniqueMock.mockResolvedValue({
+      ...baseChallenge,
+      sport: "nhl",
+      series: [{ ...baseChallenge.series[0], homeTeamName: "Rangers", awayTeamName: "Islanders" }],
+    })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      provider: async () => ({
+        source: "rolling_insights_schedule_season",
+        games: [
+          { ...scheduledSupplementGame("NYR", "NYI", "2026-05-01T00:00:00.000Z"), eventName: "East Round 1:", seasonType: "Postseason" },
+        ],
+      }),
+      scheduleSupplementProvider: async () => ({
+        source: "espn_live",
+        games: [scheduledSupplementGame("BOS", "MIA", "2099-05-21T00:30:00.000Z", { broadcast: "ESPN" })],
+      }),
+    })
+
+    expect(result.diagnostics.scheduleGamesSeen).toBe(1)
+    expect(result.diagnostics.scheduleGamesMatched).toBe(0)
+    expect(result.diagnostics.unmatchedScheduleExamples[0]).toMatchObject({ homeTeam: "Celtics", awayTeam: "Heat" })
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-1" },
+      data: expect.objectContaining({
+        homeTeamName: "Rangers",
+        awayTeamName: "Islanders",
+        nextGameAt: null,
+        broadcastNetwork: null,
+      }),
+    })
+  })
+
+  it("does not apply an NHL supplement game to an NBA bracket", async () => {
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      provider: async () => ({
+        source: "rolling_insights_schedule_season",
+        games: [
+          { ...scheduledSupplementGame("BOS", "MIA", "2026-05-01T00:00:00.000Z"), eventName: "East 1st Round:", seasonType: "Postseason" },
+        ],
+      }),
+      scheduleSupplementProvider: async () => ({
+        source: "espn_live",
+        games: [scheduledSupplementGame("NYR", "NYI", "2099-05-21T23:00:00.000Z", { broadcast: "TNT" })],
+      }),
+    })
+
+    expect(result.sport).toBe("nba")
+    expect(result.diagnostics.scheduleGamesMatched).toBe(0)
+    expect(result.diagnostics.unmatchedScheduleExamples[0]).toMatchObject({ homeTeam: "Rangers", awayTeam: "Islanders" })
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-1" },
+      data: expect.objectContaining({
+        homeTeamName: "Celtics",
+        awayTeamName: "Heat",
+        nextGameAt: null,
+        broadcastNetwork: null,
+      }),
+    })
+  })
+
+  it("supplement live score/status and final score metadata without creating picks", async () => {
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      provider: async () => ({
+        source: "rolling_insights_schedule_season",
+        games: [
+          { ...scheduledSupplementGame("BOS", "MIA", "2026-05-01T00:00:00.000Z"), eventName: "East 1st Round:", seasonType: "Postseason" },
+        ],
+      }),
+      scheduleSupplementProvider: async () => ({
+        source: "espn_live",
+        games: [
+          {
+            ...scheduledSupplementGame("BOS", "MIA", "2099-05-21T00:30:00.000Z"),
+            homeScore: 84,
+            awayScore: 79,
+            status: "STATUS_IN_PROGRESS",
+            statusDetail: "3Q",
+          },
+          {
+            ...playoffGame("BOS", "MIA", 111, 104, "2026-05-19T00:30:00.000Z"),
+            status: "STATUS_FINAL",
+            statusDetail: "Final",
+          },
+        ],
+      }),
+    })
+
+    expect(result.diagnostics.liveGamesMatched).toBe(1)
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-1" },
+      data: expect.objectContaining({
+        liveHomeScore: 84,
+        liveAwayScore: 79,
+        liveStatus: "3Q",
+        providerGamesJson: expect.arrayContaining([
+          expect.objectContaining({ homeScore: 111, awayScore: 104, statusDetail: "Final" }),
+        ]),
+      }),
+    })
+    expect(pickUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it("ESPN supplement does not create new playoff series or overwrite official teams", async () => {
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      provider: async () => ({
+        source: "rolling_insights_schedule_season",
+        games: [
+          { ...scheduledSupplementGame("BOS", "MIA", "2026-05-01T00:00:00.000Z"), eventName: "East 1st Round:", seasonType: "Postseason" },
+        ],
+      }),
+      scheduleSupplementProvider: async () => ({
+        source: "espn_live",
+        games: [
+          scheduledSupplementGame("NYK", "IND", "2099-05-21T00:30:00.000Z", { broadcast: "ABC" }),
+        ],
+      }),
+    })
+
+    expect(result.seriesUpdated).toBe(1)
+    expect(result.diagnostics.scheduleGamesMatched).toBe(0)
+    expect(seriesUpdateMock).toHaveBeenCalledTimes(1)
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-1" },
+      data: expect.objectContaining({
+        homeTeamName: "Celtics",
+        awayTeamName: "Heat",
+        broadcastNetwork: null,
+      }),
+    })
+  })
+
+  it("provider official winner does not create or replace user picks", async () => {
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      provider: async () => ({
+        source: "test_provider",
+        games: [
+          playoffGame("PHI", "BOS", 110, 100, "2026-05-01T00:00:00.000Z"),
+          playoffGame("BOS", "PHI", 97, 105, "2026-05-03T00:00:00.000Z"),
+          playoffGame("PHI", "BOS", 120, 111, "2026-05-05T00:00:00.000Z"),
+          playoffGame("BOS", "PHI", 90, 99, "2026-05-07T00:00:00.000Z"),
+        ],
+      }),
+    })
+
+    expect(result.mode).toBe("official_bracket")
+    expect(result.picksAutoFilled).toBe(0)
+    expect(pickUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it("schedule metadata refresh updates display fields only without picks or official team overwrite", async () => {
+    const { refreshPlayoffScheduleMetadataForChallenge } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await refreshPlayoffScheduleMetadataForChallenge({
+      challengeId: "challenge-1",
+      scheduleSupplementProvider: async () => ({
+        source: "espn_live",
+        games: [
+          scheduledSupplementGame("BOS", "MIA", "2099-05-21T00:30:00.000Z", {
+            venue: "TD Garden",
+            broadcast: "ESPN",
+            status: "STATUS_IN_PROGRESS",
+            statusDetail: "2nd Period",
+            homeScore: 2,
+            awayScore: 1,
+          }),
+        ],
+      }),
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      provider: "espn",
+      updatedSeries: 1,
+      scheduleGamesSeen: 1,
+      scheduleGamesMatched: 1,
+      liveGamesMatched: 1,
+      broadcastFieldsFound: 1,
+      venueFieldsFound: 1,
+    })
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-1" },
+      data: expect.objectContaining({
+        nextGameAt: new Date("2099-05-21T00:30:00.000Z"),
+        venue: "TD Garden",
+        broadcastNetwork: "ESPN",
+        liveHomeScore: 2,
+        liveAwayScore: 1,
+        liveStatus: "2nd Period",
+        providerGamesJson: expect.any(Array),
+        lastSyncedAt: expect.any(Date),
+      }),
+    })
+    expect(seriesUpdateMock).not.toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        homeTeamName: expect.any(String),
+      }),
+    }))
+    expect(pickUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it("schedule metadata refresh dryRun returns diagnostics without writing series", async () => {
+    const { refreshPlayoffScheduleMetadataForChallenge } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await refreshPlayoffScheduleMetadataForChallenge({
+      challengeId: "challenge-1",
+      dryRun: true,
+      scheduleSupplementProvider: async () => ({
+        source: "espn_live",
+        games: [
+          scheduledSupplementGame("BOS", "MIA", "2099-05-21T00:30:00.000Z", {
+            venue: "TD Garden",
+            broadcast: "ESPN",
+          }),
+        ],
+      }),
+    })
+
+    expect(result.updatedSeries).toBe(1)
+    expect(seriesUpdateMock).not.toHaveBeenCalled()
+    expect(pickUpsertMock).not.toHaveBeenCalled()
   })
 
   it("returns warnings for unmatched provider games", async () => {
@@ -649,7 +972,10 @@ describe("syncPlayoffChallengeSeries", () => {
     })
 
     const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
-    const result = await syncPlayoffChallengeSeries({ challengeId: "challenge-1" })
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      scheduleSupplementProvider: async () => ({ source: "none", games: [] }),
+    })
 
     expect(result.source).toBe("rolling_insights_schedule_season")
     expect(result.postseasonGames).toBe(1)
@@ -687,7 +1013,10 @@ describe("syncPlayoffChallengeSeries", () => {
     })
 
     const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
-    const result = await syncPlayoffChallengeSeries({ challengeId: "challenge-1" })
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      scheduleSupplementProvider: async () => ({ source: "none", games: [] }),
+    })
 
     expect(result.seriesReturned).toBe(5)
     expect(result.diagnostics.ignoredPlayInGames).toBe(2)
@@ -929,7 +1258,10 @@ describe("syncPlayoffChallengeSeries", () => {
     })
 
     const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
-    const result = await syncPlayoffChallengeSeries({ challengeId: "challenge-1" })
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      scheduleSupplementProvider: async () => ({ source: "none", games: [] }),
+    })
 
     expect(scheduleSpy).toHaveBeenCalledWith("NBA", 2026)
     expect(scheduleSpy).toHaveBeenCalledWith("NBA", 2025)

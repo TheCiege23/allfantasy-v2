@@ -2,6 +2,7 @@ import "server-only"
 import type { LeagueSport } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import {
+  buildEspnScoreboardDateWindow,
   fetchEspnScoreboard,
   fetchRollingInsightsScheduleSeasonWithDiagnostics,
   fetchRollingInsightsScoreboard,
@@ -13,8 +14,11 @@ import { normalizeTeamAbbrev } from "@/lib/team-abbrev"
 import type { PlayoffSport } from "./types"
 
 export type PlayoffSeriesSyncGame = {
+  gameId?: string | null
   homeTeam: string
   awayTeam: string
+  homeTeamId?: string | null
+  awayTeamId?: string | null
   homeTeamFull?: string | null
   awayTeamFull?: string | null
   homeScore?: number | null
@@ -70,6 +74,15 @@ export type PlayoffSeriesSyncProvider = (input: {
   warnings?: string[]
   attemptedProviders?: string[]
   diagnostics?: PlayoffSyncDiagnostics
+}>
+
+export type PlayoffSeriesScheduleSupplementProvider = (input: {
+  sport: PlayoffSport
+  seasonYear: number
+}) => Promise<{
+  source: "espn_live" | "rolling_insights_live" | "none"
+  games: PlayoffSeriesSyncGame[]
+  warnings?: string[]
 }>
 
 export type PlayoffSeriesSyncProviderPreference = "auto" | "rolling_insights" | "espn"
@@ -136,6 +149,13 @@ export type PlayoffSyncDiagnostics = {
   providerSeriesByRound: Record<string, number>
   templateReplacementCount: number
   updatedSeriesExamples: UpdatedSeriesDiagnostic[]
+  scheduleSupplementProvider: "espn_live" | "rolling_insights_live" | "none"
+  scheduleGamesSeen: number
+  scheduleGamesMatched: number
+  liveGamesMatched: number
+  broadcastFieldsFound: number
+  venueFieldsFound: number
+  unmatchedScheduleExamples: TeamPairDiagnostic[]
   noMatchReason?: string | null
 }
 
@@ -162,6 +182,31 @@ export type SyncPlayoffChallengeSeriesResult = {
   diagnostics: PlayoffSyncDiagnostics
 }
 
+export type RefreshPlayoffScheduleMetadataResult = {
+  ok: boolean
+  challengeId: string
+  sport: PlayoffSport
+  provider: "espn"
+  dryRun: boolean
+  updatedSeries: number
+  scheduleGamesSeen: number
+  scheduleGamesMatched: number
+  liveGamesMatched: number
+  broadcastFieldsFound: number
+  venueFieldsFound: number
+  warnings: string[]
+  diagnostics: Pick<
+    PlayoffSyncDiagnostics,
+    | "scheduleSupplementProvider"
+    | "scheduleGamesSeen"
+    | "scheduleGamesMatched"
+    | "liveGamesMatched"
+    | "broadcastFieldsFound"
+    | "venueFieldsFound"
+    | "unmatchedScheduleExamples"
+  >
+}
+
 const SPORT_TO_LEAGUE_SPORT: Record<PlayoffSport, LeagueSport> = {
   nba: "NBA",
   nhl: "NHL",
@@ -180,6 +225,12 @@ function sameTeam(a: string | null | undefined, b: string | null | undefined): b
   return normalizeName(a).toLowerCase() === normalizeName(b).toLowerCase()
 }
 
+function sameProviderTeamId(a: string | number | null | undefined, b: string | number | null | undefined): boolean {
+  const left = String(a ?? "").trim()
+  const right = String(b ?? "").trim()
+  return !!left && !!right && left === right
+}
+
 function isPlaceholderTeamName(value: string | null | undefined): boolean {
   const name = String(value ?? "").trim()
   return /^([A-Z]+[0-9]+|Winner\s+S\d+|Winner\s+\w+)$/i.test(name)
@@ -193,6 +244,9 @@ function rowToSyncGame(row: LiveScoreRow): PlayoffSeriesSyncGame {
   return {
     homeTeam: row.homeTeam,
     awayTeam: row.awayTeam,
+    gameId: row.gameId,
+    homeTeamId: row.homeTeamId ?? null,
+    awayTeamId: row.awayTeamId ?? null,
     homeTeamFull: row.homeTeamFull,
     awayTeamFull: row.awayTeamFull,
     homeScore: row.homeScore,
@@ -210,6 +264,9 @@ function scheduleRowToSyncGame(row: RollingInsightsScheduleGameRow): PlayoffSeri
   return {
     homeTeam: row.homeTeam,
     awayTeam: row.awayTeam,
+    gameId: row.gameId,
+    homeTeamId: row.homeTeamId,
+    awayTeamId: row.awayTeamId,
     homeTeamFull: row.homeTeam,
     awayTeamFull: row.awayTeam,
     homeScore: row.homeScore,
@@ -303,6 +360,13 @@ export async function fetchRollingInsightsPostseasonScheduleGames(input: {
       providerSeriesByRound: providerSeriesByRound(buildProviderSeriesGroups(games, input.sport)),
       templateReplacementCount: 0,
       updatedSeriesExamples: [],
+      scheduleSupplementProvider: "none",
+      scheduleGamesSeen: 0,
+      scheduleGamesMatched: 0,
+      liveGamesMatched: 0,
+      broadcastFieldsFound: 0,
+      venueFieldsFound: 0,
+      unmatchedScheduleExamples: [],
       noMatchReason: null,
     },
   }
@@ -376,6 +440,13 @@ export async function fetchLivePlayoffSeriesGames(input: {
           providerSeriesByRound: providerSeriesByRound(buildProviderSeriesGroups(games, input.sport)),
           templateReplacementCount: 0,
           updatedSeriesExamples: [],
+          scheduleSupplementProvider: "none",
+          scheduleGamesSeen: 0,
+          scheduleGamesMatched: 0,
+          liveGamesMatched: 0,
+          broadcastFieldsFound: 0,
+          venueFieldsFound: 0,
+          unmatchedScheduleExamples: [],
           noMatchReason: null,
         },
       }
@@ -411,6 +482,13 @@ export async function fetchLivePlayoffSeriesGames(input: {
       providerSeriesByRound: {},
       templateReplacementCount: 0,
       updatedSeriesExamples: [],
+      scheduleSupplementProvider: "none",
+      scheduleGamesSeen: 0,
+      scheduleGamesMatched: 0,
+      liveGamesMatched: 0,
+      broadcastFieldsFound: 0,
+      venueFieldsFound: 0,
+      unmatchedScheduleExamples: [],
       noMatchReason: null,
     },
   }
@@ -440,6 +518,15 @@ function winnerFromGame(game: PlayoffSeriesSyncGame): string | null {
 }
 
 function gameMatchesSeries(series: any, game: PlayoffSeriesSyncGame): boolean {
+    const homeId = series.homeTeamId ?? series.homeProviderId ?? series.home_team_ID ?? null
+    const awayId = series.awayTeamId ?? series.awayProviderId ?? series.away_team_ID ?? null
+    const homeMatchesHomeById = sameProviderTeamId(homeId, game.homeTeamId)
+    const awayMatchesAwayById = sameProviderTeamId(awayId, game.awayTeamId)
+    const homeMatchesAwayById = sameProviderTeamId(homeId, game.awayTeamId)
+    const awayMatchesHomeById = sameProviderTeamId(awayId, game.homeTeamId)
+    if ((homeMatchesHomeById && awayMatchesAwayById) || (homeMatchesAwayById && awayMatchesHomeById)) {
+      return true
+    }
     const homeMatchesHome = sameTeam(series.homeTeamName, game.homeTeam) || sameTeam(series.homeTeamName, game.homeTeamFull)
     const awayMatchesAway = sameTeam(series.awayTeamName, game.awayTeam) || sameTeam(series.awayTeamName, game.awayTeamFull)
     const homeMatchesAway = sameTeam(series.homeTeamName, game.awayTeam) || sameTeam(series.homeTeamName, game.awayTeamFull)
@@ -681,8 +768,11 @@ function buildSeriesSummary(homeTeamName: string, awayTeamName: string, homeWins
 
 function safeProviderGame(game: PlayoffSeriesSyncGame) {
   return {
+    gameId: game.gameId ?? null,
     homeTeam: displayName(game.homeTeamFull || game.homeTeam),
     awayTeam: displayName(game.awayTeamFull || game.awayTeam),
+    homeTeamId: game.homeTeamId ?? null,
+    awayTeamId: game.awayTeamId ?? null,
     homeScore: game.homeScore ?? null,
     awayScore: game.awayScore ?? null,
     status: game.status ?? null,
@@ -798,6 +888,173 @@ function gameKey(game: PlayoffSeriesSyncGame): string {
   ].join("|")
 }
 
+async function fetchEspnScheduleSupplementGames(input: {
+  sport: PlayoffSport
+  seasonYear: number
+  windowDays?: number
+}): Promise<{ source: "espn_live"; games: PlayoffSeriesSyncGame[]; warnings: string[] }> {
+  const leagueSport = SPORT_TO_LEAGUE_SPORT[input.sport]
+  const dates = buildEspnScoreboardDateWindow(input.windowDays ?? 7)
+  const rows = await fetchEspnScoreboard(leagueSport, { dates })
+  const games = rows.map(rowToSyncGame)
+  return {
+    source: "espn_live",
+    games,
+    warnings: games.length === 0 ? [`ESPN returned no ${input.sport.toUpperCase()} near-term schedule/live games.`] : [],
+  }
+}
+
+export async function refreshPlayoffScheduleMetadataForChallenge(input: {
+  challengeId: string
+  provider?: "espn"
+  windowDays?: number
+  dryRun?: boolean
+  scheduleSupplementProvider?: PlayoffSeriesScheduleSupplementProvider
+}): Promise<RefreshPlayoffScheduleMetadataResult> {
+  const challenge = await (prisma as any).playoffBracketChallenge.findUnique({
+    where: { id: input.challengeId },
+    include: {
+      series: {
+        orderBy: [{ roundIndex: "asc" }, { seriesNumber: "asc" }],
+      },
+    },
+  })
+
+  if (!challenge) {
+    throw new Error("Challenge not found")
+  }
+
+  const sport = String(challenge.sport ?? "").toLowerCase()
+  if (sport !== "nba" && sport !== "nhl") {
+    throw new Error("Only NBA and NHL playoff schedule refresh is supported")
+  }
+
+  const warnings: string[] = []
+  const scheduleProvider = input.scheduleSupplementProvider ?? ((providerInput) =>
+    fetchEspnScheduleSupplementGames({ ...providerInput, windowDays: input.windowDays ?? 7 }))
+  const supplementPayload = await scheduleProvider({
+    sport,
+    seasonYear: challenge.seasonYear,
+  })
+  warnings.push(...(supplementPayload.warnings ?? []))
+
+  const supplementDiagnostics = scheduleSupplementDiagnostics({
+    series: challenge.series,
+    source: supplementPayload.source,
+    games: supplementPayload.games,
+  })
+
+  let updatedSeries = 0
+  for (const series of challenge.series) {
+    const games = gamesForSeries(series, supplementPayload.games)
+    const aggregate = aggregateSeriesGames(series, games)
+    if (!aggregate) continue
+    updatedSeries += 1
+
+    if (input.dryRun) continue
+
+    await (prisma as any).playoffBracketSeries.update({
+      where: { id: series.id },
+      data: {
+        nextGameAt: aggregate.nextGameAt,
+        venue: aggregate.venue,
+        broadcastNetwork: aggregate.broadcastNetwork,
+        liveHomeScore: aggregate.liveHomeScore,
+        liveAwayScore: aggregate.liveAwayScore,
+        liveStatus: aggregate.liveStatus,
+        providerGamesJson: aggregate.providerGamesJson,
+        lastSyncedAt: new Date(),
+      },
+    })
+  }
+
+  if (updatedSeries === 0) {
+    warnings.push("No playoff series matched ESPN schedule/live games.")
+  }
+
+  return {
+    ok: warnings.length === 0 || updatedSeries > 0,
+    challengeId: challenge.id,
+    sport,
+    provider: "espn",
+    dryRun: input.dryRun === true,
+    updatedSeries,
+    scheduleGamesSeen: supplementDiagnostics.scheduleGamesSeen,
+    scheduleGamesMatched: supplementDiagnostics.scheduleGamesMatched,
+    liveGamesMatched: supplementDiagnostics.liveGamesMatched,
+    broadcastFieldsFound: supplementDiagnostics.broadcastFieldsFound,
+    venueFieldsFound: supplementDiagnostics.venueFieldsFound,
+    warnings,
+    diagnostics: {
+      scheduleSupplementProvider: supplementDiagnostics.scheduleSupplementProvider,
+      scheduleGamesSeen: supplementDiagnostics.scheduleGamesSeen,
+      scheduleGamesMatched: supplementDiagnostics.scheduleGamesMatched,
+      liveGamesMatched: supplementDiagnostics.liveGamesMatched,
+      broadcastFieldsFound: supplementDiagnostics.broadcastFieldsFound,
+      venueFieldsFound: supplementDiagnostics.venueFieldsFound,
+      unmatchedScheduleExamples: supplementDiagnostics.unmatchedScheduleExamples,
+    },
+  }
+}
+
+function mergeProviderGames(primaryGames: PlayoffSeriesSyncGame[], supplementGames: PlayoffSeriesSyncGame[]): PlayoffSeriesSyncGame[] {
+  const byKey = new Map<string, PlayoffSeriesSyncGame>()
+  for (const game of primaryGames) {
+    byKey.set(gameKey(game), game)
+  }
+  for (const game of supplementGames) {
+    const key = gameKey(game)
+    const existing = byKey.get(key)
+    byKey.set(key, {
+      ...(existing ?? {}),
+      ...game,
+      eventName: existing?.eventName ?? game.eventName ?? null,
+      seasonType: existing?.seasonType ?? game.seasonType ?? null,
+      providerRound: existing?.providerRound ?? game.providerRound ?? null,
+      venue: game.venue ?? existing?.venue ?? null,
+      broadcast: game.broadcast ?? existing?.broadcast ?? null,
+      startTime: game.startTime ?? existing?.startTime ?? null,
+      status: game.status ?? existing?.status ?? null,
+      statusDetail: game.statusDetail ?? existing?.statusDetail ?? null,
+      homeScore: game.homeScore ?? existing?.homeScore ?? null,
+      awayScore: game.awayScore ?? existing?.awayScore ?? null,
+      completed: game.completed ?? existing?.completed ?? false,
+    })
+  }
+  return Array.from(byKey.values())
+}
+
+function scheduleSupplementDiagnostics(input: {
+  series: any[]
+  source: "espn_live" | "rolling_insights_live" | "none"
+  games: PlayoffSeriesSyncGame[]
+}) {
+  const matchedGameKeys = new Set<string>()
+  let scheduleGamesMatched = 0
+  let liveGamesMatched = 0
+  const unmatchedGames: PlayoffSeriesSyncGame[] = []
+  for (const game of input.games) {
+    const matched = input.series.some((series) => gameMatchesSeries(series, game))
+    if (!matched) {
+      unmatchedGames.push(game)
+      continue
+    }
+    matchedGameKeys.add(gameKey(game))
+    scheduleGamesMatched += 1
+    if (statusFromGame(game) === "in_progress") liveGamesMatched += 1
+  }
+  return {
+    scheduleSupplementProvider: input.source,
+    scheduleGamesSeen: input.games.length,
+    scheduleGamesMatched,
+    liveGamesMatched,
+    broadcastFieldsFound: input.games.filter((game) => !!game.broadcast).length,
+    venueFieldsFound: input.games.filter((game) => !!game.venue).length,
+    unmatchedScheduleExamples: sampleGameDiagnostics(unmatchedGames),
+    matchedGameKeys,
+  }
+}
+
 function scheduleSafeSeriesSummary(aggregate: PlayoffSeriesAggregate): string {
   if (aggregate.liveStatus) return "Series in progress"
   if (aggregate.startsAt || aggregate.nextGameAt) return "Series scheduled"
@@ -807,6 +1064,7 @@ function scheduleSafeSeriesSummary(aggregate: PlayoffSeriesAggregate): string {
 export async function syncPlayoffChallengeSeries(input: {
   challengeId: string
   provider?: PlayoffSeriesSyncProvider
+  scheduleSupplementProvider?: PlayoffSeriesScheduleSupplementProvider
   providerPreference?: PlayoffSeriesSyncProviderPreference
   mode?: PlayoffSeriesSyncMode
 }): Promise<SyncPlayoffChallengeSeriesResult> {
@@ -863,8 +1121,38 @@ export async function syncPlayoffChallengeSeries(input: {
     providerSeriesByRound: payload.diagnostics?.providerSeriesByRound ?? {},
     templateReplacementCount: 0,
     updatedSeriesExamples: [],
+    scheduleSupplementProvider: "none",
+    scheduleGamesSeen: 0,
+    scheduleGamesMatched: 0,
+    liveGamesMatched: 0,
+    broadcastFieldsFound: 0,
+    venueFieldsFound: 0,
+    unmatchedScheduleExamples: [],
     noMatchReason: null,
   }
+
+  const scheduleSupplementProvider = input.scheduleSupplementProvider ?? (input.provider ? async () => ({
+    source: "none" as const,
+    games: [],
+    warnings: [],
+  }) : fetchEspnScheduleSupplementGames)
+  const supplementPayload = await scheduleSupplementProvider({
+    sport,
+    seasonYear: challenge.seasonYear,
+  })
+  warnings.push(...(supplementPayload.warnings ?? []))
+  const supplementDiagnostics = scheduleSupplementDiagnostics({
+    series: challenge.series,
+    source: supplementPayload.source,
+    games: supplementPayload.games,
+  })
+  diagnostics.scheduleSupplementProvider = supplementDiagnostics.scheduleSupplementProvider
+  diagnostics.scheduleGamesSeen = supplementDiagnostics.scheduleGamesSeen
+  diagnostics.scheduleGamesMatched = supplementDiagnostics.scheduleGamesMatched
+  diagnostics.liveGamesMatched = supplementDiagnostics.liveGamesMatched
+  diagnostics.broadcastFieldsFound = supplementDiagnostics.broadcastFieldsFound
+  diagnostics.venueFieldsFound = supplementDiagnostics.venueFieldsFound
+  diagnostics.unmatchedScheduleExamples = supplementDiagnostics.unmatchedScheduleExamples
 
   let seriesUpdated = 0
   let winnersUpdated = 0
@@ -883,7 +1171,10 @@ export async function syncPlayoffChallengeSeries(input: {
 
   for (const series of challenge.series) {
     const replacementGroup = templateReplacementGroups.get(series.id) ?? null
-    const seriesGames = gamesForSeries(series, payload.games)
+    const seriesGames = mergeProviderGames(
+      gamesForSeries(series, payload.games),
+      gamesForSeries(series, supplementPayload.games)
+    )
     let matchedGroup: ProviderSeriesGroup | null = replacementGroup
     let aggregate = matchedGroup ? aggregateProviderSeriesGroup(matchedGroup, Number(series.bestOf ?? 7)) : aggregateSeriesGames(series, seriesGames)
     if (matchedGroup) {
@@ -906,7 +1197,18 @@ export async function syncPlayoffChallengeSeries(input: {
       }
     }
     if (!aggregate) continue
-    const aggregateGames = matchedGroup?.games ?? seriesGames
+    const aggregateGames = matchedGroup
+      ? mergeProviderGames(matchedGroup.games, gamesForSeries(series, supplementPayload.games))
+      : seriesGames
+    aggregate = aggregateSeriesGames(
+      {
+        ...series,
+        homeTeamName: matchedGroup?.homeTeamName ?? series.homeTeamName,
+        awayTeamName: matchedGroup?.awayTeamName ?? series.awayTeamName,
+      },
+      aggregateGames
+    ) ?? aggregate
+    if (!aggregate) continue
     gamesMatched += aggregateGames.length
     seriesMatched += 1
     for (const game of aggregateGames) {
