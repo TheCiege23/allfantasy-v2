@@ -227,6 +227,34 @@ describe("syncPlayoffChallengeSeries", () => {
     expect(result.warnings).toContain("1 provider games did not match playoff series.")
   })
 
+  it("counts ignored Play-In games separately from true unmatched games", async () => {
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      provider: async () => ({
+        source: "test_provider",
+        games: [
+          {
+            ...playoffGame("BOS", "MIA", 100, 90, "2026-05-01T00:00:00.000Z"),
+            eventName: "East 1st Round:",
+            seasonType: "Postseason",
+          },
+          {
+            ...playoffGame("NYK", "IND", 100, 95, "2026-04-15T00:00:00.000Z"),
+            eventName: "East Play-In Tournament",
+            seasonType: "Postseason",
+          },
+        ],
+      }),
+    })
+
+    expect(result.seriesUpdated).toBe(1)
+    expect(result.diagnostics.ignoredPlayInGames).toBe(1)
+    expect(result.warnings).toContain("1 Play-In games ignored because this pool does not include Play-In picks.")
+    expect(result.warnings).not.toContain("1 provider games did not match playoff series.")
+    expect(result.unmatchedExamples).toEqual([])
+  })
+
   it("does not overwrite user picks and returns structured warning when provider data is missing", async () => {
     const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
     const result = await syncPlayoffChallengeSeries({
@@ -478,6 +506,15 @@ describe("syncPlayoffChallengeSeries", () => {
     expect(result.diagnostics.templateReplacementCount).toBe(8)
     expect(result.diagnostics.ignoredPlayInGames).toBe(2)
     expect(result.diagnostics.providerSeriesByRound).toMatchObject({ "1": 8, "2": 4, "3": 2, "4": 1 })
+    expect(result.diagnostics.updatedSeriesExamples[0]).toMatchObject({
+      round: 1,
+      oldHomeTeam: "Celtics",
+      oldAwayTeam: "76ers",
+      newHomeTeam: "Celtics",
+      newAwayTeam: "76ers",
+      eventName: "East 1st Round:",
+      status: "scheduled",
+    })
   })
 
   it("clears invalid picks when provider teams replace template teams", async () => {

@@ -97,6 +97,16 @@ type EventNameRoundMapDiagnostic = {
   ignored?: boolean
 }
 
+type UpdatedSeriesDiagnostic = {
+  round: number
+  oldHomeTeam: string
+  oldAwayTeam: string
+  newHomeTeam: string
+  newAwayTeam: string
+  eventName?: string | null
+  status?: string | null
+}
+
 export type PlayoffSyncDiagnostics = {
   seasonYear: number
   challengeSeasonYear: number
@@ -113,6 +123,7 @@ export type PlayoffSyncDiagnostics = {
   eventNameRoundMapExamples: EventNameRoundMapDiagnostic[]
   providerSeriesByRound: Record<string, number>
   templateReplacementCount: number
+  updatedSeriesExamples: UpdatedSeriesDiagnostic[]
   noMatchReason?: string | null
 }
 
@@ -273,6 +284,7 @@ export async function fetchRollingInsightsPostseasonScheduleGames(input: {
       eventNameRoundMapExamples: sampleEventNameRoundDiagnostics(games, input.sport),
       providerSeriesByRound: providerSeriesByRound(buildProviderSeriesGroups(games, input.sport)),
       templateReplacementCount: 0,
+      updatedSeriesExamples: [],
       noMatchReason: null,
     },
   }
@@ -345,6 +357,7 @@ export async function fetchLivePlayoffSeriesGames(input: {
           eventNameRoundMapExamples: sampleEventNameRoundDiagnostics(games, input.sport),
           providerSeriesByRound: providerSeriesByRound(buildProviderSeriesGroups(games, input.sport)),
           templateReplacementCount: 0,
+          updatedSeriesExamples: [],
           noMatchReason: null,
         },
       }
@@ -379,6 +392,7 @@ export async function fetchLivePlayoffSeriesGames(input: {
       eventNameRoundMapExamples: [],
       providerSeriesByRound: {},
       templateReplacementCount: 0,
+      updatedSeriesExamples: [],
       noMatchReason: null,
     },
   }
@@ -743,6 +757,7 @@ export async function syncPlayoffChallengeSeries(input: {
     eventNameRoundMapExamples: payload.diagnostics?.eventNameRoundMapExamples ?? sampleEventNameRoundDiagnostics(payload.games, sport),
     providerSeriesByRound: payload.diagnostics?.providerSeriesByRound ?? {},
     templateReplacementCount: 0,
+    updatedSeriesExamples: [],
     noMatchReason: null,
   }
 
@@ -758,6 +773,7 @@ export async function syncPlayoffChallengeSeries(input: {
   const invalidatedSeriesIds = new Set<string>()
   const templateReplacementGroups = mapTemplateReplacementGroups(challenge.series, providerSeriesGroups)
   let templateReplacementCount = 0
+  const updatedSeriesExamples: UpdatedSeriesDiagnostic[] = []
 
   for (const series of challenge.series) {
     if (series.sourceSeriesHome || series.sourceSeriesAway) {
@@ -811,6 +827,17 @@ export async function syncPlayoffChallengeSeries(input: {
       },
     })
     seriesUpdated += 1
+    if (updatedSeriesExamples.length < 8) {
+      updatedSeriesExamples.push({
+        round: Number(series.roundIndex ?? aggregate.roundIndex),
+        oldHomeTeam: displayName(series.homeTeamName),
+        oldAwayTeam: displayName(series.awayTeamName),
+        newHomeTeam: aggregate.homeTeamName,
+        newAwayTeam: aggregate.awayTeamName,
+        eventName: matchedGroup?.eventName ?? aggregateGames[0]?.eventName ?? null,
+        status: aggregate.status,
+      })
+    }
     if (aggregate.winnerTeamName) winnersUpdated += 1
   }
 
@@ -836,9 +863,16 @@ export async function syncPlayoffChallengeSeries(input: {
       : "Provider playoff series were built, but none matched existing bracket series or eligible template slots."
   }
   diagnostics.templateReplacementCount = templateReplacementCount
+  diagnostics.updatedSeriesExamples = updatedSeriesExamples
   const unmatchedGames = payload.games.filter((game) => !matchedGameKeys.has(gameKey(game)))
-  if (unmatchedGames.length > 0) {
-    warnings.push(`${unmatchedGames.length} provider games did not match playoff series.`)
+  const ignoredPlayInGames = unmatchedGames.filter(isPlayInGame)
+  const trueUnmatchedGames = unmatchedGames.filter((game) => !isPlayInGame(game))
+  diagnostics.ignoredPlayInGames = ignoredPlayInGames.length
+  if (ignoredPlayInGames.length > 0) {
+    warnings.push(`${ignoredPlayInGames.length} Play-In games ignored because this pool does not include Play-In picks.`)
+  }
+  if (trueUnmatchedGames.length > 0) {
+    warnings.push(`${trueUnmatchedGames.length} provider games did not match playoff series.`)
   }
 
   return {
@@ -858,7 +892,7 @@ export async function syncPlayoffChallengeSeries(input: {
     seriesUpdated,
     winnersUpdated,
     warnings,
-    unmatchedExamples: unmatchedGames.slice(0, 5).map((game) => ({
+    unmatchedExamples: trueUnmatchedGames.slice(0, 5).map((game) => ({
       homeTeam: displayName(game.homeTeamFull || game.homeTeam),
       awayTeam: displayName(game.awayTeamFull || game.awayTeam),
       eventName: game.eventName ?? null,

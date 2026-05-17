@@ -117,8 +117,18 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
         }
         setSyncDiagnostics(payload)
         const warnings = Array.isArray(payload?.warnings) ? payload.warnings : []
-        if (warnings.length > 0) {
-          toast.warning(warnings[0])
+        const ignoredPlayInGames = Number(payload?.diagnostics?.ignoredPlayInGames ?? 0)
+        const trueWarnings = warnings.filter((warning: unknown) => !String(warning).toLowerCase().includes("play-in games ignored"))
+        if (Number(payload?.seriesUpdated ?? 0) > 0) {
+          toast.success(`${payload.seriesUpdated} playoff series updated from Rolling Insights.`)
+          if (ignoredPlayInGames > 0) {
+            toast.info("Play-In games were ignored for this bracket.")
+          }
+          if (trueWarnings.length > 0) {
+            toast.warning(trueWarnings[0])
+          }
+        } else if (trueWarnings.length > 0) {
+          toast.warning(trueWarnings[0])
         } else {
           toast.success("Playoff series synced.")
         }

@@ -10,6 +10,7 @@ const submitPlayoffBracketEntryClientMock = vi.hoisted(() => vi.fn())
 const toastWarningMock = vi.hoisted(() => vi.fn())
 const toastErrorMock = vi.hoisted(() => vi.fn())
 const toastSuccessMock = vi.hoisted(() => vi.fn())
+const toastInfoMock = vi.hoisted(() => vi.fn())
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
@@ -26,6 +27,7 @@ vi.mock("sonner", () => ({
     warning: toastWarningMock,
     error: toastErrorMock,
     success: toastSuccessMock,
+    info: toastInfoMock,
   },
 }))
 

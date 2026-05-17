@@ -30,6 +30,12 @@ function safeDiagnostics(value: unknown) {
     existingSeriesExamples: (record.diagnostics as any)?.existingSeriesExamples,
     providerGameExamples: (record.diagnostics as any)?.providerGameExamples,
     providerSeriesExamples: (record.diagnostics as any)?.providerSeriesExamples,
+    ignoredPlayInGames: (record.diagnostics as any)?.ignoredPlayInGames,
+    eventNameRoundMapExamples: (record.diagnostics as any)?.eventNameRoundMapExamples,
+    providerSeriesByRound: (record.diagnostics as any)?.providerSeriesByRound,
+    templateReplacementCount: (record.diagnostics as any)?.templateReplacementCount,
+    updatedSeriesExamples: (record.diagnostics as any)?.updatedSeriesExamples,
+    noMatchReason: (record.diagnostics as any)?.noMatchReason,
   }
 }
 

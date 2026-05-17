@@ -10,6 +10,7 @@ const savePlayoffBracketPickClientMock = vi.hoisted(() => vi.fn())
 const toastErrorMock = vi.hoisted(() => vi.fn())
 const toastSuccessMock = vi.hoisted(() => vi.fn())
 const toastWarningMock = vi.hoisted(() => vi.fn())
+const toastInfoMock = vi.hoisted(() => vi.fn())
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
@@ -26,6 +27,7 @@ vi.mock("sonner", () => ({
     success: toastSuccessMock,
     error: toastErrorMock,
       warning: toastWarningMock,
+      info: toastInfoMock,
   },
 }))
 
@@ -283,6 +285,92 @@ describe("PlayoffBracketShell dashboard", () => {
     expect(screen.getByTestId("playoff-sync-diagnostics")).toHaveTextContent("rolling_insights_schedule_season")
     expect(screen.getByTestId("playoff-sync-diagnostics")).toHaveTextContent("existingSeriesExamples")
     expect(screen.getByTestId("playoff-sync-diagnostics")).toHaveTextContent("Rolling Insights uses season start year")
+
+    fetchMock.mockRestore()
+  })
+
+  it("shows sync success and play-in info when series update with ignored play-in games", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        warnings: ["26 Play-In games ignored because this pool does not include Play-In picks."],
+        attemptedProviders: ["rolling_insights_schedule_season"],
+        source: "rolling_insights_schedule_season",
+        sport: "nba",
+        challengeSeasonYear: 2026,
+        selectedProviderSeason: 2025,
+        postseasonGames: 74,
+        gamesSeen: 74,
+        gamesMatched: 48,
+        seriesReturned: 12,
+        seriesMatched: 8,
+        seriesUpdated: 8,
+        winnersUpdated: 0,
+        unmatchedExamples: [],
+        diagnostics: {
+          seasonYear: 2026,
+          challengeSeasonYear: 2026,
+          selectedProviderSeason: 2025,
+          providerSeasonAttempts: [],
+          sport: "nba",
+          selectedProvider: "rolling_insights_schedule_season",
+          providerAttempts: [],
+          existingSeriesExamples: [],
+          providerGameExamples: [],
+          providerSeriesExamples: [],
+          ignoredPlayInGames: 26,
+          updatedSeriesExamples: [
+            {
+              round: 1,
+              oldHomeTeam: "Celtics",
+              oldAwayTeam: "76ers",
+              newHomeTeam: "Boston Celtics",
+              newAwayTeam: "Philadelphia 76ers",
+              eventName: "East 1st Round:",
+              status: "scheduled",
+            },
+          ],
+        },
+      }),
+    } as Response)
+    render(
+      <PlayoffBracketShell
+        initialView={buildView({
+          challenge: { ...buildView().challenge, isTestMode: true },
+          series: [
+            {
+              id: "s9",
+              round: "conference_semifinals",
+              roundIndex: 2,
+              seriesNumber: 9,
+              conference: "east",
+              homeSeed: 0,
+              awaySeed: 0,
+              homeTeamName: "Winner S1",
+              awayTeamName: "Winner S2",
+              winnerTeamName: null,
+              bestOf: 7,
+              status: "scheduled",
+              startsAt: null,
+              nextSeriesNumber: 13,
+              nextSeriesSlot: "home",
+              sourceSeriesHome: 1,
+              sourceSeriesAway: 2,
+            },
+          ],
+        })}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId("playoff-sync-series-button"))
+
+    await waitFor(() => {
+      expect(toastSuccessMock).toHaveBeenCalledWith("8 playoff series updated from Rolling Insights.")
+      expect(toastInfoMock).toHaveBeenCalledWith("Play-In games were ignored for this bracket.")
+      expect(toastWarningMock).not.toHaveBeenCalled()
+    })
+    expect(screen.getByTestId("playoff-sync-diagnostics")).toHaveTextContent("updatedSeriesExamples")
 
     fetchMock.mockRestore()
   })
