@@ -1082,8 +1082,8 @@ describe("syncPlayoffChallengeSeries", () => {
   it("maps known NBA West Semifinals into the correct S11-S12 official slots", async () => {
     const liveScores = await import("@/lib/sports-live-scores-service")
     vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NBA", 2026, [
-      scheduleRow("NBA", "Postseason", "West Semifinals", null as any, "Spurs", "Thunder", "scheduled", "2026-05-18"),
       scheduleRow("NBA", "Postseason", "West Semifinals", null as any, "Thunder", "Timberwolves", "scheduled", "2026-05-18"),
+      scheduleRow("NBA", "Postseason", "West Semifinals", null as any, "Spurs", "Thunder", "scheduled", "2026-05-18"),
     ] as any))
     challengeFindUniqueMock.mockResolvedValue({
       ...baseChallenge,
@@ -1111,6 +1111,8 @@ describe("syncPlayoffChallengeSeries", () => {
       data: expect.objectContaining({
         homeTeamName: "Thunder",
         awayTeamName: "Timberwolves",
+        sourceSeriesHome: 5,
+        sourceSeriesAway: 6,
       }),
     }))
     expect(seriesUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
@@ -1125,13 +1127,21 @@ describe("syncPlayoffChallengeSeries", () => {
         homeTeam: "Thunder",
         awayTeam: "Timberwolves",
         assignedSeriesNumber: 11,
-        assignmentReason: "source_winners",
+        assignmentReason: "provider_round_order",
+        confidence: "high",
       }),
       expect.objectContaining({
         homeTeam: "Spurs",
         awayTeam: "Thunder",
         assignedSeriesNumber: 12,
       }),
+    ]))
+    expect(result.diagnostics.providerRound2WestSeries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ homeTeam: "Thunder", awayTeam: "Timberwolves" }),
+    ]))
+    expect(result.diagnostics.officialSeriesSlotAssignments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ assignedSeriesNumber: 11, homeTeam: "Thunder", awayTeam: "Timberwolves" }),
+      expect.objectContaining({ assignedSeriesNumber: 12, homeTeam: "Spurs", awayTeam: "Thunder" }),
     ]))
   })
 

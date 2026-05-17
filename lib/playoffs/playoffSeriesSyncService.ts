@@ -138,6 +138,15 @@ type ProviderAssignmentDiagnostic = TeamPairDiagnostic & {
   assignedSeriesNumber?: number | null
   assignedSeriesId?: string | null
   assignmentReason?: string | null
+  confidence?: "high" | "medium" | "low"
+}
+
+type SlotAssignmentWarning = {
+  round: number
+  conference: string
+  message: string
+  providerSeries?: string | null
+  slot?: number | null
 }
 
 export type PlayoffSyncDiagnostics = {
@@ -156,6 +165,14 @@ export type PlayoffSyncDiagnostics = {
   eventNameRoundMapExamples: EventNameRoundMapDiagnostic[]
   providerSeriesByRound: Record<string, number>
   providerAssignments: ProviderAssignmentDiagnostic[]
+  officialSeriesByRound: Record<string, TeamPairDiagnostic[]>
+  officialSeriesSlotAssignments: ProviderAssignmentDiagnostic[]
+  providerRound2WestSeries: TeamPairDiagnostic[]
+  providerRound2EastSeries: TeamPairDiagnostic[]
+  slotAssignmentWarnings: SlotAssignmentWarning[]
+  unmappedProviderSeries: TeamPairDiagnostic[]
+  conflictingSlotAssignments: SlotAssignmentWarning[]
+  expectedVsActualSlotExamples: ProviderAssignmentDiagnostic[]
   templateReplacementCount: number
   updatedSeriesExamples: UpdatedSeriesDiagnostic[]
   scheduleSupplementProvider: "espn_live" | "rolling_insights_live" | "none"
@@ -372,6 +389,14 @@ export async function fetchRollingInsightsPostseasonScheduleGames(input: {
       eventNameRoundMapExamples: sampleEventNameRoundDiagnostics(games, input.sport),
       providerSeriesByRound: providerSeriesByRound(buildProviderSeriesGroups(games, input.sport)),
       providerAssignments: [],
+      officialSeriesByRound: {},
+      officialSeriesSlotAssignments: [],
+      providerRound2WestSeries: [],
+      providerRound2EastSeries: [],
+      slotAssignmentWarnings: [],
+      unmappedProviderSeries: [],
+      conflictingSlotAssignments: [],
+      expectedVsActualSlotExamples: [],
       templateReplacementCount: 0,
       updatedSeriesExamples: [],
       scheduleSupplementProvider: "none",
@@ -455,6 +480,14 @@ export async function fetchLivePlayoffSeriesGames(input: {
           eventNameRoundMapExamples: sampleEventNameRoundDiagnostics(games, input.sport),
           providerSeriesByRound: providerSeriesByRound(buildProviderSeriesGroups(games, input.sport)),
           providerAssignments: [],
+          officialSeriesByRound: {},
+          officialSeriesSlotAssignments: [],
+          providerRound2WestSeries: [],
+          providerRound2EastSeries: [],
+          slotAssignmentWarnings: [],
+          unmappedProviderSeries: [],
+          conflictingSlotAssignments: [],
+          expectedVsActualSlotExamples: [],
           templateReplacementCount: 0,
           updatedSeriesExamples: [],
           scheduleSupplementProvider: "none",
@@ -500,6 +533,14 @@ export async function fetchLivePlayoffSeriesGames(input: {
       eventNameRoundMapExamples: [],
       providerSeriesByRound: {},
       providerAssignments: [],
+      officialSeriesByRound: {},
+      officialSeriesSlotAssignments: [],
+      providerRound2WestSeries: [],
+      providerRound2EastSeries: [],
+      slotAssignmentWarnings: [],
+      unmappedProviderSeries: [],
+      conflictingSlotAssignments: [],
+      expectedVsActualSlotExamples: [],
       templateReplacementCount: 0,
       updatedSeriesExamples: [],
       scheduleSupplementProvider: "none",
@@ -721,6 +762,7 @@ function assignmentDiagnostic(
   group: ProviderSeriesGroup,
   series: any,
   assignmentReason: string,
+  confidence: "high" | "medium" | "low" = "medium",
 ): ProviderAssignmentDiagnostic {
   return {
     round: group.roundIndex,
@@ -732,15 +774,60 @@ function assignmentDiagnostic(
     assignedSeriesNumber: Number(series.seriesNumber ?? null),
     assignedSeriesId: String(series.id ?? ""),
     assignmentReason,
+    confidence,
   }
+}
+
+function groupDiagnostic(group: ProviderSeriesGroup): TeamPairDiagnostic {
+  return {
+    round: group.roundIndex,
+    homeTeam: group.homeTeamName,
+    awayTeam: group.awayTeamName,
+    eventName: group.eventName ?? group.games[0]?.eventName ?? null,
+    status: group.games[0]?.status ?? group.games[0]?.statusDetail ?? null,
+    startTime: group.games[0]?.startTime ?? null,
+  }
+}
+
+function officialSeriesByRound(groups: ProviderSeriesGroup[]): Record<string, TeamPairDiagnostic[]> {
+  return groups.reduce<Record<string, TeamPairDiagnostic[]>>((acc, group) => {
+    const key = `round_${group.roundIndex}_${group.conference ?? "unknown"}`
+    acc[key] = [...(acc[key] ?? []), groupDiagnostic(group)]
+    return acc
+  }, {})
+}
+
+function seriesContainsTeam(series: any, teamName: string): boolean {
+  return sameTeam(series.homeTeamName, teamName) ||
+    sameTeam(series.awayTeamName, teamName) ||
+    sameTeam(series.winnerTeamName, teamName)
+}
+
+function sourceSeriesForProviderTeam(seriesList: any[], teamName: string, conference: string): any | null {
+  const candidates = seriesList
+    .filter((series) => Number(series.roundIndex) === 1)
+    .filter((series) => String(series.conference ?? "").toLowerCase() === conference)
+    .filter((series) => seriesContainsTeam(series, teamName))
+    .sort((a, b) => Number(a.seriesNumber ?? 0) - Number(b.seriesNumber ?? 0))
+  return candidates[0] ?? null
 }
 
 function mapTemplateReplacementGroups(seriesList: any[], groups: ProviderSeriesGroup[]): {
   map: Map<string, ProviderSeriesGroup>
   assignments: ProviderAssignmentDiagnostic[]
+  warnings: SlotAssignmentWarning[]
+  conflicts: SlotAssignmentWarning[]
+  unmapped: TeamPairDiagnostic[]
+  expectedVsActual: ProviderAssignmentDiagnostic[]
+  sourceUpdates: Map<string, { sourceSeriesHome: number; sourceSeriesAway: number }>
 } {
   const map = new Map<string, ProviderSeriesGroup>()
   const assignments: ProviderAssignmentDiagnostic[] = []
+  const warnings: SlotAssignmentWarning[] = []
+  const conflicts: SlotAssignmentWarning[] = []
+  const unmapped: TeamPairDiagnostic[] = []
+  const expectedVsActual: ProviderAssignmentDiagnostic[] = []
+  const sourceUpdates = new Map<string, { sourceSeriesHome: number; sourceSeriesAway: number }>()
   const bySeriesNumber = new Map(seriesList.map((series) => [Number(series.seriesNumber), series]))
   for (const roundIndex of [1, 2, 3, 4]) {
     const roundSeries = sortSeriesForReplacement(
@@ -749,26 +836,32 @@ function mapTemplateReplacementGroups(seriesList: any[], groups: ProviderSeriesG
     if (roundSeries.length === 0) continue
     const roundGroups = groups.filter((group) => group.roundIndex === roundIndex)
     if (roundGroups.length === 0) continue
-    assignReplacementGroupsByConference(map, assignments, roundSeries, roundGroups, bySeriesNumber)
+    assignReplacementGroupsByConference(map, assignments, warnings, conflicts, unmapped, expectedVsActual, sourceUpdates, roundSeries, roundGroups, bySeriesNumber, seriesList)
     if (roundIndex === 4 && !Array.from(map.keys()).some((id) => roundSeries.some((series) => series.id === id)) && roundGroups.length >= roundSeries.length) {
       sortSeriesForReplacement(roundSeries).forEach((series, index) => {
         const group = sortProviderGroupsForReplacement(roundGroups)[index]
         if (group) {
           map.set(series.id, group)
-          assignments.push(assignmentDiagnostic(group, series, "finals_order"))
+          assignments.push(assignmentDiagnostic(group, series, "finals_order", "medium"))
         }
       })
     }
   }
-  return { map, assignments }
+  return { map, assignments, warnings, conflicts, unmapped, expectedVsActual, sourceUpdates }
 }
 
 function assignReplacementGroupsByConference(
   map: Map<string, ProviderSeriesGroup>,
   assignments: ProviderAssignmentDiagnostic[],
+  warnings: SlotAssignmentWarning[],
+  conflicts: SlotAssignmentWarning[],
+  unmapped: TeamPairDiagnostic[],
+  expectedVsActual: ProviderAssignmentDiagnostic[],
+  sourceUpdates: Map<string, { sourceSeriesHome: number; sourceSeriesAway: number }>,
   roundSeries: any[],
   roundGroups: ProviderSeriesGroup[],
-  bySeriesNumber: Map<number, any>
+  bySeriesNumber: Map<number, any>,
+  allSeries: any[]
 ) {
   const groupsByConference = new Map<string, ProviderSeriesGroup[]>()
   for (const group of roundGroups) {
@@ -781,19 +874,58 @@ function assignReplacementGroupsByConference(
     const groupsForConference = sortProviderGroupsForReplacement(groupsByConference.get(conference) ?? [])
     const remainingGroups = [...groupsForConference]
     if (groupsForConference.length === 0) continue
+    if (seriesForConference.length < groupsForConference.length) {
+      warnings.push({
+        round: Number(seriesForConference[0]?.roundIndex ?? groupsForConference[0]?.roundIndex ?? 0),
+        conference,
+        message: `Provider returned ${groupsForConference.length} ${conference} series but only ${seriesForConference.length} bracket slots exist.`,
+      })
+    }
+    if (Number(seriesForConference[0]?.roundIndex ?? groupsForConference[0]?.roundIndex ?? 0) === 2) {
+      for (const series of seriesForConference) {
+        const group = remainingGroups.shift()
+        if (!group) continue
+        map.set(series.id, group)
+        assignments.push(assignmentDiagnostic(group, series, "provider_round_order", group.conference ? "high" : "medium"))
+        expectedVsActual.push(assignmentDiagnostic(group, series, "provider_round_order", group.conference ? "high" : "medium"))
+        const sourceHome = sourceSeriesForProviderTeam(allSeries, group.homeTeamName, conference)
+        const sourceAway = sourceSeriesForProviderTeam(allSeries, group.awayTeamName, conference)
+        if (sourceHome && sourceAway && sourceHome.id !== sourceAway.id) {
+          sourceUpdates.set(series.id, {
+            sourceSeriesHome: Number(sourceHome.seriesNumber),
+            sourceSeriesAway: Number(sourceAway.seriesNumber),
+          })
+        } else {
+          warnings.push({
+            round: 2,
+            conference,
+            slot: Number(series.seriesNumber ?? null),
+            providerSeries: `${group.homeTeamName} vs ${group.awayTeamName}`,
+            message: "Could not confidently trace both provider teams to distinct Round 1 source slots for My Projection.",
+          })
+        }
+      }
+      for (const group of remainingGroups) {
+        unmapped.push(groupDiagnostic(group))
+      }
+      continue
+    }
     for (const series of seriesForConference) {
       const compatibleIndex = remainingGroups.findIndex((group) => groupMatchesSourceWinners(series, group, bySeriesNumber))
       if (compatibleIndex < 0) continue
       const [group] = remainingGroups.splice(compatibleIndex, 1)
       map.set(series.id, group)
-      assignments.push(assignmentDiagnostic(group, series, "source_winners"))
+      assignments.push(assignmentDiagnostic(group, series, "source_winners", "high"))
     }
     for (const series of seriesForConference) {
       if (map.has(series.id)) continue
       const group = remainingGroups.shift()
       if (!group) continue
       map.set(series.id, group)
-      assignments.push(assignmentDiagnostic(group, series, "conference_order"))
+      assignments.push(assignmentDiagnostic(group, series, "conference_order", group.conference ? "medium" : "low"))
+    }
+    for (const group of remainingGroups) {
+      unmapped.push(groupDiagnostic(group))
     }
   }
 }
@@ -1227,6 +1359,14 @@ export async function syncPlayoffChallengeSeries(input: {
     eventNameRoundMapExamples: payload.diagnostics?.eventNameRoundMapExamples ?? sampleEventNameRoundDiagnostics(payload.games, sport),
     providerSeriesByRound: payload.diagnostics?.providerSeriesByRound ?? {},
     providerAssignments: payload.diagnostics?.providerAssignments ?? [],
+    officialSeriesByRound: payload.diagnostics?.officialSeriesByRound ?? {},
+    officialSeriesSlotAssignments: payload.diagnostics?.officialSeriesSlotAssignments ?? [],
+    providerRound2WestSeries: payload.diagnostics?.providerRound2WestSeries ?? [],
+    providerRound2EastSeries: payload.diagnostics?.providerRound2EastSeries ?? [],
+    slotAssignmentWarnings: payload.diagnostics?.slotAssignmentWarnings ?? [],
+    unmappedProviderSeries: payload.diagnostics?.unmappedProviderSeries ?? [],
+    conflictingSlotAssignments: payload.diagnostics?.conflictingSlotAssignments ?? [],
+    expectedVsActualSlotExamples: payload.diagnostics?.expectedVsActualSlotExamples ?? [],
     templateReplacementCount: 0,
     updatedSeriesExamples: [],
     scheduleSupplementProvider: "none",
@@ -1279,6 +1419,18 @@ export async function syncPlayoffChallengeSeries(input: {
   const templateReplacementResult = mapTemplateReplacementGroups(challenge.series, providerSeriesGroups)
   const templateReplacementGroups = templateReplacementResult.map
   diagnostics.providerAssignments = templateReplacementResult.assignments
+  diagnostics.officialSeriesByRound = officialSeriesByRound(providerSeriesGroups)
+  diagnostics.officialSeriesSlotAssignments = templateReplacementResult.assignments
+  diagnostics.providerRound2WestSeries = providerSeriesGroups
+    .filter((group) => group.roundIndex === 2 && group.conference === "west")
+    .map(groupDiagnostic)
+  diagnostics.providerRound2EastSeries = providerSeriesGroups
+    .filter((group) => group.roundIndex === 2 && group.conference === "east")
+    .map(groupDiagnostic)
+  diagnostics.slotAssignmentWarnings = templateReplacementResult.warnings
+  diagnostics.unmappedProviderSeries = templateReplacementResult.unmapped
+  diagnostics.conflictingSlotAssignments = templateReplacementResult.conflicts
+  diagnostics.expectedVsActualSlotExamples = templateReplacementResult.expectedVsActual.slice(0, 12)
   let templateReplacementCount = 0
   const updatedSeriesExamples: UpdatedSeriesDiagnostic[] = []
   const officialWinnerBySeriesId = new Map<string, string>()
@@ -1354,6 +1506,9 @@ export async function syncPlayoffChallengeSeries(input: {
       data: {
         homeTeamName: nextHomeTeamName,
         awayTeamName: nextAwayTeamName,
+        ...(shouldUpdateOfficialTeams && templateReplacementResult.sourceUpdates.has(series.id)
+          ? templateReplacementResult.sourceUpdates.get(series.id)
+          : {}),
         status: nextStatus,
         startsAt: aggregate.startsAt,
         winnerTeamName: nextWinnerTeamName,
