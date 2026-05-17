@@ -64,6 +64,26 @@ export interface RollingInsightsScheduleGameRow {
   completed: boolean
 }
 
+export interface RollingInsightsScheduleShapeDiagnostics {
+  httpStatus?: number | null
+  contentType?: string | null
+  topLevelKeys: string[]
+  dataKeys: string[]
+  firstItemKeys: string[]
+  firstItemSafeFields: Record<string, unknown>
+  textPreview?: string | null
+  rollingInsightsTokenPresent: boolean
+  tokenEnvNameUsed: string | null
+  baseUrlUsed: string
+  endpointKind: 'schedule-season'
+  sanitizedUrl: string
+}
+
+export interface RollingInsightsScheduleSeasonResult {
+  rows: RollingInsightsScheduleGameRow[]
+  diagnostics: RollingInsightsScheduleShapeDiagnostics
+}
+
 function asFiniteInt(v: unknown): number {
   const n = typeof v === 'number' ? v : Number.parseInt(String(v ?? ''), 10)
   return Number.isFinite(n) ? n : 0
@@ -276,8 +296,172 @@ function collectScheduleItems(value: unknown, sport: LeagueSport): unknown[] {
   for (const key of preferredKeys) {
     const nested = obj[key]
     if (Array.isArray(nested)) return nested
+    const nestedRows = collectScheduleItems(nested, sport)
+    if (nestedRows.length > 0) return nestedRows
   }
-  return Object.values(obj).flatMap((nested) => Array.isArray(nested) ? nested : [])
+  return Object.values(obj).flatMap((nested) => collectScheduleItems(nested, sport))
+}
+
+const DEFAULT_ROLLING_INSIGHTS_REST_BASE_URL = 'https://rest.datafeeds.rolling-insights.com/api/v1'
+
+function rollingInsightsScheduleTokenCandidates(): Array<{ name: string; value: string }> {
+  return [
+    { name: 'ROLLING_INSIGHTS_RSC_TOKEN', value: process.env.ROLLING_INSIGHTS_RSC_TOKEN?.trim() ?? '' },
+    { name: 'ROLLING_INSIGHTS_RSC_TOKEN2', value: process.env.ROLLING_INSIGHTS_RSC_TOKEN2?.trim() ?? '' },
+    { name: 'RSC_TOKEN', value: process.env.RSC_TOKEN?.trim() ?? '' },
+    { name: 'ROLLING_INSIGHTS_CLIENT_SECRET', value: process.env.ROLLING_INSIGHTS_CLIENT_SECRET?.trim() ?? '' },
+    { name: 'ROLLING_INSIGHTS_CLIENT_SECRET2', value: process.env.ROLLING_INSIGHTS_CLIENT_SECRET2?.trim() ?? '' },
+  ].filter((candidate) => candidate.value)
+}
+
+function rollingInsightsScheduleBaseUrl(): string {
+  return (process.env.ROLLING_INSIGHTS_REST_BASE_URL || DEFAULT_ROLLING_INSIGHTS_REST_BASE_URL).replace(/\/+$/, '')
+}
+
+export function buildRollingInsightsScheduleSeasonUrl(input: {
+  sport: LeagueSport
+  seasonYear: number
+  token?: string
+  redacted?: boolean
+}): string {
+  const baseUrl = rollingInsightsScheduleBaseUrl()
+  const url = new URL(`${baseUrl}/schedule-season/${input.seasonYear}/${input.sport}`)
+  url.searchParams.set('RSC_token', input.redacted ? '<redacted>' : input.token ?? '')
+  return url.toString()
+}
+
+function redactTokens(value: string): string {
+  return value.replace(/RSC_token=([^&\s]+)/gi, 'RSC_token=<redacted>')
+}
+
+function safeObjectKeys(value: unknown): string[] {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? Object.keys(value as Record<string, unknown>).slice(0, 20)
+    : []
+}
+
+function firstScheduleItem(value: unknown, sport: LeagueSport): unknown {
+  return collectScheduleItems(value, sport)[0] ?? null
+}
+
+function scheduleShapeDiagnostics(input: {
+  payload: unknown
+  sport: LeagueSport
+  seasonYear: number
+  httpStatus?: number | null
+  contentType?: string | null
+  textPreview?: string | null
+  tokenEnvNameUsed: string | null
+  tokenPresent: boolean
+}): RollingInsightsScheduleShapeDiagnostics {
+  const first = firstScheduleItem(input.payload, input.sport)
+  const firstRecord = first && typeof first === 'object' && !Array.isArray(first)
+    ? first as Record<string, unknown>
+    : {}
+  const dataValue = input.payload && typeof input.payload === 'object' && !Array.isArray(input.payload)
+    ? (input.payload as Record<string, unknown>).data
+    : null
+  return {
+    httpStatus: input.httpStatus ?? null,
+    contentType: input.contentType ?? null,
+    topLevelKeys: safeObjectKeys(input.payload),
+    dataKeys: safeObjectKeys(dataValue),
+    firstItemKeys: Object.keys(firstRecord).slice(0, 30),
+    firstItemSafeFields: {
+      season_type: firstRecord.season_type,
+      season: firstRecord.season,
+      status: firstRecord.status,
+      event_name: firstRecord.event_name,
+      round: firstRecord.round,
+      home_team: firstRecord.home_team,
+      away_team: firstRecord.away_team,
+    },
+    textPreview: input.textPreview ? redactTokens(input.textPreview).slice(0, 120) : null,
+    rollingInsightsTokenPresent: input.tokenPresent,
+    tokenEnvNameUsed: input.tokenEnvNameUsed,
+    baseUrlUsed: rollingInsightsScheduleBaseUrl(),
+    endpointKind: 'schedule-season',
+    sanitizedUrl: buildRollingInsightsScheduleSeasonUrl({ sport: input.sport, seasonYear: input.seasonYear, redacted: true }),
+  }
+}
+
+export async function fetchRollingInsightsScheduleSeasonWithDiagnostics(
+  sport: LeagueSport,
+  seasonYear: number,
+): Promise<RollingInsightsScheduleSeasonResult> {
+  const tokens = rollingInsightsScheduleTokenCandidates()
+  if (tokens.length === 0) {
+    return {
+      rows: [],
+      diagnostics: scheduleShapeDiagnostics({
+        payload: null,
+        sport,
+        seasonYear,
+        tokenEnvNameUsed: null,
+        tokenPresent: false,
+        textPreview: 'Missing Rolling Insights RSC token environment variable.',
+      }),
+    }
+  }
+
+  let lastDiagnostics: RollingInsightsScheduleShapeDiagnostics | null = null
+  for (const token of tokens) {
+    const url = buildRollingInsightsScheduleSeasonUrl({ sport, seasonYear, token: token.value })
+    try {
+      const response = await fetch(url, { cache: 'no-store' })
+      const contentType = response.headers.get('content-type')
+      const rawText = await response.text()
+      let payload: unknown = rawText
+      if (contentType?.toLowerCase().includes('json')) {
+        try {
+          payload = JSON.parse(rawText)
+        } catch {
+          payload = rawText
+        }
+      }
+      const rawList = collectScheduleItems(payload, sport)
+      const rows: RollingInsightsScheduleGameRow[] = []
+      for (const item of rawList) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) continue
+        const row = mapRollingInsightsScheduleRow(item as Record<string, unknown>, sport, seasonYear)
+        if (row) rows.push(row)
+      }
+      lastDiagnostics = scheduleShapeDiagnostics({
+        payload,
+        sport,
+        seasonYear,
+        httpStatus: response.status,
+        contentType,
+        textPreview: typeof payload === 'string' ? payload : rawText,
+        tokenEnvNameUsed: token.name,
+        tokenPresent: true,
+      })
+      if (response.ok) {
+        return { rows, diagnostics: lastDiagnostics }
+      }
+    } catch (error) {
+      lastDiagnostics = scheduleShapeDiagnostics({
+        payload: null,
+        sport,
+        seasonYear,
+        tokenEnvNameUsed: token.name,
+        tokenPresent: true,
+        textPreview: error instanceof Error ? error.message : 'Request failed',
+      })
+    }
+  }
+
+  return {
+    rows: [],
+    diagnostics: lastDiagnostics ?? scheduleShapeDiagnostics({
+      payload: null,
+      sport,
+      seasonYear,
+      tokenEnvNameUsed: null,
+      tokenPresent: tokens.length > 0,
+      textPreview: 'No successful Rolling Insights schedule-season response.',
+    }),
+  }
 }
 
 export async function fetchRollingInsightsScheduleSeason(
@@ -285,22 +469,8 @@ export async function fetchRollingInsightsScheduleSeason(
   seasonYear: number,
   options: { forceRefresh?: boolean } = {},
 ): Promise<RollingInsightsScheduleGameRow[]> {
-  const chainSport = legacySupportedSportToApiChain(sport)
-  const schedule = await fetchWithChain({
-    sport: chainSport,
-    dataType: 'schedule',
-    query: { season: String(seasonYear) },
-    forceRefresh: options.forceRefresh === true,
-  })
-
-  const rawList = collectScheduleItems(schedule.data, sport)
-  const rows: RollingInsightsScheduleGameRow[] = []
-  for (const item of rawList) {
-    if (!item || typeof item !== 'object') continue
-    const row = mapRollingInsightsScheduleRow(item as Record<string, unknown>, sport, seasonYear)
-    if (row) rows.push(row)
-  }
-  return rows
+  void options
+  return (await fetchRollingInsightsScheduleSeasonWithDiagnostics(sport, seasonYear)).rows
 }
 
 async function syncLiveScoresToDb(sport: LeagueSport, scores: LiveScoreRow[], source: string): Promise<number> {

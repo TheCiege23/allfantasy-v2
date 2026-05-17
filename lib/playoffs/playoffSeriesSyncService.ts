@@ -3,9 +3,10 @@ import type { LeagueSport } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import {
   fetchEspnScoreboard,
-  fetchRollingInsightsScheduleSeason,
+  fetchRollingInsightsScheduleSeasonWithDiagnostics,
   fetchRollingInsightsScoreboard,
   type LiveScoreRow,
+  type RollingInsightsScheduleShapeDiagnostics,
   type RollingInsightsScheduleGameRow,
 } from "@/lib/sports-live-scores-service"
 import { normalizeTeamAbbrev } from "@/lib/team-abbrev"
@@ -77,6 +78,7 @@ type ProviderSeasonAttemptDiagnostic = {
   rowsReturned: number
   postseasonRows: number
   warning?: string
+  responseShape?: RollingInsightsScheduleShapeDiagnostics
 }
 
 type TeamPairDiagnostic = {
@@ -201,7 +203,8 @@ export async function fetchRollingInsightsPostseasonScheduleGames(input: {
   let selectedRows: RollingInsightsScheduleGameRow[] = []
   let selectedProviderSeason: number | null = null
   for (const providerSeason of candidateProviderSeasons(input.seasonYear)) {
-    const rows = await fetchRollingInsightsScheduleSeason(leagueSport, providerSeason, { forceRefresh: true })
+    const result = await fetchRollingInsightsScheduleSeasonWithDiagnostics(leagueSport, providerSeason)
+    const rows = result.rows
     const postseasonRows = rows.filter(isPostseasonRow)
     providerSeasonAttempts.push({
       provider: "rolling_insights_schedule_season",
@@ -211,6 +214,7 @@ export async function fetchRollingInsightsPostseasonScheduleGames(input: {
       warning: postseasonRows.length === 0
         ? `No ${input.sport.toUpperCase()} postseason games returned from Rolling Insights schedule-season for season ${providerSeason}.`
         : undefined,
+      responseShape: rows.length <= 1 || postseasonRows.length === 0 ? result.diagnostics : undefined,
     })
     if (postseasonRows.length > 0) {
       selectedRows = postseasonRows

@@ -61,6 +61,7 @@ describe("syncPlayoffChallengeSeries", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.clearAllMocks()
+    vi.stubEnv("ROLLING_INSIGHTS_RSC_TOKEN", "test-rsc-token")
     challengeFindUniqueMock.mockResolvedValue(baseChallenge)
     pickDeleteManyMock.mockResolvedValue({ count: 0 })
   })
@@ -344,10 +345,10 @@ describe("syncPlayoffChallengeSeries", () => {
 
   it("normalizes NBA schedule-season postseason rows and updates template teams", async () => {
     const liveScores = await import("@/lib/sports-live-scores-service")
-    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeason").mockResolvedValue([
+    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NBA", 2026, [
       scheduleRow("NBA", "Postseason", "First Round", 1, "Boston Celtics", "Miami Heat", "scheduled", "2026-04-20T00:00:00.000Z"),
       scheduleRow("NBA", "Regular Season", "Regular Season", 0, "Lakers", "Warriors", "final", "2026-01-01T00:00:00.000Z"),
-    ] as any)
+    ] as any))
     challengeFindUniqueMock.mockResolvedValue({
       ...baseChallenge,
       series: [{ ...baseChallenge.series[0], homeTeamName: "E1", awayTeamName: "E8" }],
@@ -373,13 +374,13 @@ describe("syncPlayoffChallengeSeries", () => {
 
   it("selects the season-start provider year when 2026 has no postseason rows and 2025 does", async () => {
     const liveScores = await import("@/lib/sports-live-scores-service")
-    const scheduleSpy = vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeason").mockImplementation(async (_sport, seasonYear) => {
+    const scheduleSpy = vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockImplementation(async (sport, seasonYear) => {
       if (seasonYear === 2025) {
-        return [
+        return scheduleResult(sport as "NBA" | "NHL", seasonYear, [
           scheduleRow("NBA", "Postseason", "First Round", 1, "Boston Celtics", "Miami Heat", "scheduled", "2026-04-20T00:00:00.000Z"),
-        ] as any
+        ] as any)
       }
-      return []
+      return scheduleResult(sport as "NBA" | "NHL", seasonYear, [])
     })
     const espnSpy = vi.spyOn(liveScores, "fetchEspnScoreboard").mockResolvedValue([])
     challengeFindUniqueMock.mockResolvedValue({
@@ -391,8 +392,8 @@ describe("syncPlayoffChallengeSeries", () => {
     const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
     const result = await syncPlayoffChallengeSeries({ challengeId: "challenge-1" })
 
-    expect(scheduleSpy).toHaveBeenCalledWith("NBA", 2026, { forceRefresh: true })
-    expect(scheduleSpy).toHaveBeenCalledWith("NBA", 2025, { forceRefresh: true })
+    expect(scheduleSpy).toHaveBeenCalledWith("NBA", 2026)
+    expect(scheduleSpy).toHaveBeenCalledWith("NBA", 2025)
     expect(espnSpy).not.toHaveBeenCalled()
     expect(result.challengeSeasonYear).toBe(2026)
     expect(result.selectedProviderSeason).toBe(2025)
@@ -414,9 +415,11 @@ describe("syncPlayoffChallengeSeries", () => {
 
   it("parses nested NBA schedule-season response keys and filters postseason case-insensitively", async () => {
     const liveScores = await import("@/lib/sports-live-scores-service")
-    const apiChain = await import("@/lib/workers/api-chain")
-    vi.spyOn(apiChain, "fetchWithChain").mockResolvedValue({
-      data: {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      text: async () => JSON.stringify({
         NBA: [
           {
             game_ID: "nested-1",
@@ -429,10 +432,8 @@ describe("syncPlayoffChallengeSeries", () => {
             status: "scheduled",
           },
         ],
-      },
-      fromCache: false,
-      source: "rolling_insights",
-    } as any)
+      }),
+    } as Response)
 
     const rows = await liveScores.fetchRollingInsightsScheduleSeason("NBA", 2026, { forceRefresh: true })
     expect(rows).toHaveLength(1)
@@ -443,11 +444,121 @@ describe("syncPlayoffChallengeSeries", () => {
     expect(result.games).toHaveLength(1)
   })
 
+  it("builds the same direct schedule-season URL shape as the proof audit", async () => {
+    const liveScores = await import("@/lib/sports-live-scores-service")
+
+    expect(liveScores.buildRollingInsightsScheduleSeasonUrl({ sport: "NBA", seasonYear: 2025, token: "secret" }))
+      .toBe("https://rest.datafeeds.rolling-insights.com/api/v1/schedule-season/2025/NBA?RSC_token=secret")
+    expect(liveScores.buildRollingInsightsScheduleSeasonUrl({ sport: "NHL", seasonYear: 2025, redacted: true }))
+      .toBe("https://rest.datafeeds.rolling-insights.com/api/v1/schedule-season/2025/NHL?RSC_token=%3Credacted%3E")
+  })
+
+  it("parses all rows from nested NBA schedule-season responses", async () => {
+    const rows = Array.from({ length: 1379 }).map((_, index) => ({
+      game_ID: `game-${index}`,
+      season_type: index < 74 ? "Postseason" : "Regular Season",
+      event_name: index < 74 ? "First Round" : "Regular Season",
+      round: index < 74 ? 1 : 0,
+      home_team: `Home ${index}`,
+      away_team: `Away ${index}`,
+      game_time: "2026-04-20T00:00:00.000Z",
+      status: "scheduled",
+    }))
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      text: async () => JSON.stringify({ data: { NBA: rows } }),
+    } as Response)
+
+    const liveScores = await import("@/lib/sports-live-scores-service")
+    const result = await liveScores.fetchRollingInsightsScheduleSeasonWithDiagnostics("NBA", 2025)
+
+    expect(result.rows).toHaveLength(1379)
+    expect(result.rows.filter((row) => row.seasonType === "Postseason")).toHaveLength(74)
+    expect(result.diagnostics.dataKeys).toContain("NBA")
+    expect(result.diagnostics.sanitizedUrl).toContain("/schedule-season/2025/NBA")
+    expect(result.diagnostics.sanitizedUrl).not.toContain("test-rsc-token")
+  })
+
+  it("does not count a Rolling Insights error object as a schedule row", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      text: async () => JSON.stringify({ error: "Unauthorized", message: "Bad token" }),
+    } as Response)
+
+    const liveScores = await import("@/lib/sports-live-scores-service")
+    const result = await liveScores.fetchRollingInsightsScheduleSeasonWithDiagnostics("NBA", 2025)
+
+    expect(result.rows).toHaveLength(0)
+    expect(result.diagnostics.topLevelKeys).toEqual(["error", "message"])
+    expect(result.diagnostics.firstItemKeys).toEqual([])
+  })
+
+  it("includes response shape when one non-postseason row is returned", async () => {
+    const liveScores = await import("@/lib/sports-live-scores-service")
+    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue({
+      rows: [
+        scheduleRow("NBA", "Regular Season", "Regular Season", 0, "Celtics", "Heat", "scheduled", "2026-01-01T00:00:00.000Z"),
+      ] as any,
+      diagnostics: {
+        httpStatus: 200,
+        contentType: "application/json",
+        topLevelKeys: ["data"],
+        dataKeys: ["NBA"],
+        firstItemKeys: ["season_type", "event_name", "home_team", "away_team"],
+        firstItemSafeFields: {
+          season_type: "Regular Season",
+          event_name: "Regular Season",
+          home_team: "Celtics",
+          away_team: "Heat",
+        },
+        textPreview: null,
+        rollingInsightsTokenPresent: true,
+        tokenEnvNameUsed: "ROLLING_INSIGHTS_RSC_TOKEN",
+        baseUrlUsed: "https://rest.datafeeds.rolling-insights.com/api/v1",
+        endpointKind: "schedule-season",
+        sanitizedUrl: "https://rest.datafeeds.rolling-insights.com/api/v1/schedule-season/2026/NBA?RSC_token=<redacted>",
+      },
+    })
+    vi.spyOn(liveScores, "fetchRollingInsightsScoreboard").mockResolvedValue([])
+
+    const { fetchLivePlayoffSeriesGames } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await fetchLivePlayoffSeriesGames({ sport: "nba", seasonYear: 2026 })
+
+    expect(result.diagnostics.providerSeasonAttempts[0]).toMatchObject({
+      rowsReturned: 1,
+      postseasonRows: 0,
+      responseShape: expect.objectContaining({
+        firstItemSafeFields: expect.objectContaining({ season_type: "Regular Season" }),
+        tokenEnvNameUsed: "ROLLING_INSIGHTS_RSC_TOKEN",
+      }),
+    })
+  })
+
+  it("returns clear schedule diagnostics when the Rolling Insights token is missing", async () => {
+    vi.stubEnv("ROLLING_INSIGHTS_RSC_TOKEN", "")
+    vi.stubEnv("ROLLING_INSIGHTS_RSC_TOKEN2", "")
+    vi.stubEnv("RSC_TOKEN", "")
+    vi.stubEnv("ROLLING_INSIGHTS_CLIENT_SECRET", "")
+    vi.stubEnv("ROLLING_INSIGHTS_CLIENT_SECRET2", "")
+    const liveScores = await import("@/lib/sports-live-scores-service")
+
+    const result = await liveScores.fetchRollingInsightsScheduleSeasonWithDiagnostics("NBA", 2025)
+
+    expect(result.rows).toHaveLength(0)
+    expect(result.diagnostics.rollingInsightsTokenPresent).toBe(false)
+    expect(result.diagnostics.tokenEnvNameUsed).toBeNull()
+    expect(result.diagnostics.textPreview).toContain("Missing Rolling Insights RSC token")
+  })
+
   it("normalizes NHL schedule-season postseason rows and maps Stanley Cup Final to round 4", async () => {
     const liveScores = await import("@/lib/sports-live-scores-service")
-    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeason").mockResolvedValue([
+    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NHL", 2026, [
       scheduleRow("NHL", "Postseason", "Stanley Cup Final", 4, "Panthers", "Oilers", "completed", "2026-06-01T00:00:00.000Z", 4, 1),
-    ] as any)
+    ] as any))
     challengeFindUniqueMock.mockResolvedValue({
       ...baseChallenge,
       sport: "nhl",
@@ -470,12 +581,12 @@ describe("syncPlayoffChallengeSeries", () => {
 
   it("sets a schedule-season series winner when one team reaches four completed wins", async () => {
     const liveScores = await import("@/lib/sports-live-scores-service")
-    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeason").mockResolvedValue([
+    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NBA", 2026, [
       scheduleRow("NBA", "Postseason", "First Round", 1, "Boston Celtics", "Miami Heat", "completed", "2026-04-20T00:00:00.000Z", 100, 90),
       scheduleRow("NBA", "Postseason", "First Round", 1, "Miami Heat", "Boston Celtics", "completed", "2026-04-22T00:00:00.000Z", 90, 110),
       scheduleRow("NBA", "Postseason", "First Round", 1, "Boston Celtics", "Miami Heat", "completed", "2026-04-24T00:00:00.000Z", 101, 99),
       scheduleRow("NBA", "Postseason", "First Round", 1, "Miami Heat", "Boston Celtics", "completed", "2026-04-26T00:00:00.000Z", 91, 99),
-    ] as any)
+    ] as any))
     challengeFindUniqueMock.mockResolvedValue({
       ...baseChallenge,
       series: [{ ...baseChallenge.series[0], homeTeamName: "E1", awayTeamName: "E8" }],
@@ -496,7 +607,7 @@ describe("syncPlayoffChallengeSeries", () => {
 
   it("falls back to live and ESPN providers when schedule-season is empty", async () => {
     const liveScores = await import("@/lib/sports-live-scores-service")
-    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeason").mockResolvedValue([])
+    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NBA", 2026, []))
     vi.spyOn(liveScores, "fetchRollingInsightsScoreboard").mockResolvedValue([])
     vi.spyOn(liveScores, "fetchEspnScoreboard").mockResolvedValue([
       {
@@ -564,5 +675,33 @@ function scheduleRow(
     startsAt: gameTime,
     status,
     completed: status === "final" || status === "completed",
+  }
+}
+
+function scheduleResult(sport: "NBA" | "NHL", seasonYear: number, rows: any[]) {
+  return {
+    rows,
+    diagnostics: {
+      httpStatus: 200,
+      contentType: "application/json",
+      topLevelKeys: ["data"],
+      dataKeys: [sport],
+      firstItemKeys: rows[0] ? Object.keys(rows[0]) : [],
+      firstItemSafeFields: {
+        season_type: rows[0]?.seasonType,
+        season: rows[0]?.season,
+        status: rows[0]?.status,
+        event_name: rows[0]?.eventName,
+        round: rows[0]?.round,
+        home_team: rows[0]?.homeTeam,
+        away_team: rows[0]?.awayTeam,
+      },
+      textPreview: null,
+      rollingInsightsTokenPresent: true,
+      tokenEnvNameUsed: "ROLLING_INSIGHTS_RSC_TOKEN",
+      baseUrlUsed: "https://rest.datafeeds.rolling-insights.com/api/v1",
+      endpointKind: "schedule-season",
+      sanitizedUrl: `https://rest.datafeeds.rolling-insights.com/api/v1/schedule-season/${seasonYear}/${sport}?RSC_token=<redacted>`,
+    },
   }
 }
