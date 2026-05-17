@@ -11,9 +11,14 @@ const toastErrorMock = vi.hoisted(() => vi.fn())
 const toastSuccessMock = vi.hoisted(() => vi.fn())
 const toastWarningMock = vi.hoisted(() => vi.fn())
 const toastInfoMock = vi.hoisted(() => vi.fn())
+const useSessionMock = vi.hoisted(() => vi.fn())
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
+}))
+
+vi.mock("next-auth/react", () => ({
+  useSession: useSessionMock,
 }))
 
 vi.mock("@/lib/playoffs/playoffClientApi", () => ({
@@ -81,6 +86,7 @@ function buildView(overrides: Partial<PlayoffChallengeView> = {}): PlayoffChalle
 describe("PlayoffBracketShell dashboard", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useSessionMock.mockReturnValue({ data: null })
     getPlayoffBracketViewClientMock.mockResolvedValue(buildView())
   })
 
@@ -410,6 +416,54 @@ describe("PlayoffBracketShell dashboard", () => {
     expect(screen.queryByTestId("playoff-sync-series-button")).not.toBeInTheDocument()
   })
 
+  it("shows playoff commissioner sync controls to the all-access account", () => {
+    useSessionMock.mockReturnValue({
+      data: {
+        user: {
+          email: "Cjabar.henson@gmail.com",
+          username: "TheCiege26",
+          name: "TheCiege26",
+        },
+      },
+    })
+
+    render(
+      <PlayoffBracketShell
+        initialView={buildView({
+          viewerUserId: "user-2",
+          challenge: { ...buildView().challenge, ownerUserId: "user-1", isTestMode: true },
+          series: [
+            {
+              id: "s9",
+              round: "conference_semifinals",
+              roundIndex: 2,
+              seriesNumber: 9,
+              conference: "east",
+              homeSeed: 0,
+              awaySeed: 0,
+              homeTeamName: "Winner S1",
+              awayTeamName: "Winner S2",
+              winnerTeamName: null,
+              bestOf: 7,
+              status: "scheduled",
+              startsAt: null,
+              nextSeriesNumber: 13,
+              nextSeriesSlot: "home",
+              sourceSeriesHome: 1,
+              sourceSeriesAway: 2,
+            },
+          ],
+        })}
+      />
+    )
+
+    expect(screen.getByTestId("playoff-sync-series-button")).toBeInTheDocument()
+    expect(screen.getByTestId("playoff-sync-schedule-only-button")).toBeInTheDocument()
+    expect(screen.getByTestId("playoff-sync-results-only-button")).toBeInTheDocument()
+    expect(screen.getByTestId("playoff-sync-autofill-results-button")).toBeInTheDocument()
+    expect(screen.getByText("Commissioner Tools")).toBeInTheDocument()
+  })
+
   it("exposes separate schedule-only and test autofill sync modes for test pools", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
@@ -454,7 +508,41 @@ describe("PlayoffBracketShell dashboard", () => {
 
     fireEvent.click(screen.getByTestId("playoff-sync-schedule-only-button"))
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith("/api/brackets/playoffs/challenge-1/admin/sync-series?mode=schedule_only", expect.objectContaining({ method: "POST" }))
+      expect(fetchMock).toHaveBeenCalledWith("/api/brackets/playoffs/challenge-1/admin/sync-series?mode=teams_schedule_only", expect.objectContaining({ method: "POST" }))
+    })
+
+    render(
+      <PlayoffBracketShell
+        initialView={buildView({
+          challenge: { ...buildView().challenge, isTestMode: true },
+          series: [
+            {
+              id: "s9",
+              round: "conference_semifinals",
+              roundIndex: 2,
+              seriesNumber: 9,
+              conference: "east",
+              homeSeed: 0,
+              awaySeed: 0,
+              homeTeamName: "Winner S1",
+              awayTeamName: "Winner S2",
+              winnerTeamName: null,
+              bestOf: 7,
+              status: "scheduled",
+              startsAt: null,
+              nextSeriesNumber: 13,
+              nextSeriesSlot: "home",
+              sourceSeriesHome: 1,
+              sourceSeriesAway: 2,
+            },
+          ],
+        })}
+      />
+    )
+    const resultsButtons = screen.getAllByTestId("playoff-sync-results-only-button")
+    fireEvent.click(resultsButtons[resultsButtons.length - 1])
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/brackets/playoffs/challenge-1/admin/sync-series?mode=results_only", expect.objectContaining({ method: "POST" }))
     })
 
     render(

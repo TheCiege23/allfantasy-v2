@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { requireCronAuth } from "@/app/api/cron/_auth"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { hasPoolAdminAccess } from "@/lib/auth/admin"
 import { prisma } from "@/lib/prisma"
 import {
   syncPlayoffChallengeSeries,
@@ -13,9 +14,9 @@ import { playoffChallengeParamsSchema } from "../../../_utils"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-type SessionUser = { id?: string | null }
+type SessionUser = { id?: string | null; email?: string | null; name?: string | null }
 
-const SYNC_MODES: PlayoffSeriesSyncMode[] = ["schedule_only", "official_bracket", "autofill_results"]
+const SYNC_MODES: PlayoffSeriesSyncMode[] = ["schedule_only", "teams_schedule_only", "results_only", "official_bracket", "autofill_results"]
 
 async function canSyncChallenge(request: Request, challengeId: string): Promise<boolean> {
   const devOpen =
@@ -25,6 +26,7 @@ async function canSyncChallenge(request: Request, challengeId: string): Promise<
   const session = (await getServerSession(authOptions as any)) as { user?: SessionUser } | null
   const userId = session?.user?.id
   if (!userId) return false
+  if (hasPoolAdminAccess(session.user)) return true
 
   const challenge = await (prisma as any).playoffBracketChallenge.findUnique({
     where: { id: challengeId },

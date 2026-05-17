@@ -48,6 +48,8 @@ function playoffGame(homeTeam: string, awayTeam: string, homeScore: number, away
     MIA: "Heat",
     NYK: "Knicks",
     IND: "Pacers",
+    NYR: "Rangers",
+    NYI: "Islanders",
   }
   return {
     homeTeam,
@@ -393,7 +395,7 @@ describe("syncPlayoffChallengeSeries", () => {
     expect(pickUpsertMock).not.toHaveBeenCalled()
   })
 
-  it("schedule-only mode updates metadata without replacing official slot teams", async () => {
+  it("NBA teams_schedule_only imports teams and schedule but not winners or scoring state", async () => {
     challengeFindUniqueMock.mockResolvedValue({
       ...baseChallenge,
       series: [{ ...baseChallenge.series[0], homeTeamName: "E1", awayTeamName: "E8" }],
@@ -402,24 +404,93 @@ describe("syncPlayoffChallengeSeries", () => {
     const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
     const result = await syncPlayoffChallengeSeries({
       challengeId: "challenge-1",
-      mode: "schedule_only",
+      mode: "teams_schedule_only",
       provider: async () => ({
         source: "test_provider",
-        games: [{
-          ...playoffGame("BOS", "MIA", 100, 90, "2026-05-01T00:00:00.000Z"),
-          providerRound: 1,
-          eventName: "East 1st Round:",
-        }],
+        games: [
+          { ...playoffGame("BOS", "MIA", 100, 90, "2026-05-01T00:00:00.000Z"), providerRound: 1, eventName: "East 1st Round:" },
+          { ...playoffGame("MIA", "BOS", 88, 102, "2026-05-03T00:00:00.000Z"), providerRound: 1, eventName: "East 1st Round:" },
+          { ...playoffGame("BOS", "MIA", 97, 100, "2026-05-05T00:00:00.000Z"), providerRound: 1, eventName: "East 1st Round:" },
+          { ...playoffGame("MIA", "BOS", 90, 111, "2026-05-07T00:00:00.000Z"), providerRound: 1, eventName: "East 1st Round:" },
+        ],
       }),
     })
 
-    expect(result.mode).toBe("schedule_only")
+    expect(result.mode).toBe("teams_schedule_only")
+    expect(result.winnersUpdated).toBe(0)
     expect(seriesUpdateMock).toHaveBeenCalledWith({
       where: { id: "series-1" },
       data: expect.objectContaining({
-        homeTeamName: "E1",
-        awayTeamName: "E8",
-        seriesSummary: "Celtics leads series 1-0",
+        homeTeamName: "Celtics",
+        awayTeamName: "Heat",
+        status: "scheduled",
+        winnerTeamName: null,
+        homeTeamWins: 0,
+        awayTeamWins: 0,
+        seriesSummary: "Series scheduled",
+      }),
+    })
+    expect(pickUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it("NHL teams_schedule_only imports teams but not winners", async () => {
+    challengeFindUniqueMock.mockResolvedValue({
+      ...baseChallenge,
+      sport: "nhl",
+      series: [{ ...baseChallenge.series[0], homeTeamName: "E1", awayTeamName: "E8" }],
+    })
+
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      mode: "teams_schedule_only",
+      provider: async () => ({
+        source: "test_provider",
+        games: [{ ...playoffGame("NYR", "NYI", 4, 1, "2026-05-01T00:00:00.000Z"), providerRound: 1, eventName: "East Round 1:" }],
+      }),
+    })
+
+    expect(result.sport).toBe("nhl")
+    expect(result.winnersUpdated).toBe(0)
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-1" },
+      data: expect.objectContaining({
+        homeTeamName: "Rangers",
+        awayTeamName: "Islanders",
+        winnerTeamName: null,
+        seriesSummary: "Series scheduled",
+      }),
+    })
+    expect(pickUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it("results_only imports official winners and summaries without creating picks", async () => {
+    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
+    const result = await syncPlayoffChallengeSeries({
+      challengeId: "challenge-1",
+      mode: "results_only",
+      provider: async () => ({
+        source: "test_provider",
+        games: [
+          playoffGame("BOS", "MIA", 100, 90, "2026-05-01T00:00:00.000Z"),
+          playoffGame("MIA", "BOS", 88, 102, "2026-05-03T00:00:00.000Z"),
+          playoffGame("BOS", "MIA", 97, 100, "2026-05-05T00:00:00.000Z"),
+          playoffGame("MIA", "BOS", 90, 111, "2026-05-07T00:00:00.000Z"),
+          playoffGame("BOS", "MIA", 100, 95, "2026-05-09T00:00:00.000Z"),
+        ],
+      }),
+    })
+
+    expect(result.mode).toBe("results_only")
+    expect(result.winnersUpdated).toBe(1)
+    expect(seriesUpdateMock).toHaveBeenCalledWith({
+      where: { id: "series-1" },
+      data: expect.objectContaining({
+        homeTeamName: "Celtics",
+        awayTeamName: "Heat",
+        status: "final",
+        winnerTeamName: "Celtics",
+        seriesSummary: "Celtics win series 4-1",
       }),
     })
     expect(pickUpsertMock).not.toHaveBeenCalled()

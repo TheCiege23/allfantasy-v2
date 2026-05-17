@@ -244,4 +244,93 @@ describe("PlayoffBracketEntryShell", () => {
     expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Correct +1")
     expect(savePlayoffBracketPickClientMock).not.toHaveBeenCalled()
   })
+
+  it("renders review summary with pick result statuses before submit", () => {
+    render(
+      <PlayoffBracketEntryShell
+        initialView={buildEntryView({
+          activeEntry: {
+            id: "entry-1",
+            name: "Bracket 1",
+            userId: "user-1",
+            pickCount: 2,
+            isComplete: false,
+            createdAt: new Date().toISOString(),
+          },
+          picks: [
+            { id: "p1", entryId: "entry-1", seriesId: "s1", pickTeamName: "Knicks", createdAt: "", updatedAt: "" },
+            { id: "p2", entryId: "entry-1", seriesId: "s2", pickTeamName: "Lakers", createdAt: "", updatedAt: "" },
+          ],
+          series: [
+            {
+              id: "s1",
+              round: "round_1",
+              roundIndex: 1,
+              seriesNumber: 1,
+              conference: "east",
+              homeSeed: 1,
+              awaySeed: 8,
+              homeTeamName: "Knicks",
+              awayTeamName: "Hawks",
+              winnerTeamName: "Knicks",
+              seriesSummary: "Knicks win series 4-0",
+              bestOf: 7,
+              status: "final",
+              startsAt: null,
+              nextSeriesNumber: 9,
+              nextSeriesSlot: "home",
+              sourceSeriesHome: null,
+              sourceSeriesAway: null,
+            },
+            {
+              id: "s2",
+              round: "round_1",
+              roundIndex: 1,
+              seriesNumber: 2,
+              conference: "west",
+              homeSeed: 2,
+              awaySeed: 7,
+              homeTeamName: "Nuggets",
+              awayTeamName: "Lakers",
+              winnerTeamName: "Nuggets",
+              seriesSummary: "Nuggets win series 4-2",
+              bestOf: 7,
+              status: "final",
+              startsAt: null,
+              nextSeriesNumber: 9,
+              nextSeriesSlot: "away",
+              sourceSeriesHome: null,
+              sourceSeriesAway: null,
+            },
+            {
+              id: "s3",
+              round: "round_1",
+              roundIndex: 1,
+              seriesNumber: 3,
+              conference: "east",
+              homeSeed: 3,
+              awaySeed: 6,
+              homeTeamName: "Celtics",
+              awayTeamName: "Heat",
+              winnerTeamName: null,
+              seriesSummary: "Series tied 2-2",
+              bestOf: 7,
+              status: "in_progress",
+              startsAt: null,
+              nextSeriesNumber: 10,
+              nextSeriesSlot: "home",
+              sourceSeriesHome: null,
+              sourceSeriesAway: null,
+            },
+          ],
+        })}
+      />
+    )
+
+    const review = screen.getByTestId("playoff-entry-review-summary")
+    expect(review).toHaveTextContent("Correct +1")
+    expect(review).toHaveTextContent("Wrong +0")
+    expect(review).toHaveTextContent("No Pick")
+    expect(review).toHaveTextContent("Result: Knicks win series 4-0")
+  })
 })

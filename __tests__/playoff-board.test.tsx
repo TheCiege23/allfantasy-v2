@@ -124,6 +124,21 @@ describe("PlayoffBracketBoard", () => {
     expect(onPick).not.toHaveBeenCalled()
   })
 
+  it("allows late/test picks for completed synced series when lock rule is none", () => {
+    const onPick = vi.fn()
+    const lockedSeries = series.map((item) => item.id === "s9"
+      ? { ...item, homeTeamName: "Celtics", awayTeamName: "Knicks", status: "final" as const }
+      : item
+    )
+
+    render(<PlayoffBracketBoard rounds={[...rounds]} series={lockedSeries} picks={picks} onPick={onPick} lockRule="none" canUseLatePicks />)
+
+    expect(screen.queryByTestId("playoff-series-disabled-reason-s9")).not.toBeInTheDocument()
+    expect(screen.getByTestId("playoff-series-late-picks-s9")).toHaveTextContent("Late/test picks enabled.")
+    fireEvent.click(screen.getByRole("button", { name: "Knicks" }))
+    expect(onPick).toHaveBeenCalledWith("s9", "Knicks")
+  })
+
   it("renders series summary, next game fallback, and live score", () => {
     const richSeries = series.map((item) => item.id === "s1"
       ? {

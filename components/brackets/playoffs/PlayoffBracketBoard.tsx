@@ -6,6 +6,7 @@ import {
   PLAYOFF_OFFICIAL_MATCHUP_TBD_MESSAGE,
   PLAYOFF_UNRESOLVED_SERIES_MESSAGE,
 } from "@/lib/playoffs/playoffBracketProjection"
+import { canUsePlayoffLatePicks, getPlayoffSeriesLockedReason } from "@/lib/playoffs/playoffLocking"
 import { getPlayoffPickResult } from "@/lib/playoffs/playoffScoring"
 
 type Props = {
@@ -19,6 +20,8 @@ type Props = {
   nextSeriesId?: string | null
   showPickResults?: boolean
   officialBracketMode?: boolean
+  lockRule?: string | null
+  canUseLatePicks?: boolean
 }
 
 const ROUND_LABELS: Record<PlayoffRoundKey, string> = {
@@ -30,14 +33,6 @@ const ROUND_LABELS: Record<PlayoffRoundKey, string> = {
 
 function getPickForSeries(picks: PlayoffPickView[], seriesId: string): PlayoffPickView | null {
   return picks.find((pick) => pick.seriesId === seriesId) ?? null
-}
-
-function getSeriesLockedReason(series: PlayoffSeriesView, globallyLocked: boolean): string | null {
-  if (series.status === "final") return "Series completed"
-  if (series.status === "in_progress") return "Series already started/locked"
-  if (series.startsAt && new Date(series.startsAt).getTime() <= Date.now()) return "Series already started/locked"
-  if (globallyLocked) return "Series already started/locked"
-  return null
 }
 
 function formatGameTime(value: string | null | undefined): string | null {
@@ -64,7 +59,10 @@ export default function PlayoffBracketBoard({
   nextSeriesId,
   showPickResults = false,
   officialBracketMode = false,
+  lockRule = null,
+  canUseLatePicks = false,
 }: Props) {
+  const latePicksEnabled = canUsePlayoffLatePicks({ lockRule, isPoolOwner: canUseLatePicks })
   return (
     <div className="relative overflow-x-auto rounded-3xl border border-slate-300/80 bg-[linear-gradient(180deg,#fdfcf8_0%,#f4f7ff_100%)] p-4 shadow-[0_18px_48px_rgba(15,23,42,0.12)]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_10%,rgba(251,191,36,0.18),transparent_40%),radial-gradient(circle_at_90%_15%,rgba(14,165,233,0.2),transparent_35%)]" />
@@ -84,7 +82,7 @@ export default function PlayoffBracketBoard({
                   const pick = getPickForSeries(picks, item.id)
                   const unresolved = !isPlayoffSeriesResolved(item)
                   const unresolvedMessage = officialBracketMode ? PLAYOFF_OFFICIAL_MATCHUP_TBD_MESSAGE : PLAYOFF_UNRESOLVED_SERIES_MESSAGE
-                  const lockedReason = getSeriesLockedReason(item, locked)
+                  const lockedReason = locked ? "Series already started/locked" : getPlayoffSeriesLockedReason(item, lockRule, { isPoolOwner: canUseLatePicks })
                   const isSaving = savingSeriesIds?.has(item.id) ?? false
                   const isSaved = savedSeriesIds?.has(item.id) ?? false
                   const isNext = nextSeriesId === item.id
@@ -116,6 +114,14 @@ export default function PlayoffBracketBoard({
                           className="mb-2 rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700"
                         >
                           {lockedReason}
+                        </p>
+                      ) : null}
+                      {!unresolved && latePicksEnabled ? (
+                        <p
+                          data-testid={`playoff-series-late-picks-${item.id}`}
+                          className="mb-2 rounded-lg border border-sky-300 bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-800"
+                        >
+                          Late/test picks enabled.
                         </p>
                       ) : null}
                       <div className="space-y-2">

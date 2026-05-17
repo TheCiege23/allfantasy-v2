@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { ArrowLeft, Loader2, Globe, Lock, Trophy, Goal } from "lucide-react"
 import { SUPPORTED_SPORTS, normalizeToSupportedSport } from "@/lib/sport-scope"
 import { getRoundPointsSummary } from "@/lib/bracket-challenge"
@@ -42,6 +43,7 @@ const CHALLENGE_TYPE_OPTIONS = [
 type ChallengeType = (typeof CHALLENGE_TYPE_OPTIONS)[number]["id"]
 
 export default function NewBracketLeaguePage() {
+  const { data: session } = useSession()
   const now = new Date()
   const defaultSeason = now.getFullYear()
   const searchParams = useSearchParams()
@@ -63,7 +65,7 @@ export default function NewBracketLeaguePage() {
   const [ageConfirming, setAgeConfirming] = useState(false)
   const router = useRouter()
   const isPlayoffPool = challengeType === "playoff_challenge" && (sport === "NBA" || sport === "NHL")
-  const isAfCommissioner = isAfCommissionerSubscriber(null)
+  const isAfCommissioner = isAfCommissionerSubscriber(session?.user)
 
   useEffect(() => {
     const requestedSport = searchParams?.get("sport")
@@ -402,7 +404,11 @@ export default function NewBracketLeaguePage() {
             >
               <option value="series_start">Lock each series at start</option>
               <option value="pool_start">Lock all picks at pool start</option>
+              <option value="none">No lock / test late picks</option>
             </select>
+            <p className="mt-2 text-[11px] mode-muted">
+              No-lock mode is for commissioner testing and late-pick pools. Standard pools should keep series start locks.
+            </p>
           </div>
 
           <div className="mode-panel-soft rounded-xl p-3.5">

@@ -74,7 +74,7 @@ export type PlayoffSeriesSyncProvider = (input: {
 
 export type PlayoffSeriesSyncProviderPreference = "auto" | "rolling_insights" | "espn"
 
-export type PlayoffSeriesSyncMode = "schedule_only" | "official_bracket" | "autofill_results"
+export type PlayoffSeriesSyncMode = "schedule_only" | "teams_schedule_only" | "results_only" | "official_bracket" | "autofill_results"
 
 type ProviderAttemptDiagnostic = {
   provider: string
@@ -798,6 +798,12 @@ function gameKey(game: PlayoffSeriesSyncGame): string {
   ].join("|")
 }
 
+function scheduleSafeSeriesSummary(aggregate: PlayoffSeriesAggregate): string {
+  if (aggregate.liveStatus) return "Series in progress"
+  if (aggregate.startsAt || aggregate.nextGameAt) return "Series scheduled"
+  return "Series starts TBD"
+}
+
 export async function syncPlayoffChallengeSeries(input: {
   challengeId: string
   provider?: PlayoffSeriesSyncProvider
@@ -906,9 +912,18 @@ export async function syncPlayoffChallengeSeries(input: {
     for (const game of aggregateGames) {
       matchedGameKeys.add(gameKey(game))
     }
-    const shouldUpdateOfficialTeams = mode !== "schedule_only"
+    const teamsScheduleOnly = mode === "teams_schedule_only" || mode === "schedule_only"
+    const resultsOnly = mode === "results_only"
+    const shouldUpdateOfficialTeams = !resultsOnly
     const nextHomeTeamName = shouldUpdateOfficialTeams ? aggregate.homeTeamName : series.homeTeamName
     const nextAwayTeamName = shouldUpdateOfficialTeams ? aggregate.awayTeamName : series.awayTeamName
+    const nextWinnerTeamName = teamsScheduleOnly ? null : aggregate.winnerTeamName
+    const nextHomeWins = teamsScheduleOnly ? 0 : aggregate.homeWins
+    const nextAwayWins = teamsScheduleOnly ? 0 : aggregate.awayWins
+    const nextStatus = teamsScheduleOnly
+      ? (aggregate.liveStatus ? "in_progress" : "scheduled")
+      : aggregate.status
+    const nextSeriesSummary = teamsScheduleOnly ? scheduleSafeSeriesSummary(aggregate) : aggregate.seriesSummary
     const previousTeams = [series.homeTeamName, series.awayTeamName].map((name) => normalizeName(name).toLowerCase())
     const nextTeams = [nextHomeTeamName, nextAwayTeamName].map((name) => normalizeName(name).toLowerCase())
     const teamsChanged = !previousTeams.every((name) => nextTeams.includes(name))
@@ -921,12 +936,12 @@ export async function syncPlayoffChallengeSeries(input: {
       data: {
         homeTeamName: nextHomeTeamName,
         awayTeamName: nextAwayTeamName,
-        status: aggregate.status,
+        status: nextStatus,
         startsAt: aggregate.startsAt,
-        winnerTeamName: aggregate.winnerTeamName,
-        homeTeamWins: aggregate.homeWins,
-        awayTeamWins: aggregate.awayWins,
-        seriesSummary: aggregate.seriesSummary,
+        winnerTeamName: nextWinnerTeamName,
+        homeTeamWins: nextHomeWins,
+        awayTeamWins: nextAwayWins,
+        seriesSummary: nextSeriesSummary,
         nextGameAt: aggregate.nextGameAt,
         venue: aggregate.venue,
         broadcastNetwork: aggregate.broadcastNetwork,
@@ -946,12 +961,12 @@ export async function syncPlayoffChallengeSeries(input: {
         newHomeTeam: nextHomeTeamName,
         newAwayTeam: nextAwayTeamName,
         eventName: matchedGroup?.eventName ?? aggregateGames[0]?.eventName ?? null,
-        status: aggregate.status,
+        status: nextStatus,
       })
     }
-    if (aggregate.winnerTeamName) winnersUpdated += 1
-    if (aggregate.winnerTeamName) {
-      officialWinnerBySeriesId.set(series.id, aggregate.winnerTeamName)
+    if (nextWinnerTeamName) winnersUpdated += 1
+    if (nextWinnerTeamName) {
+      officialWinnerBySeriesId.set(series.id, nextWinnerTeamName)
     }
   }
 

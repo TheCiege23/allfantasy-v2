@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { buildPlayoffTemplate, getPlayoffRoundOrder } from "./playoffTemplate"
 import type { PlayoffChallengeConfig, PlayoffChallengeListItem, PlayoffChallengeView, PlayoffCreateResponse, PlayoffSport } from "./types"
 import { getDependentPlayoffSeriesIds, isOfficialTeamName } from "./playoffBracketProjection"
+import { getPlayoffSeriesLockedReason } from "./playoffLocking"
 import { scorePlayoffEntryPicks } from "./playoffScoring"
 import { defaultPlayoffChallengeConfig, isAfCommissionerSubscriber, sanitizePlayoffChallengeConfig } from "./playoffChallengeConfig"
 
@@ -510,6 +511,13 @@ export async function savePlayoffBracketPick(input: {
       startsAt: true,
       homeTeamName: true,
       awayTeamName: true,
+      challenge: {
+        select: {
+          config: true,
+          isTestMode: true,
+          ownerUserId: true,
+        },
+      },
     },
   })
 
@@ -517,16 +525,16 @@ export async function savePlayoffBracketPick(input: {
     throw new Error("Series not found")
   }
 
-  if (series.status === "final") {
-    throw new Error("Series completed")
-  }
-
-  if (series.status === "in_progress") {
-    throw new Error("Series already started/locked")
-  }
-
-  if (series.startsAt && new Date(series.startsAt).getTime() <= Date.now()) {
-    throw new Error("Series already started/locked")
+  const lockRule = series.challenge?.config?.lockRule ?? "series_start"
+  const lockedReason = getPlayoffSeriesLockedReason({
+    status: series.status,
+    startsAt: toIso(series.startsAt),
+  }, lockRule, {
+    isPoolOwner: series.challenge?.ownerUserId === input.userId,
+    isTestMode: series.challenge?.isTestMode === true,
+  })
+  if (lockedReason) {
+    throw new Error(lockedReason)
   }
 
   const allSeries = await (prisma as any).playoffBracketSeries.findMany({

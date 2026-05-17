@@ -16,6 +16,7 @@ import {
   getNextActionablePlayoffSeries,
   isPlayoffSeriesResolved,
 } from "@/lib/playoffs/playoffBracketProjection"
+import { getPlayoffPickResult } from "@/lib/playoffs/playoffScoring"
 import PlayoffBracketBoard from "./PlayoffBracketBoard"
 import PlayoffSyncDiagnosticsPanel from "./PlayoffSyncDiagnosticsPanel"
 
@@ -42,13 +43,22 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
   const rounds = Array.isArray(view.rounds) ? view.rounds : []
   const projectedSeries = useMemo(() => buildProjectedPlayoffSeries(series, picks, { includeUserPicks: showUserProjection }), [series, picks, showUserProjection])
   const nextActionableSeries = useMemo(() => getNextActionablePlayoffSeries(projectedSeries, picks), [projectedSeries, picks])
+  const pickResultSummary = useMemo(
+    () => projectedSeries.map((item) => ({
+      series: item,
+      result: getPlayoffPickResult(item, picks.find((pick) => pick.seriesId === item.id)),
+    })),
+    [projectedSeries, picks],
+  )
   const totalSeries = series.length
   const pickCount = activeEntry?.pickCount ?? picks.length
+  const lockRule = view.challenge.lockRule ?? view.challenge.config?.lockRule ?? "series_start"
   const canSubmit = Boolean(activeEntry) && totalSeries > 0 && pickCount >= totalSeries
   const hasTemplateSeries = series.some((item) => /^Winner\s+S\d+$/i.test(item.homeTeamName) || /^Winner\s+S\d+$/i.test(item.awayTeamName)) ||
     (view.challenge.isTestMode && !series.some((item) => item.winnerTeamName || item.status === "in_progress" || item.status === "final"))
   const canSyncSeries = view.challenge.ownerUserId === view.viewerUserId
   const canShowPickResultsToggle = activeEntry?.userId === view.viewerUserId || view.challenge.ownerUserId === view.viewerUserId
+  const canUseLatePicks = view.challenge.ownerUserId === view.viewerUserId || view.challenge.isTestMode
   const hasOfficialSyncedSeries = series.some((item) => item.lastSyncedAt || item.providerGamesJson || item.seriesSummary || item.winnerTeamName || isPlayoffSeriesResolved(item))
 
   if (!activeEntry) {
@@ -261,6 +271,38 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
         ) : null}
       </section>
 
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="playoff-entry-review-summary">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">Review Picks</h2>
+            <p className="mt-1 text-sm text-slate-600">Official results are for verification only. Submitting does not create or change picks.</p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+            {activeEntry.isComplete ? "Submitted/complete ready" : "Incomplete"}
+          </span>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {pickResultSummary.slice(0, 6).map(({ series: item, result }) => (
+            <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
+              <div className="flex items-center justify-between gap-2">
+                <span>Series {item.seriesNumber}</span>
+                <span>
+                  {result.status === "correct"
+                    ? `Correct +${result.points}`
+                    : result.status === "wrong"
+                      ? `Wrong +${result.points}`
+                      : result.status === "pending"
+                        ? "Pending"
+                        : "No Pick"}
+                </span>
+              </div>
+              <p className="mt-1 text-slate-500">Your pick: {result.pickTeamName ?? "No Pick"}</p>
+              <p className="mt-1 text-slate-500">Result: {result.seriesSummary ?? (result.winnerTeamName ? `${result.winnerTeamName} wins` : "Result pending")}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <PlayoffBracketBoard
         rounds={rounds}
         series={projectedSeries}
@@ -271,6 +313,8 @@ export default function PlayoffBracketEntryShell({ initialView }: Props) {
         nextSeriesId={nextActionableSeries?.id ?? null}
         showPickResults={canShowPickResultsToggle && showPickResults}
         officialBracketMode={hasOfficialSyncedSeries && !showUserProjection}
+        lockRule={lockRule}
+        canUseLatePicks={canUseLatePicks}
       />
     </div>
   )
