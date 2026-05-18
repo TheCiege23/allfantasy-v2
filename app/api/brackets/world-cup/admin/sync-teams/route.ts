@@ -4,6 +4,7 @@ import { syncWorldCupTeams } from "@/lib/world-cup/worldCupDataSyncService"
 import {
   requireWorldCupApiUser,
   getWorldCupAdminState,
+  worldCupProviderSyncErrorResponse,
 } from "../../_utils"
 
 export const runtime = "nodejs"
@@ -37,17 +38,26 @@ export async function POST(request: Request) {
 
   const { provider, dryRun, seasonYear } = parsed.data
 
-  const result = await syncWorldCupTeams({ provider, dryRun, seasonYear })
+  try {
+    const result = await syncWorldCupTeams({ provider, dryRun, seasonYear })
 
-  return NextResponse.json({
-    ok: true,
-    dryRun,
-    provider,
-    created: result.created,
-    updated: result.updated,
-    skipped: result.skipped,
-    warnings: result.warnings,
-    teamCount: result.teams.length,
-    syncedAt: new Date().toISOString(),
-  })
+    return NextResponse.json({
+      ok: true,
+      dryRun,
+      provider,
+      created: result.created,
+      updated: result.updated,
+      skipped: result.skipped,
+      warnings: result.warnings,
+      teamCount: result.teams.length,
+      syncedAt: new Date().toISOString(),
+    })
+  } catch (error) {
+    return worldCupProviderSyncErrorResponse(error, {
+      route: "admin/sync-teams",
+      provider,
+      seasonYear,
+      dryRun,
+    })
+  }
 }

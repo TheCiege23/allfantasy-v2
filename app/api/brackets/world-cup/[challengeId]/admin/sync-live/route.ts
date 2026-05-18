@@ -9,6 +9,7 @@ import {
   requireWorldCupApiUser,
   assertWorldCupManager,
   worldCupChallengeParamsSchema,
+  worldCupProviderSyncErrorResponse,
 } from "../../../_utils"
 
 export const runtime = "nodejs"
@@ -54,37 +55,46 @@ export async function POST(
 
   const { provider, useLegacySingleProvider, dryRun, recalculate, seasonYear } = parsed.data
 
-  const result = await syncWorldCupLiveScores({
-    provider,
-    dryRun,
-    recalculate,
-    seasonYear,
-    challengeId: params.data.challengeId,
-  })
-  if (!dryRun && result.updated > 0) {
-    const sourceId = `${provider}:${new Date().toISOString()}`
-    await notifyWorldCupResultsUpdated({
+  try {
+    const result = await syncWorldCupLiveScores({
+      provider,
+      dryRun,
+      recalculate,
+      seasonYear,
       challengeId: params.data.challengeId,
-      sourceId,
     })
-    if (result.recalculated) {
-      await notifyWorldCupLeaderboardUpdated({
+    if (!dryRun && result.updated > 0) {
+      const sourceId = `${provider}:${new Date().toISOString()}`
+      await notifyWorldCupResultsUpdated({
         challengeId: params.data.challengeId,
         sourceId,
       })
+      if (result.recalculated) {
+        await notifyWorldCupLeaderboardUpdated({
+          challengeId: params.data.challengeId,
+          sourceId,
+        })
+      }
     }
-  }
 
-  return NextResponse.json({
-    ok: true,
-    ...(useLegacySingleProvider ? { mode: "legacy_single_provider" as const } : {}),
-    dryRun,
-    provider,
-    updated: result.updated,
-    skipped: result.skipped,
-    finalMatches: result.finalMatches,
-    recalculated: result.recalculated,
-    warnings: result.warnings,
-    syncedAt: new Date().toISOString(),
-  })
+    return NextResponse.json({
+      ok: true,
+      ...(useLegacySingleProvider ? { mode: "legacy_single_provider" as const } : {}),
+      dryRun,
+      provider,
+      updated: result.updated,
+      skipped: result.skipped,
+      finalMatches: result.finalMatches,
+      recalculated: result.recalculated,
+      warnings: result.warnings,
+      syncedAt: new Date().toISOString(),
+    })
+  } catch (error) {
+    return worldCupProviderSyncErrorResponse(error, {
+      route: "admin/sync-live",
+      provider,
+      seasonYear,
+      dryRun,
+    })
+  }
 }

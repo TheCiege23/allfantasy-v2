@@ -7,6 +7,7 @@ import { isAdminEmailAllowed, isAuthorizedRequest } from "@/lib/adminAuth"
 import { prisma } from "@/lib/prisma"
 import { resolveAuthSecret } from "@/lib/auth/resolve-auth-secret"
 import { userCanManageWorldCupChallenge } from "@/lib/world-cup"
+import { WorldCupProviderConfigError } from "@/lib/world-cup/worldCupDataProvider"
 import { getWorldCupSimulationAccessState, isWorldCupSimulationAllowed } from "@/lib/world-cup/worldCupSimulationService"
 
 export const worldCupChallengeParamsSchema = z.object({
@@ -27,6 +28,99 @@ export type WorldCupApiSessionUser = {
   email?: string | null
   name?: string | null
   username?: string | null
+}
+
+type WorldCupSyncErrorKind =
+  | "missing_provider_key"
+  | "unsupported_provider"
+  | "provider_fetch_failed"
+  | "database_write_failed"
+  | "sync_service_failed"
+
+function sanitizeWorldCupSyncErrorDetail(message: string) {
+  return message
+    .replace(/(x-apisports-key=)[^&\s]+/gi, "$1[redacted]")
+    .replace(/(key=)[^&\s]+/gi, "$1[redacted]")
+    .replace(/(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, "$1[redacted]")
+    .replace(/(api[_-]?key["']?\s*[:=]\s*["']?)[^"',\s}]+/gi, "$1[redacted]")
+    .replace(/(secret["']?\s*[:=]\s*["']?)[^"',\s}]+/gi, "$1[redacted]")
+}
+
+function classifyWorldCupSyncError(error: unknown): {
+  kind: WorldCupSyncErrorKind
+  message: string
+  status: number
+  provider?: string
+  detail: string
+} {
+  const detail = sanitizeWorldCupSyncErrorDetail(error instanceof Error ? error.message : String(error))
+
+  if (error instanceof WorldCupProviderConfigError) {
+    const missingKey = /not configured|no api key|api key/i.test(detail)
+    return {
+      kind: missingKey ? "missing_provider_key" : "unsupported_provider",
+      message: missingKey
+        ? "World Cup data provider is not configured. Set API_SPORTS_KEY or API_FOOTBALL_KEY server-side."
+        : "World Cup data provider is not supported for this sync.",
+      status: 400,
+      provider: error.provider,
+      detail,
+    }
+  }
+
+  if (/api-football|apisports|sportsdata|fetch|network|response\.json|unexpected token|rate limit|timeout/i.test(detail)) {
+    return {
+      kind: "provider_fetch_failed",
+      message: "World Cup data provider request failed. Check provider status, credentials, and rate limits.",
+      status: 502,
+      detail,
+    }
+  }
+
+  if (/prisma|database|worldCup|unique constraint|foreign key|timed out|connection/i.test(detail)) {
+    return {
+      kind: "database_write_failed",
+      message: "World Cup sync write failed. Check database connectivity and retry.",
+      status: 500,
+      detail,
+    }
+  }
+
+  return {
+    kind: "sync_service_failed",
+    message: "World Cup sync failed. Please retry or check server logs.",
+    status: 500,
+    detail,
+  }
+}
+
+export function worldCupProviderSyncErrorResponse(error: unknown, context: {
+  route: string
+  provider?: string | null
+  seasonYear?: number | null
+  dryRun?: boolean | null
+}) {
+  const classified = classifyWorldCupSyncError(error)
+  console.error("[world-cup/sync] failed", {
+    route: context.route,
+    provider: context.provider ?? classified.provider ?? null,
+    seasonYear: context.seasonYear ?? null,
+    dryRun: context.dryRun ?? null,
+    kind: classified.kind,
+    detail: classified.detail,
+  })
+
+  return NextResponse.json(
+    {
+      ok: false,
+      error: classified.kind,
+      message: classified.message,
+      provider: context.provider ?? classified.provider ?? null,
+      seasonYear: context.seasonYear ?? null,
+      syncedAt: new Date().toISOString(),
+    },
+    { status: classified.status }
+  )
 }
 
 function serializeWorldCupAuthError(error: unknown) {

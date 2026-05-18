@@ -14,11 +14,13 @@ import {
   syncWorldCupChallenge,
   updateWorldCupChallengeSettings,
 } from "@/lib/world-cup"
+import { syncWorldCupProviderGroupStandings } from "@/lib/world-cup/worldCupGroupStageResultService"
 import {
   assertWorldCupManager,
   getWorldCupAdminState,
   getWorldCupApiUser,
   requireWorldCupApiUser,
+  worldCupProviderSyncErrorResponse,
   worldCupChallengeParamsSchema,
   worldCupInviteParamsSchema,
 } from "../_utils"
@@ -84,6 +86,11 @@ const createInviteSchema = z.object({
 
 const syncWorldCupSchema = z.object({
   challengeId: z.string().min(1).optional(),
+})
+
+const adminProviderSyncSchema = z.object({
+  provider: z.enum(["mock", "apifootball", "sportsdata", "manual"]).optional().default("mock"),
+  seasonYear: z.coerce.number().int().min(2022).max(2030).optional().default(2026),
 })
 
 function notFound() {
@@ -439,6 +446,54 @@ async function recalculateChallenge(request: Request, challengeId: string) {
   return NextResponse.json({ ok: true, leaderboard })
 }
 
+async function syncGroupStandings(request: Request, challengeId: string) {
+  const auth = await requireWorldCupApiUser()
+  if (!auth.ok) return auth.response
+
+  const params = worldCupChallengeParamsSchema.safeParse({ challengeId })
+  if (!params.success) {
+    return NextResponse.json({ error: "Invalid challenge id" }, { status: 400 })
+  }
+
+  const access = await assertWorldCupManager(request, params.data.challengeId, auth.user)
+  if (!access.ok) return access.response
+
+  const body = await request.json().catch(() => ({}))
+  const parsed = adminProviderSyncSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid request", issues: parsed.error.flatten() }, { status: 400 })
+  }
+
+  const { provider, seasonYear } = parsed.data
+  try {
+    const result = await syncWorldCupProviderGroupStandings({
+      challengeId: params.data.challengeId,
+      provider,
+      seasonYear,
+    })
+    const view = await getWorldCupChallengeView({
+      challengeId: params.data.challengeId,
+      user: auth.user,
+      isAdmin: access.isAdmin,
+    })
+
+    return NextResponse.json({
+      ok: true,
+      provider,
+      result,
+      view,
+      syncedAt: new Date().toISOString(),
+    })
+  } catch (error) {
+    return worldCupProviderSyncErrorResponse(error, {
+      route: "admin/sync-group-standings",
+      provider,
+      seasonYear,
+      dryRun: false,
+    })
+  }
+}
+
 async function adminListChallenges(request: Request) {
   const user = await getWorldCupApiUser()
   const isAdmin = Boolean(isAuthorizedRequest(request) || (await getWorldCupAdminState(request, user)))
@@ -586,6 +641,7 @@ export async function POST(request: Request, context: WorldCupRouteContext) {
   if (path.length === 2 && path[1] === "picks") return savePicks(request, path[0])
   if (path.length === 2 && path[1] === "invite") return createInvite(request, path[0])
   if (path.length === 2 && path[1] === "recalculate") return recalculateChallenge(request, path[0])
+  if (path.length === 3 && path[1] === "admin" && path[2] === "sync-group-standings") return syncGroupStandings(request, path[0])
   if (path.length === 2 && path[0] === "admin" && path[1] === "action") return adminChallengeAction(request)
 
   return notFound()

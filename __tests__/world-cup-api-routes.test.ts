@@ -14,6 +14,7 @@ const joinInviteMock = vi.hoisted(() => vi.fn(async () => ({ challengeId: "wc1",
 const challengeFindUniqueMock = vi.hoisted(() => vi.fn())
 const isAdminEmailAllowedMock = vi.hoisted(() => vi.fn())
 const isAuthorizedRequestMock = vi.hoisted(() => vi.fn())
+const syncGroupStandingsMock = vi.hoisted(() => vi.fn())
 
 vi.mock("next-auth", () => ({
   getServerSession: getServerSessionMock,
@@ -41,6 +42,10 @@ vi.mock("@/lib/world-cup", () => ({
 
 vi.mock("@/lib/world-cup/worldCupDiagnosticsService", () => ({
   runWorldCupDiagnostics: vi.fn(async () => ({ ok: true })),
+}))
+
+vi.mock("@/lib/world-cup/worldCupGroupStageResultService", () => ({
+  syncWorldCupProviderGroupStandings: syncGroupStandingsMock,
 }))
 
 vi.mock("@/lib/prisma", () => ({
@@ -76,6 +81,14 @@ describe("World Cup API catch-all route", () => {
     syncAllMock.mockResolvedValue([])
     userCanManageMock.mockReturnValue(true)
     recalcMock.mockResolvedValue([])
+    syncGroupStandingsMock.mockResolvedValue({
+      challengeId: "wc1",
+      standingsReceived: 48,
+      groupsUpdated: 12,
+      groupTeamsUpdated: 48,
+      thirdPlaceTeamsUpdated: 8,
+      warnings: [],
+    })
     getInviteMock.mockResolvedValue(null)
     joinInviteMock.mockResolvedValue({ challengeId: "wc1", participantId: "p1", entryId: "e1" })
     challengeFindUniqueMock.mockResolvedValue({ id: "wc1", ownerUserId: "u1", inviteCode: "INVITE", visibility: "public" })
@@ -244,6 +257,62 @@ describe("World Cup API catch-all route", () => {
       makeContext(["sync"])
     )
     expect(res.status).toBe(401)
+  })
+
+  it("syncs group standings through the consolidated catch-all route", async () => {
+    const { POST } = await import("@/app/api/brackets/world-cup/[[...path]]/route")
+    const res = await POST(
+      new Request("http://localhost/api/brackets/world-cup/wc1/admin/sync-group-standings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider: "apifootball", seasonYear: 2026 }),
+      }),
+      makeContext(["wc1", "admin", "sync-group-standings"])
+    )
+
+    expect(res.status).toBe(200)
+    expect(syncGroupStandingsMock).toHaveBeenCalledWith({
+      challengeId: "wc1",
+      provider: "apifootball",
+      seasonYear: 2026,
+    })
+    const body = await res.json()
+    expect(body).toMatchObject({
+      ok: true,
+      provider: "apifootball",
+      result: {
+        standingsReceived: 48,
+        groupTeamsUpdated: 48,
+      },
+    })
+  })
+
+  it("returns sanitized provider errors for group standings sync failures", async () => {
+    syncGroupStandingsMock.mockRejectedValueOnce(
+      new Error("API-Football standings failed: x-apisports-key=secret-value&key=another-secret")
+    )
+
+    const { POST } = await import("@/app/api/brackets/world-cup/[[...path]]/route")
+    const res = await POST(
+      new Request("http://localhost/api/brackets/world-cup/wc1/admin/sync-group-standings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider: "apifootball", seasonYear: 2026 }),
+      }),
+      makeContext(["wc1", "admin", "sync-group-standings"])
+    )
+
+    expect(res.status).toBe(502)
+    const body = await res.json()
+    expect(body).toMatchObject({
+      ok: false,
+      error: "provider_fetch_failed",
+      message: "World Cup data provider request failed. Check provider status, credentials, and rate limits.",
+      provider: "apifootball",
+      seasonYear: 2026,
+    })
+    expect(JSON.stringify(body)).not.toContain("secret-value")
+    expect(JSON.stringify(body)).not.toContain("another-secret")
   })
 
   // ── GET challenge ─────────────────────────────────────────────────────────────

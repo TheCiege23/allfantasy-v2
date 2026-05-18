@@ -5,6 +5,7 @@ import {
   requireWorldCupApiUser,
   assertWorldCupManager,
   worldCupChallengeParamsSchema,
+  worldCupProviderSyncErrorResponse,
 } from "../../../_utils"
 
 export const runtime = "nodejs"
@@ -48,23 +49,32 @@ export async function POST(
 
   const { provider, dryRun, seasonYear } = parsed.data
 
-  const result = await syncWorldCupFixtures({
-    provider,
-    dryRun,
-    seasonYear,
-    challengeId: params.data.challengeId,
-  })
+  try {
+    const result = await syncWorldCupFixtures({
+      provider,
+      dryRun,
+      seasonYear,
+      challengeId: params.data.challengeId,
+    })
 
-  return NextResponse.json({
-    ok: true,
-    dryRun,
-    provider,
-    created: result.created,
-    updated: result.updated,
-    skipped: result.skipped,
-    warnings: result.warnings,
-    lockTimeInferred: result.lockTimeInferred,
-    fixtureCount: result.fixtures.length,
-    syncedAt: new Date().toISOString(),
-  })
+    return NextResponse.json({
+      ok: true,
+      dryRun,
+      provider,
+      created: result.created,
+      updated: result.updated,
+      skipped: result.skipped,
+      warnings: result.warnings,
+      lockTimeInferred: result.lockTimeInferred,
+      fixtureCount: result.fixtures.length,
+      syncedAt: new Date().toISOString(),
+    })
+  } catch (error) {
+    return worldCupProviderSyncErrorResponse(error, {
+      route: "admin/sync-fixtures",
+      provider,
+      seasonYear,
+      dryRun,
+    })
+  }
 }
