@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProviderStatus } from "@/lib/provider-config";
 import { runClearSportsHealthCheck } from "@/lib/clear-sports/client";
+import { getTwilioRuntimeStatus, getTwilioClient } from "@/lib/twilio-client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -191,43 +192,54 @@ async function testResend(): Promise<ServiceResult> {
 }
 
 async function testTwilio(): Promise<ServiceResult> {
+  const status = getTwilioRuntimeStatus();
   const sid = process.env.TWILIO_ACCOUNT_SID || "";
-  const token = process.env.TWILIO_AUTH_TOKEN || "";
-  const apiKey = process.env.TWILIO_API_KEY || "";
-  const apiSecret = process.env.TWILIO_API_SECRET || "";
-  const verifySid = process.env.TWILIO_VERIFY_SERVICE_SID || "";
-  const from = process.env.TWILIO_PHONE_NUMBER || "";
+  const configured = status.canUseAuthTokenMode || status.canUseApiKeyMode;
 
-  const hasAuthTokenMode = !!sid.trim() && !!token.trim();
-  const hasApiKeyMode = !!sid.trim() && !!apiKey.trim() && !!apiSecret.trim();
-
-  if (!hasAuthTokenMode && !hasApiKeyMode) {
-    return {
-      configured: false,
-      ok: false,
-      message: "Twilio env vars are incomplete.",
-      details: {
-        hasSid: !!sid.trim(),
-        hasAuthToken: !!token.trim(),
-        hasApiKey: !!apiKey.trim(),
-        hasApiSecret: !!apiSecret.trim(),
-        hasFrom: !!from.trim(),
-        hasVerifyServiceSid: !!verifySid.trim(),
-      },
-    };
+  let clientInitialized = false;
+  let clientError: string | null = null;
+  if (configured) {
+    try {
+      getTwilioClient();
+      clientInitialized = true;
+    } catch (err) {
+      clientError = err instanceof Error ? err.message : "Client init failed.";
+    }
   }
 
+  const mode = status.canUseApiKeyMode
+    ? "api_key"
+    : status.canUseAuthTokenMode
+      ? "auth_token"
+      : "none";
+
+  const message = !configured
+    ? "Twilio env vars are incomplete."
+    : !clientInitialized
+      ? `Twilio env vars set but client init failed: ${clientError}`
+      : mode === "api_key"
+        ? "Twilio configured (API key/secret mode)."
+        : "Twilio configured (account SID/auth token mode).";
+
   return {
-    configured: true,
-    ok: true,
-    message: hasApiKeyMode
-      ? "Twilio configured (API key/secret mode)."
-      : "Twilio configured (account SID/auth token mode).",
+    configured,
+    ok: configured && clientInitialized,
+    message,
     details: {
       accountSidPreview: maskKey(sid),
-      mode: hasApiKeyMode ? "api_key" : "auth_token",
-      hasFromNumber: !!from.trim(),
-      hasVerifyServiceSid: !!verifySid.trim(),
+      mode,
+      hasAccountSid: status.hasAccountSid,
+      hasAuthToken: status.hasAuthToken,
+      hasApiKey: status.hasApiKey,
+      hasApiSecret: status.hasApiSecret,
+      hasFromNumber: status.hasFromNumber,
+      hasVerifyServiceSid: status.hasVerifyServiceSid,
+      canUseAuthTokenMode: status.canUseAuthTokenMode,
+      canUseApiKeyMode: status.canUseApiKeyMode,
+      canUseRawSms: status.canUseRawSms,
+      canUseVerify: status.canUseVerify,
+      clientInitialized,
+      ...(clientError ? { clientError } : {}),
     },
   };
 }
