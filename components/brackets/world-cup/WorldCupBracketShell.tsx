@@ -59,6 +59,7 @@ import {
 } from "@/lib/world-cup/worldCupProjectedBracket"
 import { calculateWorldCupBracketHealth, getWorldCupPickRecommendation } from "@/lib/world-cup/worldCupAiInsights"
 import { getBrowserWorldCupInviteUrl } from "@/lib/world-cup/worldCupBracketUtils"
+import { resolveWorldCupEntitlementSummary } from "@/lib/world-cup/worldCupEntitlements"
 import { worldCupTabToQueryValue, type WorldCupBracketTab } from "@/lib/world-cup/worldCupTabs"
 import WorldCupBracketBoard from "./WorldCupBracketBoard"
 import WorldCupBracketHealthCard from "./WorldCupBracketHealthCard"
@@ -419,6 +420,14 @@ export default function WorldCupBracketShell({
   const challengeId = view.challenge.id
 
   const showCommissionerTab = Boolean(view.isOwner || view.isAdmin)
+  const entitlementSummary = useMemo(
+    () => resolveWorldCupEntitlementSummary({
+      isOwner: view.isOwner,
+      isAdmin: view.isAdmin,
+      hasBracketBrainAi: view.hasBracketBrainAi,
+    }),
+    [view.hasBracketBrainAi, view.isAdmin, view.isOwner]
+  )
   const tabList = useMemo(() => {
     const list = [...BASE_TABS]
     if (showCommissionerTab) {
@@ -2490,6 +2499,13 @@ export default function WorldCupBracketShell({
               </div>
             </section>
 
+            <WorldCupPremiumAccessPanel
+              entitlementSummary={entitlementSummary}
+              maxEntriesPerParticipant={view.challenge.maxEntriesPerParticipant}
+              currentEntryCount={entries.length}
+              isOwnerOrAdmin={Boolean(view.isOwner || view.isAdmin)}
+            />
+
             <section className="mx-auto max-w-[min(100%,1600px)] px-2 sm:px-4">
               <AllFantasyBracketBoard
                 mode={dashboardPreviewMode === "starting" ? "preview" : "ai"}
@@ -2528,7 +2544,7 @@ export default function WorldCupBracketShell({
                   <div>
                     <h3 className="text-base font-black text-white">Entries</h3>
                     <p className="mt-1 text-xs text-white/45">
-                      Create or open your personal bracket when you are ready to make picks.
+                      Create or open your personal bracket when you are ready to make picks. Free play supports one bracket entry; AF Commissioner pool settings can allow multiple entries.
                     </p>
                   </div>
                   <button
@@ -3271,6 +3287,165 @@ function AiSimulationLockPanel({ isCommissioner }: { isCommissioner: boolean }) 
         ) : null}
       </div>
     </div>
+  )
+}
+
+function PremiumFeatureCard({
+  title,
+  description,
+  tier,
+  unlocked,
+}: {
+  title: string
+  description: string
+  tier: "AF Commissioner" | "AI/Pro"
+  unlocked: boolean
+}) {
+  return (
+    <div
+      data-testid={`world-cup-premium-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+      className={[
+        "rounded-xl border p-3",
+        unlocked
+          ? "border-cyan-300/25 bg-cyan-300/[0.08]"
+          : "border-white/10 bg-black/20",
+      ].join(" ")}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-black text-white">{title}</p>
+        <span
+          className={[
+            "shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide",
+            unlocked
+              ? "border-cyan-300/30 bg-cyan-300/10 text-cyan-100"
+              : tier === "AF Commissioner"
+                ? "border-amber-300/30 bg-amber-400/10 text-amber-100"
+                : "border-purple-300/30 bg-purple-400/10 text-purple-100",
+          ].join(" ")}
+        >
+          {unlocked ? "Unlocked" : tier}
+        </span>
+      </div>
+      <p className="mt-2 text-[11px] leading-5 text-white/50">{description}</p>
+      {!unlocked ? (
+        <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-white/35">
+          Upgrade placeholder - billing UI is not active in this pass.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function WorldCupPremiumAccessPanel({
+  entitlementSummary,
+  maxEntriesPerParticipant,
+  currentEntryCount,
+  isOwnerOrAdmin,
+}: {
+  entitlementSummary: ReturnType<typeof resolveWorldCupEntitlementSummary>
+  maxEntriesPerParticipant: number
+  currentEntryCount: number
+  isOwnerOrAdmin: boolean
+}) {
+  const commissionerUnlocked = entitlementSummary.commissioner
+  const aiUnlocked = entitlementSummary.ai
+  const freeEntryLimitCopy = maxEntriesPerParticipant > 1
+    ? `This pool allows up to ${maxEntriesPerParticipant} entries. Free users can still create a valid first bracket; AF Commissioner controls manage multi-entry pool rules.`
+    : "Free users can create one bracket entry in this pool."
+
+  return (
+    <section
+      data-testid="world-cup-premium-access-panel"
+      className="mx-auto max-w-5xl rounded-2xl border border-white/10 bg-white/[0.035] p-4 sm:p-5"
+    >
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/45">World Cup Access</p>
+          <h3 className="mt-1 text-lg font-black text-white">Free play stays open. Premium tools stay clearly gated.</h3>
+          <p className="mt-2 text-xs leading-5 text-white/50">
+            Join, create your first bracket, make Group Stage and Knockout picks, review, finalize, and view the leaderboard for free.
+          </p>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-white/55">
+          <p>
+            Entry cap: <span className="font-black text-white">{currentEntryCount}/{maxEntriesPerParticipant}</span>
+          </p>
+          <p className="mt-1 text-white/35">{freeEntryLimitCopy}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <div>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-xs font-black text-amber-100">AF Commissioner</p>
+            <span className="rounded-full border border-amber-300/25 bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-100">
+              {entitlementSummary.labels.commissioner}
+            </span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <PremiumFeatureCard
+              title="AF Commissioner Tools"
+              tier="AF Commissioner"
+              unlocked={commissionerUnlocked}
+              description={isOwnerOrAdmin ? "Readiness, sync, simulation, settings, invites, and admin QA tools are available for all-access users." : "Private/public pool controls, invite management, custom scoring hooks, and commissioner setup."}
+            />
+            <PremiumFeatureCard
+              title="Pool Chat"
+              tier="AF Commissioner"
+              unlocked={commissionerUnlocked}
+              description="League chat placeholder for pool hosts, announcements, and moderated discussion."
+            />
+            <PremiumFeatureCard
+              title="Export Leaderboard"
+              tier="AF Commissioner"
+              unlocked={entitlementSummary.exportLeaderboard}
+              description="Export standings and bracket summaries for commissioner review."
+            />
+            <PremiumFeatureCard
+              title="Multiple Entries"
+              tier="AF Commissioner"
+              unlocked={entitlementSummary.multipleEntries}
+              description="Pool-level multi-entry controls beyond the default free first-entry experience."
+            />
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-xs font-black text-purple-100">AI/Pro</p>
+            <span className="rounded-full border border-purple-300/25 bg-purple-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-purple-100">
+              {entitlementSummary.labels.ai}
+            </span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <PremiumFeatureCard
+              title="AI Bracket Builder"
+              tier="AI/Pro"
+              unlocked={aiUnlocked}
+              description="Placeholder for guided bracket construction and deterministic context-aware suggestions."
+            />
+            <PremiumFeatureCard
+              title="AI Matchup Preview"
+              tier="AI/Pro"
+              unlocked={aiUnlocked}
+              description="Preview matchup lean, risks, and upset paths when official fixtures are available."
+            />
+            <PremiumFeatureCard
+              title="AI What-If Scenarios"
+              tier="AI/Pro"
+              unlocked={aiUnlocked}
+              description="Leaderboard scenarios for what needs to happen next."
+            />
+            <PremiumFeatureCard
+              title="AI Alerts"
+              tier="AI/Pro"
+              unlocked={aiUnlocked}
+              description="Future alerts for bracket swings, group-stage optimizer notes, and upset finder signals."
+            />
+          </div>
+        </div>
+      </div>
+    </section>
   )
 }
 

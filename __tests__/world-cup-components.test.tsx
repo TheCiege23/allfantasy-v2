@@ -953,6 +953,64 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.queryByTestId("world-cup-readiness-panel")).not.toBeInTheDocument()
   })
 
+  it("keeps free World Cup play visible while showing locked premium copy", async () => {
+    clientApiMocks.listEntries.mockResolvedValueOnce([])
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(
+      <WorldCupBracketShell
+        initialView={makeShellView({
+          isOwner: false,
+          isAdmin: false,
+          hasBracketBrainAi: false,
+          activeEntry: null,
+          entries: [],
+          challenge: {
+            ...makeShellView().challenge,
+            maxEntriesPerParticipant: 1,
+          },
+        }) as any}
+        defaultTab="home"
+      />
+    )
+
+    await waitFor(() => expect(clientApiMocks.listEntries).toHaveBeenCalled())
+    expect(screen.getAllByRole("button", { name: /Create My Bracket/i }).some((button) => !button.hasAttribute("disabled"))).toBe(true)
+    expect(screen.getByText(/Free play stays open/i)).toBeInTheDocument()
+    expect(screen.getByText(/Join, create your first bracket, make Group Stage and Knockout picks, review, finalize, and view the leaderboard for free/i)).toBeInTheDocument()
+    expect(screen.getByText(/Free users can create one bracket entry in this pool/i)).toBeInTheDocument()
+    expect(screen.getByText(/AF Commissioner Tools/i)).toBeInTheDocument()
+    expect(screen.getByText(/Pool Chat/i)).toBeInTheDocument()
+    expect(screen.getByText(/Export Leaderboard/i)).toBeInTheDocument()
+    expect(screen.getByText(/AI Bracket Builder/i)).toBeInTheDocument()
+    expect(screen.getByText(/AI Matchup Preview/i)).toBeInTheDocument()
+    expect(screen.getByText(/AI What-If Scenarios/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Requires AF Commissioner/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Requires AI\/Pro/i).length).toBeGreaterThan(0)
+  })
+
+  it("shows commissioner affordances unlocked for pool owners and all-access users", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: true, isAdmin: false, hasBracketBrainAi: false }) as any} defaultTab="home" />)
+
+    await waitFor(() => expect(clientApiMocks.listEntries).toHaveBeenCalled())
+    const panel = screen.getByTestId("world-cup-premium-access-panel")
+    expect(within(panel).getByText(/AF Commissioner active/i)).toBeInTheDocument()
+    expect(within(panel).getByText(/AI Bracket Builder/i)).toBeInTheDocument()
+    expect(within(panel).getAllByText(/Unlocked/i).length).toBeGreaterThan(0)
+    expect(within(panel).getAllByText(/Requires AI\/Pro/i).length).toBeGreaterThan(0)
+  })
+
+  it("shows AI affordances unlocked for all-access users", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: true, hasBracketBrainAi: false }) as any} defaultTab="home" />)
+
+    await waitFor(() => expect(clientApiMocks.listEntries).toHaveBeenCalled())
+    const panel = screen.getByTestId("world-cup-premium-access-panel")
+    expect(within(panel).getByText(/AF Commissioner active/i)).toBeInTheDocument()
+    expect(within(panel).getByText(/AI\/Pro active/i)).toBeInTheDocument()
+    expect(within(panel).getAllByText(/Unlocked/i).length).toBeGreaterThanOrEqual(6)
+  })
+
   it("shows admin and simulation shortcuts for all-access users", async () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: true }) as any} />)
