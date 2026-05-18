@@ -7,6 +7,7 @@ import {
   finalizeWorldCupEntry,
   getWorldCupEntryCompletionReview,
 } from "@/lib/world-cup/worldCupEntryFinalizeService"
+import { notifyWorldCupBracketFinalized } from "@/lib/world-cup/worldCupNotifications"
 import { requireWorldCupApiUser, worldCupEntryParamsSchema } from "../../../../_utils"
 
 export const runtime = "nodejs"
@@ -63,6 +64,12 @@ export async function POST(request: Request, context: { params: { challengeId: s
     const view = await getWorldCupChallengeView({
       challengeId: params.data.challengeId,
       user: auth.user,
+    })
+    await notifyWorldCupBracketFinalized({
+      challengeId: params.data.challengeId,
+      poolName: view.challenge.name,
+      userId: auth.user.id,
+      entryId: params.data.entryId,
     })
     return NextResponse.json(
       { ok: true, ...result, view },

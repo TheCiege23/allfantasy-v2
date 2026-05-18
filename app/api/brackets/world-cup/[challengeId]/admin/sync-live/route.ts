@@ -2,6 +2,10 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { syncWorldCupLiveScores } from "@/lib/world-cup/worldCupDataSyncService"
 import {
+  notifyWorldCupLeaderboardUpdated,
+  notifyWorldCupResultsUpdated,
+} from "@/lib/world-cup/worldCupNotifications"
+import {
   requireWorldCupApiUser,
   assertWorldCupManager,
   worldCupChallengeParamsSchema,
@@ -57,6 +61,19 @@ export async function POST(
     seasonYear,
     challengeId: params.data.challengeId,
   })
+  if (!dryRun && result.updated > 0) {
+    const sourceId = `${provider}:${new Date().toISOString()}`
+    await notifyWorldCupResultsUpdated({
+      challengeId: params.data.challengeId,
+      sourceId,
+    })
+    if (result.recalculated) {
+      await notifyWorldCupLeaderboardUpdated({
+        challengeId: params.data.challengeId,
+        sourceId,
+      })
+    }
+  }
 
   return NextResponse.json({
     ok: true,

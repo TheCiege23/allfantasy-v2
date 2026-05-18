@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { recalculateWorldCupChallenge } from "@/lib/world-cup"
+import { notifyWorldCupLeaderboardUpdated } from "@/lib/world-cup/worldCupNotifications"
 import {
   assertWorldCupManager,
   requireWorldCupApiUser,
@@ -21,5 +22,9 @@ export async function POST(request: Request, context: { params: { challengeId: s
   if (!access.ok) return access.response
 
   const leaderboard = await recalculateWorldCupChallenge(params.data.challengeId)
+  await notifyWorldCupLeaderboardUpdated({
+    challengeId: params.data.challengeId,
+    sourceId: `manual:${Date.now()}`,
+  })
   return NextResponse.json({ ok: true, leaderboard })
 }

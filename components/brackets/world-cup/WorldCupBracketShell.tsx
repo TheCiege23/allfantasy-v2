@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowUp, Bot, Check, ChevronLeft, ClipboardCheck, ClipboardList, Copy, Edit3, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Pin, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Sparkles, Trophy, Users, X } from "lucide-react"
+import { ArrowLeft, ArrowUp, Bell, Bot, Check, ChevronLeft, ClipboardCheck, ClipboardList, Copy, Edit3, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Pin, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Sparkles, Trophy, Users, X } from "lucide-react"
 import { toast } from "sonner"
 import type { WorldCupAiBuilderProgress, WorldCupAiStrategy, WorldCupChallengeView, WorldCupMatchView, WorldCupPickView } from "@/lib/world-cup/types"
 import { isWorldCupChallengeLocked } from "@/lib/world-cup/worldCupBracketBuilder"
@@ -3568,9 +3568,7 @@ function WorldCupCommunityFoundationPanel({
         <div className="mt-3 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.06] p-3 text-xs leading-5 text-cyan-50/75">
           Mentions: @username creates in-app notification records, @all is commissioner-only, @global is blocked until broadcast fanout is built, and @chimmy is private/AI-gated.
         </div>
-        <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-xs leading-5 text-white/45">
-          Notification settings coming soon: pool chat, @username, @all, @global, Chimmy private replies, poll updates, media replies, in-app, and phone push.
-        </div>
+        <WorldCupNotificationSettingsCard />
         <div className="mt-4 rounded-xl border border-white/10 bg-black/25 p-3">
           <div className="mb-3 flex items-center justify-between gap-2">
             <p className="text-[10px] font-bold uppercase tracking-wide text-white/35">
@@ -3720,6 +3718,40 @@ function WorldCupCommunityFoundationPanel({
         )}
       </div>
     </section>
+  )
+}
+
+function WorldCupNotificationSettingsCard() {
+  return (
+    <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+      <p className="flex items-center gap-2 text-xs font-black text-white">
+        <Bell className="h-3.5 w-3.5 text-cyan-200" aria-hidden />
+        Notification Settings
+      </p>
+      <p className="mt-2 text-xs leading-5 text-white/50">
+        In-app notifications are on by default. SMS alerts require a verified phone number and opt-in.
+      </p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {[
+          "Mute this pool",
+          "SMS mentions",
+          "@all alerts",
+          "Deadline reminders",
+          "Results and leaderboard",
+          "Private Chimmy replies",
+        ].map((label) => (
+          <div key={label} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2">
+            <span className="text-[11px] text-white/55">{label}</span>
+            <span className="rounded-full border border-white/10 bg-black/30 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white/35">
+              Coming soon
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-[11px] leading-5 text-white/35">
+        Pool owners and commissioners cannot override a user's mute, SMS opt-in, or phone verification state.
+      </p>
+    </div>
   )
 }
 

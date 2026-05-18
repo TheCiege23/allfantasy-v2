@@ -7,6 +7,7 @@ import { getWorldCupChallengeIncompleteSummary } from "./worldCupBracketCompleti
 import { WORLD_CUP_BRACKET_EVENT_TYPES } from "./worldCupBracketEvents"
 import { worldCupIdempotencyKeys } from "./worldCupBracketEventIdempotency"
 import { emitWorldCupBracketChatEvent } from "./worldCupBracketEventService"
+import { notifyWorldCupDeadlineReminder } from "./worldCupNotifications"
 
 const WINDOW_MS = 20 * 60 * 1000
 
@@ -87,16 +88,18 @@ async function emitLockReminderForChallenge(input: {
 
   const eventType = lockReminderBucketToEventType(input.bucketKey)
 
-  return emitWorldCupBracketChatEvent({
+  const idempotencyKey = worldCupIdempotencyKeys.lockReminderWindow(
+    input.challengeId,
+    input.bucketKey,
+    lockFingerprint(input.pickLockAt)
+  )
+
+  const result = await emitWorldCupBracketChatEvent({
     challengeId: input.challengeId,
     eventType,
     eventTitle: title,
     eventBody: bodyParts.join(" "),
-    idempotencyKey: worldCupIdempotencyKeys.lockReminderWindow(
-      input.challengeId,
-      input.bucketKey,
-      lockFingerprint(input.pickLockAt)
-    ),
+    idempotencyKey,
     metadata: {
       bucket: input.bucketKey,
       incompleteBracketCount: incomplete,
@@ -105,6 +108,15 @@ async function emitLockReminderForChallenge(input: {
     },
     isAiGenerated: false,
   })
+  if (result.ok && !result.duplicate && !result.skipped && input.bucketKey !== "locked") {
+    await notifyWorldCupDeadlineReminder({
+      challengeId: input.challengeId,
+      poolName: input.name,
+      reminder: bodyParts.join(" "),
+      sourceId: idempotencyKey,
+    })
+  }
+  return result
 }
 
 /** Cron: scan all open challenges with a lock time — one emit per bucket per lock fingerprint. */

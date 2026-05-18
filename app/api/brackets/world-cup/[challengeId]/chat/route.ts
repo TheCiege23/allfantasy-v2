@@ -2,8 +2,12 @@ import { randomUUID } from "crypto"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { userHasBracketBrainAi } from "@/lib/bracket-brain/bracketBrainAccess"
-import { createPlatformNotification } from "@/lib/platform/notification-service"
 import { prisma } from "@/lib/prisma"
+import {
+  notifyWorldCupAllMention,
+  notifyWorldCupChimmyReply,
+  notifyWorldCupMention,
+} from "@/lib/world-cup/worldCupNotifications"
 import {
   parseWorldCupPoolMentions,
   WORLD_CUP_POOL_CHAT_EVENT_TYPES,
@@ -145,32 +149,6 @@ async function resolveMentionedUsers(challengeId: string, names: string[]) {
   }))
 }
 
-async function notifyMentionedUsers(input: {
-  challengeId: string
-  senderUserId: string
-  senderName: string
-  messageId: string
-  body: string
-  mentionedUserIds: string[]
-}) {
-  const targets = Array.from(new Set(input.mentionedUserIds)).filter((id) => id !== input.senderUserId)
-  await Promise.all(targets.map((userId) => createPlatformNotification({
-    userId,
-    productType: "bracket",
-    type: "world_cup_pool_mention",
-    title: "World Cup pool mention",
-    body: `${input.senderName} mentioned you in pool chat.`,
-    severity: "low",
-    sourceKey: `world-cup-chat-mention:${input.messageId}:${userId}`,
-    meta: {
-      challengeId: input.challengeId,
-      messageId: input.messageId,
-      preview: input.body.slice(0, 140),
-      notificationPreferenceTodo: "world_cup_pool_chat_mentions",
-    },
-  })))
-}
-
 export async function GET(
   request: Request,
   context: { params: { challengeId: string } }
@@ -288,13 +266,29 @@ export async function POST(
 
   const message = serializeChatMessage(created, auth.user.id)
   if (!hasChimmy && resolvedMentions.length > 0) {
-    await notifyMentionedUsers({
+    await notifyWorldCupMention({
       challengeId: params.data.challengeId,
       senderUserId: auth.user.id,
       senderName: message.authorName,
       messageId: created.id,
       body,
-      mentionedUserIds: resolvedMentions.map((mention) => mention.userId),
+      targetUserIds: resolvedMentions.map((mention) => mention.userId),
+    })
+  }
+  if (!hasChimmy && hasAll) {
+    await notifyWorldCupAllMention({
+      challengeId: params.data.challengeId,
+      senderUserId: auth.user.id,
+      senderName: message.authorName,
+      messageId: created.id,
+      body,
+    })
+  }
+  if (hasChimmy) {
+    await notifyWorldCupChimmyReply({
+      challengeId: params.data.challengeId,
+      userId: auth.user.id,
+      messageId: created.id,
     })
   }
 

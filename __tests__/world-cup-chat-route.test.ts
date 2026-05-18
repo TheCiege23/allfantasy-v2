@@ -5,7 +5,9 @@ const requireUserMock = vi.hoisted(() => vi.fn())
 const memberAccessMock = vi.hoisted(() => vi.fn())
 const managerAccessMock = vi.hoisted(() => vi.fn())
 const hasAiMock = vi.hoisted(() => vi.fn())
-const notificationMock = vi.hoisted(() => vi.fn())
+const notifyMentionMock = vi.hoisted(() => vi.fn())
+const notifyAllMentionMock = vi.hoisted(() => vi.fn())
+const notifyChimmyReplyMock = vi.hoisted(() => vi.fn())
 const findManyMessagesMock = vi.hoisted(() => vi.fn())
 const createMessageMock = vi.hoisted(() => vi.fn())
 const findManyParticipantsMock = vi.hoisted(() => vi.fn())
@@ -21,8 +23,10 @@ vi.mock("@/lib/bracket-brain/bracketBrainAccess", () => ({
   userHasBracketBrainAi: hasAiMock,
 }))
 
-vi.mock("@/lib/platform/notification-service", () => ({
-  createPlatformNotification: notificationMock,
+vi.mock("@/lib/world-cup/worldCupNotifications", () => ({
+  notifyWorldCupMention: notifyMentionMock,
+  notifyWorldCupAllMention: notifyAllMentionMock,
+  notifyWorldCupChimmyReply: notifyChimmyReplyMock,
 }))
 
 vi.mock("@/lib/prisma", () => ({
@@ -71,6 +75,9 @@ describe("World Cup pool chat route", () => {
     memberAccessMock.mockResolvedValue({ ok: true })
     managerAccessMock.mockResolvedValue({ ok: false, response: new Response(null, { status: 403 }) })
     hasAiMock.mockResolvedValue(false)
+    notifyMentionMock.mockResolvedValue([])
+    notifyAllMentionMock.mockResolvedValue([])
+    notifyChimmyReplyMock.mockResolvedValue([])
     findManyMessagesMock.mockResolvedValue([])
     findManyParticipantsMock.mockResolvedValue([])
     createMessageMock.mockImplementation(async ({ data }) => dbMessage({
@@ -179,7 +186,7 @@ describe("World Cup pool chat route", () => {
     expect(json.messages).toHaveLength(0)
   })
 
-  it("creates in-app notification records for resolved @username mentions", async () => {
+  it("calls World Cup notification helper for resolved @username mentions", async () => {
     findManyParticipantsMock.mockResolvedValue([
       { userId: "user-2", displayName: "Friend", user: { id: "user-2", username: "friend", displayName: "Friend", email: "friend@example.com" } },
     ])
@@ -188,10 +195,40 @@ describe("World Cup pool chat route", () => {
     const res = await POST(request({ body: "hey @friend" }), { params: { challengeId: "c1" } })
 
     expect(res.status).toBe(201)
-    expect(notificationMock).toHaveBeenCalledWith(expect.objectContaining({
-      userId: "user-2",
-      productType: "bracket",
-      type: "world_cup_pool_mention",
+    expect(notifyMentionMock).toHaveBeenCalledWith(expect.objectContaining({
+      challengeId: "c1",
+      senderUserId: "user-1",
+      messageId: "created-1",
+      targetUserIds: ["user-2"],
+    }))
+  })
+
+  it("@all calls pool-wide notification helper for managers", async () => {
+    managerAccessMock.mockResolvedValue({ ok: true })
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
+
+    const res = await POST(request({ body: "@all deadline" }), { params: { challengeId: "c1" } })
+
+    expect(res.status).toBe(201)
+    expect(notifyAllMentionMock).toHaveBeenCalledWith(expect.objectContaining({
+      challengeId: "c1",
+      senderUserId: "user-1",
+      messageId: "created-1",
+      body: "@all deadline",
+    }))
+  })
+
+  it("@chimmy calls private sender notification helper when AI is enabled", async () => {
+    hasAiMock.mockResolvedValue(true)
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
+
+    const res = await POST(request({ body: "@chimmy help me" }), { params: { challengeId: "c1" } })
+
+    expect(res.status).toBe(201)
+    expect(notifyChimmyReplyMock).toHaveBeenCalledWith(expect.objectContaining({
+      challengeId: "c1",
+      userId: "user-1",
+      messageId: "created-1",
     }))
   })
 })
