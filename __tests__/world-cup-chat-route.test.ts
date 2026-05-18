@@ -8,6 +8,7 @@ const hasAiMock = vi.hoisted(() => vi.fn())
 const notifyMentionMock = vi.hoisted(() => vi.fn())
 const notifyAllMentionMock = vi.hoisted(() => vi.fn())
 const notifyChimmyReplyMock = vi.hoisted(() => vi.fn())
+const generateChimmyReplyMock = vi.hoisted(() => vi.fn())
 const findManyMessagesMock = vi.hoisted(() => vi.fn())
 const findFirstMessageMock = vi.hoisted(() => vi.fn())
 const createMessageMock = vi.hoisted(() => vi.fn())
@@ -29,6 +30,10 @@ vi.mock("@/lib/world-cup/worldCupNotifications", () => ({
   notifyWorldCupMention: notifyMentionMock,
   notifyWorldCupAllMention: notifyAllMentionMock,
   notifyWorldCupChimmyReply: notifyChimmyReplyMock,
+}))
+
+vi.mock("@/lib/world-cup/worldCupChimmyPrivateReply", () => ({
+  generateWorldCupChimmyPrivateReply: generateChimmyReplyMock,
 }))
 
 vi.mock("@/lib/prisma", () => ({
@@ -82,15 +87,22 @@ describe("World Cup pool chat route", () => {
     notifyMentionMock.mockResolvedValue([])
     notifyAllMentionMock.mockResolvedValue([])
     notifyChimmyReplyMock.mockResolvedValue([])
+    generateChimmyReplyMock.mockResolvedValue({
+      reply: "Keep it simple: prioritize the group winner path.",
+      conversationId: "chimmy:user-1:world-cup:c1",
+      provider: "openai",
+      model: "gpt-test",
+    })
     findManyMessagesMock.mockResolvedValue([])
     findFirstMessageMock.mockResolvedValue(null)
     findManyParticipantsMock.mockResolvedValue([])
     createMessageMock.mockImplementation(async ({ data }) => dbMessage({
-      id: "created-1",
+      id: data.isAiGenerated ? "chimmy-response-1" : "created-1",
       userId: data.userId,
       eventType: data.eventType,
       eventBody: data.eventBody,
       metadata: data.metadata,
+      isAiGenerated: data.isAiGenerated,
     }))
     updateMessageMock.mockImplementation(async ({ data }) => dbMessage({
       id: "poll-1",
@@ -446,16 +458,59 @@ describe("World Cup pool chat route", () => {
 
     const locked = await POST(request({ body: "@chimmy help me" }), { params: { challengeId: "c1" } })
     expect(locked.status).toBe(402)
+    expect(generateChimmyReplyMock).not.toHaveBeenCalled()
 
     hasAiMock.mockResolvedValue(true)
     const created = await POST(request({ body: "@chimmy help me" }), { params: { challengeId: "c1" } })
+    const createdJson = await created.json()
     expect(created.status).toBe(201)
     expect(createMessageMock).toHaveBeenLastCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         eventType: "world_cup.pool_chat_chimmy_private",
-        metadata: expect.objectContaining({ visibility: "private_to_user", targetUserId: "user-1" }),
+        metadata: expect.objectContaining({
+          visibility: "private_to_user",
+          targetUserId: "user-1",
+          messageType: "chimmy_private_response",
+        }),
       }),
     }))
+    expect(createMessageMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        eventTitle: "Private Chimmy prompt",
+        eventBody: "@chimmy help me",
+        isAiGenerated: false,
+        metadata: expect.objectContaining({
+          visibility: "private_to_user",
+          targetUserId: "user-1",
+          messageType: "chimmy_private_prompt",
+        }),
+      }),
+    }))
+    expect(createMessageMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        eventTitle: "Private Chimmy reply",
+        eventBody: "Keep it simple: prioritize the group winner path.",
+        isAiGenerated: true,
+        metadata: expect.objectContaining({
+          visibility: "private_to_user",
+          targetUserId: "user-1",
+          authorName: "Chimmy",
+          source: "world_cup_pool_chat",
+        }),
+      }),
+    }))
+    expect(generateChimmyReplyMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "user-1",
+      challengeId: "c1",
+      prompt: "@chimmy help me",
+    }))
+    expect(createdJson.messages).toHaveLength(2)
+    expect(createdJson.chimmyResponse).toMatchObject({
+      authorName: "Chimmy",
+      body: "Keep it simple: prioritize the group winner path.",
+      isPrivate: true,
+    })
+    expect(JSON.stringify(createdJson)).not.toMatch(/OPENAI|sk-/i)
 
     requireUserMock.mockResolvedValue({ ok: true, user: { id: "user-2", email: "u2@example.com" } })
     findManyMessagesMock.mockResolvedValue([
@@ -467,6 +522,46 @@ describe("World Cup pool chat route", () => {
     const privateList = await GET(request(), { params: { challengeId: "c1" } })
     const json = await privateList.json()
     expect(json.messages).toHaveLength(0)
+  })
+
+  it("shows sender both private Chimmy prompt and response on GET", async () => {
+    hasAiMock.mockResolvedValue(true)
+    findManyMessagesMock.mockResolvedValue([
+      dbMessage({
+        id: "chimmy-response-1",
+        userId: null,
+        eventType: "world_cup.pool_chat_chimmy_private",
+        eventBody: "Lean toward the safer group winner path.",
+        isAiGenerated: true,
+        createdAt: new Date("2026-06-01T12:00:01.000Z"),
+        metadata: {
+          visibility: "private_to_user",
+          targetUserId: "user-1",
+          messageType: "chimmy_private_response",
+          authorName: "Chimmy",
+        },
+      }),
+      dbMessage({
+        id: "chimmy-prompt-1",
+        eventType: "world_cup.pool_chat_chimmy_private",
+        eventBody: "@chimmy who should I pick?",
+        createdAt: new Date("2026-06-01T12:00:00.000Z"),
+        metadata: {
+          visibility: "private_to_user",
+          targetUserId: "user-1",
+          messageType: "chimmy_private_prompt",
+        },
+      }),
+    ])
+    const { GET } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
+
+    const res = await GET(request(), { params: { challengeId: "c1" } })
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.messages).toHaveLength(2)
+    expect(json.messages[0]).toMatchObject({ body: "@chimmy who should I pick?", isPrivate: true })
+    expect(json.messages[1]).toMatchObject({ authorName: "Chimmy", body: "Lean toward the safer group winner path.", isPrivate: true })
   })
 
   it("calls World Cup notification helper for resolved @username mentions", async () => {
@@ -505,13 +600,13 @@ describe("World Cup pool chat route", () => {
     hasAiMock.mockResolvedValue(true)
     const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
 
-    const res = await POST(request({ body: "@chimmy help me" }), { params: { challengeId: "c1" } })
+    const res = await POST(request({ action: "chimmy_private", body: "help me" }), { params: { challengeId: "c1" } })
 
     expect(res.status).toBe(201)
     expect(notifyChimmyReplyMock).toHaveBeenCalledWith(expect.objectContaining({
       challengeId: "c1",
       userId: "user-1",
-      messageId: "created-1",
+      messageId: "chimmy-response-1",
     }))
   })
 })

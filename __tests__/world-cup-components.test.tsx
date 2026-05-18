@@ -1569,6 +1569,116 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getByText(/1 vote · 100%/i)).toBeInTheDocument()
   })
 
+  it("shows private Chimmy indicator and appends private prompt plus reply", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes("/chat") && url.includes("notification_preferences")) {
+        return {
+          ok: true,
+          json: async () => ({ preferences: {} }),
+        } as Response
+      }
+      if (url.includes("/chat") && init?.method === "POST") {
+        const payload = JSON.parse(String(init.body ?? "{}"))
+        return {
+          ok: true,
+          json: async () => ({
+            ok: true,
+            message: {
+              id: "chimmy-prompt-1",
+              userId: "user-1",
+              authorName: "Owner",
+              authorAvatarUrl: null,
+              body: payload.body,
+              messageType: "chimmy_private_prompt",
+              visibility: "private_to_user",
+              targetUserId: "user-1",
+              mentions: [{ type: "chimmy" }],
+              createdAt: "2026-06-01T12:00:00.000Z",
+              isOwnMessage: true,
+              isPrivate: true,
+            },
+            chimmyResponse: {
+              id: "chimmy-response-1",
+              userId: null,
+              authorName: "Chimmy",
+              authorAvatarUrl: null,
+              body: "I would start by protecting your group winner path.",
+              messageType: "chimmy_private_response",
+              visibility: "private_to_user",
+              targetUserId: "user-1",
+              mentions: [],
+              createdAt: "2026-06-01T12:00:01.000Z",
+              isOwnMessage: false,
+              isPrivate: true,
+            },
+            messages: [
+              {
+                id: "chimmy-prompt-1",
+                userId: "user-1",
+                authorName: "Owner",
+                authorAvatarUrl: null,
+                body: payload.body,
+                messageType: "chimmy_private_prompt",
+                visibility: "private_to_user",
+                targetUserId: "user-1",
+                mentions: [{ type: "chimmy" }],
+                createdAt: "2026-06-01T12:00:00.000Z",
+                isOwnMessage: true,
+                isPrivate: true,
+              },
+              {
+                id: "chimmy-response-1",
+                userId: null,
+                authorName: "Chimmy",
+                authorAvatarUrl: null,
+                body: "I would start by protecting your group winner path.",
+                messageType: "chimmy_private_response",
+                visibility: "private_to_user",
+                targetUserId: "user-1",
+                mentions: [],
+                createdAt: "2026-06-01T12:00:01.000Z",
+                isOwnMessage: false,
+                isPrivate: true,
+              },
+            ],
+          }),
+        } as Response
+      }
+      if (url.includes("/chat")) {
+        return {
+          ok: true,
+          json: async () => ({ messages: [] }),
+        } as Response
+      }
+      return {
+        ok: true,
+        json: async () => makeReadinessResponse(),
+      } as Response
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: true, isAdmin: false, hasBracketBrainAi: true }) as any} defaultTab="home" />)
+
+    const input = await screen.findByPlaceholderText(/Message your World Cup pool/i)
+    fireEvent.change(input, { target: { value: "@chimmy who should I pick?" } })
+
+    expect(screen.getByText(/@chimmy replies are private/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /^Send$/i }))
+
+    expect(await screen.findByText("I would start by protecting your group winner path.")).toBeInTheDocument()
+    expect(screen.getAllByText(/Only visible to you/i).length).toBeGreaterThanOrEqual(2)
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/brackets/world-cup/c1/chat"),
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining("@chimmy who should I pick?"),
+        })
+      )
+    })
+  })
+
   it("shows commissioner affordances unlocked for pool owners and all-access users", async () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: true, isAdmin: false, hasBracketBrainAi: false }) as any} defaultTab="home" />)

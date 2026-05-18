@@ -10,6 +10,7 @@ import {
   uploadWorldCupChatImageToCloudinary,
   WORLD_CUP_CHAT_IMAGE_MAX_BYTES,
 } from "@/lib/world-cup/worldCupChatImageUpload"
+import { generateWorldCupChimmyPrivateReply } from "@/lib/world-cup/worldCupChimmyPrivateReply"
 import {
   getWorldCupNotificationPreferenceResolution,
   updateWorldCupNotificationPreferencesForUser,
@@ -52,7 +53,7 @@ const preferencePatchSchema = z.object({
 })
 
 const postSchema = z.object({
-  action: z.literal("send_message").optional(),
+  action: z.enum(["send_message", "chimmy_private"]).optional(),
   body: z.string().trim().min(1).max(MAX_BODY_CHARS),
   gif: z.object({
     id: z.string().trim().min(1).max(120),
@@ -107,6 +108,11 @@ type RawWorldCupChatEvent = {
     email?: string | null
     avatarUrl?: string | null
   } | null
+}
+
+type WorldCupChallengeSummary = {
+  id: string
+  name?: string | null
 }
 
 type UploadedImageFile = Blob & { name?: string; arrayBuffer: () => Promise<ArrayBuffer> }
@@ -294,10 +300,13 @@ function serializeChatMessage(row: RawWorldCupChatEvent, requesterUserId: string
   const metadata = metadataObject(row.metadata)
   const visibility = typeof metadata.visibility === "string" ? metadata.visibility : "public"
   const targetUserId = typeof metadata.targetUserId === "string" ? metadata.targetUserId : null
+  const authorNameOverride = typeof metadata.authorName === "string" ? metadata.authorName : null
   const displayName =
+    authorNameOverride ||
     row.user?.displayName ||
     row.user?.username ||
     row.user?.email?.split("@")[0] ||
+    (row.isAiGenerated ? "Chimmy" : null) ||
     (row.userId === requesterUserId ? "You" : "Pool member")
 
   return {
@@ -646,6 +655,69 @@ async function resolveMentionedUsers(challengeId: string, names: string[]) {
   }))
 }
 
+async function getWorldCupChallengeSummary(challengeId: string): Promise<WorldCupChallengeSummary | null> {
+  try {
+    const delegate = (prisma as any).worldCupBracketChallenge
+    if (!delegate?.findUnique) return null
+    return await delegate.findUnique({
+      where: { id: challengeId },
+      select: { id: true, name: true },
+    }) as WorldCupChallengeSummary | null
+  } catch {
+    return null
+  }
+}
+
+async function createPrivateChimmyResponse(input: {
+  challengeId: string
+  userId: string
+  prompt: string
+  promptMessage: RawWorldCupChatEvent
+}) {
+  const challenge = await getWorldCupChallengeSummary(input.challengeId)
+  const ai = await generateWorldCupChimmyPrivateReply({
+    userId: input.userId,
+    challengeId: input.challengeId,
+    prompt: input.prompt,
+    challengeName: challenge?.name ?? null,
+  })
+
+  const response = await (prisma as any).worldCupBracketChatEvent.create({
+    data: {
+      challengeId: input.challengeId,
+      userId: null,
+      eventType: WORLD_CUP_POOL_CHAT_EVENT_TYPES.CHIMMY_PRIVATE,
+      eventTitle: "Private Chimmy reply",
+      eventBody: ai.reply,
+      idempotencyKey: `chimmy-reply:${input.userId}:${randomUUID()}`,
+      isAiGenerated: true,
+      metadata: {
+        messageType: "chimmy_private_response",
+        visibility: "private_to_user",
+        targetUserId: input.userId,
+        promptMessageId: input.promptMessage.id,
+        conversationId: ai.conversationId,
+        provider: ai.provider,
+        model: ai.model,
+        authorName: "Chimmy",
+        source: "world_cup_pool_chat",
+      },
+    },
+    include: {
+      user: {
+        select: {
+          displayName: true,
+          username: true,
+          email: true,
+          avatarUrl: true,
+        },
+      },
+    },
+  }) as RawWorldCupChatEvent
+
+  return response
+}
+
 export async function GET(
   request: Request,
   context: { params: { challengeId: string } }
@@ -699,6 +771,7 @@ export async function POST(
     queryAction &&
     queryAction !== "update_notification_preferences" &&
     queryAction !== "send_message" &&
+    queryAction !== "chimmy_private" &&
     queryAction !== "create_poll" &&
     queryAction !== "poll_vote"
   ) {
@@ -724,7 +797,7 @@ export async function POST(
       payload: json,
     })
   }
-  if (action && action !== "send_message") {
+  if (action && action !== "send_message" && action !== "chimmy_private") {
     return NextResponse.json({ error: "Unknown World Cup chat action" }, { status: 400 })
   }
 
@@ -745,7 +818,7 @@ export async function POST(
   const mentions = parseWorldCupPoolMentions(body)
   const hasGlobal = mentions.some((mention) => mention.type === "global")
   const hasAll = mentions.some((mention) => mention.type === "all")
-  const hasChimmy = mentions.some((mention) => mention.type === "chimmy")
+  const hasChimmy = action === "chimmy_private" || mentions.some((mention) => mention.type === "chimmy")
 
   if (hasGlobal) {
     const manager = await assertWorldCupManager(request, params.data.challengeId, auth.user)
@@ -786,6 +859,7 @@ export async function POST(
     ? WORLD_CUP_POOL_CHAT_EVENT_TYPES.CHIMMY_PRIVATE
     : WORLD_CUP_POOL_CHAT_EVENT_TYPES.TEXT_MESSAGE
 
+  const promptMessageType = hasChimmy ? "chimmy_private_prompt" : null
   const created = await (prisma as any).worldCupBracketChatEvent.create({
     data: {
       challengeId: params.data.challengeId,
@@ -796,7 +870,7 @@ export async function POST(
       idempotencyKey: `chat:${auth.user.id}:${randomUUID()}`,
       isAiGenerated: false,
       metadata: {
-        messageType: image ? "image" : gif ? "gif" : hasChimmy ? "chimmy_private" : "text",
+        messageType: promptMessageType ?? (image ? "image" : gif ? "gif" : "text"),
         gif: gif ? {
           id: gif.id,
           title: gif.title,
@@ -820,6 +894,7 @@ export async function POST(
         targetUserId: hasChimmy ? auth.user.id : null,
         mentions,
         mentionedUserIds: resolvedMentions.map((mention) => mention.userId),
+        source: hasChimmy ? "world_cup_pool_chat" : null,
         notificationPreferenceTodo: "respect_world_cup_pool_chat_preferences_before_email_sms_push",
       },
     },
@@ -836,6 +911,16 @@ export async function POST(
   }) as RawWorldCupChatEvent
 
   const message = serializeChatMessage(created, auth.user.id)
+  let chimmyResponseMessage: ReturnType<typeof serializeChatMessage> | null = null
+  if (hasChimmy) {
+    const response = await createPrivateChimmyResponse({
+      challengeId: params.data.challengeId,
+      userId: auth.user.id,
+      prompt: body,
+      promptMessage: created,
+    })
+    chimmyResponseMessage = serializeChatMessage(response, auth.user.id)
+  }
   if (!hasChimmy && resolvedMentions.length > 0) {
     await notifyWorldCupMention({
       challengeId: params.data.challengeId,
@@ -859,9 +944,14 @@ export async function POST(
     await notifyWorldCupChimmyReply({
       challengeId: params.data.challengeId,
       userId: auth.user.id,
-      messageId: created.id,
+      messageId: chimmyResponseMessage?.id ?? created.id,
     })
   }
 
-  return NextResponse.json({ ok: true, message }, { status: 201 })
+  return NextResponse.json({
+    ok: true,
+    message,
+    chimmyResponse: chimmyResponseMessage,
+    messages: chimmyResponseMessage ? [message, chimmyResponseMessage] : [message],
+  }, { status: 201 })
 }

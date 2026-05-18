@@ -3572,6 +3572,7 @@ function WorldCupCommunityFoundationPanel({
   const [pollError, setPollError] = useState<string | null>(null)
   const [pollVotingMessageId, setPollVotingMessageId] = useState<string | null>(null)
   const richPreviewSegments = useMemo(() => parseWorldCupChatRichText(chatBody), [chatBody])
+  const isChimmyPrompt = /(^|[\s*_~\]])@chimmy\b/i.test(chatBody)
 
   function insertComposerText(value: string) {
     setChatBody((current) => `${current}${value}`)
@@ -3629,7 +3630,9 @@ function WorldCupCommunityFoundationPanel({
       if (!res.ok) {
         throw new Error(data.error || "Could not send message")
       }
-      if (data.message) {
+      if (Array.isArray(data.messages) && data.messages.length > 0) {
+        setMessages((prev) => [...prev, ...data.messages])
+      } else if (data.message) {
         setMessages((prev) => [...prev, data.message])
       } else {
         await loadChat()
@@ -3844,7 +3847,7 @@ function WorldCupCommunityFoundationPanel({
                   ) : null}
                   {message.isPrivate ? (
                     <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-purple-100/70">
-                      Private Chimmy thread
+                      Only visible to you
                     </p>
                   ) : null}
                 </div>
@@ -3942,6 +3945,18 @@ function WorldCupCommunityFoundationPanel({
             <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-xs">
               <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-white/35">Formatting Preview</p>
               <WorldCupChatRichTextSegments segments={richPreviewSegments} className="whitespace-pre-wrap break-words leading-5 text-white/65" />
+            </div>
+          ) : null}
+          {isChimmyPrompt ? (
+            <div className={[
+              "mt-2 rounded-xl border px-3 py-2 text-xs leading-5",
+              aiUnlocked
+                ? "border-purple-300/25 bg-purple-400/10 text-purple-50/75"
+                : "border-amber-300/25 bg-amber-400/10 text-amber-50/75",
+            ].join(" ")}>
+              {aiUnlocked
+                ? "@chimmy replies are private. Only you will see your prompt and Chimmy's answer."
+                : "@chimmy private replies require AI/Pro. Upgrade to ask Chimmy from this pool chat."}
             </div>
           ) : null}
           {selectedGif ? (
