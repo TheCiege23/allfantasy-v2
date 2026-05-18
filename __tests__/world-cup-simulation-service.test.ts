@@ -147,6 +147,7 @@ describe("world cup simulation service", () => {
   })
 
   it("simulates a single final result with winner and score", async () => {
+    const picksBefore = JSON.parse(JSON.stringify(state.picks))
     const result = await simulateWorldCupMatchResult({
       challengeId: "c1",
       matchId: "m1",
@@ -158,6 +159,8 @@ describe("world cup simulation service", () => {
     expect(result.updatedMatch.status).toBe("final")
     expect(result.updatedMatch.winnerTeamId).toBe("t1")
     expect(state.matches.find((m) => m.id === "m1")?.apiStatusShort).toBe("SIM")
+    expect(state.picks).toEqual(picksBefore)
+    expect(recalculateMock).toHaveBeenCalledWith("c1")
   })
 
   it("advances winner to the next match slot", async () => {
@@ -174,6 +177,7 @@ describe("world cup simulation service", () => {
   })
 
   it("simulates an entire round and marks completion", async () => {
+    const picksBefore = JSON.parse(JSON.stringify(state.picks))
     const result = await simulateWorldCupRound({
       challengeId: "c1",
       round: "round_of_32",
@@ -183,9 +187,15 @@ describe("world cup simulation service", () => {
     expect(result.simulatedMatches).toBe(1)
     expect(result.skippedMatches).toBe(0)
     expect(state.matches.find((m) => m.id === "m1")?.status).toBe("final")
+    expect(state.picks).toEqual(picksBefore)
+    expect(recalculateMock).toHaveBeenCalledWith("c1")
   })
 
   it("simulates a full tournament and returns champion", async () => {
+    state.picks = [
+      { id: "pick-1", entryId: "entry-1", matchId: "m1", selectedTeamId: "t1" },
+      { id: "pick-2", entryId: "entry-1", matchId: "m5", selectedTeamId: "t10" },
+    ]
     state.matches = [
       makeMatch({
         id: "m1",
@@ -241,6 +251,7 @@ describe("world cup simulation service", () => {
         awayTeamName: "Foxtrot",
       }),
     ]
+    const picksBefore = JSON.parse(JSON.stringify(state.picks))
 
     const result = await simulateWorldCupTournament({
       challengeId: "c1",
@@ -249,6 +260,8 @@ describe("world cup simulation service", () => {
 
     expect(result.rounds.length).toBe(5)
     expect(result.champion.winnerTeamId).toBe("t1")
+    expect(state.picks).toEqual(picksBefore)
+    expect(recalculateMock).toHaveBeenCalledWith("c1")
   })
 
   it("resets simulated results while preserving existing picks", async () => {
