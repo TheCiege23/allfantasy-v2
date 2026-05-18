@@ -154,6 +154,48 @@ function seedOrderForTeam(team: { sourcePayload?: unknown }, fallback: number) {
   return Number.isInteger(value) && value > 0 ? value : fallback
 }
 
+async function clearStaleWorldCupGroupPicks(input: {
+  challengeId: string
+  groupId: string
+  teamIds: string[]
+}) {
+  if (input.teamIds.length === 0) return { entriesReset: 0, groupPicksDeleted: 0, thirdPlacePicksDeleted: 0 }
+
+  const [rankingPicks, thirdPlacePicks] = await Promise.all([
+    prisma.worldCupGroupRankingPick.findMany({
+      where: { challengeId: input.challengeId, groupId: input.groupId, teamId: { in: input.teamIds } },
+      select: { entryId: true },
+    }),
+    prisma.worldCupThirdPlaceAdvancerPick.findMany({
+      where: { challengeId: input.challengeId, groupId: input.groupId, teamId: { in: input.teamIds } },
+      select: { entryId: true },
+    }),
+  ])
+  const affectedEntryIds = [...new Set([...rankingPicks, ...thirdPlacePicks].map((pick) => pick.entryId))]
+
+  const [groupDelete, thirdPlaceDelete] = await Promise.all([
+    prisma.worldCupGroupRankingPick.deleteMany({
+      where: { challengeId: input.challengeId, groupId: input.groupId, teamId: { in: input.teamIds } },
+    }),
+    prisma.worldCupThirdPlaceAdvancerPick.deleteMany({
+      where: { challengeId: input.challengeId, groupId: input.groupId, teamId: { in: input.teamIds } },
+    }),
+  ])
+
+  const resetResult = affectedEntryIds.length > 0
+    ? await prisma.worldCupBracketEntry.updateMany({
+        where: { id: { in: affectedEntryIds }, submittedAt: { not: null } },
+        data: { submittedAt: null, isComplete: false, isLocked: false },
+      })
+    : { count: 0 }
+
+  return {
+    entriesReset: resetResult.count,
+    groupPicksDeleted: groupDelete.count,
+    thirdPlacePicksDeleted: thirdPlaceDelete.count,
+  }
+}
+
 function toLockState(challenge: ChallengeForLock, entry: { isLocked?: boolean | null }) {
   const lock = isWorldCupChallengeLocked({
     challenge,
@@ -298,13 +340,19 @@ export async function ensureWorldCupGroupsForChallenge(challengeId: string) {
         })
       : []
     if (staleRows.length > 0) {
+      const staleTeamIds = [...new Set(staleRows.map((row) => row.teamId))]
+      const stalePickRepair = await clearStaleWorldCupGroupPicks({
+        challengeId,
+        groupId: group.id,
+        teamIds: staleTeamIds,
+      })
       await prisma.worldCupGroupTeam.deleteMany({
         where: { id: { in: staleRows.map((row) => row.id) } },
       })
       warnings.push({
         code: "GROUP_STALE_TEST_TEAMS_REPLACED",
         groupKey: group.groupKey as WorldCupGroupKey,
-        message: `${group.displayName} replaced stale demo/test team rows with official 2026 group teams.`,
+        message: `${group.displayName} replaced stale demo/test team rows with official 2026 group teams. Cleared ${stalePickRepair.groupPicksDeleted + stalePickRepair.thirdPlacePicksDeleted} stale saved pick${stalePickRepair.groupPicksDeleted + stalePickRepair.thirdPlacePicksDeleted === 1 ? "" : "s"}.`,
       })
     }
 

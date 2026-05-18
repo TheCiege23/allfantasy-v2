@@ -152,6 +152,33 @@ describe("WorldCupGroupStagePicks", () => {
 
     const thirdPlace = await screen.findByTestId("world-cup-third-place-result-A")
     expect(thirdPlace).toHaveAttribute("data-result-state", "correct")
+    expect(thirdPlace).toHaveAttribute("data-selected", "true")
+    expect(thirdPlace).toHaveTextContent("Selected to advance")
     expect(thirdPlace).toHaveTextContent("Correct +5")
+  })
+
+  it("makes selected third-place advancer cards obvious on mobile/dark UI", async () => {
+    clientApiMocks.fetchGroupStageView.mockResolvedValue(makeGroupStageView({
+      completion: {
+        groupsRankedCount: 12,
+        allGroupsRanked: true,
+        thirdPlaceSelectedCount: 1,
+        thirdPlaceComplete: false,
+        groupStageComplete: false,
+      },
+      thirdPlaceAdvancerPicks: [
+        { id: "tp-1", groupId: "group-a", teamId: "team-c", isSelected: true, actualAdvanced: null, isCorrect: null, pointsAwarded: 0 },
+      ],
+    }))
+
+    const WorldCupGroupStagePicks = (await import("@/components/brackets/world-cup/WorldCupGroupStagePicks")).default
+    render(<WorldCupGroupStagePicks challengeId="c1" entryId="entry-1" />)
+
+    const selectedCard = await screen.findByTestId("world-cup-third-place-result-A")
+    expect(selectedCard).toHaveAttribute("data-selected", "true")
+    expect(selectedCard.className).toContain("bg-cyan-300/18")
+    expect(selectedCard.className).toContain("border-cyan-200")
+    expect(within(selectedCard).getByText("Selected to advance")).toBeInTheDocument()
+    expect(within(selectedCard).getByRole("checkbox", { name: /Select Canada as a third-place advancer/i })).toBeChecked()
   })
 })

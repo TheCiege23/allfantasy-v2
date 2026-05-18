@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Loader2 } from "lucide-react"
+import { Check, Loader2 } from "lucide-react"
 import {
   fetchWorldCupGroupStageView,
   saveWorldCupGroupRankingClient,
@@ -416,37 +416,64 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
         ) : null}
 
         <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {thirdPlaceCandidates.map((candidate) => (
-            <label
-              key={candidate.groupId}
-              data-testid={`world-cup-third-place-result-${candidate.groupKey}`}
-              data-result-state={thirdPlaceResultStatus(view, candidate.team?.teamId)}
-              className={`flex items-center gap-3 rounded-xl border bg-black/20 px-3 py-2 text-sm text-white/75 ${resultBorderClass(thirdPlaceResultStatus(view, candidate.team?.teamId))}`}
-            >
-              <input
-                type="checkbox"
-                checked={Boolean(candidate.team?.teamId && thirdPlaceSelection.has(candidate.team.teamId))}
-                onChange={() => candidate.team && toggleThirdPlace(candidate.team.teamId)}
-                disabled={isLocked || !view.completion.allGroupsRanked || !candidate.team}
-                className="h-4 w-4 accent-cyan-300 disabled:opacity-40"
-              />
-              <span className="min-w-0">
-                <span className="block text-xs font-black uppercase text-white/40">{candidate.displayName}</span>
-                <span className="block truncate font-bold text-white">{candidate.team?.name ?? "No 3rd-place pick yet"}</span>
-              </span>
-              {(() => {
-                const pick = candidate.team?.teamId
-                  ? view.thirdPlaceAdvancerPicks.find((row) => row.teamId === candidate.team?.teamId && row.isSelected)
-                  : null
-                const badge = resultBadge(thirdPlaceResultStatus(view, candidate.team?.teamId), pick?.pointsAwarded ?? 0)
-                return badge ? (
-                  <span className={`ml-auto shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-black ${badge.className}`}>
+          {thirdPlaceCandidates.map((candidate) => {
+            const isSelected = Boolean(candidate.team?.teamId && thirdPlaceSelection.has(candidate.team.teamId))
+            const status = thirdPlaceResultStatus(view, candidate.team?.teamId)
+            const pick = candidate.team?.teamId
+              ? view.thirdPlaceAdvancerPicks.find((row) => row.teamId === candidate.team?.teamId && row.isSelected)
+              : null
+            const badge = resultBadge(status, pick?.pointsAwarded ?? 0)
+            return (
+              <label
+                key={candidate.groupId}
+                data-testid={`world-cup-third-place-result-${candidate.groupKey}`}
+                data-result-state={status}
+                data-selected={isSelected ? "true" : "false"}
+                className={[
+                  "flex min-h-[4.75rem] items-center gap-3 rounded-2xl border px-3 py-3 text-sm transition",
+                  resultBorderClass(status),
+                  isSelected
+                    ? "border-cyan-200 bg-cyan-300/18 text-cyan-50 shadow-[0_0_0_2px_rgba(103,232,249,0.35),0_14px_36px_rgba(8,145,178,0.22)]"
+                    : "border-white/10 bg-black/25 text-white/75",
+                  isLocked || !view.completion.allGroupsRanked || !candidate.team ? "opacity-60" : "cursor-pointer hover:border-cyan-200/50 hover:bg-cyan-300/10",
+                ].join(" ")}
+              >
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => candidate.team && toggleThirdPlace(candidate.team.teamId)}
+                  disabled={isLocked || !view.completion.allGroupsRanked || !candidate.team}
+                  className="sr-only"
+                  aria-label={`Select ${candidate.team?.name ?? candidate.displayName} as a third-place advancer`}
+                />
+                <span
+                  aria-hidden
+                  className={[
+                    "grid h-9 w-9 shrink-0 place-items-center rounded-xl border text-sm font-black",
+                    isSelected
+                      ? "border-cyan-100 bg-cyan-200 text-slate-950 shadow-[0_0_18px_rgba(103,232,249,0.45)]"
+                      : "border-white/15 bg-white/[0.06] text-white/30",
+                  ].join(" ")}
+                >
+                  {isSelected ? <Check className="h-5 w-5 stroke-[3]" /> : candidate.groupKey}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className={isSelected ? "block text-xs font-black uppercase tracking-wide text-cyan-100" : "block text-xs font-black uppercase tracking-wide text-white/45"}>
+                    {candidate.displayName}
+                  </span>
+                  <span className="block truncate text-base font-black text-white">{candidate.team?.name ?? "No 3rd-place pick yet"}</span>
+                  <span className={isSelected ? "mt-0.5 block text-[11px] font-bold text-cyan-100" : "mt-0.5 block text-[11px] text-white/40"}>
+                    {isSelected ? "Selected to advance" : "Tap to select"}
+                  </span>
+                </span>
+                {badge ? (
+                  <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-black ${badge.className}`}>
                     {badge.label}
                   </span>
-                ) : null
-              })()}
-            </label>
-          ))}
+                ) : null}
+              </label>
+            )
+          })}
         </div>
 
         <button
