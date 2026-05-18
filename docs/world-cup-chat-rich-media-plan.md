@@ -13,9 +13,9 @@ Recommended server-side environment variables:
 - `CLOUDINARY_API_SECRET`
 - Optional upload preset only if signed server-side uploads are retained.
 
-Do not expose API secrets to the client. The upload route should be server-only:
+Do not expose API secrets to the client. World Cup chat features must stay consolidated behind the pool chat route to avoid Vercel route-budget growth:
 
-- `POST /api/brackets/world-cup/[challengeId]/chat/upload-image`
+- `POST /api/brackets/world-cup/[challengeId]/chat?action=upload_image`
 - Require authenticated user.
 - Require `WorldCupBracketParticipant` membership or manager/admin access.
 - Accept multipart `file` for image upload.
@@ -42,9 +42,9 @@ Current image message metadata:
 
 ## Klipy GIF Search Design
 
-Use the existing `lib/rich-message/GIFIntegrationResolver.ts` pattern. A World Cup route can be added later:
+Use the existing `lib/rich-message/GIFIntegrationResolver.ts` pattern through the consolidated chat route:
 
-- `GET /api/brackets/world-cup/[challengeId]/chat/gifs?q=...`
+- `GET /api/brackets/world-cup/[challengeId]/chat?action=gifs&q=...`
 - Require pool membership.
 - Use Klipy first via `VITE_KLIPY_API_KEY` or `KLIPY_API_KEY`, then existing Tenor/Giphy fallback if configured.
 - Return normalized `{ id, url, previewUrl, provider }`.
@@ -68,7 +68,7 @@ Polls should use metadata first unless volume requires a dedicated model:
 - `poll.closesAt`
 - `poll.allowMultiple`
 
-Voting should use a dedicated World Cup pool-scoped route with one vote per user per poll option set. Commissioner-only polls can be added later, but regular pool polls should still respect membership.
+Voting should use `POST /api/brackets/world-cup/[challengeId]/chat` with `action: "poll_vote"`, one vote per user per poll option set. Commissioner-only polls can be added later, but regular pool polls should still respect membership.
 
 ## Voice Notes
 
@@ -82,7 +82,7 @@ Voice recording should remain disabled until:
 
 ## Security And Privacy
 
-- Every media route must verify pool membership.
+- Every chat action must verify pool membership.
 - Commissioner cannot override a user's notification preferences.
 - Private `@chimmy` content remains visible only to sender.
 - Media URLs must be stored as metadata, not as Neon binary blobs.

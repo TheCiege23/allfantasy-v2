@@ -801,7 +801,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
           json: async () => makeReadinessResponse(),
         }
       }
-      if (url.includes("/notification-preferences")) {
+      if (url.includes("/chat") && url.includes("notification_preferences")) {
         return {
           ok: true,
           json: async () => ({
@@ -1032,7 +1032,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
   it("loads and sends World Cup pool chat messages from the community panel", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
-      if (url.includes("/notification-preferences")) {
+      if (url.includes("/chat") && url.includes("notification_preferences")) {
         return {
           ok: true,
           json: async () => ({
@@ -1053,7 +1053,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
           }),
         } as Response
       }
-      if (url.includes("/chat") && init?.method === "POST") {
+      if (url.includes("/chat") && init?.method === "POST" && !url.includes("action=upload_image")) {
         const payload = JSON.parse(String(init.body ?? "{}"))
         return {
           ok: true,
@@ -1126,7 +1126,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
   it("updates World Cup pool notification preferences for the current user", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
-      if (url.includes("/notification-preferences") && init?.method === "PATCH") {
+      if (url.includes("/chat") && init?.method === "POST" && String(init.body ?? "").includes("update_notification_preferences")) {
         return {
           ok: true,
           json: async () => ({
@@ -1135,7 +1135,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
           }),
         } as Response
       }
-      if (url.includes("/notification-preferences")) {
+      if (url.includes("/chat") && url.includes("notification_preferences")) {
         return {
           ok: true,
           json: async () => ({
@@ -1176,10 +1176,10 @@ describe("WorldCupBracketShell fixture readiness", () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/brackets/world-cup/c1/notification-preferences"),
+        expect.stringContaining("/api/brackets/world-cup/c1/chat"),
         expect.objectContaining({
-          method: "PATCH",
-          body: JSON.stringify({ poolMuted: true }),
+          method: "POST",
+          body: JSON.stringify({ action: "update_notification_preferences", poolMuted: true }),
         })
       )
     })
@@ -1214,7 +1214,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
   it("supports safe World Cup chat formatting controls and preview", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes("/notification-preferences")) {
+      if (url.includes("/chat") && url.includes("notification_preferences")) {
         return {
           ok: true,
           json: async () => ({ preferences: {} }),
@@ -1275,13 +1275,13 @@ describe("WorldCupBracketShell fixture readiness", () => {
   it("searches, selects, and sends World Cup GIF metadata", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
-      if (url.includes("/notification-preferences")) {
+      if (url.includes("/chat") && url.includes("notification_preferences")) {
         return {
           ok: true,
           json: async () => ({ preferences: {} }),
         } as Response
       }
-      if (url.includes("/chat/gifs")) {
+      if (url.includes("/chat") && url.includes("action=gifs")) {
         return {
           ok: true,
           json: async () => ({
@@ -1361,13 +1361,13 @@ describe("WorldCupBracketShell fixture readiness", () => {
   it("uploads, previews, and sends World Cup chat image metadata", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
-      if (url.includes("/notification-preferences")) {
+      if (url.includes("/chat") && url.includes("notification_preferences")) {
         return {
           ok: true,
           json: async () => ({ preferences: {} }),
         } as Response
       }
-      if (url.includes("/upload-image")) {
+      if (url.includes("/chat") && url.includes("action=upload_image")) {
         return {
           ok: true,
           json: async () => ({

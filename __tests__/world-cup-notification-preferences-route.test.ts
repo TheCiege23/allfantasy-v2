@@ -18,10 +18,13 @@ vi.mock("@/lib/world-cup/worldCupNotificationPreferences", () => ({
 }))
 
 function request(body?: unknown) {
-  return new Request("http://localhost/api/brackets/world-cup/c1/notification-preferences", {
-    method: body ? "PATCH" : "GET",
+  const url = body
+    ? "http://localhost/api/brackets/world-cup/c1/chat"
+    : "http://localhost/api/brackets/world-cup/c1/chat?action=notification_preferences"
+  return new Request(url, {
+    method: body ? "POST" : "GET",
     headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? JSON.stringify({ action: "update_notification_preferences", ...body }) : undefined,
   })
 }
 
@@ -41,7 +44,7 @@ describe("World Cup notification preferences route", () => {
   })
 
   it("returns current user's World Cup preferences", async () => {
-    const { GET } = await import("@/app/api/brackets/world-cup/[challengeId]/notification-preferences/route")
+    const { GET } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
 
     const res = await GET(request(), { params: { challengeId: "c1" } })
     const json = await res.json()
@@ -53,9 +56,9 @@ describe("World Cup notification preferences route", () => {
   })
 
   it("updates only the current user's preferences", async () => {
-    const { PATCH } = await import("@/app/api/brackets/world-cup/[challengeId]/notification-preferences/route")
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
 
-    const res = await PATCH(request({ poolMuted: true }), { params: { challengeId: "c1" } })
+    const res = await POST(request({ poolMuted: true }), { params: { challengeId: "c1" } })
     const json = await res.json()
 
     expect(res.status).toBe(200)
@@ -68,9 +71,9 @@ describe("World Cup notification preferences route", () => {
   })
 
   it("does not allow commissioner override of another user's preferences", async () => {
-    const { PATCH } = await import("@/app/api/brackets/world-cup/[challengeId]/notification-preferences/route")
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
 
-    const res = await PATCH(request({ userId: "other-user", poolMuted: true }), { params: { challengeId: "c1" } })
+    const res = await POST(request({ userId: "other-user", poolMuted: true }), { params: { challengeId: "c1" } })
 
     expect(res.status).toBe(200)
     expect(updatePrefsMock).toHaveBeenCalledWith(expect.objectContaining({

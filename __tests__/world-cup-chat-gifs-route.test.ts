@@ -16,7 +16,7 @@ vi.mock("@/lib/rich-message/GIFIntegrationResolver", () => ({
 }))
 
 function request(query = "goal") {
-  return new Request(`http://localhost/api/brackets/world-cup/c1/chat/gifs?q=${encodeURIComponent(query)}`)
+  return new Request(`http://localhost/api/brackets/world-cup/c1/chat?action=gifs&q=${encodeURIComponent(query)}`)
 }
 
 describe("World Cup chat GIF search route", () => {
@@ -39,7 +39,7 @@ describe("World Cup chat GIF search route", () => {
       ok: false,
       response: Response.json({ error: "Forbidden" }, { status: 403 }),
     })
-    const { GET } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/gifs/route")
+    const { GET } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
 
     const res = await GET(request(), { params: { challengeId: "c1" } })
 
@@ -48,7 +48,7 @@ describe("World Cup chat GIF search route", () => {
   })
 
   it("lets members search GIFs without exposing provider keys", async () => {
-    const { GET } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/gifs/route")
+    const { GET } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
 
     const res = await GET(request("goal<script>"), { params: { challengeId: "c1" } })
     const json = await res.json()

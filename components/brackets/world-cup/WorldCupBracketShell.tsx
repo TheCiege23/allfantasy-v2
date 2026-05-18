@@ -3635,8 +3635,9 @@ function WorldCupCommunityFoundationPanel({
     setIsImageUploading(true)
     try {
       const formData = new FormData()
+      formData.set("action", "upload_image")
       formData.set("file", file)
-      const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat/upload-image`, {
+      const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat?action=upload_image`, {
         method: "POST",
         body: formData,
       })
@@ -3661,8 +3662,8 @@ function WorldCupCommunityFoundationPanel({
     setIsGifSearching(true)
     setGifError(null)
     try {
-      const params = new URLSearchParams({ q: query, limit: "12" })
-      const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat/gifs?${params.toString()}`, {
+      const params = new URLSearchParams({ action: "gifs", q: query, limit: "12" })
+      const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat?${params.toString()}`, {
         cache: "no-store",
       })
       const data = await res.json().catch(() => ({}))
@@ -4281,7 +4282,8 @@ function WorldCupNotificationSettingsCard({ challengeId }: { challengeId: string
     let cancelled = false
     async function loadPreferences() {
       try {
-        const res = await fetch(`/api/brackets/world-cup/${challengeId}/notification-preferences`, { cache: "no-store" })
+        const params = new URLSearchParams({ action: "notification_preferences" })
+        const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat?${params.toString()}`, { cache: "no-store" })
         const data = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(data.error || "Could not load notification preferences")
         if (!cancelled && data.preferences) {
@@ -4303,10 +4305,10 @@ function WorldCupNotificationSettingsCard({ challengeId }: { challengeId: string
     setIsSaving(key)
     setSettingsError(null)
     try {
-      const res = await fetch(`/api/brackets/world-cup/${challengeId}/notification-preferences`, {
-        method: "PATCH",
+      const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [key]: nextValue }),
+        body: JSON.stringify({ action: "update_notification_preferences", [key]: nextValue }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || "Could not save notification preferences")

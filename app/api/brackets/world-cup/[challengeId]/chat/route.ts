@@ -3,6 +3,17 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { userHasBracketBrainAi } from "@/lib/bracket-brain/bracketBrainAccess"
 import { prisma } from "@/lib/prisma"
+import { searchGifs } from "@/lib/rich-message/GIFIntegrationResolver"
+import {
+  isCloudinaryConfigured,
+  isWorldCupChatImageType,
+  uploadWorldCupChatImageToCloudinary,
+  WORLD_CUP_CHAT_IMAGE_MAX_BYTES,
+} from "@/lib/world-cup/worldCupChatImageUpload"
+import {
+  getWorldCupNotificationPreferenceResolution,
+  updateWorldCupNotificationPreferencesForUser,
+} from "@/lib/world-cup/worldCupNotificationPreferences"
 import {
   notifyWorldCupAllMention,
   notifyWorldCupChimmyReply,
@@ -24,7 +35,24 @@ export const runtime = "nodejs"
 const MAX_BODY_CHARS = 1000
 const ALLOWED_GIF_PROVIDERS = ["klipy", "tenor", "giphy"] as const
 
+const preferencePatchSchema = z.object({
+  poolMuted: z.boolean().optional(),
+  inAppEnabled: z.boolean().optional(),
+  smsEnabled: z.boolean().optional(),
+  usernameMentionsEnabled: z.boolean().optional(),
+  allMentionsEnabled: z.boolean().optional(),
+  commissionerAnnouncementsEnabled: z.boolean().optional(),
+  deadlineRemindersEnabled: z.boolean().optional(),
+  bracketFinalizedEnabled: z.boolean().optional(),
+  resultsUpdatedEnabled: z.boolean().optional(),
+  leaderboardUpdatedEnabled: z.boolean().optional(),
+  generalChatEnabled: z.boolean().optional(),
+  chimmyRepliesEnabled: z.boolean().optional(),
+  globalBroadcastEnabled: z.boolean().optional(),
+})
+
 const postSchema = z.object({
+  action: z.literal("send_message").optional(),
   body: z.string().trim().min(1).max(MAX_BODY_CHARS),
   gif: z.object({
     id: z.string().trim().min(1).max(120),
@@ -47,6 +75,10 @@ const postSchema = z.object({
   }).optional(),
 })
 
+const postActionSchema = z.object({
+  action: z.string().trim().optional(),
+}).passthrough()
+
 type RawWorldCupChatEvent = {
   id: string
   challengeId: string
@@ -63,6 +95,28 @@ type RawWorldCupChatEvent = {
     email?: string | null
     avatarUrl?: string | null
   } | null
+}
+
+type UploadedImageFile = Blob & { name?: string; arrayBuffer: () => Promise<ArrayBuffer> }
+
+function isUploadedImageFile(value: unknown): value is UploadedImageFile {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      typeof (value as { arrayBuffer?: unknown }).arrayBuffer === "function" &&
+      typeof (value as { size?: unknown }).size === "number"
+  )
+}
+
+function inferImageMimeType(file: UploadedImageFile) {
+  const declared = file.type || ""
+  if (declared && declared !== "application/octet-stream") return declared
+  const name = typeof (file as File).name === "string" ? (file as File).name.toLowerCase() : ""
+  if (name.endsWith(".png")) return "image/png"
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg"
+  if (name.endsWith(".webp")) return "image/webp"
+  if (name.endsWith(".gif")) return "image/gif"
+  return declared || "application/octet-stream"
 }
 
 function metadataObject(value: unknown): Record<string, unknown> {
@@ -128,6 +182,18 @@ function isAllowedCloudinaryImageUrl(value: string) {
   } catch {
     return false
   }
+}
+
+function sanitizeGifQuery(value: string | null) {
+  return (value ?? "")
+    .replace(/[<>]/g, "")
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .trim()
+    .slice(0, 64)
+}
+
+function safeNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0
 }
 
 function serializeChatMessage(row: RawWorldCupChatEvent, requesterUserId: string) {
@@ -196,6 +262,107 @@ async function listChatMessages(challengeId: string, requesterUserId: string) {
     .map((row) => serializeChatMessage(row, requesterUserId))
 }
 
+async function searchWorldCupChatGifs(request: Request) {
+  const url = new URL(request.url)
+  const q = sanitizeGifQuery(url.searchParams.get("q"))
+  if (!q) {
+    return NextResponse.json({ gifs: [], total: 0 })
+  }
+
+  const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 12), 1), 24)
+  const results = await searchGifs(q, limit)
+  const gifs = results.map((gif) => ({
+    id: gif.id,
+    title: "GIF",
+    previewUrl: gif.previewUrl ?? gif.url,
+    gifUrl: gif.url,
+    width: safeNumber((gif as { width?: unknown }).width),
+    height: safeNumber((gif as { height?: unknown }).height),
+    provider: gif.provider,
+  }))
+
+  return NextResponse.json({ gifs, total: gifs.length })
+}
+
+async function getNotificationPreferences(userId: string, challengeId: string) {
+  const resolution = await getWorldCupNotificationPreferenceResolution(userId, challengeId)
+  return NextResponse.json({
+    preferences: resolution.preferences,
+    phoneVerified: resolution.phoneVerified,
+    phoneVerificationRequiredForSms: true,
+  })
+}
+
+async function updateNotificationPreferences(
+  userId: string,
+  challengeId: string,
+  patch: unknown
+) {
+  const parsed = preferencePatchSchema.safeParse(patch)
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid preferences", issues: parsed.error.flatten() }, { status: 400 })
+  }
+
+  const result = await updateWorldCupNotificationPreferencesForUser({
+    userId,
+    challengeId,
+    patch: parsed.data,
+  })
+
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error ?? "Failed to save preferences" }, { status: 400 })
+  }
+
+  return NextResponse.json({
+    ok: true,
+    preferences: result.preferences,
+    phoneVerificationRequiredForSms: true,
+  })
+}
+
+async function uploadWorldCupImage(request: Request, challengeId: string, userId: string) {
+  if (!isCloudinaryConfigured()) {
+    return NextResponse.json({
+      error: "Cloudinary image uploads are not configured.",
+      code: "WORLD_CUP_CLOUDINARY_NOT_CONFIGURED",
+      requiredEnv: ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"],
+    }, { status: 501 })
+  }
+
+  const formData = await request.formData().catch(() => null)
+  if (!formData) {
+    return NextResponse.json({ error: "Invalid form data" }, { status: 400 })
+  }
+
+  const file = formData.get("file")
+  if (!isUploadedImageFile(file)) {
+    return NextResponse.json({ error: "Image file required" }, { status: 400 })
+  }
+
+  const mimeType = inferImageMimeType(file)
+  if (!isWorldCupChatImageType(mimeType)) {
+    return NextResponse.json({ error: "Only PNG, JPEG, WebP, and GIF images are allowed" }, { status: 400 })
+  }
+
+  const actualBytes = (await file.arrayBuffer()).byteLength
+  if (file.size > WORLD_CUP_CHAT_IMAGE_MAX_BYTES || actualBytes > WORLD_CUP_CHAT_IMAGE_MAX_BYTES) {
+    return NextResponse.json({ error: "Image too large (max 5MB)" }, { status: 400 })
+  }
+
+  try {
+    const image = await uploadWorldCupChatImageToCloudinary({
+      file,
+      challengeId,
+      userId,
+    })
+    return NextResponse.json({ image })
+  } catch (err) {
+    return NextResponse.json({
+      error: err instanceof Error ? err.message : "Image upload failed",
+    }, { status: 500 })
+  }
+}
+
 async function resolveMentionedUsers(challengeId: string, names: string[]) {
   const normalizedNames = Array.from(new Set(names.map((name) => name.trim()).filter(Boolean)))
   if (normalizedNames.length === 0) return []
@@ -245,6 +412,15 @@ export async function GET(
   const access = await assertWorldCupChallengeMemberOrManager(request, params.data.challengeId, auth.user)
   if (!access.ok) return access.response
 
+  const url = new URL(request.url)
+  const action = url.searchParams.get("action")
+  if (action === "gifs") {
+    return searchWorldCupChatGifs(request)
+  }
+  if (action === "notification_preferences") {
+    return getNotificationPreferences(auth.user.id, params.data.challengeId)
+  }
+
   const messages = await listChatMessages(params.data.challengeId, auth.user.id)
   return NextResponse.json({ messages })
 }
@@ -264,7 +440,37 @@ export async function POST(
   const access = await assertWorldCupChallengeMemberOrManager(request, params.data.challengeId, auth.user)
   if (!access.ok) return access.response
 
+  const url = new URL(request.url)
+  const queryAction = url.searchParams.get("action")
+  if (queryAction === "upload_image") {
+    return uploadWorldCupImage(request, params.data.challengeId, auth.user.id)
+  }
+
+  if (queryAction && queryAction !== "update_notification_preferences" && queryAction !== "send_message") {
+    if (queryAction === "create_poll" || queryAction === "poll_vote") {
+      return NextResponse.json({
+        error: "World Cup chat polls are not available yet.",
+        code: "WORLD_CUP_CHAT_POLLS_COMING_SOON",
+      }, { status: 501 })
+    }
+    return NextResponse.json({ error: "Unknown World Cup chat action" }, { status: 400 })
+  }
+
   const json = await request.json().catch(() => ({}))
+  const action = queryAction ?? postActionSchema.parse(json).action
+  if (action === "update_notification_preferences") {
+    return updateNotificationPreferences(auth.user.id, params.data.challengeId, json)
+  }
+  if (action === "create_poll" || action === "poll_vote") {
+    return NextResponse.json({
+      error: "World Cup chat polls are not available yet.",
+      code: "WORLD_CUP_CHAT_POLLS_COMING_SOON",
+    }, { status: 501 })
+  }
+  if (action && action !== "send_message") {
+    return NextResponse.json({ error: "Unknown World Cup chat action" }, { status: 400 })
+  }
+
   const parsed = postSchema.safeParse(json)
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid message", issues: parsed.error.flatten() }, { status: 400 })
