@@ -149,6 +149,7 @@ describe("World Cup scoring", () => {
           name: "Bracket 1",
           createdAt: new Date("2026-01-01"),
           updatedAt: new Date("2026-01-02"),
+          submittedAt: new Date("2026-01-03"),
           picks: [
             {
               round: "round_of_32",
@@ -179,6 +180,37 @@ describe("World Cup scoring", () => {
       round_of_32: DEFAULT_WORLD_CUP_SCORING.roundOf32Points,
       quarterfinal: 0,
     })
+  })
+
+  it("does not show unfinalized bracket entries on the leaderboard", () => {
+    const rows = buildWorldCupLeaderboardRows({
+      entries: [
+        {
+          id: "draft-entry",
+          participantId: "p1",
+          userId: "u1",
+          name: "Draft Bracket",
+          createdAt: new Date("2026-01-01"),
+          updatedAt: new Date("2026-01-02"),
+          submittedAt: null,
+          picks: [
+            {
+              round: "round_of_32",
+              selectedTeamId: "arg",
+              selectedTeamName: "Argentina",
+              selectedSlotKey: "A1",
+              pointsAwarded: DEFAULT_WORLD_CUP_SCORING.roundOf32Points,
+              isCorrect: true,
+            },
+          ],
+          participant: { displayName: "A", user: { username: "ma", avatarUrl: null, displayName: null } },
+        },
+      ],
+      matches: [],
+      scoring: DEFAULT_WORLD_CUP_SCORING,
+    })
+
+    expect(rows).toEqual([])
   })
 
   it("sorts leaderboard by score, possible points, champion alive, then earliest completed bracket", () => {
@@ -349,6 +381,7 @@ describe("World Cup scoring", () => {
           name: "Busted Champion",
           createdAt: new Date("2026-01-01"),
           updatedAt: new Date("2026-01-01"),
+          submittedAt: new Date("2026-01-02"),
           championTeamId: "bra",
           championTeamName: "Brazil",
           picks: [
@@ -410,6 +443,7 @@ describe("World Cup scoring", () => {
           name: "Locked Bracket",
           createdAt: new Date("2026-01-01"),
           updatedAt: new Date("2026-01-01"),
+          submittedAt: new Date("2026-01-02"),
           championTeamId: "arg",
           championTeamName: "Argentina",
           isLocked: true,

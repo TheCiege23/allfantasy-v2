@@ -184,7 +184,8 @@ export function buildWorldCupLeaderboardRows(input: {
   matches: DbMatch[]
   scoring?: Partial<WorldCupScoringValues> | null
 }): WorldCupLeaderboardRow[] {
-  const rows = input.entries.map((e) => {
+  const finalizedEntries = input.entries.filter((entry) => Boolean(entry.submittedAt))
+  const rows = finalizedEntries.map((e) => {
     const picks = e.picks.filter(hasWorldCupPickSelection)
     const roundBreakdown: Record<string, number> = {}
     let totalScore = 0
@@ -364,8 +365,9 @@ export async function recalculateWorldCupChallenge(challengeId: string) {
   })
   if (!fresh) throw new Error("World Cup bracket challenge not found")
 
+  const submittedEntryIds = new Set(fresh.entries.filter((entry) => entry.submittedAt).map((entry) => entry.id))
   const refreshedRows = buildWorldCupLeaderboardRows({
-    entries: fresh.entries as DbEntryForLb[],
+    entries: fresh.entries.filter((entry) => submittedEntryIds.has(entry.id)) as DbEntryForLb[],
     matches: fresh.matches as DbMatch[],
     scoring: fresh.scoringProfile,
   })
@@ -406,6 +408,21 @@ export async function recalculateWorldCupChallenge(challengeId: string) {
         },
       })
     }
+
+    await tx.worldCupBracketEntry.updateMany({
+      where: {
+        challengeId,
+        id: { notIn: [...submittedEntryIds] },
+      },
+      data: {
+        totalScore: 0,
+        maxPossibleScore: 0,
+        correctPicks: 0,
+        incorrectPicks: 0,
+        rank: null,
+        roundBreakdown: {},
+      },
+    })
 
     const byParticipant = new Map<string, WorldCupLeaderboardRow[]>()
     for (const row of refreshedRows) {
