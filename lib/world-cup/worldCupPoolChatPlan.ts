@@ -17,6 +17,11 @@ export type WorldCupPoolChatCapability = {
   notes: string
 }
 
+export const WORLD_CUP_POOL_CHAT_EVENT_TYPES = {
+  TEXT_MESSAGE: "world_cup.pool_chat_message",
+  CHIMMY_PRIVATE: "world_cup.pool_chat_chimmy_private",
+} as const
+
 const MENTION_PATTERN = /(^|\s)@([a-zA-Z0-9_.-]{1,32})\b/g
 
 export function parseWorldCupPoolMentions(message: string): WorldCupPoolMention[] {

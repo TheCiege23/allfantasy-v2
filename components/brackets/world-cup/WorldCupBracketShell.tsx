@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowUp, Bot, Check, ChevronLeft, ClipboardCheck, ClipboardList, Copy, Edit3, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Pin, PlayCircle, Plus, RefreshCw, Settings, Share2, Sparkles, Trophy, Users, X } from "lucide-react"
+import { ArrowLeft, ArrowUp, Bot, Check, ChevronLeft, ClipboardCheck, ClipboardList, Copy, Edit3, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Pin, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Sparkles, Trophy, Users, X } from "lucide-react"
 import { toast } from "sonner"
 import type { WorldCupAiBuilderProgress, WorldCupAiStrategy, WorldCupChallengeView, WorldCupMatchView, WorldCupPickView } from "@/lib/world-cup/types"
 import { isWorldCupChallengeLocked } from "@/lib/world-cup/worldCupBracketBuilder"
@@ -80,6 +80,20 @@ import WorldCupGroupStagePicks from "./WorldCupGroupStagePicks"
 import WorldCupReadinessPanel from "./WorldCupReadinessPanel"
 import WorldCupLeagueEventFeed from "./WorldCupLeagueEventFeed"
 type Tab = WorldCupBracketTab
+type WorldCupPoolChatMessage = {
+  id: string
+  userId: string | null
+  authorName: string
+  authorAvatarUrl: string | null
+  body: string
+  messageType: string
+  visibility: string
+  targetUserId: string | null
+  mentions: unknown[]
+  createdAt: string
+  isOwnMessage: boolean
+  isPrivate: boolean
+}
 const BASE_TABS: Array<{ id: Tab; label: string; icon: typeof ClipboardList }> = [
   { id: "home", label: "Home", icon: Trophy },
   { id: "group-stage", label: "Group Stage", icon: ListOrdered },
@@ -3463,6 +3477,63 @@ function WorldCupCommunityFoundationPanel({
   entitlementSummary: ReturnType<typeof resolveWorldCupEntitlementSummary>
 }) {
   const commissionerUnlocked = entitlementSummary.commissioner
+  const aiUnlocked = entitlementSummary.ai
+  const [messages, setMessages] = useState<WorldCupPoolChatMessage[]>([])
+  const [chatBody, setChatBody] = useState("")
+  const [isChatLoading, setIsChatLoading] = useState(true)
+  const [isSendingChat, setIsSendingChat] = useState(false)
+  const [chatError, setChatError] = useState<string | null>(null)
+
+  const loadChat = useCallback(async () => {
+    setIsChatLoading(true)
+    setChatError(null)
+    try {
+      const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat`, {
+        cache: "no-store",
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error || "Could not load pool chat")
+      }
+      setMessages(Array.isArray(data.messages) ? data.messages : [])
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : "Could not load pool chat")
+    } finally {
+      setIsChatLoading(false)
+    }
+  }, [challengeId])
+
+  useEffect(() => {
+    void loadChat()
+  }, [loadChat])
+
+  async function sendChatMessage() {
+    const body = chatBody.trim()
+    if (!body) return
+    setIsSendingChat(true)
+    setChatError(null)
+    try {
+      const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error || "Could not send message")
+      }
+      if (data.message) {
+        setMessages((prev) => [...prev, data.message])
+      } else {
+        await loadChat()
+      }
+      setChatBody("")
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : "Could not send message")
+    } finally {
+      setIsSendingChat(false)
+    }
+  }
 
   return (
     <section
@@ -3484,8 +3555,8 @@ function WorldCupCommunityFoundationPanel({
             Community
           </span>
         </div>
-        <div className="mt-3 rounded-xl border border-dashed border-white/15 bg-black/20 p-3 text-xs leading-5 text-white/50">
-          Chat backend coming soon - this feature is gated and ready for integration. Until then, bracket activity and commissioner reminders appear below.
+        <div className="mt-3 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.06] p-3 text-xs leading-5 text-cyan-50/75">
+          Text chat is live for pool members. GIFs, uploads, voice notes, polls, and real-time delivery stay on the roadmap.
         </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {["GIFs", "Polls", "Voice notes", "Photo uploads"].map((label) => (
@@ -3495,10 +3566,94 @@ function WorldCupCommunityFoundationPanel({
           ))}
         </div>
         <div className="mt-3 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.06] p-3 text-xs leading-5 text-cyan-50/75">
-          Mentions coming soon: @username notifications, commissioner-gated @all, commissioner-only @global, and private @chimmy replies that never appear in public pool chat.
+          Mentions: @username creates in-app notification records, @all is commissioner-only, @global is blocked until broadcast fanout is built, and @chimmy is private/AI-gated.
         </div>
         <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-xs leading-5 text-white/45">
           Notification settings coming soon: pool chat, @username, @all, @global, Chimmy private replies, poll updates, media replies, in-app, and phone push.
+        </div>
+        <div className="mt-4 rounded-xl border border-white/10 bg-black/25 p-3">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-white/35">
+              Pool Messages
+            </p>
+            <button
+              type="button"
+              onClick={() => void loadChat()}
+              disabled={isChatLoading}
+              className="rounded-lg border border-white/10 bg-white/[0.05] px-2 py-1 text-[10px] font-bold text-white/55 disabled:opacity-40"
+            >
+              {isChatLoading ? "Loading..." : "Refresh"}
+            </button>
+          </div>
+          {isChatLoading ? (
+            <div className="flex items-center gap-2 py-3 text-xs text-white/40">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              Loading pool chat...
+            </div>
+          ) : messages.length > 0 ? (
+            <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={[
+                    "rounded-xl border px-3 py-2 text-xs",
+                    message.isPrivate
+                      ? "border-purple-300/20 bg-purple-400/10"
+                      : "border-white/10 bg-white/[0.04]",
+                  ].join(" ")}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-black text-white/80">{message.authorName}</span>
+                    <span className="text-[10px] text-white/30">
+                      {new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap break-words leading-5 text-white/65">{message.body}</p>
+                  {message.isPrivate ? (
+                    <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-purple-100/70">
+                      Private Chimmy thread
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-lg border border-dashed border-white/10 bg-black/20 px-3 py-3 text-xs text-white/35">
+              No pool messages yet. Start the strategy talk.
+            </p>
+          )}
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <input
+              value={chatBody}
+              onChange={(event) => setChatBody(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault()
+                  void sendChatMessage()
+                }
+              }}
+              maxLength={1000}
+              placeholder="Message your World Cup pool..."
+              className="min-h-11 flex-1 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-cyan-300/50 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => void sendChatMessage()}
+              disabled={isSendingChat || !chatBody.trim()}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {isSendingChat ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}
+              Send
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] leading-5 text-white/35">
+            Use @username for in-app mentions. @all is commissioner-only. @global is coming soon. @chimmy {aiUnlocked ? "posts privately without public visibility." : "requires AI/Pro for private replies."}
+          </p>
+          {chatError ? (
+            <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
+              {chatError}
+            </p>
+          ) : null}
         </div>
         <div className="mt-4 rounded-xl border border-white/10 bg-black/25 p-3">
           <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-white/35">

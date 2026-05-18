@@ -988,16 +988,89 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const community = screen.getByTestId("world-cup-community-foundation")
     expect(community).toHaveTextContent("Pool Chat")
     expect(within(community).getByText(/Talk strategy, trash talk, and follow pool updates/i)).toBeInTheDocument()
-    expect(screen.getByText(/Chat backend coming soon/i)).toBeInTheDocument()
+    expect(screen.getByText(/Text chat is live for pool members/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Message your World Cup pool/i)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^Send$/i })).toBeDisabled()
     expect(screen.getByText(/GIFs coming soon/i)).toBeInTheDocument()
     expect(screen.getByText(/Polls coming soon/i)).toBeInTheDocument()
     expect(screen.getByText(/Voice notes coming soon/i)).toBeInTheDocument()
     expect(screen.getByText(/Photo uploads coming soon/i)).toBeInTheDocument()
-    expect(screen.getByText(/private @chimmy replies that never appear in public pool chat/i)).toBeInTheDocument()
+    expect(screen.getByText(/@chimmy is private\/AI-gated/i)).toBeInTheDocument()
     expect(screen.getByText(/Notification settings coming soon/i)).toBeInTheDocument()
     expect(screen.getByText(/Free users can follow pool updates here/i)).toBeInTheDocument()
     expect(screen.queryByText(/System Reminders/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/^Moderation$/i)).not.toBeInTheDocument()
+  })
+
+  it("loads and sends World Cup pool chat messages from the community panel", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes("/chat") && init?.method === "POST") {
+        return {
+          ok: true,
+          json: async () => ({
+            ok: true,
+            message: {
+              id: "chat-2",
+              userId: "user-1",
+              authorName: "Owner",
+              authorAvatarUrl: null,
+              body: "Let us go",
+              messageType: "text",
+              visibility: "public",
+              targetUserId: null,
+              mentions: [],
+              createdAt: "2026-06-01T12:05:00.000Z",
+              isOwnMessage: true,
+              isPrivate: false,
+            },
+          }),
+        } as Response
+      }
+      if (url.includes("/chat")) {
+        return {
+          ok: true,
+          json: async () => ({
+            messages: [{
+              id: "chat-1",
+              userId: "user-2",
+              authorName: "Friend",
+              authorAvatarUrl: null,
+              body: "Opening message",
+              messageType: "text",
+              visibility: "public",
+              targetUserId: null,
+              mentions: [],
+              createdAt: "2026-06-01T12:00:00.000Z",
+              isOwnMessage: false,
+              isPrivate: false,
+            }],
+          }),
+        } as Response
+      }
+      return {
+        ok: true,
+        json: async () => makeReadinessResponse(),
+      } as Response
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
+
+    expect(await screen.findByText("Opening message")).toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText(/Message your World Cup pool/i), {
+      target: { value: "Let us go" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: /^Send$/i }))
+
+    expect(await screen.findByText("Let us go")).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/brackets/world-cup/c1/chat"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ body: "Let us go" }),
+      })
+    )
   })
 
   it("shows commissioner affordances unlocked for pool owners and all-access users", async () => {
