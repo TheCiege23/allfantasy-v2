@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { worldCupIdempotencyKeys } from "@/lib/world-cup/worldCupBracketEventIdempotency"
 import {
+  isPublicWorldCupFeedEvent,
   shouldEmitWorldCupEvent,
   type WorldCupCommissionerSettingsResolved,
 } from "@/lib/world-cup/worldCupBracketEventService"
@@ -109,5 +110,28 @@ describe("World Cup bracket events", () => {
     expect(k).not.toBe(
       worldCupIdempotencyKeys.lockReminderWindow("c1", "6h", "2026-06-15T18:00")
     )
+  })
+
+  it("excludes private Chimmy prompt and response rows from public activity feed", () => {
+    expect(isPublicWorldCupFeedEvent({
+      eventType: "world_cup.pool_chat_chimmy_private",
+      metadata: {
+        visibility: "private_to_user",
+        messageType: "chimmy_private_prompt",
+      },
+    })).toBe(false)
+
+    expect(isPublicWorldCupFeedEvent({
+      eventType: "world_cup.pool_chat_chimmy_private",
+      metadata: {
+        visibility: "private_to_user",
+        messageType: "chimmy_private_response",
+      },
+    })).toBe(false)
+
+    expect(isPublicWorldCupFeedEvent({
+      eventType: WORLD_CUP_BRACKET_EVENT_TYPES.MATCH_FINAL,
+      metadata: { visibility: "public" },
+    })).toBe(true)
   })
 })

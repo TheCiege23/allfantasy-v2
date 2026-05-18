@@ -286,11 +286,23 @@ export async function listWorldCupBracketChatEvents(
   const findMany = getPrismaDelegateMethod("worldCupBracketChatEvent", "findMany")
   if (!findMany) return []
 
-  return findMany({
+  const rows = await findMany({
     where: { challengeId },
     orderBy: { createdAt: "desc" },
     take,
   })
+  return Array.isArray(rows) ? rows.filter(isPublicWorldCupFeedEvent) : []
 }
 
 export { WORLD_CUP_BRACKET_EVENT_TYPES }
+
+export function isPublicWorldCupFeedEvent(event: { metadata?: unknown; eventType?: string | null }) {
+  const metadata = event.metadata && typeof event.metadata === "object" && !Array.isArray(event.metadata)
+    ? event.metadata as Record<string, unknown>
+    : {}
+  if (metadata.visibility === "private_to_user") return false
+  if (metadata.messageType === "chimmy_private_prompt" || metadata.messageType === "chimmy_private_response") {
+    return false
+  }
+  return event.eventType !== "world_cup.pool_chat_chimmy_private"
+}
