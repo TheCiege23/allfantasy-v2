@@ -15,7 +15,7 @@ const prismaMocks = vi.hoisted(() => {
       worldCupGroupTeam: { findMany: vi.fn() },
       worldCupThirdPlaceAdvancerPick: { updateMany: vi.fn() },
       worldCupBracketChallenge: { findUnique: vi.fn() },
-      worldCupTeam: { findMany: vi.fn() },
+      worldCupTeam: { create: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn() },
     },
   }
 })
@@ -53,6 +53,12 @@ describe("worldCupGroupStageResultService", () => {
       groupTeams.map((row) => ({ ...row, challengeId: "c1" }))
     )
     prismaMocks.prisma.worldCupBracketChallenge.findUnique.mockResolvedValue({ id: "c1" })
+    prismaMocks.prisma.worldCupTeam.findFirst.mockImplementation(async ({ where }: { where: { OR?: Array<{ id?: string; fifaCode?: string; name?: { equals: string } }> } }) => {
+      const id = where.OR?.find((row) => row.id)?.id ?? `team-${where.OR?.find((row) => row.fifaCode)?.fifaCode?.toLowerCase()}`
+      return { id }
+    })
+    prismaMocks.prisma.worldCupTeam.update.mockImplementation(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => ({ id: where.id, ...data }))
+    prismaMocks.prisma.worldCupTeam.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => data)
   })
 
   it("sets actual group standings", async () => {

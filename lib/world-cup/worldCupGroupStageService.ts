@@ -6,7 +6,13 @@ import {
   validateWorldCupThirdPlaceSelections,
   type WorldCupGroupKey,
 } from "./worldCupGroups"
-import { resolveWorldCup2026OfficialGroup } from "./worldCupOfficialGroups"
+import {
+  WORLD_CUP_2026_OFFICIAL_GROUPS,
+  resolveWorldCup2026OfficialGroup,
+  type WorldCupOfficialGroupKey,
+  type WorldCupOfficialGroupTeam,
+} from "./worldCupOfficialGroups"
+import { getFlagUrlForCountryCode } from "./worldCupSeedData"
 import { WORLD_CUP_BRACKET_LOCKED_MESSAGE } from "./worldCupBracketService"
 import { isWorldCupChallengeLocked } from "./worldCupBracketBuilder"
 
@@ -154,6 +160,72 @@ function seedOrderForTeam(team: { sourcePayload?: unknown }, fallback: number) {
   return Number.isInteger(value) && value > 0 ? value : fallback
 }
 
+function officialTeamId(team: WorldCupOfficialGroupTeam) {
+  return `wc2026_official_${team.fifaCode.toLowerCase()}`
+}
+
+async function ensureOfficialWorldCupTeamRows() {
+  const officialIds: string[] = []
+  for (const teams of Object.values(WORLD_CUP_2026_OFFICIAL_GROUPS)) {
+    for (const [index, team] of teams.entries()) {
+      const existing = await prisma.worldCupTeam.findFirst({
+        where: {
+          OR: [
+            { id: officialTeamId(team) },
+            { fifaCode: team.fifaCode },
+            { name: { equals: team.name, mode: "insensitive" } },
+          ],
+          NOT: [
+            { id: { startsWith: "demo_team_" } },
+            { id: { startsWith: "wc2026_placeholder_" } },
+            { qualificationStatus: { in: ["test", "test_placeholder"] } },
+            { sourcePayload: { path: ["testFixture"], equals: true } },
+            { sourcePayload: { path: ["source"], equals: "allfantasy_test_placeholder" } },
+          ],
+        },
+        select: { id: true },
+      })
+      const data = {
+        name: team.name,
+        country: team.name,
+        fifaCode: team.fifaCode,
+        flagUrl: getFlagUrlForCountryCode(team.fifaCode),
+        logoUrl: getFlagUrlForCountryCode(team.fifaCode),
+        groupName: team.group,
+        qualificationStatus: "qualified",
+        sourcePayload: {
+          source: "allfantasy_official_2026_groups",
+          groupName: team.group,
+          seedOrder: index + 1,
+        },
+      }
+
+      if (existing) {
+        const row = await prisma.worldCupTeam.update({
+          where: { id: existing.id },
+          data,
+          select: { id: true },
+        })
+        officialIds.push(row.id)
+      } else {
+        const row = await prisma.worldCupTeam.create({
+          data: {
+            id: officialTeamId(team),
+            ...data,
+          },
+          select: { id: true },
+        })
+        officialIds.push(row.id)
+      }
+    }
+  }
+
+  return prisma.worldCupTeam.findMany({
+    where: { id: { in: officialIds } },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+  })
+}
+
 async function clearStaleWorldCupGroupPicks(input: {
   challengeId: string
   groupId: string
@@ -194,6 +266,33 @@ async function clearStaleWorldCupGroupPicks(input: {
     groupPicksDeleted: groupDelete.count,
     thirdPlacePicksDeleted: thirdPlaceDelete.count,
   }
+}
+
+async function clearInvalidWorldCupGroupPicks(input: {
+  challengeId: string
+  groupId: string
+  validTeamIds: Set<string>
+}) {
+  const [rankingPicks, thirdPlacePicks] = await Promise.all([
+    prisma.worldCupGroupRankingPick.findMany({
+      where: { challengeId: input.challengeId, groupId: input.groupId },
+      select: { entryId: true, teamId: true },
+    }),
+    prisma.worldCupThirdPlaceAdvancerPick.findMany({
+      where: { challengeId: input.challengeId, groupId: input.groupId },
+      select: { entryId: true, teamId: true },
+    }),
+  ])
+  const invalidTeamIds = [...new Set([...rankingPicks, ...thirdPlacePicks]
+    .map((pick) => pick.teamId)
+    .filter((teamId) => !input.validTeamIds.has(teamId)))]
+  if (invalidTeamIds.length === 0) return { entriesReset: 0, groupPicksDeleted: 0, thirdPlacePicksDeleted: 0 }
+
+  return clearStaleWorldCupGroupPicks({
+    challengeId: input.challengeId,
+    groupId: input.groupId,
+    teamIds: invalidTeamIds,
+  })
 }
 
 function toLockState(challenge: ChallengeForLock, entry: { isLocked?: boolean | null }) {
@@ -308,8 +407,12 @@ export async function ensureWorldCupGroupsForChallenge(challengeId: string) {
 
   const isTestModeChallenge = isWorldCupTestModeChallenge(challenge)
   const shouldSeedPlaceholders = canSeedWorldCupPlaceholderTeams(challenge)
+  const officialTeams = !isTestModeChallenge
+    ? await ensureOfficialWorldCupTeamRows()
+    : []
+  const effectiveTeams = isTestModeChallenge ? teams : officialTeams
   const teamsByGroup = new Map<string, typeof teams>()
-  for (const team of teams) {
+  for (const team of effectiveTeams) {
     if (!isTestModeChallenge && isWorldCupTestTeam(team)) continue
     const groupKey = normalizeGroupName(team.groupName)
     if (!groupKey) continue
@@ -321,15 +424,19 @@ export async function ensureWorldCupGroupsForChallenge(challengeId: string) {
   const warnings: WorldCupGroupStageWarning[] = []
   const rowsToCreate: Array<{ challengeId: string; groupId: string; teamId: string; seedOrder: number }> = []
   for (const group of groups) {
+    const groupKey = group.groupKey as WorldCupOfficialGroupKey
     const existingRows = await prisma.worldCupGroupTeam.findMany({
       where: { challengeId, groupId: group.id },
       include: { team: true },
       orderBy: { seedOrder: "asc" },
     })
+    const officialGroupTeamIds = !isTestModeChallenge
+      ? new Set((WORLD_CUP_2026_OFFICIAL_GROUPS[groupKey] ?? []).map(officialTeamId))
+      : new Set<string>()
     const officialTeamIds = new Set((teamsByGroup.get(group.groupKey) ?? []).slice(0, 4).map((team) => team.id))
     const staleRows = !isTestModeChallenge && officialTeamIds.size === 4
       ? existingRows.filter((row) => {
-          if (officialTeamIds.has(row.teamId)) return false
+          if (officialGroupTeamIds.has(row.teamId)) return false
           if (isWorldCupTestTeam(row.team)) return true
           const officialGroup = resolveWorldCup2026OfficialGroup({
             fifaCode: row.team.fifaCode,
@@ -357,6 +464,21 @@ export async function ensureWorldCupGroupsForChallenge(challengeId: string) {
     }
 
     const existingTeamIds = new Set(existingRows.filter((row) => !staleRows.some((stale) => stale.id === row.id)).map((team) => team.teamId))
+    if (!isTestModeChallenge && officialTeamIds.size === 4) {
+      const invalidPickRepair = await clearInvalidWorldCupGroupPicks({
+        challengeId,
+        groupId: group.id,
+        validTeamIds: officialTeamIds,
+      })
+      const deletedCount = invalidPickRepair.groupPicksDeleted + invalidPickRepair.thirdPlacePicksDeleted
+      if (deletedCount > 0) {
+        warnings.push({
+          code: "GROUP_STALE_SAVED_PICKS_CLEARED",
+          groupKey: group.groupKey as WorldCupGroupKey,
+          message: `${group.displayName} cleared ${deletedCount} saved pick${deletedCount === 1 ? "" : "s"} that referenced old demo/test/TBD teams.`,
+        })
+      }
+    }
     const availableSlots = Math.max(0, 4 - existingTeamIds.size)
     const groupTeams = [...(teamsByGroup.get(group.groupKey) ?? [])]
       .filter((team) => !existingTeamIds.has(team.id))
@@ -426,6 +548,10 @@ export async function getWorldCupGroupStageView(input: {
 }): Promise<WorldCupGroupStageView> {
   const entry = await getEntryForRead(input)
   const ensured = await ensureWorldCupGroupsForChallenge(input.challengeId)
+  const validGroupTeamIds = new Map<string, Set<string>>()
+  for (const group of ensured.groups) {
+    validGroupTeamIds.set(group.id, new Set(group.teams.map((row) => row.teamId)))
+  }
   const [groupRankingPicks, thirdPlaceAdvancerPicks] = await Promise.all([
     prisma.worldCupGroupRankingPick.findMany({
       where: { challengeId: input.challengeId, entryId: input.entryId },
@@ -436,6 +562,8 @@ export async function getWorldCupGroupStageView(input: {
       orderBy: [{ groupId: "asc" }],
     }),
   ])
+  const visibleGroupRankingPicks = groupRankingPicks.filter((pick) => validGroupTeamIds.get(pick.groupId)?.has(pick.teamId))
+  const visibleThirdPlaceAdvancerPicks = thirdPlaceAdvancerPicks.filter((pick) => validGroupTeamIds.get(pick.groupId)?.has(pick.teamId))
   return {
     challengeId: input.challengeId,
     entryId: input.entryId,
@@ -459,7 +587,7 @@ export async function getWorldCupGroupStageView(input: {
         goalsFor: row.goalsFor,
       })),
     })),
-    groupRankingPicks: groupRankingPicks.map((pick) => ({
+    groupRankingPicks: visibleGroupRankingPicks.map((pick) => ({
       id: pick.id,
       groupId: pick.groupId,
       teamId: pick.teamId,
@@ -468,7 +596,7 @@ export async function getWorldCupGroupStageView(input: {
       isCorrect: pick.isCorrect,
       pointsAwarded: pick.pointsAwarded,
     })),
-    thirdPlaceAdvancerPicks: thirdPlaceAdvancerPicks.map((pick) => ({
+    thirdPlaceAdvancerPicks: visibleThirdPlaceAdvancerPicks.map((pick) => ({
       id: pick.id,
       groupId: pick.groupId,
       teamId: pick.teamId,
@@ -477,7 +605,7 @@ export async function getWorldCupGroupStageView(input: {
       isCorrect: pick.isCorrect,
       pointsAwarded: pick.pointsAwarded,
     })),
-    completion: buildCompletionState({ groupRankingPicks, thirdPlaceAdvancerPicks }),
+    completion: buildCompletionState({ groupRankingPicks: visibleGroupRankingPicks, thirdPlaceAdvancerPicks: visibleThirdPlaceAdvancerPicks }),
     lock: toLockState(entry.challenge, entry),
     warnings: ensured.warnings,
   }
