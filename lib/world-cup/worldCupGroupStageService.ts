@@ -6,6 +6,7 @@ import {
   validateWorldCupThirdPlaceSelections,
   type WorldCupGroupKey,
 } from "./worldCupGroups"
+import { resolveWorldCup2026OfficialGroup } from "./worldCupOfficialGroups"
 import { WORLD_CUP_BRACKET_LOCKED_MESSAGE } from "./worldCupBracketService"
 import { isWorldCupChallengeLocked } from "./worldCupBracketBuilder"
 
@@ -90,10 +91,14 @@ function normalizeGroupName(value: string | null | undefined): string | null {
   return /^[A-L]$/.test(upper) ? upper : null
 }
 
-function canSeedWorldCupPlaceholderTeams(challenge: { sourcePayload?: unknown } | null): boolean {
-  if (process.env.NODE_ENV !== "production") return true
+function isWorldCupTestModeChallenge(challenge: { sourcePayload?: unknown } | null): boolean {
   const payload = challenge?.sourcePayload as { simulation?: { isTestMode?: boolean }; isTestMode?: boolean } | null
   return Boolean(payload?.isTestMode || payload?.simulation?.isTestMode)
+}
+
+function canSeedWorldCupPlaceholderTeams(challenge: { sourcePayload?: unknown } | null): boolean {
+  if (process.env.NODE_ENV !== "production") return true
+  return isWorldCupTestModeChallenge(challenge)
 }
 
 function placeholderTeamId(challengeId: string, groupKey: string, seedOrder: number) {
@@ -117,6 +122,36 @@ function buildPlaceholderTeam(challengeId: string, groupKey: string, seedOrder: 
       note: "Temporary 2026 World Cup group-stage placeholder until official teams are loaded.",
     },
   }
+}
+
+function isWorldCupTestTeam(team: {
+  id: string
+  name?: string | null
+  country?: string | null
+  qualificationStatus?: string | null
+  sourcePayload?: unknown
+}) {
+  const payload = team.sourcePayload && typeof team.sourcePayload === "object" && !Array.isArray(team.sourcePayload)
+    ? team.sourcePayload as Record<string, unknown>
+    : {}
+  const label = `${team.name ?? ""} ${team.country ?? ""}`.toLowerCase()
+  return (
+    team.id.startsWith("demo_team_") ||
+    team.id.startsWith("wc2026_placeholder_") ||
+    team.qualificationStatus === "test" ||
+    team.qualificationStatus === "test_placeholder" ||
+    payload.testFixture === true ||
+    payload.source === "allfantasy_test_placeholder" ||
+    label.includes("group ") && label.includes("tbd")
+  )
+}
+
+function seedOrderForTeam(team: { sourcePayload?: unknown }, fallback: number) {
+  const payload = team.sourcePayload && typeof team.sourcePayload === "object" && !Array.isArray(team.sourcePayload)
+    ? team.sourcePayload as { seedOrder?: unknown; seed?: unknown }
+    : null
+  const value = Number(payload?.seedOrder ?? payload?.seed ?? fallback)
+  return Number.isInteger(value) && value > 0 ? value : fallback
 }
 
 function toLockState(challenge: ChallengeForLock, entry: { isLocked?: boolean | null }) {
@@ -229,8 +264,11 @@ export async function ensureWorldCupGroupsForChallenge(challengeId: string) {
     orderBy: [{ name: "asc" }, { id: "asc" }],
   })
 
+  const isTestModeChallenge = isWorldCupTestModeChallenge(challenge)
+  const shouldSeedPlaceholders = canSeedWorldCupPlaceholderTeams(challenge)
   const teamsByGroup = new Map<string, typeof teams>()
   for (const team of teams) {
+    if (!isTestModeChallenge && isWorldCupTestTeam(team)) continue
     const groupKey = normalizeGroupName(team.groupName)
     if (!groupKey) continue
     const rows = teamsByGroup.get(groupKey) ?? []
@@ -240,9 +278,37 @@ export async function ensureWorldCupGroupsForChallenge(challengeId: string) {
 
   const warnings: WorldCupGroupStageWarning[] = []
   const rowsToCreate: Array<{ challengeId: string; groupId: string; teamId: string; seedOrder: number }> = []
-  const shouldSeedPlaceholders = canSeedWorldCupPlaceholderTeams(challenge)
   for (const group of groups) {
-    const existingTeamIds = new Set(group.teams.map((team) => team.teamId))
+    const existingRows = await prisma.worldCupGroupTeam.findMany({
+      where: { challengeId, groupId: group.id },
+      include: { team: true },
+      orderBy: { seedOrder: "asc" },
+    })
+    const officialTeamIds = new Set((teamsByGroup.get(group.groupKey) ?? []).slice(0, 4).map((team) => team.id))
+    const staleRows = !isTestModeChallenge && officialTeamIds.size === 4
+      ? existingRows.filter((row) => {
+          if (officialTeamIds.has(row.teamId)) return false
+          if (isWorldCupTestTeam(row.team)) return true
+          const officialGroup = resolveWorldCup2026OfficialGroup({
+            fifaCode: row.team.fifaCode,
+            name: row.team.name,
+            country: row.team.country,
+          })
+          return officialGroup !== group.groupKey
+        })
+      : []
+    if (staleRows.length > 0) {
+      await prisma.worldCupGroupTeam.deleteMany({
+        where: { id: { in: staleRows.map((row) => row.id) } },
+      })
+      warnings.push({
+        code: "GROUP_STALE_TEST_TEAMS_REPLACED",
+        groupKey: group.groupKey as WorldCupGroupKey,
+        message: `${group.displayName} replaced stale demo/test team rows with official 2026 group teams.`,
+      })
+    }
+
+    const existingTeamIds = new Set(existingRows.filter((row) => !staleRows.some((stale) => stale.id === row.id)).map((team) => team.teamId))
     const availableSlots = Math.max(0, 4 - existingTeamIds.size)
     const groupTeams = [...(teamsByGroup.get(group.groupKey) ?? [])]
       .filter((team) => !existingTeamIds.has(team.id))
@@ -274,8 +340,7 @@ export async function ensureWorldCupGroupsForChallenge(challengeId: string) {
       })
     }
     groupTeams.forEach((team, index) => {
-      const payload = team.sourcePayload as { seedOrder?: number } | null
-      const seedOrder = payload?.seedOrder ?? existingTeamIds.size + index + 1
+      const seedOrder = seedOrderForTeam(team, existingTeamIds.size + index + 1)
       rowsToCreate.push({
         challengeId,
         groupId: group.id,

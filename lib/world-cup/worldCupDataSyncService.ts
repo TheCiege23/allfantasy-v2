@@ -14,6 +14,7 @@ import { normalizeFifaTeamCode } from "./worldCupSeedData"
 import type { WorldCupRound } from "./types"
 import { emitWorldCupMatchTransitionEvents } from "./worldCupBracketLiveEventHooks"
 import { getBestThirdPlaceTeams, type WorldCupGroupStanding } from "./worldCupGroupResolver"
+import { resolveWorldCup2026OfficialGroup } from "./worldCupOfficialGroups"
 
 // ── Shared option types ───────────────────────────────────────────────────────
 
@@ -102,13 +103,19 @@ export async function syncWorldCupTeams(
         continue
       }
 
+      const officialGroupName = team.groupName ?? resolveWorldCup2026OfficialGroup({
+        fifaCode,
+        name: team.displayName,
+        country: team.countryName,
+      })
+
       const upsertData = {
         name: team.displayName,
         country: team.countryName,
         fifaCode: fifaCode ?? undefined,
         flagUrl: team.flagUrl ?? undefined,
         logoUrl: team.flagUrl ?? undefined,
-        groupName: team.groupName ?? undefined,
+        groupName: officialGroupName ?? undefined,
         qualificationStatus: team.qualificationStatus ?? "qualified",
         sourcePayload: (team as any).raw ?? undefined,
       }
@@ -135,6 +142,10 @@ export async function syncWorldCupTeams(
           select: { id: true },
         })
         dbId = row.id
+      }
+
+      if (!officialGroupName) {
+        result.warnings.push(`Team ${team.displayName} is missing an official 2026 group assignment.`)
       }
 
       result.teams.push({
@@ -167,7 +178,13 @@ export async function getWorldCupOfficialGroupsReadiness(
     by: ["groupName"],
     where: {
       groupName: { not: null },
-      qualificationStatus: { not: "test" },
+      qualificationStatus: { notIn: ["test", "test_placeholder"] },
+      NOT: [
+        { id: { startsWith: "demo_team_" } },
+        { id: { startsWith: "wc2026_placeholder_" } },
+        { sourcePayload: { path: ["testFixture"], equals: true } },
+        { sourcePayload: { path: ["source"], equals: "allfantasy_test_placeholder" } },
+      ],
     },
     _count: { _all: true },
   })

@@ -141,6 +141,7 @@ export async function getWorldCupOperationsReadiness(input: {
     activeStandingsRowsCount,
     completedStandingsRowsCount,
     thirdPlaceCandidateRowsCount,
+    placeholderTeamCount,
   ] = await Promise.all([
     getWorldCupOfficialGroupsReadiness({ seasonYear }),
     prisma.worldCupOfficialFixture.count({
@@ -201,6 +202,18 @@ export async function getWorldCupOperationsReadiness(input: {
         actualRank: 3,
       },
     }),
+    prisma.worldCupTeam.count({
+      where: {
+        groupName: { not: null },
+        OR: [
+          { id: { startsWith: "demo_team_" } },
+          { id: { startsWith: "wc2026_placeholder_" } },
+          { qualificationStatus: { in: ["test", "test_placeholder"] } },
+          { sourcePayload: { path: ["testFixture"], equals: true } },
+          { sourcePayload: { path: ["source"], equals: "allfantasy_test_placeholder" } },
+        ],
+      },
+    }),
   ])
 
   const bestThirdMappingConfigured = isWorldCupBestThirdMappingConfigured()
@@ -219,6 +232,9 @@ export async function getWorldCupOperationsReadiness(input: {
     bestThirdMappingConfigured
       ? null
       : "best_third_mapping_gated: keep WORLD_CUP_BEST_THIRD_MAPPING_CONFIRMED=false until FIFA mapping is official.",
+    placeholderTeamCount > 0
+      ? `world_cup_group_placeholders_present: ${placeholderTeamCount} demo/test group teams exist; production pools should use official 2026 group teams only.`
+      : null,
   ].filter((warning): warning is string => Boolean(warning))
 
   return {

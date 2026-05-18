@@ -9,6 +9,9 @@ const readinessMocks = vi.hoisted(() => ({
     worldCupOfficialGroupStanding: {
       count: vi.fn(),
     },
+    worldCupTeam: {
+      count: vi.fn(),
+    },
   },
 }))
 
@@ -24,6 +27,10 @@ import {
   getWorldCupProviderOpsStatus,
   isWorldCupBestThirdMappingConfigured,
 } from "@/lib/world-cup/worldCupOperationsReadiness"
+import {
+  WORLD_CUP_2026_OFFICIAL_GROUPS,
+  resolveWorldCup2026OfficialGroup,
+} from "@/lib/world-cup/worldCupOfficialGroups"
 
 describe("World Cup operations readiness helpers", () => {
   beforeEach(() => {
@@ -92,6 +99,26 @@ describe("World Cup operations readiness helpers", () => {
     expect(isWorldCupBestThirdMappingConfigured({ WORLD_CUP_BEST_THIRD_MAPPING_CONFIRMED: "true" } as NodeJS.ProcessEnv)).toBe(true)
   })
 
+  it("resolves the official 2026 groups used for production team assignment", () => {
+    expect(Object.values(WORLD_CUP_2026_OFFICIAL_GROUPS)).toHaveLength(12)
+    expect(Object.values(WORLD_CUP_2026_OFFICIAL_GROUPS).flat()).toHaveLength(48)
+    expect(WORLD_CUP_2026_OFFICIAL_GROUPS.A.map((team) => team.name)).toEqual([
+      "Mexico",
+      "South Korea",
+      "South Africa",
+      "Czechia",
+    ])
+    expect(WORLD_CUP_2026_OFFICIAL_GROUPS.C.map((team) => team.name)).toEqual([
+      "Brazil",
+      "Morocco",
+      "Scotland",
+      "Haiti",
+    ])
+    expect(resolveWorldCup2026OfficialGroup({ fifaCode: "ARG", name: "Argentina" })).toBe("J")
+    expect(resolveWorldCup2026OfficialGroup({ name: "Australia" })).toBe("D")
+    expect(resolveWorldCup2026OfficialGroup({ name: "Spain" })).toBe("H")
+  })
+
   it("surfaces group-stage fixture readiness while knockout data and best-third mapping remain gated", async () => {
     vi.stubEnv("WORLD_CUP_DATA_PROVIDER", "apifootball")
     vi.stubEnv("API_FOOTBALL_WORLD_CUP_LEAGUE_ID", "1")
@@ -107,7 +134,13 @@ describe("World Cup operations readiness helpers", () => {
       .mockResolvedValueOnce(72)
       .mockResolvedValueOnce(72)
       .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(72)
+      .mockResolvedValueOnce(72)
     readinessMocks.prisma.worldCupOfficialGroupStanding.count.mockResolvedValueOnce(48)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(12)
+    readinessMocks.prisma.worldCupTeam.count.mockResolvedValueOnce(0)
 
     const readiness = await getWorldCupOperationsReadiness({ seasonYear: 2026 })
 
@@ -135,5 +168,31 @@ describe("World Cup operations readiness helpers", () => {
       "best_third_mapping_gated: keep WORLD_CUP_BEST_THIRD_MAPPING_CONFIRMED=false until FIFA mapping is official.",
     ])
     expect(JSON.stringify(readiness)).not.toContain("secret-value")
+  })
+
+  it("warns admins when demo or placeholder group teams still exist", async () => {
+    readinessMocks.getWorldCupOfficialGroupsReadiness.mockResolvedValue({
+      ready: false,
+      assignedTeams: 44,
+      incompleteGroups: [{ groupName: "A", teamCount: 3, missingTeams: 1 }],
+    })
+    readinessMocks.prisma.worldCupOfficialFixture.count
+      .mockResolvedValueOnce(72)
+      .mockResolvedValueOnce(72)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(72)
+      .mockResolvedValueOnce(72)
+    readinessMocks.prisma.worldCupOfficialGroupStanding.count
+      .mockResolvedValueOnce(48)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(12)
+    readinessMocks.prisma.worldCupTeam.count.mockResolvedValueOnce(4)
+
+    const readiness = await getWorldCupOperationsReadiness({ seasonYear: 2026 })
+
+    expect(readiness.data.warnings).toContain(
+      "world_cup_group_placeholders_present: 4 demo/test group teams exist; production pools should use official 2026 group teams only."
+    )
   })
 })

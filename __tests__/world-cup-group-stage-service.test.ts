@@ -1,8 +1,16 @@
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("server-only", () => ({}))
+
+const prismaMocks = vi.hoisted(() => ({
+  worldCupBracketChallenge: { findUnique: vi.fn() },
+  worldCupGroup: { createMany: vi.fn(), findMany: vi.fn() },
+  worldCupTeam: { findMany: vi.fn(), upsert: vi.fn() },
+  worldCupGroupTeam: { findMany: vi.fn(), createMany: vi.fn(), deleteMany: vi.fn() },
+}))
+
 vi.mock("@/lib/prisma", () => ({
-  prisma: {},
+  prisma: prismaMocks,
 }))
 
 describe("World Cup group stage service exports", () => {
@@ -13,5 +21,67 @@ describe("World Cup group stage service exports", () => {
     expect(service.saveWorldCupGroupRanking).toEqual(expect.any(Function))
     expect(service.saveWorldCupThirdPlaceAdvancers).toEqual(expect.any(Function))
     expect(service.ensureWorldCupGroupsForChallenge).toEqual(expect.any(Function))
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("replaces stale demo group rows with official 2026 group teams when official data is available", async () => {
+    const service = await import("@/lib/world-cup/worldCupGroupStageService")
+    const groupA = { id: "group-a", challengeId: "c1", groupKey: "A", displayName: "Group A", sortOrder: 1, teams: [{ teamId: "demo_team_brazil" }] }
+    const officialTeams = [
+      { id: "team-mexico", name: "Mexico", country: "Mexico", fifaCode: "MEX", groupName: "A", qualificationStatus: "qualified", sourcePayload: null },
+      { id: "team-korea", name: "South Korea", country: "South Korea", fifaCode: "KOR", groupName: "A", qualificationStatus: "qualified", sourcePayload: null },
+      { id: "team-south-africa", name: "South Africa", country: "South Africa", fifaCode: "RSA", groupName: "A", qualificationStatus: "qualified", sourcePayload: null },
+      { id: "team-czechia", name: "Czechia", country: "Czechia", fifaCode: "CZE", groupName: "A", qualificationStatus: "qualified", sourcePayload: null },
+    ]
+    const staleRow = {
+      id: "stale-row",
+      teamId: "demo_team_brazil",
+      seedOrder: 1,
+      team: { id: "demo_team_brazil", name: "Brazil", country: "Brazil", fifaCode: "BRA", qualificationStatus: "test", sourcePayload: { testFixture: true } },
+    }
+
+    prismaMocks.worldCupBracketChallenge.findUnique.mockResolvedValue({ id: "c1", sourcePayload: null })
+    prismaMocks.worldCupGroup.findMany
+      .mockResolvedValueOnce([groupA])
+      .mockResolvedValueOnce([
+        {
+          ...groupA,
+          teams: officialTeams.map((team, index) => ({
+            id: `row-${team.id}`,
+            teamId: team.id,
+            seedOrder: index + 1,
+            actualRank: null,
+            points: null,
+            goalDifference: null,
+            goalsFor: null,
+            team,
+          })),
+        },
+      ])
+    prismaMocks.worldCupTeam.findMany.mockResolvedValue(officialTeams)
+    prismaMocks.worldCupGroupTeam.findMany.mockResolvedValue([staleRow])
+
+    const result = await service.ensureWorldCupGroupsForChallenge("c1")
+
+    expect(prismaMocks.worldCupGroupTeam.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["stale-row"] } } })
+    expect(prismaMocks.worldCupGroupTeam.createMany).toHaveBeenCalledWith({
+      data: officialTeams.map((team, index) => ({
+        challengeId: "c1",
+        groupId: "group-a",
+        teamId: team.id,
+        seedOrder: index + 1,
+      })),
+      skipDuplicates: true,
+    })
+    expect(result.warnings).toEqual([
+      {
+        code: "GROUP_STALE_TEST_TEAMS_REPLACED",
+        groupKey: "A",
+        message: "Group A replaced stale demo/test team rows with official 2026 group teams.",
+      },
+    ])
   })
 })

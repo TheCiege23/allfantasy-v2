@@ -774,7 +774,7 @@ export async function loadWorldCupTestFixtures(
             flagUrl: team.flagUrl,
             logoUrl: team.flagUrl,
             groupName: team.groupName,
-            qualificationStatus: "qualified",
+            qualificationStatus: "test",
             sourcePayload: { testFixture: true, seed: team.seed, groupName: team.groupName },
           },
           update: {
@@ -784,7 +784,7 @@ export async function loadWorldCupTestFixtures(
             flagUrl: team.flagUrl,
             logoUrl: team.flagUrl,
             groupName: team.groupName,
-            qualificationStatus: "qualified",
+            qualificationStatus: "test",
             sourcePayload: { testFixture: true, seed: team.seed, groupName: team.groupName },
           },
         })
