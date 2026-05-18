@@ -55,8 +55,6 @@ const routeDirsToDisable = [
   path.join('app', 'api', 'auth', 'admin-debug'),
   // Internal recompute worker endpoint; no production UI callers and costs one route.
   path.join('app', 'api', 'bracket', 'workers', 'health'),
-  // Diagnostic provider key checker; local/admin debugging only, not a production UI dependency.
-  path.join('app', 'api', 'test-keys'),
 ]
 
 const movedFiles = []
