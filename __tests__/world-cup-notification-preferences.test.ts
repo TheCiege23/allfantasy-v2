@@ -3,6 +3,7 @@ import {
   DEFAULT_WORLD_CUP_NOTIFICATION_PREFERENCES,
   isWorldCupNotificationTypeEnabled,
   resolveWorldCupNotificationPreferences,
+  serializeWorldCupNotificationPreferences,
 } from "@/lib/world-cup/worldCupNotificationPreferences"
 
 describe("worldCupNotificationPreferences", () => {
@@ -36,5 +37,25 @@ describe("worldCupNotificationPreferences", () => {
     expect(prefs.poolMuted).toBe(true)
     expect(prefs.usernameMentionsEnabled).toBe(false)
     expect(isWorldCupNotificationTypeEnabled(prefs, "usernameMention")).toBe(false)
+  })
+
+  it("serializes pool-specific updates without clobbering global preferences", () => {
+    const next = serializeWorldCupNotificationPreferences({
+      worldCup: {
+        smsEnabled: true,
+        pools: {
+          other: { poolMuted: true },
+        },
+      },
+      dashboardToggles: { leagueChatMessages: true },
+    }, "pool-1", {
+      poolMuted: true,
+      smsEnabled: false,
+    }) as any
+
+    expect(next.dashboardToggles.leagueChatMessages).toBe(true)
+    expect(next.worldCup.smsEnabled).toBe(true)
+    expect(next.worldCup.pools.other.poolMuted).toBe(true)
+    expect(next.worldCup.pools["pool-1"]).toMatchObject({ poolMuted: true, smsEnabled: false })
   })
 })

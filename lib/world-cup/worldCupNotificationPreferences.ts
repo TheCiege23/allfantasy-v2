@@ -1,5 +1,5 @@
 import "server-only"
-import { getSettingsProfile } from "@/lib/user-settings"
+import { getSettingsProfile, updateUserProfile } from "@/lib/user-settings"
 
 export type WorldCupNotificationType =
   | "usernameMention"
@@ -75,6 +75,31 @@ function preferenceObject(value: unknown): Record<string, unknown> {
     : {}
 }
 
+export function serializeWorldCupNotificationPreferences(
+  current: unknown,
+  challengeId: string,
+  preferences: Partial<WorldCupNotificationPreferences>
+) {
+  const root = preferenceObject(current)
+  const worldCupRoot = preferenceObject(root.worldCup)
+  const pools = preferenceObject(worldCupRoot.pools)
+  const existingPool = preferenceObject(pools[challengeId])
+
+  return {
+    ...root,
+    worldCup: {
+      ...worldCupRoot,
+      pools: {
+        ...pools,
+        [challengeId]: {
+          ...existingPool,
+          ...preferences,
+        },
+      },
+    },
+  }
+}
+
 export function resolveWorldCupNotificationPreferences(
   saved: unknown,
   challengeId?: string | null
@@ -127,5 +152,26 @@ export async function getWorldCupNotificationPreferenceResolution(
     preferences,
     phone: profile?.phone ?? null,
     phoneVerified: Boolean(profile?.phoneVerifiedAt),
+  }
+}
+
+export async function updateWorldCupNotificationPreferencesForUser(input: {
+  userId: string
+  challengeId: string
+  patch: Partial<WorldCupNotificationPreferences>
+}) {
+  const profile = await getSettingsProfile(input.userId)
+  const nextPreferences = serializeWorldCupNotificationPreferences(
+    profile?.notificationPreferences,
+    input.challengeId,
+    input.patch
+  )
+  const result = await updateUserProfile(input.userId, {
+    notificationPreferences: nextPreferences,
+  })
+  return {
+    ok: result.ok,
+    error: result.error,
+    preferences: resolveWorldCupNotificationPreferences(nextPreferences, input.challengeId),
   }
 }

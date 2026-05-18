@@ -9,8 +9,8 @@ const isVercelBuild =
   process.env.VERCEL === '1' ||
   process.env.NOW_BUILDER ||
   process.env.VERCEL_URL
-const resolvedDistDir = process.env.AF_NEXT_DIST_DIR || (isVercelBuild ? '.next' : '.next-build-fix')
-const nextBuildDir = path.join(repoRoot, resolvedDistDir)
+let resolvedDistDir = process.env.AF_NEXT_DIST_DIR || (isVercelBuild ? '.next' : '.next-build-fix')
+let nextBuildDir = path.join(repoRoot, resolvedDistDir)
 const routeDirsToDisable = [
   path.join('app', 'e2e'),
   path.join('app', 'tools', 'social-share-engine-harness'),
@@ -45,7 +45,6 @@ const routeDirsToDisable = [
   path.join('app', 'api', 'survivor'),
   // Additional dev/preview/internal routes — safe to exclude, never called by production UI.
   path.join('app', 'dev'),                    // /dev/d6-preview — dev-only preview page
-  path.join('app', 'api', 'test-keys'),       // /api/test-keys  — diagnostic API key checker
   path.join('app', 'api', 'internal'),        // /api/internal/* — internal routes with no UI callers
   path.join('app', 'app', 'simulation-lab'),  // /app/simulation-lab — lab UI (API side already excluded)
   path.join('app', 'app', 'zombie-universe'), // /app/zombie-universe/* — zombie universe pages (feature deferred)
@@ -109,10 +108,77 @@ function collectFilesUnderDir(rootPath) {
 function safeRmSync(targetPath) {
   try {
     fs.rmSync(targetPath, { recursive: true, force: true })
+    return true
   } catch (err) {
     console.warn(
       `[vercel-next-build] Could not remove ${targetPath} (${err.code ?? err.message}) — continuing.`
     )
+    return false
+  }
+}
+
+function ensureCleanBuildDir() {
+  const removed = safeRmSync(nextBuildDir)
+  if (removed && !fs.existsSync(nextBuildDir)) {
+    return
+  }
+
+  if (isVercelBuild || process.env.AF_NEXT_DIST_DIR) {
+    console.error(
+      `[vercel-next-build] Could not clear build distDir ${nextBuildDir}. Close processes holding this directory and retry.`
+    )
+    process.exit(1)
+  }
+
+  resolvedDistDir = `.next-build-fix-${process.pid}`
+  nextBuildDir = path.join(repoRoot, resolvedDistDir)
+  safeRmSync(nextBuildDir)
+  console.warn(
+    `[vercel-next-build] Falling back to fresh local distDir ${resolvedDistDir} because .next-build-fix could not be cleared.`
+  )
+}
+
+function writePlaceholder500(placeholderPath, shouldLog = false) {
+  try {
+    fs.mkdirSync(path.dirname(placeholderPath), { recursive: true })
+    if (!fs.existsSync(placeholderPath)) {
+      fs.writeFileSync(
+        placeholderPath,
+        '<!DOCTYPE html><html><head><title>Server Error</title></head><body><h1>500 - Server Error</h1></body></html>\n',
+        'utf8',
+      )
+      if (shouldLog) {
+        console.log('[vercel-next-build] Pre-seeded export/500.html placeholder')
+      }
+    }
+  } catch (err) {
+    console.warn(`[vercel-next-build] Could not pre-seed export/500.html: ${err.message}`)
+  }
+}
+
+function writeServer500Placeholder() {
+  const placeholderPath = path.join(nextBuildDir, 'server', 'pages', '500.js')
+  try {
+    fs.mkdirSync(path.dirname(placeholderPath), { recursive: true })
+    if (fs.existsSync(placeholderPath)) {
+      return
+    }
+    fs.writeFileSync(
+      placeholderPath,
+      [
+        '"use strict";',
+        'const React = require("react");',
+        'function Custom500Page(){ return React.createElement("h1", null, "500 - Server Error"); }',
+        'exports.__esModule = true;',
+        'exports.default = Custom500Page;',
+        'exports.config = {};',
+        '',
+      ].join('\n'),
+      'utf8',
+    )
+    console.log('[vercel-next-build] Pre-seeded server/pages/500.js placeholder')
+  } catch (err) {
+    console.warn(`[vercel-next-build] Could not pre-seed server/pages/500.js: ${err.message}`)
   }
 }
 
@@ -180,12 +246,9 @@ function run() {
   recoverStrandedBackup()
 
   // Avoid stale build-manifest/chunk issues in cached CI environments.
-  // Guard: EPERM on Windows when a background process holds a handle on the dir.
-  try {
-    safeRmSync(nextBuildDir)
-  } catch (err) {
-    // safeRmSync already handles errors; this catch is a no-op safety net
-  }
+  // On Windows, a held handle can leave .next-build-fix partially intact; use a fresh
+  // local distDir rather than building against corrupt output.
+  ensureCleanBuildDir()
   const patchStatus = patchManifestRace(repoRoot)
   if (patchStatus === 'skipped-missing') {
     console.warn('[vercel-next-build] pages-manifest-plugin.js not found — manifest race patch skipped.')
@@ -197,26 +260,10 @@ function run() {
   }
   disableNonProdRoutes()
 
-  // Workaround: Next.js 14 on Windows + Node ≥22 silently fails to write
-  // {distDir}/export/500.html during the pages-router static-render phase,
-  // then throws ENOENT when it tries to rename it to server/pages/500.html.
-  // Pre-seeding a minimal placeholder ensures the rename step always succeeds.
-  // If Next.js generates the real 500.html, it overwrites this before renaming.
-  const exportDir = path.join(nextBuildDir, 'export')
-  const placeholder500 = path.join(exportDir, '500.html')
-  try {
-    fs.mkdirSync(exportDir, { recursive: true })
-    if (!fs.existsSync(placeholder500)) {
-      fs.writeFileSync(
-        placeholder500,
-        '<!DOCTYPE html><html><head><title>Server Error</title></head><body><h1>500 - Server Error</h1></body></html>\n',
-        'utf8',
-      )
-      console.log('[vercel-next-build] Pre-seeded export/500.html placeholder')
-    }
-  } catch (err) {
-    console.warn(`[vercel-next-build] Could not pre-seed export/500.html: ${err.message}`)
-  }
+  // Workaround: Next.js 14 on Windows + Node >=22 can fail to emit the
+  // pages-router /500 module. Do not pre-create {distDir}/export; Next removes
+  // that directory during build and can throw ENOTEMPTY on Windows.
+  writeServer500Placeholder()
 
   const nextArgs = process.argv.slice(2)
   const nextBin = path.join(repoRoot, 'node_modules', 'next', 'dist', 'bin', 'next')

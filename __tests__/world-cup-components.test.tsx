@@ -801,6 +801,28 @@ describe("WorldCupBracketShell fixture readiness", () => {
           json: async () => makeReadinessResponse(),
         }
       }
+      if (url.includes("/notification-preferences")) {
+        return {
+          ok: true,
+          json: async () => ({
+            preferences: {
+              poolMuted: false,
+              inAppEnabled: true,
+              smsEnabled: false,
+              usernameMentionsEnabled: true,
+              allMentionsEnabled: true,
+              commissionerAnnouncementsEnabled: true,
+              deadlineRemindersEnabled: true,
+              bracketFinalizedEnabled: true,
+              resultsUpdatedEnabled: true,
+              leaderboardUpdatedEnabled: true,
+              generalChatEnabled: false,
+              chimmyRepliesEnabled: true,
+            },
+            phoneVerificationRequiredForSms: true,
+          }),
+        }
+      }
       return {
         ok: true,
         json: async () => ({}),
@@ -991,15 +1013,16 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getByText(/Text chat is live for pool members/i)).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/Message your World Cup pool/i)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /^Send$/i })).toBeDisabled()
-    expect(screen.getByText(/GIFs coming soon/i)).toBeInTheDocument()
-    expect(screen.getByText(/Polls coming soon/i)).toBeInTheDocument()
-    expect(screen.getByText(/Voice notes coming soon/i)).toBeInTheDocument()
-    expect(screen.getByText(/Photo uploads coming soon/i)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^GIF$/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^Poll$/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^Image$/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^Voice$/i })).toBeInTheDocument()
     expect(screen.getByText(/@chimmy is private\/AI-gated/i)).toBeInTheDocument()
     expect(screen.getByText(/^Notification Settings$/i)).toBeInTheDocument()
     expect(screen.getByText(/In-app notifications are on by default/i)).toBeInTheDocument()
     expect(screen.getByText(/SMS alerts require a verified phone number and opt-in/i)).toBeInTheDocument()
-    expect(screen.getByText(/Mute this pool/i)).toBeInTheDocument()
+    expect(screen.getByText(/Pool muted/i)).toBeInTheDocument()
+    expect(screen.getByText(/Requires verified phone/i)).toBeInTheDocument()
     expect(screen.getByText(/Pool owners and commissioners cannot override/i)).toBeInTheDocument()
     expect(screen.getByText(/Free users can follow pool updates here/i)).toBeInTheDocument()
     expect(screen.queryByText(/System Reminders/i)).not.toBeInTheDocument()
@@ -1009,6 +1032,27 @@ describe("WorldCupBracketShell fixture readiness", () => {
   it("loads and sends World Cup pool chat messages from the community panel", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
+      if (url.includes("/notification-preferences")) {
+        return {
+          ok: true,
+          json: async () => ({
+            preferences: {
+              poolMuted: false,
+              inAppEnabled: true,
+              smsEnabled: false,
+              usernameMentionsEnabled: true,
+              allMentionsEnabled: true,
+              commissionerAnnouncementsEnabled: true,
+              deadlineRemindersEnabled: true,
+              bracketFinalizedEnabled: true,
+              resultsUpdatedEnabled: true,
+              leaderboardUpdatedEnabled: true,
+              generalChatEnabled: false,
+              chimmyRepliesEnabled: true,
+            },
+          }),
+        } as Response
+      }
       if (url.includes("/chat") && init?.method === "POST") {
         return {
           ok: true,
@@ -1077,6 +1121,93 @@ describe("WorldCupBracketShell fixture readiness", () => {
     )
   })
 
+  it("updates World Cup pool notification preferences for the current user", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes("/notification-preferences") && init?.method === "PATCH") {
+        return {
+          ok: true,
+          json: async () => ({
+            ok: true,
+            preferences: { poolMuted: true, inAppEnabled: true, smsEnabled: false },
+          }),
+        } as Response
+      }
+      if (url.includes("/notification-preferences")) {
+        return {
+          ok: true,
+          json: async () => ({
+            preferences: {
+              poolMuted: false,
+              inAppEnabled: true,
+              smsEnabled: false,
+              usernameMentionsEnabled: true,
+              allMentionsEnabled: true,
+              commissionerAnnouncementsEnabled: true,
+              deadlineRemindersEnabled: true,
+              bracketFinalizedEnabled: true,
+              resultsUpdatedEnabled: true,
+              leaderboardUpdatedEnabled: true,
+              generalChatEnabled: false,
+              chimmyRepliesEnabled: true,
+            },
+          }),
+        } as Response
+      }
+      if (url.includes("/chat")) {
+        return {
+          ok: true,
+          json: async () => ({ messages: [] }),
+        } as Response
+      }
+      return {
+        ok: true,
+        json: async () => makeReadinessResponse(),
+      } as Response
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
+
+    const muteSwitch = await screen.findByRole("switch", { name: /Pool muted/i })
+    fireEvent.click(muteSwitch)
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/brackets/world-cup/c1/notification-preferences"),
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ poolMuted: true }),
+        })
+      )
+    })
+  })
+
+  it("supports World Cup composer emoji and rich media foundations", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
+
+    const input = await screen.findByPlaceholderText(/Message your World Cup pool/i)
+    fireEvent.click(screen.getByRole("button", { name: /Insert 🔥/i }))
+    expect(input).toHaveValue("🔥")
+
+    fireEvent.click(screen.getByRole("button", { name: /^GIF$/i }))
+    expect(screen.getByText(/^GIF Search$/i)).toBeInTheDocument()
+    expect(screen.getByText(/Klipy-ready GIF search is planned/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /^Poll$/i }))
+    expect(screen.getByText(/Polls Coming Soon/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /^Image$/i }))
+    expect(screen.getByText(/Image uploads are coming soon with Cloudinary/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /^Voice$/i }))
+    expect(screen.getByText(/Voice notes are coming soon/i)).toBeInTheDocument()
+    expect(screen.getByText(/@username notifies a pool member/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/@all is commissioner-only/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/@global is blocked/i).length).toBeGreaterThan(0)
+  })
+
   it("shows commissioner affordances unlocked for pool owners and all-access users", async () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: true, isAdmin: false, hasBracketBrainAi: false }) as any} defaultTab="home" />)
@@ -1088,7 +1219,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(within(panel).getAllByText(/Unlocked/i).length).toBeGreaterThan(0)
     expect(within(panel).getAllByText(/Requires AI\/Pro/i).length).toBeGreaterThan(0)
     const community = screen.getByTestId("world-cup-community-foundation")
-    expect(within(community).getByText(/Commissioner Announcements/i)).toBeInTheDocument()
+    expect(within(community).getAllByText(/Commissioner Announcements/i).length).toBeGreaterThan(0)
     expect(within(community).getByText(/Pinned Announcement/i)).toBeInTheDocument()
     expect(within(community).getByText(/System Reminders/i)).toBeInTheDocument()
     expect(within(community).getByText(/Moderation/i)).toBeInTheDocument()
