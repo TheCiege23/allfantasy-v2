@@ -1195,7 +1195,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^GIF$/i }))
     expect(screen.getByText(/^GIF Search$/i)).toBeInTheDocument()
-    expect(screen.getByText(/Klipy-ready GIF search is planned/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Search Klipy GIFs/i)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: /^Poll$/i }))
     expect(screen.getByText(/Polls Coming Soon/i)).toBeInTheDocument()
@@ -1269,6 +1269,92 @@ describe("WorldCupBracketShell fixture readiness", () => {
     fireEvent.change(input, { target: { value: "" } })
     fireEvent.change(screen.getByRole("combobox", { name: /Chat font/i }), { target: { value: "mono" } })
     expect(input).toHaveValue("[font=mono]text[/font]")
+  })
+
+  it("searches, selects, and sends World Cup GIF metadata", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes("/notification-preferences")) {
+        return {
+          ok: true,
+          json: async () => ({ preferences: {} }),
+        } as Response
+      }
+      if (url.includes("/chat/gifs")) {
+        return {
+          ok: true,
+          json: async () => ({
+            gifs: [{
+              id: "gif-1",
+              title: "Goal",
+              previewUrl: "https://media.klipy.com/gifs/goal.webp",
+              gifUrl: "https://media.klipy.com/gifs/goal.gif",
+              width: 320,
+              height: 180,
+              provider: "klipy",
+            }],
+            total: 1,
+          }),
+        } as Response
+      }
+      if (url.includes("/chat") && init?.method === "POST") {
+        const payload = JSON.parse(String(init.body ?? "{}"))
+        return {
+          ok: true,
+          json: async () => ({
+            ok: true,
+            message: {
+              id: "chat-gif-1",
+              userId: "user-1",
+              authorName: "Owner",
+              authorAvatarUrl: null,
+              body: payload.body,
+              gif: payload.gif,
+              messageType: "gif",
+              visibility: "public",
+              targetUserId: null,
+              mentions: [],
+              createdAt: "2026-06-01T12:05:00.000Z",
+              isOwnMessage: true,
+              isPrivate: false,
+            },
+          }),
+        } as Response
+      }
+      if (url.includes("/chat")) {
+        return {
+          ok: true,
+          json: async () => ({ messages: [] }),
+        } as Response
+      }
+      return {
+        ok: true,
+        json: async () => makeReadinessResponse(),
+      } as Response
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
+
+    fireEvent.click(await screen.findByRole("button", { name: /^GIF$/i }))
+    fireEvent.change(screen.getByPlaceholderText(/Search Klipy GIFs/i), { target: { value: "goal" } })
+    fireEvent.click(screen.getByRole("button", { name: /Search GIFs/i }))
+
+    expect(await screen.findByText("Goal")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /Goal/i }))
+    expect(screen.getByText(/Selected GIF/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Message your World Cup pool/i)).toHaveValue("GIF")
+    fireEvent.click(screen.getByRole("button", { name: /^Send$/i }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/brackets/world-cup/c1/chat"),
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"provider":"klipy"'),
+        })
+      )
+    })
   })
 
   it("shows commissioner affordances unlocked for pool owners and all-access users", async () => {

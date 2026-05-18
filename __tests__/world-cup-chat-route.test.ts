@@ -126,6 +126,53 @@ describe("World Cup pool chat route", () => {
     expect(json.message.body).toBe("hello @friend")
   })
 
+  it("persists safe GIF metadata with a chat message", async () => {
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
+
+    const gif = {
+      id: "gif-1",
+      title: "Goal",
+      previewUrl: "https://media.klipy.com/gifs/goal.webp",
+      gifUrl: "https://media.klipy.com/gifs/goal.gif",
+      width: 320,
+      height: 180,
+      provider: "klipy",
+    }
+    const res = await POST(request({ body: "Goal GIF", gif }), { params: { challengeId: "c1" } })
+    const json = await res.json()
+
+    expect(res.status).toBe(201)
+    expect(createMessageMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        eventBody: "Goal GIF",
+        metadata: expect.objectContaining({
+          messageType: "gif",
+          gif,
+        }),
+      }),
+    }))
+    expect(json.message.gif).toMatchObject(gif)
+  })
+
+  it("rejects arbitrary external GIF URLs", async () => {
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
+
+    const res = await POST(request({
+      body: "bad gif",
+      gif: {
+        id: "bad",
+        title: "Bad",
+        previewUrl: "https://evil.example.com/gif.webp",
+        gifUrl: "https://evil.example.com/gif.gif",
+        width: 1,
+        height: 1,
+        provider: "klipy",
+      },
+    }), { params: { challengeId: "c1" } })
+
+    expect(res.status).toBe(400)
+  })
+
   it("blocks @global for normal users", async () => {
     const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
 

@@ -22,9 +22,19 @@ import {
 export const runtime = "nodejs"
 
 const MAX_BODY_CHARS = 1000
+const ALLOWED_GIF_PROVIDERS = ["klipy", "tenor", "giphy"] as const
 
 const postSchema = z.object({
   body: z.string().trim().min(1).max(MAX_BODY_CHARS),
+  gif: z.object({
+    id: z.string().trim().min(1).max(120),
+    title: z.string().trim().max(160).optional().default("GIF"),
+    previewUrl: z.string().url().max(1000),
+    gifUrl: z.string().url().max(1000),
+    width: z.number().int().min(0).max(4000).optional().default(0),
+    height: z.number().int().min(0).max(4000).optional().default(0),
+    provider: z.enum(ALLOWED_GIF_PROVIDERS),
+  }).optional(),
 })
 
 type RawWorldCupChatEvent = {
@@ -51,6 +61,38 @@ function metadataObject(value: unknown): Record<string, unknown> {
     : {}
 }
 
+function isAllowedGifUrl(value: string) {
+  try {
+    const url = new URL(value)
+    if (url.protocol !== "https:") return false
+    const host = url.hostname.toLowerCase()
+    return host.includes("klipy") ||
+      host.includes("giphy") ||
+      host.includes("tenor") ||
+      host.includes("gstatic") ||
+      host.includes("media")
+  } catch {
+    return false
+  }
+}
+
+function gifMetadata(value: unknown) {
+  const metadata = metadataObject(value)
+  const provider = typeof metadata.provider === "string" ? metadata.provider : null
+  const gifUrl = typeof metadata.gifUrl === "string" ? metadata.gifUrl : null
+  const previewUrl = typeof metadata.previewUrl === "string" ? metadata.previewUrl : null
+  if (!provider || !gifUrl || !previewUrl) return null
+  return {
+    id: typeof metadata.id === "string" ? metadata.id : "gif",
+    title: typeof metadata.title === "string" ? metadata.title : "GIF",
+    previewUrl,
+    gifUrl,
+    width: typeof metadata.width === "number" ? metadata.width : 0,
+    height: typeof metadata.height === "number" ? metadata.height : 0,
+    provider,
+  }
+}
+
 function serializeChatMessage(row: RawWorldCupChatEvent, requesterUserId: string) {
   const metadata = metadataObject(row.metadata)
   const visibility = typeof metadata.visibility === "string" ? metadata.visibility : "public"
@@ -69,6 +111,7 @@ function serializeChatMessage(row: RawWorldCupChatEvent, requesterUserId: string
     authorAvatarUrl: row.user?.avatarUrl ?? null,
     body: row.eventBody,
     messageType: metadata.messageType ?? "text",
+    gif: gifMetadata(metadata.gif),
     visibility,
     targetUserId,
     mentions: Array.isArray(metadata.mentions) ? metadata.mentions : [],
@@ -190,6 +233,10 @@ export async function POST(
   }
 
   const body = parsed.data.body
+  const gif = parsed.data.gif
+  if (gif && (!isAllowedGifUrl(gif.previewUrl) || !isAllowedGifUrl(gif.gifUrl))) {
+    return NextResponse.json({ error: "Invalid GIF provider URL" }, { status: 400 })
+  }
   const mentions = parseWorldCupPoolMentions(body)
   const hasGlobal = mentions.some((mention) => mention.type === "global")
   const hasAll = mentions.some((mention) => mention.type === "all")
@@ -244,7 +291,16 @@ export async function POST(
       idempotencyKey: `chat:${auth.user.id}:${randomUUID()}`,
       isAiGenerated: false,
       metadata: {
-        messageType: hasChimmy ? "chimmy_private" : "text",
+        messageType: gif ? "gif" : hasChimmy ? "chimmy_private" : "text",
+        gif: gif ? {
+          id: gif.id,
+          title: gif.title,
+          previewUrl: gif.previewUrl,
+          gifUrl: gif.gifUrl,
+          width: gif.width,
+          height: gif.height,
+          provider: gif.provider,
+        } : null,
         visibility,
         targetUserId: hasChimmy ? auth.user.id : null,
         mentions,

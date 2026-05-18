@@ -94,12 +94,22 @@ type WorldCupPoolChatMessage = {
   authorAvatarUrl: string | null
   body: string
   messageType: string
+  gif?: WorldCupChatGifAttachment | null
   visibility: string
   targetUserId: string | null
   mentions: unknown[]
   createdAt: string
   isOwnMessage: boolean
   isPrivate: boolean
+}
+type WorldCupChatGifAttachment = {
+  id: string
+  title: string
+  previewUrl: string
+  gifUrl: string
+  width: number
+  height: number
+  provider: "klipy" | "tenor" | "giphy"
 }
 type WorldCupNotificationPreferenceState = {
   poolMuted: boolean
@@ -3520,6 +3530,11 @@ function WorldCupCommunityFoundationPanel({
   const [isSendingChat, setIsSendingChat] = useState(false)
   const [chatError, setChatError] = useState<string | null>(null)
   const [composerPanel, setComposerPanel] = useState<WorldCupComposerPanel>(null)
+  const [gifQuery, setGifQuery] = useState("")
+  const [gifResults, setGifResults] = useState<WorldCupChatGifAttachment[]>([])
+  const [selectedGif, setSelectedGif] = useState<WorldCupChatGifAttachment | null>(null)
+  const [isGifSearching, setIsGifSearching] = useState(false)
+  const [gifError, setGifError] = useState<string | null>(null)
   const richPreviewSegments = useMemo(() => parseWorldCupChatRichText(chatBody), [chatBody])
 
   function insertComposerText(value: string) {
@@ -3572,7 +3587,7 @@ function WorldCupCommunityFoundationPanel({
       const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body }),
+        body: JSON.stringify({ body, gif: selectedGif ?? undefined }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -3584,10 +3599,35 @@ function WorldCupCommunityFoundationPanel({
         await loadChat()
       }
       setChatBody("")
+      setSelectedGif(null)
     } catch (err) {
       setChatError(err instanceof Error ? err.message : "Could not send message")
     } finally {
       setIsSendingChat(false)
+    }
+  }
+
+  async function searchWorldCupGifs() {
+    const query = gifQuery.trim()
+    if (!query) {
+      setGifResults([])
+      return
+    }
+    setIsGifSearching(true)
+    setGifError(null)
+    try {
+      const params = new URLSearchParams({ q: query, limit: "12" })
+      const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat/gifs?${params.toString()}`, {
+        cache: "no-store",
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || "Could not search GIFs")
+      setGifResults(Array.isArray(data.gifs) ? data.gifs : [])
+    } catch (err) {
+      setGifError(err instanceof Error ? err.message : "Could not search GIFs")
+      setGifResults([])
+    } finally {
+      setIsGifSearching(false)
     }
   }
 
@@ -3659,6 +3699,7 @@ function WorldCupCommunityFoundationPanel({
                     text={message.body}
                     className="mt-1 whitespace-pre-wrap break-words leading-5 text-white/65"
                   />
+                  {message.gif ? <WorldCupGifPreview gif={message.gif} compact /> : null}
                   {message.isPrivate ? (
                     <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-purple-100/70">
                       Private Chimmy thread
@@ -3761,7 +3802,36 @@ function WorldCupCommunityFoundationPanel({
               <WorldCupChatRichTextSegments segments={richPreviewSegments} className="whitespace-pre-wrap break-words leading-5 text-white/65" />
             </div>
           ) : null}
-          {composerPanel ? <WorldCupComposerFoundationPanel panel={composerPanel} /> : null}
+          {selectedGif ? (
+            <div className="mt-2 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.06] p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-cyan-100/70">Selected GIF</p>
+                <button
+                  type="button"
+                  onClick={() => setSelectedGif(null)}
+                  className="rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-[10px] font-bold text-white/50"
+                >
+                  Remove
+                </button>
+              </div>
+              <WorldCupGifPreview gif={selectedGif} />
+            </div>
+          ) : null}
+          {composerPanel === "gif" ? (
+            <WorldCupGifSearchPanel
+              query={gifQuery}
+              onQueryChange={setGifQuery}
+              onSearch={() => void searchWorldCupGifs()}
+              isSearching={isGifSearching}
+              error={gifError}
+              results={gifResults}
+              selectedGif={selectedGif}
+              onSelect={(gif) => {
+                setSelectedGif(gif)
+                if (!chatBody.trim()) setChatBody("GIF")
+              }}
+            />
+          ) : composerPanel ? <WorldCupComposerFoundationPanel panel={composerPanel} /> : null}
           <p className="mt-2 text-[11px] leading-5 text-white/35">
             Mentions: @username notifies a pool member, @all is commissioner-only, @chimmy stays private and {aiUnlocked ? "AI-gated, and @global is blocked until broadcast fanout ships." : "requires AI/Pro, and @global is blocked until broadcast fanout ships."}
           </p>
@@ -3928,6 +3998,109 @@ function WorldCupChatRichTextSegments({
 
 function WorldCupChatRichTextRenderer({ text, className }: { text: string; className?: string }) {
   return <WorldCupChatRichTextSegments segments={parseWorldCupChatRichText(text)} className={className} />
+}
+
+function WorldCupGifPreview({
+  gif,
+  compact = false,
+}: {
+  gif: WorldCupChatGifAttachment
+  compact?: boolean
+}) {
+  return (
+    <div className={compact ? "mt-2 max-w-56 overflow-hidden rounded-lg border border-white/10 bg-black/25" : "overflow-hidden rounded-lg border border-white/10 bg-black/25"}>
+      <img
+        src={gif.previewUrl}
+        alt={gif.title || "Selected GIF"}
+        className="max-h-40 w-full object-cover"
+      />
+      <p className="flex items-center justify-between gap-2 px-2 py-1 text-[10px] text-white/35">
+        <span className="truncate">{gif.title || "GIF"}</span>
+        <span className="uppercase">{gif.provider}</span>
+      </p>
+    </div>
+  )
+}
+
+function WorldCupGifSearchPanel({
+  query,
+  onQueryChange,
+  onSearch,
+  isSearching,
+  error,
+  results,
+  selectedGif,
+  onSelect,
+}: {
+  query: string
+  onQueryChange: (value: string) => void
+  onSearch: () => void
+  isSearching: boolean
+  error: string | null
+  results: WorldCupChatGifAttachment[]
+  selectedGif: WorldCupChatGifAttachment | null
+  onSelect: (gif: WorldCupChatGifAttachment) => void
+}) {
+  return (
+    <div className="mt-2 rounded-xl border border-dashed border-white/15 bg-black/25 p-3 text-xs leading-5 text-white/50">
+      <p className="font-black text-white/75">GIF Search</p>
+      <p className="mt-1">Search is routed through the World Cup pool API. Provider keys stay server-side.</p>
+      <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+        <input
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault()
+              onSearch()
+            }
+          }}
+          maxLength={64}
+          placeholder="Search Klipy GIFs..."
+          className="min-h-10 flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-cyan-300/50 focus:outline-none"
+        />
+        <button
+          type="button"
+          onClick={onSearch}
+          disabled={isSearching || !query.trim()}
+          className="rounded-lg border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-[11px] font-black text-cyan-100 disabled:opacity-45"
+        >
+          {isSearching ? "Searching..." : "Search GIFs"}
+        </button>
+      </div>
+      {error ? (
+        <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
+          {error}
+        </p>
+      ) : null}
+      {results.length > 0 ? (
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {results.map((gif) => (
+            <button
+              key={`${gif.provider}-${gif.id}`}
+              type="button"
+              onClick={() => onSelect(gif)}
+              className={[
+                "overflow-hidden rounded-lg border bg-black/30 text-left transition",
+                selectedGif?.id === gif.id && selectedGif.provider === gif.provider
+                  ? "border-cyan-300/70"
+                  : "border-white/10 hover:border-cyan-300/35",
+              ].join(" ")}
+            >
+              <img src={gif.previewUrl} alt={gif.title || "GIF result"} className="h-24 w-full object-cover" />
+              <span className="block truncate px-2 py-1 text-[10px] text-white/45">
+                {gif.title || gif.provider}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 text-[11px] text-white/35">
+          Select a GIF to attach it to your next pool message. Arbitrary GIF URLs are not accepted.
+        </p>
+      )}
+    </div>
+  )
 }
 
 function WorldCupComposerFoundationPanel({ panel }: { panel: Exclude<WorldCupComposerPanel, null> }) {
