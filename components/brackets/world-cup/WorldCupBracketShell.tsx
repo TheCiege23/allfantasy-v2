@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowUp, Bot, Check, ChevronLeft, ClipboardCheck, ClipboardList, Copy, Edit3, ListOrdered, Loader2, Lock, PlayCircle, Plus, RefreshCw, Settings, Share2, Sparkles, Trophy, Users, X } from "lucide-react"
+import { ArrowLeft, ArrowUp, Bot, Check, ChevronLeft, ClipboardCheck, ClipboardList, Copy, Edit3, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Pin, PlayCircle, Plus, RefreshCw, Settings, Share2, Sparkles, Trophy, Users, X } from "lucide-react"
 import { toast } from "sonner"
 import type { WorldCupAiBuilderProgress, WorldCupAiStrategy, WorldCupChallengeView, WorldCupMatchView, WorldCupPickView } from "@/lib/world-cup/types"
 import { isWorldCupChallengeLocked } from "@/lib/world-cup/worldCupBracketBuilder"
@@ -78,6 +78,7 @@ import WorldCupBracketSettingsPanel from "./WorldCupBracketSettingsPanel"
 import WorldCupCommissionerBrainPanel from "./WorldCupCommissionerBrainPanel"
 import WorldCupGroupStagePicks from "./WorldCupGroupStagePicks"
 import WorldCupReadinessPanel from "./WorldCupReadinessPanel"
+import WorldCupLeagueEventFeed from "./WorldCupLeagueEventFeed"
 type Tab = WorldCupBracketTab
 const BASE_TABS: Array<{ id: Tab; label: string; icon: typeof ClipboardList }> = [
   { id: "home", label: "Home", icon: Trophy },
@@ -2506,6 +2507,11 @@ export default function WorldCupBracketShell({
               isOwnerOrAdmin={Boolean(view.isOwner || view.isAdmin)}
             />
 
+            <WorldCupCommunityFoundationPanel
+              challengeId={challengeId}
+              entitlementSummary={entitlementSummary}
+            />
+
             <section className="mx-auto max-w-[min(100%,1600px)] px-2 sm:px-4">
               <AllFantasyBracketBoard
                 mode={dashboardPreviewMode === "starting" ? "preview" : "ai"}
@@ -3444,6 +3450,119 @@ function WorldCupPremiumAccessPanel({
             />
           </div>
         </div>
+      </div>
+    </section>
+  )
+}
+
+function WorldCupCommunityFoundationPanel({
+  challengeId,
+  entitlementSummary,
+}: {
+  challengeId: string
+  entitlementSummary: ReturnType<typeof resolveWorldCupEntitlementSummary>
+}) {
+  const commissionerUnlocked = entitlementSummary.commissioner
+
+  return (
+    <section
+      data-testid="world-cup-community-foundation"
+      className="mx-auto grid max-w-5xl gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]"
+    >
+      <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="flex items-center gap-2 text-sm font-black text-white">
+              <MessageSquare className="h-4 w-4 text-cyan-200" aria-hidden />
+              Pool Chat
+            </p>
+            <p className="mt-2 text-xs leading-5 text-white/50">
+              Talk strategy, trash talk, and follow pool updates.
+            </p>
+          </div>
+          <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-cyan-100">
+            Community
+          </span>
+        </div>
+        <div className="mt-3 rounded-xl border border-dashed border-white/15 bg-black/20 p-3 text-xs leading-5 text-white/50">
+          Chat backend coming soon - this feature is gated and ready for integration. Until then, bracket activity and commissioner reminders appear below.
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {["GIFs", "Polls", "Voice notes", "Photo uploads"].map((label) => (
+            <div key={label} className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-white/45">
+              {label} coming soon
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.06] p-3 text-xs leading-5 text-cyan-50/75">
+          Mentions coming soon: @username notifications, commissioner-gated @all, commissioner-only @global, and private @chimmy replies that never appear in public pool chat.
+        </div>
+        <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-xs leading-5 text-white/45">
+          Notification settings coming soon: pool chat, @username, @all, @global, Chimmy private replies, poll updates, media replies, in-app, and phone push.
+        </div>
+        <div className="mt-4 rounded-xl border border-white/10 bg-black/25 p-3">
+          <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-white/35">
+            Latest Pool Updates
+          </p>
+          <WorldCupLeagueEventFeed challengeId={challengeId} />
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="flex items-center gap-2 text-sm font-black text-white">
+              <Megaphone className="h-4 w-4 text-amber-200" aria-hidden />
+              Commissioner Announcements
+            </p>
+            <p className="mt-2 text-xs leading-5 text-white/50">
+              Post a pinned message for your pool.
+            </p>
+          </div>
+          <span
+            className={[
+              "rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+              commissionerUnlocked
+                ? "border-cyan-300/25 bg-cyan-300/10 text-cyan-100"
+                : "border-amber-300/30 bg-amber-400/10 text-amber-100",
+            ].join(" ")}
+          >
+            {commissionerUnlocked ? "Unlocked" : "AF Commissioner feature"}
+          </span>
+        </div>
+
+        <div className="mt-3 rounded-xl border border-amber-300/20 bg-amber-400/10 p-3">
+          <p className="flex items-center gap-2 text-xs font-black text-amber-100">
+            <Pin className="h-3.5 w-3.5" aria-hidden />
+            Pinned Announcement
+          </p>
+          <p className="mt-2 text-xs leading-5 text-amber-50/70">
+            {commissionerUnlocked
+              ? "Announcement composer coming soon. Commissioner reminders can already post system-style updates to the activity feed."
+              : "AF Commissioner feature. Pool owners and all-access users will be able to pin one announcement here."}
+          </p>
+        </div>
+
+        {commissionerUnlocked ? (
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <p className="text-xs font-black text-white">System Reminders</p>
+              <p className="mt-1 text-[11px] leading-5 text-white/45">
+                Deadline and incomplete-bracket reminders are wired through the existing World Cup event feed.
+              </p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <p className="text-xs font-black text-white">Moderation</p>
+              <p className="mt-1 text-[11px] leading-5 text-white/45">
+                Delete/pin controls stay locked until the chat composer backend is added.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-xs leading-5 text-white/45">
+            Free users can follow pool updates here, but commissioner announcements, pinned posts, and moderation controls require AF Commissioner access.
+          </p>
+        )}
       </div>
     </section>
   )
