@@ -79,7 +79,7 @@ export default function WorldCupJoinInvite({ invite }: { invite: InviteInfo }) {
         }
         throw new Error(mapped)
       }
-      router.push(`/brackets/world-cup/${data.challengeId}?tab=group-stage`)
+      router.push(`/brackets/world-cup/${data.challengeId}?guided=1`)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not join bracket")
     } finally {
@@ -95,12 +95,6 @@ export default function WorldCupJoinInvite({ invite }: { invite: InviteInfo }) {
     void join({ auto: true })
   }, [canJoin, join, requiresJoinPassword, status])
 
-  useEffect(() => {
-    if (status !== "unauthenticated") return
-    if (!canJoin) return
-    router.push(`/login?callbackUrl=${encodeURIComponent(joinPath)}&returnTo=${encodeURIComponent(joinPath)}`)
-  }, [canJoin, joinPath, router, status])
-
   return (
     <div className="min-h-screen bg-[#05070b] px-4 py-10 text-white">
       <div className="mx-auto max-w-md">
@@ -113,6 +107,14 @@ export default function WorldCupJoinInvite({ invite }: { invite: InviteInfo }) {
           <p className="mt-2 text-sm text-white/50">
             {invite.ownerName} invited you to a {invite.seasonYear} FIFA World Cup bracket challenge.
           </p>
+          <p className="mt-2 text-xs leading-5 text-cyan-50/70">
+            After joining, you will land on the pool dashboard with a guided path to create an entry, make Group Stage and Knockout picks, review, and finalize.
+          </p>
+            {status === "unauthenticated" && canJoin ? (
+              <div className="mt-4 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.07] p-3 text-xs leading-5 text-cyan-50/75">
+                Sign in or create an account when you are ready. We will bring you back to this invite after auth.
+              </div>
+            ) : null}
 
           {/* Stats grid */}
           <div className="mt-5 grid grid-cols-3 gap-2 text-sm">
@@ -177,16 +179,33 @@ export default function WorldCupJoinInvite({ invite }: { invite: InviteInfo }) {
                     />
                   </label>
                 ) : null}
-                <button
-                  type="button"
-                  data-testid="world-cup-invite-join-submit"
-                  onClick={() => void join()}
-                  disabled={loading || (requiresJoinPassword && joinPassword.trim().length === 0)}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-300 px-4 py-3 text-sm font-black text-black disabled:opacity-60"
-                >
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
-                  Join and Make Picks
-                </button>
+                {status === "unauthenticated" ? (
+                  <div className="grid gap-2">
+                    <Link
+                      href={`/login?callbackUrl=${encodeURIComponent(joinPath)}&returnTo=${encodeURIComponent(joinPath)}`}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-300 px-4 py-3 text-sm font-black text-black"
+                    >
+                      Sign in to join
+                    </Link>
+                    <Link
+                      href={signupUrlWithReturnTo(joinPath)}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-bold text-white/75"
+                    >
+                      Create account
+                    </Link>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    data-testid="world-cup-invite-join-submit"
+                    onClick={() => void join()}
+                    disabled={loading || (requiresJoinPassword && joinPassword.trim().length === 0)}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-300 px-4 py-3 text-sm font-black text-black disabled:opacity-60"
+                  >
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
+                    Join and Make Picks
+                  </button>
+                )}
               </>
             ) : (
               <Link

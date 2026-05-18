@@ -24,8 +24,8 @@ const WORLD_CUP_TAB_ALIASES: Record<string, WorldCupBracketTab> = {
 
 export function normalizeWorldCupBracketTab(value: string | null | undefined): WorldCupBracketTab {
   const normalized = value?.trim().toLowerCase()
-  if (!normalized) return "picks"
-  return WORLD_CUP_TAB_ALIASES[normalized] ?? "picks"
+  if (!normalized) return "home"
+  return WORLD_CUP_TAB_ALIASES[normalized] ?? "home"
 }
 
 export function worldCupTabToQueryValue(tab: WorldCupBracketTab): string {

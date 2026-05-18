@@ -32,6 +32,10 @@ export default function WorldCupInvitePanel({ view }: { view: WorldCupChallengeV
   const isLocked =
     challenge.status === "locked" ||
     challenge.status === "final"
+  const participantCount = Math.max(
+    view.leaderboard?.length ?? 0,
+    view.participant ? 1 : 0
+  )
 
   async function copyLink() {
     await navigator.clipboard?.writeText(inviteUrl)
@@ -75,7 +79,7 @@ export default function WorldCupInvitePanel({ view }: { view: WorldCupChallengeV
           />
           <MetaRow
             label="Max Users"
-            value={`${view.leaderboard?.length ?? "—"} / ${challenge.maxParticipants}`}
+            value={`${participantCount} / ${challenge.maxParticipants}`}
           />
           <MetaRow
             label="Brackets per User"
@@ -135,11 +139,11 @@ export default function WorldCupInvitePanel({ view }: { view: WorldCupChallengeV
           </div>
 
           {/* Action buttons */}
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 grid gap-2 sm:flex sm:flex-wrap">
             <button
               type="button"
               onClick={copyLink}
-              className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-black text-black"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-black text-black sm:w-auto"
             >
               {copiedLink ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               {copiedLink ? "Link Copied!" : "Copy Invite Link"}
@@ -147,7 +151,7 @@ export default function WorldCupInvitePanel({ view }: { view: WorldCupChallengeV
             <button
               type="button"
               onClick={shareNative}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-white/75 hover:bg-white/[0.08]"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-white/75 hover:bg-white/[0.08] sm:w-auto"
             >
               <Share2 className="h-4 w-4" />
               Share

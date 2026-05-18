@@ -1517,11 +1517,10 @@ export default function WorldCupBracketShell({
     (view.isOwner || view.isAdmin) &&
     (guidedPicksState === "fixtures_not_synced" || guidedPicksState === "fixtures_not_ready")
 
-  const participantCount = view.leaderboard.length > 0
-    ? new Set(view.leaderboard.map((row) => row.userId)).size
-    : view.participant
-      ? 1
-      : 0
+  const participantCount = Math.max(
+    view.leaderboard.length > 0 ? new Set(view.leaderboard.map((row) => row.userId)).size : 0,
+    view.participant ? 1 : 0
+  )
   const inviteUrl = getBrowserWorldCupInviteUrl({
     inviteCode: view.challenge.inviteCode,
     fallbackInviteUrl: view.challenge.inviteUrl,
@@ -2556,7 +2555,7 @@ export default function WorldCupBracketShell({
                     {view.challenge.name}
                   </h2>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">
-                    Manage invites, brackets, leaderboard, and fixture readiness before opening a personal bracket.
+                    Start here: create or open your bracket, rank all Group Stage pools, make Knockout picks, review, then finalize to appear on the leaderboard.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -2583,7 +2582,7 @@ export default function WorldCupBracketShell({
               <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <PoolStatCard label="Participants" value={`${participantCount}/${view.challenge.maxParticipants}`} />
                 <PoolStatCard label="Entries" value={`${entries.length}/${view.challenge.maxEntriesPerParticipant}`} />
-                <PoolStatCard label="Leaderboard Brackets" value={String(view.leaderboard.length)} />
+                <PoolStatCard label="Finalized Entries" value={String(view.leaderboard.length)} />
                 <PoolStatCard label="Fixture Status" value={guidedPicksState === "ready" ? "Ready" : "Not Ready"} tone={guidedPicksState === "ready" ? "ready" : "warn"} />
               </div>
             </section>
@@ -2670,9 +2669,6 @@ export default function WorldCupBracketShell({
                           <div className="truncate text-sm font-black text-white">{entry.name}</div>
                           <div className="mt-1 text-xs text-white/45">
                             {entry.isComplete ? "Complete" : "Not complete"} · {entry.totalScore} pts · {entry.rank ? `Rank #${entry.rank}` : "Unranked"}
-                          </div>
-                          <div className="mt-1 text-[11px] text-white/35">
-                            Group Stage: Open tab to load status · Third-place: 0/8
                           </div>
                         </div>
                         <span className="shrink-0 rounded-lg bg-cyan-300 px-3 py-1.5 text-xs font-black text-black">
@@ -2980,7 +2976,7 @@ export default function WorldCupBracketShell({
                     <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white/60">
                       <p className="font-bold text-white/80">Scoring note</p>
                       <p className="mt-1 text-xs leading-5 text-white/50">
-                        Scores update as official or test results become available. Finalizing locks your entry; it does not award fake points.
+                        Scores update as official or test results become available. Finalize when your entry is ready; edits remain available until the pool lock deadline.
                       </p>
                     </div>
 
@@ -3136,7 +3132,7 @@ export default function WorldCupBracketShell({
                   </div>
                 ) : (
                   <p className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/45">
-                    Open this tab to review entry completion.
+                    Tap Refresh Review to check completion.
                   </p>
                 )}
               </section>
@@ -3228,7 +3224,7 @@ export default function WorldCupBracketShell({
           >
             <Icon className="h-4 w-4 shrink-0" aria-hidden />
             <span className="truncate">
-              {label === "Leaderboard" ? "Board" : label === "Commissioner" ? "Commish" : label === "Settings" ? "Setup" : label}
+              {label === "Leaderboard" ? "Ranks" : label === "Commissioner" ? "Commish" : label === "Settings" ? "Setup" : label}
             </span>
           </button>
         ))}
@@ -3788,7 +3784,7 @@ function WorldCupCommunityFoundationPanel({
           </span>
         </div>
         <div className="mt-3 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.06] p-3 text-xs leading-5 text-cyan-50/75">
-          Text chat is live for pool members. GIFs, uploads, voice notes, polls, and real-time delivery stay on the roadmap.
+          Text chat, GIFs, uploads, and polls are live for pool members. Voice notes and real-time delivery stay on the roadmap.
         </div>
         <div className="mt-3 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.06] p-3 text-xs leading-5 text-cyan-50/75">
           Mentions: @username creates in-app notification records, @all is commissioner-only, @global is blocked until broadcast fanout is built, and @chimmy is private/AI-gated.
@@ -3846,8 +3842,8 @@ function WorldCupCommunityFoundationPanel({
                     />
                   ) : null}
                   {message.isPrivate ? (
-                    <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-purple-100/70">
-                      Only visible to you
+                    <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-purple-100/80">
+                      Private Chimmy reply · Only visible to you
                     </p>
                   ) : null}
                 </div>
@@ -3955,7 +3951,7 @@ function WorldCupCommunityFoundationPanel({
                 : "border-amber-300/25 bg-amber-400/10 text-amber-50/75",
             ].join(" ")}>
               {aiUnlocked
-                ? "@chimmy replies are private. Only you will see your prompt and Chimmy's answer."
+                ? "@chimmy replies are private. Only you will see your prompt and Chimmy's answer in this pool."
                 : "@chimmy private replies require AI/Pro. Upgrade to ask Chimmy from this pool chat."}
             </div>
           ) : null}
@@ -4025,7 +4021,7 @@ function WorldCupCommunityFoundationPanel({
             />
           ) : composerPanel ? <WorldCupComposerFoundationPanel panel={composerPanel} /> : null}
           <p className="mt-2 text-[11px] leading-5 text-white/35">
-            Mentions: @username notifies a pool member, @all is commissioner-only, @chimmy stays private and {aiUnlocked ? "AI-gated, and @global is blocked until broadcast fanout ships." : "requires AI/Pro, and @global is blocked until broadcast fanout ships."}
+            Mentions: @username notifies a pool member, @all is commissioner-only, and @chimmy replies are private between you and Chimmy{aiUnlocked ? "." : " with AI/Pro access."}
           </p>
           {chatError ? (
             <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">

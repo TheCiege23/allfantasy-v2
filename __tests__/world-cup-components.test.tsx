@@ -55,6 +55,10 @@ vi.mock("next/image", () => ({
   default: ({ alt, src }: { alt?: string; src: string }) => <img alt={alt ?? ""} src={src} />,
 }))
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ status: "unauthenticated", data: null }),
+}))
+
 vi.mock("@/components/brackets/world-cup/WorldCupMatchupIntelligencePanel", () => ({
   default: () => <div data-testid="wc-intel-stub" />,
 }))
@@ -1010,7 +1014,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const community = screen.getByTestId("world-cup-community-foundation")
     expect(community).toHaveTextContent("Pool Chat")
     expect(within(community).getByText(/Talk strategy, trash talk, and follow pool updates/i)).toBeInTheDocument()
-    expect(screen.getByText(/Text chat is live for pool members/i)).toBeInTheDocument()
+    expect(screen.getByText(/Text chat, GIFs, uploads, and polls are live for pool members/i)).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/Message your World Cup pool/i)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /^Send$/i })).toBeDisabled()
     expect(screen.getByRole("button", { name: /^GIF$/i })).toBeInTheDocument()
@@ -1663,11 +1667,11 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const input = await screen.findByPlaceholderText(/Message your World Cup pool/i)
     fireEvent.change(input, { target: { value: "@chimmy who should I pick?" } })
 
-    expect(screen.getByText(/@chimmy replies are private/i)).toBeInTheDocument()
+    expect(screen.getByText(/Only you will see your prompt and Chimmy's answer in this pool/i)).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: /^Send$/i }))
 
     expect(await screen.findByText("I would start by protecting your group winner path.")).toBeInTheDocument()
-    expect(screen.getAllByText(/Only visible to you/i).length).toBeGreaterThanOrEqual(2)
+    expect(screen.getAllByText(/Private Chimmy reply · Only visible to you/i).length).toBeGreaterThanOrEqual(2)
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining("/api/brackets/world-cup/c1/chat"),
@@ -1774,6 +1778,44 @@ describe("WorldCupBracketShell fixture readiness", () => {
         `/login?callbackUrl=${encodeURIComponent("/join/bracket/INVITE")}&returnTo=${encodeURIComponent("/join/bracket/INVITE")}`
       )
     })
+  })
+
+  it("keeps logged-out invite recipients on the invite card with auth CTAs", async () => {
+    const WorldCupJoinInvite = (await import("@/components/brackets/world-cup/WorldCupJoinInvite")).default
+    render(
+      <WorldCupJoinInvite
+        invite={{
+          inviteCode: "INVITE",
+          challengeId: "c1",
+          name: "Office Pool",
+          ownerName: "Owner",
+          seasonYear: 2026,
+          participantCount: 3,
+          status: "open",
+          visibility: "private",
+          joinPreview: {
+            requiresJoinPassword: false,
+            joinBlockedReason: null,
+            poolLocked: false,
+            allowLateJoin: true,
+            isFull: false,
+            maxParticipants: 100,
+          },
+        }}
+      />
+    )
+
+    expect(screen.getByText("Office Pool")).toBeInTheDocument()
+    expect(screen.getByText(/Sign in or create an account when you are ready/i)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Sign in to join/i })).toHaveAttribute(
+      "href",
+      `/login?callbackUrl=${encodeURIComponent("/join/bracket/INVITE")}&returnTo=${encodeURIComponent("/join/bracket/INVITE")}`
+    )
+    expect(screen.getByRole("link", { name: /Create account/i })).toHaveAttribute(
+      "href",
+      expect.stringContaining(encodeURIComponent("/join/bracket/INVITE"))
+    )
+    expect(routerMocks.push).not.toHaveBeenCalledWith(expect.stringContaining("/login?callbackUrl="))
   })
 
   it("shows commissioner affordances unlocked for pool owners and all-access users", async () => {
@@ -2850,6 +2892,7 @@ describe("WorldCupLeaderboard mobile score row", () => {
       hasBracketBrainAi: false,
     }
     render(<WorldCupLeaderboard view={view as any} />)
+    expect(screen.getByText(/Finalized entries only/i)).toBeInTheDocument()
     expect(screen.getByTestId("wc-lb-mobile-score-row")).toBeInTheDocument()
     expect(screen.getByTestId("wc-lb-total-mobile-ent1")).toHaveTextContent("42")
     expect(screen.getByTestId("wc-lb-champion-status-ent1")).toHaveTextContent("Alive")

@@ -8,7 +8,7 @@ const MAX_ENTRIES = 5
 
 export default function WorldCupBracketCreateModal() {
   const router = useRouter()
-  const [name, setName] = useState("World Cup Bracket Challenge")
+  const [name, setName] = useState("World Cup Bracket Pool")
   const [visibility, setVisibility] = useState<"private" | "public">("private")
   const [lockStrategy, setLockStrategy] = useState<"per_match" | "tournament_start">("tournament_start")
   const [includeThirdPlace, setIncludeThirdPlace] = useState(false)
@@ -24,6 +24,10 @@ export default function WorldCupBracketCreateModal() {
   const maxUsersError = maxUsers < 2 || maxUsers > MAX_USERS ? `Must be between 2 and ${MAX_USERS}.` : null
   const maxEntriesError = maxEntries < 1 || maxEntries > MAX_ENTRIES ? `Must be between 1 and ${MAX_ENTRIES}.` : null
   const hasErrors = Boolean(nameError || maxUsersError || maxEntriesError)
+  const lockRuleCopy =
+    lockStrategy === "tournament_start"
+      ? "Picks can be edited until the first World Cup match begins."
+      : "Each matchup can be edited until that match kicks off."
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -83,7 +87,7 @@ export default function WorldCupBracketCreateModal() {
       ? "Creating…"
       : status === "opening"
         ? "Created, opening…"
-        : "Create Challenge"
+        : "Create Pool"
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#05070b] text-white">
@@ -96,30 +100,30 @@ export default function WorldCupBracketCreateModal() {
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <div>
-          <h1 className="text-lg font-black">Create World Cup Bracket League</h1>
-          <p className="text-xs text-white/45">2026 FIFA World Cup · NCAA-style bracket pool</p>
+        <div className="min-w-0">
+          <h1 className="text-lg font-black">Create World Cup Bracket Pool</h1>
+          <p className="text-xs text-white/45">2026 FIFA World Cup · round-by-round scoring</p>
         </div>
       </header>
 
       <main className="overflow-y-auto">
-        <div className="mx-auto w-full max-w-xl px-4 py-8">
-          <form onSubmit={submit} className="space-y-5 rounded-xl border border-white/10 bg-white/[0.04] p-6 shadow-2xl shadow-black/40">
+        <div className="mx-auto w-full max-w-xl px-3 py-4 pb-28 sm:px-4 sm:py-8 sm:pb-8">
+          <form onSubmit={submit} className="space-y-5 rounded-xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/40 sm:p-6">
             {/* Title block */}
             <div className="flex items-center gap-3">
               <div className="rounded-xl bg-cyan-300 p-3 text-black">
                 <Trophy className="h-5 w-5" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm font-black text-white">2026 FIFA World Cup</div>
-                <div className="text-xs text-white/45">Round of 32 knockout bracket with placeholders</div>
+                <div className="text-xs text-white/45">Create a pool, invite friends, then finalize entries before standings count them.</div>
               </div>
             </div>
 
             {/* League name */}
             <div>
               <label className="block text-xs font-black uppercase tracking-[0.16em] text-white/45">
-                League Name
+                Pool Name
               </label>
               <input
                 value={name}
@@ -179,7 +183,7 @@ export default function WorldCupBracketCreateModal() {
                 />
                 {maxUsersError
                   ? <p className="mt-1 text-[11px] text-rose-300">{maxUsersError}</p>
-                  : <p className="mt-1 text-[11px] text-white/35">Maximum {MAX_USERS} per league</p>}
+                  : <p className="mt-1 text-[11px] text-white/35">Maximum {MAX_USERS} per pool</p>}
               </div>
               <div>
                 <label className="block text-xs font-black uppercase tracking-[0.16em] text-white/45">
@@ -228,15 +232,15 @@ export default function WorldCupBracketCreateModal() {
             <div className="flex items-start gap-2 rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-3">
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-300/60" />
               <div className="text-xs text-white/45">
-                <span className="font-bold text-white/60">NCAA-style scoring:</span> 10 pts Round of 32 · 20 pts Round of 16 · 40 pts QF · 80 pts SF · 160 pts Final · 320 pts Champion bonus
+                <span className="font-bold text-white/60">Round-by-round scoring:</span> 10 pts Round of 32 · 20 pts Round of 16 · 40 pts QF · 80 pts SF · 160 pts Final · 320 pts Champion bonus
               </div>
             </div>
 
             {/* Helper notes */}
             <ul className="space-y-1 text-[11px] text-white/40">
               <li>• Each user can create up to {maxEntries} bracket entr{maxEntries === 1 ? "y" : "ies"}.</li>
-              <li>• Picks can be edited until the first World Cup match begins.</li>
-              <li>• The leaderboard ranks individual brackets, not just users.</li>
+              <li>• {lockRuleCopy}</li>
+              <li>• The leaderboard ranks finalized bracket entries, not drafts.</li>
               {visibility === "private" && (
                 <li>• An invite link will be shown after creation.</li>
               )}
@@ -263,7 +267,7 @@ export default function WorldCupBracketCreateModal() {
               <span>
                 <span className="block">Seed Test Fixtures</span>
                 <span className="mt-0.5 block text-[11px] font-medium leading-5 text-amber-100/70">
-                  Adds mock Round of 32 teams, flags, kickoff times, and venues so this league is pickable immediately.
+                  Adds mock Round of 32 teams, flags, kickoff times, and venues so this pool is pickable immediately.
                 </span>
               </span>
             </label>

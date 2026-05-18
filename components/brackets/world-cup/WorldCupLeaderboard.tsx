@@ -82,7 +82,7 @@ export default function WorldCupLeaderboard({
         <div>
           <h2 className="text-lg font-black text-white">Leaderboard</h2>
           <p className="text-xs text-white/45">
-            Live standings — entries scored from finalized matches.
+            Finalized entries only — draft brackets stay private until submitted. Scores update from final match results.
             {view.challenge.lastSyncedAt
               ? ` Last updated ${new Date(view.challenge.lastSyncedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.`
               : " Not yet synced."}
@@ -146,7 +146,7 @@ export default function WorldCupLeaderboard({
           <div>
             <p className="text-sm font-bold text-white/45">No leaderboard entries yet</p>
             <p className="mt-1 text-xs text-white/30">
-              Join the challenge and submit a bracket — rankings appear once scoring begins.
+              Finalize a bracket to join the standings. Draft picks are hidden from the leaderboard until submitted.
             </p>
           </div>
         </div>

@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest"
 import { normalizeWorldCupBracketTab, worldCupTabToQueryValue } from "@/lib/world-cup/worldCupTabs"
 
 describe("World Cup bracket tab routing", () => {
+  it("lands first-time users on Home when no tab is provided", () => {
+    expect(normalizeWorldCupBracketTab(undefined)).toBe("home")
+    expect(normalizeWorldCupBracketTab(null)).toBe("home")
+    expect(normalizeWorldCupBracketTab("")).toBe("home")
+    expect(normalizeWorldCupBracketTab("unknown")).toBe("home")
+  })
+
   it("keeps Group Stage, Knockouts, and Review query tabs stable on initial render", () => {
     expect(normalizeWorldCupBracketTab("group-stage")).toBe("group-stage")
     expect(normalizeWorldCupBracketTab("knockouts")).toBe("picks")

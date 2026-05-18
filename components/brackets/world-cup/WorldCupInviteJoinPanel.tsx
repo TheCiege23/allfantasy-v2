@@ -136,8 +136,8 @@ const WorldCupInviteJoinPanel = forwardRef<
     <div data-testid="world-cup-invite-join-panel" className="rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:p-4">
       <h3 className="text-[11px] font-bold uppercase tracking-wide text-white/45">{title}</h3>
       <p className="mt-1 text-xs text-white/45">
-        Enter the invite code from your commissioner. Password-protected leagues require the join password set in league
-        settings.
+        Enter the invite code from your commissioner. After joining, you will land on the pool dashboard and can start your first bracket.
+        Password-protected leagues require the join password set in league settings.
       </p>
       <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap">
         <input
@@ -169,6 +169,11 @@ const WorldCupInviteJoinPanel = forwardRef<
           <p className="mt-1 text-xs text-white/55">
             Host: {preview.ownerName} · {preview.participantCount} playing · {preview.visibility}
           </p>
+          {!preview.joinPreview?.joinBlockedReason ? (
+            <p className="mt-2 text-xs leading-5 text-cyan-50/70">
+              Join now to create Bracket 1, make Group Stage and Knockout picks, and finalize when ready.
+            </p>
+          ) : null}
           {preview.joinPreview?.joinBlockedReason === "full" ? (
             <p className="mt-2 text-xs font-bold text-rose-200">This league is full.</p>
           ) : null}
