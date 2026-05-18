@@ -30,6 +30,17 @@ export type WorldCupApiSessionUser = {
   username?: string | null
 }
 
+type WorldCupCreateModePayload = {
+  isTestMode?: unknown
+  testMode?: unknown
+  simulationEnabled?: unknown
+  simulationMode?: unknown
+  seedTestFixtures?: unknown
+  loadTestFixtures?: unknown
+  useTestFixtures?: unknown
+  demoMode?: unknown
+}
+
 type WorldCupSyncErrorKind =
   | "missing_provider_key"
   | "unsupported_provider"
@@ -194,6 +205,42 @@ export async function requireWorldCupApiUser(request?: Request) {
 
 export async function getWorldCupAdminState(request: Request, user?: WorldCupApiSessionUser | null) {
   return Boolean(isAuthorizedRequest(request) || isAdminEmailAllowed(user?.email))
+}
+
+function requestedPrivilegedWorldCupCreateMode(body: WorldCupCreateModePayload) {
+  return Boolean(
+    body.isTestMode ||
+      body.testMode ||
+      body.simulationEnabled ||
+      body.simulationMode ||
+      body.seedTestFixtures ||
+      body.loadTestFixtures ||
+      body.useTestFixtures ||
+      body.demoMode
+  )
+}
+
+export async function assertWorldCupCreateModeAccess(
+  request: Request,
+  user: WorldCupApiSessionUser,
+  body: WorldCupCreateModePayload
+) {
+  if (!requestedPrivilegedWorldCupCreateMode(body)) {
+    return { ok: true as const, isAdmin: await getWorldCupAdminState(request, user) }
+  }
+
+  const isAdmin = await getWorldCupAdminState(request, user)
+  if (!isAdmin) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "World Cup test, demo, and simulation pools can only be created by admins." },
+        { status: 403 }
+      ),
+    }
+  }
+
+  return { ok: true as const, isAdmin }
 }
 
 export async function assertWorldCupManager(

@@ -132,6 +132,34 @@ describe("World Cup API catch-all route", () => {
     expect(res.status).toBe(401)
   })
 
+  it("blocks non-admin users from creating test or simulation pools through the catch-all route", async () => {
+    isAuthorizedRequestMock.mockReturnValue(false)
+    isAdminEmailAllowedMock.mockReturnValue(false)
+    createChallengeMock.mockClear()
+
+    const { POST } = await import("@/app/api/brackets/world-cup/[[...path]]/route")
+    const res = await POST(
+      new Request("http://localhost/api/brackets/world-cup/create", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "World Cup",
+          seasonYear: 2026,
+          isTestMode: true,
+          simulationEnabled: true,
+          seedTestFixtures: true,
+        }),
+      }),
+      makeContext(["create"])
+    )
+
+    expect(res.status).toBe(403)
+    await expect(res.json()).resolves.toMatchObject({
+      error: "World Cup test, demo, and simulation pools can only be created by admins.",
+    })
+    expect(createChallengeMock).not.toHaveBeenCalled()
+  })
+
   it("returns 500 and error message when service returns no id", async () => {
     createChallengeMock.mockResolvedValueOnce({ inviteCode: "X" }) // no challengeId or id
     const { POST } = await import("@/app/api/brackets/world-cup/[[...path]]/route")
@@ -182,6 +210,33 @@ describe("World Cup API catch-all route", () => {
         seedTestFixtures: true,
       })
     )
+  })
+
+  it("blocks non-admin users from creating test or simulation pools through the dedicated create route", async () => {
+    isAuthorizedRequestMock.mockReturnValue(false)
+    isAdminEmailAllowedMock.mockReturnValue(false)
+    createChallengeMock.mockClear()
+
+    const { POST } = await import("@/app/api/brackets/world-cup/create/route")
+    const res = await POST(
+      new Request("http://localhost/api/brackets/world-cup/create", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "World Cup",
+          seasonYear: 2026,
+          testMode: true,
+          demoMode: true,
+          useTestFixtures: true,
+        }),
+      })
+    )
+
+    expect(res.status).toBe(403)
+    await expect(res.json()).resolves.toMatchObject({
+      error: "World Cup test, demo, and simulation pools can only be created by admins.",
+    })
+    expect(createChallengeMock).not.toHaveBeenCalled()
   })
 
   it("falls back to the auth token when getServerSession throws in the dedicated create route", async () => {

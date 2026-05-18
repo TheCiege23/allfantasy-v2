@@ -158,6 +158,44 @@ function writePlaceholder500(placeholderPath, shouldLog = false) {
   }
 }
 
+function runTypecheckBeforeBuild() {
+  const skipTypecheck = process.env.AF_SKIP_BUILD_TYPECHECK === '1'
+  if (skipTypecheck) {
+    console.warn('[vercel-next-build] Skipping typecheck because AF_SKIP_BUILD_TYPECHECK=1')
+    return Promise.resolve()
+  }
+
+  return new Promise((resolve, reject) => {
+    console.log('[vercel-next-build] Running focused World Cup launch typecheck before next build')
+    const child = spawn(
+      process.execPath,
+      [
+        path.join(repoRoot, 'scripts', 'typecheck-world-cup-launch.cjs'),
+      ],
+      {
+        cwd: repoRoot,
+        stdio: 'inherit',
+        env: {
+          ...process.env,
+          NODE_OPTIONS: process.env.NODE_OPTIONS?.includes('--max-old-space-size=')
+            ? process.env.NODE_OPTIONS
+            : [process.env.NODE_OPTIONS, '--max-old-space-size=8192'].filter(Boolean).join(' '),
+        },
+        shell: process.platform === 'win32',
+      }
+    )
+
+    child.on('error', reject)
+    child.on('close', (code, signal) => {
+      if ((code ?? 0) !== 0 || signal) {
+        reject(new Error(`typecheck exited with code ${code ?? 'null'} and signal ${signal ?? 'none'}`))
+        return
+      }
+      resolve()
+    })
+  })
+}
+
 function disableNonProdRoutes() {
   safeRmSync(backupRoot)
 
@@ -217,7 +255,7 @@ function recoverStrandedBackup() {
   safeRmSync(backupRoot)
 }
 
-function run() {
+async function run() {
   // Self-heal stranded files from a previous crashed build.
   recoverStrandedBackup()
 
@@ -225,6 +263,13 @@ function run() {
   // On Windows, a held handle can leave .next-build-fix partially intact; use a fresh
   // local distDir rather than building against corrupt output.
   ensureCleanBuildDir()
+  try {
+    await runTypecheckBeforeBuild()
+  } catch (error) {
+    console.error('[vercel-next-build] Typecheck failed:', error.message)
+    process.exit(1)
+  }
+
   const patchStatus = patchManifestRace(repoRoot)
   if (patchStatus === 'skipped-missing') {
     console.warn('[vercel-next-build] pages-manifest-plugin.js not found — manifest race patch skipped.')

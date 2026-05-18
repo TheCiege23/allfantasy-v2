@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createWorldCupBracketChallenge } from "@/lib/world-cup"
-import { requireWorldCupApiUser } from "../_utils"
+import { assertWorldCupCreateModeAccess, requireWorldCupApiUser } from "../_utils"
 
 export const runtime = "nodejs"
 
@@ -86,6 +86,9 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request", issues: parsed.error.flatten() }, { status: 400 })
   }
+
+  const modeAccess = await assertWorldCupCreateModeAccess(request, auth.user, body)
+  if (!modeAccess.ok) return modeAccess.response
 
   const normalized = {
     user: auth.user,

@@ -16,6 +16,7 @@ import {
 } from "@/lib/world-cup"
 import { syncWorldCupProviderGroupStandings } from "@/lib/world-cup/worldCupGroupStageResultService"
 import {
+  assertWorldCupCreateModeAccess,
   assertWorldCupManager,
   getWorldCupAdminState,
   getWorldCupApiUser,
@@ -110,6 +111,9 @@ async function createChallenge(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request", issues: parsed.error.flatten() }, { status: 400 })
   }
+
+  const modeAccess = await assertWorldCupCreateModeAccess(request, auth.user, body)
+  if (!modeAccess.ok) return modeAccess.response
 
   const result = await createWorldCupBracketChallenge({
     user: auth.user,

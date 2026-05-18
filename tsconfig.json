@@ -53,8 +53,7 @@
     ".next-dev-local-smoke/types/**/*.ts",
     ".next-playwright-3310/types/**/*.ts",
     ".next-dev-3010/types/**/*.ts",
-    ".next-build-fix/types/**/*.ts",
-    ".next-build-fix-12516/types/**/*.ts"
+    ".next-build-fix/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
@@ -71,6 +70,10 @@
     "**/*.spec.ts",
     "**/*.spec.tsx",
     "playwright-report",
-    "test-results"
+    "test-results",
+    ".next-build-fix",
+    ".next-build-fix-*",
+    ".next-build-disabled-routes",
+    ".claude"
   ]
 }
