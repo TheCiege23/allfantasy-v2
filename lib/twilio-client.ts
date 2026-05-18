@@ -3,6 +3,26 @@ import twilio from "twilio"
 
 let twilioClient: ReturnType<typeof twilio> | undefined
 
+export type TwilioRuntimeStatus = {
+  hasAccountSid: boolean
+  hasAuthToken: boolean
+  hasApiKey: boolean
+  hasApiSecret: boolean
+  hasFromNumber: boolean
+  hasVerifyServiceSid: boolean
+  canUseAuthTokenMode: boolean
+  canUseApiKeyMode: boolean
+  canUseRawSms: boolean
+  canUseVerify: boolean
+}
+
+export type SanitizedTwilioError = {
+  code?: string | number
+  status?: string | number
+  message: string
+  moreInfo?: string
+}
+
 function getRequiredEnv(name: string): string {
   const value = process.env[name]?.trim()
 
@@ -13,6 +33,71 @@ function getRequiredEnv(name: string): string {
   }
 
   return value
+}
+
+export function getTwilioRuntimeStatus(): TwilioRuntimeStatus {
+  const hasAccountSid = Boolean(process.env.TWILIO_ACCOUNT_SID?.trim())
+  const hasAuthToken = Boolean(process.env.TWILIO_AUTH_TOKEN?.trim())
+  const hasApiKey = Boolean(process.env.TWILIO_API_KEY?.trim())
+  const hasApiSecret = Boolean(process.env.TWILIO_API_SECRET?.trim())
+  const hasFromNumber = Boolean(process.env.TWILIO_PHONE_NUMBER?.trim())
+  const hasVerifyServiceSid = Boolean(process.env.TWILIO_VERIFY_SERVICE_SID?.trim())
+  const canUseAuthTokenMode = hasAccountSid && hasAuthToken
+  const canUseApiKeyMode = hasAccountSid && hasApiKey && hasApiSecret
+  const canAuthenticate = canUseAuthTokenMode || canUseApiKeyMode
+
+  return {
+    hasAccountSid,
+    hasAuthToken,
+    hasApiKey,
+    hasApiSecret,
+    hasFromNumber,
+    hasVerifyServiceSid,
+    canUseAuthTokenMode,
+    canUseApiKeyMode,
+    canUseRawSms: canAuthenticate && hasFromNumber,
+    canUseVerify: canAuthenticate && hasVerifyServiceSid,
+  }
+}
+
+export function sanitizeTwilioError(error: unknown): SanitizedTwilioError {
+  if (error && typeof error === "object") {
+    const record = error as {
+      code?: unknown
+      status?: unknown
+      statusCode?: unknown
+      message?: unknown
+      moreInfo?: unknown
+      more_info?: unknown
+    }
+
+    return {
+      code:
+        typeof record.code === "string" || typeof record.code === "number"
+          ? record.code
+          : undefined,
+      status:
+        typeof record.status === "string" || typeof record.status === "number"
+          ? record.status
+          : typeof record.statusCode === "string" || typeof record.statusCode === "number"
+            ? record.statusCode
+            : undefined,
+      message:
+        typeof record.message === "string" && record.message.trim()
+          ? record.message
+          : "Twilio request failed.",
+      moreInfo:
+        typeof record.moreInfo === "string"
+          ? record.moreInfo
+          : typeof record.more_info === "string"
+            ? record.more_info
+            : undefined,
+    }
+  }
+
+  return {
+    message: error instanceof Error ? error.message : "Twilio request failed.",
+  }
 }
 
 export function getTwilioClient() {
@@ -48,13 +133,15 @@ export function getTwilioFromPhoneNumber() {
  * Send an SMS. Returns false if Twilio is not configured or send fails (no throw).
  */
 export async function sendSms(toPhone: string, body: string): Promise<boolean> {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim()
+  const status = getTwilioRuntimeStatus()
   const fromNumber = process.env.TWILIO_PHONE_NUMBER?.trim()
-  if (!accountSid || !fromNumber) return false
-  const authToken = process.env.TWILIO_AUTH_TOKEN?.trim()
-  const apiKey = process.env.TWILIO_API_KEY?.trim()
-  const apiKeySecret = process.env.TWILIO_API_SECRET?.trim()
-  if (!authToken && !(apiKey && apiKeySecret)) return false
+  if (!status.canUseRawSms || !fromNumber) {
+    console.error("[twilio] SMS send skipped", {
+      reason: "raw_sms_not_configured",
+      status,
+    })
+    return false
+  }
 
   try {
     const client = getTwilioClient()
@@ -64,7 +151,8 @@ export async function sendSms(toPhone: string, body: string): Promise<boolean> {
       body: body.slice(0, 1600),
     })
     return true
-  } catch {
+  } catch (error) {
+    console.error("[twilio] SMS send failed", sanitizeTwilioError(error))
     return false
   }
 }

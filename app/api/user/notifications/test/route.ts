@@ -5,7 +5,7 @@ import { getClientIp, rateLimit } from "@/lib/rate-limit"
 import { getSettingsProfile } from "@/lib/user-settings"
 import { createPlatformNotification } from "@/lib/platform/notification-service"
 import { sendNotificationEmail } from "@/lib/resend-client"
-import { sendSms } from "@/lib/twilio-client"
+import { getTwilioRuntimeStatus, sendSms } from "@/lib/twilio-client"
 import {
   NOTIFICATION_CATEGORY_IDS,
   resolveNotificationPreferences,
@@ -18,6 +18,13 @@ export const runtime = "nodejs"
 
 function isNotificationCategoryId(value: string): value is NotificationCategoryId {
   return (NOTIFICATION_CATEGORY_IDS as string[]).includes(value)
+}
+
+function maskPhone(value?: string | null): string | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (trimmed.length <= 4) return "****"
+  return `${trimmed.slice(0, 2)}******${trimmed.slice(-4)}`
 }
 
 export async function POST(req: Request) {
@@ -66,6 +73,7 @@ export async function POST(req: Request) {
     hasEmail: !!profile.email,
     phoneVerified: !!profile.phoneVerifiedAt,
   })
+  const twilioRuntimeStatus = getTwilioRuntimeStatus()
 
   const blockedReasons: string[] = []
   if (prefs.globalEnabled === false) blockedReasons.push("global_disabled")
@@ -74,6 +82,8 @@ export async function POST(req: Request) {
   let inAppSent = false
   let emailSent = false
   let smsSent = false
+  let attemptedSms = false
+  let reasonSkipped: string | null = null
 
   if (requested.inApp && availability.inApp && prefs.globalEnabled !== false && catPrefs.enabled && catPrefs.inApp) {
     inAppSent = await createPlatformNotification({
@@ -111,16 +121,37 @@ export async function POST(req: Request) {
     blockedReasons.push("email_disabled")
   }
 
-  if (requested.sms && availability.sms && profile.phone && prefs.globalEnabled !== false && catPrefs.enabled && catPrefs.sms) {
+  if (
+    requested.sms &&
+    availability.sms &&
+    profile.phone &&
+    prefs.globalEnabled !== false &&
+    catPrefs.enabled &&
+    catPrefs.sms &&
+    twilioRuntimeStatus.canUseRawSms
+  ) {
+    attemptedSms = true
     smsSent = await sendSms(
       profile.phone,
       `AllFantasy test notification: ${category.replace(/_/g, " ")} SMS is configured.`
     )
     if (!smsSent) blockedReasons.push("sms_send_failed")
+  } else if (requested.sms && !twilioRuntimeStatus.canUseRawSms) {
+    reasonSkipped = "twilio_raw_sms_not_configured"
+    blockedReasons.push(reasonSkipped)
   } else if (requested.sms && !availability.sms) {
-    blockedReasons.push("sms_unavailable")
+    reasonSkipped = "sms_unavailable"
+    blockedReasons.push(reasonSkipped)
   } else if (requested.sms && !catPrefs.sms) {
-    blockedReasons.push("sms_disabled")
+    reasonSkipped = "sms_disabled"
+    blockedReasons.push(reasonSkipped)
+  } else if (requested.sms && prefs.globalEnabled === false) {
+    reasonSkipped = "global_disabled"
+  } else if (requested.sms && catPrefs.enabled === false) {
+    reasonSkipped = "category_disabled"
+  } else if (requested.sms && !profile.phone) {
+    reasonSkipped = "phone_missing"
+    blockedReasons.push(reasonSkipped)
   }
 
   return NextResponse.json({
@@ -131,5 +162,10 @@ export async function POST(req: Request) {
       sms: smsSent,
     },
     blockedReasons,
+    twilioRuntimeStatus,
+    attemptedSms,
+    smsSent,
+    reasonSkipped,
+    smsDestination: attemptedSms ? maskPhone(profile.phone) : null,
   })
 }

@@ -127,7 +127,14 @@ export async function dispatchNotification(params: DispatchNotificationParams): 
 
       if (catPrefs.sms && availability.sms && profile.phone && !skipChannels?.sms) {
         const smsBody = body ? `${title}\n${body}` : title
-        await sendSms(profile.phone, smsBody.slice(0, 320))
+        const smsSent = await sendSms(profile.phone, smsBody.slice(0, 320))
+        if (!smsSent) {
+          console.error("[NotificationDispatcher] SMS send returned false", {
+            userId,
+            category,
+            type,
+          })
+        }
       }
 
       if (catPrefs.inApp && availability.inApp && isPushCategory(category) && !skipChannels?.push) {

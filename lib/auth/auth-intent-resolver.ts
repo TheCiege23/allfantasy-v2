@@ -47,3 +47,8 @@ export function signupUrlWithIntent(redirectPath: string): string {
   const enc = encodeURIComponent(safe)
   return `/signup?next=${enc}&callbackUrl=${enc}`
 }
+
+/** Compatibility alias for invite flows that name the post-signup destination returnTo. */
+export function signupUrlWithReturnTo(returnTo: string): string {
+  return signupUrlWithIntent(returnTo)
+}
