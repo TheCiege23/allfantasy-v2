@@ -24,6 +24,8 @@ type DashboardShellProps = {
   userImage?: string | null
   /** When set (e.g. /league/[id]), shell highlights this league in left + right panels */
   activeLeagueId?: string | null
+  /** False when the user has not yet clicked the email verification link. */
+  emailVerified?: boolean
   discordConnected?: boolean
   /** From dashboard RSC — My Leagues hydrates immediately (no client waterfall). */
   initialLeagueList?: DashboardLeagueListPayload | null
@@ -347,6 +349,7 @@ export function DashboardShell({
   userName,
   userImage = null,
   activeLeagueId = null,
+  emailVerified = true,
   discordConnected = false,
   initialLeagueList = null,
   initialUserRankPayload = null,
@@ -563,6 +566,17 @@ export function DashboardShell({
       }
     >
       <>
+        {!emailVerified ? (
+          <div
+            className="shrink-0 border-b border-amber-500/25 bg-amber-500/10 px-4 py-2.5 text-center text-[11px] leading-snug text-amber-100 sm:text-xs md:px-6"
+            role="status"
+          >
+            <span className="font-semibold">Verify your email</span> to unlock leagues, brackets, chat, and more.{' '}
+            <Link href="/verify" className="font-medium text-cyan-300 underline">
+              Verify now →
+            </Link>
+          </div>
+        ) : null}
         {!geo.loading && geo.isPaidBlocked && geo.stateCode ? (
           <div
             className="shrink-0 border-b border-amber-500/25 bg-amber-500/10 px-4 py-2.5 text-center text-[11px] leading-snug text-amber-100 sm:text-xs md:px-6"

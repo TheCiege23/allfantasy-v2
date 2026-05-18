@@ -32,7 +32,6 @@ function defaultEntryName(user: SessionUser): string {
   if (user.name?.trim()) return user.name.trim()
   if (user.displayName?.trim()) return user.displayName.trim()
   if (user.username?.trim()) return user.username.trim()
-  if (user.email?.trim()) return user.email.split("@")[0]
   return "My"
 }
 

@@ -12,21 +12,21 @@ import { IdentityImageRenderer } from "@/components/identity/IdentityImageRender
 type ChatMember = {
   id: string
   userId: string
-  user: { displayName: string | null; email: string }
+  user: { displayName: string | null; username: string | null; email: string }
 }
 
 type ReactionData = {
   id: string
   emoji: string
   userId: string
-  user: { id: string; displayName: string | null; email: string }
+  user: { id: string; displayName: string | null; username: string | null; email: string }
 }
 
 type ReplyData = {
   id: string
   message: string
   type: string
-  user: { id: string; displayName: string | null; email: string }
+  user: { id: string; displayName: string | null; username: string | null; email: string }
 }
 
 type ChatMessage = {
@@ -42,6 +42,7 @@ type ChatMessage = {
   user: {
     id: string
     displayName: string | null
+    username: string | null
     email: string
     avatarUrl?: string | null
     profile?: { avatarPreset?: string | null } | null
@@ -76,11 +77,11 @@ function getUserColor(userId: string): string {
   return USER_COLORS[Math.abs(hash) % USER_COLORS.length]
 }
 
-function getUserName(user: { displayName: string | null; email: string }): string {
-  return user.displayName || user.email?.split("@")[0] || "Unknown"
+function getUserName(user: { displayName: string | null; username?: string | null; email: string }): string {
+  return user.displayName || user.username || "User"
 }
 
-function getUserInitials(user: { displayName: string | null; email: string }): string {
+function getUserInitials(user: { displayName: string | null; username?: string | null; email: string }): string {
   const name = getUserName(user)
   return name.slice(0, 2).toUpperCase()
 }
@@ -436,7 +437,7 @@ export function PoolChat({
                       avatarUrl={m.user.avatarUrl ?? null}
                       avatarPreset={m.user.profile?.avatarPreset ?? null}
                       displayName={m.user.displayName}
-                      username={m.user.email?.split("@")[0] ?? null}
+                      username={m.user.username ?? null}
                       size="sm"
                     />
                   </div>

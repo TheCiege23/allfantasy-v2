@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth'
 import OpenAI from 'openai'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { requireVerifiedUser } from '@/lib/auth-guard'
 import { buildUserTemporalContextForAI } from '@/lib/preferences/userTemporalContextForAI'
 import { runPECR } from '@/lib/ai/pecr'
 import { runAiProtection } from '@/lib/ai-protection'
@@ -823,6 +824,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const verifiedAuth = await requireVerifiedUser()
+  if (!verifiedAuth.ok) return verifiedAuth.response
 
   let formData: FormData
   try {

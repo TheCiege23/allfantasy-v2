@@ -61,12 +61,11 @@ function sanitizeUsernameFragment(value: string | null | undefined): string {
     .replace(/^_+|_+$/g, "");
 }
 
-function buildUsernameBase(email: string, name?: string | null): string {
-  const emailLocalPart = sanitizeUsernameFragment(email.split("@")[0] ?? "");
+function buildUsernameBase(name?: string | null): string {
   const preferred = sanitizeUsernameFragment(name);
-  const candidate = preferred.length >= 3 ? preferred : emailLocalPart;
-  const safeCandidate = candidate.length >= 3 ? candidate : "user";
-  const truncated = safeCandidate.slice(0, 24);
+  // Never derive from email — use the OAuth display name if valid, else a generic base.
+  const candidate = preferred.length >= 3 ? preferred : "user";
+  const truncated = candidate.slice(0, 24);
 
   if (hasProfanityInUsername(truncated)) {
     return "user";
@@ -195,8 +194,8 @@ export async function linkSocialAccountToAppUser(
     for (let attempt = 1; attempt <= maxAttempts && !user; attempt += 1) {
       const username = await reserveUniqueUsername(
         attempt === 1
-          ? buildUsernameBase(normalizedEmail, input.name)
-          : `${buildUsernameBase(normalizedEmail, input.name)}_${attempt}`
+          ? buildUsernameBase(input.name)
+          : `${buildUsernameBase(input.name)}_${attempt}`
       );
       const passwordHash = await hashOAuthOnlyPlaceholder();
 

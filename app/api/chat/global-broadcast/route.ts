@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { requireVerifiedUser } from '@/lib/auth-guard'
 import { createLeagueChatMessage } from '@/lib/league-chat/LeagueChatMessageService'
 import { getLeagueMemberUserIds } from '@/lib/league-chat/leagueMemberIds'
 import { dispatchNotification } from '@/lib/notifications/NotificationDispatcher'
@@ -10,9 +9,9 @@ import { randomUUID } from 'crypto'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
-  const userId = session?.user?.id
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requireVerifiedUser()
+  if (!auth.ok) return auth.response
+  const userId = auth.userId
 
   const body = await req.json().catch(() => ({}))
   const selectedLeagueIds = Array.isArray(body?.selectedLeagueIds)

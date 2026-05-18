@@ -61,7 +61,7 @@ export default async function DashboardPage() {
       prisma.appUser
         .findUnique({
           where: { id: userId },
-          select: { avatarUrl: true },
+          select: { avatarUrl: true, emailVerified: true },
         })
         .catch((err: unknown) => {
           console.error('[dashboard] appUser lookup failed:', err)
@@ -91,8 +91,9 @@ export default async function DashboardPage() {
     return (
       <DashboardShell
         userId={userId}
-        userName={sessionUser.name ?? sessionUser.email ?? 'Manager'}
+        userName={sessionUser.name ?? 'Manager'}
         userImage={userImage}
+        emailVerified={Boolean(dbUser?.emailVerified)}
         discordConnected={Boolean(userProfile?.discordUserId)}
         initialLeagueList={initialLeagueList ?? undefined}
         initialUserRankPayload={initialUserRankPayload ?? undefined}

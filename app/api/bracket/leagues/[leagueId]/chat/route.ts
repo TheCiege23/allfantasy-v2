@@ -8,6 +8,7 @@ const messageInclude = {
     select: {
       id: true,
       displayName: true,
+      username: true,
       email: true,
       avatarUrl: true,
       profile: { select: { avatarPreset: true } },
@@ -18,7 +19,7 @@ const messageInclude = {
       id: true,
       message: true,
       type: true,
-      user: { select: { id: true, displayName: true, email: true } },
+      user: { select: { id: true, displayName: true, username: true, email: true } },
     },
   },
   reactions: {
@@ -26,7 +27,7 @@ const messageInclude = {
       id: true,
       emoji: true,
       userId: true,
-      user: { select: { id: true, displayName: true, email: true } },
+      user: { select: { id: true, displayName: true, username: true, email: true } },
     },
   },
 }

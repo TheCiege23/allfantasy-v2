@@ -11,6 +11,7 @@ type ChatMessage = {
   user: {
     id: string
     displayName: string | null
+    username: string | null
     email: string
     avatarUrl: string | null
     profile?: { avatarPreset?: string | null } | null
@@ -60,6 +61,7 @@ export function LeagueChat({ leagueId, currentUserId }: { leagueId: string; curr
       user: {
         id: currentUserId,
         displayName: null,
+        username: null,
         email: "",
         avatarUrl: null,
         profile: { avatarPreset: null },
@@ -121,12 +123,12 @@ export function LeagueChat({ leagueId, currentUserId }: { leagueId: string; curr
                 avatarUrl={msg.user.avatarUrl}
                 avatarPreset={msg.user.profile?.avatarPreset ?? null}
                 displayName={msg.user.displayName}
-                username={msg.user.email?.split("@")[0] ?? null}
+                username={msg.user.username ?? null}
                 size="sm"
               />
               <div className={`max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
                 <div className={`text-[11px] mb-0.5 ${isOwn ? "text-right" : ""} text-white/40`}>
-                  {msg.user.displayName || msg.user.email?.split("@")[0] || "User"}
+                  {msg.user.displayName || msg.user.username || "User"}
                 </div>
                 <div
                   className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${

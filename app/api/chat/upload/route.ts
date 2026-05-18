@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { put } from '@vercel/blob'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { requireVerifiedUser } from '@/lib/auth-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,11 +32,9 @@ async function canAccessLeague(leagueId: string, userId: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
-  const userId = session?.user?.id
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const auth = await requireVerifiedUser()
+  if (!auth.ok) return auth.response
+  const userId = auth.userId
 
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return NextResponse.json({ url: null, error: 'Storage not configured' }, { status: 503 })

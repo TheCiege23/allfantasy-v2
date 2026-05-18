@@ -1171,9 +1171,9 @@ function MyRankingsPageInner() {
 
   const username =
     legacyUsername ||
+    session?.user?.username ||
     session?.user?.name ||
-    session?.user?.email?.split('@')[0] ||
-    'manager'
+    'Manager'
 
   const hideRankForPhasedImport = Boolean(jobIdParam) && jobProgress?.status !== 'complete' && !jobProgressError
 

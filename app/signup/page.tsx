@@ -735,9 +735,29 @@ function SignupContent() {
                   <p className="text-sm leading-7" style={{ color: "var(--muted)" }}>
                     We sent a verification link to <span style={{ color: "var(--text)" }}>{email}</span>. Click the link to verify your email, then sign in.
                   </p>
-                  <p className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
-                    The link expires in 1 hour. Check your spam folder if you don&apos;t see it.
-                  </p>
+                  <div
+                    className="mt-3 rounded-xl border px-4 py-3 text-left text-sm"
+                    style={{
+                      borderColor: "color-mix(in srgb, var(--accent-amber-strong) 40%, transparent)",
+                      background: "color-mix(in srgb, var(--accent-amber-strong) 10%, transparent)",
+                      color: "var(--muted)",
+                    }}
+                  >
+                    <p className="font-medium" style={{ color: "color-mix(in srgb, var(--accent-amber-strong) 90%, var(--text))" }}>
+                      Check your inbox, spam, and junk folder.
+                    </p>
+                    <p className="mt-1 text-xs" style={{ color: "var(--muted)" }}>
+                      The link expires in 1 hour. If you don&apos;t see it within 2 minutes,{" "}
+                      <Link
+                        href={loginUrlWithIntent(postSignupDestination)}
+                        className="underline"
+                        style={{ color: "var(--accent-cyan)" }}
+                      >
+                        sign in
+                      </Link>{" "}
+                      and use <strong>Resend verification email</strong> from the verify page.
+                    </p>
+                  </div>
                 </>
               ) : (
                 <p className="text-sm leading-7" style={{ color: "var(--muted)" }}>

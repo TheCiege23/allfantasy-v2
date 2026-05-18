@@ -78,10 +78,7 @@ function resolvePreferredManagerName(input: {
   const displayName = input.displayName?.trim()
   if (displayName) return displayName
 
-  const emailPrefix = input.email?.split('@')[0]?.trim()
-  if (emailPrefix) return emailPrefix
-
-  return 'User'
+  return 'AllFantasy Manager'
 }
 
 export type CanonicalCreateTransactionResult = {

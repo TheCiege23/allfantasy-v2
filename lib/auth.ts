@@ -172,6 +172,7 @@ const providers: NextAuthOptions["providers"] = [
           id: user.id,
           email: user.email,
           name: user.displayName || user.username || user.email,
+          username: user.username,
           image: user.avatarUrl,
         };
       } catch (err: unknown) {

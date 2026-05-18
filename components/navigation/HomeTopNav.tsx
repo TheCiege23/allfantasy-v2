@@ -25,7 +25,7 @@ export default function HomeTopNav() {
   const username =
     user?.username ||
     user?.name ||
-    (user?.email ? user.email.split("@")[0] : t("common.guest"))
+    t("common.guest")
 
   useEffect(() => {
     if (!isAuthenticated) {
