@@ -2,6 +2,8 @@ import type { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import { getLevelFromXp } from '@/lib/rank/levels'
+import { getResendClient } from '@/lib/resend-client'
+import { getPublicSiteOrigin } from '@/lib/site-public-origin'
 
 /** `userId` is AppUser id (session user). */
 export async function sendImportCompleteNotification(userId: string, jobId: string): Promise<void> {
@@ -58,10 +60,9 @@ export async function sendImportCompleteNotification(userId: string, jobId: stri
 
   if (user?.email && process.env.RESEND_API_KEY) {
     try {
-      const { Resend } = await import('resend')
-      const resend = new Resend(process.env.RESEND_API_KEY)
-      await resend.emails.send({
-        from: 'AllFantasy <noreply@allfantasy.ai>',
+      const { client, fromEmail } = getResendClient()
+      await client.emails.send({
+        from: fromEmail,
         to: user.email,
         subject: `Your rank is in — Level ${profile?.xpLevel ?? 1} ${levelName}`,
         html: `<div style="font-family:sans-serif;max-width:500px;margin:0 auto;padding:24px">
@@ -82,7 +83,7 @@ export async function sendImportCompleteNotification(userId: string, jobId: stri
             <div style="font-size:22px;font-weight:600;color:${lvl.color};margin-top:4px">${levelName}</div>
             <div style="color:${lvl.color};opacity:.7;margin-top:2px">${profile?.rankTier ?? 'Rookie'} Tier</div>
           </div>
-          <a href="https://www.allfantasy.ai/af-rankings"
+          <a href="${getPublicSiteOrigin()}/af-rankings"
              style="display:inline-block;background:${lvl.color};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:500">
             View My Rank
           </a>

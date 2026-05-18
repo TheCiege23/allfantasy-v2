@@ -38,10 +38,9 @@ export const POST = withApiUsage({ endpoint: "/api/auth/admin-magic/request", to
       : `/api/auth/admin-magic/consume?token=${encodeURIComponent(token)}`;
 
     const { client: resend, fromEmail } = await getResendClient();
-    const from = fromEmail || process.env.RESEND_FROM || "AllFantasy <no-reply@allfantasy.ai>";
 
     await resend.emails.send({
-      from,
+      from: fromEmail,
       to: email,
       subject: "Your AllFantasy Admin Magic Link",
       html: `
