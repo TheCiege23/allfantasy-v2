@@ -11,6 +11,8 @@ describe("World Cup chat route consolidation", () => {
       "app/api/brackets/world-cup/[challengeId]/chat/upload-image/route.ts",
       "app/api/brackets/world-cup/[challengeId]/notification-preferences/route.ts",
       "app/api/brackets/world-cup/[challengeId]/chat/[messageId]/poll-vote/route.ts",
+      "app/api/brackets/world-cup/[challengeId]/chat/polls/route.ts",
+      "app/api/brackets/world-cup/[challengeId]/chat/poll-vote/route.ts",
     ]
 
     expect(existsSync(join(repoRoot, "app/api/brackets/world-cup/[challengeId]/chat/route.ts"))).toBe(true)

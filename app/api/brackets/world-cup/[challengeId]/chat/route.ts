@@ -79,6 +79,18 @@ const postActionSchema = z.object({
   action: z.string().trim().optional(),
 }).passthrough()
 
+const createPollSchema = z.object({
+  action: z.literal("create_poll"),
+  question: z.string().trim().min(1).max(180),
+  options: z.array(z.string().trim().max(80)).min(2).max(6),
+})
+
+const pollVoteSchema = z.object({
+  action: z.literal("poll_vote"),
+  messageId: z.string().trim().min(1),
+  optionId: z.string().trim().min(1).max(80),
+})
+
 type RawWorldCupChatEvent = {
   id: string
   challengeId: string
@@ -196,6 +208,88 @@ function safeNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0
 }
 
+function sanitizePollText(value: string, maxLength: number) {
+  return value
+    .replace(/[<>]/g, "")
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength)
+}
+
+function normalizePollOptions(values: string[]) {
+  const options = values
+    .map((value) => sanitizePollText(value, 80))
+    .filter(Boolean)
+
+  const seen = new Set<string>()
+  const duplicates = new Set<string>()
+  for (const option of options) {
+    const key = option.toLowerCase()
+    if (seen.has(key)) duplicates.add(key)
+    seen.add(key)
+  }
+
+  return {
+    options,
+    hasDuplicates: duplicates.size > 0,
+  }
+}
+
+function pollMetadata(value: unknown, requesterUserId: string) {
+  const metadata = metadataObject(value)
+  const question = typeof metadata.question === "string" ? metadata.question : null
+  const rawOptions = Array.isArray(metadata.options) ? metadata.options : []
+  const rawVotes = Array.isArray(metadata.votes) ? metadata.votes : []
+  if (!question || rawOptions.length === 0) return null
+
+  const options = rawOptions
+    .map((option) => metadataObject(option))
+    .map((option) => ({
+      id: typeof option.id === "string" ? option.id : "",
+      label: typeof option.label === "string" ? option.label : "",
+    }))
+    .filter((option) => option.id && option.label)
+  if (options.length === 0) return null
+
+  const validOptionIds = new Set(options.map((option) => option.id))
+  const votes = rawVotes
+    .map((vote) => metadataObject(vote))
+    .map((vote) => ({
+      userId: typeof vote.userId === "string" ? vote.userId : "",
+      optionId: typeof vote.optionId === "string" ? vote.optionId : "",
+      votedAt: typeof vote.votedAt === "string" ? vote.votedAt : "",
+    }))
+    .filter((vote) => vote.userId && validOptionIds.has(vote.optionId))
+
+  const voteCounts = Object.fromEntries(options.map((option) => [option.id, 0])) as Record<string, number>
+  for (const vote of votes) {
+    voteCounts[vote.optionId] = (voteCounts[vote.optionId] ?? 0) + 1
+  }
+  const totalVotes = votes.length
+  const currentUserVote = votes.find((vote) => vote.userId === requesterUserId)?.optionId ?? null
+  const closedAt = typeof metadata.closedAt === "string" ? metadata.closedAt : null
+  const enrichedOptions = options.map((option) => {
+    const votesForOption = voteCounts[option.id] ?? 0
+    return {
+      ...option,
+      votes: votesForOption,
+      percentage: totalVotes > 0 ? Math.round((votesForOption / totalVotes) * 100) : 0,
+    }
+  })
+
+  return {
+    question,
+    options: enrichedOptions,
+    currentUserVote,
+    totalVotes,
+    closed: Boolean(closedAt),
+    closedAt,
+    createdByUserId: typeof metadata.createdByUserId === "string" ? metadata.createdByUserId : null,
+    createdAt: typeof metadata.createdAt === "string" ? metadata.createdAt : null,
+  }
+}
+
 function serializeChatMessage(row: RawWorldCupChatEvent, requesterUserId: string) {
   const metadata = metadataObject(row.metadata)
   const visibility = typeof metadata.visibility === "string" ? metadata.visibility : "public"
@@ -216,6 +310,7 @@ function serializeChatMessage(row: RawWorldCupChatEvent, requesterUserId: string
     messageType: metadata.messageType ?? "text",
     gif: gifMetadata(metadata.gif),
     image: imageMetadata(metadata.image),
+    poll: pollMetadata(metadata.poll, requesterUserId),
     visibility,
     targetUserId,
     mentions: Array.isArray(metadata.mentions) ? metadata.mentions : [],
@@ -233,6 +328,7 @@ async function listChatMessages(challengeId: string, requesterUserId: string) {
         in: [
           WORLD_CUP_POOL_CHAT_EVENT_TYPES.TEXT_MESSAGE,
           WORLD_CUP_POOL_CHAT_EVENT_TYPES.CHIMMY_PRIVATE,
+          WORLD_CUP_POOL_CHAT_EVENT_TYPES.POLL,
         ],
       },
     },
@@ -363,6 +459,159 @@ async function uploadWorldCupImage(request: Request, challengeId: string, userId
   }
 }
 
+async function createWorldCupPoll(input: {
+  challengeId: string
+  userId: string
+  payload: unknown
+}) {
+  const parsed = createPollSchema.safeParse(input.payload)
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid poll", issues: parsed.error.flatten() }, { status: 400 })
+  }
+
+  const question = sanitizePollText(parsed.data.question, 180)
+  const normalized = normalizePollOptions(parsed.data.options)
+  if (!question) {
+    return NextResponse.json({ error: "Poll question is required." }, { status: 400 })
+  }
+  if (normalized.options.length < 2 || normalized.options.length > 6) {
+    return NextResponse.json({ error: "Polls require 2 to 6 options." }, { status: 400 })
+  }
+  if (normalized.hasDuplicates) {
+    return NextResponse.json({ error: "Poll options must be unique." }, { status: 400 })
+  }
+
+  const createdAt = new Date().toISOString()
+  const options = normalized.options.map((label, index) => ({
+    id: `option-${index + 1}`,
+    label,
+  }))
+
+  const created = await (prisma as any).worldCupBracketChatEvent.create({
+    data: {
+      challengeId: input.challengeId,
+      userId: input.userId,
+      eventType: WORLD_CUP_POOL_CHAT_EVENT_TYPES.POLL,
+      eventTitle: "Pool poll",
+      eventBody: question,
+      idempotencyKey: `poll:${input.userId}:${randomUUID()}`,
+      isAiGenerated: false,
+      metadata: {
+        messageType: "poll",
+        poll: {
+          question,
+          options,
+          votes: [],
+          createdByUserId: input.userId,
+          createdAt,
+          closedAt: null,
+        },
+        visibility: "public",
+        targetUserId: null,
+        mentions: [],
+        mentionedUserIds: [],
+      },
+    },
+    include: {
+      user: {
+        select: {
+          displayName: true,
+          username: true,
+          email: true,
+          avatarUrl: true,
+        },
+      },
+    },
+  }) as RawWorldCupChatEvent
+
+  return NextResponse.json({ ok: true, message: serializeChatMessage(created, input.userId) }, { status: 201 })
+}
+
+async function voteWorldCupPoll(input: {
+  challengeId: string
+  userId: string
+  payload: unknown
+}) {
+  const parsed = pollVoteSchema.safeParse(input.payload)
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid poll vote", issues: parsed.error.flatten() }, { status: 400 })
+  }
+
+  const existing = await (prisma as any).worldCupBracketChatEvent.findFirst({
+    where: {
+      id: parsed.data.messageId,
+      challengeId: input.challengeId,
+      eventType: WORLD_CUP_POOL_CHAT_EVENT_TYPES.POLL,
+    },
+    include: {
+      user: {
+        select: {
+          displayName: true,
+          username: true,
+          email: true,
+          avatarUrl: true,
+        },
+      },
+    },
+  }) as RawWorldCupChatEvent | null
+
+  if (!existing) {
+    return NextResponse.json({ error: "Poll not found." }, { status: 404 })
+  }
+
+  const metadata = metadataObject(existing.metadata)
+  const rawPoll = metadataObject(metadata.poll)
+  if (metadata.messageType !== "poll" || !rawPoll.question) {
+    return NextResponse.json({ error: "Message is not a poll." }, { status: 400 })
+  }
+  if (typeof rawPoll.closedAt === "string" && rawPoll.closedAt) {
+    return NextResponse.json({ error: "Poll is closed." }, { status: 409 })
+  }
+
+  const rawOptions = Array.isArray(rawPoll.options) ? rawPoll.options : []
+  const options = rawOptions.map((option) => metadataObject(option))
+  const hasOption = options.some((option) => option.id === parsed.data.optionId)
+  if (!hasOption) {
+    return NextResponse.json({ error: "Invalid poll option." }, { status: 400 })
+  }
+
+  const previousVotes = Array.isArray(rawPoll.votes) ? rawPoll.votes : []
+  const votes = previousVotes
+    .map((vote) => metadataObject(vote))
+    .filter((vote) => vote.userId && vote.userId !== input.userId)
+  votes.push({
+    userId: input.userId,
+    optionId: parsed.data.optionId,
+    votedAt: new Date().toISOString(),
+  })
+
+  const updatedMetadata = {
+    ...metadata,
+    poll: {
+      ...rawPoll,
+      votes,
+    },
+  }
+
+  const updated = await (prisma as any).worldCupBracketChatEvent.update({
+    where: { id: existing.id },
+    data: { metadata: updatedMetadata },
+    include: {
+      user: {
+        select: {
+          displayName: true,
+          username: true,
+          email: true,
+          avatarUrl: true,
+        },
+      },
+    },
+  }) as RawWorldCupChatEvent
+
+  const message = serializeChatMessage(updated, input.userId)
+  return NextResponse.json({ ok: true, message, poll: message.poll })
+}
+
 async function resolveMentionedUsers(challengeId: string, names: string[]) {
   const normalizedNames = Array.from(new Set(names.map((name) => name.trim()).filter(Boolean)))
   if (normalizedNames.length === 0) return []
@@ -446,13 +695,13 @@ export async function POST(
     return uploadWorldCupImage(request, params.data.challengeId, auth.user.id)
   }
 
-  if (queryAction && queryAction !== "update_notification_preferences" && queryAction !== "send_message") {
-    if (queryAction === "create_poll" || queryAction === "poll_vote") {
-      return NextResponse.json({
-        error: "World Cup chat polls are not available yet.",
-        code: "WORLD_CUP_CHAT_POLLS_COMING_SOON",
-      }, { status: 501 })
-    }
+  if (
+    queryAction &&
+    queryAction !== "update_notification_preferences" &&
+    queryAction !== "send_message" &&
+    queryAction !== "create_poll" &&
+    queryAction !== "poll_vote"
+  ) {
     return NextResponse.json({ error: "Unknown World Cup chat action" }, { status: 400 })
   }
 
@@ -461,11 +710,19 @@ export async function POST(
   if (action === "update_notification_preferences") {
     return updateNotificationPreferences(auth.user.id, params.data.challengeId, json)
   }
-  if (action === "create_poll" || action === "poll_vote") {
-    return NextResponse.json({
-      error: "World Cup chat polls are not available yet.",
-      code: "WORLD_CUP_CHAT_POLLS_COMING_SOON",
-    }, { status: 501 })
+  if (action === "create_poll") {
+    return createWorldCupPoll({
+      challengeId: params.data.challengeId,
+      userId: auth.user.id,
+      payload: json,
+    })
+  }
+  if (action === "poll_vote") {
+    return voteWorldCupPoll({
+      challengeId: params.data.challengeId,
+      userId: auth.user.id,
+      payload: json,
+    })
   }
   if (action && action !== "send_message") {
     return NextResponse.json({ error: "Unknown World Cup chat action" }, { status: 400 })

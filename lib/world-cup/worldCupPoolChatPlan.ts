@@ -20,6 +20,7 @@ export type WorldCupPoolChatCapability = {
 export const WORLD_CUP_POOL_CHAT_EVENT_TYPES = {
   TEXT_MESSAGE: "world_cup.pool_chat_message",
   CHIMMY_PRIVATE: "world_cup.pool_chat_chimmy_private",
+  POLL: "world_cup.pool_chat_poll",
 } as const
 
 const MENTION_PATTERN = /(^|[\s*_~\]])@([a-zA-Z0-9](?:(?:[a-zA-Z0-9.-]|_(?=[a-zA-Z0-9])){0,30}[a-zA-Z0-9])?)(?=$|[^a-zA-Z0-9.-]|_(?![a-zA-Z0-9]))/g

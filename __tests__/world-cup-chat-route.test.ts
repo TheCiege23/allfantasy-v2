@@ -9,7 +9,9 @@ const notifyMentionMock = vi.hoisted(() => vi.fn())
 const notifyAllMentionMock = vi.hoisted(() => vi.fn())
 const notifyChimmyReplyMock = vi.hoisted(() => vi.fn())
 const findManyMessagesMock = vi.hoisted(() => vi.fn())
+const findFirstMessageMock = vi.hoisted(() => vi.fn())
 const createMessageMock = vi.hoisted(() => vi.fn())
+const updateMessageMock = vi.hoisted(() => vi.fn())
 const findManyParticipantsMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/app/api/brackets/world-cup/_utils", () => ({
@@ -33,7 +35,9 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     worldCupBracketChatEvent: {
       findMany: findManyMessagesMock,
+      findFirst: findFirstMessageMock,
       create: createMessageMock,
+      update: updateMessageMock,
     },
     worldCupBracketParticipant: {
       findMany: findManyParticipantsMock,
@@ -79,12 +83,18 @@ describe("World Cup pool chat route", () => {
     notifyAllMentionMock.mockResolvedValue([])
     notifyChimmyReplyMock.mockResolvedValue([])
     findManyMessagesMock.mockResolvedValue([])
+    findFirstMessageMock.mockResolvedValue(null)
     findManyParticipantsMock.mockResolvedValue([])
     createMessageMock.mockImplementation(async ({ data }) => dbMessage({
       id: "created-1",
       userId: data.userId,
       eventType: data.eventType,
       eventBody: data.eventBody,
+      metadata: data.metadata,
+    }))
+    updateMessageMock.mockImplementation(async ({ data }) => dbMessage({
+      id: "poll-1",
+      eventBody: "Who wins Group A?",
       metadata: data.metadata,
     }))
   })
@@ -181,6 +191,183 @@ describe("World Cup pool chat route", () => {
       }),
     }))
     expect(json.message.image).toMatchObject(image)
+  })
+
+  it("lets members create valid polls through the consolidated chat route", async () => {
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
+
+    const res = await POST(request({
+      action: "create_poll",
+      question: "Who wins Group A?",
+      options: ["Mexico", "South Africa", "Uruguay"],
+    }), { params: { challengeId: "c1" } })
+    const json = await res.json()
+
+    expect(res.status).toBe(201)
+    expect(createMessageMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        eventTitle: "Pool poll",
+        eventBody: "Who wins Group A?",
+        metadata: expect.objectContaining({
+          messageType: "poll",
+          poll: expect.objectContaining({
+            question: "Who wins Group A?",
+            options: [
+              { id: "option-1", label: "Mexico" },
+              { id: "option-2", label: "South Africa" },
+              { id: "option-3", label: "Uruguay" },
+            ],
+            votes: [],
+            createdByUserId: "user-1",
+            closedAt: null,
+          }),
+        }),
+      }),
+    }))
+    expect(json.message.poll).toMatchObject({
+      question: "Who wins Group A?",
+      totalVotes: 0,
+      currentUserVote: null,
+    })
+  })
+
+  it("blocks non-members from creating polls", async () => {
+    memberAccessMock.mockResolvedValue({ ok: false, response: Response.json({ error: "Forbidden" }, { status: 403 }) })
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
+
+    const res = await POST(request({ action: "create_poll", question: "Pick one", options: ["A", "B"] }), { params: { challengeId: "c1" } })
+
+    expect(res.status).toBe(403)
+    expect(createMessageMock).not.toHaveBeenCalled()
+  })
+
+  it("validates poll question and option counts", async () => {
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
+
+    const missingQuestion = await POST(request({ action: "create_poll", question: "", options: ["A", "B"] }), { params: { challengeId: "c1" } })
+    const tooFewOptions = await POST(request({ action: "create_poll", question: "Pick one", options: ["A"] }), { params: { challengeId: "c1" } })
+    const tooManyOptions = await POST(request({ action: "create_poll", question: "Pick one", options: ["A", "B", "C", "D", "E", "F", "G"] }), { params: { challengeId: "c1" } })
+
+    expect(missingQuestion.status).toBe(400)
+    expect(tooFewOptions.status).toBe(400)
+    expect(tooManyOptions.status).toBe(400)
+  })
+
+  it("rejects duplicate or effectively empty poll options after cleanup", async () => {
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
+
+    const duplicate = await POST(request({ action: "create_poll", question: "Pick one", options: ["Mexico", " mexico "] }), { params: { challengeId: "c1" } })
+    const emptyAfterCleanup = await POST(request({ action: "create_poll", question: "Pick one", options: ["< > ", "Mexico"] }), { params: { challengeId: "c1" } })
+
+    expect(duplicate.status).toBe(400)
+    expect(emptyAfterCleanup.status).toBe(400)
+  })
+
+  it("serializes poll summary for GET messages", async () => {
+    findManyMessagesMock.mockResolvedValue([
+      dbMessage({
+        id: "poll-1",
+        eventBody: "Who wins Group A?",
+        metadata: {
+          visibility: "public",
+          messageType: "poll",
+          poll: {
+            question: "Who wins Group A?",
+            options: [
+              { id: "option-1", label: "Mexico" },
+              { id: "option-2", label: "Uruguay" },
+            ],
+            votes: [
+              { userId: "user-1", optionId: "option-1", votedAt: "2026-06-01T12:00:00.000Z" },
+              { userId: "user-2", optionId: "option-2", votedAt: "2026-06-01T12:01:00.000Z" },
+            ],
+            createdByUserId: "user-1",
+            createdAt: "2026-06-01T11:59:00.000Z",
+            closedAt: null,
+          },
+        },
+      }),
+    ])
+    const { GET } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
+
+    const res = await GET(request(), { params: { challengeId: "c1" } })
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.messages[0].poll).toMatchObject({
+      question: "Who wins Group A?",
+      currentUserVote: "option-1",
+      totalVotes: 2,
+      options: [
+        { id: "option-1", label: "Mexico", votes: 1, percentage: 50 },
+        { id: "option-2", label: "Uruguay", votes: 1, percentage: 50 },
+      ],
+    })
+  })
+
+  it("lets members vote and change their poll vote while open", async () => {
+    const pollRow = dbMessage({
+      id: "poll-1",
+      eventBody: "Who wins Group A?",
+      metadata: {
+        visibility: "public",
+        messageType: "poll",
+        poll: {
+          question: "Who wins Group A?",
+          options: [
+            { id: "option-1", label: "Mexico" },
+            { id: "option-2", label: "Uruguay" },
+          ],
+          votes: [{ userId: "user-1", optionId: "option-1", votedAt: "2026-06-01T12:00:00.000Z" }],
+          createdByUserId: "user-2",
+          createdAt: "2026-06-01T11:59:00.000Z",
+          closedAt: null,
+        },
+      },
+    })
+    findFirstMessageMock.mockResolvedValue(pollRow)
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
+
+    const res = await POST(request({ action: "poll_vote", messageId: "poll-1", optionId: "option-2" }), { params: { challengeId: "c1" } })
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(updateMessageMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "poll-1" },
+      data: {
+        metadata: expect.objectContaining({
+          poll: expect.objectContaining({
+            votes: [expect.objectContaining({ userId: "user-1", optionId: "option-2" })],
+          }),
+        }),
+      },
+    }))
+    expect(json.poll.currentUserVote).toBe("option-2")
+  })
+
+  it("rejects non-members and invalid options for poll votes", async () => {
+    const pollRow = dbMessage({
+      id: "poll-1",
+      metadata: {
+        visibility: "public",
+        messageType: "poll",
+        poll: {
+          question: "Who wins Group A?",
+          options: [{ id: "option-1", label: "Mexico" }],
+          votes: [],
+          closedAt: null,
+        },
+      },
+    })
+    findFirstMessageMock.mockResolvedValue(pollRow)
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
+
+    const invalidOption = await POST(request({ action: "poll_vote", messageId: "poll-1", optionId: "missing" }), { params: { challengeId: "c1" } })
+    memberAccessMock.mockResolvedValue({ ok: false, response: Response.json({ error: "Forbidden" }, { status: 403 }) })
+    const blocked = await POST(request({ action: "poll_vote", messageId: "poll-1", optionId: "option-1" }), { params: { challengeId: "c1" } })
+
+    expect(invalidOption.status).toBe(400)
+    expect(blocked.status).toBe(403)
   })
 
   it("rejects arbitrary external image URLs", async () => {

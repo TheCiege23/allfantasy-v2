@@ -96,6 +96,7 @@ type WorldCupPoolChatMessage = {
   messageType: string
   gif?: WorldCupChatGifAttachment | null
   image?: WorldCupChatImageAttachment | null
+  poll?: WorldCupChatPollAttachment | null
   visibility: string
   targetUserId: string | null
   mentions: unknown[]
@@ -121,6 +122,22 @@ type WorldCupChatImageAttachment = {
   format: string
   bytes: number
   provider: "cloudinary"
+}
+type WorldCupChatPollOption = {
+  id: string
+  label: string
+  votes: number
+  percentage: number
+}
+type WorldCupChatPollAttachment = {
+  question: string
+  options: WorldCupChatPollOption[]
+  currentUserVote: string | null
+  totalVotes: number
+  closed: boolean
+  closedAt: string | null
+  createdByUserId: string | null
+  createdAt: string | null
 }
 type WorldCupNotificationPreferenceState = {
   poolMuted: boolean
@@ -3549,6 +3566,11 @@ function WorldCupCommunityFoundationPanel({
   const [selectedImage, setSelectedImage] = useState<WorldCupChatImageAttachment | null>(null)
   const [isImageUploading, setIsImageUploading] = useState(false)
   const [imageError, setImageError] = useState<string | null>(null)
+  const [pollQuestion, setPollQuestion] = useState("")
+  const [pollOptions, setPollOptions] = useState(["", ""])
+  const [isPollCreating, setIsPollCreating] = useState(false)
+  const [pollError, setPollError] = useState<string | null>(null)
+  const [pollVotingMessageId, setPollVotingMessageId] = useState<string | null>(null)
   const richPreviewSegments = useMemo(() => parseWorldCupChatRichText(chatBody), [chatBody])
 
   function insertComposerText(value: string) {
@@ -3677,6 +3699,71 @@ function WorldCupCommunityFoundationPanel({
     }
   }
 
+  async function createWorldCupPoll() {
+    const question = pollQuestion.trim()
+    const options = pollOptions.map((option) => option.trim()).filter(Boolean)
+    if (!question) {
+      setPollError("Poll question is required.")
+      return
+    }
+    if (options.length < 2 || options.length > 6) {
+      setPollError("Polls require 2 to 6 options.")
+      return
+    }
+    const unique = new Set(options.map((option) => option.toLowerCase()))
+    if (unique.size !== options.length) {
+      setPollError("Poll options must be unique.")
+      return
+    }
+
+    setIsPollCreating(true)
+    setPollError(null)
+    try {
+      const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "create_poll", question, options }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || "Could not create poll")
+      if (data.message) {
+        setMessages((prev) => [...prev, data.message])
+      } else {
+        await loadChat()
+      }
+      setPollQuestion("")
+      setPollOptions(["", ""])
+      setComposerPanel(null)
+    } catch (err) {
+      setPollError(err instanceof Error ? err.message : "Could not create poll")
+    } finally {
+      setIsPollCreating(false)
+    }
+  }
+
+  async function voteWorldCupPoll(messageId: string, optionId: string) {
+    setPollVotingMessageId(messageId)
+    setChatError(null)
+    try {
+      const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "poll_vote", messageId, optionId }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || "Could not vote in poll")
+      if (data.message) {
+        setMessages((prev) => prev.map((message) => message.id === messageId ? data.message : message))
+      } else {
+        await loadChat()
+      }
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : "Could not vote in poll")
+    } finally {
+      setPollVotingMessageId(null)
+    }
+  }
+
   return (
     <section
       data-testid="world-cup-community-foundation"
@@ -3747,6 +3834,14 @@ function WorldCupCommunityFoundationPanel({
                   />
                   {message.gif ? <WorldCupGifPreview gif={message.gif} compact /> : null}
                   {message.image ? <WorldCupImagePreview image={message.image} compact /> : null}
+                  {message.poll ? (
+                    <WorldCupPollMessage
+                      poll={message.poll}
+                      messageId={message.id}
+                      isVoting={pollVotingMessageId === message.id}
+                      onVote={(optionId) => void voteWorldCupPoll(message.id, optionId)}
+                    />
+                  ) : null}
                   {message.isPrivate ? (
                     <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-purple-100/70">
                       Private Chimmy thread
@@ -3898,6 +3993,20 @@ function WorldCupCommunityFoundationPanel({
               isUploading={isImageUploading}
               error={imageError}
               onFileSelected={(file) => void uploadWorldCupImage(file)}
+            />
+          ) : composerPanel === "poll" ? (
+            <WorldCupPollComposer
+              question={pollQuestion}
+              options={pollOptions}
+              isCreating={isPollCreating}
+              error={pollError}
+              onQuestionChange={setPollQuestion}
+              onOptionChange={(index, value) => {
+                setPollOptions((current) => current.map((option, optionIndex) => optionIndex === index ? value : option))
+              }}
+              onAddOption={() => setPollOptions((current) => current.length >= 6 ? current : [...current, ""])}
+              onRemoveOption={(index) => setPollOptions((current) => current.length <= 2 ? current : current.filter((_, optionIndex) => optionIndex !== index))}
+              onSubmit={() => void createWorldCupPoll()}
             />
           ) : composerPanel ? <WorldCupComposerFoundationPanel panel={composerPanel} /> : null}
           <p className="mt-2 text-[11px] leading-5 text-white/35">
@@ -4141,6 +4250,140 @@ function WorldCupImageUploadPanel({
           }}
         />
       </label>
+      {error ? (
+        <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function WorldCupPollMessage({
+  poll,
+  messageId,
+  isVoting,
+  onVote,
+}: {
+  poll: WorldCupChatPollAttachment
+  messageId: string
+  isVoting: boolean
+  onVote: (optionId: string) => void
+}) {
+  return (
+    <div className="mt-2 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.06] p-3">
+      <p className="text-xs font-black text-white">{poll.question}</p>
+      <div className="mt-3 space-y-2">
+        {poll.options.map((option) => {
+          const selected = poll.currentUserVote === option.id
+          return (
+            <button
+              key={`${messageId}-${option.id}`}
+              type="button"
+              onClick={() => onVote(option.id)}
+              disabled={isVoting || poll.closed}
+              className={[
+                "w-full overflow-hidden rounded-lg border bg-black/25 text-left text-xs transition disabled:cursor-not-allowed disabled:opacity-65",
+                selected ? "border-cyan-300/70" : "border-white/10 hover:border-cyan-300/35",
+              ].join(" ")}
+            >
+              <span className="relative block">
+                <span
+                  className="absolute inset-y-0 left-0 bg-cyan-300/15"
+                  style={{ width: `${option.percentage}%` }}
+                  aria-hidden
+                />
+                <span className="relative flex items-center justify-between gap-2 px-3 py-2">
+                  <span className="font-bold text-white/75">{option.label}</span>
+                  <span className="text-[10px] font-black text-cyan-100/75">
+                    {option.votes} vote{option.votes === 1 ? "" : "s"} · {option.percentage}%
+                  </span>
+                </span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+      <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-white/35">
+        {poll.totalVotes} total vote{poll.totalVotes === 1 ? "" : "s"}
+        {poll.currentUserVote ? " · Your vote is counted" : ""}
+        {poll.closed ? " · Closed" : ""}
+      </p>
+    </div>
+  )
+}
+
+function WorldCupPollComposer({
+  question,
+  options,
+  isCreating,
+  error,
+  onQuestionChange,
+  onOptionChange,
+  onAddOption,
+  onRemoveOption,
+  onSubmit,
+}: {
+  question: string
+  options: string[]
+  isCreating: boolean
+  error: string | null
+  onQuestionChange: (value: string) => void
+  onOptionChange: (index: number, value: string) => void
+  onAddOption: () => void
+  onRemoveOption: (index: number) => void
+  onSubmit: () => void
+}) {
+  return (
+    <div className="mt-2 rounded-xl border border-dashed border-white/15 bg-black/25 p-3 text-xs leading-5 text-white/50">
+      <p className="font-black text-white/75">Create Poll</p>
+      <p className="mt-1">Create a single-choice poll for your World Cup pool. Each member gets one vote and can change it while open.</p>
+      <input
+        value={question}
+        onChange={(event) => onQuestionChange(event.target.value)}
+        maxLength={180}
+        placeholder="Poll question..."
+        className="mt-3 min-h-10 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-cyan-300/50 focus:outline-none"
+      />
+      <div className="mt-2 space-y-2">
+        {options.map((option, index) => (
+          <div key={index} className="flex gap-2">
+            <input
+              value={option}
+              onChange={(event) => onOptionChange(index, event.target.value)}
+              maxLength={80}
+              placeholder={`Option ${index + 1}`}
+              className="min-h-10 flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-cyan-300/50 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => onRemoveOption(index)}
+              disabled={options.length <= 2}
+              className="rounded-lg border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-white/55 disabled:opacity-35"
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={onAddOption}
+          disabled={options.length >= 6}
+          className="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-[11px] font-black text-white/55 disabled:opacity-35"
+        >
+          Add Option
+        </button>
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={isCreating}
+          className="rounded-lg border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-[11px] font-black text-cyan-100 disabled:opacity-45"
+        >
+          {isCreating ? "Creating..." : "Create Poll"}
+        </button>
+      </div>
       {error ? (
         <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
           {error}

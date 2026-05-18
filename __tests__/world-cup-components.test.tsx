@@ -1198,7 +1198,8 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getByPlaceholderText(/Search Klipy GIFs/i)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: /^Poll$/i }))
-    expect(screen.getByText(/Polls Coming Soon/i)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^Create Poll$/i })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Poll question/i)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: /^Image$/i }))
     expect(screen.getByText(/^Image Upload$/i)).toBeInTheDocument()
@@ -1444,6 +1445,128 @@ describe("WorldCupBracketShell fixture readiness", () => {
       )
     })
     expect(await screen.findAllByAltText(/Uploaded World Cup chat image/i)).toHaveLength(1)
+  })
+
+  it("creates and votes on World Cup chat polls", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes("/chat") && url.includes("notification_preferences")) {
+        return {
+          ok: true,
+          json: async () => ({ preferences: {} }),
+        } as Response
+      }
+      if (url.includes("/chat") && init?.method === "POST") {
+        const payload = JSON.parse(String(init.body ?? "{}"))
+        if (payload.action === "create_poll") {
+          return {
+            ok: true,
+            json: async () => ({
+              ok: true,
+              message: {
+                id: "poll-1",
+                userId: "user-1",
+                authorName: "Owner",
+                authorAvatarUrl: null,
+                body: payload.question,
+                messageType: "poll",
+                poll: {
+                  question: payload.question,
+                  options: payload.options.map((label: string, index: number) => ({
+                    id: `option-${index + 1}`,
+                    label,
+                    votes: 0,
+                    percentage: 0,
+                  })),
+                  currentUserVote: null,
+                  totalVotes: 0,
+                  closed: false,
+                  closedAt: null,
+                  createdByUserId: "user-1",
+                  createdAt: "2026-06-01T12:00:00.000Z",
+                },
+                visibility: "public",
+                targetUserId: null,
+                mentions: [],
+                createdAt: "2026-06-01T12:00:00.000Z",
+                isOwnMessage: true,
+                isPrivate: false,
+              },
+            }),
+          } as Response
+        }
+        if (payload.action === "poll_vote") {
+          return {
+            ok: true,
+            json: async () => ({
+              ok: true,
+              message: {
+                id: "poll-1",
+                userId: "user-1",
+                authorName: "Owner",
+                authorAvatarUrl: null,
+                body: "Who wins Group A?",
+                messageType: "poll",
+                poll: {
+                  question: "Who wins Group A?",
+                  options: [
+                    { id: "option-1", label: "Mexico", votes: 1, percentage: 100 },
+                    { id: "option-2", label: "Uruguay", votes: 0, percentage: 0 },
+                  ],
+                  currentUserVote: payload.optionId,
+                  totalVotes: 1,
+                  closed: false,
+                  closedAt: null,
+                  createdByUserId: "user-1",
+                  createdAt: "2026-06-01T12:00:00.000Z",
+                },
+                visibility: "public",
+                targetUserId: null,
+                mentions: [],
+                createdAt: "2026-06-01T12:00:00.000Z",
+                isOwnMessage: true,
+                isPrivate: false,
+              },
+            }),
+          } as Response
+        }
+      }
+      if (url.includes("/chat")) {
+        return {
+          ok: true,
+          json: async () => ({ messages: [] }),
+        } as Response
+      }
+      return {
+        ok: true,
+        json: async () => makeReadinessResponse(),
+      } as Response
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
+
+    fireEvent.click(await screen.findByRole("button", { name: /^Poll$/i }))
+    fireEvent.change(screen.getByPlaceholderText(/Poll question/i), { target: { value: "Who wins Group A?" } })
+    fireEvent.change(screen.getByPlaceholderText(/Option 1/i), { target: { value: "Mexico" } })
+    fireEvent.change(screen.getByPlaceholderText(/Option 2/i), { target: { value: "Uruguay" } })
+    fireEvent.click(screen.getByRole("button", { name: /^Create Poll$/i }))
+
+    await waitFor(() => expect(screen.getAllByText("Who wins Group A?").length).toBeGreaterThan(0))
+    fireEvent.click(screen.getByRole("button", { name: /Mexico/i }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/brackets/world-cup/c1/chat"),
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"action":"poll_vote"'),
+        })
+      )
+    })
+    expect(await screen.findByText(/1 total vote/i)).toBeInTheDocument()
+    expect(screen.getByText(/Your vote is counted/i)).toBeInTheDocument()
+    expect(screen.getByText(/1 vote · 100%/i)).toBeInTheDocument()
   })
 
   it("shows commissioner affordances unlocked for pool owners and all-access users", async () => {
