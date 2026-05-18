@@ -690,6 +690,60 @@ function makeShellGroupStageView(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function makeReadinessResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    ok: true,
+    checkedAt: "2026-05-17T00:00:00.000Z",
+    readiness: {
+      provider: {
+        name: "apifootball",
+        configured: true,
+        apiKeyPresent: true,
+        leagueId: "1",
+        leagueIdConfigured: true,
+        cronSecretPresent: true,
+        missingEnvVars: [],
+      },
+      origins: {
+        productionSafe: true,
+        values: {
+          nextAuthUrl: "https://www.allfantasy.ai",
+          nextPublicAppUrl: "https://www.allfantasy.ai",
+          appUrl: "https://www.allfantasy.ai",
+          publicSiteUrl: "https://www.allfantasy.ai",
+        },
+      },
+      data: {
+        groupsComplete: true,
+        assignedTeams: 48,
+        incompleteGroups: [],
+        fixtureCount: 72,
+        groupStageFixtureCount: 72,
+        knockoutFixtureCount: 0,
+        knockoutFixturesAvailable: false,
+        venueKnownCount: 0,
+        venueTbdCount: 72,
+        kickoffKnownCount: 72,
+        kickoffMissingCount: 0,
+        standingsRowCount: 48,
+        standingsSynced: true,
+        standingsState: "pre_tournament",
+        thirdPlaceRankingPresent: true,
+        liveSyncRouteAvailable: true,
+        bestThirdMappingConfigured: false,
+        groupStageReady: true,
+        knockoutsReady: false,
+        productionStatus: "partial_ready",
+        warnings: [
+          "knockout_fixtures_pending: provider has not supplied Round of 32 or later fixtures yet.",
+          "best_third_mapping_gated: keep WORLD_CUP_BEST_THIRD_MAPPING_CONFIRMED=false until FIFA mapping is official.",
+        ],
+      },
+      ...overrides,
+    },
+  }
+}
+
 describe("WorldCupBracketShell fixture readiness", () => {
   beforeEach(() => {
     routerMocks.back.mockReset()
@@ -739,7 +793,19 @@ describe("WorldCupBracketShell fixture readiness", () => {
         warnings: [],
       },
     })
-    vi.stubGlobal("fetch", vi.fn())
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url
+      if (url.includes("/api/brackets/world-cup/admin/readiness")) {
+        return {
+          ok: true,
+          json: async () => makeReadinessResponse(),
+        }
+      }
+      return {
+        ok: true,
+        json: async () => ({}),
+      }
+    }))
   })
 
   it("renders Group Stage when initialized from the group-stage tab", async () => {
@@ -884,6 +950,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.queryByRole("button", { name: /Admin\/Test/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/Simulation \/ Test Mode/i)).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Commissioner/i })).not.toBeInTheDocument()
+    expect(screen.queryByTestId("world-cup-readiness-panel")).not.toBeInTheDocument()
   })
 
   it("shows admin and simulation shortcuts for all-access users", async () => {
@@ -894,6 +961,49 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getAllByRole("button", { name: /Admin\/Test/i }).length).toBeGreaterThan(0)
     expect(screen.getAllByRole("button", { name: /Commissioner/i }).length).toBeGreaterThan(0)
     expect(screen.getByText(/Simulation \/ Test Mode/i)).toBeInTheDocument()
+  })
+
+  it("shows World Cup production readiness details to admins without exposing secrets", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: true }) as any} />)
+
+    const panel = await screen.findByTestId("world-cup-readiness-panel")
+    expect(panel).toHaveTextContent("World Cup Production Readiness")
+    expect(panel).toHaveTextContent("API-Football")
+    expect(panel).toHaveTextContent("League ID")
+    expect(panel).toHaveTextContent("1")
+    expect(panel).toHaveTextContent("Data provider configured")
+    expect(panel).toHaveTextContent("API key configured")
+    expect(panel).toHaveTextContent("Cron secret configured")
+    expect(panel).toHaveTextContent("48/48")
+    expect(panel).toHaveTextContent("72/72")
+    expect(panel).toHaveTextContent("0 / pending")
+    expect(panel).toHaveTextContent("0 known / 72 TBD")
+    expect(panel).toHaveTextContent("72 known / 0 missing")
+    expect(panel).toHaveTextContent("48/48")
+    expect(panel).toHaveTextContent("Pre-tournament")
+    expect(panel).toHaveTextContent("Best-third Round of 32 mapping is gated until FIFA confirms the official table.")
+    expect(panel).toHaveTextContent("Partial Ready")
+    expect(panel).not.toHaveTextContent("secret-value")
+  })
+
+  it("refreshes the admin readiness panel from the readiness endpoint", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => makeReadinessResponse(),
+    }))
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: true, isAdmin: false }) as any} />)
+
+    await screen.findByTestId("world-cup-readiness-panel")
+    fireEvent.click(screen.getByRole("button", { name: /Run readiness check/i }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/brackets/world-cup/admin/readiness?"),
+      expect.objectContaining({ cache: "no-store" })
+    )
   })
 
   it("shows submitted state when the entry is already finalized", async () => {

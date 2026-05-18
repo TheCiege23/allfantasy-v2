@@ -7,6 +7,10 @@ export type WorldCupOperationsReadiness = {
     name: string
     configured: boolean
     apiKeyPresent: boolean
+    leagueId: string | null
+    leagueIdConfigured: boolean
+    cronSecretPresent: boolean
+    missingEnvVars: string[]
   }
   origins: {
     productionSafe: boolean
@@ -22,9 +26,23 @@ export type WorldCupOperationsReadiness = {
     assignedTeams: number
     incompleteGroups: Array<{ groupName: string; teamCount: number; missingTeams: number }>
     fixtureCount: number
+    groupStageFixtureCount: number
+    knockoutFixtureCount: number
+    knockoutFixturesAvailable: boolean
+    venueKnownCount: number
+    venueTbdCount: number
+    kickoffKnownCount: number
+    kickoffMissingCount: number
+    standingsRowCount: number
     standingsSynced: boolean
+    standingsState: "unavailable" | "pre_tournament" | "live" | "final"
+    thirdPlaceRankingPresent: boolean
     liveSyncRouteAvailable: boolean
     bestThirdMappingConfigured: boolean
+    groupStageReady: boolean
+    knockoutsReady: boolean
+    productionStatus: "ready" | "partial_ready" | "not_ready"
+    warnings: string[]
   }
 }
 
@@ -35,6 +53,12 @@ function clean(value?: string | null) {
 
 export function getWorldCupProviderOpsStatus(env: NodeJS.ProcessEnv = process.env) {
   const provider = clean(env.WORLD_CUP_DATA_PROVIDER) ?? "mock"
+  const leagueId = provider === "apifootball"
+    ? clean(env.API_FOOTBALL_WORLD_CUP_LEAGUE_ID) ?? clean(env.API_SPORTS_WORLD_CUP_LEAGUE_ID) ?? "1"
+    : null
+  const leagueIdConfigured = provider === "apifootball"
+    ? Boolean(clean(env.API_FOOTBALL_WORLD_CUP_LEAGUE_ID) ?? clean(env.API_SPORTS_WORLD_CUP_LEAGUE_ID))
+    : true
   const apiKeyPresent =
     provider === "apifootball"
       ? Boolean(clean(env.API_SPORTS_KEY) ?? clean(env.API_FOOTBALL_KEY) ?? clean(env.APISPORTS_FOOTBALL_KEY) ?? clean(env.RAPIDAPI_KEY))
@@ -43,12 +67,35 @@ export function getWorldCupProviderOpsStatus(env: NodeJS.ProcessEnv = process.en
         : provider === "manual"
           ? true
           : false
+  const cronSecretPresent = Boolean(clean(env.WORLD_CUP_CRON_SECRET))
+  const missingEnvVars = [
+    provider === "mock" ? "WORLD_CUP_DATA_PROVIDER" : null,
+    provider === "apifootball" && !leagueIdConfigured ? "API_FOOTBALL_WORLD_CUP_LEAGUE_ID" : null,
+    provider === "apifootball" && !apiKeyPresent ? "API_SPORTS_KEY or API_FOOTBALL_KEY" : null,
+    provider === "sportsdata" && !apiKeyPresent ? "SPORTSDATA_API_KEY" : null,
+    !cronSecretPresent ? "WORLD_CUP_CRON_SECRET" : null,
+  ].filter((name): name is string => Boolean(name))
 
   return {
     name: provider,
     configured: provider !== "mock" && apiKeyPresent,
     apiKeyPresent,
+    leagueId,
+    leagueIdConfigured,
+    cronSecretPresent,
+    missingEnvVars,
   }
+}
+
+function resolveStandingsState(input: {
+  standingsRowsCount: number
+  activeStandingsRowsCount: number
+  completedStandingsRowsCount: number
+}): "unavailable" | "pre_tournament" | "live" | "final" {
+  if (input.standingsRowsCount < 48) return "unavailable"
+  if (input.activeStandingsRowsCount === 0) return "pre_tournament"
+  if (input.completedStandingsRowsCount >= 48) return "final"
+  return "live"
 }
 
 export function getWorldCupOriginOpsStatus(env: NodeJS.ProcessEnv = process.env) {
@@ -83,12 +130,51 @@ export async function getWorldCupOperationsReadiness(input: {
   seasonYear?: number
 } = {}): Promise<WorldCupOperationsReadiness> {
   const seasonYear = input.seasonYear ?? 2026
-  const [groupsReadiness, fixtureCount, standingsCount] = await Promise.all([
+  const [
+    groupsReadiness,
+    fixtureCount,
+    groupStageFixtureCount,
+    knockoutFixtureCount,
+    venueKnownCount,
+    kickoffKnownCount,
+    standingsRowsCount,
+    activeStandingsRowsCount,
+    completedStandingsRowsCount,
+    thirdPlaceCandidateRowsCount,
+  ] = await Promise.all([
     getWorldCupOfficialGroupsReadiness({ seasonYear }),
     prisma.worldCupOfficialFixture.count({
       where: {
         seasonYear,
         tournamentKey: "fifa_world_cup",
+      },
+    }),
+    prisma.worldCupOfficialFixture.count({
+      where: {
+        seasonYear,
+        tournamentKey: "fifa_world_cup",
+        stage: { startsWith: "Group Stage" },
+      },
+    }),
+    prisma.worldCupOfficialFixture.count({
+      where: {
+        seasonYear,
+        tournamentKey: "fifa_world_cup",
+        round: { in: ["round_of_32", "round_of_16", "quarterfinal", "semifinal", "third_place", "final"] },
+      },
+    }),
+    prisma.worldCupOfficialFixture.count({
+      where: {
+        seasonYear,
+        tournamentKey: "fifa_world_cup",
+        venueName: { not: null },
+      },
+    }),
+    prisma.worldCupOfficialFixture.count({
+      where: {
+        seasonYear,
+        tournamentKey: "fifa_world_cup",
+        startsAt: { not: null },
       },
     }),
     prisma.worldCupOfficialGroupStanding.count({
@@ -97,7 +183,43 @@ export async function getWorldCupOperationsReadiness(input: {
         actualRank: { not: null },
       },
     }),
+    prisma.worldCupOfficialGroupStanding.count({
+      where: {
+        seasonYear,
+        played: { gt: 0 },
+      },
+    }),
+    prisma.worldCupOfficialGroupStanding.count({
+      where: {
+        seasonYear,
+        played: { gte: 3 },
+      },
+    }),
+    prisma.worldCupOfficialGroupStanding.count({
+      where: {
+        seasonYear,
+        actualRank: 3,
+      },
+    }),
   ])
+
+  const bestThirdMappingConfigured = isWorldCupBestThirdMappingConfigured()
+  const standingsSynced = standingsRowsCount >= 48
+  const groupStageReady = groupsReadiness.ready && groupStageFixtureCount >= 72 && standingsSynced
+  const knockoutsReady = knockoutFixtureCount > 0 && bestThirdMappingConfigured
+  const productionStatus = groupStageReady && knockoutsReady
+    ? "ready"
+    : groupStageReady
+      ? "partial_ready"
+      : "not_ready"
+  const warnings = [
+    knockoutFixtureCount === 0
+      ? "knockout_fixtures_pending: provider has not supplied Round of 32 or later fixtures yet."
+      : null,
+    bestThirdMappingConfigured
+      ? null
+      : "best_third_mapping_gated: keep WORLD_CUP_BEST_THIRD_MAPPING_CONFIRMED=false until FIFA mapping is official.",
+  ].filter((warning): warning is string => Boolean(warning))
 
   return {
     provider: getWorldCupProviderOpsStatus(),
@@ -107,9 +229,27 @@ export async function getWorldCupOperationsReadiness(input: {
       assignedTeams: groupsReadiness.assignedTeams,
       incompleteGroups: groupsReadiness.incompleteGroups,
       fixtureCount,
-      standingsSynced: standingsCount >= 48,
+      groupStageFixtureCount,
+      knockoutFixtureCount,
+      knockoutFixturesAvailable: knockoutFixtureCount > 0,
+      venueKnownCount,
+      venueTbdCount: Math.max(0, fixtureCount - venueKnownCount),
+      kickoffKnownCount,
+      kickoffMissingCount: Math.max(0, fixtureCount - kickoffKnownCount),
+      standingsRowCount: standingsRowsCount,
+      standingsSynced,
+      standingsState: resolveStandingsState({
+        standingsRowsCount,
+        activeStandingsRowsCount,
+        completedStandingsRowsCount,
+      }),
+      thirdPlaceRankingPresent: thirdPlaceCandidateRowsCount >= 12,
       liveSyncRouteAvailable: true,
-      bestThirdMappingConfigured: isWorldCupBestThirdMappingConfigured(),
+      bestThirdMappingConfigured,
+      groupStageReady,
+      knockoutsReady,
+      productionStatus,
+      warnings,
     },
   }
 }

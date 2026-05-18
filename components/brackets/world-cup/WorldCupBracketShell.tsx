@@ -76,6 +76,7 @@ import WorldCupLiveScoreTicker from "./WorldCupLiveScoreTicker"
 import WorldCupBracketSettingsPanel from "./WorldCupBracketSettingsPanel"
 import WorldCupCommissionerBrainPanel from "./WorldCupCommissionerBrainPanel"
 import WorldCupGroupStagePicks from "./WorldCupGroupStagePicks"
+import WorldCupReadinessPanel from "./WorldCupReadinessPanel"
 type Tab = WorldCupBracketTab
 const BASE_TABS: Array<{ id: Tab; label: string; icon: typeof ClipboardList }> = [
   { id: "home", label: "Home", icon: Trophy },
@@ -2078,6 +2079,10 @@ export default function WorldCupBracketShell({
           {(view.isOwner || view.isAdmin) && (
             <>
             <div id="world-cup-admin" className="mx-4 mb-2 h-0" aria-hidden="true" />
+            <WorldCupReadinessPanel
+              challengeId={challengeId}
+              seasonYear={view.challenge.seasonYear}
+            />
             <div className="mx-4 mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-3">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div className="text-[11px] font-bold uppercase tracking-wide text-white/60">Admin Integrity</div>
