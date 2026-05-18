@@ -53,6 +53,10 @@ const routeDirsToDisable = [
   path.join('app', 'api', 'brackets', 'world-cup', '[challengeId]', 'admin'),
   // Auth debug endpoint — admin-only debug tool, no production UI callers.
   path.join('app', 'api', 'auth', 'admin-debug'),
+  // Internal recompute worker endpoint; no production UI callers and costs one route.
+  path.join('app', 'api', 'bracket', 'workers', 'health'),
+  // Diagnostic provider key checker; local/admin debugging only, not a production UI dependency.
+  path.join('app', 'api', 'test-keys'),
 ]
 
 const movedFiles = []
@@ -156,32 +160,6 @@ function writePlaceholder500(placeholderPath, shouldLog = false) {
   }
 }
 
-function writeServer500Placeholder() {
-  const placeholderPath = path.join(nextBuildDir, 'server', 'pages', '500.js')
-  try {
-    fs.mkdirSync(path.dirname(placeholderPath), { recursive: true })
-    if (fs.existsSync(placeholderPath)) {
-      return
-    }
-    fs.writeFileSync(
-      placeholderPath,
-      [
-        '"use strict";',
-        'const React = require("react");',
-        'function Custom500Page(){ return React.createElement("h1", null, "500 - Server Error"); }',
-        'exports.__esModule = true;',
-        'exports.default = Custom500Page;',
-        'exports.config = {};',
-        '',
-      ].join('\n'),
-      'utf8',
-    )
-    console.log('[vercel-next-build] Pre-seeded server/pages/500.js placeholder')
-  } catch (err) {
-    console.warn(`[vercel-next-build] Could not pre-seed server/pages/500.js: ${err.message}`)
-  }
-}
-
 function disableNonProdRoutes() {
   safeRmSync(backupRoot)
 
@@ -260,10 +238,13 @@ function run() {
   }
   disableNonProdRoutes()
 
-  // Workaround: Next.js 14 on Windows + Node >=22 can fail to emit the
-  // pages-router /500 module. Do not pre-create {distDir}/export; Next removes
-  // that directory during build and can throw ENOTEMPTY on Windows.
-  writeServer500Placeholder()
+  // Workaround: Next.js 14 on Windows + Node ≥22 silently fails to write
+  // {distDir}/export/500.html during the pages-router static-render phase,
+  // then throws ENOENT when it tries to rename it to server/pages/500.html.
+  // Pre-seeding a minimal placeholder ensures the rename step always succeeds.
+  // If Next.js generates the real 500.html, it overwrites this before renaming.
+  const placeholder500 = path.join(nextBuildDir, 'export', '500.html')
+  writePlaceholder500(placeholder500, true)
 
   const nextArgs = process.argv.slice(2)
   const nextBin = path.join(repoRoot, 'node_modules', 'next', 'dist', 'bin', 'next')
