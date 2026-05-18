@@ -1201,7 +1201,8 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getByText(/Polls Coming Soon/i)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: /^Image$/i }))
-    expect(screen.getByText(/Image uploads are coming soon with Cloudinary/i)).toBeInTheDocument()
+    expect(screen.getByText(/^Image Upload$/i)).toBeInTheDocument()
+    expect(screen.getByText(/Upload a pool chat image through the World Cup Cloudinary route/i)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: /^Voice$/i }))
     expect(screen.getByText(/Voice notes are coming soon/i)).toBeInTheDocument()
@@ -1355,6 +1356,94 @@ describe("WorldCupBracketShell fixture readiness", () => {
         })
       )
     })
+  })
+
+  it("uploads, previews, and sends World Cup chat image metadata", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes("/notification-preferences")) {
+        return {
+          ok: true,
+          json: async () => ({ preferences: {} }),
+        } as Response
+      }
+      if (url.includes("/upload-image")) {
+        return {
+          ok: true,
+          json: async () => ({
+            image: {
+              assetId: "asset-1",
+              publicId: "allfantasy/world-cup/c1/chat/image",
+              secureUrl: "https://res.cloudinary.com/demo/image/upload/v1/image.png",
+              width: 320,
+              height: 200,
+              format: "png",
+              bytes: 1234,
+              provider: "cloudinary",
+            },
+          }),
+        } as Response
+      }
+      if (url.includes("/chat") && init?.method === "POST") {
+        const payload = JSON.parse(String(init.body ?? "{}"))
+        return {
+          ok: true,
+          json: async () => ({
+            ok: true,
+            message: {
+              id: "chat-image-1",
+              userId: "user-1",
+              authorName: "Owner",
+              authorAvatarUrl: null,
+              body: payload.body,
+              image: payload.image,
+              messageType: "image",
+              visibility: "public",
+              targetUserId: null,
+              mentions: [],
+              createdAt: "2026-06-01T12:05:00.000Z",
+              isOwnMessage: true,
+              isPrivate: false,
+            },
+          }),
+        } as Response
+      }
+      if (url.includes("/chat")) {
+        return {
+          ok: true,
+          json: async () => ({ messages: [] }),
+        } as Response
+      }
+      return {
+        ok: true,
+        json: async () => makeReadinessResponse(),
+      } as Response
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
+
+    fireEvent.click(await screen.findByRole("button", { name: /^Image$/i }))
+    const fileInput = screen.getByLabelText(/Choose Image/i, { selector: "input" })
+    fireEvent.change(fileInput, {
+      target: { files: [new File(["ok"], "goal.png", { type: "image/png" })] },
+    })
+
+    expect(await screen.findByText(/Selected Image/i)).toBeInTheDocument()
+    expect(screen.getByAltText(/Uploaded World Cup chat image/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Message your World Cup pool/i)).toHaveValue("Image")
+    fireEvent.click(screen.getByRole("button", { name: /^Send$/i }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/brackets/world-cup/c1/chat"),
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"provider":"cloudinary"'),
+        })
+      )
+    })
+    expect(await screen.findAllByAltText(/Uploaded World Cup chat image/i)).toHaveLength(1)
   })
 
   it("shows commissioner affordances unlocked for pool owners and all-access users", async () => {

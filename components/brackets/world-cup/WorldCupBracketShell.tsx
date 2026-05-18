@@ -95,6 +95,7 @@ type WorldCupPoolChatMessage = {
   body: string
   messageType: string
   gif?: WorldCupChatGifAttachment | null
+  image?: WorldCupChatImageAttachment | null
   visibility: string
   targetUserId: string | null
   mentions: unknown[]
@@ -110,6 +111,16 @@ type WorldCupChatGifAttachment = {
   width: number
   height: number
   provider: "klipy" | "tenor" | "giphy"
+}
+type WorldCupChatImageAttachment = {
+  assetId: string
+  publicId: string
+  secureUrl: string
+  width: number
+  height: number
+  format: string
+  bytes: number
+  provider: "cloudinary"
 }
 type WorldCupNotificationPreferenceState = {
   poolMuted: boolean
@@ -3535,6 +3546,9 @@ function WorldCupCommunityFoundationPanel({
   const [selectedGif, setSelectedGif] = useState<WorldCupChatGifAttachment | null>(null)
   const [isGifSearching, setIsGifSearching] = useState(false)
   const [gifError, setGifError] = useState<string | null>(null)
+  const [selectedImage, setSelectedImage] = useState<WorldCupChatImageAttachment | null>(null)
+  const [isImageUploading, setIsImageUploading] = useState(false)
+  const [imageError, setImageError] = useState<string | null>(null)
   const richPreviewSegments = useMemo(() => parseWorldCupChatRichText(chatBody), [chatBody])
 
   function insertComposerText(value: string) {
@@ -3587,7 +3601,7 @@ function WorldCupCommunityFoundationPanel({
       const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body, gif: selectedGif ?? undefined }),
+        body: JSON.stringify({ body, gif: selectedGif ?? undefined, image: selectedImage ?? undefined }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -3600,10 +3614,41 @@ function WorldCupCommunityFoundationPanel({
       }
       setChatBody("")
       setSelectedGif(null)
+      setSelectedImage(null)
     } catch (err) {
       setChatError(err instanceof Error ? err.message : "Could not send message")
     } finally {
       setIsSendingChat(false)
+    }
+  }
+
+  async function uploadWorldCupImage(file: File) {
+    setImageError(null)
+    if (!["image/png", "image/jpeg", "image/webp", "image/gif"].includes(file.type)) {
+      setImageError("Only PNG, JPEG, WebP, and GIF images are allowed.")
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setImageError("Image too large (max 5MB).")
+      return
+    }
+    setIsImageUploading(true)
+    try {
+      const formData = new FormData()
+      formData.set("file", file)
+      const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat/upload-image`, {
+        method: "POST",
+        body: formData,
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || "Could not upload image")
+      if (!data.image) throw new Error("Upload response missing image metadata")
+      setSelectedImage(data.image)
+      if (!chatBody.trim()) setChatBody("Image")
+    } catch (err) {
+      setImageError(err instanceof Error ? err.message : "Could not upload image")
+    } finally {
+      setIsImageUploading(false)
     }
   }
 
@@ -3700,6 +3745,7 @@ function WorldCupCommunityFoundationPanel({
                     className="mt-1 whitespace-pre-wrap break-words leading-5 text-white/65"
                   />
                   {message.gif ? <WorldCupGifPreview gif={message.gif} compact /> : null}
+                  {message.image ? <WorldCupImagePreview image={message.image} compact /> : null}
                   {message.isPrivate ? (
                     <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-purple-100/70">
                       Private Chimmy thread
@@ -3817,6 +3863,21 @@ function WorldCupCommunityFoundationPanel({
               <WorldCupGifPreview gif={selectedGif} />
             </div>
           ) : null}
+          {selectedImage ? (
+            <div className="mt-2 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.06] p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-cyan-100/70">Selected Image</p>
+                <button
+                  type="button"
+                  onClick={() => setSelectedImage(null)}
+                  className="rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-[10px] font-bold text-white/50"
+                >
+                  Remove
+                </button>
+              </div>
+              <WorldCupImagePreview image={selectedImage} />
+            </div>
+          ) : null}
           {composerPanel === "gif" ? (
             <WorldCupGifSearchPanel
               query={gifQuery}
@@ -3830,6 +3891,12 @@ function WorldCupCommunityFoundationPanel({
                 setSelectedGif(gif)
                 if (!chatBody.trim()) setChatBody("GIF")
               }}
+            />
+          ) : composerPanel === "image" ? (
+            <WorldCupImageUploadPanel
+              isUploading={isImageUploading}
+              error={imageError}
+              onFileSelected={(file) => void uploadWorldCupImage(file)}
             />
           ) : composerPanel ? <WorldCupComposerFoundationPanel panel={composerPanel} /> : null}
           <p className="mt-2 text-[11px] leading-5 text-white/35">
@@ -4018,6 +4085,66 @@ function WorldCupGifPreview({
         <span className="truncate">{gif.title || "GIF"}</span>
         <span className="uppercase">{gif.provider}</span>
       </p>
+    </div>
+  )
+}
+
+function WorldCupImagePreview({
+  image,
+  compact = false,
+}: {
+  image: WorldCupChatImageAttachment
+  compact?: boolean
+}) {
+  return (
+    <div className={compact ? "mt-2 max-w-64 overflow-hidden rounded-lg border border-white/10 bg-black/25" : "overflow-hidden rounded-lg border border-white/10 bg-black/25"}>
+      <img
+        src={image.secureUrl}
+        alt="Uploaded World Cup chat image"
+        className="max-h-48 w-full object-cover"
+      />
+      <p className="flex items-center justify-between gap-2 px-2 py-1 text-[10px] text-white/35">
+        <span className="truncate">Cloudinary image</span>
+        <span>{image.format.toUpperCase()} · {Math.round(image.bytes / 1024)}KB</span>
+      </p>
+    </div>
+  )
+}
+
+function WorldCupImageUploadPanel({
+  isUploading,
+  error,
+  onFileSelected,
+}: {
+  isUploading: boolean
+  error: string | null
+  onFileSelected: (file: File) => void
+}) {
+  return (
+    <div className="mt-2 rounded-xl border border-dashed border-white/15 bg-black/25 p-3 text-xs leading-5 text-white/50">
+      <p className="font-black text-white/75">Image Upload</p>
+      <p className="mt-1">
+        Upload a pool chat image through the World Cup Cloudinary route. PNG, JPEG, WebP, and GIF are allowed up to 5MB.
+      </p>
+      <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-[11px] font-black text-cyan-100">
+        {isUploading ? "Uploading..." : "Choose Image"}
+        <input
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          className="sr-only"
+          disabled={isUploading}
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            if (file) onFileSelected(file)
+            event.target.value = ""
+          }}
+        />
+      </label>
+      {error ? (
+        <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
+          {error}
+        </p>
+      ) : null}
     </div>
   )
 }

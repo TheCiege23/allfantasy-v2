@@ -35,6 +35,16 @@ const postSchema = z.object({
     height: z.number().int().min(0).max(4000).optional().default(0),
     provider: z.enum(ALLOWED_GIF_PROVIDERS),
   }).optional(),
+  image: z.object({
+    assetId: z.string().trim().min(1).max(160),
+    publicId: z.string().trim().min(1).max(300),
+    secureUrl: z.string().url().max(1000),
+    width: z.number().int().min(0).max(8000).optional().default(0),
+    height: z.number().int().min(0).max(8000).optional().default(0),
+    format: z.string().trim().min(1).max(24),
+    bytes: z.number().int().min(1).max(5 * 1024 * 1024),
+    provider: z.literal("cloudinary"),
+  }).optional(),
 })
 
 type RawWorldCupChatEvent = {
@@ -93,6 +103,33 @@ function gifMetadata(value: unknown) {
   }
 }
 
+function imageMetadata(value: unknown) {
+  const metadata = metadataObject(value)
+  const provider = metadata.provider === "cloudinary" ? "cloudinary" : null
+  const secureUrl = typeof metadata.secureUrl === "string" ? metadata.secureUrl : null
+  const publicId = typeof metadata.publicId === "string" ? metadata.publicId : null
+  if (!provider || !secureUrl || !publicId) return null
+  return {
+    assetId: typeof metadata.assetId === "string" ? metadata.assetId : "",
+    publicId,
+    secureUrl,
+    width: typeof metadata.width === "number" ? metadata.width : 0,
+    height: typeof metadata.height === "number" ? metadata.height : 0,
+    format: typeof metadata.format === "string" ? metadata.format : "",
+    bytes: typeof metadata.bytes === "number" ? metadata.bytes : 0,
+    provider,
+  }
+}
+
+function isAllowedCloudinaryImageUrl(value: string) {
+  try {
+    const url = new URL(value)
+    return url.protocol === "https:" && /(^|\.)res\.cloudinary\.com$/i.test(url.hostname)
+  } catch {
+    return false
+  }
+}
+
 function serializeChatMessage(row: RawWorldCupChatEvent, requesterUserId: string) {
   const metadata = metadataObject(row.metadata)
   const visibility = typeof metadata.visibility === "string" ? metadata.visibility : "public"
@@ -112,6 +149,7 @@ function serializeChatMessage(row: RawWorldCupChatEvent, requesterUserId: string
     body: row.eventBody,
     messageType: metadata.messageType ?? "text",
     gif: gifMetadata(metadata.gif),
+    image: imageMetadata(metadata.image),
     visibility,
     targetUserId,
     mentions: Array.isArray(metadata.mentions) ? metadata.mentions : [],
@@ -234,8 +272,12 @@ export async function POST(
 
   const body = parsed.data.body
   const gif = parsed.data.gif
+  const image = parsed.data.image
   if (gif && (!isAllowedGifUrl(gif.previewUrl) || !isAllowedGifUrl(gif.gifUrl))) {
     return NextResponse.json({ error: "Invalid GIF provider URL" }, { status: 400 })
+  }
+  if (image && !isAllowedCloudinaryImageUrl(image.secureUrl)) {
+    return NextResponse.json({ error: "Invalid Cloudinary image URL" }, { status: 400 })
   }
   const mentions = parseWorldCupPoolMentions(body)
   const hasGlobal = mentions.some((mention) => mention.type === "global")
@@ -291,7 +333,7 @@ export async function POST(
       idempotencyKey: `chat:${auth.user.id}:${randomUUID()}`,
       isAiGenerated: false,
       metadata: {
-        messageType: gif ? "gif" : hasChimmy ? "chimmy_private" : "text",
+        messageType: image ? "image" : gif ? "gif" : hasChimmy ? "chimmy_private" : "text",
         gif: gif ? {
           id: gif.id,
           title: gif.title,
@@ -300,6 +342,16 @@ export async function POST(
           width: gif.width,
           height: gif.height,
           provider: gif.provider,
+        } : null,
+        image: image ? {
+          assetId: image.assetId,
+          publicId: image.publicId,
+          secureUrl: image.secureUrl,
+          width: image.width,
+          height: image.height,
+          format: image.format,
+          bytes: image.bytes,
+          provider: image.provider,
         } : null,
         visibility,
         targetUserId: hasChimmy ? auth.user.id : null,

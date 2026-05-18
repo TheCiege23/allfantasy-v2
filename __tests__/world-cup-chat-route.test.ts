@@ -154,6 +154,55 @@ describe("World Cup pool chat route", () => {
     expect(json.message.gif).toMatchObject(gif)
   })
 
+  it("persists safe Cloudinary image metadata with a chat message", async () => {
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
+
+    const image = {
+      assetId: "asset-1",
+      publicId: "allfantasy/world-cup/c1/chat/image",
+      secureUrl: "https://res.cloudinary.com/demo/image/upload/v1/image.png",
+      width: 320,
+      height: 200,
+      format: "png",
+      bytes: 1234,
+      provider: "cloudinary",
+    }
+    const res = await POST(request({ body: "Image", image }), { params: { challengeId: "c1" } })
+    const json = await res.json()
+
+    expect(res.status).toBe(201)
+    expect(createMessageMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        eventBody: "Image",
+        metadata: expect.objectContaining({
+          messageType: "image",
+          image,
+        }),
+      }),
+    }))
+    expect(json.message.image).toMatchObject(image)
+  })
+
+  it("rejects arbitrary external image URLs", async () => {
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
+
+    const res = await POST(request({
+      body: "bad image",
+      image: {
+        assetId: "asset-1",
+        publicId: "external/image",
+        secureUrl: "https://example.com/image.png",
+        width: 320,
+        height: 200,
+        format: "png",
+        bytes: 1234,
+        provider: "cloudinary",
+      },
+    }), { params: { challengeId: "c1" } })
+
+    expect(res.status).toBe(400)
+  })
+
   it("rejects arbitrary external GIF URLs", async () => {
     const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
 

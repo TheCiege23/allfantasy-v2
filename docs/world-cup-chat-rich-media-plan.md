@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-World Cup pool chat remains text-first. Emoji insertion is local UI only. GIFs, polls, image uploads, and voice notes are visible as disabled foundations until pool-scoped storage, moderation, and metadata rules are fully wired.
+World Cup pool chat supports text, safe rich text, emoji, Klipy-backed GIF metadata, and a Cloudinary-backed image upload foundation. Polls and voice notes remain disabled foundations until pool-scoped storage, moderation, and metadata rules are fully wired.
 
 ## Cloudinary Upload Design
 
@@ -15,10 +15,10 @@ Recommended server-side environment variables:
 
 Do not expose API secrets to the client. The upload route should be server-only:
 
-- `POST /api/brackets/world-cup/[challengeId]/chat/upload`
+- `POST /api/brackets/world-cup/[challengeId]/chat/upload-image`
 - Require authenticated user.
 - Require `WorldCupBracketParticipant` membership or manager/admin access.
-- Accept multipart `file` plus `type=image|voice`.
+- Accept multipart `file` for image upload.
 - Store media in Cloudinary under a World Cup scoped folder such as `world-cup/{challengeId}/{userId}/...`.
 - Persist only metadata and delivery URLs in `WorldCupBracketChatEvent.metadata`; do not store binary data in Neon/Postgres.
 
@@ -27,6 +27,18 @@ Suggested limits:
 - Images: JPEG, PNG, WebP, GIF; max 5 MB.
 - Voice notes: WebM, MP4/M4A, OGG, WAV; max 5 MB and max duration enforced client + server where possible.
 - Reject SVG, HTML, executable formats, and unrecognized MIME types.
+
+Current image message metadata:
+
+- `messageType: "image"`
+- `image.provider: "cloudinary"`
+- `image.assetId`
+- `image.publicId`
+- `image.secureUrl`
+- `image.width`
+- `image.height`
+- `image.format`
+- `image.bytes`
 
 ## Klipy GIF Search Design
 
