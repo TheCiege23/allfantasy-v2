@@ -9,6 +9,7 @@ import {
 } from "react"
 import { KeyRound, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { mapJoinError } from "@/lib/world-cup/worldCupBracketUtils"
 
 export type InvitePreviewPayload = {
   inviteCode: string
@@ -100,7 +101,7 @@ const WorldCupInviteJoinPanel = forwardRef<
     }
     setJoining(true)
     try {
-      const res = await fetch(`/api/brackets/world-cup/invite/${encodeURIComponent(preview.inviteCode)}`, {
+      const res = await fetch(`/api/brackets/world-cup/invite/${encodeURIComponent(preview.inviteCode)}/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -109,7 +110,13 @@ const WorldCupInviteJoinPanel = forwardRef<
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        toast.error((data as { error?: string }).error || "Could not join")
+        const mapped = mapJoinError((data as { error?: string }).error || "")
+        if (mapped === "__login__") {
+          const joinPath = `/join/bracket/${preview.inviteCode}`
+          router.push(`/login?callbackUrl=${encodeURIComponent(joinPath)}&returnTo=${encodeURIComponent(joinPath)}`)
+          return
+        }
+        toast.error(mapped || "Could not join")
         return
       }
       const entryId = (data as { entryId?: string }).entryId

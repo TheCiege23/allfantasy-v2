@@ -761,6 +761,12 @@ export async function joinWorldCupChallengeByInvite(input: {
     },
   })
   if (!i) throw new Error("Invite not found")
+  if (i.expiresAt && new Date(i.expiresAt) <= new Date()) {
+    throw new Error("This invite link has expired.")
+  }
+  if (i.maxUses != null && i.useCount >= i.maxUses) {
+    throw new Error("This invite has reached its maximum number of uses.")
+  }
 
   const name = await displayName(input.user)
   let createdJoinEntryId: string | null = null

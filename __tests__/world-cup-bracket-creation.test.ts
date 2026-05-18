@@ -11,6 +11,7 @@ const prismaMocks = vi.hoisted(() => ({
   entryCreate: vi.fn(),
   entryFindFirst: vi.fn(),
   inviteCreate: vi.fn(),
+  inviteFindUnique: vi.fn(),
   transaction: vi.fn(),
 }))
 
@@ -70,11 +71,14 @@ vi.mock("@/lib/prisma", () => {
       worldCupBracketEntry: {
         findFirst: prismaMocks.entryFindFirst,
       },
+      worldCupBracketInvite: {
+        findUnique: prismaMocks.inviteFindUnique,
+      },
     },
   }
 })
 
-import { createWorldCupBracketChallenge } from "@/lib/world-cup/worldCupBracketService"
+import { createWorldCupBracketChallenge, joinWorldCupChallengeByInvite } from "@/lib/world-cup/worldCupBracketService"
 
 const fixtureSeedResult = {
   success: true,
@@ -100,6 +104,7 @@ describe("World Cup bracket creation fixture readiness", () => {
     prismaMocks.participantCreate.mockResolvedValue({ id: "participant-1" })
     prismaMocks.entryCreate.mockResolvedValue({ id: "entry-1", name: "Bracket 1" })
     prismaMocks.entryFindFirst.mockResolvedValue({ id: "entry-1", name: "Bracket 1" })
+    prismaMocks.inviteFindUnique.mockResolvedValue(null)
     prismaMocks.transaction.mockImplementation(async (callback) =>
       callback({
         worldCupBracketScoringProfile: { create: prismaMocks.scoringCreate },
@@ -155,5 +160,41 @@ describe("World Cup bracket creation fixture readiness", () => {
     expect(prismaMocks.matchCreateMany.mock.calls[0]?.[0]?.data).toHaveLength(31)
     expect(loadTestFixturesMock).not.toHaveBeenCalled()
     expect(prismaMocks.challengeCreate.mock.calls[0]?.[0]?.data.sourcePayload).toBeUndefined()
+  })
+
+  it("blocks direct joins when an invite link is expired", async () => {
+    prismaMocks.inviteFindUnique.mockResolvedValueOnce({
+      id: "invite-1",
+      inviteCode: "INVITE",
+      challengeId: "challenge-1",
+      expiresAt: new Date("2026-01-01T00:00:00.000Z"),
+      maxUses: null,
+      useCount: 0,
+      challenge: { id: "challenge-1", sourcePayload: null, matches: [] },
+    })
+
+    await expect(joinWorldCupChallengeByInvite({
+      inviteCode: "INVITE",
+      user: { id: "user-2", name: "Guest" },
+    })).rejects.toThrow("expired")
+    expect(prismaMocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it("blocks direct joins when an invite has reached max uses", async () => {
+    prismaMocks.inviteFindUnique.mockResolvedValueOnce({
+      id: "invite-1",
+      inviteCode: "INVITE",
+      challengeId: "challenge-1",
+      expiresAt: null,
+      maxUses: 2,
+      useCount: 2,
+      challenge: { id: "challenge-1", sourcePayload: null, matches: [] },
+    })
+
+    await expect(joinWorldCupChallengeByInvite({
+      inviteCode: "INVITE",
+      user: { id: "user-2", name: "Guest" },
+    })).rejects.toThrow("maximum number of uses")
+    expect(prismaMocks.transaction).not.toHaveBeenCalled()
   })
 })

@@ -1679,6 +1679,103 @@ describe("WorldCupBracketShell fixture readiness", () => {
     })
   })
 
+  it("joins from the invite-code panel through the invite join action", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes("/api/brackets/world-cup/invite/INVITE")) {
+        return {
+          ok: true,
+          json: async () => ({
+            invite: {
+              inviteCode: "INVITE",
+              challengeId: "c1",
+              name: "Office Pool",
+              ownerName: "Owner",
+              seasonYear: 2026,
+              participantCount: 3,
+              status: "open",
+              visibility: "private",
+              joinPreview: {
+                requiresJoinPassword: false,
+                joinBlockedReason: null,
+                poolLocked: false,
+                allowLateJoin: true,
+                isFull: false,
+                maxParticipants: 100,
+              },
+            },
+            ok: true,
+            challengeId: "c1",
+            entryId: "entry-1",
+          }),
+        } as Response
+      }
+      return { ok: true, json: async () => ({}) } as Response
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupInviteJoinPanel = (await import("@/components/brackets/world-cup/WorldCupInviteJoinPanel")).default
+    render(<WorldCupInviteJoinPanel />)
+
+    fireEvent.change(screen.getByTestId("world-cup-join-code-input"), { target: { value: "INVITE" } })
+    fireEvent.click(screen.getByTestId("world-cup-join-lookup"))
+    expect(await screen.findByTestId("world-cup-join-preview")).toHaveTextContent("Office Pool")
+
+    fireEvent.click(screen.getByTestId("world-cup-join-submit"))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/brackets/world-cup/invite/INVITE/join",
+        expect.objectContaining({ method: "POST" })
+      )
+      expect(routerMocks.push).toHaveBeenCalledWith(expect.stringContaining("/brackets/world-cup/c1?guided=1"))
+    })
+  })
+
+  it("routes logged-out invite joins through login and back to the invite link", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (!init?.method) {
+        return {
+          ok: true,
+          json: async () => ({
+            invite: {
+              inviteCode: "INVITE",
+              challengeId: "c1",
+              name: "Office Pool",
+              ownerName: "Owner",
+              seasonYear: 2026,
+              participantCount: 3,
+              status: "open",
+              visibility: "private",
+              joinPreview: { requiresJoinPassword: false, joinBlockedReason: null },
+            },
+          }),
+        } as Response
+      }
+      if (url.includes("/api/brackets/world-cup/invite/INVITE/join")) {
+        return {
+          ok: false,
+          json: async () => ({ error: "UNAUTHENTICATED" }),
+        } as Response
+      }
+      return { ok: true, json: async () => ({}) } as Response
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupInviteJoinPanel = (await import("@/components/brackets/world-cup/WorldCupInviteJoinPanel")).default
+    render(<WorldCupInviteJoinPanel />)
+
+    fireEvent.change(screen.getByTestId("world-cup-join-code-input"), { target: { value: "INVITE" } })
+    fireEvent.click(screen.getByTestId("world-cup-join-lookup"))
+    expect(await screen.findByTestId("world-cup-join-preview")).toHaveTextContent("Office Pool")
+    fireEvent.click(screen.getByTestId("world-cup-join-submit"))
+
+    await waitFor(() => {
+      expect(routerMocks.push).toHaveBeenCalledWith(
+        `/login?callbackUrl=${encodeURIComponent("/join/bracket/INVITE")}&returnTo=${encodeURIComponent("/join/bracket/INVITE")}`
+      )
+    })
+  })
+
   it("shows commissioner affordances unlocked for pool owners and all-access users", async () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: true, isAdmin: false, hasBracketBrainAi: false }) as any} defaultTab="home" />)

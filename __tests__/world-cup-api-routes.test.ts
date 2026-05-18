@@ -9,6 +9,8 @@ const syncChallengeMock = vi.hoisted(() => vi.fn())
 const syncAllMock = vi.hoisted(() => vi.fn())
 const userCanManageMock = vi.hoisted(() => vi.fn())
 const recalcMock = vi.hoisted(() => vi.fn())
+const getInviteMock = vi.hoisted(() => vi.fn(async () => null))
+const joinInviteMock = vi.hoisted(() => vi.fn(async () => ({ challengeId: "wc1", participantId: "p1" })))
 const challengeFindUniqueMock = vi.hoisted(() => vi.fn())
 const isAdminEmailAllowedMock = vi.hoisted(() => vi.fn())
 const isAuthorizedRequestMock = vi.hoisted(() => vi.fn())
@@ -31,8 +33,8 @@ vi.mock("@/lib/world-cup", () => ({
   syncAllOpenWorldCupChallenges: syncAllMock,
   userCanManageWorldCupChallenge: userCanManageMock,
   recalculateWorldCupChallenge: recalcMock,
-  getWorldCupChallengeByInvite: vi.fn(async () => null),
-  joinWorldCupChallengeByInvite: vi.fn(async () => ({ challengeId: "wc1", participantId: "p1" })),
+  getWorldCupChallengeByInvite: getInviteMock,
+  joinWorldCupChallengeByInvite: joinInviteMock,
   createAdditionalWorldCupInvite: vi.fn(async () => ({ inviteCode: "INVITE", inviteUrl: "http://localhost:3000/join/bracket/INVITE" })),
   updateWorldCupChallengeSettings: vi.fn(async () => ({})),
 }))
@@ -74,6 +76,8 @@ describe("World Cup API catch-all route", () => {
     syncAllMock.mockResolvedValue([])
     userCanManageMock.mockReturnValue(true)
     recalcMock.mockResolvedValue([])
+    getInviteMock.mockResolvedValue(null)
+    joinInviteMock.mockResolvedValue({ challengeId: "wc1", participantId: "p1", entryId: "e1" })
     challengeFindUniqueMock.mockResolvedValue({ id: "wc1", ownerUserId: "u1", inviteCode: "INVITE", visibility: "public" })
     isAdminEmailAllowedMock.mockReturnValue(true)
     isAuthorizedRequestMock.mockReturnValue(true)
@@ -261,6 +265,58 @@ describe("World Cup API catch-all route", () => {
       makeContext(["nonexistent"])
     )
     expect(res.status).toBe(404)
+  })
+
+  it("previews a World Cup invite without exposing private participant details", async () => {
+    getInviteMock.mockResolvedValueOnce({
+      inviteCode: "INVITE",
+      challengeId: "wc1",
+      name: "Office Pool",
+      ownerName: "Owner",
+      seasonYear: 2026,
+      participantCount: 3,
+      status: "open",
+      visibility: "private",
+      joinPreview: { joinBlockedReason: null, requiresJoinPassword: false },
+    })
+    const { GET } = await import("@/app/api/brackets/world-cup/[[...path]]/route")
+
+    const res = await GET(
+      new Request("http://localhost/api/brackets/world-cup/invite/INVITE"),
+      makeContext(["invite", "INVITE"])
+    )
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.invite).toMatchObject({
+      inviteCode: "INVITE",
+      challengeId: "wc1",
+      name: "Office Pool",
+      visibility: "private",
+    })
+    expect(JSON.stringify(body)).not.toMatch(/email|participants|ownerUserId/i)
+  })
+
+  it("joins a World Cup invite through the consolidated catch-all join action", async () => {
+    const { POST } = await import("@/app/api/brackets/world-cup/[[...path]]/route")
+
+    const res = await POST(
+      new Request("http://localhost/api/brackets/world-cup/invite/INVITE/join", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ joinPassword: "secret" }),
+      }),
+      makeContext(["invite", "INVITE", "join"])
+    )
+
+    expect(res.status).toBe(200)
+    expect(joinInviteMock).toHaveBeenCalledWith({
+      inviteCode: "INVITE",
+      user: expect.objectContaining({ id: "u1" }),
+      joinPassword: "secret",
+    })
+    const body = await res.json()
+    expect(body).toMatchObject({ ok: true, challengeId: "wc1", participantId: "p1" })
   })
 })
 

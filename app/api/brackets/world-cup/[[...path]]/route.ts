@@ -202,7 +202,7 @@ async function getInvite(inviteCode: string) {
   return NextResponse.json({ invite })
 }
 
-async function joinInvite(inviteCode: string) {
+async function joinInvite(request: Request, inviteCode: string) {
   const auth = await requireWorldCupApiUser()
   if (!auth.ok) return auth.response
 
@@ -211,10 +211,17 @@ async function joinInvite(inviteCode: string) {
     return NextResponse.json({ error: "Invalid invite code" }, { status: 400 })
   }
 
+  const body = await request.json().catch(() => ({}))
+  const joinPassword =
+    typeof (body as { joinPassword?: unknown }).joinPassword === "string"
+      ? (body as { joinPassword: string }).joinPassword
+      : undefined
+
   try {
     const result = await joinWorldCupChallengeByInvite({
       inviteCode: params.data.inviteCode,
       user: auth.user,
+      joinPassword,
     })
     return NextResponse.json({ ok: true, ...result })
   } catch (error) {
@@ -574,7 +581,7 @@ export async function POST(request: Request, context: WorldCupRouteContext) {
 
   if (path.length === 1 && path[0] === "create") return createChallenge(request)
   if (path.length === 1 && path[0] === "sync") return syncChallenges(request)
-  if (path.length === 3 && path[0] === "invite" && path[2] === "join") return joinInvite(path[1])
+  if (path.length === 3 && path[0] === "invite" && path[2] === "join") return joinInvite(request, path[1])
   if (path.length === 2 && path[1] === "join") return joinChallenge(path[0])
   if (path.length === 2 && path[1] === "picks") return savePicks(request, path[0])
   if (path.length === 2 && path[1] === "invite") return createInvite(request, path[0])
