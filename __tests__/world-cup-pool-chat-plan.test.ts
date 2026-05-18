@@ -45,6 +45,13 @@ describe("World Cup pool chat plan", () => {
     expect(shouldKeepWorldCupMentionPrivate(chimmy!)).toBe(true)
   })
 
+  it("detects mentions inside safe chat formatting syntax", () => {
+    const mentions = parseWorldCupPoolMentions("**@alice** _@bob_ ~~@all~~ [color=af-blue]@global[/color]")
+
+    expect(mentions.map((mention) => mention.type)).toEqual(["username", "username", "all", "global"])
+    expect(mentions.map((mention) => mention.value)).toEqual(["alice", "bob", "all", "global"])
+  })
+
   it("documents safe capability status for phased implementation", () => {
     const capabilities = getWorldCupPoolChatCapabilities()
 

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowUp, BarChart3, Bell, Bot, Check, ChevronLeft, ClipboardCheck, ClipboardList, Copy, Edit3, Film, ImageIcon, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Mic, Pin, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Smile, Sparkles, Trophy, Users, X } from "lucide-react"
+import { ArrowLeft, ArrowUp, BarChart3, Baseline, Bell, Bold, Bot, Check, ChevronLeft, ClipboardCheck, ClipboardList, Copy, Edit3, Film, ImageIcon, Italic, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Mic, Pin, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Smile, Sparkles, Strikethrough, Trophy, Underline, Users, X } from "lucide-react"
 import { toast } from "sonner"
 import type { WorldCupAiBuilderProgress, WorldCupAiStrategy, WorldCupChallengeView, WorldCupMatchView, WorldCupPickView } from "@/lib/world-cup/types"
 import { isWorldCupChallengeLocked } from "@/lib/world-cup/worldCupBracketBuilder"
@@ -60,6 +60,13 @@ import {
 import { calculateWorldCupBracketHealth, getWorldCupPickRecommendation } from "@/lib/world-cup/worldCupAiInsights"
 import { getBrowserWorldCupInviteUrl } from "@/lib/world-cup/worldCupBracketUtils"
 import { resolveWorldCupEntitlementSummary } from "@/lib/world-cup/worldCupEntitlements"
+import {
+  parseWorldCupChatRichText,
+  sanitizeWorldCupChatMessage,
+  type WorldCupChatColor,
+  type WorldCupChatFont,
+  type WorldCupChatRichTextSegment,
+} from "@/lib/world-cup/worldCupChatRichText"
 import { worldCupTabToQueryValue, type WorldCupBracketTab } from "@/lib/world-cup/worldCupTabs"
 import WorldCupBracketBoard from "./WorldCupBracketBoard"
 import WorldCupBracketHealthCard from "./WorldCupBracketHealthCard"
@@ -109,6 +116,20 @@ type WorldCupNotificationPreferenceState = {
   chimmyRepliesEnabled: boolean
 }
 type WorldCupComposerPanel = "gif" | "poll" | "image" | "voice" | null
+const WORLD_CUP_CHAT_COLOR_OPTIONS: Array<{ value: WorldCupChatColor; label: string }> = [
+  { value: "default", label: "Default" },
+  { value: "af-blue", label: "AF Blue" },
+  { value: "red", label: "Red" },
+  { value: "amber", label: "Amber" },
+  { value: "green", label: "Green" },
+  { value: "purple", label: "Purple" },
+]
+const WORLD_CUP_CHAT_FONT_OPTIONS: Array<{ value: WorldCupChatFont; label: string }> = [
+  { value: "default", label: "Default" },
+  { value: "clean", label: "Clean" },
+  { value: "sport", label: "Sport" },
+  { value: "mono", label: "Mono" },
+]
 const BASE_TABS: Array<{ id: Tab; label: string; icon: typeof ClipboardList }> = [
   { id: "home", label: "Home", icon: Trophy },
   { id: "group-stage", label: "Group Stage", icon: ListOrdered },
@@ -3499,9 +3520,24 @@ function WorldCupCommunityFoundationPanel({
   const [isSendingChat, setIsSendingChat] = useState(false)
   const [chatError, setChatError] = useState<string | null>(null)
   const [composerPanel, setComposerPanel] = useState<WorldCupComposerPanel>(null)
+  const richPreviewSegments = useMemo(() => parseWorldCupChatRichText(chatBody), [chatBody])
 
   function insertComposerText(value: string) {
     setChatBody((current) => `${current}${value}`)
+  }
+
+  function wrapComposerText(open: string, close = open) {
+    setChatBody((current) => `${current}${open}text${close}`)
+  }
+
+  function applyComposerColor(color: WorldCupChatColor) {
+    if (color === "default") return
+    wrapComposerText(`[color=${color}]`, "[/color]")
+  }
+
+  function applyComposerFont(font: WorldCupChatFont) {
+    if (font === "default") return
+    wrapComposerText(`[font=${font}]`, "[/font]")
   }
 
   const loadChat = useCallback(async () => {
@@ -3619,7 +3655,10 @@ function WorldCupCommunityFoundationPanel({
                       {new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
                     </span>
                   </div>
-                  <p className="mt-1 whitespace-pre-wrap break-words leading-5 text-white/65">{message.body}</p>
+                  <WorldCupChatRichTextRenderer
+                    text={message.body}
+                    className="mt-1 whitespace-pre-wrap break-words leading-5 text-white/65"
+                  />
                   {message.isPrivate ? (
                     <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-purple-100/70">
                       Private Chimmy thread
@@ -3658,6 +3697,47 @@ function WorldCupCommunityFoundationPanel({
             </button>
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
+            <ComposerFormatButton icon={Bold} label="Bold" onClick={() => wrapComposerText("**")} />
+            <ComposerFormatButton icon={Italic} label="Italic" onClick={() => wrapComposerText("_")} />
+            <ComposerFormatButton icon={Underline} label="Underline" onClick={() => wrapComposerText("__")} />
+            <ComposerFormatButton icon={Strikethrough} label="Strike" onClick={() => wrapComposerText("~~")} />
+            <label className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2 text-[11px] font-bold text-white/55">
+              <Baseline className="h-3.5 w-3.5" aria-hidden />
+              <span className="sr-only">Chat color</span>
+              <select
+                aria-label="Chat color"
+                defaultValue="default"
+                onChange={(event) => {
+                  applyComposerColor(event.target.value as WorldCupChatColor)
+                  event.target.value = "default"
+                }}
+                className="bg-transparent text-[11px] text-white/70 focus:outline-none"
+              >
+                {WORLD_CUP_CHAT_COLOR_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value} className="bg-slate-950 text-white">
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2 text-[11px] font-bold text-white/55">
+              <span>Font</span>
+              <select
+                aria-label="Chat font"
+                defaultValue="default"
+                onChange={(event) => {
+                  applyComposerFont(event.target.value as WorldCupChatFont)
+                  event.target.value = "default"
+                }}
+                className="bg-transparent text-[11px] text-white/70 focus:outline-none"
+              >
+                {WORLD_CUP_CHAT_FONT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value} className="bg-slate-950 text-white">
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             {["🔥", "😂", "👏", "🏆", "⚽", "👀"].map((emoji) => (
               <button
                 key={emoji}
@@ -3675,6 +3755,12 @@ function WorldCupCommunityFoundationPanel({
             <ComposerUtilityButton icon={ImageIcon} label="Image" onClick={() => setComposerPanel(composerPanel === "image" ? null : "image")} />
             <ComposerUtilityButton icon={Mic} label="Voice" onClick={() => setComposerPanel(composerPanel === "voice" ? null : "voice")} />
           </div>
+          {sanitizeWorldCupChatMessage(chatBody).trim() ? (
+            <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-xs">
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-white/35">Formatting Preview</p>
+              <WorldCupChatRichTextSegments segments={richPreviewSegments} className="whitespace-pre-wrap break-words leading-5 text-white/65" />
+            </div>
+          ) : null}
           {composerPanel ? <WorldCupComposerFoundationPanel panel={composerPanel} /> : null}
           <p className="mt-2 text-[11px] leading-5 text-white/35">
             Mentions: @username notifies a pool member, @all is commissioner-only, @chimmy stays private and {aiUnlocked ? "AI-gated, and @global is blocked until broadcast fanout ships." : "requires AI/Pro, and @global is blocked until broadcast fanout ships."}
@@ -3772,6 +3858,76 @@ function ComposerUtilityButton({
       {label}
     </button>
   )
+}
+
+function ComposerFormatButton({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: typeof Bold
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2 text-[11px] font-black text-white/65 hover:border-cyan-300/30 hover:text-cyan-100"
+      aria-label={label}
+    >
+      <Icon className="h-3.5 w-3.5" aria-hidden />
+      {label}
+    </button>
+  )
+}
+
+function getWorldCupRichTextClassName(segment: WorldCupChatRichTextSegment) {
+  const colorClass: Record<WorldCupChatColor, string> = {
+    default: "",
+    "af-blue": "text-cyan-200",
+    red: "text-rose-200",
+    amber: "text-amber-200",
+    green: "text-emerald-200",
+    purple: "text-purple-200",
+  }
+  const fontClass: Record<WorldCupChatFont, string> = {
+    default: "",
+    clean: "font-sans tracking-normal",
+    sport: "font-black uppercase tracking-wide",
+    mono: "font-mono",
+  }
+
+  return [
+    segment.marks.bold ? "font-black" : "",
+    segment.marks.italic ? "italic" : "",
+    segment.marks.underline ? "underline underline-offset-2" : "",
+    segment.marks.strike ? "line-through" : "",
+    colorClass[segment.marks.color ?? "default"],
+    fontClass[segment.marks.font ?? "default"],
+  ].filter(Boolean).join(" ")
+}
+
+function WorldCupChatRichTextSegments({
+  segments,
+  className,
+}: {
+  segments: WorldCupChatRichTextSegment[]
+  className?: string
+}) {
+  return (
+    <p className={className}>
+      {segments.map((segment, index) => (
+        <span key={`${segment.text}-${index}`} className={getWorldCupRichTextClassName(segment)}>
+          {segment.text}
+        </span>
+      ))}
+    </p>
+  )
+}
+
+function WorldCupChatRichTextRenderer({ text, className }: { text: string; className?: string }) {
+  return <WorldCupChatRichTextSegments segments={parseWorldCupChatRichText(text)} className={className} />
 }
 
 function WorldCupComposerFoundationPanel({ panel }: { panel: Exclude<WorldCupComposerPanel, null> }) {

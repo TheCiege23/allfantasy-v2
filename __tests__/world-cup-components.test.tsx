@@ -1054,6 +1054,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
         } as Response
       }
       if (url.includes("/chat") && init?.method === "POST") {
+        const payload = JSON.parse(String(init.body ?? "{}"))
         return {
           ok: true,
           json: async () => ({
@@ -1063,7 +1064,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
               userId: "user-1",
               authorName: "Owner",
               authorAvatarUrl: null,
-              body: "Let us go",
+              body: payload.body ?? "Let us go",
               messageType: "text",
               visibility: "public",
               targetUserId: null,
@@ -1111,14 +1112,15 @@ describe("WorldCupBracketShell fixture readiness", () => {
     })
     fireEvent.click(screen.getByRole("button", { name: /^Send$/i }))
 
-    expect(await screen.findByText("Let us go")).toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/api/brackets/world-cup/c1/chat"),
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ body: "Let us go" }),
-      })
-    )
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/brackets/world-cup/c1/chat"),
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ body: "Let us go" }),
+        })
+      )
+    })
   })
 
   it("updates World Cup pool notification preferences for the current user", async () => {
@@ -1206,6 +1208,67 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getByText(/@username notifies a pool member/i)).toBeInTheDocument()
     expect(screen.getAllByText(/@all is commissioner-only/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/@global is blocked/i).length).toBeGreaterThan(0)
+  })
+
+  it("supports safe World Cup chat formatting controls and preview", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes("/notification-preferences")) {
+        return {
+          ok: true,
+          json: async () => ({ preferences: {} }),
+        } as Response
+      }
+      if (url.includes("/chat")) {
+        return {
+          ok: true,
+          json: async () => ({
+            messages: [{
+              id: "chat-rich-1",
+              userId: "user-2",
+              authorName: "Friend",
+              authorAvatarUrl: null,
+              body: "**Bold** _Italic_ __Under__ ~~Strike~~ [color=af-blue]Blue[/color] [font=mono]Mono[/font] <script>alert(1)</script>",
+              messageType: "text",
+              visibility: "public",
+              targetUserId: null,
+              mentions: [],
+              createdAt: "2026-06-01T12:00:00.000Z",
+              isOwnMessage: false,
+              isPrivate: false,
+            }],
+          }),
+        } as Response
+      }
+      return {
+        ok: true,
+        json: async () => makeReadinessResponse(),
+      } as Response
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
+
+    expect(await screen.findByText("Bold", { selector: "span" })).toHaveClass("font-black")
+    expect(screen.getByText("Italic", { selector: "span" })).toHaveClass("italic")
+    expect(screen.getByText("Under", { selector: "span" })).toHaveClass("underline")
+    expect(screen.getByText("Strike", { selector: "span" })).toHaveClass("line-through")
+    expect(screen.getByText("Blue", { selector: "span" })).toHaveClass("text-cyan-200")
+    expect(screen.getByText("Mono", { selector: "span" })).toHaveClass("font-mono")
+    expect(document.querySelector("script")).toBeNull()
+
+    const input = screen.getByPlaceholderText(/Message your World Cup pool/i)
+    fireEvent.click(screen.getByRole("button", { name: /^Bold$/i }))
+    expect(input).toHaveValue("**text**")
+    expect(screen.getByText(/Formatting Preview/i)).toBeInTheDocument()
+
+    fireEvent.change(input, { target: { value: "" } })
+    fireEvent.change(screen.getByRole("combobox", { name: /Chat color/i }), { target: { value: "af-blue" } })
+    expect(input).toHaveValue("[color=af-blue]text[/color]")
+
+    fireEvent.change(input, { target: { value: "" } })
+    fireEvent.change(screen.getByRole("combobox", { name: /Chat font/i }), { target: { value: "mono" } })
+    expect(input).toHaveValue("[font=mono]text[/font]")
   })
 
   it("shows commissioner affordances unlocked for pool owners and all-access users", async () => {

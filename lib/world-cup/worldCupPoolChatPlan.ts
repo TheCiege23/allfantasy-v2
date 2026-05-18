@@ -22,7 +22,7 @@ export const WORLD_CUP_POOL_CHAT_EVENT_TYPES = {
   CHIMMY_PRIVATE: "world_cup.pool_chat_chimmy_private",
 } as const
 
-const MENTION_PATTERN = /(^|\s)@([a-zA-Z0-9_.-]{1,32})\b/g
+const MENTION_PATTERN = /(^|[\s*_~\]])@([a-zA-Z0-9](?:(?:[a-zA-Z0-9.-]|_(?=[a-zA-Z0-9])){0,30}[a-zA-Z0-9])?)(?=$|[^a-zA-Z0-9.-]|_(?![a-zA-Z0-9]))/g
 
 export function parseWorldCupPoolMentions(message: string): WorldCupPoolMention[] {
   const mentions: WorldCupPoolMention[] = []
