@@ -10,10 +10,19 @@ import type { SurvivorAIDeterministicContext } from './SurvivorAIContext'
 import type { SurvivorAIType } from './SurvivorAIContext'
 import { buildSurvivorAIPrompt } from './SurvivorAIPrompts'
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-})
+let openai: OpenAI | null = null
+
+function getOpenAIClient(): OpenAI | null {
+  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY
+  if (!apiKey) return null
+  if (!openai) {
+    openai = new OpenAI({
+      apiKey,
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+    })
+  }
+  return openai
+}
 
 export interface SurvivorAIResult {
   narrative: string
@@ -134,9 +143,18 @@ export async function generateSurvivorAI(
   type: SurvivorAIType,
   userId?: string | null
 ): Promise<SurvivorAIResult> {
+  const client = getOpenAIClient()
+  if (!client) {
+    return {
+      narrative:
+        'AI survivor strategy is unavailable because OpenAI is not configured. Use the deterministic tribe, council, challenge, idol, exile, and jury data shown above.',
+      model: 'deterministic-fallback',
+    }
+  }
+
   const { system, user } = buildSurvivorAIPrompt(ctx, type)
   const userContent = userId ? await withOfficialTimeUserMessage(userId, user) : user
-  const completion = await openai.chat.completions.create({
+  const completion = await client.chat.completions.create({
     model: 'gpt-4o',
     messages: [
       { role: 'system', content: system },

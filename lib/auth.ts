@@ -344,8 +344,26 @@ if (facebookClientId && facebookClientSecret) {
           url.searchParams.set("fields", "id,name,email,picture");
           url.searchParams.set("access_token", tokens.access_token ?? "");
           const res = await fetch(url.toString());
-          if (!res.ok) throw new Error(`Facebook Graph API error: ${res.status}`);
-          return res.json() as Promise<Record<string, unknown>>;
+          const data = (await res.json()) as Record<string, unknown>;
+          // Facebook Graph API can return HTTP 200 with an error body
+          // (e.g. OAuthException code 190/466 — token was invalidated).
+          // A plain `!res.ok` check misses this; inspect the body too.
+          const fbError = (data as {
+            error?: { message?: string; code?: number; error_subcode?: number }
+          }).error;
+          if (!res.ok || fbError) {
+            const msg = fbError
+              ? `Facebook Graph API OAuthException ${fbError.code ?? "?"}/${fbError.error_subcode ?? "?"}`
+              : `Facebook Graph API HTTP ${res.status}`;
+            console.error("[facebook-userinfo] error:", msg);
+            throw new Error(msg);
+          }
+          console.log("[facebook-userinfo]", {
+            hasId: !!data.id,
+            hasEmail: !!data.email,
+            hasPicture: !!data.picture,
+          });
+          return data;
         },
       },
       // Safe profile mapper — picture is absent if user denied the permission.

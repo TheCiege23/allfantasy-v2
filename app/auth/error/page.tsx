@@ -18,6 +18,8 @@ const ERROR_MESSAGES: Record<string, string> = {
     "We couldn't connect that social sign-in to your AllFantasy account. Please try again or sign in with your email first.",
   FACEBOOK_EMAIL_MISSING:
     "Facebook did not share an email address. Please confirm your Facebook account has a verified email and allow the email permission, or sign in with your username/email and connect Facebook later.",
+  FACEBOOK_TOKEN_INVALID:
+    "Facebook authorization failed — your session may have been revoked or expired. Please try signing in with Facebook again. If this keeps happening, remove AllFantasy from your Facebook app settings and re-authorize.",
   Default: "An error occurred during sign in.",
 }
 
@@ -38,7 +40,7 @@ function ErrorContent() {
             <TriangleAlert className="h-7 w-7 text-red-400" />
           </div>
           <h1 className="mt-5 text-2xl font-semibold text-white">Sign-in Error</h1>
-          <p className="mt-3 text-sm leading-6 text-white/60">{message}</p>
+          <p className="mt-3 text-sm leading-6 text-white/80">{message}</p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <Link
               href="/login"
