@@ -90,6 +90,32 @@ describe("WorldCupGroupStagePicks", () => {
     await waitFor(() => expect(onCompletionChanged).toHaveBeenCalledTimes(1))
   })
 
+  it("shows locked AI CTA near Save Group for free users without opening detailed insights", async () => {
+    const WorldCupGroupStagePicks = (await import("@/components/brackets/world-cup/WorldCupGroupStagePicks")).default
+    render(<WorldCupGroupStagePicks challengeId="c1" entryId="entry-1" aiInsightsUnlocked={false} />)
+
+    const group = await screen.findByTestId("world-cup-group-A")
+    expect(within(group).getByText("AI Insights")).toBeInTheDocument()
+    expect(within(group).getByText("Locked")).toBeInTheDocument()
+    expect(within(group).getByText(/No AI is called while this is locked/i)).toBeInTheDocument()
+    expect(within(group).queryByText(/Safest group winner/i)).toBeNull()
+    expect(within(group).getByText("AI Insights").compareDocumentPosition(within(group).getByRole("button", { name: /Saved/i }))).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  it("opens deterministic group AI insights for AI/Pro users without betting copy", async () => {
+    const WorldCupGroupStagePicks = (await import("@/components/brackets/world-cup/WorldCupGroupStagePicks")).default
+    render(<WorldCupGroupStagePicks challengeId="c1" entryId="entry-1" aiInsightsUnlocked />)
+
+    const group = await screen.findByTestId("world-cup-group-A")
+    fireEvent.click(within(group).getByText("AI Insights"))
+
+    expect(within(group).getByText(/Safest group winner/i)).toBeInTheDocument()
+    expect(within(group).getByText(/Highest-upside pick/i)).toBeInTheDocument()
+    expect(within(group).getByText(/Prediction and scoring complexity only/i)).toBeInTheDocument()
+    expect(group.textContent?.toLowerCase()).not.toContain("dfs advice")
+    expect(group.textContent?.toLowerCase()).not.toContain("wagering advice")
+  })
+
   it("ignores rapid duplicate group save clicks while the first request is in flight", async () => {
     let resolveSave: (value: ReturnType<typeof makeGroupStageView>) => void = () => {}
     clientApiMocks.saveGroupRanking.mockReturnValue(new Promise((resolve) => {
@@ -252,5 +278,15 @@ describe("WorldCupGroupStagePicks", () => {
     expect(clientApiMocks.saveThirdPlaceAdvancers).toHaveBeenCalledTimes(1)
     resolveSave(completeView)
     await waitFor(() => expect(screen.getByText(/Third-place picks saved/i)).toBeInTheDocument())
+  })
+
+  it("shows third-place Ask Chimmy CTA with mobile-friendly full width save controls", async () => {
+    const WorldCupGroupStagePicks = (await import("@/components/brackets/world-cup/WorldCupGroupStagePicks")).default
+    render(<WorldCupGroupStagePicks challengeId="c1" entryId="entry-1" aiInsightsUnlocked={false} />)
+
+    await screen.findByTestId("world-cup-third-place-ai-insight")
+    expect(screen.getByText("Ask Chimmy")).toBeInTheDocument()
+    expect(screen.getByText(/AI\/Pro unlocks third-place selection insights/i)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Save Third-Place Advancers/i }).className).toContain("w-full")
   })
 })

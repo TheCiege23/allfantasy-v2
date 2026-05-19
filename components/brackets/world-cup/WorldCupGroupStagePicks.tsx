@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Check, Loader2 } from "lucide-react"
+import { Check, Loader2, Sparkles } from "lucide-react"
 import {
   fetchWorldCupGroupStageView,
   saveWorldCupGroupRankingClient,
@@ -15,6 +15,7 @@ type Props = {
   entryId: string
   onCompletionChanged?: () => void
   onDirtyChange?: (hasUnsavedChanges: boolean) => void
+  aiInsightsUnlocked?: boolean
 }
 
 type GroupSaveState = "idle" | "dirty" | "saving" | "saved" | "error"
@@ -104,7 +105,88 @@ function savedThirdPlaceTeamIds(view: WorldCupGroupStageViewClient): string[] {
     .map((pick) => pick.teamId)
 }
 
-export default function WorldCupGroupStagePicks({ challengeId, entryId, onCompletionChanged, onDirtyChange }: Props) {
+function GroupAiInsightPanel({
+  groupName,
+  order,
+  teams,
+  unlocked,
+}: {
+  groupName: string
+  order: string[]
+  teams: WorldCupGroupStageTeamClient[]
+  unlocked: boolean
+}) {
+  const teamById = new Map(teams.map((team) => [team.teamId, team]))
+  const orderedTeams = order.map((teamId) => teamById.get(teamId)).filter((team): team is WorldCupGroupStageTeamClient => Boolean(team))
+  const safest = orderedTeams[0]?.name ?? "Rank the group first"
+  const upside = orderedTeams[1]?.name ?? orderedTeams[0]?.name ?? "Add a runner-up"
+  const chaos = orderedTeams[2]?.name ?? orderedTeams.at(-1)?.name ?? "No third-place pick yet"
+  return (
+    <details
+      data-testid={`world-cup-group-ai-insight-${groupName.replace(/\s+/g, "-").toLowerCase()}`}
+      className="mt-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3 text-xs text-cyan-50"
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-black">
+        <span className="inline-flex items-center gap-1.5">
+          <Sparkles className="h-3.5 w-3.5" />
+          AI Insights
+        </span>
+        <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] uppercase tracking-wide">
+          {unlocked ? "Open" : "Locked"}
+        </span>
+      </summary>
+      {unlocked ? (
+        <div className="mt-3 space-y-2 leading-5 text-cyan-50/85">
+          <p><span className="font-black text-white">Safest group winner:</span> {safest} based on your current top slot.</p>
+          <p><span className="font-black text-white">Highest-upside pick:</span> {upside} as the pressure pick if you want a less chalk-heavy bracket.</p>
+          <p><span className="font-black text-white">Chaos/upset risk:</span> {chaos} is the volatility marker from your current third-place slot.</p>
+          <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/55">
+            Prediction and scoring complexity only. This is not DFS, betting, wagering, odds, point spread, or over/under advice.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-3 rounded-lg border border-white/10 bg-black/25 px-2 py-2 text-[11px] leading-5 text-white/60" hidden>
+          Upgrade to AI/Pro to open deterministic World Cup insights. No AI is called while this is locked.
+        </div>
+      )}
+    </details>
+  )
+}
+
+function ThirdPlaceAiInsightPanel({
+  selectedCount,
+  missingCount,
+  unlocked,
+}: {
+  selectedCount: number
+  missingCount: number
+  unlocked: boolean
+}) {
+  return (
+    <details data-testid="world-cup-third-place-ai-insight" className="mt-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3 text-xs text-cyan-50">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-black">
+        <span className="inline-flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" /> Ask Chimmy</span>
+        <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] uppercase tracking-wide">{unlocked ? "Open" : "Locked"}</span>
+      </summary>
+      {unlocked ? (
+        <div className="mt-3 space-y-2 leading-5 text-cyan-50/85">
+          <p><span className="font-black text-white">Current selected 8:</span> {selectedCount}/8 selected, {missingCount} remaining.</p>
+          <p><span className="font-black text-white">Risk check:</span> Avoid overloading weaker groups unless you want a contrarian bracket shape.</p>
+          <p><span className="font-black text-white">Contrarian reminder:</span> One or two volatile third-place calls can separate your bracket without turning every slot into chaos.</p>
+          <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/55">
+            Prediction and scoring complexity only. This is not DFS, betting, wagering, odds, point spread, or over/under advice.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-3 rounded-lg border border-white/10 bg-black/25 px-2 py-2 text-[11px] leading-5 text-white/60" hidden>
+          AI/Pro unlocks third-place selection insights. Locked users only see this CTA and no AI request is made.
+        </div>
+      )}
+    </details>
+  )
+}
+
+export default function WorldCupGroupStagePicks({ challengeId, entryId, onCompletionChanged, onDirtyChange, aiInsightsUnlocked = false }: Props) {
   const [view, setView] = useState<WorldCupGroupStageViewClient | null>(null)
   const [localOrders, setLocalOrders] = useState<Record<string, string[]>>({})
   const [saveStates, setSaveStates] = useState<Record<string, GroupSaveState>>({})
@@ -384,6 +466,12 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                   Saved. Review uses this group order.
                 </p>
               ) : null}
+              <GroupAiInsightPanel
+                groupName={group.displayName}
+                order={order}
+                teams={group.teams}
+                unlocked={aiInsightsUnlocked}
+              />
               <button
                 type="button"
                 onClick={() => void saveGroup(group.id)}
@@ -435,6 +523,11 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
             Third-place picks saved. Review uses these selections.
           </p>
         ) : null}
+        <ThirdPlaceAiInsightPanel
+          selectedCount={thirdPlaceSelection.size}
+          missingCount={Math.max(0, 8 - thirdPlaceSelection.size)}
+          unlocked={aiInsightsUnlocked}
+        />
 
         <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {thirdPlaceCandidates.map((candidate) => {

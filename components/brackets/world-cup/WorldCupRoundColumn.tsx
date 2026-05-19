@@ -13,6 +13,7 @@ export default function WorldCupRoundColumn({
   isBracketLocked = false,
   lockStrategy,
   tournamentLockAt,
+  aiInsightsUnlocked = false,
 }: {
   round: WorldCupRound
   matches: WorldCupMatchView[]
@@ -23,6 +24,7 @@ export default function WorldCupRoundColumn({
   isBracketLocked?: boolean
   lockStrategy?: string
   tournamentLockAt?: string | null
+  aiInsightsUnlocked?: boolean
 }) {
   const now = new Date()
   return (
@@ -59,6 +61,7 @@ export default function WorldCupRoundColumn({
               onPick={onPick}
               onOpenMatchupPicker={onOpenMatchupPicker}
               isSaving={savingMatchIds?.has(match.id) ?? false}
+              aiInsightsUnlocked={aiInsightsUnlocked}
             />
           )
         })}

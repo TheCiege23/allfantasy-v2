@@ -66,15 +66,18 @@ vi.mock("@/components/brackets/world-cup/WorldCupMatchupIntelligencePanel", () =
 vi.mock("@/components/brackets/world-cup/WorldCupGroupStagePicks", () => ({
   default: ({
     entryId,
+    aiInsightsUnlocked,
     onCompletionChanged,
     onDirtyChange,
   }: {
     entryId: string
+    aiInsightsUnlocked?: boolean
     onCompletionChanged?: () => void
     onDirtyChange?: (dirty: boolean) => void
   }) => (
     <div data-testid="world-cup-group-stage-picks">
       Group stage {entryId}
+      <span data-testid="group-stage-ai-prop">{aiInsightsUnlocked ? "ai-unlocked" : "ai-locked"}</span>
       <button type="button" onClick={() => onDirtyChange?.(true)}>
         Mark Group Dirty Stub
       </button>
@@ -1859,6 +1862,21 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(within(panel).getByText(/AF Commissioner active/i)).toBeInTheDocument()
     expect(within(panel).getByText(/AI\/Pro active/i)).toBeInTheDocument()
     expect(within(panel).getAllByText(/Unlocked/i).length).toBeGreaterThanOrEqual(6)
+  })
+
+  it("passes locked World Cup AI insight access to group stage for free users", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false, hasBracketBrainAi: false }) as any} defaultTab="group-stage" />)
+
+    expect(await screen.findByTestId("group-stage-ai-prop")).toHaveTextContent("ai-locked")
+    expect(clientApiMocks.fetchCompletionReview).not.toHaveBeenCalled()
+  })
+
+  it("passes unlocked World Cup AI insight access to group stage for AI/Pro users", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false, hasBracketBrainAi: true }) as any} defaultTab="group-stage" />)
+
+    expect(await screen.findByTestId("group-stage-ai-prop")).toHaveTextContent("ai-unlocked")
   })
 
   it("shows admin and simulation shortcuts for all-access users", async () => {

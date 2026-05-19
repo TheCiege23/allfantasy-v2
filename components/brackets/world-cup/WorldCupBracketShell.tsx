@@ -520,6 +520,7 @@ export default function WorldCupBracketShell({
     }),
     [view.hasBracketBrainAi, view.isAdmin, view.isOwner]
   )
+  const aiInsightsUnlocked = entitlementSummary.ai
   const tabList = useMemo(() => {
     const list = [...BASE_TABS]
     if (showCommissionerTab) {
@@ -2809,6 +2810,7 @@ export default function WorldCupBracketShell({
                       matches={projectedMatches}
                       isLocked={isLocked}
                       savingMatchIds={savingPickMatchIds}
+                      aiInsightsUnlocked={aiInsightsUnlocked}
                       onPick={persistPick}
                       onOpenMatchupPicker={(matchId) => {
                         if (!hasPickableFixtures) {
@@ -2852,6 +2854,7 @@ export default function WorldCupBracketShell({
               <WorldCupGroupStagePicks
                 challengeId={challengeId}
                 entryId={selectedEntry.id}
+                aiInsightsUnlocked={aiInsightsUnlocked}
                 onDirtyChange={setHasUnsavedGroupChanges}
                 onCompletionChanged={() => {
                   setHasUnsavedGroupChanges(false)
@@ -2951,6 +2954,12 @@ export default function WorldCupBracketShell({
                         Finalized means submitted for leaderboard. Locked means the deadline passed and picks can no longer be edited.
                       </p>
                     </div>
+
+                    <ReviewAiConfidenceCard
+                      unlocked={aiInsightsUnlocked}
+                      completionReview={completionReview}
+                      picks={picks}
+                    />
 
                     <div data-testid="world-cup-review-saved-picks" className="space-y-3">
                       <div className="rounded-xl border border-white/10 bg-black/20 p-3">
@@ -3127,7 +3136,7 @@ export default function WorldCupBracketShell({
         ) : null}
         {tab === "leaderboard" ? (
           <div id="world-cup-leaderboard" className="h-full overflow-y-auto">
-            <WorldCupLeaderboardInsights leaderboard={view.leaderboard} />
+            <WorldCupLeaderboardInsights leaderboard={view.leaderboard} aiInsightsUnlocked={aiInsightsUnlocked} />
             <WorldCupLeaderboard view={view} busy={isPending} onRecalculate={() => runOwnerAction("recalculate")} />
           </div>
         ) : null}
@@ -3267,6 +3276,48 @@ function PoolStatCard({
         {value}
       </div>
     </div>
+  )
+}
+
+function ReviewAiConfidenceCard({
+  unlocked,
+  completionReview,
+  picks,
+}: {
+  unlocked: boolean
+  completionReview: WorldCupEntryCompletionReviewClient
+  picks: WorldCupPickView[]
+}) {
+  const completedPickCount = picks.filter(hasWorldCupPickSelection).length
+  const highRiskCount = picks.filter((pick) => pick.round === "round_of_32" || pick.round === "round_of_16").length
+  const chalkWarning = completedPickCount > 0 && highRiskCount <= Math.max(1, Math.floor(completedPickCount / 3))
+  return (
+    <details data-testid="world-cup-review-ai-confidence" className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3 text-xs text-cyan-50">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-black">
+        <span className="inline-flex items-center gap-1.5">
+          <Sparkles className="h-3.5 w-3.5" />
+          AI Confidence Check
+        </span>
+        <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] uppercase tracking-wide">
+          {unlocked ? "Open" : "Locked"}
+        </span>
+      </summary>
+      {unlocked ? (
+        <div className="mt-3 space-y-2 leading-5 text-cyan-50/85">
+          <p><span className="font-black text-white">Missing picks:</span> {completionReview.fullEntryComplete ? "None. Ready to finalize." : `${completionReview.missingKnockoutPicks} knockout, ${Math.max(0, 12 - completionReview.groupsRankedCount)} groups, ${Math.max(0, 8 - completionReview.thirdPlaceSelectedCount)} third-place.`}</p>
+          <p><span className="font-black text-white">High-risk picks:</span> {highRiskCount} early-round picks shape most of your bracket path.</p>
+          <p><span className="font-black text-white">Bracket shape:</span> {chalkWarning ? "Chalk-heavy. Consider whether one measured contrarian pick improves uniqueness." : "Balanced enough for a first-pass confidence check."}</p>
+          <p><span className="font-black text-white">Finalize confidence:</span> {completionReview.fullEntryComplete ? "Ready to finalize for leaderboard." : "Finish missing requirements before finalizing."}</p>
+          <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/55">
+            Deterministic prediction and scoring complexity only. Not DFS, betting, wagering, odds, point spread, or over/under advice.
+          </p>
+        </div>
+      ) : (
+        <p className="mt-3 rounded-lg border border-white/10 bg-black/25 px-2 py-2 text-[11px] leading-5 text-white/60" hidden>
+          Upgrade to AI/Pro to open the confidence check. Locked users do not trigger AI calls.
+        </p>
+      )}
+    </details>
   )
 }
 

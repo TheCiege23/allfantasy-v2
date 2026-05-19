@@ -1,5 +1,5 @@
 "use client"
-import { Check, Clock, Lock, Radio, Trophy, X } from "lucide-react"
+import { Check, Clock, Lock, Radio, Sparkles, Trophy, X } from "lucide-react"
 import type { WorldCupMatchView, WorldCupPickView } from "@/lib/world-cup/types"
 import {
   formatWorldCupKickoffShort,
@@ -58,6 +58,7 @@ export default function WorldCupMatchupCard({
   onPick,
   onOpenMatchupPicker,
   isSaving = false,
+  aiInsightsUnlocked = false,
 }: {
   match: WorldCupMatchView
   pick?: WorldCupPickView
@@ -69,6 +70,7 @@ export default function WorldCupMatchupCard({
   onPick?: (match: WorldCupMatchView, side: "home" | "away") => void
   onOpenMatchupPicker?: (matchId: string) => void
   isSaving?: boolean
+  aiInsightsUnlocked?: boolean
 }) {
   const isLive = isWorldCupMatchLive(match)
   const isFinal = isWorldCupMatchFinal(match)
@@ -258,6 +260,36 @@ export default function WorldCupMatchupCard({
           {unpickableMessage}
         </p>
       ) : null}
+
+      <details
+        data-testid={`world-cup-match-ai-insight-${match.id}`}
+        className="mb-2 rounded-lg border border-cyan-300/20 bg-cyan-300/[0.055] px-2 py-2 text-[10px] text-cyan-50"
+      >
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-black">
+          <span className="inline-flex items-center gap-1">
+            <Sparkles className="h-3 w-3" />
+            AI Insights
+          </span>
+          <span className="rounded-full border border-cyan-200/25 px-1.5 py-0.5 uppercase tracking-wide">
+            {aiInsightsUnlocked ? "Open" : "Locked"}
+          </span>
+        </summary>
+        {aiInsightsUnlocked ? (
+          <div className="mt-2 space-y-1.5 leading-4 text-cyan-50/85">
+            <p><span className="font-black text-white">Safer pick:</span> Home side based on current bracket slot order.</p>
+            <p><span className="font-black text-white">Upside pick:</span> Away side if you need a differentiated path.</p>
+            <p><span className="font-black text-white">Bracket impact:</span> Winner feeds the next slot; changing this pick may reset downstream choices.</p>
+            <p><span className="font-black text-white">Upset risk:</span> Medium until live form and official results arrive.</p>
+            <p className="rounded-md border border-white/10 bg-black/20 px-2 py-1 text-white/55">
+              Prediction and scoring complexity only. Not DFS, betting, wagering, odds, point spread, or over/under advice.
+            </p>
+          </div>
+        ) : (
+          <p className="mt-2 rounded-md border border-white/10 bg-black/25 px-2 py-1.5 leading-4 text-white/60" hidden>
+            Upgrade to AI/Pro to open matchup insights. Locked users do not trigger AI calls.
+          </p>
+        )}
+      </details>
 
       {/* Score row — shown during / after match */}
       {showScore && (

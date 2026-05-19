@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest"
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import type { WorldCupMatchupIntelligence } from "@/lib/world-cup/types"
 
 const getIntelMock = vi.hoisted(() => vi.fn())
@@ -122,5 +122,56 @@ describe("WorldCupMatchupIntelligencePanel AF Pro gating", () => {
     await screen.findByTestId("world-cup-matchup-intelligence-panel")
     expect(screen.getByAltText("Brazil flag")).toBeInTheDocument()
     expect(screen.getByLabelText("France country code FRA")).toBeInTheDocument()
+  })
+})
+
+describe("WorldCupMatchupCard AI insight entrypoint", () => {
+  const match = {
+    id: "m1",
+    matchNumber: 1,
+    round: "round_of_32",
+    region: "left",
+    homeSlotKey: "A1",
+    awaySlotKey: "B2",
+    homeTeamId: "bra",
+    awayTeamId: "fra",
+    homeTeamName: "Brazil",
+    awayTeamName: "France",
+    homeTeamLogo: null,
+    awayTeamLogo: null,
+    homeScore: null,
+    awayScore: null,
+    homePenaltyScore: null,
+    awayPenaltyScore: null,
+    winnerTeamId: null,
+    winnerTeamName: null,
+    startsAt: "2026-06-01T00:00:00.000Z",
+    status: "scheduled",
+    apiStatusShort: null,
+    venueName: "Stadium",
+    venueCity: "City",
+  } as any
+
+  it("shows locked matchup AI CTA without opening detailed insights", async () => {
+    const WorldCupMatchupCard = (await import("@/components/brackets/world-cup/WorldCupMatchupCard")).default
+    render(<WorldCupMatchupCard match={match} aiInsightsUnlocked={false} />)
+
+    const card = screen.getByTestId("world-cup-match-ai-insight-m1")
+    expect(within(card).getByText("Locked")).toBeInTheDocument()
+    expect(within(card).getByText(/Locked users do not trigger AI calls/i)).toBeInTheDocument()
+    expect(within(card).queryByText(/Safer pick/i)).toBeNull()
+  })
+
+  it("opens deterministic matchup insights for AI/Pro users with safe copy", async () => {
+    const WorldCupMatchupCard = (await import("@/components/brackets/world-cup/WorldCupMatchupCard")).default
+    render(<WorldCupMatchupCard match={match} aiInsightsUnlocked />)
+
+    const card = screen.getByTestId("world-cup-match-ai-insight-m1")
+    fireEvent.click(within(card).getByText("AI Insights"))
+
+    expect(within(card).getByText(/Safer pick/i)).toBeInTheDocument()
+    expect(within(card).getByText(/Upside pick/i)).toBeInTheDocument()
+    expect(card.textContent?.toLowerCase()).toContain("not dfs")
+    expect(card.textContent?.toLowerCase()).not.toContain("betting advice")
   })
 })
