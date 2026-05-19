@@ -5,10 +5,19 @@
 
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-});
+let openai: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI | null {
+  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  if (!openai) {
+    openai = new OpenAI({
+      apiKey,
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+    });
+  }
+  return openai;
+}
 
 const MAX_BATCH = 15;
 const SUMMARIZE_PROMPT = `You are a fantasy sports editor. For each news headline below, output a very short summarized headline (one line, under 80 chars) that keeps the fantasy-relevant takeaway. Keep player/team names and key facts. Output only the summarized headlines, one per line, in the same order as the input. No numbering or bullets.`;
@@ -35,13 +44,14 @@ export async function summarizeHeadlines(
     result[item.id] = item.title;
   }
 
-  if (!openai.apiKey) {
+  const client = getOpenAIClient();
+  if (!client) {
     return result;
   }
 
   try {
     const inputText = titles.join('\n');
-    const completion = await openai.chat.completions.create({
+    const completion = await client.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'user', content: `${SUMMARIZE_PROMPT}\n\nInput headlines:\n${inputText}` },
