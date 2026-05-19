@@ -45,6 +45,7 @@ describe("World Cup group stage service exports", () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.unstubAllEnvs()
     prismaMocks.worldCupGroupRankingPick.findMany.mockResolvedValue([])
     prismaMocks.worldCupThirdPlaceAdvancerPick.findMany.mockResolvedValue([])
     prismaMocks.worldCupGroupRankingPick.deleteMany.mockResolvedValue({ count: 0 })
@@ -273,6 +274,115 @@ describe("World Cup group stage service exports", () => {
     const names = result.groups[0].teams.map((row) => row.team.name)
     expect(names).toEqual(["Germany", "Ecuador", "Ivory Coast", "Curacao"])
     expect(names.join(" ")).not.toMatch(/TBD|Test Team|Mexico|Tunisia|USA/i)
+  })
+
+  it("does not let stale production test-mode flags bypass official group repair", async () => {
+    vi.stubEnv("NODE_ENV", "production")
+    const service = await import("@/lib/world-cup/worldCupGroupStageService")
+    const groupA = { id: "group-a", challengeId: "c1", groupKey: "A", displayName: "Group A", sortOrder: 1, teams: [] }
+    const officialTeams = [
+      { id: "wc2026_official_mex", name: "Mexico", country: "Mexico", fifaCode: "MEX", groupName: "A", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 1 } },
+      { id: "wc2026_official_kor", name: "South Korea", country: "South Korea", fifaCode: "KOR", groupName: "A", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 2 } },
+      { id: "wc2026_official_rsa", name: "South Africa", country: "South Africa", fifaCode: "RSA", groupName: "A", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 3 } },
+      { id: "wc2026_official_cze", name: "Czechia", country: "Czechia", fifaCode: "CZE", groupName: "A", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 4 } },
+    ]
+    const staleRows = [
+      { id: "row-arg", teamId: "demo_team_argentina", seedOrder: 1, team: { id: "demo_team_argentina", name: "Argentina", country: "Argentina", fifaCode: "ARG", qualificationStatus: "test", sourcePayload: { testFixture: true } } },
+      { id: "row-aus", teamId: "demo_team_australia", seedOrder: 2, team: { id: "demo_team_australia", name: "Australia", country: "Australia", fifaCode: "AUS", qualificationStatus: "test", sourcePayload: { testFixture: true } } },
+      { id: "row-bra", teamId: "demo_team_brazil", seedOrder: 3, team: { id: "demo_team_brazil", name: "Brazil", country: "Brazil", fifaCode: "BRA", qualificationStatus: "test", sourcePayload: { testFixture: true } } },
+      { id: "row-tbd", teamId: "wc2026_placeholder_c1_A_4", seedOrder: 4, team: { id: "wc2026_placeholder_c1_A_4", name: "Group A Test Team 4", country: "TBD Group A", fifaCode: "A4", qualificationStatus: "test_placeholder", sourcePayload: { source: "allfantasy_test_placeholder" } } },
+    ]
+
+    prismaMocks.worldCupBracketChallenge.findUnique.mockResolvedValue({
+      id: "c1",
+      sourcePayload: {
+        simulation: {
+          isTestMode: true,
+          testFixturesOnCreate: true,
+          simulationEnabled: true,
+        },
+      },
+    })
+    prismaMocks.worldCupGroup.findMany
+      .mockResolvedValueOnce([groupA])
+      .mockResolvedValueOnce([{
+        ...groupA,
+        teams: officialTeams.map((team, index) => ({
+          id: `row-${team.id}`,
+          teamId: team.id,
+          seedOrder: index + 1,
+          actualRank: null,
+          points: null,
+          goalDifference: null,
+          goalsFor: null,
+          team,
+        })),
+      }])
+    prismaMocks.worldCupTeam.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(officialTeams)
+    prismaMocks.worldCupGroupTeam.findMany.mockResolvedValue(staleRows)
+
+    const result = await service.ensureWorldCupGroupsForChallenge("c1")
+
+    expect(prismaMocks.worldCupTeam.upsert).not.toHaveBeenCalled()
+    expect(prismaMocks.worldCupGroupTeam.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ["row-arg", "row-aus", "row-bra", "row-tbd"] } },
+    })
+    expect(result.groups[0].teams.map((row) => row.team.name)).toEqual(["Mexico", "South Korea", "South Africa", "Czechia"])
+  })
+
+  it("allows explicit production test group rendering only with a dedicated override", async () => {
+    vi.stubEnv("NODE_ENV", "production")
+    const service = await import("@/lib/world-cup/worldCupGroupStageService")
+    const groupA = { id: "group-a", challengeId: "c1", groupKey: "A", displayName: "Group A", sortOrder: 1, teams: [] }
+    const testTeams = [
+      { id: "wc2026_placeholder_c1_A_1", name: "Group A Test Team 1", country: "TBD Group A", fifaCode: "A1", groupName: "A", qualificationStatus: "test_placeholder", sourcePayload: { source: "allfantasy_test_placeholder", seedOrder: 1 } },
+      { id: "wc2026_placeholder_c1_A_2", name: "Group A Test Team 2", country: "TBD Group A", fifaCode: "A2", groupName: "A", qualificationStatus: "test_placeholder", sourcePayload: { source: "allfantasy_test_placeholder", seedOrder: 2 } },
+      { id: "wc2026_placeholder_c1_A_3", name: "Group A Test Team 3", country: "TBD Group A", fifaCode: "A3", groupName: "A", qualificationStatus: "test_placeholder", sourcePayload: { source: "allfantasy_test_placeholder", seedOrder: 3 } },
+      { id: "wc2026_placeholder_c1_A_4", name: "Group A Test Team 4", country: "TBD Group A", fifaCode: "A4", groupName: "A", qualificationStatus: "test_placeholder", sourcePayload: { source: "allfantasy_test_placeholder", seedOrder: 4 } },
+    ]
+
+    prismaMocks.worldCupBracketChallenge.findUnique.mockResolvedValue({
+      id: "c1",
+      sourcePayload: { simulation: { isTestMode: true, allowProductionTestGroupData: true } },
+    })
+    prismaMocks.worldCupGroup.findMany
+      .mockResolvedValueOnce([groupA])
+      .mockResolvedValueOnce([{
+        ...groupA,
+        teams: testTeams.map((team, index) => ({
+          id: `row-${team.id}`,
+          teamId: team.id,
+          seedOrder: index + 1,
+          actualRank: null,
+          points: null,
+          goalDifference: null,
+          goalsFor: null,
+          team,
+        })),
+      }])
+    prismaMocks.worldCupTeam.findMany.mockResolvedValue(testTeams)
+    prismaMocks.worldCupGroupTeam.findMany.mockResolvedValue([])
+
+    const result = await service.ensureWorldCupGroupsForChallenge("c1")
+
+    expect(prismaMocks.worldCupTeam.create).not.toHaveBeenCalled()
+    expect(prismaMocks.worldCupGroupTeam.createMany).toHaveBeenCalledWith({
+      data: testTeams.map((team, index) => ({
+        challengeId: "c1",
+        groupId: "group-a",
+        teamId: team.id,
+        seedOrder: index + 1,
+      })),
+      skipDuplicates: true,
+    })
+    expect(result.groups[0].teams.map((row) => row.team.name)).toEqual([
+      "Group A Test Team 1",
+      "Group A Test Team 2",
+      "Group A Test Team 3",
+      "Group A Test Team 4",
+    ])
   })
 
   it("filters stale saved picks out of the group-stage response after repair", async () => {

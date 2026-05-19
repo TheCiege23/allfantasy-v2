@@ -97,14 +97,41 @@ function normalizeGroupName(value: string | null | undefined): string | null {
   return /^[A-L]$/.test(upper) ? upper : null
 }
 
+function getWorldCupChallengeGroupModeFlags(challenge: { sourcePayload?: unknown } | null) {
+  const payload = challenge?.sourcePayload as {
+    allowProductionTestGroupData?: boolean
+    groupStageMode?: string
+    isTestMode?: boolean
+    simulation?: {
+      allowProductionTestGroupData?: boolean
+      groupStageMode?: string
+      isTestMode?: boolean
+      simulationEnabled?: boolean
+      testFixturesOnCreate?: boolean
+    }
+  } | null
+  const simulation = payload?.simulation
+  return {
+    hasTestFlag: Boolean(payload?.isTestMode || simulation?.isTestMode || simulation?.testFixturesOnCreate),
+    allowProductionTestGroupData: Boolean(
+      payload?.allowProductionTestGroupData ||
+        payload?.groupStageMode === "test" ||
+        simulation?.allowProductionTestGroupData ||
+        simulation?.groupStageMode === "test"
+    ),
+  }
+}
+
 function isWorldCupTestModeChallenge(challenge: { sourcePayload?: unknown } | null): boolean {
-  const payload = challenge?.sourcePayload as { simulation?: { isTestMode?: boolean }; isTestMode?: boolean } | null
+  const flags = getWorldCupChallengeGroupModeFlags(challenge)
+  if (process.env.NODE_ENV === "production") return flags.allowProductionTestGroupData
+  const payload = challenge?.sourcePayload as { simulation?: { isTestMode?: boolean; testFixturesOnCreate?: boolean }; isTestMode?: boolean } | null
   return Boolean(payload?.isTestMode || payload?.simulation?.isTestMode)
 }
 
 function canSeedWorldCupPlaceholderTeams(challenge: { sourcePayload?: unknown } | null): boolean {
   if (process.env.NODE_ENV !== "production") return true
-  return isWorldCupTestModeChallenge(challenge)
+  return getWorldCupChallengeGroupModeFlags(challenge).allowProductionTestGroupData
 }
 
 function placeholderTeamId(challengeId: string, groupKey: string, seedOrder: number) {
