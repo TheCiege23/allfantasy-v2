@@ -174,26 +174,4 @@ describe("WorldCupMatchupCard AI insight entrypoint", () => {
     expect(card.textContent?.toLowerCase()).toContain("not dfs")
     expect(card.textContent?.toLowerCase()).not.toContain("betting advice")
   })
-
-  it("renders mobile confidence selector and saves confidence with the pick", async () => {
-    const WorldCupMatchupCard = (await import("@/components/brackets/world-cup/WorldCupMatchupCard")).default
-    const onPick = vi.fn()
-    render(
-      <WorldCupMatchupCard
-        match={match}
-        confidenceScoringEnabled
-        onPick={onPick}
-      />
-    )
-
-    const selector = screen.getByTestId("wc-match-confidence-selector-m1")
-    expect(within(selector).getByText(/Higher confidence means more bonus points if correct/i)).toBeInTheDocument()
-    expect(within(selector).getByRole("combobox")).toHaveClass("min-h-10")
-
-    fireEvent.change(within(selector).getByRole("combobox"), { target: { value: "5" } })
-    fireEvent.click(screen.getByRole("button", { name: /Pick Brazil to win/i }))
-
-    expect(onPick).toHaveBeenCalledWith(match, "home", 5)
-    expect(selector.textContent?.toLowerCase()).not.toMatch(/\bdfs\b|\bbetting\b|\bwager/)
-  })
 })

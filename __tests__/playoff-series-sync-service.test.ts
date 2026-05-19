@@ -242,7 +242,7 @@ describe("syncPlayoffChallengeSeries", () => {
         status: "scheduled",
         winnerTeamName: null,
         seriesSummary: "Series starts TBD",
-        nextGameAt: null,
+        nextGameAt: new Date("2099-05-01T00:00:00.000Z"),
         venue: "Madison Square Garden",
         broadcastNetwork: "TNT",
         providerGamesJson: expect.arrayContaining([
@@ -916,7 +916,7 @@ describe("syncPlayoffChallengeSeries", () => {
 
     expect(result.winnersUpdated).toBe(1)
     expect(result.diagnostics.finalScoreSupplementProvider).toBe("espn_final_scores")
-    expect(result.diagnostics.finalScoreDatesFetched).toBeGreaterThanOrEqual(6)
+    expect(result.diagnostics.finalScoreDatesFetched).toBe(6)
     expect(result.diagnostics.finalScoreRowsSeen).toBe(6)
     expect(result.diagnostics.finalScoreRowsMatched).toBe(6)
     expect(result.diagnostics.seriesWinsComputed).toBe(1)
@@ -936,199 +936,6 @@ describe("syncPlayoffChallengeSeries", () => {
       }),
     })
     expect(pickUpsertMock).not.toHaveBeenCalled()
-  })
-
-  it("results_only persists a known Round 2 winner from final score supplement even when schedule rows are partial", async () => {
-    const liveScores = await import("@/lib/sports-live-scores-service")
-    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NBA", 2026, [
-      scheduleRow("NBA", "Postseason", "West Semifinals", 2, "Oklahoma City Thunder", "San Antonio Spurs", "final", "2026-05-04T00:00:00.000Z"),
-      scheduleRow("NBA", "Postseason", "West Semifinals", 2, "San Antonio Spurs", "Oklahoma City Thunder", "final", "2026-05-06T00:00:00.000Z"),
-    ] as any))
-    challengeFindUniqueMock.mockResolvedValue({
-      ...baseChallenge,
-      series: [{
-        ...baseChallenge.series[0],
-        id: "series-r2",
-        roundIndex: 2,
-        seriesNumber: 11,
-        conference: "west",
-        homeTeamName: "Oklahoma City Thunder",
-        awayTeamName: "San Antonio Spurs",
-      }],
-    })
-
-    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
-    const result = await syncPlayoffChallengeSeries({
-      challengeId: "challenge-1",
-      mode: "results_only",
-      scheduleSupplementProvider: async () => ({ source: "none", games: [] }),
-      finalScoreSupplementProvider: async (input) => ({
-        source: "espn_final_scores",
-        games: [
-          { ...playoffGame("OKC", "SA", 121, 109, "2026-05-04T00:00:00.000Z"), homeTeamFull: "Oklahoma City Thunder", awayTeamFull: "San Antonio Spurs" },
-          { ...playoffGame("SA", "OKC", 110, 103, "2026-05-06T00:00:00.000Z"), homeTeamFull: "San Antonio Spurs", awayTeamFull: "Oklahoma City Thunder" },
-          { ...playoffGame("OKC", "SA", 118, 104, "2026-05-08T00:00:00.000Z"), homeTeamFull: "Oklahoma City Thunder", awayTeamFull: "San Antonio Spurs" },
-          { ...playoffGame("SA", "OKC", 99, 112, "2026-05-10T00:00:00.000Z"), homeTeamFull: "San Antonio Spurs", awayTeamFull: "Oklahoma City Thunder" },
-          { ...playoffGame("OKC", "SA", 115, 100, "2026-05-12T00:00:00.000Z"), homeTeamFull: "Oklahoma City Thunder", awayTeamFull: "San Antonio Spurs" },
-        ],
-        warnings: input.dates.includes("20260512") ? [] : ["Expected broader playoff date window to include missing Game 5."],
-      }),
-    })
-
-    expect(result.winnersUpdated).toBe(1)
-    expect(result.diagnostics.finalScoreRowsMatched).toBe(5)
-    expect(result.diagnostics.finalScoreRowsMatchedBySeries).toEqual(expect.arrayContaining([
-      expect.objectContaining({ seriesNumber: 11, matchedFinalScoreGames: 5 }),
-    ]))
-    expect(seriesUpdateMock).toHaveBeenCalledWith({
-      where: { id: "series-r2" },
-      data: expect.objectContaining({
-        status: "final",
-        winnerTeamName: "Oklahoma City Thunder",
-        homeTeamWins: 4,
-        awayTeamWins: 1,
-        seriesSummary: "Oklahoma City Thunder wins series 4-1",
-      }),
-    })
-    expect(pickUpsertMock).not.toHaveBeenCalled()
-  })
-
-  it("results_only keeps unresolved series pending and reports partial final-score diagnostics", async () => {
-    const liveScores = await import("@/lib/sports-live-scores-service")
-    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NBA", 2026, [
-      scheduleRow("NBA", "Postseason", "East Semifinals", 2, "Detroit Pistons", "Cleveland Cavaliers", "final", "2026-05-04T00:00:00.000Z"),
-      scheduleRow("NBA", "Postseason", "East Semifinals", 2, "Cleveland Cavaliers", "Detroit Pistons", "final", "2026-05-06T00:00:00.000Z"),
-    ] as any))
-    challengeFindUniqueMock.mockResolvedValue({
-      ...baseChallenge,
-      series: [{
-        ...baseChallenge.series[0],
-        id: "series-r2-east",
-        roundIndex: 2,
-        seriesNumber: 9,
-        conference: "east",
-        homeTeamName: "Detroit Pistons",
-        awayTeamName: "Cleveland Cavaliers",
-      }],
-    })
-
-    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
-    const result = await syncPlayoffChallengeSeries({
-      challengeId: "challenge-1",
-      mode: "results_only",
-      scheduleSupplementProvider: async () => ({ source: "none", games: [] }),
-      finalScoreSupplementProvider: async () => ({
-        source: "espn_final_scores",
-        games: [
-          { ...playoffGame("DET", "CLE", 101, 99, "2026-05-04T00:00:00.000Z"), homeTeamFull: "Detroit Pistons", awayTeamFull: "Cleveland Cavaliers" },
-          { ...playoffGame("CLE", "DET", 110, 104, "2026-05-06T00:00:00.000Z"), homeTeamFull: "Cleveland Cavaliers", awayTeamFull: "Detroit Pistons" },
-        ],
-      }),
-    })
-
-    expect(result.winnersUpdated).toBe(0)
-    expect(result.diagnostics.seriesStillPendingReasons).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        seriesNumber: 9,
-        matchedFinalScoreGames: 2,
-        homeWins: 1,
-        awayWins: 1,
-        reason: "Only 1 of 4 required wins could be proven.",
-      }),
-    ]))
-    expect(result.diagnostics.partialSeriesWinCounts).toEqual(expect.arrayContaining([
-      expect.objectContaining({ seriesNumber: 9, homeWins: 1, awayWins: 1 }),
-    ]))
-    expect(seriesUpdateMock).toHaveBeenCalledWith({
-      where: { id: "series-r2-east" },
-      data: expect.objectContaining({
-        status: "in_progress",
-        winnerTeamName: null,
-        seriesSummary: "Series tied 1-1",
-      }),
-    })
-  })
-
-  it("results_only reports missing final-score diagnostics when no supplement games match a series", async () => {
-    const liveScores = await import("@/lib/sports-live-scores-service")
-    vi.spyOn(liveScores, "fetchRollingInsightsScheduleSeasonWithDiagnostics").mockResolvedValue(scheduleResult("NBA", 2026, [
-      scheduleRow("NBA", "Postseason", "East Semifinals", 2, "Detroit Pistons", "Cleveland Cavaliers", "final", "2026-05-04T00:00:00.000Z"),
-    ] as any))
-    challengeFindUniqueMock.mockResolvedValue({
-      ...baseChallenge,
-      series: [{
-        ...baseChallenge.series[0],
-        id: "series-r2-east",
-        roundIndex: 2,
-        seriesNumber: 9,
-        conference: "east",
-        homeTeamName: "Detroit Pistons",
-        awayTeamName: "Cleveland Cavaliers",
-      }],
-    })
-
-    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
-    const result = await syncPlayoffChallengeSeries({
-      challengeId: "challenge-1",
-      mode: "results_only",
-      scheduleSupplementProvider: async () => ({ source: "none", games: [] }),
-      finalScoreSupplementProvider: async () => ({
-        source: "espn_final_scores",
-        games: [
-          { ...playoffGame("NYK", "IND", 101, 99, "2026-05-04T00:00:00.000Z"), homeTeamFull: "Knicks", awayTeamFull: "Pacers" },
-        ],
-      }),
-    })
-
-    expect(result.winnersUpdated).toBe(0)
-    expect(result.diagnostics.missingFinalScoreGamesBySeries).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        seriesNumber: 9,
-        matchedFinalScoreGames: 0,
-        reason: "No final score supplement games matched this series.",
-      }),
-    ]))
-    expect(result.diagnostics.finalScoreRowsMatchedBySeries).toEqual(expect.arrayContaining([
-      expect.objectContaining({ seriesNumber: 9, matchedFinalScoreGames: 0 }),
-    ]))
-  })
-
-  it("preserves date-only upcoming game metadata when exact time is missing", async () => {
-    const { syncPlayoffChallengeSeries } = await import("@/lib/playoffs/playoffSeriesSyncService")
-    const result = await syncPlayoffChallengeSeries({
-      challengeId: "challenge-1",
-      mode: "teams_schedule_only",
-      provider: async () => ({
-        source: "test_provider",
-        games: [
-          {
-            ...scheduledSupplementGame("BOS", "MIA", "2026-05-18"),
-            homeTeam: "BOS",
-            awayTeam: "MIA",
-            homeTeamFull: "Celtics",
-            awayTeamFull: "Heat",
-            providerRound: 1,
-            eventName: "East 1st Round:",
-            venue: null,
-            broadcast: null,
-          },
-        ],
-      }),
-      scheduleSupplementProvider: async () => ({ source: "none", games: [] }),
-    })
-
-    expect(result.seriesUpdated).toBe(1)
-    expect(seriesUpdateMock).toHaveBeenCalledWith({
-      where: { id: "series-1" },
-      data: expect.objectContaining({
-        nextGameAt: null,
-        venue: null,
-        broadcastNetwork: null,
-        providerGamesJson: expect.arrayContaining([
-          expect.objectContaining({ startTime: "2026-05-18" }),
-        ]),
-      }),
-    })
   })
 
   it("teams_schedule_only strips winner fields and keeps picks untouched", async () => {

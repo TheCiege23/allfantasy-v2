@@ -139,7 +139,6 @@ function mockSettingsPayload(overrides: Partial<Record<string, unknown>> = {}) {
       tiebreakerFinalScore: false,
       allowLateJoin: false,
       showPublicPicks: "after_lock",
-      confidenceScoringEnabled: false,
       bracketBrainEnabled: true,
       inviteGateConfigured: false,
     },
@@ -336,52 +335,6 @@ describe("WorldCupBracketSettingsPanel", () => {
 
     expect(screen.getByText(/^Upset alerts$/i)).toBeInTheDocument()
     expect(screen.getByRole("checkbox", { name: /^Lock reminders$/i })).toBeInTheDocument()
-  })
-
-  it("lets commissioners toggle confidence scoring without AF Pro", async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockSettingsPayload(),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          settings: mockSettingsPayload({
-            leagueSettings: {
-              ...mockSettingsPayload().leagueSettings,
-              confidenceScoringEnabled: true,
-            },
-          }),
-          hasAfPro: false,
-          isAdmin: false,
-          earlyPublicPicksAllowed: false,
-        }),
-      })
-    vi.stubGlobal("fetch", fetchMock)
-    const WorldCupBracketSettingsPanel = (await import("@/components/brackets/world-cup/WorldCupBracketSettingsPanel"))
-      .default
-    render(<WorldCupBracketSettingsPanel challengeId="ch1" />)
-
-    await waitFor(() => {
-      expect(screen.queryByTestId("world-cup-settings-loading")).not.toBeInTheDocument()
-    })
-
-    const card = screen.getByTestId("world-cup-settings-confidence-scoring")
-    expect(card).toHaveTextContent("Managers can assign confidence points")
-    expect(card.textContent?.toLowerCase()).not.toMatch(/\bdfs\b|\bbetting\b|\bwager/)
-    fireEvent.click(within(card).getByRole("checkbox", { name: /Enable Confidence Scoring/i }))
-    fireEvent.click(screen.getByTestId("world-cup-settings-save"))
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenLastCalledWith(
-        "/api/brackets/world-cup/ch1/settings",
-        expect.objectContaining({
-          method: "PATCH",
-          body: expect.stringContaining('"confidenceScoringEnabled":true'),
-        })
-      )
-    })
   })
 
   it("shows client validation for max users above cap", async () => {

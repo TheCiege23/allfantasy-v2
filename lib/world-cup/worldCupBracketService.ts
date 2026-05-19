@@ -23,7 +23,6 @@ import { ensureWorldCupCommissionerSettings } from "./worldCupBracketEventServic
 import {
   getWorldCupJoinPasswordHashFromPayload,
   hashWorldCupJoinPassword,
-  isWorldCupConfidenceScoringEnabled,
   parseWorldCupLeagueSettings,
 } from "./worldCupBracketSettingsService"
 import {
@@ -93,7 +92,6 @@ function toWorldCupPickView(pick: WorldCupBracketPick & { match?: WorldCupBracke
     selectedTeamId: pick.selectedTeamId,
     selectedSlotKey: pick.selectedSlotKey,
     selectedTeamName: pick.selectedTeamName,
-    confidencePoints: pick.confidencePoints ?? null,
     pointsAwarded: pick.pointsAwarded,
     isCorrect: pick.isCorrect,
     lockedAt: iso(pick.lockedAt),
@@ -471,7 +469,6 @@ function serialize(input: {
 }): WorldCupChallengeView {
   const c = input.challenge
   const matchById = new Map(c.matches.map((match) => [match.id, match] as const))
-  const confidenceScoringEnabled = isWorldCupConfidenceScoringEnabled(c.sourcePayload)
   const simulation = readSimulationFlags(c.sourcePayload)
   const hasSimulatedResults = c.matches.some(
     (m) => (m as Record<string, unknown>).apiStatusShort === "SIM"
@@ -497,7 +494,6 @@ function serialize(input: {
       effectivePickLockAt: iso(effLock),
       status: c.status,
       includeThirdPlace: Boolean(c.includeThirdPlace),
-      confidenceScoringEnabled,
       isTestMode: simulation.isTestMode,
       simulationEnabled: simulation.simulationEnabled,
       simulatedAt: simulation.simulatedAt,
@@ -515,7 +511,6 @@ function serialize(input: {
       finalPoints: c.scoringProfile?.finalPoints ?? DEFAULT_WORLD_CUP_SCORING.finalPoints,
       championBonusPoints: c.scoringProfile?.championBonusPoints ?? DEFAULT_WORLD_CUP_SCORING.championBonusPoints,
       thirdPlacePoints: c.scoringProfile?.thirdPlacePoints ?? DEFAULT_WORLD_CUP_SCORING.thirdPlacePoints ?? null,
-      confidenceScoringEnabled,
     },
     slots: c.slots.map((s) => {
       const slot = s as Record<string, unknown>
@@ -682,10 +677,7 @@ export async function getWorldCupChallengeView(input: { challengeId: string; use
   const leaderboard = buildWorldCupLeaderboardRows({
     entries: c.entries.filter((entry) => entry.submittedAt) as Parameters<typeof buildWorldCupLeaderboardRows>[0]["entries"],
     matches: c.matches as Parameters<typeof buildWorldCupLeaderboardRows>[0]["matches"],
-    scoring: {
-      ...(c.scoringProfile ?? {}),
-      confidenceScoringEnabled: isWorldCupConfidenceScoringEnabled(c.sourcePayload),
-    },
+    scoring: c.scoringProfile,
   })
 
   const baseView = serialize({
@@ -855,15 +847,6 @@ function side(match: WorldCupBracketMatch, pick: { selectedTeamId?: string | nul
   return null
 }
 
-export function normalizeWorldCupConfidencePoints(value: unknown): number | null {
-  if (value === null || value === undefined || value === "") return null
-  const n = Number(value)
-  if (!Number.isInteger(n) || n < 1 || n > 32) {
-    throw new Error("Confidence points must be a whole number from 1 to 32.")
-  }
-  return n
-}
-
 /** @internal */
 async function savePicksForEntryTx(
   tx: Prisma.TransactionClient,
@@ -878,7 +861,6 @@ async function savePicksForEntryTx(
       selectedTeamId?: string | null
       selectedSlotKey?: string | null
       selectedTeamName?: string | null
-      confidencePoints?: number | null
     }>
   }
 ) {
@@ -934,22 +916,19 @@ async function savePicksForEntryTx(
     if (!selectedTeamName || (!selectedTeamId && !selectedSlotKey)) {
       throw new Error("Selected team is not in this matchup")
     }
-    const confidencePoints = normalizeWorldCupConfidencePoints(pick.confidencePoints)
     const existingPick = await tx.worldCupBracketPick.findUnique({
       where: { entryId_matchId: { entryId: entry.id, matchId: m.id } },
       select: {
         selectedTeamId: true,
         selectedSlotKey: true,
         selectedTeamName: true,
-        confidencePoints: true,
       },
     })
     if (
       !existingPick ||
       existingPick.selectedTeamId !== selectedTeamId ||
       existingPick.selectedSlotKey !== selectedSlotKey ||
-      existingPick.selectedTeamName !== selectedTeamName ||
-      existingPick.confidencePoints !== confidencePoints
+      existingPick.selectedTeamName !== selectedTeamName
     ) {
       meaningfulPickChange = true
     }
@@ -964,13 +943,11 @@ async function savePicksForEntryTx(
         selectedTeamId,
         selectedSlotKey,
         selectedTeamName,
-        confidencePoints,
       },
       update: {
         selectedTeamId,
         selectedSlotKey,
         selectedTeamName,
-        confidencePoints,
         round: m.round,
         isCorrect: null,
         pointsAwarded: 0,
@@ -1214,7 +1191,6 @@ export async function saveWorldCupBracketPickForEntry(input: {
   selectedSide?: "home" | "away"
   round?: string | null
   matchNumber?: number | null
-  confidencePoints?: number | null
   nextMatchId?: string | null
   nextMatchSlot?: "home" | "away" | null
 }) {
@@ -1335,7 +1311,6 @@ export async function saveWorldCupBracketPickForEntry(input: {
     selectedTeamId,
     selectedSlotKey,
     selectedTeamName,
-    confidencePoints: input.confidencePoints,
   }
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await savePicksForEntryTx(tx, {

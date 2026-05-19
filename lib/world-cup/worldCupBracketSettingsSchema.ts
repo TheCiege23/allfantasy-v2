@@ -22,7 +22,6 @@ export const worldCupBracketSettingsPatchSchema = z
     tiebreakerFinalScore: z.boolean().optional(),
     allowLateJoin: z.boolean().optional(),
     showPublicPicks: z.enum(["after_lock", "never", "always"]).optional(),
-    confidenceScoringEnabled: z.boolean().optional(),
     bracketBrainEnabled: z.boolean().optional(),
     /** Set new gate password, clear with empty string or null */
     joinPassword: z.union([z.string().min(1).max(64), z.literal("")]).nullable().optional(),

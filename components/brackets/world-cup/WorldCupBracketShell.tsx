@@ -1043,7 +1043,7 @@ export default function WorldCupBracketShell({
   }, [applyChallengeView, challengeId, hasUnsavedGroupChanges, selectedEntryId])
 
   // ── Pick saving ──────────────────────────────────────────────────────────
-  async function persistPick(match: WorldCupMatchView, side: "home" | "away", confidencePoints?: number | null) {
+  async function persistPick(match: WorldCupMatchView, side: "home" | "away") {
     if (!selectedEntryId) {
       toast.error("Select a bracket entry first")
       return
@@ -1127,7 +1127,6 @@ export default function WorldCupBracketShell({
       pointsAwarded: 0,
       isCorrect: null,
       lockedAt: null,
-      confidencePoints: view.challenge.confidenceScoringEnabled ? confidencePoints ?? existingPick?.confidencePoints ?? 1 : null,
     }
     setEntryPicks((prev) => ({
       ...prev,
@@ -1158,7 +1157,6 @@ export default function WorldCupBracketShell({
         nextMatchId: match.nextMatchId,
         nextMatchSlot: match.nextMatchSlot,
         matchNumber: match.matchNumber,
-        confidencePoints: view.challenge.confidenceScoringEnabled ? confidencePoints ?? existingPick?.confidencePoints ?? 1 : null,
       })
 
       // Keep pick saves fast: the save route returns entry/pick state only.
@@ -1739,7 +1737,6 @@ export default function WorldCupBracketShell({
         nextMatchId: payload.nextMatchId,
         nextMatchSlot: payload.nextMatchSlot,
         matchNumber: payload.matchNumber,
-        confidencePoints: view.challenge.confidenceScoringEnabled ? 1 : null,
       })
 
       const returnedPicks = Array.isArray(result.picks)
@@ -2816,7 +2813,6 @@ export default function WorldCupBracketShell({
                       isLocked={isLocked}
                       savingMatchIds={savingPickMatchIds}
                       aiInsightsUnlocked={aiInsightsUnlocked}
-                      confidenceScoringEnabled={view.challenge.confidenceScoringEnabled}
                       onPick={persistPick}
                       onOpenMatchupPicker={(matchId) => {
                         if (!hasPickableFixtures) {

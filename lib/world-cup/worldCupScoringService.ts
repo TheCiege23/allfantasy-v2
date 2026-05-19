@@ -46,7 +46,6 @@ type DbPick = {
   selectedTeamId: string | null
   selectedTeamName: string
   selectedSlotKey: string | null
-  confidencePoints?: number | null
   match?: DbMatch | null
   pointsAwarded?: number
   isCorrect?: boolean | null
@@ -129,8 +128,8 @@ function isWorldCupPickSelectionStillAlive(
 }
 
 export function evaluateWorldCupPick(
-  pickOrMatch: Pick<DbPick, "round" | "selectedTeamId" | "selectedTeamName" | "selectedSlotKey" | "confidencePoints"> | DbMatch,
-  matchOrPick: DbMatch | Partial<Pick<DbPick, "round" | "selectedTeamId" | "selectedTeamName" | "selectedSlotKey" | "confidencePoints">>,
+  pickOrMatch: Pick<DbPick, "round" | "selectedTeamId" | "selectedTeamName" | "selectedSlotKey"> | DbMatch,
+  matchOrPick: DbMatch | Partial<Pick<DbPick, "round" | "selectedTeamId" | "selectedTeamName" | "selectedSlotKey">>,
   scoring?: Partial<WorldCupScoringValues> | null
 ) {
   const firstLooksLikeMatch = "status" in pickOrMatch && ("winnerTeamId" in pickOrMatch || "winnerTeamName" in pickOrMatch)
@@ -150,29 +149,7 @@ export function evaluateWorldCupPick(
       (pick.selectedTeamName && match.winnerTeamName && pick.selectedTeamName === match.winnerTeamName) ||
       (pick.selectedSlotKey && slot && pick.selectedSlotKey === slot)
   )
-  const confidenceBonus =
-    isCorrect && scoring?.confidenceScoringEnabled === true
-      ? normalizeWorldCupScoringConfidencePoints((pick as Partial<DbPick>).confidencePoints)
-      : 0
-  return {
-    isCorrect,
-    pointsAwarded: isCorrect
-      ? getWorldCupRoundPoints((pick.round ?? match.round) as WorldCupRound, scoring) + confidenceBonus
-      : 0,
-  }
-}
-
-export function normalizeWorldCupScoringConfidencePoints(value: unknown): number {
-  if (value === null || value === undefined || value === "") return 0
-  const n = Number(value)
-  return Number.isInteger(n) && n >= 1 && n <= 32 ? n : 0
-}
-
-function readWorldCupConfidenceScoringEnabled(sourcePayload: unknown): boolean {
-  if (!sourcePayload || typeof sourcePayload !== "object" || Array.isArray(sourcePayload)) return false
-  const leagueSettings = (sourcePayload as Record<string, unknown>).leagueSettings
-  if (!leagueSettings || typeof leagueSettings !== "object" || Array.isArray(leagueSettings)) return false
-  return (leagueSettings as Record<string, unknown>).confidenceScoringEnabled === true
+  return { isCorrect, pointsAwarded: isCorrect ? getWorldCupRoundPoints((pick.round ?? match.round) as WorldCupRound, scoring) : 0 }
 }
 
 export function isChampionStillAlive(
@@ -392,10 +369,7 @@ export async function recalculateWorldCupChallenge(challengeId: string) {
   const refreshedRows = buildWorldCupLeaderboardRows({
     entries: fresh.entries.filter((entry) => submittedEntryIds.has(entry.id)) as DbEntryForLb[],
     matches: fresh.matches as DbMatch[],
-    scoring: {
-      ...(fresh.scoringProfile ?? {}),
-      confidenceScoringEnabled: readWorldCupConfidenceScoringEnabled(fresh.sourcePayload),
-    },
+    scoring: fresh.scoringProfile,
   })
 
   const bracketLocked = isWorldCupChallengeLocked({

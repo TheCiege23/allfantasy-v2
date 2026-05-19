@@ -155,25 +155,6 @@ type ResultPersistenceDiagnostic = {
   scoreSource?: string | null
 }
 
-type SeriesFinalScoreMatchDiagnostic = {
-  seriesNumber: number
-  homeTeam: string
-  awayTeam: string
-  matchedFinalScoreGames: number
-  finalScoreDates: string[]
-}
-
-type SeriesPendingReasonDiagnostic = {
-  seriesNumber: number
-  homeTeam: string
-  awayTeam: string
-  homeWins: number
-  awayWins: number
-  winsNeeded: number
-  matchedFinalScoreGames: number
-  reason: string
-}
-
 type ProviderAssignmentDiagnostic = TeamPairDiagnostic & {
   assignedSeriesNumber?: number | null
   assignedSeriesId?: string | null
@@ -222,10 +203,6 @@ export type PlayoffSyncDiagnostics = {
   finalScoreDatesFetched: number
   finalScoreRowsSeen: number
   finalScoreRowsMatched: number
-  finalScoreRowsMatchedBySeries: SeriesFinalScoreMatchDiagnostic[]
-  missingFinalScoreGamesBySeries: SeriesPendingReasonDiagnostic[]
-  partialSeriesWinCounts: SeriesPendingReasonDiagnostic[]
-  seriesStillPendingReasons: SeriesPendingReasonDiagnostic[]
   seriesWinsComputed: number
   seriesWinnersComputed: number
   templateReplacementCount: number
@@ -238,9 +215,7 @@ export type PlayoffSyncDiagnostics = {
   venueFieldsFound: number
   unmatchedScheduleExamples: TeamPairDiagnostic[]
   scheduleDateKnownButTimeMissing: number
-  nextGameDateKnownButTimeMissing: number
   nextGameDateOnlyExamples: TeamPairDiagnostic[]
-  dateOnlyNextGameExamples: TeamPairDiagnostic[]
   noMatchReason?: string | null
 }
 
@@ -290,9 +265,7 @@ export type RefreshPlayoffScheduleMetadataResult = {
     | "venueFieldsFound"
     | "unmatchedScheduleExamples"
     | "scheduleDateKnownButTimeMissing"
-    | "nextGameDateKnownButTimeMissing"
     | "nextGameDateOnlyExamples"
-    | "dateOnlyNextGameExamples"
   >
 }
 
@@ -368,21 +341,6 @@ function collectProviderGameDates(groups: ProviderSeriesGroup[], maxDates = 90):
   ))
     .sort()
     .slice(0, maxDates)
-}
-
-function collectPlayoffDateWindow(groups: ProviderSeriesGroup[], seasonYear: number, maxDates = 120): string[] {
-  const providerDates = collectProviderGameDates(groups, maxDates)
-  const providerTimes = providerDates
-    .map((date) => Date.UTC(Number(date.slice(0, 4)), Number(date.slice(4, 6)) - 1, Number(date.slice(6, 8))))
-    .filter(Number.isFinite)
-  const anchor = providerTimes.length > 0
-    ? new Date(Math.min(...providerTimes))
-    : new Date(Date.UTC(seasonYear, 3, 15))
-  anchor.setUTCDate(anchor.getUTCDate() - 3)
-  return Array.from(new Set([
-    ...providerDates,
-    ...buildEspnScoreboardDateWindow(maxDates, anchor),
-  ])).sort()
 }
 
 function scheduleRowToSyncGame(row: RollingInsightsScheduleGameRow): PlayoffSeriesSyncGame {
@@ -501,10 +459,6 @@ export async function fetchRollingInsightsPostseasonScheduleGames(input: {
       finalScoreDatesFetched: 0,
       finalScoreRowsSeen: 0,
       finalScoreRowsMatched: 0,
-      finalScoreRowsMatchedBySeries: [],
-      missingFinalScoreGamesBySeries: [],
-      partialSeriesWinCounts: [],
-      seriesStillPendingReasons: [],
       seriesWinsComputed: 0,
       seriesWinnersComputed: 0,
       templateReplacementCount: 0,
@@ -517,9 +471,7 @@ export async function fetchRollingInsightsPostseasonScheduleGames(input: {
       venueFieldsFound: 0,
       unmatchedScheduleExamples: [],
       scheduleDateKnownButTimeMissing: 0,
-      nextGameDateKnownButTimeMissing: 0,
       nextGameDateOnlyExamples: [],
-      dateOnlyNextGameExamples: [],
       noMatchReason: null,
     },
   }
@@ -609,10 +561,6 @@ export async function fetchLivePlayoffSeriesGames(input: {
           finalScoreDatesFetched: 0,
           finalScoreRowsSeen: 0,
           finalScoreRowsMatched: 0,
-          finalScoreRowsMatchedBySeries: [],
-          missingFinalScoreGamesBySeries: [],
-          partialSeriesWinCounts: [],
-          seriesStillPendingReasons: [],
           seriesWinsComputed: 0,
           seriesWinnersComputed: 0,
           templateReplacementCount: 0,
@@ -625,9 +573,7 @@ export async function fetchLivePlayoffSeriesGames(input: {
           venueFieldsFound: 0,
           unmatchedScheduleExamples: [],
           scheduleDateKnownButTimeMissing: 0,
-          nextGameDateKnownButTimeMissing: 0,
           nextGameDateOnlyExamples: [],
-          dateOnlyNextGameExamples: [],
           noMatchReason: null,
         },
       }
@@ -679,10 +625,6 @@ export async function fetchLivePlayoffSeriesGames(input: {
       finalScoreDatesFetched: 0,
       finalScoreRowsSeen: 0,
       finalScoreRowsMatched: 0,
-      finalScoreRowsMatchedBySeries: [],
-      missingFinalScoreGamesBySeries: [],
-      partialSeriesWinCounts: [],
-      seriesStillPendingReasons: [],
       seriesWinsComputed: 0,
       seriesWinnersComputed: 0,
       templateReplacementCount: 0,
@@ -695,9 +637,7 @@ export async function fetchLivePlayoffSeriesGames(input: {
       venueFieldsFound: 0,
       unmatchedScheduleExamples: [],
       scheduleDateKnownButTimeMissing: 0,
-      nextGameDateKnownButTimeMissing: 0,
       nextGameDateOnlyExamples: [],
-      dateOnlyNextGameExamples: [],
       noMatchReason: null,
     },
   }
@@ -1154,7 +1094,7 @@ function gameStartTime(game: PlayoffSeriesSyncGame): number {
 
 function isDateOnlyStartTime(value: string | null | undefined): boolean {
   const text = String(value ?? "").trim()
-  return /^\d{4}-\d{2}-\d{2}$/.test(text) || /^\d{8}$/.test(text) || /^\d{4}-\d{2}-\d{2}T00:00:00(?:\.000)?Z$/.test(text)
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) || /^\d{8}$/.test(text)
 }
 
 function hasKnownStartDate(value: string | null | undefined): boolean {
@@ -1170,7 +1110,7 @@ function nextScheduledGame(games: PlayoffSeriesSyncGame[]): PlayoffSeriesSyncGam
     .filter((game) => {
       const status = statusFromGame(game)
       const start = gameStartTime(game)
-      return status === "in_progress" || status === "scheduled" && (!Number.isFinite(start) || start >= now)
+      return status === "in_progress" || status === "scheduled" && (!Number.isFinite(start) || isDateOnlyStartTime(game.startTime) || start >= now)
     })
     .sort((a, b) => {
       const aStatus = statusFromGame(a)
@@ -1283,36 +1223,6 @@ function aggregateSeriesGames(series: any, games: PlayoffSeriesSyncGame[]): Play
     liveStatus: activeGame?.statusDetail ?? activeGame?.status ?? null,
     providerGamesJson: games.map(safeProviderGame),
     completedWithoutWinnerSource,
-  }
-}
-
-function seriesFinalScoreDiagnostic(series: any, aggregate: PlayoffSeriesAggregate, matchedFinalScoreGames: PlayoffSeriesSyncGame[]): SeriesFinalScoreMatchDiagnostic {
-  return {
-    seriesNumber: Number(series.seriesNumber ?? 0),
-    homeTeam: displayName(series.homeTeamName),
-    awayTeam: displayName(series.awayTeamName),
-    matchedFinalScoreGames: matchedFinalScoreGames.length,
-    finalScoreDates: Array.from(new Set(matchedFinalScoreGames.map((game) => espnDateFromStartTime(game.startTime)).filter(Boolean) as string[])).sort(),
-  }
-}
-
-function pendingSeriesReason(series: any, aggregate: PlayoffSeriesAggregate, matchedFinalScoreGames: PlayoffSeriesSyncGame[]): SeriesPendingReasonDiagnostic {
-  const winsNeeded = Math.floor(Number(series.bestOf ?? 7) / 2) + 1
-  const finalGamesWithScores = matchedFinalScoreGames.filter((game) => isFinalGame(game) && winnerFromGame(game))
-  const reason = matchedFinalScoreGames.length === 0
-    ? "No final score supplement games matched this series."
-    : finalGamesWithScores.length === 0
-      ? "Matched final score rows do not include usable final scores."
-      : `Only ${Math.max(aggregate.homeWins, aggregate.awayWins)} of ${winsNeeded} required wins could be proven.`
-  return {
-    seriesNumber: Number(series.seriesNumber ?? 0),
-    homeTeam: displayName(series.homeTeamName),
-    awayTeam: displayName(series.awayTeamName),
-    homeWins: aggregate.homeWins,
-    awayWins: aggregate.awayWins,
-    winsNeeded,
-    matchedFinalScoreGames: matchedFinalScoreGames.length,
-    reason,
   }
 }
 
@@ -1492,9 +1402,7 @@ export async function refreshPlayoffScheduleMetadataForChallenge(input: {
       venueFieldsFound: supplementDiagnostics.venueFieldsFound,
       unmatchedScheduleExamples: supplementDiagnostics.unmatchedScheduleExamples,
       scheduleDateKnownButTimeMissing: supplementDiagnostics.scheduleDateKnownButTimeMissing,
-      nextGameDateKnownButTimeMissing: supplementDiagnostics.nextGameDateKnownButTimeMissing,
       nextGameDateOnlyExamples: supplementDiagnostics.nextGameDateOnlyExamples,
-      dateOnlyNextGameExamples: supplementDiagnostics.dateOnlyNextGameExamples,
     },
   }
 }
@@ -1560,9 +1468,7 @@ function scheduleSupplementDiagnostics(input: {
     venueFieldsFound: input.games.filter((game) => !!game.venue).length,
     unmatchedScheduleExamples: sampleGameDiagnostics(unmatchedGames),
     scheduleDateKnownButTimeMissing,
-    nextGameDateKnownButTimeMissing: scheduleDateKnownButTimeMissing,
     nextGameDateOnlyExamples: sampleGameDiagnostics(dateOnlyGames),
-    dateOnlyNextGameExamples: sampleGameDiagnostics(dateOnlyGames),
     matchedGameKeys,
   }
 }
@@ -1650,10 +1556,6 @@ export async function syncPlayoffChallengeSeries(input: {
     finalScoreDatesFetched: payload.diagnostics?.finalScoreDatesFetched ?? 0,
     finalScoreRowsSeen: payload.diagnostics?.finalScoreRowsSeen ?? 0,
     finalScoreRowsMatched: payload.diagnostics?.finalScoreRowsMatched ?? 0,
-    finalScoreRowsMatchedBySeries: payload.diagnostics?.finalScoreRowsMatchedBySeries ?? [],
-    missingFinalScoreGamesBySeries: payload.diagnostics?.missingFinalScoreGamesBySeries ?? [],
-    partialSeriesWinCounts: payload.diagnostics?.partialSeriesWinCounts ?? [],
-    seriesStillPendingReasons: payload.diagnostics?.seriesStillPendingReasons ?? [],
     seriesWinsComputed: payload.diagnostics?.seriesWinsComputed ?? 0,
     seriesWinnersComputed: payload.diagnostics?.seriesWinnersComputed ?? 0,
     templateReplacementCount: 0,
@@ -1666,9 +1568,7 @@ export async function syncPlayoffChallengeSeries(input: {
     venueFieldsFound: 0,
     unmatchedScheduleExamples: [],
     scheduleDateKnownButTimeMissing: 0,
-    nextGameDateKnownButTimeMissing: 0,
     nextGameDateOnlyExamples: [],
-    dateOnlyNextGameExamples: [],
     noMatchReason: null,
   }
 
@@ -1695,9 +1595,7 @@ export async function syncPlayoffChallengeSeries(input: {
   diagnostics.venueFieldsFound = supplementDiagnostics.venueFieldsFound
   diagnostics.unmatchedScheduleExamples = supplementDiagnostics.unmatchedScheduleExamples
   diagnostics.scheduleDateKnownButTimeMissing = supplementDiagnostics.scheduleDateKnownButTimeMissing
-  diagnostics.nextGameDateKnownButTimeMissing = supplementDiagnostics.nextGameDateKnownButTimeMissing
   diagnostics.nextGameDateOnlyExamples = supplementDiagnostics.nextGameDateOnlyExamples
-  diagnostics.dateOnlyNextGameExamples = supplementDiagnostics.dateOnlyNextGameExamples
 
   let seriesUpdated = 0
   let winnersUpdated = 0
@@ -1727,7 +1625,7 @@ export async function syncPlayoffChallengeSeries(input: {
   diagnostics.conflictingSlotAssignments = templateReplacementResult.conflicts
   diagnostics.expectedVsActualSlotExamples = templateReplacementResult.expectedVsActual.slice(0, 12)
   const resultsOnlyMode = mode === "results_only"
-  const finalScoreDates = resultsOnlyMode ? collectPlayoffDateWindow(providerSeriesGroups, challenge.seasonYear) : []
+  const finalScoreDates = resultsOnlyMode ? collectProviderGameDates(providerSeriesGroups) : []
   const finalScoreProvider = input.finalScoreSupplementProvider ?? fetchFinalScoreSupplementGames
   const finalScorePayload = resultsOnlyMode
     ? await finalScoreProvider({
@@ -1745,7 +1643,7 @@ export async function syncPlayoffChallengeSeries(input: {
       const groupDates = new Set(group.games.map((game) => espnDateFromStartTime(game.startTime)).filter(Boolean) as string[])
       const matchedScores = finalScorePayload.games.filter((game) => {
         const date = espnDateFromStartTime(game.startTime)
-        return (!date || groupDates.size === 0 || groupDates.has(date) || resultsOnlyMode) && gameMatchesSeries(
+        return (!date || groupDates.has(date)) && gameMatchesSeries(
           {
             roundIndex: group.roundIndex,
             homeTeamName: group.homeTeamName,
@@ -1764,10 +1662,6 @@ export async function syncPlayoffChallengeSeries(input: {
   let templateReplacementCount = 0
   const updatedSeriesExamples: UpdatedSeriesDiagnostic[] = []
   const resultPersistenceExamples: ResultPersistenceDiagnostic[] = []
-  const finalScoreRowsMatchedBySeries: SeriesFinalScoreMatchDiagnostic[] = []
-  const missingFinalScoreGamesBySeries: SeriesPendingReasonDiagnostic[] = []
-  const partialSeriesWinCounts: SeriesPendingReasonDiagnostic[] = []
-  const seriesStillPendingReasons: SeriesPendingReasonDiagnostic[] = []
   const officialWinnerBySeriesId = new Map<string, string>()
 
   for (const series of challenge.series) {
@@ -1831,9 +1725,6 @@ export async function syncPlayoffChallengeSeries(input: {
       : aggregate.status
     const nextSeriesSummary = teamsScheduleOnly ? scheduleSafeSeriesSummary(aggregate) : aggregate.seriesSummary
     const scoreSource = resultScoreGames.length > 0 ? finalScorePayload.source : null
-    if (resultsOnly && finalScoreRowsMatchedBySeries.length < 12) {
-      finalScoreRowsMatchedBySeries.push(seriesFinalScoreDiagnostic(series, aggregate, resultScoreGames))
-    }
     if (scoreSource && (nextHomeWins > 0 || nextAwayWins > 0)) {
       diagnostics.seriesWinsComputed += 1
     }
@@ -1847,15 +1738,6 @@ export async function syncPlayoffChallengeSeries(input: {
         diagnostics.completedSeriesWithWinner += 1
       } else {
         diagnostics.completedSeriesWithoutWinner += 1
-      }
-    }
-    if (resultsOnly && !nextWinnerTeamName) {
-      const pendingReason = pendingSeriesReason(series, aggregate, resultScoreGames)
-      if (seriesStillPendingReasons.length < 12) seriesStillPendingReasons.push(pendingReason)
-      if (resultScoreGames.length === 0 && missingFinalScoreGamesBySeries.length < 12) {
-        missingFinalScoreGamesBySeries.push(pendingReason)
-      } else if ((aggregate.homeWins > 0 || aggregate.awayWins > 0) && partialSeriesWinCounts.length < 12) {
-        partialSeriesWinCounts.push(pendingReason)
       }
     }
     if (teamsScheduleOnly && aggregate.winnerTeamName) {
@@ -1922,10 +1804,6 @@ export async function syncPlayoffChallengeSeries(input: {
   }
 
   diagnostics.resultPersistenceExamples = resultPersistenceExamples
-  diagnostics.finalScoreRowsMatchedBySeries = finalScoreRowsMatchedBySeries
-  diagnostics.missingFinalScoreGamesBySeries = missingFinalScoreGamesBySeries
-  diagnostics.partialSeriesWinCounts = partialSeriesWinCounts
-  diagnostics.seriesStillPendingReasons = seriesStillPendingReasons
   diagnostics.resultsOnlyStrippedWinners = mode === "results_only" ? false : diagnostics.resultsOnlyStrippedWinners
   if (mode === "results_only" && diagnostics.completedProviderSeries > 0 && diagnostics.finalScoreRowsMatched > 0) {
     warnings.push(`Rolling Insights schedule-season had completed series but no scores; ${diagnostics.finalScoreSupplementProvider} final score supplement found ${diagnostics.finalScoreRowsMatched} matched games.`)

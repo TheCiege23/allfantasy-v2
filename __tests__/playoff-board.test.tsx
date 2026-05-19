@@ -844,53 +844,6 @@ describe("playoff bracket projection", () => {
     expect(screen.getByTestId("playoff-series-venue-s9")).toHaveTextContent("Venue TBD")
   })
 
-  it("renders UTC-midnight placeholder starts as date-only next game with TBD broadcast", () => {
-    render(
-      <PlayoffBracketBoard
-        rounds={[...rounds]}
-        series={series.map((item) => item.id === "s9"
-          ? {
-              ...item,
-              homeTeamName: "Spurs",
-              awayTeamName: "Thunder",
-              nextGameAt: "2026-05-18T00:00:00.000Z",
-              providerGamesJson: [{
-                homeTeam: "Spurs",
-                awayTeam: "Thunder",
-                startTime: "2026-05-18T00:00:00.000Z",
-                status: "STATUS_SCHEDULED",
-              }],
-            }
-          : item)}
-        picks={[]}
-      />
-    )
-
-    expect(screen.getByTestId("playoff-series-next-s9")).toHaveTextContent("Next: Mon, May 18 — TBD")
-    expect(screen.getByTestId("playoff-series-venue-s9")).toHaveTextContent("Venue TBD")
-  })
-
-  it("uses persisted winners, not series summaries alone, for result border status", () => {
-    render(
-      <PlayoffBracketBoard
-        rounds={[...rounds]}
-        series={series.map((item) => item.id === "s1"
-          ? {
-              ...item,
-              winnerTeamName: null,
-              seriesSummary: "Celtics win series 4-1",
-            }
-          : item)}
-        picks={[playoffPick({ pickTeamName: "Celtics" })]}
-        showPickResults
-      />
-    )
-
-    expect(screen.getByTestId("playoff-series-s1")).toHaveClass("border-amber-400")
-    expect(screen.getByTestId("playoff-series-s1")).not.toHaveClass("border-cyan-400")
-    expect(screen.getByTestId("playoff-series-pick-result-s1")).toHaveTextContent("Pending")
-  })
-
   it("finds next actionable projected series", () => {
     expect(getNextActionablePlayoffSeries(series, [])?.id).toBe("s1")
   })
