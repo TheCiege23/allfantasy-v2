@@ -26,6 +26,10 @@ import {
   parseWorldCupLeagueSettings,
 } from "./worldCupBracketSettingsService"
 import {
+  getWorldCupKnockoutModeFromPayload,
+  hasOfficialWorldCupReseededKnockoutFixtures,
+} from "./worldCupKnockoutMode"
+import {
   emitWorldCupChallengeCreated,
   emitWorldCupBracketCompleted,
   emitWorldCupEntryCreated,
@@ -469,6 +473,7 @@ function serialize(input: {
 }): WorldCupChallengeView {
   const c = input.challenge
   const matchById = new Map(c.matches.map((match) => [match.id, match] as const))
+  const knockoutMode = getWorldCupKnockoutModeFromPayload(c.sourcePayload)
   const simulation = readSimulationFlags(c.sourcePayload)
   const hasSimulatedResults = c.matches.some(
     (m) => (m as Record<string, unknown>).apiStatusShort === "SIM"
@@ -494,6 +499,7 @@ function serialize(input: {
       effectivePickLockAt: iso(effLock),
       status: c.status,
       includeThirdPlace: Boolean(c.includeThirdPlace),
+      knockoutMode,
       isTestMode: simulation.isTestMode,
       simulationEnabled: simulation.simulationEnabled,
       simulatedAt: simulation.simulatedAt,
@@ -1222,16 +1228,25 @@ export async function saveWorldCupBracketPickForEntry(input: {
   if (isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry }).locked) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
 
   const existingPicks = entry.picks.filter(hasWorldCupPickSelection).map(toWorldCupPickView)
-  const groupStageView = await getWorldCupGroupStageView({
-    challengeId: c.id,
-    entryId: entry.id,
-    userId: input.userId,
-  })
-  const groupSeededMatches = buildWorldCupMatchesFromGroupPredictions({
-    matches: c.matches.map(toWorldCupMatchView),
-    groupStageView,
-    bestThirdMappingConfirmed: false,
-  }).matches
+  const knockoutMode = getWorldCupKnockoutModeFromPayload(c.sourcePayload)
+  if (
+    knockoutMode === "reseeded" &&
+    !hasOfficialWorldCupReseededKnockoutFixtures(c.matches.map(toWorldCupMatchView))
+  ) {
+    throw new Error("Knockout picks open after official Round of 32 fixtures are available.")
+  }
+  const groupSeededMatches =
+    knockoutMode === "predictive"
+      ? buildWorldCupMatchesFromGroupPredictions({
+          matches: c.matches.map(toWorldCupMatchView),
+          groupStageView: await getWorldCupGroupStageView({
+            challengeId: c.id,
+            entryId: entry.id,
+            userId: input.userId,
+          }),
+          bestThirdMappingConfirmed: false,
+        }).matches
+      : c.matches.map(toWorldCupMatchView)
   const projectedMatches = buildWorldCupProjectedMatches(
     groupSeededMatches,
     existingPicks

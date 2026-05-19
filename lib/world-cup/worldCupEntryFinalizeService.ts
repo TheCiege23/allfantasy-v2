@@ -4,6 +4,10 @@ import { isWorldCupChallengeLocked } from "./worldCupBracketBuilder"
 import { WORLD_CUP_BRACKET_LOCKED_MESSAGE } from "./worldCupBracketService"
 import { buildWorldCupMatchesFromGroupPredictions, isWorldCupMatchPickable } from "./worldCupProjectedBracket"
 import {
+  getWorldCupKnockoutModeFromPayload,
+  hasOfficialWorldCupReseededKnockoutFixtures,
+} from "./worldCupKnockoutMode"
+import {
   getWorldCupGroupStageCompletionState,
 } from "./worldCupGroupStageScoringService"
 import { isWorldCupEntryCompleteFromSelections } from "./worldCupScoringService"
@@ -83,19 +87,27 @@ export async function getWorldCupEntryCompletionReview(input: {
   const missingGroups = entry.challenge.groups
     .map((group) => group.groupKey)
     .filter((groupKey) => !rankedKeys.has(groupKey))
+  const knockoutMode = getWorldCupKnockoutModeFromPayload(entry.challenge.sourcePayload)
+  const reseededReady = hasOfficialWorldCupReseededKnockoutFixtures(
+    entry.challenge.matches as Parameters<typeof hasOfficialWorldCupReseededKnockoutFixtures>[0]
+  )
   const groupStageView = await getWorldCupGroupStageView(input)
-  const generatedKnockoutMatches = buildWorldCupMatchesFromGroupPredictions({
-    matches: entry.challenge.matches as Parameters<typeof isWorldCupEntryCompleteFromSelections>[0]["matches"],
-    groupStageView,
-    bestThirdMappingConfirmed: false,
-  }).matches
+  const generatedKnockoutMatches =
+    knockoutMode === "reseeded"
+      ? entry.challenge.matches
+      : buildWorldCupMatchesFromGroupPredictions({
+          matches: entry.challenge.matches as Parameters<typeof isWorldCupEntryCompleteFromSelections>[0]["matches"],
+          groupStageView,
+          bestThirdMappingConfirmed: false,
+        }).matches
   const knockoutComplete = isWorldCupEntryCompleteFromSelections({
     matches: generatedKnockoutMatches,
     picks: entry.picks,
     includeThirdPlace: entry.challenge.includeThirdPlace,
-  })
+  }) && (knockoutMode !== "reseeded" || reseededReady)
   const pickableKnockoutMatches = generatedKnockoutMatches.filter(
     (match) =>
+      (knockoutMode !== "reseeded" || reseededReady) &&
       (match.round !== "third_place" || entry.challenge.includeThirdPlace) &&
       isWorldCupMatchPickable(match)
   )

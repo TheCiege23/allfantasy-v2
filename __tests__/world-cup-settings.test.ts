@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { worldCupBracketSettingsPatchSchema } from "@/lib/world-cup/worldCupBracketSettingsSchema"
 import {
   assertPositiveScoringValues,
+  parseWorldCupLeagueSettings,
   worldCupPublicPicksEarlyGloballyAllowed,
 } from "@/lib/world-cup/worldCupBracketSettingsService"
 
@@ -68,6 +69,18 @@ describe("World Cup bracket settings validation", () => {
     expect(() => assertPositiveScoringValues({ championBonusPoints: -1 })).toThrow()
   })
 
+  it("defaults existing pools to predictive knockout mode", () => {
+    expect(parseWorldCupLeagueSettings(null).knockoutMode).toBe("predictive")
+    expect(parseWorldCupLeagueSettings({ leagueSettings: {} }).knockoutMode).toBe("predictive")
+    expect(parseWorldCupLeagueSettings({ leagueSettings: { knockoutMode: "reseeded" } }).knockoutMode).toBe("reseeded")
+  })
+
+  it("schema accepts predictive and reseeded knockout modes", () => {
+    expect(worldCupBracketSettingsPatchSchema.safeParse({ knockoutMode: "predictive" }).success).toBe(true)
+    expect(worldCupBracketSettingsPatchSchema.safeParse({ knockoutMode: "reseeded" }).success).toBe(true)
+    expect(worldCupBracketSettingsPatchSchema.safeParse({ knockoutMode: "moneyline" }).success).toBe(false)
+  })
+
   it("applyPatch rejects bracketBrainEnabled without AF Pro before touching prisma", async () => {
     vi.resetModules()
     const { applyWorldCupBracketSettingsPatch } = await import(
@@ -103,6 +116,10 @@ describe("World Cup bracket settings validation", () => {
       id: "c1",
       sourcePayload: { leagueSettings: { bracketBrainEnabled: false } },
       scoringProfileId: "sp1",
+      status: "open",
+      pickLockAt: null,
+      entries: [],
+      picks: [],
     })
     challengeUpdate.mockResolvedValueOnce({})
     scoringUpdate.mockResolvedValueOnce({})
@@ -145,6 +162,10 @@ describe("World Cup bracket settings validation", () => {
         simulation: { enabled: true },
       },
       scoringProfileId: "sp1",
+      status: "open",
+      pickLockAt: null,
+      entries: [],
+      picks: [],
     })
     challengeUpdate.mockResolvedValueOnce({})
     scoringUpdate.mockResolvedValueOnce({})
@@ -166,6 +187,61 @@ describe("World Cup bracket settings validation", () => {
     expect(payload?.simulation).toEqual({ enabled: true })
     const ls = payload?.leagueSettings as Record<string, unknown>
     expect(ls?.commissionerNote).toBe("keep")
+  })
+
+  it("blocks non-admin knockout mode changes after entries begin", async () => {
+    findUnique.mockResolvedValueOnce({
+      id: "c1",
+      sourcePayload: { leagueSettings: { knockoutMode: "predictive" } },
+      scoringProfileId: "sp1",
+      status: "open",
+      pickLockAt: null,
+      entries: [{ id: "entry-1" }],
+      picks: [],
+    })
+
+    vi.resetModules()
+    const { applyWorldCupBracketSettingsPatch } = await import(
+      "@/lib/world-cup/worldCupBracketSettingsService"
+    )
+
+    await expect(
+      applyWorldCupBracketSettingsPatch({
+        challengeId: "c1",
+        userHasAfPro: true,
+        isAdmin: false,
+        patch: { knockoutMode: "reseeded" },
+      })
+    ).rejects.toThrow(/locked after entries or picks begin/i)
+  })
+
+  it("allows admin knockout mode override after entries begin", async () => {
+    findUnique.mockResolvedValueOnce({
+      id: "c1",
+      sourcePayload: { leagueSettings: { knockoutMode: "predictive" } },
+      scoringProfileId: "sp1",
+      status: "open",
+      pickLockAt: null,
+      entries: [{ id: "entry-1" }],
+      picks: [],
+    })
+    challengeUpdate.mockResolvedValueOnce({})
+    scoringUpdate.mockResolvedValueOnce({})
+
+    vi.resetModules()
+    const { applyWorldCupBracketSettingsPatch } = await import(
+      "@/lib/world-cup/worldCupBracketSettingsService"
+    )
+
+    await applyWorldCupBracketSettingsPatch({
+      challengeId: "c1",
+      userHasAfPro: true,
+      isAdmin: true,
+      patch: { knockoutMode: "reseeded" },
+    })
+
+    const payload = challengeUpdate.mock.calls[0]?.[0]?.data?.sourcePayload as Record<string, unknown>
+    expect((payload.leagueSettings as Record<string, unknown>).knockoutMode).toBe("reseeded")
   })
 })
 

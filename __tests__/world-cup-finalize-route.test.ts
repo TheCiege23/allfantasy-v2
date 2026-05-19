@@ -294,8 +294,9 @@ describe("World Cup finalize route service imports", () => {
   it("entry pick saves validate against generated group-prediction matchups", () => {
     const source = readFileSync(join(process.cwd(), "lib/world-cup/worldCupBracketService.ts"), "utf8")
 
+    expect(source).toContain('knockoutMode === "predictive"')
     expect(source).toContain("getWorldCupGroupStageView({")
-    expect(source).toContain("const groupSeededMatches = buildWorldCupMatchesFromGroupPredictions")
+    expect(source).toContain("buildWorldCupMatchesFromGroupPredictions({")
     expect(source).toContain("buildWorldCupProjectedMatches(")
     expect(source).toContain("groupSeededMatches")
   })

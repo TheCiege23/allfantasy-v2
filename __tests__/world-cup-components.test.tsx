@@ -139,6 +139,7 @@ function mockSettingsPayload(overrides: Partial<Record<string, unknown>> = {}) {
       tiebreakerFinalScore: false,
       allowLateJoin: false,
       showPublicPicks: "after_lock",
+      knockoutMode: "predictive",
       bracketBrainEnabled: true,
       inviteGateConfigured: false,
     },
@@ -310,6 +311,64 @@ describe("WorldCupBracketSettingsPanel", () => {
     const preview = screen.getByTestId("world-cup-settings-scoring-preview")
     expect(preview.textContent).toMatch(/Round of 32/)
     expect(preview.textContent).toMatch(/Champion bonus/)
+    expect(screen.getByTestId("world-cup-settings-knockout-mode")).toHaveValue("predictive")
+  })
+
+  it("lets commissioners select reseeded knockout mode in settings", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockSettingsPayload(),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          settings: mockSettingsPayload({
+            leagueSettings: {
+              scoringStyle: "standard",
+              tiebreakerFinalScore: false,
+              allowLateJoin: false,
+              showPublicPicks: "after_lock",
+              knockoutMode: "reseeded",
+              bracketBrainEnabled: true,
+              inviteGateConfigured: false,
+            },
+          }),
+          hasAfPro: false,
+          isAdmin: false,
+          earlyPublicPicksAllowed: false,
+        }),
+      })
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupBracketSettingsPanel = (await import("@/components/brackets/world-cup/WorldCupBracketSettingsPanel"))
+      .default
+    render(<WorldCupBracketSettingsPanel challengeId="ch1" />)
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("world-cup-settings-loading")).not.toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByTestId("world-cup-settings-knockout-mode"), { target: { value: "reseeded" } })
+    fireEvent.click(screen.getByTestId("world-cup-settings-save"))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toMatchObject({ knockoutMode: "reseeded" })
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => mockSettingsPayload({
+        leagueSettings: {
+          scoringStyle: "standard",
+          tiebreakerFinalScore: false,
+          allowLateJoin: false,
+          showPublicPicks: "after_lock",
+          knockoutMode: "reseeded",
+          bracketBrainEnabled: true,
+          inviteGateConfigured: false,
+        },
+      }),
+    })
+    expect(document.body.textContent?.toLowerCase()).not.toMatch(/dfs|betting|wager/)
   })
 
   it("does not show Bracket Brain toggle for non-Pro", async () => {
@@ -738,6 +797,7 @@ function makeShellView(overrides: Record<string, unknown> = {}) {
       effectivePickLockAt: "2099-07-01T18:00:00.000Z",
       status: "open",
       includeThirdPlace: false,
+      knockoutMode: "predictive" as const,
       isTestMode: true,
       simulationEnabled: false,
       simulatedAt: null,
@@ -964,6 +1024,53 @@ describe("WorldCupBracketShell fixture readiness", () => {
     render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="group-stage" initialEntryId="entry-1" />)
 
     expect(await screen.findByTestId("world-cup-group-stage-picks")).toHaveTextContent("entry-1")
+  })
+
+  it("keeps predictive knockout generated from group predictions", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="picks" initialEntryId="entry-1" />)
+
+    expect(await screen.findByText("Your knockout bracket is generated from your predicted group results.")).toBeInTheDocument()
+    expect(screen.queryByTestId("world-cup-reseeded-knockout-locked")).not.toBeInTheDocument()
+  })
+
+  it("blocks reseeded knockout picks before official fixtures are available", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(
+      <WorldCupBracketShell
+        initialView={makeShellView({
+          challenge: { ...makeShellView().challenge, knockoutMode: "reseeded" },
+        }) as any}
+        defaultTab="picks"
+        initialEntryId="entry-1"
+      />
+    )
+
+    expect(await screen.findByText("Knockout picks open after official Round of 32 fixtures are available.")).toBeInTheDocument()
+    expect(screen.getByTestId("world-cup-reseeded-knockout-locked")).toHaveTextContent(
+      /Official knockout fixtures are not available yet/i
+    )
+    expect(screen.getAllByRole("button", { name: /Knockout Locked/i }).every((button) => button.hasAttribute("disabled"))).toBe(true)
+    expect(screen.queryByText(/Load Test Knockout Teams/i)).not.toBeInTheDocument()
+    expect(document.body.textContent?.toLowerCase()).not.toMatch(/dfs|betting|wager/)
+  })
+
+  it("opens reseeded knockout picks when official fixtures are available", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(
+      <WorldCupBracketShell
+        initialView={makeShellView({
+          challenge: { ...makeShellView().challenge, knockoutMode: "reseeded" },
+          matches: [makeShellMatch({ apiFixtureId: 9001, apiStatusShort: "NS" })],
+        }) as any}
+        defaultTab="picks"
+        initialEntryId="entry-1"
+      />
+    )
+
+    expect(await screen.findByText("Knockout picks open after official Round of 32 fixtures are available.")).toBeInTheDocument()
+    expect(screen.queryByTestId("world-cup-reseeded-knockout-locked")).not.toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: /Start Making Picks/i }).some((button) => !button.hasAttribute("disabled"))).toBe(true)
   })
 
   it("renders Review when initialized from the review tab", async () => {

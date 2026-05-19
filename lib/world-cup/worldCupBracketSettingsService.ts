@@ -12,6 +12,11 @@ import {
   updateWorldCupCommissionerSettings,
 } from "./worldCupBracketEventService"
 import type { WorldCupBracketSettingsPatch } from "./worldCupBracketSettingsSchema"
+import {
+  getWorldCupKnockoutModeFromPayload,
+  normalizeWorldCupKnockoutMode,
+  type WorldCupKnockoutMode,
+} from "./worldCupKnockoutMode"
 
 export const WORLD_CUP_MAX_PARTICIPANTS_CAP = 100
 export const WORLD_CUP_MAX_ENTRIES_PER_USER_CAP = 5
@@ -27,6 +32,7 @@ export type WorldCupLeagueSettingsStored = {
   /** When false, new users cannot join after the bracket lock boundary. */
   allowLateJoin?: boolean
   showPublicPicks?: "after_lock" | "never" | "always"
+  knockoutMode?: WorldCupKnockoutMode
   bracketBrainEnabled?: boolean
   joinPasswordHash?: string | null
 }
@@ -76,6 +82,7 @@ export function parseWorldCupLeagueSettings(
     tiebreakerFinalScore: ls.tiebreakerFinalScore ?? false,
     allowLateJoin: ls.allowLateJoin ?? false,
     showPublicPicks: ls.showPublicPicks ?? "after_lock",
+    knockoutMode: normalizeWorldCupKnockoutMode(ls.knockoutMode),
     bracketBrainEnabled: ls.bracketBrainEnabled ?? true,
     inviteGateConfigured,
     joinPasswordHash: undefined,
@@ -203,6 +210,10 @@ export async function applyWorldCupBracketSettingsPatch(input: {
         id: true,
         sourcePayload: true,
         scoringProfileId: true,
+        status: true,
+        pickLockAt: true,
+        entries: { select: { id: true } },
+        picks: { select: { id: true }, take: 1 },
       },
     })
     if (!ch) throw new Error("Challenge not found")
@@ -228,10 +239,23 @@ export async function applyWorldCupBracketSettingsPatch(input: {
 
     const nextLeague: Record<string, unknown> = { ...prevLeague }
 
+    if (
+      patch.knockoutMode !== undefined &&
+      patch.knockoutMode !== getWorldCupKnockoutModeFromPayload(ch.sourcePayload) &&
+      !input.isAdmin &&
+      ((ch.entries?.length ?? 0) > 0 ||
+        (ch.picks?.length ?? 0) > 0 ||
+        ch.status !== "open" ||
+        ch.pickLockAt)
+    ) {
+      throw new Error("Knockout mode is locked after entries or picks begin. Admin override is required.")
+    }
+
     if (patch.scoringStyle !== undefined) nextLeague.scoringStyle = patch.scoringStyle
     if (patch.tiebreakerFinalScore !== undefined) nextLeague.tiebreakerFinalScore = patch.tiebreakerFinalScore
     if (patch.allowLateJoin !== undefined) nextLeague.allowLateJoin = patch.allowLateJoin
     if (patch.showPublicPicks !== undefined) nextLeague.showPublicPicks = patch.showPublicPicks
+    if (patch.knockoutMode !== undefined) nextLeague.knockoutMode = patch.knockoutMode
     if (patch.bracketBrainEnabled !== undefined) nextLeague.bracketBrainEnabled = patch.bracketBrainEnabled
 
     if (Object.prototype.hasOwnProperty.call(patch, "joinPassword")) {

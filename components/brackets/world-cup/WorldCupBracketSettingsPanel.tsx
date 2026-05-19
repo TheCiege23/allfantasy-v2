@@ -31,6 +31,7 @@ type BundleLeague = {
   tiebreakerFinalScore?: boolean
   allowLateJoin?: boolean
   showPublicPicks?: "after_lock" | "never" | "always"
+  knockoutMode?: "predictive" | "reseeded"
   bracketBrainEnabled?: boolean
   inviteGateConfigured?: boolean
 }
@@ -103,6 +104,7 @@ export default function WorldCupBracketSettingsPanel({
   const [tiebreakerFinalScore, setTiebreakerFinalScore] = useState(false)
   const [allowLateJoin, setAllowLateJoin] = useState(false)
   const [showPublicPicks, setShowPublicPicks] = useState<"after_lock" | "never" | "always">("after_lock")
+  const [knockoutMode, setKnockoutMode] = useState<"predictive" | "reseeded">("predictive")
 
   const [bracketBrainEnabled, setBracketBrainEnabled] = useState(true)
   const [joinPasswordInput, setJoinPasswordInput] = useState("")
@@ -140,6 +142,7 @@ export default function WorldCupBracketSettingsPanel({
     setTiebreakerFinalScore(l.tiebreakerFinalScore ?? false)
     setAllowLateJoin(l.allowLateJoin ?? false)
     setShowPublicPicks(l.showPublicPicks ?? "after_lock")
+    setKnockoutMode(l.knockoutMode ?? "predictive")
     setBracketBrainEnabled(l.bracketBrainEnabled !== false)
 
     setJoinPasswordInput("")
@@ -271,6 +274,9 @@ export default function WorldCupBracketSettingsPanel({
     }
     if (showPublicPicks !== (payload.leagueSettings.showPublicPicks ?? "after_lock")) {
       patch.showPublicPicks = showPublicPicks
+    }
+    if (knockoutMode !== (payload.leagueSettings.knockoutMode ?? "predictive")) {
+      patch.knockoutMode = knockoutMode
     }
     if (bracketBrainEnabled !== (payload.leagueSettings.bracketBrainEnabled !== false)) {
       patch.bracketBrainEnabled = bracketBrainEnabled
@@ -455,6 +461,21 @@ export default function WorldCupBracketSettingsPanel({
           />
           <span className="mt-1 block text-[10px] text-white/40">
             Stored securely — never shown again after save. Leave blank and save to clear.
+          </span>
+        </label>
+        <label className="mt-3 block text-xs text-white/70">
+          Knockout Mode
+          <select
+            data-testid="world-cup-settings-knockout-mode"
+            value={knockoutMode}
+            onChange={(e) => setKnockoutMode(e.target.value as "predictive" | "reseeded")}
+            className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+          >
+            <option value="predictive">Predictive Bracket</option>
+            <option value="reseeded">Reseeded Knockout</option>
+          </select>
+          <span className="mt-2 block rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-[11px] leading-5 text-white/45">
+            Predictive Bracket generates the knockout path from each manager’s group predictions. Reseeded Knockout keeps knockout picks locked until official Round of 32 fixtures are available.
           </span>
         </label>
       </section>

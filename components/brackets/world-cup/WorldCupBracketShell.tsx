@@ -58,6 +58,7 @@ import {
   buildWorldCupProjectedMatches,
   getOrderedRounds,
 } from "@/lib/world-cup/worldCupProjectedBracket"
+import { hasOfficialWorldCupReseededKnockoutFixtures } from "@/lib/world-cup/worldCupKnockoutMode"
 import { calculateWorldCupBracketHealth } from "@/lib/world-cup/worldCupAiInsights"
 import { getBrowserWorldCupInviteUrl } from "@/lib/world-cup/worldCupBracketUtils"
 import { resolveWorldCupEntitlementSummary } from "@/lib/world-cup/worldCupEntitlements"
@@ -212,6 +213,7 @@ function normalizeWorldCupView(input: WorldCupChallengeView | (Partial<WorldCupC
         effectivePickLockAt: challengeRaw?.effectivePickLockAt ?? null,
         status: challengeRaw?.status ?? "open",
         includeThirdPlace: Boolean(challengeRaw?.includeThirdPlace),
+        knockoutMode: challengeRaw?.knockoutMode === "reseeded" ? "reseeded" : "predictive",
         isTestMode: Boolean(challengeRaw?.isTestMode),
         simulationEnabled: Boolean(challengeRaw?.simulationEnabled),
         simulatedAt: challengeRaw?.simulatedAt ?? null,
@@ -250,6 +252,7 @@ function normalizeWorldCupView(input: WorldCupChallengeView | (Partial<WorldCupC
       effectivePickLockAt: challengeRaw?.effectivePickLockAt ?? null,
       status: challengeRaw?.status ?? "open",
       includeThirdPlace: Boolean(challengeRaw?.includeThirdPlace),
+      knockoutMode: challengeRaw?.knockoutMode === "reseeded" ? "reseeded" : "predictive",
       isTestMode: Boolean(challengeRaw?.isTestMode),
       simulationEnabled: Boolean(challengeRaw?.simulationEnabled),
       simulatedAt: challengeRaw?.simulatedAt ?? null,
@@ -746,10 +749,15 @@ export default function WorldCupBracketShell({
       }),
     [knockoutGroupStageView, view.matches]
   )
+  const knockoutMode = view.challenge.knockoutMode ?? "predictive"
+  const reseededOfficialFixturesReady = hasOfficialWorldCupReseededKnockoutFixtures(view.matches)
   const baseKnockoutMatches = groupSeededKnockout.matches
   const projectedMatches = useMemo(
-    () => buildWorldCupProjectedMatches(baseKnockoutMatches, picks),
-    [baseKnockoutMatches, picks]
+    () => buildWorldCupProjectedMatches(
+      knockoutMode === "reseeded" && reseededOfficialFixturesReady ? view.matches : baseKnockoutMatches,
+      picks
+    ),
+    [baseKnockoutMatches, knockoutMode, picks, reseededOfficialFixturesReady, view.matches]
   )
   const pickableMatches = useMemo(
     () => projectedMatches.filter(isWorldCupMatchPickable),
@@ -778,7 +786,8 @@ export default function WorldCupBracketShell({
     () => getWorldCupGuidedPicksState(baseKnockoutMatches),
     [baseKnockoutMatches]
   )
-  const hasPickableFixtures = projectedPickableMatchCount > 0
+  const knockoutPicksLockedByMode = knockoutMode === "reseeded" && !reseededOfficialFixturesReady
+  const hasPickableFixtures = projectedPickableMatchCount > 0 && !knockoutPicksLockedByMode
   const unresolvedMatchesCount = view.matches.length - rawPickableMatches.length
 
   const selectedLeaderboardRow = useMemo(
@@ -1015,6 +1024,12 @@ export default function WorldCupBracketShell({
       toast.info(message)
       return
     }
+    if (knockoutPicksLockedByMode) {
+      const message = "Knockout picks open after official Round of 32 fixtures are available."
+      setCompletionError(message)
+      toast.info(message)
+      return
+    }
     isFinalizingEntryRef.current = true
     setIsFinalizingEntry(true)
     setCompletionError(null)
@@ -1040,7 +1055,7 @@ export default function WorldCupBracketShell({
       isFinalizingEntryRef.current = false
       setIsFinalizingEntry(false)
     }
-  }, [applyChallengeView, challengeId, hasUnsavedGroupChanges, selectedEntryId])
+  }, [applyChallengeView, challengeId, hasUnsavedGroupChanges, knockoutPicksLockedByMode, selectedEntryId])
 
   // ── Pick saving ──────────────────────────────────────────────────────────
   async function persistPick(match: WorldCupMatchView, side: "home" | "away") {
@@ -1052,6 +1067,12 @@ export default function WorldCupBracketShell({
       setSaveState("locked")
       setSaveError("Bracket is locked.")
       toast.error("Bracket is locked.")
+      return
+    }
+    if (knockoutPicksLockedByMode) {
+      setSaveState("error")
+      setSaveError("Knockout picks open after official Round of 32 fixtures are available.")
+      toast.error("Knockout picks open after official Round of 32 fixtures are available.")
       return
     }
     const currentPicks = entryPicks[selectedEntryId] ?? []
@@ -1547,14 +1568,20 @@ export default function WorldCupBracketShell({
     [projectedMatches, view.challenge.includeThirdPlace]
   )
   const computedIsComplete =
+    !knockoutPicksLockedByMode &&
     projectedPickableMatchCount > 0 &&
     completedPickCount > 0 &&
     remainingPicks === 0
   const guidedPickerAvailable =
-    !isLocked && projectedPickableMatchCount > 0 && (remainingPicks > 0 || computedIsComplete)
+    !isLocked &&
+    !knockoutPicksLockedByMode &&
+    projectedPickableMatchCount > 0 &&
+    (remainingPicks > 0 || computedIsComplete)
   const guidedPickerLabel =
     isLocked
       ? "Bracket Locked"
+      : knockoutPicksLockedByMode
+        ? "Knockout Locked"
       : projectedPickableMatchCount === 0
         ? "Fixtures Not Ready"
         : completedPickCount === 0
@@ -1563,6 +1590,10 @@ export default function WorldCupBracketShell({
             ? "Continue Guided Picks"
             : "Review Guided Picks"
   const openNextActionablePick = useCallback(() => {
+    if (knockoutPicksLockedByMode) {
+      toast.info("Knockout picks open after official Round of 32 fixtures are available.")
+      return
+    }
     if (!guidedPickerAvailable || !firstUnpickedMatchId) {
       toast.info(
         blockedFuturePickCount > 0
@@ -1573,9 +1604,10 @@ export default function WorldCupBracketShell({
     }
     setGuidedInitialMatchId(firstUnpickedMatchId)
     setIsGuidedPickerOpen(true)
-  }, [blockedFuturePickCount, firstUnpickedMatchId, guidedPickerAvailable])
+  }, [blockedFuturePickCount, firstUnpickedMatchId, guidedPickerAvailable, knockoutPicksLockedByMode])
   const showSeedTestFixturesCta =
     !isLocked &&
+    knockoutMode !== "reseeded" &&
     (view.isOwner || view.isAdmin) &&
     (guidedPicksState === "fixtures_not_synced" || guidedPicksState === "fixtures_not_ready")
 
@@ -1588,7 +1620,9 @@ export default function WorldCupBracketShell({
     fallbackInviteUrl: view.challenge.inviteUrl,
   })
   const fixturesReadyLabel =
-    guidedPicksState === "ready"
+    knockoutPicksLockedByMode
+      ? "Knockout picks open after official Round of 32 fixtures are available"
+      : guidedPicksState === "ready"
       ? `${projectedPickableMatchCount} pickable matchup${projectedPickableMatchCount === 1 ? "" : "s"} ready`
       : guidedPicksState === "fixtures_not_synced"
         ? "Fixtures have not been synced yet"
@@ -2719,13 +2753,26 @@ export default function WorldCupBracketShell({
           selectedEntry ? (
             <section id="world-cup-bracket" className="space-y-3">
               <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm text-cyan-50">
-                <p className="font-black">Your knockout bracket is generated from your predicted group results.</p>
+                <p className="font-black">
+                  {knockoutMode === "reseeded"
+                    ? "Knockout picks open after official Round of 32 fixtures are available."
+                    : "Your knockout bracket is generated from your predicted group results."}
+                </p>
                 <p className="mt-1 text-xs text-cyan-100/75">
-                  Knockout matchups update based on your Group Stage predictions. Changing group predictions may reset affected knockout picks.
+                  {knockoutMode === "reseeded"
+                    ? "Group Stage picks work normally now. Once real knockout fixtures are synced, you will make fresh knockout picks from the official bracket."
+                    : "Knockout matchups update based on your Group Stage predictions. Changing group predictions may reset affected knockout picks."}
                 </p>
                 {knockoutGroupStageError ? (
                   <p className="mt-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-2 py-1.5 text-xs font-bold text-amber-100">
                     {knockoutGroupStageError}
+                  </p>
+                ) : knockoutPicksLockedByMode ? (
+                  <p
+                    data-testid="world-cup-reseeded-knockout-locked"
+                    className="mt-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-2 py-1.5 text-xs font-bold text-amber-100"
+                  >
+                    Reseeded Knockout is enabled. Official knockout fixtures are not available yet, so generated knockout picks are locked.
                   </p>
                 ) : groupSeededKnockout.status !== "ready" ? (
                   <p className="mt-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-2 py-1.5 text-xs font-bold text-amber-100">
@@ -2738,7 +2785,7 @@ export default function WorldCupBracketShell({
                   {!isLocked ? (
                     <button
                       type="button"
-                      disabled={!guidedPickerAvailable}
+                      disabled={!guidedPickerAvailable || knockoutPicksLockedByMode}
                       onClick={openNextActionablePick}
                       className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:bg-cyan-300/45"
                     >
@@ -2765,9 +2812,13 @@ export default function WorldCupBracketShell({
                   </div>
                   {!isLocked && guidedPicksState !== "ready" ? (
                     <div className="min-w-[min(100%,22rem)] rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
-                      <p className="font-bold">Knockout teams come from your group predictions.</p>
+                      <p className="font-bold">
+                        {knockoutMode === "reseeded" ? "Official knockout fixtures required." : "Knockout teams come from your group predictions."}
+                      </p>
                       <p className="mt-1 text-amber-100/80">
-                        {groupSeededKnockout.message}
+                        {knockoutMode === "reseeded"
+                          ? "Do not fake official fixtures. Picks stay closed until provider fixtures are ready."
+                          : groupSeededKnockout.message}
                       </p>
                     </div>
                   ) : null}
@@ -2804,7 +2855,15 @@ export default function WorldCupBracketShell({
               </div>
 
               <div ref={knockoutScrollRef} data-testid="world-cup-bracket-scroll" className="max-h-[72vh] overflow-auto">
-                {entryPicksHydrated ? (
+                {knockoutPicksLockedByMode ? (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-8 text-center">
+                    <Lock className="mx-auto h-8 w-8 text-amber-200/70" />
+                    <h2 className="mt-3 text-lg font-black text-white">Reseeded Knockout Locked</h2>
+                    <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-white/55">
+                      Knockout picks open after official Round of 32 fixtures are available. Finish your Group Stage predictions now and come back when the real knockout bracket is synced.
+                    </p>
+                  </div>
+                ) : entryPicksHydrated ? (
                   <AllFantasyBracketBoard mode="pick" isReadOnly={false} showBranding frameClassName="w-max min-w-max !overflow-visible" contentClassName="min-h-0 w-max min-w-max">
                     <WorldCupBracketBoard
                       view={view}
