@@ -55,6 +55,7 @@ export default function LoginContent() {
   const postLoginRedirect = resolveSuccessfulLoginRedirect(callbackUrl)
   const isAdminLogin = callbackUrl.startsWith("/admin")
   const passwordReset = searchParams?.get("reset") === "1"
+  const oauthErrorParam = searchParams?.get("error")
 
   const [login, setLogin] = useState("")
   const [password, setPassword] = useState("")
@@ -361,6 +362,21 @@ export default function LoginContent() {
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-5 w-5 shrink-0" />
                 {t("login.passwordResetSuccess")}
+              </div>
+            </div>
+          )}
+
+          {oauthErrorParam && !error && (
+            <div className="mb-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+              <div className="flex items-start gap-2">
+                <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+                <div>
+                  {oauthErrorParam === "OAuthCallback"
+                    ? "Google sign-in couldn't complete — your session may have expired or the browser blocked the sign-in cookie. Please try again."
+                    : oauthErrorParam === "OAuthAccountNotLinked"
+                      ? "This Google account is already linked to a different AllFantasy account. Sign in with your original method and connect Google from settings."
+                      : "Social sign-in failed. Please try again or use your email and password."}
+                </div>
               </div>
             </div>
           )}
