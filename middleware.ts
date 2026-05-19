@@ -59,6 +59,35 @@ function isPaidPrefix(prefix: string, pathname: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`)
 }
 
+// ─── Username gate ────────────────────────────────────────────────────────────
+// Authenticated users who have not yet chosen a username (OAuth sign-up skips
+// the credentials signup flow) are redirected here before accessing the app.
+const USERNAME_GATE_EXEMPT: string[] = [
+  "/choose-username",
+  "/login",
+  "/signup",
+  "/onboarding",
+  "/verify",
+  "/reset-password",
+  "/auth",           // /auth/error and similar
+  "/api/user/profile", // username write endpoint — must stay reachable
+  "/api/user/me",    // read current user — used by choose-username page
+  "/terms",
+  "/privacy",
+  "/data-deletion",
+  "/disclaimer",
+  "/support",
+]
+
+function isUsernameGateExempt(pathname: string): boolean {
+  if (pathname === "/") return true
+  for (const ex of USERNAME_GATE_EXEMPT) {
+    if (pathname === ex || pathname.startsWith(`${ex}/`)) return true
+  }
+  return false
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 /** Paid API surfaces in paid_block states (cron/webhooks like sync-profiles stay open). */
 const PAID_GEO_PREFIXES = [
   "/api/subscription/checkout",
@@ -246,6 +275,37 @@ export async function middleware(request: NextRequest) {
 
   if (isExemptPath(pathname)) {
     return applyApiSecurityHeaders(pathname, NextResponse.next())
+  }
+
+  // Username gate: redirect authenticated users without a username to /choose-username.
+  // This fires for OAuth sign-ups where the user never had a chance to pick a username.
+  // API routes get a 403 JSON; page routes get a redirect.
+  if (!isUsernameGateExempt(pathname)) {
+    const gateSecret = resolveAuthSecret()
+    if (gateSecret) {
+      const gateToken = await getToken({ req: request, secret: gateSecret })
+      if (gateToken && !gateToken.username) {
+        if (pathname.startsWith("/api/")) {
+          return applyApiSecurityHeaders(
+            pathname,
+            NextResponse.json(
+              {
+                error: "USERNAME_REQUIRED",
+                message: "Please choose a username before continuing.",
+              },
+              { status: 403 }
+            )
+          )
+        }
+        const dest = request.nextUrl.clone()
+        dest.pathname = "/choose-username"
+        dest.searchParams.set(
+          "callbackUrl",
+          pathname + (request.nextUrl.search || "")
+        )
+        return NextResponse.redirect(dest)
+      }
+    }
   }
 
   const authSecret = resolveAuthSecret()

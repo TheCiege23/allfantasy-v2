@@ -2,13 +2,13 @@ import { prisma } from "@/lib/prisma"
 import { isAllowedSessionIdleMinutes } from "@/lib/auth/session-idle-constants"
 import { SUPPORTED_SPORTS, isSupportedSport } from "@/lib/sport-scope"
 import { isSelectableChimmyTtsVoiceId } from "@/lib/tts/voices"
+import { validateUsername } from "@/lib/auth/username-validation"
 import type { ProfileUpdatePayload } from "./types"
 
 /**
  * Updates user profile fields that are editable from Settings.
  * Username can be changed here (validated + uniqueness). Email/phone use dedicated flows.
  */
-const USERNAME_RE = /^[a-z0-9_]{3,32}$/
 
 export async function updateUserProfile(
   userId: string,
@@ -22,13 +22,11 @@ export async function updateUserProfile(
   }
 
   if (payload.username !== undefined && payload.username !== null) {
-    const normalized = String(payload.username).trim().toLowerCase()
-    if (!USERNAME_RE.test(normalized)) {
-      return {
-        ok: false,
-        error: "Username must be 3–32 characters (lowercase letters, numbers, underscore)",
-      }
+    const validation = validateUsername(String(payload.username))
+    if (!validation.ok) {
+      return { ok: false, error: validation.reason }
     }
+    const { normalized } = validation
     const taken = await prisma.appUser.findFirst({
       where: { username: normalized, NOT: { id: userId } },
       select: { id: true },

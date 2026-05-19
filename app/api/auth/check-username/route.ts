@@ -1,38 +1,34 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { containsProfanity } from "@/lib/profanity"
+import { validateUsername } from "@/lib/auth/username-validation"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-function normalizeUsername(u: string) {
-  return u.trim()
-}
-
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const raw = searchParams?.get("username") || ""
-  const username = normalizeUsername(raw)
 
-  if (!username) {
-    return NextResponse.json({ ok: false, available: false, reason: "empty" })
+  const validation = validateUsername(raw)
+  if (!validation.ok) {
+    // Distinguish empty vs format error for callers that check `ok`
+    return NextResponse.json({
+      ok: validation.reason === "Username is required" ? false : true,
+      available: false,
+      reason: validation.reason === "Username is required" ? "empty" : "format",
+    })
   }
 
-  if (username.length < 3 || username.length > 30) {
-    return NextResponse.json({ ok: true, available: false, reason: "length" })
-  }
+  const { normalized } = validation
 
-  if (!/^[A-Za-z0-9_]+$/.test(username)) {
-    return NextResponse.json({ ok: true, available: false, reason: "charset" })
-  }
-
-  if (containsProfanity(username)) {
+  if (containsProfanity(normalized)) {
     return NextResponse.json({ ok: true, available: false, reason: "profanity" })
   }
 
   try {
     const existing = await prisma.appUser.findFirst({
-      where: { username },
+      where: { username: normalized },
       select: { id: true },
     })
 
@@ -57,4 +53,3 @@ export async function GET(req: Request) {
     )
   }
 }
-
