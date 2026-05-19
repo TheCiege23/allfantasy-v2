@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { WORLD_CUP_2026_OFFICIAL_GROUPS } from "@/lib/world-cup/worldCupOfficialGroups"
 
 vi.mock("server-only", () => ({}))
 
@@ -17,6 +18,22 @@ vi.mock("@/lib/prisma", () => ({
 }))
 
 describe("World Cup group stage service exports", () => {
+  it("defines exactly 12 official groups with 48 real teams", () => {
+    const entries = Object.entries(WORLD_CUP_2026_OFFICIAL_GROUPS)
+    expect(entries).toHaveLength(12)
+    const allTeams = entries.flatMap(([groupKey, teams]) => {
+      expect(teams).toHaveLength(4)
+      for (const team of teams) {
+        expect(team.group).toBe(groupKey)
+        expect(team.name).not.toMatch(/TBD|Test Team/i)
+        expect(team.fifaCode).toMatch(/^[A-Z]{3}$/)
+      }
+      return teams
+    })
+    expect(allTeams).toHaveLength(48)
+    expect(new Set(allTeams.map((team) => team.fifaCode)).size).toBe(48)
+  })
+
   it("exposes the named gameplay service functions used by API routes", async () => {
     const service = await import("@/lib/world-cup/worldCupGroupStageService")
 
@@ -94,9 +111,9 @@ describe("World Cup group stage service exports", () => {
     })
     expect(result.warnings).toEqual([
       {
-        code: "GROUP_STALE_TEST_TEAMS_REPLACED",
+        code: "GROUP_REBUILT_FROM_OFFICIAL_TEAMS",
         groupKey: "A",
-        message: "Group A replaced stale demo/test team rows with official 2026 group teams. Cleared 0 stale saved picks.",
+        message: "Group A was rebuilt from the official 2026 group source. Cleared 0 stale saved picks.",
       },
     ])
   })
@@ -199,6 +216,63 @@ describe("World Cup group stage service exports", () => {
       skipDuplicates: true,
     })
     expect(result.groups[0].teams.map((row) => row.team.name)).toEqual(["Mexico", "South Korea", "South Africa", "Czechia"])
+  })
+
+  it("rebuilds mixed imported production groups instead of preserving wrong rows and topping up with placeholders", async () => {
+    const service = await import("@/lib/world-cup/worldCupGroupStageService")
+    const groupE = { id: "group-e", challengeId: "c1", groupKey: "E", displayName: "Group E", sortOrder: 5, teams: [] }
+    const officialTeams = [
+      { id: "wc2026_official_ger", name: "Germany", country: "Germany", fifaCode: "GER", groupName: "E", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 1 } },
+      { id: "wc2026_official_ecu", name: "Ecuador", country: "Ecuador", fifaCode: "ECU", groupName: "E", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 2 } },
+      { id: "wc2026_official_civ", name: "Ivory Coast", country: "Ivory Coast", fifaCode: "CIV", groupName: "E", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 3 } },
+      { id: "wc2026_official_cuw", name: "Curacao", country: "Curacao", fifaCode: "CUW", groupName: "E", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 4 } },
+    ]
+    const staleRows = [
+      { id: "row-mex", teamId: "wc2026_official_mex", seedOrder: 1, team: { id: "wc2026_official_mex", name: "Mexico", country: "Mexico", fifaCode: "MEX", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups" } } },
+      { id: "row-tun", teamId: "wc2026_official_tun", seedOrder: 2, team: { id: "wc2026_official_tun", name: "Tunisia", country: "Tunisia", fifaCode: "TUN", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups" } } },
+      { id: "row-usa", teamId: "wc2026_official_usa", seedOrder: 3, team: { id: "wc2026_official_usa", name: "USA", country: "USA", fifaCode: "USA", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups" } } },
+      { id: "row-tbd", teamId: "wc2026_placeholder_c1_E_4", seedOrder: 4, team: { id: "wc2026_placeholder_c1_E_4", name: "Group E Test Team 4", country: "TBD Group E", fifaCode: "E4", qualificationStatus: "test_placeholder", sourcePayload: { source: "allfantasy_test_placeholder" } } },
+    ]
+
+    prismaMocks.worldCupBracketChallenge.findUnique.mockResolvedValue({ id: "c1", sourcePayload: null })
+    prismaMocks.worldCupGroup.findMany
+      .mockResolvedValueOnce([groupE])
+      .mockResolvedValueOnce([{
+        ...groupE,
+        teams: officialTeams.map((team, index) => ({
+          id: `row-${team.id}`,
+          teamId: team.id,
+          seedOrder: index + 1,
+          actualRank: null,
+          points: null,
+          goalDifference: null,
+          goalsFor: null,
+          team,
+        })),
+      }])
+    prismaMocks.worldCupTeam.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(officialTeams)
+    prismaMocks.worldCupGroupTeam.findMany.mockResolvedValue(staleRows)
+
+    const result = await service.ensureWorldCupGroupsForChallenge("c1")
+
+    expect(prismaMocks.worldCupTeam.upsert).not.toHaveBeenCalled()
+    expect(prismaMocks.worldCupGroupTeam.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ["row-mex", "row-tun", "row-usa", "row-tbd"] } },
+    })
+    expect(prismaMocks.worldCupGroupTeam.createMany).toHaveBeenCalledWith({
+      data: officialTeams.map((team, index) => ({
+        challengeId: "c1",
+        groupId: "group-e",
+        teamId: team.id,
+        seedOrder: index + 1,
+      })),
+      skipDuplicates: true,
+    })
+    const names = result.groups[0].teams.map((row) => row.team.name)
+    expect(names).toEqual(["Germany", "Ecuador", "Ivory Coast", "Curacao"])
+    expect(names.join(" ")).not.toMatch(/TBD|Test Team|Mexico|Tunisia|USA/i)
   })
 
   it("filters stale saved picks out of the group-stage response after repair", async () => {

@@ -164,6 +164,19 @@ function officialTeamId(team: WorldCupOfficialGroupTeam) {
   return `wc2026_official_${team.fifaCode.toLowerCase()}`
 }
 
+function isWorldCupOfficialTeam(team: WorldCupOfficialGroupTeam | { id?: string | null; fifaCode?: string | null; name?: string | null; country?: string | null }) {
+  const officialGroup = resolveWorldCup2026OfficialGroup({
+    fifaCode: team.fifaCode,
+    name: team.name,
+    country: "country" in team ? team.country : null,
+  })
+  if (!officialGroup) return false
+  return WORLD_CUP_2026_OFFICIAL_GROUPS[officialGroup].some((officialTeam) => {
+    if (team.fifaCode && officialTeam.fifaCode === team.fifaCode.trim().toUpperCase()) return true
+    return officialTeamId(officialTeam) === team.id
+  })
+}
+
 async function ensureOfficialWorldCupTeamRows() {
   const officialIds: string[] = []
   for (const teams of Object.values(WORLD_CUP_2026_OFFICIAL_GROUPS)) {
@@ -172,8 +185,7 @@ async function ensureOfficialWorldCupTeamRows() {
         where: {
           OR: [
             { id: officialTeamId(team) },
-            { fifaCode: team.fifaCode },
-            { name: { equals: team.name, mode: "insensitive" } },
+            { AND: [{ fifaCode: team.fifaCode }, { name: { equals: team.name, mode: "insensitive" } }] },
           ],
           NOT: [
             { id: { startsWith: "demo_team_" } },
@@ -430,13 +442,75 @@ export async function ensureWorldCupGroupsForChallenge(challengeId: string) {
       include: { team: true },
       orderBy: { seedOrder: "asc" },
     })
-    const officialGroupTeamIds = !isTestModeChallenge
-      ? new Set((WORLD_CUP_2026_OFFICIAL_GROUPS[groupKey] ?? []).map(officialTeamId))
-      : new Set<string>()
     const officialTeamIds = new Set((teamsByGroup.get(group.groupKey) ?? []).slice(0, 4).map((team) => team.id))
+    if (!isTestModeChallenge) {
+      const officialRows = (teamsByGroup.get(group.groupKey) ?? []).slice(0, 4)
+      const officialRowsByCode = new Map(officialRows.map((team) => [team.fifaCode, team]))
+      const officialDefinitions = WORLD_CUP_2026_OFFICIAL_GROUPS[groupKey] ?? []
+      const authoritativeRows = officialDefinitions
+        .map((team) => officialRowsByCode.get(team.fifaCode))
+        .filter((team): team is NonNullable<typeof team> => Boolean(team))
+      const authoritativeTeamIds = new Set(authoritativeRows.map((team) => team.id))
+      const rowsToReplace = existingRows.filter((row) => !authoritativeTeamIds.has(row.teamId))
+
+      if (authoritativeRows.length !== 4) {
+        warnings.push({
+          code: "GROUP_OFFICIAL_TEAMS_INCOMPLETE",
+          groupKey: group.groupKey as WorldCupGroupKey,
+          message: `${group.displayName} could not materialize all 4 official 2026 teams. Placeholder fallback is disabled for production pools.`,
+        })
+        continue
+      }
+
+      if (rowsToReplace.length > 0) {
+        const replacedTeamIds = [...new Set(rowsToReplace.map((row) => row.teamId))]
+        const stalePickRepair = await clearStaleWorldCupGroupPicks({
+          challengeId,
+          groupId: group.id,
+          teamIds: replacedTeamIds,
+        })
+        await prisma.worldCupGroupTeam.deleteMany({
+          where: { id: { in: rowsToReplace.map((row) => row.id) } },
+        })
+        warnings.push({
+          code: "GROUP_REBUILT_FROM_OFFICIAL_TEAMS",
+          groupKey: group.groupKey as WorldCupGroupKey,
+          message: `${group.displayName} was rebuilt from the official 2026 group source. Cleared ${stalePickRepair.groupPicksDeleted + stalePickRepair.thirdPlacePicksDeleted} stale saved pick${stalePickRepair.groupPicksDeleted + stalePickRepair.thirdPlacePicksDeleted === 1 ? "" : "s"}.`,
+        })
+      }
+
+      const invalidPickRepair = await clearInvalidWorldCupGroupPicks({
+        challengeId,
+        groupId: group.id,
+        validTeamIds: authoritativeTeamIds,
+      })
+      const deletedCount = invalidPickRepair.groupPicksDeleted + invalidPickRepair.thirdPlacePicksDeleted
+      if (deletedCount > 0) {
+        warnings.push({
+          code: "GROUP_STALE_SAVED_PICKS_CLEARED",
+          groupKey: group.groupKey as WorldCupGroupKey,
+          message: `${group.displayName} cleared ${deletedCount} saved pick${deletedCount === 1 ? "" : "s"} that referenced old demo/test/TBD teams.`,
+        })
+      }
+
+      const existingAuthoritativeIds = new Set(existingRows
+        .filter((row) => authoritativeTeamIds.has(row.teamId))
+        .map((row) => row.teamId))
+      authoritativeRows.forEach((team, index) => {
+        if (existingAuthoritativeIds.has(team.id)) return
+        rowsToCreate.push({
+          challengeId,
+          groupId: group.id,
+          teamId: team.id,
+          seedOrder: index + 1,
+        })
+      })
+      continue
+    }
+
     const staleRows = !isTestModeChallenge && officialTeamIds.size === 4
       ? existingRows.filter((row) => {
-          if (officialGroupTeamIds.has(row.teamId)) return false
+          if (isWorldCupOfficialTeam(row.team)) return false
           if (isWorldCupTestTeam(row.team)) return true
           const officialGroup = resolveWorldCup2026OfficialGroup({
             fifaCode: row.team.fifaCode,
@@ -537,6 +611,20 @@ export async function ensureWorldCupGroupsForChallenge(challengeId: string) {
       },
     },
   })
+  if (!isTestModeChallenge) {
+    for (const group of refreshedGroups) {
+      const groupKey = group.groupKey as WorldCupOfficialGroupKey
+      const officialTeamCodes = new Set((WORLD_CUP_2026_OFFICIAL_GROUPS[groupKey] ?? []).map((team) => team.fifaCode))
+      const realOfficialTeams = group.teams.filter((row) => row.team?.fifaCode && officialTeamCodes.has(row.team.fifaCode) && !isWorldCupTestTeam(row.team))
+      if (realOfficialTeams.length !== 4 || group.teams.length !== 4) {
+        warnings.push({
+          code: "GROUP_OFFICIAL_VALIDATION_FAILED",
+          groupKey: group.groupKey as WorldCupGroupKey,
+          message: `${group.displayName} failed official group validation after repair. Expected exactly 4 official teams and no placeholders.`,
+        })
+      }
+    }
+  }
 
   return { groups: refreshedGroups, warnings }
 }
