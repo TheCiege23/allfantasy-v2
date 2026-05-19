@@ -2,12 +2,13 @@
 import { useMemo } from "react"
 import { WORLD_CUP_ROUNDS } from "@/lib/world-cup/types"
 import type { WorldCupChallengeView, WorldCupMatchView, WorldCupPickView, WorldCupRound } from "@/lib/world-cup/types"
-import { buildWorldCupProjectedMatches, hasWorldCupPickSelection } from "@/lib/world-cup/worldCupProjectedBracket"
+import { hasWorldCupPickSelection } from "@/lib/world-cup/worldCupProjectedBracket"
 import WorldCupRoundColumn from "./WorldCupRoundColumn"
 
 export default function WorldCupBracketBoard({
 	view,
 	picks,
+	matches,
 	onPick,
 	onOpenMatchupPicker,
 	savingMatchIds,
@@ -15,12 +16,12 @@ export default function WorldCupBracketBoard({
 }: {
 	view: WorldCupChallengeView
 	picks: WorldCupPickView[]
+	matches: WorldCupMatchView[]
 	onPick: (match: WorldCupMatchView, side: "home" | "away") => void
 	onOpenMatchupPicker?: (matchId: string) => void
 	savingMatchIds?: Set<string>
 	isLocked?: boolean
 }) {
-	const matches = useMemo(() => buildWorldCupProjectedMatches(view.matches, picks), [view.matches, picks])
 	const champion = picks.find((p) => p.round === "final" && hasWorldCupPickSelection(p))
 	const rounds = WORLD_CUP_ROUNDS.filter((r) => matches.some((m) => m.round === r && (r !== "third_place" || view.challenge.includeThirdPlace)))
 	const { pickLockStrategy, pickLockAt } = view.challenge
@@ -32,7 +33,7 @@ export default function WorldCupBracketBoard({
 					<div className="mt-0.5 truncate text-base font-black text-white sm:mt-1 sm:text-lg">{champion?.selectedTeamName ?? "Not picked"}</div>
 				</div>
 				<div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-[11px] leading-snug text-white/50 sm:px-4 sm:py-3 sm:text-xs">
-					Picks advance visually as soon as you choose a winner.
+					Your knockout bracket is generated from your predicted group results. Picks advance visually as soon as you choose a winner.
 				</div>
 			</div>
 			<div className="flex min-w-max gap-3 sm:gap-4">

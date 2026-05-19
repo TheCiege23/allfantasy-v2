@@ -421,6 +421,36 @@ function sameValueSet(a: string[], b: string[]) {
   return sortedA.every((value, index) => value === sortedB[index])
 }
 
+async function clearAffectedWorldCupKnockoutPicks(input: {
+  tx: {
+    worldCupBracketPick: {
+      deleteMany: (args: { where: { entryId: string; selectedTeamId?: { in: string[] } } }) => Promise<{ count: number }>
+    }
+    worldCupBracketEntry: {
+      update?: (args: { where: { id: string }; data: { submittedAt: null } }) => Promise<unknown>
+    }
+  }
+  entryId: string
+  changedTeamIds: string[]
+  entrySubmittedAt?: Date | null
+}) {
+  const teamIds = [...new Set(input.changedTeamIds.filter(Boolean))]
+  if (teamIds.length === 0) return { deleted: 0 }
+  const deleted = await input.tx.worldCupBracketPick.deleteMany({
+    where: {
+      entryId: input.entryId,
+      selectedTeamId: { in: teamIds },
+    },
+  })
+  if (deleted.count > 0 && input.entrySubmittedAt && input.tx.worldCupBracketEntry.update) {
+    await input.tx.worldCupBracketEntry.update({
+      where: { id: input.entryId },
+      data: { submittedAt: null },
+    })
+  }
+  return { deleted: deleted.count }
+}
+
 export async function ensureWorldCupGroupsForChallenge(challengeId: string) {
   const challenge = await prisma.worldCupBracketChallenge.findUnique({
     where: { id: challengeId },
@@ -761,6 +791,15 @@ export async function saveWorldCupGroupRanking(input: {
   )
 
   await prisma.$transaction(async (tx) => {
+    if (rankingChanged) {
+      const previousTeamIds = existingRanking.map((pick) => pick.teamId)
+      await clearAffectedWorldCupKnockoutPicks({
+        tx,
+        entryId: input.entryId,
+        changedTeamIds: [...previousTeamIds, ...input.orderedTeamIds],
+        entrySubmittedAt: entry.submittedAt,
+      })
+    }
     if (rankingChanged && entry.submittedAt) {
       await tx.worldCupBracketEntry.update({
         where: { id: input.entryId },
@@ -823,6 +862,17 @@ export async function saveWorldCupThirdPlaceAdvancers(input: {
     selectedPicks.map((pick) => pick.teamId)
   )
   await prisma.$transaction(async (tx) => {
+    if (thirdPlaceChanged) {
+      await clearAffectedWorldCupKnockoutPicks({
+        tx,
+        entryId: input.entryId,
+        changedTeamIds: [
+          ...existingSelections.map((pick) => pick.teamId),
+          ...selectedPicks.map((pick) => pick.teamId),
+        ],
+        entrySubmittedAt: entry.submittedAt,
+      })
+    }
     if (thirdPlaceChanged && entry.submittedAt) {
       await tx.worldCupBracketEntry.update({
         where: { id: input.entryId },

@@ -9,6 +9,55 @@
 import type { WorldCupMatchView, WorldCupPickView, WorldCupRound } from "./types"
 import { WORLD_CUP_ROUNDS } from "./types"
 
+export type WorldCupGroupStageProjectionTeam = {
+  teamId: string
+  name: string
+  logoUrl?: string | null
+}
+
+export type WorldCupGroupStageProjectionGroup = {
+  id: string
+  groupKey: string
+  teams: WorldCupGroupStageProjectionTeam[]
+}
+
+export type WorldCupGroupStageProjectionRankingPick = {
+  groupId: string
+  teamId: string
+  predictedRank: number
+}
+
+export type WorldCupGroupStageProjectionThirdPlacePick = {
+  groupId: string
+  teamId: string
+  isSelected: boolean
+}
+
+export type WorldCupGroupStageProjectionView = {
+  groups: WorldCupGroupStageProjectionGroup[]
+  groupRankingPicks: WorldCupGroupStageProjectionRankingPick[]
+  thirdPlaceAdvancerPicks: WorldCupGroupStageProjectionThirdPlacePick[]
+  completion: {
+    allGroupsRanked: boolean
+    thirdPlaceComplete: boolean
+    groupStageComplete: boolean
+  }
+}
+
+export type WorldCupGroupStageProjectionStatus =
+  | "ready"
+  | "missing_group_stage"
+  | "missing_rankings"
+  | "missing_third_place"
+  | "best_third_mapping_unconfirmed"
+
+export type WorldCupGroupStageProjectionResult = {
+  matches: WorldCupMatchView[]
+  status: WorldCupGroupStageProjectionStatus
+  resolvedSlotCount: number
+  message: string
+}
+
 export type WorldCupGuidedPickPayloadLike = {
   selectedTeamId?: string | null
   selectedSlotKey?: string | null
@@ -285,6 +334,142 @@ export function resetWorldCupProjectedMatchStatus<T extends WorldCupProjectedMat
 }
 
 // ── Projected bracket ─────────────────────────────────────────────────────────
+
+const BEST_THIRD_SLOT_KEYS = new Set(["C3", "D3", "G3", "H3", "K3", "L3"])
+
+function isGroupRankSlot(slotKey: string) {
+  return /^([A-L])([12])$/.test(slotKey)
+}
+
+function isBestThirdSlot(slotKey: string) {
+  return BEST_THIRD_SLOT_KEYS.has(slotKey)
+}
+
+function teamForGroupRank(view: WorldCupGroupStageProjectionView, groupKey: string, rank: number) {
+  const group = view.groups.find((row) => row.groupKey === groupKey)
+  if (!group) return null
+  const pick = view.groupRankingPicks.find((row) => row.groupId === group.id && row.predictedRank === rank)
+  if (!pick) return null
+  const team = group.teams.find((row) => row.teamId === pick.teamId)
+  return team ?? null
+}
+
+function selectedThirdPlaceTeams(view: WorldCupGroupStageProjectionView) {
+  const selectedIds = new Set(
+    view.thirdPlaceAdvancerPicks
+      .filter((pick) => pick.isSelected)
+      .map((pick) => pick.teamId)
+  )
+  return view.groups
+    .map((group) => {
+      const pick = view.groupRankingPicks.find((row) => row.groupId === group.id && row.predictedRank === 3)
+      if (!pick || !selectedIds.has(pick.teamId)) return null
+      const team = group.teams.find((row) => row.teamId === pick.teamId)
+      if (!team) return null
+      return { groupKey: group.groupKey, ...team }
+    })
+    .filter((team): team is { groupKey: string } & WorldCupGroupStageProjectionTeam => Boolean(team))
+    .sort((a, b) => a.groupKey.localeCompare(b.groupKey))
+}
+
+function resolveProjectedSlotTeam(
+  slotKey: string,
+  groupStageView: WorldCupGroupStageProjectionView,
+  bestThirdBySlot: Map<string, WorldCupGroupStageProjectionTeam>
+) {
+  const groupRank = slotKey.match(/^([A-L])([12])$/)
+  if (groupRank?.[1] && groupRank?.[2]) {
+    return teamForGroupRank(groupStageView, groupRank[1], Number(groupRank[2]))
+  }
+  if (isBestThirdSlot(slotKey)) return bestThirdBySlot.get(slotKey) ?? null
+  return null
+}
+
+function applyProjectedSide(
+  match: WorldCupMatchView,
+  side: "home" | "away",
+  team: WorldCupGroupStageProjectionTeam | null
+) {
+  if (!team) return false
+  if (side === "home") {
+    match.homeTeamId = team.teamId
+    match.homeTeamName = team.name
+    match.homeTeamLogo = team.logoUrl ?? null
+  } else {
+    match.awayTeamId = team.teamId
+    match.awayTeamName = team.name
+    match.awayTeamLogo = team.logoUrl ?? null
+  }
+  resetWorldCupProjectedMatchStatus(match)
+  return true
+}
+
+export function buildWorldCupMatchesFromGroupPredictions(input: {
+  matches: WorldCupMatchView[]
+  groupStageView: WorldCupGroupStageProjectionView | null
+  bestThirdMappingConfirmed?: boolean
+}): WorldCupGroupStageProjectionResult {
+  const out = input.matches.map((match) => ({ ...match }))
+  const view = input.groupStageView
+  if (!view) {
+    return {
+      matches: out,
+      status: "missing_group_stage",
+      resolvedSlotCount: 0,
+      message: "Rank all Group Stage pools before your Knockout bracket can be generated.",
+    }
+  }
+  if (!view.completion.allGroupsRanked) {
+    return {
+      matches: out,
+      status: "missing_rankings",
+      resolvedSlotCount: 0,
+      message: "Complete all 12 group rankings to generate your Knockout bracket.",
+    }
+  }
+
+  let resolvedSlotCount = 0
+  const thirdPlaceTeams = selectedThirdPlaceTeams(view)
+  const bestThirdBySlot = new Map<string, WorldCupGroupStageProjectionTeam>()
+  if (view.completion.thirdPlaceComplete) {
+    const bestThirdSlots = [...BEST_THIRD_SLOT_KEYS]
+    for (const [index, slotKey] of bestThirdSlots.entries()) {
+      const team = thirdPlaceTeams[index]
+      if (team) bestThirdBySlot.set(slotKey, team)
+    }
+  }
+
+  for (const match of out) {
+    if (match.round !== "round_of_32") continue
+    const homeTeam = resolveProjectedSlotTeam(match.homeSlotKey, view, bestThirdBySlot)
+    const awayTeam = resolveProjectedSlotTeam(match.awaySlotKey, view, bestThirdBySlot)
+    if (applyProjectedSide(match, "home", homeTeam)) resolvedSlotCount += 1
+    if (applyProjectedSide(match, "away", awayTeam)) resolvedSlotCount += 1
+  }
+
+  if (!view.completion.thirdPlaceComplete) {
+    return {
+      matches: out,
+      status: "missing_third_place",
+      resolvedSlotCount,
+      message: "Choose 8 third-place advancers to unlock the remaining Knockout slots.",
+    }
+  }
+  if (!input.bestThirdMappingConfirmed) {
+    return {
+      matches: out,
+      status: "best_third_mapping_unconfirmed",
+      resolvedSlotCount,
+      message: "Best-third mapping is not official yet; selected third-place teams are placed in a provisional order until FIFA confirms the mapping.",
+    }
+  }
+  return {
+    matches: out,
+    status: "ready",
+    resolvedSlotCount,
+    message: "Your Knockout bracket is generated from your predicted group results.",
+  }
+}
 
 function runWorldCupProjectionPass(out: WorldCupMatchView[], realPicks: WorldCupPickView[]): boolean {
   const byId = new Map(out.map((m) => [m.id, m]))

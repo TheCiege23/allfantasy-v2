@@ -54,6 +54,7 @@ import {
   worldCupPickMatchesMatch,
 } from "@/lib/world-cup/worldCupProjectedBracket"
 import {
+  buildWorldCupMatchesFromGroupPredictions,
   buildWorldCupProjectedMatches,
   getOrderedRounds,
 } from "@/lib/world-cup/worldCupProjectedBracket"
@@ -476,6 +477,9 @@ export default function WorldCupBracketShell({
   const [completionReview, setCompletionReview] = useState<WorldCupEntryCompletionReviewClient | null>(null)
   const [completionError, setCompletionError] = useState<string | null>(null)
   const [isCompletionLoading, setIsCompletionLoading] = useState(false)
+  const [knockoutGroupStageView, setKnockoutGroupStageView] = useState<WorldCupGroupStageViewClient | null>(null)
+  const [knockoutGroupStageError, setKnockoutGroupStageError] = useState<string | null>(null)
+  const [knockoutGroupStageRefreshKey, setKnockoutGroupStageRefreshKey] = useState(0)
   const [reviewGroupStageView, setReviewGroupStageView] = useState<WorldCupGroupStageViewClient | null>(null)
   const [reviewGroupStageError, setReviewGroupStageError] = useState<string | null>(null)
   const [isFinalizingEntry, setIsFinalizingEntry] = useState(false)
@@ -705,21 +709,54 @@ export default function WorldCupBracketShell({
     [selectedEntryId, loadedEntryPickIds]
   )
 
+  useEffect(() => {
+    if (!selectedEntryId) {
+      setKnockoutGroupStageView(null)
+      setKnockoutGroupStageError(null)
+      return
+    }
+    let cancelled = false
+    fetchWorldCupGroupStageView(challengeId, selectedEntryId)
+      .then((nextView) => {
+        if (cancelled) return
+        setKnockoutGroupStageView(nextView)
+        setKnockoutGroupStageError(null)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setKnockoutGroupStageView(null)
+        setKnockoutGroupStageError(err instanceof Error ? err.message : "Failed to load group-stage predictions")
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [challengeId, selectedEntryId, knockoutGroupStageRefreshKey])
+
   const completedPickCount = useMemo(
     () => picks.filter(hasWorldCupPickSelection).length,
     [picks]
   )
+  const groupSeededKnockout = useMemo(
+    () =>
+      buildWorldCupMatchesFromGroupPredictions({
+        matches: view.matches,
+        groupStageView: knockoutGroupStageView,
+        bestThirdMappingConfirmed: false,
+      }),
+    [knockoutGroupStageView, view.matches]
+  )
+  const baseKnockoutMatches = groupSeededKnockout.matches
   const projectedMatches = useMemo(
-    () => buildWorldCupProjectedMatches(view.matches, picks),
-    [view.matches, picks]
+    () => buildWorldCupProjectedMatches(baseKnockoutMatches, picks),
+    [baseKnockoutMatches, picks]
   )
   const pickableMatches = useMemo(
     () => projectedMatches.filter(isWorldCupMatchPickable),
     [projectedMatches]
   )
   const rawPickableMatches = useMemo(
-    () => view.matches.filter(isWorldCupMatchPickable),
-    [view.matches]
+    () => baseKnockoutMatches.filter(isWorldCupMatchPickable),
+    [baseKnockoutMatches]
   )
   const progress = useMemo(
     () => {
@@ -737,8 +774,8 @@ export default function WorldCupBracketShell({
   )
   const projectedPickableMatchCount = pickableMatches.length
   const guidedPicksState = useMemo(
-    () => getWorldCupGuidedPicksState(view.matches),
-    [view.matches]
+    () => getWorldCupGuidedPicksState(baseKnockoutMatches),
+    [baseKnockoutMatches]
   )
   const hasPickableFixtures = projectedPickableMatchCount > 0
   const unresolvedMatchesCount = view.matches.length - rawPickableMatches.length
@@ -757,10 +794,10 @@ export default function WorldCupBracketShell({
         totalScore: selectedEntry.totalScore,
         maxPossibleScore: selectedEntry.maxPossibleScore,
       },
-      view.matches,
+      projectedMatches,
       picks
     ).championAlive
-  }, [selectedEntry, selectedLeaderboardRow, view.matches, picks])
+  }, [selectedEntry, selectedLeaderboardRow, projectedMatches, picks])
 
   // ── Load entries on mount ────────────────────────────────────────────────
   useEffect(() => {
@@ -827,6 +864,8 @@ export default function WorldCupBracketShell({
     setSelectedEntryId(entryId)
     setCompletionReview(null)
     setCompletionError(null)
+    setKnockoutGroupStageView(null)
+    setKnockoutGroupStageError(null)
     setReviewGroupStageView(null)
     setReviewGroupStageError(null)
     persistSelectedEntryId(entryId)
@@ -948,6 +987,10 @@ export default function WorldCupBracketShell({
     if (tab === "review") void loadCompletionReview()
   }, [loadCompletionReview, tab])
 
+  const refreshKnockoutBracketFromGroupStage = useCallback(() => {
+    setKnockoutGroupStageRefreshKey((value) => value + 1)
+  }, [])
+
   useEffect(() => {
     if (tab !== "review" || !selectedEntryId) return
     void loadCompletionReview()
@@ -1014,7 +1057,7 @@ export default function WorldCupBracketShell({
       return
     }
     const invalidIds = getInvalidDownstreamPickIds(
-      view.matches,
+      baseKnockoutMatches,
       currentPicks,
       match.id,
       selectedTeamId
@@ -1623,7 +1666,7 @@ export default function WorldCupBracketShell({
 
       // Clear invalid downstream picks before saving the new one
       const invalidIds = getInvalidDownstreamPickIds(
-        view.matches,
+        baseKnockoutMatches,
         currentPicks,
         payload.matchId,
         payload.selectedTeamId
@@ -1632,7 +1675,7 @@ export default function WorldCupBracketShell({
         .map((id) => currentPicks.find((p) => p.id === id)?.matchId)
         .filter((mid): mid is string => mid !== undefined)
         .filter((mid) => mid !== payload.matchId)
-      const projectedForSave = buildWorldCupProjectedMatches(view.matches, currentPicks)
+      const projectedForSave = buildWorldCupProjectedMatches(baseKnockoutMatches, currentPicks)
       const payloadMatch =
         projectedForSave.find((match) => match.id === payload.matchId) ??
         projectedForSave.find(
@@ -1714,7 +1757,7 @@ export default function WorldCupBracketShell({
       return returnedPicks
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [applyChallengeView, challengeId, isLocked, markEntryPicksLoaded, refreshCompletionReviewAfterMeaningfulEdit, selectedEntryId, view.matches]
+    [applyChallengeView, baseKnockoutMatches, challengeId, isLocked, markEntryPicksLoaded, refreshCompletionReviewAfterMeaningfulEdit, selectedEntryId]
   )
 
     // ── AI bracket builder ───────────────────────────────────────────────────
@@ -1725,8 +1768,8 @@ export default function WorldCupBracketShell({
         if (!window.confirm(`Fill all unpicked matches using the "${strategy}" strategy? Existing picks will not be overwritten.`)) return
 
         const currentPicks = entryPicks[selectedEntryId] ?? []
-        const projected = buildWorldCupProjectedMatches(view.matches, currentPicks)
-        const orderedRounds = getOrderedRounds(view.matches, false)
+        const projected = buildWorldCupProjectedMatches(baseKnockoutMatches, currentPicks)
+        const orderedRounds = getOrderedRounds(baseKnockoutMatches, false)
 
         // Collect unpicked, available (both teams known) matches in order
         const unpicked = orderedRounds.flatMap((round) =>
@@ -1789,7 +1832,7 @@ export default function WorldCupBracketShell({
         setTimeout(() => setAiBuilder({ state: "idle", current: 0, total: 0, message: "" }), 3000)
       },
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [selectedEntryId, isLocked, entryPicks, view.matches, handleGuidedSavePick]
+      [selectedEntryId, isLocked, entryPicks, baseKnockoutMatches, handleGuidedSavePick]
     )
 
   // Whether to show the full picks board or the entry dashboard
@@ -2096,7 +2139,7 @@ export default function WorldCupBracketShell({
           {!isLocked && guidedPicksState === "fixtures_not_ready" && (
             <div className="mx-4 mb-3 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
               <p className="mb-2 text-center">
-                Fixtures are loaded, but team matchups are not resolved yet. Run Sync Fixtures or use simulation/test data before making picks.
+                Your knockout matchups are generated from your Group Stage predictions. Rank all groups and choose third-place advancers to unlock more slots.
               </p>
               {showSeedTestFixturesCta && (
                 <div className="flex justify-center">
@@ -2168,7 +2211,7 @@ export default function WorldCupBracketShell({
           {selectedEntry && (
             <WorldCupBracketHealthCard
               entry={selectedEntry}
-              matches={view.matches}
+              matches={projectedMatches}
               picks={picks}
             />
           )}
@@ -2764,6 +2807,21 @@ export default function WorldCupBracketShell({
         {tab === "picks" ? (
           selectedEntry ? (
             <section id="world-cup-bracket" className="space-y-3">
+              <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm text-cyan-50">
+                <p className="font-black">Your knockout bracket is generated from your predicted group results.</p>
+                <p className="mt-1 text-xs text-cyan-100/75">
+                  Knockout matchups update based on your Group Stage predictions. Changing group predictions may reset affected knockout picks.
+                </p>
+                {knockoutGroupStageError ? (
+                  <p className="mt-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-2 py-1.5 text-xs font-bold text-amber-100">
+                    {knockoutGroupStageError}
+                  </p>
+                ) : groupSeededKnockout.status !== "ready" ? (
+                  <p className="mt-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-2 py-1.5 text-xs font-bold text-amber-100">
+                    {groupSeededKnockout.message}
+                  </p>
+                ) : null}
+              </div>
               <div className="sticky top-[3.35rem] z-30 rounded-xl border border-white/10 bg-zinc-950/95 p-2 backdrop-blur sm:top-[3.6rem]">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   {!isLocked ? (
@@ -2796,9 +2854,9 @@ export default function WorldCupBracketShell({
                   </div>
                   {!isLocked && guidedPicksState !== "ready" ? (
                     <div className="min-w-[min(100%,22rem)] rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
-                      <p className="font-bold">Knockout teams are not loaded yet.</p>
+                      <p className="font-bold">Knockout teams come from your group predictions.</p>
                       <p className="mt-1 text-amber-100/80">
-                        Load test teams for local QA or sync official fixtures when available.
+                        {groupSeededKnockout.message}
                       </p>
                     </div>
                   ) : null}
@@ -2840,12 +2898,13 @@ export default function WorldCupBracketShell({
                     <WorldCupBracketBoard
                       view={view}
                       picks={picks}
+                      matches={projectedMatches}
                       isLocked={isLocked}
                       savingMatchIds={savingPickMatchIds}
                       onPick={persistPick}
                       onOpenMatchupPicker={(matchId) => {
                         if (!hasPickableFixtures) {
-                          toast.info("This matchup is not ready for picks yet. Sync fixtures or use simulation data.")
+                          toast.info(groupSeededKnockout.message)
                           return
                         }
                         setGuidedInitialMatchId(matchId)
@@ -2888,6 +2947,7 @@ export default function WorldCupBracketShell({
                 onDirtyChange={setHasUnsavedGroupChanges}
                 onCompletionChanged={() => {
                   setHasUnsavedGroupChanges(false)
+                  refreshKnockoutBracketFromGroupStage()
                   refreshCompletionReviewAfterMeaningfulEdit()
                 }}
               />
@@ -3236,7 +3296,7 @@ export default function WorldCupBracketShell({
           challengeId={challengeId}
           entryId={selectedEntry.id}
           entryName={selectedEntry.name}
-          matches={view.matches}
+          matches={baseKnockoutMatches}
           picks={picks}
           isOpen={isGuidedPickerOpen}
           initialMatchId={guidedInitialMatchId}

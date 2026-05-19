@@ -231,6 +231,27 @@ function restoreNonProdRoutes() {
   safeRmSync(backupRoot)
 }
 
+function writeBuildTailwindContentConfig() {
+  const configPath = path.join(repoRoot, 'tailwind.config.ts')
+  if (!fs.existsSync(configPath)) return null
+  const original = fs.readFileSync(configPath, 'utf8')
+  const productionContent = [
+    "'./app/**/*.{js,ts,jsx,tsx,mdx}'",
+    "'./components/**/*.{js,ts,jsx,tsx,mdx}'",
+  ]
+  const excluded = movedFiles
+    .map((entry) => `!./${entry.relativeFile.replace(/\\/g, '/')}`)
+    .map((value) => `'${value}'`)
+  const next = original.replace(
+    /content:\s*\[[\s\S]*?\],/,
+    `content: [\n    ${[...productionContent, ...excluded].join(',\n    ')},\n  ],`
+  )
+  if (next === original) return null
+  fs.writeFileSync(configPath, next, 'utf8')
+  console.log(`[vercel-next-build] Excluded ${excluded.length} moved file(s) from Tailwind content scan`)
+  return () => fs.writeFileSync(configPath, original, 'utf8')
+}
+
 function recoverStrandedBackup() {
   // Self-heal: if a previous build crashed before restoreNonProdRoutes() ran,
   // stale backup files may still exist. Restore them before proceeding.
@@ -280,6 +301,7 @@ async function run() {
     )
   }
   disableNonProdRoutes()
+  const restoreTailwindConfig = writeBuildTailwindContentConfig()
 
   // Workaround: Next.js 14 on Windows + Node ≥22 silently fails to write
   // {distDir}/export/500.html during the pages-router static-render phase,
@@ -320,6 +342,7 @@ async function run() {
   }
 
   const shutdown = (code) => {
+    if (restoreTailwindConfig) restoreTailwindConfig()
     restoreNonProdRoutes()
     process.exit(code)
   }

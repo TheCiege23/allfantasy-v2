@@ -4,13 +4,15 @@ import { WORLD_CUP_2026_OFFICIAL_GROUPS } from "@/lib/world-cup/worldCupOfficial
 vi.mock("server-only", () => ({}))
 
 const prismaMocks = vi.hoisted(() => ({
-  worldCupBracketEntry: { findUnique: vi.fn(), updateMany: vi.fn() },
+  worldCupBracketEntry: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   worldCupBracketChallenge: { findUnique: vi.fn() },
-  worldCupGroup: { createMany: vi.fn(), findMany: vi.fn() },
+  worldCupGroup: { createMany: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
   worldCupTeam: { create: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn(), upsert: vi.fn() },
   worldCupGroupTeam: { findMany: vi.fn(), createMany: vi.fn(), deleteMany: vi.fn() },
-  worldCupGroupRankingPick: { findMany: vi.fn(), deleteMany: vi.fn() },
-  worldCupThirdPlaceAdvancerPick: { findMany: vi.fn(), deleteMany: vi.fn() },
+  worldCupGroupRankingPick: { createMany: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn() },
+  worldCupThirdPlaceAdvancerPick: { createMany: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn() },
+  worldCupBracketPick: { deleteMany: vi.fn() },
+  $transaction: vi.fn(),
 }))
 
 vi.mock("@/lib/prisma", () => ({
@@ -50,7 +52,12 @@ describe("World Cup group stage service exports", () => {
     prismaMocks.worldCupThirdPlaceAdvancerPick.findMany.mockResolvedValue([])
     prismaMocks.worldCupGroupRankingPick.deleteMany.mockResolvedValue({ count: 0 })
     prismaMocks.worldCupThirdPlaceAdvancerPick.deleteMany.mockResolvedValue({ count: 0 })
+    prismaMocks.worldCupGroupRankingPick.createMany.mockResolvedValue({ count: 0 })
+    prismaMocks.worldCupThirdPlaceAdvancerPick.createMany.mockResolvedValue({ count: 0 })
+    prismaMocks.worldCupBracketPick.deleteMany.mockResolvedValue({ count: 0 })
+    prismaMocks.worldCupBracketEntry.update.mockResolvedValue({})
     prismaMocks.worldCupBracketEntry.updateMany.mockResolvedValue({ count: 0 })
+    prismaMocks.$transaction.mockImplementation(async (callback: (tx: typeof prismaMocks) => unknown) => callback(prismaMocks))
     prismaMocks.worldCupTeam.findFirst.mockImplementation(async ({ where }: { where: { OR?: Array<{ id?: string; fifaCode?: string; name?: { equals: string } }> } }) => {
       const id = where.OR?.find((row) => row.id)?.id ?? `team-${where.OR?.find((row) => row.fifaCode)?.fifaCode?.toLowerCase()}`
       return { id }
@@ -436,5 +443,52 @@ describe("World Cup group stage service exports", () => {
     expect(view.groups[0].teams.map((team) => team.name)).toEqual(["Mexico", "South Korea", "South Africa", "Czechia"])
     expect(view.groupRankingPicks.map((pick) => pick.teamId)).toEqual(["wc2026_official_mex"])
     expect(view.thirdPlaceAdvancerPicks.map((pick) => pick.teamId)).toEqual(["wc2026_official_rsa"])
+  })
+
+  it("clears only affected knockout picks when a group ranking changes", async () => {
+    const service = await import("@/lib/world-cup/worldCupGroupStageService")
+    prismaMocks.worldCupBracketEntry.findUnique.mockResolvedValue({
+      id: "entry-1",
+      challengeId: "c1",
+      participantId: "participant-1",
+      userId: "user-1",
+      submittedAt: new Date("2026-01-01T00:00:00.000Z"),
+      challenge: { ownerUserId: "owner-1", pickLockStrategy: null, pickLockAt: null, status: "open", sourcePayload: null, matches: [] },
+    })
+    prismaMocks.worldCupBracketChallenge.findUnique.mockResolvedValue({ id: "c1", sourcePayload: null })
+    prismaMocks.worldCupGroup.findFirst.mockResolvedValue({
+      id: "group-a",
+      challengeId: "c1",
+      groupKey: "A",
+      teams: [{ teamId: "team-a" }, { teamId: "team-b" }, { teamId: "team-c" }, { teamId: "team-d" }],
+    })
+    prismaMocks.worldCupGroupRankingPick.findMany
+      .mockResolvedValueOnce([
+        { teamId: "team-a" },
+        { teamId: "team-b" },
+        { teamId: "team-c" },
+        { teamId: "team-d" },
+      ])
+      .mockResolvedValue([])
+    prismaMocks.worldCupGroup.findMany.mockResolvedValue([])
+
+    await service.saveWorldCupGroupRanking({
+      challengeId: "c1",
+      entryId: "entry-1",
+      groupId: "group-a",
+      orderedTeamIds: ["team-b", "team-a", "team-c", "team-d"],
+      userId: "user-1",
+    })
+
+    expect(prismaMocks.worldCupBracketPick.deleteMany).toHaveBeenCalledWith({
+      where: {
+        entryId: "entry-1",
+        selectedTeamId: { in: ["team-a", "team-b", "team-c", "team-d"] },
+      },
+    })
+    expect(prismaMocks.worldCupBracketEntry.update).toHaveBeenCalledWith({
+      where: { id: "entry-1" },
+      data: { submittedAt: null },
+    })
   })
 })

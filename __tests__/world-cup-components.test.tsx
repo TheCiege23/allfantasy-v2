@@ -1928,13 +1928,13 @@ describe("WorldCupBracketShell fixture readiness", () => {
     render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" />)
 
     await waitFor(() => expect(clientApiMocks.fetchCompletionReview).toHaveBeenCalledTimes(1))
-    await waitFor(() => expect(clientApiMocks.fetchGroupStageView).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(clientApiMocks.fetchGroupStageView).toHaveBeenCalledTimes(2))
     fireEvent.click(screen.getAllByRole("button", { name: /Group Stage/i })[0])
     fireEvent.click(await screen.findByRole("button", { name: /Save Group Stub/i }))
     fireEvent.click(screen.getAllByRole("button", { name: /Review/i })[0])
 
     await waitFor(() => expect(clientApiMocks.fetchCompletionReview).toHaveBeenCalledTimes(2))
-    await waitFor(() => expect(clientApiMocks.fetchGroupStageView).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(clientApiMocks.fetchGroupStageView).toHaveBeenCalledTimes(4))
   })
 
   it("warns before leaving Group Stage with unsaved group changes", async () => {

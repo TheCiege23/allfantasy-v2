@@ -15,6 +15,7 @@ import { buildWorldCupDemoRoundOf32Fixtures } from "@/lib/world-cup/worldCupTest
 import { isWorldCupChallengeLocked, isWorldCupMatchLocked } from "@/lib/world-cup/worldCupBracketBuilder"
 import {
   assertWorldCupPickPayloadReady,
+  buildWorldCupMatchesFromGroupPredictions,
   buildWorldCupProjectedMatches,
   countRemainingPicks,
   findWorldCupPickForMatch,
@@ -30,6 +31,60 @@ import {
   isWorldCupMatchPickable,
 } from "@/lib/world-cup/worldCupProjectedBracket"
 import type { WorldCupMatchView, WorldCupPickView } from "@/lib/world-cup/types"
+
+function makeProjectionGroup(groupKey: string, teams: Array<{ id: string; name: string }>) {
+  return {
+    id: `group-${groupKey}`,
+    groupKey,
+    teams: teams.map((team) => ({ teamId: team.id, name: team.name, logoUrl: null })),
+  }
+}
+
+function makeCompleteGroupStageProjection(overrides: {
+  groupAWinner?: { id: string; name: string }
+  groupBRunnerUp?: { id: string; name: string }
+  thirdPlaceTeam?: { id: string; name: string; groupKey?: string }
+} = {}) {
+  const groupAWinner = overrides.groupAWinner ?? { id: "team-a1", name: "Mexico" }
+  const groupBRunnerUp = overrides.groupBRunnerUp ?? { id: "team-b2", name: "Canada" }
+  const thirdPlaceTeam = overrides.thirdPlaceTeam ?? { id: "team-c3", name: "Morocco", groupKey: "C" }
+  const groups = "ABCDEFGHIJKL".split("").map((groupKey) => {
+    const winner = groupKey === "A" ? groupAWinner : { id: `team-${groupKey.toLowerCase()}1`, name: `Team ${groupKey}1` }
+    const runnerUp = groupKey === "B" ? groupBRunnerUp : { id: `team-${groupKey.toLowerCase()}2`, name: `Team ${groupKey}2` }
+    const third = groupKey === (thirdPlaceTeam.groupKey ?? "C") ? thirdPlaceTeam : { id: `team-${groupKey.toLowerCase()}3`, name: `Team ${groupKey}3` }
+    return makeProjectionGroup(groupKey, [
+      winner,
+      runnerUp,
+      third,
+      { id: `team-${groupKey.toLowerCase()}4`, name: `Team ${groupKey}4` },
+    ])
+  })
+  return {
+    groups,
+    groupRankingPicks: groups.flatMap((group) =>
+      group.teams.map((team, index) => ({
+        groupId: group.id,
+        teamId: team.teamId,
+        predictedRank: index + 1,
+      }))
+    ),
+    thirdPlaceAdvancerPicks: groups.slice(0, 8).map((group) => {
+      const team = group.groupKey === (thirdPlaceTeam.groupKey ?? "C")
+        ? thirdPlaceTeam
+        : { id: group.teams[2]?.teamId ?? `team-${group.groupKey.toLowerCase()}3` }
+      return {
+        groupId: group.id,
+        teamId: team.id,
+        isSelected: true,
+      }
+    }),
+    completion: {
+      allGroupsRanked: true,
+      thirdPlaceComplete: true,
+      groupStageComplete: true,
+    },
+  }
+}
 
 function makeMatch(overrides: Partial<WorldCupMatchView> = {}): WorldCupMatchView {
   return {
@@ -536,6 +591,111 @@ describe("World Cup pick readiness guards", () => {
     const pickableCount = resolvedFirstRound.filter((m) => isWorldCupMatchPickable(m)).length
     expect(pickableCount).toBe(16)
     expect(getWorldCupGuidedPicksState(resolvedFirstRound)).toBe("ready")
+  })
+
+  it("generates Round of 32 winners and runners-up from the user's group predictions", () => {
+    const matches = [
+      makeMatch({
+        id: "m1",
+        matchNumber: 1,
+        homeSlotKey: "A1",
+        awaySlotKey: "B2",
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Group A Winner",
+        awayTeamName: "Group B Runner-up",
+      }),
+    ]
+
+    const result = buildWorldCupMatchesFromGroupPredictions({
+      matches,
+      groupStageView: makeCompleteGroupStageProjection({
+        groupAWinner: { id: "u1-a1", name: "Mexico" },
+        groupBRunnerUp: { id: "u1-b2", name: "Canada" },
+      }),
+      bestThirdMappingConfirmed: false,
+    })
+
+    expect(result.matches[0]).toMatchObject({
+      homeTeamId: "u1-a1",
+      homeTeamName: "Mexico",
+      awayTeamId: "u1-b2",
+      awayTeamName: "Canada",
+    })
+    expect(isWorldCupMatchPickable(result.matches[0])).toBe(true)
+  })
+
+  it("keeps per-user generated brackets separate for different group predictions", () => {
+    const matches = [
+      makeMatch({
+        id: "m1",
+        matchNumber: 1,
+        homeSlotKey: "A1",
+        awaySlotKey: "B2",
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Group A Winner",
+        awayTeamName: "Group B Runner-up",
+      }),
+    ]
+
+    const userOne = buildWorldCupMatchesFromGroupPredictions({
+      matches,
+      groupStageView: makeCompleteGroupStageProjection({
+        groupAWinner: { id: "user-one-a1", name: "Mexico" },
+      }),
+    }).matches[0]
+    const userTwo = buildWorldCupMatchesFromGroupPredictions({
+      matches,
+      groupStageView: makeCompleteGroupStageProjection({
+        groupAWinner: { id: "user-two-a1", name: "South Korea" },
+      }),
+    }).matches[0]
+
+    expect(userOne.homeTeamName).toBe("Mexico")
+    expect(userTwo.homeTeamName).toBe("South Korea")
+    expect(userOne.homeTeamId).not.toBe(userTwo.homeTeamId)
+  })
+
+  it("uses selected third-place teams in provisional slots while mapping is gated", () => {
+    const matches = [
+      makeMatch({
+        id: "m2",
+        matchNumber: 2,
+        homeSlotKey: "C1",
+        awaySlotKey: "D3",
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Group C Winner",
+        awayTeamName: "Best 3rd Place Team 1",
+      }),
+    ]
+
+    const result = buildWorldCupMatchesFromGroupPredictions({
+      matches,
+      groupStageView: makeCompleteGroupStageProjection({
+        thirdPlaceTeam: { id: "team-b3", name: "Morocco", groupKey: "B" },
+      }),
+      bestThirdMappingConfirmed: false,
+    })
+
+    expect(result.status).toBe("best_third_mapping_unconfirmed")
+    expect(result.matches[0].awayTeamId).toBe("team-b3")
+    expect(result.matches[0].awayTeamName).toBe("Morocco")
+  })
+
+  it("shows an incomplete bracket state when group predictions are missing", () => {
+    const result = buildWorldCupMatchesFromGroupPredictions({
+      matches: [makeMatch({ homeTeamId: null, awayTeamId: null, homeTeamName: "Group A Winner", awayTeamName: "Group B Runner-up" })],
+      groupStageView: {
+        ...makeCompleteGroupStageProjection(),
+        groupRankingPicks: [],
+        completion: { allGroupsRanked: false, thirdPlaceComplete: false, groupStageComplete: false },
+      },
+    })
+
+    expect(result.status).toBe("missing_rankings")
+    expect(isWorldCupMatchPickable(result.matches[0])).toBe(false)
   })
 
   it("reports missing_home_team reason for unresolved home team", () => {
