@@ -13979,3 +13979,25 @@ model AutomationLock {
   @@index([expiresAt])
   @@map("automation_locks")
 }
+
+/// Append-only log of Resend email delivery events (bounced, complained, failed, delivery_delayed).
+/// Payload is sanitized — recipient addresses are removed before storage.
+/// svixId (the Svix unique message ID header) is the idempotency key; duplicate webhook
+/// deliveries from Resend are safely ignored via the unique constraint.
+model ResendEmailEvent {
+  id        String   @id @default(uuid())
+  /// Svix-id header value — unique per webhook delivery, used for idempotency
+  svixId    String   @unique @db.VarChar(128)
+  /// Resend email_id (data.email_id in the webhook payload)
+  messageId String   @db.VarChar(128)
+  /// Event type: email.bounced | email.complained | email.failed | email.delivery_delayed | etc.
+  eventType String   @db.VarChar(64)
+  /// Sanitized event payload (to/from fields removed; diagnostic data retained)
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([messageId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("resend_email_events")
+}

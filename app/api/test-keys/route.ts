@@ -157,6 +157,7 @@ async function testSupabase(): Promise<ServiceResult> {
 }
 
 async function testResend(): Promise<ServiceResult> {
+  const hasWebhookSecret = !!(process.env.RESEND_WEBHOOK_SECRET?.trim());
   try {
     const { getResendClient } = await import("@/lib/resend-client");
     const { client, fromEmail } = await getResendClient();
@@ -169,6 +170,7 @@ async function testResend(): Promise<ServiceResult> {
       message: "Resend is configured and reachable.",
       details: {
         fromEmail,
+        hasResendWebhookSecret: hasWebhookSecret,
         domainsCount:
           Array.isArray((response as any)?.data?.data)
             ? (response as any).data.data.length
@@ -186,6 +188,7 @@ async function testResend(): Promise<ServiceResult> {
       message: error instanceof Error ? error.message : "Resend test failed.",
       details: {
         keyPreview: maskKey(envKey),
+        hasResendWebhookSecret: hasWebhookSecret,
       },
     };
   }
