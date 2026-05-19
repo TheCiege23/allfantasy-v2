@@ -327,6 +327,19 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
     error: "/auth/error",
   },
+  logger: {
+    error(code, metadata) {
+      const inner = (metadata as { error?: Error } | null | undefined)?.error
+      console.error(
+        `[nextauth-error] ${code}`,
+        inner ? `${inner.name}: ${inner.message}` : JSON.stringify(metadata)
+      )
+    },
+    warn(code) {
+      console.warn(`[nextauth-warn] ${code}`)
+    },
+    debug() {/* suppress in prod */},
+  },
   providers,
   callbacks: {
     async signIn({ user, account, profile }) {
