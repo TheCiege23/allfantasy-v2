@@ -331,6 +331,11 @@ if (facebookClientId && facebookClientSecret) {
         url: "https://www.facebook.com/v17.0/dialog/oauth",
         params: {
           scope: "email,public_profile",
+          // auth_type=rerequest forces Facebook to re-show the email permission
+          // dialog even if the user previously clicked "Continue without email".
+          // Without this, Facebook skips the email prompt once declined and the
+          // Graph API response will always be missing the email field.
+          auth_type: "rerequest",
         },
       },
       // openid-client's client.userinfo() does NOT forward `params` as URL query

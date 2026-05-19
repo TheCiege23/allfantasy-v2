@@ -372,9 +372,9 @@ export default function LoginContent() {
                 <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
                 <div>
                   {oauthErrorParam === "OAuthCallback"
-                    ? "Google sign-in couldn't complete — your session may have expired or the browser blocked the sign-in cookie. Please try again."
+                    ? "Social sign-in couldn't complete — your session may have expired or the browser blocked the sign-in cookie. Please try again."
                     : oauthErrorParam === "OAuthAccountNotLinked"
-                      ? "This Google account is already linked to a different AllFantasy account. Sign in with your original method and connect Google from settings."
+                      ? "This social account is already linked to a different AllFantasy account. Sign in with your original method and connect it from settings."
                       : "Social sign-in failed. Please try again or use your email and password."}
                 </div>
               </div>
