@@ -345,10 +345,19 @@ export function validateAIRiskResponse(response: any, offerId: string): AIRiskAn
 import OpenAI from 'openai'
 import { LeagueIntelSnapshot } from './types'
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-})
+let openai: OpenAI | null = null
+
+function getOpenAIClient(): OpenAI | null {
+  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY
+  if (!apiKey) return null
+  if (!openai) {
+    openai = new OpenAI({
+      apiKey,
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+    })
+  }
+  return openai
+}
 
 export async function runAiAssist(params: {
   snapshot: LeagueIntelSnapshot
@@ -393,7 +402,10 @@ Return JSON ONLY:
 `
 
   try {
-    const r = await openai.chat.completions.create({
+    const client = getOpenAIClient()
+    if (!client) return params.trades
+
+    const r = await client.chat.completions.create({
       model: 'gpt-4o',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.4,

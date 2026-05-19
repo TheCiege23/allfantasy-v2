@@ -209,8 +209,6 @@ function buildRosterFromPlayers(
   return out
 }
 
-const openai = getOpenAIRouteClient()
-
 type LeagueContextShape = {
   leagueName: string
   scoringType: string
@@ -709,6 +707,7 @@ Respond in JSON format:
           payload: aiNotesPayload,
           ttlSeconds: 2 * 60 * 60,
           onCacheMiss: async () => {
+            const openai = getOpenAIRouteClient()
             const aiResponse = await openai.chat.completions.create({
               model: 'gpt-4o',
               messages: [{ role: 'user', content: aiPrompt }],
@@ -796,6 +795,7 @@ Respond in JSON format:
         payload: aiSuggestionsPayload,
         ttlSeconds: 2 * 60 * 60,
         onCacheMiss: async () => {
+          const openai = getOpenAIRouteClient()
           const completion = await withTimeout(
             openai.chat.completions.create({
               model: 'gpt-4o',
