@@ -396,35 +396,42 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
     async jwt({ token, user, trigger, session: updatePayload }) {
-      // Handle useSession().update({ username }) from the choose-username flow.
-      // This re-stamps the cookie so the middleware gate sees the new username
-      // immediately — no sign-out/sign-in cycle required.
-      if (trigger === "update") {
-        const payload = updatePayload as Record<string, unknown> | null | undefined
-        if (typeof payload?.username === "string") {
-          token.username = payload.username || null
-        } else if (token.id) {
-          // Fallback: re-read from DB for stale tokens that had no username at login
-          const fresh = await prisma.appUser
-            .findUnique({
-              where: { id: token.id as string },
-              select: { username: true },
-            })
-            .catch(() => null)
-          if (fresh?.username) token.username = fresh.username
+      try {
+        // Handle useSession().update({ username }) from the choose-username flow.
+        // This re-stamps the cookie so the middleware gate sees the new username
+        // immediately — no sign-out/sign-in cycle required.
+        if (trigger === "update") {
+          const payload = updatePayload as Record<string, unknown> | null | undefined
+          if (typeof payload?.username === "string") {
+            token.username = payload.username || null
+          } else if (token.id) {
+            // Fallback: re-read from DB for stale tokens that had no username at login
+            const fresh = await prisma.appUser
+              .findUnique({
+                where: { id: token.id as string },
+                select: { username: true },
+              })
+              .catch(() => null)
+            if (fresh?.username) token.username = fresh.username
+          }
+          return token
         }
+
+        if (user) {
+          token.id = user.id;
+          token.email = user.email;
+          token.name = user.name;
+          token.username = (user as { username?: string | null }).username ?? null;
+          token.picture = user.image;
+        }
+
+        return token;
+      } catch (err) {
+        // Never let an exception here propagate — NextAuth catches any jwt callback
+        // throw and re-raises it as OAuthCallbackError, breaking OAuth sign-in.
+        console.error("[auth] jwt callback error:", err)
         return token
       }
-
-      if (user) {
-        token.id = user.id;
-        token.email = user.email;
-        token.name = user.name;
-        token.username = (user as { username?: string | null }).username ?? null;
-        token.picture = user.image;
-      }
-
-      return token;
     },
     async session({ session, token }) {
       if (session.user) {
