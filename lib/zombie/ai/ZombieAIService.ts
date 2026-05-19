@@ -11,10 +11,19 @@ import type { ZombieUniverseAIDeterministicContext } from './ZombieAIContext'
 import type { ZombieUniverseAIType } from './ZombieAIContext'
 import { buildZombieAIPrompt, buildZombieUniverseAIPrompt } from './ZombieAIPrompts'
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-})
+let openai: OpenAI | null = null
+
+function getOpenAIClient(): OpenAI | null {
+  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY
+  if (!apiKey) return null
+  if (!openai) {
+    openai = new OpenAI({
+      apiKey,
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+    })
+  }
+  return openai
+}
 
 export interface ZombieAIResult {
   narrative: string
@@ -91,9 +100,18 @@ export async function generateZombieAI(
   type: ZombieAIType,
   userId?: string | null
 ): Promise<ZombieAIResult> {
+  const client = getOpenAIClient()
+  if (!client) {
+    return {
+      narrative:
+        'AI zombie strategy is unavailable because OpenAI is not configured. Use the deterministic survivor, zombie, movement, resource, and safety data shown above.',
+      model: 'deterministic-fallback',
+    }
+  }
+
   const { system, user } = buildZombieAIPrompt(ctx, type)
   const userContent = userId ? await withOfficialTimeUserMessage(userId, user) : user
-  const completion = await openai.chat.completions.create({
+  const completion = await client.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: system },
@@ -117,9 +135,18 @@ export async function generateZombieUniverseAI(
   type: ZombieUniverseAIType,
   userId?: string | null
 ): Promise<ZombieAIResult> {
+  const client = getOpenAIClient()
+  if (!client) {
+    return {
+      narrative:
+        'AI zombie universe analysis is unavailable because OpenAI is not configured. Use the deterministic standings and movement projection data shown above.',
+      model: 'deterministic-fallback',
+    }
+  }
+
   const { system, user } = buildZombieUniverseAIPrompt(ctx, type)
   const userContent = userId ? await withOfficialTimeUserMessage(userId, user) : user
-  const completion = await openai.chat.completions.create({
+  const completion = await client.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: system },
