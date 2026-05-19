@@ -331,11 +331,12 @@ if (facebookClientId && facebookClientSecret) {
         url: "https://www.facebook.com/v17.0/dialog/oauth",
         params: {
           scope: "email,public_profile",
-          // auth_type=rerequest forces Facebook to re-show the email permission
-          // dialog even if the user previously clicked "Continue without email".
-          // Without this, Facebook skips the email prompt once declined and the
-          // Graph API response will always be missing the email field.
-          auth_type: "rerequest",
+          // NOTE: auth_type=rerequest was removed. It triggered Facebook's GDPR
+          // delegated-consent flow (flow=gdp, source=gdp_delegated) which issues an
+          // authorization code WITHOUT the email scope even when the user has a
+          // verified email and grants the permission on the consent screen. The
+          // standard OAuth dialog (no auth_type override) correctly includes the
+          // email scope in the returned access token.
         },
       },
       // openid-client's client.userinfo() does NOT forward `params` as URL query
@@ -367,6 +368,9 @@ if (facebookClientId && facebookClientSecret) {
             hasId: !!data.id,
             hasEmail: !!data.email,
             hasPicture: !!data.picture,
+            // responseKeys lets us see exactly which fields Facebook returned
+            // so we can distinguish "email absent" vs "email present but falsy"
+            responseKeys: Object.keys(data),
           });
           return data;
         },
@@ -486,6 +490,9 @@ export const authOptions: NextAuthOptions = {
             hasId: !!_fbp?.id,
             hasEmail: !!_fbp?.email,
             hasPicture: !!_fbp?.picture,
+            // grantedScope is what Facebook placed in the token response;
+            // if email scope is absent here the token cannot access the email field
+            grantedScope: account.scope ?? null,
           });
           try {
             return await runSocialLink();
