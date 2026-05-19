@@ -381,7 +381,7 @@ export const authOptions: NextAuthOptions = {
             return await runSocialLink();
           } catch (err) {
             console.error("[google-signin] FATAL:", err);
-            return false;
+            return "/auth/error?error=SOCIAL_ACCOUNT_LINK_FAILED";
           }
         }
 
