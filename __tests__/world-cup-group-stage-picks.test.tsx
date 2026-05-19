@@ -90,6 +90,26 @@ describe("WorldCupGroupStagePicks", () => {
     await waitFor(() => expect(onCompletionChanged).toHaveBeenCalledTimes(1))
   })
 
+  it("ignores rapid duplicate group save clicks while the first request is in flight", async () => {
+    let resolveSave: (value: ReturnType<typeof makeGroupStageView>) => void = () => {}
+    clientApiMocks.saveGroupRanking.mockReturnValue(new Promise((resolve) => {
+      resolveSave = resolve
+    }))
+    const WorldCupGroupStagePicks = (await import("@/components/brackets/world-cup/WorldCupGroupStagePicks")).default
+    render(<WorldCupGroupStagePicks challengeId="c1" entryId="entry-1" />)
+
+    const group = await screen.findByTestId("world-cup-group-A")
+    fireEvent.click(within(group).getAllByRole("button", { name: /Move Up/i })[1])
+    const saveButton = within(group).getByRole("button", { name: /Save Group/i })
+
+    fireEvent.click(saveButton)
+    fireEvent.click(saveButton)
+
+    expect(clientApiMocks.saveGroupRanking).toHaveBeenCalledTimes(1)
+    resolveSave(makeGroupStageView())
+    await waitFor(() => expect(within(group).getByRole("button", { name: /Saved/i })).toBeDisabled())
+  })
+
   it("keeps no-op group save disabled and preserves submitted state by not calling save", async () => {
     const WorldCupGroupStagePicks = (await import("@/components/brackets/world-cup/WorldCupGroupStagePicks")).default
     render(<WorldCupGroupStagePicks challengeId="c1" entryId="entry-1" />)
@@ -180,5 +200,57 @@ describe("WorldCupGroupStagePicks", () => {
     expect(selectedCard.className).toContain("border-cyan-200")
     expect(within(selectedCard).getByText("Selected to advance")).toBeInTheDocument()
     expect(within(selectedCard).getByRole("checkbox", { name: /Select Canada as a third-place advancer/i })).toBeChecked()
+  })
+
+  it("ignores rapid duplicate third-place saves while the first request is in flight", async () => {
+    const completeView = makeGroupStageView({
+      completion: {
+        groupsRankedCount: 12,
+        allGroupsRanked: true,
+        thirdPlaceSelectedCount: 0,
+        thirdPlaceComplete: false,
+        groupStageComplete: false,
+      },
+      groups: Array.from({ length: 12 }, (_, index) => ({
+        id: `group-${index}`,
+        groupKey: String.fromCharCode(65 + index),
+        displayName: `Group ${String.fromCharCode(65 + index)}`,
+        sortOrder: index + 1,
+        teams: [
+          { id: `gt-${index}-1`, teamId: `team-${index}-1`, name: `Team ${index} 1`, country: "Country", fifaCode: null, flagUrl: null, logoUrl: null, seedOrder: 1, actualRank: null, points: null, goalDifference: null, goalsFor: null },
+          { id: `gt-${index}-2`, teamId: `team-${index}-2`, name: `Team ${index} 2`, country: "Country", fifaCode: null, flagUrl: null, logoUrl: null, seedOrder: 2, actualRank: null, points: null, goalDifference: null, goalsFor: null },
+          { id: `gt-${index}-3`, teamId: `team-${index}-3`, name: `Team ${index} 3`, country: "Country", fifaCode: null, flagUrl: null, logoUrl: null, seedOrder: 3, actualRank: null, points: null, goalDifference: null, goalsFor: null },
+          { id: `gt-${index}-4`, teamId: `team-${index}-4`, name: `Team ${index} 4`, country: "Country", fifaCode: null, flagUrl: null, logoUrl: null, seedOrder: 4, actualRank: null, points: null, goalDifference: null, goalsFor: null },
+        ],
+      })),
+      groupRankingPicks: Array.from({ length: 12 }).flatMap((_, index) => [1, 2, 3, 4].map((rank) => ({
+        id: `grp-${index}-${rank}`,
+        groupId: `group-${index}`,
+        teamId: `team-${index}-${rank}`,
+        predictedRank: rank,
+        actualRank: null,
+        isCorrect: null,
+        pointsAwarded: 0,
+      }))),
+    })
+    clientApiMocks.fetchGroupStageView.mockResolvedValue(completeView)
+    let resolveSave: (value: ReturnType<typeof makeGroupStageView>) => void = () => {}
+    clientApiMocks.saveThirdPlaceAdvancers.mockReturnValue(new Promise((resolve) => {
+      resolveSave = resolve
+    }))
+    const WorldCupGroupStagePicks = (await import("@/components/brackets/world-cup/WorldCupGroupStagePicks")).default
+    render(<WorldCupGroupStagePicks challengeId="c1" entryId="entry-1" />)
+
+    const selectedCards = await screen.findAllByText("Tap to select")
+    selectedCards.slice(0, 8).forEach((label) => {
+      fireEvent.click(label.closest("label") as HTMLElement)
+    })
+    const saveButton = screen.getByRole("button", { name: /^Save Third-Place$/i })
+    fireEvent.click(saveButton)
+    fireEvent.click(saveButton)
+
+    expect(clientApiMocks.saveThirdPlaceAdvancers).toHaveBeenCalledTimes(1)
+    resolveSave(completeView)
+    await waitFor(() => expect(screen.getByText(/Third-place picks saved/i)).toBeInTheDocument())
   })
 })

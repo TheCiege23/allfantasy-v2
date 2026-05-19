@@ -27,7 +27,7 @@ describe("World Cup finalize meaningful edit guards", () => {
     expect(source).toContain("if (thirdPlaceChanged && entry.submittedAt)")
   })
 
-  it("clears submittedAt when downstream knockout picks are actually deleted", () => {
+  it("marks finalized entries incomplete when downstream knockout picks are actually deleted", () => {
     const source = readFileSync(
       join(process.cwd(), "app/api/brackets/world-cup/[challengeId]/entries/[entryId]/picks/route.ts"),
       "utf8",
@@ -35,6 +35,6 @@ describe("World Cup finalize meaningful edit guards", () => {
 
     expect(source).toContain("const deleted = await prisma.worldCupBracketPick.deleteMany")
     expect(source).toContain("if (deleted.count > 0 && entry.submittedAt)")
-    expect(source).toContain("data: { submittedAt: null }")
+    expect(source).toContain("data: { submittedAt: null, isComplete: false }")
   })
 })

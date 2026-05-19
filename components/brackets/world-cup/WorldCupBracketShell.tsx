@@ -502,6 +502,8 @@ export default function WorldCupBracketShell({
   const [isSimulating, setIsSimulating] = useState(false)
   const [isSavingSimulationMode, setIsSavingSimulationMode] = useState(false)
   const [isLoadingTestFixtures, setIsLoadingTestFixtures] = useState(false)
+  const isCreatingEntryRef = useRef(false)
+  const isFinalizingEntryRef = useRef(false)
   const pageScrollRef = useRef<HTMLDivElement | null>(null)
   const knockoutScrollRef = useRef<HTMLDivElement | null>(null)
   const guidedAutoOpenedRef = useRef(false)
@@ -840,6 +842,8 @@ export default function WorldCupBracketShell({
 
   // ── Entry management callbacks ───────────────────────────────────────────
   const handleCreateEntry = useCallback(async () => {
+    if (isCreatingEntryRef.current) return
+    isCreatingEntryRef.current = true
     setIsCreatingEntry(true)
     try {
       const entry = await createWorldCupBracketEntry(challengeId)
@@ -853,6 +857,7 @@ export default function WorldCupBracketShell({
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create bracket")
     } finally {
+      isCreatingEntryRef.current = false
       setIsCreatingEntry(false)
     }
   }, [challengeId, markEntryPicksLoaded, persistSelectedEntryId, syncSelectedEntryUrl])
@@ -995,6 +1000,20 @@ export default function WorldCupBracketShell({
 
   const handleFinalizeEntry = useCallback(async () => {
     if (!selectedEntryId) return
+    if (isFinalizingEntryRef.current) return
+    if (hasUnsavedGroupChanges) {
+      const message = "Save your Group Stage changes before finalizing."
+      setCompletionError(message)
+      toast.error(message)
+      return
+    }
+    if (savingPickMatchIdsRef.current.size > 0) {
+      const message = "A knockout pick is still saving. Try Finalize again when saving finishes."
+      setCompletionError(message)
+      toast.info(message)
+      return
+    }
+    isFinalizingEntryRef.current = true
     setIsFinalizingEntry(true)
     setCompletionError(null)
     try {
@@ -1016,9 +1035,10 @@ export default function WorldCupBracketShell({
       if (maybeCompletion) setCompletionReview(maybeCompletion)
       setCompletionError(err instanceof Error ? err.message : "Failed to finalize entry")
     } finally {
+      isFinalizingEntryRef.current = false
       setIsFinalizingEntry(false)
     }
-  }, [applyChallengeView, challengeId, selectedEntryId])
+  }, [applyChallengeView, challengeId, hasUnsavedGroupChanges, selectedEntryId])
 
   // ── Pick saving ──────────────────────────────────────────────────────────
   async function persistPick(match: WorldCupMatchView, side: "home" | "away") {

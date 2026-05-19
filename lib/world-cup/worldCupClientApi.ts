@@ -181,15 +181,19 @@ async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
   return res
 }
 
+async function readApiJson<T = Record<string, unknown>>(res: Response): Promise<T> {
+  return (await res.json().catch(() => ({}))) as T
+}
+
 // ── Entry CRUD ────────────────────────────────────────────────────────────────
 
 export async function listWorldCupBracketEntries(
   challengeId: string
 ): Promise<WorldCupBracketEntryClient[]> {
   const res = await apiFetch(`/api/brackets/world-cup/${challengeId}/entries`)
-  if (!res.ok) throw new Error("Failed to load bracket entries")
-  const data = await res.json()
-  return (data.entries ?? []) as WorldCupBracketEntryClient[]
+  const data = await readApiJson<{ error?: string; entries?: WorldCupBracketEntryClient[] }>(res)
+  if (!res.ok) throw new Error(data.error ?? "Failed to load bracket entries")
+  return Array.isArray(data.entries) ? data.entries : []
 }
 
 export async function createWorldCupBracketEntry(
@@ -200,9 +204,10 @@ export async function createWorldCupBracketEntry(
     method: "POST",
     body: JSON.stringify({ name: name ?? null }),
   })
-  const data = await res.json()
+  const data = await readApiJson<{ error?: string; entry?: WorldCupBracketEntryClient }>(res)
   if (!res.ok) throw new Error(data.error ?? "Failed to create entry")
-  return data.entry as WorldCupBracketEntryClient
+  if (!data.entry) throw new Error("Create entry response missing entry")
+  return data.entry
 }
 
 export async function getWorldCupBracketEntry(
@@ -214,7 +219,7 @@ export async function getWorldCupBracketEntry(
   )
   if (res.status === 404) return null
   if (!res.ok) throw new Error("Failed to load entry")
-  const data = await res.json()
+  const data = await readApiJson<{ entry?: WorldCupBracketEntryDetailClient | null }>(res)
   return (data.entry ?? null) as WorldCupBracketEntryDetailClient | null
 }
 
@@ -227,9 +232,10 @@ export async function renameWorldCupBracketEntry(
     `/api/brackets/world-cup/${challengeId}/entries/${entryId}`,
     { method: "PATCH", body: JSON.stringify({ name }) }
   )
-  const data = await res.json()
+  const data = await readApiJson<{ error?: string; entry?: WorldCupBracketEntryClient }>(res)
   if (!res.ok) throw new Error(data.error ?? "Failed to rename entry")
-  return data.entry as WorldCupBracketEntryClient
+  if (!data.entry) throw new Error("Rename entry response missing entry")
+  return data.entry
 }
 
 export async function deleteWorldCupBracketEntry(
@@ -241,7 +247,7 @@ export async function deleteWorldCupBracketEntry(
     { method: "DELETE" }
   )
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}))
+    const data = await readApiJson<{ error?: string }>(res)
     throw new Error(
       (data as { error?: string }).error ?? "Failed to delete entry"
     )
@@ -255,9 +261,10 @@ export async function fetchWorldCupEntryCompletionReview(
   const res = await apiFetch(`/api/brackets/world-cup/${challengeId}/entries/${entryId}/finalize`, {
     cache: "no-store",
   })
-  const data = await res.json().catch(() => ({}))
+  const data = await readApiJson<{ error?: string; completion?: WorldCupEntryCompletionReviewClient }>(res)
   if (!res.ok) throw new Error((data as { error?: string }).error ?? "Failed to load completion review")
-  return (data as { completion: WorldCupEntryCompletionReviewClient }).completion
+  if (!data.completion) throw new Error("Completion review response missing completion")
+  return data.completion
 }
 
 export async function finalizeWorldCupEntryClient(
@@ -268,7 +275,7 @@ export async function finalizeWorldCupEntryClient(
     method: "POST",
     body: JSON.stringify({}),
   })
-  const data = await res.json().catch(() => ({}))
+  const data = await readApiJson<Partial<WorldCupEntryFinalizeResult> & { error?: string; completion?: WorldCupEntryCompletionReviewClient }>(res)
   if (!res.ok) {
     const error = new Error((data as { error?: string }).error ?? "Failed to finalize entry") as Error & {
       completion?: WorldCupEntryCompletionReviewClient
@@ -276,6 +283,7 @@ export async function finalizeWorldCupEntryClient(
     error.completion = (data as { completion?: WorldCupEntryCompletionReviewClient }).completion
     throw error
   }
+  if (!data.entry || !data.completion) throw new Error("Finalize response missing entry or completion")
   return data as WorldCupEntryFinalizeResult
 }
 
@@ -288,8 +296,9 @@ export async function saveWorldCupBracketEntryPick(
     `/api/brackets/world-cup/${challengeId}/entries/${entryId}/picks`,
     { method: "POST", body: JSON.stringify(payload) }
   )
-  const data = await res.json()
+  const data = await readApiJson<WorldCupEntryPickResult & { error?: string }>(res)
   if (!res.ok) throw new Error(data.error ?? "Failed to save pick")
+  if (!Array.isArray(data.picks)) throw new Error("Save pick response missing picks")
   return data as WorldCupEntryPickResult
 }
 
@@ -308,7 +317,7 @@ export async function clearWorldCupBracketEntryPicks(
     `/api/brackets/world-cup/${challengeId}/entries/${entryId}/picks`,
     { method: "DELETE", body: JSON.stringify({ matchIds }) }
   )
-  const data = await res.json()
+  const data = await readApiJson<{ error?: string; picks?: unknown[] }>(res)
   if (!res.ok) throw new Error((data as { error?: string }).error ?? "Failed to clear picks")
   return (data as { picks: unknown[] }).picks ?? []
 }
@@ -320,9 +329,10 @@ export async function fetchWorldCupGroupStageView(
   const res = await apiFetch(`/api/brackets/world-cup/${challengeId}/entries/${entryId}/group-stage`, {
     cache: "no-store",
   })
-  const data = await res.json().catch(() => ({}))
+  const data = await readApiJson<{ error?: string; view?: WorldCupGroupStageViewClient }>(res)
   if (!res.ok) throw new Error((data as { error?: string }).error ?? "Failed to load group stage")
-  return (data as { view: WorldCupGroupStageViewClient }).view
+  if (!data.view) throw new Error("Group stage response missing view")
+  return data.view
 }
 
 export async function saveWorldCupGroupRankingClient(
@@ -335,9 +345,10 @@ export async function saveWorldCupGroupRankingClient(
     method: "POST",
     body: JSON.stringify({ groupId, orderedTeamIds }),
   })
-  const data = await res.json().catch(() => ({}))
+  const data = await readApiJson<{ error?: string; view?: WorldCupGroupStageViewClient }>(res)
   if (!res.ok) throw new Error((data as { error?: string }).error ?? "Failed to save group ranking")
-  return (data as { view: WorldCupGroupStageViewClient }).view
+  if (!data.view) throw new Error("Save group ranking response missing view")
+  return data.view
 }
 
 export async function saveWorldCupThirdPlaceAdvancersClient(
@@ -349,9 +360,10 @@ export async function saveWorldCupThirdPlaceAdvancersClient(
     method: "POST",
     body: JSON.stringify(input),
   })
-  const data = await res.json().catch(() => ({}))
+  const data = await readApiJson<{ error?: string; view?: WorldCupGroupStageViewClient }>(res)
   if (!res.ok) throw new Error((data as { error?: string }).error ?? "Failed to save third-place advancers")
-  return (data as { view: WorldCupGroupStageViewClient }).view
+  if (!data.view) throw new Error("Save third-place response missing view")
+  return data.view
 }
 
 export async function getWorldCupIntegrityReport(

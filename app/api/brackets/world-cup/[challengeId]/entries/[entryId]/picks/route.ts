@@ -189,7 +189,7 @@ export async function DELETE(
     if (deleted.count > 0 && entry.submittedAt) {
       await prisma.worldCupBracketEntry.update({
         where: { id: params.data.entryId },
-        data: { submittedAt: null },
+        data: { submittedAt: null, isComplete: false },
       })
     }
 

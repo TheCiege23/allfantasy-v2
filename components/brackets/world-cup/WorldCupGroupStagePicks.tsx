@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Check, Loader2 } from "lucide-react"
 import {
   fetchWorldCupGroupStageView,
@@ -113,6 +113,8 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [thirdPlaceError, setThirdPlaceError] = useState<string | null>(null)
+  const savingGroupIdsRef = useRef<Set<string>>(new Set())
+  const savingThirdPlaceRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -179,6 +181,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
   }
 
   async function saveGroup(groupId: string) {
+    if (savingGroupIdsRef.current.has(groupId)) return
     const orderedTeamIds = localOrders[groupId] ?? []
     const group = view?.groups.find((row) => row.id === groupId)
     if (view && sameOrderedValues(orderedTeamIds, orderedTeamIdsForGroup(view, groupId))) {
@@ -190,7 +193,9 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
       setError(`${group.displayName} needs 4 teams before it can be saved.`)
       return
     }
+    savingGroupIdsRef.current.add(groupId)
     setSaveStates((prev) => ({ ...prev, [groupId]: "saving" }))
+    setError(null)
     try {
       const nextView = await saveWorldCupGroupRankingClient(challengeId, entryId, groupId, orderedTeamIds)
       setView(nextView)
@@ -207,6 +212,8 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
     } catch (err) {
       setSaveStates((prev) => ({ ...prev, [groupId]: "error" }))
       setError(err instanceof Error ? err.message : "Failed to save group ranking")
+    } finally {
+      savingGroupIdsRef.current.delete(groupId)
     }
   }
 
@@ -227,6 +234,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
   }
 
   async function saveThirdPlace() {
+    if (savingThirdPlaceRef.current) return
     setThirdPlaceError(null)
     if (!view?.completion.allGroupsRanked) {
       setThirdPlaceError("Rank all 12 groups before choosing third-place advancers.")
@@ -236,6 +244,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
       setThirdPlaceError("Choose exactly 8 third-place advancers.")
       return
     }
+    savingThirdPlaceRef.current = true
     setThirdPlaceStatus("saving")
     try {
       const nextView = await saveWorldCupThirdPlaceAdvancersClient(challengeId, entryId, {
@@ -248,6 +257,8 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
     } catch (err) {
       setThirdPlaceStatus("error")
       setThirdPlaceError(err instanceof Error ? err.message : "Failed to save third-place advancers")
+    } finally {
+      savingThirdPlaceRef.current = false
     }
   }
 
