@@ -63,6 +63,7 @@ function pickMatchesTeam(pickTeamName: string | null | undefined, teamName: stri
 
 function formatGameTime(value: string | null | undefined): string | null {
   if (!value) return null
+  if (isDateOnlyGameTime(value)) return null
   const date = new Date(value)
   if (!Number.isFinite(date.getTime())) return null
   return new Intl.DateTimeFormat("en-US", {
@@ -90,6 +91,11 @@ function formatGameDateOnly(value: string | null | undefined): string | null {
     day: "numeric",
     timeZone: "UTC",
   }).format(date)
+}
+
+function isDateOnlyGameTime(value: string | null | undefined): boolean {
+  const text = String(value ?? "").trim()
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) || /^\d{8}$/.test(text) || /^\d{4}-\d{2}-\d{2}T00:00:00(?:\.000)?Z$/.test(text)
 }
 
 function providerNextGameDateLabel(item: PlayoffSeriesView): string | null {

@@ -27,6 +27,7 @@ export type WorldCupLeagueSettingsStored = {
   /** When false, new users cannot join after the bracket lock boundary. */
   allowLateJoin?: boolean
   showPublicPicks?: "after_lock" | "never" | "always"
+  confidenceScoringEnabled?: boolean
   bracketBrainEnabled?: boolean
   joinPasswordHash?: string | null
 }
@@ -76,10 +77,15 @@ export function parseWorldCupLeagueSettings(
     tiebreakerFinalScore: ls.tiebreakerFinalScore ?? false,
     allowLateJoin: ls.allowLateJoin ?? false,
     showPublicPicks: ls.showPublicPicks ?? "after_lock",
+    confidenceScoringEnabled: ls.confidenceScoringEnabled === true,
     bracketBrainEnabled: ls.bracketBrainEnabled ?? true,
     inviteGateConfigured,
     joinPasswordHash: undefined,
   }
+}
+
+export function isWorldCupConfidenceScoringEnabled(sourcePayload: unknown): boolean {
+  return parseWorldCupLeagueSettings(sourcePayload).confidenceScoringEnabled === true
 }
 
 export function isWorldCupBracketBrainEnabledForChallenge(sourcePayload: unknown): boolean {
@@ -232,6 +238,9 @@ export async function applyWorldCupBracketSettingsPatch(input: {
     if (patch.tiebreakerFinalScore !== undefined) nextLeague.tiebreakerFinalScore = patch.tiebreakerFinalScore
     if (patch.allowLateJoin !== undefined) nextLeague.allowLateJoin = patch.allowLateJoin
     if (patch.showPublicPicks !== undefined) nextLeague.showPublicPicks = patch.showPublicPicks
+    if (patch.confidenceScoringEnabled !== undefined) {
+      nextLeague.confidenceScoringEnabled = patch.confidenceScoringEnabled
+    }
     if (patch.bracketBrainEnabled !== undefined) nextLeague.bracketBrainEnabled = patch.bracketBrainEnabled
 
     if (Object.prototype.hasOwnProperty.call(patch, "joinPassword")) {
@@ -305,6 +314,7 @@ export async function applyWorldCupBracketSettingsPatch(input: {
   const shouldRecalc =
     patch.scoring != null ||
     patch.scoringStyle != null ||
+    patch.confidenceScoringEnabled !== undefined ||
     patch.includeThirdPlace !== undefined
   if (shouldRecalc) {
     await recalculateIfScoringChanged(challengeId)

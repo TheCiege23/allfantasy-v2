@@ -3248,6 +3248,7 @@ model WorldCupBracketPick {
   selectedTeamId   String?                    @map("selected_team_id")
   selectedSlotKey  String?                    @map("selected_slot_key")
   selectedTeamName String                     @map("selected_team_name")
+  confidencePoints Int?                       @map("confidence_points")
   pointsAwarded    Int                        @default(0) @map("points_awarded")
   isCorrect        Boolean?                   @map("is_correct")
   lockedAt         DateTime?                  @map("locked_at")

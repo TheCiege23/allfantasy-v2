@@ -182,6 +182,80 @@ describe("World Cup scoring", () => {
     })
   })
 
+  it("keeps existing scoring unchanged when confidence scoring is disabled", () => {
+    const rows = buildWorldCupLeaderboardRows({
+      entries: [
+        {
+          id: "e1",
+          participantId: "p1",
+          userId: "u1",
+          name: "Bracket 1",
+          createdAt: new Date("2026-01-01"),
+          updatedAt: new Date("2026-01-02"),
+          submittedAt: new Date("2026-01-03"),
+          picks: [
+            {
+              matchId: "m1",
+              round: "round_of_32",
+              selectedTeamId: "arg",
+              selectedTeamName: "Argentina",
+              selectedSlotKey: "A1",
+              confidencePoints: 8,
+              pointsAwarded: 0,
+              isCorrect: null,
+              match: {
+                id: "m1",
+                round: "round_of_32",
+                status: "final",
+                homeTeamId: "arg",
+                awayTeamId: "bra",
+                homeTeamName: "Argentina",
+                awayTeamName: "Brazil",
+                winnerTeamId: "arg",
+                winnerTeamName: "Argentina",
+                homeSlotKey: "A1",
+                awaySlotKey: "B2",
+              },
+            },
+          ],
+          participant: { displayName: "A", user: { username: "ma", avatarUrl: null, displayName: null } },
+        },
+      ],
+      matches: [],
+      scoring: { ...DEFAULT_WORLD_CUP_SCORING, confidenceScoringEnabled: false },
+    })
+
+    expect(rows[0].totalScore).toBe(DEFAULT_WORLD_CUP_SCORING.roundOf32Points)
+  })
+
+  it("adds confidence bonus only when enabled", () => {
+    const result = evaluateWorldCupPick(
+      {
+        round: "round_of_32",
+        selectedTeamId: "arg",
+        selectedTeamName: "Argentina",
+        selectedSlotKey: "A1",
+        confidencePoints: 7,
+      },
+      {
+        id: "m1",
+        round: "round_of_32",
+        homeSlotKey: "A1",
+        awaySlotKey: "B2",
+        homeTeamId: "arg",
+        awayTeamId: "bra",
+        homeTeamName: "Argentina",
+        awayTeamName: "Brazil",
+        status: "final",
+        winnerTeamId: "arg",
+        winnerTeamName: "Argentina",
+      },
+      { ...DEFAULT_WORLD_CUP_SCORING, confidenceScoringEnabled: true }
+    )
+
+    expect(result.pointsAwarded).toBe(DEFAULT_WORLD_CUP_SCORING.roundOf32Points + 7)
+  })
+
   it("does not show unfinalized bracket entries on the leaderboard", () => {
     const rows = buildWorldCupLeaderboardRows({
       entries: [

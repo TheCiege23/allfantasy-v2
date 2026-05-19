@@ -53,7 +53,14 @@
     ".next-dev-local-smoke/types/**/*.ts",
     ".next-playwright-3310/types/**/*.ts",
     ".next-dev-3010/types/**/*.ts",
-    ".next-build-fix/types/**/*.ts"
+    ".next-build-fix/types/**/*.ts",
+    ".next-build-fix-13776/types/**/*.ts",
+    ".next-build-fix-23324/types/**/*.ts",
+    ".next-build-fix-27564/types/**/*.ts",
+    ".next-build-fix-3360/types/**/*.ts",
+    ".next-build-fix-5040/types/**/*.ts",
+    ".next-build-fix-28336/types/**/*.ts",
+    ".next-build-fix-24108/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

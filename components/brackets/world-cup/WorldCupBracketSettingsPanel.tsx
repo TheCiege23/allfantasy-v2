@@ -31,6 +31,7 @@ type BundleLeague = {
   tiebreakerFinalScore?: boolean
   allowLateJoin?: boolean
   showPublicPicks?: "after_lock" | "never" | "always"
+  confidenceScoringEnabled?: boolean
   bracketBrainEnabled?: boolean
   inviteGateConfigured?: boolean
 }
@@ -103,6 +104,7 @@ export default function WorldCupBracketSettingsPanel({
   const [tiebreakerFinalScore, setTiebreakerFinalScore] = useState(false)
   const [allowLateJoin, setAllowLateJoin] = useState(false)
   const [showPublicPicks, setShowPublicPicks] = useState<"after_lock" | "never" | "always">("after_lock")
+  const [confidenceScoringEnabled, setConfidenceScoringEnabled] = useState(false)
 
   const [bracketBrainEnabled, setBracketBrainEnabled] = useState(true)
   const [joinPasswordInput, setJoinPasswordInput] = useState("")
@@ -140,6 +142,7 @@ export default function WorldCupBracketSettingsPanel({
     setTiebreakerFinalScore(l.tiebreakerFinalScore ?? false)
     setAllowLateJoin(l.allowLateJoin ?? false)
     setShowPublicPicks(l.showPublicPicks ?? "after_lock")
+    setConfidenceScoringEnabled(l.confidenceScoringEnabled === true)
     setBracketBrainEnabled(l.bracketBrainEnabled !== false)
 
     setJoinPasswordInput("")
@@ -271,6 +274,9 @@ export default function WorldCupBracketSettingsPanel({
     }
     if (showPublicPicks !== (payload.leagueSettings.showPublicPicks ?? "after_lock")) {
       patch.showPublicPicks = showPublicPicks
+    }
+    if (confidenceScoringEnabled !== (payload.leagueSettings.confidenceScoringEnabled === true)) {
+      patch.confidenceScoringEnabled = confidenceScoringEnabled
     }
     if (bracketBrainEnabled !== (payload.leagueSettings.bracketBrainEnabled !== false)) {
       patch.bracketBrainEnabled = bracketBrainEnabled
@@ -457,6 +463,20 @@ export default function WorldCupBracketSettingsPanel({
             Stored securely — never shown again after save. Leave blank and save to clear.
           </span>
         </label>
+        <div
+          data-testid="world-cup-settings-confidence-scoring"
+          className="mt-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.06] p-3"
+        >
+          <Toggle
+            label="Enable Confidence Scoring"
+            checked={confidenceScoringEnabled}
+            onChange={setConfidenceScoringEnabled}
+          />
+          <p className="mt-2 text-[11px] leading-5 text-cyan-50/70">
+            Managers can assign confidence points to selected knockout predictions for bonus scoring.
+            Higher confidence means more bonus points if correct.
+          </p>
+        </div>
       </section>
 
       <section className="rounded-xl border border-white/10 bg-white/[0.03] p-4">

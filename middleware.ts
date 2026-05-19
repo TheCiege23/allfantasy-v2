@@ -250,6 +250,14 @@ function applyApiSecurityHeaders(pathname: string, response: NextResponse): Next
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // MUST run before any host redirect so that OAuth state cookies (scoped to the
+  // request host) are never lost to a 308 apex→www redirect mid-flow.
+  // /api/auth/* hits from allfantasy.ai would otherwise be redirected to
+  // www.allfantasy.ai, stripping the state cookie and causing OAuthCallbackError.
+  if (isExemptPath(pathname)) {
+    return applyApiSecurityHeaders(pathname, NextResponse.next())
+  }
+
   const hostRedirect = canonicalProductionHostRedirect(request)
   if (hostRedirect) {
     return hostRedirect
@@ -271,10 +279,6 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(url)
       }
     }
-  }
-
-  if (isExemptPath(pathname)) {
-    return applyApiSecurityHeaders(pathname, NextResponse.next())
   }
 
   // Username gate: redirect authenticated users without a username to /choose-username.

@@ -54,6 +54,7 @@ export type WorldCupEntryPickPayload = {
   nextMatchId?: string | null
   nextMatchSlot?: "home" | "away" | null
   matchNumber?: number
+  confidencePoints?: number | null
 }
 
 export type WorldCupEntryPickResult = {

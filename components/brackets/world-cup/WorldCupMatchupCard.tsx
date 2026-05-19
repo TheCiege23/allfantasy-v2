@@ -1,4 +1,5 @@
 "use client"
+import { useEffect, useState } from "react"
 import { Check, Clock, Lock, Radio, Sparkles, Trophy, X } from "lucide-react"
 import type { WorldCupMatchView, WorldCupPickView } from "@/lib/world-cup/types"
 import {
@@ -59,6 +60,7 @@ export default function WorldCupMatchupCard({
   onOpenMatchupPicker,
   isSaving = false,
   aiInsightsUnlocked = false,
+  confidenceScoringEnabled = false,
 }: {
   match: WorldCupMatchView
   pick?: WorldCupPickView
@@ -67,10 +69,11 @@ export default function WorldCupMatchupCard({
   lockStrategy?: string
   /** ISO string — used when lockStrategy === "tournament_start" */
   tournamentLockAt?: string | null
-  onPick?: (match: WorldCupMatchView, side: "home" | "away") => void
+  onPick?: (match: WorldCupMatchView, side: "home" | "away", confidencePoints?: number | null) => void
   onOpenMatchupPicker?: (matchId: string) => void
   isSaving?: boolean
   aiInsightsUnlocked?: boolean
+  confidenceScoringEnabled?: boolean
 }) {
   const isLive = isWorldCupMatchLive(match)
   const isFinal = isWorldCupMatchFinal(match)
@@ -113,6 +116,12 @@ export default function WorldCupMatchupCard({
   const isSimulated = match.apiStatusShort === "SIM"
   const isTestFixture = match.apiStatusShort === "TEST"
   const pickVisual = matchupPickVisualState(match, pick)
+  const currentConfidence = pick?.confidencePoints ?? 1
+  const [confidenceDraft, setConfidenceDraft] = useState(currentConfidence)
+  useEffect(() => {
+    setConfidenceDraft(currentConfidence)
+  }, [currentConfidence, match.id])
+  const confidenceOptions = Array.from({ length: 8 }, (_, index) => index + 1)
 
   // Pick live state color helpers
   const pickStateBorderClass =
@@ -240,8 +249,46 @@ export default function WorldCupMatchupCard({
               <span className="text-amber-200/90">Pending result</span>
             )}
           </div>
+          {confidenceScoringEnabled && pick.confidencePoints ? (
+            <p data-testid={`wc-match-confidence-summary-${match.id}`} className="mt-1 text-[9px] font-bold text-cyan-100/70">
+              Confidence bonus: +{pick.confidencePoints} if correct
+            </p>
+          ) : null}
         </div>
       )}
+
+      {confidenceScoringEnabled && !locked && matchIsPickable && !isFinal ? (
+        <label
+          data-testid={`wc-match-confidence-selector-${match.id}`}
+          className="mb-2 block rounded-lg border border-cyan-300/20 bg-cyan-300/[0.06] px-2 py-2 text-[10px] text-cyan-50"
+        >
+          <span className="font-black">Confidence bonus</span>
+          <span className="mt-0.5 block leading-4 text-cyan-50/65">
+            Higher confidence means more bonus points if correct.
+          </span>
+          <select
+            value={confidenceDraft}
+            onChange={(event) => {
+              const nextConfidence = Number(event.target.value)
+              setConfidenceDraft(nextConfidence)
+              if (pick && hasWorldCupPickSelection(pick)) {
+                const selectedSide =
+                  pick.selectedTeamId === match.homeTeamId || pick.selectedSlotKey === match.homeSlotKey
+                    ? "home"
+                    : "away"
+                onPick?.(match, selectedSide, nextConfidence)
+              }
+            }}
+            className="mt-2 min-h-10 w-full rounded-lg border border-white/10 bg-black/40 px-2 text-xs font-black text-white"
+          >
+            {confidenceOptions.map((value) => (
+              <option key={value} value={value}>
+                {value} point{value === 1 ? "" : "s"}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
 
       {isFinal && (match.winnerTeamName || match.winnerTeamId) && (
         <div
@@ -362,7 +409,7 @@ export default function WorldCupMatchupCard({
               aria-pressed={selected}
               aria-label={pickAriaLabel}
               disabled={locked || isSaving || !matchIsPickable}
-              onClick={() => locked || isSaving || !matchIsPickable ? undefined : onPick?.(match, t.side)}
+              onClick={() => locked || isSaving || !matchIsPickable ? undefined : onPick?.(match, t.side, confidenceScoringEnabled ? confidenceDraft : null)}
               title={disabledReason}
               className={[
                 "flex min-h-[3.5rem] w-full touch-manipulation items-center gap-2 rounded-md border px-2 py-1 text-left transition sm:h-14 sm:py-0",
