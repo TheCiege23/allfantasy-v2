@@ -250,6 +250,10 @@ function applyApiSecurityHeaders(pathname: string, response: NextResponse): Next
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  if (isExemptPath(pathname)) {
+    return applyApiSecurityHeaders(pathname, NextResponse.next())
+  }
+
   const hostRedirect = canonicalProductionHostRedirect(request)
   if (hostRedirect) {
     return hostRedirect
@@ -271,10 +275,6 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(url)
       }
     }
-  }
-
-  if (isExemptPath(pathname)) {
-    return applyApiSecurityHeaders(pathname, NextResponse.next())
   }
 
   // Username gate: redirect authenticated users without a username to /choose-username.
