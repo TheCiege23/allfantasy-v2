@@ -80,7 +80,7 @@ function LeaderboardAiSummaryCard({
           <p><span className="font-black text-white">Most common champion:</span> {commonChampion}.</p>
           <p><span className="font-black text-white">Race note:</span> {closeRace ? "The top two entries are within 5 points." : "No close top-two race yet."}</p>
           <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/55">
-            Uses finalized/public leaderboard data only. No private unfinalized picks are included. Prediction and scoring complexity only, not DFS, betting, wagering, point spread, or over/under advice.
+            Uses finalized/public leaderboard data only. No private unfinalized picks are included. Bracket guidance stays limited to pool picks and scoring mechanics.
           </p>
         </div>
       ) : (

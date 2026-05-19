@@ -122,7 +122,7 @@ async function tryGenerativeNarratives(params: {
 
   const focus =
     params.intent === "explain"
-      ? "Explain the matchup mechanics for a bracket picker (no betting)."
+      ? "Explain the matchup mechanics for a bracket picker using bracket-only guidance."
       : "Give actionable bracket guidance."
 
   const system = `You are a concise World Cup bracket assistant. ${focus} Respond with exactly three short paragraphs labeled:

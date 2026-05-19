@@ -171,7 +171,7 @@ describe("WorldCupMatchupCard AI insight entrypoint", () => {
 
     expect(within(card).getByText(/Safer pick/i)).toBeInTheDocument()
     expect(within(card).getByText(/Upside pick/i)).toBeInTheDocument()
-    expect(card.textContent?.toLowerCase()).toContain("not dfs")
-    expect(card.textContent?.toLowerCase()).not.toContain("betting advice")
+    expect(card.textContent?.toLowerCase()).toContain("bracket guidance stays limited to pool picks and scoring mechanics")
+    expect(card.textContent?.toLowerCase()).not.toMatch(/\bdfs\b|\bbetting\b|\bwager/)
   })
 })

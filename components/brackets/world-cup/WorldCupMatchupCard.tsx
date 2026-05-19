@@ -281,7 +281,7 @@ export default function WorldCupMatchupCard({
             <p><span className="font-black text-white">Bracket impact:</span> Winner feeds the next slot; changing this pick may reset downstream choices.</p>
             <p><span className="font-black text-white">Upset risk:</span> Medium until live form and official results arrive.</p>
             <p className="rounded-md border border-white/10 bg-black/20 px-2 py-1 text-white/55">
-              Prediction and scoring complexity only. Not DFS, betting, wagering, odds, point spread, or over/under advice.
+              Prediction and scoring complexity only. Bracket guidance stays limited to pool picks and scoring mechanics.
             </p>
           </div>
         ) : (

@@ -141,7 +141,7 @@ function GroupAiInsightPanel({
           <p><span className="font-black text-white">Highest-upside pick:</span> {upside} as the pressure pick if you want a less chalk-heavy bracket.</p>
           <p><span className="font-black text-white">Chaos/upset risk:</span> {chaos} is the volatility marker from your current third-place slot.</p>
           <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/55">
-            Prediction and scoring complexity only. This is not DFS, betting, wagering, odds, point spread, or over/under advice.
+            Prediction and scoring complexity only. Bracket guidance stays limited to pool picks and scoring mechanics.
           </p>
         </div>
       ) : (
@@ -174,7 +174,7 @@ function ThirdPlaceAiInsightPanel({
           <p><span className="font-black text-white">Risk check:</span> Avoid overloading weaker groups unless you want a contrarian bracket shape.</p>
           <p><span className="font-black text-white">Contrarian reminder:</span> One or two volatile third-place calls can separate your bracket without turning every slot into chaos.</p>
           <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/55">
-            Prediction and scoring complexity only. This is not DFS, betting, wagering, odds, point spread, or over/under advice.
+            Prediction and scoring complexity only. Bracket guidance stays limited to pool picks and scoring mechanics.
           </p>
         </div>
       ) : (

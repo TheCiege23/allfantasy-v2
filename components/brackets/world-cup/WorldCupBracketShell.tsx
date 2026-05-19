@@ -3370,7 +3370,7 @@ function ReviewAiConfidenceCard({
           <p><span className="font-black text-white">Bracket shape:</span> {chalkWarning ? "Chalk-heavy. Consider whether one measured contrarian pick improves uniqueness." : "Balanced enough for a first-pass confidence check."}</p>
           <p><span className="font-black text-white">Finalize confidence:</span> {completionReview.fullEntryComplete ? "Ready to finalize for leaderboard." : "Finish missing requirements before finalizing."}</p>
           <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/55">
-            Deterministic prediction and scoring complexity only. Not DFS, betting, wagering, odds, point spread, or over/under advice.
+            Deterministic prediction and scoring complexity only. Bracket guidance stays limited to pool picks and scoring mechanics.
           </p>
         </div>
       ) : (
