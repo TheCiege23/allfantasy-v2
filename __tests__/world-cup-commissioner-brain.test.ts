@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+const challengeFindUniqueMock = vi.hoisted(() => vi.fn())
+
 vi.mock("@/lib/prisma", () => ({
-  prisma: {},
+  prisma: {
+    worldCupBracketChallenge: {
+      findUnique: challengeFindUniqueMock,
+    },
+  },
 }))
 
 const resolveForUser = vi.fn()
@@ -15,6 +21,7 @@ vi.mock("@/lib/subscription/EntitlementResolver", () => ({
 describe("Bracket Brain access path", () => {
   beforeEach(() => {
     resolveForUser.mockReset()
+    challengeFindUniqueMock.mockReset()
   })
 
   it("exports AF Pro feature id for bracket brain", async () => {
@@ -38,5 +45,69 @@ describe("Bracket Brain access path", () => {
     expect(resolveForUser).toHaveBeenCalled()
     const featureArg = resolveForUser.mock.calls[0]?.[1]
     expect(featureArg).toBe("league_ai_coaching")
+  })
+})
+
+describe("World Cup AI recap builder", () => {
+  beforeEach(() => {
+    challengeFindUniqueMock.mockReset()
+  })
+
+  it("uses finalized submitted entries only and avoids wagering language", async () => {
+    challengeFindUniqueMock.mockResolvedValue({
+      id: "c1",
+      name: "Office Cup",
+      includeThirdPlace: true,
+      matches: [
+        { id: "g1", round: "group", status: "final", winnerTeamId: "arg" },
+        { id: "g2", round: "group", status: "scheduled", winnerTeamId: null },
+        { id: "f1", round: "final", status: "scheduled", winnerTeamId: null },
+      ],
+      scoringProfile: {
+        roundOf32Points: 10,
+        roundOf16Points: 20,
+        quarterFinalPoints: 40,
+        semiFinalPoints: 80,
+        finalPoints: 160,
+        championBonusPoints: 320,
+        thirdPlacePoints: 4,
+      },
+      entries: [
+        {
+          id: "entry-final",
+          name: "Finalized Entry",
+          createdAt: new Date("2026-05-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-05-02T00:00:00.000Z"),
+          isComplete: true,
+          submittedAt: new Date("2026-06-01T00:00:00.000Z"),
+          championTeamName: "Argentina",
+          totalScore: 10,
+          maxPossibleScore: 100,
+          correctPicks: 1,
+          incorrectPicks: 0,
+          roundBreakdown: {},
+          participant: { id: "p1", userId: "u1", displayName: "Final User", joinedAt: new Date() },
+          picks: [
+            { id: "pick-1", round: "final", matchId: "f1", selectedTeamId: "arg", selectedTeamName: "Argentina", isCorrect: null, pointsAwarded: 0 },
+          ],
+        },
+      ],
+    })
+    const { buildWorldCupAiPoolRecapLines } = await import("@/lib/world-cup/worldCupCommissionerBrainService")
+
+    const lines = await buildWorldCupAiPoolRecapLines("c1", "fun")
+    const text = lines.join("\n").toLowerCase()
+
+    expect(challengeFindUniqueMock).toHaveBeenCalledWith(expect.objectContaining({
+      include: expect.objectContaining({
+        entries: expect.objectContaining({
+          where: { isComplete: true, submittedAt: { not: null } },
+        }),
+      }),
+    }))
+    expect(text).toContain("finalized entries included: 1")
+    expect(text).toContain("argentina")
+    expect(text).not.toContain("unfinalized")
+    expect(text).not.toMatch(/\bdfs\b|\bbetting\b|\bwager|\bsportsbook\b|\bodds\b/)
   })
 })

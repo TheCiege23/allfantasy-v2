@@ -4,8 +4,10 @@ import { z } from "zod"
 import { userHasBracketBrainAi } from "@/lib/bracket-brain/bracketBrainAccess"
 import { prisma } from "@/lib/prisma"
 import {
+  buildWorldCupAiPoolRecapLines,
   generateAiWrappedLines,
   getWorldCupCommissionerBrainSnapshot,
+  type WorldCupAiRecapTone,
 } from "@/lib/world-cup/worldCupCommissionerBrainService"
 import { WORLD_CUP_BRACKET_EVENT_TYPES } from "@/lib/world-cup/worldCupBracketEvents"
 import {
@@ -27,11 +29,15 @@ const postSchema = z.object({
     "standings",
     "watch",
     "recap",
+    "preview_recap",
+    "post_recap",
     "path",
     "reminder",
   ]),
   round: z.string().optional(),
   entryId: z.string().optional(),
+  tone: z.enum(["fun", "serious", "hype"]).optional().default("fun"),
+  lines: z.array(z.string().trim().min(1).max(500)).max(12).optional(),
 })
 
 export async function GET(
@@ -125,20 +131,37 @@ export async function POST(
     )
   }
 
-  const lines = await generateAiWrappedLines(
-    parsed.data.action,
-    params.data.challengeId,
-    {
-      round: parsed.data.round as any,
-      entryId: parsed.data.entryId,
-    }
-  )
+  const isRecapPreview = parsed.data.action === "preview_recap"
+  const isRecapPost = parsed.data.action === "post_recap"
+  const lines = isRecapPost && parsed.data.lines?.length
+    ? parsed.data.lines
+    : isRecapPreview || isRecapPost
+      ? await buildWorldCupAiPoolRecapLines(params.data.challengeId, parsed.data.tone as WorldCupAiRecapTone)
+      : await generateAiWrappedLines(
+          parsed.data.action,
+          params.data.challengeId,
+          {
+            round: parsed.data.round as any,
+            entryId: parsed.data.entryId,
+          }
+        )
+
+  if (isRecapPreview) {
+    return NextResponse.json({
+      lines,
+      action: parsed.data.action,
+      posted: false,
+      source: "deterministic_finalized_public",
+    })
+  }
 
   const titleByAction: Record<string, string> = {
     hype: "Bracket hype",
     standings: "Standings snapshot",
     watch: "What to watch",
     recap: "Round recap",
+    preview_recap: "AI pool recap preview",
+    post_recap: "AI pool recap",
     path: "Path to win",
     reminder: "Reminder",
   }
@@ -152,9 +175,14 @@ export async function POST(
     idempotencyKey: randomUUID(),
     userId: auth.user.id,
     isAiGenerated: true,
-    metadata: { action: parsed.data.action },
+    metadata: {
+      action: parsed.data.action,
+      visibility: "public",
+      messageType: isRecapPost ? "ai_recap" : "commissioner_brain",
+      source: isRecapPost ? "deterministic_finalized_public" : undefined,
+    },
     force: true,
   })
 
-  return NextResponse.json({ lines, action: parsed.data.action })
+  return NextResponse.json({ lines, action: parsed.data.action, posted: true })
 }

@@ -39,6 +39,105 @@ export type WorldCupCommissionerBrainSnapshot = {
   }>
 }
 
+export type WorldCupAiRecapTone = "fun" | "serious" | "hype"
+
+const FORBIDDEN_RECAP_TERMS = [
+  /\bdfs\b/gi,
+  /\bbetting\b/gi,
+  /\bwager(?:ing|s|ed)?\b/gi,
+  /\bsportsbook\b/gi,
+  /\bodds\b/gi,
+]
+
+function sanitizeRecapLine(line: string) {
+  return FORBIDDEN_RECAP_TERMS.reduce(
+    (text, pattern) => text.replace(pattern, "prediction"),
+    line
+  ).replace(/\s+/g, " ").trim()
+}
+
+function toneLead(tone: WorldCupAiRecapTone) {
+  if (tone === "serious") return "Commissioner recap"
+  if (tone === "hype") return "Pool heat check"
+  return "Chimmy pool recap"
+}
+
+export async function buildWorldCupAiPoolRecapLines(
+  challengeId: string,
+  tone: WorldCupAiRecapTone = "fun"
+): Promise<string[]> {
+  const challenge = await prisma.worldCupBracketChallenge.findUnique({
+    where: { id: challengeId },
+    include: {
+      matches: true,
+      scoringProfile: true,
+      entries: {
+        where: {
+          isComplete: true,
+          submittedAt: { not: null },
+        },
+        include: {
+          picks: true,
+          participant: true,
+        },
+      },
+    },
+  })
+  if (!challenge) return []
+
+  const finalizedEntries = challenge.entries
+  const rows = buildWorldCupLeaderboardRows({
+    entries: finalizedEntries as any,
+    matches: challenge.matches as any,
+    scoring: challenge.scoringProfile,
+  })
+  const sortedRows = [...rows].sort((a, b) => a.rank - b.rank || b.totalScore - a.totalScore)
+  const leader = sortedRows[0] ?? null
+  const runnerUp = sortedRows[1] ?? null
+  const scoreGap = leader && runnerUp ? Math.max(0, leader.totalScore - runnerUp.totalScore) : null
+
+  const championCounts = new Map<string, number>()
+  for (const entry of finalizedEntries) {
+    const championName =
+      entry.championTeamName?.trim() ||
+      entry.picks?.find((pick) => pick.round === "final")?.selectedTeamName?.trim()
+    if (!championName) continue
+    championCounts.set(championName, (championCounts.get(championName) ?? 0) + 1)
+  }
+  const mostCommonChampion = [...championCounts.entries()].sort((a, b) => b[1] - a[1])[0] ?? null
+  const finalGroupMatches = challenge.matches.filter((match) => match.round === "group" && match.status === "final").length
+  const totalGroupMatches = challenge.matches.filter((match) => match.round === "group").length
+  const thirdPlacePickCount = finalizedEntries.reduce(
+    (sum, entry) => sum + (entry.picks ?? []).filter((pick) => pick.round === "third_place").length,
+    0
+  )
+
+  const lines = [
+    `${toneLead(tone)}: ${challenge.name}`,
+    leader
+      ? `Current leader: ${leader.entryName} with ${leader.totalScore} points.`
+      : "Current leader: no finalized leaderboard rows yet.",
+    scoreGap != null
+      ? scoreGap <= 5
+        ? `Closest race: ${leader?.entryName} and ${runnerUp?.entryName} are separated by ${scoreGap} points.`
+        : `Closest race: the top gap is ${scoreGap} points.`
+      : "Closest race: waiting for a second finalized entry.",
+    `Finalized entries included: ${finalizedEntries.length}.`,
+    mostCommonChampion
+      ? `Most common champion pick: ${mostCommonChampion[0]} on ${mostCommonChampion[1]} finalized entr${mostCommonChampion[1] === 1 ? "y" : "ies"}.`
+      : "Most common champion pick: not available from finalized entries yet.",
+    totalGroupMatches > 0
+      ? `Group-stage status: ${finalGroupMatches}/${totalGroupMatches} group matches final.`
+      : "Group-stage status: fixture data is still being prepared.",
+    thirdPlacePickCount > 0
+      ? `Chaos note: third-place choices are already shaping the bracket paths across finalized entries.`
+      : `Chaos note: watch third-place paths once more finalized brackets land.`,
+    "Prediction and scoring complexity only. No restricted pool-content language is included.",
+  ]
+
+  return lines.map(sanitizeRecapLine).filter(Boolean)
+}
+
 export async function getWorldCupCommissionerBrainSnapshot(
   challengeId: string
 ): Promise<WorldCupCommissionerBrainSnapshot | null> {

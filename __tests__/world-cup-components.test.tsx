@@ -162,6 +162,128 @@ describe("World Cup commissioner UI modules", () => {
     const m = await import("@/components/brackets/world-cup/WorldCupCommissionerBrainPanel")
     expect(m.default).toBeDefined()
   })
+
+  it("lets AI commissioners generate, preview, and post a finalized-only recap", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (!init?.method) {
+        return {
+          ok: true,
+          json: async () => ({
+            snapshot: {
+              incompleteBracketCount: 0,
+              completedBracketCount: 2,
+              totalEntries: 2,
+              totalMissingPicks: 0,
+              maxEntriesPerParticipant: 1,
+              lockCountdownMs: null,
+              effectiveLockAt: null,
+              isLocked: false,
+              mostPopularChampion: { teamName: "Argentina", count: 1 },
+              mostUniqueLean: null,
+              usersMaxedEntries: 0,
+              biggestUpsetLean: null,
+              usersWithIncompleteBrackets: [],
+              entriesMissingPicks: [],
+            },
+            settings: {
+              enableSystemEvents: true,
+              enableAiSummaries: true,
+              enableUpsetAlerts: true,
+              enableLeaderboardAlerts: true,
+              enableChampionBustAlerts: true,
+              enableLockReminders: true,
+            },
+            hasBracketBrainAi: true,
+            bracketBrainEnabled: true,
+          }),
+        } as Response
+      }
+      const body = JSON.parse(String(init.body))
+      if (body.action === "preview_recap") {
+        return {
+          ok: true,
+          json: async () => ({
+            lines: [
+              "Chimmy pool recap: Office Cup",
+              "Current leader: Finalized Entry with 20 points.",
+              "Finalized entries included: 1.",
+              "Prediction and scoring complexity only.",
+            ],
+            posted: false,
+          }),
+        } as Response
+      }
+      return {
+        ok: true,
+        json: async () => ({ lines: body.lines, posted: true }),
+      } as Response
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupCommissionerBrainPanel = (await import("@/components/brackets/world-cup/WorldCupCommissionerBrainPanel")).default
+    render(<WorldCupCommissionerBrainPanel challengeId="c1" />)
+
+    const panel = await screen.findByTestId("world-cup-ai-recap-panel")
+    fireEvent.change(within(panel).getByLabelText(/Tone/i), { target: { value: "serious" } })
+    fireEvent.click(within(panel).getByRole("button", { name: /Generate AI Recap/i }))
+
+    const preview = await screen.findByTestId("world-cup-ai-recap-preview")
+    expect(preview).toHaveTextContent("Finalized entries included: 1")
+    expect(preview.textContent?.toLowerCase()).not.toMatch(/\bdfs\b|\bbetting\b|\bwager/)
+
+    fireEvent.click(within(panel).getByRole("button", { name: /Post to Pool Chat/i }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/brackets/world-cup/c1/commissioner-brain",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining("post_recap"),
+      })
+    ))
+  })
+
+  it("shows locked recap CTA for non-AI commissioners and does not generate", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        snapshot: {
+          incompleteBracketCount: 0,
+          completedBracketCount: 0,
+          totalEntries: 0,
+          totalMissingPicks: 0,
+          maxEntriesPerParticipant: 1,
+          lockCountdownMs: null,
+          effectiveLockAt: null,
+          isLocked: false,
+          mostPopularChampion: null,
+          mostUniqueLean: null,
+          usersMaxedEntries: 0,
+          biggestUpsetLean: null,
+          usersWithIncompleteBrackets: [],
+          entriesMissingPicks: [],
+        },
+        settings: {
+          enableSystemEvents: true,
+          enableAiSummaries: false,
+          enableUpsetAlerts: true,
+          enableLeaderboardAlerts: true,
+          enableChampionBustAlerts: true,
+          enableLockReminders: true,
+        },
+        hasBracketBrainAi: false,
+        bracketBrainEnabled: true,
+      }),
+    } as Response))
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupCommissionerBrainPanel = (await import("@/components/brackets/world-cup/WorldCupCommissionerBrainPanel")).default
+    render(<WorldCupCommissionerBrainPanel challengeId="c1" />)
+
+    const panel = await screen.findByTestId("world-cup-ai-recap-panel")
+    expect(within(panel).getByText("Locked")).toBeInTheDocument()
+    expect(within(panel).getByText(/Locked users cannot generate or post AI recaps/i)).toBeInTheDocument()
+    expect(within(panel).getByRole("button", { name: /Generate AI Recap/i })).toBeDisabled()
+    const callsBeforeClick = fetchMock.mock.calls.length
+    fireEvent.click(within(panel).getByRole("button", { name: /Generate AI Recap/i }))
+    expect(fetchMock).toHaveBeenCalledTimes(callsBeforeClick)
+  })
 })
 
 describe("WorldCupBracketSettingsPanel", () => {

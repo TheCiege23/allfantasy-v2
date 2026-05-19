@@ -41,6 +41,8 @@ type CommissionerPrefs = {
   enableLockReminders: boolean
 }
 
+type RecapTone = "fun" | "serious" | "hype"
+
 export default function WorldCupCommissionerBrainPanel({
   challengeId,
   onOpenLeagueSettings,
@@ -55,6 +57,8 @@ export default function WorldCupCommissionerBrainPanel({
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [aiReminderPolish, setAiReminderPolish] = useState(false)
+  const [recapTone, setRecapTone] = useState<RecapTone>("fun")
+  const [recapLines, setRecapLines] = useState<string[]>([])
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -154,6 +158,63 @@ export default function WorldCupCommissionerBrainPanel({
         return
       }
       toast.success("Pool reminder posted.")
+      void reload()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function generateRecapPreview() {
+    if (!bracketBrainEnabled) {
+      toast.error("Bracket Brain is disabled — turn it on under League settings.")
+      return
+    }
+    if (!hasAi) {
+      toast.info("Upgrade to AI/Pro to generate World Cup AI recaps.")
+      return
+    }
+    setBusy("preview-recap")
+    try {
+      const res = await fetch(`/api/brackets/world-cup/${challengeId}/commissioner-brain`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "preview_recap", tone: recapTone }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(data.error || "Could not generate recap preview")
+        return
+      }
+      setRecapLines(Array.isArray(data.lines) ? data.lines : [])
+      toast.success("AI recap preview ready.")
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function postRecapToChat() {
+    if (!hasAi) {
+      toast.info("Upgrade to AI/Pro to post World Cup AI recaps.")
+      return
+    }
+    if (recapLines.length === 0) {
+      toast.info("Generate a recap preview first.")
+      return
+    }
+    setBusy("post-recap")
+    try {
+      const res = await fetch(`/api/brackets/world-cup/${challengeId}/commissioner-brain`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "post_recap", tone: recapTone, lines: recapLines }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(data.error || "Could not post recap")
+        return
+      }
+      toast.success("AI recap posted to pool chat.")
+      setRecapLines([])
       void reload()
     } finally {
       setBusy(null)
@@ -320,6 +381,74 @@ export default function WorldCupCommissionerBrainPanel({
           Post Round Recap
         </BrainButton>
       </div>
+
+      <section data-testid="world-cup-ai-recap-panel" className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-black text-white">
+              <Sparkles className="h-4 w-4 text-cyan-200" />
+              AI Pool Recap
+            </h3>
+            <p className="mt-1 text-xs leading-5 text-white/55">
+              Generate a preview from finalized/public leaderboard data only, then post it to pool chat when it reads right.
+            </p>
+          </div>
+          <span className="rounded-full border border-cyan-200/25 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-cyan-100">
+            {hasAi ? "AI/Pro active" : "Locked"}
+          </span>
+        </div>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-[12rem_1fr] sm:items-end">
+          <label className="text-[11px] font-bold uppercase tracking-wide text-white/45">
+            Tone
+            <select
+              value={recapTone}
+              onChange={(event) => setRecapTone(event.target.value as RecapTone)}
+              disabled={!hasAi || busy !== null}
+              className="mt-1 w-full rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-xs font-bold normal-case tracking-normal text-white/80 disabled:opacity-45"
+            >
+              <option value="fun">Fun</option>
+              <option value="serious">Serious</option>
+              <option value="hype">Hype</option>
+            </select>
+          </label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <BrainButton
+              disabled={!bracketBrainEnabled || !hasAi || busy !== null}
+              loading={busy === "preview-recap"}
+              onClick={() => void generateRecapPreview()}
+              icon={<Sparkles className="h-3.5 w-3.5" />}
+            >
+              Generate AI Recap
+            </BrainButton>
+            <BrainButton
+              disabled={!hasAi || busy !== null || recapLines.length === 0}
+              loading={busy === "post-recap"}
+              onClick={() => void postRecapToChat()}
+              icon={<Send className="h-3.5 w-3.5" />}
+            >
+              Post to Pool Chat
+            </BrainButton>
+          </div>
+        </div>
+
+        {!hasAi ? (
+          <p className="mt-3 rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-xs text-white/60">
+            Upgrade to AI/Pro to generate pool recaps. Locked users cannot generate or post AI recaps.
+          </p>
+        ) : null}
+
+        {recapLines.length > 0 ? (
+          <div data-testid="world-cup-ai-recap-preview" className="mt-3 rounded-xl border border-white/10 bg-black/25 p-3">
+            <p className="text-[10px] font-black uppercase tracking-wide text-white/40">Preview</p>
+            <div className="mt-2 space-y-1.5 text-xs leading-5 text-white/75">
+              {recapLines.map((line, index) => (
+                <p key={`${line}-${index}`}>{line}</p>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </section>
 
       {onOpenLeagueSettings ? (
         <button
