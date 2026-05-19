@@ -2,6 +2,7 @@
 import { useState } from "react"
 import { Check, Copy, Link2, Lock, Share2, Users } from "lucide-react"
 import type { WorldCupChallengeView } from "@/lib/world-cup/types"
+import WorldCupShareCard from "./WorldCupShareCards"
 
 function MetaRow({ label, value }: { label: string; value: string }) {
   return (
@@ -108,14 +109,15 @@ export default function WorldCupInvitePanel({ view }: { view: WorldCupChallengeV
 
       {/* Invite link */}
       {inviteCode ? (
-        <div className="rounded-xl border border-white/10 bg-white/[0.04] p-5">
-          <div className="flex items-center gap-2 text-base font-black text-white">
-            <Link2 className="h-4 w-4 text-cyan-300" />
-            Invite Link
-          </div>
-          <p className="mt-1 text-xs text-white/45">
-            Share this with anyone you want to invite. They must be signed in to AllFantasy.
-          </p>
+        <>
+          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-5">
+            <div className="flex items-center gap-2 text-base font-black text-white">
+              <Link2 className="h-4 w-4 text-cyan-300" />
+              Invite Link
+            </div>
+            <p className="mt-1 text-xs text-white/45">
+              Share this with anyone you want to invite. They must be signed in to AllFantasy.
+            </p>
 
           {/* URL box */}
           <div className="mt-4 break-all rounded-lg border border-white/10 bg-black/40 px-3 py-3 text-xs text-white/60 leading-5">
@@ -167,7 +169,15 @@ export default function WorldCupInvitePanel({ view }: { view: WorldCupChallengeV
               {shareMessage}
             </div>
           </details>
-        </div>
+          </div>
+          <WorldCupShareCard
+            kind="invite"
+            poolName={challenge.name}
+            inviteUrl={inviteUrl}
+            inviteCode={inviteCode}
+            className="mt-4"
+          />
+        </>
       ) : (
         /* No invite code — friendly fallback */
         <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-5 py-8 text-center">

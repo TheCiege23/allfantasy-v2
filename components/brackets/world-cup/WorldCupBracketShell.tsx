@@ -82,6 +82,7 @@ import WorldCupScoreSummary from "./WorldCupScoreSummary"
 import WorldCupLeaderboard from "./WorldCupLeaderboard"
 import WorldCupLeaderboardInsights from "./WorldCupLeaderboardInsights"
 import WorldCupLiveScoreTicker from "./WorldCupLiveScoreTicker"
+import WorldCupShareCard from "./WorldCupShareCards"
 import WorldCupBracketSettingsPanel from "./WorldCupBracketSettingsPanel"
 import WorldCupCommissionerBrainPanel from "./WorldCupCommissionerBrainPanel"
 import WorldCupGroupStagePicks from "./WorldCupGroupStagePicks"
@@ -2549,6 +2550,7 @@ export default function WorldCupBracketShell({
             <WorldCupCommunityFoundationPanel
               challengeId={challengeId}
               entitlementSummary={entitlementSummary}
+              poolName={view.challenge.name}
             />
 
             <section className="mx-auto max-w-[min(100%,1600px)] px-2 sm:px-4">
@@ -3565,9 +3567,11 @@ function WorldCupPremiumAccessPanel({
 function WorldCupCommunityFoundationPanel({
   challengeId,
   entitlementSummary,
+  poolName,
 }: {
   challengeId: string
   entitlementSummary: ReturnType<typeof resolveWorldCupEntitlementSummary>
+  poolName: string
 }) {
   const commissionerUnlocked = entitlementSummary.commissioner
   const aiUnlocked = entitlementSummary.ai
@@ -3592,6 +3596,12 @@ function WorldCupCommunityFoundationPanel({
   const [pollVotingMessageId, setPollVotingMessageId] = useState<string | null>(null)
   const richPreviewSegments = useMemo(() => parseWorldCupChatRichText(chatBody), [chatBody])
   const isChimmyPrompt = /(^|[\s*_~\]])@chimmy\b/i.test(chatBody)
+  const latestAiRecap = useMemo(
+    () => messages
+      .filter((message) => message.visibility === "public" && message.messageType === "ai_recap")
+      .at(-1) ?? null,
+    [messages]
+  )
 
   function insertComposerText(value: string) {
     setChatBody((current) => `${current}${value}`)
@@ -4056,6 +4066,14 @@ function WorldCupCommunityFoundationPanel({
           <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-white/35">
             Latest Pool Updates
           </p>
+          {latestAiRecap ? (
+            <WorldCupShareCard
+              kind="recap"
+              poolName={poolName}
+              recapBody={latestAiRecap.body}
+              className="mb-3"
+            />
+          ) : null}
           <WorldCupLeagueEventFeed challengeId={challengeId} />
         </div>
       </div>

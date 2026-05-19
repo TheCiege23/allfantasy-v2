@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, Crown, Lock, Medal, Target, Trophy, XCircl
 import type { WorldCupLeaderboardRow } from "@/lib/world-cup/types"
 import type { WorldCupBracketEntryClient } from "@/lib/world-cup/worldCupClientApi"
 import { getWorldCupPossiblePointsRemaining } from "@/lib/world-cup/worldCupLeaderboardService"
+import WorldCupShareCard from "./WorldCupShareCards"
 
 export default function WorldCupScoreSummary({
   entry,
@@ -169,6 +170,17 @@ export default function WorldCupScoreSummary({
           </p>
         </div>
       </div>
+
+      <WorldCupShareCard
+        kind="bracket"
+        poolName=""
+        entryName={entry.name}
+        rank={rank}
+        totalScore={totalScore}
+        championName={championName}
+        isComplete={complete}
+        className="mt-3 sm:mt-4"
+      />
     </section>
   )
 }

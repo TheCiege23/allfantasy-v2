@@ -1,0 +1,164 @@
+"use client"
+
+import { useMemo, useState } from "react"
+import { Check, Copy, Share2 } from "lucide-react"
+import type { WorldCupLeaderboardRow } from "@/lib/world-cup/types"
+
+type InviteShare = {
+  kind: "invite"
+  poolName: string
+  inviteUrl: string
+  inviteCode?: string | null
+}
+
+type LeaderboardShare = {
+  kind: "leaderboard"
+  poolName: string
+  leaderboard: WorldCupLeaderboardRow[]
+}
+
+type BracketShare = {
+  kind: "bracket"
+  poolName: string
+  entryName: string
+  rank?: number | null
+  totalScore: number
+  championName?: string | null
+  isComplete: boolean
+}
+
+type RecapShare = {
+  kind: "recap"
+  poolName: string
+  recapBody: string
+}
+
+type Props = (InviteShare | LeaderboardShare | BracketShare | RecapShare) & {
+  className?: string
+}
+
+const POWERED_BY = "Powered by AllFantasy."
+
+function cleanShareText(text: string) {
+  return text
+    .replace(/\bDFS\b/gi, "fantasy")
+    .replace(/\bbetting\b/gi, "prediction")
+    .replace(/\bwager(?:ing|s|ed)?\b/gi, "prediction")
+    .replace(/\bsportsbook\b/gi, "sports platform")
+    .replace(/\bodds\b/gi, "projection")
+    .replace(/\s+\n/g, "\n")
+    .trim()
+}
+
+function buildShareText(props: Props) {
+  if (props.kind === "invite") {
+    return cleanShareText([
+      `Join my World Cup Bracket Pool on AllFantasy: ${props.poolName}.`,
+      props.inviteCode ? `Invite code: ${props.inviteCode}` : null,
+      props.inviteUrl,
+      POWERED_BY,
+    ].filter(Boolean).join("\n"))
+  }
+
+  if (props.kind === "leaderboard") {
+    const rows = props.leaderboard.slice(0, 5)
+    return cleanShareText([
+      `Current pool leaderboard: ${props.poolName}.`,
+      rows.length > 0
+        ? rows.map((row) => `#${row.rank} ${row.entryName} - ${row.totalScore} pts`).join("\n")
+        : "No finalized leaderboard entries yet.",
+      POWERED_BY,
+    ].join("\n"))
+  }
+
+  if (props.kind === "bracket") {
+    return cleanShareText([
+      `My World Cup bracket is ${props.isComplete ? "locked in" : "in progress"} on AllFantasy.`,
+      `${props.entryName} - ${props.totalScore} pts${props.rank ? ` - rank #${props.rank}` : ""}.`,
+      props.championName ? `Champion pick: ${props.championName}.` : null,
+      POWERED_BY,
+    ].filter(Boolean).join("\n"))
+  }
+
+  return cleanShareText([
+    `AI recap from ${props.poolName}:`,
+    props.recapBody.slice(0, 700),
+    POWERED_BY,
+  ].join("\n"))
+}
+
+function shareTitle(kind: Props["kind"]) {
+  if (kind === "invite") return "Pool Invite Share Card"
+  if (kind === "leaderboard") return "Leaderboard Snapshot"
+  if (kind === "bracket") return "My Bracket Summary"
+  return "AI Recap Share Card"
+}
+
+export default function WorldCupShareCard(props: Props) {
+  const [copied, setCopied] = useState(false)
+  const text = useMemo(() => buildShareText(props), [props])
+
+  async function copyShareText() {
+    await navigator.clipboard?.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1600)
+  }
+
+  async function nativeShare() {
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ title: shareTitle(props.kind), text })
+        return
+      } catch {
+        // Fall back to clipboard when native share is cancelled or unavailable.
+      }
+    }
+    await copyShareText()
+  }
+
+  return (
+    <section
+      data-testid={`world-cup-share-card-${props.kind}`}
+      className={[
+        "rounded-2xl border border-cyan-300/20 bg-gradient-to-br from-cyan-300/[0.09] to-white/[0.035] p-4",
+        props.className ?? "",
+      ].join(" ")}
+    >
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/60">Share Graphic</p>
+          <h3 className="mt-1 text-base font-black text-white">{shareTitle(props.kind)}</h3>
+          <p className="mt-1 text-xs leading-5 text-white/50">
+            Copy-ready social card text. Download image support can be added after a safe capture helper is available.
+          </p>
+        </div>
+        <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-white/45">
+          Public-safe
+        </span>
+      </div>
+
+      <div data-testid={`world-cup-share-preview-${props.kind}`} className="mt-3 whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 p-3 text-xs leading-5 text-white/75">
+        {text}
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:flex sm:flex-wrap">
+        <button
+          type="button"
+          onClick={copyShareText}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-black text-black touch-manipulation sm:w-auto"
+        >
+          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+          {copied ? "Copied" : "Copy share text"}
+        </button>
+        <button
+          type="button"
+          onClick={nativeShare}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-bold text-white/75 touch-manipulation sm:w-auto"
+        >
+          <Share2 className="h-4 w-4" />
+          Share
+        </button>
+      </div>
+    </section>
+  )
+}

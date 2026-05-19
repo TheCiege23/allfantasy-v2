@@ -19,6 +19,7 @@ import {
   getWorldCupPossiblePointsRemaining,
   getWorldCupRankMovement,
 } from "@/lib/world-cup/worldCupLeaderboardService"
+import WorldCupShareCard from "./WorldCupShareCards"
 
 function Avatar({ name, url }: { name: string; url?: string | null }) {
   if (url) {
@@ -126,6 +127,13 @@ export default function WorldCupLeaderboard({
           Scores have not synced yet — totals update after live score ingestion runs.
         </div>
       )}
+
+      <WorldCupShareCard
+        kind="leaderboard"
+        poolName={view.challenge.name}
+        leaderboard={view.leaderboard}
+        className="mb-4"
+      />
 
       {!fixturesReady && (
         <div

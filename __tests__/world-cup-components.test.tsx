@@ -3048,6 +3048,8 @@ describe("WorldCupLeaderboard mobile score row", () => {
     }
     render(<WorldCupLeaderboard view={view as any} />)
     expect(screen.getByText(/Finalized entries only/i)).toBeInTheDocument()
+    expect(screen.getByTestId("world-cup-share-card-leaderboard")).toHaveTextContent("Current pool leaderboard")
+    expect(screen.getByTestId("world-cup-share-preview-leaderboard")).toHaveTextContent("#1 My bracket - 42 pts")
     expect(screen.getByTestId("wc-lb-mobile-score-row")).toBeInTheDocument()
     expect(screen.getByTestId("wc-lb-total-mobile-ent1")).toHaveTextContent("42")
     expect(screen.getByTestId("wc-lb-champion-status-ent1")).toHaveTextContent("Alive")
