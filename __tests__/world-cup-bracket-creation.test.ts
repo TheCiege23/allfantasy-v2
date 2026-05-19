@@ -93,6 +93,7 @@ const fixtureSeedResult = {
 
 describe("World Cup bracket creation fixture readiness", () => {
   beforeEach(() => {
+    vi.unstubAllEnvs()
     vi.clearAllMocks()
     prismaMocks.challengeFindUnique.mockResolvedValue(null)
     prismaMocks.scoringCreate.mockResolvedValue({ id: "scoring-1" })
@@ -117,9 +118,11 @@ describe("World Cup bracket creation fixture readiness", () => {
       })
     )
     loadTestFixturesMock.mockResolvedValue(fixtureSeedResult)
+    delete process.env.WORLD_CUP_ALLOW_PRODUCTION_TEST_FIXTURES_ON_CREATE
   })
 
   it("creates the unresolved bracket template and seeds mock fixtures in test mode", async () => {
+    vi.stubEnv("NODE_ENV", "development")
     const result = await createWorldCupBracketChallenge({
       user: { id: "user-1", name: "Owner" },
       name: "World Cup",
@@ -149,6 +152,26 @@ describe("World Cup bracket creation fixture readiness", () => {
       },
     })
     expect(result.fixturesSeeded).toBe(true)
+  })
+
+  it("does not seed mock fixtures on production create unless explicitly enabled", async () => {
+    vi.stubEnv("NODE_ENV", "production")
+
+    await createWorldCupBracketChallenge({
+      user: { id: "user-1", name: "Owner" },
+      name: "World Cup",
+      isTestMode: true,
+      seedTestFixtures: true,
+    })
+
+    expect(loadTestFixturesMock).not.toHaveBeenCalled()
+    expect(prismaMocks.challengeCreate.mock.calls[0]?.[0]?.data.sourcePayload).toMatchObject({
+      simulation: {
+        isTestMode: true,
+        testFixturesOnCreate: false,
+        fixtureTemplate: "slot_template",
+      },
+    })
   })
 
   it("creates unresolved slot fixtures without mock teams when test mode is off", async () => {

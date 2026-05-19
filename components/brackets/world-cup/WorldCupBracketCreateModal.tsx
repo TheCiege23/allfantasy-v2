@@ -5,6 +5,7 @@ import { ArrowLeft, CheckCircle, Info, Loader2, Lock, Trophy, Users } from "luci
 
 const MAX_USERS = 100
 const MAX_ENTRIES = 5
+const allowCreateWithTestFixtures = process.env.NEXT_PUBLIC_WORLD_CUP_ALLOW_CREATE_TEST_FIXTURES === "true"
 
 export default function WorldCupBracketCreateModal() {
   const router = useRouter()
@@ -48,8 +49,8 @@ export default function WorldCupBracketCreateModal() {
           includeThirdPlace,
           maxParticipants: maxUsers,
           maxEntriesPerParticipant: maxEntries,
-          isTestMode: seedTestFixtures,
-          seedTestFixtures,
+          isTestMode: allowCreateWithTestFixtures && seedTestFixtures,
+          seedTestFixtures: allowCreateWithTestFixtures && seedTestFixtures,
         }),
       })
 
@@ -73,7 +74,7 @@ export default function WorldCupBracketCreateModal() {
       }
 
       setStatus("opening")
-      router.push(`/brackets/world-cup/${createdId}${seedTestFixtures ? "?guided=1" : ""}`)
+      router.push(`/brackets/world-cup/${createdId}${allowCreateWithTestFixtures && seedTestFixtures ? "?guided=1" : ""}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create bracket")
       setStatus("idle")
@@ -257,20 +258,22 @@ export default function WorldCupBracketCreateModal() {
               Include third-place match
             </label>
 
-            <label className="flex items-start gap-3 rounded-lg border border-amber-300/20 bg-amber-500/[0.06] p-3 text-sm font-bold text-amber-100">
-              <input
-                type="checkbox"
-                checked={seedTestFixtures}
-                onChange={(e) => setSeedTestFixtures(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded"
-              />
-              <span>
-                <span className="block">Seed Test Fixtures</span>
-                <span className="mt-0.5 block text-[11px] font-medium leading-5 text-amber-100/70">
-                  Adds mock Round of 32 teams, flags, kickoff times, and venues so this pool is pickable immediately.
+            {allowCreateWithTestFixtures && (
+              <label className="flex items-start gap-3 rounded-lg border border-amber-300/20 bg-amber-500/[0.06] p-3 text-sm font-bold text-amber-100">
+                <input
+                  type="checkbox"
+                  checked={seedTestFixtures}
+                  onChange={(e) => setSeedTestFixtures(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded"
+                />
+                <span>
+                  <span className="block">Seed Test Fixtures</span>
+                  <span className="mt-0.5 block text-[11px] font-medium leading-5 text-amber-100/70">
+                    Adds mock Round of 32 teams, flags, kickoff times, and venues so this pool is pickable immediately.
+                  </span>
                 </span>
-              </span>
-            </label>
+              </label>
+            )}
 
             {status === "opening" && !error && (
               <div className="flex items-center gap-2 rounded-lg border border-cyan-300/25 bg-cyan-300/10 p-3 text-sm text-cyan-100">

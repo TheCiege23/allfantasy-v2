@@ -164,6 +164,12 @@ function shouldSeedWorldCupTestFixturesOnCreate(input: {
   simulationEnabled?: boolean
   seedTestFixtures?: boolean
 }) {
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.WORLD_CUP_ALLOW_PRODUCTION_TEST_FIXTURES_ON_CREATE !== "true"
+  ) {
+    return false
+  }
   return Boolean(
     input.seedTestFixtures ||
       input.isTestMode ||
