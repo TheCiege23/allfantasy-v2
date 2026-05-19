@@ -561,7 +561,7 @@ export async function POST(req: Request) {
         const tokenHash = sha256Hex(rawToken)
         const expiresAt = new Date(Date.now() + 1000 * 60 * 60)
 
-        await (prisma as any).emailVerifyToken.create({
+        const tokenRecord = await (prisma as any).emailVerifyToken.create({
           data: { userId: user.id, tokenHash, expiresAt },
         })
 
@@ -574,17 +574,22 @@ export async function POST(req: Request) {
         const { buildVerificationEmailHtml, resolveEmailSafeName } = await import("@/lib/email/verification-email-html")
         const safeName = resolveEmailSafeName({ username })
 
-        await client.emails.send({
-          from: fromEmail || "AllFantasy.ai <noreply@allfantasy.ai>",
-          to: email,
-          subject: "Verify your AllFantasy.ai email",
-          html: buildVerificationEmailHtml({
-            title: "Verify Your Email",
-            greeting: `Welcome, ${safeName}! Click the button below to verify your email address and get started.`,
-            verifyUrl,
-            footerNote: "If you didn't create this account, you can safely ignore this email.",
-          }),
-        })
+        const { buildEmailIdempotencyKey } = await import("@/lib/email/idempotency")
+
+        await client.emails.send(
+          {
+            from: fromEmail || "AllFantasy.ai <noreply@allfantasy.ai>",
+            to: email,
+            subject: "Verify your AllFantasy.ai email",
+            html: buildVerificationEmailHtml({
+              title: "Verify Your Email",
+              greeting: `Welcome, ${safeName}! Click the button below to verify your email address and get started.`,
+              verifyUrl,
+              footerNote: "If you didn't create this account, you can safely ignore this email.",
+            }),
+          },
+          { idempotencyKey: buildEmailIdempotencyKey("email-verify", user.id, tokenRecord.id) }
+        )
         emailVerificationPrepared = true
       } catch (emailErr) {
         console.error("[register] Failed to create/send verification email (non-blocking):", emailErr)

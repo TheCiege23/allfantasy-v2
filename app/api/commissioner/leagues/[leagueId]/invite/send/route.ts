@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
+import { createHash } from "crypto"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { assertCommissioner } from "@/lib/commissioner/permissions"
 import { getLeaguePrivacySettings } from "@/lib/league-privacy"
 import { buildFantasyInviteLink, generateInviteToken, getDefaultFantasyInviteExpiry } from "@/lib/league-invite"
+import { buildEmailIdempotencyKey } from "@/lib/email/idempotency"
 
 export const dynamic = "force-dynamic"
 
@@ -80,12 +82,17 @@ export async function POST(
     try {
       const { getResendClient } = await import("@/lib/resend-client")
       const { client, fromEmail } = getResendClient()
-      const sent = await client.emails.send({
-        from: fromEmail,
-        to: email,
-        subject: `You're invited to join ${leagueName} on AllFantasy`,
-        html: `You've been invited to join <strong>${leagueName}</strong>. Use this link to join: <a href="${inviteUrl}">${inviteUrl}</a>`,
-      })
+      // Idempotency key: league + one-way hash of recipient email (no PII stored in key)
+      const emailHash = createHash("sha256").update(email.toLowerCase()).digest("hex").slice(0, 16)
+      const sent = await client.emails.send(
+        {
+          from: fromEmail,
+          to: email,
+          subject: `You're invited to join ${leagueName} on AllFantasy`,
+          html: `You've been invited to join <strong>${leagueName}</strong>. Use this link to join: <a href="${inviteUrl}">${inviteUrl}</a>`,
+        },
+        { idempotencyKey: buildEmailIdempotencyKey("league-invite", league.id, emailHash) }
+      )
       if (sent.error) {
         return NextResponse.json({ error: sent.error.message || "Failed to send email", inviteUrl }, { status: 500 })
       }

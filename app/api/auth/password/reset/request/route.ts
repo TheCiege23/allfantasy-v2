@@ -170,7 +170,7 @@ export async function POST(req: Request) {
     where: { userId: user.id },
   }).catch(() => {})
 
-  await (prisma as any).passwordResetToken.create({
+  const tokenRecord = await (prisma as any).passwordResetToken.create({
     data: { userId: user.id, tokenHash, expiresAt },
   })
 
@@ -216,8 +216,10 @@ export async function POST(req: Request) {
 
   try {
     const { getResendClient } = await import("@/lib/resend-client")
+    const { buildEmailIdempotencyKey } = await import("@/lib/email/idempotency")
     const { client } = getResendClient()
-    const result = await client.emails.send({
+    const result = await client.emails.send(
+      {
       from: fromEmail,
       to: email,
       subject: "Reset your AllFantasy password",
@@ -243,7 +245,9 @@ export async function POST(req: Request) {
 </div>
 </body>
 </html>`,
-    })
+      },
+      { idempotencyKey: buildEmailIdempotencyKey("password-reset", user.id, tokenRecord.id) }
+    )
     if ("error" in result && result.error) {
       throw new Error(result.error.message || "Resend send error")
     }

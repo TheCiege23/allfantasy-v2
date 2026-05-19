@@ -52,7 +52,7 @@ export async function POST(req: Request) {
   const expiresAt = new Date(Date.now() + 1000 * 60 * 60)
 
   await (prisma as any).emailVerifyToken.deleteMany({ where: { userId } }).catch(() => {})
-  await (prisma as any).emailVerifyToken.create({ data: { userId, tokenHash, expiresAt } })
+  const tokenRecord = await (prisma as any).emailVerifyToken.create({ data: { userId, tokenHash, expiresAt } })
 
   const { USER_FACING_SITE_ORIGIN } = await import("@/lib/auth/user-facing-site-origin")
   const verifyUrl = `${USER_FACING_SITE_ORIGIN}/verify/email?token=${encodeURIComponent(rawToken)}&returnTo=${encodeURIComponent(safeReturnTo)}`
@@ -61,18 +61,22 @@ export async function POST(req: Request) {
   const { client, fromEmail } = await getResendClient()
 
   const { buildVerificationEmailHtml } = await import("@/lib/email/verification-email-html")
+  const { buildEmailIdempotencyKey } = await import("@/lib/email/idempotency")
 
-  await client.emails.send({
-    from: fromEmail || "AllFantasy.ai <noreply@allfantasy.ai>",
-    to: targetEmail,
-    subject: "Verify your email for AllFantasy.ai",
-    html: buildVerificationEmailHtml({
-      title: "Verify your email",
-      greeting: "Click the button below to verify your AllFantasy.ai email address.",
-      verifyUrl,
-      footerNote: "If you didn't request this, you can safely ignore this email.",
-    }),
-  })
+  await client.emails.send(
+    {
+      from: fromEmail || "AllFantasy.ai <noreply@allfantasy.ai>",
+      to: targetEmail,
+      subject: "Verify your email for AllFantasy.ai",
+      html: buildVerificationEmailHtml({
+        title: "Verify your email",
+        greeting: "Click the button below to verify your AllFantasy.ai email address.",
+        verifyUrl,
+        footerNote: "If you didn't request this, you can safely ignore this email.",
+      }),
+    },
+    { idempotencyKey: buildEmailIdempotencyKey("email-verify-resend", userId, tokenRecord.id) }
+  )
 
   return NextResponse.json({ ok: true })
 }

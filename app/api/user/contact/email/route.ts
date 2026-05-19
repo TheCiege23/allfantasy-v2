@@ -34,7 +34,7 @@ async function sendVerificationEmail(params: {
     where: { userId: params.userId },
   }).catch(() => {})
 
-  await (prisma as any).emailVerifyToken.create({
+  const tokenRecord = await (prisma as any).emailVerifyToken.create({
     data: { userId: params.userId, tokenHash, expiresAt },
   })
 
@@ -48,18 +48,22 @@ async function sendVerificationEmail(params: {
   const { client, fromEmail } = await getResendClient()
 
   const { buildVerificationEmailHtml } = await import("@/lib/email/verification-email-html")
+  const { buildEmailIdempotencyKey } = await import("@/lib/email/idempotency")
 
-  await client.emails.send({
-    from: fromEmail || "AllFantasy.ai <noreply@allfantasy.ai>",
-    to: params.targetEmail,
-    subject: "Verify your updated email for AllFantasy.ai",
-    html: buildVerificationEmailHtml({
-      title: "Verify your updated email",
-      greeting: "Click the button below to verify this new email address.",
-      verifyUrl,
-      footerNote: "If you did not request this change, secure your account immediately.",
-    }),
-  })
+  await client.emails.send(
+    {
+      from: fromEmail || "AllFantasy.ai <noreply@allfantasy.ai>",
+      to: params.targetEmail,
+      subject: "Verify your updated email for AllFantasy.ai",
+      html: buildVerificationEmailHtml({
+        title: "Verify your updated email",
+        greeting: "Click the button below to verify this new email address.",
+        verifyUrl,
+        footerNote: "If you did not request this change, secure your account immediately.",
+      }),
+    },
+    { idempotencyKey: buildEmailIdempotencyKey("email-change", params.userId, tokenRecord.id) }
+  )
 
   return true
 }
