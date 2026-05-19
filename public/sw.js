@@ -90,7 +90,24 @@ self.addEventListener('fetch', (event) => {
 
   if (request.method !== 'GET') return;
   if (url.origin !== self.location.origin) return;
-  if (NEVER_CACHE.some((path) => url.pathname.startsWith(path))) return;
+  if (NEVER_CACHE.some((path) => url.pathname.startsWith(path))) {
+    // For navigation requests (e.g. /api/auth/callback/google after OAuth):
+    // when Navigation Preload is enabled, Chrome has already fired a preload HTTP
+    // request. If the SW returns early without calling event.respondWith(), Chrome
+    // also sends a fallback network fetch — resulting in TWO simultaneous requests
+    // to the same URL. OAuth authorization codes are single-use; whichever request
+    // arrives second gets an invalid_grant error from Google → OAuthCallbackError.
+    // Fix: consume the preload response (or fall back to one fetch) so Chrome never
+    // sends the duplicate fallback request.
+    if (request.mode === 'navigate') {
+      event.respondWith(
+        Promise.resolve(event.preloadResponse)
+          .then((r) => r || fetch(request))
+          .catch(() => fetch(request))
+      );
+    }
+    return;
+  }
 
   if (CACHE_FIRST_PATTERNS.some((pattern) => pattern.test(url.pathname))) {
     event.respondWith(cacheFirst(request, CACHE_IMAGES));
