@@ -1877,7 +1877,7 @@ export const translations: Record<string, Record<string, string>> = {
       "Google sign-in is not configured for this environment. It will appear when enabled.",
     "settings.connected.fallback.apple":
       "Apple sign-in is not configured for this environment. It will appear when enabled.",
-    "settings.connected.fallback.facebook": "Facebook sign-in is planned. Follow updates for when it's available.",
+    "settings.connected.fallback.facebook": "Facebook sign-in is not configured for this environment. It will appear when enabled.",
     "settings.connected.fallback.instagram": "Instagram sign-in is planned. Follow updates for when it's available.",
     "settings.connected.fallback.x": "X (Twitter) sign-in is planned. Follow updates for when it's available.",
     "settings.connected.fallback.tiktok": "TikTok sign-in is planned. Follow updates for when it's available.",
@@ -3679,7 +3679,7 @@ export const translations: Record<string, Record<string, string>> = {
     "settings.connected.fallback.apple":
       "El inicio de sesión con Apple no está configurado en este entorno. Aparecerá cuando esté habilitado.",
     "settings.connected.fallback.facebook":
-      "El inicio de sesión con Facebook está planificado. Mantente atento a las novedades.",
+      "El inicio de sesión con Facebook no está configurado en este entorno. Aparecerá cuando esté habilitado.",
     "settings.connected.fallback.instagram":
       "El inicio de sesión con Instagram está planificado. Mantente atento a las novedades.",
     "settings.connected.fallback.x":

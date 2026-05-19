@@ -8,7 +8,7 @@ const PROVIDER_FALLBACK_MESSAGES: Record<SocialProvider, string> = {
   apple:
     'Apple sign-in is not configured for this environment. It will appear here when enabled.',
   facebook:
-    'Facebook sign-in is planned. Follow updates for when it is available.',
+    'Facebook sign-in is not configured for this environment. It will appear here when enabled.',
   instagram:
     'Instagram sign-in is planned. Follow updates for when it is available.',
   x: 'X sign-in is planned. Follow updates for when it is available.',

@@ -20,6 +20,13 @@ export function isSocialProviderEnabled(provider: SocialProvider): boolean {
     return !!(process.env.NEXT_PUBLIC_ENABLE_SPOTIFY_AUTH === 'true' || (process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET))
   }
   if (provider === 'apple') return process.env.NEXT_PUBLIC_ENABLE_APPLE_AUTH === 'true'
+  if (provider === 'facebook') {
+    // Accept the explicit public flag OR (server-side) the presence of credentials.
+    return (
+      process.env.NEXT_PUBLIC_ENABLE_FACEBOOK_AUTH === 'true' ||
+      !!(process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET)
+    )
+  }
   return false
 }
 

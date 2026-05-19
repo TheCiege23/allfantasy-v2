@@ -32,7 +32,7 @@ export default function SocialLoginButtons({ callbackUrl }: { callbackUrl: strin
         return
       }
 
-      // Other providers (Spotify etc.) check the enable flag first.
+      // All other providers (Spotify, Facebook, etc.) check the enable flag first.
       if (isSocialProviderEnabled(provider)) {
         await signIn(provider, { callbackUrl })
         return
@@ -81,7 +81,7 @@ export default function SocialLoginButtons({ callbackUrl }: { callbackUrl: strin
             loadingProvider !== null ? "opacity-70" : ""
           }`}
         >
-          {loadingProvider === "facebook" ? "Opening..." : "Facebook (planned)"}
+          {loadingProvider === "facebook" ? "Opening..." : isSocialProviderEnabled("facebook") ? "Facebook" : "Facebook (planned)"}
         </button>
         <button
           type="button"

@@ -12,7 +12,7 @@ const FALLBACK_MESSAGES: Record<SignInProviderId, string> = {
   google: "Google sign-in is not configured for this environment. It will appear when enabled.",
   spotify: "Spotify sign-in is not configured for this environment. It will appear when enabled.",
   apple: "Apple sign-in is not configured for this environment. It will appear when enabled.",
-  facebook: "Facebook sign-in is planned. Follow updates for when it's available.",
+  facebook: "Facebook sign-in is not configured for this environment. It will appear when enabled.",
   instagram: "Instagram sign-in is planned. Follow updates for when it's available.",
   x: "X (Twitter) sign-in is planned. Follow updates for when it's available.",
   tiktok: "TikTok sign-in is planned. Follow updates for when it's available.",

@@ -28,6 +28,7 @@ function isProviderConfigured(providerId: SignInProviderId): boolean {
     case "apple":
       return !!(process.env.APPLE_CLIENT_ID && process.env.APPLE_CLIENT_SECRET)
     case "facebook":
+      return !!(process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET)
     case "instagram":
     case "x":
     case "tiktok":

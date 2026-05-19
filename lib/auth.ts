@@ -4,6 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import AppleProvider from "next-auth/providers/apple";
 import SpotifyProvider from "next-auth/providers/spotify";
+import FacebookProvider from "next-auth/providers/facebook";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { resolveUnifiedAuthIdentity } from "@/lib/auth/AuthIdentityResolver";
@@ -316,6 +317,25 @@ if (spotifyClientId && spotifyClientSecret) {
   );
 }
 
+const facebookClientId = process.env.FACEBOOK_CLIENT_ID;
+const facebookClientSecret = process.env.FACEBOOK_CLIENT_SECRET;
+
+if (facebookClientId && facebookClientSecret) {
+  providers.push(
+    FacebookProvider({
+      clientId: facebookClientId,
+      clientSecret: facebookClientSecret,
+      // Callback URL: https://www.allfantasy.ai/api/auth/callback/facebook
+      // Must be registered as a Valid OAuth Redirect URI in the Meta app dashboard.
+      authorization: {
+        params: {
+          scope: "email,public_profile",
+        },
+      },
+    })
+  );
+}
+
 /** NextAuth reads `NEXTAUTH_URL` from the environment for OAuth redirects (set in Vercel to your canonical origin). */
 export const authOptions: NextAuthOptions = {
   secret: getAuthSecret(),
@@ -347,19 +367,27 @@ export const authOptions: NextAuthOptions = {
         return true;
       }
 
-      if (account.provider === "google" || account.provider === "apple" || account.provider === "spotify") {
+      if (account.provider === "google" || account.provider === "apple" || account.provider === "spotify" || account.provider === "facebook") {
         const runSocialLink = async (): Promise<true> => {
           const oauthEmail = resolveOAuthEmailFromCallback(user, profile);
           if (oauthEmail) {
             user.email = oauthEmail;
           }
 
-          const provider: "google" | "apple" | "spotify" =
+          // Facebook may not return an email if the user hasn't granted permission
+          // or has no confirmed email on their account. Fail early with a clear error.
+          if (account.provider === "facebook" && !oauthEmail) {
+            throw new Error("FACEBOOK_EMAIL_MISSING");
+          }
+
+          const provider: "google" | "apple" | "spotify" | "facebook" =
             account.provider === "google"
               ? "google"
               : account.provider === "apple"
                 ? "apple"
-                : "spotify";
+                : account.provider === "facebook"
+                  ? "facebook"
+                  : "spotify";
           const linkedUser = await linkSocialAccountToAppUser({
             provider,
             providerAccountId: account.providerAccountId,
@@ -394,6 +422,20 @@ export const authOptions: NextAuthOptions = {
             return await runSocialLink();
           } catch (err) {
             console.error("[google-signin] FATAL:", err);
+            return "/auth/error?error=SOCIAL_ACCOUNT_LINK_FAILED";
+          }
+        }
+
+        if (account.provider === "facebook") {
+          console.log("[facebook-signin] profile email:", profile?.email);
+          try {
+            return await runSocialLink();
+          } catch (err) {
+            console.error("[facebook-signin] FATAL:", err);
+            const errMsg = err instanceof Error ? err.message : "";
+            if (errMsg === "FACEBOOK_EMAIL_MISSING") {
+              return "/auth/error?error=FACEBOOK_EMAIL_MISSING";
+            }
             return "/auth/error?error=SOCIAL_ACCOUNT_LINK_FAILED";
           }
         }
