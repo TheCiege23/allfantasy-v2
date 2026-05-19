@@ -32,6 +32,7 @@ type BundleLeague = {
   allowLateJoin?: boolean
   showPublicPicks?: "after_lock" | "never" | "always"
   knockoutMode?: "predictive" | "reseeded"
+  confidenceScoringEnabled?: boolean
   bracketBrainEnabled?: boolean
   inviteGateConfigured?: boolean
 }
@@ -105,6 +106,7 @@ export default function WorldCupBracketSettingsPanel({
   const [allowLateJoin, setAllowLateJoin] = useState(false)
   const [showPublicPicks, setShowPublicPicks] = useState<"after_lock" | "never" | "always">("after_lock")
   const [knockoutMode, setKnockoutMode] = useState<"predictive" | "reseeded">("predictive")
+  const [confidenceScoringEnabled, setConfidenceScoringEnabled] = useState(false)
 
   const [bracketBrainEnabled, setBracketBrainEnabled] = useState(true)
   const [joinPasswordInput, setJoinPasswordInput] = useState("")
@@ -143,6 +145,7 @@ export default function WorldCupBracketSettingsPanel({
     setAllowLateJoin(l.allowLateJoin ?? false)
     setShowPublicPicks(l.showPublicPicks ?? "after_lock")
     setKnockoutMode(l.knockoutMode ?? "predictive")
+    setConfidenceScoringEnabled(l.confidenceScoringEnabled === true)
     setBracketBrainEnabled(l.bracketBrainEnabled !== false)
 
     setJoinPasswordInput("")
@@ -277,6 +280,9 @@ export default function WorldCupBracketSettingsPanel({
     }
     if (knockoutMode !== (payload.leagueSettings.knockoutMode ?? "predictive")) {
       patch.knockoutMode = knockoutMode
+    }
+    if (confidenceScoringEnabled !== (payload.leagueSettings.confidenceScoringEnabled === true)) {
+      patch.confidenceScoringEnabled = confidenceScoringEnabled
     }
     if (bracketBrainEnabled !== (payload.leagueSettings.bracketBrainEnabled !== false)) {
       patch.bracketBrainEnabled = bracketBrainEnabled
@@ -513,6 +519,22 @@ export default function WorldCupBracketSettingsPanel({
             className="h-4 w-4 accent-cyan-400"
           />
           Include third-place match (and third-place points when custom)
+        </label>
+
+        <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/70">
+          <input
+            data-testid="world-cup-settings-confidence-scoring"
+            type="checkbox"
+            checked={confidenceScoringEnabled}
+            onChange={(e) => setConfidenceScoringEnabled(e.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-cyan-400"
+          />
+          <span>
+            <span className="block font-bold text-white/80">Enable Confidence Scoring</span>
+            <span className="mt-1 block text-[11px] leading-5 text-white/45">
+              Managers can assign confidence points to selected knockout predictions for bonus scoring. Higher confidence means more bonus points if correct.
+            </span>
+          </span>
         </label>
 
         {scoringStyle === "custom" ? (

@@ -81,6 +81,28 @@ describe("World Cup bracket settings validation", () => {
     expect(worldCupBracketSettingsPatchSchema.safeParse({ knockoutMode: "moneyline" }).success).toBe(false)
   })
 
+  it("defaults existing pools to confidence scoring disabled", () => {
+    expect(parseWorldCupLeagueSettings(null).confidenceScoringEnabled).toBe(false)
+    expect(parseWorldCupLeagueSettings({ leagueSettings: {} }).confidenceScoringEnabled).toBe(false)
+    expect(parseWorldCupLeagueSettings({ leagueSettings: { confidenceScoringEnabled: true } }).confidenceScoringEnabled).toBe(true)
+  })
+
+  it("schema accepts commissioner confidence scoring toggle", () => {
+    expect(worldCupBracketSettingsPatchSchema.safeParse({ confidenceScoringEnabled: true }).success).toBe(true)
+    expect(worldCupBracketSettingsPatchSchema.safeParse({ confidenceScoringEnabled: false }).success).toBe(true)
+  })
+
+  it("normalizes valid confidence points and rejects invalid values", async () => {
+    const { normalizeWorldCupConfidencePoints } = await import(
+      "@/lib/world-cup/worldCupBracketService"
+    )
+    expect(normalizeWorldCupConfidencePoints(12)).toBe(12)
+    expect(normalizeWorldCupConfidencePoints(null)).toBeNull()
+    expect(() => normalizeWorldCupConfidencePoints(0)).toThrow(/1 to 32/)
+    expect(() => normalizeWorldCupConfidencePoints(33)).toThrow(/1 to 32/)
+    expect(() => normalizeWorldCupConfidencePoints(1.5)).toThrow(/1 to 32/)
+  })
+
   it("applyPatch rejects bracketBrainEnabled without AF Pro before touching prisma", async () => {
     vi.resetModules()
     const { applyWorldCupBracketSettingsPatch } = await import(
@@ -186,6 +208,40 @@ describe("World Cup bracket settings validation", () => {
     const payload = updateArg?.data?.sourcePayload as Record<string, unknown>
     expect(payload?.simulation).toEqual({ enabled: true })
     const ls = payload?.leagueSettings as Record<string, unknown>
+    expect(ls?.commissionerNote).toBe("keep")
+  })
+
+  it("applyPatch stores confidence scoring without AF Pro gating", async () => {
+    findUnique.mockResolvedValueOnce({
+      id: "c1",
+      sourcePayload: {
+        leagueSettings: { scoringStyle: "standard", commissionerNote: "keep" },
+      },
+      scoringProfileId: "sp1",
+      status: "open",
+      pickLockAt: null,
+      entries: [],
+      picks: [],
+    })
+    challengeUpdate.mockResolvedValueOnce({})
+    scoringUpdate.mockResolvedValueOnce({})
+
+    vi.resetModules()
+    const { applyWorldCupBracketSettingsPatch } = await import(
+      "@/lib/world-cup/worldCupBracketSettingsService"
+    )
+
+    await applyWorldCupBracketSettingsPatch({
+      challengeId: "c1",
+      userHasAfPro: false,
+      isAdmin: false,
+      patch: { confidenceScoringEnabled: true },
+    })
+
+    const updateArg = challengeUpdate.mock.calls[0]?.[0]
+    const payload = updateArg?.data?.sourcePayload as Record<string, unknown>
+    const ls = payload?.leagueSettings as Record<string, unknown>
+    expect(ls?.confidenceScoringEnabled).toBe(true)
     expect(ls?.commissionerNote).toBe("keep")
   })
 

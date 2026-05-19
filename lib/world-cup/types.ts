@@ -15,7 +15,7 @@ export const WORLD_CUP_ROUND_LABELS: Record<WorldCupRound, string> = {
 }
 export type WorldCupSlotSpec = { slotKey: string; round: WorldCupRound; region?: string | null; sourceGroup?: string | null; sourceRank?: string | null; displayName: string; isPlaceholder: boolean }
 export type WorldCupMatchSpec = { matchNumber: number; round: WorldCupRound; roundIndex: number; homeSlotKey: string; awaySlotKey: string; homeTeamName: string; awayTeamName: string; nextMatchNumber?: number | null; nextMatchSlot?: "home" | "away" | null }
-export type WorldCupScoringValues = { roundOf32Points: number; roundOf16Points: number; quarterFinalPoints: number; semiFinalPoints: number; finalPoints: number; championBonusPoints: number; thirdPlacePoints?: number | null }
+export type WorldCupScoringValues = { roundOf32Points: number; roundOf16Points: number; quarterFinalPoints: number; semiFinalPoints: number; finalPoints: number; championBonusPoints: number; thirdPlacePoints?: number | null; confidenceScoringEnabled?: boolean | null }
 export type WorldCupMatchView = { id: string; apiFixtureId: number | null; round: WorldCupRound; roundIndex: number; matchNumber: number; homeSlotKey: string; awaySlotKey: string; homeTeamId: string | null; awayTeamId: string | null; homeTeamName: string; awayTeamName: string; homeTeamLogo: string | null; awayTeamLogo: string | null; homeScore: number | null; awayScore: number | null; homePenaltyScore: number | null; awayPenaltyScore: number | null; status: WorldCupMatchStatus; startsAt: string | null; winnerTeamId: string | null; winnerTeamName: string | null; nextMatchId: string | null; nextMatchSlot: "home" | "away" | null; elapsedMinute: number | null; injuryTime: number | null; period: string | null; venueName: string | null; venueCity: string | null; apiStatusShort: string | null; lastScoreSyncedAt: string | null }
 export type WorldCupParticipantView = {
   id: string
@@ -37,6 +37,7 @@ export type WorldCupPickView = {
   selectedTeamId: string | null
   selectedSlotKey: string | null
   selectedTeamName: string
+  confidencePoints?: number | null
   pointsAwarded: number
   isCorrect: boolean | null
   lockedAt: string | null
@@ -90,6 +91,7 @@ export type WorldCupChallengeView = {
     status: string
     includeThirdPlace: boolean
     knockoutMode: WorldCupKnockoutMode
+    confidenceScoringEnabled: boolean
     isTestMode: boolean
     simulationEnabled: boolean
     simulatedAt: string | null

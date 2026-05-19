@@ -1,4 +1,5 @@
 "use client"
+import { useEffect, useMemo, useState } from "react"
 import { Check, Clock, Lock, Radio, Sparkles, Trophy, X } from "lucide-react"
 import type { WorldCupMatchView, WorldCupPickView } from "@/lib/world-cup/types"
 import {
@@ -59,6 +60,7 @@ export default function WorldCupMatchupCard({
   onOpenMatchupPicker,
   isSaving = false,
   aiInsightsUnlocked = false,
+  confidenceScoringEnabled = false,
 }: {
   match: WorldCupMatchView
   pick?: WorldCupPickView
@@ -67,11 +69,19 @@ export default function WorldCupMatchupCard({
   lockStrategy?: string
   /** ISO string — used when lockStrategy === "tournament_start" */
   tournamentLockAt?: string | null
-  onPick?: (match: WorldCupMatchView, side: "home" | "away") => void
+  onPick?: (match: WorldCupMatchView, side: "home" | "away", confidencePoints?: number | null) => void
   onOpenMatchupPicker?: (matchId: string) => void
   isSaving?: boolean
   aiInsightsUnlocked?: boolean
+  confidenceScoringEnabled?: boolean
 }) {
+  const confidenceOptions = useMemo(() => Array.from({ length: 32 }, (_, index) => index + 1), [])
+  const [confidenceDraft, setConfidenceDraft] = useState(() => pick?.confidencePoints ?? 1)
+
+  useEffect(() => {
+    setConfidenceDraft(pick?.confidencePoints ?? 1)
+  }, [pick?.confidencePoints])
+
   const isLive = isWorldCupMatchLive(match)
   const isFinal = isWorldCupMatchFinal(match)
   const pickLiveState = getWorldCupPickLiveState(match, pick)
@@ -261,6 +271,29 @@ export default function WorldCupMatchupCard({
         </p>
       ) : null}
 
+      {confidenceScoringEnabled && matchIsPickable && !locked ? (
+        <label
+          data-testid={`wc-match-confidence-selector-${match.id}`}
+          className="mb-2 block rounded-lg border border-cyan-300/15 bg-cyan-300/[0.055] px-2 py-2 text-[11px] leading-4 text-cyan-50/80"
+        >
+          <span className="block font-black text-white">Confidence bonus</span>
+          <span className="mt-1 block text-white/55">
+            Higher confidence means more bonus points if correct.
+          </span>
+          <select
+            value={confidenceDraft}
+            onChange={(e) => setConfidenceDraft(Number(e.target.value))}
+            className="mt-2 min-h-10 w-full rounded-md border border-white/10 bg-black/40 px-2 text-xs font-black text-white"
+          >
+            {confidenceOptions.map((value) => (
+              <option key={value} value={value}>
+                {value} point{value === 1 ? "" : "s"}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
       <details
         data-testid={`world-cup-match-ai-insight-${match.id}`}
         className="mb-2 rounded-lg border border-cyan-300/20 bg-cyan-300/[0.055] px-2 py-2 text-[10px] text-cyan-50"
@@ -362,7 +395,7 @@ export default function WorldCupMatchupCard({
               aria-pressed={selected}
               aria-label={pickAriaLabel}
               disabled={locked || isSaving || !matchIsPickable}
-              onClick={() => locked || isSaving || !matchIsPickable ? undefined : onPick?.(match, t.side)}
+              onClick={() => locked || isSaving || !matchIsPickable ? undefined : onPick?.(match, t.side, confidenceScoringEnabled ? confidenceDraft : null)}
               title={disabledReason}
               className={[
                 "flex min-h-[3.5rem] w-full touch-manipulation items-center gap-2 rounded-md border px-2 py-1 text-left transition sm:h-14 sm:py-0",

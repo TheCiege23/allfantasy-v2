@@ -24,6 +24,7 @@ const savePickBodySchema = z.object({
   nextMatchId: z.string().nullable().optional(),
   nextMatchSlot: z.enum(["home", "away"]).nullable().optional(),
   matchNumber: z.number().int().positive().optional(),
+  confidencePoints: z.number().int().min(1).max(32).nullable().optional(),
 })
 
 const clearPicksBodySchema = z.object({
@@ -81,6 +82,7 @@ export async function POST(request: Request, context: { params: { challengeId: s
       selectedSide: parsed.data.selectedSide,
       round: parsed.data.round,
       matchNumber: parsed.data.matchNumber,
+      confidencePoints: parsed.data.confidencePoints,
       nextMatchId: parsed.data.nextMatchId,
       nextMatchSlot: parsed.data.nextMatchSlot,
     })

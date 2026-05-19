@@ -33,6 +33,7 @@ export type WorldCupLeagueSettingsStored = {
   allowLateJoin?: boolean
   showPublicPicks?: "after_lock" | "never" | "always"
   knockoutMode?: WorldCupKnockoutMode
+  confidenceScoringEnabled?: boolean
   bracketBrainEnabled?: boolean
   joinPasswordHash?: string | null
 }
@@ -83,6 +84,7 @@ export function parseWorldCupLeagueSettings(
     allowLateJoin: ls.allowLateJoin ?? false,
     showPublicPicks: ls.showPublicPicks ?? "after_lock",
     knockoutMode: normalizeWorldCupKnockoutMode(ls.knockoutMode),
+    confidenceScoringEnabled: ls.confidenceScoringEnabled === true,
     bracketBrainEnabled: ls.bracketBrainEnabled ?? true,
     inviteGateConfigured,
     joinPasswordHash: undefined,
@@ -92,6 +94,10 @@ export function parseWorldCupLeagueSettings(
 export function isWorldCupBracketBrainEnabledForChallenge(sourcePayload: unknown): boolean {
   const ls = parseWorldCupLeagueSettings(sourcePayload)
   return ls.bracketBrainEnabled !== false
+}
+
+export function isWorldCupConfidenceScoringEnabled(sourcePayload: unknown): boolean {
+  return parseWorldCupLeagueSettings(sourcePayload).confidenceScoringEnabled === true
 }
 
 /** Validates numeric scoring patch — exported for tests. */
@@ -256,6 +262,7 @@ export async function applyWorldCupBracketSettingsPatch(input: {
     if (patch.allowLateJoin !== undefined) nextLeague.allowLateJoin = patch.allowLateJoin
     if (patch.showPublicPicks !== undefined) nextLeague.showPublicPicks = patch.showPublicPicks
     if (patch.knockoutMode !== undefined) nextLeague.knockoutMode = patch.knockoutMode
+    if (patch.confidenceScoringEnabled !== undefined) nextLeague.confidenceScoringEnabled = patch.confidenceScoringEnabled
     if (patch.bracketBrainEnabled !== undefined) nextLeague.bracketBrainEnabled = patch.bracketBrainEnabled
 
     if (Object.prototype.hasOwnProperty.call(patch, "joinPassword")) {

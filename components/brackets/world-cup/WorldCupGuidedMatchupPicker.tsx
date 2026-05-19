@@ -54,6 +54,7 @@ export type GuidedPickPayload = {
   nextMatchId?: string | null
   nextMatchSlot?: "home" | "away" | null
   matchNumber?: number
+  confidencePoints?: number | null
 }
 
 type SaveState = "idle" | "saving" | "saved" | "error"
@@ -326,6 +327,7 @@ export default function WorldCupGuidedMatchupPicker({
   tournamentStartAt = null,
   includeThirdPlace = false,
   hasBracketBrainAi = false,
+  confidenceScoringEnabled = false,
   onClose,
   onSavePick,
   onPicksUpdated,
@@ -344,6 +346,7 @@ export default function WorldCupGuidedMatchupPicker({
   includeThirdPlace?: boolean
   /** AF Pro — enables Bracket Brain AI actions in matchup intelligence. */
   hasBracketBrainAi?: boolean
+  confidenceScoringEnabled?: boolean
   onClose: () => void
   /** Called to persist a pick. Should throw on failure. */
   onSavePick: (
@@ -359,6 +362,8 @@ export default function WorldCupGuidedMatchupPicker({
   const [saveState, setSaveState] = useState<SaveState>("idle")
   const [saveError, setSaveError] = useState<string | null>(null)
   const [showComplete, setShowComplete] = useState(false)
+  const [confidenceDraft, setConfidenceDraft] = useState(1)
+  const confidenceOptions = useMemo(() => Array.from({ length: 32 }, (_, index) => index + 1), [])
 
   // Sync external picks changes into local state
   useEffect(() => {
@@ -454,6 +459,11 @@ export default function WorldCupGuidedMatchupPicker({
     () => projected.find((m) => m.id === currentMatchId) ?? null,
     [projected, currentMatchId]
   )
+  const currentPick = currentMatch ? findWorldCupPickForMatch(picks, currentMatch) : null
+
+  useEffect(() => {
+    setConfidenceDraft(currentPick?.confidencePoints ?? 1)
+  }, [currentPick?.confidencePoints])
 
   useEffect(() => {
     if (process.env.NODE_ENV !== "development") return
@@ -628,6 +638,7 @@ export default function WorldCupGuidedMatchupPicker({
         selectedTeamId,
         selectedSlotKey,
         selectedTeamName,
+        confidencePoints: confidenceScoringEnabled ? confidenceDraft : null,
         pointsAwarded: 0,
         isCorrect: null,
         lockedAt: null,
@@ -659,6 +670,7 @@ export default function WorldCupGuidedMatchupPicker({
           nextMatchId: currentMatch.nextMatchId,
           nextMatchSlot: currentMatch.nextMatchSlot,
           matchNumber: currentMatch.matchNumber,
+          confidencePoints: confidenceScoringEnabled ? confidenceDraft : null,
         }
         // onSavePick returns the updated picks array from the server
         const serverPicks = await onSavePick(payload, picks)
@@ -679,7 +691,7 @@ export default function WorldCupGuidedMatchupPicker({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentMatch, entryId, isLocked, saveState, picks, projected, orderedRounds]
+    [confidenceDraft, confidenceScoringEnabled, currentMatch, entryId, isLocked, saveState, picks, projected, orderedRounds]
   )
 
   // Trap focus & keyboard navigation
@@ -695,9 +707,7 @@ export default function WorldCupGuidedMatchupPicker({
 
   if (!isOpen) return null
 
-  const pick = currentMatch
-    ? findWorldCupPickForMatch(picks, currentMatch)
-    : null
+  const pick = currentPick
   const champion = picks.find((p) => p.round === "final" && hasWorldCupPickSelection(p)) ?? null
   const guardedShowComplete = showComplete && computedIsComplete
   const headerTitle =
@@ -792,6 +802,10 @@ export default function WorldCupGuidedMatchupPicker({
             challengeId={challengeId}
             entryId={entryId}
             hasBracketBrainAi={hasBracketBrainAi}
+            confidenceScoringEnabled={confidenceScoringEnabled}
+            confidenceDraft={confidenceDraft}
+            confidenceOptions={confidenceOptions}
+            onConfidenceChange={setConfidenceDraft}
           />
         ) : (
           <div className="flex flex-col items-center justify-center gap-4 py-16 text-center text-sm text-white/40">
@@ -872,6 +886,10 @@ function MatchView({
   challengeId,
   entryId,
   hasBracketBrainAi,
+  confidenceScoringEnabled,
+  confidenceDraft,
+  confidenceOptions,
+  onConfidenceChange,
 }: {
   match: WorldCupMatchView
   pick: WorldCupPickView | null
@@ -881,6 +899,10 @@ function MatchView({
   challengeId: string
   entryId: string
   hasBracketBrainAi: boolean
+  confidenceScoringEnabled: boolean
+  confidenceDraft: number
+  confidenceOptions: number[]
+  onConfidenceChange: (value: number) => void
 }) {
   const eff = useMemo(() => getWorldCupProjectedMatchTeams(match), [match])
   const isSaving = saveState === "saving"
@@ -1025,6 +1047,29 @@ function MatchView({
           {isFinal ? "This match has ended." : "Picks are locked for this match."}
         </p>
       )}
+
+      {confidenceScoringEnabled && !isLocked && !isFinal ? (
+        <label
+          data-testid={`wc-guided-confidence-selector-${match.id}`}
+          className="rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.055] p-3 text-xs leading-5 text-cyan-50/80"
+        >
+          <span className="block font-black text-white">Confidence bonus</span>
+          <span className="mt-1 block text-white/55">
+            Higher confidence means more bonus points if correct.
+          </span>
+          <select
+            value={confidenceDraft}
+            onChange={(event) => onConfidenceChange(Number(event.target.value))}
+            className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-black/40 px-3 text-sm font-black text-white"
+          >
+            {confidenceOptions.map((value) => (
+              <option key={value} value={value}>
+                {value} point{value === 1 ? "" : "s"}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
 
       {/* Matchup intelligence — scroll-contained on small screens so team picks stay primary */}
       {!isFinal && (

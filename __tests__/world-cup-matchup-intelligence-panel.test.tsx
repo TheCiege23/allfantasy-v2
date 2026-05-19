@@ -174,4 +174,33 @@ describe("WorldCupMatchupCard AI insight entrypoint", () => {
     expect(card.textContent?.toLowerCase()).toContain("bracket guidance stays limited to pool picks and scoring mechanics")
     expect(card.textContent?.toLowerCase()).not.toMatch(/\bdfs\b|\bbetting\b|\bwager/)
   })
+
+  it("hides confidence selector when disabled", async () => {
+    const WorldCupMatchupCard = (await import("@/components/brackets/world-cup/WorldCupMatchupCard")).default
+    render(<WorldCupMatchupCard match={match} />)
+
+    expect(screen.queryByTestId("wc-match-confidence-selector-m1")).not.toBeInTheDocument()
+  })
+
+  it("renders mobile confidence selector and saves confidence with the pick", async () => {
+    const WorldCupMatchupCard = (await import("@/components/brackets/world-cup/WorldCupMatchupCard")).default
+    const onPick = vi.fn()
+    render(
+      <WorldCupMatchupCard
+        match={match}
+        confidenceScoringEnabled
+        onPick={onPick}
+      />
+    )
+
+    const selector = screen.getByTestId("wc-match-confidence-selector-m1")
+    expect(within(selector).getByText(/Higher confidence means more bonus points if correct/i)).toBeInTheDocument()
+    expect(within(selector).getByRole("combobox")).toHaveClass("min-h-10")
+
+    fireEvent.change(within(selector).getByRole("combobox"), { target: { value: "5" } })
+    fireEvent.click(screen.getByRole("button", { name: /Pick Brazil to win/i }))
+
+    expect(onPick).toHaveBeenCalledWith(match, "home", 5)
+    expect(selector.textContent?.toLowerCase()).not.toMatch(/\bdfs\b|\bbetting\b|\bwager/)
+  })
 })

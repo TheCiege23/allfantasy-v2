@@ -14,15 +14,17 @@ export default function WorldCupBracketBoard({
 	savingMatchIds,
 	isLocked = false,
 	aiInsightsUnlocked = false,
+	confidenceScoringEnabled = false,
 }: {
 	view: WorldCupChallengeView
 	picks: WorldCupPickView[]
 	matches: WorldCupMatchView[]
-	onPick: (match: WorldCupMatchView, side: "home" | "away") => void
+	onPick: (match: WorldCupMatchView, side: "home" | "away", confidencePoints?: number | null) => void
 	onOpenMatchupPicker?: (matchId: string) => void
 	savingMatchIds?: Set<string>
 	isLocked?: boolean
 	aiInsightsUnlocked?: boolean
+	confidenceScoringEnabled?: boolean
 }) {
 	const champion = picks.find((p) => p.round === "final" && hasWorldCupPickSelection(p))
 	const rounds = WORLD_CUP_ROUNDS.filter((r) => matches.some((m) => m.round === r && (r !== "third_place" || view.challenge.includeThirdPlace)))
@@ -52,6 +54,7 @@ export default function WorldCupBracketBoard({
 						lockStrategy={pickLockStrategy}
 						tournamentLockAt={pickLockAt}
 						aiInsightsUnlocked={aiInsightsUnlocked}
+						confidenceScoringEnabled={confidenceScoringEnabled}
 					/>
 				))}
 			</div>
