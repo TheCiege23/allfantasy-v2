@@ -2949,6 +2949,7 @@ export default function WorldCupBracketShell({
                   setHasUnsavedGroupChanges(false)
                   refreshKnockoutBracketFromGroupStage()
                   refreshCompletionReviewAfterMeaningfulEdit()
+                  toast.info("Your bracket updated because your group predictions changed.")
                 }}
               />
             ) : (

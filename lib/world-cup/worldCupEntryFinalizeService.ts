@@ -2,10 +2,12 @@ import "server-only"
 import { prisma } from "@/lib/prisma"
 import { isWorldCupChallengeLocked } from "./worldCupBracketBuilder"
 import { WORLD_CUP_BRACKET_LOCKED_MESSAGE } from "./worldCupBracketService"
+import { buildWorldCupMatchesFromGroupPredictions, isWorldCupMatchPickable } from "./worldCupProjectedBracket"
 import {
   getWorldCupGroupStageCompletionState,
 } from "./worldCupGroupStageScoringService"
 import { isWorldCupEntryCompleteFromSelections } from "./worldCupScoringService"
+import { getWorldCupGroupStageView } from "./worldCupGroupStageService"
 
 export type WorldCupEntryCompletionReview = {
   challengeId: string
@@ -81,13 +83,25 @@ export async function getWorldCupEntryCompletionReview(input: {
   const missingGroups = entry.challenge.groups
     .map((group) => group.groupKey)
     .filter((groupKey) => !rankedKeys.has(groupKey))
-  const knockoutComplete = isWorldCupEntryCompleteFromSelections({
+  const groupStageView = await getWorldCupGroupStageView(input)
+  const generatedKnockoutMatches = buildWorldCupMatchesFromGroupPredictions({
     matches: entry.challenge.matches as Parameters<typeof isWorldCupEntryCompleteFromSelections>[0]["matches"],
+    groupStageView,
+    bestThirdMappingConfirmed: false,
+  }).matches
+  const knockoutComplete = isWorldCupEntryCompleteFromSelections({
+    matches: generatedKnockoutMatches,
     picks: entry.picks,
     includeThirdPlace: entry.challenge.includeThirdPlace,
   })
-  const pickableKnockoutMatches = entry.challenge.matches.filter((match) => match.round !== "third_place" || entry.challenge.includeThirdPlace)
-  const completedKnockoutPicks = entry.picks.filter((pick) => pick.selectedTeamId || pick.selectedSlotKey).length
+  const pickableKnockoutMatches = generatedKnockoutMatches.filter(
+    (match) =>
+      (match.round !== "third_place" || entry.challenge.includeThirdPlace) &&
+      isWorldCupMatchPickable(match)
+  )
+  const completedKnockoutPicks = pickableKnockoutMatches.filter((match) =>
+    entry.picks.some((pick) => pick.matchId === match.id && (pick.selectedTeamId || pick.selectedSlotKey))
+  ).length
   const requiredKnockoutPicks = pickableKnockoutMatches.length
   const lock = isWorldCupChallengeLocked({
     challenge: entry.challenge,

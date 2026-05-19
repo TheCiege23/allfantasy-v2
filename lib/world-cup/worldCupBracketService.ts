@@ -32,6 +32,7 @@ import {
   emitWorldCupUserJoined,
 } from "./worldCupBracketLifecycleEvents"
 import {
+  buildWorldCupMatchesFromGroupPredictions,
   buildWorldCupProjectedMatches,
   findWorldCupPickForMatch,
   getWorldCupPickMatchMethod,
@@ -39,6 +40,7 @@ import {
   hasWorldCupPickSelection,
   isWorldCupMatchPickable,
 } from "./worldCupProjectedBracket"
+import { getWorldCupGroupStageView } from "./worldCupGroupStageService"
 
 type SessionUser = { id?: string | null; email?: string | null; name?: string | null }
 
@@ -1218,8 +1220,18 @@ export async function saveWorldCupBracketPickForEntry(input: {
   if (isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry }).locked) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
 
   const existingPicks = entry.picks.filter(hasWorldCupPickSelection).map(toWorldCupPickView)
+  const groupStageView = await getWorldCupGroupStageView({
+    challengeId: c.id,
+    entryId: entry.id,
+    userId: input.userId,
+  })
+  const groupSeededMatches = buildWorldCupMatchesFromGroupPredictions({
+    matches: c.matches.map(toWorldCupMatchView),
+    groupStageView,
+    bestThirdMappingConfirmed: false,
+  }).matches
   const projectedMatches = buildWorldCupProjectedMatches(
-    c.matches.map(toWorldCupMatchView),
+    groupSeededMatches,
     existingPicks
   )
   const projectedMatch =

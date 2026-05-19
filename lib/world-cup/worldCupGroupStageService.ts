@@ -13,8 +13,9 @@ import {
   type WorldCupOfficialGroupTeam,
 } from "./worldCupOfficialGroups"
 import { getFlagUrlForCountryCode } from "./worldCupSeedData"
-import { WORLD_CUP_BRACKET_LOCKED_MESSAGE } from "./worldCupBracketService"
 import { isWorldCupChallengeLocked } from "./worldCupBracketBuilder"
+
+const WORLD_CUP_BRACKET_LOCKED_MESSAGE = "Bracket is locked."
 
 export type WorldCupGroupStageWarning = {
   code: string

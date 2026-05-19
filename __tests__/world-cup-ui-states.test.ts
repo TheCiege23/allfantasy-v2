@@ -1567,6 +1567,47 @@ describe("World Cup pick readiness guards", () => {
     expect(isBracketComplete(matches, entryPicks["entry-2"])).toBe(true)
   })
 
+  it("treats a generated Round of 32 bracket as complete after all generated matchups are picked", () => {
+    const templateMatches = [
+      makeMatch({
+        id: "m1",
+        matchNumber: 1,
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Group A Winner",
+        awayTeamName: "Group B Runner-up",
+        homeSlotKey: "A1",
+        awaySlotKey: "B2",
+      }),
+      makeMatch({
+        id: "m2",
+        matchNumber: 2,
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Group C Winner",
+        awayTeamName: "Best 3rd Place Team 1",
+        homeSlotKey: "C1",
+        awaySlotKey: "D3",
+      }),
+    ]
+    const generated = buildWorldCupMatchesFromGroupPredictions({
+      matches: templateMatches,
+      groupStageView: makeCompleteGroupStageProjection({
+        groupAWinner: { id: "team-a1", name: "Mexico" },
+        groupBRunnerUp: { id: "team-b2", name: "Canada" },
+        thirdPlaceTeam: { id: "team-b3", name: "Morocco", groupKey: "B" },
+      }),
+    }).matches
+    const picks = [
+      makePick({ id: "p-m1", matchId: "m1", matchNumber: 1, selectedTeamId: "team-a1", selectedSlotKey: "A1", selectedTeamName: "Mexico" }),
+      makePick({ id: "p-m2", matchId: "m2", matchNumber: 2, selectedTeamId: "team-b3", selectedSlotKey: "D3", selectedTeamName: "Morocco" }),
+    ]
+
+    expect(generated.every((match) => isWorldCupMatchPickable(match))).toBe(true)
+    expect(isBracketComplete(generated, picks)).toBe(true)
+    expect(countRemainingPicks(generated, picks)).toBe(0)
+  })
+
   it("keeps each of 5 saved bracket pick lists independent", () => {
     const entryPicks = Object.fromEntries(
       Array.from({ length: 5 }, (_, idx) => [
