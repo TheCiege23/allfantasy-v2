@@ -328,9 +328,39 @@ if (facebookClientId && facebookClientSecret) {
       // Callback URL: https://www.allfantasy.ai/api/auth/callback/facebook
       // Must be registered as a Valid OAuth Redirect URI in the Meta app dashboard.
       authorization: {
+        url: "https://www.facebook.com/v17.0/dialog/oauth",
         params: {
           scope: "email,public_profile",
         },
+      },
+      // openid-client's client.userinfo() does NOT forward `params` as URL query
+      // parameters to the Facebook Graph API — Graph falls back to id,name only.
+      // Use a direct fetch so ?fields= is explicitly included in the request.
+      userinfo: {
+        url: "https://graph.facebook.com/me",
+        params: { fields: "id,name,email,picture" },
+        async request({ tokens }: { tokens: { access_token?: string } }) {
+          const url = new URL("https://graph.facebook.com/me");
+          url.searchParams.set("fields", "id,name,email,picture");
+          url.searchParams.set("access_token", tokens.access_token ?? "");
+          const res = await fetch(url.toString());
+          if (!res.ok) throw new Error(`Facebook Graph API error: ${res.status}`);
+          return res.json() as Promise<Record<string, unknown>>;
+        },
+      },
+      // Safe profile mapper — picture is absent if user denied the permission.
+      profile(profile: {
+        id: string;
+        name?: string;
+        email?: string;
+        picture?: { data?: { url?: string } };
+      }) {
+        return {
+          id: profile.id,
+          name: profile.name ?? null,
+          email: profile.email ?? null,
+          image: profile.picture?.data?.url ?? null,
+        };
       },
     })
   );
@@ -427,7 +457,13 @@ export const authOptions: NextAuthOptions = {
         }
 
         if (account.provider === "facebook") {
-          console.log("[facebook-signin] profile email:", profile?.email);
+          const _fbp = profile as Record<string, unknown> | null | undefined;
+          console.log("[facebook-signin]", {
+            provider: "facebook",
+            hasId: !!_fbp?.id,
+            hasEmail: !!_fbp?.email,
+            hasPicture: !!_fbp?.picture,
+          });
           try {
             return await runSocialLink();
           } catch (err) {

@@ -11,11 +11,13 @@ const ERROR_MESSAGES: Record<string, string> = {
   AccessDenied: "You do not have permission to sign in.",
   Verification: "The sign-in link has expired or has already been used.",
   OAuthCallback:
-    "Google sign-in couldn't complete — your session may have expired or the browser blocked the sign-in cookie. Please try again.",
+    "Social sign-in couldn't complete — your session may have expired or the browser blocked the sign-in cookie. Please try again.",
   OAuthAccountNotLinked:
-    "This Google account is already linked to a different AllFantasy account. Sign in with your original method and connect Google from your account settings.",
+    "This social account is already linked to a different AllFantasy account. Sign in with your original method and connect the social account from your account settings.",
   SOCIAL_ACCOUNT_LINK_FAILED:
     "We couldn't connect that social sign-in to your AllFantasy account. Please try again or sign in with your email first.",
+  FACEBOOK_EMAIL_MISSING:
+    "Facebook did not share an email address. Please confirm your Facebook account has a verified email and allow the email permission, or sign in with your username/email and connect Facebook later.",
   Default: "An error occurred during sign in.",
 }
 
