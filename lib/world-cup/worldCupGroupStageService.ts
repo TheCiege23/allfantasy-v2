@@ -428,7 +428,7 @@ async function clearAffectedWorldCupKnockoutPicks(input: {
       deleteMany: (args: { where: { entryId: string; selectedTeamId?: { in: string[] } } }) => Promise<{ count: number }>
     }
     worldCupBracketEntry: {
-      update?: (args: { where: { id: string }; data: { submittedAt: null } }) => Promise<unknown>
+      update?: (args: { where: { id: string }; data: { submittedAt: null; isComplete?: false } }) => Promise<unknown>
     }
   }
   entryId: string
@@ -446,7 +446,7 @@ async function clearAffectedWorldCupKnockoutPicks(input: {
   if (deleted.count > 0 && input.entrySubmittedAt && input.tx.worldCupBracketEntry.update) {
     await input.tx.worldCupBracketEntry.update({
       where: { id: input.entryId },
-      data: { submittedAt: null },
+      data: { submittedAt: null, isComplete: false },
     })
   }
   return { deleted: deleted.count }
@@ -804,7 +804,7 @@ export async function saveWorldCupGroupRanking(input: {
     if (rankingChanged && entry.submittedAt) {
       await tx.worldCupBracketEntry.update({
         where: { id: input.entryId },
-        data: { submittedAt: null },
+        data: { submittedAt: null, isComplete: false },
       })
     }
     await tx.worldCupGroupRankingPick.deleteMany({
@@ -877,7 +877,7 @@ export async function saveWorldCupThirdPlaceAdvancers(input: {
     if (thirdPlaceChanged && entry.submittedAt) {
       await tx.worldCupBracketEntry.update({
         where: { id: input.entryId },
-        data: { submittedAt: null },
+        data: { submittedAt: null, isComplete: false },
       })
     }
     await tx.worldCupThirdPlaceAdvancerPick.deleteMany({

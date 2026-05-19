@@ -23,6 +23,7 @@ const prismaMocks = vi.hoisted(() => ({
     findMany: vi.fn(),
     findFirst: vi.fn(),
     create: vi.fn(),
+    upsert: vi.fn(),
     update: vi.fn(),
   },
   worldCupGroupRankingPick: {
@@ -57,6 +58,7 @@ describe("World Cup finalize route service imports", () => {
     prismaMocks.worldCupTeam.findMany.mockResolvedValue([])
     prismaMocks.worldCupTeam.findFirst.mockResolvedValue(null)
     prismaMocks.worldCupTeam.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => data)
+    prismaMocks.worldCupTeam.upsert.mockImplementation(async ({ create }: { create: Record<string, unknown> }) => create)
     prismaMocks.worldCupTeam.update.mockImplementation(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => ({ id: where.id, ...data }))
     prismaMocks.worldCupGroupRankingPick.findMany.mockResolvedValue([])
     prismaMocks.worldCupGroupRankingPick.deleteMany.mockResolvedValue({ count: 0 })
@@ -164,8 +166,8 @@ describe("World Cup finalize route service imports", () => {
       id: "entry-1",
       challengeId: "c1",
       userId: "user-1",
-      submittedAt: null,
-      isComplete: false,
+      submittedAt: new Date("2026-05-19T04:00:00.000Z"),
+      isComplete: true,
       challenge: {
         id: "c1",
         ownerUserId: "owner-1",
@@ -219,9 +221,74 @@ describe("World Cup finalize route service imports", () => {
     })
 
     expect(review.knockoutComplete).toBe(true)
+    expect(review.fullEntryComplete).toBe(true)
+    expect(review.isComplete).toBe(true)
+    expect(review.submittedAt).toBe("2026-05-19T04:00:00.000Z")
     expect(review.requiredKnockoutPicks).toBe(1)
     expect(review.completedKnockoutPicks).toBe(1)
     expect(review.missingKnockoutPicks).toBe(0)
+  })
+
+  it("reports stale finalized entries as needing refinalize when picks become incomplete", async () => {
+    const service = await import("@/lib/world-cup/worldCupEntryFinalizeService")
+    const challengeGroups = "ABCDEFGHIJKL".split("").map((groupKey, groupIndex) => ({
+      id: `group-${groupKey.toLowerCase()}`,
+      groupKey,
+      displayName: `Group ${groupKey}`,
+      sortOrder: groupIndex + 1,
+      teams: [],
+    }))
+    prismaMocks.worldCupGroup.findMany
+      .mockResolvedValueOnce(challengeGroups)
+      .mockResolvedValueOnce(challengeGroups)
+    prismaMocks.worldCupBracketEntry.findUnique.mockResolvedValue({
+      id: "entry-1",
+      challengeId: "c1",
+      userId: "user-1",
+      submittedAt: new Date("2026-05-19T04:00:00.000Z"),
+      isComplete: true,
+      challenge: {
+        id: "c1",
+        ownerUserId: "owner-1",
+        pickLockStrategy: null,
+        pickLockAt: null,
+        status: "open",
+        includeThirdPlace: false,
+        groups: challengeGroups,
+        matches: [{
+          id: "m1",
+          round: "round_of_32",
+          roundIndex: 1,
+          matchNumber: 1,
+          homeSlotKey: "A1",
+          awaySlotKey: "B2",
+          homeTeamId: null,
+          awayTeamId: null,
+          homeTeamName: "Group A Winner",
+          awayTeamName: "Group B Runner-up",
+          status: "scheduled",
+          startsAt: null,
+          winnerTeamId: null,
+          winnerTeamName: null,
+          nextMatchId: null,
+          nextMatchSlot: null,
+        }],
+      },
+      picks: [],
+      groupRankingPicks: [],
+      thirdPlaceAdvancerPicks: [],
+    })
+
+    const review = await service.getWorldCupEntryCompletionReview({
+      challengeId: "c1",
+      entryId: "entry-1",
+      userId: "user-1",
+    })
+
+    expect(review.fullEntryComplete).toBe(false)
+    expect(review.staleSubmittedIncomplete).toBe(true)
+    expect(review.needsRefinalize).toBe(true)
+    expect(review.submittedAt).toBeNull()
   })
 
   it("entry pick saves validate against generated group-prediction matchups", () => {

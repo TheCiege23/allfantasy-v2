@@ -847,6 +847,8 @@ describe("WorldCupBracketShell fixture readiness", () => {
 
     await waitFor(() => expect(clientApiMocks.fetchCompletionReview).toHaveBeenCalledWith("c1", "entry-1"))
     expect(screen.getByText(/Review & Finalize/i)).toBeInTheDocument()
+    expect(screen.getByText(/Finalized entries appear on the leaderboard/i)).toBeInTheDocument()
+    expect(screen.getByText(/Changing Group Stage picks may unfinalize your entry/i)).toBeInTheDocument()
   })
 
   it("auto-selects an entry and fetches Review when initialized from the review tab without an entry query", async () => {
@@ -930,6 +932,8 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(knockoutPick).toHaveAttribute("data-result-state", "correct")
     expect(knockoutPick).toHaveTextContent("Match 1 · Brazil")
     expect(knockoutPick).toHaveTextContent("Correct +10")
+    expect(screen.getByText(/Finalized for leaderboard/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/You can still edit until lock/i).length).toBeGreaterThan(0)
     expect(screen.queryByRole("button", { name: /Show Results/i })).not.toBeInTheDocument()
   })
 
@@ -953,7 +957,8 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" />)
 
-    expect(await screen.findByRole("button", { name: /Finalize Entry/i })).toBeEnabled()
+    expect(await screen.findByText(/Complete draft/i)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Finalize Entry/i })).toBeEnabled()
   })
 
   it("shows missing requirements when the server review says the entry is incomplete", async () => {
@@ -1919,7 +1924,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" />)
 
-    expect(await screen.findByText(/Submitted\. Edits remain available until lock deadline/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Finalized for leaderboard/i)).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Finalize Entry/i })).not.toBeInTheDocument()
   })
 
@@ -2128,7 +2133,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Finalize Entry/i }))
 
     await waitFor(() => expect(clientApiMocks.finalizeEntry).toHaveBeenCalledWith("c1", "entry-1"))
-    expect(await screen.findByText(/Submitted\. Edits remain available until lock deadline/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Finalized for leaderboard/i)).toBeInTheDocument()
   })
 
   it("updates the URL with stable query tab values when switching tabs", async () => {

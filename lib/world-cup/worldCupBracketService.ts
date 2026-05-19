@@ -591,6 +591,7 @@ function serialize(input: {
           totalScore: e.totalScore,
           rank: e.rank,
           isComplete,
+          submittedAt: iso(e.submittedAt),
         }
       }),
     picks: input.picks.map((p) => ({
@@ -851,6 +852,7 @@ async function savePicksForEntryTx(
   tx: Prisma.TransactionClient,
   input: {
     challenge: WorldCupBracketChallenge & { matches: WorldCupBracketMatch[] }
+    completionMatches?: WorldCupMatchView[]
     entry: WorldCupBracketEntry & { participantId: string; userId: string; isLocked?: boolean | null }
     picks: Array<{
       matchId: string
@@ -862,7 +864,7 @@ async function savePicksForEntryTx(
     }>
   }
 ) {
-  const { challenge: c, entry, picks: pickInputs } = input
+  const { challenge: c, completionMatches, entry, picks: pickInputs } = input
   const lock = isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry })
   if (lock.locked) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
   const byId = new Map(c.matches.map((m) => [m.id, m] as const))
@@ -982,7 +984,7 @@ async function savePicksForEntryTx(
     select: { matchId: true, round: true, selectedTeamId: true, selectedSlotKey: true },
   })
   const complete = isWorldCupEntryCompleteFromSelections({
-    matches: c.matches as Parameters<typeof isWorldCupEntryCompleteFromSelections>[0]["matches"],
+    matches: (completionMatches ?? c.matches) as Parameters<typeof isWorldCupEntryCompleteFromSelections>[0]["matches"],
     picks: savedPicks,
     includeThirdPlace: c.includeThirdPlace,
   })
@@ -1313,6 +1315,7 @@ export async function saveWorldCupBracketPickForEntry(input: {
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await savePicksForEntryTx(tx, {
       challenge: c,
+      completionMatches: groupSeededMatches,
       entry: { ...entry, participantId: entry.participantId, userId: entry.userId },
       picks: [pickPayload],
     })
@@ -1328,7 +1331,7 @@ export async function saveWorldCupBracketPickForEntry(input: {
   })
   const isComplete = updatedEntry
     ? isWorldCupEntryCompleteFromSelections({
-        matches: c.matches as Parameters<typeof isWorldCupEntryCompleteFromSelections>[0]["matches"],
+        matches: groupSeededMatches as Parameters<typeof isWorldCupEntryCompleteFromSelections>[0]["matches"],
         picks: updatedEntry.picks.filter(hasWorldCupPickSelection),
         includeThirdPlace: c.includeThirdPlace,
       })

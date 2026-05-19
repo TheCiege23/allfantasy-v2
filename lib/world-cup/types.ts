@@ -47,6 +47,7 @@ export type WorldCupEntrySummaryView = {
   totalScore: number
   rank: number | null
   isComplete: boolean
+  submittedAt?: string | null
 }
 export type WorldCupLeaderboardRow = {
   rank: number

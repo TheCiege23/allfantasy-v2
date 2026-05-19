@@ -301,6 +301,7 @@ function mergeEntryScoresFromView(
       championTeamId: row?.championTeamId ?? entry.championTeamId,
       championTeamName: row?.championPickName ?? entry.championTeamName,
       isComplete: summary?.isComplete ?? entry.isComplete,
+      submittedAt: summary ? summary.submittedAt ?? null : entry.submittedAt,
       updatedAt: row?.updatedAt ?? entry.updatedAt,
     }
   })
@@ -326,7 +327,7 @@ function entryClientsFromInitialView(view: WorldCupChallengeView): WorldCupBrack
       roundBreakdown: leaderboard?.roundBreakdown ?? {},
       isComplete: entry.isComplete,
       isLocked: false,
-      submittedAt: null,
+      submittedAt: entry.submittedAt ?? null,
       createdAt: entry.createdAt,
       updatedAt: leaderboard?.updatedAt ?? entry.createdAt,
     }
@@ -361,7 +362,7 @@ function mergeWorldCupChallengeView(
     slots: keepCurrentSlots ? currentView.slots : nextView.slots,
     matches: keepCurrentMatches ? currentView.matches : nextView.matches,
     entries: nextView.entries.length > 0 ? nextView.entries : currentView.entries,
-    leaderboard: nextView.leaderboard.length > 0 ? nextView.leaderboard : currentView.leaderboard,
+    leaderboard: nextView.leaderboard,
     participant: nextView.participant ?? currentView.participant,
     activeEntry: nextView.activeEntry ?? currentView.activeEntry,
     picks: nextView.picks,
@@ -2990,7 +2991,10 @@ export default function WorldCupBracketShell({
                   <div>
                     <h2 className="text-xl font-black text-white">Review & Finalize</h2>
                     <p className="mt-1 text-sm text-white/50">
-                      Finalize only after group stage and knockout picks are complete. You can still edit until the lock deadline.
+                      Finalized entries appear on the leaderboard. You can still edit until lock.
+                    </p>
+                    <p className="mt-1 text-xs text-amber-100/75">
+                      Changing Group Stage picks may unfinalize your entry if knockout picks are reset.
                     </p>
                   </div>
                   <button
@@ -3037,7 +3041,7 @@ export default function WorldCupBracketShell({
                     <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white/60">
                       <p className="font-bold text-white/80">Scoring note</p>
                       <p className="mt-1 text-xs leading-5 text-white/50">
-                        Scores update as official or test results become available. Finalize when your entry is ready; edits remain available until the pool lock deadline.
+                        Finalized means submitted for leaderboard. Locked means the deadline passed and picks can no longer be edited.
                       </p>
                     </div>
 
@@ -3163,15 +3167,15 @@ export default function WorldCupBracketShell({
 
                     {completionReview.isLocked ? (
                       <div className="rounded-xl border border-rose-300/25 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">
-                        Locked{completionReview.submittedAt ? ` · submitted ${new Date(completionReview.submittedAt).toLocaleString()}` : ""}
+                        Locked: picks can no longer be edited{completionReview.submittedAt ? ` · submitted ${new Date(completionReview.submittedAt).toLocaleString()}` : ""}
                       </div>
                     ) : completionReview.fullEntryComplete && completionReview.submittedAt ? (
                       <div className="rounded-xl border border-emerald-300/25 bg-emerald-400/10 p-3 text-sm font-bold text-emerald-100">
-                        Submitted. Edits remain available until lock deadline. Submitted {new Date(completionReview.submittedAt).toLocaleString()}.
+                        Finalized for leaderboard. You can still edit until lock. Submitted {new Date(completionReview.submittedAt).toLocaleString()}.
                       </div>
                     ) : completionReview.fullEntryComplete ? (
                       <div className="space-y-2">
-                        <p className="text-xs font-bold text-cyan-100/80">Complete. You can still edit until lock deadline.</p>
+                        <p className="text-xs font-bold text-cyan-100/80">Complete draft. Finalize to submit it to the leaderboard; you can still edit until lock.</p>
                         <button
                           type="button"
                           onClick={() => void handleFinalizeEntry()}

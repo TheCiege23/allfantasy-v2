@@ -488,7 +488,7 @@ describe("World Cup group stage service exports", () => {
     })
     expect(prismaMocks.worldCupBracketEntry.update).toHaveBeenCalledWith({
       where: { id: "entry-1" },
-      data: { submittedAt: null },
+      data: { submittedAt: null, isComplete: false },
     })
   })
 })
