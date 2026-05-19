@@ -17,7 +17,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   SOCIAL_ACCOUNT_LINK_FAILED:
     "We couldn't connect that social sign-in to your AllFantasy account. Please try again or sign in with your email first.",
   FACEBOOK_EMAIL_MISSING:
-    "Facebook did not share an email address. Please confirm your Facebook account has a verified email and allow the email permission, or sign in with your username/email and connect Facebook later.",
+    "Facebook did not share your email address. To fix this: go to Facebook → Settings → Security and Login → Apps and Websites, remove AllFantasy, then try signing in again. This forces Facebook to re-ask for the email permission cleanly.",
   FACEBOOK_TOKEN_INVALID:
     "Facebook authorization failed — your session may have been revoked or expired. Please try signing in with Facebook again. If this keeps happening, remove AllFantasy from your Facebook app settings and re-authorize.",
   Default: "An error occurred during sign in.",
