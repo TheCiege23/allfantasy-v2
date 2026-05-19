@@ -8,7 +8,14 @@ export type SocialProvider =
   | 'tiktok'
 
 export function isSocialProviderEnabled(provider: SocialProvider): boolean {
-  if (provider === 'google') return process.env.NEXT_PUBLIC_ENABLE_GOOGLE_AUTH === 'true'
+  if (provider === 'google') {
+    // Accept either the explicit public flag OR (server-side) the presence of credentials.
+    // On the client, GOOGLE_CLIENT_ID is not exposed, so the flag is the only signal.
+    return (
+      process.env.NEXT_PUBLIC_ENABLE_GOOGLE_AUTH === 'true' ||
+      !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET)
+    )
+  }
   if (provider === 'spotify') {
     return !!(process.env.NEXT_PUBLIC_ENABLE_SPOTIFY_AUTH === 'true' || (process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET))
   }

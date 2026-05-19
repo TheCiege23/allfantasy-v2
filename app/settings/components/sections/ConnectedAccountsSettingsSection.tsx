@@ -89,9 +89,27 @@ export function ConnectedAccountsSettingsSection({
     setStatusMessage(null)
     setStatusTone(null)
     setBusyProviderId(providerId)
-    void signIn(providerId, { callbackUrl: "/settings?tab=connected" }).finally(() => {
-      setBusyProviderId(null)
-    })
+    // signIn() for OAuth providers does a full-page redirect — the .finally() fires
+    // only if the redirect does NOT happen (e.g. the provider is missing on the server).
+    void signIn(providerId, { callbackUrl: "/settings?tab=connected" })
+      .then((result) => {
+        // result is only defined when redirect:false is passed; for OAuth providers NextAuth
+        // does a hard redirect so we never reach this branch on success.
+        if (result?.error) {
+          setStatusTone("error")
+          setStatusMessage(
+            t("settings.connected.connectError") ||
+              `Could not connect ${providerId}. Please try again.`
+          )
+        }
+      })
+      .catch(() => {
+        setStatusTone("error")
+        setStatusMessage(`Could not connect ${providerId}. Please try again.`)
+      })
+      .finally(() => {
+        setBusyProviderId(null)
+      })
   }
 
   const handleDisconnectSleeper = async () => {
