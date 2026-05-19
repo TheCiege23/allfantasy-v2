@@ -26,7 +26,7 @@ export default function WorldCupRoundColumn({
 }) {
   const now = new Date()
   return (
-    <section className="flex min-w-[19rem] shrink-0 flex-col gap-3">
+    <section className="flex min-w-[17.75rem] shrink-0 flex-col gap-3 sm:min-w-[19rem]">
       <div className="sticky top-0 z-10 rounded-lg border border-white/10 bg-black/70 px-3 py-2 backdrop-blur">
         <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white/70">
           {WORLD_CUP_ROUND_LABELS[round]}

@@ -2,9 +2,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowUp, BarChart3, Baseline, Bell, Bold, Bot, Check, ChevronLeft, ClipboardCheck, ClipboardList, Copy, Edit3, Film, ImageIcon, Italic, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Mic, Pin, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Smile, Sparkles, Strikethrough, Trophy, Underline, Users, X } from "lucide-react"
+import { ArrowLeft, ArrowUp, BarChart3, Baseline, Bell, Bold, Check, ChevronLeft, ClipboardCheck, ClipboardList, Copy, Edit3, Film, ImageIcon, Italic, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Mic, Pin, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Smile, Sparkles, Strikethrough, Trophy, Underline, Users, X } from "lucide-react"
 import { toast } from "sonner"
-import type { WorldCupAiBuilderProgress, WorldCupAiStrategy, WorldCupChallengeView, WorldCupMatchView, WorldCupPickView } from "@/lib/world-cup/types"
+import type { WorldCupChallengeView, WorldCupMatchView, WorldCupPickView } from "@/lib/world-cup/types"
 import { isWorldCupChallengeLocked } from "@/lib/world-cup/worldCupBracketBuilder"
 import type {
   WorldCupBracketEntryClient,
@@ -58,7 +58,7 @@ import {
   buildWorldCupProjectedMatches,
   getOrderedRounds,
 } from "@/lib/world-cup/worldCupProjectedBracket"
-import { calculateWorldCupBracketHealth, getWorldCupPickRecommendation } from "@/lib/world-cup/worldCupAiInsights"
+import { calculateWorldCupBracketHealth } from "@/lib/world-cup/worldCupAiInsights"
 import { getBrowserWorldCupInviteUrl } from "@/lib/world-cup/worldCupBracketUtils"
 import { resolveWorldCupEntitlementSummary } from "@/lib/world-cup/worldCupEntitlements"
 import {
@@ -484,9 +484,6 @@ export default function WorldCupBracketShell({
   const [reviewGroupStageView, setReviewGroupStageView] = useState<WorldCupGroupStageViewClient | null>(null)
   const [reviewGroupStageError, setReviewGroupStageError] = useState<string | null>(null)
   const [isFinalizingEntry, setIsFinalizingEntry] = useState(false)
-  const [aiBuilder, setAiBuilder] = useState<WorldCupAiBuilderProgress>({
-    state: "idle", current: 0, total: 0, message: "",
-  })
   const [integrityReport, setIntegrityReport] = useState<WorldCupChallengeIntegrityReport | null>(null)
   const [isIntegrityLoading, setIsIntegrityLoading] = useState(false)
 
@@ -505,7 +502,6 @@ export default function WorldCupBracketShell({
   const [isSimulating, setIsSimulating] = useState(false)
   const [isSavingSimulationMode, setIsSavingSimulationMode] = useState(false)
   const [isLoadingTestFixtures, setIsLoadingTestFixtures] = useState(false)
-  const aiBuildAbortRef = useRef(false)
   const pageScrollRef = useRef<HTMLDivElement | null>(null)
   const knockoutScrollRef = useRef<HTMLDivElement | null>(null)
   const guidedAutoOpenedRef = useRef(false)
@@ -1761,81 +1757,6 @@ export default function WorldCupBracketShell({
     [applyChallengeView, baseKnockoutMatches, challengeId, isLocked, markEntryPicksLoaded, refreshCompletionReviewAfterMeaningfulEdit, selectedEntryId]
   )
 
-    // ── AI bracket builder ───────────────────────────────────────────────────
-    const handleAiBuild = useCallback(
-      async (strategy: WorldCupAiStrategy) => {
-        if (!selectedEntryId) return
-        if (isLocked) { toast.error("Bracket is locked"); return }
-        if (!window.confirm(`Fill all unpicked matches using the "${strategy}" strategy? Existing picks will not be overwritten.`)) return
-
-        const currentPicks = entryPicks[selectedEntryId] ?? []
-        const projected = buildWorldCupProjectedMatches(baseKnockoutMatches, currentPicks)
-        const orderedRounds = getOrderedRounds(baseKnockoutMatches, false)
-
-        // Collect unpicked, available (both teams known) matches in order
-        const unpicked = orderedRounds.flatMap((round) =>
-          projected.filter(
-            (m) =>
-              m.round === round &&
-              m.status !== "final" &&
-              m.homeTeamId &&
-              m.awayTeamId &&
-              !findWorldCupPickForMatch(currentPicks, m)
-          )
-        )
-
-        if (unpicked.length === 0) {
-          toast.info("No picks to fill — all available matches already have picks.")
-          return
-        }
-
-        aiBuildAbortRef.current = false
-        setAiBuilder({ state: "running", current: 0, total: unpicked.length, message: "Building…" })
-
-        let livePicks = [...currentPicks]
-
-        for (let i = 0; i < unpicked.length; i++) {
-          if (aiBuildAbortRef.current) break
-          const match = unpicked[i]
-          const rec = getWorldCupPickRecommendation(match, strategy)
-
-          setAiBuilder((p) => ({
-            ...p,
-            current: i,
-            message: `Picking ${match.round.replace(/_/g, " ")} (${i + 1}/${unpicked.length})…`,
-          }))
-
-          const payload: GuidedPickPayload = {
-            activeEntryId: selectedEntryId,
-            matchId: match.id,
-            selectedTeamId: rec.recommendedTeamId,
-            selectedTeamName: rec.recommendedTeamName,
-            selectedSlotKey: rec.recommendedSide === "home" ? match.homeSlotKey : match.awaySlotKey,
-            selectedSide: rec.recommendedSide ?? "home",
-            round: match.round,
-            sourceSlotKey: rec.recommendedSide === "home" ? match.homeSlotKey : match.awaySlotKey,
-            nextMatchId: match.nextMatchId,
-            nextMatchSlot: match.nextMatchSlot,
-            matchNumber: match.matchNumber,
-          }
-
-          try {
-            livePicks = await handleGuidedSavePick(payload, livePicks, { suppressToast: true })
-          } catch {
-            setAiBuilder({ state: "error", current: i, total: unpicked.length, message: `Failed at pick ${i + 1}` })
-            toast.error("AI builder stopped — error saving a pick")
-            return
-          }
-        }
-
-        setAiBuilder({ state: "done", current: unpicked.length, total: unpicked.length, message: "Done!" })
-        toast.success(`AI filled ${unpicked.length} pick${unpicked.length !== 1 ? "s" : ""} using ${strategy} strategy.`)
-        setTimeout(() => setAiBuilder({ state: "idle", current: 0, total: 0, message: "" }), 3000)
-      },
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      [selectedEntryId, isLocked, entryPicks, baseKnockoutMatches, handleGuidedSavePick]
-    )
-
   // Whether to show the full picks board or the entry dashboard
   const showBoard = tab === "picks" && selectedEntry !== null
 
@@ -2163,49 +2084,15 @@ export default function WorldCupBracketShell({
             </div>
           )}
 
-          {!isLocked && selectedEntry && (
-            <div className="mx-3 mb-4 max-h-[min(280px,45vh)] overflow-y-auto rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:mx-4 sm:max-h-none sm:overflow-visible">
+          {selectedEntry && (
+            <div className="mx-3 mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:mx-4">
               <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-cyan-300">
                 <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                AI Bracket Builder
+                Guided Pick Help
               </div>
-              <p className="mb-2 text-[10px] text-white/35 sm:hidden">
-                Optional — scroll on small screens; guided picks above are the primary flow.
+              <p className="text-xs leading-5 text-white/50">
+                Use the sticky Start Making Picks button on mobile to move through matchups one at a time. AI bracket builder tools stay gated for a later pass.
               </p>
-              <div className="flex flex-wrap gap-2">
-                {([
-                  ["safe", "Safe"],
-                  ["balanced", "Balanced"],
-                  ["upset", "Upset"],
-                  ["chaos", "Chaos"],
-                ] as const).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => void handleAiBuild(value)}
-                    disabled={aiBuilder.state === "running"}
-                    className="inline-flex items-center gap-1 rounded-lg border border-white/12 bg-white/[0.06] px-3 py-1.5 text-[11px] font-bold text-white/80 hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <Bot className="h-3.5 w-3.5" />
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              {aiBuilder.state !== "idle" && (
-                <div className="mt-2 rounded-lg bg-black/30 px-2.5 py-2">
-                  <div className="mb-1 flex items-center justify-between text-[10px] text-white/50">
-                    <span>{aiBuilder.message}</span>
-                    <span>{aiBuilder.current}/{aiBuilder.total}</span>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-                    <div
-                      className={`h-full rounded-full transition-all duration-300 ${aiBuilder.state === "error" ? "bg-red-400" : "bg-cyan-300"}`}
-                      style={{ width: `${aiBuilder.total > 0 ? Math.round((aiBuilder.current / aiBuilder.total) * 100) : 0}%` }}
-                    />
-                  </div>
-                </div>
-              )}
             </div>
           )}
 

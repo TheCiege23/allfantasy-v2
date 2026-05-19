@@ -26,7 +26,7 @@ export default function WorldCupInvitePanel({ view }: { view: WorldCupChallengeV
 
   const shareMessage =
     `Join my AllFantasy World Cup Bracket Challenge "${challenge.name}"! ` +
-    `Make up to ${challenge.maxEntriesPerParticipant} brackets, use AI matchup previews, and compete on the live leaderboard. ` +
+    `Make up to ${challenge.maxEntriesPerParticipant} brackets, rank Group Stage teams, build Knockout picks, and compete on the live leaderboard. ` +
     inviteUrl
 
   const isLocked =

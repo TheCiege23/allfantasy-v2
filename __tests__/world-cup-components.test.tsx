@@ -1038,6 +1038,16 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.queryByText(/^Moderation$/i)).not.toBeInTheDocument()
   })
 
+  it("keeps mobile pick help manual and does not expose active AI builder controls", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} />)
+
+    expect(await screen.findByText(/Guided Pick Help/i)).toBeInTheDocument()
+    expect(screen.getByText(/Use the sticky Start Making Picks button on mobile/i)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^Safe$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^Balanced$/i })).not.toBeInTheDocument()
+  })
+
   it("loads and sends World Cup pool chat messages from the community panel", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)

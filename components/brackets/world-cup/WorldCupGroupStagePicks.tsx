@@ -322,7 +322,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                       key={teamId}
                       data-testid={`world-cup-group-pick-result-${group.groupKey}-${teamId}`}
                       data-result-state={status}
-                      className={`flex items-center gap-2 rounded-xl border bg-black/20 px-2 py-2 ${resultBorderClass(status)}`}
+                      className={`flex flex-wrap items-center gap-2 rounded-xl border bg-black/20 px-2 py-2 sm:flex-nowrap ${resultBorderClass(status)}`}
                     >
                       <span className="w-7 shrink-0 text-center text-sm font-black text-cyan-100">{index + 1}</span>
                       <div className="min-w-0 flex-1">
@@ -337,12 +337,12 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                           {badge.label}
                         </span>
                       ) : null}
-                      <div className="flex shrink-0 gap-1">
+                      <div className="grid w-full grid-cols-2 gap-1 sm:flex sm:w-auto sm:shrink-0">
                         <button
                           type="button"
                           onClick={() => setGroupOrder(group.id, moveItem(order, index, -1))}
                           disabled={isLocked || index === 0}
-                          className="rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-bold text-white/70 disabled:opacity-35"
+                          className="min-h-9 rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-bold text-white/70 touch-manipulation disabled:opacity-35"
                         >
                           Move Up
                         </button>
@@ -350,7 +350,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                           type="button"
                           onClick={() => setGroupOrder(group.id, moveItem(order, index, 1))}
                           disabled={isLocked || index === order.length - 1}
-                          className="rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-bold text-white/70 disabled:opacity-35"
+                          className="min-h-9 rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-bold text-white/70 touch-manipulation disabled:opacity-35"
                         >
                           Move Down
                         </button>
@@ -394,8 +394,18 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
               Choose exactly 8 predicted third-place teams after all groups are ranked.
             </p>
           </div>
-          <div data-testid="world-cup-third-place-count" className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm font-bold text-white/70">
-            Third-place advancers selected: {thirdPlaceSelection.size}/8
+          <div className="flex flex-col gap-2 sm:items-end">
+            <div data-testid="world-cup-third-place-count" className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm font-bold text-white/70">
+              Third-place advancers selected: {thirdPlaceSelection.size}/8
+            </div>
+            <button
+              type="button"
+              onClick={() => void saveThirdPlace()}
+              disabled={isLocked || !view.completion.allGroupsRanked || thirdPlaceStatus === "saving" || !hasUnsavedThirdPlaceChanges}
+              className="min-h-11 rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black touch-manipulation disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {thirdPlaceStatus === "saving" ? "Saving..." : thirdPlaceStatus === "saved" ? "Saved" : "Save Third-Place"}
+            </button>
           </div>
         </div>
 
@@ -480,7 +490,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
           type="button"
           onClick={() => void saveThirdPlace()}
           disabled={isLocked || !view.completion.allGroupsRanked || thirdPlaceStatus === "saving" || !hasUnsavedThirdPlaceChanges}
-          className="mt-4 rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-45"
+          className="mt-4 min-h-11 w-full rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black touch-manipulation disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto"
         >
           {thirdPlaceStatus === "saving" ? "Saving..." : thirdPlaceStatus === "saved" ? "Saved Third-Place Picks" : "Save Third-Place Advancers"}
         </button>
