@@ -657,6 +657,7 @@ export default function LandingPageClient({
         <h1
           className="relative z-10 mb-5 max-w-5xl text-[58px] font-black leading-[0.93] tracking-[0.025em] sm:text-[74px] md:text-[92px]"
           style={{ color: 'var(--text)' }}
+          data-testid="landing-hero-headline"
         >
           <span className="block">{copy.hero.titleTop}</span>
           <span className="block">
