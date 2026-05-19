@@ -322,23 +322,41 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trades/check", tool: "
         }
 
         const isPending = trade.status === 'pending'
-        
-        // Only analyze completed trades automatically, pending trades get analyzed on demand
+
+        // Only analyze completed trades automatically, pending trades get analyzed on demand.
+        // Fix A: wrap in try/catch so an OpenAI or DB failure doesn't propagate through
+        // Promise.all → outer catch → 500. Without this guard, a failing AI call prevents
+        // the tradeNotification record from ever being saved, causing the hook to retry the
+        // same failing path every 30 s indefinitely (infinite 500 loop).
         let analysis = null
         if (!isPending) {
-          analysis = await analyzeTrade(
-            playersGiven,
-            playersReceived,
-            picksGiven,
-            picksReceived,
-            league.name,
-            { leagueId: league.sleeperLeagueId, userId: legacyUser.id }
-          )
+          try {
+            analysis = await analyzeTrade(
+              playersGiven,
+              playersReceived,
+              picksGiven,
+              picksReceived,
+              league.name,
+              { leagueId: league.sleeperLeagueId, userId: legacyUser.id }
+            )
+          } catch (err) {
+            console.warn(
+              '[legacy-trades/check] analyzeTrade failed, saving without AI grade:',
+              err instanceof Error ? err.message : String(err)
+            )
+            // analysis stays null — trade is recorded without a grade.
+            // Future polls see the existing record and skip it, breaking the retry loop.
+          }
         }
 
-        // Save to DB
-        const notification = await prisma.tradeNotification.create({
-          data: {
+        // Save to DB.
+        // Fix B: upsert instead of create so that two concurrent requests (e.g. page-load
+        // + Chimmy hook firing simultaneously) cannot both pass the findUnique check and
+        // then race to insert the same transactionId, causing a Prisma P2002 unique
+        // constraint violation → 500. The update: {} is an intentional no-op.
+        const notification = await prisma.tradeNotification.upsert({
+          where: { transactionId: trade.transaction_id },
+          create: {
             userId: legacyUser.id,
             leagueId: league.id,
             sleeperLeagueId: league.sleeperLeagueId,
@@ -359,6 +377,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trades/check", tool: "
             aiAnalyzedAt: analysis ? new Date() : null,
             sleeperCreatedAt: trade.created ? new Date(trade.created) : null,
           },
+          update: {}, // no-op on conflict — race condition is idempotent
         })
 
         newTrades.push(notification)
