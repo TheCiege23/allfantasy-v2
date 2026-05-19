@@ -16,10 +16,19 @@ import { getComprehensiveLearningContext } from './comprehensive-trade-learning'
 import { getLeagueRosters, getLeagueUsers as getSleeperLeagueUsers } from './sleeper-client';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-});
+let openai: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI | null {
+  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  if (!openai) {
+    openai = new OpenAI({
+      apiKey,
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+    });
+  }
+  return openai;
+}
 
 export interface TradeParty {
   rosterId: number;
@@ -736,8 +745,13 @@ export async function generateAIGMAnalysis(
   context: ComprehensiveTradeContext
 ): Promise<AIGMAnalysis> {
   const userPrompt = buildAIGMPrompt(context);
+  const client = getOpenAIClient();
 
-  const completion = await openai.chat.completions.create({
+  if (!client) {
+    return buildDeterministicAIGMAnalysis(context);
+  }
+
+  const completion = await client.chat.completions.create({
     model: 'gpt-4o',
     messages: [
       { role: 'system', content: AI_GM_SYSTEM_PROMPT },
@@ -758,6 +772,80 @@ export async function generateAIGMAnalysis(
   } catch {
     throw new Error('Failed to parse AI GM response');
   }
+}
+
+function buildDeterministicAIGMAnalysis(context: ComprehensiveTradeContext): AIGMAnalysis {
+  const valueGiven =
+    context.marketValues.playersGiven.reduce((sum, p) => sum + p.value, 0) +
+    context.marketValues.picksGiven.reduce((sum, p) => sum + p.value, 0);
+  const valueReceived =
+    context.marketValues.playersReceived.reduce((sum, p) => sum + p.value, 0) +
+    context.marketValues.picksReceived.reduce((sum, p) => sum + p.value, 0);
+  const differential = valueReceived - valueGiven;
+  const fairnessScore = Math.max(0, Math.min(100, 100 - Math.abs(differential)));
+  const verdict: AIGMAnalysis['verdict'] =
+    differential >= 15 ? 'accept' : differential <= -15 ? 'counter' : 'needs_negotiation';
+
+  return {
+    verdict,
+    confidence: Math.max(45, Math.min(82, Math.round(fairnessScore))),
+    summary:
+      'AI provider is not configured, so this uses deterministic value, roster-fit, and fairness signals. Review the market values and fit notes before taking action.',
+    detailedAnalysis: {
+      valueAssessment: {
+        valueGiven,
+        valueReceived,
+        differential,
+        fairnessScore,
+      },
+      fitAnalysis: {
+        fitsUserStyle: Math.abs(differential) <= 20,
+        styleMatchScore: Math.max(40, Math.min(80, fairnessScore)),
+        reasoning: 'Provider fallback uses value balance and available roster context only.',
+      },
+      rosterImpact: {
+        strengthensPositions: context.marketValues.playersReceived.map((p) => p.name).slice(0, 3),
+        weakensPositions: context.marketValues.playersGiven.map((p) => p.name).slice(0, 3),
+        overallImpact: differential > 10 ? 'positive' : differential < -10 ? 'negative' : 'neutral',
+      },
+      timingFactors: {
+        playerNewsImpact: 'Live AI news synthesis unavailable in this environment.',
+        marketTiming: 'Use current market values and league context as the primary guide.',
+        seasonalConsiderations: context.leagueSettings.isDynasty
+          ? 'Dynasty context favors long-term value and roster age balance.'
+          : 'Redraft context favors immediate lineup impact.',
+      },
+    },
+    similarPastTrades: context.userTradingProfile.recentSimilarTrades.slice(0, 3).map((trade) => ({
+      date: trade.date,
+      description: `Gave ${trade.playersGiven.join(', ')} for ${trade.playersReceived.join(', ')}`,
+      outcome: trade.outcome,
+      relevance: 'Historical context retained, but not AI-ranked in fallback mode.',
+    })),
+    counterOfferSuggestion:
+      verdict === 'counter'
+        ? {
+            adjustments: ['Ask for an added asset or remove one outgoing piece to rebalance value.'],
+            reasoning: 'The deterministic value differential is meaningfully negative.',
+            expectedAcceptance: Math.max(20, Math.min(60, fairnessScore)),
+          }
+        : undefined,
+    alternativeTargets: context.otherManagerProfiles.slice(0, 3).map((manager) => ({
+      managerName: manager.managerName,
+      reasoning: `${manager.teamSituation} profile with ${manager.recentTradeActivity} recent trades.`,
+      suggestedApproach: 'Open with a value-balanced offer that fits both roster directions.',
+      likelyToAccept: manager.recentTradeActivity > 0,
+    })),
+    keyInsights: [
+      `Value differential: ${differential}.`,
+      `Fairness score: ${fairnessScore}.`,
+      `League format: ${context.leagueSettings.isDynasty ? 'Dynasty' : 'Redraft'}.`,
+    ],
+    warnings: [
+      'AI provider is not configured; this is deterministic fallback analysis.',
+      'Confirm player availability and league settings before acting.',
+    ],
+  };
 }
 
 function buildAIGMPrompt(context: ComprehensiveTradeContext): string {
