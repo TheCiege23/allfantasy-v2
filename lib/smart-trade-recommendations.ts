@@ -13,10 +13,19 @@ import {
 import { fetchPlayerNewsFromGrok } from './ai-gm-intelligence';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-});
+let openai: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI | null {
+  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  if (!openai) {
+    openai = new OpenAI({
+      apiKey,
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+    });
+  }
+  return openai;
+}
 
 export interface UserTradingProfile {
   userId: string;
@@ -403,7 +412,17 @@ export async function generateSmartRecommendations(
     playerNews
   );
 
-  const completion = await openai.chat.completions.create({
+  const client = getOpenAIClient();
+  if (!client) {
+    return {
+      recommendations: [],
+      userProfile,
+      marketInsights,
+      generatedAt: new Date(),
+    };
+  }
+
+  const completion = await client.chat.completions.create({
     model: 'gpt-4o',
     messages: [
       {
