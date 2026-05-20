@@ -248,8 +248,10 @@ async function ensureOfficialWorldCupTeamRows() {
         })
         officialIds.push(row.id)
       } else {
-        const row = await prisma.worldCupTeam.create({
-          data: {
+        const row = await prisma.worldCupTeam.upsert({
+          where: { id: officialTeamId(team) },
+          update: data,
+          create: {
             id: officialTeamId(team),
             ...data,
           },

@@ -211,6 +211,7 @@ describe("World Cup group stage service exports", () => {
     const result = await service.ensureWorldCupGroupsForChallenge("c1")
 
     expect(prismaMocks.worldCupTeam.update).toHaveBeenCalled()
+    expect(prismaMocks.worldCupTeam.create).not.toHaveBeenCalled()
     expect(prismaMocks.worldCupGroupTeam.deleteMany).toHaveBeenCalledWith({
       where: { id: { in: ["stale-arg", "stale-aus", "stale-bra", "stale-tbd"] } },
     })
@@ -224,6 +225,55 @@ describe("World Cup group stage service exports", () => {
       skipDuplicates: true,
     })
     expect(result.groups[0].teams.map((row) => row.team.name)).toEqual(["Mexico", "South Korea", "South Africa", "Czechia"])
+  })
+
+  it("materializes official teams idempotently when repeated production loads race", async () => {
+    const service = await import("@/lib/world-cup/worldCupGroupStageService")
+    const groupA = { id: "group-a", challengeId: "c1", groupKey: "A", displayName: "Group A", sortOrder: 1, teams: [] }
+    const officialTeams = [
+      { id: "wc2026_official_mex", name: "Mexico", country: "Mexico", fifaCode: "MEX", groupName: "A", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 1 } },
+      { id: "wc2026_official_kor", name: "South Korea", country: "South Korea", fifaCode: "KOR", groupName: "A", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 2 } },
+      { id: "wc2026_official_rsa", name: "South Africa", country: "South Africa", fifaCode: "RSA", groupName: "A", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 3 } },
+      { id: "wc2026_official_cze", name: "Czechia", country: "Czechia", fifaCode: "CZE", groupName: "A", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 4 } },
+    ]
+
+    prismaMocks.worldCupTeam.findFirst.mockResolvedValue(null)
+    prismaMocks.worldCupTeam.upsert.mockImplementation(async ({ where, create }: { where: { id: string }; create: Record<string, unknown> }) => ({
+      ...create,
+      id: where.id,
+    }))
+    prismaMocks.worldCupBracketChallenge.findUnique.mockResolvedValue({ id: "c1", sourcePayload: null })
+    prismaMocks.worldCupGroup.findMany
+      .mockResolvedValueOnce([groupA])
+      .mockResolvedValueOnce([{ ...groupA, teams: officialTeams.map((team, index) => ({ id: `row-${team.id}`, teamId: team.id, seedOrder: index + 1, actualRank: null, points: null, goalDifference: null, goalsFor: null, team })) }])
+      .mockResolvedValueOnce([groupA])
+      .mockResolvedValueOnce([{ ...groupA, teams: officialTeams.map((team, index) => ({ id: `row-${team.id}`, teamId: team.id, seedOrder: index + 1, actualRank: null, points: null, goalDifference: null, goalsFor: null, team })) }])
+    prismaMocks.worldCupTeam.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(officialTeams)
+      .mockResolvedValueOnce(officialTeams)
+      .mockResolvedValueOnce(officialTeams)
+    prismaMocks.worldCupGroupTeam.findMany.mockResolvedValue([])
+
+    await expect(service.ensureWorldCupGroupsForChallenge("c1")).resolves.toBeDefined()
+    await expect(service.ensureWorldCupGroupsForChallenge("c1")).resolves.toBeDefined()
+
+    expect(prismaMocks.worldCupTeam.create).not.toHaveBeenCalled()
+    expect(prismaMocks.worldCupTeam.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "wc2026_official_mex" },
+      create: expect.objectContaining({ id: "wc2026_official_mex", fifaCode: "MEX" }),
+      update: expect.objectContaining({ fifaCode: "MEX", groupName: "A", qualificationStatus: "qualified" }),
+      select: { id: true },
+    }))
+    expect(prismaMocks.worldCupGroupTeam.createMany).toHaveBeenCalledWith({
+      data: officialTeams.map((team, index) => ({
+        challengeId: "c1",
+        groupId: "group-a",
+        teamId: team.id,
+        seedOrder: index + 1,
+      })),
+      skipDuplicates: true,
+    })
   })
 
   it("rebuilds mixed imported production groups instead of preserving wrong rows and topping up with placeholders", async () => {
