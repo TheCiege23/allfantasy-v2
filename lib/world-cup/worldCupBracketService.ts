@@ -103,13 +103,21 @@ function worldCupConfidencePointsColumnEnabled() {
   )
 }
 
-function isWorldCupConfidencePointsMissingColumnError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error ?? "")
-  return (
-    message.includes("world_cup_bracket_picks.confidence_points") ||
-    message.includes("`world_cup_bracket_picks`.`confidence_points`") ||
-    message.includes("confidence_points")
-  )
+async function worldCupConfidencePointsColumnReadyForWrites() {
+  if (!worldCupConfidencePointsColumnEnabled()) return false
+  try {
+    const rows = await prisma.$queryRaw<Array<{ exists: boolean }>>`
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'world_cup_bracket_picks'
+          AND column_name = 'confidence_points'
+      ) AS "exists"
+    `
+    return Boolean(rows[0]?.exists)
+  } catch {
+    return false
+  }
 }
 
 /** @internal */
@@ -148,18 +156,6 @@ export function buildWorldCupPickUpsertArgs(input: {
       isCorrect: null,
       pointsAwarded: 0,
     },
-  }
-}
-
-function withoutWorldCupPickConfidencePoints(
-  args: Prisma.WorldCupBracketPickUpsertArgs
-): Prisma.WorldCupBracketPickUpsertArgs {
-  const { confidencePoints: _createConfidencePoints, ...create } = args.create as Record<string, unknown>
-  const { confidencePoints: _updateConfidencePoints, ...update } = args.update as Record<string, unknown>
-  return {
-    ...args,
-    create: create as Prisma.WorldCupBracketPickUpsertArgs["create"],
-    update: update as Prisma.WorldCupBracketPickUpsertArgs["update"],
   }
 }
 
@@ -996,6 +992,7 @@ async function savePicksForEntryTx(
     challenge: WorldCupBracketChallenge & { matches: WorldCupBracketMatch[] }
     completionMatches?: WorldCupMatchView[]
     entry: WorldCupBracketEntry & { participantId: string; userId: string; isLocked?: boolean | null }
+    confidenceColumnEnabled: boolean
     picks: Array<{
       matchId: string
       matchNumber?: number | null
@@ -1007,7 +1004,7 @@ async function savePicksForEntryTx(
     }>
   }
 ) {
-  const { challenge: c, completionMatches, entry, picks: pickInputs } = input
+  const { challenge: c, completionMatches, entry, confidenceColumnEnabled, picks: pickInputs } = input
   const lock = isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry })
   if (lock.locked) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
   const byId = new Map(c.matches.map((m) => [m.id, m] as const))
@@ -1063,7 +1060,6 @@ async function savePicksForEntryTx(
       throw new Error("Selected team is not in this matchup")
     }
     const confidencePoints = normalizeWorldCupConfidencePoints(pick.confidencePoints)
-    const confidenceColumnEnabled = worldCupConfidencePointsColumnEnabled()
     const existingPick = await tx.worldCupBracketPick.findUnique({
       where: { entryId_matchId: { entryId: entry.id, matchId: m.id } },
       select: {
@@ -1094,12 +1090,7 @@ async function savePicksForEntryTx(
       confidencePoints,
       confidenceColumnEnabled,
     })
-    try {
-      await tx.worldCupBracketPick.upsert(upsertArgs)
-    } catch (error) {
-      if (!isWorldCupConfidencePointsMissingColumnError(error)) throw error
-      await tx.worldCupBracketPick.upsert(withoutWorldCupPickConfidencePoints(upsertArgs))
-    }
+    await tx.worldCupBracketPick.upsert(upsertArgs)
     if (process.env.NODE_ENV === "development" && (m.matchNumber === 29 || m.matchNumber === 30 || m.matchNumber === 31)) {
       const saved = await tx.worldCupBracketPick.findUnique({
         where: { entryId_matchId: { entryId: entry.id, matchId: m.id } },
@@ -1166,9 +1157,15 @@ export async function saveWorldCupPicks(input: {
   if (isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry }).locked) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
 
   const wasComplete = Boolean(entry.isComplete)
+  const confidenceColumnEnabled = await worldCupConfidencePointsColumnReadyForWrites()
 
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    await savePicksForEntryTx(tx, { challenge: c, entry: { ...entry, participantId: participant.id, userId: input.userId }, picks: input.picks })
+    await savePicksForEntryTx(tx, {
+      challenge: c,
+      entry: { ...entry, participantId: participant.id, userId: input.userId },
+      confidenceColumnEnabled,
+      picks: input.picks,
+    })
   })
 
   await recalculateWorldCupChallenge(c.id)
@@ -1476,11 +1473,13 @@ export async function saveWorldCupBracketPickForEntry(input: {
     selectedTeamName,
     confidencePoints: input.confidencePoints,
   }
+  const confidenceColumnEnabled = await worldCupConfidencePointsColumnReadyForWrites()
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await savePicksForEntryTx(tx, {
       challenge: c,
       completionMatches: groupSeededMatches,
       entry: { ...entry, participantId: entry.participantId, userId: entry.userId },
+      confidenceColumnEnabled,
       picks: [pickPayload],
     })
   })
@@ -1544,10 +1543,12 @@ export async function saveWorldCupPicksForEntry(input: {
   if (!entry) throw new Error("Entry not found")
   if (isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry }).locked) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
 
+  const confidenceColumnEnabled = await worldCupConfidencePointsColumnReadyForWrites()
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await savePicksForEntryTx(tx, {
       challenge: c,
       entry: { ...entry, participantId: entry.participantId, userId: input.userId },
+      confidenceColumnEnabled,
       picks: input.picks,
     })
   })

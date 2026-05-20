@@ -44,10 +44,9 @@ describe("World Cup finalize meaningful edit guards", () => {
     const source = readFileSync(join(process.cwd(), "lib/world-cup/worldCupBracketService.ts"), "utf8")
 
     expect(source).toContain("function worldCupConfidencePointsColumnEnabled()")
-    expect(source).toContain("const confidenceColumnEnabled = worldCupConfidencePointsColumnEnabled()")
+    expect(source).toContain("async function worldCupConfidencePointsColumnReadyForWrites()")
     expect(source).toContain("...(confidenceColumnEnabled ? { confidencePoints: true } : {})")
     expect(source).toContain("const confidenceWriteData = input.confidenceColumnEnabled ? { confidencePoints: input.confidencePoints } : {}")
-    expect(source).toContain("isWorldCupConfidencePointsMissingColumnError(error)")
     expect(source).toContain("select: WORLD_CUP_PICK_VIEW_WITH_MATCH_SELECT")
     expect(source).toContain("select: WORLD_CUP_PICK_VIEW_SELECT")
     expect(source).not.toContain("include: { picks: { include: { match: true }, orderBy: { createdAt: \"asc\" } } }")
@@ -70,6 +69,14 @@ describe("World Cup finalize meaningful edit guards", () => {
 
     expect(args.create).not.toHaveProperty("confidencePoints")
     expect(args.update).not.toHaveProperty("confidencePoints")
+  })
+
+  it("does not retry a missing confidence column inside the same transaction", () => {
+    const source = readFileSync(join(process.cwd(), "lib/world-cup/worldCupBracketService.ts"), "utf8")
+
+    expect(source).not.toContain("isWorldCupConfidencePointsMissingColumnError")
+    expect(source).not.toContain("withoutWorldCupPickConfidencePoints")
+    expect(source).not.toContain("await tx.worldCupBracketPick.upsert(without")
   })
 
   it("includes confidencePoints in pick upsert writes when the database column flag is true", async () => {
