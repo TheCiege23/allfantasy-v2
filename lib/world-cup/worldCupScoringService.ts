@@ -375,7 +375,7 @@ export async function recalculateWorldCupChallenge(challengeId: string) {
           ...(c.scoringProfile ?? {}),
           confidenceScoringEnabled: readWorldCupConfidenceScoringEnabled(c.sourcePayload),
         })
-        await tx.worldCupBracketPick.update({
+        await tx.worldCupBracketPick.updateMany({
           where: { id: pick.id },
           data: {
             pointsAwarded: r.pointsAwarded,

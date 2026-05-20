@@ -20,6 +20,13 @@ describe("World Cup finalize meaningful edit guards", () => {
     expect(source).not.toContain("submittedAt: entryComplete ? freshEntry?.submittedAt ?? new Date() : null")
   })
 
+  it("does not use pick update in recalculation while confidence_points migration is pending", () => {
+    const source = readFileSync(join(process.cwd(), "lib/world-cup/worldCupScoringService.ts"), "utf8")
+
+    expect(source).not.toContain("worldCupBracketPick.update({")
+    expect(source).toContain("worldCupBracketPick.updateMany({")
+  })
+
   it("clears submittedAt only for meaningful group ranking and third-place changes", () => {
     const source = readFileSync(join(process.cwd(), "lib/world-cup/worldCupGroupStageService.ts"), "utf8")
 
