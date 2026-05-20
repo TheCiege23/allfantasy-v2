@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useThemeMode } from "./ThemeProvider"
 import { getNextTheme } from "@/lib/theme"
@@ -10,6 +10,21 @@ export function ModeToggle(props: { className?: string }) {
   const { data: session } = useSession()
   const { mode, cycleMode } = useThemeMode()
   const { t, tInterpolate } = useLanguage()
+  const [appliedMode, setAppliedMode] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (typeof document === "undefined") return
+    const readAppliedMode = () => {
+      setAppliedMode(document.documentElement.dataset.mode ?? null)
+    }
+    readAppliedMode()
+    const observer = new MutationObserver(readAppliedMode)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-mode"],
+    })
+    return () => observer.disconnect()
+  }, [])
 
   const handleClick = useCallback(() => {
     const next = getNextTheme(mode)
@@ -23,7 +38,8 @@ export function ModeToggle(props: { className?: string }) {
     }
   }, [mode, cycleMode, session?.user])
 
-  const label = t(`theme.${mode}`)
+  const displayMode = appliedMode === "dark" || appliedMode === "light" || appliedMode === "legacy" ? appliedMode : mode
+  const label = t(`theme.${displayMode}`)
   const title = tInterpolate("theme.current", { label })
 
   return (

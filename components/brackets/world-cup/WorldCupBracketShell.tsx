@@ -557,6 +557,7 @@ export default function WorldCupBracketShell({
   const [reviewGroupStageError, setReviewGroupStageError] = useState<string | null>(null)
   const [isFinalizingEntry, setIsFinalizingEntry] = useState(false)
   const [integrityReport, setIntegrityReport] = useState<WorldCupChallengeIntegrityReport | null>(null)
+  const [integrityUnavailable, setIntegrityUnavailable] = useState(false)
   const [isIntegrityLoading, setIsIntegrityLoading] = useState(false)
 
   // ── Admin sync state ────────────────────────────────────────────────────
@@ -1341,6 +1342,7 @@ export default function WorldCupBracketShell({
 
   const runIntegrityCheck = useCallback(async () => {
     setIsIntegrityLoading(true)
+    setIntegrityUnavailable(false)
     try {
       const report = await getWorldCupIntegrityReport(challengeId)
       setIntegrityReport(report)
@@ -1350,7 +1352,13 @@ export default function WorldCupBracketShell({
         toast.error(`Integrity check found ${report.errors.length} error(s)`)
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Integrity check failed")
+      const message = err instanceof Error ? err.message : "Integrity check failed"
+      if (/route not found/i.test(message)) {
+        setIntegrityUnavailable(true)
+        toast.error("Integrity checks are temporarily unavailable from this panel.")
+      } else {
+        toast.error(message)
+      }
     } finally {
       setIsIntegrityLoading(false)
     }
@@ -2352,13 +2360,18 @@ export default function WorldCupBracketShell({
                 <button
                   type="button"
                   onClick={() => void runIntegrityCheck()}
-                  disabled={isIntegrityLoading}
+                  disabled={isIntegrityLoading || integrityUnavailable}
                   className="inline-flex items-center gap-2 rounded-lg border border-white/12 bg-white/[0.06] px-3 py-1.5 text-[11px] font-bold text-white/80 disabled:opacity-60"
                 >
                   {isIntegrityLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                   Run Integrity Check
                 </button>
               </div>
+              {integrityUnavailable ? (
+                <p className="rounded-lg border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-100">
+                  Integrity checks are temporarily unavailable from this panel.
+                </p>
+              ) : null}
               {integrityReport ? (
                 <div className="space-y-2 text-[11px]">
                   <div className="text-white/70">
@@ -3453,6 +3466,7 @@ export default function WorldCupBracketShell({
               <li>Quarterfinal: {view.scoring.quarterFinalPoints} pts</li>
               <li>Semifinal: {view.scoring.semiFinalPoints} pts</li>
               <li>Final: {view.scoring.finalPoints} pts</li>
+              <li className="font-semibold text-cyan-100/90">Champion Bonus: {view.scoring.championBonusPoints} pts</li>
               {view.challenge.includeThirdPlace && view.scoring.thirdPlacePoints != null ? (
                 <li>3rd Place: {view.scoring.thirdPlacePoints} pts</li>
               ) : null}

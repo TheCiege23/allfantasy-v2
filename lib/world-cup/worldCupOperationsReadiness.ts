@@ -12,6 +12,9 @@ export type WorldCupOperationsReadiness = {
     cronSecretPresent: boolean
     missingEnvVars: string[]
   }
+  challenge?: {
+    bracketTeamsSeeded: number
+  } | null
   origins: {
     productionSafe: boolean
     values: {
@@ -132,6 +135,7 @@ export async function getWorldCupOperationsReadiness(input: {
   const seasonYear = input.seasonYear ?? 2026
   const [
     groupsReadiness,
+    bracketTeamsSeeded,
     fixtureCount,
     groupStageFixtureCount,
     knockoutFixtureCount,
@@ -144,6 +148,13 @@ export async function getWorldCupOperationsReadiness(input: {
     placeholderTeamCount,
   ] = await Promise.all([
     getWorldCupOfficialGroupsReadiness({ seasonYear }),
+    input.challengeId
+      ? prisma.worldCupGroupTeam.count({
+          where: {
+            challengeId: input.challengeId,
+          },
+        })
+      : Promise.resolve(0),
     prisma.worldCupOfficialFixture.count({
       where: {
         seasonYear,
@@ -239,6 +250,7 @@ export async function getWorldCupOperationsReadiness(input: {
 
   return {
     provider: getWorldCupProviderOpsStatus(),
+    challenge: input.challengeId ? { bracketTeamsSeeded } : null,
     origins: getWorldCupOriginOpsStatus(),
     data: {
       groupsComplete: groupsReadiness.ready,

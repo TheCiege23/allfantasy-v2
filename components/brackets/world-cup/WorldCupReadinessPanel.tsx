@@ -15,6 +15,9 @@ type WorldCupReadiness = {
     cronSecretPresent: boolean
     missingEnvVars: string[]
   }
+  challenge?: {
+    bracketTeamsSeeded?: number
+  } | null
   data: {
     groupsComplete: boolean
     assignedTeams: number
@@ -75,6 +78,13 @@ function StatusPill({ label, status }: { label: string; status: ReadinessStatus 
       {label}
     </span>
   )
+}
+
+function missingEnvMessage(name: string, readiness: WorldCupReadiness) {
+  if (name === "API_FOOTBALL_WORLD_CUP_LEAGUE_ID" && readiness.provider.leagueId) {
+    return "Using fallback/default league ID because API_FOOTBALL_WORLD_CUP_LEAGUE_ID is not set."
+  }
+  return name
 }
 
 function ReadinessMetric({
@@ -169,7 +179,14 @@ export default function WorldCupReadinessPanel({ challengeId, seasonYear = 2026 
             <ReadinessMetric label="Data provider configured" value={yesNo(readiness.provider.configured)} status={readiness.provider.configured ? "ready" : "blocked"} />
             <ReadinessMetric label="API key configured" value={yesNo(readiness.provider.apiKeyPresent)} status={readiness.provider.apiKeyPresent ? "ready" : "blocked"} />
             <ReadinessMetric label="Cron secret configured" value={yesNo(readiness.provider.cronSecretPresent)} status={readiness.provider.cronSecretPresent ? "ready" : "blocked"} />
-            <ReadinessMetric label="Teams grouped" value={`${readiness.data.assignedTeams}/48`} status={readiness.data.assignedTeams >= 48 ? "ready" : "blocked"} />
+            <ReadinessMetric label="Provider teams grouped" value={`${readiness.data.assignedTeams}/48`} status={readiness.data.assignedTeams >= 48 ? "ready" : "blocked"} />
+            {readiness.challenge ? (
+              <ReadinessMetric
+                label="App bracket teams seeded"
+                value={`${readiness.challenge.bracketTeamsSeeded ?? 0}/48`}
+                status={(readiness.challenge.bracketTeamsSeeded ?? 0) >= 48 ? "ready" : "warning"}
+              />
+            ) : null}
             <ReadinessMetric label="Group-stage fixtures" value={`${readiness.data.groupStageFixtureCount}/72`} status={readiness.data.groupStageFixtureCount >= 72 ? "ready" : "blocked"} />
             <ReadinessMetric label="Knockout fixtures" value={readiness.data.knockoutFixtureCount > 0 ? `${readiness.data.knockoutFixtureCount}` : "0 / pending"} status={readiness.data.knockoutFixturesAvailable ? "ready" : "pending"} />
             <ReadinessMetric label="Venue coverage" value={`${readiness.data.venueKnownCount} known / ${readiness.data.venueTbdCount} TBD`} status={readiness.data.venueTbdCount === 0 ? "ready" : "warning"} />
@@ -231,8 +248,12 @@ export default function WorldCupReadinessPanel({ challengeId, seasonYear = 2026 
 
           {readiness.provider.missingEnvVars.length > 0 ? (
             <div className="rounded-lg border border-rose-300/20 bg-rose-400/10 p-3 text-[11px] text-rose-100">
-              <p className="font-bold">Missing env vars</p>
-              <p className="mt-1">{readiness.provider.missingEnvVars.join(", ")}</p>
+              <p className="font-bold">Environment configuration notes</p>
+              <div className="mt-1 space-y-1">
+                {readiness.provider.missingEnvVars.map((name) => (
+                  <p key={name}>{missingEnvMessage(name, readiness)}</p>
+                ))}
+              </div>
             </div>
           ) : null}
 

@@ -907,6 +907,9 @@ function makeReadinessResponse(overrides: Record<string, unknown> = {}) {
         cronSecretPresent: true,
         missingEnvVars: [],
       },
+      challenge: {
+        bracketTeamsSeeded: 48,
+      },
       origins: {
         productionSafe: true,
         values: {
@@ -2200,6 +2203,8 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(panel).toHaveTextContent("Data provider configured")
     expect(panel).toHaveTextContent("API key configured")
     expect(panel).toHaveTextContent("Cron secret configured")
+    expect(panel).toHaveTextContent("Provider teams grouped")
+    expect(panel).toHaveTextContent("App bracket teams seeded")
     expect(panel).toHaveTextContent("48/48")
     expect(panel).toHaveTextContent("72/72")
     expect(panel).toHaveTextContent("0 / pending")
@@ -2210,6 +2215,76 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(panel).toHaveTextContent("Best-third Round of 32 mapping is gated until FIFA confirms the official table.")
     expect(panel).toHaveTextContent("Partial Ready")
     expect(panel).not.toHaveTextContent("secret-value")
+  })
+
+  it("clarifies provider fallback league id warnings in readiness", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => makeReadinessResponse({
+        provider: {
+          name: "apifootball",
+          configured: true,
+          apiKeyPresent: true,
+          leagueId: "1",
+          leagueIdConfigured: false,
+          cronSecretPresent: true,
+          missingEnvVars: ["API_FOOTBALL_WORLD_CUP_LEAGUE_ID"],
+        },
+        data: {
+          groupsComplete: false,
+          assignedTeams: 0,
+          incompleteGroups: [],
+          fixtureCount: 72,
+          groupStageFixtureCount: 72,
+          knockoutFixtureCount: 0,
+          knockoutFixturesAvailable: false,
+          venueKnownCount: 0,
+          venueTbdCount: 72,
+          kickoffKnownCount: 72,
+          kickoffMissingCount: 0,
+          standingsRowCount: 48,
+          standingsSynced: true,
+          standingsState: "pre_tournament",
+          thirdPlaceRankingPresent: true,
+          liveSyncRouteAvailable: true,
+          bestThirdMappingConfigured: false,
+          groupStageReady: false,
+          knockoutsReady: false,
+          productionStatus: "not_ready",
+          warnings: [],
+        },
+      }),
+    }))
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: true }) as any} />)
+
+    const panel = await screen.findByTestId("world-cup-readiness-panel")
+    expect(panel).toHaveTextContent("Provider teams grouped")
+    expect(panel).toHaveTextContent("0/48")
+    expect(panel).toHaveTextContent("App bracket teams seeded")
+    expect(panel).toHaveTextContent("48/48")
+    expect(panel).toHaveTextContent("Using fallback/default league ID because API_FOOTBALL_WORLD_CUP_LEAGUE_ID is not set.")
+  })
+
+  it("shows Rules scoring with champion bonus from the active profile", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="rules" />)
+
+    expect(await screen.findByRole("heading", { name: "Rules" })).toBeInTheDocument()
+    expect(screen.getByText("Champion Bonus: 320 pts")).toBeInTheDocument()
+  })
+
+  it("disables admin integrity after a missing route response", async () => {
+    clientApiMocks.getIntegrityReport.mockRejectedValueOnce(new Error("Route not found"))
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: true, isAdmin: false }) as any} />)
+
+    const button = await screen.findByRole("button", { name: /Run Integrity Check/i })
+    fireEvent.click(button)
+
+    expect(await screen.findByText("Integrity checks are temporarily unavailable from this panel.")).toBeInTheDocument()
+    expect(button).toBeDisabled()
   })
 
   it("refreshes the admin readiness panel from the readiness endpoint", async () => {
