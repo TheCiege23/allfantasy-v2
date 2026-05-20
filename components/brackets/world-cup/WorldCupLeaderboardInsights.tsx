@@ -1,4 +1,5 @@
 import type { WorldCupLeaderboardRow } from "@/lib/world-cup/types"
+import { calculateWorldCupLeaderboardAiInsights } from "@/lib/world-cup/worldCupAiSubscriptionInsights"
 
 export default function WorldCupLeaderboardInsights({
   leaderboard,
@@ -64,6 +65,8 @@ function LeaderboardAiSummaryCard({
   }
   const commonChampion = [...championCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "Not available yet"
   const leader = leaderboard[0] ?? null
+  const aiInsights = calculateWorldCupLeaderboardAiInsights(leaderboard)
+  const leaderAiInsight = aiInsights.find((insight) => insight.entryId === leader?.entryId) ?? null
   const runnerUp = leaderboard[1] ?? null
   const closeRace = leader && runnerUp && Math.abs(leader.totalScore - runnerUp.totalScore) <= 5
   return (
@@ -79,6 +82,9 @@ function LeaderboardAiSummaryCard({
           <p><span className="font-black text-white">Finalized-only summary:</span> {leaderboard.length} public leaderboard entr{leaderboard.length === 1 ? "y" : "ies"} included.</p>
           <p><span className="font-black text-white">Most common champion:</span> {commonChampion}.</p>
           <p><span className="font-black text-white">Race note:</span> {closeRace ? "The top two entries are within 5 points." : "No close top-two race yet."}</p>
+          {leaderAiInsight ? (
+            <p><span className="font-black text-white">AI win read:</span> {leader?.entryName} projects at {leaderAiInsight.aiWinProbability}% with {leaderAiInsight.bracketHealth.toLowerCase()} bracket health.</p>
+          ) : null}
           <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/55">
             Uses finalized/public leaderboard data only. No private unfinalized picks are included. Bracket guidance stays limited to pool picks and scoring mechanics.
           </p>

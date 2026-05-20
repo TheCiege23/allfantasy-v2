@@ -44,9 +44,10 @@ type CommissionerPrefs = {
 type RecapTone = "fun" | "serious" | "hype"
 
 type BrainActionResult = {
-  action: "hype" | "standings" | "watch" | "recap"
+  action: "hype" | "standings" | "watch" | "recap" | "drama_recap"
   lines: string[]
   posted: boolean
+  proLocked?: boolean
 }
 
 export default function WorldCupCommissionerBrainPanel({
@@ -95,12 +96,12 @@ export default function WorldCupCommissionerBrainPanel({
     void reload()
   }, [reload])
 
-  async function runBrain(action: "hype" | "standings" | "watch" | "recap") {
+  async function runBrain(action: "hype" | "standings" | "watch" | "recap" | "drama_recap") {
     if (!bracketBrainEnabled) {
       toast.error("Bracket Brain is disabled — turn it on under League settings.")
       return
     }
-    if (!hasAi) {
+    if (!hasAi && action !== "drama_recap") {
       toast.info("Upgrade to AF Pro to generate Bracket Brain messages.")
       return
     }
@@ -113,6 +114,7 @@ export default function WorldCupCommissionerBrainPanel({
         body: JSON.stringify({
           action,
           round: action === "recap" ? "round_of_16" : undefined,
+          tone: action === "drama_recap" ? recapTone : undefined,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -125,8 +127,9 @@ export default function WorldCupCommissionerBrainPanel({
         action,
         lines,
         posted: data.posted === true,
+        proLocked: data.proLocked === true,
       })
-      toast.success(data.posted === true ? "Posted to pool chat." : "Generated.")
+      toast.success(data.proLocked === true ? "Limited preview generated." : data.posted === true ? "Posted to pool chat." : "Generated.")
       if (data.posted === true) void reload()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not generate")
@@ -421,6 +424,13 @@ export default function WorldCupCommissionerBrainPanel({
         >
           Post Round Recap
         </BrainButton>
+        <BrainButton
+          disabled={!bracketBrainEnabled || busy !== null}
+          loading={busy === "drama_recap"}
+          onClick={() => void runBrain("drama_recap")}
+        >
+          Pool Drama Recap
+        </BrainButton>
       </div>
 
       {brainActionResult ? (
@@ -430,7 +440,7 @@ export default function WorldCupCommissionerBrainPanel({
               Bracket Brain Result
             </p>
             <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-100">
-              {brainActionResult.posted ? "Posted to pool chat" : "Preview only"}
+              {brainActionResult.proLocked ? "AF Pro locked preview" : brainActionResult.posted ? "Posted to pool chat" : "Preview only"}
             </span>
           </div>
           <div className="mt-2 space-y-1.5 text-xs leading-5 text-white/75">

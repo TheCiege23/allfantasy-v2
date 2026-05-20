@@ -60,6 +60,12 @@ import {
 } from "@/lib/world-cup/worldCupProjectedBracket"
 import { hasOfficialWorldCupReseededKnockoutFixtures } from "@/lib/world-cup/worldCupKnockoutMode"
 import { calculateWorldCupBracketHealth } from "@/lib/world-cup/worldCupAiInsights"
+import {
+  buildWorldCupPathToWinInsight,
+  calculateWorldCupBracketGrade,
+  type WorldCupBracketGradeInsight,
+  type WorldCupPathToWinInsight,
+} from "@/lib/world-cup/worldCupAiSubscriptionInsights"
 import { getBrowserWorldCupInviteUrl } from "@/lib/world-cup/worldCupBracketUtils"
 import { resolveWorldCupEntitlementSummary } from "@/lib/world-cup/worldCupEntitlements"
 import {
@@ -878,6 +884,24 @@ export default function WorldCupBracketShell({
       picks
     ).championAlive
   }, [selectedEntry, selectedLeaderboardRow, projectedMatches, picks])
+  const pathToWinInsight = useMemo(
+    () => buildWorldCupPathToWinInsight({
+      selectedEntry: selectedEntry
+        ? {
+            id: selectedEntry.id,
+            name: selectedEntry.name,
+            championTeamId: selectedEntry.championTeamId,
+            championTeamName: selectedEntry.championTeamName,
+            totalScore: selectedEntry.totalScore,
+            maxPossibleScore: selectedEntry.maxPossibleScore,
+            submittedAt: selectedEntry.submittedAt,
+          }
+        : null,
+      leaderboard: view.leaderboard,
+      hasBracketBrainAi: aiInsightsUnlocked,
+    }),
+    [aiInsightsUnlocked, selectedEntry, view.leaderboard]
+  )
 
   // ── Load entries on mount ────────────────────────────────────────────────
   useEffect(() => {
@@ -3275,6 +3299,21 @@ export default function WorldCupBracketShell({
                       picks={picks}
                     />
 
+                    <WorldCupBracketGradeCard
+                      unlocked={aiInsightsUnlocked}
+                      grade={calculateWorldCupBracketGrade({
+                        completionReview,
+                        entry: selectedEntry,
+                        picks,
+                        matches: projectedMatches,
+                      })}
+                    />
+
+                    <WorldCupPathToWinCard
+                      insight={pathToWinInsight}
+                      unlocked={aiInsightsUnlocked}
+                    />
+
                     <div data-testid="world-cup-review-saved-picks" className="space-y-3">
                       <div className="rounded-xl border border-white/10 bg-black/20 p-3">
                         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
@@ -3451,6 +3490,12 @@ export default function WorldCupBracketShell({
         {tab === "leaderboard" ? (
           <div id="world-cup-leaderboard" className="h-full overflow-y-auto">
             <WorldCupLeaderboardInsights leaderboard={view.leaderboard} aiInsightsUnlocked={aiInsightsUnlocked} />
+            <div className="mx-auto max-w-4xl px-4">
+              <WorldCupPathToWinCard
+                insight={pathToWinInsight}
+                unlocked={aiInsightsUnlocked}
+              />
+            </div>
             <WorldCupLeaderboard view={view} busy={isPending} onRecalculate={() => runOwnerAction("recalculate")} />
           </div>
         ) : null}
@@ -3634,6 +3679,85 @@ function ReviewAiConfidenceCard({
         </p>
       )}
     </details>
+  )
+}
+
+function WorldCupBracketGradeCard({
+  unlocked,
+  grade,
+}: {
+  unlocked: boolean
+  grade: WorldCupBracketGradeInsight
+}) {
+  return (
+    <section
+      data-testid="world-cup-bracket-grade"
+      className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3 text-xs text-cyan-50"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/70">Bracket Grade</p>
+          <div className="mt-1 flex items-baseline gap-3">
+            <span className="text-3xl font-black text-white">{grade.grade}</span>
+            <span className="font-bold text-cyan-100/80">{grade.completionPercent}% complete</span>
+          </div>
+        </div>
+        <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-100">
+          {unlocked ? "AF Pro detail" : "Basic"}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-4">
+        <PoolStatCard label="Groups" value={`${grade.groupCompletionPercent}%`} tone={grade.groupCompletionPercent === 100 ? "ready" : "warn"} />
+        <PoolStatCard label="Third-place" value={`${grade.thirdPlaceCompletionPercent}%`} tone={grade.thirdPlaceCompletionPercent === 100 ? "ready" : "warn"} />
+        <PoolStatCard label="Knockouts" value={`${grade.knockoutCompletionPercent}%`} tone={grade.knockoutCompletionPercent === 100 ? "ready" : "warn"} />
+        <PoolStatCard label="Missing" value={String(grade.missingPickCount)} tone={grade.missingPickCount === 0 ? "ready" : "warn"} />
+      </div>
+      {unlocked ? (
+        <div className="mt-3 space-y-1.5 leading-5 text-cyan-50/85">
+          <p><span className="font-black text-white">Risk Level:</span> {grade.riskLabel}</p>
+          <p><span className="font-black text-white">Upset Meter:</span> {grade.upsetMeter}</p>
+          <p><span className="font-black text-white">Champion Confidence:</span> {grade.championSelected ? `${grade.championConfidence}%` : "No champion selected"}</p>
+          <p><span className="font-black text-white">Biggest Risk:</span> {grade.biggestRisk}</p>
+          <p><span className="font-black text-white">Recommendation:</span> {grade.recommendation}</p>
+        </div>
+      ) : (
+        <p className="mt-3 rounded-lg border border-white/10 bg-black/25 px-2 py-2 text-[11px] leading-5 text-white/60">
+          AF Pro unlocks risk, upset meter, champion confidence, biggest risk, and recommendation details.
+        </p>
+      )}
+    </section>
+  )
+}
+
+function WorldCupPathToWinCard({
+  insight,
+  unlocked,
+}: {
+  insight: WorldCupPathToWinInsight
+  unlocked: boolean
+}) {
+  return (
+    <section
+      data-testid="world-cup-path-to-win"
+      className="rounded-xl border border-white/10 bg-white/[0.035] p-3 text-xs text-white/65"
+    >
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-black text-white">What needs to happen for me to win?</p>
+          <p className="mt-1 text-[11px] text-white/45">
+            Private current-entry read. Other users' unfinalized picks stay hidden.
+          </p>
+        </div>
+        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${unlocked ? "border-cyan-200/25 text-cyan-100" : "border-purple-300/25 text-purple-100"}`}>
+          {unlocked ? "AF Pro active" : "AF Pro locked"}
+        </span>
+      </div>
+      <div className="mt-3 space-y-1.5 leading-5">
+        {insight.lines.map((line, index) => (
+          <p key={`${insight.entryId ?? "none"}-${index}-${line}`}>{line}</p>
+        ))}
+      </div>
+    </section>
   )
 }
 

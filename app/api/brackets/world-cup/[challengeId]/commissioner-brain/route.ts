@@ -31,6 +31,7 @@ const postSchema = z.object({
     "recap",
     "preview_recap",
     "post_recap",
+    "drama_recap",
     "path",
     "reminder",
   ]),
@@ -96,7 +97,28 @@ export async function POST(
   )
   if (!access.ok) return access.response
 
+  const body = await request.json().catch(() => ({}))
+  const parsed = postSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid request", issues: parsed.error.flatten() },
+      { status: 400 }
+    )
+  }
+
   const hasAi = await userHasBracketBrainAi(auth.user.id, auth.user.email ?? null)
+  if (!hasAi && parsed.data.action === "drama_recap") {
+    const lines = await buildWorldCupAiPoolRecapLines(params.data.challengeId, parsed.data.tone as WorldCupAiRecapTone)
+    return NextResponse.json({
+      ok: true,
+      action: parsed.data.action,
+      lines: lines.slice(0, 3),
+      posted: false,
+      source: "deterministic",
+      proLocked: true,
+    })
+  }
+
   if (!hasAi) {
     return NextResponse.json(
       {
@@ -122,20 +144,12 @@ export async function POST(
     )
   }
 
-  const body = await request.json().catch(() => ({}))
-  const parsed = postSchema.safeParse(body)
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid request", issues: parsed.error.flatten() },
-      { status: 400 }
-    )
-  }
-
   const isRecapPreview = parsed.data.action === "preview_recap"
   const isRecapPost = parsed.data.action === "post_recap"
+  const isDramaRecap = parsed.data.action === "drama_recap"
   const lines = isRecapPost && parsed.data.lines?.length
     ? parsed.data.lines
-    : isRecapPreview || isRecapPost
+    : isRecapPreview || isRecapPost || isDramaRecap
       ? await buildWorldCupAiPoolRecapLines(params.data.challengeId, parsed.data.tone as WorldCupAiRecapTone)
       : await generateAiWrappedLines(
           parsed.data.action,
@@ -162,6 +176,7 @@ export async function POST(
     recap: "Round recap",
     preview_recap: "AI pool recap preview",
     post_recap: "AI pool recap",
+    drama_recap: "Pool Drama Report",
     path: "Path to win",
     reminder: "Reminder",
   }
@@ -179,10 +194,16 @@ export async function POST(
       action: parsed.data.action,
       visibility: "public",
       messageType: isRecapPost ? "ai_recap" : "commissioner_brain",
-      source: isRecapPost ? "deterministic_finalized_public" : undefined,
+      source: isRecapPost || isDramaRecap ? "deterministic_finalized_public" : undefined,
     },
     force: true,
   })
 
-  return NextResponse.json({ lines, action: parsed.data.action, posted: true })
+  return NextResponse.json({
+    ok: true,
+    lines,
+    action: parsed.data.action,
+    posted: true,
+    source: isDramaRecap ? "deterministic" : undefined,
+  })
 }

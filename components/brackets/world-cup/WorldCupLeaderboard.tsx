@@ -15,6 +15,7 @@ import {
 import Image from "next/image"
 import type { WorldCupChallengeView } from "@/lib/world-cup/types"
 import { WORLD_CUP_ROUND_LABELS } from "@/lib/world-cup/types"
+import { calculateWorldCupLeaderboardAiInsights } from "@/lib/world-cup/worldCupAiSubscriptionInsights"
 import {
   getWorldCupPossiblePointsRemaining,
   getWorldCupRankMovement,
@@ -67,6 +68,9 @@ export default function WorldCupLeaderboard({
 
   const scoresSynced = Boolean(view.challenge.lastSyncedAt)
   const fixturesReady = view.matches.some((m) => m.homeTeamId && m.awayTeamId)
+  const aiInsightsByEntry = new Map(
+    calculateWorldCupLeaderboardAiInsights(view.leaderboard).map((insight) => [insight.entryId, insight])
+  )
 
   return (
     <div
@@ -167,6 +171,7 @@ export default function WorldCupLeaderboard({
               : null
             const possibleLeft = getWorldCupPossiblePointsRemaining(row.totalScore, row.maxPossibleScore)
             const move = movementByEntry[row.entryId] ?? "unknown"
+            const aiInsight = aiInsightsByEntry.get(row.entryId)
 
             return (
               <div
@@ -249,6 +254,25 @@ export default function WorldCupLeaderboard({
                         ))}
                       </div>
                     )}
+
+                    {view.hasBracketBrainAi && aiInsight ? (
+                      <div
+                        data-testid={`wc-lb-ai-health-${row.entryId}`}
+                        className="mt-2 grid gap-1.5 rounded-lg border border-cyan-300/20 bg-cyan-300/[0.06] px-2.5 py-2 text-[10px] text-cyan-50/80 sm:grid-cols-4"
+                      >
+                        <span><strong className="text-white">AI Win</strong> {aiInsight.aiWinProbability}%</span>
+                        <span><strong className="text-white">Health</strong> {aiInsight.bracketHealth}</span>
+                        <span><strong className="text-white">Max</strong> {aiInsight.maxPossiblePoints}</span>
+                        <span><strong className="text-white">Champion</strong> {aiInsight.championAlive ? "Alive" : "Busted"}</span>
+                      </div>
+                    ) : !view.hasBracketBrainAi ? (
+                      <div
+                        data-testid={`wc-lb-ai-locked-${row.entryId}`}
+                        className="mt-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-[10px] font-semibold text-white/45"
+                      >
+                        AF Pro unlocks AI Win %, Bracket Health, and champion-path pressure.
+                      </div>
+                    ) : null}
 
                     {updatedLabel && (
                       <div className="mt-1 text-[9px] text-white/20">

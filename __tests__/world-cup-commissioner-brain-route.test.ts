@@ -107,6 +107,25 @@ describe("World Cup commissioner AI recap route", () => {
     expect(emitEventMock).not.toHaveBeenCalled()
   })
 
+  it("returns a limited drama recap preview for users without AI access", async () => {
+    hasAiMock.mockResolvedValue(false)
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/commissioner-brain/route")
+
+    const res = await POST(request({ action: "drama_recap", tone: "fun" }), { params: { challengeId: "c1" } })
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json).toMatchObject({
+      ok: true,
+      action: "drama_recap",
+      posted: false,
+      source: "deterministic",
+      proLocked: true,
+    })
+    expect(json.lines).toHaveLength(3)
+    expect(emitEventMock).not.toHaveBeenCalled()
+  })
+
   it("posts a previewed recap as a public pool chat event", async () => {
     const lines = [
       "Chimmy pool recap: Office Cup",
@@ -129,6 +148,29 @@ describe("World Cup commissioner AI recap route", () => {
         action: "post_recap",
         visibility: "public",
         messageType: "ai_recap",
+        source: "deterministic_finalized_public",
+      }),
+    }))
+  })
+
+  it("posts a Pro drama recap as a public deterministic pool event", async () => {
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/commissioner-brain/route")
+
+    const res = await POST(request({ action: "drama_recap", tone: "hype" }), { params: { challengeId: "c1" } })
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json).toMatchObject({
+      ok: true,
+      action: "drama_recap",
+      posted: true,
+      source: "deterministic",
+    })
+    expect(buildRecapMock).toHaveBeenCalledWith("c1", "hype")
+    expect(emitEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      eventTitle: "Pool Drama Report",
+      metadata: expect.objectContaining({
+        action: "drama_recap",
         source: "deterministic_finalized_public",
       }),
     }))

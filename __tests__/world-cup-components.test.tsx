@@ -2382,6 +2382,78 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.queryByRole("button", { name: /Finalize Entry/i })).not.toBeInTheDocument()
   })
 
+  it("shows Bracket Grade details for AF Pro users on Review", async () => {
+    clientApiMocks.fetchCompletionReview.mockResolvedValueOnce({
+      challengeId: "c1",
+      entryId: "entry-1",
+      groupStageComplete: true,
+      knockoutComplete: true,
+      fullEntryComplete: true,
+      groupsRankedCount: 12,
+      missingGroups: [],
+      thirdPlaceSelectedCount: 8,
+      missingKnockoutPicks: 0,
+      requiredKnockoutPicks: 1,
+      completedKnockoutPicks: 1,
+      isLocked: false,
+      isComplete: true,
+      submittedAt: null,
+    })
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ hasBracketBrainAi: true }) as any} defaultTab="review" />)
+
+    const grade = await screen.findByTestId("world-cup-bracket-grade")
+    expect(grade).toHaveTextContent("Bracket Grade")
+    expect(grade).toHaveTextContent("Risk Level")
+    expect(grade).toHaveTextContent("Champion Confidence")
+  })
+
+  it("shows locked Bracket Grade details for free users on Review", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ hasBracketBrainAi: false }) as any} defaultTab="review" />)
+
+    const grade = await screen.findByTestId("world-cup-bracket-grade")
+    expect(grade).toHaveTextContent("Basic")
+    expect(grade).toHaveTextContent("AF Pro unlocks risk")
+  })
+
+  it("shows private path-to-win teaser for free users", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ hasBracketBrainAi: false }) as any} defaultTab="leaderboard" />)
+
+    const panel = await screen.findByTestId("world-cup-path-to-win")
+    expect(panel).toHaveTextContent("AF Pro can show your path to win after you finalize.")
+    expect(panel).toHaveTextContent("Other users' unfinalized picks stay hidden.")
+  })
+
+  it("shows leaderboard AI win probability only for AF Pro users", async () => {
+    const leaderboard = [{
+      rank: 1,
+      entryId: "entry-1",
+      entryName: "Bracket 1",
+      participantId: "participant-1",
+      userId: "user-1",
+      username: null,
+      avatarUrl: null,
+      displayName: "Owner",
+      totalScore: 0,
+      maxPossibleScore: 480,
+      correctPicks: 0,
+      incorrectPicks: 0,
+      championPickName: "Brazil",
+      championTeamId: "demo_team_brazil",
+      championStillAlive: true,
+      roundBreakdown: {},
+      joinedAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    }]
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ hasBracketBrainAi: true, leaderboard }) as any} defaultTab="leaderboard" />)
+
+    expect(await screen.findByTestId("wc-lb-ai-health-entry-1")).toHaveTextContent("AI Win")
+    expect(screen.queryByTestId("wc-lb-ai-locked-entry-1")).not.toBeInTheDocument()
+  })
+
   it("refreshes Review after a group-stage save callback", async () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" />)
