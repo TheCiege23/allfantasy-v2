@@ -346,10 +346,14 @@ if (facebookClientId && facebookClientSecret) {
         url: "https://graph.facebook.com/me",
         params: { fields: "id,name,email,picture" },
         async request({ tokens }: { tokens: { access_token?: string } }) {
-          const url = new URL("https://graph.facebook.com/me");
-          url.searchParams.set("fields", "id,name,email,picture");
-          url.searchParams.set("access_token", tokens.access_token ?? "");
-          const res = await fetch(url.toString());
+          // Do NOT use URLSearchParams — it encodes commas as %2C.
+          // Facebook Graph API treats "id%2Cname%2Cemail%2Cpicture" as a
+          // single unknown field name and returns only the default {id, name};
+          // email is never present in the response regardless of token scope.
+          const graphUrl =
+            `https://graph.facebook.com/me?fields=id,name,email,picture` +
+            `&access_token=${encodeURIComponent(tokens.access_token ?? "")}`;
+          const res = await fetch(graphUrl);
           const data = (await res.json()) as Record<string, unknown>;
           // Facebook Graph API can return HTTP 200 with an error body
           // (e.g. OAuthException code 190/466 — token was invalidated).
