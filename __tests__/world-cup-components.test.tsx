@@ -1048,6 +1048,16 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.queryByTestId("world-cup-reseeded-knockout-locked")).not.toBeInTheDocument()
   })
 
+  it("falls back from a stale entry query without breaking the knockouts tab", async () => {
+    window.history.pushState({}, "", "/brackets/world-cup/c1?tab=knockouts&entry=stale-entry")
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="picks" initialEntryId="stale-entry" />)
+
+    expect(await screen.findByText("Your knockout bracket is generated from your predicted group results.")).toBeInTheDocument()
+    await waitFor(() => expect(routerMocks.replace).toHaveBeenCalledWith("/brackets/world-cup/c1?tab=knockouts&entry=entry-1"))
+    expect(clientApiMocks.getEntry).not.toHaveBeenCalledWith("c1", "stale-entry")
+  })
+
   it("blocks reseeded knockout picks before official fixtures are available", async () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(

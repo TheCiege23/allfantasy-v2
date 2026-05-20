@@ -839,6 +839,9 @@ export default function WorldCupBracketShell({
           const active = rows.find((row) => row.id === activeEntryId) ?? rows[0]
           setSelectedEntryId(active.id)
           persistSelectedEntryId(active.id)
+          if (initialEntryId && initialEntryId !== active.id) {
+            updateTabUrl(tab, active.id, "replace")
+          }
           if (
             normalizedInitialView.activeEntry?.id === active.id &&
             normalizedInitialView.picks.length > 0
@@ -849,7 +852,7 @@ export default function WorldCupBracketShell({
       })
       .catch(() => toast.error("Failed to load bracket entries"))
       .finally(() => setIsEntriesLoading(false))
-  }, [challengeId, persistSelectedEntryId, initialEntryId, normalizedInitialView.activeEntry?.id, shouldAutoSelectInitialEntry])
+  }, [challengeId, persistSelectedEntryId, initialEntryId, normalizedInitialView.activeEntry?.id, shouldAutoSelectInitialEntry, updateTabUrl, tab])
 
   // ── Entry management callbacks ───────────────────────────────────────────
   const handleCreateEntry = useCallback(async () => {
