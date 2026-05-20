@@ -1,4 +1,5 @@
 import "server-only"
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { isWorldCupChallengeLocked } from "./worldCupBracketBuilder"
 import { WORLD_CUP_BRACKET_EVENT_TYPES } from "./worldCupBracketEvents"
@@ -8,6 +9,18 @@ import {
   fireAndForgetEmit,
 } from "./worldCupBracketEventService"
 import { evaluateWorldCupPick, isChampionStillAlive } from "./worldCupScoringService"
+
+const WORLD_CUP_EVENT_PICK_WITH_MATCH_SELECT = {
+  id: true,
+  matchId: true,
+  round: true,
+  selectedTeamId: true,
+  selectedTeamName: true,
+  selectedSlotKey: true,
+  pointsAwarded: true,
+  isCorrect: true,
+  match: true,
+} satisfies Prisma.WorldCupBracketPickSelect
 
 export async function afterWorldCupRecalculate(challengeId: string) {
   const challenge = await prisma.worldCupBracketChallenge.findUnique({
@@ -25,7 +38,7 @@ export async function afterWorldCupRecalculate(challengeId: string) {
   const entries = await prisma.worldCupBracketEntry.findMany({
     where: { challengeId },
     include: {
-      picks: { include: { match: true } },
+      picks: { select: WORLD_CUP_EVENT_PICK_WITH_MATCH_SELECT },
       participant: true,
     },
   })

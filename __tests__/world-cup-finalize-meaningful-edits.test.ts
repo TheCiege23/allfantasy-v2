@@ -37,4 +37,16 @@ describe("World Cup finalize meaningful edit guards", () => {
     expect(source).toContain("if (deleted.count > 0 && entry.submittedAt)")
     expect(source).toContain("data: { submittedAt: null, isComplete: false }")
   })
+
+  it("keeps knockout pick saves rollout-safe while confidence_points migration is pending", () => {
+    const source = readFileSync(join(process.cwd(), "lib/world-cup/worldCupBracketService.ts"), "utf8")
+
+    expect(source).toContain("function worldCupConfidencePointsColumnEnabled()")
+    expect(source).toContain("const confidenceColumnEnabled = worldCupConfidencePointsColumnEnabled()")
+    expect(source).toContain("...(confidenceColumnEnabled ? { confidencePoints: true } : {})")
+    expect(source).toContain("const confidenceWriteData = confidenceColumnEnabled ? { confidencePoints } : {}")
+    expect(source).toContain("select: WORLD_CUP_PICK_VIEW_WITH_MATCH_SELECT")
+    expect(source).toContain("select: WORLD_CUP_PICK_VIEW_SELECT")
+    expect(source).not.toContain("include: { picks: { include: { match: true }, orderBy: { createdAt: \"asc\" } } }")
+  })
 })

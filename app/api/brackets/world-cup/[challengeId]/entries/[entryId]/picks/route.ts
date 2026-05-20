@@ -31,6 +31,23 @@ const clearPicksBodySchema = z.object({
   matchIds: z.array(z.string().min(1)).min(1).max(64),
 })
 
+const WORLD_CUP_PICK_ROUTE_SELECT = {
+  id: true,
+  challengeId: true,
+  participantId: true,
+  entryId: true,
+  matchId: true,
+  round: true,
+  selectedTeamId: true,
+  selectedSlotKey: true,
+  selectedTeamName: true,
+  pointsAwarded: true,
+  isCorrect: true,
+  lockedAt: true,
+  createdAt: true,
+  updatedAt: true,
+}
+
 function isLockedErrorMessage(message: string): boolean {
   return message === WORLD_CUP_BRACKET_LOCKED_MESSAGE || message.toLowerCase().includes("locked")
 }
@@ -205,6 +222,7 @@ export async function DELETE(
           { selectedSlotKey: { not: null } },
         ],
       },
+      select: WORLD_CUP_PICK_ROUTE_SELECT,
       orderBy: { createdAt: "asc" },
     })
 

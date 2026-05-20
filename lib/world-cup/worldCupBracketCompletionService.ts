@@ -1,4 +1,5 @@
 import "server-only"
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { hasWorldCupPickSelection } from "./worldCupProjectedBracket"
 import { isWorldCupMatchPickable } from "./worldCupProjectedBracket"
@@ -91,6 +92,14 @@ export type WorldCupChallengeIncompleteSummary = {
   }>
 }
 
+const WORLD_CUP_COMPLETION_PICK_SELECT = {
+  matchId: true,
+  round: true,
+  selectedTeamId: true,
+  selectedTeamName: true,
+  selectedSlotKey: true,
+} satisfies Prisma.WorldCupBracketPickSelect
+
 export async function getWorldCupChallengeIncompleteSummary(
   challengeId: string
 ): Promise<WorldCupChallengeIncompleteSummary | null> {
@@ -100,7 +109,7 @@ export async function getWorldCupChallengeIncompleteSummary(
       matches: true,
       entries: {
         include: {
-          picks: true,
+          picks: { select: WORLD_CUP_COMPLETION_PICK_SELECT },
           participant: true,
         },
       },

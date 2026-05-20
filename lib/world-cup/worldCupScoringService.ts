@@ -69,6 +69,18 @@ type DbEntryForLb = {
   }
 }
 
+const WORLD_CUP_SCORING_PICK_WITH_MATCH_SELECT = {
+  id: true,
+  matchId: true,
+  round: true,
+  selectedTeamId: true,
+  selectedTeamName: true,
+  selectedSlotKey: true,
+  pointsAwarded: true,
+  isCorrect: true,
+  match: true,
+} satisfies Prisma.WorldCupBracketPickSelect
+
 function winnerSlotKey(m: DbMatch) {
   if (m.winnerTeamId && m.winnerTeamId === m.homeTeamId) return m.homeSlotKey
   if (m.winnerTeamId && m.winnerTeamId === m.awayTeamId) return m.awaySlotKey
@@ -346,7 +358,11 @@ export async function recalculateWorldCupChallenge(challengeId: string) {
     include: {
       scoringProfile: true,
       matches: true,
-      entries: { include: { picks: { include: { match: true } } } },
+      entries: {
+        include: {
+          picks: { select: WORLD_CUP_SCORING_PICK_WITH_MATCH_SELECT },
+        },
+      },
     },
   })
   if (!c) throw new Error("World Cup bracket challenge not found")
@@ -379,7 +395,7 @@ export async function recalculateWorldCupChallenge(challengeId: string) {
       participants: true,
       entries: {
         include: {
-          picks: { include: { match: true } },
+          picks: { select: WORLD_CUP_SCORING_PICK_WITH_MATCH_SELECT },
           participant: {
             include: {
               user: { select: { username: true, avatarUrl: true, displayName: true } },

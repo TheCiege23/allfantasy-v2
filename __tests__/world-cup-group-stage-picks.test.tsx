@@ -203,6 +203,18 @@ describe("WorldCupGroupStagePicks", () => {
     expect(thirdPlace).toHaveTextContent("Correct +5")
   })
 
+  it("derives third-place candidates from each group's rank-3 team", async () => {
+    const WorldCupGroupStagePicks = (await import("@/components/brackets/world-cup/WorldCupGroupStagePicks")).default
+    render(<WorldCupGroupStagePicks challengeId="c1" entryId="entry-1" />)
+
+    const thirdPlace = await screen.findByTestId("world-cup-third-place-result-A")
+    expect(within(thirdPlace).getByText("Canada")).toBeInTheDocument()
+    expect(within(thirdPlace).queryByText("Argentina")).not.toBeInTheDocument()
+    expect(within(thirdPlace).queryByText("Brazil")).not.toBeInTheDocument()
+    expect(within(thirdPlace).queryByText("Denmark")).not.toBeInTheDocument()
+    expect(within(thirdPlace).getByRole("checkbox", { name: /Select Canada as a third-place advancer/i })).toBeInTheDocument()
+  })
+
   it("makes selected third-place advancer cards obvious on mobile/dark UI", async () => {
     clientApiMocks.fetchGroupStageView.mockResolvedValue(makeGroupStageView({
       completion: {

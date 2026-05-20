@@ -96,6 +96,13 @@ const WORLD_CUP_PICK_VIEW_WITH_MATCH_SELECT = {
   match: true,
 } satisfies Prisma.WorldCupBracketPickSelect
 
+function worldCupConfidencePointsColumnEnabled() {
+  return (
+    process.env.WORLD_CUP_CONFIDENCE_POINTS_COLUMN_ENABLED === "true" ||
+    process.env.WORLD_CUP_CONFIDENCE_POINTS_DB_READY === "true"
+  )
+}
+
 function toWorldCupMatchView(match: WorldCupBracketMatch): WorldCupMatchView {
   return {
     id: match.id,
@@ -963,7 +970,10 @@ async function savePicksForEntryTx(
           round: m.round,
           NOT: { matchId: m.id },
         },
-        include: { match: { select: { matchNumber: true, id: true } } },
+        select: {
+          id: true,
+          match: { select: { matchNumber: true, id: true } },
+        },
       })
       const conflictingIds = conflictingRows
         .filter((row) => row.match?.matchNumber === m.matchNumber)
@@ -993,13 +1003,14 @@ async function savePicksForEntryTx(
       throw new Error("Selected team is not in this matchup")
     }
     const confidencePoints = normalizeWorldCupConfidencePoints(pick.confidencePoints)
+    const confidenceColumnEnabled = worldCupConfidencePointsColumnEnabled()
     const existingPick = await tx.worldCupBracketPick.findUnique({
       where: { entryId_matchId: { entryId: entry.id, matchId: m.id } },
       select: {
         selectedTeamId: true,
         selectedSlotKey: true,
         selectedTeamName: true,
-        confidencePoints: true,
+        ...(confidenceColumnEnabled ? { confidencePoints: true } : {}),
       },
     })
     if (
@@ -1007,10 +1018,11 @@ async function savePicksForEntryTx(
       existingPick.selectedTeamId !== selectedTeamId ||
       existingPick.selectedSlotKey !== selectedSlotKey ||
       existingPick.selectedTeamName !== selectedTeamName ||
-      existingPick.confidencePoints !== confidencePoints
+      (confidenceColumnEnabled && existingPick.confidencePoints !== confidencePoints)
     ) {
       meaningfulPickChange = true
     }
+    const confidenceWriteData = confidenceColumnEnabled ? { confidencePoints } : {}
     await tx.worldCupBracketPick.upsert({
       where: { entryId_matchId: { entryId: entry.id, matchId: m.id } },
       create: {
@@ -1022,13 +1034,13 @@ async function savePicksForEntryTx(
         selectedTeamId,
         selectedSlotKey,
         selectedTeamName,
-        confidencePoints,
+        ...confidenceWriteData,
       },
       update: {
         selectedTeamId,
         selectedSlotKey,
         selectedTeamName,
-        confidencePoints,
+        ...confidenceWriteData,
         round: m.round,
         isCorrect: null,
         pointsAwarded: 0,
@@ -1293,7 +1305,7 @@ export async function saveWorldCupBracketPickForEntry(input: {
             { selectedSlotKey: { not: null } },
           ],
         },
-        include: { match: true },
+        select: WORLD_CUP_PICK_VIEW_WITH_MATCH_SELECT,
         orderBy: { createdAt: "asc" },
       },
       challenge: { include: { matches: true } },
@@ -1422,10 +1434,16 @@ export async function saveWorldCupBracketPickForEntry(input: {
 
   const updatedEntry = await prisma.worldCupBracketEntry.findUnique({
     where: { id: entry.id },
-    include: { picks: { include: { match: true }, orderBy: { createdAt: "asc" } } },
+    include: {
+      picks: {
+        select: WORLD_CUP_PICK_VIEW_WITH_MATCH_SELECT,
+        orderBy: { createdAt: "asc" },
+      },
+    },
   })
   const savedPick = await prisma.worldCupBracketPick.findUnique({
     where: { entryId_matchId: { entryId: entry.id, matchId: m.id } },
+    select: WORLD_CUP_PICK_VIEW_SELECT,
   })
   const isComplete = updatedEntry
     ? isWorldCupEntryCompleteFromSelections({
@@ -1482,7 +1500,12 @@ export async function saveWorldCupPicksForEntry(input: {
   await recalculateWorldCupChallenge(c.id)
   const updatedEntry = await prisma.worldCupBracketEntry.findUnique({
     where: { id: entry.id },
-    include: { picks: { orderBy: { createdAt: "asc" } } },
+    include: {
+      picks: {
+        select: WORLD_CUP_PICK_VIEW_SELECT,
+        orderBy: { createdAt: "asc" },
+      },
+    },
   })
   const isComplete = updatedEntry
     ? isWorldCupEntryCompleteFromSelections({

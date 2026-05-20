@@ -1,4 +1,5 @@
 import "server-only"
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { isWorldCupChallengeLocked } from "./worldCupBracketBuilder"
 import { WORLD_CUP_BRACKET_LOCKED_MESSAGE } from "./worldCupBracketService"
@@ -31,6 +32,18 @@ export type WorldCupEntryCompletionReview = {
   staleSubmittedIncomplete: boolean
   needsRefinalize: boolean
 }
+
+const WORLD_CUP_FINALIZE_PICK_WITH_MATCH_SELECT = {
+  id: true,
+  matchId: true,
+  round: true,
+  selectedTeamId: true,
+  selectedTeamName: true,
+  selectedSlotKey: true,
+  pointsAwarded: true,
+  isCorrect: true,
+  match: true,
+} satisfies Prisma.WorldCupBracketPickSelect
 
 function rankedGroupKeys(input: {
   groups: Array<{ id: string; groupKey: string }>
@@ -66,7 +79,7 @@ export async function getWorldCupEntryCompletionReview(input: {
           matches: true,
         },
       },
-      picks: { include: { match: true } },
+      picks: { select: WORLD_CUP_FINALIZE_PICK_WITH_MATCH_SELECT },
       groupRankingPicks: true,
       thirdPlaceAdvancerPicks: true,
     },
