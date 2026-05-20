@@ -495,6 +495,62 @@ describe("World Cup group stage service exports", () => {
     expect(view.thirdPlaceAdvancerPicks.map((pick) => pick.teamId)).toEqual(["wc2026_official_rsa"])
   })
 
+  it("hydrates saved Group A rankings under Group A even when stored groupId drifted", async () => {
+    const service = await import("@/lib/world-cup/worldCupGroupStageService")
+    const groupA = { id: "group-a", challengeId: "c1", groupKey: "A", displayName: "Group A", sortOrder: 1, teams: [] }
+    const groupD = { id: "group-d", challengeId: "c1", groupKey: "D", displayName: "Group D", sortOrder: 4, teams: [] }
+    const groupATeams = [
+      { id: "wc2026_official_mex", name: "Mexico", country: "Mexico", fifaCode: "MEX", groupName: "A", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 1 } },
+      { id: "wc2026_official_kor", name: "South Korea", country: "South Korea", fifaCode: "KOR", groupName: "A", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 2 } },
+      { id: "wc2026_official_rsa", name: "South Africa", country: "South Africa", fifaCode: "RSA", groupName: "A", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 3 } },
+      { id: "wc2026_official_cze", name: "Czechia", country: "Czechia", fifaCode: "CZE", groupName: "A", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 4 } },
+    ]
+    const groupDTeams = [
+      { id: "wc2026_official_usa", name: "USA", country: "USA", fifaCode: "USA", groupName: "D", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 1 } },
+      { id: "wc2026_official_par", name: "Paraguay", country: "Paraguay", fifaCode: "PAR", groupName: "D", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 2 } },
+      { id: "wc2026_official_aus", name: "Australia", country: "Australia", fifaCode: "AUS", groupName: "D", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 3 } },
+      { id: "wc2026_official_tur", name: "Turkiye", country: "Turkiye", fifaCode: "TUR", groupName: "D", qualificationStatus: "qualified", sourcePayload: { source: "allfantasy_official_2026_groups", seedOrder: 4 } },
+    ]
+    const allTeams = [...groupATeams, ...groupDTeams]
+    const hydratedGroups = [
+      { ...groupA, teams: groupATeams.map((team, index) => ({ id: `row-${team.id}`, teamId: team.id, seedOrder: index + 1, actualRank: null, points: null, goalDifference: null, goalsFor: null, team })) },
+      { ...groupD, teams: groupDTeams.map((team, index) => ({ id: `row-${team.id}`, teamId: team.id, seedOrder: index + 1, actualRank: null, points: null, goalDifference: null, goalsFor: null, team })) },
+    ]
+
+    prismaMocks.worldCupBracketEntry.findUnique.mockResolvedValue({
+      id: "entry-1",
+      challengeId: "c1",
+      userId: "user-1",
+      challenge: { ownerUserId: "owner-1", pickLockStrategy: null, pickLockAt: null, status: "open", sourcePayload: null, matches: [] },
+    })
+    prismaMocks.worldCupBracketChallenge.findUnique.mockResolvedValue({ id: "c1", sourcePayload: null })
+    prismaMocks.worldCupGroup.findMany
+      .mockResolvedValueOnce([groupA, groupD])
+      .mockResolvedValueOnce(hydratedGroups)
+    prismaMocks.worldCupTeam.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(allTeams)
+    prismaMocks.worldCupGroupTeam.findMany.mockResolvedValue([])
+    prismaMocks.worldCupGroupRankingPick.findMany.mockResolvedValue([
+      { id: "rank-1", groupId: "group-d", teamId: "wc2026_official_mex", predictedRank: 1, actualRank: null, isCorrect: null, pointsAwarded: 0 },
+      { id: "rank-2", groupId: "group-d", teamId: "wc2026_official_kor", predictedRank: 2, actualRank: null, isCorrect: null, pointsAwarded: 0 },
+      { id: "rank-3", groupId: "group-d", teamId: "wc2026_official_rsa", predictedRank: 3, actualRank: null, isCorrect: null, pointsAwarded: 0 },
+      { id: "rank-4", groupId: "group-d", teamId: "wc2026_official_cze", predictedRank: 4, actualRank: null, isCorrect: null, pointsAwarded: 0 },
+    ])
+    prismaMocks.worldCupThirdPlaceAdvancerPick.findMany.mockResolvedValue([])
+
+    const view = await service.getWorldCupGroupStageView({ challengeId: "c1", entryId: "entry-1", userId: "user-1" })
+
+    const groupAPicks = view.groupRankingPicks.filter((pick) => pick.groupId === "group-a")
+    expect(groupAPicks.map((pick) => pick.teamId)).toEqual([
+      "wc2026_official_mex",
+      "wc2026_official_kor",
+      "wc2026_official_rsa",
+      "wc2026_official_cze",
+    ])
+    expect(view.groupRankingPicks.some((pick) => pick.groupId === "group-d" && pick.teamId === "wc2026_official_mex")).toBe(false)
+  })
+
   it("clears only affected knockout picks when a group ranking changes", async () => {
     const service = await import("@/lib/world-cup/worldCupGroupStageService")
     prismaMocks.worldCupBracketEntry.findUnique.mockResolvedValue({

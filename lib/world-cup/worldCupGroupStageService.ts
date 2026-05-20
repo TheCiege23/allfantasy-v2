@@ -413,6 +413,68 @@ function buildCompletionState(input: {
   }
 }
 
+type CurrentGroupForPickRemap = {
+  id: string
+  sortOrder: number
+  teams: Array<{ teamId: string }>
+}
+
+function buildCurrentGroupPickRemap(groups: CurrentGroupForPickRemap[]) {
+  const groupOrder = new Map<string, number>()
+  const groupIdByTeamId = new Map<string, string>()
+  for (const group of groups) {
+    groupOrder.set(group.id, group.sortOrder)
+    for (const row of group.teams) {
+      groupIdByTeamId.set(row.teamId, group.id)
+    }
+  }
+  return { groupOrder, groupIdByTeamId }
+}
+
+function remapWorldCupGroupRankingPicks<T extends { groupId: string; teamId: string; predictedRank: number }>(
+  picks: T[],
+  remap: ReturnType<typeof buildCurrentGroupPickRemap>
+): T[] {
+  const byGroupRank = new Map<string, T>()
+  for (const pick of picks) {
+    const currentGroupId = remap.groupIdByTeamId.get(pick.teamId)
+    if (!currentGroupId) continue
+    const normalizedPick = pick.groupId === currentGroupId
+      ? pick
+      : { ...pick, groupId: currentGroupId }
+    const key = `${currentGroupId}:${pick.predictedRank}`
+    const existing = byGroupRank.get(key)
+    if (!existing || (existing.groupId !== currentGroupId && pick.groupId === currentGroupId)) {
+      byGroupRank.set(key, normalizedPick)
+    }
+  }
+  return [...byGroupRank.values()].sort((a, b) =>
+    (remap.groupOrder.get(a.groupId) ?? 999) - (remap.groupOrder.get(b.groupId) ?? 999) ||
+    a.predictedRank - b.predictedRank
+  )
+}
+
+function remapWorldCupThirdPlaceAdvancerPicks<T extends { groupId: string; teamId: string }>(
+  picks: T[],
+  remap: ReturnType<typeof buildCurrentGroupPickRemap>
+): T[] {
+  const byGroup = new Map<string, T>()
+  for (const pick of picks) {
+    const currentGroupId = remap.groupIdByTeamId.get(pick.teamId)
+    if (!currentGroupId) continue
+    const normalizedPick = pick.groupId === currentGroupId
+      ? pick
+      : { ...pick, groupId: currentGroupId }
+    const existing = byGroup.get(currentGroupId)
+    if (!existing || (existing.groupId !== currentGroupId && pick.groupId === currentGroupId)) {
+      byGroup.set(currentGroupId, normalizedPick)
+    }
+  }
+  return [...byGroup.values()].sort((a, b) =>
+    (remap.groupOrder.get(a.groupId) ?? 999) - (remap.groupOrder.get(b.groupId) ?? 999)
+  )
+}
+
 function sameOrderedValues(a: string[], b: string[]) {
   return a.length === b.length && a.every((value, index) => value === b[index])
 }
@@ -696,10 +758,7 @@ export async function getWorldCupGroupStageView(input: {
 }): Promise<WorldCupGroupStageView> {
   const entry = await getEntryForRead(input)
   const ensured = await ensureWorldCupGroupsForChallenge(input.challengeId)
-  const validGroupTeamIds = new Map<string, Set<string>>()
-  for (const group of ensured.groups) {
-    validGroupTeamIds.set(group.id, new Set(group.teams.map((row) => row.teamId)))
-  }
+  const groupPickRemap = buildCurrentGroupPickRemap(ensured.groups)
   const [groupRankingPicks, thirdPlaceAdvancerPicks] = await Promise.all([
     prisma.worldCupGroupRankingPick.findMany({
       where: { challengeId: input.challengeId, entryId: input.entryId },
@@ -710,8 +769,8 @@ export async function getWorldCupGroupStageView(input: {
       orderBy: [{ groupId: "asc" }],
     }),
   ])
-  const visibleGroupRankingPicks = groupRankingPicks.filter((pick) => validGroupTeamIds.get(pick.groupId)?.has(pick.teamId))
-  const visibleThirdPlaceAdvancerPicks = thirdPlaceAdvancerPicks.filter((pick) => validGroupTeamIds.get(pick.groupId)?.has(pick.teamId))
+  const visibleGroupRankingPicks = remapWorldCupGroupRankingPicks(groupRankingPicks, groupPickRemap)
+  const visibleThirdPlaceAdvancerPicks = remapWorldCupThirdPlaceAdvancerPicks(thirdPlaceAdvancerPicks, groupPickRemap)
   return {
     challengeId: input.challengeId,
     entryId: input.entryId,
@@ -834,10 +893,13 @@ export async function saveWorldCupThirdPlaceAdvancers(input: {
   userId: string
 }) {
   const entry = await getOwnedEntryForWrite(input)
-  const picks = await prisma.worldCupGroupRankingPick.findMany({
+  const ensured = await ensureWorldCupGroupsForChallenge(input.challengeId)
+  const groupPickRemap = buildCurrentGroupPickRemap(ensured.groups)
+  const rawPicks = await prisma.worldCupGroupRankingPick.findMany({
     where: { challengeId: input.challengeId, entryId: input.entryId },
     orderBy: [{ groupId: "asc" }, { predictedRank: "asc" }],
   })
+  const picks = remapWorldCupGroupRankingPicks(rawPicks, groupPickRemap)
   const completion = buildCompletionState({ groupRankingPicks: picks, thirdPlaceAdvancerPicks: [] })
   if (!completion.allGroupsRanked) {
     throw new Error("Rank all 12 World Cup groups before selecting third-place advancers.")
