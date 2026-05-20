@@ -1,4 +1,5 @@
 import "server-only"
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { analyzeWorldCupEntryPickCompletion } from "./worldCupBracketCompletionService"
 import {
@@ -41,6 +42,22 @@ export type WorldCupCommissionerBrainSnapshot = {
 
 export type WorldCupAiRecapTone = "fun" | "serious" | "hype"
 
+const COMMISSIONER_BRAIN_PICK_SELECT = {
+  id: true,
+  matchId: true,
+  round: true,
+  selectedTeamId: true,
+  selectedSlotKey: true,
+  selectedTeamName: true,
+  pointsAwarded: true,
+  isCorrect: true,
+} satisfies Prisma.WorldCupBracketPickSelect
+
+const COMMISSIONER_BRAIN_PICK_WITH_MATCH_SELECT = {
+  ...COMMISSIONER_BRAIN_PICK_SELECT,
+  match: true,
+} satisfies Prisma.WorldCupBracketPickSelect
+
 const FORBIDDEN_RECAP_TERMS = [
   /\bdfs\b/gi,
   /\bbetting\b/gi,
@@ -77,7 +94,7 @@ export async function buildWorldCupAiPoolRecapLines(
           submittedAt: { not: null },
         },
         include: {
-          picks: true,
+          picks: { select: COMMISSIONER_BRAIN_PICK_SELECT },
           participant: true,
         },
       },
@@ -148,7 +165,7 @@ export async function getWorldCupCommissionerBrainSnapshot(
       scoringProfile: true,
       entries: {
         include: {
-          picks: true,
+          picks: { select: COMMISSIONER_BRAIN_PICK_SELECT },
           participant: true,
         },
       },
@@ -365,7 +382,12 @@ export async function buildStandingsSummaryLines(challengeId: string) {
     include: {
       matches: true,
       scoringProfile: true,
-      entries: { include: { picks: true, participant: true } },
+      entries: {
+        include: {
+          picks: { select: COMMISSIONER_BRAIN_PICK_SELECT },
+          participant: true,
+        },
+      },
     },
   })
   if (!challenge) return []
@@ -423,7 +445,12 @@ export async function buildPostRoundRecapLines(challengeId: string, round: World
     include: {
       matches: true,
       scoringProfile: true,
-      entries: { include: { picks: { include: { match: true } }, participant: true } },
+      entries: {
+        include: {
+          picks: { select: COMMISSIONER_BRAIN_PICK_WITH_MATCH_SELECT },
+          participant: true,
+        },
+      },
     },
   })
   if (!challenge) return []
@@ -443,7 +470,10 @@ export async function buildPostRoundRecapLines(challengeId: string, round: World
 export async function buildPathToWinLines(challengeId: string, entryId: string) {
   const entry = await prisma.worldCupBracketEntry.findUnique({
     where: { id: entryId },
-    include: { picks: { include: { match: true } }, challenge: { include: { matches: true } } },
+    include: {
+      picks: { select: COMMISSIONER_BRAIN_PICK_WITH_MATCH_SELECT },
+      challenge: { include: { matches: true } },
+    },
   })
   if (!entry || entry.challengeId !== challengeId) return []
   const remaining = entry.picks.filter((p) => p.match?.status !== "final").length

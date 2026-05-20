@@ -56,12 +56,14 @@ export default function WorldCupCommissionerBrainPanel({
   const [bracketBrainEnabled, setBracketBrainEnabled] = useState(true)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [aiReminderPolish, setAiReminderPolish] = useState(false)
   const [recapTone, setRecapTone] = useState<RecapTone>("fun")
   const [recapLines, setRecapLines] = useState<string[]>([])
 
   const reload = useCallback(async () => {
     setLoading(true)
+    setLoadError(null)
     try {
       const res = await fetch(`/api/brackets/world-cup/${challengeId}/commissioner-brain`, {
         cache: "no-store",
@@ -72,7 +74,11 @@ export default function WorldCupCommissionerBrainPanel({
         setSettings(data.settings ?? null)
         setHasAi(Boolean(data.hasBracketBrainAi))
         setBracketBrainEnabled(data.bracketBrainEnabled !== false)
+        return
       }
+      setLoadError(data.error || "Could not load commissioner tools.")
+    } catch {
+      setLoadError("Could not load commissioner tools.")
     } finally {
       setLoading(false)
     }
@@ -221,11 +227,29 @@ export default function WorldCupCommissionerBrainPanel({
     }
   }
 
-  if (loading || !snapshot || !settings) {
+  if (loading) {
     return (
       <div className="flex items-center gap-2 py-8 text-sm text-white/40">
         <Loader2 className="h-4 w-4 animate-spin" />
         Loading commissioner tools…
+      </div>
+    )
+  }
+
+  if (loadError || !snapshot || !settings) {
+    return (
+      <div className="rounded-xl border border-rose-400/25 bg-rose-400/10 p-4 text-sm text-rose-100">
+        <p className="font-bold">Commissioner tools could not load.</p>
+        <p className="mt-1 text-xs text-rose-100/75">
+          {loadError ?? "The server returned an incomplete commissioner response."}
+        </p>
+        <button
+          type="button"
+          onClick={() => void reload()}
+          className="mt-3 rounded-lg border border-rose-200/25 bg-white/10 px-3 py-1.5 text-xs font-bold text-white"
+        >
+          Try again
+        </button>
       </div>
     )
   }

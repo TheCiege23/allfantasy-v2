@@ -285,6 +285,20 @@ describe("World Cup commissioner UI modules", () => {
     fireEvent.click(within(panel).getByRole("button", { name: /Generate AI Recap/i }))
     expect(fetchMock).toHaveBeenCalledTimes(callsBeforeClick)
   })
+
+  it("exits commissioner brain loading when the API returns an error", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      json: async () => ({ error: "Commissioner snapshot unavailable" }),
+    } as Response))
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupCommissionerBrainPanel = (await import("@/components/brackets/world-cup/WorldCupCommissionerBrainPanel")).default
+    render(<WorldCupCommissionerBrainPanel challengeId="c1" />)
+
+    expect(await screen.findByText("Commissioner tools could not load.")).toBeInTheDocument()
+    expect(screen.getByText("Commissioner snapshot unavailable")).toBeInTheDocument()
+    expect(screen.queryByText("Loading commissioner tools…")).not.toBeInTheDocument()
+  })
 })
 
 describe("WorldCupBracketSettingsPanel", () => {
