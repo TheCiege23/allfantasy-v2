@@ -121,7 +121,7 @@ async function worldCupConfidencePointsColumnReadyForWrites() {
 }
 
 /** @internal */
-export function buildWorldCupPickUpsertArgs(input: {
+export function buildWorldCupPickWriteArgs(input: {
   challengeId: string
   participantId: string
   entryId: string
@@ -132,30 +132,33 @@ export function buildWorldCupPickUpsertArgs(input: {
   selectedTeamName: string
   confidencePoints: number | null
   confidenceColumnEnabled: boolean
-}): Prisma.WorldCupBracketPickUpsertArgs {
+}) {
   const confidenceWriteData = input.confidenceColumnEnabled ? { confidencePoints: input.confidencePoints } : {}
+  const where = { entryId: input.entryId, matchId: input.matchId }
+  const create = {
+    challengeId: input.challengeId,
+    participantId: input.participantId,
+    entryId: input.entryId,
+    matchId: input.matchId,
+    round: input.round,
+    selectedTeamId: input.selectedTeamId,
+    selectedSlotKey: input.selectedSlotKey,
+    selectedTeamName: input.selectedTeamName,
+    ...confidenceWriteData,
+  }
+  const update = {
+    selectedTeamId: input.selectedTeamId,
+    selectedSlotKey: input.selectedSlotKey,
+    selectedTeamName: input.selectedTeamName,
+    ...confidenceWriteData,
+    round: input.round,
+    isCorrect: null,
+    pointsAwarded: 0,
+  }
   return {
-    where: { entryId_matchId: { entryId: input.entryId, matchId: input.matchId } },
-    create: {
-      challengeId: input.challengeId,
-      participantId: input.participantId,
-      entryId: input.entryId,
-      matchId: input.matchId,
-      round: input.round,
-      selectedTeamId: input.selectedTeamId,
-      selectedSlotKey: input.selectedSlotKey,
-      selectedTeamName: input.selectedTeamName,
-      ...confidenceWriteData,
-    },
-    update: {
-      selectedTeamId: input.selectedTeamId,
-      selectedSlotKey: input.selectedSlotKey,
-      selectedTeamName: input.selectedTeamName,
-      ...confidenceWriteData,
-      round: input.round,
-      isCorrect: null,
-      pointsAwarded: 0,
-    },
+    where,
+    create,
+    update,
   }
 }
 
@@ -1078,7 +1081,7 @@ async function savePicksForEntryTx(
     ) {
       meaningfulPickChange = true
     }
-    const upsertArgs = buildWorldCupPickUpsertArgs({
+    const writeArgs = buildWorldCupPickWriteArgs({
       challengeId: c.id,
       participantId: entry.participantId,
       entryId: entry.id,
@@ -1090,7 +1093,16 @@ async function savePicksForEntryTx(
       confidencePoints,
       confidenceColumnEnabled,
     })
-    await tx.worldCupBracketPick.upsert(upsertArgs)
+    const updatedPick = await tx.worldCupBracketPick.updateMany({
+      where: writeArgs.where,
+      data: writeArgs.update,
+    })
+    if (updatedPick.count === 0) {
+      await tx.worldCupBracketPick.create({
+        data: writeArgs.create,
+        select: { id: true },
+      })
+    }
     if (process.env.NODE_ENV === "development" && (m.matchNumber === 29 || m.matchNumber === 30 || m.matchNumber === 31)) {
       const saved = await tx.worldCupBracketPick.findUnique({
         where: { entryId_matchId: { entryId: entry.id, matchId: m.id } },

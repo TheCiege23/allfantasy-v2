@@ -52,9 +52,9 @@ describe("World Cup finalize meaningful edit guards", () => {
     expect(source).not.toContain("include: { picks: { include: { match: true }, orderBy: { createdAt: \"asc\" } } }")
   })
 
-  it("omits confidencePoints from pick upsert writes when the database column flag is false", async () => {
-    const { buildWorldCupPickUpsertArgs } = await import("@/lib/world-cup/worldCupBracketService")
-    const args = buildWorldCupPickUpsertArgs({
+  it("omits confidencePoints from pick writes when the database column flag is false", async () => {
+    const { buildWorldCupPickWriteArgs } = await import("@/lib/world-cup/worldCupBracketService")
+    const args = buildWorldCupPickWriteArgs({
       challengeId: "challenge-1",
       participantId: "participant-1",
       entryId: "entry-1",
@@ -71,17 +71,21 @@ describe("World Cup finalize meaningful edit guards", () => {
     expect(args.update).not.toHaveProperty("confidencePoints")
   })
 
-  it("does not retry a missing confidence column inside the same transaction", () => {
+  it("does not use Prisma upsert or retry after a missing confidence column inside the transaction", () => {
     const source = readFileSync(join(process.cwd(), "lib/world-cup/worldCupBracketService.ts"), "utf8")
 
+    expect(source).not.toContain("worldCupBracketPick.upsert")
     expect(source).not.toContain("isWorldCupConfidencePointsMissingColumnError")
     expect(source).not.toContain("withoutWorldCupPickConfidencePoints")
     expect(source).not.toContain("await tx.worldCupBracketPick.upsert(without")
+    expect(source).toContain("await tx.worldCupBracketPick.updateMany")
+    expect(source).toContain("await tx.worldCupBracketPick.create")
+    expect(source).toContain("select: { id: true }")
   })
 
-  it("includes confidencePoints in pick upsert writes when the database column flag is true", async () => {
-    const { buildWorldCupPickUpsertArgs } = await import("@/lib/world-cup/worldCupBracketService")
-    const args = buildWorldCupPickUpsertArgs({
+  it("includes confidencePoints in pick writes when the database column flag is true", async () => {
+    const { buildWorldCupPickWriteArgs } = await import("@/lib/world-cup/worldCupBracketService")
+    const args = buildWorldCupPickWriteArgs({
       challengeId: "challenge-1",
       participantId: "participant-1",
       entryId: "entry-1",
