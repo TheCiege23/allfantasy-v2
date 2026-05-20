@@ -4,6 +4,9 @@ import { z } from "zod"
 const requireUserMock = vi.hoisted(() => vi.fn())
 const accessMock = vi.hoisted(() => vi.fn())
 const simulateMatchMock = vi.hoisted(() => vi.fn())
+const simulateRoundMock = vi.hoisted(() => vi.fn())
+const simulateTournamentMock = vi.hoisted(() => vi.fn())
+const resetSimulationMock = vi.hoisted(() => vi.fn())
 const loadFixturesMock = vi.hoisted(() => vi.fn())
 const syncLiveMock = vi.hoisted(() => vi.fn())
 
@@ -32,6 +35,9 @@ vi.mock("@/app/api/brackets/world-cup/_utils", () => ({
 
 vi.mock("@/lib/world-cup/worldCupSimulationService", () => ({
   simulateWorldCupMatchResult: simulateMatchMock,
+  simulateWorldCupRound: simulateRoundMock,
+  simulateWorldCupTournament: simulateTournamentMock,
+  resetWorldCupSimulation: resetSimulationMock,
   loadWorldCupTestFixtures: loadFixturesMock,
 }))
 
@@ -44,11 +50,18 @@ describe("world cup simulation admin routes", () => {
     requireUserMock.mockReset()
     accessMock.mockReset()
     simulateMatchMock.mockReset()
+    simulateRoundMock.mockReset()
+    simulateTournamentMock.mockReset()
+    resetSimulationMock.mockReset()
+    loadFixturesMock.mockReset()
     syncLiveMock.mockReset()
 
     requireUserMock.mockResolvedValue({ ok: true, user: { id: "owner-1", email: "owner@example.com" } })
     accessMock.mockResolvedValue({ ok: true, challenge: { id: "c1" }, isAdmin: false })
-    simulateMatchMock.mockResolvedValue({ challengeId: "c1", updatedMatch: { id: "m1" } })
+    simulateMatchMock.mockResolvedValue({ challengeId: "c1", dryRun: true, updatedMatch: { id: "m1" } })
+    simulateRoundMock.mockResolvedValue({ challengeId: "c1", round: "round_of_32", dryRun: true, simulatedMatches: 16, skippedMatches: 0, skippedMatchIds: [] })
+    simulateTournamentMock.mockResolvedValue({ challengeId: "c1", dryRun: true, rounds: [], leaderboardTop: [] })
+    resetSimulationMock.mockResolvedValue({ challengeId: "c1", dryRun: true, resetMatches: 31, warnings: [] })
     syncLiveMock.mockResolvedValue({
       updated: 1,
       skipped: 0,
@@ -233,5 +246,56 @@ describe("world cup simulation admin routes", () => {
 
     expect(res.status).toBe(403)
     expect(loadFixturesMock).not.toHaveBeenCalled()
+  })
+
+  it("dispatches catch-all simulate-round fallback with simulation access", async () => {
+    const { POST } = await import("@/app/api/brackets/world-cup/[[...path]]/route")
+    const res = await POST(
+      new Request("http://localhost/api/brackets/world-cup/c1/admin/simulate-round", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          round: "round_of_32",
+          strategy: "higher_seed",
+          dryRun: true,
+          confirmSimulation: true,
+        }),
+      }),
+      { params: { path: ["c1", "admin", "simulate-round"] } }
+    )
+
+    expect(res.status).toBe(200)
+    expect(accessMock).toHaveBeenCalled()
+    expect(simulateRoundMock).toHaveBeenCalledWith({
+      challengeId: "c1",
+      round: "round_of_32",
+      strategy: "higher_seed",
+      dryRun: true,
+    })
+    await expect(res.json()).resolves.toMatchObject({ ok: true, result: { dryRun: true } })
+  })
+
+  it("dispatches catch-all simulate-tournament fallback with simulation access", async () => {
+    const { POST } = await import("@/app/api/brackets/world-cup/[[...path]]/route")
+    const res = await POST(
+      new Request("http://localhost/api/brackets/world-cup/c1/admin/simulate-tournament", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          strategy: "random",
+          dryRun: true,
+          confirmSimulation: true,
+        }),
+      }),
+      { params: { path: ["c1", "admin", "simulate-tournament"] } }
+    )
+
+    expect(res.status).toBe(200)
+    expect(simulateTournamentMock).toHaveBeenCalledWith({
+      challengeId: "c1",
+      strategy: "random",
+      dryRun: true,
+    })
+    await expect(res.json()).resolves.toMatchObject({ ok: true, result: { dryRun: true } })
   })
 })

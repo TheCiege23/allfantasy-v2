@@ -43,6 +43,12 @@ type CommissionerPrefs = {
 
 type RecapTone = "fun" | "serious" | "hype"
 
+type BrainActionResult = {
+  action: "hype" | "standings" | "watch" | "recap"
+  lines: string[]
+  posted: boolean
+}
+
 export default function WorldCupCommissionerBrainPanel({
   challengeId,
   onOpenLeagueSettings,
@@ -60,6 +66,7 @@ export default function WorldCupCommissionerBrainPanel({
   const [aiReminderPolish, setAiReminderPolish] = useState(false)
   const [recapTone, setRecapTone] = useState<RecapTone>("fun")
   const [recapLines, setRecapLines] = useState<string[]>([])
+  const [brainActionResult, setBrainActionResult] = useState<BrainActionResult | null>(null)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -98,6 +105,7 @@ export default function WorldCupCommissionerBrainPanel({
       return
     }
     setBusy(action)
+    setBrainActionResult(null)
     try {
       const res = await fetch(`/api/brackets/world-cup/${challengeId}/commissioner-brain`, {
         method: "POST",
@@ -112,7 +120,16 @@ export default function WorldCupCommissionerBrainPanel({
         toast.error(data.error || "Could not generate")
         return
       }
-      toast.success((data.lines as string[])?.slice(0, 2).join(" · ") ?? "Generated.")
+      const lines = Array.isArray(data.lines) ? data.lines.filter((line: unknown): line is string => typeof line === "string") : []
+      setBrainActionResult({
+        action,
+        lines,
+        posted: data.posted === true,
+      })
+      toast.success(data.posted === true ? "Posted to pool chat." : "Generated.")
+      if (data.posted === true) void reload()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not generate")
     } finally {
       setBusy(null)
     }
@@ -405,6 +422,28 @@ export default function WorldCupCommissionerBrainPanel({
           Post Round Recap
         </BrainButton>
       </div>
+
+      {brainActionResult ? (
+        <section data-testid="world-cup-brain-action-result" className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/70">
+              Bracket Brain Result
+            </p>
+            <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-100">
+              {brainActionResult.posted ? "Posted to pool chat" : "Preview only"}
+            </span>
+          </div>
+          <div className="mt-2 space-y-1.5 text-xs leading-5 text-white/75">
+            {brainActionResult.lines.length > 0 ? (
+              brainActionResult.lines.map((line, index) => (
+                <p key={`${brainActionResult.action}-${index}-${line}`}>{line}</p>
+              ))
+            ) : (
+              <p>No copy returned by Bracket Brain.</p>
+            )}
+          </div>
+        </section>
+      ) : null}
 
       <section data-testid="world-cup-ai-recap-panel" className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

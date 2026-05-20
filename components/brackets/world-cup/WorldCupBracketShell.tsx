@@ -2567,8 +2567,8 @@ export default function WorldCupBracketShell({
                   onChange={(e) => setSimulationMatchId(e.target.value)}
                   disabled={isSimulating}
                   className="min-w-[220px] rounded-lg border border-white/10 bg-zinc-900 px-2 py-1 text-[11px] text-white/80"
-                  aria-label="Optional Match ID"
-                  placeholder="Optional Match ID"
+                  aria-label="Match ID required for simulate match"
+                  placeholder="Match ID required"
                   list="world-cup-simulation-match-ids"
                 />
                 <datalist id="world-cup-simulation-match-ids">
@@ -2612,6 +2612,11 @@ export default function WorldCupBracketShell({
                   Reset Simulation
                 </button>
               </div>
+              {!simulationMatchId ? (
+                <p className="mb-2 text-[11px] text-amber-100/85">
+                  Select or enter a Match ID before simulating.
+                </p>
+              ) : null}
 
               {simulationResult && (
                 <div className="mt-3 rounded-lg border border-white/10 bg-black/25 p-3 text-[11px] text-white/75">

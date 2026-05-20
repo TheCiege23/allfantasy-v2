@@ -26,6 +26,11 @@ import {
   worldCupInviteParamsSchema,
 } from "../_utils"
 import { runWorldCupDiagnostics } from "@/lib/world-cup/worldCupDiagnosticsService"
+import { POST as loadTestFixturesPost } from "../[challengeId]/admin/load-test-fixtures/route"
+import { POST as resetSimulationPost } from "../[challengeId]/admin/reset-simulation/route"
+import { POST as simulateMatchPost } from "../[challengeId]/admin/simulate-match/route"
+import { POST as simulateRoundPost } from "../[challengeId]/admin/simulate-round/route"
+import { POST as simulateTournamentPost } from "../[challengeId]/admin/simulate-tournament/route"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -646,6 +651,21 @@ export async function POST(request: Request, context: WorldCupRouteContext) {
   if (path.length === 2 && path[1] === "invite") return createInvite(request, path[0])
   if (path.length === 2 && path[1] === "recalculate") return recalculateChallenge(request, path[0])
   if (path.length === 3 && path[1] === "admin" && path[2] === "sync-group-standings") return syncGroupStandings(request, path[0])
+  if (path.length === 3 && path[1] === "admin" && path[2] === "load-test-fixtures") {
+    return loadTestFixturesPost(request, { params: { challengeId: path[0] } })
+  }
+  if (path.length === 3 && path[1] === "admin" && path[2] === "simulate-match") {
+    return simulateMatchPost(request, { params: { challengeId: path[0] } })
+  }
+  if (path.length === 3 && path[1] === "admin" && path[2] === "simulate-round") {
+    return simulateRoundPost(request, { params: { challengeId: path[0] } })
+  }
+  if (path.length === 3 && path[1] === "admin" && path[2] === "simulate-tournament") {
+    return simulateTournamentPost(request, { params: { challengeId: path[0] } })
+  }
+  if (path.length === 3 && path[1] === "admin" && path[2] === "reset-simulation") {
+    return resetSimulationPost(request, { params: { challengeId: path[0] } })
+  }
   if (path.length === 2 && path[0] === "admin" && path[1] === "action") return adminChallengeAction(request)
 
   return notFound()

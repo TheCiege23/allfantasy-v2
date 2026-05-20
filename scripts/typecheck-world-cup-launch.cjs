@@ -50,6 +50,11 @@ declare module '@/lib/world-cup/worldCupDataProvider' {
 declare module '@/lib/world-cup/worldCupSimulationService' {
   export function getWorldCupSimulationAccessState(challengeId: string): Promise<any>
   export function isWorldCupSimulationAllowed(input: any): { allowed: boolean; reason?: string }
+  export function loadWorldCupTestFixtures(challengeId: string, options?: any): Promise<any>
+  export function resetWorldCupSimulation(input: any): Promise<any>
+  export function simulateWorldCupMatchResult(input: any): Promise<any>
+  export function simulateWorldCupRound(input: any): Promise<any>
+  export function simulateWorldCupTournament(input: any): Promise<any>
 }
 declare module '@/lib/world-cup/worldCupGroupStageResultService' {
   export function syncWorldCupProviderGroupStandings(input: any): Promise<any>

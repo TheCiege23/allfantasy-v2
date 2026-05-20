@@ -39,6 +39,11 @@ function selectedPickLabel(match: WorldCupMatchView, pick: WorldCupPickView): st
   return formatWorldCupPlaceholder(match.awaySlotKey, match.awayTeamName, match.awayTeamId)
 }
 
+function aiMatchupSideLabel(slotKey: string | null | undefined, teamName: string | null | undefined, teamId: string | null | undefined, fallback: string) {
+  const label = formatWorldCupPlaceholder(slotKey, teamName, teamId)
+  return label && !/^TBD\b/i.test(label) ? label : fallback
+}
+
 function matchupPickVisualState(
   match: WorldCupMatchView,
   pick?: WorldCupPickView
@@ -102,6 +107,8 @@ export default function WorldCupMatchupCard({
     { side: "home" as const, slotKey: match.homeSlotKey, teamId: match.homeTeamId, name: match.homeTeamName, logo: match.homeTeamLogo, score: match.homeScore },
     { side: "away" as const, slotKey: match.awaySlotKey, teamId: match.awayTeamId, name: match.awayTeamName, logo: match.awayTeamLogo, score: match.awayScore },
   ]
+  const aiHomeLabel = aiMatchupSideLabel(match.homeSlotKey, match.homeTeamName, match.homeTeamId, "Home side")
+  const aiAwayLabel = aiMatchupSideLabel(match.awaySlotKey, match.awayTeamName, match.awayTeamId, "Away side")
 
   // Derive human-readable lock hint
   let lockHint: string | null = null
@@ -309,8 +316,8 @@ export default function WorldCupMatchupCard({
         </summary>
         {aiInsightsUnlocked ? (
           <div className="mt-2 space-y-1.5 leading-4 text-cyan-50/85">
-            <p><span className="font-black text-white">Safer pick:</span> Home side based on current bracket slot order.</p>
-            <p><span className="font-black text-white">Upside pick:</span> Away side if you need a differentiated path.</p>
+            <p><span className="font-black text-white">Safer pick:</span> {aiHomeLabel} based on current bracket slot order.</p>
+            <p><span className="font-black text-white">Upside pick:</span> {aiAwayLabel} if you need a differentiated path.</p>
             <p><span className="font-black text-white">Bracket impact:</span> Winner feeds the next slot; changing this pick may reset downstream choices.</p>
             <p><span className="font-black text-white">Upset risk:</span> Medium until live form and official results arrive.</p>
             <p className="rounded-md border border-white/10 bg-black/20 px-2 py-1 text-white/55">

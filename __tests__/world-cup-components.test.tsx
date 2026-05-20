@@ -214,6 +214,15 @@ describe("World Cup commissioner UI modules", () => {
           }),
         } as Response
       }
+      if (body.action === "hype") {
+        return {
+          ok: true,
+          json: async () => ({
+            lines: ["Hype line one", "Hype line two"],
+            posted: true,
+          }),
+        } as Response
+      }
       return {
         ok: true,
         json: async () => ({ lines: body.lines, posted: true }),
@@ -239,6 +248,12 @@ describe("World Cup commissioner UI modules", () => {
         body: expect.stringContaining("post_recap"),
       })
     ))
+
+    fireEvent.click(screen.getByRole("button", { name: /Generate Hype/i }))
+    const brainResult = await screen.findByTestId("world-cup-brain-action-result")
+    expect(brainResult).toHaveTextContent("Posted to pool chat")
+    expect(brainResult).toHaveTextContent("Hype line one")
+    expect(brainResult).toHaveTextContent("Hype line two")
   })
 
   it("shows locked recap CTA for non-AI commissioners and does not generate", async () => {
@@ -532,6 +547,22 @@ describe("World Cup mobile polish — matchup card & guided picker", () => {
 
     expect(screen.getByTestId("world-cup-match-m1")).toHaveClass("border-cyan-300/80")
     expect(screen.getByTestId("wc-match-pick-visual")).toHaveAttribute("data-state", "correct")
+  })
+
+  it("uses real team names in unlocked AI matchup insights", async () => {
+    const WorldCupMatchupCard = (await import("@/components/brackets/world-cup/WorldCupMatchupCard")).default
+    render(
+      <WorldCupMatchupCard
+        match={sampleMatch}
+        locked={false}
+        aiInsightsUnlocked
+        onPick={() => {}}
+      />
+    )
+
+    fireEvent.click(screen.getByText("AI Insights"))
+    expect(screen.getByText(/Safer pick:/i).parentElement).toHaveTextContent("Brazil based on current bracket slot order.")
+    expect(screen.getByText(/Upside pick:/i).parentElement).toHaveTextContent("France if you need a differentiated path.")
   })
 
   it("guided picker renders close control and team pick labels", async () => {
@@ -1287,6 +1318,27 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getByText(/"simulatedMatches": 2/i)).toBeInTheDocument()
     expect(screen.getByText(/Did request return 200\?/i)).toBeInTheDocument()
     expect(screen.getByText(/Did any matches get skipped\?/i)).toBeInTheDocument()
+  })
+
+  it("requires a match id before simulating one match", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(
+      <WorldCupBracketShell
+        initialView={makeShellView({
+          matches: makeShellSeededMatches(),
+          challenge: { ...makeShellView().challenge, simulationEnabled: true },
+        }) as any}
+        defaultTab="picks"
+      />
+    )
+
+    expect(await screen.findByText("World Cup Simulation Panel")).toBeInTheDocument()
+    const input = screen.getByLabelText("Match ID required for simulate match")
+    const button = screen.getByRole("button", { name: /^Simulate Match$/i })
+    expect(screen.getByText("Select or enter a Match ID before simulating.")).toBeInTheDocument()
+    expect(button).toBeDisabled()
+    fireEvent.change(input, { target: { value: "m1" } })
+    expect(button).toBeEnabled()
   })
 
   it("keeps free World Cup play visible while showing locked premium copy", async () => {
