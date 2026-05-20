@@ -4268,10 +4268,34 @@ export const translations: Record<string, Record<string, string>> = {
     "bracket.page.cta.primary": "Crear tu bracket",
     "bracket.page.cta.secondary": "Probar ayuda de IA para brackets",
   },
-  // French translations (populated by Google Translate)
-  fr: {},
-  // Simplified Chinese translations (populated by Google Translate)
-  zh: {},
-  // Vietnamese translations (populated by Google Translate)
-  vi: {},
+  // Simplified Chinese translations
+  zh: {
+    "common.language": "语言",
+    "common.signIn": "登录",
+    "common.admin": "管理员",
+    "landing.footer.privacy": "隐私",
+    "landing.footer.terms": "条款",
+    "landing.footer.dataDeletion": "删除数据",
+    "landing.footer.navAriaLabel": "页脚导航",
+  },
+  // Filipino translations
+  fil: {
+    "common.language": "Wika",
+    "common.signIn": "Mag-sign In",
+    "common.admin": "Admin",
+    "landing.footer.privacy": "Pagkapribado",
+    "landing.footer.terms": "Mga Tuntunin",
+    "landing.footer.dataDeletion": "Pagtanggal ng Data",
+    "landing.footer.navAriaLabel": "Nabigasyon ng footer",
+  },
+  // Vietnamese translations
+  vi: {
+    "common.language": "Ngôn ngữ",
+    "common.signIn": "Đăng nhập",
+    "common.admin": "Quản trị",
+    "landing.footer.privacy": "Quyền riêng tư",
+    "landing.footer.terms": "Điều khoản",
+    "landing.footer.dataDeletion": "Xóa dữ liệu",
+    "landing.footer.navAriaLabel": "Điều hướng chân trang",
+  },
 };

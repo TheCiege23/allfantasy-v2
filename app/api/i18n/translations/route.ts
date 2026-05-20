@@ -9,8 +9,8 @@ export const runtime = "nodejs"
 const LANG_TO_GOOGLE_CODE: Record<string, string> = {
   en: "en",
   es: "es",
-  fr: "fr",
   zh: "zh-CN", // Simplified Chinese
+  fil: "tl", // Filipino (Tagalog)
   vi: "vi",
 }
 
