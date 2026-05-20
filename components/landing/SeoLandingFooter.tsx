@@ -19,7 +19,7 @@ export default function SeoLandingFooter() {
           aria-label="AllFantasy home"
         >
           <img
-            src="/brand/allfantasy-wordmark.png"
+            src="/brand/allfantasy-wordmark-transparent.png"
             alt="AllFantasy wordmark"
             className="nav-wordmark footer-logo h-[26px] w-auto object-contain"
           />

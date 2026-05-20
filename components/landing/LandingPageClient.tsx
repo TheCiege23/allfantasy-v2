@@ -326,12 +326,12 @@ export default function LandingPageClient({
         <div className="mx-auto flex h-[56px] max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2 px-1 py-1 transition-opacity hover:opacity-80" aria-label="AllFantasy home">
             <Image
-              src="/brand/allfantasy-wordmark.png"
+              src="/brand/allfantasy-wordmark-transparent.png"
               alt="AllFantasy wordmark"
-              width={320}
-              height={80}
+              width={1198}
+              height={306}
               priority
-              className="nav-logo-img h-[30px] w-auto object-contain sm:h-[36px]"
+              className="nav-logo-img h-[34px] w-auto object-contain sm:h-[44px]"
             />
           </Link>
 
@@ -424,12 +424,12 @@ export default function LandingPageClient({
               }}
             />
             <Image
-              src="/brand/af-shield.png"
+              src="/brand/af-shield-transparent.png"
               alt="AllFantasy AF shield logo"
-              className="mode-logo-safe hero-crest relative h-[130px] w-auto object-contain sm:h-[170px] lg:h-[210px]"
+              className="hero-shield relative h-[130px] w-auto object-contain sm:h-[170px] lg:h-[210px]"
               priority
-              width={420}
-              height={420}
+              width={584}
+              height={625}
             />
           </div>
         </div>
@@ -681,11 +681,11 @@ export default function LandingPageClient({
           aria-hidden="true"
         />
         <Image
-          src="/brand/af-shield.png"
+          src="/brand/af-shield-transparent.png"
           alt=""
-          width={280}
-          height={280}
-          className="pointer-events-none absolute left-1/2 top-1/2 h-[200px] w-[200px] -translate-x-1/2 -translate-y-1/2 object-contain opacity-[0.04] sm:h-[260px] sm:w-[260px]"
+          width={584}
+          height={625}
+          className="pointer-events-none absolute left-1/2 top-1/2 h-[200px] w-auto -translate-x-1/2 -translate-y-1/2 object-contain opacity-[0.05] sm:h-[260px]"
           aria-hidden="true"
         />
 
@@ -749,10 +749,10 @@ export default function LandingPageClient({
           <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
             <Link href="/" className="flex items-center gap-3 opacity-80 transition-opacity hover:opacity-100" aria-label="AllFantasy home">
               <Image
-                src="/brand/allfantasy-wordmark.png"
+                src="/brand/allfantasy-wordmark-transparent.png"
                 alt="AllFantasy wordmark"
-                width={320}
-                height={80}
+                width={1198}
+                height={306}
                 className="nav-wordmark footer-logo h-[26px] w-auto object-contain"
               />
               <span className="text-sm" style={{ color: 'var(--muted2)' }}>

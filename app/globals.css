@@ -271,60 +271,43 @@ html[data-mode="legacy"] .mode-image-safe {
   filter: hue-rotate(-8deg) saturate(1.08) brightness(1.03);
 }
 
-.mode-logo-safe,
-.hero-crest,
-img[alt="AllFantasy crest"] {
-  mix-blend-mode: screen;
+/* ── Hero shield: transparent PNG — no blend mode needed ── */
+.hero-shield {
+  /* Dark/legacy: cyan + blue glow behind the shield */
   filter:
-    drop-shadow(0 0 28px rgba(6, 182, 212, 0.42))
-    drop-shadow(0 0 70px rgba(59, 130, 246, 0.18))
-    brightness(1.06);
-  opacity: 1;
+    drop-shadow(0 0 28px rgba(6, 182, 212, 0.40))
+    drop-shadow(0 0 64px rgba(59, 130, 246, 0.16));
 }
 
-.mode-wordmark-safe {
-  color: var(--text);
-  text-shadow: 0 1px 1px rgba(2, 6, 23, 0.12);
+html[data-mode="light"] .hero-shield {
+  /* Light mode: soft natural shadow, no glow */
+  filter: drop-shadow(0 4px 24px rgba(0, 0, 0, 0.13));
 }
 
+/* ── Nav & footer wordmark: transparent PNG — natural compositing ── */
 .nav-logo-img,
 .nav-wordmark,
-.footer-logo,
-img[alt="AllFantasy"]:not(.hero-crest) {
-  mix-blend-mode: screen;
-  filter:
-    brightness(1.25)
-    contrast(1.08);
-  transition: filter 0.2s ease;
+.footer-logo {
+  /* Transparent PNG renders cleanly on any background */
+  transition: opacity 0.2s ease;
 }
 
 .nav-logo-img:hover,
 .nav-wordmark:hover,
-.footer-logo:hover,
-img[alt="AllFantasy"]:not(.hero-crest):hover {
-  filter:
-    brightness(1.4)
-    contrast(1.1)
-    drop-shadow(0 0 14px rgba(6, 182, 212, 0.55));
+.footer-logo:hover {
+  opacity: 0.8;
 }
 
 .footer-logo {
   display: block;
 }
 
-html[data-mode="light"] .mode-logo-safe,
-html[data-mode="light"] .nav-logo-img,
-html[data-mode="light"] img[alt="AllFantasy crest"],
-html[data-mode="light"] img[alt="AllFantasy"],
-html[data-mode="light"] img[alt="AllFantasy AF shield logo"],
-html[data-mode="light"] img[alt="AllFantasy wordmark"] {
-  mix-blend-mode: normal;
-  filter: none;
-}
+/* Light mode: wordmark teal/navy colors are naturally visible — no override needed */
 
-html[data-mode="light"] .nav-wordmark {
-  mix-blend-mode: normal;
-  filter: none;
+/* Legacy compat: kept for any old references */
+.mode-wordmark-safe {
+  color: var(--text);
+  text-shadow: 0 1px 1px rgba(2, 6, 23, 0.12);
 }
 
 header {
