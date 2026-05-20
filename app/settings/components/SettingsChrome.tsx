@@ -79,36 +79,62 @@ export function SettingsChrome({
         onClick={() => onTabChange(tab.id)}
         className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${
           mobile ? 'shrink-0 whitespace-nowrap' : ''
-        } ${
+        } ${active ? 'border-l-2 border-cyan-400' : 'border-l-2 border-transparent'}`}
+        style={
           active
-            ? 'border-l-2 border-cyan-400 bg-cyan-500/10 text-white'
-            : 'border-l-2 border-transparent text-white/55 hover:bg-white/[0.04] hover:text-white/85'
-        }`}
+            ? {
+                background: 'color-mix(in srgb, var(--accent-cyan) 10%, transparent)',
+                color: 'var(--text)',
+              }
+            : {
+                color: 'var(--muted)',
+              }
+        }
       >
-        <Icon className="h-4 w-4 shrink-0 text-cyan-400/80" />
+        <Icon
+          className="h-4 w-4 shrink-0"
+          style={{ color: 'var(--accent-cyan-strong)' }}
+        />
         {label}
       </button>
     )
   }
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-[#0d1117] text-white">
-      <header className="flex shrink-0 items-center gap-3 border-b border-white/[0.08] bg-[#0d1117] px-4 py-3">
+    <div
+      className="flex min-h-[100dvh] flex-col"
+      style={{ background: 'var(--bg)', color: 'var(--text)' }}
+    >
+      <header
+        className="flex shrink-0 items-center gap-3 border-b px-4 py-3"
+        style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}
+      >
         <button
           type="button"
           onClick={() => router.push('/dashboard')}
-          className="inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-sm font-medium text-white/90 transition hover:bg-white/[0.08]"
+          className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition hover:opacity-90"
+          style={{
+            borderColor: 'var(--border)',
+            background: 'var(--panel2)',
+            color: 'var(--text)',
+          }}
           data-testid="settings-home"
         >
-          <Home className="h-5 w-5 text-cyan-400/90" strokeWidth={2} />
+          <Home className="h-5 w-5" style={{ color: 'var(--accent-cyan-strong)' }} strokeWidth={2} />
           {t('settings.home')}
         </button>
-        <h1 className="text-lg font-bold tracking-tight text-white">{t('settings.title')}</h1>
+        <h1
+          className="text-lg font-bold tracking-tight"
+          style={{ color: 'var(--text)' }}
+        >
+          {t('settings.title')}
+        </h1>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <nav
-          className="flex shrink-0 gap-0.5 overflow-x-auto border-b border-white/[0.08] px-2 py-2 md:hidden"
+          className="flex shrink-0 gap-0.5 overflow-x-auto border-b px-2 py-2 md:hidden"
+          style={{ borderColor: 'var(--border)' }}
           aria-label={t('settings.aria.sections')}
         >
           {SETTINGS_NAV.map((tab) => (
@@ -117,10 +143,14 @@ export function SettingsChrome({
         </nav>
 
         <aside
-          className="hidden w-60 shrink-0 flex-col border-r border-white/[0.08] bg-[#0a0e1a] p-3 md:flex"
+          className="hidden w-60 shrink-0 flex-col border-r p-3 md:flex"
+          style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}
           aria-label={t('settings.aria.navigation')}
         >
-          <div className="rounded-xl border border-white/[0.06] bg-[#1a1f3a]/50 p-2">
+          <div
+            className="rounded-xl border p-2"
+            style={{ borderColor: 'var(--border)', background: 'var(--panel)' }}
+          >
             {SETTINGS_NAV.map((tab) => (
               <NavButton key={tab.id} tab={tab} />
             ))}
@@ -128,7 +158,10 @@ export function SettingsChrome({
         </aside>
 
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-6 md:px-10">
-          <div className="mx-auto max-w-3xl rounded-2xl border border-white/[0.08] bg-[#1a1f3a] p-5 shadow-xl sm:p-8">
+          <div
+            className="mx-auto max-w-3xl rounded-2xl border p-5 shadow-xl sm:p-8"
+            style={{ borderColor: 'var(--border)', background: 'var(--panel2)' }}
+          >
             {children}
           </div>
         </main>

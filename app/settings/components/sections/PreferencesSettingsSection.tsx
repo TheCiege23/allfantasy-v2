@@ -88,12 +88,12 @@ export function PreferencesSettingsSection({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-white">{t("settings.preferences.title")}</h2>
-        <p className="mt-1 text-sm text-white/55">{t("settings.preferences.subtitle")}</p>
+        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>{t("settings.preferences.title")}</h2>
+        <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>{t("settings.preferences.subtitle")}</p>
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-white/60">{t("settings.preferences.language")}</label>
+        <label className="mb-1 block text-sm font-medium" style={{ color: "var(--muted)" }}>{t("settings.preferences.language")}</label>
         <div
           className="flex gap-2"
           data-testid="settings-language-toggle"
@@ -105,11 +105,20 @@ export function PreferencesSettingsSection({
               key={l}
               type="button"
               onClick={() => setLang(l)}
-              className={`rounded-xl border px-4 py-2 text-sm font-medium ${
+              className="rounded-xl border px-4 py-2 text-sm font-medium transition hover:opacity-90"
+              style={
                 lang === l
-                  ? "border-cyan-400/80 bg-cyan-500/15 text-white"
-                  : "border-white/[0.12] bg-[#1a1f3a] text-white/80 hover:bg-white/[0.06]"
-              }`}
+                  ? {
+                      borderColor: "var(--accent-cyan-strong)",
+                      background: "color-mix(in srgb, var(--accent-cyan) 12%, transparent)",
+                      color: "var(--text)",
+                    }
+                  : {
+                      borderColor: "var(--border)",
+                      background: "var(--panel)",
+                      color: "var(--muted)",
+                    }
+              }
               role="radio"
               aria-checked={lang === l}
             >
@@ -120,11 +129,16 @@ export function PreferencesSettingsSection({
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-white/60">{t("settings.preferences.timezone")}</label>
+        <label className="mb-1 block text-sm font-medium" style={{ color: "var(--muted)" }}>{t("settings.preferences.timezone")}</label>
         <select
           value={timezone}
           onChange={(e) => setTimezone(e.target.value)}
-          className="w-full max-w-md rounded-xl border border-white/[0.12] bg-[#0d1117] px-3 py-2 text-sm text-white outline-none"
+          className="w-full max-w-md rounded-xl border px-3 py-2 text-sm outline-none"
+          style={{
+            borderColor: "var(--border)",
+            background: "var(--panel2)",
+            color: "var(--text)",
+          }}
         >
           <option value="">{t("settings.preferences.timezonePlaceholder")}</option>
           {SIGNUP_TIMEZONES.map((t) => (
@@ -132,7 +146,7 @@ export function PreferencesSettingsSection({
           ))}
         </select>
         {timezone && (
-          <p className="mt-1.5 text-xs text-white/45">
+          <p className="mt-1.5 text-xs" style={{ color: "var(--muted2)" }}>
             {tInterpolate("settings.preferences.localTime", {
               time: formatInTimezone(new Date(), timezone, undefined, lang),
             })}
@@ -141,11 +155,16 @@ export function PreferencesSettingsSection({
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-white/60">{t("settings.preferences.defaultSport")}</label>
+        <label className="mb-1 block text-sm font-medium" style={{ color: "var(--muted)" }}>{t("settings.preferences.defaultSport")}</label>
         <select
           value={defaultSport}
           onChange={(e) => setDefaultSport(normalizeToSupportedSport(e.target.value))}
-          className="w-full max-w-md rounded-xl border border-white/[0.12] bg-[#0d1117] px-3 py-2 text-sm text-white outline-none"
+          className="w-full max-w-md rounded-xl border px-3 py-2 text-sm outline-none"
+          style={{
+            borderColor: "var(--border)",
+            background: "var(--panel2)",
+            color: "var(--text)",
+          }}
         >
           {SUPPORTED_SPORTS.map((s) => (
             <option key={s} value={s}>{s}</option>
@@ -154,25 +173,34 @@ export function PreferencesSettingsSection({
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-white/60">{t("settings.preferences.theme")}</label>
+        <label className="mb-1 block text-sm font-medium" style={{ color: "var(--muted)" }}>{t("settings.preferences.theme")}</label>
         <div className="flex flex-wrap gap-2">
           {themeOptions.map((themeId) => (
             <button
               key={themeId}
               type="button"
               onClick={() => setTheme(themeId)}
-              className={`rounded-xl border px-4 py-2 text-sm font-medium ${
+              className="rounded-xl border px-4 py-2 text-sm font-medium transition hover:opacity-90"
+              style={
                 theme === themeId
-                  ? "border-cyan-400/80 bg-cyan-500/15 text-white"
-                  : "border-white/[0.12] bg-[#1a1f3a] text-white/80 hover:bg-white/[0.06]"
-              }`}
+                  ? {
+                      borderColor: "var(--accent-cyan-strong)",
+                      background: "color-mix(in srgb, var(--accent-cyan) 12%, transparent)",
+                      color: "var(--text)",
+                    }
+                  : {
+                      borderColor: "var(--border)",
+                      background: "var(--panel)",
+                      color: "var(--muted)",
+                    }
+              }
             >
               {t(`theme.${themeId}`)}
             </button>
           ))}
         </div>
         {theme === "system" && (
-          <p className="mt-1.5 text-xs text-white/45">{t("settings.preferences.systemThemeHint")}</p>
+          <p className="mt-1.5 text-xs" style={{ color: "var(--muted2)" }}>{t("settings.preferences.systemThemeHint")}</p>
         )}
       </div>
 
@@ -189,7 +217,12 @@ export function PreferencesSettingsSection({
         <button
           type="button"
           onClick={resetDraft}
-          className="rounded-xl border border-white/[0.12] px-4 py-2 text-sm font-medium text-white/90 hover:bg-white/[0.06]"
+          className="rounded-xl border px-4 py-2 text-sm font-medium transition hover:opacity-90"
+          style={{
+            borderColor: "var(--border)",
+            background: "var(--panel)",
+            color: "var(--muted)",
+          }}
         >
           {t("settings.actions.cancelChanges")}
         </button>

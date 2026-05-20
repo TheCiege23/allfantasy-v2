@@ -34,22 +34,35 @@ export function ThemeModeSelector({ className }: { className?: string }) {
 
   return (
     <div className={className}>
-      <p className="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-white/30">
+      <p
+        className="mb-1.5 text-[10px] font-medium uppercase tracking-widest"
+        style={{ color: "var(--muted2)" }}
+      >
         {t("theme.selectorTitle")}
       </p>
       <div className="flex gap-1">
         {THEME_IDS.map((id) => {
+          const isActive = mounted && mode === id
           const label = t(`theme.${id}`)
           return (
             <button
               key={id}
               type="button"
               onClick={() => handleSelect(id)}
-              className={`flex-1 rounded-lg border px-1 py-1.5 text-[10px] font-semibold transition-colors ${
-                mounted && mode === id
-                  ? "border-cyan-400/70 bg-cyan-500/15 text-cyan-300"
-                  : "border-white/[0.08] bg-white/[0.03] text-white/50 hover:bg-white/[0.07] hover:text-white/80"
-              }`}
+              className="flex-1 rounded-lg border px-1 py-1.5 text-[10px] font-semibold transition-colors"
+              style={
+                isActive
+                  ? {
+                      borderColor: "var(--accent-cyan-strong)",
+                      background: "color-mix(in srgb, var(--accent-cyan) 12%, transparent)",
+                      color: "var(--accent-cyan-strong)",
+                    }
+                  : {
+                      borderColor: "var(--border)",
+                      background: "var(--panel2)",
+                      color: "var(--muted)",
+                    }
+              }
               aria-label={tInterpolate("theme.current", { label })}
               suppressHydrationWarning
             >

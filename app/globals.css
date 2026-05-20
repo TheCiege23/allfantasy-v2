@@ -381,6 +381,7 @@ html[data-mode="light"] .mode-readable [class*="bg-[#0a0a12]"],
 html[data-mode="light"] .mode-readable [class*="bg-[#0a0a18]"],
 html[data-mode="light"] .mode-readable [class*="bg-[#0a0a1a]"],
 html[data-mode="light"] .mode-readable [class*="bg-[#0a0a1f]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0a0e1a]"],
 html[data-mode="light"] .mode-readable [class*="bg-[#0a1220]"],
 html[data-mode="light"] .mode-readable [class*="bg-[#0a1228]"],
 html[data-mode="light"] .mode-readable [class*="bg-[#0a1328]"],
@@ -408,6 +409,7 @@ html[data-mode="light"] .mode-readable [class*="bg-[#101224]"],
 html[data-mode="light"] .mode-readable [class*="bg-[#110b1e]"],
 html[data-mode="light"] .mode-readable [class*="bg-[#111938]"],
 html[data-mode="light"] .mode-readable [class*="bg-[#1a1a2e]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#1a1f3a]"],
 /* gradient from-stops */
 html[data-mode="light"] .mode-readable [class*="from-[#07071a]"],
 html[data-mode="light"] .mode-readable [class*="from-[#0a0a0f]"],
@@ -838,6 +840,26 @@ html:not([data-mode="dark"]):not([data-mode="legacy"]) .text-red-300,
 html[data-mode="light"] .text-red-300 { color: #dc2626; }
 html:not([data-mode="dark"]):not([data-mode="legacy"]) .text-red-400,
 html[data-mode="light"] .text-red-400 { color: #b91c1c; }
+html:not([data-mode="dark"]):not([data-mode="legacy"]) .text-red-300,
+html[data-mode="light"] .text-red-300 { color: #dc2626; }
+html:not([data-mode="dark"]):not([data-mode="legacy"]) .text-red-200,
+html[data-mode="light"] .text-red-200 { color: #b91c1c; }
+html:not([data-mode="dark"]):not([data-mode="legacy"]) .text-emerald-200,
+html[data-mode="light"] .text-emerald-200 { color: #047857; }
+html:not([data-mode="dark"]):not([data-mode="legacy"]) .text-emerald-100,
+html[data-mode="light"] .text-emerald-100 { color: #065f46; }
+html:not([data-mode="dark"]):not([data-mode="legacy"]) .text-green-300,
+html[data-mode="light"] .text-green-300 { color: #15803d; }
+html:not([data-mode="dark"]):not([data-mode="legacy"]) .text-green-400,
+html[data-mode="light"] .text-green-400 { color: #166534; }
+html:not([data-mode="dark"]):not([data-mode="legacy"]) .text-sky-300,
+html[data-mode="light"] .text-sky-300 { color: #0369a1; }
+html:not([data-mode="dark"]):not([data-mode="legacy"]) .text-sky-400,
+html[data-mode="light"] .text-sky-400 { color: #0284c7; }
+html:not([data-mode="dark"]):not([data-mode="legacy"]) .text-violet-300,
+html[data-mode="light"] .text-violet-300 { color: #6d28d9; }
+html:not([data-mode="dark"]):not([data-mode="legacy"]) .text-violet-400,
+html[data-mode="light"] .text-violet-400 { color: #5b21b6; }
 html:not([data-mode="dark"]):not([data-mode="legacy"]) .text-purple-300,
 html[data-mode="light"] .text-purple-300 { color: #7c3aed; }
 html:not([data-mode="dark"]):not([data-mode="legacy"]) .text-purple-400,
@@ -852,8 +874,22 @@ html:not([data-mode="dark"]):not([data-mode="legacy"]) .bg-white\/5,
 html[data-mode="light"] .bg-white\/5 { background: rgba(2,6,23,0.03); }
 html:not([data-mode="dark"]):not([data-mode="legacy"]) .border-white\/20,
 html[data-mode="light"] .border-white\/20 { border-color: rgba(2,6,23,0.12); }
+html:not([data-mode="dark"]):not([data-mode="legacy"]) .border-white\/15,
+html[data-mode="light"] .border-white\/15 { border-color: rgba(2,6,23,0.10); }
 html:not([data-mode="dark"]):not([data-mode="legacy"]) .border-white\/10,
 html[data-mode="light"] .border-white\/10 { border-color: rgba(2,6,23,0.08); }
+/* Inputs / textareas: override dark-only bg and placeholder in light mode */
+html[data-mode="light"] input[class*="bg-white"],
+html[data-mode="light"] textarea[class*="bg-white"],
+html[data-mode="light"] select[class*="bg-white"] {
+  background: var(--panel2) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+html[data-mode="light"] input::placeholder,
+html[data-mode="light"] textarea::placeholder {
+  color: var(--muted2) !important;
+}
 html:not([data-mode="dark"]):not([data-mode="legacy"]) .via-white\/10,
 html[data-mode="light"] .via-white\/10 { --tw-gradient-stops: var(--tw-gradient-from), rgba(2,6,23,0.08), var(--tw-gradient-to); }
 
@@ -1066,6 +1102,110 @@ html[data-mode="light"] .via-white\/10 { --tw-gradient-stops: var(--tw-gradient-
 .draft-live-pause-banner {
   animation: draft-banner-in 200ms ease-out;
 }
+
+/* ─── Theme-aware status/alert tokens ─────────────────────────────────────────
+   Defined in :root (light) and overridden per mode below.
+   Usage: color: var(--alert-error-text); background: var(--alert-error-bg);
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Alert / banner palette — light mode (high-contrast on light backgrounds) */
+  --alert-error-text: #b91c1c;
+  --alert-error-bg: rgba(220, 38, 38, 0.07);
+  --alert-error-border: rgba(220, 38, 38, 0.22);
+  --alert-warn-text: #92400e;
+  --alert-warn-bg: rgba(245, 158, 11, 0.07);
+  --alert-warn-border: rgba(245, 158, 11, 0.25);
+  --alert-success-text: #065f46;
+  --alert-success-bg: rgba(16, 185, 129, 0.07);
+  --alert-success-border: rgba(16, 185, 129, 0.2);
+  --alert-info-text: #0e7490;
+  --alert-info-bg: rgba(8, 145, 178, 0.07);
+  --alert-info-border: rgba(8, 145, 178, 0.22);
+  /* Adaptive link colour */
+  --link-color: #0e7490;
+  --link-color-hover: #0891b2;
+  /* "Soon" badge */
+  --badge-soon-text: #92400e;
+  --badge-soon-bg: rgba(245, 158, 11, 0.1);
+  --badge-soon-border: rgba(245, 158, 11, 0.28);
+}
+
+html[data-mode="dark"] {
+  --alert-error-text: #fca5a5;
+  --alert-error-bg: rgba(239, 68, 68, 0.1);
+  --alert-error-border: rgba(239, 68, 68, 0.22);
+  --alert-warn-text: #fde68a;
+  --alert-warn-bg: rgba(245, 158, 11, 0.1);
+  --alert-warn-border: rgba(245, 158, 11, 0.3);
+  --alert-success-text: #6ee7b7;
+  --alert-success-bg: rgba(16, 185, 129, 0.1);
+  --alert-success-border: rgba(16, 185, 129, 0.2);
+  --alert-info-text: #67e8f9;
+  --alert-info-bg: rgba(6, 182, 212, 0.1);
+  --alert-info-border: rgba(6, 182, 212, 0.22);
+  --link-color: #22d3ee;
+  --link-color-hover: #67e8f9;
+  --badge-soon-text: #fde68a;
+  --badge-soon-bg: rgba(245, 158, 11, 0.15);
+  --badge-soon-border: rgba(245, 158, 11, 0.3);
+}
+
+html[data-mode="legacy"] {
+  --alert-error-text: #fca5a5;
+  --alert-error-bg: rgba(239, 68, 68, 0.1);
+  --alert-error-border: rgba(239, 68, 68, 0.22);
+  --alert-warn-text: #fde68a;
+  --alert-warn-bg: rgba(245, 158, 11, 0.1);
+  --alert-warn-border: rgba(245, 158, 11, 0.3);
+  --alert-success-text: #6ee7b7;
+  --alert-success-bg: rgba(16, 185, 129, 0.1);
+  --alert-success-border: rgba(16, 185, 129, 0.2);
+  --alert-info-text: #5eead4;
+  --alert-info-bg: rgba(6, 182, 212, 0.1);
+  --alert-info-border: rgba(6, 182, 212, 0.22);
+  --link-color: #5eead4;
+  --link-color-hover: #99f6e4;
+  --badge-soon-text: #fde68a;
+  --badge-soon-bg: rgba(245, 158, 11, 0.15);
+  --badge-soon-border: rgba(245, 158, 11, 0.3);
+}
+
+/* ─── Alert / banner utility classes ─────────────────────────────────────── */
+.alert-error {
+  background: var(--alert-error-bg);
+  border-color: var(--alert-error-border);
+  color: var(--alert-error-text);
+}
+.alert-warn {
+  background: var(--alert-warn-bg);
+  border-color: var(--alert-warn-border);
+  color: var(--alert-warn-text);
+}
+.alert-success {
+  background: var(--alert-success-bg);
+  border-color: var(--alert-success-border);
+  color: var(--alert-success-text);
+}
+.alert-info {
+  background: var(--alert-info-bg);
+  border-color: var(--alert-info-border);
+  color: var(--alert-info-text);
+}
+
+/* ─── Adaptive link colour ────────────────────────────────────────────────── */
+.link-themed {
+  color: var(--link-color);
+}
+.link-themed:hover {
+  color: var(--link-color-hover);
+}
+
+/* ─── Settings / SettingsChrome dark background fallback ─────────────────── */
+/* bg-[#0a0e1a] and bg-[#1a1f3a] are used by SettingsChrome.
+   In light mode, reuse the bg-override rule above; these aliases ensure
+   arbitrary-fraction variants (/50 etc.) are also caught. */
+html[data-mode="light"] [class*="bg-[#0a0e1a]"] { background-color: var(--bg) !important; }
+html[data-mode="light"] [class*="bg-[#1a1f3a]"] { background-color: var(--panel2) !important; background-image: none !important; }
 
 .draft-live-focus-ring {
   scroll-margin-top: 64px;
