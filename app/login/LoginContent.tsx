@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import LanguageToggle from "@/components/i18n/LanguageToggle"
 import { signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
 import { validateSignInInput } from "@/lib/auth/SignInFormController"
 import { resolveLoginErrorMessage } from "@/lib/auth/AuthErrorMessageResolver"
@@ -296,31 +297,26 @@ export default function LoginContent() {
           background: "color-mix(in srgb, var(--bg) 92%, transparent)",
         }}
       >
-        <Link href="/" className="flex items-center gap-2.5 no-underline">
+        <Link href="/" className="flex items-center gap-2.5 no-underline" aria-label="AllFantasy home">
           <img
-            src="https://www.allfantasy.ai/af-crest.png"
+            src="/brand/allfantasy-wordmark-transparent.png"
             alt="AllFantasy"
-            width={28}
-            height={28}
-            className="h-7 w-7 object-contain"
+            className="nav-wordmark h-[34px] w-auto object-contain"
           />
-          <span
-            className="bg-clip-text font-['Bebas_Neue'] text-[20px] tracking-[0.06em] text-transparent"
-            style={{ backgroundImage: 'linear-gradient(90deg, var(--accent-cyan-strong), #3b82f6)' }}
+        </Link>
+        <div className="flex items-center gap-3">
+          <LanguageToggle />
+          <Link
+            href={signupUrlWithIntent(callbackUrl)}
+            className="rounded-[7px] border px-4 py-1.5 text-[13px] font-medium transition hover:opacity-90"
+            style={{
+              borderColor: "color-mix(in srgb, var(--border) 100%, transparent)",
+              color: "var(--muted)",
+            }}
           >
-            AllFantasy
-          </span>
-        </Link>
-        <Link
-          href={signupUrlWithIntent(callbackUrl)}
-          className="rounded-[7px] border px-4 py-1.5 text-[13px] font-medium transition hover:opacity-90"
-          style={{
-            borderColor: "color-mix(in srgb, var(--border) 100%, transparent)",
-            color: "var(--muted)",
-          }}
-        >
-          Create Account
-        </Link>
+            {t("login.createAccount")}
+          </Link>
+        </div>
       </nav>
 
       <main className="relative z-10 flex min-h-[calc(100vh-56px)] items-center justify-center px-4 py-10 sm:px-4 sm:py-16">
@@ -329,18 +325,18 @@ export default function LoginContent() {
             <div className="relative mb-5 inline-flex">
               <div className="absolute left-1/2 top-1/2 h-[110px] w-[110px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(6,182,212,0.22)_0%,rgba(59,130,246,0.12)_40%,transparent_70%)] blur-[5px]" />
               <img
-                src="https://www.allfantasy.ai/branding/allfantasy-crest-chatgpt.png"
+                src="/brand/af-shield-transparent.png"
                 alt="AllFantasy crest"
-                width={60}
-                height={60}
-                className="relative h-[60px] w-[60px] object-contain drop-shadow-[0_0_16px_rgba(6,182,212,0.42)]"
+                width={72}
+                height={72}
+                className="relative h-[72px] w-[72px] object-contain drop-shadow-[0_0_16px_rgba(6,182,212,0.42)]"
               />
             </div>
             <p className="text-[20px] font-semibold" style={{ color: "var(--text)" }}>
-              Welcome back
+              {t("login.title")}
             </p>
             <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-              Sign in to access the Sports App, Brackets, and AI Tools.
+              {t("login.heroSubtitle")}
             </p>
             <p className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
               {t("login.afterSignInSubtitle")}
@@ -398,7 +394,7 @@ export default function LoginContent() {
                     className="text-[13px] font-semibold tracking-[0.02em]"
                     style={{ color: "var(--muted)" }}
                   >
-                    Email, username, or phone
+                    {t("login.identifier.label")}
                   </label>
                 </div>
                 <input
@@ -411,7 +407,7 @@ export default function LoginContent() {
                   autoCapitalize="none"
                   spellCheck={false}
                   disabled={loading}
-                  placeholder="you@example.com, username, or +1 555 123 4567"
+                  placeholder={t("login.identifier.placeholder")}
                   className="w-full rounded-[10px] border px-3.5 py-3 text-[15px] outline-none transition placeholder:[color:var(--muted2)] focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10"
                   style={inputSurfaceStyle}
                 />
@@ -436,7 +432,7 @@ export default function LoginContent() {
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     disabled={loading}
-                    placeholder="Your password"
+                    placeholder={t("login.password.placeholder")}
                     className="w-full rounded-[10px] border px-3.5 py-3 pr-11 text-[15px] outline-none transition placeholder:[color:var(--muted2)] focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10"
                     style={inputSurfaceStyle}
                   />
@@ -452,7 +448,8 @@ export default function LoginContent() {
                 <div className="mb-2 mt-1 flex justify-end">
                   <Link
                     href={`/forgot-password?method=email&returnTo=${encodeURIComponent(callbackUrl)}`}
-                    className="text-sm font-medium text-cyan-400 transition hover:opacity-75"
+                    className="text-sm font-medium transition hover:opacity-75"
+                    style={{ color: "var(--accent-cyan-strong)" }}
                   >
                     {t("login.forgotPassword")}
                   </Link>
@@ -481,7 +478,7 @@ export default function LoginContent() {
                   </>
                 ) : (
                   <>
-                    <span>Sign In</span>
+                    <span>{t("login.signIn")}</span>
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}
@@ -502,7 +499,7 @@ export default function LoginContent() {
               >
                 Enter
               </span>
-              <span style={{ color: "var(--muted)" }}>to sign in</span>
+              <span style={{ color: "var(--muted)" }}>{t("login.toSignIn")}</span>
             </div>
 
             <div
@@ -513,7 +510,7 @@ export default function LoginContent() {
                 className="h-px flex-1"
                 style={{ background: "color-mix(in srgb, var(--border) 80%, transparent)" }}
               />
-              <span>or continue with</span>
+              <span>{t("login.orContinueWith")}</span>
               <div
                 className="h-px flex-1"
                 style={{ background: "color-mix(in srgb, var(--border) 80%, transparent)" }}
@@ -538,7 +535,7 @@ export default function LoginContent() {
                   <path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05" />
                   <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335" />
                 </svg>
-                <span>{socialLoadingProvider === "google" ? "Opening..." : "Continue with Google"}</span>
+                <span>{socialLoadingProvider === "google" ? t("login.opening") : t("login.continueWithGoogle")}</span>
               </button>
               <button
                 type="button"
@@ -555,7 +552,7 @@ export default function LoginContent() {
                   <circle cx="12" cy="12" r="12" fill="#1DB954" />
                   <path d="M16.8 16.64a.75.75 0 0 1-1.03.25c-2.8-1.71-6.32-2.1-10.45-1.13a.75.75 0 1 1-.34-1.46c4.52-1.05 8.43-.62 11.57 1.3.36.22.47.68.25 1.04Zm1.48-3.3a.95.95 0 0 1-1.3.31c-3.2-1.97-8.07-2.55-11.84-1.36a.95.95 0 0 1-.58-1.81c4.3-1.38 9.66-.72 13.4 1.57.45.28.6.86.32 1.3Zm.12-3.43C14.57 7.63 8.82 7.4 5.34 8.48a1.15 1.15 0 1 1-.68-2.2c4-1.22 10.43-.98 14.93 1.7a1.15 1.15 0 0 1-1.18 1.93Z" fill="#fff" />
                 </svg>
-                <span>{socialLoadingProvider === "spotify" ? "Opening..." : "Continue with Spotify"}</span>
+                <span>{socialLoadingProvider === "spotify" ? t("login.opening") : t("login.continueWithSpotify")}</span>
               </button>
             </div>
 
@@ -686,13 +683,13 @@ export default function LoginContent() {
           </div>
 
           <div className="mt-6 text-center text-sm" style={{ color: "var(--muted)" }}>
-            New to AllFantasy?{" "}
+            {t("login.newToAllFantasy")}{" "}
             <Link
               href={signupUrlWithIntent(callbackUrl)}
               className="font-semibold transition hover:opacity-80"
               style={{ color: "var(--accent-cyan-strong)" }}
             >
-              Create your free account
+              {t("login.createFreeAccount")}
             </Link>
           </div>
         </div>
