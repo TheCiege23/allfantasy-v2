@@ -1235,9 +1235,55 @@ describe("WorldCupBracketShell fixture readiness", () => {
 
     await waitFor(() => expect(clientApiMocks.listEntries).toHaveBeenCalled())
     expect(screen.queryByRole("button", { name: /Admin\/Test/i })).not.toBeInTheDocument()
-    expect(screen.queryByText(/Simulation \/ Test Mode/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/World Cup Simulation Panel/i)).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Commissioner/i })).not.toBeInTheDocument()
     expect(screen.queryByTestId("world-cup-readiness-panel")).not.toBeInTheDocument()
+  })
+
+  it("renders owner simulation controls with dry run defaults and checklist results", async () => {
+    clientApiMocks.adminSimulateRound.mockResolvedValueOnce({
+      ok: true,
+      result: {
+        challengeId: "c1",
+        round: "quarterfinal",
+        dryRun: true,
+        strategy: "higher_seed",
+        simulatedMatches: 2,
+        skippedMatches: 1,
+        skippedMatchIds: ["m29"],
+      },
+    })
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(
+      <WorldCupBracketShell
+        initialView={makeShellView({
+          matches: makeShellSeededMatches(),
+          challenge: { ...makeShellView().challenge, simulationEnabled: true },
+        }) as any}
+        defaultTab="picks"
+      />
+    )
+
+    expect(await screen.findByText("World Cup Simulation Panel")).toBeInTheDocument()
+    const dryRun = screen.getAllByRole("checkbox", { name: /^Dry run$/i })[0]
+    expect(dryRun).toBeChecked()
+    expect(screen.queryByTestId("world-cup-simulation-live-warning")).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText("Simulation strategy"), { target: { value: "higher_seed" } })
+    fireEvent.change(screen.getByLabelText("Simulation round"), { target: { value: "quarterfinal" } })
+    fireEvent.click(screen.getByRole("button", { name: /^Simulate Round$/i }))
+
+    await waitFor(() => {
+      expect(clientApiMocks.adminSimulateRound).toHaveBeenCalledWith("c1", {
+        round: "quarterfinal",
+        strategy: "higher_seed",
+        dryRun: true,
+      })
+    })
+    expect(screen.getByRole("button", { name: /^Simulate Round$/i })).toBeInTheDocument()
+    expect(screen.getByText(/"simulatedMatches": 2/i)).toBeInTheDocument()
+    expect(screen.getByText(/Did request return 200\?/i)).toBeInTheDocument()
+    expect(screen.getByText(/Did any matches get skipped\?/i)).toBeInTheDocument()
   })
 
   it("keeps free World Cup play visible while showing locked premium copy", async () => {
@@ -2139,7 +2185,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     await waitFor(() => expect(clientApiMocks.listEntries).toHaveBeenCalled())
     expect(screen.getAllByRole("button", { name: /Admin\/Test/i }).length).toBeGreaterThan(0)
     expect(screen.getAllByRole("button", { name: /Commissioner/i }).length).toBeGreaterThan(0)
-    expect(screen.getByText(/Simulation \/ Test Mode/i)).toBeInTheDocument()
+    expect(screen.getByText(/World Cup Simulation Panel/i)).toBeInTheDocument()
   })
 
   it("shows World Cup production readiness details to admins without exposing secrets", async () => {
