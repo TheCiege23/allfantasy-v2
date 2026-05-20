@@ -15,7 +15,7 @@ export const SUPPORTED_LANGUAGES: LanguageCode[] = ['en', 'es', 'fr', 'zh', 'vi'
 
 export const LANGUAGE_DISPLAY_NAMES: Record<LanguageCode, string> = {
   en: 'English',
-  es: 'Spanish',
+  es: 'Español',
   fr: 'Français',
   zh: '中文',
   vi: 'Tiếng Việt',

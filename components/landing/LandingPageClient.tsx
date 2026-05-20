@@ -21,6 +21,9 @@ const LANDING_COPY = {
       dashboard: 'Dashboard',
       admin: 'Admin',
       forCommissioners: '★ For Commissioners',
+      ariaHome: 'AllFantasy home',
+      ariaSports: 'Supported sports',
+      ariaFooterNav: 'Footer navigation',
     },
     badge: '✦ Fantasy Sports Only · No Gambling · Free for Players',
     hero: {
@@ -142,6 +145,9 @@ const LANDING_COPY = {
       dashboard: 'Panel',
       admin: 'Admin',
       forCommissioners: '★ Para comisionados',
+      ariaHome: 'Inicio de AllFantasy',
+      ariaSports: 'Deportes disponibles',
+      ariaFooterNav: 'Navegación del pie de página',
     },
     badge: '✦ Solo Fantasy Deportivo · Sin Apuestas · Gratis para jugadores',
     hero: {
@@ -324,7 +330,7 @@ export default function LandingPageClient({
         }}
       >
         <div className="mx-auto flex h-[56px] max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2 px-1 py-1 transition-opacity hover:opacity-80" aria-label="AllFantasy home">
+          <Link href="/" className="flex items-center gap-2 px-1 py-1 transition-opacity hover:opacity-80" aria-label={copy.nav.ariaHome}>
             <Image
               src="/brand/allfantasy-wordmark-transparent.png"
               alt="AllFantasy wordmark"
@@ -502,7 +508,7 @@ export default function LandingPageClient({
         </div>
 
         {/* sports chips */}
-        <div className="relative z-10 flex flex-wrap items-center justify-center gap-2 px-2" aria-label="Supported sports">
+        <div className="relative z-10 flex flex-wrap items-center justify-center gap-2 px-2" aria-label={copy.nav.ariaSports}>
           {copy.sports.map((sport) => (
             <span
               key={sport}
@@ -747,7 +753,7 @@ export default function LandingPageClient({
       <footer className="border-t px-4 py-6 sm:px-6" style={{ borderColor: 'var(--border)' }}>
         <div className="mx-auto max-w-6xl">
           <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-            <Link href="/" className="flex items-center gap-3 opacity-80 transition-opacity hover:opacity-100" aria-label="AllFantasy home">
+            <Link href="/" className="flex items-center gap-3 opacity-80 transition-opacity hover:opacity-100" aria-label={copy.nav.ariaHome}>
               <Image
                 src="/brand/allfantasy-wordmark-transparent.png"
                 alt="AllFantasy wordmark"
@@ -759,13 +765,17 @@ export default function LandingPageClient({
                 © {new Date().getFullYear()} AllFantasy.ai
               </span>
             </Link>
-            <nav className="flex flex-wrap items-center gap-x-5 gap-y-2" aria-label="Footer navigation">
+            <nav className="flex flex-wrap items-center gap-x-5 gap-y-2" aria-label={copy.nav.ariaFooterNav}>
               <Link href="/privacy" className="text-sm transition-colors [color:var(--muted)] hover:[color:var(--text)]">{copy.footer.privacy}</Link>
               <Link href="/terms" className="text-sm transition-colors [color:var(--muted)] hover:[color:var(--text)]">{copy.footer.terms}</Link>
               <Link href="/data-deletion" className="text-sm transition-colors [color:var(--muted)] hover:[color:var(--text)]">{copy.footer.dataDeletion}</Link>
               <Link href={loginUrlWithIntent('/dashboard')} className="text-sm transition-colors [color:var(--muted)] hover:[color:var(--text)]">{copy.footer.signIn}</Link>
               <Link href="/admin" className="text-sm transition-colors [color:var(--muted)] hover:[color:var(--text)]">{copy.footer.admin}</Link>
             </nav>
+          </div>
+          {/* Language toggle — visible on all screen sizes (nav toggle is desktop-only) */}
+          <div className="mt-4 flex md:hidden">
+            <LanguageToggle />
           </div>
           {/* geo note */}
           <p className="mt-4 max-w-3xl text-[11px] leading-5" style={{ color: 'var(--muted2)' }}>
