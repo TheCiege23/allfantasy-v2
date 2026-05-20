@@ -315,7 +315,9 @@ img[alt="AllFantasy"]:not(.hero-crest):hover {
 html[data-mode="light"] .mode-logo-safe,
 html[data-mode="light"] .nav-logo-img,
 html[data-mode="light"] img[alt="AllFantasy crest"],
-html[data-mode="light"] img[alt="AllFantasy"] {
+html[data-mode="light"] img[alt="AllFantasy"],
+html[data-mode="light"] img[alt="AllFantasy AF shield logo"],
+html[data-mode="light"] img[alt="AllFantasy wordmark"] {
   mix-blend-mode: normal;
   filter: none;
 }

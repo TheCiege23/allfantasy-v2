@@ -19,9 +19,9 @@ export default function SeoLandingFooter() {
           aria-label="AllFantasy home"
         >
           <img
-            src="/af-logo-text.png"
-            alt="AllFantasy"
-            className="nav-wordmark footer-logo h-[28px] w-auto object-contain"
+            src="/brand/allfantasy-wordmark.png"
+            alt="AllFantasy wordmark"
+            className="nav-wordmark footer-logo h-[26px] w-auto object-contain"
           />
           <span>© {new Date().getFullYear()} AllFantasy.ai. All rights reserved.</span>
         </Link>
