@@ -74,6 +74,28 @@ type WorldCupPickForView = Pick<
   match?: WorldCupBracketMatch | null
 }
 
+const WORLD_CUP_PICK_VIEW_SELECT = {
+  id: true,
+  challengeId: true,
+  participantId: true,
+  entryId: true,
+  matchId: true,
+  round: true,
+  selectedTeamId: true,
+  selectedSlotKey: true,
+  selectedTeamName: true,
+  pointsAwarded: true,
+  isCorrect: true,
+  lockedAt: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.WorldCupBracketPickSelect
+
+const WORLD_CUP_PICK_VIEW_WITH_MATCH_SELECT = {
+  ...WORLD_CUP_PICK_VIEW_SELECT,
+  match: true,
+} satisfies Prisma.WorldCupBracketPickSelect
+
 function toWorldCupMatchView(match: WorldCupBracketMatch): WorldCupMatchView {
   return {
     id: match.id,
@@ -672,23 +694,7 @@ export async function getWorldCupChallengeView(input: { challengeId: string; use
                 { selectedSlotKey: { not: null } },
               ],
             },
-            select: {
-              id: true,
-              challengeId: true,
-              participantId: true,
-              entryId: true,
-              matchId: true,
-              round: true,
-              selectedTeamId: true,
-              selectedSlotKey: true,
-              selectedTeamName: true,
-              pointsAwarded: true,
-              isCorrect: true,
-              lockedAt: true,
-              createdAt: true,
-              updatedAt: true,
-              match: true,
-            },
+            select: WORLD_CUP_PICK_VIEW_WITH_MATCH_SELECT,
           },
           participant: {
             include: {
@@ -726,22 +732,7 @@ export async function getWorldCupChallengeView(input: { challengeId: string; use
             { selectedSlotKey: { not: null } },
           ],
         },
-        select: {
-          id: true,
-          challengeId: true,
-          participantId: true,
-          entryId: true,
-          matchId: true,
-          round: true,
-          selectedTeamId: true,
-          selectedSlotKey: true,
-          selectedTeamName: true,
-          pointsAwarded: true,
-          isCorrect: true,
-          lockedAt: true,
-          createdAt: true,
-          updatedAt: true,
-        },
+        select: WORLD_CUP_PICK_VIEW_SELECT,
         orderBy: { createdAt: "asc" },
       })
     : []
@@ -1142,6 +1133,12 @@ export async function listWorldCupBracketEntries(input: { challengeId: string; u
                 { selectedSlotKey: { not: null } },
               ],
             },
+            select: {
+              matchId: true,
+              round: true,
+              selectedTeamId: true,
+              selectedSlotKey: true,
+            },
           },
         },
         orderBy: { createdAt: "asc" },
@@ -1241,7 +1238,7 @@ export async function getWorldCupBracketEntryDetail(input: { entryId: string; us
             { selectedSlotKey: { not: null } },
           ],
         },
-        include: { match: true },
+        select: WORLD_CUP_PICK_VIEW_WITH_MATCH_SELECT,
         orderBy: { createdAt: "asc" },
       },
       participant: true,
