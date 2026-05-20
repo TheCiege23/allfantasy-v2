@@ -53,6 +53,27 @@ export const WORLD_CUP_BRACKET_LOCKED_MESSAGE = "Bracket is locked."
 
 const iso = (v: Date | string | null | undefined) => (v ? (v instanceof Date ? v.toISOString() : new Date(v).toISOString()) : null)
 
+type WorldCupPickForView = Pick<
+  WorldCupBracketPick,
+  | "id"
+  | "challengeId"
+  | "participantId"
+  | "entryId"
+  | "matchId"
+  | "round"
+  | "selectedTeamId"
+  | "selectedSlotKey"
+  | "selectedTeamName"
+  | "pointsAwarded"
+  | "isCorrect"
+  | "lockedAt"
+  | "createdAt"
+  | "updatedAt"
+> & {
+  confidencePoints?: number | null
+  match?: WorldCupBracketMatch | null
+}
+
 function toWorldCupMatchView(match: WorldCupBracketMatch): WorldCupMatchView {
   return {
     id: match.id,
@@ -88,7 +109,7 @@ function toWorldCupMatchView(match: WorldCupBracketMatch): WorldCupMatchView {
   }
 }
 
-function toWorldCupPickView(pick: WorldCupBracketPick & { match?: WorldCupBracketMatch | null }): WorldCupPickView {
+function toWorldCupPickView(pick: WorldCupPickForView): WorldCupPickView {
   return {
     id: pick.id,
     matchId: pick.matchId,
@@ -110,7 +131,7 @@ function toWorldCupPickView(pick: WorldCupBracketPick & { match?: WorldCupBracke
  */
 export function resolveWorldCupMatchViewWithEntryProjections(input: {
   challengeMatches: WorldCupBracketMatch[]
-  entryPicks: (WorldCupBracketPick & { match?: WorldCupBracketMatch | null })[]
+  entryPicks: WorldCupPickForView[]
   matchId: string
 }): WorldCupMatchView | null {
   const matchViews = input.challengeMatches.map(toWorldCupMatchView)
@@ -467,14 +488,14 @@ function serialize(input: {
     participants: WorldCupBracketParticipant[]
     entries: Array<
       WorldCupBracketEntry & {
-        picks?: WorldCupBracketPick[]
+        picks?: WorldCupPickForView[]
         participant?: { displayName: string; user?: { username: string; avatarUrl: string | null; displayName: string | null } | null }
       }
     >
   }
   participant: WorldCupBracketParticipant | null
   activeEntry: WorldCupBracketEntry | null
-  picks: WorldCupBracketPick[]
+  picks: WorldCupPickForView[]
   leaderboard: ReturnType<typeof buildWorldCupLeaderboardRows>
   userId?: string | null
   isAdmin?: boolean
@@ -614,7 +635,7 @@ function serialize(input: {
     picks: input.picks.map((p) => ({
       id: p.id,
       matchId: p.matchId,
-      matchNumber: (p as WorldCupBracketPick & { match?: WorldCupBracketMatch | null }).match?.matchNumber ?? matchById.get(p.matchId)?.matchNumber ?? null,
+      matchNumber: p.match?.matchNumber ?? matchById.get(p.matchId)?.matchNumber ?? null,
       round: p.round as WorldCupChallengeView["picks"][number]["round"],
       selectedTeamId: p.selectedTeamId,
       selectedSlotKey: p.selectedSlotKey,
@@ -651,7 +672,23 @@ export async function getWorldCupChallengeView(input: { challengeId: string; use
                 { selectedSlotKey: { not: null } },
               ],
             },
-            include: { match: true },
+            select: {
+              id: true,
+              challengeId: true,
+              participantId: true,
+              entryId: true,
+              matchId: true,
+              round: true,
+              selectedTeamId: true,
+              selectedSlotKey: true,
+              selectedTeamName: true,
+              pointsAwarded: true,
+              isCorrect: true,
+              lockedAt: true,
+              createdAt: true,
+              updatedAt: true,
+              match: true,
+            },
           },
           participant: {
             include: {
@@ -679,7 +716,8 @@ export async function getWorldCupChallengeView(input: { challengeId: string; use
   const picks =
     activeEntry ?
       await prisma.worldCupBracketPick.findMany({
-        // Keep page/API resilient if legacy rows contain empty team names.
+        // Select only render-critical columns so production pages do not crash
+        // while nullable confidence_points migrations are still being applied.
         where: {
           entryId: activeEntry.id,
           selectedTeamName: { not: "" },
@@ -687,6 +725,22 @@ export async function getWorldCupChallengeView(input: { challengeId: string; use
             { selectedTeamId: { not: null } },
             { selectedSlotKey: { not: null } },
           ],
+        },
+        select: {
+          id: true,
+          challengeId: true,
+          participantId: true,
+          entryId: true,
+          matchId: true,
+          round: true,
+          selectedTeamId: true,
+          selectedSlotKey: true,
+          selectedTeamName: true,
+          pointsAwarded: true,
+          isCorrect: true,
+          lockedAt: true,
+          createdAt: true,
+          updatedAt: true,
         },
         orderBy: { createdAt: "asc" },
       })
