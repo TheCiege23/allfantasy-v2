@@ -305,7 +305,8 @@ export default function LoginContent() {
             className="h-7 w-7 object-contain"
           />
           <span
-            className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text font-['Bebas_Neue'] text-[20px] tracking-[0.06em] text-transparent"
+            className="bg-clip-text font-['Bebas_Neue'] text-[20px] tracking-[0.06em] text-transparent"
+            style={{ backgroundImage: 'linear-gradient(90deg, var(--accent-cyan-strong), #3b82f6)' }}
           >
             AllFantasy
           </span>
@@ -580,6 +581,7 @@ export default function LoginContent() {
                 {
                   provider: "facebook" as const,
                   label: "Facebook",
+                  soonOnly: true, // Temporarily disabled — Facebook login is under review; re-enable when resolved
                   icon: (
                     <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
                       <path fill="#1877F2" d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073c0 6.03 4.388 11.025 10.125 11.927V15.563H7.078v-3.49h3.047V9.43c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.235 2.686.235v2.97h-1.513c-1.491 0-1.956.93-1.956 1.883v2.252h3.328l-.532 3.49h-2.796v8.437C19.612 23.098 24 18.103 24 12.073z" />
@@ -641,7 +643,9 @@ export default function LoginContent() {
                     }}
                     title={soonOnly ? `${item.label} — coming soon` : `Continue with ${item.label}`}
                   >
-                    <span className="absolute right-1 top-1 rounded border border-amber-400/30 bg-amber-500/15 px-1 text-[8px] font-bold uppercase tracking-[0.04em] text-amber-300">
+                    <span
+                      className="badge-soon absolute right-1 top-1 rounded border px-1 text-[8px] font-bold uppercase tracking-[0.04em]"
+                    >
                       Soon
                     </span>
                     {item.icon}

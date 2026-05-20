@@ -28,7 +28,9 @@ function isProviderConfigured(providerId: SignInProviderId): boolean {
     case "apple":
       return !!(process.env.APPLE_CLIENT_ID && process.env.APPLE_CLIENT_SECRET)
     case "facebook":
-      return !!(process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET)
+      // Temporarily disabled — Facebook login is under review. Env vars are preserved.
+      // Re-enable by restoring: return !!(process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET)
+      return false
     case "instagram":
     case "x":
     case "tiktok":
