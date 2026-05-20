@@ -103,6 +103,66 @@ function worldCupConfidencePointsColumnEnabled() {
   )
 }
 
+function isWorldCupConfidencePointsMissingColumnError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "")
+  return (
+    message.includes("world_cup_bracket_picks.confidence_points") ||
+    message.includes("`world_cup_bracket_picks`.`confidence_points`") ||
+    message.includes("confidence_points")
+  )
+}
+
+/** @internal */
+export function buildWorldCupPickUpsertArgs(input: {
+  challengeId: string
+  participantId: string
+  entryId: string
+  matchId: string
+  round: string
+  selectedTeamId: string | null
+  selectedSlotKey: string | null
+  selectedTeamName: string
+  confidencePoints: number | null
+  confidenceColumnEnabled: boolean
+}): Prisma.WorldCupBracketPickUpsertArgs {
+  const confidenceWriteData = input.confidenceColumnEnabled ? { confidencePoints: input.confidencePoints } : {}
+  return {
+    where: { entryId_matchId: { entryId: input.entryId, matchId: input.matchId } },
+    create: {
+      challengeId: input.challengeId,
+      participantId: input.participantId,
+      entryId: input.entryId,
+      matchId: input.matchId,
+      round: input.round,
+      selectedTeamId: input.selectedTeamId,
+      selectedSlotKey: input.selectedSlotKey,
+      selectedTeamName: input.selectedTeamName,
+      ...confidenceWriteData,
+    },
+    update: {
+      selectedTeamId: input.selectedTeamId,
+      selectedSlotKey: input.selectedSlotKey,
+      selectedTeamName: input.selectedTeamName,
+      ...confidenceWriteData,
+      round: input.round,
+      isCorrect: null,
+      pointsAwarded: 0,
+    },
+  }
+}
+
+function withoutWorldCupPickConfidencePoints(
+  args: Prisma.WorldCupBracketPickUpsertArgs
+): Prisma.WorldCupBracketPickUpsertArgs {
+  const { confidencePoints: _createConfidencePoints, ...create } = args.create as Record<string, unknown>
+  const { confidencePoints: _updateConfidencePoints, ...update } = args.update as Record<string, unknown>
+  return {
+    ...args,
+    create: create as Prisma.WorldCupBracketPickUpsertArgs["create"],
+    update: update as Prisma.WorldCupBracketPickUpsertArgs["update"],
+  }
+}
+
 function toWorldCupMatchView(match: WorldCupBracketMatch): WorldCupMatchView {
   return {
     id: match.id,
@@ -1022,30 +1082,24 @@ async function savePicksForEntryTx(
     ) {
       meaningfulPickChange = true
     }
-    const confidenceWriteData = confidenceColumnEnabled ? { confidencePoints } : {}
-    await tx.worldCupBracketPick.upsert({
-      where: { entryId_matchId: { entryId: entry.id, matchId: m.id } },
-      create: {
-        challengeId: c.id,
-        participantId: entry.participantId,
-        entryId: entry.id,
-        matchId: m.id,
-        round: m.round,
-        selectedTeamId,
-        selectedSlotKey,
-        selectedTeamName,
-        ...confidenceWriteData,
-      },
-      update: {
-        selectedTeamId,
-        selectedSlotKey,
-        selectedTeamName,
-        ...confidenceWriteData,
-        round: m.round,
-        isCorrect: null,
-        pointsAwarded: 0,
-      },
+    const upsertArgs = buildWorldCupPickUpsertArgs({
+      challengeId: c.id,
+      participantId: entry.participantId,
+      entryId: entry.id,
+      matchId: m.id,
+      round: m.round,
+      selectedTeamId,
+      selectedSlotKey,
+      selectedTeamName,
+      confidencePoints,
+      confidenceColumnEnabled,
     })
+    try {
+      await tx.worldCupBracketPick.upsert(upsertArgs)
+    } catch (error) {
+      if (!isWorldCupConfidencePointsMissingColumnError(error)) throw error
+      await tx.worldCupBracketPick.upsert(withoutWorldCupPickConfidencePoints(upsertArgs))
+    }
     if (process.env.NODE_ENV === "development" && (m.matchNumber === 29 || m.matchNumber === 30 || m.matchNumber === 31)) {
       const saved = await tx.worldCupBracketPick.findUnique({
         where: { entryId_matchId: { entryId: entry.id, matchId: m.id } },

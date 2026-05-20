@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+
+vi.mock("server-only", () => ({}))
 
 describe("World Cup finalize meaningful edit guards", () => {
   it("does not auto-submit completed knockout saves", () => {
@@ -44,9 +46,48 @@ describe("World Cup finalize meaningful edit guards", () => {
     expect(source).toContain("function worldCupConfidencePointsColumnEnabled()")
     expect(source).toContain("const confidenceColumnEnabled = worldCupConfidencePointsColumnEnabled()")
     expect(source).toContain("...(confidenceColumnEnabled ? { confidencePoints: true } : {})")
-    expect(source).toContain("const confidenceWriteData = confidenceColumnEnabled ? { confidencePoints } : {}")
+    expect(source).toContain("const confidenceWriteData = input.confidenceColumnEnabled ? { confidencePoints: input.confidencePoints } : {}")
+    expect(source).toContain("isWorldCupConfidencePointsMissingColumnError(error)")
     expect(source).toContain("select: WORLD_CUP_PICK_VIEW_WITH_MATCH_SELECT")
     expect(source).toContain("select: WORLD_CUP_PICK_VIEW_SELECT")
     expect(source).not.toContain("include: { picks: { include: { match: true }, orderBy: { createdAt: \"asc\" } } }")
+  })
+
+  it("omits confidencePoints from pick upsert writes when the database column flag is false", async () => {
+    const { buildWorldCupPickUpsertArgs } = await import("@/lib/world-cup/worldCupBracketService")
+    const args = buildWorldCupPickUpsertArgs({
+      challengeId: "challenge-1",
+      participantId: "participant-1",
+      entryId: "entry-1",
+      matchId: "match-1",
+      round: "round_of_32",
+      selectedTeamId: "team-1",
+      selectedSlotKey: "A1",
+      selectedTeamName: "Argentina",
+      confidencePoints: 12,
+      confidenceColumnEnabled: false,
+    })
+
+    expect(args.create).not.toHaveProperty("confidencePoints")
+    expect(args.update).not.toHaveProperty("confidencePoints")
+  })
+
+  it("includes confidencePoints in pick upsert writes when the database column flag is true", async () => {
+    const { buildWorldCupPickUpsertArgs } = await import("@/lib/world-cup/worldCupBracketService")
+    const args = buildWorldCupPickUpsertArgs({
+      challengeId: "challenge-1",
+      participantId: "participant-1",
+      entryId: "entry-1",
+      matchId: "match-1",
+      round: "round_of_32",
+      selectedTeamId: "team-1",
+      selectedSlotKey: "A1",
+      selectedTeamName: "Argentina",
+      confidencePoints: 12,
+      confidenceColumnEnabled: true,
+    })
+
+    expect(args.create).toHaveProperty("confidencePoints", 12)
+    expect(args.update).toHaveProperty("confidencePoints", 12)
   })
 })
