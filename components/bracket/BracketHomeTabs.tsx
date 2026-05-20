@@ -2,6 +2,11 @@ import Link from 'next/link'
 import { Plus, Users, Trophy, MessageCircle, Sparkles, History, Goal, Globe2 } from 'lucide-react'
 import { getPrimaryChimmyEntry } from '@/lib/ai-product-layer'
 
+/**
+ * Bracket hub quick-action cards. Theme-safe across Light / Dark / AF / System modes —
+ * uses CSS variables (var(--text), var(--muted), var(--accent-cyan-strong), etc.) instead
+ * of hardcoded `text-white` which was unreadable in Light mode.
+ */
 export default function BracketHomeTabs({ poolCount }: { poolCount: number }) {
   const chimmyHref = getPrimaryChimmyEntry().href
   const cards = [
@@ -16,20 +21,31 @@ export default function BracketHomeTabs({ poolCount }: { poolCount: number }) {
   ]
 
   return (
-    <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <section className="mode-readable grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {cards.map((card) => {
         const Icon = card.icon
         return (
           <Link
             key={`${card.label}-${card.href}`}
             href={card.href}
-            className="rounded-xl border border-white/10 bg-white/[0.03] p-4 hover:bg-white/[0.06] transition"
+            className="group rounded-xl border p-4 transition hover:opacity-90"
+            style={{
+              borderColor: 'var(--border)',
+              background: 'color-mix(in srgb, var(--panel) 88%, transparent)',
+              color: 'var(--text)',
+            }}
           >
-            <div className="mb-2 inline-flex rounded-lg border border-white/15 bg-black/30 p-2">
-              <Icon className="h-4 w-4 text-cyan-300" />
+            <div
+              className="mb-2 inline-flex rounded-lg border p-2"
+              style={{
+                borderColor: 'color-mix(in srgb, var(--accent-cyan) 24%, transparent)',
+                background: 'color-mix(in srgb, var(--accent-cyan) 12%, transparent)',
+              }}
+            >
+              <Icon className="h-4 w-4" style={{ color: 'var(--accent-cyan-strong)' }} />
             </div>
-            <h3 className="text-sm font-semibold text-white">{card.label}</h3>
-            <p className="mt-1 text-xs text-white/55">{card.desc}</p>
+            <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{card.label}</h3>
+            <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>{card.desc}</p>
           </Link>
         )
       })}

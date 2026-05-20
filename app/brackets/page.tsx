@@ -495,162 +495,254 @@ export default async function BracketsHomePage() {
         meta={{ product: "bracket" }}
       />
       <div className="relative overflow-hidden" style={{ background: 'linear-gradient(180deg, color-mix(in srgb, var(--panel2) 92%, transparent) 0%, var(--bg) 100%)' }}>
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full" style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%)' }} />
-          <div className="absolute -bottom-20 -left-20 w-72 h-72 rounded-full" style={{ background: 'radial-gradient(circle, rgba(251,146,60,0.06) 0%, transparent 70%)' }} />
+        <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+          <div
+            className="absolute -top-32 left-1/2 h-[460px] w-[460px] -translate-x-1/2 rounded-full"
+            style={{ background: 'radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent-cyan) 22%, transparent) 0%, transparent 65%)' }}
+          />
+          <div
+            className="absolute -bottom-24 -left-24 h-72 w-72 rounded-full"
+            style={{ background: 'radial-gradient(circle, color-mix(in srgb, var(--accent-purple) 14%, transparent) 0%, transparent 70%)' }}
+          />
+          <div
+            className="absolute -bottom-16 -right-24 h-72 w-72 rounded-full"
+            style={{ background: 'radial-gradient(circle, color-mix(in srgb, var(--accent-amber) 10%, transparent) 0%, transparent 70%)' }}
+          />
         </div>
 
-        <div className="relative max-w-2xl mx-auto px-4 sm:px-6 pt-6 pb-10">
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-3">
-              <Image src="/af-crest.png" alt="AllFantasy" width={40} height={40} className="rounded-xl" />
-              <div>
-                <h1 className="text-xl font-bold">Bracket Challenges</h1>
-                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Multi-sport playoff and tournament pools</p>
-              </div>
-            </div>
-            <Link
-              href="/dashboard"
-              className="text-xs px-3 py-1.5 rounded-lg transition"
-              style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}
-            >
-              Home
+        <div className="relative mx-auto w-full max-w-3xl px-4 pt-6 pb-10 sm:px-6 sm:pt-8">
+          <div className="mb-6 flex items-center justify-between gap-3 sm:mb-8">
+            <Link href="/dashboard" className="inline-flex items-center transition hover:opacity-80" aria-label="AllFantasy home">
+              <Image
+                src="/brand/allfantasy-wordmark-transparent.png"
+                alt="AllFantasy"
+                width={1198}
+                height={306}
+                priority
+                className="nav-logo-img h-7 w-auto object-contain sm:h-8"
+              />
             </Link>
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] sm:text-[11px]"
+              style={{
+                background: 'color-mix(in srgb, var(--accent-amber) 12%, transparent)',
+                borderColor: 'color-mix(in srgb, var(--accent-amber) 30%, transparent)',
+                color: 'var(--accent-amber-strong)',
+              }}
+            >
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--accent-amber-strong)' }} aria-hidden />
+              Fantasy sports · no gambling
+            </span>
           </div>
 
-          <div className="flex flex-col items-center text-center mb-8">
-            <div className="relative mb-4">
-              <div className="w-28 h-28 rounded-3xl overflow-hidden" style={{ border: '2px solid rgba(59,130,246,0.2)', boxShadow: '0 0 40px rgba(59,130,246,0.1)' }}>
-                <Image src="/af-robot-king.png" alt="Robot King" width={112} height={112} className="w-full h-full object-cover" />
-              </div>
-              <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl overflow-hidden" style={{ border: '2px solid #0d1117' }}>
-                <Image src="/af-crest.png" alt="AF" width={40} height={40} className="w-full h-full object-cover" />
-              </div>
+          <div className="flex flex-col items-center text-center">
+            <div className="relative mb-5 sm:mb-6">
+              <div
+                className="pointer-events-none absolute left-1/2 top-1/2 h-[180px] w-[180px] -translate-x-1/2 -translate-y-1/2 rounded-full sm:h-[240px] sm:w-[240px]"
+                aria-hidden="true"
+                style={{
+                  background:
+                    'radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent-cyan) 26%, transparent) 0%, transparent 62%), radial-gradient(circle at 50% 70%, color-mix(in srgb, var(--accent-purple) 14%, transparent) 0%, transparent 74%)',
+                }}
+              />
+              <Image
+                src="/brand/af-shield-transparent.png"
+                alt="AllFantasy AF shield logo"
+                className="hero-shield relative h-[96px] w-auto object-contain sm:h-[120px]"
+                priority
+                width={584}
+                height={625}
+              />
             </div>
-            <h2 className="text-2xl font-black mb-1">Fill Your Bracket</h2>
-            <p className="text-sm max-w-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>
-              Powered by AllFantasy AI. Every bracket is <span className="font-bold" style={{ color: '#3b82f6' }}>100% free</span> &mdash; no hosting fees, no paid tiers, ever.
+            <p
+              className="mb-2 text-[10px] font-bold uppercase tracking-[0.22em] sm:text-[11px]"
+              style={{ color: 'var(--accent-cyan-strong)' }}
+            >
+              Bracket Challenges
             </p>
+            <h1 className="mb-3 text-3xl font-black leading-tight tracking-tight sm:text-4xl" style={{ color: 'var(--text)' }}>
+              Run Every Bracket. Own Every Pool.
+            </h1>
+            <p className="mx-auto max-w-xl text-sm leading-relaxed sm:text-base" style={{ color: 'var(--muted)' }}>
+              Free multi-sport bracket pools &mdash; FIFA World Cup, NBA &amp; NHL playoffs, March Madness, and more. AI analysis, live leaderboards, invite codes. No entry fees, no gambling, ever.
+            </p>
+            <div className="mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold" style={{ background: 'color-mix(in srgb, var(--accent-cyan) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-cyan) 24%, transparent)', color: 'var(--accent-cyan-strong)' }}>
+              <Sparkles className="h-3.5 w-3.5" />
+              100% free &mdash; no hosting fees, no paid tiers
+            </div>
           </div>
 
+          <div className="mt-8 mode-readable">
           {!userId ? (
-            <div className="rounded-2xl p-6 text-center space-y-5 mb-6" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div className="flex items-center justify-center gap-2">
-                <Sparkles className="w-5 h-5" style={{ color: '#3b82f6' }} />
-                <span className="font-bold text-lg">Get Started</span>
+            <div
+              className="mode-panel rounded-2xl p-6 text-center sm:p-8"
+              style={{ boxShadow: '0 24px 60px -30px color-mix(in srgb, var(--accent-cyan) 30%, transparent)' }}
+            >
+              <div className="mb-4 inline-flex items-center justify-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ background: 'color-mix(in srgb, var(--accent-cyan) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-cyan) 28%, transparent)', color: 'var(--accent-cyan-strong)' }}>
+                <Sparkles className="h-3.5 w-3.5" />
+                Get started
               </div>
-              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                Create a pool, invite friends, and fill out your bracket.
+              <h2 className="mb-2 text-xl font-bold sm:text-2xl" style={{ color: 'var(--text)' }}>
+                Create a pool, invite friends, fill your bracket.
+              </h2>
+              <p className="mx-auto mb-5 max-w-md text-sm" style={{ color: 'var(--muted)' }}>
+                Sign up free to launch your first bracket pool in minutes. AI analysis included on every pick.
               </p>
-              <div className="flex gap-3 justify-center">
+              <div className="flex flex-col items-center justify-center gap-2.5 sm:flex-row sm:gap-3">
                 <Link
                   href={bracketSignupHref}
-                  className="px-7 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
-                  style={{ background: '#3b82f6', boxShadow: '0 4px 14px rgba(59,130,246,0.3)' }}
+                  className="inline-flex w-full min-w-[10rem] items-center justify-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-bold transition hover:opacity-90 sm:w-auto"
+                  style={{
+                    backgroundImage: 'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))',
+                    color: 'var(--on-accent-bg)',
+                    boxShadow: '0 8px 24px -10px color-mix(in srgb, var(--accent-cyan) 60%, transparent)',
+                  }}
                 >
                   Sign Up Free
                 </Link>
                 <Link
                   href={bracketLoginHref}
-                  className="px-7 py-2.5 rounded-xl text-sm font-semibold border transition-all"
-                  style={{ borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }}
+                  className="inline-flex w-full min-w-[10rem] items-center justify-center gap-1.5 rounded-xl border px-5 py-2.5 text-sm font-semibold transition hover:opacity-90 sm:w-auto"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'color-mix(in srgb, var(--panel2) 50%, transparent)' }}
                 >
                   Sign In
                 </Link>
               </div>
             </div>
           ) : (
-            <div className="space-y-4 mb-6">
-              <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 xl:grid-cols-5">
+            <div className="space-y-6">
+              {/* Primary CTA row — 3 buttons, stack on mobile */}
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
                 <Link
                   href="/brackets/leagues/new"
-                  className="flex min-h-[48px] touch-manipulation items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-center text-xs font-semibold text-white transition-all sm:text-sm"
-                  style={{ background: '#3b82f6', boxShadow: '0 4px 14px rgba(59,130,246,0.25)' }}
+                  className="inline-flex min-h-[52px] touch-manipulation items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition hover:opacity-90"
+                  style={{
+                    backgroundImage: 'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))',
+                    color: 'var(--on-accent-bg)',
+                    boxShadow: '0 8px 24px -10px color-mix(in srgb, var(--accent-cyan) 60%, transparent)',
+                  }}
                   data-testid="bracket-create-pool-button"
                 >
                   <Plus className="h-4 w-4 shrink-0" />
-                  <span className="leading-tight">Create Pool</span>
-                </Link>
-                <Link
-                  href="/brackets/join"
-                  className="flex min-h-[48px] touch-manipulation items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-center text-xs font-semibold transition-all sm:text-sm"
-                  style={{ borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }}
-                  data-testid="bracket-join-pool-button"
-                >
-                  <Users className="h-4 w-4 shrink-0" />
-                  <span className="leading-tight">Join Pool</span>
-                </Link>
-                <Link
-                  href="/brackets/world-cup"
-                  className="flex min-h-[48px] touch-manipulation items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-center text-xs font-semibold transition-all sm:text-sm"
-                  style={{ borderColor: 'rgba(103,232,249,0.35)', color: 'rgba(207,250,254,0.95)', background: 'rgba(8,145,178,0.12)' }}
-                  data-testid="world-cup-bracket-card"
-                >
-                  <Globe2 className="h-4 w-4 shrink-0" />
-                  <span className="leading-tight">World Cup</span>
+                  <span>Create a Bracket</span>
                 </Link>
                 <Link
                   href="/brackets/discover"
-                  className="flex min-h-[48px] touch-manipulation items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-center text-xs font-semibold transition-all sm:text-sm"
-                  style={{ borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }}
+                  className="inline-flex min-h-[52px] touch-manipulation items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition hover:opacity-90"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'color-mix(in srgb, var(--panel2) 55%, transparent)' }}
                   data-testid="bracket-discover-link"
                 >
-                  <span className="leading-tight">Discover leagues</span>
+                  <Users className="h-4 w-4 shrink-0" />
+                  <span>Find a Pool</span>
                 </Link>
                 <Link
-                  href="/creators"
-                  className="col-span-2 flex min-h-[48px] touch-manipulation items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-center text-xs font-semibold transition-all sm:text-sm md:col-span-1"
-                  style={{ borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }}
+                  href="/brackets/join"
+                  className="inline-flex min-h-[52px] touch-manipulation items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition hover:opacity-90"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'color-mix(in srgb, var(--panel2) 55%, transparent)' }}
+                  data-testid="bracket-join-pool-button"
                 >
-                  <span className="leading-tight">Creator leagues</span>
+                  <span>Join with Code</span>
                 </Link>
               </div>
 
-              <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              {/* Premium World Cup feature card */}
+              <Link
+                href="/brackets/world-cup"
+                className="group relative block overflow-hidden rounded-2xl border p-5 transition hover:opacity-95 sm:p-6"
+                style={{
+                  borderColor: 'color-mix(in srgb, var(--accent-cyan) 32%, transparent)',
+                  background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent-cyan) 14%, transparent) 0%, color-mix(in srgb, var(--accent-purple) 10%, transparent) 100%)',
+                  boxShadow: '0 20px 50px -30px color-mix(in srgb, var(--accent-cyan) 60%, transparent)',
+                }}
+                data-testid="world-cup-bracket-card"
+              >
+                <div
+                  className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full"
+                  aria-hidden="true"
+                  style={{ background: 'radial-gradient(circle, color-mix(in srgb, var(--accent-cyan) 24%, transparent) 0%, transparent 70%)' }}
+                />
+                <div className="relative flex items-start gap-4">
+                  <div
+                    className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border"
+                    style={{
+                      background: 'color-mix(in srgb, var(--accent-cyan) 18%, transparent)',
+                      borderColor: 'color-mix(in srgb, var(--accent-cyan) 32%, transparent)',
+                    }}
+                  >
+                    <Globe2 className="h-7 w-7" style={{ color: 'var(--accent-cyan-strong)' }} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider" style={{ background: 'color-mix(in srgb, var(--accent-amber) 16%, transparent)', color: 'var(--accent-amber-strong)' }}>
+                      <Trophy className="h-3 w-3" />
+                      Featured
+                    </div>
+                    <h3 className="mb-1 text-lg font-bold leading-tight sm:text-xl" style={{ color: 'var(--text)' }}>
+                      FIFA World Cup 2026 Bracket Challenge
+                    </h3>
+                    <p className="text-xs leading-relaxed sm:text-sm" style={{ color: 'var(--muted)' }}>
+                      Pre-tournament &mdash; rank your groups, pick the knockout path, and lock your champion before kickoff. Invite-link pools, live leaderboards, AI matchup notes.
+                    </p>
+                    <div className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold" style={{ color: 'var(--accent-cyan-strong)' }}>
+                      View World Cup Challenge
+                      <ChevronRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
+                    </div>
+                  </div>
+                </div>
+              </Link>
+
+              {/* Playoff Challenge by Sport */}
+              <div className="mode-panel-soft rounded-2xl p-4 sm:p-5">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: 'var(--muted)' }}>
                     Playoff Challenge by Sport
                   </h2>
-                  <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                    {playoffSports.length} sports
+                  <span className="text-[10px] font-semibold" style={{ color: 'var(--muted2)' }}>
+                    {playoffSports.length} sport{playoffSports.length === 1 ? '' : 's'}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {playoffSports.map(({ sport, ui }) => (
-                    <div
-                      key={sport}
-                      className="rounded-xl px-3 py-2 text-xs font-semibold text-center transition"
-                      style={{ border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.8)' }}
-                    >
-                      <Link
-                        href={safeResolvePlayoffHref(sport)}
-                        className="flex items-center justify-center gap-2"
-                        data-testid={`bracket-playoff-sport-${sport}`}
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+                  {playoffSports.map(({ sport, ui }) => {
+                    const hasQuick = sport === "NBA" || sport === "NHL"
+                    return (
+                      <div
+                        key={sport}
+                        className="rounded-xl border p-3 transition"
+                        style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 80%, transparent)' }}
                       >
-                        <span
-                          className="inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[9px] font-bold"
-                          style={{ background: 'rgba(56,189,248,0.15)', color: 'rgba(186,230,253,0.95)' }}
+                        <Link
+                          href={safeResolvePlayoffHref(sport)}
+                          className="flex items-center gap-2 text-sm font-semibold transition hover:opacity-90"
+                          data-testid={`bracket-playoff-sport-${sport}`}
+                          style={{ color: 'var(--text)' }}
                         >
-                          {ui.badge}
-                        </span>
-                        <span>{ui.shortLabel} Create</span>
-                      </Link>
-                      {(sport === "NBA" || sport === "NHL") ? (
-                        <div className="mt-2">
-                          <QuickCreatePlayoffPoolButton
-                            sport={sport.toLowerCase() as "nba" | "nhl"}
-                            label={`Quick Create ${ui.shortLabel} Pool`}
-                          />
-                        </div>
-                      ) : null}
-                    </div>
-                  ))}
+                          <span
+                            className="inline-flex h-7 min-w-7 items-center justify-center rounded-lg px-1.5 text-[10px] font-bold"
+                            style={{ background: 'color-mix(in srgb, var(--accent-cyan) 18%, transparent)', color: 'var(--accent-cyan-strong)' }}
+                          >
+                            {ui.badge}
+                          </span>
+                          <span className="truncate">{ui.shortLabel}</span>
+                          <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" style={{ color: 'var(--muted2)' }} />
+                        </Link>
+                        {hasQuick ? (
+                          <div className="mt-2.5">
+                            <QuickCreatePlayoffPoolButton
+                              sport={sport.toLowerCase() as "nba" | "nhl"}
+                              label={`Quick Create ${ui.shortLabel} Pool`}
+                            />
+                          </div>
+                        ) : null}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
 
+              {/* My Pools list */}
               {combinedMyPools.length > 0 ? (
                 <div className="space-y-2">
-                  <h2 className="text-xs font-bold uppercase tracking-wider px-1" style={{ color: 'rgba(255,255,255,0.35)' }}>My Pools</h2>
+                  <h2 className="px-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: 'var(--muted)' }}>My Pools</h2>
+                  <div className="space-y-2">
                   {combinedMyPools.map((pool) => {
                     const sportUI = resolveBracketSportUI(pool.sport ?? null)
                     const challengeLabel = resolveBracketChallengeLabel({
@@ -669,39 +761,55 @@ export default async function BracketsHomePage() {
                       <Link
                         key={pool.id}
                         href={pool.href}
-                        className="flex items-center gap-3 p-3.5 rounded-xl transition group"
-                        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+                        className="mode-panel group flex items-center gap-3 rounded-xl p-3.5 transition hover:opacity-95"
                       >
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(59,130,246,0.12)' }}>
-                          <span className="text-[10px] font-bold" style={{ color: '#7dd3fc' }}>{sportUI.badge}</span>
+                        <div
+                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border"
+                          style={{
+                            background: 'color-mix(in srgb, var(--accent-cyan) 14%, transparent)',
+                            borderColor: 'color-mix(in srgb, var(--accent-cyan) 24%, transparent)',
+                          }}
+                        >
+                          <span className="text-[10px] font-bold" style={{ color: 'var(--accent-cyan-strong)' }}>{sportUI.badge}</span>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-sm truncate group-hover:text-white transition">{pool.name}</div>
-                          <div className="text-[11px] mt-0.5 truncate" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-semibold" style={{ color: 'var(--text)' }}>{pool.name}</div>
+                          <div className="mt-0.5 truncate text-[11px]" style={{ color: 'var(--muted)' }}>
                             {challengeLabel}
                           </div>
-                          <div className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                          <div className="mt-0.5 text-xs" style={{ color: 'var(--muted2)' }}>
                             {pool.members} member{pool.members !== 1 ? 's' : ''} &bull; {pool.entries} bracket{pool.entries !== 1 ? 's' : ''}
                           </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 shrink-0" style={{ color: 'rgba(255,255,255,0.2)' }} />
+                        <ChevronRight className="h-4 w-4 shrink-0 transition group-hover:translate-x-0.5" style={{ color: 'var(--muted2)' }} />
                       </Link>
                     )
                   })}
+                  </div>
                 </div>
               ) : (
-                <div className="rounded-2xl p-6 text-center" style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.08)' }}>
-                  <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                    No pools yet. Create one or join a friend&apos;s pool to get started!
+                <div className="rounded-2xl border border-dashed p-6 text-center" style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel2) 40%, transparent)' }}>
+                  <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                    No pools yet. Create one or join a friend&apos;s pool to get started.
                   </p>
                 </div>
               )}
 
-              <div className="text-xs text-center" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                Signed in as {user?.name || user?.email || 'User'}
+              {/* Secondary links */}
+              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs" style={{ color: 'var(--muted2)' }}>
+                <Link href="/brackets/discover" className="transition hover:opacity-80" style={{ color: 'var(--muted)' }}>
+                  Discover public leagues
+                </Link>
+                <span aria-hidden style={{ color: 'var(--muted2)' }}>&middot;</span>
+                <Link href="/creators" className="transition hover:opacity-80" style={{ color: 'var(--muted)' }}>
+                  Creator leagues
+                </Link>
+                <span aria-hidden style={{ color: 'var(--muted2)' }}>&middot;</span>
+                <span>Signed in as {user?.name || user?.email || 'User'}</span>
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
       <BracketShell>
