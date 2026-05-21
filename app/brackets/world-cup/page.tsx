@@ -5,7 +5,9 @@ import { Bot, ChevronRight, Globe2, Lock, Plus, Sparkles, Trophy, Users, Radio }
 import { authOptions } from "@/lib/auth"
 import { listUserWorldCupChallenges } from "@/lib/world-cup"
 
-const WC_LOGO_SRC = "/images/brackets/world-cup/af-world-cup-logo.png"
+const WC_LOGO_SRC   = "/images/brackets/world-cup/af-world-cup-logo.png"
+const WC_VIDEO_SRC  = "/videos/brackets/world-cup/af-world-cup-hero.mp4"
+const WC_POSTER_SRC = "/images/brackets/world-cup/af-world-cup-hero-poster.jpg"
 
 export const dynamic = "force-dynamic"
 
@@ -93,6 +95,18 @@ export default async function WorldCupBracketsPage() {
 
         {/* Hero */}
         <header className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] p-6 sm:p-8">
+          {/* Ambient hero video — muted decorative background */}
+          <video
+            src={WC_VIDEO_SRC}
+            poster={WC_POSTER_SRC}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 hidden h-full w-full rounded-xl object-cover opacity-[0.08] mix-blend-luminosity sm:block"
+          />
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
             <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/35 bg-cyan-300/10 p-2 sm:h-24 sm:w-24">
               <Image

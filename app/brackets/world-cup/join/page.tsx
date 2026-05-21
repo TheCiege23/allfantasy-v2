@@ -1,5 +1,8 @@
-import WorldCupInviteJoinPanel from "@/components/brackets/world-cup/WorldCupInviteJoinPanel"
+import Image from "next/image"
 import Link from "next/link"
+import WorldCupInviteJoinPanel from "@/components/brackets/world-cup/WorldCupInviteJoinPanel"
+
+const WC_LOGO_SRC = "/images/brackets/world-cup/af-world-cup-logo.png"
 
 export const dynamic = "force-dynamic"
 
@@ -13,6 +16,25 @@ export default function WorldCupJoinWithCodePage() {
         >
           ← World Cup hub
         </Link>
+
+        {/* WC branding lockup */}
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-300/35 bg-cyan-300/10 p-1">
+            <Image
+              src={WC_LOGO_SRC}
+              alt="AllFantasy World Cup"
+              width={40}
+              height={40}
+              className="h-full w-full object-contain"
+              priority
+            />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/35">AllFantasy</p>
+            <h1 className="text-base font-black leading-tight text-white">2026 World Cup Bracket Pools</h1>
+          </div>
+        </div>
+
         <WorldCupInviteJoinPanel title="Join with invite code" />
       </div>
     </main>

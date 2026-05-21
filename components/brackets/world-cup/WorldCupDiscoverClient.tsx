@@ -1,9 +1,12 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Compass, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
+
+const WC_LOGO_SRC = "/images/brackets/world-cup/af-world-cup-logo.png"
 import WorldCupDiscoverCard from "./WorldCupDiscoverCard"
 import WorldCupInviteJoinPanel, {
   type WorldCupInviteJoinPanelHandle,
@@ -92,8 +95,14 @@ export default function WorldCupDiscoverClient() {
       </div>
 
       <header className="rounded-xl border border-white/10 bg-white/[0.04] p-4 sm:p-6">
-        <div className="mb-3 inline-flex rounded-xl bg-cyan-300/15 p-3 text-cyan-200">
-          <Compass className="h-7 w-7" />
+        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl border border-cyan-300/35 bg-cyan-300/10 p-1.5">
+          <Image
+            src={WC_LOGO_SRC}
+            alt="AllFantasy World Cup"
+            width={44}
+            height={44}
+            className="h-full w-full object-contain"
+          />
         </div>
         <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Discover public pools</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/55">
