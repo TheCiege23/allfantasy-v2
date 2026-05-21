@@ -291,6 +291,203 @@ export function calculateWorldCupBracketHealth(
   }
 }
 
+// ── Group Stage AI insights (deterministic, per-group) ───────────────────────
+
+export type WorldCupGroupStageInsightTeam = {
+  teamId: string
+  name: string
+  seedOrder: number
+}
+
+export type WorldCupGroupStageGroupInsightInput = {
+  /** Display name shown in copy (e.g. "Group A"). */
+  groupName: string
+  /** Group key used for slot-strength lookup (e.g. "A"). */
+  groupKey: string
+  /** Teams in this group (any order). */
+  teams: WorldCupGroupStageInsightTeam[]
+  /** Team IDs in the user's predicted rank order (winner first). */
+  order: string[]
+}
+
+const GROUP_STAGE_FALLBACK_MISSING = (groupName: string) =>
+  `${groupName} still has unranked teams. Finish those picks before finalizing.`
+
+/**
+ * Deterministic per-group insights based on the current user's own ranking
+ * vs pre-tournament seed strength. Uses no external data — no LLM call.
+ *
+ * Returns 1–5 short lines:
+ *  - Missing pick guidance when the group is not fully ranked.
+ *  - Winner character (chalk / contrarian / risky).
+ *  - Runner-up character.
+ *  - Third-place candidate character.
+ *  - Overall strategy line (pure chalk vs high variance vs safe top two).
+ */
+export function buildWorldCupGroupStageGroupInsights(
+  input: WorldCupGroupStageGroupInsightInput
+): string[] {
+  const { groupName, groupKey, teams, order } = input
+
+  if (teams.length < 4 || order.length < 4) {
+    return [GROUP_STAGE_FALLBACK_MISSING(groupName)]
+  }
+
+  const teamById = new Map(teams.map((t) => [t.teamId, t]))
+  const orderedTeams = order
+    .map((id) => teamById.get(id))
+    .filter((t): t is WorldCupGroupStageInsightTeam => Boolean(t))
+
+  if (orderedTeams.length < 4) {
+    return [GROUP_STAGE_FALLBACK_MISSING(groupName)]
+  }
+
+  const winner = orderedTeams[0]
+  const runnerUp = orderedTeams[1]
+  const third = orderedTeams[2]
+
+  const winnerStrength = getWorldCupSeedStrength(`${groupKey}${winner.seedOrder}`)
+  const runnerUpStrength = getWorldCupSeedStrength(`${groupKey}${runnerUp.seedOrder}`)
+
+  // Upset index: sum of |predictedRank − seedOrder| for top 3 ranks.
+  const upsetIndex = orderedTeams.slice(0, 3).reduce((acc, team, idx) => {
+    return acc + Math.abs((idx + 1) - team.seedOrder)
+  }, 0)
+
+  const lines: string[] = []
+
+  // Winner character — chalk / contrarian / risky.
+  if (winner.seedOrder === 1) {
+    lines.push(
+      `Safest group winner: ${winner.name} aligns with top seeding (strength ${winnerStrength}/100).`
+    )
+  } else if (winner.seedOrder === 2) {
+    lines.push(
+      `Contrarian lean: ${winner.name} (seed #${winner.seedOrder}) over the top seed — moderate upset value.`
+    )
+  } else {
+    lines.push(
+      `Risky winner: ${winner.name} (seed #${winner.seedOrder}) is a higher-risk call based on pre-tournament strength.`
+    )
+  }
+
+  // Runner-up character.
+  if (runnerUp.seedOrder === 1) {
+    lines.push(
+      `Runner-up: ${runnerUp.name} as #2 leaves the top seed out of your winner slot.`
+    )
+  } else if (runnerUp.seedOrder === 2) {
+    lines.push(
+      `Runner-up: ${runnerUp.name} matches expected top-two seeding — predictable shape.`
+    )
+  } else {
+    lines.push(
+      `Runner-up: ${runnerUp.name} (seed #${runnerUp.seedOrder}) is a low-seed advancer — adds knockout-round volatility.`
+    )
+  }
+
+  // Third-place candidate (slot 3 in the user's order).
+  if (third.seedOrder <= 2) {
+    lines.push(
+      `Third-place candidate: ${third.name} as #3 means a top seed is in your third-place advancer pool.`
+    )
+  } else {
+    lines.push(
+      `Third-place candidate: ${third.name} (seed #${third.seedOrder}) — standard low-seed shape.`
+    )
+  }
+
+  // Overall character.
+  if (upsetIndex === 0) {
+    lines.push(
+      `Strategy: pure chalk — your group order matches the pre-tournament seeding exactly.`
+    )
+  } else if (upsetIndex >= 4) {
+    lines.push(
+      `Strategy: high-variance — your group order departs significantly from seeding (upset index ${upsetIndex}).`
+    )
+  } else if (winnerStrength + runnerUpStrength >= 140) {
+    lines.push(
+      `Strategy: safe top two — winner and runner-up combine ${winnerStrength + runnerUpStrength}/200 strength.`
+    )
+  }
+
+  return lines
+}
+
+// ── Third-place advancer insights (deterministic, pool-wide) ─────────────────
+
+export type WorldCupGroupStageThirdPlaceInsightInput = {
+  groups: Array<{
+    id: string
+    groupKey: string
+    displayName: string
+    teams: WorldCupGroupStageInsightTeam[]
+  }>
+  thirdPlacePicks: Array<{ groupId: string; teamId: string; isSelected: boolean }>
+  /** Required number of third-place advancers (default 8 for 2026 format). */
+  requiredCount?: number
+}
+
+/**
+ * Deterministic insights for the user's third-place advancer pool.
+ * Uses only the user's own picks + public team metadata.
+ *
+ * Returns 1–3 short lines:
+ *  - Selection progress (selected of required).
+ *  - Strength balance (chalk-heavy vs upside-heavy).
+ *  - Differentiation lean when balanced.
+ */
+export function buildWorldCupGroupStageThirdPlaceInsights(
+  input: WorldCupGroupStageThirdPlaceInsightInput
+): string[] {
+  const { groups, thirdPlacePicks, requiredCount = 8 } = input
+  const selected = thirdPlacePicks.filter((p) => p.isSelected)
+
+  if (selected.length === 0) {
+    return [
+      `Select ${requiredCount} third-place advancers to unlock personalized differentiation insights.`,
+    ]
+  }
+
+  const lines: string[] = []
+
+  lines.push(
+    selected.length >= requiredCount
+      ? `All ${requiredCount} third-place advancers selected.`
+      : `Current selected: ${selected.length} of ${requiredCount}. ${requiredCount - selected.length} more to lock in.`
+  )
+
+  const selectedTeams = selected
+    .map((p) => {
+      const g = groups.find((gr) => gr.id === p.groupId)
+      const t = g?.teams.find((tt) => tt.teamId === p.teamId)
+      return t && g ? { team: t, group: g } : null
+    })
+    .filter((x): x is NonNullable<typeof x> => Boolean(x))
+
+  if (selectedTeams.length === 0) return lines
+
+  const lowSeedCount = selectedTeams.filter((x) => x.team.seedOrder >= 3).length
+  const highSeedCount = selectedTeams.filter((x) => x.team.seedOrder <= 2).length
+
+  if (highSeedCount > lowSeedCount && selectedTeams.length >= 4) {
+    lines.push(
+      `Strong third-place pool: ${highSeedCount} of ${selectedTeams.length} picks are top-seeded — safer advancement odds.`
+    )
+  } else if (lowSeedCount >= Math.ceil(requiredCount / 2)) {
+    lines.push(
+      `You advanced ${lowSeedCount} lower-seed third-place teams — raises upside but adds volatility.`
+    )
+  } else if (selectedTeams.length >= 2) {
+    lines.push(
+      `Your third-place selections create differentiation if those groups break your way.`
+    )
+  }
+
+  return lines
+}
+
 // ── Round scoring weights (for builder ordering) ──────────────────────────────
 
 export const WORLD_CUP_ROUND_PICK_ORDER: WorldCupRound[] = [

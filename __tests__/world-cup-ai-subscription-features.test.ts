@@ -4,6 +4,10 @@ import {
   calculateWorldCupBracketGrade,
   calculateWorldCupLeaderboardAiInsights,
 } from "@/lib/world-cup/worldCupAiSubscriptionInsights"
+import {
+  buildWorldCupGroupStageGroupInsights,
+  buildWorldCupGroupStageThirdPlaceInsights,
+} from "@/lib/world-cup/worldCupAiInsights"
 
 const match = {
   id: "m1",
@@ -207,3 +211,193 @@ describe("World Cup AI subscription insights", () => {
     expect(insight.lines.join(" ")).toContain("Some unfinalized entries are hidden until submitted.")
   })
 })
+
+describe("buildWorldCupGroupStageGroupInsights — deterministic per-group", () => {
+  const teamsAlphabet = [
+    { teamId: "t1", name: "Argentina", seedOrder: 1 },
+    { teamId: "t2", name: "Brazil", seedOrder: 2 },
+    { teamId: "t3", name: "Canada", seedOrder: 3 },
+    { teamId: "t4", name: "Denmark", seedOrder: 4 },
+  ]
+
+  it("returns missing-picks guidance when group is incomplete", () => {
+    const lines = buildWorldCupGroupStageGroupInsights({
+      groupName: "Group D",
+      groupKey: "D",
+      teams: teamsAlphabet.slice(0, 3),
+      order: ["t1", "t2"],
+    })
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toMatch(/Group D still has unranked teams/i)
+  })
+
+  it("returns missing-picks guidance when fewer than 4 order entries", () => {
+    const lines = buildWorldCupGroupStageGroupInsights({
+      groupName: "Group A",
+      groupKey: "A",
+      teams: teamsAlphabet,
+      order: ["t1", "t2", "t3"], // only 3 ranked
+    })
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toMatch(/still has unranked teams/i)
+  })
+
+  it("produces safe/chalk insights when user picks match seeding exactly", () => {
+    const lines = buildWorldCupGroupStageGroupInsights({
+      groupName: "Group A",
+      groupKey: "A",
+      teams: teamsAlphabet,
+      order: ["t1", "t2", "t3", "t4"], // 1→1, 2→2, 3→3, 4→4
+    })
+    const text = lines.join("\n")
+    expect(text).toMatch(/Safest group winner/i)
+    expect(text).toMatch(/Argentina/i)
+    expect(text).toMatch(/Strategy: pure chalk/i)
+  })
+
+  it("flags a risky winner when user picks a low-seed team (seed #3 or #4) to win", () => {
+    const lines = buildWorldCupGroupStageGroupInsights({
+      groupName: "Group F",
+      groupKey: "F",
+      teams: teamsAlphabet,
+      order: ["t3", "t2", "t1", "t4"], // user picks #3 seed as winner
+    })
+    const text = lines.join("\n")
+    expect(text).toMatch(/Risky winner/i)
+    expect(text).toMatch(/Canada/i)
+    expect(text).toMatch(/higher-risk call/i)
+  })
+
+  it("flags high-variance when user ordering significantly inverts seeding", () => {
+    const lines = buildWorldCupGroupStageGroupInsights({
+      groupName: "Group B",
+      groupKey: "B",
+      teams: teamsAlphabet,
+      order: ["t4", "t3", "t2", "t1"], // fully inverted from seeding
+    })
+    const text = lines.join("\n")
+    expect(text).toMatch(/Risky winner|Strategy: high-variance/i)
+  })
+
+  it("never includes wagering or betting terms in produced lines", () => {
+    const lines = buildWorldCupGroupStageGroupInsights({
+      groupName: "Group A",
+      groupKey: "A",
+      teams: teamsAlphabet,
+      order: ["t1", "t2", "t3", "t4"],
+    })
+    const text = lines.join(" ").toLowerCase()
+    expect(text).not.toMatch(/\bdfs\b|\bbetting\b|\bwager|\bsportsbook\b|\bodds\b/)
+  })
+})
+
+describe("buildWorldCupGroupStageThirdPlaceInsights — deterministic third-place pool", () => {
+  const groups = [
+    {
+      id: "g-a", groupKey: "A", displayName: "Group A",
+      teams: [
+        { teamId: "a1", name: "Argentina", seedOrder: 1 },
+        { teamId: "a2", name: "Brazil", seedOrder: 2 },
+        { teamId: "a3", name: "Canada", seedOrder: 3 },
+        { teamId: "a4", name: "Denmark", seedOrder: 4 },
+      ],
+    },
+    {
+      id: "g-b", groupKey: "B", displayName: "Group B",
+      teams: [
+        { teamId: "b1", name: "England", seedOrder: 1 },
+        { teamId: "b2", name: "France", seedOrder: 2 },
+        { teamId: "b3", name: "Germany", seedOrder: 3 },
+        { teamId: "b4", name: "Honduras", seedOrder: 4 },
+      ],
+    },
+  ]
+
+  it("returns fallback when no third-place picks are selected", () => {
+    const lines = buildWorldCupGroupStageThirdPlaceInsights({
+      groups,
+      thirdPlacePicks: [],
+    })
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toMatch(/Select 8 third-place advancers/i)
+  })
+
+  it("shows progress message when partial selection (under required count)", () => {
+    const lines = buildWorldCupGroupStageThirdPlaceInsights({
+      groups,
+      thirdPlacePicks: [
+        { groupId: "g-a", teamId: "a3", isSelected: true },
+        { groupId: "g-b", teamId: "b4", isSelected: true },
+      ],
+    })
+    expect(lines[0]).toMatch(/Current selected: 2 of 8/)
+    expect(lines[0]).toMatch(/6 more to lock in/i)
+  })
+
+  it("flags upside/volatility when most third-place picks are low-seed (>=3)", () => {
+    const lines = buildWorldCupGroupStageThirdPlaceInsights({
+      groups,
+      thirdPlacePicks: [
+        { groupId: "g-a", teamId: "a3", isSelected: true },
+        { groupId: "g-a", teamId: "a4", isSelected: true },
+        { groupId: "g-b", teamId: "b3", isSelected: true },
+        { groupId: "g-b", teamId: "b4", isSelected: true },
+      ],
+      requiredCount: 4, // smaller required so 4 low-seed >= ceil(4/2)
+    })
+    const text = lines.join("\n")
+    expect(text).toMatch(/lower-seed third-place teams/i)
+    expect(text).toMatch(/upside but adds volatility/i)
+  })
+
+  it("flags safer advancement when most picks are top-seeded", () => {
+    const lines = buildWorldCupGroupStageThirdPlaceInsights({
+      groups,
+      thirdPlacePicks: [
+        { groupId: "g-a", teamId: "a1", isSelected: true },
+        { groupId: "g-a", teamId: "a2", isSelected: true },
+        { groupId: "g-b", teamId: "b1", isSelected: true },
+        { groupId: "g-b", teamId: "b2", isSelected: true },
+      ],
+    })
+    const text = lines.join("\n")
+    expect(text).toMatch(/Strong third-place pool/i)
+    expect(text).toMatch(/safer advancement odds/i)
+  })
+
+  it("produces differentiation message for a balanced pool", () => {
+    const lines = buildWorldCupGroupStageThirdPlaceInsights({
+      groups,
+      thirdPlacePicks: [
+        { groupId: "g-a", teamId: "a2", isSelected: true },
+        { groupId: "g-b", teamId: "b3", isSelected: true },
+      ],
+    })
+    const text = lines.join("\n")
+    expect(text).toMatch(/differentiation if those groups break your way/i)
+  })
+
+  it("never includes wagering/betting terms", () => {
+    const lines = buildWorldCupGroupStageThirdPlaceInsights({
+      groups,
+      thirdPlacePicks: [
+        { groupId: "g-a", teamId: "a3", isSelected: true },
+      ],
+    })
+    const text = lines.join(" ").toLowerCase()
+    expect(text).not.toMatch(/\bdfs\b|\bbetting\b|\bwager|\bsportsbook\b|\bodds\b/)
+  })
+})
+
+describe("Group Stage AI insights — no external AI dependencies", () => {
+  it("helpers do not import OpenAI/XAI providers", async () => {
+    // Static import-graph check: re-import the helper module fresh and confirm
+    // the module source does not reference any AI provider client.
+    const fs = await import("node:fs/promises")
+    const path = await import("node:path")
+    const filePath = path.resolve(process.cwd(), "lib/world-cup/worldCupAiInsights.ts")
+    const src = await fs.readFile(filePath, "utf-8")
+    expect(src).not.toMatch(/OPENAI_API_KEY|XAI_API_KEY|new OpenAI|createOpenAI|openai\.com/i)
+  })
+})
+

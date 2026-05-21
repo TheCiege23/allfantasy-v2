@@ -9,6 +9,10 @@ import {
   type WorldCupGroupStageTeamClient,
   type WorldCupGroupStageViewClient,
 } from "@/lib/world-cup/worldCupClientApi"
+import {
+  buildWorldCupGroupStageGroupInsights,
+  buildWorldCupGroupStageThirdPlaceInsights,
+} from "@/lib/world-cup/worldCupAiInsights"
 
 type Props = {
   challengeId: string
@@ -107,20 +111,28 @@ function savedThirdPlaceTeamIds(view: WorldCupGroupStageViewClient): string[] {
 
 function GroupAiInsightPanel({
   groupName,
+  groupKey,
   order,
   teams,
   unlocked,
 }: {
   groupName: string
+  groupKey: string
   order: string[]
   teams: WorldCupGroupStageTeamClient[]
   unlocked: boolean
 }) {
-  const teamById = new Map(teams.map((team) => [team.teamId, team]))
-  const orderedTeams = order.map((teamId) => teamById.get(teamId)).filter((team): team is WorldCupGroupStageTeamClient => Boolean(team))
-  const safest = orderedTeams[0]?.name ?? "Rank the group first"
-  const upside = orderedTeams[1]?.name ?? orderedTeams[0]?.name ?? "Add a runner-up"
-  const chaos = orderedTeams[2]?.name ?? orderedTeams.at(-1)?.name ?? "No third-place pick yet"
+  const insightTeams = teams.map((team) => ({
+    teamId: team.teamId,
+    name: team.name,
+    seedOrder: team.seedOrder,
+  }))
+  const insights = buildWorldCupGroupStageGroupInsights({
+    groupName,
+    groupKey,
+    teams: insightTeams,
+    order,
+  })
   return (
     <details
       data-testid={`world-cup-group-ai-insight-${groupName.replace(/\s+/g, "-").toLowerCase()}`}
@@ -137,9 +149,11 @@ function GroupAiInsightPanel({
       </summary>
       {unlocked ? (
         <div className="mt-3 space-y-2 leading-5 text-cyan-50/85">
-          <p><span className="font-black text-white">Safest group winner:</span> {safest} based on your current top slot.</p>
-          <p><span className="font-black text-white">Highest-upside pick:</span> {upside} as the pressure pick if you want a less chalk-heavy bracket.</p>
-          <p><span className="font-black text-white">Chaos/upset risk:</span> {chaos} is the volatility marker from your current third-place slot.</p>
+          {insights.map((line, idx) => (
+            <p key={idx} data-testid={`world-cup-group-ai-insight-line-${idx}`}>
+              {line}
+            </p>
+          ))}
           <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/55">
             Prediction and scoring complexity only. Bracket guidance stays limited to pool picks and scoring mechanics.
           </p>
@@ -154,14 +168,28 @@ function GroupAiInsightPanel({
 }
 
 function ThirdPlaceAiInsightPanel({
-  selectedCount,
-  missingCount,
+  groups,
+  thirdPlacePicks,
   unlocked,
 }: {
-  selectedCount: number
-  missingCount: number
+  groups: WorldCupGroupStageViewClient["groups"]
+  thirdPlacePicks: WorldCupGroupStageViewClient["thirdPlaceAdvancerPicks"]
   unlocked: boolean
 }) {
+  const insightGroups = groups.map((g) => ({
+    id: g.id,
+    groupKey: g.groupKey,
+    displayName: g.displayName,
+    teams: g.teams.map((t) => ({ teamId: t.teamId, name: t.name, seedOrder: t.seedOrder })),
+  }))
+  const insights = buildWorldCupGroupStageThirdPlaceInsights({
+    groups: insightGroups,
+    thirdPlacePicks: thirdPlacePicks.map((p) => ({
+      groupId: p.groupId,
+      teamId: p.teamId,
+      isSelected: p.isSelected,
+    })),
+  })
   return (
     <details data-testid="world-cup-third-place-ai-insight" className="mt-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3 text-xs text-cyan-50">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-black">
@@ -170,9 +198,11 @@ function ThirdPlaceAiInsightPanel({
       </summary>
       {unlocked ? (
         <div className="mt-3 space-y-2 leading-5 text-cyan-50/85">
-          <p><span className="font-black text-white">Current selected 8:</span> {selectedCount}/8 selected, {missingCount} remaining.</p>
-          <p><span className="font-black text-white">Risk check:</span> Avoid overloading weaker groups unless you want a contrarian bracket shape.</p>
-          <p><span className="font-black text-white">Contrarian reminder:</span> One or two volatile third-place calls can separate your bracket without turning every slot into chaos.</p>
+          {insights.map((line, idx) => (
+            <p key={idx} data-testid={`world-cup-third-place-ai-insight-line-${idx}`}>
+              {line}
+            </p>
+          ))}
           <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/55">
             Prediction and scoring complexity only. Bracket guidance stays limited to pool picks and scoring mechanics.
           </p>
@@ -468,6 +498,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
               ) : null}
               <GroupAiInsightPanel
                 groupName={group.displayName}
+                groupKey={group.groupKey}
                 order={order}
                 teams={group.teams}
                 unlocked={aiInsightsUnlocked}
@@ -524,8 +555,11 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
           </p>
         ) : null}
         <ThirdPlaceAiInsightPanel
-          selectedCount={thirdPlaceSelection.size}
-          missingCount={Math.max(0, 8 - thirdPlaceSelection.size)}
+          groups={view.groups}
+          thirdPlacePicks={view.thirdPlaceAdvancerPicks.map((pick) => ({
+            ...pick,
+            isSelected: thirdPlaceSelection.has(pick.teamId),
+          }))}
           unlocked={aiInsightsUnlocked}
         />
 

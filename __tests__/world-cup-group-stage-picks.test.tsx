@@ -109,11 +109,15 @@ describe("WorldCupGroupStagePicks", () => {
     const group = await screen.findByTestId("world-cup-group-A")
     fireEvent.click(within(group).getByText("AI Insights"))
 
+    // Seeded chalk: user picked seedOrder 1→1, 2→2, 3→3, 4→4 → produces "Safest group winner" and "pure chalk" lines.
     expect(within(group).getByText(/Safest group winner/i)).toBeInTheDocument()
-    expect(within(group).getByText(/Highest-upside pick/i)).toBeInTheDocument()
+    // Argentina appears as a team card too — use the specific insight line test id instead.
+    expect(within(group).getByTestId("world-cup-group-ai-insight-line-0").textContent).toMatch(/Argentina/i)
+    expect(within(group).getByText(/Strategy: pure chalk/i)).toBeInTheDocument()
     expect(within(group).getByText(/Prediction and scoring complexity only/i)).toBeInTheDocument()
     expect(group.textContent?.toLowerCase()).not.toContain("dfs advice")
     expect(group.textContent?.toLowerCase()).not.toContain("wagering advice")
+    expect(group.textContent?.toLowerCase()).not.toMatch(/\bdfs\b|\bbetting\b|\bwager|\bsportsbook\b|\bodds\b/)
   })
 
   it("ignores rapid duplicate group save clicks while the first request is in flight", async () => {
