@@ -79,6 +79,7 @@ import { worldCupTabToQueryValue, type WorldCupBracketTab } from "@/lib/world-cu
 import WorldCupBracketBoard from "./WorldCupBracketBoard"
 import WorldCupBracketHealthCard from "./WorldCupBracketHealthCard"
 import WorldCupRootingGuideCard from "./WorldCupRootingGuideCard"
+import WorldCupExplainBracketCard from "./WorldCupExplainBracketCard"
 import WorldCupEntryDashboard from "./WorldCupEntryDashboard"
 import AllFantasyBracketBoard, { AllFantasyBracketPickSkeleton } from "@/components/brackets/shared/AllFantasyBracketBoard"
 import { WorldCupCompactBracketPreview } from "./WorldCupCompactBracketPreview"
@@ -3342,6 +3343,12 @@ export default function WorldCupBracketShell({
                       unlocked={aiInsightsUnlocked}
                       completionReview={completionReview}
                       picks={picks}
+                    />
+
+                    <WorldCupExplainBracketCard
+                      challengeId={challengeId}
+                      entryId={selectedEntryId ?? null}
+                      hasBracketBrainAi={aiInsightsUnlocked}
                     />
 
                     <WorldCupBracketGradeCard
