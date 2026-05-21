@@ -241,8 +241,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
 
         <SessionAppProvider session={initialSession}>
-          <ThemeProvider>
-            <LanguageProviderClient>
+          <LanguageProviderClient>
+            <ThemeProvider>
               <ErrorTrackingInit />
               <WebVitalsTracker />
               <ServiceWorkerRegistration />
@@ -265,8 +265,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <FloatingMusicWidget />
                 </>
               ) : null}
-            </LanguageProviderClient>
-          </ThemeProvider>
+            </ThemeProvider>
+          </LanguageProviderClient>
         </SessionAppProvider>
       </body>
     </html>
