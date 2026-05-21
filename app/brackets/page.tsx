@@ -1,5 +1,7 @@
 import Image from "next/image"
-import { BracketsHeroCTA, BracketsGuestCard } from "@/components/brackets/BracketsAuthCTA"
+import Link from "next/link"
+import { Globe2, Plus, Sparkles, Trophy, Users } from "lucide-react"
+import type { Session } from "next-auth"
 
 const WC_LOGO_SRC    = "/images/brackets/world-cup/af-world-cup-logo.png"
 const WC_VIDEO_SRC   = "/videos/brackets/world-cup/af-world-cup-hero.mp4"
@@ -10,16 +12,29 @@ export const dynamic = "force-dynamic"
 /**
  * /brackets home — World Cup hero page.
  *
- * Static chrome (hero background, logo, title, stats) is server-rendered.
- * Session-aware CTAs are delegated to client islands so signed-in users
- * see authenticated content on first render with no flash:
- *   <BracketsHeroCTA />   — hero CTA buttons + social proof
- *   <BracketsGuestCard /> — bottom CTA card
+ * Fully server-rendered. Session is read server-side via getServerSession
+ * (wrapped in try/catch so a NextAuth misconfiguration cannot 500 the page),
+ * and signed-in vs guest CTA variants are emitted from server JSX directly.
  *
- * Pattern mirrors BracketsPageHeader: useSession() is pre-seeded by the
- * root layout's initialSession via SessionProvider.
+ * No client islands are used for session detection on initial render — this
+ * eliminates the production SSR hazard previously introduced by a client
+ * useSession() island and restores Railway /brackets to 200.
  */
-export default function BracketsHomePage() {
+export default async function BracketsHomePage() {
+  // Server-side session detection. Mirrors the defensive pattern in
+  // app/layout.tsx so a NextAuth/import failure cannot crash this route.
+  let session: Session | null = null
+  try {
+    const [{ getServerSession }, { authOptions }] = await Promise.all([
+      import("next-auth"),
+      import("@/lib/auth"),
+    ])
+    session = (await getServerSession(authOptions as never)) as Session | null
+  } catch {
+    session = null
+  }
+  const isAuthed = Boolean(session?.user)
+
   return (
     <div className="min-h-screen" style={{ background: "var(--bg)" }}>
       {/* ══════════════════════════════════════════════
@@ -193,13 +208,266 @@ export default function BracketsHomePage() {
             ))}
           </div>
 
-          {/* Session-aware CTA buttons + social proof */}
-          <BracketsHeroCTA />
+          {/* Session-aware CTA buttons + social proof (server-rendered) */}
+          <div className="mt-9 sm:mt-10">
+            <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+              {isAuthed ? (
+                <>
+                  <Link
+                    href="/brackets/world-cup"
+                    className="inline-flex min-h-[52px] w-full max-w-xs items-center justify-center gap-2 rounded-2xl px-7 py-3 text-sm font-bold transition-all hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] sm:w-auto sm:min-w-[200px]"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 68%, #818cf8))",
+                      color: "var(--on-accent-bg)",
+                      boxShadow:
+                        "0 10px 36px -10px color-mix(in srgb, var(--accent-cyan) 72%, transparent), 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 28%, transparent)",
+                    }}
+                  >
+                    <Globe2 className="h-4 w-4 shrink-0" />
+                    World Cup Bracket
+                  </Link>
+                  <Link
+                    href="/brackets/world-cup/create"
+                    className="inline-flex min-h-[52px] w-full max-w-xs items-center justify-center gap-2 rounded-2xl border px-7 py-3 text-sm font-semibold transition-all hover:opacity-90 sm:w-auto sm:min-w-[160px]"
+                    style={{
+                      borderColor: "rgba(255,255,255,0.20)",
+                      color: "rgba(255,255,255,0.88)",
+                      background: "rgba(255,255,255,0.06)",
+                      backdropFilter: "blur(12px)",
+                    }}
+                  >
+                    <Plus className="h-4 w-4 shrink-0" />
+                    Create Pool
+                  </Link>
+                  <Link
+                    href="/brackets/world-cup/discover"
+                    className="inline-flex min-h-[52px] w-full max-w-xs items-center justify-center gap-2 rounded-2xl border px-7 py-3 text-sm font-semibold transition-all hover:opacity-90 sm:w-auto sm:min-w-[160px]"
+                    style={{
+                      borderColor: "color-mix(in srgb, var(--accent-amber) 34%, transparent)",
+                      color: "rgba(255,255,255,0.92)",
+                      background: "color-mix(in srgb, var(--accent-amber) 12%, transparent)",
+                    }}
+                  >
+                    <Trophy className="h-4 w-4 shrink-0" style={{ color: "var(--accent-amber-strong)" }} />
+                    Discover Pools
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/signup?next=%2Fbrackets&callbackUrl=%2Fbrackets"
+                    className="inline-flex min-h-[52px] w-full max-w-xs items-center justify-center gap-2 rounded-2xl px-7 py-3 text-sm font-bold transition-all hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] sm:w-auto sm:min-w-[200px]"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 68%, #818cf8))",
+                      color: "var(--on-accent-bg)",
+                      boxShadow:
+                        "0 10px 36px -10px color-mix(in srgb, var(--accent-cyan) 72%, transparent), 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 28%, transparent)",
+                    }}
+                  >
+                    <Sparkles className="h-4 w-4 shrink-0" />
+                    Sign Up Free
+                  </Link>
+                  <Link
+                    href="/login?callbackUrl=%2Fbrackets"
+                    className="inline-flex min-h-[52px] w-full max-w-xs items-center justify-center gap-2 rounded-2xl border px-7 py-3 text-sm font-semibold transition-all hover:opacity-90 sm:w-auto sm:min-w-[160px]"
+                    style={{
+                      borderColor: "rgba(255,255,255,0.20)",
+                      color: "rgba(255,255,255,0.88)",
+                      background: "rgba(255,255,255,0.06)",
+                      backdropFilter: "blur(12px)",
+                    }}
+                  >
+                    Sign In
+                  </Link>
+                  <Link
+                    href="/brackets/discover"
+                    className="inline-flex min-h-[52px] w-full max-w-xs items-center justify-center gap-2 rounded-2xl border px-7 py-3 text-sm font-semibold transition-all hover:opacity-90 sm:w-auto sm:min-w-[160px]"
+                    style={{
+                      borderColor: "color-mix(in srgb, var(--accent-amber) 34%, transparent)",
+                      color: "rgba(255,255,255,0.92)",
+                      background: "color-mix(in srgb, var(--accent-amber) 12%, transparent)",
+                    }}
+                  >
+                    <Trophy className="h-4 w-4 shrink-0" style={{ color: "var(--accent-amber-strong)" }} />
+                    Discover Pools
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Social proof */}
+          <div className="mt-8 flex justify-center">
+            <div
+              className="inline-flex items-center gap-3 rounded-full border px-4 py-2"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                borderColor: "rgba(255,255,255,0.10)",
+                backdropFilter: "blur(12px)",
+              }}
+            >
+              <div className="flex -space-x-1.5" aria-hidden="true">
+                {(["\u{1F1E7}\u{1F1F7}", "\u{1F1EB}\u{1F1F7}", "\u{1F1E9}\u{1F1EA}", "\u{1F1E6}\u{1F1F7}"] as const).map((flag, i) => (
+                  <div
+                    key={i}
+                    className="flex h-6 w-6 items-center justify-center rounded-full border text-xs"
+                    style={{ borderColor: "rgba(0,0,0,0.35)", background: "rgba(255,255,255,0.09)" }}
+                  >
+                    {flag}
+                  </div>
+                ))}
+              </div>
+              <span className="text-[11px] font-medium" style={{ color: "rgba(255,255,255,0.55)" }}>
+                Join thousands of fans competing worldwide
+              </span>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Session-aware bottom CTA card */}
-      <BracketsGuestCard />
+      {/* Session-aware bottom CTA card (server-rendered) */}
+      <div className="mx-auto max-w-5xl px-4 pb-8 sm:px-6">
+        <div
+          className="mb-10 -mt-6 rounded-3xl border p-6 text-center sm:p-8"
+          style={{
+            background: "color-mix(in srgb, var(--panel) 92%, transparent)",
+            borderColor: "color-mix(in srgb, var(--accent-cyan) 26%, var(--border))",
+            boxShadow: "0 28px 64px -32px color-mix(in srgb, var(--accent-cyan) 32%, transparent)",
+            backdropFilter: "blur(16px)",
+          }}
+        >
+          <div
+            className="mb-3 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em]"
+            style={{
+              background: "color-mix(in srgb, var(--accent-cyan) 12%, transparent)",
+              borderColor: "color-mix(in srgb, var(--accent-cyan) 28%, transparent)",
+              color: "var(--accent-cyan-strong)",
+            }}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {isAuthed ? "Your bracket hub" : "Get started free"}
+          </div>
+          <h2 className="mb-2 text-xl font-bold sm:text-2xl" style={{ color: "var(--text)" }}>
+            {isAuthed
+              ? "Create a pool. Build your bracket. Climb the leaderboard."
+              : "Create a pool. Invite friends. Fill your bracket."}
+          </h2>
+          <p className="mx-auto mb-6 max-w-md text-sm" style={{ color: "var(--muted)" }}>
+            {isAuthed
+              ? "Launch a World Cup pool, fill your bracket, and track live scores — all in one place."
+              : "Launch your first bracket pool in minutes. AI analysis on every pick. No fees, no premium tiers. Free forever."}
+          </p>
+
+          <div className="flex flex-col items-center gap-2.5 sm:flex-row sm:justify-center sm:gap-3">
+            {isAuthed ? (
+              <>
+                <Link
+                  href="/brackets/world-cup"
+                  className="inline-flex w-full min-w-[10rem] items-center justify-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-bold transition hover:opacity-90 sm:w-auto"
+                  style={{
+                    backgroundImage:
+                      "linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))",
+                    color: "var(--on-accent-bg)",
+                    boxShadow: "0 8px 24px -10px color-mix(in srgb, var(--accent-cyan) 60%, transparent)",
+                  }}
+                >
+                  <Globe2 className="h-3.5 w-3.5" />
+                  My World Cup Pools
+                </Link>
+                <Link
+                  href="/brackets/world-cup/create"
+                  className="inline-flex w-full min-w-[10rem] items-center justify-center gap-1.5 rounded-xl border px-5 py-2.5 text-sm font-semibold transition hover:opacity-90 sm:w-auto"
+                  style={{
+                    borderColor: "var(--border)",
+                    color: "var(--text)",
+                    background: "color-mix(in srgb, var(--panel2) 50%, transparent)",
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Create Pool
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/signup?next=%2Fbrackets&callbackUrl=%2Fbrackets"
+                  className="inline-flex w-full min-w-[10rem] items-center justify-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-bold transition hover:opacity-90 sm:w-auto"
+                  style={{
+                    backgroundImage:
+                      "linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))",
+                    color: "var(--on-accent-bg)",
+                    boxShadow: "0 8px 24px -10px color-mix(in srgb, var(--accent-cyan) 60%, transparent)",
+                  }}
+                >
+                  Sign Up Free
+                </Link>
+                <Link
+                  href="/login?callbackUrl=%2Fbrackets"
+                  className="inline-flex w-full min-w-[10rem] items-center justify-center gap-1.5 rounded-xl border px-5 py-2.5 text-sm font-semibold transition hover:opacity-90 sm:w-auto"
+                  style={{
+                    borderColor: "var(--border)",
+                    color: "var(--text)",
+                    background: "color-mix(in srgb, var(--panel2) 50%, transparent)",
+                  }}
+                >
+                  Sign In
+                </Link>
+              </>
+            )}
+          </div>
+
+          {/* Feature tiles — always visible */}
+          <div className="mt-6 grid grid-cols-1 gap-3 text-left sm:grid-cols-3">
+            <div
+              className="rounded-xl border p-4"
+              style={{
+                borderColor: "var(--border)",
+                background: "color-mix(in srgb, var(--panel2) 60%, transparent)",
+              }}
+            >
+              <Globe2 className="mb-2 h-5 w-5" style={{ color: "var(--accent-cyan-strong)" }} />
+              <div className="mb-1 text-sm font-semibold" style={{ color: "var(--text)" }}>
+                World Cup Bracket
+              </div>
+              <div className="text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+                Full FIFA 2026 bracket with group stage + knockout picks
+              </div>
+            </div>
+            <div
+              className="rounded-xl border p-4"
+              style={{
+                borderColor: "var(--border)",
+                background: "color-mix(in srgb, var(--panel2) 60%, transparent)",
+              }}
+            >
+              <Sparkles className="mb-2 h-5 w-5" style={{ color: "#c084fc" }} />
+              <div className="mb-1 text-sm font-semibold" style={{ color: "var(--text)" }}>
+                AI Coach
+              </div>
+              <div className="text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+                Win probabilities and upset analysis on every matchup
+              </div>
+            </div>
+            <div
+              className="rounded-xl border p-4"
+              style={{
+                borderColor: "var(--border)",
+                background: "color-mix(in srgb, var(--panel2) 60%, transparent)",
+              }}
+            >
+              <Users className="mb-2 h-5 w-5" style={{ color: "var(--accent-amber-strong)" }} />
+              <div className="mb-1 text-sm font-semibold" style={{ color: "var(--text)" }}>
+                Private Pools
+              </div>
+              <div className="text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+                Invite friends with a code — your own live leaderboard
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
