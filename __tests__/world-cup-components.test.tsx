@@ -2324,7 +2324,12 @@ describe("WorldCupBracketShell fixture readiness", () => {
     render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="rules" />)
 
     expect(await screen.findByRole("heading", { name: "Rules" })).toBeInTheDocument()
-    expect(screen.getByText("Champion Bonus: 320 pts")).toBeInTheDocument()
+    // Champion bonus label + value are in a polished side-by-side row;
+    // verify the row contains both the label and the points total.
+    const championRow = screen.getByText("Champion Bonus").closest("li")
+    expect(championRow).not.toBeNull()
+    expect(championRow).toHaveTextContent(/320/)
+    expect(championRow).toHaveTextContent(/pts/i)
   })
 
   it("disables admin integrity after a missing route response", async () => {

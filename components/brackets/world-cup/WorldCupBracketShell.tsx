@@ -2072,7 +2072,7 @@ export default function WorldCupBracketShell({
                 persistSelectedEntryId(null)
                 syncSelectedEntryUrl(null, "push")
               }}
-              className="min-h-11 min-w-11 shrink-0 rounded-lg border border-white/10 bg-white/[0.04] p-2 text-white/70 touch-manipulation"
+              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] p-2 text-white/70 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55"
               title="Back to Knockouts"
               aria-label="Back to Knockouts"
             >
@@ -2081,7 +2081,7 @@ export default function WorldCupBracketShell({
           ) : (
             <Link
               href="/brackets"
-              className="min-h-11 min-w-11 shrink-0 rounded-lg border border-white/10 bg-white/[0.04] p-2 text-white/70 touch-manipulation"
+              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] p-2 text-white/70 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55"
               aria-label="Back to brackets hub"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -2124,11 +2124,11 @@ export default function WorldCupBracketShell({
               </form>
             ) : (
               <div className="flex min-w-0 items-center gap-2">
-                <h1 className="truncate text-sm font-black leading-tight text-white sm:text-lg">
+                <h1 className="truncate text-sm font-black leading-tight tracking-tight text-white sm:text-lg lg:text-xl">
                   {showBoard ? selectedEntry!.name : view.challenge.name}
                 </h1>
                 {!showBoard && (view.isOwner || view.isAdmin) && (
-                  <span className="shrink-0 rounded-full border border-amber-300/25 bg-amber-300/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-amber-200">
+                  <span className="shrink-0 rounded-full border border-amber-300/40 bg-gradient-to-r from-amber-400/20 to-amber-300/[0.08] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100 shadow-[0_0_14px_-3px_rgba(251,191,36,0.45)]">
                     {view.isAdmin && !view.isOwner ? "Admin" : "Commissioner"}
                   </span>
                 )}
@@ -2190,7 +2190,7 @@ export default function WorldCupBracketShell({
               type="button"
               onClick={() => runOwnerAction("sync")}
               disabled={isPending}
-              className="hidden items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-white/70 hover:bg-white/[0.08] sm:inline-flex"
+              className="hidden items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-white/70 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 disabled:cursor-not-allowed disabled:opacity-50 sm:inline-flex"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isPending ? "animate-spin" : ""}`} />
               Sync
@@ -2200,7 +2200,7 @@ export default function WorldCupBracketShell({
             <button
               type="button"
               onClick={() => switchTab("invite")}
-              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-cyan-300 px-3 py-2 text-xs font-black text-black touch-manipulation sm:min-h-0 sm:min-w-0"
+              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-300 to-cyan-200 px-3 py-2 text-xs font-black text-black shadow-[0_6px_20px_-8px_rgba(34,211,238,0.6)] transition-transform hover:scale-[1.03] active:scale-[0.97] touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 sm:min-h-0 sm:min-w-0"
               aria-label="Invite friends"
               data-testid="wc-shell-invite-btn"
             >
@@ -2210,28 +2210,37 @@ export default function WorldCupBracketShell({
           )}
         </div>
         {saveError && (
-          <div className="mx-3 mb-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
-            {saveError}
+          <div className="mx-3 mb-2 flex items-start gap-2 rounded-xl border border-rose-400/35 bg-gradient-to-r from-rose-500/15 to-rose-400/[0.06] px-3 py-2 text-xs text-rose-100">
+            <span className="mt-1 inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-rose-300" aria-hidden />
+            <span>{saveError}</span>
           </div>
         )}
         {(view.challenge.isTestMode || view.challenge.simulationEnabled || view.challenge.hasSimulatedResults) && (
-          <div className="mx-3 mb-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
-            TEST MODE: results are simulated and can change leaderboard standings.
+          <div className="mx-3 mb-2 flex items-start gap-2 rounded-xl border border-amber-300/40 bg-gradient-to-r from-amber-500/15 to-amber-400/[0.06] px-3 py-2 text-[11px] text-amber-100">
+            <span className="mt-1 inline-flex h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-amber-300" aria-hidden />
+            <span>
+              <span className="font-black uppercase tracking-[0.14em]">Test mode</span> — results are simulated and can change leaderboard standings.
+            </span>
           </div>
         )}
         <WorldCupLiveScoreTicker matches={view.matches} />
         <nav
           aria-label="Section tabs"
-          className="flex gap-px overflow-x-auto px-2 pb-1.5 [scrollbar-width:none] sm:px-4 sm:pb-2 [&::-webkit-scrollbar]:hidden"
+          className="flex gap-1 overflow-x-auto px-2 pb-2 [scrollbar-width:none] sm:px-4 sm:pb-2.5 [&::-webkit-scrollbar]:hidden"
         >
           {tabList.map(({ id, icon: Icon, label }) => (
             <button
               key={id}
               type="button"
               onClick={() => switchTab(id)}
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide touch-manipulation ${tab === id ? "border-cyan-300/40 bg-cyan-300/15 text-cyan-50" : "border-transparent bg-white/[0.04] text-white/55"}`}
+              aria-current={tab === id ? "page" : undefined}
+              className={`group inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors duration-150 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-950 ${
+                tab === id
+                  ? "border-cyan-300/45 bg-gradient-to-b from-cyan-300/20 to-cyan-300/10 text-cyan-50 shadow-[0_4px_18px_-6px_rgba(34,211,238,0.45)]"
+                  : "border-white/10 bg-white/[0.04] text-white/60 hover:border-white/15 hover:bg-white/[0.07] hover:text-white/85"
+              }`}
             >
-              <Icon className="h-3 w-3 shrink-0" aria-hidden />
+              <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
               {label}
             </button>
           ))}
@@ -3515,26 +3524,76 @@ export default function WorldCupBracketShell({
           </div>
         ) : null}
         {tab === "rules" ? (
-          <div className="mx-auto max-w-2xl px-4 py-6 text-sm leading-7 text-white/60">
-            <h2 className="mb-3 text-lg font-black text-white">Rules</h2>
-            <p>
-              Pick every winner from the Round of 32 through the champion. Picks lock at kickoff for each match (or at tournament start if the challenge uses a tournament-start lock).
-            </p>
-            <p className="mt-3">
-              Correct picks score more each round. Final API results update match winners, advance teams, score entries, and refresh the leaderboard.
-            </p>
-            <p className="mt-3 font-bold text-white/70">Scoring (default)</p>
-            <ul className="mt-1 list-disc pl-5 space-y-1">
-              <li>Round of 32: {view.scoring.roundOf32Points} pts</li>
-              <li>Round of 16: {view.scoring.roundOf16Points} pts</li>
-              <li>Quarterfinal: {view.scoring.quarterFinalPoints} pts</li>
-              <li>Semifinal: {view.scoring.semiFinalPoints} pts</li>
-              <li>Final: {view.scoring.finalPoints} pts</li>
-              <li className="font-semibold text-cyan-100/90">Champion Bonus: {view.scoring.championBonusPoints} pts</li>
-              {view.challenge.includeThirdPlace && view.scoring.thirdPlacePoints != null ? (
-                <li>3rd Place: {view.scoring.thirdPlacePoints} pts</li>
-              ) : null}
-            </ul>
+          <div className="mx-auto max-w-2xl px-4 py-6 pb-28 sm:pb-8">
+            {/* Section header */}
+            <div className="mb-4 flex items-center gap-2.5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-300/10">
+                <ClipboardList className="h-4 w-4 text-cyan-200" aria-hidden />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">Pool</p>
+                <h2 className="text-lg font-black text-white">Rules</h2>
+              </div>
+            </div>
+
+            {/* How it works */}
+            <section className="mb-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur">
+              <h3 className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-cyan-200/85">How it works</h3>
+              <p className="text-sm leading-7 text-white/75">
+                Pick every winner from the Round of 32 through the champion. Picks lock at kickoff for each match (or at tournament start if the pool uses a tournament-start lock).
+              </p>
+              <p className="mt-2 text-sm leading-7 text-white/75">
+                Correct picks score more each round. Final API results update match winners, advance teams, score entries, and refresh the leaderboard.
+              </p>
+            </section>
+
+            {/* Scoring */}
+            <section className="mb-3 rounded-2xl border border-cyan-300/20 bg-gradient-to-b from-cyan-300/[0.06] to-white/[0.03] p-4 backdrop-blur">
+              <h3 className="mb-3 text-[11px] font-black uppercase tracking-[0.16em] text-cyan-200/85">Scoring (default)</h3>
+              <ul className="space-y-1.5 text-sm">
+                {[
+                  { label: "Round of 32", value: view.scoring.roundOf32Points },
+                  { label: "Round of 16", value: view.scoring.roundOf16Points },
+                  { label: "Quarterfinal", value: view.scoring.quarterFinalPoints },
+                  { label: "Semifinal", value: view.scoring.semiFinalPoints },
+                  { label: "Final", value: view.scoring.finalPoints },
+                ].map((row) => (
+                  <li key={row.label} className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
+                    <span className="font-semibold text-white/80">{row.label}</span>
+                    <span className="font-black tabular-nums text-white">{row.value} <span className="text-[11px] font-bold text-white/45">pts</span></span>
+                  </li>
+                ))}
+                <li className="flex items-center justify-between gap-3 rounded-lg border border-cyan-300/30 bg-cyan-300/[0.08] px-3 py-2">
+                  <span className="font-black text-cyan-100">Champion Bonus</span>
+                  <span className="font-black tabular-nums text-cyan-50">{view.scoring.championBonusPoints} <span className="text-[11px] font-bold text-cyan-200/75">pts</span></span>
+                </li>
+                {view.challenge.includeThirdPlace && view.scoring.thirdPlacePoints != null ? (
+                  <li className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
+                    <span className="font-semibold text-white/80">3rd Place</span>
+                    <span className="font-black tabular-nums text-white">{view.scoring.thirdPlacePoints} <span className="text-[11px] font-bold text-white/45">pts</span></span>
+                  </li>
+                ) : null}
+              </ul>
+            </section>
+
+            {/* Pool settings summary */}
+            <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur">
+              <h3 className="mb-3 text-[11px] font-black uppercase tracking-[0.16em] text-white/55">Pool settings</h3>
+              <ul className="space-y-1.5 text-sm">
+                <li className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
+                  <span className="font-semibold text-white/70">Brackets per user</span>
+                  <span className="font-bold tabular-nums text-white">{view.challenge.maxEntriesPerParticipant}</span>
+                </li>
+                <li className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
+                  <span className="font-semibold text-white/70">Third-place match</span>
+                  <span className="font-bold text-white">{view.challenge.includeThirdPlace ? "Included" : "Off"}</span>
+                </li>
+                <li className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
+                  <span className="font-semibold text-white/70">Invite sharing</span>
+                  <span className="font-bold text-white">Commissioner only</span>
+                </li>
+              </ul>
+            </section>
           </div>
         ) : null}
         {tab === "settings" ? (
@@ -3568,15 +3627,24 @@ export default function WorldCupBracketShell({
 
       <nav
         aria-label="Primary bracket tabs"
-        className="fixed inset-x-0 bottom-0 z-40 flex overflow-x-auto border-t border-white/10 bg-zinc-950/95 pb-[env(safe-area-inset-bottom,0px)] sm:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 flex overflow-x-auto border-t border-white/10 bg-zinc-950/95 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-md sm:hidden"
       >
         {tabList.map(({ id, icon: Icon, label }) => (
           <button
             key={id}
             type="button"
             onClick={() => switchTab(id)}
-            className={`flex min-h-[52px] min-w-[68px] flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-bold touch-manipulation ${tab === id ? "text-cyan-200" : "text-white/45"}`}
+            aria-current={tab === id ? "page" : undefined}
+            className={`relative flex min-h-[56px] min-w-[68px] flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[11px] font-bold transition-colors touch-manipulation focus-visible:outline-none focus-visible:bg-white/[0.05] ${
+              tab === id ? "text-cyan-200" : "text-white/55 hover:text-white/80"
+            }`}
           >
+            {tab === id ? (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-x-3 top-0 h-[2px] rounded-b-full bg-gradient-to-r from-cyan-400 via-cyan-300 to-cyan-200 shadow-[0_2px_12px_rgba(34,211,238,0.55)]"
+              />
+            ) : null}
             <Icon className="h-4 w-4 shrink-0" aria-hidden />
             <span className="truncate">
               {label === "Leaderboard" ? "Ranks" : label === "Commissioner" ? "Commish" : label === "Settings" ? "Setup" : label}
@@ -3624,7 +3692,7 @@ function JumpButton({ label, onClick, disabled }: { label: string; onClick: () =
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="whitespace-nowrap rounded-md border border-white/10 bg-white/[0.05] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/65 touch-manipulation disabled:cursor-not-allowed disabled:opacity-40"
+      className="whitespace-nowrap rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/65 transition-colors hover:border-white/15 hover:bg-white/[0.08] hover:text-white/85 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 disabled:cursor-not-allowed disabled:opacity-40"
     >
       {label}
     </button>
@@ -3641,10 +3709,10 @@ function PoolStatCard({
   tone?: "default" | "ready" | "warn"
 }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-3">
-      <div className="text-[10px] font-black uppercase tracking-widest text-white/35">{label}</div>
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 backdrop-blur transition-colors hover:border-white/15 hover:bg-white/[0.06]">
+      <div className="text-[10px] font-black uppercase tracking-widest text-white/45">{label}</div>
       <div
-        className={`mt-1 text-xl font-black ${
+        className={`mt-1 text-xl font-black tabular-nums ${
           tone === "ready" ? "text-emerald-200" : tone === "warn" ? "text-amber-200" : "text-white"
         }`}
       >

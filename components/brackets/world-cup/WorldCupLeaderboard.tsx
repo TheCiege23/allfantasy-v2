@@ -83,27 +83,33 @@ export default function WorldCupLeaderboard({
         </div>
       )}
 
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-black text-white">Leaderboard</h2>
-          <p className="text-xs text-white/45">
-            Finalized entries only — draft brackets stay private until submitted. Scores update from final match results.
-            {view.challenge.lastSyncedAt
-              ? ` Last updated ${new Date(view.challenge.lastSyncedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.`
-              : " Not yet synced."}
-          </p>
-          {(view.challenge.isTestMode || view.challenge.simulationEnabled || view.challenge.hasSimulatedResults) && (
-            <p className="mt-1 text-xs text-amber-300">Test Mode: leaderboard may reflect simulated results.</p>
-          )}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-2.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-300/10">
+            <Trophy className="h-4 w-4 text-cyan-200" aria-hidden />
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">Pool</p>
+            <h2 className="text-lg font-black text-white">Leaderboard</h2>
+            <p className="mt-0.5 text-xs leading-relaxed text-white/50">
+              Finalized entries only — draft brackets stay private until submitted. Scores update from final match results.
+              {view.challenge.lastSyncedAt
+                ? ` Last updated ${new Date(view.challenge.lastSyncedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.`
+                : " Not yet synced."}
+            </p>
+            {(view.challenge.isTestMode || view.challenge.simulationEnabled || view.challenge.hasSimulatedResults) && (
+              <p className="mt-1 text-xs font-semibold text-amber-200">Test Mode: leaderboard may reflect simulated results.</p>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {(view.isOwner || view.isAdmin) ? (
             <button
               type="button"
               onClick={onRecalculate}
               disabled={busy}
               data-testid="world-cup-leaderboard-recalculate"
-              className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-white/70"
+              className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-white/75 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${busy ? "animate-spin" : ""}`} />
               Recalculate
@@ -111,7 +117,7 @@ export default function WorldCupLeaderboard({
           ) : (
             <span
               data-testid="world-cup-leaderboard-auto-update"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-1.5 text-[11px] font-semibold text-white/40"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-semibold text-white/55"
             >
               <RefreshCw className="h-3 w-3" aria-hidden />
               Updates automatically
@@ -150,12 +156,14 @@ export default function WorldCupLeaderboard({
       {view.leaderboard.length === 0 ? (
         <div
           data-testid="wc-leaderboard-empty"
-          className="flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] py-12 text-center"
+          className="flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] py-14 text-center backdrop-blur"
         >
-          <Trophy className="h-8 w-8 text-white/15" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+            <Trophy className="h-5 w-5 text-white/35" />
+          </div>
           <div>
-            <p className="text-sm font-bold text-white/45">No leaderboard entries yet</p>
-            <p className="mt-1 text-xs text-white/30">
+            <p className="text-sm font-black text-white/75">No leaderboard entries yet</p>
+            <p className="mx-auto mt-1 max-w-xs text-xs leading-5 text-white/45">
               Finalize a bracket to join the standings. Draft picks are hidden from the leaderboard until submitted.
             </p>
           </div>
@@ -176,10 +184,10 @@ export default function WorldCupLeaderboard({
                 key={row.entryId}
                 data-testid={`wc-leaderboard-row-${row.entryId}`}
                 data-mobile-card="true"
-                className={`rounded-lg border p-3 transition ${
+                className={`rounded-xl border p-3 transition-colors ${
                   highlightEntryId && row.entryId === highlightEntryId
-                    ? "sticky bottom-20 z-10 border-cyan-300/40 bg-cyan-300/[0.07] sm:static"
-                    : "border-white/10 bg-white/[0.03]"
+                    ? "sticky bottom-20 z-10 border-cyan-300/45 bg-gradient-to-r from-cyan-300/[0.10] to-cyan-300/[0.04] shadow-[0_0_24px_-8px_rgba(34,211,238,0.35)] sm:static"
+                    : "border-white/10 bg-white/[0.04] hover:border-white/15 hover:bg-white/[0.06]"
                 }`}
               >
                 <div className="flex flex-col gap-2">
