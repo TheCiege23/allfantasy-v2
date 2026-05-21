@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import { getServerSession } from "next-auth"
+import { headers } from "next/headers"
 import { authOptions } from "@/lib/auth"
 import { resolveAdminEmail } from "@/lib/auth/admin"
 import { GlobalShellClient } from "@/components/shell/GlobalShellClient"
@@ -14,11 +15,23 @@ type GlobalAppShellProps = {
   hideSidebar?: boolean
 }
 
+const AUTH_SHELL_BYPASS_PATHS = new Set(["/login", "/signup", "/signin"])
+
+function isAuthShellBypassPath(pathname: string | null): boolean {
+  if (!pathname) return false
+  return AUTH_SHELL_BYPASS_PATHS.has(pathname) || pathname.startsWith("/auth/")
+}
+
 export default async function GlobalAppShell({
   children,
   hideHeader = false,
   hideSidebar = false,
 }: GlobalAppShellProps) {
+  const pathname = (await headers()).get("x-af-pathname")
+  if (isAuthShellBypassPath(pathname)) {
+    return <>{children}</>
+  }
+
   const session = (await getServerSession(authOptions as any)) as {
     user?: { email?: string | null; name?: string | null }
   } | null

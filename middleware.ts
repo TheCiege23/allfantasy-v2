@@ -247,11 +247,21 @@ function applyApiSecurityHeaders(pathname: string, response: NextResponse): Next
   return response
 }
 
+function nextWithRouteHeaders(request: NextRequest, pathname: string): NextResponse {
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set("x-af-pathname", pathname)
+  return NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  })
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (isExemptPath(pathname)) {
-    return applyApiSecurityHeaders(pathname, NextResponse.next())
+    return applyApiSecurityHeaders(pathname, nextWithRouteHeaders(request, pathname))
   }
 
   const hostRedirect = canonicalProductionHostRedirect(request)
@@ -375,7 +385,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  const response = NextResponse.next()
+  const response = nextWithRouteHeaders(request, pathname)
   if (country === "US" && region) {
     response.headers.set("x-user-state", region.toUpperCase())
   }

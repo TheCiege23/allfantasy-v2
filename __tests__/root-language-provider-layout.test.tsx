@@ -23,7 +23,9 @@ const signupPageSource = fs.readFileSync(path.join(process.cwd(), "app", "signup
 const loginPageSource = fs.readFileSync(path.join(process.cwd(), "app", "login", "page.tsx"), "utf8")
 const loginContentSource = fs.readFileSync(path.join(process.cwd(), "app", "login", "LoginContent.tsx"), "utf8")
 const signinPageSource = fs.readFileSync(path.join(process.cwd(), "app", "signin", "page.tsx"), "utf8")
+const globalAppShellSource = fs.readFileSync(path.join(process.cwd(), "components", "shared", "GlobalAppShell.tsx"), "utf8")
 const languageProviderSource = fs.readFileSync(path.join(process.cwd(), "components", "i18n", "LanguageProviderClient.tsx"), "utf8")
+const middlewareSource = fs.readFileSync(path.join(process.cwd(), "middleware.ts"), "utf8")
 const optionalSessionSource = fs.readFileSync(path.join(process.cwd(), "components", "auth", "useOptionalSession.ts"), "utf8")
 const modeToggleSource = fs.readFileSync(path.join(process.cwd(), "components", "theme", "ModeToggle.tsx"), "utf8")
 const languageToggleSource = fs.readFileSync(path.join(process.cwd(), "components", "i18n", "LanguageToggle.tsx"), "utf8")
@@ -105,6 +107,17 @@ describe("root language provider layout", () => {
   it("does not nest full app providers inside auth pages", () => {
     expect(signupPageSource).not.toContain("<AppProviders>")
     expect(loginPageSource).not.toContain("<AppProviders>")
+  })
+
+  it("bypasses global shell chrome for auth routes", () => {
+    expect(middlewareSource).toContain('"x-af-pathname"')
+    expect(globalAppShellSource).toContain('"/login"')
+    expect(globalAppShellSource).toContain('"/signup"')
+    expect(globalAppShellSource).toContain('"/signin"')
+    expect(globalAppShellSource).toContain("isAuthShellBypassPath")
+    expect(globalAppShellSource.indexOf("return <>{children}</>")).toBeLessThan(
+      globalAppShellSource.indexOf("<GlobalShellClient")
+    )
   })
 
   it("redirects /signin to the canonical login route", () => {
