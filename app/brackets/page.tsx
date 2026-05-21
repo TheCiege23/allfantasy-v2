@@ -625,10 +625,24 @@ export default async function BracketsHomePage() {
                     color: "rgba(255,255,255,0.95)",
                     boxShadow: "0 8px 28px -10px color-mix(in srgb, var(--accent-cyan) 52%, transparent)",
                   }}
+                  data-testid="bracket-world-cup-button"
+                >
+                  <Globe2 className="h-5 w-5" style={{ color: "var(--accent-cyan-strong)" }} />
+                  <span>Open World Cup Pools</span>
+                </Link>
+                <Link
+                  href="/brackets/leagues/new"
+                  className="group flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-2xl border px-2 py-3 text-center text-xs font-bold transition-all hover:opacity-90 hover:scale-[1.02] active:scale-[0.98]"
+                  style={{
+                    background: "color-mix(in srgb, var(--accent-cyan) 18%, transparent)",
+                    borderColor: "color-mix(in srgb, var(--accent-cyan) 34%, transparent)",
+                    color: "rgba(255,255,255,0.95)",
+                    boxShadow: "0 8px 28px -12px color-mix(in srgb, var(--accent-cyan) 44%, transparent)",
+                  }}
                   data-testid="bracket-create-pool-button"
                 >
                   <Plus className="h-5 w-5" style={{ color: "var(--accent-cyan-strong)" }} />
-                  <span>Create Pool</span>
+                  <span>Create a Pool</span>
                 </Link>
                 <Link
                   href="/brackets/join"
@@ -645,19 +659,6 @@ export default async function BracketsHomePage() {
                   <span>Join Pool</span>
                 </Link>
                 <Link
-                  href={chimmyHref}
-                  className="group flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-2xl border px-2 py-3 text-center text-xs font-bold transition-all hover:opacity-90 hover:scale-[1.02] active:scale-[0.98]"
-                  style={{
-                    background: "color-mix(in srgb, var(--accent-purple) 18%, transparent)",
-                    borderColor: "color-mix(in srgb, var(--accent-purple) 38%, transparent)",
-                    color: "rgba(255,255,255,0.92)",
-                    boxShadow: "0 8px 28px -12px color-mix(in srgb, var(--accent-purple) 50%, transparent)",
-                  }}
-                >
-                  <Sparkles className="h-5 w-5" style={{ color: "#c084fc" }} />
-                  <span>AI Coach</span>
-                </Link>
-                <Link
                   href="/brackets/discover"
                   className="group flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-2xl border px-2 py-3 text-center text-xs font-bold transition-all hover:opacity-90 hover:scale-[1.02] active:scale-[0.98]"
                   style={{
@@ -669,7 +670,7 @@ export default async function BracketsHomePage() {
                   data-testid="bracket-discover-link"
                 >
                   <Trophy className="h-5 w-5" style={{ color: "var(--accent-amber-strong)" }} />
-                  <span>Leaderboards</span>
+                  <span>Discover Pools</span>
                 </Link>
               </div>
             )}
@@ -1117,7 +1118,7 @@ export default async function BracketsHomePage() {
             style={{ color: "var(--muted2)" }}
           >
             <Link href="/brackets/discover" className="transition hover:opacity-80" style={{ color: "var(--muted)" }}>
-              Discover public leagues
+              Discover public pools
             </Link>
             <span aria-hidden="true" style={{ color: "var(--muted2)" }}>&middot;</span>
             <Link href="/creators" className="transition hover:opacity-80" style={{ color: "var(--muted)" }}>

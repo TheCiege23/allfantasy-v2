@@ -211,7 +211,7 @@ export default function NewBracketLeaguePage() {
           <ArrowLeft className="w-4 h-4" />
         </button>
 
-        <h1 className="text-xl font-bold text-center mb-2">Create Bracket Challenge Pool</h1>
+        <h1 className="text-xl font-bold text-center mb-2">Create Bracket Pool</h1>
         <p className="text-center text-xs mb-8 mode-muted">
           Build a {sportLabel} {challengeType === "playoff_challenge" ? "Playoff Challenge" : "Classic NCAA"} pool.
         </p>

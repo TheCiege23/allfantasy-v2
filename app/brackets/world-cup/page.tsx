@@ -18,8 +18,8 @@ type WorldCupChallengeSummary = {
 }
 
 const FEATURE_BULLETS = [
-  { icon: Users, text: "Create private or public World Cup bracket leagues." },
-  { icon: Users, text: "Up to 100 users per league." },
+  { icon: Users, text: "Create private or public World Cup bracket pools." },
+  { icon: Users, text: "Up to 100 users per pool." },
   { icon: Trophy, text: "Up to 5 brackets per user — compete with multiple strategies." },
   { icon: Trophy, text: "NCAA-style scoring — more points for later rounds." },
   { icon: Sparkles, text: "Full-screen guided pick builder with AI matchup previews." },
@@ -52,7 +52,7 @@ export default async function WorldCupBracketsPage() {
               href="/brackets/world-cup/discover"
               className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-4 py-2 text-sm font-bold text-cyan-100 hover:bg-cyan-400/15"
             >
-              Discover public leagues
+              Discover public pools
             </Link>
             {userId && (
               <Link
@@ -67,7 +67,7 @@ export default async function WorldCupBracketsPage() {
               className="inline-flex items-center gap-2 rounded-lg bg-cyan-300 px-4 py-2 text-sm font-black text-black"
             >
               <Plus className="h-4 w-4" />
-              Create Challenge
+              Create Pool
             </Link>
           </div>
         </div>
@@ -102,13 +102,13 @@ export default async function WorldCupBracketsPage() {
               className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-2.5 text-sm font-black text-black"
             >
               <Plus className="h-4 w-4" />
-              Create World Cup Bracket League
+              Create World Cup Pool
             </Link>
             <Link
               href="/brackets/world-cup/discover"
               className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-5 py-2.5 text-sm font-bold text-cyan-100 hover:bg-cyan-400/15"
             >
-              Discover public leagues
+              Discover public pools
             </Link>
             {userId && (
               <Link
@@ -125,7 +125,7 @@ export default async function WorldCupBracketsPage() {
         <section>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-black uppercase tracking-[0.16em] text-white/45">
-              Your World Cup Challenges
+              Your World Cup Pools
             </h2>
             <span className="text-xs text-white/35">{challenges.length} joined</span>
           </div>
@@ -169,9 +169,9 @@ export default async function WorldCupBracketsPage() {
                   <Globe2 className="h-6 w-6 text-cyan-200" />
                 </div>
                 <div>
-                  <p className="font-black text-white">No challenges yet</p>
+                  <p className="font-black text-white">No pools yet</p>
                   <p className="mt-1 text-sm text-white/45">
-                    You haven't joined a World Cup bracket challenge yet.
+                    You haven't joined a World Cup bracket pool yet.
                   </p>
                   <p className="mt-1 text-xs text-white/30">
                     Create one and invite friends, or ask for an invite code.
@@ -182,14 +182,14 @@ export default async function WorldCupBracketsPage() {
                   className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-2.5 text-sm font-black text-black"
                 >
                   <Plus className="h-4 w-4" />
-                  Create World Cup Bracket League
+                  Create World Cup Pool
                 </Link>
               </div>
             )
           ) : (
             <div className="rounded-xl border border-white/10 bg-white/[0.04] p-6">
               <p className="text-sm text-white/60">
-                Sign in to create or join a World Cup bracket challenge.
+                Sign in to create or join a World Cup bracket pool.
               </p>
               <Link
                 href="/login?next=/brackets/world-cup"

@@ -35,7 +35,7 @@ describe("/brackets/leagues/new create page", () => {
   it("renders Create Pool form", () => {
     render(<NewBracketLeaguePage />)
 
-    expect(screen.getByText("Create Bracket Challenge Pool")).toBeInTheDocument()
+    expect(screen.getByText("Create Bracket Pool")).toBeInTheDocument()
     expect(screen.getByTestId("bracket-create-form")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Create Pool" })).toBeInTheDocument()
   })
