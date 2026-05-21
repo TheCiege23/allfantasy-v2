@@ -5,7 +5,7 @@ import type { Session } from 'next-auth'
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useSession } from 'next-auth/react'
+import { useOptionalSession } from '@/components/auth/useOptionalSession'
 import { ArrowRight, Shield } from 'lucide-react'
 import LanguageToggle from '@/components/i18n/LanguageToggle'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
@@ -658,7 +658,7 @@ export default function LandingPageClient({
   initialSession = null,
 }: LandingPageClientProps) {
   const { language } = useLanguage()
-  const { status } = useSession()
+  const { status } = useOptionalSession()
   const copy = LANDING_COPY[language as keyof typeof LANDING_COPY] ?? LANDING_COPY.en
   const isAuthenticated =
     status === 'unauthenticated'

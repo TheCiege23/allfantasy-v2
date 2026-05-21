@@ -1,5 +1,4 @@
 import { render, screen } from "@testing-library/react"
-import { SessionProvider } from "next-auth/react"
 import { describe, expect, it, vi } from "vitest"
 import fs from "node:fs"
 import path from "node:path"
@@ -7,6 +6,12 @@ import { AppProviders } from "@/components/providers/AppProviders"
 import LanguageToggle from "@/components/i18n/LanguageToggle"
 import { ModeToggle } from "@/components/theme/ModeToggle"
 import { ThemeProvider } from "@/components/theme/ThemeProvider"
+
+vi.mock("next-auth/react", () => ({
+  SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  signOut: vi.fn(),
+  useSession: () => undefined,
+}))
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
@@ -19,6 +24,7 @@ const loginPageSource = fs.readFileSync(path.join(process.cwd(), "app", "login",
 const loginContentSource = fs.readFileSync(path.join(process.cwd(), "app", "login", "LoginContent.tsx"), "utf8")
 const signinPageSource = fs.readFileSync(path.join(process.cwd(), "app", "signin", "page.tsx"), "utf8")
 const languageProviderSource = fs.readFileSync(path.join(process.cwd(), "components", "i18n", "LanguageProviderClient.tsx"), "utf8")
+const optionalSessionSource = fs.readFileSync(path.join(process.cwd(), "components", "auth", "useOptionalSession.ts"), "utf8")
 const modeToggleSource = fs.readFileSync(path.join(process.cwd(), "components", "theme", "ModeToggle.tsx"), "utf8")
 const languageToggleSource = fs.readFileSync(path.join(process.cwd(), "components", "i18n", "LanguageToggle.tsx"), "utf8")
 const uiDocumentSources = [
@@ -31,7 +37,7 @@ const uiDocumentSources = [
 
 describe("root language provider layout", () => {
   it("wraps global controls and children with AppProviders", () => {
-    const providersStart = layoutSource.indexOf("<AppProviders>")
+    const providersStart = layoutSource.indexOf("<AppProviders")
     const modeToggle = layoutSource.indexOf("<GlobalModeToggle />")
     const providersEnd = layoutSource.indexOf("</AppProviders>")
 
@@ -41,24 +47,27 @@ describe("root language provider layout", () => {
   })
 
   it("keeps LanguageProviderClient outside ThemeProvider inside AppProviders", () => {
+    const sessionStart = appProvidersSource.indexOf("<SessionAppProvider")
     const languageStart = appProvidersSource.indexOf("<LanguageProviderClient>")
     const themeStart = appProvidersSource.indexOf("<ThemeProvider>")
     const themeEnd = appProvidersSource.indexOf("</ThemeProvider>")
     const languageEnd = appProvidersSource.indexOf("</LanguageProviderClient>")
+    const sessionEnd = appProvidersSource.indexOf("</SessionAppProvider>")
 
+    expect(sessionStart).toBeGreaterThan(-1)
     expect(languageStart).toBeGreaterThan(-1)
+    expect(languageStart).toBeGreaterThan(sessionStart)
     expect(themeStart).toBeGreaterThan(languageStart)
     expect(themeEnd).toBeGreaterThan(themeStart)
     expect(languageEnd).toBeGreaterThan(themeEnd)
+    expect(sessionEnd).toBeGreaterThan(languageEnd)
   })
 
   it("renders ModeToggle inside AppProviders without a missing language context", () => {
     render(
-      <SessionProvider session={null}>
-        <AppProviders>
-          <ModeToggle />
-        </AppProviders>
-      </SessionProvider>
+      <AppProviders>
+        <ModeToggle />
+      </AppProviders>
     )
 
     expect(screen.getByRole("button", { name: /current theme/i })).toBeInTheDocument()
@@ -66,12 +75,12 @@ describe("root language provider layout", () => {
 
   it("renders language-dependent toggles without LanguageProviderClient", () => {
     render(
-      <SessionProvider session={null}>
+      <>
         <ThemeProvider>
           <ModeToggle />
         </ThemeProvider>
         <LanguageToggle />
-      </SessionProvider>
+      </>
     )
 
     expect(screen.getByRole("combobox", { name: /language/i })).toBeInTheDocument()
@@ -84,6 +93,13 @@ describe("root language provider layout", () => {
     expect(loginContentSource).toContain("useOptionalLanguage")
     expect(modeToggleSource).toContain("useOptionalLanguage")
     expect(languageToggleSource).toContain("useOptionalLanguage")
+  })
+
+  it("uses optional session fallbacks for global auth chrome", () => {
+    expect(optionalSessionSource).toContain("export function useOptionalSession")
+    expect(optionalSessionSource).toContain('status: "unauthenticated"')
+    expect(modeToggleSource).toContain("useOptionalSession")
+    expect(languageToggleSource).toContain("useOptionalSession")
   })
 
   it("does not nest full app providers inside auth pages", () => {

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useSession } from 'next-auth/react'
+import { useOptionalSession } from '@/components/auth/useOptionalSession'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { gtagEvent } from '@/lib/gtag'
 import { LogIn, UserPlus } from 'lucide-react'
@@ -20,7 +20,7 @@ export function LandingCTAStrip({
   showSignInSignUp = true,
   className = '',
 }: LandingCTAStripProps) {
-  const { status } = useSession()
+  const { status } = useOptionalSession()
   const { t } = useLanguage()
   const isAuthed = status === 'authenticated'
 

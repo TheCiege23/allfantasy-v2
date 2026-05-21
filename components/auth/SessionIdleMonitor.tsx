@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
-import { signOut, useSession } from "next-auth/react"
+import { signOut } from "next-auth/react"
+import { useOptionalSession } from "@/components/auth/useOptionalSession"
 import { resolveSessionIdleMs } from "@/lib/auth/session-idle-constants"
 
 const ACTIVITY_EVENTS: (keyof WindowEventMap)[] = [
@@ -38,7 +39,7 @@ function touchActivity(): void {
  * Preference is synced to localStorage from profile fetch (see SyncProfilePreferences).
  */
 export default function SessionIdleMonitor() {
-  const { status } = useSession()
+  const { status } = useOptionalSession()
   const pathname = usePathname() ?? ""
   const [idleMs, setIdleMs] = useState<number | null>(null)
   const throttleRef = useRef<number | null>(null)

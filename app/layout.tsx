@@ -5,7 +5,6 @@ import Script from 'next/script';
 import { Toaster } from 'sonner';
 import { cookies } from 'next/headers';
 import { GlobalModeToggle } from '@/components/theme/GlobalModeToggle';
-import SessionAppProvider from '@/components/providers/SessionAppProvider';
 import { AppProviders } from '@/components/providers/AppProviders';
 import { BackToTop } from '@/components/BackToTop';
 import { SpotifyMiniPlayer } from '@/components/spotify/SpotifyMiniPlayer';
@@ -239,32 +238,30 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           crossOrigin="anonymous"
         />
 
-        <SessionAppProvider session={initialSession}>
-          <AppProviders>
-            <ErrorTrackingInit />
-            <WebVitalsTracker />
-            <ServiceWorkerRegistration />
-            <ReferralTracker />
-            <SyncProfilePreferences />
-            <TimeEngineClientSync />
-            <SessionIdleMonitor />
-            <ErrorBoundaryClient>
-              <PlayerComparisonUIProvider>{children}</PlayerComparisonUIProvider>
-            </ErrorBoundaryClient>
-            <GlobalModeToggle />
-            <Toaster position="top-center" richColors closeButton />
-            <BackToTop />
-            {/* Music widgets deferred until Spotify Web Playback SDK is integrated.
-                Set NEXT_PUBLIC_MUSIC_WIDGET_ENABLED=true to re-enable.
-                Current Web API approach has unreliable preview_url playback. */}
-            {process.env.NEXT_PUBLIC_MUSIC_WIDGET_ENABLED === 'true' ? (
-              <>
-                <SpotifyMiniPlayer />
-                <FloatingMusicWidget />
-              </>
-            ) : null}
-          </AppProviders>
-        </SessionAppProvider>
+        <AppProviders session={initialSession}>
+          <ErrorTrackingInit />
+          <WebVitalsTracker />
+          <ServiceWorkerRegistration />
+          <ReferralTracker />
+          <SyncProfilePreferences />
+          <TimeEngineClientSync />
+          <SessionIdleMonitor />
+          <ErrorBoundaryClient>
+            <PlayerComparisonUIProvider>{children}</PlayerComparisonUIProvider>
+          </ErrorBoundaryClient>
+          <GlobalModeToggle />
+          <Toaster position="top-center" richColors closeButton />
+          <BackToTop />
+          {/* Music widgets deferred until Spotify Web Playback SDK is integrated.
+              Set NEXT_PUBLIC_MUSIC_WIDGET_ENABLED=true to re-enable.
+              Current Web API approach has unreliable preview_url playback. */}
+          {process.env.NEXT_PUBLIC_MUSIC_WIDGET_ENABLED === 'true' ? (
+            <>
+              <SpotifyMiniPlayer />
+              <FloatingMusicWidget />
+            </>
+          ) : null}
+        </AppProviders>
       </body>
     </html>
   );

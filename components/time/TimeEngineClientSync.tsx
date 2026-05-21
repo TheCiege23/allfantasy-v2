@@ -1,6 +1,6 @@
 'use client'
 
-import { useSession } from 'next-auth/react'
+import { useOptionalSession } from '@/components/auth/useOptionalSession'
 import { useEffect, useState } from 'react'
 
 const SESSION_POST_THROTTLE_MS = 10 * 60_000
@@ -12,7 +12,7 @@ const STORAGE_KEY = 'af-time-engine-device-sync-at'
  * Shows a single non-intrusive notice when the API reports a mismatch.
  */
 export function TimeEngineClientSync() {
-  const { status } = useSession()
+  const { status } = useOptionalSession()
   const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {

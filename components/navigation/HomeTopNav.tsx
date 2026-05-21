@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
+import { useOptionalSession } from "@/components/auth/useOptionalSession"
 import LanguageToggle from "@/components/i18n/LanguageToggle"
 import NotificationBell from "@/components/shared/NotificationBell"
 import SettingsModal from "@/components/navigation/SettingsModal"
@@ -14,7 +14,7 @@ import { IdentityImageRenderer } from "@/components/identity/IdentityImageRender
 import { useSettingsProfile } from "@/hooks/useSettingsProfile"
 
 export default function HomeTopNav() {
-  const { data: session, status } = useSession()
+  const { data: session, status } = useOptionalSession()
   const { t } = useLanguage()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)

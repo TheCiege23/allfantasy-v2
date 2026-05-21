@@ -1,6 +1,6 @@
 "use client"
 
-import { useSession } from "next-auth/react"
+import { useOptionalSession } from "@/components/auth/useOptionalSession"
 import { useThemeMode } from "@/components/theme/ThemeProvider"
 import { type ThemeId } from "@/lib/theme"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
@@ -15,7 +15,7 @@ export function ThemeModeSelect(props: {
   /** Smaller control for dense headers (league dashboard). */
   size?: "sm" | "md"
 }) {
-  const { data: session } = useSession()
+  const { data: session } = useOptionalSession()
   const { mode, setMode } = useThemeMode()
   const { t, tInterpolate } = useLanguage()
   const size = props.size ?? "md"

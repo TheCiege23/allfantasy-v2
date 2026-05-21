@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { useSession } from "next-auth/react"
+import { useOptionalSession } from "@/components/auth/useOptionalSession"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { useThemeMode } from "./ThemeProvider"
 import { type ThemeId } from "@/lib/theme"
@@ -10,7 +10,7 @@ import { setStoredTheme } from "@/lib/preferences/ThemePreferenceService"
 const THEME_IDS: ThemeId[] = ["light", "dark", "legacy", "system"]
 
 export function ThemeModeSelector({ className }: { className?: string }) {
-  const { data: session } = useSession()
+  const { data: session } = useOptionalSession()
   const { t, tInterpolate } = useLanguage()
   const { mode, setMode } = useThemeMode()
   const [mounted, setMounted] = useState(false)

@@ -1,13 +1,13 @@
 "use client"
 
 import React, { useCallback, useEffect, useState } from "react"
-import { useSession } from "next-auth/react"
+import { useOptionalSession } from "@/components/auth/useOptionalSession"
 import { useThemeMode } from "./ThemeProvider"
 import { getNextTheme } from "@/lib/theme"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 
 export function ModeToggle(props: { className?: string }) {
-  const { data: session } = useSession()
+  const { data: session } = useOptionalSession()
   const { mode, cycleMode } = useThemeMode()
   const { t, tInterpolate } = useOptionalLanguage()
   const [appliedMode, setAppliedMode] = useState<string | null>(null)
