@@ -175,4 +175,138 @@ describe("World Cup commissioner AI recap route", () => {
       }),
     }))
   })
+
+  it("Generate Hype: requires manager + Pro, posts as Bracket hype message", async () => {
+    generateLinesMock.mockResolvedValueOnce(["Pool is heating up — 12 brackets locked in."])
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/commissioner-brain/route")
+
+    const res = await POST(request({ action: "hype" }), { params: { challengeId: "c1" } })
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json).toMatchObject({ ok: true, action: "hype", posted: true })
+    expect(generateLinesMock).toHaveBeenCalledWith("hype", "c1", expect.any(Object))
+    expect(emitEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        challengeId: "c1",
+        eventTitle: "Bracket hype",
+        isAiGenerated: true,
+        metadata: expect.objectContaining({
+          action: "hype",
+          visibility: "public",
+          messageType: "commissioner_brain",
+        }),
+        force: true,
+      })
+    )
+    // No emails or user IDs leak into the body.
+    const event = emitEventMock.mock.calls[0][0] as { eventBody: string }
+    expect(event.eventBody).not.toMatch(/@example\.com|user-1|owner@/i)
+  })
+
+  it("What To Watch: posts as the watch event with deterministic lines", async () => {
+    generateLinesMock.mockResolvedValueOnce(["What to watch", "Argentina vs Brazil — scheduled"])
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/commissioner-brain/route")
+
+    const res = await POST(request({ action: "watch" }), { params: { challengeId: "c1" } })
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.action).toBe("watch")
+    expect(json.posted).toBe(true)
+    expect(generateLinesMock).toHaveBeenCalledWith("watch", "c1", expect.any(Object))
+    expect(emitEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventTitle: "What to watch",
+        eventBody: "What to watch\nArgentina vs Brazil — scheduled",
+        metadata: expect.objectContaining({ action: "watch", messageType: "commissioner_brain" }),
+      })
+    )
+  })
+
+  it("Post Round Recap: forwards round param and posts as round-recap event", async () => {
+    generateLinesMock.mockResolvedValueOnce(["round of 16 recap", "Leader: Bracket 1 (40 pts)"])
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/commissioner-brain/route")
+
+    const res = await POST(
+      request({ action: "recap", round: "round_of_16" }),
+      { params: { challengeId: "c1" } }
+    )
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.action).toBe("recap")
+    expect(generateLinesMock).toHaveBeenCalledWith(
+      "recap",
+      "c1",
+      expect.objectContaining({ round: "round_of_16" })
+    )
+    expect(emitEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventTitle: "Round recap",
+        metadata: expect.objectContaining({ action: "recap" }),
+      })
+    )
+  })
+
+  it("Summarize Standings: posts deterministic standings — does not bypass Pro gate", async () => {
+    generateLinesMock.mockResolvedValueOnce(["Standings (Office Cup)", "1. Bracket 1 — 40 pts"])
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/commissioner-brain/route")
+
+    const res = await POST(request({ action: "standings" }), { params: { challengeId: "c1" } })
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.action).toBe("standings")
+    expect(generateLinesMock).toHaveBeenCalledWith("standings", "c1", expect.any(Object))
+    expect(emitEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventTitle: "Standings snapshot",
+        metadata: expect.objectContaining({ action: "standings", visibility: "public" }),
+      })
+    )
+  })
+
+  it("blocks hype/watch/recap for users without AI access (402 upgrade)", async () => {
+    hasAiMock.mockResolvedValue(false)
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/commissioner-brain/route")
+
+    for (const action of ["hype", "watch", "recap", "standings"]) {
+      const res = await POST(request({ action }), { params: { challengeId: "c1" } })
+      const json = await res.json()
+      expect(res.status).toBe(402)
+      expect(json.upgrade).toBe(true)
+      expect(json.hasBracketBrainAi).toBe(false)
+    }
+    // None of the non-AI actions should have posted to chat.
+    expect(emitEventMock).not.toHaveBeenCalled()
+    expect(generateLinesMock).not.toHaveBeenCalled()
+  })
+
+  it("blocks non-manager from any action (manager gate enforced before AI gate)", async () => {
+    managerAccessMock.mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 }),
+    })
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/commissioner-brain/route")
+
+    const res = await POST(request({ action: "hype" }), { params: { challengeId: "c1" } })
+
+    expect(res.status).toBe(403)
+    // Critical: AI access check should not even run when manager gate fails first.
+    expect(hasAiMock).not.toHaveBeenCalled()
+    expect(generateLinesMock).not.toHaveBeenCalled()
+    expect(emitEventMock).not.toHaveBeenCalled()
+  })
+
+  it("truncates extremely long AI output bodies to 4000 chars before posting", async () => {
+    const longLine = "x".repeat(5000)
+    generateLinesMock.mockResolvedValueOnce([longLine])
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/commissioner-brain/route")
+
+    await POST(request({ action: "hype" }), { params: { challengeId: "c1" } })
+
+    const event = emitEventMock.mock.calls[0][0] as { eventBody: string }
+    expect(event.eventBody.length).toBeLessThanOrEqual(4000)
+  })
 })

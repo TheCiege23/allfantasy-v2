@@ -1141,6 +1141,74 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getByText(/Changing Group Stage picks may unfinalize your entry/i)).toBeInTheDocument()
   })
 
+  it("AI Confidence Check renders deterministic lines for AI/Pro users on Review", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" initialEntryId="entry-1" />)
+
+    const card = await screen.findByTestId("world-cup-review-ai-confidence")
+    expect(card).toBeInTheDocument()
+    // Pro/AI-unlocked path: all four deterministic labels present.
+    expect(within(card).getByText(/Missing picks:/i)).toBeInTheDocument()
+    expect(within(card).getByText(/High-risk picks:/i)).toBeInTheDocument()
+    expect(within(card).getByText(/Bracket shape:/i)).toBeInTheDocument()
+    expect(within(card).getByText(/Finalize confidence:/i)).toBeInTheDocument()
+    // Disclaimer remains visible to confirm scope of the helper.
+    expect(within(card).getByText(/Deterministic prediction and scoring complexity only/i)).toBeInTheDocument()
+    // No wagering/betting copy.
+    expect(card.textContent?.toLowerCase()).not.toMatch(/\bdfs\b|\bbetting\b|\bwager|\bsportsbook\b|\bodds\b/)
+  })
+
+  it("AI Confidence Check hides Pro details for free users (locked CTA only)", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(
+      <WorldCupBracketShell
+        initialView={makeShellView({ hasBracketBrainAi: false }) as any}
+        defaultTab="review"
+        initialEntryId="entry-1"
+      />
+    )
+
+    const card = await screen.findByTestId("world-cup-review-ai-confidence")
+    expect(card).toBeInTheDocument()
+    // Locked label visible on the summary
+    expect(within(card).getByText(/^Locked$/)).toBeInTheDocument()
+    // Pro-only deterministic labels are NOT visible (only rendered when unlocked)
+    expect(within(card).queryByText(/Missing picks:/i)).toBeNull()
+    expect(within(card).queryByText(/High-risk picks:/i)).toBeNull()
+    expect(within(card).queryByText(/Bracket shape:/i)).toBeNull()
+  })
+
+  it("AI Confidence Check surfaces missing-pick guidance for incomplete brackets", async () => {
+    clientApiMocks.fetchCompletionReview.mockResolvedValueOnce({
+      challengeId: "c1",
+      entryId: "entry-1",
+      groupStageComplete: false,
+      knockoutComplete: false,
+      fullEntryComplete: false,
+      groupsRankedCount: 5,
+      missingGroups: ["A", "B"],
+      thirdPlaceSelectedCount: 2,
+      missingKnockoutPicks: 4,
+      requiredKnockoutPicks: 16,
+      completedKnockoutPicks: 12,
+      isLocked: false,
+      isComplete: false,
+      submittedAt: null,
+    })
+
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" initialEntryId="entry-1" />)
+
+    const card = await screen.findByTestId("world-cup-review-ai-confidence")
+    // Missing picks line should call out remaining knockout, groups, and third-place gaps.
+    const missingLine = within(card).getByText(/Missing picks:/i).closest("p")?.textContent ?? ""
+    expect(missingLine).toMatch(/4 knockout/i)
+    expect(missingLine).toMatch(/7 groups/i)  // 12 - 5 = 7
+    expect(missingLine).toMatch(/6 third-place/i)  // 8 - 2 = 6
+    // Finalize confidence reflects incomplete state.
+    expect(within(card).getByText(/Finish missing requirements before finalizing/i)).toBeInTheDocument()
+  })
+
   it("auto-selects an entry and fetches Review when initialized from the review tab without an entry query", async () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" />)
