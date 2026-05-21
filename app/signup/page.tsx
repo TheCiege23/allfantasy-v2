@@ -4,7 +4,6 @@ import { Suspense, useState, useCallback, useEffect, useMemo, useRef } from "rea
 import Link from "next/link"
 import { useSearchParams, useRouter } from "next/navigation"
 import { signIn } from "next-auth/react"
-import { AppProviders } from "@/components/providers/AppProviders"
 import { loginUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
 import {
   sendSignupPhoneVerificationCode,
@@ -1819,11 +1818,9 @@ function SignupContent() {
 
 export default function SignupPage() {
   return (
-    <AppProviders>
-      <Suspense fallback={<AuthStatusLoadingFallback />}>
-        <SignupContent />
-      </Suspense>
-    </AppProviders>
+    <Suspense fallback={<AuthStatusLoadingFallback />}>
+      <SignupContent />
+    </Suspense>
   )
 }
 

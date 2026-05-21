@@ -15,6 +15,13 @@ const appProvidersSource = fs.readFileSync(path.join(process.cwd(), "components"
 const signupPageSource = fs.readFileSync(path.join(process.cwd(), "app", "signup", "page.tsx"), "utf8")
 const loginPageSource = fs.readFileSync(path.join(process.cwd(), "app", "login", "page.tsx"), "utf8")
 const signinPageSource = fs.readFileSync(path.join(process.cwd(), "app", "signin", "page.tsx"), "utf8")
+const uiDocumentSources = [
+  ["app/layout.tsx", layoutSource],
+  ["components/providers/AppProviders.tsx", appProvidersSource],
+  ["app/signup/page.tsx", signupPageSource],
+  ["app/login/page.tsx", loginPageSource],
+  ["app/signin/page.tsx", signinPageSource],
+] as const
 
 describe("root language provider layout", () => {
   it("wraps global controls and children with AppProviders", () => {
@@ -51,19 +58,21 @@ describe("root language provider layout", () => {
     expect(screen.getByRole("button", { name: /current theme/i })).toBeInTheDocument()
   })
 
-  it("wraps auth page clients that call useLanguage with AppProviders", () => {
-    expect(signupPageSource).toContain("import { AppProviders }")
-    expect(signupPageSource.indexOf("<AppProviders>")).toBeLessThan(
-      signupPageSource.indexOf("<SignupContent />")
-    )
-
-    expect(loginPageSource).toContain("import { AppProviders }")
-    expect(loginPageSource.indexOf("<AppProviders>")).toBeLessThan(
-      loginPageSource.indexOf("<LoginContent />")
-    )
+  it("does not nest full app providers inside auth pages", () => {
+    expect(signupPageSource).not.toContain("<AppProviders>")
+    expect(loginPageSource).not.toContain("<AppProviders>")
   })
 
   it("redirects /signin to the canonical login route", () => {
     expect(signinPageSource).toContain('redirect("/login")')
+  })
+
+  it("keeps document tags confined to the root layout", () => {
+    for (const [file, source] of uiDocumentSources) {
+      const hasDocumentTag = /<\/?html|<\/?body/.test(source)
+      expect(hasDocumentTag, `${file} should not render html/body outside root layout`).toBe(
+        file === "app/layout.tsx"
+      )
+    }
   })
 })
