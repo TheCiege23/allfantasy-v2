@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import ProductShellLayout from '@/components/navigation/ProductShellLayout'
+import { BracketsPageHeader } from './components/BracketsPageHeader'
 import { buildMetadata, getSEOPageConfig } from '@/lib/seo'
 
 export const metadata: Metadata = buildMetadata(
@@ -14,7 +15,8 @@ export const metadata: Metadata = buildMetadata(
 
 export default function BracketsLayout({ children }: { children: ReactNode }) {
   return (
-    <ProductShellLayout hideSidebar>
+    <ProductShellLayout hideHeader hideSidebar>
+      <BracketsPageHeader />
       {children}
     </ProductShellLayout>
   )

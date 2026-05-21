@@ -283,6 +283,26 @@ async function safeGetEnabledBracketSports() {
   }
 }
 
+function resolvePoolCardAccent(sport: string | null, challengeType: string | null) {
+  const s = String(sport ?? "").toUpperCase()
+  const ct = String(challengeType ?? "").toLowerCase()
+  if (s === "SOCCER" || ct.includes("world_cup"))
+    return { bg: "rgba(22,163,74,0.12)", border: "rgba(74,222,128,0.25)", text: "#4ade80", glow: "rgba(74,222,128,0.18)" }
+  if (s === "NBA")
+    return { bg: "rgba(234,88,12,0.11)", border: "rgba(251,146,60,0.25)", text: "#fb923c", glow: "rgba(251,146,60,0.16)" }
+  if (s === "NHL")
+    return { bg: "rgba(59,130,246,0.11)", border: "rgba(96,165,250,0.25)", text: "#60a5fa", glow: "rgba(96,165,250,0.16)" }
+  if (s === "NFL")
+    return { bg: "rgba(220,38,38,0.10)", border: "rgba(248,113,113,0.22)", text: "#f87171", glow: "rgba(248,113,113,0.14)" }
+  if (s === "MLB")
+    return { bg: "rgba(220,38,38,0.09)", border: "rgba(248,113,113,0.20)", text: "#f87171", glow: "rgba(248,113,113,0.12)" }
+  if (s === "NCAAB")
+    return { bg: "rgba(59,130,246,0.10)", border: "rgba(96,165,250,0.22)", text: "#60a5fa", glow: "rgba(96,165,250,0.14)" }
+  if (s === "NCAAF")
+    return { bg: "rgba(217,119,6,0.10)", border: "rgba(251,191,36,0.22)", text: "#fbbf24", glow: "rgba(251,191,36,0.14)" }
+  return { bg: "color-mix(in srgb, var(--accent-cyan) 10%, transparent)", border: "color-mix(in srgb, var(--accent-cyan) 22%, transparent)", text: "var(--accent-cyan-strong)", glow: "color-mix(in srgb, var(--accent-cyan) 14%, transparent)" }
+}
+
 export default async function BracketsHomePage() {
   let user: SessionUser | undefined
   let userId: string | undefined
@@ -780,7 +800,7 @@ export default async function BracketsHomePage() {
                 {combinedMyPools.length} active
               </span>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {combinedMyPools.map((pool) => {
                 const sportUI = resolveBracketSportUI(pool.sport ?? null)
                 const challengeLabel = resolveBracketChallengeLabel({
@@ -788,36 +808,68 @@ export default async function BracketsHomePage() {
                   challengeType: pool.challengeType,
                   bracketType: pool.bracketType,
                 })
+                const accent = resolvePoolCardAccent(pool.sport, pool.challengeType)
+                const isWorldCup = String(pool.challengeType ?? "").toLowerCase().includes("world_cup")
                 return (
                   <Link
                     key={pool.id}
                     href={pool.href}
-                    className="group flex items-center gap-3 rounded-2xl border p-3.5 transition hover:opacity-95"
+                    className="group relative flex items-center gap-4 overflow-hidden rounded-2xl border p-4 transition-all hover:-translate-y-px hover:shadow-xl hover:opacity-95 sm:p-4.5"
                     style={{
-                      borderColor: "var(--border)",
-                      background: "color-mix(in srgb, var(--panel) 88%, transparent)",
-                      boxShadow: "0 2px 10px -5px rgba(0,0,0,0.14)",
+                      borderColor: accent.border,
+                      background: `linear-gradient(135deg, ${accent.bg} 0%, color-mix(in srgb, var(--panel) 92%, transparent) 55%)`,
+                      boxShadow: `0 2px 16px -8px ${accent.glow}`,
+                      backdropFilter: "blur(12px)",
                     }}
                   >
+                    {/* Subtle right-edge glow */}
                     <div
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border"
-                      style={{
-                        background: "color-mix(in srgb, var(--accent-cyan) 14%, transparent)",
-                        borderColor: "color-mix(in srgb, var(--accent-cyan) 24%, transparent)",
-                      }}
+                      className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-60"
+                      aria-hidden="true"
+                      style={{ background: `radial-gradient(circle, ${accent.glow} 0%, transparent 70%)` }}
+                    />
+
+                    {/* Sport badge */}
+                    <div
+                      className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border"
+                      style={{ background: accent.bg, borderColor: accent.border }}
                     >
-                      <span className="text-[10px] font-bold" style={{ color: "var(--accent-cyan-strong)" }}>
+                      <span className="text-[11px] font-black leading-none" style={{ color: accent.text }}>
                         {sportUI.badge}
                       </span>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold" style={{ color: "var(--text)" }}>{pool.name}</div>
+
+                    {/* Pool info */}
+                    <div className="relative min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-bold" style={{ color: "var(--text)" }}>{pool.name}</span>
+                        <span
+                          className="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                          style={{ background: accent.bg, color: accent.text, border: `1px solid ${accent.border}` }}
+                        >
+                          {isWorldCup ? "World Cup" : sportUI.shortLabel}
+                        </span>
+                      </div>
                       <div className="mt-0.5 truncate text-[11px]" style={{ color: "var(--muted)" }}>{challengeLabel}</div>
-                      <div className="mt-0.5 text-xs" style={{ color: "var(--muted2)" }}>
-                        {pool.members} member{pool.members !== 1 ? "s" : ""} &bull; {pool.entries} bracket{pool.entries !== 1 ? "s" : ""}
+                      <div className="mt-1 flex items-center gap-3 text-[11px]" style={{ color: "var(--muted2)" }}>
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3 w-3" />
+                          {pool.members} member{pool.members !== 1 ? "s" : ""}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Trophy className="h-3 w-3" />
+                          {pool.entries} bracket{pool.entries !== 1 ? "s" : ""}
+                        </span>
                       </div>
                     </div>
-                    <ChevronRight className="h-4 w-4 shrink-0 transition group-hover:translate-x-0.5" style={{ color: "var(--muted2)" }} />
+
+                    {/* View Pool label + chevron */}
+                    <div className="relative flex shrink-0 items-center gap-1">
+                      <span className="hidden text-[11px] font-semibold sm:block" style={{ color: accent.text }}>
+                        View Pool
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: accent.text }} />
+                    </div>
                   </Link>
                 )
               })}
