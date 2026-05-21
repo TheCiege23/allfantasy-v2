@@ -2,15 +2,14 @@ import type { Metadata } from 'next';
 import type { Session } from 'next-auth';
 import { Inter } from 'next/font/google';
 import Script from 'next/script';
-import { cookies, headers } from 'next/headers';
+import { cookies } from 'next/headers';
 import { AppProviders } from '@/components/providers/AppProviders';
 import { SpotifyMiniPlayer } from '@/components/spotify/SpotifyMiniPlayer';
 import { FloatingMusicWidget } from '@/components/MusicWidget';
 import { DefaultJsonLd } from '@/components/seo/JsonLd';
-import { AuthRouteGlobalChrome } from '@/components/auth/AuthRouteGlobalChrome';
+import { SafeGlobalChrome } from '@/components/shell/SafeGlobalChrome';
 import { ErrorBoundaryClient } from '@/components/error-handling/ErrorBoundaryClient';
 import { PlayerComparisonUIProvider } from '@/components/player-comparison-ui';
-import { shouldRegisterServiceWorker } from '@/lib/pwa/shouldRegisterServiceWorker';
 import { buildSeoMeta } from '@/lib/seo';
 import { resolveEffectiveDataMode } from '@/lib/theme';
 import {
@@ -36,15 +35,6 @@ const useExperimentalManifest = process.env.NEXT_PUBLIC_PWA_EXPERIMENTAL_MANIFES
 const metadataManifestPath = useExperimentalManifest
   ? '/manifest.experimental.webmanifest'
   : '/manifest.webmanifest';
-
-const AUTH_ROUTE_PREFIXES = ['/login', '/signup', '/signin', '/auth'];
-
-function isAuthRoutePath(pathname: string | null): boolean {
-  if (!pathname) return false;
-  return AUTH_ROUTE_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
-  );
-}
 
 export const metadata: Metadata = {
   ...buildSeoMeta({
@@ -79,27 +69,44 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * Root layout — Railway-safe.
+ *
+ * The previous implementation gated head/body chrome on the middleware-
+ * injected `x-af-pathname` header. Railway's upstream proxy can strip that
+ * header, which made the server render full app chrome on `/login` while the
+ * client (which always knows the pathname via `usePathname()`) rendered the
+ * auth shell — producing React #418/#423, HierarchyRequestError, and
+ * NotFoundError on hydration.
+ *
+ * Fix: render a single, route-agnostic root document, and delegate every
+ * piece of route-sensitive chrome (PWA service-worker lifecycle, Meta Pixel,
+ * Facebook SDK, AuthRouteGlobalChrome with its toaster / back-to-top / mode
+ * toggle / etc.) to `<SafeGlobalChrome />`, a client component that bails on
+ * auth routes via `usePathname()`. Server and client now produce identical
+ * HTML on every route regardless of which headers the upstream proxy keeps.
+ */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [cookieStore, requestHeaders] = await Promise.all([cookies(), headers()]);
-  const pathname = requestHeaders.get('x-af-pathname');
-  const isAuthRoute = isAuthRoutePath(pathname);
+  const cookieStore = await cookies();
   const cookieLang = cookieStore.get('af_lang')?.value;
   const htmlLang = cookieLang === 'es' ? 'es' : 'en';
   const cookieMode = cookieStore.get('af_mode')?.value;
   const htmlMode = resolveEffectiveDataMode(cookieMode);
-  let initialSession: Session | null = null;
 
-  if (!isAuthRoute) {
-    try {
-      const [{ getServerSession }, { authOptions }] = await Promise.all([
-        import('next-auth'),
-        import('@/lib/auth'),
-      ]);
-      initialSession = (await getServerSession(authOptions as never)) as Session | null;
-    } catch (error) {
-      if (process.env.PLAYWRIGHT_E2E === '1') {
-        console.warn('[layout] failed to preload session for Playwright E2E:', error);
-      }
+  // Always attempt to preload the session. `getServerSession` only reads the
+  // NextAuth JWT from cookies, so it is safe and cheap on auth routes
+  // (returns null when there is no session). Wrapped in try/catch so a
+  // NextAuth misconfiguration cannot crash the document shell.
+  let initialSession: Session | null = null;
+  try {
+    const [{ getServerSession }, { authOptions }] = await Promise.all([
+      import('next-auth'),
+      import('@/lib/auth'),
+    ]);
+    initialSession = (await getServerSession(authOptions as never)) as Session | null;
+  } catch (error) {
+    if (process.env.PLAYWRIGHT_E2E === '1') {
+      console.warn('[layout] failed to preload session for Playwright E2E:', error);
     }
   }
 
@@ -116,28 +123,22 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
     >
       <head>
-        {!isAuthRoute && (
-          <>
-            <Script id="af-init-mode" strategy="beforeInteractive">
-              {buildThemeInitScript(htmlMode)}
-            </Script>
-            <Script id="af-init-lang" strategy="beforeInteractive">
-              {buildLanguageInitScript(htmlLang)}
-            </Script>
-          </>
-        )}
-
-        {!isAuthRoute && (
-          shouldRegisterServiceWorker() ? (
-            <Script id="af-register-sw" strategy="beforeInteractive">
-              {`(function(){if(typeof navigator==='undefined'||!('serviceWorker'in navigator))return;navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(function(){});})();`}
-            </Script>
-          ) : (
-            <Script id="af-unregister-sw" strategy="beforeInteractive">
-              {`(function(){if(typeof navigator==='undefined'||!('serviceWorker'in navigator))return;navigator.serviceWorker.getRegistrations().then(function(registrations){return Promise.all(registrations.map(function(reg){var url=(reg.active&&reg.active.scriptURL)||(reg.waiting&&reg.waiting.scriptURL)||(reg.installing&&reg.installing.scriptURL)||'';if(url.indexOf('/sw.js')===-1)return Promise.resolve(false);return reg.unregister();}));}).catch(function(){});if(typeof caches==='undefined')return;caches.keys().then(function(keys){return Promise.all(keys.filter(function(key){return key.indexOf('AllFantasy-')===0;}).map(function(key){return caches.delete(key);}));}).catch(function(){});})();`}
-            </Script>
-          )
-        )}
+        {/*
+          Theme + language init scripts are safe on every route: they only
+          touch `localStorage` and `<html>` data attributes, and the document
+          element has `suppressHydrationWarning` so the post-script values
+          will not produce a hydration error. PWA service-worker registration
+          and the route-sensitive analytics scripts (Meta Pixel, Facebook SDK)
+          live inside <SafeGlobalChrome /> in the body so they can use
+          `usePathname()` to bail on auth routes without depending on the
+          upstream `x-af-pathname` request header.
+        */}
+        <Script id="af-init-mode" strategy="beforeInteractive">
+          {buildThemeInitScript(htmlMode)}
+        </Script>
+        <Script id="af-init-lang" strategy="beforeInteractive">
+          {buildLanguageInitScript(htmlLang)}
+        </Script>
 
         {gaMeasurementId && (
           <>
@@ -206,69 +207,37 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           `}
         </Script>
 
-        {metaPixelId && !isAuthRoute && (
-          <Script id="meta-pixel" strategy="afterInteractive">
-            {`
-              !function(f,b,e,v,n,t,s)
-              {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-              n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-              if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-              n.queue=[];t=b.createElement(e);t.async=!0;
-              t.src=v;s=b.getElementsByTagName(e)[0];
-              s.parentNode.insertBefore(t,s)}(window, document,'script',
-              'https://connect.facebook.net/en_US/fbevents.js');
-              fbq('init', '${metaPixelId}');
-              fbq('track', 'PageView');
-            `}
-          </Script>
-        )}
       </head>
 
       <body
         className={`${inter.variable} antialiased min-h-screen mode-readable`}
         style={{ background: 'var(--bg)', color: 'var(--text)' }}
       >
-        {metaPixelId && !isAuthRoute && (
-          <noscript>
-            <img
-              height="1"
-              width="1"
-              style={{ display: 'none' }}
-              src={`https://www.facebook.com/tr?id=${metaPixelId}&ev=PageView&noscript=1`}
-              alt=""
-            />
-          </noscript>
-        )}
+        <AppProviders session={initialSession}>
+          <ErrorBoundaryClient>
+            <PlayerComparisonUIProvider>{children}</PlayerComparisonUIProvider>
+          </ErrorBoundaryClient>
 
-        {!isAuthRoute && <div id="fb-root"></div>}
+          {/*
+            All route-sensitive global chrome lives inside SafeGlobalChrome,
+            which uses `usePathname()` to return null on `/login`, `/signup`,
+            `/signin`, and `/auth/*`. Because `usePathname()` is reliable on
+            both server and client, the SSR output and the hydrated output
+            match on every route \u2014 even when an upstream proxy strips the
+            middleware-injected `x-af-pathname` request header.
+          */}
+          <SafeGlobalChrome metaPixelId={metaPixelId} fbAppId={fbAppId} />
 
-        {!isAuthRoute && (
-          <Script
-            src={`https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v25.0&appId=${fbAppId}`}
-            strategy="afterInteractive"
-            crossOrigin="anonymous"
-          />
-        )}
-
-        {isAuthRoute ? (
-          <ErrorBoundaryClient>{children}</ErrorBoundaryClient>
-        ) : (
-          <AppProviders session={initialSession}>
-            <ErrorBoundaryClient>
-              <PlayerComparisonUIProvider>{children}</PlayerComparisonUIProvider>
-            </ErrorBoundaryClient>
-            <AuthRouteGlobalChrome />
-            {/* Music widgets deferred until Spotify Web Playback SDK is integrated.
-                Set NEXT_PUBLIC_MUSIC_WIDGET_ENABLED=true to re-enable.
-                Current Web API approach has unreliable preview_url playback. */}
-            {process.env.NEXT_PUBLIC_MUSIC_WIDGET_ENABLED === 'true' ? (
-              <>
-                <SpotifyMiniPlayer />
-                <FloatingMusicWidget />
-              </>
-            ) : null}
-          </AppProviders>
-        )}
+          {/* Music widgets deferred until Spotify Web Playback SDK is integrated.
+              Set NEXT_PUBLIC_MUSIC_WIDGET_ENABLED=true to re-enable.
+              Current Web API approach has unreliable preview_url playback. */}
+          {process.env.NEXT_PUBLIC_MUSIC_WIDGET_ENABLED === 'true' ? (
+            <>
+              <SpotifyMiniPlayer />
+              <FloatingMusicWidget />
+            </>
+          ) : null}
+        </AppProviders>
       </body>
     </html>
   );

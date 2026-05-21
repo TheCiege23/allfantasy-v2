@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import fs from "node:fs"
 import path from "node:path"
 import { AppProviders } from "@/components/providers/AppProviders"
@@ -19,6 +19,31 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
 }))
 
+beforeEach(() => {
+  // happy-dom does not always provide a usable localStorage. Stub one so
+  // components that touch storage during mount (LanguageProviderClient,
+  // SessionIdleMonitor, etc.) don't throw inside these UI smoke tests.
+  const memory = new Map<string, string>()
+  const stub = {
+    getItem: vi.fn((key: string) => (memory.has(key) ? memory.get(key)! : null)),
+    setItem: vi.fn((key: string, value: string) => {
+      memory.set(key, String(value))
+    }),
+    removeItem: vi.fn((key: string) => {
+      memory.delete(key)
+    }),
+    clear: vi.fn(() => memory.clear()),
+    key: vi.fn((index: number) => Array.from(memory.keys())[index] ?? null),
+    get length() {
+      return memory.size
+    },
+  } as unknown as Storage
+  Object.defineProperty(globalThis, "localStorage", { value: stub, configurable: true })
+  if (typeof window !== "undefined") {
+    Object.defineProperty(window, "localStorage", { value: stub, configurable: true })
+  }
+})
+
 const layoutSource = fs.readFileSync(path.join(process.cwd(), "app", "layout.tsx"), "utf8")
 const appProvidersSource = fs.readFileSync(path.join(process.cwd(), "components", "providers", "AppProviders.tsx"), "utf8")
 const signupPageSource = fs.readFileSync(path.join(process.cwd(), "app", "signup", "page.tsx"), "utf8")
@@ -27,6 +52,7 @@ const loginContentSource = fs.readFileSync(path.join(process.cwd(), "app", "logi
 const signinPageSource = fs.readFileSync(path.join(process.cwd(), "app", "signin", "page.tsx"), "utf8")
 const authPageShellSource = fs.readFileSync(path.join(process.cwd(), "components", "auth", "AuthPageShell.tsx"), "utf8")
 const authRouteGlobalChromeSource = fs.readFileSync(path.join(process.cwd(), "components", "auth", "AuthRouteGlobalChrome.tsx"), "utf8")
+const safeGlobalChromeSource = fs.readFileSync(path.join(process.cwd(), "components", "shell", "SafeGlobalChrome.tsx"), "utf8")
 const globalAppShellSource = fs.readFileSync(path.join(process.cwd(), "components", "shared", "GlobalAppShell.tsx"), "utf8")
 const languageProviderSource = fs.readFileSync(path.join(process.cwd(), "components", "i18n", "LanguageProviderClient.tsx"), "utf8")
 const middlewareSource = fs.readFileSync(path.join(process.cwd(), "middleware.ts"), "utf8")
@@ -42,9 +68,9 @@ const uiDocumentSources = [
 ] as const
 
 describe("root language provider layout", () => {
-  it("wraps global controls and children with AppProviders", () => {
-    const providersStart = layoutSource.indexOf("<AppProviders")
-    const chromeGate = layoutSource.indexOf("<AuthRouteGlobalChrome />")
+  it("wraps global controls and children with AppProviders unconditionally", () => {
+    const providersStart = layoutSource.indexOf("<AppProviders ")
+    const chromeGate = layoutSource.indexOf("<SafeGlobalChrome metaPixelId")
     const providersEnd = layoutSource.indexOf("</AppProviders>")
 
     expect(providersStart).toBeGreaterThan(-1)
@@ -52,50 +78,52 @@ describe("root language provider layout", () => {
     expect(providersEnd).toBeGreaterThan(chromeGate)
   })
 
-  it("skips client-heavy root chrome on auth routes", () => {
-    expect(layoutSource).toContain("<AuthRouteGlobalChrome />")
-    expect(authRouteGlobalChromeSource).toContain("usePathname")
-    expect(authRouteGlobalChromeSource).toContain('"/login"')
-    expect(authRouteGlobalChromeSource).toContain('"/signup"')
-    expect(authRouteGlobalChromeSource).toContain('"/signin"')
-    expect(authRouteGlobalChromeSource).toContain("return null")
-    expect(authRouteGlobalChromeSource).toContain("<GlobalModeToggle />")
-    expect(authRouteGlobalChromeSource).toContain("<Toaster")
-    expect(authRouteGlobalChromeSource).toContain("<BackToTop />")
+  it("delegates auth-route detection to a client component (no x-af-pathname dependency)", () => {
+    // Layout must not read or branch on the proxy-injected header.
+    expect(layoutSource).not.toMatch(/get\(['"]x-af-pathname['"]\)/)
+    expect(layoutSource).not.toMatch(/\bisAuthRoute\b/)
+    expect(layoutSource).not.toContain("isAuthRoutePath")
+    expect(layoutSource).not.toContain("headers()")
+
+    // Layout must mount the client-side route-aware chrome wrapper.
+    expect(layoutSource).toContain("<SafeGlobalChrome")
+    expect(layoutSource).toContain('from \'@/components/shell/SafeGlobalChrome\'')
   })
 
-  it("skips root document-mutating scripts on auth routes", () => {
-    expect(layoutSource).toContain("headers()")
-    expect(layoutSource).toContain("isAuthRoutePath")
-    expect(layoutSource).toContain("!isAuthRoute")
-    expect(layoutSource).toContain("{!isAuthRoute && (")
-    expect(layoutSource).toContain("af-register-sw")
-    expect(layoutSource).toContain("af-unregister-sw")
+  it("SafeGlobalChrome bails out on every auth-route prefix via usePathname", () => {
+    expect(safeGlobalChromeSource).toContain('"use client"')
+    expect(safeGlobalChromeSource).toContain("usePathname")
+    expect(safeGlobalChromeSource).toContain('"/login"')
+    expect(safeGlobalChromeSource).toContain('"/signup"')
+    expect(safeGlobalChromeSource).toContain('"/signin"')
+    expect(safeGlobalChromeSource).toContain('"/auth"')
+    expect(safeGlobalChromeSource).toContain("return null")
+    // Volatile chrome lives inside SafeGlobalChrome, not the root layout.
+    expect(safeGlobalChromeSource).toContain('id="fb-root"')
+    expect(safeGlobalChromeSource).toContain("connect.facebook.net")
+    expect(safeGlobalChromeSource).toContain('id="meta-pixel"')
+    expect(safeGlobalChromeSource).toContain("<AuthRouteGlobalChrome />")
+  })
+
+  it("keeps only the always-safe scripts in the root layout head", () => {
+    // These are safe on every route (only touch <html data-*> + localStorage,
+    // and <html> uses suppressHydrationWarning).
     expect(layoutSource).toContain("af-init-mode")
     expect(layoutSource).toContain("af-init-lang")
-    expect(layoutSource).toContain("connect.facebook.net")
-    expect(layoutSource).toContain('id="fb-root"')
-    expect(layoutSource.indexOf("!isAuthRoute && (")).toBeLessThan(
-      layoutSource.indexOf('id="af-register-sw"')
-    )
-    expect(layoutSource.indexOf("!isAuthRoute && (")).toBeLessThan(
-      layoutSource.indexOf('id="af-init-mode"')
-    )
-    expect(layoutSource.indexOf("metaPixelId && !isAuthRoute")).toBeLessThan(
-      layoutSource.indexOf('id="meta-pixel"')
-    )
+    // Route-sensitive chrome must NOT appear directly in the root layout
+    // — it must be reached only via <SafeGlobalChrome />.
+    expect(layoutSource).not.toContain('id="meta-pixel"')
+    expect(layoutSource).not.toContain('id="af-register-sw"')
+    expect(layoutSource).not.toContain('id="af-unregister-sw"')
+    expect(layoutSource).not.toContain('id="fb-root"')
+    expect(layoutSource).not.toContain("connect.facebook.net")
   })
 
-  it("bypasses AppProviders and session preload on auth routes", () => {
-    expect(layoutSource).toContain("if (!isAuthRoute)")
-    expect(layoutSource.indexOf("if (!isAuthRoute)")).toBeLessThan(
-      layoutSource.indexOf("getServerSession")
-    )
-    expect(layoutSource).toContain("isAuthRoute ? (")
-    expect(layoutSource).toContain("<ErrorBoundaryClient>{children}</ErrorBoundaryClient>")
-    expect(layoutSource.indexOf("isAuthRoute ? (")).toBeLessThan(
-      layoutSource.indexOf("<AppProviders")
-    )
+  it("preloads the NextAuth session unconditionally (no auth-route bypass)", () => {
+    expect(layoutSource).toContain("getServerSession")
+    expect(layoutSource).not.toContain("if (!isAuthRoute)")
+    // Session preload is wrapped in try/catch so it can never crash the document.
+    expect(layoutSource).toMatch(/try\s*{[^}]*getServerSession/s)
   })
 
   it("keeps LanguageProviderClient outside ThemeProvider inside AppProviders", () => {
