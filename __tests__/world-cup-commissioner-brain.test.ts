@@ -48,6 +48,112 @@ describe("Bracket Brain access path", () => {
   })
 })
 
+describe("buildStandingsSummaryLines — finalized-only privacy filter", () => {
+  beforeEach(() => {
+    challengeFindUniqueMock.mockReset()
+    vi.resetModules()
+  })
+
+  it("queries Prisma with isComplete:true and submittedAt:not-null filter", async () => {
+    challengeFindUniqueMock.mockResolvedValue({
+      id: "c1",
+      name: "Office Cup",
+      matches: [],
+      scoringProfile: {
+        roundOf32Points: 10, roundOf16Points: 20, quarterFinalPoints: 40,
+        semiFinalPoints: 80, finalPoints: 160, championBonusPoints: 320, thirdPlacePoints: 4,
+      },
+      entries: [
+        {
+          id: "e-fin", name: "Alice Bracket", isComplete: true,
+          submittedAt: new Date("2026-06-01T00:00:00.000Z"),
+          createdAt: new Date(), updatedAt: new Date(),
+          totalScore: 20, maxPossibleScore: 200, correctPicks: 2, incorrectPicks: 0,
+          roundBreakdown: {}, championTeamName: "Brazil",
+          participant: { id: "p1", userId: "u1", displayName: "Alice" },
+          picks: [],
+        },
+      ],
+    })
+
+    const { buildStandingsSummaryLines } = await import("@/lib/world-cup/worldCupCommissionerBrainService")
+    await buildStandingsSummaryLines("c1")
+
+    expect(challengeFindUniqueMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          entries: expect.objectContaining({
+            where: { isComplete: true, submittedAt: { not: null } },
+          }),
+        }),
+      })
+    )
+  })
+
+  it("returns only the finalized entry names and scores in lines", async () => {
+    // Prisma returns only the already-filtered finalized entry (the where clause
+    // prevents unfinalized rows from reaching the service logic).
+    challengeFindUniqueMock.mockResolvedValue({
+      id: "c1",
+      name: "Office Cup",
+      matches: [],
+      scoringProfile: {
+        roundOf32Points: 10, roundOf16Points: 20, quarterFinalPoints: 40,
+        semiFinalPoints: 80, finalPoints: 160, championBonusPoints: 320, thirdPlacePoints: 4,
+      },
+      entries: [
+        {
+          id: "e-fin", name: "Alice Bracket", isComplete: true,
+          submittedAt: new Date("2026-06-01T00:00:00.000Z"),
+          createdAt: new Date(), updatedAt: new Date(),
+          totalScore: 20, maxPossibleScore: 200, correctPicks: 2, incorrectPicks: 0,
+          roundBreakdown: {}, championTeamName: "Brazil",
+          participant: { id: "p1", userId: "u1", displayName: "Alice" },
+          picks: [],
+        },
+      ],
+    })
+
+    const { buildStandingsSummaryLines } = await import("@/lib/world-cup/worldCupCommissionerBrainService")
+    const lines = await buildStandingsSummaryLines("c1")
+    const text = lines.join("\n")
+
+    expect(text).toContain("Standings (Office Cup)")
+    expect(text).toContain("Alice Bracket")
+    // Must not contain any user emails or secret identifiers
+    expect(text).not.toMatch(/u1|p1|example\.com/)
+  })
+
+  it("returns a safe fallback message when no finalized entries exist", async () => {
+    challengeFindUniqueMock.mockResolvedValue({
+      id: "c1",
+      name: "Office Cup",
+      matches: [],
+      scoringProfile: {
+        roundOf32Points: 10, roundOf16Points: 20, quarterFinalPoints: 40,
+        semiFinalPoints: 80, finalPoints: 160, championBonusPoints: 320, thirdPlacePoints: 4,
+      },
+      entries: [], // Prisma returned zero finalized entries
+    })
+
+    const { buildStandingsSummaryLines } = await import("@/lib/world-cup/worldCupCommissionerBrainService")
+    const lines = await buildStandingsSummaryLines("c1")
+
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toMatch(/No finalized brackets/i)
+    expect(lines[0]).toMatch(/submit/i)
+  })
+
+  it("returns empty array when challenge does not exist", async () => {
+    challengeFindUniqueMock.mockResolvedValue(null)
+
+    const { buildStandingsSummaryLines } = await import("@/lib/world-cup/worldCupCommissionerBrainService")
+    const lines = await buildStandingsSummaryLines("nonexistent")
+
+    expect(lines).toEqual([])
+  })
+})
+
 describe("World Cup AI recap builder", () => {
   beforeEach(() => {
     challengeFindUniqueMock.mockReset()

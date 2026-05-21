@@ -382,7 +382,13 @@ export async function buildStandingsSummaryLines(challengeId: string) {
     include: {
       matches: true,
       scoringProfile: true,
+      // Only finalized/submitted entries are included — unfinalized private picks
+      // must not be sent to OpenAI or posted publicly.
       entries: {
+        where: {
+          isComplete: true,
+          submittedAt: { not: null },
+        },
         include: {
           picks: { select: COMMISSIONER_BRAIN_PICK_SELECT },
           participant: true,
@@ -391,6 +397,11 @@ export async function buildStandingsSummaryLines(challengeId: string) {
     },
   })
   if (!challenge) return []
+  if (challenge.entries.length === 0) {
+    return [
+      "No finalized brackets are available yet. Finalized entries will appear in the AI standings summary once participants submit their brackets.",
+    ]
+  }
   const rows = buildWorldCupLeaderboardRows({
     entries: challenge.entries as any,
     matches: challenge.matches as any,
