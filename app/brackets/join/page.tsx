@@ -171,7 +171,7 @@ function JoinLeagueForm() {
                 Joining...
               </span>
             ) : (
-              "Join league"
+              "Join pool"
             )}
           </button>
         </div>

@@ -10,7 +10,7 @@ export default async function DiscoverLeaguesPage() {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
         <div className="rounded-xl border p-6 max-w-md text-center" style={{ borderColor: "var(--border)" }}>
-          <p className="text-sm" style={{ color: "var(--muted)" }}>League discovery is not available right now.</p>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>Pool discovery is not available right now.</p>
           <Link href="/brackets" className="mt-3 inline-block text-sm font-medium" style={{ color: "var(--accent)" }}>Back to Brackets</Link>
         </div>
       </div>
@@ -29,11 +29,11 @@ export default async function DiscoverLeaguesPage() {
             ← Brackets
           </Link>
           <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-            Discover leagues
+            Discover pools
           </h1>
         </div>
         <p className="mb-6 text-sm" style={{ color: "var(--muted)" }}>
-          Browse by sport, league type, entry fee, and visibility. Click a league to view or join.
+          Browse by sport, pool type, entry fee, and visibility. Click a pool to view or join.
         </p>
         <LeagueDiscoveryClient />
       </div>

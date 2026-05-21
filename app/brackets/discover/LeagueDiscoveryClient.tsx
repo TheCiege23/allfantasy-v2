@@ -159,7 +159,7 @@ export default function LeagueDiscoveryClient() {
       ) : leagues.length === 0 ? (
         <div className="rounded-2xl border p-12 text-center" style={{ borderColor: "var(--border)" }}>
           <Trophy className="h-12 w-12 mx-auto mb-3" style={{ color: "var(--muted)" }} />
-          <p className="font-medium" style={{ color: "var(--text)" }}>No leagues found</p>
+          <p className="font-medium" style={{ color: "var(--text)" }}>No pools found</p>
           <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
             Try changing filters or search terms.
           </p>
