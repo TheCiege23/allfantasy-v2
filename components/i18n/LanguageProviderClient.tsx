@@ -29,6 +29,19 @@ type LanguageContextValue = {
 const LanguageContext = createContext<LanguageContextValue | undefined>(
   undefined
 );
+
+function fallbackT(key: string) {
+  return translations[DEFAULT_LANG]?.[key] ?? translations.en[key] ?? key;
+}
+
+export const defaultLanguageValue: LanguageContextValue = {
+  language: DEFAULT_LANG,
+  setLanguage: () => {},
+  t: fallbackT,
+  tInterpolate: (key: string, vars: InterpolationVars = {}) =>
+    resolveTInterpolate(fallbackT, key, vars),
+};
+
 export function LanguageProviderClient({
   children,
 }: {
@@ -140,5 +153,9 @@ export function useLanguage() {
     throw new Error("useLanguage must be used within LanguageProviderClient");
   }
   return ctx;
+}
+
+export function useOptionalLanguage() {
+  return useContext(LanguageContext) ?? defaultLanguageValue;
 }
 

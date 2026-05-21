@@ -14,7 +14,7 @@ import {
   X,
 } from "lucide-react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import LanguageToggle from "@/components/i18n/LanguageToggle"
 import { signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
 import { validateSignInInput } from "@/lib/auth/SignInFormController"
@@ -43,7 +43,7 @@ function resolveSuccessfulLoginRedirect(callbackUrl: string | null | undefined):
 }
 
 export default function LoginContent() {
-  const { t } = useLanguage()
+  const { t } = useOptionalLanguage()
   const searchParams = useSearchParams()
   const router = useRouter()
   const callbackUrlParam = searchParams?.get("callbackUrl")

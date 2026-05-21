@@ -40,7 +40,7 @@ import { validateSignupAgreements } from "@/lib/signup/AgreementAcceptanceServic
 import { isSignupAgreementGateOpen } from "@/lib/legal/SignupAgreementGate"
 import SocialLoginButtons from "@/components/auth/SocialLoginButtons"
 import { IdentityImageRenderer } from "@/components/identity/IdentityImageRenderer"
-import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import { useThemeMode } from "@/components/theme/ThemeProvider"
 import { AuthStatusLoadingFallback } from "@/components/auth/AuthStatusShell"
 import { trackLandingSignupComplete } from "@/lib/landing-analytics"
@@ -84,7 +84,7 @@ const AVATAR_PRESET_EMOJIS: Record<AvatarPresetId, string> = {
 type SignupStep = 1 | 2
 
 function SignupContent() {
-  const { t, language } = useLanguage()
+  const { t, language } = useOptionalLanguage()
   const { mode } = useThemeMode()
   const searchParams = useSearchParams()
   const router = useRouter()

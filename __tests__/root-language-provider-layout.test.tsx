@@ -4,7 +4,9 @@ import { describe, expect, it, vi } from "vitest"
 import fs from "node:fs"
 import path from "node:path"
 import { AppProviders } from "@/components/providers/AppProviders"
+import LanguageToggle from "@/components/i18n/LanguageToggle"
 import { ModeToggle } from "@/components/theme/ModeToggle"
+import { ThemeProvider } from "@/components/theme/ThemeProvider"
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
@@ -14,7 +16,11 @@ const layoutSource = fs.readFileSync(path.join(process.cwd(), "app", "layout.tsx
 const appProvidersSource = fs.readFileSync(path.join(process.cwd(), "components", "providers", "AppProviders.tsx"), "utf8")
 const signupPageSource = fs.readFileSync(path.join(process.cwd(), "app", "signup", "page.tsx"), "utf8")
 const loginPageSource = fs.readFileSync(path.join(process.cwd(), "app", "login", "page.tsx"), "utf8")
+const loginContentSource = fs.readFileSync(path.join(process.cwd(), "app", "login", "LoginContent.tsx"), "utf8")
 const signinPageSource = fs.readFileSync(path.join(process.cwd(), "app", "signin", "page.tsx"), "utf8")
+const languageProviderSource = fs.readFileSync(path.join(process.cwd(), "components", "i18n", "LanguageProviderClient.tsx"), "utf8")
+const modeToggleSource = fs.readFileSync(path.join(process.cwd(), "components", "theme", "ModeToggle.tsx"), "utf8")
+const languageToggleSource = fs.readFileSync(path.join(process.cwd(), "components", "i18n", "LanguageToggle.tsx"), "utf8")
 const uiDocumentSources = [
   ["app/layout.tsx", layoutSource],
   ["components/providers/AppProviders.tsx", appProvidersSource],
@@ -56,6 +62,28 @@ describe("root language provider layout", () => {
     )
 
     expect(screen.getByRole("button", { name: /current theme/i })).toBeInTheDocument()
+  })
+
+  it("renders language-dependent toggles without LanguageProviderClient", () => {
+    render(
+      <SessionProvider session={null}>
+        <ThemeProvider>
+          <ModeToggle />
+        </ThemeProvider>
+        <LanguageToggle />
+      </SessionProvider>
+    )
+
+    expect(screen.getByRole("combobox", { name: /language/i })).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: /current theme/i }).length).toBeGreaterThan(0)
+  })
+
+  it("uses optional language only for auth and global toggle fallbacks", () => {
+    expect(languageProviderSource).toContain("export function useOptionalLanguage")
+    expect(signupPageSource).toContain("useOptionalLanguage")
+    expect(loginContentSource).toContain("useOptionalLanguage")
+    expect(modeToggleSource).toContain("useOptionalLanguage")
+    expect(languageToggleSource).toContain("useOptionalLanguage")
   })
 
   it("does not nest full app providers inside auth pages", () => {

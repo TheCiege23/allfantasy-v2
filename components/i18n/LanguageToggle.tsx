@@ -1,12 +1,12 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useLanguage } from "./LanguageProviderClient";
+import { useOptionalLanguage } from "./LanguageProviderClient";
 import { getLanguageDisplayName, SUPPORTED_LANGUAGES, type LanguageCode } from "@/lib/i18n/constants";
 
 export default function LanguageToggle() {
   const { data: session } = useSession();
-  const { language, setLanguage, t } = useLanguage();
+  const { language, setLanguage, t } = useOptionalLanguage();
 
   const selectLang = (lang: LanguageCode) => {
     setLanguage(lang);
