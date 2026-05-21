@@ -12,6 +12,9 @@ vi.mock("next/navigation", () => ({
 
 const layoutSource = fs.readFileSync(path.join(process.cwd(), "app", "layout.tsx"), "utf8")
 const appProvidersSource = fs.readFileSync(path.join(process.cwd(), "components", "providers", "AppProviders.tsx"), "utf8")
+const signupPageSource = fs.readFileSync(path.join(process.cwd(), "app", "signup", "page.tsx"), "utf8")
+const loginPageSource = fs.readFileSync(path.join(process.cwd(), "app", "login", "page.tsx"), "utf8")
+const signinPageSource = fs.readFileSync(path.join(process.cwd(), "app", "signin", "page.tsx"), "utf8")
 
 describe("root language provider layout", () => {
   it("wraps global controls and children with AppProviders", () => {
@@ -46,5 +49,21 @@ describe("root language provider layout", () => {
     )
 
     expect(screen.getByRole("button", { name: /current theme/i })).toBeInTheDocument()
+  })
+
+  it("wraps auth page clients that call useLanguage with AppProviders", () => {
+    expect(signupPageSource).toContain("import { AppProviders }")
+    expect(signupPageSource.indexOf("<AppProviders>")).toBeLessThan(
+      signupPageSource.indexOf("<SignupContent />")
+    )
+
+    expect(loginPageSource).toContain("import { AppProviders }")
+    expect(loginPageSource.indexOf("<AppProviders>")).toBeLessThan(
+      loginPageSource.indexOf("<LoginContent />")
+    )
+  })
+
+  it("redirects /signin to the canonical login route", () => {
+    expect(signinPageSource).toContain('redirect("/login")')
   })
 })
