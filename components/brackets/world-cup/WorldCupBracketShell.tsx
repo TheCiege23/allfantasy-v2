@@ -78,6 +78,7 @@ import {
 import { worldCupTabToQueryValue, type WorldCupBracketTab } from "@/lib/world-cup/worldCupTabs"
 import WorldCupBracketBoard from "./WorldCupBracketBoard"
 import WorldCupBracketHealthCard from "./WorldCupBracketHealthCard"
+import WorldCupRootingGuideCard from "./WorldCupRootingGuideCard"
 import WorldCupEntryDashboard from "./WorldCupEntryDashboard"
 import AllFantasyBracketBoard, { AllFantasyBracketPickSkeleton } from "@/components/brackets/shared/AllFantasyBracketBoard"
 import { WorldCupCompactBracketPreview } from "./WorldCupCompactBracketPreview"
@@ -2912,6 +2913,31 @@ export default function WorldCupBracketShell({
                   <AiSimulationLockPanel isCommissioner={Boolean(view.isOwner || view.isAdmin)} />
                 )}
               </AllFantasyBracketBoard>
+            </section>
+
+            <section className="mx-auto max-w-5xl px-2 sm:px-0">
+              <WorldCupRootingGuideCard
+                entry={
+                  selectedEntry
+                    ? {
+                        id: selectedEntry.id,
+                        name: selectedEntry.name,
+                        championTeamId:
+                          view.leaderboard.find(
+                            (row) => row.entryId === selectedEntry.id
+                          )?.championTeamId ?? null,
+                        championTeamName:
+                          view.leaderboard.find(
+                            (row) => row.entryId === selectedEntry.id
+                          )?.championPickName ?? null,
+                        isComplete: selectedEntry.isComplete,
+                      }
+                    : null
+                }
+                matches={view.matches}
+                picks={picks}
+                hasBracketBrainAi={aiInsightsUnlocked}
+              />
             </section>
 
             <section className="mx-auto grid max-w-5xl gap-4 px-2 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] sm:px-0">

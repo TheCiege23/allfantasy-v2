@@ -8,6 +8,10 @@ import {
   buildWorldCupGroupStageGroupInsights,
   buildWorldCupGroupStageThirdPlaceInsights,
 } from "@/lib/world-cup/worldCupAiInsights"
+import {
+  buildWorldCupRootingGuide,
+  type BuildWorldCupRootingGuideInput,
+} from "@/lib/world-cup/worldCupRootingGuide"
 
 const match = {
   id: "m1",
@@ -398,6 +402,286 @@ describe("Group Stage AI insights — no external AI dependencies", () => {
     const filePath = path.resolve(process.cwd(), "lib/world-cup/worldCupAiInsights.ts")
     const src = await fs.readFile(filePath, "utf-8")
     expect(src).not.toMatch(/OPENAI_API_KEY|XAI_API_KEY|new OpenAI|createOpenAI|openai\.com/i)
+  })
+})
+
+describe("buildWorldCupRootingGuide — deterministic 'who to root for today'", () => {
+  const baseEntry = {
+    id: "entry-1",
+    name: "My Bracket",
+    championTeamId: "team-arg",
+    championTeamName: "Argentina",
+    isComplete: true,
+  }
+
+  function makeMatch(overrides: Record<string, unknown> = {}): any {
+    return {
+      id: "m1",
+      apiFixtureId: null,
+      round: "round_of_16",
+      roundIndex: 2,
+      matchNumber: 1,
+      homeSlotKey: "A1",
+      awaySlotKey: "B2",
+      homeTeamId: "team-arg",
+      awayTeamId: "team-den",
+      homeTeamName: "Argentina",
+      awayTeamName: "Denmark",
+      homeTeamLogo: null,
+      awayTeamLogo: null,
+      homeScore: null,
+      awayScore: null,
+      homePenaltyScore: null,
+      awayPenaltyScore: null,
+      status: "scheduled",
+      startsAt: "2026-06-15T18:00:00.000Z",
+      winnerTeamId: null,
+      winnerTeamName: null,
+      nextMatchId: null,
+      nextMatchSlot: null,
+      elapsedMinute: null,
+      injuryTime: null,
+      period: null,
+      venueName: null,
+      venueCity: null,
+      apiStatusShort: null,
+      lastScoreSyncedAt: null,
+      ...overrides,
+    }
+  }
+
+  function makePick(overrides: Record<string, unknown> = {}): any {
+    return {
+      id: "pick-1",
+      matchId: "m1",
+      matchNumber: 1,
+      round: "round_of_16",
+      selectedTeamId: "team-arg",
+      selectedSlotKey: "A1",
+      selectedTeamName: "Argentina",
+      confidencePoints: null,
+      pointsAwarded: 0,
+      isCorrect: null,
+      lockedAt: null,
+      ...overrides,
+    }
+  }
+
+  const TODAY = new Date("2026-06-15T12:00:00.000Z")
+
+  it("returns no_entry status when entry is null", () => {
+    const result = buildWorldCupRootingGuide({
+      entry: null,
+      matches: [makeMatch()],
+      picks: [],
+      now: TODAY,
+    } as BuildWorldCupRootingGuideInput)
+    expect(result.status).toBe("no_entry")
+    expect(result.recommendations).toHaveLength(0)
+  })
+
+  it("returns no_matches when no scheduled matches exist anywhere", () => {
+    const result = buildWorldCupRootingGuide({
+      entry: baseEntry,
+      matches: [makeMatch({ status: "final", winnerTeamId: "team-arg" })],
+      picks: [],
+      now: TODAY,
+    })
+    expect(result.status).toBe("no_matches")
+    expect(result.recommendations).toHaveLength(0)
+  })
+
+  it("champion pick playing today returns High impact + Champion path tag", () => {
+    const result = buildWorldCupRootingGuide({
+      entry: baseEntry,
+      matches: [makeMatch()],
+      picks: [],
+      now: TODAY,
+      hasBracketBrainAi: true,
+    })
+    expect(result.status).toBe("ready")
+    expect(result.windowLabel).toBe("Today")
+    expect(result.recommendations).toHaveLength(1)
+    const rec = result.recommendations[0]
+    expect(rec.impact).toBe("High")
+    expect(rec.tag).toBe("Champion path")
+    expect(rec.teamName).toBe("Argentina")
+    expect(rec.reason).toMatch(/champion pick/i)
+    expect(rec.reason).toMatch(/Denmark/)
+  })
+
+  it("knockout pick (no champion) returns Medium for R16, High for final/semi", () => {
+    const r16 = buildWorldCupRootingGuide({
+      entry: { ...baseEntry, championTeamId: "team-other", championTeamName: "Other" },
+      matches: [makeMatch({ round: "round_of_16" })],
+      picks: [makePick({ selectedTeamId: "team-arg" })],
+      now: TODAY,
+    })
+    expect(r16.recommendations[0]?.impact).toBe("Medium")
+    expect(r16.recommendations[0]?.tag).toBe("Knockout pick")
+
+    const finalMatch = buildWorldCupRootingGuide({
+      entry: { ...baseEntry, championTeamId: "team-other", championTeamName: "Other" },
+      matches: [makeMatch({ id: "m-final", round: "final" })],
+      picks: [makePick({ id: "pick-final", matchId: "m-final", round: "final", selectedTeamId: "team-arg" })],
+      now: TODAY,
+    })
+    expect(finalMatch.recommendations[0]?.impact).toBe("High")
+
+    const third = buildWorldCupRootingGuide({
+      entry: { ...baseEntry, championTeamId: "team-other", championTeamName: "Other" },
+      matches: [makeMatch({ id: "m-tp", round: "third_place" })],
+      picks: [makePick({ id: "pick-tp", matchId: "m-tp", round: "third_place", selectedTeamId: "team-arg" })],
+      now: TODAY,
+    })
+    expect(third.recommendations[0]?.impact).toBe("Low")
+  })
+
+  it("falls back to upcoming matches when nothing scheduled today", () => {
+    const result = buildWorldCupRootingGuide({
+      entry: baseEntry,
+      matches: [
+        makeMatch({ startsAt: "2026-06-20T18:00:00.000Z" }),
+      ],
+      picks: [],
+      now: TODAY,
+      hasBracketBrainAi: true,
+    })
+    expect(result.status).toBe("ready")
+    expect(result.windowLabel).toBe("Upcoming matches")
+    expect(result.recommendations).toHaveLength(1)
+    expect(result.recommendations[0]?.tag).toBe("Champion path")
+  })
+
+  it("limits Pro users to 3 recommendations, free users to 1", () => {
+    const matches = [
+      makeMatch({ id: "m1", round: "final" }), // champion pick → High
+      makeMatch({ id: "m2", round: "semifinal", homeTeamId: "x1", awayTeamId: "x2", homeTeamName: "X1", awayTeamName: "X2" }),
+      makeMatch({ id: "m3", round: "quarterfinal", homeTeamId: "y1", awayTeamId: "y2", homeTeamName: "Y1", awayTeamName: "Y2" }),
+      makeMatch({ id: "m4", round: "round_of_16", homeTeamId: "z1", awayTeamId: "z2", homeTeamName: "Z1", awayTeamName: "Z2" }),
+    ]
+    const picks = [
+      makePick({ id: "p2", matchId: "m2", round: "semifinal", selectedTeamId: "x1", selectedTeamName: "X1" }),
+      makePick({ id: "p3", matchId: "m3", round: "quarterfinal", selectedTeamId: "y1", selectedTeamName: "Y1" }),
+      makePick({ id: "p4", matchId: "m4", round: "round_of_16", selectedTeamId: "z1", selectedTeamName: "Z1" }),
+    ]
+
+    const pro = buildWorldCupRootingGuide({
+      entry: baseEntry,
+      matches,
+      picks,
+      now: TODAY,
+      hasBracketBrainAi: true,
+    })
+    expect(pro.recommendations).toHaveLength(3)
+    // High impact ones should come first.
+    expect(pro.recommendations[0]?.impact).toBe("High")
+    expect(pro.recommendations[1]?.impact).toBe("High")
+
+    const free = buildWorldCupRootingGuide({
+      entry: baseEntry,
+      matches,
+      picks,
+      now: TODAY,
+      hasBracketBrainAi: false,
+    })
+    expect(free.recommendations).toHaveLength(1)
+    // Free users get the highest-impact rec only.
+    expect(free.recommendations[0]?.impact).toBe("High")
+    expect(free.lockedLines?.[0]).toMatch(/AF Pro unlocks/i)
+  })
+
+  it("returns incomplete status with helpful copy when picks don't intersect any match", () => {
+    const result = buildWorldCupRootingGuide({
+      entry: {
+        ...baseEntry,
+        championTeamId: null,
+        championTeamName: null,
+        isComplete: false,
+      },
+      matches: [makeMatch({ homeTeamId: "x1", awayTeamId: "x2", homeTeamName: "X", awayTeamName: "Y" })],
+      picks: [],
+      now: TODAY,
+    })
+    expect(result.status).toBe("incomplete")
+    expect(result.recommendations).toHaveLength(0)
+    expect(result.lockedLines?.[0]).toMatch(/Finish your group and knockout picks/i)
+  })
+
+  it("returns ready+empty with safe message when complete but no matches intersect picks", () => {
+    const result = buildWorldCupRootingGuide({
+      entry: {
+        ...baseEntry,
+        championTeamId: null,
+        championTeamName: null,
+        isComplete: true,
+      },
+      matches: [makeMatch({ homeTeamId: "x1", awayTeamId: "x2", homeTeamName: "X", awayTeamName: "Y" })],
+      picks: [],
+      now: TODAY,
+    })
+    expect(result.status).toBe("ready")
+    expect(result.recommendations).toHaveLength(0)
+    expect(result.lockedLines?.[0]).toMatch(/Check back on the next matchday/i)
+  })
+
+  it("deduplicates picks for the same match (champion takes priority over knockout pick)", () => {
+    const result = buildWorldCupRootingGuide({
+      entry: baseEntry,
+      matches: [makeMatch()],
+      // User picked champion to win this match AND that team is their champion.
+      picks: [makePick({ selectedTeamId: "team-arg" })],
+      now: TODAY,
+      hasBracketBrainAi: true,
+    })
+    expect(result.recommendations).toHaveLength(1)
+    expect(result.recommendations[0]?.tag).toBe("Champion path")
+  })
+
+  it("ignores completed/cancelled/postponed matches", () => {
+    const result = buildWorldCupRootingGuide({
+      entry: baseEntry,
+      matches: [
+        makeMatch({ id: "m-final", status: "final" }),
+        makeMatch({ id: "m-cancel", status: "cancelled" }),
+        makeMatch({ id: "m-postpone", status: "postponed" }),
+      ],
+      picks: [],
+      now: TODAY,
+    })
+    expect(result.status).toBe("no_matches")
+  })
+
+  it("uses default current time when 'now' is omitted (smoke check)", () => {
+    const result = buildWorldCupRootingGuide({
+      entry: baseEntry,
+      matches: [makeMatch({ startsAt: new Date(Date.now() + 86400_000).toISOString() })],
+      picks: [],
+    })
+    // With a tomorrow match and no `now`, we expect "Upcoming matches" status="ready".
+    expect(result.status).toBe("ready")
+    expect(result.windowLabel).toBe("Upcoming matches")
+  })
+
+  it("helper file does not import OpenAI/XAI providers (privacy guard)", async () => {
+    const fs = await import("node:fs/promises")
+    const path = await import("node:path")
+    const filePath = path.resolve(process.cwd(), "lib/world-cup/worldCupRootingGuide.ts")
+    const src = await fs.readFile(filePath, "utf-8")
+    expect(src).not.toMatch(/OPENAI_API_KEY|XAI_API_KEY|new OpenAI|createOpenAI|openai\.com/i)
+    expect(src).not.toMatch(/fetch\s*\(/i)
+  })
+
+  it("never includes wagering or betting language in recommendation reasons", () => {
+    const result = buildWorldCupRootingGuide({
+      entry: baseEntry,
+      matches: [makeMatch()],
+      picks: [makePick()],
+      now: TODAY,
+      hasBracketBrainAi: true,
+    })
+    const allText = result.recommendations.map((r) => r.reason).join(" ").toLowerCase()
+    expect(allText).not.toMatch(/\bdfs\b|\bbetting\b|\bwager|\bsportsbook\b|\bodds\b/)
   })
 })
 
