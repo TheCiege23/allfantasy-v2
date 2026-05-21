@@ -12,6 +12,9 @@ import {
   buildWorldCupRootingGuide,
   type BuildWorldCupRootingGuideInput,
 } from "@/lib/world-cup/worldCupRootingGuide"
+import {
+  buildWorldCupBracketUniquenessInsights,
+} from "@/lib/world-cup/worldCupUniquenessInsights"
 
 const match = {
   id: "m1",
@@ -682,6 +685,235 @@ describe("buildWorldCupRootingGuide — deterministic 'who to root for today'", 
     })
     const allText = result.recommendations.map((r) => r.reason).join(" ").toLowerCase()
     expect(allText).not.toMatch(/\bdfs\b|\bbetting\b|\bwager|\bsportsbook\b|\bodds\b/)
+  })
+})
+
+describe("buildWorldCupBracketUniquenessInsights — deterministic pool comparison", () => {
+  it("returns not_enough_pool_data when fewer than 3 finalized entries", () => {
+    const result = buildWorldCupBracketUniquenessInsights({
+      ownChampionTeamName: "Argentina",
+      ownPicksByRound: {},
+      poolDistributions: { champion: [{ teamName: "Argentina", count: 1 }] },
+      finalizedEntryCount: 2,
+      hasBracketBrainAi: true,
+    })
+    expect(result.status).toBe("not_enough_pool_data")
+    expect(result.insights).toHaveLength(0)
+    expect(result.lockedLines?.[0]).toMatch(/Uniqueness unlocks/i)
+  })
+
+  it("returns incomplete when user has no champion and no knockout picks", () => {
+    const result = buildWorldCupBracketUniquenessInsights({
+      ownChampionTeamName: null,
+      ownPicksByRound: {},
+      poolDistributions: { champion: [{ teamName: "Argentina", count: 5 }] },
+      finalizedEntryCount: 10,
+      hasBracketBrainAi: true,
+    })
+    expect(result.status).toBe("incomplete")
+    expect(result.lockedLines?.[0]).toMatch(/Make group and knockout picks/i)
+  })
+
+  it("champion shared by 10% → very_rare", () => {
+    const result = buildWorldCupBracketUniquenessInsights({
+      ownChampionTeamName: "Japan",
+      ownPicksByRound: {},
+      poolDistributions: {
+        champion: [
+          { teamName: "Argentina", count: 9 },
+          { teamName: "Japan", count: 1 },
+        ],
+      },
+      finalizedEntryCount: 10,
+      hasBracketBrainAi: true,
+    })
+    expect(result.status).toBe("ready")
+    const champ = result.insights.find((i) => i.tag === "Champion")
+    expect(champ?.rarity).toBe("very_rare")
+    expect(champ?.percentage).toBe(10)
+    expect(champ?.description).toMatch(/contrarian/i)
+  })
+
+  it("champion shared by 50% → uncommon (boundary)", () => {
+    const result = buildWorldCupBracketUniquenessInsights({
+      ownChampionTeamName: "Brazil",
+      ownPicksByRound: {},
+      poolDistributions: {
+        champion: [
+          { teamName: "Brazil", count: 5 },
+          { teamName: "Argentina", count: 5 },
+        ],
+      },
+      finalizedEntryCount: 10,
+      hasBracketBrainAi: true,
+    })
+    const champ = result.insights.find((i) => i.tag === "Champion")
+    expect(champ?.rarity).toBe("uncommon")
+    expect(champ?.percentage).toBe(50)
+  })
+
+  it("champion shared by >50% → common (popular)", () => {
+    const result = buildWorldCupBracketUniquenessInsights({
+      ownChampionTeamName: "Brazil",
+      ownPicksByRound: {},
+      poolDistributions: {
+        champion: [{ teamName: "Brazil", count: 8 }, { teamName: "Argentina", count: 2 }],
+      },
+      finalizedEntryCount: 10,
+      hasBracketBrainAi: true,
+    })
+    const champ = result.insights.find((i) => i.tag === "Champion")
+    expect(champ?.rarity).toBe("common")
+    expect(champ?.description).toMatch(/popular/i)
+  })
+
+  it("surfaces rare per-round knockout picks with correct tag", () => {
+    const result = buildWorldCupBracketUniquenessInsights({
+      ownChampionTeamName: "Brazil",
+      ownPicksByRound: {
+        semifinal: ["Japan"], // 1/10 = 10% → very_rare
+        round_of_16: ["Brazil"], // 8/10 = 80% → common (skipped)
+      },
+      poolDistributions: {
+        champion: [{ teamName: "Brazil", count: 8 }, { teamName: "Argentina", count: 2 }],
+        semifinal: [{ teamName: "Japan", count: 1 }, { teamName: "Brazil", count: 8 }],
+        round_of_16: [{ teamName: "Brazil", count: 8 }],
+      },
+      finalizedEntryCount: 10,
+      hasBracketBrainAi: true,
+    })
+    const semi = result.insights.find((i) => i.tag === "Semifinal")
+    expect(semi).toBeDefined()
+    expect(semi?.rarity).toBe("very_rare")
+    expect(semi?.description).toMatch(/Japan/)
+    expect(semi?.description).toMatch(/Semifinal/)
+    // Common picks not surfaced as separate insights.
+    const knockoutCommonShared = result.insights.find(
+      (i) => i.tag === "Knockout" && i.rarity === "common"
+    )
+    expect(knockoutCommonShared).toBeUndefined()
+  })
+
+  it('returns "Chalk" fallback insight when nothing rare bubbles up', () => {
+    const result = buildWorldCupBracketUniquenessInsights({
+      ownChampionTeamName: "Brazil",
+      ownPicksByRound: { semifinal: ["Brazil"] },
+      poolDistributions: {
+        champion: [{ teamName: "Brazil", count: 9 }, { teamName: "Argentina", count: 1 }],
+        semifinal: [{ teamName: "Brazil", count: 9 }],
+      },
+      finalizedEntryCount: 10,
+      hasBracketBrainAi: true,
+    })
+    // Champion is common but still surfaces; chalk fallback only fires when no insights at all.
+    // Verify chalk only when truly empty.
+    const onlyChalk = buildWorldCupBracketUniquenessInsights({
+      ownChampionTeamName: null,
+      ownPicksByRound: { semifinal: ["Brazil"] },
+      poolDistributions: {
+        semifinal: [{ teamName: "Brazil", count: 9 }],
+      },
+      finalizedEntryCount: 10,
+      hasBracketBrainAi: true,
+    })
+    const chalk = onlyChalk.insights.find((i) => i.tag === "Chalk")
+    expect(chalk).toBeDefined()
+    expect(chalk?.description).toMatch(/mostly|chalk|popular/i)
+    // Above result still has at least the champion insight.
+    expect(result.insights.length).toBeGreaterThan(0)
+  })
+
+  it("free user gets max 1 insight + lockedLines when more insights exist", () => {
+    const result = buildWorldCupBracketUniquenessInsights({
+      ownChampionTeamName: "Japan",
+      ownPicksByRound: {
+        semifinal: ["South Korea"],
+        quarterfinal: ["Morocco"],
+      },
+      poolDistributions: {
+        champion: [{ teamName: "Japan", count: 1 }],
+        semifinal: [{ teamName: "South Korea", count: 1 }],
+        quarterfinal: [{ teamName: "Morocco", count: 1 }],
+      },
+      finalizedEntryCount: 10,
+      hasBracketBrainAi: false,
+    })
+    expect(result.insights).toHaveLength(1)
+    expect(result.lockedLines?.[0]).toMatch(/AF Pro unlocks/i)
+    // Highest-rarity insight (very_rare) should be the one shown.
+    expect(result.insights[0].rarity).toBe("very_rare")
+  })
+
+  it("Pro user gets up to 5 insights sorted by rarity", () => {
+    const result = buildWorldCupBracketUniquenessInsights({
+      ownChampionTeamName: "Japan",
+      ownPicksByRound: {
+        final: ["Japan"],
+        semifinal: ["South Korea"],
+        quarterfinal: ["Morocco"],
+        round_of_16: ["Wales"],
+        round_of_32: ["Australia"],
+      },
+      poolDistributions: {
+        champion: [{ teamName: "Japan", count: 1 }, { teamName: "Brazil", count: 9 }],
+        final: [{ teamName: "Japan", count: 1 }],
+        semifinal: [{ teamName: "South Korea", count: 2 }],
+        quarterfinal: [{ teamName: "Morocco", count: 2 }],
+        round_of_16: [{ teamName: "Wales", count: 2 }],
+        round_of_32: [{ teamName: "Australia", count: 2 }],
+      },
+      finalizedEntryCount: 10,
+      hasBracketBrainAi: true,
+    })
+    expect(result.insights.length).toBeLessThanOrEqual(5)
+    expect(result.insights.length).toBeGreaterThan(0)
+    // First insight has highest rarity score.
+    const rarityScores = result.insights.map((i) =>
+      i.rarity === "very_rare" ? 4 : i.rarity === "rare" ? 3 : i.rarity === "uncommon" ? 2 : 1
+    )
+    for (let i = 1; i < rarityScores.length; i++) {
+      expect(rarityScores[i - 1]).toBeGreaterThanOrEqual(rarityScores[i])
+    }
+    // No locked line for Pro users when result fits within cap.
+    expect(result.lockedLines).toBeUndefined()
+  })
+
+  it("respects custom minFinalizedEntries threshold", () => {
+    const result = buildWorldCupBracketUniquenessInsights({
+      ownChampionTeamName: "Japan",
+      ownPicksByRound: {},
+      poolDistributions: { champion: [{ teamName: "Japan", count: 4 }] },
+      finalizedEntryCount: 4,
+      hasBracketBrainAi: true,
+      minFinalizedEntries: 5,
+    })
+    expect(result.status).toBe("not_enough_pool_data")
+  })
+
+  it("never includes wagering/betting language in any insight description", () => {
+    const result = buildWorldCupBracketUniquenessInsights({
+      ownChampionTeamName: "Japan",
+      ownPicksByRound: { final: ["Japan"], semifinal: ["South Korea"] },
+      poolDistributions: {
+        champion: [{ teamName: "Japan", count: 1 }, { teamName: "Brazil", count: 9 }],
+        final: [{ teamName: "Japan", count: 1 }],
+        semifinal: [{ teamName: "South Korea", count: 2 }],
+      },
+      finalizedEntryCount: 10,
+      hasBracketBrainAi: true,
+    })
+    const all = result.insights.map((i) => i.description).join(" ").toLowerCase()
+    expect(all).not.toMatch(/\bdfs\b|\bbetting\b|\bwager|\bsportsbook\b|\bodds\b/)
+  })
+
+  it("helper file does not import OpenAI/XAI providers or fetch (privacy guard)", async () => {
+    const fs = await import("node:fs/promises")
+    const path = await import("node:path")
+    const filePath = path.resolve(process.cwd(), "lib/world-cup/worldCupUniquenessInsights.ts")
+    const src = await fs.readFile(filePath, "utf-8")
+    expect(src).not.toMatch(/OPENAI_API_KEY|XAI_API_KEY|new OpenAI|createOpenAI|openai\.com/i)
+    expect(src).not.toMatch(/\bfetch\s*\(/i)
+    expect(src).not.toMatch(/from\s+["']@\/lib\/prisma["']/)
   })
 })
 

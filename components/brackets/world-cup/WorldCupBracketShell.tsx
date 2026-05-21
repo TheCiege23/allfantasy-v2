@@ -80,6 +80,7 @@ import WorldCupBracketBoard from "./WorldCupBracketBoard"
 import WorldCupBracketHealthCard from "./WorldCupBracketHealthCard"
 import WorldCupRootingGuideCard from "./WorldCupRootingGuideCard"
 import WorldCupExplainBracketCard from "./WorldCupExplainBracketCard"
+import WorldCupBracketUniquenessCard from "./WorldCupBracketUniquenessCard"
 import WorldCupEntryDashboard from "./WorldCupEntryDashboard"
 import AllFantasyBracketBoard, { AllFantasyBracketPickSkeleton } from "@/components/brackets/shared/AllFantasyBracketBoard"
 import { WorldCupCompactBracketPreview } from "./WorldCupCompactBracketPreview"
@@ -3346,6 +3347,12 @@ export default function WorldCupBracketShell({
                     />
 
                     <WorldCupExplainBracketCard
+                      challengeId={challengeId}
+                      entryId={selectedEntryId ?? null}
+                      hasBracketBrainAi={aiInsightsUnlocked}
+                    />
+
+                    <WorldCupBracketUniquenessCard
                       challengeId={challengeId}
                       entryId={selectedEntryId ?? null}
                       hasBracketBrainAi={aiInsightsUnlocked}
