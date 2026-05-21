@@ -3353,6 +3353,94 @@ describe("WorldCupBracketShell fixture readiness", () => {
   })
 })
 
+describe("WorldCupInvitePanel invite gating", () => {
+  const baseChallenge = {
+    id: "c1",
+    name: "Test Pool",
+    ownerUserId: "owner-1",
+    seasonYear: 2026,
+    inviteCode: "WCPOOL99",
+    inviteUrl: "https://allfantasy.ai/join/bracket/WCPOOL99",
+    visibility: "private" as const,
+    pickLockStrategy: "tournament_start" as const,
+    pickLockAt: null,
+    maxParticipants: 20,
+    maxEntriesPerParticipant: 3,
+    effectivePickLockAt: null,
+    status: "open",
+    includeThirdPlace: false,
+    knockoutMode: "predictive" as const,
+    isTestMode: false,
+    simulationEnabled: false,
+    simulatedAt: null,
+    simulationStatus: null,
+    hasSimulatedResults: false,
+    lastSyncedAt: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }
+  const baseView = {
+    challenge: baseChallenge,
+    scoring: {
+      roundOf32Points: 10,
+      roundOf16Points: 20,
+      quarterFinalPoints: 40,
+      semiFinalPoints: 80,
+      finalPoints: 160,
+      championBonusPoints: 320,
+      thirdPlacePoints: 4,
+    },
+    slots: [],
+    matches: [],
+    participant: null,
+    activeEntry: null,
+    entries: [],
+    picks: [],
+    leaderboard: [],
+    isOwner: false,
+    isAdmin: false,
+    hasBracketBrainAi: false,
+  }
+
+  it("commissioner sees invite code and copy controls", async () => {
+    const WorldCupInvitePanel = (await import("@/components/brackets/world-cup/WorldCupInvitePanel")).default
+    render(<WorldCupInvitePanel view={baseView as any} isCommissioner={true} />)
+
+    expect(screen.getByTestId("wc-invite-commissioner-panel")).toBeInTheDocument()
+    expect(screen.getByTestId("wc-invite-code-display")).toHaveTextContent("WCPOOL99")
+    expect(screen.getByTestId("wc-invite-copy-code-btn")).toBeInTheDocument()
+    expect(screen.getByTestId("wc-invite-copy-link-btn")).toBeInTheDocument()
+    expect(screen.queryByTestId("wc-invite-member-banner")).not.toBeInTheDocument()
+  })
+
+  it("member sees commissioner-only banner and no invite code or copy buttons", async () => {
+    const WorldCupInvitePanel = (await import("@/components/brackets/world-cup/WorldCupInvitePanel")).default
+    render(<WorldCupInvitePanel view={baseView as any} isCommissioner={false} />)
+
+    expect(screen.getByTestId("wc-invite-member-banner")).toBeInTheDocument()
+    expect(screen.getByText(/Only the pool commissioner can copy and share the invite link/i)).toBeInTheDocument()
+    expect(screen.queryByTestId("wc-invite-commissioner-panel")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("wc-invite-code-display")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("wc-invite-copy-code-btn")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("wc-invite-copy-link-btn")).not.toBeInTheDocument()
+    expect(screen.queryByText("WCPOOL99")).not.toBeInTheDocument()
+  })
+
+  it("commissioner sees Pool Details metadata regardless of lock state", async () => {
+    const WorldCupInvitePanel = (await import("@/components/brackets/world-cup/WorldCupInvitePanel")).default
+    const lockedView = {
+      ...baseView,
+      challenge: { ...baseChallenge, status: "locked" as const },
+      isOwner: true,
+    }
+    render(<WorldCupInvitePanel view={lockedView as any} isCommissioner={true} />)
+
+    expect(screen.getByTestId("wc-invite-commissioner-panel")).toBeInTheDocument()
+    expect(screen.getByTestId("wc-invite-code-display")).toHaveTextContent("WCPOOL99")
+    expect(screen.getByText(/This pool is locked/i)).toBeInTheDocument()
+  })
+})
+
 describe("WorldCupLeaderboard mobile score row", () => {
   it("renders mobile score strip with totals", async () => {
     const WorldCupLeaderboard = (await import("@/components/brackets/world-cup/WorldCupLeaderboard")).default

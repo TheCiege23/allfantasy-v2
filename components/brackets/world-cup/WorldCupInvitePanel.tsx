@@ -13,7 +13,13 @@ function MetaRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-export default function WorldCupInvitePanel({ view }: { view: WorldCupChallengeView }) {
+export default function WorldCupInvitePanel({
+  view,
+  isCommissioner = false,
+}: {
+  view: WorldCupChallengeView
+  isCommissioner?: boolean
+}) {
   const [copiedLink, setCopiedLink] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
 
@@ -107,10 +113,27 @@ export default function WorldCupInvitePanel({ view }: { view: WorldCupChallengeV
         </div>
       </div>
 
-      {/* Invite link */}
-      {inviteCode ? (
+      {/* Invite link — commissioner only */}
+      {!isCommissioner ? (
+        /* Member fallback: no invite code shown */
+        <div
+          data-testid="wc-invite-member-banner"
+          className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-5 py-8 text-center"
+        >
+          <Share2 className="mx-auto mb-3 h-8 w-8 text-white/20" />
+          <p className="text-sm font-black text-white/60">Invite friends to this pool</p>
+          <p className="mt-2 text-xs leading-5 text-white/35">
+            Only the pool commissioner can copy and share the invite link.
+            <br />
+            Ask your commissioner for the invite link or code.
+          </p>
+        </div>
+      ) : inviteCode ? (
         <>
-          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-5">
+          <div
+            data-testid="wc-invite-commissioner-panel"
+            className="rounded-xl border border-white/10 bg-white/[0.04] p-5"
+          >
             <div className="flex items-center gap-2 text-base font-black text-white">
               <Link2 className="h-4 w-4 text-cyan-300" />
               Invite Link
@@ -128,11 +151,17 @@ export default function WorldCupInvitePanel({ view }: { view: WorldCupChallengeV
           <div className="mt-3 flex items-center justify-between rounded-lg border border-white/[0.07] bg-black/20 px-3 py-2">
             <div>
               <div className="text-[10px] font-bold uppercase tracking-widest text-white/35">Invite Code</div>
-              <div className="mt-0.5 font-mono text-sm font-black text-white/80 tracking-widest">{inviteCode}</div>
+              <div
+                data-testid="wc-invite-code-display"
+                className="mt-0.5 font-mono text-sm font-black text-white/80 tracking-widest"
+              >
+                {inviteCode}
+              </div>
             </div>
             <button
               type="button"
               onClick={copyCode}
+              data-testid="wc-invite-copy-code-btn"
               className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-bold text-white/60 hover:text-white"
             >
               {copiedCode ? <Check className="h-3.5 w-3.5 text-emerald-300" /> : <Copy className="h-3.5 w-3.5" />}
@@ -145,6 +174,7 @@ export default function WorldCupInvitePanel({ view }: { view: WorldCupChallengeV
             <button
               type="button"
               onClick={copyLink}
+              data-testid="wc-invite-copy-link-btn"
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-black text-black sm:w-auto"
             >
               {copiedLink ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -179,7 +209,7 @@ export default function WorldCupInvitePanel({ view }: { view: WorldCupChallengeV
           />
         </>
       ) : (
-        /* No invite code — friendly fallback */
+        /* Commissioner: no invite code set — friendly fallback */
         <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-5 py-8 text-center">
           <Users className="mx-auto mb-3 h-8 w-8 text-white/20" />
           <p className="text-sm font-bold text-white/50">Invite link not available</p>

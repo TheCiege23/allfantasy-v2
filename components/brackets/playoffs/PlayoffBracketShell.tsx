@@ -241,7 +241,12 @@ export default function PlayoffBracketShell({ initialView }: Props) {
             <div><dt className="font-semibold">Brackets per User</dt><dd>{safeChallenge.maxEntriesPerParticipant}</dd></div>
             <div><dt className="font-semibold">Scoring Style</dt><dd>{safeChallenge.scoringStyle}</dd></div>
             <div><dt className="font-semibold">Lock Rule</dt><dd>{safeChallenge.lockRule}</dd></div>
-            <div><dt className="font-semibold">Invite Code</dt><dd>{safeChallenge.inviteCode}</dd></div>
+            {canManagePlayoffPool && (
+              <div data-testid="playoff-invite-code-cell">
+                <dt className="font-semibold">Invite Code</dt>
+                <dd>{safeChallenge.inviteCode}</dd>
+              </div>
+            )}
           </dl>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -272,14 +277,17 @@ export default function PlayoffBracketShell({ initialView }: Props) {
                 Create Another Bracket
               </button>
             ) : null}
-            <button
-              type="button"
-              onClick={copyInvite}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-sky-400 hover:text-sky-700"
-            >
-              <Clipboard className="h-4 w-4" />
-              Invite
-            </button>
+            {canManagePlayoffPool && (
+              <button
+                type="button"
+                onClick={copyInvite}
+                data-testid="playoff-copy-invite-btn"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-sky-400 hover:text-sky-700"
+              >
+                <Clipboard className="h-4 w-4" />
+                Invite
+              </button>
+            )}
             {canManagePlayoffPool ? (
               <button
                 type="button"
@@ -296,20 +304,40 @@ export default function PlayoffBracketShell({ initialView }: Props) {
           ) : null}
         </article>
 
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">Invite Panel</h2>
-          <p className="mt-2 text-sm text-slate-700">
-            Share this link: <span className="font-semibold">{safeChallenge.inviteUrl}?code={safeChallenge.inviteCode}</span>
-          </p>
-          <button
-            type="button"
-            onClick={copyInvite}
-            className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+        {canManagePlayoffPool ? (
+          <article
+            data-testid="playoff-invite-panel"
+            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
           >
-            <Link2 className="h-4 w-4" />
-            Copy invite link
-          </button>
-        </article>
+            <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">Invite Panel</h2>
+            <p className="mt-2 text-sm text-slate-700">
+              Share this link:{" "}
+              <span className="font-semibold">
+                {safeChallenge.inviteUrl}?code={safeChallenge.inviteCode}
+              </span>
+            </p>
+            <button
+              type="button"
+              onClick={copyInvite}
+              data-testid="playoff-copy-invite-link-btn"
+              className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+            >
+              <Link2 className="h-4 w-4" />
+              Copy invite link
+            </button>
+          </article>
+        ) : (
+          <article
+            data-testid="playoff-invite-member-banner"
+            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+          >
+            <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">Invite</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              Only the pool commissioner can copy and share the invite link.
+              Ask your commissioner for the invite link or code.
+            </p>
+          </article>
+        )}
       </section>
 
       {canManagePlayoffPool ? (

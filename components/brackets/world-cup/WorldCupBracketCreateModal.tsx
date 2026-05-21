@@ -112,23 +112,25 @@ export default function WorldCupBracketCreateModal() {
 
       <main className="overflow-y-auto">
         <div className="mx-auto w-full max-w-xl px-3 py-4 pb-28 sm:px-4 sm:py-8 sm:pb-8">
-          <form onSubmit={submit} className="space-y-5 rounded-xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/40 sm:p-6">
+          <form onSubmit={submit} className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/40">
             {/* Title block */}
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-cyan-300/35 bg-cyan-300/10 p-1">
+            <div className="flex items-center gap-3 border-b border-white/[0.08] bg-white/[0.02] px-4 py-4 sm:px-6">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-300/35 bg-cyan-300/10 p-1">
                 <Image
                   src={WC_LOGO_SRC}
                   alt="AllFantasy World Cup"
-                  width={48}
-                  height={48}
+                  width={44}
+                  height={44}
                   className="h-full w-full object-contain"
                 />
               </div>
               <div className="min-w-0">
                 <div className="text-sm font-black text-white">2026 FIFA World Cup</div>
-                <div className="text-xs text-white/45">Create a pool, invite friends, then finalize entries before standings count them.</div>
+                <div className="text-xs text-white/45">Create a pool container — invite friends and let them build their brackets inside.</div>
               </div>
             </div>
+
+            <div className="space-y-5 p-4 sm:p-6">
 
             {/* Pool name */}
             <div>
@@ -146,10 +148,12 @@ export default function WorldCupBracketCreateModal() {
               {nameError && <p className="mt-1 text-[11px] text-rose-300">{nameError}</p>}
             </div>
 
+            <div className="border-t border-white/[0.06]" />
+
             {/* Privacy */}
             <div>
               <label className="block text-xs font-black uppercase tracking-[0.16em] text-white/45">
-                Privacy
+                Pool Visibility
               </label>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
                 <button
@@ -176,6 +180,8 @@ export default function WorldCupBracketCreateModal() {
                 </button>
               </div>
             </div>
+
+            <div className="border-t border-white/[0.06]" />
 
             {/* Max users + max entries */}
             <div className="grid gap-4 sm:grid-cols-2">
@@ -213,10 +219,12 @@ export default function WorldCupBracketCreateModal() {
               </div>
             </div>
 
+            <div className="border-t border-white/[0.06]" />
+
             {/* Lock rule */}
             <div>
               <label className="block text-xs font-black uppercase tracking-[0.16em] text-white/45">
-                Lock Rule
+                Pick Lock Rule
               </label>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
                 <button
@@ -300,11 +308,13 @@ export default function WorldCupBracketCreateModal() {
             <button
               type="submit"
               disabled={loading || hasErrors}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-3 text-sm font-black text-black disabled:opacity-60"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-3.5 text-sm font-black text-black shadow-lg shadow-cyan-300/20 disabled:opacity-60"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
               {submitLabel}
             </button>
+
+            </div>{/* end inner padding div */}
           </form>
         </div>
       </main>

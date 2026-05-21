@@ -2127,6 +2127,11 @@ export default function WorldCupBracketShell({
                 <h1 className="truncate text-sm font-black leading-tight text-white sm:text-lg">
                   {showBoard ? selectedEntry!.name : view.challenge.name}
                 </h1>
+                {!showBoard && (view.isOwner || view.isAdmin) && (
+                  <span className="shrink-0 rounded-full border border-amber-300/25 bg-amber-300/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-amber-200">
+                    {view.isAdmin && !view.isOwner ? "Admin" : "Commissioner"}
+                  </span>
+                )}
                 {showBoard && selectedEntry ? (
                   <button
                     type="button"
@@ -2191,15 +2196,18 @@ export default function WorldCupBracketShell({
               Sync
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={() => switchTab("invite")}
-            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-cyan-300 px-3 py-2 text-xs font-black text-black touch-manipulation sm:min-h-0 sm:min-w-0"
-            aria-label="Invite friends"
-          >
-            <Share2 className="h-3.5 w-3.5 shrink-0" />
-            <span className="hidden sm:inline">Invite</span>
-          </button>
+          {(view.isOwner || view.isAdmin) && (
+            <button
+              type="button"
+              onClick={() => switchTab("invite")}
+              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-cyan-300 px-3 py-2 text-xs font-black text-black touch-manipulation sm:min-h-0 sm:min-w-0"
+              aria-label="Invite friends"
+              data-testid="wc-shell-invite-btn"
+            >
+              <Share2 className="h-3.5 w-3.5 shrink-0" />
+              <span className="hidden sm:inline">Invite</span>
+            </button>
+          )}
         </div>
         {saveError && (
           <div className="mx-3 mb-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
@@ -2251,7 +2259,9 @@ export default function WorldCupBracketShell({
               <JumpButton label="Admin/Test" onClick={() => scrollToAnchor("world-cup-admin", "picks")} />
             ) : null}
             <JumpButton label="Leaderboard" onClick={() => scrollToAnchor("world-cup-leaderboard", "leaderboard")} />
-            <JumpButton label="Invite" onClick={() => scrollToAnchor("world-cup-invite", "invite")} />
+            {(view.isOwner || view.isAdmin) ? (
+              <JumpButton label="Invite" onClick={() => scrollToAnchor("world-cup-invite", "invite")} />
+            ) : null}
           </div>
         </nav>
 
@@ -3499,7 +3509,11 @@ export default function WorldCupBracketShell({
             <WorldCupLeaderboard view={view} busy={isPending} onRecalculate={() => runOwnerAction("recalculate")} />
           </div>
         ) : null}
-        {tab === "invite" ? <div id="world-cup-invite"><WorldCupInvitePanel view={view} /></div> : null}
+        {tab === "invite" ? (
+          <div id="world-cup-invite">
+            <WorldCupInvitePanel view={view} isCommissioner={Boolean(view.isOwner || view.isAdmin)} />
+          </div>
+        ) : null}
         {tab === "rules" ? (
           <div className="mx-auto max-w-2xl px-4 py-6 text-sm leading-7 text-white/60">
             <h2 className="mb-3 text-lg font-black text-white">Rules</h2>
