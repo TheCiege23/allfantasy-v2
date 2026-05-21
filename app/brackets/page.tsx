@@ -1,10 +1,15 @@
+import Image from "next/image"
 import Link from "next/link"
-import { Globe2, Sparkles, Trophy } from "lucide-react"
+import { Sparkles, Trophy } from "lucide-react"
+
+const WC_LOGO_SRC    = "/images/brackets/world-cup/af-world-cup-logo.png"
+const WC_VIDEO_SRC   = "/videos/brackets/world-cup/af-world-cup-hero.mp4"
+const WC_POSTER_SRC  = "/images/brackets/world-cup/af-world-cup-hero-poster.jpg"
 
 export const dynamic = "force-dynamic"
 
 /**
- * INCREMENTAL RESTORATION — Step 1 of 10
+ * INCREMENTAL RESTORATION — Step 2 of 10
  *
  * Re-adds the WORLD CUP HERO section from `_page-full.tsx.bak` as a fully
  * static server component. No data fetching, no auth, no Prisma, no client
@@ -81,6 +86,18 @@ export default function BracketsHomePage() {
               background: "linear-gradient(to bottom, transparent, color-mix(in srgb, #060b17 60%, var(--bg)))",
             }}
           />
+          {/* Hero video — decorative, no audio, loads metadata only */}
+          <video
+            src={WC_VIDEO_SRC}
+            poster={WC_POSTER_SRC}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            aria-hidden="true"
+            className="absolute inset-0 hidden h-full w-full object-cover opacity-[0.13] mix-blend-luminosity sm:block"
+          />
         </div>
 
         {/* Hero content */}
@@ -115,7 +132,7 @@ export default function BracketsHomePage() {
               }}
             />
             <div
-              className="relative flex h-20 w-20 items-center justify-center rounded-3xl border sm:h-24 sm:w-24"
+              className="relative flex h-20 w-20 items-center justify-center rounded-3xl border p-2 sm:h-24 sm:w-24 sm:p-3"
               style={{
                 background:
                   "linear-gradient(135deg, color-mix(in srgb, var(--accent-cyan) 22%, transparent), color-mix(in srgb, var(--accent-purple) 16%, transparent))",
@@ -124,7 +141,14 @@ export default function BracketsHomePage() {
                   "0 0 48px -8px color-mix(in srgb, var(--accent-cyan) 55%, transparent), inset 0 1px 0 rgba(255,255,255,0.10)",
               }}
             >
-              <Globe2 className="h-10 w-10 sm:h-12 sm:w-12" style={{ color: "var(--accent-cyan-strong)" }} />
+              <Image
+                src={WC_LOGO_SRC}
+                alt="AllFantasy World Cup"
+                width={80}
+                height={80}
+                className="h-full w-full object-contain"
+                priority
+              />
             </div>
           </div>
 
@@ -243,6 +267,106 @@ export default function BracketsHomePage() {
           </div>
         </div>
       </section>
+
+      {/* ══════════════════════════════════════════════
+          STEP 2: STATIC GUEST CTA CARD
+      ══════════════════════════════════════════════ */}
+      <div className="mx-auto max-w-5xl px-4 pb-8 sm:px-6">
+        <div
+          className="mb-10 -mt-6 rounded-3xl border p-6 text-center sm:p-8"
+          style={{
+            background: "color-mix(in srgb, var(--panel) 92%, transparent)",
+            borderColor: "color-mix(in srgb, var(--accent-cyan) 26%, var(--border))",
+            boxShadow: "0 28px 64px -32px color-mix(in srgb, var(--accent-cyan) 32%, transparent)",
+            backdropFilter: "blur(16px)",
+          }}
+        >
+          <div
+            className="mb-3 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em]"
+            style={{
+              background: "color-mix(in srgb, var(--accent-cyan) 12%, transparent)",
+              borderColor: "color-mix(in srgb, var(--accent-cyan) 28%, transparent)",
+              color: "var(--accent-cyan-strong)",
+            }}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Get started free
+          </div>
+          <h2 className="mb-2 text-xl font-bold sm:text-2xl" style={{ color: "var(--text)" }}>
+            Create a pool. Invite friends. Fill your bracket.
+          </h2>
+          <p className="mx-auto mb-6 max-w-md text-sm" style={{ color: "var(--muted)" }}>
+            Launch your first bracket pool in minutes. AI analysis on every pick. No fees, no premium tiers. Free forever.
+          </p>
+          <div className="flex flex-col items-center gap-2.5 sm:flex-row sm:justify-center sm:gap-3">
+            <Link
+              href="/signup?next=%2Fbrackets&callbackUrl=%2Fbrackets"
+              className="inline-flex w-full min-w-[10rem] items-center justify-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-bold transition hover:opacity-90 sm:w-auto"
+              style={{
+                backgroundImage:
+                  "linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))",
+                color: "var(--on-accent-bg)",
+                boxShadow: "0 8px 24px -10px color-mix(in srgb, var(--accent-cyan) 60%, transparent)",
+              }}
+            >
+              Sign Up Free
+            </Link>
+            <Link
+              href="/login?callbackUrl=%2Fbrackets"
+              className="inline-flex w-full min-w-[10rem] items-center justify-center gap-1.5 rounded-xl border px-5 py-2.5 text-sm font-semibold transition hover:opacity-90 sm:w-auto"
+              style={{
+                borderColor: "var(--border)",
+                color: "var(--text)",
+                background: "color-mix(in srgb, var(--panel2) 50%, transparent)",
+              }}
+            >
+              Sign In
+            </Link>
+          </div>
+          {/* Feature highlights */}
+          <div className="mt-6 grid grid-cols-1 gap-3 text-left sm:grid-cols-3">
+            {(
+              [
+                {
+                  icon: Globe2,
+                  label: "World Cup Bracket",
+                  desc: "Full FIFA 2026 bracket with group stage + knockout picks",
+                  accent: "var(--accent-cyan-strong)",
+                },
+                {
+                  icon: Sparkles,
+                  label: "AI Coach",
+                  desc: "Win probabilities and upset analysis on every matchup",
+                  accent: "#c084fc",
+                },
+                {
+                  icon: Users,
+                  label: "Private Pools",
+                  desc: "Invite friends with a code — your own live leaderboard",
+                  accent: "var(--accent-amber-strong)",
+                },
+              ] as const
+            ).map(({ icon: Icon, label, desc, accent }) => (
+              <div
+                key={label}
+                className="rounded-xl border p-4"
+                style={{
+                  borderColor: "var(--border)",
+                  background: "color-mix(in srgb, var(--panel2) 60%, transparent)",
+                }}
+              >
+                <Icon className="mb-2 h-5 w-5" style={{ color: accent }} />
+                <div className="mb-1 text-sm font-semibold" style={{ color: "var(--text)" }}>
+                  {label}
+                </div>
+                <div className="text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+                  {desc}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
