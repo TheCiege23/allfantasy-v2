@@ -372,18 +372,28 @@ export default function PlayoffBracketShell({ initialView }: Props) {
 
           {canUseAutofillResults ? (
             <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3">
+              <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-rose-200/70 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-rose-900">
+                Test-mode only
+              </div>
               <button
                 type="button"
                 onClick={() => handleSyncSeries("autofill_results")}
                 disabled={syncingSeries}
                 data-testid="playoff-sync-autofill-results-button"
-                className="rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm font-bold text-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="block rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm font-bold text-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Auto-fill official results
               </button>
               <p className="mt-2 text-xs font-semibold text-rose-800">Testing only — fills picks from official winners.</p>
             </div>
-          ) : null}
+          ) : (
+            <p
+              data-testid="playoff-sync-autofill-unavailable"
+              className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600"
+            >
+              Auto-fill official results is available only in test-mode pools (AllFantasy staff only).
+            </p>
+          )}
 
           {syncStatus ? (
             <p

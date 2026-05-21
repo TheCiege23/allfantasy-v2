@@ -185,9 +185,20 @@ function EntryCard({
 
       {/* Delete confirmation */}
       {confirmDelete && (
-        <div className="mt-3 rounded-lg border border-rose-400/25 bg-rose-400/[0.07] px-3 py-2 text-xs text-rose-100">
-          <p className="font-bold">Delete "{entry.name}"?</p>
-          <p className="mt-0.5 text-rose-200/70">This cannot be undone.</p>
+        <div
+          data-testid="world-cup-entry-delete-confirm"
+          className="mt-3 rounded-lg border border-rose-400/25 bg-rose-400/[0.07] px-3 py-2 text-xs text-rose-100"
+        >
+          <p className="font-bold">Delete &ldquo;{entry.name}&rdquo;?</p>
+          {entry.submittedAt ? (
+            <p className="mt-0.5 text-rose-200/80">
+              This bracket is finalized. Deleting it will remove the finalized entry from rankings and the pool leaderboard. This cannot be undone.
+            </p>
+          ) : (
+            <p className="mt-0.5 text-rose-200/80">
+              Deleting this bracket will remove it from this pool and the leaderboard. This cannot be undone.
+            </p>
+          )}
           <div className="mt-2 flex gap-2">
             <button
               type="button"

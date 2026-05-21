@@ -3429,5 +3429,60 @@ describe("WorldCupLeaderboard mobile score row", () => {
     expect(screen.getByTestId("wc-lb-mobile-score-row")).toBeInTheDocument()
     expect(screen.getByTestId("wc-lb-total-mobile-ent1")).toHaveTextContent("42")
     expect(screen.getByTestId("wc-lb-champion-status-ent1")).toHaveTextContent("Alive")
+    // Member should NOT see an active Recalculate button; should see passive "Updates automatically" indicator
+    expect(screen.queryByTestId("world-cup-leaderboard-recalculate")).not.toBeInTheDocument()
+    expect(screen.getByTestId("world-cup-leaderboard-auto-update")).toHaveTextContent(/Updates automatically/i)
+  })
+
+  it("shows Recalculate button to commissioner/owner only", async () => {
+    const WorldCupLeaderboard = (await import("@/components/brackets/world-cup/WorldCupLeaderboard")).default
+    const baseView = {
+      challenge: {
+        id: "c1",
+        name: "Cup",
+        ownerUserId: "o1",
+        seasonYear: 2026,
+        inviteCode: "X",
+        inviteUrl: null,
+        visibility: "public" as const,
+        pickLockStrategy: "tournament_start" as const,
+        pickLockAt: null,
+        maxParticipants: 100,
+        maxEntriesPerParticipant: 5,
+        effectivePickLockAt: null,
+        status: "open",
+        includeThirdPlace: false,
+        isTestMode: false,
+        simulationEnabled: false,
+        simulatedAt: null,
+        simulationStatus: null,
+        hasSimulatedResults: false,
+        lastSyncedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      scoring: {
+        roundOf32Points: 10,
+        roundOf16Points: 20,
+        quarterFinalPoints: 40,
+        semiFinalPoints: 80,
+        finalPoints: 160,
+        championBonusPoints: 320,
+        thirdPlacePoints: 4,
+      },
+      slots: [],
+      matches: [],
+      participant: null,
+      activeEntry: null,
+      entries: [],
+      picks: [],
+      leaderboard: [],
+      isOwner: true,
+      isAdmin: false,
+      hasBracketBrainAi: false,
+    }
+    render(<WorldCupLeaderboard view={baseView as any} onRecalculate={() => {}} />)
+    expect(screen.getByTestId("world-cup-leaderboard-recalculate")).toBeInTheDocument()
+    expect(screen.queryByTestId("world-cup-leaderboard-auto-update")).not.toBeInTheDocument()
   })
 })

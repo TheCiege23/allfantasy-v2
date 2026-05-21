@@ -97,27 +97,25 @@ export default function WorldCupLeaderboard({
           )}
         </div>
         <div className="flex items-center gap-2">
-          {!(view.isOwner || view.isAdmin) && (
+          {(view.isOwner || view.isAdmin) ? (
             <button
               type="button"
               onClick={onRecalculate}
               disabled={busy}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-bold text-white/40 hover:text-white/60 disabled:opacity-30"
-            >
-              <RefreshCw className={`h-3 w-3 ${busy ? "animate-spin" : ""}`} />
-              Refresh
-            </button>
-          )}
-          {(view.isOwner || view.isAdmin) && (
-            <button
-              type="button"
-              onClick={onRecalculate}
-              disabled={busy}
+              data-testid="world-cup-leaderboard-recalculate"
               className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-white/70"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${busy ? "animate-spin" : ""}`} />
               Recalculate
             </button>
+          ) : (
+            <span
+              data-testid="world-cup-leaderboard-auto-update"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-1.5 text-[11px] font-semibold text-white/40"
+            >
+              <RefreshCw className="h-3 w-3" aria-hidden />
+              Updates automatically
+            </span>
           )}
         </div>
       </div>
