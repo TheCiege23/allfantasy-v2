@@ -1,8 +1,11 @@
 import Link from "next/link"
+import Image from "next/image"
 import { getServerSession } from "next-auth"
 import { Bot, Globe2, Lock, Plus, Sparkles, Trophy, Users } from "lucide-react"
 import { authOptions } from "@/lib/auth"
 import { listUserWorldCupChallenges } from "@/lib/world-cup"
+
+const WC_LOGO_SRC = "/images/brackets/world-cup/af-world-cup-logo.png"
 
 export const dynamic = "force-dynamic"
 
@@ -73,13 +76,22 @@ export default async function WorldCupBracketsPage() {
         </div>
 
         {/* Hero */}
-        <header className="rounded-xl border border-white/10 bg-white/[0.04] p-6 sm:p-8">
-          <div className="mb-4 inline-flex rounded-xl bg-cyan-300 p-3 text-black">
-            <Globe2 className="h-7 w-7" />
-          </div>
-          <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
-            World Cup Bracket Challenge
-          </h1>
+        <header className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] p-6 sm:p-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
+            <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/35 bg-cyan-300/10 p-2 sm:h-24 sm:w-24">
+              <Image
+                src={WC_LOGO_SRC}
+                alt="AllFantasy World Cup"
+                width={96}
+                height={96}
+                className="h-full w-full object-contain"
+                priority
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
+                World Cup Bracket Challenge
+              </h1>
           <p className="mt-3 max-w-2xl text-base leading-7 text-white/60">
             Create an NCAA-style bracket pool for the FIFA World Cup. Invite friends, make picks,
             track live scores, and climb the leaderboard.
@@ -118,6 +130,8 @@ export default async function WorldCupBracketsPage() {
                 Join with Invite Code
               </Link>
             )}
+          </div>
+            </div>
           </div>
         </header>
 

@@ -1,9 +1,12 @@
 "use client"
 import { useCallback, useEffect, useRef, useState } from "react"
+import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { AlertTriangle, Calendar, Copy, Globe, Loader2, Lock, Share2, Trophy, Users } from "lucide-react"
+
+const WC_LOGO_SRC = "/images/brackets/world-cup/af-world-cup-logo.png"
 import { signupUrlWithReturnTo } from "@/lib/auth/auth-intent-resolver"
 import {
   type InviteInfo,
@@ -47,7 +50,7 @@ export default function WorldCupJoinInvite({ invite }: { invite: InviteInfo }) {
       try {
         await navigator.share({
           title: invite.name,
-          text: `Join my ${invite.seasonYear} FIFA World Cup bracket challenge`,
+          text: `Join my ${invite.seasonYear} FIFA World Cup bracket pool`,
           url: currentInviteUrl,
         })
         return
@@ -100,12 +103,19 @@ export default function WorldCupJoinInvite({ invite }: { invite: InviteInfo }) {
       <div className="mx-auto max-w-md">
         <div className="rounded-xl border border-white/10 bg-white/[0.04] p-6 shadow-2xl shadow-black/40">
           {/* Icon + title */}
-          <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl bg-cyan-300 text-black">
-            <Trophy className="h-7 w-7" />
+          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-xl border border-cyan-300/35 bg-cyan-300/10 p-1.5">
+            <Image
+              src={WC_LOGO_SRC}
+              alt="AllFantasy World Cup"
+              width={64}
+              height={64}
+              className="h-full w-full object-contain"
+              priority
+            />
           </div>
           <h1 className="text-2xl font-black leading-tight">{invite.name}</h1>
           <p className="mt-2 text-sm text-white/50">
-            {invite.ownerName} invited you to a {invite.seasonYear} FIFA World Cup bracket challenge.
+            {invite.ownerName} invited you to a {invite.seasonYear} FIFA World Cup bracket pool.
           </p>
           <p className="mt-2 text-xs leading-5 text-cyan-50/70">
             After joining, you will land on the pool dashboard with a guided path to create an entry, make Group Stage and Knockout picks, review, and finalize.

@@ -25,6 +25,11 @@ export function resolvePlayoffCardHref(input: {
       return `/brackets/leagues/new?sport=${normalizedSport}&challengeType=playoff_challenge`
     }
 
+    if (normalizedSport === "soccer") {
+      // Soccer pools live in the World Cup product, not the legacy bracket league stack.
+      return "/brackets/world-cup"
+    }
+
     return "/brackets"
   } catch {
     return "/brackets"

@@ -348,9 +348,27 @@ export default async function BracketsHomePage() {
     return <BracketHomeFallback sports={visibleSports} />
   }
 
-  const chimmyHref = getPrimaryChimmyEntry().href
-  const bracketSignupHref = buildSignupHrefWithIntent("/brackets")
-  const bracketLoginHref = buildLoginHrefWithIntent("/brackets")
+  let chimmyHref = "/messages?tab=ai"
+  let bracketSignupHref = "/signup?next=%2Fbrackets&callbackUrl=%2Fbrackets"
+  let bracketLoginHref = "/login?callbackUrl=%2Fbrackets"
+  try {
+    const entry = getPrimaryChimmyEntry()
+    if (entry && typeof entry.href === "string" && entry.href.trim()) chimmyHref = entry.href
+  } catch (err) {
+    console.warn("[brackets/page] getPrimaryChimmyEntry fallback", { error: sanitizeError(err) })
+  }
+  try {
+    const v = buildSignupHrefWithIntent("/brackets")
+    if (typeof v === "string" && v.trim()) bracketSignupHref = v
+  } catch (err) {
+    console.warn("[brackets/page] buildSignupHrefWithIntent fallback", { error: sanitizeError(err) })
+  }
+  try {
+    const v = buildLoginHrefWithIntent("/brackets")
+    if (typeof v === "string" && v.trim()) bracketLoginHref = v
+  } catch (err) {
+    console.warn("[brackets/page] buildLoginHrefWithIntent fallback", { error: sanitizeError(err) })
+  }
 
   const safeMyLeagues = Array.isArray(myLeagues)
     ? myLeagues.filter((row: any) => Boolean(row?.league?.id) && !isLegacyWorldCupPoolRow(row) && !isLegacyPlayoffPoolRow(row))
@@ -1009,30 +1027,65 @@ export default async function BracketsHomePage() {
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
               {playoffSports.map(({ sport, ui }) => {
                 const hasQuick = sport === "NBA" || sport === "NHL"
+                const tileHref = safeResolvePlayoffHref(sport)
+                const isComingSoon = tileHref === "/brackets"
                 return (
                   <div
                     key={sport}
                     className="rounded-xl border p-3 transition"
-                    style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--panel) 80%, transparent)" }}
+                    style={{
+                      borderColor: "var(--border)",
+                      background: "color-mix(in srgb, var(--panel) 80%, transparent)",
+                      opacity: isComingSoon ? 0.62 : 1,
+                    }}
                   >
-                    <Link
-                      href={safeResolvePlayoffHref(sport)}
-                      className="flex items-center gap-2 text-sm font-semibold transition hover:opacity-90"
-                      data-testid={`bracket-playoff-sport-${sport}`}
-                      style={{ color: "var(--text)" }}
-                    >
-                      <span
-                        className="inline-flex h-7 min-w-[1.75rem] items-center justify-center rounded-lg px-1.5 text-[10px] font-bold"
-                        style={{
-                          background: "color-mix(in srgb, var(--accent-cyan) 18%, transparent)",
-                          color: "var(--accent-cyan-strong)",
-                        }}
+                    {isComingSoon ? (
+                      <div
+                        className="flex items-center gap-2 text-sm font-semibold"
+                        data-testid={`bracket-playoff-sport-${sport}`}
+                        style={{ color: "var(--muted)" }}
+                        aria-disabled="true"
                       >
-                        {ui.badge}
-                      </span>
-                      <span className="truncate">{ui.shortLabel}</span>
-                      <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" style={{ color: "var(--muted2)" }} />
-                    </Link>
+                        <span
+                          className="inline-flex h-7 min-w-[1.75rem] items-center justify-center rounded-lg px-1.5 text-[10px] font-bold"
+                          style={{
+                            background: "color-mix(in srgb, var(--muted) 14%, transparent)",
+                            color: "var(--muted)",
+                          }}
+                        >
+                          {ui.badge}
+                        </span>
+                        <span className="truncate">{ui.shortLabel}</span>
+                        <span
+                          className="ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                          style={{
+                            background: "color-mix(in srgb, var(--muted) 14%, transparent)",
+                            color: "var(--muted)",
+                          }}
+                        >
+                          Soon
+                        </span>
+                      </div>
+                    ) : (
+                      <Link
+                        href={tileHref}
+                        className="flex items-center gap-2 text-sm font-semibold transition hover:opacity-90"
+                        data-testid={`bracket-playoff-sport-${sport}`}
+                        style={{ color: "var(--text)" }}
+                      >
+                        <span
+                          className="inline-flex h-7 min-w-[1.75rem] items-center justify-center rounded-lg px-1.5 text-[10px] font-bold"
+                          style={{
+                            background: "color-mix(in srgb, var(--accent-cyan) 18%, transparent)",
+                            color: "var(--accent-cyan-strong)",
+                          }}
+                        >
+                          {ui.badge}
+                        </span>
+                        <span className="truncate">{ui.shortLabel}</span>
+                        <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" style={{ color: "var(--muted2)" }} />
+                      </Link>
+                    )}
                     {hasQuick ? (
                       <div className="mt-2.5">
                         <QuickCreatePlayoffPoolButton

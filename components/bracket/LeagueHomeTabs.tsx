@@ -410,7 +410,7 @@ function InviteSection({
           </div>
           <div className="pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
             <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Share via</p>
-            <LeagueInviteShareButtons inviteUrl={inviteUrl} message="Join my bracket challenge pool on AllFantasy!" />
+            <LeagueInviteShareButtons inviteUrl={inviteUrl} message="Join my bracket pool on AllFantasy!" />
           </div>
         </div>
       )}

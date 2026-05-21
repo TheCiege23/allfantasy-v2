@@ -326,7 +326,7 @@ export default function WorldCupEntryDashboard({
         <div className="mb-4 flex items-start gap-2 rounded-xl border border-white/[0.08] bg-amber-300/[0.07] px-4 py-3 text-sm">
           <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
           <div>
-            <p className="font-bold text-amber-200">This league is locked.</p>
+            <p className="font-bold text-amber-200">This pool is locked.</p>
             <p className="mt-0.5 text-xs text-white/50">
               The World Cup has started. You can review your brackets and follow the leaderboard, but picks can no longer be changed.
             </p>
@@ -344,7 +344,7 @@ export default function WorldCupEntryDashboard({
             <div>
               <p className="font-black text-white">No brackets created</p>
               <p className="mt-1 text-sm text-white/45">
-                This league is locked. You didn't create a bracket before the tournament started.
+                This pool is locked. You didn't create a bracket before the tournament started.
               </p>
             </div>
           ) : (
@@ -354,7 +354,7 @@ export default function WorldCupEntryDashboard({
                 Create your first bracket, make your picks, and edit them until the tournament starts.
               </p>
               <p className="mt-1 text-xs text-white/30">
-                You can create up to {maxEntriesPerParticipant} bracket{maxEntriesPerParticipant !== 1 ? "s" : ""} in this league.
+                You can create up to {maxEntriesPerParticipant} bracket{maxEntriesPerParticipant !== 1 ? "s" : ""} in this pool.
               </p>
             </div>
           )}
@@ -398,7 +398,7 @@ export default function WorldCupEntryDashboard({
       {!isLoading && entries.length > 0 && atMax && !isLocked && (
         <div className="mt-4 flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-xs text-white/50">
           <Trophy className="h-3.5 w-3.5 shrink-0 text-amber-300/60" />
-          You've used all {maxEntriesPerParticipant} bracket entries for this league. Best of luck!
+          You've used all {maxEntriesPerParticipant} bracket entries for this pool. Best of luck!
         </div>
       )}
     </div>

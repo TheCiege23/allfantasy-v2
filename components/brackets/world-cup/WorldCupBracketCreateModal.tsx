@@ -1,7 +1,10 @@
 "use client"
 import { useState } from "react"
+import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, CheckCircle, Info, Loader2, Lock, Trophy, Users } from "lucide-react"
+
+const WC_LOGO_SRC = "/images/brackets/world-cup/af-world-cup-logo.png"
 
 const MAX_USERS = 100
 const MAX_ENTRIES = 5
@@ -21,7 +24,7 @@ export default function WorldCupBracketCreateModal() {
   const [error, setError] = useState<string | null>(null)
 
   // Client-side validation
-  const nameError = !name.trim() ? "League name cannot be blank." : null
+  const nameError = !name.trim() ? "Pool name cannot be blank." : null
   const maxUsersError = maxUsers < 2 || maxUsers > MAX_USERS ? `Must be between 2 and ${MAX_USERS}.` : null
   const maxEntriesError = maxEntries < 1 || maxEntries > MAX_ENTRIES ? `Must be between 1 and ${MAX_ENTRIES}.` : null
   const hasErrors = Boolean(nameError || maxUsersError || maxEntriesError)
@@ -112,8 +115,14 @@ export default function WorldCupBracketCreateModal() {
           <form onSubmit={submit} className="space-y-5 rounded-xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/40 sm:p-6">
             {/* Title block */}
             <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-cyan-300 p-3 text-black">
-                <Trophy className="h-5 w-5" />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-cyan-300/35 bg-cyan-300/10 p-1">
+                <Image
+                  src={WC_LOGO_SRC}
+                  alt="AllFantasy World Cup"
+                  width={48}
+                  height={48}
+                  className="h-full w-full object-contain"
+                />
               </div>
               <div className="min-w-0">
                 <div className="text-sm font-black text-white">2026 FIFA World Cup</div>
@@ -121,7 +130,7 @@ export default function WorldCupBracketCreateModal() {
               </div>
             </div>
 
-            {/* League name */}
+            {/* Pool name */}
             <div>
               <label className="block text-xs font-black uppercase tracking-[0.16em] text-white/45">
                 Pool Name

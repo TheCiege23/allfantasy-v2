@@ -73,6 +73,11 @@ export default function NewBracketLeaguePage() {
 
     if (requestedSport) {
       const normalized = normalizeToSupportedSport(requestedSport)
+      if (normalized === "SOCCER") {
+        // Soccer pools live in the World Cup product, not the legacy BracketLeague stack.
+        router.replace("/brackets/world-cup/create")
+        return
+      }
       setSport(normalized)
       if (normalized !== "NCAAB") {
         setChallengeType("playoff_challenge")
@@ -82,7 +87,7 @@ export default function NewBracketLeaguePage() {
     if (requestedType === "mens_ncaa" || requestedType === "playoff_challenge") {
       setChallengeType(requestedType)
     }
-  }, [searchParams])
+  }, [searchParams, router])
 
   useEffect(() => {
     if (sport !== "NCAAB" && challengeType === "mens_ncaa") {
@@ -242,7 +247,14 @@ export default function NewBracketLeaguePage() {
                   <button
                     key={sportOption}
                     type="button"
-                    onClick={() => setSport(sportOption)}
+                    onClick={() => {
+                      if (sportOption === "SOCCER") {
+                        // Soccer pools live in the World Cup product — route there instead of creating a legacy BracketLeague row.
+                        router.push("/brackets/world-cup/create")
+                        return
+                      }
+                      setSport(sportOption)
+                    }}
                     disabled={loading}
                     className="rounded-lg px-3 py-2 text-xs font-semibold text-left transition"
                     style={{

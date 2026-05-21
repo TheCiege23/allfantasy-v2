@@ -94,8 +94,8 @@ const WorldCupInviteJoinPanel = forwardRef<
     if (blocked) {
       toast.error(
         blocked === "full"
-          ? "This league is full."
-          : "This league is closed to new players."
+          ? "This pool is full."
+          : "This pool is closed to new players."
       )
       return
     }
@@ -137,7 +137,7 @@ const WorldCupInviteJoinPanel = forwardRef<
       <h3 className="text-[11px] font-bold uppercase tracking-wide text-white/45">{title}</h3>
       <p className="mt-1 text-xs text-white/45">
         Enter the invite code from your commissioner. After joining, you will land on the pool dashboard and can start your first bracket.
-        Password-protected leagues require the join password set in league settings.
+        Password-protected pools require the join password set in pool settings.
       </p>
       <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap">
         <input
@@ -175,7 +175,7 @@ const WorldCupInviteJoinPanel = forwardRef<
             </p>
           ) : null}
           {preview.joinPreview?.joinBlockedReason === "full" ? (
-            <p className="mt-2 text-xs font-bold text-rose-200">This league is full.</p>
+            <p className="mt-2 text-xs font-bold text-rose-200">This pool is full.</p>
           ) : null}
           {preview.joinPreview?.joinBlockedReason === "locked_no_late_join" ? (
             <p className="mt-2 text-xs font-bold text-rose-200">

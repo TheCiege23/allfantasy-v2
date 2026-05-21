@@ -938,7 +938,7 @@ export async function joinWorldCupChallengeByInvite(input: {
     }
 
     const participantCount = await tx.worldCupBracketParticipant.count({ where: { challengeId: i.challengeId } })
-    if (participantCount >= i.challenge.maxParticipants) throw new Error("This bracket challenge is full")
+    if (participantCount >= i.challenge.maxParticipants) throw new Error("This bracket pool is full")
     const created = await tx.worldCupBracketParticipant.create({
       data: { challengeId: i.challengeId, userId, displayName: name },
     })

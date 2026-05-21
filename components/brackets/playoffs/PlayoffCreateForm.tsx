@@ -24,7 +24,7 @@ export default function PlayoffCreateForm() {
         })
         router.push(`/brackets/playoffs/${result.challengeId}`)
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unable to create playoff challenge")
+        setError(err instanceof Error ? err.message : "Unable to create playoff pool")
       }
     })
   }
@@ -34,7 +34,7 @@ export default function PlayoffCreateForm() {
       <h1 className="text-2xl font-black tracking-tight text-slate-900">Create a Playoff Bracket</h1>
       <p className="mt-1 text-sm text-slate-700">Launch an NBA or NHL bracket pool using the shared playoff engine.</p>
 
-      <label className="mt-4 block text-sm font-semibold text-slate-800">Challenge name</label>
+      <label className="mt-4 block text-sm font-semibold text-slate-800">Pool name</label>
       <input
         value={name}
         onChange={(event) => setName(event.target.value)}

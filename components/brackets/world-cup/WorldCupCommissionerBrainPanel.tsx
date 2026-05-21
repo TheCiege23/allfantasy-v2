@@ -98,7 +98,7 @@ export default function WorldCupCommissionerBrainPanel({
 
   async function runBrain(action: "hype" | "standings" | "watch" | "recap" | "drama_recap") {
     if (!bracketBrainEnabled) {
-      toast.error("Bracket Brain is disabled — turn it on under League settings.")
+      toast.error("Bracket Brain is disabled — turn it on under Pool settings.")
       return
     }
     if (!hasAi && action !== "drama_recap") {
@@ -157,7 +157,7 @@ export default function WorldCupCommissionerBrainPanel({
         toast.error(data.error || "Could not send reminder")
         return
       }
-      toast.success("Reminder posted to league activity.")
+      toast.success("Reminder posted to pool activity.")
       void reload()
     } finally {
       setBusy(null)
@@ -192,7 +192,7 @@ export default function WorldCupCommissionerBrainPanel({
 
   async function generateRecapPreview() {
     if (!bracketBrainEnabled) {
-      toast.error("Bracket Brain is disabled — turn it on under League settings.")
+      toast.error("Bracket Brain is disabled — turn it on under Pool settings.")
       return
     }
     if (!hasAi) {

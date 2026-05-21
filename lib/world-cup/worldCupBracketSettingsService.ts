@@ -203,7 +203,7 @@ export async function applyWorldCupBracketSettingsPatch(input: {
   }
 
   if (patch.bracketBrainEnabled === true && !userHasAfPro) {
-    throw new Error("AF Pro is required to enable Bracket Brain for this league.")
+    throw new Error("AF Pro is required to enable Bracket Brain for this pool.")
   }
   if (patch.commissioner?.enableAiSummaries === true && !userHasAfPro) {
     throw new Error("AF Pro is required to enable AI summaries.")

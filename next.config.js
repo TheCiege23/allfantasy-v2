@@ -85,6 +85,11 @@ const nextConfig = {
       { source: '/march-madness', destination: '/brackets', permanent: false },
       { source: '/march-madness/join', destination: '/brackets/join', permanent: false },
       { source: '/wallet/deposit', destination: '/donate', permanent: false },
+      // /pools/* → /brackets/* alias so UI copy can use "pool" everywhere while the canonical
+      // route slug stays /brackets (renaming the route tree would touch ~225 files and break
+      // live invite + reminder URLs already in users' inboxes).
+      { source: '/pools', destination: '/brackets', permanent: false },
+      { source: '/pools/:path*', destination: '/brackets/:path*', permanent: false },
       // /dashboard/brackets/world-cup/* → /brackets/world-cup/* (5 pages collapsed to 2 redirects)
       { source: '/dashboard/brackets/world-cup', destination: '/brackets/world-cup', permanent: true },
       { source: '/dashboard/brackets/world-cup/:path*', destination: '/brackets/world-cup/:path*', permanent: true },

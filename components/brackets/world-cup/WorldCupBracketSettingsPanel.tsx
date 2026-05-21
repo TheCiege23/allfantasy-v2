@@ -382,7 +382,7 @@ export default function WorldCupBracketSettingsPanel({
     return (
       <div data-testid="world-cup-settings-loading" className="flex items-center gap-2 py-12 text-sm text-white/40">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Loading league settings…
+        Loading pool settings…
       </div>
     )
   }
@@ -392,16 +392,16 @@ export default function WorldCupBracketSettingsPanel({
   return (
     <div data-testid="world-cup-settings-panel" className="space-y-6 px-1 pb-10 sm:px-0">
       <header className="space-y-1">
-        <h2 className="text-lg font-black text-white">League settings</h2>
+        <h2 className="text-lg font-black text-white">Pool settings</h2>
         <p className="text-xs text-white/50">
           Identity, caps, scoring, visibility, and alerts — commissioner controls for your World Cup bracket pool.
         </p>
       </header>
 
       <section className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-        <h3 className="text-[11px] font-bold uppercase tracking-wide text-white/45">League identity</h3>
+        <h3 className="text-[11px] font-bold uppercase tracking-wide text-white/45">Pool identity</h3>
         <label className="mt-3 block text-xs text-white/70">
-          League name
+          Pool name
           <input
             data-testid="world-cup-settings-name"
             value={name}
@@ -629,7 +629,7 @@ export default function WorldCupBracketSettingsPanel({
           <div className="mt-4">
             <AfProGateCard
               title="AI summaries"
-              body="Post AI-written recap and hype lines to your league feed when enabled."
+              body="Post AI-written recap and hype lines to your pool feed when enabled."
             />
           </div>
         ) : (
@@ -648,7 +648,7 @@ export default function WorldCupBracketSettingsPanel({
           <div className="mt-3">
             <AfProGateCard
               title="Bracket Brain controls"
-              body="Enable league-level Bracket Brain features and tune AI surfaces — upgrade to AF Pro."
+              body="Enable pool-level Bracket Brain features and tune AI surfaces — upgrade to AF Pro."
             />
           </div>
         ) : (
@@ -660,7 +660,7 @@ export default function WorldCupBracketSettingsPanel({
               onChange={(e) => setBracketBrainEnabled(e.target.checked)}
               className="h-4 w-4 accent-cyan-400"
             />
-            Enable Bracket Brain for this league
+            Enable Bracket Brain for this pool
           </label>
         )}
       </section>

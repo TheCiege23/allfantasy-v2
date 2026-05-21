@@ -234,7 +234,7 @@ export default function PlayoffBracketShell({ initialView }: Props) {
 
       <section className="grid gap-4 lg:grid-cols-[1.25fr_1fr]">
         <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">League Details</h2>
+          <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">Pool Details</h2>
           <dl className="mt-3 grid grid-cols-2 gap-3 text-sm text-slate-700">
             <div><dt className="font-semibold">Visibility</dt><dd>{safeChallenge.visibility}</dd></div>
             <div><dt className="font-semibold">Max Users</dt><dd>{safeChallenge.maxParticipants}</dd></div>
