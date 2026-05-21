@@ -13,6 +13,7 @@ const findManyMessagesMock = vi.hoisted(() => vi.fn())
 const findFirstMessageMock = vi.hoisted(() => vi.fn())
 const createMessageMock = vi.hoisted(() => vi.fn())
 const updateMessageMock = vi.hoisted(() => vi.fn())
+const countMessagesMock = vi.hoisted(() => vi.fn())
 const findManyParticipantsMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/app/api/brackets/world-cup/_utils", () => ({
@@ -43,6 +44,7 @@ vi.mock("@/lib/prisma", () => ({
       findFirst: findFirstMessageMock,
       create: createMessageMock,
       update: updateMessageMock,
+      count: countMessagesMock,
     },
     worldCupBracketParticipant: {
       findMany: findManyParticipantsMock,
@@ -95,6 +97,7 @@ describe("World Cup pool chat route", () => {
     })
     findManyMessagesMock.mockResolvedValue([])
     findFirstMessageMock.mockResolvedValue(null)
+    countMessagesMock.mockResolvedValue(0)
     findManyParticipantsMock.mockResolvedValue([])
     createMessageMock.mockImplementation(async ({ data }) => dbMessage({
       id: data.isAiGenerated ? "chimmy-response-1" : "created-1",

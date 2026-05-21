@@ -11,6 +11,7 @@ import {
   WORLD_CUP_CHAT_IMAGE_MAX_BYTES,
 } from "@/lib/world-cup/worldCupChatImageUpload"
 import { generateWorldCupChimmyPrivateReply } from "@/lib/world-cup/worldCupChimmyPrivateReply"
+import { checkWorldCupChimmyRateLimit } from "@/lib/world-cup/worldCupChimmyRateLimit"
 import {
   getWorldCupNotificationPreferenceResolution,
   updateWorldCupNotificationPreferencesForUser,
@@ -846,6 +847,20 @@ export async function POST(
         code: "WORLD_CUP_CHIMMY_LOCKED",
         private: true,
       }, { status: 402 })
+    }
+    // Per-user per-UTC-day cost control on OpenAI calls. Runs only after
+    // the Pro gate so free users still see 402 (not 429) first.
+    const rateLimit = await checkWorldCupChimmyRateLimit(auth.user.id)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          error: "daily_ai_limit_reached",
+          message: "You've reached today's Chimmy limit. Try again tomorrow.",
+          used: rateLimit.used,
+          limit: rateLimit.limit,
+        },
+        { status: 429 }
+      )
     }
   }
 
