@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import type { Session } from 'next-auth';
 import { Inter } from 'next/font/google';
 import Script from 'next/script';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { AppProviders } from '@/components/providers/AppProviders';
 import { SpotifyMiniPlayer } from '@/components/spotify/SpotifyMiniPlayer';
 import { FloatingMusicWidget } from '@/components/MusicWidget';
@@ -36,6 +36,15 @@ const useExperimentalManifest = process.env.NEXT_PUBLIC_PWA_EXPERIMENTAL_MANIFES
 const metadataManifestPath = useExperimentalManifest
   ? '/manifest.experimental.webmanifest'
   : '/manifest.webmanifest';
+
+const AUTH_ROUTE_PREFIXES = ['/login', '/signup', '/signin', '/auth'];
+
+function isAuthRoutePath(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return AUTH_ROUTE_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+}
 
 export const metadata: Metadata = {
   ...buildSeoMeta({
@@ -71,22 +80,26 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const cookieStore = await cookies();
+  const [cookieStore, requestHeaders] = await Promise.all([cookies(), headers()]);
+  const pathname = requestHeaders.get('x-af-pathname');
+  const isAuthRoute = isAuthRoutePath(pathname);
   const cookieLang = cookieStore.get('af_lang')?.value;
   const htmlLang = cookieLang === 'es' ? 'es' : 'en';
   const cookieMode = cookieStore.get('af_mode')?.value;
   const htmlMode = resolveEffectiveDataMode(cookieMode);
   let initialSession: Session | null = null;
 
-  try {
-    const [{ getServerSession }, { authOptions }] = await Promise.all([
-      import('next-auth'),
-      import('@/lib/auth'),
-    ]);
-    initialSession = (await getServerSession(authOptions as never)) as Session | null;
-  } catch (error) {
-    if (process.env.PLAYWRIGHT_E2E === '1') {
-      console.warn('[layout] failed to preload session for Playwright E2E:', error);
+  if (!isAuthRoute) {
+    try {
+      const [{ getServerSession }, { authOptions }] = await Promise.all([
+        import('next-auth'),
+        import('@/lib/auth'),
+      ]);
+      initialSession = (await getServerSession(authOptions as never)) as Session | null;
+    } catch (error) {
+      if (process.env.PLAYWRIGHT_E2E === '1') {
+        console.warn('[layout] failed to preload session for Playwright E2E:', error);
+      }
     }
   }
 
@@ -103,21 +116,27 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
     >
       <head>
-        <Script id="af-init-mode" strategy="beforeInteractive">
-          {buildThemeInitScript(htmlMode)}
-        </Script>
-        <Script id="af-init-lang" strategy="beforeInteractive">
-          {buildLanguageInitScript(htmlLang)}
-        </Script>
+        {!isAuthRoute && (
+          <>
+            <Script id="af-init-mode" strategy="beforeInteractive">
+              {buildThemeInitScript(htmlMode)}
+            </Script>
+            <Script id="af-init-lang" strategy="beforeInteractive">
+              {buildLanguageInitScript(htmlLang)}
+            </Script>
+          </>
+        )}
 
-        {shouldRegisterServiceWorker() ? (
-          <Script id="af-register-sw" strategy="beforeInteractive">
-            {`(function(){if(typeof navigator==='undefined'||!('serviceWorker'in navigator))return;navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(function(){});})();`}
-          </Script>
-        ) : (
-          <Script id="af-unregister-sw" strategy="beforeInteractive">
-            {`(function(){if(typeof navigator==='undefined'||!('serviceWorker'in navigator))return;navigator.serviceWorker.getRegistrations().then(function(registrations){return Promise.all(registrations.map(function(reg){var url=(reg.active&&reg.active.scriptURL)||(reg.waiting&&reg.waiting.scriptURL)||(reg.installing&&reg.installing.scriptURL)||'';if(url.indexOf('/sw.js')===-1)return Promise.resolve(false);return reg.unregister();}));}).catch(function(){});if(typeof caches==='undefined')return;caches.keys().then(function(keys){return Promise.all(keys.filter(function(key){return key.indexOf('AllFantasy-')===0;}).map(function(key){return caches.delete(key);}));}).catch(function(){});})();`}
-          </Script>
+        {!isAuthRoute && (
+          shouldRegisterServiceWorker() ? (
+            <Script id="af-register-sw" strategy="beforeInteractive">
+              {`(function(){if(typeof navigator==='undefined'||!('serviceWorker'in navigator))return;navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(function(){});})();`}
+            </Script>
+          ) : (
+            <Script id="af-unregister-sw" strategy="beforeInteractive">
+              {`(function(){if(typeof navigator==='undefined'||!('serviceWorker'in navigator))return;navigator.serviceWorker.getRegistrations().then(function(registrations){return Promise.all(registrations.map(function(reg){var url=(reg.active&&reg.active.scriptURL)||(reg.waiting&&reg.waiting.scriptURL)||(reg.installing&&reg.installing.scriptURL)||'';if(url.indexOf('/sw.js')===-1)return Promise.resolve(false);return reg.unregister();}));}).catch(function(){});if(typeof caches==='undefined')return;caches.keys().then(function(keys){return Promise.all(keys.filter(function(key){return key.indexOf('AllFantasy-')===0;}).map(function(key){return caches.delete(key);}));}).catch(function(){});})();`}
+            </Script>
+          )
         )}
 
         {gaMeasurementId && (
@@ -187,7 +206,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           `}
         </Script>
 
-        {metaPixelId && (
+        {metaPixelId && !isAuthRoute && (
           <Script id="meta-pixel" strategy="afterInteractive">
             {`
               !function(f,b,e,v,n,t,s)
@@ -209,7 +228,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         className={`${inter.variable} antialiased min-h-screen mode-readable`}
         style={{ background: 'var(--bg)', color: 'var(--text)' }}
       >
-        {metaPixelId && (
+        {metaPixelId && !isAuthRoute && (
           <noscript>
             <img
               height="1"
@@ -221,29 +240,35 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </noscript>
         )}
 
-        <div id="fb-root"></div>
+        {!isAuthRoute && <div id="fb-root"></div>}
 
-        <Script
-          src={`https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v25.0&appId=${fbAppId}`}
-          strategy="afterInteractive"
-          crossOrigin="anonymous"
-        />
+        {!isAuthRoute && (
+          <Script
+            src={`https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v25.0&appId=${fbAppId}`}
+            strategy="afterInteractive"
+            crossOrigin="anonymous"
+          />
+        )}
 
-        <AppProviders session={initialSession}>
-          <ErrorBoundaryClient>
-            <PlayerComparisonUIProvider>{children}</PlayerComparisonUIProvider>
-          </ErrorBoundaryClient>
-          <AuthRouteGlobalChrome />
-          {/* Music widgets deferred until Spotify Web Playback SDK is integrated.
-              Set NEXT_PUBLIC_MUSIC_WIDGET_ENABLED=true to re-enable.
-              Current Web API approach has unreliable preview_url playback. */}
-          {process.env.NEXT_PUBLIC_MUSIC_WIDGET_ENABLED === 'true' ? (
-            <>
-              <SpotifyMiniPlayer />
-              <FloatingMusicWidget />
-            </>
-          ) : null}
-        </AppProviders>
+        {isAuthRoute ? (
+          <ErrorBoundaryClient>{children}</ErrorBoundaryClient>
+        ) : (
+          <AppProviders session={initialSession}>
+            <ErrorBoundaryClient>
+              <PlayerComparisonUIProvider>{children}</PlayerComparisonUIProvider>
+            </ErrorBoundaryClient>
+            <AuthRouteGlobalChrome />
+            {/* Music widgets deferred until Spotify Web Playback SDK is integrated.
+                Set NEXT_PUBLIC_MUSIC_WIDGET_ENABLED=true to re-enable.
+                Current Web API approach has unreliable preview_url playback. */}
+            {process.env.NEXT_PUBLIC_MUSIC_WIDGET_ENABLED === 'true' ? (
+              <>
+                <SpotifyMiniPlayer />
+                <FloatingMusicWidget />
+              </>
+            ) : null}
+          </AppProviders>
+        )}
       </body>
     </html>
   );

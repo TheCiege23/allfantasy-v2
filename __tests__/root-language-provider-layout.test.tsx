@@ -64,6 +64,40 @@ describe("root language provider layout", () => {
     expect(authRouteGlobalChromeSource).toContain("<BackToTop />")
   })
 
+  it("skips root document-mutating scripts on auth routes", () => {
+    expect(layoutSource).toContain("headers()")
+    expect(layoutSource).toContain("isAuthRoutePath")
+    expect(layoutSource).toContain("!isAuthRoute")
+    expect(layoutSource).toContain("{!isAuthRoute && (")
+    expect(layoutSource).toContain("af-register-sw")
+    expect(layoutSource).toContain("af-unregister-sw")
+    expect(layoutSource).toContain("af-init-mode")
+    expect(layoutSource).toContain("af-init-lang")
+    expect(layoutSource).toContain("connect.facebook.net")
+    expect(layoutSource).toContain('id="fb-root"')
+    expect(layoutSource.indexOf("!isAuthRoute && (")).toBeLessThan(
+      layoutSource.indexOf('id="af-register-sw"')
+    )
+    expect(layoutSource.indexOf("!isAuthRoute && (")).toBeLessThan(
+      layoutSource.indexOf('id="af-init-mode"')
+    )
+    expect(layoutSource.indexOf("metaPixelId && !isAuthRoute")).toBeLessThan(
+      layoutSource.indexOf('id="meta-pixel"')
+    )
+  })
+
+  it("bypasses AppProviders and session preload on auth routes", () => {
+    expect(layoutSource).toContain("if (!isAuthRoute)")
+    expect(layoutSource.indexOf("if (!isAuthRoute)")).toBeLessThan(
+      layoutSource.indexOf("getServerSession")
+    )
+    expect(layoutSource).toContain("isAuthRoute ? (")
+    expect(layoutSource).toContain("<ErrorBoundaryClient>{children}</ErrorBoundaryClient>")
+    expect(layoutSource.indexOf("isAuthRoute ? (")).toBeLessThan(
+      layoutSource.indexOf("<AppProviders")
+    )
+  })
+
   it("keeps LanguageProviderClient outside ThemeProvider inside AppProviders", () => {
     const sessionStart = appProvidersSource.indexOf("<SessionAppProvider")
     const languageStart = appProvidersSource.indexOf("<LanguageProviderClient>")
@@ -131,8 +165,27 @@ describe("root language provider layout", () => {
     expect(authPageShellSource).not.toContain("AppProviders")
     expect(authPageShellSource).not.toContain("LanguageToggle")
     expect(authPageShellSource).not.toContain("ModeToggle")
+    expect(authPageShellSource).not.toContain("ServiceWorkerRegistration")
+    expect(authPageShellSource).not.toContain("useSession")
+    expect(authPageShellSource).not.toContain("document.")
     expect(loginPageSource).toContain("<AuthPageShell>")
     expect(signupPageSource).toContain("<AuthPageShell>")
+  })
+
+  it("keeps auth pages free of global chrome, toggles, and PWA install imports", () => {
+    for (const [file, source] of [
+      ["app/login/page.tsx", loginPageSource],
+      ["app/login/LoginContent.tsx", loginContentSource],
+      ["app/signup/page.tsx", signupPageSource],
+    ] as const) {
+      expect(source, `${file} should not import GlobalShellClient`).not.toContain("GlobalShellClient")
+      expect(source, `${file} should not import ModeToggle`).not.toContain("ModeToggle")
+      expect(source, `${file} should not import LanguageToggle`).not.toContain("LanguageToggle")
+      expect(source, `${file} should not import PWA install logic`).not.toMatch(
+        /ServiceWorkerRegistration|beforeinstallprompt|navigator\.serviceWorker|PWAClient|Install/
+      )
+    }
+    expect(signupPageSource).not.toContain("useThemeMode")
   })
 
   it("renders AuthPageShell without provider context", () => {

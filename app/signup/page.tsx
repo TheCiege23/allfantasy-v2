@@ -42,10 +42,10 @@ import SocialLoginButtons from "@/components/auth/SocialLoginButtons"
 import { AuthPageShell } from "@/components/auth/AuthPageShell"
 import { IdentityImageRenderer } from "@/components/identity/IdentityImageRenderer"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
-import { useThemeMode } from "@/components/theme/ThemeProvider"
 import { AuthStatusLoadingFallback } from "@/components/auth/AuthStatusShell"
 import { trackLandingSignupComplete } from "@/lib/landing-analytics"
 import { useGeoRestriction } from "@/lib/geo/useGeoRestriction"
+import { DEFAULT_THEME } from "@/lib/theme"
 import {
   ArrowLeft,
   ArrowRight,
@@ -86,7 +86,7 @@ type SignupStep = 1 | 2
 
 function SignupContent() {
   const { t, language } = useOptionalLanguage()
-  const { mode } = useThemeMode()
+  const mode = DEFAULT_THEME
   const searchParams = useSearchParams()
   const router = useRouter()
   const nextParam = searchParams?.get("next") ?? undefined
