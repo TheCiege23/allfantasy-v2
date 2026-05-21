@@ -7,6 +7,13 @@ import { headers } from "next/headers"
  * preserves the middleware-injected `x-af-pathname` header that the root layout
  * historically relied on for auth-route detection.
  *
+ * NOTE: Lives under `/api/af-debug/*` (not `/api/_debug/*`). Next.js App Router
+ * treats folders prefixed with `_` as private opt-out-of-routing folders, so a
+ * route file under `app/api/_debug/headers/route.ts` is intentionally excluded
+ * from the build and 404s in production — which then renders the global
+ * not-found page with full app chrome (Meta Pixel + FB SDK) and causes the
+ * React hydration crash we are diagnosing.
+ *
  * No cookies, no authorization, no env values are returned.
  */
 export const runtime = "nodejs"

@@ -8,11 +8,54 @@ import { shouldRegisterServiceWorker } from "@/lib/pwa/shouldRegisterServiceWork
 
 const AUTH_ROUTE_PREFIXES = ["/login", "/signup", "/signin", "/auth"]
 
-function isAuthPath(pathname: string | null | undefined): boolean {
+/**
+ * Paths where the entire global chrome (including AuthRouteGlobalChrome and
+ * the service-worker lifecycle) must NOT render. These are the historical
+ * auth shells where any extra body content would cause hydration drift.
+ */
+const FULL_CHROME_BAIL_PREFIXES = [...AUTH_ROUTE_PREFIXES]
+
+/**
+ * Paths where DOM-mutating third-party scripts (Meta Pixel + Facebook SDK)
+ * must NOT execute, but the React-only chrome (toaster, back-to-top, mode
+ * toggle, service-worker lifecycle) is still safe to render. These cover
+ * `/api/*` (so any not-found page served under an API path never injects the
+ * pixel into the document), `/_next/*` (defensive), the username gate, and
+ * the high-traffic product surfaces (`/dashboard`, `/brackets`) where the
+ * Meta Pixel ↔ React hydration race has been observed crashing pages with
+ * React #418/#423, HierarchyRequestError, and removeChild errors.
+ */
+const THIRD_PARTY_SCRIPT_BAIL_PREFIXES = [
+  ...AUTH_ROUTE_PREFIXES,
+  "/choose-username",
+  "/dashboard",
+  "/brackets",
+  "/api",
+  "/_next",
+]
+
+function matchesPrefix(
+  pathname: string | null | undefined,
+  prefixes: readonly string[],
+): boolean {
   if (!pathname) return false
-  return AUTH_ROUTE_PREFIXES.some(
+  return prefixes.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   )
+}
+
+function isAuthPath(pathname: string | null | undefined): boolean {
+  return matchesPrefix(pathname, AUTH_ROUTE_PREFIXES)
+}
+
+function shouldBailChrome(pathname: string | null | undefined): boolean {
+  return matchesPrefix(pathname, FULL_CHROME_BAIL_PREFIXES)
+}
+
+function shouldBailThirdPartyScripts(
+  pathname: string | null | undefined,
+): boolean {
+  return matchesPrefix(pathname, THIRD_PARTY_SCRIPT_BAIL_PREFIXES)
 }
 
 /**
@@ -95,20 +138,27 @@ export function SafeGlobalChrome({
   fbAppId = "",
 }: SafeGlobalChromeProps) {
   const pathname = usePathname()
-  if (isAuthPath(pathname)) {
+  if (shouldBailChrome(pathname)) {
     return null
   }
+
+  // On product surfaces and any /api/* fallback render, keep the React-only
+  // chrome but suppress the DOM-mutating third-party scripts that race
+  // against React hydration.
+  const allowThirdPartyScripts = !shouldBailThirdPartyScripts(pathname)
+  const renderMetaPixel = allowThirdPartyScripts && Boolean(metaPixelId)
+  const renderFacebookSdk = allowThirdPartyScripts && Boolean(fbAppId)
 
   return (
     <>
       <ServiceWorkerLifecycle />
 
-      {metaPixelId ? (
+      {renderMetaPixel ? (
         <Script id="meta-pixel" strategy="afterInteractive">
           {`!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${metaPixelId}');fbq('track','PageView');`}
         </Script>
       ) : null}
-      {metaPixelId ? (
+      {renderMetaPixel ? (
         <noscript>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -121,12 +171,14 @@ export function SafeGlobalChrome({
         </noscript>
       ) : null}
 
-      <div id="fb-root" />
-      <Script
-        src={`https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v25.0&appId=${fbAppId}`}
-        strategy="afterInteractive"
-        crossOrigin="anonymous"
-      />
+      {renderFacebookSdk ? <div id="fb-root" /> : null}
+      {renderFacebookSdk ? (
+        <Script
+          src={`https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v25.0&appId=${fbAppId}`}
+          strategy="afterInteractive"
+          crossOrigin="anonymous"
+        />
+      ) : null}
 
       <AuthRouteGlobalChrome />
     </>

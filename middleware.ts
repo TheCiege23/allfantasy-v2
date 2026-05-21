@@ -50,7 +50,7 @@ const GEO_EXEMPT_PREFIXES = [
   "/api/health",
   "/api/auth",
   "/api/geo",
-  "/api/_debug",
+  "/api/af-debug",
   "/_next",
   "/favicon.ico",
 ]
@@ -74,7 +74,7 @@ const USERNAME_GATE_EXEMPT: string[] = [
   "/api/auth",       // NextAuth session/signout/CSRF endpoints must always be reachable
   "/api/user/profile", // username write endpoint — must stay reachable
   "/api/user/me",    // read current user — used by choose-username page
-  "/api/_debug",     // diagnostic endpoints (JSON only) — never redirect or 403 these
+  "/api/af-debug",   // diagnostic endpoints (JSON only) — never redirect or 403 these
   "/api/health",
   "/api/geo",
   "/terms",
@@ -264,6 +264,19 @@ function nextWithRouteHeaders(request: NextRequest, pathname: string): NextRespo
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // ── Hard early-exit for all API routes ───────────────────────────────────
+  // UI redirect logic (username gate, geo redirect, /choose-username, etc.)
+  // must NEVER produce HTML responses for /api/* — that path historically
+  // caused JSON consumers to receive HTML and the diagnostic 404 page to
+  // render the global app shell (Meta Pixel + FB SDK), which DOM-mutates
+  // during React hydration and crashes the page (#418/#423 +
+  // HierarchyRequestError + removeChild on Node). API-level auth, geo, and
+  // username checks live in the route handlers themselves; the middleware
+  // only stamps standard security headers on API responses.
+  if (isApiPath(pathname)) {
+    return applyApiSecurityHeaders(pathname, nextWithRouteHeaders(request, pathname))
+  }
 
   if (isExemptPath(pathname)) {
     return applyApiSecurityHeaders(pathname, nextWithRouteHeaders(request, pathname))
