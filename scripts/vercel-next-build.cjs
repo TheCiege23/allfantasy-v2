@@ -9,7 +9,11 @@ const isVercelBuild =
   process.env.VERCEL === '1' ||
   process.env.NOW_BUILDER ||
   process.env.VERCEL_URL
-let resolvedDistDir = process.env.AF_NEXT_DIST_DIR || (isVercelBuild ? '.next' : '.next-build-fix')
+const isRailwayBuild =
+  process.env.RAILWAY_ENVIRONMENT ||
+  process.env.RAILWAY_PROJECT_ID ||
+  process.env.RAILWAY_SERVICE_ID
+let resolvedDistDir = process.env.AF_NEXT_DIST_DIR || (isVercelBuild || isRailwayBuild ? '.next' : '.next-build-fix')
 let nextBuildDir = path.join(repoRoot, resolvedDistDir)
 const routeDirsToDisable = [
   path.join('app', 'e2e'),
