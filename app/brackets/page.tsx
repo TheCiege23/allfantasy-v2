@@ -1,6 +1,6 @@
 import Image from "next/image"
 import Link from "next/link"
-import { Sparkles, Trophy } from "lucide-react"
+import { Globe2, Sparkles, Trophy, Users } from "lucide-react"
 
 const WC_LOGO_SRC    = "/images/brackets/world-cup/af-world-cup-logo.png"
 const WC_VIDEO_SRC   = "/videos/brackets/world-cup/af-world-cup-hero.mp4"
