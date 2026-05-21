@@ -50,6 +50,7 @@ const GEO_EXEMPT_PREFIXES = [
   "/api/health",
   "/api/auth",
   "/api/geo",
+  "/api/_debug",
   "/_next",
   "/favicon.ico",
 ]
@@ -73,6 +74,9 @@ const USERNAME_GATE_EXEMPT: string[] = [
   "/api/auth",       // NextAuth session/signout/CSRF endpoints must always be reachable
   "/api/user/profile", // username write endpoint — must stay reachable
   "/api/user/me",    // read current user — used by choose-username page
+  "/api/_debug",     // diagnostic endpoints (JSON only) — never redirect or 403 these
+  "/api/health",
+  "/api/geo",
   "/terms",
   "/privacy",
   "/data-deletion",

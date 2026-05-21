@@ -39,7 +39,12 @@ export function ThemeProvider(props: { children: React.ReactNode }) {
     if (typeof window === "undefined") return
     try {
       const saved = window.localStorage.getItem(THEME_STORAGE_KEY)
-      setModeState(normalizeStoredTheme(saved))
+      // Only override the DOM-initialized state when an explicit preference is stored.
+      // If nothing is in localStorage, the inline script already applied the correct theme
+      // (derived from the server-side cookie), so leave the state as-is.
+      if (saved !== null) {
+        setModeState(normalizeStoredTheme(saved))
+      }
     } catch {
       /* ignore */
     }
