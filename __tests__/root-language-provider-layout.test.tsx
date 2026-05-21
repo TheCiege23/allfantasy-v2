@@ -47,10 +47,12 @@ beforeEach(() => {
 const layoutSource = fs.readFileSync(path.join(process.cwd(), "app", "layout.tsx"), "utf8")
 const appProvidersSource = fs.readFileSync(path.join(process.cwd(), "components", "providers", "AppProviders.tsx"), "utf8")
 const signupPageSource = fs.readFileSync(path.join(process.cwd(), "app", "signup", "page.tsx"), "utf8")
+const signupContentSource = fs.readFileSync(path.join(process.cwd(), "app", "signup", "SignupContent.tsx"), "utf8")
 const loginPageSource = fs.readFileSync(path.join(process.cwd(), "app", "login", "page.tsx"), "utf8")
 const loginContentSource = fs.readFileSync(path.join(process.cwd(), "app", "login", "LoginContent.tsx"), "utf8")
 const signinPageSource = fs.readFileSync(path.join(process.cwd(), "app", "signin", "page.tsx"), "utf8")
 const authPageShellSource = fs.readFileSync(path.join(process.cwd(), "components", "auth", "AuthPageShell.tsx"), "utf8")
+const clientOnlyAuthPageSource = fs.readFileSync(path.join(process.cwd(), "components", "auth", "ClientOnlyAuthPage.tsx"), "utf8")
 const authRouteGlobalChromeSource = fs.readFileSync(path.join(process.cwd(), "components", "auth", "AuthRouteGlobalChrome.tsx"), "utf8")
 const safeGlobalChromeSource = fs.readFileSync(path.join(process.cwd(), "components", "shell", "SafeGlobalChrome.tsx"), "utf8")
 const globalAppShellSource = fs.readFileSync(path.join(process.cwd(), "components", "shared", "GlobalAppShell.tsx"), "utf8")
@@ -169,7 +171,7 @@ describe("root language provider layout", () => {
 
   it("uses optional language only for auth and global toggle fallbacks", () => {
     expect(languageProviderSource).toContain("export function useOptionalLanguage")
-    expect(signupPageSource).toContain("useOptionalLanguage")
+    expect(signupContentSource).toContain("useOptionalLanguage")
     expect(loginContentSource).toContain("useOptionalLanguage")
     expect(modeToggleSource).toContain("useOptionalLanguage")
     expect(languageToggleSource).toContain("useOptionalLanguage")
@@ -189,6 +191,8 @@ describe("root language provider layout", () => {
 
   it("uses the minimal auth page shell for login and signup", () => {
     expect(authPageShellSource).toContain('data-auth-page-shell="true"')
+    // AuthPageShell must be a server-stable component (no "use client")
+    expect(authPageShellSource).not.toContain('"use client"')
     expect(authPageShellSource).not.toContain("GlobalShellClient")
     expect(authPageShellSource).not.toContain("AppProviders")
     expect(authPageShellSource).not.toContain("LanguageToggle")
@@ -198,6 +202,35 @@ describe("root language provider layout", () => {
     expect(authPageShellSource).not.toContain("document.")
     expect(loginPageSource).toContain("<AuthPageShell>")
     expect(signupPageSource).toContain("<AuthPageShell>")
+  })
+
+  it("renders auth content as client-only islands with ssr:false dynamic imports", () => {
+    // login/page.tsx must dynamic-import LoginContent with ssr:false
+    expect(loginPageSource).toContain('from "next/dynamic"')
+    expect(loginPageSource).toContain('import("./LoginContent")')
+    expect(loginPageSource).toContain("ssr: false")
+    expect(loginPageSource).toContain("<ClientOnlyAuthPage>")
+
+    // signup/page.tsx must dynamic-import SignupContent with ssr:false
+    expect(signupPageSource).toContain('from "next/dynamic"')
+    expect(signupPageSource).toContain('import("./SignupContent")')
+    expect(signupPageSource).toContain("ssr: false")
+    expect(signupPageSource).toContain("<ClientOnlyAuthPage>")
+  })
+
+  it("keeps ClientOnlyAuthPage provider-free and global-chrome-free", () => {
+    expect(clientOnlyAuthPageSource).toContain('"use client"')
+    expect(clientOnlyAuthPageSource).not.toContain("AppProviders")
+    expect(clientOnlyAuthPageSource).not.toContain("GlobalShellClient")
+    expect(clientOnlyAuthPageSource).not.toContain("useSession")
+    expect(clientOnlyAuthPageSource).not.toContain("useLanguage")
+    expect(clientOnlyAuthPageSource).not.toContain("usePathname")
+    expect(clientOnlyAuthPageSource).not.toContain("ServiceWorkerRegistration")
+    expect(clientOnlyAuthPageSource).not.toContain("AuthRouteGlobalChrome")
+    expect(clientOnlyAuthPageSource).not.toContain("ModeToggle")
+    expect(clientOnlyAuthPageSource).not.toContain("LanguageToggle")
+    expect(clientOnlyAuthPageSource).not.toContain("document.")
+    expect(clientOnlyAuthPageSource).not.toContain("window.")
   })
 
   it("keeps auth pages free of global chrome, toggles, and PWA install imports", () => {

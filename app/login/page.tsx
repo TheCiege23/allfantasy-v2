@@ -1,20 +1,20 @@
-import { Suspense } from "react";
-import { AuthStatusLoadingFallback } from "@/components/auth/AuthStatusShell";
+import nextDynamic from "next/dynamic";
 import { AuthPageShell } from "@/components/auth/AuthPageShell";
-import LoginContent from "./LoginContent";
+import { ClientOnlyAuthPage } from "@/components/auth/ClientOnlyAuthPage";
+
+const LoginContent = nextDynamic(() => import("./LoginContent"), {
+  ssr: false,
+  loading: () => null,
+});
 
 export const dynamic = "force-dynamic";
 
-function LoginFallback() {
-  return <AuthStatusLoadingFallback />;
-}
-
 export default function LoginPage() {
   return (
-    <AuthPageShell>
-      <Suspense fallback={<LoginFallback />}>
+    <ClientOnlyAuthPage>
+      <AuthPageShell>
         <LoginContent />
-      </Suspense>
-    </AuthPageShell>
+      </AuthPageShell>
+    </ClientOnlyAuthPage>
   );
 }
