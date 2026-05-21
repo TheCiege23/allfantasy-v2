@@ -2,23 +2,14 @@ import type { Metadata } from 'next';
 import type { Session } from 'next-auth';
 import { Inter } from 'next/font/google';
 import Script from 'next/script';
-import { Toaster } from 'sonner';
 import { cookies } from 'next/headers';
-import { GlobalModeToggle } from '@/components/theme/GlobalModeToggle';
 import { AppProviders } from '@/components/providers/AppProviders';
-import { BackToTop } from '@/components/BackToTop';
 import { SpotifyMiniPlayer } from '@/components/spotify/SpotifyMiniPlayer';
 import { FloatingMusicWidget } from '@/components/MusicWidget';
 import { DefaultJsonLd } from '@/components/seo/JsonLd';
-import SyncProfilePreferences from '@/components/auth/SyncProfilePreferences';
-import { TimeEngineClientSync } from '@/components/time/TimeEngineClientSync';
-import SessionIdleMonitor from '@/components/auth/SessionIdleMonitor';
-import { ReferralTracker } from '@/components/referral/ReferralTracker';
+import { AuthRouteGlobalChrome } from '@/components/auth/AuthRouteGlobalChrome';
 import { ErrorBoundaryClient } from '@/components/error-handling/ErrorBoundaryClient';
 import { PlayerComparisonUIProvider } from '@/components/player-comparison-ui';
-import { ErrorTrackingInit } from '@/components/error-handling/ErrorTrackingInit';
-import WebVitalsTracker from '@/components/performance/WebVitalsTracker';
-import ServiceWorkerRegistration from '@/components/pwa/ServiceWorkerRegistration';
 import { shouldRegisterServiceWorker } from '@/lib/pwa/shouldRegisterServiceWorker';
 import { buildSeoMeta } from '@/lib/seo';
 import { resolveEffectiveDataMode } from '@/lib/theme';
@@ -239,19 +230,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
 
         <AppProviders session={initialSession}>
-          <ErrorTrackingInit />
-          <WebVitalsTracker />
-          <ServiceWorkerRegistration />
-          <ReferralTracker />
-          <SyncProfilePreferences />
-          <TimeEngineClientSync />
-          <SessionIdleMonitor />
           <ErrorBoundaryClient>
             <PlayerComparisonUIProvider>{children}</PlayerComparisonUIProvider>
           </ErrorBoundaryClient>
-          <GlobalModeToggle />
-          <Toaster position="top-center" richColors closeButton />
-          <BackToTop />
+          <AuthRouteGlobalChrome />
           {/* Music widgets deferred until Spotify Web Playback SDK is integrated.
               Set NEXT_PUBLIC_MUSIC_WIDGET_ENABLED=true to re-enable.
               Current Web API approach has unreliable preview_url playback. */}

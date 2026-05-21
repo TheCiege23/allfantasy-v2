@@ -39,6 +39,7 @@ import {
 import { validateSignupAgreements } from "@/lib/signup/AgreementAcceptanceService"
 import { isSignupAgreementGateOpen } from "@/lib/legal/SignupAgreementGate"
 import SocialLoginButtons from "@/components/auth/SocialLoginButtons"
+import { AuthPageShell } from "@/components/auth/AuthPageShell"
 import { IdentityImageRenderer } from "@/components/identity/IdentityImageRenderer"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import { useThemeMode } from "@/components/theme/ThemeProvider"
@@ -1818,9 +1819,11 @@ function SignupContent() {
 
 export default function SignupPage() {
   return (
-    <Suspense fallback={<AuthStatusLoadingFallback />}>
-      <SignupContent />
-    </Suspense>
+    <AuthPageShell>
+      <Suspense fallback={<AuthStatusLoadingFallback />}>
+        <SignupContent />
+      </Suspense>
+    </AuthPageShell>
   )
 }
 

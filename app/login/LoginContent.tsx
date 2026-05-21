@@ -15,7 +15,6 @@ import {
 } from "lucide-react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
-import LanguageToggle from "@/components/i18n/LanguageToggle"
 import { signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
 import { validateSignInInput } from "@/lib/auth/SignInFormController"
 import { resolveLoginErrorMessage } from "@/lib/auth/AuthErrorMessageResolver"
@@ -305,7 +304,6 @@ export default function LoginContent() {
           />
         </Link>
         <div className="flex items-center gap-3">
-          <LanguageToggle />
           <Link
             href={signupUrlWithIntent(callbackUrl)}
             className="rounded-[7px] border px-4 py-1.5 text-[13px] font-medium transition hover:opacity-90"

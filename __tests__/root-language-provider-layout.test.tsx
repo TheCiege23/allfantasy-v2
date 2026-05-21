@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest"
 import fs from "node:fs"
 import path from "node:path"
 import { AppProviders } from "@/components/providers/AppProviders"
+import { AuthPageShell } from "@/components/auth/AuthPageShell"
+import { AuthRouteGlobalChrome } from "@/components/auth/AuthRouteGlobalChrome"
 import LanguageToggle from "@/components/i18n/LanguageToggle"
 import { ModeToggle } from "@/components/theme/ModeToggle"
 import { ThemeProvider } from "@/components/theme/ThemeProvider"
@@ -23,6 +25,8 @@ const signupPageSource = fs.readFileSync(path.join(process.cwd(), "app", "signup
 const loginPageSource = fs.readFileSync(path.join(process.cwd(), "app", "login", "page.tsx"), "utf8")
 const loginContentSource = fs.readFileSync(path.join(process.cwd(), "app", "login", "LoginContent.tsx"), "utf8")
 const signinPageSource = fs.readFileSync(path.join(process.cwd(), "app", "signin", "page.tsx"), "utf8")
+const authPageShellSource = fs.readFileSync(path.join(process.cwd(), "components", "auth", "AuthPageShell.tsx"), "utf8")
+const authRouteGlobalChromeSource = fs.readFileSync(path.join(process.cwd(), "components", "auth", "AuthRouteGlobalChrome.tsx"), "utf8")
 const globalAppShellSource = fs.readFileSync(path.join(process.cwd(), "components", "shared", "GlobalAppShell.tsx"), "utf8")
 const languageProviderSource = fs.readFileSync(path.join(process.cwd(), "components", "i18n", "LanguageProviderClient.tsx"), "utf8")
 const middlewareSource = fs.readFileSync(path.join(process.cwd(), "middleware.ts"), "utf8")
@@ -40,12 +44,24 @@ const uiDocumentSources = [
 describe("root language provider layout", () => {
   it("wraps global controls and children with AppProviders", () => {
     const providersStart = layoutSource.indexOf("<AppProviders")
-    const modeToggle = layoutSource.indexOf("<GlobalModeToggle />")
+    const chromeGate = layoutSource.indexOf("<AuthRouteGlobalChrome />")
     const providersEnd = layoutSource.indexOf("</AppProviders>")
 
     expect(providersStart).toBeGreaterThan(-1)
-    expect(modeToggle).toBeGreaterThan(providersStart)
-    expect(providersEnd).toBeGreaterThan(modeToggle)
+    expect(chromeGate).toBeGreaterThan(providersStart)
+    expect(providersEnd).toBeGreaterThan(chromeGate)
+  })
+
+  it("skips client-heavy root chrome on auth routes", () => {
+    expect(layoutSource).toContain("<AuthRouteGlobalChrome />")
+    expect(authRouteGlobalChromeSource).toContain("usePathname")
+    expect(authRouteGlobalChromeSource).toContain('"/login"')
+    expect(authRouteGlobalChromeSource).toContain('"/signup"')
+    expect(authRouteGlobalChromeSource).toContain('"/signin"')
+    expect(authRouteGlobalChromeSource).toContain("return null")
+    expect(authRouteGlobalChromeSource).toContain("<GlobalModeToggle />")
+    expect(authRouteGlobalChromeSource).toContain("<Toaster")
+    expect(authRouteGlobalChromeSource).toContain("<BackToTop />")
   })
 
   it("keeps LanguageProviderClient outside ThemeProvider inside AppProviders", () => {
@@ -107,6 +123,36 @@ describe("root language provider layout", () => {
   it("does not nest full app providers inside auth pages", () => {
     expect(signupPageSource).not.toContain("<AppProviders>")
     expect(loginPageSource).not.toContain("<AppProviders>")
+  })
+
+  it("uses the minimal auth page shell for login and signup", () => {
+    expect(authPageShellSource).toContain('data-auth-page-shell="true"')
+    expect(authPageShellSource).not.toContain("GlobalShellClient")
+    expect(authPageShellSource).not.toContain("AppProviders")
+    expect(authPageShellSource).not.toContain("LanguageToggle")
+    expect(authPageShellSource).not.toContain("ModeToggle")
+    expect(loginPageSource).toContain("<AuthPageShell>")
+    expect(signupPageSource).toContain("<AuthPageShell>")
+  })
+
+  it("renders AuthPageShell without provider context", () => {
+    render(
+      <AuthPageShell>
+        <div>Auth child</div>
+      </AuthPageShell>
+    )
+
+    expect(screen.getByText("Auth child")).toBeInTheDocument()
+  })
+
+  it("renders global chrome on non-auth routes", () => {
+    render(
+      <AppProviders>
+        <AuthRouteGlobalChrome />
+      </AppProviders>
+    )
+
+    expect(screen.getByRole("button", { name: /current theme/i })).toBeInTheDocument()
   })
 
   it("bypasses global shell chrome for auth routes", () => {
