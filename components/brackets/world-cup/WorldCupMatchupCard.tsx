@@ -87,6 +87,14 @@ export default function WorldCupMatchupCard({
     setConfidenceDraft(pick?.confidencePoints ?? 1)
   }, [pick?.confidencePoints])
 
+  // Hydration-safe gate: locale-formatted dates (toLocaleString) differ between
+  // SSR (Node UTC default) and CSR (user locale + tz). Render those strings only
+  // after mount so the first CSR pass matches SSR HTML.
+  const [hasMounted, setHasMounted] = useState(false)
+  useEffect(() => {
+    setHasMounted(true)
+  }, [])
+
   const isLive = isWorldCupMatchLive(match)
   const isFinal = isWorldCupMatchFinal(match)
   const pickLiveState = getWorldCupPickLiveState(match, pick)
@@ -110,14 +118,18 @@ export default function WorldCupMatchupCard({
   const aiHomeLabel = aiMatchupSideLabel(match.homeSlotKey, match.homeTeamName, match.homeTeamId, "Home side")
   const aiAwayLabel = aiMatchupSideLabel(match.awaySlotKey, match.awayTeamName, match.awayTeamId, "Away side")
 
-  // Derive human-readable lock hint
+  // Derive human-readable lock hint.
+  // Locale-dependent date strings render only after mount to keep SSR HTML
+  // identical to the first CSR render (avoids React #425 hydration mismatch).
   let lockHint: string | null = null
   if (!locked) {
     if (lockStrategy === "tournament_start" && tournamentLockAt) {
-      lockHint = `Locks ${formatLockTime(tournamentLockAt)}`
+      lockHint = hasMounted ? `Locks ${formatLockTime(tournamentLockAt)}` : "Locks at tournament start"
     } else if (lockStrategy === "per_match" || !lockStrategy) {
       if (match.startsAt) {
-        lockHint = `Locks at kickoff · ${formatLockTime(match.startsAt as string)}`
+        lockHint = hasMounted
+          ? `Locks at kickoff · ${formatLockTime(match.startsAt as string)}`
+          : "Locks at kickoff"
       } else {
         lockHint = "Locks at kickoff"
       }
@@ -353,8 +365,9 @@ export default function WorldCupMatchupCard({
         </div>
       )}
 
-      {/* Kickoff date — only before match */}
-      {isScheduled && match.startsAt && (
+      {/* Kickoff date — only before match. Gated on hasMounted because toLocaleString output
+          differs between Node SSR (UTC default) and the browser (user locale + timezone). */}
+      {hasMounted && isScheduled && match.startsAt && (
         <div className="mb-2 text-center text-[10px] text-white/40" data-testid={`wc-match-kickoff-${match.id}`}>
           {formatWorldCupKickoffShort(match.startsAt)}
         </div>
@@ -424,7 +437,7 @@ export default function WorldCupMatchupCard({
                   {displayName}
                 </span>
                 <span className="block truncate text-[10px] text-white/30">{t.slotKey}</span>
-                {isScheduled && match.startsAt && (
+                {hasMounted && isScheduled && match.startsAt && (
                   <span className="mt-0.5 block text-[9px] text-white/35" data-testid={`wc-row-kickoff-${match.id}-${t.side}`}>
                     {formatWorldCupKickoffShort(match.startsAt)}
                   </span>
