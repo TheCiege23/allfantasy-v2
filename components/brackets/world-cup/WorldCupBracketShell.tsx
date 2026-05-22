@@ -77,6 +77,9 @@ import {
   type WorldCupChatRichTextSegment,
 } from "@/lib/world-cup/worldCupChatRichText"
 import { worldCupTabToQueryValue, type WorldCupBracketTab } from "@/lib/world-cup/worldCupTabs"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import LanguageToggle from "@/components/i18n/LanguageToggle"
 import WorldCupBracketBoard from "./WorldCupBracketBoard"
 import WorldCupBracketHealthCard from "./WorldCupBracketHealthCard"
 import WorldCupRootingGuideCard from "./WorldCupRootingGuideCard"
@@ -200,14 +203,27 @@ const WORLD_CUP_CHAT_FONT_OPTIONS: Array<{ value: WorldCupChatFont; label: strin
   { value: "sport", label: "Sport" },
   { value: "mono", label: "Mono" },
 ]
-const BASE_TABS: Array<{ id: Tab; label: string; icon: typeof ClipboardList }> = [
-  { id: "home", label: "Home", icon: Trophy },
-  { id: "group-stage", label: "Group Stage", icon: ListOrdered },
-  { id: "picks", label: "Knockouts", icon: ClipboardList },
-  { id: "review", label: "Review", icon: ClipboardCheck },
-  { id: "leaderboard", label: "Leaderboard", icon: Trophy },
-  { id: "rules", label: "Rules", icon: Users },
-  { id: "invite", label: "Invite", icon: Share2 },
+/**
+ * Localizable tab definitions.
+ *
+ * `labelKey` resolves through `lib/world-cup/worldCupI18n` (`wc.tab.*`) at
+ * render time using the user's active locale from `useOptionalLanguage`.
+ * `label` stays as the English fallback so the array remains useful for
+ * non-translated call-sites (test mocks, debug logging, etc.).
+ */
+const BASE_TABS: Array<{
+  id: Tab
+  label: string
+  labelKey: string
+  icon: typeof ClipboardList
+}> = [
+  { id: "home", label: "Home", labelKey: "wc.tab.home", icon: Trophy },
+  { id: "group-stage", label: "Group Stage", labelKey: "wc.tab.groupStage", icon: ListOrdered },
+  { id: "picks", label: "Knockouts", labelKey: "wc.tab.picks", icon: ClipboardList },
+  { id: "review", label: "Review", labelKey: "wc.tab.review", icon: ClipboardCheck },
+  { id: "leaderboard", label: "Leaderboard", labelKey: "wc.tab.leaderboard", icon: Trophy },
+  { id: "rules", label: "Rules", labelKey: "wc.tab.rules", icon: Users },
+  { id: "invite", label: "Invite", labelKey: "wc.tab.invite", icon: Share2 },
 ]
 const WORLD_CUP_ADMIN_SIMULATION_ROUNDS: Array<{ value: WorldCupAdminSimulationRound; label: string }> = [
   { value: "round_of_32", label: "Round of 32" },
@@ -491,6 +507,13 @@ export default function WorldCupBracketShell({
   initialEntryId?: string | null
 }) {
   const router = useRouter()
+  // World Cup translation helper. The language source comes from the
+  // global LanguageProviderClient (cookie `af_lang` + UserProfile
+  // preferredLanguage + localStorage). useOptionalLanguage() returns the
+  // default value when no provider is mounted (test harness, isolated
+  // story), so this never throws.
+  const { language: wcLanguage } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(wcLanguage), [wcLanguage])
   const normalizedInitialView = normalizeWorldCupView(initialView ?? challenge)
   const initialEntries = entryClientsFromInitialView(normalizedInitialView)
   const shouldAutoSelectInitialEntry =
@@ -618,21 +641,26 @@ export default function WorldCupBracketShell({
   )
   const aiInsightsUnlocked = entitlementSummary.ai
   const tabList = useMemo(() => {
-    const list = [...BASE_TABS]
+    const list = BASE_TABS.map((entry) => ({
+      ...entry,
+      label: t(entry.labelKey),
+    }))
     if (showCommissionerTab) {
       list.push({
         id: "settings",
-        label: "Settings",
+        label: t("wc.tab.admin"),
+        labelKey: "wc.tab.admin",
         icon: Settings,
       })
       list.push({
         id: "commissioner",
-        label: "Commissioner",
+        label: t("wc.tab.commissioner"),
+        labelKey: "wc.tab.commissioner",
         icon: Sparkles,
       })
     }
     return list
-  }, [showCommissionerTab])
+  }, [showCommissionerTab, t])
 
   useEffect(() => {
     latestViewRef.current = view
@@ -785,15 +813,15 @@ export default function WorldCupBracketShell({
     if (isLocked) return null
     if (!lockState.lockAt) return null
     const ms = new Date(lockState.lockAt).getTime() - lockNow.getTime()
-    if (ms <= 0) return "Bracket locks soon"
+    if (ms <= 0) return t("wc.lock.locksSoon")
     const totalM = Math.floor(ms / 60000)
     const d = Math.floor(totalM / 1440)
     const h = Math.floor((totalM % 1440) / 60)
     const m = totalM % 60
-    if (d > 0) return `${d}d ${h}h until picks lock`
-    if (h > 0) return `${h}h ${m}m until picks lock`
-    return `${Math.max(1, m)}m until picks lock`
-  }, [isLocked, lockState.lockAt, lockNow])
+    if (d > 0) return t("wc.lock.untilLockDays", { d, h })
+    if (h > 0) return t("wc.lock.untilLockHours", { h, m })
+    return t("wc.lock.untilLockMinutes", { m: Math.max(1, m) })
+  }, [isLocked, lockState.lockAt, lockNow, t])
   // Picks for the selected entry.
   const picks: WorldCupPickView[] = useMemo(() => {
     if (!selectedEntryId) return []
@@ -2209,19 +2237,25 @@ export default function WorldCupBracketShell({
               className="hidden items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-white/70 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 disabled:cursor-not-allowed disabled:opacity-50 sm:inline-flex"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isPending ? "animate-spin" : ""}`} />
-              Sync
+              {t("wc.header.sync")}
             </button>
           ) : null}
+          {/* Language picker — reuses the global LanguageToggle component so
+              the choice persists app-wide via localStorage `af_lang` + the
+              UserProfile preferredLanguage write inside LanguageToggle. */}
+          <div className="hidden sm:block" data-testid="wc-shell-language-toggle">
+            <LanguageToggle />
+          </div>
           {(view.isOwner || view.isAdmin) && (
             <button
               type="button"
               onClick={() => switchTab("invite")}
               className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-300 to-cyan-200 px-3 py-2 text-xs font-black text-black shadow-[0_6px_20px_-8px_rgba(34,211,238,0.6)] transition-transform hover:scale-[1.03] active:scale-[0.97] touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 sm:min-h-0 sm:min-w-0"
-              aria-label="Invite friends"
+              aria-label={t("wc.header.inviteAria")}
               data-testid="wc-shell-invite-btn"
             >
               <Share2 className="h-3.5 w-3.5 shrink-0" />
-              <span className="hidden sm:inline">Invite</span>
+              <span className="hidden sm:inline">{t("wc.header.invite")}</span>
             </button>
           )}
         </div>
@@ -2235,7 +2269,7 @@ export default function WorldCupBracketShell({
           <div className="mx-3 mb-2 flex items-start gap-2 rounded-xl border border-amber-300/40 bg-gradient-to-r from-amber-500/15 to-amber-400/[0.06] px-3 py-2 text-[11px] text-amber-100">
             <span className="mt-1 inline-flex h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-amber-300" aria-hidden />
             <span>
-              <span className="font-black uppercase tracking-[0.14em]">Test mode</span> — results are simulated and can change leaderboard standings.
+              <span className="font-black uppercase tracking-[0.14em]">{t("wc.header.testMode")}</span> — {t("wc.header.testModeNote")}
             </span>
           </div>
         )}
@@ -2338,7 +2372,7 @@ export default function WorldCupBracketShell({
             </div>
           ) : (
             <div className="flex justify-center px-4 py-2">
-              <span className="rounded-lg border border-rose-400/30 bg-rose-400/15 px-3 py-2 text-xs font-bold text-rose-100">Bracket Locked</span>
+              <span className="rounded-lg border border-rose-400/30 bg-rose-400/15 px-3 py-2 text-xs font-bold text-rose-100">{t("wc.lock.bracketLocked")}</span>
             </div>
           )}
 
@@ -3091,13 +3125,13 @@ export default function WorldCupBracketShell({
               <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm text-cyan-50">
                 <p className="font-black">
                   {knockoutMode === "reseeded"
-                    ? "Knockout picks open after official Round of 32 fixtures are available."
-                    : "Your knockout bracket is generated from your predicted group results."}
+                    ? t("wc.knockouts.intro.reseeded")
+                    : t("wc.knockouts.intro.predictive")}
                 </p>
                 <p className="mt-1 text-xs text-cyan-100/75">
                   {knockoutMode === "reseeded"
-                    ? "Group Stage picks work normally now. Once real knockout fixtures are synced, you will make fresh knockout picks from the official bracket."
-                    : "Knockout matchups update based on your Group Stage predictions. Changing group predictions may reset affected knockout picks."}
+                    ? t("wc.knockouts.subintro.reseeded")
+                    : t("wc.knockouts.subintro.predictive")}
                 </p>
                 {knockoutGroupStageError ? (
                   <p className="mt-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-2 py-1.5 text-xs font-bold text-amber-100">
@@ -3149,21 +3183,26 @@ export default function WorldCupBracketShell({
                       {guidedPickerLabel}
                     </button>
                   ) : (
-                    <span className="rounded-lg border border-rose-400/30 bg-rose-400/15 px-3 py-2 text-xs font-bold text-rose-100">Bracket Locked</span>
+                    <span className="rounded-lg border border-rose-400/30 bg-rose-400/15 px-3 py-2 text-xs font-bold text-rose-100">{t("wc.lock.bracketLocked")}</span>
                   )}
                   <div
                     data-testid="world-cup-knockout-pick-guidance"
                     className="min-w-[min(100%,24rem)] rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-[11px] text-white/55"
                   >
                     <p className="font-bold text-white/75">
-                      {progress.done}/{progress.required} currently available picks complete.
+                      {t("wc.knockouts.guidance.complete", {
+                        done: progress.done,
+                        required: progress.required,
+                      })}
                     </p>
                     <p className="mt-1">
                       {firstUnpickedMatch
-                        ? `Next pick: Match ${firstUnpickedMatch.matchNumber}.`
+                        ? t("wc.knockouts.guidance.nextPick", {
+                            matchNumber: firstUnpickedMatch.matchNumber,
+                          })
                         : blockedFuturePickCount > 0
-                          ? "Pick earlier round winners first. More picks unlock as prior winners are selected."
-                          : "No available knockout picks are ready right now."}
+                          ? t("wc.knockouts.guidance.blocked")
+                          : t("wc.knockouts.guidance.noneReady")}
                     </p>
                   </div>
                   {!isLocked && guidedPicksState !== "ready" ? (

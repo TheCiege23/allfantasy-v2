@@ -7,6 +7,8 @@ import {
   type DangerSeverity,
   type DangerTag,
 } from "@/lib/world-cup/worldCupKnockoutDangerZones"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 
 const SEVERITY_TONE: Record<DangerSeverity, string> = {
   High: "border-rose-400/45 bg-rose-500/[0.08]",
@@ -14,10 +16,10 @@ const SEVERITY_TONE: Record<DangerSeverity, string> = {
   Low: "border-white/15 bg-white/[0.04]",
 }
 
-const SEVERITY_LABEL: Record<DangerSeverity, string> = {
-  High: "High",
-  Medium: "Medium",
-  Low: "Low",
+const SEVERITY_KEY: Record<DangerSeverity, string> = {
+  High: "wc.danger.severityHigh",
+  Medium: "wc.danger.severityMedium",
+  Low: "wc.danger.severityLow",
 }
 
 function TagIcon({ tag }: { tag: DangerTag }) {
@@ -29,6 +31,11 @@ function TagIcon({ tag }: { tag: DangerTag }) {
 export default function WorldCupKnockoutDangerZonesCard(props: BuildDangerZonesInput) {
   const result = buildWorldCupKnockoutDangerZones(props)
   const isPro = Boolean(props.hasBracketBrainAi)
+  // Hydration-safe: the language code originates from <html data-lang="...">
+  // already emitted by the server-side language init script. SSR and the
+  // first CSR render see the same locale.
+  const { language } = useOptionalLanguage()
+  const t = makeWcT(language)
 
   return (
     <section
@@ -42,13 +49,13 @@ export default function WorldCupKnockoutDangerZonesCard(props: BuildDangerZonesI
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
-              Knockouts
+              {t("wc.danger.eyebrow")}
             </p>
             <h3 className="text-base font-black text-white sm:text-lg">
-              Knockout Danger Zones
+              {t("wc.danger.title")}
             </h3>
             <p className="mt-0.5 text-xs text-white/55">
-              Deterministic — compares your picks against pre-tournament seed strength and live match state.
+              {t("wc.danger.subtitle")}
             </p>
           </div>
         </div>
@@ -60,7 +67,7 @@ export default function WorldCupKnockoutDangerZonesCard(props: BuildDangerZonesI
               : "shrink-0 rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/65"
           }
         >
-          {isPro ? "AF Pro" : "Basic"}
+          {isPro ? t("wc.danger.tierPro") : t("wc.danger.tierBasic")}
         </span>
       </div>
 
@@ -69,7 +76,7 @@ export default function WorldCupKnockoutDangerZonesCard(props: BuildDangerZonesI
           data-testid="world-cup-knockout-danger-zones-empty"
           className="rounded-lg border border-white/10 bg-black/20 px-3 py-3 text-xs text-white/65"
         >
-          Open a bracket entry to see danger zones.
+          {t("wc.danger.emptyNoEntry")}
         </p>
       ) : null}
 
@@ -78,7 +85,10 @@ export default function WorldCupKnockoutDangerZonesCard(props: BuildDangerZonesI
           data-testid={`world-cup-knockout-danger-zones-${result.status}`}
           className="rounded-lg border border-white/10 bg-black/20 px-3 py-3 text-xs text-white/65"
         >
-          {result.lockedLines?.[0] ?? "No knockout danger zones right now."}
+          {result.lockedLines?.[0] ??
+            (result.status === "no_picks"
+              ? t("wc.danger.emptyNoPicks")
+              : t("wc.danger.emptyNoRisks"))}
         </p>
       ) : null}
 
@@ -99,7 +109,7 @@ export default function WorldCupKnockoutDangerZonesCard(props: BuildDangerZonesI
                   data-testid={`world-cup-knockout-danger-zones-severity-${idx}`}
                   className="rounded-full border border-white/20 bg-black/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white/75"
                 >
-                  {SEVERITY_LABEL[zone.severity]} danger
+                  {t(SEVERITY_KEY[zone.severity])} {t("wc.danger.severitySuffix")}
                 </span>
                 <span className="rounded-full border border-white/20 bg-black/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white/75">
                   {zone.tag}
@@ -130,7 +140,7 @@ export default function WorldCupKnockoutDangerZonesCard(props: BuildDangerZonesI
       ) : null}
 
       <p className="mt-3 text-[10px] text-white/40">
-        Counts only your own picks vs the public schedule. No AI call. No other users' picks.
+        {t("wc.danger.footer")}
       </p>
     </section>
   )

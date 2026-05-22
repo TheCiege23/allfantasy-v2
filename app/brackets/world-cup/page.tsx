@@ -4,6 +4,8 @@ import { getServerSession } from "next-auth"
 import { Bot, ChevronRight, Globe2, Lock, Plus, Sparkles, Trophy, Users, Radio } from "lucide-react"
 import { authOptions } from "@/lib/auth"
 import { listUserWorldCupChallenges } from "@/lib/world-cup"
+import { resolveServerRenderPreferences } from "@/lib/preferences/ServerRenderPreferenceResolver"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 
 const WC_LOGO_SRC   = "/images/brackets/world-cup/af-world-cup-logo.png"
 const WC_VIDEO_SRC  = "/videos/brackets/world-cup/af-world-cup-hero.mp4"
@@ -22,33 +24,43 @@ type WorldCupChallengeSummary = {
   rank: number | null
 }
 
-function PoolStatusBadge({ status }: { status: string }) {
+function PoolStatusBadge({
+  status,
+  t,
+}: {
+  status: string
+  t: (key: string) => string
+}) {
   if (status === "locked" || status === "final") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/40">
         <Lock className="h-2.5 w-2.5" />
-        {status === "final" ? "Final" : "Locked"}
+        {status === "final"
+          ? t("wc.publicHub.statusFinal")
+          : t("wc.publicHub.statusLocked")}
       </span>
     )
   }
   return (
     <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-300">
       <Radio className="h-2.5 w-2.5" />
-      Open
+      {t("wc.publicHub.statusOpen")}
     </span>
   )
 }
 
-const FEATURE_BULLETS = [
-  { icon: Users, text: "Private or public pools — up to 100 participants." },
-  { icon: Trophy, text: "Up to 5 brackets per user, compete with multiple strategies." },
-  { icon: Trophy, text: "NCAA-style scoring — more points for later rounds." },
-  { icon: Sparkles, text: "Guided pick builder with AI matchup previews." },
-  { icon: Globe2, text: "Live score and match-minute tracking." },
-  { icon: Bot, text: "AI bracket builder fills unpicked matches automatically." },
-  { icon: Trophy, text: "Per-bracket leaderboard — every entry ranked individually." },
-  { icon: Lock, text: "Brackets lock when the first World Cup match begins." },
-]
+function buildFeatureBullets(t: (key: string) => string) {
+  return [
+    { icon: Users, text: t("wc.publicHub.feature.privatePublic") },
+    { icon: Trophy, text: t("wc.publicHub.feature.bracketsPerUser") },
+    { icon: Trophy, text: t("wc.publicHub.feature.ncaaScoring") },
+    { icon: Sparkles, text: t("wc.publicHub.feature.guidedPicker") },
+    { icon: Globe2, text: t("wc.publicHub.feature.liveTracking") },
+    { icon: Bot, text: t("wc.publicHub.feature.aiBracketBuilder") },
+    { icon: Trophy, text: t("wc.publicHub.feature.perBracketLeaderboard") },
+    { icon: Lock, text: t("wc.publicHub.feature.lockOnKickoff") },
+  ]
+}
 
 export default async function WorldCupBracketsPage() {
   const session = (await getServerSession(authOptions as any)) as { user?: SessionUser } | null
@@ -56,6 +68,12 @@ export default async function WorldCupBracketsPage() {
   const challenges: WorldCupChallengeSummary[] = userId
     ? await listUserWorldCupChallenges(userId)
     : []
+  // Server-side language resolution mirrors the client provider (cookie
+  // af_lang + UserProfile.preferredLanguage) — SSR HTML matches the first
+  // client render, no React #425/#418 risk.
+  const { language } = await resolveServerRenderPreferences()
+  const t = makeWcT(language)
+  const FEATURE_BULLETS = buildFeatureBullets(t)
 
   return (
     <main className="min-h-screen bg-[#05070b] text-white">
@@ -66,21 +84,21 @@ export default async function WorldCupBracketsPage() {
             href="/brackets"
             className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-white/60 hover:text-white"
           >
-            ← Back to Brackets
+            {t("wc.publicHub.backToBrackets")}
           </Link>
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/brackets/world-cup/discover"
               className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-4 py-2 text-sm font-bold text-cyan-100 hover:bg-cyan-400/15"
             >
-              Discover public pools
+              {t("wc.publicHub.discover")}
             </Link>
             {userId && (
               <Link
                 href="/brackets/world-cup/join"
                 className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-bold text-white/70 hover:bg-white/[0.08]"
               >
-                Join with Invite Code
+                {t("wc.publicHub.joinWithCode")}
               </Link>
             )}
             <Link
@@ -88,7 +106,7 @@ export default async function WorldCupBracketsPage() {
               className="inline-flex items-center gap-2 rounded-lg bg-cyan-300 px-4 py-2 text-sm font-black text-black"
             >
               <Plus className="h-4 w-4" />
-              Create Pool
+              {t("wc.publicHub.createPool")}
             </Link>
           </div>
         </div>
@@ -120,11 +138,10 @@ export default async function WorldCupBracketsPage() {
             </div>
             <div className="min-w-0 flex-1">
               <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
-                World Cup Bracket Challenge
+                {t("wc.publicHub.heroTitle")}
               </h1>
           <p className="mt-3 max-w-2xl text-base leading-7 text-white/60">
-            Create an NCAA-style bracket pool for the FIFA World Cup. Invite friends, make picks,
-            track live scores, and climb the leaderboard.
+            {t("wc.publicHub.heroSubtitle")}
           </p>
 
           {/* Feature bullets */}
@@ -144,20 +161,20 @@ export default async function WorldCupBracketsPage() {
               className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-2.5 text-sm font-black text-black"
             >
               <Plus className="h-4 w-4" />
-              Create World Cup Pool
+              {t("wc.publicHub.createWorldCupPool")}
             </Link>
             <Link
               href="/brackets/world-cup/discover"
               className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-5 py-2.5 text-sm font-bold text-cyan-100 hover:bg-cyan-400/15"
             >
-              Discover public pools
+              {t("wc.publicHub.discover")}
             </Link>
             {userId && (
               <Link
                 href="/brackets/world-cup/join"
                 className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.05] px-5 py-2.5 text-sm font-bold text-white/75 hover:bg-white/[0.09]"
               >
-                Join with Invite Code
+                {t("wc.publicHub.joinWithCode")}
               </Link>
             )}
           </div>
@@ -169,11 +186,15 @@ export default async function WorldCupBracketsPage() {
         <section>
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="text-sm font-black uppercase tracking-[0.16em] text-white/45">
-              Your World Cup Pools
+              {t("wc.publicHub.yourPools")}
             </h2>
             {userId && challenges.length > 0 && (
               <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-0.5 text-xs font-bold text-white/35">
-                {challenges.length} pool{challenges.length !== 1 ? "s" : ""}
+                {t(
+                  challenges.length === 1
+                    ? "wc.publicHub.poolsCountOne"
+                    : "wc.publicHub.poolsCountOther"
+                ).replace("{{count}}", String(challenges.length))}
               </span>
             )}
           </div>
@@ -192,7 +213,7 @@ export default async function WorldCupBracketsPage() {
                       <span className="min-w-0 truncate font-black text-white group-hover:text-cyan-100">
                         {challenge.name}
                       </span>
-                      <PoolStatusBadge status={challenge.status} />
+                      <PoolStatusBadge status={challenge.status} t={t} />
                     </div>
 
                     {/* Meta row */}
@@ -200,21 +221,27 @@ export default async function WorldCupBracketsPage() {
                       <span>{challenge.seasonYear}</span>
                       <span className="text-white/20">·</span>
                       <Users className="h-3 w-3" />
-                      <span>{challenge.participantCount} participant{challenge.participantCount !== 1 ? "s" : ""}</span>
+                      <span>
+                        {t(
+                          challenge.participantCount === 1
+                            ? "wc.publicHub.participantsOne"
+                            : "wc.publicHub.participantsOther"
+                        ).replace("{{count}}", String(challenge.participantCount))}
+                      </span>
                     </div>
 
                     {/* Score row */}
                     <div className="mt-3 flex items-end justify-between gap-2">
                       <div className="flex items-center gap-3">
                         <div>
-                          <div className="text-[9px] font-bold uppercase tracking-widest text-white/30">Score</div>
+                          <div className="text-[9px] font-bold uppercase tracking-widest text-white/30">{t("wc.publicHub.scoreLabel")}</div>
                           <div className="text-base font-black tabular-nums text-cyan-200">
                             {challenge.totalScore} pts
                           </div>
                         </div>
                         {challenge.rank != null && (
                           <div>
-                            <div className="text-[9px] font-bold uppercase tracking-widest text-white/30">Rank</div>
+                            <div className="text-[9px] font-bold uppercase tracking-widest text-white/30">{t("wc.publicHub.rankLabel")}</div>
                             <div className="text-base font-black tabular-nums text-white">
                               #{challenge.rank}
                             </div>
@@ -222,7 +249,7 @@ export default async function WorldCupBracketsPage() {
                         )}
                         {challenge.rank == null && (
                           <div>
-                            <div className="text-[9px] font-bold uppercase tracking-widest text-white/30">Rank</div>
+                            <div className="text-[9px] font-bold uppercase tracking-widest text-white/30">{t("wc.publicHub.rankLabel")}</div>
                             <div className="text-sm font-black text-white/35">—</div>
                           </div>
                         )}
@@ -238,12 +265,12 @@ export default async function WorldCupBracketsPage() {
                   <Globe2 className="h-6 w-6 text-cyan-200" />
                 </div>
                 <div>
-                  <p className="font-black text-white">No World Cup pools yet</p>
+                  <p className="font-black text-white">{t("wc.publicHub.emptyTitle")}</p>
                   <p className="mt-1 text-sm text-white/45">
-                    You haven't created or joined a World Cup bracket pool.
+                    {t("wc.publicHub.emptyBody")}
                   </p>
                   <p className="mt-1 text-xs text-white/30">
-                    Create one and invite friends, or ask someone for an invite code.
+                    {t("wc.publicHub.emptyHint")}
                   </p>
                 </div>
                 <Link
@@ -251,7 +278,7 @@ export default async function WorldCupBracketsPage() {
                   className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-2.5 text-sm font-black text-black"
                 >
                   <Plus className="h-4 w-4" />
-                  Create World Cup Pool
+                  {t("wc.publicHub.createWorldCupPool")}
                 </Link>
               </div>
             )
@@ -260,15 +287,15 @@ export default async function WorldCupBracketsPage() {
               <div className="flex h-12 w-12 mx-auto mb-4 items-center justify-center rounded-xl bg-cyan-300/10">
                 <Trophy className="h-6 w-6 text-cyan-200" />
               </div>
-              <p className="font-black text-white">Sign in to get started</p>
+              <p className="font-black text-white">{t("wc.publicHub.signInTitle")}</p>
               <p className="mt-1 text-sm text-white/55">
-                Create or join a World Cup bracket pool and compete with friends.
+                {t("wc.publicHub.signInBody")}
               </p>
               <Link
                 href="/login?next=/brackets/world-cup"
                 className="mt-5 inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-2.5 text-sm font-black text-black"
               >
-                Sign In to Get Started
+                {t("wc.publicHub.signInCta")}
               </Link>
             </div>
           )}
