@@ -525,6 +525,14 @@ export default function WorldCupBracketShell({
   const savingPickMatchIdsRef = useRef<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
   const [lockNow, setLockNow] = useState(() => new Date())
+  // Gate time-relative UI behind a mounted flag so SSR and the first
+  // CSR render emit identical HTML. Without this, the lock countdown
+  // label ("20d 17h until picks lock") differs between server clock
+  // and client clock and trips React #425 / #418 hydration warnings.
+  const [hasMounted, setHasMounted] = useState(false)
+  useEffect(() => {
+    setHasMounted(true)
+  }, [])
 
   // ── Entry state ──────────────────────────────────────────────────────────
   const [entries, setEntries] = useState<WorldCupBracketEntryClient[]>(initialEntries)
@@ -2169,7 +2177,7 @@ export default function WorldCupBracketShell({
                 <span className="line-clamp-2">{view.challenge.name}</span>
               )}
             </p>
-            {lockCountdownLabel ? (
+            {hasMounted && lockCountdownLabel ? (
               <p
                 data-testid="world-cup-lock-countdown"
                 className="mt-1 inline-flex max-w-full items-center rounded-md bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold text-amber-100/95"

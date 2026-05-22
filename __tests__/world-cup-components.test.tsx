@@ -1224,6 +1224,29 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(banner.textContent).toMatch(/Share card/i)
   })
 
+  it("lock countdown label is hydration-safe (gated by mounted flag, rendered after effect)", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    // Render the Picks tab where the countdown badge lives. Future lock time so the helper
+    // would produce a real countdown string — but only after hydration.
+    const farFutureLockAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    const view = makeShellView()
+    ;(view.challenge as any).effectivePickLockAt = farFutureLockAt
+    ;(view.challenge as any).pickLockAt = farFutureLockAt
+    render(
+      <WorldCupBracketShell
+        initialView={view as any}
+        defaultTab="picks"
+        initialEntryId="entry-1"
+      />
+    )
+
+    // After mount + effects flush, the countdown badge should appear with a stable
+    // "until picks lock" string. The hasMounted gate ensures the initial SSR-equivalent
+    // render did NOT emit this badge text.
+    const badge = await screen.findByTestId("world-cup-lock-countdown")
+    expect(badge.textContent).toMatch(/until picks lock/i)
+  })
+
   it("AI Confidence Check renders deterministic lines for AI/Pro users on Review", async () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" initialEntryId="entry-1" />)

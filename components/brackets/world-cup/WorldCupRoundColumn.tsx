@@ -1,4 +1,5 @@
 "use client"
+import { useEffect, useState } from "react"
 import { WORLD_CUP_ROUND_LABELS } from "@/lib/world-cup/types"
 import type { WorldCupMatchView, WorldCupPickView, WorldCupRound } from "@/lib/world-cup/types"
 import { findWorldCupPickForMatch } from "@/lib/world-cup/worldCupProjectedBracket"
@@ -28,7 +29,17 @@ export default function WorldCupRoundColumn({
   aiInsightsUnlocked?: boolean
   confidenceScoringEnabled?: boolean
 }) {
-  const now = new Date()
+  // Hydration-safe: seed with epoch so SSR and the first CSR render produce
+  // identical HTML (kickoffPast/tournamentPast both false). After mount, swap
+  // to the real clock and refresh every 60s so lock state updates as matches
+  // approach. Replaces a previously per-render `new Date()` that tripped
+  // React #425 / #418 hydration warnings on the Knockouts tab.
+  const [now, setNow] = useState<Date>(() => new Date(0))
+  useEffect(() => {
+    setNow(new Date())
+    const id = window.setInterval(() => setNow(new Date()), 60_000)
+    return () => window.clearInterval(id)
+  }, [])
   return (
     <section className="flex min-w-[17.75rem] shrink-0 flex-col gap-3 sm:min-w-[19rem]">
       <div className="sticky top-0 z-10 rounded-lg border border-white/10 bg-black/70 px-3 py-2 backdrop-blur">
