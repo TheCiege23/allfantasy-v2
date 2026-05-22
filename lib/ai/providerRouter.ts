@@ -45,6 +45,27 @@ type StreamCallArgs = TextCallArgs & {
 
 const DEFAULT_PROVIDER_ORDER: ProviderName[] = ['openai', 'anthropic', 'xai', 'deepseek']
 
+// Per-provider call timeout (ms). Prevents a slow/unreachable provider from
+// consuming the entire serverless function budget before fallbacks can run.
+const PROVIDER_TIMEOUT_MS = 12_000
+
+function withTimeout<T>(promise: Promise<T>, ms: number, provider: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            Object.assign(new Error(`Provider ${provider} timed out after ${ms}ms`), {
+              code: 'ETIMEDOUT',
+            })
+          ),
+        ms
+      )
+    ),
+  ])
+}
+
 export function getProviderOrder(): ProviderName[] {
   const env = process.env.AI_PROVIDER_ORDER?.trim()
   if (!env) return DEFAULT_PROVIDER_ORDER
@@ -324,7 +345,7 @@ export async function routeTextCall(args: {
 
   for (const provider of order) {
     try {
-      return await TEXT_CALLS[provider](args)
+      return await withTimeout(TEXT_CALLS[provider](args), PROVIDER_TIMEOUT_MS, provider)
     } catch (error: unknown) {
       const norm = normalizeProviderError(error)
       console.error('[provider-router] text provider failed:', {
@@ -354,7 +375,7 @@ export async function routeStreamCall(args: {
 
   for (const provider of order) {
     try {
-      return await STREAM_CALLS[provider](args)
+      return await withTimeout(STREAM_CALLS[provider](args), PROVIDER_TIMEOUT_MS, provider)
     } catch (error: unknown) {
       const norm = normalizeProviderError(error)
       console.error('[provider-router] stream provider failed:', {
