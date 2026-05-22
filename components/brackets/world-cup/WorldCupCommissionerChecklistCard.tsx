@@ -7,6 +7,8 @@ import {
   type BuildChecklistInput,
   type ChecklistEntryStatus,
 } from "@/lib/world-cup/worldCupCommissionerChecklist"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 
 const STATUS_TONE: Record<ChecklistEntryStatus, string> = {
   Finalized: "border-emerald-300/40 bg-emerald-400/[0.08] text-emerald-100",
@@ -15,8 +17,31 @@ const STATUS_TONE: Record<ChecklistEntryStatus, string> = {
   Unknown: "border-white/15 bg-white/[0.04] text-white/75",
 }
 
+// Maps the deterministic English status label (kept stable on the
+// result object for color-map continuity + test stability) to the
+// translation key for the rendered label.
+const STATUS_KEY: Record<ChecklistEntryStatus, string> = {
+  Finalized: "wc.checklist.entryStatus.finalized",
+  "In progress": "wc.checklist.entryStatus.inProgress",
+  "Needs picks": "wc.checklist.entryStatus.needsPicks",
+  Unknown: "wc.checklist.entryStatus.unknown",
+}
+
 export default function WorldCupCommissionerChecklistCard(props: BuildChecklistInput) {
-  const result = useMemo(() => buildWorldCupCommissionerChecklist(props), [props])
+  // Hydration-safe: locale comes from the global LanguageProviderClient.
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
+
+  // Pass the locale into the helper so the reminder/member-fallback
+  // text is generated in the commissioner's language.
+  const result = useMemo(
+    () =>
+      buildWorldCupCommissionerChecklist({
+        ...props,
+        locale: language,
+      }),
+    [props, language]
+  )
   const [copied, setCopied] = useState(false)
 
   async function copyReminder() {
@@ -38,13 +63,13 @@ export default function WorldCupCommissionerChecklistCard(props: BuildChecklistI
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
-              Commissioner
+              {t("wc.checklist.eyebrow")}
             </p>
             <h3 className="text-base font-black text-white sm:text-lg">
-              Pool Completion Checklist
+              {t("wc.checklist.title")}
             </h3>
             <p className="mt-0.5 text-xs text-white/55">
-              Member progress at a glance. Visible to pool commissioners and admins only.
+              {t("wc.checklist.cardSubtitle")}
             </p>
           </div>
         </div>
@@ -55,7 +80,7 @@ export default function WorldCupCommissionerChecklistCard(props: BuildChecklistI
           className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-2 text-xs font-black text-black transition-transform hover:scale-[1.02] active:scale-[0.98] touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
         >
           {copied ? <Check className="h-3.5 w-3.5" /> : <MessageSquare className="h-3.5 w-3.5" />}
-          {copied ? "Reminder Copied!" : "Copy Reminder Message"}
+          {copied ? t("wc.checklist.copyReminderDone") : t("wc.checklist.copyReminderBtn")}
         </button>
       </div>
 
@@ -64,11 +89,11 @@ export default function WorldCupCommissionerChecklistCard(props: BuildChecklistI
         data-testid="world-cup-commissioner-checklist-summary"
         className="grid gap-2 sm:grid-cols-4"
       >
-        <StatCell label="Total members" value={String(result.summary.totalEntries)} />
-        <StatCell label="Finalized" value={String(result.summary.finalized)} tone="ready" />
-        <StatCell label="In progress" value={String(result.summary.inProgress)} tone="warn" />
+        <StatCell label={t("wc.checklist.stat.total")} value={String(result.summary.totalEntries)} />
+        <StatCell label={t("wc.checklist.stat.finalized")} value={String(result.summary.finalized)} tone="ready" />
+        <StatCell label={t("wc.checklist.stat.inProgress")} value={String(result.summary.inProgress)} tone="warn" />
         <StatCell
-          label="Completion"
+          label={t("wc.checklist.stat.completion")}
           value={`${result.summary.percentComplete}%`}
           tone={result.summary.percentComplete === 100 ? "ready" : "warn"}
         />
@@ -82,7 +107,7 @@ export default function WorldCupCommissionerChecklistCard(props: BuildChecklistI
         >
           <Users className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/45" aria-hidden />
           <span>
-            {result.emptyLines?.[0] ?? "No member data available."}
+            {result.emptyLines?.[0] ?? t("wc.checklist.empty.fallback")}
           </span>
         </div>
       ) : null}
@@ -112,16 +137,16 @@ export default function WorldCupCommissionerChecklistCard(props: BuildChecklistI
                   data-testid={`world-cup-commissioner-checklist-row-${idx}-status`}
                   className="rounded-full border border-white/20 bg-black/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white/85"
                 >
-                  {row.status}
+                  {t(STATUS_KEY[row.status])}
                 </span>
                 {row.missingPicks > 0 ? (
                   <span className="rounded-full border border-white/20 bg-black/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white/75">
-                    {row.missingPicks} missing
+                    {t("wc.checklist.missingPicks", { count: row.missingPicks })}
                   </span>
                 ) : null}
                 {row.status !== "Finalized" ? (
                   <span className="rounded-full border border-cyan-300/30 bg-cyan-300/[0.08] px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-cyan-100">
-                    Needs reminder
+                    {t("wc.checklist.needsReminderBadge")}
                   </span>
                 ) : null}
               </div>
@@ -135,7 +160,7 @@ export default function WorldCupCommissionerChecklistCard(props: BuildChecklistI
         data-testid="world-cup-commissioner-checklist-reminder-preview"
       >
         <summary className="cursor-pointer text-[11px] font-semibold text-white/45 hover:text-white/75">
-          Preview reminder message
+          {t("wc.checklist.previewReminder")}
         </summary>
         <div className="mt-2 whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-xs leading-5 text-white/80">
           {result.reminderMessage}
@@ -143,7 +168,7 @@ export default function WorldCupCommissionerChecklistCard(props: BuildChecklistI
       </details>
 
       <p className="mt-3 text-[10px] text-white/40">
-        Deterministic — uses snapshot data already loaded for commissioner tools. No emails or user IDs are shown.
+        {t("wc.checklist.privacyNote")}
       </p>
     </section>
   )

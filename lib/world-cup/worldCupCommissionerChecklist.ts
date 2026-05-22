@@ -11,7 +11,24 @@
  *   - Display names fall back to "Member" when unsafe/missing.
  *   - Reminder message includes pool name + optional invite URL +
  *     optional deadline; nothing else.
+ *   - Reminder NEVER includes invite code (privacy spec — commissioner
+ *     shares the message in chat / DM, and we don't want the invite
+ *     code to ride along with what may be a public reminder).
+ *
+ * Localization (Phase 4):
+ *   - All builders accept an optional `locale` parameter and emit
+ *     deterministic translated reminder + member fallback text for
+ *     en/es/zh/fil/vi.
+ *   - Status labels (Finalized / In progress / Needs picks / Unknown)
+ *     remain English in the result object so existing consumers
+ *     (status color map, tests) don't break — the card component
+ *     translates them via the `wc.checklist.entryStatus.*` keys when
+ *     rendering.
  */
+import {
+  getWorldCupLocale,
+  type WorldCupLocale,
+} from "@/lib/world-cup/worldCupI18n"
 
 export type ChecklistEntryStatus =
   | "Finalized"
@@ -81,9 +98,122 @@ export type BuildChecklistInput = {
   lockDeadlineLabel?: string | null
   /** Whether the viewer is commissioner/admin. Member-mode renders nothing. */
   isCommissioner?: boolean
+  /** Locale for translated reminder/member fallback text. Defaults to "en". */
+  locale?: WorldCupLocale | string | null
 }
 
-const POWERED_BY = "Powered by AllFantasy."
+type ReminderTemplates = {
+  poweredBy: string
+  askCommissioner: (poolName: string) => string
+  finalizeLine: (poolName: string) => string
+  joinLine: (poolName: string) => string
+  statusLine: (done: number, total: number, percent: number) => string
+  deadlineLine: (label: string) => string
+  noSnapshotLine: (poolName: string) => string
+  /** Friendly fallback shown to non-commissioners on the card. */
+  memberOnlyEmptyLine: string
+  /** Card "still loading" line when commissioner is set but snapshot is null. */
+  loadingEmptyLine: string
+  /** Card "no members yet" line when totalEntries === 0. */
+  noMembersEmptyLine: string
+}
+
+const REMINDER_TEMPLATES: Record<WorldCupLocale, ReminderTemplates> = {
+  en: {
+    poweredBy: "Powered by AllFantasy.",
+    askCommissioner: (p) =>
+      `Ask the pool commissioner to remind members about ${p}.`,
+    finalizeLine: (p) =>
+      `Friendly reminder: finalize your picks for "${p}" on AllFantasy.`,
+    joinLine: (p) =>
+      `Reminder: join "${p}" on AllFantasy and lock in your World Cup bracket.`,
+    statusLine: (d, t, p) =>
+      `Status: ${d}/${t} brackets finalized (${p}%).`,
+    deadlineLine: (l) => `Picks lock ${l}.`,
+    noSnapshotLine: (p) =>
+      `Reminder: finish your picks for "${p}" on AllFantasy.`,
+    memberOnlyEmptyLine:
+      "Only the pool commissioner or admin can see member status.",
+    loadingEmptyLine: "Commissioner status data is still loading.",
+    noMembersEmptyLine:
+      "No members have created entries yet. Share the invite link to get started.",
+  },
+  es: {
+    poweredBy: "Hecho con AllFantasy.",
+    askCommissioner: (p) =>
+      `Pídele al comisionado del grupo que recuerde a los miembros sobre ${p}.`,
+    finalizeLine: (p) =>
+      `Recordatorio amistoso: finaliza tus picks para "${p}" en AllFantasy.`,
+    joinLine: (p) =>
+      `Recordatorio: únete a "${p}" en AllFantasy y confirma tu bracket de la Copa del Mundo.`,
+    statusLine: (d, t, p) =>
+      `Estado: ${d}/${t} brackets finalizados (${p}%).`,
+    deadlineLine: (l) => `Los picks cierran ${l}.`,
+    noSnapshotLine: (p) =>
+      `Recordatorio: termina tus picks para "${p}" en AllFantasy.`,
+    memberOnlyEmptyLine:
+      "Solo el comisionado o admin del grupo puede ver el estado de los miembros.",
+    loadingEmptyLine: "Datos del comisionado aún cargando.",
+    noMembersEmptyLine:
+      "Aún no hay miembros con entradas. Comparte el enlace de invitación para empezar.",
+  },
+  zh: {
+    poweredBy: "由 AllFantasy 提供支援。",
+    askCommissioner: (p) => `請群組管理員提醒成員注意 ${p}。`,
+    finalizeLine: (p) =>
+      `提醒:請在 AllFantasy 完成「${p}」的選擇並送出。`,
+    joinLine: (p) =>
+      `提醒:加入 AllFantasy 上的「${p}」,並鎖定你的世界盃對戰表。`,
+    statusLine: (d, t, p) =>
+      `進度:${d}/${t} 個對戰表已送出(${p}%)。`,
+    deadlineLine: (l) => `選擇將於 ${l} 鎖定。`,
+    noSnapshotLine: (p) =>
+      `提醒:請在 AllFantasy 完成「${p}」的選擇。`,
+    memberOnlyEmptyLine:
+      "只有群組管理員或系統管理員可以看到成員狀態。",
+    loadingEmptyLine: "管理員狀態資料仍在載入中。",
+    noMembersEmptyLine:
+      "尚無成員建立對戰表。分享邀請連結以開始。",
+  },
+  fil: {
+    poweredBy: "Powered by AllFantasy.",
+    askCommissioner: (p) =>
+      `Hilingin sa pool commissioner na mag-paalala sa mga miyembro tungkol sa ${p}.`,
+    finalizeLine: (p) =>
+      `Friendly reminder: i-finalize ang iyong mga pick para sa "${p}" sa AllFantasy.`,
+    joinLine: (p) =>
+      `Reminder: sumali sa "${p}" sa AllFantasy at i-lock ang iyong World Cup bracket.`,
+    statusLine: (d, t, p) =>
+      `Status: ${d}/${t} brackets na finalized (${p}%).`,
+    deadlineLine: (l) => `Magla-lock ang picks ${l}.`,
+    noSnapshotLine: (p) =>
+      `Reminder: tapusin ang iyong picks para sa "${p}" sa AllFantasy.`,
+    memberOnlyEmptyLine:
+      "Tanging pool commissioner o admin lang ang makakakita ng status ng miyembro.",
+    loadingEmptyLine: "Naglo-load pa ang commissioner status data.",
+    noMembersEmptyLine:
+      "Wala pang miyembrong gumawa ng entry. I-share ang invite link para makasimula.",
+  },
+  vi: {
+    poweredBy: "Hỗ trợ bởi AllFantasy.",
+    askCommissioner: (p) =>
+      `Hãy nhờ chủ pool nhắc các thành viên về ${p}.`,
+    finalizeLine: (p) =>
+      `Lời nhắc thân thiện: hoàn tất các lựa chọn của bạn cho "${p}" trên AllFantasy.`,
+    joinLine: (p) =>
+      `Lời nhắc: tham gia "${p}" trên AllFantasy và khoá bracket World Cup của bạn.`,
+    statusLine: (d, t, p) =>
+      `Trạng thái: ${d}/${t} bracket đã hoàn tất (${p}%).`,
+    deadlineLine: (l) => `Lựa chọn khoá lúc ${l}.`,
+    noSnapshotLine: (p) =>
+      `Lời nhắc: hoàn tất các lựa chọn của bạn cho "${p}" trên AllFantasy.`,
+    memberOnlyEmptyLine:
+      "Chỉ chủ pool hoặc admin mới có thể xem trạng thái thành viên.",
+    loadingEmptyLine: "Dữ liệu trạng thái chủ pool đang tải.",
+    noMembersEmptyLine:
+      "Chưa có thành viên nào tạo entry. Hãy chia sẻ link mời để bắt đầu.",
+  },
+}
 
 const FORBIDDEN_TERMS = [
   /\bdfs\b/gi,
@@ -131,17 +261,19 @@ export function buildWorldCupCommissionerChecklist(
     poolUrl,
     lockDeadlineLabel,
     isCommissioner = false,
+    locale,
   } = input
+
+  const lang = getWorldCupLocale(locale)
+  const tpl = REMINDER_TEMPLATES[lang]
 
   if (!isCommissioner) {
     return {
       status: "no_data",
       summary: { totalEntries: 0, finalized: 0, inProgress: 0, notStarted: 0, percentComplete: 0 },
       rows: [],
-      reminderMessage: sanitize(
-        `Ask the pool commissioner to remind members about ${poolName}.`
-      ),
-      emptyLines: ["Only the pool commissioner or admin can see member status."],
+      reminderMessage: sanitize(tpl.askCommissioner(poolName)),
+      emptyLines: [tpl.memberOnlyEmptyLine],
     }
   }
 
@@ -152,15 +284,15 @@ export function buildWorldCupCommissionerChecklist(
       rows: [],
       reminderMessage: sanitize(
         [
-          `Reminder: finish your picks for "${poolName}" on AllFantasy.`,
-          lockDeadlineLabel ? `Picks lock ${lockDeadlineLabel}.` : null,
+          tpl.noSnapshotLine(poolName),
+          lockDeadlineLabel ? tpl.deadlineLine(lockDeadlineLabel) : null,
           poolUrl ?? null,
-          POWERED_BY,
+          tpl.poweredBy,
         ]
           .filter(Boolean)
           .join("\n")
       ),
-      emptyLines: ["Commissioner status data is still loading."],
+      emptyLines: [tpl.loadingEmptyLine],
     }
   }
 
@@ -175,15 +307,15 @@ export function buildWorldCupCommissionerChecklist(
       rows: [],
       reminderMessage: sanitize(
         [
-          `Reminder: join "${poolName}" on AllFantasy and lock in your World Cup bracket.`,
-          lockDeadlineLabel ? `Picks lock ${lockDeadlineLabel}.` : null,
+          tpl.joinLine(poolName),
+          lockDeadlineLabel ? tpl.deadlineLine(lockDeadlineLabel) : null,
           poolUrl ?? null,
-          POWERED_BY,
+          tpl.poweredBy,
         ]
           .filter(Boolean)
           .join("\n")
       ),
-      emptyLines: ["No members have created entries yet. Share the invite link to get started."],
+      emptyLines: [tpl.noMembersEmptyLine],
     }
   }
 
@@ -252,19 +384,22 @@ export function buildWorldCupCommissionerChecklist(
     percentComplete,
   }
 
-  // Reminder copy — commissioner-safe.
+  // Reminder copy — commissioner-safe. Never includes invite code; invite
+  // URL is the only commissioner-supplied addressing surface that survives
+  // the reminder template (matches the spec for not leaking codes via
+  // public reminder messages).
   const reminderLines: string[] = []
-  reminderLines.push(`Friendly reminder: finalize your picks for "${poolName}" on AllFantasy.`)
+  reminderLines.push(tpl.finalizeLine(poolName))
   if (lockDeadlineLabel) {
-    reminderLines.push(`Picks lock ${lockDeadlineLabel}.`)
+    reminderLines.push(tpl.deadlineLine(lockDeadlineLabel))
   }
   reminderLines.push(
-    `Status: ${completed}/${totalEntries} brackets finalized (${percentComplete}%).`
+    tpl.statusLine(completed, totalEntries, percentComplete)
   )
   if (poolUrl) {
     reminderLines.push(poolUrl)
   }
-  reminderLines.push(POWERED_BY)
+  reminderLines.push(tpl.poweredBy)
 
   return {
     status: "ready",

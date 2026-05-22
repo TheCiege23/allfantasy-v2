@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Loader2, Lock, Sparkles } from "lucide-react"
 import {
   buildWorldCupBracketUniquenessInsights,
@@ -8,6 +8,8 @@ import {
   type UniquenessResult,
 } from "@/lib/world-cup/worldCupUniquenessInsights"
 import type { WorldCupRound } from "@/lib/world-cup/types"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 
 const RARITY_TONE: Record<UniquenessRarity, string> = {
   very_rare: "border-cyan-300/45 bg-cyan-300/[0.10]",
@@ -16,11 +18,14 @@ const RARITY_TONE: Record<UniquenessRarity, string> = {
   common: "border-white/10 bg-white/[0.03]",
 }
 
-const RARITY_LABEL: Record<UniquenessRarity, string> = {
-  very_rare: "Very rare",
-  rare: "Rare",
-  uncommon: "Uncommon",
-  common: "Common",
+// Map rarity → translation key for the rendered chip label.
+// The English label is kept on the data shape for color-map continuity
+// and test stability.
+const RARITY_KEY: Record<UniquenessRarity, string> = {
+  very_rare: "wc.uniqueness.rarity.veryRare",
+  rare: "wc.uniqueness.rarity.rare",
+  uncommon: "wc.uniqueness.rarity.uncommon",
+  common: "wc.uniqueness.rarity.common",
 }
 
 type ApiResponse = {
@@ -43,6 +48,8 @@ export default function WorldCupBracketUniquenessCard({
   /** When true, suppress the per-card AF Pro/Basic chip — the section-level chip is canonical. */
   hideTierChip?: boolean
 }) {
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<UniquenessResult | null>(null)
@@ -62,7 +69,7 @@ export default function WorldCupBracketUniquenessCard({
         )
         if (cancelled) return
         if (!res.ok) {
-          setError("Could not load uniqueness data.")
+          setError(t("wc.uniqueness.error.couldNotLoad"))
           setResult(null)
           return
         }
@@ -78,7 +85,7 @@ export default function WorldCupBracketUniquenessCard({
         setResult(computed)
       } catch {
         if (!cancelled) {
-          setError("Network error. Please try again.")
+          setError(t("wc.uniqueness.error.network"))
           setResult(null)
         }
       } finally {
@@ -88,7 +95,7 @@ export default function WorldCupBracketUniquenessCard({
     return () => {
       cancelled = true
     }
-  }, [challengeId, entryId, hasBracketBrainAi])
+  }, [challengeId, entryId, hasBracketBrainAi, t])
 
   return (
     <section
@@ -102,13 +109,13 @@ export default function WorldCupBracketUniquenessCard({
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
-              Pool comparison
+              {t("wc.uniqueness.eyebrow")}
             </p>
             <h3 className="text-base font-black text-white sm:text-lg">
-              What makes my bracket unique?
+              {t("wc.uniqueness.title")}
             </h3>
             <p className="mt-0.5 text-xs text-white/55">
-              Compared only against finalized brackets in this pool.
+              {t("wc.uniqueness.subtitle")}
             </p>
           </div>
         </div>
@@ -121,21 +128,21 @@ export default function WorldCupBracketUniquenessCard({
                 : "shrink-0 rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/65"
             }
           >
-            {hasBracketBrainAi ? "AF Pro" : "Basic"}
+            {hasBracketBrainAi ? t("wc.uniqueness.tierPro") : t("wc.uniqueness.tierBasic")}
           </span>
         )}
       </div>
 
       {!entryId ? (
         <p className="rounded-lg border border-white/10 bg-black/20 px-3 py-3 text-xs text-white/65">
-          Select a bracket entry to compute uniqueness.
+          {t("wc.uniqueness.empty.noEntry")}
         </p>
       ) : null}
 
       {loading ? (
         <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-3 text-xs text-white/65">
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-          Loading pool comparison...
+          {t("wc.uniqueness.loading")}
         </div>
       ) : null}
 
@@ -153,7 +160,7 @@ export default function WorldCupBracketUniquenessCard({
           data-testid="world-cup-bracket-uniqueness-not-ready"
           className="rounded-lg border border-white/10 bg-black/20 px-3 py-3 text-xs text-white/65"
         >
-          {result.lockedLines?.[0] ?? "Uniqueness unlocks after more finalized brackets are submitted."}
+          {result.lockedLines?.[0] ?? t("wc.uniqueness.empty.notEnoughData")}
         </p>
       ) : null}
 
@@ -162,7 +169,7 @@ export default function WorldCupBracketUniquenessCard({
           data-testid="world-cup-bracket-uniqueness-incomplete"
           className="rounded-lg border border-amber-300/30 bg-amber-500/10 px-3 py-3 text-xs text-amber-100"
         >
-          {result.lockedLines?.[0] ?? "Make group and knockout picks to see how unique your bracket is."}
+          {result.lockedLines?.[0] ?? t("wc.uniqueness.empty.incomplete")}
         </p>
       ) : null}
 
@@ -182,11 +189,11 @@ export default function WorldCupBracketUniquenessCard({
                   data-testid={`world-cup-bracket-uniqueness-rarity-${idx}`}
                   className="rounded-full border border-white/20 bg-black/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white/75"
                 >
-                  {RARITY_LABEL[insight.rarity]}
+                  {t(RARITY_KEY[insight.rarity])}
                 </span>
                 {typeof insight.percentage === "number" ? (
                   <span className="rounded-full border border-white/20 bg-black/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white/75">
-                    {insight.percentage}% share
+                    {t("wc.uniqueness.percentShare", { percent: insight.percentage })}
                   </span>
                 ) : null}
               </div>
@@ -212,7 +219,7 @@ export default function WorldCupBracketUniquenessCard({
       ) : null}
 
       <p className="mt-3 text-[10px] text-white/40">
-        Deterministic — counts only finalized brackets. No AI call, no other users' raw picks shown.
+        {t("wc.uniqueness.privacyNote")}
       </p>
     </section>
   )

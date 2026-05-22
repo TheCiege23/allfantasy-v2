@@ -3426,13 +3426,13 @@ export default function WorldCupBracketShell({
                           </div>
                           <div className="min-w-0">
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
-                              Report
+                              {t("wc.aiReport.eyebrow")}
                             </p>
                             <h3 className="text-base font-black text-white sm:text-lg">
-                              Your Bracket AI Report
+                              {t("wc.aiReport.title")}
                             </h3>
                             <p className="mt-0.5 text-xs leading-5 text-white/55">
-                              Six AI signals computed from your own picks. Everything below is private to you.
+                              {t("wc.aiReport.subtitle")}
                             </p>
                           </div>
                         </div>
@@ -3444,7 +3444,7 @@ export default function WorldCupBracketShell({
                               : "shrink-0 rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/65"
                           }
                         >
-                          {aiInsightsUnlocked ? "AF Pro active" : "AF Pro preview"}
+                          {aiInsightsUnlocked ? t("wc.aiReport.tierActive") : t("wc.aiReport.tierPreview")}
                         </span>
                       </div>
 
@@ -3462,6 +3462,7 @@ export default function WorldCupBracketShell({
                       <WorldCupBracketGradeCard
                         unlocked={aiInsightsUnlocked}
                         hideTierChip
+                        t={t}
                         grade={calculateWorldCupBracketGrade({
                           completionReview,
                           entry: selectedEntry,
@@ -3476,6 +3477,7 @@ export default function WorldCupBracketShell({
                         hideTierChip
                         completionReview={completionReview}
                         picks={picks}
+                        t={t}
                       />
 
                       {/* 3. Path to win — vs leaderboard. */}
@@ -3483,6 +3485,7 @@ export default function WorldCupBracketShell({
                         insight={pathToWinInsight}
                         unlocked={aiInsightsUnlocked}
                         hideTierChip
+                        t={t}
                       />
 
                       {/* 4. Explain my bracket — on-demand AI narrative. */}
@@ -3748,6 +3751,7 @@ export default function WorldCupBracketShell({
               <WorldCupPathToWinCard
                 insight={pathToWinInsight}
                 unlocked={aiInsightsUnlocked}
+                t={t}
               />
             </div>
             <WorldCupLeaderboard view={view} busy={isPending} onRecalculate={() => runOwnerAction("recalculate")} />
@@ -3980,7 +3984,24 @@ function WorldCupFinalizedSuccessBlock({
   submittedAt: string
   switchTab: (tab: WorldCupBracketTab) => void
 }) {
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
   const [copied, setCopied] = useState(false)
+  // Hydration-safe: mount-gate the locale-dependent timestamp so SSR HTML
+  // matches the first CSR render. Pre-mount fallback uses a stable
+  // no-timestamp variant.
+  const [hasMounted, setHasMounted] = useState(false)
+  useEffect(() => {
+    setHasMounted(true)
+  }, [])
+  const submittedAtLabel = useMemo(() => {
+    if (!hasMounted) return null
+    try {
+      return new Date(submittedAt).toLocaleString()
+    } catch {
+      return null
+    }
+  }, [hasMounted, submittedAt])
   const shareResult = useMemo(
     () =>
       buildWorldCupBracketShareMessage({
@@ -3989,12 +4010,13 @@ function WorldCupFinalizedSuccessBlock({
         championName,
         gradeLabel,
         isComplete: true,
+        locale: language,
         poolUrl:
           typeof window !== "undefined"
             ? `${window.location.origin}/brackets/world-cup/${challengeId}`
             : `https://allfantasy.ai/brackets/world-cup/${challengeId}`,
       }),
-    [challengeId, championName, entryName, gradeLabel, poolName]
+    [challengeId, championName, entryName, gradeLabel, language, poolName]
   )
 
   async function copyShare() {
@@ -4030,13 +4052,15 @@ function WorldCupFinalizedSuccessBlock({
         </div>
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/70">
-            Finalized
+            {t("wc.finalize.eyebrow")}
           </p>
           <h3 className="text-base font-black text-white sm:text-lg">
-            Your bracket is locked in
+            {t("wc.finalize.title")}
           </h3>
           <p className="mt-1 text-xs leading-5 text-emerald-50/80">
-            Submitted {new Date(submittedAt).toLocaleString()}. You can still edit until pool lock — invite friends now before the field fills up.
+            {submittedAtLabel
+              ? t("wc.finalize.subtitleWithTime", { at: submittedAtLabel })
+              : t("wc.finalize.subtitleNoTime")}
           </p>
         </div>
       </div>
@@ -4049,7 +4073,7 @@ function WorldCupFinalizedSuccessBlock({
           className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-black text-black transition-transform hover:scale-[1.02] active:scale-[0.98] touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 sm:w-auto"
         >
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-          {copied ? "Share Copied!" : "Copy share text"}
+          {copied ? t("wc.finalize.copyShareCopied") : t("wc.finalize.copyShare")}
         </button>
         <button
           type="button"
@@ -4058,7 +4082,7 @@ function WorldCupFinalizedSuccessBlock({
           className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-bold text-white/85 transition-colors hover:border-white/25 hover:bg-white/[0.10] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 sm:w-auto"
         >
           <Share2 className="h-4 w-4" />
-          Share My AI Bracket Report
+          {t("wc.finalize.shareReport")}
         </button>
         <button
           type="button"
@@ -4067,13 +4091,13 @@ function WorldCupFinalizedSuccessBlock({
           className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-300/[0.08] px-4 py-2.5 text-sm font-bold text-cyan-50 transition-colors hover:border-cyan-300/50 hover:bg-cyan-300/[0.12] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 sm:w-auto"
         >
           <Users className="h-4 w-4" />
-          Invite Friends To Beat My Bracket
+          {t("wc.finalize.inviteFriends")}
         </button>
       </div>
 
       <details className="mt-3" data-testid="world-cup-review-finalized-share-preview">
         <summary className="cursor-pointer text-[11px] font-semibold text-emerald-100/70 hover:text-emerald-50">
-          Preview share text
+          {t("wc.finalize.previewShare")}
         </summary>
         <div className="mt-2 whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-xs leading-5 text-white/80">
           {shareResult.message}
@@ -4088,12 +4112,14 @@ function ReviewAiConfidenceCard({
   completionReview,
   picks,
   hideTierChip = false,
+  t,
 }: {
   unlocked: boolean
   completionReview: WorldCupEntryCompletionReviewClient
   picks: WorldCupPickView[]
   /** When true, suppress the per-card Open/Locked chip — the section-level chip is canonical. */
   hideTierChip?: boolean
+  t: ReturnType<typeof makeWcT>
 }) {
   const completedPickCount = picks.filter(hasWorldCupPickSelection).length
   const highRiskCount = picks.filter((pick) => pick.round === "round_of_32" || pick.round === "round_of_16").length
@@ -4103,27 +4129,49 @@ function ReviewAiConfidenceCard({
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-black">
         <span className="inline-flex items-center gap-1.5">
           <Sparkles className="h-3.5 w-3.5" />
-          AI Confidence Check
+          {t("wc.confidence.title")}
         </span>
         {hideTierChip ? null : (
           <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] uppercase tracking-wide">
-            {unlocked ? "Open" : "Locked"}
+            {unlocked ? t("wc.confidence.tierOpen") : t("wc.confidence.tierLocked")}
           </span>
         )}
       </summary>
       {unlocked ? (
         <div className="mt-3 space-y-2 leading-5 text-cyan-50/85">
-          <p><span className="font-black text-white">Missing picks:</span> {completionReview.fullEntryComplete ? "None. Ready to finalize." : `${completionReview.missingKnockoutPicks} knockout, ${Math.max(0, 12 - completionReview.groupsRankedCount)} groups, ${Math.max(0, 8 - completionReview.thirdPlaceSelectedCount)} third-place.`}</p>
-          <p><span className="font-black text-white">High-risk picks:</span> {highRiskCount} early-round picks shape most of your bracket path.</p>
-          <p><span className="font-black text-white">Bracket shape:</span> {chalkWarning ? "Chalk-heavy. Consider whether one measured contrarian pick improves uniqueness." : "Balanced enough for a first-pass confidence check."}</p>
-          <p><span className="font-black text-white">Finalize confidence:</span> {completionReview.fullEntryComplete ? "Ready to finalize for leaderboard." : "Finish missing requirements before finalizing."}</p>
+          <p>
+            <span className="font-black text-white">{t("wc.confidence.missingPicks")}</span>{" "}
+            {completionReview.fullEntryComplete
+              ? t("wc.confidence.noMissing")
+              : t("wc.confidence.missingBreakdown", {
+                  knockout: completionReview.missingKnockoutPicks,
+                  groups: Math.max(0, 12 - completionReview.groupsRankedCount),
+                  thirdPlace: Math.max(0, 8 - completionReview.thirdPlaceSelectedCount),
+                })}
+          </p>
+          <p>
+            <span className="font-black text-white">{t("wc.confidence.highRiskPicks")}</span>{" "}
+            {t("wc.confidence.highRiskBody", { count: highRiskCount })}
+          </p>
+          <p>
+            <span className="font-black text-white">{t("wc.confidence.bracketShape")}</span>{" "}
+            {chalkWarning
+              ? t("wc.confidence.bracketShapeChalk")
+              : t("wc.confidence.bracketShapeBalanced")}
+          </p>
+          <p>
+            <span className="font-black text-white">{t("wc.confidence.finalizeConfidence")}</span>{" "}
+            {completionReview.fullEntryComplete
+              ? t("wc.confidence.finalizeReady")
+              : t("wc.confidence.finalizeMissing")}
+          </p>
           <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/55">
-            Deterministic prediction and scoring complexity only. Bracket guidance stays limited to pool picks and scoring mechanics.
+            {t("wc.confidence.privacyNote")}
           </p>
         </div>
       ) : (
         <p className="mt-3 rounded-lg border border-white/10 bg-black/25 px-2 py-2 text-[11px] leading-5 text-white/60" hidden>
-          Upgrade to AI/Pro to open the confidence check. Locked users do not trigger AI calls.
+          {t("wc.confidence.lockedBody")}
         </p>
       )}
     </details>
@@ -4134,11 +4182,13 @@ function WorldCupBracketGradeCard({
   unlocked,
   grade,
   hideTierChip = false,
+  t,
 }: {
   unlocked: boolean
   grade: WorldCupBracketGradeInsight
   /** When true, suppress the per-card AF Pro/Basic chip — the section-level chip is canonical. */
   hideTierChip?: boolean
+  t: ReturnType<typeof makeWcT>
 }) {
   return (
     <section
@@ -4147,35 +4197,35 @@ function WorldCupBracketGradeCard({
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/70">Bracket Grade</p>
+          <p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/70">{t("wc.grade.eyebrow")}</p>
           <div className="mt-1 flex items-baseline gap-3">
             <span className="text-3xl font-black text-white">{grade.grade}</span>
-            <span className="font-bold text-cyan-100/80">{grade.completionPercent}% complete</span>
+            <span className="font-bold text-cyan-100/80">{t("wc.grade.completionLabel", { percent: grade.completionPercent })}</span>
           </div>
         </div>
         {hideTierChip ? null : (
           <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-100">
-            {unlocked ? "AF Pro detail" : "Basic"}
+            {unlocked ? t("wc.grade.tierProDetail") : t("wc.grade.tierBasic")}
           </span>
         )}
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-4">
-        <PoolStatCard label="Groups" value={`${grade.groupCompletionPercent}%`} tone={grade.groupCompletionPercent === 100 ? "ready" : "warn"} />
-        <PoolStatCard label="Third-place" value={`${grade.thirdPlaceCompletionPercent}%`} tone={grade.thirdPlaceCompletionPercent === 100 ? "ready" : "warn"} />
-        <PoolStatCard label="Knockouts" value={`${grade.knockoutCompletionPercent}%`} tone={grade.knockoutCompletionPercent === 100 ? "ready" : "warn"} />
-        <PoolStatCard label="Missing" value={String(grade.missingPickCount)} tone={grade.missingPickCount === 0 ? "ready" : "warn"} />
+        <PoolStatCard label={t("wc.grade.stat.groups")} value={`${grade.groupCompletionPercent}%`} tone={grade.groupCompletionPercent === 100 ? "ready" : "warn"} />
+        <PoolStatCard label={t("wc.grade.stat.thirdPlace")} value={`${grade.thirdPlaceCompletionPercent}%`} tone={grade.thirdPlaceCompletionPercent === 100 ? "ready" : "warn"} />
+        <PoolStatCard label={t("wc.grade.stat.knockouts")} value={`${grade.knockoutCompletionPercent}%`} tone={grade.knockoutCompletionPercent === 100 ? "ready" : "warn"} />
+        <PoolStatCard label={t("wc.grade.stat.missing")} value={String(grade.missingPickCount)} tone={grade.missingPickCount === 0 ? "ready" : "warn"} />
       </div>
       {unlocked ? (
         <div className="mt-3 space-y-1.5 leading-5 text-cyan-50/85">
-          <p><span className="font-black text-white">Risk Level:</span> {grade.riskLabel}</p>
-          <p><span className="font-black text-white">Upset Meter:</span> {grade.upsetMeter}</p>
-          <p><span className="font-black text-white">Champion Confidence:</span> {grade.championSelected ? `${grade.championConfidence}%` : "No champion selected"}</p>
-          <p><span className="font-black text-white">Biggest Risk:</span> {grade.biggestRisk}</p>
-          <p><span className="font-black text-white">Recommendation:</span> {grade.recommendation}</p>
+          <p><span className="font-black text-white">{t("wc.grade.risk")}</span> {grade.riskLabel}</p>
+          <p><span className="font-black text-white">{t("wc.grade.upset")}</span> {grade.upsetMeter}</p>
+          <p><span className="font-black text-white">{t("wc.grade.championConfidence")}</span> {grade.championSelected ? `${grade.championConfidence}%` : t("wc.grade.championConfidenceNone")}</p>
+          <p><span className="font-black text-white">{t("wc.grade.biggestRisk")}</span> {grade.biggestRisk}</p>
+          <p><span className="font-black text-white">{t("wc.grade.recommendation")}</span> {grade.recommendation}</p>
         </div>
       ) : (
         <p className="mt-3 rounded-lg border border-white/10 bg-black/25 px-2 py-2 text-[11px] leading-5 text-white/60">
-          AF Pro unlocks risk, upset meter, champion confidence, biggest risk, and recommendation details.
+          {t("wc.grade.lockedBody")}
         </p>
       )}
     </section>
@@ -4186,11 +4236,13 @@ function WorldCupPathToWinCard({
   insight,
   unlocked,
   hideTierChip = false,
+  t,
 }: {
   insight: WorldCupPathToWinInsight
   unlocked: boolean
   /** When true, suppress the per-card AF Pro chip — the section-level chip is canonical. */
   hideTierChip?: boolean
+  t: ReturnType<typeof makeWcT>
 }) {
   return (
     <section
@@ -4199,14 +4251,14 @@ function WorldCupPathToWinCard({
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-black text-white">What needs to happen for me to win?</p>
+          <p className="text-sm font-black text-white">{t("wc.path.title")}</p>
           <p className="mt-1 text-[11px] text-white/45">
-            Private current-entry read. Other users' unfinalized picks stay hidden.
+            {t("wc.path.subtitle")}
           </p>
         </div>
         {hideTierChip ? null : (
           <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${unlocked ? "border-cyan-200/25 text-cyan-100" : "border-purple-300/25 text-purple-100"}`}>
-            {unlocked ? "AF Pro active" : "AF Pro locked"}
+            {unlocked ? t("wc.path.tierActive") : t("wc.path.tierLocked")}
           </span>
         )}
       </div>

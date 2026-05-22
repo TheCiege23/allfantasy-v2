@@ -1,7 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Loader2, Lock, Sparkles } from "lucide-react"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 
 type ExplainResult = {
   summary: string
@@ -21,6 +23,8 @@ export default function WorldCupExplainBracketCard({
   /** When true, suppress the per-card AF Pro/Locked chip — the section-level chip is canonical. */
   hideTierChip?: boolean
 }) {
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<ExplainResult | null>(null)
@@ -39,7 +43,7 @@ export default function WorldCupExplainBracketCard({
         setError(
           typeof body?.error === "string"
             ? body.error
-            : "Could not generate explanation."
+            : t("wc.explain.error.generic")
         )
         return
       }
@@ -49,7 +53,7 @@ export default function WorldCupExplainBracketCard({
         generative: Boolean(body.generative),
       })
     } catch {
-      setError("Network error. Please try again.")
+      setError(t("wc.explain.error.network"))
     } finally {
       setLoading(false)
     }
@@ -67,13 +71,13 @@ export default function WorldCupExplainBracketCard({
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
-              Private AI
+              {t("wc.explain.eyebrow")}
             </p>
             <h3 className="text-base font-black text-white sm:text-lg">
-              Explain My Bracket
+              {t("wc.explain.title")}
             </h3>
             <p className="mt-0.5 text-xs text-white/55">
-              A private narrative analysis of your bracket strategy. Only you can see it.
+              {t("wc.explain.subtitle")}
             </p>
           </div>
         </div>
@@ -86,7 +90,7 @@ export default function WorldCupExplainBracketCard({
                 : "shrink-0 rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/65"
             }
           >
-            {hasBracketBrainAi ? "AF Pro" : "Locked"}
+            {hasBracketBrainAi ? t("wc.explain.tierPro") : t("wc.explain.tierLocked")}
           </span>
         )}
       </div>
@@ -98,7 +102,7 @@ export default function WorldCupExplainBracketCard({
         >
           <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/45" aria-hidden />
           <span>
-            AF Pro unlocks a private AI explanation of your bracket strategy — including style, safest picks, riskiest picks, champion path, and one specific recommendation.
+            {t("wc.explain.locked")}
           </span>
         </div>
       ) : null}
@@ -116,7 +120,11 @@ export default function WorldCupExplainBracketCard({
           ) : (
             <Sparkles className="h-4 w-4" />
           )}
-          {loading ? "Generating..." : entryId ? "Generate explanation" : "Select a bracket first"}
+          {loading
+            ? t("wc.explain.generating")
+            : entryId
+              ? t("wc.explain.generate")
+              : t("wc.explain.selectFirst")}
         </button>
       ) : null}
 
@@ -159,14 +167,14 @@ export default function WorldCupExplainBracketCard({
               data-testid="world-cup-explain-bracket-regenerate"
               className="rounded-lg border border-white/15 bg-white/[0.05] px-3 py-1.5 text-[11px] font-bold text-white/70 hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
             >
-              {loading ? "Regenerating..." : "Regenerate"}
+              {loading ? t("wc.explain.regenerating") : t("wc.explain.regenerate")}
             </button>
             {!result.generative ? (
               <span
                 data-testid="world-cup-explain-bracket-fallback-badge"
                 className="rounded-full border border-amber-300/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-100"
               >
-                Deterministic fallback
+                {t("wc.explain.fallbackBadge")}
               </span>
             ) : null}
           </div>
@@ -174,7 +182,7 @@ export default function WorldCupExplainBracketCard({
       ) : null}
 
       <p className="mt-3 text-[10px] text-white/40">
-        Private to you. Uses only your own picks and public team data. Never posted to chat.
+        {t("wc.explain.privacyNote")}
       </p>
     </section>
   )

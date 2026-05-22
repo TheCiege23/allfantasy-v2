@@ -4,6 +4,8 @@ import { Check, Copy, Link2, Lock, MessageSquare, Share2, Users } from "lucide-r
 import type { WorldCupChallengeView } from "@/lib/world-cup/types"
 import WorldCupShareCard from "./WorldCupShareCards"
 import { buildWorldCupInviteMessage } from "@/lib/world-cup/worldCupShareCopy"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 
 function MetaRow({ label, value }: { label: string; value: string }) {
   return (
@@ -21,6 +23,11 @@ export default function WorldCupInvitePanel({
   view: WorldCupChallengeView
   isCommissioner?: boolean
 }) {
+  // Hydration-safe: locale comes from the global LanguageProviderClient
+  // which sources from <html data-lang>. SSR HTML matches first CSR.
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
+
   const [copiedLink, setCopiedLink] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
   const [copiedInviteMessage, setCopiedInviteMessage] = useState(false)
@@ -33,10 +40,14 @@ export default function WorldCupInvitePanel({
       : `https://allfantasy.com/join/bracket/${challenge.inviteCode}`)
   const inviteCode = challenge.inviteCode ?? null
 
-  const shareMessage =
-    `Join my AllFantasy World Cup Bracket Pool "${challenge.name}"! ` +
-    `Make up to ${challenge.maxEntriesPerParticipant} brackets, rank Group Stage teams, build Knockout picks, and compete on the live leaderboard. ` +
-    inviteUrl
+  // Translated share message for the native share text. Uses the
+  // generic template with locale-aware copy. The hashtag block is NOT
+  // included here — only inside buildWorldCupSocialCaptions.
+  const shareMessage = t("wc.inviteTab.shareMessage.default", {
+    pool: challenge.name,
+    maxEntries: challenge.maxEntriesPerParticipant,
+    url: inviteUrl,
+  })
 
   const isLocked =
     challenge.status === "locked" ||
@@ -65,6 +76,11 @@ export default function WorldCupInvitePanel({
     }
   }, [challenge.effectivePickLockAt, challenge.pickLockAt])
 
+  // Privacy: helper enforces invite code is only surfaced for the
+  // commissioner audience. The audience flag is the canonical guard;
+  // we still pass `inviteCode: null` for members as belt-and-suspenders.
+  // Helper output is locale-aware (Phase 4) and uses the commissioner's
+  // selected language for any audience.
   const inviteMessageResult = useMemo(
     () =>
       buildWorldCupInviteMessage({
@@ -73,8 +89,9 @@ export default function WorldCupInvitePanel({
         inviteCode: isCommissioner ? inviteCode : null,
         lockDeadlineLabel,
         audience: isCommissioner ? "commissioner" : "member",
+        locale: language,
       }),
-    [challenge.name, inviteUrl, inviteCode, isCommissioner, lockDeadlineLabel]
+    [challenge.name, inviteUrl, inviteCode, isCommissioner, lockDeadlineLabel, language]
   )
 
   async function copyLink() {
@@ -103,7 +120,7 @@ export default function WorldCupInvitePanel({
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share({
-          title: `${challenge.name} — AllFantasy World Cup Bracket`,
+          title: t("wc.inviteTab.shareTitleNative", { pool: challenge.name }),
           text: shareMessage,
           url: inviteUrl,
         })
@@ -123,44 +140,48 @@ export default function WorldCupInvitePanel({
           <Share2 className="h-4 w-4 text-cyan-200" aria-hidden />
         </div>
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">Pool</p>
-          <h2 className="text-lg font-black text-white">Invite &amp; Pool Details</h2>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">{t("wc.inviteTab.eyebrow")}</p>
+          <h2 className="text-lg font-black text-white">{t("wc.inviteTab.title")}</h2>
         </div>
       </div>
 
       {/* Pool metadata */}
       <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur">
-        <h3 className="mb-3 text-[11px] font-black uppercase tracking-[0.16em] text-white/55">Pool details</h3>
+        <h3 className="mb-3 text-[11px] font-black uppercase tracking-[0.16em] text-white/55">{t("wc.inviteTab.detailsTitle")}</h3>
         <div className="space-y-2">
-          <MetaRow label="Pool" value={challenge.name} />
+          <MetaRow label={t("wc.inviteTab.meta.pool")} value={challenge.name} />
           <MetaRow
-            label="Privacy"
-            value={challenge.visibility === "public" ? "Public" : "Private — invite only"}
+            label={t("wc.inviteTab.meta.privacy")}
+            value={
+              challenge.visibility === "public"
+                ? t("wc.inviteTab.meta.privacyPublic")
+                : t("wc.inviteTab.meta.privacyPrivate")
+            }
           />
           <MetaRow
-            label="Max Users"
+            label={t("wc.inviteTab.meta.maxUsers")}
             value={`${participantCount} / ${challenge.maxParticipants}`}
           />
           <MetaRow
-            label="Brackets per User"
+            label={t("wc.inviteTab.meta.bracketsPerUser")}
             value={String(challenge.maxEntriesPerParticipant)}
           />
           <MetaRow
-            label="Scoring"
-            value="NCAA-style"
+            label={t("wc.inviteTab.meta.scoring")}
+            value={t("wc.inviteTab.meta.scoringValue")}
           />
           <MetaRow
-            label="Lock Rule"
+            label={t("wc.inviteTab.meta.lockRule")}
             value={
               challenge.pickLockStrategy === "tournament_start"
-                ? "Locks at first World Cup match"
-                : "Per-match lock at kickoff"
+                ? t("wc.inviteTab.meta.lockTournament")
+                : t("wc.inviteTab.meta.lockPerMatch")
             }
           />
           {isLocked && (
             <div className="flex items-center gap-1.5 rounded-lg border border-amber-300/30 bg-amber-300/[0.08] px-3 py-2 text-xs font-bold text-amber-200">
               <Lock className="h-3 w-3 shrink-0" />
-              This pool is locked. Picks can no longer be edited.
+              {t("wc.inviteTab.lockedBanner")}
             </div>
           )}
         </div>
@@ -176,9 +197,9 @@ export default function WorldCupInvitePanel({
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
             <Share2 className="h-5 w-5 text-white/35" />
           </div>
-          <p className="text-sm font-black text-white/75">Invite friends to this pool</p>
+          <p className="text-sm font-black text-white/75">{t("wc.inviteTab.member.title")}</p>
           <p className="mx-auto mt-2 max-w-xs text-xs leading-5 text-white/45">
-            Only the pool commissioner can copy and share the invite link. Ask your commissioner for the invite link or code.
+            {t("wc.inviteTab.member.body")}
           </p>
         </div>
       ) : inviteCode ? (
@@ -191,10 +212,10 @@ export default function WorldCupInvitePanel({
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-300/15 text-cyan-200">
                 <Link2 className="h-4 w-4" />
               </span>
-              Invite Link
+              {t("wc.inviteTab.commissioner.linkTitle")}
             </div>
             <p className="mt-1 text-xs text-white/55">
-              Share this with anyone you want to invite. They must be signed in to AllFantasy.
+              {t("wc.inviteTab.commissioner.linkHelper")}
             </p>
 
           {/* URL box */}
@@ -205,7 +226,7 @@ export default function WorldCupInvitePanel({
           {/* Invite code */}
           <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5">
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/45">Invite Code</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/45">{t("wc.inviteTab.commissioner.codeLabel")}</div>
               <div
                 data-testid="wc-invite-code-display"
                 className="mt-0.5 truncate font-mono text-base font-black tracking-[0.2em] text-white"
@@ -220,7 +241,7 @@ export default function WorldCupInvitePanel({
               className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-bold text-white/70 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55"
             >
               {copiedCode ? <Check className="h-3.5 w-3.5 text-emerald-300" /> : <Copy className="h-3.5 w-3.5" />}
-              {copiedCode ? "Copied" : "Copy Code"}
+              {copiedCode ? t("wc.inviteTab.commissioner.copyCodeDone") : t("wc.inviteTab.commissioner.copyCode")}
             </button>
           </div>
 
@@ -233,7 +254,7 @@ export default function WorldCupInvitePanel({
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-300 to-cyan-200 px-4 py-2.5 text-sm font-black text-black shadow-[0_6px_20px_-8px_rgba(34,211,238,0.6)] transition-transform hover:scale-[1.02] active:scale-[0.98] touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 sm:w-auto"
             >
               {copiedLink ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copiedLink ? "Link Copied!" : "Copy Invite Link"}
+              {copiedLink ? t("wc.inviteTab.commissioner.copyLinkDone") : t("wc.inviteTab.commissioner.copyLink")}
             </button>
             <button
               type="button"
@@ -242,7 +263,7 @@ export default function WorldCupInvitePanel({
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-300/35 bg-cyan-300/[0.10] px-4 py-2.5 text-sm font-black text-cyan-50 transition-colors hover:border-cyan-300/55 hover:bg-cyan-300/[0.14] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 sm:w-auto"
             >
               {copiedInviteMessage ? <Check className="h-4 w-4 text-emerald-300" /> : <MessageSquare className="h-4 w-4" />}
-              {copiedInviteMessage ? "Message Copied!" : "Copy Invite Message"}
+              {copiedInviteMessage ? t("wc.inviteTab.commissioner.copyMessageDone") : t("wc.inviteTab.commissioner.copyMessage")}
             </button>
             <button
               type="button"
@@ -250,14 +271,14 @@ export default function WorldCupInvitePanel({
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.05] px-4 py-2.5 text-sm font-bold text-white/85 transition-colors hover:border-white/25 hover:bg-white/[0.09] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 sm:w-auto"
             >
               <Share2 className="h-4 w-4" />
-              Share
+              {t("wc.inviteTab.commissioner.share")}
             </button>
           </div>
 
           {/* Invite message preview — commissioner only, complements the existing share-message disclosure. */}
           <details className="mt-3" data-testid="wc-invite-message-preview">
             <summary className="cursor-pointer text-[11px] font-semibold text-white/45 hover:text-white/75">
-              Preview invite message
+              {t("wc.inviteTab.commissioner.previewInvite")}
             </summary>
             <div className="mt-2 whitespace-pre-wrap rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] px-3 py-3 text-xs leading-5 text-white/80">
               {inviteMessageResult.message}
@@ -267,7 +288,7 @@ export default function WorldCupInvitePanel({
           {/* Share message preview */}
           <details className="mt-4">
             <summary className="cursor-pointer text-[11px] font-semibold text-white/45 hover:text-white/75">
-              Preview share message
+              {t("wc.inviteTab.commissioner.previewShare")}
             </summary>
             <div className="mt-2 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-3 text-xs leading-5 text-white/65">
               {shareMessage}
@@ -288,13 +309,12 @@ export default function WorldCupInvitePanel({
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
             <Users className="h-5 w-5 text-white/35" />
           </div>
-          <p className="text-sm font-bold text-white/70">Invite link not available</p>
+          <p className="text-sm font-bold text-white/70">{t("wc.inviteTab.commissioner.noCodeTitle")}</p>
           <p className="mx-auto mt-1 max-w-xs text-xs leading-5 text-white/45">
-            The pool owner or admin can regenerate an invite link from the pool settings.
+            {t("wc.inviteTab.commissioner.noCodeBody")}
           </p>
         </div>
       )}
     </div>
   )
 }
-

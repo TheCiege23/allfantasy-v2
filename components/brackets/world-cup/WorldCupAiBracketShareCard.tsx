@@ -12,6 +12,8 @@ import {
   type UniquenessInsight,
 } from "@/lib/world-cup/worldCupUniquenessInsights"
 import type { WorldCupRound } from "@/lib/world-cup/types"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 
 type UniquenessApiResponse = {
   ok: boolean
@@ -37,6 +39,8 @@ export default function WorldCupAiBracketShareCard({
   hideTierChip = false,
   ...rest
 }: Props) {
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
   const [copied, setCopied] = useState(false)
   const [fetchedUniqueness, setFetchedUniqueness] = useState<UniquenessInsight | null>(null)
 
@@ -111,11 +115,11 @@ export default function WorldCupAiBracketShareCard({
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/60">
-              Share Graphic
+              {t("wc.aiShareCard.eyebrow")}
             </p>
             <h3 className="text-base font-black text-white sm:text-lg">{result.title}</h3>
             <p className="mt-0.5 text-xs leading-5 text-white/50">
-              All 6 AI signals in one copy-ready card. Deterministic — no AI call to share.
+              {t("wc.aiShareCard.subtitle")}
             </p>
           </div>
         </div>
@@ -128,7 +132,7 @@ export default function WorldCupAiBracketShareCard({
                 : "shrink-0 rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/65"
             }
           >
-            {rest.hasBracketBrainAi ? "AF Pro" : "Basic preview"}
+            {rest.hasBracketBrainAi ? t("wc.aiShareCard.tierPro") : t("wc.aiShareCard.tierPreview")}
           </span>
         )}
       </div>
@@ -138,7 +142,7 @@ export default function WorldCupAiBracketShareCard({
           data-testid="world-cup-ai-share-card-empty"
           className="rounded-lg border border-white/10 bg-black/20 px-3 py-3 text-xs text-white/65"
         >
-          Select a bracket entry to generate a share card.
+          {t("wc.aiShareCard.emptyNoEntry")}
         </p>
       ) : (
         <>
@@ -172,7 +176,7 @@ export default function WorldCupAiBracketShareCard({
               className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-black text-black transition-transform hover:scale-[1.01] active:scale-[0.99] touch-manipulation sm:w-auto"
             >
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copied ? "Copied" : "Copy share text"}
+              {copied ? t("wc.aiShareCard.copyShareDone") : t("wc.aiShareCard.copyShare")}
             </button>
             <button
               type="button"
@@ -181,14 +185,14 @@ export default function WorldCupAiBracketShareCard({
               className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-bold text-white/75 touch-manipulation sm:w-auto"
             >
               <Share2 className="h-4 w-4" />
-              Share
+              {t("wc.aiShareCard.share")}
             </button>
           </div>
         </>
       )}
 
       <p className="mt-3 text-[10px] text-white/40">
-        Private to you until you share it. Uses only your own bracket data and aggregated pool counts.
+        {t("wc.aiShareCard.privacyNote")}
       </p>
     </section>
   )
