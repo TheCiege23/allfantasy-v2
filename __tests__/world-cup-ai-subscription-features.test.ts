@@ -15,6 +15,9 @@ import {
 import {
   buildWorldCupBracketUniquenessInsights,
 } from "@/lib/world-cup/worldCupUniquenessInsights"
+import {
+  buildWorldCupAiBracketShareCard,
+} from "@/lib/world-cup/worldCupAiShareCard"
 
 const match = {
   id: "m1",
@@ -910,6 +913,247 @@ describe("buildWorldCupBracketUniquenessInsights — deterministic pool comparis
     const fs = await import("node:fs/promises")
     const path = await import("node:path")
     const filePath = path.resolve(process.cwd(), "lib/world-cup/worldCupUniquenessInsights.ts")
+    const src = await fs.readFile(filePath, "utf-8")
+    expect(src).not.toMatch(/OPENAI_API_KEY|XAI_API_KEY|new OpenAI|createOpenAI|openai\.com/i)
+    expect(src).not.toMatch(/\bfetch\s*\(/i)
+    expect(src).not.toMatch(/from\s+["']@\/lib\/prisma["']/)
+  })
+})
+
+describe("buildWorldCupAiBracketShareCard — composes 6 AI signals", () => {
+  const sampleGrade = {
+    grade: "B+",
+    completionPercent: 88,
+    groupCompletionPercent: 100,
+    thirdPlaceCompletionPercent: 100,
+    knockoutCompletionPercent: 80,
+    missingPickCount: 3,
+    championSelected: true,
+    championPick: "Argentina",
+    riskLabel: "Medium" as const,
+    upsetMeter: "Balanced" as const,
+    championConfidence: 72,
+    biggestRisk: "Round of 16 upset zone",
+    recommendation: "Lock in your finalists before kickoff.",
+  }
+
+  const sampleRooting = {
+    teamName: "Argentina",
+    matchLabel: "Argentina vs Denmark — Round of 16",
+    reason: "Champion alive.",
+    impact: "High" as const,
+    tag: "Champion path" as const,
+    matchId: "m1",
+    matchStartsAt: "2026-06-15T18:00:00.000Z",
+  }
+
+  const sampleUniqueness = {
+    label: "Champion: Argentina",
+    description: "Held by 12% of finalized brackets.",
+    rarity: "rare" as const,
+    percentage: 12,
+    tag: "Champion" as const,
+  }
+
+  it("returns no_entry status when entryName is null", () => {
+    const result = buildWorldCupAiBracketShareCard({
+      poolName: "Office Cup",
+      entryName: null,
+      championName: null,
+      isComplete: false,
+      grade: null,
+    })
+    expect(result.status).toBe("no_entry")
+    expect(result.lines).toHaveLength(0)
+    expect(result.shareText).toMatch(/Select a bracket entry/i)
+  })
+
+  it("Free preview includes only base 5 lines + lock CTA, omits Pro signals", () => {
+    const result = buildWorldCupAiBracketShareCard({
+      poolName: "Office Cup",
+      entryName: "Bracket 1",
+      championName: "Argentina",
+      isComplete: true,
+      grade: sampleGrade,
+      topRootingRec: sampleRooting,
+      aiWinProbabilityPct: 18,
+      topUniquenessInsight: sampleUniqueness,
+      hasBracketBrainAi: false,
+    })
+
+    const text = result.shareText
+    // Base lines present.
+    expect(text).toContain("Office Cup")
+    expect(text).toContain("Bracket 1")
+    expect(text).toContain("Locked in")
+    expect(text).toContain("Bracket Grade: B+")
+    expect(text).toContain("Champion: Argentina")
+    expect(text).toContain("Powered by AllFantasy.")
+    // Pro-only signals NOT in the share text.
+    expect(text).not.toContain("Champion Confidence")
+    expect(text).not.toContain("AI Win Probability")
+    expect(text).not.toContain("Today: Root for")
+    expect(text).not.toContain("Uniqueness:")
+    // Lock CTA present.
+    expect(result.lockedLines?.[0]).toMatch(/AF Pro unlocks/i)
+  })
+
+  it("Pro version includes all 6 AI signals when all inputs are provided", () => {
+    const result = buildWorldCupAiBracketShareCard({
+      poolName: "Office Cup",
+      entryName: "Bracket 1",
+      championName: "Argentina",
+      isComplete: true,
+      grade: sampleGrade,
+      topRootingRec: sampleRooting,
+      aiWinProbabilityPct: 18,
+      topUniquenessInsight: sampleUniqueness,
+      hasBracketBrainAi: true,
+    })
+
+    const text = result.shareText
+    expect(text).toContain("Office Cup")
+    expect(text).toContain("Bracket 1 — Locked in")
+    expect(text).toContain("Bracket Grade: B+ (88% complete, medium risk)")
+    expect(text).toContain("Champion: Argentina")
+    expect(text).toContain("Style:")
+    expect(text).toContain("Champion Confidence: 72%")
+    expect(text).toContain("AI Win Probability: 18%")
+    expect(text).toContain("Today: Root for Argentina")
+    expect(text).toContain("Champion path")
+    expect(text).toContain("High impact")
+    expect(text).toContain("Uniqueness: Champion: Argentina (12% of finalized brackets)")
+    expect(text).toContain("Powered by AllFantasy.")
+    expect(result.lockedLines).toBeUndefined()
+  })
+
+  it("gracefully omits Pro-only signals that are missing/null without crashing", () => {
+    const result = buildWorldCupAiBracketShareCard({
+      poolName: "Office Cup",
+      entryName: "Bracket 1",
+      championName: null,
+      isComplete: false,
+      grade: { ...sampleGrade, championSelected: false, championConfidence: 0 },
+      topRootingRec: null,
+      aiWinProbabilityPct: null,
+      topUniquenessInsight: null,
+      hasBracketBrainAi: true,
+    })
+
+    expect(result.status).toBe("incomplete")
+    // No champion confidence line when championSelected=false.
+    expect(result.shareText).not.toContain("Champion Confidence:")
+    // No AI Win Probability line when null.
+    expect(result.shareText).not.toContain("AI Win Probability")
+    // No rooting/uniqueness lines when missing.
+    expect(result.shareText).not.toContain("Today: Root for")
+    expect(result.shareText).not.toContain("Uniqueness:")
+    // Still ends with the Powered-by line.
+    expect(result.shareText).toContain("Powered by AllFantasy.")
+  })
+
+  it("clamps AI Win Probability into 0–100 range", () => {
+    const lowProb = buildWorldCupAiBracketShareCard({
+      poolName: "Office Cup",
+      entryName: "Bracket 1",
+      championName: "Argentina",
+      isComplete: true,
+      grade: sampleGrade,
+      aiWinProbabilityPct: -50,
+      hasBracketBrainAi: true,
+    })
+    expect(lowProb.shareText).toContain("AI Win Probability: 0%")
+
+    const highProb = buildWorldCupAiBracketShareCard({
+      poolName: "Office Cup",
+      entryName: "Bracket 1",
+      championName: "Argentina",
+      isComplete: true,
+      grade: sampleGrade,
+      aiWinProbabilityPct: 500,
+      hasBracketBrainAi: true,
+    })
+    expect(highProb.shareText).toContain("AI Win Probability: 100%")
+  })
+
+  it("sanitizes wagering/betting terms from every share line", () => {
+    const result = buildWorldCupAiBracketShareCard({
+      poolName: "Office Cup",
+      entryName: "Bracket 1",
+      championName: "Argentina",
+      isComplete: true,
+      grade: sampleGrade,
+      topRootingRec: sampleRooting,
+      aiWinProbabilityPct: 18,
+      topUniquenessInsight: {
+        label: "Champion: Argentina",
+        description: "wagering favorite of sportsbook odds",
+        rarity: "common",
+        percentage: 12,
+        tag: "Champion",
+      },
+      hasBracketBrainAi: true,
+    })
+
+    const text = result.shareText.toLowerCase()
+    expect(text).not.toMatch(/\bdfs\b|\bbetting\b|\bwager|\bsportsbook\b|\bodds\b/)
+  })
+
+  it("share card never contains emails or user IDs", () => {
+    const result = buildWorldCupAiBracketShareCard({
+      poolName: "Office Cup",
+      entryName: "Bracket 1",
+      championName: "Argentina",
+      isComplete: true,
+      grade: sampleGrade,
+      topRootingRec: sampleRooting,
+      aiWinProbabilityPct: 18,
+      topUniquenessInsight: sampleUniqueness,
+      hasBracketBrainAi: true,
+    })
+
+    expect(result.shareText).not.toMatch(/@example\.com|owner@|user-1/i)
+  })
+
+  it("uses 'In progress' label for unsubmitted brackets", () => {
+    const result = buildWorldCupAiBracketShareCard({
+      poolName: "Office Cup",
+      entryName: "Bracket 1",
+      championName: "Argentina",
+      isComplete: false,
+      grade: sampleGrade,
+      hasBracketBrainAi: false,
+    })
+    expect(result.shareText).toContain("Bracket 1 — In progress")
+    expect(result.status).toBe("incomplete")
+  })
+
+  it("derives explain summary tone from grade riskLabel", () => {
+    const high = buildWorldCupAiBracketShareCard({
+      poolName: "P",
+      entryName: "B",
+      championName: "X",
+      isComplete: true,
+      grade: { ...sampleGrade, riskLabel: "High" },
+      hasBracketBrainAi: false,
+    })
+    expect(high.shareText).toContain("high-variance bracket")
+
+    const low = buildWorldCupAiBracketShareCard({
+      poolName: "P",
+      entryName: "B",
+      championName: "X",
+      isComplete: true,
+      grade: { ...sampleGrade, riskLabel: "Low" },
+      hasBracketBrainAi: false,
+    })
+    expect(low.shareText).toContain("chalky bracket")
+  })
+
+  it("helper file does not import OpenAI/XAI providers, fetch, or Prisma", async () => {
+    const fs = await import("node:fs/promises")
+    const path = await import("node:path")
+    const filePath = path.resolve(process.cwd(), "lib/world-cup/worldCupAiShareCard.ts")
     const src = await fs.readFile(filePath, "utf-8")
     expect(src).not.toMatch(/OPENAI_API_KEY|XAI_API_KEY|new OpenAI|createOpenAI|openai\.com/i)
     expect(src).not.toMatch(/\bfetch\s*\(/i)

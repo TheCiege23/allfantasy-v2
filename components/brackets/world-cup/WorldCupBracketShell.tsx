@@ -63,6 +63,7 @@ import { calculateWorldCupBracketHealth } from "@/lib/world-cup/worldCupAiInsigh
 import {
   buildWorldCupPathToWinInsight,
   calculateWorldCupBracketGrade,
+  calculateWorldCupLeaderboardAiInsights,
   type WorldCupBracketGradeInsight,
   type WorldCupPathToWinInsight,
 } from "@/lib/world-cup/worldCupAiSubscriptionInsights"
@@ -81,6 +82,8 @@ import WorldCupBracketHealthCard from "./WorldCupBracketHealthCard"
 import WorldCupRootingGuideCard from "./WorldCupRootingGuideCard"
 import WorldCupExplainBracketCard from "./WorldCupExplainBracketCard"
 import WorldCupBracketUniquenessCard from "./WorldCupBracketUniquenessCard"
+import WorldCupAiBracketShareCard from "./WorldCupAiBracketShareCard"
+import { buildWorldCupRootingGuide } from "@/lib/world-cup/worldCupRootingGuide"
 import WorldCupEntryDashboard from "./WorldCupEntryDashboard"
 import AllFantasyBracketBoard, { AllFantasyBracketPickSkeleton } from "@/components/brackets/shared/AllFantasyBracketBoard"
 import { WorldCupCompactBracketPreview } from "./WorldCupCompactBracketPreview"
@@ -3371,6 +3374,55 @@ export default function WorldCupBracketShell({
                     <WorldCupPathToWinCard
                       insight={pathToWinInsight}
                       unlocked={aiInsightsUnlocked}
+                    />
+
+                    <WorldCupAiBracketShareCard
+                      challengeId={challengeId}
+                      entryId={selectedEntryId ?? null}
+                      poolName={view.challenge.name}
+                      entryName={selectedEntry?.name ?? null}
+                      championName={
+                        view.leaderboard.find(
+                          (row) => row.entryId === selectedEntry?.id
+                        )?.championPickName ?? null
+                      }
+                      isComplete={Boolean(selectedEntry?.isComplete)}
+                      grade={calculateWorldCupBracketGrade({
+                        completionReview,
+                        entry: selectedEntry,
+                        picks,
+                        matches: projectedMatches,
+                      })}
+                      topRootingRec={
+                        selectedEntry
+                          ? buildWorldCupRootingGuide({
+                              entry: {
+                                id: selectedEntry.id,
+                                name: selectedEntry.name,
+                                championTeamId:
+                                  view.leaderboard.find(
+                                    (row) => row.entryId === selectedEntry.id
+                                  )?.championTeamId ?? null,
+                                championTeamName:
+                                  view.leaderboard.find(
+                                    (row) => row.entryId === selectedEntry.id
+                                  )?.championPickName ?? null,
+                                isComplete: selectedEntry.isComplete,
+                              },
+                              matches: view.matches,
+                              picks,
+                              hasBracketBrainAi: aiInsightsUnlocked,
+                            }).recommendations[0] ?? null
+                          : null
+                      }
+                      aiWinProbabilityPct={
+                        selectedEntry
+                          ? calculateWorldCupLeaderboardAiInsights(view.leaderboard).find(
+                              (row) => row.entryId === selectedEntry.id
+                            )?.aiWinProbability ?? null
+                          : null
+                      }
+                      hasBracketBrainAi={aiInsightsUnlocked}
                     />
 
                     <div data-testid="world-cup-review-saved-picks" className="space-y-3">
