@@ -1,4 +1,5 @@
 "use client"
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import { Radio } from "lucide-react"
 import type { WorldCupMatchView } from "@/lib/world-cup/types"
@@ -60,6 +61,17 @@ function MatchChip({ match }: { match: WorldCupMatchView }) {
 }
 
 export default function WorldCupLiveScoreTicker({ matches }: { matches: WorldCupMatchView[] }) {
+  // Hydration-safe gate: formatWorldCupKickoffShort uses toLocaleString which
+  // emits different text on the server (Node UTC + en-US default) vs the
+  // browser (user locale + timezone). Render the locale-dependent text only
+  // after mount so SSR HTML matches the first CSR render and avoids React
+  // #425 / #418 warnings on the Knockouts tab (and every other tab where
+  // this ticker sits in the shared header).
+  const [hasMounted, setHasMounted] = useState(false)
+  useEffect(() => {
+    setHasMounted(true)
+  }, [])
+
   if (!matches || matches.length === 0) {
     return (
       <div className="border-b border-white/10 bg-black/30 px-4 py-2 text-[11px] text-white/30">
@@ -93,7 +105,7 @@ export default function WorldCupLiveScoreTicker({ matches }: { matches: WorldCup
           Next
         </span>
       )}
-      {!showLiveDot && upcoming.length > 0 && (
+      {hasMounted && !showLiveDot && upcoming.length > 0 && (
         <span className="shrink-0 text-[10px] text-white/40">
           {formatWorldCupKickoffShort(upcoming[0]?.startsAt)}
         </span>
