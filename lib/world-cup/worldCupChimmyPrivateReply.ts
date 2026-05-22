@@ -1,7 +1,7 @@
 import "server-only"
 
 import { appendChatHistory, buildChimmyConversationId } from "@/lib/ai-memory/chat-history-store"
-import { openaiChatText } from "@/lib/openai-client"
+import { routeTextCall } from "@/lib/ai/providerRouter"
 import { getAiLanguageInstruction } from "./worldCupI18n"
 
 const MAX_REPLY_CHARS = 1200
@@ -59,7 +59,7 @@ export async function generateWorldCupChimmyPrivateReply(input: {
   ].join(" ")
 
   const challengeLine = input.challengeName ? `Pool: ${input.challengeName}.` : "Pool: World Cup bracket challenge."
-  const result = await openaiChatText({
+  const result = await routeTextCall({
     messages: [
       { role: "system", content: system },
       {
@@ -86,15 +86,15 @@ export async function generateWorldCupChimmyPrivateReply(input: {
       source: "world_cup_pool_chat",
       challengeId: input.challengeId,
       surface: "world_cup_pool_chat",
-      provider: result.ok ? "openai" : "unavailable",
-      model: result.model,
+      provider: result.ok ? result.provider : "unavailable",
+      model: result.ok ? result.model : "unavailable",
     },
   })
 
   return {
     reply,
     conversationId,
-    provider: result.ok ? "openai" : "unavailable",
-    model: result.model,
+    provider: result.ok ? result.provider : "unavailable",
+    model: result.ok ? result.model : "unavailable",
   }
 }

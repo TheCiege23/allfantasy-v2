@@ -23,43 +23,9 @@ import {
   type AgentCacheTier,
 } from '@/lib/agents/cache'
 import { buildCompressedSystemPrompt } from '@/lib/agents/prompt-compression'
-import { rateLimitManager } from '@/lib/workers/rate-limit-manager'
+import { routeTextCall, routeStreamCall } from '@/lib/ai/providerRouter'
 
 const anthropicApiKey = process.env.ANTHROPIC_API_KEY?.trim() ?? ''
-
-type AnthropicSdkModule = typeof import('@anthropic-ai/sdk')
-type AnthropicClient = InstanceType<AnthropicSdkModule['default']>
-
-let anthropicClientPromise: Promise<AnthropicClient | null> | null = null
-
-async function getAnthropicClient(): Promise<AnthropicClient | null> {
-  if (!anthropicApiKey) {
-    return null
-  }
-
-  if (!anthropicClientPromise) {
-    anthropicClientPromise = import('@anthropic-ai/sdk')
-      .then((mod) => {
-        const Anthropic = mod.default
-        return new Anthropic({ apiKey: anthropicApiKey })
-      })
-      .catch(() => null)
-  }
-
-  return anthropicClientPromise
-}
-
-function getAnthropicErrorStatus(error: unknown): number | null {
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'status' in error &&
-    typeof (error as { status?: unknown }).status === 'number'
-  ) {
-    return (error as { status: number }).status
-  }
-  return null
-}
 
 const MODELS = {
   quickask: process.env.ANTHROPIC_MODEL_QUICKASK?.trim() || 'claude-haiku-4-5-20251001',
@@ -488,27 +454,6 @@ type SportsContextResult = {
 
 type StructuredFantasyContext = Record<string, unknown> | null
 
-function buildAnthropicUserContent(userMessage: string, image?: UserContext['image']) {
-  const normalizedMessage =
-    userMessage.trim() || 'Analyze the uploaded fantasy sports image and explain the key takeaways.'
-
-  if (!image) {
-    return normalizedMessage
-  }
-
-  return [
-    { type: 'text' as const, text: normalizedMessage },
-    {
-      type: 'image' as const,
-      source: {
-        type: 'base64' as const,
-        media_type: image.mediaType,
-        data: image.data,
-      },
-    },
-  ]
-}
-
 export function isAnthropicPipelineAvailable(): boolean {
   return Boolean(anthropicApiKey)
 }
@@ -520,56 +465,20 @@ async function callClaude(args: {
   maxTokens?: number
   image?: UserContext['image']
 }): Promise<ClaudeCallResult> {
-  const anthropic = await getAnthropicClient()
-  if (!anthropic) {
-    throw new Error('Anthropic API key is not configured.')
+  const result = await routeTextCall({
+    messages: [
+      { role: 'system', content: args.system },
+      { role: 'user', content: args.userMessage },
+    ],
+    maxTokens: args.maxTokens,
+    image: args.image ? { data: args.image.data, mediaType: args.image.mediaType } : null,
+    preferredAnthropicModel: args.model,
+    skipCache: true,
+  })
+  if (!result.ok) {
+    throw new Error('Chimmy is temporarily unavailable. Please try again soon.')
   }
-
-  if (!(await rateLimitManager.canCall('anthropic', '/v1/messages'))) {
-    throw new Error('Anthropic safety rate limit reached. Retry shortly.')
-  }
-
-  const startedAt = Date.now()
-  try {
-    const response = await anthropic.messages.create({
-      model: args.model,
-      max_tokens: args.maxTokens ?? 1500,
-      system: args.system,
-      messages: [{ role: 'user', content: buildAnthropicUserContent(args.userMessage, args.image) }],
-    })
-    await rateLimitManager.recordCall('anthropic', '/v1/messages', 200, Date.now() - startedAt)
-
-    const text = response.content
-      .filter((block) => block.type === 'text')
-      .map((block) => block.text)
-      .join('\n')
-      .trim()
-
-    return {
-      text,
-      tokensUsed: response.usage.input_tokens + response.usage.output_tokens,
-      model: response.model || args.model,
-    }
-  } catch (error: unknown) {
-    const status = getAnthropicErrorStatus(error)
-    await rateLimitManager.recordCall(
-      'anthropic',
-      '/v1/messages',
-      status ?? 500,
-      Date.now() - startedAt,
-      { error: error instanceof Error ? error.message : String(error) }
-    )
-    if (status === 529) {
-      throw new Error('AI temporarily overloaded. Try again in a moment.')
-    }
-    if (status === 401) {
-      throw new Error('Invalid Anthropic API key. Check ANTHROPIC_API_KEY.')
-    }
-    if (status === 429) {
-      throw new Error('Anthropic rate limit hit. Check usage limits and retry soon.')
-    }
-    throw error
-  }
+  return { text: result.text, tokensUsed: result.tokensUsed, model: result.model }
 }
 
 async function callClaudeStream(args: {
@@ -580,63 +489,20 @@ async function callClaudeStream(args: {
   onText: (delta: string, snapshot: string) => void
   image?: UserContext['image']
 }): Promise<ClaudeCallResult> {
-  const anthropic = await getAnthropicClient()
-  if (!anthropic) {
-    throw new Error('Anthropic API key is not configured.')
+  const result = await routeStreamCall({
+    messages: [
+      { role: 'system', content: args.system },
+      { role: 'user', content: args.userMessage },
+    ],
+    maxTokens: args.maxTokens,
+    image: args.image ? { data: args.image.data, mediaType: args.image.mediaType } : null,
+    preferredAnthropicModel: args.model,
+    onText: args.onText,
+  })
+  if (!result.ok) {
+    throw new Error('Chimmy is temporarily unavailable. Please try again soon.')
   }
-
-  if (!(await rateLimitManager.canCall('anthropic', '/v1/messages'))) {
-    throw new Error('Anthropic safety rate limit reached. Retry shortly.')
-  }
-
-  const startedAt = Date.now()
-  try {
-    const stream = anthropic.messages.stream({
-      model: args.model,
-      max_tokens: args.maxTokens ?? 1500,
-      system: args.system,
-      messages: [{ role: 'user', content: buildAnthropicUserContent(args.userMessage, args.image) }],
-    })
-
-    let latestSnapshot = ''
-    stream.on('text', (delta, snapshot) => {
-      latestSnapshot = snapshot
-      args.onText(delta, snapshot)
-    })
-
-    const [finalText, finalMessage] = await Promise.all([
-      stream.finalText(),
-      stream.finalMessage(),
-    ])
-    await rateLimitManager.recordCall('anthropic', '/v1/messages', 200, Date.now() - startedAt)
-
-    return {
-      text: finalText?.trim() || latestSnapshot.trim(),
-      tokensUsed:
-        Math.max(0, finalMessage.usage.input_tokens ?? 0) +
-        Math.max(0, finalMessage.usage.output_tokens ?? 0),
-      model: finalMessage.model || args.model,
-    }
-  } catch (error: unknown) {
-    const status = getAnthropicErrorStatus(error)
-    await rateLimitManager.recordCall(
-      'anthropic',
-      '/v1/messages',
-      status ?? 500,
-      Date.now() - startedAt,
-      { error: error instanceof Error ? error.message : String(error) }
-    )
-    if (status === 529) {
-      throw new Error('AI temporarily overloaded. Try again in a moment.')
-    }
-    if (status === 401) {
-      throw new Error('Invalid Anthropic API key. Check ANTHROPIC_API_KEY.')
-    }
-    if (status === 429) {
-      throw new Error('Anthropic rate limit hit. Check usage limits and retry soon.')
-    }
-    throw error
-  }
+  return { text: result.text, tokensUsed: result.tokensUsed, model: result.model }
 }
 
 async function classifyIntent(

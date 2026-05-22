@@ -18,7 +18,7 @@
  */
 import "server-only"
 import { prisma } from "@/lib/prisma"
-import { openaiChatText } from "@/lib/openai-client"
+import { routeTextCall } from "@/lib/ai/providerRouter"
 import { getWorldCupSeedStrength } from "./worldCupAiInsights"
 import { WORLD_CUP_ROUND_LABELS, type WorldCupRound } from "./types"
 import { getAiLanguageInstruction } from "./worldCupI18n"
@@ -235,7 +235,7 @@ export async function generateWorldCupBracketExplanation(
     knockoutContext || "(none)",
   ].join("\n")
 
-  const result = await openaiChatText({
+  const result = await routeTextCall({
     messages: [
       { role: "system", content: buildSystemPrompt(input.locale) },
       { role: "user", content: userPrompt },
