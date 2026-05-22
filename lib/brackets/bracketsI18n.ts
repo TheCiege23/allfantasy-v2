@@ -212,6 +212,98 @@ const EN: BracketsDictionary = {
 
   // ── Language UI ──────────────────────────────────────────────────────
   "brk.language.label": "Language",
+
+  // ── /brackets premium hub (Phase 7) ──────────────────────────────────
+  "brk.hub.eyebrow": "AllFantasy",
+  "brk.hub.heroTitle": "Bracket Pools",
+  "brk.hub.heroSubtitle":
+    "Create or join bracket pools for the FIFA World Cup, NBA & NHL playoffs, March Madness, NFL playoffs, and more. Free to play. AI analysis. Live leaderboards.",
+  "brk.hub.heroBadge": "2026 World Cup pools are live",
+  "brk.hub.heroCreateWc": "Create World Cup Pool",
+  "brk.hub.heroJoinWithCode": "Join with code",
+  "brk.hub.heroDiscover": "Discover public pools",
+  "brk.hub.heroDashboard": "Dashboard",
+
+  "brk.hub.spotlight.eyebrow": "Launching now",
+  "brk.hub.spotlight.title": "2026 FIFA World Cup",
+  "brk.hub.spotlight.subtitle":
+    "The flagship bracket experience on AllFantasy. Build your bracket, compete with friends, and let our AI report grade your picks.",
+  "brk.hub.spotlight.feature.groupStage": "Group stage picks",
+  "brk.hub.spotlight.feature.knockoutBracket": "Knockout bracket",
+  "brk.hub.spotlight.feature.aiReport": "AI Bracket Report",
+  "brk.hub.spotlight.feature.dangerZones": "Knockout Danger Zones",
+  "brk.hub.spotlight.feature.commissionerTools": "Commissioner tools",
+  "brk.hub.spotlight.feature.inviteShare": "Invite + share tools",
+  "brk.hub.spotlight.feature.fiveLanguages": "5-language support",
+
+  "brk.hub.howItWorks.title": "How bracket pools work",
+  "brk.hub.howItWorks.step1Title": "Create or join a pool",
+  "brk.hub.howItWorks.step1Body":
+    "Spin up a private pool for friends or a public pool anyone can discover — or jump into someone else's with an invite code.",
+  "brk.hub.howItWorks.step2Title": "Make and finalize your picks",
+  "brk.hub.howItWorks.step2Body":
+    "Rank groups, pick knockout winners, and confirm your bracket. Edit anytime until pool lock.",
+  "brk.hub.howItWorks.step3Title": "Track, compete, and share",
+  "brk.hub.howItWorks.step3Body":
+    "Follow live standings, get AI insights on your picks, and share your bracket report card.",
+
+  "brk.hub.sports.title": "Sports",
+  "brk.hub.sports.subtitle":
+    "World Cup is live now. The rest of the season slate is on the way.",
+  "brk.hub.sports.statusLive": "Live now",
+  "brk.hub.sports.statusComingSoon": "Coming soon",
+  "brk.hub.sports.openCta": "Open hub",
+  "brk.hub.sports.sport.worldCup": "FIFA World Cup",
+  "brk.hub.sports.sport.worldCup.desc":
+    "Group stage, knockouts, champion pick, and full AI report card.",
+  "brk.hub.sports.sport.nbaPlayoffs": "NBA Playoffs",
+  "brk.hub.sports.sport.nbaPlayoffs.desc":
+    "Bracket pool for the NBA postseason. Coming this season.",
+  "brk.hub.sports.sport.nhlPlayoffs": "NHL Playoffs",
+  "brk.hub.sports.sport.nhlPlayoffs.desc":
+    "Stanley Cup bracket pool. Coming this season.",
+  "brk.hub.sports.sport.nflPlayoffs": "NFL Playoffs",
+  "brk.hub.sports.sport.nflPlayoffs.desc":
+    "Wild-card to Super Bowl bracket pool. Coming this winter.",
+  "brk.hub.sports.sport.mlbPostseason": "MLB Postseason",
+  "brk.hub.sports.sport.mlbPostseason.desc":
+    "Postseason bracket pool. Coming this fall.",
+  "brk.hub.sports.sport.marchMadness": "March Madness",
+  "brk.hub.sports.sport.marchMadness.desc":
+    "NCAA tournament bracket pool. Coming next spring.",
+  "brk.hub.sports.sport.collegeFootball": "College Football",
+  "brk.hub.sports.sport.collegeFootball.desc":
+    "CFP bracket pool. Coming this winter.",
+  "brk.hub.sports.sport.soccer": "Soccer",
+  "brk.hub.sports.sport.soccer.desc":
+    "Champions League, Euros, and Copa América brackets. Coming soon.",
+
+  "brk.hub.features.title": "Built-in AI + commissioner tools",
+  "brk.hub.features.aiReport": "AI Bracket Report",
+  "brk.hub.features.aiReport.desc":
+    "Letter grade, champion confidence, win probability, and what makes your bracket unique.",
+  "brk.hub.features.rooting": "Rooting Guide",
+  "brk.hub.features.rooting.desc":
+    "Daily \"who should I root for?\" recommendation from your own picks.",
+  "brk.hub.features.danger": "Knockout Danger Zones",
+  "brk.hub.features.danger.desc":
+    "Deterministic flags on at-risk picks before each round kicks off.",
+  "brk.hub.features.commissioner": "Commissioner Brain",
+  "brk.hub.features.commissioner.desc":
+    "Member completion checklist, reminder text, hype copy, and post-round recaps.",
+  "brk.hub.features.share": "Share cards + social captions",
+  "brk.hub.features.share.desc":
+    "Copy-ready post text for Text / Email / Twitter / Instagram / Discord.",
+  "brk.hub.features.leaderboards": "Live leaderboards",
+  "brk.hub.features.leaderboards.desc":
+    "Per-bracket ranking, per-round breakdown, and possible-points-remaining tracker.",
+
+  "brk.hub.footer.note":
+    "AllFantasy · Free forever · No prizes · Bracket pools for entertainment",
+
+  "brk.hub.mascotAlt": "AllFantasy mascot",
+  "brk.hub.logoAlt": "AllFantasy",
+  "brk.hub.wcLogoAlt": "AllFantasy World Cup",
 }
 
 const ES: BracketsDictionary = {
@@ -314,6 +406,98 @@ const ES: BracketsDictionary = {
 
   // ── Language UI ──────────────────────────────────────────────────────
   "brk.language.label": "Idioma",
+
+  // ── /brackets premium hub (Phase 7) ──────────────────────────────────
+  "brk.hub.eyebrow": "AllFantasy",
+  "brk.hub.heroTitle": "Bracket Pools",
+  "brk.hub.heroSubtitle":
+    "Crea o únete a grupos de brackets de la Copa del Mundo de la FIFA, playoffs de NBA y NHL, March Madness, playoffs de NFL y más. Gratis para jugar. Análisis con IA. Tablas en vivo.",
+  "brk.hub.heroBadge": "Los grupos de la Copa del Mundo 2026 ya están abiertos",
+  "brk.hub.heroCreateWc": "Crear grupo de la Copa del Mundo",
+  "brk.hub.heroJoinWithCode": "Unirse con código",
+  "brk.hub.heroDiscover": "Descubrir grupos públicos",
+  "brk.hub.heroDashboard": "Panel",
+
+  "brk.hub.spotlight.eyebrow": "Lanzamiento",
+  "brk.hub.spotlight.title": "Copa Mundial FIFA 2026",
+  "brk.hub.spotlight.subtitle":
+    "La experiencia bracket insignia de AllFantasy. Arma tu bracket, compite con amigos y deja que nuestro informe IA califique tus picks.",
+  "brk.hub.spotlight.feature.groupStage": "Picks de fase de grupos",
+  "brk.hub.spotlight.feature.knockoutBracket": "Bracket de eliminatorias",
+  "brk.hub.spotlight.feature.aiReport": "Informe IA del Bracket",
+  "brk.hub.spotlight.feature.dangerZones": "Zonas de peligro de eliminatorias",
+  "brk.hub.spotlight.feature.commissionerTools": "Herramientas de comisionado",
+  "brk.hub.spotlight.feature.inviteShare": "Invitar y compartir",
+  "brk.hub.spotlight.feature.fiveLanguages": "Soporte en 5 idiomas",
+
+  "brk.hub.howItWorks.title": "Cómo funcionan los grupos",
+  "brk.hub.howItWorks.step1Title": "Crea o únete a un grupo",
+  "brk.hub.howItWorks.step1Body":
+    "Crea un grupo privado para amigos, uno público que cualquiera pueda descubrir, o únete a otro con un código de invitación.",
+  "brk.hub.howItWorks.step2Title": "Haz y finaliza tus picks",
+  "brk.hub.howItWorks.step2Body":
+    "Ordena grupos, elige ganadores de eliminatorias y confirma tu bracket. Edita en cualquier momento hasta el cierre.",
+  "brk.hub.howItWorks.step3Title": "Sigue, compite y comparte",
+  "brk.hub.howItWorks.step3Body":
+    "Sigue tablas en vivo, recibe ideas IA sobre tus picks y comparte tu informe del bracket.",
+
+  "brk.hub.sports.title": "Deportes",
+  "brk.hub.sports.subtitle":
+    "La Copa del Mundo está en vivo. El resto del calendario llega pronto.",
+  "brk.hub.sports.statusLive": "En vivo",
+  "brk.hub.sports.statusComingSoon": "Próximamente",
+  "brk.hub.sports.openCta": "Abrir hub",
+  "brk.hub.sports.sport.worldCup": "Copa Mundial FIFA",
+  "brk.hub.sports.sport.worldCup.desc":
+    "Fase de grupos, eliminatorias, pick de campeón e informe IA completo.",
+  "brk.hub.sports.sport.nbaPlayoffs": "Playoffs NBA",
+  "brk.hub.sports.sport.nbaPlayoffs.desc":
+    "Grupo bracket para la postemporada NBA. Llega esta temporada.",
+  "brk.hub.sports.sport.nhlPlayoffs": "Playoffs NHL",
+  "brk.hub.sports.sport.nhlPlayoffs.desc":
+    "Grupo bracket de la Copa Stanley. Llega esta temporada.",
+  "brk.hub.sports.sport.nflPlayoffs": "Playoffs NFL",
+  "brk.hub.sports.sport.nflPlayoffs.desc":
+    "Grupo bracket desde wild-card hasta Super Bowl. Llega este invierno.",
+  "brk.hub.sports.sport.mlbPostseason": "Postemporada MLB",
+  "brk.hub.sports.sport.mlbPostseason.desc":
+    "Grupo bracket de la postemporada. Llega este otoño.",
+  "brk.hub.sports.sport.marchMadness": "March Madness",
+  "brk.hub.sports.sport.marchMadness.desc":
+    "Grupo bracket del torneo NCAA. Llega la próxima primavera.",
+  "brk.hub.sports.sport.collegeFootball": "Fútbol americano universitario",
+  "brk.hub.sports.sport.collegeFootball.desc":
+    "Grupo bracket CFP. Llega este invierno.",
+  "brk.hub.sports.sport.soccer": "Fútbol",
+  "brk.hub.sports.sport.soccer.desc":
+    "Champions League, Eurocopa y Copa América. Próximamente.",
+
+  "brk.hub.features.title": "Herramientas IA y de comisionado integradas",
+  "brk.hub.features.aiReport": "Informe IA del Bracket",
+  "brk.hub.features.aiReport.desc":
+    "Calificación, confianza del campeón, probabilidad de victoria y qué hace único tu bracket.",
+  "brk.hub.features.rooting": "Guía de a quién apoyar",
+  "brk.hub.features.rooting.desc":
+    "Recomendación diaria de a quién apoyar a partir de tus propios picks.",
+  "brk.hub.features.danger": "Zonas de peligro de eliminatorias",
+  "brk.hub.features.danger.desc":
+    "Alertas deterministas sobre picks en riesgo antes de cada ronda.",
+  "brk.hub.features.commissioner": "Cerebro de comisionado",
+  "brk.hub.features.commissioner.desc":
+    "Checklist de avance, mensajes de recordatorio, hype y recaps por ronda.",
+  "brk.hub.features.share": "Tarjetas para compartir y captions",
+  "brk.hub.features.share.desc":
+    "Texto listo para SMS, email, Twitter, Instagram y Discord.",
+  "brk.hub.features.leaderboards": "Tablas en vivo",
+  "brk.hub.features.leaderboards.desc":
+    "Ranking por bracket, desglose por ronda y puntos posibles restantes.",
+
+  "brk.hub.footer.note":
+    "AllFantasy · Gratis para siempre · Sin premios · Bracket pools solo para entretenimiento",
+
+  "brk.hub.mascotAlt": "Mascota de AllFantasy",
+  "brk.hub.logoAlt": "AllFantasy",
+  "brk.hub.wcLogoAlt": "AllFantasy Copa del Mundo",
 }
 
 const ZH: BracketsDictionary = {
@@ -416,6 +600,98 @@ const ZH: BracketsDictionary = {
 
   // ── Language UI ──────────────────────────────────────────────────────
   "brk.language.label": "語言",
+
+  // ── /brackets premium hub (Phase 7) ──────────────────────────────────
+  "brk.hub.eyebrow": "AllFantasy",
+  "brk.hub.heroTitle": "對戰群組",
+  "brk.hub.heroSubtitle":
+    "為 FIFA 世界盃、NBA 與 NHL 季後賽、March Madness、NFL 季後賽等比賽建立或加入對戰群組。免費遊玩、AI 解析、即時排行榜。",
+  "brk.hub.heroBadge": "2026 世界盃群組已開放",
+  "brk.hub.heroCreateWc": "建立世界盃群組",
+  "brk.hub.heroJoinWithCode": "用代碼加入",
+  "brk.hub.heroDiscover": "探索公開群組",
+  "brk.hub.heroDashboard": "儀表板",
+
+  "brk.hub.spotlight.eyebrow": "重磅推出",
+  "brk.hub.spotlight.title": "2026 FIFA 世界盃",
+  "brk.hub.spotlight.subtitle":
+    "AllFantasy 的旗艦對戰體驗。建立你的對戰表、和朋友較量,讓 AI 報告為你評分。",
+  "brk.hub.spotlight.feature.groupStage": "小組賽選擇",
+  "brk.hub.spotlight.feature.knockoutBracket": "淘汰賽對戰表",
+  "brk.hub.spotlight.feature.aiReport": "AI 對戰表報告",
+  "brk.hub.spotlight.feature.dangerZones": "淘汰賽風險區",
+  "brk.hub.spotlight.feature.commissionerTools": "管理員工具",
+  "brk.hub.spotlight.feature.inviteShare": "邀請與分享工具",
+  "brk.hub.spotlight.feature.fiveLanguages": "支援 5 種語言",
+
+  "brk.hub.howItWorks.title": "對戰群組怎麼玩",
+  "brk.hub.howItWorks.step1Title": "建立或加入群組",
+  "brk.hub.howItWorks.step1Body":
+    "為朋友建立私人群組、開放公開群組讓任何人加入,或用邀請碼加入別人的群組。",
+  "brk.hub.howItWorks.step2Title": "做出並送出你的選擇",
+  "brk.hub.howItWorks.step2Body":
+    "排序小組、選出淘汰賽勝者、確認你的對戰表。鎖定前隨時可以調整。",
+  "brk.hub.howItWorks.step3Title": "追蹤、比拼、分享",
+  "brk.hub.howItWorks.step3Body":
+    "追蹤即時排行榜、獲得 AI 對選擇的解析,並分享你的對戰表報告。",
+
+  "brk.hub.sports.title": "支援的賽事",
+  "brk.hub.sports.subtitle":
+    "世界盃已經開放。其餘賽事也即將推出。",
+  "brk.hub.sports.statusLive": "進行中",
+  "brk.hub.sports.statusComingSoon": "即將推出",
+  "brk.hub.sports.openCta": "開啟主頁",
+  "brk.hub.sports.sport.worldCup": "FIFA 世界盃",
+  "brk.hub.sports.sport.worldCup.desc":
+    "小組賽、淘汰賽、冠軍選擇,以及完整的 AI 報告卡。",
+  "brk.hub.sports.sport.nbaPlayoffs": "NBA 季後賽",
+  "brk.hub.sports.sport.nbaPlayoffs.desc":
+    "NBA 季後賽對戰群組。本季推出。",
+  "brk.hub.sports.sport.nhlPlayoffs": "NHL 季後賽",
+  "brk.hub.sports.sport.nhlPlayoffs.desc":
+    "史丹利盃對戰群組。本季推出。",
+  "brk.hub.sports.sport.nflPlayoffs": "NFL 季後賽",
+  "brk.hub.sports.sport.nflPlayoffs.desc":
+    "從外卡賽到超級盃的對戰群組。今冬推出。",
+  "brk.hub.sports.sport.mlbPostseason": "MLB 季後賽",
+  "brk.hub.sports.sport.mlbPostseason.desc":
+    "MLB 季後賽對戰群組。今秋推出。",
+  "brk.hub.sports.sport.marchMadness": "瘋狂三月",
+  "brk.hub.sports.sport.marchMadness.desc":
+    "NCAA 錦標賽對戰群組。明年春天推出。",
+  "brk.hub.sports.sport.collegeFootball": "大學美式足球",
+  "brk.hub.sports.sport.collegeFootball.desc":
+    "CFP 對戰群組。今冬推出。",
+  "brk.hub.sports.sport.soccer": "足球",
+  "brk.hub.sports.sport.soccer.desc":
+    "歐冠、歐錦賽與美洲盃對戰群組。即將推出。",
+
+  "brk.hub.features.title": "內建 AI 與管理員工具",
+  "brk.hub.features.aiReport": "AI 對戰表報告",
+  "brk.hub.features.aiReport.desc":
+    "字母評分、冠軍信心度、奪冠機率,以及讓你的對戰表獨特的關鍵。",
+  "brk.hub.features.rooting": "幫誰加油指南",
+  "brk.hub.features.rooting.desc":
+    "每日從你自己的選擇推薦該為誰加油。",
+  "brk.hub.features.danger": "淘汰賽風險區",
+  "brk.hub.features.danger.desc":
+    "在每輪開賽前對風險選擇做出確定性提示。",
+  "brk.hub.features.commissioner": "管理員大腦",
+  "brk.hub.features.commissioner.desc":
+    "成員完成度清單、提醒文案、加油文案與每輪賽後回顧。",
+  "brk.hub.features.share": "分享圖卡與社群文案",
+  "brk.hub.features.share.desc":
+    "可一鍵複製的簡訊、Email、Twitter、Instagram 與 Discord 文案。",
+  "brk.hub.features.leaderboards": "即時排行榜",
+  "brk.hub.features.leaderboards.desc":
+    "每個對戰表的排名、每輪細項與剩餘可獲得分數。",
+
+  "brk.hub.footer.note":
+    "AllFantasy · 永久免費 · 無獎金 · 對戰群組僅供娛樂",
+
+  "brk.hub.mascotAlt": "AllFantasy 吉祥物",
+  "brk.hub.logoAlt": "AllFantasy",
+  "brk.hub.wcLogoAlt": "AllFantasy 世界盃",
 }
 
 const FIL: BracketsDictionary = {
@@ -520,6 +796,98 @@ const FIL: BracketsDictionary = {
 
   // ── Language UI ──────────────────────────────────────────────────────
   "brk.language.label": "Wika",
+
+  // ── /brackets premium hub (Phase 7) ──────────────────────────────────
+  "brk.hub.eyebrow": "AllFantasy",
+  "brk.hub.heroTitle": "Bracket Pools",
+  "brk.hub.heroSubtitle":
+    "Gumawa o sumali sa bracket pools para sa FIFA World Cup, NBA & NHL playoffs, March Madness, NFL playoffs at iba pa. Libre laruin. AI analysis. Live na leaderboards.",
+  "brk.hub.heroBadge": "Bukas na ang 2026 World Cup pools",
+  "brk.hub.heroCreateWc": "Gumawa ng World Cup pool",
+  "brk.hub.heroJoinWithCode": "Sumali gamit ang code",
+  "brk.hub.heroDiscover": "Maghanap ng public pools",
+  "brk.hub.heroDashboard": "Dashboard",
+
+  "brk.hub.spotlight.eyebrow": "Inilulunsad ngayon",
+  "brk.hub.spotlight.title": "2026 FIFA World Cup",
+  "brk.hub.spotlight.subtitle":
+    "Ang pangunahing bracket experience ng AllFantasy. Bumuo ng iyong bracket, makipagtagisan sa mga kaibigan, at hayaang i-grade ng AI report ang iyong picks.",
+  "brk.hub.spotlight.feature.groupStage": "Picks sa group stage",
+  "brk.hub.spotlight.feature.knockoutBracket": "Knockout bracket",
+  "brk.hub.spotlight.feature.aiReport": "AI Bracket Report",
+  "brk.hub.spotlight.feature.dangerZones": "Knockout Danger Zones",
+  "brk.hub.spotlight.feature.commissionerTools": "Commissioner tools",
+  "brk.hub.spotlight.feature.inviteShare": "Invite at share tools",
+  "brk.hub.spotlight.feature.fiveLanguages": "Suporta sa 5 wika",
+
+  "brk.hub.howItWorks.title": "Paano gumagana ang bracket pools",
+  "brk.hub.howItWorks.step1Title": "Gumawa o sumali sa pool",
+  "brk.hub.howItWorks.step1Body":
+    "Gumawa ng private pool para sa mga kaibigan, isang public pool na pwedeng makita ng kahit sino, o sumali sa iba gamit ang invite code.",
+  "brk.hub.howItWorks.step2Title": "Mag-pick at i-finalize",
+  "brk.hub.howItWorks.step2Body":
+    "I-rank ang mga group, pumili ng knockout winners, at i-confirm ang bracket mo. Maaari pang i-edit hanggang mag-lock ang pool.",
+  "brk.hub.howItWorks.step3Title": "I-track, makipagtagisan, mag-share",
+  "brk.hub.howItWorks.step3Body":
+    "Sundan ang live na leaderboard, kunin ang AI insights sa iyong picks, at i-share ang iyong bracket report card.",
+
+  "brk.hub.sports.title": "Mga sport",
+  "brk.hub.sports.subtitle":
+    "Live na ang World Cup. Susunod na ang ibang sports sa season.",
+  "brk.hub.sports.statusLive": "Live na",
+  "brk.hub.sports.statusComingSoon": "Malapit na",
+  "brk.hub.sports.openCta": "Buksan ang hub",
+  "brk.hub.sports.sport.worldCup": "FIFA World Cup",
+  "brk.hub.sports.sport.worldCup.desc":
+    "Group stage, knockouts, champion pick, at buong AI report card.",
+  "brk.hub.sports.sport.nbaPlayoffs": "NBA Playoffs",
+  "brk.hub.sports.sport.nbaPlayoffs.desc":
+    "Bracket pool para sa NBA postseason. Darating ngayong season.",
+  "brk.hub.sports.sport.nhlPlayoffs": "NHL Playoffs",
+  "brk.hub.sports.sport.nhlPlayoffs.desc":
+    "Stanley Cup bracket pool. Darating ngayong season.",
+  "brk.hub.sports.sport.nflPlayoffs": "NFL Playoffs",
+  "brk.hub.sports.sport.nflPlayoffs.desc":
+    "Bracket pool mula wild-card hanggang Super Bowl. Darating ngayong taglamig.",
+  "brk.hub.sports.sport.mlbPostseason": "MLB Postseason",
+  "brk.hub.sports.sport.mlbPostseason.desc":
+    "Bracket pool para sa postseason. Darating ngayong taglagas.",
+  "brk.hub.sports.sport.marchMadness": "March Madness",
+  "brk.hub.sports.sport.marchMadness.desc":
+    "NCAA tournament bracket pool. Darating sa susunod na tagsibol.",
+  "brk.hub.sports.sport.collegeFootball": "College Football",
+  "brk.hub.sports.sport.collegeFootball.desc":
+    "CFP bracket pool. Darating ngayong taglamig.",
+  "brk.hub.sports.sport.soccer": "Soccer",
+  "brk.hub.sports.sport.soccer.desc":
+    "Champions League, Euros, at Copa América brackets. Malapit na.",
+
+  "brk.hub.features.title": "Built-in AI at commissioner tools",
+  "brk.hub.features.aiReport": "AI Bracket Report",
+  "brk.hub.features.aiReport.desc":
+    "Letter grade, champion confidence, win probability, at kung ano ang nag-pa-unique sa bracket mo.",
+  "brk.hub.features.rooting": "Rooting Guide",
+  "brk.hub.features.rooting.desc":
+    "Pang-araw na rekomendasyon kung sino ang i-root for galing sa iyong picks.",
+  "brk.hub.features.danger": "Knockout Danger Zones",
+  "brk.hub.features.danger.desc":
+    "Deterministic na flags sa at-risk na picks bago magsimula ang bawat round.",
+  "brk.hub.features.commissioner": "Commissioner Brain",
+  "brk.hub.features.commissioner.desc":
+    "Member completion checklist, reminder text, hype copy, at post-round recaps.",
+  "brk.hub.features.share": "Share cards at social captions",
+  "brk.hub.features.share.desc":
+    "Copy-ready text para sa Text, Email, Twitter, Instagram, at Discord.",
+  "brk.hub.features.leaderboards": "Live na leaderboards",
+  "brk.hub.features.leaderboards.desc":
+    "Per-bracket ranking, per-round breakdown, at possible-points-remaining tracker.",
+
+  "brk.hub.footer.note":
+    "AllFantasy · Libre habambuhay · Walang premyo · Bracket pools para sa libangan lamang",
+
+  "brk.hub.mascotAlt": "Mascot ng AllFantasy",
+  "brk.hub.logoAlt": "AllFantasy",
+  "brk.hub.wcLogoAlt": "AllFantasy World Cup",
 }
 
 const VI: BracketsDictionary = {
@@ -624,6 +992,98 @@ const VI: BracketsDictionary = {
 
   // ── Language UI ──────────────────────────────────────────────────────
   "brk.language.label": "Ngôn ngữ",
+
+  // ── /brackets premium hub (Phase 7) ──────────────────────────────────
+  "brk.hub.eyebrow": "AllFantasy",
+  "brk.hub.heroTitle": "Bracket Pools",
+  "brk.hub.heroSubtitle":
+    "Tạo hoặc tham gia bracket pools cho FIFA World Cup, NBA & NHL playoffs, March Madness, NFL playoffs và nhiều giải khác. Miễn phí. Phân tích AI. Bảng xếp hạng trực tiếp.",
+  "brk.hub.heroBadge": "Pool World Cup 2026 đã mở",
+  "brk.hub.heroCreateWc": "Tạo pool World Cup",
+  "brk.hub.heroJoinWithCode": "Tham gia bằng mã",
+  "brk.hub.heroDiscover": "Khám phá pool công khai",
+  "brk.hub.heroDashboard": "Bảng điều khiển",
+
+  "brk.hub.spotlight.eyebrow": "Ra mắt ngay",
+  "brk.hub.spotlight.title": "FIFA World Cup 2026",
+  "brk.hub.spotlight.subtitle":
+    "Trải nghiệm bracket chủ lực của AllFantasy. Xây bracket, đua với bạn bè, và để báo cáo AI chấm điểm lựa chọn của bạn.",
+  "brk.hub.spotlight.feature.groupStage": "Lựa chọn vòng bảng",
+  "brk.hub.spotlight.feature.knockoutBracket": "Bracket vòng loại trực tiếp",
+  "brk.hub.spotlight.feature.aiReport": "Báo cáo AI Bracket",
+  "brk.hub.spotlight.feature.dangerZones": "Khu vực nguy hiểm vòng loại trực tiếp",
+  "brk.hub.spotlight.feature.commissionerTools": "Công cụ chủ pool",
+  "brk.hub.spotlight.feature.inviteShare": "Mời và chia sẻ",
+  "brk.hub.spotlight.feature.fiveLanguages": "Hỗ trợ 5 ngôn ngữ",
+
+  "brk.hub.howItWorks.title": "Cách bracket pools hoạt động",
+  "brk.hub.howItWorks.step1Title": "Tạo hoặc tham gia một pool",
+  "brk.hub.howItWorks.step1Body":
+    "Tạo pool riêng cho bạn bè, pool công khai ai cũng tìm thấy, hoặc tham gia pool của người khác bằng mã mời.",
+  "brk.hub.howItWorks.step2Title": "Chọn và hoàn tất bracket",
+  "brk.hub.howItWorks.step2Body":
+    "Xếp hạng các bảng, chọn người thắng vòng loại trực tiếp, và xác nhận bracket. Có thể chỉnh sửa bất kỳ lúc nào trước khi pool khoá.",
+  "brk.hub.howItWorks.step3Title": "Theo dõi, thi đấu, chia sẻ",
+  "brk.hub.howItWorks.step3Body":
+    "Theo dõi bảng xếp hạng trực tiếp, nhận phân tích AI cho lựa chọn của bạn, và chia sẻ thẻ báo cáo bracket.",
+
+  "brk.hub.sports.title": "Các môn",
+  "brk.hub.sports.subtitle":
+    "World Cup đã mở. Các môn khác sẽ ra mắt sau.",
+  "brk.hub.sports.statusLive": "Đang mở",
+  "brk.hub.sports.statusComingSoon": "Sắp ra mắt",
+  "brk.hub.sports.openCta": "Mở hub",
+  "brk.hub.sports.sport.worldCup": "FIFA World Cup",
+  "brk.hub.sports.sport.worldCup.desc":
+    "Vòng bảng, vòng loại trực tiếp, lựa chọn nhà vô địch và thẻ báo cáo AI đầy đủ.",
+  "brk.hub.sports.sport.nbaPlayoffs": "NBA Playoffs",
+  "brk.hub.sports.sport.nbaPlayoffs.desc":
+    "Pool bracket cho hậu mùa NBA. Sẽ có trong mùa này.",
+  "brk.hub.sports.sport.nhlPlayoffs": "NHL Playoffs",
+  "brk.hub.sports.sport.nhlPlayoffs.desc":
+    "Pool bracket Stanley Cup. Sẽ có trong mùa này.",
+  "brk.hub.sports.sport.nflPlayoffs": "NFL Playoffs",
+  "brk.hub.sports.sport.nflPlayoffs.desc":
+    "Pool bracket từ wild-card đến Super Bowl. Sẽ có vào mùa đông này.",
+  "brk.hub.sports.sport.mlbPostseason": "MLB Postseason",
+  "brk.hub.sports.sport.mlbPostseason.desc":
+    "Pool bracket hậu mùa. Sẽ có vào mùa thu này.",
+  "brk.hub.sports.sport.marchMadness": "March Madness",
+  "brk.hub.sports.sport.marchMadness.desc":
+    "Pool bracket giải NCAA. Sẽ có vào mùa xuân năm sau.",
+  "brk.hub.sports.sport.collegeFootball": "College Football",
+  "brk.hub.sports.sport.collegeFootball.desc":
+    "Pool bracket CFP. Sẽ có vào mùa đông này.",
+  "brk.hub.sports.sport.soccer": "Bóng đá",
+  "brk.hub.sports.sport.soccer.desc":
+    "Champions League, Euros và Copa América. Sắp có.",
+
+  "brk.hub.features.title": "Công cụ AI và chủ pool tích hợp sẵn",
+  "brk.hub.features.aiReport": "Báo cáo AI Bracket",
+  "brk.hub.features.aiReport.desc":
+    "Điểm chữ, niềm tin nhà vô địch, xác suất thắng, và điều khiến bracket của bạn khác biệt.",
+  "brk.hub.features.rooting": "Hướng dẫn cổ vũ",
+  "brk.hub.features.rooting.desc":
+    "Gợi ý hằng ngày nên cổ vũ ai dựa trên lựa chọn của bạn.",
+  "brk.hub.features.danger": "Khu vực nguy hiểm vòng loại trực tiếp",
+  "brk.hub.features.danger.desc":
+    "Cảnh báo xác định cho các lựa chọn có rủi ro trước mỗi vòng đấu.",
+  "brk.hub.features.commissioner": "Bộ não chủ pool",
+  "brk.hub.features.commissioner.desc":
+    "Danh sách hoàn tất của thành viên, lời nhắc, lời hype, và tóm tắt sau mỗi vòng.",
+  "brk.hub.features.share": "Thẻ chia sẻ và caption mạng xã hội",
+  "brk.hub.features.share.desc":
+    "Văn bản sẵn để sao chép cho Tin nhắn, Email, Twitter, Instagram và Discord.",
+  "brk.hub.features.leaderboards": "Bảng xếp hạng trực tiếp",
+  "brk.hub.features.leaderboards.desc":
+    "Xếp hạng từng bracket, chi tiết theo vòng, và bộ đếm điểm còn lại.",
+
+  "brk.hub.footer.note":
+    "AllFantasy · Miễn phí vĩnh viễn · Không giải thưởng · Bracket pools chỉ để giải trí",
+
+  "brk.hub.mascotAlt": "Linh vật AllFantasy",
+  "brk.hub.logoAlt": "AllFantasy",
+  "brk.hub.wcLogoAlt": "AllFantasy World Cup",
 }
 
 export const BRACKETS_TRANSLATIONS: Record<BracketsLocale, BracketsDictionary> = {
