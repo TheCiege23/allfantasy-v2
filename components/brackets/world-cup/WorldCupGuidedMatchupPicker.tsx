@@ -13,6 +13,8 @@ import {
 } from "lucide-react"
 import { WORLD_CUP_ROUND_LABELS } from "@/lib/world-cup/types"
 import type { WorldCupMatchView, WorldCupPickView, WorldCupRound } from "@/lib/world-cup/types"
+import { makeWcT, type WorldCupLocale } from "@/lib/world-cup/worldCupI18n"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import {
   formatWorldCupKickoffShort,
   formatWorldCupMatchStatus,
@@ -61,8 +63,10 @@ type SaveState = "idle" | "saving" | "saved" | "error"
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
 
-function formatMatchDate(iso: string | null): string {
-  if (!iso) return "Time TBD"
+type T = (key: string, params?: Record<string, string | number>) => string
+
+function formatMatchDate(iso: string | null, t: T): string {
+  if (!iso) return t("wc.guided.timeTbd")
   try {
     return new Date(iso).toLocaleString(undefined, {
       weekday: "short",
@@ -72,7 +76,7 @@ function formatMatchDate(iso: string | null): string {
       minute: "2-digit",
     })
   } catch {
-    return "Time TBD"
+    return t("wc.guided.timeTbd")
   }
 }
 
@@ -111,6 +115,7 @@ function TeamCard({
   pickState,
   aiStaged,
   onPick,
+  t,
 }: {
   teamId: string | null
   teamName: string
@@ -125,11 +130,14 @@ function TeamCard({
   pickState?: "not_started" | "winning" | "drawing" | "losing" | "correct" | "incorrect" | "unknown"
   aiStaged?: boolean
   onPick: () => void
+  t: T
 }) {
   const showScore = matchStatus === "live" || matchStatus === "halftime" || matchStatus === "final"
+  // `teamName === "TBD"` is matching the raw data sentinel from the model,
+  // not the translated label — keep this comparison literal.
   const tbd = !teamId && teamName === "TBD"
 
-  const winLabel = `Pick ${teamName} to win`
+  const winLabel = t("wc.guided.pickAriaLabel", { teamName })
   return (
     <button
       type="button"
@@ -197,7 +205,7 @@ function TeamCard({
         </span>
       )}
       {tbd && (
-        <span className="text-xs text-white/30">Awaiting result</span>
+        <span className="text-xs text-white/30">{t("wc.guided.awaitingResult")}</span>
       )}
     </button>
   )
@@ -205,7 +213,10 @@ function TeamCard({
 
 // ── Match status badge ────────────────────────────────────────────────────────
 
-function MatchStatusBadge({ match }: { match: WorldCupMatchView }) {
+function MatchStatusBadge({ match, t }: { match: WorldCupMatchView; t: T }) {
+  // `formatWorldCupMatchStatus` returns the dynamic live-clock label (e.g.
+  // "45'", "HT", "FT"). Those tokens are sport-universal and we keep them
+  // untranslated.
   const label = formatWorldCupMatchStatus(match)
   const isLive = isWorldCupMatchLive(match)
   const isFinal = isWorldCupMatchFinal(match)
@@ -218,13 +229,13 @@ function MatchStatusBadge({ match }: { match: WorldCupMatchView }) {
   if (isFinal)
     return (
       <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-bold text-emerald-200">
-        Final
+        {t("wc.guided.matchFinal")}
       </span>
     )
   if (match.status === "postponed")
     return (
       <span className="rounded-full bg-amber-400/15 px-3 py-1 text-xs font-bold text-amber-300">
-        Postponed
+        {t("wc.guided.matchPostponed")}
       </span>
     )
   return null
@@ -238,21 +249,27 @@ function ProgressBar({
   round,
   roundDone,
   roundTotal,
+  t,
 }: {
   done: number
   total: number
   round: WorldCupRound
   roundDone: number
   roundTotal: number
+  t: T
 }) {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-[10px] text-white/40">
         <span>
-          {WORLD_CUP_ROUND_LABELS[round]} · {roundDone}/{roundTotal} picks
+          {t("wc.guided.progressRound", {
+            label: WORLD_CUP_ROUND_LABELS[round],
+            done: roundDone,
+            total: roundTotal,
+          })}
         </span>
-        <span>{pct}% overall</span>
+        <span>{t("wc.guided.progressOverall", { pct })}</span>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
         <div
@@ -270,10 +287,12 @@ function BracketCompleteView({
   champion,
   onClose,
   onReview,
+  t,
 }: {
   champion: WorldCupPickView | null
   onClose: () => void
   onReview: () => void
+  t: T
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-6 px-6 py-12 text-center">
@@ -281,9 +300,11 @@ function BracketCompleteView({
         <Trophy className="h-10 w-10 text-amber-300" />
       </div>
       <div>
-        <h2 className="text-2xl font-black text-white">Bracket Complete!</h2>
+        <h2 className="text-2xl font-black text-white">
+          {t("wc.guided.bracketCompleteTitle")}
+        </h2>
         <p className="mt-2 text-sm text-white/50">
-          You've picked every match.
+          {t("wc.guided.bracketCompleteBody")}
         </p>
         {champion?.selectedTeamName && (
           <p className="mt-3 text-lg font-black text-amber-200">
@@ -297,14 +318,14 @@ function BracketCompleteView({
           onClick={onReview}
           className="rounded-xl border border-white/15 bg-white/[0.06] px-5 py-2.5 text-sm font-bold text-white"
         >
-          Review Bracket
+          {t("wc.guided.reviewBracket")}
         </button>
         <button
           type="button"
           onClick={onClose}
           className="rounded-xl bg-cyan-300 px-5 py-2.5 text-sm font-black text-black"
         >
-          Done
+          {t("wc.guided.done")}
         </button>
       </div>
     </div>
@@ -357,6 +378,8 @@ export default function WorldCupGuidedMatchupPicker({
   /** Called after picks are successfully updated — lets the shell refresh its state. */
   onPicksUpdated?: (picks: WorldCupPickView[]) => void
 }) {
+  const { language } = useOptionalLanguage()
+  const t = useMemo<T>(() => makeWcT(language), [language])
   // Local picks mirror — updated on successful saves
   const [picks, setPicks] = useState<WorldCupPickView[]>(initialPicks)
   const [saveState, setSaveState] = useState<SaveState>("idle")
@@ -599,7 +622,7 @@ export default function WorldCupGuidedMatchupPicker({
       const selectedTeamName = side === "home" ? eff.home.teamName : eff.away.teamName
       if (!selectedTeamId || !eff.readyForPicks) {
         setSaveState("error")
-        setSaveError("This matchup is not ready for picks yet.")
+        setSaveError(t("wc.guided.errorNotReady"))
         return
       }
 
@@ -687,11 +710,11 @@ export default function WorldCupGuidedMatchupPicker({
         // Roll back optimistic update
         setPicks(picks)
         setSaveState("error")
-        setSaveError(err instanceof Error ? err.message : "Failed to save pick")
+        setSaveError(err instanceof Error ? err.message : t("wc.guided.errorSaveFailed"))
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [confidenceDraft, confidenceScoringEnabled, currentMatch, entryId, isLocked, saveState, picks, projected, orderedRounds]
+    [confidenceDraft, confidenceScoringEnabled, currentMatch, entryId, isLocked, saveState, picks, projected, orderedRounds, t]
   )
 
   // Trap focus & keyboard navigation
@@ -712,25 +735,25 @@ export default function WorldCupGuidedMatchupPicker({
   const guardedShowComplete = showComplete && computedIsComplete
   const headerTitle =
     isLocked
-      ? "Bracket Locked"
+      ? t("wc.guided.headerLocked")
       : projectedPickableMatchCount === 0
-        ? "Fixtures Not Ready"
+        ? t("wc.guided.headerFixturesNotReady")
         : showComplete && totalPicked === 0
-          ? "Start Making Picks"
+          ? t("wc.guided.headerStart")
           : guardedShowComplete
-            ? "Bracket Complete"
+            ? t("wc.guided.headerComplete")
             : currentMatch
               ? WORLD_CUP_ROUND_LABELS[currentMatch.round]
               : totalPicked === 0
-                ? "Start Making Picks"
-                : "Guided Picks"
+                ? t("wc.guided.headerStart")
+                : t("wc.guided.headerGuided")
 
   return (
     <div
       ref={modalRef}
       role="dialog"
       aria-modal="true"
-      aria-label="Guided Matchup Picker"
+      aria-label={t("wc.guided.dialogLabel")}
       className="fixed inset-0 z-[80] flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#05070b] pt-[env(safe-area-inset-top)] text-white"
     >
       {/* ── Header ────────────────────────────────────────────────────────── */}
@@ -754,7 +777,7 @@ export default function WorldCupGuidedMatchupPicker({
             data-testid="world-cup-guided-close"
             onClick={onClose}
             className="flex min-h-11 min-w-11 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-white/80 hover:text-white"
-            aria-label="Close guided picker"
+            aria-label={t("wc.guided.closeLabel")}
           >
             <X className="h-5 w-5" aria-hidden />
           </button>
@@ -767,6 +790,7 @@ export default function WorldCupGuidedMatchupPicker({
               round={currentMatch.round}
               roundDone={roundPickedCount}
               roundTotal={roundMatches.length}
+              t={t}
             />
           </div>
         )}
@@ -779,7 +803,7 @@ export default function WorldCupGuidedMatchupPicker({
         {isLocked && (
           <div className="mt-2 flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/50">
             <Lock className="h-3.5 w-3.5 shrink-0" />
-            This bracket is locked. Picks can no longer be changed.
+            {t("wc.guided.lockedHelper")}
           </div>
         )}
       </header>
@@ -791,6 +815,7 @@ export default function WorldCupGuidedMatchupPicker({
             champion={champion}
             onClose={onClose}
             onReview={() => setShowComplete(false)}
+            t={t}
           />
         ) : currentMatch ? (
           <MatchView
@@ -806,15 +831,17 @@ export default function WorldCupGuidedMatchupPicker({
             confidenceDraft={confidenceDraft}
             confidenceOptions={confidenceOptions}
             onConfidenceChange={setConfidenceDraft}
+            language={language}
           />
         ) : (
           <div className="flex flex-col items-center justify-center gap-4 py-16 text-center text-sm text-white/40">
             <Clock className="h-8 w-8" />
             <p>
               {hasPickableMatchups
-                ? "Teams for this round will appear once earlier matches are picked."
-                : "Fixtures are loaded, but real team matchups are not resolved yet."}
+                ? t("wc.guided.emptyTeamsUpstream")
+                : t("wc.guided.emptyFixturesUnresolved")}
             </p>
+            {/* Debug strip is dev-only context, kept English. */}
             {!hasPickableMatchups && unpickableDebug.length > 0 && (
               <p className="max-w-xl text-[11px] text-white/35">
                 Debug: {unpickableDebug.map((item) => `M${item.matchNumber}:${item.reason}`).join(" · ")}
@@ -825,7 +852,7 @@ export default function WorldCupGuidedMatchupPicker({
               onClick={onClose}
               className="rounded-xl bg-white/[0.06] px-5 py-2.5 text-sm font-bold text-white/70"
             >
-              Close
+              {t("wc.guided.close")}
             </button>
           </div>
         )}
@@ -843,7 +870,7 @@ export default function WorldCupGuidedMatchupPicker({
                 className="inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-xs font-bold text-white/70 disabled:opacity-30 sm:min-h-0 sm:px-4 sm:py-2"
               >
                 <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden />
-                Back
+                {t("wc.guided.back")}
               </button>
 
               <button
@@ -852,7 +879,7 @@ export default function WorldCupGuidedMatchupPicker({
                 disabled={saveState === "saving"}
                 className="inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-xs font-bold text-white/70 disabled:opacity-30 sm:min-h-0 sm:px-4 sm:py-2"
               >
-                Skip
+                {t("wc.guided.skip")}
                 <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
               </button>
             </div>
@@ -861,10 +888,10 @@ export default function WorldCupGuidedMatchupPicker({
               className="order-1 text-center text-[10px] leading-snug text-white/35 sm:order-2 sm:flex-1 sm:px-2"
               data-testid="world-cup-guided-footer-context"
             >
-              Match {currentMatch.matchNumber}
+              {t("wc.guided.matchNumber", { number: currentMatch.matchNumber })}
               {currentMatch.startsAt ? (
                 <span className="mt-0.5 block sm:ml-1 sm:mt-0 sm:inline">
-                  {formatMatchDate(currentMatch.startsAt)}
+                  {formatMatchDate(currentMatch.startsAt, t)}
                 </span>
               ) : null}
             </div>
@@ -890,6 +917,7 @@ function MatchView({
   confidenceDraft,
   confidenceOptions,
   onConfidenceChange,
+  language,
 }: {
   match: WorldCupMatchView
   pick: WorldCupPickView | null
@@ -903,7 +931,9 @@ function MatchView({
   confidenceDraft: number
   confidenceOptions: number[]
   onConfidenceChange: (value: number) => void
+  language: WorldCupLocale | string | null | undefined
 }) {
+  const t = useMemo<T>(() => makeWcT(language), [language])
   const eff = useMemo(() => getWorldCupProjectedMatchTeams(match), [match])
   const isSaving = saveState === "saving"
   const isFinal = isWorldCupMatchFinal(match)
@@ -948,7 +978,7 @@ function MatchView({
     <div className="flex flex-col gap-4 px-4 py-6 sm:py-10">
       {/* Match meta */}
       <div className="flex flex-col items-center gap-2 text-center">
-        <MatchStatusBadge match={match} />
+        <MatchStatusBadge match={match} t={t} />
         {scoreStr && (
           <div className="text-3xl font-black tabular-nums text-white">{scoreStr}</div>
         )}
@@ -964,7 +994,7 @@ function MatchView({
           </div>
         )}
         {isSaving && (
-          <div className="text-xs text-cyan-300">Saving…</div>
+          <div className="text-xs text-cyan-300">{t("wc.guided.saving")}</div>
         )}
         {saveState === "saved" && (
           <div
@@ -972,9 +1002,11 @@ function MatchView({
             data-testid="world-cup-guided-next-transition"
           >
             <span className="flex items-center gap-1 font-bold">
-              <Check className="h-3.5 w-3.5 shrink-0" aria-hidden /> Saved
+              <Check className="h-3.5 w-3.5 shrink-0" aria-hidden /> {t("wc.guided.saved")}
             </span>
-            <span className="text-[11px] font-semibold text-emerald-200/90">Next matchup…</span>
+            <span className="text-[11px] font-semibold text-emerald-200/90">
+              {t("wc.guided.nextMatchup")}
+            </span>
           </div>
         )}
       </div>
@@ -983,6 +1015,8 @@ function MatchView({
       <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:gap-4">
         <TeamCard
           teamId={eff.home.teamId}
+          /* Raw team name preferred; "TBD" sentinel kept literal because
+             TeamCard compares against this exact token to detect placeholder. */
           teamName={eff.home.teamName || "TBD"}
           teamLogo={eff.home.teamLogo ?? match.homeTeamLogo}
           score={match.homeScore}
@@ -997,11 +1031,12 @@ function MatchView({
           pickState={homePickState as "not_started" | "winning" | "drawing" | "losing" | "correct" | "incorrect" | "unknown"}
           aiStaged={stagedSide === "home"}
           onPick={() => onPick("home")}
+          t={t}
         />
 
         <div className="flex shrink-0 items-center justify-center">
           <span className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-xs font-black text-white/25">
-            VS
+            {t("wc.guided.vs")}
           </span>
         </div>
 
@@ -1021,30 +1056,31 @@ function MatchView({
           pickState={awayPickState as "not_started" | "winning" | "drawing" | "losing" | "correct" | "incorrect" | "unknown"}
           aiStaged={stagedSide === "away"}
           onPick={() => onPick("away")}
+          t={t}
         />
       </div>
 
       {/* Pick hint */}
       {!isLocked && !isFinal && !pick && (
         <p className="text-center text-xs text-white/35">
-          Tap a team to select the winner
+          {t("wc.guided.tapToSelect")}
         </p>
       )}
       {!isWorldCupMatchPickable(match) && (
         <p className="text-center text-xs text-amber-200/90">
           {getWorldCupUnpickableReason(match) === "final"
-            ? "This match is final."
-            : "Pick earlier round winners first."}
+            ? t("wc.guided.matchFinalNote")
+            : t("wc.guided.pickEarlierRoundsFirst")}
         </p>
       )}
       {pick && !isLocked && !isFinal && (
         <p className="text-center text-xs text-white/35">
-          Tap the other team to change your pick
+          {t("wc.guided.tapToChange")}
         </p>
       )}
       {(isLocked || isFinal) && (
         <p className="text-center text-xs text-white/30">
-          {isFinal ? "This match has ended." : "Picks are locked for this match."}
+          {isFinal ? t("wc.guided.matchEnded") : t("wc.guided.matchLocked")}
         </p>
       )}
 
@@ -1053,9 +1089,9 @@ function MatchView({
           data-testid={`wc-guided-confidence-selector-${match.id}`}
           className="rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.055] p-3 text-xs leading-5 text-cyan-50/80"
         >
-          <span className="block font-black text-white">Confidence bonus</span>
+          <span className="block font-black text-white">{t("wc.guided.confidenceTitle")}</span>
           <span className="mt-1 block text-white/55">
-            Higher confidence means more bonus points if correct.
+            {t("wc.guided.confidenceHelper")}
           </span>
           <select
             value={confidenceDraft}
@@ -1064,7 +1100,9 @@ function MatchView({
           >
             {confidenceOptions.map((value) => (
               <option key={value} value={value}>
-                {value} point{value === 1 ? "" : "s"}
+                {value === 1
+                  ? t("wc.guided.confidenceOptionOne")
+                  : t("wc.guided.confidenceOptionOther", { n: value })}
               </option>
             ))}
           </select>

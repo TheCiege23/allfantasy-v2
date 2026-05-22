@@ -1,9 +1,12 @@
 "use client"
 
+import { useMemo } from "react"
 import { AlertTriangle, CheckCircle2, Crown, Lock, Medal, Target, Trophy, XCircle } from "lucide-react"
 import type { WorldCupLeaderboardRow } from "@/lib/world-cup/types"
 import type { WorldCupBracketEntryClient } from "@/lib/world-cup/worldCupClientApi"
 import { getWorldCupPossiblePointsRemaining } from "@/lib/world-cup/worldCupLeaderboardService"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import WorldCupShareCard from "./WorldCupShareCards"
 
 export default function WorldCupScoreSummary({
@@ -24,6 +27,8 @@ export default function WorldCupScoreSummary({
   /** Results have been synced at least once (lastSyncedAt present) */
   scoresSynced: boolean
 }) {
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
   const totalScore = leaderboardRow?.totalScore ?? entry.totalScore
   const maxPossible = leaderboardRow?.maxPossibleScore ?? entry.maxPossibleScore
   const correct = leaderboardRow?.correctPicks ?? entry.correctPicks
@@ -43,7 +48,7 @@ export default function WorldCupScoreSummary({
       <div className="mb-2 flex items-start justify-between gap-2 sm:mb-3 sm:gap-3">
         <div className="min-w-0">
           <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/40 sm:text-[10px]">
-            Bracket scorecard
+            {t("wc.summary.title")}
           </p>
           <p className="truncate text-sm font-black text-white">{entry.name}</p>
         </div>
@@ -56,7 +61,9 @@ export default function WorldCupScoreSummary({
               <Medal className="h-3.5 w-3.5" /> #{rank}
             </span>
           ) : (
-            <span className="text-[11px] font-bold text-white/35">Rank —</span>
+            <span className="text-[11px] font-bold text-white/35">
+              {t("wc.summary.rankPlaceholder")}
+            </span>
           )}
           <span
             data-testid="wc-summary-completion"
@@ -65,7 +72,9 @@ export default function WorldCupScoreSummary({
             }`}
           >
             <Target className="h-3 w-3" />
-            {complete ? "Bracket complete" : "Bracket incomplete"}
+            {complete
+              ? t("wc.summary.bracketComplete")
+              : t("wc.summary.bracketIncomplete")}
           </span>
         </div>
       </div>
@@ -77,7 +86,7 @@ export default function WorldCupScoreSummary({
           className="mb-3 flex items-start gap-2 rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100"
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>Fixtures are not fully resolved yet — scoring updates once matchups are official.</span>
+          <span>{t("wc.summary.fixturesNotReady")}</span>
         </div>
       )}
       {fixturesReady && !scoresSynced && (
@@ -86,7 +95,7 @@ export default function WorldCupScoreSummary({
           className="mb-3 flex items-start gap-2 rounded-lg border border-sky-400/25 bg-sky-500/10 px-3 py-2 text-[11px] text-sky-100"
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>Scores have not synced yet — points appear after results post.</span>
+          <span>{t("wc.summary.scoresNotSynced")}</span>
         </div>
       )}
       {isLocked && (
@@ -95,19 +104,23 @@ export default function WorldCupScoreSummary({
           className="mb-3 flex items-center gap-2 rounded-lg border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-100"
         >
           <Lock className="h-4 w-4 shrink-0" />
-          Bracket locked — picks are frozen.
+          {t("wc.summary.locked")}
         </div>
       )}
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
         <div className="rounded-xl border border-white/10 bg-black/30 px-2.5 py-2 sm:px-3 sm:py-2.5">
-          <div className="text-[8px] font-bold uppercase tracking-wide text-white/40 sm:text-[9px]">Total pts</div>
+          <div className="text-[8px] font-bold uppercase tracking-wide text-white/40 sm:text-[9px]">
+            {t("wc.summary.totalPts")}
+          </div>
           <div data-testid="wc-summary-total-points" className="mt-0.5 text-xl font-black tabular-nums text-white sm:mt-1 sm:text-2xl">
             {totalScore}
           </div>
         </div>
         <div className="rounded-xl border border-white/10 bg-black/30 px-2.5 py-2 sm:px-3 sm:py-2.5">
-          <div className="text-[8px] font-bold uppercase tracking-wide text-white/40 sm:text-[9px]">Possible left</div>
+          <div className="text-[8px] font-bold uppercase tracking-wide text-white/40 sm:text-[9px]">
+            {t("wc.summary.possibleLeft")}
+          </div>
           <div
             data-testid="wc-summary-possible-remaining"
             className="mt-0.5 text-xl font-black tabular-nums text-cyan-200 sm:mt-1 sm:text-2xl"
@@ -116,7 +129,9 @@ export default function WorldCupScoreSummary({
           </div>
         </div>
         <div className="rounded-xl border border-white/10 bg-black/30 px-2.5 py-2 sm:px-3 sm:py-2.5">
-          <div className="text-[8px] font-bold uppercase tracking-wide text-white/40 sm:text-[9px]">Correct</div>
+          <div className="text-[8px] font-bold uppercase tracking-wide text-white/40 sm:text-[9px]">
+            {t("wc.summary.correct")}
+          </div>
           <div
             data-testid="wc-summary-correct-picks"
             className="mt-0.5 flex items-center gap-1 text-xl font-black tabular-nums text-emerald-300 sm:mt-1 sm:text-2xl"
@@ -126,7 +141,9 @@ export default function WorldCupScoreSummary({
           </div>
         </div>
         <div className="rounded-xl border border-white/10 bg-black/30 px-2.5 py-2 sm:px-3 sm:py-2.5">
-          <div className="text-[8px] font-bold uppercase tracking-wide text-white/40 sm:text-[9px]">Wrong</div>
+          <div className="text-[8px] font-bold uppercase tracking-wide text-white/40 sm:text-[9px]">
+            {t("wc.summary.wrong")}
+          </div>
           <div
             data-testid="wc-summary-wrong-picks"
             className="mt-0.5 flex items-center gap-1 text-xl font-black tabular-nums text-rose-300 sm:mt-1 sm:text-2xl"
@@ -141,7 +158,7 @@ export default function WorldCupScoreSummary({
         <div className="rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-2 sm:px-3 sm:py-2.5">
           <div className="mb-0.5 flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wide text-white/45 sm:mb-1 sm:text-[10px]">
             <Trophy className="h-3 w-3 shrink-0 text-amber-300/90 sm:h-3.5 sm:w-3.5" />
-            Champion pick
+            {t("wc.summary.championPick")}
           </div>
           <div className="truncate text-sm font-black text-white">{championName ?? "—"}</div>
           {championName ? (
@@ -154,19 +171,23 @@ export default function WorldCupScoreSummary({
               }`}
             >
               <Crown className="h-3 w-3" />
-              {championStillAlive ? "Champion alive" : "Champion busted"}
+              {championStillAlive
+                ? t("wc.summary.championAlive")
+                : t("wc.summary.championBusted")}
             </div>
           ) : (
-            <p className="mt-0.5 text-[10px] text-white/35 sm:mt-1 sm:text-[11px]">No champion selected yet</p>
+            <p className="mt-0.5 text-[10px] text-white/35 sm:mt-1 sm:text-[11px]">
+              {t("wc.summary.noChampionYet")}
+            </p>
           )}
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-2 sm:px-3 sm:py-2.5">
           <div className="mb-0.5 text-[9px] font-bold uppercase tracking-wide text-white/45 sm:mb-1 sm:text-[10px]">
-            Max ceiling
+            {t("wc.summary.maxCeiling")}
           </div>
           <p className="text-xs leading-snug text-white/70 sm:text-sm">
             <span className="font-black text-white">{maxPossible}</span>
-            <span className="text-white/45"> possible pts tracked for your remaining paths</span>
+            <span className="text-white/45">{t("wc.summary.maxCeilingBody")}</span>
           </p>
         </div>
       </div>

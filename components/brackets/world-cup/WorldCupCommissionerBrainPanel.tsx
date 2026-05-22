@@ -1,8 +1,10 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Loader2, Lock, Send, Settings, Sparkles } from "lucide-react"
 import { toast } from "sonner"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import WorldCupLeagueEventFeed from "./WorldCupLeagueEventFeed"
 import WorldCupCommissionerChecklistCard from "./WorldCupCommissionerChecklistCard"
 
@@ -64,6 +66,8 @@ export default function WorldCupCommissionerBrainPanel({
   /** Public pool URL — used by the checklist's reminder copy. */
   poolUrl?: string | null
 }) {
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const [settings, setSettings] = useState<CommissionerPrefs | null>(null)
   const [hasAi, setHasAi] = useState(false)
@@ -91,13 +95,13 @@ export default function WorldCupCommissionerBrainPanel({
         setBracketBrainEnabled(data.bracketBrainEnabled !== false)
         return
       }
-      setLoadError(data.error || "Could not load commissioner tools.")
+      setLoadError(data.error || t("wc.brain.loadError"))
     } catch {
-      setLoadError("Could not load commissioner tools.")
+      setLoadError(t("wc.brain.loadError"))
     } finally {
       setLoading(false)
     }
-  }, [challengeId])
+  }, [challengeId, t])
 
   useEffect(() => {
     void reload()
@@ -258,7 +262,7 @@ export default function WorldCupCommissionerBrainPanel({
     return (
       <div className="flex items-center gap-2 py-8 text-sm text-white/40">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Loading commissioner tools…
+        {t("wc.brain.loading")}
       </div>
     )
   }

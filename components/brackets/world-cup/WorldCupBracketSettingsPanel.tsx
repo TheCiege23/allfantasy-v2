@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Loader2, Lock, Save } from "lucide-react"
 import { toast } from "sonner"
 import { DEFAULT_WORLD_CUP_SCORING } from "@/lib/world-cup/worldCupBracketBuilder"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 
 type BundleChallenge = {
   id: string
@@ -83,6 +85,8 @@ export default function WorldCupBracketSettingsPanel({
   challengeId: string
   onSaved?: () => void
 }) {
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [payload, setPayload] = useState<LoadedPayload | null>(null)
@@ -342,7 +346,7 @@ export default function WorldCupBracketSettingsPanel({
     if (Object.keys(cmPatch).length > 0) patch.commissioner = cmPatch
 
     if (Object.keys(patch).length === 0) {
-      toast.message("No changes to save.")
+      toast.message(t("wc.settings.toastNoChanges"))
       return
     }
 
@@ -355,7 +359,7 @@ export default function WorldCupBracketSettingsPanel({
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        toast.error((data as { error?: string }).error || "Could not save settings")
+        toast.error((data as { error?: string }).error || t("wc.settings.toastError"))
         return
       }
       const next = (data as { settings: Omit<LoadedPayload, "hasAfPro" | "isAdmin" | "earlyPublicPicksAllowed"> }).settings
@@ -371,7 +375,7 @@ export default function WorldCupBracketSettingsPanel({
       } else {
         await reload()
       }
-      toast.success("Settings saved.")
+      toast.success(t("wc.settings.toastSaved"))
       onSaved?.()
     } finally {
       setSaving(false)
@@ -382,7 +386,7 @@ export default function WorldCupBracketSettingsPanel({
     return (
       <div data-testid="world-cup-settings-loading" className="flex items-center gap-2 py-12 text-sm text-white/40">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Loading pool settings…
+        {t("wc.settings.loading")}
       </div>
     )
   }
@@ -392,14 +396,14 @@ export default function WorldCupBracketSettingsPanel({
   return (
     <div data-testid="world-cup-settings-panel" className="space-y-6 px-1 pb-10 sm:px-0">
       <header className="space-y-1">
-        <h2 className="text-lg font-black text-white">Pool settings</h2>
+        <h2 className="text-lg font-black text-white">{t("wc.settings.title")}</h2>
         <p className="text-xs text-white/50">
-          Identity, caps, scoring, visibility, and alerts — commissioner controls for your World Cup bracket pool.
+          {t("wc.settings.subtitle")}
         </p>
       </header>
 
       <section className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-        <h3 className="text-[11px] font-bold uppercase tracking-wide text-white/45">Pool identity</h3>
+        <h3 className="text-[11px] font-bold uppercase tracking-wide text-white/45">{t("wc.settings.sectionIdentity")}</h3>
         <label className="mt-3 block text-xs text-white/70">
           Pool name
           <input
@@ -674,7 +678,7 @@ export default function WorldCupBracketSettingsPanel({
           className="inline-flex min-h-11 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-cyan-300 px-5 py-2.5 text-xs font-black text-black disabled:opacity-40 sm:w-auto sm:min-h-0"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Save settings
+          {saving ? t("wc.settings.saving") : t("wc.settings.save")}
         </button>
         {clientValidationError ? (
           <span className="text-xs text-rose-200/90">{clientValidationError}</span>

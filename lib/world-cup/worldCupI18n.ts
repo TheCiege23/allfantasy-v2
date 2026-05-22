@@ -735,6 +735,137 @@ const EN: WorldCupDictionary = {
   "wc.review.createMyBracket": "Create My Bracket",
   "wc.review.creating": "Creating...",
   "wc.review.openMyBracket": "Open My Bracket",
+
+  // ── Guided Matchup Picker (Phase 6) ──────────────────────────────────
+  "wc.guided.dialogLabel": "Guided Matchup Picker",
+  "wc.guided.closeLabel": "Close guided picker",
+  "wc.guided.timeTbd": "Time TBD",
+  "wc.guided.awaitingResult": "Awaiting result",
+  "wc.guided.tbd": "TBD",
+  "wc.guided.matchFinal": "Final",
+  "wc.guided.matchPostponed": "Postponed",
+  "wc.guided.pickAriaLabel": "Pick {{teamName}} to win",
+  "wc.guided.progressRound": "{{label}} · {{done}}/{{total}} picks",
+  "wc.guided.progressOverall": "{{pct}}% overall",
+  "wc.guided.headerLocked": "Bracket Locked",
+  "wc.guided.headerFixturesNotReady": "Fixtures Not Ready",
+  "wc.guided.headerStart": "Start Making Picks",
+  "wc.guided.headerComplete": "Bracket Complete",
+  "wc.guided.headerGuided": "Guided Picks",
+  "wc.guided.lockedHelper":
+    "This bracket is locked. Picks can no longer be changed.",
+  "wc.guided.emptyTeamsUpstream":
+    "Teams for this round will appear once earlier matches are picked.",
+  "wc.guided.emptyFixturesUnresolved":
+    "Fixtures are loaded, but real team matchups are not resolved yet.",
+  "wc.guided.close": "Close",
+  "wc.guided.back": "Back",
+  "wc.guided.skip": "Skip",
+  "wc.guided.matchNumber": "Match {{number}}",
+  "wc.guided.saving": "Saving…",
+  "wc.guided.saved": "Saved",
+  "wc.guided.nextMatchup": "Next matchup…",
+  "wc.guided.tapToSelect": "Tap a team to select the winner",
+  "wc.guided.tapToChange": "Tap the other team to change your pick",
+  "wc.guided.matchFinalNote": "This match is final.",
+  "wc.guided.pickEarlierRoundsFirst": "Pick earlier round winners first.",
+  "wc.guided.matchEnded": "This match has ended.",
+  "wc.guided.matchLocked": "Picks are locked for this match.",
+  "wc.guided.confidenceTitle": "Confidence bonus",
+  "wc.guided.confidenceHelper":
+    "Higher confidence means more bonus points if correct.",
+  "wc.guided.confidenceOptionOne": "1 point",
+  "wc.guided.confidenceOptionOther": "{{n}} points",
+  "wc.guided.bracketCompleteTitle": "Bracket Complete!",
+  "wc.guided.bracketCompleteBody": "You've picked every match.",
+  "wc.guided.reviewBracket": "Review Bracket",
+  "wc.guided.done": "Done",
+  "wc.guided.errorNotReady": "This matchup is not ready for picks yet.",
+  "wc.guided.errorSaveFailed": "Failed to save pick",
+  "wc.guided.vs": "VS",
+
+  // ── Score Summary card (Phase 6) ─────────────────────────────────────
+  "wc.summary.title": "Bracket scorecard",
+  "wc.summary.rankPlaceholder": "Rank —",
+  "wc.summary.bracketComplete": "Bracket complete",
+  "wc.summary.bracketIncomplete": "Bracket incomplete",
+  "wc.summary.fixturesNotReady":
+    "Fixtures are not fully resolved yet — scoring updates once matchups are official.",
+  "wc.summary.scoresNotSynced":
+    "Scores have not synced yet — points appear after results post.",
+  "wc.summary.locked": "Bracket locked — picks are frozen.",
+  "wc.summary.totalPts": "Total pts",
+  "wc.summary.possibleLeft": "Possible left",
+  "wc.summary.correct": "Correct",
+  "wc.summary.wrong": "Wrong",
+  "wc.summary.championPick": "Champion pick",
+  "wc.summary.championAlive": "Champion alive",
+  "wc.summary.championBusted": "Champion busted",
+  "wc.summary.noChampionYet": "No champion selected yet",
+  "wc.summary.maxCeiling": "Max ceiling",
+  "wc.summary.maxCeilingBody":
+    " possible pts tracked for your remaining paths",
+
+  // ── Round Breakdown card (Phase 6) ───────────────────────────────────
+  "wc.roundBreakdown.title": "Round scoring",
+  "wc.roundBreakdown.ptsAbbrev": "{{n}} pts",
+  "wc.roundBreakdown.perWin": "per win",
+  "wc.roundBreakdown.championBonus":
+    "Champion bonus enabled: {{bonus}} pts when your champion wins the final (policy — confirm challenge rules).",
+
+  // ── Leaderboard Insights card (Phase 6) ──────────────────────────────
+  "wc.insights.title": "Leaderboard Insights",
+  "wc.insights.empty":
+    "Leaderboard insights appear after finalized entries are scored. Make sure you've submitted your picks before the first match begins.",
+  "wc.insights.currentLeader": "Current Leader",
+  "wc.insights.largestGap": "Largest Gap",
+  "wc.insights.entries": "Entries",
+  "wc.insights.championsAlive": "Champions Alive",
+  "wc.insights.mostCorrect": "Most Correct",
+  "wc.insights.closestRace": "Closest Race",
+  "wc.insights.notClose": "Not close",
+  "wc.insights.gapPts": "{{n}} pts",
+  "wc.insights.mostCorrectValue": "{{name}} ({{count}})",
+  "wc.insights.aiSummaryTitle": "AI Pool Summary",
+  "wc.insights.aiBadgeUnlocked": "Finalized only",
+  "wc.insights.aiBadgeLocked": "Locked",
+  "wc.insights.aiNotAvailable": "Not available yet",
+  "wc.insights.aiSummaryCountOne":
+    "{{count}} public leaderboard entry included.",
+  "wc.insights.aiSummaryCountOther":
+    "{{count}} public leaderboard entries included.",
+  "wc.insights.aiSummaryLabel": "Finalized-only summary:",
+  "wc.insights.aiCommonChampionLabel": "Most common champion:",
+  "wc.insights.aiRaceLabel": "Race note:",
+  "wc.insights.aiRaceClose":
+    "The top two entries are within 5 points.",
+  "wc.insights.aiRaceNotClose": "No close top-two race yet.",
+  "wc.insights.aiWinReadLabel": "AI win read:",
+  "wc.insights.aiWinReadBody":
+    "{{name}} projects at {{pct}}% with {{health}} bracket health.",
+  "wc.insights.aiPrivacyNote":
+    "Uses finalized/public leaderboard data only. No private unfinalized picks are included. Bracket guidance stays limited to pool picks and scoring mechanics.",
+  "wc.insights.aiUpgradeNote":
+    "Upgrade to AI/Pro for finalized-only pool summaries. Locked users do not trigger AI calls.",
+
+  // ── Settings panel chrome (Phase 6) ──────────────────────────────────
+  "wc.settings.title": "Pool settings",
+  "wc.settings.subtitle":
+    "Identity, caps, scoring, visibility, and alerts — commissioner controls for your World Cup bracket pool.",
+  "wc.settings.loading": "Loading pool settings…",
+  "wc.settings.sectionIdentity": "Pool identity",
+  "wc.settings.save": "Save settings",
+  "wc.settings.saving": "Saving…",
+  "wc.settings.toastNoChanges": "No changes to save.",
+  "wc.settings.toastSaved": "Settings saved.",
+  "wc.settings.toastError": "Could not save settings",
+
+  // ── Commissioner Brain panel chrome (Phase 6) ────────────────────────
+  "wc.brain.title": "Commissioner Brain",
+  "wc.brain.subtitle":
+    "Snapshot, alerts, and AI helpers — manage your pool from one place.",
+  "wc.brain.loading": "Loading commissioner tools…",
+  "wc.brain.loadError": "Could not load commissioner tools.",
 }
 
 const ES: WorldCupDictionary = {
@@ -1411,6 +1542,141 @@ const ES: WorldCupDictionary = {
   "wc.review.createMyBracket": "Crear mi bracket",
   "wc.review.creating": "Creando...",
   "wc.review.openMyBracket": "Abrir mi bracket",
+
+  // ── Guided Matchup Picker (Phase 6) ──────────────────────────────────
+  "wc.guided.dialogLabel": "Selector de partidos guiado",
+  "wc.guided.closeLabel": "Cerrar selector guiado",
+  "wc.guided.timeTbd": "Hora por confirmar",
+  "wc.guided.awaitingResult": "Esperando resultado",
+  "wc.guided.tbd": "PEND",
+  "wc.guided.matchFinal": "Final",
+  "wc.guided.matchPostponed": "Aplazado",
+  "wc.guided.pickAriaLabel": "Elegir a {{teamName}} como ganador",
+  "wc.guided.progressRound": "{{label}} · {{done}}/{{total}} picks",
+  "wc.guided.progressOverall": "{{pct}}% en total",
+  "wc.guided.headerLocked": "Bracket bloqueado",
+  "wc.guided.headerFixturesNotReady": "Partidos no listos",
+  "wc.guided.headerStart": "Empieza a elegir",
+  "wc.guided.headerComplete": "Bracket completo",
+  "wc.guided.headerGuided": "Picks guiados",
+  "wc.guided.lockedHelper":
+    "Este bracket está bloqueado. Ya no se pueden cambiar los picks.",
+  "wc.guided.emptyTeamsUpstream":
+    "Los equipos de esta ronda aparecerán al elegir los partidos anteriores.",
+  "wc.guided.emptyFixturesUnresolved":
+    "Los partidos están cargados, pero los enfrentamientos reales aún no se han resuelto.",
+  "wc.guided.close": "Cerrar",
+  "wc.guided.back": "Atrás",
+  "wc.guided.skip": "Saltar",
+  "wc.guided.matchNumber": "Partido {{number}}",
+  "wc.guided.saving": "Guardando…",
+  "wc.guided.saved": "Guardado",
+  "wc.guided.nextMatchup": "Siguiente partido…",
+  "wc.guided.tapToSelect": "Toca un equipo para elegir al ganador",
+  "wc.guided.tapToChange": "Toca el otro equipo para cambiar tu pick",
+  "wc.guided.matchFinalNote": "Este partido ya terminó.",
+  "wc.guided.pickEarlierRoundsFirst":
+    "Elige primero a los ganadores de las rondas previas.",
+  "wc.guided.matchEnded": "Este partido ya terminó.",
+  "wc.guided.matchLocked": "Los picks de este partido están bloqueados.",
+  "wc.guided.confidenceTitle": "Bonus de confianza",
+  "wc.guided.confidenceHelper":
+    "Más confianza significa más puntos extra si aciertas.",
+  "wc.guided.confidenceOptionOne": "1 punto",
+  "wc.guided.confidenceOptionOther": "{{n}} puntos",
+  "wc.guided.bracketCompleteTitle": "¡Bracket completo!",
+  "wc.guided.bracketCompleteBody": "Has elegido todos los partidos.",
+  "wc.guided.reviewBracket": "Revisar bracket",
+  "wc.guided.done": "Listo",
+  "wc.guided.errorNotReady": "Este partido aún no está listo para picks.",
+  "wc.guided.errorSaveFailed": "No se pudo guardar el pick",
+  "wc.guided.vs": "VS",
+
+  // ── Score Summary card (Phase 6) ─────────────────────────────────────
+  "wc.summary.title": "Tarjeta de puntaje del bracket",
+  "wc.summary.rankPlaceholder": "Posición —",
+  "wc.summary.bracketComplete": "Bracket completo",
+  "wc.summary.bracketIncomplete": "Bracket incompleto",
+  "wc.summary.fixturesNotReady":
+    "Los partidos aún no están totalmente confirmados — la puntuación se actualizará cuando se hagan oficiales.",
+  "wc.summary.scoresNotSynced":
+    "Los marcadores no se han sincronizado todavía — los puntos aparecerán cuando se publiquen los resultados.",
+  "wc.summary.locked":
+    "Bracket bloqueado — los picks están congelados.",
+  "wc.summary.totalPts": "Pts totales",
+  "wc.summary.possibleLeft": "Posibles restantes",
+  "wc.summary.correct": "Correctos",
+  "wc.summary.wrong": "Errados",
+  "wc.summary.championPick": "Campeón elegido",
+  "wc.summary.championAlive": "Campeón vivo",
+  "wc.summary.championBusted": "Campeón eliminado",
+  "wc.summary.noChampionYet": "Aún no has elegido campeón",
+  "wc.summary.maxCeiling": "Techo máximo",
+  "wc.summary.maxCeilingBody":
+    " pts posibles para tus caminos restantes",
+
+  // ── Round Breakdown card (Phase 6) ───────────────────────────────────
+  "wc.roundBreakdown.title": "Puntos por ronda",
+  "wc.roundBreakdown.ptsAbbrev": "{{n}} pts",
+  "wc.roundBreakdown.perWin": "por victoria",
+  "wc.roundBreakdown.championBonus":
+    "Bonus de campeón activo: {{bonus}} pts si tu campeón gana la final (política — confirma las reglas del torneo).",
+
+  // ── Leaderboard Insights card (Phase 6) ──────────────────────────────
+  "wc.insights.title": "Insights de la tabla",
+  "wc.insights.empty":
+    "Los insights aparecen una vez que las entradas finalizadas se hayan puntuado. Confirma tus picks antes del primer partido.",
+  "wc.insights.currentLeader": "Líder actual",
+  "wc.insights.largestGap": "Mayor diferencia",
+  "wc.insights.entries": "Entradas",
+  "wc.insights.championsAlive": "Campeones vivos",
+  "wc.insights.mostCorrect": "Más aciertos",
+  "wc.insights.closestRace": "Pelea más cerrada",
+  "wc.insights.notClose": "Sin pelea cerrada",
+  "wc.insights.gapPts": "{{n}} pts",
+  "wc.insights.mostCorrectValue": "{{name}} ({{count}})",
+  "wc.insights.aiSummaryTitle": "Resumen IA del grupo",
+  "wc.insights.aiBadgeUnlocked": "Solo finalizadas",
+  "wc.insights.aiBadgeLocked": "Bloqueado",
+  "wc.insights.aiNotAvailable": "Aún no disponible",
+  "wc.insights.aiSummaryCountOne":
+    "{{count}} entrada pública incluida.",
+  "wc.insights.aiSummaryCountOther":
+    "{{count}} entradas públicas incluidas.",
+  "wc.insights.aiSummaryLabel": "Resumen solo de finalizadas:",
+  "wc.insights.aiCommonChampionLabel": "Campeón más común:",
+  "wc.insights.aiRaceLabel": "Nota de pelea:",
+  "wc.insights.aiRaceClose":
+    "Las dos primeras entradas están a 5 puntos o menos.",
+  "wc.insights.aiRaceNotClose":
+    "Aún no hay una pelea cerrada entre los dos primeros.",
+  "wc.insights.aiWinReadLabel": "Lectura IA:",
+  "wc.insights.aiWinReadBody":
+    "{{name}} proyecta {{pct}}% con salud de bracket {{health}}.",
+  "wc.insights.aiPrivacyNote":
+    "Usa solo datos públicos de la tabla finalizada. No incluye picks privados sin finalizar. La guía del bracket se limita a picks del grupo y mecánica de puntos.",
+  "wc.insights.aiUpgradeNote":
+    "Actualiza a IA/Pro para resúmenes solo de entradas finalizadas. Las cuentas bloqueadas no disparan llamadas de IA.",
+
+  // ── Settings panel chrome (Phase 6) ──────────────────────────────────
+  "wc.settings.title": "Ajustes del grupo",
+  "wc.settings.subtitle":
+    "Identidad, límites, puntuación, visibilidad y alertas — controles del comisionado para tu grupo de la Copa del Mundo.",
+  "wc.settings.loading": "Cargando ajustes del grupo…",
+  "wc.settings.sectionIdentity": "Identidad del grupo",
+  "wc.settings.save": "Guardar ajustes",
+  "wc.settings.saving": "Guardando…",
+  "wc.settings.toastNoChanges": "No hay cambios para guardar.",
+  "wc.settings.toastSaved": "Ajustes guardados.",
+  "wc.settings.toastError": "No se pudieron guardar los ajustes",
+
+  // ── Commissioner Brain panel chrome (Phase 6) ────────────────────────
+  "wc.brain.title": "Cerebro del comisionado",
+  "wc.brain.subtitle":
+    "Resumen, alertas y ayudas IA — controla tu grupo desde un solo lugar.",
+  "wc.brain.loading": "Cargando herramientas del comisionado…",
+  "wc.brain.loadError":
+    "No se pudieron cargar las herramientas del comisionado.",
 }
 
 // Traditional Chinese (zh-TW). Sports-app voice — short, scannable.
@@ -2057,6 +2323,139 @@ const ZH: WorldCupDictionary = {
   "wc.review.createMyBracket": "建立我的對戰表",
   "wc.review.creating": "建立中...",
   "wc.review.openMyBracket": "開啟我的對戰表",
+
+  // ── Guided Matchup Picker (Phase 6) ──────────────────────────────────
+  "wc.guided.dialogLabel": "對戰引導選擇器",
+  "wc.guided.closeLabel": "關閉引導選擇器",
+  "wc.guided.timeTbd": "時間待定",
+  "wc.guided.awaitingResult": "等待結果",
+  "wc.guided.tbd": "待定",
+  "wc.guided.matchFinal": "結束",
+  "wc.guided.matchPostponed": "延期",
+  "wc.guided.pickAriaLabel": "選擇 {{teamName}} 獲勝",
+  "wc.guided.progressRound": "{{label}} · {{done}}/{{total}} 選擇",
+  "wc.guided.progressOverall": "整體 {{pct}}%",
+  "wc.guided.headerLocked": "對戰表已鎖定",
+  "wc.guided.headerFixturesNotReady": "賽程尚未就緒",
+  "wc.guided.headerStart": "開始選擇",
+  "wc.guided.headerComplete": "對戰表完成",
+  "wc.guided.headerGuided": "引導選擇",
+  "wc.guided.lockedHelper":
+    "此對戰表已鎖定,無法再修改選擇。",
+  "wc.guided.emptyTeamsUpstream":
+    "完成前面比賽的選擇後,本輪的隊伍才會出現。",
+  "wc.guided.emptyFixturesUnresolved":
+    "賽程已載入,但實際對戰隊伍尚未確定。",
+  "wc.guided.close": "關閉",
+  "wc.guided.back": "上一步",
+  "wc.guided.skip": "略過",
+  "wc.guided.matchNumber": "第 {{number}} 場",
+  "wc.guided.saving": "儲存中…",
+  "wc.guided.saved": "已儲存",
+  "wc.guided.nextMatchup": "下一場比賽…",
+  "wc.guided.tapToSelect": "點選一隊作為勝者",
+  "wc.guided.tapToChange": "點選另一隊以更換選擇",
+  "wc.guided.matchFinalNote": "此比賽已結束。",
+  "wc.guided.pickEarlierRoundsFirst": "請先選擇之前輪次的勝者。",
+  "wc.guided.matchEnded": "此比賽已結束。",
+  "wc.guided.matchLocked": "此比賽的選擇已鎖定。",
+  "wc.guided.confidenceTitle": "信心加成",
+  "wc.guided.confidenceHelper":
+    "信心越高,猜對時可獲得越多獎勵分數。",
+  "wc.guided.confidenceOptionOne": "1 分",
+  "wc.guided.confidenceOptionOther": "{{n}} 分",
+  "wc.guided.bracketCompleteTitle": "對戰表完成!",
+  "wc.guided.bracketCompleteBody": "你已選擇所有比賽。",
+  "wc.guided.reviewBracket": "查看對戰表",
+  "wc.guided.done": "完成",
+  "wc.guided.errorNotReady": "此對戰尚未準備好選擇。",
+  "wc.guided.errorSaveFailed": "儲存選擇失敗",
+  "wc.guided.vs": "VS",
+
+  // ── Score Summary card (Phase 6) ─────────────────────────────────────
+  "wc.summary.title": "對戰表計分卡",
+  "wc.summary.rankPlaceholder": "排名 —",
+  "wc.summary.bracketComplete": "對戰表完成",
+  "wc.summary.bracketIncomplete": "對戰表未完成",
+  "wc.summary.fixturesNotReady":
+    "賽程尚未完全確定 — 對戰確定後計分會更新。",
+  "wc.summary.scoresNotSynced":
+    "比分尚未同步 — 結果公布後即會顯示分數。",
+  "wc.summary.locked":
+    "對戰表已鎖定 — 選擇已凍結。",
+  "wc.summary.totalPts": "總分",
+  "wc.summary.possibleLeft": "可能剩餘",
+  "wc.summary.correct": "正確",
+  "wc.summary.wrong": "錯誤",
+  "wc.summary.championPick": "冠軍選擇",
+  "wc.summary.championAlive": "冠軍仍在",
+  "wc.summary.championBusted": "冠軍出局",
+  "wc.summary.noChampionYet": "尚未選擇冠軍",
+  "wc.summary.maxCeiling": "可達上限",
+  "wc.summary.maxCeilingBody":
+    " 可能分數,根據你剩餘路徑計算",
+
+  // ── Round Breakdown card (Phase 6) ───────────────────────────────────
+  "wc.roundBreakdown.title": "各輪計分",
+  "wc.roundBreakdown.ptsAbbrev": "{{n}} 分",
+  "wc.roundBreakdown.perWin": "每勝場",
+  "wc.roundBreakdown.championBonus":
+    "冠軍加成已啟用:你選的冠軍贏得決賽時可獲得 {{bonus}} 分(政策 — 請以對戰規則為準)。",
+
+  // ── Leaderboard Insights card (Phase 6) ──────────────────────────────
+  "wc.insights.title": "排行榜分析",
+  "wc.insights.empty":
+    "完成評分的對戰表出現後,排行榜分析才會顯示。請務必在第一場比賽開始前送出你的選擇。",
+  "wc.insights.currentLeader": "目前領先者",
+  "wc.insights.largestGap": "最大差距",
+  "wc.insights.entries": "對戰表數",
+  "wc.insights.championsAlive": "冠軍仍在的數量",
+  "wc.insights.mostCorrect": "猜中最多",
+  "wc.insights.closestRace": "最膠著的對決",
+  "wc.insights.notClose": "差距不近",
+  "wc.insights.gapPts": "{{n}} 分",
+  "wc.insights.mostCorrectValue": "{{name}}({{count}})",
+  "wc.insights.aiSummaryTitle": "AI 群組摘要",
+  "wc.insights.aiBadgeUnlocked": "僅限已完成",
+  "wc.insights.aiBadgeLocked": "已鎖定",
+  "wc.insights.aiNotAvailable": "尚不可用",
+  "wc.insights.aiSummaryCountOne":
+    "包含 {{count}} 份公開對戰表。",
+  "wc.insights.aiSummaryCountOther":
+    "包含 {{count}} 份公開對戰表。",
+  "wc.insights.aiSummaryLabel": "僅限已完成的摘要:",
+  "wc.insights.aiCommonChampionLabel": "最常見冠軍:",
+  "wc.insights.aiRaceLabel": "對決提示:",
+  "wc.insights.aiRaceClose":
+    "前兩名差距在 5 分以內。",
+  "wc.insights.aiRaceNotClose":
+    "目前前兩名差距還不算近。",
+  "wc.insights.aiWinReadLabel": "AI 勝率解讀:",
+  "wc.insights.aiWinReadBody":
+    "{{name}} 預測 {{pct}}%,對戰表健康度 {{health}}。",
+  "wc.insights.aiPrivacyNote":
+    "僅使用已完成/公開的排行榜資料。不包含未完成的私人選擇。對戰指引僅限於群組選擇與計分機制。",
+  "wc.insights.aiUpgradeNote":
+    "升級 AI/Pro 即可獲得僅限已完成的群組摘要。鎖定的使用者不會觸發 AI 呼叫。",
+
+  // ── Settings panel chrome (Phase 6) ──────────────────────────────────
+  "wc.settings.title": "群組設定",
+  "wc.settings.subtitle":
+    "識別、上限、計分、可見性與通知 — 世界盃對戰表群組的管理員控制項。",
+  "wc.settings.loading": "正在載入群組設定…",
+  "wc.settings.sectionIdentity": "群組識別",
+  "wc.settings.save": "儲存設定",
+  "wc.settings.saving": "儲存中…",
+  "wc.settings.toastNoChanges": "沒有要儲存的變更。",
+  "wc.settings.toastSaved": "設定已儲存。",
+  "wc.settings.toastError": "無法儲存設定",
+
+  // ── Commissioner Brain panel chrome (Phase 6) ────────────────────────
+  "wc.brain.title": "管理員智慧助手",
+  "wc.brain.subtitle":
+    "概況、警示與 AI 助手 — 一處管理整個群組。",
+  "wc.brain.loading": "正在載入管理員工具…",
+  "wc.brain.loadError": "無法載入管理員工具。",
 }
 
 // Filipino — natural sports-app Filipino, light Taglish where it reads
@@ -2741,6 +3140,146 @@ const FIL: WorldCupDictionary = {
   "wc.review.createMyBracket": "Gumawa ng aking bracket",
   "wc.review.creating": "Gumagawa...",
   "wc.review.openMyBracket": "Buksan ang aking bracket",
+
+  // ── Guided Matchup Picker (Phase 6) ──────────────────────────────────
+  "wc.guided.dialogLabel": "Guided Matchup Picker",
+  "wc.guided.closeLabel": "Isara ang guided picker",
+  "wc.guided.timeTbd": "Oras TBD",
+  "wc.guided.awaitingResult": "Hinihintay ang resulta",
+  "wc.guided.tbd": "TBD",
+  "wc.guided.matchFinal": "Final",
+  "wc.guided.matchPostponed": "Ipinagpaliban",
+  "wc.guided.pickAriaLabel": "Piliin si {{teamName}} na manalo",
+  "wc.guided.progressRound": "{{label}} · {{done}}/{{total}} picks",
+  "wc.guided.progressOverall": "{{pct}}% lahat-lahat",
+  "wc.guided.headerLocked": "Naka-lock ang Bracket",
+  "wc.guided.headerFixturesNotReady": "Hindi Pa Handa ang Mga Laban",
+  "wc.guided.headerStart": "Simulan ang Pagpili",
+  "wc.guided.headerComplete": "Kumpleto na ang Bracket",
+  "wc.guided.headerGuided": "Guided Picks",
+  "wc.guided.lockedHelper":
+    "Naka-lock ang bracket na ito. Hindi na maaaring baguhin ang picks.",
+  "wc.guided.emptyTeamsUpstream":
+    "Lalabas ang mga koponan para sa round na ito kapag napili na ang mas naunang mga laban.",
+  "wc.guided.emptyFixturesUnresolved":
+    "Naka-load na ang mga laban, pero hindi pa nararesolba ang aktwal na matchups.",
+  "wc.guided.close": "Isara",
+  "wc.guided.back": "Bumalik",
+  "wc.guided.skip": "Laktawan",
+  "wc.guided.matchNumber": "Laban {{number}}",
+  "wc.guided.saving": "Sini-save…",
+  "wc.guided.saved": "Na-save",
+  "wc.guided.nextMatchup": "Susunod na laban…",
+  "wc.guided.tapToSelect":
+    "I-tap ang koponan para mapili ang panalo",
+  "wc.guided.tapToChange":
+    "I-tap ang kabilang koponan para palitan ang pick mo",
+  "wc.guided.matchFinalNote": "Tapos na ang laban na ito.",
+  "wc.guided.pickEarlierRoundsFirst":
+    "Piliin muna ang mga panalo sa mga naunang round.",
+  "wc.guided.matchEnded": "Tapos na ang laban na ito.",
+  "wc.guided.matchLocked":
+    "Naka-lock ang picks para sa laban na ito.",
+  "wc.guided.confidenceTitle": "Bonus ng Confidence",
+  "wc.guided.confidenceHelper":
+    "Mas mataas ang confidence, mas maraming bonus points kung tama.",
+  "wc.guided.confidenceOptionOne": "1 point",
+  "wc.guided.confidenceOptionOther": "{{n}} points",
+  "wc.guided.bracketCompleteTitle": "Kumpleto na ang Bracket!",
+  "wc.guided.bracketCompleteBody":
+    "Napili mo na ang lahat ng laban.",
+  "wc.guided.reviewBracket": "I-review ang Bracket",
+  "wc.guided.done": "Tapos na",
+  "wc.guided.errorNotReady":
+    "Hindi pa handa ang laban na ito para sa picks.",
+  "wc.guided.errorSaveFailed": "Hindi na-save ang pick",
+  "wc.guided.vs": "VS",
+
+  // ── Score Summary card (Phase 6) ─────────────────────────────────────
+  "wc.summary.title": "Bracket scorecard",
+  "wc.summary.rankPlaceholder": "Ranggo —",
+  "wc.summary.bracketComplete": "Kumpletong bracket",
+  "wc.summary.bracketIncomplete": "Hindi kumpletong bracket",
+  "wc.summary.fixturesNotReady":
+    "Hindi pa lahat ng laban ay confirmed — mag-uupdate ang scoring kapag opisyal na ang matchups.",
+  "wc.summary.scoresNotSynced":
+    "Hindi pa naka-sync ang scores — lalabas ang points kapag na-post na ang resulta.",
+  "wc.summary.locked":
+    "Naka-lock ang bracket — naka-freeze na ang picks.",
+  "wc.summary.totalPts": "Total na pts",
+  "wc.summary.possibleLeft": "Possible pa",
+  "wc.summary.correct": "Tama",
+  "wc.summary.wrong": "Mali",
+  "wc.summary.championPick": "Pinili na kampeon",
+  "wc.summary.championAlive": "Buhay pa ang kampeon",
+  "wc.summary.championBusted": "Talo na ang kampeon",
+  "wc.summary.noChampionYet": "Wala pang napiling kampeon",
+  "wc.summary.maxCeiling": "Max ceiling",
+  "wc.summary.maxCeilingBody":
+    " possible pts para sa natitirang paths mo",
+
+  // ── Round Breakdown card (Phase 6) ───────────────────────────────────
+  "wc.roundBreakdown.title": "Scoring per round",
+  "wc.roundBreakdown.ptsAbbrev": "{{n}} pts",
+  "wc.roundBreakdown.perWin": "per panalo",
+  "wc.roundBreakdown.championBonus":
+    "May bonus sa kampeon: {{bonus}} pts kapag nanalo ang pinili mong kampeon sa final (policy — kumpirmahin sa rules).",
+
+  // ── Leaderboard Insights card (Phase 6) ──────────────────────────────
+  "wc.insights.title": "Leaderboard Insights",
+  "wc.insights.empty":
+    "Lalabas ang leaderboard insights kapag na-score na ang finalized na entries. Siguraduhing nakapag-submit ka ng picks bago magsimula ang unang laban.",
+  "wc.insights.currentLeader": "Kasalukuyang Lider",
+  "wc.insights.largestGap": "Pinakamalaking Agwat",
+  "wc.insights.entries": "Mga Entry",
+  "wc.insights.championsAlive": "Mga Buhay na Kampeon",
+  "wc.insights.mostCorrect": "Pinakamaraming Tama",
+  "wc.insights.closestRace": "Pinakamalapit na Race",
+  "wc.insights.notClose": "Hindi malapit",
+  "wc.insights.gapPts": "{{n}} pts",
+  "wc.insights.mostCorrectValue": "{{name}} ({{count}})",
+  "wc.insights.aiSummaryTitle": "AI Pool Summary",
+  "wc.insights.aiBadgeUnlocked": "Finalized lang",
+  "wc.insights.aiBadgeLocked": "Naka-lock",
+  "wc.insights.aiNotAvailable": "Wala pa",
+  "wc.insights.aiSummaryCountOne":
+    "Kasama ang {{count}} public leaderboard entry.",
+  "wc.insights.aiSummaryCountOther":
+    "Kasama ang {{count}} public leaderboard entries.",
+  "wc.insights.aiSummaryLabel": "Finalized-only summary:",
+  "wc.insights.aiCommonChampionLabel":
+    "Pinaka-karaniwang kampeon:",
+  "wc.insights.aiRaceLabel": "Race note:",
+  "wc.insights.aiRaceClose":
+    "Ang top two entries ay nasa loob ng 5 points.",
+  "wc.insights.aiRaceNotClose":
+    "Wala pang masyadong malapit na race sa top two.",
+  "wc.insights.aiWinReadLabel": "AI win read:",
+  "wc.insights.aiWinReadBody":
+    "Nasa {{pct}}% si {{name}} na may {{health}} bracket health.",
+  "wc.insights.aiPrivacyNote":
+    "Gumagamit lang ng finalized/public leaderboard data. Walang kasama na private unfinalized picks. Limitado ang guidance sa pool picks at scoring mechanics.",
+  "wc.insights.aiUpgradeNote":
+    "Mag-upgrade sa AI/Pro para sa finalized-only pool summaries. Hindi nagti-trigger ng AI calls ang locked users.",
+
+  // ── Settings panel chrome (Phase 6) ──────────────────────────────────
+  "wc.settings.title": "Mga setting ng pool",
+  "wc.settings.subtitle":
+    "Identity, caps, scoring, visibility, at alerts — kontrol ng commissioner para sa World Cup bracket pool mo.",
+  "wc.settings.loading": "Naglo-load ng pool settings…",
+  "wc.settings.sectionIdentity": "Pool identity",
+  "wc.settings.save": "I-save ang settings",
+  "wc.settings.saving": "Sini-save…",
+  "wc.settings.toastNoChanges": "Walang babaguhin na i-save.",
+  "wc.settings.toastSaved": "Na-save ang settings.",
+  "wc.settings.toastError": "Hindi na-save ang settings",
+
+  // ── Commissioner Brain panel chrome (Phase 6) ────────────────────────
+  "wc.brain.title": "Commissioner Brain",
+  "wc.brain.subtitle":
+    "Snapshot, alerts, at AI helpers — pamahalaan ang pool mo sa isang lugar.",
+  "wc.brain.loading": "Naglo-load ng commissioner tools…",
+  "wc.brain.loadError": "Hindi ma-load ang commissioner tools.",
 }
 
 // Vietnamese — natural sports-app Vietnamese.
@@ -3441,6 +3980,143 @@ const VI: WorldCupDictionary = {
   "wc.review.createMyBracket": "Tạo bracket của tôi",
   "wc.review.creating": "Đang tạo...",
   "wc.review.openMyBracket": "Mở bracket của tôi",
+
+  // ── Guided Matchup Picker (Phase 6) ──────────────────────────────────
+  "wc.guided.dialogLabel": "Chọn trận theo từng bước",
+  "wc.guided.closeLabel": "Đóng trình chọn theo từng bước",
+  "wc.guided.timeTbd": "Giờ chưa xác định",
+  "wc.guided.awaitingResult": "Đang chờ kết quả",
+  "wc.guided.tbd": "Chưa rõ",
+  "wc.guided.matchFinal": "Kết thúc",
+  "wc.guided.matchPostponed": "Hoãn",
+  "wc.guided.pickAriaLabel": "Chọn {{teamName}} thắng",
+  "wc.guided.progressRound": "{{label}} · {{done}}/{{total}} lựa chọn",
+  "wc.guided.progressOverall": "Tổng {{pct}}%",
+  "wc.guided.headerLocked": "Bracket đã khoá",
+  "wc.guided.headerFixturesNotReady": "Trận đấu chưa sẵn sàng",
+  "wc.guided.headerStart": "Bắt đầu chọn",
+  "wc.guided.headerComplete": "Bracket đã hoàn tất",
+  "wc.guided.headerGuided": "Chọn theo từng bước",
+  "wc.guided.lockedHelper":
+    "Bracket này đã khoá. Lựa chọn không thể thay đổi nữa.",
+  "wc.guided.emptyTeamsUpstream":
+    "Đội cho vòng này sẽ xuất hiện sau khi bạn chọn xong các trận trước đó.",
+  "wc.guided.emptyFixturesUnresolved":
+    "Lịch thi đấu đã tải, nhưng cặp đấu thật sự chưa được xác định.",
+  "wc.guided.close": "Đóng",
+  "wc.guided.back": "Quay lại",
+  "wc.guided.skip": "Bỏ qua",
+  "wc.guided.matchNumber": "Trận {{number}}",
+  "wc.guided.saving": "Đang lưu…",
+  "wc.guided.saved": "Đã lưu",
+  "wc.guided.nextMatchup": "Trận kế tiếp…",
+  "wc.guided.tapToSelect": "Chạm vào một đội để chọn người thắng",
+  "wc.guided.tapToChange":
+    "Chạm vào đội còn lại để đổi lựa chọn của bạn",
+  "wc.guided.matchFinalNote": "Trận này đã kết thúc.",
+  "wc.guided.pickEarlierRoundsFirst":
+    "Hãy chọn người thắng các vòng trước trước.",
+  "wc.guided.matchEnded": "Trận này đã kết thúc.",
+  "wc.guided.matchLocked":
+    "Lựa chọn cho trận này đã khoá.",
+  "wc.guided.confidenceTitle": "Thưởng tự tin",
+  "wc.guided.confidenceHelper":
+    "Độ tự tin càng cao, điểm thưởng càng nhiều nếu chọn đúng.",
+  "wc.guided.confidenceOptionOne": "1 điểm",
+  "wc.guided.confidenceOptionOther": "{{n}} điểm",
+  "wc.guided.bracketCompleteTitle": "Hoàn tất bracket!",
+  "wc.guided.bracketCompleteBody": "Bạn đã chọn xong mọi trận.",
+  "wc.guided.reviewBracket": "Xem lại bracket",
+  "wc.guided.done": "Xong",
+  "wc.guided.errorNotReady":
+    "Cặp đấu này chưa sẵn sàng để chọn.",
+  "wc.guided.errorSaveFailed": "Không lưu được lựa chọn",
+  "wc.guided.vs": "VS",
+
+  // ── Score Summary card (Phase 6) ─────────────────────────────────────
+  "wc.summary.title": "Bảng điểm bracket",
+  "wc.summary.rankPlaceholder": "Hạng —",
+  "wc.summary.bracketComplete": "Bracket hoàn tất",
+  "wc.summary.bracketIncomplete": "Bracket chưa hoàn tất",
+  "wc.summary.fixturesNotReady":
+    "Lịch thi đấu chưa hoàn toàn xác định — điểm sẽ cập nhật khi cặp đấu chính thức.",
+  "wc.summary.scoresNotSynced":
+    "Tỉ số chưa đồng bộ — điểm sẽ xuất hiện sau khi kết quả được đăng.",
+  "wc.summary.locked":
+    "Bracket đã khoá — lựa chọn đã đóng băng.",
+  "wc.summary.totalPts": "Tổng điểm",
+  "wc.summary.possibleLeft": "Còn có thể",
+  "wc.summary.correct": "Đúng",
+  "wc.summary.wrong": "Sai",
+  "wc.summary.championPick": "Lựa chọn vô địch",
+  "wc.summary.championAlive": "Nhà vô địch còn sống",
+  "wc.summary.championBusted": "Nhà vô địch đã bị loại",
+  "wc.summary.noChampionYet": "Chưa chọn nhà vô địch",
+  "wc.summary.maxCeiling": "Trần tối đa",
+  "wc.summary.maxCeilingBody":
+    " điểm có thể đạt được theo các nhánh còn lại của bạn",
+
+  // ── Round Breakdown card (Phase 6) ───────────────────────────────────
+  "wc.roundBreakdown.title": "Điểm theo vòng",
+  "wc.roundBreakdown.ptsAbbrev": "{{n}} điểm",
+  "wc.roundBreakdown.perWin": "mỗi trận thắng",
+  "wc.roundBreakdown.championBonus":
+    "Thưởng nhà vô địch bật: {{bonus}} điểm khi đội bạn chọn vô địch thắng chung kết (chính sách — vui lòng xác nhận theo luật giải).",
+
+  // ── Leaderboard Insights card (Phase 6) ──────────────────────────────
+  "wc.insights.title": "Phân tích bảng xếp hạng",
+  "wc.insights.empty":
+    "Phân tích bảng xếp hạng sẽ xuất hiện sau khi các bracket hoàn tất được chấm điểm. Hãy gửi lựa chọn trước khi trận đầu tiên bắt đầu.",
+  "wc.insights.currentLeader": "Người dẫn đầu",
+  "wc.insights.largestGap": "Khoảng cách lớn nhất",
+  "wc.insights.entries": "Số entry",
+  "wc.insights.championsAlive": "Nhà vô địch còn sống",
+  "wc.insights.mostCorrect": "Đúng nhiều nhất",
+  "wc.insights.closestRace": "Cuộc đua sát nhất",
+  "wc.insights.notClose": "Không sát",
+  "wc.insights.gapPts": "{{n}} điểm",
+  "wc.insights.mostCorrectValue": "{{name}} ({{count}})",
+  "wc.insights.aiSummaryTitle": "Tóm tắt nhóm AI",
+  "wc.insights.aiBadgeUnlocked": "Chỉ entry hoàn tất",
+  "wc.insights.aiBadgeLocked": "Đã khoá",
+  "wc.insights.aiNotAvailable": "Chưa khả dụng",
+  "wc.insights.aiSummaryCountOne":
+    "Bao gồm {{count}} entry công khai.",
+  "wc.insights.aiSummaryCountOther":
+    "Bao gồm {{count}} entry công khai.",
+  "wc.insights.aiSummaryLabel": "Tóm tắt chỉ entry hoàn tất:",
+  "wc.insights.aiCommonChampionLabel": "Nhà vô địch phổ biến nhất:",
+  "wc.insights.aiRaceLabel": "Ghi chú cuộc đua:",
+  "wc.insights.aiRaceClose":
+    "Hai entry dẫn đầu chỉ cách nhau 5 điểm.",
+  "wc.insights.aiRaceNotClose":
+    "Chưa có cuộc đua sát nhau ở top hai.",
+  "wc.insights.aiWinReadLabel": "Đánh giá thắng AI:",
+  "wc.insights.aiWinReadBody":
+    "{{name}} dự kiến {{pct}}% với sức khoẻ bracket {{health}}.",
+  "wc.insights.aiPrivacyNote":
+    "Chỉ dùng dữ liệu bảng xếp hạng công khai/đã hoàn tất. Không bao gồm lựa chọn cá nhân chưa hoàn tất. Hướng dẫn bracket chỉ giới hạn ở lựa chọn pool và cơ chế điểm.",
+  "wc.insights.aiUpgradeNote":
+    "Nâng cấp AI/Pro để có tóm tắt nhóm chỉ entry hoàn tất. Người dùng bị khoá không kích hoạt gọi AI.",
+
+  // ── Settings panel chrome (Phase 6) ──────────────────────────────────
+  "wc.settings.title": "Cài đặt pool",
+  "wc.settings.subtitle":
+    "Nhận diện, giới hạn, điểm, hiển thị và thông báo — quyền của chủ pool cho pool bracket World Cup của bạn.",
+  "wc.settings.loading": "Đang tải cài đặt pool…",
+  "wc.settings.sectionIdentity": "Nhận diện pool",
+  "wc.settings.save": "Lưu cài đặt",
+  "wc.settings.saving": "Đang lưu…",
+  "wc.settings.toastNoChanges": "Không có thay đổi để lưu.",
+  "wc.settings.toastSaved": "Đã lưu cài đặt.",
+  "wc.settings.toastError": "Không lưu được cài đặt",
+
+  // ── Commissioner Brain panel chrome (Phase 6) ────────────────────────
+  "wc.brain.title": "Bộ não chủ pool",
+  "wc.brain.subtitle":
+    "Tổng quan, cảnh báo và trợ lý AI — quản lý pool của bạn từ một chỗ.",
+  "wc.brain.loading": "Đang tải công cụ chủ pool…",
+  "wc.brain.loadError": "Không tải được công cụ chủ pool.",
 }
 
 export const WORLD_CUP_TRANSLATIONS: Record<WorldCupLocale, WorldCupDictionary> = {

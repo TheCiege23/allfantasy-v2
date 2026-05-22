@@ -1,5 +1,10 @@
+"use client"
+
+import { useMemo } from "react"
 import type { WorldCupLeaderboardRow } from "@/lib/world-cup/types"
 import { calculateWorldCupLeaderboardAiInsights } from "@/lib/world-cup/worldCupAiSubscriptionInsights"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 
 export default function WorldCupLeaderboardInsights({
   leaderboard,
@@ -8,13 +13,19 @@ export default function WorldCupLeaderboardInsights({
   leaderboard: WorldCupLeaderboardRow[]
   aiInsightsUnlocked?: boolean
 }) {
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
+
   if (!leaderboard.length) {
     return (
       <div className="mx-4 mt-4 space-y-2">
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-white/50">
-          Leaderboard insights appear after finalized entries are scored. Make sure you've submitted your picks before the first match begins.
+          {t("wc.insights.empty")}
         </div>
-        <LeaderboardAiSummaryCard leaderboard={[]} aiInsightsUnlocked={aiInsightsUnlocked} />
+        <LeaderboardAiSummaryCard
+          leaderboard={[]}
+          aiInsightsUnlocked={aiInsightsUnlocked}
+        />
       </div>
     )
   }
@@ -31,20 +42,37 @@ export default function WorldCupLeaderboardInsights({
     widestGap = Math.max(widestGap, sorted[i - 1].totalScore - sorted[i].totalScore)
   }
 
+  // Entry names (`leader.entryName`, `runnerUp.entryName`) are user-supplied
+  // and must NOT be translated — keep raw.
   const closestRace = runnerUp && scoreGap <= 5 ? `${leader.entryName} vs ${runnerUp.entryName}` : null
 
   return (
     <div className="mx-4 mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3">
       <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-white/45">
-        Leaderboard Insights
+        {t("wc.insights.title")}
       </div>
       <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-3">
-        <InsightCard label="Current Leader" value={leader.entryName} />
-        <InsightCard label="Largest Gap" value={`${widestGap} pts`} />
-        <InsightCard label="Entries" value={String(sorted.length)} />
-        <InsightCard label="Champions Alive" value={String(aliveChampionCount)} />
-        <InsightCard label="Most Correct" value={`${mostCorrect.entryName} (${mostCorrect.correctPicks})`} />
-        <InsightCard label="Closest Race" value={closestRace ?? "Not close"} />
+        <InsightCard label={t("wc.insights.currentLeader")} value={leader.entryName} />
+        <InsightCard
+          label={t("wc.insights.largestGap")}
+          value={t("wc.insights.gapPts", { n: widestGap })}
+        />
+        <InsightCard label={t("wc.insights.entries")} value={String(sorted.length)} />
+        <InsightCard
+          label={t("wc.insights.championsAlive")}
+          value={String(aliveChampionCount)}
+        />
+        <InsightCard
+          label={t("wc.insights.mostCorrect")}
+          value={t("wc.insights.mostCorrectValue", {
+            name: mostCorrect.entryName,
+            count: mostCorrect.correctPicks,
+          })}
+        />
+        <InsightCard
+          label={t("wc.insights.closestRace")}
+          value={closestRace ?? t("wc.insights.notClose")}
+        />
       </div>
       <LeaderboardAiSummaryCard leaderboard={sorted} aiInsightsUnlocked={aiInsightsUnlocked} />
     </div>
@@ -58,40 +86,72 @@ function LeaderboardAiSummaryCard({
   leaderboard: WorldCupLeaderboardRow[]
   aiInsightsUnlocked: boolean
 }) {
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
+
   const championCounts = new Map<string, number>()
   for (const row of leaderboard) {
     const champion = row.championPickName?.trim()
     if (champion) championCounts.set(champion, (championCounts.get(champion) ?? 0) + 1)
   }
-  const commonChampion = [...championCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "Not available yet"
+  // Champion / team names are raw data — never translated.
+  const commonChampion =
+    [...championCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ??
+    t("wc.insights.aiNotAvailable")
   const leader = leaderboard[0] ?? null
   const aiInsights = calculateWorldCupLeaderboardAiInsights(leaderboard)
   const leaderAiInsight = aiInsights.find((insight) => insight.entryId === leader?.entryId) ?? null
   const runnerUp = leaderboard[1] ?? null
   const closeRace = leader && runnerUp && Math.abs(leader.totalScore - runnerUp.totalScore) <= 5
+
+  const countLine =
+    leaderboard.length === 1
+      ? t("wc.insights.aiSummaryCountOne", { count: leaderboard.length })
+      : t("wc.insights.aiSummaryCountOther", { count: leaderboard.length })
+
   return (
     <details data-testid="world-cup-leaderboard-ai-summary" className="mt-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3 text-xs text-cyan-50">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-black">
-        <span>AI Pool Summary</span>
+        <span>{t("wc.insights.aiSummaryTitle")}</span>
         <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] uppercase tracking-wide">
-          {aiInsightsUnlocked ? "Finalized only" : "Locked"}
+          {aiInsightsUnlocked
+            ? t("wc.insights.aiBadgeUnlocked")
+            : t("wc.insights.aiBadgeLocked")}
         </span>
       </summary>
       {aiInsightsUnlocked ? (
         <div className="mt-3 space-y-2 leading-5 text-cyan-50/85">
-          <p><span className="font-black text-white">Finalized-only summary:</span> {leaderboard.length} public leaderboard entr{leaderboard.length === 1 ? "y" : "ies"} included.</p>
-          <p><span className="font-black text-white">Most common champion:</span> {commonChampion}.</p>
-          <p><span className="font-black text-white">Race note:</span> {closeRace ? "The top two entries are within 5 points." : "No close top-two race yet."}</p>
-          {leaderAiInsight ? (
-            <p><span className="font-black text-white">AI win read:</span> {leader?.entryName} projects at {leaderAiInsight.aiWinProbability}% with {leaderAiInsight.bracketHealth.toLowerCase()} bracket health.</p>
+          <p>
+            <span className="font-black text-white">{t("wc.insights.aiSummaryLabel")}</span>{" "}
+            {countLine}
+          </p>
+          <p>
+            <span className="font-black text-white">{t("wc.insights.aiCommonChampionLabel")}</span>{" "}
+            {commonChampion}.
+          </p>
+          <p>
+            <span className="font-black text-white">{t("wc.insights.aiRaceLabel")}</span>{" "}
+            {closeRace
+              ? t("wc.insights.aiRaceClose")
+              : t("wc.insights.aiRaceNotClose")}
+          </p>
+          {leaderAiInsight && leader ? (
+            <p>
+              <span className="font-black text-white">{t("wc.insights.aiWinReadLabel")}</span>{" "}
+              {t("wc.insights.aiWinReadBody", {
+                name: leader.entryName,
+                pct: leaderAiInsight.aiWinProbability,
+                health: leaderAiInsight.bracketHealth.toLowerCase(),
+              })}
+            </p>
           ) : null}
           <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/55">
-            Uses finalized/public leaderboard data only. No private unfinalized picks are included. Bracket guidance stays limited to pool picks and scoring mechanics.
+            {t("wc.insights.aiPrivacyNote")}
           </p>
         </div>
       ) : (
         <p className="mt-3 rounded-lg border border-white/10 bg-black/25 px-2 py-2 text-[11px] leading-5 text-white/60" hidden>
-          Upgrade to AI/Pro for finalized-only pool summaries. Locked users do not trigger AI calls.
+          {t("wc.insights.aiUpgradeNote")}
         </p>
       )}
     </details>

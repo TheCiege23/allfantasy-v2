@@ -1,7 +1,10 @@
 "use client"
 
+import { useMemo } from "react"
 import type { WorldCupScoringValues } from "@/lib/world-cup/types"
 import { buildWorldCupRoundBreakdownRows } from "@/lib/world-cup/worldCupLeaderboardService"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 
 export default function WorldCupRoundBreakdown({
   roundBreakdown,
@@ -12,6 +15,9 @@ export default function WorldCupRoundBreakdown({
   scoring: WorldCupScoringValues
   includeThirdPlace: boolean
 }) {
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
+
   const rows = buildWorldCupRoundBreakdownRows(roundBreakdown, scoring, {
     includeThirdPlace,
   })
@@ -23,7 +29,7 @@ export default function WorldCupRoundBreakdown({
       className="mx-4 mb-4 rounded-xl border border-white/10 bg-black/25 px-3 py-3"
     >
       <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-white/45">
-        Round scoring
+        {t("wc.roundBreakdown.title")}
       </div>
       <div className="space-y-1.5">
         {rows.map((row) => (
@@ -36,8 +42,12 @@ export default function WorldCupRoundBreakdown({
             <span className="tabular-nums font-bold text-white/90">
               <span data-testid={`wc-round-earned-${row.round}`}>{row.pointsEarned}</span>
               <span className="text-white/35"> / </span>
-              <span className="text-white/40">{row.pointsPerCorrect} pts</span>
-              <span className="ml-1 text-[10px] font-normal text-white/30">per win</span>
+              <span className="text-white/40">
+                {t("wc.roundBreakdown.ptsAbbrev", { n: row.pointsPerCorrect })}
+              </span>
+              <span className="ml-1 text-[10px] font-normal text-white/30">
+                {t("wc.roundBreakdown.perWin")}
+              </span>
             </span>
           </div>
         ))}
@@ -47,8 +57,7 @@ export default function WorldCupRoundBreakdown({
           data-testid="wc-round-champion-bonus"
           className="mt-2 rounded-lg border border-amber-400/20 bg-amber-500/10 px-2.5 py-2 text-[10px] text-amber-100/90"
         >
-          Champion bonus enabled: <span className="font-black">{bonus} pts</span> when your champion
-          wins the final (policy — confirm challenge rules).
+          {t("wc.roundBreakdown.championBonus", { bonus })}
         </div>
       )}
     </div>
