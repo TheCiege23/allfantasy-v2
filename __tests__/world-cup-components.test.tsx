@@ -1141,6 +1141,53 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getByText(/Changing Group Stage picks may unfinalize your entry/i)).toBeInTheDocument()
   })
 
+  it("groups all 6 AI cards in a single Bracket AI Report section with Pro tier chip and no upgrade banner for Pro users", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(
+      <WorldCupBracketShell
+        initialView={makeShellView() as any}
+        defaultTab="review"
+        initialEntryId="entry-1"
+      />
+    )
+
+    const report = await screen.findByTestId("world-cup-review-ai-report")
+    expect(report).toBeInTheDocument()
+    expect(within(report).getByText(/Your Bracket AI Report/i)).toBeInTheDocument()
+    expect(within(report).getByText(/Six AI signals computed from your own picks/i)).toBeInTheDocument()
+    // Pro tier chip.
+    expect(within(report).getByTestId("world-cup-review-ai-report-tier").textContent).toMatch(/AF Pro active/i)
+    // No consolidated upgrade banner for Pro users.
+    expect(within(report).queryByTestId("world-cup-review-ai-report-upgrade-banner")).toBeNull()
+    // All 6 AI cards are inside the same report section.
+    expect(within(report).getByTestId("world-cup-bracket-grade")).toBeInTheDocument()
+    expect(within(report).getByTestId("world-cup-review-ai-confidence")).toBeInTheDocument()
+    expect(within(report).getByTestId("world-cup-path-to-win")).toBeInTheDocument()
+    expect(within(report).getByTestId("world-cup-explain-bracket")).toBeInTheDocument()
+    expect(within(report).getByTestId("world-cup-bracket-uniqueness")).toBeInTheDocument()
+    expect(within(report).getByTestId("world-cup-ai-share-card")).toBeInTheDocument()
+  })
+
+  it("shows ONE consolidated AF Pro upgrade banner for free users instead of repeating five locked CTAs", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(
+      <WorldCupBracketShell
+        initialView={makeShellView({ hasBracketBrainAi: false }) as any}
+        defaultTab="review"
+        initialEntryId="entry-1"
+      />
+    )
+
+    const report = await screen.findByTestId("world-cup-review-ai-report")
+    expect(within(report).getByTestId("world-cup-review-ai-report-tier").textContent).toMatch(/AF Pro preview/i)
+    const banner = within(report).getByTestId("world-cup-review-ai-report-upgrade-banner")
+    expect(banner.textContent).toMatch(/AF Pro unlocks/i)
+    expect(banner.textContent).toMatch(/Champion Confidence/i)
+    expect(banner.textContent).toMatch(/Path to Win/i)
+    expect(banner.textContent).toMatch(/Uniqueness/i)
+    expect(banner.textContent).toMatch(/Share card/i)
+  })
+
   it("AI Confidence Check renders deterministic lines for AI/Pro users on Review", async () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" initialEntryId="entry-1" />)

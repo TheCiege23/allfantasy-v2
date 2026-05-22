@@ -3343,40 +3343,90 @@ export default function WorldCupBracketShell({
                       </p>
                     </div>
 
-                    <ReviewAiConfidenceCard
-                      unlocked={aiInsightsUnlocked}
-                      completionReview={completionReview}
-                      picks={picks}
-                    />
+                    <section
+                      data-testid="world-cup-review-ai-report"
+                      aria-label="Bracket AI report"
+                      className="space-y-3 rounded-2xl border border-cyan-300/15 bg-gradient-to-b from-cyan-300/[0.04] to-transparent p-3 sm:p-4"
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex items-start gap-2.5">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-300/10">
+                            <Sparkles className="h-4 w-4 text-cyan-200" aria-hidden />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
+                              Report
+                            </p>
+                            <h3 className="text-base font-black text-white sm:text-lg">
+                              Your Bracket AI Report
+                            </h3>
+                            <p className="mt-0.5 text-xs leading-5 text-white/55">
+                              Six AI signals computed from your own picks. Everything below is private to you.
+                            </p>
+                          </div>
+                        </div>
+                        <span
+                          data-testid="world-cup-review-ai-report-tier"
+                          className={
+                            aiInsightsUnlocked
+                              ? "shrink-0 rounded-full border border-cyan-300/30 bg-cyan-300/[0.08] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-100"
+                              : "shrink-0 rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/65"
+                          }
+                        >
+                          {aiInsightsUnlocked ? "AF Pro active" : "AF Pro preview"}
+                        </span>
+                      </div>
 
-                    <WorldCupExplainBracketCard
-                      challengeId={challengeId}
-                      entryId={selectedEntryId ?? null}
-                      hasBracketBrainAi={aiInsightsUnlocked}
-                    />
+                      {!aiInsightsUnlocked ? (
+                        <p
+                          data-testid="world-cup-review-ai-report-upgrade-banner"
+                          className="rounded-lg border border-cyan-300/30 bg-cyan-300/[0.06] px-3 py-2.5 text-[11px] leading-5 text-cyan-50/85"
+                        >
+                          <span className="font-black uppercase tracking-wide text-cyan-100">AF Pro unlocks</span>{" "}
+                          the full report — Champion Confidence, Path to Win, the AI Explain narrative, your Uniqueness insight, and the full Share card.
+                        </p>
+                      ) : null}
 
-                    <WorldCupBracketUniquenessCard
-                      challengeId={challengeId}
-                      entryId={selectedEntryId ?? null}
-                      hasBracketBrainAi={aiInsightsUnlocked}
-                    />
+                      {/* 1. Grade — headline metric (A/B/C, completion %, risk, upset meter). */}
+                      <WorldCupBracketGradeCard
+                        unlocked={aiInsightsUnlocked}
+                        grade={calculateWorldCupBracketGrade({
+                          completionReview,
+                          entry: selectedEntry,
+                          picks,
+                          matches: projectedMatches,
+                        })}
+                      />
 
-                    <WorldCupBracketGradeCard
-                      unlocked={aiInsightsUnlocked}
-                      grade={calculateWorldCupBracketGrade({
-                        completionReview,
-                        entry: selectedEntry,
-                        picks,
-                        matches: projectedMatches,
-                      })}
-                    />
+                      {/* 2. Confidence check — deterministic missing-picks summary. */}
+                      <ReviewAiConfidenceCard
+                        unlocked={aiInsightsUnlocked}
+                        completionReview={completionReview}
+                        picks={picks}
+                      />
 
-                    <WorldCupPathToWinCard
-                      insight={pathToWinInsight}
-                      unlocked={aiInsightsUnlocked}
-                    />
+                      {/* 3. Path to win — vs leaderboard. */}
+                      <WorldCupPathToWinCard
+                        insight={pathToWinInsight}
+                        unlocked={aiInsightsUnlocked}
+                      />
 
-                    <WorldCupAiBracketShareCard
+                      {/* 4. Explain my bracket — on-demand AI narrative. */}
+                      <WorldCupExplainBracketCard
+                        challengeId={challengeId}
+                        entryId={selectedEntryId ?? null}
+                        hasBracketBrainAi={aiInsightsUnlocked}
+                      />
+
+                      {/* 5. Uniqueness — vs finalized pool distribution. */}
+                      <WorldCupBracketUniquenessCard
+                        challengeId={challengeId}
+                        entryId={selectedEntryId ?? null}
+                        hasBracketBrainAi={aiInsightsUnlocked}
+                      />
+
+                      {/* 6. Share card — composes everything above into one shareable text card. */}
+                      <WorldCupAiBracketShareCard
                       challengeId={challengeId}
                       entryId={selectedEntryId ?? null}
                       poolName={view.challenge.name}
@@ -3424,6 +3474,7 @@ export default function WorldCupBracketShell({
                       }
                       hasBracketBrainAi={aiInsightsUnlocked}
                     />
+                    </section>
 
                     <div data-testid="world-cup-review-saved-picks" className="space-y-3">
                       <div className="rounded-xl border border-white/10 bg-black/20 p-3">
