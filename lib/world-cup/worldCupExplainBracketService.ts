@@ -21,6 +21,7 @@ import { prisma } from "@/lib/prisma"
 import { openaiChatText } from "@/lib/openai-client"
 import { getWorldCupSeedStrength } from "./worldCupAiInsights"
 import { WORLD_CUP_ROUND_LABELS, type WorldCupRound } from "./types"
+import { getAiLanguageInstruction } from "./worldCupI18n"
 
 export type WorldCupBracketExplanationResult =
   | {
@@ -39,6 +40,7 @@ export type WorldCupExplainBracketInput = {
   challengeId: string
   entryId: string
   userId: string
+  locale?: string | null
 }
 
 const FORBIDDEN_TERMS = [
@@ -104,8 +106,21 @@ function buildDeterministicExplanation(params: {
   return { summary, lines }
 }
 
-const SYSTEM_PROMPT =
-  "You are Chimmy, a calm bracket strategy coach. You write short, deterministic-sounding strategy reviews about a single user's own World Cup bracket. Use second person ('your bracket', 'your champion'). Never use betting, wagering, sportsbook, odds, or DFS language. Do not invent team names. Do not mention other users."
+function buildSystemPrompt(locale?: string | null): string {
+  const lang = getAiLanguageInstruction(locale)
+  return [
+    "You are Chimmy, a calm bracket strategy coach.",
+    "You write short, deterministic-sounding strategy reviews about a single user's own World Cup bracket.",
+    "Use second person ('your bracket', 'your champion').",
+    "Never use betting, wagering, sportsbook, odds, or DFS language.",
+    "Do not invent team names.",
+    "Do not mention other users.",
+    `Respond in ${lang}. Use natural sports-app language.`,
+    "Keep country/team/player names exactly as provided.",
+    "Keep AllFantasy feature names recognizable.",
+    "Do not reveal private user data, invite codes, emails, or user IDs.",
+  ].join(" ")
+}
 
 const USER_PROMPT_FORMAT = [
   "Write a private bracket strategy review for ONE user about THEIR OWN World Cup bracket.",
@@ -222,7 +237,7 @@ export async function generateWorldCupBracketExplanation(
 
   const result = await openaiChatText({
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: buildSystemPrompt(input.locale) },
       { role: "user", content: userPrompt },
     ],
     temperature: 0.5,

@@ -6,6 +6,7 @@ const memberAccessMock = vi.hoisted(() => vi.fn())
 const managerAccessMock = vi.hoisted(() => vi.fn())
 const hasAiMock = vi.hoisted(() => vi.fn())
 const generateChimmyReplyMock = vi.hoisted(() => vi.fn())
+const cookiesGetMock = vi.hoisted(() => vi.fn())
 const notifyChimmyReplyMock = vi.hoisted(() => vi.fn())
 const notifyMentionMock = vi.hoisted(() => vi.fn())
 const notifyAllMentionMock = vi.hoisted(() => vi.fn())
@@ -35,6 +36,12 @@ vi.mock("@/lib/world-cup/worldCupNotifications", () => ({
 
 vi.mock("@/lib/world-cup/worldCupChimmyPrivateReply", () => ({
   generateWorldCupChimmyPrivateReply: generateChimmyReplyMock,
+}))
+
+vi.mock("next/headers", () => ({
+  cookies: vi.fn().mockResolvedValue({
+    get: cookiesGetMock,
+  }),
 }))
 
 vi.mock("@/lib/prisma", () => ({
@@ -141,6 +148,7 @@ describe("Chimmy rate limit helper", () => {
 describe("World Cup chat route — Chimmy rate-limit integration", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    cookiesGetMock.mockReturnValue(undefined)
     requireUserMock.mockResolvedValue({
       ok: true,
       user: { id: "user-1", email: "u1@example.com", name: "User One" },

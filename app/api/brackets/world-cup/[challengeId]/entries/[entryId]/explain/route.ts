@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
+import { cookies } from "next/headers"
 import { prisma } from "@/lib/prisma"
 import { userHasBracketBrainAi } from "@/lib/bracket-brain/bracketBrainAccess"
 import { generateWorldCupBracketExplanation } from "@/lib/world-cup/worldCupExplainBracketService"
 import { requireWorldCupApiUser } from "../../../../_utils"
+import { resolveLanguage } from "@/lib/i18n/constants"
 
 export const runtime = "nodejs"
 
@@ -43,10 +45,14 @@ export async function POST(
     )
   }
 
+  const cookieStore = await cookies()
+  const locale = resolveLanguage(cookieStore.get("af_lang")?.value)
+
   const result = await generateWorldCupBracketExplanation({
     challengeId,
     entryId,
     userId: userResult.user.id,
+    locale,
   })
 
   if (!result.ok) {

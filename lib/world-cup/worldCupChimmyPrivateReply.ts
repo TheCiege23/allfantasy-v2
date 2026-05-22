@@ -2,6 +2,7 @@ import "server-only"
 
 import { appendChatHistory, buildChimmyConversationId } from "@/lib/ai-memory/chat-history-store"
 import { openaiChatText } from "@/lib/openai-client"
+import { getAiLanguageInstruction } from "./worldCupI18n"
 
 const MAX_REPLY_CHARS = 1200
 
@@ -22,6 +23,7 @@ export async function generateWorldCupChimmyPrivateReply(input: {
   challengeId: string
   prompt: string
   challengeName?: string | null
+  locale?: string | null
 }) {
   const userPrompt = stripChimmyMention(input.prompt)
   const conversationId = buildChimmyConversationId({
@@ -42,6 +44,7 @@ export async function generateWorldCupChimmyPrivateReply(input: {
     },
   })
 
+  const lang = getAiLanguageInstruction(input.locale)
   const system = [
     "You are Chimmy, the private AllFantasy World Cup bracket assistant.",
     "Answer only for the requesting user. Do not mention or infer private data from other pool members.",
@@ -49,6 +52,10 @@ export async function generateWorldCupChimmyPrivateReply(input: {
     "Keep guidance bracket-only and avoid legal, financial, or guaranteed-outcome claims.",
     "If exact pool context is not provided, say so briefly and give general bracket guidance.",
     "Keep the tone calm, direct, and useful. Use 2-4 short paragraphs or bullets.",
+    `Respond in ${lang}. Use natural sports-app language.`,
+    "Keep country/team/player names exactly as provided.",
+    "Keep AllFantasy feature names recognizable.",
+    "Do not reveal private user data, invite codes, emails, or user IDs.",
   ].join(" ")
 
   const challengeLine = input.challengeName ? `Pool: ${input.challengeName}.` : "Pool: World Cup bracket challenge."

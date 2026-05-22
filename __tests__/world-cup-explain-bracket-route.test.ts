@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const requireUserMock = vi.hoisted(() => vi.fn())
 const hasAiMock = vi.hoisted(() => vi.fn())
 const generateMock = vi.hoisted(() => vi.fn())
+const cookiesGetMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/app/api/brackets/world-cup/_utils", () => ({
   requireWorldCupApiUser: requireUserMock,
@@ -14,6 +15,12 @@ vi.mock("@/lib/bracket-brain/bracketBrainAccess", () => ({
 
 vi.mock("@/lib/world-cup/worldCupExplainBracketService", () => ({
   generateWorldCupBracketExplanation: generateMock,
+}))
+
+vi.mock("next/headers", () => ({
+  cookies: vi.fn().mockResolvedValue({
+    get: cookiesGetMock,
+  }),
 }))
 
 function request() {
@@ -28,6 +35,7 @@ const params = { params: { challengeId: "c1", entryId: "e1" } }
 describe("POST /api/brackets/world-cup/[challengeId]/entries/[entryId]/explain", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    cookiesGetMock.mockReturnValue(undefined)
     requireUserMock.mockResolvedValue({
       ok: true,
       user: { id: "user-1", email: "owner@example.com", name: "Owner" },
@@ -123,12 +131,15 @@ describe("POST /api/brackets/world-cup/[challengeId]/entries/[entryId]/explain",
     expect(json.summary).toMatch(/Argentina/)
     expect(json.lines).toHaveLength(3)
     expect(json.generative).toBe(true)
-    // Owner gate: ensure userId is passed to service for the ownership check.
-    expect(generateMock).toHaveBeenCalledWith({
-      challengeId: "c1",
-      entryId: "e1",
-      userId: "user-1",
-    })
+    // Owner gate: ensure userId and locale are passed to service for the ownership check.
+    expect(generateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        challengeId: "c1",
+        entryId: "e1",
+        userId: "user-1",
+        locale: "en",
+      })
+    )
   })
 
   it("response never contains emails or user IDs", async () => {
@@ -155,5 +166,47 @@ describe("POST /api/brackets/world-cup/[challengeId]/entries/[entryId]/explain",
 
     expect(res.status).toBe(400)
     expect(generateMock).not.toHaveBeenCalled()
+  })
+
+  it("forwards locale=es when af_lang cookie is 'es'", async () => {
+    cookiesGetMock.mockReturnValue({ value: "es" })
+
+    const { POST } = await import(
+      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/explain/route"
+    )
+
+    await POST(request() as any, params)
+
+    expect(generateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ locale: "es" })
+    )
+  })
+
+  it("forwards locale=zh when af_lang cookie is 'zh'", async () => {
+    cookiesGetMock.mockReturnValue({ value: "zh" })
+
+    const { POST } = await import(
+      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/explain/route"
+    )
+
+    await POST(request() as any, params)
+
+    expect(generateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ locale: "zh" })
+    )
+  })
+
+  it("falls back to locale=en for unknown cookie values", async () => {
+    cookiesGetMock.mockReturnValue({ value: "xx" })
+
+    const { POST } = await import(
+      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/explain/route"
+    )
+
+    await POST(request() as any, params)
+
+    expect(generateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ locale: "en" })
+    )
   })
 })

@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto"
+import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { userHasBracketBrainAi } from "@/lib/bracket-brain/bracketBrainAccess"
@@ -31,6 +32,7 @@ import {
   requireWorldCupApiUser,
   worldCupChallengeParamsSchema,
 } from "../../_utils"
+import { resolveLanguage } from "@/lib/i18n/constants"
 
 export const runtime = "nodejs"
 
@@ -674,6 +676,7 @@ async function createPrivateChimmyResponse(input: {
   userId: string
   prompt: string
   promptMessage: RawWorldCupChatEvent
+  locale?: string | null
 }) {
   const challenge = await getWorldCupChallengeSummary(input.challengeId)
   const ai = await generateWorldCupChimmyPrivateReply({
@@ -681,6 +684,7 @@ async function createPrivateChimmyResponse(input: {
     challengeId: input.challengeId,
     prompt: input.prompt,
     challengeName: challenge?.name ?? null,
+    locale: input.locale,
   })
 
   const response = await (prisma as any).worldCupBracketChatEvent.create({
@@ -928,11 +932,14 @@ export async function POST(
   const message = serializeChatMessage(created, auth.user.id)
   let chimmyResponseMessage: ReturnType<typeof serializeChatMessage> | null = null
   if (hasChimmy) {
+    const cookieStore = await cookies()
+    const locale = resolveLanguage(cookieStore.get("af_lang")?.value)
     const response = await createPrivateChimmyResponse({
       challengeId: params.data.challengeId,
       userId: auth.user.id,
       prompt: body,
       promptMessage: created,
+      locale,
     })
     chimmyResponseMessage = serializeChatMessage(response, auth.user.id)
   }
