@@ -2312,10 +2312,10 @@ export default function WorldCupBracketShell({
           className="sticky top-0 z-40 border-b border-white/10 bg-[#04060acc]/95 px-1 py-1 backdrop-blur sm:px-2"
         >
           <div className="flex items-center gap-1 overflow-x-auto pb-0.5 [scrollbar-width:none] sm:justify-center sm:pb-0 touch-pan-x">
-            <JumpButton label="Top" onClick={() => scrollToAnchor("world-cup-top")} />
-            <JumpButton label="Group Stage" onClick={() => scrollToAnchor("world-cup-group-stage", "group-stage")} />
-            <JumpButton label="Knockouts" onClick={() => scrollToAnchor("world-cup-picks", "picks")} />
-            <JumpButton label="Round of 32" onClick={() => {
+            <JumpButton label={t("wc.subnav.top")} onClick={() => scrollToAnchor("world-cup-top")} />
+            <JumpButton label={t("wc.tab.groupStage")} onClick={() => scrollToAnchor("world-cup-group-stage", "group-stage")} />
+            <JumpButton label={t("wc.tab.picks")} onClick={() => scrollToAnchor("world-cup-picks", "picks")} />
+            <JumpButton label={t("wc.subnav.roundOf32")} onClick={() => {
               scrollToAnchor("world-cup-bracket", "picks")
               window.requestAnimationFrame(() => {
                 if (knockoutScrollRef.current) knockoutScrollRef.current.scrollLeft = 0
@@ -2324,11 +2324,11 @@ export default function WorldCupBracketShell({
               })
             }} />
             {(view.isOwner || view.isAdmin) ? (
-              <JumpButton label="Admin/Test" onClick={() => scrollToAnchor("world-cup-admin", "picks")} />
+              <JumpButton label={t("wc.subnav.adminTest")} onClick={() => scrollToAnchor("world-cup-admin", "picks")} />
             ) : null}
-            <JumpButton label="Leaderboard" onClick={() => scrollToAnchor("world-cup-leaderboard", "leaderboard")} />
+            <JumpButton label={t("wc.tab.leaderboard")} onClick={() => scrollToAnchor("world-cup-leaderboard", "leaderboard")} />
             {(view.isOwner || view.isAdmin) ? (
-              <JumpButton label="Invite" onClick={() => scrollToAnchor("world-cup-invite", "invite")} />
+              <JumpButton label={t("wc.tab.invite")} onClick={() => scrollToAnchor("world-cup-invite", "invite")} />
             ) : null}
           </div>
         </nav>
@@ -2890,13 +2890,13 @@ export default function WorldCupBracketShell({
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200/70">
-                    World Cup Pool Dashboard
+                    {t("wc.home.title")}
                   </p>
                   <h2 className="mt-1 truncate text-2xl font-black text-white">
                     {view.challenge.name}
                   </h2>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">
-                    Start here: create or open your bracket, rank all Group Stage pools, make Knockout picks, review, then finalize to appear on the leaderboard.
+                    {t("wc.home.subtitle")}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -2907,7 +2907,7 @@ export default function WorldCupBracketShell({
                     className="inline-flex items-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-sm font-black text-cyan-100 disabled:opacity-40"
                   >
                     <Copy className="h-4 w-4" />
-                    Copy Invite
+                    {t("wc.home.copyInvite")}
                   </button>
                   <button
                     type="button"
@@ -2915,16 +2915,16 @@ export default function WorldCupBracketShell({
                     className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-bold text-white/75"
                   >
                     <Share2 className="h-4 w-4" />
-                    Invite Panel
+                    {t("wc.home.invitePanel")}
                   </button>
                 </div>
               </div>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <PoolStatCard label="Participants" value={`${participantCount}/${view.challenge.maxParticipants}`} />
-                <PoolStatCard label="Entries" value={`${entries.length}/${view.challenge.maxEntriesPerParticipant}`} />
-                <PoolStatCard label="Finalized Entries" value={String(view.leaderboard.length)} />
-                <PoolStatCard label="Fixture Status" value={guidedPicksState === "ready" ? "Ready" : "Not Ready"} tone={guidedPicksState === "ready" ? "ready" : "warn"} />
+                <PoolStatCard label={t("wc.home.stat.participants")} value={`${participantCount}/${view.challenge.maxParticipants}`} />
+                <PoolStatCard label={t("wc.home.stat.entries")} value={`${entries.length}/${view.challenge.maxEntriesPerParticipant}`} />
+                <PoolStatCard label={t("wc.home.stat.finalized")} value={String(view.leaderboard.length)} />
+                <PoolStatCard label={t("wc.home.stat.fixtureStatus")} value={guidedPicksState === "ready" ? t("wc.home.stat.ready") : t("wc.home.stat.notReady")} tone={guidedPicksState === "ready" ? "ready" : "warn"} />
               </div>
             </section>
 
@@ -2998,11 +2998,46 @@ export default function WorldCupBracketShell({
               />
             </section>
 
+            {/* AI features teaser — always visible so users discover Chimmy + Explain My Bracket */}
+            <section
+              data-testid="world-cup-ai-features-teaser"
+              className="mx-auto max-w-5xl px-2 sm:px-0"
+            >
+              <div className="rounded-2xl border border-cyan-300/20 bg-gradient-to-br from-cyan-300/[0.06] to-indigo-400/[0.04] p-4 sm:p-5">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-cyan-300/80" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-black text-white">{t("wc.home.ai.title")}</h3>
+                    {aiInsightsUnlocked ? (
+                      <ul className="mt-2 space-y-1.5">
+                        <li className="flex items-start gap-2 text-xs text-white/65">
+                          <MessageSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-300/60" aria-hidden />
+                          {t("wc.home.ai.chimmyHint")}
+                        </li>
+                        <li className="flex items-start gap-2 text-xs text-white/65">
+                          <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-300/60" aria-hidden />
+                          <button
+                            type="button"
+                            onClick={() => switchTab("review")}
+                            className="text-left text-cyan-200/80 underline-offset-2 hover:underline"
+                          >
+                            {t("wc.home.ai.explainHint")}
+                          </button>
+                        </li>
+                      </ul>
+                    ) : (
+                      <p className="mt-1.5 text-xs text-white/50">{t("wc.home.ai.unlockHint")}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
+
             <section className="mx-auto grid max-w-5xl gap-4 px-2 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] sm:px-0">
               <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-base font-black text-white">Entries</h3>
+                    <h3 className="text-base font-black text-white">{t("wc.home.entries.title")}</h3>
                     <p className="mt-1 text-xs text-white/45">
                       Create or open your personal bracket when you are ready to make picks. Free play supports one bracket entry; AF Commissioner pool settings can allow multiple entries.
                     </p>
@@ -3021,7 +3056,7 @@ export default function WorldCupBracketShell({
                 {isEntriesLoading ? (
                   <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/45">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading entries...
+                    {t("wc.home.entries.loading")}
                   </div>
                 ) : entries.length > 0 ? (
                   <div className="space-y-2">
@@ -3903,7 +3938,7 @@ export default function WorldCupBracketShell({
             ) : null}
             <Icon className="h-4 w-4 shrink-0" aria-hidden />
             <span className="truncate">
-              {label === "Leaderboard" ? "Ranks" : label === "Commissioner" ? "Commish" : label === "Settings" ? "Setup" : label}
+              {id === "leaderboard" ? t("wc.tab.leaderboard.short") : id === "commissioner" ? t("wc.tab.commissioner.short") : id === "settings" ? t("wc.tab.settings.short") : label}
             </span>
           </button>
         ))}

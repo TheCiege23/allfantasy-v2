@@ -157,6 +157,35 @@ const EN: WorldCupDictionary = {
   "wc.tab.commissioner": "Commissioner",
   "wc.tab.admin": "Admin",
 
+  // ── Pool dashboard: sticky subnav labels ─────────────────────────────
+  "wc.subnav.top": "Top",
+  "wc.subnav.roundOf32": "Round of 32",
+  "wc.subnav.adminTest": "Admin/Test",
+
+  // ── Mobile bottom nav: short labels ──────────────────────────────────
+  "wc.tab.leaderboard.short": "Ranks",
+  "wc.tab.commissioner.short": "Commish",
+  "wc.tab.settings.short": "Setup",
+
+  // ── Pool dashboard: home tab ──────────────────────────────────────────
+  "wc.home.title": "World Cup Pool Dashboard",
+  "wc.home.subtitle": "Start here: create or open your bracket, rank all Group Stage pools, make Knockout picks, review, then finalize to appear on the leaderboard.",
+  "wc.home.copyInvite": "Copy Invite",
+  "wc.home.invitePanel": "Invite Panel",
+  "wc.home.stat.participants": "Participants",
+  "wc.home.stat.entries": "Entries",
+  "wc.home.stat.finalized": "Finalized Entries",
+  "wc.home.stat.fixtureStatus": "Fixture Status",
+  "wc.home.stat.ready": "Ready",
+  "wc.home.stat.notReady": "Not Ready",
+  "wc.home.entries.title": "Entries",
+  "wc.home.entries.loading": "Loading entries...",
+  // ── Pool dashboard: AI features teaser ───────────────────────────────
+  "wc.home.ai.title": "AI Features",
+  "wc.home.ai.chimmyHint": "Type @chimmy in pool chat for personalized bracket advice.",
+  "wc.home.ai.explainHint": "Go to the Review tab to get an AI explanation of your bracket strategy.",
+  "wc.home.ai.unlockHint": "Upgrade to AF Pro to unlock Chimmy AI and Explain My Bracket.",
+
   // ── Pool dashboard: header / status strip ────────────────────────────
   "wc.header.sync": "Sync",
   "wc.header.inviteAria": "Invite friends",
@@ -931,6 +960,35 @@ const ES: WorldCupDictionary = {
   "wc.tab.invite": "Invitar",
   "wc.tab.commissioner": "Comisionado",
   "wc.tab.admin": "Admin",
+
+  // ── Pool dashboard: sticky subnav labels ─────────────────────────────
+  "wc.subnav.top": "Inicio",
+  "wc.subnav.roundOf32": "Ronda de 32",
+  "wc.subnav.adminTest": "Admin/Test",
+
+  // ── Mobile bottom nav: short labels ──────────────────────────────────
+  "wc.tab.leaderboard.short": "Ranking",
+  "wc.tab.commissioner.short": "Comis.",
+  "wc.tab.settings.short": "Config.",
+
+  // ── Pool dashboard: home tab ──────────────────────────────────────────
+  "wc.home.title": "Panel del Pool de la Copa del Mundo",
+  "wc.home.subtitle": "Empieza aquí: crea o abre tu bracket, clasifica todos los grupos, elige los eliminados, revisa y finaliza para aparecer en el leaderboard.",
+  "wc.home.copyInvite": "Copiar Invitación",
+  "wc.home.invitePanel": "Panel de Invitación",
+  "wc.home.stat.participants": "Participantes",
+  "wc.home.stat.entries": "Entradas",
+  "wc.home.stat.finalized": "Entradas Finalizadas",
+  "wc.home.stat.fixtureStatus": "Estado de Partidos",
+  "wc.home.stat.ready": "Listo",
+  "wc.home.stat.notReady": "No Listo",
+  "wc.home.entries.title": "Entradas",
+  "wc.home.entries.loading": "Cargando entradas...",
+  // ── Pool dashboard: AI features teaser ───────────────────────────────
+  "wc.home.ai.title": "Funciones de IA",
+  "wc.home.ai.chimmyHint": "Escribe @chimmy en el chat del pool para recibir consejos personalizados de bracket.",
+  "wc.home.ai.explainHint": "Ve a la pestaña Revisar para obtener una explicación de IA de tu estrategia de bracket.",
+  "wc.home.ai.unlockHint": "Actualiza a AF Pro para desbloquear Chimmy AI y Explain My Bracket.",
 
   // ── Pool dashboard: header / status strip ────────────────────────────
   "wc.header.sync": "Sincronizar",
@@ -1744,6 +1802,35 @@ const ZH: WorldCupDictionary = {
   "wc.tab.commissioner": "管理員",
   "wc.tab.admin": "後台",
 
+  // ── Pool dashboard: sticky subnav labels ─────────────────────────────
+  "wc.subnav.top": "頂部",
+  "wc.subnav.roundOf32": "32強",
+  "wc.subnav.adminTest": "後台/測試",
+
+  // ── Mobile bottom nav: short labels ──────────────────────────────────
+  "wc.tab.leaderboard.short": "排行",
+  "wc.tab.commissioner.short": "管理",
+  "wc.tab.settings.short": "設定",
+
+  // ── Pool dashboard: home tab ──────────────────────────────────────────
+  "wc.home.title": "世界盃水池儀表板",
+  "wc.home.subtitle": "從這裡開始：創建或開啟你的對戰表，對小組賽進行排名，選擇淘汰賽，審閱後完成提交以進入排行榜。",
+  "wc.home.copyInvite": "複製邀請",
+  "wc.home.invitePanel": "邀請面板",
+  "wc.home.stat.participants": "參與者",
+  "wc.home.stat.entries": "參賽名額",
+  "wc.home.stat.finalized": "已完成的參賽",
+  "wc.home.stat.fixtureStatus": "賽程狀態",
+  "wc.home.stat.ready": "就緒",
+  "wc.home.stat.notReady": "未就緒",
+  "wc.home.entries.title": "參賽名單",
+  "wc.home.entries.loading": "載入參賽中...",
+  // ── Pool dashboard: AI features teaser ───────────────────────────────
+  "wc.home.ai.title": "AI 功能",
+  "wc.home.ai.chimmyHint": "在水池聊天中輸入 @chimmy 以獲得個性化的對戰表建議。",
+  "wc.home.ai.explainHint": "前往「檢閱」標籤頁，獲取 AI 對你的對戰表策略的解釋。",
+  "wc.home.ai.unlockHint": "升級至 AF Pro 以解鎖 Chimmy AI 和「解釋我的對戰表」功能。",
+
   // ── Pool dashboard: header / status strip ────────────────────────────
   "wc.header.sync": "同步",
   "wc.header.inviteAria": "邀請朋友",
@@ -2523,6 +2610,35 @@ const FIL: WorldCupDictionary = {
   "wc.tab.invite": "Mag-invite",
   "wc.tab.commissioner": "Commissioner",
   "wc.tab.admin": "Admin",
+
+  // ── Pool dashboard: sticky subnav labels ─────────────────────────────
+  "wc.subnav.top": "Tuktok",
+  "wc.subnav.roundOf32": "Round of 32",
+  "wc.subnav.adminTest": "Admin/Test",
+
+  // ── Mobile bottom nav: short labels ──────────────────────────────────
+  "wc.tab.leaderboard.short": "Rank",
+  "wc.tab.commissioner.short": "Comish",
+  "wc.tab.settings.short": "Setup",
+
+  // ── Pool dashboard: home tab ──────────────────────────────────────────
+  "wc.home.title": "World Cup Pool Dashboard",
+  "wc.home.subtitle": "Magsimula rito: gumawa o buksan ang iyong bracket, i-rank ang lahat ng Group Stage pools, gumawa ng Knockout picks, i-review, tapos i-finalize para makita sa leaderboard.",
+  "wc.home.copyInvite": "Kopyahin ang Imbitasyon",
+  "wc.home.invitePanel": "Invite Panel",
+  "wc.home.stat.participants": "Kalahok",
+  "wc.home.stat.entries": "Mga Entry",
+  "wc.home.stat.finalized": "Mga Finalized na Entry",
+  "wc.home.stat.fixtureStatus": "Status ng Fixture",
+  "wc.home.stat.ready": "Handa",
+  "wc.home.stat.notReady": "Hindi Handa",
+  "wc.home.entries.title": "Mga Entry",
+  "wc.home.entries.loading": "Nilo-load ang mga entry...",
+  // ── Pool dashboard: AI features teaser ───────────────────────────────
+  "wc.home.ai.title": "Mga AI Feature",
+  "wc.home.ai.chimmyHint": "I-type ang @chimmy sa pool chat para sa personalized na bracket advice.",
+  "wc.home.ai.explainHint": "Pumunta sa Review tab para makakuha ng AI na paliwanag ng iyong bracket strategy.",
+  "wc.home.ai.unlockHint": "Mag-upgrade sa AF Pro para i-unlock ang Chimmy AI at Explain My Bracket.",
 
   // ── Pool dashboard: header / status strip ────────────────────────────
   "wc.header.sync": "I-sync",
@@ -3346,6 +3462,35 @@ const VI: WorldCupDictionary = {
   "wc.tab.invite": "Mời",
   "wc.tab.commissioner": "Chủ pool",
   "wc.tab.admin": "Quản trị",
+
+  // ── Pool dashboard: sticky subnav labels ─────────────────────────────
+  "wc.subnav.top": "Đầu trang",
+  "wc.subnav.roundOf32": "Vòng 32",
+  "wc.subnav.adminTest": "Quản trị/Test",
+
+  // ── Mobile bottom nav: short labels ──────────────────────────────────
+  "wc.tab.leaderboard.short": "Bảng",
+  "wc.tab.commissioner.short": "Chủ",
+  "wc.tab.settings.short": "Cài",
+
+  // ── Pool dashboard: home tab ──────────────────────────────────────────
+  "wc.home.title": "Bảng điều khiển World Cup Pool",
+  "wc.home.subtitle": "Bắt đầu tại đây: tạo hoặc mở bracket của bạn, xếp hạng các bảng đấu vòng bảng, chọn đội vòng loại trực tiếp, xem lại, rồi hoàn tất để xuất hiện trên bảng xếp hạng.",
+  "wc.home.copyInvite": "Sao chép lời mời",
+  "wc.home.invitePanel": "Bảng mời",
+  "wc.home.stat.participants": "Người tham gia",
+  "wc.home.stat.entries": "Mục tham gia",
+  "wc.home.stat.finalized": "Mục đã hoàn tất",
+  "wc.home.stat.fixtureStatus": "Trạng thái lịch thi đấu",
+  "wc.home.stat.ready": "Sẵn sàng",
+  "wc.home.stat.notReady": "Chưa sẵn sàng",
+  "wc.home.entries.title": "Mục tham gia",
+  "wc.home.entries.loading": "Đang tải mục tham gia...",
+  // ── Pool dashboard: AI features teaser ───────────────────────────────
+  "wc.home.ai.title": "Tính năng AI",
+  "wc.home.ai.chimmyHint": "Nhập @chimmy trong chat pool để nhận lời khuyên cá nhân về bracket.",
+  "wc.home.ai.explainHint": "Đi đến tab Xem lại để nhận giải thích AI về chiến lược bracket của bạn.",
+  "wc.home.ai.unlockHint": "Nâng cấp lên AF Pro để mở khóa Chimmy AI và Giải thích bracket của tôi.",
 
   // ── Pool dashboard: header / status strip ────────────────────────────
   "wc.header.sync": "Đồng bộ",

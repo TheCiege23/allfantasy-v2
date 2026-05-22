@@ -1,6 +1,7 @@
 "use client";
 
 import { Globe } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useOptionalSession } from "@/components/auth/useOptionalSession";
 import { useOptionalLanguage } from "./LanguageProviderClient";
 import { getLanguageDisplayName, SUPPORTED_LANGUAGES, type LanguageCode } from "@/lib/i18n/constants";
@@ -21,15 +22,20 @@ export type LanguageToggleVariant = "default" | "compact";
  */
 export default function LanguageToggle({
   variant = "default",
+  refreshOnChange = false,
 }: {
   /** Visual style. Defaults to the existing "default" variant. */
   variant?: LanguageToggleVariant;
+  /** When true, calls router.refresh() after language change so server-rendered pages re-fetch with the new locale. */
+  refreshOnChange?: boolean;
 } = {}) {
+  const router = useRouter();
   const { data: session } = useOptionalSession();
   const { language, setLanguage, t } = useOptionalLanguage();
 
   const selectLang = (lang: LanguageCode) => {
     setLanguage(lang);
+    if (refreshOnChange) router.refresh();
     if (session?.user) {
       fetch("/api/user/profile", {
         method: "PATCH",

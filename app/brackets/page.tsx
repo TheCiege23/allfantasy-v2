@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { resolveServerRenderPreferences } from "@/lib/preferences/ServerRenderPreferenceResolver"
 import { makeBracketsT } from "@/lib/brackets/bracketsI18n"
+import LanguageToggle from "@/components/i18n/LanguageToggle"
 
 export const dynamic = "force-dynamic"
 
@@ -134,7 +135,7 @@ export default async function BracketsHomePage() {
         <div className="absolute inset-x-0 top-0 h-[28rem] bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.05),transparent_70%)]" />
       </div>
 
-      {/* Top brand strip — subtle wordmark + Dashboard link */}
+      {/* Top brand strip — subtle wordmark + language toggle + Dashboard link */}
       <div className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-4 pt-6 sm:px-6">
         <Image
           src={AF_WORDMARK_SRC}
@@ -144,13 +145,16 @@ export default async function BracketsHomePage() {
           className="h-6 w-auto object-contain opacity-80"
           priority
         />
-        <Link
-          href="/dashboard"
-          className="hidden items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white/65 transition-colors hover:border-white/30 hover:bg-white/[0.08] hover:text-white sm:inline-flex"
-        >
-          {t("brk.hub.heroDashboard")}
-          <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
+        <div className="flex items-center gap-2">
+          <LanguageToggle variant="compact" refreshOnChange />
+          <Link
+            href="/dashboard"
+            className="hidden items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white/65 transition-colors hover:border-white/30 hover:bg-white/[0.08] hover:text-white sm:inline-flex"
+          >
+            {t("brk.hub.heroDashboard")}
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
       </div>
 
       {/* ─────────────────────────────────────────────────────────────

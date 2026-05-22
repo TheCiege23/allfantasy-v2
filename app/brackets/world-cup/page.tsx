@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth"
 import { listUserWorldCupChallenges } from "@/lib/world-cup"
 import { resolveServerRenderPreferences } from "@/lib/preferences/ServerRenderPreferenceResolver"
 import { makeWcT } from "@/lib/world-cup/worldCupI18n"
+import LanguageToggle from "@/components/i18n/LanguageToggle"
 
 const WC_LOGO_SRC   = "/images/brackets/world-cup/af-world-cup-logo.png"
 const WC_VIDEO_SRC  = "/videos/brackets/world-cup/af-world-cup-hero.mp4"
@@ -93,6 +94,7 @@ export default async function WorldCupBracketsPage() {
             {t("wc.publicHub.backToBrackets")}
           </Link>
           <div className="flex flex-wrap items-center gap-2">
+            <LanguageToggle variant="compact" refreshOnChange />
             <Link
               href="/brackets/world-cup/discover"
               className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-4 py-2 text-sm font-bold text-cyan-100 hover:bg-cyan-400/15"
