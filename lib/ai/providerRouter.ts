@@ -12,12 +12,20 @@
  */
 
 import { normalizeProviderError } from '@/lib/ai/providerErrors'
+import {
+  resolveOpenAIModel,
+  resolveAnthropicModel,
+  resolveXaiModel,
+  resolveDeepSeekModel,
+  type ProviderProfile,
+} from '@/lib/ai/providerProfiles'
 import { openaiChatText, openaiChatTextStream } from '@/lib/openai-client'
 import { xaiChatJson, parseTextFromXaiChatCompletion } from '@/lib/xai-client'
 import { deepseekChat } from '@/lib/deepseek-client'
 import { rateLimitManager } from '@/lib/workers/rate-limit-manager'
 
 export type ProviderName = 'openai' | 'anthropic' | 'xai' | 'deepseek'
+export type { ProviderProfile }
 
 export type RouterMessage = { role: 'system' | 'user' | 'assistant'; content: string }
 
@@ -37,6 +45,8 @@ type TextCallArgs = {
   image?: RouterImage | null
   skipCache?: boolean
   preferredAnthropicModel?: string
+  /** Cost-aware model profile. Defaults to 'standard'. */
+  profile?: ProviderProfile
 }
 
 type StreamCallArgs = TextCallArgs & {
@@ -129,8 +139,7 @@ async function callAnthropicText(args: TextCallArgs): Promise<RouterResult> {
   const { system, userContent } = extractSystemAndUser(args.messages)
   const model =
     args.preferredAnthropicModel?.trim() ||
-    process.env.ANTHROPIC_MODEL_SPECIALIST?.trim() ||
-    'claude-sonnet-4-6'
+    resolveAnthropicModel(args.profile ?? 'standard')
 
   const startedAt = Date.now()
   try {
@@ -182,8 +191,7 @@ async function callAnthropicStream(args: StreamCallArgs): Promise<RouterResult> 
   const { system, userContent } = extractSystemAndUser(args.messages)
   const model =
     args.preferredAnthropicModel?.trim() ||
-    process.env.ANTHROPIC_MODEL_SPECIALIST?.trim() ||
-    'claude-sonnet-4-6'
+    resolveAnthropicModel(args.profile ?? 'standard')
 
   const startedAt = Date.now()
   try {
@@ -231,8 +239,10 @@ async function callAnthropicStream(args: StreamCallArgs): Promise<RouterResult> 
 // ─── OpenAI adapter ───────────────────────────────────────────────────────────
 
 async function callOpenAIText(args: TextCallArgs): Promise<RouterResult> {
+  const model = resolveOpenAIModel(args.profile ?? 'standard')
   const result = await openaiChatText({
     messages: args.messages,
+    model,
     maxTokens: args.maxTokens,
     temperature: args.temperature,
     skipCache: args.skipCache ?? false,
@@ -244,8 +254,10 @@ async function callOpenAIText(args: TextCallArgs): Promise<RouterResult> {
 }
 
 async function callOpenAIStream(args: StreamCallArgs): Promise<RouterResult> {
+  const model = resolveOpenAIModel(args.profile ?? 'standard')
   const result = await openaiChatTextStream({
     messages: args.messages,
+    model,
     maxTokens: args.maxTokens,
     temperature: args.temperature,
   })
@@ -339,6 +351,7 @@ export async function routeTextCall(args: {
   image?: RouterImage | null
   skipCache?: boolean
   preferredAnthropicModel?: string
+  profile?: ProviderProfile
 }): Promise<RouterResult> {
   const order = getProviderOrder()
   const attempts: string[] = []
@@ -368,6 +381,7 @@ export async function routeStreamCall(args: {
   temperature?: number
   image?: RouterImage | null
   preferredAnthropicModel?: string
+  profile?: ProviderProfile
   onText: (delta: string, snapshot: string) => void
 }): Promise<RouterResult> {
   const order = getProviderOrder()

@@ -27,6 +27,8 @@ import {
 import { buildChimmyResponseStructure } from '@/lib/chimmy-chat/presentation'
 import { requireFeatureEntitlement } from '@/lib/subscription/entitlement-middleware'
 import { TokenSpendService } from '@/lib/tokens/TokenSpendService'
+import { checkDailyCap, incrementDailyCap } from '@/lib/ai/dailyCaps'
+import { tryDeterministicAnswer, DETERMINISTIC_SOURCE } from '@/lib/ai/deterministic'
 
 const MAX_MESSAGE_CHARS = 4_000
 const MAX_CONVERSATION_TURNS = 20
@@ -545,6 +547,46 @@ export async function POST(req: NextRequest) {
   const tokenSpendId = gate.tokenSpend?.id ?? null
   const wantsStream = parseResult.data.stream === true
 
+  // ── Daily cap check ──────────────────────────────────────────────────────────
+  const capResult = await checkDailyCap('chimmy', userId, resolvedTier)
+  if (!capResult.allowed) {
+    await refundAnthropicTokenFallbackIfNeeded({
+      tokenSpendId,
+      userId,
+      leagueId: parseResult.data.userContext.leagueId ?? undefined,
+    })
+    return NextResponse.json(
+      buildCompatibilityPayload({ error: capResult.message }, 429),
+      { status: 429 }
+    )
+  }
+
+  // ── Deterministic shortcut (saves provider credits) ──────────────────────────
+  const deterministicAnswer = await tryDeterministicAnswer(parseResult.data.message)
+  if (deterministicAnswer !== null) {
+    await refundAnthropicTokenFallbackIfNeeded({
+      tokenSpendId,
+      userId,
+      leagueId: parseResult.data.userContext.leagueId ?? undefined,
+    })
+    const deterministicPayload = buildCompatibilityPayload(
+      { response: deterministicAnswer, result: deterministicAnswer, source: DETERMINISTIC_SOURCE },
+      200
+    )
+    if (wantsStream) {
+      const encoder = new TextEncoder()
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode(encodeSseEvent('chunk', { delta: deterministicAnswer, response: deterministicAnswer })))
+          controller.enqueue(encoder.encode(encodeSseEvent('done', deterministicPayload)))
+          controller.close()
+        },
+      })
+      return new Response(stream, { status: 200, headers: SSE_HEADERS })
+    }
+    return NextResponse.json(deterministicPayload, { status: 200 })
+  }
+
   try {
     if (wantsStream) {
       const encoder = new TextEncoder()
@@ -575,6 +617,8 @@ export async function POST(req: NextRequest) {
                 return
               }
 
+              // Count the successful streaming AI call against the user's daily cap.
+              incrementDailyCap('chimmy', userId, resolvedTier).catch(() => {})
               push('done', buildAnthropicSuccessPayload(result, parseResult.data.userContext.sessionId))
               controller.close()
             } catch (error) {
@@ -626,6 +670,8 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Count the successful AI call against the user's daily cap.
+    incrementDailyCap('chimmy', userId, resolvedTier).catch(() => {})
     return NextResponse.json(
       buildAnthropicSuccessPayload(result, parseResult.data.userContext.sessionId),
       { status: 200 }

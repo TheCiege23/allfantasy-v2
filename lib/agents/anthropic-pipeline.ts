@@ -24,6 +24,15 @@ import {
 } from '@/lib/agents/cache'
 import { buildCompressedSystemPrompt } from '@/lib/agents/prompt-compression'
 import { routeTextCall, routeStreamCall } from '@/lib/ai/providerRouter'
+import {
+  buildAiCacheKey,
+  hashScope,
+  hashQuestion,
+  hashContext,
+  getCachedAiAnswer,
+  setCachedAiAnswer,
+  AI_CACHE_TTL,
+} from '@/lib/ai/aiCache'
 
 const anthropicApiKey = process.env.ANTHROPIC_API_KEY?.trim() ?? ''
 
@@ -464,7 +473,38 @@ async function callClaude(args: {
   model: string
   maxTokens?: number
   image?: UserContext['image']
+  /** Optional — used for cache scoping. Never logged in plain text. */
+  userId?: string
+  /** Optional context fields for the cache key (no PII). */
+  cacheContext?: { sport?: string | null; leagueId?: string | null; assistantMode?: string | null }
+  /** Skip the response cache (e.g. for follow-up turns with conversation history). */
+  skipResponseCache?: boolean
 }): Promise<ClaudeCallResult> {
+  const startedAt = Date.now()
+
+  // ── Cache check (non-streaming only) ────────────────────────────────────────
+  const cacheKey = args.skipResponseCache
+    ? null
+    : buildAiCacheKey(
+        'chimmy',
+        hashScope(args.userId ?? 'anon'),
+        hashQuestion(args.userMessage),
+        hashContext({
+          sport: args.cacheContext?.sport,
+          leagueId: args.cacheContext?.leagueId,
+          assistantMode: args.cacheContext?.assistantMode,
+        })
+      )
+
+  if (cacheKey) {
+    const cached = await getCachedAiAnswer(cacheKey)
+    if (cached) {
+      console.info('[anthropic-pipeline] cache hit', { latencyMs: Date.now() - startedAt })
+      return { text: cached, tokensUsed: 0, model: 'cached' }
+    }
+  }
+
+  // ── Provider call ────────────────────────────────────────────────────────────
   const result = await routeTextCall({
     messages: [
       { role: 'system', content: args.system },
@@ -476,8 +516,23 @@ async function callClaude(args: {
     skipCache: true,
   })
   if (!result.ok) {
+    console.error('[anthropic-pipeline] all providers failed', { latencyMs: Date.now() - startedAt })
     throw new Error('Chimmy is temporarily unavailable. Please try again soon.')
   }
+
+  console.info('[anthropic-pipeline] provider answered', {
+    provider: result.provider,
+    model: result.model,
+    latencyMs: Date.now() - startedAt,
+    tokensUsed: result.tokensUsed,
+    cacheHit: false,
+  })
+
+  // ── Store in cache ───────────────────────────────────────────────────────────
+  if (cacheKey) {
+    setCachedAiAnswer(cacheKey, result.text, AI_CACHE_TTL.chimmy).catch(() => {})
+  }
+
   return { text: result.text, tokensUsed: result.tokensUsed, model: result.model }
 }
 
@@ -1591,6 +1646,7 @@ async function runSpecialist(
     structuredFantasyContext ?? null
   )
 
+  const hasConversation = (ctx.conversation?.length ?? 0) > 0
   return callClaude({
     system: systemPrompt,
     userMessage: buildSpecialistRequestPayload(
@@ -1602,6 +1658,14 @@ async function runSpecialist(
     model,
     maxTokens: TOKEN_LIMITS[intent] ?? TOKEN_LIMITS.general,
     image: ctx.image,
+    userId: ctx.userId,
+    cacheContext: {
+      sport: ctx.sport,
+      leagueId: ctx.leagueId,
+      assistantMode: ctx.source,
+    },
+    // Skip cache when conversation history is present — answers depend on prior turns.
+    skipResponseCache: hasConversation,
   })
 }
 
