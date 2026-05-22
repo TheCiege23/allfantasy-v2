@@ -2,9 +2,11 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 
 const WC_LOGO_SRC = "/images/brackets/world-cup/af-world-cup-logo.png"
 import WorldCupDiscoverCard from "./WorldCupDiscoverCard"
@@ -26,6 +28,10 @@ export type DiscoverCardApi = {
 }
 
 export default function WorldCupDiscoverClient() {
+  // Hydration-safe: locale comes from the global LanguageProviderClient.
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
+
   const joinPanelRef = useRef<WorldCupInviteJoinPanelHandle>(null)
   const joinAnchorRef = useRef<HTMLDivElement>(null)
 
@@ -55,14 +61,16 @@ export default function WorldCupDiscoverClient() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        toast.error((data as { error?: string }).error || "Could not load pools")
+        toast.error(
+          (data as { error?: string }).error || t("wc.discover.errors.couldNotLoad")
+        )
         return
       }
       setChallenges((data as { challenges?: DiscoverCardApi[] }).challenges ?? [])
     } finally {
       setLoading(false)
     }
-  }, [debouncedQ, seasonYear, status])
+  }, [debouncedQ, seasonYear, status, t])
 
   useEffect(() => {
     void fetchDiscover()
@@ -84,13 +92,13 @@ export default function WorldCupDiscoverClient() {
           href="/brackets/world-cup"
           className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-white/60 hover:text-white"
         >
-          ← World Cup hub
+          {t("wc.discover.backToHub")}
         </Link>
         <Link
           href="/brackets/world-cup/create"
           className="rounded-lg bg-cyan-300 px-4 py-2 text-sm font-black text-black"
         >
-          Create Pool
+          {t("wc.discover.createPool")}
         </Link>
       </div>
 
@@ -104,17 +112,16 @@ export default function WorldCupDiscoverClient() {
             className="h-full w-full object-contain"
           />
         </div>
-        <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Discover public pools</h1>
+        <h1 className="text-2xl font-black tracking-tight sm:text-3xl">{t("wc.discover.title")}</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/55">
-          Browse public World Cup bracket pools. Join opens Bracket 1 with no picks — we drop you into the guided picker
-          when the pool allows new players and isn&apos;t full.
+          {t("wc.discover.subtitle")}
         </p>
       </header>
 
       <div ref={joinAnchorRef}>
         <WorldCupInviteJoinPanel
           ref={joinPanelRef}
-          title="Join with invite code (private pools)"
+          title={t("wc.discover.joinPanelTitle")}
           onPreviewLoaded={() =>
             joinAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
           }
@@ -124,38 +131,38 @@ export default function WorldCupDiscoverClient() {
       <section className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
           <label className="block min-w-[200px] flex-1 text-xs text-white/60">
-            Search
+            {t("wc.discover.search.label")}
             <input
               data-testid="world-cup-discover-search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Pool name"
+              placeholder={t("wc.discover.search.placeholder")}
               className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
             />
           </label>
           <label className="block w-full min-w-[120px] sm:w-40 text-xs text-white/60">
-            Season
+            {t("wc.discover.season.label")}
             <input
               data-testid="world-cup-discover-season"
               value={seasonYear}
               onChange={(e) => setSeasonYear(e.target.value)}
-              placeholder="e.g. 2026"
+              placeholder={t("wc.discover.season.placeholder")}
               inputMode="numeric"
               className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
             />
           </label>
           <label className="block w-full min-w-[140px] sm:w-44 text-xs text-white/60">
-            Status
+            {t("wc.discover.statusFilter.label")}
             <select
               data-testid="world-cup-discover-status"
               value={status}
               onChange={(e) => setStatus(e.target.value)}
               className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
             >
-              <option value="all">All</option>
-              <option value="open">Open</option>
-              <option value="locked">Locked</option>
-              <option value="final">Final</option>
+              <option value="all">{t("wc.discover.statusFilter.all")}</option>
+              <option value="open">{t("wc.discover.statusFilter.open")}</option>
+              <option value="locked">{t("wc.discover.statusFilter.locked")}</option>
+              <option value="final">{t("wc.discover.statusFilter.final")}</option>
             </select>
           </label>
         </div>
@@ -163,15 +170,14 @@ export default function WorldCupDiscoverClient() {
         {loading ? (
           <div className="flex items-center gap-2 py-16 text-sm text-white/45">
             <Loader2 className="h-5 w-5 animate-spin" />
-            Loading public pools…
+            {t("wc.discover.loading")}
           </div>
         ) : challenges.length === 0 ? (
           <div
             data-testid="world-cup-discover-empty"
             className="rounded-xl border border-dashed border-white/15 bg-white/[0.02] px-6 py-12 text-center text-sm text-white/45"
           >
-            No public pools match your filters. Try another season or clear search — or join a private pool with an
-            invite code above.
+            {t("wc.discover.empty")}
           </div>
         ) : (
           <div

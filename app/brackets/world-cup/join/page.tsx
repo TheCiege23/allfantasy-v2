@@ -1,12 +1,20 @@
 import Image from "next/image"
 import Link from "next/link"
 import WorldCupInviteJoinPanel from "@/components/brackets/world-cup/WorldCupInviteJoinPanel"
+import { resolveServerRenderPreferences } from "@/lib/preferences/ServerRenderPreferenceResolver"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 
 const WC_LOGO_SRC = "/images/brackets/world-cup/af-world-cup-logo.png"
 
 export const dynamic = "force-dynamic"
 
-export default function WorldCupJoinWithCodePage() {
+export default async function WorldCupJoinWithCodePage() {
+  // Server-side language resolution mirrors the client provider (cookie
+  // af_lang + UserProfile.preferredLanguage) → SSR HTML matches the
+  // first client render, no React #425/#418 risk.
+  const { language } = await resolveServerRenderPreferences()
+  const t = makeWcT(language)
+
   return (
     <main className="min-h-screen bg-[#05070b] text-white">
       <div className="mx-auto max-w-lg px-4 py-10">
@@ -14,7 +22,7 @@ export default function WorldCupJoinWithCodePage() {
           href="/brackets/world-cup"
           className="mb-6 inline-block rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-white/60 hover:text-white"
         >
-          ← World Cup hub
+          {t("wc.join.backToHub")}
         </Link>
 
         {/* WC branding lockup */}
@@ -30,12 +38,12 @@ export default function WorldCupJoinWithCodePage() {
             />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/35">AllFantasy</p>
-            <h1 className="text-base font-black leading-tight text-white">2026 World Cup Bracket Pools</h1>
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/35">{t("wc.join.brandEyebrow")}</p>
+            <h1 className="text-base font-black leading-tight text-white">{t("wc.join.brandTitle")}</h1>
           </div>
         </div>
 
-        <WorldCupInviteJoinPanel title="Join with invite code" />
+        <WorldCupInviteJoinPanel title={t("wc.join.panelTitle")} />
       </div>
     </main>
   )

@@ -1,7 +1,10 @@
 "use client"
 
 import Link from "next/link"
+import { useMemo } from "react"
 import { Globe2, Lock, Shield, Users } from "lucide-react"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 
 export type DiscoverCardModel = {
   id: string
@@ -22,12 +25,16 @@ export default function WorldCupDiscoverCard({
   card: DiscoverCardModel
   onJoin: () => void
 }) {
+  // Hydration-safe: locale comes from the global LanguageProviderClient.
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
+
   const blocked = card.joinBlockedReason != null
   const reasonLabel =
     card.joinBlockedReason === "full"
-      ? "League full"
+      ? t("wc.discover.card.blockedFull")
       : card.joinBlockedReason === "locked_no_late_join"
-        ? "Closed to new players"
+        ? t("wc.discover.card.blockedClosed")
         : null
 
   return (
@@ -42,7 +49,7 @@ export default function WorldCupDiscoverCard({
             <h3 className="truncate font-black text-white">{card.name}</h3>
           </div>
           <p className="mt-1 text-xs text-white/45">
-            {card.seasonYear} · {card.status === "open" ? "Open" : card.status}
+            {card.seasonYear} · {card.status === "open" ? t("wc.discover.card.statusOpen") : card.status}
           </p>
         </div>
         {blocked ? (
@@ -61,11 +68,11 @@ export default function WorldCupDiscoverCard({
         {card.requiresJoinPassword ? (
           <span className="inline-flex items-center gap-1 rounded-md bg-amber-400/10 px-2 py-1 text-amber-100/90">
             <Shield className="h-3 w-3" />
-            Password
+            {t("wc.discover.card.password")}
           </span>
         ) : null}
         {card.poolLocked && !blocked ? (
-          <span className="rounded-md bg-cyan-400/10 px-2 py-1 text-cyan-100/80">Picks locked · late join on</span>
+          <span className="rounded-md bg-cyan-400/10 px-2 py-1 text-cyan-100/80">{t("wc.discover.card.lateJoin")}</span>
         ) : null}
       </div>
 
@@ -74,7 +81,7 @@ export default function WorldCupDiscoverCard({
           href={`/brackets/world-cup/${card.id}`}
           className="inline-flex min-h-11 min-w-0 flex-1 touch-manipulation items-center justify-center rounded-lg border border-white/15 bg-white/[0.06] px-3 py-2 text-xs font-bold text-white/80 hover:bg-white/[0.1]"
         >
-          Preview
+          {t("wc.discover.card.preview")}
         </Link>
         <button
           type="button"
@@ -83,7 +90,7 @@ export default function WorldCupDiscoverCard({
           onClick={onJoin}
           className="inline-flex min-h-11 min-w-0 flex-1 touch-manipulation items-center justify-center rounded-lg bg-cyan-300 px-3 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:opacity-35"
         >
-          Join
+          {t("wc.discover.card.join")}
         </button>
       </div>
     </div>

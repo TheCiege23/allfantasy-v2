@@ -255,6 +255,119 @@ const EN: WorldCupDictionary = {
   "wc.language.chinese": "繁體中文",
   "wc.language.filipino": "Filipino",
   "wc.language.vietnamese": "Tiếng Việt",
+
+  // ── Create page / modal ──────────────────────────────────────────────
+  "wc.create.goBack": "Go back",
+  "wc.create.header": "Create World Cup Bracket Pool",
+  "wc.create.subheader": "2026 FIFA World Cup · round-by-round scoring",
+  "wc.create.heroTitle": "2026 FIFA World Cup",
+  "wc.create.heroSubtitle":
+    "Create a pool container — invite friends and let them build their brackets inside.",
+  "wc.create.poolName.label": "Pool Name",
+  "wc.create.poolName.placeholder": "e.g. Office World Cup Pool 2026",
+  "wc.create.poolName.error.blank": "Pool name cannot be blank.",
+  "wc.create.poolName.default": "World Cup Bracket Pool",
+  "wc.create.visibility.label": "Pool Visibility",
+  "wc.create.visibility.private": "Private",
+  "wc.create.visibility.privateHint": "Invite link required to join",
+  "wc.create.visibility.public": "Public",
+  "wc.create.visibility.publicHint": "Anyone can discover and join",
+  "wc.create.maxUsers.label": "Max Users",
+  "wc.create.maxUsers.hint": "Maximum {{max}} per pool",
+  "wc.create.maxUsers.error": "Must be between 2 and {{max}}.",
+  "wc.create.maxEntries.label": "Brackets per User",
+  "wc.create.maxEntries.hint": "Maximum {{max}} per user",
+  "wc.create.maxEntries.error": "Must be between 1 and {{max}}.",
+  "wc.create.lockRule.label": "Pick Lock Rule",
+  "wc.create.lockRule.tournament": "Tournament Lock",
+  "wc.create.lockRule.tournamentHint":
+    "All picks lock when the first match begins",
+  "wc.create.lockRule.perMatch": "Per-Match Lock",
+  "wc.create.lockRule.perMatchHint":
+    "Each match locks at its own kickoff",
+  "wc.create.lockRule.copyTournament":
+    "Picks can be edited until the first World Cup match begins.",
+  "wc.create.lockRule.copyPerMatch":
+    "Each matchup can be edited until that match kicks off.",
+  "wc.create.scoring.intro": "Round-by-round scoring:",
+  "wc.create.scoring.values":
+    "10 pts Round of 32 · 20 pts Round of 16 · 40 pts QF · 80 pts SF · 160 pts Final · 320 pts Champion bonus",
+  "wc.create.helper.entriesOne":
+    "Each user can create up to {{max}} bracket entry.",
+  "wc.create.helper.entriesOther":
+    "Each user can create up to {{max}} bracket entries.",
+  "wc.create.helper.leaderboard":
+    "The leaderboard ranks finalized bracket entries, not drafts.",
+  "wc.create.helper.inviteLink":
+    "An invite link will be shown after creation.",
+  "wc.create.thirdPlace": "Include third-place match",
+  "wc.create.testFixtures.label": "Seed Test Fixtures",
+  "wc.create.testFixtures.hint":
+    "Adds mock Round of 32 teams, flags, kickoff times, and venues so this pool is pickable immediately.",
+  "wc.create.submit.idle": "Create Pool",
+  "wc.create.submit.creating": "Creating...",
+  "wc.create.submit.opening": "Created, opening...",
+  "wc.create.openingSuccess": "Created bracket, opening...",
+  "wc.create.error.signInRequired": "Please sign in to create a bracket.",
+  "wc.create.error.noId":
+    "Bracket was created but the server did not return an ID. Please refresh the page.",
+  "wc.create.error.generic": "Failed to create bracket",
+  "wc.create.error.requestFailed": "Request failed ({{status}})",
+
+  // ── Discover page ────────────────────────────────────────────────────
+  "wc.discover.backToHub": "← World Cup hub",
+  "wc.discover.createPool": "Create Pool",
+  "wc.discover.title": "Discover public pools",
+  "wc.discover.subtitle":
+    "Browse public World Cup bracket pools. Join opens Bracket 1 with no picks — we drop you into the guided picker when the pool allows new players and isn't full.",
+  "wc.discover.search.label": "Search",
+  "wc.discover.search.placeholder": "Pool name",
+  "wc.discover.season.label": "Season",
+  "wc.discover.season.placeholder": "e.g. 2026",
+  "wc.discover.statusFilter.label": "Status",
+  "wc.discover.statusFilter.all": "All",
+  "wc.discover.statusFilter.open": "Open",
+  "wc.discover.statusFilter.locked": "Locked",
+  "wc.discover.statusFilter.final": "Final",
+  "wc.discover.loading": "Loading public pools...",
+  "wc.discover.errors.couldNotLoad": "Could not load pools",
+  "wc.discover.empty":
+    "No public pools match your filters. Try another season or clear search — or join a private pool with an invite code above.",
+  "wc.discover.joinPanelTitle": "Join with invite code (private pools)",
+
+  // ── Discover card ────────────────────────────────────────────────────
+  "wc.discover.card.statusOpen": "Open",
+  "wc.discover.card.blockedFull": "League full",
+  "wc.discover.card.blockedClosed": "Closed to new players",
+  "wc.discover.card.password": "Password",
+  "wc.discover.card.lateJoin": "Picks locked · late join on",
+  "wc.discover.card.preview": "Preview",
+  "wc.discover.card.join": "Join",
+
+  // ── Join / invite panel ──────────────────────────────────────────────
+  "wc.join.backToHub": "← World Cup hub",
+  "wc.join.brandEyebrow": "AllFantasy",
+  "wc.join.brandTitle": "2026 World Cup Bracket Pools",
+  "wc.join.panelTitle": "Join with invite code",
+  "wc.join.panelHelper":
+    "Enter the invite code from your commissioner. After joining, you will land on the pool dashboard and can start your first bracket. Password-protected pools require the join password set in pool settings.",
+  "wc.join.codeInput.placeholder": "WCUP invite code",
+  "wc.join.previewBtn": "Preview",
+  "wc.join.errors.invalidCode": "Enter a valid invite code",
+  "wc.join.errors.notFound": "Invite not found",
+  "wc.join.errors.full": "This pool is full.",
+  "wc.join.errors.closed": "This pool is closed to new players.",
+  "wc.join.errors.couldNotJoin": "Could not join",
+  "wc.join.preview.hostLine":
+    "Host: {{owner}} · {{count}} playing · {{visibility}}",
+  "wc.join.preview.openCopy":
+    "Join now to create Bracket 1, make Group Stage and Knockout picks, and finalize when ready.",
+  "wc.join.preview.fullCopy": "This pool is full.",
+  "wc.join.preview.closedCopy":
+    "Pool locked — not accepting new players.",
+  "wc.join.preview.passwordLabel": "Join password",
+  "wc.join.preview.joinBtn": "Join league",
+  "wc.join.success": "You're in — Bracket 1 is ready.",
 }
 
 const ES: WorldCupDictionary = {
@@ -422,6 +535,127 @@ const ES: WorldCupDictionary = {
   "wc.language.chinese": "繁體中文",
   "wc.language.filipino": "Filipino",
   "wc.language.vietnamese": "Tiếng Việt",
+
+  // ── Create page / modal ──────────────────────────────────────────────
+  "wc.create.goBack": "Volver",
+  "wc.create.header": "Crear grupo de brackets de la Copa del Mundo",
+  "wc.create.subheader":
+    "Copa Mundial FIFA 2026 · puntuación ronda por ronda",
+  "wc.create.heroTitle": "Copa Mundial FIFA 2026",
+  "wc.create.heroSubtitle":
+    "Crea un contenedor de grupo — invita amigos y deja que armen sus brackets dentro.",
+  "wc.create.poolName.label": "Nombre del grupo",
+  "wc.create.poolName.placeholder":
+    "ej. Quiniela de la oficina Copa del Mundo 2026",
+  "wc.create.poolName.error.blank":
+    "El nombre del grupo no puede estar vacío.",
+  "wc.create.poolName.default": "Grupo de brackets de la Copa del Mundo",
+  "wc.create.visibility.label": "Visibilidad del grupo",
+  "wc.create.visibility.private": "Privado",
+  "wc.create.visibility.privateHint":
+    "Se necesita enlace de invitación para unirse",
+  "wc.create.visibility.public": "Público",
+  "wc.create.visibility.publicHint": "Cualquiera puede descubrirlo y unirse",
+  "wc.create.maxUsers.label": "Usuarios máximos",
+  "wc.create.maxUsers.hint": "Máximo {{max}} por grupo",
+  "wc.create.maxUsers.error": "Debe estar entre 2 y {{max}}.",
+  "wc.create.maxEntries.label": "Brackets por usuario",
+  "wc.create.maxEntries.hint": "Máximo {{max}} por usuario",
+  "wc.create.maxEntries.error": "Debe estar entre 1 y {{max}}.",
+  "wc.create.lockRule.label": "Regla de cierre de picks",
+  "wc.create.lockRule.tournament": "Cierre por torneo",
+  "wc.create.lockRule.tournamentHint":
+    "Todos los picks se cierran cuando arranca el primer partido",
+  "wc.create.lockRule.perMatch": "Cierre por partido",
+  "wc.create.lockRule.perMatchHint":
+    "Cada partido se cierra al inicio de su propio juego",
+  "wc.create.lockRule.copyTournament":
+    "Los picks se pueden editar hasta que empiece el primer partido de la Copa del Mundo.",
+  "wc.create.lockRule.copyPerMatch":
+    "Cada partido se puede editar hasta su propio arranque.",
+  "wc.create.scoring.intro": "Puntuación ronda por ronda:",
+  "wc.create.scoring.values":
+    "10 pts Ronda de 32 · 20 pts Ronda de 16 · 40 pts QF · 80 pts SF · 160 pts Final · 320 pts bonus de campeón",
+  "wc.create.helper.entriesOne":
+    "Cada usuario puede crear hasta {{max}} bracket.",
+  "wc.create.helper.entriesOther":
+    "Cada usuario puede crear hasta {{max}} brackets.",
+  "wc.create.helper.leaderboard":
+    "El leaderboard clasifica brackets finalizados, no borradores.",
+  "wc.create.helper.inviteLink":
+    "El enlace de invitación se mostrará después de crear el grupo.",
+  "wc.create.thirdPlace": "Incluir partido por el tercer puesto",
+  "wc.create.testFixtures.label": "Cargar partidos de prueba",
+  "wc.create.testFixtures.hint":
+    "Agrega equipos, banderas, horarios y sedes simulados de la Ronda de 32 para que el grupo se pueda jugar de inmediato.",
+  "wc.create.submit.idle": "Crear grupo",
+  "wc.create.submit.creating": "Creando...",
+  "wc.create.submit.opening": "Creado, abriendo...",
+  "wc.create.openingSuccess": "Bracket creado, abriendo...",
+  "wc.create.error.signInRequired":
+    "Inicia sesión para crear un bracket.",
+  "wc.create.error.noId":
+    "El bracket se creó, pero el servidor no devolvió un ID. Actualiza la página.",
+  "wc.create.error.generic": "No se pudo crear el bracket",
+  "wc.create.error.requestFailed": "Falló la solicitud ({{status}})",
+
+  // ── Discover page ────────────────────────────────────────────────────
+  "wc.discover.backToHub": "← Volver al hub de la Copa del Mundo",
+  "wc.discover.createPool": "Crear grupo",
+  "wc.discover.title": "Descubrir grupos públicos",
+  "wc.discover.subtitle":
+    "Explora grupos de brackets públicos de la Copa del Mundo. Unirte abre el Bracket 1 sin picks — te llevamos al asistente guiado cuando el grupo acepta nuevos jugadores y no está lleno.",
+  "wc.discover.search.label": "Buscar",
+  "wc.discover.search.placeholder": "Nombre del grupo",
+  "wc.discover.season.label": "Temporada",
+  "wc.discover.season.placeholder": "ej. 2026",
+  "wc.discover.statusFilter.label": "Estado",
+  "wc.discover.statusFilter.all": "Todos",
+  "wc.discover.statusFilter.open": "Abierto",
+  "wc.discover.statusFilter.locked": "Bloqueado",
+  "wc.discover.statusFilter.final": "Final",
+  "wc.discover.loading": "Cargando grupos públicos...",
+  "wc.discover.errors.couldNotLoad": "No se pudieron cargar los grupos",
+  "wc.discover.empty":
+    "Ningún grupo público coincide con tus filtros. Prueba otra temporada o limpia la búsqueda — o únete a un grupo privado con un código de invitación arriba.",
+  "wc.discover.joinPanelTitle":
+    "Unirse con código de invitación (grupos privados)",
+
+  // ── Discover card ────────────────────────────────────────────────────
+  "wc.discover.card.statusOpen": "Abierto",
+  "wc.discover.card.blockedFull": "Grupo lleno",
+  "wc.discover.card.blockedClosed": "Cerrado a nuevos jugadores",
+  "wc.discover.card.password": "Contraseña",
+  "wc.discover.card.lateJoin":
+    "Picks cerrados · ingreso tardío activo",
+  "wc.discover.card.preview": "Previsualizar",
+  "wc.discover.card.join": "Unirse",
+
+  // ── Join / invite panel ──────────────────────────────────────────────
+  "wc.join.backToHub": "← Volver al hub de la Copa del Mundo",
+  "wc.join.brandEyebrow": "AllFantasy",
+  "wc.join.brandTitle": "Grupos de Brackets de la Copa del Mundo 2026",
+  "wc.join.panelTitle": "Unirse con código de invitación",
+  "wc.join.panelHelper":
+    "Ingresa el código de invitación que te dio tu comisionado. Después de unirte llegarás al panel del grupo y podrás empezar tu primer bracket. Los grupos con contraseña requieren la contraseña definida en los ajustes del grupo.",
+  "wc.join.codeInput.placeholder": "Código de invitación WCUP",
+  "wc.join.previewBtn": "Previsualizar",
+  "wc.join.errors.invalidCode": "Ingresa un código de invitación válido",
+  "wc.join.errors.notFound": "Invitación no encontrada",
+  "wc.join.errors.full": "Este grupo está lleno.",
+  "wc.join.errors.closed":
+    "Este grupo está cerrado a nuevos jugadores.",
+  "wc.join.errors.couldNotJoin": "No se pudo unir",
+  "wc.join.preview.hostLine":
+    "Anfitrión: {{owner}} · {{count}} jugando · {{visibility}}",
+  "wc.join.preview.openCopy":
+    "Únete ahora para crear el Bracket 1, hacer picks de Fase de Grupos y Eliminatorias, y finalizar cuando estés listo.",
+  "wc.join.preview.fullCopy": "Este grupo está lleno.",
+  "wc.join.preview.closedCopy":
+    "Grupo bloqueado — no acepta nuevos jugadores.",
+  "wc.join.preview.passwordLabel": "Contraseña del grupo",
+  "wc.join.preview.joinBtn": "Unirse al grupo",
+  "wc.join.success": "Estás dentro — Bracket 1 listo.",
 }
 
 // Traditional Chinese (zh-TW). Sports-app voice — short, scannable.
@@ -587,6 +821,119 @@ const ZH: WorldCupDictionary = {
   "wc.language.chinese": "繁體中文",
   "wc.language.filipino": "Filipino",
   "wc.language.vietnamese": "Tiếng Việt",
+
+  // ── Create page / modal ──────────────────────────────────────────────
+  "wc.create.goBack": "返回",
+  "wc.create.header": "建立世界盃對戰群組",
+  "wc.create.subheader": "2026 FIFA 世界盃 · 依回合計分",
+  "wc.create.heroTitle": "2026 FIFA 世界盃",
+  "wc.create.heroSubtitle":
+    "建立一個群組容器 — 邀請朋友,讓他們在裡面建立自己的對戰表。",
+  "wc.create.poolName.label": "群組名稱",
+  "wc.create.poolName.placeholder": "例如:辦公室世界盃 2026",
+  "wc.create.poolName.error.blank": "群組名稱不能空白。",
+  "wc.create.poolName.default": "世界盃對戰群組",
+  "wc.create.visibility.label": "群組可見性",
+  "wc.create.visibility.private": "私人",
+  "wc.create.visibility.privateHint": "需要邀請連結才能加入",
+  "wc.create.visibility.public": "公開",
+  "wc.create.visibility.publicHint": "任何人都可以發現並加入",
+  "wc.create.maxUsers.label": "人數上限",
+  "wc.create.maxUsers.hint": "每個群組最多 {{max}} 人",
+  "wc.create.maxUsers.error": "必須介於 2 到 {{max}} 之間。",
+  "wc.create.maxEntries.label": "每位使用者對戰表數",
+  "wc.create.maxEntries.hint": "每位使用者最多 {{max}} 個",
+  "wc.create.maxEntries.error": "必須介於 1 到 {{max}} 之間。",
+  "wc.create.lockRule.label": "選擇鎖定規則",
+  "wc.create.lockRule.tournament": "全賽事鎖定",
+  "wc.create.lockRule.tournamentHint":
+    "第一場比賽開始時所有選擇皆鎖定",
+  "wc.create.lockRule.perMatch": "逐場鎖定",
+  "wc.create.lockRule.perMatchHint":
+    "每場比賽於自身開球時鎖定",
+  "wc.create.lockRule.copyTournament":
+    "在世界盃首場比賽開球前,選擇都可修改。",
+  "wc.create.lockRule.copyPerMatch":
+    "每場比賽在自身開球前都可修改。",
+  "wc.create.scoring.intro": "依回合計分:",
+  "wc.create.scoring.values":
+    "32 強 10 分 · 16 強 20 分 · 八強 40 分 · 四強 80 分 · 決賽 160 分 · 冠軍獎勵 320 分",
+  "wc.create.helper.entriesOne":
+    "每位使用者最多可建立 {{max}} 個對戰表。",
+  "wc.create.helper.entriesOther":
+    "每位使用者最多可建立 {{max}} 個對戰表。",
+  "wc.create.helper.leaderboard":
+    "排行榜只計入已送出的對戰表,不計草稿。",
+  "wc.create.helper.inviteLink":
+    "建立後會顯示邀請連結。",
+  "wc.create.thirdPlace": "包含季軍戰",
+  "wc.create.testFixtures.label": "載入測試賽程",
+  "wc.create.testFixtures.hint":
+    "加入模擬的 32 強球隊、國旗、開球時間與場地,讓此群組可以立刻開始選擇。",
+  "wc.create.submit.idle": "建立群組",
+  "wc.create.submit.creating": "建立中...",
+  "wc.create.submit.opening": "已建立,正在開啟...",
+  "wc.create.openingSuccess": "已建立對戰表,正在開啟...",
+  "wc.create.error.signInRequired": "請先登入再建立對戰表。",
+  "wc.create.error.noId":
+    "對戰表已建立,但伺服器未回傳 ID,請重新整理頁面。",
+  "wc.create.error.generic": "無法建立對戰表",
+  "wc.create.error.requestFailed": "請求失敗({{status}})",
+
+  // ── Discover page ────────────────────────────────────────────────────
+  "wc.discover.backToHub": "← 返回世界盃主頁",
+  "wc.discover.createPool": "建立群組",
+  "wc.discover.title": "探索公開群組",
+  "wc.discover.subtitle":
+    "瀏覽公開的世界盃對戰群組。加入後會開啟尚未選擇的 Bracket 1 — 當群組接受新成員且未滿時,我們會直接帶你進入引導式選擇。",
+  "wc.discover.search.label": "搜尋",
+  "wc.discover.search.placeholder": "群組名稱",
+  "wc.discover.season.label": "賽季",
+  "wc.discover.season.placeholder": "例如:2026",
+  "wc.discover.statusFilter.label": "狀態",
+  "wc.discover.statusFilter.all": "全部",
+  "wc.discover.statusFilter.open": "開放中",
+  "wc.discover.statusFilter.locked": "已鎖定",
+  "wc.discover.statusFilter.final": "已結束",
+  "wc.discover.loading": "正在載入公開群組...",
+  "wc.discover.errors.couldNotLoad": "無法載入群組",
+  "wc.discover.empty":
+    "沒有符合篩選條件的公開群組。換個賽季或清除搜尋 — 也可以用上方的邀請碼加入私人群組。",
+  "wc.discover.joinPanelTitle": "用邀請碼加入(私人群組)",
+
+  // ── Discover card ────────────────────────────────────────────────────
+  "wc.discover.card.statusOpen": "開放中",
+  "wc.discover.card.blockedFull": "群組已滿",
+  "wc.discover.card.blockedClosed": "已停止接受新成員",
+  "wc.discover.card.password": "密碼",
+  "wc.discover.card.lateJoin": "選擇已鎖定 · 仍可後加入",
+  "wc.discover.card.preview": "預覽",
+  "wc.discover.card.join": "加入",
+
+  // ── Join / invite panel ──────────────────────────────────────────────
+  "wc.join.backToHub": "← 返回世界盃主頁",
+  "wc.join.brandEyebrow": "AllFantasy",
+  "wc.join.brandTitle": "2026 世界盃對戰群組",
+  "wc.join.panelTitle": "用邀請碼加入",
+  "wc.join.panelHelper":
+    "輸入你管理員提供的邀請碼。加入後會抵達群組主頁,即可開始你的第一個對戰表。受密碼保護的群組需要在群組設定中設定的加入密碼。",
+  "wc.join.codeInput.placeholder": "WCUP 邀請碼",
+  "wc.join.previewBtn": "預覽",
+  "wc.join.errors.invalidCode": "請輸入有效的邀請碼",
+  "wc.join.errors.notFound": "找不到該邀請",
+  "wc.join.errors.full": "此群組已滿。",
+  "wc.join.errors.closed": "此群組不再接受新成員。",
+  "wc.join.errors.couldNotJoin": "無法加入",
+  "wc.join.preview.hostLine":
+    "主辦人:{{owner}} · {{count}} 人遊玩 · {{visibility}}",
+  "wc.join.preview.openCopy":
+    "立即加入即可建立 Bracket 1、進行小組賽與淘汰賽選擇,並在準備好時送出。",
+  "wc.join.preview.fullCopy": "此群組已滿。",
+  "wc.join.preview.closedCopy":
+    "群組已鎖定 — 不再接受新成員。",
+  "wc.join.preview.passwordLabel": "加入密碼",
+  "wc.join.preview.joinBtn": "加入群組",
+  "wc.join.success": "已加入 — Bracket 1 已就緒。",
 }
 
 // Filipino — natural sports-app Filipino, light Taglish where it reads
@@ -760,6 +1107,129 @@ const FIL: WorldCupDictionary = {
   "wc.language.chinese": "繁體中文",
   "wc.language.filipino": "Filipino",
   "wc.language.vietnamese": "Tiếng Việt",
+
+  // ── Create page / modal ──────────────────────────────────────────────
+  "wc.create.goBack": "Bumalik",
+  "wc.create.header": "Gumawa ng World Cup Bracket Pool",
+  "wc.create.subheader":
+    "2026 FIFA World Cup · scoring per round",
+  "wc.create.heroTitle": "2026 FIFA World Cup",
+  "wc.create.heroSubtitle":
+    "Gumawa ng pool container — mag-invite ng kaibigan at hayaan silang mag-build ng sariling brackets sa loob.",
+  "wc.create.poolName.label": "Pangalan ng pool",
+  "wc.create.poolName.placeholder": "hal. Office World Cup Pool 2026",
+  "wc.create.poolName.error.blank":
+    "Hindi pwedeng walang pangalan ang pool.",
+  "wc.create.poolName.default": "World Cup Bracket Pool",
+  "wc.create.visibility.label": "Visibility ng pool",
+  "wc.create.visibility.private": "Private",
+  "wc.create.visibility.privateHint":
+    "Kailangan ng invite link para sumali",
+  "wc.create.visibility.public": "Public",
+  "wc.create.visibility.publicHint":
+    "Pwedeng makita at sumali ang kahit sino",
+  "wc.create.maxUsers.label": "Max users",
+  "wc.create.maxUsers.hint": "Hanggang {{max}} kada pool",
+  "wc.create.maxUsers.error": "Dapat nasa pagitan ng 2 at {{max}}.",
+  "wc.create.maxEntries.label": "Brackets bawat user",
+  "wc.create.maxEntries.hint": "Hanggang {{max}} bawat user",
+  "wc.create.maxEntries.error": "Dapat nasa pagitan ng 1 at {{max}}.",
+  "wc.create.lockRule.label": "Patakaran sa pag-lock ng pick",
+  "wc.create.lockRule.tournament": "Tournament lock",
+  "wc.create.lockRule.tournamentHint":
+    "Magla-lock lahat ng picks pagsimula ng unang laban",
+  "wc.create.lockRule.perMatch": "Per-match lock",
+  "wc.create.lockRule.perMatchHint":
+    "Bawat laban ay magla-lock sa sariling kickoff",
+  "wc.create.lockRule.copyTournament":
+    "Pwede pang baguhin ang picks hanggang magsimula ang unang World Cup match.",
+  "wc.create.lockRule.copyPerMatch":
+    "Pwede pang baguhin ang bawat matchup hanggang umarangkada ang sariling laban.",
+  "wc.create.scoring.intro": "Scoring per round:",
+  "wc.create.scoring.values":
+    "10 pts Round of 32 · 20 pts Round of 16 · 40 pts QF · 80 pts SF · 160 pts Final · 320 pts Champion bonus",
+  "wc.create.helper.entriesOne":
+    "Bawat user ay puwedeng gumawa ng hanggang {{max}} bracket.",
+  "wc.create.helper.entriesOther":
+    "Bawat user ay puwedeng gumawa ng hanggang {{max}} na bracket.",
+  "wc.create.helper.leaderboard":
+    "Ang leaderboard ay nagra-rank ng finalized na brackets, hindi drafts.",
+  "wc.create.helper.inviteLink":
+    "Lalabas ang invite link pagkatapos gawin ang pool.",
+  "wc.create.thirdPlace": "Isama ang third-place match",
+  "wc.create.testFixtures.label": "Mag-seed ng test fixtures",
+  "wc.create.testFixtures.hint":
+    "Magdadagdag ng mock Round of 32 teams, flags, kickoff times, at venues para agad na pwedeng laruin ang pool.",
+  "wc.create.submit.idle": "Gumawa ng pool",
+  "wc.create.submit.creating": "Gumagawa...",
+  "wc.create.submit.opening": "Nagawa na, bubuksan...",
+  "wc.create.openingSuccess": "Nagawa na ang bracket, bubuksan...",
+  "wc.create.error.signInRequired":
+    "Mag-sign in muna para gumawa ng bracket.",
+  "wc.create.error.noId":
+    "Nagawa ang bracket pero walang nai-return na ID ang server. I-refresh ang page.",
+  "wc.create.error.generic": "Hindi nagawa ang bracket",
+  "wc.create.error.requestFailed":
+    "Hindi natapos ang request ({{status}})",
+
+  // ── Discover page ────────────────────────────────────────────────────
+  "wc.discover.backToHub": "← World Cup hub",
+  "wc.discover.createPool": "Gumawa ng pool",
+  "wc.discover.title": "Maghanap ng public pools",
+  "wc.discover.subtitle":
+    "Mag-browse ng public World Cup bracket pools. Sa pagsali, bubuksan ang Bracket 1 na walang picks — dadalhin ka namin sa guided picker kapag tumatanggap pa ng bagong players at hindi puno.",
+  "wc.discover.search.label": "Hanapin",
+  "wc.discover.search.placeholder": "Pangalan ng pool",
+  "wc.discover.season.label": "Season",
+  "wc.discover.season.placeholder": "hal. 2026",
+  "wc.discover.statusFilter.label": "Status",
+  "wc.discover.statusFilter.all": "Lahat",
+  "wc.discover.statusFilter.open": "Bukas",
+  "wc.discover.statusFilter.locked": "Nakasara",
+  "wc.discover.statusFilter.final": "Final",
+  "wc.discover.loading": "Naglo-load ng public pools...",
+  "wc.discover.errors.couldNotLoad": "Hindi na-load ang pools",
+  "wc.discover.empty":
+    "Walang public pool na tumugma sa filters. Subukan ang ibang season o linisin ang search — o sumali sa private pool gamit ang invite code sa itaas.",
+  "wc.discover.joinPanelTitle":
+    "Sumali gamit ang invite code (private pools)",
+
+  // ── Discover card ────────────────────────────────────────────────────
+  "wc.discover.card.statusOpen": "Bukas",
+  "wc.discover.card.blockedFull": "Puno na ang league",
+  "wc.discover.card.blockedClosed":
+    "Sarado na sa bagong players",
+  "wc.discover.card.password": "Password",
+  "wc.discover.card.lateJoin":
+    "Naka-lock na ang picks · pwede pa ring sumali",
+  "wc.discover.card.preview": "I-preview",
+  "wc.discover.card.join": "Sumali",
+
+  // ── Join / invite panel ──────────────────────────────────────────────
+  "wc.join.backToHub": "← World Cup hub",
+  "wc.join.brandEyebrow": "AllFantasy",
+  "wc.join.brandTitle": "2026 World Cup Bracket Pools",
+  "wc.join.panelTitle": "Sumali gamit ang invite code",
+  "wc.join.panelHelper":
+    "Ilagay ang invite code mula sa iyong commissioner. Pagkatapos sumali, dadalhin ka sa pool dashboard at puwede mo nang simulan ang iyong unang bracket. Ang mga password-protected na pool ay nangangailangan ng password na nakatakda sa pool settings.",
+  "wc.join.codeInput.placeholder": "WCUP invite code",
+  "wc.join.previewBtn": "I-preview",
+  "wc.join.errors.invalidCode": "Maglagay ng valid na invite code",
+  "wc.join.errors.notFound": "Walang nakitang invite",
+  "wc.join.errors.full": "Puno na ang pool na ito.",
+  "wc.join.errors.closed":
+    "Sarado na ang pool na ito sa bagong players.",
+  "wc.join.errors.couldNotJoin": "Hindi nakasali",
+  "wc.join.preview.hostLine":
+    "Host: {{owner}} · {{count}} naglalaro · {{visibility}}",
+  "wc.join.preview.openCopy":
+    "Sumali na para gumawa ng Bracket 1, mag-pick sa Group Stage at Knockout, at i-finalize kapag ready.",
+  "wc.join.preview.fullCopy": "Puno na ang pool na ito.",
+  "wc.join.preview.closedCopy":
+    "Naka-lock na ang pool — hindi na tumatanggap ng bagong players.",
+  "wc.join.preview.passwordLabel": "Password sa pagsali",
+  "wc.join.preview.joinBtn": "Sumali sa league",
+  "wc.join.success": "Sali na — Bracket 1 ay handa na.",
 }
 
 // Vietnamese — natural sports-app Vietnamese.
@@ -932,6 +1402,135 @@ const VI: WorldCupDictionary = {
   "wc.language.chinese": "繁體中文",
   "wc.language.filipino": "Filipino",
   "wc.language.vietnamese": "Tiếng Việt",
+
+  // ── Create page / modal ──────────────────────────────────────────────
+  "wc.create.goBack": "Quay lại",
+  "wc.create.header": "Tạo Pool Bracket World Cup",
+  "wc.create.subheader":
+    "FIFA World Cup 2026 · tính điểm theo từng vòng",
+  "wc.create.heroTitle": "FIFA World Cup 2026",
+  "wc.create.heroSubtitle":
+    "Tạo một pool — mời bạn bè và để họ tự xây bracket của riêng mình bên trong.",
+  "wc.create.poolName.label": "Tên pool",
+  "wc.create.poolName.placeholder":
+    "vd. Office World Cup Pool 2026",
+  "wc.create.poolName.error.blank":
+    "Tên pool không được bỏ trống.",
+  "wc.create.poolName.default": "Pool Bracket World Cup",
+  "wc.create.visibility.label": "Quyền truy cập pool",
+  "wc.create.visibility.private": "Riêng tư",
+  "wc.create.visibility.privateHint":
+    "Cần link mời để tham gia",
+  "wc.create.visibility.public": "Công khai",
+  "wc.create.visibility.publicHint":
+    "Ai cũng có thể tìm thấy và tham gia",
+  "wc.create.maxUsers.label": "Số người chơi tối đa",
+  "wc.create.maxUsers.hint": "Tối đa {{max}} cho mỗi pool",
+  "wc.create.maxUsers.error":
+    "Phải nằm trong khoảng 2 đến {{max}}.",
+  "wc.create.maxEntries.label": "Bracket cho mỗi người chơi",
+  "wc.create.maxEntries.hint":
+    "Tối đa {{max}} cho mỗi người chơi",
+  "wc.create.maxEntries.error":
+    "Phải nằm trong khoảng 1 đến {{max}}.",
+  "wc.create.lockRule.label": "Quy tắc khoá lựa chọn",
+  "wc.create.lockRule.tournament": "Khoá theo giải",
+  "wc.create.lockRule.tournamentHint":
+    "Toàn bộ lựa chọn khoá khi trận đầu tiên bắt đầu",
+  "wc.create.lockRule.perMatch": "Khoá theo trận",
+  "wc.create.lockRule.perMatchHint":
+    "Mỗi trận khoá vào giờ bóng lăn của chính trận đó",
+  "wc.create.lockRule.copyTournament":
+    "Có thể chỉnh lựa chọn cho đến khi trận đầu tiên của World Cup bắt đầu.",
+  "wc.create.lockRule.copyPerMatch":
+    "Có thể chỉnh từng cặp đấu cho đến khi chính trận đó bắt đầu.",
+  "wc.create.scoring.intro": "Tính điểm theo từng vòng:",
+  "wc.create.scoring.values":
+    "10 điểm Vòng 32 · 20 điểm Vòng 16 · 40 điểm tứ kết · 80 điểm bán kết · 160 điểm chung kết · 320 điểm thưởng nhà vô địch",
+  "wc.create.helper.entriesOne":
+    "Mỗi người chơi có thể tạo tối đa {{max}} bracket.",
+  "wc.create.helper.entriesOther":
+    "Mỗi người chơi có thể tạo tối đa {{max}} bracket.",
+  "wc.create.helper.leaderboard":
+    "Bảng xếp hạng chỉ tính bracket đã hoàn tất, không tính bản nháp.",
+  "wc.create.helper.inviteLink":
+    "Link mời sẽ hiển thị sau khi tạo pool.",
+  "wc.create.thirdPlace": "Bao gồm trận tranh hạng ba",
+  "wc.create.testFixtures.label": "Tạo lịch thử (test fixtures)",
+  "wc.create.testFixtures.hint":
+    "Thêm dữ liệu giả lập cho Vòng 32 (đội, cờ, giờ bóng lăn, sân) để pool có thể chơi ngay.",
+  "wc.create.submit.idle": "Tạo pool",
+  "wc.create.submit.creating": "Đang tạo...",
+  "wc.create.submit.opening": "Đã tạo, đang mở...",
+  "wc.create.openingSuccess": "Đã tạo bracket, đang mở...",
+  "wc.create.error.signInRequired":
+    "Hãy đăng nhập để tạo bracket.",
+  "wc.create.error.noId":
+    "Bracket đã tạo nhưng máy chủ không trả về ID. Hãy làm mới trang.",
+  "wc.create.error.generic": "Không tạo được bracket",
+  "wc.create.error.requestFailed":
+    "Yêu cầu thất bại ({{status}})",
+
+  // ── Discover page ────────────────────────────────────────────────────
+  "wc.discover.backToHub": "← Trang chính World Cup",
+  "wc.discover.createPool": "Tạo pool",
+  "wc.discover.title": "Khám phá pool công khai",
+  "wc.discover.subtitle":
+    "Duyệt các pool bracket World Cup công khai. Tham gia sẽ mở Bracket 1 chưa có lựa chọn — chúng tôi sẽ đưa bạn vào trình chọn có hướng dẫn khi pool còn nhận người chơi mới và chưa đầy.",
+  "wc.discover.search.label": "Tìm kiếm",
+  "wc.discover.search.placeholder": "Tên pool",
+  "wc.discover.season.label": "Mùa giải",
+  "wc.discover.season.placeholder": "vd. 2026",
+  "wc.discover.statusFilter.label": "Trạng thái",
+  "wc.discover.statusFilter.all": "Tất cả",
+  "wc.discover.statusFilter.open": "Mở",
+  "wc.discover.statusFilter.locked": "Đã khoá",
+  "wc.discover.statusFilter.final": "Kết thúc",
+  "wc.discover.loading": "Đang tải pool công khai...",
+  "wc.discover.errors.couldNotLoad": "Không tải được pool",
+  "wc.discover.empty":
+    "Không có pool công khai nào khớp bộ lọc. Hãy thử mùa giải khác hoặc xoá tìm kiếm — hoặc tham gia pool riêng bằng mã mời ở trên.",
+  "wc.discover.joinPanelTitle":
+    "Tham gia bằng mã mời (pool riêng tư)",
+
+  // ── Discover card ────────────────────────────────────────────────────
+  "wc.discover.card.statusOpen": "Mở",
+  "wc.discover.card.blockedFull": "Pool đã đầy",
+  "wc.discover.card.blockedClosed":
+    "Đã đóng với người chơi mới",
+  "wc.discover.card.password": "Mật khẩu",
+  "wc.discover.card.lateJoin":
+    "Đã khoá lựa chọn · vẫn cho vào trễ",
+  "wc.discover.card.preview": "Xem trước",
+  "wc.discover.card.join": "Tham gia",
+
+  // ── Join / invite panel ──────────────────────────────────────────────
+  "wc.join.backToHub": "← Trang chính World Cup",
+  "wc.join.brandEyebrow": "AllFantasy",
+  "wc.join.brandTitle": "Pool Bracket World Cup 2026",
+  "wc.join.panelTitle": "Tham gia bằng mã mời",
+  "wc.join.panelHelper":
+    "Nhập mã mời từ chủ pool của bạn. Sau khi tham gia, bạn sẽ vào bảng điều khiển pool và có thể bắt đầu bracket đầu tiên. Pool có mật khẩu cần nhập mật khẩu được đặt trong cài đặt pool.",
+  "wc.join.codeInput.placeholder": "Mã mời WCUP",
+  "wc.join.previewBtn": "Xem trước",
+  "wc.join.errors.invalidCode":
+    "Hãy nhập mã mời hợp lệ",
+  "wc.join.errors.notFound": "Không tìm thấy lời mời",
+  "wc.join.errors.full": "Pool này đã đầy.",
+  "wc.join.errors.closed":
+    "Pool này đã đóng với người chơi mới.",
+  "wc.join.errors.couldNotJoin": "Không tham gia được",
+  "wc.join.preview.hostLine":
+    "Chủ pool: {{owner}} · {{count}} người chơi · {{visibility}}",
+  "wc.join.preview.openCopy":
+    "Tham gia ngay để tạo Bracket 1, chọn Vòng bảng và Vòng loại trực tiếp, và hoàn tất khi sẵn sàng.",
+  "wc.join.preview.fullCopy": "Pool này đã đầy.",
+  "wc.join.preview.closedCopy":
+    "Pool đã khoá — không nhận người chơi mới.",
+  "wc.join.preview.passwordLabel": "Mật khẩu tham gia",
+  "wc.join.preview.joinBtn": "Tham gia pool",
+  "wc.join.success":
+    "Đã vào — Bracket 1 đã sẵn sàng.",
 }
 
 export const WORLD_CUP_TRANSLATIONS: Record<WorldCupLocale, WorldCupDictionary> = {

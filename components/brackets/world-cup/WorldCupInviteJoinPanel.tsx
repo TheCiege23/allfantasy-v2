@@ -5,11 +5,14 @@ import {
   forwardRef,
   useCallback,
   useImperativeHandle,
+  useMemo,
   useState,
 } from "react"
 import { KeyRound, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { mapJoinError } from "@/lib/world-cup/worldCupBracketUtils"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 
 export type InvitePreviewPayload = {
   inviteCode: string
@@ -37,12 +40,18 @@ export type WorldCupInviteJoinPanelHandle = {
 const WorldCupInviteJoinPanel = forwardRef<
   WorldCupInviteJoinPanelHandle,
   {
+    /** When provided, overrides the default translated panel title. */
     title?: string
     initialCode?: string
     onPreviewLoaded?: () => void
   }
->(function WorldCupInviteJoinPanel({ title = "Join with invite code", initialCode = "", onPreviewLoaded }, ref) {
+>(function WorldCupInviteJoinPanel({ title, initialCode = "", onPreviewLoaded }, ref) {
   const router = useRouter()
+  // Hydration-safe: locale flows from global LanguageProviderClient.
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
+  const resolvedTitle = title ?? t("wc.join.panelTitle")
+
   const [code, setCode] = useState(initialCode)
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [preview, setPreview] = useState<InvitePreviewPayload | null>(null)
@@ -53,7 +62,7 @@ const WorldCupInviteJoinPanel = forwardRef<
     async (inviteCode: string) => {
       const trimmed = inviteCode.trim().toUpperCase()
       if (trimmed.length < 4) {
-        toast.error("Enter a valid invite code")
+        toast.error(t("wc.join.errors.invalidCode"))
         return
       }
       setLoadingPreview(true)
@@ -63,7 +72,7 @@ const WorldCupInviteJoinPanel = forwardRef<
         })
         const data = await res.json().catch(() => ({}))
         if (!res.ok) {
-          toast.error((data as { error?: string }).error || "Invite not found")
+          toast.error((data as { error?: string }).error || t("wc.join.errors.notFound"))
           setPreview(null)
           return
         }
@@ -75,7 +84,7 @@ const WorldCupInviteJoinPanel = forwardRef<
         setLoadingPreview(false)
       }
     },
-    [onPreviewLoaded]
+    [onPreviewLoaded, t]
   )
 
   useImperativeHandle(
@@ -94,8 +103,8 @@ const WorldCupInviteJoinPanel = forwardRef<
     if (blocked) {
       toast.error(
         blocked === "full"
-          ? "This pool is full."
-          : "This pool is closed to new players."
+          ? t("wc.join.errors.full")
+          : t("wc.join.errors.closed")
       )
       return
     }
@@ -116,12 +125,12 @@ const WorldCupInviteJoinPanel = forwardRef<
           router.push(`/login?callbackUrl=${encodeURIComponent(joinPath)}&returnTo=${encodeURIComponent(joinPath)}`)
           return
         }
-        toast.error(mapped || "Could not join")
+        toast.error(mapped || t("wc.join.errors.couldNotJoin"))
         return
       }
       const entryId = (data as { entryId?: string }).entryId
       const challengeId = (data as { challengeId?: string }).challengeId ?? preview.challengeId
-      toast.success("You're in — Bracket 1 is ready.")
+      toast.success(t("wc.join.success"))
       const qs = new URLSearchParams()
       qs.set("guided", "1")
       if (entryId) qs.set("entry", entryId)
@@ -130,21 +139,20 @@ const WorldCupInviteJoinPanel = forwardRef<
     } finally {
       setJoining(false)
     }
-  }, [password, preview, router])
+  }, [password, preview, router, t])
 
   return (
     <div data-testid="world-cup-invite-join-panel" className="rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:p-4">
-      <h3 className="text-[11px] font-bold uppercase tracking-wide text-white/45">{title}</h3>
+      <h3 className="text-[11px] font-bold uppercase tracking-wide text-white/45">{resolvedTitle}</h3>
       <p className="mt-1 text-xs text-white/45">
-        Enter the invite code from your commissioner. After joining, you will land on the pool dashboard and can start your first bracket.
-        Password-protected pools require the join password set in pool settings.
+        {t("wc.join.panelHelper")}
       </p>
       <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap">
         <input
           data-testid="world-cup-join-code-input"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
-          placeholder="WCUP invite code"
+          placeholder={t("wc.join.codeInput.placeholder")}
           autoComplete="off"
           className="min-h-11 min-w-0 flex-1 touch-manipulation rounded-lg border border-white/10 bg-black/40 px-3 py-2.5 text-sm font-mono text-white sm:min-w-[200px]"
         />
@@ -156,7 +164,7 @@ const WorldCupInviteJoinPanel = forwardRef<
           className="inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-lg bg-white/[0.08] px-4 py-2.5 text-xs font-bold text-white sm:min-h-0 sm:py-2"
         >
           {loadingPreview ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-          Preview
+          {t("wc.join.previewBtn")}
         </button>
       </div>
 
@@ -167,24 +175,28 @@ const WorldCupInviteJoinPanel = forwardRef<
         >
           <p className="text-sm font-black text-white">{preview.name}</p>
           <p className="mt-1 text-xs text-white/55">
-            Host: {preview.ownerName} · {preview.participantCount} playing · {preview.visibility}
+            {t("wc.join.preview.hostLine", {
+              owner: preview.ownerName,
+              count: preview.participantCount,
+              visibility: preview.visibility,
+            })}
           </p>
           {!preview.joinPreview?.joinBlockedReason ? (
             <p className="mt-2 text-xs leading-5 text-cyan-50/70">
-              Join now to create Bracket 1, make Group Stage and Knockout picks, and finalize when ready.
+              {t("wc.join.preview.openCopy")}
             </p>
           ) : null}
           {preview.joinPreview?.joinBlockedReason === "full" ? (
-            <p className="mt-2 text-xs font-bold text-rose-200">This pool is full.</p>
+            <p className="mt-2 text-xs font-bold text-rose-200">{t("wc.join.preview.fullCopy")}</p>
           ) : null}
           {preview.joinPreview?.joinBlockedReason === "locked_no_late_join" ? (
             <p className="mt-2 text-xs font-bold text-rose-200">
-              Pool locked — not accepting new players.
+              {t("wc.join.preview.closedCopy")}
             </p>
           ) : null}
           {preview.joinPreview?.requiresJoinPassword ? (
             <label className="mt-3 block text-xs text-white/70">
-              Join password
+              {t("wc.join.preview.passwordLabel")}
               <input
                 type="password"
                 data-testid="world-cup-join-password"
@@ -206,7 +218,7 @@ const WorldCupInviteJoinPanel = forwardRef<
             onClick={() => void join()}
             className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-cyan-300 py-2.5 text-xs font-black text-black disabled:opacity-40"
           >
-            {joining ? <Loader2 className="h-4 w-4 animate-spin" /> : "Join league"}
+            {joining ? <Loader2 className="h-4 w-4 animate-spin" /> : t("wc.join.preview.joinBtn")}
           </button>
         </div>
       ) : null}

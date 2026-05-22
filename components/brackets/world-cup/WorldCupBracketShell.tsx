@@ -2242,9 +2242,11 @@ export default function WorldCupBracketShell({
           ) : null}
           {/* Language picker — reuses the global LanguageToggle component so
               the choice persists app-wide via localStorage `af_lang` + the
-              UserProfile preferredLanguage write inside LanguageToggle. */}
+              UserProfile preferredLanguage write inside LanguageToggle.
+              The "compact" variant shows a globe icon + native language
+              names so it fits cleanly inside the dense pool header. */}
           <div className="hidden sm:block" data-testid="wc-shell-language-toggle">
-            <LanguageToggle />
+            <LanguageToggle variant="compact" />
           </div>
           {(view.isOwner || view.isAdmin) && (
             <button

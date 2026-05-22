@@ -1,8 +1,10 @@
 "use client"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, CheckCircle, Info, Loader2, Lock, Trophy, Users } from "lucide-react"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 
 const WC_LOGO_SRC = "/images/brackets/world-cup/af-world-cup-logo.png"
 
@@ -12,7 +14,15 @@ const allowCreateWithTestFixtures = process.env.NEXT_PUBLIC_WORLD_CUP_ALLOW_CREA
 
 export default function WorldCupBracketCreateModal() {
   const router = useRouter()
-  const [name, setName] = useState("World Cup Bracket Pool")
+  // Hydration-safe: the active locale flows from the global
+  // LanguageProviderClient which itself reads from <html data-lang>
+  // (set by the server-side init script). useOptionalLanguage falls
+  // back to the default value when no provider is mounted (test isolation),
+  // so this never throws.
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
+
+  const [name, setName] = useState(() => t("wc.create.poolName.default"))
   const [visibility, setVisibility] = useState<"private" | "public">("private")
   const [lockStrategy, setLockStrategy] = useState<"per_match" | "tournament_start">("tournament_start")
   const [includeThirdPlace, setIncludeThirdPlace] = useState(false)
@@ -24,14 +34,20 @@ export default function WorldCupBracketCreateModal() {
   const [error, setError] = useState<string | null>(null)
 
   // Client-side validation
-  const nameError = !name.trim() ? "Pool name cannot be blank." : null
-  const maxUsersError = maxUsers < 2 || maxUsers > MAX_USERS ? `Must be between 2 and ${MAX_USERS}.` : null
-  const maxEntriesError = maxEntries < 1 || maxEntries > MAX_ENTRIES ? `Must be between 1 and ${MAX_ENTRIES}.` : null
+  const nameError = !name.trim() ? t("wc.create.poolName.error.blank") : null
+  const maxUsersError =
+    maxUsers < 2 || maxUsers > MAX_USERS
+      ? t("wc.create.maxUsers.error", { max: MAX_USERS })
+      : null
+  const maxEntriesError =
+    maxEntries < 1 || maxEntries > MAX_ENTRIES
+      ? t("wc.create.maxEntries.error", { max: MAX_ENTRIES })
+      : null
   const hasErrors = Boolean(nameError || maxUsersError || maxEntriesError)
   const lockRuleCopy =
     lockStrategy === "tournament_start"
-      ? "Picks can be edited until the first World Cup match begins."
-      : "Each matchup can be edited until that match kicks off."
+      ? t("wc.create.lockRule.copyTournament")
+      : t("wc.create.lockRule.copyPerMatch")
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -60,10 +76,12 @@ export default function WorldCupBracketCreateModal() {
       const data = await res.json().catch(() => ({}))
 
       if (res.status === 401) {
-        throw new Error("Please sign in to create a bracket.")
+        throw new Error(t("wc.create.error.signInRequired"))
       }
       if (!res.ok) {
-        throw new Error(data?.error ?? `Request failed (${res.status})`)
+        throw new Error(
+          data?.error ?? t("wc.create.error.requestFailed", { status: res.status })
+        )
       }
 
       const createdId =
@@ -73,13 +91,13 @@ export default function WorldCupBracketCreateModal() {
         (data?.challenge as any)?.challengeId
 
       if (!createdId) {
-        throw new Error("Bracket was created but the server did not return an ID. Please refresh the page.")
+        throw new Error(t("wc.create.error.noId"))
       }
 
       setStatus("opening")
       router.push(`/brackets/world-cup/${createdId}${allowCreateWithTestFixtures && seedTestFixtures ? "?guided=1" : ""}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create bracket")
+      setError(err instanceof Error ? err.message : t("wc.create.error.generic"))
       setStatus("idle")
     } finally {
       setLoading(false)
@@ -88,10 +106,10 @@ export default function WorldCupBracketCreateModal() {
 
   const submitLabel =
     status === "creating"
-      ? "Creating…"
+      ? t("wc.create.submit.creating")
       : status === "opening"
-        ? "Created, opening…"
-        : "Create Pool"
+        ? t("wc.create.submit.opening")
+        : t("wc.create.submit.idle")
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#05070b] text-white">
@@ -100,13 +118,13 @@ export default function WorldCupBracketCreateModal() {
           type="button"
           onClick={() => router.back()}
           className="rounded-lg border border-white/10 bg-white/[0.04] p-2"
-          aria-label="Go back"
+          aria-label={t("wc.create.goBack")}
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div className="min-w-0">
-          <h1 className="text-lg font-black">Create World Cup Bracket Pool</h1>
-          <p className="text-xs text-white/45">2026 FIFA World Cup · round-by-round scoring</p>
+          <h1 className="text-lg font-black">{t("wc.create.header")}</h1>
+          <p className="text-xs text-white/45">{t("wc.create.subheader")}</p>
         </div>
       </header>
 
@@ -125,8 +143,8 @@ export default function WorldCupBracketCreateModal() {
                 />
               </div>
               <div className="min-w-0">
-                <div className="text-sm font-black text-white">2026 FIFA World Cup</div>
-                <div className="text-xs text-white/45">Create a pool container — invite friends and let them build their brackets inside.</div>
+                <div className="text-sm font-black text-white">{t("wc.create.heroTitle")}</div>
+                <div className="text-xs text-white/45">{t("wc.create.heroSubtitle")}</div>
               </div>
             </div>
 
@@ -135,7 +153,7 @@ export default function WorldCupBracketCreateModal() {
             {/* Pool name */}
             <div>
               <label className="block text-xs font-black uppercase tracking-[0.16em] text-white/45">
-                Pool Name
+                {t("wc.create.poolName.label")}
               </label>
               <input
                 value={name}
@@ -143,7 +161,7 @@ export default function WorldCupBracketCreateModal() {
                 className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-3 text-sm font-bold text-white outline-none focus:border-cyan-300/60"
                 required
                 maxLength={80}
-                placeholder="e.g. Office World Cup Pool 2026"
+                placeholder={t("wc.create.poolName.placeholder")}
               />
               {nameError && <p className="mt-1 text-[11px] text-rose-300">{nameError}</p>}
             </div>
@@ -153,7 +171,7 @@ export default function WorldCupBracketCreateModal() {
             {/* Privacy */}
             <div>
               <label className="block text-xs font-black uppercase tracking-[0.16em] text-white/45">
-                Pool Visibility
+                {t("wc.create.visibility.label")}
               </label>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
                 <button
@@ -163,9 +181,9 @@ export default function WorldCupBracketCreateModal() {
                 >
                   <div className="flex items-center gap-1.5 text-sm font-black">
                     <Lock className="h-3.5 w-3.5" />
-                    Private
+                    {t("wc.create.visibility.private")}
                   </div>
-                  <div className="mt-0.5 text-xs text-white/45">Invite link required to join</div>
+                  <div className="mt-0.5 text-xs text-white/45">{t("wc.create.visibility.privateHint")}</div>
                 </button>
                 <button
                   type="button"
@@ -174,9 +192,9 @@ export default function WorldCupBracketCreateModal() {
                 >
                   <div className="flex items-center gap-1.5 text-sm font-black">
                     <Users className="h-3.5 w-3.5" />
-                    Public
+                    {t("wc.create.visibility.public")}
                   </div>
-                  <div className="mt-0.5 text-xs text-white/45">Anyone can discover and join</div>
+                  <div className="mt-0.5 text-xs text-white/45">{t("wc.create.visibility.publicHint")}</div>
                 </button>
               </div>
             </div>
@@ -187,7 +205,7 @@ export default function WorldCupBracketCreateModal() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-black uppercase tracking-[0.16em] text-white/45">
-                  Max Users
+                  {t("wc.create.maxUsers.label")}
                 </label>
                 <input
                   type="number"
@@ -199,11 +217,11 @@ export default function WorldCupBracketCreateModal() {
                 />
                 {maxUsersError
                   ? <p className="mt-1 text-[11px] text-rose-300">{maxUsersError}</p>
-                  : <p className="mt-1 text-[11px] text-white/35">Maximum {MAX_USERS} per pool</p>}
+                  : <p className="mt-1 text-[11px] text-white/35">{t("wc.create.maxUsers.hint", { max: MAX_USERS })}</p>}
               </div>
               <div>
                 <label className="block text-xs font-black uppercase tracking-[0.16em] text-white/45">
-                  Brackets per User
+                  {t("wc.create.maxEntries.label")}
                 </label>
                 <input
                   type="number"
@@ -215,7 +233,7 @@ export default function WorldCupBracketCreateModal() {
                 />
                 {maxEntriesError
                   ? <p className="mt-1 text-[11px] text-rose-300">{maxEntriesError}</p>
-                  : <p className="mt-1 text-[11px] text-white/35">Maximum {MAX_ENTRIES} per user</p>}
+                  : <p className="mt-1 text-[11px] text-white/35">{t("wc.create.maxEntries.hint", { max: MAX_ENTRIES })}</p>}
               </div>
             </div>
 
@@ -224,7 +242,7 @@ export default function WorldCupBracketCreateModal() {
             {/* Lock rule */}
             <div>
               <label className="block text-xs font-black uppercase tracking-[0.16em] text-white/45">
-                Pick Lock Rule
+                {t("wc.create.lockRule.label")}
               </label>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
                 <button
@@ -232,16 +250,16 @@ export default function WorldCupBracketCreateModal() {
                   onClick={() => setLockStrategy("tournament_start")}
                   className={`rounded-lg border p-3 text-left transition-colors ${lockStrategy === "tournament_start" ? "border-cyan-300/60 bg-cyan-300/10" : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"}`}
                 >
-                  <div className="text-sm font-black">Tournament Lock</div>
-                  <div className="mt-0.5 text-xs text-white/45">All picks lock when the first match begins</div>
+                  <div className="text-sm font-black">{t("wc.create.lockRule.tournament")}</div>
+                  <div className="mt-0.5 text-xs text-white/45">{t("wc.create.lockRule.tournamentHint")}</div>
                 </button>
                 <button
                   type="button"
                   onClick={() => setLockStrategy("per_match")}
                   className={`rounded-lg border p-3 text-left transition-colors ${lockStrategy === "per_match" ? "border-cyan-300/60 bg-cyan-300/10" : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"}`}
                 >
-                  <div className="text-sm font-black">Per-Match Lock</div>
-                  <div className="mt-0.5 text-xs text-white/45">Each match locks at its own kickoff</div>
+                  <div className="text-sm font-black">{t("wc.create.lockRule.perMatch")}</div>
+                  <div className="mt-0.5 text-xs text-white/45">{t("wc.create.lockRule.perMatchHint")}</div>
                 </button>
               </div>
             </div>
@@ -250,17 +268,22 @@ export default function WorldCupBracketCreateModal() {
             <div className="flex items-start gap-2 rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-3">
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-300/60" />
               <div className="text-xs text-white/45">
-                <span className="font-bold text-white/60">Round-by-round scoring:</span> 10 pts Round of 32 · 20 pts Round of 16 · 40 pts QF · 80 pts SF · 160 pts Final · 320 pts Champion bonus
+                <span className="font-bold text-white/60">{t("wc.create.scoring.intro")}</span> {t("wc.create.scoring.values")}
               </div>
             </div>
 
             {/* Helper notes */}
             <ul className="space-y-1 text-[11px] text-white/40">
-              <li>• Each user can create up to {maxEntries} bracket entr{maxEntries === 1 ? "y" : "ies"}.</li>
+              <li>• {t(
+                maxEntries === 1
+                  ? "wc.create.helper.entriesOne"
+                  : "wc.create.helper.entriesOther",
+                { max: maxEntries }
+              )}</li>
               <li>• {lockRuleCopy}</li>
-              <li>• The leaderboard ranks finalized bracket entries, not drafts.</li>
+              <li>• {t("wc.create.helper.leaderboard")}</li>
               {visibility === "private" && (
-                <li>• An invite link will be shown after creation.</li>
+                <li>• {t("wc.create.helper.inviteLink")}</li>
               )}
             </ul>
 
@@ -272,7 +295,7 @@ export default function WorldCupBracketCreateModal() {
                 onChange={(e) => setIncludeThirdPlace(e.target.checked)}
                 className="h-4 w-4 rounded"
               />
-              Include third-place match
+              {t("wc.create.thirdPlace")}
             </label>
 
             {allowCreateWithTestFixtures && (
@@ -284,9 +307,9 @@ export default function WorldCupBracketCreateModal() {
                   className="mt-0.5 h-4 w-4 rounded"
                 />
                 <span>
-                  <span className="block">Seed Test Fixtures</span>
+                  <span className="block">{t("wc.create.testFixtures.label")}</span>
                   <span className="mt-0.5 block text-[11px] font-medium leading-5 text-amber-100/70">
-                    Adds mock Round of 32 teams, flags, kickoff times, and venues so this pool is pickable immediately.
+                    {t("wc.create.testFixtures.hint")}
                   </span>
                 </span>
               </label>
@@ -295,7 +318,7 @@ export default function WorldCupBracketCreateModal() {
             {status === "opening" && !error && (
               <div className="flex items-center gap-2 rounded-lg border border-cyan-300/25 bg-cyan-300/10 p-3 text-sm text-cyan-100">
                 <CheckCircle className="h-4 w-4 shrink-0" />
-                Created bracket, opening…
+                {t("wc.create.openingSuccess")}
               </div>
             )}
 
@@ -321,4 +344,3 @@ export default function WorldCupBracketCreateModal() {
     </div>
   )
 }
-
