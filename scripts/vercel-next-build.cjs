@@ -59,6 +59,12 @@ const routeDirsToDisable = [
   path.join('app', 'api', 'auth', 'admin-debug'),
   // Internal recompute worker endpoint; no production UI callers and costs one route.
   path.join('app', 'api', 'bracket', 'workers', 'health'),
+  // Admin-only KPI rollup; consumed by components/admin/ChimmyKPIReadout which
+  // is not mounted in any production page route. Excluded to free Vercel route budget.
+  path.join('app', 'api', 'ai', 'analytics', 'rollup'),
+  // Admin "Seed store" dev tool route. The Store UI exposes a Seed button, but
+  // it is a developer-only seeding helper, not a production user action.
+  path.join('app', 'api', 'marketplace', 'seed'),
 ]
 
 const movedFiles = []

@@ -55,7 +55,7 @@ export default function WorldCupBracketUniquenessCard({
     ;(async () => {
       try {
         const res = await fetch(
-          `/api/brackets/world-cup/${challengeId}/entries/${entryId}/uniqueness`
+          `/api/brackets/world-cup/${challengeId}/entries/${entryId}/explain?action=uniqueness`
         )
         if (cancelled) return
         if (!res.ok) {

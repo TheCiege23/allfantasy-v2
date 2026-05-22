@@ -24,7 +24,7 @@ vi.mock("@/lib/prisma", () => ({
 
 function request() {
   return new Request(
-    "http://localhost/api/brackets/world-cup/c1/entries/e1/uniqueness"
+    "http://localhost/api/brackets/world-cup/c1/entries/e1/explain?action=uniqueness"
   )
 }
 
@@ -84,7 +84,7 @@ describe("GET /api/brackets/world-cup/[challengeId]/entries/[entryId]/uniqueness
       }),
     })
     const { GET } = await import(
-      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/uniqueness/route"
+      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/explain/route"
     )
 
     const res = await GET(request() as any, params)
@@ -96,7 +96,7 @@ describe("GET /api/brackets/world-cup/[challengeId]/entries/[entryId]/uniqueness
   it("returns 404 when entry is not owned (silent non-owner)", async () => {
     findFirstMock.mockResolvedValue(null)
     const { GET } = await import(
-      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/uniqueness/route"
+      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/explain/route"
     )
 
     const res = await GET(request() as any, params)
@@ -106,7 +106,7 @@ describe("GET /api/brackets/world-cup/[challengeId]/entries/[entryId]/uniqueness
 
   it("ownership query filters by id+challengeId+userId", async () => {
     const { GET } = await import(
-      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/uniqueness/route"
+      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/explain/route"
     )
     await GET(request() as any, params)
 
@@ -119,7 +119,7 @@ describe("GET /api/brackets/world-cup/[challengeId]/entries/[entryId]/uniqueness
 
   it("comparison query filters to finalized entries only (isComplete + submittedAt:not-null)", async () => {
     const { GET } = await import(
-      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/uniqueness/route"
+      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/explain/route"
     )
     await GET(request() as any, params)
 
@@ -136,7 +136,7 @@ describe("GET /api/brackets/world-cup/[challengeId]/entries/[entryId]/uniqueness
 
   it("returns aggregated champion + per-round distributions (counts only, no PII)", async () => {
     const { GET } = await import(
-      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/uniqueness/route"
+      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/explain/route"
     )
 
     const res = await GET(request() as any, params)
@@ -182,7 +182,7 @@ describe("GET /api/brackets/world-cup/[challengeId]/entries/[entryId]/uniqueness
 
   it("response never contains other-user emails, user IDs, or entry IDs", async () => {
     const { GET } = await import(
-      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/uniqueness/route"
+      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/explain/route"
     )
 
     const res = await GET(request() as any, params)
@@ -219,7 +219,7 @@ describe("GET /api/brackets/world-cup/[challengeId]/entries/[entryId]/uniqueness
       },
     ])
     const { GET } = await import(
-      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/uniqueness/route"
+      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/explain/route"
     )
 
     const res = await GET(request() as any, params)
@@ -233,7 +233,7 @@ describe("GET /api/brackets/world-cup/[challengeId]/entries/[entryId]/uniqueness
   it("returns finalizedEntryCount: 0 when pool has no finalized entries", async () => {
     findManyMock.mockResolvedValue([])
     const { GET } = await import(
-      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/uniqueness/route"
+      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/explain/route"
     )
 
     const res = await GET(request() as any, params)
@@ -246,7 +246,7 @@ describe("GET /api/brackets/world-cup/[challengeId]/entries/[entryId]/uniqueness
 
   it("returns 400 when challengeId or entryId missing", async () => {
     const { GET } = await import(
-      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/uniqueness/route"
+      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/explain/route"
     )
 
     const res = await GET(request() as any, {

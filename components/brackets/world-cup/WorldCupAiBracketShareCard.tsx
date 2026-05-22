@@ -44,7 +44,7 @@ export default function WorldCupAiBracketShareCard({
     ;(async () => {
       try {
         const res = await fetch(
-          `/api/brackets/world-cup/${challengeId}/entries/${entryId}/uniqueness`
+          `/api/brackets/world-cup/${challengeId}/entries/${entryId}/explain?action=uniqueness`
         )
         if (!res.ok || cancelled) return
         const body = (await res.json()) as UniquenessApiResponse
