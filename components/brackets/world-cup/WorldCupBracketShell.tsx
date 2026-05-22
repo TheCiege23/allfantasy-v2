@@ -85,6 +85,7 @@ import WorldCupBracketUniquenessCard from "./WorldCupBracketUniquenessCard"
 import WorldCupAiBracketShareCard from "./WorldCupAiBracketShareCard"
 import WorldCupKnockoutDangerZonesCard from "./WorldCupKnockoutDangerZonesCard"
 import { buildWorldCupRootingGuide } from "@/lib/world-cup/worldCupRootingGuide"
+import { buildWorldCupBracketShareMessage } from "@/lib/world-cup/worldCupShareCopy"
 import WorldCupEntryDashboard from "./WorldCupEntryDashboard"
 import AllFantasyBracketBoard, { AllFantasyBracketPickSkeleton } from "@/components/brackets/shared/AllFantasyBracketBoard"
 import { WorldCupCompactBracketPreview } from "./WorldCupCompactBracketPreview"
@@ -3628,9 +3629,24 @@ export default function WorldCupBracketShell({
                         Locked: picks can no longer be edited{completionReview.submittedAt ? ` · submitted ${new Date(completionReview.submittedAt).toLocaleString()}` : ""}
                       </div>
                     ) : completionReview.fullEntryComplete && completionReview.submittedAt ? (
-                      <div className="rounded-xl border border-emerald-300/25 bg-emerald-400/10 p-3 text-sm font-bold text-emerald-100">
-                        Finalized for leaderboard. You can still edit until lock. Submitted {new Date(completionReview.submittedAt).toLocaleString()}.
-                      </div>
+                      <WorldCupFinalizedSuccessBlock
+                        challengeId={challengeId}
+                        poolName={view.challenge.name}
+                        entryName={selectedEntry?.name ?? null}
+                        championName={
+                          view.leaderboard.find(
+                            (row) => row.entryId === selectedEntry?.id
+                          )?.championPickName ?? null
+                        }
+                        gradeLabel={calculateWorldCupBracketGrade({
+                          completionReview,
+                          entry: selectedEntry,
+                          picks,
+                          matches: projectedMatches,
+                        }).grade}
+                        submittedAt={completionReview.submittedAt}
+                        switchTab={switchTab}
+                      />
                     ) : completionReview.fullEntryComplete ? (
                       <div className="space-y-2">
                         <p className="text-xs font-bold text-cyan-100/80">Complete draft. Finalize to submit it to the leaderboard; you can still edit until lock.</p>
@@ -3888,6 +3904,126 @@ function PoolStatCard({
       >
         {value}
       </div>
+    </div>
+  )
+}
+
+function WorldCupFinalizedSuccessBlock({
+  challengeId,
+  poolName,
+  entryName,
+  championName,
+  gradeLabel,
+  submittedAt,
+  switchTab,
+}: {
+  challengeId: string
+  poolName: string
+  entryName: string | null
+  championName: string | null
+  gradeLabel: string
+  submittedAt: string
+  switchTab: (tab: WorldCupBracketTab) => void
+}) {
+  const [copied, setCopied] = useState(false)
+  const shareResult = useMemo(
+    () =>
+      buildWorldCupBracketShareMessage({
+        poolName,
+        entryName,
+        championName,
+        gradeLabel,
+        isComplete: true,
+        poolUrl:
+          typeof window !== "undefined"
+            ? `${window.location.origin}/brackets/world-cup/${challengeId}`
+            : `https://allfantasy.ai/brackets/world-cup/${challengeId}`,
+      }),
+    [challengeId, championName, entryName, gradeLabel, poolName]
+  )
+
+  async function copyShare() {
+    if (typeof navigator === "undefined" || !navigator.clipboard) return
+    await navigator.clipboard.writeText(shareResult.message)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1600)
+  }
+
+  async function nativeShare() {
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({
+          title: `${entryName ?? "My Bracket"} — AllFantasy World Cup`,
+          text: shareResult.message,
+        })
+        return
+      } catch {
+        // user cancelled — fall through to copy
+      }
+    }
+    await copyShare()
+  }
+
+  return (
+    <div
+      data-testid="world-cup-review-finalized-success"
+      className="rounded-xl border border-emerald-300/30 bg-gradient-to-b from-emerald-400/[0.14] to-emerald-400/[0.05] p-4 backdrop-blur"
+    >
+      <div className="flex items-start gap-2.5">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-300/40 bg-emerald-400/15">
+          <Check className="h-4 w-4 text-emerald-200" aria-hidden />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/70">
+            Finalized
+          </p>
+          <h3 className="text-base font-black text-white sm:text-lg">
+            Your bracket is locked in
+          </h3>
+          <p className="mt-1 text-xs leading-5 text-emerald-50/80">
+            Submitted {new Date(submittedAt).toLocaleString()}. You can still edit until pool lock — invite friends now before the field fills up.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:flex sm:flex-wrap">
+        <button
+          type="button"
+          onClick={copyShare}
+          data-testid="world-cup-review-finalized-copy-share"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-black text-black transition-transform hover:scale-[1.02] active:scale-[0.98] touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 sm:w-auto"
+        >
+          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+          {copied ? "Share Copied!" : "Copy share text"}
+        </button>
+        <button
+          type="button"
+          onClick={nativeShare}
+          data-testid="world-cup-review-finalized-share-native"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-bold text-white/85 transition-colors hover:border-white/25 hover:bg-white/[0.10] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 sm:w-auto"
+        >
+          <Share2 className="h-4 w-4" />
+          Share My AI Bracket Report
+        </button>
+        <button
+          type="button"
+          onClick={() => switchTab("invite")}
+          data-testid="world-cup-review-finalized-invite-friends"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-300/[0.08] px-4 py-2.5 text-sm font-bold text-cyan-50 transition-colors hover:border-cyan-300/50 hover:bg-cyan-300/[0.12] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 sm:w-auto"
+        >
+          <Users className="h-4 w-4" />
+          Invite Friends To Beat My Bracket
+        </button>
+      </div>
+
+      <details className="mt-3" data-testid="world-cup-review-finalized-share-preview">
+        <summary className="cursor-pointer text-[11px] font-semibold text-emerald-100/70 hover:text-emerald-50">
+          Preview share text
+        </summary>
+        <div className="mt-2 whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-xs leading-5 text-white/80">
+          {shareResult.message}
+        </div>
+      </details>
     </div>
   )
 }

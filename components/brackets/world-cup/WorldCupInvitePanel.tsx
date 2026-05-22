@@ -1,8 +1,9 @@
 "use client"
-import { useState } from "react"
-import { Check, Copy, Link2, Lock, Share2, Users } from "lucide-react"
+import { useMemo, useState } from "react"
+import { Check, Copy, Link2, Lock, MessageSquare, Share2, Users } from "lucide-react"
 import type { WorldCupChallengeView } from "@/lib/world-cup/types"
 import WorldCupShareCard from "./WorldCupShareCards"
+import { buildWorldCupInviteMessage } from "@/lib/world-cup/worldCupShareCopy"
 
 function MetaRow({ label, value }: { label: string; value: string }) {
   return (
@@ -22,6 +23,7 @@ export default function WorldCupInvitePanel({
 }) {
   const [copiedLink, setCopiedLink] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
+  const [copiedInviteMessage, setCopiedInviteMessage] = useState(false)
 
   const challenge = view.challenge
   const inviteUrl =
@@ -44,6 +46,37 @@ export default function WorldCupInvitePanel({
     view.participant ? 1 : 0
   )
 
+  const lockDeadlineLabel = useMemo(() => {
+    const iso = challenge.effectivePickLockAt || challenge.pickLockAt
+    if (!iso) return null
+    try {
+      const date = new Date(iso)
+      if (Number.isNaN(date.getTime())) return null
+      return date.toLocaleString(undefined, {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZoneName: "short",
+      })
+    } catch {
+      return null
+    }
+  }, [challenge.effectivePickLockAt, challenge.pickLockAt])
+
+  const inviteMessageResult = useMemo(
+    () =>
+      buildWorldCupInviteMessage({
+        poolName: challenge.name,
+        inviteUrl,
+        inviteCode: isCommissioner ? inviteCode : null,
+        lockDeadlineLabel,
+        audience: isCommissioner ? "commissioner" : "member",
+      }),
+    [challenge.name, inviteUrl, inviteCode, isCommissioner, lockDeadlineLabel]
+  )
+
   async function copyLink() {
     await navigator.clipboard?.writeText(inviteUrl)
     setCopiedLink(true)
@@ -55,6 +88,15 @@ export default function WorldCupInvitePanel({
     await navigator.clipboard?.writeText(inviteCode)
     setCopiedCode(true)
     setTimeout(() => setCopiedCode(false), 1600)
+  }
+
+  async function copyInviteMessage() {
+    // Member-blocked path is guarded by the button only rendering for commissioners,
+    // but the helper also returns a safe fallback for non-commissioners as a backstop.
+    if (!isCommissioner) return
+    await navigator.clipboard?.writeText(inviteMessageResult.message)
+    setCopiedInviteMessage(true)
+    setTimeout(() => setCopiedInviteMessage(false), 1600)
   }
 
   async function shareNative() {
@@ -195,6 +237,15 @@ export default function WorldCupInvitePanel({
             </button>
             <button
               type="button"
+              onClick={copyInviteMessage}
+              data-testid="wc-invite-copy-message-btn"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-300/35 bg-cyan-300/[0.10] px-4 py-2.5 text-sm font-black text-cyan-50 transition-colors hover:border-cyan-300/55 hover:bg-cyan-300/[0.14] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 sm:w-auto"
+            >
+              {copiedInviteMessage ? <Check className="h-4 w-4 text-emerald-300" /> : <MessageSquare className="h-4 w-4" />}
+              {copiedInviteMessage ? "Message Copied!" : "Copy Invite Message"}
+            </button>
+            <button
+              type="button"
               onClick={shareNative}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.05] px-4 py-2.5 text-sm font-bold text-white/85 transition-colors hover:border-white/25 hover:bg-white/[0.09] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 sm:w-auto"
             >
@@ -202,6 +253,16 @@ export default function WorldCupInvitePanel({
               Share
             </button>
           </div>
+
+          {/* Invite message preview — commissioner only, complements the existing share-message disclosure. */}
+          <details className="mt-3" data-testid="wc-invite-message-preview">
+            <summary className="cursor-pointer text-[11px] font-semibold text-white/45 hover:text-white/75">
+              Preview invite message
+            </summary>
+            <div className="mt-2 whitespace-pre-wrap rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] px-3 py-3 text-xs leading-5 text-white/80">
+              {inviteMessageResult.message}
+            </div>
+          </details>
 
           {/* Share message preview */}
           <details className="mt-4">

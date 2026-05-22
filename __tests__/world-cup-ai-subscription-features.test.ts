@@ -21,6 +21,12 @@ import {
 import {
   buildWorldCupKnockoutDangerZones,
 } from "@/lib/world-cup/worldCupKnockoutDangerZones"
+import {
+  buildWorldCupInviteMessage,
+  buildWorldCupBracketShareMessage,
+  buildWorldCupSocialCaptions,
+  WORLD_CUP_SOCIAL_HASHTAGS,
+} from "@/lib/world-cup/worldCupShareCopy"
 
 const match = {
   id: "m1",
@@ -1508,6 +1514,197 @@ describe("buildWorldCupKnockoutDangerZones — deterministic danger detection", 
     const fs = await import("node:fs/promises")
     const path = await import("node:path")
     const filePath = path.resolve(process.cwd(), "lib/world-cup/worldCupKnockoutDangerZones.ts")
+    const src = await fs.readFile(filePath, "utf-8")
+    expect(src).not.toMatch(/OPENAI_API_KEY|XAI_API_KEY|new OpenAI|createOpenAI|openai\.com/i)
+    expect(src).not.toMatch(/\bfetch\s*\(/i)
+    expect(src).not.toMatch(/from\s+["']@\/lib\/prisma["']/)
+  })
+})
+
+describe("buildWorldCupInviteMessage — commissioner Copy Invite Message", () => {
+  it("returns ready commissioner message with invite link, code, and deadline", () => {
+    const result = buildWorldCupInviteMessage({
+      poolName: "Office Cup",
+      inviteUrl: "https://allfantasy.ai/join/bracket/WC8F3KM67Y",
+      inviteCode: "WC8F3KM67Y",
+      lockDeadlineLabel: "June 11, 2026 3:00 PM ET",
+      audience: "commissioner",
+    })
+    expect(result.status).toBe("ready")
+    expect(result.message).toContain("Office Cup")
+    expect(result.message).toContain("WC8F3KM67Y")
+    expect(result.message).toContain("https://allfantasy.ai/join/bracket/WC8F3KM67Y")
+    expect(result.message).toContain("June 11, 2026 3:00 PM ET")
+    expect(result.message).toContain("AI Bracket Report")
+    expect(result.message).toContain("Powered by AllFantasy.")
+  })
+
+  it("omits deadline + code when not provided", () => {
+    const result = buildWorldCupInviteMessage({
+      poolName: "Office Cup",
+      inviteUrl: "https://allfantasy.ai/join/bracket/X",
+      audience: "commissioner",
+    })
+    expect(result.status).toBe("ready")
+    expect(result.message).not.toMatch(/Invite code:/i)
+    expect(result.message).not.toMatch(/Picks lock/i)
+    expect(result.message).toContain("Powered by AllFantasy.")
+  })
+
+  it("member audience never exposes invite link or code", () => {
+    const result = buildWorldCupInviteMessage({
+      poolName: "Office Cup",
+      inviteUrl: "https://allfantasy.ai/join/bracket/SECRET",
+      inviteCode: "SECRET-CODE",
+      lockDeadlineLabel: "June 11, 2026",
+      audience: "member",
+    })
+    expect(result.status).toBe("member_blocked")
+    expect(result.message).not.toContain("SECRET")
+    expect(result.message).not.toContain("SECRET-CODE")
+    expect(result.message).not.toContain("https://")
+    expect(result.message).toMatch(/Ask the pool commissioner/i)
+  })
+
+  it("never includes wagering or betting language", () => {
+    const result = buildWorldCupInviteMessage({
+      poolName: "Office Cup",
+      inviteUrl: "https://allfantasy.ai/join/bracket/X",
+      inviteCode: "X",
+      audience: "commissioner",
+    })
+    expect(result.message.toLowerCase()).not.toMatch(/\bdfs\b|\bbetting\b|\bwager|\bsportsbook\b|\bodds\b/)
+  })
+})
+
+describe("buildWorldCupBracketShareMessage — finalized bracket share", () => {
+  it("uses prebuilt AI Share Card text when provided", () => {
+    const result = buildWorldCupBracketShareMessage({
+      poolName: "Office Cup",
+      prebuiltShareText: "My AI Share Card Output\nLine 2\nPowered by AllFantasy.",
+      isComplete: true,
+    })
+    expect(result.status).toBe("ready")
+    expect(result.message).toContain("My AI Share Card Output")
+    expect(result.message).toContain("Line 2")
+  })
+
+  it("builds deterministic fallback from grade + champion when no prebuilt text", () => {
+    const result = buildWorldCupBracketShareMessage({
+      poolName: "Office Cup",
+      entryName: "Bracket 1",
+      championName: "Argentina",
+      gradeLabel: "A-",
+      isComplete: true,
+      poolUrl: "https://allfantasy.ai/brackets/world-cup/c1",
+    })
+    expect(result.status).toBe("ready")
+    expect(result.message).toContain("Office Cup")
+    expect(result.message).toContain("Bracket 1 — locked in")
+    expect(result.message).toContain("Argentina")
+    expect(result.message).toContain("Bracket Grade: A-")
+    expect(result.message).toContain("Think you can beat my bracket?")
+    expect(result.message).toContain("https://allfantasy.ai/brackets/world-cup/c1")
+    expect(result.message).toContain("Powered by AllFantasy.")
+  })
+
+  it("uses 'in progress' label and softer CTA when not finalized", () => {
+    const result = buildWorldCupBracketShareMessage({
+      poolName: "Office Cup",
+      entryName: "Bracket 1",
+      isComplete: false,
+    })
+    expect(result.status).toBe("incomplete")
+    expect(result.message).toContain("Bracket 1 — in progress")
+    expect(result.message).toMatch(/Make your picks before lock/i)
+  })
+
+  it("gracefully omits optional fields without crashing", () => {
+    const result = buildWorldCupBracketShareMessage({
+      poolName: "Office Cup",
+      isComplete: true,
+    })
+    expect(result.message).toContain("Office Cup")
+    expect(result.message).not.toContain("Champion pick:")
+    expect(result.message).not.toContain("Bracket Grade:")
+  })
+
+  it("never includes wagering or betting language", () => {
+    const result = buildWorldCupBracketShareMessage({
+      poolName: "Office Cup",
+      championName: "Argentina",
+      gradeLabel: "A",
+      isComplete: true,
+    })
+    expect(result.message.toLowerCase()).not.toMatch(/\bdfs\b|\bbetting\b|\bwager|\bsportsbook\b|\bodds\b/)
+  })
+})
+
+describe("buildWorldCupSocialCaptions — platform-friendly deterministic captions", () => {
+  it("returns captions for twitter, instagram, and discord with required hashtag block", () => {
+    const captions = buildWorldCupSocialCaptions({
+      poolName: "Office Cup",
+      entryName: "Bracket 1",
+      championName: "Argentina",
+      gradeLabel: "A-",
+      isComplete: true,
+      poolUrl: "https://allfantasy.ai/brackets/world-cup/c1",
+    })
+    expect(captions.twitter).toContain(WORLD_CUP_SOCIAL_HASHTAGS)
+    expect(captions.instagram).toContain(WORLD_CUP_SOCIAL_HASHTAGS)
+    expect(captions.discord).toContain(WORLD_CUP_SOCIAL_HASHTAGS)
+  })
+
+  it("twitter caption stays within 280 chars including hashtags", () => {
+    const captions = buildWorldCupSocialCaptions({
+      poolName: "A very very very very very very long pool name for a stress test",
+      championName: "Argentina",
+      gradeLabel: "A+",
+      isComplete: true,
+      poolUrl: "https://allfantasy.ai/brackets/world-cup/c1xxxxxxxxxxxxxxxxxxxxxxxx",
+    })
+    expect(captions.twitter.length).toBeLessThanOrEqual(280)
+  })
+
+  it("all three captions mention the pool name and AllFantasy branding", () => {
+    const captions = buildWorldCupSocialCaptions({
+      poolName: "Office Cup",
+      championName: "Argentina",
+      gradeLabel: "A-",
+      isComplete: true,
+    })
+    for (const text of [captions.twitter, captions.instagram, captions.discord]) {
+      expect(text).toMatch(/Office Cup|AllFantasy/i)
+    }
+  })
+
+  it("required hashtag block contains the exact 7 user-required hashtags", () => {
+    expect(WORLD_CUP_SOCIAL_HASHTAGS).toContain("#fantasyfootball")
+    expect(WORLD_CUP_SOCIAL_HASHTAGS).toContain("#NFL")
+    expect(WORLD_CUP_SOCIAL_HASHTAGS).toContain("#football")
+    expect(WORLD_CUP_SOCIAL_HASHTAGS).toContain("#fantasyfootballadvice")
+    expect(WORLD_CUP_SOCIAL_HASHTAGS).toContain("#sports")
+    expect(WORLD_CUP_SOCIAL_HASHTAGS).toContain("#nflnews")
+    expect(WORLD_CUP_SOCIAL_HASHTAGS).toContain("#fantasyfootballdraft")
+  })
+
+  it("never includes wagering or betting language across any caption", () => {
+    const captions = buildWorldCupSocialCaptions({
+      poolName: "Office Cup",
+      championName: "Argentina",
+      gradeLabel: "A-",
+      isComplete: true,
+      poolUrl: "https://allfantasy.ai/brackets/world-cup/c1",
+    })
+    for (const text of [captions.twitter, captions.instagram, captions.discord]) {
+      expect(text.toLowerCase()).not.toMatch(/\bdfs\b|\bbetting\b|\bwager|\bsportsbook\b|\bodds\b/)
+    }
+  })
+
+  it("helper file does not import OpenAI/XAI providers, fetch, or Prisma (privacy guard)", async () => {
+    const fs = await import("node:fs/promises")
+    const path = await import("node:path")
+    const filePath = path.resolve(process.cwd(), "lib/world-cup/worldCupShareCopy.ts")
     const src = await fs.readFile(filePath, "utf-8")
     expect(src).not.toMatch(/OPENAI_API_KEY|XAI_API_KEY|new OpenAI|createOpenAI|openai\.com/i)
     expect(src).not.toMatch(/\bfetch\s*\(/i)

@@ -1375,7 +1375,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(knockoutPick).toHaveAttribute("data-result-state", "correct")
     expect(knockoutPick).toHaveTextContent("Match 1 · Brazil")
     expect(knockoutPick).toHaveTextContent("Correct +10")
-    expect(screen.getByText(/Finalized for leaderboard/i)).toBeInTheDocument()
+    expect(screen.getByText(/Your bracket is locked in/i)).toBeInTheDocument()
     expect(screen.getAllByText(/You can still edit until lock/i).length).toBeGreaterThan(0)
     expect(screen.queryByRole("button", { name: /Show Results/i })).not.toBeInTheDocument()
   })
@@ -2536,7 +2536,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" />)
 
-    expect(await screen.findByText(/Finalized for leaderboard/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Your bracket is locked in/i)).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Finalize Entry/i })).not.toBeInTheDocument()
   })
 
@@ -2820,7 +2820,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Finalize Entry/i }))
 
     await waitFor(() => expect(clientApiMocks.finalizeEntry).toHaveBeenCalledWith("c1", "entry-1"))
-    expect(await screen.findByText(/Finalized for leaderboard/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Your bracket is locked in/i)).toBeInTheDocument()
   })
 
   it("updates the URL with stable query tab values when switching tabs", async () => {
