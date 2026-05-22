@@ -565,6 +565,176 @@ const EN: WorldCupDictionary = {
     "Private current-entry read. Other users' unfinalized picks stay hidden.",
   "wc.path.tierActive": "AF Pro active",
   "wc.path.tierLocked": "AF Pro locked",
+
+  // ── Group Stage picks (gameplay) ─────────────────────────────────────
+  "wc.groupStage.loading": "Loading group-stage picks...",
+  "wc.groupStage.failedLoad": "Failed to load group stage",
+  "wc.groupStage.title": "Group Stage Picks",
+  "wc.groupStage.subtitle":
+    "Rank each group 1st through 4th, then choose 8 third-place teams to advance.",
+  "wc.groupStage.rankedCount": "Groups ranked: {{done}}/12",
+  "wc.groupStage.lockedNoReason": "Group-stage picks are locked.",
+  "wc.groupStage.lockedWithReason":
+    "Group-stage picks are locked: {{reason}}",
+  "wc.groupStage.teamCount": "{{count}}/4 teams",
+  "wc.groupStage.teamFallback": "Team",
+  "wc.groupStage.actualRank": "Actual #{{rank}}",
+  "wc.groupStage.moveUp": "Move Up",
+  "wc.groupStage.moveDown": "Move Down",
+  "wc.groupStage.needsFourTeams":
+    "{{group}} needs 4 teams before it can be saved.",
+  "wc.groupStage.unsavedOrder":
+    "Unsaved order change. Click Save Group before Review will count it.",
+  "wc.groupStage.savedReviewUses":
+    "Saved. Review uses this group order.",
+  "wc.groupStage.saveGroup": "Save Group",
+  "wc.groupStage.saving": "Saving...",
+  "wc.groupStage.saved": "Saved",
+  "wc.groupStage.retrySave": "Retry Save",
+  "wc.groupStage.failedSave": "Failed to save group ranking",
+  "wc.groupStage.aiTitle": "AI Insights",
+  "wc.groupStage.aiTierOpen": "Open",
+  "wc.groupStage.aiTierLocked": "Locked",
+  "wc.groupStage.aiPrivacyNote":
+    "Prediction and scoring complexity only. Bracket guidance stays limited to pool picks and scoring mechanics.",
+  "wc.groupStage.aiLockedBody":
+    "Upgrade to AI/Pro to open deterministic World Cup insights. No AI is called while this is locked.",
+  "wc.groupStage.resultCorrect": "Correct +{{points}}",
+  "wc.groupStage.resultWrong": "Wrong +0",
+  "wc.groupStage.resultPending": "Pending",
+
+  // ── Third-place advancers (gameplay) ─────────────────────────────────
+  "wc.thirdPlace.title": "Third-Place Advancers",
+  "wc.thirdPlace.subtitle":
+    "Choose exactly 8 predicted third-place teams after all groups are ranked.",
+  "wc.thirdPlace.selectedCount":
+    "Third-place advancers selected: {{count}}/8",
+  "wc.thirdPlace.saveBtn": "Save Third-Place",
+  "wc.thirdPlace.savePicksDone": "Saved Third-Place Picks",
+  "wc.thirdPlace.saving": "Saving...",
+  "wc.thirdPlace.saved": "Saved",
+  "wc.thirdPlace.savePrimaryBtn": "Save Third-Place Advancers",
+  "wc.thirdPlace.rankAllFirst":
+    "Rank all 12 groups before selecting third-place advancers.",
+  "wc.thirdPlace.unsaved":
+    "Unsaved third-place changes. Click Save Third-Place Advancers before Review will count them.",
+  "wc.thirdPlace.savedReviewUses":
+    "Third-place picks saved. Review uses these selections.",
+  "wc.thirdPlace.errorChoose8":
+    "Choose exactly 8 third-place advancers.",
+  "wc.thirdPlace.errorRankFirst":
+    "Rank all 12 groups before choosing third-place advancers.",
+  "wc.thirdPlace.failedSave":
+    "Failed to save third-place advancers",
+  "wc.thirdPlace.noPickYet": "No 3rd-place pick yet",
+  "wc.thirdPlace.selectedToAdvance": "Selected to advance",
+  "wc.thirdPlace.tapToSelect": "Tap to select",
+  "wc.thirdPlace.selectAria":
+    "Select {{name}} as a third-place advancer",
+  "wc.thirdPlace.aiTitle": "Ask Chimmy",
+  "wc.thirdPlace.aiLockedBody":
+    "AI/Pro unlocks third-place selection insights. Locked users only see this CTA and no AI request is made.",
+
+  // ── Matchup card (gameplay) ──────────────────────────────────────────
+  "wc.matchup.matchLabel": "Match {{number}}",
+  "wc.matchup.openGuidedAria":
+    "Open guided picker for match {{number}}",
+  "wc.matchup.statusFinal": "Final",
+  "wc.matchup.statusPostponed": "Postponed",
+  "wc.matchup.statusCancelled": "Cancelled",
+  "wc.matchup.statusSimulated": "Simulated",
+  "wc.matchup.statusTestFixture": "Test Fixture",
+  "wc.matchup.statusSaving": "Saving...",
+  "wc.matchup.notReadyPill": "Not ready for picks",
+  "wc.matchup.pickBadgeCorrect": "Correct",
+  "wc.matchup.pickBadgeIncorrect": "Incorrect",
+  "wc.matchup.pickVisualCorrect": "Correct pick",
+  "wc.matchup.pickVisualIncorrect": "Incorrect pick",
+  "wc.matchup.pickVisualPending": "Pending result",
+  "wc.matchup.yourPick": "Your pick:",
+  "wc.matchup.points": "{{points}} pts",
+  "wc.matchup.pointsPositive": "+{{points}} pts",
+  "wc.matchup.zeroPts": "0 pts",
+  "wc.matchup.pending": "Pending",
+  "wc.matchup.winnerOfficial": "Winner: {{name}}",
+  "wc.matchup.unpickableFinal": "This match is final.",
+  "wc.matchup.unpickableMissingTeam":
+    "Pick earlier round winners first.",
+  "wc.matchup.unpickableUnknown": "Teams not available yet.",
+  "wc.matchup.ftBadge": "FT",
+  "wc.matchup.confidenceTitle": "Confidence bonus",
+  "wc.matchup.confidenceHint":
+    "Higher confidence means more bonus points if correct.",
+  "wc.matchup.confidencePointSingle": "{{value}} point",
+  "wc.matchup.confidencePointPlural": "{{value}} points",
+  "wc.matchup.aiInsightsLabel": "AI Insights",
+  "wc.matchup.aiTierOpen": "Open",
+  "wc.matchup.aiTierLocked": "Locked",
+  "wc.matchup.aiSaferPick": "Safer pick:",
+  "wc.matchup.aiSaferBody":
+    "{{name}} based on current bracket slot order.",
+  "wc.matchup.aiUpsidePick": "Upside pick:",
+  "wc.matchup.aiUpsideBody":
+    "{{name}} if you need a differentiated path.",
+  "wc.matchup.aiBracketImpact": "Bracket impact:",
+  "wc.matchup.aiBracketImpactBody":
+    "Winner feeds the next slot; changing this pick may reset downstream choices.",
+  "wc.matchup.aiUpsetRisk": "Upset risk:",
+  "wc.matchup.aiUpsetRiskBody":
+    "Medium until live form and official results arrive.",
+  "wc.matchup.aiPrivacyNote":
+    "Prediction and scoring complexity only. Bracket guidance stays limited to pool picks and scoring mechanics.",
+  "wc.matchup.aiLockedBody":
+    "Upgrade to AI/Pro to open matchup insights. Locked users do not trigger AI calls.",
+  "wc.matchup.pickAriaPicked": "Pick {{name}} to win",
+  "wc.matchup.pickAriaSelected": "Selected: {{name}} to win",
+  "wc.matchup.disabledLocked": "Picks are locked for this match",
+  "wc.matchup.disabledSaving": "This pick is saving",
+  "wc.matchup.winnerLabel": "Winner",
+  "wc.matchup.lockHintTournament": "Locks at tournament start",
+  "wc.matchup.lockHintKickoff": "Locks at kickoff",
+  "wc.matchup.lockHintTournamentWithTime": "Locks {{at}}",
+  "wc.matchup.lockHintKickoffWithTime": "Locks at kickoff · {{at}}",
+  "wc.matchup.bracketBoardChampionLabel": "Champion Pick",
+  "wc.matchup.bracketBoardChampionFallback": "Not picked",
+  "wc.matchup.bracketBoardHelper":
+    "Your knockout bracket is generated from your predicted group results. Picks advance visually as soon as you choose a winner.",
+
+  // ── Review tab finalize/missing-picks checklist ──────────────────────
+  "wc.review.savedThirdPlaceTitle": "Saved Third-Place Advancers",
+  "wc.review.noSavedThirdPlace":
+    "No saved third-place advancers yet.",
+  "wc.review.loadingSavedThirdPlace":
+    "Loading saved third-place picks...",
+  "wc.review.savedKnockoutTitle": "Saved Knockout Picks",
+  "wc.review.noSavedKnockout": "No saved knockout picks yet.",
+  "wc.review.knockoutPickPrefix": "Match {{number}} · ",
+  "wc.review.missingRequirementsTitle": "Missing requirements",
+  "wc.review.needsRefinalize":
+    "Entry changed after submission. Complete missing picks and finalize again.",
+  "wc.review.missingGroupRankings":
+    "Missing group rankings: {{groups}}",
+  "wc.review.thirdPlaceCount":
+    "Third-place advancers selected: {{count}}/8",
+  "wc.review.missingKnockout": "Missing knockout picks: {{count}}",
+  "wc.review.lockedNoTime":
+    "Locked: picks can no longer be edited",
+  "wc.review.lockedWithTime":
+    "Locked: picks can no longer be edited · submitted {{at}}",
+  "wc.review.completeDraftHelper":
+    "Complete draft. Finalize to submit it to the leaderboard; you can still edit until lock.",
+  "wc.review.finalizing": "Finalizing...",
+  "wc.review.finalizeEntry": "Finalize Entry",
+  "wc.review.refinalizeEntry": "Re-finalize Entry",
+  "wc.review.completeAllToUnlock":
+    "Complete all missing requirements to unlock Finalize.",
+  "wc.review.tapRefresh": "Tap Refresh Review to check completion.",
+  "wc.review.createEntryFirstTitle": "Create an entry first",
+  "wc.review.createEntryFirstBody":
+    "Review and finalization are saved per bracket entry.",
+  "wc.review.createMyBracket": "Create My Bracket",
+  "wc.review.creating": "Creating...",
+  "wc.review.openMyBracket": "Open My Bracket",
 }
 
 const ES: WorldCupDictionary = {
@@ -1060,6 +1230,187 @@ const ES: WorldCupDictionary = {
     "Lectura privada de tu entrada actual. Los picks no finalizados de otros usuarios siguen ocultos.",
   "wc.path.tierActive": "AF Pro activo",
   "wc.path.tierLocked": "AF Pro bloqueado",
+
+  // ── Group Stage picks (gameplay) ─────────────────────────────────────
+  "wc.groupStage.loading": "Cargando picks de fase de grupos...",
+  "wc.groupStage.failedLoad": "No se pudo cargar la fase de grupos",
+  "wc.groupStage.title": "Picks de Fase de Grupos",
+  "wc.groupStage.subtitle":
+    "Ordena cada grupo del 1° al 4°, luego elige 8 equipos de tercer puesto para avanzar.",
+  "wc.groupStage.rankedCount":
+    "Grupos ordenados: {{done}}/12",
+  "wc.groupStage.lockedNoReason":
+    "Los picks de fase de grupos están bloqueados.",
+  "wc.groupStage.lockedWithReason":
+    "Los picks de fase de grupos están bloqueados: {{reason}}",
+  "wc.groupStage.teamCount": "{{count}}/4 equipos",
+  "wc.groupStage.teamFallback": "Equipo",
+  "wc.groupStage.actualRank": "Real #{{rank}}",
+  "wc.groupStage.moveUp": "Subir",
+  "wc.groupStage.moveDown": "Bajar",
+  "wc.groupStage.needsFourTeams":
+    "{{group}} necesita 4 equipos antes de poder guardarse.",
+  "wc.groupStage.unsavedOrder":
+    "Cambio sin guardar. Pulsa Guardar Grupo antes de que Review lo cuente.",
+  "wc.groupStage.savedReviewUses":
+    "Guardado. Review usa este orden de grupo.",
+  "wc.groupStage.saveGroup": "Guardar Grupo",
+  "wc.groupStage.saving": "Guardando...",
+  "wc.groupStage.saved": "Guardado",
+  "wc.groupStage.retrySave": "Reintentar guardar",
+  "wc.groupStage.failedSave":
+    "No se pudo guardar el orden del grupo",
+  "wc.groupStage.aiTitle": "Análisis IA",
+  "wc.groupStage.aiTierOpen": "Abierto",
+  "wc.groupStage.aiTierLocked": "Bloqueado",
+  "wc.groupStage.aiPrivacyNote":
+    "Solo predicción y complejidad de puntuación. La orientación se limita a picks y mecánica.",
+  "wc.groupStage.aiLockedBody":
+    "Actualiza a IA/Pro para abrir análisis deterministas. No se llama a IA mientras está bloqueado.",
+  "wc.groupStage.resultCorrect": "Correcto +{{points}}",
+  "wc.groupStage.resultWrong": "Incorrecto +0",
+  "wc.groupStage.resultPending": "Pendiente",
+
+  // ── Third-place advancers (gameplay) ─────────────────────────────────
+  "wc.thirdPlace.title": "Avanzan por Tercer Puesto",
+  "wc.thirdPlace.subtitle":
+    "Elige exactamente 8 equipos de tercer puesto después de ordenar todos los grupos.",
+  "wc.thirdPlace.selectedCount":
+    "Avanzan por tercer puesto: {{count}}/8",
+  "wc.thirdPlace.saveBtn": "Guardar Tercer Puesto",
+  "wc.thirdPlace.savePicksDone":
+    "Picks de Tercer Puesto Guardados",
+  "wc.thirdPlace.saving": "Guardando...",
+  "wc.thirdPlace.saved": "Guardado",
+  "wc.thirdPlace.savePrimaryBtn":
+    "Guardar Avanzan por Tercer Puesto",
+  "wc.thirdPlace.rankAllFirst":
+    "Ordena los 12 grupos antes de elegir los avances por tercer puesto.",
+  "wc.thirdPlace.unsaved":
+    "Cambios sin guardar. Pulsa Guardar Avanzan por Tercer Puesto antes de que Review los cuente.",
+  "wc.thirdPlace.savedReviewUses":
+    "Picks de tercer puesto guardados. Review usa estas selecciones.",
+  "wc.thirdPlace.errorChoose8":
+    "Elige exactamente 8 avances por tercer puesto.",
+  "wc.thirdPlace.errorRankFirst":
+    "Ordena los 12 grupos antes de elegir avances por tercer puesto.",
+  "wc.thirdPlace.failedSave":
+    "No se pudieron guardar los avances por tercer puesto",
+  "wc.thirdPlace.noPickYet": "Aún sin pick de tercer puesto",
+  "wc.thirdPlace.selectedToAdvance": "Elegido para avanzar",
+  "wc.thirdPlace.tapToSelect": "Toca para elegir",
+  "wc.thirdPlace.selectAria":
+    "Elegir a {{name}} como avance por tercer puesto",
+  "wc.thirdPlace.aiTitle": "Pregúntale a Chimmy",
+  "wc.thirdPlace.aiLockedBody":
+    "IA/Pro abre los análisis de selección de tercer puesto. Los usuarios bloqueados solo ven el CTA y no se hace ninguna llamada de IA.",
+
+  // ── Matchup card (gameplay) ──────────────────────────────────────────
+  "wc.matchup.matchLabel": "Partido {{number}}",
+  "wc.matchup.openGuidedAria":
+    "Abrir asistente guiado para el partido {{number}}",
+  "wc.matchup.statusFinal": "Final",
+  "wc.matchup.statusPostponed": "Aplazado",
+  "wc.matchup.statusCancelled": "Cancelado",
+  "wc.matchup.statusSimulated": "Simulado",
+  "wc.matchup.statusTestFixture": "Partido de prueba",
+  "wc.matchup.statusSaving": "Guardando...",
+  "wc.matchup.notReadyPill": "Sin picks aún",
+  "wc.matchup.pickBadgeCorrect": "Correcto",
+  "wc.matchup.pickBadgeIncorrect": "Incorrecto",
+  "wc.matchup.pickVisualCorrect": "Pick correcto",
+  "wc.matchup.pickVisualIncorrect": "Pick incorrecto",
+  "wc.matchup.pickVisualPending": "Pendiente",
+  "wc.matchup.yourPick": "Tu pick:",
+  "wc.matchup.points": "{{points}} pts",
+  "wc.matchup.pointsPositive": "+{{points}} pts",
+  "wc.matchup.zeroPts": "0 pts",
+  "wc.matchup.pending": "Pendiente",
+  "wc.matchup.winnerOfficial": "Ganador: {{name}}",
+  "wc.matchup.unpickableFinal": "Este partido ya es final.",
+  "wc.matchup.unpickableMissingTeam":
+    "Elige primero los ganadores de rondas previas.",
+  "wc.matchup.unpickableUnknown": "Equipos aún no disponibles.",
+  "wc.matchup.ftBadge": "FT",
+  "wc.matchup.confidenceTitle": "Bono de confianza",
+  "wc.matchup.confidenceHint":
+    "Más confianza = más puntos extra si aciertas.",
+  "wc.matchup.confidencePointSingle": "{{value}} punto",
+  "wc.matchup.confidencePointPlural": "{{value}} puntos",
+  "wc.matchup.aiInsightsLabel": "Análisis IA",
+  "wc.matchup.aiTierOpen": "Abierto",
+  "wc.matchup.aiTierLocked": "Bloqueado",
+  "wc.matchup.aiSaferPick": "Pick más seguro:",
+  "wc.matchup.aiSaferBody":
+    "{{name}} según el orden actual de slots del bracket.",
+  "wc.matchup.aiUpsidePick": "Pick con upside:",
+  "wc.matchup.aiUpsideBody":
+    "{{name}} si necesitas un camino diferenciado.",
+  "wc.matchup.aiBracketImpact": "Impacto en el bracket:",
+  "wc.matchup.aiBracketImpactBody":
+    "El ganador llena el siguiente slot; cambiar este pick puede reiniciar elecciones posteriores.",
+  "wc.matchup.aiUpsetRisk": "Riesgo de sorpresa:",
+  "wc.matchup.aiUpsetRiskBody":
+    "Medio hasta que lleguen forma en vivo y resultados oficiales.",
+  "wc.matchup.aiPrivacyNote":
+    "Solo predicción y complejidad de puntuación. La orientación se limita a picks y mecánica.",
+  "wc.matchup.aiLockedBody":
+    "Actualiza a IA/Pro para abrir el análisis. Los usuarios bloqueados no activan llamadas de IA.",
+  "wc.matchup.pickAriaPicked": "Elegir a {{name}} para ganar",
+  "wc.matchup.pickAriaSelected": "Elegido: {{name}} para ganar",
+  "wc.matchup.disabledLocked":
+    "Los picks de este partido están bloqueados",
+  "wc.matchup.disabledSaving": "Este pick se está guardando",
+  "wc.matchup.winnerLabel": "Ganador",
+  "wc.matchup.lockHintTournament": "Cierra al iniciar el torneo",
+  "wc.matchup.lockHintKickoff": "Cierra al saque inicial",
+  "wc.matchup.lockHintTournamentWithTime": "Cierra {{at}}",
+  "wc.matchup.lockHintKickoffWithTime":
+    "Cierra al saque inicial · {{at}}",
+  "wc.matchup.bracketBoardChampionLabel": "Pick de Campeón",
+  "wc.matchup.bracketBoardChampionFallback": "Sin elegir",
+  "wc.matchup.bracketBoardHelper":
+    "Tu bracket de eliminatorias se genera a partir de tus resultados de grupos. Los picks avanzan en pantalla en cuanto eliges un ganador.",
+
+  // ── Review tab finalize/missing-picks checklist ──────────────────────
+  "wc.review.savedThirdPlaceTitle":
+    "Avances por Tercer Puesto Guardados",
+  "wc.review.noSavedThirdPlace":
+    "Aún no hay avances por tercer puesto guardados.",
+  "wc.review.loadingSavedThirdPlace":
+    "Cargando picks de tercer puesto...",
+  "wc.review.savedKnockoutTitle": "Picks de Eliminatorias Guardados",
+  "wc.review.noSavedKnockout":
+    "Aún no hay picks de eliminatorias guardados.",
+  "wc.review.knockoutPickPrefix": "Partido {{number}} · ",
+  "wc.review.missingRequirementsTitle": "Faltan requisitos",
+  "wc.review.needsRefinalize":
+    "La entrada cambió tras enviarse. Completa los picks faltantes y vuelve a finalizar.",
+  "wc.review.missingGroupRankings":
+    "Faltan órdenes de grupo: {{groups}}",
+  "wc.review.thirdPlaceCount":
+    "Avances por tercer puesto: {{count}}/8",
+  "wc.review.missingKnockout":
+    "Faltan picks de eliminatorias: {{count}}",
+  "wc.review.lockedNoTime":
+    "Bloqueado: los picks ya no se pueden editar",
+  "wc.review.lockedWithTime":
+    "Bloqueado: los picks ya no se pueden editar · enviado {{at}}",
+  "wc.review.completeDraftHelper":
+    "Borrador completo. Finaliza para enviarlo al leaderboard; aún puedes editar hasta el cierre.",
+  "wc.review.finalizing": "Finalizando...",
+  "wc.review.finalizeEntry": "Finalizar Entrada",
+  "wc.review.refinalizeEntry": "Refinalizar Entrada",
+  "wc.review.completeAllToUnlock":
+    "Completa los requisitos faltantes para desbloquear Finalizar.",
+  "wc.review.tapRefresh":
+    "Pulsa Actualizar Review para verificar el progreso.",
+  "wc.review.createEntryFirstTitle": "Crea primero una entrada",
+  "wc.review.createEntryFirstBody":
+    "El review y la finalización se guardan por entrada de bracket.",
+  "wc.review.createMyBracket": "Crear mi bracket",
+  "wc.review.creating": "Creando...",
+  "wc.review.openMyBracket": "Abrir mi bracket",
 }
 
 // Traditional Chinese (zh-TW). Sports-app voice — short, scannable.
@@ -1536,6 +1887,176 @@ const ZH: WorldCupDictionary = {
     "私人當前項目分析。其他使用者尚未送出的選擇仍然保密。",
   "wc.path.tierActive": "AF Pro 已啟用",
   "wc.path.tierLocked": "AF Pro 已鎖定",
+
+  // ── Group Stage picks (gameplay) ─────────────────────────────────────
+  "wc.groupStage.loading": "正在載入小組賽選擇...",
+  "wc.groupStage.failedLoad": "無法載入小組賽",
+  "wc.groupStage.title": "小組賽選擇",
+  "wc.groupStage.subtitle":
+    "為每個小組排出第 1 至第 4 名,再選 8 隊作為第三名晉級。",
+  "wc.groupStage.rankedCount": "已排序的小組:{{done}}/12",
+  "wc.groupStage.lockedNoReason": "小組賽選擇已鎖定。",
+  "wc.groupStage.lockedWithReason":
+    "小組賽選擇已鎖定:{{reason}}",
+  "wc.groupStage.teamCount": "{{count}}/4 隊",
+  "wc.groupStage.teamFallback": "球隊",
+  "wc.groupStage.actualRank": "實際 #{{rank}}",
+  "wc.groupStage.moveUp": "上移",
+  "wc.groupStage.moveDown": "下移",
+  "wc.groupStage.needsFourTeams":
+    "{{group}} 需要 4 隊才能儲存。",
+  "wc.groupStage.unsavedOrder":
+    "順序尚未儲存。點擊「儲存小組」後 Review 才會計入。",
+  "wc.groupStage.savedReviewUses":
+    "已儲存。Review 採用這個小組順序。",
+  "wc.groupStage.saveGroup": "儲存小組",
+  "wc.groupStage.saving": "儲存中...",
+  "wc.groupStage.saved": "已儲存",
+  "wc.groupStage.retrySave": "重試儲存",
+  "wc.groupStage.failedSave": "無法儲存小組排名",
+  "wc.groupStage.aiTitle": "AI 解析",
+  "wc.groupStage.aiTierOpen": "已開啟",
+  "wc.groupStage.aiTierLocked": "已鎖定",
+  "wc.groupStage.aiPrivacyNote":
+    "僅為預測與計分複雜度。指引僅限於選擇與計分機制。",
+  "wc.groupStage.aiLockedBody":
+    "升級到 AI/Pro 開啟確定性 World Cup 解析。鎖定期間不會呼叫 AI。",
+  "wc.groupStage.resultCorrect": "正確 +{{points}}",
+  "wc.groupStage.resultWrong": "錯誤 +0",
+  "wc.groupStage.resultPending": "待定",
+
+  // ── Third-place advancers (gameplay) ─────────────────────────────────
+  "wc.thirdPlace.title": "第三名晉級隊伍",
+  "wc.thirdPlace.subtitle":
+    "在所有小組排序後,選擇 8 支預測的第三名晉級隊伍。",
+  "wc.thirdPlace.selectedCount":
+    "已選的第三名晉級:{{count}}/8",
+  "wc.thirdPlace.saveBtn": "儲存第三名",
+  "wc.thirdPlace.savePicksDone": "第三名選擇已儲存",
+  "wc.thirdPlace.saving": "儲存中...",
+  "wc.thirdPlace.saved": "已儲存",
+  "wc.thirdPlace.savePrimaryBtn": "儲存第三名晉級",
+  "wc.thirdPlace.rankAllFirst":
+    "請先排序所有 12 個小組再選擇第三名晉級。",
+  "wc.thirdPlace.unsaved":
+    "第三名選擇尚未儲存。點擊「儲存第三名晉級」後 Review 才會計入。",
+  "wc.thirdPlace.savedReviewUses":
+    "第三名選擇已儲存。Review 會採用這些選擇。",
+  "wc.thirdPlace.errorChoose8":
+    "請選擇恰好 8 個第三名晉級。",
+  "wc.thirdPlace.errorRankFirst":
+    "請先排序所有 12 個小組再選擇第三名晉級。",
+  "wc.thirdPlace.failedSave": "無法儲存第三名晉級",
+  "wc.thirdPlace.noPickYet": "尚未選擇第三名",
+  "wc.thirdPlace.selectedToAdvance": "已選為晉級",
+  "wc.thirdPlace.tapToSelect": "點擊以選擇",
+  "wc.thirdPlace.selectAria":
+    "將 {{name}} 選為第三名晉級",
+  "wc.thirdPlace.aiTitle": "詢問 Chimmy",
+  "wc.thirdPlace.aiLockedBody":
+    "AI/Pro 可解鎖第三名選擇解析。未升級的使用者只看到此 CTA,不會發出 AI 請求。",
+
+  // ── Matchup card (gameplay) ──────────────────────────────────────────
+  "wc.matchup.matchLabel": "第 {{number}} 場",
+  "wc.matchup.openGuidedAria":
+    "為第 {{number}} 場開啟引導式選擇",
+  "wc.matchup.statusFinal": "結束",
+  "wc.matchup.statusPostponed": "延期",
+  "wc.matchup.statusCancelled": "取消",
+  "wc.matchup.statusSimulated": "模擬",
+  "wc.matchup.statusTestFixture": "測試比賽",
+  "wc.matchup.statusSaving": "儲存中...",
+  "wc.matchup.notReadyPill": "尚未開放選擇",
+  "wc.matchup.pickBadgeCorrect": "正確",
+  "wc.matchup.pickBadgeIncorrect": "錯誤",
+  "wc.matchup.pickVisualCorrect": "選擇正確",
+  "wc.matchup.pickVisualIncorrect": "選擇錯誤",
+  "wc.matchup.pickVisualPending": "待開賽",
+  "wc.matchup.yourPick": "你的選擇:",
+  "wc.matchup.points": "{{points}} 分",
+  "wc.matchup.pointsPositive": "+{{points}} 分",
+  "wc.matchup.zeroPts": "0 分",
+  "wc.matchup.pending": "待定",
+  "wc.matchup.winnerOfficial": "勝者:{{name}}",
+  "wc.matchup.unpickableFinal": "此比賽已結束。",
+  "wc.matchup.unpickableMissingTeam":
+    "請先選出前幾輪的勝者。",
+  "wc.matchup.unpickableUnknown": "球隊尚未確定。",
+  "wc.matchup.ftBadge": "FT",
+  "wc.matchup.confidenceTitle": "信心加分",
+  "wc.matchup.confidenceHint":
+    "信心越高,猜中可獲得越多加分。",
+  "wc.matchup.confidencePointSingle": "{{value}} 分",
+  "wc.matchup.confidencePointPlural": "{{value}} 分",
+  "wc.matchup.aiInsightsLabel": "AI 解析",
+  "wc.matchup.aiTierOpen": "已開啟",
+  "wc.matchup.aiTierLocked": "已鎖定",
+  "wc.matchup.aiSaferPick": "較安全的選擇:",
+  "wc.matchup.aiSaferBody":
+    "依目前對戰表順序為 {{name}}。",
+  "wc.matchup.aiUpsidePick": "上行選擇:",
+  "wc.matchup.aiUpsideBody":
+    "若需要不同路徑,可考慮 {{name}}。",
+  "wc.matchup.aiBracketImpact": "對戰表影響:",
+  "wc.matchup.aiBracketImpactBody":
+    "勝者進入下一個位置;改動可能重置後續選擇。",
+  "wc.matchup.aiUpsetRisk": "爆冷風險:",
+  "wc.matchup.aiUpsetRiskBody":
+    "在實時表現與官方結果出來前先評為中等。",
+  "wc.matchup.aiPrivacyNote":
+    "僅為預測與計分複雜度。指引僅限於選擇與計分機制。",
+  "wc.matchup.aiLockedBody":
+    "升級到 AI/Pro 開啟對戰解析。未升級者不會觸發 AI 呼叫。",
+  "wc.matchup.pickAriaPicked": "選 {{name}} 為贏家",
+  "wc.matchup.pickAriaSelected": "已選:{{name}} 為贏家",
+  "wc.matchup.disabledLocked": "此比賽的選擇已鎖定",
+  "wc.matchup.disabledSaving": "此選擇正在儲存中",
+  "wc.matchup.winnerLabel": "勝者",
+  "wc.matchup.lockHintTournament": "賽事開始時鎖定",
+  "wc.matchup.lockHintKickoff": "開球時鎖定",
+  "wc.matchup.lockHintTournamentWithTime": "鎖定時間 {{at}}",
+  "wc.matchup.lockHintKickoffWithTime":
+    "開球時鎖定 · {{at}}",
+  "wc.matchup.bracketBoardChampionLabel": "冠軍選擇",
+  "wc.matchup.bracketBoardChampionFallback": "尚未選擇",
+  "wc.matchup.bracketBoardHelper":
+    "你的淘汰賽對戰表由你預測的小組結果生成。選定勝者後對戰表會立刻在畫面上推進。",
+
+  // ── Review tab finalize/missing-picks checklist ──────────────────────
+  "wc.review.savedThirdPlaceTitle": "已儲存的第三名晉級",
+  "wc.review.noSavedThirdPlace": "尚未儲存第三名晉級。",
+  "wc.review.loadingSavedThirdPlace":
+    "正在載入已儲存的第三名選擇...",
+  "wc.review.savedKnockoutTitle": "已儲存的淘汰賽選擇",
+  "wc.review.noSavedKnockout": "尚未儲存淘汰賽選擇。",
+  "wc.review.knockoutPickPrefix": "第 {{number}} 場 · ",
+  "wc.review.missingRequirementsTitle": "尚缺要求",
+  "wc.review.needsRefinalize":
+    "送出後項目有變更。完成缺少的選擇後請重新送出。",
+  "wc.review.missingGroupRankings":
+    "尚缺小組排名:{{groups}}",
+  "wc.review.thirdPlaceCount":
+    "第三名晉級已選:{{count}}/8",
+  "wc.review.missingKnockout":
+    "尚缺淘汰賽選擇:{{count}}",
+  "wc.review.lockedNoTime":
+    "已鎖定:選擇無法再修改",
+  "wc.review.lockedWithTime":
+    "已鎖定:選擇無法再修改 · 送出於 {{at}}",
+  "wc.review.completeDraftHelper":
+    "草稿完成。送出後即可上排行榜;在鎖定前仍可編輯。",
+  "wc.review.finalizing": "送出中...",
+  "wc.review.finalizeEntry": "送出項目",
+  "wc.review.refinalizeEntry": "重新送出項目",
+  "wc.review.completeAllToUnlock":
+    "完成所有缺少項目後即可解鎖送出。",
+  "wc.review.tapRefresh": "點擊「重新整理 Review」以查看進度。",
+  "wc.review.createEntryFirstTitle": "請先建立項目",
+  "wc.review.createEntryFirstBody":
+    "Review 與送出都以對戰表項目為單位儲存。",
+  "wc.review.createMyBracket": "建立我的對戰表",
+  "wc.review.creating": "建立中...",
+  "wc.review.openMyBracket": "開啟我的對戰表",
 }
 
 // Filipino — natural sports-app Filipino, light Taglish where it reads
@@ -2039,6 +2560,187 @@ const FIL: WorldCupDictionary = {
     "Private na pagbasa ng current entry. Nakatago pa rin ang unfinalized picks ng ibang users.",
   "wc.path.tierActive": "AF Pro active",
   "wc.path.tierLocked": "AF Pro locked",
+
+  // ── Group Stage picks (gameplay) ─────────────────────────────────────
+  "wc.groupStage.loading": "Naglo-load ng group-stage picks...",
+  "wc.groupStage.failedLoad": "Hindi na-load ang group stage",
+  "wc.groupStage.title": "Group Stage Picks",
+  "wc.groupStage.subtitle":
+    "I-rank ang bawat group mula 1 hanggang 4, tapos pumili ng 8 third-place teams na aabante.",
+  "wc.groupStage.rankedCount":
+    "Naka-rank na groups: {{done}}/12",
+  "wc.groupStage.lockedNoReason":
+    "Naka-lock na ang group-stage picks.",
+  "wc.groupStage.lockedWithReason":
+    "Naka-lock na ang group-stage picks: {{reason}}",
+  "wc.groupStage.teamCount": "{{count}}/4 teams",
+  "wc.groupStage.teamFallback": "Team",
+  "wc.groupStage.actualRank": "Aktwal #{{rank}}",
+  "wc.groupStage.moveUp": "Itaas",
+  "wc.groupStage.moveDown": "Ibaba",
+  "wc.groupStage.needsFourTeams":
+    "Kailangan ng 4 teams ang {{group}} bago ma-save.",
+  "wc.groupStage.unsavedOrder":
+    "May unsaved na ayos. Pindutin ang Save Group bago bilangin ng Review.",
+  "wc.groupStage.savedReviewUses":
+    "Na-save. Gagamitin ng Review ang group order na ito.",
+  "wc.groupStage.saveGroup": "I-save ang Group",
+  "wc.groupStage.saving": "Sini-save...",
+  "wc.groupStage.saved": "Na-save",
+  "wc.groupStage.retrySave": "Subukan ulit",
+  "wc.groupStage.failedSave":
+    "Hindi na-save ang group ranking",
+  "wc.groupStage.aiTitle": "AI Insights",
+  "wc.groupStage.aiTierOpen": "Bukas",
+  "wc.groupStage.aiTierLocked": "Nakasara",
+  "wc.groupStage.aiPrivacyNote":
+    "Prediction at scoring complexity lang. Ang gabay ay nakatuon sa picks at scoring mechanics.",
+  "wc.groupStage.aiLockedBody":
+    "Mag-upgrade sa AI/Pro para buksan ang deterministic na World Cup insights. Hindi tumatawag ng AI habang nakasara.",
+  "wc.groupStage.resultCorrect": "Tama +{{points}}",
+  "wc.groupStage.resultWrong": "Mali +0",
+  "wc.groupStage.resultPending": "Naghihintay",
+
+  // ── Third-place advancers (gameplay) ─────────────────────────────────
+  "wc.thirdPlace.title": "Third-Place Advancers",
+  "wc.thirdPlace.subtitle":
+    "Pumili ng eksaktong 8 predicted third-place teams pagkatapos ma-rank lahat ng groups.",
+  "wc.thirdPlace.selectedCount":
+    "Third-place advancers selected: {{count}}/8",
+  "wc.thirdPlace.saveBtn": "I-save ang Third-Place",
+  "wc.thirdPlace.savePicksDone":
+    "Na-save ang Third-Place Picks",
+  "wc.thirdPlace.saving": "Sini-save...",
+  "wc.thirdPlace.saved": "Na-save",
+  "wc.thirdPlace.savePrimaryBtn":
+    "I-save ang Third-Place Advancers",
+  "wc.thirdPlace.rankAllFirst":
+    "I-rank muna lahat ng 12 groups bago pumili ng third-place advancers.",
+  "wc.thirdPlace.unsaved":
+    "May unsaved na third-place changes. Pindutin ang Save Third-Place Advancers bago bilangin ng Review.",
+  "wc.thirdPlace.savedReviewUses":
+    "Na-save ang third-place picks. Gagamitin ng Review ang mga pinili.",
+  "wc.thirdPlace.errorChoose8":
+    "Pumili ng eksaktong 8 third-place advancers.",
+  "wc.thirdPlace.errorRankFirst":
+    "I-rank muna lahat ng 12 groups bago pumili ng third-place advancers.",
+  "wc.thirdPlace.failedSave":
+    "Hindi na-save ang third-place advancers",
+  "wc.thirdPlace.noPickYet": "Wala pang third-place pick",
+  "wc.thirdPlace.selectedToAdvance": "Napiling aabante",
+  "wc.thirdPlace.tapToSelect": "Pindutin para piliin",
+  "wc.thirdPlace.selectAria":
+    "Piliin si {{name}} bilang third-place advancer",
+  "wc.thirdPlace.aiTitle": "Tanungin si Chimmy",
+  "wc.thirdPlace.aiLockedBody":
+    "Bubuksan ng AI/Pro ang third-place selection insights. Walang AI request kapag nakasara.",
+
+  // ── Matchup card (gameplay) ──────────────────────────────────────────
+  "wc.matchup.matchLabel": "Match {{number}}",
+  "wc.matchup.openGuidedAria":
+    "Buksan ang guided picker para sa match {{number}}",
+  "wc.matchup.statusFinal": "Final",
+  "wc.matchup.statusPostponed": "Pinaliban",
+  "wc.matchup.statusCancelled": "Kinansela",
+  "wc.matchup.statusSimulated": "Simulated",
+  "wc.matchup.statusTestFixture": "Test Fixture",
+  "wc.matchup.statusSaving": "Sini-save...",
+  "wc.matchup.notReadyPill": "Hindi pa pwedeng mag-pick",
+  "wc.matchup.pickBadgeCorrect": "Tama",
+  "wc.matchup.pickBadgeIncorrect": "Mali",
+  "wc.matchup.pickVisualCorrect": "Tamang pick",
+  "wc.matchup.pickVisualIncorrect": "Maling pick",
+  "wc.matchup.pickVisualPending": "Naghihintay ng resulta",
+  "wc.matchup.yourPick": "Iyong pick:",
+  "wc.matchup.points": "{{points}} pts",
+  "wc.matchup.pointsPositive": "+{{points}} pts",
+  "wc.matchup.zeroPts": "0 pts",
+  "wc.matchup.pending": "Naghihintay",
+  "wc.matchup.winnerOfficial": "Nanalo: {{name}}",
+  "wc.matchup.unpickableFinal": "Tapos na ang labang ito.",
+  "wc.matchup.unpickableMissingTeam":
+    "Pumili muna ng mga winner sa mga naunang rounds.",
+  "wc.matchup.unpickableUnknown": "Wala pang teams.",
+  "wc.matchup.ftBadge": "FT",
+  "wc.matchup.confidenceTitle": "Confidence bonus",
+  "wc.matchup.confidenceHint":
+    "Mas mataas na confidence = mas maraming bonus pag tama.",
+  "wc.matchup.confidencePointSingle": "{{value}} puntos",
+  "wc.matchup.confidencePointPlural": "{{value}} na puntos",
+  "wc.matchup.aiInsightsLabel": "AI Insights",
+  "wc.matchup.aiTierOpen": "Bukas",
+  "wc.matchup.aiTierLocked": "Nakasara",
+  "wc.matchup.aiSaferPick": "Mas ligtas na pick:",
+  "wc.matchup.aiSaferBody":
+    "{{name}} base sa current na bracket slot order.",
+  "wc.matchup.aiUpsidePick": "Pick na may upside:",
+  "wc.matchup.aiUpsideBody":
+    "{{name}} kung kailangan mo ng ibang ruta.",
+  "wc.matchup.aiBracketImpact": "Epekto sa bracket:",
+  "wc.matchup.aiBracketImpactBody":
+    "Sasagad ang winner sa susunod na slot; ang pagbabago ay puwedeng mag-reset ng later picks.",
+  "wc.matchup.aiUpsetRisk": "Risk ng upset:",
+  "wc.matchup.aiUpsetRiskBody":
+    "Medium hanggang dumating ang live form at official results.",
+  "wc.matchup.aiPrivacyNote":
+    "Prediction at scoring complexity lang. Ang gabay ay nakatuon sa picks at scoring mechanics.",
+  "wc.matchup.aiLockedBody":
+    "Mag-upgrade sa AI/Pro para buksan ang matchup insights. Hindi tumatawag ng AI ang locked users.",
+  "wc.matchup.pickAriaPicked": "Piliin si {{name}} para manalo",
+  "wc.matchup.pickAriaSelected": "Napili: {{name}} para manalo",
+  "wc.matchup.disabledLocked": "Naka-lock ang pick sa labang ito",
+  "wc.matchup.disabledSaving": "Sini-save itong pick",
+  "wc.matchup.winnerLabel": "Nanalo",
+  "wc.matchup.lockHintTournament": "Magla-lock sa simula ng tournament",
+  "wc.matchup.lockHintKickoff": "Magla-lock sa kickoff",
+  "wc.matchup.lockHintTournamentWithTime": "Magla-lock {{at}}",
+  "wc.matchup.lockHintKickoffWithTime":
+    "Magla-lock sa kickoff · {{at}}",
+  "wc.matchup.bracketBoardChampionLabel": "Champion Pick",
+  "wc.matchup.bracketBoardChampionFallback": "Wala pang pinili",
+  "wc.matchup.bracketBoardHelper":
+    "Galing sa iyong predicted group results ang knockout bracket. Aabante agad ang picks pagkapili ng winner.",
+
+  // ── Review tab finalize/missing-picks checklist ──────────────────────
+  "wc.review.savedThirdPlaceTitle":
+    "Na-save na Third-Place Advancers",
+  "wc.review.noSavedThirdPlace":
+    "Wala pang na-save na third-place advancers.",
+  "wc.review.loadingSavedThirdPlace":
+    "Naglo-load ng na-save na third-place picks...",
+  "wc.review.savedKnockoutTitle":
+    "Na-save na Knockout Picks",
+  "wc.review.noSavedKnockout":
+    "Wala pang na-save na knockout picks.",
+  "wc.review.knockoutPickPrefix": "Match {{number}} · ",
+  "wc.review.missingRequirementsTitle": "Kulang na requirements",
+  "wc.review.needsRefinalize":
+    "Nagbago ang entry pagkatapos ma-submit. Tapusin ang kulang na picks at i-finalize ulit.",
+  "wc.review.missingGroupRankings":
+    "Kulang sa group rankings: {{groups}}",
+  "wc.review.thirdPlaceCount":
+    "Third-place advancers selected: {{count}}/8",
+  "wc.review.missingKnockout":
+    "Kulang na knockout picks: {{count}}",
+  "wc.review.lockedNoTime":
+    "Naka-lock: hindi na pwedeng i-edit ang picks",
+  "wc.review.lockedWithTime":
+    "Naka-lock: hindi na pwedeng i-edit ang picks · na-submit noong {{at}}",
+  "wc.review.completeDraftHelper":
+    "Kumpleto na ang draft. I-finalize para isumite sa leaderboard; pwede pa ring i-edit hanggang mag-lock.",
+  "wc.review.finalizing": "Nagfa-finalize...",
+  "wc.review.finalizeEntry": "I-finalize ang Entry",
+  "wc.review.refinalizeEntry": "I-finalize ulit ang Entry",
+  "wc.review.completeAllToUnlock":
+    "Tapusin lahat ng kulang na requirements para mabuksan ang Finalize.",
+  "wc.review.tapRefresh":
+    "Pindutin ang Refresh Review para tingnan ang completion.",
+  "wc.review.createEntryFirstTitle": "Gumawa muna ng entry",
+  "wc.review.createEntryFirstBody":
+    "Naka-save ang review at finalization per bracket entry.",
+  "wc.review.createMyBracket": "Gumawa ng aking bracket",
+  "wc.review.creating": "Gumagawa...",
+  "wc.review.openMyBracket": "Buksan ang aking bracket",
 }
 
 // Vietnamese — natural sports-app Vietnamese.
@@ -2557,6 +3259,188 @@ const VI: WorldCupDictionary = {
     "Đọc riêng tư entry hiện tại. Lựa chọn chưa hoàn tất của người khác vẫn được ẩn.",
   "wc.path.tierActive": "AF Pro đang bật",
   "wc.path.tierLocked": "AF Pro đã khoá",
+
+  // ── Group Stage picks (gameplay) ─────────────────────────────────────
+  "wc.groupStage.loading": "Đang tải lựa chọn vòng bảng...",
+  "wc.groupStage.failedLoad": "Không tải được vòng bảng",
+  "wc.groupStage.title": "Lựa chọn vòng bảng",
+  "wc.groupStage.subtitle":
+    "Xếp hạng mỗi bảng từ 1 đến 4, sau đó chọn 8 đội hạng ba đi tiếp.",
+  "wc.groupStage.rankedCount":
+    "Số bảng đã xếp: {{done}}/12",
+  "wc.groupStage.lockedNoReason":
+    "Lựa chọn vòng bảng đã khoá.",
+  "wc.groupStage.lockedWithReason":
+    "Lựa chọn vòng bảng đã khoá: {{reason}}",
+  "wc.groupStage.teamCount": "{{count}}/4 đội",
+  "wc.groupStage.teamFallback": "Đội",
+  "wc.groupStage.actualRank": "Thực tế #{{rank}}",
+  "wc.groupStage.moveUp": "Lên",
+  "wc.groupStage.moveDown": "Xuống",
+  "wc.groupStage.needsFourTeams":
+    "{{group}} cần 4 đội trước khi có thể lưu.",
+  "wc.groupStage.unsavedOrder":
+    "Thứ tự chưa lưu. Nhấn Lưu bảng để Review tính vào.",
+  "wc.groupStage.savedReviewUses":
+    "Đã lưu. Review dùng thứ tự bảng này.",
+  "wc.groupStage.saveGroup": "Lưu bảng",
+  "wc.groupStage.saving": "Đang lưu...",
+  "wc.groupStage.saved": "Đã lưu",
+  "wc.groupStage.retrySave": "Thử lại",
+  "wc.groupStage.failedSave":
+    "Không lưu được xếp hạng bảng",
+  "wc.groupStage.aiTitle": "Phân tích AI",
+  "wc.groupStage.aiTierOpen": "Mở",
+  "wc.groupStage.aiTierLocked": "Đã khoá",
+  "wc.groupStage.aiPrivacyNote":
+    "Chỉ dự đoán và độ phức tạp tính điểm. Hướng dẫn giới hạn ở lựa chọn và cơ chế tính điểm.",
+  "wc.groupStage.aiLockedBody":
+    "Nâng cấp AI/Pro để mở phân tích xác định. Không gọi AI khi đang khoá.",
+  "wc.groupStage.resultCorrect": "Đúng +{{points}}",
+  "wc.groupStage.resultWrong": "Sai +0",
+  "wc.groupStage.resultPending": "Chờ",
+
+  // ── Third-place advancers (gameplay) ─────────────────────────────────
+  "wc.thirdPlace.title": "Đội hạng ba đi tiếp",
+  "wc.thirdPlace.subtitle":
+    "Chọn đúng 8 đội hạng ba được dự đoán sau khi tất cả bảng đã xếp hạng.",
+  "wc.thirdPlace.selectedCount":
+    "Đã chọn đội hạng ba đi tiếp: {{count}}/8",
+  "wc.thirdPlace.saveBtn": "Lưu hạng ba",
+  "wc.thirdPlace.savePicksDone": "Đã lưu lựa chọn hạng ba",
+  "wc.thirdPlace.saving": "Đang lưu...",
+  "wc.thirdPlace.saved": "Đã lưu",
+  "wc.thirdPlace.savePrimaryBtn":
+    "Lưu đội hạng ba đi tiếp",
+  "wc.thirdPlace.rankAllFirst":
+    "Hãy xếp hạng cả 12 bảng trước khi chọn đội hạng ba.",
+  "wc.thirdPlace.unsaved":
+    "Thay đổi chưa lưu. Nhấn Lưu đội hạng ba để Review tính vào.",
+  "wc.thirdPlace.savedReviewUses":
+    "Đã lưu hạng ba. Review dùng các lựa chọn này.",
+  "wc.thirdPlace.errorChoose8":
+    "Hãy chọn đúng 8 đội hạng ba đi tiếp.",
+  "wc.thirdPlace.errorRankFirst":
+    "Hãy xếp hạng cả 12 bảng trước khi chọn đội hạng ba.",
+  "wc.thirdPlace.failedSave":
+    "Không lưu được đội hạng ba đi tiếp",
+  "wc.thirdPlace.noPickYet": "Chưa chọn đội hạng ba",
+  "wc.thirdPlace.selectedToAdvance": "Đã chọn đi tiếp",
+  "wc.thirdPlace.tapToSelect": "Chạm để chọn",
+  "wc.thirdPlace.selectAria":
+    "Chọn {{name}} làm đội hạng ba đi tiếp",
+  "wc.thirdPlace.aiTitle": "Hỏi Chimmy",
+  "wc.thirdPlace.aiLockedBody":
+    "AI/Pro mở phân tích chọn hạng ba. Người dùng đã khoá chỉ thấy CTA, không gọi AI.",
+
+  // ── Matchup card (gameplay) ──────────────────────────────────────────
+  "wc.matchup.matchLabel": "Trận {{number}}",
+  "wc.matchup.openGuidedAria":
+    "Mở trình chọn có hướng dẫn cho trận {{number}}",
+  "wc.matchup.statusFinal": "Kết thúc",
+  "wc.matchup.statusPostponed": "Hoãn",
+  "wc.matchup.statusCancelled": "Đã huỷ",
+  "wc.matchup.statusSimulated": "Mô phỏng",
+  "wc.matchup.statusTestFixture": "Trận thử",
+  "wc.matchup.statusSaving": "Đang lưu...",
+  "wc.matchup.notReadyPill": "Chưa sẵn sàng để chọn",
+  "wc.matchup.pickBadgeCorrect": "Đúng",
+  "wc.matchup.pickBadgeIncorrect": "Sai",
+  "wc.matchup.pickVisualCorrect": "Lựa chọn đúng",
+  "wc.matchup.pickVisualIncorrect": "Lựa chọn sai",
+  "wc.matchup.pickVisualPending": "Chờ kết quả",
+  "wc.matchup.yourPick": "Lựa chọn của bạn:",
+  "wc.matchup.points": "{{points}} điểm",
+  "wc.matchup.pointsPositive": "+{{points}} điểm",
+  "wc.matchup.zeroPts": "0 điểm",
+  "wc.matchup.pending": "Chờ",
+  "wc.matchup.winnerOfficial": "Đội thắng: {{name}}",
+  "wc.matchup.unpickableFinal": "Trận này đã kết thúc.",
+  "wc.matchup.unpickableMissingTeam":
+    "Hãy chọn người thắng các vòng trước trước.",
+  "wc.matchup.unpickableUnknown": "Chưa có đội.",
+  "wc.matchup.ftBadge": "FT",
+  "wc.matchup.confidenceTitle": "Điểm thưởng niềm tin",
+  "wc.matchup.confidenceHint":
+    "Niềm tin càng cao, điểm thưởng càng nhiều nếu đoán đúng.",
+  "wc.matchup.confidencePointSingle": "{{value}} điểm",
+  "wc.matchup.confidencePointPlural": "{{value}} điểm",
+  "wc.matchup.aiInsightsLabel": "Phân tích AI",
+  "wc.matchup.aiTierOpen": "Mở",
+  "wc.matchup.aiTierLocked": "Đã khoá",
+  "wc.matchup.aiSaferPick": "Lựa chọn an toàn hơn:",
+  "wc.matchup.aiSaferBody":
+    "{{name}} dựa trên thứ tự slot hiện tại của bracket.",
+  "wc.matchup.aiUpsidePick": "Lựa chọn nhiều tiềm năng:",
+  "wc.matchup.aiUpsideBody":
+    "{{name}} nếu bạn cần đường khác biệt.",
+  "wc.matchup.aiBracketImpact": "Ảnh hưởng bracket:",
+  "wc.matchup.aiBracketImpactBody":
+    "Đội thắng vào slot kế; thay đổi lựa chọn này có thể đặt lại các lựa chọn sau.",
+  "wc.matchup.aiUpsetRisk": "Rủi ro cú sốc:",
+  "wc.matchup.aiUpsetRiskBody":
+    "Trung bình cho đến khi có phong độ trực tiếp và kết quả chính thức.",
+  "wc.matchup.aiPrivacyNote":
+    "Chỉ dự đoán và độ phức tạp tính điểm. Hướng dẫn giới hạn ở lựa chọn và cơ chế tính điểm.",
+  "wc.matchup.aiLockedBody":
+    "Nâng cấp AI/Pro để mở phân tích trận. Người dùng đã khoá không kích hoạt gọi AI.",
+  "wc.matchup.pickAriaPicked": "Chọn {{name}} để thắng",
+  "wc.matchup.pickAriaSelected": "Đã chọn: {{name}} để thắng",
+  "wc.matchup.disabledLocked":
+    "Lựa chọn của trận này đã khoá",
+  "wc.matchup.disabledSaving": "Lựa chọn này đang được lưu",
+  "wc.matchup.winnerLabel": "Đội thắng",
+  "wc.matchup.lockHintTournament":
+    "Khoá khi giải bắt đầu",
+  "wc.matchup.lockHintKickoff": "Khoá lúc bóng lăn",
+  "wc.matchup.lockHintTournamentWithTime": "Khoá {{at}}",
+  "wc.matchup.lockHintKickoffWithTime":
+    "Khoá lúc bóng lăn · {{at}}",
+  "wc.matchup.bracketBoardChampionLabel": "Lựa chọn nhà vô địch",
+  "wc.matchup.bracketBoardChampionFallback": "Chưa chọn",
+  "wc.matchup.bracketBoardHelper":
+    "Bracket vòng loại trực tiếp được tạo từ kết quả vòng bảng bạn dự đoán. Các lựa chọn tiến lên ngay khi bạn chọn người thắng.",
+
+  // ── Review tab finalize/missing-picks checklist ──────────────────────
+  "wc.review.savedThirdPlaceTitle":
+    "Đội hạng ba đi tiếp đã lưu",
+  "wc.review.noSavedThirdPlace":
+    "Chưa lưu đội hạng ba đi tiếp.",
+  "wc.review.loadingSavedThirdPlace":
+    "Đang tải lựa chọn hạng ba đã lưu...",
+  "wc.review.savedKnockoutTitle":
+    "Lựa chọn vòng loại trực tiếp đã lưu",
+  "wc.review.noSavedKnockout":
+    "Chưa lưu lựa chọn vòng loại trực tiếp.",
+  "wc.review.knockoutPickPrefix": "Trận {{number}} · ",
+  "wc.review.missingRequirementsTitle": "Còn thiếu yêu cầu",
+  "wc.review.needsRefinalize":
+    "Entry đã thay đổi sau khi gửi. Hoàn tất lựa chọn còn thiếu và gửi lại.",
+  "wc.review.missingGroupRankings":
+    "Thiếu xếp hạng bảng: {{groups}}",
+  "wc.review.thirdPlaceCount":
+    "Đã chọn đội hạng ba đi tiếp: {{count}}/8",
+  "wc.review.missingKnockout":
+    "Thiếu lựa chọn vòng loại trực tiếp: {{count}}",
+  "wc.review.lockedNoTime":
+    "Đã khoá: không thể chỉnh sửa lựa chọn nữa",
+  "wc.review.lockedWithTime":
+    "Đã khoá: không thể chỉnh sửa lựa chọn nữa · gửi lúc {{at}}",
+  "wc.review.completeDraftHelper":
+    "Bản nháp đã hoàn tất. Hoàn tất để gửi lên bảng xếp hạng; bạn vẫn có thể chỉnh sửa trước khi khoá.",
+  "wc.review.finalizing": "Đang hoàn tất...",
+  "wc.review.finalizeEntry": "Hoàn tất Entry",
+  "wc.review.refinalizeEntry": "Hoàn tất lại Entry",
+  "wc.review.completeAllToUnlock":
+    "Hoàn thành tất cả yêu cầu còn thiếu để mở khoá Hoàn tất.",
+  "wc.review.tapRefresh":
+    "Nhấn Refresh Review để xem tiến độ.",
+  "wc.review.createEntryFirstTitle": "Tạo entry trước",
+  "wc.review.createEntryFirstBody":
+    "Review và hoàn tất được lưu cho từng entry bracket.",
+  "wc.review.createMyBracket": "Tạo bracket của tôi",
+  "wc.review.creating": "Đang tạo...",
+  "wc.review.openMyBracket": "Mở bracket của tôi",
 }
 
 export const WORLD_CUP_TRANSLATIONS: Record<WorldCupLocale, WorldCupDictionary> = {

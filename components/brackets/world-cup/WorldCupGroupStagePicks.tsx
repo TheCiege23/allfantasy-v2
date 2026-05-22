@@ -13,6 +13,10 @@ import {
   buildWorldCupGroupStageGroupInsights,
   buildWorldCupGroupStageThirdPlaceInsights,
 } from "@/lib/world-cup/worldCupAiInsights"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
+
+type TranslateFn = ReturnType<typeof makeWcT>
 
 type Props = {
   challengeId: string
@@ -54,10 +58,26 @@ function resultBorderClass(status: "correct" | "wrong" | "pending" | "none") {
   return "border-white/10"
 }
 
-function resultBadge(status: "correct" | "wrong" | "pending" | "none", pointsAwarded = 0) {
-  if (status === "correct") return { label: `Correct +${pointsAwarded}`, className: "border-cyan-300/30 bg-cyan-300/10 text-cyan-100" }
-  if (status === "wrong") return { label: "Wrong +0", className: "border-rose-300/30 bg-rose-400/10 text-rose-100" }
-  if (status === "pending") return { label: "Pending", className: "border-amber-300/25 bg-amber-400/10 text-amber-100" }
+function resultBadge(
+  status: "correct" | "wrong" | "pending" | "none",
+  t: TranslateFn,
+  pointsAwarded = 0
+) {
+  if (status === "correct")
+    return {
+      label: t("wc.groupStage.resultCorrect", { points: pointsAwarded }),
+      className: "border-cyan-300/30 bg-cyan-300/10 text-cyan-100",
+    }
+  if (status === "wrong")
+    return {
+      label: t("wc.groupStage.resultWrong"),
+      className: "border-rose-300/30 bg-rose-400/10 text-rose-100",
+    }
+  if (status === "pending")
+    return {
+      label: t("wc.groupStage.resultPending"),
+      className: "border-amber-300/25 bg-amber-400/10 text-amber-100",
+    }
   return null
 }
 
@@ -115,12 +135,14 @@ function GroupAiInsightPanel({
   order,
   teams,
   unlocked,
+  t,
 }: {
   groupName: string
   groupKey: string
   order: string[]
   teams: WorldCupGroupStageTeamClient[]
   unlocked: boolean
+  t: TranslateFn
 }) {
   const insightTeams = teams.map((team) => ({
     teamId: team.teamId,
@@ -141,10 +163,10 @@ function GroupAiInsightPanel({
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-black">
         <span className="inline-flex items-center gap-1.5">
           <Sparkles className="h-3.5 w-3.5" />
-          AI Insights
+          {t("wc.groupStage.aiTitle")}
         </span>
         <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] uppercase tracking-wide">
-          {unlocked ? "Open" : "Locked"}
+          {unlocked ? t("wc.groupStage.aiTierOpen") : t("wc.groupStage.aiTierLocked")}
         </span>
       </summary>
       {unlocked ? (
@@ -155,12 +177,12 @@ function GroupAiInsightPanel({
             </p>
           ))}
           <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/55">
-            Prediction and scoring complexity only. Bracket guidance stays limited to pool picks and scoring mechanics.
+            {t("wc.groupStage.aiPrivacyNote")}
           </p>
         </div>
       ) : (
         <div className="mt-3 rounded-lg border border-white/10 bg-black/25 px-2 py-2 text-[11px] leading-5 text-white/60" hidden>
-          Upgrade to AI/Pro to open deterministic World Cup insights. No AI is called while this is locked.
+          {t("wc.groupStage.aiLockedBody")}
         </div>
       )}
     </details>
@@ -171,10 +193,12 @@ function ThirdPlaceAiInsightPanel({
   groups,
   thirdPlacePicks,
   unlocked,
+  t,
 }: {
   groups: WorldCupGroupStageViewClient["groups"]
   thirdPlacePicks: WorldCupGroupStageViewClient["thirdPlaceAdvancerPicks"]
   unlocked: boolean
+  t: TranslateFn
 }) {
   const insightGroups = groups.map((g) => ({
     id: g.id,
@@ -193,8 +217,8 @@ function ThirdPlaceAiInsightPanel({
   return (
     <details data-testid="world-cup-third-place-ai-insight" className="mt-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3 text-xs text-cyan-50">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-black">
-        <span className="inline-flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" /> Ask Chimmy</span>
-        <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] uppercase tracking-wide">{unlocked ? "Open" : "Locked"}</span>
+        <span className="inline-flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" /> {t("wc.thirdPlace.aiTitle")}</span>
+        <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] uppercase tracking-wide">{unlocked ? t("wc.groupStage.aiTierOpen") : t("wc.groupStage.aiTierLocked")}</span>
       </summary>
       {unlocked ? (
         <div className="mt-3 space-y-2 leading-5 text-cyan-50/85">
@@ -204,12 +228,12 @@ function ThirdPlaceAiInsightPanel({
             </p>
           ))}
           <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/55">
-            Prediction and scoring complexity only. Bracket guidance stays limited to pool picks and scoring mechanics.
+            {t("wc.groupStage.aiPrivacyNote")}
           </p>
         </div>
       ) : (
         <div className="mt-3 rounded-lg border border-white/10 bg-black/25 px-2 py-2 text-[11px] leading-5 text-white/60" hidden>
-          AI/Pro unlocks third-place selection insights. Locked users only see this CTA and no AI request is made.
+          {t("wc.thirdPlace.aiLockedBody")}
         </div>
       )}
     </details>
@@ -217,6 +241,12 @@ function ThirdPlaceAiInsightPanel({
 }
 
 export default function WorldCupGroupStagePicks({ challengeId, entryId, onCompletionChanged, onDirtyChange, aiInsightsUnlocked = false }: Props) {
+  // Hydration-safe: locale flows from the global LanguageProviderClient
+  // which reads <html data-lang> on first render — SSR HTML matches the
+  // first CSR pass.
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
+
   const [view, setView] = useState<WorldCupGroupStageViewClient | null>(null)
   const [localOrders, setLocalOrders] = useState<Record<string, string[]>>({})
   const [saveStates, setSaveStates] = useState<Record<string, GroupSaveState>>({})
@@ -248,7 +278,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
       })
       .catch((err) => {
         if (cancelled) return
-        setError(err instanceof Error ? err.message : "Failed to load group stage")
+        setError(err instanceof Error ? err.message : t("wc.groupStage.failedLoad"))
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false)
@@ -256,7 +286,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
     return () => {
       cancelled = true
     }
-  }, [challengeId, entryId])
+  }, [challengeId, entryId, t])
 
   const isLocked = Boolean(view?.lock.isLocked)
   const hasUnsavedThirdPlaceChanges = Boolean(
@@ -302,7 +332,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
     }
     if (group && group.teams.length !== 4) {
       setSaveStates((prev) => ({ ...prev, [groupId]: "error" }))
-      setError(`${group.displayName} needs 4 teams before it can be saved.`)
+      setError(t("wc.groupStage.needsFourTeams", { group: group.displayName }))
       return
     }
     savingGroupIdsRef.current.add(groupId)
@@ -323,7 +353,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
       onCompletionChanged?.()
     } catch (err) {
       setSaveStates((prev) => ({ ...prev, [groupId]: "error" }))
-      setError(err instanceof Error ? err.message : "Failed to save group ranking")
+      setError(err instanceof Error ? err.message : t("wc.groupStage.failedSave"))
     } finally {
       savingGroupIdsRef.current.delete(groupId)
     }
@@ -338,7 +368,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
       } else if (next.size < 8) {
         next.add(teamId)
       } else {
-        setThirdPlaceError("Choose exactly 8 third-place advancers.")
+        setThirdPlaceError(t("wc.thirdPlace.errorChoose8"))
       }
       return next
     })
@@ -349,11 +379,11 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
     if (savingThirdPlaceRef.current) return
     setThirdPlaceError(null)
     if (!view?.completion.allGroupsRanked) {
-      setThirdPlaceError("Rank all 12 groups before choosing third-place advancers.")
+      setThirdPlaceError(t("wc.thirdPlace.errorRankFirst"))
       return
     }
     if (thirdPlaceSelection.size !== 8) {
-      setThirdPlaceError("Choose exactly 8 third-place advancers.")
+      setThirdPlaceError(t("wc.thirdPlace.errorChoose8"))
       return
     }
     savingThirdPlaceRef.current = true
@@ -368,7 +398,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
       onCompletionChanged?.()
     } catch (err) {
       setThirdPlaceStatus("error")
-      setThirdPlaceError(err instanceof Error ? err.message : "Failed to save third-place advancers")
+      setThirdPlaceError(err instanceof Error ? err.message : t("wc.thirdPlace.failedSave"))
     } finally {
       savingThirdPlaceRef.current = false
     }
@@ -378,7 +408,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
     return (
       <section data-testid="world-cup-group-stage-loading" className="mx-auto max-w-6xl rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-sm text-white/55">
         <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
-        Loading group-stage picks...
+        {t("wc.groupStage.loading")}
       </section>
     )
   }
@@ -398,18 +428,20 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
       <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 className="text-xl font-black text-white">Group Stage Picks</h2>
+            <h2 className="text-xl font-black text-white">{t("wc.groupStage.title")}</h2>
             <p className="mt-1 text-sm text-white/50">
-              Rank each group 1st through 4th, then choose 8 third-place teams to advance.
+              {t("wc.groupStage.subtitle")}
             </p>
           </div>
           <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm font-bold text-white/70">
-            Groups ranked: {view.completion.groupsRankedCount}/12
+            {t("wc.groupStage.rankedCount", { done: view.completion.groupsRankedCount })}
           </div>
         </div>
         {isLocked ? (
           <p className="mt-3 rounded-lg border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs font-bold text-rose-100">
-            Group-stage picks are locked{view.lock.lockReason ? `: ${view.lock.lockReason}` : "."}
+            {view.lock.lockReason
+              ? t("wc.groupStage.lockedWithReason", { reason: view.lock.lockReason })
+              : t("wc.groupStage.lockedNoReason")}
           </p>
         ) : null}
         {error ? <p className="mt-3 rounded-lg bg-rose-400/10 px-3 py-2 text-xs text-rose-100">{error}</p> : null}
@@ -432,14 +464,14 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
             <div key={group.id} data-testid={`world-cup-group-${group.groupKey}`} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h3 className="font-black text-white">{group.displayName}</h3>
-                <span className="text-xs text-white/45">{order.length}/4 teams</span>
+                <span className="text-xs text-white/45">{t("wc.groupStage.teamCount", { count: order.length })}</span>
               </div>
               <div className="space-y-2">
                 {order.map((teamId, index) => {
                   const team = findTeam(group.teams, teamId)
                   const pick = groupPickForTeam(view, group.id, teamId)
                   const status = groupRankingResultStatus(view, group.id, teamId)
-                  const badge = resultBadge(status, pick?.pointsAwarded ?? 0)
+                  const badge = resultBadge(status, t, pick?.pointsAwarded ?? 0)
                   return (
                     <div
                       key={teamId}
@@ -449,10 +481,11 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                     >
                       <span className="w-7 shrink-0 text-center text-sm font-black text-cyan-100">{index + 1}</span>
                       <div className="min-w-0 flex-1">
+                        {/* Team name (team?.name) is intentionally NOT translated — see Phase 5 brief. */}
                         <div className="truncate text-sm font-bold text-white">{team?.name ?? teamId}</div>
                         <div className="truncate text-xs text-white/40">
-                          {team?.country ?? "Team"}
-                          {team?.actualRank ? ` · Actual #${team.actualRank}` : ""}
+                          {team?.country ?? t("wc.groupStage.teamFallback")}
+                          {team?.actualRank ? ` · ${t("wc.groupStage.actualRank", { rank: team.actualRank })}` : ""}
                         </div>
                       </div>
                       {badge ? (
@@ -467,7 +500,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                           disabled={isLocked || index === 0}
                           className="min-h-9 rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-bold text-white/70 touch-manipulation disabled:opacity-35"
                         >
-                          Move Up
+                          {t("wc.groupStage.moveUp")}
                         </button>
                         <button
                           type="button"
@@ -475,7 +508,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                           disabled={isLocked || index === order.length - 1}
                           className="min-h-9 rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-bold text-white/70 touch-manipulation disabled:opacity-35"
                         >
-                          Move Down
+                          {t("wc.groupStage.moveDown")}
                         </button>
                       </div>
                     </div>
@@ -484,16 +517,16 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
               </div>
               {!hasCompleteTeams ? (
                 <p className="mt-3 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-100">
-                  {group.displayName} needs 4 teams before it can be saved.
+                  {t("wc.groupStage.needsFourTeams", { group: group.displayName })}
                 </p>
               ) : null}
               {hasUnsavedOrderChanges ? (
                 <p className="mt-3 rounded-lg border border-cyan-300/25 bg-cyan-400/10 px-3 py-2 text-xs font-bold text-cyan-100">
-                  Unsaved order change. Click Save Group before Review will count it.
+                  {t("wc.groupStage.unsavedOrder")}
                 </p>
               ) : state === "saved" ? (
                 <p className="mt-3 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-100">
-                  Saved. Review uses this group order.
+                  {t("wc.groupStage.savedReviewUses")}
                 </p>
               ) : null}
               <GroupAiInsightPanel
@@ -502,6 +535,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                 order={order}
                 teams={group.teams}
                 unlocked={aiInsightsUnlocked}
+                t={t}
               />
               <button
                 type="button"
@@ -509,7 +543,13 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                 disabled={isLocked || state === "saving" || !hasCompleteTeams || !hasUnsavedOrderChanges}
                 className="mt-3 w-full rounded-xl bg-cyan-300 px-3 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:opacity-45"
               >
-                {state === "saving" ? "Saving..." : state === "saved" && !hasUnsavedOrderChanges ? "Saved" : state === "error" ? "Retry Save" : "Save Group"}
+                {state === "saving"
+                  ? t("wc.groupStage.saving")
+                  : state === "saved" && !hasUnsavedOrderChanges
+                    ? t("wc.groupStage.saved")
+                    : state === "error"
+                      ? t("wc.groupStage.retrySave")
+                      : t("wc.groupStage.saveGroup")}
               </button>
             </div>
           )
@@ -519,14 +559,14 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
       <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h3 className="text-lg font-black text-white">Third-Place Advancers</h3>
+            <h3 className="text-lg font-black text-white">{t("wc.thirdPlace.title")}</h3>
             <p className="mt-1 text-sm text-white/50">
-              Choose exactly 8 predicted third-place teams after all groups are ranked.
+              {t("wc.thirdPlace.subtitle")}
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:items-end">
             <div data-testid="world-cup-third-place-count" className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm font-bold text-white/70">
-              Third-place advancers selected: {thirdPlaceSelection.size}/8
+              {t("wc.thirdPlace.selectedCount", { count: thirdPlaceSelection.size })}
             </div>
             <button
               type="button"
@@ -534,24 +574,28 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
               disabled={isLocked || !view.completion.allGroupsRanked || thirdPlaceStatus === "saving" || !hasUnsavedThirdPlaceChanges}
               className="min-h-11 rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black touch-manipulation disabled:cursor-not-allowed disabled:opacity-45"
             >
-              {thirdPlaceStatus === "saving" ? "Saving..." : thirdPlaceStatus === "saved" ? "Saved" : "Save Third-Place"}
+              {thirdPlaceStatus === "saving"
+                ? t("wc.thirdPlace.saving")
+                : thirdPlaceStatus === "saved"
+                  ? t("wc.thirdPlace.saved")
+                  : t("wc.thirdPlace.saveBtn")}
             </button>
           </div>
         </div>
 
         {!view.completion.allGroupsRanked ? (
           <p className="mt-3 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-            Rank all 12 groups before selecting third-place advancers.
+            {t("wc.thirdPlace.rankAllFirst")}
           </p>
         ) : null}
         {thirdPlaceError ? <p className="mt-3 rounded-lg bg-rose-400/10 px-3 py-2 text-xs text-rose-100">{thirdPlaceError}</p> : null}
         {hasUnsavedThirdPlaceChanges ? (
           <p className="mt-3 rounded-lg border border-cyan-300/25 bg-cyan-400/10 px-3 py-2 text-xs font-bold text-cyan-100">
-            Unsaved third-place changes. Click Save Third-Place Advancers before Review will count them.
+            {t("wc.thirdPlace.unsaved")}
           </p>
         ) : thirdPlaceStatus === "saved" ? (
           <p className="mt-3 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-100">
-            Third-place picks saved. Review uses these selections.
+            {t("wc.thirdPlace.savedReviewUses")}
           </p>
         ) : null}
         <ThirdPlaceAiInsightPanel
@@ -561,6 +605,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
             isSelected: thirdPlaceSelection.has(pick.teamId),
           }))}
           unlocked={aiInsightsUnlocked}
+          t={t}
         />
 
         <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -570,7 +615,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
             const pick = candidate.team?.teamId
               ? view.thirdPlaceAdvancerPicks.find((row) => row.teamId === candidate.team?.teamId && row.isSelected)
               : null
-            const badge = resultBadge(status, pick?.pointsAwarded ?? 0)
+            const badge = resultBadge(status, t, pick?.pointsAwarded ?? 0)
             return (
               <label
                 key={candidate.groupId}
@@ -592,7 +637,9 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                   onChange={() => candidate.team && toggleThirdPlace(candidate.team.teamId)}
                   disabled={isLocked || !view.completion.allGroupsRanked || !candidate.team}
                   className="sr-only"
-                  aria-label={`Select ${candidate.team?.name ?? candidate.displayName} as a third-place advancer`}
+                  aria-label={t("wc.thirdPlace.selectAria", {
+                    name: candidate.team?.name ?? candidate.displayName,
+                  })}
                 />
                 <span
                   aria-hidden
@@ -609,9 +656,10 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                   <span className={isSelected ? "block text-xs font-black uppercase tracking-wide text-cyan-100" : "block text-xs font-black uppercase tracking-wide text-white/45"}>
                     {candidate.displayName}
                   </span>
-                  <span className="block truncate text-base font-black text-white">{candidate.team?.name ?? "No 3rd-place pick yet"}</span>
+                  {/* Team name (candidate.team?.name) intentionally untranslated — Phase 5 brief. */}
+                  <span className="block truncate text-base font-black text-white">{candidate.team?.name ?? t("wc.thirdPlace.noPickYet")}</span>
                   <span className={isSelected ? "mt-0.5 block text-[11px] font-bold text-cyan-100" : "mt-0.5 block text-[11px] text-white/40"}>
-                    {isSelected ? "Selected to advance" : "Tap to select"}
+                    {isSelected ? t("wc.thirdPlace.selectedToAdvance") : t("wc.thirdPlace.tapToSelect")}
                   </span>
                 </span>
                 {badge ? (
@@ -630,7 +678,11 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
           disabled={isLocked || !view.completion.allGroupsRanked || thirdPlaceStatus === "saving" || !hasUnsavedThirdPlaceChanges}
           className="mt-4 min-h-11 w-full rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black touch-manipulation disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto"
         >
-          {thirdPlaceStatus === "saving" ? "Saving..." : thirdPlaceStatus === "saved" ? "Saved Third-Place Picks" : "Save Third-Place Advancers"}
+          {thirdPlaceStatus === "saving"
+            ? t("wc.thirdPlace.saving")
+            : thirdPlaceStatus === "saved"
+              ? t("wc.thirdPlace.savePicksDone")
+              : t("wc.thirdPlace.savePrimaryBtn")}
         </button>
       </div>
     </section>

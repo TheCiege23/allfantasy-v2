@@ -4,6 +4,8 @@ import { WORLD_CUP_ROUNDS } from "@/lib/world-cup/types"
 import type { WorldCupChallengeView, WorldCupMatchView, WorldCupPickView, WorldCupRound } from "@/lib/world-cup/types"
 import { hasWorldCupPickSelection } from "@/lib/world-cup/worldCupProjectedBracket"
 import WorldCupRoundColumn from "./WorldCupRoundColumn"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 
 export default function WorldCupBracketBoard({
 	view,
@@ -26,6 +28,9 @@ export default function WorldCupBracketBoard({
 	aiInsightsUnlocked?: boolean
 	confidenceScoringEnabled?: boolean
 }) {
+	// Hydration-safe: locale flows from the global LanguageProviderClient.
+	const { language } = useOptionalLanguage()
+	const t = useMemo(() => makeWcT(language), [language])
 	const champion = picks.find((p) => p.round === "final" && hasWorldCupPickSelection(p))
 	const rounds = WORLD_CUP_ROUNDS.filter((r) => matches.some((m) => m.round === r && (r !== "third_place" || view.challenge.includeThirdPlace)))
 	const { pickLockStrategy, pickLockAt } = view.challenge
@@ -33,11 +38,12 @@ export default function WorldCupBracketBoard({
 		<div data-testid="world-cup-knockout-board-scroll" className="min-h-full scroll-pt-32 px-3 pb-6 pt-6 sm:px-5 sm:pt-8">
 			<div className="mb-3 flex min-w-0 flex-col gap-2 sm:mb-4 sm:min-w-max sm:flex-row sm:items-center sm:gap-3">
 				<div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 py-2.5 sm:px-4 sm:py-3">
-					<div className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-100/60 sm:text-[10px]">Champion Pick</div>
-					<div className="mt-0.5 truncate text-base font-black text-white sm:mt-1 sm:text-lg">{champion?.selectedTeamName ?? "Not picked"}</div>
+					<div className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-100/60 sm:text-[10px]">{t("wc.matchup.bracketBoardChampionLabel")}</div>
+					{/* champion?.selectedTeamName is a team name — intentionally NOT translated. */}
+					<div className="mt-0.5 truncate text-base font-black text-white sm:mt-1 sm:text-lg">{champion?.selectedTeamName ?? t("wc.matchup.bracketBoardChampionFallback")}</div>
 				</div>
 				<div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-[11px] leading-snug text-white/50 sm:px-4 sm:py-3 sm:text-xs">
-					Your knockout bracket is generated from your predicted group results. Picks advance visually as soon as you choose a winner.
+					{t("wc.matchup.bracketBoardHelper")}
 				</div>
 			</div>
 			<div className="flex min-w-max gap-3 sm:gap-4">

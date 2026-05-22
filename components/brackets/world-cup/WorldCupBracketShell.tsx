@@ -2954,7 +2954,7 @@ export default function WorldCupBracketShell({
                     }}
                     isCreatingEntry={isCreatingEntry}
                     openDisabled={isCreatingEntry || (isLocked && !selectedEntryId && entries.length === 0)}
-                    openLabel={selectedEntryId || entries.length > 0 ? "Open My Bracket" : "Create My Bracket"}
+                    openLabel={selectedEntryId || entries.length > 0 ? t("wc.review.openMyBracket") : t("wc.review.createMyBracket")}
                   />
                 }
               >
@@ -3007,7 +3007,7 @@ export default function WorldCupBracketShell({
                     className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:opacity-45"
                   >
                     {isCreatingEntry ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                    {isCreatingEntry ? "Creating..." : "Create My Bracket"}
+                    {isCreatingEntry ? t("wc.review.creating") : t("wc.review.createMyBracket")}
                   </button>
                 </div>
 
@@ -3345,7 +3345,7 @@ export default function WorldCupBracketShell({
                     disabled={isLocked || isCreatingEntry || entries.length >= view.challenge.maxEntriesPerParticipant}
                     className="rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-bold text-white/75 disabled:opacity-45"
                   >
-                    {isCreatingEntry ? "Creating..." : "Create My Bracket"}
+                    {isCreatingEntry ? t("wc.review.creating") : t("wc.review.createMyBracket")}
                   </button>
                 </div>
               </section>
@@ -3607,7 +3607,7 @@ export default function WorldCupBracketShell({
                       </div>
 
                       <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-                        <p className="text-sm font-black text-white">Saved Third-Place Advancers</p>
+                        <p className="text-sm font-black text-white">{t("wc.review.savedThirdPlaceTitle")}</p>
                         {reviewGroupStageView ? (
                           <div className="mt-2 flex flex-wrap gap-2">
                             {reviewGroupStageView.thirdPlaceAdvancerPicks.filter((pick) => pick.isSelected).length > 0 ? (
@@ -3615,22 +3615,23 @@ export default function WorldCupBracketShell({
                                 const result = worldCupReviewStatusLabel(pick)
                                 return (
                                   <span key={pick.id} data-result-state={result.status} className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-bold ${worldCupReviewStatusClass(result.status)}`}>
+                                    {/* Team name intentionally NOT translated — Phase 5 brief. */}
                                     {teamNameFromGroupStageReview(reviewGroupStageView, pick.teamId)}
                                     <span className="text-[10px] opacity-80">{result.label}</span>
                                   </span>
                                 )
                               })
                             ) : (
-                              <p className="rounded-md border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-xs text-amber-100">No saved third-place advancers yet.</p>
+                              <p className="rounded-md border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-xs text-amber-100">{t("wc.review.noSavedThirdPlace")}</p>
                             )}
                           </div>
                         ) : (
-                          <p className="mt-2 text-xs text-white/40">Loading saved third-place picks...</p>
+                          <p className="mt-2 text-xs text-white/40">{t("wc.review.loadingSavedThirdPlace")}</p>
                         )}
                       </div>
 
                       <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-                        <p className="text-sm font-black text-white">Saved Knockout Picks</p>
+                        <p className="text-sm font-black text-white">{t("wc.review.savedKnockoutTitle")}</p>
                         <div className="mt-2 space-y-1.5">
                           {picks.filter(hasWorldCupPickSelection).length > 0 ? (
                             picks.filter(hasWorldCupPickSelection).map((pick) => {
@@ -3639,7 +3640,8 @@ export default function WorldCupBracketShell({
                               return (
                                 <div key={pick.id} data-testid={`world-cup-review-knockout-pick-${pick.matchId}`} data-result-state={result.status} className="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2 py-1.5 text-xs">
                                   <span className="min-w-0 truncate text-white/75">
-                                    {match ? `Match ${match.matchNumber} · ` : ""}{pick.selectedTeamName}
+                                    {/* pick.selectedTeamName intentionally NOT translated — Phase 5 brief. */}
+                                    {match ? t("wc.review.knockoutPickPrefix", { number: match.matchNumber }) : ""}{pick.selectedTeamName}
                                   </span>
                                   <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-black ${worldCupReviewStatusClass(result.status)}`}>
                                     {result.label}
@@ -3648,7 +3650,7 @@ export default function WorldCupBracketShell({
                               )
                             })
                           ) : (
-                            <p className="rounded-md border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-xs text-amber-100">No saved knockout picks yet.</p>
+                            <p className="rounded-md border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-xs text-amber-100">{t("wc.review.noSavedKnockout")}</p>
                           )}
                         </div>
                       </div>
@@ -3656,21 +3658,21 @@ export default function WorldCupBracketShell({
 
                     {!completionReview.fullEntryComplete ? (
                       <div className="rounded-xl border border-amber-300/25 bg-amber-500/10 p-3 text-xs text-amber-100">
-                        <p className="font-black">Missing requirements</p>
+                        <p className="font-black">{t("wc.review.missingRequirementsTitle")}</p>
                         {completionReview.needsRefinalize ? (
                           <p className="mt-1 font-bold">
-                            Entry changed after submission. Complete missing picks and finalize again.
+                            {t("wc.review.needsRefinalize")}
                           </p>
                         ) : null}
                         <ul className="mt-2 list-disc space-y-1 pl-5">
                           {completionReview.missingGroups.length > 0 ? (
-                            <li>Missing group rankings: {completionReview.missingGroups.join(", ")}</li>
+                            <li>{t("wc.review.missingGroupRankings", { groups: completionReview.missingGroups.join(", ") })}</li>
                           ) : null}
                           {completionReview.thirdPlaceSelectedCount !== 8 ? (
-                            <li>Third-place advancers selected: {completionReview.thirdPlaceSelectedCount}/8</li>
+                            <li>{t("wc.review.thirdPlaceCount", { count: completionReview.thirdPlaceSelectedCount })}</li>
                           ) : null}
                           {completionReview.missingKnockoutPicks > 0 ? (
-                            <li>Missing knockout picks: {completionReview.missingKnockoutPicks}</li>
+                            <li>{t("wc.review.missingKnockout", { count: completionReview.missingKnockoutPicks })}</li>
                           ) : null}
                         </ul>
                       </div>
@@ -3678,7 +3680,9 @@ export default function WorldCupBracketShell({
 
                     {completionReview.isLocked ? (
                       <div className="rounded-xl border border-rose-300/25 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">
-                        Locked: picks can no longer be edited{completionReview.submittedAt ? ` · submitted ${new Date(completionReview.submittedAt).toLocaleString()}` : ""}
+                        {completionReview.submittedAt
+                          ? t("wc.review.lockedWithTime", { at: new Date(completionReview.submittedAt).toLocaleString() })
+                          : t("wc.review.lockedNoTime")}
                       </div>
                     ) : completionReview.fullEntryComplete && completionReview.submittedAt ? (
                       <WorldCupFinalizedSuccessBlock
@@ -3701,7 +3705,7 @@ export default function WorldCupBracketShell({
                       />
                     ) : completionReview.fullEntryComplete ? (
                       <div className="space-y-2">
-                        <p className="text-xs font-bold text-cyan-100/80">Complete draft. Finalize to submit it to the leaderboard; you can still edit until lock.</p>
+                        <p className="text-xs font-bold text-cyan-100/80">{t("wc.review.completeDraftHelper")}</p>
                         <button
                           type="button"
                           onClick={() => void handleFinalizeEntry()}
@@ -3709,36 +3713,36 @@ export default function WorldCupBracketShell({
                           className="rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-45"
                         >
                           {isFinalizingEntry
-                            ? "Finalizing..."
+                            ? t("wc.review.finalizing")
                             : completionReview.needsRefinalize || completionReview.isComplete
-                              ? "Re-finalize Entry"
-                              : "Finalize Entry"}
+                              ? t("wc.review.refinalizeEntry")
+                              : t("wc.review.finalizeEntry")}
                         </button>
                       </div>
                     ) : (
                       <p className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-bold text-white/45">
-                        Complete all missing requirements to unlock Finalize.
+                        {t("wc.review.completeAllToUnlock")}
                       </p>
                     )}
                   </div>
                 ) : (
                   <p className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/45">
-                    Tap Refresh Review to check completion.
+                    {t("wc.review.tapRefresh")}
                   </p>
                 )}
               </section>
             ) : (
               <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 text-center">
                 <Trophy className="mx-auto h-8 w-8 text-cyan-200/50" />
-                <h2 className="mt-3 text-xl font-black text-white">Create an entry first</h2>
-                <p className="mt-2 text-sm text-white/50">Review and finalization are saved per bracket entry.</p>
+                <h2 className="mt-3 text-xl font-black text-white">{t("wc.review.createEntryFirstTitle")}</h2>
+                <p className="mt-2 text-sm text-white/50">{t("wc.review.createEntryFirstBody")}</p>
                 <button
                   type="button"
                   onClick={handleCreateEntry}
                   disabled={isLocked || isCreatingEntry || entries.length >= view.challenge.maxEntriesPerParticipant}
                   className="mt-4 rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black disabled:opacity-45"
                 >
-                  {isCreatingEntry ? "Creating..." : "Create My Bracket"}
+                  {isCreatingEntry ? t("wc.review.creating") : t("wc.review.createMyBracket")}
                 </button>
               </section>
             )}

@@ -15,6 +15,8 @@ import {
   isWorldCupMatchPickable,
 } from "@/lib/world-cup/worldCupProjectedBracket"
 import WorldCupTeamFlag from "./WorldCupTeamFlag"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 
 function formatLockTime(iso: string): string {
   try {
@@ -80,6 +82,9 @@ export default function WorldCupMatchupCard({
   aiInsightsUnlocked?: boolean
   confidenceScoringEnabled?: boolean
 }) {
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
+
   const confidenceOptions = useMemo(() => Array.from({ length: 32 }, (_, index) => index + 1), [])
   const [confidenceDraft, setConfidenceDraft] = useState(() => pick?.confidencePoints ?? 1)
 
@@ -104,12 +109,12 @@ export default function WorldCupMatchupCard({
   const unpickableReason = matchIsPickable ? null : getWorldCupUnpickableReason(match)
   const unpickableMessage =
     unpickableReason === "final"
-      ? "This match is final."
+      ? t("wc.matchup.unpickableFinal")
       : unpickableReason === "missing_home_team" ||
           unpickableReason === "missing_away_team" ||
           unpickableReason === "placeholder_team"
-        ? "Pick earlier round winners first."
-        : "Teams not available yet."
+        ? t("wc.matchup.unpickableMissingTeam")
+        : t("wc.matchup.unpickableUnknown")
 
   const teams = [
     { side: "home" as const, slotKey: match.homeSlotKey, teamId: match.homeTeamId, name: match.homeTeamName, logo: match.homeTeamLogo, score: match.homeScore },
@@ -124,14 +129,16 @@ export default function WorldCupMatchupCard({
   let lockHint: string | null = null
   if (!locked) {
     if (lockStrategy === "tournament_start" && tournamentLockAt) {
-      lockHint = hasMounted ? `Locks ${formatLockTime(tournamentLockAt)}` : "Locks at tournament start"
+      lockHint = hasMounted
+        ? t("wc.matchup.lockHintTournamentWithTime", { at: formatLockTime(tournamentLockAt) })
+        : t("wc.matchup.lockHintTournament")
     } else if (lockStrategy === "per_match" || !lockStrategy) {
       if (match.startsAt) {
         lockHint = hasMounted
-          ? `Locks at kickoff · ${formatLockTime(match.startsAt as string)}`
-          : "Locks at kickoff"
+          ? t("wc.matchup.lockHintKickoffWithTime", { at: formatLockTime(match.startsAt as string) })
+          : t("wc.matchup.lockHintKickoff")
       } else {
-        lockHint = "Locks at kickoff"
+        lockHint = t("wc.matchup.lockHintKickoff")
       }
     }
   }
@@ -163,10 +170,10 @@ export default function WorldCupMatchupCard({
         role={onOpenMatchupPicker ? "button" : undefined}
         tabIndex={onOpenMatchupPicker ? 0 : undefined}
         onKeyDown={onOpenMatchupPicker ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpenMatchupPicker(match.id) } } : undefined}
-        aria-label={onOpenMatchupPicker ? `Open guided picker for match ${match.matchNumber}` : undefined}
+        aria-label={onOpenMatchupPicker ? t("wc.matchup.openGuidedAria", { number: match.matchNumber }) : undefined}
       >
         <span className="text-[10px] font-black uppercase tracking-[0.18em] text-white/35">
-          Match {match.matchNumber}
+          {t("wc.matchup.matchLabel", { number: match.matchNumber })}
         </span>
         <div className="flex items-center gap-1">
           {/* Live / HT status pill */}
@@ -178,48 +185,48 @@ export default function WorldCupMatchupCard({
           )}
           {isFinal && (
             <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-200">
-              Final
+              {t("wc.matchup.statusFinal")}
             </span>
           )}
           {isPostponed && (
             <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-200">
-              Postponed
+              {t("wc.matchup.statusPostponed")}
             </span>
           )}
           {isCancelled && (
             <span className="rounded-full bg-zinc-500/15 px-2 py-0.5 text-[10px] font-bold text-zinc-400">
-              Cancelled
+              {t("wc.matchup.statusCancelled")}
             </span>
           )}
           {isSimulated && (
             <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-200">
-              Simulated
+              {t("wc.matchup.statusSimulated")}
             </span>
           )}
           {isTestFixture && (
             <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold text-sky-200">
-              Test Fixture
+              {t("wc.matchup.statusTestFixture")}
             </span>
           )}
           {!matchIsPickable && !isFinal && (
             <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-200" title={unpickableReason ?? "unknown"}>
-              Not ready for picks
+              {t("wc.matchup.notReadyPill")}
             </span>
           )}
           {isSaving ? (
             <span className="rounded-full bg-cyan-300/15 px-2 py-0.5 text-[10px] font-bold text-cyan-100">
-              Saving...
+              {t("wc.matchup.statusSaving")}
             </span>
           ) : null}
           {/* Pick result badges */}
           {pickLiveState === "correct" && (
             <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-400/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-200">
-              <Check className="h-2.5 w-2.5" /> Correct
+              <Check className="h-2.5 w-2.5" /> {t("wc.matchup.pickBadgeCorrect")}
             </span>
           )}
           {pickLiveState === "incorrect" && (
             <span className="inline-flex items-center gap-0.5 rounded-full bg-rose-400/15 px-1.5 py-0.5 text-[10px] font-bold text-rose-300">
-              <X className="h-2.5 w-2.5" /> Incorrect
+              <X className="h-2.5 w-2.5" /> {t("wc.matchup.pickBadgeIncorrect")}
             </span>
           )}
           {locked && !isLive && !isFinal ? (
@@ -238,7 +245,8 @@ export default function WorldCupMatchupCard({
         >
           <div className="flex flex-wrap items-center justify-between gap-1 text-[10px]">
             <span className="text-white/50">
-              Your pick:{" "}
+              {t("wc.matchup.yourPick")}{" "}
+              {/* Team name (selectedPickLabel) intentionally NOT translated — Phase 5 brief. */}
               <span className="font-bold text-white">{selectedPickLabel(match, pick)}</span>
             </span>
             <span
@@ -246,11 +254,11 @@ export default function WorldCupMatchupCard({
               className="font-black tabular-nums text-cyan-200"
             >
               {pick.pointsAwarded > 0
-                ? `+${pick.pointsAwarded} pts`
+                ? t("wc.matchup.pointsPositive", { points: pick.pointsAwarded })
                 : isFinal && pick.isCorrect === false
-                  ? "0 pts"
+                  ? t("wc.matchup.zeroPts")
                   : !isFinal
-                    ? "Pending"
+                    ? t("wc.matchup.pending")
                     : "—"}
             </span>
           </div>
@@ -260,13 +268,13 @@ export default function WorldCupMatchupCard({
             className="mt-1 flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide"
           >
             {pickVisual === "correct" && (
-              <span className="text-emerald-300">Correct pick</span>
+              <span className="text-emerald-300">{t("wc.matchup.pickVisualCorrect")}</span>
             )}
             {pickVisual === "incorrect" && (
-              <span className="text-rose-300">Incorrect pick</span>
+              <span className="text-rose-300">{t("wc.matchup.pickVisualIncorrect")}</span>
             )}
             {pickVisual === "pending" && (
-              <span className="text-amber-200/90">Pending result</span>
+              <span className="text-amber-200/90">{t("wc.matchup.pickVisualPending")}</span>
             )}
           </div>
         </div>
@@ -277,7 +285,8 @@ export default function WorldCupMatchupCard({
           data-testid={`wc-match-official-winner-${match.id}`}
           className="mb-2 text-center text-[10px] font-bold text-emerald-200/95"
         >
-          Winner: {match.winnerTeamName ?? "—"}
+          {/* Team name (match.winnerTeamName) intentionally NOT translated — Phase 5 brief. */}
+          {t("wc.matchup.winnerOfficial", { name: match.winnerTeamName ?? "—" })}
         </div>
       )}
 
@@ -295,9 +304,9 @@ export default function WorldCupMatchupCard({
           data-testid={`wc-match-confidence-selector-${match.id}`}
           className="mb-2 block rounded-lg border border-cyan-300/15 bg-cyan-300/[0.055] px-2 py-2 text-[11px] leading-4 text-cyan-50/80"
         >
-          <span className="block font-black text-white">Confidence bonus</span>
+          <span className="block font-black text-white">{t("wc.matchup.confidenceTitle")}</span>
           <span className="mt-1 block text-white/55">
-            Higher confidence means more bonus points if correct.
+            {t("wc.matchup.confidenceHint")}
           </span>
           <select
             value={confidenceDraft}
@@ -306,7 +315,12 @@ export default function WorldCupMatchupCard({
           >
             {confidenceOptions.map((value) => (
               <option key={value} value={value}>
-                {value} point{value === 1 ? "" : "s"}
+                {t(
+                  value === 1
+                    ? "wc.matchup.confidencePointSingle"
+                    : "wc.matchup.confidencePointPlural",
+                  { value }
+                )}
               </option>
             ))}
           </select>
@@ -320,25 +334,25 @@ export default function WorldCupMatchupCard({
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-black">
           <span className="inline-flex items-center gap-1">
             <Sparkles className="h-3 w-3" />
-            AI Insights
+            {t("wc.matchup.aiInsightsLabel")}
           </span>
           <span className="rounded-full border border-cyan-200/25 px-1.5 py-0.5 uppercase tracking-wide">
-            {aiInsightsUnlocked ? "Open" : "Locked"}
+            {aiInsightsUnlocked ? t("wc.matchup.aiTierOpen") : t("wc.matchup.aiTierLocked")}
           </span>
         </summary>
         {aiInsightsUnlocked ? (
           <div className="mt-2 space-y-1.5 leading-4 text-cyan-50/85">
-            <p><span className="font-black text-white">Safer pick:</span> {aiHomeLabel} based on current bracket slot order.</p>
-            <p><span className="font-black text-white">Upside pick:</span> {aiAwayLabel} if you need a differentiated path.</p>
-            <p><span className="font-black text-white">Bracket impact:</span> Winner feeds the next slot; changing this pick may reset downstream choices.</p>
-            <p><span className="font-black text-white">Upset risk:</span> Medium until live form and official results arrive.</p>
+            <p><span className="font-black text-white">{t("wc.matchup.aiSaferPick")}</span> {t("wc.matchup.aiSaferBody", { name: aiHomeLabel })}</p>
+            <p><span className="font-black text-white">{t("wc.matchup.aiUpsidePick")}</span> {t("wc.matchup.aiUpsideBody", { name: aiAwayLabel })}</p>
+            <p><span className="font-black text-white">{t("wc.matchup.aiBracketImpact")}</span> {t("wc.matchup.aiBracketImpactBody")}</p>
+            <p><span className="font-black text-white">{t("wc.matchup.aiUpsetRisk")}</span> {t("wc.matchup.aiUpsetRiskBody")}</p>
             <p className="rounded-md border border-white/10 bg-black/20 px-2 py-1 text-white/55">
-              Prediction and scoring complexity only. Bracket guidance stays limited to pool picks and scoring mechanics.
+              {t("wc.matchup.aiPrivacyNote")}
             </p>
           </div>
         ) : (
           <p className="mt-2 rounded-md border border-white/10 bg-black/25 px-2 py-1.5 leading-4 text-white/60" hidden>
-            Upgrade to AI/Pro to open matchup insights. Locked users do not trigger AI calls.
+            {t("wc.matchup.aiLockedBody")}
           </p>
         )}
       </details>
@@ -351,7 +365,7 @@ export default function WorldCupMatchupCard({
         >
           {isFinal && (
             <span className="rounded-md bg-emerald-500/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-emerald-100">
-              FT
+              {t("wc.matchup.ftBadge")}
             </span>
           )}
           <span className="text-lg font-black tabular-nums text-white sm:text-xl">{match.homeScore ?? 0}</span>
@@ -382,40 +396,45 @@ export default function WorldCupMatchupCard({
 
       {/* Team buttons */}
       <div className="space-y-2">
-        {teams.map((t) => {
-          const displayName = formatWorldCupPlaceholder(t.slotKey, t.name, t.teamId)
+        {/* Iterator renamed from `t` to `team` to avoid shadowing the
+            outer translator function `t`. */}
+        {teams.map((team) => {
+          const displayName = formatWorldCupPlaceholder(team.slotKey, team.name, team.teamId)
           const selected =
-            pick?.selectedSlotKey === t.slotKey ||
-            Boolean(pick?.selectedTeamId && t.teamId && pick.selectedTeamId === t.teamId)
+            pick?.selectedSlotKey === team.slotKey ||
+            Boolean(pick?.selectedTeamId && team.teamId && pick.selectedTeamId === team.teamId)
           const winner =
             isFinal &&
-            (match.winnerTeamName === t.name || Boolean(match.winnerTeamId && t.teamId === match.winnerTeamId))
-          const isPlaceholder = !t.name || t.name.toLowerCase().startsWith("tbd") || !t.teamId
+            (match.winnerTeamName === team.name || Boolean(match.winnerTeamId && team.teamId === match.winnerTeamId))
+          const isPlaceholder = !team.name || team.name.toLowerCase().startsWith("tbd") || !team.teamId
 
           // Live state color for individual team row
-          const teamIsLeading = isLive && t.score !== null && (
-            t.side === "home"
+          const teamIsLeading = isLive && team.score !== null && (
+            team.side === "home"
               ? (match.homeScore ?? 0) > (match.awayScore ?? 0)
               : (match.awayScore ?? 0) > (match.homeScore ?? 0)
           )
 
           const disabledReason = locked
-            ? "Picks are locked for this match"
+            ? t("wc.matchup.disabledLocked")
             : isSaving
-              ? "This pick is saving"
+              ? t("wc.matchup.disabledSaving")
               : !matchIsPickable
                 ? unpickableMessage
                 : undefined
-          const pickAriaLabel = `${selected ? "Selected: " : "Pick "}${displayName} to win`
+          // Team name (displayName) intentionally NOT translated — Phase 5 brief.
+          const pickAriaLabel = selected
+            ? t("wc.matchup.pickAriaSelected", { name: displayName })
+            : t("wc.matchup.pickAriaPicked", { name: displayName })
           return (
             <button
-              key={t.side}
+              key={team.side}
               type="button"
-              data-testid={`world-cup-team-${match.id}-${t.side}`}
+              data-testid={`world-cup-team-${match.id}-${team.side}`}
               aria-pressed={selected}
               aria-label={pickAriaLabel}
               disabled={locked || isSaving || !matchIsPickable}
-              onClick={() => locked || isSaving || !matchIsPickable ? undefined : onPick?.(match, t.side, confidenceScoringEnabled ? confidenceDraft : null)}
+              onClick={() => locked || isSaving || !matchIsPickable ? undefined : onPick?.(match, team.side, confidenceScoringEnabled ? confidenceDraft : null)}
               title={disabledReason}
               className={[
                 "flex min-h-[3.5rem] w-full touch-manipulation items-center gap-2 rounded-md border px-2 py-1 text-left transition sm:h-14 sm:py-0",
@@ -431,14 +450,14 @@ export default function WorldCupMatchupCard({
                 .filter(Boolean)
                 .join(" ")}
             >
-              <WorldCupTeamFlag flagUrl={t.logo} teamName={displayName} size="sm" />
+              <WorldCupTeamFlag flagUrl={team.logo} teamName={displayName} size="sm" />
               <span className="min-w-0 flex-1 overflow-hidden">
                 <span className={`block truncate text-sm font-bold leading-tight ${isPlaceholder ? "italic text-white/40" : "text-white"}`}>
                   {displayName}
                 </span>
-                <span className="block truncate text-[10px] text-white/30">{t.slotKey}</span>
+                <span className="block truncate text-[10px] text-white/30">{team.slotKey}</span>
                 {hasMounted && isScheduled && match.startsAt && (
-                  <span className="mt-0.5 block text-[9px] text-white/35" data-testid={`wc-row-kickoff-${match.id}-${t.side}`}>
+                  <span className="mt-0.5 block text-[9px] text-white/35" data-testid={`wc-row-kickoff-${match.id}-${team.side}`}>
                     {formatWorldCupKickoffShort(match.startsAt)}
                   </span>
                 )}
@@ -447,13 +466,13 @@ export default function WorldCupMatchupCard({
                 {isLive && (
                   <span
                     className="max-w-[5.5rem] truncate text-[9px] font-bold tabular-nums text-rose-200 sm:max-w-none sm:text-[10px]"
-                    data-testid={`wc-row-live-status-${match.id}-${t.side}`}
+                    data-testid={`wc-row-live-status-${match.id}-${team.side}`}
                   >
                     {statusLabel}
                   </span>
                 )}
-                {showScore && t.score != null && (
-                  <span className={`text-sm font-black tabular-nums ${teamIsLeading ? "text-white" : "text-white/70"}`}>{t.score}</span>
+                {showScore && team.score != null && (
+                  <span className={`text-sm font-black tabular-nums ${teamIsLeading ? "text-white" : "text-white/70"}`}>{team.score}</span>
                 )}
               </span>
               {selected && !locked && matchIsPickable && !winner && !isFinal && <Check className="h-4 w-4 shrink-0 text-cyan-200" />}
@@ -461,7 +480,7 @@ export default function WorldCupMatchupCard({
               {winner && (
                 <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-black uppercase text-emerald-200">
                   <Trophy className="h-4 w-4" />
-                  Winner
+                  {t("wc.matchup.winnerLabel")}
                 </span>
               )}
               {selected && isFinal && !winner && <X className="h-3.5 w-3.5 shrink-0 text-rose-300/60" />}
