@@ -2,7 +2,6 @@ import Link from "next/link"
 import Image from "next/image"
 import {
   ArrowRight,
-  ChevronRight,
   ClipboardCheck,
   Globe2,
   Layers,
@@ -13,7 +12,6 @@ import {
   Shield,
   Sparkles,
   Trophy,
-  Users,
 } from "lucide-react"
 import { resolveServerRenderPreferences } from "@/lib/preferences/ServerRenderPreferenceResolver"
 import { makeBracketsT } from "@/lib/brackets/bracketsI18n"
@@ -21,37 +19,42 @@ import { makeBracketsT } from "@/lib/brackets/bracketsI18n"
 export const dynamic = "force-dynamic"
 
 /**
- * Premium AllFantasy Bracket Pools hub — restored for Phase 7.
+ * Premium AllFantasy Bracket Pools hub — Phase 7 v2 (centered AF World
+ * Cup Bracket Challenge hero).
  *
- * Server component only. No `"use client"`, no useSession, no Prisma, no
- * useState. The original emergency hardening (commit `4bd1caf45`) removed
- * client islands because a BracketsAuthCTA `useSession` hydration race
- * was producing React #418/#423 and a body wipe. This rebuild stays on
- * the safe side of that fence:
+ * Hero matches the product reference: centered dark-teal stage with a
+ * subtle grid overlay, top "Registration Open" badge, trophy lockup in
+ * a glowing rounded square, two-line title (white + cyan→purple
+ * gradient on line 2), tight subtitle, four feature dots, three CTAs
+ * (cyan / dark / amber), and a country-codes + fan-line pill at the
+ * bottom of the hero.
+ *
+ * Server component only (no `"use client"`, no useSession, no Prisma,
+ * no useState). The original emergency hardening (commit `4bd1caf45`)
+ * removed client islands because a BracketsAuthCTA `useSession`
+ * hydration race produced React #418/#423 + a body wipe. This rebuild
+ * stays on the safe side of that fence:
  *
  *   - Pure server component — only Next <Link> + <Image> client-bound
- *     primitives, both of which are battle-tested in this app on the
- *     existing /brackets/world-cup routes.
- *   - Reads only the static i18n preference (cookie `af_lang` +
- *     UserProfile.preferredLanguage) via the same
- *     resolveServerRenderPreferences() helper used by
- *     /brackets/world-cup/page.tsx today — that path is wrapped in a
- *     try/catch and never throws.
+ *     primitives, both already battle-tested on the existing
+ *     /brackets/world-cup routes.
+ *   - Only static i18n preference read via the same
+ *     `resolveServerRenderPreferences()` helper that ships on
+ *     /brackets/world-cup/page.tsx today — wrapped in try/catch, never
+ *     throws.
  *   - No DB writes, no API calls at render time.
- *   - Mode-aware: leaves the AllFantasy dark / AF (legacy) hero
- *     palette intact for those modes, and applies `mode-readable` so
- *     hardcoded dark `bg-[#05070b]` chunks remap to the light theme
- *     under html[data-mode="light"] (rescue rules already in
- *     app/globals.css).
+ *   - Mode-aware: `mode-readable` wrapper lets the globals.css light-
+ *     mode rescue remap hardcoded dark colors to the light theme
+ *     under html[data-mode="light"]; dark + AF (legacy) modes keep
+ *     the original premium dark styling.
  *   - Hydration-safe: locale comes from the server preference resolver,
  *     so SSR HTML matches first CSR. No locale-formatted dates render
  *     here.
  *
- * Out of scope (intentional, kept English-only / not added here):
- *   - Authenticated "your pools" list (would require Prisma + auth and
- *     reintroduce the client-island risk that caused the original 500).
- *   - Quick-create CTAs that POST to /api/brackets/*.
- *   - Live-data widgets (leaderboard previews, etc.).
+ * Below the dramatic hero the page keeps the existing How-it-works,
+ * Sports grid (8 sport cards, World Cup live + 7 coming soon), AI
+ * features strip (6 cards), and trust footer — they remain useful
+ * supporting content but the hero is now the headline visual.
  */
 type SportCard = {
   key:
@@ -101,212 +104,172 @@ const AI_FEATURES: AiFeature[] = [
   { key: "leaderboards", Icon: ListOrdered },
 ]
 
+/**
+ * Country codes shown in the bottom "join thousands of fans" pill.
+ * These are static ISO codes — language-invariant by definition, so
+ * no i18n key is needed. Four representative powerhouse nations from
+ * different continents: Brazil, France, Germany, Argentina.
+ */
+const FAN_COUNTRY_CODES = ["BR", "FR", "DE", "AR"] as const
+
 const WC_LOGO_SRC = "/images/brackets/world-cup/af-world-cup-logo.png"
-const WC_VIDEO_SRC = "/videos/brackets/world-cup/af-world-cup-hero.mp4"
-const WC_POSTER_SRC = "/images/brackets/world-cup/af-world-cup-hero-poster.jpg"
 const AF_WORDMARK_SRC = "/branding/allfantasy-wordmark-logo.png"
-const AF_MASCOT_SRC = "/af-robot-king.png"
 
 export default async function BracketsHomePage() {
-  // Server-side language resolution mirrors the client provider — SSR
-  // HTML matches the first CSR pass. resolveServerRenderPreferences is
-  // wrapped in try/catch internally and falls back to "en" silently.
   const { language } = await resolveServerRenderPreferences()
   const t = makeBracketsT(language)
 
   return (
-    // `mode-readable` opts into the globals.css light-mode rescue layer
-    // so the hardcoded dark hero stays readable on white in light mode
-    // without flattening dark / AF mode (rescue rules only fire under
-    // html[data-mode="light"]).
+    // Base canvas uses `bg-[#05070b]` (same as other brackets surfaces
+    // and already covered by the globals.css mode-readable rescue layer)
+    // — the teal atmosphere reads as deep-teal because the gradient
+    // overlay below stacks a rgba(20,184,166,…) wash on top.
     <main className="mode-readable relative min-h-screen overflow-hidden bg-[#05070b] text-white">
-      {/* Ambient gradient orbs — purely decorative, hidden in light mode
-          via the existing .mode-readable rescue (they sit on a translucent
-          mix of --accent so light mode reads as a soft blue wash). */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 -z-0 h-[60vh] bg-[radial-gradient(ellipse_at_top,rgba(34,211,238,0.25),transparent_55%),radial-gradient(ellipse_at_bottom_right,rgba(124,58,237,0.18),transparent_60%)]"
-      />
+      {/* Atmospheric stage background — dark teal radial wash + faint
+          grid overlay + a soft particle dust effect via stacked radial
+          gradients. All decorative, no client JS. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-0">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(20,184,166,0.16),transparent_55%),radial-gradient(ellipse_at_bottom,rgba(67,56,202,0.12),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(34,211,238,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(34,211,238,0.045)_1px,transparent_1px)] bg-[size:48px_48px] [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]" />
+        <div className="absolute inset-x-0 top-0 h-[28rem] bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.05),transparent_70%)]" />
+      </div>
 
-      <div className="relative z-10 mx-auto flex max-w-6xl flex-col gap-10 px-4 py-8 sm:gap-14 sm:px-6 sm:py-12">
+      {/* Top brand strip — subtle wordmark + Dashboard link */}
+      <div className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-4 pt-6 sm:px-6">
+        <Image
+          src={AF_WORDMARK_SRC}
+          alt={t("brk.hub.logoAlt")}
+          width={120}
+          height={24}
+          className="h-6 w-auto object-contain opacity-80"
+          priority
+        />
+        <Link
+          href="/dashboard"
+          className="hidden items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white/65 transition-colors hover:border-white/30 hover:bg-white/[0.08] hover:text-white sm:inline-flex"
+        >
+          {t("brk.hub.heroDashboard")}
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
 
-        {/* ──────────────────────────────────────────────────────────
-            Brand strip
-            ──────────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <Image
-              src={AF_WORDMARK_SRC}
-              alt={t("brk.hub.logoAlt")}
-              width={140}
-              height={28}
-              className="h-7 w-auto object-contain"
-              priority
-            />
-          </div>
+      {/* ─────────────────────────────────────────────────────────────
+          CENTERED HERO — AF World Cup Bracket Challenge
+          ───────────────────────────────────────────────────────── */}
+      <section
+        data-testid="brackets-hub-hero"
+        className="relative z-10 mx-auto flex max-w-4xl flex-col items-center px-4 pb-12 pt-10 text-center sm:px-6 sm:pt-16 sm:pb-20"
+      >
+        {/* Top registration badge */}
+        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/35 bg-emerald-500/[0.08] px-3.5 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300 sm:text-xs">
+          <span className="relative inline-flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-300" />
+          </span>
+          {t("brk.hub.v2.regBadge")}
+        </div>
+
+        {/* Trophy glow card */}
+        <div className="relative mt-8 flex h-24 w-24 items-center justify-center rounded-2xl border border-cyan-300/30 bg-cyan-300/[0.08] p-3 backdrop-blur shadow-[0_0_60px_-10px_rgba(34,211,238,0.55)] sm:h-28 sm:w-28">
+          <div
+            aria-hidden
+            className="absolute inset-0 -z-10 rounded-2xl bg-[radial-gradient(circle,rgba(34,211,238,0.35),transparent_70%)] blur-xl"
+          />
+          <Image
+            src={WC_LOGO_SRC}
+            alt={t("brk.hub.wcLogoAlt")}
+            width={96}
+            height={96}
+            className="h-full w-full object-contain drop-shadow-[0_6px_20px_rgba(34,211,238,0.45)]"
+            priority
+          />
+        </div>
+
+        {/* Two-line title — white on top, cyan→purple gradient below */}
+        <h1 className="mt-8 max-w-3xl text-4xl font-black leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl">
+          <span className="block text-white">{t("brk.hub.v2.titleLine1")}</span>
+          <span className="mt-1 block bg-gradient-to-r from-cyan-300 via-cyan-200 to-purple-300 bg-clip-text text-transparent">
+            {t("brk.hub.v2.titleLine2")}
+          </span>
+        </h1>
+
+        {/* Subtitle */}
+        <p className="mt-6 max-w-xl text-sm leading-7 text-white/65 sm:text-base">
+          {t("brk.hub.v2.subtitle")}
+        </p>
+
+        {/* Feature dots */}
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-white/70 sm:text-sm">
+          <span className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+            {t("brk.hub.v2.feature.teams")}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+            {t("brk.hub.v2.feature.matches")}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+            {t("brk.hub.v2.feature.format")}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+            {t("brk.hub.v2.feature.free")}
+          </span>
+        </div>
+
+        {/* Three CTAs — primary cyan / neutral dark / amber accent */}
+        <div className="mt-10 flex flex-wrap justify-center gap-3">
           <Link
-            href="/dashboard"
-            className="hidden items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white/65 transition-colors hover:border-white/30 hover:bg-white/[0.08] hover:text-white sm:inline-flex"
+            href="/brackets/world-cup"
+            className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-gradient-to-b from-cyan-300 to-cyan-400 px-6 py-3 text-sm font-black text-slate-950 shadow-[0_10px_40px_-10px_rgba(34,211,238,0.65)] transition-transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            {t("brk.hub.heroDashboard")}
-            <ChevronRight className="h-3.5 w-3.5" />
+            <Globe2 className="h-4 w-4" />
+            {t("brk.hub.v2.cta.openBracket")}
+          </Link>
+          <Link
+            href="/brackets/world-cup/create"
+            className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-white/15 bg-white/[0.05] px-6 py-3 text-sm font-bold text-white transition-colors hover:border-white/30 hover:bg-white/[0.10]"
+          >
+            <Plus className="h-4 w-4" />
+            {t("brk.hub.v2.cta.createPool")}
+          </Link>
+          <Link
+            href="/brackets/world-cup/discover"
+            className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-amber-400/35 bg-amber-500/[0.06] px-6 py-3 text-sm font-bold text-amber-200 transition-colors hover:border-amber-400/55 hover:bg-amber-500/[0.10] hover:text-amber-100"
+          >
+            <Trophy className="h-4 w-4" />
+            {t("brk.hub.v2.cta.discoverPools")}
           </Link>
         </div>
 
-        {/* ──────────────────────────────────────────────────────────
-            Hero
-            ──────────────────────────────────────────────────────── */}
-        <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-cyan-300/[0.10] via-white/[0.04] to-purple-400/[0.12] p-5 backdrop-blur sm:p-8 lg:p-10">
-          {/* Ambient WC video — decorative only, muted and silent. The
-              same asset is reused on the WC public hub so it's already
-              cached for users who came from there. */}
-          <video
-            src={WC_VIDEO_SRC}
-            poster={WC_POSTER_SRC}
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="metadata"
-            aria-hidden
-            className="pointer-events-none absolute inset-0 hidden h-full w-full rounded-3xl object-cover opacity-[0.10] mix-blend-luminosity sm:block"
-          />
-
-          <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:gap-8">
-            <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-200/80">
-                {t("brk.hub.eyebrow")}
-              </p>
-              <h1 className="mt-2 text-3xl font-black leading-tight tracking-tight text-white sm:text-5xl">
-                {t("brk.hub.heroTitle")}
-              </h1>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-white/65 sm:text-base">
-                {t("brk.hub.heroSubtitle")}
-              </p>
-
-              {/* Launch badge */}
-              <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-cyan-300/35 bg-cyan-300/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-cyan-100">
-                <Radio className="h-3 w-3 animate-pulse" />
-                {t("brk.hub.heroBadge")}
-              </div>
-
-              {/* Primary CTAs */}
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Link
-                  href="/brackets/world-cup/create"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-cyan-300 px-5 py-2.5 text-sm font-black text-black shadow-[0_8px_24px_-8px_rgba(34,211,238,0.65)] transition-transform hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  <Plus className="h-4 w-4" />
-                  {t("brk.hub.heroCreateWc")}
-                </Link>
-                <Link
-                  href="/brackets/world-cup/join"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-300/[0.08] px-5 py-2.5 text-sm font-black text-cyan-50 transition-colors hover:border-cyan-300/55 hover:bg-cyan-300/[0.14] hover:text-white"
-                >
-                  {t("brk.hub.heroJoinWithCode")}
-                </Link>
-                <Link
-                  href="/brackets/world-cup/discover"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-5 py-2.5 text-sm font-bold text-white/80 transition-colors hover:border-white/25 hover:bg-white/[0.10] hover:text-white"
-                >
-                  {t("brk.hub.heroDiscover")}
-                </Link>
-              </div>
-            </div>
-
-            {/* AF mascot — premium identity anchor. The mascot is a static
-                PNG so it inherits the surrounding glow without any client
-                JS. Hidden on mobile to keep the hero text-first. */}
-            <div className="relative hidden h-40 w-40 shrink-0 items-center justify-center sm:flex md:h-52 md:w-52">
-              <div
-                aria-hidden
-                className="absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(34,211,238,0.45),transparent_65%)] blur-2xl"
-              />
-              <Image
-                src={AF_MASCOT_SRC}
-                alt={t("brk.hub.mascotAlt")}
-                width={208}
-                height={208}
-                className="relative h-full w-full object-contain drop-shadow-[0_18px_36px_rgba(34,211,238,0.45)]"
-                priority
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* ──────────────────────────────────────────────────────────
-            World Cup Spotlight
-            ──────────────────────────────────────────────────────── */}
-        <section
-          data-testid="brackets-hub-world-cup-spotlight"
-          className="overflow-hidden rounded-3xl border border-cyan-300/20 bg-gradient-to-br from-cyan-300/[0.10] via-white/[0.04] to-emerald-300/[0.06] p-5 backdrop-blur sm:p-8"
+        {/* Country-code + fan-line pill */}
+        <div
+          data-testid="brackets-hub-fan-pill"
+          className="mt-10 inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/55 backdrop-blur sm:text-xs"
         >
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/35 bg-cyan-300/10 p-2 sm:h-24 sm:w-24">
-              <Image
-                src={WC_LOGO_SRC}
-                alt={t("brk.hub.wcLogoAlt")}
-                width={96}
-                height={96}
-                className="h-full w-full object-contain"
-              />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200/80">
-                {t("brk.hub.spotlight.eyebrow")}
-              </p>
-              <h2 className="mt-1.5 text-2xl font-black tracking-tight text-white sm:text-3xl">
-                {t("brk.hub.spotlight.title")}
-              </h2>
-              <p className="mt-2.5 max-w-2xl text-sm leading-6 text-white/65">
-                {t("brk.hub.spotlight.subtitle")}
-              </p>
-
-              <ul className="mt-5 grid gap-2 sm:grid-cols-2">
-                {[
-                  "brk.hub.spotlight.feature.groupStage",
-                  "brk.hub.spotlight.feature.knockoutBracket",
-                  "brk.hub.spotlight.feature.aiReport",
-                  "brk.hub.spotlight.feature.dangerZones",
-                  "brk.hub.spotlight.feature.commissionerTools",
-                  "brk.hub.spotlight.feature.inviteShare",
-                  "brk.hub.spotlight.feature.fiveLanguages",
-                ].map((key) => (
-                  <li key={key} className="flex items-start gap-2 text-sm text-white/70">
-                    <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300/80" />
-                    <span>{t(key)}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Link
-                  href="/brackets/world-cup/create"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-black text-black shadow-[0_8px_20px_-8px_rgba(34,211,238,0.55)] transition-transform hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  <Plus className="h-4 w-4" />
-                  {t("brk.hub.heroCreateWc")}
-                </Link>
-                <Link
-                  href="/brackets/world-cup/discover"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-300/[0.08] px-4 py-2.5 text-sm font-bold text-cyan-50 transition-colors hover:border-cyan-300/55 hover:bg-cyan-300/[0.14] hover:text-white"
-                >
-                  {t("brk.hub.heroDiscover")}
-                </Link>
-                <Link
-                  href="/brackets/world-cup/join"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-bold text-white/80 transition-colors hover:border-white/25 hover:bg-white/[0.10] hover:text-white"
-                >
-                  {t("brk.hub.heroJoinWithCode")}
-                </Link>
-              </div>
-            </div>
+          <div className="flex items-center gap-1">
+            {FAN_COUNTRY_CODES.map((code) => (
+              <span
+                key={code}
+                className="rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white/75 sm:text-[10px]"
+              >
+                {code}
+              </span>
+            ))}
           </div>
-        </section>
+          <span className="text-white/60">{t("brk.hub.v2.fanLine")}</span>
+        </div>
+      </section>
 
-        {/* ──────────────────────────────────────────────────────────
-            How it works (3-step)
-            ──────────────────────────────────────────────────────── */}
+      {/* ─────────────────────────────────────────────────────────────
+          Supporting sections below the dramatic hero. Mobile-friendly,
+          stack cleanly, kept from Phase 7 v1 so the hub still has the
+          how-it-works / sports grid / AI features / footer that
+          earlier validation covered.
+          ───────────────────────────────────────────────────────── */}
+      <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 pb-12 sm:gap-14 sm:px-6 sm:pb-16">
+        {/* How it works (3-step) */}
         <section data-testid="brackets-hub-how-it-works" className="space-y-4">
           <h2 className="text-xl font-black tracking-tight text-white sm:text-2xl">
             {t("brk.hub.howItWorks.title")}
@@ -316,32 +279,26 @@ export default async function BracketsHomePage() {
               {
                 title: "brk.hub.howItWorks.step1Title",
                 body: "brk.hub.howItWorks.step1Body",
-                Icon: Users,
                 step: 1,
               },
               {
                 title: "brk.hub.howItWorks.step2Title",
                 body: "brk.hub.howItWorks.step2Body",
-                Icon: ListOrdered,
                 step: 2,
               },
               {
                 title: "brk.hub.howItWorks.step3Title",
                 body: "brk.hub.howItWorks.step3Body",
-                Icon: Trophy,
                 step: 3,
               },
-            ].map(({ title, body, Icon, step }) => (
+            ].map(({ title, body, step }) => (
               <div
                 key={title}
                 className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur"
               >
-                <div className="flex items-center gap-2.5">
-                  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-cyan-300/15 text-[11px] font-black text-cyan-100">
-                    {step}
-                  </span>
-                  <Icon className="h-4 w-4 text-cyan-200" aria-hidden />
-                </div>
+                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-cyan-300/15 text-[11px] font-black text-cyan-100">
+                  {step}
+                </span>
                 <h3 className="text-sm font-black text-white">{t(title)}</h3>
                 <p className="text-xs leading-5 text-white/55">{t(body)}</p>
               </div>
@@ -349,9 +306,7 @@ export default async function BracketsHomePage() {
           </div>
         </section>
 
-        {/* ──────────────────────────────────────────────────────────
-            Sports grid
-            ──────────────────────────────────────────────────────── */}
+        {/* Sports grid */}
         <section data-testid="brackets-hub-sports-grid" className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -424,9 +379,7 @@ export default async function BracketsHomePage() {
           </div>
         </section>
 
-        {/* ──────────────────────────────────────────────────────────
-            AI + Social features strip
-            ──────────────────────────────────────────────────────── */}
+        {/* AI + Social features strip */}
         <section data-testid="brackets-hub-ai-features" className="space-y-4">
           <h2 className="text-xl font-black tracking-tight text-white sm:text-2xl">
             {t("brk.hub.features.title")}
@@ -449,9 +402,7 @@ export default async function BracketsHomePage() {
           </div>
         </section>
 
-        {/* ──────────────────────────────────────────────────────────
-            Footer / trust note
-            ──────────────────────────────────────────────────────── */}
+        {/* Footer / trust note */}
         <footer
           data-testid="brackets-hub-footer"
           className="mt-2 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-center text-[11px] text-white/55 sm:gap-4 sm:p-5"

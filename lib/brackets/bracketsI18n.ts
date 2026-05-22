@@ -304,6 +304,21 @@ const EN: BracketsDictionary = {
   "brk.hub.mascotAlt": "AllFantasy mascot",
   "brk.hub.logoAlt": "AllFantasy",
   "brk.hub.wcLogoAlt": "AllFantasy World Cup",
+
+  // ── /brackets premium hub v2 — centered WC challenge hero ────────────
+  "brk.hub.v2.regBadge": "2026 FIFA World Cup · Registration Open",
+  "brk.hub.v2.titleLine1": "AF World Cup",
+  "brk.hub.v2.titleLine2": "Bracket Challenge",
+  "brk.hub.v2.subtitle":
+    "32 nations. 48 matches. One champion. Pick every game before kickoff and compete in your own pool — with AI analysis on every matchup. Free forever.",
+  "brk.hub.v2.feature.teams": "32 Teams",
+  "brk.hub.v2.feature.matches": "48 Matches",
+  "brk.hub.v2.feature.format": "Group Stage + Knockouts",
+  "brk.hub.v2.feature.free": "100% Free",
+  "brk.hub.v2.cta.openBracket": "World Cup Bracket",
+  "brk.hub.v2.cta.createPool": "Create Pool",
+  "brk.hub.v2.cta.discoverPools": "Discover Pools",
+  "brk.hub.v2.fanLine": "Join thousands of fans competing worldwide",
 }
 
 const ES: BracketsDictionary = {
@@ -498,6 +513,23 @@ const ES: BracketsDictionary = {
   "brk.hub.mascotAlt": "Mascota de AllFantasy",
   "brk.hub.logoAlt": "AllFantasy",
   "brk.hub.wcLogoAlt": "AllFantasy Copa del Mundo",
+
+  // ── /brackets premium hub v2 — centered WC challenge hero ────────────
+  "brk.hub.v2.regBadge":
+    "Copa Mundial FIFA 2026 · Inscripciones abiertas",
+  "brk.hub.v2.titleLine1": "AF Copa del Mundo",
+  "brk.hub.v2.titleLine2": "Desafío de Brackets",
+  "brk.hub.v2.subtitle":
+    "32 selecciones. 48 partidos. Un campeón. Elige cada partido antes del pitazo inicial y compite en tu propio grupo — con análisis IA en cada partido. Gratis para siempre.",
+  "brk.hub.v2.feature.teams": "32 selecciones",
+  "brk.hub.v2.feature.matches": "48 partidos",
+  "brk.hub.v2.feature.format": "Fase de grupos + Eliminatorias",
+  "brk.hub.v2.feature.free": "100% gratis",
+  "brk.hub.v2.cta.openBracket": "Abrir Bracket de la Copa",
+  "brk.hub.v2.cta.createPool": "Crear grupo",
+  "brk.hub.v2.cta.discoverPools": "Descubrir grupos",
+  "brk.hub.v2.fanLine":
+    "Únete a miles de fans que compiten en el mundo entero",
 }
 
 const ZH: BracketsDictionary = {
@@ -692,6 +724,22 @@ const ZH: BracketsDictionary = {
   "brk.hub.mascotAlt": "AllFantasy 吉祥物",
   "brk.hub.logoAlt": "AllFantasy",
   "brk.hub.wcLogoAlt": "AllFantasy 世界盃",
+
+  // ── /brackets premium hub v2 — centered WC challenge hero ────────────
+  "brk.hub.v2.regBadge": "2026 FIFA 世界盃 · 報名開放中",
+  "brk.hub.v2.titleLine1": "AF 世界盃",
+  "brk.hub.v2.titleLine2": "對戰挑戰",
+  "brk.hub.v2.subtitle":
+    "32 個國家。48 場比賽。一位冠軍。在開球前選好每一場、和你自己的群組一較高下 — 每場比賽都有 AI 解析。永久免費。",
+  "brk.hub.v2.feature.teams": "32 個國家",
+  "brk.hub.v2.feature.matches": "48 場比賽",
+  "brk.hub.v2.feature.format": "小組賽 + 淘汰賽",
+  "brk.hub.v2.feature.free": "100% 免費",
+  "brk.hub.v2.cta.openBracket": "開啟世界盃對戰",
+  "brk.hub.v2.cta.createPool": "建立群組",
+  "brk.hub.v2.cta.discoverPools": "探索群組",
+  "brk.hub.v2.fanLine":
+    "加入全球數千名球迷一起競賽",
 }
 
 const FIL: BracketsDictionary = {
@@ -888,6 +936,23 @@ const FIL: BracketsDictionary = {
   "brk.hub.mascotAlt": "Mascot ng AllFantasy",
   "brk.hub.logoAlt": "AllFantasy",
   "brk.hub.wcLogoAlt": "AllFantasy World Cup",
+
+  // ── /brackets premium hub v2 — centered WC challenge hero ────────────
+  "brk.hub.v2.regBadge":
+    "2026 FIFA World Cup · Bukas na ang registration",
+  "brk.hub.v2.titleLine1": "AF World Cup",
+  "brk.hub.v2.titleLine2": "Bracket Challenge",
+  "brk.hub.v2.subtitle":
+    "32 bansa. 48 laban. Isang kampeon. Pumili sa bawat laban bago mag-kickoff at makipagtagisan sa sarili mong pool — may AI analysis sa bawat matchup. Libre habambuhay.",
+  "brk.hub.v2.feature.teams": "32 bansa",
+  "brk.hub.v2.feature.matches": "48 laban",
+  "brk.hub.v2.feature.format": "Group Stage + Knockouts",
+  "brk.hub.v2.feature.free": "100% libre",
+  "brk.hub.v2.cta.openBracket": "World Cup Bracket",
+  "brk.hub.v2.cta.createPool": "Gumawa ng pool",
+  "brk.hub.v2.cta.discoverPools": "Maghanap ng pools",
+  "brk.hub.v2.fanLine":
+    "Sumali sa libu-libong fans na nagkokompetensya sa buong mundo",
 }
 
 const VI: BracketsDictionary = {
@@ -1084,6 +1149,23 @@ const VI: BracketsDictionary = {
   "brk.hub.mascotAlt": "Linh vật AllFantasy",
   "brk.hub.logoAlt": "AllFantasy",
   "brk.hub.wcLogoAlt": "AllFantasy World Cup",
+
+  // ── /brackets premium hub v2 — centered WC challenge hero ────────────
+  "brk.hub.v2.regBadge":
+    "FIFA World Cup 2026 · Đăng ký đã mở",
+  "brk.hub.v2.titleLine1": "AF World Cup",
+  "brk.hub.v2.titleLine2": "Thử thách Bracket",
+  "brk.hub.v2.subtitle":
+    "32 đội tuyển. 48 trận đấu. Một nhà vô địch. Chọn từng trận trước giờ bóng lăn và thi đấu trong pool của bạn — có phân tích AI cho mỗi trận. Miễn phí mãi mãi.",
+  "brk.hub.v2.feature.teams": "32 đội tuyển",
+  "brk.hub.v2.feature.matches": "48 trận",
+  "brk.hub.v2.feature.format": "Vòng bảng + Vòng loại trực tiếp",
+  "brk.hub.v2.feature.free": "Miễn phí 100%",
+  "brk.hub.v2.cta.openBracket": "Mở Bracket World Cup",
+  "brk.hub.v2.cta.createPool": "Tạo pool",
+  "brk.hub.v2.cta.discoverPools": "Khám phá pool",
+  "brk.hub.v2.fanLine":
+    "Tham gia hàng nghìn người hâm mộ trên toàn thế giới",
 }
 
 export const BRACKETS_TRANSLATIONS: Record<BracketsLocale, BracketsDictionary> = {
