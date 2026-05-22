@@ -138,6 +138,18 @@ export function SafeGlobalChrome({
   fbAppId = "",
 }: SafeGlobalChromeProps) {
   const pathname = usePathname()
+  // EMERGENCY HARD BAIL: /brackets root has been crashing with React #418/#423,
+  // HierarchyRequestError, and body-wipe even after the page was rolled back to
+  // the minimal Phase 6 hardened JSX. The culprit lives somewhere in this chrome
+  // umbrella (Meta Pixel race, double SW registration, Toaster portal, etc.).
+  // While we bisect, refuse to mount ANY chrome on the exact /brackets path, and
+  // also treat an unknown pathname (first client render) as unsafe.
+  if (pathname === null || pathname === undefined) {
+    return null
+  }
+  if (pathname === "/brackets") {
+    return null
+  }
   if (shouldBailChrome(pathname)) {
     return null
   }

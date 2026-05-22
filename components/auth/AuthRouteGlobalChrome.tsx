@@ -24,6 +24,17 @@ function isAuthRoutePath(pathname: string | null): boolean {
 export function AuthRouteGlobalChrome() {
   const pathname = usePathname()
 
+  // EMERGENCY HARD BAIL: /brackets root crashing after Phase 6 page rollback.
+  // Defensively skip all chrome (toaster portal, SW reg, sonner, etc.) on the
+  // exact /brackets path and when pathname is unknown. /brackets/world-cup and
+  // every other route continue to render the full chrome.
+  if (pathname === null || pathname === undefined) {
+    return null
+  }
+  if (pathname === "/brackets") {
+    return null
+  }
+
   if (isAuthRoutePath(pathname)) {
     return null
   }
