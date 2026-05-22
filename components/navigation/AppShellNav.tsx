@@ -16,6 +16,9 @@ type AppShellNavProps = {
   isAdmin?: boolean
   userLabel?: string | null
   balanceLabel?: string
+  /** AI token balance (e.g. "12"). When provided, renders the AI tokens badge. */
+  tokensLabel?: string
+  /** @deprecated Phase 1 — winnings are no longer surfaced. Kept for prop compatibility. */
   winningsLabel?: string
 }
 
@@ -41,7 +44,9 @@ export default function AppShellNav({
   isAdmin = false,
   userLabel,
   balanceLabel = "$0.00",
-  winningsLabel = "$0.00",
+  tokensLabel,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  winningsLabel: _deprecatedWinningsLabel,
 }: AppShellNavProps) {
   const chimmyEntry = getPrimaryChimmyEntry({ source: "top_bar" })
   const pathname = usePathname()
@@ -91,12 +96,11 @@ export default function AppShellNav({
                   <Wallet className="h-3.5 w-3.5" />
                   Deposit
                 </Link>
-                <div className="hidden rounded-lg border px-2.5 py-1.5 text-xs sm:block" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--panel2) 82%, transparent)", color: "var(--text)" }}>
-                  Bal: {balanceLabel}
-                </div>
-                <div className="hidden rounded-lg border px-2.5 py-1.5 text-xs lg:block" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--panel2) 82%, transparent)", color: "var(--text)" }}>
-                  Winnings: {winningsLabel}
-                </div>
+                {tokensLabel ? (
+                  <div className="hidden rounded-lg border px-2.5 py-1.5 text-xs lg:block" style={{ borderColor: "color-mix(in srgb, var(--accent-cyan) 45%, var(--border))", background: "color-mix(in srgb, var(--accent-cyan) 14%, transparent)", color: "var(--accent-cyan-strong)" }}>
+                    AI Tokens: 🪙 {tokensLabel}
+                  </div>
+                ) : null}
                 <Link
                   href="/messages"
                   className="rounded-lg border p-2 transition"

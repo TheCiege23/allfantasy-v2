@@ -19,6 +19,12 @@ import { isAIAssistantEnabled } from '@/lib/feature-toggle'
 import { runCostControlledOpenAIText } from '@/lib/ai-cost-control'
 import { requireFeatureEntitlement } from '@/lib/subscription/entitlement-middleware'
 import { TokenSpendService } from '@/lib/tokens/TokenSpendService'
+import {
+  chimmyContextEngine,
+  classifyChimmyIntent,
+  composeChimmyPrompt,
+  selectProvidersForIntent,
+} from '@/lib/chimmy-context'
 
 const ContextScopeSchema = z.object({
   sleeper_username: z.string(),
@@ -85,19 +91,26 @@ async function getLegacyContext(sleeperUsername: string) {
 
   if (!user) return null
 
-  const allRosters = user.leagues.flatMap((l) => l.rosters)
-  const totalWins = allRosters.reduce((sum, r: any) => sum + (r.wins ?? 0), 0)
-  const totalLosses = allRosters.reduce((sum, r: any) => sum + (r.losses ?? 0), 0)
-  const championships = allRosters.filter((r: any) => r.isChampion).length
+  type LegacyLeague = (typeof user.leagues)[number]
+  const allRosters = user.leagues.flatMap((l: LegacyLeague) => l.rosters)
+  const totalWins = allRosters.reduce(
+    (sum: number, r: { wins?: number | null }) => sum + (r.wins ?? 0),
+    0
+  )
+  const totalLosses = allRosters.reduce(
+    (sum: number, r: { losses?: number | null }) => sum + (r.losses ?? 0),
+    0
+  )
+  const championships = allRosters.filter((r: { isChampion?: boolean | null }) => r.isChampion).length
 
   const aiReport = user.aiReports[0]
   const insights = (aiReport?.insights as Record<string, unknown> | null) ?? null
 
   const recentLeagues = user.leagues
     .slice()
-    .sort((a, b) => b.season - a.season)
+    .sort((a: LegacyLeague, b: LegacyLeague) => b.season - a.season)
     .slice(0, 5)
-    .map((l) => {
+    .map((l: LegacyLeague) => {
       const roster = l.rosters[0] as any
       return {
         name: l.name,
@@ -110,7 +123,7 @@ async function getLegacyContext(sleeperUsername: string) {
   return {
     display_name: user.displayName || user.sleeperUsername,
     total_leagues: user.leagues.length,
-    total_seasons: Array.from(new Set(user.leagues.map((l) => l.season))).length,
+    total_seasons: Array.from(new Set(user.leagues.map((l: LegacyLeague) => l.season))).length,
     career_record: `${totalWins}-${totalLosses}`,
     win_percentage:
       totalWins + totalLosses > 0 ? Math.round((totalWins / (totalWins + totalLosses)) * 100) : 0,
@@ -241,7 +254,10 @@ Areas to improve: ${legacyContext.weaknesses.join(', ') || 'Not identified'}
 
 Recent League History:
 ${legacyContext.recent_leagues
-  .map((l) => `- ${l.name} (${l.season}): ${l.record}${l.champion ? ' - CHAMPION' : ''}`)
+  .map(
+    (l: { name: string; season: number; record: string; champion: boolean }) =>
+      `- ${l.name} (${l.season}): ${l.record}${l.champion ? ' - CHAMPION' : ''}`
+  )
   .join('\n')}
 
 Use this context to personalize your responses. Tailor advice to their estimated team status.
@@ -363,8 +379,70 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
       buildSystemPrompt(legacyContext, sportContext, playerAnalyticsContext) +
       `\n\n## USER DATE & TIME (authoritative)\n${userClock.promptLine}\nUse this for "today", schedules, and day-count questions; do not assume a different calendar date.`
 
+    // Phase 2B — optional Chimmy Context Engine injection (feature-flagged).
+    // When `CHIMMY_CONTEXT_ENGINE_INJECT=1`, classify the user intent, load
+    // only the relevant providers, compose a budgeted context block, and
+    // append it to the system prompt. All failures here are non-fatal — the
+    // base chat behavior must keep working unchanged.
+    let chimmyContextMeta:
+      | {
+          intent: string
+          approxTokens: number
+          durationMs: number
+          providers: Array<{ name: string; ok: boolean; cached: boolean; durationMs: number }>
+          sections: Array<{ id: string; rendered: boolean; dropped: boolean; truncated: boolean }>
+        }
+      | null = null
+    let composedSystemPrompt = systemPrompt
+    if (process.env.CHIMMY_CONTEXT_ENGINE_INJECT === '1') {
+      try {
+        const classification = classifyChimmyIntent({
+          message,
+          history: conversation_history,
+        })
+        const providers = selectProvidersForIntent(classification.intent)
+        const bundle = await chimmyContextEngine.loadContext(
+          {
+            userId,
+            userEmail: session.user.email ?? null,
+            leagueId: leagueId ?? null,
+            sport: resolvedSport,
+          },
+          { onlyProviders: providers }
+        )
+        const composed = composeChimmyPrompt(bundle, { intent: classification.intent })
+        if (composed.contextBlock.length > 0) {
+          composedSystemPrompt = `${systemPrompt}\n\n${composed.contextBlock}`
+        }
+        chimmyContextMeta = {
+          intent: classification.intent,
+          approxTokens: composed.approxTokens,
+          durationMs: bundle.meta.durationMs,
+          providers: bundle.meta.providers.map((p) => ({
+            name: p.name,
+            ok: p.ok,
+            cached: p.cached,
+            durationMs: p.durationMs,
+          })),
+          sections: composed.sections.map((s) => ({
+            id: s.id,
+            rendered: s.rendered,
+            dropped: s.dropped,
+            truncated: s.truncated,
+          })),
+        }
+      } catch (err) {
+        // Never fail the chat request because of context injection.
+        logAiFailure(err, {
+          tool: 'AiChat',
+          endpoint: '/api/ai/chat',
+          provider: 'chimmy-context-engine',
+        })
+      }
+    }
+
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: composedSystemPrompt },
       ...conversation_history.slice(-10),
       { role: 'user', content: message },
     ]
@@ -482,6 +560,7 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
                 display_name: legacyContext.display_name,
                 archetype: legacyContext.archetype,
               },
+              chimmy_context: chimmyContextMeta,
               rate_limit: { remaining: rl.remaining, retryAfterSec: rl.retryAfterSec },
             })
             controller.close()
@@ -561,6 +640,7 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
         display_name: legacyContext.display_name,
         archetype: legacyContext.archetype,
       },
+      chimmy_context: chimmyContextMeta,
       rate_limit: { remaining: rl.remaining, retryAfterSec: rl.retryAfterSec },
     })
   } catch (error) {

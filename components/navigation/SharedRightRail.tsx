@@ -2,10 +2,12 @@
 
 import Link from 'next/link'
 import { useRightRailData } from '@/hooks/useRightRailData'
+import { useAIAccessStatus } from '@/hooks/useAIAccessStatus'
 import { getPrimaryChimmyEntry, getChimmyChatHrefWithPrompt, AI_HUB_HREF } from '@/lib/ai-product-layer'
 
 export default function SharedRightRail() {
   const { data, loading, error } = useRightRailData()
+  const aiAccess = useAIAccessStatus()
   const chimmyEntry = getPrimaryChimmyEntry({ source: 'right_rail' })
 
   return (
@@ -73,7 +75,6 @@ export default function SharedRightRail() {
         <div className="mt-2 space-y-1 text-xs mode-muted">
           <div>Balance: ${data.wallet.balance.toFixed(2)}</div>
           <div>Pending: ${data.wallet.pendingBalance.toFixed(2)}</div>
-          <div>Winnings: ${data.wallet.potentialWinnings.toFixed(2)}</div>
         </div>
         <Link
           href="/wallet"
@@ -82,6 +83,53 @@ export default function SharedRightRail() {
         >
           Open Wallet
         </Link>
+      </section>
+
+      <section
+        className="mode-panel-soft rounded-2xl p-4"
+        style={{ borderColor: 'color-mix(in srgb, var(--accent-cyan) 40%, var(--border))' }}
+      >
+        <h3 className="text-sm font-semibold" style={{ color: 'var(--accent-cyan-strong)' }}>AI Status</h3>
+        {aiAccess.loading ? (
+          <p className="mt-2 text-xs mode-muted">Checking AI access…</p>
+        ) : aiAccess.data ? (
+          <div className="mt-2 space-y-1 text-xs mode-muted">
+            <div>
+              Tokens: <span className="mode-text">🪙 {aiAccess.data.tokenBalance}</span>
+            </div>
+            {aiAccess.data.reason === 'in_trial' && (
+              <div>
+                Trial: <span className="mode-text">{aiAccess.data.trial.daysRemaining}d left</span>
+              </div>
+            )}
+            {aiAccess.data.hasSubscription && (
+              <div>
+                Plan: <span className="mode-text">Premium</span>
+              </div>
+            )}
+            <div>{aiAccess.data.message}</div>
+          </div>
+        ) : (
+          <p className="mt-2 text-xs mode-muted">Sign in to see your AI access.</p>
+        )}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link
+            href="/ai-chat"
+            className="inline-flex rounded-lg border px-3 py-1.5 text-xs transition"
+            style={{ borderColor: 'color-mix(in srgb, var(--accent-cyan) 45%, var(--border))', color: 'var(--accent-cyan-strong)' }}
+          >
+            Open Chimmy
+          </Link>
+          {aiAccess.data && !aiAccess.data.hasSubscription && (
+            <Link
+              href="/pricing"
+              className="inline-flex rounded-lg border px-3 py-1.5 text-xs transition"
+              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+            >
+              Upgrade
+            </Link>
+          )}
+        </div>
       </section>
 
       {error && (

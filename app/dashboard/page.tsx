@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolveDashboardAvatarUrl } from '@/lib/dashboard/resolve-dashboard-avatar'
+import { resolveDisplayName } from '@/lib/dashboard/resolve-display-name'
 import DashboardUnavailableState from '@/components/dashboard/DashboardUnavailableState'
 import {
   createDashboardRuntimeIssue,
@@ -61,7 +62,7 @@ export default async function DashboardPage() {
       prisma.appUser
         .findUnique({
           where: { id: userId },
-          select: { avatarUrl: true, emailVerified: true },
+          select: { avatarUrl: true, emailVerified: true, username: true },
         })
         .catch((err: unknown) => {
           console.error('[dashboard] appUser lookup failed:', err)
@@ -70,7 +71,7 @@ export default async function DashboardPage() {
       prisma.userProfile
         .findUnique({
           where: { userId },
-          select: { discordUserId: true },
+          select: { discordUserId: true, displayName: true },
         })
         .catch((err: unknown) => {
           console.error('[dashboard] userProfile lookup failed:', err)
@@ -87,11 +88,17 @@ export default async function DashboardPage() {
     ])
 
     const userImage = resolveDashboardAvatarUrl(sessionUser.image, dbUser?.avatarUrl ?? undefined)
+    const userName = resolveDisplayName({
+      displayName: userProfile?.displayName,
+      username: dbUser?.username,
+      sessionName: sessionUser.name,
+      email: sessionUser.email,
+    })
 
     return (
       <DashboardShell
         userId={userId}
-        userName={sessionUser.name ?? 'Manager'}
+        userName={userName}
         userImage={userImage}
         emailVerified={Boolean(dbUser?.emailVerified)}
         discordConnected={Boolean(userProfile?.discordUserId)}
