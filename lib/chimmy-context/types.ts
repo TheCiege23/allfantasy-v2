@@ -111,6 +111,30 @@ export type MatchupContextSlice = {
   yourProjectedPoints: number | null
   opponentProjectedPoints: number | null
   status: "scheduled" | "in_progress" | "final" | "unknown"
+  // ─── Phase 2C Batch 3: additive optional fields ───────────────────────────
+  /** Resolved season for the matchup (e.g. 2025). */
+  season?: number | null
+  /** Viewer's actual scored points (from TeamWeekResult.totalPoints). */
+  yourActualPoints?: number | null
+  /** Opponent's actual scored points (from TeamWeekResult.totalPoints). */
+  opponentActualPoints?: number | null
+  /** Opponent LeagueTeam.teamName when resolvable. */
+  opponentTeamName?: string | null
+  /** Resolved playoff start week (League.playoffStartWeek / RedraftSeason). */
+  playoffStartWeek?: number | null
+  /** True when `week >= playoffStartWeek`. */
+  isPlayoffWeek?: boolean
+  /** `max(0, playoffStartWeek - week)`; null when unknown. */
+  weeksUntilPlayoffs?: number | null
+  /** Where the current-week value originated (debug / observability). */
+  currentWeekSource?:
+    | "requestOverride"
+    | "redraftSeason"
+    | "teamWeekResult"
+    | "weeklyMatchup"
+    | "leagueSettings"
+    | "fallback"
+    | null
 }
 
 export type RosterPlayerLite = {
@@ -168,6 +192,28 @@ export type ImportedHistorySlice = {
   }>
 }
 
+export type SportsScheduleGame = {
+  sport: string
+  homeTeam: string
+  awayTeam: string
+  /** ISO string or human-readable local time from the data source. */
+  startTime: string | null
+  status: "scheduled" | "in_progress" | "final" | "unknown"
+  homeScore: number | null
+  awayScore: number | null
+}
+
+export type SportsScheduleSlice = {
+  /** YYYY-MM-DD in UTC (proxy for "today"). */
+  date: string
+  games: SportsScheduleGame[]
+  /**
+   * True when real live-data was returned from the DB / sports API.
+   * False means the prompt MUST include the "no guessing" guardrail.
+   */
+  hasRealData: boolean
+}
+
 /**
  * Reserved hook for future vector-store memory retrieval.
  * Phase 2A: always empty array. Phase 3+: top-K retrieved summaries.
@@ -190,6 +236,7 @@ export type ChimmyContextBundle = {
   rankings: RankingContextSlice | null
   leagueDifficulty: LeagueDifficultyContextSlice | null
   importedHistory: ImportedHistorySlice | null
+  sportsSchedule: SportsScheduleSlice | null
   /** Future memory retrieval hook (vector store). Phase 2A: []. */
   memoryRefs: MemoryRef[]
   /** Provenance: which providers ran, succeeded, failed, were cached. */

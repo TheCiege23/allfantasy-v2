@@ -34,6 +34,7 @@ const SECTION_PROFILES: Record<
   standings: { priority: "optional", maxChars: 380 },
   rankings: { priority: "optional", maxChars: 200 },
   leagueDifficulty: { priority: "optional", maxChars: 180 },
+  sportsSchedule: { priority: "preferred", maxChars: 800 },
 }
 
 /**
@@ -46,6 +47,7 @@ const SECTION_ORDER: string[] = [
   "aiAccess",
   "activeLeague",
   "importedHistory",
+  "sportsSchedule",
   "matchup",
   "roster",
   "rankings",
@@ -69,6 +71,7 @@ const ALWAYS_ON = new Set<string>([
 
 const INTENT_SECTION_ALLOW: Record<ChimmyIntent, Set<string>> = {
   general: new Set(),
+  sports_schedule: new Set(["sportsSchedule"]),
   matchup: new Set(["matchup", "roster", "standings"]),
   start_sit: new Set(["matchup", "roster", "rankings"]),
   waiver: new Set(["roster", "rankings"]),

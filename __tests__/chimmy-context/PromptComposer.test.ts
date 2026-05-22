@@ -58,6 +58,7 @@ function buildBundle(overrides: Partial<ChimmyContextBundle> = {}): ChimmyContex
         { name: "League B", season: 2024, record: "8-6", champion: false },
       ],
     },
+    sportsSchedule: null,
     memoryRefs: [],
     meta: {
       builtAt: new Date().toISOString(),

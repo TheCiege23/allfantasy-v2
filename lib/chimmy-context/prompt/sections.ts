@@ -14,6 +14,7 @@ import type {
   MatchupContextSlice,
   RankingContextSlice,
   RosterContextSlice,
+  SportsScheduleSlice,
   StandingsContextSlice,
   SubscriptionContextSlice,
   UserContextSlice,
@@ -144,6 +145,33 @@ export function renderLeagueDifficultySection(d: LeagueDifficultyContextSlice | 
   ])
 }
 
+export function renderSportsScheduleSection(s: SportsScheduleSlice | null): string {
+  if (!s) return ""
+  if (!s.hasRealData) {
+    return [
+      "## SPORTS SCHEDULE",
+      `- Date: ${s.date}`,
+      "- STATUS: No live schedule data available.",
+      "- GUARDRAIL: Do NOT guess or infer today's games, scores, or start times from",
+      "  model training data. Only answer using provided schedule context.",
+      "  If asked, say: \"I need live schedule data connected before I can answer",
+      "  today's games accurately.\"",
+    ].join("\n")
+  }
+  const gameLines = s.games.slice(0, 20).map((g) => {
+    const score =
+      g.status === "in_progress" || g.status === "final"
+        ? ` (${g.awayScore ?? "?"}-${g.homeScore ?? "?"})`
+        : ""
+    const time = g.startTime ? ` @ ${g.startTime}` : ""
+    return `  - [${g.sport}] ${g.awayTeam} vs ${g.homeTeam}${time} — ${g.status}${score}`
+  })
+  return joinLines("## SPORTS SCHEDULE", [
+    `- Date: ${s.date}`,
+    `- Games (${s.games.length} total):\n${gameLines.join("\n")}`,
+  ])
+}
+
 /**
  * Static personality + guardrail block. Kept short — the main system prompt
  * still holds the bulk of expert-knowledge content.
@@ -170,6 +198,7 @@ export function renderAllSections(bundle: ChimmyContextBundle): Record<string, s
     rankings: renderRankingsSection(bundle.rankings),
     leagueDifficulty: renderLeagueDifficultySection(bundle.leagueDifficulty),
     importedHistory: renderImportedHistorySection(bundle.importedHistory),
+    sportsSchedule: renderSportsScheduleSection(bundle.sportsSchedule),
     personality: renderChimmyPersonalitySection(),
   }
 }

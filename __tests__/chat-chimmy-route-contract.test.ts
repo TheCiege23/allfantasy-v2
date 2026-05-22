@@ -20,6 +20,8 @@ const buildChimmyStalenessWarningMock = vi.fn()
 const buildChimmySourceReferencesMock = vi.fn()
 const buildChimmySportDataDigestMock = vi.fn()
 const prismaUserProfileFindUniqueMock = vi.fn()
+const prismaUserProfileUpsertMock = vi.fn()
+const prismaAppUserFindUniqueMock = vi.fn()
 const prismaAiCustomRuleFindManyMock = vi.fn()
 const previewSpendMock = vi.fn()
 const spendTokensForRuleMock = vi.fn()
@@ -114,7 +116,11 @@ vi.mock("@/lib/chimmy/chimmy-sport-data-digest", () => ({
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    userProfile: { findUnique: prismaUserProfileFindUniqueMock },
+    appUser: { findUnique: prismaAppUserFindUniqueMock },
+    userProfile: {
+      findUnique: prismaUserProfileFindUniqueMock,
+      upsert: prismaUserProfileUpsertMock,
+    },
     aICustomRule: { findMany: prismaAiCustomRuleFindManyMock },
   },
 }))
@@ -156,6 +162,16 @@ describe("POST /api/chat/chimmy contract", () => {
     })
     buildChimmySourceReferencesMock.mockReturnValue([])
     buildChimmySportDataDigestMock.mockResolvedValue({ text: "", sources: [] })
+    prismaAppUserFindUniqueMock.mockResolvedValue({ emailVerified: new Date("2025-01-01") })
+    prismaUserProfileUpsertMock.mockResolvedValue({
+      userId: "user-1",
+      displayName: null,
+      phone: null,
+      phoneVerifiedAt: null,
+      emailVerifiedAt: null,
+      ageConfirmedAt: new Date("2025-01-01"),
+      profileComplete: true,
+    })
     prismaUserProfileFindUniqueMock.mockResolvedValue(null)
     prismaAiCustomRuleFindManyMock.mockResolvedValue([])
     previewSpendMock.mockResolvedValue({

@@ -40,13 +40,36 @@ export function summarizeMatchup(slice: MatchupContextSlice | null): string {
   const yp = slice.yourProjectedPoints
   const op = slice.opponentProjectedPoints
   const margin = yp != null && op != null ? Number((yp - op).toFixed(2)) : null
+  const ya = slice.yourActualPoints ?? null
+  const oa = slice.opponentActualPoints ?? null
+  const actualMargin =
+    ya != null && oa != null ? Number((ya - oa).toFixed(2)) : null
+  const opponentLabel =
+    slice.opponentTeamName ?? slice.opponentTeamId ?? null
+  const playoffContext = (() => {
+    if (slice.isPlayoffWeek) return "playoff week"
+    if (
+      slice.weeksUntilPlayoffs != null &&
+      slice.weeksUntilPlayoffs >= 0 &&
+      slice.playoffStartWeek != null
+    ) {
+      return `${slice.weeksUntilPlayoffs} week(s) until playoffs (start W${slice.playoffStartWeek})`
+    }
+    return null
+  })()
   return nonEmpty([
     "Matchup analysis:",
+    line("Season", slice.season ?? null),
     line("Week", slice.week ?? null),
     line("Status", slice.status),
+    line("Opponent", opponentLabel),
+    line("Your actual", ya != null ? ya.toFixed(2) : null),
+    line("Opponent actual", oa != null ? oa.toFixed(2) : null),
+    line("Actual margin", actualMargin),
     line("Your projection", yp != null ? yp.toFixed(2) : null),
     line("Opponent projection", op != null ? op.toFixed(2) : null),
     line("Projected margin", margin),
+    line("Playoff context", playoffContext),
   ])
 }
 

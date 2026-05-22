@@ -22,6 +22,7 @@ import { LeagueDifficultyContextProvider } from "@/lib/chimmy-context/providers/
 import { MatchupContextProvider } from "@/lib/chimmy-context/providers/MatchupContextProvider"
 import { RankingContextProvider } from "@/lib/chimmy-context/providers/RankingContextProvider"
 import { RosterContextProvider } from "@/lib/chimmy-context/providers/RosterContextProvider"
+import { SportsScheduleContextProvider } from "@/lib/chimmy-context/providers/SportsScheduleContextProvider"
 import { StandingsContextProvider } from "@/lib/chimmy-context/providers/StandingsContextProvider"
 import { SubscriptionContextProvider } from "@/lib/chimmy-context/providers/SubscriptionContextProvider"
 import { UserContextProvider } from "@/lib/chimmy-context/providers/UserContextProvider"
@@ -36,6 +37,7 @@ import type {
   ProviderResult,
   RankingContextSlice,
   RosterContextSlice,
+  SportsScheduleSlice,
   StandingsContextSlice,
   SubscriptionContextSlice,
   UserContextSlice,
@@ -61,6 +63,7 @@ export type ChimmyContextEngineOptions = {
     ranking?: ChimmyContextProvider<RankingContextSlice>
     leagueDifficulty?: ChimmyContextProvider<LeagueDifficultyContextSlice>
     importedHistory?: ChimmyContextProvider<ImportedHistorySlice>
+    sportsSchedule?: ChimmyContextProvider<SportsScheduleSlice>
   }
 }
 
@@ -107,6 +110,7 @@ export class ChimmyContextEngine {
     ranking: ChimmyContextProvider<RankingContextSlice>
     leagueDifficulty: ChimmyContextProvider<LeagueDifficultyContextSlice>
     importedHistory: ChimmyContextProvider<ImportedHistorySlice>
+    sportsSchedule: ChimmyContextProvider<SportsScheduleSlice>
   }
 
   constructor(options: ChimmyContextEngineOptions = {}) {
@@ -121,6 +125,7 @@ export class ChimmyContextEngine {
       ranking: options.providers?.ranking ?? new RankingContextProvider(),
       leagueDifficulty: options.providers?.leagueDifficulty ?? new LeagueDifficultyContextProvider(),
       importedHistory: options.providers?.importedHistory ?? new ImportHistoryContextProvider(),
+      sportsSchedule: options.providers?.sportsSchedule ?? new SportsScheduleContextProvider(),
     }
   }
 
@@ -186,6 +191,7 @@ export class ChimmyContextEngine {
       ["ranking", this.providers.ranking as AnyProvider],
       ["leagueDifficulty", this.providers.leagueDifficulty as AnyProvider],
       ["importedHistory", this.providers.importedHistory as AnyProvider],
+      ["sportsSchedule", this.providers.sportsSchedule as AnyProvider],
     ]
 
     const filter = options.onlyProviders ? new Set(options.onlyProviders) : null
@@ -229,6 +235,7 @@ export class ChimmyContextEngine {
     const rankingResult = get<RankingContextSlice>("ranking")
     const difficultyResult = get<LeagueDifficultyContextSlice>("leagueDifficulty")
     const historyResult = get<ImportedHistorySlice>("importedHistory")
+    const scheduleResult = get<SportsScheduleSlice>("sportsSchedule")
 
     const bundle: ChimmyContextBundle = {
       user: userResult?.data ?? null,
@@ -241,6 +248,7 @@ export class ChimmyContextEngine {
       rankings: rankingResult?.data ?? null,
       leagueDifficulty: difficultyResult?.data ?? null,
       importedHistory: historyResult?.data ?? null,
+      sportsSchedule: scheduleResult?.data ?? null,
       memoryRefs: [],
       meta: {
         builtAt: new Date().toISOString(),

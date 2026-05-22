@@ -1,17 +1,69 @@
 /**
- * Phase 2A — RosterContextProvider (interface-only stub)
+ * Phase 2C — RosterContextProvider
  *
- * Real implementation lands in Phase 2B and will reuse the IDP-friendly
- * roster fetcher pattern from `lib/idp/ai/idpChimmy.ts` generalized to all
- * sports. The bundle field is reserved so consumers compile today.
+ * Reads the viewer's `Roster.playerData` and projects it into a compact
+ * `RosterContextSlice` (starters + bench). Uses the existing canonical
+ * `getNormalizedLineupSections` helper so every section honours the same
+ * shape used by the rest of the platform.
+ *
+ * Resolution path:
+ *   request → resolveLeagueIdentity → leagueTeam (OR clause: platformUserId
+ *   or claimedByUserId === viewer) → Roster via (leagueId, platformUserId).
+ *
+ * Rules:
+ *   - DB-first (Prisma only — no external APIs, no Player join this batch).
+ *   - Never throws; returns `{ data: null }` on any missing input.
+ *   - Default-off impact: gated upstream by `CHIMMY_CONTEXT_ENGINE_INJECT`.
+ *   - Caps each section at MAX_PLAYERS to keep prompt budget safe.
  */
 
+import { prisma } from "@/lib/prisma"
+import { getNormalizedLineupSections } from "@/lib/roster/LineupTemplateValidation"
+import { resolveLeagueIdentity } from "@/lib/chimmy-context/providers/_helpers/leagueIdentity"
 import type {
   ChimmyContextProvider,
   ChimmyContextRequest,
   ProviderResult,
   RosterContextSlice,
+  RosterPlayerLite,
 } from "@/lib/chimmy-context/types"
+
+const MAX_PLAYERS = 30
+
+function pickString(obj: Record<string, unknown>, keys: string[]): string | null {
+  for (const k of keys) {
+    const v = obj[k]
+    if (typeof v === "string" && v.trim()) return v.trim()
+  }
+  return null
+}
+
+function toRosterPlayerLite(item: Record<string, unknown>): RosterPlayerLite | null {
+  const playerId = typeof item.id === "string" ? item.id : null
+  if (!playerId) return null
+  const name =
+    pickString(item, ["name", "full_name", "fullName", "displayName"]) ?? playerId
+  const position = pickString(item, ["position", "pos"])
+  const team = pickString(item, ["team", "nflTeam", "proTeam", "teamAbbr"])
+  const slot = pickString(item, ["slot", "lineupSlot", "starterSlot"])
+  return {
+    playerId,
+    name,
+    position: position ? position.toUpperCase() : null,
+    team: team ? team.toUpperCase() : null,
+    slot,
+  }
+}
+
+function mapSection(items: Array<Record<string, unknown>>): RosterPlayerLite[] {
+  const out: RosterPlayerLite[] = []
+  for (const item of items) {
+    if (out.length >= MAX_PLAYERS) break
+    const lite = toRosterPlayerLite(item)
+    if (lite) out.push(lite)
+  }
+  return out
+}
 
 export class RosterContextProvider
   implements ChimmyContextProvider<RosterContextSlice>
@@ -22,19 +74,90 @@ export class RosterContextProvider
   async load(
     request: ChimmyContextRequest
   ): Promise<ProviderResult<RosterContextSlice>> {
-    if (!request.leagueId) {
+    const startedAt = Date.now()
+    const fetchedAt = new Date().toISOString()
+    try {
+      const identity = await resolveLeagueIdentity(request)
+      if (!identity) {
+        return {
+          ok: true,
+          data: null,
+          fetchedAt,
+          durationMs: Date.now() - startedAt,
+        }
+      }
+
+      if (!identity.platformUserId) {
+        return {
+          ok: true,
+          data: {
+            leagueId: identity.leagueId,
+            teamId: identity.teamId,
+            starters: [],
+            bench: [],
+          },
+          fetchedAt,
+          durationMs: Date.now() - startedAt,
+        }
+      }
+
+      const roster = await prisma.roster
+        .findUnique({
+          where: {
+            leagueId_platformUserId: {
+              leagueId: identity.leagueId,
+              platformUserId: identity.platformUserId,
+            },
+          },
+          select: { playerData: true },
+        })
+        .catch(() => null)
+
+      if (!roster) {
+        return {
+          ok: true,
+          data: {
+            leagueId: identity.leagueId,
+            teamId: identity.teamId,
+            starters: [],
+            bench: [],
+          },
+          fetchedAt,
+          durationMs: Date.now() - startedAt,
+        }
+      }
+
+      const sections = getNormalizedLineupSections(roster.playerData)
+      const starters = mapSection(sections.starters)
+      // Combine bench, ir, taxi, devy into a single "bench" bucket for the
+      // Chimmy slice; the prompt summariser only differentiates starter/bench.
+      const benchSource = [
+        ...sections.bench,
+        ...sections.ir,
+        ...sections.taxi,
+        ...sections.devy,
+      ]
+      const bench = mapSection(benchSource)
+
       return {
         ok: true,
-        data: null,
-        fetchedAt: new Date().toISOString(),
-        durationMs: 0,
+        data: {
+          leagueId: identity.leagueId,
+          teamId: identity.teamId,
+          starters,
+          bench,
+        },
+        fetchedAt,
+        durationMs: Date.now() - startedAt,
       }
-    }
-    return {
-      ok: true,
-      data: null,
-      fetchedAt: new Date().toISOString(),
-      durationMs: 0,
+    } catch (err) {
+      return {
+        ok: false,
+        data: null,
+        error: err instanceof Error ? err.message : "Unknown roster error",
+        fetchedAt,
+        durationMs: Date.now() - startedAt,
+      }
     }
   }
 }

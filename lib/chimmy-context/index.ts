@@ -23,6 +23,8 @@ export {
   type ComposePromptOptions,
 } from "@/lib/chimmy-context/prompt/PromptComposer"
 
+export { SportsScheduleContextProvider } from "@/lib/chimmy-context/providers/SportsScheduleContextProvider"
+
 // Phase 2C — Fantasy intelligence engines + intelligence summaries.
 export * from "@/lib/ranking/league-difficulty"
 export * from "@/lib/ranking/snapshot"

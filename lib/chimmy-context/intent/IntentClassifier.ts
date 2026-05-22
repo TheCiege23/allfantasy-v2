@@ -20,6 +20,7 @@ export type ChimmyIntent =
   | "matchup"
   | "draft"
   | "start_sit"
+  | "sports_schedule"
   | "general"
 
 export type IntentMatch = {
@@ -33,6 +34,20 @@ export type IntentMatch = {
  * observed misses rather than guessing.
  */
 const INTENT_TERMS: Record<Exclude<ChimmyIntent, "general">, RegExp[]> = {
+  sports_schedule: [
+    /\bwhat games?\b.*\b(today|tonight|on|now)\b/i,
+    /\bgames?\s+(today|tonight|on\s+now|are\s+on)\b/i,
+    /\bwho\s+(plays?|is\s+playing)\b/i,
+    /\bwhat\s+sports?\b.*\b(today|tonight|now)\b/i,
+    /\b(nba|nfl|nhl|mlb|mls|soccer|world\s*cup)\s+(games?|matches?|tonight|today)\b/i,
+    /\bworld\s*cup\s+(match|game|fixture|today|tonight)\b/i,
+    /\bwhat\s+time\s+is\s+the\s+game\b/i,
+    /\bwhat\s+channel\b/i,
+    /\bschedule\b.*\b(today|tonight|now)\b/i,
+    /\b(live\s+)?scores?\s+(today|now|tonight)\b/i,
+    /\bsports?\s+calendar\b/i,
+    /\bwhen\s+(does|do|is)\s+.{0,30}(play|game|start|kick\s*off)\b/i,
+  ],
   start_sit: [
     /\bstart\b.*\bor\b.*\bsit\b/i,
     /\bsit\b.*\bor\b.*\bstart\b/i,
@@ -98,6 +113,7 @@ const INTENT_TERMS: Record<Exclude<ChimmyIntent, "general">, RegExp[]> = {
 
 /** Order matters for tie-breaks. More specific intents win. */
 const PRIORITY: ChimmyIntent[] = [
+  "sports_schedule",
   "start_sit",
   "trade",
   "waiver",

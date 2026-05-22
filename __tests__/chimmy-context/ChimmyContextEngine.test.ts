@@ -14,6 +14,7 @@ import type {
   ProviderResult,
   RankingContextSlice,
   RosterContextSlice,
+  SportsScheduleSlice,
   StandingsContextSlice,
   SubscriptionContextSlice,
   UserContextSlice,
@@ -50,6 +51,7 @@ function buildEngine(overrides: Partial<{
   ranking: ChimmyContextProvider<RankingContextSlice>
   leagueDifficulty: ChimmyContextProvider<LeagueDifficultyContextSlice>
   importedHistory: ChimmyContextProvider<ImportedHistorySlice>
+  sportsSchedule: ChimmyContextProvider<SportsScheduleSlice>
 }> = {}) {
   return new ChimmyContextEngine({
     providerTimeoutMs: 200,
@@ -105,6 +107,13 @@ function buildEngine(overrides: Partial<{
           archetype: null,
           recentLeagues: [],
         }),
+      sportsSchedule:
+        overrides.sportsSchedule ??
+        fakeProvider<SportsScheduleSlice>("sportsSchedule", {
+          date: "2026-05-22",
+          games: [],
+          hasRealData: false,
+        }),
     },
   })
 }
@@ -120,7 +129,7 @@ describe("ChimmyContextEngine", () => {
     expect(bundle.leagues).toEqual([])
     expect(bundle.activeLeague).toBeNull()
     expect(bundle.memoryRefs).toEqual([])
-    expect(bundle.meta.providers).toHaveLength(9)
+    expect(bundle.meta.providers).toHaveLength(10)
     expect(bundle.meta.providers.every((p) => p.ok)).toBe(true)
   })
 

@@ -33,6 +33,7 @@ export type ProviderName =
   | "ranking"
   | "leagueDifficulty"
   | "importedHistory"
+  | "sportsSchedule"
 
 const ALWAYS_ON: ProviderName[] = [
   "user",
@@ -43,6 +44,7 @@ const ALWAYS_ON: ProviderName[] = [
 
 const INTENT_ADDITIONS: Record<ChimmyIntent, ProviderName[]> = {
   general: [],
+  sports_schedule: ["sportsSchedule"],
   matchup: ["matchup", "roster", "standings"],
   start_sit: ["matchup", "roster", "ranking"],
   waiver: ["roster", "ranking"],
