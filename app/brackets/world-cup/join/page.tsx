@@ -16,7 +16,8 @@ export default async function WorldCupJoinWithCodePage() {
   const t = makeWcT(language)
 
   return (
-    <main className="min-h-screen bg-[#05070b] text-white">
+    // `mode-readable` opts into the globals.css light-mode rescue layer.
+    <main className="mode-readable min-h-screen bg-[#05070b] text-white">
       <div className="mx-auto max-w-lg px-4 py-10">
         <Link
           href="/brackets/world-cup"

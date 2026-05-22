@@ -112,7 +112,9 @@ export default function WorldCupBracketCreateModal() {
         : t("wc.create.submit.idle")
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#05070b] text-white">
+    // `mode-readable` opts the create modal into the globals.css light-mode
+    // rescue layer so muted form helpers and validation hints stay readable.
+    <div className="mode-readable fixed inset-0 z-50 flex flex-col bg-[#05070b] text-white">
       <header className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
         <button
           type="button"

@@ -76,7 +76,13 @@ export default async function WorldCupBracketsPage() {
   const FEATURE_BULLETS = buildFeatureBullets(t)
 
   return (
-    <main className="min-h-screen bg-[#05070b] text-white">
+    // `mode-readable` opts this page into the global light-mode rescue
+    // layer in globals.css — keeps the existing dark `bg-[#05070b]` styling
+    // intact in dark + AF (legacy) modes, and remaps it to light theme
+    // tokens (--bg / --panel / --text / --muted) in light mode so muted
+    // labels, badges, and helper text stay readable instead of going
+    // invisible on white.
+    <main className="mode-readable min-h-screen bg-[#05070b] text-white">
       <section className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6">
         {/* Nav row */}
         <div className="flex flex-wrap items-center justify-between gap-4">

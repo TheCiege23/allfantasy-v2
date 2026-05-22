@@ -2105,7 +2105,11 @@ export default function WorldCupBracketShell({
   )
 
   return (
-    <div id="world-cup-top" className="fixed inset-0 z-50 flex flex-col bg-[#05070b] text-white">
+    // `mode-readable` opts the entire dashboard shell into the
+    // globals.css light-mode rescue layer so muted labels, tab text,
+    // and helper copy stay readable on white. Dark + AF (legacy) modes
+    // keep the original `bg-[#05070b]` styling unchanged.
+    <div id="world-cup-top" className="mode-readable fixed inset-0 z-50 flex flex-col bg-[#05070b] text-white">
       <header className="shrink-0 border-b border-white/10 bg-zinc-950/95 backdrop-blur pt-[env(safe-area-inset-top,0px)]">
         <div className="flex items-center gap-1.5 px-2 py-1.5 sm:gap-2 sm:px-4 sm:py-2">
           {showBoard ? (
@@ -2244,8 +2248,11 @@ export default function WorldCupBracketShell({
               the choice persists app-wide via localStorage `af_lang` + the
               UserProfile preferredLanguage write inside LanguageToggle.
               The "compact" variant shows a globe icon + native language
-              names so it fits cleanly inside the dense pool header. */}
-          <div className="hidden sm:block" data-testid="wc-shell-language-toggle">
+              names so it fits cleanly inside the dense pool header.
+              Phase 6 update: shown on mobile too (was `sm:block` only).
+              The compact pill caps its width at 12rem so it never pushes
+              the Invite CTA off small screens. */}
+          <div data-testid="wc-shell-language-toggle">
             <LanguageToggle variant="compact" />
           </div>
           {(view.isOwner || view.isAdmin) && (

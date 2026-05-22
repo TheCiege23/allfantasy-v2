@@ -4,7 +4,8 @@ export const dynamic = "force-dynamic"
 
 export default function WorldCupDiscoverPage() {
   return (
-    <main className="min-h-screen bg-[#05070b] text-white">
+    // `mode-readable` opts into the globals.css light-mode rescue layer.
+    <main className="mode-readable min-h-screen bg-[#05070b] text-white">
       <WorldCupDiscoverClient />
     </main>
   )
