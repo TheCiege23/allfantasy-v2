@@ -3411,6 +3411,7 @@ export default function WorldCupBracketShell({
                       {/* 1. Grade — headline metric (A/B/C, completion %, risk, upset meter). */}
                       <WorldCupBracketGradeCard
                         unlocked={aiInsightsUnlocked}
+                        hideTierChip
                         grade={calculateWorldCupBracketGrade({
                           completionReview,
                           entry: selectedEntry,
@@ -3422,6 +3423,7 @@ export default function WorldCupBracketShell({
                       {/* 2. Confidence check — deterministic missing-picks summary. */}
                       <ReviewAiConfidenceCard
                         unlocked={aiInsightsUnlocked}
+                        hideTierChip
                         completionReview={completionReview}
                         picks={picks}
                       />
@@ -3430,6 +3432,7 @@ export default function WorldCupBracketShell({
                       <WorldCupPathToWinCard
                         insight={pathToWinInsight}
                         unlocked={aiInsightsUnlocked}
+                        hideTierChip
                       />
 
                       {/* 4. Explain my bracket — on-demand AI narrative. */}
@@ -3437,6 +3440,7 @@ export default function WorldCupBracketShell({
                         challengeId={challengeId}
                         entryId={selectedEntryId ?? null}
                         hasBracketBrainAi={aiInsightsUnlocked}
+                        hideTierChip
                       />
 
                       {/* 5. Uniqueness — vs finalized pool distribution. */}
@@ -3444,12 +3448,14 @@ export default function WorldCupBracketShell({
                         challengeId={challengeId}
                         entryId={selectedEntryId ?? null}
                         hasBracketBrainAi={aiInsightsUnlocked}
+                        hideTierChip
                       />
 
                       {/* 6. Share card — composes everything above into one shareable text card. */}
                       <WorldCupAiBracketShareCard
                       challengeId={challengeId}
                       entryId={selectedEntryId ?? null}
+                      hideTierChip
                       poolName={view.challenge.name}
                       entryName={selectedEntry?.name ?? null}
                       championName={
@@ -3890,10 +3896,13 @@ function ReviewAiConfidenceCard({
   unlocked,
   completionReview,
   picks,
+  hideTierChip = false,
 }: {
   unlocked: boolean
   completionReview: WorldCupEntryCompletionReviewClient
   picks: WorldCupPickView[]
+  /** When true, suppress the per-card Open/Locked chip — the section-level chip is canonical. */
+  hideTierChip?: boolean
 }) {
   const completedPickCount = picks.filter(hasWorldCupPickSelection).length
   const highRiskCount = picks.filter((pick) => pick.round === "round_of_32" || pick.round === "round_of_16").length
@@ -3905,9 +3914,11 @@ function ReviewAiConfidenceCard({
           <Sparkles className="h-3.5 w-3.5" />
           AI Confidence Check
         </span>
-        <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] uppercase tracking-wide">
-          {unlocked ? "Open" : "Locked"}
-        </span>
+        {hideTierChip ? null : (
+          <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] uppercase tracking-wide">
+            {unlocked ? "Open" : "Locked"}
+          </span>
+        )}
       </summary>
       {unlocked ? (
         <div className="mt-3 space-y-2 leading-5 text-cyan-50/85">
@@ -3931,9 +3942,12 @@ function ReviewAiConfidenceCard({
 function WorldCupBracketGradeCard({
   unlocked,
   grade,
+  hideTierChip = false,
 }: {
   unlocked: boolean
   grade: WorldCupBracketGradeInsight
+  /** When true, suppress the per-card AF Pro/Basic chip — the section-level chip is canonical. */
+  hideTierChip?: boolean
 }) {
   return (
     <section
@@ -3948,9 +3962,11 @@ function WorldCupBracketGradeCard({
             <span className="font-bold text-cyan-100/80">{grade.completionPercent}% complete</span>
           </div>
         </div>
-        <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-100">
-          {unlocked ? "AF Pro detail" : "Basic"}
-        </span>
+        {hideTierChip ? null : (
+          <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-100">
+            {unlocked ? "AF Pro detail" : "Basic"}
+          </span>
+        )}
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-4">
         <PoolStatCard label="Groups" value={`${grade.groupCompletionPercent}%`} tone={grade.groupCompletionPercent === 100 ? "ready" : "warn"} />
@@ -3978,9 +3994,12 @@ function WorldCupBracketGradeCard({
 function WorldCupPathToWinCard({
   insight,
   unlocked,
+  hideTierChip = false,
 }: {
   insight: WorldCupPathToWinInsight
   unlocked: boolean
+  /** When true, suppress the per-card AF Pro chip — the section-level chip is canonical. */
+  hideTierChip?: boolean
 }) {
   return (
     <section
@@ -3994,9 +4013,11 @@ function WorldCupPathToWinCard({
             Private current-entry read. Other users' unfinalized picks stay hidden.
           </p>
         </div>
-        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${unlocked ? "border-cyan-200/25 text-cyan-100" : "border-purple-300/25 text-purple-100"}`}>
-          {unlocked ? "AF Pro active" : "AF Pro locked"}
-        </span>
+        {hideTierChip ? null : (
+          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${unlocked ? "border-cyan-200/25 text-cyan-100" : "border-purple-300/25 text-purple-100"}`}>
+            {unlocked ? "AF Pro active" : "AF Pro locked"}
+          </span>
+        )}
       </div>
       <div className="mt-3 space-y-1.5 leading-5">
         {insight.lines.map((line, index) => (

@@ -1168,6 +1168,42 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(within(report).getByTestId("world-cup-ai-share-card")).toBeInTheDocument()
   })
 
+  it("suppresses per-card tier chips inside the consolidated Bracket AI Report (canonical chip lives at section header only)", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(
+      <WorldCupBracketShell
+        initialView={makeShellView() as any}
+        defaultTab="review"
+        initialEntryId="entry-1"
+      />
+    )
+
+    const report = await screen.findByTestId("world-cup-review-ai-report")
+
+    // Canonical section-level chip is present exactly once.
+    expect(within(report).getByTestId("world-cup-review-ai-report-tier")).toBeInTheDocument()
+
+    // Per-card chips should NOT render inside the report when hideTierChip is true.
+    // (Outside the report — e.g. the Leaderboard tab's Path To Win — they still render.)
+    expect(within(report).queryByTestId("world-cup-explain-bracket-tier")).toBeNull()
+    expect(within(report).queryByTestId("world-cup-bracket-uniqueness-tier")).toBeNull()
+    expect(within(report).queryByTestId("world-cup-ai-share-card-tier")).toBeNull()
+
+    // Inline-card chip text should not duplicate inside the report.
+    // The Bracket Grade card's "AF Pro detail" / "Basic" pill should be gone.
+    expect(within(report).queryByText(/^AF Pro detail$/i)).toBeNull()
+    expect(within(report).queryByText(/^Basic$/i)).toBeNull()
+    // Path to Win's "AF Pro active" / "AF Pro locked" pill should be gone.
+    expect(within(report).queryByText(/^AF Pro locked$/i)).toBeNull()
+    // The Path-to-Win-only "AF Pro active" string should not appear as a chip inside the report
+    // (the section-level chip uses the same copy but is matched via testid above).
+    const piped = within(report).queryAllByText(/^AF Pro active$/i)
+    // Exactly one occurrence — the section-level chip.
+    expect(piped.length).toBeLessThanOrEqual(1)
+    // Confidence Check's "Open"/"Locked" pill should be gone inside the report.
+    expect(within(report).queryByText(/^Open$/i)).toBeNull()
+  })
+
   it("shows ONE consolidated AF Pro upgrade banner for free users instead of repeating five locked CTAs", async () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(
@@ -1217,8 +1253,10 @@ describe("WorldCupBracketShell fixture readiness", () => {
 
     const card = await screen.findByTestId("world-cup-review-ai-confidence")
     expect(card).toBeInTheDocument()
-    // Locked label visible on the summary
-    expect(within(card).getByText(/^Locked$/)).toBeInTheDocument()
+    // Per-card chip is suppressed inside the report; canonical chip lives at the section header.
+    expect(within(card).queryByText(/^Locked$/)).toBeNull()
+    const report = screen.getByTestId("world-cup-review-ai-report")
+    expect(within(report).getByTestId("world-cup-review-ai-report-tier").textContent).toMatch(/AF Pro preview/i)
     // Pro-only deterministic labels are NOT visible (only rendered when unlocked)
     expect(within(card).queryByText(/Missing picks:/i)).toBeNull()
     expect(within(card).queryByText(/High-risk picks:/i)).toBeNull()
@@ -2533,7 +2571,10 @@ describe("WorldCupBracketShell fixture readiness", () => {
     render(<WorldCupBracketShell initialView={makeShellView({ hasBracketBrainAi: false }) as any} defaultTab="review" />)
 
     const grade = await screen.findByTestId("world-cup-bracket-grade")
-    expect(grade).toHaveTextContent("Basic")
+    // Per-card "Basic" chip is suppressed inside the report; canonical chip lives at the section header.
+    const report = screen.getByTestId("world-cup-review-ai-report")
+    expect(within(report).getByTestId("world-cup-review-ai-report-tier").textContent).toMatch(/AF Pro preview/i)
+    // The inline locked-detail copy remains as the per-card upsell.
     expect(grade).toHaveTextContent("AF Pro unlocks risk")
   })
 

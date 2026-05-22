@@ -13,10 +13,13 @@ export default function WorldCupExplainBracketCard({
   challengeId,
   entryId,
   hasBracketBrainAi,
+  hideTierChip = false,
 }: {
   challengeId: string
   entryId: string | null
   hasBracketBrainAi: boolean
+  /** When true, suppress the per-card AF Pro/Locked chip — the section-level chip is canonical. */
+  hideTierChip?: boolean
 }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -74,16 +77,18 @@ export default function WorldCupExplainBracketCard({
             </p>
           </div>
         </div>
-        <span
-          data-testid="world-cup-explain-bracket-tier"
-          className={
-            hasBracketBrainAi
-              ? "shrink-0 rounded-full border border-cyan-300/30 bg-cyan-300/[0.08] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-100"
-              : "shrink-0 rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/65"
-          }
-        >
-          {hasBracketBrainAi ? "AF Pro" : "Locked"}
-        </span>
+        {hideTierChip ? null : (
+          <span
+            data-testid="world-cup-explain-bracket-tier"
+            className={
+              hasBracketBrainAi
+                ? "shrink-0 rounded-full border border-cyan-300/30 bg-cyan-300/[0.08] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-100"
+                : "shrink-0 rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/65"
+            }
+          >
+            {hasBracketBrainAi ? "AF Pro" : "Locked"}
+          </span>
+        )}
       </div>
 
       {!hasBracketBrainAi ? (

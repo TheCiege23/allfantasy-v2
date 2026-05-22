@@ -26,12 +26,15 @@ type Props = Omit<BuildWorldCupAiShareCardInput, "topUniquenessInsight"> & {
   entryId: string | null
   /** Pre-computed top uniqueness insight (skips the fetch when provided). */
   topUniquenessInsight?: UniquenessInsight | null
+  /** When true, suppress the per-card AF Pro/Basic preview chip — the section-level chip is canonical. */
+  hideTierChip?: boolean
 }
 
 export default function WorldCupAiBracketShareCard({
   challengeId,
   entryId,
   topUniquenessInsight: precomputedUniqueness,
+  hideTierChip = false,
   ...rest
 }: Props) {
   const [copied, setCopied] = useState(false)
@@ -116,16 +119,18 @@ export default function WorldCupAiBracketShareCard({
             </p>
           </div>
         </div>
-        <span
-          data-testid="world-cup-ai-share-card-tier"
-          className={
-            rest.hasBracketBrainAi
-              ? "shrink-0 rounded-full border border-cyan-300/30 bg-cyan-300/[0.08] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-100"
-              : "shrink-0 rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/65"
-          }
-        >
-          {rest.hasBracketBrainAi ? "AF Pro" : "Basic preview"}
-        </span>
+        {hideTierChip ? null : (
+          <span
+            data-testid="world-cup-ai-share-card-tier"
+            className={
+              rest.hasBracketBrainAi
+                ? "shrink-0 rounded-full border border-cyan-300/30 bg-cyan-300/[0.08] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-100"
+                : "shrink-0 rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/65"
+            }
+          >
+            {rest.hasBracketBrainAi ? "AF Pro" : "Basic preview"}
+          </span>
+        )}
       </div>
 
       {result.status === "no_entry" ? (
