@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Loader2, Lock, Send, Settings, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import WorldCupLeagueEventFeed from "./WorldCupLeagueEventFeed"
+import WorldCupCommissionerChecklistCard from "./WorldCupCommissionerChecklistCard"
 
 type Snapshot = {
   incompleteBracketCount: number
@@ -53,9 +54,15 @@ type BrainActionResult = {
 export default function WorldCupCommissionerBrainPanel({
   challengeId,
   onOpenLeagueSettings,
+  poolName,
+  poolUrl,
 }: {
   challengeId: string
   onOpenLeagueSettings?: () => void
+  /** Pool display name — used by the checklist's reminder copy. */
+  poolName?: string
+  /** Public pool URL — used by the checklist's reminder copy. */
+  poolUrl?: string | null
 }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const [settings, setSettings] = useState<CommissionerPrefs | null>(null)
@@ -328,6 +335,14 @@ export default function WorldCupCommissionerBrainPanel({
         />
         <Stat label="Max entries used (users)" value={String(snapshot.usersMaxedEntries)} />
       </div>
+
+      <WorldCupCommissionerChecklistCard
+        snapshot={snapshot}
+        poolName={poolName ?? "this pool"}
+        poolUrl={poolUrl ?? null}
+        lockDeadlineLabel={lockLocal !== "—" ? lockLocal : null}
+        isCommissioner
+      />
 
       {(snapshot.usersWithIncompleteBrackets.length > 0 ||
         snapshot.entriesMissingPicks.length > 0) && (

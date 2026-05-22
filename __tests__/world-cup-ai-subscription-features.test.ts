@@ -27,6 +27,9 @@ import {
   buildWorldCupSocialCaptions,
   WORLD_CUP_SOCIAL_HASHTAGS,
 } from "@/lib/world-cup/worldCupShareCopy"
+import {
+  buildWorldCupCommissionerChecklist,
+} from "@/lib/world-cup/worldCupCommissionerChecklist"
 
 const match = {
   id: "m1",
@@ -1705,6 +1708,227 @@ describe("buildWorldCupSocialCaptions — platform-friendly deterministic captio
     const fs = await import("node:fs/promises")
     const path = await import("node:path")
     const filePath = path.resolve(process.cwd(), "lib/world-cup/worldCupShareCopy.ts")
+    const src = await fs.readFile(filePath, "utf-8")
+    expect(src).not.toMatch(/OPENAI_API_KEY|XAI_API_KEY|new OpenAI|createOpenAI|openai\.com/i)
+    expect(src).not.toMatch(/\bfetch\s*\(/i)
+    expect(src).not.toMatch(/from\s+["']@\/lib\/prisma["']/)
+  })
+})
+
+describe("buildWorldCupCommissionerChecklist — pool completion checklist", () => {
+  function makeSnapshot(overrides: Partial<any> = {}): any {
+    return {
+      totalEntries: 0,
+      completedBracketCount: 0,
+      incompleteBracketCount: 0,
+      totalMissingPicks: 0,
+      maxEntriesPerParticipant: 5,
+      lockCountdownMs: null,
+      effectiveLockAt: null,
+      isLocked: false,
+      mostPopularChampion: null,
+      mostUniqueLean: null,
+      usersMaxedEntries: 0,
+      biggestUpsetLean: null,
+      usersWithIncompleteBrackets: [],
+      entriesMissingPicks: [],
+      ...overrides,
+    }
+  }
+
+  it("non-commissioner viewer returns no_data status with safe fallback (no link/code)", () => {
+    const result = buildWorldCupCommissionerChecklist({
+      snapshot: makeSnapshot({ totalEntries: 5, completedBracketCount: 2 }),
+      poolName: "Office Cup",
+      poolUrl: "https://allfantasy.ai/brackets/world-cup/c1",
+      isCommissioner: false,
+    })
+    expect(result.status).toBe("no_data")
+    expect(result.rows).toHaveLength(0)
+    expect(result.reminderMessage).toMatch(/Ask the pool commissioner/i)
+    expect(result.reminderMessage).not.toContain("https://allfantasy.ai/brackets/world-cup/c1")
+    expect(result.emptyLines?.[0]).toMatch(/Only the pool commissioner/i)
+  })
+
+  it("returns no_data when snapshot is null but provides safe reminder copy", () => {
+    const result = buildWorldCupCommissionerChecklist({
+      snapshot: null,
+      poolName: "Office Cup",
+      poolUrl: "https://allfantasy.ai/brackets/world-cup/c1",
+      lockDeadlineLabel: "June 11, 2026 3:00 PM ET",
+      isCommissioner: true,
+    })
+    expect(result.status).toBe("no_data")
+    expect(result.reminderMessage).toContain("Office Cup")
+    expect(result.reminderMessage).toContain("June 11, 2026 3:00 PM ET")
+    expect(result.reminderMessage).toContain("https://allfantasy.ai/brackets/world-cup/c1")
+    expect(result.reminderMessage).toContain("Powered by AllFantasy.")
+  })
+
+  it("no_members status when pool exists but no entries created yet", () => {
+    const result = buildWorldCupCommissionerChecklist({
+      snapshot: makeSnapshot({ totalEntries: 0 }),
+      poolName: "Office Cup",
+      isCommissioner: true,
+    })
+    expect(result.status).toBe("no_members")
+    expect(result.summary.totalEntries).toBe(0)
+    expect(result.emptyLines?.[0]).toMatch(/No members/i)
+  })
+
+  it("all finalized → 100% complete, single aggregated Finalized row", () => {
+    const result = buildWorldCupCommissionerChecklist({
+      snapshot: makeSnapshot({
+        totalEntries: 4,
+        completedBracketCount: 4,
+        incompleteBracketCount: 0,
+      }),
+      poolName: "Office Cup",
+      poolUrl: "https://allfantasy.ai/brackets/world-cup/c1",
+      isCommissioner: true,
+    })
+    expect(result.status).toBe("ready")
+    expect(result.summary.totalEntries).toBe(4)
+    expect(result.summary.finalized).toBe(4)
+    expect(result.summary.inProgress).toBe(0)
+    expect(result.summary.percentComplete).toBe(100)
+    expect(result.rows).toHaveLength(1)
+    expect(result.rows[0].status).toBe("Finalized")
+    expect(result.rows[0].entryName).toMatch(/4 finalized brackets/i)
+  })
+
+  it("none finalized → 0% with incomplete rows", () => {
+    const result = buildWorldCupCommissionerChecklist({
+      snapshot: makeSnapshot({
+        totalEntries: 3,
+        completedBracketCount: 0,
+        incompleteBracketCount: 3,
+        entriesMissingPicks: [
+          { entryId: "e1", entryName: "Bracket 1", missingPicks: 2, userId: "u1" },
+          { entryId: "e2", entryName: "Bracket 2", missingPicks: 8, userId: "u2" },
+          { entryId: "e3", entryName: "Bracket 3", missingPicks: 5, userId: "u3" },
+        ],
+        usersWithIncompleteBrackets: [
+          { userId: "u1", displayName: "Alice", incompleteEntryCount: 1, missingPicks: 2 },
+          { userId: "u2", displayName: "Bob", incompleteEntryCount: 1, missingPicks: 8 },
+          { userId: "u3", displayName: "Charlie", incompleteEntryCount: 1, missingPicks: 5 },
+        ],
+      }),
+      poolName: "Office Cup",
+      isCommissioner: true,
+    })
+    expect(result.status).toBe("ready")
+    expect(result.summary.percentComplete).toBe(0)
+    expect(result.summary.finalized).toBe(0)
+    expect(result.summary.inProgress).toBe(3)
+    expect(result.rows).toHaveLength(3)
+    // Each row has a status, missingPicks, and a display name from the lookup.
+    const statuses = result.rows.map((r) => r.status)
+    expect(statuses).toContain("In progress") // missingPicks <= 3
+    expect(statuses).toContain("Needs picks") // missingPicks > 3
+    expect(result.rows.map((r) => r.displayName)).toEqual(
+      expect.arrayContaining(["Alice", "Bob", "Charlie"])
+    )
+  })
+
+  it("mixed status: 2 finalized + 2 in progress = 50%, both shown", () => {
+    const result = buildWorldCupCommissionerChecklist({
+      snapshot: makeSnapshot({
+        totalEntries: 4,
+        completedBracketCount: 2,
+        incompleteBracketCount: 2,
+        entriesMissingPicks: [
+          { entryId: "e1", entryName: "Bracket 3", missingPicks: 1, userId: "u3" },
+          { entryId: "e2", entryName: "Bracket 4", missingPicks: 6, userId: "u4" },
+        ],
+        usersWithIncompleteBrackets: [
+          { userId: "u3", displayName: "Charlie", incompleteEntryCount: 1, missingPicks: 1 },
+          { userId: "u4", displayName: "Dawn", incompleteEntryCount: 1, missingPicks: 6 },
+        ],
+      }),
+      poolName: "Office Cup",
+      isCommissioner: true,
+    })
+    expect(result.summary.percentComplete).toBe(50)
+    expect(result.rows).toHaveLength(3) // 1 aggregated finalized + 2 incomplete
+    expect(result.rows[0].status).toBe("Finalized")
+  })
+
+  it("missing/empty/unsafe display names fall back to 'Member'", () => {
+    const result = buildWorldCupCommissionerChecklist({
+      snapshot: makeSnapshot({
+        totalEntries: 3,
+        incompleteBracketCount: 3,
+        entriesMissingPicks: [
+          { entryId: "e1", entryName: "B1", missingPicks: 1, userId: "u1" },
+          { entryId: "e2", entryName: "B2", missingPicks: 1, userId: "u2" },
+          { entryId: "e3", entryName: "B3", missingPicks: 1, userId: "u3" },
+        ],
+        usersWithIncompleteBrackets: [
+          { userId: "u1", displayName: null, incompleteEntryCount: 1, missingPicks: 1 },
+          { userId: "u2", displayName: "owner@example.com", incompleteEntryCount: 1, missingPicks: 1 },
+          { userId: "u3", displayName: "user-abc123def", incompleteEntryCount: 1, missingPicks: 1 },
+        ],
+      }),
+      poolName: "Office Cup",
+      isCommissioner: true,
+    })
+    // null, email-shaped, and userId-shaped names all collapse to "Member"
+    expect(result.rows.map((r) => r.displayName)).toEqual(["Member", "Member", "Member"])
+  })
+
+  it("reminder copy never leaks emails, user IDs, or invite codes", () => {
+    const result = buildWorldCupCommissionerChecklist({
+      snapshot: makeSnapshot({
+        totalEntries: 2,
+        completedBracketCount: 1,
+        incompleteBracketCount: 1,
+        entriesMissingPicks: [
+          { entryId: "e1", entryName: "B1", missingPicks: 1, userId: "user-1" },
+        ],
+        usersWithIncompleteBrackets: [
+          { userId: "user-1", displayName: "owner@example.com", incompleteEntryCount: 1, missingPicks: 1 },
+        ],
+      }),
+      poolName: "Office Cup",
+      poolUrl: "https://allfantasy.ai/brackets/world-cup/c1",
+      lockDeadlineLabel: "June 11, 2026 3:00 PM ET",
+      isCommissioner: true,
+    })
+    expect(result.reminderMessage).toContain("Office Cup")
+    expect(result.reminderMessage).toContain("https://allfantasy.ai/brackets/world-cup/c1")
+    expect(result.reminderMessage).toContain("June 11, 2026")
+    expect(result.reminderMessage).not.toMatch(/owner@example\.com/i)
+    expect(result.reminderMessage).not.toMatch(/\buser-1\b/i)
+    expect(result.reminderMessage).not.toMatch(/INVITE-?CODE|inviteCode|WC[0-9A-Z]{6,}/i)
+  })
+
+  it("percent calculation: 7 of 10 finalized = 70%", () => {
+    const result = buildWorldCupCommissionerChecklist({
+      snapshot: makeSnapshot({
+        totalEntries: 10,
+        completedBracketCount: 7,
+        incompleteBracketCount: 3,
+      }),
+      poolName: "Office Cup",
+      isCommissioner: true,
+    })
+    expect(result.summary.percentComplete).toBe(70)
+  })
+
+  it("never includes wagering or betting language in reminder copy", () => {
+    const result = buildWorldCupCommissionerChecklist({
+      snapshot: makeSnapshot({ totalEntries: 5, completedBracketCount: 2, incompleteBracketCount: 3 }),
+      poolName: "Office Cup",
+      isCommissioner: true,
+    })
+    expect(result.reminderMessage.toLowerCase()).not.toMatch(/\bdfs\b|\bbetting\b|\bwager|\bsportsbook\b|\bodds\b/)
+  })
+
+  it("helper file does not import OpenAI/XAI providers, fetch, or Prisma (privacy guard)", async () => {
+    const fs = await import("node:fs/promises")
+    const path = await import("node:path")
+    const filePath = path.resolve(process.cwd(), "lib/world-cup/worldCupCommissionerChecklist.ts")
     const src = await fs.readFile(filePath, "utf-8")
     expect(src).not.toMatch(/OPENAI_API_KEY|XAI_API_KEY|new OpenAI|createOpenAI|openai\.com/i)
     expect(src).not.toMatch(/\bfetch\s*\(/i)

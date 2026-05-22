@@ -3795,6 +3795,12 @@ export default function WorldCupBracketShell({
             <WorldCupCommissionerBrainPanel
               challengeId={challengeId}
               onOpenLeagueSettings={() => switchTab("settings")}
+              poolName={view.challenge.name}
+              poolUrl={
+                typeof window !== "undefined"
+                  ? `${window.location.origin}/brackets/world-cup/${challengeId}`
+                  : `https://allfantasy.ai/brackets/world-cup/${challengeId}`
+              }
             />
           </div>
         ) : null}
