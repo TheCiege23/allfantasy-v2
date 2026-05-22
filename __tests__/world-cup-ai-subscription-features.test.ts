@@ -18,6 +18,9 @@ import {
 import {
   buildWorldCupAiBracketShareCard,
 } from "@/lib/world-cup/worldCupAiShareCard"
+import {
+  buildWorldCupKnockoutDangerZones,
+} from "@/lib/world-cup/worldCupKnockoutDangerZones"
 
 const match = {
   id: "m1",
@@ -1154,6 +1157,357 @@ describe("buildWorldCupAiBracketShareCard — composes 6 AI signals", () => {
     const fs = await import("node:fs/promises")
     const path = await import("node:path")
     const filePath = path.resolve(process.cwd(), "lib/world-cup/worldCupAiShareCard.ts")
+    const src = await fs.readFile(filePath, "utf-8")
+    expect(src).not.toMatch(/OPENAI_API_KEY|XAI_API_KEY|new OpenAI|createOpenAI|openai\.com/i)
+    expect(src).not.toMatch(/\bfetch\s*\(/i)
+    expect(src).not.toMatch(/from\s+["']@\/lib\/prisma["']/)
+  })
+})
+
+describe("buildWorldCupKnockoutDangerZones — deterministic danger detection", () => {
+  function makeMatch(overrides: Record<string, unknown> = {}): any {
+    return {
+      id: "m1",
+      apiFixtureId: null,
+      round: "round_of_16",
+      roundIndex: 2,
+      matchNumber: 1,
+      homeSlotKey: "A1",
+      awaySlotKey: "B2",
+      homeTeamId: "team-arg",
+      awayTeamId: "team-den",
+      homeTeamName: "Argentina",
+      awayTeamName: "Denmark",
+      homeTeamLogo: null,
+      awayTeamLogo: null,
+      homeScore: null,
+      awayScore: null,
+      homePenaltyScore: null,
+      awayPenaltyScore: null,
+      status: "scheduled",
+      startsAt: "2026-06-20T18:00:00.000Z",
+      winnerTeamId: null,
+      winnerTeamName: null,
+      nextMatchId: null,
+      nextMatchSlot: null,
+      elapsedMinute: null,
+      injuryTime: null,
+      period: null,
+      venueName: null,
+      venueCity: null,
+      apiStatusShort: null,
+      lastScoreSyncedAt: null,
+      ...overrides,
+    }
+  }
+
+  function makePick(overrides: Record<string, unknown> = {}): any {
+    return {
+      id: "p1",
+      matchId: "m1",
+      matchNumber: 1,
+      round: "round_of_16",
+      selectedTeamId: "team-arg",
+      selectedSlotKey: "A1",
+      selectedTeamName: "Argentina",
+      confidencePoints: null,
+      pointsAwarded: 0,
+      isCorrect: null,
+      lockedAt: null,
+      ...overrides,
+    }
+  }
+
+  const baseEntry = {
+    id: "e1",
+    championTeamId: "team-arg",
+    championTeamName: "Argentina",
+  }
+
+  it("returns no_entry status when entry is null", () => {
+    const result = buildWorldCupKnockoutDangerZones({
+      entry: null,
+      picks: [makePick()],
+      matches: [makeMatch()],
+    })
+    expect(result.status).toBe("no_entry")
+    expect(result.zones).toHaveLength(0)
+  })
+
+  it("returns no_picks status with helpful copy when picks array is empty", () => {
+    const result = buildWorldCupKnockoutDangerZones({
+      entry: baseEntry,
+      picks: [],
+      matches: [makeMatch()],
+    })
+    expect(result.status).toBe("no_picks")
+    expect(result.lockedLines?.[0]).toMatch(/Make knockout picks/i)
+  })
+
+  it("returns no_risks safe message when all picks look favored", () => {
+    // Argentina pick @ slot A1 (strength 85), opponent at B4 (strength 40) -> delta = -45, no risk.
+    const result = buildWorldCupKnockoutDangerZones({
+      entry: baseEntry,
+      picks: [makePick()],
+      matches: [makeMatch({ awaySlotKey: "B4" })],
+    })
+    expect(result.status).toBe("no_risks")
+    expect(result.lockedLines?.[0]).toMatch(/No danger zones/i)
+  })
+
+  it("flags champion as eliminated when champion's match is final and they lost", () => {
+    const result = buildWorldCupKnockoutDangerZones({
+      entry: baseEntry,
+      picks: [makePick()],
+      matches: [
+        makeMatch({
+          id: "m-champion",
+          round: "round_of_16",
+          status: "final",
+          winnerTeamId: "team-den",
+          homeTeamId: "team-arg",
+          awayTeamId: "team-den",
+        }),
+      ],
+      hasBracketBrainAi: true,
+    })
+    const champZone = result.zones.find((z) => z.tag === "Already eliminated")
+    expect(champZone).toBeDefined()
+    expect(champZone?.severity).toBe("High")
+    expect(champZone?.description).toMatch(/champion bonus/i)
+  })
+
+  it("flags a knockout pick as eliminated when its match is final and the pick lost", () => {
+    const result = buildWorldCupKnockoutDangerZones({
+      entry: { ...baseEntry, championTeamId: null, championTeamName: null },
+      picks: [
+        makePick({
+          id: "p-r16",
+          matchId: "m-r16",
+          selectedTeamId: "team-brazil",
+          selectedTeamName: "Brazil",
+        }),
+      ],
+      matches: [
+        makeMatch({
+          id: "m-r16",
+          status: "final",
+          winnerTeamId: "team-other",
+          homeTeamId: "team-brazil",
+          awayTeamId: "team-other",
+          awayTeamName: "Other",
+        }),
+      ],
+      hasBracketBrainAi: true,
+    })
+    const zone = result.zones[0]
+    expect(zone).toBeDefined()
+    expect(zone.tag).toBe("Already eliminated")
+    expect(zone.severity).toBe("High")
+    expect(zone.description).toMatch(/Brazil was eliminated/i)
+  })
+
+  it("flags live matches involving the user's picks as High severity", () => {
+    const result = buildWorldCupKnockoutDangerZones({
+      entry: { ...baseEntry, championTeamId: null },
+      picks: [makePick()],
+      matches: [makeMatch({ status: "live" })],
+      hasBracketBrainAi: true,
+    })
+    expect(result.zones[0]?.tag).toBe("Live now")
+    expect(result.zones[0]?.severity).toBe("High")
+    expect(result.zones[0]?.description).toMatch(/playing Denmark right now/i)
+  })
+
+  it("flags scheduled match where opponent is significantly stronger as High danger", () => {
+    // Pick team-c4 (slot C4, strength 38), opponent team-d1 (slot D1, strength 88) -> delta = +50
+    const result = buildWorldCupKnockoutDangerZones({
+      entry: { ...baseEntry, championTeamId: null },
+      picks: [
+        makePick({
+          matchId: "m-risky",
+          selectedTeamId: "team-c4",
+          selectedSlotKey: "C4",
+          selectedTeamName: "Underdog",
+        }),
+      ],
+      matches: [
+        makeMatch({
+          id: "m-risky",
+          homeSlotKey: "C4",
+          awaySlotKey: "D1",
+          homeTeamId: "team-c4",
+          awayTeamId: "team-d1",
+          homeTeamName: "Underdog",
+          awayTeamName: "Favorite",
+        }),
+      ],
+      hasBracketBrainAi: true,
+    })
+    expect(result.zones[0]?.severity).toBe("High")
+    expect(result.zones[0]?.tag).toBe("Knockout pick")
+    expect(result.zones[0]?.strengthDelta).toBeGreaterThanOrEqual(15)
+  })
+
+  it("uses Champion path tag for semifinal/final picks", () => {
+    const result = buildWorldCupKnockoutDangerZones({
+      entry: { ...baseEntry, championTeamId: null },
+      picks: [
+        makePick({
+          matchId: "m-final",
+          round: "final",
+          selectedTeamId: "team-c4",
+          selectedSlotKey: "C4",
+          selectedTeamName: "Underdog",
+        }),
+      ],
+      matches: [
+        makeMatch({
+          id: "m-final",
+          round: "final",
+          homeSlotKey: "C4",
+          awaySlotKey: "D1",
+          homeTeamId: "team-c4",
+          awayTeamId: "team-d1",
+          homeTeamName: "Underdog",
+          awayTeamName: "Favorite",
+        }),
+      ],
+      hasBracketBrainAi: true,
+    })
+    expect(result.zones[0]?.tag).toBe("Champion path")
+  })
+
+  it("dedupes one zone per match (keeps highest severity per match)", () => {
+    // Same match could match multiple rules — only one zone should result.
+    const result = buildWorldCupKnockoutDangerZones({
+      entry: baseEntry,
+      picks: [makePick()],
+      matches: [
+        makeMatch({
+          status: "final",
+          winnerTeamId: "team-den",
+          homeTeamId: "team-arg",
+          awayTeamId: "team-den",
+        }),
+      ],
+      hasBracketBrainAi: true,
+    })
+    // Should produce only ONE zone (champion eliminated takes priority).
+    const zonesForMatch = result.zones.filter((z) => z.matchId === "m1")
+    expect(zonesForMatch.length).toBeLessThanOrEqual(1)
+  })
+
+  it("sorts zones by severity desc, then by round priority (later rounds first)", () => {
+    const result = buildWorldCupKnockoutDangerZones({
+      entry: { ...baseEntry, championTeamId: null },
+      picks: [
+        makePick({
+          id: "p-r32",
+          matchId: "m-r32",
+          round: "round_of_32",
+          selectedTeamId: "team-r32",
+          selectedSlotKey: "A4",
+          selectedTeamName: "Picky32",
+        }),
+        makePick({
+          id: "p-final",
+          matchId: "m-final",
+          round: "final",
+          selectedTeamId: "team-final",
+          selectedSlotKey: "B4",
+          selectedTeamName: "PickyF",
+        }),
+      ],
+      matches: [
+        makeMatch({
+          id: "m-r32",
+          round: "round_of_32",
+          homeSlotKey: "A4",
+          awaySlotKey: "C1",
+          homeTeamId: "team-r32",
+          awayTeamId: "team-c1",
+          awayTeamName: "OppR32",
+        }),
+        makeMatch({
+          id: "m-final",
+          round: "final",
+          homeSlotKey: "B4",
+          awaySlotKey: "F1",
+          homeTeamId: "team-final",
+          awayTeamId: "team-f1",
+          awayTeamName: "OppFinal",
+        }),
+      ],
+      hasBracketBrainAi: true,
+    })
+    expect(result.zones.length).toBeGreaterThan(0)
+    // Final round should come first (higher round priority within same severity).
+    expect(result.zones[0]?.round).toBe("final")
+  })
+
+  it("limits Pro users to 5 zones, free users to 1 with a locked CTA", () => {
+    const picks = Array.from({ length: 6 }, (_, i) =>
+      makePick({
+        id: `p-${i}`,
+        matchId: `m-${i}`,
+        selectedTeamId: `team-${i}`,
+        selectedSlotKey: "A4",
+        selectedTeamName: `Pick${i}`,
+      })
+    )
+    const matches = Array.from({ length: 6 }, (_, i) =>
+      makeMatch({
+        id: `m-${i}`,
+        homeSlotKey: "A4",
+        awaySlotKey: "D1",
+        homeTeamId: `team-${i}`,
+        awayTeamId: `opp-${i}`,
+        homeTeamName: `Pick${i}`,
+        awayTeamName: `Opp${i}`,
+      })
+    )
+
+    const pro = buildWorldCupKnockoutDangerZones({
+      entry: { ...baseEntry, championTeamId: null },
+      picks,
+      matches,
+      hasBracketBrainAi: true,
+    })
+    expect(pro.zones.length).toBeLessThanOrEqual(5)
+
+    const free = buildWorldCupKnockoutDangerZones({
+      entry: { ...baseEntry, championTeamId: null },
+      picks,
+      matches,
+      hasBracketBrainAi: false,
+    })
+    expect(free.zones).toHaveLength(1)
+    expect(free.lockedLines?.[0]).toMatch(/AF Pro unlocks/i)
+  })
+
+  it("never includes wagering or betting language in zone descriptions", () => {
+    const result = buildWorldCupKnockoutDangerZones({
+      entry: baseEntry,
+      picks: [makePick({ selectedSlotKey: "C4", selectedTeamId: "team-c4" })],
+      matches: [
+        makeMatch({
+          homeSlotKey: "C4",
+          awaySlotKey: "D1",
+          homeTeamId: "team-c4",
+          awayTeamId: "team-d1",
+        }),
+      ],
+      hasBracketBrainAi: true,
+    })
+    const allText = result.zones.map((z) => z.description).join(" ").toLowerCase()
+    expect(allText).not.toMatch(/\bdfs\b|\bbetting\b|\bwager|\bsportsbook\b|\bodds\b/)
+  })
+
+  it("helper file does not import OpenAI/XAI providers, fetch, or Prisma", async () => {
+    const fs = await import("node:fs/promises")
+    const path = await import("node:path")
+    const filePath = path.resolve(process.cwd(), "lib/world-cup/worldCupKnockoutDangerZones.ts")
     const src = await fs.readFile(filePath, "utf-8")
     expect(src).not.toMatch(/OPENAI_API_KEY|XAI_API_KEY|new OpenAI|createOpenAI|openai\.com/i)
     expect(src).not.toMatch(/\bfetch\s*\(/i)

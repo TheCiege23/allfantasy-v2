@@ -83,6 +83,7 @@ import WorldCupRootingGuideCard from "./WorldCupRootingGuideCard"
 import WorldCupExplainBracketCard from "./WorldCupExplainBracketCard"
 import WorldCupBracketUniquenessCard from "./WorldCupBracketUniquenessCard"
 import WorldCupAiBracketShareCard from "./WorldCupAiBracketShareCard"
+import WorldCupKnockoutDangerZonesCard from "./WorldCupKnockoutDangerZonesCard"
 import { buildWorldCupRootingGuide } from "@/lib/world-cup/worldCupRootingGuide"
 import WorldCupEntryDashboard from "./WorldCupEntryDashboard"
 import AllFantasyBracketBoard, { AllFantasyBracketPickSkeleton } from "@/components/brackets/shared/AllFantasyBracketBoard"
@@ -3106,6 +3107,26 @@ export default function WorldCupBracketShell({
                   </p>
                 ) : null}
               </div>
+              <WorldCupKnockoutDangerZonesCard
+                entry={
+                  selectedEntry
+                    ? {
+                        id: selectedEntry.id,
+                        championTeamId:
+                          view.leaderboard.find(
+                            (row) => row.entryId === selectedEntry.id
+                          )?.championTeamId ?? null,
+                        championTeamName:
+                          view.leaderboard.find(
+                            (row) => row.entryId === selectedEntry.id
+                          )?.championPickName ?? null,
+                      }
+                    : null
+                }
+                picks={picks}
+                matches={view.matches}
+                hasBracketBrainAi={aiInsightsUnlocked}
+              />
               <div className="sticky top-[3.35rem] z-30 rounded-xl border border-white/10 bg-zinc-950/95 p-2 backdrop-blur sm:top-[3.6rem]">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   {!isLocked ? (
