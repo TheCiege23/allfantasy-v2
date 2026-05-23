@@ -168,6 +168,70 @@ describe('tryDeterministicAnswer', () => {
 
     expect(typeof result).toBe('string')
   })
+
+  // ── Locale-aware refusals ──────────────────────────────────────────────────
+
+  it('returns English refusal when no locale is provided', async () => {
+    mockCount.mockResolvedValue(0)
+    const result = await tryDeterministicAnswer('What games are on today?')
+    expect(result).toContain('live schedule data')
+  })
+
+  it('returns English refusal for explicit en locale', async () => {
+    mockCount.mockResolvedValue(0)
+    const result = await tryDeterministicAnswer('What games are on today?', 'en')
+    expect(result).toContain('live schedule data')
+  })
+
+  it('returns Spanish refusal for es locale', async () => {
+    mockCount.mockResolvedValue(0)
+    const result = await tryDeterministicAnswer('What games are on today?', 'es')
+    expect(result).not.toBeNull()
+    expect(result).toContain('Necesito')
+    expect(result).not.toContain('live schedule data')
+  })
+
+  it('returns Traditional Chinese refusal for zh locale', async () => {
+    mockCount.mockResolvedValue(0)
+    const result = await tryDeterministicAnswer('What games are on today?', 'zh')
+    expect(result).not.toBeNull()
+    expect(result).toContain('賽程')
+    expect(result).not.toContain('live schedule data')
+  })
+
+  it('returns Filipino refusal for fil locale', async () => {
+    mockCount.mockResolvedValue(0)
+    const result = await tryDeterministicAnswer('What games are on today?', 'fil')
+    expect(result).not.toBeNull()
+    expect(result).toContain('iskedyul')
+    expect(result).not.toContain('live schedule data')
+  })
+
+  it('returns Vietnamese refusal for vi locale', async () => {
+    mockCount.mockResolvedValue(0)
+    const result = await tryDeterministicAnswer('What games are on today?', 'vi')
+    expect(result).not.toBeNull()
+    expect(result).toContain('lịch')
+    expect(result).not.toContain('live schedule data')
+  })
+
+  it('falls back to English for unknown locale', async () => {
+    mockCount.mockResolvedValue(0)
+    const result = await tryDeterministicAnswer('What games are on today?', 'de')
+    expect(result).toContain('live schedule data')
+  })
+
+  it('returns null (AI proceeds) regardless of locale when schedule data is available', async () => {
+    mockCount.mockResolvedValue(5)
+    const result = await tryDeterministicAnswer('What games are on today?', 'es')
+    expect(result).toBeNull()
+  })
+
+  it('does not call DB for non-schedule question regardless of locale', async () => {
+    const result = await tryDeterministicAnswer('Should I trade my RB?', 'es')
+    expect(result).toBeNull()
+    expect(mockCount).not.toHaveBeenCalled()
+  })
 })
 
 // ── DETERMINISTIC_SOURCE marker ───────────────────────────────────────────────

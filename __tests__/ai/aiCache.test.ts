@@ -137,6 +137,36 @@ describe('hashContext', () => {
     const result = hashContext({ leagueId })
     expect(result).not.toContain(leagueId)
   })
+
+  // ── Language isolation ────────────────────────────────────────────────────
+
+  it('all 5 supported locales produce distinct context hashes', () => {
+    const base = { sport: 'NFL', leagueId: null, assistantMode: null }
+    const hashes = ['en', 'es', 'zh', 'fil', 'vi'].map((lang) =>
+      hashContext({ ...base, language: lang })
+    )
+    expect(new Set(hashes).size).toBe(5)
+  })
+
+  it('en and null/omitted language produce different hashes', () => {
+    const withEn = hashContext({ sport: 'NFL', language: 'en' })
+    const withNull = hashContext({ sport: 'NFL', language: null })
+    expect(withEn).not.toBe(withNull)
+  })
+
+  it('same language produces identical hash (deterministic)', () => {
+    const a = hashContext({ sport: 'NFL', language: 'es' })
+    const b = hashContext({ sport: 'NFL', language: 'es' })
+    expect(a).toBe(b)
+  })
+
+  it('language does not bleed into sport hash — different language, same sport still differs', () => {
+    const enNfl = hashContext({ sport: 'NFL', language: 'en' })
+    const esNfl = hashContext({ sport: 'NFL', language: 'es' })
+    const enNba = hashContext({ sport: 'NBA', language: 'en' })
+    // All three are distinct
+    expect(new Set([enNfl, esNfl, enNba]).size).toBe(3)
+  })
 })
 
 // ── buildAiCacheKey ───────────────────────────────────────────────────────────

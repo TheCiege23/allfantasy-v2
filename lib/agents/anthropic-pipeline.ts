@@ -33,6 +33,7 @@ import {
   setCachedAiAnswer,
   AI_CACHE_TTL,
 } from '@/lib/ai/aiCache'
+import { getAiLanguageInstruction } from '@/lib/world-cup/worldCupI18n'
 
 const anthropicApiKey = process.env.ANTHROPIC_API_KEY?.trim() ?? ''
 
@@ -136,6 +137,7 @@ export interface UserContext {
   season?: number | null
   week?: number | null
   source?: string | null
+  language?: string | null
   conversation?: ConversationTurn[]
   memory?: {
     tone?: 'strategic' | 'casual' | 'analytical'
@@ -359,7 +361,7 @@ function buildRuntimeSystemPrompt(
   ctx: UserContext,
   structuredFantasyContext?: StructuredFantasyContext
 ): string {
-  return buildCompressedSystemPrompt({
+  const base = buildCompressedSystemPrompt({
     rawPrompt,
     structuredFantasyContext,
     ctx: {
@@ -371,6 +373,9 @@ function buildRuntimeSystemPrompt(
       teamId: ctx.teamId ?? null,
     },
   })
+  const lang = getAiLanguageInstruction(ctx.language)
+  if (lang === 'English') return base
+  return `${base}\n\n## LANGUAGE\nRespond in ${lang}. Use natural sports-app language. Keep team, player, league, and AllFantasy feature names recognizable.`
 }
 
 function isSimpleQuery(intent: IntentType, payload: Record<string, unknown>, userMessage: string): boolean {
@@ -476,7 +481,7 @@ async function callClaude(args: {
   /** Optional — used for cache scoping. Never logged in plain text. */
   userId?: string
   /** Optional context fields for the cache key (no PII). */
-  cacheContext?: { sport?: string | null; leagueId?: string | null; assistantMode?: string | null }
+  cacheContext?: { sport?: string | null; leagueId?: string | null; assistantMode?: string | null; language?: string | null }
   /** Skip the response cache (e.g. for follow-up turns with conversation history). */
   skipResponseCache?: boolean
 }): Promise<ClaudeCallResult> {
@@ -493,6 +498,7 @@ async function callClaude(args: {
           sport: args.cacheContext?.sport,
           leagueId: args.cacheContext?.leagueId,
           assistantMode: args.cacheContext?.assistantMode,
+          language: args.cacheContext?.language,
         })
       )
 
@@ -1663,6 +1669,7 @@ async function runSpecialist(
       sport: ctx.sport,
       leagueId: ctx.leagueId,
       assistantMode: ctx.source,
+      language: ctx.language ?? null,
     },
     // Skip cache when conversation history is present — answers depend on prior turns.
     skipResponseCache: hasConversation,

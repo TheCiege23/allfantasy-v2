@@ -55,8 +55,13 @@ export async function checkScheduleContextAvailable(): Promise<boolean> {
 
 // ── Deterministic responses ───────────────────────────────────────────────────
 
-const SCHEDULE_REFUSAL =
-  "I need live schedule data connected before I can answer today's games accurately."
+const SCHEDULE_REFUSAL_BY_LOCALE: Record<string, string> = {
+  en: "I need live schedule data connected before I can answer today's games accurately.",
+  es: "Necesito datos del calendario en vivo para responder con precisión sobre los partidos de hoy.",
+  zh: "我需要即時賽程資料才能準確回答今天的比賽問題。",
+  fil: "Kailangan ko ng live na datos ng iskedyul bago ako makasagot nang tama tungkol sa mga laro ngayon.",
+  vi: "Tôi cần dữ liệu lịch thi đấu trực tiếp để trả lời chính xác về các trận hôm nay.",
+}
 
 /**
  * Check whether the message can be answered deterministically.
@@ -66,12 +71,16 @@ const SCHEDULE_REFUSAL =
  * Current shortcuts:
  * 1. Schedule question with no schedule data in the DB →
  *    returns the guardrail refusal without calling any provider.
+ *
+ * @param message  The user's message.
+ * @param locale   The user's selected locale (af_lang cookie value). Defaults to 'en'.
  */
-export async function tryDeterministicAnswer(message: string): Promise<string | null> {
+export async function tryDeterministicAnswer(message: string, locale?: string): Promise<string | null> {
   if (detectScheduleQuestion(message)) {
     const hasContext = await checkScheduleContextAvailable()
     if (!hasContext) {
-      return SCHEDULE_REFUSAL
+      const safeLocale = locale && SCHEDULE_REFUSAL_BY_LOCALE[locale] ? locale : 'en'
+      return SCHEDULE_REFUSAL_BY_LOCALE[safeLocale]
     }
   }
   return null

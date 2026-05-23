@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 
@@ -29,6 +30,7 @@ import { requireFeatureEntitlement } from '@/lib/subscription/entitlement-middle
 import { TokenSpendService } from '@/lib/tokens/TokenSpendService'
 import { checkDailyCap, incrementDailyCap } from '@/lib/ai/dailyCaps'
 import { tryDeterministicAnswer, DETERMINISTIC_SOURCE } from '@/lib/ai/deterministic'
+import { resolveLanguage } from '@/lib/i18n/constants'
 
 const MAX_MESSAGE_CHARS = 4_000
 const MAX_CONVERSATION_TURNS = 20
@@ -255,6 +257,7 @@ function buildAnthropicUserContext(
   payload: z.infer<typeof ChimmyJsonRequestSchema>,
   userId: string,
   tier: UserContext['tier'],
+  language: string,
   image?: UserContext['image']
 ): UserContext {
   return {
@@ -269,6 +272,7 @@ function buildAnthropicUserContext(
     season: payload.userContext.season ?? null,
     week: payload.userContext.week ?? null,
     source: payload.userContext.source ?? null,
+    language,
     conversation: payload.conversation ?? [],
     memory: normalizeAnthropicMemory(payload.userContext.memory),
     image: image ?? null,
@@ -474,6 +478,9 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  const cookieStore = await cookies().catch(() => null)
+  const afLang = resolveLanguage(cookieStore?.get('af_lang')?.value)
+
   const anthropicImage = normalizeAnthropicImagePayload(parseResult.data.image)
   const leagueGroundingRequired = requiresLeagueGrounding({
     message: parseResult.data.message,
@@ -543,7 +550,7 @@ export async function POST(req: NextRequest) {
   }
 
   const resolvedTier = resolveServerTier(gate.decision.entitlement.plans)
-  const anthropicContext = buildAnthropicUserContext(parseResult.data, userId, resolvedTier, anthropicImage)
+  const anthropicContext = buildAnthropicUserContext(parseResult.data, userId, resolvedTier, afLang, anthropicImage)
   const tokenSpendId = gate.tokenSpend?.id ?? null
   const wantsStream = parseResult.data.stream === true
 
@@ -562,7 +569,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Deterministic shortcut (saves provider credits) ──────────────────────────
-  const deterministicAnswer = await tryDeterministicAnswer(parseResult.data.message)
+  const deterministicAnswer = await tryDeterministicAnswer(parseResult.data.message, afLang)
   if (deterministicAnswer !== null) {
     await refundAnthropicTokenFallbackIfNeeded({
       tokenSpendId,
