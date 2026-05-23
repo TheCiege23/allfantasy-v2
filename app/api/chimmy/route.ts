@@ -478,7 +478,12 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const cookieStore = await cookies().catch(() => null)
+  let cookieStore: ReturnType<typeof cookies> | null = null
+  try {
+    cookieStore = cookies()
+  } catch {
+    // cookies() unavailable in this context; default to 'en'
+  }
   const afLang = resolveLanguage(cookieStore?.get('af_lang')?.value)
 
   const anthropicImage = normalizeAnthropicImagePayload(parseResult.data.image)

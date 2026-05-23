@@ -134,7 +134,7 @@ describe('POST /api/chimmy — language cookie passthrough', () => {
   })
 
   it('passes af_lang=es to runAgentPipeline as UserContext.language = "es"', async () => {
-    cookiesMock.mockResolvedValue(makeCookieStore('es'))
+    cookiesMock.mockReturnValue(makeCookieStore('es'))
 
     const { POST } = await import('@/app/api/chimmy/route')
     const req = buildJsonRequest(
@@ -149,7 +149,7 @@ describe('POST /api/chimmy — language cookie passthrough', () => {
   })
 
   it('passes af_lang=zh to runAgentPipeline as UserContext.language = "zh"', async () => {
-    cookiesMock.mockResolvedValue(makeCookieStore('zh'))
+    cookiesMock.mockReturnValue(makeCookieStore('zh'))
 
     const { POST } = await import('@/app/api/chimmy/route')
     const req = buildJsonRequest({ message: 'What should I do next?' })
@@ -161,7 +161,7 @@ describe('POST /api/chimmy — language cookie passthrough', () => {
   })
 
   it('passes af_lang=fil to runAgentPipeline as UserContext.language = "fil"', async () => {
-    cookiesMock.mockResolvedValue(makeCookieStore('fil'))
+    cookiesMock.mockReturnValue(makeCookieStore('fil'))
 
     const { POST } = await import('@/app/api/chimmy/route')
     const req = buildJsonRequest({ message: 'What should I do next?' })
@@ -173,7 +173,7 @@ describe('POST /api/chimmy — language cookie passthrough', () => {
   })
 
   it('passes af_lang=vi to runAgentPipeline as UserContext.language = "vi"', async () => {
-    cookiesMock.mockResolvedValue(makeCookieStore('vi'))
+    cookiesMock.mockReturnValue(makeCookieStore('vi'))
 
     const { POST } = await import('@/app/api/chimmy/route')
     const req = buildJsonRequest({ message: 'What should I do next?' })
@@ -185,7 +185,7 @@ describe('POST /api/chimmy — language cookie passthrough', () => {
   })
 
   it('defaults to "en" when af_lang cookie is absent', async () => {
-    cookiesMock.mockResolvedValue(makeCookieStore())
+    cookiesMock.mockReturnValue(makeCookieStore())
 
     const { POST } = await import('@/app/api/chimmy/route')
     const req = buildJsonRequest({ message: 'What should I do next?' })
@@ -196,8 +196,8 @@ describe('POST /api/chimmy — language cookie passthrough', () => {
     expect(ctx.language).toBe('en')
   })
 
-  it('defaults to "en" when cookies() rejects (fail-safe)', async () => {
-    cookiesMock.mockRejectedValue(new Error('cookie access failed'))
+  it('defaults to "en" when cookies() throws (fail-safe)', async () => {
+    cookiesMock.mockImplementation(() => { throw new Error('cookie access failed') })
 
     const { POST } = await import('@/app/api/chimmy/route')
     const req = buildJsonRequest({ message: 'What should I do next?' })
@@ -209,7 +209,7 @@ describe('POST /api/chimmy — language cookie passthrough', () => {
   })
 
   it('defaults to "en" for an unsupported locale in af_lang cookie', async () => {
-    cookiesMock.mockResolvedValue(makeCookieStore('de'))
+    cookiesMock.mockReturnValue(makeCookieStore('de'))
 
     const { POST } = await import('@/app/api/chimmy/route')
     const req = buildJsonRequest({ message: 'What should I do next?' })
@@ -230,7 +230,7 @@ describe('POST /api/chimmy — locale forwarded to deterministic shortcut', () =
   })
 
   it('passes es locale to tryDeterministicAnswer', async () => {
-    cookiesMock.mockResolvedValue(makeCookieStore('es'))
+    cookiesMock.mockReturnValue(makeCookieStore('es'))
 
     const { POST } = await import('@/app/api/chimmy/route')
     const req = buildJsonRequest({ message: 'What games are on today?' })
@@ -243,7 +243,7 @@ describe('POST /api/chimmy — locale forwarded to deterministic shortcut', () =
   })
 
   it('passes en locale to tryDeterministicAnswer when cookie is absent', async () => {
-    cookiesMock.mockResolvedValue(makeCookieStore())
+    cookiesMock.mockReturnValue(makeCookieStore())
 
     const { POST } = await import('@/app/api/chimmy/route')
     const req = buildJsonRequest({ message: 'What games are on today?' })
@@ -256,7 +256,7 @@ describe('POST /api/chimmy — locale forwarded to deterministic shortcut', () =
   })
 
   it('does not call AI provider when deterministic shortcut fires', async () => {
-    cookiesMock.mockResolvedValue(makeCookieStore('es'))
+    cookiesMock.mockReturnValue(makeCookieStore('es'))
     tryDeterministicAnswerMock.mockResolvedValue(
       'Necesito datos del calendario en vivo para responder con precisión sobre los partidos de hoy.'
     )
@@ -317,7 +317,7 @@ describe('POST /api/chimmy — provider fallback and safety invariants', () => {
   })
 
   it('does not expose provider name in response', async () => {
-    cookiesMock.mockResolvedValue(makeCookieStore('es'))
+    cookiesMock.mockReturnValue(makeCookieStore('es'))
     runAgentPipelineMock.mockResolvedValue({
       result: 'Aquí está tu análisis de fantasía.',
       intent: 'general',
@@ -339,7 +339,7 @@ describe('POST /api/chimmy — provider fallback and safety invariants', () => {
   })
 
   it('daily cap still enforced regardless of language', async () => {
-    cookiesMock.mockResolvedValue(makeCookieStore('es'))
+    cookiesMock.mockReturnValue(makeCookieStore('es'))
     checkDailyCapMock.mockResolvedValue({ allowed: false, message: 'Daily cap reached' })
 
     const { POST } = await import('@/app/api/chimmy/route')
@@ -354,7 +354,7 @@ describe('POST /api/chimmy — provider fallback and safety invariants', () => {
     for (const locale of ['en', 'es', 'zh', 'fil', 'vi']) {
       vi.clearAllMocks()
       setupHappyPath()
-      cookiesMock.mockResolvedValue(makeCookieStore(locale))
+      cookiesMock.mockReturnValue(makeCookieStore(locale))
       tryDeterministicAnswerMock.mockResolvedValue(`Refusal in ${locale}`)
 
       const { POST } = await import('@/app/api/chimmy/route')
