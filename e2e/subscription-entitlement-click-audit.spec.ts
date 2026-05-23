@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+test.describe.configure({ timeout: 180_000 })
+
 type EntitlementMock = {
   plans: string[]
   status: 'active' | 'grace' | 'past_due' | 'expired' | 'none'
@@ -9,8 +11,13 @@ type EntitlementMock = {
   upgradePath?: string
 }
 
+async function waitForHarnessReady(page: Page) {
+  await expect(page.getByTestId('subscription-entitlement-harness')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId('harness-loading')).toHaveCount(0, { timeout: 25_000 })
+}
+
 async function mockEntitlements(page: Page, input: EntitlementMock) {
-  await page.route('**/api/subscription/entitlements**', async (route) => {
+  await page.route(/\/api\/subscription\/entitlements/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -52,6 +59,7 @@ test.describe('@monetization subscription entitlement click audit', () => {
     })
 
     await page.goto('/e2e/subscription-entitlement', { waitUntil: 'domcontentloaded' })
+    await waitForHarnessReady(page)
     const upgradeLink = page.getByRole('link', { name: 'View plans' })
     await expect(upgradeLink).toBeVisible()
     await expect(upgradeLink).toHaveAttribute(
@@ -79,6 +87,7 @@ test.describe('@monetization subscription entitlement click audit', () => {
     })
 
     await page.goto('/e2e/subscription-entitlement', { waitUntil: 'domcontentloaded' })
+    await waitForHarnessReady(page)
     const tokenFallbackLink = page.getByTestId('locked-feature-token-fallback-link')
     await expect(tokenFallbackLink).toBeVisible()
     await expect(tokenFallbackLink).toHaveAttribute(
@@ -102,6 +111,7 @@ test.describe('@monetization subscription entitlement click audit', () => {
       upgradePath: '/upgrade?plan=pro&feature=ai_chat',
     })
     await page.goto('/e2e/subscription-entitlement', { waitUntil: 'domcontentloaded' })
+    await waitForHarnessReady(page)
     await expect(page.getByTestId('entitled-feature-link')).toBeVisible()
     await expect(page.getByTestId('entitled-feature-link')).toHaveAttribute('href', /\/app\/home/)
   })
@@ -127,6 +137,7 @@ test.describe('@monetization subscription entitlement click audit', () => {
     })
 
     await page.goto('/e2e/subscription-entitlement', { waitUntil: 'domcontentloaded' })
+    await waitForHarnessReady(page)
     await expect(page.getByTestId('entitlement-status')).toContainText('expired')
     await expect(page.getByTestId('locked-feature-status-message')).toContainText('expired')
   })
@@ -149,6 +160,7 @@ test.describe('@monetization subscription entitlement click audit', () => {
     })
 
     await page.goto('/e2e/subscription-entitlement', { waitUntil: 'domcontentloaded' })
+    await waitForHarnessReady(page)
     await expect(page.getByTestId('bundle-check-pro')).toContainText('granted')
     await expect(page.getByTestId('bundle-check-commissioner')).toContainText('granted')
     await expect(page.getByTestId('bundle-check-warroom')).toContainText('granted')

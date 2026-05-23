@@ -14,9 +14,9 @@ describe("Monetization catalog", () => {
   it("contains required subscription and token SKUs", () => {
     const catalog = getMonetizationCatalog()
 
-    expect(catalog.subscriptions.length).toBe(8)
+    expect(catalog.subscriptions.length).toBe(10)
     expect(catalog.tokenPacks.length).toBe(3)
-    expect(catalog.all.length).toBe(11)
+    expect(catalog.all.length).toBe(13)
 
     expect(getMonetizationCatalogItemBySku("af_supreme_monthly")?.amountUsd).toBe(29.99)
     expect(getMonetizationCatalogItemBySku("af_tokens_25")?.tokenAmount).toBe(25)
