@@ -767,7 +767,52 @@ export default function SettingsFullPage() {
           <SubscriptionGateModal isOpen onClose={() => setAutoCoachGateOpen(false)} featureId="pro_autocoach" />
         ) : null}
 
-        {/* 4. Appearance */}
+        {/* 4. Subscription & Billing */}
+        <section className={CARD} data-testid="settings-subscription-section">
+          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-white/50">
+            Subscription &amp; Billing
+          </h2>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium text-white/85">
+                {proAutoCoachEnt.isActiveOrGrace
+                  ? proAutoCoachEnt.entitlement?.plans?.length
+                    ? `Active: ${proAutoCoachEnt.entitlement.plans.join(", ").replace(/\b\w/g, (c) => c.toUpperCase())}`
+                    : "Active subscription"
+                  : proAutoCoachEnt.entitlement?.status === "past_due"
+                  ? "Past due — update billing"
+                  : proAutoCoachEnt.entitlement?.status === "expired"
+                  ? "Subscription expired"
+                  : "Free plan"}
+              </p>
+              <p className="mt-0.5 text-[11px] text-white/40">
+                {proAutoCoachEnt.isActiveOrGrace
+                  ? "Full AI features unlocked."
+                  : "Upgrade to unlock Chimmy AI, bracket analysis, and commissioner tools."}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Link
+              href="/pricing"
+              data-testid="settings-view-plans-link"
+              className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-center text-sm font-semibold text-cyan-300 hover:bg-cyan-500/20"
+            >
+              {proAutoCoachEnt.isActiveOrGrace ? "View or change plans" : "Upgrade to AF Pro"}
+            </Link>
+            {proAutoCoachEnt.isActiveOrGrace ? (
+              <a
+                href="/api/subscription/billing-portal"
+                data-testid="settings-billing-portal-link"
+                className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-center text-sm font-medium text-white/70 hover:bg-white/[0.07]"
+              >
+                Manage billing &amp; invoices
+              </a>
+            ) : null}
+          </div>
+        </section>
+
+        {/* 5. Appearance */}
         <section className={CARD}>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-white/50">
             Appearance
@@ -877,7 +922,7 @@ export default function SettingsFullPage() {
           </form>
         </section>
 
-        {/* 6. Account */}
+        {/* 7. Account */}
         <section className={CARD}>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-white/50">
             Account

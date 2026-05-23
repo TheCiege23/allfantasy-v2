@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { Lock } from "lucide-react"
 
 /**
@@ -25,6 +26,13 @@ export default function BracketBrainLockedCard({
             Upgrade to AF Pro for Ask AI and deep matchup explanations. Basic matchup stats above remain
             available without Pro.
           </p>
+          <Link
+            href="/upgrade?plan=af_pro"
+            data-testid="bracket-brain-locked-upgrade-link"
+            className="mt-1.5 inline-flex items-center gap-1 rounded border border-cyan-300/25 bg-cyan-300/[0.07] px-2 py-0.5 text-[10px] font-bold text-cyan-200/80 hover:text-cyan-100"
+          >
+            View AF Pro plans →
+          </Link>
         </div>
       </div>
     </div>

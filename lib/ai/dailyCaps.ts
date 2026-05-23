@@ -32,6 +32,8 @@ export interface DailyCapResult {
   resetsAt: Date
   /** Friendly message to surface when cap is exceeded */
   message: string
+  /** Signals the UI to show an upgrade CTA when the cap is hit */
+  upgradePath: string
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
@@ -85,6 +87,7 @@ export async function checkDailyCap(
       limit: 0,
       resetsAt: windowEnd,
       message: capExceededMessage(feature),
+      upgradePath: '/pricing',
     }
   }
 
@@ -106,10 +109,11 @@ export async function checkDailyCap(
       limit,
       resetsAt: windowEnd,
       message: capExceededMessage(feature),
+      upgradePath: '/pricing',
     }
   } catch {
     // Fail open so a DB hiccup never blocks users.
-    return { allowed: true, used: 0, limit, resetsAt: windowEnd, message: '' }
+    return { allowed: true, used: 0, limit, resetsAt: windowEnd, message: '', upgradePath: '/pricing' }
   }
 }
 

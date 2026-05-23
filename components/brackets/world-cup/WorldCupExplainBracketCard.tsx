@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import Link from "next/link"
 import { Loader2, Lock, Sparkles } from "lucide-react"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import { makeWcT } from "@/lib/world-cup/worldCupI18n"
@@ -98,12 +99,22 @@ export default function WorldCupExplainBracketCard({
       {!hasBracketBrainAi ? (
         <div
           data-testid="world-cup-explain-bracket-locked"
-          className="flex items-start gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-3 text-xs leading-5 text-white/65"
+          className="space-y-2.5"
         >
-          <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/45" aria-hidden />
-          <span>
-            {t("wc.explain.locked")}
-          </span>
+          <div className="flex items-start gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-3 text-xs leading-5 text-white/65">
+            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/45" aria-hidden />
+            <span>
+              {t("wc.explain.locked")}
+            </span>
+          </div>
+          <Link
+            href="/upgrade?plan=af_pro"
+            data-testid="world-cup-explain-bracket-upgrade-link"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/30 bg-cyan-300/[0.08] px-3 py-2 text-xs font-bold text-cyan-100 transition-colors hover:bg-cyan-300/[0.14] hover:text-white"
+          >
+            <Sparkles className="h-3 w-3" aria-hidden />
+            Upgrade to AF Pro
+          </Link>
         </div>
       ) : null}
 

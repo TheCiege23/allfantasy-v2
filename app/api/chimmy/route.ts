@@ -568,7 +568,10 @@ export async function POST(req: NextRequest) {
       leagueId: parseResult.data.userContext.leagueId ?? undefined,
     })
     return NextResponse.json(
-      buildCompatibilityPayload({ error: capResult.message }, 429),
+      buildCompatibilityPayload(
+        { error: capResult.message, upgradeRequired: true, upgradePath: capResult.upgradePath },
+        429
+      ),
       { status: 429 }
     )
   }
