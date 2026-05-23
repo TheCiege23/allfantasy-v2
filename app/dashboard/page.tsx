@@ -15,7 +15,7 @@ import { getDashboardLeagueListForUser } from '@/lib/dashboard/get-dashboard-lea
 import { fetchUserRankJsonForDashboardSSR } from '@/lib/dashboard/fetch-user-rank-ssr'
 import { isAdminEmailAllowed } from '@/lib/adminAuth'
 import { getAiUsageReport } from '@/lib/ai/aiUsageMonitor'
-import AiUsageMonitorPanel from '@/components/admin/AiUsageMonitorPanel'
+import { AiUsageMonitorPanel } from '@/components/admin/AiUsageMonitorPanel'
 import { DashboardShell } from './DashboardShell'
 
 export const dynamic = 'force-dynamic'
