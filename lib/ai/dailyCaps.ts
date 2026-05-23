@@ -9,16 +9,20 @@ import 'server-only'
 import { createHash } from 'node:crypto'
 
 import { prisma } from '@/lib/prisma'
+import { getAiDailyCaps } from '@/lib/ai/aiConfig'
 
 // ── Cap limits ────────────────────────────────────────────────────────────────
 
 export type CapFeature = 'chimmy' | 'explain_bracket' | 'commissioner_brain'
-export type CapTier = 'free' | 'pro'
+export type CapTier = 'free' | 'pro' | 'admin'
 
+// Computed at module load from env vars — server restart picks up changes.
+// Env vars: AI_CAP_{FREE|PRO|ADMIN}_{CHIMMY|EXPLAIN|COMMISSIONER_BRAIN}_DAILY
+const _caps = getAiDailyCaps()
 export const DAILY_CAP_LIMITS: Record<CapFeature, Record<CapTier, number>> = {
-  chimmy:              { free: 10, pro: 30 },
-  explain_bracket:     { free: 2,  pro: 5  },
-  commissioner_brain:  { free: 0,  pro: 5  },
+  chimmy:             { free: _caps.free.chimmy,             pro: _caps.pro.chimmy,             admin: _caps.admin.chimmy             },
+  explain_bracket:    { free: _caps.free.explain_bracket,    pro: _caps.pro.explain_bracket,    admin: _caps.admin.explain_bracket    },
+  commissioner_brain: { free: _caps.free.commissioner_brain, pro: _caps.pro.commissioner_brain, admin: _caps.admin.commissioner_brain },
 }
 
 export interface DailyCapResult {

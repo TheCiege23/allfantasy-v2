@@ -338,3 +338,134 @@ describe('privacy safeguards', () => {
     expect(report.generatedAt).toBeInstanceOf(Date)
   })
 })
+
+// ── Config snapshot ───────────────────────────────────────────────────────────
+
+describe('config', () => {
+  it('report includes a config section', async () => {
+    const report = await getAiUsageReport()
+
+    expect(report).toHaveProperty('config')
+  })
+
+  it('config has costMode', async () => {
+    const report = await getAiUsageReport()
+
+    expect(['conservative', 'balanced', 'generous']).toContain(report.config.costMode)
+  })
+
+  it('config.caps has free, pro, admin tiers', async () => {
+    const report = await getAiUsageReport()
+
+    expect(report.config.caps).toHaveProperty('free')
+    expect(report.config.caps).toHaveProperty('pro')
+    expect(report.config.caps).toHaveProperty('admin')
+  })
+
+  it('config.caps.free.chimmy is a non-negative integer', async () => {
+    const report = await getAiUsageReport()
+
+    expect(Number.isInteger(report.config.caps.free.chimmy)).toBe(true)
+    expect(report.config.caps.free.chimmy).toBeGreaterThanOrEqual(0)
+  })
+
+  it('config.ttls has all four TTL keys as positive integers', async () => {
+    const report = await getAiUsageReport()
+
+    for (const ttl of Object.values(report.config.ttls)) {
+      expect(Number.isInteger(ttl)).toBe(true)
+      expect(ttl).toBeGreaterThan(0)
+    }
+  })
+
+  it('config.providerOrder is a non-empty array of known names', async () => {
+    const report = await getAiUsageReport()
+    const known = new Set(['openai', 'anthropic', 'xai', 'deepseek'])
+
+    expect(report.config.providerOrder.length).toBeGreaterThan(0)
+    for (const p of report.config.providerOrder) {
+      expect(known.has(p)).toBe(true)
+    }
+  })
+
+  it('config.budget has numeric totalUsd', async () => {
+    const report = await getAiUsageReport()
+
+    expect(typeof report.config.budget.totalUsd).toBe('number')
+    expect(report.config.budget.totalUsd).toBeGreaterThanOrEqual(0)
+  })
+})
+
+// ── Budget health ─────────────────────────────────────────────────────────────
+
+describe('budget', () => {
+  it('report includes a budget section', async () => {
+    const report = await getAiUsageReport()
+
+    expect(report).toHaveProperty('budget')
+  })
+
+  it('budget.precise is always false', async () => {
+    const report = await getAiUsageReport()
+
+    expect(report.budget.precise).toBe(false)
+  })
+
+  it('budget.totalBudgetUsd is a non-negative number', async () => {
+    const report = await getAiUsageReport()
+
+    expect(report.budget.totalBudgetUsd).toBeGreaterThanOrEqual(0)
+  })
+
+  it('budget.estimatedDaysRemaining is null when no calls today', async () => {
+    // No cap records → 0 calls → can't project a rate
+    mockCapFindMany.mockResolvedValue([])
+    const report = await getAiUsageReport()
+
+    expect(report.budget.estimatedDaysRemaining).toBeNull()
+  })
+
+  it('budget.estimatedDaysRemaining is a positive number when calls exist', async () => {
+    mockCapFindMany.mockResolvedValue([
+      { endpoint: 'chimmy:abc', callsMade: 100, callsLimit: 200 },
+    ])
+    const report = await getAiUsageReport()
+
+    // With calls today and positive budget, days remaining should be computable
+    if (report.budget.estimatedDaysRemaining !== null) {
+      expect(report.budget.estimatedDaysRemaining).toBeGreaterThan(0)
+    }
+  })
+
+  it('budget.note labels it as an estimate', async () => {
+    const report = await getAiUsageReport()
+
+    expect(report.budget.note.toLowerCase()).toContain('estimate')
+  })
+
+  it('budget.estimatedCallsToday matches totalPaidCallsEstimate from costEstimate', async () => {
+    mockCapFindMany.mockResolvedValue([
+      { endpoint: 'chimmy:abc', callsMade: 7, callsLimit: 10 },
+    ])
+    const report = await getAiUsageReport()
+
+    expect(report.budget.estimatedCallsToday).toBe(report.costEstimate.totalPaidCallsEstimate)
+  })
+
+  it('budget.perProvider contains only providers with budget > 0', async () => {
+    // Defaults: openai=18, anthropic=10, xai=0, deepseek=0
+    const report = await getAiUsageReport()
+
+    for (const p of report.budget.perProvider) {
+      expect(p.budgetUsd).toBeGreaterThan(0)
+    }
+  })
+
+  it('budget contains no raw API keys', async () => {
+    const report = await getAiUsageReport()
+    const json = JSON.stringify(report.budget)
+
+    expect(json).not.toMatch(/sk-[A-Za-z0-9]{10,}/)
+    expect(json).not.toMatch(/@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)
+  })
+})

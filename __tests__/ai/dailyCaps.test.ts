@@ -33,6 +33,10 @@ describe('DAILY_CAP_LIMITS', () => {
     expect(DAILY_CAP_LIMITS.chimmy.free).toBeLessThan(DAILY_CAP_LIMITS.chimmy.pro)
   })
 
+  it('pro chimmy limit is lower than admin', () => {
+    expect(DAILY_CAP_LIMITS.chimmy.pro).toBeLessThan(DAILY_CAP_LIMITS.chimmy.admin)
+  })
+
   it('commissioner_brain is 0 for free users', () => {
     expect(DAILY_CAP_LIMITS.commissioner_brain.free).toBe(0)
   })
@@ -41,7 +45,14 @@ describe('DAILY_CAP_LIMITS', () => {
     for (const feature of Object.values(DAILY_CAP_LIMITS)) {
       expect(feature.free).toBeGreaterThanOrEqual(0)
       expect(feature.pro).toBeGreaterThanOrEqual(0)
+      expect(feature.admin).toBeGreaterThanOrEqual(0)
     }
+  })
+
+  it('has admin tier for all three features', () => {
+    expect(typeof DAILY_CAP_LIMITS.chimmy.admin).toBe('number')
+    expect(typeof DAILY_CAP_LIMITS.explain_bracket.admin).toBe('number')
+    expect(typeof DAILY_CAP_LIMITS.commissioner_brain.admin).toBe('number')
   })
 })
 
@@ -152,6 +163,33 @@ describe('checkDailyCap', () => {
     }
 
     expect(endpoints[0]).not.toBe(endpoints[1])
+  })
+
+  it('allows admin user who is at pro limit but not admin limit', async () => {
+    // Admin limit > pro limit — a user at the pro count is still allowed as admin
+    mockFindFirst.mockResolvedValue({ callsMade: DAILY_CAP_LIMITS.chimmy.pro })
+
+    const result = await checkDailyCap('chimmy', 'user-admin', 'admin')
+
+    expect(result.allowed).toBe(true)
+    expect(result.limit).toBe(DAILY_CAP_LIMITS.chimmy.admin)
+  })
+
+  it('denies admin user at the admin limit', async () => {
+    mockFindFirst.mockResolvedValue({ callsMade: DAILY_CAP_LIMITS.chimmy.admin })
+
+    const result = await checkDailyCap('chimmy', 'user-admin', 'admin')
+
+    expect(result.allowed).toBe(false)
+  })
+
+  it('allows admin user for commissioner_brain', async () => {
+    mockFindFirst.mockResolvedValue({ callsMade: 3 })
+
+    const result = await checkDailyCap('commissioner_brain', 'user-admin', 'admin')
+
+    expect(result.allowed).toBe(true)
+    expect(result.limit).toBe(DAILY_CAP_LIMITS.commissioner_brain.admin)
   })
 })
 

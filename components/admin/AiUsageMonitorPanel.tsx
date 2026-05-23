@@ -14,7 +14,8 @@
  * Auth: handled by the parent page/layout. This component renders as-is.
  * No API route needed — queries are resolved server-side via getAiUsageReport().
  */
-import type { AiUsageReport, AiCapFeatureRow } from '@/lib/ai/aiUsageMonitor'
+import type { AiUsageReport, AiCapFeatureRow, AiBudgetHealth } from '@/lib/ai/aiUsageMonitor'
+import type { AiConfig } from '@/lib/ai/aiConfig'
 
 interface Props {
   report: AiUsageReport
@@ -57,29 +58,169 @@ function fmtUsd(n: number) {
 
 // ── Sub-panels ────────────────────────────────────────────────────────────────
 
-function ProviderStatusSection({ status }: { status: AiUsageReport['providerStatus'] }) {
-  const providers: [string, boolean][] = [
-    ['OpenAI', status.openai],
-    ['Anthropic', status.anthropic],
-    ['xAI / Grok', status.xai],
-    ['DeepSeek', status.deepseek],
+function ProviderStatusSection({
+  status,
+  providerOrder,
+}: {
+  status: AiUsageReport['providerStatus']
+  providerOrder: string[]
+}) {
+  const providers: [string, keyof AiUsageReport['providerStatus']][] = [
+    ['OpenAI', 'openai'],
+    ['Anthropic', 'anthropic'],
+    ['xAI / Grok', 'xai'],
+    ['DeepSeek', 'deepseek'],
   ]
 
   return (
     <Card>
       <SectionHeader title="Provider Configuration" />
-      <ul className="grid grid-cols-2 gap-2">
-        {providers.map(([name, configured]) => (
+      <ul className="grid grid-cols-2 gap-2 mb-3">
+        {providers.map(([name, key]) => (
           <li key={name} className="flex items-center gap-2 text-sm text-zinc-300">
-            <StatusDot on={configured} />
+            <StatusDot on={status[key]} />
             <span>{name}</span>
-            <span className={`ml-auto text-xs ${configured ? 'text-green-400' : 'text-zinc-600'}`}>
-              {configured ? 'configured' : 'not set'}
+            <span className={`ml-auto text-xs ${status[key] ? 'text-green-400' : 'text-zinc-600'}`}>
+              {status[key] ? 'configured' : 'not set'}
             </span>
           </li>
         ))}
       </ul>
+      <div className="border-t border-white/5 pt-3">
+        <p className="text-xs text-zinc-500 mb-1">Effective order (AI_PROVIDER_ORDER)</p>
+        <ol className="flex flex-wrap gap-2">
+          {providerOrder.map((p, i) => (
+            <li key={p} className="flex items-center gap-1 text-xs font-mono text-zinc-300">
+              <span className="text-zinc-600">{i + 1}.</span>
+              <span>{p}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
       <p className="mt-3 text-xs text-zinc-600">No API keys are shown.</p>
+    </Card>
+  )
+}
+
+function ConfigSection({ config }: { config: AiConfig }) {
+  const features: [string, string][] = [
+    ['Chimmy',            'chimmy'],
+    ['Explain Bracket',   'explain_bracket'],
+    ['Comm. Brain',       'commissioner_brain'],
+  ]
+  const ttlRows: [string, number][] = [
+    ['Chimmy',          config.ttls.chimmy],
+    ['Explain Bracket', config.ttls.explain_bracket],
+    ['Comm. Brain',     config.ttls.commissioner_brain],
+    ['Sports schedule', config.ttls.schedule_static],
+  ]
+
+  function fmtTtl(secs: number): string {
+    if (secs >= 3_600) return `${(secs / 3_600).toFixed(1)}h`
+    if (secs >= 60)    return `${Math.round(secs / 60)}m`
+    return `${secs}s`
+  }
+
+  const modeColor: Record<string, string> = {
+    conservative: 'text-blue-400',
+    balanced:     'text-yellow-400',
+    generous:     'text-green-400',
+  }
+
+  return (
+    <Card>
+      <SectionHeader title="Effective Config (from env)" />
+
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xs text-zinc-500">Cost mode:</span>
+        <span className={`text-xs font-semibold font-mono ${modeColor[config.costMode] ?? 'text-zinc-300'}`}>
+          {config.costMode}
+        </span>
+        <span className="text-xs text-zinc-600 ml-1">(AI_COST_MODE)</span>
+      </div>
+
+      {/* Caps table */}
+      <p className="text-xs text-zinc-500 mb-1">Daily caps</p>
+      <table className="w-full text-xs mb-4">
+        <thead>
+          <tr className="text-left text-zinc-500 border-b border-white/5">
+            <th className="pb-1 font-medium">Feature</th>
+            <th className="pb-1 font-medium text-right">Free</th>
+            <th className="pb-1 font-medium text-right">Pro</th>
+            <th className="pb-1 font-medium text-right">Admin</th>
+          </tr>
+        </thead>
+        <tbody>
+          {features.map(([label, key]) => (
+            <tr key={key} className="border-b border-white/[0.03] text-zinc-300">
+              <td className="py-1 font-mono">{label}</td>
+              <td className="py-1 text-right">{config.caps.free[key as keyof typeof config.caps.free]}</td>
+              <td className="py-1 text-right">{config.caps.pro[key as keyof typeof config.caps.pro]}</td>
+              <td className="py-1 text-right">{config.caps.admin[key as keyof typeof config.caps.admin]}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* TTL table */}
+      <p className="text-xs text-zinc-500 mb-1">Cache TTLs</p>
+      <ul className="space-y-1">
+        {ttlRows.map(([label, secs]) => (
+          <li key={label} className="flex justify-between text-xs text-zinc-300">
+            <span className="font-mono">{label}</span>
+            <span>{fmtTtl(secs)}</span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  )
+}
+
+function BudgetHealthSection({ budget }: { budget: AiBudgetHealth }) {
+  const daysColor =
+    budget.estimatedDaysRemaining === null ? 'text-zinc-500'
+    : budget.estimatedDaysRemaining < 7   ? 'text-red-400'
+    : budget.estimatedDaysRemaining < 14  ? 'text-yellow-400'
+    : 'text-green-400'
+
+  return (
+    <Card>
+      <SectionHeader title="Budget Health (Estimate)" />
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-3">
+        <div className="text-center">
+          <div className="text-2xl font-bold text-white">${budget.totalBudgetUsd.toFixed(0)}</div>
+          <div className="text-xs text-zinc-500">Total budget</div>
+        </div>
+        <div className="text-center">
+          <div className="text-xl font-bold text-white">
+            ${budget.estimatedSpendTodayLowUsd.toFixed(4)}–${budget.estimatedSpendTodayHighUsd.toFixed(4)}
+          </div>
+          <div className="text-xs text-zinc-500">Est. today</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-white">{budget.estimatedCallsToday}</div>
+          <div className="text-xs text-zinc-500">Calls today</div>
+        </div>
+        <div className="text-center">
+          <div className={`text-2xl font-bold ${daysColor}`}>
+            {budget.estimatedDaysRemaining === null ? '—' : budget.estimatedDaysRemaining}
+          </div>
+          <div className="text-xs text-zinc-500">Est. days left</div>
+        </div>
+      </div>
+
+      {budget.perProvider.length > 0 && (
+        <ul className="flex gap-4 flex-wrap mb-3">
+          {budget.perProvider.map((p) => (
+            <li key={p.provider} className="text-xs text-zinc-400">
+              <span className="font-mono">{p.provider}</span>
+              <span className="ml-1 text-zinc-300">${p.budgetUsd.toFixed(0)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p className="text-xs text-yellow-600 italic">{budget.note}</p>
     </Card>
   )
 }
@@ -280,7 +421,15 @@ export function AiUsageMonitorPanel({ report }: Props) {
         </span>
       </div>
 
-      <ProviderStatusSection status={report.providerStatus} />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <ProviderStatusSection
+          status={report.providerStatus}
+          providerOrder={report.config.providerOrder}
+        />
+        <ConfigSection config={report.config} />
+      </div>
+
+      <BudgetHealthSection budget={report.budget} />
       <CapSummarySection caps={report.caps} />
 
       <div className="grid gap-4 sm:grid-cols-2">

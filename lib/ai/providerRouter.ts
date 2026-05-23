@@ -79,11 +79,12 @@ function withTimeout<T>(promise: Promise<T>, ms: number, provider: string): Prom
 export function getProviderOrder(): ProviderName[] {
   const env = process.env.AI_PROVIDER_ORDER?.trim()
   if (!env) return DEFAULT_PROVIDER_ORDER
-  const parsed = env
+  const seen = new Set<ProviderName>()
+  const deduped = env
     .split(',')
     .map((s) => s.trim().toLowerCase() as ProviderName)
-    .filter((p) => DEFAULT_PROVIDER_ORDER.includes(p))
-  return parsed.length > 0 ? parsed : DEFAULT_PROVIDER_ORDER
+    .filter((p) => DEFAULT_PROVIDER_ORDER.includes(p) && !seen.has(p) && Boolean(seen.add(p)))
+  return deduped.length > 0 ? deduped : DEFAULT_PROVIDER_ORDER
 }
 
 // ─── Anthropic adapter ────────────────────────────────────────────────────────

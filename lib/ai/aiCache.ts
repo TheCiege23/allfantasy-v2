@@ -13,20 +13,14 @@ import 'server-only'
 import { createHash } from 'node:crypto'
 
 import { prisma } from '@/lib/prisma'
+import { getAiCacheTtls } from '@/lib/ai/aiConfig'
 
 // ── TTL presets (seconds) ─────────────────────────────────────────────────────
+// Computed at module load from env vars — server restart picks up changes.
+// Env vars: AI_CACHE_TTL_CHIMMY_MINUTES, AI_CACHE_TTL_EXPLAIN_HOURS,
+//           AI_CACHE_TTL_COMMISSIONER_BRAIN_MINUTES, AI_CACHE_TTL_SPORTS_SCHEDULE_MINUTES
 
-export const AI_CACHE_TTL = {
-  /** General Chimmy Q&A: 20 min */
-  chimmy:              1_200,
-  /** Explain My Bracket: 6 h — invalidated by picks hash change */
-  explain_bracket:     6 * 3_600,
-  /** Commissioner Brain: 30 min */
-  commissioner_brain:  1_800,
-  /** Sports schedule deterministic answer: 5 min */
-  schedule_static:     300,
-} as const
-
+export const AI_CACHE_TTL = getAiCacheTtls()
 export type AiCacheFeature = keyof typeof AI_CACHE_TTL
 
 // ── Key helpers ───────────────────────────────────────────────────────────────

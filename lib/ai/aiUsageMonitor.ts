@@ -19,6 +19,12 @@ import 'server-only'
 
 import { prisma } from '@/lib/prisma'
 import { verifyProviderEnv } from '@/lib/ai/envVerification'
+import {
+  getAiConfig,
+  getAiBudget,
+  type AiConfig,
+  type AiBudget,
+} from '@/lib/ai/aiConfig'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -96,6 +102,22 @@ export interface AiCostEstimate {
   byFeature: AiCostEstimateRow[]
 }
 
+export interface AiBudgetHealth {
+  /** Always false — token-level billing not stored */
+  precise: false
+  totalBudgetUsd: number
+  perProvider: { provider: string; budgetUsd: number }[]
+  estimatedSpendTodayLowUsd: number
+  estimatedSpendTodayHighUsd: number
+  estimatedCallsToday: number
+  /**
+   * Projected days until budget exhausted based on today's usage rate.
+   * null when no calls have been made today (can't project a rate).
+   */
+  estimatedDaysRemaining: number | null
+  note: string
+}
+
 export interface AiUsageReport {
   generatedAt: Date
   providerStatus: AiProviderStatus
@@ -103,6 +125,9 @@ export interface AiUsageReport {
   cache: AiCacheStats
   telemetry: AiTelemetrySummary
   costEstimate: AiCostEstimate
+  /** Effective configuration from env vars at report generation time */
+  config: AiConfig
+  budget: AiBudgetHealth
 }
 
 // ── UTC helpers ───────────────────────────────────────────────────────────────
@@ -374,6 +399,38 @@ function buildCostEstimate(caps: AiCapSummary): AiCostEstimate {
   }
 }
 
+// ── Budget health ─────────────────────────────────────────────────────────────
+
+function buildBudgetHealth(costEstimate: AiCostEstimate, budget: AiBudget): AiBudgetHealth {
+  const perProvider = [
+    { provider: 'openai',    budgetUsd: budget.openaiUsd    },
+    { provider: 'anthropic', budgetUsd: budget.anthropicUsd },
+    { provider: 'xai',       budgetUsd: budget.xaiUsd       },
+    { provider: 'deepseek',  budgetUsd: budget.deepseekUsd  },
+  ].filter((p) => p.budgetUsd > 0)
+
+  const callsToday = costEstimate.totalPaidCallsEstimate
+  const midUsd = (costEstimate.totalLowUsd + costEstimate.totalHighUsd) / 2
+
+  let estimatedDaysRemaining: number | null = null
+  if (callsToday > 0 && midUsd > 0 && budget.totalUsd > 0) {
+    const raw = budget.totalUsd / midUsd
+    // Cap at 9999 to avoid absurd projections from a single cheap call
+    estimatedDaysRemaining = Math.min(9999, Math.floor(raw))
+  }
+
+  return {
+    precise: false,
+    totalBudgetUsd: budget.totalUsd,
+    perProvider,
+    estimatedSpendTodayLowUsd:  costEstimate.totalLowUsd,
+    estimatedSpendTodayHighUsd: costEstimate.totalHighUsd,
+    estimatedCallsToday: callsToday,
+    estimatedDaysRemaining,
+    note: 'Estimate only — token-level spend is not fully tracked yet. Days remaining projected from today\'s usage rate.',
+  }
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export async function getAiUsageReport(): Promise<AiUsageReport> {
@@ -384,12 +441,17 @@ export async function getAiUsageReport(): Promise<AiUsageReport> {
     fetchTelemetry(),
   ])
 
+  const costEstimate = buildCostEstimate(caps)
+  const budget = getAiBudget()
+
   return {
     generatedAt: new Date(),
     providerStatus,
     caps,
     cache,
     telemetry,
-    costEstimate: buildCostEstimate(caps),
+    costEstimate,
+    config: getAiConfig(),
+    budget: buildBudgetHealth(costEstimate, budget),
   }
 }
