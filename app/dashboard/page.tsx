@@ -13,6 +13,9 @@ import {
 import { isAppRouterRedirectError } from '@/lib/next/is-app-router-redirect-error'
 import { getDashboardLeagueListForUser } from '@/lib/dashboard/get-dashboard-league-list'
 import { fetchUserRankJsonForDashboardSSR } from '@/lib/dashboard/fetch-user-rank-ssr'
+import { isAdminEmailAllowed } from '@/lib/adminAuth'
+import { getAiUsageReport } from '@/lib/ai/aiUsageMonitor'
+import AiUsageMonitorPanel from '@/components/admin/AiUsageMonitorPanel'
 import { DashboardShell } from './DashboardShell'
 
 export const dynamic = 'force-dynamic'
@@ -57,8 +60,10 @@ export default async function DashboardPage() {
   }
   const userId = rawUserId
 
+  const isAdmin = isAdminEmailAllowed(sessionUser?.email)
+
   try {
-    const [dbUser, userProfile, initialLeagueList, initialUserRankPayload] = await Promise.all([
+    const [dbUser, userProfile, initialLeagueList, initialUserRankPayload, adminReport] = await Promise.all([
       prisma.appUser
         .findUnique({
           where: { id: userId },
@@ -85,6 +90,7 @@ export default async function DashboardPage() {
         console.error('[dashboard] user rank prefetch failed:', err)
         return null
       }),
+      isAdmin ? getAiUsageReport().catch(() => null) : Promise.resolve(null),
     ])
 
     const userImage = resolveDashboardAvatarUrl(sessionUser.image, dbUser?.avatarUrl ?? undefined)
@@ -96,15 +102,27 @@ export default async function DashboardPage() {
     })
 
     return (
-      <DashboardShell
-        userId={userId}
-        userName={userName}
-        userImage={userImage}
-        emailVerified={Boolean(dbUser?.emailVerified)}
-        discordConnected={Boolean(userProfile?.discordUserId)}
-        initialLeagueList={initialLeagueList ?? undefined}
-        initialUserRankPayload={initialUserRankPayload ?? undefined}
-      />
+      <>
+        {adminReport && (
+          <details className="fixed bottom-4 right-4 z-[9999] max-h-[80vh] w-[680px] overflow-auto rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-100 shadow-2xl">
+            <summary className="cursor-pointer select-none px-4 py-2 font-mono text-xs text-neutral-400 hover:text-neutral-200">
+              ⚙ Admin: AI Usage Monitor
+            </summary>
+            <div className="p-4">
+              <AiUsageMonitorPanel report={adminReport} />
+            </div>
+          </details>
+        )}
+        <DashboardShell
+          userId={userId}
+          userName={userName}
+          userImage={userImage}
+          emailVerified={Boolean(dbUser?.emailVerified)}
+          discordConnected={Boolean(userProfile?.discordUserId)}
+          initialLeagueList={initialLeagueList ?? undefined}
+          initialUserRankPayload={initialUserRankPayload ?? undefined}
+        />
+      </>
     )
   } catch (error) {
     if (isAppRouterRedirectError(error)) {
