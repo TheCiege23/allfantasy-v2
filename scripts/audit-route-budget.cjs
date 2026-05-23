@@ -111,6 +111,54 @@ function buildScriptExclusions() {
     .filter((value) => value.startsWith('app/'))
 }
 
+/** Count actual route files inside each excluded directory path. */
+function countRoutesInExcludedDirs(exclusionPaths) {
+  let total = 0
+  for (const relPath of exclusionPaths) {
+    const abs = path.join(repoRoot, relPath)
+    if (!fs.existsSync(abs)) continue
+    const stat = fs.statSync(abs)
+    if (stat.isDirectory()) {
+      total += walkFiles(abs).filter((f) => {
+        const posix = toPosix(path.relative(repoRoot, f))
+        return isRouteFile(posix) || isPageFile(posix)
+      }).length
+    } else {
+      const posix = toPosix(relPath)
+      if (isRouteFile(posix) || isPageFile(posix)) total += 1
+    }
+  }
+  return total
+}
+
+/**
+ * Count how many "kept" files from filesToKeep live inside an excluded dir.
+ * These files are moved back before the build, so they do count in production.
+ */
+function countKeptFilesInExcludedDirs(exclusionPaths, keptRelPaths) {
+  return keptRelPaths.filter((keptRel) => {
+    const keptPosix = toPosix(keptRel)
+    return exclusionPaths.some((excl) => keptPosix.startsWith(toPosix(excl) + '/') || keptPosix === toPosix(excl))
+  }).length
+}
+
+function buildScriptKeptFiles() {
+  if (!fs.existsSync(buildScriptPath)) return []
+  const source = fs.readFileSync(buildScriptPath, 'utf8')
+  const keptBlockMatch = source.match(/const filesToKeep = new Set\(\[([\s\S]*?)\]\)/)
+  if (!keptBlockMatch) return []
+  const block = keptBlockMatch[1]
+  const joinMatches = block.match(/path\.join\(([^)]+)\)/g) || []
+  return joinMatches.map((match) =>
+    match
+      .replace(/^path\.join\(/, '')
+      .replace(/\)$/, '')
+      .split(',')
+      .map((part) => part.trim().replace(/^['"]|['"]$/g, ''))
+      .join('/')
+  )
+}
+
 function suspiciousRouteReason(relativePath) {
   const route = routeUrlFromFile(relativePath).toLowerCase()
   const segments = route.split('/').filter(Boolean)
@@ -179,6 +227,12 @@ const vercelConfigRouteSignals = Object.values(vercelCounts).reduce((sum, value)
 const estimatedRouteSignals = sourceRouteCount + vercelConfigRouteSignals
 const generatedFolders = detectGeneratedFolders()
 const exclusions = buildScriptExclusions()
+const keptFiles = buildScriptKeptFiles()
+const excludedRouteCount = countRoutesInExcludedDirs(exclusions)
+const keptInExcluded = countKeptFilesInExcludedDirs(exclusions, keptFiles)
+const netExcluded = excludedRouteCount - keptInExcluded
+const productionAdjustedRoutes = sourceRouteCount - netExcluded
+const productionAdjustedSignals = productionAdjustedRoutes + vercelConfigRouteSignals
 
 const folderCounts = new Map()
 for (const route of [...pageRoutes, ...apiRoutes, ...nonApiRouteHandlers]) {
@@ -203,19 +257,22 @@ console.log('AllFantasy Route Budget Audit')
 console.log(`Generated at: ${new Date().toISOString()}`)
 
 printSection('Summary')
-console.log(`Source app route files: ${sourceRouteCount}`)
+console.log(`Source app route files (all, incl. dev/admin): ${sourceRouteCount}`)
 console.log(`- App page routes: ${pageRoutes.length}`)
 console.log(`- App API route handlers: ${apiRoutes.length}`)
 console.log(`- Non-API route handlers: ${nonApiRouteHandlers.length}`)
 console.log(`- Layout files (not counted as routes): ${layoutFiles.length}`)
+console.log(`Build-excluded route dirs: ${exclusions.length} dirs, ${excludedRouteCount} routes, ${keptInExcluded} kept → ${netExcluded} net excluded`)
+console.log(`Production source routes (after exclusions): ${productionAdjustedRoutes}`)
 console.log(`Vercel config route signals: ${vercelConfigRouteSignals}`)
 console.log(`- crons: ${vercelCounts.crons}`)
 console.log(`- rewrites: ${vercelCounts.rewrites}`)
 console.log(`- redirects: ${vercelCounts.redirects}`)
 console.log(`- headers: ${vercelCounts.headers}`)
 console.log(`- routes: ${vercelCounts.routes}`)
-console.log(`Estimated route-budget signals: ${estimatedRouteSignals}`)
-console.log(`Risk level: ${riskLevel(estimatedRouteSignals).toUpperCase()} (green < ${GREEN_LIMIT}, yellow ${GREEN_LIMIT}-${YELLOW_LIMIT}, red ${YELLOW_LIMIT + 1}+)`)
+console.log(`Raw estimated signals (source only): ${estimatedRouteSignals}`)
+console.log(`Production-adjusted signals: ${productionAdjustedSignals}`)
+console.log(`Risk level: ${riskLevel(productionAdjustedSignals).toUpperCase()} (green < ${GREEN_LIMIT}, yellow ${GREEN_LIMIT}-${YELLOW_LIMIT}, red ${YELLOW_LIMIT + 1}+) [based on production-adjusted]`)
 
 printSection('Top Route-Heavy Folders')
 for (const entry of topFolders) {
@@ -269,9 +326,9 @@ if (missingOldWorldCupRoutes.length > 0) {
 }
 
 printSection('Recommendations')
-if (riskLevel(estimatedRouteSignals) === 'red') {
+if (riskLevel(productionAdjustedSignals) === 'red') {
   console.log('- Treat the route budget as actively at risk before adding any new App Router route files.')
-} else if (riskLevel(estimatedRouteSignals) === 'yellow') {
+} else if (riskLevel(productionAdjustedSignals) === 'yellow') {
   console.log('- Review route additions during PRs; prefer action dispatch or catch-all routes for related feature actions.')
 } else {
   console.log('- Route budget is currently healthy, but keep related feature actions consolidated.')

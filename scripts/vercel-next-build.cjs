@@ -65,6 +65,12 @@ const routeDirsToDisable = [
   // Admin "Seed store" dev tool route. The Store UI exposes a Seed button, but
   // it is a developer-only seeding helper, not a production user action.
   path.join('app', 'api', 'marketplace', 'seed'),
+  // AI provider registry/status endpoints — admin monitoring only, no production UI callers.
+  // Callers are the admin dashboard (app/admin excluded above) and /api/ai/tools (also excluded).
+  path.join('app', 'api', 'ai', 'providers'),
+  // AI tools discovery endpoint — only referenced as an error-message string in the tool registry;
+  // no production UI ever fetches it. Excluded to reduce route budget.
+  path.join('app', 'api', 'ai', 'tools'),
 ]
 
 const movedFiles = []
