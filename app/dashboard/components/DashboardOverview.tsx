@@ -36,6 +36,10 @@ import { emptyLineupActionSummary } from '@/lib/lineup-actions/emptySummary'
 import { useDashboardToolLeague } from '@/hooks/useDashboardToolLeague'
 import { consumeDashboardRankRefreshPending } from '@/lib/import/dashboardRankRefresh'
 import { DashboardIntelligenceRail } from './DashboardIntelligenceRail'
+import { TodaysMissionStrip } from './TodaysMissionStrip'
+import { WarRoomPreviewBlock } from './WarRoomPreviewBlock'
+import { LegacySnapshotCard } from './LegacySnapshotCard'
+import { Swords, Sparkles } from 'lucide-react'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
 const STRIP_FETCH_STALE_MS = 5 * 60_000
@@ -670,6 +674,15 @@ export function DashboardOverview({
           leagueSport={selectedLeague?.sport ?? null}
           leagueType={selectedLeague?.leagueType ?? null}
         />
+        <TodaysMissionStrip
+          warRoomDecisions={warRoomDecisionsToReview}
+          pendingTrades={pendingTradeChipCount}
+          waiverSuggestions={waiverChipCount}
+          onWarRoomClick={handleWarRoomToolClick}
+          onChimmyClick={() => handleAiShortcut('')}
+          onTradesClick={handleTradeClick}
+          onWaiverClick={handleWaiverClick}
+        />
         {allDone ? (
           <p className="text-xs text-cyan-400/95">{t('dashboard.overview.allSet')}</p>
         ) : checklistExpanded ? (
@@ -817,38 +830,55 @@ export function DashboardOverview({
 
         <section className="border-b border-white/[0.07] pb-5">
           <p className="text-[12px] font-semibold uppercase tracking-wider text-white/30">
-            {t('dashboard.overview.sectionTitle')}
+            AllFantasy Command Center
           </p>
           <h1 className="mt-2 text-[22px] font-black leading-tight text-white">
-            {t('dashboard.overview.welcomeBack')}{' '}
-            <span className="font-bold text-cyan-400">{userName}</span>
+            Your fantasy command center is live.
           </h1>
+          <p className="mt-1.5 max-w-xl text-[13px] leading-snug text-white/55">
+            Chimmy is watching your drafts, matchups, waivers, and league activity so you know what to do next.
+          </p>
 
           <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-2">
             <Link
-              href="/create-league"
-              className="touch-manipulation inline-flex min-h-[48px] w-full items-center justify-center rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 px-4 py-3 text-sm font-semibold text-black active:opacity-95 sm:w-auto sm:px-5 sm:py-2.5"
+              href="/war-room"
+              className="touch-manipulation inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 px-4 py-3 text-sm font-semibold text-black active:opacity-95 sm:w-auto sm:px-5 sm:py-2.5"
             >
-              {t('dashboard.overview.createLeague')}
+              <Swords className="h-4 w-4" />
+              Open War Room
             </Link>
+            <button
+              type="button"
+              onClick={() => handleAiShortcut('')}
+              className="touch-manipulation inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-violet-500/40 bg-violet-500/10 px-4 py-3 text-sm font-semibold text-violet-300 transition hover:bg-violet-500/20 active:bg-violet-500/25 sm:w-auto sm:py-2.5"
+            >
+              <Sparkles className="h-4 w-4" />
+              Ask Chimmy
+            </button>
             <div className="grid grid-cols-2 gap-2 sm:contents">
+              <Link
+                href="/create-league"
+                className="touch-manipulation inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[13px] font-semibold text-white/90 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto sm:px-3 sm:py-1.5"
+              >
+                {t('dashboard.overview.createLeague')}
+              </Link>
               <button
                 type="button"
                 onClick={() => setQuickCreateOpen(true)}
-                className="touch-manipulation inline-flex min-h-[48px] w-full items-center justify-center rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2.5 text-sm font-semibold text-purple-300 transition hover:bg-purple-500/20 active:bg-purple-500/25 sm:w-auto sm:px-4 sm:py-2"
+                className="touch-manipulation inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-[13px] font-semibold text-purple-300 transition hover:bg-purple-500/20 active:bg-purple-500/25 sm:w-auto sm:px-4 sm:py-2"
               >
                 ✨ Quick Create
               </button>
               <button
                 type="button"
                 onClick={handleImport}
-                className="touch-manipulation inline-flex min-h-[48px] w-full items-center justify-center rounded-xl border border-white/20 px-3 py-2.5 text-sm font-semibold text-white active:bg-white/10 sm:w-auto sm:px-4 sm:py-2"
+                className="touch-manipulation inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-white/20 px-3 py-2 text-[13px] font-semibold text-white active:bg-white/10 sm:w-auto sm:px-4 sm:py-2"
               >
                 {t('dashboard.overview.import')}
               </button>
               <Link
                 href="/find-league"
-                className="touch-manipulation inline-flex min-h-[48px] w-full items-center justify-center rounded-xl border border-white/20 px-3 py-2.5 text-sm font-semibold text-white active:bg-white/10 sm:w-auto sm:px-4 sm:py-2"
+                className="touch-manipulation inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[13px] font-semibold text-white/90 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto sm:px-3 sm:py-1.5"
               >
                 {t('dashboard.overview.findLeague')}
               </Link>
@@ -860,18 +890,18 @@ export function DashboardOverview({
                 {t('dashboard.overview.brackets')}
               </Link>
               <Link
-                href="/af-legacy"
+                href="/af-rankings"
                 className="touch-manipulation inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[13px] font-semibold text-white/90 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto sm:px-3 sm:py-1.5"
-                data-testid="dashboard-legacy-link"
+                data-testid="dashboard-rankings-link"
               >
-                Legacy
+                Rankings
               </Link>
               <Link
-                href="/tools"
+                href="/ai/tools"
                 className="touch-manipulation inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[13px] font-semibold text-white/90 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto sm:px-3 sm:py-1.5"
-                data-testid="dashboard-tools-link"
+                data-testid="dashboard-ai-tools-link"
               >
-                Tools
+                Intelligence Hub
               </Link>
             </div>
             {/* Dispersal drafts link removed from dashboard overview */}
@@ -902,6 +932,8 @@ export function DashboardOverview({
           waiverTimingHint={stripWaiverTimingHint}
           protectionActivityHint={stripProtectionActivityHint}
         />
+
+        <WarRoomPreviewBlock />
 
         <section className="space-y-3">
           <div>
@@ -976,6 +1008,7 @@ export function DashboardOverview({
             )
           }}
         />
+        <LegacySnapshotCard rankPayload={initialUserRankPayload} />
       </div>
 
       <LineupIssuesModal
