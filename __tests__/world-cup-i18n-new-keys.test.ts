@@ -85,6 +85,34 @@ const NEW_KEYS = [
   "wc.publicHub.social.cta",
   // v2 command center — trust banner
   "wc.publicHub.trust.note",
+  // Pool dashboard — command hero
+  "wc.pool.eyebrow",
+  "wc.pool.privateBadge",
+  "wc.pool.publicBadge",
+  // Pool dashboard — what to do next card
+  "wc.pool.next.title",
+  "wc.pool.next.create.title",
+  "wc.pool.next.create.body",
+  "wc.pool.next.picks.title",
+  "wc.pool.next.picks.body",
+  "wc.pool.next.review.title",
+  "wc.pool.next.review.body",
+  "wc.pool.next.done.title",
+  "wc.pool.next.done.body",
+  "wc.pool.next.waiting.title",
+  "wc.pool.next.waiting.body",
+  // Pool dashboard — progress strip
+  "wc.pool.progress.title",
+  "wc.pool.progress.created",
+  "wc.pool.progress.picks",
+  "wc.pool.progress.finalized",
+  // Pool dashboard — commissioner panel
+  "wc.pool.commissioner.title",
+  // Pool dashboard — leaderboard preview
+  "wc.pool.leaderboard.title",
+  "wc.pool.leaderboard.empty",
+  "wc.pool.leaderboard.emptyNote",
+  "wc.pool.leaderboard.viewFull",
 ] as const
 
 describe("worldCupI18n — new keys present and non-empty in all locales", () => {

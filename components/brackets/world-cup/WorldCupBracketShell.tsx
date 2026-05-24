@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowUp, BarChart3, Baseline, Bell, Bold, Check, ChevronLeft, ClipboardCheck, ClipboardList, Copy, Edit3, Film, ImageIcon, Italic, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Mic, Pin, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Smile, Sparkles, Strikethrough, Trophy, Underline, Users, X } from "lucide-react"
+import { ArrowLeft, ArrowUp, BarChart3, Baseline, Bell, Bold, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Clock, Copy, Edit3, Film, Globe2, ImageIcon, Italic, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Mic, Pin, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Smile, Sparkles, Strikethrough, Trophy, Underline, Users, X } from "lucide-react"
 import { toast } from "sonner"
 import type { WorldCupChallengeView, WorldCupMatchView, WorldCupPickView } from "@/lib/world-cup/types"
 import { isWorldCupChallengeLocked } from "@/lib/world-cup/worldCupBracketBuilder"
@@ -2910,20 +2910,60 @@ export default function WorldCupBracketShell({
       <main className="min-h-0 px-2 pb-24 pt-3 sm:px-4 sm:pb-8">
         {tab === "home" ? (
           <div className="space-y-4 pb-28 sm:pb-8">
-            <section className="mx-auto max-w-5xl rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:p-5 px-2 sm:px-0">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200/70">
-                    {t("wc.home.title")}
-                  </p>
-                  <h2 className="mt-1 truncate text-2xl font-black text-white">
-                    {view.challenge.name}
-                  </h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">
-                    {t("wc.home.subtitle")}
-                  </p>
+
+            {/* ── Pool Command Hero ──────────────────────────────────────────────── */}
+            <section
+              data-testid="world-cup-pool-command-hero"
+              className="mx-auto max-w-5xl px-2 sm:px-0"
+            >
+              <div className="relative overflow-hidden rounded-2xl border border-cyan-300/15 bg-gradient-to-br from-cyan-300/[0.07] via-indigo-500/[0.04] to-transparent p-5 sm:p-6">
+                {/* Atmospheric glows */}
+                <div className="pointer-events-none absolute -top-14 right-4 h-36 w-48 rounded-full bg-cyan-400/15 blur-3xl" aria-hidden />
+                <div className="pointer-events-none absolute bottom-0 left-0 h-24 w-36 rounded-full bg-indigo-500/10 blur-2xl" aria-hidden />
+
+                {/* Eyebrow + badges */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200/60">
+                    {t("wc.pool.eyebrow")}
+                  </span>
+                  {view.challenge.visibility === "private" ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold text-white/55">
+                      <Lock className="h-2.5 w-2.5" aria-hidden />
+                      {t("wc.pool.privateBadge")}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-cyan-300/20 bg-cyan-300/[0.06] px-2 py-0.5 text-[10px] font-bold text-cyan-200/70">
+                      <Globe2 className="h-2.5 w-2.5" aria-hidden />
+                      {t("wc.pool.publicBadge")}
+                    </span>
+                  )}
+                  {(view.isOwner || view.isAdmin) && (
+                    <span className="rounded-full border border-amber-300/40 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-amber-100">
+                      {view.isAdmin && !view.isOwner ? "Admin" : "Commissioner"}
+                    </span>
+                  )}
                 </div>
-                <div className="flex flex-wrap gap-2">
+
+                {/* Pool name */}
+                <h2 className="mt-2 truncate text-2xl font-black tracking-tight text-white sm:text-3xl">
+                  {view.challenge.name}
+                </h2>
+
+                {/* Participant count + lock countdown */}
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <span className="text-sm text-white/50">
+                    {participantCount} / {view.challenge.maxParticipants} {t("wc.home.stat.participants").toLowerCase()}
+                  </span>
+                  {hasMounted && lockCountdownLabel && (
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400/10 px-2 py-0.5 text-[11px] font-bold text-amber-100">
+                      <Clock className="h-3 w-3" aria-hidden />
+                      {lockCountdownLabel}
+                    </span>
+                  )}
+                </div>
+
+                {/* Invite CTAs */}
+                <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={copyPoolInvite}
@@ -2942,15 +2982,142 @@ export default function WorldCupBracketShell({
                     {t("wc.home.invitePanel")}
                   </button>
                 </div>
-              </div>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <PoolStatCard label={t("wc.home.stat.participants")} value={`${participantCount}/${view.challenge.maxParticipants}`} />
-                <PoolStatCard label={t("wc.home.stat.entries")} value={`${entries.length}/${view.challenge.maxEntriesPerParticipant}`} />
-                <PoolStatCard label={t("wc.home.stat.finalized")} value={String(view.leaderboard.length)} />
-                <PoolStatCard label={t("wc.home.stat.fixtureStatus")} value={guidedPicksState === "ready" ? t("wc.home.stat.ready") : t("wc.home.stat.notReady")} tone={guidedPicksState === "ready" ? "ready" : "warn"} />
+                {/* Stat grid */}
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <PoolStatCard label={t("wc.home.stat.participants")} value={`${participantCount}/${view.challenge.maxParticipants}`} />
+                  <PoolStatCard label={t("wc.home.stat.entries")} value={`${entries.length}/${view.challenge.maxEntriesPerParticipant}`} />
+                  <PoolStatCard label={t("wc.home.stat.finalized")} value={String(view.leaderboard.length)} />
+                  <PoolStatCard label={t("wc.home.stat.fixtureStatus")} value={guidedPicksState === "ready" ? t("wc.home.stat.ready") : t("wc.home.stat.notReady")} tone={guidedPicksState === "ready" ? "ready" : "warn"} />
+                </div>
               </div>
             </section>
+
+            {/* ── What To Do Next ────────────────────────────────────────────────── */}
+            {!isEntriesLoading && (() => {
+              const isFinalized = Boolean(selectedEntry?.isComplete)
+              const hasPendingPicks = entries.length > 0 && guidedPicksState === "ready" && remainingPicks > 0
+              const readyToReview = computedIsComplete && selectedEntry && !selectedEntry.isComplete
+              const awaitingFixtures = entries.length > 0 && guidedPicksState !== "ready" && !isFinalized
+              const noEntry = entries.length === 0 && !isLocked
+              if (!isFinalized && !readyToReview && !hasPendingPicks && !awaitingFixtures && !noEntry) return null
+
+              const accentClasses =
+                isFinalized ? "border-emerald-400/25 bg-emerald-400/[0.06]"
+                : readyToReview ? "border-violet-400/25 bg-violet-400/[0.06]"
+                : awaitingFixtures ? "border-amber-400/25 bg-amber-400/[0.06]"
+                : "border-cyan-300/25 bg-cyan-300/[0.06]"
+              const iconColorClass =
+                isFinalized ? "text-emerald-300"
+                : readyToReview ? "text-violet-300"
+                : awaitingFixtures ? "text-amber-300"
+                : "text-cyan-300"
+              const progressSteps = [
+                { label: t("wc.pool.progress.created"), done: true },
+                { label: t("wc.pool.progress.picks"), done: isFinalized || Boolean(readyToReview) },
+                { label: t("wc.pool.progress.finalized"), done: isFinalized },
+              ]
+              return (
+                <section
+                  data-testid="world-cup-next-action-card"
+                  className="mx-auto max-w-5xl px-2 sm:px-0"
+                >
+                  <div className={`rounded-2xl border p-4 sm:p-5 ${accentClasses}`}>
+                    <p className="mb-3 text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
+                      {t("wc.pool.next.title")}
+                    </p>
+                    <div className="flex items-start gap-3">
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] ${iconColorClass}`}>
+                        {isFinalized ? <CheckCircle2 className="h-5 w-5" aria-hidden /> :
+                         readyToReview ? <ClipboardCheck className="h-5 w-5" aria-hidden /> :
+                         awaitingFixtures ? <Clock className="h-5 w-5" aria-hidden /> :
+                         noEntry ? <Plus className="h-5 w-5" aria-hidden /> :
+                         <PlayCircle className="h-5 w-5" aria-hidden />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-black text-white">
+                          {isFinalized ? t("wc.pool.next.done.title") :
+                           readyToReview ? t("wc.pool.next.review.title") :
+                           awaitingFixtures ? t("wc.pool.next.waiting.title") :
+                           noEntry ? t("wc.pool.next.create.title") :
+                           t("wc.pool.next.picks.title")}
+                        </h3>
+                        <p className="mt-1 text-sm text-white/55">
+                          {isFinalized ? t("wc.pool.next.done.body") :
+                           readyToReview ? t("wc.pool.next.review.body") :
+                           awaitingFixtures ? t("wc.pool.next.waiting.body") :
+                           noEntry ? t("wc.pool.next.create.body") :
+                           t("wc.pool.next.picks.body")}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {noEntry && (
+                            <button
+                              type="button"
+                              onClick={() => void handleCreateEntry()}
+                              disabled={isCreatingEntry}
+                              className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black disabled:opacity-40"
+                            >
+                              {isCreatingEntry ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                              {isCreatingEntry ? t("wc.review.creating") : t("wc.review.createMyBracket")}
+                            </button>
+                          )}
+                          {hasPendingPicks && (
+                            <button
+                              type="button"
+                              onClick={openNextActionablePick}
+                              disabled={!guidedPickerAvailable}
+                              className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black disabled:opacity-40"
+                            >
+                              <PlayCircle className="h-4 w-4" />
+                              {guidedPickerLabel}
+                            </button>
+                          )}
+                          {readyToReview && (
+                            <button
+                              type="button"
+                              onClick={() => switchTab("review")}
+                              className="inline-flex items-center gap-2 rounded-xl bg-violet-500 px-4 py-2 text-sm font-black text-white"
+                            >
+                              {t("wc.tab.review")}
+                              <ChevronRight className="h-4 w-4" />
+                            </button>
+                          )}
+                          {isFinalized && (
+                            <button
+                              type="button"
+                              onClick={() => switchTab("leaderboard")}
+                              className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-4 py-2 text-sm font-black text-emerald-100"
+                            >
+                              {t("wc.tab.leaderboard")}
+                              <ChevronRight className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {/* Progress strip */}
+                    {entries.length > 0 && (
+                      <div className="mt-4 flex items-center gap-1.5 border-t border-white/[0.07] pt-4">
+                        <span className="mr-1 shrink-0 text-[10px] font-black uppercase tracking-wider text-white/30">
+                          {t("wc.pool.progress.title")}
+                        </span>
+                        {progressSteps.map((step, idx) => (
+                          <div key={step.label} className="flex min-w-0 items-center">
+                            {idx > 0 && <div className={`mx-1 h-px w-4 shrink-0 ${step.done ? "bg-cyan-300/40" : "bg-white/10"}`} />}
+                            <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${step.done ? "bg-cyan-300/15 text-cyan-200" : "bg-white/[0.04] text-white/30"}`}>
+                              {step.done
+                                ? <CheckCircle2 className="h-2.5 w-2.5 shrink-0" aria-hidden />
+                                : <div className="h-2.5 w-2.5 shrink-0 rounded-full border border-white/20" aria-hidden />}
+                              <span className="hidden sm:inline">{step.label}</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )
+            })()}
 
             <WorldCupPremiumAccessPanel
               entitlementSummary={entitlementSummary}
@@ -3057,6 +3224,50 @@ export default function WorldCupBracketShell({
               </div>
             </section>
 
+            {/* ── Commissioner Quick Panel ──────────────────────────────────────── */}
+            {(view.isOwner || view.isAdmin) && (
+              <section
+                data-testid="world-cup-commissioner-panel"
+                className="mx-auto max-w-5xl px-2 sm:px-0"
+              >
+                <div className="rounded-2xl border border-amber-300/20 bg-amber-400/[0.05] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Settings className="h-4 w-4 shrink-0 text-amber-300/80" aria-hidden />
+                      <h3 className="text-sm font-black text-white">{t("wc.pool.commissioner.title")}</h3>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void runSyncFixtures()}
+                        disabled={isSyncing}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-bold text-white/75 disabled:opacity-50"
+                      >
+                        <RefreshCw className={`h-3 w-3 ${isSyncing ? "animate-spin" : ""}`} aria-hidden />
+                        {isSyncing ? "Syncing..." : "Sync Fixtures"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => switchTab("settings")}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300/30 bg-amber-400/10 px-3 py-1.5 text-[11px] font-bold text-amber-100"
+                      >
+                        <Settings className="h-3 w-3" aria-hidden />
+                        Pool Settings
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => switchTab("invite")}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/25 bg-cyan-300/[0.08] px-3 py-1.5 text-[11px] font-bold text-cyan-100"
+                      >
+                        <Share2 className="h-3 w-3" aria-hidden />
+                        Invite Players
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+
             <section className="mx-auto grid max-w-5xl gap-4 px-2 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] sm:px-0">
               <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
                 <div className="mb-4 flex items-center justify-between gap-3">
@@ -3159,28 +3370,43 @@ export default function WorldCupBracketShell({
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                  <h3 className="text-base font-black text-white">Leaderboard Preview</h3>
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h3 className="text-base font-black text-white">{t("wc.pool.leaderboard.title")}</h3>
+                    <button
+                      type="button"
+                      onClick={() => switchTab("leaderboard")}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-cyan-300/70 hover:text-cyan-200"
+                    >
+                      {t("wc.pool.leaderboard.viewFull")}
+                      <ChevronRight className="h-3 w-3" />
+                    </button>
+                  </div>
                   {view.leaderboard.length > 0 ? (
-                    <div className="mt-3 space-y-2">
-                      {view.leaderboard.slice(0, 5).map((row) => (
-                        <div key={row.entryId} className="flex items-center justify-between rounded-lg bg-black/20 px-3 py-2 text-xs">
-                          <span className="min-w-0 truncate text-white/70">#{row.rank} {row.entryName}</span>
-                          <span className="font-black text-cyan-100">{row.totalScore} pts</span>
-                        </div>
-                      ))}
+                    <div className="space-y-1.5">
+                      {view.leaderboard.slice(0, 5).map((row) => {
+                        const rankColor =
+                          row.rank === 1 ? "text-amber-300"
+                          : row.rank === 2 ? "text-zinc-300"
+                          : row.rank === 3 ? "text-amber-600/90"
+                          : "text-white/40"
+                        return (
+                          <div key={row.entryId} className="flex items-center gap-2 rounded-lg bg-black/20 px-3 py-2 text-xs">
+                            <span className={`w-5 shrink-0 text-center font-black tabular-nums ${rankColor}`}>
+                              {row.rank}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-white/70">{row.entryName}</span>
+                            <span className="font-black text-cyan-100">{row.totalScore} pts</span>
+                          </div>
+                        )
+                      })}
                     </div>
                   ) : (
-                    <p className="mt-2 rounded-lg border border-white/10 bg-black/20 px-3 py-3 text-xs text-white/40">
-                      No scored brackets yet. Brackets appear here after users create them and scoring begins.
-                    </p>
+                    <div className="rounded-xl border border-dashed border-white/15 bg-black/20 p-4 text-center">
+                      <BarChart3 className="mx-auto h-6 w-6 text-white/25" />
+                      <p className="mt-2 text-xs font-black text-white/50">{t("wc.pool.leaderboard.empty")}</p>
+                      <p className="mt-0.5 text-xs text-white/30">{t("wc.pool.leaderboard.emptyNote")}</p>
+                    </div>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => switchTab("leaderboard")}
-                    className="mt-3 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold text-white/70"
-                  >
-                    Open Full Leaderboard
-                  </button>
                 </div>
 
               </div>

@@ -243,6 +243,35 @@ const EN: WorldCupDictionary = {
   "wc.home.ai.explainHint": "Go to the Review tab to get an AI explanation of your bracket strategy.",
   "wc.home.ai.unlockHint": "Upgrade to AF Pro to unlock Chimmy AI and Explain My Bracket.",
 
+  // ── Pool dashboard: command hero ──────────────────────────────────────
+  "wc.pool.eyebrow": "Pool Command Center",
+  "wc.pool.privateBadge": "Private",
+  "wc.pool.publicBadge": "Open",
+  // ── Pool dashboard: what to do next card ──────────────────────────────
+  "wc.pool.next.title": "What To Do Next",
+  "wc.pool.next.create.title": "Create Your Bracket",
+  "wc.pool.next.create.body": "Start your picks to compete in this pool.",
+  "wc.pool.next.picks.title": "Make Your Picks",
+  "wc.pool.next.picks.body": "Fixtures are ready — open your bracket and start picking winners.",
+  "wc.pool.next.review.title": "Review & Finalize",
+  "wc.pool.next.review.body": "All picks made. Review your bracket and lock it in before the tournament.",
+  "wc.pool.next.done.title": "Bracket Submitted",
+  "wc.pool.next.done.body": "Your bracket is locked in. Check the leaderboard to track your rank.",
+  "wc.pool.next.waiting.title": "Awaiting Fixtures",
+  "wc.pool.next.waiting.body": "Matchup details are being set up. Check back before kick-off.",
+  // ── Pool dashboard: progress strip ────────────────────────────────────
+  "wc.pool.progress.title": "Progress",
+  "wc.pool.progress.created": "Created",
+  "wc.pool.progress.picks": "Picks Made",
+  "wc.pool.progress.finalized": "Submitted",
+  // ── Pool dashboard: commissioner panel ────────────────────────────────
+  "wc.pool.commissioner.title": "Commissioner Tools",
+  // ── Pool dashboard: leaderboard preview ───────────────────────────────
+  "wc.pool.leaderboard.title": "Leaderboard",
+  "wc.pool.leaderboard.empty": "No scored brackets yet",
+  "wc.pool.leaderboard.emptyNote": "Brackets appear here after scoring begins.",
+  "wc.pool.leaderboard.viewFull": "Full Leaderboard",
+
   // ── Pool dashboard: header / status strip ────────────────────────────
   "wc.header.sync": "Sync",
   "wc.header.inviteAria": "Invite friends",
@@ -1104,6 +1133,35 @@ const ES: WorldCupDictionary = {
   "wc.home.ai.chimmyHint": "Escribe @chimmy en el chat del pool para recibir consejos personalizados de bracket.",
   "wc.home.ai.explainHint": "Ve a la pestaña Revisar para obtener una explicación de IA de tu estrategia de bracket.",
   "wc.home.ai.unlockHint": "Actualiza a AF Pro para desbloquear Chimmy AI y Explain My Bracket.",
+
+  // ── Pool dashboard: command hero ──────────────────────────────────────
+  "wc.pool.eyebrow": "Centro de Comando del Pool",
+  "wc.pool.privateBadge": "Privado",
+  "wc.pool.publicBadge": "Abierto",
+  // ── Pool dashboard: what to do next card ──────────────────────────────
+  "wc.pool.next.title": "Qué Hacer Ahora",
+  "wc.pool.next.create.title": "Crea Tu Bracket",
+  "wc.pool.next.create.body": "Empieza tus selecciones para competir en este pool.",
+  "wc.pool.next.picks.title": "Haz Tus Selecciones",
+  "wc.pool.next.picks.body": "Los partidos están listos — abre tu bracket y empieza a elegir ganadores.",
+  "wc.pool.next.review.title": "Revisar y Finalizar",
+  "wc.pool.next.review.body": "Todas las selecciones hechas. Revisa tu bracket y confírmalo antes del torneo.",
+  "wc.pool.next.done.title": "Bracket Enviado",
+  "wc.pool.next.done.body": "Tu bracket está confirmado. Consulta la tabla para ver tu posición.",
+  "wc.pool.next.waiting.title": "Esperando Partidos",
+  "wc.pool.next.waiting.body": "Los detalles de los partidos están siendo preparados. Vuelve antes del inicio.",
+  // ── Pool dashboard: progress strip ────────────────────────────────────
+  "wc.pool.progress.title": "Progreso",
+  "wc.pool.progress.created": "Creado",
+  "wc.pool.progress.picks": "Selecciones Hechas",
+  "wc.pool.progress.finalized": "Enviado",
+  // ── Pool dashboard: commissioner panel ────────────────────────────────
+  "wc.pool.commissioner.title": "Herramientas de Comisionado",
+  // ── Pool dashboard: leaderboard preview ───────────────────────────────
+  "wc.pool.leaderboard.title": "Tabla de Clasificación",
+  "wc.pool.leaderboard.empty": "Aún no hay brackets puntuados",
+  "wc.pool.leaderboard.emptyNote": "Los brackets aparecen aquí cuando empiece la puntuación.",
+  "wc.pool.leaderboard.viewFull": "Tabla Completa",
 
   // ── Pool dashboard: header / status strip ────────────────────────────
   "wc.header.sync": "Sincronizar",
@@ -1998,6 +2056,35 @@ const ZH: WorldCupDictionary = {
   "wc.home.ai.explainHint": "前往「檢閱」標籤頁，獲取 AI 對你的對戰表策略的解釋。",
   "wc.home.ai.unlockHint": "升級至 AF Pro 以解鎖 Chimmy AI 和「解釋我的對戰表」功能。",
 
+  // ── Pool dashboard: command hero ──────────────────────────────────────
+  "wc.pool.eyebrow": "水池指揮中心",
+  "wc.pool.privateBadge": "私密",
+  "wc.pool.publicBadge": "公開",
+  // ── Pool dashboard: what to do next card ──────────────────────────────
+  "wc.pool.next.title": "下一步",
+  "wc.pool.next.create.title": "建立你的對戰表",
+  "wc.pool.next.create.body": "開始選擇以在此水池中競爭。",
+  "wc.pool.next.picks.title": "進行選擇",
+  "wc.pool.next.picks.body": "賽程已就緒——打開你的對戰表並開始選擇勝者。",
+  "wc.pool.next.review.title": "檢閱並確認",
+  "wc.pool.next.review.body": "所有選擇已完成。在賽事開始前檢閱你的對戰表並確認。",
+  "wc.pool.next.done.title": "對戰表已提交",
+  "wc.pool.next.done.body": "你的對戰表已鎖定。查看排行榜以追蹤你的名次。",
+  "wc.pool.next.waiting.title": "等待賽程",
+  "wc.pool.next.waiting.body": "賽程細節正在設置中。請在開球前回來查看。",
+  // ── Pool dashboard: progress strip ────────────────────────────────────
+  "wc.pool.progress.title": "進度",
+  "wc.pool.progress.created": "已建立",
+  "wc.pool.progress.picks": "選擇完成",
+  "wc.pool.progress.finalized": "已提交",
+  // ── Pool dashboard: commissioner panel ────────────────────────────────
+  "wc.pool.commissioner.title": "委員工具",
+  // ── Pool dashboard: leaderboard preview ───────────────────────────────
+  "wc.pool.leaderboard.title": "排行榜",
+  "wc.pool.leaderboard.empty": "尚無已計分的對戰表",
+  "wc.pool.leaderboard.emptyNote": "對戰表在計分開始後顯示於此。",
+  "wc.pool.leaderboard.viewFull": "完整排行榜",
+
   // ── Pool dashboard: header / status strip ────────────────────────────
   "wc.header.sync": "同步",
   "wc.header.inviteAria": "邀請朋友",
@@ -2862,6 +2949,35 @@ const FIL: WorldCupDictionary = {
   "wc.home.ai.chimmyHint": "I-type ang @chimmy sa pool chat para sa personalized na bracket advice.",
   "wc.home.ai.explainHint": "Pumunta sa Review tab para makakuha ng AI na paliwanag ng iyong bracket strategy.",
   "wc.home.ai.unlockHint": "Mag-upgrade sa AF Pro para i-unlock ang Chimmy AI at Explain My Bracket.",
+
+  // ── Pool dashboard: command hero ──────────────────────────────────────
+  "wc.pool.eyebrow": "Pool Command Center",
+  "wc.pool.privateBadge": "Pribado",
+  "wc.pool.publicBadge": "Bukas",
+  // ── Pool dashboard: what to do next card ──────────────────────────────
+  "wc.pool.next.title": "Ano ang Susunod",
+  "wc.pool.next.create.title": "Gumawa ng Iyong Bracket",
+  "wc.pool.next.create.body": "Simulan ang iyong mga pick para makipagkumpitensya sa pool na ito.",
+  "wc.pool.next.picks.title": "Gumawa ng Iyong mga Pick",
+  "wc.pool.next.picks.body": "Handa na ang mga fixture — buksan ang iyong bracket at pumili ng mga mananalo.",
+  "wc.pool.next.review.title": "I-review at I-finalize",
+  "wc.pool.next.review.body": "Lahat ng pick ay nagawa na. I-review ang iyong bracket at i-lock bago magsimula ang torneo.",
+  "wc.pool.next.done.title": "Naisumite na ang Bracket",
+  "wc.pool.next.done.body": "Naka-lock na ang iyong bracket. Tingnan ang leaderboard para ma-track ang iyong rank.",
+  "wc.pool.next.waiting.title": "Naghihintay ng mga Fixture",
+  "wc.pool.next.waiting.body": "Inaayos pa ang mga detalye ng laro. Bumalik bago mag-kick-off.",
+  // ── Pool dashboard: progress strip ────────────────────────────────────
+  "wc.pool.progress.title": "Progreso",
+  "wc.pool.progress.created": "Nagawa",
+  "wc.pool.progress.picks": "Mga Pick na Nagawa",
+  "wc.pool.progress.finalized": "Naisumite",
+  // ── Pool dashboard: commissioner panel ────────────────────────────────
+  "wc.pool.commissioner.title": "Mga Tool ng Commissioner",
+  // ── Pool dashboard: leaderboard preview ───────────────────────────────
+  "wc.pool.leaderboard.title": "Leaderboard",
+  "wc.pool.leaderboard.empty": "Wala pang na-score na bracket",
+  "wc.pool.leaderboard.emptyNote": "Lalabas ang mga bracket dito pagkatapos magsimula ang scoring.",
+  "wc.pool.leaderboard.viewFull": "Buong Leaderboard",
 
   // ── Pool dashboard: header / status strip ────────────────────────────
   "wc.header.sync": "I-sync",
@@ -3770,6 +3886,35 @@ const VI: WorldCupDictionary = {
   "wc.home.ai.chimmyHint": "Nhập @chimmy trong chat pool để nhận lời khuyên cá nhân về bracket.",
   "wc.home.ai.explainHint": "Đi đến tab Xem lại để nhận giải thích AI về chiến lược bracket của bạn.",
   "wc.home.ai.unlockHint": "Nâng cấp lên AF Pro để mở khóa Chimmy AI và Giải thích bracket của tôi.",
+
+  // ── Pool dashboard: command hero ──────────────────────────────────────
+  "wc.pool.eyebrow": "Trung tâm chỉ huy pool",
+  "wc.pool.privateBadge": "Riêng tư",
+  "wc.pool.publicBadge": "Công khai",
+  // ── Pool dashboard: what to do next card ──────────────────────────────
+  "wc.pool.next.title": "Bước tiếp theo",
+  "wc.pool.next.create.title": "Tạo bracket của bạn",
+  "wc.pool.next.create.body": "Bắt đầu chọn để tham gia thi đấu trong pool này.",
+  "wc.pool.next.picks.title": "Thực hiện lượt chọn",
+  "wc.pool.next.picks.body": "Lịch thi đấu đã sẵn sàng — mở bracket và bắt đầu chọn người chiến thắng.",
+  "wc.pool.next.review.title": "Xem lại và hoàn tất",
+  "wc.pool.next.review.body": "Đã chọn xong tất cả. Xem lại bracket và xác nhận trước khi giải đấu bắt đầu.",
+  "wc.pool.next.done.title": "Bracket đã gửi",
+  "wc.pool.next.done.body": "Bracket của bạn đã được khóa. Kiểm tra bảng xếp hạng để theo dõi thứ hạng.",
+  "wc.pool.next.waiting.title": "Đang chờ lịch thi đấu",
+  "wc.pool.next.waiting.body": "Thông tin trận đấu đang được thiết lập. Hãy quay lại trước khi trận bắt đầu.",
+  // ── Pool dashboard: progress strip ────────────────────────────────────
+  "wc.pool.progress.title": "Tiến độ",
+  "wc.pool.progress.created": "Đã tạo",
+  "wc.pool.progress.picks": "Đã chọn xong",
+  "wc.pool.progress.finalized": "Đã gửi",
+  // ── Pool dashboard: commissioner panel ────────────────────────────────
+  "wc.pool.commissioner.title": "Công cụ ủy ban viên",
+  // ── Pool dashboard: leaderboard preview ───────────────────────────────
+  "wc.pool.leaderboard.title": "Bảng xếp hạng",
+  "wc.pool.leaderboard.empty": "Chưa có bracket nào được tính điểm",
+  "wc.pool.leaderboard.emptyNote": "Bracket sẽ xuất hiện ở đây sau khi bắt đầu tính điểm.",
+  "wc.pool.leaderboard.viewFull": "Bảng xếp hạng đầy đủ",
 
   // ── Pool dashboard: header / status strip ────────────────────────────
   "wc.header.sync": "Đồng bộ",
