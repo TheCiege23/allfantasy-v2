@@ -110,7 +110,7 @@ function LeaderboardAiSummaryCard({
       : t("wc.insights.aiSummaryCountOther", { count: leaderboard.length })
 
   return (
-    <details data-testid="world-cup-leaderboard-ai-summary" className="mt-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3 text-xs text-cyan-50">
+    <details data-testid="world-cup-leaderboard-ai-summary" className="mt-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3 text-xs text-white/85">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-black">
         <span>{t("wc.insights.aiSummaryTitle")}</span>
         <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] uppercase tracking-wide">
@@ -120,7 +120,7 @@ function LeaderboardAiSummaryCard({
         </span>
       </summary>
       {aiInsightsUnlocked ? (
-        <div className="mt-3 space-y-2 leading-5 text-cyan-50/85">
+        <div className="mt-3 space-y-2 leading-5 text-white/75">
           <p>
             <span className="font-black text-white">{t("wc.insights.aiSummaryLabel")}</span>{" "}
             {countLine}

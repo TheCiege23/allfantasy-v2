@@ -4084,7 +4084,7 @@ export default function WorldCupBracketShell({
                 t={t}
               />
             </div>
-            <WorldCupLeaderboard view={view} busy={isPending} onRecalculate={() => runOwnerAction("recalculate")} />
+            <WorldCupLeaderboard view={view} busy={isPending} onRecalculate={() => runOwnerAction("recalculate")} switchTab={switchTab} />
           </div>
         ) : null}
         {tab === "invite" ? (

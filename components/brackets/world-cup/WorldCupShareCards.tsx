@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react"
 import { Check, Copy, Share2 } from "lucide-react"
 import type { WorldCupLeaderboardRow } from "@/lib/world-cup/types"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 
 type InviteShare = {
   kind: "invite"
@@ -87,16 +89,18 @@ function buildShareText(props: Props) {
   ].join("\n"))
 }
 
-function shareTitle(kind: Props["kind"]) {
-  if (kind === "invite") return "Pool Invite Share Card"
-  if (kind === "leaderboard") return "Leaderboard Snapshot"
-  if (kind === "bracket") return "My Bracket Summary"
-  return "AI Recap Share Card"
-}
-
 export default function WorldCupShareCard(props: Props) {
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
   const [copied, setCopied] = useState(false)
   const text = useMemo(() => buildShareText(props), [props])
+
+  const tShareTitle = (kind: Props["kind"]) => {
+    if (kind === "invite") return t("wc.share.titleInvite")
+    if (kind === "leaderboard") return t("wc.share.titleLeaderboard")
+    if (kind === "bracket") return t("wc.share.titleBracket")
+    return t("wc.share.titleRecap")
+  }
 
   async function copyShareText() {
     await navigator.clipboard?.writeText(text)
@@ -107,7 +111,7 @@ export default function WorldCupShareCard(props: Props) {
   async function nativeShare() {
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
-        await navigator.share({ title: shareTitle(props.kind), text })
+        await navigator.share({ title: tShareTitle(props.kind), text })
         return
       } catch {
         // Fall back to clipboard when native share is cancelled or unavailable.
@@ -126,14 +130,14 @@ export default function WorldCupShareCard(props: Props) {
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/60">Share Graphic</p>
-          <h3 className="mt-1 text-base font-black text-white">{shareTitle(props.kind)}</h3>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/60">{t("wc.share.eyebrow")}</p>
+          <h3 className="mt-1 text-base font-black text-white">{tShareTitle(props.kind)}</h3>
           <p className="mt-1 text-xs leading-5 text-white/50">
-            Copy-ready social card text. Download image support can be added after a safe capture helper is available.
+            {t("wc.share.description")}
           </p>
         </div>
         <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-white/45">
-          Public-safe
+          {t("wc.share.publicSafe")}
         </span>
       </div>
 
@@ -148,7 +152,7 @@ export default function WorldCupShareCard(props: Props) {
           className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-black text-black touch-manipulation sm:w-auto"
         >
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-          {copied ? "Copied" : "Copy share text"}
+          {copied ? t("wc.share.copied") : t("wc.share.copy")}
         </button>
         <button
           type="button"
@@ -156,7 +160,7 @@ export default function WorldCupShareCard(props: Props) {
           className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-bold text-white/75 touch-manipulation sm:w-auto"
         >
           <Share2 className="h-4 w-4" />
-          Share
+          {t("wc.share.share")}
         </button>
       </div>
     </section>
