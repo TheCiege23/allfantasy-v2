@@ -258,24 +258,64 @@ export function AfRankingsPerformanceSummary({ rank }: { rank: PlayerRankLite })
 
 export function AfRankingsHistoryPlaceholder() {
   return (
-    <section className="rounded-3xl border border-dashed border-white/15 bg-white/[0.02] p-5 text-center sm:p-6">
-      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/35">Momentum & history</p>
-      <h2 className="mt-2 text-lg font-black text-white">Trends unlock over time</h2>
-      <p className="mx-auto mt-2 max-w-md text-sm text-white/45">
-        Season-over-season rank movement charts will appear as you accumulate more imported history and active seasons.
+    <section className="rounded-3xl border border-white/[0.08] bg-[#0a0f1c] p-5 sm:p-6">
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/35">Momentum & history</p>
+          <h2 className="mt-1 text-lg font-black text-white">Rank trend</h2>
+        </div>
+        <span className="shrink-0 rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-semibold text-cyan-300">
+          Unlocks with history
+        </span>
+      </div>
+      <div className="space-y-2">
+        {[
+          { label: 'Season win streak', color: 'text-amber-300/70' },
+          { label: 'Win rate trend', color: 'text-emerald-300/70' },
+          { label: 'XP earned this season', color: 'text-cyan-300/70' },
+        ].map((row) => (
+          <div key={row.label} className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2.5">
+            <span className="text-xs text-white/40">{row.label}</span>
+            <span className={`text-sm font-bold ${row.color}`}>—</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-4 text-[11px] text-white/30">
+        Season-over-season rank charts appear as you accumulate more imported history and active seasons.
       </p>
     </section>
   )
 }
 
 export function AfRankingsLeaderboardPlaceholder() {
+  const previewRows = [
+    { pos: 1, level: 25, glow: '#f59e0b' },
+    { pos: 2, level: 20, glow: '#8b5cf6' },
+    { pos: 3, level: 15, glow: '#06b6d4' },
+  ]
   return (
     <section className="rounded-3xl border border-white/[0.08] bg-[#0a0f1c] p-5 sm:p-6">
-      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">Leaderboard</p>
-      <h2 className="mt-1 text-lg font-black text-white sm:text-xl">Global ranks</h2>
-      <p className="mt-2 text-sm text-white/50">
-        A public AF leaderboard is on the roadmap. For now, your tier and XP are tracked against the full 25-level ladder on
-        this page.
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">Leaderboard</p>
+          <h2 className="mt-1 text-lg font-black text-white sm:text-xl">Global ranks</h2>
+        </div>
+        <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-semibold text-white/35">
+          Coming soon
+        </span>
+      </div>
+      <div className="space-y-2 opacity-40 blur-[1px] pointer-events-none select-none">
+        {previewRows.map((row) => (
+          <div key={row.pos} className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2.5">
+            <span className="w-5 shrink-0 text-center text-xs font-bold text-white/40">#{row.pos}</span>
+            <div className="h-6 w-6 rounded-full shrink-0" style={{ background: `${row.glow}44`, border: `1px solid ${row.glow}40` }} />
+            <span className="flex-1 text-xs text-white/50">Fantasy Manager</span>
+            <span className="text-xs font-bold" style={{ color: row.glow }}>Lv {row.level}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-4 text-sm text-white/50">
+        A public AF leaderboard is on the roadmap. Your tier and XP are tracked against the full 25-level ladder on this page.
       </p>
     </section>
   )

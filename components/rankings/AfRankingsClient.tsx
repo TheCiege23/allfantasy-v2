@@ -812,7 +812,7 @@ function FullRankView({
             </div>
           )}
 
-          <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between shadow-[0_2px_8px_rgba(0,0,0,0.25)]">
             <div>
               <p className="text-sm font-semibold text-white">Refresh your legacy profile</p>
               <p className="text-xs text-white/40">
@@ -881,7 +881,7 @@ function RankingsLoadingShell() {
             Dashboard
           </Link>
           <h1 className="mt-2 text-3xl font-black text-white sm:text-4xl">AF Rankings</h1>
-          <p className="mt-3 max-w-3xl text-sm text-slate-300 sm:text-base">
+          <p className="mt-3 max-w-3xl text-sm text-white/65 sm:text-base">
             Your prestige tier, AI grade, XP progression, and career stats — built from real imported league history.
           </p>
         </div>
@@ -1284,7 +1284,7 @@ function MyRankingsPageInner() {
             Dashboard
           </Link>
           <h1 className="mt-2 text-3xl font-black text-white sm:text-4xl">AF Rankings</h1>
-          <p className="mt-3 max-w-3xl text-sm text-slate-300 sm:text-base">
+          <p className="mt-3 max-w-3xl text-sm text-white/65 sm:text-base">
             Your prestige tier, AI grade, XP progression, and career stats — built from real imported league history.
           </p>
         </div>

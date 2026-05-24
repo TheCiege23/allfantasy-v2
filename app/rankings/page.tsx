@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import RankingsClient from "./RankingsClient";
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: "League Power Rankings \u2013 AllFantasy",
   description: "AI-powered power rankings, trends, strengths & risks for your fantasy league.",

@@ -272,30 +272,30 @@ export default function ProfilePageClient({
               <p className="text-xs" style={{ color: "var(--muted)" }}>Loading highlights…</p>
             ) : (
               <div className="grid gap-2 sm:grid-cols-3">
-                <div className="rounded-lg border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-                  <p className="text-[11px]" style={{ color: "var(--muted)" }}>GM prestige</p>
-                  <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+                <div className="rounded-lg border px-3 py-2.5" style={{ borderColor: "rgba(6,182,212,0.2)", background: "rgba(6,182,212,0.05)" }}>
+                  <p className="text-[11px] font-semibold" style={{ color: "rgba(103,232,249,0.7)" }}>GM prestige</p>
+                  <p className="text-sm font-bold" style={{ color: "rgb(165,243,252)" }}>
                     {highlights?.gmPrestigeScore != null ? highlights.gmPrestigeScore.toFixed(1) : "—"}
                   </p>
                   {highlights?.gmTierLabel && (
-                    <p className="text-[11px]" style={{ color: "var(--muted)" }}>{highlights.gmTierLabel}</p>
+                    <p className="text-[11px] text-white/40">{highlights.gmTierLabel}</p>
                   )}
                 </div>
-                <div className="rounded-lg border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-                  <p className="text-[11px]" style={{ color: "var(--muted)" }}>Reputation</p>
-                  <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+                <div className="rounded-lg border px-3 py-2.5" style={{ borderColor: "rgba(139,92,246,0.2)", background: "rgba(139,92,246,0.05)" }}>
+                  <p className="text-[11px] font-semibold" style={{ color: "rgba(196,181,253,0.7)" }}>Reputation</p>
+                  <p className="text-sm font-bold" style={{ color: "rgb(221,214,254)" }}>
                     {highlights?.reputationTier ?? "No data"}
                   </p>
-                  <p className="text-[11px]" style={{ color: "var(--muted)" }}>
+                  <p className="text-[11px] text-white/40">
                     {highlights?.reputationScore != null ? `Score ${highlights.reputationScore.toFixed(1)}` : "Needs league history"}
                   </p>
                 </div>
-                <div className="rounded-lg border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-                  <p className="text-[11px]" style={{ color: "var(--muted)" }}>Legacy score</p>
-                  <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+                <div className="rounded-lg border px-3 py-2.5" style={{ borderColor: "rgba(245,158,11,0.2)", background: "rgba(245,158,11,0.05)" }}>
+                  <p className="text-[11px] font-semibold" style={{ color: "rgba(252,211,77,0.7)" }}>Legacy score</p>
+                  <p className="text-sm font-bold" style={{ color: "rgb(253,230,138)" }}>
                     {highlights?.legacyScore != null ? highlights.legacyScore.toFixed(1) : "No data"}
                   </p>
-                  <p className="text-[11px]" style={{ color: "var(--muted)" }}>
+                  <p className="text-[11px] text-white/40">
                     {highlights?.contextLeagueName ? `Context: ${highlights.contextLeagueName}` : "No league context yet"}
                   </p>
                 </div>
@@ -363,13 +363,13 @@ export default function ProfilePageClient({
             <Link
               href="/dashboard"
               className="flex items-center justify-between rounded-xl border p-4 transition"
-              style={{ borderColor: "var(--border)", background: "var(--panel2)" }}
+              style={{ borderColor: "rgba(6,182,212,0.25)", background: "rgba(6,182,212,0.06)" }}
             >
-              <span className="flex items-center gap-2 text-sm font-medium" style={{ color: "var(--text)" }}>
+              <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: "var(--text)" }}>
                 <Zap className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} />
                 Sports App
               </span>
-              <ChevronRight className="h-4 w-4" style={{ color: "var(--muted)" }} />
+              <ChevronRight className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} />
             </Link>
             <Link
               href="/settings"
@@ -562,12 +562,12 @@ function ProfileStatsSection() {
           </p>
           <ul className="mt-2 space-y-1 text-xs" style={{ color: "var(--muted)" }}>
             {achievements.slice(0, 4).map((a) => (
-              <li key={a.id} className="flex items-center gap-2">
+              <li key={a.id} className={`flex items-center gap-2 ${a.earned ? '' : 'opacity-40'}`}>
                 <span>{a.icon}</span>
-                <span style={{ color: a.earned ? "var(--text)" : "var(--muted)" }}>
+                <span className="flex-1" style={{ color: a.earned ? "var(--text)" : "var(--muted)" }}>
                   {a.name}
-                  {a.earned ? " ✓" : ""}
                 </span>
+                {a.earned && <span className="shrink-0 text-[10px] font-bold text-emerald-400">✓</span>}
               </li>
             ))}
             {achievements.length > 4 && <li>+{achievements.length - 4} more</li>}

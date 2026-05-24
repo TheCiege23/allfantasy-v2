@@ -41,10 +41,10 @@ export default function AIToolCard({
         <Icon className="h-5 w-5 text-white/90" />
       </div>
       <div className="min-w-0 flex-1">
-        <span className="font-medium text-white group-hover:text-cyan-200">{title}</span>
+        <span className="text-sm font-semibold text-white group-hover:text-cyan-200">{title}</span>
         <p className="mt-0.5 text-xs text-white/50">{description}</p>
       </div>
-      <ChevronRight className="h-4 w-4 shrink-0 text-white/30 group-hover:text-white/60" aria-hidden />
+      <ChevronRight className="h-4 w-4 shrink-0 text-white/30 transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-white/60" aria-hidden />
     </Link>
   )
 }
