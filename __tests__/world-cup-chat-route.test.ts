@@ -37,6 +37,14 @@ vi.mock("@/lib/world-cup/worldCupChimmyPrivateReply", () => ({
   generateWorldCupChimmyPrivateReply: generateChimmyReplyMock,
 }))
 
+// next/headers cookies() requires an AsyncLocalStorage request scope that vitest
+// does not provide. Mock it to return a minimal stub so @chimmy AI tests can run.
+vi.mock("next/headers", () => ({
+  cookies: vi.fn().mockResolvedValue({
+    get: vi.fn().mockReturnValue(undefined),
+  }),
+}))
+
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     worldCupBracketChatEvent: {
