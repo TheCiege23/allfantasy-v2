@@ -39,7 +39,7 @@ import { DashboardIntelligenceRail } from './DashboardIntelligenceRail'
 import { TodaysMissionStrip } from './TodaysMissionStrip'
 import { WarRoomPreviewBlock } from './WarRoomPreviewBlock'
 import { LegacySnapshotCard } from './LegacySnapshotCard'
-import { Swords, Sparkles } from 'lucide-react'
+import { Swords, Sparkles, Crown, Trophy } from 'lucide-react'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
 const STRIP_FETCH_STALE_MS = 5 * 60_000
@@ -846,6 +846,9 @@ export function DashboardOverview({
           <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-white/55">
             Chimmy is watching your drafts, matchups, waivers, and league activity so you know what to do next.
           </p>
+          <p className="mt-1.5 text-[12px] font-semibold text-amber-400/70">
+            Built for commissioners. Loved by managers.
+          </p>
 
           <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-2">
             <Link
@@ -911,6 +914,15 @@ export function DashboardOverview({
               >
                 Intelligence Hub
               </Link>
+              {leagues.some((l) => l.isCommissioner) && (
+                <Link
+                  href="/commissioner-hub"
+                  className="touch-manipulation inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[13px] font-semibold text-amber-300 transition hover:bg-amber-500/20 active:bg-amber-500/25 sm:w-auto sm:px-4 sm:py-2"
+                >
+                  <Crown className="h-3.5 w-3.5" aria-hidden />
+                  Commissioner Hub
+                </Link>
+              )}
             </div>
             {/* Dispersal drafts link removed from dashboard overview */}
           </div>
@@ -942,6 +954,84 @@ export function DashboardOverview({
         />
 
         <WarRoomPreviewBlock />
+
+        {(() => {
+          const commLeagues = leagues.filter((l) => l.isCommissioner)
+          const memberLeagues = leagues.filter((l) => !l.isCommissioner)
+          if (leagues.length === 0) return null
+          return (
+            <section className="space-y-4">
+              {commLeagues.length > 0 && (
+                <div>
+                  <div className="mb-2.5 flex items-center gap-1.5">
+                    <Crown className="h-3.5 w-3.5 text-amber-400" aria-hidden />
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-amber-400/80">
+                      Leagues I Manage
+                    </p>
+                    <Link
+                      href="/commissioner-hub"
+                      className="ml-auto text-[11px] font-semibold text-amber-400/50 transition hover:text-amber-300"
+                    >
+                      Commissioner Hub →
+                    </Link>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {commLeagues.slice(0, 4).map((l) => (
+                      <Link
+                        key={l.id}
+                        href={`/league/${l.id}`}
+                        className="group flex items-center gap-2.5 rounded-xl border border-amber-500/[0.12] bg-amber-500/[0.04] px-3 py-2.5 transition hover:border-amber-500/25 hover:bg-amber-500/[0.07]"
+                      >
+                        <Crown className="h-3.5 w-3.5 shrink-0 text-amber-400/60" aria-hidden />
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-white/80 group-hover:text-white">
+                          {l.name}
+                        </span>
+                        <span className="shrink-0 text-[11px] text-white/30">{l.sport}</span>
+                      </Link>
+                    ))}
+                    {commLeagues.length > 4 && (
+                      <Link
+                        href="/commissioner-hub"
+                        className="flex items-center justify-center gap-1 rounded-xl border border-amber-500/15 px-3 py-2.5 text-[12px] text-amber-400/50 transition hover:border-amber-500/25 hover:text-amber-300"
+                      >
+                        +{commLeagues.length - 4} more in Commissioner Hub
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              )}
+              {memberLeagues.length > 0 && (
+                <div>
+                  <div className="mb-2.5 flex items-center gap-1.5">
+                    <Trophy className="h-3.5 w-3.5 text-cyan-400/70" aria-hidden />
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-white/35">
+                      Leagues I Play In
+                    </p>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {memberLeagues.slice(0, 4).map((l) => (
+                      <Link
+                        key={l.id}
+                        href={`/league/${l.id}`}
+                        className="group flex items-center gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 transition hover:border-cyan-500/20 hover:bg-white/[0.04]"
+                      >
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-white/70 group-hover:text-white/90">
+                          {l.name}
+                        </span>
+                        <span className="shrink-0 text-[11px] text-white/30">{l.sport}</span>
+                      </Link>
+                    ))}
+                    {memberLeagues.length > 4 && (
+                      <span className="flex items-center justify-center gap-1 rounded-xl border border-white/[0.06] px-3 py-2.5 text-[12px] text-white/30">
+                        +{memberLeagues.length - 4} more
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
+          )
+        })()}
 
         <section className="space-y-3">
           <div>

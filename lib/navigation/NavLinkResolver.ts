@@ -11,6 +11,7 @@ export interface NavLinkItem {
 /** Primary nav items (tabs / drawer). Order determines display order. */
 export const PRIMARY_NAV_ITEMS: NavLinkItem[] = [
   { href: "/dashboard", label: "Home" },
+  { href: "/commissioner-hub", label: "Commissioner Hub" },
   { href: "/war-room", label: "War Room" },
   { href: "/discover/leagues", label: "Leagues" },
   { href: "/ai/tools", label: "Intelligence Hub" },
