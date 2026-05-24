@@ -310,15 +310,32 @@ const EN: BracketsDictionary = {
   "brk.hub.v2.titleLine1": "AF World Cup",
   "brk.hub.v2.titleLine2": "Bracket Challenge",
   "brk.hub.v2.subtitle":
-    "32 nations. 48 matches. One champion. Pick every game before kickoff and compete in your own pool — with AI analysis on every matchup. Free forever.",
-  "brk.hub.v2.feature.teams": "32 Teams",
-  "brk.hub.v2.feature.matches": "48 Matches",
-  "brk.hub.v2.feature.format": "Group Stage + Knockouts",
+    "48 nations. 104 matches. One champion. Pick every game before kickoff and compete in your own pool — with AI analysis on every matchup. Free forever.",
+  "brk.hub.v2.feature.teams": "48 Teams",
+  "brk.hub.v2.feature.matches": "104 Matches",
+  "brk.hub.v2.feature.format": "12 Groups + Knockouts",
   "brk.hub.v2.feature.free": "100% Free",
   "brk.hub.v2.cta.openBracket": "World Cup Bracket",
   "brk.hub.v2.cta.createPool": "Create Pool",
+  "brk.hub.v2.cta.joinWithCode": "Join with Code",
   "brk.hub.v2.cta.discoverPools": "Discover Pools",
   "brk.hub.v2.fanLine": "Join thousands of fans competing worldwide",
+
+  // ── /brackets quick actions row ───────────────────────────────────────
+  "brk.hub.quickActions.title": "Quick Actions",
+  "brk.hub.quickActions.create": "Create a Pool",
+  "brk.hub.quickActions.createDesc": "Start a private or public pool for your crew.",
+  "brk.hub.quickActions.join": "Join with Code",
+  "brk.hub.quickActions.joinDesc": "Have an invite code? Jump straight in.",
+  "brk.hub.quickActions.continue": "Continue My Bracket",
+  "brk.hub.quickActions.continueDesc": "Pick up where you left off.",
+  "brk.hub.quickActions.browse": "Browse Public Pools",
+  "brk.hub.quickActions.browseDesc": "Discover pools anyone can join.",
+
+  // ── /brackets how-it-works step 4 (added to existing 3-step flow) ────
+  "brk.hub.howItWorks.step4Title": "Climb the leaderboard",
+  "brk.hub.howItWorks.step4Body":
+    "Follow live standings, flex on your crew with share cards, and let AI analyze what made your bracket unique.",
 }
 
 const ES: BracketsDictionary = {
@@ -520,16 +537,33 @@ const ES: BracketsDictionary = {
   "brk.hub.v2.titleLine1": "AF Copa del Mundo",
   "brk.hub.v2.titleLine2": "Desafío de Brackets",
   "brk.hub.v2.subtitle":
-    "32 selecciones. 48 partidos. Un campeón. Elige cada partido antes del pitazo inicial y compite en tu propio grupo — con análisis IA en cada partido. Gratis para siempre.",
-  "brk.hub.v2.feature.teams": "32 selecciones",
-  "brk.hub.v2.feature.matches": "48 partidos",
-  "brk.hub.v2.feature.format": "Fase de grupos + Eliminatorias",
+    "48 selecciones. 104 partidos. Un campeón. Elige cada partido antes del pitazo inicial y compite en tu propio grupo — con análisis IA en cada partido. Gratis para siempre.",
+  "brk.hub.v2.feature.teams": "48 selecciones",
+  "brk.hub.v2.feature.matches": "104 partidos",
+  "brk.hub.v2.feature.format": "12 Grupos + Eliminatorias",
   "brk.hub.v2.feature.free": "100% gratis",
   "brk.hub.v2.cta.openBracket": "Abrir Bracket de la Copa",
   "brk.hub.v2.cta.createPool": "Crear grupo",
+  "brk.hub.v2.cta.joinWithCode": "Unirse con código",
   "brk.hub.v2.cta.discoverPools": "Descubrir grupos",
   "brk.hub.v2.fanLine":
     "Únete a miles de fans que compiten en el mundo entero",
+
+  // ── /brackets quick actions row ───────────────────────────────────────
+  "brk.hub.quickActions.title": "Acciones rápidas",
+  "brk.hub.quickActions.create": "Crear un grupo",
+  "brk.hub.quickActions.createDesc": "Inicia un grupo privado o público para tu equipo.",
+  "brk.hub.quickActions.join": "Unirse con código",
+  "brk.hub.quickActions.joinDesc": "¿Tienes código de invitación? Únete al instante.",
+  "brk.hub.quickActions.continue": "Continuar mi bracket",
+  "brk.hub.quickActions.continueDesc": "Retoma donde lo dejaste.",
+  "brk.hub.quickActions.browse": "Ver grupos públicos",
+  "brk.hub.quickActions.browseDesc": "Descubre grupos a los que cualquiera puede unirse.",
+
+  // ── /brackets how-it-works step 4 ────────────────────────────────────
+  "brk.hub.howItWorks.step4Title": "Sube en la tabla",
+  "brk.hub.howItWorks.step4Body":
+    "Sigue las tablas en vivo, presume con tarjetas de tu bracket y deja que la IA analice qué hace especial tu bracket.",
 }
 
 const ZH: BracketsDictionary = {
@@ -730,16 +764,33 @@ const ZH: BracketsDictionary = {
   "brk.hub.v2.titleLine1": "AF 世界盃",
   "brk.hub.v2.titleLine2": "對戰挑戰",
   "brk.hub.v2.subtitle":
-    "32 個國家。48 場比賽。一位冠軍。在開球前選好每一場、和你自己的群組一較高下 — 每場比賽都有 AI 解析。永久免費。",
-  "brk.hub.v2.feature.teams": "32 個國家",
-  "brk.hub.v2.feature.matches": "48 場比賽",
-  "brk.hub.v2.feature.format": "小組賽 + 淘汰賽",
+    "48 個國家。104 場比賽。一位冠軍。在開球前選好每一場、和你自己的群組一較高下 — 每場比賽都有 AI 解析。永久免費。",
+  "brk.hub.v2.feature.teams": "48 個國家",
+  "brk.hub.v2.feature.matches": "104 場比賽",
+  "brk.hub.v2.feature.format": "12 個小組 + 淘汰賽",
   "brk.hub.v2.feature.free": "100% 免費",
   "brk.hub.v2.cta.openBracket": "開啟世界盃對戰",
   "brk.hub.v2.cta.createPool": "建立群組",
+  "brk.hub.v2.cta.joinWithCode": "用代碼加入",
   "brk.hub.v2.cta.discoverPools": "探索群組",
   "brk.hub.v2.fanLine":
     "加入全球數千名球迷一起競賽",
+
+  // ── /brackets quick actions row ───────────────────────────────────────
+  "brk.hub.quickActions.title": "快速操作",
+  "brk.hub.quickActions.create": "建立群組",
+  "brk.hub.quickActions.createDesc": "為朋友建立私人或公開群組。",
+  "brk.hub.quickActions.join": "用代碼加入",
+  "brk.hub.quickActions.joinDesc": "有邀請碼？直接加入。",
+  "brk.hub.quickActions.continue": "繼續我的對戰表",
+  "brk.hub.quickActions.continueDesc": "從上次離開的地方繼續。",
+  "brk.hub.quickActions.browse": "瀏覽公開群組",
+  "brk.hub.quickActions.browseDesc": "探索任何人都可以加入的群組。",
+
+  // ── /brackets how-it-works step 4 ────────────────────────────────────
+  "brk.hub.howItWorks.step4Title": "攀升排行榜",
+  "brk.hub.howItWorks.step4Body":
+    "追蹤即時排名、用分享圖卡向朋友炫耀，並讓 AI 分析你的對戰表有何獨特之處。",
 }
 
 const FIL: BracketsDictionary = {
@@ -943,16 +994,33 @@ const FIL: BracketsDictionary = {
   "brk.hub.v2.titleLine1": "AF World Cup",
   "brk.hub.v2.titleLine2": "Bracket Challenge",
   "brk.hub.v2.subtitle":
-    "32 bansa. 48 laban. Isang kampeon. Pumili sa bawat laban bago mag-kickoff at makipagtagisan sa sarili mong pool — may AI analysis sa bawat matchup. Libre habambuhay.",
-  "brk.hub.v2.feature.teams": "32 bansa",
-  "brk.hub.v2.feature.matches": "48 laban",
-  "brk.hub.v2.feature.format": "Group Stage + Knockouts",
+    "48 bansa. 104 laban. Isang kampeon. Pumili sa bawat laban bago mag-kickoff at makipagtagisan sa sarili mong pool — may AI analysis sa bawat matchup. Libre habambuhay.",
+  "brk.hub.v2.feature.teams": "48 bansa",
+  "brk.hub.v2.feature.matches": "104 laban",
+  "brk.hub.v2.feature.format": "12 Grupo + Knockouts",
   "brk.hub.v2.feature.free": "100% libre",
   "brk.hub.v2.cta.openBracket": "World Cup Bracket",
   "brk.hub.v2.cta.createPool": "Gumawa ng pool",
+  "brk.hub.v2.cta.joinWithCode": "Sumali gamit ang code",
   "brk.hub.v2.cta.discoverPools": "Maghanap ng pools",
   "brk.hub.v2.fanLine":
     "Sumali sa libu-libong fans na nagkokompetensya sa buong mundo",
+
+  // ── /brackets quick actions row ───────────────────────────────────────
+  "brk.hub.quickActions.title": "Mga mabilisang aksyon",
+  "brk.hub.quickActions.create": "Gumawa ng pool",
+  "brk.hub.quickActions.createDesc": "Magsimula ng private o public pool para sa iyong grupo.",
+  "brk.hub.quickActions.join": "Sumali gamit ang code",
+  "brk.hub.quickActions.joinDesc": "May invite code? Direktang sumali.",
+  "brk.hub.quickActions.continue": "Ituloy ang aking bracket",
+  "brk.hub.quickActions.continueDesc": "Ipagpatuloy kung saan ka huminto.",
+  "brk.hub.quickActions.browse": "Mag-browse ng public pools",
+  "brk.hub.quickActions.browseDesc": "Mahanap ang pools na pwedeng salihan ng lahat.",
+
+  // ── /brackets how-it-works step 4 ────────────────────────────────────
+  "brk.hub.howItWorks.step4Title": "Umakyat sa leaderboard",
+  "brk.hub.howItWorks.step4Body":
+    "Sundan ang live standings, ipagmalaki sa iyong barkada gamit ang share cards, at hayaang suriin ng AI ang unique ng iyong bracket.",
 }
 
 const VI: BracketsDictionary = {
@@ -1156,16 +1224,33 @@ const VI: BracketsDictionary = {
   "brk.hub.v2.titleLine1": "AF World Cup",
   "brk.hub.v2.titleLine2": "Thử thách Bracket",
   "brk.hub.v2.subtitle":
-    "32 đội tuyển. 48 trận đấu. Một nhà vô địch. Chọn từng trận trước giờ bóng lăn và thi đấu trong pool của bạn — có phân tích AI cho mỗi trận. Miễn phí mãi mãi.",
-  "brk.hub.v2.feature.teams": "32 đội tuyển",
-  "brk.hub.v2.feature.matches": "48 trận",
-  "brk.hub.v2.feature.format": "Vòng bảng + Vòng loại trực tiếp",
+    "48 đội tuyển. 104 trận đấu. Một nhà vô địch. Chọn từng trận trước giờ bóng lăn và thi đấu trong pool của bạn — có phân tích AI cho mỗi trận. Miễn phí mãi mãi.",
+  "brk.hub.v2.feature.teams": "48 đội tuyển",
+  "brk.hub.v2.feature.matches": "104 trận",
+  "brk.hub.v2.feature.format": "12 Bảng + Vòng loại trực tiếp",
   "brk.hub.v2.feature.free": "Miễn phí 100%",
   "brk.hub.v2.cta.openBracket": "Mở Bracket World Cup",
   "brk.hub.v2.cta.createPool": "Tạo pool",
+  "brk.hub.v2.cta.joinWithCode": "Tham gia bằng mã",
   "brk.hub.v2.cta.discoverPools": "Khám phá pool",
   "brk.hub.v2.fanLine":
     "Tham gia hàng nghìn người hâm mộ trên toàn thế giới",
+
+  // ── /brackets quick actions row ───────────────────────────────────────
+  "brk.hub.quickActions.title": "Thao tác nhanh",
+  "brk.hub.quickActions.create": "Tạo pool",
+  "brk.hub.quickActions.createDesc": "Bắt đầu pool riêng hoặc công khai cho nhóm của bạn.",
+  "brk.hub.quickActions.join": "Tham gia bằng mã",
+  "brk.hub.quickActions.joinDesc": "Có mã mời? Vào ngay.",
+  "brk.hub.quickActions.continue": "Tiếp tục bracket của tôi",
+  "brk.hub.quickActions.continueDesc": "Tiếp tục từ nơi bạn dừng lại.",
+  "brk.hub.quickActions.browse": "Duyệt pool công khai",
+  "brk.hub.quickActions.browseDesc": "Khám phá các pool mà ai cũng có thể tham gia.",
+
+  // ── /brackets how-it-works step 4 ────────────────────────────────────
+  "brk.hub.howItWorks.step4Title": "Leo bảng xếp hạng",
+  "brk.hub.howItWorks.step4Body":
+    "Theo dõi bảng xếp hạng trực tiếp, khoe với bạn bè bằng thẻ chia sẻ, và để AI phân tích điều gì làm bracket của bạn trở nên đặc biệt.",
 }
 
 export const BRACKETS_TRANSLATIONS: Record<BracketsLocale, BracketsDictionary> = {

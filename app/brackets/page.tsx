@@ -2,6 +2,7 @@ import Link from "next/link"
 import Image from "next/image"
 import {
   ArrowRight,
+  CheckCircle2,
   ClipboardCheck,
   Globe2,
   Layers,
@@ -12,6 +13,7 @@ import {
   Shield,
   Sparkles,
   Trophy,
+  Users,
 } from "lucide-react"
 import { resolveServerRenderPreferences } from "@/lib/preferences/ServerRenderPreferenceResolver"
 import { makeBracketsT } from "@/lib/brackets/bracketsI18n"
@@ -103,6 +105,34 @@ const AI_FEATURES: AiFeature[] = [
   { key: "commissioner", Icon: ClipboardCheck },
   { key: "share", Icon: Share2 },
   { key: "leaderboards", Icon: ListOrdered },
+]
+
+/**
+ * Feature keys used in the WC Spotlight card — static order, each maps
+ * to `brk.hub.spotlight.feature.<key>` in all 5 language dictionaries.
+ */
+const SPOTLIGHT_FEATURE_KEYS = [
+  "groupStage",
+  "knockoutBracket",
+  "aiReport",
+  "dangerZones",
+  "commissionerTools",
+  "inviteShare",
+  "fiveLanguages",
+] as const
+
+type QuickAction = {
+  key: "createPool" | "joinWithCode" | "continueBracket" | "browsePools"
+  /** i18n keys: `brk.hub.quickActions.<key>` and `brk.hub.quickActions.<key>Desc` */
+  href: string
+  Icon: typeof Plus
+}
+
+const QUICK_ACTIONS: QuickAction[] = [
+  { key: "createPool", href: "/brackets/world-cup/create", Icon: Plus },
+  { key: "joinWithCode", href: "/brackets/join", Icon: Users },
+  { key: "continueBracket", href: "/brackets/world-cup", Icon: Trophy },
+  { key: "browsePools", href: "/brackets/world-cup/discover", Icon: Globe2 },
 ]
 
 /**
@@ -245,6 +275,13 @@ export default async function BracketsHomePage() {
             <Trophy className="h-4 w-4" />
             {t("brk.hub.v2.cta.discoverPools")}
           </Link>
+          <Link
+            href="/brackets/join"
+            className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-violet-400/35 bg-violet-500/[0.06] px-6 py-3 text-sm font-bold text-violet-200 transition-colors hover:border-violet-400/55 hover:bg-violet-500/[0.10] hover:text-violet-100"
+          >
+            <Users className="h-4 w-4" />
+            {t("brk.hub.v2.cta.joinWithCode")}
+          </Link>
         </div>
 
         {/* Country-code + fan-line pill */}
@@ -273,12 +310,95 @@ export default async function BracketsHomePage() {
           earlier validation covered.
           ───────────────────────────────────────────────────────── */}
       <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 pb-12 sm:gap-14 sm:px-6 sm:pb-16">
-        {/* How it works (3-step) */}
+        {/* ── WC Spotlight card ─────────────────────────────────── */}
+        <section data-testid="brackets-hub-wc-spotlight">
+          <div className="relative overflow-hidden rounded-2xl border border-cyan-300/25 bg-gradient-to-br from-cyan-300/[0.08] via-transparent to-purple-500/[0.06] p-5 backdrop-blur sm:p-7">
+            {/* decorative ambient glow */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(34,211,238,0.18),transparent_70%)] blur-2xl"
+            />
+
+            {/* eyebrow badge */}
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/35 bg-emerald-500/[0.08] px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">
+              <span className="relative inline-flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-300" />
+              </span>
+              {t("brk.hub.spotlight.eyebrow")}
+            </div>
+
+            {/* title + subtitle */}
+            <h2 className="mt-4 text-2xl font-black tracking-tight text-white sm:text-3xl">
+              {t("brk.hub.spotlight.title")}
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-white/60">
+              {t("brk.hub.spotlight.subtitle")}
+            </p>
+
+            {/* feature pills */}
+            <ul className="mt-5 flex flex-wrap gap-2" aria-label="Included features">
+              {SPOTLIGHT_FEATURE_KEYS.map((fk) => (
+                <li
+                  key={fk}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/20 bg-cyan-300/[0.06] px-3 py-1 text-[11px] font-bold text-cyan-200"
+                >
+                  <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden />
+                  {t(`brk.hub.spotlight.feature.${fk}`)}
+                </li>
+              ))}
+            </ul>
+
+            {/* CTA */}
+            <div className="mt-6">
+              <Link
+                href="/brackets/world-cup"
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-gradient-to-b from-cyan-300 to-cyan-400 px-6 py-2.5 text-sm font-black text-slate-950 shadow-[0_6px_30px_-8px_rgba(34,211,238,0.55)] transition-transform hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <Globe2 className="h-4 w-4" />
+                {t("brk.hub.v2.cta.openBracket")}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Quick Actions row ─────────────────────────────────── */}
+        <section data-testid="brackets-hub-quick-actions" className="space-y-4">
+          <h2 className="text-xl font-black tracking-tight text-white sm:text-2xl">
+            {t("brk.hub.quickActions.title")}
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {QUICK_ACTIONS.map(({ key, href, Icon }) => (
+              <Link
+                key={key}
+                href={href}
+                className="group flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur transition-colors hover:border-white/20 hover:bg-white/[0.07]"
+                data-testid={`brackets-hub-qa-${key}`}
+              >
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/[0.06] text-white/70 transition-colors group-hover:border-cyan-300/35 group-hover:bg-cyan-300/[0.10] group-hover:text-cyan-200">
+                  <Icon className="h-4 w-4" aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-black text-white">{t(`brk.hub.quickActions.${key}`)}</h3>
+                  <p className="mt-1 text-xs leading-5 text-white/50">
+                    {t(`brk.hub.quickActions.${key}Desc`)}
+                  </p>
+                </div>
+                <span className="mt-auto inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-wide text-white/40 transition-all group-hover:translate-x-0.5 group-hover:text-cyan-200">
+                  <ArrowRight className="h-3 w-3" aria-hidden />
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        {/* ── How it works (4-step) ─────────────────────────────── */}
         <section data-testid="brackets-hub-how-it-works" className="space-y-4">
           <h2 className="text-xl font-black tracking-tight text-white sm:text-2xl">
             {t("brk.hub.howItWorks.title")}
           </h2>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[
               {
                 title: "brk.hub.howItWorks.step1Title",
@@ -294,6 +414,11 @@ export default async function BracketsHomePage() {
                 title: "brk.hub.howItWorks.step3Title",
                 body: "brk.hub.howItWorks.step3Body",
                 step: 3,
+              },
+              {
+                title: "brk.hub.howItWorks.step4Title",
+                body: "brk.hub.howItWorks.step4Body",
+                step: 4,
               },
             ].map(({ title, body, step }) => (
               <div
