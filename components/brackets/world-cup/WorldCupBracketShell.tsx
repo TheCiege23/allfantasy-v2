@@ -560,6 +560,10 @@ export default function WorldCupBracketShell({
   // ── Entry state ──────────────────────────────────────────────────────────
   const [entries, setEntries] = useState<WorldCupBracketEntryClient[]>(initialEntries)
   const [entriesLoaded, setEntriesLoaded] = useState(false)
+  // When the initial ?entry= param is stale (not in the entries list), we resolve
+  // to a valid entry inside the .then() callback and store it here so the URL-
+  // correction effect below can fire inside React's flush cycle (observable by RTL).
+  const staleEntryResolvedRef = useRef<string | null>(null)
   const [isEntriesLoading, setIsEntriesLoading] = useState(false)
   const [isCreatingEntry, setIsCreatingEntry] = useState(false)
   const [isMutatingEntry, setIsMutatingEntry] = useState(false)
@@ -677,10 +681,14 @@ export default function WorldCupBracketShell({
     (entryId: string | null) => {
       if (typeof window === "undefined") return
       const key = getSelectedEntryStorageKey(challengeId)
-      if (entryId) {
-        window.localStorage.setItem(key, entryId)
-      } else {
-        window.localStorage.removeItem(key)
+      try {
+        if (entryId) {
+          window.localStorage.setItem(key, entryId)
+        } else {
+          window.localStorage.removeItem(key)
+        }
+      } catch {
+        // localStorage may be unavailable in restricted/test environments
       }
     },
     [challengeId]
@@ -963,10 +971,14 @@ export default function WorldCupBracketShell({
             persistSelectedEntryId(null)
             return
           }
-          const storedEntryId =
-            typeof window !== "undefined"
-              ? window.localStorage.getItem(getSelectedEntryStorageKey(challengeId))
-              : null
+          let storedEntryId: string | null = null
+          if (typeof window !== "undefined") {
+            try {
+              storedEntryId = window.localStorage.getItem(getSelectedEntryStorageKey(challengeId))
+            } catch {
+              // localStorage may be unavailable in restricted/test environments
+            }
+          }
           const urlEntryId =
             initialEntryId && rows.some((row) => row.id === initialEntryId) ? initialEntryId : null
           const activeEntryId =
@@ -978,7 +990,9 @@ export default function WorldCupBracketShell({
           setSelectedEntryId(active.id)
           persistSelectedEntryId(active.id)
           if (initialEntryId && initialEntryId !== active.id) {
-            updateTabUrl(tab, active.id, "replace")
+            // Record the resolved ID; the effect below fires it inside React's
+            // flush cycle so RTL / waitFor can observe the router.replace call.
+            staleEntryResolvedRef.current = active.id
           }
           if (
             normalizedInitialView.activeEntry?.id === active.id &&
@@ -990,7 +1004,17 @@ export default function WorldCupBracketShell({
       })
       .catch(() => toast.error("Failed to load bracket entries"))
       .finally(() => setIsEntriesLoading(false))
-  }, [challengeId, persistSelectedEntryId, initialEntryId, normalizedInitialView.activeEntry?.id, shouldAutoSelectInitialEntry, updateTabUrl, tab])
+  }, [challengeId, persistSelectedEntryId, initialEntryId, normalizedInitialView.activeEntry?.id, shouldAutoSelectInitialEntry])
+
+  // When a stale ?entry= param was resolved to a valid entry, correct the URL.
+  // Separated from the loading effect above so the router.replace call happens
+  // inside a React render cycle and is observable by @testing-library waitFor.
+  useEffect(() => {
+    const resolvedId = staleEntryResolvedRef.current
+    if (!resolvedId || !entriesLoaded) return
+    staleEntryResolvedRef.current = null
+    updateTabUrl(tab, resolvedId, "replace")
+  }, [entriesLoaded, updateTabUrl, tab])
 
   // ── Entry management callbacks ───────────────────────────────────────────
   const handleCreateEntry = useCallback(async () => {

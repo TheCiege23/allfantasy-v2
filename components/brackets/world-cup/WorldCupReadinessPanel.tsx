@@ -137,10 +137,15 @@ export default function WorldCupReadinessPanel({ challengeId, seasonYear = 2026 
     void loadReadiness()
   }, [loadReadiness])
 
+  // True when the operator is intentionally running mock/dev mode (no live data provider configured)
+  const isDevMode = readiness != null && readiness.provider.name === "mock"
+
   const overall = useMemo(() => {
     if (!readiness) return { label: "Checking", status: "warning" as ReadinessStatus }
     if (readiness.data.productionStatus === "ready") return { label: "Production Ready", status: "ready" as ReadinessStatus }
     if (readiness.data.productionStatus === "partial_ready") return { label: "Partial Ready", status: "pending" as ReadinessStatus }
+    // Mock provider → intentional dev/test mode, not a production blocker
+    if (readiness.provider.name === "mock") return { label: "Dev / Test Mode", status: "warning" as ReadinessStatus }
     return { label: "Not Fully Ready", status: "blocked" as ReadinessStatus }
   }, [readiness])
 
@@ -174,12 +179,12 @@ export default function WorldCupReadinessPanel({ challengeId, seasonYear = 2026 
       {readiness ? (
         <div className="space-y-3">
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-            <ReadinessMetric label="Provider" value={providerLabel(readiness.provider.name)} status={readiness.provider.configured ? "ready" : "blocked"} />
-            <ReadinessMetric label="League ID" value={readiness.provider.leagueId ?? "Not set"} status={readiness.provider.leagueId ? "ready" : "blocked"} />
-            <ReadinessMetric label="Data provider configured" value={yesNo(readiness.provider.configured)} status={readiness.provider.configured ? "ready" : "blocked"} />
-            <ReadinessMetric label="API key configured" value={yesNo(readiness.provider.apiKeyPresent)} status={readiness.provider.apiKeyPresent ? "ready" : "blocked"} />
-            <ReadinessMetric label="Cron secret configured" value={yesNo(readiness.provider.cronSecretPresent)} status={readiness.provider.cronSecretPresent ? "ready" : "blocked"} />
-            <ReadinessMetric label="Provider teams grouped" value={`${readiness.data.assignedTeams}/48`} status={readiness.data.assignedTeams >= 48 ? "ready" : "blocked"} />
+            <ReadinessMetric label="Provider" value={providerLabel(readiness.provider.name)} status={isDevMode ? "warning" : readiness.provider.configured ? "ready" : "blocked"} />
+            <ReadinessMetric label="League ID" value={readiness.provider.leagueId ?? "Not set"} status={isDevMode ? "warning" : readiness.provider.leagueId ? "ready" : "blocked"} />
+            <ReadinessMetric label="Data provider configured" value={yesNo(readiness.provider.configured)} status={isDevMode ? "warning" : readiness.provider.configured ? "ready" : "blocked"} />
+            <ReadinessMetric label="API key configured" value={yesNo(readiness.provider.apiKeyPresent)} status={isDevMode ? "warning" : readiness.provider.apiKeyPresent ? "ready" : "blocked"} />
+            <ReadinessMetric label="Cron secret configured" value={yesNo(readiness.provider.cronSecretPresent)} status={isDevMode ? "warning" : readiness.provider.cronSecretPresent ? "ready" : "blocked"} />
+            <ReadinessMetric label="Provider teams grouped" value={`${readiness.data.assignedTeams}/48`} status={isDevMode ? "warning" : readiness.data.assignedTeams >= 48 ? "ready" : "blocked"} />
             {readiness.challenge ? (
               <ReadinessMetric
                 label="App bracket teams seeded"
@@ -187,11 +192,11 @@ export default function WorldCupReadinessPanel({ challengeId, seasonYear = 2026 
                 status={(readiness.challenge.bracketTeamsSeeded ?? 0) >= 48 ? "ready" : "warning"}
               />
             ) : null}
-            <ReadinessMetric label="Group-stage fixtures" value={`${readiness.data.groupStageFixtureCount}/72`} status={readiness.data.groupStageFixtureCount >= 72 ? "ready" : "blocked"} />
+            <ReadinessMetric label="Group-stage fixtures" value={`${readiness.data.groupStageFixtureCount}/72`} status={isDevMode ? "warning" : readiness.data.groupStageFixtureCount >= 72 ? "ready" : "blocked"} />
             <ReadinessMetric label="Knockout fixtures" value={readiness.data.knockoutFixtureCount > 0 ? `${readiness.data.knockoutFixtureCount}` : "0 / pending"} status={readiness.data.knockoutFixturesAvailable ? "ready" : "pending"} />
             <ReadinessMetric label="Venue coverage" value={`${readiness.data.venueKnownCount} known / ${readiness.data.venueTbdCount} TBD`} status={readiness.data.venueTbdCount === 0 ? "ready" : "warning"} />
             <ReadinessMetric label="Kickoff coverage" value={`${readiness.data.kickoffKnownCount} known / ${readiness.data.kickoffMissingCount} missing`} status={readiness.data.kickoffMissingCount === 0 ? "ready" : "warning"} />
-            <ReadinessMetric label="Standings rows" value={`${readiness.data.standingsRowCount}/48`} status={readiness.data.standingsSynced ? "ready" : "blocked"} />
+            <ReadinessMetric label="Standings rows" value={`${readiness.data.standingsRowCount}/48`} status={isDevMode ? "warning" : readiness.data.standingsSynced ? "ready" : "blocked"} />
             <ReadinessMetric label="Third-place ranking" value={yesNo(readiness.data.thirdPlaceRankingPresent)} status={readiness.data.thirdPlaceRankingPresent ? "ready" : "pending"} />
           </div>
 
@@ -234,6 +239,20 @@ export default function WorldCupReadinessPanel({ challengeId, seasonYear = 2026 
             </div>
           </div>
 
+          {isDevMode ? (
+            <div className="rounded-lg border border-cyan-300/25 bg-cyan-400/10 p-3 text-[11px] text-cyan-100">
+              <p className="font-bold">Dev / Test Mode — not a production blocker</p>
+              <p className="mt-1">
+                This pool is using the <code className="rounded bg-black/20 px-1 font-mono">mock</code> data provider. Fixture counts, standings, and team assignments show 0 because no live data sync is configured — this is expected in local and staging environments. All amber metrics above are informational only.
+              </p>
+              <p className="mt-1">
+                To enable live data: set{" "}
+                <code className="rounded bg-black/20 px-1 font-mono">WORLD_CUP_DATA_PROVIDER=apifootball</code>{" "}
+                (or <code className="rounded bg-black/20 px-1 font-mono">sportsdata</code>) and configure the matching API key env var, then re-run this check.
+              </p>
+            </div>
+          ) : null}
+
           <div className="rounded-lg border border-amber-300/20 bg-amber-400/10 p-3 text-[11px] text-amber-100">
             <p className="font-bold">Best-third Round of 32 mapping</p>
             <p className="mt-1">
@@ -247,8 +266,8 @@ export default function WorldCupReadinessPanel({ challengeId, seasonYear = 2026 
           </div>
 
           {readiness.provider.missingEnvVars.length > 0 ? (
-            <div className="rounded-lg border border-rose-300/20 bg-rose-400/10 p-3 text-[11px] text-rose-100">
-              <p className="font-bold">Environment configuration notes</p>
+            <div className={`rounded-lg border p-3 text-[11px] ${isDevMode ? "border-cyan-300/20 bg-cyan-400/10 text-cyan-100" : "border-rose-300/20 bg-rose-400/10 text-rose-100"}`}>
+              <p className="font-bold">{isDevMode ? "Environment notes (dev mode — informational)" : "Environment configuration notes"}</p>
               <div className="mt-1 space-y-1">
                 {readiness.provider.missingEnvVars.map((name) => (
                   <p key={name}>{missingEnvMessage(name, readiness)}</p>
