@@ -10,6 +10,7 @@ import { parseStripeCheckoutClientReferenceId } from "@/lib/monetization/StripeC
 import { TokenSpendService } from "@/lib/tokens/TokenSpendService"
 import { syncUserProfileFromSubscriptions } from "@/lib/subscription/syncBridge"
 import {
+  grantMonthlyCreditsFromInvoice,
   markSubscriptionAsExpired,
   markSubscriptionPastDue,
   refreshSubscriptionPeriod,
@@ -386,6 +387,7 @@ export async function POST(req: NextRequest) {
             if (userId) {
               await refreshSubscriptionPeriod(invoice, userId)
               await syncUserProfileFromSubscriptions(userId)
+              await grantMonthlyCreditsFromInvoice(invoice, userId)
             }
           }
           break

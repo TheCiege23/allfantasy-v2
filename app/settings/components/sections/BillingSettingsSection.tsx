@@ -49,7 +49,7 @@ export function BillingSettingsSection() {
                 )}
               </div>
             ) : (
-              <p className="text-sm font-semibold text-white">AF Free</p>
+              <p className="text-sm font-semibold text-white">{t("settings.billing.afFree")}</p>
             )}
           </div>
 
@@ -96,11 +96,11 @@ export function BillingSettingsSection() {
         <TokenBalanceWidget />
         <div className="mt-2 flex items-center justify-between gap-2">
           <p className="text-[11px]" style={{ color: "var(--muted2)" }}>
-            Tokens can be purchased in the{" "}
+            {t("settings.billing.tokensCanBePurchasedIn")}{" "}
             <Link href="/tokens" className="underline hover:text-white/80">
-              Token Center
+              {t("settings.billing.tokenCenterLabel")}
             </Link>
-            {hasAnySub && ". Your plan may include monthly AI credits — see Token Center for details"}.
+            {hasAnySub ? t("settings.billing.tokensPlanHint") : ""}.
           </p>
           <Link
             href="/tokens"
@@ -108,7 +108,7 @@ export function BillingSettingsSection() {
             style={{ color: "var(--muted2)" }}
             data-testid="settings-billing-token-history-link"
           >
-            View history
+            {t("settings.billing.viewHistory")}
           </Link>
         </div>
       </div>

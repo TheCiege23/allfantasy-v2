@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
+import { authOptions } from "@/lib/auth";
 import { buildSeoMeta } from "@/lib/seo";
 
 export const metadata: Metadata = buildSeoMeta({
@@ -11,6 +14,14 @@ export const metadata: Metadata = buildSeoMeta({
   keywords: ["AllFantasy tokens", "AI tokens fantasy", "Chimmy tokens", "fantasy AI credits"],
 });
 
-export default function TokensLayout({ children }: { children: React.ReactNode }) {
+export default async function TokensLayout({ children }: { children: React.ReactNode }) {
+  const session = (await getServerSession(authOptions as never)) as {
+    user?: { id?: string };
+  } | null;
+
+  if (!session?.user?.id) {
+    redirect("/login?callbackUrl=/tokens");
+  }
+
   return children;
 }

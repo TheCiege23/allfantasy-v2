@@ -1,5 +1,12 @@
 import type Stripe from "stripe"
 import { prisma } from "@/lib/prisma"
+import {
+  getMonetizationCatalogItemBySku,
+  type MonetizationSku,
+} from "@/lib/monetization/catalog"
+import { SUBSCRIPTION_TOKEN_POLICY_CONFIG } from "@/lib/tokens/subscription-policy"
+import type { SubscriptionPlanId } from "@/lib/subscription/types"
+import { TokenSpendService } from "@/lib/tokens/TokenSpendService"
 
 const GRACE_DAYS = 7
 
@@ -246,5 +253,58 @@ export async function refreshSubscriptionPeriod(
         invoiceId: invoice.id,
       },
     },
+  })
+}
+
+/**
+ * Grant monthly subscription credits after a successful billing cycle.
+ *
+ * Resolves the user's plan from the invoice's Stripe subscription ID,
+ * looks up the configured monthly credit amount for that plan, and calls
+ * `TokenSpendService.grantMonthlySubscriptionCredits`.
+ *
+ * Safe to call speculatively — the idempotency key `monthly_grant:{invoiceId}`
+ * guarantees exactly-once delivery on Stripe retries.  Returns early without
+ * throwing if the subscription/plan cannot be resolved.
+ */
+export async function grantMonthlyCreditsFromInvoice(
+  invoice: Stripe.Invoice,
+  userId: string
+): Promise<void> {
+  const invoiceId = invoice.id
+  const billingReason = invoice.billing_reason ?? "subscription_cycle"
+
+  // Extract the Stripe subscription ID that generated this invoice
+  const inv = invoice as unknown as Record<string, unknown>
+  const subId = typeof inv.subscription === "string" ? inv.subscription : null
+  if (!subId) return
+
+  // Look up the user's DB subscription to get the plan SKU
+  const sub = await (prisma as any).userSubscription.findFirst({
+    where: { userId, stripeSubscriptionId: subId },
+    select: { sku: true },
+  })
+  if (!sub?.sku) return
+
+  // Map SKU → plan family → policy.
+  // Catalog planFamily uses "af_" prefix (e.g. "af_pro") but SubscriptionPlanId
+  // uses the bare form ("pro").  Strip the prefix for the policy lookup.
+  const item = getMonetizationCatalogItemBySku(sub.sku as MonetizationSku)
+  if (!item || item.type !== "subscription" || !item.planFamily) return
+
+  const planId = item.planFamily.replace(/^af_/, "") as SubscriptionPlanId
+  const planPolicy = SUBSCRIPTION_TOKEN_POLICY_CONFIG.plans[planId]
+  if (!planPolicy) return
+
+  const tokenAmount = planPolicy.monthlyIncludedPremiumCredits
+  if (!tokenAmount || tokenAmount <= 0) return
+
+  const service = new TokenSpendService()
+  await service.grantMonthlySubscriptionCredits({
+    userId,
+    tokenAmount,
+    planFamily: item.planFamily,
+    invoiceId,
+    billingReason: String(billingReason),
   })
 }

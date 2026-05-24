@@ -11,17 +11,15 @@ import {
 
 type SubscriptionTokenPlanPolicy = {
   /**
-   * UI DISPLAY HINT ONLY — these credits are NOT automatically deposited.
+   * Monthly AI tokens deposited automatically each billing cycle.
    *
-   * This value is surfaced in spend previews and pricing UI to communicate the
-   * intended monthly value of each plan tier.  No code currently grants these
-   * credits on subscription create/renew.  Before enabling automatic monthly
-   * deposits, implement a subscription.created / invoice.payment_succeeded
-   * webhook handler that calls `TokenSpendService.grantTokensFromPackagePurchase`
-   * (or a new `grantMonthlySubscriptionCredits` method) for each subscriber.
+   * Granted via `TokenSpendService.grantMonthlySubscriptionCredits`, called
+   * from the `invoice.payment_succeeded` Stripe webhook handler for both
+   * `subscription_create` (first month) and `subscription_cycle` (renewals).
+   * Idempotency key: `monthly_grant:{invoiceId}` — safe against Stripe retries.
    *
-   * Until that is built, do NOT display this number to paying subscribers as a
-   * guarantee — it will create support issues.
+   * This value is also surfaced in the Token Center pricing UI so subscribers
+   * can see how many credits are included with each plan tier.
    */
   monthlyIncludedPremiumCredits: number
   discountedTokenSpendPct: number

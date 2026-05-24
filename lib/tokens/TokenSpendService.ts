@@ -557,6 +557,89 @@ export class TokenSpendService {
     })
   }
 
+  /**
+   * Grant monthly subscription credits for a billing cycle.
+   *
+   * Called from the `invoice.payment_succeeded` Stripe webhook handler for
+   * `subscription_cycle` and `subscription_create` billing reasons.
+   *
+   * Uses `monthly_grant:{invoiceId}` as the idempotency key — exactly-once
+   * delivery even on Stripe retries.  Does NOT require a tokenPackage DB row;
+   * writes directly to the balance and ledger.
+   *
+   * Returns null (non-throwing) if tokenAmount is 0 or negative.
+   */
+  async grantMonthlySubscriptionCredits(input: {
+    userId: string
+    tokenAmount: number
+    planFamily: string
+    invoiceId: string
+    billingReason: string
+  }): Promise<TokenLedgerEntryView | null> {
+    if (!input.tokenAmount || input.tokenAmount <= 0) return null
+
+    const idempotencyKey = `monthly_grant:${input.invoiceId}`
+
+    return (prisma as any).$transaction(async (tx: any) => {
+      // Idempotency: skip if we already granted for this invoice
+      const existing = await tx.tokenLedger.findUnique({
+        where: { idempotencyKey },
+        include: { spendRule: { select: { featureLabel: true } } },
+      })
+      if (existing) return toLedgerView(existing as LedgerRow)
+
+      const balanceRow = await tx.userTokenBalance.upsert({
+        where: { userId: input.userId },
+        update: {},
+        create: { userId: input.userId },
+        select: { id: true },
+      })
+
+      await tx.userTokenBalance.update({
+        where: { id: balanceRow.id },
+        data: {
+          balance: { increment: input.tokenAmount },
+          lifetimePurchased: { increment: input.tokenAmount },
+        },
+      })
+
+      const updated = await tx.userTokenBalance.findUnique({
+        where: { id: balanceRow.id },
+        select: { balance: true },
+      })
+
+      const balanceAfter = Number(updated?.balance || 0)
+      const balanceBefore = balanceAfter - input.tokenAmount
+
+      const created = await tx.tokenLedger.create({
+        data: {
+          userId: input.userId,
+          userTokenBalanceId: balanceRow.id,
+          entryType: TOKEN_ENTRY_TYPES.PURCHASE,
+          tokenDelta: input.tokenAmount,
+          balanceBefore,
+          balanceAfter,
+          tokenPackageSku: null,
+          sourceType: "subscription_monthly_grant",
+          sourceId: input.invoiceId,
+          idempotencyKey,
+          description: `Monthly subscription credit — ${input.planFamily} (${input.billingReason})`,
+          metadata: {
+            planFamily: input.planFamily,
+            invoiceId: input.invoiceId,
+            billingReason: input.billingReason,
+            grantType: "monthly_subscription_credit",
+          },
+        },
+        include: {
+          spendRule: { select: { featureLabel: true } },
+        },
+      })
+
+      return toLedgerView(created as LedgerRow)
+    })
+  }
+
   async spendTokensForRule(input: {
     userId: string
     ruleCode: TokenSpendRuleCode | string

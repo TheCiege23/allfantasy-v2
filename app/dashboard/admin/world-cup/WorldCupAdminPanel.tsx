@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { PaymentTokenHealthPanel } from "@/components/admin/PaymentTokenHealthPanel"
+import { CheckoutCoveragePanel } from "@/components/admin/CheckoutCoveragePanel"
 import {
   Activity,
   ChevronRight,
@@ -326,6 +327,11 @@ export default function WorldCupAdminPanel() {
         {/* Payment & Token Health — live monitoring for Stripe webhooks and token ledger */}
         <div className="mt-8 rounded-xl border border-white/10 bg-white/[0.02] p-5">
           <PaymentTokenHealthPanel />
+        </div>
+
+        {/* Checkout Link Coverage — SKU → Stripe Payment Link configuration audit */}
+        <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.02] p-5">
+          <CheckoutCoveragePanel />
         </div>
       </div>
     </div>
