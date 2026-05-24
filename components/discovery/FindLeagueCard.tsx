@@ -228,7 +228,7 @@ export function FindLeagueCard({ league }: FindLeagueCardProps) {
               className="h-full rounded-full transition-all duration-300"
               style={{
                 width: `${Math.min(100, league.fillPct)}%`,
-                background: isFull ? "var(--muted)" : "var(--accent)",
+                background: isFull ? "var(--muted)" : fillingFast ? "rgba(251,146,60,0.85)" : "var(--accent)",
               }}
             />
           </div>

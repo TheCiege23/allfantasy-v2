@@ -77,7 +77,15 @@ export function LegacyImportLoadingScreen({
                       : 'border-white/5 bg-white/[0.02] text-white/35'
                 }`}
               >
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-bold">
+                <span
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
+                    done
+                      ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/30'
+                      : current
+                        ? 'bg-cyan-500/25 text-cyan-300 ring-2 ring-cyan-400/40 animate-pulse'
+                        : 'bg-white/5 text-white/30'
+                  }`}
+                >
                   {done ? '✓' : i + 1}
                 </span>
                 <span>{step.label}</span>

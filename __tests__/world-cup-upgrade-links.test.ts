@@ -6,8 +6,7 @@
 import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
-import { DAILY_CAP_LIMITS } from "@/lib/ai/dailyCaps"
-import { checkDailyCap } from "@/lib/ai/dailyCaps"
+import { DAILY_CAP_LIMITS, checkDailyCap } from "@/lib/ai/dailyCaps"
 
 // ── Static source checks ──────────────────────────────────────────────────────
 
@@ -27,7 +26,17 @@ const CHIMMY_ROUTE_SRC = readFileSync(
 )
 
 const SETTINGS_SRC = readFileSync(
-  resolve(process.cwd(), "app/settings/SettingsFullPage.tsx"),
+  resolve(process.cwd(), "app/settings/components/sections/BillingSettingsSection.tsx"),
+  "utf-8"
+)
+
+const AI_CHAT_PAGE_SRC = readFileSync(
+  resolve(process.cwd(), "app/ai-chat/page.tsx"),
+  "utf-8"
+)
+
+const PERSISTENCE_SRC = readFileSync(
+  resolve(process.cwd(), "lib/chimmy-chat/AIThreadPersistenceService.ts"),
   "utf-8"
 )
 
@@ -42,6 +51,11 @@ describe("WorldCupExplainBracketCard locked state upgrade CTA", () => {
 
   it("locked state still shows the i18n locked description", () => {
     expect(EXPLAIN_CARD_SRC).toContain('t("wc.explain.locked")')
+  })
+
+  it("upgrade CTA button text is i18n (wc.explain.upgradeCta) not hardcoded English", () => {
+    expect(EXPLAIN_CARD_SRC).toContain('t("wc.explain.upgradeCta")')
+    expect(EXPLAIN_CARD_SRC).not.toContain("Upgrade to AF Pro")
   })
 })
 
@@ -61,17 +75,34 @@ describe("BracketBrainLockedCard upgrade link", () => {
 
 describe("Settings page — subscription & billing section", () => {
   it("renders a subscription section with testid", () => {
-    expect(SETTINGS_SRC).toContain("settings-subscription-section")
+    expect(SETTINGS_SRC).toContain("settings-billing-section")
   })
 
   it("links to /pricing for plan upgrade", () => {
-    expect(SETTINGS_SRC).toContain("settings-view-plans-link")
+    expect(SETTINGS_SRC).toContain("settings-billing-pricing")
     expect(SETTINGS_SRC).toContain('href="/pricing"')
   })
 
   it("links to billing portal for existing subscribers", () => {
-    expect(SETTINGS_SRC).toContain("settings-billing-portal-link")
+    expect(SETTINGS_SRC).toContain("settings-billing-manage")
     expect(SETTINGS_SRC).toContain("/api/subscription/billing-portal")
+  })
+})
+
+describe("Chimmy route — admin cap tier resolution (Part 6)", () => {
+  it("resolveCapTier is defined in chimmy route and uses all_access → admin", () => {
+    expect(CHIMMY_ROUTE_SRC).toContain("resolveCapTier")
+    expect(CHIMMY_ROUTE_SRC).toContain("plans.includes('all_access')")
+    expect(CHIMMY_ROUTE_SRC).toContain("return 'admin'")
+  })
+
+  it("checkDailyCap in chimmy route uses capTier not resolvedTier", () => {
+    expect(CHIMMY_ROUTE_SRC).toContain("const capTier = resolveCapTier(")
+    expect(CHIMMY_ROUTE_SRC).toContain("checkDailyCap('chimmy', userId, capTier)")
+  })
+
+  it("admin cap is higher than pro cap", () => {
+    expect(DAILY_CAP_LIMITS.chimmy.admin).toBeGreaterThan(DAILY_CAP_LIMITS.chimmy.pro)
   })
 })
 
@@ -96,6 +127,34 @@ describe("Chimmy daily cap 429 — upgrade signal", () => {
     const result = await checkDailyCap("commissioner_brain", "test-user-id", "free")
     expect(result.allowed).toBe(false)
     expect(result.upgradePath).toBe("/pricing")
+  })
+})
+
+describe("/ai-chat page — proactive cap copy", () => {
+  it("shows a cap notice with data-testid", () => {
+    expect(AI_CHAT_PAGE_SRC).toContain("ai-chat-cap-notice")
+  })
+
+  it("cap notice links to /pricing", () => {
+    expect(AI_CHAT_PAGE_SRC).toContain('href="/pricing"')
+  })
+
+  it("cap notice mentions free daily limit", () => {
+    expect(AI_CHAT_PAGE_SRC).toMatch(/free.*\d.*day|day.*\d.*free/i)
+  })
+})
+
+describe("Chimmy thread persistence — stale error filter (Part 5)", () => {
+  it("sanitizeMessages filters out error-variant messages", () => {
+    expect(PERSISTENCE_SRC).toContain('m.meta?.variant !== "error"')
+  })
+
+  it("filter is applied inside sanitizeMessages before the slice cap", () => {
+    const filterIdx = PERSISTENCE_SRC.indexOf('m.meta?.variant !== "error"')
+    const sliceIdx = PERSISTENCE_SRC.indexOf('.slice(-MAX_STORED_MESSAGES)')
+    expect(filterIdx).toBeGreaterThan(-1)
+    expect(sliceIdx).toBeGreaterThan(-1)
+    expect(filterIdx).toBeLessThan(sliceIdx)
   })
 })
 

@@ -77,13 +77,15 @@ export function SettingsChrome({
       <button
         type="button"
         onClick={() => onTabChange(tab.id)}
-        className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${
+        className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition ${
+          active ? 'font-semibold' : 'font-medium hover:bg-white/[0.04]'
+        } ${
           mobile ? 'shrink-0 whitespace-nowrap' : ''
         } ${active ? 'border-l-2 border-cyan-400' : 'border-l-2 border-transparent'}`}
         style={
           active
             ? {
-                background: 'color-mix(in srgb, var(--accent-cyan) 10%, transparent)',
+                background: 'color-mix(in srgb, var(--accent-cyan) 15%, transparent)',
                 color: 'var(--text)',
               }
             : {

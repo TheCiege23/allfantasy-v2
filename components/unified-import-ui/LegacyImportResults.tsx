@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { CheckCircle2 } from 'lucide-react'
 import { markDashboardRankRefreshPending } from '@/lib/import/dashboardRankRefresh'
 
 type LegacyProfilePayload = {
@@ -134,17 +135,17 @@ export function LegacyImportResults({
 
         {variant === 'legacy_sleeper' && !loading && payload && (
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.06] shadow-[0_2px_12px_rgba(0,0,0,0.3)] p-5">
               <p className="text-[11px] uppercase tracking-wider text-white/45">Legacy score (XP)</p>
-              <p className="mt-2 text-3xl font-bold text-white">{legacyScore ?? '—'}</p>
+              <p className="mt-2 text-3xl font-bold text-cyan-200">{legacyScore ?? '—'}</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.06] shadow-[0_2px_12px_rgba(0,0,0,0.3)] p-5">
               <p className="text-[11px] uppercase tracking-wider text-white/45">Legacy tier</p>
               <p className="mt-2 text-xl font-semibold text-cyan-200">{tierName}</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.06] shadow-[0_2px_12px_rgba(0,0,0,0.3)] p-5">
               <p className="text-[11px] uppercase tracking-wider text-white/45">Win rate</p>
-              <p className="mt-2 text-2xl font-bold text-white">
+              <p className="mt-2 text-2xl font-bold text-emerald-300">
                 {payload.stats?.win_percentage != null
                   ? `${Number(payload.stats.win_percentage).toFixed(1)}%`
                   : '—'}
@@ -153,7 +154,7 @@ export function LegacyImportResults({
                 <p className="mt-1 text-xs text-white/45">Record {payload.stats.record}</p>
               ) : null}
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.06] shadow-[0_2px_12px_rgba(0,0,0,0.3)] p-5">
               <p className="text-[11px] uppercase tracking-wider text-white/45">AI system sync</p>
               <p className="mt-2 text-sm text-white/85">
                 {payload.latest_ai_report?.rating != null
@@ -165,9 +166,12 @@ export function LegacyImportResults({
         )}
 
         {variant === 'league_created' && leagueSuccess && (
-          <div className="rounded-2xl border border-cyan-500/25 bg-cyan-500/5 p-6">
-            <p className="text-sm font-semibold text-white">{leagueSuccess.leagueName}</p>
-            <p className="mt-1 text-xs text-white/50">{leagueSuccess.sport.toUpperCase()} · ID linked</p>
+          <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-6">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+              <p className="text-sm font-semibold text-white">{leagueSuccess.leagueName}</p>
+            </div>
+            <p className="text-xs text-white/50">{leagueSuccess.sport.toUpperCase()} · ID linked</p>
             <Link
               href={`/league/${encodeURIComponent(leagueSuccess.leagueId)}`}
               className="mt-4 inline-flex rounded-xl bg-cyan-500 px-4 py-2 text-sm font-bold text-black hover:bg-cyan-400"

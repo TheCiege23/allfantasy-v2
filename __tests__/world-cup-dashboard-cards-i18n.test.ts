@@ -172,6 +172,7 @@ describe("WC dashboard cards i18n: dictionary parity for new keys", () => {
     "wc.explain.tierPro",
     "wc.explain.tierLocked",
     "wc.explain.locked",
+    "wc.explain.upgradeCta",
     "wc.explain.generate",
     "wc.explain.generating",
     "wc.explain.selectFirst",
@@ -630,6 +631,7 @@ describe("WC dashboard cards i18n: AI Report chrome wiring", () => {
     expect(EXPLAIN_SRC).toContain(`t("wc.explain.tierPro")`)
     expect(EXPLAIN_SRC).toContain(`t("wc.explain.tierLocked")`)
     expect(EXPLAIN_SRC).toContain(`t("wc.explain.locked")`)
+    expect(EXPLAIN_SRC).toContain(`t("wc.explain.upgradeCta")`)
     expect(EXPLAIN_SRC).toContain(`t("wc.explain.generate")`)
     expect(EXPLAIN_SRC).toContain(`t("wc.explain.generating")`)
     expect(EXPLAIN_SRC).toContain(`t("wc.explain.regenerate")`)
@@ -637,6 +639,10 @@ describe("WC dashboard cards i18n: AI Report chrome wiring", () => {
     expect(EXPLAIN_SRC).toContain(`t("wc.explain.error.generic")`)
     expect(EXPLAIN_SRC).toContain(`t("wc.explain.error.network")`)
     expect(EXPLAIN_SRC).toContain(`t("wc.explain.privacyNote")`)
+  })
+
+  it("WorldCupExplainBracketCard does not hardcode the upgrade CTA in English", () => {
+    expect(EXPLAIN_SRC).not.toContain("Upgrade to AF Pro")
   })
 
   it("WorldCupBracketUniquenessCard calls t() for major labels", () => {

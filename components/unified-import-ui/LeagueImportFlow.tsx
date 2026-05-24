@@ -4,7 +4,7 @@ import React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { HelpCircle } from 'lucide-react'
+import { HelpCircle, ChevronDown } from 'lucide-react'
 import CanonicalImportSummaryCard, { type CanonicalPreview } from '@/components/league-import/CanonicalImportSummaryCard'
 import { UnifiedImportPanel } from '@/components/UnifiedImportPanel'
 import {
@@ -289,10 +289,10 @@ export function LeagueImportFlow({
               {t('import.title')}
             </span>
           </h1>
-          <p className="relative mt-3 text-center text-gray-400">
+          <p className="relative mt-3 text-center text-white/55">
             Build your legacy profile or import a league using the same engines as AF Legacy and rankings.
           </p>
-          <p className="relative mt-2 text-center text-[13px] text-gray-500">
+          <p className="relative mt-2 text-center text-[13px] text-white/40">
             {t('import.settingsLink')}{' '}
             <Link href="/settings" className="text-cyan-400 underline hover:text-cyan-300">
               {t('import.settingsWord')}
@@ -445,9 +445,10 @@ export function LeagueImportFlow({
           </div>
         </div>
 
-        <details className="mt-10 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <summary className="cursor-pointer text-sm font-semibold text-white/70">
+        <details className="group mt-10 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <summary className="flex cursor-pointer items-center justify-between text-sm font-semibold text-white/70">
             Provider connection details
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform duration-200 group-open:rotate-180" />
           </summary>
           <p className="mt-2 text-[12px] text-white/45">{t('import.providerHelp')}</p>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -477,7 +478,7 @@ export function LeagueImportFlow({
           </div>
         </details>
 
-        <div className="mt-10 rounded-xl border border-white/8 bg-white/[0.02] p-4 text-[12px] text-white/45">
+        <div className="mt-10 rounded-xl border border-white/8 bg-white/[0.04] p-4 text-[12px] text-white/45">
           <p className="font-semibold text-white/60">What happens next</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>Sleeper: import runs as a tracked job — loading steps follow real progress.</li>

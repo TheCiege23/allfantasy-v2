@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { Loader2, Inbox, Search, ShieldAlert } from "lucide-react"
+import { Loader2, Inbox, Search, ShieldAlert, SlidersHorizontal } from "lucide-react"
 import { FindLeagueCard } from "@/components/discovery/FindLeagueCard"
-import { RecommendedLeaguesSection } from "@/components/discovery/RecommendedLeaguesSection"
+import { DiscoveryRail, DiscoveryRailSkeleton } from "@/components/find-league/DiscoveryRail"
 import { getDiscoverySports } from "@/lib/public-discovery/discovery-sports"
+import type { DiscoveryRail as DiscoveryRailDTO } from "@/lib/matchmaking"
 import type {
   DiscoveryCard,
   DiscoverySort,
@@ -15,6 +16,111 @@ import type {
   DraftTypeFilter,
   DraftStatusFilter,
 } from "@/lib/public-discovery/types"
+
+type RecsStatus = 'ok' | 'no-snapshot' | 'anonymous' | 'empty' | 'error'
+
+function SmartDiscoverySection({ sport }: { sport: string }) {
+  const [loading, setLoading] = useState(true)
+  const [status, setStatus] = useState<RecsStatus | null>(null)
+  const [rails, setRails] = useState<DiscoveryRailDTO[]>([])
+  const telemetryFiredRef = useRef(false)
+
+  useEffect(() => {
+    let cancelled = false
+    telemetryFiredRef.current = false
+    setLoading(true)
+    setRails([])
+    setStatus(null)
+
+    const params = new URLSearchParams()
+    if (sport) params.set("sport", sport)
+    params.set("limit", "5")
+
+    fetch(`/api/find-league/recommendations?${params.toString()}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return
+        setStatus(d.status ?? "error")
+        setRails(Array.isArray(d.rails) ? d.rails : [])
+        setLoading(false)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setStatus("error")
+        setRails([])
+        setLoading(false)
+      })
+
+    return () => { cancelled = true }
+  }, [sport])
+
+  useEffect(() => {
+    if (loading || telemetryFiredRef.current || rails.length === 0) return
+    telemetryFiredRef.current = true
+    for (const rail of rails) {
+      fetch("/api/find-league/telemetry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "recommendation_viewed", railKind: rail.kind }),
+      }).catch(() => {})
+    }
+  }, [loading, rails])
+
+  if (loading) {
+    return (
+      <div className="space-y-8">
+        <DiscoveryRailSkeleton />
+        <DiscoveryRailSkeleton />
+      </div>
+    )
+  }
+
+  if (status === "anonymous") {
+    return (
+      <div
+        className="rounded-xl border border-dashed p-5 text-center"
+        style={{ borderColor: "var(--border)" }}
+      >
+        <p className="text-sm font-medium" style={{ color: "var(--text)" }}>
+          Sign in to see personalized league recommendations
+        </p>
+        <p className="mt-1 text-xs" style={{ color: "var(--muted)" }}>
+          Matchmaking uses your fantasy resume to surface leagues where you&apos;ll thrive.
+        </p>
+      </div>
+    )
+  }
+
+  if (status === "no-snapshot") {
+    return (
+      <div
+        className="rounded-xl border border-dashed p-5 text-center"
+        style={{ borderColor: "var(--border)" }}
+      >
+        <p className="text-sm font-medium" style={{ color: "var(--text)" }}>
+          Complete your fantasy resume to get personalized picks
+        </p>
+        <p className="mt-1 text-xs" style={{ color: "var(--muted)" }}>
+          Personalized recommendations need a profile snapshot to score league fit.
+        </p>
+      </div>
+    )
+  }
+
+  if (rails.length === 0) return null
+
+  return (
+    <div className="space-y-8">
+      {rails.map((rail) => (
+        <DiscoveryRail
+          key={rail.kind}
+          rail={rail}
+          buildHref={(id) => `/league/${id}`}
+        />
+      ))}
+    </div>
+  )
+}
 
 const SPORT_LABELS: Record<string, string> = {
   NFL: "NFL",
@@ -95,6 +201,17 @@ export function FindLeagueClient() {
   const [hiddenByTierPolicy, setHiddenByTierPolicy] = useState(0)
   const [loading, setLoading] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
+
+  const activeFilterCount = [
+    sport !== '',
+    leagueType !== 'all',
+    draftType !== 'all',
+    draftStatus !== 'all',
+    entryFee !== 'all',
+    aiEnabled,
+    teamCountMin !== '',
+    teamCountMax !== '',
+  ].filter(Boolean).length
 
   const buildParams = useCallback(
     (p: number) => {
@@ -244,7 +361,7 @@ export function FindLeagueClient() {
           ) : null}
         </div>
       </section>
-      <RecommendedLeaguesSection sport={sport || undefined} limit={6} />
+      <SmartDiscoverySection sport={sport} />
       {/* Search — mobile first */}
       <div className="flex flex-col gap-3">
         <div className="flex gap-2">
@@ -255,7 +372,7 @@ export function FindLeagueClient() {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             data-testid="find-league-search-input"
-            className="flex-1 rounded-lg border px-3 py-2.5 text-sm"
+            className="flex-1 rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500/40 focus:border-cyan-500/40 transition-[box-shadow,border-color]"
             style={{
               borderColor: "var(--border)",
               background: "var(--panel)",
@@ -280,7 +397,13 @@ export function FindLeagueClient() {
           className="text-sm font-medium flex items-center gap-2 sm:hidden"
           style={{ color: "var(--accent)" }}
         >
-          {showFilters ? "Hide filters" : "Show filters"}
+          <SlidersHorizontal className="h-4 w-4" />
+          <span>{showFilters ? 'Hide filters' : 'Filters'}</span>
+          {activeFilterCount > 0 && (
+            <span className="rounded-full bg-cyan-500/80 px-1.5 py-0.5 text-[10px] font-bold text-white leading-none">
+              {activeFilterCount}
+            </span>
+          )}
         </button>
       </div>
 
@@ -498,7 +621,7 @@ export function FindLeagueClient() {
           </div>
         ) : (
           <>
-            <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
+            <p className="text-sm font-medium mb-4" style={{ color: "var(--muted)" }}>
               {total} league{total !== 1 ? "s" : ""} found
               {sort === "ranking_match" ? " · sorted by rank fit" : ""}
             </p>

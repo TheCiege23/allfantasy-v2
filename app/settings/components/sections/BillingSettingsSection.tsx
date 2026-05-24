@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { useEntitlements } from "@/hooks/useEntitlements"
+import { TokenBalanceWidget } from "@/components/tokens/TokenBalanceWidget"
 
 export function BillingSettingsSection() {
   const { t, tInterpolate } = useLanguage()
@@ -90,6 +91,28 @@ export function BillingSettingsSection() {
         )}
       </div>
 
+      {/* AI Token balance */}
+      <div data-testid="settings-billing-tokens">
+        <TokenBalanceWidget />
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <p className="text-[11px]" style={{ color: "var(--muted2)" }}>
+            Tokens can be purchased in the{" "}
+            <Link href="/tokens" className="underline hover:text-white/80">
+              Token Center
+            </Link>
+            {hasAnySub && ". Your plan may include monthly AI credits — see Token Center for details"}.
+          </p>
+          <Link
+            href="/tokens"
+            className="shrink-0 text-[11px] font-semibold underline hover:text-white/80"
+            style={{ color: "var(--muted2)" }}
+            data-testid="settings-billing-token-history-link"
+          >
+            View history
+          </Link>
+        </div>
+      </div>
+
       {ents.error && (
         <p className="text-xs text-red-400" data-testid="settings-billing-error">
           {ents.error}
@@ -104,7 +127,7 @@ export function BillingSettingsSection() {
             style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
             data-testid="settings-billing-manage"
           >
-            Manage billing
+            {t("settings.billing.manageBilling")}
             <svg
               viewBox="0 0 16 16"
               fill="none"
