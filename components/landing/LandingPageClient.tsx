@@ -687,6 +687,7 @@ export default function LandingPageClient({
   const loginHref = loginUrlWithIntent('/dashboard')
   const dashboardHref = '/dashboard'
   const commissionerSignupHref = `/signup?role=commissioner&next=${encodeURIComponent('/dashboard')}`
+  const wcIntroHref = loginUrlWithIntent('/world-cup-intro?next=/brackets')
 
   return (
     <main className="mode-readable min-h-screen overflow-x-hidden" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
@@ -863,6 +864,24 @@ export default function LandingPageClient({
               >
                 {copy.hero.primary}
               </Link>
+              {/* ─── World Cup Pools CTA ─── */}
+              <Link
+                href={wcIntroHref}
+                className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border px-7 py-3.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 sm:w-auto"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(5,150,105,0.12), rgba(202,138,4,0.10))',
+                  borderColor: 'rgba(5,150,105,0.38)',
+                  color: '#6ee7b7',
+                }}
+                data-testid="landing-hero-wc-pools"
+                onClick={() => trackLandingCtaClick({ cta_label: 'AF World Cup Pools', cta_destination: wcIntroHref, cta_type: 'secondary', source: 'hero' })}
+              >
+                ⚽ AF World Cup Pools
+              </Link>
+              <p className="text-[11px] text-center" style={{ color: 'var(--muted2)' }}>
+                Build your bracket. Invite your crew. Chase greatness.
+              </p>
+
               <Link
                 href={loginHref}
                 className="mt-3 text-center text-sm font-medium underline underline-offset-4 transition hover:opacity-90"
