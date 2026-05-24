@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, MessageCircle, Trophy, User, Volleyball } from "lucide-react"
+import { Home, Users, Swords, Sparkles, User } from "lucide-react"
 import { isNavItemActive } from "@/lib/shell"
 
 type BottomTab = {
@@ -13,14 +13,16 @@ type BottomTab = {
 
 const MOBILE_BOTTOM_TABS: BottomTab[] = [
   { href: "/dashboard", label: "Home", icon: Home },
-  { href: "/discover/leagues", label: "Sports", icon: Volleyball },
-  { href: "/brackets", label: "Bracket", icon: Trophy },
-  { href: "/messages", label: "Messages", icon: MessageCircle },
+  { href: "/discover/leagues", label: "Leagues", icon: Users },
+  { href: "/war-room", label: "War Room", icon: Swords },
+  { href: "/ai-chat", label: "Chimmy", icon: Sparkles },
   { href: "/profile", label: "Profile", icon: User },
 ]
 
-const SPORTS_ACTIVE_PREFIXES = [
+const LEAGUES_ACTIVE_PREFIXES = [
   "/discover/",
+  "/leagues/",
+  "/league/",
   "/sports/",
   "/fantasy-football",
   "/fantasy-basketball",
@@ -28,6 +30,12 @@ const SPORTS_ACTIVE_PREFIXES = [
   "/fantasy-hockey",
   "/fantasy-soccer",
   "/fantasy-ncaa",
+]
+
+const WAR_ROOM_ACTIVE_PREFIXES = [
+  "/war-room",
+  "/draft/room",
+  "/mock-draft",
 ]
 
 export default function MobileBottomTabs() {
@@ -44,11 +52,14 @@ export default function MobileBottomTabs() {
     >
       <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
         {MOBILE_BOTTOM_TABS.map((item) => {
-            const active =
-              item.label === "Sports"
-                ? isNavItemActive(currentPath, item.href) || SPORTS_ACTIVE_PREFIXES.some((prefix) => currentPath.startsWith(prefix))
-                : isNavItemActive(currentPath, item.href)
+          const active =
+            item.label === "Leagues"
+              ? isNavItemActive(currentPath, item.href) || LEAGUES_ACTIVE_PREFIXES.some((p) => currentPath.startsWith(p))
+              : item.label === "War Room"
+              ? isNavItemActive(currentPath, item.href) || WAR_ROOM_ACTIVE_PREFIXES.some((p) => currentPath.startsWith(p))
+              : isNavItemActive(currentPath, item.href)
           const Icon = item.icon
+          const isWarRoom = item.label === "War Room"
           return (
             <Link
               key={item.href}
@@ -57,9 +68,15 @@ export default function MobileBottomTabs() {
               aria-current={active ? "page" : undefined}
               style={{
                 background: active
-                  ? "color-mix(in srgb, var(--accent-cyan) 16%, transparent)"
+                  ? isWarRoom
+                    ? "color-mix(in srgb, var(--accent-cyan) 20%, transparent)"
+                    : "color-mix(in srgb, var(--accent-cyan) 16%, transparent)"
                   : "transparent",
-                color: active ? "var(--accent-cyan-strong)" : "var(--muted2)",
+                color: active
+                  ? "var(--accent-cyan-strong)"
+                  : isWarRoom
+                  ? "var(--muted)"
+                  : "var(--muted2)",
               }}
             >
               <span

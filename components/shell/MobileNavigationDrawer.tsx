@@ -41,13 +41,13 @@ export function MobileNavigationDrawer({
   if (!open) return null
 
   const productLinks = [
-    { href: "/discover/leagues", label: "Sports" },
+    { href: "/discover/leagues", label: "Leagues" },
     ...SHELL_NAV_ITEMS.filter((item) =>
-      ["/dashboard", "/brackets", "/af-legacy"].includes(item.href)
+      ["/dashboard", "/war-room", "/ai/tools"].includes(item.href)
     ),
   ]
   const workspaceLinks = SHELL_NAV_ITEMS.filter((item) =>
-    ["/tools-hub", "/messages", "/wallet"].includes(item.href)
+    ["/messages", "/wallet"].includes(item.href)
   )
   const accountLinks = SHELL_NAV_ITEMS.filter((item) =>
     ["/profile", "/settings"].includes(item.href)

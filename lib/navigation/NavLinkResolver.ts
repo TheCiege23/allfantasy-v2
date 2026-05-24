@@ -11,10 +11,11 @@ export interface NavLinkItem {
 /** Primary nav items (tabs / drawer). Order determines display order. */
 export const PRIMARY_NAV_ITEMS: NavLinkItem[] = [
   { href: "/dashboard", label: "Home" },
+  { href: "/war-room", label: "War Room" },
+  { href: "/discover/leagues", label: "Leagues" },
+  { href: "/ai/tools", label: "Intelligence Hub" },
+  { href: "/af-rankings", label: "Rankings" },
   { href: "/profile", label: "Profile" },
-  { href: "/brackets", label: "Bracket" },
-  { href: "/af-legacy", label: "Legacy" },
-  { href: "/tools-hub", label: "Tools" },
   { href: "/messages", label: "Messages" },
   { href: "/wallet", label: "Wallet" },
   { href: "/settings", label: "Settings" },
@@ -23,8 +24,8 @@ export const PRIMARY_NAV_ITEMS: NavLinkItem[] = [
 /** Product switcher items (compact product links in header). */
 export const PRODUCT_NAV_ITEMS: NavLinkItem[] = [
   { href: "/dashboard", label: "Home" },
-  { href: "/brackets", label: "Bracket" },
-  { href: "/af-legacy", label: "Legacy" },
+  { href: "/war-room", label: "War Room" },
+  { href: "/ai/tools", label: "Intelligence Hub" },
 ]
 
 /** User menu dropdown items (profile area). */

@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { MessageCircle, Shield, Wallet, Sparkles } from "lucide-react"
+import { MessageCircle, Shield, Wallet, Sparkles, Swords } from "lucide-react"
 import { loginUrlWithIntent, signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
 import { getPrimaryChimmyEntry } from "@/lib/ai-product-layer"
 
@@ -23,17 +23,18 @@ type AppShellNavProps = {
 }
 
 const PRODUCT_TABS = [
-  { href: "/brackets", label: "Bracket" },
-  { href: "/discover/leagues", label: "Sports" },
-  { href: "/af-legacy", label: "Legacy" },
+  { href: "/war-room", label: "War Room" },
+  { href: "/discover/leagues", label: "Leagues" },
+  { href: "/ai/tools", label: "Intelligence Hub" },
 ] as const
 
 const GLOBAL_TABS = [
   { href: "/dashboard", label: "Home" },
+  { href: "/war-room", label: "War Room" },
+  { href: "/discover/leagues", label: "Leagues" },
+  { href: "/ai/tools", label: "Intelligence Hub" },
+  { href: "/af-rankings", label: "Rankings" },
   { href: "/profile", label: "Profile" },
-  { href: "/brackets", label: "Bracket" },
-  { href: "/discover/leagues", label: "Sports" },
-  { href: "/af-legacy", label: "Legacy" },
   { href: "/messages", label: "Messages" },
   { href: "/wallet", label: "Wallet" },
   { href: "/settings", label: "Settings" },
@@ -88,6 +89,14 @@ export default function AppShellNav({
           <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-1.5 sm:w-auto sm:gap-2">
             {isAuthenticated ? (
               <>
+                <Link
+                  href="/war-room"
+                  className="hidden items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition hover:opacity-90 sm:inline-flex"
+                  style={{ background: "var(--accent-cyan-strong)", color: "var(--on-accent-bg)" }}
+                >
+                  <Swords className="h-3.5 w-3.5" />
+                  War Room
+                </Link>
                 <Link
                   href="/wallet/deposit"
                   className="hidden items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs sm:flex"

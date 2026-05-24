@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { MessageCircle, Shield, Sparkles, Menu, Search, Settings as SettingsIcon } from "lucide-react"
+import { MessageCircle, Shield, Sparkles, Menu, Search, Settings as SettingsIcon, Swords } from "lucide-react"
 import { loginUrlWithIntent, signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
 import { ProductContextSwitcher } from "@/components/shell/ProductContextSwitcher"
 import NotificationBell from "@/components/shared/NotificationBell"
@@ -153,7 +153,18 @@ export default function GlobalTopNav({
 
           <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-1.5 sm:w-auto sm:gap-2">
             {isAuthenticated ? (
-              utilitySpecs.map((spec) => renderUtility(spec))
+              <>
+                <Link
+                  href="/war-room"
+                  className="hidden items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition hover:opacity-90 sm:inline-flex"
+                  style={{ background: "var(--accent-cyan-strong)", color: "var(--on-accent-bg)" }}
+                  aria-label="Open War Room"
+                >
+                  <Swords className="h-3.5 w-3.5" />
+                  War Room
+                </Link>
+                {utilitySpecs.map((spec) => renderUtility(spec))}
+              </>
             ) : (
               <>
                 <Link href={loginUrlWithIntent(currentPath || "/dashboard")} className="rounded-lg border px-3 py-1.5 text-sm transition" style={{ borderColor: "var(--border)", color: "var(--text)", background: "color-mix(in srgb, var(--panel2) 82%, transparent)" }}>Login</Link>
