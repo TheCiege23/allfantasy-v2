@@ -3648,24 +3648,54 @@ export default function WorldCupBracketShell({
           <div id="world-cup-review" className="mx-auto max-w-4xl pb-8">
             {selectedEntry ? (
               <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <h2 className="text-xl font-black text-white">Review & Finalize</h2>
-                    <p className="mt-1 text-sm text-white/50">
-                      Finalized entries appear on the leaderboard. You can still edit until lock.
-                    </p>
-                    <p className="mt-1 text-xs text-amber-100/75">
-                      Changing Group Stage picks may unfinalize your entry if knockout picks are reset.
-                    </p>
+                {/* ── Review Hero ─────────────────────────────────────── */}
+                <div className="relative overflow-hidden rounded-xl border border-indigo-400/15 bg-gradient-to-br from-indigo-500/[0.08] via-violet-500/[0.04] to-transparent p-4 sm:p-5">
+                  <div className="pointer-events-none absolute -top-10 right-2 h-28 w-36 rounded-full bg-indigo-400/15 blur-3xl" aria-hidden />
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+                          {view.challenge.name}
+                        </span>
+                        {completionReview ? (
+                          completionReview.isLocked ? (
+                            <span className="rounded-full border border-rose-300/30 bg-rose-400/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/70">
+                              {t("wc.review.statusLocked")}
+                            </span>
+                          ) : completionReview.fullEntryComplete && completionReview.submittedAt ? (
+                            <span className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/70">
+                              {t("wc.review.statusFinalized")}
+                            </span>
+                          ) : completionReview.fullEntryComplete ? (
+                            <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/70">
+                              {t("wc.review.statusReady")}
+                            </span>
+                          ) : (
+                            <span className="rounded-full border border-amber-300/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/70">
+                              {t("wc.review.statusIncomplete")}
+                            </span>
+                          )
+                        ) : null}
+                      </div>
+                      <h2 className="mt-1.5 text-xl font-black tracking-tight text-white sm:text-2xl">
+                        {t("wc.review.heroTitle")}
+                      </h2>
+                      <p className="mt-1 text-sm text-white/55">
+                        {t("wc.review.heroSubtitle")}
+                      </p>
+                      <p className="mt-1.5 text-xs text-white/45">
+                        {t("wc.review.groupChangeWarning")}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void loadCompletionReview()}
+                      disabled={isCompletionLoading}
+                      className="shrink-0 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold text-white/75 disabled:opacity-45"
+                    >
+                      {isCompletionLoading ? t("wc.review.checking") : t("wc.review.refreshReview")}
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void loadCompletionReview()}
-                    disabled={isCompletionLoading}
-                    className="rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold text-white/75 disabled:opacity-45"
-                  >
-                    {isCompletionLoading ? "Checking..." : "Refresh Review"}
-                  </button>
                 </div>
 
                 {completionError ? (
@@ -3677,32 +3707,32 @@ export default function WorldCupBracketShell({
                 {isCompletionLoading && !completionReview ? (
                   <div className="mt-4 flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/45">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading completion review...
+                    {t("wc.review.loadingReview")}
                   </div>
                 ) : completionReview ? (
                   <div data-testid="world-cup-review-panel" className="mt-4 space-y-3">
                     <div className="grid gap-3 sm:grid-cols-3">
                       <PoolStatCard
-                        label="Groups Ranked"
+                        label={t("wc.review.stat.groups")}
                         value={`${completionReview.groupsRankedCount}/12`}
                         tone={completionReview.groupsRankedCount === 12 ? "ready" : "warn"}
                       />
                       <PoolStatCard
-                        label="Third-place"
+                        label={t("wc.review.stat.thirdPlace")}
                         value={`${completionReview.thirdPlaceSelectedCount}/8`}
                         tone={completionReview.thirdPlaceSelectedCount === 8 ? "ready" : "warn"}
                       />
                       <PoolStatCard
-                        label="Knockout Picks"
+                        label={t("wc.review.stat.knockouts")}
                         value={`${completionReview.completedKnockoutPicks}/${completionReview.requiredKnockoutPicks}`}
                         tone={completionReview.knockoutComplete ? "ready" : "warn"}
                       />
                     </div>
 
                     <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white/60">
-                      <p className="font-bold text-white/80">Scoring note</p>
+                      <p className="font-bold text-white/80">{t("wc.review.scoringNoteTitle")}</p>
                       <p className="mt-1 text-xs leading-5 text-white/50">
-                        Finalized means submitted for leaderboard. Locked means the deadline passed and picks can no longer be edited.
+                        {t("wc.review.scoringNoteBody")}
                       </p>
                     </div>
 
@@ -3743,10 +3773,10 @@ export default function WorldCupBracketShell({
                       {!aiInsightsUnlocked ? (
                         <p
                           data-testid="world-cup-review-ai-report-upgrade-banner"
-                          className="rounded-lg border border-cyan-300/30 bg-cyan-300/[0.06] px-3 py-2.5 text-[11px] leading-5 text-cyan-50/85"
+                          className="rounded-lg border border-cyan-300/30 bg-cyan-300/[0.06] px-3 py-2.5 text-[11px] leading-5 text-white/70"
                         >
-                          <span className="font-black uppercase tracking-wide text-cyan-100">AF Pro unlocks</span>{" "}
-                          the full report — Champion Confidence, Path to Win, the AI Explain narrative, your Uniqueness insight, and the full Share card.
+                          <span className="font-black uppercase tracking-wide text-white/90">{t("wc.review.afProUnlocks")}</span>{" "}
+                          {t("wc.review.afProUnlocksDetails")}
                         </p>
                       ) : null}
 
@@ -3851,9 +3881,9 @@ export default function WorldCupBracketShell({
                     <div data-testid="world-cup-review-saved-picks" className="space-y-3">
                       <div className="rounded-xl border border-white/10 bg-black/20 p-3">
                         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                          <p className="text-sm font-black text-white">Saved Group Stage Picks</p>
+                          <p className="text-sm font-black text-white">{t("wc.review.savedGroupTitle")}</p>
                           <span className="text-[10px] font-bold uppercase tracking-wide text-white/35">
-                            User picks · official results shown separately
+                            {t("wc.review.savedGroupNote")}
                           </span>
                         </div>
                         {reviewGroupStageError ? (
@@ -3870,7 +3900,7 @@ export default function WorldCupBracketShell({
                                 <div key={group.id} data-testid={`world-cup-review-group-${group.groupKey}`} className="rounded-lg border border-white/10 bg-white/[0.035] p-2">
                                   <div className="mb-2 flex items-center justify-between gap-2">
                                     <p className="text-xs font-black text-white">{group.displayName}</p>
-                                    <span className="text-[10px] text-white/35">{groupPicks.length}/4 saved</span>
+                                    <span className="text-[10px] text-white/35">{t("wc.review.groupPicksSaved", { n: groupPicks.length })}</span>
                                   </div>
                                   <div className="space-y-1.5">
                                     {groupPicks.length > 0 ? groupPicks.map((pick) => {
@@ -3886,7 +3916,7 @@ export default function WorldCupBracketShell({
                                         </div>
                                       )
                                     }) : (
-                                      <p className="rounded-md border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-xs text-amber-100">No saved ranking yet.</p>
+                                      <p className="rounded-md border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-xs text-white/75">{t("wc.review.noGroupPicksYet")}</p>
                                     )}
                                   </div>
                                 </div>
@@ -3894,7 +3924,7 @@ export default function WorldCupBracketShell({
                             })}
                           </div>
                         ) : (
-                          <p className="mt-2 text-xs text-white/40">Loading saved group-stage picks...</p>
+                          <p className="mt-2 text-xs text-white/40">{t("wc.review.loadingGroupPicks")}</p>
                         )}
                       </div>
 
@@ -3949,7 +3979,7 @@ export default function WorldCupBracketShell({
                     </div>
 
                     {!completionReview.fullEntryComplete ? (
-                      <div className="rounded-xl border border-amber-300/25 bg-amber-500/10 p-3 text-xs text-amber-100">
+                      <div className="rounded-xl border border-amber-300/25 bg-amber-500/10 p-3 text-xs text-white/80">
                         <p className="font-black">{t("wc.review.missingRequirementsTitle")}</p>
                         {completionReview.needsRefinalize ? (
                           <p className="mt-1 font-bold">
@@ -3971,7 +4001,7 @@ export default function WorldCupBracketShell({
                     ) : null}
 
                     {completionReview.isLocked ? (
-                      <div className="rounded-xl border border-rose-300/25 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">
+                      <div className="rounded-xl border border-rose-300/25 bg-rose-400/10 p-3 text-sm font-bold text-white/80">
                         {completionReview.submittedAt
                           ? t("wc.review.lockedWithTime", { at: new Date(completionReview.submittedAt).toLocaleString() })
                           : t("wc.review.lockedNoTime")}
@@ -3996,13 +4026,16 @@ export default function WorldCupBracketShell({
                         switchTab={switchTab}
                       />
                     ) : completionReview.fullEntryComplete ? (
-                      <div className="space-y-2">
-                        <p className="text-xs font-bold text-cyan-100/80">{t("wc.review.completeDraftHelper")}</p>
+                      <div
+                        data-testid="world-cup-finalize-cta-zone"
+                        className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.05] p-4"
+                      >
+                        <p className="mb-3 text-xs text-white/55">{t("wc.review.completeDraftHelper")}</p>
                         <button
                           type="button"
                           onClick={() => void handleFinalizeEntry()}
                           disabled={isFinalizingEntry}
-                          className="rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-45"
+                          className="w-full rounded-xl bg-gradient-to-r from-cyan-400 to-cyan-300 px-6 py-3.5 text-base font-black text-black shadow-[0_6px_20px_-8px_rgba(34,211,238,0.7)] transition-transform hover:scale-[1.02] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
                         >
                           {isFinalizingEntry
                             ? t("wc.review.finalizing")
@@ -4010,6 +4043,7 @@ export default function WorldCupBracketShell({
                               ? t("wc.review.refinalizeEntry")
                               : t("wc.review.finalizeEntry")}
                         </button>
+                        <p className="mt-2 text-[11px] text-white/40">{t("wc.review.finalizeLockWarning")}</p>
                       </div>
                     ) : (
                       <p className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-bold text-white/45">
@@ -4343,22 +4377,28 @@ function WorldCupFinalizedSuccessBlock({
       className="rounded-xl border border-emerald-300/30 bg-gradient-to-b from-emerald-400/[0.14] to-emerald-400/[0.05] p-4 backdrop-blur"
     >
       <div className="flex items-start gap-2.5">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-300/40 bg-emerald-400/15">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-300/40 bg-emerald-400/15 shadow-[0_0_16px_-4px_rgba(52,211,153,0.5)]">
           <Check className="h-4 w-4 text-emerald-200" aria-hidden />
         </div>
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/70">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/50">
             {t("wc.finalize.eyebrow")}
           </p>
           <h3 className="text-base font-black text-white sm:text-lg">
             {t("wc.finalize.title")}
           </h3>
-          <p className="mt-1 text-xs leading-5 text-emerald-50/80">
+          <p className="mt-1 text-xs leading-5 text-white/60">
             {submittedAtLabel
               ? t("wc.finalize.subtitleWithTime", { at: submittedAtLabel })
               : t("wc.finalize.subtitleNoTime")}
           </p>
         </div>
+      </div>
+
+      {/* Challenge prompt */}
+      <div className="mt-3 border-t border-white/[0.07] pt-3">
+        <p className="text-sm font-black text-white">{t("wc.finalize.challengeTitle")}</p>
+        <p className="mt-0.5 text-xs text-white/55">{t("wc.finalize.challengeDesc")}</p>
       </div>
 
       <div className="mt-3 grid gap-2 sm:flex sm:flex-wrap">
@@ -4382,9 +4422,18 @@ function WorldCupFinalizedSuccessBlock({
         </button>
         <button
           type="button"
+          onClick={() => switchTab("leaderboard")}
+          data-testid="world-cup-review-finalized-view-leaderboard"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-bold text-white/85 transition-colors hover:border-white/25 hover:bg-white/[0.10] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 sm:w-auto"
+        >
+          <Trophy className="h-4 w-4" />
+          {t("wc.finalize.viewLeaderboard")}
+        </button>
+        <button
+          type="button"
           onClick={() => switchTab("invite")}
           data-testid="world-cup-review-finalized-invite-friends"
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-300/[0.08] px-4 py-2.5 text-sm font-bold text-cyan-50 transition-colors hover:border-cyan-300/50 hover:bg-cyan-300/[0.12] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 sm:w-auto"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-300/[0.08] px-4 py-2.5 text-sm font-bold text-white/85 transition-colors hover:border-cyan-300/50 hover:bg-cyan-300/[0.12] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 sm:w-auto"
         >
           <Users className="h-4 w-4" />
           {t("wc.finalize.inviteFriends")}
@@ -4392,13 +4441,15 @@ function WorldCupFinalizedSuccessBlock({
       </div>
 
       <details className="mt-3" data-testid="world-cup-review-finalized-share-preview">
-        <summary className="cursor-pointer text-[11px] font-semibold text-emerald-100/70 hover:text-emerald-50">
+        <summary className="cursor-pointer text-[11px] font-semibold text-white/50 hover:text-white/80">
           {t("wc.finalize.previewShare")}
         </summary>
         <div className="mt-2 whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-xs leading-5 text-white/80">
           {shareResult.message}
         </div>
       </details>
+
+      <p className="mt-3 text-[10px] text-white/30">{t("wc.finalize.trustNote")}</p>
     </div>
   )
 }

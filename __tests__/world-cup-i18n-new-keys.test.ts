@@ -113,6 +113,41 @@ const NEW_KEYS = [
   "wc.pool.leaderboard.empty",
   "wc.pool.leaderboard.emptyNote",
   "wc.pool.leaderboard.viewFull",
+  // Review tab — hero section
+  "wc.review.heroTitle",
+  "wc.review.heroSubtitle",
+  "wc.review.groupChangeWarning",
+  "wc.review.statusIncomplete",
+  "wc.review.statusReady",
+  "wc.review.statusFinalized",
+  "wc.review.statusLocked",
+  "wc.review.checking",
+  "wc.review.refreshReview",
+  "wc.review.loadingReview",
+  // Review tab — stat cards
+  "wc.review.stat.groups",
+  "wc.review.stat.thirdPlace",
+  "wc.review.stat.knockouts",
+  // Review tab — scoring note
+  "wc.review.scoringNoteTitle",
+  "wc.review.scoringNoteBody",
+  // Review tab — AF Pro banner
+  "wc.review.afProUnlocks",
+  "wc.review.afProUnlocksDetails",
+  // Review tab — saved picks
+  "wc.review.savedGroupTitle",
+  "wc.review.savedGroupNote",
+  "wc.review.groupPicksSaved",
+  "wc.review.noGroupPicksYet",
+  "wc.review.loadingGroupPicks",
+  // Review tab — finalize area
+  "wc.review.finalizeLockWarning",
+  // Finalize success block
+  "wc.finalize.viewLeaderboard",
+  "wc.finalize.openChat",
+  "wc.finalize.challengeTitle",
+  "wc.finalize.challengeDesc",
+  "wc.finalize.trustNote",
 ] as const
 
 describe("worldCupI18n — new keys present and non-empty in all locales", () => {

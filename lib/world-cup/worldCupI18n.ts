@@ -497,6 +497,13 @@ const EN: WorldCupDictionary = {
   "wc.finalize.inviteFriends": "Invite Friends To Beat My Bracket",
   "wc.finalize.previewShare": "Preview share text",
 
+  // ── Finalize success block: challenge + trust ─────────────────────────
+  "wc.finalize.viewLeaderboard": "View Leaderboard",
+  "wc.finalize.openChat": "Pool Chat",
+  "wc.finalize.challengeTitle": "Your World Cup path is locked.",
+  "wc.finalize.challengeDesc": "Now bring your crew and watch the leaderboard come alive.",
+  "wc.finalize.trustNote": "No wagers. No sportsbook. Just strategy, predictions, and bragging rights.",
+
   // ── Inside-pool Invite tab ───────────────────────────────────────────
   "wc.inviteTab.eyebrow": "Pool",
   "wc.inviteTab.title": "Invite & Pool Details",
@@ -851,6 +858,36 @@ const EN: WorldCupDictionary = {
   "wc.review.createMyBracket": "Create My Bracket",
   "wc.review.creating": "Creating...",
   "wc.review.openMyBracket": "Open My Bracket",
+
+  // ── Review tab: hero section ──────────────────────────────────────────
+  "wc.review.heroTitle": "Review Your Road to Glory",
+  "wc.review.heroSubtitle": "Check every group, knockout path, and finalist before you lock it in.",
+  "wc.review.groupChangeWarning": "Changing Group Stage picks may unfinalize your entry if knockout picks are reset.",
+  "wc.review.statusIncomplete": "Incomplete",
+  "wc.review.statusReady": "Ready to Finalize",
+  "wc.review.statusFinalized": "Finalized",
+  "wc.review.statusLocked": "Locked",
+  "wc.review.checking": "Checking...",
+  "wc.review.refreshReview": "Refresh Review",
+  "wc.review.loadingReview": "Loading...",
+  // ── Review tab: stat cards ────────────────────────────────────────────
+  "wc.review.stat.groups": "Groups Ranked",
+  "wc.review.stat.thirdPlace": "Best Third",
+  "wc.review.stat.knockouts": "Knockout Picks",
+  // ── Review tab: scoring note ──────────────────────────────────────────
+  "wc.review.scoringNoteTitle": "Scoring note",
+  "wc.review.scoringNoteBody": "Finalized = submitted for leaderboard. Locked = deadline passed, picks cannot be edited.",
+  // ── Review tab: AF Pro upgrade banner ────────────────────────────────
+  "wc.review.afProUnlocks": "AF Pro unlocks",
+  "wc.review.afProUnlocksDetails": "the full report — Champion Confidence, Path to Win, the AI Explain narrative, your Uniqueness insight, and the full Share card.",
+  // ── Review tab: saved picks section ──────────────────────────────────
+  "wc.review.savedGroupTitle": "Saved Group Stage Picks",
+  "wc.review.savedGroupNote": "Your predictions · official results shown separately",
+  "wc.review.groupPicksSaved": "{{n}}/4 saved",
+  "wc.review.noGroupPicksYet": "No saved ranking yet.",
+  "wc.review.loadingGroupPicks": "Loading saved group picks...",
+  // ── Review tab: finalize area ─────────────────────────────────────────
+  "wc.review.finalizeLockWarning": "Picks may not be editable after the lock deadline.",
 
   // ── Guided Matchup Picker (Phase 6) ──────────────────────────────────
   "wc.guided.dialogLabel": "Guided Matchup Picker",
@@ -1399,6 +1436,13 @@ const ES: WorldCupDictionary = {
   "wc.finalize.inviteFriends": "Invita Amigos A Vencer Mi Bracket",
   "wc.finalize.previewShare": "Vista previa del texto",
 
+  // ── Finalize success block: challenge + trust ─────────────────────────
+  "wc.finalize.viewLeaderboard": "Ver tabla de clasificación",
+  "wc.finalize.openChat": "Chat del pool",
+  "wc.finalize.challengeTitle": "Tu camino en el Mundial está bloqueado.",
+  "wc.finalize.challengeDesc": "Ahora trae a tu crew y observa cómo cobra vida la clasificación.",
+  "wc.finalize.trustNote": "Sin apuestas. Sin sportsbook. Solo estrategia, predicciones y derechos de fanfarroneo.",
+
   // ── Inside-pool Invite tab ───────────────────────────────────────────
   "wc.inviteTab.eyebrow": "Grupo",
   "wc.inviteTab.title": "Invitar y Detalles del Grupo",
@@ -1774,6 +1818,31 @@ const ES: WorldCupDictionary = {
   "wc.review.createMyBracket": "Crear mi bracket",
   "wc.review.creating": "Creando...",
   "wc.review.openMyBracket": "Abrir mi bracket",
+
+  // ── Review tab: hero section ──────────────────────────────────────────
+  "wc.review.heroTitle": "Revisa Tu Camino a la Gloria",
+  "wc.review.heroSubtitle": "Comprueba cada grupo, camino de eliminatorias y finalistas antes de confirmarlo.",
+  "wc.review.groupChangeWarning": "Cambiar los picks de Fase de Grupos puede desfinalizar tu entrada si los picks de eliminatorias se restablecen.",
+  "wc.review.statusIncomplete": "Incompleto",
+  "wc.review.statusReady": "Listo para Finalizar",
+  "wc.review.statusFinalized": "Finalizado",
+  "wc.review.statusLocked": "Bloqueado",
+  "wc.review.checking": "Comprobando...",
+  "wc.review.refreshReview": "Actualizar revisión",
+  "wc.review.loadingReview": "Cargando...",
+  "wc.review.stat.groups": "Grupos Clasificados",
+  "wc.review.stat.thirdPlace": "Mejor Tercero",
+  "wc.review.stat.knockouts": "Picks de Eliminatorias",
+  "wc.review.scoringNoteTitle": "Nota de puntuación",
+  "wc.review.scoringNoteBody": "Finalizado = enviado para clasificación. Bloqueado = plazo vencido, los picks no se pueden editar.",
+  "wc.review.afProUnlocks": "AF Pro desbloquea",
+  "wc.review.afProUnlocksDetails": "el informe completo — Confianza del campeón, Camino a la victoria, la narrativa de IA, tu perspectiva de singularidad y la tarjeta de compartir completa.",
+  "wc.review.savedGroupTitle": "Picks de Fase de Grupos Guardados",
+  "wc.review.savedGroupNote": "Tus predicciones · resultados oficiales mostrados por separado",
+  "wc.review.groupPicksSaved": "{{n}}/4 guardados",
+  "wc.review.noGroupPicksYet": "Sin clasificación guardada aún.",
+  "wc.review.loadingGroupPicks": "Cargando picks de fase de grupos...",
+  "wc.review.finalizeLockWarning": "Los picks pueden no ser editables después del plazo de bloqueo.",
 
   // ── Guided Matchup Picker (Phase 6) ──────────────────────────────────
   "wc.guided.dialogLabel": "Selector de partidos guiado",
@@ -2310,6 +2379,13 @@ const ZH: WorldCupDictionary = {
   "wc.finalize.inviteFriends": "邀請朋友來挑戰我的對戰表",
   "wc.finalize.previewShare": "預覽分享文字",
 
+  // ── Finalize success block: challenge + trust ─────────────────────────
+  "wc.finalize.viewLeaderboard": "查看排行榜",
+  "wc.finalize.openChat": "群組聊天",
+  "wc.finalize.challengeTitle": "你的世界盃之路已鎖定。",
+  "wc.finalize.challengeDesc": "現在帶上你的夥伴，看著排行榜活躍起來。",
+  "wc.finalize.trustNote": "無賭注。無博彩。只有策略、預測和吹牛的資本。",
+
   // ── Inside-pool Invite tab ───────────────────────────────────────────
   "wc.inviteTab.eyebrow": "群組",
   "wc.inviteTab.title": "邀請與群組資訊",
@@ -2665,6 +2741,31 @@ const ZH: WorldCupDictionary = {
   "wc.review.createMyBracket": "建立我的對戰表",
   "wc.review.creating": "建立中...",
   "wc.review.openMyBracket": "開啟我的對戰表",
+
+  // ── Review tab: hero section ──────────────────────────────────────────
+  "wc.review.heroTitle": "檢閱你通往榮耀的道路",
+  "wc.review.heroSubtitle": "在確認之前，檢查每個小組、淘汰賽路徑和決賽選手。",
+  "wc.review.groupChangeWarning": "若修改小組賽選擇，可能會取消你的確認狀態。",
+  "wc.review.statusIncomplete": "未完成",
+  "wc.review.statusReady": "可以確認",
+  "wc.review.statusFinalized": "已確認",
+  "wc.review.statusLocked": "已鎖定",
+  "wc.review.checking": "檢查中...",
+  "wc.review.refreshReview": "刷新檢閱",
+  "wc.review.loadingReview": "載入中...",
+  "wc.review.stat.groups": "已排序小組",
+  "wc.review.stat.thirdPlace": "最佳第三名",
+  "wc.review.stat.knockouts": "淘汰賽選擇",
+  "wc.review.scoringNoteTitle": "計分說明",
+  "wc.review.scoringNoteBody": "已確認 = 已提交至排行榜。已鎖定 = 截止日期已過，選擇無法再編輯。",
+  "wc.review.afProUnlocks": "AF Pro 解鎖",
+  "wc.review.afProUnlocksDetails": "完整報告——冠軍信心、勝利路徑、AI 解說敘事、你的獨特洞察以及完整分享卡。",
+  "wc.review.savedGroupTitle": "已儲存的小組賽選擇",
+  "wc.review.savedGroupNote": "你的預測 · 官方結果另行顯示",
+  "wc.review.groupPicksSaved": "{{n}}/4 已儲存",
+  "wc.review.noGroupPicksYet": "尚未儲存排名。",
+  "wc.review.loadingGroupPicks": "載入小組賽選擇中...",
+  "wc.review.finalizeLockWarning": "鎖定截止日期後，選擇可能無法再編輯。",
 
   // ── Guided Matchup Picker (Phase 6) ──────────────────────────────────
   "wc.guided.dialogLabel": "對戰引導選擇器",
@@ -3221,6 +3322,13 @@ const FIL: WorldCupDictionary = {
   "wc.finalize.inviteFriends": "Mag-invite ng kaibigan para talunin ang bracket ko",
   "wc.finalize.previewShare": "I-preview ang share text",
 
+  // ── Finalize success block: challenge + trust ─────────────────────────
+  "wc.finalize.viewLeaderboard": "Tingnan ang leaderboard",
+  "wc.finalize.openChat": "Pool Chat",
+  "wc.finalize.challengeTitle": "Naka-lock na ang iyong World Cup path.",
+  "wc.finalize.challengeDesc": "Ngayon dalhin ang iyong crew at panoorin ang leaderboard na maging buhay.",
+  "wc.finalize.trustNote": "Walang taya. Walang sportsbook. Estratehiya, hula, at karapatang magyabang lang.",
+
   // ── Inside-pool Invite tab ───────────────────────────────────────────
   "wc.inviteTab.eyebrow": "Pool",
   "wc.inviteTab.title": "Invite at Detalye ng Pool",
@@ -3596,6 +3704,31 @@ const FIL: WorldCupDictionary = {
   "wc.review.createMyBracket": "Gumawa ng aking bracket",
   "wc.review.creating": "Gumagawa...",
   "wc.review.openMyBracket": "Buksan ang aking bracket",
+
+  // ── Review tab: hero section ──────────────────────────────────────────
+  "wc.review.heroTitle": "I-review ang Iyong Daan sa Tagumpay",
+  "wc.review.heroSubtitle": "Suriin ang bawat grupo, knockout path, at finalist bago mo i-lock.",
+  "wc.review.groupChangeWarning": "Ang pagbabago ng Group Stage picks ay maaaring mag-alis ng finalized status ng iyong entry.",
+  "wc.review.statusIncomplete": "Hindi kumpleto",
+  "wc.review.statusReady": "Handa para I-finalize",
+  "wc.review.statusFinalized": "Finalized",
+  "wc.review.statusLocked": "Naka-lock",
+  "wc.review.checking": "Sinusuri...",
+  "wc.review.refreshReview": "I-refresh ang Review",
+  "wc.review.loadingReview": "Nilo-load...",
+  "wc.review.stat.groups": "Mga Grupo na Na-rank",
+  "wc.review.stat.thirdPlace": "Pinakamahusay na Ikatlo",
+  "wc.review.stat.knockouts": "Mga Knockout Pick",
+  "wc.review.scoringNoteTitle": "Tala sa scoring",
+  "wc.review.scoringNoteBody": "Finalized = naisumite sa leaderboard. Naka-lock = nakalipas na ang deadline, hindi na maaaring i-edit ang mga pick.",
+  "wc.review.afProUnlocks": "I-unlock ng AF Pro",
+  "wc.review.afProUnlocksDetails": "ang buong ulat — Champion Confidence, Path to Win, AI Explain narrative, Uniqueness insight, at buong Share card.",
+  "wc.review.savedGroupTitle": "Mga Naka-save na Group Stage Pick",
+  "wc.review.savedGroupNote": "Ang iyong mga hula · mga opisyal na resulta ay ipinapakita nang hiwalay",
+  "wc.review.groupPicksSaved": "{{n}}/4 naka-save",
+  "wc.review.noGroupPicksYet": "Wala pang naka-save na ranking.",
+  "wc.review.loadingGroupPicks": "Nilo-load ang mga group-stage pick...",
+  "wc.review.finalizeLockWarning": "Maaaring hindi na mae-edit ang mga pick pagkatapos ng lock deadline.",
 
   // ── Guided Matchup Picker (Phase 6) ──────────────────────────────────
   "wc.guided.dialogLabel": "Guided Matchup Picker",
@@ -4165,6 +4298,13 @@ const VI: WorldCupDictionary = {
     "Mời bạn bè đến đánh bại bracket của tôi",
   "wc.finalize.previewShare": "Xem trước văn bản chia sẻ",
 
+  // ── Finalize success block: challenge + trust ─────────────────────────
+  "wc.finalize.viewLeaderboard": "Xem bảng xếp hạng",
+  "wc.finalize.openChat": "Chat pool",
+  "wc.finalize.challengeTitle": "Con đường World Cup của bạn đã được khóa.",
+  "wc.finalize.challengeDesc": "Giờ hãy rủ bạn bè cùng xem bảng xếp hạng trở nên sôi động.",
+  "wc.finalize.trustNote": "Không cá cược. Không sportsbook. Chỉ là chiến lược, dự đoán và quyền tự hào.",
+
   // ── Inside-pool Invite tab ───────────────────────────────────────────
   "wc.inviteTab.eyebrow": "Pool",
   "wc.inviteTab.title": "Mời và Chi tiết pool",
@@ -4550,6 +4690,31 @@ const VI: WorldCupDictionary = {
   "wc.review.createMyBracket": "Tạo bracket của tôi",
   "wc.review.creating": "Đang tạo...",
   "wc.review.openMyBracket": "Mở bracket của tôi",
+
+  // ── Review tab: hero section ──────────────────────────────────────────
+  "wc.review.heroTitle": "Xem lại Con đường đến Vinh quang",
+  "wc.review.heroSubtitle": "Kiểm tra từng bảng đấu, hành trình vòng knock-out và các finalist trước khi xác nhận.",
+  "wc.review.groupChangeWarning": "Thay đổi lượt chọn Vòng bảng có thể hủy trạng thái đã hoàn tất của entry của bạn.",
+  "wc.review.statusIncomplete": "Chưa hoàn tất",
+  "wc.review.statusReady": "Sẵn sàng hoàn tất",
+  "wc.review.statusFinalized": "Đã hoàn tất",
+  "wc.review.statusLocked": "Đã khóa",
+  "wc.review.checking": "Đang kiểm tra...",
+  "wc.review.refreshReview": "Làm mới xem lại",
+  "wc.review.loadingReview": "Đang tải...",
+  "wc.review.stat.groups": "Bảng đã xếp hạng",
+  "wc.review.stat.thirdPlace": "Hạng ba tốt nhất",
+  "wc.review.stat.knockouts": "Lượt chọn vòng knock-out",
+  "wc.review.scoringNoteTitle": "Ghi chú tính điểm",
+  "wc.review.scoringNoteBody": "Đã hoàn tất = đã gửi lên bảng xếp hạng. Đã khóa = quá hạn chót, không thể chỉnh sửa lượt chọn.",
+  "wc.review.afProUnlocks": "AF Pro mở khóa",
+  "wc.review.afProUnlocksDetails": "toàn bộ báo cáo — Độ tin cậy nhà vô địch, Đường đến chiến thắng, câu chuyện giải thích AI, nhận định độc đáo của bạn và thẻ chia sẻ đầy đủ.",
+  "wc.review.savedGroupTitle": "Lượt chọn Vòng bảng đã lưu",
+  "wc.review.savedGroupNote": "Dự đoán của bạn · kết quả chính thức hiển thị riêng",
+  "wc.review.groupPicksSaved": "{{n}}/4 đã lưu",
+  "wc.review.noGroupPicksYet": "Chưa có bảng xếp hạng nào được lưu.",
+  "wc.review.loadingGroupPicks": "Đang tải lượt chọn vòng bảng...",
+  "wc.review.finalizeLockWarning": "Lượt chọn có thể không chỉnh sửa được sau thời hạn khóa.",
 
   // ── Guided Matchup Picker (Phase 6) ──────────────────────────────────
   "wc.guided.dialogLabel": "Chọn trận theo từng bước",
