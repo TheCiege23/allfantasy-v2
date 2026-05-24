@@ -121,7 +121,7 @@ export default function SupportPage() {
               {/* @ts-ignore - Stripe custom element */}
               <stripe-buy-button
                 buy-button-id="buy_btn_1T4BX5Ht5tjM1ovR3uEg9EKf"
-                publishable-key="pk_live_51ReIO1Ht5tjM1ovRLN9joFcoVDcFvVsyNFZ76y5mgNaYSvdCQ9Q4nfZBmSjvzFjIUErouWwaHLSwv9NBiyRVko6m00JfnOdY1Q"
+                publishable-key={process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ""}
               />
             </div>
           </motion.div>
