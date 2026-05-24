@@ -146,6 +146,63 @@ const EN: WorldCupDictionary = {
   "wc.publicHub.feature.lockOnKickoff":
     "Brackets lock when the first World Cup match begins.",
 
+  // ── Public hub: v2 command center ────────────────────────────────────
+  "wc.publicHub.commandEyebrow": "AF World Cup Pools Command Center",
+  "wc.publicHub.commandTitle": "Build your World Cup path to greatness.",
+  "wc.publicHub.commandSubtitle":
+    "Create a pool, invite your crew, rank every group, pick the knockout path, and watch the leaderboard come alive.",
+  "wc.publicHub.trustNote": "No gambling. Just glory, strategy, and bragging rights.",
+  "wc.publicHub.stat.teams": "48 Teams",
+  "wc.publicHub.stat.groups": "12 Groups",
+  "wc.publicHub.stat.matches": "104 Matches",
+  "wc.publicHub.stat.format": "Group Stage + Knockouts",
+  "wc.publicHub.actionsTitle": "How would you like to start?",
+  "wc.publicHub.action.create.title": "Create a Pool",
+  "wc.publicHub.action.create.desc":
+    "Start a private or public World Cup pool and invite friends.",
+  "wc.publicHub.action.join.title": "Join with Code",
+  "wc.publicHub.action.join.desc":
+    "Got an invite? Enter the code and jump right in.",
+  "wc.publicHub.action.discover.title": "Discover Public Pools",
+  "wc.publicHub.action.discover.desc":
+    "Find open World Cup pools and join the action.",
+  "wc.publicHub.how.title": "How AF World Cup Pools work",
+  "wc.publicHub.how.step1Title": "Create or join a pool",
+  "wc.publicHub.how.step1Body":
+    "Start a private pool for your crew or find a public one anyone can join.",
+  "wc.publicHub.how.step2Title": "Rank every group",
+  "wc.publicHub.how.step2Body":
+    "Predict where each team finishes — including 3rd-place advancers that continue the knockout stage.",
+  "wc.publicHub.how.step3Title": "Build the knockout path",
+  "wc.publicHub.how.step3Body":
+    "Pick match winners through Round of 32, quarters, semis, and the final.",
+  "wc.publicHub.how.step4Title": "Finalize and climb",
+  "wc.publicHub.how.step4Body":
+    "Lock your bracket before kickoff, then watch live standings update and share your results.",
+  "wc.publicHub.ai.title": "AI-Powered Bracket Tools",
+  "wc.publicHub.ai.subtitle":
+    "Chimmy and AllFantasy AI help you understand risk, surface bracket insights, and guide commissioners.",
+  "wc.publicHub.ai.explain.title": "Explain My Bracket",
+  "wc.publicHub.ai.explain.desc":
+    "AI reads your picks and explains what makes your bracket unique.",
+  "wc.publicHub.ai.danger.title": "Knockout Danger Zones",
+  "wc.publicHub.ai.danger.desc":
+    "See which knockout picks are most vulnerable to upsets.",
+  "wc.publicHub.ai.chat.title": "Pool Chat + Strategy",
+  "wc.publicHub.ai.chat.desc":
+    "Ask @Chimmy for pick advice right in your pool chat.",
+  "wc.publicHub.ai.commissioner.title": "Commissioner Insights",
+  "wc.publicHub.ai.commissioner.desc":
+    "AI summaries for pool health, bracket diversity, and member activity.",
+  "wc.publicHub.ai.gating":
+    "Available on eligible AI plans or token-powered tools.",
+  "wc.publicHub.social.title": "Bring your crew.",
+  "wc.publicHub.social.desc":
+    "Share your pool link, challenge your friends, and let the leaderboard settle the debate.",
+  "wc.publicHub.social.cta": "Create a Pool to Get Invite Link",
+  "wc.publicHub.trust.note":
+    "AllFantasy World Cup Pools are for fantasy sports entertainment, strategy, and bragging rights. No sportsbook, no wagers.",
+
   // ── Pool dashboard: tab labels ───────────────────────────────────────
   "wc.tab.home": "Home",
   "wc.tab.groupStage": "Group Stage",
@@ -950,6 +1007,63 @@ const ES: WorldCupDictionary = {
     "Leaderboard por bracket — cada entrada se clasifica de manera individual.",
   "wc.publicHub.feature.lockOnKickoff":
     "Los brackets se bloquean cuando arranca el primer partido de la Copa del Mundo.",
+
+  // ── Public hub: v2 command center ────────────────────────────────────
+  "wc.publicHub.commandEyebrow": "Centro de Comando de Pools AF Copa del Mundo",
+  "wc.publicHub.commandTitle": "Construye tu camino a la gloria en la Copa del Mundo.",
+  "wc.publicHub.commandSubtitle":
+    "Crea un grupo, invita a tu equipo, clasifica cada grupo, elige el camino eliminatorio y mira cómo cobra vida el leaderboard.",
+  "wc.publicHub.trustNote": "Sin apuestas. Solo gloria, estrategia y derechos de presumir.",
+  "wc.publicHub.stat.teams": "48 selecciones",
+  "wc.publicHub.stat.groups": "12 grupos",
+  "wc.publicHub.stat.matches": "104 partidos",
+  "wc.publicHub.stat.format": "Fase de grupos + Eliminatorias",
+  "wc.publicHub.actionsTitle": "¿Cómo quieres empezar?",
+  "wc.publicHub.action.create.title": "Crear un grupo",
+  "wc.publicHub.action.create.desc":
+    "Inicia un grupo privado o público para la Copa del Mundo e invita a amigos.",
+  "wc.publicHub.action.join.title": "Unirse con código",
+  "wc.publicHub.action.join.desc":
+    "¿Tienes una invitación? Ingresa el código y únete de inmediato.",
+  "wc.publicHub.action.discover.title": "Descubrir grupos públicos",
+  "wc.publicHub.action.discover.desc":
+    "Encuentra grupos abiertos de la Copa del Mundo y únete a la acción.",
+  "wc.publicHub.how.title": "Cómo funcionan los pools AF Copa del Mundo",
+  "wc.publicHub.how.step1Title": "Crea o únete a un grupo",
+  "wc.publicHub.how.step1Body":
+    "Crea un grupo privado para tu gente o encuentra uno público al que cualquiera puede unirse.",
+  "wc.publicHub.how.step2Title": "Clasifica cada grupo",
+  "wc.publicHub.how.step2Body":
+    "Predice cómo termina cada equipo en su grupo, incluidos los avanzados de tercer lugar.",
+  "wc.publicHub.how.step3Title": "Construye el camino eliminatorio",
+  "wc.publicHub.how.step3Body":
+    "Elige ganadores en cada ronda eliminatoria hasta llegar a la final.",
+  "wc.publicHub.how.step4Title": "Finaliza y escala",
+  "wc.publicHub.how.step4Body":
+    "Bloquea tu bracket antes del partido inicial y sigue las clasificaciones en vivo.",
+  "wc.publicHub.ai.title": "Herramientas de bracket con IA",
+  "wc.publicHub.ai.subtitle":
+    "Chimmy y AllFantasy IA te ayudan a entender el riesgo, detectar insights y guiar a los comisionados.",
+  "wc.publicHub.ai.explain.title": "Explica mi bracket",
+  "wc.publicHub.ai.explain.desc":
+    "La IA analiza tus picks y explica qué hace único tu bracket.",
+  "wc.publicHub.ai.danger.title": "Zonas de peligro en eliminatorias",
+  "wc.publicHub.ai.danger.desc":
+    "Descubre cuáles de tus picks son más vulnerables ante sorpresas.",
+  "wc.publicHub.ai.chat.title": "Chat del grupo + estrategia",
+  "wc.publicHub.ai.chat.desc":
+    "Pregúntale a @Chimmy sobre tus picks directamente en el chat del grupo.",
+  "wc.publicHub.ai.commissioner.title": "Perspectivas del comisionado",
+  "wc.publicHub.ai.commissioner.desc":
+    "Resúmenes IA sobre salud del grupo, diversidad de brackets y actividad de miembros.",
+  "wc.publicHub.ai.gating":
+    "Disponible en planes de IA elegibles o herramientas con tokens.",
+  "wc.publicHub.social.title": "Trae a tu equipo.",
+  "wc.publicHub.social.desc":
+    "Comparte el enlace de tu grupo, reta a tus amigos y deja que el leaderboard resuelva el debate.",
+  "wc.publicHub.social.cta": "Crear un grupo para obtener el enlace de invitación",
+  "wc.publicHub.trust.note":
+    "Los pools de AllFantasy Copa del Mundo son para entretenimiento de fantasy sports, estrategia y derechos de presumir. Sin casa de apuestas, sin apuestas reales.",
 
   // ── Pool dashboard: tab labels ───────────────────────────────────────
   "wc.tab.home": "Inicio",
@@ -1793,6 +1907,57 @@ const ZH: WorldCupDictionary = {
   "wc.publicHub.feature.lockOnKickoff":
     "世界盃首場比賽開賽時對戰表即鎖定。",
 
+  // ── Public hub: v2 command center ────────────────────────────────────
+  "wc.publicHub.commandEyebrow": "AF 世界盃 Pools 指揮中心",
+  "wc.publicHub.commandTitle": "打造你的世界盃奪冠之路。",
+  "wc.publicHub.commandSubtitle":
+    "建立群組、邀請好友、預測各組名次、選擇淘汰賽路徑,讓排行榜燃起來。",
+  "wc.publicHub.trustNote": "無賭博成分。只有榮耀、策略與吹噓的資本。",
+  "wc.publicHub.stat.teams": "48 支球隊",
+  "wc.publicHub.stat.groups": "12 個小組",
+  "wc.publicHub.stat.matches": "104 場比賽",
+  "wc.publicHub.stat.format": "小組賽 + 淘汰賽",
+  "wc.publicHub.actionsTitle": "你想怎麼開始？",
+  "wc.publicHub.action.create.title": "建立群組",
+  "wc.publicHub.action.create.desc": "建立私人或公開的世界盃群組並邀請朋友加入。",
+  "wc.publicHub.action.join.title": "用代碼加入",
+  "wc.publicHub.action.join.desc": "有邀請碼？輸入後馬上加入。",
+  "wc.publicHub.action.discover.title": "探索公開群組",
+  "wc.publicHub.action.discover.desc": "尋找開放中的世界盃群組並加入競賽。",
+  "wc.publicHub.how.title": "AF 世界盃 Pools 如何運作",
+  "wc.publicHub.how.step1Title": "建立或加入群組",
+  "wc.publicHub.how.step1Body":
+    "為你的朋友建立私人群組，或找一個任何人都可以加入的公開群組。",
+  "wc.publicHub.how.step2Title": "預測各組名次",
+  "wc.publicHub.how.step2Body":
+    "預測每支球隊在小組中的排名，包含晉級的第三名球隊。",
+  "wc.publicHub.how.step3Title": "建立淘汰賽路徑",
+  "wc.publicHub.how.step3Body":
+    "從 32 強到四強、半決賽，一路選到最終決賽。",
+  "wc.publicHub.how.step4Title": "定稿並衝上排行榜",
+  "wc.publicHub.how.step4Body":
+    "在第一場比賽開踢前鎖定對戰表，然後即時追蹤排名並分享結果。",
+  "wc.publicHub.ai.title": "AI 驅動的對戰表工具",
+  "wc.publicHub.ai.subtitle":
+    "Chimmy 和 AllFantasy AI 幫助你理解風險、發掘洞察，並指導管理員。",
+  "wc.publicHub.ai.explain.title": "解析我的對戰表",
+  "wc.publicHub.ai.explain.desc":
+    "AI 讀取你的選擇並解釋你的對戰表有何獨特之處。",
+  "wc.publicHub.ai.danger.title": "淘汰賽風險區",
+  "wc.publicHub.ai.danger.desc": "查看你的哪些淘汰賽選擇最容易受到冷門影響。",
+  "wc.publicHub.ai.chat.title": "群組聊天 + 策略",
+  "wc.publicHub.ai.chat.desc": "在群組聊天中直接問 @Chimmy 選人建議。",
+  "wc.publicHub.ai.commissioner.title": "管理員洞察",
+  "wc.publicHub.ai.commissioner.desc":
+    "AI 摘要涵蓋群組健康度、對戰表多樣性和成員活躍度。",
+  "wc.publicHub.ai.gating": "適用於符合資格的 AI 方案或代幣工具。",
+  "wc.publicHub.social.title": "呼朋引伴一起玩。",
+  "wc.publicHub.social.desc":
+    "分享你的群組連結、向朋友發起挑戰，讓排行榜決出勝負。",
+  "wc.publicHub.social.cta": "建立群組以取得邀請連結",
+  "wc.publicHub.trust.note":
+    "AllFantasy 世界盃 Pools 僅供 fantasy sports 娛樂、策略挑戰和互相較勁之用，不涉及博弈或下注。",
+
   // ── Pool dashboard: tab labels ───────────────────────────────────────
   "wc.tab.home": "首頁",
   "wc.tab.groupStage": "小組賽",
@@ -2602,6 +2767,61 @@ const FIL: WorldCupDictionary = {
     "Per-bracket leaderboard — bawat entry ay may sariling ranggo.",
   "wc.publicHub.feature.lockOnKickoff":
     "Magla-lock ang mga bracket sa simula ng unang World Cup match.",
+
+  // ── Public hub: v2 command center ────────────────────────────────────
+  "wc.publicHub.commandEyebrow": "AF World Cup Pools Command Center",
+  "wc.publicHub.commandTitle": "Itayo ang iyong landas tungo sa kadakilaan sa World Cup.",
+  "wc.publicHub.commandSubtitle":
+    "Gumawa ng pool, i-invite ang iyong grupo, i-rank ang bawat grupo, piliin ang knockout path, at panoorin ang leaderboard na maging buhay.",
+  "wc.publicHub.trustNote": "Walang gambling. Kaluwalhatian, strategy, at pagmamalaki lang.",
+  "wc.publicHub.stat.teams": "48 bansa",
+  "wc.publicHub.stat.groups": "12 grupo",
+  "wc.publicHub.stat.matches": "104 laro",
+  "wc.publicHub.stat.format": "Group Stage + Knockouts",
+  "wc.publicHub.actionsTitle": "Paano mo gustong magsimula?",
+  "wc.publicHub.action.create.title": "Gumawa ng pool",
+  "wc.publicHub.action.create.desc":
+    "Magsimula ng private o public na World Cup pool at mag-invite ng mga kaibigan.",
+  "wc.publicHub.action.join.title": "Sumali gamit ang code",
+  "wc.publicHub.action.join.desc": "May invite? Ilagay ang code at direktang sumali.",
+  "wc.publicHub.action.discover.title": "Maghanap ng public pools",
+  "wc.publicHub.action.discover.desc":
+    "Hanapin ang mga bukas na World Cup pool at sumali sa aksyon.",
+  "wc.publicHub.how.title": "Paano gumagana ang AF World Cup Pools",
+  "wc.publicHub.how.step1Title": "Gumawa o sumali sa pool",
+  "wc.publicHub.how.step1Body":
+    "Magsimula ng private pool para sa iyong grupo o humanap ng public pool na pwedeng salihan ng lahat.",
+  "wc.publicHub.how.step2Title": "I-rank ang bawat grupo",
+  "wc.publicHub.how.step2Body":
+    "Hulaan kung saan matatapos ang bawat team sa kanilang grupo, kasama ang mga third-place advancers.",
+  "wc.publicHub.how.step3Title": "Itayo ang knockout path",
+  "wc.publicHub.how.step3Body":
+    "Piliin ang mga panalo sa bawat knockout round hanggang sa final.",
+  "wc.publicHub.how.step4Title": "I-finalize at umakyat",
+  "wc.publicHub.how.step4Body":
+    "I-lock ang bracket bago magsimula ang laro, tapos panoorin ang live standings at ibahagi ang resulta.",
+  "wc.publicHub.ai.title": "AI-Powered na Bracket Tools",
+  "wc.publicHub.ai.subtitle":
+    "Tinutulungan ka ng Chimmy at AllFantasy AI na maunawaan ang panganib, malaman ang mga insight, at gabayan ang mga commissioner.",
+  "wc.publicHub.ai.explain.title": "Ipaliwanag ang aking bracket",
+  "wc.publicHub.ai.explain.desc":
+    "Binabasa ng AI ang iyong mga pick at inilalahad kung ano ang kakaiba ng iyong bracket.",
+  "wc.publicHub.ai.danger.title": "Knockout Danger Zones",
+  "wc.publicHub.ai.danger.desc":
+    "Tingnan kung aling knockout picks ang pinaka-vulnerable sa mga upset.",
+  "wc.publicHub.ai.chat.title": "Pool Chat + Strategy",
+  "wc.publicHub.ai.chat.desc": "Tanungin si @Chimmy para sa pick advice sa pool chat.",
+  "wc.publicHub.ai.commissioner.title": "Commissioner Insights",
+  "wc.publicHub.ai.commissioner.desc":
+    "Mga AI summary para sa pool health, bracket diversity, at aktibidad ng miyembro.",
+  "wc.publicHub.ai.gating":
+    "Available sa mga eligible na AI plan o token-powered na tools.",
+  "wc.publicHub.social.title": "Isama ang iyong grupo.",
+  "wc.publicHub.social.desc":
+    "Ibahagi ang pool link, hamunin ang mga kaibigan, at hayaan ang leaderboard ang magpasya.",
+  "wc.publicHub.social.cta": "Gumawa ng pool para makakuha ng invite link",
+  "wc.publicHub.trust.note":
+    "Ang AF World Cup Pools ay para sa fantasy sports entertainment, strategy, at pagmamalaki. Walang sportsbook, walang totoong taya.",
 
   // ── Pool dashboard: tab labels ───────────────────────────────────────
   "wc.tab.home": "Home",
@@ -3455,6 +3675,61 @@ const VI: WorldCupDictionary = {
     "Bảng xếp hạng riêng cho mỗi bracket — từng entry được xếp riêng.",
   "wc.publicHub.feature.lockOnKickoff":
     "Bracket khoá lại khi trận đầu tiên của World Cup bắt đầu.",
+
+  // ── Public hub: v2 command center ────────────────────────────────────
+  "wc.publicHub.commandEyebrow": "Trung tâm chỉ huy AF World Cup Pools",
+  "wc.publicHub.commandTitle": "Xây dựng hành trình vô địch World Cup của bạn.",
+  "wc.publicHub.commandSubtitle":
+    "Tạo pool, mời nhóm bạn, xếp hạng từng bảng, chọn con đường vòng loại trực tiếp và xem bảng xếp hạng sôi động.",
+  "wc.publicHub.trustNote":
+    "Không cờ bạc. Chỉ có vinh quang, chiến thuật và quyền tự hào.",
+  "wc.publicHub.stat.teams": "48 đội",
+  "wc.publicHub.stat.groups": "12 bảng",
+  "wc.publicHub.stat.matches": "104 trận",
+  "wc.publicHub.stat.format": "Vòng bảng + Vòng loại trực tiếp",
+  "wc.publicHub.actionsTitle": "Bạn muốn bắt đầu như thế nào?",
+  "wc.publicHub.action.create.title": "Tạo pool",
+  "wc.publicHub.action.create.desc":
+    "Bắt đầu pool World Cup riêng tư hoặc công khai và mời bạn bè.",
+  "wc.publicHub.action.join.title": "Tham gia bằng mã",
+  "wc.publicHub.action.join.desc": "Có mã mời? Nhập mã và tham gia ngay.",
+  "wc.publicHub.action.discover.title": "Khám phá pool công khai",
+  "wc.publicHub.action.discover.desc":
+    "Tìm các pool World Cup đang mở và tham gia.",
+  "wc.publicHub.how.title": "AF World Cup Pools hoạt động như thế nào",
+  "wc.publicHub.how.step1Title": "Tạo hoặc tham gia pool",
+  "wc.publicHub.how.step1Body":
+    "Bắt đầu pool riêng cho nhóm bạn hoặc tìm pool công khai mà ai cũng có thể tham gia.",
+  "wc.publicHub.how.step2Title": "Xếp hạng từng bảng",
+  "wc.publicHub.how.step2Body":
+    "Dự đoán thứ hạng từng đội trong bảng, bao gồm cả đội hạng ba vào vòng tiếp theo.",
+  "wc.publicHub.how.step3Title": "Xây dựng hành trình loại trực tiếp",
+  "wc.publicHub.how.step3Body":
+    "Chọn đội thắng qua các vòng loại trực tiếp cho đến trận chung kết.",
+  "wc.publicHub.how.step4Title": "Hoàn thiện và leo bảng",
+  "wc.publicHub.how.step4Body":
+    "Khoá bracket trước trận đầu tiên, rồi theo dõi bảng xếp hạng trực tiếp và chia sẻ kết quả.",
+  "wc.publicHub.ai.title": "Công cụ bracket AI",
+  "wc.publicHub.ai.subtitle":
+    "Chimmy và AllFantasy AI giúp bạn hiểu rủi ro, khám phá insights và hỗ trợ các commissioner.",
+  "wc.publicHub.ai.explain.title": "Giải thích bracket của tôi",
+  "wc.publicHub.ai.explain.desc":
+    "AI đọc lựa chọn của bạn và giải thích điều gì làm bracket của bạn độc đáo.",
+  "wc.publicHub.ai.danger.title": "Vùng nguy hiểm vòng loại trực tiếp",
+  "wc.publicHub.ai.danger.desc": "Xem lựa chọn vòng loại nào dễ bị lật nhất.",
+  "wc.publicHub.ai.chat.title": "Chat pool + Chiến thuật",
+  "wc.publicHub.ai.chat.desc": "Hỏi @Chimmy về lựa chọn ngay trong chat pool.",
+  "wc.publicHub.ai.commissioner.title": "Phân tích dành cho commissioner",
+  "wc.publicHub.ai.commissioner.desc":
+    "Tóm tắt AI về sức khoẻ pool, sự đa dạng bracket và hoạt động thành viên.",
+  "wc.publicHub.ai.gating":
+    "Có sẵn trong các gói AI đủ điều kiện hoặc công cụ hỗ trợ token.",
+  "wc.publicHub.social.title": "Rủ cả nhóm cùng chơi.",
+  "wc.publicHub.social.desc":
+    "Chia sẻ link pool, thách thức bạn bè, và để bảng xếp hạng phân định thắng thua.",
+  "wc.publicHub.social.cta": "Tạo pool để lấy link mời",
+  "wc.publicHub.trust.note":
+    "AF World Cup Pools chỉ dành cho giải trí fantasy sports, chiến thuật và sự tự hào. Không có cá cược hay hình thức đặt cược thực tế.",
 
   // ── Pool dashboard: tab labels ───────────────────────────────────────
   "wc.tab.home": "Trang chính",

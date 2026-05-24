@@ -39,6 +39,52 @@ const NEW_KEYS = [
   "wc.home.ai.chimmyHint",
   "wc.home.ai.explainHint",
   "wc.home.ai.unlockHint",
+  // v2 command center — hero
+  "wc.publicHub.commandEyebrow",
+  "wc.publicHub.commandTitle",
+  "wc.publicHub.commandSubtitle",
+  "wc.publicHub.trustNote",
+  // v2 command center — stats strip
+  "wc.publicHub.stat.teams",
+  "wc.publicHub.stat.groups",
+  "wc.publicHub.stat.matches",
+  "wc.publicHub.stat.format",
+  // v2 command center — action cards
+  "wc.publicHub.actionsTitle",
+  "wc.publicHub.action.create.title",
+  "wc.publicHub.action.create.desc",
+  "wc.publicHub.action.join.title",
+  "wc.publicHub.action.join.desc",
+  "wc.publicHub.action.discover.title",
+  "wc.publicHub.action.discover.desc",
+  // v2 command center — how it works
+  "wc.publicHub.how.title",
+  "wc.publicHub.how.step1Title",
+  "wc.publicHub.how.step1Body",
+  "wc.publicHub.how.step2Title",
+  "wc.publicHub.how.step2Body",
+  "wc.publicHub.how.step3Title",
+  "wc.publicHub.how.step3Body",
+  "wc.publicHub.how.step4Title",
+  "wc.publicHub.how.step4Body",
+  // v2 command center — AI advantage
+  "wc.publicHub.ai.title",
+  "wc.publicHub.ai.subtitle",
+  "wc.publicHub.ai.explain.title",
+  "wc.publicHub.ai.explain.desc",
+  "wc.publicHub.ai.danger.title",
+  "wc.publicHub.ai.danger.desc",
+  "wc.publicHub.ai.chat.title",
+  "wc.publicHub.ai.chat.desc",
+  "wc.publicHub.ai.commissioner.title",
+  "wc.publicHub.ai.commissioner.desc",
+  "wc.publicHub.ai.gating",
+  // v2 command center — social / invite
+  "wc.publicHub.social.title",
+  "wc.publicHub.social.desc",
+  "wc.publicHub.social.cta",
+  // v2 command center — trust banner
+  "wc.publicHub.trust.note",
 ] as const
 
 describe("worldCupI18n — new keys present and non-empty in all locales", () => {
