@@ -75,6 +75,7 @@ const routeDirsToDisable = [
 
 const movedFiles = []
 let cleanedUp = false
+let buildFailure = null // { step, message, stack, exitCode, signal }
 const filesToKeep = new Set([
   path.join('app', 'api', 'cron', '_auth.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'cron', 'waivers', 'route.ts').replace(/\\/g, '/'),
@@ -237,13 +238,33 @@ function restoreNonProdRoutes() {
   if (cleanedUp) return
   cleanedUp = true
 
+  let restoredCount = 0
   for (const entry of movedFiles.reverse()) {
     if (!fs.existsSync(entry.backupPath)) continue
     movePath(entry.backupPath, entry.routeFile)
-    console.log(`[vercel-next-build] Restored ${entry.relativeFile}`)
+    restoredCount++
+  }
+
+  if (restoredCount > 0) {
+    console.log(`[vercel-next-build] Restored ${restoredCount} temporarily excluded file(s)`)
   }
 
   safeRmSync(backupRoot)
+}
+
+function printFailureSummary() {
+  if (!buildFailure) return
+  console.error('[vercel-next-build] ────────────────────────────────────────────────────')
+  console.error('[vercel-next-build] FINAL FAILURE SUMMARY')
+  console.error(`[vercel-next-build] step:          ${buildFailure.step}`)
+  console.error(`[vercel-next-build] exitCode:      ${buildFailure.exitCode ?? 'n/a'}`)
+  console.error(`[vercel-next-build] signal:        ${buildFailure.signal ?? 'none'}`)
+  console.error(`[vercel-next-build] error message: ${buildFailure.message}`)
+  if (buildFailure.stack) {
+    console.error(`[vercel-next-build] stack:\n${buildFailure.stack}`)
+  }
+  console.error('[vercel-next-build] See above for full logs.')
+  console.error('[vercel-next-build] ────────────────────────────────────────────────────')
 }
 
 function writeBuildTailwindContentConfig() {
@@ -302,7 +323,15 @@ async function run() {
   try {
     await runTypecheckBeforeBuild()
   } catch (error) {
+    buildFailure = {
+      step: 'typecheck',
+      message: error.message,
+      stack: error.stack ?? null,
+      exitCode: error.exitCode ?? null,
+      signal: error.signal ?? null,
+    }
     console.error('[vercel-next-build] Typecheck failed:', error.message)
+    printFailureSummary()
     process.exit(1)
   }
 
@@ -351,14 +380,24 @@ async function run() {
       env: childEnv,
     })
   } catch (error) {
-    console.error('[vercel-next-build] Failed to start next build:', error)
+    buildFailure = {
+      step: 'next build',
+      message: error.message,
+      stack: error.stack ?? null,
+      exitCode: null,
+      signal: null,
+    }
+    console.error('[vercel-next-build] Failed to start next build:', error.message)
+    if (restoreTailwindConfig) restoreTailwindConfig()
     restoreNonProdRoutes()
+    printFailureSummary()
     process.exit(1)
   }
 
   const shutdown = (code) => {
     if (restoreTailwindConfig) restoreTailwindConfig()
     restoreNonProdRoutes()
+    if (buildFailure) printFailureSummary()
     process.exit(code)
   }
 
@@ -374,6 +413,12 @@ async function run() {
 
   child.on('close', (code, signal) => {
     if ((code ?? 0) !== 0 || signal) {
+      buildFailure = {
+        step: 'next build',
+        message: `next build exited with code ${code ?? 'null'} and signal ${signal ?? 'none'}`,
+        exitCode: code ?? null,
+        signal: signal ?? null,
+      }
       console.error(
         `[vercel-next-build] next build exited with code ${code ?? 'null'} and signal ${signal ?? 'none'}`
       )
@@ -382,7 +427,13 @@ async function run() {
   })
 
   child.on('error', (error) => {
-    console.error('[vercel-next-build] Failed to start next build:', error)
+    buildFailure = {
+      step: 'next build',
+      message: error.message,
+      stack: error.stack ?? null,
+      exitCode: null,
+      signal: null,
+    }
     shutdown(1)
   })
 }
