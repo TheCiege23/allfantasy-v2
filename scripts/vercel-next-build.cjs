@@ -195,9 +195,8 @@ function runTypecheckBeforeBuild() {
           ...process.env,
           NODE_OPTIONS: process.env.NODE_OPTIONS?.includes('--max-old-space-size=')
             ? process.env.NODE_OPTIONS
-            : [process.env.NODE_OPTIONS, '--max-old-space-size=8192'].filter(Boolean).join(' '),
+            : [process.env.NODE_OPTIONS, '--max-old-space-size=4096'].filter(Boolean).join(' '),
         },
-        shell: process.platform === 'win32',
       }
     )
 
@@ -338,7 +337,7 @@ async function run() {
       process.env.DISABLE_INSTRUMENTATION_DURING_BUILD || '1',
     NODE_OPTIONS: process.env.NODE_OPTIONS?.includes('--max-old-space-size=')
       ? process.env.NODE_OPTIONS
-      : [process.env.NODE_OPTIONS, '--max-old-space-size=8192'].filter(Boolean).join(' '),
+      : [process.env.NODE_OPTIONS, '--max-old-space-size=4096'].filter(Boolean).join(' '),
   }
 
   console.log(
