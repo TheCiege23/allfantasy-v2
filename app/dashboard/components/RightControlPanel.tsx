@@ -82,8 +82,8 @@ export function RightControlPanel({
     <div className="relative flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-x-hidden border-l border-white/[0.07] bg-[#0a0a1f]">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {/* Always-visible header: MY LEAGUES title + Create + Import + (optional) collapse. */}
-        <div className="flex min-w-0 flex-shrink-0 items-center justify-between gap-2 border-b border-white/[0.07] px-2 py-2">
-          <p className="min-w-0 truncate text-[16px] dashboard-header-bold header-myleagues uppercase tracking-widest">
+        <div className="flex min-w-0 flex-shrink-0 items-center justify-between gap-2 border-b border-white/[0.07] bg-white/[0.01] px-3 py-2.5">
+          <p className="min-w-0 truncate text-[11px] font-bold uppercase tracking-widest text-white/50">
             {t('dashboard.right.myLeagues')}
           </p>
           <div className="flex shrink-0 items-center gap-1">
@@ -157,7 +157,7 @@ export function RightControlPanel({
       */}
 
       <div
-        className="relative z-10 flex min-h-[52px] flex-shrink-0 items-center gap-2 border-t border-white/[0.07] bg-[#0a0a1f] px-2 py-2"
+        className="relative z-10 flex min-h-[52px] flex-shrink-0 items-center gap-2 border-t border-white/[0.07] bg-[#0a0a1f] px-3 py-2.5"
         data-dashboard-user-id={userId}
         data-dashboard-profile-footer
       >

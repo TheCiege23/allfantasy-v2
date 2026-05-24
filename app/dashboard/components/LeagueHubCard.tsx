@@ -108,7 +108,7 @@ export function LeagueHubCard({ league, onClick }: LeagueHubCardProps) {
         onClick()
         router.push(destinationHref)
       }}
-      className="w-full rounded-2xl border border-white/[0.07] bg-[#0c0c1e] p-4 text-left transition-colors hover:border-white/15"
+      className="w-full rounded-2xl border border-white/[0.07] bg-[#0c0c1e] p-4 text-left transition-all hover:border-cyan-500/20 hover:bg-[#0d0d23]"
     >
       <div className="flex items-start gap-3">
         <div className="shrink-0">
@@ -144,17 +144,6 @@ export function LeagueHubCard({ league, onClick }: LeagueHubCardProps) {
             {league.teamCount}-team · Season {seasonLabel}
           </p>
         </div>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[11px] text-white/50">
-          W-L —-—
-        </span>
-        <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[11px] text-white/50">
-          FAAB —
-        </span>
-        <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[11px] text-white/50">
-          Next: TBD
-        </span>
       </div>
     </button>
   )

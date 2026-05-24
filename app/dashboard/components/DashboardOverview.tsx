@@ -828,21 +828,29 @@ export function DashboardOverview({
           </button>
         )}
 
-        <section className="border-b border-white/[0.07] pb-5">
-          <p className="text-[12px] font-semibold uppercase tracking-wider text-white/30">
+        <section className="relative overflow-hidden rounded-2xl border border-cyan-500/[0.15] bg-gradient-to-br from-cyan-500/[0.07] via-[#050814] to-violet-500/[0.04] p-5">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-32 opacity-70"
+            style={{
+              background:
+                'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(34,211,238,0.16) 0%, transparent 70%)',
+            }}
+          />
+          <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-400/60">
             AllFantasy Command Center
           </p>
-          <h1 className="mt-2 text-[22px] font-black leading-tight text-white">
+          <h1 className="mt-1.5 text-[26px] font-black leading-tight tracking-tight text-white sm:text-[30px]">
             Your fantasy command center is live.
           </h1>
-          <p className="mt-1.5 max-w-xl text-[13px] leading-snug text-white/55">
+          <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-white/55">
             Chimmy is watching your drafts, matchups, waivers, and league activity so you know what to do next.
           </p>
 
-          <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-2">
+          <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-2">
             <Link
               href="/war-room"
-              className="touch-manipulation inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 px-4 py-3 text-sm font-semibold text-black active:opacity-95 sm:w-auto sm:px-5 sm:py-2.5"
+              className="touch-manipulation inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-cyan-500 px-5 py-3 text-[15px] font-bold text-black shadow-[0_0_20px_rgba(34,211,238,0.25)] transition hover:from-cyan-300 hover:to-cyan-400 active:opacity-95 sm:w-auto sm:min-h-[44px]"
             >
               <Swords className="h-4 w-4" />
               Open War Room
@@ -850,7 +858,7 @@ export function DashboardOverview({
             <button
               type="button"
               onClick={() => handleAiShortcut('')}
-              className="touch-manipulation inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-violet-500/40 bg-violet-500/10 px-4 py-3 text-sm font-semibold text-violet-300 transition hover:bg-violet-500/20 active:bg-violet-500/25 sm:w-auto sm:py-2.5"
+              className="touch-manipulation inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl border border-violet-500/40 bg-violet-500/10 px-5 py-3 text-[15px] font-bold text-violet-300 transition hover:bg-violet-500/20 active:bg-violet-500/25 sm:w-auto sm:min-h-[44px]"
             >
               <Sparkles className="h-4 w-4" />
               Ask Chimmy

@@ -13,10 +13,13 @@ const SPORT_TILES = [
 
 export function WarRoomPreviewBlock() {
   return (
-    <section className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
-      <div className="mb-2.5 flex items-center gap-2">
+    <section className="relative overflow-hidden rounded-2xl border border-cyan-500/[0.18] bg-gradient-to-br from-cyan-500/[0.06] via-transparent to-transparent p-4">
+      <div className="mb-3 flex items-center gap-2">
         <Swords className="h-4 w-4 text-cyan-400" />
-        <p className="text-[12px] font-bold uppercase tracking-wider text-white/40">AF War Room</p>
+        <p className="text-[12px] font-bold uppercase tracking-wider text-cyan-400/70">AF War Room</p>
+        <span className="ml-auto rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-cyan-300">
+          NFL Active
+        </span>
       </div>
 
       <p className="mb-3 max-w-lg text-[13px] leading-snug text-white/60">
@@ -45,7 +48,7 @@ export function WarRoomPreviewBlock() {
 
       <Link
         href="/war-room"
-        className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-2 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-500/20"
+        className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/20 to-cyan-500/10 px-4 py-2.5 text-[13px] font-semibold text-cyan-300 transition hover:from-cyan-500/30 hover:to-cyan-500/15 hover:text-cyan-200"
       >
         <Swords className="h-3.5 w-3.5" />
         Open War Room

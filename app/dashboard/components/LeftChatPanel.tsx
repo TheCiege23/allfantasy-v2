@@ -568,7 +568,7 @@ export function LeftChatPanel({
       id={rootId ?? undefined}
       className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#0a0a1f]"
     >
-      <div className="flex shrink-0 border-b border-white/[0.07]">
+      <div className="flex shrink-0 border-b border-white/[0.07] bg-white/[0.01]">
         <button
           type="button"
           data-testid="left-chat-tab-league"
@@ -576,7 +576,7 @@ export function LeftChatPanel({
           onClick={() => setActiveTab('league')}
           className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[16px] dashboard-header-bold header-league transition-colors ${
             activeTab === 'league'
-              ? 'border-b-2 border-cyan-500 bg-white/[0.03]'
+              ? 'border-b-2 border-cyan-500 bg-cyan-500/[0.06]'
               : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
           }`}
           aria-label={leagueTabAria}
@@ -590,7 +590,7 @@ export function LeftChatPanel({
           onClick={() => setActiveTab('chimmy')}
           className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[16px] dashboard-header-bold header-chimmy transition-colors ${
             activeTab === 'chimmy'
-              ? 'border-b-2 border-cyan-500 bg-white/[0.03]'
+              ? 'border-b-2 border-cyan-500 bg-cyan-500/[0.06]'
               : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
           }`}
           aria-label="Chimmy tab"
@@ -604,7 +604,7 @@ export function LeftChatPanel({
           onClick={() => setActiveTab('af_huddle')}
           className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[16px] dashboard-header-bold header-huddle transition-colors ${
             activeTab === 'af_huddle'
-              ? 'border-b-2 border-cyan-500 bg-white/[0.03]'
+              ? 'border-b-2 border-cyan-500 bg-cyan-500/[0.06]'
               : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
           }`}
           aria-label="AF Huddle tab"
@@ -619,7 +619,7 @@ export function LeftChatPanel({
           onClick={() => setActiveTab('dms')}
           className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[16px] dashboard-header-bold header-dms transition-colors ${
             activeTab === 'dms'
-              ? 'border-b-2 border-cyan-500 bg-white/[0.03]'
+              ? 'border-b-2 border-cyan-500 bg-cyan-500/[0.06]'
               : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
           } ${dmSilent ? 'opacity-60' : ''}`}
           aria-label="Direct messages tab"
@@ -694,6 +694,13 @@ export function LeftChatPanel({
 
         {activeTab === 'chimmy' ? (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-2 pb-2 pt-1">
+            <div className="mb-2 flex shrink-0 items-center gap-2 rounded-xl border border-violet-500/[0.18] bg-gradient-to-r from-violet-500/[0.07] to-transparent px-3 py-2">
+              <span className="text-base" aria-hidden>🤖</span>
+              <div className="min-w-0">
+                <p className="text-[12px] font-bold text-violet-300/90">Chimmy</p>
+                <p className="text-[10px] leading-tight text-white/40">Calm, evidence-based fantasy assistant</p>
+              </div>
+            </div>
             <div className="flex shrink-0 items-center justify-between gap-2 pb-1">
               <ChimmyVoicePicker selectedVoiceId={selectedVoiceId} onVoiceChange={handleVoiceChange} />
               <button
