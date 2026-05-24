@@ -37,9 +37,10 @@ export function DraftPickActivityStrip({
             recent.map((p, idx) => (
               <li
                 key={p.id}
+                data-latest={idx === 0 ? 'true' : undefined}
                 className={`draft-live-activity-item shrink-0 rounded-lg border px-2 py-1.5 text-[10px] md:shrink md:px-2 ${
                   idx === 0
-                    ? 'draft-live-activity-latest border-amber-400/30 bg-[linear-gradient(135deg,rgba(246,196,69,0.1),rgba(10,18,40,0.95))] shadow-[0_4px_20px_rgba(246,196,69,0.12)]'
+                    ? 'draft-live-activity-latest animate-[slide-in-pick_180ms_ease-out] border-amber-400/30 bg-[linear-gradient(135deg,rgba(246,196,69,0.1),rgba(10,18,40,0.95))] shadow-[0_4px_20px_rgba(246,196,69,0.12)]'
                     : rs
                       ? 'border-white/12 bg-[linear-gradient(135deg,rgba(15,23,42,0.9),rgba(8,16,32,0.95))] shadow-[0_4px_16px_rgba(0,0,0,0.25)]'
                       : 'border-white/10 bg-[#0a1228]'

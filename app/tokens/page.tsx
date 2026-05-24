@@ -79,6 +79,7 @@ export default function TokensPage() {
   const [tokenPacks, setTokenPacks] = useState<TokenPack[]>([])
   const [rules, setRules] = useState<SpendRule[]>([])
   const [history, setHistory] = useState<LedgerEntry[]>([])
+  const [isAdminBypassAccount, setIsAdminBypassAccount] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pendingSku, setPendingSku] = useState<string | null>(null)
@@ -124,6 +125,7 @@ export default function TokensPage() {
       const packs = Array.isArray(catalogJson?.catalog?.tokenPacks) ? catalogJson.catalog.tokenPacks : []
       const nextRules = Array.isArray(rulesJson?.rules) ? rulesJson.rules : []
       const nextHistory = Array.isArray(historyJson?.entries) ? historyJson.entries : []
+      setIsAdminBypassAccount(Boolean(historyJson.isAdminBypassAccount))
 
       setTokenPacks(
         packs.map((pack: any) => ({
@@ -539,6 +541,14 @@ export default function TokensPage() {
                               Subscriber price (was {rule.baseTokenCost}, {rule.discountPct}% off)
                             </p>
                           ) : null}
+                          {rule.monthlyIncludedPremiumCredits != null && rule.monthlyIncludedPremiumCredits > 0 ? (
+                            <p
+                              className="mt-1 text-[10px] text-amber-200/70"
+                              title="Monthly credit auto-grant is planned but not yet active. This is a display hint only."
+                            >
+                              ~{rule.monthlyIncludedPremiumCredits} monthly credit{rule.monthlyIncludedPremiumCredits === 1 ? '' : 's'} with eligible plan*
+                            </p>
+                          ) : null}
                         </div>
                       ))
                     ) : (
@@ -548,6 +558,12 @@ export default function TokensPage() {
                 </article>
               ))}
             </div>
+            {rules.some((r) => r.monthlyIncludedPremiumCredits != null && r.monthlyIncludedPremiumCredits > 0) ? (
+              <p className="mt-3 text-[10px] text-white/40">
+                * Monthly credit amounts shown are plan-included credits for eligible subscribers.
+                Auto-grant is not yet active — this is a display estimate only.
+              </p>
+            ) : null}
           </section>
 
           <section className="mt-6 rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4 sm:p-5">
@@ -642,6 +658,16 @@ export default function TokensPage() {
                       </div>
                     </div>
                   ))
+                ) : isAdminBypassAccount ? (
+                  <div
+                    className="rounded-lg border border-amber-400/20 bg-amber-500/[0.08] p-3"
+                    data-testid="tokens-admin-bypass-notice"
+                  >
+                    <p className="text-xs font-semibold text-amber-200/80">Admin bypass active</p>
+                    <p className="mt-0.5 text-[11px] text-white/50">
+                      This account uses a synthetic balance. AI spend is bypassed and not recorded to the ledger — token history will always be empty for admin accounts. Real purchases would appear here.
+                    </p>
+                  </div>
                 ) : (
                   <p className="text-xs text-white/55">No token activity yet.</p>
                 )}

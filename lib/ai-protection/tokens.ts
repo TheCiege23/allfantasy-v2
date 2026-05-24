@@ -49,14 +49,25 @@ export async function checkTokenBalance(
 }
 
 /**
- * Optional: deduct tokens after a successful AI call.
- * No-op until balance is persisted.
+ * @deprecated DO NOT CALL — this is a no-op stub that will be removed.
+ *
+ * Token deductions MUST go through `TokenSpendService.spendTokensForRule()`
+ * which enforces spend rules, writes a real `TokenLedger` row, handles the
+ * dev-admin bypass, and respects idempotency.
+ *
+ * Calling this function does nothing: no DB write, no balance check.
+ * It exists only to prevent compile errors in legacy call-sites; any remaining
+ * call-sites should be migrated to `spendTokensForRule`.
  */
 export async function deductTokens(
   _userId: string | null,
   _cost: number
 ): Promise<{ ok: boolean }> {
-  // Route-level token deductions must use TokenSpendService.spendTokensForRule()
-  // with explicit user confirmation and a centralized spend rule.
+  if (process.env.NODE_ENV === "development") {
+    console.warn(
+      "[deductTokens] Called the no-op token deduction stub. " +
+        "Use TokenSpendService.spendTokensForRule() instead."
+    )
+  }
   return { ok: true }
 }

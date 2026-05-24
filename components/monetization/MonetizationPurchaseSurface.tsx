@@ -26,6 +26,7 @@ import { StripePaymentHint } from "@/components/monetization/StripePaymentHint";
 export type PlanFamily =
   | "af_pro"
   | "af_commissioner"
+  | "af_all_access"
   | "af_war_room"
   | "af_supreme";
 
@@ -105,6 +106,7 @@ function writeCatalogCache(payload: CatalogPayload): void {
 const PLAN_FAMILY_ORDER: PlanFamily[] = [
   "af_pro",
   "af_commissioner",
+  "af_all_access",
   "af_war_room",
   "af_supreme",
 ];
@@ -112,6 +114,7 @@ const PLAN_FAMILY_ORDER: PlanFamily[] = [
 const PLAN_FAMILY_LABELS: Record<PlanFamily, string> = {
   af_pro: "AF Pro",
   af_commissioner: "AF Commissioner",
+  af_all_access: "AF All-Access",
   af_war_room: "AF War Room",
   af_supreme: "AF Supreme",
 };
@@ -131,9 +134,9 @@ export function normalizePlanFamilyInput(input: string | null | undefined): Plan
   const value = input.trim().toLowerCase();
   if (value === "af_pro" || value === "pro") return "af_pro";
   if (value === "af_commissioner" || value === "commissioner") return "af_commissioner";
+  if (value === "af_all_access" || value === "all_access") return "af_all_access";
   if (value === "af_war_room" || value === "war_room") return "af_war_room";
-  if (value === "af_supreme" || value === "supreme" || value === "af_all_access" || value === "all_access")
-    return "af_supreme";
+  if (value === "af_supreme" || value === "supreme") return "af_supreme";
   return null;
 }
 

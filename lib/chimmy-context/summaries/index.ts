@@ -69,6 +69,30 @@ export function summarizeMatchup(slice: MatchupContextSlice | null): string {
     line("Your projection", yp != null ? yp.toFixed(2) : null),
     line("Opponent projection", op != null ? op.toFixed(2) : null),
     line("Projected margin", margin),
+    line(
+      "Projected leader",
+      slice.projectedLeader && slice.projectedLeader !== "unknown"
+        ? slice.projectedLeader
+        : null
+    ),
+    line(
+      "Win probability",
+      slice.projectedWinProbability != null
+        ? slice.projectedWinProbability.toFixed(2)
+        : null
+    ),
+    line(
+      "Urgency signals",
+      slice.urgencySignals && slice.urgencySignals.length > 0
+        ? slice.urgencySignals.join(", ")
+        : null
+    ),
+    line(
+      "Recommendation priority",
+      slice.recommendationPriority && slice.recommendationPriority !== "unknown"
+        ? slice.recommendationPriority
+        : null
+    ),
     line("Playoff context", playoffContext),
   ])
 }
@@ -93,12 +117,44 @@ export function summarizeRoster(slice: RosterContextSlice | null): string {
       .sort()
       .map((k) => `${k}:${m[k]}`)
       .join(" ")
+  const fmtByPosTotals = (m: Record<string, number> | undefined) =>
+    m && Object.keys(m).length > 0
+      ? Object.keys(m)
+          .sort()
+          .map((k) => `${k}:${m[k]}`)
+          .join(" ")
+      : null
   return nonEmpty([
     "Roster analysis:",
     line("Starter count", slice.starters.length),
     line("Bench count", slice.bench.length),
     line("Starter positions", fmt(startersByPos) || null),
     line("Bench positions", fmt(benchByPos) || null),
+    line(
+      "Starter projected total",
+      slice.starterProjectedTotal != null
+        ? slice.starterProjectedTotal.toFixed(2)
+        : null
+    ),
+    line("Projection by position", fmtByPosTotals(slice.byPosition)),
+    line(
+      "Weakness signals",
+      slice.weaknessSignals && slice.weaknessSignals.length > 0
+        ? slice.weaknessSignals.join(", ")
+        : null
+    ),
+    line(
+      "Strength signals",
+      slice.strengthSignals && slice.strengthSignals.length > 0
+        ? slice.strengthSignals.join(", ")
+        : null
+    ),
+    line(
+      "Team identity",
+      slice.teamIdentityHint && slice.teamIdentityHint !== "unknown"
+        ? slice.teamIdentityHint
+        : null
+    ),
   ])
 }
 

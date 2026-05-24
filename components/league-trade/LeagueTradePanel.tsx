@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { invalidateIntelligence } from '@/lib/dashboard/intelligence-events'
 
 type AfTradeRow = {
   id: string
@@ -49,6 +50,10 @@ export function LeagueTradePanel({ leagueId }: { leagueId: string }) {
       })
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Request failed')
       await refresh()
+      // Phase 3B.5: notify intelligence rail only on roster-changing trade actions.
+      if (path === '/accept' || path === '/process') {
+        invalidateIntelligence({ leagueId, reason: 'trade_update' })
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Action failed')
     } finally {

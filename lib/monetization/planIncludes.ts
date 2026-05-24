@@ -1,6 +1,7 @@
 export type PlanFamilyKey =
   | "af_pro"
   | "af_commissioner"
+  | "af_all_access"
   | "af_war_room"
   | "af_supreme"
 
@@ -10,6 +11,8 @@ export const PLAN_FAMILY_SHORT_TAGLINE: Record<PlanFamilyKey, string> = {
     "Player-focused AI: Chimmy, trades, waivers, and matchup edges across every supported sport.",
   af_commissioner:
     "Commissioner toolkit: governance, automations, and league operations — dues & payouts stay on FanCred.",
+  af_all_access:
+    "Pro + Commissioner + War Room bundled — every AllFantasy AI feature and league tool at one price.",
   af_war_room:
     "Draft room plus dynasty & long-term planning for deep, year-round fantasy managers.",
   af_supreme:
@@ -27,6 +30,11 @@ export const PLAN_FAMILY_INCLUDES: Record<PlanFamilyKey, readonly string[]> = {
     "Commissioner dashboards & league controls",
     "Automations, approvals, broadcast-style updates",
     "Pairs with free league creation — money flows via FanCred",
+  ],
+  af_all_access: [
+    "Full Chimmy AI + trade/waiver/matchup tools",
+    "Commissioner dashboards & league automation",
+    "Draft room, dynasty planning & War Room tools",
   ],
   af_war_room: [
     "Draft room intelligence & prep workflows",

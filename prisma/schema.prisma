@@ -5026,6 +5026,10 @@ enum LeagueLifecycleState {
   in_season
   playoffs
   completed
+  /// Season over, awaiting commissioner renewal initiation.
+  offseason
+  /// Renewal window open; managers confirming return slots.
+  renewal_pending
   archived
 }
 
@@ -5216,6 +5220,18 @@ model League {
   /// Commissioner kill-switch â€” pauses scheduled processing hooks without changing lifecycle phase.
   emergencyPaused                       Boolean                                @default(false)
   invites                               LeagueInvite[]
+  commissionerCandidateInvites          CommissionerCandidateInvite[]
+  leagueApplications                    LeagueApplication[]
+  leagueReputation                      LeagueReputation?
+  renewals                              LeagueRenewal[]
+  memberHistories                       LeagueMemberHistory[]
+  championships                         LeagueChampionship[]
+  commissionerSuccessions               CommissionerSuccession[]
+  futureDraftPicks                      FutureDraftPick[]
+  rosterCarryovers                      RosterCarryover[]
+  franchiseSeasons                      FranchiseSeason[]
+  rookieDraftWindows                    RookieDraftWindow[]
+  franchiseHistoryEvents                FranchiseHistoryEvent[]
   managerClaims                         LeagueManagerClaim[]
   aiCommissionerActionLogs              AiCommissionerActionLog[]
   aiCommissionerAlerts                  AiCommissionerAlert[]
@@ -11703,7 +11719,7 @@ model UserSubscription {
   sku                     String?          @db.VarChar(64)
   stripeCustomerId        String?          @db.VarChar(128)
   stripeSubscriptionId    String?          @unique @db.VarChar(128)
-  stripeCheckoutSessionId String?          @db.VarChar(128)
+  stripeCheckoutSessionId String?          @unique @db.VarChar(128)
   currentPeriodStart      DateTime?
   currentPeriodEnd        DateTime?
   gracePeriodEnd          DateTime?
@@ -14002,3 +14018,749 @@ model ResendEmailEvent {
   @@index([createdAt])
   @@map("resend_email_events")
 }
+
+/// Phase 3A.2 Batch 2 — Chimmy context engine telemetry.
+/// Append-only fire-and-forget log of every Chimmy intelligence/context run.
+/// No FK on userId/leagueId so cleanup is fully decoupled from the engine
+/// and writes never cascade-block. PII-safe: stores ids only.
+model ChimmyContextRun {
+  id                     String   @id @default(uuid())
+  userId                 String   @db.VarChar(64)
+  leagueId               String?  @db.VarChar(64)
+  /// Origin of this run: "chat" | "intelligence_api" | "context_api".
+  surface                String   @db.VarChar(32)
+  /// ChimmyIntent classification (chat surface only).
+  intent                 String?  @db.VarChar(48)
+  /// Canary decision reason: "global" | "allowlist" | "rollout" | "off".
+  canaryReason           String?  @db.VarChar(16)
+  /// 0-99 deterministic rollout bucket assigned to this user.
+  rolloutBucket          Int?
+  /// Total engine duration including providers (ms).
+  durationMs             Int
+  /// Composed prompt block character count (chat surface only).
+  approxPromptChars      Int?
+  /// IntelligenceContextSlice.urgencyLevel snapshot.
+  urgencyLevel           String?  @db.VarChar(16)
+  /// IntelligenceContextSlice.recommendationSeverity snapshot.
+  recommendationSeverity String?  @db.VarChar(16)
+  /// strategicRiskScores.composite (0-100).
+  riskComposite          Int?
+  /// topRisks[0].dimension if present.
+  topRisk                String?  @db.VarChar(16)
+  /// Count of providers that returned cached results.
+  cacheHitCount          Int      @default(0)
+  /// Count of providers that returned ok=false.
+  providerFailureCount   Int      @default(0)
+  /// Compact provider telemetry: [{name, ok, cached, durationMs}].
+  providerMeta           Json?
+  /// Compact section telemetry: [{id, rendered, dropped, truncated}].
+  sectionMeta            Json?
+  /// Sanitized short error message when the run partially failed.
+  errorMessage           String?  @db.VarChar(256)
+  createdAt              DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([leagueId, createdAt])
+  @@index([surface, createdAt])
+  @@index([urgencyLevel, createdAt])
+  @@index([createdAt])
+  @@map("chimmy_context_runs")
+}
+
+/// Phase 5 — internal QA feedback + UX interaction events for Chimmy
+/// intelligence cards. Append-only, fire-and-forget. Captured only when the
+/// caller is an internal/allowlisted user. No FK on userId/leagueId.
+model ChimmyIntelligenceFeedback {
+  id          String   @id @default(uuid())
+  userId      String   @db.VarChar(64)
+  leagueId    String?  @db.VarChar(64)
+  eventType   String   @db.VarChar(24)
+  cardId      String?  @db.VarChar(48)
+  severity    String?  @db.VarChar(16)
+  reason      String?  @db.VarChar(24)
+  surface     String   @default("rail") @db.VarChar(32)
+  cohortLabel String?  @db.VarChar(24)
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([leagueId, createdAt])
+  @@index([eventType, cardId, createdAt])
+  @@index([createdAt])
+  @@map("chimmy_intelligence_feedback")
+}
+
+/// Phase 6C — Resume snapshot persistence.
+///
+/// Denormalised, cache-friendly row that powers public profiles, AF
+/// rankings, league applications, matchmaking and commissioner review.
+///
+/// Composition rules:
+///   - One latest snapshot per (userId). Historical snapshots are stored in
+///     `ResumeSnapshotHistory` (immutable, append-only) when the composer
+///     decides a recompute crossed a meaningful threshold.
+///   - `payload` holds the fully composed `FantasyResume` for the OWNER
+///     view. Public consumers MUST go through the visibility serializer.
+///   - All score/percentile fields are denormalized for leaderboard / index
+///     scans so the JSON blob is never required for ranking pages.
+model ResumeSnapshot {
+  id                  String   @id @default(cuid())
+  userId              String   @unique @db.VarChar(64)
+  computedAt          DateTime @default(now())
+  /// Source data freshness (max of underlying inputs). Used to decide
+  /// whether a recompute is required.
+  sourceFreshAt       DateTime?
+  /// Monotonic composer version. Bumped when scoring math changes so old
+  /// rows can be invalidated en masse.
+  composerVersion     Int      @default(1)
+
+  /// Denormalised hot fields for leaderboards + filters.
+  overallRating       Int?
+  topSport            String?  @db.VarChar(16)
+  championships       Int      @default(0)
+  seasons             Int      @default(0)
+  percentile          Decimal? @db.Decimal(6, 4)
+  percentileBand      String?  @db.VarChar(16)
+  archetypeLabel      String?  @db.VarChar(64)
+  archetypeConfidence Decimal? @db.Decimal(6, 4)
+
+  /// Explainability summary persisted for fast debug surfaces.
+  strongestCategory   String?  @db.VarChar(96)
+  weakestCategory     String?  @db.VarChar(96)
+  ratingDeltaReason   String?  @db.VarChar(160)
+
+  /// Credibility roll-up.
+  credibilityScore    Decimal  @default(0.5) @db.Decimal(6, 4)
+  credibilityFlags    String[] @default([])
+  verifiedTrophyCount Int      @default(0)
+
+  /// Full composed FantasyResume (owner-view). JSON for forward-compat.
+  payload             Json
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  history             ResumeSnapshotHistory[]
+  credibilityRecord   ResumeCredibility?
+  verificationFlags   ResumeVerificationFlag[]
+  archetype           ResumeArchetypeRecord?
+  visibilitySettings  ResumeVisibilitySettings? @relation("ResumeSnapshotVisibility")
+
+  /// Leaderboard / lookup indexes.
+  @@index([overallRating])
+  @@index([topSport, overallRating])
+  @@index([percentileBand, overallRating])
+  @@index([archetypeLabel])
+  @@index([computedAt])
+  @@map("resume_snapshots")
+}
+
+/// Append-only history of past resume snapshots. Future-ready; the
+/// composer decides when to emit a row (e.g. on rating-delta threshold or
+/// championship change).
+model ResumeSnapshotHistory {
+  id              String   @id @default(cuid())
+  snapshotId      String
+  userId          String   @db.VarChar(64)
+  computedAt      DateTime @default(now())
+  composerVersion Int      @default(1)
+  overallRating   Int?
+  championships   Int      @default(0)
+  percentile      Decimal? @db.Decimal(6, 4)
+  payload         Json
+  reason          String?  @db.VarChar(48)
+
+  snapshot ResumeSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([userId, computedAt])
+  @@index([snapshotId, computedAt])
+  @@map("resume_snapshot_history")
+}
+
+/// Per-user credibility persistence. Mirrors `CredibilitySignal` but kept
+/// in its own row so verification jobs can update independently of the
+/// main snapshot composer.
+model ResumeCredibility {
+  id              String   @id @default(cuid())
+  snapshotId      String   @unique
+  userId          String   @unique @db.VarChar(64)
+  confidence      Decimal  @default(0.5) @db.Decimal(6, 4)
+  providerWeights Json     @default("{}")
+  flags           String[] @default([])
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  snapshot ResumeSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([confidence])
+  @@map("resume_credibility")
+}
+
+/// Persisted per-trophy verification flag. Allows commissioner review and
+/// dispute workflows to track individual rows without rewriting the whole
+/// resume payload.
+model ResumeVerificationFlag {
+  id          String   @id @default(cuid())
+  snapshotId  String
+  userId      String   @db.VarChar(64)
+  trophyId    String   @db.VarChar(96)
+  flag        String   @db.VarChar(32)
+  status      String   @db.VarChar(24)
+  evidence    Json?
+  createdAt   DateTime @default(now())
+  resolvedAt  DateTime?
+
+  snapshot ResumeSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, trophyId, flag], name: "uniq_resume_flag")
+  @@index([userId, status])
+  @@index([flag, status])
+  @@map("resume_verification_flags")
+}
+
+/// Per-user resume visibility + anonymity preferences. Owner-controlled.
+/// Single row per user.
+model ResumeVisibilitySettings {
+  id                  String   @id @default(cuid())
+  snapshotId          String?  @unique
+  userId              String   @unique @db.VarChar(64)
+  /// JSON-encoded `ResumeVisibilityMap`. Defaults applied in the
+  /// visibility helper; absent keys fall back to `DEFAULT_VISIBILITY`.
+  visibility          Json     @default("{}")
+  anonymityEnabled    Boolean  @default(false)
+  hideUsername        Boolean  @default(false)
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  snapshot ResumeSnapshot? @relation("ResumeSnapshotVisibility", fields: [snapshotId], references: [id], onDelete: SetNull)
+
+  @@map("resume_visibility_settings")
+}
+
+/// Persisted archetype derivation result. Nullable label — AI fill-in
+/// happens out of band.
+model ResumeArchetypeRecord {
+  id          String   @id @default(cuid())
+  snapshotId  String   @unique
+  userId      String   @unique @db.VarChar(64)
+  label       String?  @db.VarChar(64)
+  confidence  Decimal? @db.Decimal(6, 4)
+  source      String?  @db.VarChar(32)
+  computedAt  DateTime @default(now())
+
+  snapshot ResumeSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([label])
+  @@map("resume_archetypes")
+}
+
+// ── Phase 6J: Commissioner Recruiting Pipeline ────────────────────────────────
+
+enum CommissionerInviteStatus {
+  pending
+  accepted
+  declined
+  expired
+  withdrawn
+
+  @@map("commissioner_invite_status")
+}
+
+model CommissionerCandidateInvite {
+  id               String                   @id @default(cuid())
+  leagueId         String                   @db.VarChar(64)
+  commissionerId   String                   @db.VarChar(64)
+  candidateUserId  String                   @db.VarChar(64)
+  status           CommissionerInviteStatus @default(pending)
+  fitScore         Decimal?                 @db.Decimal(5, 4)
+  fitRationale     String?                  @db.VarChar(512)
+  sentAt           DateTime                 @default(now())
+  expiresAt        DateTime?
+  respondedAt      DateTime?
+  updatedAt        DateTime                 @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, candidateUserId])
+  @@index([leagueId, commissionerId])
+  @@index([candidateUserId, status])
+  @@index([sentAt])
+  @@map("commissioner_candidate_invites")
+}
+
+enum LeagueApplicationStatus {
+  pending
+  approved
+  rejected
+  waitlisted
+  withdrawn
+
+  @@map("league_application_status")
+}
+
+model LeagueApplication {
+  id               String                  @id @default(cuid())
+  leagueId         String                  @db.VarChar(64)
+  applicantUserId  String                  @db.VarChar(64)
+  status           LeagueApplicationStatus @default(pending)
+  fitSnapshotJson  Json?
+  message          String?                 @db.VarChar(1024)
+  commissionerNotes String?                @db.VarChar(1024)
+  reviewedBy       String?                 @db.VarChar(64)
+  reviewedAt       DateTime?
+  submittedAt      DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, applicantUserId])
+  @@index([leagueId, status])
+  @@index([applicantUserId, status])
+  @@index([submittedAt])
+  @@map("league_applications")
+}
+
+// ── Phase 6K: League Reputation + Commissioner Prestige ───────────────────────
+
+enum LeaguePrestigeTier {
+  legendary
+  elite
+  established
+  standard
+  new_league
+  flagged
+
+  @@map("league_prestige_tier")
+}
+
+model LeagueReputation {
+  id                      String             @id @default(cuid())
+  leagueId                String             @unique @db.VarChar(64)
+  completionRate          Decimal?           @db.Decimal(5, 4)
+  retentionRate           Decimal?           @db.Decimal(5, 4)
+  stabilityScore          Decimal?           @db.Decimal(5, 4)
+  longevityScore          Decimal?           @db.Decimal(5, 4)
+  competitivenessScore    Decimal?           @db.Decimal(5, 4)
+  overallScore            Decimal?           @db.Decimal(5, 4)
+  tier                    LeaguePrestigeTier @default(standard)
+  verifiedLeague          Boolean            @default(false)
+  totalSeasons            Int                @default(0)
+  abandonedSeasons        Int                @default(0)
+  /// Denormalized commissioner prestige score for fast descriptor loading.
+  commissionerPrestigeScore Decimal?         @db.Decimal(5, 4)
+  lastComputedAt          DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([overallScore])
+  @@index([tier])
+  @@map("league_reputations")
+}
+
+enum CommissionerPrestigeTier {
+  legendary
+  elite
+  trusted
+  standard
+  new_commissioner
+  flagged
+
+  @@map("commissioner_prestige_tier")
+}
+
+model CommissionerPrestige {
+  id                       String                   @id @default(cuid())
+  commissionerId           String                   @unique @db.VarChar(64)
+  reliabilityScore         Decimal?                 @db.Decimal(5, 4)
+  fairnessScore            Decimal?                 @db.Decimal(5, 4)
+  inviteAcceptanceRate     Decimal?                 @db.Decimal(5, 4)
+  retentionScore           Decimal?                 @db.Decimal(5, 4)
+  overallScore             Decimal?                 @db.Decimal(5, 4)
+  tier                     CommissionerPrestigeTier @default(standard)
+  verified                 Boolean                  @default(false)
+  totalLeaguesCommissioned Int                      @default(0)
+  totalSeasonsCommissioned Int                      @default(0)
+  activeLeagueCount        Int                      @default(0)
+  disputeRate              Decimal?                 @db.Decimal(5, 4)
+  inactivityPenalty        Decimal?                 @db.Decimal(5, 4)
+  lastComputedAt           DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+
+  @@index([overallScore])
+  @@index([tier])
+  @@map("commissioner_prestige")
+}
+
+model ReputationTelemetryRecord {
+  id         String   @id @default(cuid())
+  eventKind  String   @db.VarChar(64)
+  leagueId   String?  @db.VarChar(64)
+  actorId    String?  @db.VarChar(64)
+  targetId   String?  @db.VarChar(64)
+  metadata   Json?
+  recordedAt DateTime @default(now())
+
+  @@index([leagueId, recordedAt])
+  @@index([actorId, eventKind])
+  @@index([eventKind, recordedAt])
+  @@map("reputation_telemetry")
+}
+
+// ── Phase 6M: League Lifecycle + Renewal Ecosystem ──────────────────────────
+
+enum LeagueRenewalStatus {
+  pending
+  in_progress
+  completed
+  abandoned
+
+  @@map("league_renewal_status")
+}
+
+enum LeagueRenewalSlotStatus {
+  invited
+  confirmed
+  declined
+  abandoned
+
+  @@map("league_renewal_slot_status")
+}
+
+enum CommissionerSuccessionStatus {
+  pending
+  approved
+  rejected
+  completed
+  expired
+
+  @@map("commissioner_succession_status")
+}
+
+enum LifecycleTelemetryEventKind {
+  renewal_initiated
+  renewal_slot_confirmed
+  renewal_slot_declined
+  renewal_slot_abandoned
+  renewal_completed
+  renewal_abandoned
+  member_returned
+  member_churned
+  commissioner_transferred
+  succession_initiated
+  succession_approved
+  succession_rejected
+  succession_expired
+  league_entered_offseason
+  league_entered_renewal
+  commissioner_inactivity_detected
+  league_archived_from_offseason
+  championship_recorded
+
+  @@map("lifecycle_telemetry_event_kind")
+}
+
+/// One renewal record per season cycle. Created when commissioner initiates renewal from `offseason`
+/// or `completed`. Tracks window, slot confirmations, and final execution.
+model LeagueRenewal {
+  id              String              @id @default(cuid())
+  leagueId        String              @db.VarChar(64)
+  season          Int
+  renewalKind     String              @db.VarChar(32)
+  status          LeagueRenewalStatus @default(pending)
+  initiatedBy     String              @db.VarChar(64)
+  initiatedAt     DateTime            @default(now())
+  windowClosesAt  DateTime
+  executedAt      DateTime?
+  abandonedAt     DateTime?
+  nextSeason      Int?
+
+  league League           @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  slots  LeagueRenewalSlot[]
+
+  @@unique([leagueId, season])
+  @@index([leagueId, status])
+  @@index([windowClosesAt])
+  @@map("league_renewals")
+}
+
+/// Per-manager slot in a renewal window. Tracks whether each manager confirms, declines, or abandons.
+model LeagueRenewalSlot {
+  id         String                  @id @default(cuid())
+  renewalId  String
+  leagueId   String                  @db.VarChar(64)
+  userId     String                  @db.VarChar(64)
+  status     LeagueRenewalSlotStatus @default(invited)
+  invitedAt  DateTime                @default(now())
+  respondedAt DateTime?
+  isReturning Boolean                @default(true)
+
+  renewal LeagueRenewal @relation(fields: [renewalId], references: [id], onDelete: Cascade)
+
+  @@unique([renewalId, userId])
+  @@index([leagueId, userId])
+  @@index([renewalId, status])
+  @@map("league_renewal_slots")
+}
+
+/// Season-to-season membership ledger. One row per (league, user, season). Enables returning-manager
+/// detection, churn cohorts, streak computation, and retention rate accuracy.
+model LeagueMemberHistory {
+  id           String    @id @default(cuid())
+  leagueId     String    @db.VarChar(64)
+  userId       String    @db.VarChar(64)
+  season       Int
+  role         String    @db.VarChar(32)
+  joinedAt     DateTime  @default(now())
+  departedAt   DateTime?
+  departReason String?   @db.VarChar(64)
+  isReturning  Boolean   @default(false)
+  consecutiveSeasons Int @default(1)
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, userId, season])
+  @@index([leagueId, season])
+  @@index([userId, leagueId])
+  @@index([leagueId, isReturning])
+  @@map("league_member_histories")
+}
+
+/// Formal championship record per league per season. Foundation for hall-of-fame and legacy display.
+model LeagueChampionship {
+  id             String   @id @default(cuid())
+  leagueId       String   @db.VarChar(64)
+  season         Int
+  championUserId String   @db.VarChar(64)
+  teamName       String?  @db.VarChar(128)
+  pointsFor      Float?
+  playoffRecord  String?  @db.VarChar(32)
+  recordedAt     DateTime @default(now())
+  recordedBy     String   @db.VarChar(64)
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, season])
+  @@index([leagueId])
+  @@index([championUserId])
+  @@map("league_championships")
+}
+
+/// Commissioner succession request — tracks head-commissioner transfer flow.
+model CommissionerSuccession {
+  id            String                       @id @default(cuid())
+  leagueId      String                       @db.VarChar(64)
+  fromUserId    String                       @db.VarChar(64)
+  toUserId      String                       @db.VarChar(64)
+  status        CommissionerSuccessionStatus @default(pending)
+  reason        String?                      @db.VarChar(256)
+  initiatedAt   DateTime                     @default(now())
+  resolvedAt    DateTime?
+  expiresAt     DateTime
+  inactivityFlag Boolean                     @default(false)
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, status])
+  @@index([fromUserId])
+  @@index([toUserId, status])
+  @@index([expiresAt])
+  @@map("commissioner_successions")
+}
+
+/// Lifecycle event log — fire-and-forget telemetry for retention, renewal rate, churn analytics.
+model LifecycleTelemetryRecord {
+  id         String                      @id @default(cuid())
+  eventKind  LifecycleTelemetryEventKind
+  leagueId   String?                     @db.VarChar(64)
+  actorId    String?                     @db.VarChar(64)
+  targetId   String?                     @db.VarChar(64)
+  season     Int?
+  metadata   Json?
+  recordedAt DateTime                    @default(now())
+
+  @@index([leagueId, recordedAt])
+  @@index([eventKind, recordedAt])
+  @@index([actorId, eventKind])
+  @@map("lifecycle_telemetry")
+}
+
+// ── Phase 6N: Dynasty + Multi-Season Continuity Engine ──────────────────────
+
+enum FutureDraftPickStatus {
+  active
+  traded
+  forfeited
+  used
+
+  @@map("future_draft_pick_status")
+}
+
+enum RookieDraftWindowStatus {
+  pending
+  open
+  ready
+  completed
+  cancelled
+
+  @@map("rookie_draft_window_status")
+}
+
+enum FranchiseEventType {
+  championship_won
+  runner_up
+  trade_made
+  free_agent_signed
+  waiver_claim
+  keeper_declared
+  season_record
+  commissioner_change
+  roster_reset
+  dynasty_reset
+  devy_promotion
+  taxi_promotion
+  milestone
+  draft_completed
+
+  @@map("franchise_event_type")
+}
+
+/// Persistent cross-season future draft pick record. One row per (leagueId, season, round, originalRosterId).
+/// currentOwnerId tracks ownership after trades; originalOwnerId is immutable for audit.
+model FutureDraftPick {
+  id               String                @id @default(cuid())
+  leagueId         String                @db.VarChar(64)
+  /// The draft year this pick belongs to (e.g. 2027 for a 2027 2nd-round pick).
+  pickSeason       Int
+  round            Int
+  /// The roster this pick was originally assigned to (immutable — identity of the "home" team's pick).
+  originalRosterId String                @db.VarChar(64)
+  /// The roster currently holding this pick (changes on trade).
+  currentOwnerId   String                @db.VarChar(64)
+  status           FutureDraftPickStatus @default(active)
+  traded           Boolean               @default(false)
+  /// FK to the AfLeagueTrade that last transferred this pick (nullable if never traded).
+  sourceTradeId    String?               @db.VarChar(64)
+  tradedAt         DateTime?
+  usedInDraftSessionId String?           @db.VarChar(64)
+  usedAt           DateTime?
+  forfeitedAt      DateTime?
+  forfeitReason    String?               @db.VarChar(128)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, pickSeason, round, originalRosterId])
+  @@index([leagueId, pickSeason])
+  @@index([currentOwnerId, pickSeason])
+  @@index([leagueId, status])
+  @@map("future_draft_picks")
+}
+
+/// Immutable audit record of what each roster carried over between seasons.
+/// Created once per (leagueId, rosterId, fromSeason → toSeason). Never updated.
+model RosterCarryover {
+  id              String   @id @default(cuid())
+  leagueId        String   @db.VarChar(64)
+  rosterId        String   @db.VarChar(64)
+  userId          String?  @db.VarChar(64)
+  fromSeason      Int
+  toSeason        Int
+  carryoverKind   String   @db.VarChar(32)
+  /// Snapshot of playerData at time of carryover (immutable audit).
+  playerDataSnapshot Json?
+  /// Number of keepers carried.
+  keeperCount     Int      @default(0)
+  /// Number of taxi slots carried.
+  taxiCount       Int      @default(0)
+  /// Number of devy rights carried.
+  devyRightsCount Int      @default(0)
+  appliedAt       DateTime @default(now())
+  appliedBy       String   @db.VarChar(64)
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, rosterId, fromSeason, toSeason])
+  @@index([leagueId, toSeason])
+  @@index([rosterId, toSeason])
+  @@map("roster_carryovers")
+}
+
+/// Per-franchise per-season outcome record. One row per (leagueId, rosterId, season).
+/// Canonical season-end snapshot: wins, losses, playoffs, championship.
+model FranchiseSeason {
+  id              String   @id @default(cuid())
+  leagueId        String   @db.VarChar(64)
+  rosterId        String   @db.VarChar(64)
+  userId          String?  @db.VarChar(64)
+  season          Int
+  wins            Int      @default(0)
+  losses          Int      @default(0)
+  ties            Int      @default(0)
+  pointsFor       Float?
+  pointsAgainst   Float?
+  madePlayoffs    Boolean  @default(false)
+  wonChampionship Boolean  @default(false)
+  runnerUp        Boolean  @default(false)
+  finalRank       Int?
+  keeperCount     Int      @default(0)
+  faabSpent       Int      @default(0)
+  tradeCount      Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, rosterId, season])
+  @@index([leagueId, season])
+  @@index([rosterId])
+  @@index([leagueId, wonChampionship])
+  @@map("franchise_seasons")
+}
+
+/// Tracks the state of the rookie draft window for a season.
+/// One record per (leagueId, season). Controls when the rookie draft can open.
+model RookieDraftWindow {
+  id                 String                  @id @default(cuid())
+  leagueId           String                  @db.VarChar(64)
+  season             Int
+  status             RookieDraftWindowStatus @default(pending)
+  draftOrderMethod   String                  @db.VarChar(32)
+  /// Snapshot of the computed draft order when the window opens.
+  pickOrderSnapshot  Json?
+  scheduledDraftDate DateTime?
+  openedAt           DateTime?
+  closedAt           DateTime?
+  initiatedBy        String?                 @db.VarChar(64)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, season])
+  @@index([leagueId, status])
+  @@map("rookie_draft_windows")
+}
+
+/// Franchise timeline events. One row per notable event per franchise per season.
+/// Foundation for franchise history cards, hall-of-fame, and rivalry detection.
+model FranchiseHistoryEvent {
+  id          String             @id @default(cuid())
+  leagueId    String             @db.VarChar(64)
+  rosterId    String             @db.VarChar(64)
+  userId      String?            @db.VarChar(64)
+  season      Int
+  eventType   FranchiseEventType
+  title       String             @db.VarChar(128)
+  description String?            @db.VarChar(512)
+  metadata    Json?
+  occurredAt  DateTime           @default(now())
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, rosterId])
+  @@index([leagueId, season])
+  @@index([rosterId, eventType])
+  @@index([leagueId, eventType])
+  @@map("franchise_history_events")
+}
+
+

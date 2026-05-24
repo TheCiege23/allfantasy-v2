@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { Loader2, Lock, Play, Unlock } from "lucide-react"
 import { toast } from "sonner"
+import { invalidateIntelligence } from "@/lib/dashboard/intelligence-events"
 
 type Props = {
   leagueId: string
@@ -56,6 +57,8 @@ export default function CommissionerWaiverControls({ leagueId, onAfterAction }: 
           return
         }
         toast.success(`Processed ${json.processed ?? 0} claim result(s).`)
+        // Phase 3B.5: notify intelligence rail after waivers process (roster-changing).
+        invalidateIntelligence({ leagueId, reason: "waiver_claim" })
       } else {
         const res = await fetch(`/api/commissioner/leagues/${leagueId}/waivers`, {
           method: "POST",

@@ -33,6 +33,11 @@ export type LeagueLifecycleAction =
   | 'import_sync'
   | 'league_archive'
   | 'league_lock_toggle'
+  | 'renewal_initiate'
+  | 'renewal_confirm'
+  | 'renewal_execute'
+  | 'succession_initiate'
+  | 'legacy_view'
 
 const TRANSITIONS: Record<LeagueLifecycleState, LeagueLifecycleState[]> = {
   setup: ['pre_draft', 'archived'],
@@ -41,7 +46,9 @@ const TRANSITIONS: Record<LeagueLifecycleState, LeagueLifecycleState[]> = {
   post_draft: ['in_season', 'drafting', 'archived'],
   in_season: ['playoffs', 'completed', 'drafting', 'archived'],
   playoffs: ['completed', 'in_season', 'archived'],
-  completed: ['archived', 'in_season'],
+  completed: ['offseason', 'archived', 'in_season'],
+  offseason: ['renewal_pending', 'setup', 'archived'],
+  renewal_pending: ['setup', 'archived'],
   archived: [],
 }
 
@@ -143,14 +150,43 @@ const ACTIONS: Record<LeagueLifecycleState, Set<LeagueLifecycleAction>> = {
     'settings_edit_commissioner',
     'league_archive',
     'league_lock_toggle',
+    'legacy_view',
+    'renewal_initiate',
   ]),
-  archived: new Set(['standings_view']),
+  offseason: new Set([
+    'standings_view',
+    'settings_edit_commissioner',
+    'league_archive',
+    'league_lock_toggle',
+    'legacy_view',
+    'renewal_initiate',
+    'succession_initiate',
+  ]),
+  renewal_pending: new Set([
+    'standings_view',
+    'settings_edit_commissioner',
+    'league_archive',
+    'league_lock_toggle',
+    'legacy_view',
+    'renewal_confirm',
+    'renewal_execute',
+    'succession_initiate',
+  ]),
+  archived: new Set(['standings_view', 'legacy_view']),
 }
 
 export function normalizeLifecycleState(raw: string | null | undefined): LeagueLifecycleState {
   const s = String(raw || 'in_season') as LeagueLifecycleState
   if (s in TRANSITIONS) return s
   return 'in_season'
+}
+
+export function isOffseasonState(state: LeagueLifecycleState): boolean {
+  return state === 'offseason' || state === 'renewal_pending' || state === 'completed'
+}
+
+export function isRenewalEligible(state: LeagueLifecycleState): boolean {
+  return state === 'completed' || state === 'offseason'
 }
 
 export function getLeagueLifecycleState(league: Pick<League, 'lifecycleState'>): LeagueLifecycleState {

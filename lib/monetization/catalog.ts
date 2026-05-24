@@ -5,6 +5,8 @@ export type MonetizationSubscriptionSku =
   | "af_commissioner_yearly"
   | "af_war_room_monthly"
   | "af_war_room_yearly"
+  | "af_all_access_monthly"
+  | "af_all_access_yearly"
   | "af_supreme_monthly"
   | "af_supreme_yearly"
 
@@ -19,6 +21,7 @@ export type SubscriptionPlanFamily =
   | "af_pro"
   | "af_commissioner"
   | "af_war_room"
+  | "af_all_access"
   | "af_supreme"
 
 export type MonetizationCatalogItem = {
@@ -106,6 +109,30 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     tokenAmount: null,
     planFamily: "af_war_room",
     stripePriceEnvVar: "STRIPE_PRICE_AF_WAR_ROOM_YEARLY",
+  },
+  {
+    sku: "af_all_access_monthly",
+    type: "subscription",
+    title: "AF All-Access Monthly",
+    description: "Pro + Commissioner + War Room features bundled — every AllFantasy AI and league tool.",
+    amountUsd: 19.99,
+    currency: "usd",
+    interval: "month",
+    tokenAmount: null,
+    planFamily: "af_all_access",
+    stripePriceEnvVar: "STRIPE_PRICE_AF_ALL_ACCESS_MONTHLY",
+  },
+  {
+    sku: "af_all_access_yearly",
+    type: "subscription",
+    title: "AF All-Access Yearly",
+    description: "Pro + Commissioner + War Room features bundled — every AllFantasy AI and league tool.",
+    amountUsd: 199.99,
+    currency: "usd",
+    interval: "year",
+    tokenAmount: null,
+    planFamily: "af_all_access",
+    stripePriceEnvVar: "STRIPE_PRICE_AF_ALL_ACCESS_YEARLY",
   },
   {
     sku: "af_supreme_monthly",

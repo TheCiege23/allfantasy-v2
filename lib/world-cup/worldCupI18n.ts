@@ -518,6 +518,7 @@ const EN: WorldCupDictionary = {
   "wc.explain.tierLocked": "Locked",
   "wc.explain.locked":
     "AF Pro unlocks a private AI explanation of your bracket strategy — including style, safest picks, riskiest picks, champion path, and one specific recommendation.",
+  "wc.explain.upgradeCta": "Upgrade to AF Pro →",
   "wc.explain.generate": "Generate explanation",
   "wc.explain.generating": "Generating...",
   "wc.explain.selectFirst": "Select a bracket first",
@@ -1341,6 +1342,7 @@ const ES: WorldCupDictionary = {
   "wc.explain.tierLocked": "Bloqueado",
   "wc.explain.locked":
     "AF Pro abre una explicación privada de IA sobre tu estrategia — estilo, picks más seguros, picks de mayor riesgo, camino del campeón, y una recomendación específica.",
+  "wc.explain.upgradeCta": "Actualizar a AF Pro →",
   "wc.explain.generate": "Generar explicación",
   "wc.explain.generating": "Generando...",
   "wc.explain.selectFirst": "Elige primero un bracket",
@@ -2164,6 +2166,7 @@ const ZH: WorldCupDictionary = {
   "wc.explain.tierLocked": "已鎖定",
   "wc.explain.locked":
     "AF Pro 可解鎖 AI 私人解析:風格、最安全的選擇、風險最高的選擇、冠軍路徑與一個具體建議。",
+  "wc.explain.upgradeCta": "升級至 AF Pro →",
   "wc.explain.generate": "產生解析",
   "wc.explain.generating": "產生中...",
   "wc.explain.selectFirst": "請先選擇對戰表",
@@ -2997,6 +3000,7 @@ const FIL: WorldCupDictionary = {
   "wc.explain.tierLocked": "Nakasara",
   "wc.explain.locked":
     "Bubuksan ng AF Pro ang private AI explanation ng iyong bracket strategy — kasama ang istilo, pinakaligtas, pinaka-risky, champion path, at isang specific na recommendation.",
+  "wc.explain.upgradeCta": "I-upgrade sa AF Pro →",
   "wc.explain.generate": "Gumawa ng explanation",
   "wc.explain.generating": "Ginagawa...",
   "wc.explain.selectFirst": "Pumili muna ng bracket",
@@ -3859,6 +3863,7 @@ const VI: WorldCupDictionary = {
   "wc.explain.tierLocked": "Đã khoá",
   "wc.explain.locked":
     "AF Pro mở khoá phần giải thích AI riêng tư về chiến thuật bracket — phong cách, lựa chọn an toàn nhất, rủi ro cao nhất, đường đến nhà vô địch và một gợi ý cụ thể.",
+  "wc.explain.upgradeCta": "Nâng cấp lên AF Pro →",
   "wc.explain.generate": "Tạo giải thích",
   "wc.explain.generating": "Đang tạo...",
   "wc.explain.selectFirst": "Hãy chọn bracket trước",

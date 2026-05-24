@@ -1,6 +1,7 @@
-import React from 'react'
+'use client'
+
+import { BarChart3, Crown, Shield, TrendingUp, Zap } from 'lucide-react'
 import {
-  CHIMMY_ASSISTANT_MODE_LABELS,
   CHIMMY_ASSISTANT_MODE_VALUES,
   type ChimmyAssistantMode,
 } from '@/lib/chimmy-chat/assistant-mode'
@@ -11,33 +12,75 @@ type ChimmyAssistantModeSelectorProps = {
   onChange: (nextMode: ChimmyAssistantMode) => void
 }
 
-export default function ChimmyAssistantModeSelector(props: ChimmyAssistantModeSelectorProps) {
-  if (!props.enabled) return null
+const MODE_CONFIG: Record<
+  ChimmyAssistantMode,
+  { icon: React.ComponentType<{ className?: string }>; label: string; description: string }
+> = {
+  fast_take: {
+    icon: Zap,
+    label: 'Fast Take',
+    description: 'Quick verdict',
+  },
+  deep_analysis: {
+    icon: BarChart3,
+    label: 'Deep Analysis',
+    description: 'Full breakdown',
+  },
+  commissioner_view: {
+    icon: Shield,
+    label: 'Commissioner',
+    description: 'League ops lens',
+  },
+  dynasty_lens: {
+    icon: Crown,
+    label: 'Dynasty',
+    description: 'Long-term view',
+  },
+  dfs_upside: {
+    icon: TrendingUp,
+    label: 'DFS/Upside',
+    description: 'Ceiling plays',
+  },
+}
 
-  return React.createElement(
-    'label',
-    {
-      className: 'flex flex-col gap-1 min-w-[180px] flex-1 sm:flex-none',
-      'data-testid': 'chimmy-assistant-mode-wrap',
-    },
-    React.createElement(
-      'span',
-      { className: 'text-[10px] uppercase tracking-wide text-white/45' },
-      'Assistant mode',
-    ),
-    React.createElement(
-      'select',
-      {
-        'data-testid': 'chimmy-assistant-mode-select',
-        className:
-          'rounded-lg border border-white/15 bg-[#040915] px-2 py-1.5 text-xs text-white/90 focus:outline-none focus:ring-1 focus:ring-cyan-500/40',
-        value: props.value,
-        onChange: (e: React.ChangeEvent<HTMLSelectElement>) =>
-          props.onChange(e.target.value as ChimmyAssistantMode),
-      },
-      ...CHIMMY_ASSISTANT_MODE_VALUES.map((mode) =>
-        React.createElement('option', { key: mode, value: mode }, CHIMMY_ASSISTANT_MODE_LABELS[mode]),
-      ),
-    ),
+export default function ChimmyAssistantModeSelector({
+  enabled,
+  value,
+  onChange,
+}: ChimmyAssistantModeSelectorProps) {
+  if (!enabled) return null
+
+  return (
+    <div
+      className="flex flex-col gap-1.5"
+      data-testid="chimmy-assistant-mode-wrap"
+    >
+      <span className="text-[10px] uppercase tracking-wide text-white/45">Assistant mode</span>
+      <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-5">
+        {CHIMMY_ASSISTANT_MODE_VALUES.map((mode) => {
+          const cfg = MODE_CONFIG[mode]
+          const Icon = cfg.icon
+          const isActive = mode === value
+          return (
+            <button
+              key={mode}
+              type="button"
+              data-testid={`chimmy-mode-pill-${mode}`}
+              onClick={() => onChange(mode)}
+              className={[
+                'flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-center transition-all duration-150',
+                isActive
+                  ? 'border-cyan-500 bg-cyan-500/10 text-cyan-100'
+                  : 'border-white/10 bg-white/[0.04] text-white/55 hover:bg-white/[0.07] hover:text-white/75',
+              ].join(' ')}
+            >
+              <Icon className="h-3.5 w-3.5 shrink-0" />
+              <span className="text-[10px] font-semibold leading-tight">{cfg.label}</span>
+              <span className="text-[9px] leading-tight opacity-70">{cfg.description}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }

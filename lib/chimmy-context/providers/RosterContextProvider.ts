@@ -20,6 +20,11 @@
 import { prisma } from "@/lib/prisma"
 import { getNormalizedLineupSections } from "@/lib/roster/LineupTemplateValidation"
 import { resolveLeagueIdentity } from "@/lib/chimmy-context/providers/_helpers/leagueIdentity"
+import { extractProjectionFromStatLine } from "@/lib/chimmy-context/intel/projection"
+import {
+  computeRosterIntel,
+  type RosterIntelPlayer,
+} from "@/lib/chimmy-context/intel/rosterWeakness"
 import type {
   ChimmyContextProvider,
   ChimmyContextRequest,
@@ -27,7 +32,6 @@ import type {
   RosterContextSlice,
   RosterPlayerLite,
 } from "@/lib/chimmy-context/types"
-
 const MAX_PLAYERS = 30
 
 function pickString(obj: Record<string, unknown>, keys: string[]): string | null {
@@ -63,6 +67,41 @@ function mapSection(items: Array<Record<string, unknown>>): RosterPlayerLite[] {
     if (lite) out.push(lite)
   }
   return out
+}
+
+type WeeklyScoreLite = {
+  playerId: string
+  points: number | null
+  statLine: unknown
+}
+
+async function loadStarterProjectionMap(args: {
+  leagueId: string
+  season: number
+  week: number
+  rosterId: string
+}): Promise<Map<string, number>> {
+  const rows = (await prisma.weeklyScore
+    .findMany({
+      where: {
+        leagueId: args.leagueId,
+        season: args.season,
+        week: args.week,
+        rosterId: args.rosterId,
+        isStarter: true,
+      },
+      select: { playerId: true, points: true, statLine: true },
+    })
+    .catch(() => [])) as WeeklyScoreLite[]
+  const map = new Map<string, number>()
+  for (const row of rows) {
+    if (!row?.playerId) continue
+    const actual =
+      typeof row.points === "number" && Number.isFinite(row.points) ? row.points : 0
+    const fromLine = extractProjectionFromStatLine(row.statLine)
+    map.set(row.playerId, fromLine != null ? Math.max(actual, fromLine) : actual)
+  }
+  return map
 }
 
 export class RosterContextProvider
@@ -109,7 +148,7 @@ export class RosterContextProvider
               platformUserId: identity.platformUserId,
             },
           },
-          select: { playerData: true },
+          select: { id: true, playerData: true },
         })
         .catch(() => null)
 
@@ -139,6 +178,38 @@ export class RosterContextProvider
       ]
       const bench = mapSection(benchSource)
 
+      // Optional projection enrichment: only when season+week are known.
+      let projectionMap: Map<string, number> | null = null
+      if (
+        typeof request.season === "number" &&
+        typeof request.week === "number"
+      ) {
+        projectionMap = await loadStarterProjectionMap({
+          leagueId: identity.leagueId,
+          season: request.season,
+          week: request.week,
+          rosterId: roster.id,
+        })
+      }
+
+      const intelPlayers: RosterIntelPlayer[] = [
+        ...starters.map((p) => ({
+          playerId: p.playerId,
+          position: p.position,
+          isStarter: true,
+          projection: projectionMap?.get(p.playerId) ?? null,
+        })),
+        ...bench.map((p) => ({
+          playerId: p.playerId,
+          position: p.position,
+          isStarter: false,
+        })),
+      ]
+      const intel = computeRosterIntel({
+        players: intelPlayers,
+        currentWeek: request.week ?? null,
+      })
+
       return {
         ok: true,
         data: {
@@ -146,6 +217,16 @@ export class RosterContextProvider
           teamId: identity.teamId,
           starters,
           bench,
+          starterProjectedTotal:
+            projectionMap && projectionMap.size > 0
+              ? intel.starterProjectedTotal
+              : null,
+          byPosition: intel.byPosition,
+          depthByPosition: intel.depthByPosition,
+          weaknessSignals: intel.weaknessSignals,
+          strengthSignals: intel.strengthSignals,
+          teamIdentityHint: intel.teamIdentityHint,
+          teamIdentityScores: intel.teamIdentityScores,
         },
         fetchedAt,
         durationMs: Date.now() - startedAt,

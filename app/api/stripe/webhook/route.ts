@@ -75,6 +75,20 @@ function toErrorMessage(error: unknown): string {
   return String(error ?? "Unknown webhook error").slice(0, 2000)
 }
 
+/**
+ * Thrown when a webhook event cannot be fulfilled due to a permanent data
+ * problem (e.g. missing client_reference_id, unrecognised SKU).  Unlike a
+ * transient DB error, retrying this event will never succeed, so the handler
+ * marks it "error" in the DB for admin visibility but returns HTTP 200 to
+ * Stripe to prevent an endless 3-day retry storm.
+ */
+class NonRetryableWebhookError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "NonRetryableWebhookError"
+  }
+}
+
 function addBillingInterval(base: Date, interval: "month" | "year"): Date {
   const next = new Date(base)
   if (interval === "year") {
@@ -175,8 +189,10 @@ async function persistSubscriptionEntitlementFromCheckout(
     return
   }
 
-  await subscriptions.create({
-    data: baseData,
+  await subscriptions.upsert({
+    where: { stripeCheckoutSessionId: session.id },
+    update: baseData,
+    create: baseData,
   })
 }
 
@@ -184,10 +200,24 @@ async function persistTokenPurchaseFromCheckout(
   session: Stripe.Checkout.Session,
   context: { userId: string; sku: MonetizationSku } | null
 ): Promise<void> {
-  if (!context?.userId || !context?.sku) return
+  // Missing context means client_reference_id was absent or malformed AND no
+  // metadata fallback.  This is a permanent data problem — retrying won't fix
+  // it — so we throw NonRetryableWebhookError to mark the event as "error" in
+  // the DB (admin-visible) without triggering Stripe's retry loop.
+  if (!context?.userId || !context?.sku) {
+    throw new NonRetryableWebhookError(
+      `token_grant_skipped:missing_context session=${session.id} ` +
+        `hasUserId=${!!context?.userId} hasSku=${!!context?.sku}`
+    )
+  }
 
   const item = getMonetizationCatalogItemBySku(context.sku)
-  if (!item || item.type !== "token_pack") return
+  if (!item || item.type !== "token_pack") {
+    throw new NonRetryableWebhookError(
+      `token_grant_skipped:invalid_sku sku=${context.sku} ` +
+        `itemType=${item?.type ?? "not_found"} session=${session.id}`
+    )
+  }
 
   const service = new TokenSpendService()
   await service.grantTokensFromPackagePurchase({
@@ -385,6 +415,21 @@ export async function POST(req: NextRequest) {
           },
         })
         .catch(() => null)
+
+      // Permanent fulfillment failures (bad/missing client_reference_id, unknown
+      // SKU) must NOT cause HTTP 500 — Stripe would retry for 3 days with zero
+      // chance of success.  We have already marked the event "error" in the DB
+      // so the admin health endpoint can surface it.  Return 200 to Stripe.
+      if (processingError instanceof NonRetryableWebhookError) {
+        console.error("[stripe webhook] non-retryable fulfillment error — event marked error in DB, no Stripe retry:", processingError.message)
+        return NextResponse.json({
+          received: true,
+          eventType: event.type,
+          purchaseType,
+          fulfillmentError: processingError.message,
+        })
+      }
+
       throw processingError
     }
 

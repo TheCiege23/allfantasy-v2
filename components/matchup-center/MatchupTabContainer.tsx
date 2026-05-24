@@ -17,6 +17,17 @@ import type { MatchupPlayerSlot } from '@/lib/matchup-center/types'
 import type { LeagueMatchupAiResult, StartSitAiResult } from '@/lib/ai-matchup-engine/types'
 import { ENGAGEMENT } from '@/lib/analytics/eventNames'
 import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
+import { cn } from '@/lib/utils'
+
+function matchupRelativeAge(loadedAt: number | null, nowMs: number): string {
+  if (!loadedAt) return ''
+  const seconds = Math.floor((nowMs - loadedAt) / 1000)
+  if (seconds < 45) return 'Just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h ago`
+}
 
 function maxWeekForSport(sportU: string): number {
   switch (sportU.toUpperCase()) {
@@ -57,6 +68,8 @@ export function MatchupTabContainer({ league }: { league: UserLeague }) {
   const [payload, setPayload] = useState<MatchupCenterPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [loadedAt, setLoadedAt] = useState<number | null>(null)
+  const [nowMs, setNowMs] = useState(Date.now())
   const { runMatchupAnalysis, runStartSit, matchupLoading, startSitLoading } = useLeagueMatchupAi(league.id)
   const [matchupAi, setMatchupAi] = useState<LeagueMatchupAiResult | null>(null)
   const [matchupAiErr, setMatchupAiErr] = useState<string | null>(null)
@@ -86,6 +99,7 @@ export function MatchupTabContainer({ league }: { league: UserLeague }) {
           return json.payload as MatchupCenterPayload
         })
         setPayload(data)
+        setLoadedAt(Date.now())
         if (!opts?.silent) {
           sendProductAnalyticsBeacon(ENGAGEMENT.MATCHUP_CENTER_VIEW, {
             leagueId: league.id,
@@ -122,8 +136,9 @@ export function MatchupTabContainer({ league }: { league: UserLeague }) {
   }, [season, week])
 
   useEffect(() => {
-    setSeason(initialSeason)
-  }, [initialSeason])
+    const t = window.setInterval(() => setNowMs(Date.now()), 30_000)
+    return () => window.clearInterval(t)
+  }, [])
 
   useEffect(() => {
     if (!payload) return
@@ -153,6 +168,17 @@ export function MatchupTabContainer({ league }: { league: UserLeague }) {
     })()
   }
 
+  const handleInsightsStartSit = () => {
+    const firstRow = rows.find((r) => r.left && r.right)
+    if (firstRow?.left && firstRow.right) {
+      handleStartSit(firstRow.left, firstRow.right)
+    } else {
+      setSsOpen(true)
+      setSsResult(null)
+      setSsErr(null)
+    }
+  }
+
   return (
     <div className="space-y-4 pb-6">
       <div className="flex items-center justify-between gap-2">
@@ -175,6 +201,20 @@ export function MatchupTabContainer({ league }: { league: UserLeague }) {
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </button>
+        {loadedAt ? (
+          <span
+            className={cn(
+              'text-[10px]',
+              nowMs - loadedAt < 90_000
+                ? 'text-white/30'
+                : nowMs - loadedAt < 300_000
+                  ? 'text-white/45'
+                  : 'text-amber-300',
+            )}
+          >
+            {matchupRelativeAge(loadedAt, nowMs)}
+          </span>
+        ) : null}
       </div>
 
       {loading && !payload ? (
@@ -231,7 +271,7 @@ export function MatchupTabContainer({ league }: { league: UserLeague }) {
               ))
             )}
           </div>
-          <MatchupInsightsPanel insights={payload.insights} partialData={payload.partialData} />
+          <MatchupInsightsPanel insights={payload.insights} partialData={payload.partialData} leagueId={league.id} onStartSit={handleInsightsStartSit} />
         </>
       ) : null}
 

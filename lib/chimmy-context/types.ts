@@ -135,6 +135,35 @@ export type MatchupContextSlice = {
     | "leagueSettings"
     | "fallback"
     | null
+  // ─── Phase 2C Batch 4 Sub-batch B: projection + intelligence (additive) ──
+  /** Projected margin = yourProjectedPoints − opponentProjectedPoints. */
+  projectedMargin?: number | null
+  /** Categorical leader based on actual (in-progress/final) or projected margin. */
+  projectedLeader?: "you" | "opponent" | "even" | "unknown"
+  /** 0-1 win probability; `null` until the formula is finalized. */
+  projectedWinProbability?: number | null
+  /** Urgency signal tags emitted by `computeUrgency`. */
+  urgencySignals?: string[]
+  /** Urgency level mapped by `computeUrgency` from accumulated score. */
+  urgencyLevel?:
+    | "critical"
+    | "high"
+    | "moderate"
+    | "low"
+    | "none"
+    | "unknown"
+  /** Numeric urgency score (0-100); `null` when no signal source is available. */
+  urgencyScore?: number | null
+  /**
+   * Recommendation priority assigned by `prioritizeRecommendation`. Stays
+   * `"unknown"` until the priority formula is finalized.
+   */
+  recommendationPriority?:
+    | "critical"
+    | "important"
+    | "optional"
+    | "watchlist"
+    | "unknown"
 }
 
 export type RosterPlayerLite = {
@@ -150,6 +179,31 @@ export type RosterContextSlice = {
   teamId: string | null
   starters: RosterPlayerLite[]
   bench: RosterPlayerLite[]
+  // ─── Phase 2C Batch 4 Sub-batch C: roster intelligence (additive) ────────
+  /** Sum of starter projected points; `null` when no projection was loaded. */
+  starterProjectedTotal?: number | null
+  /** Per-position starter projected totals. */
+  byPosition?: Record<string, number>
+  /** Per-position depth counts (starters + bench). */
+  depthByPosition?: Record<string, { starters: number; bench: number }>
+  /** Tags from `computeRosterIntel`: `shallow_depth:RB`, `weak_position:WR`, etc. */
+  weaknessSignals?: string[]
+  /** Tags from `computeRosterIntel`: `deep_position:RB`, `elite_position:QB`, etc. */
+  strengthSignals?: string[]
+  /** Always `"unknown"` until the identity formula is finalized. */
+  teamIdentityHint?:
+    | "contender"
+    | "rebuild"
+    | "boom_bust"
+    | "depth_heavy"
+    | "injury_prone"
+    | "youth_focused"
+    | "unknown"
+  /** Probabilistic identity scores (0-100 each, NOT normalized). */
+  teamIdentityScores?: Record<
+    "contender" | "rebuild" | "boom_bust" | "depth_heavy" | "injury_prone" | "youth_focused" | "unknown",
+    number
+  >
 }
 
 export type StandingsRow = {
@@ -174,6 +228,109 @@ export type RankingContextSlice = {
 
 export type LeagueDifficultyContextSlice = {
   rating: LeagueDifficultyRating | null
+}
+
+// ─── Phase 2C Batch 4 Sub-batch E: derived intelligence (additive) ────────
+/**
+ * Recommendation severity ladder. Derived (for now) from urgency level via
+ * `SEVERITY_TUNABLES`. Will switch to `recommendationPriority` once that
+ * formula is finalized.
+ */
+export type RecommendationSeverity =
+  | "CRITICAL"
+  | "HIGH"
+  | "MODERATE"
+  | "LOW"
+  | "WATCHLIST"
+
+/**
+ * Unified strategic intelligence slice. NOT loaded by a provider — derived
+ * on-the-fly from the rest of the bundle. Safe to omit; consumers must
+ * treat `null` as "no intel surfaced".
+ */
+export type IntelligenceContextSlice = {
+  urgencyLevel:
+    | "critical"
+    | "high"
+    | "moderate"
+    | "low"
+    | "none"
+    | "unknown"
+  urgencyScore: number | null
+  recommendationPriority:
+    | "critical"
+    | "important"
+    | "optional"
+    | "watchlist"
+    | "unknown"
+  recommendationSeverity: RecommendationSeverity
+  /** Identity hint sourced from `RosterContextSlice.teamIdentityHint`. */
+  teamIdentity:
+    | "contender"
+    | "rebuild"
+    | "boom_bust"
+    | "depth_heavy"
+    | "injury_prone"
+    | "youth_focused"
+    | "unknown"
+  /** Short tag list (e.g. `["bye_conflict","injury_exposure"]`). */
+  strategicRisks: string[]
+  /** Short coaching hint slugs (e.g. `["address_wr_depth"]`). */
+  coachingHints: string[]
+  /** One-line playoff status summary; `null` when no playoff data. */
+  playoffOutlook: string | null
+  /** One-line roster summary; `null` when no roster intel. */
+  rosterOutlook: string | null
+  /** One-line competitive context summary; `null` when fully unknown. */
+  competitiveContextSummary: string | null
+  /**
+   * Phase 3A.1 — Adaptive intelligence surface (additive, optional).
+   * Populated when `computeStrategicRisks` and `adaptCoachingHints` are
+   * wired through `buildIntelligenceBundle`. Consumers must treat these
+   * as optional and tolerate `null`/`[]` for fail-safe behavior.
+   *
+   * Slim structural types are used here to avoid a circular module import
+   * with the intel/* synthesizers; the canonical types live in
+   * `intel/strategicRisk.ts` and `intel/coachingAdaptation.ts`.
+   */
+  strategicRiskScores?: {
+    roster: number
+    injury: number
+    volatility: number
+    playoff: number
+    matchup: number
+    structural: number
+    composite: number
+    signals: Record<
+      "roster" | "injury" | "volatility" | "playoff" | "matchup" | "structural",
+      string[]
+    >
+  } | null
+  /** Top 3 risk dimensions, sorted desc by score (zero-score dims dropped). */
+  topRisks?: Array<{
+    dimension:
+      | "roster"
+      | "injury"
+      | "volatility"
+      | "playoff"
+      | "matchup"
+      | "structural"
+    score: number
+  }>
+  /** Coaching hints ordered desc by adaptive relevance score. */
+  adaptiveCoachingHints?: Array<{
+    slug: string
+    theme:
+      | "stance"
+      | "injury"
+      | "schedule"
+      | "roster"
+      | "playoff"
+      | "matchup"
+      | "unknown"
+    score: number
+    rationale: string[]
+  }>
 }
 
 export type ImportedHistorySlice = {

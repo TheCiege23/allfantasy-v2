@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { TeamSummaryBar } from '@/app/devy/components/TeamSummaryBar'
 import { DevyPlayerCard } from '@/app/devy/components/DevyPlayerCard'
 import { DevyPlayerModal, type DevyPlayerModalPayload } from '@/app/devy/components/DevyPlayerModal'
+import { invalidateIntelligence } from '@/lib/dashboard/intelligence-events'
 
 type PlayerState = {
   playerId: string
@@ -200,13 +201,17 @@ export function DevyRosterClient({
 
   async function patchRoster(body: Record<string, unknown>) {
     if (!rosterId) return
-    await fetch('/api/devy/roster', {
+    const res = await fetch('/api/devy/roster', {
       method: 'PATCH',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leagueId, rosterId, ...body }),
     })
     await reload()
+    // Phase 3B.4: notify intelligence rail only on successful mutation.
+    if (res.ok) {
+      invalidateIntelligence({ leagueId, reason: 'roster_change' })
+    }
   }
 
   const formatPts = (playerId: string) => {

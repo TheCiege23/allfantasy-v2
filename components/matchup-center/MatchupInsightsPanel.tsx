@@ -1,8 +1,19 @@
 'use client'
 
+import Link from 'next/link'
 import type { MatchupCenterPayload } from '@/lib/matchup-center/types'
 
-export function MatchupInsightsPanel({ insights, partialData }: { insights: MatchupCenterPayload['insights']; partialData: boolean }) {
+export function MatchupInsightsPanel({
+  insights,
+  partialData,
+  leagueId,
+  onStartSit,
+}: {
+  insights: MatchupCenterPayload['insights']
+  partialData: boolean
+  leagueId: string
+  onStartSit?: () => void
+}) {
   return (
     <div className="space-y-2 rounded-2xl border border-white/[0.1] bg-[#0a1228]/80 p-3">
       <div className="flex items-center justify-between gap-2">
@@ -45,6 +56,29 @@ export function MatchupInsightsPanel({ insights, partialData }: { insights: Matc
           <span className="font-semibold text-cyan-200/90">Injuries & news: </span>
           {insights.injuryNews}
         </p>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2 border-t border-white/[0.06] pt-3">
+        <Link
+          href={`/league/${leagueId}?tab=waivers`}
+          className="rounded-lg border border-cyan-400/25 bg-cyan-500/10 px-3 py-1.5 text-[11px] font-medium text-cyan-200 hover:bg-cyan-500/20"
+        >
+          Check Waiver Wire
+        </Link>
+        <Link
+          href={`/ai-chat?leagueId=${leagueId}`}
+          className="rounded-lg border border-violet-400/25 bg-violet-500/10 px-3 py-1.5 text-[11px] font-medium text-violet-200 hover:bg-violet-500/20"
+        >
+          Ask Chimmy
+        </Link>
+        {onStartSit ? (
+          <button
+            type="button"
+            onClick={onStartSit}
+            className="rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-1.5 text-[11px] font-medium text-amber-200 hover:bg-amber-500/20"
+          >
+            Review Start/Sit
+          </button>
+        ) : null}
       </div>
     </div>
   )

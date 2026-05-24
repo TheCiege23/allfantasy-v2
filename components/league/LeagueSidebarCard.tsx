@@ -167,8 +167,8 @@ export function LeagueSidebarCard({
             'border-l-2 focus-visible:ring-2 focus-visible:ring-cyan-500/40',
             compact ? 'min-h-[52px] py-2' : 'py-2.5',
             isSelected
-              ? 'border-l-cyan-500 bg-cyan-500/[0.08] hover:bg-cyan-500/12'
-              : 'border-l-transparent hover:bg-white/[0.04]',
+              ? 'border-l-cyan-500 bg-gradient-to-r from-cyan-500/12 via-cyan-500/[0.06] to-transparent hover:from-cyan-500/15'
+              : 'border-l-transparent hover:bg-white/[0.06] hover:shadow-[0_1px_10px_rgba(0,0,0,0.3)]',
           ].join(' ')}
         >
           <div className="shrink-0">
@@ -201,6 +201,14 @@ export function LeagueSidebarCard({
                   COMM
                 </span>
               ) : null}
+              {league.isDynasty ? (
+                <span
+                  className="shrink-0 rounded border border-violet-500/30 bg-violet-500/15 px-1 py-0.5 text-[8px] font-bold text-violet-300"
+                  title="Dynasty league"
+                >
+                  DYN
+                </span>
+              ) : null}
               {league.isPaid ? (
                 <span className="shrink-0 rounded border border-emerald-500/25 bg-emerald-500/10 px-1 py-0.5 text-[8px] font-semibold text-emerald-400">
                   Paid
@@ -208,6 +216,26 @@ export function LeagueSidebarCard({
               ) : (
                 <span className="shrink-0 rounded bg-white/[0.05] px-1 py-0.5 text-[8px] font-medium text-white/25">
                   Free
+                </span>
+              )}
+              {league.lifecycleState === 'renewal_pending' && (
+                <span className="shrink-0 rounded border border-amber-500/40 bg-amber-500/15 px-1 py-0.5 text-[8px] font-bold text-amber-300" title="League renewal window is open">
+                  RENEW
+                </span>
+              )}
+              {league.lifecycleState === 'offseason' && (
+                <span className="shrink-0 rounded bg-white/[0.06] px-1 py-0.5 text-[8px] font-medium text-white/30">
+                  OFF
+                </span>
+              )}
+              {league.lifecycleState === 'archived' && (
+                <span className="shrink-0 rounded bg-white/[0.04] px-1 py-0.5 text-[8px] font-medium text-white/20">
+                  ARC
+                </span>
+              )}
+              {league.importedAt && !league.lifecycleState && (
+                <span className="shrink-0 rounded border border-sky-500/25 bg-sky-500/10 px-1 py-0.5 text-[8px] font-medium text-sky-400/70" title="Imported league">
+                  IMP
                 </span>
               )}
             </div>
@@ -219,6 +247,11 @@ export function LeagueSidebarCard({
             <div className="flex min-w-0 items-center gap-1.5">
               <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${status.dotColor}`} />
               <span className={`text-[10px] font-semibold tracking-wide ${status.textColor}`}>{status.label}</span>
+              {league.status === 'in_season' && league.currentWeek != null ? (
+                <span className="shrink-0 rounded-full border border-cyan-500/25 bg-cyan-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-cyan-300">
+                  Wk {league.currentWeek}
+                </span>
+              ) : null}
               <span className="text-[10px] text-white/20">·</span>
               <span className={`truncate text-[10px] font-medium ${getPlatformColor(league.platform)}`}>
                 {platformLabel}

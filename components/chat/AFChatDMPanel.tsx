@@ -10,10 +10,11 @@ const AF_SUB_TABS: Array<{
   label: string
   title: string
   Icon: typeof MessageCircle
+  comingSoon?: boolean
 }> = [
-  { id: 'direct', label: 'Direct', title: 'Direct messages', Icon: MessageCircle },
-  { id: 'chimmy', label: 'Chimmy', title: 'Chimmy — full view in left panel', Icon: Bot },
-  { id: 'af_huddle', label: 'AF Huddle', title: 'AF Huddle', Icon: Users },
+  { id: 'chimmy', label: 'Chimmy', title: 'Chimmy AI', Icon: Bot },
+  { id: 'direct', label: 'Direct', title: 'Direct messages — coming soon', Icon: MessageCircle, comingSoon: true },
+  { id: 'af_huddle', label: 'Huddle', title: 'AF Huddle — coming soon', Icon: Users, comingSoon: true },
 ]
 
 type AFChatDMPanelProps = {
@@ -22,7 +23,7 @@ type AFChatDMPanelProps = {
 }
 
 export default function AFChatDMPanel({ userId, messages }: AFChatDMPanelProps) {
-  const [afTab, setAfTab] = useState<AfSubTab>('direct')
+  const [afTab, setAfTab] = useState<AfSubTab>('chimmy')
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-af-chat-user-id={userId}>
@@ -36,13 +37,23 @@ export default function AFChatDMPanel({ userId, messages }: AFChatDMPanelProps) 
               key={tab.id}
               type="button"
               title={tab.title}
-              onClick={() => setAfTab(tab.id)}
-              className={`flex flex-1 items-center justify-center py-2 transition-colors ${
-                isActive ? 'border-b-2 border-cyan-500 bg-white/[0.04] text-cyan-300' : 'text-white/40 hover:text-white/70'
+              onClick={() => !tab.comingSoon && setAfTab(tab.id)}
+              disabled={tab.comingSoon}
+              className={`relative flex flex-1 items-center justify-center gap-1 py-2 transition-colors ${
+                tab.comingSoon
+                  ? 'cursor-not-allowed text-white/20'
+                  : isActive
+                  ? 'border-b-2 border-cyan-500 bg-white/[0.04] text-cyan-300'
+                  : 'text-white/40 hover:text-white/70'
               }`}
             >
               <Icon className="h-4 w-4 shrink-0" aria-hidden />
               <span className="sr-only">{tab.label}</span>
+              {tab.comingSoon && (
+                <span className="absolute -top-0.5 right-0.5 rounded text-[7px] font-bold uppercase tracking-wider text-white/25">
+                  soon
+                </span>
+              )}
             </button>
           )
         })}

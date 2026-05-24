@@ -44,6 +44,44 @@ describe("intelligence summaries", () => {
     expect(s).toContain("Projected margin")
   })
 
+  it("(Batch 4 Sub-batch B) summarizeMatchup surfaces leader + urgency + priority when present", () => {
+    const s = summarizeMatchup({
+      leagueId: "L",
+      week: 14,
+      yourTeamId: "T1",
+      opponentTeamId: "T2",
+      yourProjectedPoints: 120,
+      opponentProjectedPoints: 110,
+      status: "in_progress",
+      projectedMargin: 10,
+      projectedLeader: "you",
+      projectedWinProbability: null,
+      urgencySignals: ["playoff_week", "in_progress"],
+      recommendationPriority: "important",
+    })
+    expect(s).toContain("Projected leader: you")
+    expect(s).toContain("Urgency signals: playoff_week, in_progress")
+    expect(s).toContain("Recommendation priority: important")
+  })
+
+  it("(Batch 4 Sub-batch B) summarizeMatchup hides leader/priority when unknown", () => {
+    const s = summarizeMatchup({
+      leagueId: "L",
+      week: 5,
+      yourTeamId: "T1",
+      opponentTeamId: "T2",
+      yourProjectedPoints: null,
+      opponentProjectedPoints: null,
+      status: "scheduled",
+      projectedLeader: "unknown",
+      recommendationPriority: "unknown",
+      urgencySignals: [],
+    })
+    expect(s).not.toContain("Projected leader")
+    expect(s).not.toContain("Recommendation priority")
+    expect(s).not.toContain("Urgency signals")
+  })
+
   it("summarizeRoster counts starter / bench positions", () => {
     const s = summarizeRoster({
       leagueId: "L",

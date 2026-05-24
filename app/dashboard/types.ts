@@ -45,6 +45,10 @@ export interface UserLeague {
   isPaid?: boolean
   /** Entry fee in USD when present */
   entryFee?: number | null
+  /** Canonical lifecycle state (LeagueLifecycleState enum: setup, pre_draft, drafting, in_season, playoffs, completed, offseason, renewal_pending, archived) */
+  lifecycleState?: string | null
+  /** ISO datetime when the league was imported into AF */
+  importedAt?: string | null
 }
 
 /** First tab to show in `LeftChatPanel` (from `?openChat=` on `/league/[id]`). */

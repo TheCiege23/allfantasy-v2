@@ -27,6 +27,7 @@ export function getAIThreadStorageKey(
 function sanitizeMessages(messages: ChimmyThreadMessage[]): ChimmyThreadMessage[] {
   return messages
     .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+    .filter((m) => m.meta?.variant !== "error")
     .slice(-MAX_STORED_MESSAGES)
     .map((m) => ({
       role: m.role,

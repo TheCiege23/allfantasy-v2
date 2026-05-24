@@ -23,6 +23,7 @@ import {
   getWaiverWatchlistStorageKey,
   resetWaiverFilters,
 } from "@/lib/waiver-wire/WaiverUIStateService"
+import { invalidateIntelligence } from "@/lib/dashboard/intelligence-events"
 import { getRosterPlayerIds } from "@/lib/waiver-wire/roster-utils"
 import { DEFAULT_SPORT } from "@/lib/sport-scope"
 import { useUserTimezone } from "@/hooks/useUserTimezone"
@@ -342,6 +343,8 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
         setDrawerOpen(false)
         setDrawerPlayer(null)
         load()
+        // Phase 3B.5: notify intelligence rail of waiver claim (fire-and-forget).
+        invalidateIntelligence({ leagueId, reason: "waiver_claim" })
       } else {
         const json = await res.json().catch(() => ({}))
         toast.error(json?.error ?? "Failed to submit waiver claim")

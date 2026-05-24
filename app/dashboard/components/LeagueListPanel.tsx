@@ -1,9 +1,9 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import { Search } from 'lucide-react'
+import { Search, Trophy } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LeagueSidebarCard } from '@/components/league/LeagueSidebarCard'
+import { EmptyState } from '@/components/ui-states/EmptyState'
 import type { UserLeague } from '../types'
 
 const FAVORITES_KEY = 'af-league-favorites'
@@ -82,7 +82,6 @@ export function LeagueListPanel({
   onLeaguesRefresh,
   onLeagueRemoved,
 }: LeagueListPanelProps) {
-  const router = useRouter()
   const [search, setSearch] = useState('')
   const [refreshing, setRefreshing] = useState<Record<string, boolean>>({})
   const [refreshed, setRefreshed] = useState<Record<string, boolean>>({})
@@ -391,38 +390,17 @@ export function LeagueListPanel({
             })}
           </div>
         ) : leagues.length === 0 ? (
-          <div className="flex h-full min-h-[200px] flex-col items-center justify-center gap-3 px-3 py-6 text-center">
-            <p className="text-2xl">🏆</p>
-            <div>
-              <p className="text-sm font-semibold text-white/75">No leagues yet</p>
-              <p className="mt-1 text-[11px] text-white/40">
-                Create a league or import one to get started
-              </p>
-            </div>
-            <div className="flex w-full flex-col gap-1.5">
-              <button
-                type="button"
-                onClick={() => router.push('/create-league')}
-                className="rounded-xl bg-cyan-500/20 px-3 py-2 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-500/30"
-              >
-                + Create League
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push('/import?returnTo=/dashboard')}
-                className="rounded-xl border border-white/[0.08] px-3 py-2 text-xs font-semibold text-white/50 transition hover:border-white/20 hover:text-white/70"
-              >
-                Import a League
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push('/find-league')}
-                className="text-[11px] text-white/30 transition hover:text-white/50"
-              >
-                Find a league to join
-              </button>
-            </div>
-          </div>
+          <EmptyState
+            icon={Trophy}
+            title="No leagues yet"
+            description="Create a league or import one to get started"
+            className="min-h-[200px]"
+            actions={[
+              { label: '+ Create League', href: '/create-league', variant: 'primary' },
+              { label: 'Import a League', href: '/import?returnTo=/dashboard', variant: 'ghost' },
+              { label: 'Find a league to join', href: '/find-league', variant: 'ghost' },
+            ]}
+          />
         ) : (
           <div className="px-3 py-10 text-center text-sm text-white/45">No leagues match your search.</div>
         )}

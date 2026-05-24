@@ -25,6 +25,9 @@ import {
   composeChimmyPrompt,
   selectProvidersForIntent,
 } from '@/lib/chimmy-context'
+import { shouldInjectChimmyContext } from '@/lib/chimmy-context/flags'
+import { buildIntelligenceBundle } from '@/lib/chimmy-context/intel/intelligenceBundle'
+import { recordChimmyContextRun } from '@/lib/chimmy-context/telemetry/recordRun'
 
 const ContextScopeSchema = z.object({
   sleeper_username: z.string(),
@@ -394,7 +397,12 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
         }
       | null = null
     let composedSystemPrompt = systemPrompt
-    if (process.env.CHIMMY_CONTEXT_ENGINE_INJECT === '1') {
+    const canaryDecision = shouldInjectChimmyContext({
+      userId,
+      userEmail: session.user.email ?? null,
+    })
+    if (canaryDecision.eligible) {
+      const canaryStartedAt = Date.now()
       try {
         const classification = classifyChimmyIntent({
           message,
@@ -414,29 +422,79 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
         if (composed.contextBlock.length > 0) {
           composedSystemPrompt = `${systemPrompt}\n\n${composed.contextBlock}`
         }
+        const providerMeta = bundle.meta.providers.map((p) => ({
+          name: p.name,
+          ok: p.ok,
+          cached: p.cached,
+          durationMs: p.durationMs,
+        }))
+        const sectionMeta = composed.sections.map((s) => ({
+          id: s.id,
+          rendered: s.rendered,
+          dropped: s.dropped,
+          truncated: s.truncated,
+        }))
         chimmyContextMeta = {
           intent: classification.intent,
           approxTokens: composed.approxTokens,
           durationMs: bundle.meta.durationMs,
-          providers: bundle.meta.providers.map((p) => ({
-            name: p.name,
-            ok: p.ok,
-            cached: p.cached,
-            durationMs: p.durationMs,
-          })),
-          sections: composed.sections.map((s) => ({
-            id: s.id,
-            rendered: s.rendered,
-            dropped: s.dropped,
-            truncated: s.truncated,
-          })),
+          providers: providerMeta,
+          sections: sectionMeta,
         }
+
+        // Derive intelligence snapshot for telemetry — never throws.
+        let urgencyLevel: string | null = null
+        let recommendationSeverity: string | null = null
+        let riskComposite: number | null = null
+        let topRisk: string | null = null
+        try {
+          const intel = buildIntelligenceBundle(bundle)
+          urgencyLevel = intel?.urgencyLevel ?? null
+          recommendationSeverity = intel?.recommendationSeverity ?? null
+          riskComposite =
+            typeof intel?.strategicRiskScores?.composite === 'number'
+              ? intel.strategicRiskScores.composite
+              : null
+          topRisk = intel?.topRisks?.[0]?.dimension ?? null
+        } catch {
+          // Intelligence derivation is best-effort; ignore failures.
+        }
+
+        // Fire-and-forget telemetry. Never awaited.
+        void recordChimmyContextRun({
+          userId,
+          surface: 'chat',
+          leagueId: leagueId ?? null,
+          intent: classification.intent,
+          durationMs: Date.now() - canaryStartedAt,
+          approxPromptChars: composed.contextBlock.length,
+          canaryReason: canaryDecision.reason,
+          rolloutBucket: canaryDecision.rolloutBucket,
+          urgencyLevel,
+          recommendationSeverity,
+          riskComposite,
+          topRisk,
+          providers: providerMeta,
+          sections: sectionMeta,
+        })
       } catch (err) {
         // Never fail the chat request because of context injection.
         logAiFailure(err, {
           tool: 'AiChat',
           endpoint: '/api/ai/chat',
           provider: 'chimmy-context-engine',
+        })
+        const errorMessage =
+          err instanceof Error ? err.message : typeof err === 'string' ? err : 'unknown_error'
+        // Fire-and-forget telemetry on the failure path too.
+        void recordChimmyContextRun({
+          userId,
+          surface: 'chat',
+          leagueId: leagueId ?? null,
+          durationMs: Date.now() - canaryStartedAt,
+          canaryReason: canaryDecision.reason,
+          rolloutBucket: canaryDecision.rolloutBucket,
+          errorMessage,
         })
       }
     }

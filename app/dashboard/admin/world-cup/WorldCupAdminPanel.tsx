@@ -1,6 +1,7 @@
 "use client"
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
+import { PaymentTokenHealthPanel } from "@/components/admin/PaymentTokenHealthPanel"
 import {
   Activity,
   ChevronRight,
@@ -321,6 +322,11 @@ export default function WorldCupAdminPanel() {
         {!loading && challenges.length > 0 && (
           <p className="mt-3 text-right text-xs text-white/25">{challenges.length} challenge{challenges.length !== 1 ? "s" : ""}</p>
         )}
+
+        {/* Payment & Token Health — live monitoring for Stripe webhooks and token ledger */}
+        <div className="mt-8 rounded-xl border border-white/10 bg-white/[0.02] p-5">
+          <PaymentTokenHealthPanel />
+        </div>
       </div>
     </div>
   )

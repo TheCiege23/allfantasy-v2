@@ -10,6 +10,19 @@ import {
 } from "@/lib/tokens/pricing-matrix"
 
 type SubscriptionTokenPlanPolicy = {
+  /**
+   * UI DISPLAY HINT ONLY — these credits are NOT automatically deposited.
+   *
+   * This value is surfaced in spend previews and pricing UI to communicate the
+   * intended monthly value of each plan tier.  No code currently grants these
+   * credits on subscription create/renew.  Before enabling automatic monthly
+   * deposits, implement a subscription.created / invoice.payment_succeeded
+   * webhook handler that calls `TokenSpendService.grantTokensFromPackagePurchase`
+   * (or a new `grantMonthlySubscriptionCredits` method) for each subscriber.
+   *
+   * Until that is built, do NOT display this number to paying subscribers as a
+   * guarantee — it will create support issues.
+   */
   monthlyIncludedPremiumCredits: number
   discountedTokenSpendPct: number
   supportsUnlimitedLowTierInFuture: boolean

@@ -360,6 +360,20 @@ export function DraftTopBar({
     timerEndAtIso !== '' &&
     liveRemaining != null &&
     liveRemaining <= 5
+  /** Danger zone: ≤30s → amber pulse warning (above the existing urgent/critical tiers). */
+  const dangerLowTimer =
+    timerStatus === 'running' &&
+    timerEndAtIso != null &&
+    timerEndAtIso !== '' &&
+    liveRemaining != null &&
+    liveRemaining <= 30 &&
+    liveRemaining > 10
+  /** Critical + on clock: ≤15s and it's your pick → shake animation. */
+  const isCriticalOnClock =
+    timerStatus === 'running' &&
+    liveRemaining != null &&
+    liveRemaining <= 15 &&
+    isCurrentUserOnClock
   const statusLabel = translateDraftStatus(draftStatus, t)
   const draftTypeLabel = translateDraftType(draftType, t)
   const draftFormatLabel = resolveDraftFormatLabel(draftType, thirdRoundReversal)
@@ -434,10 +448,12 @@ export function DraftTopBar({
           ? 'animate-pulse border-rose-500/65 bg-gradient-to-br from-rose-600/35 to-rose-500/20 text-rose-50 ring-2 ring-rose-500/55 shadow-[0_0_48px_rgba(239,68,68,0.5)]'
           : urgentLowTimer
             ? 'animate-pulse border-rose-400/55 bg-gradient-to-br from-rose-500/30 to-amber-500/20 text-rose-50'
-            : draftStatus === 'paused'
-              ? 'border-emerald-400/45 bg-gradient-to-br from-emerald-500/25 to-emerald-600/15 text-emerald-50 hover:brightness-110'
-              : 'border-cyan-400/40 bg-gradient-to-br from-cyan-500/22 to-violet-600/15 text-cyan-50'
-      } ${
+            : dangerLowTimer
+              ? 'animate-pulse border-amber-400/45 bg-gradient-to-br from-amber-500/25 to-amber-600/15 text-amber-50'
+              : draftStatus === 'paused'
+                ? 'border-emerald-400/45 bg-gradient-to-br from-emerald-500/25 to-emerald-600/15 text-emerald-50 hover:brightness-110'
+                : 'border-cyan-400/40 bg-gradient-to-br from-cyan-500/22 to-violet-600/15 text-cyan-50'
+      } ${isCriticalOnClock ? 'animate-[shake_0.5s_ease-in-out_infinite]' : ''} ${
         handlePillClick
           ? 'cursor-pointer hover:shadow-[0_14px_40px_rgba(34,211,238,0.25)] active:scale-[0.98] disabled:opacity-55'
           : 'cursor-default'
@@ -450,7 +466,9 @@ export function DraftTopBar({
             ? 'Pick clock under 5 seconds — autopick about to fire.'
             : urgentLowTimer
               ? 'Pick clock under 10 seconds.'
-              : timerStatus === 'expired'
+              : dangerLowTimer
+                ? 'Pick clock under 30 seconds.'
+                : timerStatus === 'expired'
                 ? 'Pick clock expired. Soft timer leagues wait for a manual pick.'
                 : 'On-the-clock pick timer.'
       if (handlePillClick) {

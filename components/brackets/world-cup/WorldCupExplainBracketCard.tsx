@@ -113,7 +113,7 @@ export default function WorldCupExplainBracketCard({
             className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/30 bg-cyan-300/[0.08] px-3 py-2 text-xs font-bold text-cyan-100 transition-colors hover:bg-cyan-300/[0.14] hover:text-white"
           >
             <Sparkles className="h-3 w-3" aria-hidden />
-            Upgrade to AF Pro
+            {t("wc.explain.upgradeCta")}
           </Link>
         </div>
       ) : null}

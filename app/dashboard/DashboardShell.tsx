@@ -661,7 +661,7 @@ export function DashboardShell({
 
       {mobileLeftOpen ? (
         <div
-          className="fixed inset-0 z-50 bg-black/60 md:hidden"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px] md:hidden"
           role="presentation"
           onClick={() => setMobileLeftOpen(false)}
         >
@@ -706,7 +706,7 @@ export function DashboardShell({
 
       {mobileRightOpen ? (
         <div
-          className="fixed inset-0 z-50 bg-black/60 md:hidden"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px] md:hidden"
           role="presentation"
           onClick={() => setMobileRightOpen(false)}
         >

@@ -27,6 +27,14 @@
 import { prisma } from "@/lib/prisma"
 import { resolveLeagueIdentity } from "@/lib/chimmy-context/providers/_helpers/leagueIdentity"
 import { resolveCurrentWeekFromRequest } from "@/lib/chimmy-context/providers/_helpers/currentWeek"
+import {
+  computeMatchupProjection,
+  summarizeRosterProjection,
+  type RosterProjectionPlayer,
+} from "@/lib/chimmy-context/intel/projection"
+import { computeUrgency } from "@/lib/chimmy-context/intel/urgency"
+import { computeOpponentStrength } from "@/lib/chimmy-context/intel/opponentStrength"
+import { prioritizeRecommendation } from "@/lib/chimmy-context/intel/recommendationPriority"
 import type {
   ChimmyContextProvider,
   ChimmyContextRequest,
@@ -40,6 +48,14 @@ type TeamWeekRow = {
   status: string | null
 }
 
+type WeeklyScoreRow = {
+  rosterId: string
+  playerId: string
+  points: number | null
+  isStarter: boolean
+  statLine: unknown
+}
+
 function mapStatus(raw: string | null | undefined): MatchupContextSlice["status"] {
   if (raw === "final" || raw === "in_progress" || raw === "scheduled") return raw
   return "unknown"
@@ -48,6 +64,61 @@ function mapStatus(raw: string | null | undefined): MatchupContextSlice["status"
 function roundPoints(n: number | null | undefined): number | null {
   if (n == null || !Number.isFinite(n)) return null
   return Math.round(Number(n) * 100) / 100
+}
+
+/**
+ * Read per-player weekly scores for the viewer + opponent in a single
+ * indexed query, then derive starter-side projection totals. Never throws.
+ */
+async function loadProjectionTotals(args: {
+  leagueId: string
+  season: number
+  week: number
+  rosterIds: string[]
+}): Promise<Map<string, number>> {
+  const totals = new Map<string, number>()
+  if (args.rosterIds.length === 0) return totals
+  const rows: WeeklyScoreRow[] = await prisma.weeklyScore
+    .findMany({
+      where: {
+        leagueId: args.leagueId,
+        season: args.season,
+        week: args.week,
+        rosterId: { in: args.rosterIds },
+        isStarter: true,
+      },
+      select: {
+        rosterId: true,
+        playerId: true,
+        points: true,
+        isStarter: true,
+        statLine: true,
+      },
+    })
+    .catch(() => [] as WeeklyScoreRow[])
+
+  if (rows.length === 0) return totals
+
+  const byRoster = new Map<string, RosterProjectionPlayer[]>()
+  for (const row of rows) {
+    const list = byRoster.get(row.rosterId) ?? []
+    // Position is not stored on WeeklyScore; the helper falls back to the
+    // neutral default when position is unknown.
+    list.push({
+      playerId: row.playerId,
+      position: null,
+      actualPoints: typeof row.points === "number" ? row.points : null,
+      statLine: row.statLine ?? null,
+      isStarter: row.isStarter !== false,
+    })
+    byRoster.set(row.rosterId, list)
+  }
+
+  for (const [rosterId, players] of byRoster.entries()) {
+    const summary = summarizeRosterProjection({ players })
+    totals.set(rosterId, summary.projectedTotal)
+  }
+  return totals
 }
 
 export class MatchupContextProvider
@@ -220,6 +291,61 @@ export class MatchupContextProvider
         opponentTeamName = oppTeam?.teamName ?? null
       }
 
+      const status = mapStatus(viewerRow?.status ?? opponentRow?.status ?? null)
+      const yourActualPoints = roundPoints(viewerRow?.totalPoints ?? null)
+      const opponentActualPoints = roundPoints(opponentRow?.totalPoints ?? null)
+
+      // Phase 2C Batch 4 Sub-batch B — projection wiring (DB-first, single indexed read).
+      const projectionTotals = await loadProjectionTotals({
+        leagueId: identity.leagueId,
+        season: week.season,
+        week: week.week,
+        rosterIds: [viewerRoster.id, opponentRosterId],
+      })
+      const yourProjectedPoints = projectionTotals.has(viewerRoster.id)
+        ? roundPoints(projectionTotals.get(viewerRoster.id) ?? null)
+        : null
+      const opponentProjectedPoints = projectionTotals.has(opponentRosterId)
+        ? roundPoints(projectionTotals.get(opponentRosterId) ?? null)
+        : null
+
+      const matchupProjection = computeMatchupProjection({
+        yourTeamId: identity.teamId,
+        opponentTeamId,
+        yourActualPoints,
+        opponentActualPoints,
+        yourProjectedTotal: yourProjectedPoints,
+        opponentProjectedTotal: opponentProjectedPoints,
+        status,
+      })
+
+      const urgency = computeUrgency({
+        week: week.week,
+        playoffStartWeek: week.playoffStartWeek,
+        weeksUntilPlayoffs: week.weeksUntilPlayoffs,
+        isPlayoffWeek: week.isPlayoffWeek,
+        matchupStatus: status,
+        isEliminated: null,
+        hasClinchedPlayoffs: null,
+      })
+
+      // Neutral opponent-strength scaffold — surfaces enough for the priority
+      // helper to emit rationale without finalizing any formula.
+      const opponentStrength = computeOpponentStrength({
+        opponentTeamId,
+        opponentAiPowerScore: null,
+        opponentProjectedWins: null,
+        opponentRecentForm: null,
+        leagueMeanAiPowerScore: null,
+      })
+
+      const priority = prioritizeRecommendation({
+        category: "lineup",
+        urgency,
+        opponentStrength,
+        projectionMargin: matchupProjection.projectedMargin,
+      })
+
       return {
         ok: true,
         data: {
@@ -227,17 +353,24 @@ export class MatchupContextProvider
           week: week.week,
           yourTeamId: identity.teamId,
           opponentTeamId,
-          yourProjectedPoints: null,
-          opponentProjectedPoints: null,
-          status: mapStatus(viewerRow?.status ?? opponentRow?.status ?? null),
+          yourProjectedPoints,
+          opponentProjectedPoints,
+          status,
           season: week.season,
-          yourActualPoints: roundPoints(viewerRow?.totalPoints ?? null),
-          opponentActualPoints: roundPoints(opponentRow?.totalPoints ?? null),
+          yourActualPoints,
+          opponentActualPoints,
           opponentTeamName,
           playoffStartWeek: week.playoffStartWeek,
           isPlayoffWeek: week.isPlayoffWeek,
           weeksUntilPlayoffs: week.weeksUntilPlayoffs,
           currentWeekSource: week.source,
+          projectedMargin: matchupProjection.projectedMargin,
+          projectedLeader: matchupProjection.leader,
+          projectedWinProbability: matchupProjection.projectedWinProbability,
+          urgencySignals: urgency.signals,
+          urgencyLevel: urgency.level,
+          urgencyScore: urgency.score,
+          recommendationPriority: priority.priority,
         },
         fetchedAt,
         durationMs: Date.now() - startedAt,

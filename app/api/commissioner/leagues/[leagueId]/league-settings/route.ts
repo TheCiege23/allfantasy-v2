@@ -5,7 +5,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { EntitlementResolver } from '@/lib/subscription/EntitlementResolver';
+import { isActiveOrGraceStatus } from '@/lib/subscription/feature-access';
 import {
   UnifiedLeagueSettingsService,
   LeagueSettingsPermissionsService,
@@ -16,12 +20,13 @@ import type {
   UpdateLeagueSettingsResponse,
 } from '@/lib/league-settings-engine/LeagueSettingsEngineTypes';
 
-// TODO: Implement actual database calls via Prisma
-// This is a skeleton implementation
+export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest, { params }: { params: { leagueId: string } }): Promise<NextResponse> {
   try {
-    const session = await getServerSession();
+    const session = (await getServerSession(authOptions as never)) as {
+      user?: { id?: string; email?: string | null }
+    } | null
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -30,29 +35,35 @@ export async function GET(req: NextRequest, { params }: { params: { leagueId: st
     const leagueId = params.leagueId;
     const userId = session.user.id;
 
-    // TODO: Fetch from DB
-    // const league = await prisma.league.findUnique({
-    //   where: { id: leagueId },
-    //   include: { settings: true, coOwners: true, members: true, subscription: true },
-    // });
+    const [league, coOwnerTeams] = await Promise.all([
+      prisma.league.findUnique({ where: { id: leagueId }, select: { userId: true } }),
+      prisma.leagueTeam.findMany({
+        where: { leagueId, isCoCommissioner: true },
+        select: { claimedByUserId: true },
+      }),
+    ])
 
-    // if (!league) {
-    //   return NextResponse.json({ error: 'League not found' }, { status: 404 });
-    // }
+    if (!league) {
+      return NextResponse.json({ error: 'League not found' }, { status: 404 });
+    }
 
-    // Get user permissions
+    const coOwnerIds = coOwnerTeams
+      .map((t) => t.claimedByUserId)
+      .filter((id): id is string => id !== null)
+
+    const entitlementSnapshot = await new EntitlementResolver().resolveSnapshot(userId, session.user.email)
+    const isPremiumSubscriber = isActiveOrGraceStatus(entitlementSnapshot.status)
+
     const userPermissions = LeagueSettingsPermissionsService.checkUserPermissions(
       userId,
       leagueId,
-      'commissionerId' /* TODO: get from league */,
-      [] /* TODO: get coOwnerIds from league */,
-      false /* TODO: check subscription */,
+      league.userId,
+      coOwnerIds,
+      isPremiumSubscriber,
     );
 
-    // Get settings
     const settings = await UnifiedLeagueSettingsService.getLeagueSettings(leagueId);
 
-    // Build response
     const response: GetLeagueSettingsResponse = {
       leagueId,
       settings,
@@ -61,7 +72,7 @@ export async function GET(req: NextRequest, { params }: { params: { leagueId: st
       userPermissions,
       validationWarnings: [],
       subscriptionStatus: {
-        isPremium: false, // TODO: check actual subscription
+        isPremium: isPremiumSubscriber,
       },
     };
 
@@ -74,7 +85,9 @@ export async function GET(req: NextRequest, { params }: { params: { leagueId: st
 
 export async function PUT(req: NextRequest, { params }: { params: { leagueId: string } }): Promise<NextResponse> {
   try {
-    const session = await getServerSession();
+    const session = (await getServerSession(authOptions as never)) as {
+      user?: { id?: string; email?: string | null }
+    } | null
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -84,16 +97,33 @@ export async function PUT(req: NextRequest, { params }: { params: { leagueId: st
     const userId = session.user.id;
     const body: UpdateLeagueSettingsRequest = await req.json();
 
-    // Get user permissions
+    const [league, coOwnerTeams] = await Promise.all([
+      prisma.league.findUnique({ where: { id: leagueId }, select: { userId: true } }),
+      prisma.leagueTeam.findMany({
+        where: { leagueId, isCoCommissioner: true },
+        select: { claimedByUserId: true },
+      }),
+    ])
+
+    if (!league) {
+      return NextResponse.json({ error: 'League not found' }, { status: 404 });
+    }
+
+    const coOwnerIds = coOwnerTeams
+      .map((t) => t.claimedByUserId)
+      .filter((id): id is string => id !== null)
+
+    const entitlementSnapshot = await new EntitlementResolver().resolveSnapshot(userId, session.user.email)
+    const isPremiumSubscriber = isActiveOrGraceStatus(entitlementSnapshot.status)
+
     const userPermissions = LeagueSettingsPermissionsService.checkUserPermissions(
       userId,
       leagueId,
-      'commissionerId' /* TODO */,
-      [] /* TODO */,
-      false /* TODO */,
+      league.userId,
+      coOwnerIds,
+      isPremiumSubscriber,
     );
 
-    // Update settings
     const result = await UnifiedLeagueSettingsService.updateLeagueSettings(
       leagueId,
       body.page,

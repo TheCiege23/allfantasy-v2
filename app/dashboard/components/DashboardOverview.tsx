@@ -35,6 +35,7 @@ import { tInterpolate as interpolateI18nMessage } from '@/lib/i18n/tInterpolate'
 import { emptyLineupActionSummary } from '@/lib/lineup-actions/emptySummary'
 import { useDashboardToolLeague } from '@/hooks/useDashboardToolLeague'
 import { consumeDashboardRankRefreshPending } from '@/lib/import/dashboardRankRefresh'
+import { DashboardIntelligenceRail } from './DashboardIntelligenceRail'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
 const STRIP_FETCH_STALE_MS = 5 * 60_000
@@ -644,6 +645,31 @@ export function DashboardOverview({
   return (
     <div className="h-full min-h-0 w-full overflow-y-auto [scrollbar-gutter:stable]">
       <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6">
+        {(() => {
+          const inSeasonNflLeagues = leagues.filter(
+            (l) => l.sport === 'NFL' && l.status === 'in_season'
+          )
+          if (inSeasonNflLeagues.length === 0) return null
+          const weekNum = inSeasonNflLeagues[0]?.currentWeek
+          return (
+            <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/[0.04] px-3 py-2 text-[12px]">
+              <span className="font-semibold text-cyan-200">
+                🏈{weekNum != null ? ` NFL Week ${weekNum}` : ' NFL Season'}
+              </span>
+              <span className="ml-2 text-white/45">
+                {inSeasonNflLeagues.length === 1
+                  ? '1 league active this week'
+                  : `${inSeasonNflLeagues.length} leagues active this week`}
+              </span>
+            </div>
+          )
+        })()}
+        <DashboardIntelligenceRail
+          leagueId={selectedLeagueId ?? null}
+          leagueName={selectedLeague?.name ?? null}
+          leagueSport={selectedLeague?.sport ?? null}
+          leagueType={selectedLeague?.leagueType ?? null}
+        />
         {allDone ? (
           <p className="text-xs text-cyan-400/95">{t('dashboard.overview.allSet')}</p>
         ) : checklistExpanded ? (

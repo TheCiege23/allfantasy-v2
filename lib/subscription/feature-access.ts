@@ -41,6 +41,8 @@ function planFamilyToSubscriptionPlanId(
       return "commissioner"
     case "af_war_room":
       return "war_room"
+    case "af_all_access":
+      return "all_access"
     case "af_supreme":
       return "supreme"
     default:

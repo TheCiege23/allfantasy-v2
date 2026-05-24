@@ -1,4 +1,4 @@
-﻿import React from 'react'
+import React from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
@@ -14,7 +14,9 @@ describe('ChimmyAssistantModeSelector', () => {
       })
     )
 
-    expect(screen.getByTestId('chimmy-assistant-mode-select')).toBeInTheDocument()
+    expect(screen.getByTestId('chimmy-assistant-mode-wrap')).toBeInTheDocument()
+    expect(screen.getByTestId('chimmy-mode-pill-fast_take')).toBeInTheDocument()
+    expect(screen.getByTestId('chimmy-mode-pill-deep_analysis')).toBeInTheDocument()
   })
 
   it('hides selector when disabled', () => {
@@ -26,10 +28,10 @@ describe('ChimmyAssistantModeSelector', () => {
       })
     )
 
-    expect(screen.queryByTestId('chimmy-assistant-mode-select')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('chimmy-assistant-mode-wrap')).not.toBeInTheDocument()
   })
 
-  it('emits selected mode value on change', () => {
+  it('emits selected mode value on click', () => {
     let selected = 'fast_take'
 
     render(
@@ -42,9 +44,7 @@ describe('ChimmyAssistantModeSelector', () => {
       })
     )
 
-    fireEvent.change(screen.getByTestId('chimmy-assistant-mode-select'), {
-      target: { value: 'deep_analysis' },
-    })
+    fireEvent.click(screen.getByTestId('chimmy-mode-pill-deep_analysis'))
 
     expect(selected).toBe('deep_analysis')
   })

@@ -35,7 +35,7 @@ export function isSeasonOverForRenewal(args: {
   const status = (args.status ?? '').toLowerCase()
   const phase = String(args.dynastySeasonPhase ?? args.seasonPhase ?? '').toLowerCase()
 
-  if (lifecycle === 'completed') {
+  if (lifecycle === 'completed' || lifecycle === 'offseason') {
     return true
   }
 
@@ -52,6 +52,13 @@ export function isSeasonOverForRenewal(args: {
   }
 
   return false
+}
+
+/** Whether the league is actively in renewal window (managers confirming slots). */
+export function isInRenewalWindow(args: {
+  lifecycleState?: LeagueLifecycleState | string | null
+}): boolean {
+  return String(args.lifecycleState ?? '').toLowerCase() === 'renewal_pending'
 }
 
 export function resolveLeagueVariantKey(leagueVariant: string | null | undefined, settings?: Record<string, unknown> | null): string {

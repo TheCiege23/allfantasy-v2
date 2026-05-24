@@ -38,6 +38,9 @@ export default async function AIChatPage() {
           <p className="text-sm mode-muted">
             Your calm, evidence-based fantasy assistant. Ask about trades, waivers, drafts, or your league.
           </p>
+          <p className="mt-1 text-xs mode-muted opacity-70" data-testid="ai-chat-cap-notice">
+            Free: 3 AI messages/day · <a href="/pricing" className="underline hover:opacity-100">Upgrade for more</a>
+          </p>
         </header>
         <div className="flex min-h-[70vh] flex-1 flex-col rounded-2xl border mode-panel" style={{ borderColor: 'var(--border)' }}>
           <ChimmyChatShell />

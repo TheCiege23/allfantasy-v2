@@ -16,10 +16,11 @@ export const NFL_REDRAFT_CORE_TAB_IDS = [
 
 export type NflRedraftCoreTabId = (typeof NFL_REDRAFT_CORE_TAB_IDS)[number]
 
-/** Sleeper-style primary strip: Draft → Team (roster) → League → Players → Trend → Trades → Scores; extras after. */
+/** Sleeper-style primary strip: Draft → Team (roster) → Matchups → League → Players → Trend → Trades → Scores; extras after. */
 const NFL_TABS: TabDef[] = [
   { id: 'draft', label: 'Draft' },
   { id: 'team', label: 'Team' },
+  { id: 'matchups', label: 'Matchups' },
   { id: 'league', label: 'League' },
   { id: 'players', label: 'Players' },
   { id: 'waivers', label: 'Waivers' },
@@ -37,6 +38,7 @@ const BASKETBALL_LIKE_TABS: TabDef[] = [
   { id: 'roster', label: 'Roster' },
   { id: 'redraft', label: 'Redraft' },
   { id: 'team', label: 'My Team' },
+  { id: 'matchups', label: 'Matchups' },
   { id: 'league', label: 'League' },
   { id: 'players', label: 'Players' },
   { id: 'waivers', label: 'Waivers' },

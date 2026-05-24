@@ -4,6 +4,7 @@
  * Coordinates registry, validation, permissions, and persistence
  */
 
+import { prisma } from '@/lib/prisma';
 import {
   UnifiedLeagueSettings,
   LeagueSettingsValidationResult,
@@ -17,6 +18,16 @@ import {
 import { LeagueSettingsEngineRegistry } from './LeagueSettingsEngineRegistry';
 import { LeagueSettingsValidationEngine } from './LeagueSettingsValidationEngine';
 import { LeagueSettingsPermissionsService } from './LeagueSettingsPermissionsService';
+
+function resolveLeagueTypeFromVariant(leagueVariant: string | null, isDynasty: boolean): LeagueType {
+  const v = (leagueVariant ?? '').toLowerCase()
+  if (v.includes('dynasty') || isDynasty) return 'dynasty'
+  if (v.includes('keeper')) return 'keeper'
+  if (v.includes('devy')) return 'devy'
+  if (v.includes('tournament')) return 'tournament'
+  if (v.includes('best_ball') || v.includes('bestball')) return 'best-ball'
+  return 'redraft'
+}
 
 /**
  * Service layer for all league settings operations
@@ -35,10 +46,17 @@ export class UnifiedLeagueSettingsService {
    * In production, replace with actual DB call via Prisma
    */
   static async getLeagueSettings(leagueId: string): Promise<UnifiedLeagueSettings> {
-    // TODO: Implement actual DB call
-    // const league = await prisma.league.find Where({id: leagueId}, {include: {settings: true}})
-    // return league.settings || this.resolveDefaultLeagueSettings(...)
-    throw new Error('Not implemented - requires DB integration');
+    const league = await prisma.league.findUnique({
+      where: { id: leagueId },
+      select: { settings: true, sport: true, leagueVariant: true, isDynasty: true },
+    })
+    if (!league) throw new Error(`League not found: ${leagueId}`)
+    const raw = league.settings
+    if (raw && typeof raw === 'object' && !Array.isArray(raw) && 'meta' in raw) {
+      return raw as unknown as UnifiedLeagueSettings
+    }
+    const leagueType = resolveLeagueTypeFromVariant(league.leagueVariant, league.isDynasty)
+    return this.resolveDefaultLeagueSettings(league.sport as SupportedLeagueSport, leagueType)
   }
 
   /**
@@ -138,7 +156,7 @@ export class UnifiedLeagueSettingsService {
     }
 
     // Persist to database
-    // TODO: await prisma.league.update({where: {id: leagueId}, data: {settings: mergedSettings}})
+    await prisma.league.update({ where: { id: leagueId }, data: { settings: mergedSettings as any } })
 
     return {
       success: true,
@@ -198,7 +216,7 @@ export class UnifiedLeagueSettingsService {
     }
 
     // Persist
-    // TODO: await prisma.league.update({...})
+    await prisma.league.update({ where: { id: leagueId }, data: { settings: defaultSettings as any } })
 
     return {
       success: true,

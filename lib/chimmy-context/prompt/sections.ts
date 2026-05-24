@@ -19,6 +19,10 @@ import type {
   SubscriptionContextSlice,
   UserContextSlice,
 } from "@/lib/chimmy-context/types"
+import {
+  buildIntelligenceBundle,
+  isEmptyIntelligence,
+} from "@/lib/chimmy-context/intel/intelligenceBundle"
 
 function line(label: string, value: string | number | boolean | null | undefined): string | null {
   if (value == null || value === "") return null
@@ -86,10 +90,31 @@ export function renderImportedHistorySection(h: ImportedHistorySlice | null): st
 
 export function renderMatchupSection(m: MatchupContextSlice | null): string {
   if (!m) return ""
+  const margin =
+    m.yourProjectedPoints != null && m.opponentProjectedPoints != null
+      ? Number((m.yourProjectedPoints - m.opponentProjectedPoints).toFixed(2))
+      : null
   return joinLines("## MATCHUP", [
     line("Week", m.week),
     line("Your projected points", m.yourProjectedPoints),
     line("Opponent projected points", m.opponentProjectedPoints),
+    line("Projected margin", margin),
+    line(
+      "Projected leader",
+      m.projectedLeader && m.projectedLeader !== "unknown" ? m.projectedLeader : null
+    ),
+    line(
+      "Urgency",
+      m.urgencySignals && m.urgencySignals.length > 0
+        ? m.urgencySignals.join(",")
+        : null
+    ),
+    line(
+      "Priority",
+      m.recommendationPriority && m.recommendationPriority !== "unknown"
+        ? m.recommendationPriority
+        : null
+    ),
     line("Status", m.status),
   ])
 }
@@ -104,9 +129,39 @@ export function renderRosterSection(r: RosterContextSlice | null): string {
     .slice(0, 8)
     .map((p) => `  - ${p.name}${p.position ? ` (${p.position})` : ""}${p.team ? ` — ${p.team}` : ""}`)
     .join("\n")
+  const byPos =
+    r.byPosition && Object.keys(r.byPosition).length > 0
+      ? Object.keys(r.byPosition)
+          .sort()
+          .map((k) => `${k}:${r.byPosition![k]}`)
+          .join(" ")
+      : null
   return joinLines("## ROSTER", [
     starters ? `- Starters:\n${starters}` : null,
     bench ? `- Bench:\n${bench}` : null,
+    line(
+      "Starter projection",
+      r.starterProjectedTotal != null ? r.starterProjectedTotal : null
+    ),
+    line("By position", byPos),
+    line(
+      "Weakness",
+      r.weaknessSignals && r.weaknessSignals.length > 0
+        ? r.weaknessSignals.join(",")
+        : null
+    ),
+    line(
+      "Strength",
+      r.strengthSignals && r.strengthSignals.length > 0
+        ? r.strengthSignals.join(",")
+        : null
+    ),
+    line(
+      "Identity",
+      r.teamIdentityHint && r.teamIdentityHint !== "unknown"
+        ? r.teamIdentityHint
+        : null
+    ),
   ])
 }
 
@@ -173,6 +228,67 @@ export function renderSportsScheduleSection(s: SportsScheduleSlice | null): stri
 }
 
 /**
+ * Phase 2C Batch 4 Sub-batch E — unified intelligence section.
+ * Phase 3A.1 — also surfaces top 3 strategic risk dimensions + adaptive
+ * coaching hint ordering (with relevance scores). Concise + token-safe:
+ * adaptive output replaces the raw `Coaching` line when present.
+ * Suppressed when the derived slice is fully empty.
+ */
+export function renderIntelligenceSection(bundle: ChimmyContextBundle): string {
+  const i = buildIntelligenceBundle(bundle)
+  if (isEmptyIntelligence(i)) return ""
+
+  const topRisks = (i.topRisks ?? []).slice(0, 3)
+  const topRisksLine =
+    topRisks.length > 0
+      ? topRisks.map((r) => `${r.dimension}:${r.score}`).join(",")
+      : null
+
+  const adaptive = i.adaptiveCoachingHints ?? []
+  // Prefer adaptive (scored, ordered) hints; fall back to raw slug list.
+  const coachingLine =
+    adaptive.length > 0
+      ? adaptive
+          .slice(0, 6)
+          .map((h) => `${h.slug}(${h.score})`)
+          .join(",")
+      : i.coachingHints.length > 0
+        ? i.coachingHints.join(",")
+        : null
+
+  const composite =
+    i.strategicRiskScores && typeof i.strategicRiskScores.composite === "number"
+      ? i.strategicRiskScores.composite
+      : null
+
+  return joinLines("## INTELLIGENCE", [
+    line(
+      "Urgency",
+      i.urgencyLevel !== "unknown"
+        ? i.urgencyScore != null
+          ? `${i.urgencyLevel}(${i.urgencyScore})`
+          : i.urgencyLevel
+        : null
+    ),
+    line("Severity", i.recommendationSeverity),
+    line(
+      "Identity",
+      i.teamIdentity !== "unknown" ? i.teamIdentity : null
+    ),
+    line("Playoff outlook", i.playoffOutlook),
+    line("Roster outlook", i.rosterOutlook),
+    line("Competitive", i.competitiveContextSummary),
+    line("Risk composite", composite),
+    line("Top risks", topRisksLine),
+    line(
+      "Risks",
+      i.strategicRisks.length > 0 ? i.strategicRisks.join(",") : null
+    ),
+    line("Coaching", coachingLine),
+  ])
+}
+
+/**
  * Static personality + guardrail block. Kept short — the main system prompt
  * still holds the bulk of expert-knowledge content.
  */
@@ -193,6 +309,7 @@ export function renderAllSections(bundle: ChimmyContextBundle): Record<string, s
     aiAccess: renderAIAccessSection(bundle.aiAccess),
     activeLeague: renderActiveLeagueSection(bundle.activeLeague),
     matchup: renderMatchupSection(bundle.matchup),
+    intelligence: renderIntelligenceSection(bundle),
     roster: renderRosterSection(bundle.roster),
     standings: renderStandingsSection(bundle.standings),
     rankings: renderRankingsSection(bundle.rankings),

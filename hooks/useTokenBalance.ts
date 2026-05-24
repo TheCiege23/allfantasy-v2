@@ -15,6 +15,11 @@ import { fetchWithRetry, getErrorMessage, logError } from '@/lib/error-handling'
 export interface TokenBalanceState {
   balance: number
   updatedAt: string
+  /** True when this account's balance is synthetic (dev-admin bypass). AI spend is not written to the ledger. */
+  isAdminBypassAccount: boolean
+  lifetimePurchased: number
+  lifetimeSpent: number
+  lifetimeRefunded: number
 }
 
 export function useTokenBalance() {
@@ -29,7 +34,14 @@ export function useTokenBalance() {
     try {
       const res = await fetchWithRetry('/api/tokens/balance', undefined, { context: 'token-balance' })
       const json = await res.json()
-      setData({ balance: json.balance ?? 0, updatedAt: json.updatedAt ?? '' })
+      setData({
+        balance: json.balance ?? 0,
+        updatedAt: json.updatedAt ?? '',
+        isAdminBypassAccount: Boolean(json.isAdminBypassAccount),
+        lifetimePurchased: Number(json.lifetimePurchased ?? 0),
+        lifetimeSpent: Number(json.lifetimeSpent ?? 0),
+        lifetimeRefunded: Number(json.lifetimeRefunded ?? 0),
+      })
     } catch (e) {
       const err = e as Error & { status?: number }
       if (err.status === 401) return
@@ -78,5 +90,15 @@ export function useTokenBalance() {
 
   useEffect(() => addStateRefreshListener(['tokens', 'all'], () => void fetchBalance()), [fetchBalance])
 
-  return { balance: data?.balance ?? 0, updatedAt: data?.updatedAt ?? '', loading, error, refetch: fetchBalance }
+  return {
+    balance: data?.balance ?? 0,
+    updatedAt: data?.updatedAt ?? '',
+    isAdminBypassAccount: data?.isAdminBypassAccount ?? false,
+    lifetimePurchased: data?.lifetimePurchased ?? 0,
+    lifetimeSpent: data?.lifetimeSpent ?? 0,
+    lifetimeRefunded: data?.lifetimeRefunded ?? 0,
+    loading,
+    error,
+    refetch: fetchBalance,
+  }
 }

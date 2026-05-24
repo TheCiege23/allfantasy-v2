@@ -5,7 +5,7 @@ import { Coins, Loader2 } from 'lucide-react'
 import { useTokenBalance } from '@/hooks/useTokenBalance'
 
 export function TokenBalanceWidget() {
-  const { balance, loading, error, refetch } = useTokenBalance()
+  const { balance, loading, error, refetch, isAdminBypassAccount } = useTokenBalance()
 
   return (
     <section
@@ -34,6 +34,11 @@ export function TokenBalanceWidget() {
         )}
         <span className="text-xs text-amber-100/75">available</span>
       </div>
+      {isAdminBypassAccount && (
+        <p className="mt-1.5 text-[10px] text-amber-100/50 italic" data-testid="token-balance-widget-bypass-notice">
+          Admin bypass — synthetic balance, no ledger history
+        </p>
+      )}
       {error ? (
         <button
           type="button"

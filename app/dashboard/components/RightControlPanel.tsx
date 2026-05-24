@@ -3,8 +3,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
+import Link from 'next/link'
 import { ChevronRight, LogOut, Plus, PlusCircle, Settings, User } from 'lucide-react'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { useEntitlements } from '@/hooks/useEntitlements'
+import { useTokenBalance } from '@/hooks/useTokenBalance'
 import { LeagueListPanel } from './LeagueListPanel'
 import type { RightControlPanelLayoutProps, UserLeague } from '../types'
 
@@ -18,6 +21,19 @@ function profileInitials(name: string): string {
     return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase()
   }
   return base.slice(0, 2).toUpperCase() || '?'
+}
+
+function resolvePlanChip(ents: ReturnType<typeof useEntitlements>): {
+  label: string
+  dotClass: string
+} | null {
+  if (ents.loading) return null
+  if (ents.hasSupreme) return { label: 'AF Supreme', dotClass: 'bg-purple-400' }
+  if (ents.hasAllAccess) return { label: 'AF All-Access', dotClass: 'bg-cyan-400' }
+  if (ents.hasCommissioner) return { label: 'AF Commissioner', dotClass: 'bg-amber-400' }
+  if (ents.hasWarRoom) return { label: 'AF War Room', dotClass: 'bg-blue-400' }
+  if (ents.hasPro) return { label: 'AF Pro', dotClass: 'bg-cyan-400' }
+  return { label: 'Free', dotClass: 'bg-white/30' }
 }
 
 export function RightControlPanel({
@@ -44,6 +60,8 @@ export function RightControlPanel({
   const resolvedSelectedId = activeLeagueId ?? selectedId
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement | null>(null)
+  const entitlements = useEntitlements()
+  const tokenBalance = useTokenBalance()
 
   useEffect(() => {
     if (!userMenuOpen) return
@@ -157,6 +175,23 @@ export function RightControlPanel({
           {subtitle ? (
             <p className="truncate text-[12px] leading-tight text-white/40">{subtitle}</p>
           ) : null}
+          {(() => {
+            const chip = resolvePlanChip(entitlements)
+            if (!chip) return null
+            const hasTokens = !tokenBalance.loading && tokenBalance.balance > 0
+            return (
+              <Link
+                href="/settings?tab=billing"
+                className="mt-0.5 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.05] px-1.5 py-0.5 transition hover:bg-white/[0.08]"
+              >
+                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${chip.dotClass}`} />
+                <span className="text-[9px] font-medium text-white/60">{chip.label}</span>
+                {hasTokens ? (
+                  <span className="text-[9px] text-white/35">· {tokenBalance.balance.toLocaleString()} tokens</span>
+                ) : null}
+              </Link>
+            )
+          })()}
         </div>
         <div className="relative" ref={userMenuRef}>
           <button

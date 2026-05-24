@@ -13,6 +13,7 @@ const {
   teamWeekResultFindUniqueMock,
   teamWeekResultFindFirstMock,
   weeklyMatchupFindFirstMock,
+  weeklyScoreFindManyMock,
 } = vi.hoisted(() => ({
   appUserFindUniqueMock: vi.fn(),
   leagueFindUniqueMock: vi.fn(),
@@ -22,6 +23,7 @@ const {
   teamWeekResultFindUniqueMock: vi.fn(),
   teamWeekResultFindFirstMock: vi.fn(),
   weeklyMatchupFindFirstMock: vi.fn(),
+  weeklyScoreFindManyMock: vi.fn(),
 }))
 
 vi.mock("@/lib/prisma", () => ({
@@ -36,6 +38,7 @@ vi.mock("@/lib/prisma", () => ({
       findFirst: teamWeekResultFindFirstMock,
     },
     weeklyMatchup: { findFirst: weeklyMatchupFindFirstMock },
+    weeklyScore: { findMany: weeklyScoreFindManyMock },
   },
 }))
 
@@ -76,6 +79,7 @@ describe("MatchupContextProvider", () => {
     rosterFindUniqueMock.mockResolvedValue({ id: "roster-self" })
     teamWeekResultFindFirstMock.mockResolvedValue(null)
     weeklyMatchupFindFirstMock.mockResolvedValue(null)
+    weeklyScoreFindManyMock.mockResolvedValue([])
   })
 
   it("returns null when leagueId cannot be resolved", async () => {
@@ -163,6 +167,79 @@ describe("MatchupContextProvider", () => {
     expect(res.data?.isPlayoffWeek).toBe(false)
     expect(res.data?.weeksUntilPlayoffs).toBe(6)
     expect(res.data?.currentWeekSource).toBe("redraftSeason")
+  })
+
+  it("(Batch 4 Sub-batch B) wires projection totals + intel into the full slice", async () => {
+    teamWeekResultFindUniqueMock
+      .mockResolvedValueOnce({
+        totalPoints: 50.0,
+        opponentRosterId: "roster-opp",
+        status: "in_progress",
+      })
+      .mockResolvedValueOnce({ totalPoints: 60.0, status: "in_progress" })
+    rosterFindUniqueMock
+      .mockResolvedValueOnce({ id: "roster-self" })
+      .mockResolvedValueOnce({ platformUserId: "platform-opp" })
+    leagueTeamFindFirstMock
+      .mockResolvedValueOnce({
+        id: "team-self",
+        teamName: "Self",
+        platformUserId: "platform-self",
+      })
+      .mockResolvedValueOnce({ id: "team-opp", teamName: "Rivals" })
+    weeklyScoreFindManyMock.mockResolvedValueOnce([
+      { rosterId: "roster-self", playerId: "p1", points: 10, isStarter: true, statLine: { projection: 22 } },
+      { rosterId: "roster-self", playerId: "p2", points: 0, isStarter: true, statLine: null }, // pos null → fallback 10
+      { rosterId: "roster-opp", playerId: "p3", points: 0, isStarter: true, statLine: { projection: 18 } },
+      { rosterId: "roster-opp", playerId: "p4", points: 0, isStarter: true, statLine: null }, // fallback 10
+    ])
+
+    const provider = new MatchupContextProvider()
+    const res = await provider.load(baseRequest())
+
+    expect(res.ok).toBe(true)
+    // self: max(10,22)=22 + max(0,10)=10 = 32. opp: max(0,18)=18 + max(0,10)=10 = 28.
+    expect(res.data?.yourProjectedPoints).toBe(32)
+    expect(res.data?.opponentProjectedPoints).toBe(28)
+    // Actuals trigger actual-margin leader because matchup is in_progress.
+    expect(res.data?.projectedMargin).toBe(4)
+    expect(res.data?.projectedLeader).toBe("opponent")
+    expect(res.data?.projectedWinProbability).toBeNull()
+    expect(res.data?.urgencySignals).toEqual(["in_progress"])
+    // Priority scaffold returns "unknown" until formula lands.
+    expect(res.data?.recommendationPriority).toBe("unknown")
+    expect(weeklyScoreFindManyMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("(Batch 4 Sub-batch B) leaves projections null and still returns slice when weeklyScore read fails", async () => {
+    teamWeekResultFindUniqueMock
+      .mockResolvedValueOnce({
+        totalPoints: 50,
+        opponentRosterId: "roster-opp",
+        status: "scheduled",
+      })
+      .mockResolvedValueOnce({ totalPoints: 60, status: "scheduled" })
+    rosterFindUniqueMock
+      .mockResolvedValueOnce({ id: "roster-self" })
+      .mockResolvedValueOnce({ platformUserId: "platform-opp" })
+    leagueTeamFindFirstMock
+      .mockResolvedValueOnce({
+        id: "team-self",
+        teamName: "Self",
+        platformUserId: "platform-self",
+      })
+      .mockResolvedValueOnce({ id: "team-opp", teamName: "Rivals" })
+    weeklyScoreFindManyMock.mockRejectedValueOnce(new Error("weeklyScore down"))
+
+    const provider = new MatchupContextProvider()
+    const res = await provider.load(baseRequest())
+
+    expect(res.ok).toBe(true)
+    expect(res.data?.yourProjectedPoints).toBeNull()
+    expect(res.data?.opponentProjectedPoints).toBeNull()
+    // Slice still populated with the rest of the fields.
+    expect(res.data?.opponentTeamId).toBe("team-opp")
+    expect(res.data?.yourActualPoints).toBe(50)
   })
 
   it("returns ok:false with safe envelope when Prisma rejects mid-flow", async () => {

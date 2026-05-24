@@ -25,6 +25,7 @@ import type { ExpandedStarterSlot } from '@/lib/league/lineup-expand-template'
 import { evaluateLineupLock } from '@/lib/league/lineup-lock'
 import { isNflRedraftCoreDashboardFromUserLeague } from '@/lib/league/is-nfl-redraft-core-dashboard'
 import { openChimmyWithPrompt } from '@/lib/dashboard/open-chimmy-with-prompt'
+import { invalidateIntelligence } from '@/lib/dashboard/intelligence-events'
 import { TeamLineupSwapModal } from '@/components/league/TeamLineupSwapModal'
 import type { SwapCandidate } from '@/components/league/TeamLineupSwapModal'
 import { StartVsComparisonLauncher } from '@/components/app/player-comparison/StartVsComparisonLauncher'
@@ -38,6 +39,15 @@ import {
   type RosterLineupLists,
 } from '@/app/league/[leagueId]/tabs/team-tab-roster-helpers'
 import type { RosterLegalityFullResult } from '@/lib/roster-legality/types'
+import dynamic from 'next/dynamic'
+
+const TeamTabMatchupBanner = dynamic(
+  () =>
+    import('@/app/league/[leagueId]/tabs/team-tab-matchup-banner').then(
+      (m) => m.TeamTabMatchupBanner
+    ),
+  { ssr: false }
+)
 
 function dispatchRosterLegalityEvent(leagueId: string, result: RosterLegalityFullResult | null) {
   if (typeof window === 'undefined') return
@@ -1302,6 +1312,8 @@ export function TeamTab({
         setLineupLists(next)
         await load()
         setLegalityBump((n) => n + 1)
+        // Phase 3B.4: notify intelligence rail of lineup change (fire-and-forget).
+        invalidateIntelligence({ leagueId: league.id, reason: 'lineup_saved' })
         return true
       } catch {
         toast.error('Could not save lineup')
@@ -1483,6 +1495,9 @@ export function TeamTab({
 
   return (
     <div className="space-y-4 p-5">
+      {league.status === 'in_season' ? (
+        <TeamTabMatchupBanner leagueId={league.id} />
+      ) : null}
       {legalitySnapshot && !legalitySnapshot.isLegal ? (
         <div
           className="rounded-xl border border-amber-400/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-100"

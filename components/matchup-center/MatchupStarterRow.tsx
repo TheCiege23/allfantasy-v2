@@ -1,9 +1,23 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import type { MatchupPlayerSlot } from '@/lib/matchup-center/types'
 
 function PlayerCell({ side, align }: { side: MatchupPlayerSlot; align: 'left' | 'right' }) {
+  const prevPointsRef = useRef(side.currentPoints)
+  const [delta, setDelta] = useState<number | null>(null)
+
+  useEffect(() => {
+    const d = side.currentPoints - prevPointsRef.current
+    prevPointsRef.current = side.currentPoints
+    if (d > 0) {
+      setDelta(d)
+      const t = setTimeout(() => setDelta(null), 2500)
+      return () => clearTimeout(t)
+    }
+  }, [side.currentPoints])
+
   return (
     <div className={`flex min-w-0 flex-1 items-center gap-2 ${align === 'right' ? 'flex-row-reverse text-right' : ''}`}>
       <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full border border-white/10 bg-white/[0.06]">
@@ -31,9 +45,14 @@ function PlayerCell({ side, align }: { side: MatchupPlayerSlot; align: 'left' | 
           ) : null}
           <span className="truncate">{side.name}</span>
         </div>
-        <div className={`truncate text-[10px] text-white/45 ${align === 'right' ? 'text-right' : ''}`}>
-          {side.opponent ? `${side.team ?? '—'} vs ${side.opponent}` : (side.team ?? '—')} · {side.gameLabel}
-          {side.gameStatus === 'live' ? ' · Live' : side.gameStatus === 'final' ? ' · Final' : ''}
+        <div className={`flex items-center gap-1 truncate text-[10px] text-white/45 ${align === 'right' ? 'flex-row-reverse text-right' : ''}`}>
+          {side.gameStatus === 'live' ? (
+            <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400 animate-pulse" aria-label="Live" />
+          ) : null}
+          <span className="truncate">
+            {side.opponent ? `${side.team ?? '—'} vs ${side.opponent}` : (side.team ?? '—')} · {side.gameLabel}
+            {side.gameStatus === 'live' ? ' · Live' : side.gameStatus === 'final' ? ' · Final' : ''}
+          </span>
         </div>
         {side.newsBlurb ? (
           <div className={`truncate text-[9px] text-white/35 ${align === 'right' ? 'text-right' : ''}`}>{side.newsBlurb}</div>
@@ -53,7 +72,14 @@ function PlayerCell({ side, align }: { side: MatchupPlayerSlot; align: 'left' | 
         </div>
       </div>
       <div className={`shrink-0 text-right ${align === 'right' ? 'text-left' : ''}`}>
-        <div className="text-sm font-bold tabular-nums text-white">{side.currentPoints.toFixed(1)}</div>
+        <div className="relative">
+          <div className="text-sm font-bold tabular-nums text-white">{side.currentPoints.toFixed(1)}</div>
+          {delta !== null ? (
+            <span className="absolute -top-3 left-0 animate-[fade-out_2.5s_ease-out_forwards] text-[9px] font-bold text-emerald-300">
+              +{delta.toFixed(1)}
+            </span>
+          ) : null}
+        </div>
         <div className="text-[10px] text-white/40">Proj {side.projectedPoints.toFixed(1)}</div>
       </div>
     </div>

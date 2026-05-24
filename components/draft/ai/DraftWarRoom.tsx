@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 import { getPlayerImage } from '@/lib/players/getPlayerImage'
 import { normalizePlayer } from '@/lib/players/normalizePlayer'
 import type { PlayerEntry } from '@/components/app/draft-room/PlayerPanel'
@@ -42,12 +43,6 @@ type CompareState =
     }
   | { status: 'error'; message: string }
 
-function parseNamePosKey(v: string): { name: string; pos: string } | null {
-  const idx = v.indexOf('|||')
-  if (idx < 0) return null
-  return { name: v.slice(0, idx), pos: v.slice(idx + 3) }
-}
-
 function riskStyles(risk: 'low' | 'medium' | 'high') {
   if (risk === 'low') return 'border-emerald-400/35 bg-emerald-500/10 text-emerald-100'
   if (risk === 'medium') return 'border-amber-400/35 bg-amber-500/10 text-amber-100'
@@ -56,11 +51,11 @@ function riskStyles(risk: 'low' | 'medium' | 'high') {
 
 function WarRoomSkeleton() {
   return (
-    <div className="animate-pulse space-y-3 p-1" data-testid="draft-war-room-skeleton">
-      <div className="h-28 rounded-xl bg-white/[0.06]" />
-      <div className="h-16 rounded-lg bg-white/[0.05]" />
-      <div className="h-10 rounded-lg bg-white/[0.05]" />
-      <div className="h-12 rounded-lg bg-white/[0.05]" />
+    <div className="space-y-3 p-1" data-testid="draft-war-room-skeleton">
+      <Skeleton className="h-28 rounded-xl" style={{ animationDelay: '0ms' }} />
+      <Skeleton className="h-16 rounded-lg" style={{ animationDelay: '80ms' }} />
+      <Skeleton className="h-10 rounded-lg" style={{ animationDelay: '160ms' }} />
+      <Skeleton className="h-12 rounded-lg" style={{ animationDelay: '240ms' }} />
     </div>
   )
 }
@@ -74,6 +69,8 @@ export type DraftWarRoomProps = {
   loading: boolean
   error: string | null
   canDraft: boolean
+  /** Current overall pick number — used to show "Value Drop" badge when ADP >> pick. */
+  currentPick?: number | null
   onRefresh: (force?: boolean) => void
   onVisible?: () => void
   resolvePlayerEntry: (name: string, position: string) => PlayerEntry | null
@@ -90,6 +87,7 @@ export function DraftWarRoom({
   loading,
   error,
   canDraft,
+  currentPick,
   onRefresh,
   onVisible,
   resolvePlayerEntry,
@@ -275,10 +273,15 @@ export function DraftWarRoom({
                       {data.bestPick.team ? ` · ${data.bestPick.team}` : ''}
                       {data.bestPick.adp != null ? ` · ADP ${data.bestPick.adp}` : ''}
                     </p>
-                    <div className="mt-1.5 flex items-center gap-2">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
                       <span className="rounded-full border border-cyan-400/30 bg-cyan-500/15 px-2 py-0.5 text-[10px] font-medium text-cyan-100">
                         {data.confidence}% match
                       </span>
+                      {currentPick != null && data.bestPick.adp != null && Math.abs(data.bestPick.adp - currentPick) > 15 ? (
+                        <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300">
+                          Value Drop
+                        </span>
+                      ) : null}
                       {data.teamNeedSummary ? (
                         <span className="truncate text-[10px] text-white/45">{data.teamNeedSummary}</span>
                       ) : null}
@@ -411,68 +414,45 @@ export function DraftWarRoom({
                   Compare players
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <label className="block text-[10px] text-white/45">
-                    Player A
-                    <select
-                      className="mt-1 w-full rounded-lg border border-white/12 bg-[#0a1228] px-2 py-1.5 text-[11px] text-white"
-                      value={
-                        compareA ? `${compareA.name}|||${compareA.position}` : ''
-                      }
-                      onChange={(e) => {
-                        const v = e.target.value
-                        if (!v) {
-                          setCompareA(null)
-                          setCompareResult({ status: 'idle' })
-                          return
-                        }
-                        const parsed = parseNamePosKey(v)
-                        if (!parsed) return
-                        setCompareA(resolvePlayerEntry(parsed.name, parsed.pos))
-                        setCompareResult({ status: 'idle' })
-                      }}
-                    >
-                      <option value="">Select…</option>
-                      {(data.alternatives.length
-                        ? [data.bestPick, ...data.alternatives]
-                        : [data.bestPick]
-                      ).map((p) => (
-                        <option key={`a-${p.name}-${p.position}`} value={`${p.name}|||${p.position}`}>
-                          {p.name} ({p.position})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block text-[10px] text-white/45">
-                    Player B
-                    <select
-                      className="mt-1 w-full rounded-lg border border-white/12 bg-[#0a1228] px-2 py-1.5 text-[11px] text-white"
-                      value={
-                        compareB ? `${compareB.name}|||${compareB.position}` : ''
-                      }
-                      onChange={(e) => {
-                        const v = e.target.value
-                        if (!v) {
-                          setCompareB(null)
-                          setCompareResult({ status: 'idle' })
-                          return
-                        }
-                        const parsed = parseNamePosKey(v)
-                        if (!parsed) return
-                        setCompareB(resolvePlayerEntry(parsed.name, parsed.pos))
-                        setCompareResult({ status: 'idle' })
-                      }}
-                    >
-                      <option value="">Select…</option>
-                      {(data.alternatives.length
-                        ? [data.bestPick, ...data.alternatives]
-                        : [data.bestPick]
-                      ).map((p) => (
-                        <option key={`b-${p.name}-${p.position}`} value={`${p.name}|||${p.position}`}>
-                          {p.name} ({p.position})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  {(['A', 'B'] as const).map((side) => {
+                    const selected = side === 'A' ? compareA : compareB
+                    const players = data.alternatives.length
+                      ? [data.bestPick, ...data.alternatives]
+                      : [data.bestPick]
+                    return (
+                      <div key={side}>
+                        <p className="mb-1 text-[10px] text-white/45">Player {side}</p>
+                        <div className="max-h-32 overflow-y-auto space-y-1 pr-0.5">
+                          {players.map((p) => {
+                            const isActive = selected?.name === p.name
+                            return (
+                              <button
+                                key={`${side}-${p.name}-${p.position}`}
+                                type="button"
+                                onClick={() => {
+                                  const entry = resolvePlayerEntry(p.name, p.position)
+                                  if (side === 'A') {
+                                    setCompareA(entry)
+                                  } else {
+                                    setCompareB(entry)
+                                  }
+                                  setCompareResult({ status: 'idle' })
+                                }}
+                                className={`flex w-full items-center gap-1.5 rounded-lg border px-2 py-1 text-left text-[11px] transition ${
+                                  isActive
+                                    ? 'border-cyan-500 bg-cyan-500/10 text-cyan-100'
+                                    : 'border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/[0.06]'
+                                }`}
+                              >
+                                <span className="truncate font-medium">{p.name}</span>
+                                <span className="shrink-0 text-[10px] text-white/40">{p.position}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
                 <button
                   type="button"

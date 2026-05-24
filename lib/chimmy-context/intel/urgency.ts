@@ -1,19 +1,10 @@
 /**
- * Phase 2C Batch 3 — Urgency / playoff-pressure SCAFFOLD.
+ * Phase 2C Batch 4 Sub-batch D — Urgency scoring (first real pass).
  *
- * Intentionally a placeholder. Per the implementation rules:
- *   - "Do NOT hardcode final urgency weights."
- *   - "Build extensible systems for future tuning."
- *
- * Computes a categorical urgency level for a matchup decision context
- * (lineup choice, waiver claim, trade). Returns "unknown" / neutral
- * defaults until the formula is approved.
- *
- * Future batches will weight:
- *   - weeksUntilPlayoffs (closer → higher)
- *   - playoff-clinch / elimination math from standings
- *   - margin-of-error vs opponent projection
- *   - whether lineup is already locked
+ * Promotes `level` + `score` from `"unknown"` / `null` to derived values.
+ * All weights / thresholds live in `URGENCY_TUNABLES` so future tuning is
+ * one edit. Formula stays intentionally simple and additive; sub-batch E+
+ * may refine.
  *
  * Contract: NEVER throws; always returns a fully populated result.
  */
@@ -29,6 +20,17 @@ export type UrgencyInput = {
   isEliminated: boolean | null
   /** Whether the viewer has clinched a playoff seed (future use). */
   hasClinchedPlayoffs: boolean | null
+  // ─── Phase 2C Batch 4 additions (all optional / nullable) ─────────────────
+  /** Number of starters on bye this week. */
+  byeWeekConflicts?: number | null
+  /** Number of starters carrying an injury designation. */
+  injuryFlagCount?: number | null
+  /** Days remaining until the league trade deadline. */
+  tradeDeadlineDaysLeft?: number | null
+  /** Hours remaining until the next waiver process. */
+  waiverDeadlineHoursLeft?: number | null
+  /** 0-100 roster-weakness composite (future use). */
+  rosterWeaknessScore?: number | null
 }
 
 export type UrgencyLevel =
@@ -53,6 +55,48 @@ export type UrgencyOutput = {
  * directly from inputs (no fabricated weights). Replace internals (not
  * the signature) when finalized weights are approved.
  */
+export const URGENCY_TUNABLES = {
+  signalWeights: {
+    playoff_week: 30,
+    playoff_push: 20,
+    in_progress: 5,
+    eliminated: 5,
+    clinched: -10,
+    bye_conflict: 15,
+    injury_pressure: 15,
+    waiver_window_closing: 10,
+    trade_window_closing: 10,
+  } as Record<string, number>,
+  /** Extra points per week-close-to-playoffs (0..4). */
+  weeksUntilPlayoffsBonusByDistance: {
+    0: 25,
+    1: 18,
+    2: 12,
+    3: 6,
+    4: 3,
+  } as Record<number, number>,
+  /** Score → level mapping (descending). */
+  levelThresholds: {
+    critical: 60,
+    high: 40,
+    moderate: 20,
+    low: 5,
+  } as const,
+} as const
+
+function clamp(n: number, lo: number, hi: number): number {
+  if (!Number.isFinite(n)) return lo
+  return Math.min(hi, Math.max(lo, n))
+}
+
+function mapScoreToLevel(score: number): UrgencyLevel {
+  if (score >= URGENCY_TUNABLES.levelThresholds.critical) return "critical"
+  if (score >= URGENCY_TUNABLES.levelThresholds.high) return "high"
+  if (score >= URGENCY_TUNABLES.levelThresholds.moderate) return "moderate"
+  if (score >= URGENCY_TUNABLES.levelThresholds.low) return "low"
+  return "none"
+}
+
 export function computeUrgency(input: UrgencyInput): UrgencyOutput {
   const signals: string[] = []
 
@@ -68,12 +112,54 @@ export function computeUrgency(input: UrgencyInput): UrgencyOutput {
   if (input.matchupStatus === "in_progress") signals.push("in_progress")
   if (input.hasClinchedPlayoffs === true) signals.push("clinched")
   if (input.isEliminated === true) signals.push("eliminated")
+  if ((input.byeWeekConflicts ?? 0) >= 2) signals.push("bye_conflict")
+  if ((input.injuryFlagCount ?? 0) >= 2) signals.push("injury_pressure")
+  if (
+    input.waiverDeadlineHoursLeft != null &&
+    input.waiverDeadlineHoursLeft >= 0 &&
+    input.waiverDeadlineHoursLeft <= 12
+  ) {
+    signals.push("waiver_window_closing")
+  }
+  if (
+    input.tradeDeadlineDaysLeft != null &&
+    input.tradeDeadlineDaysLeft >= 0 &&
+    input.tradeDeadlineDaysLeft <= 3
+  ) {
+    signals.push("trade_window_closing")
+  }
 
-  // TODO(Phase 2C Batch 4+): convert signals + weeksUntilPlayoffs into
-  // a numeric 0-100 score and map to UrgencyLevel with tunable thresholds.
+  // ---- Scoring (first real pass) ----------------------------------------
+  const hasAnyPlayoffData =
+    input.isPlayoffWeek === true ||
+    input.weeksUntilPlayoffs != null ||
+    input.playoffStartWeek != null
+  const hasSignalSource = signals.length > 0 || hasAnyPlayoffData
+  if (!hasSignalSource) {
+    return { level: "unknown", score: null, signals, inputs: input }
+  }
+
+  let raw = 0
+  for (const sig of signals) {
+    raw += URGENCY_TUNABLES.signalWeights[sig] ?? 0
+  }
+  if (
+    !input.isPlayoffWeek &&
+    input.weeksUntilPlayoffs != null &&
+    input.weeksUntilPlayoffs >= 0
+  ) {
+    const bonus =
+      URGENCY_TUNABLES.weeksUntilPlayoffsBonusByDistance[
+        input.weeksUntilPlayoffs
+      ] ?? 0
+    raw += bonus
+  }
+  const score = clamp(raw, 0, 100)
+  const level = mapScoreToLevel(score)
+
   return {
-    level: "unknown",
-    score: null,
+    level,
+    score,
     signals,
     inputs: input,
   }

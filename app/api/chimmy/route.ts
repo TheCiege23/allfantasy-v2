@@ -109,6 +109,11 @@ function resolveServerTier(plans: readonly string[]): UserContext['tier'] {
   return plans.length > 0 ? 'pro' : 'free'
 }
 
+function resolveCapTier(plans: readonly string[]): 'free' | 'pro' | 'admin' {
+  if (plans.includes('all_access') || plans.includes('supreme')) return 'admin'
+  return plans.length > 0 ? 'pro' : 'free'
+}
+
 function buildCompatibilityPayload(body: unknown, status: number) {
   const record = body && typeof body === 'object' ? (body as Record<string, unknown>) : {}
   const upgradeRequired = isChimmyPremiumGateResponse({
@@ -560,7 +565,8 @@ export async function POST(req: NextRequest) {
   const wantsStream = parseResult.data.stream === true
 
   // ── Daily cap check ──────────────────────────────────────────────────────────
-  const capResult = await checkDailyCap('chimmy', userId, resolvedTier)
+  const capTier = resolveCapTier(gate.decision.entitlement.plans)
+  const capResult = await checkDailyCap('chimmy', userId, capTier)
   if (!capResult.allowed) {
     await refundAnthropicTokenFallbackIfNeeded({
       tokenSpendId,

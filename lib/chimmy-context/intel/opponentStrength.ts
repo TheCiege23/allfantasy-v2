@@ -30,6 +30,17 @@ export type OpponentStrengthInput = {
   opponentRecentForm: string | null
   /** League-wide context for normalization (optional, future use). */
   leagueMeanAiPowerScore: number | null
+  // ─── Phase 2C Batch 4 additions (all optional / nullable) ─────────────────
+  /** Opponent's current standings rank (1 = leader). */
+  opponentCurrentRank?: number | null
+  /** Current streak summary, e.g. "W3", "L2". */
+  opponentCurrentStreak?: string | null
+  /** Std-dev of opponent's weekly scores (consistency metric). */
+  opponentScoringStdDev?: number | null
+  /** League difficulty composite (0-100) from league-difficulty engine. */
+  leagueDifficultyScore?: number | null
+  /** Historical success composite for the opponent (0-100). */
+  opponentHistoricalSuccessScore?: number | null
 }
 
 export type OpponentStrengthRating =
@@ -51,6 +62,12 @@ export type OpponentStrengthOutput = {
     leagueRelativeStrength: number | null
     projectedWinsDelta: number | null
     recentForm: string | null
+    // ─── Phase 2C Batch 4 additions ──────────────────────────────────────
+    currentRank: number | null
+    currentStreak: string | null
+    scoringConsistencyStdDev: number | null
+    leagueDifficultyScore: number | null
+    historicalSuccessScore: number | null
   }
   /** Optional short human-readable notes for prompt assembly. */
   notes: string[]
@@ -84,6 +101,11 @@ export function computeOpponentStrength(
           : null,
       projectedWinsDelta: null,
       recentForm: input.opponentRecentForm,
+      currentRank: input.opponentCurrentRank ?? null,
+      currentStreak: input.opponentCurrentStreak ?? null,
+      scoringConsistencyStdDev: input.opponentScoringStdDev ?? null,
+      leagueDifficultyScore: input.leagueDifficultyScore ?? null,
+      historicalSuccessScore: input.opponentHistoricalSuccessScore ?? null,
     },
     notes: [...NEUTRAL_NOTES],
     inputs: input,
