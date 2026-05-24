@@ -2,6 +2,10 @@
   "name": "allfantasy-ai",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": "20.x",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
     "dev": "set AF_NEXT_DIST_DIR=.next-dev-local&& set NODE_OPTIONS=--max-old-space-size=4096&& npx -y node@20 scripts/clean-next-dev.cjs && npx -y node@20 node_modules/next/dist/bin/next dev",
     "dev:reset": "set AF_NEXT_DIST_DIR=.next-dev-local&& set NODE_OPTIONS=--max-old-space-size=4096&& npx -y node@20 scripts/clean-next-dev.cjs --deep && npx -y node@20 node_modules/next/dist/bin/next dev",
