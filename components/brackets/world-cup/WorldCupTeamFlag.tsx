@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react"
 import { Globe2 } from "lucide-react"
 
+/** Name → FIFA code lookup. Covers all 2022 + 2026 World Cup entrants. */
 const TEAM_CODE_BY_NAME: Record<string, string> = {
+  // 2022 entrants
   argentina: "ARG",
   australia: "AUS",
   belgium: "BEL",
@@ -38,9 +40,47 @@ const TEAM_CODE_BY_NAME: Record<string, string> = {
   uruguay: "URU",
   usa: "USA",
   "united states": "USA",
+  // 2026 additions
+  algeria: "ALG",
+  austria: "AUT",
+  "bosnia-herzegovina": "BIH",
+  "bosnia herzegovina": "BIH",
+  bolivia: "BOL",
+  "cape verde": "CPV",
+  "côte d'ivoire": "CIV",
+  "ivory coast": "CIV",
+  "cote d'ivoire": "CIV",
+  curacao: "CUW",
+  curaçao: "CUW",
+  "czech republic": "CZE",
+  czechia: "CZE",
+  "dr congo": "COD",
+  "democratic republic of congo": "COD",
+  egypt: "EGY",
+  haiti: "HAI",
+  honduras: "HON",
+  indonesia: "IDN",
+  iraq: "IRQ",
+  jamaica: "JAM",
+  jordan: "JOR",
+  kyrgyzstan: "KGZ",
+  norway: "NOR",
+  panama: "PAN",
+  qatar: "QAT",
+  scotland: "SCO",
+  "el salvador": "SLV",
+  thailand: "THA",
+  turkey: "TUR",
+  türkiye: "TUR",
+  turkiye: "TUR",
+  uzbekistan: "UZB",
+  venezuela: "VEN",
+  philippines: "PHI",
 }
 
+/** FIFA code → ISO 3166-1 alpha-2 for emoji flag synthesis. Covers 2022 + 2026. */
 const FIFA_TO_ISO2: Record<string, string> = {
+  // 2022 entrants
   ARG: "AR",
   AUS: "AU",
   BEL: "BE",
@@ -73,6 +113,34 @@ const FIFA_TO_ISO2: Record<string, string> = {
   TUN: "TN",
   URU: "UY",
   USA: "US",
+  // 2026 additions
+  ALG: "DZ",
+  AUT: "AT",
+  BIH: "BA",
+  BOL: "BO",
+  CIV: "CI",
+  COD: "CD",
+  CPV: "CV",
+  CUW: "CW",
+  CZE: "CZ",
+  EGY: "EG",
+  HAI: "HT",
+  HON: "HN",
+  IDN: "ID",
+  IRQ: "IQ",
+  JAM: "JM",
+  JOR: "JO",
+  KGZ: "KG",
+  NOR: "NO",
+  PAN: "PA",
+  PHI: "PH",
+  QAT: "QA",
+  // SCO has no standard Unicode emoji (GB-SCT not supported everywhere) — falls through to 3-letter badge
+  SLV: "SV",
+  THA: "TH",
+  TUR: "TR",
+  UZB: "UZ",
+  VEN: "VE",
 }
 
 const SIZE_CLASS = {

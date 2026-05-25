@@ -866,6 +866,13 @@ export function DashboardOverview({
               <Sparkles className="h-4 w-4" />
               Ask Chimmy
             </button>
+            <Link
+              href="/commissioner-hub"
+              className="touch-manipulation inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-5 py-3 text-[15px] font-bold text-amber-300 shadow-[0_0_16px_rgba(245,158,11,0.12)] transition hover:bg-amber-500/20 active:bg-amber-500/25 sm:w-auto sm:min-h-[44px]"
+            >
+              <Crown className="h-4 w-4" aria-hidden />
+              {leagues.some((l) => l.isCommissioner) ? 'Commissioner Hub' : 'Run a League'}
+            </Link>
             <div className="grid grid-cols-2 gap-2 sm:contents">
               <Link
                 href="/create-league"
@@ -914,15 +921,6 @@ export function DashboardOverview({
               >
                 Intelligence Hub
               </Link>
-              {leagues.some((l) => l.isCommissioner) && (
-                <Link
-                  href="/commissioner-hub"
-                  className="touch-manipulation inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[13px] font-semibold text-amber-300 transition hover:bg-amber-500/20 active:bg-amber-500/25 sm:w-auto sm:px-4 sm:py-2"
-                >
-                  <Crown className="h-3.5 w-3.5" aria-hidden />
-                  Commissioner Hub
-                </Link>
-              )}
             </div>
             {/* Dispersal drafts link removed from dashboard overview */}
           </div>

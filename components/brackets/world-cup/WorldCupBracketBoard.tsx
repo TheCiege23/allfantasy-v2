@@ -37,8 +37,8 @@ export default function WorldCupBracketBoard({
 	return (
 		<div data-testid="world-cup-knockout-board-scroll" className="min-h-full scroll-pt-32 px-3 pb-6 pt-6 sm:px-5 sm:pt-8">
 			<div className="mb-3 flex min-w-0 flex-col gap-2 sm:mb-4 sm:min-w-max sm:flex-row sm:items-center sm:gap-3">
-				<div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 py-2.5 sm:px-4 sm:py-3">
-					<div className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-100/60 sm:text-[10px]">{t("wc.matchup.bracketBoardChampionLabel")}</div>
+				<div className="rounded-lg border border-white/15 bg-white/[0.07] px-3 py-2.5 sm:px-4 sm:py-3">
+					<div className="text-[9px] font-black uppercase tracking-[0.18em] text-white/50 sm:text-[10px]">{t("wc.matchup.bracketBoardChampionLabel")}</div>
 					{/* champion?.selectedTeamName is a team name — intentionally NOT translated. */}
 					<div className="mt-0.5 truncate text-base font-black text-white sm:mt-1 sm:text-lg">{champion?.selectedTeamName ?? t("wc.matchup.bracketBoardChampionFallback")}</div>
 				</div>
@@ -51,6 +51,7 @@ export default function WorldCupBracketBoard({
 					<WorldCupRoundColumn
 						key={round}
 						round={round as WorldCupRound}
+						label={t(`wc.round.${round}`)}
 						matches={matches.filter((m) => m.round === round)}
 						picks={picks}
 						onPick={onPick}

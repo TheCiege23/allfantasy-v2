@@ -16,6 +16,17 @@ const NEW_KEYS = [
   "wc.subnav.top",
   "wc.subnav.roundOf32",
   "wc.subnav.adminTest",
+  // MatchupCard i18n fixes (Goal 11 Batch 3)
+  "wc.matchup.aiHomeSideFallback",
+  "wc.matchup.aiAwaySideFallback",
+  "wc.matchup.pensAbbr",
+  // Bracket round column labels (Goal 11)
+  "wc.round.roundOf32",
+  "wc.round.roundOf16",
+  "wc.round.quarterfinal",
+  "wc.round.semifinal",
+  "wc.round.thirdPlace",
+  "wc.round.final",
   // Mobile bottom nav short labels (original 3)
   "wc.tab.leaderboard.short",
   "wc.tab.commissioner.short",

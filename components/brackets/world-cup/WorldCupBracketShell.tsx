@@ -4210,7 +4210,7 @@ export default function WorldCupBracketShell({
           </div>
         ) : null}
         {tab === "settings" ? (
-          <div id="world-cup-settings" className="mx-auto max-w-3xl px-2">
+          <div id="world-cup-settings" className="mx-auto max-w-3xl px-2 pb-28 sm:pb-8">
             <WorldCupBracketSettingsPanel
               challengeId={challengeId}
               onSaved={() => void refreshChallengeView()}
@@ -4218,7 +4218,7 @@ export default function WorldCupBracketShell({
           </div>
         ) : null}
         {tab === "commissioner" ? (
-          <div id="world-cup-commissioner" className="mx-auto max-w-3xl px-2">
+          <div id="world-cup-commissioner" className="mx-auto max-w-3xl px-2 pb-28 sm:pb-8">
             <WorldCupCommissionerBrainPanel
               challengeId={challengeId}
               onOpenLeagueSettings={() => switchTab("settings")}

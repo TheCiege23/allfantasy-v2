@@ -498,7 +498,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                           type="button"
                           onClick={() => setGroupOrder(group.id, moveItem(order, index, -1))}
                           disabled={isLocked || index === 0}
-                          className="min-h-9 rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-bold text-white/70 touch-manipulation disabled:opacity-35"
+                          className="min-h-11 rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-bold text-white/70 touch-manipulation disabled:opacity-35"
                         >
                           {t("wc.groupStage.moveUp")}
                         </button>
@@ -506,7 +506,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                           type="button"
                           onClick={() => setGroupOrder(group.id, moveItem(order, index, 1))}
                           disabled={isLocked || index === order.length - 1}
-                          className="min-h-9 rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-bold text-white/70 touch-manipulation disabled:opacity-35"
+                          className="min-h-11 rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-bold text-white/70 touch-manipulation disabled:opacity-35"
                         >
                           {t("wc.groupStage.moveDown")}
                         </button>
@@ -626,7 +626,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                   "flex min-h-[4.75rem] items-center gap-3 rounded-2xl border px-3 py-3 text-sm transition",
                   resultBorderClass(status),
                   isSelected
-                    ? "border-cyan-200 bg-cyan-300/18 text-cyan-50 shadow-[0_0_0_2px_rgba(103,232,249,0.35),0_14px_36px_rgba(8,145,178,0.22)]"
+                    ? "border-cyan-200 bg-cyan-300/[0.18] text-cyan-50 shadow-[0_0_0_2px_rgba(103,232,249,0.35),0_14px_36px_rgba(8,145,178,0.22)]"
                     : "border-white/10 bg-black/25 text-white/75",
                   isLocked || !view.completion.allGroupsRanked || !candidate.team ? "opacity-60" : "cursor-pointer hover:border-cyan-200/50 hover:bg-cyan-300/10",
                 ].join(" ")}

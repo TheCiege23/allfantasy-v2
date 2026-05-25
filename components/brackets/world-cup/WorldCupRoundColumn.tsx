@@ -1,11 +1,11 @@
 "use client"
 import { useEffect, useState } from "react"
-import { WORLD_CUP_ROUND_LABELS } from "@/lib/world-cup/types"
 import type { WorldCupMatchView, WorldCupPickView, WorldCupRound } from "@/lib/world-cup/types"
 import { findWorldCupPickForMatch } from "@/lib/world-cup/worldCupProjectedBracket"
 import WorldCupMatchupCard from "./WorldCupMatchupCard"
 export default function WorldCupRoundColumn({
   round,
+  label,
   matches,
   picks,
   onPick,
@@ -18,6 +18,8 @@ export default function WorldCupRoundColumn({
   confidenceScoringEnabled = false,
 }: {
   round: WorldCupRound
+  /** Translated round label supplied by the parent (avoids an extra locale hook in this component). */
+  label: string
   matches: WorldCupMatchView[]
   picks: WorldCupPickView[]
   onPick: (match: WorldCupMatchView, side: "home" | "away", confidencePoints?: number | null) => void
@@ -44,7 +46,7 @@ export default function WorldCupRoundColumn({
     <section className="flex min-w-[17.75rem] shrink-0 flex-col gap-3 sm:min-w-[19rem]">
       <div className="sticky top-0 z-10 rounded-lg border border-white/10 bg-black/70 px-3 py-2 backdrop-blur">
         <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white/70">
-          {WORLD_CUP_ROUND_LABELS[round]}
+          {label}
         </h2>
       </div>
       <div className="flex flex-col gap-3">

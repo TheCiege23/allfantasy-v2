@@ -954,6 +954,17 @@ const EN: WorldCupDictionary = {
   "wc.matchup.bracketBoardChampionFallback": "Not picked",
   "wc.matchup.bracketBoardHelper":
     "Your knockout bracket is generated from your predicted group results. Picks advance visually as soon as you choose a winner.",
+  "wc.matchup.aiHomeSideFallback": "Home side",
+  "wc.matchup.aiAwaySideFallback": "Away side",
+  "wc.matchup.pensAbbr": "pens",
+
+  // ── Bracket round column labels ──────────────────────────────────────
+  "wc.round.roundOf32": "Round of 32",
+  "wc.round.roundOf16": "Round of 16",
+  "wc.round.quarterfinal": "Quarterfinals",
+  "wc.round.semifinal": "Semifinals",
+  "wc.round.thirdPlace": "Third Place",
+  "wc.round.final": "Final",
 
   // ── Review tab finalize/missing-picks checklist ──────────────────────
   "wc.review.savedThirdPlaceTitle": "Saved Third-Place Advancers",
@@ -2042,6 +2053,17 @@ const ES: WorldCupDictionary = {
   "wc.matchup.bracketBoardChampionFallback": "Sin elegir",
   "wc.matchup.bracketBoardHelper":
     "Tu bracket de eliminatorias se genera a partir de tus resultados de grupos. Los picks avanzan en pantalla en cuanto eliges un ganador.",
+  "wc.matchup.aiHomeSideFallback": "Local",
+  "wc.matchup.aiAwaySideFallback": "Visitante",
+  "wc.matchup.pensAbbr": "pen",
+
+  // ── Bracket round column labels ──────────────────────────────────────
+  "wc.round.roundOf32": "Ronda de 32",
+  "wc.round.roundOf16": "Octavos de Final",
+  "wc.round.quarterfinal": "Cuartos de Final",
+  "wc.round.semifinal": "Semifinales",
+  "wc.round.thirdPlace": "Tercer Lugar",
+  "wc.round.final": "Final",
 
   // ── Review tab finalize/missing-picks checklist ──────────────────────
   "wc.review.savedThirdPlaceTitle":
@@ -3101,6 +3123,17 @@ const ZH: WorldCupDictionary = {
   "wc.matchup.bracketBoardChampionFallback": "尚未選擇",
   "wc.matchup.bracketBoardHelper":
     "你的淘汰賽對戰表由你預測的小組結果生成。選定勝者後對戰表會立刻在畫面上推進。",
+  "wc.matchup.aiHomeSideFallback": "主場",
+  "wc.matchup.aiAwaySideFallback": "客場",
+  "wc.matchup.pensAbbr": "點球",
+
+  // ── Bracket round column labels ──────────────────────────────────────
+  "wc.round.roundOf32": "32強",
+  "wc.round.roundOf16": "16強",
+  "wc.round.quarterfinal": "八強",
+  "wc.round.semifinal": "四強",
+  "wc.round.thirdPlace": "三四名",
+  "wc.round.final": "決賽",
 
   // ── Review tab finalize/missing-picks checklist ──────────────────────
   "wc.review.savedThirdPlaceTitle": "已儲存的第三名晉級",
@@ -4192,6 +4225,17 @@ const FIL: WorldCupDictionary = {
   "wc.matchup.bracketBoardChampionFallback": "Wala pang pinili",
   "wc.matchup.bracketBoardHelper":
     "Galing sa iyong predicted group results ang knockout bracket. Aabante agad ang picks pagkapili ng winner.",
+  "wc.matchup.aiHomeSideFallback": "Home side",
+  "wc.matchup.aiAwaySideFallback": "Away side",
+  "wc.matchup.pensAbbr": "pens",
+
+  // ── Bracket round column labels ──────────────────────────────────────
+  "wc.round.roundOf32": "Round of 32",
+  "wc.round.roundOf16": "Round of 16",
+  "wc.round.quarterfinal": "Quarterfinals",
+  "wc.round.semifinal": "Semifinals",
+  "wc.round.thirdPlace": "Third Place",
+  "wc.round.final": "Final",
 
   // ── Review tab finalize/missing-picks checklist ──────────────────────
   "wc.review.savedThirdPlaceTitle":
@@ -5310,6 +5354,17 @@ const VI: WorldCupDictionary = {
   "wc.matchup.bracketBoardChampionFallback": "Chưa chọn",
   "wc.matchup.bracketBoardHelper":
     "Bracket vòng loại trực tiếp được tạo từ kết quả vòng bảng bạn dự đoán. Các lựa chọn tiến lên ngay khi bạn chọn người thắng.",
+  "wc.matchup.aiHomeSideFallback": "Đội nhà",
+  "wc.matchup.aiAwaySideFallback": "Đội khách",
+  "wc.matchup.pensAbbr": "pen",
+
+  // ── Bracket round column labels ──────────────────────────────────────
+  "wc.round.roundOf32": "Vòng 32",
+  "wc.round.roundOf16": "Vòng 16",
+  "wc.round.quarterfinal": "Tứ kết",
+  "wc.round.semifinal": "Bán kết",
+  "wc.round.thirdPlace": "Hạng 3",
+  "wc.round.final": "Chung kết",
 
   // ── Review tab finalize/missing-picks checklist ──────────────────────
   "wc.review.savedThirdPlaceTitle":
