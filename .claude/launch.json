@@ -9,6 +9,16 @@
       "autoPort": true
     },
     {
+      "name": "next-start",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start"],
+      "port": 3000,
+      "autoPort": true,
+      "env": {
+        "NODE_ENV": "production"
+      }
+    },
+    {
       "name": "prisma-studio",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["prisma", "studio"],

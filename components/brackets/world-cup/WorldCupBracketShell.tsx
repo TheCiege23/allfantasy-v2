@@ -4089,7 +4089,7 @@ export default function WorldCupBracketShell({
         ) : null}
         {tab === "invite" ? (
           <div id="world-cup-invite">
-            <WorldCupInvitePanel view={view} isCommissioner={Boolean(view.isOwner || view.isAdmin)} />
+            <WorldCupInvitePanel view={view} isCommissioner={Boolean(view.isOwner || view.isAdmin)} switchTab={switchTab} />
           </div>
         ) : null}
         {tab === "rules" ? (

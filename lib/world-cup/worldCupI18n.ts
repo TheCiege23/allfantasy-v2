@@ -597,6 +597,31 @@ const EN: WorldCupDictionary = {
   "wc.inviteTab.shareTitleNative":
     "{{pool}} — AllFantasy World Cup Bracket",
 
+  // ── Invite tab: new UX sections (Goal 8) ─────────────────────────────
+  "wc.inviteTab.hero.title": "Bring Your Crew",
+  "wc.inviteTab.hero.subtitle":
+    "Share this pool, challenge your friends, and let the leaderboard settle the debate.",
+  "wc.inviteTab.hero.participants": "{{count}} in the pool",
+  "wc.inviteTab.hero.spotsLeft": "{{n}} spots left",
+  "wc.inviteTab.hero.poolFull": "Pool full",
+  "wc.inviteTab.hero.lockDeadline": "Picks lock {{date}}",
+  "wc.inviteTab.growth.title": "Your pool gets better with rivals.",
+  "wc.inviteTab.growth.body":
+    "Invite friends before picks lock and fill your leaderboard.",
+  "wc.inviteTab.growth.cta": "Invite Friends",
+  "wc.inviteTab.social.title": "Social Copy",
+  "wc.inviteTab.social.copy1":
+    "Join my World Cup pool on AllFantasy and prove your bracket is better.",
+  "wc.inviteTab.social.copy2": "The leaderboard is about to get personal.",
+  "wc.inviteTab.social.copy3": "Bring your best bracket.",
+  "wc.inviteTab.social.copyBtn": "Copy",
+  "wc.inviteTab.social.copiedBtn": "Copied",
+  "wc.inviteTab.actions.viewLeaderboard": "View Leaderboard",
+  "wc.inviteTab.actions.openChat": "Open Pool Chat",
+  "wc.inviteTab.actions.shareLink": "Share on Mobile",
+  "wc.inviteTab.trustNote":
+    "No wagers. No sportsbook. Just World Cup predictions, strategy, and bragging rights.",
+
   // ── Commissioner Checklist card chrome (extended) ────────────────────
   "wc.checklist.eyebrow": "Commissioner",
   "wc.checklist.cardSubtitle":
@@ -1594,6 +1619,31 @@ const ES: WorldCupDictionary = {
   "wc.inviteTab.shareTitleNative":
     "{{pool}} — Bracket de la Copa del Mundo de AllFantasy",
 
+  // ── Invite tab: new UX sections (Goal 8) ─────────────────────────────
+  "wc.inviteTab.hero.title": "Trae a Tu Equipo",
+  "wc.inviteTab.hero.subtitle":
+    "Comparte este pool, reta a tus amigos y deja que el leaderboard resuelva el debate.",
+  "wc.inviteTab.hero.participants": "{{count}} en el pool",
+  "wc.inviteTab.hero.spotsLeft": "{{n}} lugares disponibles",
+  "wc.inviteTab.hero.poolFull": "Pool lleno",
+  "wc.inviteTab.hero.lockDeadline": "Los picks se bloquean el {{date}}",
+  "wc.inviteTab.growth.title": "Tu pool mejora con más rivales.",
+  "wc.inviteTab.growth.body":
+    "Invita amigos antes de que se bloqueen los picks y llena tu leaderboard.",
+  "wc.inviteTab.growth.cta": "Invitar amigos",
+  "wc.inviteTab.social.title": "Texto para redes",
+  "wc.inviteTab.social.copy1":
+    "Únete a mi pool de la Copa del Mundo en AllFantasy y demuestra que tu bracket es mejor.",
+  "wc.inviteTab.social.copy2": "El leaderboard está a punto de ponerse personal.",
+  "wc.inviteTab.social.copy3": "Trae tu mejor bracket.",
+  "wc.inviteTab.social.copyBtn": "Copiar",
+  "wc.inviteTab.social.copiedBtn": "Copiado",
+  "wc.inviteTab.actions.viewLeaderboard": "Ver Leaderboard",
+  "wc.inviteTab.actions.openChat": "Abrir chat del pool",
+  "wc.inviteTab.actions.shareLink": "Compartir en móvil",
+  "wc.inviteTab.trustNote":
+    "Sin apuestas. Sin sportsbook. Solo predicciones del Mundial, estrategia y el derecho a presumir.",
+
   // ── Commissioner Checklist card chrome (extended) ────────────────────
   "wc.checklist.eyebrow": "Comisionado",
   "wc.checklist.cardSubtitle":
@@ -2583,6 +2633,31 @@ const ZH: WorldCupDictionary = {
     "來加入我在 AllFantasy 的 2026 世界盃對戰群組「{{pool}}」!最多可建立 {{maxEntries}} 個對戰表,排序小組賽、建立淘汰賽選擇,並在即時排行榜上競賽。 {{url}}",
   "wc.inviteTab.shareTitleNative":
     "{{pool}} — AllFantasy 世界盃對戰表",
+
+  // ── Invite tab: new UX sections (Goal 8) ─────────────────────────────
+  "wc.inviteTab.hero.title": "召集你的隊伍",
+  "wc.inviteTab.hero.subtitle":
+    "分享這個群組，挑戰你的朋友，讓排行榜來解決爭論。",
+  "wc.inviteTab.hero.participants": "{{count}} 人加入",
+  "wc.inviteTab.hero.spotsLeft": "還剩 {{n}} 個名額",
+  "wc.inviteTab.hero.poolFull": "群組已滿",
+  "wc.inviteTab.hero.lockDeadline": "選擇截止於 {{date}}",
+  "wc.inviteTab.growth.title": "更多對手讓群組更精彩。",
+  "wc.inviteTab.growth.body":
+    "在截止前邀請朋友加入，填滿你的排行榜。",
+  "wc.inviteTab.growth.cta": "邀請好友",
+  "wc.inviteTab.social.title": "社群分享文案",
+  "wc.inviteTab.social.copy1":
+    "加入我在 AllFantasy 的世界盃群組，證明你的預測更準確。",
+  "wc.inviteTab.social.copy2": "排行榜即將變得火熱。",
+  "wc.inviteTab.social.copy3": "帶上你最強的預測。",
+  "wc.inviteTab.social.copyBtn": "複製",
+  "wc.inviteTab.social.copiedBtn": "已複製",
+  "wc.inviteTab.actions.viewLeaderboard": "查看排行榜",
+  "wc.inviteTab.actions.openChat": "開啟群組聊天",
+  "wc.inviteTab.actions.shareLink": "手機分享",
+  "wc.inviteTab.trustNote":
+    "無賭博。無運彩。只有世界盃預測、策略和吹噓的資本。",
 
   // ── Commissioner Checklist card chrome (extended) ────────────────────
   "wc.checklist.eyebrow": "管理員",
@@ -3582,6 +3657,31 @@ const FIL: WorldCupDictionary = {
     "Sumali sa AllFantasy World Cup Bracket Pool ko na \"{{pool}}\"! Hanggang {{maxEntries}} brackets, mag-rank ng Group Stage teams, mag-build ng Knockout picks, at makipagtagisan sa live leaderboard. {{url}}",
   "wc.inviteTab.shareTitleNative":
     "{{pool}} — AllFantasy World Cup Bracket",
+
+  // ── Invite tab: new UX sections (Goal 8) ─────────────────────────────
+  "wc.inviteTab.hero.title": "Tipunin ang Iyong Grupo",
+  "wc.inviteTab.hero.subtitle":
+    "I-share ang pool na ito, hamunin ang iyong mga kaibigan, at hayaan ang leaderboard na lutasin ang debate.",
+  "wc.inviteTab.hero.participants": "{{count}} sa pool",
+  "wc.inviteTab.hero.spotsLeft": "{{n}} lugar pa",
+  "wc.inviteTab.hero.poolFull": "Puno na ang pool",
+  "wc.inviteTab.hero.lockDeadline": "Mag-lo-lock ang picks sa {{date}}",
+  "wc.inviteTab.growth.title": "Mas magiging masaya ang pool mo kapag maraming katapat.",
+  "wc.inviteTab.growth.body":
+    "Mag-imbita ng mga kaibigan bago mag-lock ang picks para mapuno ang leaderboard.",
+  "wc.inviteTab.growth.cta": "Mag-imbita ng mga kaibigan",
+  "wc.inviteTab.social.title": "Mga Template para sa Social Media",
+  "wc.inviteTab.social.copy1":
+    "Sumali sa aking World Cup pool sa AllFantasy at patunayan na mas magaling ang iyong bracket.",
+  "wc.inviteTab.social.copy2": "Ang leaderboard ay magiging personal na.",
+  "wc.inviteTab.social.copy3": "Dalhin ang iyong pinakamahusay na bracket.",
+  "wc.inviteTab.social.copyBtn": "Kopyahin",
+  "wc.inviteTab.social.copiedBtn": "Nakopya",
+  "wc.inviteTab.actions.viewLeaderboard": "Tingnan ang Leaderboard",
+  "wc.inviteTab.actions.openChat": "Buksan ang Pool Chat",
+  "wc.inviteTab.actions.shareLink": "I-share sa Mobile",
+  "wc.inviteTab.trustNote":
+    "Walang taya. Walang sportsbook. Hula, estratehiya, at karapatang magyabang lang.",
 
   // ── Commissioner Checklist card chrome (extended) ────────────────────
   "wc.checklist.eyebrow": "Commissioner",
@@ -4612,6 +4712,31 @@ const VI: WorldCupDictionary = {
     "Tham gia pool bracket World Cup AllFantasy của tôi: \"{{pool}}\"! Tạo tối đa {{maxEntries}} bracket, xếp hạng vòng bảng, chọn vòng loại trực tiếp, và đua trên bảng xếp hạng trực tiếp. {{url}}",
   "wc.inviteTab.shareTitleNative":
     "{{pool}} — Bracket World Cup AllFantasy",
+
+  // ── Invite tab: new UX sections (Goal 8) ─────────────────────────────
+  "wc.inviteTab.hero.title": "Tập Hợp Đội Nhóm",
+  "wc.inviteTab.hero.subtitle":
+    "Chia sẻ pool này, thách thức bạn bè và để bảng xếp hạng phân định thắng thua.",
+  "wc.inviteTab.hero.participants": "{{count}} người tham gia",
+  "wc.inviteTab.hero.spotsLeft": "Còn {{n}} chỗ trống",
+  "wc.inviteTab.hero.poolFull": "Pool đã đầy",
+  "wc.inviteTab.hero.lockDeadline": "Lượt chọn khóa vào {{date}}",
+  "wc.inviteTab.growth.title": "Pool của bạn hay hơn khi có nhiều đối thủ.",
+  "wc.inviteTab.growth.body":
+    "Mời bạn bè trước khi lượt chọn bị khóa để lấp đầy bảng xếp hạng.",
+  "wc.inviteTab.growth.cta": "Mời bạn bè",
+  "wc.inviteTab.social.title": "Mẫu Đăng Mạng Xã Hội",
+  "wc.inviteTab.social.copy1":
+    "Tham gia pool World Cup của tôi trên AllFantasy và chứng minh bracket của bạn tốt hơn.",
+  "wc.inviteTab.social.copy2": "Bảng xếp hạng sắp trở nên gay cấn.",
+  "wc.inviteTab.social.copy3": "Mang bracket tốt nhất của bạn.",
+  "wc.inviteTab.social.copyBtn": "Sao chép",
+  "wc.inviteTab.social.copiedBtn": "Đã sao chép",
+  "wc.inviteTab.actions.viewLeaderboard": "Xem Bảng Xếp Hạng",
+  "wc.inviteTab.actions.openChat": "Mở Chat Pool",
+  "wc.inviteTab.actions.shareLink": "Chia Sẻ Trên Di Động",
+  "wc.inviteTab.trustNote":
+    "Không cờ bạc. Không nhà cái. Chỉ có dự đoán World Cup, chiến thuật và quyền tự hào.",
 
   // ── Commissioner Checklist card chrome (extended) ────────────────────
   "wc.checklist.eyebrow": "Chủ pool",

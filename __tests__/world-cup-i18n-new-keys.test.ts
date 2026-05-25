@@ -199,6 +199,26 @@ const NEW_KEYS = [
   "wc.share.copy",
   "wc.share.copied",
   "wc.share.share",
+  // Goal 8: Invite tab new UX sections
+  "wc.inviteTab.hero.title",
+  "wc.inviteTab.hero.subtitle",
+  "wc.inviteTab.hero.participants",
+  "wc.inviteTab.hero.spotsLeft",
+  "wc.inviteTab.hero.poolFull",
+  "wc.inviteTab.hero.lockDeadline",
+  "wc.inviteTab.growth.title",
+  "wc.inviteTab.growth.body",
+  "wc.inviteTab.growth.cta",
+  "wc.inviteTab.social.title",
+  "wc.inviteTab.social.copy1",
+  "wc.inviteTab.social.copy2",
+  "wc.inviteTab.social.copy3",
+  "wc.inviteTab.social.copyBtn",
+  "wc.inviteTab.social.copiedBtn",
+  "wc.inviteTab.actions.viewLeaderboard",
+  "wc.inviteTab.actions.openChat",
+  "wc.inviteTab.actions.shareLink",
+  "wc.inviteTab.trustNote",
 ] as const
 
 describe("worldCupI18n — new keys present and non-empty in all locales", () => {
