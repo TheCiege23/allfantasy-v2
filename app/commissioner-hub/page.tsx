@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { getDashboardLeagueListForUser } from '@/lib/dashboard/get-dashboard-league-list'
+import type { UserLeague } from '@/app/dashboard/types'
 import CommissionerHubPageClient from './CommissionerHubPageClient'
 
 export const metadata: Metadata = {
@@ -20,7 +21,9 @@ export default async function CommissionerHubPage() {
   const userId = typeof session?.user?.id === 'string' ? session.user.id.trim() : ''
   if (!userId) redirect('/login?callbackUrl=/commissioner-hub')
 
-  const leagues = await getDashboardLeagueListForUser(userId).catch(() => [])
+  // getDashboardLeagueListForUser returns { leagues, sleeperUserId } — extract the array
+  const payload = await getDashboardLeagueListForUser(userId).catch(() => null)
+  const leagues = (payload?.leagues ?? []) as UserLeague[]
 
   return <CommissionerHubPageClient leagues={leagues} />
 }
