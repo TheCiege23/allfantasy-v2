@@ -473,9 +473,9 @@ function mergeWorldCupChallengeView(
 }
 
 function worldCupReviewStatusClass(status: "correct" | "wrong" | "pending") {
-  if (status === "correct") return "border-cyan-300/35 bg-cyan-300/10 text-cyan-100"
-  if (status === "wrong") return "border-rose-300/35 bg-rose-400/10 text-rose-100"
-  return "border-amber-300/30 bg-amber-400/10 text-amber-100"
+  if (status === "correct") return "border-cyan-300/35 bg-cyan-300/10 text-white/90"
+  if (status === "wrong") return "border-rose-300/35 bg-rose-400/10 text-white/85"
+  return "border-amber-300/30 bg-amber-400/10 text-white/80"
 }
 
 function worldCupReviewStatusLabel(input: { isCorrect?: boolean | null; pointsAwarded?: number | null }) {
@@ -2206,7 +2206,7 @@ export default function WorldCupBracketShell({
                   {showBoard ? selectedEntry!.name : view.challenge.name}
                 </h1>
                 {!showBoard && (view.isOwner || view.isAdmin) && (
-                  <span className="shrink-0 rounded-full border border-amber-300/40 bg-gradient-to-r from-amber-400/20 to-amber-300/[0.08] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100 shadow-[0_0_14px_-3px_rgba(251,191,36,0.45)]">
+                  <span className="shrink-0 rounded-full border border-amber-300/40 bg-gradient-to-r from-amber-400/20 to-amber-300/[0.08] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-white/80 shadow-[0_0_14px_-3px_rgba(251,191,36,0.45)]">
                     {view.isAdmin && !view.isOwner ? "Admin" : "Commissioner"}
                   </span>
                 )}
@@ -2227,7 +2227,7 @@ export default function WorldCupBracketShell({
                 ) : null}
               </div>
             )}
-            <p className={`text-[10px] sm:text-[11px] ${saveState === "locked" || saveState === "error" ? "text-rose-300" : "text-white/45"}`}>
+            <p className={`text-[10px] sm:text-[11px] ${saveState === "locked" || saveState === "error" ? "text-white/70" : "text-white/45"}`}>
               {showBoard ? (
                 <>
                   <span className="block truncate text-white/55">{view.challenge.name}</span>
@@ -2242,7 +2242,7 @@ export default function WorldCupBracketShell({
             {hasMounted && lockCountdownLabel ? (
               <p
                 data-testid="world-cup-lock-countdown"
-                className="mt-1 inline-flex max-w-full items-center rounded-md bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold text-amber-100/95"
+                className="mt-1 inline-flex max-w-full items-center rounded-md bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold text-white/80"
               >
                 {lockCountdownLabel}
               </p>
@@ -2299,13 +2299,13 @@ export default function WorldCupBracketShell({
           )}
         </div>
         {saveError && (
-          <div className="mx-3 mb-2 flex items-start gap-2 rounded-xl border border-rose-400/35 bg-gradient-to-r from-rose-500/15 to-rose-400/[0.06] px-3 py-2 text-xs text-rose-100">
+          <div className="mx-3 mb-2 flex items-start gap-2 rounded-xl border border-rose-400/35 bg-gradient-to-r from-rose-500/15 to-rose-400/[0.06] px-3 py-2 text-xs text-white/85">
             <span className="mt-1 inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-rose-300" aria-hidden />
             <span>{saveError}</span>
           </div>
         )}
         {(view.challenge.isTestMode || view.challenge.simulationEnabled || view.challenge.hasSimulatedResults) && (
-          <div className="mx-3 mb-2 flex items-start gap-2 rounded-xl border border-amber-300/40 bg-gradient-to-r from-amber-500/15 to-amber-400/[0.06] px-3 py-2 text-[11px] text-amber-100">
+          <div className="mx-3 mb-2 flex items-start gap-2 rounded-xl border border-amber-300/40 bg-gradient-to-r from-amber-500/15 to-amber-400/[0.06] px-3 py-2 text-[11px] text-white/80">
             <span className="mt-1 inline-flex h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-amber-300" aria-hidden />
             <span>
               <span className="font-black uppercase tracking-[0.14em]">{t("wc.header.testMode")}</span> — {t("wc.header.testModeNote")}
@@ -2325,7 +2325,7 @@ export default function WorldCupBracketShell({
               aria-current={tab === id ? "page" : undefined}
               className={`group inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors duration-150 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-950 ${
                 tab === id
-                  ? "border-cyan-300/45 bg-gradient-to-b from-cyan-300/20 to-cyan-300/10 text-cyan-50 shadow-[0_4px_18px_-6px_rgba(34,211,238,0.45)]"
+                  ? "border-cyan-300/45 bg-gradient-to-b from-cyan-300/20 to-cyan-300/10 text-white/90 shadow-[0_4px_18px_-6px_rgba(34,211,238,0.45)]"
                   : "border-white/10 bg-white/[0.04] text-white/60 hover:border-white/15 hover:bg-white/[0.07] hover:text-white/85"
               }`}
             >
@@ -2411,7 +2411,7 @@ export default function WorldCupBracketShell({
             </div>
           ) : (
             <div className="flex justify-center px-4 py-2">
-              <span className="rounded-lg border border-rose-400/30 bg-rose-400/15 px-3 py-2 text-xs font-bold text-rose-100">{t("wc.lock.bracketLocked")}</span>
+              <span className="rounded-lg border border-rose-400/30 bg-rose-400/15 px-3 py-2 text-xs font-bold text-white/85">{t("wc.lock.bracketLocked")}</span>
             </div>
           )}
 
@@ -2424,7 +2424,7 @@ export default function WorldCupBracketShell({
                     type="button"
                     onClick={() => void handleLoadTestFixtures()}
                     disabled={isLoadingTestFixtures || isSimulating}
-                    className="rounded-lg border border-amber-400/60 bg-amber-900/40 px-4 py-2 text-[12px] font-bold text-amber-100 hover:bg-amber-900/60 disabled:opacity-50"
+                    className="rounded-lg border border-amber-400/60 bg-amber-900/40 px-4 py-2 text-[12px] font-bold text-white/80 hover:bg-amber-900/60 disabled:opacity-50"
                   >
                     {isLoadingTestFixtures ? "Seeding..." : "Seed Test Fixtures"}
                   </button>
@@ -2434,7 +2434,7 @@ export default function WorldCupBracketShell({
           )}
 
           {!isLocked && guidedPicksState === "fixtures_not_ready" && (
-            <div className="mx-4 mb-3 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+            <div className="mx-4 mb-3 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-[11px] text-white/80">
               <p className="mb-2 text-center">
                 Your knockout matchups are generated from your Group Stage predictions. Rank all groups and choose third-place advancers to unlock more slots.
               </p>
@@ -2444,7 +2444,7 @@ export default function WorldCupBracketShell({
                     type="button"
                     onClick={() => void handleLoadTestFixtures()}
                     disabled={isLoadingTestFixtures || isSimulating}
-                    className="rounded-lg border border-amber-400/60 bg-amber-900/40 px-4 py-2 text-[12px] font-bold text-amber-100 hover:bg-amber-900/60 disabled:opacity-50"
+                    className="rounded-lg border border-amber-400/60 bg-amber-900/40 px-4 py-2 text-[12px] font-bold text-white/80 hover:bg-amber-900/60 disabled:opacity-50"
                   >
                     {isLoadingTestFixtures ? "Seeding..." : "Seed Test Fixtures"}
                   </button>
@@ -2461,7 +2461,7 @@ export default function WorldCupBracketShell({
 
           {selectedEntry && (
             <div className="mx-3 mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:mx-4">
-              <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-cyan-300">
+              <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-white/85">
                 <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 Guided Pick Help
               </div>
@@ -2500,7 +2500,7 @@ export default function WorldCupBracketShell({
                 </button>
               </div>
               {integrityUnavailable ? (
-                <p className="rounded-lg border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-100">
+                <p className="rounded-lg border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-[11px] text-white/80">
                   Integrity checks are temporarily unavailable from this panel.
                 </p>
               ) : null}
@@ -2516,10 +2516,10 @@ export default function WorldCupBracketShell({
                     <span>Picks: {integrityReport.stats.picks}</span>
                   </div>
                   {integrityReport.errors.slice(0, 3).map((err) => (
-                    <p key={err} className="text-rose-300">✗ {err}</p>
+                    <p key={err} className="text-white/70">✗ {err}</p>
                   ))}
                   {integrityReport.warnings.slice(0, 3).map((warn) => (
-                    <p key={warn} className="text-amber-300">⚠ {warn}</p>
+                    <p key={warn} className="text-white/70">⚠ {warn}</p>
                   ))}
                 </div>
               ) : null}
@@ -2574,9 +2574,9 @@ export default function WorldCupBracketShell({
                       <span
                         className={`mt-0.5 shrink-0 ${
                           ok === true
-                            ? "text-emerald-400"
+                            ? "text-white/85"
                             : ok === false
-                            ? "text-rose-400"
+                            ? "text-white/80"
                             : "text-white/30"
                         }`}
                       >
@@ -2588,7 +2588,7 @@ export default function WorldCupBracketShell({
                             ok === true
                               ? "text-white/70"
                               : ok === false
-                              ? "text-rose-300"
+                              ? "text-white/70"
                               : "text-white/40"
                           }
                         >
@@ -2605,16 +2605,16 @@ export default function WorldCupBracketShell({
             </div>
 
             <div className="mx-4 mb-4 rounded-xl border border-amber-300/20 bg-amber-500/[0.06] p-3">
-              <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-amber-200">
+              <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-white/75">
                 World Cup Simulation Panel
               </div>
-              <p className="mb-3 text-[11px] text-amber-100/80">
+              <p className="mb-3 text-[11px] text-white/65">
                 Owner/admin only. Testing only. Simulated results can change scores and leaderboard standings when dry run is off.
               </p>
               {!simulationDryRun && (
                 <div
                   data-testid="world-cup-simulation-live-warning"
-                  className="mb-3 rounded-lg border border-rose-400/40 bg-rose-950/30 p-2 text-[11px] font-semibold text-rose-100"
+                  className="mb-3 rounded-lg border border-rose-400/40 bg-rose-950/30 p-2 text-[11px] font-semibold text-white/85"
                 >
                   Dry run is OFF. The next simulation click can write match results, advance winners, and recalculate the leaderboard.
                 </div>
@@ -2626,12 +2626,12 @@ export default function WorldCupBracketShell({
                   onClick={() => void handleLoadTestFixtures()}
                   disabled={isLoadingTestFixtures || isSimulating}
                   title="Adds demo teams to unresolved Round of 32 matches so picks and simulation can be tested before real World Cup fixtures are synced."
-                  className="rounded-lg border border-amber-400/50 bg-amber-900/30 px-3 py-1.5 text-[11px] font-bold text-amber-100 hover:bg-amber-900/50 disabled:opacity-50"
+                  className="rounded-lg border border-amber-400/50 bg-amber-900/30 px-3 py-1.5 text-[11px] font-bold text-white/80 hover:bg-amber-900/50 disabled:opacity-50"
                 >
                   {isLoadingTestFixtures ? "Loading..." : "Load Test Fixtures"}
                 </button>
               </div>
-              <p className="mb-3 text-[11px] text-amber-100/80">
+              <p className="mb-3 text-[11px] text-white/65">
                 Adds demo teams to unresolved Round of 32 matches so picks and simulation can be tested before real World Cup fixtures are synced.
               </p>
 
@@ -2731,7 +2731,7 @@ export default function WorldCupBracketShell({
                   type="button"
                   onClick={() => void runSimulateTournament()}
                   disabled={isSimulating}
-                  className="rounded-lg border border-cyan-400/30 bg-cyan-900/30 px-3 py-1.5 text-[11px] font-bold text-cyan-100 disabled:opacity-50"
+                  className="rounded-lg border border-cyan-400/30 bg-cyan-900/30 px-3 py-1.5 text-[11px] font-bold text-white/90 disabled:opacity-50"
                 >
                   Simulate Full Tournament
                 </button>
@@ -2739,13 +2739,13 @@ export default function WorldCupBracketShell({
                   type="button"
                   onClick={() => void runResetSimulation()}
                   disabled={isSimulating}
-                  className="rounded-lg border border-rose-400/30 bg-rose-900/20 px-3 py-1.5 text-[11px] font-bold text-rose-100 disabled:opacity-50"
+                  className="rounded-lg border border-rose-400/30 bg-rose-900/20 px-3 py-1.5 text-[11px] font-bold text-white/85 disabled:opacity-50"
                 >
                   Reset Simulation
                 </button>
               </div>
               {!simulationMatchId ? (
-                <p className="mb-2 text-[11px] text-amber-100/85">
+                <p className="mb-2 text-[11px] text-white/70">
                   Select or enter a Match ID before simulating.
                 </p>
               ) : null}
@@ -2754,7 +2754,7 @@ export default function WorldCupBracketShell({
                 <div className="mt-3 rounded-lg border border-white/10 bg-black/25 p-3 text-[11px] text-white/75">
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                     <span className="font-bold text-white">{simulationResult.action}</span>
-                    <span className={simulationResult.dryRun ? "text-cyan-200" : "text-amber-200"}>
+                    <span className={simulationResult.dryRun ? "text-white/85" : "text-white/75"}>
                       {simulationResult.dryRun ? "Dry run" : "Writes enabled"}
                     </span>
                   </div>
@@ -2762,14 +2762,14 @@ export default function WorldCupBracketShell({
                     {JSON.stringify(simulationResult.summary, null, 2)}
                   </pre>
                   {simulationResult.warnings.length > 0 && (
-                    <div className="mt-2 text-amber-200">
+                    <div className="mt-2 text-white/75">
                       Warnings: {simulationResult.warnings.join("; ")}
                     </div>
                   )}
                   <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
                     {simulationResultChecklist.map((item) => (
                       <div key={item.label} className="flex gap-2 rounded-md bg-white/[0.03] px-2 py-1.5">
-                        <span className={item.value === true ? "text-emerald-300" : item.value === false ? "text-rose-300" : "text-white/40"}>
+                        <span className={item.value === true ? "text-white/85" : item.value === false ? "text-white/70" : "text-white/40"}>
                           {item.value === true ? "✓" : item.value === false ? "✗" : "○"}
                         </span>
                         <span>
@@ -2837,7 +2837,7 @@ export default function WorldCupBracketShell({
                   type="button"
                   onClick={() => void runSyncLive()}
                   disabled={isSyncing}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-cyan-900/30 px-3 py-1.5 text-[11px] font-bold text-cyan-200 disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-cyan-900/30 px-3 py-1.5 text-[11px] font-bold text-white/85 disabled:opacity-50"
                 >
                   {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}
                   Sync Live Scores
@@ -2885,10 +2885,10 @@ export default function WorldCupBracketShell({
                     <span>Live <span className="font-bold text-white/80">{syncLiveResult.updated}</span></span>
                     <span>Final <span className="font-bold text-white/80">{syncLiveResult.finalMatches}</span></span>
                     <span>Recalc <span className="font-bold text-white/80">{syncLiveResult.recalculated ? "yes" : "no"}</span></span>
-                    {syncLiveResult.dryRun && <span className="text-amber-300">dry run</span>}
+                    {syncLiveResult.dryRun && <span className="text-white/70">dry run</span>}
                   </div>
                   {syncLiveResult.warnings.slice(0, 2).map((w) => (
-                    <p key={w} className="mt-1 text-amber-300">{w}</p>
+                    <p key={w} className="mt-1 text-white/70">{w}</p>
                   ))}
                   <p className="mt-1 text-white/30">{new Date(syncLiveResult.syncedAt).toLocaleTimeString()}</p>
                 </div>
@@ -2902,7 +2902,7 @@ export default function WorldCupBracketShell({
                     <span>Third-place <span className="font-bold text-white/80">{syncStandingsResult.result.thirdPlaceTeamsUpdated}</span></span>
                   </div>
                   {syncStandingsResult.result.warnings?.slice(0, 2).map((w) => (
-                    <p key={w} className="mt-1 text-amber-300">{w}</p>
+                    <p key={w} className="mt-1 text-white/70">{w}</p>
                   ))}
                   <p className="mt-1 text-white/30">{new Date(syncStandingsResult.syncedAt).toLocaleTimeString()}</p>
                 </div>
@@ -2929,7 +2929,7 @@ export default function WorldCupBracketShell({
 
                 {/* Eyebrow + badges */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200/60">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">
                     {t("wc.pool.eyebrow")}
                   </span>
                   {view.challenge.visibility === "private" ? (
@@ -2938,13 +2938,13 @@ export default function WorldCupBracketShell({
                       {t("wc.pool.privateBadge")}
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-cyan-300/20 bg-cyan-300/[0.06] px-2 py-0.5 text-[10px] font-bold text-cyan-200/70">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-cyan-300/20 bg-cyan-300/[0.06] px-2 py-0.5 text-[10px] font-bold text-white/60">
                       <Globe2 className="h-2.5 w-2.5" aria-hidden />
                       {t("wc.pool.publicBadge")}
                     </span>
                   )}
                   {(view.isOwner || view.isAdmin) && (
-                    <span className="rounded-full border border-amber-300/40 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-amber-100">
+                    <span className="rounded-full border border-amber-300/40 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-white/80">
                       {view.isAdmin && !view.isOwner ? "Admin" : "Commissioner"}
                     </span>
                   )}
@@ -2961,7 +2961,7 @@ export default function WorldCupBracketShell({
                     {participantCount} / {view.challenge.maxParticipants} {t("wc.home.stat.participants").toLowerCase()}
                   </span>
                   {hasMounted && lockCountdownLabel && (
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400/10 px-2 py-0.5 text-[11px] font-bold text-amber-100">
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400/10 px-2 py-0.5 text-[11px] font-bold text-white/80">
                       <Clock className="h-3 w-3" aria-hidden />
                       {lockCountdownLabel}
                     </span>
@@ -2974,7 +2974,7 @@ export default function WorldCupBracketShell({
                     type="button"
                     onClick={copyPoolInvite}
                     disabled={!inviteUrl}
-                    className="inline-flex items-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-sm font-black text-cyan-100 disabled:opacity-40"
+                    className="inline-flex items-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-sm font-black text-white/90 disabled:opacity-40"
                   >
                     <Copy className="h-4 w-4" />
                     {t("wc.home.copyInvite")}
@@ -3014,10 +3014,10 @@ export default function WorldCupBracketShell({
                 : awaitingFixtures ? "border-amber-400/25 bg-amber-400/[0.06]"
                 : "border-cyan-300/25 bg-cyan-300/[0.06]"
               const iconColorClass =
-                isFinalized ? "text-emerald-300"
+                isFinalized ? "text-white/85"
                 : readyToReview ? "text-violet-300"
-                : awaitingFixtures ? "text-amber-300"
-                : "text-cyan-300"
+                : awaitingFixtures ? "text-white/70"
+                : "text-white/85"
               const progressSteps = [
                 { label: t("wc.pool.progress.created"), done: true },
                 { label: t("wc.pool.progress.picks"), done: isFinalized || Boolean(readyToReview) },
@@ -3092,7 +3092,7 @@ export default function WorldCupBracketShell({
                             <button
                               type="button"
                               onClick={() => switchTab("leaderboard")}
-                              className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-4 py-2 text-sm font-black text-emerald-100"
+                              className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-4 py-2 text-sm font-black text-white/90"
                             >
                               {t("wc.tab.leaderboard")}
                               <ChevronRight className="h-4 w-4" />
@@ -3110,7 +3110,7 @@ export default function WorldCupBracketShell({
                         {progressSteps.map((step, idx) => (
                           <div key={step.label} className="flex min-w-0 items-center">
                             {idx > 0 && <div className={`mx-1 h-px w-4 shrink-0 ${step.done ? "bg-cyan-300/40" : "bg-white/10"}`} />}
-                            <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${step.done ? "bg-cyan-300/15 text-cyan-200" : "bg-white/[0.04] text-white/30"}`}>
+                            <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${step.done ? "bg-cyan-300/15 text-white/85" : "bg-white/[0.04] text-white/30"}`}>
                               {step.done
                                 ? <CheckCircle2 className="h-2.5 w-2.5 shrink-0" aria-hidden />
                                 : <div className="h-2.5 w-2.5 shrink-0 rounded-full border border-white/20" aria-hidden />}
@@ -3202,13 +3202,13 @@ export default function WorldCupBracketShell({
             >
               <div className="rounded-2xl border border-cyan-300/20 bg-gradient-to-br from-cyan-300/[0.06] to-indigo-400/[0.04] p-4 sm:p-5">
                 <div className="flex items-start gap-3">
-                  <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-cyan-300/80" aria-hidden />
+                  <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-white/65" aria-hidden />
                   <div className="min-w-0 flex-1">
                     <h3 className="text-sm font-black text-white">{t("wc.home.ai.title")}</h3>
                     {aiInsightsUnlocked ? (
                       <ul className="mt-2 space-y-1.5">
                         <li className="flex items-start gap-2 text-xs text-white/65">
-                          <MessageSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-300/60" aria-hidden />
+                          <MessageSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/50" aria-hidden />
                           {t("wc.home.ai.chimmyHint")}
                         </li>
                         <li className="flex items-start gap-2 text-xs text-white/65">
@@ -3216,7 +3216,7 @@ export default function WorldCupBracketShell({
                           <button
                             type="button"
                             onClick={() => switchTab("review")}
-                            className="text-left text-cyan-200/80 underline-offset-2 hover:underline"
+                            className="text-left text-white/65 underline-offset-2 hover:underline"
                           >
                             {t("wc.home.ai.explainHint")}
                           </button>
@@ -3239,7 +3239,7 @@ export default function WorldCupBracketShell({
                 <div className="rounded-2xl border border-amber-300/20 bg-amber-400/[0.05] p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <Settings className="h-4 w-4 shrink-0 text-amber-300/80" aria-hidden />
+                      <Settings className="h-4 w-4 shrink-0 text-white/60" aria-hidden />
                       <h3 className="text-sm font-black text-white">{t("wc.pool.commissioner.title")}</h3>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -3255,7 +3255,7 @@ export default function WorldCupBracketShell({
                       <button
                         type="button"
                         onClick={() => switchTab("settings")}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300/30 bg-amber-400/10 px-3 py-1.5 text-[11px] font-bold text-amber-100"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300/30 bg-amber-400/10 px-3 py-1.5 text-[11px] font-bold text-white/80"
                       >
                         <Settings className="h-3 w-3" aria-hidden />
                         Pool Settings
@@ -3263,7 +3263,7 @@ export default function WorldCupBracketShell({
                       <button
                         type="button"
                         onClick={() => switchTab("invite")}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/25 bg-cyan-300/[0.08] px-3 py-1.5 text-[11px] font-bold text-cyan-100"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/25 bg-cyan-300/[0.08] px-3 py-1.5 text-[11px] font-bold text-white/90"
                       >
                         <Share2 className="h-3 w-3" aria-hidden />
                         Invite Players
@@ -3322,7 +3322,7 @@ export default function WorldCupBracketShell({
                   </div>
                 ) : (
                   <div className="rounded-xl border border-dashed border-white/15 bg-black/20 p-6 text-center">
-                    <Trophy className="mx-auto h-8 w-8 text-cyan-200/50" />
+                    <Trophy className="mx-auto h-8 w-8 text-white/45" />
                     <p className="mt-3 text-sm font-black text-white">No brackets created yet</p>
                     <p className="mt-1 text-xs text-white/45">
                       Create your personal bracket first, then you can make picks once fixtures are ready.
@@ -3351,7 +3351,7 @@ export default function WorldCupBracketShell({
                           type="button"
                           onClick={() => void handleLoadTestFixtures()}
                           disabled={isLoadingTestFixtures || isSimulating}
-                          className="rounded-lg border border-amber-400/60 bg-amber-900/40 px-3 py-2 text-xs font-bold text-amber-100 hover:bg-amber-900/60 disabled:opacity-50"
+                          className="rounded-lg border border-amber-400/60 bg-amber-900/40 px-3 py-2 text-xs font-bold text-white/80 hover:bg-amber-900/60 disabled:opacity-50"
                         >
                           {isLoadingTestFixtures ? "Seeding..." : "Seed Test Fixtures"}
                         </button>
@@ -3381,7 +3381,7 @@ export default function WorldCupBracketShell({
                     <button
                       type="button"
                       onClick={() => switchTab("leaderboard")}
-                      className="inline-flex items-center gap-1 text-xs font-bold text-cyan-300/70 hover:text-cyan-200"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-white/60 hover:text-white/85"
                     >
                       {t("wc.pool.leaderboard.viewFull")}
                       <ChevronRight className="h-3 w-3" />
@@ -3391,9 +3391,9 @@ export default function WorldCupBracketShell({
                     <div className="space-y-1.5">
                       {view.leaderboard.slice(0, 5).map((row) => {
                         const rankColor =
-                          row.rank === 1 ? "text-amber-300"
+                          row.rank === 1 ? "text-white/70"
                           : row.rank === 2 ? "text-zinc-300"
-                          : row.rank === 3 ? "text-amber-600/90"
+                          : row.rank === 3 ? "text-white/55"
                           : "text-white/40"
                         return (
                           <div key={row.entryId} className="flex items-center gap-2 rounded-lg bg-black/20 px-3 py-2 text-xs">
@@ -3401,7 +3401,7 @@ export default function WorldCupBracketShell({
                               {row.rank}
                             </span>
                             <span className="min-w-0 flex-1 truncate text-white/70">{row.entryName}</span>
-                            <span className="font-black text-cyan-100">{row.totalScore} pts</span>
+                            <span className="font-black text-white/90">{row.totalScore} pts</span>
                           </div>
                         )
                       })}
@@ -3422,30 +3422,30 @@ export default function WorldCupBracketShell({
         {tab === "picks" ? (
           selectedEntry ? (
             <section id="world-cup-bracket" className="space-y-3">
-              <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm text-cyan-50">
+              <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm text-white/90">
                 <p className="font-black">
                   {knockoutMode === "reseeded"
                     ? t("wc.knockouts.intro.reseeded")
                     : t("wc.knockouts.intro.predictive")}
                 </p>
-                <p className="mt-1 text-xs text-cyan-100/75">
+                <p className="mt-1 text-xs text-white/65">
                   {knockoutMode === "reseeded"
                     ? t("wc.knockouts.subintro.reseeded")
                     : t("wc.knockouts.subintro.predictive")}
                 </p>
                 {knockoutGroupStageError ? (
-                  <p className="mt-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-2 py-1.5 text-xs font-bold text-amber-100">
+                  <p className="mt-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-2 py-1.5 text-xs font-bold text-white/80">
                     {knockoutGroupStageError}
                   </p>
                 ) : knockoutPicksLockedByMode ? (
                   <p
                     data-testid="world-cup-reseeded-knockout-locked"
-                    className="mt-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-2 py-1.5 text-xs font-bold text-amber-100"
+                    className="mt-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-2 py-1.5 text-xs font-bold text-white/80"
                   >
                     Reseeded Knockout is enabled. Official knockout fixtures are not available yet, so generated knockout picks are locked.
                   </p>
                 ) : groupSeededKnockout.status !== "ready" ? (
-                  <p className="mt-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-2 py-1.5 text-xs font-bold text-amber-100">
+                  <p className="mt-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-2 py-1.5 text-xs font-bold text-white/80">
                     {groupSeededKnockout.message}
                   </p>
                 ) : null}
@@ -3483,7 +3483,7 @@ export default function WorldCupBracketShell({
                       {guidedPickerLabel}
                     </button>
                   ) : (
-                    <span className="rounded-lg border border-rose-400/30 bg-rose-400/15 px-3 py-2 text-xs font-bold text-rose-100">{t("wc.lock.bracketLocked")}</span>
+                    <span className="rounded-lg border border-rose-400/30 bg-rose-400/15 px-3 py-2 text-xs font-bold text-white/85">{t("wc.lock.bracketLocked")}</span>
                   )}
                   <div
                     data-testid="world-cup-knockout-pick-guidance"
@@ -3506,11 +3506,11 @@ export default function WorldCupBracketShell({
                     </p>
                   </div>
                   {!isLocked && guidedPicksState !== "ready" ? (
-                    <div className="min-w-[min(100%,22rem)] rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+                    <div className="min-w-[min(100%,22rem)] rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-[11px] text-white/80">
                       <p className="font-bold">
                         {knockoutMode === "reseeded" ? "Official knockout fixtures required." : "Knockout teams come from your group predictions."}
                       </p>
-                      <p className="mt-1 text-amber-100/80">
+                      <p className="mt-1 text-white/65">
                         {knockoutMode === "reseeded"
                           ? "Do not fake official fixtures. Picks stay closed until provider fixtures are ready."
                           : groupSeededKnockout.message}
@@ -3524,7 +3524,7 @@ export default function WorldCupBracketShell({
                         type="button"
                         onClick={() => void handleLoadTestFixtures()}
                         disabled={isLoadingTestFixtures || isSimulating}
-                        className="rounded-lg border border-amber-400/60 bg-amber-900/40 px-3 py-2 text-[11px] font-bold text-amber-100 hover:bg-amber-900/60 disabled:opacity-50"
+                        className="rounded-lg border border-amber-400/60 bg-amber-900/40 px-3 py-2 text-[11px] font-bold text-white/80 hover:bg-amber-900/60 disabled:opacity-50"
                       >
                         {isLoadingTestFixtures ? "Loading..." : "Load Test Knockout Teams"}
                       </button>
@@ -3552,7 +3552,7 @@ export default function WorldCupBracketShell({
               <div ref={knockoutScrollRef} data-testid="world-cup-bracket-scroll" className="max-h-[72vh] overflow-auto">
                 {knockoutPicksLockedByMode ? (
                   <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-8 text-center">
-                    <Lock className="mx-auto h-8 w-8 text-amber-200/70" />
+                    <Lock className="mx-auto h-8 w-8 text-white/55" />
                     <h2 className="mt-3 text-lg font-black text-white">Reseeded Knockout Locked</h2>
                     <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-white/55">
                       Knockout picks open after official Round of 32 fixtures are available. Finish your Group Stage predictions now and come back when the real knockout bracket is synced.
@@ -3622,7 +3622,7 @@ export default function WorldCupBracketShell({
               />
             ) : (
               <section className="mx-auto max-w-3xl rounded-2xl border border-white/10 bg-white/[0.035] p-6 text-center">
-                <Trophy className="mx-auto h-8 w-8 text-cyan-200/50" />
+                <Trophy className="mx-auto h-8 w-8 text-white/45" />
                 <h2 className="mt-3 text-xl font-black text-white">Create an entry first</h2>
                 <p className="mt-2 text-sm text-white/50">
                   Group-stage picks are saved per bracket entry. Create or open an entry before ranking groups.
@@ -3705,7 +3705,7 @@ export default function WorldCupBracketShell({
                 </div>
 
                 {completionError ? (
-                  <p className="mt-3 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
+                  <p className="mt-3 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-white/85">
                     {completionError}
                   </p>
                 ) : null}
@@ -3750,7 +3750,7 @@ export default function WorldCupBracketShell({
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div className="flex items-start gap-2.5">
                           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-300/10">
-                            <Sparkles className="h-4 w-4 text-cyan-200" aria-hidden />
+                            <Sparkles className="h-4 w-4 text-white/85" aria-hidden />
                           </div>
                           <div className="min-w-0">
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
@@ -3768,7 +3768,7 @@ export default function WorldCupBracketShell({
                           data-testid="world-cup-review-ai-report-tier"
                           className={
                             aiInsightsUnlocked
-                              ? "shrink-0 rounded-full border border-cyan-300/30 bg-cyan-300/[0.08] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-100"
+                              ? "shrink-0 rounded-full border border-cyan-300/30 bg-cyan-300/[0.08] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/90"
                               : "shrink-0 rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/65"
                           }
                         >
@@ -3893,7 +3893,7 @@ export default function WorldCupBracketShell({
                           </span>
                         </div>
                         {reviewGroupStageError ? (
-                          <p className="mt-2 rounded-lg border border-rose-300/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
+                          <p className="mt-2 rounded-lg border border-rose-300/25 bg-rose-400/10 px-3 py-2 text-xs text-white/85">
                             {reviewGroupStageError}
                           </p>
                         ) : reviewGroupStageView ? (
@@ -3950,7 +3950,7 @@ export default function WorldCupBracketShell({
                                 )
                               })
                             ) : (
-                              <p className="rounded-md border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-xs text-amber-100">{t("wc.review.noSavedThirdPlace")}</p>
+                              <p className="rounded-md border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-xs text-white/80">{t("wc.review.noSavedThirdPlace")}</p>
                             )}
                           </div>
                         ) : (
@@ -3978,7 +3978,7 @@ export default function WorldCupBracketShell({
                               )
                             })
                           ) : (
-                            <p className="rounded-md border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-xs text-amber-100">{t("wc.review.noSavedKnockout")}</p>
+                            <p className="rounded-md border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-xs text-white/80">{t("wc.review.noSavedKnockout")}</p>
                           )}
                         </div>
                       </div>
@@ -4065,7 +4065,7 @@ export default function WorldCupBracketShell({
               </section>
             ) : (
               <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 text-center">
-                <Trophy className="mx-auto h-8 w-8 text-cyan-200/50" />
+                <Trophy className="mx-auto h-8 w-8 text-white/45" />
                 <h2 className="mt-3 text-xl font-black text-white">{t("wc.review.createEntryFirstTitle")}</h2>
                 <p className="mt-2 text-sm text-white/50">{t("wc.review.createEntryFirstBody")}</p>
                 <button
@@ -4332,7 +4332,7 @@ function PoolStatCard({
       <div className="text-[10px] font-black uppercase tracking-widest text-white/45">{label}</div>
       <div
         className={`mt-1 text-xl font-black tabular-nums ${
-          tone === "ready" ? "text-emerald-200" : tone === "warn" ? "text-amber-200" : "text-white"
+          tone === "ready" ? "text-white/85" : tone === "warn" ? "text-white/75" : "text-white"
         }`}
       >
         {value}
@@ -4422,7 +4422,7 @@ function WorldCupFinalizedSuccessBlock({
     >
       <div className="flex items-start gap-2.5">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-300/40 bg-emerald-400/15 shadow-[0_0_16px_-4px_rgba(52,211,153,0.5)]">
-          <Check className="h-4 w-4 text-emerald-200" aria-hidden />
+          <Check className="h-4 w-4 text-white/85" aria-hidden />
         </div>
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/50">
@@ -4516,7 +4516,7 @@ function ReviewAiConfidenceCard({
   const highRiskCount = picks.filter((pick) => pick.round === "round_of_32" || pick.round === "round_of_16").length
   const chalkWarning = completedPickCount > 0 && highRiskCount <= Math.max(1, Math.floor(completedPickCount / 3))
   return (
-    <details data-testid="world-cup-review-ai-confidence" className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3 text-xs text-cyan-50">
+    <details data-testid="world-cup-review-ai-confidence" className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3 text-xs text-white/90">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-black">
         <span className="inline-flex items-center gap-1.5">
           <Sparkles className="h-3.5 w-3.5" />
@@ -4529,7 +4529,7 @@ function ReviewAiConfidenceCard({
         )}
       </summary>
       {unlocked ? (
-        <div className="mt-3 space-y-2 leading-5 text-cyan-50/85">
+        <div className="mt-3 space-y-2 leading-5 text-white/75">
           <p>
             <span className="font-black text-white">{t("wc.confidence.missingPicks")}</span>{" "}
             {completionReview.fullEntryComplete
@@ -4584,18 +4584,18 @@ function WorldCupBracketGradeCard({
   return (
     <section
       data-testid="world-cup-bracket-grade"
-      className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3 text-xs text-cyan-50"
+      className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3 text-xs text-white/90"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/70">{t("wc.grade.eyebrow")}</p>
+          <p className="text-[10px] font-black uppercase tracking-wide text-white/60">{t("wc.grade.eyebrow")}</p>
           <div className="mt-1 flex items-baseline gap-3">
             <span className="text-3xl font-black text-white">{grade.grade}</span>
-            <span className="font-bold text-cyan-100/80">{t("wc.grade.completionLabel", { percent: grade.completionPercent })}</span>
+            <span className="font-bold text-white/70">{t("wc.grade.completionLabel", { percent: grade.completionPercent })}</span>
           </div>
         </div>
         {hideTierChip ? null : (
-          <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-100">
+          <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/90">
             {unlocked ? t("wc.grade.tierProDetail") : t("wc.grade.tierBasic")}
           </span>
         )}
@@ -4607,7 +4607,7 @@ function WorldCupBracketGradeCard({
         <PoolStatCard label={t("wc.grade.stat.missing")} value={String(grade.missingPickCount)} tone={grade.missingPickCount === 0 ? "ready" : "warn"} />
       </div>
       {unlocked ? (
-        <div className="mt-3 space-y-1.5 leading-5 text-cyan-50/85">
+        <div className="mt-3 space-y-1.5 leading-5 text-white/75">
           <p><span className="font-black text-white">{t("wc.grade.risk")}</span> {grade.riskLabel}</p>
           <p><span className="font-black text-white">{t("wc.grade.upset")}</span> {grade.upsetMeter}</p>
           <p><span className="font-black text-white">{t("wc.grade.championConfidence")}</span> {grade.championSelected ? `${grade.championConfidence}%` : t("wc.grade.championConfidenceNone")}</p>
@@ -4648,7 +4648,7 @@ function WorldCupPathToWinCard({
           </p>
         </div>
         {hideTierChip ? null : (
-          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${unlocked ? "border-cyan-200/25 text-cyan-100" : "border-purple-300/25 text-purple-100"}`}>
+          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${unlocked ? "border-cyan-200/25 text-white/90" : "border-purple-300/25 text-purple-100"}`}>
             {unlocked ? t("wc.path.tierActive") : t("wc.path.tierLocked")}
           </span>
         )}
@@ -4680,7 +4680,7 @@ function WorldCupDashBracketPreviewToolbar({
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200/70">
+        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/60">
           Starting Bracket Preview
         </p>
         <h3 className="mt-1 text-xl font-black text-white">World Cup Bracket Preview</h3>
@@ -4722,20 +4722,20 @@ function WorldCupDashBracketPreviewToolbar({
 function AiSimulationLockPanel({ isCommissioner }: { isCommissioner: boolean }) {
   return (
     <div className="flex min-h-[200px] flex-col gap-4 p-5 sm:flex-row sm:items-start sm:p-6">
-      <div className="rounded-2xl border border-cyan-200/20 bg-cyan-300/10 p-3 text-cyan-100 shadow-lg shadow-cyan-500/10 backdrop-blur-[2px]">
+      <div className="rounded-2xl border border-cyan-200/20 bg-cyan-300/10 p-3 text-white/90 shadow-lg shadow-cyan-500/10 backdrop-blur-[2px]">
         <Lock className="h-7 w-7" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="inline-flex rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-cyan-100 backdrop-blur-[2px]">
+        <div className="inline-flex rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-white/90 backdrop-blur-[2px]">
           Locked Preview
         </div>
-        <h4 className="mt-3 text-lg font-black text-cyan-50 drop-shadow-sm">AI Simulation Locked</h4>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-cyan-100/90 drop-shadow-sm">
+        <h4 className="mt-3 text-lg font-black text-white/90 drop-shadow-sm">AI Simulation Locked</h4>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-white/80 drop-shadow-sm">
           AI Simulation unlocks projected winners, bracket busters, and champion paths.
         </p>
-        <p className="mt-3 text-xs font-black uppercase tracking-widest text-cyan-100/75">Requires AF Pro or AF Supreme</p>
+        <p className="mt-3 text-xs font-black uppercase tracking-widest text-white/65">Requires AF Pro or AF Supreme</p>
         {isCommissioner ? (
-          <p className="mt-2 rounded-xl border border-amber-300/20 bg-amber-300/[0.12] px-3 py-2 text-xs font-bold leading-5 text-amber-100/90 backdrop-blur-[2px]">
+          <p className="mt-2 rounded-xl border border-amber-300/20 bg-amber-300/[0.12] px-3 py-2 text-xs font-bold leading-5 text-white/75 backdrop-blur-[2px]">
             Commissioner AI tools require AF Commissioner or AF Supreme.
           </p>
         ) : null}
@@ -4771,9 +4771,9 @@ function PremiumFeatureCard({
           className={[
             "shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide",
             unlocked
-              ? "border-cyan-300/30 bg-cyan-300/10 text-cyan-100"
+              ? "border-cyan-300/30 bg-cyan-300/10 text-white/90"
               : tier === "AF Commissioner"
-                ? "border-amber-300/30 bg-amber-400/10 text-amber-100"
+                ? "border-amber-300/30 bg-amber-400/10 text-white/80"
                 : "border-purple-300/30 bg-purple-400/10 text-purple-100",
           ].join(" ")}
         >
@@ -4831,8 +4831,8 @@ function WorldCupPremiumAccessPanel({
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         <div>
           <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-xs font-black text-amber-100">AF Commissioner</p>
-            <span className="rounded-full border border-amber-300/25 bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-100">
+            <p className="text-xs font-black text-white/80">AF Commissioner</p>
+            <span className="rounded-full border border-amber-300/25 bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/80">
               {entitlementSummary.labels.commissioner}
             </span>
           </div>
@@ -5356,7 +5356,7 @@ function WorldCupCommunityFoundationPanel({
           {selectedGif ? (
             <div className="mt-2 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.06] p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-cyan-100/70">Selected GIF</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-white/60">Selected GIF</p>
                 <button
                   type="button"
                   onClick={() => setSelectedGif(null)}
@@ -5371,7 +5371,7 @@ function WorldCupCommunityFoundationPanel({
           {selectedImage ? (
             <div className="mt-2 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.06] p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-cyan-100/70">Selected Image</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-white/60">Selected Image</p>
                 <button
                   type="button"
                   onClick={() => setSelectedImage(null)}
@@ -5425,7 +5425,7 @@ function WorldCupCommunityFoundationPanel({
             {tChat("wc.chat.trustNote")}
           </p>
           {chatError ? (
-            <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
+            <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-white/85">
               {chatError}
             </p>
           ) : null}
@@ -5519,7 +5519,7 @@ function ComposerUtilityButton({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2 text-[11px] font-bold text-white/55 hover:border-cyan-300/30 hover:text-cyan-100"
+      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2 text-[11px] font-bold text-white/55 hover:border-cyan-300/30 hover:text-white/90"
     >
       <Icon className="h-3.5 w-3.5" aria-hidden />
       {label}
@@ -5540,7 +5540,7 @@ function ComposerFormatButton({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2 text-[11px] font-black text-white/65 hover:border-cyan-300/30 hover:text-cyan-100"
+      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2 text-[11px] font-black text-white/65 hover:border-cyan-300/30 hover:text-white/90"
       aria-label={label}
     >
       <Icon className="h-3.5 w-3.5" aria-hidden />
@@ -5552,10 +5552,10 @@ function ComposerFormatButton({
 function getWorldCupRichTextClassName(segment: WorldCupChatRichTextSegment) {
   const colorClass: Record<WorldCupChatColor, string> = {
     default: "",
-    "af-blue": "text-cyan-200",
-    red: "text-rose-200",
-    amber: "text-amber-200",
-    green: "text-emerald-200",
+    "af-blue": "text-white/85",
+    red: "text-white/85",
+    amber: "text-white/75",
+    green: "text-white/85",
     purple: "text-purple-200",
   }
   const fontClass: Record<WorldCupChatFont, string> = {
@@ -5656,7 +5656,7 @@ function WorldCupImageUploadPanel({
       <p className="mt-1">
         Upload a pool chat image through the World Cup Cloudinary route. PNG, JPEG, WebP, and GIF are allowed up to 5MB.
       </p>
-      <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-[11px] font-black text-cyan-100">
+      <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-[11px] font-black text-white/90">
         {isUploading ? "Uploading..." : "Choose Image"}
         <input
           type="file"
@@ -5671,7 +5671,7 @@ function WorldCupImageUploadPanel({
         />
       </label>
       {error ? (
-        <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
+        <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-white/85">
           {error}
         </p>
       ) : null}
@@ -5715,7 +5715,7 @@ function WorldCupPollMessage({
                 />
                 <span className="relative flex items-center justify-between gap-2 px-3 py-2">
                   <span className="font-bold text-white/75">{option.label}</span>
-                  <span className="text-[10px] font-black text-cyan-100/75">
+                  <span className="text-[10px] font-black text-white/65">
                     {option.votes} vote{option.votes === 1 ? "" : "s"} · {option.percentage}%
                   </span>
                 </span>
@@ -5799,13 +5799,13 @@ function WorldCupPollComposer({
           type="button"
           onClick={onSubmit}
           disabled={isCreating}
-          className="rounded-lg border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-[11px] font-black text-cyan-100 disabled:opacity-45"
+          className="rounded-lg border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-[11px] font-black text-white/90 disabled:opacity-45"
         >
           {isCreating ? "Creating..." : "Create Poll"}
         </button>
       </div>
       {error ? (
-        <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
+        <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-white/85">
           {error}
         </p>
       ) : null}
@@ -5854,13 +5854,13 @@ function WorldCupGifSearchPanel({
           type="button"
           onClick={onSearch}
           disabled={isSearching || !query.trim()}
-          className="rounded-lg border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-[11px] font-black text-cyan-100 disabled:opacity-45"
+          className="rounded-lg border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-[11px] font-black text-white/90 disabled:opacity-45"
         >
           {isSearching ? "Searching..." : "Search GIFs"}
         </button>
       </div>
       {error ? (
-        <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
+        <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-white/85">
           {error}
         </p>
       ) : null}
@@ -6038,7 +6038,7 @@ function WorldCupNotificationSettingsCard({ challengeId }: { challengeId: string
         ))}
       </div>
       {settingsError ? (
-        <p className="mt-3 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
+        <p className="mt-3 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-white/85">
           {settingsError}
         </p>
       ) : null}
@@ -6065,11 +6065,11 @@ function SyncResultRow({
         {result.created != null && <span>Created <strong className="text-white/80">{result.created}</strong></span>}
         {result.updated != null && <span>Updated <strong className="text-white/80">{result.updated}</strong></span>}
         {result.skipped != null && <span>Skipped <strong className="text-white/80">{result.skipped}</strong></span>}
-        {result.dryRun && <span className="text-amber-300">dry run</span>}
+        {result.dryRun && <span className="text-white/70">dry run</span>}
       </div>
       {extra && <p className="mt-1 text-white/50">{extra}</p>}
       {(result.warnings ?? []).slice(0, 2).map((w) => (
-        <p key={w} className="mt-1 text-amber-300">{w}</p>
+        <p key={w} className="mt-1 text-white/70">{w}</p>
       ))}
       {result.syncedAt && (
         <p className="mt-1 text-white/30">{new Date(result.syncedAt).toLocaleTimeString()}</p>
