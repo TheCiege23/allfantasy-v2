@@ -5958,7 +5958,7 @@ function WorldCupNotificationSettingsCard({ challengeId }: { challengeId: string
   return (
     <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
       <p className="flex items-center gap-2 text-xs font-black text-white">
-        <Bell className="h-3.5 w-3.5 text-cyan-200" aria-hidden />
+        <Bell className="h-3.5 w-3.5 text-white/70" aria-hidden />
         Notification Settings
       </p>
       <p className="mt-2 text-xs leading-5 text-white/50">
