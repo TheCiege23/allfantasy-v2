@@ -243,6 +243,29 @@ const EN: WorldCupDictionary = {
   "wc.home.ai.explainHint": "Go to the Review tab to get an AI explanation of your bracket strategy.",
   "wc.home.ai.unlockHint": "Upgrade to AF Pro to unlock Chimmy AI and Explain My Bracket.",
 
+  // ── Pool Chat community panel (Goal 9) ───────────────────────────────
+  "wc.chat.hero.title": "Pool Chat",
+  "wc.chat.hero.subtitle": "Talk strategy, call your shots, and keep the pool alive.",
+  "wc.chat.hero.badge": "Community",
+  "wc.chat.empty.headline": "Start the first debate.",
+  "wc.chat.empty.body":
+    "Call your champion, question a risky pick, or ask Chimmy for a read.",
+  "wc.chat.chip.explainBracket": "Explain my bracket",
+  "wc.chat.chip.dangerZone": "Find my danger-zone picks",
+  "wc.chat.chip.poolFavorite": "Who is the pool favorite?",
+  "wc.chat.chip.keyMatchup": "What matchup could change everything?",
+  "wc.chat.chip.trashTalk": "Give me a trash-talk-safe line",
+  "wc.chat.composer.placeholder": "Message the pool or ask Chimmy…",
+  "wc.chat.composer.send": "Send",
+  "wc.chat.privateLabel": "Private Chimmy reply · Only visible to you",
+  "wc.chat.aiHint.unlocked":
+    "@chimmy replies are private. Only you will see your prompt and Chimmy’s answer in this pool.",
+  "wc.chat.aiHint.locked":
+    "@chimmy private replies require AI/Pro. Upgrade to ask Chimmy from this pool chat.",
+  "wc.chat.trustNote": "Keep it competitive. Keep it clean.",
+  "wc.chat.loading": "Loading pool chat…",
+  "wc.chat.refresh": "Refresh",
+
   // ── Pool dashboard: command hero ──────────────────────────────────────
   "wc.pool.eyebrow": "Pool Command Center",
   "wc.pool.privateBadge": "Private",
@@ -1247,6 +1270,29 @@ const ES: WorldCupDictionary = {
   "wc.home.ai.chimmyHint": "Escribe @chimmy en el chat del pool para recibir consejos personalizados de bracket.",
   "wc.home.ai.explainHint": "Ve a la pestaña Revisar para obtener una explicación de IA de tu estrategia de bracket.",
   "wc.home.ai.unlockHint": "Actualiza a AF Pro para desbloquear Chimmy AI y Explain My Bracket.",
+
+  // ── Pool Chat community panel (Goal 9) ───────────────────────────────
+  "wc.chat.hero.title": "Chat del Pool",
+  "wc.chat.hero.subtitle": "Habla estrategia, haz tus predicciones y mantén el pool activo.",
+  "wc.chat.hero.badge": "Comunidad",
+  "wc.chat.empty.headline": "Inicia el primer debate.",
+  "wc.chat.empty.body":
+    "Llama a tu campeón, cuestiona una elección arriesgada o pídele a Chimmy su opinión.",
+  "wc.chat.chip.explainBracket": "Explica mi bracket",
+  "wc.chat.chip.dangerZone": "Encuentra mis picks en zona de peligro",
+  "wc.chat.chip.poolFavorite": "¿Quién es el favorito del pool?",
+  "wc.chat.chip.keyMatchup": "¿Qué partido podría cambiarlo todo?",
+  "wc.chat.chip.trashTalk": "Dame una frase de trash talk segura",
+  "wc.chat.composer.placeholder": "Escríbele al pool o pregúntale a Chimmy…",
+  "wc.chat.composer.send": "Enviar",
+  "wc.chat.privateLabel": "Respuesta privada de Chimmy · Solo visible para ti",
+  "wc.chat.aiHint.unlocked":
+    "Las respuestas de @chimmy son privadas. Solo tú verás tu pregunta y la respuesta de Chimmy en este pool.",
+  "wc.chat.aiHint.locked":
+    "Las respuestas privadas de @chimmy requieren AI/Pro. Actualiza para preguntarle a Chimmy desde el chat del pool.",
+  "wc.chat.trustNote": "Sé competitivo. Sé respetuoso.",
+  "wc.chat.loading": "Cargando chat del pool…",
+  "wc.chat.refresh": "Actualizar",
 
   // ── Pool dashboard: command hero ──────────────────────────────────────
   "wc.pool.eyebrow": "Centro de Comando del Pool",
@@ -2279,6 +2325,29 @@ const ZH: WorldCupDictionary = {
   "wc.home.ai.explainHint": "前往「檢閱」標籤頁，獲取 AI 對你的對戰表策略的解釋。",
   "wc.home.ai.unlockHint": "升級至 AF Pro 以解鎖 Chimmy AI 和「解釋我的對戰表」功能。",
 
+  // ── Pool Chat community panel (Goal 9) ───────────────────────────────
+  "wc.chat.hero.title": "群組聊天",
+  "wc.chat.hero.subtitle": "討論策略、預測結果，讓群組保持熱度。",
+  "wc.chat.hero.badge": "社群",
+  "wc.chat.empty.headline": "開始第一場辯論。",
+  "wc.chat.empty.body":
+    "呼叫你的冠軍、質疑冒險的選擇，或請 Chimmy 給個看法。",
+  "wc.chat.chip.explainBracket": "解釋我的對戰表",
+  "wc.chat.chip.dangerZone": "找出我的高風險選擇",
+  "wc.chat.chip.poolFavorite": "誰是群組最熱門的人選？",
+  "wc.chat.chip.keyMatchup": "哪場對戰最可能改變一切？",
+  "wc.chat.chip.trashTalk": "給我一句安全的垃圾話",
+  "wc.chat.composer.placeholder": "傳訊息給群組或詢問 Chimmy…",
+  "wc.chat.composer.send": "送出",
+  "wc.chat.privateLabel": "Chimmy 私人回覆 · 僅你可見",
+  "wc.chat.aiHint.unlocked":
+    "@chimmy 的回覆是私密的。只有你能在此群組中看到你的提問和 Chimmy 的回答。",
+  "wc.chat.aiHint.locked":
+    "@chimmy 私人回覆需要 AI/Pro 方案。升級後即可在群組聊天中向 Chimmy 提問。",
+  "wc.chat.trustNote": "保持競爭。保持禮貌。",
+  "wc.chat.loading": "載入群組聊天中…",
+  "wc.chat.refresh": "重新整理",
+
   // ── Pool dashboard: command hero ──────────────────────────────────────
   "wc.pool.eyebrow": "水池指揮中心",
   "wc.pool.privateBadge": "私密",
@@ -3281,6 +3350,30 @@ const FIL: WorldCupDictionary = {
   "wc.home.ai.chimmyHint": "I-type ang @chimmy sa pool chat para sa personalized na bracket advice.",
   "wc.home.ai.explainHint": "Pumunta sa Review tab para makakuha ng AI na paliwanag ng iyong bracket strategy.",
   "wc.home.ai.unlockHint": "Mag-upgrade sa AF Pro para i-unlock ang Chimmy AI at Explain My Bracket.",
+
+  // ── Pool Chat community panel (Goal 9) ───────────────────────────────
+  "wc.chat.hero.title": "Pool Chat",
+  "wc.chat.hero.subtitle":
+    "Mag-usap ng estratehiya, tawagan ang iyong panalo, at panatilihing aktibo ang pool.",
+  "wc.chat.hero.badge": "Komunidad",
+  "wc.chat.empty.headline": "Simulan ang unang debate.",
+  "wc.chat.empty.body":
+    "Tawagan ang iyong kampeon, tanungin ang isang mapanganib na pick, o humingi ng opinyon kay Chimmy.",
+  "wc.chat.chip.explainBracket": "Ipaliwanag ang aking bracket",
+  "wc.chat.chip.dangerZone": "Hanapin ang aking mga mapanganib na pick",
+  "wc.chat.chip.poolFavorite": "Sino ang paboritong pool?",
+  "wc.chat.chip.keyMatchup": "Anong laban ang maaaring magbago ng lahat?",
+  "wc.chat.chip.trashTalk": "Bigyan ako ng ligtas na trash talk",
+  "wc.chat.composer.placeholder": "Mag-mensahe sa pool o magtanong kay Chimmy…",
+  "wc.chat.composer.send": "Ipadala",
+  "wc.chat.privateLabel": "Pribadong tugon ni Chimmy · Ikaw lang ang makakakita",
+  "wc.chat.aiHint.unlocked":
+    "Ang mga tugon ng @chimmy ay pribado. Ikaw lang ang makakakita ng iyong prompt at sagot ni Chimmy sa pool na ito.",
+  "wc.chat.aiHint.locked":
+    "Ang mga pribadong tugon ng @chimmy ay nangangailangan ng AI/Pro. Mag-upgrade para magtanong kay Chimmy mula sa pool chat.",
+  "wc.chat.trustNote": "Maging mapagkumpitensya. Maging malinis.",
+  "wc.chat.loading": "Naglo-load ng pool chat…",
+  "wc.chat.refresh": "I-refresh",
 
   // ── Pool dashboard: command hero ──────────────────────────────────────
   "wc.pool.eyebrow": "Pool Command Center",
@@ -4327,6 +4420,29 @@ const VI: WorldCupDictionary = {
   "wc.home.ai.chimmyHint": "Nhập @chimmy trong chat pool để nhận lời khuyên cá nhân về bracket.",
   "wc.home.ai.explainHint": "Đi đến tab Xem lại để nhận giải thích AI về chiến lược bracket của bạn.",
   "wc.home.ai.unlockHint": "Nâng cấp lên AF Pro để mở khóa Chimmy AI và Giải thích bracket của tôi.",
+
+  // ── Pool Chat community panel (Goal 9) ───────────────────────────────
+  "wc.chat.hero.title": "Chat Pool",
+  "wc.chat.hero.subtitle": "Thảo luận chiến lược, dự đoán kết quả và giữ pool luôn sôi động.",
+  "wc.chat.hero.badge": "Cộng đồng",
+  "wc.chat.empty.headline": "Bắt đầu cuộc tranh luận đầu tiên.",
+  "wc.chat.empty.body":
+    "Gọi tên nhà vô địch của bạn, đặt câu hỏi về lựa chọn mạo hiểm, hoặc hỏi Chimmy cho ý kiến.",
+  "wc.chat.chip.explainBracket": "Giải thích bracket của tôi",
+  "wc.chat.chip.dangerZone": "Tìm các lựa chọn nguy hiểm của tôi",
+  "wc.chat.chip.poolFavorite": "Ai là người được yêu thích trong pool?",
+  "wc.chat.chip.keyMatchup": "Trận đấu nào có thể thay đổi tất cả?",
+  "wc.chat.chip.trashTalk": "Cho tôi một câu trash talk an toàn",
+  "wc.chat.composer.placeholder": "Nhắn tin cho pool hoặc hỏi Chimmy…",
+  "wc.chat.composer.send": "Gửi",
+  "wc.chat.privateLabel": "Trả lời riêng tư của Chimmy · Chỉ bạn thấy",
+  "wc.chat.aiHint.unlocked":
+    "Các trả lời của @chimmy là riêng tư. Chỉ bạn thấy câu hỏi và câu trả lời của Chimmy trong pool này.",
+  "wc.chat.aiHint.locked":
+    "Trả lời riêng tư của @chimmy yêu cầu AI/Pro. Nâng cấp để hỏi Chimmy từ chat pool.",
+  "wc.chat.trustNote": "Hãy cạnh tranh. Hãy văn minh.",
+  "wc.chat.loading": "Đang tải chat pool…",
+  "wc.chat.refresh": "Làm mới",
 
   // ── Pool dashboard: command hero ──────────────────────────────────────
   "wc.pool.eyebrow": "Trung tâm chỉ huy pool",

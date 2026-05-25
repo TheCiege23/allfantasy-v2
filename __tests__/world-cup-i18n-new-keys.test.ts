@@ -219,6 +219,25 @@ const NEW_KEYS = [
   "wc.inviteTab.actions.openChat",
   "wc.inviteTab.actions.shareLink",
   "wc.inviteTab.trustNote",
+  // Goal 9: Pool Chat community panel
+  "wc.chat.hero.title",
+  "wc.chat.hero.subtitle",
+  "wc.chat.hero.badge",
+  "wc.chat.empty.headline",
+  "wc.chat.empty.body",
+  "wc.chat.chip.explainBracket",
+  "wc.chat.chip.dangerZone",
+  "wc.chat.chip.poolFavorite",
+  "wc.chat.chip.keyMatchup",
+  "wc.chat.chip.trashTalk",
+  "wc.chat.composer.placeholder",
+  "wc.chat.composer.send",
+  "wc.chat.privateLabel",
+  "wc.chat.aiHint.unlocked",
+  "wc.chat.aiHint.locked",
+  "wc.chat.trustNote",
+  "wc.chat.loading",
+  "wc.chat.refresh",
 ] as const
 
 describe("worldCupI18n — new keys present and non-empty in all locales", () => {

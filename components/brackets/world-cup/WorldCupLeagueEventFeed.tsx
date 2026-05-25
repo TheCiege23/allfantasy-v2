@@ -64,7 +64,7 @@ export default function WorldCupLeagueEventFeed({ challengeId }: { challengeId: 
           key={e.id}
           className="rounded-lg border border-white/[0.06] bg-black/30 px-3 py-2 text-xs"
         >
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-cyan-200/90">
+          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-white/70">
             <Radio className="h-3 w-3" />
             {e.eventTitle}
             {e.isAiGenerated ? (

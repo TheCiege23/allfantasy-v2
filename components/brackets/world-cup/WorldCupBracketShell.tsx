@@ -4870,6 +4870,9 @@ function WorldCupCommunityFoundationPanel({
 }) {
   const commissionerUnlocked = entitlementSummary.commissioner
   const aiUnlocked = entitlementSummary.ai
+  // i18n — hydration-safe, drives all copy in this component
+  const { language } = useOptionalLanguage()
+  const tChat = useMemo(() => makeWcT(language), [language])
   const [messages, setMessages] = useState<WorldCupPoolChatMessage[]>([])
   const [chatBody, setChatBody] = useState("")
   const [isChatLoading, setIsChatLoading] = useState(true)
@@ -5094,28 +5097,48 @@ function WorldCupCommunityFoundationPanel({
   return (
     <section
       data-testid="world-cup-community-foundation"
-      className="mx-auto grid max-w-5xl gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]"
+      className="mode-readable mx-auto grid max-w-5xl gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]"
     >
       <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-        <div className="flex items-start justify-between gap-3">
+        {/* ── Chat Hero ──────────────────────────────────────────────── */}
+        <div
+          data-testid="wc-chat-hero"
+          className="mb-4 flex items-start justify-between gap-3"
+        >
           <div>
             <p className="flex items-center gap-2 text-sm font-black text-white">
-              <MessageSquare className="h-4 w-4 text-cyan-200" aria-hidden />
-              Pool Chat
+              <MessageSquare className="h-4 w-4 text-white/70" aria-hidden />
+              {tChat("wc.chat.hero.title")}
             </p>
-            <p className="mt-2 text-xs leading-5 text-white/50">
-              Talk strategy, trash talk, and follow pool updates.
+            <p className="mt-1 text-xs leading-5 text-white/50">
+              {tChat("wc.chat.hero.subtitle")}
             </p>
           </div>
-          <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-cyan-100">
-            Community
+          <span className="shrink-0 rounded-full border border-white/15 bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/60">
+            {tChat("wc.chat.hero.badge")}
           </span>
         </div>
-        <div className="mt-3 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.06] p-3 text-xs leading-5 text-cyan-50/75">
-          Text chat, GIFs, uploads, and polls are live for pool members. Voice notes and real-time delivery stay on the roadmap.
-        </div>
-        <div className="mt-3 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.06] p-3 text-xs leading-5 text-cyan-50/75">
-          Mentions: @username creates in-app notification records, @all is commissioner-only, @global is blocked until broadcast fanout is built, and @chimmy is private/AI-gated.
+        {/* ── Chimmy Prompt Chips ────────────────────────────────────── */}
+        <div
+          data-testid="wc-chat-prompt-chips"
+          className="mb-4 -mx-1 flex flex-nowrap gap-1.5 overflow-x-auto px-1 pb-1 scrollbar-none"
+        >
+          {([
+            "wc.chat.chip.explainBracket",
+            "wc.chat.chip.dangerZone",
+            "wc.chat.chip.poolFavorite",
+            "wc.chat.chip.keyMatchup",
+            "wc.chat.chip.trashTalk",
+          ] as const).map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setChatBody(tChat(key))}
+              className="inline-flex shrink-0 items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-bold text-white/70 transition-colors hover:border-cyan-300/30 hover:bg-cyan-300/[0.07] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55"
+            >
+              {tChat(key)}
+            </button>
+          ))}
         </div>
         <WorldCupNotificationSettingsCard challengeId={challengeId} />
         <div className="mt-4 rounded-xl border border-white/10 bg-black/25 p-3">
@@ -5129,13 +5152,13 @@ function WorldCupCommunityFoundationPanel({
               disabled={isChatLoading}
               className="rounded-lg border border-white/10 bg-white/[0.05] px-2 py-1 text-[10px] font-bold text-white/55 disabled:opacity-40"
             >
-              {isChatLoading ? "Loading..." : "Refresh"}
+              {isChatLoading ? "…" : tChat("wc.chat.refresh")}
             </button>
           </div>
           {isChatLoading ? (
             <div className="flex items-center gap-2 py-3 text-xs text-white/40">
               <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-              Loading pool chat...
+              {tChat("wc.chat.loading")}
             </div>
           ) : messages.length > 0 ? (
             <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
@@ -5170,17 +5193,25 @@ function WorldCupCommunityFoundationPanel({
                     />
                   ) : null}
                   {message.isPrivate ? (
-                    <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-purple-100/80">
-                      Private Chimmy reply · Only visible to you
+                    <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-white/70">
+                      {tChat("wc.chat.privateLabel")}
                     </p>
                   ) : null}
                 </div>
               ))}
             </div>
           ) : (
-            <p className="rounded-lg border border-dashed border-white/10 bg-black/20 px-3 py-3 text-xs text-white/35">
-              No pool messages yet. Start the strategy talk.
-            </p>
+            <div
+              data-testid="wc-chat-empty-state"
+              className="rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-center"
+            >
+              <p className="text-sm font-black text-white/75">
+                {tChat("wc.chat.empty.headline")}
+              </p>
+              <p className="mx-auto mt-1 max-w-xs text-xs leading-5 text-white/40">
+                {tChat("wc.chat.empty.body")}
+              </p>
+            </div>
           )}
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <input
@@ -5193,17 +5224,17 @@ function WorldCupCommunityFoundationPanel({
                 }
               }}
               maxLength={1000}
-              placeholder="Message your World Cup pool..."
+              placeholder={tChat("wc.chat.composer.placeholder")}
               className="min-h-11 flex-1 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-cyan-300/50 focus:outline-none"
             />
             <button
               type="button"
               onClick={() => void sendChatMessage()}
               disabled={isSendingChat || !chatBody.trim()}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:opacity-45"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-300 to-cyan-200 px-4 py-2 text-xs font-black text-black shadow-[0_4px_14px_-6px_rgba(34,211,238,0.5)] transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:transform-none touch-manipulation"
             >
               {isSendingChat ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}
-              Send
+              {tChat("wc.chat.composer.send")}
             </button>
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -5272,15 +5303,10 @@ function WorldCupCommunityFoundationPanel({
             </div>
           ) : null}
           {isChimmyPrompt ? (
-            <div className={[
-              "mt-2 rounded-xl border px-3 py-2 text-xs leading-5",
-              aiUnlocked
-                ? "border-purple-300/25 bg-purple-400/10 text-purple-50/75"
-                : "border-amber-300/25 bg-amber-400/10 text-amber-50/75",
-            ].join(" ")}>
+            <div className="mt-2 rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2 text-xs leading-5 text-white/70">
               {aiUnlocked
-                ? "@chimmy replies are private. Only you will see your prompt and Chimmy's answer in this pool."
-                : "@chimmy private replies require AI/Pro. Upgrade to ask Chimmy from this pool chat."}
+                ? tChat("wc.chat.aiHint.unlocked")
+                : tChat("wc.chat.aiHint.locked")}
             </div>
           ) : null}
           {selectedGif ? (
@@ -5348,8 +5374,11 @@ function WorldCupCommunityFoundationPanel({
               onSubmit={() => void createWorldCupPoll()}
             />
           ) : composerPanel ? <WorldCupComposerFoundationPanel panel={composerPanel} /> : null}
-          <p className="mt-2 text-[11px] leading-5 text-white/35">
-            Mentions: @username notifies a pool member, @all is commissioner-only, and @chimmy replies are private between you and Chimmy{aiUnlocked ? "." : " with AI/Pro access."}
+          <p
+            data-testid="wc-chat-trust-note"
+            className="mt-2 text-[11px] leading-5 text-white/35"
+          >
+            {tChat("wc.chat.trustNote")}
           </p>
           {chatError ? (
             <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
@@ -5377,7 +5406,7 @@ function WorldCupCommunityFoundationPanel({
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="flex items-center gap-2 text-sm font-black text-white">
-              <Megaphone className="h-4 w-4 text-amber-200" aria-hidden />
+              <Megaphone className="h-4 w-4 text-white/70" aria-hidden />
               Commissioner Announcements
             </p>
             <p className="mt-2 text-xs leading-5 text-white/50">
@@ -5388,20 +5417,20 @@ function WorldCupCommunityFoundationPanel({
             className={[
               "rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
               commissionerUnlocked
-                ? "border-cyan-300/25 bg-cyan-300/10 text-cyan-100"
-                : "border-amber-300/30 bg-amber-400/10 text-amber-100",
+                ? "border-white/20 bg-white/[0.06] text-white/70"
+                : "border-white/15 bg-white/[0.04] text-white/50",
             ].join(" ")}
           >
             {commissionerUnlocked ? "Unlocked" : "AF Commissioner feature"}
           </span>
         </div>
 
-        <div className="mt-3 rounded-xl border border-amber-300/20 bg-amber-400/10 p-3">
-          <p className="flex items-center gap-2 text-xs font-black text-amber-100">
+        <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <p className="flex items-center gap-2 text-xs font-black text-white/80">
             <Pin className="h-3.5 w-3.5" aria-hidden />
             Pinned Announcement
           </p>
-          <p className="mt-2 text-xs leading-5 text-amber-50/70">
+          <p className="mt-2 text-xs leading-5 text-white/50">
             {commissionerUnlocked
               ? "Announcement composer coming soon. Commissioner reminders can already post system-style updates to the activity feed."
               : "AF Commissioner feature. Pool owners and all-access users will be able to pin one announcement here."}
