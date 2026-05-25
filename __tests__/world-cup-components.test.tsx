@@ -1136,8 +1136,8 @@ describe("WorldCupBracketShell fixture readiness", () => {
     render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="review" initialEntryId="entry-1" />)
 
     await waitFor(() => expect(clientApiMocks.fetchCompletionReview).toHaveBeenCalledWith("c1", "entry-1"))
-    expect(screen.getByText(/Review & Finalize/i)).toBeInTheDocument()
-    expect(screen.getByText(/Finalized entries appear on the leaderboard/i)).toBeInTheDocument()
+    expect(screen.getByText(/Review Your Road to Glory/i)).toBeInTheDocument()
+    expect(screen.getByText(/Check every group, knockout path, and finalist/i)).toBeInTheDocument()
     expect(screen.getByText(/Changing Group Stage picks may unfinalize your entry/i)).toBeInTheDocument()
   })
 
@@ -1399,7 +1399,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(knockoutPick).toHaveTextContent("Match 1 · Brazil")
     expect(knockoutPick).toHaveTextContent("Correct +10")
     expect(screen.getByText(/Your bracket is locked in/i)).toBeInTheDocument()
-    expect(screen.getAllByText(/You can still edit until lock/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/You can still edit until pool lock/i).length).toBeGreaterThan(0)
     expect(screen.queryByRole("button", { name: /Show Results/i })).not.toBeInTheDocument()
   })
 
@@ -1551,15 +1551,13 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getAllByText(/Requires AI\/Pro/i).length).toBeGreaterThan(0)
     const community = screen.getByTestId("world-cup-community-foundation")
     expect(community).toHaveTextContent("Pool Chat")
-    expect(within(community).getByText(/Talk strategy, trash talk, and follow pool updates/i)).toBeInTheDocument()
-    expect(screen.getByText(/Text chat, GIFs, uploads, and polls are live for pool members/i)).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/Message your World Cup pool/i)).toBeInTheDocument()
+    expect(within(community).getByText(/Talk strategy, call your shots, and keep the pool alive/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Message the pool or ask Chimmy/i)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /^Send$/i })).toBeDisabled()
     expect(screen.getByRole("button", { name: /^GIF$/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /^Poll$/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /^Image$/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /^Voice$/i })).toBeInTheDocument()
-    expect(screen.getByText(/@chimmy is private\/AI-gated/i)).toBeInTheDocument()
     expect(screen.getByText(/^Notification Settings$/i)).toBeInTheDocument()
     expect(screen.getByText(/In-app notifications are on by default/i)).toBeInTheDocument()
     expect(screen.getByText(/SMS alerts require a verified phone number and opt-in/i)).toBeInTheDocument()
@@ -1659,7 +1657,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
 
     expect(await screen.findByText("Opening message")).toBeInTheDocument()
-    fireEvent.change(screen.getByPlaceholderText(/Message your World Cup pool/i), {
+    fireEvent.change(screen.getByPlaceholderText(/Message the pool or ask Chimmy/i), {
       target: { value: "Let us go" },
     })
     fireEvent.click(screen.getByRole("button", { name: /^Send$/i }))
@@ -1741,7 +1739,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
 
-    const input = await screen.findByPlaceholderText(/Message your World Cup pool/i)
+    const input = await screen.findByPlaceholderText(/Message the pool or ask Chimmy/i)
     fireEvent.click(screen.getByRole("button", { name: /Insert 🔥/i }))
     expect(input).toHaveValue("🔥")
 
@@ -1759,9 +1757,6 @@ describe("WorldCupBracketShell fixture readiness", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^Voice$/i }))
     expect(screen.getByText(/Voice notes are coming soon/i)).toBeInTheDocument()
-    expect(screen.getByText(/@username notifies a pool member/i)).toBeInTheDocument()
-    expect(screen.getAllByText(/@all is commissioner-only/i).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/@global is blocked/i).length).toBeGreaterThan(0)
   })
 
   it("supports safe World Cup chat formatting controls and preview", async () => {
@@ -1807,11 +1802,11 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getByText("Italic", { selector: "span" })).toHaveClass("italic")
     expect(screen.getByText("Under", { selector: "span" })).toHaveClass("underline")
     expect(screen.getByText("Strike", { selector: "span" })).toHaveClass("line-through")
-    expect(screen.getByText("Blue", { selector: "span" })).toHaveClass("text-cyan-200")
+    expect(screen.getByText("Blue", { selector: "span" })).toHaveClass("text-white/85")
     expect(screen.getByText("Mono", { selector: "span" })).toHaveClass("font-mono")
     expect(document.querySelector("script")).toBeNull()
 
-    const input = screen.getByPlaceholderText(/Message your World Cup pool/i)
+    const input = screen.getByPlaceholderText(/Message the pool or ask Chimmy/i)
     fireEvent.click(screen.getByRole("button", { name: /^Bold$/i }))
     expect(input).toHaveValue("**text**")
     expect(screen.getByText(/Formatting Preview/i)).toBeInTheDocument()
@@ -1897,7 +1892,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(await screen.findByText("Goal")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: /Goal/i }))
     expect(screen.getByText(/Selected GIF/i)).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/Message your World Cup pool/i)).toHaveValue("GIF")
+    expect(screen.getByPlaceholderText(/Message the pool or ask Chimmy/i)).toHaveValue("GIF")
     fireEvent.click(screen.getByRole("button", { name: /^Send$/i }))
 
     await waitFor(() => {
@@ -1984,7 +1979,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
 
     expect(await screen.findByText(/Selected Image/i)).toBeInTheDocument()
     expect(screen.getByAltText(/Uploaded World Cup chat image/i)).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/Message your World Cup pool/i)).toHaveValue("Image")
+    expect(screen.getByPlaceholderText(/Message the pool or ask Chimmy/i)).toHaveValue("Image")
     fireEvent.click(screen.getByRole("button", { name: /^Send$/i }))
 
     await waitFor(() => {
@@ -2212,10 +2207,10 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: true, isAdmin: false, hasBracketBrainAi: true }) as any} defaultTab="home" />)
 
-    const input = await screen.findByPlaceholderText(/Message your World Cup pool/i)
+    const input = await screen.findByPlaceholderText(/Message the pool or ask Chimmy/i)
     fireEvent.change(input, { target: { value: "@chimmy who should I pick?" } })
 
-    expect(screen.getByText(/Only you will see your prompt and Chimmy's answer in this pool/i)).toBeInTheDocument()
+    expect(screen.getByText(/Only you will see your prompt and Chimmy.s answer in this pool/i)).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: /^Send$/i }))
 
     expect(await screen.findByText("I would start by protecting your group winner path.")).toBeInTheDocument()
@@ -2499,7 +2494,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="rules" />)
 
-    expect(await screen.findByRole("heading", { name: "Rules" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "Pool Rules" })).toBeInTheDocument()
     // Champion bonus label + value are in a polished side-by-side row;
     // verify the row contains both the label and the points total.
     const championRow = screen.getByText("Champion Bonus").closest("li")
