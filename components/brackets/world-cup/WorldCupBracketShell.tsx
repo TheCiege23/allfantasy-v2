@@ -2455,7 +2455,7 @@ export default function WorldCupBracketShell({
             </div>
           )}
 
-          {(view.isOwner || view.isAdmin) && (
+          {process.env.NODE_ENV === "development" && (view.isOwner || view.isAdmin) && (
             <div className="mx-4 mb-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] text-white/55">
               Debug counts: total matches {view.matches.length} · pickable matches {pickableMatches.length} · unresolved matches {Math.max(unresolvedMatchesCount, 0)}
             </div>

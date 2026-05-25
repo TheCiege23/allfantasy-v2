@@ -31,6 +31,9 @@ export default function WorldCupBracketBoard({
 	// Hydration-safe: locale flows from the global LanguageProviderClient.
 	const { language } = useOptionalLanguage()
 	const t = useMemo(() => makeWcT(language), [language])
+	// DB round keys are snake_case ("round_of_32") but i18n dict keys are camelCase ("roundOf32").
+	// This converts them so `wc.round.${round}` resolves correctly for all rounds.
+	const toCamelRound = (r: string) => r.replace(/_([a-z])/g, (_: string, c: string) => c.toUpperCase())
 	const champion = picks.find((p) => p.round === "final" && hasWorldCupPickSelection(p))
 	const rounds = WORLD_CUP_ROUNDS.filter((r) => matches.some((m) => m.round === r && (r !== "third_place" || view.challenge.includeThirdPlace)))
 	const { pickLockStrategy, pickLockAt } = view.challenge
@@ -51,7 +54,7 @@ export default function WorldCupBracketBoard({
 					<WorldCupRoundColumn
 						key={round}
 						round={round as WorldCupRound}
-						label={t(`wc.round.${round}`)}
+						label={t(`wc.round.${toCamelRound(round)}`)}
 						matches={matches.filter((m) => m.round === round)}
 						picks={picks}
 						onPick={onPick}
