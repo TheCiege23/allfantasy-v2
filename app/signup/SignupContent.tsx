@@ -11,6 +11,7 @@ import {
 } from "@/lib/auth/PhoneVerificationService"
 import {
   resolvePostSignupCallbackUrl,
+  resolveSignupRedirectPath,
 } from "@/lib/auth/SignupFlowController"
 import {
   clearUnifiedAuthDestination,
@@ -88,7 +89,16 @@ export default function SignupContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const nextParam = searchParams?.get("next") ?? undefined
-  const postSignupDestination = "/dashboard"
+  const postSignupDestination = useMemo(
+    () =>
+      resolveSignupRedirectPath({
+        callbackUrl: searchParams?.get("callbackUrl"),
+        next: searchParams?.get("next"),
+        returnTo: searchParams?.get("returnTo"),
+        intent: searchParams?.get("intent"),
+      }),
+    [searchParams]
+  )
   const refParam = searchParams?.get("ref")?.trim() || undefined
 
   const [username, setUsername] = useState("")

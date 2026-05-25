@@ -6,6 +6,7 @@ import {
   createAdditionalWorldCupInvite,
   createWorldCupBracketChallenge,
   getWorldCupChallengeByInvite,
+  getWorldCupChallengeIntegrityReport,
   getWorldCupChallengeView,
   joinWorldCupChallengeByInvite,
   recalculateWorldCupChallenge,
@@ -15,6 +16,14 @@ import {
   updateWorldCupChallengeSettings,
 } from "@/lib/world-cup"
 import { syncWorldCupProviderGroupStandings } from "@/lib/world-cup/worldCupGroupStageResultService"
+import {
+  syncWorldCupFixtures,
+  syncWorldCupLiveScores,
+} from "@/lib/world-cup/worldCupDataSyncService"
+import {
+  notifyWorldCupLeaderboardUpdated,
+  notifyWorldCupResultsUpdated,
+} from "@/lib/world-cup/worldCupNotifications"
 import {
   assertWorldCupCreateModeAccess,
   assertWorldCupManager,
@@ -100,6 +109,16 @@ const syncWorldCupSchema = z.object({
 const adminProviderSyncSchema = z.object({
   provider: z.enum(["mock", "apifootball", "sportsdata", "manual"]).optional().default("mock"),
   seasonYear: z.coerce.number().int().min(2022).max(2030).optional().default(2026),
+})
+
+const adminSyncFixturesSchema = adminProviderSyncSchema.extend({
+  dryRun: z.boolean().optional().default(false),
+})
+
+const adminSyncLiveSchema = adminProviderSyncSchema.extend({
+  useLegacySingleProvider: z.boolean().optional().default(false),
+  dryRun: z.boolean().optional().default(false),
+  recalculate: z.boolean().optional().default(true),
 })
 
 const adminLoadTestFixturesSchema = z.object({
@@ -540,6 +559,139 @@ async function syncGroupStandings(request: Request, challengeId: string) {
   }
 }
 
+async function adminIntegrityReport(request: Request, challengeId: string) {
+  const auth = await requireWorldCupApiUser(request)
+  if (!auth.ok) return auth.response
+
+  const params = worldCupChallengeParamsSchema.safeParse({ challengeId })
+  if (!params.success) {
+    return NextResponse.json({ error: "Invalid challenge id" }, { status: 400 })
+  }
+
+  const access = await assertWorldCupManager(request, params.data.challengeId, auth.user)
+  if (!access.ok) return access.response
+
+  const report = await getWorldCupChallengeIntegrityReport(params.data.challengeId)
+  if (!report) {
+    return NextResponse.json({ error: "Challenge not found" }, { status: 404 })
+  }
+
+  return NextResponse.json({ ok: true, report })
+}
+
+async function adminSyncFixtures(request: Request, challengeId: string) {
+  const auth = await requireWorldCupApiUser(request)
+  if (!auth.ok) return auth.response
+
+  const params = worldCupChallengeParamsSchema.safeParse({ challengeId })
+  if (!params.success) {
+    return NextResponse.json({ error: "Invalid challenge id" }, { status: 400 })
+  }
+
+  const access = await assertWorldCupManager(request, params.data.challengeId, auth.user)
+  if (!access.ok) return access.response
+
+  const body = await request.json().catch(() => ({}))
+  const parsed = adminSyncFixturesSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid request", issues: parsed.error.flatten() }, { status: 400 })
+  }
+
+  const { provider, dryRun, seasonYear } = parsed.data
+  try {
+    const result = await syncWorldCupFixtures({
+      provider,
+      dryRun,
+      seasonYear,
+      challengeId: params.data.challengeId,
+    })
+
+    return NextResponse.json({
+      ok: true,
+      dryRun,
+      provider,
+      created: result.created,
+      updated: result.updated,
+      skipped: result.skipped,
+      warnings: result.warnings,
+      lockTimeInferred: result.lockTimeInferred,
+      fixtureCount: result.fixtures.length,
+      syncedAt: new Date().toISOString(),
+    })
+  } catch (error) {
+    return worldCupProviderSyncErrorResponse(error, {
+      route: "admin/sync-fixtures",
+      provider,
+      seasonYear,
+      dryRun,
+    })
+  }
+}
+
+async function adminSyncLive(request: Request, challengeId: string) {
+  const auth = await requireWorldCupApiUser(request)
+  if (!auth.ok) return auth.response
+
+  const params = worldCupChallengeParamsSchema.safeParse({ challengeId })
+  if (!params.success) {
+    return NextResponse.json({ error: "Invalid challenge id" }, { status: 400 })
+  }
+
+  const access = await assertWorldCupManager(request, params.data.challengeId, auth.user)
+  if (!access.ok) return access.response
+
+  const body = await request.json().catch(() => ({}))
+  const parsed = adminSyncLiveSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid request", issues: parsed.error.flatten() }, { status: 400 })
+  }
+
+  const { provider, useLegacySingleProvider, dryRun, recalculate, seasonYear } = parsed.data
+  try {
+    const result = await syncWorldCupLiveScores({
+      provider,
+      dryRun,
+      recalculate,
+      seasonYear,
+      challengeId: params.data.challengeId,
+    })
+
+    if (!dryRun && result.updated > 0) {
+      const sourceId = `${provider}:${new Date().toISOString()}`
+      await notifyWorldCupResultsUpdated({
+        challengeId: params.data.challengeId,
+        sourceId,
+      })
+      if (result.recalculated) {
+        await notifyWorldCupLeaderboardUpdated({
+          challengeId: params.data.challengeId,
+          sourceId,
+        })
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      ...(useLegacySingleProvider ? { mode: "legacy_single_provider" as const } : {}),
+      dryRun,
+      provider,
+      updated: result.updated,
+      skipped: result.skipped,
+      finalMatches: result.finalMatches,
+      recalculated: result.recalculated,
+      warnings: result.warnings,
+      syncedAt: new Date().toISOString(),
+    })
+  } catch (error) {
+    return worldCupProviderSyncErrorResponse(error, {
+      route: "admin/sync-live",
+      provider,
+      seasonYear,
+      dryRun,
+    })
+  }
+}
+
 async function adminListChallenges(request: Request) {
   const user = await getWorldCupApiUser()
   const isAdmin = Boolean(isAuthorizedRequest(request) || (await getWorldCupAdminState(request, user)))
@@ -845,6 +997,7 @@ export async function GET(request: Request, context: WorldCupRouteContext) {
   if (path.length === 1) return getChallenge(request, path[0])
   if (path.length === 2 && path[1] === "leaderboard") return getLeaderboard(request, path[0])
   if (path.length === 2 && path[1] === "picks") return getPicks(path[0])
+  if (path.length === 3 && path[1] === "admin" && path[2] === "integrity") return adminIntegrityReport(request, path[0])
   if (path.length === 2 && path[0] === "admin" && path[1] === "challenges") return adminListChallenges(request)
   if (path.length === 2 && path[0] === "admin" && path[1] === "health") return adminHealthCheck(request)
 
@@ -861,6 +1014,8 @@ export async function POST(request: Request, context: WorldCupRouteContext) {
   if (path.length === 2 && path[1] === "picks") return savePicks(request, path[0])
   if (path.length === 2 && path[1] === "invite") return createInvite(request, path[0])
   if (path.length === 2 && path[1] === "recalculate") return recalculateChallenge(request, path[0])
+  if (path.length === 3 && path[1] === "admin" && path[2] === "sync-fixtures") return adminSyncFixtures(request, path[0])
+  if (path.length === 3 && path[1] === "admin" && path[2] === "sync-live") return adminSyncLive(request, path[0])
   if (path.length === 3 && path[1] === "admin" && path[2] === "sync-group-standings") return syncGroupStandings(request, path[0])
   if (path.length === 3 && path[1] === "admin" && path[2] === "load-test-fixtures") {
     return adminLoadTestFixtures(request, path[0])

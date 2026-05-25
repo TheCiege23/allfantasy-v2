@@ -9,6 +9,9 @@ const simulateTournamentMock = vi.hoisted(() => vi.fn())
 const resetSimulationMock = vi.hoisted(() => vi.fn())
 const loadFixturesMock = vi.hoisted(() => vi.fn())
 const syncLiveMock = vi.hoisted(() => vi.fn())
+const syncFixturesMock = vi.hoisted(() => vi.fn())
+const notifyLeaderboardUpdatedMock = vi.hoisted(() => vi.fn())
+const notifyResultsUpdatedMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/app/api/brackets/world-cup/_utils", () => ({
   requireWorldCupApiUser: requireUserMock,
@@ -43,6 +46,12 @@ vi.mock("@/lib/world-cup/worldCupSimulationService", () => ({
 
 vi.mock("@/lib/world-cup/worldCupDataSyncService", () => ({
   syncWorldCupLiveScores: syncLiveMock,
+  syncWorldCupFixtures: syncFixturesMock,
+}))
+
+vi.mock("@/lib/world-cup/worldCupNotifications", () => ({
+  notifyWorldCupLeaderboardUpdated: notifyLeaderboardUpdatedMock,
+  notifyWorldCupResultsUpdated: notifyResultsUpdatedMock,
 }))
 
 describe("world cup simulation admin routes", () => {
@@ -55,6 +64,9 @@ describe("world cup simulation admin routes", () => {
     resetSimulationMock.mockReset()
     loadFixturesMock.mockReset()
     syncLiveMock.mockReset()
+    syncFixturesMock.mockReset()
+    notifyLeaderboardUpdatedMock.mockReset()
+    notifyResultsUpdatedMock.mockReset()
 
     requireUserMock.mockResolvedValue({ ok: true, user: { id: "owner-1", email: "owner@example.com" } })
     accessMock.mockResolvedValue({ ok: true, challenge: { id: "c1" }, isAdmin: false })
@@ -90,7 +102,7 @@ describe("world cup simulation admin routes", () => {
       }),
     })
 
-    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/admin/simulate-match/route")
+    const { POST } = await import("@/app/api/brackets/world-cup/[[...path]]/route")
     const res = await POST(
       new Request("http://localhost/api/brackets/world-cup/c1/admin/simulate-match", {
         method: "POST",
@@ -100,7 +112,7 @@ describe("world cup simulation admin routes", () => {
           confirmSimulation: true,
         }),
       }),
-      { params: { challengeId: "c1" } }
+      { params: { path: ["c1", "admin", "simulate-match"] } }
     )
 
     expect(res.status).toBe(403)
@@ -108,14 +120,14 @@ describe("world cup simulation admin routes", () => {
   })
 
   it("sync-live recalculates the leaderboard after score updates", async () => {
-    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/admin/sync-live/route")
+    const { POST } = await import("@/app/api/brackets/world-cup/[[...path]]/route")
     const res = await POST(
       new Request("http://localhost/api/brackets/world-cup/c1/admin/sync-live", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ provider: "mock", useLegacySingleProvider: true }),
       }),
-      { params: { challengeId: "c1" } }
+      { params: { path: ["c1", "admin", "sync-live"] } }
     )
 
     expect(res.status).toBe(200)
@@ -140,14 +152,14 @@ describe("world cup simulation admin routes", () => {
       new Error("API-Football fixtures failed: Bearer super-secret-token key=provider-secret")
     )
 
-    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/admin/sync-live/route")
+    const { POST } = await import("@/app/api/brackets/world-cup/[[...path]]/route")
     const res = await POST(
       new Request("http://localhost/api/brackets/world-cup/c1/admin/sync-live", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ provider: "apifootball", dryRun: true }),
       }),
-      { params: { challengeId: "c1" } }
+      { params: { path: ["c1", "admin", "sync-live"] } }
     )
 
     expect(res.status).toBe(502)
@@ -164,7 +176,7 @@ describe("world cup simulation admin routes", () => {
   })
 
   it("requires confirmSimulation in request body", async () => {
-    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/admin/simulate-match/route")
+    const { POST } = await import("@/app/api/brackets/world-cup/[[...path]]/route")
     const res = await POST(
       new Request("http://localhost/api/brackets/world-cup/c1/admin/simulate-match", {
         method: "POST",
@@ -173,7 +185,7 @@ describe("world cup simulation admin routes", () => {
           matchId: "m1",
         }),
       }),
-      { params: { challengeId: "c1" } }
+      { params: { path: ["c1", "admin", "simulate-match"] } }
     )
 
     expect(res.status).toBe(400)
@@ -193,7 +205,7 @@ describe("world cup simulation admin routes", () => {
       ),
     })
 
-    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/admin/simulate-match/route")
+    const { POST } = await import("@/app/api/brackets/world-cup/[[...path]]/route")
     const res = await POST(
       new Request("http://localhost/api/brackets/world-cup/c1/admin/simulate-match", {
         method: "POST",
@@ -203,7 +215,7 @@ describe("world cup simulation admin routes", () => {
           confirmSimulation: true,
         }),
       }),
-      { params: { challengeId: "c1" } }
+      { params: { path: ["c1", "admin", "simulate-match"] } }
     )
 
     expect(res.status).toBe(403)
@@ -211,14 +223,14 @@ describe("world cup simulation admin routes", () => {
   })
 
   it("requires confirmTestFixtures for load-test-fixtures route", async () => {
-    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/admin/load-test-fixtures/route")
+    const { POST } = await import("@/app/api/brackets/world-cup/[[...path]]/route")
     const res = await POST(
       new Request("http://localhost/api/brackets/world-cup/c1/admin/load-test-fixtures", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ dryRun: false }),
       }),
-      { params: { challengeId: "c1" } }
+      { params: { path: ["c1", "admin", "load-test-fixtures"] } }
     )
 
     expect(res.status).toBe(400)
@@ -234,14 +246,14 @@ describe("world cup simulation admin routes", () => {
       }),
     })
 
-    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/admin/load-test-fixtures/route")
+    const { POST } = await import("@/app/api/brackets/world-cup/[[...path]]/route")
     const res = await POST(
       new Request("http://localhost/api/brackets/world-cup/c1/admin/load-test-fixtures", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ confirmTestFixtures: true }),
       }),
-      { params: { challengeId: "c1" } }
+      { params: { path: ["c1", "admin", "load-test-fixtures"] } }
     )
 
     expect(res.status).toBe(403)

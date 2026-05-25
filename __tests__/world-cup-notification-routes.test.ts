@@ -16,6 +16,10 @@ vi.mock("@/app/api/brackets/world-cup/_utils", () => ({
   assertWorldCupManager: managerAccessMock,
   worldCupEntryParamsSchema: z.object({ challengeId: z.string().min(1), entryId: z.string().min(1) }),
   worldCupChallengeParamsSchema: z.object({ challengeId: z.string().min(1) }),
+  worldCupProviderSyncErrorResponse: (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error)
+    return Response.json({ ok: false, error: message }, { status: 500 })
+  },
 }))
 
 vi.mock("@/lib/world-cup/worldCupEntryFinalizeService", () => ({
@@ -35,11 +39,22 @@ vi.mock("@/lib/world-cup/worldCupNotifications", () => ({
 }))
 
 vi.mock("@/lib/world-cup", () => ({
+  createAdditionalWorldCupInvite: vi.fn(),
+  createWorldCupBracketChallenge: vi.fn(),
+  getWorldCupChallengeByInvite: vi.fn(),
+  getWorldCupChallengeIntegrityReport: vi.fn(),
+  getWorldCupChallengeView: getChallengeViewMock,
+  joinWorldCupChallengeByInvite: vi.fn(),
   recalculateWorldCupChallenge: recalculateMock,
+  saveWorldCupPicks: vi.fn(),
+  syncAllOpenWorldCupChallenges: vi.fn(),
+  syncWorldCupChallenge: vi.fn(),
+  updateWorldCupChallengeSettings: vi.fn(),
 }))
 
 vi.mock("@/lib/world-cup/worldCupDataSyncService", () => ({
   syncWorldCupLiveScores: syncScoresMock,
+  syncWorldCupFixtures: vi.fn(),
 }))
 
 function post(body: unknown = {}) {
@@ -96,9 +111,9 @@ describe("World Cup notification route wiring", () => {
   })
 
   it("live sync route creates results and leaderboard notifications when scores update", async () => {
-    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/admin/sync-live/route")
+    const { POST } = await import("@/app/api/brackets/world-cup/[[...path]]/route")
 
-    const res = await POST(post({ provider: "mock", dryRun: false, recalculate: true }), { params: { challengeId: "c1" } })
+    const res = await POST(post({ provider: "mock", dryRun: false, recalculate: true }), { params: { path: ["c1", "admin", "sync-live"] } })
 
     expect(res.status).toBe(200)
     expect(notifyResultsMock).toHaveBeenCalledWith(expect.objectContaining({ challengeId: "c1" }))
@@ -106,9 +121,9 @@ describe("World Cup notification route wiring", () => {
   })
 
   it("live sync route does not notify on dry run", async () => {
-    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/admin/sync-live/route")
+    const { POST } = await import("@/app/api/brackets/world-cup/[[...path]]/route")
 
-    const res = await POST(post({ provider: "mock", dryRun: true, recalculate: true }), { params: { challengeId: "c1" } })
+    const res = await POST(post({ provider: "mock", dryRun: true, recalculate: true }), { params: { path: ["c1", "admin", "sync-live"] } })
 
     expect(res.status).toBe(200)
     expect(notifyResultsMock).not.toHaveBeenCalled()

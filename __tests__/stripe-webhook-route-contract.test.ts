@@ -179,6 +179,49 @@ describe("Stripe webhook route contracts", () => {
     expect(updateMock).not.toHaveBeenCalled()
   })
 
+  it("returns a retryable response while a webhook event is still processing", async () => {
+    findUniqueMock.mockResolvedValueOnce({
+      status: "processing",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    const { POST } = await import("@/app/api/stripe/webhook/route")
+    const req = createMockNextRequest("http://localhost/api/stripe/webhook", {
+      method: "POST",
+      headers: { "stripe-signature": "sig_test" },
+      body: "{}",
+    })
+    const res = await POST(req as any)
+    expect(res.status).toBe(409)
+    await expect(res.json()).resolves.toMatchObject({ received: false, retry: true })
+    expect(createMock).not.toHaveBeenCalled()
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it("retries stale processing webhook events instead of dropping fulfillment", async () => {
+    findUniqueMock.mockResolvedValueOnce({
+      status: "processing",
+      createdAt: new Date(Date.now() - 10 * 60 * 1000),
+      updatedAt: new Date(Date.now() - 10 * 60 * 1000),
+    })
+    const { POST } = await import("@/app/api/stripe/webhook/route")
+    const req = createMockNextRequest("http://localhost/api/stripe/webhook", {
+      method: "POST",
+      headers: { "stripe-signature": "sig_test" },
+      body: "{}",
+    })
+    const res = await POST(req as any)
+    expect(res.status).toBe(200)
+    expect(updateMock.mock.calls[0][0]).toMatchObject({
+      where: { eventId: "evt_1" },
+      data: expect.objectContaining({ status: "processing", error: null }),
+    })
+    expect(updateMock.mock.calls.at(-1)?.[0]).toMatchObject({
+      where: { eventId: "evt_1" },
+      data: expect.objectContaining({ status: "processed" }),
+    })
+  })
+
   it("safely accepts unknown purchaseType and still marks processed", async () => {
     constructEventMock.mockReturnValueOnce({
       id: "evt_unknown",

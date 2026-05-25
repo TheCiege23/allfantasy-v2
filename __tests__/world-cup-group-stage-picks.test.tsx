@@ -238,7 +238,7 @@ describe("WorldCupGroupStagePicks", () => {
 
     const selectedCard = await screen.findByTestId("world-cup-third-place-result-A")
     expect(selectedCard).toHaveAttribute("data-selected", "true")
-    expect(selectedCard.className).toContain("bg-cyan-300/18")
+    expect(selectedCard.className).toContain("bg-cyan-300/[0.18]")
     expect(selectedCard.className).toContain("border-cyan-200")
     expect(within(selectedCard).getByText("Selected to advance")).toBeInTheDocument()
     expect(within(selectedCard).getByRole("checkbox", { name: /Select Canada as a third-place advancer/i })).toBeChecked()

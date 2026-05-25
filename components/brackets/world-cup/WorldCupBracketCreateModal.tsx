@@ -76,7 +76,14 @@ export default function WorldCupBracketCreateModal() {
       const data = await res.json().catch(() => ({}))
 
       if (res.status === 401) {
-        throw new Error(t("wc.create.error.signInRequired"))
+        const loginHref = `/login?callbackUrl=${encodeURIComponent("/brackets/world-cup/create")}`
+        router.push(loginHref)
+        if (typeof window !== "undefined") {
+          window.setTimeout(() => {
+            window.location.assign(loginHref)
+          }, 0)
+        }
+        return
       }
       if (!res.ok) {
         throw new Error(

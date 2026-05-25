@@ -6,10 +6,18 @@ import { useRouter, useSearchParams } from 'next/navigation'
 const SESSION_KEY = 'af_world_cup_intro_seen'
 const AUTO_ADVANCE_MS = 4200
 
+function safeIntroDestination(value: string | null | undefined) {
+  const trimmed = value?.trim()
+  if (!trimmed || !trimmed.startsWith('/') || trimmed.startsWith('//')) {
+    return '/brackets'
+  }
+  return trimmed
+}
+
 export default function WorldCupIntroExperience() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const nextDest = searchParams?.get('next') ?? '/brackets'
+  const nextDest = safeIntroDestination(searchParams?.get('next'))
   const forceShow = searchParams?.get('force') === '1'
 
   const videoRef = useRef<HTMLVideoElement>(null)

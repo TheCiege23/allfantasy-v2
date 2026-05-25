@@ -19,7 +19,7 @@ describe('Unified auth flow controllers', () => {
         callbackUrl: '/brackets',
         next: '/dashboard',
       })
-    ).toBe('/dashboard')
+    ).toBe('/brackets')
 
     expect(
       resolveLoginCallbackUrl({
@@ -64,7 +64,7 @@ describe('Unified auth flow controllers', () => {
       verificationMethod: 'PHONE',
     })
     expect(phoneHref).toContain('/verify?method=phone')
-    expect(phoneHref).toContain(encodeURIComponent('/dashboard'))
+    expect(phoneHref).toContain(encodeURIComponent('/brackets'))
 
     expect(
       resolvePostSignupCallbackUrl({
@@ -82,7 +82,7 @@ describe('Unified auth flow controllers', () => {
   })
 
   it('returns provider fallback copy for pending providers', () => {
-    expect(getProviderFallbackMessage('facebook')).toContain('planned')
+    expect(getProviderFallbackMessage('facebook')).toContain('not configured')
     expect(getProviderFallbackMessage('google')).toContain('not configured')
   })
 

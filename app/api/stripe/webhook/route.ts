@@ -23,6 +23,7 @@ export const runtime = "nodejs"
 
 const SUPPORTED_PURCHASE_TYPES = new Set(["subscription", "tokens"])
 const FINANCE_PURCHASE_TYPES = new Set(["league_entry_fee"])
+const PROCESSING_EVENT_STALE_MS = 5 * 60 * 1000
 const LEGACY_PURCHASE_TYPES = new Set([
   "donate",
   "donation",
@@ -74,6 +75,18 @@ function resolveCheckoutContext(
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message.slice(0, 2000)
   return String(error ?? "Unknown webhook error").slice(0, 2000)
+}
+
+function isFreshProcessingEvent(existing: {
+  status?: string | null
+  updatedAt?: Date | string | null
+  createdAt?: Date | string | null
+}) {
+  if (existing.status !== "processing") return false
+  const timestamp = existing.updatedAt ?? existing.createdAt
+  const time = timestamp ? new Date(timestamp).getTime() : Number.NaN
+  if (!Number.isFinite(time)) return true
+  return Date.now() - time < PROCESSING_EVENT_STALE_MS
 }
 
 /**
@@ -308,14 +321,21 @@ export async function POST(req: NextRequest) {
     const events = (prisma as any).stripeWebhookEvent
     const existing = await events.findUnique({
       where: { eventId: event.id },
-      select: { status: true },
+      select: { status: true, createdAt: true, updatedAt: true },
     })
 
-    if (existing?.status === "processed" || existing?.status === "processing") {
+    if (existing?.status === "processed") {
       return NextResponse.json({ received: true, duplicate: true })
     }
 
-    if (existing?.status === "error") {
+    if (existing?.status === "processing" && isFreshProcessingEvent(existing)) {
+      return NextResponse.json(
+        { received: false, retry: true, status: "processing" },
+        { status: 409 }
+      )
+    }
+
+    if (existing?.status === "error" || existing?.status === "processing") {
       await events.update({
         where: { eventId: event.id },
         data: { status: "processing", error: null, type: event.type },
@@ -331,7 +351,10 @@ export async function POST(req: NextRequest) {
         })
       } catch (createError: any) {
         if (createError?.code === "P2002") {
-          return NextResponse.json({ received: true, duplicate: true })
+          return NextResponse.json(
+            { received: false, retry: true, status: "processing" },
+            { status: 409 }
+          )
         }
         throw createError
       }

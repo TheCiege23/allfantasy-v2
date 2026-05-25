@@ -39,6 +39,7 @@ export function isAllowedSignupPostAuthDestination(
   if (pathname === "/app" || pathname.startsWith("/app/")) return false
   if (pathname === "/web" || pathname.startsWith("/web/")) return false
   if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) return true
+  if (pathname === "/world-cup-intro") return true
   if (pathname.startsWith("/invite/")) return true
   if (pathname.startsWith("/join/")) return true
   if (pathname.startsWith("/verify")) return true

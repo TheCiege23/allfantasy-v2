@@ -34,6 +34,7 @@ declare module '@/lib/world-cup' {
   export function getWorldCupChallengeByInvite(inviteCode: string): Promise<any>
   export function getWorldCupChallengeView(input: any): Promise<any>
   export function joinWorldCupChallengeByInvite(input: any): Promise<any>
+  export function getWorldCupChallengeIntegrityReport(challengeId: string): Promise<any>
   export function recalculateWorldCupChallenge(challengeId: string): Promise<any>
   export function saveWorldCupPicks(input: any): Promise<any>
   export function syncAllOpenWorldCupChallenges(): Promise<any>
@@ -58,6 +59,14 @@ declare module '@/lib/world-cup/worldCupSimulationService' {
 }
 declare module '@/lib/world-cup/worldCupGroupStageResultService' {
   export function syncWorldCupProviderGroupStandings(input: any): Promise<any>
+}
+declare module '@/lib/world-cup/worldCupDataSyncService' {
+  export function syncWorldCupFixtures(input: any): Promise<any>
+  export function syncWorldCupLiveScores(input: any): Promise<any>
+}
+declare module '@/lib/world-cup/worldCupNotifications' {
+  export function notifyWorldCupLeaderboardUpdated(input: any): Promise<any>
+  export function notifyWorldCupResultsUpdated(input: any): Promise<any>
 }
 declare module '@/lib/world-cup/worldCupDiagnosticsService' {
   export function runWorldCupDiagnostics(): Promise<any>
