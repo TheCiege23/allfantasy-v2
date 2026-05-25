@@ -66,17 +66,17 @@ function resultBadge(
   if (status === "correct")
     return {
       label: t("wc.groupStage.resultCorrect", { points: pointsAwarded }),
-      className: "border-cyan-300/30 bg-cyan-300/10 text-cyan-100",
+      className: "border-cyan-300/30 bg-cyan-300/10 text-white/90",
     }
   if (status === "wrong")
     return {
       label: t("wc.groupStage.resultWrong"),
-      className: "border-rose-300/30 bg-rose-400/10 text-rose-100",
+      className: "border-rose-300/30 bg-rose-400/10 text-white/85",
     }
   if (status === "pending")
     return {
       label: t("wc.groupStage.resultPending"),
-      className: "border-amber-300/25 bg-amber-400/10 text-amber-100",
+      className: "border-amber-300/25 bg-amber-400/10 text-white/80",
     }
   return null
 }
@@ -158,7 +158,7 @@ function GroupAiInsightPanel({
   return (
     <details
       data-testid={`world-cup-group-ai-insight-${groupName.replace(/\s+/g, "-").toLowerCase()}`}
-      className="mt-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3 text-xs text-cyan-50"
+      className="mt-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3 text-xs text-white/90"
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-black">
         <span className="inline-flex items-center gap-1.5">
@@ -170,7 +170,7 @@ function GroupAiInsightPanel({
         </span>
       </summary>
       {unlocked ? (
-        <div className="mt-3 space-y-2 leading-5 text-cyan-50/85">
+        <div className="mt-3 space-y-2 leading-5 text-white/75">
           {insights.map((line, idx) => (
             <p key={idx} data-testid={`world-cup-group-ai-insight-line-${idx}`}>
               {line}
@@ -215,13 +215,13 @@ function ThirdPlaceAiInsightPanel({
     })),
   })
   return (
-    <details data-testid="world-cup-third-place-ai-insight" className="mt-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3 text-xs text-cyan-50">
+    <details data-testid="world-cup-third-place-ai-insight" className="mt-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3 text-xs text-white/90">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-black">
         <span className="inline-flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" /> {t("wc.thirdPlace.aiTitle")}</span>
         <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] uppercase tracking-wide">{unlocked ? t("wc.groupStage.aiTierOpen") : t("wc.groupStage.aiTierLocked")}</span>
       </summary>
       {unlocked ? (
-        <div className="mt-3 space-y-2 leading-5 text-cyan-50/85">
+        <div className="mt-3 space-y-2 leading-5 text-white/75">
           {insights.map((line, idx) => (
             <p key={idx} data-testid={`world-cup-third-place-ai-insight-line-${idx}`}>
               {line}
@@ -415,7 +415,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
 
   if (error && !view) {
     return (
-      <section className="mx-auto max-w-4xl rounded-2xl border border-rose-400/25 bg-rose-400/10 p-4 text-sm text-rose-100">
+      <section className="mx-auto max-w-4xl rounded-2xl border border-rose-400/25 bg-rose-400/10 p-4 text-sm text-white/85">
         {error}
       </section>
     )
@@ -438,15 +438,15 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
           </div>
         </div>
         {isLocked ? (
-          <p className="mt-3 rounded-lg border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs font-bold text-rose-100">
+          <p className="mt-3 rounded-lg border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs font-bold text-white/85">
             {view.lock.lockReason
               ? t("wc.groupStage.lockedWithReason", { reason: view.lock.lockReason })
               : t("wc.groupStage.lockedNoReason")}
           </p>
         ) : null}
-        {error ? <p className="mt-3 rounded-lg bg-rose-400/10 px-3 py-2 text-xs text-rose-100">{error}</p> : null}
+        {error ? <p className="mt-3 rounded-lg bg-rose-400/10 px-3 py-2 text-xs text-white/85">{error}</p> : null}
         {view.warnings.length > 0 ? (
-          <div className="mt-3 space-y-1 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          <div className="mt-3 space-y-1 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-xs text-white/80">
             {view.warnings.slice(0, 4).map((warning) => (
               <p key={`${warning.code}-${warning.groupKey ?? warning.message}`}>{warning.message}</p>
             ))}
@@ -479,7 +479,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                       data-result-state={status}
                       className={`flex flex-wrap items-center gap-2 rounded-xl border bg-black/20 px-2 py-2 sm:flex-nowrap ${resultBorderClass(status)}`}
                     >
-                      <span className="w-7 shrink-0 text-center text-sm font-black text-cyan-100">{index + 1}</span>
+                      <span className="w-7 shrink-0 text-center text-sm font-black text-white/90">{index + 1}</span>
                       <div className="min-w-0 flex-1">
                         {/* Team name (team?.name) is intentionally NOT translated — see Phase 5 brief. */}
                         <div className="truncate text-sm font-bold text-white">{team?.name ?? teamId}</div>
@@ -516,16 +516,16 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                 })}
               </div>
               {!hasCompleteTeams ? (
-                <p className="mt-3 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-100">
+                <p className="mt-3 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-xs font-bold text-white/80">
                   {t("wc.groupStage.needsFourTeams", { group: group.displayName })}
                 </p>
               ) : null}
               {hasUnsavedOrderChanges ? (
-                <p className="mt-3 rounded-lg border border-cyan-300/25 bg-cyan-400/10 px-3 py-2 text-xs font-bold text-cyan-100">
+                <p className="mt-3 rounded-lg border border-cyan-300/25 bg-cyan-400/10 px-3 py-2 text-xs font-bold text-white/90">
                   {t("wc.groupStage.unsavedOrder")}
                 </p>
               ) : state === "saved" ? (
-                <p className="mt-3 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-100">
+                <p className="mt-3 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-white/90">
                   {t("wc.groupStage.savedReviewUses")}
                 </p>
               ) : null}
@@ -584,17 +584,17 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
         </div>
 
         {!view.completion.allGroupsRanked ? (
-          <p className="mt-3 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          <p className="mt-3 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-xs text-white/80">
             {t("wc.thirdPlace.rankAllFirst")}
           </p>
         ) : null}
-        {thirdPlaceError ? <p className="mt-3 rounded-lg bg-rose-400/10 px-3 py-2 text-xs text-rose-100">{thirdPlaceError}</p> : null}
+        {thirdPlaceError ? <p className="mt-3 rounded-lg bg-rose-400/10 px-3 py-2 text-xs text-white/85">{thirdPlaceError}</p> : null}
         {hasUnsavedThirdPlaceChanges ? (
-          <p className="mt-3 rounded-lg border border-cyan-300/25 bg-cyan-400/10 px-3 py-2 text-xs font-bold text-cyan-100">
+          <p className="mt-3 rounded-lg border border-cyan-300/25 bg-cyan-400/10 px-3 py-2 text-xs font-bold text-white/90">
             {t("wc.thirdPlace.unsaved")}
           </p>
         ) : thirdPlaceStatus === "saved" ? (
-          <p className="mt-3 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-100">
+          <p className="mt-3 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-white/90">
             {t("wc.thirdPlace.savedReviewUses")}
           </p>
         ) : null}
@@ -626,7 +626,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                   "flex min-h-[4.75rem] items-center gap-3 rounded-2xl border px-3 py-3 text-sm transition",
                   resultBorderClass(status),
                   isSelected
-                    ? "border-cyan-200 bg-cyan-300/[0.18] text-cyan-50 shadow-[0_0_0_2px_rgba(103,232,249,0.35),0_14px_36px_rgba(8,145,178,0.22)]"
+                    ? "border-cyan-200 bg-cyan-300/[0.18] text-white/90 shadow-[0_0_0_2px_rgba(103,232,249,0.35),0_14px_36px_rgba(8,145,178,0.22)]"
                     : "border-white/10 bg-black/25 text-white/75",
                   isLocked || !view.completion.allGroupsRanked || !candidate.team ? "opacity-60" : "cursor-pointer hover:border-cyan-200/50 hover:bg-cyan-300/10",
                 ].join(" ")}
@@ -653,12 +653,12 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                   {isSelected ? <Check className="h-5 w-5 stroke-[3]" /> : candidate.groupKey}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className={isSelected ? "block text-xs font-black uppercase tracking-wide text-cyan-100" : "block text-xs font-black uppercase tracking-wide text-white/45"}>
+                  <span className={isSelected ? "block text-xs font-black uppercase tracking-wide text-white/90" : "block text-xs font-black uppercase tracking-wide text-white/45"}>
                     {candidate.displayName}
                   </span>
                   {/* Team name (candidate.team?.name) intentionally untranslated — Phase 5 brief. */}
                   <span className="block truncate text-base font-black text-white">{candidate.team?.name ?? t("wc.thirdPlace.noPickYet")}</span>
-                  <span className={isSelected ? "mt-0.5 block text-[11px] font-bold text-cyan-100" : "mt-0.5 block text-[11px] text-white/40"}>
+                  <span className={isSelected ? "mt-0.5 block text-[11px] font-bold text-white/90" : "mt-0.5 block text-[11px] text-white/40"}>
                     {isSelected ? t("wc.thirdPlace.selectedToAdvance") : t("wc.thirdPlace.tapToSelect")}
                   </span>
                 </span>
