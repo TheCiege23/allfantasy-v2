@@ -5,6 +5,8 @@ const { patchManifestRace } = require('./patch-manifest-race.cjs')
 
 const repoRoot = process.cwd()
 const backupRoot = path.join(repoRoot, '.next-build-disabled-routes')
+const MANIFEST_FILE = 'manifest.json'
+const manifestPath = path.join(backupRoot, MANIFEST_FILE)
 const isVercelBuild =
   process.env.VERCEL === '1' ||
   process.env.NOW_BUILDER ||
@@ -136,6 +138,62 @@ function safeRmSync(targetPath) {
   }
 }
 
+// ── Manifest helpers ──────────────────────────────────────────────────────────
+// A manifest.json written into backupRoot gives restoreNonProdRoutes() a
+// crash-safe record of every { originalPath, backupPath } pair.  Even if the
+// process is killed between disable and restore, the next run can recover from
+// the manifest rather than trying to reverse-engineer paths from __-encoded
+// filenames (which is ambiguous for files whose names already contain __).
+
+function writeBackupManifest(entries) {
+  try {
+    const data = entries.map((e) => ({
+      originalPath: e.routeFile,
+      backupPath: e.backupPath,
+    }))
+    fs.writeFileSync(manifestPath, JSON.stringify(data, null, 2), 'utf8')
+  } catch (err) {
+    console.warn(`[vercel-next-build] Could not write backup manifest: ${err.message}`)
+  }
+}
+
+function readBackupManifest() {
+  try {
+    if (!fs.existsSync(manifestPath)) return null
+    const data = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+    return Array.isArray(data) ? data : null
+  } catch {
+    return null
+  }
+}
+
+// Run `git ls-files --deleted` after restore to surface any files that are
+// still missing from the working tree.
+function runPostRestoreGitCheck() {
+  try {
+    const deleted = require('child_process')
+      .execSync('git ls-files --deleted', { cwd: repoRoot, encoding: 'utf8' })
+      .trim()
+    if (deleted) {
+      console.warn(
+        '[vercel-next-build] Post-restore safety check: tracked files still missing from disk:'
+      )
+      for (const line of deleted.split('\n').filter(Boolean)) {
+        console.warn(`  ${line}`)
+      }
+      console.warn(
+        '[vercel-next-build] Run: git restore $(git ls-files --deleted)  to recover them manually.'
+      )
+    } else {
+      console.log(
+        '[vercel-next-build] Post-restore safety check passed — no tracked files missing. ✓'
+      )
+    }
+  } catch (err) {
+    console.warn(`[vercel-next-build] Post-restore git check skipped: ${err.message}`)
+  }
+}
+
 function ensureCleanBuildDir() {
   const removed = safeRmSync(nextBuildDir)
   if (removed && !fs.existsSync(nextBuildDir)) {
@@ -214,6 +272,7 @@ function runTypecheckBeforeBuild() {
 
 function disableNonProdRoutes() {
   safeRmSync(backupRoot)
+  movedFiles.length = 0 // reset for safety — shouldn't re-enter, but be defensive
 
   for (const relativePath of routeDirsToDisable) {
     const sourcePath = path.join(repoRoot, relativePath)
@@ -232,24 +291,85 @@ function disableNonProdRoutes() {
       console.log(`[vercel-next-build] Temporarily excluded ${relativeFile}`)
     }
   }
+
+  console.log(`[vercel-next-build] Temporarily excluded ${movedFiles.length} non-prod file(s) total`)
+
+  // Persist a manifest so restoreNonProdRoutes() can recover after a crash
+  // (when the in-memory movedFiles array is gone but backup files remain).
+  if (movedFiles.length > 0) {
+    writeBackupManifest(movedFiles)
+  }
 }
 
 function restoreNonProdRoutes() {
   if (cleanedUp) return
   cleanedUp = true
 
+  // Normalise to { originalPath, backupPath }.
+  // Prefer in-memory movedFiles (set in the same process run by disableNonProdRoutes).
+  // Fall back to the on-disk manifest when in-memory state is empty (e.g. crash recovery).
+  let entriesToRestore = movedFiles.map((e) => ({
+    originalPath: e.routeFile,
+    backupPath: e.backupPath,
+  }))
+
+  if (entriesToRestore.length === 0) {
+    const manifest = readBackupManifest()
+    if (manifest && manifest.length > 0) {
+      console.warn(
+        `[vercel-next-build] In-memory route list is empty — restoring ${manifest.length} file(s) from manifest.`
+      )
+      entriesToRestore = manifest
+    }
+  }
+
+  if (entriesToRestore.length === 0) {
+    // Nothing was disabled in this run and no manifest exists; clean up any stale dir.
+    if (directoryExists(backupRoot)) safeRmSync(backupRoot)
+    return
+  }
+
+  console.log(`[vercel-next-build] Restoring ${entriesToRestore.length} temporarily excluded file(s)...`)
+
   let restoredCount = 0
-  for (const entry of movedFiles.reverse()) {
-    if (!fs.existsSync(entry.backupPath)) continue
-    movePath(entry.backupPath, entry.routeFile)
-    restoredCount++
+  let missingCount = 0
+  const failedPaths = []
+
+  // Reverse so that nested dirs restore leaf-first (mirrors disable order).
+  for (const entry of [...entriesToRestore].reverse()) {
+    if (!fs.existsSync(entry.backupPath)) {
+      missingCount++
+      console.warn(`[vercel-next-build] Backup file not found — skipping: ${entry.backupPath}`)
+      continue
+    }
+    try {
+      movePath(entry.backupPath, entry.originalPath)
+      restoredCount++
+    } catch (err) {
+      failedPaths.push(entry.originalPath)
+      console.error(
+        `[vercel-next-build] Failed to restore ${entry.originalPath}: ${err.message}`
+      )
+    }
   }
 
-  if (restoredCount > 0) {
-    console.log(`[vercel-next-build] Restored ${restoredCount} temporarily excluded file(s)`)
+  console.log(`[vercel-next-build] Restored ${restoredCount} temporarily excluded file(s)`)
+
+  if (missingCount > 0) {
+    console.warn(`[vercel-next-build] ${missingCount} backup file(s) were not found during restore.`)
   }
 
-  safeRmSync(backupRoot)
+  if (failedPaths.length > 0) {
+    // Leave the backup dir intact so the developer can recover manually.
+    console.error(
+      `[vercel-next-build] ${failedPaths.length} file(s) failed to restore — backup dir preserved: ${backupRoot}`
+    )
+  } else {
+    // All files accounted for (restored or confirmed already gone) — clean up backup dir.
+    safeRmSync(backupRoot)
+  }
+
+  runPostRestoreGitCheck()
 }
 
 function printFailureSummary() {
@@ -292,23 +412,62 @@ function recoverStrandedBackup() {
   // Self-heal: if a previous build crashed before restoreNonProdRoutes() ran,
   // stale backup files may still exist. Restore them before proceeding.
   if (!directoryExists(backupRoot)) return
-  const strandedFiles = collectFilesUnderDir(backupRoot)
-  if (strandedFiles.length === 0) return
+
+  const allBackupFiles = collectFilesUnderDir(backupRoot)
+  // manifest.json is not a route file — skip it when counting stranded files.
+  const strandedFiles = allBackupFiles.filter((f) => path.basename(f) !== MANIFEST_FILE)
+
+  if (strandedFiles.length === 0) {
+    safeRmSync(backupRoot)
+    return
+  }
+
   console.warn(
     `[vercel-next-build] Detected ${strandedFiles.length} stranded backup file(s) — restoring before build.`
   )
-  for (const backupFile of strandedFiles) {
-    const basename = path.basename(backupFile)
-    const restoredRelative = basename.replace(/__/g, path.sep)
-    const destPath = path.join(repoRoot, restoredRelative)
-    try {
-      fs.mkdirSync(path.dirname(destPath), { recursive: true })
-      fs.renameSync(backupFile, destPath)
-      console.warn(`[vercel-next-build] Recovered ${restoredRelative}`)
-    } catch (err) {
-      console.warn(`[vercel-next-build] Could not recover ${restoredRelative}: ${err.message}`)
+
+  // Prefer manifest-based recovery: exact original paths, no ambiguity.
+  // Fall back to __-encoded filename decoding only if no manifest exists.
+  const manifest = readBackupManifest()
+  let recoveredCount = 0
+
+  if (manifest) {
+    for (const entry of manifest) {
+      const { originalPath, backupPath } = entry
+      if (!fs.existsSync(backupPath)) continue
+      try {
+        fs.mkdirSync(path.dirname(originalPath), { recursive: true })
+        fs.renameSync(backupPath, originalPath)
+        console.warn(`[vercel-next-build] Recovered ${path.relative(repoRoot, originalPath)}`)
+        recoveredCount++
+      } catch (err) {
+        console.warn(
+          `[vercel-next-build] Could not recover ${path.relative(repoRoot, originalPath)}: ${err.message}`
+        )
+      }
+    }
+  } else {
+    // No manifest — best-effort decode of __-encoded filenames.
+    // Note: this is ambiguous for files whose names naturally contain __.
+    console.warn(
+      '[vercel-next-build] No manifest found — attempting best-effort recovery from encoded filenames.'
+    )
+    for (const backupFile of strandedFiles) {
+      const basename = path.basename(backupFile)
+      const restoredRelative = basename.replace(/__/g, path.sep)
+      const destPath = path.join(repoRoot, restoredRelative)
+      try {
+        fs.mkdirSync(path.dirname(destPath), { recursive: true })
+        fs.renameSync(backupFile, destPath)
+        console.warn(`[vercel-next-build] Recovered ${restoredRelative}`)
+        recoveredCount++
+      } catch (err) {
+        console.warn(`[vercel-next-build] Could not recover ${restoredRelative}: ${err.message}`)
+      }
     }
   }
+
+  console.warn(`[vercel-next-build] Recovered ${recoveredCount} stranded file(s).`)
   safeRmSync(backupRoot)
 }
 
