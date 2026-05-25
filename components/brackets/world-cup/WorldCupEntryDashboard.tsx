@@ -8,10 +8,10 @@ import { getEntryStatus } from "@/lib/world-cup/worldCupClientApi"
 
 const STATUS_STYLES = {
   not_started: "border-white/10 bg-white/[0.04] text-white/40",
-  in_progress: "border-cyan-300/30 bg-cyan-300/10 text-cyan-200",
-  complete: "border-emerald-300/30 bg-emerald-300/10 text-emerald-200",
+  in_progress: "border-cyan-300/30 bg-cyan-300/10 text-white/85",
+  complete: "border-emerald-300/30 bg-emerald-300/10 text-white/85",
   locked: "border-white/10 bg-white/[0.06] text-white/35",
-  live: "border-rose-400/30 bg-rose-400/10 text-rose-200",
+  live: "border-rose-400/30 bg-rose-400/10 text-white/85",
 }
 const STATUS_LABEL = {
   not_started: "Not Started",
@@ -82,7 +82,7 @@ function RenameForm({
         <X className="h-3.5 w-3.5" />
       </button>
       {tooLong && (
-        <span className="text-[11px] text-rose-300">Max 40 chars</span>
+        <span className="text-[11px] text-white/70">Max 40 chars</span>
       )}
     </form>
   )
@@ -156,7 +156,7 @@ function EntryCard({
                 title="Delete"
                 onClick={() => setConfirmDelete(true)}
                 disabled={isMutating}
-                className="rounded-lg border border-rose-400/20 bg-rose-400/[0.06] p-1.5 text-rose-300/70 hover:text-rose-200 disabled:opacity-40"
+                className="rounded-lg border border-rose-400/20 bg-rose-400/[0.06] p-1.5 text-white/60 hover:text-white/85 disabled:opacity-40"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -178,7 +178,7 @@ function EntryCard({
       {/* Champion */}
       {!renaming && (
         <div className="mt-2 flex items-center gap-1.5 text-[11px] text-white/40">
-          <Trophy className="h-3 w-3 shrink-0 text-amber-300/60" />
+          <Trophy className="h-3 w-3 shrink-0 text-white/50" />
           {entry.championTeamName ?? "No champion picked yet"}
         </div>
       )}
@@ -187,15 +187,15 @@ function EntryCard({
       {confirmDelete && (
         <div
           data-testid="world-cup-entry-delete-confirm"
-          className="mt-3 rounded-lg border border-rose-400/25 bg-rose-400/[0.07] px-3 py-2 text-xs text-rose-100"
+          className="mt-3 rounded-lg border border-rose-400/25 bg-rose-400/[0.07] px-3 py-2 text-xs text-white/85"
         >
           <p className="font-bold">Delete &ldquo;{entry.name}&rdquo;?</p>
           {entry.submittedAt ? (
-            <p className="mt-0.5 text-rose-200/80">
+            <p className="mt-0.5 text-white/65">
               This bracket is finalized. Deleting it will remove the finalized entry from rankings and the pool leaderboard. This cannot be undone.
             </p>
           ) : (
-            <p className="mt-0.5 text-rose-200/80">
+            <p className="mt-0.5 text-white/65">
               Deleting this bracket will remove it from this pool and the leaderboard. This cannot be undone.
             </p>
           )}
@@ -335,9 +335,9 @@ export default function WorldCupEntryDashboard({
       {/* Locked notice banner */}
       {!isLoading && isLocked && (
         <div className="mb-4 flex items-start gap-2 rounded-xl border border-white/[0.08] bg-amber-300/[0.07] px-4 py-3 text-sm">
-          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-white/70" />
           <div>
-            <p className="font-bold text-amber-200">This pool is locked.</p>
+            <p className="font-bold text-white/75">This pool is locked.</p>
             <p className="mt-0.5 text-xs text-white/50">
               The World Cup has started. You can review your brackets and follow the leaderboard, but picks can no longer be changed.
             </p>
@@ -349,7 +349,7 @@ export default function WorldCupEntryDashboard({
       {!isLoading && entries.length === 0 && (
         <div className="flex flex-col items-center gap-4 rounded-xl border border-white/10 bg-white/[0.03] px-6 py-12 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-300/10">
-            <Trophy className="h-6 w-6 text-cyan-200" />
+            <Trophy className="h-6 w-6 text-white/85" />
           </div>
           {isLocked ? (
             <div>
@@ -408,7 +408,7 @@ export default function WorldCupEntryDashboard({
       {/* Limit notice */}
       {!isLoading && entries.length > 0 && atMax && !isLocked && (
         <div className="mt-4 flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-xs text-white/50">
-          <Trophy className="h-3.5 w-3.5 shrink-0 text-amber-300/60" />
+          <Trophy className="h-3.5 w-3.5 shrink-0 text-white/50" />
           You've used all {maxEntriesPerParticipant} bracket entries for this pool. Best of luck!
         </div>
       )}

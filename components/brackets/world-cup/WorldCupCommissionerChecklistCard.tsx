@@ -11,9 +11,9 @@ import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 
 const STATUS_TONE: Record<ChecklistEntryStatus, string> = {
-  Finalized: "border-emerald-300/40 bg-emerald-400/[0.08] text-emerald-100",
-  "In progress": "border-amber-300/35 bg-amber-300/[0.08] text-amber-100",
-  "Needs picks": "border-rose-300/35 bg-rose-500/[0.08] text-rose-100",
+  Finalized: "border-emerald-300/40 bg-emerald-400/[0.08] text-white/90",
+  "In progress": "border-amber-300/35 bg-amber-300/[0.08] text-white/80",
+  "Needs picks": "border-rose-300/35 bg-rose-500/[0.08] text-white/85",
   Unknown: "border-white/15 bg-white/[0.04] text-white/75",
 }
 
@@ -59,7 +59,7 @@ export default function WorldCupCommissionerChecklistCard(props: BuildChecklistI
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-300/10">
-            <ClipboardCheck className="h-4 w-4 text-cyan-200" aria-hidden />
+            <ClipboardCheck className="h-4 w-4 text-white/85" aria-hidden />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
@@ -145,7 +145,7 @@ export default function WorldCupCommissionerChecklistCard(props: BuildChecklistI
                   </span>
                 ) : null}
                 {row.status !== "Finalized" ? (
-                  <span className="rounded-full border border-cyan-300/30 bg-cyan-300/[0.08] px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-cyan-100">
+                  <span className="rounded-full border border-cyan-300/30 bg-cyan-300/[0.08] px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white/90">
                     {t("wc.checklist.needsReminderBadge")}
                   </span>
                 ) : null}
@@ -190,7 +190,7 @@ function StatCell({
       </div>
       <div
         className={`mt-0.5 text-lg font-black tabular-nums ${
-          tone === "ready" ? "text-emerald-200" : tone === "warn" ? "text-amber-200" : "text-white"
+          tone === "ready" ? "text-white/85" : tone === "warn" ? "text-white/75" : "text-white"
         }`}
       >
         {value}

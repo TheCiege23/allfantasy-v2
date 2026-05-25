@@ -56,7 +56,7 @@ export default function WorldCupScoreSummary({
           {rank != null ? (
             <span
               data-testid="wc-summary-rank"
-              className="inline-flex items-center gap-1 rounded-full bg-cyan-400/15 px-2.5 py-1 text-xs font-black text-cyan-200"
+              className="inline-flex items-center gap-1 rounded-full bg-cyan-400/15 px-2.5 py-1 text-xs font-black text-white/85"
             >
               <Medal className="h-3.5 w-3.5" /> #{rank}
             </span>
@@ -68,7 +68,7 @@ export default function WorldCupScoreSummary({
           <span
             data-testid="wc-summary-completion"
             className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-              complete ? "bg-emerald-500/20 text-emerald-200" : "bg-amber-500/15 text-amber-200"
+              complete ? "bg-emerald-500/20 text-white/85" : "bg-amber-500/15 text-white/75"
             }`}
           >
             <Target className="h-3 w-3" />
@@ -83,7 +83,7 @@ export default function WorldCupScoreSummary({
       {!fixturesReady && (
         <div
           data-testid="wc-summary-fixtures-not-ready"
-          className="mb-3 flex items-start gap-2 rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100"
+          className="mb-3 flex items-start gap-2 rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[11px] text-white/80"
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{t("wc.summary.fixturesNotReady")}</span>
@@ -92,7 +92,7 @@ export default function WorldCupScoreSummary({
       {fixturesReady && !scoresSynced && (
         <div
           data-testid="wc-summary-scores-not-synced"
-          className="mb-3 flex items-start gap-2 rounded-lg border border-sky-400/25 bg-sky-500/10 px-3 py-2 text-[11px] text-sky-100"
+          className="mb-3 flex items-start gap-2 rounded-lg border border-sky-400/25 bg-sky-500/10 px-3 py-2 text-[11px] text-white/85"
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{t("wc.summary.scoresNotSynced")}</span>
@@ -101,7 +101,7 @@ export default function WorldCupScoreSummary({
       {isLocked && (
         <div
           data-testid="wc-summary-locked"
-          className="mb-3 flex items-center gap-2 rounded-lg border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-100"
+          className="mb-3 flex items-center gap-2 rounded-lg border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-[11px] text-white/85"
         >
           <Lock className="h-4 w-4 shrink-0" />
           {t("wc.summary.locked")}
@@ -123,7 +123,7 @@ export default function WorldCupScoreSummary({
           </div>
           <div
             data-testid="wc-summary-possible-remaining"
-            className="mt-0.5 text-xl font-black tabular-nums text-cyan-200 sm:mt-1 sm:text-2xl"
+            className="mt-0.5 text-xl font-black tabular-nums text-white/85 sm:mt-1 sm:text-2xl"
           >
             {possibleRemaining}
           </div>
@@ -134,7 +134,7 @@ export default function WorldCupScoreSummary({
           </div>
           <div
             data-testid="wc-summary-correct-picks"
-            className="mt-0.5 flex items-center gap-1 text-xl font-black tabular-nums text-emerald-300 sm:mt-1 sm:text-2xl"
+            className="mt-0.5 flex items-center gap-1 text-xl font-black tabular-nums text-white/85 sm:mt-1 sm:text-2xl"
           >
             <CheckCircle2 className="h-4 w-4 shrink-0 opacity-80 sm:h-5 sm:w-5" />
             {correct}
@@ -146,7 +146,7 @@ export default function WorldCupScoreSummary({
           </div>
           <div
             data-testid="wc-summary-wrong-picks"
-            className="mt-0.5 flex items-center gap-1 text-xl font-black tabular-nums text-rose-300 sm:mt-1 sm:text-2xl"
+            className="mt-0.5 flex items-center gap-1 text-xl font-black tabular-nums text-white/70 sm:mt-1 sm:text-2xl"
           >
             <XCircle className="h-4 w-4 shrink-0 opacity-80 sm:h-5 sm:w-5" />
             {incorrect}
@@ -157,7 +157,7 @@ export default function WorldCupScoreSummary({
       <div className="mt-3 grid gap-2 sm:mt-4 sm:gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-2 sm:px-3 sm:py-2.5">
           <div className="mb-0.5 flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wide text-white/45 sm:mb-1 sm:text-[10px]">
-            <Trophy className="h-3 w-3 shrink-0 text-amber-300/90 sm:h-3.5 sm:w-3.5" />
+            <Trophy className="h-3 w-3 shrink-0 text-white/70/90 sm:h-3.5 sm:w-3.5" />
             {t("wc.summary.championPick")}
           </div>
           <div className="truncate text-sm font-black text-white">{championName ?? "—"}</div>
@@ -166,8 +166,8 @@ export default function WorldCupScoreSummary({
               data-testid="wc-summary-champion-status"
               className={`mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold sm:mt-2 sm:text-[10px] ${
                 championStillAlive
-                  ? "bg-emerald-500/20 text-emerald-200"
-                  : "bg-rose-500/20 text-rose-200"
+                  ? "bg-emerald-500/20 text-white/85"
+                  : "bg-rose-500/20 text-white/85"
               }`}
             >
               <Crown className="h-3 w-3" />

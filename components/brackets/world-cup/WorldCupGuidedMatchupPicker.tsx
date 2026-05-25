@@ -222,19 +222,19 @@ function MatchStatusBadge({ match, t }: { match: WorldCupMatchView; t: T }) {
   const isFinal = isWorldCupMatchFinal(match)
   if (isLive)
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/20 px-3 py-1 text-xs font-bold text-rose-200">
+      <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/20 px-3 py-1 text-xs font-bold text-white/85">
         <Radio className="h-3 w-3" /> {label}
       </span>
     )
   if (isFinal)
     return (
-      <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-bold text-emerald-200">
+      <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-bold text-white/85">
         {t("wc.guided.matchFinal")}
       </span>
     )
   if (match.status === "postponed")
     return (
-      <span className="rounded-full bg-amber-400/15 px-3 py-1 text-xs font-bold text-amber-300">
+      <span className="rounded-full bg-amber-400/15 px-3 py-1 text-xs font-bold text-white/70">
         {t("wc.guided.matchPostponed")}
       </span>
     )
@@ -297,7 +297,7 @@ function BracketCompleteView({
   return (
     <div className="flex flex-col items-center justify-center gap-6 px-6 py-12 text-center">
       <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-300/20">
-        <Trophy className="h-10 w-10 text-amber-300" />
+        <Trophy className="h-10 w-10 text-white/70" />
       </div>
       <div>
         <h2 className="text-2xl font-black text-white">
@@ -307,7 +307,7 @@ function BracketCompleteView({
           {t("wc.guided.bracketCompleteBody")}
         </p>
         {champion?.selectedTeamName && (
-          <p className="mt-3 text-lg font-black text-amber-200">
+          <p className="mt-3 text-lg font-black text-white/75">
             🏆 {champion.selectedTeamName}
           </p>
         )}
@@ -795,7 +795,7 @@ export default function WorldCupGuidedMatchupPicker({
           </div>
         )}
         {saveError && (
-          <div className="mt-2 flex items-center gap-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
+          <div className="mt-2 flex items-center gap-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-white/85">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
             {saveError}
           </div>
@@ -994,17 +994,17 @@ function MatchView({
           </div>
         )}
         {isSaving && (
-          <div className="text-xs text-cyan-300">{t("wc.guided.saving")}</div>
+          <div className="text-xs text-white/85">{t("wc.guided.saving")}</div>
         )}
         {saveState === "saved" && (
           <div
-            className="flex flex-col items-center gap-1 text-xs text-emerald-300"
+            className="flex flex-col items-center gap-1 text-xs text-white/85"
             data-testid="world-cup-guided-next-transition"
           >
             <span className="flex items-center gap-1 font-bold">
               <Check className="h-3.5 w-3.5 shrink-0" aria-hidden /> {t("wc.guided.saved")}
             </span>
-            <span className="text-[11px] font-semibold text-emerald-200/90">
+            <span className="text-[11px] font-semibold text-white/75">
               {t("wc.guided.nextMatchup")}
             </span>
           </div>
@@ -1067,7 +1067,7 @@ function MatchView({
         </p>
       )}
       {!isWorldCupMatchPickable(match) && (
-        <p className="text-center text-xs text-amber-200/90">
+        <p className="text-center text-xs text-white/75">
           {getWorldCupUnpickableReason(match) === "final"
             ? t("wc.guided.matchFinalNote")
             : t("wc.guided.pickEarlierRoundsFirst")}
@@ -1087,7 +1087,7 @@ function MatchView({
       {confidenceScoringEnabled && !isLocked && !isFinal ? (
         <label
           data-testid={`wc-guided-confidence-selector-${match.id}`}
-          className="rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.055] p-3 text-xs leading-5 text-cyan-50/80"
+          className="rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.055] p-3 text-xs leading-5 text-white/70"
         >
           <span className="block font-black text-white">{t("wc.guided.confidenceTitle")}</span>
           <span className="mt-1 block text-white/55">

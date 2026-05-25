@@ -72,7 +72,7 @@ function PodiumCard({
 
   const rankIcon =
     rank === 1 ? (
-      <Crown className="h-5 w-5 text-amber-300" aria-hidden />
+      <Crown className="h-5 w-5 text-white/70" aria-hidden />
     ) : rank === 2 ? (
       <Medal className="h-5 w-5 text-white/70" aria-hidden />
     ) : (
@@ -190,7 +190,7 @@ export default function WorldCupLeaderboard({
     >
       {busy && (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-start justify-center bg-black/20 pt-24">
-          <Loader2 className="h-8 w-8 animate-spin text-cyan-300/80" aria-hidden />
+          <Loader2 className="h-8 w-8 animate-spin text-white/65" aria-hidden />
         </div>
       )}
 
@@ -205,7 +205,7 @@ export default function WorldCupLeaderboard({
         <div className="relative flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-300/25 bg-cyan-300/10">
-              <Trophy className="h-5 w-5 text-cyan-200" aria-hidden />
+              <Trophy className="h-5 w-5 text-white/85" aria-hidden />
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
@@ -404,7 +404,7 @@ export default function WorldCupLeaderboard({
       >
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-black text-white/70">
           <span className="flex items-center gap-2">
-            <BarChart3 className="h-3.5 w-3.5 text-cyan-300/70" aria-hidden />
+            <BarChart3 className="h-3.5 w-3.5 text-white/60" aria-hidden />
             {t("wc.lb.scoringTitle")}
           </span>
           <ChevronRight className="h-3.5 w-3.5 text-white/30 transition-transform [[open]_&]:rotate-90" />
@@ -507,7 +507,7 @@ export default function WorldCupLeaderboard({
                   <div className="flex items-start gap-3">
                   <div className="flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-lg bg-black/30 text-sm font-black text-white">
                     {row.rank === 1 ? (
-                      <Crown className="h-4 w-4 text-amber-300" />
+                      <Crown className="h-4 w-4 text-white/70" />
                     ) : row.rank === 2 ? (
                       <Medal className="h-4 w-4 text-white/65" />
                     ) : row.rank === 3 ? (
@@ -611,12 +611,12 @@ export default function WorldCupLeaderboard({
                         {row.totalScore}
                       </div>
                       {move === "up" && (
-                        <span data-testid={`wc-lb-move-${row.entryId}`} className="text-emerald-400" title="Rank up">
+                        <span data-testid={`wc-lb-move-${row.entryId}`} className="text-white/85" title="Rank up">
                           <ArrowUpRight className="h-4 w-4" />
                         </span>
                       )}
                       {move === "down" && (
-                        <span data-testid={`wc-lb-move-${row.entryId}`} className="text-rose-400" title="Rank down">
+                        <span data-testid={`wc-lb-move-${row.entryId}`} className="text-white/80" title="Rank down">
                           <ArrowDownRight className="h-4 w-4" />
                         </span>
                       )}
@@ -649,12 +649,12 @@ export default function WorldCupLeaderboard({
                         {row.totalScore}
                       </span>
                       {move === "up" && (
-                        <span className="text-emerald-400" title="Rank up">
+                        <span className="text-white/85" title="Rank up">
                           <ArrowUpRight className="h-4 w-4" />
                         </span>
                       )}
                       {move === "down" && (
-                        <span className="text-rose-400" title="Rank down">
+                        <span className="text-white/80" title="Rank down">
                           <ArrowDownRight className="h-4 w-4" />
                         </span>
                       )}

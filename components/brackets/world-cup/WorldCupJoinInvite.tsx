@@ -117,11 +117,11 @@ export default function WorldCupJoinInvite({ invite }: { invite: InviteInfo }) {
           <p className="mt-2 text-sm text-white/50">
             {invite.ownerName} invited you to a {invite.seasonYear} FIFA World Cup bracket pool.
           </p>
-          <p className="mt-2 text-xs leading-5 text-cyan-50/70">
+          <p className="mt-2 text-xs leading-5 text-white/60">
             After joining, you will land on the pool dashboard with a guided path to create an entry, make Group Stage and Knockout picks, review, and finalize.
           </p>
             {status === "unauthenticated" && canJoin ? (
-              <div className="mt-4 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.07] p-3 text-xs leading-5 text-cyan-50/75">
+              <div className="mt-4 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.07] p-3 text-xs leading-5 text-white/90/75">
                 Sign in or create an account when you are ready. We will bring you back to this invite after auth.
               </div>
             ) : null}
@@ -150,23 +150,23 @@ export default function WorldCupJoinInvite({ invite }: { invite: InviteInfo }) {
 
           {/* Block reason banner */}
           {blockReason && (
-            <div className="mt-5 flex items-start gap-3 rounded-lg border border-amber-400/25 bg-amber-400/10 p-4 text-sm text-amber-100">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+            <div className="mt-5 flex items-start gap-3 rounded-lg border border-amber-400/25 bg-amber-400/10 p-4 text-sm text-white/80">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-white/70" />
               <span>{blockReason}</span>
             </div>
           )}
 
           {/* Locked notice */}
           {isLocked && !blockReason && (
-            <div className="mt-5 flex items-start gap-3 rounded-lg border border-amber-400/25 bg-amber-400/10 p-4 text-sm text-amber-100">
-              <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+            <div className="mt-5 flex items-start gap-3 rounded-lg border border-amber-400/25 bg-amber-400/10 p-4 text-sm text-white/80">
+              <Lock className="mt-0.5 h-4 w-4 shrink-0 text-white/70" />
               <span>Picks are locked for this bracket. You can join to view the leaderboard but cannot make picks.</span>
             </div>
           )}
 
           {/* API error */}
           {error && (
-            <div className="mt-5 flex items-start gap-3 rounded-lg border border-rose-400/25 bg-rose-400/10 p-3 text-sm text-rose-100">
+            <div className="mt-5 flex items-start gap-3 rounded-lg border border-rose-400/25 bg-rose-400/10 p-3 text-sm text-white/85">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -249,7 +249,7 @@ export default function WorldCupJoinInvite({ invite }: { invite: InviteInfo }) {
           {canJoin ? (
             <p className="mt-4 text-center text-xs text-white/45">
               New to AllFantasy?{" "}
-              <Link href={signupUrlWithReturnTo(joinPath)} className="font-bold text-cyan-200 underline">
+              <Link href={signupUrlWithReturnTo(joinPath)} className="font-bold text-white/85 underline">
                 Create an account to join this pool.
               </Link>
             </p>

@@ -182,15 +182,15 @@ const WorldCupInviteJoinPanel = forwardRef<
             })}
           </p>
           {!preview.joinPreview?.joinBlockedReason ? (
-            <p className="mt-2 text-xs leading-5 text-cyan-50/70">
+            <p className="mt-2 text-xs leading-5 text-white/60">
               {t("wc.join.preview.openCopy")}
             </p>
           ) : null}
           {preview.joinPreview?.joinBlockedReason === "full" ? (
-            <p className="mt-2 text-xs font-bold text-rose-200">{t("wc.join.preview.fullCopy")}</p>
+            <p className="mt-2 text-xs font-bold text-white/85">{t("wc.join.preview.fullCopy")}</p>
           ) : null}
           {preview.joinPreview?.joinBlockedReason === "locked_no_late_join" ? (
-            <p className="mt-2 text-xs font-bold text-rose-200">
+            <p className="mt-2 text-xs font-bold text-white/85">
               {t("wc.join.preview.closedCopy")}
             </p>
           ) : null}

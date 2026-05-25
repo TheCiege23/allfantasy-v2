@@ -20,12 +20,12 @@ export default function WorldCupBracketHealthCard({
 
   const scoreColor =
     health.label === "Excellent"
-      ? "text-emerald-300"
+      ? "text-white/85"
       : health.label === "Alive"
-      ? "text-cyan-300"
+      ? "text-white/85"
       : health.label === "Risky"
-      ? "text-amber-300"
-      : "text-rose-300"
+      ? "text-white/70"
+      : "text-white/70"
 
   return (
     <div className="mx-4 mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-3">
@@ -36,12 +36,12 @@ export default function WorldCupBracketHealthCard({
         <span
           className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
             health.label === "Excellent"
-              ? "bg-emerald-500/20 text-emerald-300"
+              ? "bg-emerald-500/20 text-white/85"
               : health.label === "Alive"
-              ? "bg-cyan-500/20 text-cyan-300"
+              ? "bg-cyan-500/20 text-white/85"
               : health.label === "Risky"
-              ? "bg-amber-500/20 text-amber-300"
-              : "bg-rose-500/20 text-rose-300"
+              ? "bg-amber-500/20 text-white/70"
+              : "bg-rose-500/20 text-white/70"
           }`}
         >
           {health.label}

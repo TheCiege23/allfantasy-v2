@@ -42,15 +42,15 @@ function MatchChip({ match }: { match: WorldCupMatchView }) {
   return (
     <div className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/60">
       {isLive && (
-        <span className="flex items-center gap-0.5 text-rose-300 font-bold">
+        <span className="flex items-center gap-0.5 text-white/70 font-bold">
           <Radio className="h-3 w-3" />
           {statusLabel}
         </span>
       )}
       {isFinal && (
-        <span className="text-emerald-300 font-bold text-[10px]">FT</span>
+        <span className="text-white/85 font-bold text-[10px]">FT</span>
       )}
-      {isSimulated && <span className="text-amber-300 font-bold text-[10px]">SIM</span>}
+      {isSimulated && <span className="text-white/70 font-bold text-[10px]">SIM</span>}
       <TeamChip name={match.homeTeamName || "TBD"} logo={match.homeTeamLogo} />
       <span className={`tabular-nums font-black ${isLive ? "text-white" : "text-white/50"}`}>
         {score}
@@ -96,7 +96,7 @@ export default function WorldCupLiveScoreTicker({ matches }: { matches: WorldCup
   return (
     <div className="flex items-center gap-2 overflow-x-auto border-b border-white/10 bg-black/40 px-3 py-2 scrollbar-none">
       {showLiveDot && (
-        <span className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-rose-300">
+        <span className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-white/70">
           Live
         </span>
       )}

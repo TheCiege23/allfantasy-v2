@@ -55,7 +55,7 @@ export default function WorldCupRoundBreakdown({
       {bonus > 0 && (
         <div
           data-testid="wc-round-champion-bonus"
-          className="mt-2 rounded-lg border border-amber-400/20 bg-amber-500/10 px-2.5 py-2 text-[10px] text-amber-100/90"
+          className="mt-2 rounded-lg border border-amber-400/20 bg-amber-500/10 px-2.5 py-2 text-[10px] text-white/75"
         >
           {t("wc.roundBreakdown.championBonus", { bonus })}
         </div>

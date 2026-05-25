@@ -111,10 +111,10 @@ export default function WorldCupAiBracketShareCard({
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-300/10">
-            <Sparkles className="h-4 w-4 text-cyan-200" aria-hidden />
+            <Sparkles className="h-4 w-4 text-white/85" aria-hidden />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/60">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/50">
               {t("wc.aiShareCard.eyebrow")}
             </p>
             <h3 className="text-base font-black text-white sm:text-lg">{result.title}</h3>
@@ -128,7 +128,7 @@ export default function WorldCupAiBracketShareCard({
             data-testid="world-cup-ai-share-card-tier"
             className={
               rest.hasBracketBrainAi
-                ? "shrink-0 rounded-full border border-cyan-300/30 bg-cyan-300/[0.08] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-100"
+                ? "shrink-0 rounded-full border border-cyan-300/30 bg-cyan-300/[0.08] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/90"
                 : "shrink-0 rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/65"
             }
           >

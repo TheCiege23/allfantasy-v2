@@ -46,8 +46,8 @@ function ProbBar({
 
 function riskBadgeClass(risk: "low" | "medium" | "high") {
   if (risk === "high") return "bg-red-500/20 text-red-300"
-  if (risk === "medium") return "bg-amber-500/20 text-amber-300"
-  return "bg-emerald-500/20 text-emerald-300"
+  if (risk === "medium") return "bg-amber-500/20 text-white/70"
+  return "bg-emerald-500/20 text-white/85"
 }
 
 export default function WorldCupMatchupIntelligencePanel({
@@ -140,8 +140,8 @@ export default function WorldCupMatchupIntelligencePanel({
     >
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center gap-1.5">
-          <Sparkles className="h-3.5 w-3.5 text-cyan-300" />
-          <span className="text-[11px] font-bold uppercase tracking-wide text-cyan-300">
+          <Sparkles className="h-3.5 w-3.5 text-white/85" />
+          <span className="text-[11px] font-bold uppercase tracking-wide text-white/85">
             Matchup intelligence
           </span>
         </div>
@@ -264,15 +264,15 @@ export default function WorldCupMatchupIntelligencePanel({
           <p className="text-[11px] leading-relaxed text-white/70">{intel.summary}</p>
 
           <div className="space-y-2 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-2">
-            <div className="flex items-center gap-1 text-[10px] font-bold text-cyan-200/90">
+            <div className="flex items-center gap-1 text-[10px] font-bold text-white/80">
               <Target className="h-3 w-3" /> Why this pick makes sense
             </div>
             <p className="text-[10px] leading-relaxed text-white/60">{intel.whyThisPickMakesSense}</p>
-            <div className="flex items-center gap-1 text-[10px] font-bold text-amber-200/90">
+            <div className="flex items-center gap-1 text-[10px] font-bold text-white/75">
               <Zap className="h-3 w-3" /> How risky this pick is
             </div>
             <p className="text-[10px] leading-relaxed text-white/60">{intel.howRiskyIsThisPick}</p>
-            <div className="flex items-center gap-1 text-[10px] font-bold text-sky-200/90">
+            <div className="flex items-center gap-1 text-[10px] font-bold text-white/75">
               <Brain className="h-3 w-3" /> What this means for your bracket
             </div>
             <p className="text-[10px] leading-relaxed text-white/60">{intel.whatThisMeansForYourBracket}</p>
@@ -286,7 +286,7 @@ export default function WorldCupMatchupIntelligencePanel({
               data-testid="wc-ai-ask-button"
               disabled={disabled || busy || !hasBracketBrainAi}
               onClick={() => runIntent("ask_ai")}
-              className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-2.5 py-1.5 text-[11px] font-bold text-cyan-200 disabled:opacity-40"
+              className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-2.5 py-1.5 text-[11px] font-bold text-white/85 disabled:opacity-40"
             >
               <Sparkles className="h-3 w-3" />
               {intentLoading === "ask_ai" ? "Asking…" : "Ask AI"}
@@ -306,7 +306,7 @@ export default function WorldCupMatchupIntelligencePanel({
               data-testid="wc-pick-safe-button"
               disabled={disabled || busy || !intel}
               onClick={() => onStageSide(intel.safePickSide)}
-              className="rounded-lg border border-emerald-400/35 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-bold text-emerald-200 disabled:opacity-40"
+              className="rounded-lg border border-emerald-400/35 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-bold text-white/85 disabled:opacity-40"
             >
               Pick Safe
             </button>
@@ -315,7 +315,7 @@ export default function WorldCupMatchupIntelligencePanel({
               data-testid="wc-pick-upset-button"
               disabled={disabled || busy || !intel}
               onClick={() => onStageSide(intel.upsetPickSide)}
-              className="rounded-lg border border-amber-400/35 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-bold text-amber-200 disabled:opacity-40"
+              className="rounded-lg border border-amber-400/35 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-bold text-white/75 disabled:opacity-40"
             >
               Pick Upset
             </button>
@@ -325,7 +325,7 @@ export default function WorldCupMatchupIntelligencePanel({
             <p
               data-testid="wc-ai-staged-side"
               data-side={stagedSide}
-              className="text-center text-[10px] text-cyan-200/90"
+              className="text-center text-[10px] text-white/80"
             >
               Staged: {stagedSide === "home" ? homeName : awayName}
             </p>

@@ -65,9 +65,9 @@ function yesNo(value: boolean) {
 }
 
 function statusClass(status: ReadinessStatus) {
-  if (status === "ready") return "border-cyan-300/30 bg-cyan-300/10 text-cyan-100"
-  if (status === "pending") return "border-amber-300/30 bg-amber-400/10 text-amber-100"
-  if (status === "blocked") return "border-rose-300/35 bg-rose-400/10 text-rose-100"
+  if (status === "ready") return "border-cyan-300/30 bg-cyan-300/10 text-white/90"
+  if (status === "pending") return "border-amber-300/30 bg-amber-400/10 text-white/80"
+  if (status === "blocked") return "border-rose-300/35 bg-rose-400/10 text-white/85"
   return "border-white/10 bg-white/[0.05] text-white/70"
 }
 
@@ -153,7 +153,7 @@ export default function WorldCupReadinessPanel({ challengeId, seasonYear = 2026 
     <section data-testid="world-cup-readiness-panel" className="mx-4 mb-4 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] p-3">
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="text-[11px] font-bold uppercase tracking-wide text-cyan-100/75">World Cup Production Readiness</div>
+          <div className="text-[11px] font-bold uppercase tracking-wide text-white/65">World Cup Production Readiness</div>
           <p className="mt-1 text-[11px] leading-5 text-white/50">
             Safe admin view of provider configuration, imported data counts, and launch blockers. Secrets are never displayed.
           </p>
@@ -173,7 +173,7 @@ export default function WorldCupReadinessPanel({ challengeId, seasonYear = 2026 
       </div>
 
       {error ? (
-        <p className="rounded-lg border border-rose-300/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">{error}</p>
+        <p className="rounded-lg border border-rose-300/25 bg-rose-400/10 px-3 py-2 text-xs text-white/85">{error}</p>
       ) : null}
 
       {readiness ? (
@@ -207,7 +207,7 @@ export default function WorldCupReadinessPanel({ challengeId, seasonYear = 2026 
                 {readiness.data.groupsComplete ? "A-L complete" : "Missing groups listed below"}
               </p>
               {readiness.data.incompleteGroups.length > 0 ? (
-                <p className="mt-1 text-[11px] text-amber-100">
+                <p className="mt-1 text-[11px] text-white/80">
                   {readiness.data.incompleteGroups.map((group) => `${group.groupName}: ${group.teamCount}/4`).join(", ")}
                 </p>
               ) : null}
@@ -240,7 +240,7 @@ export default function WorldCupReadinessPanel({ challengeId, seasonYear = 2026 
           </div>
 
           {isDevMode ? (
-            <div className="rounded-lg border border-cyan-300/25 bg-cyan-400/10 p-3 text-[11px] text-cyan-100">
+            <div className="rounded-lg border border-cyan-300/25 bg-cyan-400/10 p-3 text-[11px] text-white/90">
               <p className="font-bold">Dev / Test Mode — not a production blocker</p>
               <p className="mt-1">
                 This pool is using the <code className="rounded bg-black/20 px-1 font-mono">mock</code> data provider. Fixture counts, standings, and team assignments show 0 because no live data sync is configured — this is expected in local and staging environments. All amber metrics above are informational only.
@@ -253,7 +253,7 @@ export default function WorldCupReadinessPanel({ challengeId, seasonYear = 2026 
             </div>
           ) : null}
 
-          <div className="rounded-lg border border-amber-300/20 bg-amber-400/10 p-3 text-[11px] text-amber-100">
+          <div className="rounded-lg border border-amber-300/20 bg-amber-400/10 p-3 text-[11px] text-white/80">
             <p className="font-bold">Best-third Round of 32 mapping</p>
             <p className="mt-1">
               Confirmed: {yesNo(readiness.data.bestThirdMappingConfigured)}
@@ -266,7 +266,7 @@ export default function WorldCupReadinessPanel({ challengeId, seasonYear = 2026 
           </div>
 
           {readiness.provider.missingEnvVars.length > 0 ? (
-            <div className={`rounded-lg border p-3 text-[11px] ${isDevMode ? "border-cyan-300/20 bg-cyan-400/10 text-cyan-100" : "border-rose-300/20 bg-rose-400/10 text-rose-100"}`}>
+            <div className={`rounded-lg border p-3 text-[11px] ${isDevMode ? "border-cyan-300/20 bg-cyan-400/10 text-white/90" : "border-rose-300/20 bg-rose-400/10 text-white/85"}`}>
               <p className="font-bold">{isDevMode ? "Environment notes (dev mode — informational)" : "Environment configuration notes"}</p>
               <div className="mt-1 space-y-1">
                 {readiness.provider.missingEnvVars.map((name) => (
@@ -279,7 +279,7 @@ export default function WorldCupReadinessPanel({ challengeId, seasonYear = 2026 
           {readiness.data.warnings.length > 0 ? (
             <div className="space-y-1">
               {readiness.data.warnings.map((warning) => (
-                <p key={warning} className="rounded-lg border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-100">
+                <p key={warning} className="rounded-lg border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-[11px] text-white/80">
                   {warning}
                 </p>
               ))}

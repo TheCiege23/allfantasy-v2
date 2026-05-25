@@ -45,7 +45,7 @@ export default function WorldCupDiscoverCard({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <Globe2 className="h-4 w-4 shrink-0 text-cyan-300/80" />
+            <Globe2 className="h-4 w-4 shrink-0 text-white/65" />
             <h3 className="truncate font-black text-white">{card.name}</h3>
           </div>
           <p className="mt-1 text-xs text-white/45">
@@ -53,7 +53,7 @@ export default function WorldCupDiscoverCard({
           </p>
         </div>
         {blocked ? (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-rose-400/15 px-2 py-0.5 text-[10px] font-bold text-rose-100">
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-rose-400/15 px-2 py-0.5 text-[10px] font-bold text-white/85">
             <Lock className="h-3 w-3" />
             {reasonLabel}
           </span>
@@ -66,13 +66,13 @@ export default function WorldCupDiscoverCard({
           {card.participantCount}/{card.maxParticipants}
         </span>
         {card.requiresJoinPassword ? (
-          <span className="inline-flex items-center gap-1 rounded-md bg-amber-400/10 px-2 py-1 text-amber-100/90">
+          <span className="inline-flex items-center gap-1 rounded-md bg-amber-400/10 px-2 py-1 text-white/75">
             <Shield className="h-3 w-3" />
             {t("wc.discover.card.password")}
           </span>
         ) : null}
         {card.poolLocked && !blocked ? (
-          <span className="rounded-md bg-cyan-400/10 px-2 py-1 text-cyan-100/80">{t("wc.discover.card.lateJoin")}</span>
+          <span className="rounded-md bg-cyan-400/10 px-2 py-1 text-white/70">{t("wc.discover.card.lateJoin")}</span>
         ) : null}
       </div>
 

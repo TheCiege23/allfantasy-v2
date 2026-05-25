@@ -27,7 +27,7 @@ export default function WorldCupRootingGuideCard(
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="flex items-start gap-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-300/10">
-            <Trophy className="h-4 w-4 text-cyan-200" aria-hidden />
+            <Trophy className="h-4 w-4 text-white/85" aria-hidden />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
@@ -48,7 +48,7 @@ export default function WorldCupRootingGuideCard(
           data-testid="world-cup-rooting-guide-tier"
           className={
             isPro
-              ? "shrink-0 rounded-full border border-cyan-300/30 bg-cyan-300/[0.08] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-100"
+              ? "shrink-0 rounded-full border border-cyan-300/30 bg-cyan-300/[0.08] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/90"
               : "shrink-0 rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/65"
           }
         >
@@ -80,10 +80,10 @@ export default function WorldCupRootingGuideCard(
             <li
               key={`${rec.matchId}:${idx}`}
               data-testid={`world-cup-rooting-guide-rec-${idx}`}
-              className={`rounded-xl border px-3 py-2.5 text-cyan-50 ${IMPACT_TONE[rec.impact]}`}
+              className={`rounded-xl border px-3 py-2.5 text-white/90 ${IMPACT_TONE[rec.impact]}`}
             >
               <div className="flex flex-wrap items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 shrink-0 text-cyan-200" aria-hidden />
+                <Sparkles className="h-3.5 w-3.5 shrink-0 text-white/85" aria-hidden />
                 <span className="text-xs font-black uppercase tracking-wider text-white">
                   Root for {rec.teamName}
                 </span>

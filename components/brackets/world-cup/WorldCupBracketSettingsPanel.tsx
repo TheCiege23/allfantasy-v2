@@ -62,7 +62,7 @@ function AfProGateCard({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-xl border border-cyan-400/20 bg-gradient-to-br from-cyan-400/10 to-transparent p-4">
       <div className="flex items-start gap-3">
-        <Lock className="mt-0.5 h-5 w-5 shrink-0 text-cyan-200/90" />
+        <Lock className="mt-0.5 h-5 w-5 shrink-0 text-white/80" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-black text-white">{title}</p>
           <p className="mt-1 text-xs leading-relaxed text-white/55">{body}</p>
@@ -452,7 +452,7 @@ export default function WorldCupBracketSettingsPanel({
         </div>
         <div className="mt-3 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2 text-[11px] text-white/55">
           <span className="font-semibold text-white/70">Invite code</span>
-          <div className="mt-1 font-mono text-sm text-cyan-100">{payload.challenge.inviteCode}</div>
+          <div className="mt-1 font-mono text-sm text-white/90">{payload.challenge.inviteCode}</div>
         </div>
         <label className="mt-3 block text-xs text-white/70">
           Join password (optional)
@@ -566,7 +566,7 @@ export default function WorldCupBracketSettingsPanel({
             <li>Quarterfinals: {previewScoring.quarterFinalPoints} pts</li>
             <li>Semifinals: {previewScoring.semiFinalPoints} pts</li>
             <li>Final: {previewScoring.finalPoints} pts</li>
-            <li className="font-semibold text-cyan-100/90">Champion bonus: {previewScoring.championBonusPoints} pts</li>
+            <li className="font-semibold text-white/80">Champion bonus: {previewScoring.championBonusPoints} pts</li>
             {includeThirdPlace ? (
               <li>Third-place game: {previewScoring.thirdPlacePoints ?? "—"} pts</li>
             ) : null}
@@ -609,7 +609,7 @@ export default function WorldCupBracketSettingsPanel({
             <option value="always">Always (before lock)</option>
           </select>
           {!payload.isAdmin && !payload.earlyPublicPicksAllowed ? (
-            <span className="mt-1 block text-[10px] text-amber-200/80">
+            <span className="mt-1 block text-[10px] text-white/75/80">
               “Always” requires platform approval unless enabled for your environment.
             </span>
           ) : null}
@@ -681,7 +681,7 @@ export default function WorldCupBracketSettingsPanel({
           {saving ? t("wc.settings.saving") : t("wc.settings.save")}
         </button>
         {clientValidationError ? (
-          <span className="text-xs text-rose-200/90">{clientValidationError}</span>
+          <span className="text-xs text-white/75">{clientValidationError}</span>
         ) : null}
       </div>
     </div>

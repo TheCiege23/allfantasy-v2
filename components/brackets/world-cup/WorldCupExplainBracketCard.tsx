@@ -68,7 +68,7 @@ export default function WorldCupExplainBracketCard({
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="flex items-start gap-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-300/10">
-            <Sparkles className="h-4 w-4 text-cyan-200" aria-hidden />
+            <Sparkles className="h-4 w-4 text-white/85" aria-hidden />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
@@ -87,7 +87,7 @@ export default function WorldCupExplainBracketCard({
             data-testid="world-cup-explain-bracket-tier"
             className={
               hasBracketBrainAi
-                ? "shrink-0 rounded-full border border-cyan-300/30 bg-cyan-300/[0.08] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-100"
+                ? "shrink-0 rounded-full border border-cyan-300/30 bg-cyan-300/[0.08] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/90"
                 : "shrink-0 rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/65"
             }
           >
@@ -110,7 +110,7 @@ export default function WorldCupExplainBracketCard({
           <Link
             href="/upgrade?plan=af_pro"
             data-testid="world-cup-explain-bracket-upgrade-link"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/30 bg-cyan-300/[0.08] px-3 py-2 text-xs font-bold text-cyan-100 transition-colors hover:bg-cyan-300/[0.14] hover:text-white"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/30 bg-cyan-300/[0.08] px-3 py-2 text-xs font-bold text-white/90 transition-colors hover:bg-cyan-300/[0.14] hover:text-white"
           >
             <Sparkles className="h-3 w-3" aria-hidden />
             {t("wc.explain.upgradeCta")}
@@ -142,7 +142,7 @@ export default function WorldCupExplainBracketCard({
       {error ? (
         <p
           data-testid="world-cup-explain-bracket-error"
-          className="mt-2 rounded-lg border border-rose-300/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-100"
+          className="mt-2 rounded-lg border border-rose-300/30 bg-rose-500/10 px-3 py-2 text-xs text-white/85"
         >
           {error}
         </p>
@@ -183,7 +183,7 @@ export default function WorldCupExplainBracketCard({
             {!result.generative ? (
               <span
                 data-testid="world-cup-explain-bracket-fallback-badge"
-                className="rounded-full border border-amber-300/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-100"
+                className="rounded-full border border-amber-300/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-white/80"
               >
                 {t("wc.explain.fallbackBadge")}
               </span>

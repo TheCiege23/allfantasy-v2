@@ -269,9 +269,9 @@ export default function WorldCupCommissionerBrainPanel({
 
   if (loadError || !snapshot || !settings) {
     return (
-      <div className="rounded-xl border border-rose-400/25 bg-rose-400/10 p-4 text-sm text-rose-100">
+      <div className="rounded-xl border border-rose-400/25 bg-rose-400/10 p-4 text-sm text-white/85">
         <p className="font-bold">Commissioner tools could not load.</p>
-        <p className="mt-1 text-xs text-rose-100/75">
+        <p className="mt-1 text-xs text-white/60">
           {loadError ?? "The server returned an incomplete commissioner response."}
         </p>
         <button
@@ -304,17 +304,17 @@ export default function WorldCupCommissionerBrainPanel({
     <div className="space-y-6 pb-8">
       <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
         <div className="flex items-center gap-2 text-sm font-black text-white">
-          <Sparkles className="h-4 w-4 text-cyan-300" />
+          <Sparkles className="h-4 w-4 text-white/85" />
           Bracket Brain
         </div>
         <p className="mt-2 text-xs leading-relaxed text-white/55">
           Basic lock reminders post for every commissioner. AI-enhanced Bracket Brain copy (optional checkbox below)
           requires{" "}
-          <span className="font-semibold text-cyan-200">AF Pro</span>. Hype, standings, watch list, and recaps remain
+          <span className="font-semibold text-white/85">AF Pro</span>. Hype, standings, watch list, and recaps remain
           AF Pro–only.
         </p>
         {hasAi ? (
-          <p className="mt-1 text-[11px] text-cyan-200/80">AF Pro active — you can polish reminders with AI.</p>
+          <p className="mt-1 text-[11px] text-white/65">AF Pro active — you can polish reminders with AI.</p>
         ) : null}
       </div>
 
@@ -455,10 +455,10 @@ export default function WorldCupCommissionerBrainPanel({
       {brainActionResult ? (
         <section data-testid="world-cup-brain-action-result" className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/70">
+            <p className="text-[10px] font-black uppercase tracking-wide text-white/60">
               Bracket Brain Result
             </p>
-            <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-100">
+            <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/90">
               {brainActionResult.proLocked ? "AF Pro locked preview" : brainActionResult.posted ? "Posted to pool chat" : "Preview only"}
             </span>
           </div>
@@ -478,14 +478,14 @@ export default function WorldCupCommissionerBrainPanel({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h3 className="flex items-center gap-2 text-sm font-black text-white">
-              <Sparkles className="h-4 w-4 text-cyan-200" />
+              <Sparkles className="h-4 w-4 text-white/85" />
               AI Pool Recap
             </h3>
             <p className="mt-1 text-xs leading-5 text-white/55">
               Generate a preview from finalized/public leaderboard data only, then post it to pool chat when it reads right.
             </p>
           </div>
-          <span className="rounded-full border border-cyan-200/25 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-cyan-100">
+          <span className="rounded-full border border-cyan-200/25 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-white/90">
             {hasAi ? "AI/Pro active" : "Locked"}
           </span>
         </div>
@@ -548,7 +548,7 @@ export default function WorldCupCommissionerBrainPanel({
           onClick={() => onOpenLeagueSettings()}
           className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.05] px-4 py-3 text-xs font-bold text-white/80 hover:bg-white/[0.08]"
         >
-          <Settings className="h-4 w-4 text-cyan-200/90" />
+          <Settings className="h-4 w-4 text-white/80" />
           League alerts, scoring & visibility — Settings
         </button>
       ) : null}
@@ -591,7 +591,7 @@ function BrainButton({
       type="button"
       disabled={disabled || loading}
       onClick={onClick}
-      className="inline-flex min-h-11 w-full touch-manipulation items-center justify-center gap-2 rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-3 py-2.5 text-[11px] font-bold text-cyan-100 disabled:opacity-40 sm:min-h-0 sm:w-auto sm:justify-start sm:py-2"
+      className="inline-flex min-h-11 w-full touch-manipulation items-center justify-center gap-2 rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-3 py-2.5 text-[11px] font-bold text-white/90 disabled:opacity-40 sm:min-h-0 sm:w-auto sm:justify-start sm:py-2"
     >
       {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : icon}
       {children}

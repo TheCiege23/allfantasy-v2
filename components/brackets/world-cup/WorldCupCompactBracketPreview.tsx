@@ -48,7 +48,7 @@ export function WorldCupCompactBracketPreview({ matches }: WorldCupCompactBracke
       {rounds.map((round) => (
         <section key={round.round} className="rounded-2xl border border-white/10 bg-black/20 p-3">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h3 className="text-xs font-black uppercase tracking-[0.18em] text-cyan-100">{round.label}</h3>
+            <h3 className="text-xs font-black uppercase tracking-[0.18em] text-white/90">{round.label}</h3>
             <span className="rounded-full bg-white/[0.06] px-2 py-1 text-[10px] font-bold text-white/45">
               {round.matches.length} games
             </span>

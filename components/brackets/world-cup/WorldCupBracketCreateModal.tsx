@@ -165,7 +165,7 @@ export default function WorldCupBracketCreateModal() {
                 maxLength={80}
                 placeholder={t("wc.create.poolName.placeholder")}
               />
-              {nameError && <p className="mt-1 text-[11px] text-rose-300">{nameError}</p>}
+              {nameError && <p className="mt-1 text-[11px] text-white/70">{nameError}</p>}
             </div>
 
             <div className="border-t border-white/[0.06]" />
@@ -218,7 +218,7 @@ export default function WorldCupBracketCreateModal() {
                   className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2.5 text-sm font-bold text-white outline-none focus:border-cyan-300/60"
                 />
                 {maxUsersError
-                  ? <p className="mt-1 text-[11px] text-rose-300">{maxUsersError}</p>
+                  ? <p className="mt-1 text-[11px] text-white/70">{maxUsersError}</p>
                   : <p className="mt-1 text-[11px] text-white/35">{t("wc.create.maxUsers.hint", { max: MAX_USERS })}</p>}
               </div>
               <div>
@@ -234,7 +234,7 @@ export default function WorldCupBracketCreateModal() {
                   className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2.5 text-sm font-bold text-white outline-none focus:border-cyan-300/60"
                 />
                 {maxEntriesError
-                  ? <p className="mt-1 text-[11px] text-rose-300">{maxEntriesError}</p>
+                  ? <p className="mt-1 text-[11px] text-white/70">{maxEntriesError}</p>
                   : <p className="mt-1 text-[11px] text-white/35">{t("wc.create.maxEntries.hint", { max: MAX_ENTRIES })}</p>}
               </div>
             </div>
@@ -268,7 +268,7 @@ export default function WorldCupBracketCreateModal() {
 
             {/* Scoring profile info */}
             <div className="flex items-start gap-2 rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-3">
-              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-300/60" />
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/50" />
               <div className="text-xs text-white/45">
                 <span className="font-bold text-white/60">{t("wc.create.scoring.intro")}</span> {t("wc.create.scoring.values")}
               </div>
@@ -301,7 +301,7 @@ export default function WorldCupBracketCreateModal() {
             </label>
 
             {allowCreateWithTestFixtures && (
-              <label className="flex items-start gap-3 rounded-lg border border-amber-300/20 bg-amber-500/[0.06] p-3 text-sm font-bold text-amber-100">
+              <label className="flex items-start gap-3 rounded-lg border border-amber-300/20 bg-amber-500/[0.06] p-3 text-sm font-bold text-white/80">
                 <input
                   type="checkbox"
                   checked={seedTestFixtures}
@@ -310,7 +310,7 @@ export default function WorldCupBracketCreateModal() {
                 />
                 <span>
                   <span className="block">{t("wc.create.testFixtures.label")}</span>
-                  <span className="mt-0.5 block text-[11px] font-medium leading-5 text-amber-100/70">
+                  <span className="mt-0.5 block text-[11px] font-medium leading-5 text-white/80/70">
                     {t("wc.create.testFixtures.hint")}
                   </span>
                 </span>
@@ -318,14 +318,14 @@ export default function WorldCupBracketCreateModal() {
             )}
 
             {status === "opening" && !error && (
-              <div className="flex items-center gap-2 rounded-lg border border-cyan-300/25 bg-cyan-300/10 p-3 text-sm text-cyan-100">
+              <div className="flex items-center gap-2 rounded-lg border border-cyan-300/25 bg-cyan-300/10 p-3 text-sm text-white/90">
                 <CheckCircle className="h-4 w-4 shrink-0" />
                 {t("wc.create.openingSuccess")}
               </div>
             )}
 
             {error && (
-              <div className="rounded-lg border border-rose-400/25 bg-rose-400/10 p-3 text-sm text-rose-100">
+              <div className="rounded-lg border border-rose-400/25 bg-rose-400/10 p-3 text-sm text-white/85">
                 {error}
               </div>
             )}
