@@ -16,10 +16,46 @@ const NEW_KEYS = [
   "wc.subnav.top",
   "wc.subnav.roundOf32",
   "wc.subnav.adminTest",
-  // Mobile bottom nav short labels
+  // Mobile bottom nav short labels (original 3)
   "wc.tab.leaderboard.short",
   "wc.tab.commissioner.short",
   "wc.tab.settings.short",
+  // Mobile bottom nav short labels (Goal 10 — all tabs)
+  "wc.tab.home.short",
+  "wc.tab.groupStage.short",
+  "wc.tab.picks.short",
+  "wc.tab.review.short",
+  "wc.tab.rules.short",
+  "wc.tab.invite.short",
+  "wc.tab.admin.short",
+  // Rules tab — hero
+  "wc.rules.hero.eyebrow",
+  "wc.rules.hero.title",
+  "wc.rules.hero.subtitle",
+  // Rules tab — how it works
+  "wc.rules.how.title",
+  "wc.rules.how.body1",
+  "wc.rules.how.body2",
+  // Rules tab — scoring
+  "wc.rules.scoring.title",
+  "wc.rules.scoring.roundOf32",
+  "wc.rules.scoring.roundOf16",
+  "wc.rules.scoring.quarterfinal",
+  "wc.rules.scoring.semifinal",
+  "wc.rules.scoring.final",
+  "wc.rules.scoring.champion",
+  "wc.rules.scoring.thirdPlace",
+  "wc.rules.scoring.pts",
+  // Rules tab — pool settings
+  "wc.rules.settings.title",
+  "wc.rules.settings.bracketsPerUser",
+  "wc.rules.settings.thirdPlace",
+  "wc.rules.settings.thirdPlaceOn",
+  "wc.rules.settings.thirdPlaceOff",
+  "wc.rules.settings.inviteSharing",
+  "wc.rules.settings.inviteCommish",
+  // Rules tab — trust note
+  "wc.rules.trustNote",
   // Home tab — main card
   "wc.home.title",
   "wc.home.copyInvite",

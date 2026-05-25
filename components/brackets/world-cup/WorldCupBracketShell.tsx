@@ -215,15 +215,16 @@ const BASE_TABS: Array<{
   id: Tab
   label: string
   labelKey: string
+  shortLabelKey: string
   icon: typeof ClipboardList
 }> = [
-  { id: "home", label: "Home", labelKey: "wc.tab.home", icon: Trophy },
-  { id: "group-stage", label: "Group Stage", labelKey: "wc.tab.groupStage", icon: ListOrdered },
-  { id: "picks", label: "Knockouts", labelKey: "wc.tab.picks", icon: ClipboardList },
-  { id: "review", label: "Review", labelKey: "wc.tab.review", icon: ClipboardCheck },
-  { id: "leaderboard", label: "Leaderboard", labelKey: "wc.tab.leaderboard", icon: Trophy },
-  { id: "rules", label: "Rules", labelKey: "wc.tab.rules", icon: Users },
-  { id: "invite", label: "Invite", labelKey: "wc.tab.invite", icon: Share2 },
+  { id: "home", label: "Home", labelKey: "wc.tab.home", shortLabelKey: "wc.tab.home.short", icon: Trophy },
+  { id: "group-stage", label: "Group Stage", labelKey: "wc.tab.groupStage", shortLabelKey: "wc.tab.groupStage.short", icon: ListOrdered },
+  { id: "picks", label: "Knockouts", labelKey: "wc.tab.picks", shortLabelKey: "wc.tab.picks.short", icon: ClipboardList },
+  { id: "review", label: "Review", labelKey: "wc.tab.review", shortLabelKey: "wc.tab.review.short", icon: ClipboardCheck },
+  { id: "leaderboard", label: "Leaderboard", labelKey: "wc.tab.leaderboard", shortLabelKey: "wc.tab.leaderboard.short", icon: Trophy },
+  { id: "rules", label: "Rules", labelKey: "wc.tab.rules", shortLabelKey: "wc.tab.rules.short", icon: Users },
+  { id: "invite", label: "Invite", labelKey: "wc.tab.invite", shortLabelKey: "wc.tab.invite.short", icon: Share2 },
 ]
 const WORLD_CUP_ADMIN_SIMULATION_ROUNDS: Array<{ value: WorldCupAdminSimulationRound; label: string }> = [
   { value: "round_of_32", label: "Round of 32" },
@@ -648,18 +649,23 @@ export default function WorldCupBracketShell({
     const list = BASE_TABS.map((entry) => ({
       ...entry,
       label: t(entry.labelKey),
+      shortLabel: t(entry.shortLabelKey),
     }))
     if (showCommissionerTab) {
       list.push({
         id: "settings",
         label: t("wc.tab.admin"),
         labelKey: "wc.tab.admin",
+        shortLabelKey: "wc.tab.admin.short",
+        shortLabel: t("wc.tab.admin.short"),
         icon: Settings,
       })
       list.push({
         id: "commissioner",
         label: t("wc.tab.commissioner"),
         labelKey: "wc.tab.commissioner",
+        shortLabelKey: "wc.tab.commissioner.short",
+        shortLabel: t("wc.tab.commissioner.short"),
         icon: Sparkles,
       })
     }
@@ -4093,76 +4099,114 @@ export default function WorldCupBracketShell({
           </div>
         ) : null}
         {tab === "rules" ? (
-          <div className="mx-auto max-w-2xl px-4 py-6 pb-28 sm:pb-8">
-            {/* Section header */}
-            <div className="mb-4 flex items-center gap-2.5">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-300/10">
-                <ClipboardList className="h-4 w-4 text-cyan-200" aria-hidden />
+          <div
+            data-testid="wc-rules-tab"
+            className="mode-readable mx-auto max-w-2xl px-4 py-6 pb-28 sm:pb-8"
+          >
+            {/* ── Hero ──────────────────────────────────────────── */}
+            <div data-testid="wc-rules-hero" className="mb-5">
+              <div className="mb-3 flex items-center gap-2.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/[0.07]">
+                  <ClipboardList className="h-4 w-4 text-white/80" aria-hidden />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
+                    {t("wc.rules.hero.eyebrow")}
+                  </p>
+                  <h2 className="text-lg font-black text-white">{t("wc.rules.hero.title")}</h2>
+                </div>
               </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">Pool</p>
-                <h2 className="text-lg font-black text-white">Rules</h2>
-              </div>
+              <p className="text-sm leading-6 text-white/60">{t("wc.rules.hero.subtitle")}</p>
             </div>
 
-            {/* How it works */}
-            <section className="mb-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur">
-              <h3 className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-cyan-200/85">How it works</h3>
-              <p className="text-sm leading-7 text-white/75">
-                Pick every winner from the Round of 32 through the champion. Picks lock at kickoff for each match (or at tournament start if the pool uses a tournament-start lock).
-              </p>
-              <p className="mt-2 text-sm leading-7 text-white/75">
-                Correct picks score more each round. Final API results update match winners, advance teams, score entries, and refresh the leaderboard.
-              </p>
+            {/* ── How It Works ──────────────────────────────────── */}
+            <section
+              data-testid="wc-rules-how"
+              className="mb-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur"
+            >
+              <h3 className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-white/55">
+                {t("wc.rules.how.title")}
+              </h3>
+              <p className="text-sm leading-7 text-white/75">{t("wc.rules.how.body1")}</p>
+              <p className="mt-2 text-sm leading-7 text-white/75">{t("wc.rules.how.body2")}</p>
             </section>
 
-            {/* Scoring */}
-            <section className="mb-3 rounded-2xl border border-cyan-300/20 bg-gradient-to-b from-cyan-300/[0.06] to-white/[0.03] p-4 backdrop-blur">
-              <h3 className="mb-3 text-[11px] font-black uppercase tracking-[0.16em] text-cyan-200/85">Scoring (default)</h3>
+            {/* ── Scoring ───────────────────────────────────────── */}
+            <section
+              data-testid="wc-rules-scoring"
+              className="mb-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur"
+            >
+              <h3 className="mb-3 text-[11px] font-black uppercase tracking-[0.16em] text-white/55">
+                {t("wc.rules.scoring.title")}
+              </h3>
               <ul className="space-y-1.5 text-sm">
-                {[
-                  { label: "Round of 32", value: view.scoring.roundOf32Points },
-                  { label: "Round of 16", value: view.scoring.roundOf16Points },
-                  { label: "Quarterfinal", value: view.scoring.quarterFinalPoints },
-                  { label: "Semifinal", value: view.scoring.semiFinalPoints },
-                  { label: "Final", value: view.scoring.finalPoints },
-                ].map((row) => (
-                  <li key={row.label} className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
-                    <span className="font-semibold text-white/80">{row.label}</span>
-                    <span className="font-black tabular-nums text-white">{row.value} <span className="text-[11px] font-bold text-white/45">pts</span></span>
+                {([
+                  { key: "wc.rules.scoring.roundOf32", value: view.scoring.roundOf32Points },
+                  { key: "wc.rules.scoring.roundOf16", value: view.scoring.roundOf16Points },
+                  { key: "wc.rules.scoring.quarterfinal", value: view.scoring.quarterFinalPoints },
+                  { key: "wc.rules.scoring.semifinal", value: view.scoring.semiFinalPoints },
+                  { key: "wc.rules.scoring.final", value: view.scoring.finalPoints },
+                ] as const).map((row) => (
+                  <li key={row.key} className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
+                    <span className="font-semibold text-white/80">{t(row.key)}</span>
+                    <span className="font-black tabular-nums text-white">
+                      {row.value}{" "}
+                      <span className="text-[11px] font-bold text-white/45">{t("wc.rules.scoring.pts")}</span>
+                    </span>
                   </li>
                 ))}
-                <li className="flex items-center justify-between gap-3 rounded-lg border border-cyan-300/30 bg-cyan-300/[0.08] px-3 py-2">
-                  <span className="font-black text-cyan-100">Champion Bonus</span>
-                  <span className="font-black tabular-nums text-cyan-50">{view.scoring.championBonusPoints} <span className="text-[11px] font-bold text-cyan-200/75">pts</span></span>
+                <li className="flex items-center justify-between gap-3 rounded-lg border border-white/20 bg-white/[0.08] px-3 py-2">
+                  <span className="font-black text-white">{t("wc.rules.scoring.champion")}</span>
+                  <span className="font-black tabular-nums text-white">
+                    {view.scoring.championBonusPoints}{" "}
+                    <span className="text-[11px] font-bold text-white/45">{t("wc.rules.scoring.pts")}</span>
+                  </span>
                 </li>
                 {view.challenge.includeThirdPlace && view.scoring.thirdPlacePoints != null ? (
                   <li className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
-                    <span className="font-semibold text-white/80">3rd Place</span>
-                    <span className="font-black tabular-nums text-white">{view.scoring.thirdPlacePoints} <span className="text-[11px] font-bold text-white/45">pts</span></span>
+                    <span className="font-semibold text-white/80">{t("wc.rules.scoring.thirdPlace")}</span>
+                    <span className="font-black tabular-nums text-white">
+                      {view.scoring.thirdPlacePoints}{" "}
+                      <span className="text-[11px] font-bold text-white/45">{t("wc.rules.scoring.pts")}</span>
+                    </span>
                   </li>
                 ) : null}
               </ul>
             </section>
 
-            {/* Pool settings summary */}
-            <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur">
-              <h3 className="mb-3 text-[11px] font-black uppercase tracking-[0.16em] text-white/55">Pool settings</h3>
+            {/* ── Pool Settings ─────────────────────────────────── */}
+            <section
+              data-testid="wc-rules-settings"
+              className="mb-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur"
+            >
+              <h3 className="mb-3 text-[11px] font-black uppercase tracking-[0.16em] text-white/55">
+                {t("wc.rules.settings.title")}
+              </h3>
               <ul className="space-y-1.5 text-sm">
                 <li className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
-                  <span className="font-semibold text-white/70">Brackets per user</span>
+                  <span className="font-semibold text-white/70">{t("wc.rules.settings.bracketsPerUser")}</span>
                   <span className="font-bold tabular-nums text-white">{view.challenge.maxEntriesPerParticipant}</span>
                 </li>
                 <li className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
-                  <span className="font-semibold text-white/70">Third-place match</span>
-                  <span className="font-bold text-white">{view.challenge.includeThirdPlace ? "Included" : "Off"}</span>
+                  <span className="font-semibold text-white/70">{t("wc.rules.settings.thirdPlace")}</span>
+                  <span className="font-bold text-white">
+                    {view.challenge.includeThirdPlace ? t("wc.rules.settings.thirdPlaceOn") : t("wc.rules.settings.thirdPlaceOff")}
+                  </span>
                 </li>
                 <li className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
-                  <span className="font-semibold text-white/70">Invite sharing</span>
-                  <span className="font-bold text-white">Commissioner only</span>
+                  <span className="font-semibold text-white/70">{t("wc.rules.settings.inviteSharing")}</span>
+                  <span className="font-bold text-white">{t("wc.rules.settings.inviteCommish")}</span>
                 </li>
               </ul>
             </section>
+
+            {/* ── Trust Note ────────────────────────────────────── */}
+            <p
+              data-testid="wc-rules-trust-note"
+              className="mt-4 text-center text-[11px] leading-5 text-white/35"
+            >
+              {t("wc.rules.trustNote")}
+            </p>
           </div>
         ) : null}
         {tab === "settings" ? (
@@ -4204,25 +4248,25 @@ export default function WorldCupBracketShell({
         aria-label="Primary bracket tabs"
         className="fixed inset-x-0 bottom-0 z-40 flex overflow-x-auto border-t border-white/10 bg-zinc-950/95 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-md sm:hidden"
       >
-        {tabList.map(({ id, icon: Icon, label }) => (
+        {tabList.map(({ id, icon: Icon, label, shortLabel }) => (
           <button
             key={id}
             type="button"
             onClick={() => switchTab(id)}
             aria-current={tab === id ? "page" : undefined}
-            className={`relative flex min-h-[56px] min-w-[68px] flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[11px] font-bold transition-colors touch-manipulation focus-visible:outline-none focus-visible:bg-white/[0.05] ${
-              tab === id ? "text-cyan-200" : "text-white/55 hover:text-white/80"
+            className={`relative flex min-h-[56px] min-w-[60px] flex-1 flex-col items-center justify-center gap-0.5 px-0.5 py-2 text-[10px] font-bold transition-colors touch-manipulation focus-visible:outline-none focus-visible:bg-white/[0.05] ${
+              tab === id ? "text-white" : "text-white/50 hover:text-white/75"
             }`}
           >
             {tab === id ? (
               <span
                 aria-hidden
-                className="pointer-events-none absolute inset-x-3 top-0 h-[2px] rounded-b-full bg-gradient-to-r from-cyan-400 via-cyan-300 to-cyan-200 shadow-[0_2px_12px_rgba(34,211,238,0.55)]"
+                className="pointer-events-none absolute inset-x-2 top-0 h-[2px] rounded-b-full bg-gradient-to-r from-cyan-400 via-cyan-300 to-cyan-200 shadow-[0_2px_12px_rgba(34,211,238,0.55)]"
               />
             ) : null}
-            <Icon className="h-4 w-4 shrink-0" aria-hidden />
-            <span className="truncate">
-              {id === "leaderboard" ? t("wc.tab.leaderboard.short") : id === "commissioner" ? t("wc.tab.commissioner.short") : id === "settings" ? t("wc.tab.settings.short") : label}
+            <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden />
+            <span className="w-full truncate text-center leading-tight">
+              {shortLabel}
             </span>
           </button>
         ))}
