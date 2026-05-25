@@ -1196,7 +1196,7 @@ export default function WorldCupBracketShell({
       return
     }
     if (knockoutPicksLockedByMode) {
-      const message = "Knockout picks open after official Round of 32 fixtures are available."
+      const message = t("wc.knockouts.intro.reseeded")
       setCompletionError(message)
       toast.info(message)
       return
@@ -1242,8 +1242,8 @@ export default function WorldCupBracketShell({
     }
     if (knockoutPicksLockedByMode) {
       setSaveState("error")
-      setSaveError("Knockout picks open after official Round of 32 fixtures are available.")
-      toast.error("Knockout picks open after official Round of 32 fixtures are available.")
+      setSaveError(t("wc.knockouts.intro.reseeded"))
+      toast.error(t("wc.knockouts.intro.reseeded"))
       return
     }
     const currentPicks = entryPicks[selectedEntryId] ?? []
@@ -1863,26 +1863,26 @@ export default function WorldCupBracketShell({
     (remainingPicks > 0 || computedIsComplete)
   const guidedPickerLabel =
     isLocked
-      ? "Bracket Locked"
+      ? t("wc.guided.headerLocked")
       : knockoutPicksLockedByMode
-        ? "Knockout Locked"
+        ? t("wc.pickHelp.knockoutLocked")
       : projectedPickableMatchCount === 0
-        ? "Fixtures Not Ready"
+        ? t("wc.guided.headerFixturesNotReady")
         : completedPickCount === 0
-          ? "Start Making Picks"
+          ? t("wc.guided.headerStart")
           : remainingPicks > 0
-            ? "Continue Guided Picks"
-            : "Review Guided Picks"
+            ? t("wc.pickHelp.continueGuided")
+            : t("wc.pickHelp.reviewGuided")
   const openNextActionablePick = useCallback(() => {
     if (knockoutPicksLockedByMode) {
-      toast.info("Knockout picks open after official Round of 32 fixtures are available.")
+      toast.info(t("wc.knockouts.intro.reseeded"))
       return
     }
     if (!guidedPickerAvailable || !firstUnpickedMatchId) {
       toast.info(
         blockedFuturePickCount > 0
-          ? "Pick earlier round winners first. More matchups unlock as your bracket advances."
-          : "No available knockout picks are ready right now."
+          ? t("wc.pickHelp.picksBlocked")
+          : t("wc.knockouts.guidance.noneReady")
       )
       return
     }
@@ -1905,12 +1905,14 @@ export default function WorldCupBracketShell({
   })
   const fixturesReadyLabel =
     knockoutPicksLockedByMode
-      ? "Knockout picks open after official Round of 32 fixtures are available"
+      ? t("wc.home.fixtureReady.knockoutLocked")
       : guidedPicksState === "ready"
-      ? `${projectedPickableMatchCount} pickable matchup${projectedPickableMatchCount === 1 ? "" : "s"} ready`
+      ? (projectedPickableMatchCount === 1
+          ? t("wc.home.fixtureReady.readySingle", { n: projectedPickableMatchCount })
+          : t("wc.home.fixtureReady.readyPlural", { n: projectedPickableMatchCount }))
       : guidedPicksState === "fixtures_not_synced"
-        ? "Fixtures have not been synced yet"
-        : "Fixtures loaded, but teams are still placeholders"
+        ? t("wc.home.fixtureReady.notSynced")
+        : t("wc.home.fixtureReady.notReady")
 
   async function copyPoolInvite() {
     if (!inviteUrl) return
@@ -2417,7 +2419,7 @@ export default function WorldCupBracketShell({
 
           {!isLocked && guidedPicksState === "fixtures_not_synced" && (
             <div className="px-4 pb-3 text-center text-[11px] text-white/50">
-              <p>Picks open after World Cup fixtures are synced or test fixtures are seeded for this pool.</p>
+              <p>{t("wc.pickHelp.fixturesNotSynced")}</p>
               {showSeedTestFixturesCta && (
                 <div className="mt-2 flex justify-center">
                   <button
@@ -2426,7 +2428,7 @@ export default function WorldCupBracketShell({
                     disabled={isLoadingTestFixtures || isSimulating}
                     className="rounded-lg border border-amber-400/60 bg-amber-900/40 px-4 py-2 text-[12px] font-bold text-white/80 hover:bg-amber-900/60 disabled:opacity-50"
                   >
-                    {isLoadingTestFixtures ? "Seeding..." : "Seed Test Fixtures"}
+                    {isLoadingTestFixtures ? t("wc.pickHelp.seeding") : t("wc.pickHelp.seedBtn")}
                   </button>
                 </div>
               )}
@@ -2436,7 +2438,7 @@ export default function WorldCupBracketShell({
           {!isLocked && guidedPicksState === "fixtures_not_ready" && (
             <div className="mx-4 mb-3 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-[11px] text-white/80">
               <p className="mb-2 text-center">
-                Your knockout matchups are generated from your Group Stage predictions. Rank all groups and choose third-place advancers to unlock more slots.
+                {t("wc.pickHelp.knockoutFromGroups")}
               </p>
               {showSeedTestFixturesCta && (
                 <div className="flex justify-center">
@@ -2446,7 +2448,7 @@ export default function WorldCupBracketShell({
                     disabled={isLoadingTestFixtures || isSimulating}
                     className="rounded-lg border border-amber-400/60 bg-amber-900/40 px-4 py-2 text-[12px] font-bold text-white/80 hover:bg-amber-900/60 disabled:opacity-50"
                   >
-                    {isLoadingTestFixtures ? "Seeding..." : "Seed Test Fixtures"}
+                    {isLoadingTestFixtures ? t("wc.pickHelp.seeding") : t("wc.pickHelp.seedBtn")}
                   </button>
                 </div>
               )}
@@ -2463,10 +2465,10 @@ export default function WorldCupBracketShell({
             <div className="mx-3 mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:mx-4">
               <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-white/85">
                 <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                Guided Pick Help
+                {t("wc.pickHelp.title")}
               </div>
               <p className="text-xs leading-5 text-white/50">
-                Use the sticky Start Making Picks button on mobile to move through matchups one at a time. AI bracket builder tools stay gated for a later pass.
+                {t("wc.pickHelp.body")}
               </p>
             </div>
           )}
@@ -3250,7 +3252,7 @@ export default function WorldCupBracketShell({
                         className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-bold text-white/75 disabled:opacity-50"
                       >
                         <RefreshCw className={`h-3 w-3 ${isSyncing ? "animate-spin" : ""}`} aria-hidden />
-                        {isSyncing ? "Syncing..." : "Sync Fixtures"}
+                        {isSyncing ? t("wc.home.commissioner.syncing") : t("wc.home.commissioner.syncBtn")}
                       </button>
                       <button
                         type="button"
@@ -3258,7 +3260,7 @@ export default function WorldCupBracketShell({
                         className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300/30 bg-amber-400/10 px-3 py-1.5 text-[11px] font-bold text-white/80"
                       >
                         <Settings className="h-3 w-3" aria-hidden />
-                        Pool Settings
+                        {t("wc.home.commissioner.settingsBtn")}
                       </button>
                       <button
                         type="button"
@@ -3266,7 +3268,7 @@ export default function WorldCupBracketShell({
                         className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/25 bg-cyan-300/[0.08] px-3 py-1.5 text-[11px] font-bold text-white/90"
                       >
                         <Share2 className="h-3 w-3" aria-hidden />
-                        Invite Players
+                        {t("wc.home.commissioner.inviteBtn")}
                       </button>
                     </div>
                   </div>
@@ -3280,7 +3282,7 @@ export default function WorldCupBracketShell({
                   <div>
                     <h3 className="text-base font-black text-white">{t("wc.home.entries.title")}</h3>
                     <p className="mt-1 text-xs text-white/45">
-                      Create or open your personal bracket when you are ready to make picks. Free play supports one bracket entry; AF Commissioner pool settings can allow multiple entries.
+                      {t("wc.entryList.subtitle")}
                     </p>
                   </div>
                   <button
@@ -3311,11 +3313,11 @@ export default function WorldCupBracketShell({
                         <div className="min-w-0">
                           <div className="truncate text-sm font-black text-white">{entry.name}</div>
                           <div className="mt-1 text-xs text-white/45">
-                            {entry.isComplete ? "Complete" : "Not complete"} · {entry.totalScore} pts · {entry.rank ? `Rank #${entry.rank}` : "Unranked"}
+                            {entry.isComplete ? t("wc.entryList.complete") : t("wc.entryList.notComplete")} · {entry.totalScore} {t("wc.lb.ptsLabel")} · {entry.rank ? t("wc.entryList.rank", { rank: entry.rank }) : t("wc.entryList.unranked")}
                           </div>
                         </div>
                         <span className="shrink-0 rounded-lg bg-cyan-300 px-3 py-1.5 text-xs font-black text-black">
-                          Open Bracket
+                          {t("wc.entryList.openBracket")}
                         </span>
                       </button>
                     ))}
@@ -3323,9 +3325,9 @@ export default function WorldCupBracketShell({
                 ) : (
                   <div className="rounded-xl border border-dashed border-white/15 bg-black/20 p-6 text-center">
                     <Trophy className="mx-auto h-8 w-8 text-white/45" />
-                    <p className="mt-3 text-sm font-black text-white">No brackets created yet</p>
+                    <p className="mt-3 text-sm font-black text-white">{t("wc.entryList.noBracketsTitle")}</p>
                     <p className="mt-1 text-xs text-white/45">
-                      Create your personal bracket first, then you can make picks once fixtures are ready.
+                      {t("wc.entryList.noBracketsBody")}
                     </p>
                   </div>
                 )}
@@ -3333,14 +3335,14 @@ export default function WorldCupBracketShell({
 
               <div className="space-y-4">
                 <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                  <h3 className="text-base font-black text-white">Fixture Readiness</h3>
+                  <h3 className="text-base font-black text-white">{t("wc.home.fixtureReady.cardTitle")}</h3>
                   <p className="mt-1 text-sm text-white/55">{fixturesReadyLabel}</p>
                   <div className="mt-3 rounded-xl border border-white/10 bg-black/25 p-3 text-xs text-white/50">
                     {guidedPicksState === "ready" ? (
-                      <p>Round of 32 matchups have teams and can be picked. Test fixtures are marked as test data when used.</p>
+                      <p>{t("wc.home.fixtureReady.descReady")}</p>
                     ) : (
                       <p>
-                        Picks stay blocked while matchups are placeholders like Group Winner or Winner Match. Sync official fixtures when available, or seed test fixtures for local QA.
+                        {t("wc.home.fixtureReady.descBlocked")}
                       </p>
                     )}
                   </div>
@@ -3353,7 +3355,7 @@ export default function WorldCupBracketShell({
                           disabled={isLoadingTestFixtures || isSimulating}
                           className="rounded-lg border border-amber-400/60 bg-amber-900/40 px-3 py-2 text-xs font-bold text-white/80 hover:bg-amber-900/60 disabled:opacity-50"
                         >
-                          {isLoadingTestFixtures ? "Seeding..." : "Seed Test Fixtures"}
+                          {isLoadingTestFixtures ? t("wc.pickHelp.seeding") : t("wc.pickHelp.seedBtn")}
                         </button>
                       ) : null}
                       <button
@@ -3362,14 +3364,14 @@ export default function WorldCupBracketShell({
                         disabled={isSyncing}
                         className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold text-white/75 disabled:opacity-50"
                       >
-                        {isSyncing ? "Syncing..." : "Sync Fixtures"}
+                        {isSyncing ? t("wc.home.commissioner.syncing") : t("wc.home.commissioner.syncBtn")}
                       </button>
                       <button
                         type="button"
                         onClick={() => switchTab("settings")}
                         className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold text-white/75"
                       >
-                        Commissioner Settings
+                        {t("wc.home.fixtureReady.commissionerSettings")}
                       </button>
                     </div>
                   ) : null}
@@ -4720,6 +4722,8 @@ function WorldCupDashBracketPreviewToolbar({
 }
 
 function AiSimulationLockPanel({ isCommissioner }: { isCommissioner: boolean }) {
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
   return (
     <div className="flex min-h-[200px] flex-col gap-4 p-5 sm:flex-row sm:items-start sm:p-6">
       <div className="rounded-2xl border border-cyan-200/20 bg-cyan-300/10 p-3 text-white/90 shadow-lg shadow-cyan-500/10 backdrop-blur-[2px]">
@@ -4727,16 +4731,16 @@ function AiSimulationLockPanel({ isCommissioner }: { isCommissioner: boolean }) 
       </div>
       <div className="min-w-0 flex-1">
         <div className="inline-flex rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-white/90 backdrop-blur-[2px]">
-          Locked Preview
+          {t("wc.aiLock.badge")}
         </div>
-        <h4 className="mt-3 text-lg font-black text-white/90 drop-shadow-sm">AI Simulation Locked</h4>
+        <h4 className="mt-3 text-lg font-black text-white/90 drop-shadow-sm">{t("wc.aiLock.title")}</h4>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-white/80 drop-shadow-sm">
-          AI Simulation unlocks projected winners, bracket busters, and champion paths.
+          {t("wc.aiLock.body")}
         </p>
-        <p className="mt-3 text-xs font-black uppercase tracking-widest text-white/65">Requires AF Pro or AF Supreme</p>
+        <p className="mt-3 text-xs font-black uppercase tracking-widest text-white/65">{t("wc.aiLock.tier")}</p>
         {isCommissioner ? (
           <p className="mt-2 rounded-xl border border-amber-300/20 bg-amber-300/[0.12] px-3 py-2 text-xs font-bold leading-5 text-white/75 backdrop-blur-[2px]">
-            Commissioner AI tools require AF Commissioner or AF Supreme.
+            {t("wc.aiLock.commissionerNote")}
           </p>
         ) : null}
       </div>
@@ -4755,6 +4759,8 @@ function PremiumFeatureCard({
   tier: "AF Commissioner" | "AI/Pro"
   unlocked: boolean
 }) {
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
   return (
     <div
       data-testid={`world-cup-premium-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
@@ -4774,18 +4780,13 @@ function PremiumFeatureCard({
               ? "border-cyan-300/30 bg-cyan-300/10 text-white/90"
               : tier === "AF Commissioner"
                 ? "border-amber-300/30 bg-amber-400/10 text-white/80"
-                : "border-purple-300/30 bg-purple-400/10 text-purple-100",
+                : "border-purple-300/30 bg-purple-400/10 text-white/80",
           ].join(" ")}
         >
-          {unlocked ? "Unlocked" : tier}
+          {unlocked ? t("wc.premium.unlocked") : tier}
         </span>
       </div>
       <p className="mt-2 text-[11px] leading-5 text-white/50">{description}</p>
-      {!unlocked ? (
-        <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-white/35">
-          Upgrade placeholder - billing UI is not active in this pass.
-        </p>
-      ) : null}
     </div>
   )
 }
@@ -4801,11 +4802,13 @@ function WorldCupPremiumAccessPanel({
   currentEntryCount: number
   isOwnerOrAdmin: boolean
 }) {
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
   const commissionerUnlocked = entitlementSummary.commissioner
   const aiUnlocked = entitlementSummary.ai
   const freeEntryLimitCopy = maxEntriesPerParticipant > 1
-    ? `This pool allows up to ${maxEntriesPerParticipant} entries. Free users can still create a valid first bracket; AF Commissioner controls manage multi-entry pool rules.`
-    : "Free users can create one bracket entry in this pool."
+    ? t("wc.premium.freeLimitPlural", { n: maxEntriesPerParticipant })
+    : t("wc.premium.freeLimitSingle")
 
   return (
     <section
@@ -4814,15 +4817,15 @@ function WorldCupPremiumAccessPanel({
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/45">World Cup Access</p>
-          <h3 className="mt-1 text-lg font-black text-white">Free play stays open. Premium tools stay clearly gated.</h3>
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/45">{t("wc.premium.eyebrow")}</p>
+          <h3 className="mt-1 text-lg font-black text-white">{t("wc.premium.title")}</h3>
           <p className="mt-2 text-xs leading-5 text-white/50">
-            Join, create your first bracket, make Group Stage and Knockout picks, review, finalize, and view the leaderboard for free.
+            {t("wc.premium.body")}
           </p>
         </div>
         <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-white/55">
           <p>
-            Entry cap: <span className="font-black text-white">{currentEntryCount}/{maxEntriesPerParticipant}</span>
+            {t("wc.premium.entryCap")} <span className="font-black text-white">{currentEntryCount}/{maxEntriesPerParticipant}</span>
           </p>
           <p className="mt-1 text-white/35">{freeEntryLimitCopy}</p>
         </div>
@@ -4831,70 +4834,70 @@ function WorldCupPremiumAccessPanel({
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         <div>
           <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-xs font-black text-white/80">AF Commissioner</p>
+            <p className="text-xs font-black text-white/80">{t("wc.premium.commissionerSection")}</p>
             <span className="rounded-full border border-amber-300/25 bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/80">
               {entitlementSummary.labels.commissioner}
             </span>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
             <PremiumFeatureCard
-              title="AF Commissioner Tools"
+              title={t("wc.premium.card.commissioner.title")}
               tier="AF Commissioner"
               unlocked={commissionerUnlocked}
-              description={isOwnerOrAdmin ? "Readiness, sync, simulation, settings, invites, and admin QA tools are available for all-access users." : "Private/public pool controls, invite management, custom scoring hooks, and commissioner setup."}
+              description={isOwnerOrAdmin ? t("wc.premium.card.commissioner.descOwner") : t("wc.premium.card.commissioner.descOther")}
             />
             <PremiumFeatureCard
-              title="Pool Chat"
+              title={t("wc.premium.card.chat.title")}
               tier="AF Commissioner"
               unlocked={commissionerUnlocked}
-              description="League chat placeholder for pool hosts, announcements, and moderated discussion."
+              description={t("wc.premium.card.chat.desc")}
             />
             <PremiumFeatureCard
-              title="Export Leaderboard"
+              title={t("wc.premium.card.export.title")}
               tier="AF Commissioner"
               unlocked={entitlementSummary.exportLeaderboard}
-              description="Export standings and bracket summaries for commissioner review."
+              description={t("wc.premium.card.export.desc")}
             />
             <PremiumFeatureCard
-              title="Multiple Entries"
+              title={t("wc.premium.card.multiEntry.title")}
               tier="AF Commissioner"
               unlocked={entitlementSummary.multipleEntries}
-              description="Pool-level multi-entry controls beyond the default free first-entry experience."
+              description={t("wc.premium.card.multiEntry.desc")}
             />
           </div>
         </div>
 
         <div>
           <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-xs font-black text-purple-100">AI/Pro</p>
-            <span className="rounded-full border border-purple-300/25 bg-purple-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-purple-100">
+            <p className="text-xs font-black text-white/90">{t("wc.premium.aiSection")}</p>
+            <span className="rounded-full border border-purple-300/25 bg-purple-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/90">
               {entitlementSummary.labels.ai}
             </span>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
             <PremiumFeatureCard
-              title="AI Bracket Builder"
+              title={t("wc.premium.card.bracketBuilder.title")}
               tier="AI/Pro"
               unlocked={aiUnlocked}
-              description="Placeholder for guided bracket construction and deterministic context-aware suggestions."
+              description={t("wc.premium.card.bracketBuilder.desc")}
             />
             <PremiumFeatureCard
-              title="AI Matchup Preview"
+              title={t("wc.premium.card.matchupPreview.title")}
               tier="AI/Pro"
               unlocked={aiUnlocked}
-              description="Preview matchup lean, risks, and upset paths when official fixtures are available."
+              description={t("wc.premium.card.matchupPreview.desc")}
             />
             <PremiumFeatureCard
-              title="AI What-If Scenarios"
+              title={t("wc.premium.card.whatIf.title")}
               tier="AI/Pro"
               unlocked={aiUnlocked}
-              description="Leaderboard scenarios for what needs to happen next."
+              description={t("wc.premium.card.whatIf.desc")}
             />
             <PremiumFeatureCard
-              title="AI Alerts"
+              title={t("wc.premium.card.alerts.title")}
               tier="AI/Pro"
               unlocked={aiUnlocked}
-              description="Future alerts for bracket swings, group-stage optimizer notes, and upset finder signals."
+              description={t("wc.premium.card.alerts.desc")}
             />
           </div>
         </div>
