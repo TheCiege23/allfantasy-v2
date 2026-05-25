@@ -850,79 +850,103 @@ export function DashboardOverview({
             Built for commissioners. Loved by managers.
           </p>
 
-          <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-2">
+          {/* Primary command cards */}
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
             <Link
               href="/war-room"
-              className="touch-manipulation inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-cyan-500 px-5 py-3 text-[15px] font-bold text-black shadow-[0_0_20px_rgba(34,211,238,0.25)] transition hover:from-cyan-300 hover:to-cyan-400 active:opacity-95 sm:w-auto sm:min-h-[44px]"
+              className="group relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/[0.12] via-cyan-500/[0.06] to-transparent p-4 transition hover:border-cyan-400/50 hover:from-cyan-500/[0.18] active:opacity-90"
             >
-              <Swords className="h-4 w-4" />
-              Open War Room
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-400">
+                <Swords className="h-4 w-4" aria-hidden />
+              </span>
+              <p className="text-[15px] font-bold text-white">Open War Room</p>
+              <p className="text-[12px] leading-snug text-white/55">Draft smarter with AI pick strategy.</p>
+              <span className="mt-auto pt-1 text-[12px] font-semibold text-cyan-400 transition group-hover:text-cyan-300">
+                Enter →
+              </span>
             </Link>
+
+            <Link
+              href="/commissioner-hub"
+              className="group relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/[0.10] via-amber-500/[0.05] to-transparent p-4 shadow-[0_0_20px_rgba(245,158,11,0.06)] transition hover:border-amber-400/50 hover:from-amber-500/[0.16] active:opacity-90"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400">
+                <Crown className="h-4 w-4" aria-hidden />
+              </span>
+              <p className="text-[15px] font-bold text-white">
+                {leagues.some((l) => l.isCommissioner) ? 'Commissioner Hub' : 'Run a League'}
+              </p>
+              <p className="text-[12px] leading-snug text-white/55">Create, import, invite, and manage your league.</p>
+              <span className="mt-auto pt-1 text-[12px] font-semibold text-amber-400 transition group-hover:text-amber-300">
+                Enter →
+              </span>
+            </Link>
+
             <button
               type="button"
               onClick={() => handleAiShortcut('')}
-              className="touch-manipulation inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl border border-violet-500/40 bg-violet-500/10 px-5 py-3 text-[15px] font-bold text-violet-300 transition hover:bg-violet-500/20 active:bg-violet-500/25 sm:w-auto sm:min-h-[44px]"
+              className="group relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-violet-500/30 bg-gradient-to-br from-violet-500/[0.10] via-violet-500/[0.05] to-transparent p-4 text-left transition hover:border-violet-400/50 hover:from-violet-500/[0.16] active:opacity-90"
             >
-              <Sparkles className="h-4 w-4" />
-              Ask Chimmy
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/20 text-violet-400">
+                <Sparkles className="h-4 w-4" aria-hidden />
+              </span>
+              <p className="text-[15px] font-bold text-white">Ask Chimmy</p>
+              <p className="text-[12px] leading-snug text-white/55">Get calm, evidence-based fantasy help.</p>
+              <span className="mt-auto pt-1 text-[12px] font-semibold text-violet-400 transition group-hover:text-violet-300">
+                Ask →
+              </span>
+            </button>
+          </div>
+
+          {/* Secondary action row */}
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-2">
+            <Link
+              href="/create-league"
+              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto"
+            >
+              {t('dashboard.overview.createLeague')}
+            </Link>
+            <button
+              type="button"
+              onClick={() => setQuickCreateOpen(true)}
+              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-[12px] font-semibold text-purple-300 transition hover:bg-purple-500/20 active:bg-purple-500/25 sm:w-auto"
+            >
+              ✨ Quick Create
+            </button>
+            <button
+              type="button"
+              onClick={handleImport}
+              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-white/20 px-3 py-2 text-[12px] font-semibold text-white active:bg-white/10 sm:w-auto"
+            >
+              {t('dashboard.overview.import')}
             </button>
             <Link
-              href="/commissioner-hub"
-              className="touch-manipulation inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-5 py-3 text-[15px] font-bold text-amber-300 shadow-[0_0_16px_rgba(245,158,11,0.12)] transition hover:bg-amber-500/20 active:bg-amber-500/25 sm:w-auto sm:min-h-[44px]"
+              href="/find-league"
+              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto"
             >
-              <Crown className="h-4 w-4" aria-hidden />
-              {leagues.some((l) => l.isCommissioner) ? 'Commissioner Hub' : 'Run a League'}
+              {t('dashboard.overview.findLeague')}
             </Link>
-            <div className="grid grid-cols-2 gap-2 sm:contents">
-              <Link
-                href="/create-league"
-                className="touch-manipulation inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[13px] font-semibold text-white/90 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto sm:px-3 sm:py-1.5"
-              >
-                {t('dashboard.overview.createLeague')}
-              </Link>
-              <button
-                type="button"
-                onClick={() => setQuickCreateOpen(true)}
-                className="touch-manipulation inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-[13px] font-semibold text-purple-300 transition hover:bg-purple-500/20 active:bg-purple-500/25 sm:w-auto sm:px-4 sm:py-2"
-              >
-                ✨ Quick Create
-              </button>
-              <button
-                type="button"
-                onClick={handleImport}
-                className="touch-manipulation inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-white/20 px-3 py-2 text-[13px] font-semibold text-white active:bg-white/10 sm:w-auto sm:px-4 sm:py-2"
-              >
-                {t('dashboard.overview.import')}
-              </button>
-              <Link
-                href="/find-league"
-                className="touch-manipulation inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[13px] font-semibold text-white/90 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto sm:px-3 sm:py-1.5"
-              >
-                {t('dashboard.overview.findLeague')}
-              </Link>
-              <Link
-                href="/brackets"
-                className="touch-manipulation inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[13px] font-semibold text-white/90 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto sm:px-3 sm:py-1.5"
-                data-testid="dashboard-brackets-link"
-              >
-                {t('dashboard.overview.brackets')}
-              </Link>
-              <Link
-                href="/af-rankings"
-                className="touch-manipulation inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[13px] font-semibold text-white/90 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto sm:px-3 sm:py-1.5"
-                data-testid="dashboard-rankings-link"
-              >
-                Rankings
-              </Link>
-              <Link
-                href="/ai/tools"
-                className="touch-manipulation inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[13px] font-semibold text-white/90 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto sm:px-3 sm:py-1.5"
-                data-testid="dashboard-ai-tools-link"
-              >
-                Intelligence Hub
-              </Link>
-            </div>
-            {/* Dispersal drafts link removed from dashboard overview */}
+            <Link
+              href="/brackets"
+              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto"
+              data-testid="dashboard-brackets-link"
+            >
+              {t('dashboard.overview.brackets')}
+            </Link>
+            <Link
+              href="/af-rankings"
+              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto"
+              data-testid="dashboard-rankings-link"
+            >
+              Rankings
+            </Link>
+            <Link
+              href="/ai/tools"
+              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto"
+              data-testid="dashboard-ai-tools-link"
+            >
+              Intelligence Hub
+            </Link>
           </div>
         </section>
 
