@@ -351,6 +351,10 @@ const EN: WorldCupDictionary = {
   "wc.pool.eyebrow": "Pool Command Center",
   "wc.pool.privateBadge": "Private",
   "wc.pool.publicBadge": "Open",
+  "wc.pool.commissionerBadge": "Commissioner",
+  "wc.pool.adminBadge": "Admin",
+  "wc.groupStage.bracketUpdated":
+    "Your bracket updated because your group predictions changed.",
   // ── Pool dashboard: what to do next card ──────────────────────────────
   "wc.pool.next.title": "What To Do Next",
   "wc.pool.next.create.title": "Create Your Bracket",
@@ -1555,6 +1559,10 @@ const ES: WorldCupDictionary = {
   // ── Pool dashboard: command hero ──────────────────────────────────────
   "wc.pool.eyebrow": "Centro de Comando del Pool",
   "wc.pool.privateBadge": "Privado",
+  "wc.pool.commissionerBadge": "Comisionado",
+  "wc.pool.adminBadge": "Administrador",
+  "wc.groupStage.bracketUpdated":
+    "Tu bracket se actualizó porque cambiaron tus predicciones de grupos.",
   "wc.pool.publicBadge": "Abierto",
   // ── Pool dashboard: what to do next card ──────────────────────────────
   "wc.pool.next.title": "Qué Hacer Ahora",
@@ -2786,6 +2794,9 @@ const ZH: WorldCupDictionary = {
   // ── Pool dashboard: command hero ──────────────────────────────────────
   "wc.pool.eyebrow": "水池指揮中心",
   "wc.pool.privateBadge": "私密",
+  "wc.pool.commissionerBadge": "主辦人",
+  "wc.pool.adminBadge": "管理員",
+  "wc.groupStage.bracketUpdated": "您的對戰表已更新，因為您的小組預測有所更改。",
   "wc.pool.publicBadge": "公開",
   // ── Pool dashboard: what to do next card ──────────────────────────────
   "wc.pool.next.title": "下一步",
@@ -3987,6 +3998,10 @@ const FIL: WorldCupDictionary = {
   // ── Pool dashboard: command hero ──────────────────────────────────────
   "wc.pool.eyebrow": "Pool Command Center",
   "wc.pool.privateBadge": "Pribado",
+  "wc.pool.commissionerBadge": "Commissioner",
+  "wc.pool.adminBadge": "Admin",
+  "wc.groupStage.bracketUpdated":
+    "Na-update ang iyong bracket dahil nagbago ang iyong mga hula sa group stage.",
   "wc.pool.publicBadge": "Bukas",
   // ── Pool dashboard: what to do next card ──────────────────────────────
   "wc.pool.next.title": "Ano ang Susunod",
@@ -5233,6 +5248,10 @@ const VI: WorldCupDictionary = {
   // ── Pool dashboard: command hero ──────────────────────────────────────
   "wc.pool.eyebrow": "Trung tâm chỉ huy pool",
   "wc.pool.privateBadge": "Riêng tư",
+  "wc.pool.commissionerBadge": "Ủy ban viên",
+  "wc.pool.adminBadge": "Quản trị viên",
+  "wc.groupStage.bracketUpdated":
+    "Bracket của bạn đã được cập nhật vì dự đoán bảng đấu của bạn đã thay đổi.",
   "wc.pool.publicBadge": "Công khai",
   // ── Pool dashboard: what to do next card ──────────────────────────────
   "wc.pool.next.title": "Bước tiếp theo",

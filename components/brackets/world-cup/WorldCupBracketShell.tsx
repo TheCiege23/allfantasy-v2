@@ -2229,7 +2229,7 @@ export default function WorldCupBracketShell({
                 </h1>
                 {!showBoard && (view.isOwner || view.isAdmin) && (
                   <span className="shrink-0 rounded-full border border-amber-300/40 bg-gradient-to-r from-amber-400/20 to-amber-300/[0.08] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-white/80 shadow-[0_0_14px_-3px_rgba(251,191,36,0.45)]">
-                    {view.isAdmin && !view.isOwner ? "Admin" : "Commissioner"}
+                    {view.isAdmin && !view.isOwner ? t("wc.pool.adminBadge") : t("wc.pool.commissionerBadge")}
                   </span>
                 )}
                 {showBoard && selectedEntry ? (
@@ -2996,7 +2996,7 @@ export default function WorldCupBracketShell({
                   )}
                   {(view.isOwner || view.isAdmin) && (
                     <span className="rounded-full border border-amber-300/40 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-white/80">
-                      {view.isAdmin && !view.isOwner ? "Admin" : "Commissioner"}
+                      {view.isAdmin && !view.isOwner ? t("wc.pool.adminBadge") : t("wc.pool.commissionerBadge")}
                     </span>
                   )}
                 </div>
@@ -3671,7 +3671,7 @@ export default function WorldCupBracketShell({
                   setHasUnsavedGroupChanges(false)
                   refreshKnockoutBracketFromGroupStage()
                   refreshCompletionReviewAfterMeaningfulEdit()
-                  toast.info("Your bracket updated because your group predictions changed.")
+                  toast.info(t("wc.groupStage.bracketUpdated"))
                 }}
               />
             ) : isEntriesLoading ? (
