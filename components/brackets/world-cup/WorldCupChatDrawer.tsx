@@ -1080,8 +1080,8 @@ function ChimmyTab({
         data-testid="wc-drawer-chimmy-gate"
         className="flex h-full flex-col items-center justify-center gap-4 px-6 py-8 text-center"
       >
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-300/30 bg-cyan-300/10">
-          <Lock className="h-6 w-6 text-white/60" aria-hidden />
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-300/30 bg-cyan-300/10 shadow-[0_0_24px_-6px_rgba(34,211,238,0.45)]">
+          <Lock className="h-6 w-6 text-cyan-200/70" aria-hidden />
         </div>
         <div>
           <p className="font-black text-white">{t("wc.chat.chimmy.title")}</p>
@@ -1240,8 +1240,8 @@ export default function WorldCupChatDrawer({
           // Base: fixed bubble, bottom-left, clears mobile bottom nav
           "fixed left-4 z-50 inline-flex min-h-11 touch-manipulation items-center gap-1.5",
           "rounded-full border border-white/20 bg-zinc-900/95 px-3.5 py-2 text-xs font-black text-white",
-          "shadow-[0_4px_24px_-6px_rgba(0,0,0,0.7)] backdrop-blur-md",
-          "transition-all hover:border-cyan-300/40 hover:bg-zinc-800 active:scale-95",
+          "shadow-[0_4px_24px_-6px_rgba(0,0,0,0.7),0_0_16px_-8px_rgba(34,211,238,0.45)] backdrop-blur-md",
+          "transition-all hover:border-cyan-300/40 hover:bg-zinc-800 hover:shadow-[0_4px_24px_-6px_rgba(0,0,0,0.7),0_0_20px_-6px_rgba(34,211,238,0.65)] active:scale-95",
           // Clear bottom nav on mobile (56px nav + safe area + 8px gap)
           "bottom-[calc(56px+env(safe-area-inset-bottom,0px)+8px)]",
           // Desktop: lower position (no bottom nav)
@@ -1281,8 +1281,11 @@ export default function WorldCupChatDrawer({
           isOpen ? "translate-y-0" : "translate-y-[calc(100%+8px)] sm:translate-y-[calc(100%+24px+8px)]",
         ].join(" ")}
       >
+        {/* Atmospheric gradient overlay — decorative */}
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(ellipse_at_top_center,rgba(34,211,238,0.05),transparent_70%)] rounded-t-2xl" />
+
         {/* ── Drawer header ── */}
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
+        <div className="relative flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
           <p className="truncate text-sm font-black text-white/90">{poolName}</p>
           <button
             type="button"

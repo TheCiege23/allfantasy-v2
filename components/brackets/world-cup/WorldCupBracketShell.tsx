@@ -3251,9 +3251,12 @@ export default function WorldCupBracketShell({
               data-testid="world-cup-ai-features-teaser"
               className="mx-auto max-w-5xl px-2 sm:px-0"
             >
-              <div className="rounded-2xl border border-cyan-300/20 bg-gradient-to-br from-cyan-300/[0.06] to-indigo-400/[0.04] p-4 sm:p-5">
-                <div className="flex items-start gap-3">
-                  <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-white/65" aria-hidden />
+              <div className="relative overflow-hidden rounded-2xl border border-cyan-300/20 bg-gradient-to-br from-cyan-300/[0.06] to-indigo-400/[0.04] p-4 sm:p-5">
+                <div aria-hidden className="pointer-events-none absolute -top-8 -right-8 h-32 w-32 rounded-full bg-indigo-400/10 blur-3xl" />
+                <div className="relative flex items-start gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-cyan-300/25 bg-cyan-300/[0.08] shadow-[0_0_14px_-4px_rgba(34,211,238,0.45)]">
+                    <Sparkles className="h-4 w-4 text-cyan-200/85" aria-hidden />
+                  </div>
                   <div className="min-w-0 flex-1">
                     <h3 className="text-sm font-black text-white">{t("wc.home.ai.title")}</h3>
                     {aiInsightsUnlocked ? (
@@ -4221,8 +4224,8 @@ export default function WorldCupBracketShell({
             {/* ── Hero ──────────────────────────────────────────── */}
             <div data-testid="wc-rules-hero" className="mb-5">
               <div className="mb-3 flex items-center gap-2.5">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/[0.07]">
-                  <ClipboardList className="h-4 w-4 text-white/80" aria-hidden />
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-300/25 bg-cyan-300/[0.08] shadow-[0_0_12px_-4px_rgba(34,211,238,0.35)]">
+                  <ClipboardList className="h-4 w-4 text-cyan-200/80" aria-hidden />
                 </div>
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
@@ -4336,10 +4339,10 @@ export default function WorldCupBracketShell({
               {view.challenge.pickLockAt ? (
                 <p className="text-sm font-bold text-white/85">
                   {t("wc.rules.lock.deadline", {
-                    date: new Intl.DateTimeFormat("en-US", {
-                      dateStyle: "long",
-                      timeStyle: "short",
-                    }).format(new Date(view.challenge.pickLockAt)),
+                    date: new Intl.DateTimeFormat(
+                      wcLanguage === "zh" ? "zh-TW" : wcLanguage === "fil" ? "fil" : wcLanguage ?? "en-US",
+                      { dateStyle: "long", timeStyle: "short" }
+                    ).format(new Date(view.challenge.pickLockAt)),
                   })}
                 </p>
               ) : (
@@ -4387,10 +4390,11 @@ export default function WorldCupBracketShell({
         data-testid="world-cup-back-to-top"
         type="button"
         onClick={() => scrollToAnchor("world-cup-top")}
-        className="fixed bottom-20 right-4 z-50 inline-flex min-h-11 touch-manipulation items-center gap-1 rounded-full border border-white/20 bg-zinc-900/90 px-3 py-2 text-xs font-black text-white shadow-xl backdrop-blur sm:bottom-6 sm:min-h-0"
+        aria-label={t("wc.subnav.top")}
+        className="fixed bottom-20 right-4 z-50 inline-flex min-h-11 touch-manipulation items-center gap-1 rounded-full border border-white/20 bg-zinc-900/90 px-3 py-2 text-xs font-black text-white shadow-[0_4px_20px_-6px_rgba(0,0,0,0.8)] backdrop-blur transition-colors hover:border-white/35 hover:bg-zinc-800 active:scale-95 sm:bottom-6 sm:min-h-0"
       >
         <ArrowUp className="h-3.5 w-3.5" />
-        Top
+        {t("wc.subnav.top")}
       </button>
 
       {/* Floating Chat Drawer — available on every tab for pool participants.
