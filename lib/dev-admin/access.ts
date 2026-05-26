@@ -142,7 +142,7 @@ export function isSubscriptionEntitlementBypassUserId(
 ): boolean {
   // Static + configured all-access emails always bypass (test/dev accounts only)
   if (isAllFantasyTestEmail(email)) return true
-  const normalizedUserId = String(userId ?? “”).trim()
+  const normalizedUserId = String(userId ?? "").trim()
   if (normalizedUserId) {
     if (parseDevAdminUserIds(process.env.AI_ENTITLEMENT_BYPASS_USER_IDS).has(normalizedUserId)) {
       return true
