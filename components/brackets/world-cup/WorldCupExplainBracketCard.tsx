@@ -195,6 +195,12 @@ export default function WorldCupExplainBracketCard({
       <p className="mt-3 text-[10px] text-white/40">
         {t("wc.explain.privacyNote")}
       </p>
+      <p
+        data-testid="wc-explain-ai-disclaimer"
+        className="mt-1 text-[9px] text-white/25"
+      >
+        {t("wc.ai.disclaimer")}
+      </p>
     </section>
   )
 }

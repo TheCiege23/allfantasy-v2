@@ -962,6 +962,8 @@ const EN: WorldCupDictionary = {
     "Medium until live form and official results arrive.",
   "wc.matchup.aiPrivacyNote":
     "Prediction and scoring complexity only. Bracket guidance stays limited to pool picks and scoring mechanics.",
+  "wc.ai.disclaimer":
+    "Strategy support, not a guarantee. You make the final call.",
   "wc.matchup.aiLockedBody":
     "Upgrade to AI/Pro to open matchup insights. Locked users do not trigger AI calls.",
   "wc.matchup.pickAriaPicked": "Pick {{name}} to win",
@@ -2147,6 +2149,8 @@ const ES: WorldCupDictionary = {
     "Medio hasta que lleguen forma en vivo y resultados oficiales.",
   "wc.matchup.aiPrivacyNote":
     "Solo predicción y complejidad de puntuación. La orientación se limita a picks y mecánica.",
+  "wc.ai.disclaimer":
+    "Solo apoyo estratégico, no una garantía. La decisión final es tuya.",
   "wc.matchup.aiLockedBody":
     "Actualiza a IA/Pro para abrir el análisis. Los usuarios bloqueados no activan llamadas de IA.",
   "wc.matchup.pickAriaPicked": "Elegir a {{name}} para ganar",
@@ -3306,6 +3310,8 @@ const ZH: WorldCupDictionary = {
     "在實時表現與官方結果出來前先評為中等。",
   "wc.matchup.aiPrivacyNote":
     "僅為預測與計分複雜度。指引僅限於選擇與計分機制。",
+  "wc.ai.disclaimer":
+    "策略輔助，非保證。最終決定由你做。",
   "wc.matchup.aiLockedBody":
     "升級到 AI/Pro 開啟對戰解析。未升級者不會觸發 AI 呼叫。",
   "wc.matchup.pickAriaPicked": "選 {{name}} 為贏家",
@@ -4496,6 +4502,8 @@ const FIL: WorldCupDictionary = {
     "Medium hanggang dumating ang live form at official results.",
   "wc.matchup.aiPrivacyNote":
     "Prediction at scoring complexity lang. Ang gabay ay nakatuon sa picks at scoring mechanics.",
+  "wc.ai.disclaimer":
+    "Strategy support lang, hindi garantiya. Ikaw ang gagawa ng huling pasya.",
   "wc.matchup.aiLockedBody":
     "Mag-upgrade sa AI/Pro para buksan ang matchup insights. Hindi tumatawag ng AI ang locked users.",
   "wc.matchup.pickAriaPicked": "Piliin si {{name}} para manalo",
@@ -5711,6 +5719,8 @@ const VI: WorldCupDictionary = {
     "Trung bình cho đến khi có phong độ trực tiếp và kết quả chính thức.",
   "wc.matchup.aiPrivacyNote":
     "Chỉ dự đoán và độ phức tạp tính điểm. Hướng dẫn giới hạn ở lựa chọn và cơ chế tính điểm.",
+  "wc.ai.disclaimer":
+    "Hỗ trợ chiến lược, không phải đảm bảo. Bạn quyết định cuối cùng.",
   "wc.matchup.aiLockedBody":
     "Nâng cấp AI/Pro để mở phân tích trận. Người dùng đã khoá không kích hoạt gọi AI.",
   "wc.matchup.pickAriaPicked": "Chọn {{name}} để thắng",

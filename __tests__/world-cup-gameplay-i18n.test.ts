@@ -146,6 +146,7 @@ describe("WC gameplay i18n: dictionary parity for new keys", () => {
     "wc.matchup.aiUpsetRisk",
     "wc.matchup.aiUpsetRiskBody",
     "wc.matchup.aiPrivacyNote",
+    "wc.ai.disclaimer",
     "wc.matchup.aiLockedBody",
     "wc.matchup.pickAriaPicked",
     "wc.matchup.pickAriaSelected",

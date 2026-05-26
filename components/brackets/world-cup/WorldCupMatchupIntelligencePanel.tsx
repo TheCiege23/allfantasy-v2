@@ -1,10 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { AlertTriangle, Brain, Info, Sparkles, Target, Zap } from "lucide-react"
 import BracketBrainLockedCard from "@/components/bracket-brain/BracketBrainLockedCard"
 import type { WorldCupAiStrategy, WorldCupMatchupIntelligence } from "@/lib/world-cup/types"
 import { getWorldCupMatchupIntelligence } from "@/lib/world-cup/worldCupClientApi"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 import WorldCupTeamFlag from "./WorldCupTeamFlag"
 
 const STRATEGY_OPTIONS: { value: WorldCupAiStrategy; label: string; emoji: string }[] = [
@@ -78,6 +80,9 @@ export default function WorldCupMatchupIntelligencePanel({
   onStageSide: (side: "home" | "away") => void
   onUseThisPick: (side: "home" | "away") => void
 }) {
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
+
   const [strategy, setStrategy] = useState<WorldCupAiStrategy>("balanced")
   const [intel, setIntel] = useState<WorldCupMatchupIntelligence | null>(null)
   const [loading, setLoading] = useState(false)
@@ -340,6 +345,13 @@ export default function WorldCupMatchupIntelligencePanel({
           >
             Use This Pick
           </button>
+
+          <p
+            data-testid="wc-ai-disclaimer"
+            className="text-center text-[9px] text-white/30"
+          >
+            {t("wc.ai.disclaimer")}
+          </p>
         </div>
       )}
     </div>
