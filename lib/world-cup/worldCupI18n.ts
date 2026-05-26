@@ -408,6 +408,14 @@ const EN: WorldCupDictionary = {
     "Knockout matchups update based on your Group Stage predictions. Changing group predictions may reset affected knockout picks.",
   "wc.knockouts.startPicks": "Start Picks",
   "wc.knockouts.continuePicks": "Continue Picks",
+  "wc.knockouts.reseededLockedTitle": "Reseeded Knockout Locked",
+  "wc.knockouts.reseededLockedBody":
+    "Knockout picks open after official Round of 32 fixtures are available. Finish your Group Stage predictions now and come back when the real knockout bracket is synced.",
+  "wc.preview.eyebrow": "Starting Bracket Preview",
+  "wc.preview.title": "World Cup Bracket Preview",
+  "wc.preview.helper": "Display-only pool preview. Open your bracket to make picks.",
+  "wc.preview.startingTab": "Starting Bracket",
+  "wc.preview.aiTab": "AI Simulation",
   "wc.knockouts.guidance.complete":
     "{{done}}/{{required}} currently available picks complete.",
   "wc.knockouts.guidance.nextPick": "Next pick: Match {{matchNumber}}.",
@@ -1617,6 +1625,14 @@ const ES: WorldCupDictionary = {
     "Los partidos de eliminatorias se actualizan según tus predicciones de Fase de Grupos. Cambiar las predicciones de grupo puede reiniciar los picks afectados.",
   "wc.knockouts.startPicks": "Empezar picks",
   "wc.knockouts.continuePicks": "Continuar picks",
+  "wc.knockouts.reseededLockedTitle": "Reseeded Knockout Bloqueado",
+  "wc.knockouts.reseededLockedBody":
+    "Los picks de knockout se abren cuando estén disponibles las fixtures oficiales de Ronda de 32. Termina tus predicciones de Grupos y regresa cuando el bracket oficial esté sincronizado.",
+  "wc.preview.eyebrow": "Vista Previa del Bracket Inicial",
+  "wc.preview.title": "Vista Previa del Bracket del World Cup",
+  "wc.preview.helper": "Vista previa de solo lectura. Abre tu bracket para hacer picks.",
+  "wc.preview.startingTab": "Bracket Inicial",
+  "wc.preview.aiTab": "Simulación IA",
   "wc.knockouts.guidance.complete":
     "{{done}}/{{required}} picks disponibles completados.",
   "wc.knockouts.guidance.nextPick":
@@ -2851,6 +2867,14 @@ const ZH: WorldCupDictionary = {
     "淘汰賽對戰會依照你的小組賽預測即時更新。修改小組預測可能會重置受影響的淘汰賽選擇。",
   "wc.knockouts.startPicks": "開始選擇",
   "wc.knockouts.continuePicks": "繼續選擇",
+  "wc.knockouts.reseededLockedTitle": "重新分組淘汰賽已鎖定",
+  "wc.knockouts.reseededLockedBody":
+    "官方32強賽程出爐後，淘汰賽選擇即可開放。請先完成小組預測，等官方淘汰賽表同步後再回來。",
+  "wc.preview.eyebrow": "起始對戰表預覽",
+  "wc.preview.title": "世界盃對戰表預覽",
+  "wc.preview.helper": "僅供查看的泳池預覽。開啟您的對戰表以進行選擇。",
+  "wc.preview.startingTab": "起始對戰表",
+  "wc.preview.aiTab": "AI 模擬",
   "wc.knockouts.guidance.complete":
     "已完成 {{done}}/{{required}} 個目前可選的場次。",
   "wc.knockouts.guidance.nextPick": "下一個選擇:第 {{matchNumber}} 場。",
@@ -4060,6 +4084,14 @@ const FIL: WorldCupDictionary = {
     "Nagba-base ang Knockout matchups sa iyong Group Stage predictions. Kung papalitan ang group predictions puwedeng ma-reset ang ilang knockout picks.",
   "wc.knockouts.startPicks": "Simulan ang picks",
   "wc.knockouts.continuePicks": "Ituloy ang picks",
+  "wc.knockouts.reseededLockedTitle": "Naka-lock ang Reseeded Knockout",
+  "wc.knockouts.reseededLockedBody":
+    "Magbubukas ang mga knockout pick kapag available na ang opisyal na Round of 32 fixtures. Tapusin ang iyong Group Stage predictions at bumalik kapag naka-sync na ang totoong knockout bracket.",
+  "wc.preview.eyebrow": "Starting Bracket Preview",
+  "wc.preview.title": "World Cup Bracket Preview",
+  "wc.preview.helper": "Display-only na preview ng pool. Buksan ang iyong bracket para gumawa ng picks.",
+  "wc.preview.startingTab": "Starting Bracket",
+  "wc.preview.aiTab": "AI Simulation",
   "wc.knockouts.guidance.complete":
     "{{done}}/{{required}} na available na picks ang tapos.",
   "wc.knockouts.guidance.nextPick":
@@ -5310,6 +5342,14 @@ const VI: WorldCupDictionary = {
     "Các cặp đấu vòng loại trực tiếp cập nhật theo dự đoán vòng bảng của bạn. Đổi dự đoán vòng bảng có thể đặt lại một số lựa chọn vòng loại trực tiếp.",
   "wc.knockouts.startPicks": "Bắt đầu chọn",
   "wc.knockouts.continuePicks": "Tiếp tục chọn",
+  "wc.knockouts.reseededLockedTitle": "Reseeded Knockout bị khoá",
+  "wc.knockouts.reseededLockedBody":
+    "Lượt chọn knockout mở sau khi fixture chính thức Vòng 32 được cung cấp. Hoàn thành dự đoán Bảng đấu và quay lại khi bracket thực được đồng bộ.",
+  "wc.preview.eyebrow": "Xem trước Bracket khởi đầu",
+  "wc.preview.title": "Xem trước Bracket World Cup",
+  "wc.preview.helper": "Xem trước pool chỉ đọc. Mở bracket để đưa ra lựa chọn.",
+  "wc.preview.startingTab": "Bracket khởi đầu",
+  "wc.preview.aiTab": "Mô phỏng AI",
   "wc.knockouts.guidance.complete":
     "Đã hoàn tất {{done}}/{{required}} lựa chọn hiện có.",
   "wc.knockouts.guidance.nextPick":

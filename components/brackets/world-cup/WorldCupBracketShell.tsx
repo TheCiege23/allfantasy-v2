@@ -3606,9 +3606,9 @@ export default function WorldCupBracketShell({
                 {knockoutPicksLockedByMode ? (
                   <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-8 text-center">
                     <Lock className="mx-auto h-8 w-8 text-white/55" />
-                    <h2 className="mt-3 text-lg font-black text-white">Reseeded Knockout Locked</h2>
+                    <h2 className="mt-3 text-lg font-black text-white">{t("wc.knockouts.reseededLockedTitle")}</h2>
                     <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-white/55">
-                      Knockout picks open after official Round of 32 fixtures are available. Finish your Group Stage predictions now and come back when the real knockout bracket is synced.
+                      {t("wc.knockouts.reseededLockedBody")}
                     </p>
                   </div>
                 ) : entryPicksHydrated ? (
@@ -4837,15 +4837,17 @@ function WorldCupDashBracketPreviewToolbar({
   openDisabled: boolean
   openLabel: string
 }) {
+  const { language } = useOptionalLanguage()
+  const t = useMemo(() => makeWcT(language), [language])
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/60">
-          Starting Bracket Preview
+          {t("wc.preview.eyebrow")}
         </p>
-        <h3 className="mt-1 text-xl font-black text-white">World Cup Bracket Preview</h3>
+        <h3 className="mt-1 text-xl font-black text-white">{t("wc.preview.title")}</h3>
         <p className="mt-1 max-w-2xl text-xs leading-5 text-white/50">
-          Display-only pool preview. Open your bracket to make picks.
+          {t("wc.preview.helper")}
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -4855,14 +4857,14 @@ function WorldCupDashBracketPreviewToolbar({
             onClick={() => setDashboardPreviewMode("starting")}
             className={`rounded-lg px-3 py-1.5 text-[11px] font-black ${dashboardPreviewMode === "starting" ? "bg-cyan-300 text-black" : "text-white/55 hover:text-white"}`}
           >
-            Starting Bracket
+            {t("wc.preview.startingTab")}
           </button>
           <button
             type="button"
             onClick={() => setDashboardPreviewMode("ai")}
             className={`rounded-lg px-3 py-1.5 text-[11px] font-black ${dashboardPreviewMode === "ai" ? "bg-cyan-300 text-black" : "text-white/55 hover:text-white"}`}
           >
-            AI Simulation
+            {t("wc.preview.aiTab")}
           </button>
         </div>
         <button
