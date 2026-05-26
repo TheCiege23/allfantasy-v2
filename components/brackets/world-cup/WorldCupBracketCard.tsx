@@ -71,7 +71,7 @@ export default function WorldCupBracketCard({
         <button
           type="button"
           role="button"
-          aria-label={t("wc.matchup.openGuidedAria")}
+          aria-label={t("wc.matchup.openGuidedAria", { number: match.matchNumber })}
           onClick={() => onOpenMatchupPicker?.(match.id)}
           className="min-w-0 flex-1 truncate text-left text-[9px] font-bold uppercase tracking-[0.12em] text-white/35 hover:text-white/65"
         >
@@ -97,14 +97,12 @@ export default function WorldCupBracketCard({
         type="button"
         data-testid={`world-cup-team-${match.id}-home`}
         onClick={() => handlePick("home")}
-        disabled={locked || !pickable}
+        disabled={locked || !pickable || isSaving}
         aria-pressed={homeSelected ? true : undefined}
         aria-label={
           homeSelected
-            ? t("wc.matchup.pickAriaSelected", { team: homeName })
-            : pick && hasWorldCupPickSelection(pick)
-              ? t("wc.matchup.pickAriaPicked", { team: homeName })
-              : homeName
+            ? t("wc.matchup.pickAriaSelected", { name: homeName })
+            : t("wc.matchup.pickAriaPicked", { name: homeName })
         }
         className={`flex h-9 w-full items-center gap-1.5 px-2 transition-colors
           ${locked || !pickable
@@ -130,14 +128,12 @@ export default function WorldCupBracketCard({
         type="button"
         data-testid={`world-cup-team-${match.id}-away`}
         onClick={() => handlePick("away")}
-        disabled={locked || !pickable}
+        disabled={locked || !pickable || isSaving}
         aria-pressed={awaySelected ? true : undefined}
         aria-label={
           awaySelected
-            ? t("wc.matchup.pickAriaSelected", { team: awayName })
-            : pick && hasWorldCupPickSelection(pick)
-              ? t("wc.matchup.pickAriaPicked", { team: awayName })
-              : awayName
+            ? t("wc.matchup.pickAriaSelected", { name: awayName })
+            : t("wc.matchup.pickAriaPicked", { name: awayName })
         }
         className={`flex h-9 w-full items-center gap-1.5 border-t border-white/[0.07] px-2 transition-colors
           ${locked || !pickable

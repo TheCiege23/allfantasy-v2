@@ -23,7 +23,7 @@ describe("WorldCupShareCard", () => {
     expect(preview).toHaveTextContent("Join my World Cup Bracket Pool on AllFantasy")
     expect(preview).toHaveTextContent("Invite code: INVITE")
     expect(preview.textContent?.toLowerCase()).not.toMatch(/\bdfs\b|\bbetting\b|\bwager/)
-    fireEvent.click(screen.getByRole("button", { name: /Copy share text/i }))
+    fireEvent.click(screen.getByRole("button", { name: /^Copy$/i }))
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("INVITE"))
   })
 
@@ -97,7 +97,7 @@ describe("WorldCupShareCard", () => {
 
     const card = screen.getByTestId("world-cup-share-card-recap")
     expect(within(card).getByText(/AI recap from Office Cup/i)).toBeInTheDocument()
-    expect(within(card).getByRole("button", { name: /Copy share text/i })).toHaveClass("min-h-11")
+    expect(within(card).getByRole("button", { name: /^Copy$/i })).toHaveClass("min-h-11")
     expect(within(card).getByRole("button", { name: /^Share$/i })).toHaveClass("min-h-11")
   })
 })

@@ -63,6 +63,12 @@ vi.mock("@/components/brackets/world-cup/WorldCupMatchupIntelligencePanel", () =
   default: () => <div data-testid="wc-intel-stub" />,
 }))
 
+// ThemeModeSelect calls useThemeMode which requires ThemeProvider.
+// Stub it out so shell renders work without a ThemeProvider wrapper.
+vi.mock("@/components/theme/ThemeModeSelect", () => ({
+  ThemeModeSelect: () => null,
+}))
+
 vi.mock("@/components/brackets/world-cup/WorldCupGroupStagePicks", () => ({
   default: ({
     entryId,
@@ -1336,7 +1342,8 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(within(savedPicks).getByTestId("world-cup-review-group-A")).toHaveTextContent("#2 Brazil")
     expect(within(savedPicks).getByTestId("world-cup-review-group-A")).toHaveTextContent("Wrong +0")
     expect(savedPicks).toHaveTextContent("Canada")
-    expect(savedPicks).toHaveTextContent("Pending")
+    // Fix K: pre-tournament picks with isCorrect===null show "Saved" (not "Pending")
+    expect(savedPicks).toHaveTextContent("Saved")
   })
 
   it("Review shows saved knockout picks with automatic result states after finalize", async () => {
@@ -1467,6 +1474,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     render(
       <WorldCupBracketShell
         initialView={makeShellView({
+          isAdmin: true,
           matches: makeShellSeededMatches(),
           challenge: { ...makeShellView().challenge, simulationEnabled: true },
         }) as any}
@@ -1474,6 +1482,8 @@ describe("WorldCupBracketShell fixture readiness", () => {
       />
     )
 
+    // Fix I10: admin panel is collapsed by default — expand it first
+    fireEvent.click(await screen.findByRole("button", { name: /Admin \/ Test Tools/i }))
     expect(await screen.findByText("World Cup Simulation Panel")).toBeInTheDocument()
     const dryRun = screen.getAllByRole("checkbox", { name: /^Dry run$/i })[0]
     expect(dryRun).toBeChecked()
@@ -1501,6 +1511,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     render(
       <WorldCupBracketShell
         initialView={makeShellView({
+          isAdmin: true,
           matches: makeShellSeededMatches(),
           challenge: { ...makeShellView().challenge, simulationEnabled: true },
         }) as any}
@@ -1508,6 +1519,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
       />
     )
 
+    fireEvent.click(await screen.findByRole("button", { name: /Admin \/ Test Tools/i }))
     expect(await screen.findByText("World Cup Simulation Panel")).toBeInTheDocument()
     const input = screen.getByLabelText("Match ID required for simulate match")
     const button = screen.getByRole("button", { name: /^Simulate Match$/i })
@@ -2411,13 +2423,15 @@ describe("WorldCupBracketShell fixture readiness", () => {
     await waitFor(() => expect(clientApiMocks.listEntries).toHaveBeenCalled())
     expect(screen.getAllByRole("button", { name: /Admin\/Test/i }).length).toBeGreaterThan(0)
     expect(screen.getAllByRole("button", { name: /Commissioner/i }).length).toBeGreaterThan(0)
-    expect(screen.getByText(/World Cup Simulation Panel/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /Admin \/ Test Tools/i }))
+    await waitFor(() => expect(screen.getByText(/World Cup Simulation Panel/i)).toBeInTheDocument())
   })
 
   it("shows World Cup production readiness details to admins without exposing secrets", async () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: true }) as any} />)
 
+    fireEvent.click(await screen.findByRole("button", { name: /Admin \/ Test Tools/i }))
     const panel = await screen.findByTestId("world-cup-readiness-panel")
     expect(panel).toHaveTextContent("World Cup Production Readiness")
     expect(panel).toHaveTextContent("API-Football")
@@ -2482,6 +2496,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: true }) as any} />)
 
+    fireEvent.click(await screen.findByRole("button", { name: /Admin \/ Test Tools/i }))
     const panel = await screen.findByTestId("world-cup-readiness-panel")
     expect(panel).toHaveTextContent("Provider teams grouped")
     expect(panel).toHaveTextContent("0/48")
@@ -2506,8 +2521,9 @@ describe("WorldCupBracketShell fixture readiness", () => {
   it("disables admin integrity after a missing route response", async () => {
     clientApiMocks.getIntegrityReport.mockRejectedValueOnce(new Error("Route not found"))
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
-    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: true, isAdmin: false }) as any} />)
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: true, isAdmin: true }) as any} />)
 
+    fireEvent.click(await screen.findByRole("button", { name: /Admin \/ Test Tools/i }))
     const button = await screen.findByRole("button", { name: /Run Integrity Check/i })
     fireEvent.click(button)
 
@@ -2522,8 +2538,9 @@ describe("WorldCupBracketShell fixture readiness", () => {
     }))
     vi.stubGlobal("fetch", fetchMock)
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
-    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: true, isAdmin: false }) as any} />)
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: true, isAdmin: true }) as any} />)
 
+    fireEvent.click(await screen.findByRole("button", { name: /Admin \/ Test Tools/i }))
     await screen.findByTestId("world-cup-readiness-panel")
     fireEvent.click(screen.getByRole("button", { name: /Run readiness check/i }))
 
@@ -2872,13 +2889,14 @@ describe("WorldCupBracketShell fixture readiness", () => {
     render(<WorldCupBracketShell initialView={makeShellView() as any} />)
 
     await waitFor(() => expect(screen.getAllByRole("button", { name: /Start Making Picks/i })[0]).toBeEnabled())
-    expect(screen.getByAltText("Brazil flag")).toBeInTheDocument()
     expect(screen.getAllByText("Brazil").length).toBeGreaterThan(0)
     expect(screen.queryByText("Fixtures Not Ready")).not.toBeInTheDocument()
 
     fireEvent.click(screen.getAllByRole("button", { name: /Start Making Picks/i })[0])
 
     expect(await screen.findByTestId("world-cup-guided-close")).toBeInTheDocument()
+    // Flags appear inside the guided picker dialog (not on the compact bracket card)
+    expect(screen.getByAltText("Brazil flag")).toBeInTheDocument()
     expect(screen.getByTestId("wc-intel-stub")).toBeInTheDocument()
     expect(screen.getAllByRole("button", { name: /Pick Brazil to win/i }).length).toBeGreaterThan(0)
   })

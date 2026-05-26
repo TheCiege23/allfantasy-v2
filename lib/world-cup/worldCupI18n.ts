@@ -937,6 +937,7 @@ const EN: WorldCupDictionary = {
   "wc.matchup.unpickableFinal": "This match is final.",
   "wc.matchup.unpickableMissingTeam":
     "Pick earlier round winners first.",
+  "wc.matchup.unpickableTeams": "Pick earlier round winners first.",
   "wc.matchup.unpickableUnknown": "Teams not available yet.",
   "wc.matchup.ftBadge": "FT",
   "wc.matchup.confidenceTitle": "Confidence bonus",
@@ -2121,6 +2122,7 @@ const ES: WorldCupDictionary = {
   "wc.matchup.unpickableFinal": "Este partido ya es final.",
   "wc.matchup.unpickableMissingTeam":
     "Elige primero los ganadores de rondas previas.",
+  "wc.matchup.unpickableTeams": "Elige primero los ganadores de rondas previas.",
   "wc.matchup.unpickableUnknown": "Equipos aún no disponibles.",
   "wc.matchup.ftBadge": "FT",
   "wc.matchup.confidenceTitle": "Bono de confianza",
@@ -3279,6 +3281,7 @@ const ZH: WorldCupDictionary = {
   "wc.matchup.unpickableFinal": "此比賽已結束。",
   "wc.matchup.unpickableMissingTeam":
     "請先選出前幾輪的勝者。",
+  "wc.matchup.unpickableTeams": "請先選出前幾輪的勝者。",
   "wc.matchup.unpickableUnknown": "球隊尚未確定。",
   "wc.matchup.ftBadge": "FT",
   "wc.matchup.confidenceTitle": "信心加分",
@@ -4468,6 +4471,7 @@ const FIL: WorldCupDictionary = {
   "wc.matchup.unpickableFinal": "Tapos na ang labang ito.",
   "wc.matchup.unpickableMissingTeam":
     "Pumili muna ng mga winner sa mga naunang rounds.",
+  "wc.matchup.unpickableTeams": "Pumili muna ng mga winner sa mga naunang rounds.",
   "wc.matchup.unpickableUnknown": "Wala pang teams.",
   "wc.matchup.ftBadge": "FT",
   "wc.matchup.confidenceTitle": "Confidence bonus",
@@ -5682,6 +5686,7 @@ const VI: WorldCupDictionary = {
   "wc.matchup.unpickableFinal": "Trận này đã kết thúc.",
   "wc.matchup.unpickableMissingTeam":
     "Hãy chọn người thắng các vòng trước trước.",
+  "wc.matchup.unpickableTeams": "Hãy chọn người thắng các vòng trước trước.",
   "wc.matchup.unpickableUnknown": "Chưa có đội.",
   "wc.matchup.ftBadge": "FT",
   "wc.matchup.confidenceTitle": "Điểm thưởng niềm tin",

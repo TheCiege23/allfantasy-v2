@@ -127,6 +127,7 @@ describe("WC gameplay i18n: dictionary parity for new keys", () => {
     "wc.matchup.winnerOfficial",
     "wc.matchup.unpickableFinal",
     "wc.matchup.unpickableMissingTeam",
+    "wc.matchup.unpickableTeams",
     "wc.matchup.unpickableUnknown",
     "wc.matchup.ftBadge",
     "wc.matchup.confidenceTitle",

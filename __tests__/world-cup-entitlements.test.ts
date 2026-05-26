@@ -15,7 +15,8 @@ describe("World Cup entitlement helpers", () => {
     expect(canUseWorldCupCommissionerTools(input)).toBe(false)
     expect(canCreateMultipleWorldCupEntries(input)).toBe(false)
     expect(canExportWorldCupLeaderboard(input)).toBe(false)
-    expect(canUseWorldCupChat(input)).toBe(false)
+    // Chat is open to all pool participants — API enforces membership.
+    expect(canUseWorldCupChat(input)).toBe(true)
     expect(canUseWorldCupAiTools(input)).toBe(false)
   })
 

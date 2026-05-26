@@ -26,8 +26,10 @@ export function AccountSettingsSection({
     : null
 
   // Use live entitlements data when loaded; fall back to server prop while loading.
+  // planLabel is currently null from the server — avoid flashing "Free" by showing
+  // a neutral dash until entitlements resolve.
   const planDisplay = (() => {
-    if (ents.loading) return planLabel?.trim() || t("settings.account.planFree")
+    if (ents.loading) return planLabel?.trim() || "—"
     if (ents.hasSupreme) return "AF Supreme"
     if (ents.hasAllAccess) return "AF All-Access"
     if (ents.hasCommissioner) return "AF Commissioner"

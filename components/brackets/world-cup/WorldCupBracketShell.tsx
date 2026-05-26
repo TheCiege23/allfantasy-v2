@@ -1028,7 +1028,7 @@ export default function WorldCupBracketShell({
 
   // Auto-select the first entry when the user lands on the Group Stage tab
   // without a selected entry (e.g. navigating via tab click rather than URL).
-  // This prevents the "Create an entry first" fallback from showing when the
+  // This prevents the no-entry fallback from showing when the
   // user already has entries and just clicked the Group Stage tab.
   useEffect(() => {
     if (tab !== "group-stage") return
