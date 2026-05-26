@@ -181,7 +181,7 @@ function GroupAiInsightPanel({
           </p>
         </div>
       ) : (
-        <div className="mt-3 rounded-lg border border-white/10 bg-black/25 px-2 py-2 text-[11px] leading-5 text-white/60" hidden>
+        <div className="mt-3 rounded-lg border border-white/10 bg-black/25 px-2 py-2 text-[11px] leading-5 text-white/60">
           {t("wc.groupStage.aiLockedBody")}
         </div>
       )}
@@ -232,7 +232,7 @@ function ThirdPlaceAiInsightPanel({
           </p>
         </div>
       ) : (
-        <div className="mt-3 rounded-lg border border-white/10 bg-black/25 px-2 py-2 text-[11px] leading-5 text-white/60" hidden>
+        <div className="mt-3 rounded-lg border border-white/10 bg-black/25 px-2 py-2 text-[11px] leading-5 text-white/60">
           {t("wc.thirdPlace.aiLockedBody")}
         </div>
       )}
@@ -341,14 +341,13 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
     try {
       const nextView = await saveWorldCupGroupRankingClient(challengeId, entryId, groupId, orderedTeamIds)
       setView(nextView)
-      const nextOrders: Record<string, string[]> = {}
-      const nextSaveStates: Record<string, GroupSaveState> = {}
-      for (const group of nextView.groups) {
-        nextOrders[group.id] = orderedTeamIdsForGroup(nextView, group.id)
-        if (isGroupRanked(nextView, group.id)) nextSaveStates[group.id] = "saved"
-      }
-      setLocalOrders(nextOrders)
-      setSaveStates((prev) => ({ ...nextSaveStates, [groupId]: "saved" }))
+      // Only update the saved group's local order — do NOT clobber other groups'
+      // in-progress edits that the user hasn't saved yet.
+      setLocalOrders((prev) => ({
+        ...prev,
+        [groupId]: orderedTeamIdsForGroup(nextView, groupId),
+      }))
+      setSaveStates((prev) => ({ ...prev, [groupId]: "saved" }))
       setThirdPlaceSelection(new Set(nextView.thirdPlaceAdvancerPicks.filter((pick) => pick.isSelected).map((pick) => pick.teamId)))
       onCompletionChanged?.()
     } catch (err) {
@@ -540,7 +539,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
               <button
                 type="button"
                 onClick={() => void saveGroup(group.id)}
-                disabled={isLocked || state === "saving" || !hasCompleteTeams || !hasUnsavedOrderChanges}
+                disabled={isLocked || state === "saving" || !hasCompleteTeams || (state !== "idle" && !hasUnsavedOrderChanges)}
                 className="mt-3 w-full rounded-xl bg-cyan-300 px-3 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:opacity-45"
               >
                 {state === "saving"

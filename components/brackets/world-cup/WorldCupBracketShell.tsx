@@ -223,6 +223,7 @@ const BASE_TABS: Array<{
   { id: "picks", label: "Knockouts", labelKey: "wc.tab.picks", shortLabelKey: "wc.tab.picks.short", icon: ClipboardList },
   { id: "review", label: "Review", labelKey: "wc.tab.review", shortLabelKey: "wc.tab.review.short", icon: ClipboardCheck },
   { id: "leaderboard", label: "Leaderboard", labelKey: "wc.tab.leaderboard", shortLabelKey: "wc.tab.leaderboard.short", icon: Trophy },
+  { id: "chat", label: "Chat", labelKey: "wc.tab.chat", shortLabelKey: "wc.tab.chat.short", icon: MessageSquare },
   { id: "rules", label: "Rules", labelKey: "wc.tab.rules", shortLabelKey: "wc.tab.rules.short", icon: Users },
   { id: "invite", label: "Invite", labelKey: "wc.tab.invite", shortLabelKey: "wc.tab.invite.short", icon: Share2 },
 ]
@@ -1021,6 +1022,20 @@ export default function WorldCupBracketShell({
     staleEntryResolvedRef.current = null
     updateTabUrl(tab, resolvedId, "replace")
   }, [entriesLoaded, updateTabUrl, tab])
+
+  // Auto-select the first entry when the user lands on the Group Stage tab
+  // without a selected entry (e.g. navigating via tab click rather than URL).
+  // This prevents the "Create an entry first" fallback from showing when the
+  // user already has entries and just clicked the Group Stage tab.
+  useEffect(() => {
+    if (tab !== "group-stage") return
+    if (selectedEntryId) return
+    if (!entriesLoaded) return
+    if (entries.length === 0) return
+    const first = entries[0]
+    setSelectedEntryId(first.id)
+    persistSelectedEntryId(first.id)
+  }, [tab, selectedEntryId, entriesLoaded, entries, persistSelectedEntryId])
 
   // ── Entry management callbacks ───────────────────────────────────────────
   const handleCreateEntry = useCallback(async () => {
@@ -2287,6 +2302,17 @@ export default function WorldCupBracketShell({
           <div data-testid="wc-shell-language-toggle">
             <LanguageToggle variant="compact" />
           </div>
+          {/* User account settings link — lets users access their plan/profile without
+              leaving the pool page. Kept compact (icon-only) so it fits the dense header. */}
+          <Link
+            href="/settings"
+            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] p-2 text-white/60 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55"
+            aria-label={t("wc.header.accountSettings")}
+            title={t("wc.header.accountSettings")}
+            data-testid="wc-shell-settings-link"
+          >
+            <Settings className="h-4 w-4" />
+          </Link>
           {(view.isOwner || view.isAdmin) && (
             <button
               type="button"
@@ -2481,7 +2507,7 @@ export default function WorldCupBracketShell({
             />
           )}
 
-          {(view.isOwner || view.isAdmin) && (
+          {view.isAdmin && (
             <>
             <div id="world-cup-admin" className="mx-4 mb-2 h-0" aria-hidden="true" />
             <WorldCupReadinessPanel
@@ -3622,12 +3648,19 @@ export default function WorldCupBracketShell({
                   toast.info("Your bracket updated because your group predictions changed.")
                 }}
               />
+            ) : isEntriesLoading ? (
+              // Entries are still loading — show skeleton so user doesn't see
+              // the "Create entry" fallback while their bracket is being fetched.
+              <section className="mx-auto max-w-3xl rounded-2xl border border-white/10 bg-white/[0.035] p-6 text-center">
+                <Loader2 className="mx-auto h-6 w-6 animate-spin text-white/40" />
+                <p className="mt-3 text-sm text-white/50">{t("wc.groupStage.loading")}</p>
+              </section>
             ) : (
               <section className="mx-auto max-w-3xl rounded-2xl border border-white/10 bg-white/[0.035] p-6 text-center">
                 <Trophy className="mx-auto h-8 w-8 text-white/45" />
-                <h2 className="mt-3 text-xl font-black text-white">Create an entry first</h2>
+                <h2 className="mt-3 text-xl font-black text-white">{t("wc.review.createEntryFirstTitle")}</h2>
                 <p className="mt-2 text-sm text-white/50">
-                  Group-stage picks are saved per bracket entry. Create or open an entry before ranking groups.
+                  {t("wc.review.createEntryFirstBody")}
                 </p>
                 <div className="mt-4 flex flex-wrap justify-center gap-2">
                   {entries[0]?.id ? (
@@ -3636,7 +3669,7 @@ export default function WorldCupBracketShell({
                       onClick={() => handleSelectEntry(entries[0].id)}
                       className="rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black"
                     >
-                      Open My Bracket
+                      {t("wc.review.openMyBracket")}
                     </button>
                   ) : null}
                   <button
@@ -4093,6 +4126,15 @@ export default function WorldCupBracketShell({
               />
             </div>
             <WorldCupLeaderboard view={view} busy={isPending} onRecalculate={() => runOwnerAction("recalculate")} switchTab={switchTab} />
+          </div>
+        ) : null}
+        {tab === "chat" ? (
+          <div id="world-cup-chat" className="pb-28 sm:pb-8">
+            <WorldCupCommunityFoundationPanel
+              challengeId={challengeId}
+              entitlementSummary={entitlementSummary}
+              poolName={view.challenge.name}
+            />
           </div>
         ) : null}
         {tab === "invite" ? (

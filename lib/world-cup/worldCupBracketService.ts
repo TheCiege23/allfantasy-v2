@@ -819,7 +819,7 @@ export async function getWorldCupChallengeView(input: { challengeId: string; use
     picks,
     leaderboard,
     userId,
-    isAdmin: Boolean(input.isAdmin || isAdminEmailAllowed(input.user?.email)),
+    isAdmin: Boolean(input.isAdmin),
   })
 
   const hasBracketBrainAi = userId

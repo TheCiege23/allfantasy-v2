@@ -131,23 +131,26 @@ export function isTokenNotificationBypassUserId(userId: string | null | undefine
  * optional `AI_ENTITLEMENT_BYPASS_USER_IDS` for an explicit QA list without reusing other env names.
  */
 /**
- * Full bypass for subscriptions + token metering. Pass `email` when available so accounts in
- * `ADMIN_EMAILS` match platform admin / “super admin” the same way `/admin` does (not only env user-id lists).
+ * Full bypass for subscriptions + token metering.
+ * Email-based bypass was removed — admin emails see real Stripe subscription
+ * data so billing UI shows the true plan state. Only explicit userId lists
+ * and the test-account email list still bypass.
  */
 export function isSubscriptionEntitlementBypassUserId(
   userId: string | null | undefined,
   email?: string | null
 ): boolean {
-  // Static + configured all-access emails always bypass
+  // Static + configured all-access emails always bypass (test/dev accounts only)
   if (isAllFantasyTestEmail(email)) return true
-  const normalizedUserId = String(userId ?? "").trim()
+  const normalizedUserId = String(userId ?? “”).trim()
   if (normalizedUserId) {
     if (parseDevAdminUserIds(process.env.AI_ENTITLEMENT_BYPASS_USER_IDS).has(normalizedUserId)) {
       return true
     }
   }
   if (isTokenNotificationBypassUserId(userId)) return true
-  if (email && isAdminEmailAllowed(email)) return true
+  // NOTE: isAdminEmailAllowed bypass intentionally removed — admin emails must
+  // have a real subscription for the billing UI to reflect true plan status.
   return false
 }
 

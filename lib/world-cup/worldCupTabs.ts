@@ -4,6 +4,7 @@ export type WorldCupBracketTab =
   | "picks"
   | "review"
   | "leaderboard"
+  | "chat"
   | "rules"
   | "invite"
   | "settings"
@@ -16,6 +17,7 @@ const WORLD_CUP_TAB_ALIASES: Record<string, WorldCupBracketTab> = {
   knockouts: "picks",
   review: "review",
   leaderboard: "leaderboard",
+  chat: "chat",
   rules: "rules",
   invite: "invite",
   settings: "settings",
