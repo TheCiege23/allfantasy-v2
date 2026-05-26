@@ -2895,8 +2895,8 @@ describe("WorldCupBracketShell fixture readiness", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /Start Making Picks/i })[0])
 
     expect(await screen.findByTestId("world-cup-guided-close")).toBeInTheDocument()
-    // Flags appear inside the guided picker dialog (not on the compact bracket card)
-    expect(screen.getByAltText("Brazil flag")).toBeInTheDocument()
+    // Flags appear in the guided picker dialog (and now also on bracket cards)
+    expect(screen.getAllByAltText("Brazil flag").length).toBeGreaterThan(0)
     expect(screen.getByTestId("wc-intel-stub")).toBeInTheDocument()
     expect(screen.getAllByRole("button", { name: /Pick Brazil to win/i }).length).toBeGreaterThan(0)
   })

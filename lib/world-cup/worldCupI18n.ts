@@ -882,6 +882,7 @@ const EN: WorldCupDictionary = {
   "wc.groupStage.lockedWithReason":
     "Group-stage picks are locked: {{reason}}",
   "wc.groupStage.teamCount": "{{count}}/4 teams",
+  "wc.groupStage.ranked": "Ranked ✓",
   "wc.groupStage.teamFallback": "Team",
   "wc.groupStage.actualRank": "Actual #{{rank}}",
   "wc.groupStage.moveUp": "Move Up",
@@ -2092,6 +2093,7 @@ const ES: WorldCupDictionary = {
   "wc.groupStage.lockedWithReason":
     "Los picks de fase de grupos están bloqueados: {{reason}}",
   "wc.groupStage.teamCount": "{{count}}/4 equipos",
+  "wc.groupStage.ranked": "Clasificado ✓",
   "wc.groupStage.teamFallback": "Equipo",
   "wc.groupStage.actualRank": "Real #{{rank}}",
   "wc.groupStage.moveUp": "Subir",
@@ -3283,6 +3285,7 @@ const ZH: WorldCupDictionary = {
   "wc.groupStage.lockedWithReason":
     "小組賽選擇已鎖定:{{reason}}",
   "wc.groupStage.teamCount": "{{count}}/4 隊",
+  "wc.groupStage.ranked": "已排序 ✓",
   "wc.groupStage.teamFallback": "球隊",
   "wc.groupStage.actualRank": "實際 #{{rank}}",
   "wc.groupStage.moveUp": "上移",
@@ -4497,6 +4500,7 @@ const FIL: WorldCupDictionary = {
   "wc.groupStage.lockedWithReason":
     "Naka-lock na ang group-stage picks: {{reason}}",
   "wc.groupStage.teamCount": "{{count}}/4 teams",
+  "wc.groupStage.ranked": "Naka-rank ✓",
   "wc.groupStage.teamFallback": "Team",
   "wc.groupStage.actualRank": "Aktwal #{{rank}}",
   "wc.groupStage.moveUp": "Itaas",
@@ -5741,6 +5745,7 @@ const VI: WorldCupDictionary = {
   "wc.groupStage.lockedWithReason":
     "Lựa chọn vòng bảng đã khoá: {{reason}}",
   "wc.groupStage.teamCount": "{{count}}/4 đội",
+  "wc.groupStage.ranked": "Đã xếp hạng ✓",
   "wc.groupStage.teamFallback": "Đội",
   "wc.groupStage.actualRank": "Thực tế #{{rank}}",
   "wc.groupStage.moveUp": "Lên",

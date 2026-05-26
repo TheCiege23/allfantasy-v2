@@ -462,10 +462,34 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
           const hasCompleteTeams = group.teams.length === 4 && order.length === 4
           const hasUnsavedOrderChanges = !sameOrderedValues(order, orderedTeamIdsForGroup(view, group.id))
           return (
-            <div key={group.id} data-testid={`world-cup-group-${group.groupKey}`} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <div
+              key={group.id}
+              data-testid={`world-cup-group-${group.groupKey}`}
+              className={[
+                "rounded-2xl border p-3 transition-colors",
+                saveStates[group.id] === "saved" && !saveStates[group.id]
+                  ? "border-cyan-300/20 bg-cyan-300/[0.03]"
+                  : "border-white/10 bg-white/[0.03]",
+              ].join(" ")}
+            >
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="font-black text-white">{group.displayName}</h3>
-                <span className="text-xs text-white/45">{t("wc.groupStage.teamCount", { count: order.length })}</span>
+                <div className="flex items-center gap-2">
+                  {/* Prominent group badge */}
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/[0.06] text-sm font-black text-white/80">
+                    {group.groupKey}
+                  </span>
+                  <h3 className="font-black text-white">{group.displayName}</h3>
+                </div>
+                <span className={[
+                  "rounded-full px-2 py-0.5 text-[10px] font-black",
+                  isGroupRanked(view, group.id)
+                    ? "border border-cyan-300/25 bg-cyan-300/[0.08] text-cyan-200"
+                    : "border border-white/10 bg-white/[0.04] text-white/40",
+                ].join(" ")}>
+                  {isGroupRanked(view, group.id)
+                    ? t("wc.groupStage.ranked")
+                    : t("wc.groupStage.teamCount", { count: order.length })}
+                </span>
               </div>
               <div className="space-y-2">
                 {order.map((teamId, index) => {
@@ -480,7 +504,16 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                       data-result-state={status}
                       className={`flex flex-wrap items-center gap-2 rounded-xl border bg-black/20 px-2 py-2 sm:flex-nowrap ${resultBorderClass(status)}`}
                     >
-                      <span className="w-7 shrink-0 text-center text-sm font-black text-white/90">{index + 1}</span>
+                      <span className={[
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-black",
+                        index === 0
+                          ? "border border-amber-400/40 bg-amber-400/[0.12] text-amber-200"
+                          : index === 1
+                          ? "border border-white/20 bg-white/[0.08] text-white/80"
+                          : "border border-white/10 bg-white/[0.04] text-white/55",
+                      ].join(" ")}>
+                        {index + 1}
+                      </span>
                       <WorldCupTeamFlag
                         teamName={team?.name}
                         countryCode={team?.fifaCode ?? undefined}

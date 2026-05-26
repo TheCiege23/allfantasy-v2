@@ -216,17 +216,32 @@ export default function WorldCupBracketBoard({
       data-testid="world-cup-knockout-board-scroll"
       className="min-h-full overflow-x-auto scroll-pt-32 px-3 pb-6 pt-6 sm:px-5 sm:pt-8"
     >
-      {/* Champion pick banner */}
+      {/* Champion pick banner — gold treatment */}
       <div className="mb-4 flex min-w-0 flex-col gap-2 sm:mb-5 sm:min-w-max sm:flex-row sm:items-center sm:gap-3">
-        <div className="rounded-lg border border-white/15 bg-white/[0.07] px-3 py-2.5 sm:px-4 sm:py-3">
-          <div className="text-[9px] font-black uppercase tracking-[0.18em] text-white/50 sm:text-[10px]">
-            {t("wc.matchup.bracketBoardChampionLabel")}
-          </div>
-          <div className="mt-0.5 truncate text-base font-black text-white sm:mt-1 sm:text-lg">
-            {champion?.selectedTeamName ?? t("wc.matchup.bracketBoardChampionFallback")}
+        <div className="relative overflow-hidden rounded-xl border border-amber-400/30 bg-gradient-to-r from-amber-500/[0.12] via-amber-600/[0.07] to-transparent px-3 py-2.5 sm:px-4 sm:py-3">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(251,191,36,0.09),transparent_60%)]"
+          />
+          <div className="relative flex items-center gap-2">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-amber-400/30 bg-amber-400/[0.12]">
+              <Trophy className="h-3.5 w-3.5 text-amber-300" aria-hidden />
+            </div>
+            <div>
+              <div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-300/65 sm:text-[10px]">
+                {t("wc.matchup.bracketBoardChampionLabel")}
+              </div>
+              <div className="mt-0.5 truncate text-base font-black text-white sm:mt-1 sm:text-lg">
+                {champion?.selectedTeamName ?? (
+                  <span className="text-white/40 text-sm italic font-semibold">
+                    {t("wc.matchup.bracketBoardChampionFallback")}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-        <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-[11px] leading-snug text-white/50 sm:px-4 sm:py-3 sm:text-xs">
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-[11px] leading-snug text-white/45 sm:px-4 sm:py-3 sm:text-xs">
           {t("wc.matchup.bracketBoardHelper")}
         </div>
       </div>
@@ -238,18 +253,18 @@ export default function WorldCupBracketBoard({
           {LEFT_ROUNDS.map((round) => (
             <div
               key={`lbl-l-${round}`}
-              className="w-40 shrink-0 text-center text-[8px] font-black uppercase tracking-[0.15em] text-white/35"
+              className="w-40 shrink-0 text-center text-[8px] font-black uppercase tracking-[0.16em] text-white/30"
             >
               {t(`wc.round.${toCamelRound(round)}`)}
             </div>
           ))}
-          <div className="w-40 shrink-0 text-center text-[8px] font-black uppercase tracking-[0.15em] text-white/35">
+          <div className="w-40 shrink-0 text-center text-[9px] font-black uppercase tracking-[0.16em] text-amber-300/70">
             {t("wc.round.final")}
           </div>
           {RIGHT_ROUNDS.map((round) => (
             <div
               key={`lbl-r-${round}`}
-              className="w-40 shrink-0 text-center text-[8px] font-black uppercase tracking-[0.15em] text-white/35"
+              className="w-40 shrink-0 text-center text-[8px] font-black uppercase tracking-[0.16em] text-white/30"
             >
               {t(`wc.round.${toCamelRound(round)}`)}
             </div>
@@ -284,8 +299,14 @@ export default function WorldCupBracketBoard({
             ))}
             {champion?.selectedTeamName && (
               <div className="mt-2 flex flex-col items-center gap-1 px-2">
-                <Trophy className="h-4 w-4 text-yellow-400/70" />
-                <span className="text-center text-[10px] font-black leading-tight text-yellow-200/70">
+                <div className="relative flex h-8 w-8 items-center justify-center rounded-xl border border-amber-400/40 bg-amber-400/[0.12] shadow-[0_0_16px_-4px_rgba(251,191,36,0.4)]">
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 rounded-xl bg-[radial-gradient(circle,rgba(251,191,36,0.18),transparent_70%)] blur-sm"
+                  />
+                  <Trophy className="relative h-4 w-4 text-amber-300" aria-hidden />
+                </div>
+                <span className="text-center text-[10px] font-black leading-tight text-amber-200/80">
                   {champion.selectedTeamName}
                 </span>
               </div>
