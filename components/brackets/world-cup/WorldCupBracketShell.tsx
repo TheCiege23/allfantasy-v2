@@ -2460,7 +2460,7 @@ export default function WorldCupBracketShell({
                     type="button"
                     onClick={() => void handleLoadTestFixtures()}
                     disabled={isLoadingTestFixtures || isSimulating}
-                    className="rounded-lg border border-amber-400/60 bg-amber-900/40 px-4 py-2 text-[12px] font-bold text-white/80 hover:bg-amber-900/60 disabled:opacity-50"
+                    className="min-h-11 touch-manipulation rounded-lg border border-amber-400/60 bg-amber-900/40 px-4 py-2 text-[12px] font-bold text-white/80 hover:bg-amber-900/60 disabled:opacity-50"
                   >
                     {isLoadingTestFixtures ? t("wc.pickHelp.seeding") : t("wc.pickHelp.seedBtn")}
                   </button>
@@ -2480,7 +2480,7 @@ export default function WorldCupBracketShell({
                     type="button"
                     onClick={() => void handleLoadTestFixtures()}
                     disabled={isLoadingTestFixtures || isSimulating}
-                    className="rounded-lg border border-amber-400/60 bg-amber-900/40 px-4 py-2 text-[12px] font-bold text-white/80 hover:bg-amber-900/60 disabled:opacity-50"
+                    className="min-h-11 touch-manipulation rounded-lg border border-amber-400/60 bg-amber-900/40 px-4 py-2 text-[12px] font-bold text-white/80 hover:bg-amber-900/60 disabled:opacity-50"
                   >
                     {isLoadingTestFixtures ? t("wc.pickHelp.seeding") : t("wc.pickHelp.seedBtn")}
                   </button>

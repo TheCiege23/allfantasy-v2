@@ -410,7 +410,7 @@ export default function WorldCupBracketSettingsPanel({
             data-testid="world-cup-settings-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+            className="mt-1 min-h-11 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
           />
         </label>
         <label className="mt-3 block text-xs text-white/70">
@@ -418,7 +418,7 @@ export default function WorldCupBracketSettingsPanel({
           <select
             value={visibility}
             onChange={(e) => setVisibility(e.target.value as "public" | "private")}
-            className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+            className="mt-1 min-h-11 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
           >
             <option value="private">Private</option>
             <option value="public">Public</option>
@@ -434,7 +434,7 @@ export default function WorldCupBracketSettingsPanel({
               max={100}
               value={maxParticipants}
               onChange={(e) => setMaxParticipants(Number(e.target.value))}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+              className="mt-1 min-h-11 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
             />
           </label>
           <label className="block text-xs text-white/70">
@@ -446,7 +446,7 @@ export default function WorldCupBracketSettingsPanel({
               max={5}
               value={maxEntriesPerParticipant}
               onChange={(e) => setMaxEntriesPerParticipant(Number(e.target.value))}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+              className="mt-1 min-h-11 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
             />
           </label>
         </div>
@@ -467,7 +467,7 @@ export default function WorldCupBracketSettingsPanel({
               setJoinPasswordInput(e.target.value)
               setJoinPasswordTouched(true)
             }}
-            className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+            className="mt-1 min-h-11 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
           />
           <span className="mt-1 block text-[10px] text-white/40">
             Stored securely — never shown again after save. Leave blank and save to clear.
@@ -479,7 +479,7 @@ export default function WorldCupBracketSettingsPanel({
             data-testid="world-cup-settings-knockout-mode"
             value={knockoutMode}
             onChange={(e) => setKnockoutMode(e.target.value as "predictive" | "reseeded")}
-            className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+            className="mt-1 min-h-11 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
           >
             <option value="predictive">Predictive Bracket</option>
             <option value="reseeded">Reseeded Knockout</option>
@@ -602,7 +602,7 @@ export default function WorldCupBracketSettingsPanel({
             onChange={(e) =>
               setShowPublicPicks(e.target.value as "after_lock" | "never" | "always")
             }
-            className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+            className="mt-1 min-h-11 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
           >
             <option value="after_lock">Only after lock</option>
             <option value="never">Never (private picks)</option>
@@ -728,7 +728,7 @@ function Num({
         step={1}
         value={Number.isFinite(value) ? value : ""}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+        className="mt-1 min-h-11 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
       />
     </label>
   )
