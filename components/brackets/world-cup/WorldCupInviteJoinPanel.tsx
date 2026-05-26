@@ -203,7 +203,7 @@ const WorldCupInviteJoinPanel = forwardRef<
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"
-                className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+                className="mt-1 min-h-11 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
               />
             </label>
           ) : null}
@@ -216,7 +216,7 @@ const WorldCupInviteJoinPanel = forwardRef<
               (preview.joinPreview?.requiresJoinPassword && password.trim().length === 0)
             }
             onClick={() => void join()}
-            className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-cyan-300 py-2.5 text-xs font-black text-black disabled:opacity-40"
+            className="mt-4 inline-flex min-h-11 touch-manipulation w-full items-center justify-center rounded-xl bg-cyan-300 py-2.5 text-xs font-black text-black disabled:opacity-40"
           >
             {joining ? <Loader2 className="h-4 w-4 animate-spin" /> : t("wc.join.preview.joinBtn")}
           </button>
