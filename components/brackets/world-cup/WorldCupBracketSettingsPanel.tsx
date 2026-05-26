@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Loader2, Lock, Save } from "lucide-react"
+import { Loader2, Lock, Save, Settings, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { DEFAULT_WORLD_CUP_SCORING } from "@/lib/world-cup/worldCupBracketBuilder"
 import { makeWcT } from "@/lib/world-cup/worldCupI18n"
@@ -60,16 +60,20 @@ type LoadedPayload = {
 
 function AfProGateCard({ title, body }: { title: string; body: string }) {
   return (
-    <div className="rounded-xl border border-cyan-400/20 bg-gradient-to-br from-cyan-400/10 to-transparent p-4">
-      <div className="flex items-start gap-3">
-        <Lock className="mt-0.5 h-5 w-5 shrink-0 text-white/80" />
+    <div className="relative overflow-hidden rounded-xl border border-cyan-400/20 bg-gradient-to-br from-cyan-400/[0.09] to-transparent p-4">
+      <div aria-hidden className="pointer-events-none absolute -top-6 -right-6 h-24 w-24 rounded-full bg-cyan-400/10 blur-2xl" />
+      <div className="relative flex items-start gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-300/[0.10] shadow-[0_0_14px_-4px_rgba(34,211,238,0.45)]">
+          <Lock className="h-4 w-4 text-cyan-200/75" aria-hidden />
+        </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-black text-white">{title}</p>
           <p className="mt-1 text-xs leading-relaxed text-white/55">{body}</p>
           <Link
             href="/pricing"
-            className="mt-3 inline-flex min-h-11 touch-manipulation items-center rounded-lg bg-cyan-300 px-4 py-2 text-xs font-black text-black"
+            className="mt-3 inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-400 to-cyan-300 px-4 py-2 text-xs font-black text-black shadow-[0_4px_16px_-4px_rgba(34,211,238,0.5)]"
           >
+            <Sparkles className="h-3.5 w-3.5" aria-hidden />
             Upgrade to AF Pro
           </Link>
         </div>
@@ -395,11 +399,14 @@ export default function WorldCupBracketSettingsPanel({
 
   return (
     <div data-testid="world-cup-settings-panel" className="space-y-6 px-1 pb-10 sm:px-0">
-      <header className="space-y-1">
-        <h2 className="text-lg font-black text-white">{t("wc.settings.title")}</h2>
-        <p className="text-xs text-white/50">
-          {t("wc.settings.subtitle")}
-        </p>
+      <header className="mb-2 flex items-center gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/[0.06]">
+          <Settings className="h-4 w-4 text-white/65" aria-hidden />
+        </div>
+        <div>
+          <h2 className="text-lg font-black text-white">{t("wc.settings.title")}</h2>
+          <p className="text-xs text-white/50">{t("wc.settings.subtitle")}</p>
+        </div>
       </header>
 
       <section className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
@@ -675,7 +682,7 @@ export default function WorldCupBracketSettingsPanel({
           type="button"
           disabled={saving || Boolean(clientValidationError)}
           onClick={() => void handleSave()}
-          className="inline-flex min-h-11 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-cyan-300 px-5 py-2.5 text-xs font-black text-black disabled:opacity-40 sm:w-auto sm:min-h-0"
+          className="inline-flex min-h-11 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-cyan-300 px-5 py-2.5 text-xs font-black text-black shadow-[0_4px_16px_-4px_rgba(34,211,238,0.4)] transition-shadow hover:shadow-[0_4px_24px_-4px_rgba(34,211,238,0.6)] disabled:opacity-40 sm:w-auto sm:min-h-0"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           {saving ? t("wc.settings.saving") : t("wc.settings.save")}
