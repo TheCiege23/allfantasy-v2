@@ -291,7 +291,7 @@ export default function WorldCupMatchupIntelligencePanel({
               data-testid="wc-ai-ask-button"
               disabled={disabled || busy || !hasBracketBrainAi}
               onClick={() => runIntent("ask_ai")}
-              className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-2.5 py-1.5 text-[11px] font-bold text-white/85 disabled:opacity-40"
+              className="inline-flex min-h-11 touch-manipulation items-center gap-1 rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-2.5 py-1.5 text-[11px] font-bold text-white/85 disabled:opacity-40"
             >
               <Sparkles className="h-3 w-3" />
               {intentLoading === "ask_ai" ? "Asking…" : "Ask AI"}
@@ -301,7 +301,7 @@ export default function WorldCupMatchupIntelligencePanel({
               data-testid="wc-ai-explain-button"
               disabled={disabled || busy || !hasBracketBrainAi}
               onClick={() => runIntent("explain")}
-              className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/[0.06] px-2.5 py-1.5 text-[11px] font-bold text-white/75 disabled:opacity-40"
+              className="inline-flex min-h-11 touch-manipulation items-center gap-1 rounded-lg border border-white/15 bg-white/[0.06] px-2.5 py-1.5 text-[11px] font-bold text-white/75 disabled:opacity-40"
             >
               <Info className="h-3 w-3" />
               {intentLoading === "explain" ? "Explaining…" : "Explain Matchup"}
@@ -311,7 +311,7 @@ export default function WorldCupMatchupIntelligencePanel({
               data-testid="wc-pick-safe-button"
               disabled={disabled || busy || !intel}
               onClick={() => onStageSide(intel.safePickSide)}
-              className="rounded-lg border border-emerald-400/35 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-bold text-white/85 disabled:opacity-40"
+              className="min-h-11 touch-manipulation rounded-lg border border-emerald-400/35 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-bold text-white/85 disabled:opacity-40"
             >
               Pick Safe
             </button>
@@ -320,7 +320,7 @@ export default function WorldCupMatchupIntelligencePanel({
               data-testid="wc-pick-upset-button"
               disabled={disabled || busy || !intel}
               onClick={() => onStageSide(intel.upsetPickSide)}
-              className="rounded-lg border border-amber-400/35 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-bold text-white/75 disabled:opacity-40"
+              className="min-h-11 touch-manipulation rounded-lg border border-amber-400/35 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-bold text-white/75 disabled:opacity-40"
             >
               Pick Upset
             </button>
@@ -341,7 +341,7 @@ export default function WorldCupMatchupIntelligencePanel({
             data-testid="wc-use-this-pick-button"
             disabled={disabled || busy || stagedSide === null}
             onClick={() => stagedSide !== null && onUseThisPick(stagedSide)}
-            className="w-full rounded-xl bg-cyan-300/90 py-2.5 text-xs font-black text-black transition-colors hover:bg-cyan-300 disabled:opacity-40"
+            className="min-h-11 touch-manipulation w-full rounded-xl bg-cyan-300/90 py-2.5 text-xs font-black text-black transition-colors hover:bg-cyan-300 disabled:opacity-40"
           >
             Use This Pick
           </button>

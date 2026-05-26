@@ -110,7 +110,7 @@ export default function WorldCupExplainBracketCard({
           <Link
             href="/upgrade?plan=af_pro"
             data-testid="world-cup-explain-bracket-upgrade-link"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/30 bg-cyan-300/[0.08] px-3 py-2 text-xs font-bold text-white/90 transition-colors hover:bg-cyan-300/[0.14] hover:text-white"
+            className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-lg border border-cyan-300/30 bg-cyan-300/[0.08] px-3 py-2 text-xs font-bold text-white/90 transition-colors hover:bg-cyan-300/[0.14] hover:text-white"
           >
             <Sparkles className="h-3 w-3" aria-hidden />
             {t("wc.explain.upgradeCta")}
@@ -124,7 +124,7 @@ export default function WorldCupExplainBracketCard({
           onClick={handleGenerate}
           disabled={loading || !entryId}
           data-testid="world-cup-explain-bracket-generate"
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-black text-black transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:scale-100 sm:w-auto"
+          className="inline-flex min-h-11 touch-manipulation w-full items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-black text-black transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:scale-100 sm:w-auto"
         >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -176,7 +176,7 @@ export default function WorldCupExplainBracketCard({
               onClick={handleGenerate}
               disabled={loading}
               data-testid="world-cup-explain-bracket-regenerate"
-              className="rounded-lg border border-white/15 bg-white/[0.05] px-3 py-1.5 text-[11px] font-bold text-white/70 hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+              className="min-h-11 touch-manipulation rounded-lg border border-white/15 bg-white/[0.05] px-3 py-1.5 text-[11px] font-bold text-white/70 hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
             >
               {loading ? t("wc.explain.regenerating") : t("wc.explain.regenerate")}
             </button>
