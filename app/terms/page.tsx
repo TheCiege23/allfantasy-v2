@@ -151,14 +151,46 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
         </p>
       </section>
 
-      <section>
+      <section id="token-policy">
         <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">9. Paid vs. Free Leagues; Subscriptions and Tokens</h2>
         <p>
           AllFantasy may offer free and paid features (e.g., subscriptions, in-app tokens, or premium tiers). Paid features are
           subject to the pricing and payment terms disclosed at the time of purchase. AllFantasy does not collect league dues,
           host prize pools, or distribute league payouts. If your league is paid, commissioners are responsible for configuring and
-          managing FanCred for any dues and payout activity, and those transactions remain external to AllFantasy. Refunds for our
-          own subscriptions or tokens are governed by our then-current refund policy.
+          managing FanCred for any dues and payout activity, and those transactions remain external to AllFantasy.
+        </p>
+
+        <h3 className="text-base font-semibold text-white mt-4 mb-2">Subscriptions</h3>
+        <p>
+          Subscription plans are recurring charges billed through Stripe. You may cancel your subscription at any time through
+          the Stripe Customer Portal (accessible from Settings → Billing). Cancellation stops future billing; access continues
+          through the end of the current paid period. Subscription refunds are not guaranteed and are reviewed on a
+          case-by-case basis.
+        </p>
+
+        <h3 className="text-base font-semibold text-white mt-4 mb-2">AI Token Purchases — Refund Policy</h3>
+        <p>
+          AI Tokens are one-time digital purchases. Token purchases are final once tokens are delivered to your account or
+          used. Tokens do not guarantee outcomes, accuracy, or any specific AI result — AI is a tool to assist your
+          decision-making, and you make the final call on any fantasy sports or other decisions.
+        </p>
+        <p className="mt-3">
+          We may review refunds only for the following approved exceptions:
+        </p>
+        <ul className="list-disc list-inside space-y-1 ml-4 mt-2">
+          <li>Verified duplicate charges for the same token purchase</li>
+          <li>Unauthorized transactions not initiated by the account holder</li>
+          <li>Payment processing errors where tokens were charged but not delivered</li>
+          <li>Verified technical fulfillment failures where tokens were debited but the AI feature did not execute</li>
+          <li>Where a refund is required by applicable law</li>
+        </ul>
+        <p className="mt-3">
+          Used tokens are not refunded. We do not issue refunds based on dissatisfaction with AI output quality, prediction
+          accuracy, or fantasy sports outcomes. To request a refund review under an approved exception, contact{" "}
+          <a href="mailto:support@allfantasy.ai" className="underline underline-offset-2">
+            support@allfantasy.ai
+          </a>{" "}
+          with your Stripe transaction ID.
         </p>
       </section>
 

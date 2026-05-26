@@ -113,6 +113,15 @@ export function TokenSpendPreflightModal({
             </button>
           )}
         </div>
+
+        {/* AI disclaimer — tokens do not guarantee outcomes */}
+        <p
+          className="mt-3 text-[10px] leading-relaxed text-white/30"
+          data-testid={`${testIdPrefix}-ai-disclaimer`}
+        >
+          AI is a tool, not a guarantee — you make the final call. Token purchases are
+          final once delivered.
+        </p>
       </div>
     </div>
   )

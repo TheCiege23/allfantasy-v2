@@ -415,6 +415,24 @@ export async function POST(req: NextRequest) {
           }
           break
         }
+        // ── Unhandled Stripe refund events ──────────────────────────────────
+        // charge.refunded, refund.created, and refund.updated are NOT currently
+        // handled automatically. These events fall here and return HTTP 200 to
+        // Stripe, but NO token ledger or balance change is made automatically.
+        //
+        // PRE-PUBLIC-BETA TASK — automatic token revocation on Stripe refunds:
+        //   1. Detect charge.refunded / refund.created events here
+        //   2. Look up the original checkout.session.completed event by charge ID
+        //      to resolve userId and tokensGranted
+        //   3. Call adminRevokeTokensForPurchaseRefund() from
+        //      lib/tokens/adminTokenRefundService with:
+        //        { userId, stripeRefundId: event.data.object.id,
+        //          tokensToRevoke, reason: "stripe_refund_event" }
+        //   The idempotencyKey "stripe_refund:{refundId}" prevents double-processing.
+        //
+        // Until automatic handling ships, purchase refund reconciliation is done
+        // manually by admin via POST /api/admin/tokens/refund.
+        // ────────────────────────────────────────────────────────────────────────
         default:
           break
       }

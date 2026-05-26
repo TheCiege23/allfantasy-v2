@@ -60,6 +60,14 @@ export function LegalSettingsSection({
         <Link href="/data-deletion" className="rounded-lg border px-4 py-2 text-sm font-medium" style={{ borderColor: "var(--border)", color: "var(--text)" }}>
           {t("settings.legal.linkDataDeletion")}
         </Link>
+        <Link
+          href="/terms#token-policy"
+          className="rounded-lg border px-4 py-2 text-sm font-medium"
+          style={{ borderColor: "var(--border)", color: "var(--text)" }}
+          data-testid="settings-legal-token-refund-policy"
+        >
+          Token Refund Policy
+        </Link>
       </div>
     </div>
   )

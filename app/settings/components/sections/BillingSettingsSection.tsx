@@ -111,6 +111,20 @@ export function BillingSettingsSection() {
             {t("settings.billing.viewHistory")}
           </Link>
         </div>
+        {/* Token purchase finality notice */}
+        <p
+          className="mt-1.5 text-[10px] leading-relaxed"
+          style={{ color: "var(--muted2)" }}
+          data-testid="settings-billing-token-finality-notice"
+        >
+          Token purchases are final once delivered.{" "}
+          <Link
+            href="/terms#token-policy"
+            className="underline underline-offset-2 hover:opacity-75"
+          >
+            See Terms §9.
+          </Link>
+        </p>
       </div>
 
       {ents.error && (

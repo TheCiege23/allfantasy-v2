@@ -41,7 +41,8 @@ export const TOKEN_PACKAGE_SEEDS = [
   {
     sku: "af_tokens_5",
     title: "AllFantasy AI Tokens (5)",
-    description: "5 AI tokens for metered premium AI actions.",
+    description:
+      "5 AI tokens for metered premium AI actions. Final upon delivery — AI is a tool, not a guarantee.",
     tokenAmount: 5,
     priceUsdCents: 499,
     isActive: true,
@@ -49,7 +50,8 @@ export const TOKEN_PACKAGE_SEEDS = [
   {
     sku: "af_tokens_10",
     title: "AllFantasy AI Tokens (10)",
-    description: "10 AI tokens for metered premium AI actions.",
+    description:
+      "10 AI tokens for metered premium AI actions. Final upon delivery — AI is a tool, not a guarantee.",
     tokenAmount: 10,
     priceUsdCents: 899,
     isActive: true,
@@ -57,7 +59,8 @@ export const TOKEN_PACKAGE_SEEDS = [
   {
     sku: "af_tokens_25",
     title: "AllFantasy AI Tokens (25)",
-    description: "25 AI tokens for metered premium AI actions.",
+    description:
+      "25 AI tokens for metered premium AI actions. Final upon delivery — AI is a tool, not a guarantee.",
     tokenAmount: 25,
     priceUsdCents: 1999,
     isActive: true,

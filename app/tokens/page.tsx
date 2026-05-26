@@ -514,6 +514,22 @@ export default function TokensPage() {
                   </article>
                 ))}
               </div>
+              {/* ── Purchase finality notice ────────────────────────────── */}
+              <p
+                className="mt-4 border-t border-white/[0.06] pt-3 text-[11px] leading-relaxed text-white/38"
+                data-testid="tokens-purchase-finality-notice"
+              >
+                AI Token purchases are final once delivered to your account or used. We may review
+                refunds only for duplicate charges, unauthorized transactions, payment errors,
+                technical fulfillment failures, or where required by law.{" "}
+                AI is a tool, not a guarantee — you make the final call.{" "}
+                <a
+                  href="/terms#token-policy"
+                  className="underline underline-offset-2 hover:text-white/65"
+                >
+                  See Terms §9.
+                </a>
+              </p>
             </section>
 
             {/* ── Compliance notice ────────────────────────────────────────── */}
