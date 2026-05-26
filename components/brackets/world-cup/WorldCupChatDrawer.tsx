@@ -351,7 +351,7 @@ function EmojiPicker({
             type="button"
             onClick={() => setActive(cat)}
             className={[
-              "shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-wide transition-colors touch-manipulation",
+              "shrink-0 min-h-9 px-3 py-2 text-[10px] font-black uppercase tracking-wide transition-colors touch-manipulation",
               active === cat
                 ? "border-b-2 border-cyan-300 text-white"
                 : "text-white/40 hover:text-white/70",
@@ -362,7 +362,7 @@ function EmojiPicker({
         ))}
       </div>
       {/* Emoji grid */}
-      <div className="grid grid-cols-8 gap-0 p-2">
+      <div className="grid grid-cols-6 gap-0 p-2">
         {EMOJI_CATS[active].map((emoji) => (
           <button
             key={emoji}
@@ -372,7 +372,7 @@ function EmojiPicker({
               onClose()
             }}
             aria-label={`Insert ${emoji}`}
-            className="flex min-h-9 items-center justify-center rounded-lg text-lg transition-colors hover:bg-white/[0.08] touch-manipulation"
+            className="flex min-h-11 items-center justify-center rounded-lg text-lg transition-colors hover:bg-white/[0.08] touch-manipulation"
           >
             {emoji}
           </button>
@@ -567,7 +567,7 @@ function PollComposerPanel({
     <div className="mt-2 rounded-xl border border-white/10 bg-black/30 p-2.5">
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-[11px] font-black text-white/75">Create Poll</p>
-        <button type="button" onClick={onClose} className="text-white/40 hover:text-white">
+        <button type="button" onClick={onClose} className="inline-flex min-h-9 min-w-9 touch-manipulation items-center justify-center rounded-lg text-white/40 hover:text-white">
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
@@ -939,7 +939,7 @@ function PoolChatTab({
               type="button"
               aria-label={label}
               onClick={() => setBody((prev) => `${prev}${tag}text${tag}`)}
-              className="inline-flex h-7 w-7 touch-manipulation items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-white/50 hover:text-white/90"
+              className="inline-flex h-8 w-8 touch-manipulation items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-white/50 hover:text-white/90"
             >
               <Icon className="h-3 w-3" aria-hidden />
             </button>
@@ -950,7 +950,7 @@ function PoolChatTab({
               type="button"
               aria-label={t("wc.chat.emoji.open")}
               onClick={() => setShowEmoji((v) => !v)}
-              className="inline-flex h-7 touch-manipulation items-center gap-1 rounded-lg border border-white/10 bg-white/[0.05] px-2 text-[10px] font-bold text-white/50 hover:text-white/90"
+              className="inline-flex h-8 touch-manipulation items-center gap-1 rounded-lg border border-white/10 bg-white/[0.05] px-2 text-[10px] font-bold text-white/50 hover:text-white/90"
             >
               <Smile className="h-3 w-3" aria-hidden />
               {t("wc.chat.emoji.open")}
@@ -969,7 +969,7 @@ function PoolChatTab({
             aria-label="GIF"
             onClick={() => setPanel((p) => p === "gif" ? null : "gif")}
             className={[
-              "inline-flex h-7 touch-manipulation items-center gap-1 rounded-lg border px-2 text-[10px] font-bold transition-colors",
+              "inline-flex h-8 touch-manipulation items-center gap-1 rounded-lg border px-2 text-[10px] font-bold transition-colors",
               panel === "gif"
                 ? "border-cyan-300/40 bg-cyan-300/10 text-white/90"
                 : "border-white/10 bg-white/[0.05] text-white/50 hover:text-white/90",
@@ -984,7 +984,7 @@ function PoolChatTab({
             aria-label="Image"
             onClick={() => setPanel((p) => p === "image" ? null : "image")}
             className={[
-              "inline-flex h-7 touch-manipulation items-center gap-1 rounded-lg border px-2 text-[10px] font-bold transition-colors",
+              "inline-flex h-8 touch-manipulation items-center gap-1 rounded-lg border px-2 text-[10px] font-bold transition-colors",
               panel === "image"
                 ? "border-cyan-300/40 bg-cyan-300/10 text-white/90"
                 : "border-white/10 bg-white/[0.05] text-white/50 hover:text-white/90",
@@ -999,7 +999,7 @@ function PoolChatTab({
             aria-label="Poll"
             onClick={() => setPanel((p) => p === "poll" ? null : "poll")}
             className={[
-              "inline-flex h-7 touch-manipulation items-center gap-1 rounded-lg border px-2 text-[10px] font-bold transition-colors",
+              "inline-flex h-8 touch-manipulation items-center gap-1 rounded-lg border px-2 text-[10px] font-bold transition-colors",
               panel === "poll"
                 ? "border-cyan-300/40 bg-cyan-300/10 text-white/90"
                 : "border-white/10 bg-white/[0.05] text-white/50 hover:text-white/90",
