@@ -548,7 +548,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                 type="button"
                 onClick={() => void saveGroup(group.id)}
                 disabled={isLocked || state === "saving" || !hasCompleteTeams}
-                className="mt-3 w-full rounded-xl bg-cyan-300 px-3 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:opacity-45"
+                className="mt-3 min-h-11 w-full touch-manipulation rounded-xl bg-cyan-300 px-3 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:opacity-45"
               >
                 {state === "saving"
                   ? t("wc.groupStage.saving")

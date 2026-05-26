@@ -2359,7 +2359,7 @@ export default function WorldCupBracketShell({
               type="button"
               onClick={() => switchTab(id)}
               aria-current={tab === id ? "page" : undefined}
-              className={`group inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors duration-150 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-950 ${
+              className={`group inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors duration-150 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-950 ${
                 tab === id
                   ? "border-cyan-300/45 bg-gradient-to-b from-cyan-300/20 to-cyan-300/10 text-white/90 shadow-[0_4px_18px_-6px_rgba(34,211,238,0.45)]"
                   : "border-white/10 bg-white/[0.04] text-white/60 hover:border-white/15 hover:bg-white/[0.07] hover:text-white/85"
@@ -2372,7 +2372,7 @@ export default function WorldCupBracketShell({
         </nav>
       </header>
 
-      <div ref={pageScrollRef} className="flex-1 overflow-y-auto scroll-smooth">
+      <div ref={pageScrollRef} className="flex-1 overflow-y-auto scroll-smooth" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         <nav
           data-testid="world-cup-sticky-subnav"
           className="sticky top-0 z-40 border-b border-white/10 bg-[#04060acc]/95 px-1 py-1 backdrop-blur sm:px-2"
@@ -2439,7 +2439,7 @@ export default function WorldCupBracketShell({
                 type="button"
                 disabled={!guidedPickerAvailable}
                 onClick={openNextActionablePick}
-                className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:bg-cyan-300/45"
+                className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-cyan-300 px-5 py-2 text-xs font-black text-black touch-manipulation disabled:cursor-not-allowed disabled:bg-cyan-300/45"
               >
                 <PlayCircle className="h-4 w-4" />
                 {guidedPickerLabel}
@@ -3111,7 +3111,7 @@ export default function WorldCupBracketShell({
                               type="button"
                               onClick={() => void handleCreateEntry()}
                               disabled={isCreatingEntry}
-                              className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black disabled:opacity-40"
+                              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black touch-manipulation disabled:opacity-40"
                             >
                               {isCreatingEntry ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                               {isCreatingEntry ? t("wc.review.creating") : t("wc.review.createMyBracket")}
@@ -3122,7 +3122,7 @@ export default function WorldCupBracketShell({
                               type="button"
                               onClick={openNextActionablePick}
                               disabled={!guidedPickerAvailable}
-                              className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black disabled:opacity-40"
+                              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black touch-manipulation disabled:opacity-40"
                             >
                               <PlayCircle className="h-4 w-4" />
                               {guidedPickerLabel}
@@ -3132,7 +3132,7 @@ export default function WorldCupBracketShell({
                             <button
                               type="button"
                               onClick={() => switchTab("review")}
-                              className="inline-flex items-center gap-2 rounded-xl bg-violet-500 px-4 py-2 text-sm font-black text-white"
+                              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-500 px-4 py-2 text-sm font-black text-white touch-manipulation"
                             >
                               {t("wc.tab.review")}
                               <ChevronRight className="h-4 w-4" />
@@ -3142,7 +3142,7 @@ export default function WorldCupBracketShell({
                             <button
                               type="button"
                               onClick={() => switchTab("leaderboard")}
-                              className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-4 py-2 text-sm font-black text-white/90"
+                              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-4 py-2 text-sm font-black text-white/90 touch-manipulation"
                             >
                               {t("wc.tab.leaderboard")}
                               <ChevronRight className="h-4 w-4" />
@@ -3755,7 +3755,7 @@ export default function WorldCupBracketShell({
                       type="button"
                       onClick={() => void loadCompletionReview()}
                       disabled={isCompletionLoading}
-                      className="shrink-0 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold text-white/75 disabled:opacity-45"
+                      className="min-h-9 shrink-0 touch-manipulation rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold text-white/75 disabled:opacity-45"
                     >
                       {isCompletionLoading ? t("wc.review.checking") : t("wc.review.refreshReview")}
                     </button>
@@ -4439,7 +4439,7 @@ function JumpButton({ label, onClick, disabled }: { label: string; onClick: () =
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="whitespace-nowrap rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/65 transition-colors hover:border-white/15 hover:bg-white/[0.08] hover:text-white/85 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 disabled:cursor-not-allowed disabled:opacity-40"
+      className="min-h-8 whitespace-nowrap rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/65 transition-colors hover:border-white/15 hover:bg-white/[0.08] hover:text-white/85 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 disabled:cursor-not-allowed disabled:opacity-40"
     >
       {label}
     </button>
