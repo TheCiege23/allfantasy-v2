@@ -82,7 +82,7 @@ export default function WorldCupIntroExperience() {
       {!videoFailed && (
         <video
           ref={videoRef}
-          src="/videos/world-cup/af-world-cup-hero.mp4"
+          src="/videos/brackets/world-cup/af-world-cup-hero.mp4"
           autoPlay
           muted
           playsInline
