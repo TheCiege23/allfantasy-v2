@@ -106,6 +106,7 @@ import WorldCupCommissionerBrainPanel from "./WorldCupCommissionerBrainPanel"
 import WorldCupGroupStagePicks from "./WorldCupGroupStagePicks"
 import WorldCupReadinessPanel from "./WorldCupReadinessPanel"
 import WorldCupLeagueEventFeed from "./WorldCupLeagueEventFeed"
+import WorldCupChatDrawer from "./WorldCupChatDrawer"
 import { ThemeModeSelect } from "@/components/theme/ThemeModeSelect"
 type Tab = WorldCupBracketTab
 type WorldCupPoolChatMessage = {
@@ -4355,20 +4356,14 @@ export default function WorldCupBracketShell({
         Top
       </button>
 
-      {/* Floating Chat button — visible on all non-chat tabs so pool chat
-          is always one tap away. Hidden on the Chat tab itself and on
-          mobile where the bottom nav already shows the Chat tab. */}
-      {tab !== "chat" && view.isParticipant && (
-        <button
-          data-testid="world-cup-floating-chat"
-          type="button"
-          onClick={() => switchTab("chat")}
-          className="fixed bottom-20 left-4 z-50 hidden touch-manipulation items-center gap-1.5 rounded-full border border-white/20 bg-zinc-900/90 px-3 py-2 text-xs font-black text-white shadow-xl backdrop-blur transition-colors hover:border-cyan-300/40 hover:bg-zinc-800 sm:bottom-6 sm:inline-flex"
-          aria-label={t("wc.tab.chat")}
-        >
-          <MessageSquare className="h-3.5 w-3.5 text-cyan-300/80" />
-          <span className="hidden sm:inline">{t("wc.tab.chat")}</span>
-        </button>
+      {/* Floating Chat Drawer — available on every tab for pool participants.
+          Replaces the old floating button with a full polished chat drawer. */}
+      {view.isParticipant && (
+        <WorldCupChatDrawer
+          challengeId={challengeId}
+          entitlementSummary={entitlementSummary}
+          poolName={view.challenge.name}
+        />
       )}
       </div>
 

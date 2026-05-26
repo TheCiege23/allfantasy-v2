@@ -3771,3 +3771,363 @@ describe("WorldCupLeaderboard mobile score row", () => {
     expect(screen.queryByTestId("world-cup-leaderboard-auto-update")).not.toBeInTheDocument()
   })
 })
+
+// ─── WorldCupChatDrawer ───────────────────────────────────────────────────────
+
+describe("WorldCupChatDrawer", () => {
+  // Minimal entitlement summary factory
+  function makeEntitlements(overrides: Record<string, boolean> = {}) {
+    return {
+      ai: false,
+      commissioner: false,
+      analytics: false,
+      bracketBrainAi: false,
+      matchupIntelligence: false,
+      exportCsv: false,
+      ...overrides,
+    }
+  }
+
+  beforeEach(() => {
+    // JSDOM doesn't implement scrollIntoView — stub it globally
+    window.HTMLElement.prototype.scrollIntoView = vi.fn()
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        // GET chat → empty messages
+        if (!url.includes("method") && url.includes("/chat")) {
+          return {
+            ok: true,
+            json: async () => ({ messages: [] }),
+          }
+        }
+        return { ok: true, json: async () => ({}) }
+      }) as unknown as typeof fetch
+    )
+  })
+
+  it("renders the floating bubble with the correct testid", async () => {
+    const { default: WorldCupChatDrawer } = await import(
+      "@/components/brackets/world-cup/WorldCupChatDrawer"
+    )
+    render(
+      <WorldCupChatDrawer
+        challengeId="ch1"
+        entitlementSummary={makeEntitlements()}
+        poolName="Test Cup"
+      />
+    )
+    expect(screen.getByTestId("wc-chat-drawer-bubble")).toBeInTheDocument()
+  })
+
+  it("opens the drawer when the bubble is clicked", async () => {
+    const { default: WorldCupChatDrawer } = await import(
+      "@/components/brackets/world-cup/WorldCupChatDrawer"
+    )
+    render(
+      <WorldCupChatDrawer
+        challengeId="ch1"
+        entitlementSummary={makeEntitlements()}
+        poolName="Test Cup"
+      />
+    )
+    const bubble = screen.getByTestId("wc-chat-drawer-bubble")
+    fireEvent.click(bubble)
+    // Drawer should now be visible (translate-y-0)
+    const drawer = screen.getByTestId("wc-chat-drawer")
+    expect(drawer).toBeInTheDocument()
+    expect(drawer.className).toContain("translate-y-0")
+  })
+
+  it("renders all three tab buttons", async () => {
+    const { default: WorldCupChatDrawer } = await import(
+      "@/components/brackets/world-cup/WorldCupChatDrawer"
+    )
+    render(
+      <WorldCupChatDrawer
+        challengeId="ch1"
+        entitlementSummary={makeEntitlements()}
+        poolName="Test Cup"
+      />
+    )
+    expect(screen.getByTestId("wc-drawer-tab-chat")).toBeInTheDocument()
+    expect(screen.getByTestId("wc-drawer-tab-chimmy")).toBeInTheDocument()
+    expect(screen.getByTestId("wc-drawer-tab-dms")).toBeInTheDocument()
+  })
+
+  it("closes the drawer via the close button", async () => {
+    const { default: WorldCupChatDrawer } = await import(
+      "@/components/brackets/world-cup/WorldCupChatDrawer"
+    )
+    render(
+      <WorldCupChatDrawer
+        challengeId="ch1"
+        entitlementSummary={makeEntitlements()}
+        poolName="Test Cup"
+      />
+    )
+    // Open first
+    fireEvent.click(screen.getByTestId("wc-chat-drawer-bubble"))
+    const drawer = screen.getByTestId("wc-chat-drawer")
+    expect(drawer.className).toContain("translate-y-0")
+    // Close
+    fireEvent.click(screen.getByTestId("wc-chat-drawer-close"))
+    expect(drawer.className).not.toContain("translate-y-0")
+  })
+
+  it("shows empty state when Pool Chat has no messages", async () => {
+    const { default: WorldCupChatDrawer } = await import(
+      "@/components/brackets/world-cup/WorldCupChatDrawer"
+    )
+    render(
+      <WorldCupChatDrawer
+        challengeId="ch1"
+        entitlementSummary={makeEntitlements()}
+        poolName="Test Cup"
+      />
+    )
+    fireEvent.click(screen.getByTestId("wc-chat-drawer-bubble"))
+    await waitFor(() =>
+      expect(screen.getByTestId("wc-drawer-chat-empty")).toBeInTheDocument()
+    )
+  })
+
+  it("renders messages returned by the API", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          messages: [
+            {
+              id: "m1",
+              userId: "u1",
+              authorName: "Alice",
+              authorAvatarUrl: null,
+              body: "Hello pool!",
+              messageType: "text",
+              gif: null,
+              image: null,
+              poll: null,
+              visibility: "public",
+              targetUserId: null,
+              mentions: [],
+              createdAt: new Date().toISOString(),
+              isOwnMessage: false,
+              isPrivate: false,
+            },
+          ],
+        }),
+      })) as unknown as typeof fetch
+    )
+    const { default: WorldCupChatDrawer } = await import(
+      "@/components/brackets/world-cup/WorldCupChatDrawer"
+    )
+    render(
+      <WorldCupChatDrawer
+        challengeId="ch1"
+        entitlementSummary={makeEntitlements()}
+        poolName="Test Cup"
+      />
+    )
+    fireEvent.click(screen.getByTestId("wc-chat-drawer-bubble"))
+    await waitFor(() => expect(screen.getByText("Hello pool!")).toBeInTheDocument())
+  })
+
+  it("sends a message and clears the input", async () => {
+    const postJson = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        message: {
+          id: "m2",
+          userId: "u1",
+          authorName: "Alice",
+          authorAvatarUrl: null,
+          body: "Nice bracket!",
+          messageType: "text",
+          gif: null,
+          image: null,
+          poll: null,
+          visibility: "public",
+          targetUserId: null,
+          mentions: [],
+          createdAt: new Date().toISOString(),
+          isOwnMessage: true,
+          isPrivate: false,
+        },
+      }),
+    }))
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === "POST") return postJson()
+        return { ok: true, json: async () => ({ messages: [] }) }
+      }) as unknown as typeof fetch
+    )
+    const { default: WorldCupChatDrawer } = await import(
+      "@/components/brackets/world-cup/WorldCupChatDrawer"
+    )
+    render(
+      <WorldCupChatDrawer
+        challengeId="ch1"
+        entitlementSummary={makeEntitlements()}
+        poolName="Test Cup"
+      />
+    )
+    fireEvent.click(screen.getByTestId("wc-chat-drawer-bubble"))
+    await waitFor(() => screen.getByTestId("wc-drawer-chat-input"))
+    const input = screen.getByTestId("wc-drawer-chat-input")
+    fireEvent.change(input, { target: { value: "Nice bracket!" } })
+    fireEvent.click(screen.getByTestId("wc-drawer-chat-send"))
+    await waitFor(() => expect(postJson).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getByText("Nice bracket!")).toBeInTheDocument())
+  })
+
+  it("shows Chimmy gate for non-AI users", async () => {
+    const { default: WorldCupChatDrawer } = await import(
+      "@/components/brackets/world-cup/WorldCupChatDrawer"
+    )
+    render(
+      <WorldCupChatDrawer
+        challengeId="ch1"
+        entitlementSummary={makeEntitlements({ ai: false })}
+        poolName="Test Cup"
+      />
+    )
+    fireEvent.click(screen.getByTestId("wc-chat-drawer-bubble"))
+    fireEvent.click(screen.getByTestId("wc-drawer-tab-chimmy"))
+    await waitFor(() =>
+      expect(screen.getByTestId("wc-drawer-chimmy-gate")).toBeInTheDocument()
+    )
+  })
+
+  it("shows Chimmy input for AI users (no gate)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ messages: [] }),
+      })) as unknown as typeof fetch
+    )
+    const { default: WorldCupChatDrawer } = await import(
+      "@/components/brackets/world-cup/WorldCupChatDrawer"
+    )
+    render(
+      <WorldCupChatDrawer
+        challengeId="ch1"
+        entitlementSummary={makeEntitlements({ ai: true })}
+        poolName="Test Cup"
+      />
+    )
+    fireEvent.click(screen.getByTestId("wc-chat-drawer-bubble"))
+    fireEvent.click(screen.getByTestId("wc-drawer-tab-chimmy"))
+    await waitFor(() =>
+      expect(screen.queryByTestId("wc-drawer-chimmy-gate")).not.toBeInTheDocument()
+    )
+    expect(screen.getByTestId("wc-drawer-chimmy-input")).toBeInTheDocument()
+  })
+
+  it("shows DMs coming-soon placeholder", async () => {
+    const { default: WorldCupChatDrawer } = await import(
+      "@/components/brackets/world-cup/WorldCupChatDrawer"
+    )
+    render(
+      <WorldCupChatDrawer
+        challengeId="ch1"
+        entitlementSummary={makeEntitlements()}
+        poolName="Test Cup"
+      />
+    )
+    fireEvent.click(screen.getByTestId("wc-chat-drawer-bubble"))
+    fireEvent.click(screen.getByTestId("wc-drawer-tab-dms"))
+    await waitFor(() =>
+      expect(screen.getByTestId("wc-drawer-dms-tab")).toBeInTheDocument()
+    )
+  })
+
+  it("drawer renders pool name in the header", async () => {
+    const { default: WorldCupChatDrawer } = await import(
+      "@/components/brackets/world-cup/WorldCupChatDrawer"
+    )
+    render(
+      <WorldCupChatDrawer
+        challengeId="ch1"
+        entitlementSummary={makeEntitlements()}
+        poolName="Premier World Cup Pool"
+      />
+    )
+    fireEvent.click(screen.getByTestId("wc-chat-drawer-bubble"))
+    expect(screen.getByText("Premier World Cup Pool")).toBeInTheDocument()
+  })
+
+  it("bubble is not rendered when drawer is open (opacity-0 pointer-events-none)", async () => {
+    const { default: WorldCupChatDrawer } = await import(
+      "@/components/brackets/world-cup/WorldCupChatDrawer"
+    )
+    render(
+      <WorldCupChatDrawer
+        challengeId="ch1"
+        entitlementSummary={makeEntitlements()}
+        poolName="Test Cup"
+      />
+    )
+    const bubble = screen.getByTestId("wc-chat-drawer-bubble")
+    expect(bubble.className).toContain("opacity-100")
+    fireEvent.click(bubble)
+    expect(bubble.className).toContain("opacity-0")
+    expect(bubble.className).toContain("pointer-events-none")
+  })
+
+  it("translate link encodes message text for Google Translate", async () => {
+    const messageBody = "Come on Brazil!"
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          messages: [
+            {
+              id: "m3",
+              userId: "u2",
+              authorName: "Bob",
+              authorAvatarUrl: null,
+              body: messageBody,
+              messageType: "text",
+              gif: null,
+              image: null,
+              poll: null,
+              visibility: "public",
+              targetUserId: null,
+              mentions: [],
+              createdAt: new Date().toISOString(),
+              isOwnMessage: false,
+              isPrivate: false,
+            },
+          ],
+        }),
+      })) as unknown as typeof fetch
+    )
+    const { default: WorldCupChatDrawer } = await import(
+      "@/components/brackets/world-cup/WorldCupChatDrawer"
+    )
+    render(
+      <WorldCupChatDrawer
+        challengeId="ch1"
+        entitlementSummary={makeEntitlements()}
+        poolName="Test Cup"
+      />
+    )
+    fireEvent.click(screen.getByTestId("wc-chat-drawer-bubble"))
+    await waitFor(() => screen.getByText("Come on Brazil!"))
+    // The translate link should have the encoded body in its href
+    const translateLinks = screen
+      .getAllByRole("link")
+      .filter((a) => a.getAttribute("href")?.includes("translate.google.com"))
+    expect(translateLinks.length).toBeGreaterThan(0)
+    expect(translateLinks[0].getAttribute("href")).toContain(
+      encodeURIComponent(messageBody)
+    )
+  })
+})
