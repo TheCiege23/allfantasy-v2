@@ -240,7 +240,7 @@ export default function WorldCupLeaderboard({
                 onClick={onRecalculate}
                 disabled={busy}
                 data-testid="world-cup-leaderboard-recalculate"
-                className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-white/75 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-white/75 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${busy ? "animate-spin" : ""}`} />
                 {t("wc.lb.recalculate")}
@@ -320,7 +320,7 @@ export default function WorldCupLeaderboard({
               type="button"
               onClick={() => switchTab?.("review")}
               data-testid="wc-lb-view-my-bracket"
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-cyan-300/30 bg-cyan-300/10 px-3 py-2 text-xs font-black text-white/85 transition-colors hover:border-cyan-300/45 hover:bg-cyan-300/15 touch-manipulation"
+              className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border border-cyan-300/30 bg-cyan-300/10 px-3 py-2 text-xs font-black text-white/85 transition-colors hover:border-cyan-300/45 hover:bg-cyan-300/15 touch-manipulation"
             >
               {t("wc.lb.viewMyBracket")}
               <ChevronRight className="h-3.5 w-3.5" />
@@ -342,7 +342,7 @@ export default function WorldCupLeaderboard({
             type="button"
             onClick={() => switchTab?.("review")}
             data-testid="wc-lb-go-review"
-            className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.05] px-3 py-2 text-xs font-black text-white/80 touch-manipulation hover:border-white/25"
+            className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.05] px-3 py-2 text-xs font-black text-white/80 touch-manipulation hover:border-white/25"
           >
             {t("wc.lb.viewMyBracket")}
             <ChevronRight className="h-3.5 w-3.5" />
@@ -360,7 +360,7 @@ export default function WorldCupLeaderboard({
             type="button"
             onClick={() => switchTab?.("group-stage")}
             data-testid="wc-lb-start-bracket"
-            className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black touch-manipulation hover:bg-cyan-200"
+            className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black touch-manipulation hover:bg-cyan-200"
           >
             {t("wc.lb.startMyBracket")}
           </button>

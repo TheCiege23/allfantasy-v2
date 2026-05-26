@@ -249,7 +249,7 @@ export default function WorldCupInvitePanel({
           <button
             type="button"
             onClick={shareNative}
-            className="shrink-0 rounded-lg bg-gradient-to-r from-cyan-300 to-cyan-200 px-3 py-1.5 text-[11px] font-black text-black shadow-[0_4px_14px_-6px_rgba(34,211,238,0.55)] transition-transform hover:scale-[1.03] active:scale-[0.97] touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+            className="min-h-11 shrink-0 rounded-lg bg-gradient-to-r from-cyan-300 to-cyan-200 px-3 py-1.5 text-[11px] font-black text-black shadow-[0_4px_14px_-6px_rgba(34,211,238,0.55)] transition-transform hover:scale-[1.03] active:scale-[0.97] touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
           >
             {t("wc.inviteTab.growth.cta")}
           </button>
@@ -354,7 +354,7 @@ export default function WorldCupInvitePanel({
                 type="button"
                 onClick={copyCode}
                 data-testid="wc-invite-copy-code-btn"
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-bold text-white/70 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55"
+                className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-bold text-white/70 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55"
               >
                 {copiedCode ? <Check className="h-3.5 w-3.5 text-white/80" /> : <Copy className="h-3.5 w-3.5" />}
                 {copiedCode ? t("wc.inviteTab.commissioner.copyCodeDone") : t("wc.inviteTab.commissioner.copyCode")}
@@ -453,7 +453,7 @@ export default function WorldCupInvitePanel({
                 type="button"
                 onClick={() => copySocial(idx)}
                 aria-label={t("wc.inviteTab.social.copyBtn")}
-                className="ml-2 inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[11px] font-bold text-white/65 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55"
+                className="ml-2 inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[11px] font-bold text-white/65 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55"
               >
                 {copiedSocial === idx
                   ? <Check className="h-3.5 w-3.5 text-white/80" />

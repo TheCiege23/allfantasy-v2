@@ -164,7 +164,7 @@ export default function WorldCupReadinessPanel({ challengeId, seasonYear = 2026 
             type="button"
             onClick={() => void loadReadiness()}
             disabled={isLoading}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-bold text-white/80 disabled:opacity-50"
+            className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-bold text-white/80 disabled:opacity-50"
           >
             {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden />}
             Run readiness check

@@ -68,7 +68,7 @@ function AfProGateCard({ title, body }: { title: string; body: string }) {
           <p className="mt-1 text-xs leading-relaxed text-white/55">{body}</p>
           <Link
             href="/pricing"
-            className="mt-3 inline-flex rounded-lg bg-cyan-300 px-4 py-2 text-xs font-black text-black"
+            className="mt-3 inline-flex min-h-11 touch-manipulation items-center rounded-lg bg-cyan-300 px-4 py-2 text-xs font-black text-black"
           >
             Upgrade to AF Pro
           </Link>

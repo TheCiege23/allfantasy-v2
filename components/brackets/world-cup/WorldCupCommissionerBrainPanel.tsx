@@ -546,7 +546,7 @@ export default function WorldCupCommissionerBrainPanel({
         <button
           type="button"
           onClick={() => onOpenLeagueSettings()}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.05] px-4 py-3 text-xs font-bold text-white/80 hover:bg-white/[0.08]"
+          className="inline-flex min-h-11 touch-manipulation w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.05] px-4 py-3 text-xs font-bold text-white/80 hover:bg-white/[0.08]"
         >
           <Settings className="h-4 w-4 text-white/80" />
           League alerts, scoring & visibility — Settings
