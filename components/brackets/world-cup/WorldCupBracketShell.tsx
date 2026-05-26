@@ -3493,7 +3493,7 @@ export default function WorldCupBracketShell({
                     data-testid="world-cup-reseeded-knockout-locked"
                     className="mt-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-2 py-1.5 text-xs font-bold text-white/80"
                   >
-                    Reseeded Knockout is enabled. Official knockout fixtures are not available yet, so generated knockout picks are locked.
+                    {t("wc.knockouts.reseededLocked")}
                   </p>
                 ) : groupSeededKnockout.status !== "ready" ? (
                   <p className="mt-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-2 py-1.5 text-xs font-bold text-white/80">
@@ -3559,11 +3559,13 @@ export default function WorldCupBracketShell({
                   {!isLocked && guidedPicksState !== "ready" ? (
                     <div className="min-w-[min(100%,22rem)] rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-[11px] text-white/80">
                       <p className="font-bold">
-                        {knockoutMode === "reseeded" ? "Official knockout fixtures required." : "Knockout teams come from your group predictions."}
+                        {knockoutMode === "reseeded"
+                          ? t("wc.knockouts.guidance.reseededRequired")
+                          : t("wc.knockouts.guidance.predictiveNote")}
                       </p>
                       <p className="mt-1 text-white/65">
                         {knockoutMode === "reseeded"
-                          ? "Do not fake official fixtures. Picks stay closed until provider fixtures are ready."
+                          ? t("wc.knockouts.guidance.reseededNote")
                           : groupSeededKnockout.message}
                       </p>
                     </div>
@@ -4103,22 +4105,57 @@ export default function WorldCupBracketShell({
                     ) : completionReview.fullEntryComplete ? (
                       <div
                         data-testid="world-cup-finalize-cta-zone"
-                        className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.05] p-4"
+                        className="relative overflow-hidden rounded-2xl border border-cyan-300/30 bg-gradient-to-br from-cyan-500/[0.12] via-indigo-500/[0.07] to-transparent p-5"
                       >
-                        <p className="mb-3 text-xs text-white/55">{t("wc.review.completeDraftHelper")}</p>
-                        <button
-                          type="button"
-                          onClick={() => void handleFinalizeEntry()}
-                          disabled={isFinalizingEntry}
-                          className="w-full rounded-xl bg-gradient-to-r from-cyan-400 to-cyan-300 px-6 py-3.5 text-base font-black text-black shadow-[0_6px_20px_-8px_rgba(34,211,238,0.7)] transition-transform hover:scale-[1.02] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
-                        >
-                          {isFinalizingEntry
-                            ? t("wc.review.finalizing")
-                            : completionReview.needsRefinalize || completionReview.isComplete
-                              ? t("wc.review.refinalizeEntry")
-                              : t("wc.review.finalizeEntry")}
-                        </button>
-                        <p className="mt-2 text-[11px] text-white/40">{t("wc.review.finalizeLockWarning")}</p>
+                        {/* Atmospheric glow */}
+                        <div
+                          aria-hidden
+                          className="pointer-events-none absolute -top-8 -right-8 h-32 w-32 rounded-full bg-cyan-400/15 blur-3xl"
+                        />
+                        <div
+                          aria-hidden
+                          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(34,211,238,0.07),transparent_60%)]"
+                        />
+                        <div className="relative">
+                          <div className="mb-4 flex items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-300/[0.12] shadow-[0_0_16px_-4px_rgba(34,211,238,0.4)]">
+                              <Trophy className="h-5 w-5 text-cyan-200" aria-hidden />
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300/65">
+                                {t("wc.review.finalizeEyebrow")}
+                              </p>
+                              <h4 className="text-base font-black text-white sm:text-lg">
+                                {t("wc.review.finalizeHeading")}
+                              </h4>
+                            </div>
+                          </div>
+                          <p className="mb-4 text-sm text-white/60">{t("wc.review.completeDraftHelper")}</p>
+                          <button
+                            type="button"
+                            onClick={() => void handleFinalizeEntry()}
+                            disabled={isFinalizingEntry}
+                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-cyan-300 px-6 py-3.5 text-base font-black text-black shadow-[0_6px_24px_-8px_rgba(34,211,238,0.7)] transition-transform hover:scale-[1.02] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+                          >
+                            {isFinalizingEntry ? (
+                              <>
+                                <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                                {t("wc.review.finalizing")}
+                              </>
+                            ) : (
+                              <>
+                                <Lock className="h-5 w-5" aria-hidden />
+                                {completionReview.needsRefinalize || completionReview.isComplete
+                                  ? t("wc.review.refinalizeEntry")
+                                  : t("wc.review.finalizeEntry")}
+                              </>
+                            )}
+                          </button>
+                          <p className="mt-3 flex items-center gap-1.5 text-[11px] text-white/40">
+                            <Lock className="h-3 w-3 shrink-0" aria-hidden />
+                            {t("wc.review.finalizeLockWarning")}
+                          </p>
+                        </div>
                       </div>
                     ) : (
                       <p className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-bold text-white/45">

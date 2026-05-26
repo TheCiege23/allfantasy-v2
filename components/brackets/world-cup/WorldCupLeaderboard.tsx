@@ -18,7 +18,6 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import type { WorldCupChallengeView } from "@/lib/world-cup/types"
-import { WORLD_CUP_ROUND_LABELS } from "@/lib/world-cup/types"
 import { calculateWorldCupLeaderboardAiInsights } from "@/lib/world-cup/worldCupAiSubscriptionInsights"
 import {
   getWorldCupPossiblePointsRemaining,
@@ -108,6 +107,10 @@ function PodiumCard({
     </div>
   )
 }
+
+/** "round_of_32" → "roundOf32" — matches the wc.round.* i18n key suffix */
+const toCamelRound = (r: string) =>
+  r.replace(/_([a-z0-9])/g, (_: string, c: string) => c.toUpperCase())
 
 export default function WorldCupLeaderboard({
   view,
@@ -412,24 +415,24 @@ export default function WorldCupLeaderboard({
         <div className="mt-3 space-y-3">
           <p className="leading-5 text-white/60">{t("wc.lb.scoringBody")}</p>
           <ul className="space-y-1">
-            {[
-              { label: "Round of 32", pts: view.scoring.roundOf32Points },
-              { label: "Round of 16", pts: view.scoring.roundOf16Points },
-              { label: "Quarterfinal", pts: view.scoring.quarterFinalPoints },
-              { label: "Semifinal", pts: view.scoring.semiFinalPoints },
-              { label: "Final", pts: view.scoring.finalPoints },
-            ].map((row) => (
+            {([
+              { key: "round_of_32" as const, pts: view.scoring.roundOf32Points },
+              { key: "round_of_16" as const, pts: view.scoring.roundOf16Points },
+              { key: "quarterfinal" as const, pts: view.scoring.quarterFinalPoints },
+              { key: "semifinal" as const, pts: view.scoring.semiFinalPoints },
+              { key: "final" as const, pts: view.scoring.finalPoints },
+            ] as const).map((row) => (
               <li
-                key={row.label}
+                key={row.key}
                 className="flex items-center justify-between rounded-lg border border-white/[0.05] bg-white/[0.02] px-2.5 py-1.5"
               >
-                <span className="text-white/55">{row.label}</span>
-                <span className="font-black tabular-nums text-white">{row.pts} <span className="text-[10px] font-bold text-white/35">pts</span></span>
+                <span className="text-white/55">{t(`wc.round.${toCamelRound(row.key)}`)}</span>
+                <span className="font-black tabular-nums text-white">{row.pts} <span className="text-[10px] font-bold text-white/35">{t("wc.lb.ptsLabel")}</span></span>
               </li>
             ))}
             <li className="flex items-center justify-between rounded-lg border border-amber-400/20 bg-amber-500/10 px-2.5 py-1.5">
-              <span className="font-black text-white/80">Champion Bonus</span>
-              <span className="font-black tabular-nums text-white">{view.scoring.championBonusPoints} <span className="text-[10px] font-bold text-white/35">pts</span></span>
+              <span className="font-black text-white/80">{t("wc.lb.championBonus")}</span>
+              <span className="font-black tabular-nums text-white">{view.scoring.championBonusPoints} <span className="text-[10px] font-bold text-white/35">{t("wc.lb.ptsLabel")}</span></span>
             </li>
           </ul>
           <p className="text-[10px] text-white/40">{t("wc.lb.scoringUpdates")}</p>
@@ -570,7 +573,7 @@ export default function WorldCupLeaderboard({
                             key={round}
                             className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[9px] text-white/35"
                           >
-                            {(WORLD_CUP_ROUND_LABELS as Record<string, string>)[round] ?? round}: {pts}pts
+                            {t(`wc.round.${toCamelRound(round)}`)}: {pts}{t("wc.lb.ptsLabel")}
                           </span>
                         ))}
                       </div>
@@ -581,10 +584,10 @@ export default function WorldCupLeaderboard({
                         data-testid={`wc-lb-ai-health-${row.entryId}`}
                         className="mt-2 grid gap-1.5 rounded-lg border border-cyan-300/20 bg-cyan-300/[0.06] px-2.5 py-2 text-[10px] text-white/70 sm:grid-cols-4"
                       >
-                        <span><strong className="text-white">AI Win</strong> {aiInsight.aiWinProbability}%</span>
-                        <span><strong className="text-white">Health</strong> {aiInsight.bracketHealth}</span>
-                        <span><strong className="text-white">Max</strong> {aiInsight.maxPossiblePoints}</span>
-                        <span><strong className="text-white">Champion</strong> {aiInsight.championAlive ? t("wc.lb.alive") : t("wc.lb.busted")}</span>
+                        <span><strong className="text-white">{t("wc.lb.aiWinLabel")}</strong> {aiInsight.aiWinProbability}%</span>
+                        <span><strong className="text-white">{t("wc.lb.healthLabel")}</strong> {aiInsight.bracketHealth}</span>
+                        <span><strong className="text-white">{t("wc.lb.maxPointsLabel")}</strong> {aiInsight.maxPossiblePoints}</span>
+                        <span><strong className="text-white">{t("wc.lb.championLabel")}</strong> {aiInsight.championAlive ? t("wc.lb.alive") : t("wc.lb.busted")}</span>
                       </div>
                     ) : !view.hasBracketBrainAi ? (
                       <div
@@ -597,7 +600,7 @@ export default function WorldCupLeaderboard({
 
                     {updatedLabel && (
                       <div className="mt-1 text-[9px] text-white/20">
-                        Updated {updatedLabel}
+                        {t("wc.lb.updatedAt", { date: updatedLabel })}
                       </div>
                     )}
                   </div>
@@ -630,9 +633,9 @@ export default function WorldCupLeaderboard({
                       data-testid={`wc-lb-possible-${row.entryId}`}
                       className="text-[10px] text-white/35"
                     >
-                      possible left {possibleLeft}
+                      {t("wc.lb.possibleLeft", { n: possibleLeft })}
                     </div>
-                    <div className="text-[10px] text-white/25">max {row.maxPossibleScore}</div>
+                    <div className="text-[10px] text-white/25">{t("wc.lb.maxLabel", { n: row.maxPossibleScore })}</div>
                   </div>
                   </div>
 
@@ -665,9 +668,9 @@ export default function WorldCupLeaderboard({
                       )}
                     </div>
                     <div className="text-right text-[10px] text-white/40">
-                      <span data-testid={`wc-lb-possible-mobile-${row.entryId}`}>left {possibleLeft}</span>
+                      <span data-testid={`wc-lb-possible-mobile-${row.entryId}`}>{t("wc.lb.possibleLeft", { n: possibleLeft })}</span>
                       <span className="mx-1 text-white/20">·</span>
-                      <span data-testid={`wc-lb-max-mobile-${row.entryId}`}>max {row.maxPossibleScore}</span>
+                      <span data-testid={`wc-lb-max-mobile-${row.entryId}`}>{t("wc.lb.maxLabel", { n: row.maxPossibleScore })}</span>
                     </div>
                   </div>
                 </div>

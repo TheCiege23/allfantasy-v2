@@ -1112,7 +1112,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
 
     expect(await screen.findByText("Knockout picks open after official Round of 32 fixtures are available.")).toBeInTheDocument()
     expect(screen.getByTestId("world-cup-reseeded-knockout-locked")).toHaveTextContent(
-      /Official knockout fixtures are not available yet/i
+      /Reseeded Knockout picks are locked until official fixtures are ready/i
     )
     expect(screen.getAllByRole("button", { name: /Knockout Locked/i }).every((button) => button.hasAttribute("disabled"))).toBe(true)
     expect(screen.queryByText(/Load Test Knockout Teams/i)).not.toBeInTheDocument()

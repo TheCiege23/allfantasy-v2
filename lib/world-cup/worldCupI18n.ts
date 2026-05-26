@@ -411,6 +411,13 @@ const EN: WorldCupDictionary = {
     "Pick earlier round winners first. More picks unlock as prior winners are selected.",
   "wc.knockouts.guidance.noneReady":
     "No available knockout picks are ready right now.",
+  "wc.knockouts.reseededLocked":
+    "Reseeded Knockout picks are locked until official fixtures are ready.",
+  "wc.knockouts.guidance.reseededRequired": "Official knockout fixtures required.",
+  "wc.knockouts.guidance.predictiveNote":
+    "Knockout teams come from your group predictions.",
+  "wc.knockouts.guidance.reseededNote":
+    "Picks stay closed until official fixtures are published.",
 
   // ── Knockout Danger Zones card ───────────────────────────────────────
   "wc.danger.eyebrow": "Knockouts",
@@ -648,6 +655,14 @@ const EN: WorldCupDictionary = {
   "wc.lb.busted": "Busted",
   "wc.lb.aiProUnlocks": "AF Pro unlocks AI Win %, Bracket Health, and champion-path pressure.",
   "wc.lb.ptsLabel": "Pts",
+  "wc.lb.championBonus": "Champion Bonus",
+  "wc.lb.possibleLeft": "{{n}} possible",
+  "wc.lb.maxLabel": "max {{n}}",
+  "wc.lb.updatedAt": "upd. {{date}}",
+  "wc.lb.aiWinLabel": "AI Win",
+  "wc.lb.healthLabel": "Health",
+  "wc.lb.maxPointsLabel": "Max pts",
+  "wc.lb.championLabel": "Champion",
   "wc.lb.trustNote": "No wagers. No sportsbook. Just strategy, predictions, and bragging rights.",
   // ── Share card UI chrome ──────────────────────────────────────────────
   "wc.share.eyebrow": "Share Graphic",
@@ -1046,6 +1061,8 @@ const EN: WorldCupDictionary = {
     "Locked: picks can no longer be edited · submitted {{at}}",
   "wc.review.completeDraftHelper":
     "Complete draft. Finalize to submit it to the leaderboard; you can still edit until lock.",
+  "wc.review.finalizeEyebrow": "Ready to Submit",
+  "wc.review.finalizeHeading": "Lock In Your Bracket",
   "wc.review.finalizing": "Finalizing...",
   "wc.review.finalizeEntry": "Finalize Entry",
   "wc.review.refinalizeEntry": "Re-finalize Entry",
@@ -1600,6 +1617,13 @@ const ES: WorldCupDictionary = {
     "Elige primero los ganadores de rondas previas. Más picks se habilitan al confirmar ganadores anteriores.",
   "wc.knockouts.guidance.noneReady":
     "No hay picks de eliminatorias disponibles ahora mismo.",
+  "wc.knockouts.reseededLocked":
+    "Los picks de Reseeded Knockout están bloqueados hasta que haya fixtures oficiales.",
+  "wc.knockouts.guidance.reseededRequired": "Se requieren fixtures oficiales de knockout.",
+  "wc.knockouts.guidance.predictiveNote":
+    "Los equipos de knockout provienen de tus predicciones de grupos.",
+  "wc.knockouts.guidance.reseededNote":
+    "Los picks permanecen cerrados hasta que se publiquen las fixtures oficiales.",
 
   // ── Knockout Danger Zones card ───────────────────────────────────────
   "wc.danger.eyebrow": "Eliminatorias",
@@ -1847,6 +1871,14 @@ const ES: WorldCupDictionary = {
   "wc.lb.busted": "Eliminado",
   "wc.lb.aiProUnlocks": "AF Pro desbloquea % de victorias IA, salud del bracket y presión en el camino al campeón.",
   "wc.lb.ptsLabel": "Pts",
+  "wc.lb.championBonus": "Bonus Campeón",
+  "wc.lb.possibleLeft": "{{n}} posible",
+  "wc.lb.maxLabel": "máx {{n}}",
+  "wc.lb.updatedAt": "act. {{date}}",
+  "wc.lb.aiWinLabel": "IA Win",
+  "wc.lb.healthLabel": "Salud",
+  "wc.lb.maxPointsLabel": "Pts máx",
+  "wc.lb.championLabel": "Campeón",
   "wc.lb.trustNote": "Sin apuestas. Sin sportsbook. Solo estrategia, predicciones y el derecho a presumir.",
   // ── Share card UI chrome ──────────────────────────────────────────────
   "wc.share.eyebrow": "Gráfico de compartición",
@@ -2265,6 +2297,8 @@ const ES: WorldCupDictionary = {
     "Bloqueado: los picks ya no se pueden editar · enviado {{at}}",
   "wc.review.completeDraftHelper":
     "Borrador completo. Finaliza para enviarlo al leaderboard; aún puedes editar hasta el cierre.",
+  "wc.review.finalizeEyebrow": "Listo para enviar",
+  "wc.review.finalizeHeading": "Bloquea tu Bracket",
   "wc.review.finalizing": "Finalizando...",
   "wc.review.finalizeEntry": "Finalizar Entrada",
   "wc.review.refinalizeEntry": "Refinalizar Entrada",
@@ -2813,6 +2847,10 @@ const ZH: WorldCupDictionary = {
     "請先選擇前幾輪的勝者。確認前幾輪勝者後會解鎖更多選擇。",
   "wc.knockouts.guidance.noneReady":
     "目前沒有可進行的淘汰賽選擇。",
+  "wc.knockouts.reseededLocked": "官方賽程確定前，淘汰賽選擇已鎖定。",
+  "wc.knockouts.guidance.reseededRequired": "需要官方淘汰賽賽程。",
+  "wc.knockouts.guidance.predictiveNote": "淘汰賽隊伍來自您的小組預測。",
+  "wc.knockouts.guidance.reseededNote": "直到官方賽程發布前，選擇保持關閉。",
 
   // ── Knockout Danger Zones card ───────────────────────────────────────
   "wc.danger.eyebrow": "淘汰賽",
@@ -3050,6 +3088,14 @@ const ZH: WorldCupDictionary = {
   "wc.lb.busted": "已淘汰",
   "wc.lb.aiProUnlocks": "AF Pro 可解鎖 AI 勝率、對戰表健康度及冠軍路徑壓力。",
   "wc.lb.ptsLabel": "分",
+  "wc.lb.championBonus": "冠軍獎勵",
+  "wc.lb.possibleLeft": "{{n}} 可能",
+  "wc.lb.maxLabel": "最多 {{n}}",
+  "wc.lb.updatedAt": "更新 {{date}}",
+  "wc.lb.aiWinLabel": "AI 勝率",
+  "wc.lb.healthLabel": "健康度",
+  "wc.lb.maxPointsLabel": "最高積分",
+  "wc.lb.championLabel": "冠軍",
   "wc.lb.trustNote": "無賭注。無博彩平台。只有策略、預測和炫耀的權利。",
   // ── Share card UI chrome ──────────────────────────────────────────────
   "wc.share.eyebrow": "分享圖片",
@@ -3449,6 +3495,8 @@ const ZH: WorldCupDictionary = {
     "已鎖定:選擇無法再修改 · 送出於 {{at}}",
   "wc.review.completeDraftHelper":
     "草稿完成。送出後即可上排行榜;在鎖定前仍可編輯。",
+  "wc.review.finalizeEyebrow": "準備送出",
+  "wc.review.finalizeHeading": "鎖定您的對戰表",
   "wc.review.finalizing": "送出中...",
   "wc.review.finalizeEntry": "送出項目",
   "wc.review.refinalizeEntry": "重新送出項目",
@@ -4005,6 +4053,13 @@ const FIL: WorldCupDictionary = {
     "Pumili muna ng mga winner sa naunang rounds. Magbubukas ang mas maraming pick kapag may na-confirm na winner.",
   "wc.knockouts.guidance.noneReady":
     "Wala pang available na knockout picks sa ngayon.",
+  "wc.knockouts.reseededLocked":
+    "Naka-lock ang mga Reseeded Knockout pick hanggang sa available ang mga opisyal na fixture.",
+  "wc.knockouts.guidance.reseededRequired": "Kailangan ang mga opisyal na knockout fixture.",
+  "wc.knockouts.guidance.predictiveNote":
+    "Ang mga knockout team ay mula sa iyong mga hula sa group stage.",
+  "wc.knockouts.guidance.reseededNote":
+    "Sarado ang mga pick hanggang mailabas ang mga opisyal na fixture.",
 
   // ── Knockout Danger Zones card ───────────────────────────────────────
   "wc.danger.eyebrow": "Knockouts",
@@ -4254,6 +4309,14 @@ const FIL: WorldCupDictionary = {
   "wc.lb.busted": "Tapos na",
   "wc.lb.aiProUnlocks": "Ina-unlock ng AF Pro ang AI Win %, Bracket Health, at champion-path pressure.",
   "wc.lb.ptsLabel": "Pts",
+  "wc.lb.championBonus": "Champion Bonus",
+  "wc.lb.possibleLeft": "{{n}} posible",
+  "wc.lb.maxLabel": "max {{n}}",
+  "wc.lb.updatedAt": "ina-update {{date}}",
+  "wc.lb.aiWinLabel": "AI Win",
+  "wc.lb.healthLabel": "Health",
+  "wc.lb.maxPointsLabel": "Max pts",
+  "wc.lb.championLabel": "Champion",
   "wc.lb.trustNote": "Walang taya. Walang sportsbook. Strategy, hula, at karapatang magyabang lang.",
   // ── Share card UI chrome ──────────────────────────────────────────────
   "wc.share.eyebrow": "Share Graphic",
@@ -4672,6 +4735,8 @@ const FIL: WorldCupDictionary = {
     "Naka-lock: hindi na pwedeng i-edit ang picks · na-submit noong {{at}}",
   "wc.review.completeDraftHelper":
     "Kumpleto na ang draft. I-finalize para isumite sa leaderboard; pwede pa ring i-edit hanggang mag-lock.",
+  "wc.review.finalizeEyebrow": "Handa nang Isumite",
+  "wc.review.finalizeHeading": "I-lock ang Iyong Bracket",
   "wc.review.finalizing": "Nagfa-finalize...",
   "wc.review.finalizeEntry": "I-finalize ang Entry",
   "wc.review.refinalizeEntry": "I-finalize ulit ang Entry",
@@ -5234,6 +5299,13 @@ const VI: WorldCupDictionary = {
     "Hãy chọn người thắng các vòng trước. Càng chọn xong vòng trước, càng mở thêm lựa chọn vòng sau.",
   "wc.knockouts.guidance.noneReady":
     "Hiện chưa có lựa chọn vòng loại trực tiếp nào sẵn sàng.",
+  "wc.knockouts.reseededLocked":
+    "Lượt chọn Reseeded Knockout bị khóa cho đến khi có fixture chính thức.",
+  "wc.knockouts.guidance.reseededRequired": "Yêu cầu fixture knockout chính thức.",
+  "wc.knockouts.guidance.predictiveNote":
+    "Các đội knockout đến từ dự đoán bảng đấu của bạn.",
+  "wc.knockouts.guidance.reseededNote":
+    "Các lựa chọn đóng cho đến khi fixture chính thức được công bố.",
 
   // ── Knockout Danger Zones card ───────────────────────────────────────
   "wc.danger.eyebrow": "Vòng loại trực tiếp",
@@ -5490,6 +5562,14 @@ const VI: WorldCupDictionary = {
   "wc.lb.busted": "Bị loại",
   "wc.lb.aiProUnlocks": "AF Pro mở khoá % thắng AI, Sức khoẻ bracket và áp lực con đường đến nhà vô địch.",
   "wc.lb.ptsLabel": "Điểm",
+  "wc.lb.championBonus": "Thưởng nhà vô địch",
+  "wc.lb.possibleLeft": "{{n}} khả dĩ",
+  "wc.lb.maxLabel": "tối đa {{n}}",
+  "wc.lb.updatedAt": "cập nhật {{date}}",
+  "wc.lb.aiWinLabel": "AI Thắng",
+  "wc.lb.healthLabel": "Sức khoẻ",
+  "wc.lb.maxPointsLabel": "Điểm tối đa",
+  "wc.lb.championLabel": "Nhà vô địch",
   "wc.lb.trustNote": "Không cá cược. Không nhà cái. Chỉ là chiến thuật, dự đoán và quyền tự hào.",
   // ── Share card UI chrome ──────────────────────────────────────────────
   "wc.share.eyebrow": "Ảnh Chia Sẻ",
@@ -5918,6 +5998,8 @@ const VI: WorldCupDictionary = {
     "Đã khoá: không thể chỉnh sửa lựa chọn nữa · gửi lúc {{at}}",
   "wc.review.completeDraftHelper":
     "Bản nháp đã hoàn tất. Hoàn tất để gửi lên bảng xếp hạng; bạn vẫn có thể chỉnh sửa trước khi khoá.",
+  "wc.review.finalizeEyebrow": "Sẵn sàng gửi",
+  "wc.review.finalizeHeading": "Khoá Bracket của bạn",
   "wc.review.finalizing": "Đang hoàn tất...",
   "wc.review.finalizeEntry": "Hoàn tất Entry",
   "wc.review.refinalizeEntry": "Hoàn tất lại Entry",
