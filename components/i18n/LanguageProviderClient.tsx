@@ -113,6 +113,11 @@ export function LanguageProviderClient({
   const setLanguage = (lang: Language) => {
     const resolved = resolveLanguage(lang);
     setLanguageState(resolved);
+    // Synchronously apply bundled translations so the first re-render after
+    // a language switch already shows the new locale — eliminates the
+    // "one-click behind" race where messages still reflected the old locale
+    // until the useEffect fired after the first render.
+    setMessages(translations[resolved] || translations.en);
     try {
       setStoredLanguage(resolved);
     } catch {

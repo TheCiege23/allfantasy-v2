@@ -103,6 +103,7 @@ const EN: WorldCupDictionary = {
 
   // ── Public hub: /brackets/world-cup ──────────────────────────────────
   "wc.publicHub.backToBrackets": "← Back to Brackets",
+  "wc.publicHub.accountSettings": "Account settings",
   "wc.publicHub.heroTitle": "World Cup Bracket Challenge",
   "wc.publicHub.heroSubtitle":
     "Create an NCAA-style bracket pool for the FIFA World Cup. Invite friends, make picks, track live scores, and climb the leaderboard.",
@@ -256,6 +257,12 @@ const EN: WorldCupDictionary = {
   "wc.rules.settings.thirdPlaceOff": "Off",
   "wc.rules.settings.inviteSharing": "Invite sharing",
   "wc.rules.settings.inviteCommish": "Commissioner only",
+  "wc.rules.lock.title": "Pick Deadline",
+  "wc.rules.lock.strategy.per_match": "Per-match: picks lock when each match kicks off.",
+  "wc.rules.lock.strategy.tournament_start": "Tournament lock: all picks lock when the tournament begins.",
+  "wc.rules.lock.deadline": "Deadline: {{date}}",
+  "wc.rules.lock.noDeadline": "Deadline set by the commissioner before the tournament.",
+  "wc.rules.lock.lockedNow": "Bracket is currently locked — picks are frozen.",
   "wc.rules.trustNote": "No wagers. No sportsbook. Just World Cup predictions, strategy, and bragging rights.",
 
   // ── Pool dashboard: home tab ──────────────────────────────────────────
@@ -859,6 +866,9 @@ const EN: WorldCupDictionary = {
   "wc.groupStage.saved": "Saved",
   "wc.groupStage.retrySave": "Retry Save",
   "wc.groupStage.failedSave": "Failed to save group ranking",
+  "wc.groupStage.continueTitle": "Groups Done — Pick Your Knockout Bracket",
+  "wc.groupStage.continueBody": "All groups ranked. Head to the Knockout tab to pick match winners and choose your champion.",
+  "wc.groupStage.continueBtn": "Go to Knockout Bracket",
   "wc.groupStage.aiTitle": "AI Insights",
   "wc.groupStage.aiTierOpen": "Open",
   "wc.groupStage.aiTierLocked": "Locked",
@@ -1035,6 +1045,7 @@ const EN: WorldCupDictionary = {
   // ── Review tab: AF Pro upgrade banner ────────────────────────────────
   "wc.review.afProUnlocks": "AF Pro unlocks",
   "wc.review.afProUnlocksDetails": "the full report — Champion Confidence, Path to Win, the AI Explain narrative, your Uniqueness insight, and the full Share card.",
+  "wc.review.afProUpgradeCta": "Upgrade to AF Pro",
   // ── Review tab: saved picks section ──────────────────────────────────
   "wc.review.savedGroupTitle": "Saved Group Stage Picks",
   "wc.review.savedGroupNote": "Your predictions · official results shown separately",
@@ -1250,6 +1261,7 @@ const ES: WorldCupDictionary = {
 
   // ── Public hub: /brackets/world-cup ──────────────────────────────────
   "wc.publicHub.backToBrackets": "← Volver a Brackets",
+  "wc.publicHub.accountSettings": "Configuración de cuenta",
   "wc.publicHub.heroTitle": "Desafío de Brackets de la Copa del Mundo",
   "wc.publicHub.heroSubtitle":
     "Crea un grupo de brackets estilo NCAA para la Copa del Mundo de la FIFA. Invita amigos, haz tus picks, sigue marcadores en vivo y escala el leaderboard.",
@@ -1403,6 +1415,12 @@ const ES: WorldCupDictionary = {
   "wc.rules.settings.thirdPlaceOff": "Desactivado",
   "wc.rules.settings.inviteSharing": "Compartir invitación",
   "wc.rules.settings.inviteCommish": "Solo comisionado",
+  "wc.rules.lock.title": "Fecha límite de picks",
+  "wc.rules.lock.strategy.per_match": "Por partido: los picks se cierran cuando comienza cada partido.",
+  "wc.rules.lock.strategy.tournament_start": "Cierre del torneo: todos los picks se cierran al inicio del torneo.",
+  "wc.rules.lock.deadline": "Fecha límite: {{date}}",
+  "wc.rules.lock.noDeadline": "Fecha límite establecida por el comisionado antes del torneo.",
+  "wc.rules.lock.lockedNow": "El bracket está bloqueado — los picks están congelados.",
   "wc.rules.trustNote": "Sin apuestas. Sin casas de apuestas. Solo predicciones de la Copa del Mundo, estrategia y derechos de presumir.",
 
   // ── Pool dashboard: home tab ──────────────────────────────────────────
@@ -2030,6 +2048,9 @@ const ES: WorldCupDictionary = {
   "wc.groupStage.retrySave": "Reintentar guardar",
   "wc.groupStage.failedSave":
     "No se pudo guardar el orden del grupo",
+  "wc.groupStage.continueTitle": "Grupos listos — elige tu bracket de eliminatorias",
+  "wc.groupStage.continueBody": "Todos los grupos clasificados. Ve a la pestaña de eliminatorias para elegir los ganadores y tu campeón.",
+  "wc.groupStage.continueBtn": "Ir al bracket de eliminatorias",
   "wc.groupStage.aiTitle": "Análisis IA",
   "wc.groupStage.aiTierOpen": "Abierto",
   "wc.groupStage.aiTierLocked": "Bloqueado",
@@ -2211,6 +2232,7 @@ const ES: WorldCupDictionary = {
   "wc.review.scoringNoteBody": "Finalizado = enviado para clasificación. Bloqueado = plazo vencido, los picks no se pueden editar.",
   "wc.review.afProUnlocks": "AF Pro desbloquea",
   "wc.review.afProUnlocksDetails": "el informe completo — Confianza del campeón, Camino a la victoria, la narrativa de IA, tu perspectiva de singularidad y la tarjeta de compartir completa.",
+  "wc.review.afProUpgradeCta": "Actualizar a AF Pro",
   "wc.review.savedGroupTitle": "Picks de Fase de Grupos Guardados",
   "wc.review.savedGroupNote": "Tus predicciones · resultados oficiales mostrados por separado",
   "wc.review.groupPicksSaved": "{{n}}/4 guardados",
@@ -2429,6 +2451,7 @@ const ZH: WorldCupDictionary = {
 
   // ── Public hub: /brackets/world-cup ──────────────────────────────────
   "wc.publicHub.backToBrackets": "← 返回賽事預測",
+  "wc.publicHub.accountSettings": "帳號設定",
   "wc.publicHub.heroTitle": "世界盃對戰預測挑戰",
   "wc.publicHub.heroSubtitle":
     "為 FIFA 世界盃建立 NCAA 風格的對戰預測群組。邀請朋友、選出贏家、追蹤即時比分,並衝上排行榜。",
@@ -2576,6 +2599,12 @@ const ZH: WorldCupDictionary = {
   "wc.rules.settings.thirdPlaceOff": "關閉",
   "wc.rules.settings.inviteSharing": "邀請分享",
   "wc.rules.settings.inviteCommish": "僅限管理員",
+  "wc.rules.lock.title": "選擇截止日期",
+  "wc.rules.lock.strategy.per_match": "逐場制：每場比賽開球時鎖定該場選擇。",
+  "wc.rules.lock.strategy.tournament_start": "賽事開始制：賽事開始時鎖定所有選擇。",
+  "wc.rules.lock.deadline": "截止：{{date}}",
+  "wc.rules.lock.noDeadline": "截止日期由管理員在賽事前設定。",
+  "wc.rules.lock.lockedNow": "對戰表已鎖定 — 選擇已凍結。",
   "wc.rules.trustNote": "無賭注。無博彩。只有世界盃預測、策略和自豪感。",
 
   // ── Pool dashboard: home tab ──────────────────────────────────────────
@@ -3180,6 +3209,9 @@ const ZH: WorldCupDictionary = {
   "wc.groupStage.saved": "已儲存",
   "wc.groupStage.retrySave": "重試儲存",
   "wc.groupStage.failedSave": "無法儲存小組排名",
+  "wc.groupStage.continueTitle": "小組賽完成 — 開始選擇淘汰賽",
+  "wc.groupStage.continueBody": "所有小組已排名完成。前往淘汰賽分頁選擇各場勝者與冠軍。",
+  "wc.groupStage.continueBtn": "前往淘汰賽",
   "wc.groupStage.aiTitle": "AI 解析",
   "wc.groupStage.aiTierOpen": "已開啟",
   "wc.groupStage.aiTierLocked": "已鎖定",
@@ -3353,6 +3385,7 @@ const ZH: WorldCupDictionary = {
   "wc.review.scoringNoteBody": "已確認 = 已提交至排行榜。已鎖定 = 截止日期已過，選擇無法再編輯。",
   "wc.review.afProUnlocks": "AF Pro 解鎖",
   "wc.review.afProUnlocksDetails": "完整報告——冠軍信心、勝利路徑、AI 解說敘事、你的獨特洞察以及完整分享卡。",
+  "wc.review.afProUpgradeCta": "升級至 AF Pro",
   "wc.review.savedGroupTitle": "已儲存的小組賽選擇",
   "wc.review.savedGroupNote": "你的預測 · 官方結果另行顯示",
   "wc.review.groupPicksSaved": "{{n}}/4 已儲存",
@@ -3570,6 +3603,7 @@ const FIL: WorldCupDictionary = {
 
   // ── Public hub: /brackets/world-cup ──────────────────────────────────
   "wc.publicHub.backToBrackets": "← Balik sa Brackets",
+  "wc.publicHub.accountSettings": "Mga setting ng account",
   "wc.publicHub.heroTitle": "World Cup Bracket Challenge",
   "wc.publicHub.heroSubtitle":
     "Gumawa ng NCAA-style bracket pool para sa FIFA World Cup. Mag-invite ng kaibigan, mag-pick, mag-track ng live na iskor, at umakyat sa leaderboard.",
@@ -3721,6 +3755,12 @@ const FIL: WorldCupDictionary = {
   "wc.rules.settings.thirdPlaceOff": "Hindi kasama",
   "wc.rules.settings.inviteSharing": "Pagbabahagi ng imbitasyon",
   "wc.rules.settings.inviteCommish": "Commissioner lang",
+  "wc.rules.lock.title": "Deadline ng Pick",
+  "wc.rules.lock.strategy.per_match": "Per-match: naglo-lock ang picks kapag nagsimula ang bawat laban.",
+  "wc.rules.lock.strategy.tournament_start": "Tournament lock: naglo-lock ang lahat ng pick kapag nagsimula ang torneo.",
+  "wc.rules.lock.deadline": "Deadline: {{date}}",
+  "wc.rules.lock.noDeadline": "Deadline ay itatakda ng commissioner bago ang torneo.",
+  "wc.rules.lock.lockedNow": "Naka-lock na ang bracket — naka-freeze na ang picks.",
   "wc.rules.trustNote": "Walang taya. Walang sportsbook. Mga World Cup prediction, estratehiya, at karapatang magyabang lang.",
 
   // ── Pool dashboard: home tab ──────────────────────────────────────────
@@ -4355,6 +4395,9 @@ const FIL: WorldCupDictionary = {
   "wc.groupStage.retrySave": "Subukan ulit",
   "wc.groupStage.failedSave":
     "Hindi na-save ang group ranking",
+  "wc.groupStage.continueTitle": "Tapos na ang Groups — Pumili ng Knockout Bracket",
+  "wc.groupStage.continueBody": "Nai-rank na ang lahat ng group. Pumunta sa Knockout tab para pumili ng mga panalo at champion.",
+  "wc.groupStage.continueBtn": "Pumunta sa Knockout Bracket",
   "wc.groupStage.aiTitle": "AI Insights",
   "wc.groupStage.aiTierOpen": "Bukas",
   "wc.groupStage.aiTierLocked": "Nakasara",
@@ -4536,6 +4579,7 @@ const FIL: WorldCupDictionary = {
   "wc.review.scoringNoteBody": "Finalized = naisumite sa leaderboard. Naka-lock = nakalipas na ang deadline, hindi na maaaring i-edit ang mga pick.",
   "wc.review.afProUnlocks": "I-unlock ng AF Pro",
   "wc.review.afProUnlocksDetails": "ang buong ulat — Champion Confidence, Path to Win, AI Explain narrative, Uniqueness insight, at buong Share card.",
+  "wc.review.afProUpgradeCta": "I-upgrade sa AF Pro",
   "wc.review.savedGroupTitle": "Mga Naka-save na Group Stage Pick",
   "wc.review.savedGroupNote": "Ang iyong mga hula · mga opisyal na resulta ay ipinapakita nang hiwalay",
   "wc.review.groupPicksSaved": "{{n}}/4 naka-save",
@@ -4759,6 +4803,7 @@ const VI: WorldCupDictionary = {
 
   // ── Public hub: /brackets/world-cup ──────────────────────────────────
   "wc.publicHub.backToBrackets": "← Quay lại Brackets",
+  "wc.publicHub.accountSettings": "Cài đặt tài khoản",
   "wc.publicHub.heroTitle": "Thử Thách Bracket World Cup",
   "wc.publicHub.heroSubtitle":
     "Tạo một bracket pool kiểu NCAA cho FIFA World Cup. Mời bạn bè, chọn đội thắng, theo dõi tỉ số trực tiếp và leo lên bảng xếp hạng.",
@@ -4910,6 +4955,12 @@ const VI: WorldCupDictionary = {
   "wc.rules.settings.thirdPlaceOff": "Không",
   "wc.rules.settings.inviteSharing": "Chia sẻ lời mời",
   "wc.rules.settings.inviteCommish": "Chỉ chủ pool",
+  "wc.rules.lock.title": "Hạn chọn",
+  "wc.rules.lock.strategy.per_match": "Theo trận: lựa chọn khoá khi mỗi trận bắt đầu.",
+  "wc.rules.lock.strategy.tournament_start": "Khoá giải đấu: tất cả lựa chọn khoá khi giải bắt đầu.",
+  "wc.rules.lock.deadline": "Hạn: {{date}}",
+  "wc.rules.lock.noDeadline": "Hạn chọn do chủ pool đặt trước giải đấu.",
+  "wc.rules.lock.lockedNow": "Bracket đã khoá — lựa chọn bị đóng băng.",
   "wc.rules.trustNote": "Không cá cược. Không nhà cái. Chỉ là dự đoán World Cup, chiến lược và quyền tự hào.",
 
   // ── Pool dashboard: home tab ──────────────────────────────────────────
@@ -5559,6 +5610,9 @@ const VI: WorldCupDictionary = {
   "wc.groupStage.retrySave": "Thử lại",
   "wc.groupStage.failedSave":
     "Không lưu được xếp hạng bảng",
+  "wc.groupStage.continueTitle": "Xong bảng — Chọn bracket vòng loại trực tiếp",
+  "wc.groupStage.continueBody": "Tất cả bảng đã xếp hạng. Chuyển sang tab Knockout để chọn người thắng và nhà vô địch.",
+  "wc.groupStage.continueBtn": "Chuyển sang Bracket vòng loại trực tiếp",
   "wc.groupStage.aiTitle": "Phân tích AI",
   "wc.groupStage.aiTierOpen": "Mở",
   "wc.groupStage.aiTierLocked": "Đã khoá",
@@ -5741,6 +5795,7 @@ const VI: WorldCupDictionary = {
   "wc.review.scoringNoteBody": "Đã hoàn tất = đã gửi lên bảng xếp hạng. Đã khóa = quá hạn chót, không thể chỉnh sửa lượt chọn.",
   "wc.review.afProUnlocks": "AF Pro mở khóa",
   "wc.review.afProUnlocksDetails": "toàn bộ báo cáo — Độ tin cậy nhà vô địch, Đường đến chiến thắng, câu chuyện giải thích AI, nhận định độc đáo của bạn và thẻ chia sẻ đầy đủ.",
+  "wc.review.afProUpgradeCta": "Nâng cấp lên AF Pro",
   "wc.review.savedGroupTitle": "Lượt chọn Vòng bảng đã lưu",
   "wc.review.savedGroupNote": "Dự đoán của bạn · kết quả chính thức hiển thị riêng",
   "wc.review.groupPicksSaved": "{{n}}/4 đã lưu",

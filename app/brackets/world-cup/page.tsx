@@ -10,6 +10,7 @@ import {
   Lock,
   Plus,
   Radio,
+  Settings,
   Share2,
   Shield,
   Sparkles,
@@ -128,7 +129,20 @@ export default async function WorldCupBracketsPage() {
         >
           {t("wc.publicHub.backToBrackets")}
         </Link>
-        <LanguageToggle variant="compact" refreshOnChange />
+        <div className="flex items-center gap-2">
+          <LanguageToggle variant="compact" refreshOnChange />
+          {userId && (
+            <Link
+              href="/settings"
+              className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] p-2 text-white/60 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              aria-label={t("wc.publicHub.accountSettings")}
+              title={t("wc.publicHub.accountSettings")}
+              data-testid="wc-public-settings-link"
+            >
+              <Settings className="h-4 w-4" />
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* ── Hero: Command Center ─────────────────────────────────────── */}

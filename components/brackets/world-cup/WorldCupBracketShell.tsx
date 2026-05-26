@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowUp, BarChart3, Baseline, Bell, Bold, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Clock, Copy, Edit3, Film, Globe2, ImageIcon, Italic, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Mic, Pin, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Smile, Sparkles, Strikethrough, Trophy, Underline, Users, X } from "lucide-react"
+import { ArrowLeft, ArrowUp, BarChart3, Baseline, Bell, Bold, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Clock, Copy, Edit3, Film, Globe2, ImageIcon, Italic, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Mic, Pin, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Shield, Smile, Sparkles, Strikethrough, Trophy, Underline, Users, X } from "lucide-react"
 import { toast } from "sonner"
 import type { WorldCupChallengeView, WorldCupMatchView, WorldCupPickView } from "@/lib/world-cup/types"
 import { isWorldCupChallengeLocked } from "@/lib/world-cup/worldCupBracketBuilder"
@@ -106,6 +106,7 @@ import WorldCupCommissionerBrainPanel from "./WorldCupCommissionerBrainPanel"
 import WorldCupGroupStagePicks from "./WorldCupGroupStagePicks"
 import WorldCupReadinessPanel from "./WorldCupReadinessPanel"
 import WorldCupLeagueEventFeed from "./WorldCupLeagueEventFeed"
+import { ThemeModeSelect } from "@/components/theme/ThemeModeSelect"
 type Tab = WorldCupBracketTab
 type WorldCupPoolChatMessage = {
   id: string
@@ -473,16 +474,17 @@ function mergeWorldCupChallengeView(
   }
 }
 
-function worldCupReviewStatusClass(status: "correct" | "wrong" | "pending") {
+function worldCupReviewStatusClass(status: "correct" | "wrong" | "pending" | "saved") {
   if (status === "correct") return "border-cyan-300/35 bg-cyan-300/10 text-white/90"
   if (status === "wrong") return "border-rose-300/35 bg-rose-400/10 text-white/85"
-  return "border-amber-300/30 bg-amber-400/10 text-white/80"
+  if (status === "pending") return "border-amber-300/30 bg-amber-400/10 text-white/80"
+  return "border-white/15 bg-white/[0.04] text-white/55"
 }
 
 function worldCupReviewStatusLabel(input: { isCorrect?: boolean | null; pointsAwarded?: number | null }) {
   if (input.isCorrect === true) return { status: "correct" as const, label: `Correct +${input.pointsAwarded ?? 0}` }
   if (input.isCorrect === false) return { status: "wrong" as const, label: "Wrong +0" }
-  return { status: "pending" as const, label: "Pending" }
+  return { status: "saved" as const, label: "Saved" }
 }
 
 function teamNameFromGroupStageReview(view: WorldCupGroupStageViewClient, teamId: string) {
@@ -627,6 +629,7 @@ export default function WorldCupBracketShell({
   const [isSimulating, setIsSimulating] = useState(false)
   const [isSavingSimulationMode, setIsSavingSimulationMode] = useState(false)
   const [isLoadingTestFixtures, setIsLoadingTestFixtures] = useState(false)
+  const [adminPanelExpanded, setAdminPanelExpanded] = useState(false)
   const isCreatingEntryRef = useRef(false)
   const isFinalizingEntryRef = useRef(false)
   const pageScrollRef = useRef<HTMLDivElement | null>(null)
@@ -2152,11 +2155,12 @@ export default function WorldCupBracketShell({
   )
 
   return (
-    // `mode-readable` opts the entire dashboard shell into the
-    // globals.css light-mode rescue layer so muted labels, tab text,
-    // and helper copy stay readable on white. Dark + AF (legacy) modes
-    // keep the original `bg-[#05070b]` styling unchanged.
-    <div id="world-cup-top" className="mode-readable fixed inset-0 z-50 flex flex-col bg-[#05070b] text-white">
+    // `mode-readable` opts the entire dashboard shell into the globals.css
+    // light-mode rescue layer so muted labels, tab text, and helper copy
+    // stay readable on white. `bg-[var(--bg)]` reacts to dark / AF (legacy)
+    // / light mode automatically — AF shows #110B1E purple, dark shows
+    // #000000, light shows #F7F8FB.
+    <div id="world-cup-top" className="mode-readable fixed inset-0 z-50 flex flex-col bg-[var(--bg)] text-white">
       <header className="shrink-0 border-b border-white/10 bg-zinc-950/95 backdrop-blur pt-[env(safe-area-inset-top,0px)]">
         <div className="flex items-center gap-1.5 px-2 py-1.5 sm:gap-2 sm:px-4 sm:py-2">
           {showBoard ? (
@@ -2301,6 +2305,10 @@ export default function WorldCupBracketShell({
               the Invite CTA off small screens. */}
           <div data-testid="wc-shell-language-toggle">
             <LanguageToggle variant="compact" />
+          </div>
+          {/* Mode toggle — compact size so it fits the dense pool header */}
+          <div data-testid="wc-shell-mode-select" className="hidden sm:block">
+            <ThemeModeSelect size="sm" />
           </div>
           {/* User account settings link — lets users access their plan/profile without
               leaving the pool page. Kept compact (icon-only) so it fits the dense header. */}
@@ -2510,6 +2518,18 @@ export default function WorldCupBracketShell({
           {view.isAdmin && (
             <>
             <div id="world-cup-admin" className="mx-4 mb-2 h-0" aria-hidden="true" />
+            <div className="mx-4 mb-3 rounded-xl border border-white/10 bg-white/[0.03]">
+              <button
+                type="button"
+                onClick={() => setAdminPanelExpanded((v) => !v)}
+                className="flex w-full items-center justify-between px-3 py-2.5 text-[11px] font-bold text-white/60"
+              >
+                <span>Admin / Test Tools</span>
+                <ChevronRight className={`h-3.5 w-3.5 transition-transform ${adminPanelExpanded ? "rotate-90" : ""}`} />
+              </button>
+            </div>
+            {adminPanelExpanded && (
+            <>
             <WorldCupReadinessPanel
               challengeId={challengeId}
               seasonYear={view.challenge.seasonYear}
@@ -2936,6 +2956,8 @@ export default function WorldCupBracketShell({
                 </div>
               )}
             </div>
+            </>
+            )}
             </>
           )}
         </div>
@@ -3641,6 +3663,7 @@ export default function WorldCupBracketShell({
                 entryId={selectedEntry.id}
                 aiInsightsUnlocked={aiInsightsUnlocked}
                 onDirtyChange={setHasUnsavedGroupChanges}
+                onContinueToKnockouts={() => switchTab("picks")}
                 onCompletionChanged={() => {
                   setHasUnsavedGroupChanges(false)
                   refreshKnockoutBracketFromGroupStage()
@@ -3812,13 +3835,23 @@ export default function WorldCupBracketShell({
                       </div>
 
                       {!aiInsightsUnlocked ? (
-                        <p
+                        <div
                           data-testid="world-cup-review-ai-report-upgrade-banner"
-                          className="rounded-lg border border-cyan-300/30 bg-cyan-300/[0.06] px-3 py-2.5 text-[11px] leading-5 text-white/70"
+                          className="rounded-lg border border-cyan-300/30 bg-cyan-300/[0.06] px-3 py-2.5"
                         >
-                          <span className="font-black uppercase tracking-wide text-white/90">{t("wc.review.afProUnlocks")}</span>{" "}
-                          {t("wc.review.afProUnlocksDetails")}
-                        </p>
+                          <p className="text-[11px] leading-5 text-white/70">
+                            <span className="font-black uppercase tracking-wide text-white/90">{t("wc.review.afProUnlocks")}</span>{" "}
+                            {t("wc.review.afProUnlocksDetails")}
+                          </p>
+                          <Link
+                            href="/pricing"
+                            data-testid="world-cup-review-ai-upgrade-link"
+                            className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-cyan-300 px-3 py-1.5 text-[11px] font-black text-slate-950 hover:bg-cyan-200"
+                          >
+                            <Sparkles className="h-3 w-3" />
+                            {t("wc.review.afProUpgradeCta")}
+                          </Link>
+                        </div>
                       ) : null}
 
                       {/* 1. Grade — headline metric (A/B/C, completion %, risk, upset meter). */}
@@ -4244,13 +4277,48 @@ export default function WorldCupBracketShell({
               </ul>
             </section>
 
-            {/* ── Trust Note ────────────────────────────────────── */}
-            <p
-              data-testid="wc-rules-trust-note"
-              className="mt-4 text-center text-[11px] leading-5 text-white/35"
+            {/* ── Lock / Deadline ───────────────────────────────── */}
+            <section
+              data-testid="wc-rules-lock"
+              className="mb-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur"
             >
-              {t("wc.rules.trustNote")}
-            </p>
+              <h3 className="mb-3 text-[11px] font-black uppercase tracking-[0.16em] text-white/55">
+                {t("wc.rules.lock.title")}
+              </h3>
+              {isLocked && (
+                <p className="mb-3 rounded-lg border border-rose-400/30 bg-rose-400/[0.08] px-3 py-2 text-sm font-bold text-white/85">
+                  {t("wc.rules.lock.lockedNow")}
+                </p>
+              )}
+              <p className="mb-2 text-sm text-white/70">
+                {view.challenge.pickLockStrategy === "tournament_start"
+                  ? t("wc.rules.lock.strategy.tournament_start")
+                  : t("wc.rules.lock.strategy.per_match")}
+              </p>
+              {view.challenge.pickLockAt ? (
+                <p className="text-sm font-bold text-white/85">
+                  {t("wc.rules.lock.deadline", {
+                    date: new Intl.DateTimeFormat("en-US", {
+                      dateStyle: "long",
+                      timeStyle: "short",
+                    }).format(new Date(view.challenge.pickLockAt)),
+                  })}
+                </p>
+              ) : (
+                <p className="text-sm text-white/55">{t("wc.rules.lock.noDeadline")}</p>
+              )}
+            </section>
+
+            {/* ── Trust Note ────────────────────────────────────── */}
+            <div
+              data-testid="wc-rules-trust-note"
+              className="mt-2 flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur"
+            >
+              <Shield className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300/70" aria-hidden />
+              <p className="text-sm leading-6 text-white/65">
+                {t("wc.rules.trustNote")}
+              </p>
+            </div>
           </div>
         ) : null}
         {tab === "settings" ? (
@@ -4286,6 +4354,22 @@ export default function WorldCupBracketShell({
         <ArrowUp className="h-3.5 w-3.5" />
         Top
       </button>
+
+      {/* Floating Chat button — visible on all non-chat tabs so pool chat
+          is always one tap away. Hidden on the Chat tab itself and on
+          mobile where the bottom nav already shows the Chat tab. */}
+      {tab !== "chat" && view.isParticipant && (
+        <button
+          data-testid="world-cup-floating-chat"
+          type="button"
+          onClick={() => switchTab("chat")}
+          className="fixed bottom-16 left-4 z-50 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-zinc-900/90 px-3 py-2 text-xs font-black text-white shadow-xl backdrop-blur transition-colors hover:border-cyan-300/40 hover:bg-zinc-800 sm:bottom-6"
+          aria-label={t("wc.tab.chat")}
+        >
+          <MessageSquare className="h-3.5 w-3.5 text-cyan-300/80" />
+          <span className="hidden sm:inline">{t("wc.tab.chat")}</span>
+        </button>
+      )}
       </div>
 
       <nav

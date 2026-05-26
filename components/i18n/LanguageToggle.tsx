@@ -2,7 +2,6 @@
 
 import { Globe } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useOptionalSession } from "@/components/auth/useOptionalSession";
 import { useOptionalLanguage } from "./LanguageProviderClient";
 import { getLanguageDisplayName, SUPPORTED_LANGUAGES, type LanguageCode } from "@/lib/i18n/constants";
 
@@ -30,19 +29,11 @@ export default function LanguageToggle({
   refreshOnChange?: boolean;
 } = {}) {
   const router = useRouter();
-  const { data: session } = useOptionalSession();
   const { language, setLanguage, t } = useOptionalLanguage();
 
   const selectLang = (lang: LanguageCode) => {
     setLanguage(lang);
     if (refreshOnChange) router.refresh();
-    if (session?.user) {
-      fetch("/api/user/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ preferredLanguage: lang }),
-      }).catch(() => {});
-    }
   };
 
   const labelText = t("common.language");

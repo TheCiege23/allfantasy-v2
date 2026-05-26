@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Check, Loader2, Sparkles } from "lucide-react"
+import { ArrowRight, Check, Loader2, Sparkles } from "lucide-react"
 import {
   fetchWorldCupGroupStageView,
   saveWorldCupGroupRankingClient,
@@ -9,6 +9,7 @@ import {
   type WorldCupGroupStageTeamClient,
   type WorldCupGroupStageViewClient,
 } from "@/lib/world-cup/worldCupClientApi"
+import WorldCupTeamFlag from "./WorldCupTeamFlag"
 import {
   buildWorldCupGroupStageGroupInsights,
   buildWorldCupGroupStageThirdPlaceInsights,
@@ -23,6 +24,7 @@ type Props = {
   entryId: string
   onCompletionChanged?: () => void
   onDirtyChange?: (hasUnsavedChanges: boolean) => void
+  onContinueToKnockouts?: () => void
   aiInsightsUnlocked?: boolean
 }
 
@@ -240,7 +242,7 @@ function ThirdPlaceAiInsightPanel({
   )
 }
 
-export default function WorldCupGroupStagePicks({ challengeId, entryId, onCompletionChanged, onDirtyChange, aiInsightsUnlocked = false }: Props) {
+export default function WorldCupGroupStagePicks({ challengeId, entryId, onCompletionChanged, onDirtyChange, onContinueToKnockouts, aiInsightsUnlocked = false }: Props) {
   // Hydration-safe: locale flows from the global LanguageProviderClient
   // which reads <html data-lang> on first render — SSR HTML matches the
   // first CSR pass.
@@ -479,6 +481,12 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                       className={`flex flex-wrap items-center gap-2 rounded-xl border bg-black/20 px-2 py-2 sm:flex-nowrap ${resultBorderClass(status)}`}
                     >
                       <span className="w-7 shrink-0 text-center text-sm font-black text-white/90">{index + 1}</span>
+                      <WorldCupTeamFlag
+                        teamName={team?.name}
+                        countryCode={team?.fifaCode ?? undefined}
+                        flagUrl={team?.flagUrl ?? undefined}
+                        size="sm"
+                      />
                       <div className="min-w-0 flex-1">
                         {/* Team name (team?.name) is intentionally NOT translated — see Phase 5 brief. */}
                         <div className="truncate text-sm font-bold text-white">{team?.name ?? teamId}</div>
@@ -539,7 +547,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
               <button
                 type="button"
                 onClick={() => void saveGroup(group.id)}
-                disabled={isLocked || state === "saving" || !hasCompleteTeams || (state !== "idle" && !hasUnsavedOrderChanges)}
+                disabled={isLocked || state === "saving" || !hasCompleteTeams}
                 className="mt-3 w-full rounded-xl bg-cyan-300 px-3 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:opacity-45"
               >
                 {state === "saving"
@@ -684,6 +692,30 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
               : t("wc.thirdPlace.savePrimaryBtn")}
         </button>
       </div>
+
+      {/* Continue to Knockout Bracket — shown when all groups and third-place picks are saved */}
+      {onContinueToKnockouts && view.completion.allGroupsRanked && (
+        <div
+          data-testid="group-stage-continue-knockouts"
+          className="rounded-2xl border border-cyan-300/25 bg-cyan-300/[0.06] p-4 sm:p-5"
+        >
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="font-black text-white">{t("wc.groupStage.continueTitle")}</h3>
+              <p className="mt-1 text-sm text-white/55">{t("wc.groupStage.continueBody")}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onContinueToKnockouts}
+              className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-gradient-to-b from-cyan-300 to-cyan-400 px-5 py-2.5 text-sm font-black text-slate-950 shadow-[0_6px_24px_-8px_rgba(34,211,238,0.55)] transition-transform hover:scale-[1.02] active:scale-[0.98] touch-manipulation"
+              data-testid="group-stage-continue-btn"
+            >
+              {t("wc.groupStage.continueBtn")}
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
