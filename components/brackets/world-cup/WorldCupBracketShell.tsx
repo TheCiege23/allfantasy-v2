@@ -4349,7 +4349,7 @@ export default function WorldCupBracketShell({
         data-testid="world-cup-back-to-top"
         type="button"
         onClick={() => scrollToAnchor("world-cup-top")}
-        className="fixed bottom-20 right-4 z-50 inline-flex items-center gap-1 rounded-full border border-white/20 bg-zinc-900/90 px-3 py-2 text-xs font-black text-white shadow-xl backdrop-blur sm:bottom-6"
+        className="fixed bottom-20 right-4 z-50 inline-flex min-h-11 touch-manipulation items-center gap-1 rounded-full border border-white/20 bg-zinc-900/90 px-3 py-2 text-xs font-black text-white shadow-xl backdrop-blur sm:bottom-6 sm:min-h-0"
       >
         <ArrowUp className="h-3.5 w-3.5" />
         Top
@@ -4363,7 +4363,7 @@ export default function WorldCupBracketShell({
           data-testid="world-cup-floating-chat"
           type="button"
           onClick={() => switchTab("chat")}
-          className="fixed bottom-20 left-4 z-50 hidden items-center gap-1.5 rounded-full border border-white/20 bg-zinc-900/90 px-3 py-2 text-xs font-black text-white shadow-xl backdrop-blur transition-colors hover:border-cyan-300/40 hover:bg-zinc-800 sm:bottom-6 sm:inline-flex"
+          className="fixed bottom-20 left-4 z-50 hidden touch-manipulation items-center gap-1.5 rounded-full border border-white/20 bg-zinc-900/90 px-3 py-2 text-xs font-black text-white shadow-xl backdrop-blur transition-colors hover:border-cyan-300/40 hover:bg-zinc-800 sm:bottom-6 sm:inline-flex"
           aria-label={t("wc.tab.chat")}
         >
           <MessageSquare className="h-3.5 w-3.5 text-cyan-300/80" />
