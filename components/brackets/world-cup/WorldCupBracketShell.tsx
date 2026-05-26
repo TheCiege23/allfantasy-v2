@@ -3588,7 +3588,7 @@ export default function WorldCupBracketShell({
                         onClick={() => scrollToAnchor("world-cup-admin", "picks")}
                         className="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-[11px] font-bold text-white/70"
                       >
-                        Jump to Admin/Test
+                        {t("wc.subnav.adminTest")}
                       </button>
                     ) : null}
                     <button
