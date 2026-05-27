@@ -18,6 +18,7 @@ import {
   updateSubscriptionFromStripeEvent,
 } from "@/lib/subscription/webhookHandlers"
 import { persistLeagueEntryFeeFromStripeSession } from "@/lib/league-finance/leagueFinanceService"
+import { adminRevokeTokensForPurchaseRefund } from "@/lib/tokens/adminTokenRefundService"
 
 export const runtime = "nodejs"
 
@@ -293,6 +294,106 @@ async function routeCheckoutSessionCompleted(session: Stripe.Checkout.Session): 
   return purchaseType
 }
 
+/**
+ * Look up the original token purchase for a Stripe refund and call
+ * adminRevokeTokensForPurchaseRefund to revoke tokens proportionally.
+ *
+ * Lookup chain:
+ *   payment_intent ID
+ *   → stripe.checkout.sessions.list({ payment_intent })
+ *   → tokenLedger.findFirst({ sourceType: "stripe_checkout", sourceId: session.id, entryType: "purchase" })
+ *   → adminRevokeTokensForPurchaseRefund (idempotent on stripeRefundId)
+ *
+ * Non-throwing: always returns a descriptive string for logging. Never returns
+ * a status code — it is the caller's responsibility to return 2xx to Stripe.
+ */
+async function resolveAndRevokeTokensForStripeRefund(params: {
+  refundId: string
+  paymentIntentId: string
+  refundAmountCents: number
+}): Promise<"processed" | "not_token_purchase" | "no_session" | "no_ledger_entry" | "skipped_zero"> {
+  const { refundId, paymentIntentId, refundAmountCents } = params
+  const stripe = getStripeClient()
+
+  // 1. Find the Stripe Checkout Session by payment intent
+  const sessions = await stripe.checkout.sessions.list({
+    payment_intent: paymentIntentId,
+    limit: 1,
+  })
+  const session = sessions.data[0]
+  if (!session) {
+    console.info("[stripe webhook] refund: no checkout session for payment_intent — not a checkout purchase", {
+      paymentIntentId,
+      refundId,
+    })
+    return "no_session"
+  }
+
+  // 2. Only process token purchases — subscription refunds do not touch the token ledger
+  const purchaseType = resolveCheckoutPurchaseType(session)
+  if (purchaseType !== "tokens") {
+    console.info("[stripe webhook] refund: session purchaseType is not 'tokens', skipping token revocation", {
+      refundId,
+      purchaseType,
+      sessionId: session.id,
+    })
+    return "not_token_purchase"
+  }
+
+  // 3. Find the token grant ledger row by checkout session ID
+  //    sourceId stores the Checkout Session ID at purchase time
+  const purchaseLedger = await (prisma as any).tokenLedger.findFirst({
+    where: {
+      sourceType: "stripe_checkout",
+      sourceId: session.id,
+      entryType: "purchase",
+    },
+    select: { userId: true, tokenDelta: true },
+  })
+  if (!purchaseLedger) {
+    console.warn("[stripe webhook] refund: no token purchase ledger row found for session — may have been fulfilled differently", {
+      refundId,
+      sessionId: session.id,
+    })
+    return "no_ledger_entry"
+  }
+
+  const originalTokens = Math.max(0, Number(purchaseLedger.tokenDelta || 0))
+  if (originalTokens === 0) return "no_ledger_entry"
+
+  // 4. Compute proportional revocation for partial refunds
+  //    Full refund: proportion = 1 → revoke all tokens
+  //    Partial refund: proportion = refundAmount / sessionTotal
+  const sessionTotal = Math.max(0, Number(session.amount_total || 0))
+  const proportion = sessionTotal > 0 ? Math.min(1, refundAmountCents / sessionTotal) : 1
+  const tokensToRevoke = Math.max(0, Math.round(originalTokens * proportion))
+
+  if (tokensToRevoke === 0) {
+    console.info("[stripe webhook] refund: computed 0 tokens to revoke, skipping", {
+      refundId,
+      proportion,
+      originalTokens,
+    })
+    return "skipped_zero"
+  }
+
+  // 5. Revoke — idempotencyKey = "stripe_refund:{refundId}" prevents double-processing
+  //    on Stripe webhook retries. Balance is floored at 0 inside the service.
+  await adminRevokeTokensForPurchaseRefund({
+    userId: String(purchaseLedger.userId),
+    stripeRefundId: refundId,
+    tokensToRevoke,
+    reason: "payment_error",
+    adminEmail: "stripe-webhook@system",
+    adminNote:
+      sessionTotal > 0
+        ? `Auto: refunded $${(refundAmountCents / 100).toFixed(2)} of $${(sessionTotal / 100).toFixed(2)} (${Math.round(proportion * 100)}%).`
+        : `Auto: full refund ${refundId}.`,
+  })
+
+  return "processed"
+}
+
 export async function POST(req: NextRequest) {
   try {
     const signature = req.headers.get("stripe-signature")
@@ -415,24 +516,56 @@ export async function POST(req: NextRequest) {
           }
           break
         }
-        // ── Unhandled Stripe refund events ──────────────────────────────────
-        // charge.refunded, refund.created, and refund.updated are NOT currently
-        // handled automatically. These events fall here and return HTTP 200 to
-        // Stripe, but NO token ledger or balance change is made automatically.
+        // ── Stripe refund events — automatic token revocation ──────────────
+        // charge.refunded fires when a charge is (partially) refunded.
+        // refund.created fires when a new Refund object is created.
+        // refund.updated fires when a refund transitions (e.g. pending→succeeded).
         //
-        // PRE-PUBLIC-BETA TASK — automatic token revocation on Stripe refunds:
-        //   1. Detect charge.refunded / refund.created events here
-        //   2. Look up the original checkout.session.completed event by charge ID
-        //      to resolve userId and tokensGranted
-        //   3. Call adminRevokeTokensForPurchaseRefund() from
-        //      lib/tokens/adminTokenRefundService with:
-        //        { userId, stripeRefundId: event.data.object.id,
-        //          tokensToRevoke, reason: "stripe_refund_event" }
-        //   The idempotencyKey "stripe_refund:{refundId}" prevents double-processing.
+        // All three call resolveAndRevokeTokensForStripeRefund which:
+        //   1. Looks up the Checkout Session by payment intent via Stripe API
+        //   2. Skips non-token purchases (subscriptions, league fees, etc.)
+        //   3. Finds the token purchase ledger row by session ID
+        //   4. Computes proportional tokensToRevoke (partial refund support)
+        //   5. Calls adminRevokeTokensForPurchaseRefund with idempotencyKey
+        //      "stripe_refund:{refundId}" — safe to retry, no double-revoke
         //
-        // Until automatic handling ships, purchase refund reconciliation is done
-        // manually by admin via POST /api/admin/tokens/refund.
+        // POST /api/admin/tokens/refund remains available for manual override.
         // ────────────────────────────────────────────────────────────────────────
+        case "charge.refunded": {
+          const charge = event.data.object as Stripe.Charge
+          // charge.refunds is embedded in the webhook payload; data[0] is the latest refund
+          const chargeRefunds = (charge.refunds as { data: Array<{ id: string; amount: number }> } | undefined | null)
+          const latestRefund = chargeRefunds?.data?.[0]
+          const piId = typeof charge.payment_intent === "string" ? charge.payment_intent : null
+          if (latestRefund?.id && piId && typeof latestRefund.amount === "number") {
+            await resolveAndRevokeTokensForStripeRefund({
+              refundId: latestRefund.id,
+              paymentIntentId: piId,
+              refundAmountCents: latestRefund.amount,
+            })
+          }
+          break
+        }
+        case "refund.created":
+        case "refund.updated": {
+          const refund = event.data.object as Stripe.Refund
+          // Only act on succeeded refunds — "pending" transitions to succeeded via refund.updated
+          if (refund.status !== "succeeded") break
+          const piId = typeof refund.payment_intent === "string" ? refund.payment_intent : null
+          if (!piId) {
+            console.info("[stripe webhook] refund event has no payment_intent, skipping", {
+              refundId: refund.id,
+              type: event.type,
+            })
+            break
+          }
+          await resolveAndRevokeTokensForStripeRefund({
+            refundId: refund.id,
+            paymentIntentId: piId,
+            refundAmountCents: refund.amount,
+          })
+          break
+        }
         default:
           break
       }
