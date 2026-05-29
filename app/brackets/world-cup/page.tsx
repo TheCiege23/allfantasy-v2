@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 import Image from "next/image"
 import { getServerSession } from "next-auth"
@@ -10,6 +11,7 @@ import {
   Lock,
   Plus,
   Radio,
+  Settings,
   Share2,
   Shield,
   Sparkles,
@@ -27,6 +29,25 @@ const WC_VIDEO_SRC = "/videos/brackets/world-cup/af-world-cup-hero.mp4"
 const WC_POSTER_SRC = "/images/brackets/world-cup/af-world-cup-hero-poster.jpg"
 
 export const dynamic = "force-dynamic"
+
+export const metadata: Metadata = {
+  title: "AF World Cup Bracket Challenge | AllFantasy.AI",
+  description:
+    "Predict every match of the FIFA World Cup 2026. Create or join a pool, build your bracket, and compete with friends using AI-powered analytics.",
+  openGraph: {
+    title: "AF World Cup Bracket Challenge",
+    description:
+      "Predict every match of the FIFA World Cup 2026. Create or join a bracket pool and compete with AI-powered analytics.",
+    images: ["/images/brackets/world-cup/af-world-cup-hero-poster.jpg"],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "AF World Cup Bracket Challenge",
+    description: "Predict every match of the FIFA World Cup 2026. Join a bracket pool on AllFantasy.AI.",
+    images: ["/images/brackets/world-cup/af-world-cup-hero-poster.jpg"],
+  },
+}
 
 /**
  * AF World Cup Pools Command Center — Phase 7 v3
@@ -105,14 +126,18 @@ const ACTION_ITEMS: ActionItem[] = [
 export default async function WorldCupBracketsPage() {
   const session = (await getServerSession(authOptions as any)) as { user?: SessionUser } | null
   const userId = session?.user?.id ?? null
+  // Defensive: DB hiccups on cold-start should degrade gracefully (empty list),
+  // not crash the server component and show a blank error page.
   const challenges: WorldCupChallengeSummary[] = userId
-    ? await listUserWorldCupChallenges(userId)
+    ? await listUserWorldCupChallenges(userId).catch(() => [])
     : []
   const { language } = await resolveServerRenderPreferences()
   const t = makeWcT(language)
 
+  // data-wc-dark: marks this element for the globals.css [data-wc-dark] rules that
+  // prevent the DEFAULT_THEME="light" palette overrides from washing out the page.
   return (
-    <main className="mode-readable relative min-h-screen overflow-hidden bg-[#05070b] text-white">
+    <main className="mode-readable relative min-h-screen overflow-hidden bg-[#05070b] text-white" data-wc-dark="">
       {/* ── Atmospheric background ──────────────────────────────────── */}
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-0">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(20,184,166,0.16),transparent_55%),radial-gradient(ellipse_at_bottom,rgba(67,56,202,0.12),transparent_60%)]" />
@@ -128,7 +153,20 @@ export default async function WorldCupBracketsPage() {
         >
           {t("wc.publicHub.backToBrackets")}
         </Link>
-        <LanguageToggle variant="compact" refreshOnChange />
+        <div className="flex items-center gap-2">
+          <LanguageToggle variant="compact" refreshOnChange />
+          {userId && (
+            <Link
+              href="/settings"
+              className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] p-2 text-white/60 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              aria-label={t("wc.publicHub.accountSettings")}
+              title={t("wc.publicHub.accountSettings")}
+              data-testid="wc-public-settings-link"
+            >
+              <Settings className="h-4 w-4" />
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* ── Hero: Command Center ─────────────────────────────────────── */}
