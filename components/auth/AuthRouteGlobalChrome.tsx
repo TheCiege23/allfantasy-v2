@@ -14,9 +14,26 @@ import { GlobalModeToggle } from "@/components/theme/GlobalModeToggle"
 
 const AUTH_ROUTE_PREFIXES = ["/login", "/signup", "/signin", "/auth"]
 
-function isAuthRoutePath(pathname: string | null): boolean {
+/**
+ * Paths where ALL chrome (Toaster portal, SW reg, GlobalModeToggle, etc.)
+ * must be suppressed to prevent hydration mismatches. Mirrors the list in
+ * SafeGlobalChrome — keep them in sync.
+ *
+ * /brackets/world-cup is included because usePathname() returns null during
+ * the first client render tick (before the router initialises). On the server
+ * the real pathname is returned and chrome would render; on the client the
+ * null bail fires and chrome returns null → server/client tree mismatch →
+ * React #418/#423 → HierarchyRequestError. Adding the prefix here ensures
+ * both sides agree on null output.
+ */
+const FULL_CHROME_BAIL_PREFIXES = [
+  ...AUTH_ROUTE_PREFIXES,
+  "/brackets/world-cup",
+]
+
+function shouldBailChrome(pathname: string | null): boolean {
   if (!pathname) return false
-  return AUTH_ROUTE_PREFIXES.some(
+  return FULL_CHROME_BAIL_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
   )
 }
@@ -24,18 +41,18 @@ function isAuthRoutePath(pathname: string | null): boolean {
 export function AuthRouteGlobalChrome() {
   const pathname = usePathname()
 
-  // EMERGENCY HARD BAIL: /brackets root crashing after Phase 6 page rollback.
-  // Defensively skip all chrome (toaster portal, SW reg, sonner, etc.) on the
-  // exact /brackets path and when pathname is unknown. /brackets/world-cup and
-  // every other route continue to render the full chrome.
+  // Bail when pathname is unknown (first client render tick before router
+  // initialises). This matches the server's null output for unknown paths
+  // so both sides of hydration agree.
   if (pathname === null || pathname === undefined) {
     return null
   }
+  // Bail on /brackets root — crashing after Phase 6 page rollback.
   if (pathname === "/brackets") {
     return null
   }
 
-  if (isAuthRoutePath(pathname)) {
+  if (shouldBailChrome(pathname)) {
     return null
   }
 

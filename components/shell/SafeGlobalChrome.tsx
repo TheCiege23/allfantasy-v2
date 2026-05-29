@@ -11,9 +11,22 @@ const AUTH_ROUTE_PREFIXES = ["/login", "/signup", "/signin", "/auth"]
 /**
  * Paths where the entire global chrome (including AuthRouteGlobalChrome and
  * the service-worker lifecycle) must NOT render. These are the historical
- * auth shells where any extra body content would cause hydration drift.
+ * auth shells where any extra body content would cause hydration drift, PLUS
+ * the World Cup bracket routes.
+ *
+ * Why /brackets/world-cup: SafeGlobalChrome uses `usePathname()` to gate
+ * chrome. On the server the hook returns the real pathname; on the client
+ * during the first hydration tick it returns `null` and the bail above fires.
+ * When the server renders chrome but the client renders null the trees differ →
+ * React #418 hydration mismatch → #423 client-only fallback → Next.js activates
+ * global-error.tsx (which renders its own <html><body>) → HierarchyRequestError.
+ * Adding the prefix here makes the server also render null for these paths so
+ * both sides agree. Re-enable after the specific chrome culprit is bisected.
  */
-const FULL_CHROME_BAIL_PREFIXES = [...AUTH_ROUTE_PREFIXES]
+const FULL_CHROME_BAIL_PREFIXES = [
+  ...AUTH_ROUTE_PREFIXES,
+  "/brackets/world-cup",
+]
 
 /**
  * Paths where DOM-mutating third-party scripts (Meta Pixel + Facebook SDK)
