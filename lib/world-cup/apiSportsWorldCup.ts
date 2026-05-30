@@ -52,6 +52,8 @@ async function apiFootballFetch<T>(endpoint: string, params: Record<string, stri
 }
 export async function fetchWorldCupTeams(seasonYear: number) { return apiFootballFetch<ApiFootballWorldCupTeam>("teams", { league: getWorldCupLeagueId(), season: String(seasonYear) }) }
 export async function fetchWorldCupFixtures(seasonYear: number) { return apiFootballFetch<ApiFootballWorldCupFixture>("fixtures", { league: getWorldCupLeagueId(), season: String(seasonYear) }) }
+/** Fetch only today's matches (UTC) for the given season — includes FT/AET/PEN so bracket winners propagate. Returns 0 fixtures on off-days, 1-8 on match days. */
+export async function fetchWorldCupTodayAndActiveFixtures(seasonYear: number) { const today = new Date().toISOString().slice(0, 10); return apiFootballFetch<ApiFootballWorldCupFixture>("fixtures", { league: getWorldCupLeagueId(), season: String(seasonYear), from: today, to: today }) }
 export async function fetchWorldCupStandings(seasonYear: number) {
   const rows = await apiFootballFetch<{ league?: { standings?: ApiFootballWorldCupStanding[][] | null } }>("standings", { league: getWorldCupLeagueId(), season: String(seasonYear) })
   return rows.flatMap((row) => row.league?.standings ?? []).flat()

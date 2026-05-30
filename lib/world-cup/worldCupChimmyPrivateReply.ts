@@ -199,6 +199,7 @@ export async function generateWorldCupChimmyPrivateReply(input: {
       { role: "system", content: system },
       { role: "user", content: userContent },
     ],
+    profile: "cheap",
     temperature: 0.65,
     maxTokens: 520,
     skipCache: true,

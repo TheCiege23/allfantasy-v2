@@ -5,7 +5,7 @@ import { WorldCupProviderConfigError } from "@/lib/world-cup/worldCupDataProvide
 import {
   recalculateWorldCupChallenge,
   syncWorldCupFixtures,
-  syncWorldCupLiveScores,
+  syncWorldCupLiveScoresBatch,
   syncWorldCupProviderGroupStandings,
   syncWorldCupTeams,
 } from "@/lib/world-cup"
@@ -134,13 +134,8 @@ async function runWorldCupCronSync(input: z.infer<typeof bodySchema>) {
   }
 
   if (job === "live" || job === "all") {
-    result.live = []
-    for (const id of challengeIds) {
-      ;(result.live as unknown[]).push({
-        challengeId: id,
-        result: await syncWorldCupLiveScores({ challengeId: id, provider, seasonYear, dryRun, recalculate }),
-      })
-    }
+    // Single API-Football fetch fans out to all active challenges — eliminates the N×call-per-challenge loop.
+    result.live = await syncWorldCupLiveScoresBatch({ challengeIds, provider, seasonYear, dryRun, recalculate })
   }
 
   if (job === "standings" || job === "all") {

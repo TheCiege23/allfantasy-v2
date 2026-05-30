@@ -2,6 +2,7 @@ import "server-only"
 import {
   fetchWorldCupTeams,
   fetchWorldCupFixtures,
+  fetchWorldCupTodayAndActiveFixtures,
   fetchWorldCupStandings,
   normalizeWorldCupStatus,
   normalizeWorldCupRound,
@@ -70,8 +71,11 @@ export class ApiFootballWorldCupProvider implements WorldCupDataProvider {
   }
 
   async getLiveFixtures(seasonYear: number): Promise<WorldCupProviderFixture[]> {
-    // Must include finished fixtures so winners and final scores propagate to bracket rows.
-    return this.getFixtures(seasonYear)
+    // Fetch today's matches only (UTC date filter). Includes FT/AET/PEN so bracket winners
+    // propagate correctly. Returns 0 rows on off-days (saves ~104 rows vs full season dump).
+    this.checkConfig()
+    const rows = await fetchWorldCupTodayAndActiveFixtures(seasonYear)
+    return rows.map((f) => this.normalizeFixture(f))
   }
 
   async getGroupStandings(seasonYear: number): Promise<WorldCupProviderGroupStanding[]> {

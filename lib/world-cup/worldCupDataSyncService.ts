@@ -902,6 +902,56 @@ export async function syncWorldCupLiveScores(
   })
 }
 
+/**
+ * Fetch live fixtures ONCE for all active World Cup challenges, then fan out DB writes.
+ * Replaces N per-challenge provider calls with a single API-Football call per cron tick.
+ */
+export async function syncWorldCupLiveScoresBatch(
+  options: WorldCupSyncOptions & {
+    challengeIds: string[]
+    recalculate?: boolean
+  }
+): Promise<Array<{ challengeId: string; result: WorldCupLiveScoreSyncResult }>> {
+  const { dryRun = false, challengeIds, recalculate = true, seasonYear = 2026 } = options
+
+  const emptyFor = (warnings: string[]): WorldCupLiveScoreSyncResult => ({
+    updated: 0,
+    skipped: 0,
+    finalMatches: 0,
+    warnings,
+    recalculated: false,
+  })
+
+  let liveFixtures: WorldCupProviderFixture[]
+  try {
+    const provider = await getWorldCupDataProvider(options.provider)
+    liveFixtures = provider.getLiveFixtures
+      ? await provider.getLiveFixtures(seasonYear)
+      : await provider.getFixtures(seasonYear)
+  } catch (err) {
+    if (err instanceof WorldCupProviderConfigError) {
+      const result = emptyFor([err.message])
+      return challengeIds.map((challengeId) => ({ challengeId, result }))
+    }
+    throw err
+  }
+
+  if (liveFixtures.length === 0) {
+    const result = emptyFor(["No live/updated fixtures returned by provider."])
+    return challengeIds.map((challengeId) => ({ challengeId, result }))
+  }
+
+  return Promise.all(
+    challengeIds.map(async (challengeId) => ({
+      challengeId,
+      result: await applyWorldCupLiveFixturesToChallenge(challengeId, liveFixtures, {
+        dryRun,
+        recalculate,
+      }),
+    }))
+  )
+}
+
 export async function syncWorldCupProviderGroupStandings(
   options: WorldCupSyncOptions & { challengeId: string }
 ): Promise<WorldCupGroupStandingsSyncResult> {

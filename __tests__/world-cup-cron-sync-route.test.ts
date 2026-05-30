@@ -4,7 +4,7 @@ import { NextRequest } from "next/server"
 const serviceMocks = vi.hoisted(() => ({
   syncWorldCupTeams: vi.fn(),
   syncWorldCupFixtures: vi.fn(),
-  syncWorldCupLiveScores: vi.fn(),
+  syncWorldCupLiveScoresBatch: vi.fn(),
   syncWorldCupProviderGroupStandings: vi.fn(),
   recalculateWorldCupChallenge: vi.fn(),
   prisma: {
@@ -19,7 +19,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: serviceMocks.prisma }))
 vi.mock("@/lib/world-cup", () => ({
   syncWorldCupTeams: serviceMocks.syncWorldCupTeams,
   syncWorldCupFixtures: serviceMocks.syncWorldCupFixtures,
-  syncWorldCupLiveScores: serviceMocks.syncWorldCupLiveScores,
+  syncWorldCupLiveScoresBatch: serviceMocks.syncWorldCupLiveScoresBatch,
   syncWorldCupProviderGroupStandings: serviceMocks.syncWorldCupProviderGroupStandings,
   recalculateWorldCupChallenge: serviceMocks.recalculateWorldCupChallenge,
 }))
@@ -36,13 +36,10 @@ describe("World Cup cron sync route", () => {
     vi.stubEnv("WORLD_CUP_CRON_SECRET", "cron-secret")
     vi.stubEnv("API_SPORTS_KEY", "api-key")
     serviceMocks.prisma.worldCupBracketChallenge.findMany.mockResolvedValue([{ id: "c1" }])
-    serviceMocks.syncWorldCupLiveScores.mockResolvedValue({
-      updated: 1,
-      skipped: 0,
-      finalMatches: 0,
-      warnings: [],
-      recalculated: true,
-    })
+    serviceMocks.syncWorldCupLiveScoresBatch.mockResolvedValue([{
+      challengeId: "c1",
+      result: { updated: 1, skipped: 0, finalMatches: 0, warnings: [], recalculated: true },
+    }])
     serviceMocks.syncWorldCupTeams.mockResolvedValue({ created: 0, updated: 0, skipped: 0, warnings: [] })
   })
 
@@ -62,8 +59,8 @@ describe("World Cup cron sync route", () => {
 
     expect(response.status).toBe(200)
     expect(body.ok).toBe(true)
-    expect(serviceMocks.syncWorldCupLiveScores).toHaveBeenCalledWith({
-      challengeId: "c1",
+    expect(serviceMocks.syncWorldCupLiveScoresBatch).toHaveBeenCalledWith({
+      challengeIds: ["c1"],
       provider: "apifootball",
       seasonYear: 2026,
       dryRun: false,
