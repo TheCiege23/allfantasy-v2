@@ -419,7 +419,9 @@ describe("World Cup scoring", () => {
     expect(rows[0].entryId).toBe("e2")
     expect(rows[0].rank).toBe(1)
     expect(rows[0].maxPossibleScore).toBe(
-      DEFAULT_WORLD_CUP_SCORING.roundOf32Points + DEFAULT_WORLD_CUP_SCORING.finalPoints
+      DEFAULT_WORLD_CUP_SCORING.roundOf32Points +
+        DEFAULT_WORLD_CUP_SCORING.finalPoints +
+        DEFAULT_WORLD_CUP_SCORING.championBonusPoints
     )
     expect(rows[1].entryId).toBe("e1")
   })

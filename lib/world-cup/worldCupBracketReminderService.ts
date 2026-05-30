@@ -133,7 +133,8 @@ async function emitLockReminderForChallenge(input: {
 export async function runWorldCupBracketLockReminders(): Promise<{
   emitted: number
 }> {
-  const challenges = await prisma.worldCupBracketChallenge.findMany({
+  // Batch 1: challenges with an explicit pickLockAt (manual / custom strategy)
+  const explicitChallenges = await prisma.worldCupBracketChallenge.findMany({
     where: {
       pickLockAt: { not: null },
       status: { notIn: ["locked", "final"] },
@@ -145,11 +146,60 @@ export async function runWorldCupBracketLockReminders(): Promise<{
     },
   })
 
+  // Batch 2: tournament_start challenges — effective lock is derived from match
+  // start times via resolveWorldCupEffectivePickLockAt. They have pickLockAt: null
+  // so they were previously skipped entirely.
+  const tournamentStartChallenges = await (prisma as any).worldCupBracketChallenge.findMany({
+    where: {
+      pickLockStrategy: "tournament_start",
+      pickLockAt: null,
+      status: { notIn: ["locked", "final"] },
+    },
+    select: {
+      id: true,
+      name: true,
+      pickLockStrategy: true,
+      pickLockAt: true,
+      matches: {
+        select: {
+          id: true,
+          round: true,
+          status: true,
+          startsAt: true,
+          homeTeamId: true,
+          awayTeamId: true,
+          homeTeamName: true,
+          awayTeamName: true,
+          winnerTeamId: true,
+          winnerTeamName: true,
+        },
+      },
+    },
+  })
+
+  // Resolve effective lock times for tournament_start challenges
+  const resolvedTournamentStart: Array<{ id: string; name: string; pickLockAt: Date }> = []
+  for (const c of tournamentStartChallenges) {
+    const effectiveLockAt = resolveWorldCupEffectivePickLockAt({
+      pickLockStrategy: c.pickLockStrategy,
+      pickLockAt: c.pickLockAt,
+      matches: c.matches,
+    })
+    if (effectiveLockAt) {
+      resolvedTournamentStart.push({ id: c.id, name: c.name, pickLockAt: effectiveLockAt })
+    }
+  }
+
+  const allChallenges = [
+    ...explicitChallenges.map((c: { id: string; name: string; pickLockAt: Date }) => ({ id: c.id, name: c.name, pickLockAt: c.pickLockAt! })),
+    ...resolvedTournamentStart,
+  ]
+
   let emitted = 0
   const now = Date.now()
 
-  for (const c of challenges) {
-    const lockAt = c.pickLockAt!
+  for (const c of allChallenges) {
+    const lockAt = c.pickLockAt
     const lockMs = lockAt.getTime()
 
     for (const b of WORLD_CUP_LOCK_REMINDER_BUCKETS) {

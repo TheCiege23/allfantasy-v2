@@ -1,7 +1,7 @@
 import "server-only"
 import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
-import { getWorldCupRoundPoints, isWorldCupChallengeLocked } from "./worldCupBracketBuilder"
+import { DEFAULT_WORLD_CUP_SCORING, getWorldCupRoundPoints, isWorldCupChallengeLocked } from "./worldCupBracketBuilder"
 import type { WorldCupLeaderboardRow, WorldCupRound, WorldCupScoringValues } from "./types"
 import {
   findWorldCupPickForMatch,
@@ -243,6 +243,51 @@ export function buildWorldCupLeaderboardRows(input: {
         maxPossibleScore += getWorldCupRoundPoints(pick.round as WorldCupRound, input.scoring)
       }
     }
+    // Champion bonus — awarded on top of final-round pick points when the
+    // entry's champion pick matches the tournament winner.
+    const championBonus =
+      input.scoring?.championBonusPoints ?? DEFAULT_WORLD_CUP_SCORING.championBonusPoints
+    const championPickForBonus = picks.find((x) => x.round === "final")
+    const championTeamIdForBonus =
+      e.championTeamId ?? championPickForBonus?.selectedTeamId ?? null
+    const championTeamNameForBonus =
+      e.championTeamName ?? championPickForBonus?.selectedTeamName ?? null
+    const finalMatch = input.matches.find(
+      (m) =>
+        m.round === "final" &&
+        m.status === "final" &&
+        (m.winnerTeamId || m.winnerTeamName)
+    )
+    if (finalMatch) {
+      // Tournament is over — award bonus if champion pick is correct
+      const wonBonus = Boolean(
+        (championTeamIdForBonus &&
+          finalMatch.winnerTeamId &&
+          championTeamIdForBonus === finalMatch.winnerTeamId) ||
+          (championTeamNameForBonus &&
+            finalMatch.winnerTeamName &&
+            normalizeTeamName(championTeamNameForBonus) ===
+              normalizeTeamName(finalMatch.winnerTeamName))
+      )
+      if (wonBonus) {
+        totalScore += championBonus
+        maxPossibleScore += championBonus
+      }
+    } else if (championTeamIdForBonus || championTeamNameForBonus) {
+      // Tournament not over — include bonus in max possible if pick is still alive
+      const stillAlive = isWorldCupPickSelectionStillAlive(
+        {
+          selectedTeamId: championTeamIdForBonus ?? null,
+          selectedTeamName: championTeamNameForBonus ?? "",
+          selectedSlotKey: null,
+        },
+        input.matches
+      )
+      if (stillAlive) {
+        maxPossibleScore += championBonus
+      }
+    }
+
     const joinedAt = e.createdAt instanceof Date ? e.createdAt.toISOString() : new Date(e.createdAt).toISOString()
     const updatedAt = e.updatedAt instanceof Date ? e.updatedAt.toISOString() : new Date(e.updatedAt).toISOString()
     const submittedAt = e.submittedAt
