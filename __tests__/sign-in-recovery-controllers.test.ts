@@ -32,8 +32,10 @@ describe('Sign-in and recovery controllers', () => {
   })
 
   it('maps auth and reset errors to user-friendly copy', () => {
-    expect(resolveLoginErrorMessage('PASSWORD_NOT_SET')).toContain('password')
-    expect(resolveLoginErrorMessage('SLEEPER_ONLY_ACCOUNT')).toContain('Sleeper')
+    // PASSWORD_NOT_SET and SLEEPER_ONLY_ACCOUNT must NOT reveal account existence —
+    // both collapse to the generic invalid-credentials message.
+    expect(resolveLoginErrorMessage('PASSWORD_NOT_SET')).toBe('Invalid username, email, phone, or password.')
+    expect(resolveLoginErrorMessage('SLEEPER_ONLY_ACCOUNT')).toBe('Invalid username, email, phone, or password.')
     expect(resolveSocialOAuthErrorMessage('access_denied')).toContain('cancelled')
     expect(resolveSocialOAuthErrorMessage('Missing OAuth callback code.')).toContain('callback')
     expect(resolvePasswordResetErrorMessage('EXPIRED_TOKEN')).toContain('expired')

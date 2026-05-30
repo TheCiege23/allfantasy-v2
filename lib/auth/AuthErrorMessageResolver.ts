@@ -3,13 +3,10 @@ export function resolveLoginErrorMessage(error: string | null | undefined): stri
   if (error.includes('SLEEPER_LOOKUP_UNAVAILABLE')) {
     return 'Sleeper sign-in is temporarily unavailable. Please try again in a moment.'
   }
-  if (error.includes('SLEEPER_ONLY_ACCOUNT')) {
-    return 'This account is Sleeper-linked only. Sign in with Sleeper or set a password first.'
-  }
-  if (error.includes('PASSWORD_NOT_SET')) {
-    return 'No password has been set for this account yet.'
-  }
-  return 'Invalid email, username, mobile number, or password.'
+  // NOTE: SLEEPER_ONLY_ACCOUNT and PASSWORD_NOT_SET intentionally return the
+  // generic message below — revealing account existence or auth method is an
+  // info-disclosure risk.  Users without a password can recover via reset.
+  return 'Invalid username, email, phone, or password.'
 }
 
 export function resolveSocialOAuthErrorMessage(

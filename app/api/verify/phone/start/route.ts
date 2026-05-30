@@ -25,6 +25,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "INVALID_PHONE", message: "Please enter a valid phone number with country code." }, { status: 400 })
   }
 
+  // Guard: reject if the normalised phone already belongs to a *different* user.
+  // (The @unique constraint would catch it later, but only as an opaque 500.)
+  const existingProfile = await (prisma as any).userProfile.findUnique({
+    where: { phone },
+    select: { userId: true },
+  }).catch(() => null)
+  if (existingProfile && existingProfile.userId !== userId) {
+    return NextResponse.json(
+      { error: "PHONE_ALREADY_IN_USE", message: "This phone number is already linked to another account." },
+      { status: 409 }
+    )
+  }
+
   await (prisma as any).userProfile.update({
     where: { userId },
     data: { phone },
