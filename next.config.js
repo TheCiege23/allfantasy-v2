@@ -43,9 +43,15 @@ const nextConfig = {
     // When layout.tsx / globals.css don't change between commits, webpack
     // reuses stale cache entries that omit CSS from app-build-manifest.json,
     // causing the deployed site to have no <link rel="stylesheet"> tags.
-    // Note: RAILWAY_GIT_COMMIT_SHA is runtime-only and unavailable at build
-    // time, so it cannot be used as a cache-version key.
-    if (!dev && process.env.RAILWAY_PROJECT_ID) {
+    // We also detect Railway via RAILWAY_ENVIRONMENT (more reliably injected
+    // at build time than RAILWAY_PROJECT_ID) and fall back to process.platform
+    // so Linux CI/CD environments are always protected even without Railway vars.
+    const isRailwayBuild = !!(
+      process.env.RAILWAY_PROJECT_ID ||
+      process.env.RAILWAY_ENVIRONMENT ||
+      process.env.RAILWAY_SERVICE_ID
+    );
+    if (!dev && (isRailwayBuild || process.platform === 'linux')) {
       config.cache = false;
     }
 

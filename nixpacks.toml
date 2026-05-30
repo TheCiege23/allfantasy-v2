@@ -11,7 +11,14 @@ nixPkgs = ["nodejs_22", "openssl"]
 cmds = ["npm ci"]
 
 [phases.build]
-cmds = ["npm run build"]
+# Clear the webpack filesystem cache before every build.  The Docker cache
+# mount (--mount=type=cache,target=/app/.next/cache) persists this directory
+# across builds keyed to the service ID.  When the previous build ran on
+# Node 20.18.1 it cached empty CSS (PostCSS couldn't require() ESM-only
+# @csstools/* packages); that empty-CSS result is then reused on Node 22
+# builds even though PostCSS now works correctly.  Clearing here ensures
+# webpack always compiles CSS from scratch regardless of what was cached.
+cmds = ["rm -rf .next/cache/webpack && npm run build"]
 
 [start]
 cmd = "npm run start"
