@@ -37,15 +37,16 @@ const nextConfig = {
       config.cache = false;
     }
 
-    // On Railway (Linux production), scope the webpack filesystem cache to the
-    // current git commit SHA.  This prevents stale cache entries from a previous
-    // commit (e.g. a cached CSS entrypoint that omits globals.css) from being
-    // reused in a new build, while still allowing Railway to reuse the cache
-    // when re-deploying the exact same commit.
-    if (!dev && process.env.RAILWAY_GIT_COMMIT_SHA) {
-      config.cache = typeof config.cache === 'object' && config.cache
-        ? { ...config.cache, version: process.env.RAILWAY_GIT_COMMIT_SHA }
-        : { type: 'filesystem', version: process.env.RAILWAY_GIT_COMMIT_SHA };
+    // On Railway (Linux production), disable the webpack filesystem cache entirely.
+    // Railway's Nixpacks builder mounts a persistent Docker cache volume at
+    // .next/cache between builds (id keyed to service ID, not commit SHA).
+    // When layout.tsx / globals.css don't change between commits, webpack
+    // reuses stale cache entries that omit CSS from app-build-manifest.json,
+    // causing the deployed site to have no <link rel="stylesheet"> tags.
+    // Note: RAILWAY_GIT_COMMIT_SHA is runtime-only and unavailable at build
+    // time, so it cannot be used as a cache-version key.
+    if (!dev && process.env.RAILWAY_PROJECT_ID) {
+      config.cache = false;
     }
 
     config.ignoreWarnings = [
