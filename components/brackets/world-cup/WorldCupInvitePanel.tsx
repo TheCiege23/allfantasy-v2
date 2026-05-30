@@ -171,7 +171,7 @@ export default function WorldCupInvitePanel({
   }
 
   return (
-    <div className="mode-readable mx-auto max-w-2xl px-4 py-6 pb-28 sm:pb-8">
+    <div className="mode-readable mx-auto max-w-2xl px-4 py-6 pb-28 sm:pb-8" aria-label={t("wc.inviteTab.title")}>
 
       {/* ── Invite Hero ─────────────────────────────────────────────── */}
       <div

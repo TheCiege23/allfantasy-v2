@@ -73,6 +73,16 @@ export type ChimmyGroupStandingRow = {
   isThirdPlaceAdvancer: boolean
 }
 
+export type ChimmyLeaderboardRow = {
+  rank: number
+  entryId: string
+  entryName: string
+  userId: string
+  totalScore: number
+  maxPossibleScore: number
+  championPickName: string | null
+}
+
 export type WorldCupChimmyContext = {
   challengeId: string
   poolName: string
@@ -85,6 +95,7 @@ export type WorldCupChimmyContext = {
   upcomingMatches: ChimmyMatchSummary[]
   recentMatches: ChimmyMatchSummary[]
   groupStandings: ChimmyGroupStandingRow[]
+  leaderboard: ChimmyLeaderboardRow[]
   liveDataStatus: ChimmyLiveDataStatus
   lastSyncedAt: string | null
   locale: string | null
@@ -340,6 +351,38 @@ async function fetchGroupStandings(): Promise<ChimmyGroupStandingRow[]> {
   }
 }
 
+async function fetchTopLeaderboard(challengeId: string, limit = 10): Promise<ChimmyLeaderboardRow[]> {
+  try {
+    const rows = await (prisma as any).worldCupBracketEntry.findMany({
+      where: { challengeId },
+      orderBy: [{ rank: "asc" }, { totalScore: "desc" }],
+      take: limit,
+      select: {
+        id: true,
+        name: true,
+        userId: true,
+        totalScore: true,
+        maxPossibleScore: true,
+        rank: true,
+        championTeamName: true,
+      },
+    })
+    return (rows as any[])
+      .filter((r: any) => typeof r.rank === "number")
+      .map((r: any): ChimmyLeaderboardRow => ({
+        rank: Number(r.rank),
+        entryId: String(r.id),
+        entryName: String(r.name ?? "Entry"),
+        userId: String(r.userId ?? ""),
+        totalScore: Number(r.totalScore ?? 0),
+        maxPossibleScore: Number(r.maxPossibleScore ?? 0),
+        championPickName: typeof r.championTeamName === "string" ? r.championTeamName : null,
+      }))
+  } catch {
+    return []
+  }
+}
+
 function emptyContext(
   challengeId: string,
   fetchedAt: string,
@@ -357,6 +400,7 @@ function emptyContext(
     upcomingMatches: [],
     recentMatches: [],
     groupStandings: [],
+    leaderboard: [],
     liveDataStatus: "unavailable",
     lastSyncedAt: null,
     locale: locale ?? null,
@@ -382,11 +426,12 @@ export async function buildWorldCupChimmyContext({
 }): Promise<WorldCupChimmyContext> {
   const fetchedAt = new Date().toISOString()
 
-  const [challengeSummary, entry, matches, groupStandings] = await Promise.all([
+  const [challengeSummary, entry, matches, groupStandings, leaderboard] = await Promise.all([
     fetchChallengeSummary(challengeId),
     fetchUserEntry(challengeId, userId),
     fetchRelevantMatches(challengeId),
     fetchGroupStandings(),
+    fetchTopLeaderboard(challengeId, 10),
   ])
 
   if (!challengeSummary) {
@@ -424,6 +469,7 @@ export async function buildWorldCupChimmyContext({
     upcomingMatches,
     recentMatches,
     groupStandings,
+    leaderboard,
     liveDataStatus,
     lastSyncedAt,
     locale: locale ?? null,

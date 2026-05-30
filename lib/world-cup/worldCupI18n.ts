@@ -151,7 +151,7 @@ const EN: WorldCupDictionary = {
   "wc.publicHub.commandTitle": "Build your World Cup path to greatness.",
   "wc.publicHub.commandSubtitle":
     "Create a pool, invite your crew, rank every group, pick the knockout path, and watch the leaderboard come alive.",
-  "wc.publicHub.trustNote": "No gambling. Just glory, strategy, and bragging rights.",
+  "wc.publicHub.trustNote": "Free to play. Just glory, strategy, and bragging rights.",
   "wc.publicHub.stat.teams": "48 Teams",
   "wc.publicHub.stat.groups": "12 Groups",
   "wc.publicHub.stat.matches": "104 Matches",
@@ -201,7 +201,7 @@ const EN: WorldCupDictionary = {
     "Share your pool link, challenge your friends, and let the leaderboard settle the debate.",
   "wc.publicHub.social.cta": "Create a Pool to Get Invite Link",
   "wc.publicHub.trust.note":
-    "AllFantasy World Cup Pools are for fantasy sports entertainment, strategy, and bragging rights. No sportsbook, no wagers.",
+    "AllFantasy World Cup Pools are for fantasy sports entertainment, strategy, and bragging rights. Completely free to play.",
 
   // ── Pool dashboard: tab labels ───────────────────────────────────────
   "wc.tab.home": "Home",
@@ -254,7 +254,7 @@ const EN: WorldCupDictionary = {
   "wc.rules.settings.thirdPlaceOff": "Off",
   "wc.rules.settings.inviteSharing": "Invite sharing",
   "wc.rules.settings.inviteCommish": "Commissioner only",
-  "wc.rules.trustNote": "No wagers. No sportsbook. Just World Cup predictions, strategy, and bragging rights.",
+  "wc.rules.trustNote": "Free to play. Just World Cup predictions, strategy, and bragging rights.",
 
   // ── Pool dashboard: home tab ──────────────────────────────────────────
   "wc.home.title": "World Cup Pool Dashboard",
@@ -566,7 +566,7 @@ const EN: WorldCupDictionary = {
   "wc.finalize.openChat": "Pool Chat",
   "wc.finalize.challengeTitle": "Your World Cup path is locked.",
   "wc.finalize.challengeDesc": "Now bring your crew and watch the leaderboard come alive.",
-  "wc.finalize.trustNote": "No wagers. No sportsbook. Just strategy, predictions, and bragging rights.",
+  "wc.finalize.trustNote": "Free to play. Just strategy, predictions, and bragging rights.",
 
   // ── Leaderboard tab visual upgrade ───────────────────────────────────
   "wc.lb.eyebrow": "Pool",
@@ -607,7 +607,7 @@ const EN: WorldCupDictionary = {
   "wc.lb.busted": "Busted",
   "wc.lb.aiProUnlocks": "AF Pro unlocks AI Win %, Bracket Health, and champion-path pressure.",
   "wc.lb.ptsLabel": "Pts",
-  "wc.lb.trustNote": "No wagers. No sportsbook. Just strategy, predictions, and bragging rights.",
+  "wc.lb.trustNote": "Free to play. Just strategy, predictions, and bragging rights.",
   // ── Share card UI chrome ──────────────────────────────────────────────
   "wc.share.eyebrow": "Share Graphic",
   "wc.share.titleInvite": "Pool Invite",
@@ -616,7 +616,7 @@ const EN: WorldCupDictionary = {
   "wc.share.titleRecap": "AI Recap",
   "wc.share.description": "Copy-ready social text for sharing your bracket or pool standings.",
   "wc.share.publicSafe": "Public-safe",
-  "wc.share.copy": "Copy",
+  "wc.share.copy": "Copy share text",
   "wc.share.copied": "Copied",
   "wc.share.share": "Share",
 
@@ -684,7 +684,7 @@ const EN: WorldCupDictionary = {
   "wc.inviteTab.actions.openChat": "Open Pool Chat",
   "wc.inviteTab.actions.shareLink": "Share on Mobile",
   "wc.inviteTab.trustNote":
-    "No wagers. No sportsbook. Just World Cup predictions, strategy, and bragging rights.",
+    "Free to play. Just World Cup predictions, strategy, and bragging rights.",
 
   // ── Commissioner Checklist card chrome (extended) ────────────────────
   "wc.checklist.eyebrow": "Commissioner",
@@ -1295,7 +1295,7 @@ const ES: WorldCupDictionary = {
   "wc.publicHub.commandTitle": "Construye tu camino a la gloria en la Copa del Mundo.",
   "wc.publicHub.commandSubtitle":
     "Crea un grupo, invita a tu equipo, clasifica cada grupo, elige el camino eliminatorio y mira cómo cobra vida el leaderboard.",
-  "wc.publicHub.trustNote": "Sin apuestas. Solo gloria, estrategia y derechos de presumir.",
+  "wc.publicHub.trustNote": "Gratis para jugar. Solo gloria, estrategia y derechos de presumir.",
   "wc.publicHub.stat.teams": "48 selecciones",
   "wc.publicHub.stat.groups": "12 grupos",
   "wc.publicHub.stat.matches": "104 partidos",
@@ -1345,7 +1345,7 @@ const ES: WorldCupDictionary = {
     "Comparte el enlace de tu grupo, reta a tus amigos y deja que el leaderboard resuelva el debate.",
   "wc.publicHub.social.cta": "Crear un grupo para obtener el enlace de invitación",
   "wc.publicHub.trust.note":
-    "Los pools de AllFantasy Copa del Mundo son para entretenimiento de fantasy sports, estrategia y derechos de presumir. Sin casa de apuestas, sin apuestas reales.",
+    "Los pools de AllFantasy Copa del Mundo son para entretenimiento de fantasy sports, estrategia y derechos de presumir. Completamente gratis para jugar.",
 
   // ── Pool dashboard: tab labels ───────────────────────────────────────
   "wc.tab.home": "Inicio",
@@ -1398,7 +1398,7 @@ const ES: WorldCupDictionary = {
   "wc.rules.settings.thirdPlaceOff": "Desactivado",
   "wc.rules.settings.inviteSharing": "Compartir invitación",
   "wc.rules.settings.inviteCommish": "Solo comisionado",
-  "wc.rules.trustNote": "Sin apuestas. Sin casas de apuestas. Solo predicciones de la Copa del Mundo, estrategia y derechos de presumir.",
+  "wc.rules.trustNote": "Sin costo alguno. Solo predicciones de la Copa del Mundo, estrategia y derechos de presumir.",
 
   // ── Pool dashboard: home tab ──────────────────────────────────────────
   "wc.home.title": "Panel del Pool de la Copa del Mundo",
@@ -1721,7 +1721,7 @@ const ES: WorldCupDictionary = {
   "wc.finalize.openChat": "Chat del pool",
   "wc.finalize.challengeTitle": "Tu camino en el Mundial está bloqueado.",
   "wc.finalize.challengeDesc": "Ahora trae a tu crew y observa cómo cobra vida la clasificación.",
-  "wc.finalize.trustNote": "Sin apuestas. Sin sportsbook. Solo estrategia, predicciones y derechos de fanfarroneo.",
+  "wc.finalize.trustNote": "Sin costo alguno. Solo estrategia, predicciones y derechos de fanfarroneo.",
 
   // ── Leaderboard tab visual upgrade ───────────────────────────────────
   "wc.lb.eyebrow": "Grupo",
@@ -1762,7 +1762,7 @@ const ES: WorldCupDictionary = {
   "wc.lb.busted": "Eliminado",
   "wc.lb.aiProUnlocks": "AF Pro desbloquea % de victorias IA, salud del bracket y presión en el camino al campeón.",
   "wc.lb.ptsLabel": "Pts",
-  "wc.lb.trustNote": "Sin apuestas. Sin sportsbook. Solo estrategia, predicciones y el derecho a presumir.",
+  "wc.lb.trustNote": "Sin costo alguno. Solo estrategia, predicciones y el derecho a presumir.",
   // ── Share card UI chrome ──────────────────────────────────────────────
   "wc.share.eyebrow": "Gráfico de compartición",
   "wc.share.titleInvite": "Invitación al grupo",
@@ -1845,7 +1845,7 @@ const ES: WorldCupDictionary = {
   "wc.inviteTab.actions.openChat": "Abrir chat del pool",
   "wc.inviteTab.actions.shareLink": "Compartir en móvil",
   "wc.inviteTab.trustNote":
-    "Sin apuestas. Sin sportsbook. Solo predicciones del Mundial, estrategia y el derecho a presumir.",
+    "Sin costo alguno. Solo predicciones del Mundial, estrategia y el derecho a presumir.",
 
   // ── Commissioner Checklist card chrome (extended) ────────────────────
   "wc.checklist.eyebrow": "Comisionado",
@@ -3609,7 +3609,7 @@ const FIL: WorldCupDictionary = {
   "wc.publicHub.commandTitle": "Itayo ang iyong landas tungo sa kadakilaan sa World Cup.",
   "wc.publicHub.commandSubtitle":
     "Gumawa ng pool, i-invite ang iyong grupo, i-rank ang bawat grupo, piliin ang knockout path, at panoorin ang leaderboard na maging buhay.",
-  "wc.publicHub.trustNote": "Walang gambling. Kaluwalhatian, strategy, at pagmamalaki lang.",
+  "wc.publicHub.trustNote": "Walang taya. Kaluwalhatian, strategy, at pagmamalaki lang.",
   "wc.publicHub.stat.teams": "48 bansa",
   "wc.publicHub.stat.groups": "12 grupo",
   "wc.publicHub.stat.matches": "104 laro",
@@ -3657,7 +3657,7 @@ const FIL: WorldCupDictionary = {
     "Ibahagi ang pool link, hamunin ang mga kaibigan, at hayaan ang leaderboard ang magpasya.",
   "wc.publicHub.social.cta": "Gumawa ng pool para makakuha ng invite link",
   "wc.publicHub.trust.note":
-    "Ang AF World Cup Pools ay para sa fantasy sports entertainment, strategy, at pagmamalaki. Walang sportsbook, walang totoong taya.",
+    "Ang AF World Cup Pools ay para sa fantasy sports entertainment, strategy, at pagmamalaki. Libreng laruin.",
 
   // ── Pool dashboard: tab labels ───────────────────────────────────────
   "wc.tab.home": "Home",
@@ -3710,7 +3710,7 @@ const FIL: WorldCupDictionary = {
   "wc.rules.settings.thirdPlaceOff": "Hindi kasama",
   "wc.rules.settings.inviteSharing": "Pagbabahagi ng imbitasyon",
   "wc.rules.settings.inviteCommish": "Commissioner lang",
-  "wc.rules.trustNote": "Walang taya. Walang sportsbook. Mga World Cup prediction, estratehiya, at karapatang magyabang lang.",
+  "wc.rules.trustNote": "Libreng laruin. Mga World Cup prediction, estratehiya, at karapatang magyabang lang.",
 
   // ── Pool dashboard: home tab ──────────────────────────────────────────
   "wc.home.title": "World Cup Pool Dashboard",
@@ -4040,7 +4040,7 @@ const FIL: WorldCupDictionary = {
   "wc.finalize.openChat": "Pool Chat",
   "wc.finalize.challengeTitle": "Naka-lock na ang iyong World Cup path.",
   "wc.finalize.challengeDesc": "Ngayon dalhin ang iyong crew at panoorin ang leaderboard na maging buhay.",
-  "wc.finalize.trustNote": "Walang taya. Walang sportsbook. Estratehiya, hula, at karapatang magyabang lang.",
+  "wc.finalize.trustNote": "Libreng laruin. Estratehiya, hula, at karapatang magyabang lang.",
 
   // ── Leaderboard tab visual upgrade ───────────────────────────────────
   "wc.lb.eyebrow": "Pool",
@@ -4081,7 +4081,7 @@ const FIL: WorldCupDictionary = {
   "wc.lb.busted": "Tapos na",
   "wc.lb.aiProUnlocks": "Ina-unlock ng AF Pro ang AI Win %, Bracket Health, at champion-path pressure.",
   "wc.lb.ptsLabel": "Pts",
-  "wc.lb.trustNote": "Walang taya. Walang sportsbook. Strategy, hula, at karapatang magyabang lang.",
+  "wc.lb.trustNote": "Libreng laruin. Strategy, hula, at karapatang magyabang lang.",
   // ── Share card UI chrome ──────────────────────────────────────────────
   "wc.share.eyebrow": "Share Graphic",
   "wc.share.titleInvite": "Pool Invite",
@@ -4163,7 +4163,7 @@ const FIL: WorldCupDictionary = {
   "wc.inviteTab.actions.openChat": "Buksan ang Pool Chat",
   "wc.inviteTab.actions.shareLink": "I-share sa Mobile",
   "wc.inviteTab.trustNote":
-    "Walang taya. Walang sportsbook. Hula, estratehiya, at karapatang magyabang lang.",
+    "Libreng laruin. Hula, estratehiya, at karapatang magyabang lang.",
 
   // ── Commissioner Checklist card chrome (extended) ────────────────────
   "wc.checklist.eyebrow": "Commissioner",
@@ -5232,7 +5232,7 @@ const VI: WorldCupDictionary = {
   "wc.finalize.openChat": "Chat pool",
   "wc.finalize.challengeTitle": "Con đường World Cup của bạn đã được khóa.",
   "wc.finalize.challengeDesc": "Giờ hãy rủ bạn bè cùng xem bảng xếp hạng trở nên sôi động.",
-  "wc.finalize.trustNote": "Không cá cược. Không sportsbook. Chỉ là chiến lược, dự đoán và quyền tự hào.",
+  "wc.finalize.trustNote": "Miễn phí hoàn toàn. Chỉ là chiến lược, dự đoán và quyền tự hào.",
 
   // ── Leaderboard tab visual upgrade ───────────────────────────────────
   "wc.lb.eyebrow": "Pool",

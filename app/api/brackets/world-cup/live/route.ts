@@ -27,6 +27,6 @@ export async function GET() {
     return NextResponse.json({ matches })
   } catch (error) {
     console.error("[world-cup/live] failed to load live matches", error)
-    return NextResponse.json({ matches: [] })
+    return NextResponse.json({ matches: [], error: "data_unavailable" }, { status: 200 })
   }
 }
