@@ -2,7 +2,7 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "rm -rf .next/cache/webpack && npm run build && echo '[BUILD-DEBUG] app-build-manifest:' && node -e \"const f='.next/app-build-manifest.json';const m=require('fs').existsSync(f)?JSON.parse(require('fs').readFileSync(f,'utf8')):{};const l=m['/layout']||m['layout']||'NOT FOUND';console.log('layout CSS:',JSON.stringify(l));const keys=Object.keys(m).slice(0,5);keys.forEach(k=>{const v=m[k];const css=(v||[]).filter(s=>s.includes('.css'));if(css.length)console.log(k,css);});\" 2>&1 || true"
+    "buildCommand": "rm -rf .next/cache/webpack && npm run build && echo '[BUILD-DEBUG] app-build-manifest:' && node -e \"const f='.next/app-build-manifest.json';if(!require('fs').existsSync(f)){console.log('FILE NOT FOUND');process.exit(0);}const m=JSON.parse(require('fs').readFileSync(f,'utf8'));const keys=Object.keys(m);console.log('Total keys:',keys.length);keys.slice(0,20).forEach(k=>console.log(k,'->',JSON.stringify(m[k]).slice(0,120)));\" 2>&1 || true"
   },
   "deploy": {
     "startCommand": "npm run db:migrate:deploy && npm run start",
