@@ -11,6 +11,7 @@ import {
   uploadWorldCupChatImageToCloudinary,
   WORLD_CUP_CHAT_IMAGE_MAX_BYTES,
 } from "@/lib/world-cup/worldCupChatImageUpload"
+import { buildWorldCupChimmyContext } from "@/lib/world-cup/worldCupChimmyContext"
 import { generateWorldCupChimmyPrivateReply } from "@/lib/world-cup/worldCupChimmyPrivateReply"
 import { checkWorldCupChimmyRateLimit } from "@/lib/world-cup/worldCupChimmyRateLimit"
 import {
@@ -692,13 +693,22 @@ async function createPrivateChimmyResponse(input: {
   promptMessage: RawWorldCupChatEvent
   locale?: string | null
 }) {
-  const challenge = await getWorldCupChallengeSummary(input.challengeId)
+  // Build rich context and challenge summary in parallel — neither is blocking.
+  const [challenge, context] = await Promise.all([
+    getWorldCupChallengeSummary(input.challengeId),
+    buildWorldCupChimmyContext({
+      challengeId: input.challengeId,
+      userId: input.userId,
+      locale: input.locale,
+    }).catch(() => null), // swallow — context is best-effort, chat must not fail
+  ])
   const ai = await generateWorldCupChimmyPrivateReply({
     userId: input.userId,
     challengeId: input.challengeId,
     prompt: input.prompt,
     challengeName: challenge?.name ?? null,
     locale: input.locale,
+    context,
   })
 
   const response = await (prisma as any).worldCupBracketChatEvent.create({

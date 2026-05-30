@@ -8,6 +8,7 @@ import { WORLD_CUP_BRACKET_EVENT_TYPES } from "./worldCupBracketEvents"
 import { worldCupIdempotencyKeys } from "./worldCupBracketEventIdempotency"
 import { emitWorldCupBracketChatEvent } from "./worldCupBracketEventService"
 import { notifyWorldCupDeadlineReminder } from "./worldCupNotifications"
+import { sendWorldCupLockReminderEmails } from "./worldCupLockReminderEmail"
 
 const WINDOW_MS = 20 * 60 * 1000
 
@@ -109,12 +110,21 @@ async function emitLockReminderForChallenge(input: {
     isAiGenerated: false,
   })
   if (result.ok && !result.duplicate && !result.skipped && input.bucketKey !== "locked") {
-    await notifyWorldCupDeadlineReminder({
-      challengeId: input.challengeId,
-      poolName: input.name,
-      reminder: bodyParts.join(" "),
-      sourceId: idempotencyKey,
-    })
+    // Fire in-app + SMS notification and email in parallel — neither blocks the other.
+    await Promise.allSettled([
+      notifyWorldCupDeadlineReminder({
+        challengeId: input.challengeId,
+        poolName: input.name,
+        reminder: bodyParts.join(" "),
+        sourceId: idempotencyKey,
+      }),
+      sendWorldCupLockReminderEmails({
+        challengeId: input.challengeId,
+        poolName: input.name,
+        bucketKey: input.bucketKey,
+        pickLockAt: input.pickLockAt,
+      }),
+    ])
   }
   return result
 }
