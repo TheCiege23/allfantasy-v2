@@ -79,9 +79,11 @@ describe("generateWorldCupChimmyPrivateReply — AI language instruction", () =>
 
   it("privacy language is present in system prompt", async () => {
     const prompt = await getSystemPrompt("es")
-    expect(prompt).toMatch(/Do not reveal private user data/i)
+    // Prompt must guard user IDs, emails, and invite codes
+    expect(prompt).toMatch(/Never reference user IDs/i)
     expect(prompt).toMatch(/invite codes/i)
-    expect(prompt).toMatch(/other pool members/i)
+    // Leaderboard discussion must be explicitly permitted (it's public data)
+    expect(prompt).toMatch(/pool members/i)
   })
 
   it("reply is stored with private visibility metadata (not public)", async () => {

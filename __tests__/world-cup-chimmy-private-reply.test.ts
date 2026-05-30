@@ -45,7 +45,7 @@ describe("World Cup Chimmy private reply helper", () => {
     })
     expect(openaiChatTextMock).toHaveBeenCalledWith(expect.objectContaining({
       messages: expect.arrayContaining([
-        expect.objectContaining({ role: "system", content: expect.stringContaining("private AllFantasy World Cup bracket assistant") }),
+        expect.objectContaining({ role: "system", content: expect.stringContaining("AllFantasy's World Cup bracket sidekick") }),
         expect.objectContaining({ role: "user", content: expect.stringContaining("who should I pick?") }),
       ]),
       skipCache: true,

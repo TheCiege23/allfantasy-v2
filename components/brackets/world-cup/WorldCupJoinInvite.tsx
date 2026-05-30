@@ -117,9 +117,46 @@ export default function WorldCupJoinInvite({ invite }: { invite: InviteInfo }) {
           <p className="mt-2 text-sm text-white/50">
             {invite.ownerName} invited you to a {invite.seasonYear} FIFA World Cup bracket pool.
           </p>
-          <p className="mt-2 text-xs leading-5 text-white/60">
-            After joining, you will land on the pool dashboard with a guided path to create an entry, make Group Stage and Knockout picks, review, and finalize.
-          </p>
+          {/* How it works — game preview for first-time invitees */}
+          <div className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+            <p className="mb-3 text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
+              How it works
+            </p>
+            <ol className="space-y-2">
+              <li className="flex items-start gap-2.5 text-xs text-white/70">
+                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-cyan-300/20 text-[10px] font-black text-cyan-300">1</span>
+                Pick the winner of every match — Group Stage through Final
+              </li>
+              <li className="flex items-start gap-2.5 text-xs text-white/70">
+                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-cyan-300/20 text-[10px] font-black text-cyan-300">2</span>
+                Earn more points each round as the stakes get higher
+              </li>
+              <li className="flex items-start gap-2.5 text-xs text-white/70">
+                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-cyan-300/20 text-[10px] font-black text-cyan-300">3</span>
+                Pick the champion for a massive bonus — then watch it play out
+              </li>
+            </ol>
+            {/* Scoring chips */}
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {[
+                { label: "R32", pts: "+10" },
+                { label: "R16", pts: "+20" },
+                { label: "QF", pts: "+40" },
+                { label: "SF", pts: "+80" },
+                { label: "Final", pts: "+160" },
+                { label: "Champion", pts: "+320" },
+              ].map(({ label, pts }) => (
+                <span
+                  key={label}
+                  className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[10px] font-bold"
+                >
+                  <span className="text-white/50">{label}</span>
+                  <span className="text-cyan-300">{pts}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+
             {status === "unauthenticated" && canJoin ? (
               <div className="mt-4 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.07] p-3 text-xs leading-5 text-white/90/75">
                 Sign in or create an account when you are ready. We will bring you back to this invite after auth.

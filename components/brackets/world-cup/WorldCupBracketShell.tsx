@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowUp, BarChart3, Baseline, Bell, Bold, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Clock, Copy, Edit3, Film, Globe2, ImageIcon, Italic, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Mic, Pin, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Smile, Sparkles, Strikethrough, Trophy, Underline, Users, X } from "lucide-react"
+import { ArrowLeft, ArrowUp, BarChart3, Baseline, Bell, Bold, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Clock, Copy, Edit3, Film, Globe2, ImageIcon, Italic, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Mic, Pin, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Smile, Sparkles, Strikethrough, Trophy, Underline, Users, X, Zap } from "lucide-react"
 import { toast } from "sonner"
 import type { WorldCupChallengeView, WorldCupMatchView, WorldCupPickView } from "@/lib/world-cup/types"
 import { isWorldCupChallengeLocked } from "@/lib/world-cup/worldCupBracketBuilder"
@@ -3000,6 +3000,72 @@ export default function WorldCupBracketShell({
                 </div>
               </div>
             </section>
+
+            {/* ── Live Picks At Risk Banner ──────────────────────────────────────── */}
+            {(() => {
+              const liveMatches = view.matches.filter(
+                (m) => m.status === "live" || m.status === "halftime"
+              )
+              if (liveMatches.length === 0 || picks.length === 0) return null
+              const liveMatchIds = new Set(liveMatches.map((m) => m.id))
+              const picksAtRisk = picks.filter(
+                (p) =>
+                  liveMatchIds.has(p.matchId) &&
+                  p.isCorrect !== false &&
+                  (p.selectedTeamId || p.selectedTeamName)
+              )
+              if (picksAtRisk.length === 0) return null
+              return (
+                <section
+                  data-testid="world-cup-live-picks-banner"
+                  className="mx-auto max-w-5xl px-2 sm:px-0"
+                >
+                  <button
+                    type="button"
+                    onClick={() => switchTab("picks")}
+                    className="group w-full rounded-2xl border border-amber-400/30 bg-amber-400/[0.08] p-4 text-left transition-colors hover:border-amber-400/50 hover:bg-amber-400/[0.12] touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-amber-400/30 bg-amber-400/15">
+                        <Zap className="h-4 w-4 animate-pulse text-amber-300" aria-hidden />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-amber-300">
+                            ● LIVE
+                          </span>
+                          <p className="text-sm font-black text-white">
+                            {picksAtRisk.length === 1
+                              ? `${picksAtRisk[0].selectedTeamName} is playing now`
+                              : `${picksAtRisk.length} of your picks are in live matches`}
+                          </p>
+                        </div>
+                        <p className="mt-0.5 text-xs text-white/50">
+                          {picksAtRisk
+                            .map((p) => {
+                              const m = liveMatches.find((lm) => lm.id === p.matchId)
+                              if (!m) return null
+                              const score =
+                                m.homeScore != null
+                                  ? `${m.homeScore}–${m.awayScore}`
+                                  : "vs"
+                              const min =
+                                m.elapsedMinute != null ? ` ${m.elapsedMinute}'` : ""
+                              return `${m.homeTeamName} ${score} ${m.awayTeamName}${min}`
+                            })
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </div>
+                      <ChevronRight
+                        className="h-4 w-4 shrink-0 text-white/35 transition-colors group-hover:text-white/60"
+                        aria-hidden
+                      />
+                    </div>
+                  </button>
+                </section>
+              )
+            })()}
 
             {/* ── What To Do Next ────────────────────────────────────────────────── */}
             {!isEntriesLoading && (() => {

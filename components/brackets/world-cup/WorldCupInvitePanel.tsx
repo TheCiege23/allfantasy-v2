@@ -301,20 +301,48 @@ export default function WorldCupInvitePanel({
         </div>
       </div>
 
-      {/* Commissioner invite section OR member fallback */}
+      {/* Commissioner invite section OR member share section */}
       {!isCommissioner ? (
-        /* Member fallback: no invite code shown */
+        /* Member section: show the invite URL + share buttons so members can bring in friends */
         <div
           data-testid="wc-invite-member-banner"
-          className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-10 text-center backdrop-blur"
+          className="rounded-2xl border border-cyan-300/20 bg-gradient-to-b from-cyan-300/[0.06] to-white/[0.03] p-5 backdrop-blur"
         >
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-            <Share2 className="h-5 w-5 text-white/35" />
+          <div className="flex items-center gap-2 text-base font-black text-white">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-300/15 text-white/70">
+              <Share2 className="h-4 w-4" />
+            </span>
+            {t("wc.inviteTab.member.title")}
           </div>
-          <p className="text-sm font-black text-white/75">{t("wc.inviteTab.member.title")}</p>
-          <p className="mx-auto mt-2 max-w-xs text-xs leading-5 text-white/45">
+          <p className="mt-1 text-xs text-white/55">
             {t("wc.inviteTab.member.body")}
           </p>
+
+          {/* Invite URL display */}
+          <div className="mt-4 break-all rounded-xl border border-white/10 bg-black/40 px-3 py-3 font-mono text-xs leading-5 text-white/85">
+            {inviteUrl}
+          </div>
+
+          {/* Share action buttons */}
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <button
+              type="button"
+              onClick={copyLink}
+              data-testid="wc-invite-member-copy-link-btn"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-300 to-cyan-200 px-4 py-2.5 text-sm font-black text-black shadow-[0_6px_20px_-8px_rgba(34,211,238,0.6)] transition-transform hover:scale-[1.02] active:scale-[0.98] touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 sm:w-auto"
+            >
+              {copiedLink ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copiedLink ? t("wc.inviteTab.commissioner.copyLinkDone") : t("wc.inviteTab.commissioner.copyLink")}
+            </button>
+            <button
+              type="button"
+              onClick={shareNative}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.05] px-4 py-2.5 text-sm font-bold text-white/85 transition-colors hover:border-white/25 hover:bg-white/[0.09] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 sm:w-auto"
+            >
+              <Share2 className="h-4 w-4" />
+              {t("wc.inviteTab.commissioner.share")}
+            </button>
+          </div>
         </div>
       ) : inviteCode ? (
         <>
