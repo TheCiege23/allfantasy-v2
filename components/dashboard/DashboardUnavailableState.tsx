@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { AlertTriangle, Home, RotateCcw } from "lucide-react"
-import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 
 type DashboardUnavailableStateProps = {
   title: string
@@ -17,7 +17,7 @@ export default function DashboardUnavailableState({
   missing = [],
   onRetry,
 }: DashboardUnavailableStateProps) {
-  const { t } = useLanguage()
+  const { t } = useOptionalLanguage()
   const uniqueMissing = Array.from(new Set(missing.filter(Boolean)))
 
   return (

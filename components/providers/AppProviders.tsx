@@ -14,10 +14,10 @@ export function AppProviders({
   session?: Session | null
 }) {
   return (
-    <SessionAppProvider session={session}>
-      <LanguageProviderClient>
+    <LanguageProviderClient>
+      <SessionAppProvider session={session}>
         <ThemeProvider>{children}</ThemeProvider>
-      </LanguageProviderClient>
-    </SessionAppProvider>
+      </SessionAppProvider>
+    </LanguageProviderClient>
   )
 }

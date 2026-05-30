@@ -17,6 +17,9 @@ vi.mock("next-auth/react", () => ({
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
+  useRouter: () => ({
+    refresh: vi.fn(),
+  }),
 }))
 
 beforeEach(() => {
@@ -57,6 +60,9 @@ const authRouteGlobalChromeSource = fs.readFileSync(path.join(process.cwd(), "co
 const safeGlobalChromeSource = fs.readFileSync(path.join(process.cwd(), "components", "shell", "SafeGlobalChrome.tsx"), "utf8")
 const globalAppShellSource = fs.readFileSync(path.join(process.cwd(), "components", "shared", "GlobalAppShell.tsx"), "utf8")
 const languageProviderSource = fs.readFileSync(path.join(process.cwd(), "components", "i18n", "LanguageProviderClient.tsx"), "utf8")
+const dashboardErrorSource = fs.readFileSync(path.join(process.cwd(), "app", "dashboard", "error.tsx"), "utf8")
+const leagueRouteErrorSource = fs.readFileSync(path.join(process.cwd(), "app", "league", "[leagueId]", "error.tsx"), "utf8")
+const dashboardUnavailableStateSource = fs.readFileSync(path.join(process.cwd(), "components", "dashboard", "DashboardUnavailableState.tsx"), "utf8")
 const middlewareSource = fs.readFileSync(path.join(process.cwd(), "middleware.ts"), "utf8")
 const optionalSessionSource = fs.readFileSync(path.join(process.cwd(), "components", "auth", "useOptionalSession.ts"), "utf8")
 const modeToggleSource = fs.readFileSync(path.join(process.cwd(), "components", "theme", "ModeToggle.tsx"), "utf8")
@@ -128,21 +134,20 @@ describe("root language provider layout", () => {
     expect(layoutSource).toMatch(/try\s*{[^}]*getServerSession/s)
   })
 
-  it("keeps LanguageProviderClient outside ThemeProvider inside AppProviders", () => {
-    const sessionStart = appProvidersSource.indexOf("<SessionAppProvider")
+  it("keeps LanguageProviderClient outside all runtime providers inside AppProviders", () => {
     const languageStart = appProvidersSource.indexOf("<LanguageProviderClient>")
+    const sessionStart = appProvidersSource.indexOf("<SessionAppProvider")
     const themeStart = appProvidersSource.indexOf("<ThemeProvider>")
     const themeEnd = appProvidersSource.indexOf("</ThemeProvider>")
-    const languageEnd = appProvidersSource.indexOf("</LanguageProviderClient>")
     const sessionEnd = appProvidersSource.indexOf("</SessionAppProvider>")
+    const languageEnd = appProvidersSource.indexOf("</LanguageProviderClient>")
 
-    expect(sessionStart).toBeGreaterThan(-1)
     expect(languageStart).toBeGreaterThan(-1)
-    expect(languageStart).toBeGreaterThan(sessionStart)
-    expect(themeStart).toBeGreaterThan(languageStart)
+    expect(sessionStart).toBeGreaterThan(languageStart)
+    expect(themeStart).toBeGreaterThan(sessionStart)
     expect(themeEnd).toBeGreaterThan(themeStart)
-    expect(languageEnd).toBeGreaterThan(themeEnd)
-    expect(sessionEnd).toBeGreaterThan(languageEnd)
+    expect(sessionEnd).toBeGreaterThan(themeEnd)
+    expect(languageEnd).toBeGreaterThan(sessionEnd)
   })
 
   it("renders ModeToggle inside AppProviders without a missing language context", () => {
@@ -175,6 +180,19 @@ describe("root language provider layout", () => {
     expect(loginContentSource).toContain("useOptionalLanguage")
     expect(modeToggleSource).toContain("useOptionalLanguage")
     expect(languageToggleSource).toContain("useOptionalLanguage")
+  })
+
+  it("keeps dashboard and league error fallbacks provider-safe", () => {
+    for (const [file, source] of [
+      ["app/dashboard/error.tsx", dashboardErrorSource],
+      ["app/league/[leagueId]/error.tsx", leagueRouteErrorSource],
+      ["components/dashboard/DashboardUnavailableState.tsx", dashboardUnavailableStateSource],
+    ] as const) {
+      expect(source, `${file} should use the provider-safe fallback hook`).toContain("useOptionalLanguage")
+      expect(source, `${file} should not require LanguageProviderClient to render`).not.toMatch(
+        /\buseLanguage\s*\(/
+      )
+    }
   })
 
   it("uses optional session fallbacks for global auth chrome", () => {

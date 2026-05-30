@@ -1,7 +1,7 @@
 "use client"
 
 import DashboardUnavailableState from "@/components/dashboard/DashboardUnavailableState"
-import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 
 /**
  * League route error boundary — keep messaging generic. Do not pattern-match Prisma/config
@@ -15,7 +15,7 @@ export default function LeagueRouteError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
-  const { t } = useLanguage()
+  const { t } = useOptionalLanguage()
 
   return (
     <DashboardUnavailableState

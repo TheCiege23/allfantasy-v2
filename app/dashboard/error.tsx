@@ -2,7 +2,7 @@
 
 import DashboardUnavailableState from "@/components/dashboard/DashboardUnavailableState"
 import { getErrorMessage } from "@/lib/error-handling"
-import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 
 /**
  * Dashboard error boundary.
@@ -22,7 +22,7 @@ export default function DashboardError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
-  const { t } = useLanguage()
+  const { t } = useOptionalLanguage()
 
   return (
     <DashboardUnavailableState
