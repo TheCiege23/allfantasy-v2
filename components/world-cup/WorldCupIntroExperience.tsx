@@ -14,10 +14,24 @@ function safeIntroDestination(value: string | null | undefined) {
   return trimmed
 }
 
-export default function WorldCupIntroExperience() {
+/**
+ * Full-bleed World Cup intro experience.
+ *
+ * Props (both optional — omitting them uses the standalone /world-cup-intro route defaults):
+ *   nextDest   — where to navigate after intro completes; falls back to ?next URL param → /brackets
+ *   onComplete — called instead of router.replace() when the gate embeds this inline
+ *                (avoids a redundant navigation when already on the destination page)
+ */
+export default function WorldCupIntroExperience({
+  nextDest: nextDestProp,
+  onComplete,
+}: {
+  nextDest?: string
+  onComplete?: () => void
+} = {}) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const nextDest = safeIntroDestination(searchParams?.get('next'))
+  const nextDest = nextDestProp ?? safeIntroDestination(searchParams?.get('next'))
   const forceShow = searchParams?.get('force') === '1'
 
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -30,19 +44,20 @@ export default function WorldCupIntroExperience() {
     hasAdvancedRef.current = true
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
     try { sessionStorage.setItem(SESSION_KEY, 'true') } catch {}
-    router.replace(nextDest)
-  }, [router, nextDest])
+    // When embedded via WorldCupIntroGate, onComplete handles the transition
+    // (no navigation needed — the gate simply reveals the bracket page in place).
+    // When used as a standalone route (/world-cup-intro), router.replace navigates away.
+    if (onComplete) {
+      onComplete()
+    } else {
+      router.replace(nextDest)
+    }
+  }, [router, nextDest, onComplete])
 
   useEffect(() => {
-    // prefers-reduced-motion: show static screen briefly, then redirect
+    // prefers-reduced-motion: show static screen briefly, then advance
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      try { sessionStorage.setItem(SESSION_KEY, 'true') } catch {}
-      const t = setTimeout(() => {
-        if (!hasAdvancedRef.current) {
-          hasAdvancedRef.current = true
-          router.replace(nextDest)
-        }
-      }, 300)
+      const t = setTimeout(advance, 300)
       return () => clearTimeout(t)
     }
 
@@ -51,8 +66,7 @@ export default function WorldCupIntroExperience() {
       let seen = false
       try { seen = sessionStorage.getItem(SESSION_KEY) === 'true' } catch {}
       if (seen) {
-        hasAdvancedRef.current = true
-        router.replace(nextDest)
+        advance()
         return
       }
     }
@@ -60,7 +74,7 @@ export default function WorldCupIntroExperience() {
     // Auto-advance after duration
     timerRef.current = setTimeout(advance, AUTO_ADVANCE_MS)
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
-  }, [advance, forceShow, nextDest, router])
+  }, [advance, forceShow])
 
   return (
     <div
@@ -82,7 +96,7 @@ export default function WorldCupIntroExperience() {
       {!videoFailed && (
         <video
           ref={videoRef}
-          src="/videos/world-cup/af-world-cup-hero.mp4"
+          src="/videos/brackets/world-cup/af-world-cup-hero.mp4"
           autoPlay
           muted
           playsInline

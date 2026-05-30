@@ -185,6 +185,82 @@ describe('WorldCupIntroExperience', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Embedded mode tests — onComplete + nextDest props (gate integration surface)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('WorldCupIntroExperience — embedded via gate (onComplete prop)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    replaceMock.mockReset()
+    sessionStorageMock.clear()
+    mockMatchMedia(false)
+    Object.defineProperty(window, 'sessionStorage', { writable: true, value: sessionStorageMock })
+    searchParamsMock.mockReturnValue({ get: () => null })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.clearAllMocks()
+  })
+
+  it('skip button calls onComplete (not router.replace) when embedded', () => {
+    const onComplete = vi.fn()
+    render(<WorldCupIntroExperience nextDest="/brackets/world-cup" onComplete={onComplete} />)
+    fireEvent.click(screen.getByRole('button', { name: /skip intro/i }))
+    expect(onComplete).toHaveBeenCalledTimes(1)
+    expect(replaceMock).not.toHaveBeenCalled()
+    expect(sessionStorageMock.getItem('af_world_cup_intro_seen')).toBe('true')
+  })
+
+  it('auto-advance calls onComplete (not router.replace) when embedded', () => {
+    const onComplete = vi.fn()
+    render(<WorldCupIntroExperience nextDest="/brackets/world-cup" onComplete={onComplete} />)
+    act(() => { vi.advanceTimersByTime(4300) })
+    expect(onComplete).toHaveBeenCalledTimes(1)
+    expect(replaceMock).not.toHaveBeenCalled()
+    expect(sessionStorageMock.getItem('af_world_cup_intro_seen')).toBe('true')
+  })
+
+  it('video onEnded calls onComplete when embedded', () => {
+    const onComplete = vi.fn()
+    render(<WorldCupIntroExperience nextDest="/brackets/world-cup" onComplete={onComplete} />)
+    const video = document.querySelector('video')
+    if (video) {
+      act(() => { fireEvent.ended(video) })
+      expect(onComplete).toHaveBeenCalledTimes(1)
+      expect(replaceMock).not.toHaveBeenCalled()
+    }
+  })
+
+  it('nextDest prop overrides URL search-param destination when standalone', () => {
+    // Without onComplete: nextDest prop should be passed to router.replace instead of URL param.
+    searchParamsMock.mockReturnValue({ get: (k: string) => (k === 'next' ? '/from-url' : null) })
+    render(<WorldCupIntroExperience nextDest="/from-prop" />)
+    fireEvent.click(screen.getByRole('button', { name: /skip intro/i }))
+    expect(replaceMock).toHaveBeenCalledWith('/from-prop')
+  })
+
+  it('advance is idempotent when onComplete provided', () => {
+    const onComplete = vi.fn()
+    render(<WorldCupIntroExperience nextDest="/brackets/world-cup" onComplete={onComplete} />)
+    const btn = screen.getByRole('button', { name: /skip intro/i })
+    fireEvent.click(btn)
+    fireEvent.click(btn)
+    expect(onComplete).toHaveBeenCalledTimes(1)
+  })
+
+  it('prefers-reduced-motion calls onComplete in 300 ms when embedded', () => {
+    mockMatchMedia(true)
+    const onComplete = vi.fn()
+    render(<WorldCupIntroExperience nextDest="/brackets/world-cup" onComplete={onComplete} />)
+    expect(onComplete).not.toHaveBeenCalled()
+    act(() => { vi.advanceTimersByTime(400) })
+    expect(onComplete).toHaveBeenCalledTimes(1)
+    expect(replaceMock).not.toHaveBeenCalled()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Landing page CTA href shape test (pure URL assertion — no React render needed)
 // ─────────────────────────────────────────────────────────────────────────────
 import { loginUrlWithIntent } from '@/lib/auth/auth-intent-resolver'
