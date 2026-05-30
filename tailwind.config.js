@@ -1,3 +1,5 @@
+// Diagnostic: visible in Railway build logs. Remove after CSS confirmed working.
+console.log('[tailwind.config.js] loading, cwd=%s', process.cwd())
 // CommonJS format — avoids jiti/sucrase TypeScript loading on Railway (Node 22 Linux).
 // Tailwind's loadConfig() first tries require(), which works for .js but fails for .ts,
 // then falls back to jiti; on Railway that jiti path produced empty CSS output.
