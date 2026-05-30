@@ -1,7 +1,12 @@
-import type { Config } from 'tailwindcss'
-import forms from '@tailwindcss/forms'
+// CommonJS format — avoids jiti/sucrase TypeScript loading on Railway (Node 22 Linux).
+// Tailwind's loadConfig() first tries require(), which works for .js but fails for .ts,
+// then falls back to jiti; on Railway that jiti path produced empty CSS output.
+// Keeping content/theme/plugins 100% identical to the deleted tailwind.config.ts.
 
-const config: Config = {
+const forms = require('@tailwindcss/forms')
+
+/** @type {import('tailwindcss').Config} */
+const config = {
   content: [
     './app/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
@@ -187,4 +192,4 @@ const config: Config = {
   ],
 }
 
-export default config
+module.exports = config
