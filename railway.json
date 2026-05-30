@@ -2,7 +2,7 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "rm -rf .next/cache/webpack && npm run build"
+    "buildCommand": "rm -rf .next/cache/webpack && npm run build && echo '[BUILD-DEBUG] app-build-manifest:' && node -e \"const f='.next/app-build-manifest.json';const m=require('fs').existsSync(f)?JSON.parse(require('fs').readFileSync(f,'utf8')):{};const l=m['/layout']||m['layout']||'NOT FOUND';console.log('layout CSS:',JSON.stringify(l));const keys=Object.keys(m).slice(0,5);keys.forEach(k=>{const v=m[k];const css=(v||[]).filter(s=>s.includes('.css'));if(css.length)console.log(k,css);});\" 2>&1 || true"
   },
   "deploy": {
     "startCommand": "npm run db:migrate:deploy && npm run start",
