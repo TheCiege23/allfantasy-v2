@@ -37,6 +37,17 @@ const nextConfig = {
       config.cache = false;
     }
 
+    // On Railway (Linux production), scope the webpack filesystem cache to the
+    // current git commit SHA.  This prevents stale cache entries from a previous
+    // commit (e.g. a cached CSS entrypoint that omits globals.css) from being
+    // reused in a new build, while still allowing Railway to reuse the cache
+    // when re-deploying the exact same commit.
+    if (!dev && process.env.RAILWAY_GIT_COMMIT_SHA) {
+      config.cache = typeof config.cache === 'object' && config.cache
+        ? { ...config.cache, version: process.env.RAILWAY_GIT_COMMIT_SHA }
+        : { type: 'filesystem', version: process.env.RAILWAY_GIT_COMMIT_SHA };
+    }
+
     config.ignoreWarnings = [
       ...(config.ignoreWarnings || []),
       {
