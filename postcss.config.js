@@ -12,5 +12,7 @@ module.exports = {
     // require() results directly (they're functions, which it rejects).
     tailwindcss: { config: path.join(__dirname, 'tailwind.config.js') },
     autoprefixer: {},
+    // Diagnostic: log CSS output bytes per file. Remove after CSS confirmed working.
+    [path.join(__dirname, 'postcss-debug.cjs')]: {},
   },
 }

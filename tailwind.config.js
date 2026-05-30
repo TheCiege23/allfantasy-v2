@@ -16,7 +16,14 @@ try {
 // then falls back to jiti; on Railway that jiti path produced empty CSS output.
 // Keeping content/theme/plugins 100% identical to the deleted tailwind.config.ts.
 
-const forms = require('@tailwindcss/forms')
+let forms
+try {
+  forms = require('@tailwindcss/forms')
+  console.log('[tailwind.config.js] @tailwindcss/forms loaded, type=%s', typeof forms)
+} catch(e) {
+  console.error('[tailwind.config.js] FAILED to load @tailwindcss/forms:', e.message)
+  forms = function() { return {} } // safe no-op fallback
+}
 
 /** @type {import('tailwindcss').Config} */
 const config = {
@@ -205,4 +212,5 @@ const config = {
   ],
 }
 
+console.log('[tailwind.config.js] config ready, content sources=%d', config.content.length)
 module.exports = config
