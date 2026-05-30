@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react"
 import { useOptionalSession } from "@/components/auth/useOptionalSession"
-import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import { useThemeMode } from "@/components/theme/ThemeProvider"
 import {
   getStoredLanguage,
@@ -20,7 +20,7 @@ import { resolveSharedSessionBootstrap } from "@/lib/auth/SharedSessionBootstrap
  */
 export default function SyncProfilePreferences() {
   const { data: session, status } = useOptionalSession()
-  const { language, setLanguage } = useLanguage()
+  const { language, setLanguage } = useOptionalLanguage()
   const { mode, setMode } = useThemeMode()
   const syncedSessionKeyRef = useRef<string | null>(null)
 

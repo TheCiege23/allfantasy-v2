@@ -7,7 +7,7 @@ import { useOptionalSession } from "@/components/auth/useOptionalSession"
 import LanguageToggle from "@/components/i18n/LanguageToggle"
 import NotificationBell from "@/components/shared/NotificationBell"
 import SettingsModal from "@/components/navigation/SettingsModal"
-import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import { loginUrlWithIntent, signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
 import { Settings as SettingsIcon, Shield } from "lucide-react"
 import { IdentityImageRenderer } from "@/components/identity/IdentityImageRenderer"
@@ -15,7 +15,7 @@ import { useSettingsProfile } from "@/hooks/useSettingsProfile"
 
 export default function HomeTopNav() {
   const { data: session, status } = useOptionalSession()
-  const { t } = useLanguage()
+  const { t } = useOptionalLanguage()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const { profile } = useSettingsProfile()

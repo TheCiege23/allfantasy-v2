@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { useOptionalSession } from '@/components/auth/useOptionalSession'
 import { ArrowRight, Shield } from 'lucide-react'
 import LanguageToggle from '@/components/i18n/LanguageToggle'
-import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { useOptionalLanguage } from '@/components/i18n/LanguageProviderClient'
 import { loginUrlWithIntent, signupUrlWithIntent } from '@/lib/auth/auth-intent-resolver'
 import { trackLandingCtaClick } from '@/lib/landing-analytics'
 
@@ -657,7 +657,7 @@ type LandingPageClientProps = {
 export default function LandingPageClient({
   initialSession = null,
 }: LandingPageClientProps) {
-  const { language } = useLanguage()
+  const { language } = useOptionalLanguage()
   const { status } = useOptionalSession()
   const copy = LANDING_COPY[language as keyof typeof LANDING_COPY] ?? LANDING_COPY.en
   const isAuthenticated =

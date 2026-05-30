@@ -6,6 +6,7 @@ import { AppProviders } from "@/components/providers/AppProviders"
 import { AuthPageShell } from "@/components/auth/AuthPageShell"
 import { AuthRouteGlobalChrome } from "@/components/auth/AuthRouteGlobalChrome"
 import LanguageToggle from "@/components/i18n/LanguageToggle"
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { ModeToggle } from "@/components/theme/ModeToggle"
 import { ThemeProvider } from "@/components/theme/ThemeProvider"
 
@@ -60,9 +61,14 @@ const authRouteGlobalChromeSource = fs.readFileSync(path.join(process.cwd(), "co
 const safeGlobalChromeSource = fs.readFileSync(path.join(process.cwd(), "components", "shell", "SafeGlobalChrome.tsx"), "utf8")
 const globalAppShellSource = fs.readFileSync(path.join(process.cwd(), "components", "shared", "GlobalAppShell.tsx"), "utf8")
 const languageProviderSource = fs.readFileSync(path.join(process.cwd(), "components", "i18n", "LanguageProviderClient.tsx"), "utf8")
+const rootErrorSource = fs.readFileSync(path.join(process.cwd(), "app", "error.tsx"), "utf8")
+const globalErrorSource = fs.readFileSync(path.join(process.cwd(), "app", "global-error.tsx"), "utf8")
 const dashboardErrorSource = fs.readFileSync(path.join(process.cwd(), "app", "dashboard", "error.tsx"), "utf8")
 const leagueRouteErrorSource = fs.readFileSync(path.join(process.cwd(), "app", "league", "[leagueId]", "error.tsx"), "utf8")
 const dashboardUnavailableStateSource = fs.readFileSync(path.join(process.cwd(), "components", "dashboard", "DashboardUnavailableState.tsx"), "utf8")
+const landingPageClientSource = fs.readFileSync(path.join(process.cwd(), "components", "landing", "LandingPageClient.tsx"), "utf8")
+const homeTopNavSource = fs.readFileSync(path.join(process.cwd(), "components", "navigation", "HomeTopNav.tsx"), "utf8")
+const syncProfilePreferencesSource = fs.readFileSync(path.join(process.cwd(), "components", "auth", "SyncProfilePreferences.tsx"), "utf8")
 const middlewareSource = fs.readFileSync(path.join(process.cwd(), "middleware.ts"), "utf8")
 const optionalSessionSource = fs.readFileSync(path.join(process.cwd(), "components", "auth", "useOptionalSession.ts"), "utf8")
 const modeToggleSource = fs.readFileSync(path.join(process.cwd(), "components", "theme", "ModeToggle.tsx"), "utf8")
@@ -76,6 +82,11 @@ const uiDocumentSources = [
 ] as const
 
 describe("root language provider layout", () => {
+  function StrictLanguageProbe() {
+    const { t } = useLanguage()
+    return <span>{t("common.guest")}</span>
+  }
+
   it("wraps global controls and children with AppProviders unconditionally", () => {
     const providersStart = layoutSource.indexOf("<AppProviders ")
     const chromeGate = layoutSource.indexOf("<SafeGlobalChrome metaPixelId")
@@ -160,6 +171,33 @@ describe("root language provider layout", () => {
     expect(screen.getByRole("button", { name: /current theme/i })).toBeInTheDocument()
   })
 
+  it("documents the strict hook contract and production provider coverage", () => {
+    const preventExpectedError = (event: ErrorEvent) => {
+      if (event.error instanceof Error && event.error.message.includes("useLanguage must be used")) {
+        event.preventDefault()
+      }
+    }
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+    window.addEventListener("error", preventExpectedError)
+
+    try {
+      expect(() => render(<StrictLanguageProbe />)).toThrow(
+        "useLanguage must be used within LanguageProviderClient"
+      )
+    } finally {
+      window.removeEventListener("error", preventExpectedError)
+      consoleError.mockRestore()
+    }
+
+    render(
+      <AppProviders>
+        <StrictLanguageProbe />
+      </AppProviders>
+    )
+
+    expect(screen.getByText(/guest/i)).toBeInTheDocument()
+  })
+
   it("renders language-dependent toggles without LanguageProviderClient", () => {
     render(
       <>
@@ -190,6 +228,36 @@ describe("root language provider layout", () => {
     ] as const) {
       expect(source, `${file} should use the provider-safe fallback hook`).toContain("useOptionalLanguage")
       expect(source, `${file} should not require LanguageProviderClient to render`).not.toMatch(
+        /\buseLanguage\s*\(/
+      )
+    }
+  })
+
+  it("keeps root error boundaries independent of language providers", () => {
+    for (const [file, source] of [
+      ["app/error.tsx", rootErrorSource],
+      ["app/global-error.tsx", globalErrorSource],
+    ] as const) {
+      expect(source, `${file} must not import the language provider`).not.toContain(
+        "LanguageProviderClient"
+      )
+      expect(source, `${file} must not call the strict language hook`).not.toMatch(
+        /\buseLanguage\s*\(/
+      )
+      expect(source, `${file} must not depend on optional provider context either`).not.toContain(
+        "useOptionalLanguage"
+      )
+    }
+  })
+
+  it("keeps homepage and root chrome language reads provider-safe", () => {
+    for (const [file, source] of [
+      ["components/landing/LandingPageClient.tsx", landingPageClientSource],
+      ["components/navigation/HomeTopNav.tsx", homeTopNavSource],
+      ["components/auth/SyncProfilePreferences.tsx", syncProfilePreferencesSource],
+    ] as const) {
+      expect(source, `${file} should use the fallback language hook`).toContain("useOptionalLanguage")
+      expect(source, `${file} should not crash if mounted before LanguageProviderClient`).not.toMatch(
         /\buseLanguage\s*\(/
       )
     }
