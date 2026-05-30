@@ -1,5 +1,11 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "openssl"]
+# Node.js 20.18.1 (the version provided by nodejs_20 in Railway's Nix channel) is below
+# the >=20.19.0 minimum required by @csstools/css-tokenizer and @asamuzakjp/css-color, which
+# are ESM-only packages loaded by PostCSS/Tailwind.  On Node <20.19 those packages fail to
+# load via require(), PostCSS silently produces empty CSS, mini-css-extract-plugin skips the
+# file, and app-build-manifest.json has no CSS entry for /layout → unstyled pages.
+# Node.js 22.x LTS satisfies '^22.12.0 || >=24' (all package requirements) and is safe.
+nixPkgs = ["nodejs_22", "openssl"]
 
 [phases.install]
 cmds = ["npm ci"]
