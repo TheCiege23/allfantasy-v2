@@ -122,17 +122,17 @@ const SPOTLIGHT_FEATURE_KEYS = [
 ] as const
 
 type QuickAction = {
-  key: "createPool" | "joinWithCode" | "continueBracket" | "browsePools"
-  /** i18n keys: `brk.hub.quickActions.<key>` and `brk.hub.quickActions.<key>Desc` */
+  /** Must match a key in `brk.hub.quickActions.*` and `brk.hub.quickActions.*Desc` */
+  key: "create" | "join" | "continue" | "browse"
   href: string
   Icon: typeof Plus
 }
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { key: "createPool", href: "/brackets/world-cup/create", Icon: Plus },
-  { key: "joinWithCode", href: "/brackets/join", Icon: Users },
-  { key: "continueBracket", href: "/brackets/world-cup", Icon: Trophy },
-  { key: "browsePools", href: "/brackets/world-cup/discover", Icon: Globe2 },
+  { key: "create",   href: "/brackets/world-cup/create",   Icon: Plus   },
+  { key: "join",     href: "/brackets/join",                Icon: Users  },
+  { key: "continue", href: "/brackets/world-cup",           Icon: Trophy },
+  { key: "browse",   href: "/brackets/world-cup/discover",  Icon: Globe2 },
 ]
 
 /**

@@ -3319,7 +3319,16 @@ export default function WorldCupBracketShell({
                         </li>
                       </ul>
                     ) : (
-                      <p className="mt-1.5 text-xs text-white/50">{t("wc.home.ai.unlockHint")}</p>
+                      <div className="mt-1.5">
+                        <p className="text-xs text-white/50">{t("wc.home.ai.unlockHint")}</p>
+                        <Link
+                          href="/pricing?from=wc-ai-teaser"
+                          className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-cyan-400 to-cyan-300 px-4 py-1.5 text-[11px] font-black text-black shadow-[0_2px_10px_-4px_rgba(34,211,238,0.5)] transition-transform hover:scale-[1.02] active:scale-[0.98]"
+                        >
+                          <Zap className="h-3 w-3" aria-hidden />
+                          Upgrade to AF Pro
+                        </Link>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -5019,6 +5028,14 @@ function WorldCupCommunityFoundationPanel({
   const [isChatLoading, setIsChatLoading] = useState(true)
   const [isSendingChat, setIsSendingChat] = useState(false)
   const [chatError, setChatError] = useState<string | null>(null)
+  // Structured AI gate error — replaces the generic rose error box with upgrade/limit cards
+  const [chatAiGate, setChatAiGate] = useState<{
+    type: 'chimmy_locked' | 'daily_limit'
+    message: string
+    upgradePath: string
+    used?: number
+    limit?: number
+  } | null>(null)
   const [composerPanel, setComposerPanel] = useState<WorldCupComposerPanel>(null)
   const [gifQuery, setGifQuery] = useState("")
   const [gifResults, setGifResults] = useState<WorldCupChatGifAttachment[]>([])
@@ -5088,6 +5105,7 @@ function WorldCupCommunityFoundationPanel({
     if (!body) return
     setIsSendingChat(true)
     setChatError(null)
+    setChatAiGate(null)
     try {
       const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat`, {
         method: "POST",
@@ -5096,6 +5114,26 @@ function WorldCupCommunityFoundationPanel({
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
+        // Chimmy is locked behind AF Pro (not subscribed yet)
+        if (res.status === 402 && data.code === "WORLD_CUP_CHIMMY_LOCKED") {
+          setChatAiGate({
+            type: "chimmy_locked",
+            message: data.error ?? "@chimmy requires AF Pro.",
+            upgradePath: data.upgradePath ?? "/pricing?from=wc-chimmy",
+          })
+          return
+        }
+        // Free/pro user hit their daily Chimmy question limit
+        if (res.status === 429 && data.error === "daily_ai_limit_reached") {
+          setChatAiGate({
+            type: "daily_limit",
+            message: data.message ?? "You've reached today's Chimmy limit.",
+            upgradePath: data.upgradePath ?? "/pricing",
+            used: data.used,
+            limit: data.limit,
+          })
+          return
+        }
         throw new Error(data.error || "Could not send message")
       }
       if (Array.isArray(data.messages) && data.messages.length > 0) {
@@ -5461,10 +5499,21 @@ function WorldCupCommunityFoundationPanel({
             </div>
           ) : null}
           {isChimmyPrompt ? (
-            <div className="mt-2 rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2 text-xs leading-5 text-white/70">
-              {aiUnlocked
-                ? tChat("wc.chat.aiHint.unlocked")
-                : tChat("wc.chat.aiHint.locked")}
+            <div className="mt-2 rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2 text-xs leading-5">
+              {aiUnlocked ? (
+                <p className="text-white/70">{tChat("wc.chat.aiHint.unlocked")}</p>
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-white/60">{tChat("wc.chat.aiHint.locked")}</p>
+                  <Link
+                    href="/pricing?from=wc-chimmy"
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-cyan-400/40 bg-cyan-400/10 px-3 py-1 text-[11px] font-black text-cyan-300 transition-colors hover:bg-cyan-400/20"
+                  >
+                    <Zap className="h-3 w-3" aria-hidden />
+                    Upgrade to AF Pro
+                  </Link>
+                </div>
+              )}
             </div>
           ) : null}
           {selectedGif ? (
@@ -5538,7 +5587,51 @@ function WorldCupCommunityFoundationPanel({
           >
             {tChat("wc.chat.trustNote")}
           </p>
-          {chatError ? (
+          {/* ── AI gate errors — shown instead of generic rose error ── */}
+          {chatAiGate?.type === "chimmy_locked" ? (
+            <div className="mt-2 rounded-xl border border-cyan-400/30 bg-gradient-to-br from-cyan-500/[0.10] to-violet-500/[0.07] px-4 py-3">
+              <div className="flex items-start gap-2">
+                <Zap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-300" aria-hidden />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-black text-white">Unlock AF Pro</p>
+                  <p className="mt-0.5 text-xs leading-5 text-white/60">
+                    Get more Chimmy answers, bracket advice, live match impact, and Path to Win analysis.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href={chatAiGate.upgradePath}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-cyan-400 to-cyan-300 px-4 py-1.5 text-[11px] font-black text-black shadow-[0_2px_10px_-4px_rgba(34,211,238,0.6)] transition-transform hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <Zap className="h-3 w-3" aria-hidden />
+                Upgrade to AF Pro
+              </Link>
+            </div>
+          ) : chatAiGate?.type === "daily_limit" ? (
+            <div className="mt-2 rounded-xl border border-amber-400/25 bg-amber-400/[0.08] px-4 py-3">
+              <div className="flex items-start gap-2">
+                <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" aria-hidden />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-black text-white">You reached today&apos;s AI limit.</p>
+                  <p className="mt-0.5 text-xs leading-5 text-white/60">
+                    {chatAiGate.message}
+                  </p>
+                  {chatAiGate.used != null && chatAiGate.limit != null && (
+                    <p className="mt-1 text-[10px] font-bold text-white/40">
+                      {chatAiGate.used} / {chatAiGate.limit} used today · Resets at midnight UTC
+                    </p>
+                  )}
+                </div>
+              </div>
+              <Link
+                href={chatAiGate.upgradePath}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/15 px-4 py-1.5 text-[11px] font-black text-amber-300 transition-colors hover:bg-amber-400/25"
+              >
+                <Zap className="h-3 w-3" aria-hidden />
+                Upgrade for more AI
+              </Link>
+            </div>
+          ) : chatError ? (
             <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-white/85">
               {chatError}
             </p>
