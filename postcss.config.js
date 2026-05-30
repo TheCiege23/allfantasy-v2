@@ -1,28 +1,22 @@
 const path = require('path')
 
-// On Railway, the prebuild script (scripts/railway-tailwind-prebuild.cjs) runs
-// Tailwind CLI before `next build`, replacing app/globals.css with compiled CSS
-// (no @tailwind directives).  webpack then processes plain CSS, so we only need
-// autoprefixer — the tailwindcss PostCSS plugin would be a no-op and adds
-// unnecessary content-scanning overhead.
+// On Railway the prebuild script (scripts/railway-tailwind-prebuild.cjs) runs
+// the Tailwind CLI before `next build`, replacing app/globals.css with compiled
+// plain CSS (no @tailwind directives).  When postcss-loader subsequently
+// processes that file the tailwindcss plugin sees no @tailwind / @apply /
+// @layer directives and is a pure passthrough — the compiled utility classes
+// flow through unchanged.  autoprefixer then adds vendor prefixes and
+// mini-css-extract-plugin extracts the CSS chunk normally.
 //
-// Locally, tailwindcss runs inside PostCSS as normal (dev HMR needs it).
-const isRailway = !!(
-  process.env.RAILWAY_ENVIRONMENT ||
-  process.env.RAILWAY_PROJECT_ID ||
-  process.env.RAILWAY_SERVICE_ID
-)
-
+// Using ONLY autoprefixer on Railway (the previous approach) caused
+// mini-css-extract-plugin to receive 0 bytes for globals.css, so no CSS
+// chunk appeared in app-build-manifest.json and every page was unstyled.
+// Always including tailwindcss fixes this regardless of whether @tailwind
+// directives are present in the file.
 module.exports = {
-  plugins: isRailway
-    ? {
-        // Railway: globals.css already compiled by Tailwind CLI in prebuild step.
-        autoprefixer: {},
-      }
-    : {
-        // Local dev / non-Railway builds: Tailwind runs through PostCSS as usual.
-        // Explicitly reference the .js config to prevent jiti/sucrase TS loading.
-        tailwindcss: { config: path.join(__dirname, 'tailwind.config.js') },
-        autoprefixer: {},
-      },
+  plugins: {
+    // Explicitly reference the .js config to prevent jiti/sucrase TS loading.
+    tailwindcss: { config: path.join(__dirname, 'tailwind.config.js') },
+    autoprefixer: {},
+  },
 }

@@ -2,7 +2,7 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "rm -rf .next/cache/webpack && npm run build && echo '[BUILD-DEBUG] app-build-manifest:' && node -e \"const f='.next/app-build-manifest.json';if(!require('fs').existsSync(f)){console.log('FILE NOT FOUND');process.exit(0);}const m=JSON.parse(require('fs').readFileSync(f,'utf8'));const pages=m.pages||m;const cssKeys=Object.keys(pages).filter(k=>pages[k]&&pages[k].some&&pages[k].some(v=>v.includes('.css')));console.log('Keys with CSS:',cssKeys.length);cssKeys.forEach(k=>console.log(k,'->',JSON.stringify(pages[k])));console.log('Layout full:',JSON.stringify(pages['/layout']));\" 2>&1 || true"
+    "buildCommand": "rm -rf .next/cache/webpack && npm run build && echo '[BUILD-DEBUG] CSS files in .next/static/css/:' && ls -lah .next/static/css/ 2>&1 | head -30 && echo '[BUILD-DEBUG] app-build-manifest:' && node -e \"const f='.next/app-build-manifest.json';if(!require('fs').existsSync(f)){console.log('FILE NOT FOUND');process.exit(0);}const m=JSON.parse(require('fs').readFileSync(f,'utf8'));const pages=m.pages||m;const cssKeys=Object.keys(pages).filter(k=>pages[k]&&pages[k].some&&pages[k].some(v=>v.includes('.css')));console.log('Keys with CSS:',cssKeys.length);cssKeys.forEach(k=>console.log(k,'->',JSON.stringify(pages[k])));console.log('Layout full:',JSON.stringify(pages['/layout']));\" 2>&1 || true"
   },
   "deploy": {
     "startCommand": "npm run db:migrate:deploy && npm run start",
