@@ -1,5 +1,13 @@
 // Diagnostic: visible in Railway build logs. Remove after CSS confirmed working.
+const fs = require('fs')
 console.log('[tailwind.config.js] loading, cwd=%s', process.cwd())
+try {
+  const appFiles = fs.readdirSync('./app').length
+  const compFiles = fs.readdirSync('./components').length
+  console.log('[tailwind.config.js] app/ entries=%d components/ entries=%d', appFiles, compFiles)
+} catch(e) {
+  console.error('[tailwind.config.js] CANNOT READ DIRS:', e.message)
+}
 // CommonJS format — avoids jiti/sucrase TypeScript loading on Railway (Node 22 Linux).
 // Tailwind's loadConfig() first tries require(), which works for .js but fails for .ts,
 // then falls back to jiti; on Railway that jiti path produced empty CSS output.
