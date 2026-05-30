@@ -368,6 +368,18 @@ const EN: WorldCupDictionary = {
   "wc.countdown.banner.fallback": "World Cup countdown coming soon",
   "wc.countdown.banner.fallbackHint": "Picks remain editable until kickoff is confirmed",
 
+  // ── AI upgrade / cap messages ────────────────────────────────────────
+  "wc.ai.upgrade.chimmy.free": "You've used today's 3 Chimmy questions. Upgrade to AF Pro for 30 per day.",
+  "wc.ai.upgrade.chimmy.pro": "You've used today's 30 Chimmy questions. They reset at midnight UTC.",
+  "wc.ai.upgrade.explain.free": "Bracket explanations require AF Pro. Upgrade to get daily AI bracket breakdowns.",
+  "wc.ai.upgrade.explain.pro": "You've used today's bracket explanation. It resets at midnight UTC.",
+  "wc.ai.upgrade.matchup.free": "AI Matchup Intelligence requires AF Pro.",
+  "wc.ai.upgrade.matchup.pro": "You've used today's 25 AI matchup analyses. They reset at midnight UTC.",
+  "wc.ai.upgrade.brain.free": "Commissioner Brain requires AF Commissioner or higher.",
+  "wc.ai.upgrade.brain.pro": "You've used today's Commissioner Brain calls. They reset at midnight UTC.",
+  "wc.ai.upgrade.resetHint": "Daily AI limits reset at midnight UTC.",
+  "wc.ai.upgrade.cta": "Upgrade Plan",
+
   // ── Knockouts tab ────────────────────────────────────────────────────
   "wc.knockouts.intro.reseeded":
     "Knockout picks open after official Round of 32 fixtures are available.",
@@ -1527,6 +1539,18 @@ const ES: WorldCupDictionary = {
   "wc.countdown.banner.lockTime": "Los picks se bloquean · {{time}}",
   "wc.countdown.banner.fallback": "Cuenta regresiva del Mundial próximamente",
   "wc.countdown.banner.fallbackHint": "Los picks son editables hasta que se confirme el inicio",
+
+  // ── AI upgrade / cap messages ────────────────────────────────────────
+  "wc.ai.upgrade.chimmy.free": "Has usado las 3 preguntas de Chimmy de hoy. Mejora a AF Pro para 30 por día.",
+  "wc.ai.upgrade.chimmy.pro": "Has usado las 30 preguntas de Chimmy de hoy. Se reinician a medianoche UTC.",
+  "wc.ai.upgrade.explain.free": "Las explicaciones de bracket requieren AF Pro.",
+  "wc.ai.upgrade.explain.pro": "Has usado la explicación de bracket de hoy. Se reinicia a medianoche UTC.",
+  "wc.ai.upgrade.matchup.free": "El análisis de emparejamiento con IA requiere AF Pro.",
+  "wc.ai.upgrade.matchup.pro": "Has usado los 25 análisis de emparejamiento de hoy. Se reinician a medianoche UTC.",
+  "wc.ai.upgrade.brain.free": "Commissioner Brain requiere AF Commissioner o superior.",
+  "wc.ai.upgrade.brain.pro": "Has usado las llamadas del Commissioner Brain de hoy. Se reinician a medianoche UTC.",
+  "wc.ai.upgrade.resetHint": "Los límites diarios de IA se reinician a medianoche UTC.",
+  "wc.ai.upgrade.cta": "Mejorar Plan",
 
   // ── Knockouts tab ────────────────────────────────────────────────────
   "wc.knockouts.intro.reseeded":
@@ -2714,6 +2738,18 @@ const ZH: WorldCupDictionary = {
   "wc.countdown.banner.fallback": "World Cup countdown coming soon",
   "wc.countdown.banner.fallbackHint": "Picks remain editable until kickoff is confirmed",
 
+  // ── AI upgrade / cap messages ────────────────────────────────────────
+  "wc.ai.upgrade.chimmy.free": "You've used today's 3 Chimmy questions. Upgrade to AF Pro for 30 per day.",
+  "wc.ai.upgrade.chimmy.pro": "You've used today's 30 Chimmy questions. They reset at midnight UTC.",
+  "wc.ai.upgrade.explain.free": "Bracket explanations require AF Pro. Upgrade to get daily AI bracket breakdowns.",
+  "wc.ai.upgrade.explain.pro": "You've used today's bracket explanation. It resets at midnight UTC.",
+  "wc.ai.upgrade.matchup.free": "AI Matchup Intelligence requires AF Pro.",
+  "wc.ai.upgrade.matchup.pro": "You've used today's 25 AI matchup analyses. They reset at midnight UTC.",
+  "wc.ai.upgrade.brain.free": "Commissioner Brain requires AF Commissioner or higher.",
+  "wc.ai.upgrade.brain.pro": "You've used today's Commissioner Brain calls. They reset at midnight UTC.",
+  "wc.ai.upgrade.resetHint": "Daily AI limits reset at midnight UTC.",
+  "wc.ai.upgrade.cta": "Upgrade Plan",
+
   // ── Knockouts tab ────────────────────────────────────────────────────
   "wc.knockouts.intro.reseeded":
     "正式的 32 強賽程公布後即可選擇淘汰賽。",
@@ -3876,6 +3912,18 @@ const FIL: WorldCupDictionary = {
   "wc.countdown.banner.lockTime": "Group picks lock · {{time}}",
   "wc.countdown.banner.fallback": "World Cup countdown coming soon",
   "wc.countdown.banner.fallbackHint": "Picks remain editable until kickoff is confirmed",
+
+  // ── AI upgrade / cap messages ────────────────────────────────────────
+  "wc.ai.upgrade.chimmy.free": "You've used today's 3 Chimmy questions. Upgrade to AF Pro for 30 per day.",
+  "wc.ai.upgrade.chimmy.pro": "You've used today's 30 Chimmy questions. They reset at midnight UTC.",
+  "wc.ai.upgrade.explain.free": "Bracket explanations require AF Pro. Upgrade to get daily AI bracket breakdowns.",
+  "wc.ai.upgrade.explain.pro": "You've used today's bracket explanation. It resets at midnight UTC.",
+  "wc.ai.upgrade.matchup.free": "AI Matchup Intelligence requires AF Pro.",
+  "wc.ai.upgrade.matchup.pro": "You've used today's 25 AI matchup analyses. They reset at midnight UTC.",
+  "wc.ai.upgrade.brain.free": "Commissioner Brain requires AF Commissioner or higher.",
+  "wc.ai.upgrade.brain.pro": "You've used today's Commissioner Brain calls. They reset at midnight UTC.",
+  "wc.ai.upgrade.resetHint": "Daily AI limits reset at midnight UTC.",
+  "wc.ai.upgrade.cta": "Upgrade Plan",
 
   // ── Knockouts tab ────────────────────────────────────────────────────
   "wc.knockouts.intro.reseeded":
@@ -5077,6 +5125,18 @@ const VI: WorldCupDictionary = {
   "wc.countdown.banner.lockTime": "Group picks lock · {{time}}",
   "wc.countdown.banner.fallback": "World Cup countdown coming soon",
   "wc.countdown.banner.fallbackHint": "Picks remain editable until kickoff is confirmed",
+
+  // ── AI upgrade / cap messages ────────────────────────────────────────
+  "wc.ai.upgrade.chimmy.free": "You've used today's 3 Chimmy questions. Upgrade to AF Pro for 30 per day.",
+  "wc.ai.upgrade.chimmy.pro": "You've used today's 30 Chimmy questions. They reset at midnight UTC.",
+  "wc.ai.upgrade.explain.free": "Bracket explanations require AF Pro. Upgrade to get daily AI bracket breakdowns.",
+  "wc.ai.upgrade.explain.pro": "You've used today's bracket explanation. It resets at midnight UTC.",
+  "wc.ai.upgrade.matchup.free": "AI Matchup Intelligence requires AF Pro.",
+  "wc.ai.upgrade.matchup.pro": "You've used today's 25 AI matchup analyses. They reset at midnight UTC.",
+  "wc.ai.upgrade.brain.free": "Commissioner Brain requires AF Commissioner or higher.",
+  "wc.ai.upgrade.brain.pro": "You've used today's Commissioner Brain calls. They reset at midnight UTC.",
+  "wc.ai.upgrade.resetHint": "Daily AI limits reset at midnight UTC.",
+  "wc.ai.upgrade.cta": "Upgrade Plan",
 
   // ── Knockouts tab ────────────────────────────────────────────────────
   "wc.knockouts.intro.reseeded":

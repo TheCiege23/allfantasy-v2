@@ -124,23 +124,26 @@ describe("Chimmy rate limit helper", () => {
   })
 
   it("checkWorldCupChimmyRateLimit returns allowed:true under limit, false at limit", async () => {
-    const { checkWorldCupChimmyRateLimit, WORLD_CUP_CHIMMY_DAILY_LIMIT } =
-      await import("@/lib/world-cup/worldCupChimmyRateLimit")
+    const { checkWorldCupChimmyRateLimit } = await import("@/lib/world-cup/worldCupChimmyRateLimit")
+    const { DAILY_CAP_LIMITS } = await import("@/lib/ai/dailyCaps")
+    // Pro tier default is 30/day (DAILY_CAP_LIMITS.chimmy.pro).
+    // WORLD_CUP_CHIMMY_DAILY_LIMIT (=20) is deprecated; pass tier explicitly.
+    const proLimit = DAILY_CAP_LIMITS.chimmy.pro
 
-    countMessagesMock.mockResolvedValue(WORLD_CUP_CHIMMY_DAILY_LIMIT - 1)
-    const under = await checkWorldCupChimmyRateLimit("user-1")
+    countMessagesMock.mockResolvedValue(proLimit - 1)
+    const under = await checkWorldCupChimmyRateLimit("user-1", undefined, "pro")
     expect(under).toEqual({
       allowed: true,
-      used: WORLD_CUP_CHIMMY_DAILY_LIMIT - 1,
-      limit: WORLD_CUP_CHIMMY_DAILY_LIMIT,
+      used: proLimit - 1,
+      limit: proLimit,
     })
 
-    countMessagesMock.mockResolvedValue(WORLD_CUP_CHIMMY_DAILY_LIMIT)
-    const at = await checkWorldCupChimmyRateLimit("user-1")
+    countMessagesMock.mockResolvedValue(proLimit)
+    const at = await checkWorldCupChimmyRateLimit("user-1", undefined, "pro")
     expect(at.allowed).toBe(false)
 
-    countMessagesMock.mockResolvedValue(WORLD_CUP_CHIMMY_DAILY_LIMIT + 99)
-    const over = await checkWorldCupChimmyRateLimit("user-1")
+    countMessagesMock.mockResolvedValue(proLimit + 99)
+    const over = await checkWorldCupChimmyRateLimit("user-1", undefined, "pro")
     expect(over.allowed).toBe(false)
   })
 })
@@ -206,7 +209,8 @@ describe("World Cup chat route — Chimmy rate-limit integration", () => {
   })
 
   it("Pro user AT limit returns 429 with daily_ai_limit_reached and skips OpenAI", async () => {
-    countMessagesMock.mockResolvedValue(20)
+    // Pro tier is 30/day (DAILY_CAP_LIMITS.chimmy.pro). Use count == limit to trigger cap.
+    countMessagesMock.mockResolvedValue(30)
     const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
 
     const res = await POST(request({ body: "@chimmy help me" }), { params: { challengeId: "c1" } })
@@ -214,9 +218,10 @@ describe("World Cup chat route — Chimmy rate-limit integration", () => {
 
     expect(res.status).toBe(429)
     expect(json.error).toBe("daily_ai_limit_reached")
-    expect(json.message).toMatch(/today's Chimmy limit/i)
-    expect(json.limit).toBe(20)
-    expect(json.used).toBe(20)
+    // Route returns "You've used today's 30 Chimmy questions. They reset at midnight UTC."
+    expect(json.message).toMatch(/today's.*chimmy/i)
+    expect(json.limit).toBe(30)
+    expect(json.used).toBe(30)
     // Critical cost protection: OpenAI is never called when over the limit.
     expect(generateChimmyReplyMock).not.toHaveBeenCalled()
     expect(createMessageMock).not.toHaveBeenCalled()

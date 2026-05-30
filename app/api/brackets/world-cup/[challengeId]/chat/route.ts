@@ -14,6 +14,7 @@ import {
 import { buildWorldCupChimmyContext } from "@/lib/world-cup/worldCupChimmyContext"
 import { generateWorldCupChimmyPrivateReply } from "@/lib/world-cup/worldCupChimmyPrivateReply"
 import { checkWorldCupChimmyRateLimit } from "@/lib/world-cup/worldCupChimmyRateLimit"
+import { resolveWcCapTier } from "@/lib/world-cup/worldCupAiUsageLimits"
 import {
   getWorldCupNotificationPreferenceResolution,
   updateWorldCupNotificationPreferencesForUser,
@@ -873,19 +874,26 @@ export async function POST(
       return NextResponse.json({
         error: "@chimmy private replies require AI/Pro.",
         code: "WORLD_CUP_CHIMMY_LOCKED",
+        upgrade: true,
+        upgradePath: "/pricing?from=wc-chimmy",
         private: true,
       }, { status: 402 })
     }
-    // Per-user per-UTC-day cost control on OpenAI calls. Runs only after
-    // the Pro gate so free users still see 402 (not 429) first.
-    const rateLimit = await checkWorldCupChimmyRateLimit(auth.user.id)
+    // Per-user per-UTC-day cost control. Tier-aware: admin 75/day, pro 30/day.
+    // Runs only after the Pro gate so free users see 402 (not 429) first.
+    // access.isAdmin is already resolved above via assertWorldCupChallengeMemberOrManager.
+    const chimmyTier = resolveWcCapTier({ isAdmin: access.isAdmin, hasPro: hasAi })
+    const rateLimit = await checkWorldCupChimmyRateLimit(auth.user.id, new Date(), chimmyTier)
     if (!rateLimit.allowed) {
       return NextResponse.json(
         {
           error: "daily_ai_limit_reached",
-          message: "You've reached today's Chimmy limit. Try again tomorrow.",
+          message: chimmyTier === "pro"
+            ? "You've used today's 30 Chimmy questions. They reset at midnight UTC."
+            : "You've used today's Chimmy questions. They reset at midnight UTC.",
           used: rateLimit.used,
           limit: rateLimit.limit,
+          upgradePath: "/pricing",
         },
         { status: 429 }
       )

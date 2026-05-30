@@ -3,6 +3,11 @@ import { cookies } from "next/headers"
 import { prisma } from "@/lib/prisma"
 import { userHasBracketBrainAi } from "@/lib/bracket-brain/bracketBrainAccess"
 import { generateWorldCupBracketExplanation } from "@/lib/world-cup/worldCupExplainBracketService"
+import {
+  checkWcAiCap,
+  incrementWcAiCap,
+  resolveWcCapTierForUser,
+} from "@/lib/world-cup/worldCupAiUsageLimits"
 import { requireWorldCupApiUser } from "../../../../_utils"
 import { resolveLanguage } from "@/lib/i18n/constants"
 
@@ -39,9 +44,27 @@ export async function POST(
       {
         error: "AF Pro required for the private bracket explanation.",
         upgrade: true,
+        upgradePath: "/pricing?from=wc-explain",
         hasBracketBrainAi: false,
       },
       { status: 402 }
+    )
+  }
+
+  // Daily cap — prevents unlimited AI calls per user per UTC day.
+  const tier = await resolveWcCapTierForUser(userResult.user.id, userResult.user.email)
+  const capResult = await checkWcAiCap("explain_bracket", userResult.user.id, tier)
+  if (!capResult.allowed) {
+    return NextResponse.json(
+      {
+        error: "daily_ai_limit_reached",
+        message: capResult.message,
+        used: capResult.used,
+        limit: capResult.limit,
+        resetsAt: capResult.resetsAt.toISOString(),
+        upgradePath: capResult.upgradePath,
+      },
+      { status: 429 }
     )
   }
 
@@ -64,6 +87,11 @@ export async function POST(
       { error: "Could not generate explanation. Please try again." },
       { status: 500 }
     )
+  }
+
+  // Increment cap only when the LLM was actually called (not deterministic fallback).
+  if (result.generative) {
+    await incrementWcAiCap("explain_bracket", userResult.user.id, tier)
   }
 
   return NextResponse.json({

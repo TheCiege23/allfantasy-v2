@@ -13,16 +13,17 @@ import { getAiDailyCaps } from '@/lib/ai/aiConfig'
 
 // ── Cap limits ────────────────────────────────────────────────────────────────
 
-export type CapFeature = 'chimmy' | 'explain_bracket' | 'commissioner_brain'
+export type CapFeature = 'chimmy' | 'explain_bracket' | 'commissioner_brain' | 'wc_matchup_narrative'
 export type CapTier = 'free' | 'pro' | 'admin'
 
 // Computed at module load from env vars — server restart picks up changes.
-// Env vars: AI_CAP_{FREE|PRO|ADMIN}_{CHIMMY|EXPLAIN|COMMISSIONER_BRAIN}_DAILY
+// Env vars: AI_CAP_{FREE|PRO|ADMIN}_{CHIMMY|EXPLAIN|COMMISSIONER_BRAIN|WC_MATCHUP}_DAILY
 const _caps = getAiDailyCaps()
 export const DAILY_CAP_LIMITS: Record<CapFeature, Record<CapTier, number>> = {
-  chimmy:             { free: _caps.free.chimmy,             pro: _caps.pro.chimmy,             admin: _caps.admin.chimmy             },
-  explain_bracket:    { free: _caps.free.explain_bracket,    pro: _caps.pro.explain_bracket,    admin: _caps.admin.explain_bracket    },
-  commissioner_brain: { free: _caps.free.commissioner_brain, pro: _caps.pro.commissioner_brain, admin: _caps.admin.commissioner_brain },
+  chimmy:               { free: _caps.free.chimmy,               pro: _caps.pro.chimmy,               admin: _caps.admin.chimmy               },
+  explain_bracket:      { free: _caps.free.explain_bracket,      pro: _caps.pro.explain_bracket,      admin: _caps.admin.explain_bracket      },
+  commissioner_brain:   { free: _caps.free.commissioner_brain,   pro: _caps.pro.commissioner_brain,   admin: _caps.admin.commissioner_brain   },
+  wc_matchup_narrative: { free: _caps.free.wc_matchup_narrative, pro: _caps.pro.wc_matchup_narrative, admin: _caps.admin.wc_matchup_narrative },
 }
 
 export interface DailyCapResult {
@@ -59,6 +60,12 @@ function endOfUtcDay(d = new Date()): Date {
 function capExceededMessage(feature: CapFeature): string {
   if (feature === 'explain_bracket') {
     return "You've reached today's bracket explanation limit. Try again tomorrow or upgrade for more AI help."
+  }
+  if (feature === 'commissioner_brain') {
+    return "You've reached today's Commissioner Brain limit. Try again tomorrow or upgrade for more AI help."
+  }
+  if (feature === 'wc_matchup_narrative') {
+    return "You've reached today's matchup AI limit. Try again tomorrow or upgrade for more AI help."
   }
   return "You've reached today's Chimmy limit. Try again tomorrow or upgrade for more AI help."
 }

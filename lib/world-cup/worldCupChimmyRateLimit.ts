@@ -12,9 +12,14 @@
  */
 import "server-only"
 import { prisma } from "@/lib/prisma"
+import { DAILY_CAP_LIMITS, type CapTier } from "@/lib/ai/dailyCaps"
 import { WORLD_CUP_POOL_CHAT_EVENT_TYPES } from "./worldCupPoolChatPlan"
 
-/** Maximum Chimmy private AI replies a user can trigger per UTC day. */
+/**
+ * Legacy hard-coded limit kept for backward compatibility.
+ * New code should use `DAILY_CAP_LIMITS.chimmy[tier]` via checkWorldCupChimmyRateLimit.
+ * @deprecated Pass a `tier` to checkWorldCupChimmyRateLimit instead.
+ */
 export const WORLD_CUP_CHIMMY_DAILY_LIMIT = 20
 
 function startOfUtcDay(now: Date): Date {
@@ -62,13 +67,24 @@ export type ChimmyRateLimitResult = {
 
 /**
  * Returns whether the user can trigger another Chimmy AI reply today.
+ *
+ * Pass `tier` (from `resolveWcCapTier`) to use the tier-appropriate daily limit
+ * from `DAILY_CAP_LIMITS.chimmy[tier]`:
+ *   free  → 3/day   (same as general AI chimmy cap)
+ *   pro   → 30/day
+ *   admin → 75/day
+ *
+ * When `tier` is omitted, defaults to 'pro' so existing callers that already
+ * passed the Pro gate aren't suddenly limited to 3. Migrate callers to pass
+ * the actual tier for accurate enforcement.
  */
 export async function checkWorldCupChimmyRateLimit(
   userId: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  tier: CapTier = 'pro'
 ): Promise<ChimmyRateLimitResult> {
   const used = await countChimmyAiCallsToday(userId, now)
-  const limit = WORLD_CUP_CHIMMY_DAILY_LIMIT
+  const limit = DAILY_CAP_LIMITS.chimmy[tier]
   return {
     allowed: used < limit,
     used,

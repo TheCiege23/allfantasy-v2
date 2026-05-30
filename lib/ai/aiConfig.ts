@@ -80,6 +80,8 @@ export interface AiTierCaps {
   chimmy: number
   explain_bracket: number
   commissioner_brain: number
+  /** Per-user daily cap on generative matchup AI calls (panel summary + ask_ai/explain narratives). */
+  wc_matchup_narrative: number
 }
 
 export interface AiDailyCaps {
@@ -90,28 +92,31 @@ export interface AiDailyCaps {
 
 /** Hard-coded defaults — used when env vars are absent or invalid. */
 export const CAP_DEFAULTS: AiDailyCaps = {
-  free:  { chimmy: 3,  explain_bracket: 1,  commissioner_brain: 0  },
-  pro:   { chimmy: 30, explain_bracket: 5,  commissioner_brain: 5  },
-  admin: { chimmy: 75, explain_bracket: 20, commissioner_brain: 20 },
+  free:  { chimmy: 3,  explain_bracket: 1,  commissioner_brain: 0,  wc_matchup_narrative: 3   },
+  pro:   { chimmy: 30, explain_bracket: 5,  commissioner_brain: 5,  wc_matchup_narrative: 25  },
+  admin: { chimmy: 75, explain_bracket: 20, commissioner_brain: 20, wc_matchup_narrative: 200 },
 }
 
 /** Returns effective daily caps — reads from env at call time. */
 export function getAiDailyCaps(): AiDailyCaps {
   return {
     free: {
-      chimmy:             envInt('AI_CAP_FREE_CHIMMY_DAILY',             CAP_DEFAULTS.free.chimmy,             true),
-      explain_bracket:    envInt('AI_CAP_FREE_EXPLAIN_DAILY',            CAP_DEFAULTS.free.explain_bracket,    true),
-      commissioner_brain: envInt('AI_CAP_FREE_COMMISSIONER_BRAIN_DAILY', CAP_DEFAULTS.free.commissioner_brain, true),
+      chimmy:               envInt('AI_CAP_FREE_CHIMMY_DAILY',             CAP_DEFAULTS.free.chimmy,               true),
+      explain_bracket:      envInt('AI_CAP_FREE_EXPLAIN_DAILY',            CAP_DEFAULTS.free.explain_bracket,      true),
+      commissioner_brain:   envInt('AI_CAP_FREE_COMMISSIONER_BRAIN_DAILY', CAP_DEFAULTS.free.commissioner_brain,   true),
+      wc_matchup_narrative: envInt('AI_CAP_FREE_WC_MATCHUP_DAILY',         CAP_DEFAULTS.free.wc_matchup_narrative, true),
     },
     pro: {
-      chimmy:             envInt('AI_CAP_PRO_CHIMMY_DAILY',             CAP_DEFAULTS.pro.chimmy,             true),
-      explain_bracket:    envInt('AI_CAP_PRO_EXPLAIN_DAILY',            CAP_DEFAULTS.pro.explain_bracket,    true),
-      commissioner_brain: envInt('AI_CAP_PRO_COMMISSIONER_BRAIN_DAILY', CAP_DEFAULTS.pro.commissioner_brain, true),
+      chimmy:               envInt('AI_CAP_PRO_CHIMMY_DAILY',             CAP_DEFAULTS.pro.chimmy,               true),
+      explain_bracket:      envInt('AI_CAP_PRO_EXPLAIN_DAILY',            CAP_DEFAULTS.pro.explain_bracket,      true),
+      commissioner_brain:   envInt('AI_CAP_PRO_COMMISSIONER_BRAIN_DAILY', CAP_DEFAULTS.pro.commissioner_brain,   true),
+      wc_matchup_narrative: envInt('AI_CAP_PRO_WC_MATCHUP_DAILY',         CAP_DEFAULTS.pro.wc_matchup_narrative, true),
     },
     admin: {
-      chimmy:             envInt('AI_CAP_ADMIN_CHIMMY_DAILY',             CAP_DEFAULTS.admin.chimmy,             true),
-      explain_bracket:    envInt('AI_CAP_ADMIN_EXPLAIN_DAILY',            CAP_DEFAULTS.admin.explain_bracket,    true),
-      commissioner_brain: envInt('AI_CAP_ADMIN_COMMISSIONER_BRAIN_DAILY', CAP_DEFAULTS.admin.commissioner_brain, true),
+      chimmy:               envInt('AI_CAP_ADMIN_CHIMMY_DAILY',             CAP_DEFAULTS.admin.chimmy,               true),
+      explain_bracket:      envInt('AI_CAP_ADMIN_EXPLAIN_DAILY',            CAP_DEFAULTS.admin.explain_bracket,      true),
+      commissioner_brain:   envInt('AI_CAP_ADMIN_COMMISSIONER_BRAIN_DAILY', CAP_DEFAULTS.admin.commissioner_brain,   true),
+      wc_matchup_narrative: envInt('AI_CAP_ADMIN_WC_MATCHUP_DAILY',         CAP_DEFAULTS.admin.wc_matchup_narrative, true),
     },
   }
 }

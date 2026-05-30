@@ -4,8 +4,16 @@ import { userHasBracketBrainAi } from "@/lib/bracket-brain/bracketBrainAccess"
 import { prisma } from "@/lib/prisma"
 import { resolveWorldCupMatchViewWithEntryProjections } from "@/lib/world-cup/worldCupBracketService"
 import { buildWorldCupMatchupIntelligence } from "@/lib/world-cup/worldCupAIService"
+import {
+  checkWcAiCap,
+  incrementWcAiCap,
+  resolveWcCapTier,
+} from "@/lib/world-cup/worldCupAiUsageLimits"
 import type { WorldCupAiStrategy, WorldCupMatchView } from "@/lib/world-cup/types"
-import { requireWorldCupApiUser } from "../../../../../_utils"
+import {
+  getWorldCupAdminState,
+  requireWorldCupApiUser,
+} from "../../../../../_utils"
 
 const bodySchema = z.object({
   matchId: z.string().min(1),
@@ -36,8 +44,43 @@ export async function POST(
     userResult.user.email ?? null
   )
   if ((intent === "ask_ai" || intent === "explain") && !hasBracketBrainAi) {
-    return NextResponse.json({ error: "Bracket Brain requires AF Pro." }, { status: 403 })
+    return NextResponse.json({
+      error: "Bracket Brain requires AF Pro.",
+      upgrade: true,
+      upgradePath: "/pricing?from=wc-matchup-ai",
+    }, { status: 403 })
   }
+
+  // Daily cap for generative matchup AI (panel summary + ask_ai/explain narratives).
+  // Free users are already blocked above for ask_ai/explain; this cap applies to Pro+.
+  const isAdmin = await getWorldCupAdminState(req, userResult.user)
+  const matchupTier = resolveWcCapTier({ isAdmin, hasPro: hasBracketBrainAi })
+  let capExceededForExplicit = false
+
+  if (hasBracketBrainAi) {
+    const capResult = await checkWcAiCap("wc_matchup_narrative", userResult.user.id, matchupTier)
+    if (!capResult.allowed) {
+      // ask_ai / explain: block explicitly — user is deliberately invoking AI.
+      if (intent === "ask_ai" || intent === "explain") {
+        return NextResponse.json(
+          {
+            error: "daily_ai_limit_reached",
+            message: capResult.message,
+            used: capResult.used,
+            limit: capResult.limit,
+            resetsAt: capResult.resetsAt.toISOString(),
+            upgradePath: capResult.upgradePath,
+          },
+          { status: 429 }
+        )
+      }
+      // panel: soft-cap — return deterministic data rather than blocking the panel.
+      capExceededForExplicit = true
+    }
+  }
+
+  // If panel cap exceeded, use deterministic path (bracketBrainAiEntitled: false).
+  const useGenerative = hasBracketBrainAi && !capExceededForExplicit
 
   const challenge = await (prisma as any).worldCupBracketChallenge.findUnique({
     where: { id: challengeId },
@@ -147,13 +190,18 @@ export async function POST(
     match,
     strategy: strategy as WorldCupAiStrategy,
     intent,
-    bracketBrainAiEntitled: hasBracketBrainAi,
+    bracketBrainAiEntitled: useGenerative,
     logContext: {
       userId: userResult.user.id,
       challengeId,
       entryId,
     },
   })
+
+  // Increment cap only when a generative AI call was actually made.
+  if (useGenerative && (intelligence.generative || intelligence.narrativesGenerative)) {
+    await incrementWcAiCap("wc_matchup_narrative", userResult.user.id, matchupTier)
+  }
 
   return NextResponse.json({ success: true, intelligence })
 }

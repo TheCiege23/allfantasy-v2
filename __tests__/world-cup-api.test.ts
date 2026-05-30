@@ -59,6 +59,7 @@ const prismaMatchMock = vi.hoisted(() => vi.fn())
 vi.mock("@/app/api/brackets/world-cup/_utils", () => ({
   requireWorldCupApiUser: requireUserMock,
   worldCupChallengeParamsSchema: z.object({ challengeId: z.string().min(1) }),
+  getWorldCupAdminState: vi.fn().mockResolvedValue(false),
 }))
 
 vi.mock("@/lib/bracket-brain/bracketBrainAccess", () => ({
