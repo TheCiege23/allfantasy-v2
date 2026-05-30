@@ -2,7 +2,7 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "rm -rf .next/cache/webpack node_modules/.cache && npm run build"
+    "buildCommand": "rm -rf .next/cache/webpack && npm run build"
   },
   "deploy": {
     "startCommand": "npm run db:migrate:deploy && npm run start",

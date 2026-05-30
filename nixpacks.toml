@@ -11,14 +11,14 @@ nixPkgs = ["nodejs_22", "openssl"]
 cmds = ["npm ci"]
 
 [phases.build]
-# Clear BOTH persistent Docker cache volumes before each build:
-#   .next/cache/webpack  — webpack filesystem cache (can contain stale module graphs)
-#   node_modules/.cache  — postcss-loader transform cache (was poisoned with 0-byte CSS
-#                          when tailwind.config.ts → .js migration ran with jiti errors;
-#                          must be nuked so postcss-loader re-runs Tailwind from scratch)
-# railway.json buildCommand overrides these cmds at deploy time but may lag one build
-# behind due to Railway's plan-caching; specifying here ensures the clear always runs.
-cmds = ["rm -rf .next/cache/webpack node_modules/.cache", "npm run build"]
+# Clear the webpack filesystem cache before each build to prevent stale module graphs.
+# NOTE: Do NOT try to rm -rf node_modules/.cache — that directory IS the Docker
+# --mount=type=cache target and removing the mount point itself causes "Device or
+# resource busy".  The postcss-loader cache is invalidated naturally: the prebuild
+# script (scripts/railway-tailwind-prebuild.cjs) replaces app/globals.css with
+# pre-compiled Tailwind CSS before next build runs, so the cache key (based on file
+# content) changes and postcss-loader gets a cache miss without needing to clear it.
+cmds = ["rm -rf .next/cache/webpack", "npm run build"]
 
 [start]
 cmd = "npm run start"
