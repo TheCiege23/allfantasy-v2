@@ -367,6 +367,25 @@ export default function WorldCupEntryDashboard({
               <p className="mt-1 text-xs text-white/30">
                 You can create up to {maxEntriesPerParticipant} bracket{maxEntriesPerParticipant !== 1 ? "s" : ""} in this pool.
               </p>
+              {/* Scoring explainer chips */}
+              <div className="mt-4 flex flex-wrap justify-center gap-1.5">
+                {[
+                  { label: "R32", pts: "+10" },
+                  { label: "R16", pts: "+20" },
+                  { label: "QF", pts: "+40" },
+                  { label: "SF", pts: "+80" },
+                  { label: "Final", pts: "+160" },
+                  { label: "Champion", pts: "+320" },
+                ].map(({ label, pts }) => (
+                  <span
+                    key={label}
+                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[10px] font-bold"
+                  >
+                    <span className="text-white/45">{label}</span>
+                    <span className="text-cyan-300">{pts}</span>
+                  </span>
+                ))}
+              </div>
             </div>
           )}
           {!isLocked && (

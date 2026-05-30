@@ -237,36 +237,40 @@ export default async function WorldCupBracketsPage() {
           ))}
         </div>
 
-        {/* Primary CTAs */}
-        <div className="mt-9 flex flex-wrap justify-center gap-3">
+        {/* Primary CTA — Create is the dominant action */}
+        <div className="mt-9 flex flex-col items-center gap-3">
           <Link
             href="/brackets/world-cup/create"
-            className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-gradient-to-b from-cyan-300 to-cyan-400 px-6 py-3 text-sm font-black text-slate-950 shadow-[0_10px_40px_-10px_rgba(34,211,238,0.65)] transition-transform hover:scale-[1.02] active:scale-[0.98]"
+            className="inline-flex min-h-14 items-center gap-2.5 rounded-xl bg-gradient-to-b from-cyan-300 to-cyan-400 px-8 py-3.5 text-base font-black text-slate-950 shadow-[0_12px_40px_-10px_rgba(34,211,238,0.7)] transition-transform hover:scale-[1.02] active:scale-[0.98]"
             data-testid="wc-cta-create"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-5 w-5" />
             {t("wc.publicHub.createWorldCupPool")}
           </Link>
-          <Link
-            href="/brackets/world-cup/join"
-            className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-violet-400/35 bg-violet-500/[0.06] px-6 py-3 text-sm font-bold text-violet-200 transition-colors hover:border-violet-400/55 hover:bg-violet-500/[0.10] hover:text-violet-100"
-            data-testid="wc-cta-join"
-          >
-            <Users className="h-4 w-4" />
-            {t("wc.publicHub.joinWithCode")}
-          </Link>
-          <Link
-            href="/brackets/world-cup/discover"
-            className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-amber-400/35 bg-amber-500/[0.06] px-6 py-3 text-sm font-bold text-amber-200 transition-colors hover:border-amber-400/55 hover:bg-amber-500/[0.10] hover:text-amber-100"
-            data-testid="wc-cta-discover"
-          >
-            <Globe2 className="h-4 w-4" />
-            {t("wc.publicHub.discover")}
-          </Link>
+
+          {/* Secondary actions — lower visual weight */}
+          <div className="flex flex-wrap justify-center gap-2">
+            <Link
+              href="/brackets/world-cup/join"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.04] px-4 py-2 text-sm font-bold text-white/70 transition-colors hover:border-white/25 hover:bg-white/[0.07] hover:text-white/90"
+              data-testid="wc-cta-join"
+            >
+              <Users className="h-3.5 w-3.5" />
+              {t("wc.publicHub.joinWithCode")}
+            </Link>
+            <Link
+              href="/brackets/world-cup/discover"
+              className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-bold text-white/45 transition-colors hover:text-white/70"
+              data-testid="wc-cta-discover"
+            >
+              <Globe2 className="h-3.5 w-3.5" />
+              {t("wc.publicHub.discover")}
+            </Link>
+          </div>
         </div>
 
-        {/* Trust note */}
-        <p className="mt-5 text-[11px] text-white/35 sm:text-xs">
+        {/* Trust note — clearly readable */}
+        <p className="mt-4 text-[11px] text-white/60 sm:text-xs">
           {t("wc.publicHub.trustNote")}
         </p>
       </section>

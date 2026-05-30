@@ -168,12 +168,12 @@ export default function WorldCupBracketCreateModal() {
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-3 text-sm font-bold text-white outline-none focus:border-cyan-300/60"
+                className={`mt-2 w-full rounded-lg border bg-black/40 px-3 py-3 text-sm font-bold text-white outline-none focus:border-cyan-300/60 ${nameError ? "border-rose-400/70 ring-1 ring-rose-400/30" : "border-white/10"}`}
                 required
                 maxLength={80}
                 placeholder={t("wc.create.poolName.placeholder")}
               />
-              {nameError && <p className="mt-1 text-[11px] text-white/70">{nameError}</p>}
+              {nameError && <p className="mt-1 text-[11px] font-bold text-rose-400">{nameError}</p>}
             </div>
 
             <div className="border-t border-white/[0.06]" />
@@ -223,10 +223,10 @@ export default function WorldCupBracketCreateModal() {
                   max={MAX_USERS}
                   value={maxUsers}
                   onChange={(e) => setMaxUsers(Math.min(MAX_USERS, Math.max(1, Number(e.target.value))))}
-                  className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2.5 text-sm font-bold text-white outline-none focus:border-cyan-300/60"
+                  className={`mt-2 w-full rounded-lg border bg-black/40 px-3 py-2.5 text-sm font-bold text-white outline-none focus:border-cyan-300/60 ${maxUsersError ? "border-rose-400/70 ring-1 ring-rose-400/30" : "border-white/10"}`}
                 />
                 {maxUsersError
-                  ? <p className="mt-1 text-[11px] text-white/70">{maxUsersError}</p>
+                  ? <p className="mt-1 text-[11px] font-bold text-rose-400">{maxUsersError}</p>
                   : <p className="mt-1 text-[11px] text-white/35">{t("wc.create.maxUsers.hint", { max: MAX_USERS })}</p>}
               </div>
               <div>
@@ -239,10 +239,10 @@ export default function WorldCupBracketCreateModal() {
                   max={MAX_ENTRIES}
                   value={maxEntries}
                   onChange={(e) => setMaxEntries(Math.min(MAX_ENTRIES, Math.max(1, Number(e.target.value))))}
-                  className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2.5 text-sm font-bold text-white outline-none focus:border-cyan-300/60"
+                  className={`mt-2 w-full rounded-lg border bg-black/40 px-3 py-2.5 text-sm font-bold text-white outline-none focus:border-cyan-300/60 ${maxEntriesError ? "border-rose-400/70 ring-1 ring-rose-400/30" : "border-white/10"}`}
                 />
                 {maxEntriesError
-                  ? <p className="mt-1 text-[11px] text-white/70">{maxEntriesError}</p>
+                  ? <p className="mt-1 text-[11px] font-bold text-rose-400">{maxEntriesError}</p>
                   : <p className="mt-1 text-[11px] text-white/35">{t("wc.create.maxEntries.hint", { max: MAX_ENTRIES })}</p>}
               </div>
             </div>

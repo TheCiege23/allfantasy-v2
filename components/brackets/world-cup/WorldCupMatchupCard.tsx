@@ -438,21 +438,21 @@ export default function WorldCupMatchupCard({
               title={disabledReason}
               className={[
                 "flex min-h-[3.5rem] w-full touch-manipulation items-center gap-2 rounded-md border px-2 py-1 text-left transition sm:h-14 sm:py-0",
-                winner ? "border-emerald-300/70 bg-emerald-400/[0.08]"
-                : selected && isFinal && !winner ? "border-rose-400/30 bg-rose-400/[0.06] opacity-60"
+                winner ? "border-emerald-400/80 bg-emerald-400/[0.14] shadow-[0_0_0_1px_rgba(52,211,153,0.15)]"
+                : isFinal && !winner ? "border-white/[0.06] bg-white/[0.02] opacity-45"
                 : selected && isLive && pickLiveState === "winning" ? "border-cyan-300/60 bg-cyan-300/[0.08]"
                 : selected && isLive && pickLiveState === "losing" ? "border-rose-400/30 bg-rose-400/[0.06]"
                 : selected ? "border-cyan-300/70 bg-cyan-300/10"
                 : teamIsLeading ? "border-white/20 bg-white/[0.06]"
                 : "border-white/10 bg-white/[0.03]",
-                locked || isSaving || !matchIsPickable ? "cursor-not-allowed opacity-60" : "hover:bg-white/[0.06]",
+                locked || isSaving || !matchIsPickable ? "cursor-not-allowed" : !isFinal ? "hover:bg-white/[0.06]" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}
             >
               <WorldCupTeamFlag flagUrl={team.logo} teamName={displayName} size="sm" />
               <span className="min-w-0 flex-1 overflow-hidden">
-                <span className={`block truncate text-sm font-bold leading-tight ${isPlaceholder ? "italic text-white/40" : "text-white"}`}>
+                <span className={`block truncate text-sm font-bold leading-tight ${isPlaceholder ? "italic text-white/40" : winner ? "text-emerald-200 font-black" : isFinal ? "text-white/50" : "text-white"}`}>
                   {displayName}
                 </span>
                 <span className="block truncate text-[10px] text-white/30">{team.slotKey}</span>

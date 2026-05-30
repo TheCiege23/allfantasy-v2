@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowUp, BarChart3, Baseline, Bell, Bold, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Clock, Copy, Edit3, Film, Globe2, ImageIcon, Italic, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Mic, Pin, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Smile, Sparkles, Strikethrough, Trophy, Underline, Users, X, Zap } from "lucide-react"
+import { ArrowLeft, ArrowUp, BarChart3, Baseline, Bell, Bold, Bot, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Clock, Copy, Edit3, Film, Globe2, ImageIcon, Italic, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Mic, Pin, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Smile, Sparkles, Strikethrough, Trophy, Underline, Users, X, Zap } from "lucide-react"
 import { toast } from "sonner"
 import type { WorldCupChallengeView, WorldCupMatchView, WorldCupPickView } from "@/lib/world-cup/types"
 import { isWorldCupChallengeLocked } from "@/lib/world-cup/worldCupBracketBuilder"
@@ -5275,25 +5275,41 @@ function WorldCupCommunityFoundationPanel({
             </div>
           ) : messages.length > 0 ? (
             <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
-              {messages.map((message) => (
+              {messages.map((message) => {
+                const isChimmyReply = message.messageType === "chimmy_private_response"
+                return (
                 <div
                   key={message.id}
                   className={[
                     "rounded-xl border px-3 py-2 text-xs",
-                    message.isPrivate
+                    isChimmyReply
+                      ? "border-cyan-400/35 bg-gradient-to-br from-cyan-500/[0.12] to-violet-500/[0.07] shadow-[0_0_0_1px_rgba(34,211,238,0.08)]"
+                      : message.isPrivate
                       ? "border-purple-300/20 bg-purple-400/10"
                       : "border-white/10 bg-white/[0.04]",
                   ].join(" ")}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-black text-white/80">{message.authorName}</span>
+                    {isChimmyReply ? (
+                      <span className="inline-flex items-center gap-1.5 font-black">
+                        <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-cyan-400/20 text-cyan-300">
+                          <Bot className="h-2.5 w-2.5" aria-hidden />
+                        </span>
+                        <span className="text-cyan-200">Chimmy</span>
+                        <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-1.5 py-px text-[9px] font-black uppercase tracking-wide text-cyan-300/80">
+                          AI
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="font-black text-white/80">{message.authorName}</span>
+                    )}
                     <span className="text-[10px] text-white/30">
                       {new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
                     </span>
                   </div>
                   <WorldCupChatRichTextRenderer
                     text={message.body}
-                    className="mt-1 whitespace-pre-wrap break-words leading-5 text-white/65"
+                    className={["mt-1 whitespace-pre-wrap break-words leading-5", isChimmyReply ? "text-white/80" : "text-white/65"].join(" ")}
                   />
                   {message.gif ? <WorldCupGifPreview gif={message.gif} compact /> : null}
                   {message.image ? <WorldCupImagePreview image={message.image} compact /> : null}
@@ -5305,13 +5321,14 @@ function WorldCupCommunityFoundationPanel({
                       onVote={(optionId) => void voteWorldCupPoll(message.id, optionId)}
                     />
                   ) : null}
-                  {message.isPrivate ? (
+                  {message.isPrivate && !isChimmyReply ? (
                     <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-white/70">
                       {tChat("wc.chat.privateLabel")}
                     </p>
                   ) : null}
                 </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <div
