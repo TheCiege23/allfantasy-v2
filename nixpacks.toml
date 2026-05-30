@@ -11,10 +11,14 @@ nixPkgs = ["nodejs_22", "openssl"]
 cmds = ["npm ci"]
 
 [phases.build]
-# railway.json buildCommand is the source of truth for the build command.
-# The cache-clearing (rm -rf .next/cache/webpack) is specified there so it
-# runs inside the --mount=type=cache volume and clears the stale webpack cache.
-cmds = ["npm run build"]
+# Clear BOTH persistent Docker cache volumes before each build:
+#   .next/cache/webpack  — webpack filesystem cache (can contain stale module graphs)
+#   node_modules/.cache  — postcss-loader transform cache (was poisoned with 0-byte CSS
+#                          when tailwind.config.ts → .js migration ran with jiti errors;
+#                          must be nuked so postcss-loader re-runs Tailwind from scratch)
+# railway.json buildCommand overrides these cmds at deploy time but may lag one build
+# behind due to Railway's plan-caching; specifying here ensures the clear always runs.
+cmds = ["rm -rf .next/cache/webpack node_modules/.cache", "npm run build"]
 
 [start]
 cmd = "npm run start"

@@ -1,3 +1,4 @@
+/* v2 — bust stale postcss-loader cache */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

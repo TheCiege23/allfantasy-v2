@@ -1,16 +1,3 @@
-// Diagnostic: visible in Railway build logs. Remove after CSS confirmed working.
-const fs = require('fs')
-console.log('[tailwind.config.js] loading, cwd=%s', process.cwd())
-try {
-  const appFiles = fs.readdirSync('./app').length
-  const compFiles = fs.readdirSync('./components').length
-  console.log('[tailwind.config.js] app/ entries=%d components/ entries=%d', appFiles, compFiles)
-  // Also check that globals.css exists
-  const globalsExists = fs.existsSync('./app/globals.css')
-  console.log('[tailwind.config.js] app/globals.css exists=%s', globalsExists)
-} catch(e) {
-  console.error('[tailwind.config.js] CANNOT READ DIRS:', e.message)
-}
 // CommonJS format — avoids jiti/sucrase TypeScript loading on Railway (Node 22 Linux).
 // Tailwind's loadConfig() first tries require(), which works for .js but fails for .ts,
 // then falls back to jiti; on Railway that jiti path produced empty CSS output.
@@ -19,10 +6,8 @@ try {
 let forms
 try {
   forms = require('@tailwindcss/forms')
-  console.log('[tailwind.config.js] @tailwindcss/forms loaded, type=%s', typeof forms)
 } catch(e) {
-  console.error('[tailwind.config.js] FAILED to load @tailwindcss/forms:', e.message)
-  forms = function() { return {} } // safe no-op fallback
+  forms = function() { return {} } // safe no-op fallback if forms fails to load
 }
 
 /** @type {import('tailwindcss').Config} */
@@ -212,5 +197,4 @@ const config = {
   ],
 }
 
-console.log('[tailwind.config.js] config ready, content sources=%d', config.content.length)
 module.exports = config
