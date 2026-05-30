@@ -5,6 +5,9 @@ try {
   const appFiles = fs.readdirSync('./app').length
   const compFiles = fs.readdirSync('./components').length
   console.log('[tailwind.config.js] app/ entries=%d components/ entries=%d', appFiles, compFiles)
+  // Also check that globals.css exists
+  const globalsExists = fs.existsSync('./app/globals.css')
+  console.log('[tailwind.config.js] app/globals.css exists=%s', globalsExists)
 } catch(e) {
   console.error('[tailwind.config.js] CANNOT READ DIRS:', e.message)
 }
