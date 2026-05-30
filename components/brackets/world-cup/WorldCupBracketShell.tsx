@@ -106,6 +106,8 @@ import WorldCupCommissionerBrainPanel from "./WorldCupCommissionerBrainPanel"
 import WorldCupGroupStagePicks from "./WorldCupGroupStagePicks"
 import WorldCupReadinessPanel from "./WorldCupReadinessPanel"
 import WorldCupLeagueEventFeed from "./WorldCupLeagueEventFeed"
+import WorldCupPoolCountdownBanner from "./WorldCupPoolCountdownBanner"
+import type { WorldCupCountdownFirstMatch } from "./WorldCupPoolCountdownBanner"
 type Tab = WorldCupBracketTab
 type WorldCupPoolChatMessage = {
   id: string
@@ -836,6 +838,23 @@ export default function WorldCupBracketShell({
     if (h > 0) return t("wc.lock.untilLockHours", { h, m })
     return t("wc.lock.untilLockMinutes", { m: Math.max(1, m) })
   }, [isLocked, lockState.lockAt, lockNow, t])
+
+  /** Earliest bracket match with a known kickoff — shown in the countdown banner. */
+  const countdownFirstMatch = useMemo<WorldCupCountdownFirstMatch | undefined>(() => {
+    const withDate = view.matches
+      .filter((m) => m.startsAt !== null)
+      .sort((a, b) => new Date(a.startsAt!).getTime() - new Date(b.startsAt!).getTime())
+    const earliest = withDate[0]
+    if (!earliest) return undefined
+    return {
+      homeTeamName: earliest.homeTeamName ?? "",
+      awayTeamName: earliest.awayTeamName ?? "",
+      startsAt: earliest.startsAt,
+      venueName: earliest.venueName,
+      venueCity: earliest.venueCity,
+    }
+  }, [view.matches])
+
   // Picks for the selected entry.
   const picks: WorldCupPickView[] = useMemo(() => {
     if (!selectedEntryId) return []
@@ -2364,6 +2383,15 @@ export default function WorldCupBracketShell({
             ) : null}
           </div>
         </nav>
+
+        {/* Pool countdown + group lock banner — visible on every tab */}
+        <WorldCupPoolCountdownBanner
+          lockAt={lockState.lockAt ?? view.challenge.effectivePickLockAt}
+          isLocked={isLocked}
+          firstMatch={countdownFirstMatch}
+          onFinishPicks={() => switchTab("picks")}
+          onViewLeaderboard={() => switchTab("leaderboard")}
+        />
 
         {tab === "picks" && showBoard ? (
           <div className="sticky top-0 z-30 border-b border-white/10 bg-[#05070b]/92 px-3 py-2 backdrop-blur sm:hidden">
@@ -5321,8 +5349,8 @@ function WorldCupCommunityFoundationPanel({
                       onVote={(optionId) => void voteWorldCupPoll(message.id, optionId)}
                     />
                   ) : null}
-                  {message.isPrivate && !isChimmyReply ? (
-                    <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-white/70">
+                  {message.isPrivate ? (
+                    <p className={`mt-1 text-[10px] font-bold uppercase tracking-wide ${isChimmyReply ? "text-cyan-300/60" : "text-white/70"}`}>
                       {tChat("wc.chat.privateLabel")}
                     </p>
                   ) : null}

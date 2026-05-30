@@ -178,9 +178,20 @@ export default function WorldCupMatchupCard({
         <div className="flex items-center gap-1">
           {/* Live / HT status pill */}
           {isLive && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-bold text-white/85">
-              <Radio className="h-3 w-3" />
-              {statusLabel}
+            <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/25 bg-rose-500/15 px-2 py-0.5 text-[10px] font-black text-rose-300">
+              <Radio className="h-2.5 w-2.5 animate-pulse" />
+              LIVE
+              {match.elapsedMinute != null && (
+                <span className="font-bold tabular-nums text-white/65">
+                  {match.elapsedMinute}{match.injuryTime ? `+${match.injuryTime}` : ""}′
+                </span>
+              )}
+              {match.apiStatusShort?.toUpperCase() === "HT" && (
+                <span className="font-bold text-white/65">· HT</span>
+              )}
+              {match.apiStatusShort?.toUpperCase() === "PEN" && (
+                <span className="font-bold text-white/65">· PEN</span>
+              )}
             </span>
           )}
           {isFinal && (
@@ -360,22 +371,36 @@ export default function WorldCupMatchupCard({
       {/* Score row — shown during / after match */}
       {showScore && (
         <div
-          className="mb-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center"
+          className="mb-2 flex flex-col items-center gap-0.5 text-center"
           {...(isLive ? { "aria-live": "polite" as const } : {})}
         >
-          {isFinal && (
-            <span className="rounded-md bg-emerald-500/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/90">
-              {t("wc.matchup.ftBadge")}
+          {/* Minute (live) or FT badge (final) centered above score */}
+          {isLive && match.elapsedMinute != null && (
+            <span className="text-[10px] font-black tabular-nums text-rose-400">
+              {match.elapsedMinute}{match.injuryTime ? `+${match.injuryTime}` : ""}′
             </span>
           )}
-          <span className="text-lg font-black tabular-nums text-white sm:text-xl">{match.homeScore ?? 0}</span>
-          <span className="text-xs text-white/35">–</span>
-          <span className="text-lg font-black tabular-nums text-white sm:text-xl">{match.awayScore ?? 0}</span>
-          {(match.homePenaltyScore !== null || match.awayPenaltyScore !== null) && (
-            <span className="w-full text-[10px] text-white/40 sm:w-auto">
-              ({match.homePenaltyScore ?? 0}–{match.awayPenaltyScore ?? 0} {t("wc.matchup.pensAbbr")})
-            </span>
+          {isLive && match.apiStatusShort?.toUpperCase() === "HT" && (
+            <span className="text-[10px] font-black text-white/55">HT</span>
           )}
+          {isLive && match.apiStatusShort?.toUpperCase() === "PEN" && (
+            <span className="text-[10px] font-black text-amber-300/80">PEN</span>
+          )}
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+            {isFinal && (
+              <span className="rounded-md bg-emerald-500/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/90">
+                {t("wc.matchup.ftBadge")}
+              </span>
+            )}
+            <span className="text-lg font-black tabular-nums text-white sm:text-xl">{match.homeScore ?? 0}</span>
+            <span className="text-xs text-white/35">–</span>
+            <span className="text-lg font-black tabular-nums text-white sm:text-xl">{match.awayScore ?? 0}</span>
+            {(match.homePenaltyScore !== null || match.awayPenaltyScore !== null) && (
+              <span className="w-full text-[10px] text-white/40 sm:w-auto">
+                ({match.homePenaltyScore ?? 0}–{match.awayPenaltyScore ?? 0} {t("wc.matchup.pensAbbr")})
+              </span>
+            )}
+          </div>
         </div>
       )}
 
@@ -463,14 +488,12 @@ export default function WorldCupMatchupCard({
                 )}
               </span>
               <span className="flex shrink-0 flex-col items-end gap-0.5 text-right">
-                {isLive && (
-                  <span
-                    className="max-w-[5.5rem] truncate text-[9px] font-bold tabular-nums text-white/75 sm:max-w-none sm:text-[10px]"
-                    data-testid={`wc-row-live-status-${match.id}-${team.side}`}
-                  >
-                    {statusLabel}
-                  </span>
-                )}
+                {/* testid preserved for test compat; minute now lives in header pill + score row */}
+                <span
+                  data-testid={`wc-row-live-status-${match.id}-${team.side}`}
+                  className="sr-only"
+                  aria-hidden="true"
+                />
                 {showScore && team.score != null && (
                   <span className={`text-sm font-black tabular-nums ${teamIsLeading ? "text-white" : "text-white/70"}`}>{team.score}</span>
                 )}

@@ -352,6 +352,22 @@ const EN: WorldCupDictionary = {
   "wc.lock.bracketLocked": "Bracket Locked",
   "wc.lock.picksFrozen": "Bracket locked — picks are frozen.",
 
+  // ── Countdown banner ─────────────────────────────────────────────────
+  "wc.countdown.banner.startsIn": "World Cup starts in",
+  "wc.countdown.banner.locksNote": "Group picks lock at kickoff",
+  "wc.countdown.banner.urgent24h": "Picks lock soon",
+  "wc.countdown.banner.urgent1h": "Final chance — picks lock at kickoff",
+  "wc.countdown.banner.locked.title": "Group picks are locked",
+  "wc.countdown.banner.locked.subtitle": "Live scoring is now active",
+  "wc.countdown.banner.cta.make": "Make Picks",
+  "wc.countdown.banner.cta.finish": "Finish My Bracket",
+  "wc.countdown.banner.cta.finishNow": "Finish Picks Now",
+  "wc.countdown.banner.cta.leaderboard": "View Leaderboard",
+  "wc.countdown.banner.firstMatchFallback": "First group-stage match",
+  "wc.countdown.banner.lockTime": "Group picks lock · {{time}}",
+  "wc.countdown.banner.fallback": "World Cup countdown coming soon",
+  "wc.countdown.banner.fallbackHint": "Picks remain editable until kickoff is confirmed",
+
   // ── Knockouts tab ────────────────────────────────────────────────────
   "wc.knockouts.intro.reseeded":
     "Knockout picks open after official Round of 32 fixtures are available.",
@@ -1495,6 +1511,22 @@ const ES: WorldCupDictionary = {
   "wc.lock.locksSoon": "El bracket cierra pronto",
   "wc.lock.bracketLocked": "Bracket bloqueado",
   "wc.lock.picksFrozen": "Bracket bloqueado — los picks están congelados.",
+
+  // ── Countdown banner ─────────────────────────────────────────────────
+  "wc.countdown.banner.startsIn": "El Mundial comienza en",
+  "wc.countdown.banner.locksNote": "Los picks de grupos se bloquean al inicio",
+  "wc.countdown.banner.urgent24h": "Los picks se bloquean pronto",
+  "wc.countdown.banner.urgent1h": "Última oportunidad — los picks se bloquean al inicio",
+  "wc.countdown.banner.locked.title": "Los picks de grupos están bloqueados",
+  "wc.countdown.banner.locked.subtitle": "El marcador en directo ya está activo",
+  "wc.countdown.banner.cta.make": "Hacer Picks",
+  "wc.countdown.banner.cta.finish": "Terminar Mi Bracket",
+  "wc.countdown.banner.cta.finishNow": "Terminar Picks Ahora",
+  "wc.countdown.banner.cta.leaderboard": "Ver Clasificación",
+  "wc.countdown.banner.firstMatchFallback": "Primer partido de la fase de grupos",
+  "wc.countdown.banner.lockTime": "Los picks se bloquean · {{time}}",
+  "wc.countdown.banner.fallback": "Cuenta regresiva del Mundial próximamente",
+  "wc.countdown.banner.fallbackHint": "Los picks son editables hasta que se confirme el inicio",
 
   // ── Knockouts tab ────────────────────────────────────────────────────
   "wc.knockouts.intro.reseeded":
@@ -2666,6 +2698,22 @@ const ZH: WorldCupDictionary = {
   "wc.lock.bracketLocked": "對戰表已鎖定",
   "wc.lock.picksFrozen": "對戰表已鎖定 — 選擇無法再修改。",
 
+  // ── Countdown banner ─────────────────────────────────────────────────
+  "wc.countdown.banner.startsIn": "World Cup starts in",
+  "wc.countdown.banner.locksNote": "Group picks lock at kickoff",
+  "wc.countdown.banner.urgent24h": "Picks lock soon",
+  "wc.countdown.banner.urgent1h": "Final chance — picks lock at kickoff",
+  "wc.countdown.banner.locked.title": "Group picks are locked",
+  "wc.countdown.banner.locked.subtitle": "Live scoring is now active",
+  "wc.countdown.banner.cta.make": "Make Picks",
+  "wc.countdown.banner.cta.finish": "Finish My Bracket",
+  "wc.countdown.banner.cta.finishNow": "Finish Picks Now",
+  "wc.countdown.banner.cta.leaderboard": "View Leaderboard",
+  "wc.countdown.banner.firstMatchFallback": "First group-stage match",
+  "wc.countdown.banner.lockTime": "Group picks lock · {{time}}",
+  "wc.countdown.banner.fallback": "World Cup countdown coming soon",
+  "wc.countdown.banner.fallbackHint": "Picks remain editable until kickoff is confirmed",
+
   // ── Knockouts tab ────────────────────────────────────────────────────
   "wc.knockouts.intro.reseeded":
     "正式的 32 強賽程公布後即可選擇淘汰賽。",
@@ -3812,6 +3860,22 @@ const FIL: WorldCupDictionary = {
   "wc.lock.bracketLocked": "Naka-lock na ang bracket",
   "wc.lock.picksFrozen":
     "Naka-lock na ang bracket — hindi na puwedeng baguhin ang mga pick.",
+
+  // ── Countdown banner ─────────────────────────────────────────────────
+  "wc.countdown.banner.startsIn": "World Cup starts in",
+  "wc.countdown.banner.locksNote": "Group picks lock at kickoff",
+  "wc.countdown.banner.urgent24h": "Picks lock soon",
+  "wc.countdown.banner.urgent1h": "Final chance — picks lock at kickoff",
+  "wc.countdown.banner.locked.title": "Group picks are locked",
+  "wc.countdown.banner.locked.subtitle": "Live scoring is now active",
+  "wc.countdown.banner.cta.make": "Make Picks",
+  "wc.countdown.banner.cta.finish": "Finish My Bracket",
+  "wc.countdown.banner.cta.finishNow": "Finish Picks Now",
+  "wc.countdown.banner.cta.leaderboard": "View Leaderboard",
+  "wc.countdown.banner.firstMatchFallback": "First group-stage match",
+  "wc.countdown.banner.lockTime": "Group picks lock · {{time}}",
+  "wc.countdown.banner.fallback": "World Cup countdown coming soon",
+  "wc.countdown.banner.fallbackHint": "Picks remain editable until kickoff is confirmed",
 
   // ── Knockouts tab ────────────────────────────────────────────────────
   "wc.knockouts.intro.reseeded":
@@ -4997,6 +5061,22 @@ const VI: WorldCupDictionary = {
   "wc.lock.bracketLocked": "Bracket đã khoá",
   "wc.lock.picksFrozen":
     "Bracket đã khoá — không thể chỉnh sửa lựa chọn.",
+
+  // ── Countdown banner ─────────────────────────────────────────────────
+  "wc.countdown.banner.startsIn": "World Cup starts in",
+  "wc.countdown.banner.locksNote": "Group picks lock at kickoff",
+  "wc.countdown.banner.urgent24h": "Picks lock soon",
+  "wc.countdown.banner.urgent1h": "Final chance — picks lock at kickoff",
+  "wc.countdown.banner.locked.title": "Group picks are locked",
+  "wc.countdown.banner.locked.subtitle": "Live scoring is now active",
+  "wc.countdown.banner.cta.make": "Make Picks",
+  "wc.countdown.banner.cta.finish": "Finish My Bracket",
+  "wc.countdown.banner.cta.finishNow": "Finish Picks Now",
+  "wc.countdown.banner.cta.leaderboard": "View Leaderboard",
+  "wc.countdown.banner.firstMatchFallback": "First group-stage match",
+  "wc.countdown.banner.lockTime": "Group picks lock · {{time}}",
+  "wc.countdown.banner.fallback": "World Cup countdown coming soon",
+  "wc.countdown.banner.fallbackHint": "Picks remain editable until kickoff is confirmed",
 
   // ── Knockouts tab ────────────────────────────────────────────────────
   "wc.knockouts.intro.reseeded":
