@@ -415,4 +415,10 @@ describe("root language provider layout", () => {
     expect(railwayCleanSource).toContain("'webpack'")
     expect(railwayJsonSource).toContain("Railway build produced no layout CSS")
   })
+
+  it("does not require build-time Google font fetches for the root document", () => {
+    expect(layoutSource).not.toContain("next/font/google")
+    expect(layoutSource).not.toContain("Inter(")
+    expect(layoutSource).not.toContain("--font-inter")
+  })
 })

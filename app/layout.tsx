@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import type { Session } from 'next-auth';
-import { Inter } from 'next/font/google';
 import Script from 'next/script';
 import { cookies } from 'next/headers';
 import { AppProviders } from '@/components/providers/AppProviders';
@@ -17,12 +16,6 @@ import {
   buildThemeInitScript,
 } from '@/lib/preferences/HtmlPreferenceSync';
 import './globals.css';
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-  weight: ['400', '500', '600', '700']
-});
 
 export const viewport = {
   width: 'device-width',
@@ -119,11 +112,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       lang={htmlLang}
       data-lang={htmlLang}
       data-mode={htmlMode}
-      className={`${inter.variable} scroll-smooth`}
+      className="scroll-smooth"
       suppressHydrationWarning
     >
       <body
-        className={`${inter.variable} antialiased min-h-screen mode-readable`}
+        className="antialiased min-h-screen mode-readable"
         style={{ background: 'var(--bg)', color: 'var(--text)' }}
       >
         <template id="af-body-start" />
