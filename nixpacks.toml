@@ -1,28 +1,24 @@
 [phases.setup]
-# Node.js 20.18.1 (the version provided by nodejs_20 in Railway's Nix channel) is below
-# the >=20.19.0 minimum required by @csstools/css-tokenizer and @asamuzakjp/css-color, which
-# are ESM-only packages loaded by PostCSS/Tailwind.  On Node <20.19 those packages fail to
-# load via require(), PostCSS silently produces empty CSS, mini-css-extract-plugin skips the
-# file, and app-build-manifest.json has no CSS entry for /layout → unstyled pages.
-# Node.js 22.x LTS satisfies '^22.12.0 || >=24' (all package requirements) and is safe.
-nixPkgs = ["nodejs_22", "openssl"]
+# Keep Railway on the same major Node version as package.json engines and .nvmrc.
+# Nixpacks selects Node by major version; package.json/.nvmrc keep the local
+# floor at 20.19.0 while Railway resolves the current Node 20 package.
+nixPkgs = ["nodejs_20", "openssl"]
 
 [phases.install]
 cmds = ["npm ci"]
 
 [phases.build]
 # Clear the webpack filesystem cache before each build to prevent stale module graphs.
-# NOTE: Do NOT try to rm -rf node_modules/.cache — that directory IS the Docker
-# --mount=type=cache target and removing the mount point itself causes "Device or
-# resource busy".  The postcss-loader cache is invalidated naturally: the prebuild
-# script (scripts/railway-tailwind-prebuild.cjs) replaces app/globals.css with
-# pre-compiled Tailwind CSS before next build runs, so the cache key (based on
-# file content hash) changes and postcss-loader gets a cache miss automatically.
+# NOTE: Do NOT try to rm -rf node_modules/.cache; that directory is the Docker
+# cache mount target and removing the mount point itself can fail as busy.
+# The postcss-loader cache is invalidated naturally: the prebuild script
+# replaces app/globals.css with precompiled Tailwind CSS before next build runs,
+# so the cache key changes and postcss-loader gets a cache miss.
 #
 # postcss.config.js uses tailwindcss + autoprefixer on all environments.
-# On Railway, globals.css is already compiled (no @tailwind directives) so the
-# tailwindcss PostCSS plugin is a pure passthrough; autoprefixer adds vendor
-# prefixes and mini-css-extract-plugin extracts the CSS chunk normally.
+# On Railway, globals.css is already compiled, so the tailwindcss PostCSS plugin
+# is a passthrough; autoprefixer adds prefixes and mini-css-extract-plugin
+# extracts the CSS chunk normally.
 cmds = ["node scripts/railway-clean-next-build.cjs", "npx prisma generate", "npm run build", "node scripts/railway-patch-app-build-manifest.cjs", "node scripts/railway-verify-next-build.cjs"]
 
 [start]

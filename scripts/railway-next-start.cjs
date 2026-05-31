@@ -60,23 +60,63 @@ function shouldBufferDocument(req) {
   return true
 }
 
+const DOCUMENT_SHELL_PREFIX =
+  '<!DOCTYPE html><html lang="en" data-lang="en" data-mode="light" class="scroll-smooth"><head>'
+const BODY_OPEN =
+  '<body class="antialiased min-h-screen mode-readable" style="background:var(--bg);color:var(--text)">'
+const BODY_MARKER = '<template id="af-body-start"></template>'
+const RAILWAY_STYLES_LINK = '<link rel="stylesheet" href="/railway-styles.css"/>'
+const BODY_START_CANDIDATES = [
+  BODY_MARKER,
+  '<main',
+  '<div',
+  '<section',
+  '<header',
+  '<nav',
+  '<form',
+]
+
+function ensureRailwayStylesLink(html) {
+  if (html.includes('href="/railway-styles.css"')) return html
+
+  const headIndex = html.indexOf('<head>')
+  if (headIndex > -1) {
+    return `${html.slice(0, headIndex + '<head>'.length)}${RAILWAY_STYLES_LINK}${html.slice(
+      headIndex + '<head>'.length,
+    )}`
+  }
+
+  return html
+}
+
+function ensureBodyBoundary(html) {
+  if (/<body(?:\s|>)/i.test(html)) return html
+
+  const searchStart = Math.max(0, html.indexOf('<head>') + '<head>'.length)
+  const bodyStartIndex = BODY_START_CANDIDATES.reduce((earliest, candidate) => {
+    const idx = html.indexOf(candidate, searchStart)
+    if (idx === -1) return earliest
+    return earliest === -1 || idx < earliest ? idx : earliest
+  }, -1)
+  if (bodyStartIndex === -1) return html
+
+  const beforeBody = html.slice(0, bodyStartIndex).toLowerCase()
+  const boundary = beforeBody.includes('</head>') ? BODY_OPEN : `</head>${BODY_OPEN}`
+  return `${html.slice(0, bodyStartIndex)}${boundary}${html.slice(bodyStartIndex)}`
+}
+
 function patchIfRailwayDroppedDocumentShell(body) {
   const html = body.toString('utf8')
-  if (html.startsWith('<!DOCTYPE html>')) return body
-  if (!html.startsWith('<meta') || !html.endsWith('</body></html>')) return body
 
-  const shell =
-    '<!DOCTYPE html><html lang="en" data-lang="en" data-mode="light" class="scroll-smooth"><head>'
-  let patched = shell + html
-  const bodyMarker = '<template id="af-body-start"></template>'
-  const markerIndex = patched.indexOf(bodyMarker)
-  if (markerIndex > -1 && patched.slice(0, markerIndex).indexOf('<body') === -1) {
-    patched =
-      patched.slice(0, markerIndex) +
-      '</head><body class="antialiased min-h-screen mode-readable" style="background:var(--bg);color:var(--text)">' +
-      patched.slice(markerIndex)
+  let patched = html
+  if (patched.startsWith('<meta') && patched.endsWith('</body></html>')) {
+    patched = DOCUMENT_SHELL_PREFIX + patched
   }
-  return Buffer.from(patched, 'utf8')
+
+  patched = ensureRailwayStylesLink(patched)
+  patched = ensureBodyBoundary(patched)
+
+  return patched === html ? body : Buffer.from(patched, 'utf8')
 }
 
 function copyProxyHeaders(sourceHeaders, res, overrides = {}) {
@@ -220,20 +260,32 @@ function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'))
 process.on('SIGINT', () => shutdown('SIGINT'))
 
-startNextProcess()
-setInterval(checkUpstream, 1000).unref()
-void checkUpstream()
+function main() {
+  startNextProcess()
+  setInterval(checkUpstream, 1000).unref()
+  void checkUpstream()
 
-http
-  .createServer((req, res) => {
-    try {
-      proxyRequest(req, res)
-    } catch (error) {
-      handleRequestError(req, res, error)
-    }
-  })
-  .listen(publicPort, publicHostname, () => {
-    console.log(
-      `[railway-next-start] proxy ready on http://${publicHostname}:${publicPort} -> ${upstreamBase}`,
-    )
-  })
+  http
+    .createServer((req, res) => {
+      try {
+        proxyRequest(req, res)
+      } catch (error) {
+        handleRequestError(req, res, error)
+      }
+    })
+    .listen(publicPort, publicHostname, () => {
+      console.log(
+        `[railway-next-start] proxy ready on http://${publicHostname}:${publicPort} -> ${upstreamBase}`,
+      )
+    })
+}
+
+if (require.main === module) {
+  main()
+}
+
+module.exports = {
+  patchIfRailwayDroppedDocumentShell,
+  ensureBodyBoundary,
+  ensureRailwayStylesLink,
+}

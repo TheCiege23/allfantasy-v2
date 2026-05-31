@@ -116,13 +116,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       className="scroll-smooth"
       suppressHydrationWarning
     >
-      <head>
-        {useRailwayStyles ? <link rel="stylesheet" href="/railway-styles.css" /> : null}
-      </head>
       <body
         className="antialiased min-h-screen mode-readable"
         style={{ background: 'var(--bg)', color: 'var(--text)' }}
       >
+        {useRailwayStyles ? <link rel="stylesheet" href="/railway-styles.css" /> : null}
         <template id="af-body-start" />
         {gaMeasurementId && (
           <>
