@@ -78,6 +78,7 @@ const railwayJsonSource = fs.readFileSync(path.join(process.cwd(), "railway.json
 const nixpacksSource = fs.readFileSync(path.join(process.cwd(), "nixpacks.toml"), "utf8")
 const railwayStartSource = fs.readFileSync(path.join(process.cwd(), "scripts", "railway-next-start.cjs"), "utf8")
 const railwayCleanSource = fs.readFileSync(path.join(process.cwd(), "scripts", "railway-clean-next-build.cjs"), "utf8")
+const railwayVerifySource = fs.readFileSync(path.join(process.cwd(), "scripts", "railway-verify-next-build.cjs"), "utf8")
 const uiDocumentSources = [
   ["app/layout.tsx", layoutSource],
   ["components/providers/AppProviders.tsx", appProvidersSource],
@@ -409,11 +410,15 @@ describe("root language provider layout", () => {
   })
 
   it("cleans stale Railway build artifacts before Next builds", () => {
-    expect(railwayJsonSource).toContain("node scripts/railway-clean-next-build.cjs && npm run build")
+    expect(railwayJsonSource).toContain(
+      "node scripts/railway-clean-next-build.cjs && npm run build && node scripts/railway-verify-next-build.cjs"
+    )
     expect(nixpacksSource).toContain('"node scripts/railway-clean-next-build.cjs"')
+    expect(nixpacksSource).toContain('"node scripts/railway-verify-next-build.cjs"')
     expect(railwayCleanSource).toContain("entry.name === 'cache'")
     expect(railwayCleanSource).toContain("'webpack'")
-    expect(railwayJsonSource).toContain("Railway build produced no layout CSS")
+    expect(railwayVerifySource).toContain("Railway build produced no layout CSS")
+    expect(railwayVerifySource).toContain("app-build-manifest.json")
   })
 
   it("does not require build-time Google font fetches for the root document", () => {
