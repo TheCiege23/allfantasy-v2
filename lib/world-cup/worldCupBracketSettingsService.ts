@@ -2,10 +2,8 @@ import "server-only"
 import crypto from "crypto"
 import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
-import {
-  DEFAULT_WORLD_CUP_SCORING,
-  type WorldCupScoringValues,
-} from "./worldCupBracketBuilder"
+import { DEFAULT_WORLD_CUP_SCORING } from "./worldCupBracketBuilder"
+import type { WorldCupScoringValues } from "./types"
 import {
   ensureWorldCupCommissionerSettings,
   getWorldCupCommissionerSettings,

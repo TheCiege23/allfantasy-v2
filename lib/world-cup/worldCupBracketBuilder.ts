@@ -147,7 +147,7 @@ export function isWorldCupMatchLocked(input: {
   now?: Date
 }) {
   const challenge = input.challenge ?? input
-  const match = input.match ?? input
+  const match: LockMatchLike = input.match ?? (input as LockMatchLike)
   const now = input.now ?? new Date()
   const strategy = challenge.pickLockStrategy ?? "per_match"
   const apiStatus = (match.apiStatusShort ?? "").trim().toUpperCase()

@@ -15,6 +15,14 @@ export type InviteInfo = {
   maxUses?: number | null
   useCount?: number
   expiresAt?: string | null
+  joinPreview?: {
+    requiresJoinPassword: boolean
+    joinBlockedReason: "full" | "locked_no_late_join" | null
+    poolLocked: boolean
+    allowLateJoin: boolean
+    isFull: boolean
+    maxParticipants: number
+  }
 }
 
 export function normalizeWorldCupInviteOrigin(value: string | null | undefined): string | null {

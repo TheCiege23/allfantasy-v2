@@ -65,12 +65,14 @@ export async function POST(request: Request, context: { params: { challengeId: s
       challengeId: params.data.challengeId,
       user: auth.user,
     })
-    await notifyWorldCupBracketFinalized({
-      challengeId: params.data.challengeId,
-      poolName: view.challenge.name,
-      userId: auth.user.id,
-      entryId: params.data.entryId,
-    })
+    if (view) {
+      await notifyWorldCupBracketFinalized({
+        challengeId: params.data.challengeId,
+        poolName: view.challenge.name,
+        userId: auth.user.id,
+        entryId: params.data.entryId,
+      })
+    }
     return NextResponse.json(
       { ok: true, ...result, view },
       { headers: { "cache-control": "no-store" } }

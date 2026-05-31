@@ -147,18 +147,21 @@ export async function POST(
   const isRecapPreview = parsed.data.action === "preview_recap"
   const isRecapPost = parsed.data.action === "post_recap"
   const isDramaRecap = parsed.data.action === "drama_recap"
+  const wrappedAction = parsed.data.action as
+    | "hype"
+    | "standings"
+    | "watch"
+    | "recap"
+    | "path"
+    | "reminder"
   const lines = isRecapPost && parsed.data.lines?.length
     ? parsed.data.lines
     : isRecapPreview || isRecapPost || isDramaRecap
       ? await buildWorldCupAiPoolRecapLines(params.data.challengeId, parsed.data.tone as WorldCupAiRecapTone)
-      : await generateAiWrappedLines(
-          parsed.data.action,
-          params.data.challengeId,
-          {
-            round: parsed.data.round as any,
-            entryId: parsed.data.entryId,
-          }
-        )
+      : await generateAiWrappedLines(wrappedAction, params.data.challengeId, {
+          round: parsed.data.round as any,
+          entryId: parsed.data.entryId,
+        })
 
   if (isRecapPreview) {
     return NextResponse.json({
