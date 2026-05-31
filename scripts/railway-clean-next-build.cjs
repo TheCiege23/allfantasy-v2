@@ -12,12 +12,58 @@ function sleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
 }
 
+function tryQuarantineBusyPath(targetPath, label) {
+  if (!fs.existsSync(targetPath)) {
+    console.log(`[railway-clean] removed ${label}`)
+    return true
+  }
+
+  const quarantinePath = path.join(
+    repoRoot,
+    `${path.basename(targetPath)}-busy-${Date.now()}-${process.pid}`,
+  )
+  const quarantineLabel = path.relative(repoRoot, quarantinePath)
+
+  try {
+    fs.renameSync(targetPath, quarantinePath)
+    console.warn(
+      `[railway-clean] moved busy ${label} to ${quarantineLabel}; continuing with fresh ${label}`,
+    )
+  } catch (err) {
+    console.warn(
+      `[railway-clean] ${label} is still busy and could not be moved: ${err.code ?? err.message}; continuing build`,
+    )
+    return false
+  }
+
+  try {
+    fs.rmSync(quarantinePath, {
+      recursive: true,
+      force: true,
+      maxRetries: 2,
+      retryDelay: retryDelayMs,
+    })
+    console.log(`[railway-clean] removed ${quarantineLabel}`)
+  } catch (err) {
+    console.warn(
+      `[railway-clean] could not remove quarantined ${quarantineLabel}: ${err.code ?? err.message}; continuing build`,
+    )
+  }
+
+  return true
+}
+
 function removePath(targetPath) {
   const label = path.relative(repoRoot, targetPath)
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      fs.rmSync(targetPath, { recursive: true, force: true })
+      fs.rmSync(targetPath, {
+        recursive: true,
+        force: true,
+        maxRetries: 1,
+        retryDelay: retryDelayMs,
+      })
       console.log(`[railway-clean] removed ${label}`)
       return
     } catch (err) {
@@ -41,8 +87,9 @@ function removePath(targetPath) {
       }
 
       console.warn(
-        `[railway-clean] ${label} is still busy after ${maxAttempts} attempts; continuing build`,
+        `[railway-clean] ${label} is still busy after ${maxAttempts} attempts`,
       )
+      tryQuarantineBusyPath(targetPath, label)
     }
   }
 }
