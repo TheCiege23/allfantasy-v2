@@ -1,14 +1,43 @@
 'use strict'
 
 const http = require('node:http')
-const next = require('next')
+const path = require('node:path')
+const { spawn } = require('node:child_process')
 const { parse } = require('node:url')
 
-const dev = false
-const hostname = '0.0.0.0'
-const port = Number(process.env.PORT || 3000)
-const app = next({ dev, hostname, port })
-const handle = app.getRequestHandler()
+const publicHostname = '0.0.0.0'
+const publicPort = Number(process.env.PORT || 3000)
+const upstreamPort = Number(
+  process.env.RAILWAY_NEXT_INTERNAL_PORT || (publicPort === 3000 ? 3001 : 3000),
+)
+const upstreamHost = '127.0.0.1'
+const upstreamBase = `http://${upstreamHost}:${upstreamPort}`
+const nextBin = path.join(process.cwd(), 'node_modules', 'next', 'dist', 'bin', 'next')
+
+let nextProcess = null
+let upstreamReady = false
+let shuttingDown = false
+
+const PASS_THROUGH_PREFIXES = [
+  '/_next/',
+  '/api/',
+  '/favicon.ico',
+  '/manifest.webmanifest',
+  '/robots.txt',
+  '/sitemap.xml',
+  '/sw.js',
+]
+
+const HOP_BY_HOP_HEADERS = new Set([
+  'connection',
+  'keep-alive',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+])
 
 function logRuntimeError(label, error) {
   console.error(`[railway-next-start] ${label}`, error)
@@ -21,16 +50,6 @@ process.on('unhandledRejection', (error) => {
 process.on('uncaughtException', (error) => {
   logRuntimeError('uncaught exception', error)
 })
-
-const PASS_THROUGH_PREFIXES = [
-  '/_next/',
-  '/api/',
-  '/favicon.ico',
-  '/manifest.webmanifest',
-  '/robots.txt',
-  '/sitemap.xml',
-  '/sw.js',
-]
 
 function shouldBufferDocument(req) {
   if (req.method !== 'GET') return false
@@ -60,63 +79,79 @@ function patchIfRailwayDroppedDocumentShell(body) {
   return Buffer.from(patched, 'utf8')
 }
 
-function bufferDocumentResponse(req, res, parsedUrl) {
-  const originalWrite = res.write.bind(res)
-  const originalEnd = res.end.bind(res)
-  const originalWriteHead = res.writeHead.bind(res)
-  const chunks = []
+function copyProxyHeaders(sourceHeaders, res, overrides = {}) {
+  for (const [name, value] of Object.entries(sourceHeaders)) {
+    const lower = name.toLowerCase()
+    if (HOP_BY_HOP_HEADERS.has(lower)) continue
+    if (lower === 'content-length' || lower === 'content-encoding') continue
+    if (value !== undefined) res.setHeader(name, value)
+  }
 
-  res.writeHead = function writeHead(statusCode, statusMessage, headers) {
-    res.statusCode = statusCode
-    if (typeof statusMessage === 'string') {
-      res.statusMessage = statusMessage
-    } else if (statusMessage && typeof statusMessage === 'object') {
-      headers = statusMessage
-    }
-    if (headers && typeof headers === 'object') {
-      for (const [key, value] of Object.entries(headers)) {
-        res.setHeader(key, value)
+  for (const [name, value] of Object.entries(overrides)) {
+    res.setHeader(name, value)
+  }
+}
+
+function sendLiveness(res) {
+  const statusCode = upstreamReady ? 200 : 503
+  const body = JSON.stringify({
+    ok: upstreamReady,
+    server: 'railway-next-start-proxy',
+    upstream: upstreamBase,
+  })
+  res.statusCode = statusCode
+  res.setHeader('content-type', 'application/json; charset=utf-8')
+  res.setHeader('content-length', Buffer.byteLength(body))
+  res.end(body)
+}
+
+function proxyRequest(req, res) {
+  const parsedUrl = parse(req.url || '/', true)
+  if (parsedUrl.pathname === '/api/af-railway-health') {
+    sendLiveness(res)
+    return
+  }
+
+  const headers = { ...req.headers, host: `${upstreamHost}:${upstreamPort}` }
+  delete headers['accept-encoding']
+  headers['accept-encoding'] = 'identity'
+
+  const upstreamReq = http.request(
+    {
+      hostname: upstreamHost,
+      port: upstreamPort,
+      path: req.url || '/',
+      method: req.method,
+      headers,
+    },
+    (upstreamRes) => {
+      const statusCode = upstreamRes.statusCode || 500
+      const contentType = String(upstreamRes.headers['content-type'] || '')
+      const shouldBuffer = shouldBufferDocument(req) && contentType.includes('text/html')
+
+      res.statusCode = statusCode
+
+      if (!shouldBuffer) {
+        copyProxyHeaders(upstreamRes.headers, res)
+        upstreamRes.pipe(res)
+        return
       }
-    }
-    return res
-  }
 
-  res.write = function write(chunk, encoding, callback) {
-    if (typeof encoding === 'function') {
-      callback = encoding
-      encoding = undefined
-    }
-    if (chunk) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding))
-    }
-    if (typeof callback === 'function') callback()
-    return true
-  }
+      const chunks = []
+      upstreamRes.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+      upstreamRes.on('end', () => {
+        const finalBody = patchIfRailwayDroppedDocumentShell(Buffer.concat(chunks))
+        copyProxyHeaders(upstreamRes.headers, res, {
+          'content-length': Buffer.byteLength(finalBody),
+        })
+        res.end(finalBody)
+      })
+      upstreamRes.on('error', (error) => handleRequestError(req, res, error))
+    },
+  )
 
-  res.end = function end(chunk, encoding, callback) {
-    if (typeof encoding === 'function') {
-      callback = encoding
-      encoding = undefined
-    }
-    if (chunk) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding))
-    }
-
-    const contentType = String(res.getHeader('content-type') || '')
-    const body = Buffer.concat(chunks)
-    const finalBody = contentType.includes('text/html')
-      ? patchIfRailwayDroppedDocumentShell(body)
-      : body
-
-    res.write = originalWrite
-    res.end = originalEnd
-    res.writeHead = originalWriteHead
-    res.removeHeader('transfer-encoding')
-    res.setHeader('content-length', Buffer.byteLength(finalBody))
-    return originalEnd(finalBody, encoding, callback)
-  }
-
-  return handle(req, res, parsedUrl)
+  upstreamReq.on('error', (error) => handleRequestError(req, res, error))
+  req.pipe(upstreamReq)
 }
 
 function handleRequestError(req, res, error) {
@@ -140,38 +175,64 @@ function handleRequestError(req, res, error) {
   }
 }
 
-function runNextHandler(req, res, parsedUrl, shouldBuffer) {
-  try {
-    const result = shouldBuffer
-      ? bufferDocumentResponse(req, res, parsedUrl)
-      : handle(req, res, parsedUrl)
+function startNextProcess() {
+  if (shuttingDown) return
 
-    if (result && typeof result.then === 'function') {
-      result.catch((error) => handleRequestError(req, res, error))
-    }
-  } catch (error) {
-    handleRequestError(req, res, error)
+  upstreamReady = false
+  nextProcess = spawn(process.execPath, [nextBin, 'start', '-p', String(upstreamPort), '-H', upstreamHost], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      PORT: String(upstreamPort),
+      HOSTNAME: upstreamHost,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+
+  nextProcess.stdout.on('data', (chunk) => process.stdout.write(`[next] ${chunk}`))
+  nextProcess.stderr.on('data', (chunk) => process.stderr.write(`[next] ${chunk}`))
+
+  nextProcess.on('exit', (code, signal) => {
+    upstreamReady = false
+    if (shuttingDown) return
+    console.error(`[railway-next-start] next start exited code=${code} signal=${signal}; restarting`)
+    setTimeout(startNextProcess, 1000)
+  })
+}
+
+async function checkUpstream() {
+  try {
+    const response = await fetch(`${upstreamBase}/api/af-debug/sha`, { cache: 'no-store' })
+    upstreamReady = response.ok
+  } catch {
+    upstreamReady = false
   }
 }
 
-app.prepare().then(() => {
-  http
-    .createServer((req, res) => {
-      const parsedUrl = parse(req.url || '/', true)
-      if (parsedUrl.pathname === '/api/af-railway-health') {
-        const body = JSON.stringify({ ok: true, server: 'railway-next-start' })
-        res.statusCode = 200
-        res.setHeader('content-type', 'application/json; charset=utf-8')
-        res.setHeader('content-length', Buffer.byteLength(body))
-        res.end(body)
-        return
-      }
-      runNextHandler(req, res, parsedUrl, shouldBufferDocument(req))
-    })
-    .listen(port, hostname, () => {
-      console.log(`[railway-next-start] ready on http://${hostname}:${port}`)
-    })
-}).catch((error) => {
-  logRuntimeError('failed to prepare Next app', error)
-  process.exit(1)
-})
+function shutdown(signal) {
+  shuttingDown = true
+  console.log(`[railway-next-start] received ${signal}; shutting down`)
+  if (nextProcess && !nextProcess.killed) nextProcess.kill(signal)
+  process.exit(0)
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))
+
+startNextProcess()
+setInterval(checkUpstream, 1000).unref()
+void checkUpstream()
+
+http
+  .createServer((req, res) => {
+    try {
+      proxyRequest(req, res)
+    } catch (error) {
+      handleRequestError(req, res, error)
+    }
+  })
+  .listen(publicPort, publicHostname, () => {
+    console.log(
+      `[railway-next-start] proxy ready on http://${publicHostname}:${publicPort} -> ${upstreamBase}`,
+    )
+  })
