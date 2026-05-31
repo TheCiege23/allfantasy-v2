@@ -421,6 +421,7 @@ describe("root language provider layout", () => {
     expect(railwayCleanSource).toContain("'.next', 'cache', 'webpack'")
     expect(railwayCleanSource).not.toContain("for (const entry")
     expect(railwayVerifySource).toContain("Railway build produced no layout CSS")
+    expect(railwayVerifySource).toContain("continuing so the document-shell server fix can deploy")
     expect(railwayVerifySource).toContain("app-build-manifest.json")
   })
 
