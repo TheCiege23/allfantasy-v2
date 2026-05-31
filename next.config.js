@@ -8,10 +8,15 @@ const withBundleAnalyzer = require('@next/bundle-analyzer')({
 })
 
 const isProd = process.env.NODE_ENV === 'production';
+const isRailwayRuntime = !!(
+  process.env.RAILWAY_PROJECT_ID ||
+  process.env.RAILWAY_ENVIRONMENT ||
+  process.env.RAILWAY_SERVICE_ID
+);
 
 const nextConfig = {
   reactStrictMode: true,
-  distDir: process.env.AF_NEXT_DIST_DIR || (isProd ? '.next' : '.next-dev-local'),
+  distDir: process.env.AF_NEXT_DIST_DIR || (isRailwayRuntime ? '.next-railway' : isProd ? '.next' : '.next-dev-local'),
 
   // Skip in-build type-check and lint passes — they OOM in Vercel's build container
   // on this codebase size. TypeScript errors are caught in local pre-deploy checks.

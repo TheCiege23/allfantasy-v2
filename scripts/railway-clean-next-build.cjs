@@ -4,7 +4,14 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 const repoRoot = process.cwd()
-const nextDir = path.join(repoRoot, '.next')
+const isRailway = !!(
+  process.env.RAILWAY_PROJECT_ID ||
+  process.env.RAILWAY_ENVIRONMENT ||
+  process.env.RAILWAY_SERVICE_ID
+)
+const distDirName = process.env.AF_NEXT_DIST_DIR || (isRailway ? '.next-railway' : '.next')
+const nextDir = path.join(repoRoot, distDirName)
+const legacyNextDir = path.join(repoRoot, '.next')
 const maxAttempts = 4
 const retryDelayMs = 1000
 
@@ -94,9 +101,16 @@ function removePath(targetPath) {
   }
 }
 
-if (!fs.existsSync(nextDir)) {
-  console.log('[railway-clean] skip: .next is missing')
-  process.exit(0)
+if (fs.existsSync(nextDir)) {
+  removePath(nextDir)
+} else {
+  console.log(`[railway-clean] skip: ${distDirName} is missing`)
 }
 
-removePath(nextDir)
+if (legacyNextDir !== nextDir) {
+  if (fs.existsSync(legacyNextDir)) {
+    removePath(legacyNextDir)
+  } else {
+    console.log('[railway-clean] skip: .next is missing')
+  }
+}

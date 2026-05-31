@@ -13,7 +13,12 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 const repoRoot = process.cwd()
-const distDir = process.env.AF_NEXT_DIST_DIR || '.next'
+const isRailway = !!(
+  process.env.RAILWAY_PROJECT_ID ||
+  process.env.RAILWAY_ENVIRONMENT ||
+  process.env.RAILWAY_SERVICE_ID
+)
+const distDir = process.env.AF_NEXT_DIST_DIR || (isRailway ? '.next-railway' : '.next')
 const manifestPath = path.join(repoRoot, distDir, 'app-build-manifest.json')
 const cssDir = path.join(repoRoot, distDir, 'static', 'css')
 

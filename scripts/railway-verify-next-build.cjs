@@ -4,14 +4,19 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 const repoRoot = process.cwd()
-const distDir = process.env.AF_NEXT_DIST_DIR || '.next'
+const isRailway = !!(
+  process.env.RAILWAY_PROJECT_ID ||
+  process.env.RAILWAY_ENVIRONMENT ||
+  process.env.RAILWAY_SERVICE_ID
+)
+const distDir = process.env.AF_NEXT_DIST_DIR || (isRailway ? '.next-railway' : '.next')
 const cssDir = path.join(repoRoot, distDir, 'static', 'css')
 const manifestPath = path.join(repoRoot, distDir, 'app-build-manifest.json')
 
 const MIN_TOTAL_CSS_BYTES = 8_000
 
 if (!fs.existsSync(manifestPath)) {
-  console.error('[railway-verify] .next/app-build-manifest.json was not produced')
+  console.error(`[railway-verify] ${distDir}/app-build-manifest.json was not produced`)
   process.exit(1)
 }
 
@@ -29,7 +34,7 @@ if (fs.existsSync(cssDir)) {
     console.log(`[railway-verify] ${name} ${size} bytes`)
   })
 } else {
-  console.error('[railway-verify] .next/static/css is missing')
+  console.error(`[railway-verify] ${distDir}/static/css is missing`)
   process.exit(1)
 }
 
