@@ -6,7 +6,9 @@
  * HTML with scripts but no <link rel="stylesheet"> tags — the site looks bare.
  *
  * This post-build patch attaches every built CSS file to /layout (and to any
- * page entry that inherited layout chunks but lost the CSS references).
+ * page entry that inherited layout chunks but lost the CSS references). It
+ * also repairs App Router client reference manifests, which are what Next uses
+ * at request time to emit real <link rel="stylesheet"> tags.
  */
 
 const fs = require('node:fs')
@@ -46,6 +48,129 @@ function insertCssIntoAssets(assets, cssAssets) {
   const next = [...withoutCss]
   next.splice(insertAt, 0, ...cssAssets)
   return next
+}
+
+function walkFiles(dir, predicate, results = []) {
+  if (!fs.existsSync(dir)) return results
+
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const entryPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      walkFiles(entryPath, predicate, results)
+      continue
+    }
+    if (predicate(entryPath)) results.push(entryPath)
+  }
+
+  return results
+}
+
+function parseClientReferenceManifest(source, filePath) {
+  const match = source.match(
+    /(globalThis\.__RSC_MANIFEST\["(?:\\.|[^"\\])+"\]=)(\{.*\})(;?)$/s,
+  )
+  if (!match) {
+    throw new Error(`could not find client reference manifest payload in ${filePath}`)
+  }
+
+  return {
+    prefix: match[1],
+    manifest: JSON.parse(match[2]),
+    suffix: match[3],
+  }
+}
+
+function isRootLayoutEntry(entryKey) {
+  return /(?:^|[\\/])app[\\/]layout$/.test(entryKey)
+}
+
+function inferRootLayoutEntry(entryKeys) {
+  for (const entryKey of entryKeys) {
+    const normalized = entryKey.replace(/\\/g, '/')
+    const appIndex = normalized.lastIndexOf('/app/')
+    if (appIndex === -1) continue
+
+    const separator = entryKey.includes('\\') ? '\\' : '/'
+    const prefix = normalized.slice(0, appIndex)
+    return `${prefix}${separator}app${separator}layout`
+  }
+
+  return null
+}
+
+function mergeCssAssets(current, cssAssets) {
+  const existingCss = Array.isArray(current)
+    ? current.filter((asset) => String(asset).endsWith('.css'))
+    : []
+  return Array.from(new Set([...existingCss, ...cssAssets]))
+}
+
+function patchClientReferenceManifests(cssAssets) {
+  const serverAppDir = path.join(repoRoot, distDir, 'server', 'app')
+  const files = walkFiles(
+    serverAppDir,
+    (filePath) => filePath.endsWith('_client-reference-manifest.js'),
+  )
+
+  if (files.length === 0) {
+    console.error(`[railway-patch-manifest] no client reference manifests under ${distDir}/server/app`)
+    process.exit(1)
+  }
+
+  let patchedFiles = 0
+  let filesWithLayoutCss = 0
+
+  for (const filePath of files) {
+    const source = fs.readFileSync(filePath, 'utf8')
+    const { prefix, manifest, suffix } = parseClientReferenceManifest(source, filePath)
+    const entryCSSFiles = manifest.entryCSSFiles || {}
+    manifest.entryCSSFiles = entryCSSFiles
+
+    let layoutKeys = Object.keys(entryCSSFiles).filter(isRootLayoutEntry)
+    if (layoutKeys.length === 0) {
+      const inferredKey = inferRootLayoutEntry(Object.keys(entryCSSFiles))
+      if (inferredKey) {
+        layoutKeys = [inferredKey]
+      }
+    }
+
+    let fileChanged = false
+    let fileHasLayoutCss = false
+
+    for (const layoutKey of layoutKeys) {
+      const nextCss = mergeCssAssets(entryCSSFiles[layoutKey], cssAssets)
+      if (nextCss.length > 0) fileHasLayoutCss = true
+
+      const current = Array.isArray(entryCSSFiles[layoutKey]) ? entryCSSFiles[layoutKey] : []
+      const hasSameCss =
+        current.length === nextCss.length &&
+        current.every((asset, index) => asset === nextCss[index])
+
+      if (!hasSameCss) {
+        entryCSSFiles[layoutKey] = nextCss
+        fileChanged = true
+      }
+    }
+
+    if (fileHasLayoutCss) filesWithLayoutCss += 1
+
+    if (fileChanged) {
+      fs.writeFileSync(filePath, `${prefix}${JSON.stringify(manifest)}${suffix}`)
+      patchedFiles += 1
+    }
+  }
+
+  if (filesWithLayoutCss === 0) {
+    console.error('[railway-patch-manifest] no client reference manifest has root layout CSS assets')
+    process.exit(1)
+  }
+
+  console.log(
+    `[railway-patch-manifest] client reference manifests with layout CSS: ${filesWithLayoutCss}/${files.length}`,
+  )
+  if (patchedFiles > 0) {
+    console.log(`[railway-patch-manifest] patched ${patchedFiles} client reference manifest(s)`)
+  }
 }
 
 function patchManifest() {
@@ -100,6 +225,7 @@ function patchManifest() {
   }
 
   console.log(`[railway-patch-manifest] ✓ /layout CSS assets: ${layoutCssAfter.length}`)
+  patchClientReferenceManifests(cssAssets)
 }
 
 patchManifest()

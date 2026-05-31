@@ -19,7 +19,7 @@ cmds = ["npm ci"]
 # On Railway, globals.css is already compiled, so the tailwindcss PostCSS plugin
 # is a passthrough; autoprefixer adds prefixes and mini-css-extract-plugin
 # extracts the CSS chunk normally.
-cmds = ["node scripts/railway-clean-next-build.cjs", "npx prisma generate", "npm run build", "node scripts/railway-patch-app-build-manifest.cjs", "node scripts/railway-verify-next-build.cjs"]
+cmds = ["export AF_NEXT_DIST_DIR=.next-railway && node scripts/railway-clean-next-build.cjs", "export AF_NEXT_DIST_DIR=.next-railway && npx prisma generate", "export AF_NEXT_DIST_DIR=.next-railway && npm run build", "export AF_NEXT_DIST_DIR=.next-railway && node scripts/railway-patch-app-build-manifest.cjs", "export AF_NEXT_DIST_DIR=.next-railway && node scripts/railway-verify-next-build.cjs"]
 
 [start]
-cmd = "npm run start:railway"
+cmd = "AF_NEXT_DIST_DIR=.next-railway npm run start:railway"

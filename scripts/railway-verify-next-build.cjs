@@ -12,8 +12,39 @@ const isRailway = !!(
 const distDir = process.env.AF_NEXT_DIST_DIR || (isRailway ? '.next-railway' : '.next')
 const cssDir = path.join(repoRoot, distDir, 'static', 'css')
 const manifestPath = path.join(repoRoot, distDir, 'app-build-manifest.json')
+const serverAppDir = path.join(repoRoot, distDir, 'server', 'app')
 
 const MIN_TOTAL_CSS_BYTES = 8_000
+
+function walkFiles(dir, predicate, results = []) {
+  if (!fs.existsSync(dir)) return results
+
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const entryPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      walkFiles(entryPath, predicate, results)
+      continue
+    }
+    if (predicate(entryPath)) results.push(entryPath)
+  }
+
+  return results
+}
+
+function readClientReferenceManifest(filePath) {
+  const source = fs.readFileSync(filePath, 'utf8')
+  const match = source.match(
+    /globalThis\.__RSC_MANIFEST\["(?:\\.|[^"\\])+"\]=(\{.*\});?$/s,
+  )
+  if (!match) {
+    throw new Error(`could not read client reference manifest payload in ${filePath}`)
+  }
+  return JSON.parse(match[1])
+}
+
+function isRootLayoutEntry(entryKey) {
+  return /(?:^|[\\/])app[\\/]layout$/.test(entryKey)
+}
 
 if (!fs.existsSync(manifestPath)) {
   console.error(`[railway-verify] ${distDir}/app-build-manifest.json was not produced`)
@@ -62,6 +93,51 @@ if (fs.existsSync(railwayStylesPath)) {
 
 if (layoutCss.length === 0) {
   console.error('[railway-verify] BLOCKED: /layout has no CSS assets in app-build-manifest.json')
+  process.exit(1)
+}
+
+const clientReferenceFiles = walkFiles(
+  serverAppDir,
+  (filePath) => filePath.endsWith('_client-reference-manifest.js'),
+)
+
+if (clientReferenceFiles.length === 0) {
+  console.error(`[railway-verify] BLOCKED: no client reference manifests under ${distDir}/server/app`)
+  process.exit(1)
+}
+
+let clientReferenceManifestsWithLayoutCss = 0
+const clientReferenceManifestsMissingLayoutCss = []
+
+for (const filePath of clientReferenceFiles) {
+  const clientReferenceManifest = readClientReferenceManifest(filePath)
+  const entryCSSFiles = clientReferenceManifest.entryCSSFiles || {}
+  const layoutCssEntries = Object.entries(entryCSSFiles)
+    .filter(([entryKey]) => isRootLayoutEntry(entryKey))
+    .flatMap(([, files]) => (Array.isArray(files) ? files : []))
+    .filter((asset) => String(asset).endsWith('.css'))
+
+  if (layoutCssEntries.length > 0) {
+    clientReferenceManifestsWithLayoutCss += 1
+  } else {
+    clientReferenceManifestsMissingLayoutCss.push(path.relative(repoRoot, filePath))
+  }
+}
+
+console.log(
+  `[railway-verify] client reference manifests with layout CSS: ${clientReferenceManifestsWithLayoutCss}/${clientReferenceFiles.length}`,
+)
+
+if (clientReferenceManifestsWithLayoutCss === 0) {
+  console.error('[railway-verify] BLOCKED: client reference manifests have no root layout CSS assets')
+  process.exit(1)
+}
+
+if (clientReferenceManifestsMissingLayoutCss.length > 0) {
+  console.error('[railway-verify] BLOCKED: some client reference manifests are missing root layout CSS')
+  clientReferenceManifestsMissingLayoutCss.slice(0, 20).forEach((filePath) => {
+    console.error(`[railway-verify] missing layout CSS -> ${filePath}`)
+  })
   process.exit(1)
 }
 
