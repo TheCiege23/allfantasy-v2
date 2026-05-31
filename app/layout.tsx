@@ -102,6 +102,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || '';
   const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID || '';
   const fbAppId = process.env.NEXT_PUBLIC_FB_APP_ID || '1790659191546539';
+  const useRailwayStyles = !!(
+    process.env.RAILWAY_ENVIRONMENT ||
+    process.env.RAILWAY_PROJECT_ID ||
+    process.env.RAILWAY_SERVICE_ID
+  );
 
   return (
     <html
@@ -111,6 +116,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       className="scroll-smooth"
       suppressHydrationWarning
     >
+      <head>
+        {useRailwayStyles ? <link rel="stylesheet" href="/railway-styles.css" /> : null}
+      </head>
       <body
         className="antialiased min-h-screen mode-readable"
         style={{ background: 'var(--bg)', color: 'var(--text)' }}

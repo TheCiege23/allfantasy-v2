@@ -49,6 +49,7 @@ console.log('[railway-prebuild] Railway detected (env=%s). Pre-compiling Tailwin
 const cwd = process.cwd();
 const globalsIn  = path.join(cwd, 'app', 'globals.css');
 const globalsOut = path.join(cwd, 'app', 'globals-compiled.css');
+const railwayStylesOut = path.join(cwd, 'public', 'railway-styles.css');
 const twConfig   = path.join(cwd, 'tailwind.config.js');
 const twBin      = path.join(cwd, 'node_modules', '.bin', 'tailwindcss');
 
@@ -78,10 +79,9 @@ try {
   const compiledBytes = fs.statSync(globalsOut).size;
   console.log('[railway-prebuild] Tailwind CLI output: %d bytes', compiledBytes);
 
-  if (compiledBytes < 1000) {
+  if (compiledBytes < 100_000) {
     console.warn(
-      '[railway-prebuild] WARNING: compiled CSS is only %d bytes — Tailwind may not have ' +
-      'generated utility classes.  Check tailwind.config.js content globs.',
+      '[railway-prebuild] WARNING: compiled CSS is only %d bytes — styling may be incomplete.',
       compiledBytes
     );
   }
@@ -90,8 +90,10 @@ try {
   // webpack will see plain CSS (no @tailwind directives), so the tailwindcss
   // PostCSS plugin will be a no-op and autoprefixer will add vendor prefixes.
   fs.copyFileSync(globalsOut, globalsIn);
+  fs.copyFileSync(globalsOut, railwayStylesOut);
   fs.unlinkSync(globalsOut);
   console.log('[railway-prebuild] ✓ app/globals.css replaced with compiled Tailwind CSS (%d bytes)', compiledBytes);
+  console.log('[railway-prebuild] ✓ public/railway-styles.css written (%d bytes)', compiledBytes);
 
 } catch (err) {
   console.error('[railway-prebuild] Tailwind CLI FAILED:', err.message);

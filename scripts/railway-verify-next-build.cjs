@@ -42,6 +42,19 @@ console.log(`[railway-verify] /layout CSS assets: ${layoutCss.length}`)
 layoutCss.forEach((asset) => console.log(`[railway-verify] /layout -> ${asset}`))
 console.log(`[railway-verify] total CSS bytes: ${totalCssBytes}`)
 
+const railwayStylesPath = path.join(repoRoot, 'public', 'railway-styles.css')
+if (fs.existsSync(railwayStylesPath)) {
+  const railwayStylesBytes = fs.statSync(railwayStylesPath).size
+  console.log(`[railway-verify] public/railway-styles.css: ${railwayStylesBytes} bytes`)
+  if (railwayStylesBytes < 100_000) {
+    console.error('[railway-verify] BLOCKED: public/railway-styles.css is too small for Railway styling')
+    process.exit(1)
+  }
+} else if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID) {
+  console.error('[railway-verify] BLOCKED: public/railway-styles.css missing on Railway build')
+  process.exit(1)
+}
+
 if (layoutCss.length === 0) {
   console.error('[railway-verify] BLOCKED: /layout has no CSS assets in app-build-manifest.json')
   process.exit(1)
