@@ -1,22 +1,29 @@
 const path = require('path')
+const fs = require('node:fs')
 
-// On Railway the prebuild script (scripts/railway-tailwind-prebuild.cjs) runs
-// the Tailwind CLI before `next build`, replacing app/globals.css with compiled
-// plain CSS (no @tailwind directives).  When postcss-loader subsequently
-// processes that file the tailwindcss plugin sees no @tailwind / @apply /
-// @layer directives and is a pure passthrough — the compiled utility classes
-// flow through unchanged.  autoprefixer then adds vendor prefixes and
-// mini-css-extract-plugin extracts the CSS chunk normally.
-//
-// Using ONLY autoprefixer on Railway (the previous approach) caused
-// mini-css-extract-plugin to receive 0 bytes for globals.css, so no CSS
-// chunk appeared in app-build-manifest.json and every page was unstyled.
-// Always including tailwindcss fixes this regardless of whether @tailwind
-// directives are present in the file.
+// Railway prebuild (scripts/railway-tailwind-prebuild.cjs) replaces app/globals.css
+// with fully compiled Tailwind output before `next build`. Running the tailwindcss
+// PostCSS plugin on that file again purges most utilities (~666KB -> ~12KB) and
+// breaks styling. When @tailwind directives are absent, use autoprefixer only.
+function globalsCssIsPrecompiled() {
+  try {
+    const globalsPath = path.join(__dirname, 'app', 'globals.css')
+    const source = fs.readFileSync(globalsPath, 'utf8')
+    return !source.includes('@tailwind')
+  } catch {
+    return false
+  }
+}
+
+const precompiled = globalsCssIsPrecompiled()
+
 module.exports = {
-  plugins: {
-    // Explicitly reference the .js config to prevent jiti/sucrase TS loading.
-    tailwindcss: { config: path.join(__dirname, 'tailwind.config.js') },
-    autoprefixer: {},
-  },
+  plugins: precompiled
+    ? {
+        autoprefixer: {},
+      }
+    : {
+        tailwindcss: { config: path.join(__dirname, 'tailwind.config.js') },
+        autoprefixer: {},
+      },
 }
