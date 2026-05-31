@@ -408,6 +408,8 @@ describe("root language provider layout", () => {
     expect(railwayStartSource).toContain("content-length")
     expect(railwayStartSource).toContain("/api/af-railway-health")
     expect(railwayStartSource).toContain("railway-next-start")
+    expect(railwayStartSource).toContain("unhandledRejection")
+    expect(railwayStartSource).toContain("handleRequestError")
     expect(railwayStartSource).toContain("af-body-start")
     expect(railwayStartSource).not.toContain("useLanguage")
   })

@@ -10,6 +10,18 @@ const port = Number(process.env.PORT || 3000)
 const app = next({ dev, hostname, port })
 const handle = app.getRequestHandler()
 
+function logRuntimeError(label, error) {
+  console.error(`[railway-next-start] ${label}`, error)
+}
+
+process.on('unhandledRejection', (error) => {
+  logRuntimeError('unhandled rejection', error)
+})
+
+process.on('uncaughtException', (error) => {
+  logRuntimeError('uncaught exception', error)
+})
+
 const PASS_THROUGH_PREFIXES = [
   '/_next/',
   '/api/',
@@ -107,6 +119,41 @@ function bufferDocumentResponse(req, res, parsedUrl) {
   return handle(req, res, parsedUrl)
 }
 
+function handleRequestError(req, res, error) {
+  logRuntimeError(`${req.method || 'GET'} ${req.url || '/'} failed`, error)
+
+  if (res.writableEnded) return
+
+  try {
+    if (!res.headersSent) {
+      const body = 'Internal Server Error'
+      res.statusCode = 500
+      res.setHeader('content-type', 'text/plain; charset=utf-8')
+      res.setHeader('content-length', Buffer.byteLength(body))
+      res.end(body)
+      return
+    }
+
+    res.end()
+  } catch (endError) {
+    logRuntimeError('failed to close errored response', endError)
+  }
+}
+
+function runNextHandler(req, res, parsedUrl, shouldBuffer) {
+  try {
+    const result = shouldBuffer
+      ? bufferDocumentResponse(req, res, parsedUrl)
+      : handle(req, res, parsedUrl)
+
+    if (result && typeof result.then === 'function') {
+      result.catch((error) => handleRequestError(req, res, error))
+    }
+  } catch (error) {
+    handleRequestError(req, res, error)
+  }
+}
+
 app.prepare().then(() => {
   http
     .createServer((req, res) => {
@@ -119,12 +166,12 @@ app.prepare().then(() => {
         res.end(body)
         return
       }
-      if (!shouldBufferDocument(req)) {
-        return handle(req, res, parsedUrl)
-      }
-      return bufferDocumentResponse(req, res, parsedUrl)
+      runNextHandler(req, res, parsedUrl, shouldBufferDocument(req))
     })
     .listen(port, hostname, () => {
       console.log(`[railway-next-start] ready on http://${hostname}:${port}`)
     })
+}).catch((error) => {
+  logRuntimeError('failed to prepare Next app', error)
+  process.exit(1)
 })
