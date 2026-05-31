@@ -126,6 +126,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         className={`${inter.variable} antialiased min-h-screen mode-readable`}
         style={{ background: 'var(--bg)', color: 'var(--text)' }}
       >
+        <template id="af-body-start" />
         {/*
           Theme + language init scripts are safe on every route: they only
           touch `localStorage` and `<html>` data attributes, and the document

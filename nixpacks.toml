@@ -23,7 +23,7 @@ cmds = ["npm ci"]
 # On Railway, globals.css is already compiled (no @tailwind directives) so the
 # tailwindcss PostCSS plugin is a pure passthrough; autoprefixer adds vendor
 # prefixes and mini-css-extract-plugin extracts the CSS chunk normally.
-cmds = ["rm -rf .next/cache/webpack", "npm run build"]
+cmds = ["node scripts/railway-clean-next-build.cjs", "npm run build"]
 
 [start]
-cmd = "npm run start"
+cmd = "npm run start:railway"

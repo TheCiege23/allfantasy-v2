@@ -73,6 +73,11 @@ const middlewareSource = fs.readFileSync(path.join(process.cwd(), "middleware.ts
 const optionalSessionSource = fs.readFileSync(path.join(process.cwd(), "components", "auth", "useOptionalSession.ts"), "utf8")
 const modeToggleSource = fs.readFileSync(path.join(process.cwd(), "components", "theme", "ModeToggle.tsx"), "utf8")
 const languageToggleSource = fs.readFileSync(path.join(process.cwd(), "components", "i18n", "LanguageToggle.tsx"), "utf8")
+const packageJsonSource = fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")
+const railwayJsonSource = fs.readFileSync(path.join(process.cwd(), "railway.json"), "utf8")
+const nixpacksSource = fs.readFileSync(path.join(process.cwd(), "nixpacks.toml"), "utf8")
+const railwayStartSource = fs.readFileSync(path.join(process.cwd(), "scripts", "railway-next-start.cjs"), "utf8")
+const railwayCleanSource = fs.readFileSync(path.join(process.cwd(), "scripts", "railway-clean-next-build.cjs"), "utf8")
 const uiDocumentSources = [
   ["app/layout.tsx", layoutSource],
   ["components/providers/AppProviders.tsx", appProvidersSource],
@@ -137,6 +142,7 @@ describe("root language provider layout", () => {
     // suppressHydrationWarning).
     expect(layoutSource).toContain("af-init-mode")
     expect(layoutSource).toContain("af-init-lang")
+    expect(layoutSource).toContain('id="af-body-start"')
     // Route-sensitive chrome must NOT appear directly in the root layout
     // — it must be reached only via <SafeGlobalChrome />.
     expect(layoutSource).not.toContain('id="meta-pixel"')
@@ -390,5 +396,23 @@ describe("root language provider layout", () => {
         file === "app/layout.tsx"
       )
     }
+  })
+
+  it("uses the buffered Railway start path for production document routes", () => {
+    expect(packageJsonSource).toContain('"start:railway": "node scripts/railway-next-start.cjs"')
+    expect(railwayJsonSource).toContain("npm run start:railway")
+    expect(nixpacksSource).toContain('cmd = "npm run start:railway"')
+    expect(railwayStartSource).toContain("bufferDocumentResponse")
+    expect(railwayStartSource).toContain("content-length")
+    expect(railwayStartSource).toContain("af-body-start")
+    expect(railwayStartSource).not.toContain("useLanguage")
+  })
+
+  it("cleans stale Railway build artifacts before Next builds", () => {
+    expect(railwayJsonSource).toContain("node scripts/railway-clean-next-build.cjs && npm run build")
+    expect(nixpacksSource).toContain('"node scripts/railway-clean-next-build.cjs"')
+    expect(railwayCleanSource).toContain("entry.name === 'cache'")
+    expect(railwayCleanSource).toContain("'webpack'")
+    expect(railwayJsonSource).toContain("Railway build produced no layout CSS")
   })
 })
