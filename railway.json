@@ -6,7 +6,7 @@
   },
   "deploy": {
     "startCommand": "npm run db:migrate:deploy && npm run start:railway",
-    "healthcheckPath": "/api/health",
+    "healthcheckPath": "/api/af-railway-health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3

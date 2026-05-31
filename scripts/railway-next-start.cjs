@@ -5,7 +5,7 @@ const next = require('next')
 const { parse } = require('node:url')
 
 const dev = false
-const hostname = process.env.HOST || '0.0.0.0'
+const hostname = '0.0.0.0'
 const port = Number(process.env.PORT || 3000)
 const app = next({ dev, hostname, port })
 const handle = app.getRequestHandler()
@@ -111,6 +111,14 @@ app.prepare().then(() => {
   http
     .createServer((req, res) => {
       const parsedUrl = parse(req.url || '/', true)
+      if (parsedUrl.pathname === '/api/af-railway-health') {
+        const body = JSON.stringify({ ok: true, server: 'railway-next-start' })
+        res.statusCode = 200
+        res.setHeader('content-type', 'application/json; charset=utf-8')
+        res.setHeader('content-length', Buffer.byteLength(body))
+        res.end(body)
+        return
+      }
       if (!shouldBufferDocument(req)) {
         return handle(req, res, parsedUrl)
       }

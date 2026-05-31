@@ -402,9 +402,12 @@ describe("root language provider layout", () => {
   it("uses the buffered Railway start path for production document routes", () => {
     expect(packageJsonSource).toContain('"start:railway": "node scripts/railway-next-start.cjs"')
     expect(railwayJsonSource).toContain("npm run start:railway")
+    expect(railwayJsonSource).toContain('"/api/af-railway-health"')
     expect(nixpacksSource).toContain('cmd = "npm run start:railway"')
     expect(railwayStartSource).toContain("bufferDocumentResponse")
     expect(railwayStartSource).toContain("content-length")
+    expect(railwayStartSource).toContain("/api/af-railway-health")
+    expect(railwayStartSource).toContain("railway-next-start")
     expect(railwayStartSource).toContain("af-body-start")
     expect(railwayStartSource).not.toContain("useLanguage")
   })
