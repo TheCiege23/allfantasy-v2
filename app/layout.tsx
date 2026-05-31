@@ -122,16 +122,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       className={`${inter.variable} scroll-smooth`}
       suppressHydrationWarning
     >
-      <head>
+      <body
+        className={`${inter.variable} antialiased min-h-screen mode-readable`}
+        style={{ background: 'var(--bg)', color: 'var(--text)' }}
+      >
         {/*
           Theme + language init scripts are safe on every route: they only
           touch `localStorage` and `<html>` data attributes, and the document
           element has `suppressHydrationWarning` so the post-script values
-          will not produce a hydration error. PWA service-worker registration
-          and the route-sensitive analytics scripts (Meta Pixel, Facebook SDK)
-          live inside <SafeGlobalChrome /> in the body so they can use
-          `usePathname()` to bail on auth routes without depending on the
-          upstream `x-af-pathname` request header.
+          will not produce a hydration error. They live in the root layout body
+          so Next owns the document <head> wrapper; Railway was serving malformed
+          HTML when this layout manually rendered a nested <head> element.
         */}
         <Script id="af-init-mode" strategy="beforeInteractive">
           {buildThemeInitScript(htmlMode)}
@@ -206,13 +207,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             })();
           `}
         </Script>
-
-      </head>
-
-      <body
-        className={`${inter.variable} antialiased min-h-screen mode-readable`}
-        style={{ background: 'var(--bg)', color: 'var(--text)' }}
-      >
         <AppProviders session={initialSession}>
           <ErrorBoundaryClient>
             <PlayerComparisonUIProvider>{children}</PlayerComparisonUIProvider>

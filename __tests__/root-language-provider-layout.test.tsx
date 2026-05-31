@@ -125,8 +125,16 @@ describe("root language provider layout", () => {
   })
 
   it("keeps only the always-safe scripts in the root layout head", () => {
-    // These are safe on every route (only touch <html data-*> + localStorage,
-    // and <html> uses suppressHydrationWarning).
+    // Next should own the document head wrapper. Manually rendering a head tag in
+    // the App Router root layout caused Railway to stream malformed HTML with
+    // missing opening document tags.
+    const headOpen = "      <" + "head>"
+    const headClose = "      </" + "head>"
+    expect(layoutSource).not.toContain(headOpen)
+    expect(layoutSource).not.toContain(headClose)
+    // These are safe on every route (only touch document-element data
+    // attributes + localStorage, and the document element uses
+    // suppressHydrationWarning).
     expect(layoutSource).toContain("af-init-mode")
     expect(layoutSource).toContain("af-init-lang")
     // Route-sensitive chrome must NOT appear directly in the root layout
@@ -246,6 +254,9 @@ describe("root language provider layout", () => {
       )
       expect(source, `${file} must not depend on optional provider context either`).not.toContain(
         "useOptionalLanguage"
+      )
+      expect(source, `${file} must not render document root tags`).not.toMatch(
+        /<\/?(?:html|head|body)(?:\s|>|$)/i
       )
     }
   })
@@ -371,6 +382,8 @@ describe("root language provider layout", () => {
   })
 
   it("keeps document tags confined to the root layout", () => {
+    expect(fs.existsSync(path.join(process.cwd(), "pages", "_document.tsx"))).toBe(false)
+
     for (const [file, source] of uiDocumentSources) {
       const hasDocumentTag = /<\/?html|<\/?body/.test(source)
       expect(hasDocumentTag, `${file} should not render html/body outside root layout`).toBe(

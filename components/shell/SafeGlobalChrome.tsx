@@ -19,7 +19,7 @@ const AUTH_ROUTE_PREFIXES = ["/login", "/signup", "/signin", "/auth"]
  * during the first hydration tick it returns `null` and the bail above fires.
  * When the server renders chrome but the client renders null the trees differ →
  * React #418 hydration mismatch → #423 client-only fallback → Next.js activates
- * global-error.tsx (which renders its own <html><body>) → HierarchyRequestError.
+ * global error fallback activation → document-root mutation errors.
  * Adding the prefix here makes the server also render null for these paths so
  * both sides agree. Re-enable after the specific chrome culprit is bisected.
  */
