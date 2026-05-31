@@ -130,7 +130,7 @@ describe("root language provider layout", () => {
     expect(safeGlobalChromeSource).toContain("<AuthRouteGlobalChrome />")
   })
 
-  it("keeps only the always-safe scripts in the root layout head", () => {
+  it("keeps root layout free of pre-hydration document mutations", () => {
     // Next should own the document head wrapper. Manually rendering a head tag in
     // the App Router root layout caused Railway to stream malformed HTML with
     // missing opening document tags.
@@ -138,11 +138,14 @@ describe("root language provider layout", () => {
     const headClose = "      </" + "head>"
     expect(layoutSource).not.toContain(headOpen)
     expect(layoutSource).not.toContain(headClose)
-    // These are safe on every route (only touch document-element data
-    // attributes + localStorage, and the document element uses
-    // suppressHydrationWarning).
-    expect(layoutSource).toContain("af-init-mode")
-    expect(layoutSource).toContain("af-init-lang")
+    // Do not mutate <html> from localStorage before React hydrates. If stored
+    // language/theme differs from the server cookies, React bails out at the
+    // document root and attempts to append a second <html>.
+    expect(layoutSource).not.toContain("af-init-mode")
+    expect(layoutSource).not.toContain("af-init-lang")
+    expect(layoutSource).not.toContain("beforeInteractive")
+    expect(layoutSource).not.toContain("buildThemeInitScript")
+    expect(layoutSource).not.toContain("buildLanguageInitScript")
     expect(layoutSource).toContain('id="af-body-start"')
     // Route-sensitive chrome must NOT appear directly in the root layout
     // — it must be reached only via <SafeGlobalChrome />.

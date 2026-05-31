@@ -11,10 +11,6 @@ import { ErrorBoundaryClient } from '@/components/error-handling/ErrorBoundaryCl
 import { PlayerComparisonUIProvider } from '@/components/player-comparison-ui';
 import { buildSeoMeta } from '@/lib/seo';
 import { resolveEffectiveDataMode } from '@/lib/theme';
-import {
-  buildLanguageInitScript,
-  buildThemeInitScript,
-} from '@/lib/preferences/HtmlPreferenceSync';
 import './globals.css';
 
 export const viewport = {
@@ -120,21 +116,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         style={{ background: 'var(--bg)', color: 'var(--text)' }}
       >
         <template id="af-body-start" />
-        {/*
-          Theme + language init scripts are safe on every route: they only
-          touch `localStorage` and `<html>` data attributes, and the document
-          element has `suppressHydrationWarning` so the post-script values
-          will not produce a hydration error. They live in the root layout body
-          so Next owns the document <head> wrapper; Railway was serving malformed
-          HTML when this layout manually rendered a nested <head> element.
-        */}
-        <Script id="af-init-mode" strategy="beforeInteractive">
-          {buildThemeInitScript(htmlMode)}
-        </Script>
-        <Script id="af-init-lang" strategy="beforeInteractive">
-          {buildLanguageInitScript(htmlLang)}
-        </Script>
-
         {gaMeasurementId && (
           <>
             <Script
