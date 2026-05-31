@@ -26,4 +26,4 @@ cmds = ["npm ci"]
 cmds = ["node scripts/railway-clean-next-build.cjs", "npm run build", "node scripts/railway-verify-next-build.cjs"]
 
 [start]
-cmd = "npm run start:railway"
+cmd = "npm run start"

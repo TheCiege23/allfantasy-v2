@@ -399,11 +399,11 @@ describe("root language provider layout", () => {
     }
   })
 
-  it("uses the buffered Railway start path for production document routes", () => {
+  it("uses the stable Next start path for Railway production", () => {
     expect(packageJsonSource).toContain('"start:railway": "node scripts/railway-next-start.cjs"')
-    expect(railwayJsonSource).toContain("npm run start:railway")
-    expect(railwayJsonSource).toContain('"/api/af-railway-health"')
-    expect(nixpacksSource).toContain('cmd = "npm run start:railway"')
+    expect(railwayJsonSource).toContain("npm run db:migrate:deploy && npm run start")
+    expect(railwayJsonSource).toContain('"/api/health"')
+    expect(nixpacksSource).toContain('cmd = "npm run start"')
     expect(railwayStartSource).toContain("proxyRequest")
     expect(railwayStartSource).toContain("patchIfRailwayDroppedDocumentShell")
     expect(railwayStartSource).toContain("next start")
