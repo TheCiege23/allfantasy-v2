@@ -4,7 +4,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 const repoRoot = process.cwd()
-const nextDir = path.join(repoRoot, '.next')
+const webpackCacheDir = path.join(repoRoot, '.next', 'cache', 'webpack')
 
 function removePath(targetPath) {
   try {
@@ -18,16 +18,9 @@ function removePath(targetPath) {
   }
 }
 
-if (!fs.existsSync(nextDir)) {
-  console.log('[railway-clean] skip: .next is missing')
+if (!fs.existsSync(webpackCacheDir)) {
+  console.log('[railway-clean] skip: .next/cache/webpack is missing')
   process.exit(0)
 }
 
-for (const entry of fs.readdirSync(nextDir, { withFileTypes: true })) {
-  const targetPath = path.join(nextDir, entry.name)
-  if (entry.name === 'cache') {
-    removePath(path.join(targetPath, 'webpack'))
-    continue
-  }
-  removePath(targetPath)
-}
+removePath(webpackCacheDir)
