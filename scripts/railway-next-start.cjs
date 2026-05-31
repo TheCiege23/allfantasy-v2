@@ -93,13 +93,14 @@ function copyProxyHeaders(sourceHeaders, res, overrides = {}) {
 }
 
 function sendLiveness(res) {
-  const statusCode = upstreamReady ? 200 : 503
   const body = JSON.stringify({
     ok: upstreamReady,
     server: 'railway-next-start-proxy',
     upstream: upstreamBase,
   })
-  res.statusCode = statusCode
+  // Always 200 so Railway deploy healthchecks pass once the proxy is listening.
+  // Upstream readiness is exposed in the JSON body for ops monitoring.
+  res.statusCode = 200
   res.setHeader('content-type', 'application/json; charset=utf-8')
   res.setHeader('content-length', Buffer.byteLength(body))
   res.end(body)

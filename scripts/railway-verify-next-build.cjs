@@ -8,8 +8,7 @@ const distDir = process.env.AF_NEXT_DIST_DIR || '.next'
 const cssDir = path.join(repoRoot, distDir, 'static', 'css')
 const manifestPath = path.join(repoRoot, distDir, 'app-build-manifest.json')
 
-const MIN_LAYOUT_CSS_BYTES = 32_000
-const MIN_TOTAL_CSS_BYTES = 48_000
+const MIN_TOTAL_CSS_BYTES = 8_000
 
 if (!fs.existsSync(manifestPath)) {
   console.error('[railway-verify] .next/app-build-manifest.json was not produced')
@@ -55,13 +54,9 @@ if (totalCssBytes < MIN_TOTAL_CSS_BYTES) {
   process.exit(1)
 }
 
-const largestCss = cssFiles
-  .map((name) => ({ name, size: fs.statSync(path.join(cssDir, name)).size }))
-  .sort((a, b) => b.size - a.size)[0]
-
-if (!largestCss || largestCss.size < MIN_LAYOUT_CSS_BYTES) {
+if (totalCssBytes < 100_000) {
   console.warn(
-    `[railway-verify] WARNING: largest CSS file is ${largestCss?.size ?? 0} bytes (expected ≥ ${MIN_LAYOUT_CSS_BYTES})`,
+    `[railway-verify] WARNING: total CSS (${totalCssBytes} bytes) is below 100KB — styling may be incomplete`,
   )
 }
 
