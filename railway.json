@@ -2,11 +2,11 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "node scripts/railway-clean-next-build.cjs && npm run build && node scripts/railway-verify-next-build.cjs"
+    "buildCommand": "node scripts/railway-clean-next-build.cjs && npx prisma generate && npm run build && node scripts/railway-patch-app-build-manifest.cjs && node scripts/railway-verify-next-build.cjs"
   },
   "deploy": {
-    "startCommand": "npm run db:migrate:deploy && npm run start",
-    "healthcheckPath": "/api/health",
+    "startCommand": "npm run db:migrate:deploy && npm run start:railway",
+    "healthcheckPath": "/api/af-railway-health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3

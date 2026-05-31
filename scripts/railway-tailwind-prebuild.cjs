@@ -32,8 +32,14 @@ const isRailway = !!(
   process.env.RAILWAY_SERVICE_ID
 );
 
-if (!isRailway) {
-  console.log('[railway-prebuild] Not a Railway environment — skipping Tailwind CLI prebuild.');
+const isLinuxProdBuild =
+  process.env.NODE_ENV === 'production' &&
+  process.platform === 'linux' &&
+  !process.env.VERCEL &&
+  !process.env.VERCEL_URL;
+
+if (!isRailway && !isLinuxProdBuild) {
+  console.log('[railway-prebuild] Not a Railway/Linux prod build — skipping Tailwind CLI prebuild.');
   process.exit(0);
 }
 
@@ -57,6 +63,12 @@ if (!fs.existsSync(twBin)) {
 }
 
 try {
+  const source = fs.readFileSync(globalsIn, 'utf8');
+  if (!source.includes('@tailwind')) {
+    console.log('[railway-prebuild] globals.css already compiled — skipping Tailwind CLI.');
+    process.exit(0);
+  }
+
   // Run Tailwind CLI: read globals.css (has @tailwind directives), write compiled CSS
   // to a temp file first (avoids reading-while-writing the same path), then swap.
   const cmd = `"${twBin}" -i "${globalsIn}" -o "${globalsOut}" --minify --config "${twConfig}"`;
