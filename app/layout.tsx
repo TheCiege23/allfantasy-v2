@@ -102,6 +102,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || '';
   const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID || '';
   const fbAppId = process.env.NEXT_PUBLIC_FB_APP_ID || '1790659191546539';
+  const useRailwayStylesFallback = Boolean(
+    process.env.RAILWAY_ENVIRONMENT ||
+      process.env.RAILWAY_PROJECT_ID ||
+      process.env.RAILWAY_SERVICE_ID ||
+      process.env.RAILWAY_DEPLOYMENT_ID
+  );
   return (
     <html
       lang={htmlLang}
@@ -114,6 +120,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         className="antialiased min-h-screen mode-readable"
         style={{ background: 'var(--bg)', color: 'var(--text)' }}
       >
+        {useRailwayStylesFallback ? (
+          <link rel="stylesheet" href="/railway-styles.css" />
+        ) : null}
+
         {gaMeasurementId && (
           <>
             <Script
