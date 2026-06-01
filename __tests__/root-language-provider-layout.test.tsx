@@ -407,10 +407,10 @@ describe("root language provider layout", () => {
   it("uses the stable Next start path for Railway production", () => {
     expect(packageJsonSource).toContain('"start:railway": "node scripts/railway-next-start.cjs"')
     expect(railwayJsonSource).toContain(
-      "npm run db:migrate:deploy && AF_NEXT_DIST_DIR=.next-railway npm run start:railway"
+      "npm run db:migrate:deploy && AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} npm run start:railway"
     )
     expect(railwayJsonSource).toContain('"/api/af-railway-health"')
-    expect(nixpacksSource).toContain('cmd = "AF_NEXT_DIST_DIR=.next-railway npm run start:railway"')
+    expect(nixpacksSource).toContain('cmd = "AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} npm run start:railway"')
     expect(railwayStartSource).toContain("proxyRequest")
     expect(railwayStartSource).toContain("patchIfRailwayDroppedDocumentShell")
     expect(railwayStartSource).toContain("ensureBodyBoundary")
@@ -430,12 +430,12 @@ describe("root language provider layout", () => {
 
   it("cleans stale Railway build artifacts before Next builds", () => {
     expect(railwayJsonSource).toContain(
-      "export AF_NEXT_DIST_DIR=.next-railway && node scripts/railway-clean-next-build.cjs && npx prisma generate && npm run build && node scripts/railway-patch-app-build-manifest.cjs && node scripts/railway-verify-next-build.cjs"
+      "export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-clean-next-build.cjs && npx prisma generate && npm run build && node scripts/railway-patch-app-build-manifest.cjs && node scripts/railway-verify-next-build.cjs"
     )
-    expect(nixpacksSource).toContain('"export AF_NEXT_DIST_DIR=.next-railway && node scripts/railway-clean-next-build.cjs"')
-    expect(nixpacksSource).toContain('"export AF_NEXT_DIST_DIR=.next-railway && npx prisma generate"')
-    expect(nixpacksSource).toContain('"export AF_NEXT_DIST_DIR=.next-railway && node scripts/railway-patch-app-build-manifest.cjs"')
-    expect(nixpacksSource).toContain('"export AF_NEXT_DIST_DIR=.next-railway && node scripts/railway-verify-next-build.cjs"')
+    expect(nixpacksSource).toContain('"export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-clean-next-build.cjs"')
+    expect(nixpacksSource).toContain('"export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && npx prisma generate"')
+    expect(nixpacksSource).toContain('"export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-patch-app-build-manifest.cjs"')
+    expect(nixpacksSource).toContain('"export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-verify-next-build.cjs"')
     expect(railwayCleanSource).toContain("path.join(repoRoot, '.next')")
     expect(railwayCleanSource).toContain("removePath(nextDir)")
     expect(railwayCleanSource).not.toContain("'.next', 'cache', 'webpack'")
@@ -443,7 +443,8 @@ describe("root language provider layout", () => {
     expect(railwayVerifySource).toContain("BLOCKED: /layout has no CSS assets")
     expect(railwayVerifySource).toContain("client reference manifests with layout CSS")
     expect(railwayVerifySource).toContain("app-build-manifest.json")
-    expect(railwayVerifySource).toContain("AF_NEXT_DIST_DIR === '.next-railway'")
+    expect(railwayVerifySource).toContain("AF_NEXT_DIST_DIR?.startsWith('.next-railway')")
+    expect(railwayCleanSource).toContain("RAILWAY_GIT_COMMIT_SHA")
     expect(railwayVerifySource).toContain("MIN_RAILWAY_CSS_BYTES")
     expect(railwayVerifySource).not.toContain("public/railway-styles.css missing")
     expect(railwayVerifySource).toContain("hasLargeRailwayFallbackCss")

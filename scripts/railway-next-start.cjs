@@ -18,7 +18,9 @@ const isRailwayRuntime = !!(
   process.env.RAILWAY_GIT_COMMIT_SHA
 )
 if (!process.env.AF_NEXT_DIST_DIR && isRailwayRuntime) {
-  process.env.AF_NEXT_DIST_DIR = '.next-railway'
+  process.env.AF_NEXT_DIST_DIR = process.env.RAILWAY_GIT_COMMIT_SHA
+    ? `.next-railway-${process.env.RAILWAY_GIT_COMMIT_SHA}`
+    : '.next-railway'
 }
 const upstreamHost = '127.0.0.1'
 const upstreamBase = `http://${upstreamHost}:${upstreamPort}`

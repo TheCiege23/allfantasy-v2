@@ -11,7 +11,10 @@ const isRailway = !!(
   process.env.RAILWAY_DEPLOYMENT_ID ||
   process.env.RAILWAY_GIT_COMMIT_SHA
 )
-const distDirName = process.env.AF_NEXT_DIST_DIR || (isRailway ? '.next-railway' : '.next')
+const railwayDistDir = process.env.RAILWAY_GIT_COMMIT_SHA
+  ? `.next-railway-${process.env.RAILWAY_GIT_COMMIT_SHA}`
+  : '.next-railway'
+const distDirName = process.env.AF_NEXT_DIST_DIR || (isRailway ? railwayDistDir : '.next')
 const nextDir = path.join(repoRoot, distDirName)
 const legacyNextDir = path.join(repoRoot, '.next')
 const maxAttempts = 4

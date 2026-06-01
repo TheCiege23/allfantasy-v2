@@ -10,9 +10,12 @@ const isRailway = !!(
   process.env.RAILWAY_SERVICE_ID ||
   process.env.RAILWAY_DEPLOYMENT_ID ||
   process.env.RAILWAY_GIT_COMMIT_SHA ||
-  process.env.AF_NEXT_DIST_DIR === '.next-railway'
+  process.env.AF_NEXT_DIST_DIR?.startsWith('.next-railway')
 )
-const distDir = process.env.AF_NEXT_DIST_DIR || (isRailway ? '.next-railway' : '.next')
+const railwayDistDir = process.env.RAILWAY_GIT_COMMIT_SHA
+  ? `.next-railway-${process.env.RAILWAY_GIT_COMMIT_SHA}`
+  : '.next-railway'
+const distDir = process.env.AF_NEXT_DIST_DIR || (isRailway ? railwayDistDir : '.next')
 const cssDir = path.join(repoRoot, distDir, 'static', 'css')
 const manifestPath = path.join(repoRoot, distDir, 'app-build-manifest.json')
 const serverAppDir = path.join(repoRoot, distDir, 'server', 'app')
