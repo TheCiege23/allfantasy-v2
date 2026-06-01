@@ -29,7 +29,10 @@ const path = require('path');
 const isRailway = !!(
   process.env.RAILWAY_ENVIRONMENT ||
   process.env.RAILWAY_PROJECT_ID ||
-  process.env.RAILWAY_SERVICE_ID
+  process.env.RAILWAY_SERVICE_ID ||
+  process.env.RAILWAY_DEPLOYMENT_ID ||
+  process.env.RAILWAY_GIT_COMMIT_SHA ||
+  process.env.AF_NEXT_DIST_DIR === '.next-railway'
 );
 
 const isLinuxProdBuild =
@@ -37,6 +40,7 @@ const isLinuxProdBuild =
   process.platform === 'linux' &&
   !process.env.VERCEL &&
   !process.env.VERCEL_URL;
+const MIN_RAILWAY_CSS_BYTES = 100_000;
 
 if (!isRailway && !isLinuxProdBuild) {
   console.log('[railway-prebuild] Not a Railway/Linux prod build — skipping Tailwind CLI prebuild.');
@@ -44,7 +48,7 @@ if (!isRailway && !isLinuxProdBuild) {
 }
 
 console.log('[railway-prebuild] Railway detected (env=%s). Pre-compiling Tailwind CSS via CLI...',
-  process.env.RAILWAY_ENVIRONMENT || 'unknown');
+  process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_GIT_COMMIT_SHA || process.env.AF_NEXT_DIST_DIR || 'unknown');
 
 const cwd = process.cwd();
 const globalsIn  = path.join(cwd, 'app', 'globals.css');
@@ -66,7 +70,16 @@ if (!fs.existsSync(twBin)) {
 try {
   const source = fs.readFileSync(globalsIn, 'utf8');
   if (!source.includes('@tailwind')) {
-    console.log('[railway-prebuild] globals.css already compiled — skipping Tailwind CLI.');
+    fs.copyFileSync(globalsIn, railwayStylesOut);
+    const compiledBytes = fs.statSync(railwayStylesOut).size;
+    if (compiledBytes < MIN_RAILWAY_CSS_BYTES) {
+      console.error(
+        '[railway-prebuild] ERROR: compiled globals.css is only %d bytes - refusing to ship incomplete Railway CSS.',
+        compiledBytes
+      );
+      process.exit(1);
+    }
+    console.log('[railway-prebuild] globals.css already compiled - copied to public/railway-styles.css (%d bytes).', compiledBytes);
     process.exit(0);
   }
 
@@ -79,11 +92,12 @@ try {
   const compiledBytes = fs.statSync(globalsOut).size;
   console.log('[railway-prebuild] Tailwind CLI output: %d bytes', compiledBytes);
 
-  if (compiledBytes < 100_000) {
-    console.warn(
-      '[railway-prebuild] WARNING: compiled CSS is only %d bytes — styling may be incomplete.',
+  if (compiledBytes < MIN_RAILWAY_CSS_BYTES) {
+    console.error(
+      '[railway-prebuild] ERROR: compiled CSS is only %d bytes - refusing to ship incomplete Railway CSS.',
       compiledBytes
     );
+    process.exit(1);
   }
 
   // Replace globals.css with the compiled output.

@@ -79,6 +79,7 @@ const nixpacksSource = fs.readFileSync(path.join(process.cwd(), "nixpacks.toml")
 const railwayStartSource = fs.readFileSync(path.join(process.cwd(), "scripts", "railway-next-start.cjs"), "utf8")
 const railwayCleanSource = fs.readFileSync(path.join(process.cwd(), "scripts", "railway-clean-next-build.cjs"), "utf8")
 const railwayVerifySource = fs.readFileSync(path.join(process.cwd(), "scripts", "railway-verify-next-build.cjs"), "utf8")
+const railwayPrebuildSource = fs.readFileSync(path.join(process.cwd(), "scripts", "railway-tailwind-prebuild.cjs"), "utf8")
 const uiDocumentSources = [
   ["app/layout.tsx", layoutSource],
   ["components/providers/AppProviders.tsx", appProvidersSource],
@@ -441,6 +442,10 @@ describe("root language provider layout", () => {
     expect(railwayVerifySource).toContain("BLOCKED: /layout has no CSS assets")
     expect(railwayVerifySource).toContain("client reference manifests with layout CSS")
     expect(railwayVerifySource).toContain("app-build-manifest.json")
+    expect(railwayVerifySource).toContain("AF_NEXT_DIST_DIR === '.next-railway'")
+    expect(railwayVerifySource).toContain("MIN_RAILWAY_CSS_BYTES")
+    expect(railwayPrebuildSource).toContain("RAILWAY_GIT_COMMIT_SHA")
+    expect(railwayPrebuildSource).toContain("AF_NEXT_DIST_DIR === '.next-railway'")
   })
 
   it("does not require build-time Google font fetches for the root document", () => {
