@@ -444,6 +444,7 @@ describe("root language provider layout", () => {
     expect(railwayVerifySource).toContain("app-build-manifest.json")
     expect(railwayVerifySource).toContain("AF_NEXT_DIST_DIR === '.next-railway'")
     expect(railwayVerifySource).toContain("MIN_RAILWAY_CSS_BYTES")
+    expect(railwayVerifySource).not.toContain("public/railway-styles.css missing")
     expect(railwayPrebuildSource).toContain("RAILWAY_GIT_COMMIT_SHA")
     expect(railwayPrebuildSource).toContain("AF_NEXT_DIST_DIR === '.next-railway'")
   })
