@@ -13,4 +13,4 @@ cmds = ["npm ci"]
 cmds = ["npx prisma generate", "npm run build", "node scripts/railway-verify-next-build.cjs"]
 
 [start]
-cmd = "npx prisma migrate deploy && npm run start:railway"
+cmd = "npm run start:railway"
