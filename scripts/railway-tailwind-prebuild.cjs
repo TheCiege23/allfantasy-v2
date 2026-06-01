@@ -37,7 +37,6 @@ const isRailway = !!(
 );
 
 const isLinuxProdBuild =
-  process.env.NODE_ENV === 'production' &&
   process.platform === 'linux' &&
   !process.env.VERCEL &&
   !process.env.VERCEL_URL;
