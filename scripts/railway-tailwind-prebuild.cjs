@@ -27,6 +27,7 @@ const fs = require('fs');
 const path = require('path');
 
 const isRailway = !!(
+  process.env.AF_RAILWAY_TAILWIND_PREBUILD === '1' ||
   process.env.RAILWAY_ENVIRONMENT ||
   process.env.RAILWAY_PROJECT_ID ||
   process.env.RAILWAY_SERVICE_ID ||

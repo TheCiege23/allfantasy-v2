@@ -10,7 +10,7 @@ cmds = ["npm ci"]
 [phases.build]
 # Keep Railway on the normal Next production path: clean .next, generate Prisma,
 # build once, then verify the emitted CSS manifests before deployment.
-cmds = ["npx prisma generate", "npm run build"]
+cmds = ["npx prisma generate", "AF_RAILWAY_TAILWIND_PREBUILD=1 npm run build", "node scripts/railway-verify-next-build.cjs"]
 
 [start]
 cmd = "npm run start:railway"
