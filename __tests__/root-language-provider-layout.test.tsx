@@ -431,6 +431,7 @@ describe("root language provider layout", () => {
   })
 
   it("cleans stale Railway build artifacts before Next builds", () => {
+    expect(packageJsonSource).toContain('"build": "node scripts/railway-tailwind-prebuild.cjs && next build"')
     expect(railwayJsonSource).toContain(
       "export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-clean-next-build.cjs && npx prisma generate && node scripts/railway-tailwind-prebuild.cjs && npm run build && node scripts/railway-patch-app-build-manifest.cjs && node scripts/railway-verify-next-build.cjs"
     )
