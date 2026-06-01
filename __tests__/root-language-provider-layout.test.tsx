@@ -80,6 +80,7 @@ const railwayStartSource = fs.readFileSync(path.join(process.cwd(), "scripts", "
 const railwayCleanSource = fs.readFileSync(path.join(process.cwd(), "scripts", "railway-clean-next-build.cjs"), "utf8")
 const railwayVerifySource = fs.readFileSync(path.join(process.cwd(), "scripts", "railway-verify-next-build.cjs"), "utf8")
 const railwayPrebuildSource = fs.readFileSync(path.join(process.cwd(), "scripts", "railway-tailwind-prebuild.cjs"), "utf8")
+const railwayStylesSource = fs.readFileSync(path.join(process.cwd(), "public", "railway-styles.css"), "utf8")
 const uiDocumentSources = [
   ["app/layout.tsx", layoutSource],
   ["components/providers/AppProviders.tsx", appProvidersSource],
@@ -413,9 +414,9 @@ describe("root language provider layout", () => {
     expect(railwayStartSource).toContain("proxyRequest")
     expect(railwayStartSource).toContain("patchIfRailwayDroppedDocumentShell")
     expect(railwayStartSource).toContain("ensureBodyBoundary")
+    expect(railwayStartSource).toContain("ensureRailwayStylesLink")
+    expect(railwayStartSource).toContain('href="/railway-styles.css"')
     expect(railwayStartSource).toContain("AF_NEXT_DIST_DIR")
-    expect(railwayStartSource).not.toContain("ensureRailwayStylesLink")
-    expect(railwayStartSource).not.toContain('href="/railway-styles.css"')
     expect(layoutSource).not.toContain('href="/railway-styles.css"')
     expect(railwayStartSource).toContain("next start")
     expect(railwayStartSource).toContain("content-length")
@@ -445,8 +446,10 @@ describe("root language provider layout", () => {
     expect(railwayVerifySource).toContain("AF_NEXT_DIST_DIR === '.next-railway'")
     expect(railwayVerifySource).toContain("MIN_RAILWAY_CSS_BYTES")
     expect(railwayVerifySource).not.toContain("public/railway-styles.css missing")
-    expect(railwayPrebuildSource).toContain("RAILWAY_GIT_COMMIT_SHA")
-    expect(railwayPrebuildSource).toContain("AF_NEXT_DIST_DIR === '.next-railway'")
+    expect(railwayVerifySource).toContain("hasLargeRailwayFallbackCss")
+    expect(railwayPrebuildSource).toContain("committed Railway fallback CSS")
+    expect(railwayPrebuildSource).not.toContain("AF_NEXT_DIST_DIR === '.next-railway'")
+    expect(railwayStylesSource.length).toBeGreaterThan(100_000)
   })
 
   it("does not require build-time Google font fetches for the root document", () => {

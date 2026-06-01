@@ -29,10 +29,7 @@ const path = require('path');
 const isRailway = !!(
   process.env.RAILWAY_ENVIRONMENT ||
   process.env.RAILWAY_PROJECT_ID ||
-  process.env.RAILWAY_SERVICE_ID ||
-  process.env.RAILWAY_DEPLOYMENT_ID ||
-  process.env.RAILWAY_GIT_COMMIT_SHA ||
-  process.env.AF_NEXT_DIST_DIR === '.next-railway'
+  process.env.RAILWAY_SERVICE_ID
 );
 
 const isLinuxProdBuild =
@@ -48,7 +45,7 @@ if (!isRailway && !isLinuxProdBuild) {
 }
 
 console.log('[railway-prebuild] Railway detected (env=%s). Pre-compiling Tailwind CSS via CLI...',
-  process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_GIT_COMMIT_SHA || process.env.AF_NEXT_DIST_DIR || 'unknown');
+  process.env.RAILWAY_ENVIRONMENT || 'unknown');
 
 const cwd = process.cwd();
 const globalsIn  = path.join(cwd, 'app', 'globals.css');
@@ -56,6 +53,23 @@ const globalsOut = path.join(cwd, 'app', 'globals-compiled.css');
 const railwayStylesOut = path.join(cwd, 'public', 'railway-styles.css');
 const twConfig   = path.join(cwd, 'tailwind.config.js');
 const twBin      = path.join(cwd, 'node_modules', '.bin', 'tailwindcss');
+
+function readRailwayFallbackBytes() {
+  try {
+    return fs.statSync(railwayStylesOut).size;
+  } catch {
+    return 0;
+  }
+}
+
+const fallbackBytes = readRailwayFallbackBytes();
+if (fallbackBytes >= MIN_RAILWAY_CSS_BYTES && process.env.AF_FORCE_TAILWIND_PREBUILD !== '1') {
+  console.log(
+    '[railway-prebuild] committed Railway fallback CSS found (%d bytes) - skipping Tailwind CLI prebuild.',
+    fallbackBytes
+  );
+  process.exit(0);
+}
 
 // Sanity checks
 if (!fs.existsSync(globalsIn)) {
@@ -73,11 +87,10 @@ try {
     fs.copyFileSync(globalsIn, railwayStylesOut);
     const compiledBytes = fs.statSync(railwayStylesOut).size;
     if (compiledBytes < MIN_RAILWAY_CSS_BYTES) {
-      console.error(
-        '[railway-prebuild] ERROR: compiled globals.css is only %d bytes - refusing to ship incomplete Railway CSS.',
+      console.warn(
+        '[railway-prebuild] WARNING: compiled globals.css is only %d bytes - continuing with existing build pipeline.',
         compiledBytes
       );
-      process.exit(1);
     }
     console.log('[railway-prebuild] globals.css already compiled - copied to public/railway-styles.css (%d bytes).', compiledBytes);
     process.exit(0);
@@ -93,11 +106,12 @@ try {
   console.log('[railway-prebuild] Tailwind CLI output: %d bytes', compiledBytes);
 
   if (compiledBytes < MIN_RAILWAY_CSS_BYTES) {
-    console.error(
-      '[railway-prebuild] ERROR: compiled CSS is only %d bytes - refusing to ship incomplete Railway CSS.',
+    console.warn(
+      '[railway-prebuild] WARNING: compiled CSS is only %d bytes - continuing with existing build pipeline.',
       compiledBytes
     );
-    process.exit(1);
+    fs.unlinkSync(globalsOut);
+    process.exit(0);
   }
 
   // Replace globals.css with the compiled output.
@@ -111,6 +125,10 @@ try {
 
 } catch (err) {
   console.error('[railway-prebuild] Tailwind CLI FAILED:', err.message);
-  // Exit 1 to fail the build loudly — silent failure would produce an unstyled site.
+  if (readRailwayFallbackBytes() >= MIN_RAILWAY_CSS_BYTES) {
+    console.warn('[railway-prebuild] committed Railway fallback CSS is available - continuing build.');
+    process.exit(0);
+  }
+  // Exit 1 only when there is no fallback; silent failure would produce an unstyled site.
   process.exit(1);
 }

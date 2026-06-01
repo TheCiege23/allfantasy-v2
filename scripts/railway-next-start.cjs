@@ -75,6 +75,7 @@ const DOCUMENT_SHELL_PREFIX =
 const BODY_OPEN =
   '<body class="antialiased min-h-screen mode-readable" style="background:var(--bg);color:var(--text)">'
 const BODY_MARKER = '<template id="af-body-start"></template>'
+const RAILWAY_STYLES_LINK = '<link rel="stylesheet" href="/railway-styles.css" data-af-railway-styles="true"/>'
 const BODY_START_CANDIDATES = [
   BODY_MARKER,
   '<main',
@@ -84,6 +85,21 @@ const BODY_START_CANDIDATES = [
   '<nav',
   '<form',
 ]
+
+function ensureRailwayStylesLink(html) {
+  if (html.includes('data-af-railway-styles="true"') || html.includes('href="/railway-styles.css"')) {
+    return html
+  }
+
+  const headIndex = html.indexOf('<head>')
+  if (headIndex > -1) {
+    return `${html.slice(0, headIndex + '<head>'.length)}${RAILWAY_STYLES_LINK}${html.slice(
+      headIndex + '<head>'.length,
+    )}`
+  }
+
+  return html
+}
 
 function ensureBodyBoundary(html) {
   if (/<body(?:\s|>)/i.test(html)) return html
@@ -109,6 +125,7 @@ function patchIfRailwayDroppedDocumentShell(body) {
     patched = DOCUMENT_SHELL_PREFIX + patched
   }
 
+  patched = ensureRailwayStylesLink(patched)
   patched = ensureBodyBoundary(patched)
 
   return patched === html ? body : Buffer.from(patched, 'utf8')
@@ -282,4 +299,5 @@ if (require.main === module) {
 module.exports = {
   patchIfRailwayDroppedDocumentShell,
   ensureBodyBoundary,
+  ensureRailwayStylesLink,
 }

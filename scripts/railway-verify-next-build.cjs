@@ -83,10 +83,12 @@ layoutCss.forEach((asset) => console.log(`[railway-verify] /layout -> ${asset}`)
 console.log(`[railway-verify] total CSS bytes: ${totalCssBytes}`)
 
 const railwayStylesPath = path.join(repoRoot, 'public', 'railway-styles.css')
+let hasLargeRailwayFallbackCss = false
 if (fs.existsSync(railwayStylesPath)) {
   const railwayStylesBytes = fs.statSync(railwayStylesPath).size
   console.log(`[railway-verify] public/railway-styles.css: ${railwayStylesBytes} bytes`)
-  if (railwayStylesBytes < MIN_RAILWAY_CSS_BYTES) {
+  hasLargeRailwayFallbackCss = railwayStylesBytes >= MIN_RAILWAY_CSS_BYTES
+  if (!hasLargeRailwayFallbackCss) {
     console.warn('[railway-verify] WARNING: public/railway-styles.css is smaller than expected')
   }
 }
@@ -150,11 +152,15 @@ if (totalCssBytes < MIN_TOTAL_CSS_BYTES) {
 
 if (totalCssBytes < 100_000) {
   const message = `[railway-verify] total CSS (${totalCssBytes} bytes) is below ${MIN_RAILWAY_CSS_BYTES} bytes - styling may be incomplete`
-  if (isRailway) {
+  if (isRailway && !hasLargeRailwayFallbackCss) {
     console.error(`[railway-verify] BLOCKED: ${message}`)
     process.exit(1)
   }
-  console.warn(`[railway-verify] WARNING: ${message}`)
+  if (isRailway && hasLargeRailwayFallbackCss) {
+    console.warn(`[railway-verify] WARNING: ${message}; committed Railway fallback CSS is present`)
+  } else {
+    console.warn(`[railway-verify] WARNING: ${message}`)
+  }
 }
 
 console.log('[railway-verify] ✓ layout CSS present — safe to deploy')
