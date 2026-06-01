@@ -11,7 +11,9 @@ const isProd = process.env.NODE_ENV === 'production';
 const isRailwayRuntime = !!(
   process.env.RAILWAY_PROJECT_ID ||
   process.env.RAILWAY_ENVIRONMENT ||
-  process.env.RAILWAY_SERVICE_ID
+  process.env.RAILWAY_SERVICE_ID ||
+  process.env.RAILWAY_DEPLOYMENT_ID ||
+  process.env.RAILWAY_GIT_COMMIT_SHA
 );
 
 const nextConfig = {
@@ -54,7 +56,9 @@ const nextConfig = {
     const isRailwayBuild = !!(
       process.env.RAILWAY_PROJECT_ID ||
       process.env.RAILWAY_ENVIRONMENT ||
-      process.env.RAILWAY_SERVICE_ID
+      process.env.RAILWAY_SERVICE_ID ||
+      process.env.RAILWAY_DEPLOYMENT_ID ||
+      process.env.RAILWAY_GIT_COMMIT_SHA
     );
     if (!dev && (isRailwayBuild || process.platform === 'linux')) {
       config.cache = false;

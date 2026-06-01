@@ -13,7 +13,9 @@ const upstreamPort = Number(
 const isRailwayRuntime = !!(
   process.env.RAILWAY_PROJECT_ID ||
   process.env.RAILWAY_ENVIRONMENT ||
-  process.env.RAILWAY_SERVICE_ID
+  process.env.RAILWAY_SERVICE_ID ||
+  process.env.RAILWAY_DEPLOYMENT_ID ||
+  process.env.RAILWAY_GIT_COMMIT_SHA
 )
 if (!process.env.AF_NEXT_DIST_DIR && isRailwayRuntime) {
   process.env.AF_NEXT_DIST_DIR = '.next-railway'

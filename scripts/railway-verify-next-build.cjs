@@ -7,7 +7,9 @@ const repoRoot = process.cwd()
 const isRailway = !!(
   process.env.RAILWAY_PROJECT_ID ||
   process.env.RAILWAY_ENVIRONMENT ||
-  process.env.RAILWAY_SERVICE_ID
+  process.env.RAILWAY_SERVICE_ID ||
+  process.env.RAILWAY_DEPLOYMENT_ID ||
+  process.env.RAILWAY_GIT_COMMIT_SHA
 )
 const distDir = process.env.AF_NEXT_DIST_DIR || (isRailway ? '.next-railway' : '.next')
 const cssDir = path.join(repoRoot, distDir, 'static', 'css')
