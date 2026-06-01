@@ -5,7 +5,7 @@
     "buildCommand": "npx prisma generate && npm run build && node scripts/railway-verify-next-build.cjs"
   },
   "deploy": {
-    "startCommand": "npm run db:migrate:deploy && npm run start:railway",
+    "startCommand": "npx prisma migrate deploy && npm run start:railway",
     "healthcheckPath": "/api/af-debug/sha",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
