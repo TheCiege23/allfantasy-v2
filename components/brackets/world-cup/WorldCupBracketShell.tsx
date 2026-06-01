@@ -176,6 +176,7 @@ type WorldCupNotificationPreferenceState = {
   chimmyRepliesEnabled: boolean
 }
 type WorldCupComposerPanel = "gif" | "poll" | "image" | "voice" | null
+type WorldCupChatMode = "ai" | "pool" | "dm"
 type WorldCupAdminSimulationRound =
   | "round_of_32"
   | "round_of_16"
@@ -5053,7 +5054,20 @@ function WorldCupCommunityFoundationPanel({
   const [pollError, setPollError] = useState<string | null>(null)
   const [pollVotingMessageId, setPollVotingMessageId] = useState<string | null>(null)
   const richPreviewSegments = useMemo(() => parseWorldCupChatRichText(chatBody), [chatBody])
-  const isChimmyPrompt = /(^|[\s*_~\]])@chimmy\b/i.test(chatBody)
+  const [chatMode, setChatMode] = useState<WorldCupChatMode>("pool")
+  const [chatDrawerOpen, setChatDrawerOpen] = useState(true)
+  const isChimmyPrompt = chatMode === "ai" || /(^|[\s*_~\]])@chimmy\b/i.test(chatBody)
+  const chatModeOptions: Array<{ mode: WorldCupChatMode; label: string; icon: typeof MessageSquare }> = [
+    { mode: "ai", label: "Chimmy AI", icon: Bot },
+    { mode: "pool", label: "Pool Chat", icon: MessageSquare },
+    { mode: "dm", label: "DM Chat", icon: Users },
+  ]
+  const composerPlaceholder =
+    chatMode === "ai"
+      ? "Ask Chimmy about the bracket, picks, locks, or pool standings..."
+      : chatMode === "dm"
+        ? "Direct messages are not available in this World Cup MVP yet."
+        : tChat("wc.chat.composer.placeholder")
   const latestAiRecap = useMemo(
     () => messages
       .filter((message) => message.visibility === "public" && message.messageType === "ai_recap")
@@ -5103,8 +5117,15 @@ function WorldCupCommunityFoundationPanel({
   }, [loadChat])
 
   async function sendChatMessage() {
-    const body = chatBody.trim()
-    if (!body) return
+    const rawBody = chatBody.trim()
+    if (!rawBody) return
+    if (chatMode === "dm") {
+      setChatError("Direct messages are not available in the World Cup MVP yet.")
+      return
+    }
+    const body = chatMode === "ai" && !/(^|[\s*_~\]])@chimmy\b/i.test(rawBody)
+      ? `@Chimmy ${rawBody}`
+      : rawBody
     setIsSendingChat(true)
     setChatError(null)
     setChatAiGate(null)
@@ -5278,15 +5299,15 @@ function WorldCupCommunityFoundationPanel({
   return (
     <section
       data-testid="world-cup-community-foundation"
-      className="mode-readable mx-auto grid max-w-5xl gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]"
+      className="mode-readable mx-auto grid max-w-7xl gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]"
     >
-      <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+      <div className="overflow-hidden rounded-[1.25rem] border border-cyan-300/15 bg-[#020711]/95 shadow-[0_26px_80px_-56px_rgba(34,211,238,0.85)]">
         {/* ── Chat Hero ──────────────────────────────────────────────── */}
         <div
           data-testid="wc-chat-hero"
-          className="mb-4 flex items-start justify-between gap-3"
+          className="flex flex-col gap-4 border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.055),rgba(255,255,255,0.015))] p-4 sm:flex-row sm:items-start sm:justify-between"
         >
-          <div>
+          <div className="min-w-0">
             <p className="flex items-center gap-2 text-sm font-black text-white">
               <MessageSquare className="h-4 w-4 text-white/70" aria-hidden />
               {tChat("wc.chat.hero.title")}
@@ -5295,14 +5316,46 @@ function WorldCupCommunityFoundationPanel({
               {tChat("wc.chat.hero.subtitle")}
             </p>
           </div>
-          <span className="shrink-0 rounded-full border border-white/15 bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/60">
-            {tChat("wc.chat.hero.badge")}
-          </span>
+          <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+            <span className="self-start rounded-full border border-cyan-300/25 bg-cyan-300/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-cyan-50/75 sm:self-auto">
+              {tChat("wc.chat.hero.badge")}
+            </span>
+            <div className="inline-flex rounded-full border border-white/10 bg-black/35 p-1">
+              {chatModeOptions.map(({ mode, label, icon: Icon }) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => {
+                    setChatMode(mode)
+                    setChatDrawerOpen(true)
+                    if (mode === "ai" && chatBody.trim().length === 0) setChatBody("@Chimmy ")
+                  }}
+                  className={[
+                    "inline-flex min-h-8 items-center gap-1.5 rounded-full px-3 text-[11px] font-black transition touch-manipulation",
+                    chatMode === mode
+                      ? "bg-cyan-300 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.28)]"
+                      : "text-white/55 hover:bg-white/[0.06] hover:text-white",
+                  ].join(" ")}
+                  aria-pressed={chatMode === mode}
+                >
+                  <Icon className="h-3.5 w-3.5" aria-hidden />
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setChatDrawerOpen((open) => !open)}
+              className="self-start rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-[10px] font-black uppercase tracking-wide text-white/55 transition hover:border-cyan-300/30 hover:text-white sm:self-auto"
+            >
+              {chatDrawerOpen ? "Collapse" : "Open Chat"}
+            </button>
+          </div>
         </div>
         {/* ── Chimmy Prompt Chips ────────────────────────────────────── */}
         <div
           data-testid="wc-chat-prompt-chips"
-          className="mb-4 -mx-1 flex flex-nowrap gap-1.5 overflow-x-auto px-1 pb-1 scrollbar-none"
+          className="mx-4 mb-4 mt-4 flex flex-nowrap gap-1.5 overflow-x-auto pb-1 scrollbar-none"
         >
           {([
             "wc.chat.chip.explainBracket",
@@ -5314,18 +5367,27 @@ function WorldCupCommunityFoundationPanel({
             <button
               key={key}
               type="button"
-              onClick={() => setChatBody(tChat(key))}
+              onClick={() => {
+                setChatMode("ai")
+                setChatDrawerOpen(true)
+                setChatBody(tChat(key))
+              }}
               className="inline-flex shrink-0 items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-bold text-white/70 transition-colors hover:border-cyan-300/30 hover:bg-cyan-300/[0.07] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55"
             >
               {tChat(key)}
             </button>
           ))}
         </div>
-        <WorldCupNotificationSettingsCard challengeId={challengeId} />
-        <div className="mt-4 rounded-xl border border-white/10 bg-black/25 p-3">
+        <div className="mx-4">
+          <WorldCupNotificationSettingsCard challengeId={challengeId} />
+        </div>
+        {chatDrawerOpen ? (
+        <>
+        <div className="mx-4 mt-4 rounded-[1rem] border border-white/10 bg-black/35 p-3">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-white/35">
-              Pool Messages
+            <p className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
+              {chatMode === "ai" ? <Bot className="h-3.5 w-3.5 text-cyan-200" aria-hidden /> : chatMode === "dm" ? <Users className="h-3.5 w-3.5 text-white/55" aria-hidden /> : <MessageSquare className="h-3.5 w-3.5 text-white/55" aria-hidden />}
+              {chatMode === "ai" ? "AI Chimmy Chat" : chatMode === "dm" ? "Direct Messages" : "Pool Messages"}
             </p>
             <button
               type="button"
@@ -5336,13 +5398,18 @@ function WorldCupCommunityFoundationPanel({
               {isChatLoading ? "…" : tChat("wc.chat.refresh")}
             </button>
           </div>
+          {chatMode === "dm" ? (
+            <div className="mb-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.08] px-3 py-2 text-xs leading-5 text-white/65">
+              Direct messages are not wired in the current World Cup MVP. Pool chat and private Chimmy replies remain available.
+            </div>
+          ) : null}
           {isChatLoading ? (
             <div className="flex items-center gap-2 py-3 text-xs text-white/40">
               <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
               {tChat("wc.chat.loading")}
             </div>
           ) : messages.length > 0 ? (
-            <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+            <div className="max-h-[34rem] space-y-2 overflow-y-auto pr-1">
               {messages.map((message) => {
                 const isChimmyReply = message.messageType === "chimmy_private_response"
                 return (
@@ -5411,8 +5478,8 @@ function WorldCupCommunityFoundationPanel({
               </p>
             </div>
           )}
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <input
+          <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
+            <textarea
               value={chatBody}
               onChange={(event) => setChatBody(event.target.value)}
               onKeyDown={(event) => {
@@ -5422,20 +5489,27 @@ function WorldCupCommunityFoundationPanel({
                 }
               }}
               maxLength={1000}
-              placeholder={tChat("wc.chat.composer.placeholder")}
-              className="min-h-11 flex-1 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-cyan-300/50 focus:outline-none"
+              rows={3}
+              disabled={chatMode === "dm"}
+              placeholder={composerPlaceholder}
+              className="min-h-24 w-full resize-none rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm leading-5 text-white placeholder:text-white/30 focus:border-cyan-300/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
             />
-            <button
-              type="button"
-              onClick={() => void sendChatMessage()}
-              disabled={isSendingChat || !chatBody.trim()}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-300 to-cyan-200 px-4 py-2 text-xs font-black text-black shadow-[0_4px_14px_-6px_rgba(34,211,238,0.5)] transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:transform-none touch-manipulation"
-            >
-              {isSendingChat ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}
-              {tChat("wc.chat.composer.send")}
-            </button>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-[11px] leading-5 text-white/35">
+                {chatMode === "ai" ? "Messages in this mode are sent to @Chimmy and may return a private AI reply." : tChat("wc.chat.trustNote")}
+              </p>
+              <button
+                type="button"
+                onClick={() => void sendChatMessage()}
+                disabled={isSendingChat || !chatBody.trim() || chatMode === "dm"}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-300 to-cyan-200 px-4 py-2 text-xs font-black text-black shadow-[0_4px_14px_-6px_rgba(34,211,238,0.5)] transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:transform-none touch-manipulation"
+              >
+                {isSendingChat ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}
+                {chatMode === "ai" ? "Ask Chimmy" : tChat("wc.chat.composer.send")}
+              </button>
+            </div>
           </div>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             <ComposerFormatButton icon={Bold} label="Bold" onClick={() => wrapComposerText("**")} />
             <ComposerFormatButton icon={Italic} label="Italic" onClick={() => wrapComposerText("_")} />
             <ComposerFormatButton icon={Underline} label="Underline" onClick={() => wrapComposerText("__")} />
@@ -5639,7 +5713,7 @@ function WorldCupCommunityFoundationPanel({
             </p>
           ) : null}
         </div>
-        <div className="mt-4 rounded-xl border border-white/10 bg-black/25 p-3">
+        <div className="mx-4 mb-4 mt-4 rounded-[1rem] border border-white/10 bg-black/35 p-3">
           <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-white/35">
             Latest Pool Updates
           </p>
@@ -5653,6 +5727,20 @@ function WorldCupCommunityFoundationPanel({
           ) : null}
           <WorldCupLeagueEventFeed challengeId={challengeId} />
         </div>
+        </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setChatDrawerOpen(true)}
+            className="mx-4 mb-4 mt-4 flex w-[calc(100%-2rem)] items-center justify-between rounded-[1rem] border border-cyan-300/20 bg-cyan-300/[0.08] px-4 py-3 text-left text-sm font-black text-white transition hover:bg-cyan-300/[0.12]"
+          >
+            <span className="inline-flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-cyan-200" aria-hidden />
+              Open World Cup chat
+            </span>
+            <ChevronRight className="h-4 w-4 text-white/50" aria-hidden />
+          </button>
+        )}
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
@@ -5728,7 +5816,7 @@ function ComposerUtilityButton({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2 text-[11px] font-bold text-white/55 hover:border-cyan-300/30 hover:text-white/90"
+      className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2 text-[11px] font-bold text-white/55 hover:border-cyan-300/30 hover:text-white/90"
     >
       <Icon className="h-3.5 w-3.5" aria-hidden />
       {label}
@@ -5749,7 +5837,7 @@ function ComposerFormatButton({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2 text-[11px] font-black text-white/65 hover:border-cyan-300/30 hover:text-white/90"
+      className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2 text-[11px] font-black text-white/65 hover:border-cyan-300/30 hover:text-white/90"
       aria-label={label}
     >
       <Icon className="h-3.5 w-3.5" aria-hidden />

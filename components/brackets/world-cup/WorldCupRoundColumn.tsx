@@ -16,6 +16,9 @@ export default function WorldCupRoundColumn({
   tournamentLockAt,
   aiInsightsUnlocked = false,
   confidenceScoringEnabled = false,
+  align = "left",
+  fillHeight = false,
+  connectorSide = "none",
 }: {
   round: WorldCupRound
   /** Translated round label supplied by the parent (avoids an extra locale hook in this component). */
@@ -30,6 +33,9 @@ export default function WorldCupRoundColumn({
   tournamentLockAt?: string | null
   aiInsightsUnlocked?: boolean
   confidenceScoringEnabled?: boolean
+  align?: "left" | "right" | "center"
+  fillHeight?: boolean
+  connectorSide?: "left" | "right" | "both" | "none"
 }) {
   // Hydration-safe: seed with epoch so SSR and the first CSR render produce
   // identical HTML (kickoffPast/tournamentPast both false). After mount, swap
@@ -42,14 +48,45 @@ export default function WorldCupRoundColumn({
     const id = window.setInterval(() => setNow(new Date()), 60_000)
     return () => window.clearInterval(id)
   }, [])
+  const alignClass =
+    align === "right" ? "items-end text-right" : align === "center" ? "items-center text-center" : "items-start text-left"
+  const connectorClass =
+    connectorSide === "right"
+      ? "right-[-1.25rem] border-r border-y rounded-r-2xl"
+      : connectorSide === "left"
+        ? "left-[-1.25rem] border-l border-y rounded-l-2xl"
+        : connectorSide === "both"
+          ? "left-[-1.25rem] right-[-1.25rem] border-y"
+          : ""
   return (
-    <section className="flex min-w-[17.75rem] shrink-0 flex-col gap-3 sm:min-w-[19rem]">
-      <div className="sticky top-0 z-10 rounded-lg border border-white/10 bg-black/70 px-3 py-2 backdrop-blur">
+    <section
+      className={[
+        "relative flex min-w-[17.75rem] shrink-0 flex-col gap-3 sm:min-w-[19rem]",
+        fillHeight ? "h-full" : "",
+        alignClass,
+      ].filter(Boolean).join(" ")}
+    >
+      <div className="sticky top-0 z-20 w-full rounded-xl border border-cyan-300/15 bg-slate-950/80 px-3 py-2 shadow-[0_12px_30px_-24px_rgba(34,211,238,0.7)] backdrop-blur">
         <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white/70">
           {label}
         </h2>
       </div>
-      <div className="flex flex-col gap-3">
+      {connectorSide !== "none" && (
+        <div
+          aria-hidden="true"
+          className={[
+            "pointer-events-none absolute bottom-10 top-16 z-0 hidden border-cyan-300/15 xl:block",
+            connectorClass,
+          ].join(" ")}
+        />
+      )}
+      <div
+        className={[
+          "relative z-10 flex w-full flex-col gap-3",
+          fillHeight ? "flex-1 justify-around" : "",
+          align === "right" ? "items-end" : align === "center" ? "items-center" : "items-start",
+        ].filter(Boolean).join(" ")}
+      >
         {matches.map((match) => {
           const kickoffPast = Boolean(match.startsAt && new Date(match.startsAt) <= now)
           const apiStatus = (match.apiStatusShort ?? "").trim().toUpperCase()
