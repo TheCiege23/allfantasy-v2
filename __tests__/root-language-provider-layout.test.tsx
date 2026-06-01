@@ -432,10 +432,11 @@ describe("root language provider layout", () => {
 
   it("cleans stale Railway build artifacts before Next builds", () => {
     expect(railwayJsonSource).toContain(
-      "export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-clean-next-build.cjs && npx prisma generate && npm run build && node scripts/railway-patch-app-build-manifest.cjs && node scripts/railway-verify-next-build.cjs"
+      "export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-clean-next-build.cjs && npx prisma generate && node scripts/railway-tailwind-prebuild.cjs && npm run build && node scripts/railway-patch-app-build-manifest.cjs && node scripts/railway-verify-next-build.cjs"
     )
     expect(nixpacksSource).toContain('"export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-clean-next-build.cjs"')
     expect(nixpacksSource).toContain('"export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && npx prisma generate"')
+    expect(nixpacksSource).toContain('"export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-tailwind-prebuild.cjs"')
     expect(nixpacksSource).toContain('"export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-patch-app-build-manifest.cjs"')
     expect(nixpacksSource).toContain('"export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-verify-next-build.cjs"')
     expect(railwayCleanSource).toContain("path.join(repoRoot, '.next')")

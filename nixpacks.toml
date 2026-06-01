@@ -19,7 +19,7 @@ cmds = ["npm ci"]
 # On Railway, globals.css is already compiled, so the tailwindcss PostCSS plugin
 # is a passthrough; autoprefixer adds prefixes and mini-css-extract-plugin
 # extracts the CSS chunk normally.
-cmds = ["export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-clean-next-build.cjs", "export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && npx prisma generate", "export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && npm run build", "export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-patch-app-build-manifest.cjs", "export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-verify-next-build.cjs"]
+cmds = ["export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-clean-next-build.cjs", "export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && npx prisma generate", "export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-tailwind-prebuild.cjs", "export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && npm run build", "export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-patch-app-build-manifest.cjs", "export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-verify-next-build.cjs"]
 
 [start]
 cmd = "AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} npm run start:railway"
