@@ -267,10 +267,18 @@ describe("root language provider layout", () => {
       expect(source, `${file} must not depend on optional provider context either`).not.toContain(
         "useOptionalLanguage"
       )
-      expect(source, `${file} must not render document root tags`).not.toMatch(
-        /<\/?(?:html|head|body)(?:\s|>|$)/i
-      )
     }
+
+    expect(rootErrorSource, "route-level root errors must not render document tags").not.toMatch(
+      /<\/?(?:html|head|body)(?:\s|>|$)/i
+    )
+    expect(globalErrorSource, "global-error replaces the root layout and must render <html>").toMatch(
+      /<html(?:\s|>|$)/i
+    )
+    expect(globalErrorSource, "global-error replaces the root layout and must render <body>").toMatch(
+      /<body(?:\s|>|$)/i
+    )
+    expect(globalErrorSource).toContain("data-mode=\"dark\"")
   })
 
   it("keeps homepage and root chrome language reads provider-safe", () => {
@@ -431,11 +439,12 @@ describe("root language provider layout", () => {
   it("cleans stale Railway build artifacts before Next builds", () => {
     expect(packageJsonSource).toContain('"prebuild": "node scripts/railway-clean-next-build.cjs && node scripts/railway-tailwind-prebuild.cjs"')
     expect(packageJsonSource).toContain('"build": "next build"')
+    expect(packageJsonSource).toContain('"build:railway": "node scripts/railway-clean-next-build.cjs && node scripts/railway-tailwind-prebuild.cjs && next build"')
     expect(railwayJsonSource).toContain(
-      "npx prisma generate && npm run build && node scripts/railway-verify-next-build.cjs"
+      "npx prisma generate && npm run build:railway && node scripts/railway-verify-next-build.cjs"
     )
     expect(nixpacksSource).toContain('"npx prisma generate"')
-    expect(nixpacksSource).toContain('"npm run build"')
+    expect(nixpacksSource).toContain('"npm run build:railway"')
     expect(nixpacksSource).not.toContain("railway-patch-app-build-manifest.cjs")
     expect(nixpacksSource).toContain('"node scripts/railway-verify-next-build.cjs"')
     expect(railwayPrebuildSource).toContain("AF_RAILWAY_TAILWIND_PREBUILD")

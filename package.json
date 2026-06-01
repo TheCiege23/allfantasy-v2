@@ -16,6 +16,7 @@
     "dev:kill": "node scripts/dev-port-check.mjs --kill",
     "prebuild": "node scripts/railway-clean-next-build.cjs && node scripts/railway-tailwind-prebuild.cjs",
     "build": "next build",
+    "build:railway": "node scripts/railway-clean-next-build.cjs && node scripts/railway-tailwind-prebuild.cjs && next build",
     "clean:next:prod": "node scripts/clean-next-prod-out.cjs",
     "build:clean": "node scripts/clean-next-prod-out.cjs && node scripts/vercel-next-build.cjs",
     "build:clean:dotnext": "node scripts/clean-next-prod-out.cjs && node scripts/run-prod-build-dotnext.cjs",
