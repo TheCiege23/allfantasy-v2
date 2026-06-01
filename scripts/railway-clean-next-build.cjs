@@ -80,7 +80,7 @@ function removePath(targetPath) {
       return
     } catch (err) {
       const code = err?.code
-      if (code !== 'EBUSY') {
+      if (code !== 'EBUSY' && code !== 'EPERM') {
         console.warn(`[railway-clean] could not remove ${label}: ${code ?? err.message}`)
         process.exitCode = 1
         return
@@ -88,7 +88,7 @@ function removePath(targetPath) {
 
       if (attempt < maxAttempts) {
         console.warn(
-          `[railway-clean] ${label} is busy (attempt ${attempt}/${maxAttempts}); retrying in ${retryDelayMs}ms`,
+          `[railway-clean] ${label} is locked (${code}, attempt ${attempt}/${maxAttempts}); retrying in ${retryDelayMs}ms`,
         )
         sleep(retryDelayMs)
         if (!fs.existsSync(targetPath)) {
@@ -99,7 +99,7 @@ function removePath(targetPath) {
       }
 
       console.warn(
-        `[railway-clean] ${label} is still busy after ${maxAttempts} attempts`,
+        `[railway-clean] ${label} is still locked (${code}) after ${maxAttempts} attempts`,
       )
       tryQuarantineBusyPath(targetPath, label)
     }

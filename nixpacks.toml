@@ -8,18 +8,9 @@ nixPkgs = ["nodejs_20", "openssl"]
 cmds = ["npm ci"]
 
 [phases.build]
-# Clear the webpack filesystem cache before each build to prevent stale module graphs.
-# NOTE: Do NOT try to rm -rf node_modules/.cache; that directory is the Docker
-# cache mount target and removing the mount point itself can fail as busy.
-# The postcss-loader cache is invalidated naturally: the prebuild script
-# replaces app/globals.css with precompiled Tailwind CSS before next build runs,
-# so the cache key changes and postcss-loader gets a cache miss.
-#
-# postcss.config.js uses tailwindcss + autoprefixer on all environments.
-# On Railway, globals.css is already compiled, so the tailwindcss PostCSS plugin
-# is a passthrough; autoprefixer adds prefixes and mini-css-extract-plugin
-# extracts the CSS chunk normally.
-cmds = ["export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-clean-next-build.cjs", "export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && npx prisma generate", "export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-tailwind-prebuild.cjs", "export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && npm run build", "export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-patch-app-build-manifest.cjs", "export AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} && node scripts/railway-verify-next-build.cjs"]
+# Keep Railway on the normal Next production path: clean .next, generate Prisma,
+# build once, then verify the emitted CSS manifests before deployment.
+cmds = ["node scripts/railway-clean-next-build.cjs", "npx prisma generate", "npm run build", "node scripts/railway-verify-next-build.cjs"]
 
 [start]
-cmd = "AF_NEXT_DIST_DIR=.next-railway-${RAILWAY_GIT_COMMIT_SHA:-local} npm run start:railway"
+cmd = "npm run db:migrate:deploy && npm run start"

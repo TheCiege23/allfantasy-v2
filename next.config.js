@@ -15,13 +15,10 @@ const isRailwayRuntime = !!(
   process.env.RAILWAY_DEPLOYMENT_ID ||
   process.env.RAILWAY_GIT_COMMIT_SHA
 );
-const railwayDistDir = process.env.RAILWAY_GIT_COMMIT_SHA
-  ? `.next-railway-${process.env.RAILWAY_GIT_COMMIT_SHA}`
-  : '.next-railway';
 
 const nextConfig = {
   reactStrictMode: true,
-  distDir: process.env.AF_NEXT_DIST_DIR || (isRailwayRuntime ? railwayDistDir : isProd ? '.next' : '.next-dev-local'),
+  distDir: process.env.AF_NEXT_DIST_DIR || (isProd ? '.next' : '.next-dev-local'),
 
   // Skip in-build type-check and lint passes — they OOM in Vercel's build container
   // on this codebase size. TypeScript errors are caught in local pre-deploy checks.

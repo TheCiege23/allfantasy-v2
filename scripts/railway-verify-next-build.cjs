@@ -4,24 +4,12 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 const repoRoot = process.cwd()
-const isRailway = !!(
-  process.env.RAILWAY_PROJECT_ID ||
-  process.env.RAILWAY_ENVIRONMENT ||
-  process.env.RAILWAY_SERVICE_ID ||
-  process.env.RAILWAY_DEPLOYMENT_ID ||
-  process.env.RAILWAY_GIT_COMMIT_SHA ||
-  process.env.AF_NEXT_DIST_DIR?.startsWith('.next-railway')
-)
-const railwayDistDir = process.env.RAILWAY_GIT_COMMIT_SHA
-  ? `.next-railway-${process.env.RAILWAY_GIT_COMMIT_SHA}`
-  : '.next-railway'
-const distDir = process.env.AF_NEXT_DIST_DIR || (isRailway ? railwayDistDir : '.next')
+const distDir = process.env.AF_NEXT_DIST_DIR || '.next'
 const cssDir = path.join(repoRoot, distDir, 'static', 'css')
 const manifestPath = path.join(repoRoot, distDir, 'app-build-manifest.json')
 const serverAppDir = path.join(repoRoot, distDir, 'server', 'app')
 
-const MIN_TOTAL_CSS_BYTES = 8_000
-const MIN_RAILWAY_CSS_BYTES = 100_000
+const MIN_TOTAL_CSS_BYTES = 100_000
 
 function walkFiles(dir, predicate, results = []) {
   if (!fs.existsSync(dir)) return results
@@ -85,17 +73,6 @@ console.log(`[railway-verify] /layout CSS assets: ${layoutCss.length}`)
 layoutCss.forEach((asset) => console.log(`[railway-verify] /layout -> ${asset}`))
 console.log(`[railway-verify] total CSS bytes: ${totalCssBytes}`)
 
-const railwayStylesPath = path.join(repoRoot, 'public', 'railway-styles.css')
-let hasLargeRailwayFallbackCss = false
-if (fs.existsSync(railwayStylesPath)) {
-  const railwayStylesBytes = fs.statSync(railwayStylesPath).size
-  console.log(`[railway-verify] public/railway-styles.css: ${railwayStylesBytes} bytes`)
-  hasLargeRailwayFallbackCss = railwayStylesBytes >= MIN_RAILWAY_CSS_BYTES
-  if (!hasLargeRailwayFallbackCss) {
-    console.warn('[railway-verify] WARNING: public/railway-styles.css is smaller than expected')
-  }
-}
-
 if (layoutCss.length === 0) {
   console.error('[railway-verify] BLOCKED: /layout has no CSS assets in app-build-manifest.json')
   process.exit(1)
@@ -151,19 +128,6 @@ if (totalCssBytes < MIN_TOTAL_CSS_BYTES) {
     `[railway-verify] BLOCKED: total CSS (${totalCssBytes} bytes) is below ${MIN_TOTAL_CSS_BYTES}`,
   )
   process.exit(1)
-}
-
-if (totalCssBytes < 100_000) {
-  const message = `[railway-verify] total CSS (${totalCssBytes} bytes) is below ${MIN_RAILWAY_CSS_BYTES} bytes - styling may be incomplete`
-  if (isRailway && !hasLargeRailwayFallbackCss) {
-    console.error(`[railway-verify] BLOCKED: ${message}`)
-    process.exit(1)
-  }
-  if (isRailway && hasLargeRailwayFallbackCss) {
-    console.warn(`[railway-verify] WARNING: ${message}; committed Railway fallback CSS is present`)
-  } else {
-    console.warn(`[railway-verify] WARNING: ${message}`)
-  }
 }
 
 console.log('[railway-verify] ✓ layout CSS present — safe to deploy')
