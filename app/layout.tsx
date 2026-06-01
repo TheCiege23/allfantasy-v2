@@ -24,6 +24,12 @@ const useExperimentalManifest = process.env.NEXT_PUBLIC_PWA_EXPERIMENTAL_MANIFES
 const metadataManifestPath = useExperimentalManifest
   ? '/manifest.experimental.webmanifest'
   : '/manifest.webmanifest';
+const railwayRuntimeEnvKeys = [
+  'RAILWAY_ENVIRONMENT',
+  'RAILWAY_PROJECT_ID',
+  'RAILWAY_SERVICE_ID',
+  'RAILWAY_DEPLOYMENT_ID',
+] as const;
 
 export const metadata: Metadata = {
   ...buildSeoMeta({
@@ -102,12 +108,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || '';
   const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID || '';
   const fbAppId = process.env.NEXT_PUBLIC_FB_APP_ID || '1790659191546539';
-  const useRailwayStylesFallback = Boolean(
-    process.env.RAILWAY_ENVIRONMENT ||
-      process.env.RAILWAY_PROJECT_ID ||
-      process.env.RAILWAY_SERVICE_ID ||
-      process.env.RAILWAY_DEPLOYMENT_ID
-  );
+  const useRailwayStylesFallback = railwayRuntimeEnvKeys.some((key) => Boolean(process.env[key]));
   return (
     <html
       lang={htmlLang}

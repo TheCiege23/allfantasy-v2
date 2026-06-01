@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import fs from "node:fs"
+import { createRequire } from "node:module"
 import path from "node:path"
 import { AppProviders } from "@/components/providers/AppProviders"
 import { AuthPageShell } from "@/components/auth/AuthPageShell"
@@ -9,6 +10,14 @@ import LanguageToggle from "@/components/i18n/LanguageToggle"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { ModeToggle } from "@/components/theme/ModeToggle"
 import { ThemeProvider } from "@/components/theme/ThemeProvider"
+
+const require = createRequire(import.meta.url)
+const railwayStartHelpers = require("../scripts/railway-next-start.cjs") as {
+  restoreDocumentShellIfNeeded: (
+    html: string,
+    req: { headers: { cookie?: string } }
+  ) => { html: string; changed: boolean }
+}
 
 vi.mock("next-auth/react", () => ({
   SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -412,7 +421,7 @@ describe("root language provider layout", () => {
     }
   })
 
-  it("uses the stable Next start path for Railway production", () => {
+  it("uses the guarded Next start path for Railway production", () => {
     expect(packageJsonSource).toContain('"start": "next start"')
     expect(packageJsonSource).toContain('"start:railway": "node scripts/railway-next-start.cjs"')
     expect(railwayJsonSource).toContain("npm run start:railway")
@@ -422,7 +431,6 @@ describe("root language provider layout", () => {
     expect(railwayStartSource).not.toContain("patchIfRailwayDroppedDocumentShell")
     expect(railwayStartSource).not.toContain("ensureBodyBoundary")
     expect(railwayStartSource).not.toContain("ensureRailwayStylesLink")
-    expect(railwayStartSource).not.toContain('href="/railway-styles.css"')
     expect(railwayStartSource).not.toContain("AF_NEXT_DIST_DIR")
     expect(layoutSource).not.toContain('id="af-railway-styles"')
     expect(layoutSource).not.toContain("data-af-railway-styles")
@@ -430,10 +438,43 @@ describe("root language provider layout", () => {
     expect(railwayStartSource).toContain("'start'")
     expect(railwayStartSource).toContain("'-H'")
     expect(railwayStartSource).toContain("'0.0.0.0'")
-    expect(railwayStartSource).not.toContain("content-length")
+    expect(railwayStartSource).toContain("'127.0.0.1'")
+    expect(railwayStartSource).toContain("restoreDocumentShellIfNeeded")
+    expect(railwayStartSource).toContain("parseCookieHeader")
+    expect(railwayStartSource).toContain("'af_lang'")
+    expect(railwayStartSource).toContain("'af_mode'")
+    expect(railwayStartSource).toContain('href="/railway-styles.css"')
+    expect(railwayStartSource).toContain("x-af-railway-proxy")
+    expect(railwayStartSource).toContain("x-af-railway-shell-normalized")
+    expect(railwayStartSource).toContain("delete headers['accept-encoding']")
+    expect(railwayStartSource).toContain("content-length")
     expect(railwayStartSource).not.toContain("/api/af-railway-health")
     expect(railwayStartSource).not.toContain("af-body-start")
     expect(railwayStartSource).not.toContain("useLanguage")
+  })
+
+  it("normalizes Railway HTML fragments without touching valid documents", () => {
+    const fragment =
+      '<meta charSet="utf-8"/><title>AllFantasy</title><div id="root">Loaded</div></body></html>'
+    const normalized = railwayStartHelpers.restoreDocumentShellIfNeeded(fragment, {
+      headers: { cookie: "af_lang=es; af_mode=legacy" },
+    })
+
+    expect(normalized.changed).toBe(true)
+    expect(normalized.html).toMatch(/^<!DOCTYPE html><html lang="es" data-lang="es" data-mode="legacy"/)
+    expect(normalized.html).toContain('<head><link rel="stylesheet" href="/railway-styles.css"/>')
+    expect(normalized.html).toContain(
+      '<body class="antialiased min-h-screen mode-readable" style="background:var(--bg);color:var(--text)">'
+    )
+    expect((normalized.html.match(/<html/g) ?? []).length).toBe(1)
+    expect((normalized.html.match(/<body/g) ?? []).length).toBe(1)
+    expect(normalized.html).toContain('</body></html>')
+
+    const validDocument = '<!DOCTYPE html><html lang="en"><head></head><body>Loaded</body></html>'
+    const untouched = railwayStartHelpers.restoreDocumentShellIfNeeded(validDocument, {
+      headers: {},
+    })
+    expect(untouched).toEqual({ html: validDocument, changed: false })
   })
 
   it("cleans stale Railway build artifacts before Next builds", () => {
