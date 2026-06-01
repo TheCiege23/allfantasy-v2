@@ -14,7 +14,7 @@
     "dev:unix:stable": "AF_NEXT_DIST_DIR=.next-dev-local NODE_OPTIONS=--max-old-space-size=4096 node node_modules/next/dist/bin/next dev -p 3010 --hostname 127.0.0.1",
     "dev:ports": "node scripts/dev-port-check.mjs",
     "dev:kill": "node scripts/dev-port-check.mjs --kill",
-    "prebuild": "node scripts/railway-clean-next-build.cjs",
+    "prebuild": "node scripts/railway-clean-next-build.cjs && node scripts/railway-tailwind-prebuild.cjs",
     "build": "next build",
     "clean:next:prod": "node scripts/clean-next-prod-out.cjs",
     "build:clean": "node scripts/clean-next-prod-out.cjs && node scripts/vercel-next-build.cjs",
