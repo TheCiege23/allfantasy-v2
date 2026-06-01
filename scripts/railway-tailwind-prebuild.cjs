@@ -29,7 +29,10 @@ const path = require('path');
 const isRailway = !!(
   process.env.RAILWAY_ENVIRONMENT ||
   process.env.RAILWAY_PROJECT_ID ||
-  process.env.RAILWAY_SERVICE_ID
+  process.env.RAILWAY_SERVICE_ID ||
+  process.env.RAILWAY_DEPLOYMENT_ID ||
+  process.env.RAILWAY_GIT_COMMIT_SHA ||
+  process.env.AF_NEXT_DIST_DIR?.startsWith('.next-railway')
 );
 
 const isLinuxProdBuild =
