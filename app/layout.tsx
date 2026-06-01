@@ -24,6 +24,13 @@ const useExperimentalManifest = process.env.NEXT_PUBLIC_PWA_EXPERIMENTAL_MANIFES
 const metadataManifestPath = useExperimentalManifest
   ? '/manifest.experimental.webmanifest'
   : '/manifest.webmanifest';
+const shouldLoadRailwayStyles = Boolean(
+  process.env.RAILWAY_PROJECT_ID ||
+    process.env.RAILWAY_ENVIRONMENT ||
+    process.env.RAILWAY_SERVICE_ID ||
+    process.env.RAILWAY_DEPLOYMENT_ID ||
+    process.env.RAILWAY_GIT_COMMIT_SHA
+);
 
 export const metadata: Metadata = {
   ...buildSeoMeta({
@@ -115,6 +122,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         style={{ background: 'var(--bg)', color: 'var(--text)' }}
       >
         <template id="af-body-start" />
+        {shouldLoadRailwayStyles ? (
+          <Script id="af-railway-styles" strategy="afterInteractive">
+            {`
+              (function() {
+                if (document.querySelector('link[data-af-railway-styles="true"]')) return;
+                var link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = '/railway-styles.css';
+                link.setAttribute('data-af-railway-styles', 'true');
+                document.head.appendChild(link);
+              })();
+            `}
+          </Script>
+        ) : null}
         {gaMeasurementId && (
           <>
             <Script
