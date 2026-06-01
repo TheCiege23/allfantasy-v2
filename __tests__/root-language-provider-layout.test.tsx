@@ -406,10 +406,10 @@ describe("root language provider layout", () => {
 
   it("uses the stable Next start path for Railway production", () => {
     expect(packageJsonSource).toContain('"start": "next start"')
-    expect(packageJsonSource).toContain('"start:railway": "next start"')
-    expect(railwayJsonSource).toContain("npm run db:migrate:deploy && npm run start")
+    expect(packageJsonSource).toContain('"start:railway": "node scripts/railway-next-start.cjs"')
+    expect(railwayJsonSource).toContain("npm run db:migrate:deploy && npm run start:railway")
     expect(railwayJsonSource).toContain('"/api/af-debug/sha"')
-    expect(nixpacksSource).toContain('cmd = "npm run db:migrate:deploy && npm run start"')
+    expect(nixpacksSource).toContain('cmd = "npm run db:migrate:deploy && npm run start:railway"')
     expect(railwayStartSource).not.toContain("proxyRequest")
     expect(railwayStartSource).not.toContain("patchIfRailwayDroppedDocumentShell")
     expect(railwayStartSource).not.toContain("ensureBodyBoundary")
@@ -420,6 +420,8 @@ describe("root language provider layout", () => {
     expect(layoutSource).not.toContain("data-af-railway-styles")
     expect(layoutSource).not.toContain("RAILWAY_GIT_COMMIT_SHA")
     expect(railwayStartSource).toContain("'start'")
+    expect(railwayStartSource).toContain("'-H'")
+    expect(railwayStartSource).toContain("'0.0.0.0'")
     expect(railwayStartSource).not.toContain("content-length")
     expect(railwayStartSource).not.toContain("/api/af-railway-health")
     expect(railwayStartSource).not.toContain("af-body-start")
