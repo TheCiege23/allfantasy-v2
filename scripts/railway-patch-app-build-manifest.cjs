@@ -67,7 +67,7 @@ function walkFiles(dir, predicate, results = []) {
 
 function parseClientReferenceManifest(source, filePath) {
   const match = source.match(
-    /(globalThis\.__RSC_MANIFEST\["(?:\\.|[^"\\])+"\]=)(\{.*\})(;?)$/s,
+    /^(.*?globalThis\.__RSC_MANIFEST\["(?:\\.|[^"\\])+"\]=)(\{.*\})(;?)$/s,
   )
   if (!match) {
     throw new Error(`could not find client reference manifest payload in ${filePath}`)

@@ -34,7 +34,7 @@ function walkFiles(dir, predicate, results = []) {
 function readClientReferenceManifest(filePath) {
   const source = fs.readFileSync(filePath, 'utf8')
   const match = source.match(
-    /globalThis\.__RSC_MANIFEST\["(?:\\.|[^"\\])+"\]=(\{.*\});?$/s,
+    /^.*?globalThis\.__RSC_MANIFEST\["(?:\\.|[^"\\])+"\]=(\{.*\});?$/s,
   )
   if (!match) {
     throw new Error(`could not read client reference manifest payload in ${filePath}`)
