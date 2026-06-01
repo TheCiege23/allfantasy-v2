@@ -451,6 +451,7 @@ describe("root language provider layout", () => {
     expect(railwayVerifySource).not.toContain("public/railway-styles.css missing")
     expect(railwayVerifySource).toContain("hasLargeRailwayFallbackCss")
     expect(railwayPrebuildSource).toContain("committed Railway fallback CSS")
+    expect(railwayPrebuildSource).toContain("fs.copyFileSync(railwayStylesOut, globalsIn)")
     expect(railwayPrebuildSource).not.toContain("AF_NEXT_DIST_DIR === '.next-railway'")
     expect(railwayStylesSource.length).toBeGreaterThan(100_000)
   })

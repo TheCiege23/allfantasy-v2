@@ -64,8 +64,9 @@ function readRailwayFallbackBytes() {
 
 const fallbackBytes = readRailwayFallbackBytes();
 if (fallbackBytes >= MIN_RAILWAY_CSS_BYTES && process.env.AF_FORCE_TAILWIND_PREBUILD !== '1') {
+  fs.copyFileSync(railwayStylesOut, globalsIn);
   console.log(
-    '[railway-prebuild] committed Railway fallback CSS found (%d bytes) - skipping Tailwind CLI prebuild.',
+    '[railway-prebuild] committed Railway fallback CSS found (%d bytes) - copied to app/globals.css.',
     fallbackBytes
   );
   process.exit(0);
