@@ -432,7 +432,7 @@ describe("root language provider layout", () => {
     expect(packageJsonSource).toContain('"prebuild": "node scripts/railway-clean-next-build.cjs"')
     expect(packageJsonSource).toContain('"build": "next build"')
     expect(railwayJsonSource).toContain(
-      "npm ci && node scripts/railway-clean-next-build.cjs && npx prisma generate && npm run build && node scripts/railway-verify-next-build.cjs"
+      "node scripts/railway-clean-next-build.cjs && npx prisma generate && npm run build && node scripts/railway-verify-next-build.cjs"
     )
     expect(nixpacksSource).toContain('"node scripts/railway-clean-next-build.cjs"')
     expect(nixpacksSource).toContain('"npx prisma generate"')
