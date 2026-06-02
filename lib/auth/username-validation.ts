@@ -1,39 +1,38 @@
 /**
- * Canonical username validation — shared across:
- *   - app/api/auth/check-username/route.ts
- *   - lib/user-settings/UserProfileService.ts
- *   - app/choose-username/ChooseUsernameForm.tsx (client-side soft validation)
+ * Canonical username validation shared by auth, settings, and username checks.
  *
- * Rules (product policy):
- *   • 3–30 characters
- *   • Lowercase letters, numbers, and underscores only (input auto-normalised)
- *   • Must not look like a phone number (7+ consecutive digits)
- *
- * Note: "@" is already excluded by the character-set rule, so email-like values
- * are blocked implicitly. Profanity and DB uniqueness checks are server-only
- * and applied separately.
+ * Product policy:
+ * - 3-30 characters
+ * - Letters, numbers, and underscores only
+ * - Preserve the user's chosen casing for storage/display
+ * - Compare case-insensitively for login and uniqueness
+ * - Must not look like a phone number
  */
 
 export const USERNAME_MIN = 3
 export const USERNAME_MAX = 30
 
-/** All characters must be lowercase a–z, 0–9, or underscore. */
-const USERNAME_RE = /^[a-z0-9_]+$/
+const USERNAME_RE = /^[A-Za-z0-9_]+$/
 
 export type UsernameValidationResult =
-  | { ok: true; normalized: string }
+  | { ok: true; normalized: string; lookup: string }
   | { ok: false; reason: string }
 
+export function normalizeUsernameLookup(raw: string): string {
+  return String(raw ?? "").trim().toLowerCase()
+}
+
 /**
- * Validates and normalises a raw username input.
- * Returns `{ ok: true, normalized }` on success or `{ ok: false, reason }` on failure.
- * Does NOT check profanity or DB uniqueness — apply those separately on the server.
+ * Validates a raw username input.
+ * `normalized` is the canonical stored username and intentionally preserves case.
+ * `lookup` is only for case-insensitive comparisons.
  */
 export function validateUsername(raw: string): UsernameValidationResult {
   if (typeof raw !== "string") {
     return { ok: false, reason: "Username is required" }
   }
-  const normalized = raw.trim().toLowerCase()
+
+  const normalized = raw.trim()
   if (!normalized) {
     return { ok: false, reason: "Username is required" }
   }
@@ -46,9 +45,13 @@ export function validateUsername(raw: string): UsernameValidationResult {
   if (!USERNAME_RE.test(normalized)) {
     return { ok: false, reason: "Letters, numbers, and underscores only" }
   }
-  // Block phone-like values (7+ consecutive digits)
   if (/\d{7,}/.test(normalized)) {
     return { ok: false, reason: "Cannot look like a phone number" }
   }
-  return { ok: true, normalized }
+
+  return { ok: true, normalized, lookup: normalized.toLowerCase() }
+}
+
+export function usernamesEqual(a: string | null | undefined, b: string | null | undefined): boolean {
+  return normalizeUsernameLookup(a ?? "") === normalizeUsernameLookup(b ?? "")
 }

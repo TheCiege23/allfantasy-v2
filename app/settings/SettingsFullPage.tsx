@@ -389,9 +389,9 @@ export default function SettingsFullPage() {
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     setProfileSaveMsg(null)
-    const u = username.trim().toLowerCase()
-    if (u && !/^[a-z0-9_]{3,32}$/.test(u)) {
-      setProfileSaveMsg("Username must be 3–32 characters (lowercase letters, numbers, underscore).")
+    const u = username.trim()
+    if (u && !/^[A-Za-z0-9_]{3,30}$/.test(u)) {
+      setProfileSaveMsg("Username must be 3-30 characters with letters, numbers, or underscores.")
       return
     }
     const ok = await updateProfile({

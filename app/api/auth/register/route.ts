@@ -30,7 +30,7 @@ import { isFullyBlocked, isPaidBlocked } from "@/lib/geo/restrictedStates"
 export const runtime = "nodejs"
 
 function normalizeUsername(u: string) {
-  return u.trim().toLowerCase()
+  return u.trim()
 }
 
 function normalizeEmail(e: string) {

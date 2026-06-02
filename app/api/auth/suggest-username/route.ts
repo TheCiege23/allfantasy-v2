@@ -34,7 +34,7 @@ export async function GET(req: Request) {
   for (const candidate of candidates) {
     if (!isValidUsername(candidate)) continue
     const existing = await prisma.appUser.findFirst({
-      where: { username: candidate },
+      where: { username: { equals: candidate, mode: "insensitive" } },
       select: { id: true },
     })
     if (!existing) {

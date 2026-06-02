@@ -28,7 +28,7 @@ export async function updateUserProfile(
     }
     const { normalized } = validation
     const taken = await prisma.appUser.findFirst({
-      where: { username: normalized, NOT: { id: userId } },
+      where: { username: { equals: normalized, mode: "insensitive" }, NOT: { id: userId } },
       select: { id: true },
     })
     if (taken) {

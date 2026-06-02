@@ -83,6 +83,20 @@ const AVATAR_PRESET_EMOJIS: Record<AvatarPresetId, string> = {
 
 type SignupStep = 1 | 2
 
+const SIGNUP_PHONE_COUNTRIES = [
+  { code: "+1", label: "US/CA" },
+  { code: "+52", label: "MX" },
+  { code: "+44", label: "UK" },
+  { code: "+34", label: "ES" },
+  { code: "+33", label: "FR" },
+  { code: "+49", label: "DE" },
+  { code: "+54", label: "AR" },
+  { code: "+55", label: "BR" },
+  { code: "+61", label: "AU" },
+  { code: "+81", label: "JP" },
+  { code: "+91", label: "IN" },
+]
+
 export default function SignupContent() {
   const { t, language } = useOptionalLanguage()
   const mode = DEFAULT_THEME
@@ -114,6 +128,7 @@ export default function SignupContent() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [avatarFileError, setAvatarFileError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
+  const [phoneCountryCode, setPhoneCountryCode] = useState("+1")
   const [phone, setPhone] = useState("")
   const [phoneCodeSent, setPhoneCodeSent] = useState(false)
   const [phoneCode, setPhoneCode] = useState("")
@@ -222,7 +237,7 @@ export default function SignupContent() {
   }, [username])
 
   async function handleSendPhoneCode() {
-    const normalizedPhone = normalizePhoneForSubmit(phone)
+    const normalizedPhone = normalizePhoneForSubmit(phone, phoneCountryCode)
     if (!normalizedPhone) {
       setPhoneVerificationMessage("Enter your phone number first.")
       return
@@ -251,7 +266,7 @@ export default function SignupContent() {
   }
 
   async function handleVerifyPhoneCode() {
-    const normalizedPhone = normalizePhoneForSubmit(phone)
+    const normalizedPhone = normalizePhoneForSubmit(phone, phoneCountryCode)
     if (!normalizedPhone) {
       setPhoneVerificationMessage("Enter your phone number first.")
       return
@@ -501,7 +516,7 @@ export default function SignupContent() {
           email: email.trim(),
           password,
           displayName: username.trim(),
-          phone: normalizePhoneForSubmit(phone) || undefined,
+          phone: normalizePhoneForSubmit(phone, phoneCountryCode) || undefined,
           ageConfirmed,
           verificationMethod,
           phoneVerificationCode:
@@ -1282,11 +1297,30 @@ export default function SignupContent() {
                   <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted)" }}>
                     Phone Number <span className="text-xs" style={{ color: "var(--muted2)" }}>(optional)</span>
                   </label>
-                  <div className="flex overflow-hidden rounded-xl border" style={{ borderColor: "var(--border)" }}>
-                    <div className="flex items-center gap-2 px-4 text-sm font-medium" style={{ background: "var(--panel2)", color: "var(--muted)" }}>
+                  <div className="grid overflow-hidden rounded-xl border sm:grid-cols-[128px_1fr]" style={{ borderColor: "var(--border)" }}>
+                    <div className="hidden" style={{ background: "var(--panel2)", color: "var(--muted)" }}>
                       <span>🇺🇸</span>
                       <span>+1</span>
                     </div>
+                    <select
+                      value={phoneCountryCode}
+                      onChange={(e) => {
+                        setPhoneCountryCode(e.target.value)
+                        setPhoneCodeSent(false)
+                        setPhoneCode("")
+                        setPhoneCodeVerified(false)
+                        setPhoneVerificationMessage(null)
+                      }}
+                      className="border-0 px-3 py-3 text-sm font-semibold outline-none"
+                      style={{ background: "var(--panel2)", color: "var(--text)" }}
+                      aria-label="Phone country code"
+                    >
+                      {SIGNUP_PHONE_COUNTRIES.map((country) => (
+                        <option key={`${country.code}-${country.label}`} value={country.code}>
+                          {country.label} {country.code}
+                        </option>
+                      ))}
+                    </select>
                     <input
                       value={phone}
                       onChange={(e) => {
@@ -1298,9 +1332,9 @@ export default function SignupContent() {
                         setPhoneVerificationMessage(null)
                       }}
                       type="tel"
-                      className="flex-1 border-0 px-4 py-3 text-sm outline-none"
+                      className="min-w-0 border-0 border-t px-4 py-3 text-sm outline-none sm:border-l sm:border-t-0"
                       style={{ background: "var(--panel2)", color: "var(--text)" }}
-                      placeholder="(555) 123-4567"
+                      placeholder={phoneCountryCode === "+1" ? "(555) 123-4567" : "Local number"}
                       autoComplete="tel"
                       inputMode="numeric"
                     />
@@ -1310,7 +1344,8 @@ export default function SignupContent() {
                   </p>
                   {phone.length > 0 && (
                     <p className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
-                      Formatted: {formatSignupPhoneDisplay(phone)}
+                      Sends as: {normalizePhoneForSubmit(phone, phoneCountryCode)}{" "}
+                      <span aria-hidden>({formatSignupPhoneDisplay(phone, phoneCountryCode)})</span>
                     </p>
                   )}
                 </div>
@@ -1486,6 +1521,53 @@ export default function SignupContent() {
 
                   {verificationMethod === "PHONE" && (
                     <div className="mt-4 space-y-2">
+                      <div className="grid overflow-hidden rounded-xl border sm:grid-cols-[128px_1fr]" style={{ borderColor: "var(--border)" }}>
+                        <select
+                          value={phoneCountryCode}
+                          onChange={(e) => {
+                            setPhoneCountryCode(e.target.value)
+                            setPhoneCodeSent(false)
+                            setPhoneCode("")
+                            setPhoneCodeVerified(false)
+                            setPhoneVerificationMessage(null)
+                          }}
+                          className="border-0 px-3 py-3 text-sm font-semibold outline-none"
+                          style={{ background: "var(--panel2)", color: "var(--text)" }}
+                          aria-label="Phone country code for verification"
+                        >
+                          {SIGNUP_PHONE_COUNTRIES.map((country) => (
+                            <option key={`verify-${country.code}-${country.label}`} value={country.code}>
+                              {country.label} {country.code}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          value={phone}
+                          onChange={(e) => {
+                            const digits = normalizeSignupPhoneDigits(e.target.value)
+                            setPhone(digits)
+                            setPhoneCodeSent(false)
+                            setPhoneCode("")
+                            setPhoneCodeVerified(false)
+                            setPhoneVerificationMessage(null)
+                          }}
+                          type="tel"
+                          className="min-w-0 border-0 border-t px-4 py-3 text-sm outline-none sm:border-l sm:border-t-0"
+                          style={{ background: "var(--panel2)", color: "var(--text)" }}
+                          placeholder={phoneCountryCode === "+1" ? "(555) 123-4567" : "Local number"}
+                          autoComplete="tel"
+                          inputMode="numeric"
+                        />
+                      </div>
+                      {phone.length > 0 ? (
+                        <p className="text-xs" style={{ color: "var(--muted2)" }}>
+                          Sends as: {normalizePhoneForSubmit(phone, phoneCountryCode)}
+                        </p>
+                      ) : (
+                        <p className="text-xs" style={{ color: "var(--muted2)" }}>
+                          Choose your country code, then enter your phone number.
+                        </p>
+                      )}
                       <div className="flex flex-col gap-2 sm:flex-row">
                         <button
                           type="button"
@@ -1575,7 +1657,7 @@ export default function SignupContent() {
                         setDisclaimerScrolledToEnd(true)
                       }
                     }}
-                    className="relative mb-3 max-h-32 overflow-y-auto rounded-xl border p-4 text-sm leading-6"
+                    className="relative mb-2 max-h-48 overflow-y-auto rounded-xl border p-4 text-sm leading-6"
                     style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--muted)" }}
                   >
                     <strong style={{ color: "var(--text)" }}>AllFantasy.ai — Platform Disclaimer</strong>
@@ -1608,18 +1690,12 @@ export default function SignupContent() {
                     >
                       Read the full Disclaimer →
                     </Link>
-                    {!disclaimerScrolledToEnd && (
-                      <div
-                        className="pointer-events-none absolute inset-x-0 bottom-0 flex h-8 items-end justify-center rounded-b-xl pb-1 text-[10px]"
-                        style={{
-                          background: "linear-gradient(to top, var(--panel2), transparent)",
-                          color: "var(--muted2)",
-                        }}
-                      >
-                        Scroll to acknowledge
-                      </div>
-                    )}
                   </div>
+                  {!disclaimerScrolledToEnd && !disclaimerAgreed ? (
+                    <p className="mb-3 text-xs" style={{ color: "var(--muted2)" }}>
+                      Scroll through the disclaimer to enable acknowledgement.
+                    </p>
+                  ) : null}
                   <label
                     className="flex items-start gap-3 rounded-xl border p-4 transition"
                     style={{

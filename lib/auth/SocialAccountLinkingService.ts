@@ -80,7 +80,7 @@ async function reserveUniqueUsername(base: string): Promise<string> {
 
   if (initial.length >= 3 && !hasProfanityInUsername(initial)) {
     const existing = await prisma.appUser.findFirst({
-      where: { username: initial },
+      where: { username: { equals: initial, mode: "insensitive" } },
       select: { id: true },
     });
     if (!existing) {
@@ -96,7 +96,7 @@ async function reserveUniqueUsername(base: string): Promise<string> {
       continue;
     }
     const existing = await prisma.appUser.findFirst({
-      where: { username: candidate },
+      where: { username: { equals: candidate, mode: "insensitive" } },
       select: { id: true },
     });
     if (!existing) {

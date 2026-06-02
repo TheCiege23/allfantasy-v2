@@ -16,8 +16,8 @@ export async function POST(req: NextRequest) {
   const username = String(body?.username ?? "").trim()
   if (!username) return NextResponse.json({ error: "username required" }, { status: 400 })
 
-  const other = await (prisma as any).appUser.findUnique({
-    where: { username },
+  const other = await (prisma as any).appUser.findFirst({
+    where: { username: { equals: username, mode: "insensitive" } },
     select: { id: true },
   })
   if (!other?.id) return NextResponse.json({ error: "User not found" }, { status: 404 })

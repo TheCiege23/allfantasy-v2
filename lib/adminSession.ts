@@ -19,7 +19,7 @@ function adminSessionSecret(): string {
   if (process.env.NODE_ENV === "production") {
     throw new Error("ADMIN_SESSION_SECRET or ADMIN_PASSWORD must be set in production");
   }
-  return "admin123";
+  throw new Error("ADMIN_SESSION_SECRET or ADMIN_PASSWORD must be set for admin sessions");
 }
 
 export function signAdminSessionCookie(payload: AdminSessionPayload) {

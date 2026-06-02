@@ -35,7 +35,11 @@ export async function POST(req: NextRequest) {
     const usernames = (body.usernames as unknown[]).map((u) => String(u).trim()).filter(Boolean)
     if (usernames.length > 0) {
       const users = await prisma.appUser.findMany({
-        where: { username: { in: usernames } },
+        where: {
+          OR: usernames.map((username) => ({
+            username: { equals: username, mode: 'insensitive' as const },
+          })),
+        },
         select: { id: true },
       })
       memberUserIds = users.map((u) => u.id).filter((id) => id !== user.appUserId)

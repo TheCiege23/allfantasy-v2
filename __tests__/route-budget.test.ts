@@ -109,48 +109,12 @@ describe('Route budget — deleted routes must stay gone', () => {
 describe('Admin AI monitor — gating and wiring', () => {
   const dashPage = read('app/dashboard/page.tsx')
 
-  it('imports isAdminEmailAllowed', () => {
-    expect(dashPage).toContain("from '@/lib/adminAuth'")
-    expect(dashPage).toContain('isAdminEmailAllowed')
-  })
-
-  it('imports getAiUsageReport', () => {
-    expect(dashPage).toContain("from '@/lib/ai/aiUsageMonitor'")
-    expect(dashPage).toContain('getAiUsageReport')
-  })
-
-  it('imports AiUsageMonitorPanel', () => {
-    expect(dashPage).toContain("from '@/components/admin/AiUsageMonitorPanel'")
-    expect(dashPage).toContain('AiUsageMonitorPanel')
-  })
-
-  it('panel is gated: only renders when adminReport is truthy', () => {
-    // The pattern `{adminReport && (` ensures non-admins see nothing.
-    expect(dashPage).toContain('{adminReport && (')
-  })
-
-  it('report fetch is conditional on isAdmin', () => {
-    // Must not unconditionally call getAiUsageReport() for all users.
-    expect(dashPage).toContain('isAdmin ? getAiUsageReport()')
-  })
-
-  it('panel is rendered as a sibling of DashboardShell inside a fragment', () => {
-    expect(dashPage).toContain('<>')
-    expect(dashPage).toContain('</>')
-    expect(dashPage).toContain('<AiUsageMonitorPanel')
-    expect(dashPage).toContain('<DashboardShell')
-  })
-
-  it('monitor panel component file exists', () => {
-    expect(exists('components/admin/AiUsageMonitorPanel.tsx')).toBe(true)
-  })
-
-  it('monitor lib file exists', () => {
-    expect(exists('lib/ai/aiUsageMonitor.ts')).toBe(true)
-  })
-
-  it('panel is positioned as a floating overlay (fixed class)', () => {
-    expect(dashPage).toContain('fixed bottom-4 right-4')
+  it('does not render admin monitors on the customer dashboard', () => {
+    expect(dashPage).not.toContain("from '@/lib/adminAuth'")
+    expect(dashPage).not.toContain("from '@/lib/ai/aiUsageMonitor'")
+    expect(dashPage).not.toContain("from '@/components/admin/AiUsageMonitorPanel'")
+    expect(dashPage).not.toContain('AI Ops Monitor')
+    expect(dashPage).not.toContain('adminReport')
   })
 })
 

@@ -162,9 +162,10 @@ describe("verify/phone/start — phone uniqueness pre-check", () => {
 })
 
 describe("signup username canonicalization", () => {
-  it("stores new usernames lowercase", () => {
+  it("preserves the submitted username casing for storage/display", () => {
     const src = read("app/api/auth/register/route.ts")
-    expect(src).toContain("return u.trim().toLowerCase()")
+    expect(src).toContain("return u.trim()")
+    expect(src).not.toContain("return u.trim().toLowerCase()")
   })
 
   it("checks registration username conflicts case-insensitively", () => {

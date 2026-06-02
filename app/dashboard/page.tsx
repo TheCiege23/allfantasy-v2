@@ -13,9 +13,6 @@ import {
 import { isAppRouterRedirectError } from '@/lib/next/is-app-router-redirect-error'
 import { getDashboardLeagueListForUser } from '@/lib/dashboard/get-dashboard-league-list'
 import { fetchUserRankJsonForDashboardSSR } from '@/lib/dashboard/fetch-user-rank-ssr'
-import { isAdminEmailAllowed } from '@/lib/adminAuth'
-import { getAiUsageReport } from '@/lib/ai/aiUsageMonitor'
-import { AiUsageMonitorPanel } from '@/components/admin/AiUsageMonitorPanel'
 import { DashboardShell } from './DashboardShell'
 
 export const dynamic = 'force-dynamic'
@@ -60,10 +57,8 @@ export default async function DashboardPage() {
   }
   const userId = rawUserId
 
-  const isAdmin = isAdminEmailAllowed(sessionUser?.email)
-
   try {
-    const [dbUser, userProfile, initialLeagueList, initialUserRankPayload, adminReport] = await Promise.all([
+    const [dbUser, userProfile, initialLeagueList, initialUserRankPayload] = await Promise.all([
       prisma.appUser
         .findUnique({
           where: { id: userId },
@@ -90,7 +85,6 @@ export default async function DashboardPage() {
         console.error('[dashboard] user rank prefetch failed:', err)
         return null
       }),
-      isAdmin ? getAiUsageReport().catch(() => null) : Promise.resolve(null),
     ])
 
     const userImage = resolveDashboardAvatarUrl(sessionUser.image, dbUser?.avatarUrl ?? undefined)
@@ -102,34 +96,15 @@ export default async function DashboardPage() {
     })
 
     return (
-      <>
-        {adminReport && (
-          <details className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[9999] max-h-[74dvh] overflow-auto rounded-2xl border border-cyan-300/20 bg-[#06111f]/95 text-sm text-neutral-100 shadow-[0_24px_80px_-32px_rgba(34,211,238,0.7)] backdrop-blur-xl sm:left-auto sm:right-4 sm:w-[min(680px,calc(100vw-2rem))]">
-            <summary className="group flex cursor-pointer select-none items-center justify-between gap-3 px-4 py-3 text-[0px] font-black uppercase tracking-[0.16em] text-cyan-100/80 marker:text-cyan-200/70">
-              <span className="inline-flex min-w-0 items-center gap-2 text-xs">
-                <span className="h-2 w-2 shrink-0 rounded-full bg-cyan-300 shadow-[0_0_14px_rgba(34,211,238,0.9)]" aria-hidden />
-                AI Ops Monitor
-              </span>
-              <span className="rounded-full border border-amber-300/25 bg-amber-300/[0.08] px-2 py-0.5 text-[10px] text-amber-100/75">
-                Admin
-              </span>
-              ⚙ Admin: AI Usage Monitor
-            </summary>
-            <div className="border-t border-white/10 p-3 sm:p-4">
-              <AiUsageMonitorPanel report={adminReport} />
-            </div>
-          </details>
-        )}
-        <DashboardShell
-          userId={userId}
-          userName={userName}
-          userImage={userImage}
-          emailVerified={Boolean(dbUser?.emailVerified)}
-          discordConnected={Boolean(userProfile?.discordUserId)}
-          initialLeagueList={initialLeagueList ?? undefined}
-          initialUserRankPayload={initialUserRankPayload ?? undefined}
-        />
-      </>
+      <DashboardShell
+        userId={userId}
+        userName={userName}
+        userImage={userImage}
+        emailVerified={Boolean(dbUser?.emailVerified)}
+        discordConnected={Boolean(userProfile?.discordUserId)}
+        initialLeagueList={initialLeagueList ?? undefined}
+        initialUserRankPayload={initialUserRankPayload ?? undefined}
+      />
     )
   } catch (error) {
     if (isAppRouterRedirectError(error)) {

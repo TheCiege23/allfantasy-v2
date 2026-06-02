@@ -44,7 +44,11 @@ export async function POST(
   let resolvedUserIds = memberUserIds
   if (usernames.length > 0) {
     const users = await prisma.appUser.findMany({
-      where: { username: { in: usernames } },
+      where: {
+        OR: usernames.map((username) => ({
+          username: { equals: username, mode: "insensitive" as const },
+        })),
+      },
       select: { id: true },
     })
     resolvedUserIds = Array.from(new Set([...resolvedUserIds, ...users.map((u) => u.id)]))

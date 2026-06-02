@@ -70,7 +70,7 @@ describe("WorldCupGroupStagePicks", () => {
     render(<WorldCupGroupStagePicks challengeId="c1" entryId="entry-1" onCompletionChanged={onCompletionChanged} />)
 
     const group = await screen.findByTestId("world-cup-group-A")
-    expect(within(group).getByRole("button", { name: /Saved/i })).toBeDisabled()
+    expect(within(group).getByRole("button", { name: /Saved/i })).toBeEnabled()
 
     fireEvent.click(within(group).getAllByRole("button", { name: /Move Up/i })[1])
 
@@ -135,17 +135,50 @@ describe("WorldCupGroupStagePicks", () => {
     fireEvent.click(saveButton)
     fireEvent.click(saveButton)
 
+    expect(within(group).getByRole("button", { name: /Saving/i })).toBeDisabled()
     expect(clientApiMocks.saveGroupRanking).toHaveBeenCalledTimes(1)
     resolveSave(makeGroupStageView())
-    await waitFor(() => expect(within(group).getByRole("button", { name: /Saved/i })).toBeDisabled())
+    await waitFor(() => expect(within(group).getByRole("button", { name: /Saved/i })).toBeEnabled())
   })
 
-  it("keeps no-op group save disabled and preserves submitted state by not calling save", async () => {
+  it("saves a complete default group order even when the user made no changes", async () => {
+    clientApiMocks.fetchGroupStageView.mockResolvedValue(makeGroupStageView({
+      groupRankingPicks: [],
+      completion: {
+        groupsRankedCount: 0,
+        allGroupsRanked: false,
+        thirdPlaceSelectedCount: 0,
+        thirdPlaceComplete: false,
+        groupStageComplete: false,
+      },
+    }))
     const WorldCupGroupStagePicks = (await import("@/components/brackets/world-cup/WorldCupGroupStagePicks")).default
     render(<WorldCupGroupStagePicks challengeId="c1" entryId="entry-1" />)
 
     const group = await screen.findByTestId("world-cup-group-A")
-    expect(within(group).getByRole("button", { name: /Saved/i })).toBeDisabled()
+    const saveButton = within(group).getByRole("button", { name: /Save Group/i })
+    expect(saveButton).toBeEnabled()
+
+    fireEvent.click(saveButton)
+
+    await waitFor(() => expect(clientApiMocks.saveGroupRanking).toHaveBeenCalledWith(
+      "c1",
+      "entry-1",
+      "group-a",
+      ["team-a", "team-b", "team-c", "team-d"],
+    ))
+  })
+
+  it("preserves already submitted default group state without a duplicate save", async () => {
+    const WorldCupGroupStagePicks = (await import("@/components/brackets/world-cup/WorldCupGroupStagePicks")).default
+    render(<WorldCupGroupStagePicks challengeId="c1" entryId="entry-1" />)
+
+    const group = await screen.findByTestId("world-cup-group-A")
+    const savedButton = within(group).getByRole("button", { name: /Saved/i })
+    expect(savedButton).toBeEnabled()
+
+    fireEvent.click(savedButton)
+
     expect(clientApiMocks.saveGroupRanking).not.toHaveBeenCalled()
   })
 

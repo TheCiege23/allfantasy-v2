@@ -5,7 +5,7 @@ export type AllFantasyEntitlementUser = {
 }
 
 const STATIC_ALL_ACCESS_EMAILS = ["cjabar.henson@gmail.com"]
-const STATIC_ALL_ACCESS_USERNAMES = ["TheCiege26"]
+const STATIC_ALL_ACCESS_USERNAMES = ["theciege26"]
 
 function parseList(value: string | undefined): string[] {
   return (value || '')
@@ -17,7 +17,7 @@ function parseList(value: string | undefined): string[] {
 function parseUsernameList(value: string | undefined): string[] {
   return (value || '')
     .split(/[\n\r,;]+/)
-    .map((v) => v.trim())
+    .map((v) => v.trim().toLowerCase())
     .filter(Boolean)
 }
 
@@ -36,7 +36,7 @@ export function isAllFantasyTestEmail(email: string | null | undefined): boolean
 }
 
 export function isAllFantasyTestUsername(username: string | null | undefined): boolean {
-  const normalized = String(username ?? "").trim()
+  const normalized = String(username ?? "").trim().toLowerCase()
   if (!normalized) return false
   if (STATIC_ALL_ACCESS_USERNAMES.includes(normalized)) return true
   return parseUsernameList(process.env.ALL_ACCESS_USERNAMES).includes(normalized)

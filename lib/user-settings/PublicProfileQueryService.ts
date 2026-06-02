@@ -10,8 +10,8 @@ export async function getPublicProfileByUsername(
   if (!username?.trim()) return null
   const trimmedUsername = username.trim()
 
-  let user = await prisma.appUser.findUnique({
-    where: { username: username.trim() },
+  const user = await prisma.appUser.findFirst({
+    where: { username: { equals: trimmedUsername, mode: "insensitive" } },
     select: {
       username: true,
       displayName: true,
@@ -26,25 +26,6 @@ export async function getPublicProfileByUsername(
       },
     },
   })
-  if (!user && trimmedUsername !== trimmedUsername.toLowerCase()) {
-    user = await prisma.appUser.findUnique({
-      where: { username: trimmedUsername.toLowerCase() },
-      select: {
-        username: true,
-        displayName: true,
-        avatarUrl: true,
-        profile: {
-          select: {
-            displayName: true,
-            avatarPreset: true,
-            bio: true,
-            preferredSports: true,
-          },
-        },
-      },
-    })
-  }
-
   if (!user) return null
 
   const profile = user.profile

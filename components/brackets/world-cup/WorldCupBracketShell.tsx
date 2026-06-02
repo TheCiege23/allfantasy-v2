@@ -576,6 +576,7 @@ export default function WorldCupBracketShell({
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(initialSelectedEntryId)
   const [headerRenameOpen, setHeaderRenameOpen] = useState(false)
   const [headerRenameValue, setHeaderRenameValue] = useState("")
+  const [inviteModalOpen, setInviteModalOpen] = useState(false)
 
   // Picks per-entry: keyed by entryId → array of picks
   const [entryPicks, setEntryPicks] = useState<Record<string, WorldCupPickView[]>>(() => {
@@ -2312,7 +2313,7 @@ export default function WorldCupBracketShell({
           {(view.isOwner || view.isAdmin) && (
             <button
               type="button"
-              onClick={() => switchTab("invite")}
+              onClick={() => setInviteModalOpen(true)}
               className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-300 to-cyan-200 px-3 py-2 text-xs font-black text-black shadow-[0_6px_20px_-8px_rgba(34,211,238,0.6)] transition-transform hover:scale-[1.03] active:scale-[0.97] touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 sm:min-h-0 sm:min-w-0"
               aria-label={t("wc.header.inviteAria")}
               data-testid="wc-shell-invite-btn"
@@ -2359,6 +2360,48 @@ export default function WorldCupBracketShell({
           ))}
         </nav>
       </header>
+
+      {inviteModalOpen ? (
+        <div
+          className="fixed inset-0 z-[90] flex items-end justify-center bg-black/72 p-0 backdrop-blur-md sm:items-center sm:p-5"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("wc.tab.invite")}
+          data-testid="wc-invite-modal"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setInviteModalOpen(false)
+          }}
+        >
+          <div className="mode-readable relative flex max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-1rem)] w-full max-w-3xl flex-col overflow-hidden rounded-t-3xl border border-cyan-300/20 bg-[#05070b] shadow-[0_0_70px_-24px_rgba(34,211,238,0.85)] sm:rounded-3xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-cyan-300/15 bg-[radial-gradient(circle_at_20%_0%,rgba(34,211,238,0.18),transparent_34%),linear-gradient(180deg,rgba(8,13,24,0.98),rgba(5,7,11,0.96))] px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/55">
+                  {view.challenge.name}
+                </p>
+                <h2 className="truncate text-base font-black text-white">{t("wc.tab.invite")}</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInviteModalOpen(false)}
+                className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-white/70 transition hover:border-cyan-300/30 hover:bg-cyan-300/[0.10] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60"
+                aria-label="Close invite"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto pb-[env(safe-area-inset-bottom,0px)]">
+              <WorldCupInvitePanel
+                view={view}
+                isCommissioner={Boolean(view.isOwner || view.isAdmin)}
+                switchTab={(nextTab) => {
+                  setInviteModalOpen(false)
+                  switchTab(nextTab)
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div ref={pageScrollRef} className="flex-1 overflow-y-auto scroll-smooth">
         <nav
@@ -3014,7 +3057,7 @@ export default function WorldCupBracketShell({
                   </button>
                   <button
                     type="button"
-                    onClick={() => switchTab("invite")}
+                    onClick={() => setInviteModalOpen(true)}
                     className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-bold text-white/75"
                   >
                     <Share2 className="h-4 w-4" />
@@ -3370,7 +3413,7 @@ export default function WorldCupBracketShell({
                       </button>
                       <button
                         type="button"
-                        onClick={() => switchTab("invite")}
+                        onClick={() => setInviteModalOpen(true)}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/25 bg-cyan-300/[0.08] px-3 py-1.5 text-[11px] font-bold text-white/90"
                       >
                         <Share2 className="h-3 w-3" aria-hidden />

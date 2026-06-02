@@ -471,6 +471,46 @@ export function buildWorldCupMatchesFromGroupPredictions(input: {
   }
 }
 
+function inferWorldCupNextMatchSlot(m: WorldCupMatchView, next: WorldCupMatchView): "home" | "away" | null {
+  if (m.nextMatchSlot === "home" || m.nextMatchSlot === "away") return m.nextMatchSlot
+  const winnerSlotKey = `W-M${m.matchNumber}`
+  if (next.homeSlotKey === winnerSlotKey) return "home"
+  if (next.awaySlotKey === winnerSlotKey) return "away"
+  return null
+}
+
+function resolveProjectedPickSide(m: WorldCupMatchView, pick: WorldCupPickView): "home" | "away" | null {
+  const selectedName = normalizeTeamName(pick.selectedTeamName)
+
+  const homeMatches =
+    (pick.selectedTeamId !== null &&
+      pick.selectedTeamId !== undefined &&
+      pick.selectedTeamId === m.homeTeamId) ||
+    (pick.selectedSlotKey !== null &&
+      pick.selectedSlotKey !== undefined &&
+      (pick.selectedSlotKey === m.homeSlotKey ||
+        (m.homeTeamId !== null && pick.selectedSlotKey === `team:${m.homeTeamId}`))) ||
+    (selectedName !== "" &&
+      selectedName === normalizeTeamName(m.homeTeamName) &&
+      !isWorldCupBracketPlaceholderLabel(m.homeTeamName))
+
+  if (homeMatches) return "home"
+
+  const awayMatches =
+    (pick.selectedTeamId !== null &&
+      pick.selectedTeamId !== undefined &&
+      pick.selectedTeamId === m.awayTeamId) ||
+    (pick.selectedSlotKey !== null &&
+      pick.selectedSlotKey !== undefined &&
+      (pick.selectedSlotKey === m.awaySlotKey ||
+        (m.awayTeamId !== null && pick.selectedSlotKey === `team:${m.awayTeamId}`))) ||
+    (selectedName !== "" &&
+      selectedName === normalizeTeamName(m.awayTeamName) &&
+      !isWorldCupBracketPlaceholderLabel(m.awayTeamName))
+
+  return awayMatches ? "away" : null
+}
+
 function runWorldCupProjectionPass(out: WorldCupMatchView[], realPicks: WorldCupPickView[]): boolean {
   const byId = new Map(out.map((m) => [m.id, m]))
   let changed = false
@@ -478,17 +518,14 @@ function runWorldCupProjectionPass(out: WorldCupMatchView[], realPicks: WorldCup
   for (const m of out) {
     const pick = findWorldCupPickForMatch(realPicks, m)
     const next = m.nextMatchId ? byId.get(m.nextMatchId) : null
-    if (!pick || !next || !m.nextMatchSlot) continue
+    if (!pick || !next) continue
+    const nextMatchSlot = inferWorldCupNextMatchSlot(m, next)
+    if (!nextMatchSlot) continue
 
-    const pickedHome =
-      (pick.selectedTeamId !== null &&
-        pick.selectedTeamId !== undefined &&
-        pick.selectedTeamId === m.homeTeamId) ||
-      (pick.selectedSlotKey !== null &&
-        pick.selectedSlotKey !== undefined &&
-        pick.selectedSlotKey === m.homeSlotKey)
+    const pickedSide = resolveProjectedPickSide(m, pick)
+    if (!pickedSide) continue
 
-    const team = pickedHome
+    const team = pickedSide === "home"
       ? {
           id: m.homeTeamId,
           name: m.homeTeamName,
@@ -506,7 +543,7 @@ function runWorldCupProjectionPass(out: WorldCupMatchView[], realPicks: WorldCup
 
     const nextName = (team.name ?? "").trim()
 
-    if (m.nextMatchSlot === "home") {
+    if (nextMatchSlot === "home") {
       if (next.homeTeamId !== team.id || next.homeTeamName !== nextName || next.homeTeamLogo !== (team.logo ?? null)) {
         changed = true
       }

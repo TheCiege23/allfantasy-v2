@@ -1314,6 +1314,97 @@ describe("World Cup pick readiness guards", () => {
     })
   })
 
+  it("infers final feeder sides when semifinal nextMatchSlot metadata is missing", () => {
+    const matches = [
+      makeMatch({
+        id: "m29",
+        round: "semifinal",
+        roundIndex: 4,
+        matchNumber: 29,
+        homeSlotKey: "W-M25",
+        awaySlotKey: "W-M26",
+        homeTeamId: "team-usa",
+        awayTeamId: "team-ger",
+        homeTeamName: "USA",
+        awayTeamName: "Germany",
+        nextMatchId: "m31",
+        nextMatchSlot: null,
+      }),
+      makeMatch({
+        id: "m30",
+        round: "semifinal",
+        roundIndex: 4,
+        matchNumber: 30,
+        homeSlotKey: "W-M27",
+        awaySlotKey: "W-M28",
+        homeTeamId: "team-arg",
+        awayTeamId: "team-fra",
+        homeTeamName: "Argentina",
+        awayTeamName: "France",
+        nextMatchId: "m31",
+        nextMatchSlot: null,
+      }),
+      makeMatch({
+        id: "m31",
+        round: "final",
+        roundIndex: 5,
+        matchNumber: 31,
+        homeSlotKey: "W-M29",
+        awaySlotKey: "W-M30",
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "Winner Semifinal 1",
+        awayTeamName: "Winner Semifinal 2",
+      }),
+    ]
+    const semifinalPicks = [
+      makePick({
+        id: "p-m29",
+        matchId: "m29",
+        matchNumber: 29,
+        round: "semifinal",
+        selectedTeamId: "team-usa",
+        selectedSlotKey: "W-M25",
+        selectedTeamName: "USA",
+      }),
+      makePick({
+        id: "p-m30",
+        matchId: "m30",
+        matchNumber: 30,
+        round: "semifinal",
+        selectedTeamId: "team-arg",
+        selectedSlotKey: "W-M27",
+        selectedTeamName: "Argentina",
+      }),
+    ]
+
+    const projected = buildWorldCupProjectedMatches(matches, semifinalPicks)
+    const final = projected.find((match) => match.id === "m31")!
+
+    expect(final).toMatchObject({
+      homeTeamId: "team-usa",
+      homeTeamName: "USA",
+      awayTeamId: "team-arg",
+      awayTeamName: "Argentina",
+    })
+    expect(isWorldCupMatchPickable(final)).toBe(true)
+    expect(isBracketComplete(projected, semifinalPicks)).toBe(false)
+
+    const championPicks = [
+      ...semifinalPicks,
+      makePick({
+        id: "p-m31",
+        matchId: "m31",
+        matchNumber: 31,
+        round: "final",
+        selectedTeamId: "team-usa",
+        selectedSlotKey: "W-M29",
+        selectedTeamName: "USA",
+      }),
+    ]
+    expect(isBracketComplete(projected, championPicks)).toBe(true)
+  })
+
   it("clears dependent downstream picks without clearing the just-saved projected pick", () => {
     const matches = [
       makeMatch({ id: "m1", matchNumber: 1, nextMatchId: "m17", nextMatchSlot: "home" }),

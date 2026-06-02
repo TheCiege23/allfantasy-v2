@@ -128,6 +128,10 @@ export default function ProfilePageClient({
   const presentation = resolveProfilePresentation(displayProfile)
   const displayName = presentation?.displayName ?? publicUsername ?? "—"
   const username = presentation?.username ?? publicUsername ?? "—"
+  const accountDisplayName =
+    typeof displayProfile?.displayName === "string" && displayProfile.displayName.trim()
+      ? displayProfile.displayName.trim()
+      : null
   const profileImageUrl = (displayProfile as { profileImageUrl?: string | null })?.profileImageUrl ?? null
   const bio = presentation?.bio ?? null
   const preferredSportsLabels = presentation?.preferredSportsLabels ?? []
@@ -187,7 +191,7 @@ export default function ProfilePageClient({
             <IdentityImageRenderer
               avatarUrl={profileImageUrl}
               avatarPreset={avatarPreset}
-              displayName={displayName}
+              displayName={accountDisplayName ?? displayName}
               username={username}
               size="lg"
             />
@@ -195,6 +199,11 @@ export default function ProfilePageClient({
               <h1 className="text-xl font-bold sm:text-2xl" style={{ color: "var(--text)" }}>
                 {displayName}
               </h1>
+              {accountDisplayName && accountDisplayName.toLowerCase() !== username.toLowerCase() && (
+                <p className="text-sm" style={{ color: "var(--muted)" }}>
+                  {accountDisplayName}
+                </p>
+              )}
               <p className="text-sm" style={{ color: "var(--muted)" }}>@{username}</p>
               {isOwnProfile && (
                 <div className="mt-2 flex flex-wrap items-center gap-2">

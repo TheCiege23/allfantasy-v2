@@ -326,7 +326,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
     if (savingGroupIdsRef.current.has(groupId)) return
     const orderedTeamIds = localOrders[groupId] ?? []
     const group = view?.groups.find((row) => row.id === groupId)
-    if (view && sameOrderedValues(orderedTeamIds, orderedTeamIdsForGroup(view, groupId))) {
+    if (view && isGroupRanked(view, groupId) && sameOrderedValues(orderedTeamIds, orderedTeamIdsForGroup(view, groupId))) {
       setSaveStates((prev) => ({ ...prev, [groupId]: "saved" }))
       return
     }
@@ -540,7 +540,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
               <button
                 type="button"
                 onClick={() => void saveGroup(group.id)}
-                disabled={isLocked || state === "saving" || !hasCompleteTeams || !hasUnsavedOrderChanges}
+                disabled={isLocked || state === "saving" || !hasCompleteTeams}
                 className="mt-3 w-full rounded-xl bg-cyan-300 px-3 py-2 text-xs font-black text-black disabled:cursor-not-allowed disabled:opacity-45"
               >
                 {state === "saving"
