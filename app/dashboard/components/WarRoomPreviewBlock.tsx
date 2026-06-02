@@ -13,16 +13,19 @@ const SPORT_TILES = [
 
 export function WarRoomPreviewBlock() {
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-cyan-500/[0.18] bg-gradient-to-br from-cyan-500/[0.06] via-transparent to-transparent p-4">
+    <section className="relative overflow-hidden rounded-2xl border border-cyan-300/20 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_100%_10%,rgba(251,191,36,0.13),transparent_30%),linear-gradient(135deg,rgba(2,8,23,0.98),rgba(8,13,31,0.95))] p-4 shadow-[0_24px_72px_-44px_rgba(34,211,238,0.95)]">
+      <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/70 to-transparent" aria-hidden />
       <div className="mb-3 flex items-center gap-2">
-        <Swords className="h-4 w-4 text-cyan-400" />
-        <p className="text-[12px] font-bold uppercase tracking-wider text-cyan-400/70">AF War Room</p>
-        <span className="ml-auto rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-cyan-300">
+        <span className="flex h-8 w-8 items-center justify-center rounded-2xl border border-cyan-300/25 bg-cyan-300/[0.10] shadow-[0_0_22px_-10px_rgba(34,211,238,0.95)]">
+          <Swords className="h-4 w-4 text-cyan-100" />
+        </span>
+        <p className="text-[12px] font-black uppercase tracking-[0.18em] text-cyan-100/78">AF War Room</p>
+        <span className="ml-auto rounded-full border border-amber-300/35 bg-amber-300/[0.10] px-2.5 py-1 text-[9px] font-black uppercase tracking-wide text-amber-100">
           NFL Active
         </span>
       </div>
 
-      <p className="mb-3 max-w-lg text-[13px] leading-snug text-white/60">
+      <p className="mb-3 max-w-lg text-[13px] leading-5 text-white/68">
         NFL draft intelligence is fully active. More sports are being tuned through the shared AllFantasy engine.
       </p>
 
@@ -30,10 +33,10 @@ export function WarRoomPreviewBlock() {
         {SPORT_TILES.map(({ sport, status }) => (
           <div
             key={sport}
-            className={`rounded-lg border px-3 py-1.5 text-[11px] font-semibold ${
+            className={`rounded-full border px-3 py-1.5 text-[11px] font-black ${
               status === 'Active'
-                ? 'border-cyan-500/35 bg-cyan-500/10 text-cyan-300'
-                : 'border-white/10 bg-white/[0.03] text-white/35'
+                ? 'border-cyan-300/40 bg-cyan-300/[0.12] text-cyan-50'
+                : 'border-white/10 bg-white/[0.035] text-white/42'
             }`}
           >
             {sport}
@@ -48,7 +51,7 @@ export function WarRoomPreviewBlock() {
 
       <Link
         href="/war-room"
-        className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/20 to-cyan-500/10 px-4 py-2.5 text-[13px] font-semibold text-cyan-300 transition hover:from-cyan-500/30 hover:to-cyan-500/15 hover:text-cyan-200"
+        className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-cyan-200/35 bg-gradient-to-r from-cyan-300 to-cyan-100 px-4 py-2.5 text-[13px] font-black text-slate-950 shadow-[0_8px_24px_-12px_rgba(34,211,238,0.95)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_-14px_rgba(34,211,238,1)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
       >
         <Swords className="h-3.5 w-3.5" />
         Open War Room

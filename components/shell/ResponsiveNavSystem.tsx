@@ -78,6 +78,8 @@ export function ResponsiveNavSystem({
 
   const leagueId = extractLeagueIdFromPath(pathname)
   const hideChimmyFabOnDraftSurface = shouldHideChimmyFloatingFab(pathname)
+  const suppressShortcutHintOnLaunchSurface =
+    pathname.startsWith("/dashboard") || pathname.startsWith("/brackets/world-cup")
 
   const openChimmy = useCallback(() => {
     try {
@@ -312,7 +314,7 @@ export function ResponsiveNavSystem({
       <div className={isAuthenticated ? "pb-20 lg:pb-0" : undefined}>{children}</div>
       {isAuthenticated ? (
         <>
-          {showShortcutHint ? (
+          {showShortcutHint && !suppressShortcutHintOnLaunchSurface ? (
             <div className="fixed bottom-[8.2rem] right-4 z-40 w-[13.5rem] rounded-lg border border-white/15 bg-slate-900/95 px-3 py-2 text-xs text-white shadow-2xl lg:bottom-20 lg:right-6">
               <p className="font-semibold text-white/90">Chimmy shortcuts</p>
               <p className="mt-1 text-white/70">Press <span className="rounded border border-white/20 px-1 py-0.5">/</span> or <span className="rounded border border-white/20 px-1 py-0.5">Ctrl/Cmd+Shift+K</span></p>

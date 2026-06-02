@@ -79,6 +79,12 @@ describe("isPhoneLoginCandidate — generic usernames classified as non-phone", 
     expect(isPhoneLoginCandidate("USERNAMED26")).toBe(false)
   })
 
+  it("rejects TheCiege username case variants as phone candidates", () => {
+    expect(isPhoneLoginCandidate("TheCiege26m")).toBe(false)
+    expect(isPhoneLoginCandidate("theciege26")).toBe(false)
+    expect(isPhoneLoginCandidate("theCiege26")).toBe(false)
+  })
+
   it("still accepts valid phone formats", () => {
     expect(isPhoneLoginCandidate("+1 555 123 4567")).toBe(true)
     expect(isPhoneLoginCandidate("5551234567")).toBe(true)
@@ -152,5 +158,22 @@ describe("verify/phone/start — phone uniqueness pre-check", () => {
   it("returns 409 for duplicate phone number", () => {
     const src = read("app/api/verify/phone/start/route.ts")
     expect(src).toContain("status: 409")
+  })
+})
+
+describe("signup username canonicalization", () => {
+  it("stores new usernames lowercase", () => {
+    const src = read("app/api/auth/register/route.ts")
+    expect(src).toContain("return u.trim().toLowerCase()")
+  })
+
+  it("checks registration username conflicts case-insensitively", () => {
+    const src = read("app/api/auth/register/route.ts")
+    expect(src).toContain('{ username: { equals: username, mode: "insensitive" } }')
+  })
+
+  it("checks username availability case-insensitively", () => {
+    const src = read("app/api/auth/check-username/route.ts")
+    expect(src).toContain('{ username: { equals: normalized, mode: "insensitive" } }')
   })
 })

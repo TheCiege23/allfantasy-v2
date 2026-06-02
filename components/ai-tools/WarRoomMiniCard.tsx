@@ -91,19 +91,19 @@ export function WarRoomMiniCard({
   if (leagues.length === 0) {
     return (
       <div
-        className="rounded-2xl border border-white/[0.08] bg-[#0a0f18] p-4"
+        className="rounded-2xl border border-cyan-300/15 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_40%),linear-gradient(135deg,#07101f,#070b12)] p-4 shadow-[0_18px_46px_-34px_rgba(34,211,238,0.75)]"
         data-testid="war-room-mini-empty"
       >
         <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-rose-500/30 bg-rose-500/10">
-            <Shield className="h-4 w-4 text-rose-300" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-300/25 bg-cyan-300/[0.10]">
+            <Shield className="h-4 w-4 text-cyan-100" />
           </div>
           <div>
-            <p className="text-[14px] font-bold text-[#e8eaf6]">AF War Room</p>
-            <p className="text-[11px] text-[#5c6480]">Season strategy command center</p>
+            <p className="text-[14px] font-black text-white">AF War Room</p>
+            <p className="text-[11px] text-cyan-100/45">Season strategy command center</p>
           </div>
         </div>
-        <p className="mt-3 text-[12px] text-[#8b93ab]">Join a league to unlock the live command center.</p>
+        <p className="mt-3 text-[12px] text-white/62">Join a league to unlock the live command center.</p>
       </div>
     )
   }
@@ -113,24 +113,24 @@ export function WarRoomMiniCard({
 
   return (
     <div
-      className="rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#0a0f18] to-[#070b12] p-4"
+      className="rounded-2xl border border-cyan-300/15 bg-[radial-gradient(circle_at_10%_0%,rgba(34,211,238,0.16),transparent_36%),radial-gradient(circle_at_100%_8%,rgba(251,191,36,0.10),transparent_28%),linear-gradient(135deg,#07101f,#070b12)] p-4 shadow-[0_20px_58px_-40px_rgba(34,211,238,0.85)]"
       data-testid="war-room-mini-card"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-rose-500/30 bg-rose-500/10">
-            <Shield className="h-4 w-4 text-rose-300" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-300/25 bg-cyan-300/[0.10] shadow-[0_0_22px_-12px_rgba(34,211,238,0.95)]">
+            <Shield className="h-4 w-4 text-cyan-100" />
           </div>
           <div>
-            <p className="text-[14px] font-bold leading-none text-[#e8eaf6]">AF War Room</p>
-            <p className="mt-1 text-[11px] leading-none text-[#5c6480]">Season strategy command center</p>
+            <p className="text-[14px] font-black leading-none text-white">AF War Room</p>
+            <p className="mt-1 text-[11px] leading-none text-cyan-100/45">Season strategy command center</p>
           </div>
         </div>
         <button
           type="button"
           onClick={() => void load()}
           disabled={loading}
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#2e3347] bg-[#121725] text-[#9ba3bf] transition hover:border-rose-500/35 hover:text-white disabled:opacity-50"
+          className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-white/65 transition hover:border-cyan-300/30 hover:bg-cyan-300/[0.08] hover:text-white disabled:opacity-50"
           aria-label="Refresh War Room"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -180,7 +180,7 @@ export function WarRoomMiniCard({
       <button
         type="button"
         onClick={openWarRoomModal}
-        className="mt-3 flex w-full items-center justify-center gap-1 rounded-xl border border-rose-500/25 bg-rose-500/[0.08] py-2.5 text-[12px] font-semibold text-rose-100 transition hover:border-rose-400/45 hover:bg-rose-500/[0.12]"
+        className="mt-3 flex min-h-11 w-full items-center justify-center gap-1 rounded-2xl border border-cyan-200/35 bg-gradient-to-r from-cyan-300 to-cyan-100 py-2.5 text-[12px] font-black text-slate-950 shadow-[0_8px_24px_-12px_rgba(34,211,238,0.95)] transition hover:-translate-y-0.5 active:scale-[0.98]"
         data-testid="war-room-mini-open-full"
       >
         Open War Room

@@ -30,7 +30,7 @@ import { isFullyBlocked, isPaidBlocked } from "@/lib/geo/restrictedStates"
 export const runtime = "nodejs"
 
 function normalizeUsername(u: string) {
-  return u.trim()
+  return u.trim().toLowerCase()
 }
 
 function normalizeEmail(e: string) {
@@ -311,12 +311,13 @@ export async function POST(req: Request) {
       }
     }
 
-    const existing = await withDatabaseUnavailableRetry(() =>
+    type ExistingSignupUser = { id: string; email: string | null; username: string | null }
+    const existing = await withDatabaseUnavailableRetry<ExistingSignupUser | null>(() =>
       prisma.appUser.findFirst({
         where: {
           OR: [
             { email: { equals: email, mode: "insensitive" } },
-            { username },
+            { username: { equals: username, mode: "insensitive" } },
           ],
         },
         select: { id: true, email: true, username: true },
@@ -329,7 +330,7 @@ export async function POST(req: Request) {
         { status: 409 }
       )
     }
-    if (existing?.username && existing.username === username) {
+    if (existing?.username && existing.username.toLowerCase() === username.toLowerCase()) {
       return NextResponse.json(
         { error: "username already taken, choose another username" },
         { status: 409 }

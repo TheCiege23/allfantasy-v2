@@ -76,11 +76,11 @@ export function DashboardIntelligenceDebugPanel(
   const cohortDisplay = canary?.cohortLabel ?? (canary?.eligible ? 'on' : 'off')
   return (
     <details
-      className="mt-3 rounded-lg border border-white/8 bg-black/30 px-3 py-2 text-[11px] text-white/70"
+      className="mt-3 rounded-2xl border border-cyan-300/15 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.10),transparent_40%),rgba(0,0,0,0.32)] px-3 py-2 text-[11px] text-white/70 shadow-[0_14px_36px_-30px_rgba(34,211,238,0.75)]"
       data-testid="dashboard-intelligence-debug"
     >
-      <summary className="cursor-pointer select-none font-mono text-[10px] uppercase tracking-[0.08em] text-white/50">
-        intelligence debug
+      <summary className="cursor-pointer select-none text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100/60">
+        AI Ops Diagnostics
       </summary>
       <div className="mt-2 space-y-2 font-mono">
         <div

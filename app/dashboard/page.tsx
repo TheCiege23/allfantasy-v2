@@ -104,11 +104,18 @@ export default async function DashboardPage() {
     return (
       <>
         {adminReport && (
-          <details className="fixed bottom-4 right-4 z-[9999] max-h-[80vh] w-[680px] overflow-auto rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-100 shadow-2xl">
-            <summary className="cursor-pointer select-none px-4 py-2 font-mono text-xs text-neutral-400 hover:text-neutral-200">
+          <details className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[9999] max-h-[74dvh] overflow-auto rounded-2xl border border-cyan-300/20 bg-[#06111f]/95 text-sm text-neutral-100 shadow-[0_24px_80px_-32px_rgba(34,211,238,0.7)] backdrop-blur-xl sm:left-auto sm:right-4 sm:w-[min(680px,calc(100vw-2rem))]">
+            <summary className="group flex cursor-pointer select-none items-center justify-between gap-3 px-4 py-3 text-[0px] font-black uppercase tracking-[0.16em] text-cyan-100/80 marker:text-cyan-200/70">
+              <span className="inline-flex min-w-0 items-center gap-2 text-xs">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-cyan-300 shadow-[0_0_14px_rgba(34,211,238,0.9)]" aria-hidden />
+                AI Ops Monitor
+              </span>
+              <span className="rounded-full border border-amber-300/25 bg-amber-300/[0.08] px-2 py-0.5 text-[10px] text-amber-100/75">
+                Admin
+              </span>
               ⚙ Admin: AI Usage Monitor
             </summary>
-            <div className="p-4">
+            <div className="border-t border-white/10 p-3 sm:p-4">
               <AiUsageMonitorPanel report={adminReport} />
             </div>
           </details>

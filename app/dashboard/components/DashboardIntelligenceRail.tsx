@@ -309,15 +309,15 @@ function CardTile({
           ) : null}
           {onFeedback ? (
             <div
-              className="mt-1 flex flex-wrap items-center gap-1.5 border-t border-white/10 pt-1.5"
+              className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-white/10 pt-2"
               data-testid="intelligence-card-qa"
             >
-              <span className="text-[9px] uppercase tracking-[0.08em] text-white/40">
-                qa:
+              <span className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100/45">
+                Admin feedback
               </span>
               {recentFeedback ? (
                 <span
-                  className="rounded border border-emerald-400/30 bg-emerald-400/10 px-1.5 py-0.5 text-[10px] text-emerald-200"
+                  className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-1 text-[10px] font-bold text-emerald-200"
                   data-testid="intelligence-card-qa-ack"
                   role="status"
                   aria-live="polite"
@@ -328,7 +328,7 @@ function CardTile({
               <button
                 type="button"
                 onClick={() => onFeedback('thumbs_up')}
-                className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] text-white/60 hover:bg-white/[0.06]"
+                className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-bold text-white/65 hover:border-cyan-300/25 hover:bg-cyan-300/[0.08]"
                 aria-label="Helpful"
               >
                 up
@@ -336,7 +336,7 @@ function CardTile({
               <button
                 type="button"
                 onClick={() => onFeedback('thumbs_down', 'not_useful')}
-                className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] text-white/60 hover:bg-white/[0.06]"
+                className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-bold text-white/65 hover:border-cyan-300/25 hover:bg-cyan-300/[0.08]"
                 aria-label="Not useful"
               >
                 down
@@ -344,7 +344,7 @@ function CardTile({
               <button
                 type="button"
                 onClick={() => onFeedback('thumbs_down', 'incorrect')}
-                className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] text-white/60 hover:bg-white/[0.06]"
+                className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-bold text-white/65 hover:border-amber-300/25 hover:bg-amber-300/[0.08]"
                 aria-label="Incorrect"
               >
                 incorrect
@@ -352,7 +352,7 @@ function CardTile({
               <button
                 type="button"
                 onClick={() => onFeedback('thumbs_down', 'too_repetitive')}
-                className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] text-white/60 hover:bg-white/[0.06]"
+                className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-bold text-white/65 hover:border-amber-300/25 hover:bg-amber-300/[0.08]"
                 aria-label="Repetitive"
               >
                 repetitive
@@ -360,7 +360,7 @@ function CardTile({
               <button
                 type="button"
                 onClick={() => onFeedback('dismiss')}
-                className="ml-auto rounded border border-white/10 px-1.5 py-0.5 text-[10px] text-white/40 hover:bg-white/[0.06]"
+                className="ml-auto rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-bold text-white/45 hover:border-rose-300/25 hover:bg-rose-500/[0.08] hover:text-rose-100"
                 aria-label="Dismiss"
               >
                 dismiss
@@ -787,14 +787,14 @@ function DashboardIntelligenceRailInner({
 
   return (
     <section
-      className="overflow-hidden rounded-2xl border border-white/8 bg-[#0c0c1e] p-4"
+      className="overflow-hidden rounded-2xl border border-cyan-300/15 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_38%),linear-gradient(135deg,#07101f,#07091b)] p-4 shadow-[0_18px_52px_-40px_rgba(34,211,238,0.85)]"
       data-testid="dashboard-intelligence-rail"
       data-pressure={pressureTier}
       data-soft-refreshing={softRefreshing ? '1' : '0'}
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-cyan-300/90">
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100/78">
             Chimmy Intelligence
           </p>
           {leagueId && leagueName ? (
@@ -845,7 +845,7 @@ function DashboardIntelligenceRailInner({
             void fetchIntelligence(true, leagueId)
           }}
           disabled={state.status === 'loading'}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1 text-[11px] font-medium text-white/70 hover:bg-white/[0.06] disabled:opacity-50"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.06] px-2.5 py-1 text-[11px] font-bold text-cyan-50/78 hover:border-cyan-300/35 hover:bg-cyan-300/[0.10] disabled:opacity-50"
         >
           {softRefreshing && state.status === 'ready' ? (
             <span

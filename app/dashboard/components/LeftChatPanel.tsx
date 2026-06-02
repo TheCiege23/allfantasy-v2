@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronDown, ChevronRight, Inbox, MessageCircle, Users, VolumeX, ArrowUp } from 'lucide-react'
+import { Bot, ChevronDown, ChevronRight, Inbox, MessageCircle, Users, VolumeX, ArrowUp } from 'lucide-react'
 import { toast } from 'sonner'
 import { RichMessageRenderer, resolveMediaViewerUrl, canOpenInMediaViewer, getMediaViewerAriaLabel } from '@/lib/rich-message'
 import { QUICK_REACTIONS, getAddReactionUrl, getRemoveReactionUrl, getReactionsFromMetadata } from '@/lib/social-chat/ReactionService'
@@ -562,23 +562,26 @@ export function LeftChatPanel({
   const leagueThreadTabLabel = isBigBrotherHouse ? '🏠 House' : '🏈 League'
   const leagueThreadHeader = isBigBrotherHouse ? 'House Chat' : 'League Chat'
   const leagueTabAria = isBigBrotherHouse ? 'House chat tab' : 'League chat tab'
+  const chatTabClass = (active: boolean) =>
+    `inline-flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-2xl border px-2 text-[11px] font-black uppercase tracking-[0.04em] transition touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 ${
+      active
+        ? 'border-cyan-200/45 bg-gradient-to-r from-cyan-300 to-cyan-100 text-slate-950 shadow-[0_0_22px_-10px_rgba(34,211,238,0.95)]'
+        : 'border-white/10 bg-white/[0.045] text-white/58 hover:border-cyan-300/25 hover:bg-cyan-300/[0.08] hover:text-white'
+    }`
 
   return (
     <div
       id={rootId ?? undefined}
-      className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#0a0a1f]"
+      className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.08),transparent_36%),linear-gradient(180deg,#07101f_0%,#07091b_100%)]"
     >
-      <div className="flex shrink-0 border-b border-white/[0.07] bg-white/[0.01]">
+      <div className="shrink-0 border-b border-cyan-300/10 bg-black/20 p-2">
+        <div className="grid grid-cols-2 gap-1 min-[380px]:grid-cols-4">
         <button
           type="button"
           data-testid="left-chat-tab-league"
           aria-pressed={activeTab === 'league'}
           onClick={() => setActiveTab('league')}
-          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[16px] dashboard-header-bold header-league transition-colors ${
-            activeTab === 'league'
-              ? 'border-b-2 border-cyan-500 bg-cyan-500/[0.06]'
-              : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
-          }`}
+          className={chatTabClass(activeTab === 'league')}
           aria-label={leagueTabAria}
         >
           {leagueThreadTabLabel}
@@ -588,13 +591,10 @@ export function LeftChatPanel({
           data-testid="left-chat-tab-chimmy"
           aria-pressed={activeTab === 'chimmy'}
           onClick={() => setActiveTab('chimmy')}
-          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[16px] dashboard-header-bold header-chimmy transition-colors ${
-            activeTab === 'chimmy'
-              ? 'border-b-2 border-cyan-500 bg-cyan-500/[0.06]'
-              : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
-          }`}
+          className={chatTabClass(activeTab === 'chimmy')}
           aria-label="Chimmy tab"
         >
+          <Bot className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} aria-hidden />
           🤖 Chimmy
         </button>
         <button
@@ -602,14 +602,10 @@ export function LeftChatPanel({
           data-testid="left-chat-tab-af-huddle"
           aria-pressed={activeTab === 'af_huddle'}
           onClick={() => setActiveTab('af_huddle')}
-          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[16px] dashboard-header-bold header-huddle transition-colors ${
-            activeTab === 'af_huddle'
-              ? 'border-b-2 border-cyan-500 bg-cyan-500/[0.06]'
-              : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
-          }`}
+          className={chatTabClass(activeTab === 'af_huddle')}
           aria-label="AF Huddle tab"
         >
-          <Users className="h-3.5 w-3.5 shrink-0 opacity-90" strokeWidth={2} aria-hidden />
+          <Users className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} aria-hidden />
           AF Huddle
         </button>
         <button
@@ -617,32 +613,29 @@ export function LeftChatPanel({
           data-testid="left-chat-tab-dms"
           aria-pressed={activeTab === 'dms'}
           onClick={() => setActiveTab('dms')}
-          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[16px] dashboard-header-bold header-dms transition-colors ${
-            activeTab === 'dms'
-              ? 'border-b-2 border-cyan-500 bg-cyan-500/[0.06]'
-              : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
-          } ${dmSilent ? 'opacity-60' : ''}`}
+          className={`${chatTabClass(activeTab === 'dms')} ${dmSilent ? 'opacity-70' : ''}`}
           aria-label="Direct messages tab"
         >
           <span className="relative flex items-center">
-            <MessageCircle className="h-3.5 w-3.5 shrink-0 opacity-90" strokeWidth={2} aria-hidden />
+            <MessageCircle className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} aria-hidden />
             {dmUnread > 0 && (
               <span className="absolute -top-2 -right-2 min-w-[18px] animate-bounce rounded-full bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 px-1.5 py-0.5 text-[10px] font-bold text-white shadow ring-2 ring-cyan-400">{dmUnread}</span>
             )}
           </span>
           DMs
         </button>
+        </div>
         {/* Silent mode and mute controls */}
         {activeTab === 'dms' && (
-          <div className="flex items-center gap-2 px-3 py-1 bg-white/5 border-b border-white/10">
-            <label className="flex items-center gap-1 text-[12px] text-white/60 cursor-pointer">
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+            <label className="flex min-h-8 items-center gap-2 rounded-full border border-cyan-300/15 bg-black/20 px-2.5 text-[11px] font-bold text-white/70 cursor-pointer">
               <input type="checkbox" checked={dmSilent} onChange={e => setDmSilent(e.target.checked)} /> Silent Mode
             </label>
-            <span className="text-white/30 text-[11px]">Mute:</span>
+            <span className="text-cyan-100/40 text-[10px] font-black uppercase tracking-[0.14em]">Mute</span>
             {dmThreads.map(t => (
               <button
                 key={t.id}
-                className={`rounded px-2 py-1 text-[11px] font-bold ${dmMute[t.id] ? 'bg-red-500/30 text-red-300' : 'bg-cyan-500/10 text-cyan-300'} transition`}
+                className={`min-h-8 max-w-full truncate rounded-full border px-2.5 py-1 text-[11px] font-bold ${dmMute[t.id] ? 'border-rose-300/30 bg-rose-500/20 text-rose-200' : 'border-cyan-300/20 bg-cyan-300/[0.08] text-cyan-100'} transition`}
                 onClick={() => setDmMute(prev => ({ ...prev, [t.id]: !prev[t.id] }))}
               >
                 {t.title}

@@ -79,11 +79,11 @@ export function RightControlPanel({
         : t('dashboard.right.brandSubtitle')
 
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-x-hidden border-l border-white/[0.07] bg-[#0a0a1f]">
+    <div className="relative flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-x-hidden border-l border-cyan-300/10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.08),transparent_34%),linear-gradient(180deg,#07101f_0%,#07091b_100%)]">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {/* Always-visible header: MY LEAGUES title + Create + Import + (optional) collapse. */}
-        <div className="flex min-w-0 flex-shrink-0 items-center justify-between gap-2 border-b border-white/[0.07] bg-white/[0.01] px-3 py-2.5">
-          <p className="min-w-0 truncate text-[11px] font-bold uppercase tracking-widest text-white/50">
+        <div className="flex min-w-0 flex-shrink-0 items-center justify-between gap-2 border-b border-cyan-300/10 bg-cyan-300/[0.025] px-3 py-3">
+          <p className="min-w-0 truncate text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100/70">
             {t('dashboard.right.myLeagues')}
           </p>
           <div className="flex shrink-0 items-center gap-1">
@@ -91,7 +91,7 @@ export function RightControlPanel({
               <button
                 type="button"
                 onClick={onRailCollapse}
-                className="hidden md:inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-white/80 transition hover:bg-white/[0.08]"
+                className="hidden h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-white/75 transition hover:border-cyan-300/30 hover:bg-cyan-300/[0.08] hover:text-white md:inline-flex"
                 aria-label="Collapse My Leagues"
                 title="Collapse My Leagues"
                 data-testid="myleagues-rail-collapse"
@@ -103,7 +103,7 @@ export function RightControlPanel({
               type="button"
               onClick={() => router.push('/create-league')}
               data-testid="dashboard-right-create-league"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-cyan-400/30 bg-cyan-500/10 text-cyan-200 transition hover:border-cyan-400/45 hover:bg-cyan-500/20"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-300/35 bg-cyan-300/[0.10] text-cyan-50 shadow-[0_0_18px_-10px_rgba(34,211,238,0.85)] transition hover:border-cyan-200/55 hover:bg-cyan-300/[0.16]"
               aria-label="Create League"
               title="Create League"
             >
@@ -113,7 +113,7 @@ export function RightControlPanel({
               type="button"
               onClick={onImport}
               data-testid="dashboard-right-import-league"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-white transition hover:bg-white/[0.08]"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-amber-300/25 bg-amber-300/[0.08] text-amber-50 transition hover:border-amber-200/40 hover:bg-amber-300/[0.14]"
               aria-label={t('dashboard.right.importLeague')}
               title={t('dashboard.right.importLeague')}
             >
@@ -157,23 +157,23 @@ export function RightControlPanel({
       */}
 
       <div
-        className="relative z-10 flex min-h-[52px] flex-shrink-0 items-center gap-2 border-t border-white/[0.07] bg-[#0a0a1f] px-3 py-2.5"
+        className="relative z-10 m-2 flex min-h-[76px] flex-shrink-0 items-center gap-3 rounded-2xl border border-cyan-300/15 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_42%),linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.035))] px-3 py-3 shadow-[0_18px_44px_-30px_rgba(34,211,238,0.75)]"
         data-dashboard-user-id={userId}
         data-dashboard-profile-footer
       >
-        <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-cyan-500 to-blue-600">
+        <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-2xl border border-cyan-200/25 bg-gradient-to-br from-cyan-400 to-blue-600 shadow-[0_0_22px_-8px_rgba(34,211,238,0.9)]">
           {userImage ? (
             <img src={userImage} alt="" className="h-full w-full object-cover" />
           ) : (
-            <span className="flex h-full w-full items-center justify-center text-[10px] font-bold uppercase text-white">
+            <span className="flex h-full w-full items-center justify-center text-[13px] font-black uppercase text-white">
               {profileInitials(userName)}
             </span>
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[14px] font-semibold text-white">{userName}</p>
+          <p className="truncate text-[14px] font-black text-white">{userName}</p>
           {subtitle ? (
-            <p className="truncate text-[12px] leading-tight text-white/40">{subtitle}</p>
+            <p className="truncate text-[11px] leading-tight text-cyan-100/45">{subtitle}</p>
           ) : null}
           {(() => {
             const chip = resolvePlanChip(entitlements)
@@ -182,10 +182,10 @@ export function RightControlPanel({
             return (
               <Link
                 href="/settings?tab=billing"
-                className="mt-0.5 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.05] px-1.5 py-0.5 transition hover:bg-white/[0.08]"
+                className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full border border-white/12 bg-black/20 px-2 py-1 transition hover:border-cyan-300/25 hover:bg-cyan-300/[0.07]"
               >
                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${chip.dotClass}`} />
-                <span className="text-[9px] font-medium text-white/60">{chip.label}</span>
+                <span className="truncate text-[9px] font-bold text-white/72">{chip.label}</span>
                 {hasTokens ? (
                   <span className="text-[9px] text-white/35">· {tokenBalance.balance.toLocaleString()} tokens</span>
                 ) : null}
@@ -197,12 +197,12 @@ export function RightControlPanel({
           <button
             type="button"
             data-testid="dashboard-right-settings"
-            className="flex shrink-0 rounded-lg p-1 transition-colors hover:bg-white/[0.06]"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] transition-colors hover:border-cyan-300/25 hover:bg-cyan-300/[0.08]"
             aria-label={t('dashboard.right.settings')}
             aria-expanded={userMenuOpen}
             onClick={() => setUserMenuOpen((prev) => !prev)}
           >
-            <Settings className="h-3.5 w-3.5 text-white/40 transition-colors hover:text-white/80" />
+            <Settings className="h-4 w-4 text-white/60 transition-colors hover:text-white/90" />
           </button>
           {userMenuOpen ? (
             <div

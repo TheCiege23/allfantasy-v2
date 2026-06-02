@@ -529,7 +529,7 @@ export function DashboardShell({
   return (
     <AppShell
       layoutMode="balanced-three-panel"
-      rootClassName="h-[calc(100dvh-8.5rem)] min-h-0 lg:h-[calc(100dvh-3.5rem)]"
+      rootClassName="h-[100dvh] min-h-[100dvh] overflow-hidden bg-[#020713]"
       rootProps={{ 'data-dashboard-user-id': userId }}
       rightRailCollapsed={myLeaguesRail.collapsed}
       onRightRailExpand={() => myLeaguesRail.setCollapsed(false)}
@@ -592,18 +592,21 @@ export function DashboardShell({
           </div>
         ) : null}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="border-b border-[var(--border)] px-3 py-3 md:hidden" style={{ background: 'var(--panel)' }}>
+          <div className="border-b border-cyan-300/15 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_42%),linear-gradient(135deg,rgba(3,7,18,0.98),rgba(8,13,31,0.96))] px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] shadow-[0_18px_44px_-34px_rgba(34,211,238,0.85)] md:hidden">
             <div className="flex items-center justify-between gap-2">
               <button
                 type="button"
                 onClick={() => setMobileLeftOpen(true)}
-                className="touch-manipulation inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.04] text-white active:bg-white/[0.08]"
+                className="touch-manipulation inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/25 bg-cyan-300/[0.08] text-cyan-50 shadow-[0_0_22px_-10px_rgba(34,211,238,0.85)] transition active:scale-95 active:bg-cyan-300/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
                 aria-label={t('dashboard.shell.openChat')}
               >
                 <Bot className="h-5 w-5" aria-hidden />
               </button>
               <div className="min-w-0 flex-1 text-center">
-                <p className="truncate text-sm font-semibold text-white/85">
+                <p className="text-[9px] font-black uppercase tracking-[0.24em] text-cyan-200/60">
+                  AllFantasy
+                </p>
+                <p className="truncate text-sm font-black text-white">
                   {isLeagueRoute ? selectedLeague?.name ?? t('dashboard.shell.leagueFallback') : t('dashboard.shell.title')}
                 </p>
               </div>
@@ -613,7 +616,7 @@ export function DashboardShell({
                 <button
                   type="button"
                   onClick={() => setMobileRightOpen(true)}
-                  className="touch-manipulation inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.04] text-white active:bg-white/[0.08]"
+                  className="touch-manipulation inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-300/25 bg-amber-300/[0.08] text-amber-50 shadow-[0_0_22px_-12px_rgba(251,191,36,0.8)] transition active:scale-95 active:bg-amber-300/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70"
                   aria-label={t('dashboard.shell.openMyLeagues')}
                 >
                   <LayoutGrid className="h-5 w-5" aria-hidden />
@@ -628,10 +631,17 @@ export function DashboardShell({
           </div>
 
           <div
-            className="hidden border-b border-[var(--border)] px-6 py-2.5 md:flex md:items-center md:justify-between md:gap-3"
-            style={{ background: 'var(--panel)' }}
+            className="hidden border-b border-cyan-300/15 bg-[radial-gradient(circle_at_8%_0%,rgba(34,211,238,0.14),transparent_34%),linear-gradient(90deg,rgba(3,7,18,0.98),rgba(8,13,31,0.96),rgba(3,7,18,0.98))] px-6 py-3 shadow-[0_18px_54px_-42px_rgba(34,211,238,0.75)] md:flex md:items-center md:justify-between md:gap-3 [&>p:first-child]:hidden"
           >
             <p className="text-[11px] font-bold uppercase tracking-widest text-white/25">AllFantasy · Dashboard</p>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200/60">
+                AllFantasy Command Center
+              </p>
+              <p className="mt-0.5 truncate text-sm font-black text-white/90">
+                {isLeagueRoute ? selectedLeague?.name ?? t('dashboard.shell.leagueFallback') : t('dashboard.shell.title')}
+              </p>
+            </div>
             <div className="flex items-center gap-3">
               <StartSitLauncher userId={userId} />
               <div className="hidden md:block">

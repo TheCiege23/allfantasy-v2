@@ -26,18 +26,18 @@ type TodaysMissionStripProps = {
 
 const URGENCY: Record<'active' | 'ready' | 'watch', { card: string; chip: string; label: string }> = {
   active: {
-    card: 'border-cyan-500/30 bg-gradient-to-r from-cyan-500/[0.09] to-transparent shadow-[0_0_15px_rgba(34,211,238,0.06)]',
-    chip: 'border-cyan-500/40 bg-cyan-500/20 text-cyan-300',
+    card: 'border-cyan-300/35 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_45%),linear-gradient(135deg,rgba(34,211,238,0.10),rgba(255,255,255,0.035))] shadow-[0_0_24px_-16px_rgba(34,211,238,0.95)]',
+    chip: 'border-cyan-300/45 bg-cyan-300/[0.16] text-cyan-50 shadow-[0_0_18px_-10px_rgba(34,211,238,0.9)]',
     label: 'Active',
   },
   ready: {
-    card: 'border-violet-500/25 bg-gradient-to-r from-violet-500/[0.07] to-transparent',
-    chip: 'border-violet-500/40 bg-violet-500/20 text-violet-300',
+    card: 'border-violet-300/25 bg-[radial-gradient(circle_at_top_left,rgba(167,139,250,0.16),transparent_42%),linear-gradient(135deg,rgba(167,139,250,0.08),rgba(255,255,255,0.03))]',
+    chip: 'border-violet-300/35 bg-violet-300/[0.14] text-violet-50',
     label: 'Ready',
   },
   watch: {
-    card: 'border-white/[0.07] bg-white/[0.02]',
-    chip: 'border-white/15 bg-white/[0.06] text-white/50',
+    card: 'border-white/[0.09] bg-white/[0.035]',
+    chip: 'border-white/15 bg-white/[0.07] text-white/65',
     label: 'Info',
   },
 }
@@ -106,11 +106,11 @@ export function TodaysMissionStrip({
   ].slice(0, 5)
 
   return (
-    <section>
-      <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-white/40">
+    <section className="rounded-2xl border border-cyan-300/10 bg-black/20 p-3 shadow-[0_18px_46px_-38px_rgba(34,211,238,0.75)]">
+      <p className="mb-3 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100/55">
         Today&apos;s Mission
       </p>
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+      <div className="grid grid-cols-1 gap-2 min-[390px]:grid-cols-2">
         {cards.map((card) => {
           const style = URGENCY[card.urgency]
           const inner = (
@@ -136,7 +136,7 @@ export function TodaysMissionStrip({
             </>
           )
 
-          const baseClass = `group relative flex min-w-[200px] flex-1 cursor-pointer items-center rounded-xl border px-4 py-3 text-left transition hover:opacity-90 active:scale-[0.98] sm:max-w-[260px] ${style.card}`
+          const baseClass = `group relative flex min-w-0 cursor-pointer items-center rounded-2xl border px-3 py-3 text-left transition hover:-translate-y-0.5 hover:border-cyan-300/35 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 ${style.card}`
 
           return card.href ? (
             <Link key={card.key} href={card.href} className={baseClass}>
