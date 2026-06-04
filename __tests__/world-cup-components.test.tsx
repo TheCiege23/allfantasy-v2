@@ -1466,6 +1466,29 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.queryByText(/World Cup Simulation Panel/i)).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Commissioner/i })).not.toBeInTheDocument()
     expect(screen.queryByTestId("world-cup-readiness-panel")).not.toBeInTheDocument()
+    const quickNav = screen.getByTestId("world-cup-sticky-subnav")
+    expect(quickNav).toHaveAccessibleName("Quick jumps")
+    expect(within(quickNav).getByRole("button", { name: /^Start$/i })).toBeInTheDocument()
+    expect(within(quickNav).getByRole("button", { name: /^Group Builder$/i })).toBeInTheDocument()
+    expect(within(quickNav).getByRole("button", { name: /^Bracket Board$/i })).toBeInTheDocument()
+    expect(within(quickNav).queryByRole("button", { name: /^Admin\/Test$/i })).not.toBeInTheDocument()
+    expect(within(quickNav).queryByRole("button", { name: /^Admin Tools$/i })).not.toBeInTheDocument()
+    expect(within(quickNav).queryByRole("button", { name: /^Group Stage$/i })).not.toBeInTheDocument()
+    expect(within(quickNav).queryByRole("button", { name: /^Knockouts$/i })).not.toBeInTheDocument()
+    expect(within(quickNav).queryByRole("button", { name: /^Leaderboard$/i })).not.toBeInTheDocument()
+    expect(within(quickNav).queryByRole("button", { name: /^Invite$/i })).not.toBeInTheDocument()
+    expect(within(quickNav).queryByRole("button", { name: /^Invite Center$/i })).not.toBeInTheDocument()
+  })
+
+  it("labels admin-only quick jumps as ops tools instead of admin test", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: true }) as any} />)
+
+    await waitFor(() => expect(clientApiMocks.listEntries).toHaveBeenCalled())
+    const quickNav = screen.getByTestId("world-cup-sticky-subnav")
+    expect(within(quickNav).getByRole("button", { name: /^Ops Tools$/i })).toBeInTheDocument()
+    expect(within(quickNav).queryByRole("button", { name: /^Admin\/Test$/i })).not.toBeInTheDocument()
+    expect(within(quickNav).queryByRole("button", { name: /^Admin Tools$/i })).not.toBeInTheDocument()
   })
 
   it("renders admin simulation controls with dry run defaults and checklist results", async () => {

@@ -2351,7 +2351,7 @@ export default function WorldCupBracketShell({
               The compact pill caps its width at 12rem so it never pushes
               the Invite CTA off small screens. */}
           <div data-testid="wc-shell-language-toggle">
-            <LanguageToggle variant="compact" />
+            <LanguageToggle variant="compact" refreshOnChange />
           </div>
           {(view.isOwner || view.isAdmin) && (
             <button
@@ -2449,13 +2449,17 @@ export default function WorldCupBracketShell({
       <div ref={pageScrollRef} className="flex-1 overflow-y-auto scroll-smooth">
         <nav
           data-testid="world-cup-sticky-subnav"
+          aria-label={t("wc.subnav.quickJump")}
           className="sticky top-0 z-40 border-b border-cyan-300/12 bg-[#04060acc]/95 px-1.5 py-1.5 shadow-[0_14px_42px_-34px_rgba(34,211,238,0.75)] backdrop-blur-xl sm:px-2"
         >
           <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] sm:justify-center sm:pb-0 touch-pan-x [&::-webkit-scrollbar]:hidden">
-            <JumpButton label={t("wc.subnav.top")} onClick={() => scrollToAnchor("world-cup-top")} />
-            <JumpButton label={t("wc.tab.groupStage")} onClick={() => scrollToAnchor("world-cup-group-stage", "group-stage")} />
-            <JumpButton label={t("wc.tab.picks")} onClick={() => scrollToAnchor("world-cup-picks", "picks")} />
-            <JumpButton label={t("wc.subnav.roundOf32")} onClick={() => {
+            <span className="hidden shrink-0 px-2 text-[9px] font-black uppercase tracking-[0.2em] text-cyan-100/40 sm:inline">
+              {t("wc.subnav.quickJump")}
+            </span>
+            <JumpButton label={t("wc.subnav.start")} onClick={() => scrollToAnchor("world-cup-top")} />
+            <JumpButton label={t("wc.subnav.groupBuilder")} onClick={() => scrollToAnchor("world-cup-group-stage", "group-stage")} />
+            <JumpButton label={t("wc.subnav.bracketBoard")} onClick={() => scrollToAnchor("world-cup-picks", "picks")} />
+            <JumpButton label={t("wc.subnav.firstRound")} onClick={() => {
               scrollToAnchor("world-cup-bracket", "picks")
               window.requestAnimationFrame(() => {
                 if (knockoutScrollRef.current) knockoutScrollRef.current.scrollLeft = 0
@@ -2464,11 +2468,11 @@ export default function WorldCupBracketShell({
               })
             }} />
             {showAdminControls ? (
-              <JumpButton label={t("wc.subnav.adminTest")} onClick={() => scrollToAnchor("world-cup-admin", "picks")} />
+              <JumpButton label={t("wc.subnav.opsTools")} onClick={() => scrollToAnchor("world-cup-admin", "picks")} />
             ) : null}
-            <JumpButton label={t("wc.tab.leaderboard")} onClick={() => scrollToAnchor("world-cup-leaderboard", "leaderboard")} />
+            <JumpButton label={t("wc.subnav.rankSnapshot")} onClick={() => scrollToAnchor("world-cup-leaderboard", "leaderboard")} />
             {(view.isOwner || view.isAdmin) ? (
-              <JumpButton label={t("wc.tab.invite")} onClick={() => scrollToAnchor("world-cup-invite", "invite")} />
+              <JumpButton label={t("wc.subnav.inviteCenter")} onClick={() => scrollToAnchor("world-cup-invite", "invite")} />
             ) : null}
           </div>
         </nav>

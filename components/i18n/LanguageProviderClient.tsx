@@ -5,6 +5,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { translations } from "@/lib/i18n/translations";
@@ -61,6 +62,11 @@ export function LanguageProviderClient({
   const [messages, setMessages] = useState<Record<string, string>>(() => {
     return translations[language] || translations.en;
   });
+  const activeLanguageRef = useRef<Language>(language);
+
+  useEffect(() => {
+    activeLanguageRef.current = language;
+  }, [language]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -80,7 +86,7 @@ export function LanguageProviderClient({
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((data: { messages?: Record<string, string> } | null) => {
-        if (cancelled) return;
+        if (cancelled || activeLanguageRef.current !== language) return;
         const next = data?.messages;
         if (next && typeof next === "object") {
           setMessages(next);
@@ -89,7 +95,7 @@ export function LanguageProviderClient({
         setMessages(translations[language] || translations.en);
       })
       .catch(() => {
-        if (!cancelled) {
+        if (!cancelled && activeLanguageRef.current === language) {
           setMessages(translations[language] || translations.en);
         }
       });

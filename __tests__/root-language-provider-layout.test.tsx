@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import fs from "node:fs"
 import { createRequire } from "node:module"
@@ -83,6 +83,7 @@ const optionalSessionSource = fs.readFileSync(path.join(process.cwd(), "componen
 const modeToggleSource = fs.readFileSync(path.join(process.cwd(), "components", "theme", "ModeToggle.tsx"), "utf8")
 const languageToggleSource = fs.readFileSync(path.join(process.cwd(), "components", "i18n", "LanguageToggle.tsx"), "utf8")
 const packageJsonSource = fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")
+const nextConfigSource = fs.readFileSync(path.join(process.cwd(), "next.config.js"), "utf8")
 const railwayJsonSource = fs.readFileSync(path.join(process.cwd(), "railway.json"), "utf8")
 const nixpacksSource = fs.readFileSync(path.join(process.cwd(), "nixpacks.toml"), "utf8")
 const railwayStartSource = fs.readFileSync(path.join(process.cwd(), "scripts", "railway-next-start.cjs"), "utf8")
@@ -239,6 +240,51 @@ describe("root language provider layout", () => {
 
     expect(screen.getByRole("combobox", { name: /language/i })).toBeInTheDocument()
     expect(screen.getAllByRole("button", { name: /current theme/i }).length).toBeGreaterThan(0)
+  })
+
+  it("switches languages back to English without stale translated copy", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        json: async () => null,
+      }))
+    )
+
+    function LanguageLabelProbe() {
+      const { t } = useLanguage()
+      return <span data-testid="language-label">{t("common.language")}</span>
+    }
+
+    render(
+      <AppProviders>
+        <LanguageLabelProbe />
+        <LanguageToggle />
+      </AppProviders>
+    )
+
+    expect(screen.getByTestId("language-label")).toHaveTextContent("Language")
+
+    fireEvent.change(screen.getByRole("combobox", { name: /language/i }), {
+      target: { value: "es" },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId("language-label")).toHaveTextContent("Idioma")
+      expect(document.documentElement).toHaveAttribute("lang", "es")
+      expect(document.documentElement).toHaveAttribute("data-lang", "es")
+    })
+
+    fireEvent.change(screen.getByRole("combobox", { name: /idioma/i }), {
+      target: { value: "en" },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId("language-label")).toHaveTextContent("Language")
+      expect(document.documentElement).toHaveAttribute("lang", "en")
+      expect(document.documentElement).toHaveAttribute("data-lang", "en")
+    })
+    expect(screen.queryByText("Idioma")).not.toBeInTheDocument()
   })
 
   it("uses optional language only for auth and global toggle fallbacks", () => {
@@ -427,6 +473,9 @@ describe("root language provider layout", () => {
     expect(railwayJsonSource).toContain("npm run start:railway")
     expect(railwayJsonSource).toContain('"/api/af-debug/sha"')
     expect(nixpacksSource).toContain('cmd = "npm run start:railway"')
+    expect(nextConfigSource).toContain("const railwayDistDir")
+    expect(nextConfigSource).toContain("RAILWAY_GIT_COMMIT_SHA")
+    expect(nextConfigSource).toContain("isRailwayRuntime ? railwayDistDir : '.next'")
     expect(railwayStartSource).not.toContain("proxyRequest")
     expect(railwayStartSource).not.toContain("patchIfRailwayDroppedDocumentShell")
     expect(railwayStartSource).not.toContain("ensureBodyBoundary")

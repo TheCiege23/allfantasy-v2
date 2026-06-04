@@ -1,6 +1,7 @@
 import {
   DEFAULT_LANG,
   LANG_STORAGE_KEY,
+  SUPPORTED_LANGUAGES,
   resolveLanguage,
   type LanguageCode,
 } from "@/lib/i18n/constants";
@@ -76,13 +77,15 @@ export function buildThemeInitScript(serverMode?: string | null): string {
 
 export function buildLanguageInitScript(serverLang?: string | null): string {
   const fallbackLanguage = resolveLanguage(serverLang ?? DEFAULT_LANG);
+  const supportedLanguages = SUPPORTED_LANGUAGES;
 
   return `
     (function(){
       try {
         var fallbackLang = ${JSON.stringify(fallbackLanguage)};
+        var supported = ${JSON.stringify(supportedLanguages)};
         var lang = localStorage.getItem(${JSON.stringify(LANG_STORAGE_KEY)}) || fallbackLang;
-        if (lang !== "en" && lang !== "es") lang = fallbackLang;
+        if (supported.indexOf(lang) === -1) lang = fallbackLang;
         document.documentElement.setAttribute("lang", lang);
         document.documentElement.setAttribute("data-lang", lang);
       } catch (e) {

@@ -215,9 +215,14 @@ const EN: WorldCupDictionary = {
   "wc.tab.admin": "Settings",
 
   // ── Pool dashboard: sticky subnav labels ─────────────────────────────
-  "wc.subnav.top": "Top",
-  "wc.subnav.roundOf32": "Round of 32",
-  "wc.subnav.adminTest": "Admin Tools",
+  "wc.subnav.quickJump": "Quick jumps",
+  "wc.subnav.start": "Start",
+  "wc.subnav.groupBuilder": "Group Builder",
+  "wc.subnav.bracketBoard": "Bracket Board",
+  "wc.subnav.firstRound": "First Round",
+  "wc.subnav.opsTools": "Ops Tools",
+  "wc.subnav.rankSnapshot": "Rank Snapshot",
+  "wc.subnav.inviteCenter": "Invite Center",
 
   // ── Mobile bottom nav: short labels ──────────────────────────────────
   "wc.tab.leaderboard.short": "Ranks",
@@ -1415,9 +1420,14 @@ const ES: WorldCupDictionary = {
   "wc.tab.admin": "Ajustes",
 
   // ── Pool dashboard: sticky subnav labels ─────────────────────────────
-  "wc.subnav.top": "Inicio",
-  "wc.subnav.roundOf32": "Ronda de 32",
-  "wc.subnav.adminTest": "Herramientas admin",
+  "wc.subnav.quickJump": "Accesos rápidos",
+  "wc.subnav.start": "Inicio",
+  "wc.subnav.groupBuilder": "Armador de grupos",
+  "wc.subnav.bracketBoard": "Tablero de bracket",
+  "wc.subnav.firstRound": "Primera ronda",
+  "wc.subnav.opsTools": "Herramientas ops",
+  "wc.subnav.rankSnapshot": "Vista de ranking",
+  "wc.subnav.inviteCenter": "Centro de invitación",
 
   // ── Mobile bottom nav: short labels ──────────────────────────────────
   "wc.tab.leaderboard.short": "Ranking",
@@ -2641,9 +2651,14 @@ const ZH: WorldCupDictionary = {
   "wc.tab.admin": "設定",
 
   // ── Pool dashboard: sticky subnav labels ─────────────────────────────
-  "wc.subnav.top": "頂部",
-  "wc.subnav.roundOf32": "32強",
-  "wc.subnav.adminTest": "管理工具",
+  "wc.subnav.quickJump": "快速跳轉",
+  "wc.subnav.start": "開始",
+  "wc.subnav.groupBuilder": "小組排序",
+  "wc.subnav.bracketBoard": "淘汰賽表",
+  "wc.subnav.firstRound": "首輪",
+  "wc.subnav.opsTools": "營運工具",
+  "wc.subnav.rankSnapshot": "排名快照",
+  "wc.subnav.inviteCenter": "邀請中心",
 
   // ── Mobile bottom nav: short labels ──────────────────────────────────
   "wc.tab.leaderboard.short": "排行",
@@ -3811,9 +3826,14 @@ const FIL: WorldCupDictionary = {
   "wc.tab.admin": "Mga Setting",
 
   // ── Pool dashboard: sticky subnav labels ─────────────────────────────
-  "wc.subnav.top": "Tuktok",
-  "wc.subnav.roundOf32": "Round of 32",
-  "wc.subnav.adminTest": "Admin Tools",
+  "wc.subnav.quickJump": "Quick jumps",
+  "wc.subnav.start": "Simula",
+  "wc.subnav.groupBuilder": "Ayos ng Groups",
+  "wc.subnav.bracketBoard": "Bracket Board",
+  "wc.subnav.firstRound": "Unang Round",
+  "wc.subnav.opsTools": "Ops Tools",
+  "wc.subnav.rankSnapshot": "Rank Snapshot",
+  "wc.subnav.inviteCenter": "Invite Center",
 
   // ── Mobile bottom nav: short labels ──────────────────────────────────
   "wc.tab.leaderboard.short": "Rank",
@@ -5025,9 +5045,14 @@ const VI: WorldCupDictionary = {
   "wc.tab.admin": "Cài đặt",
 
   // ── Pool dashboard: sticky subnav labels ─────────────────────────────
-  "wc.subnav.top": "Đầu trang",
-  "wc.subnav.roundOf32": "Vòng 32",
-  "wc.subnav.adminTest": "Công cụ quản trị",
+  "wc.subnav.quickJump": "Lối tắt",
+  "wc.subnav.start": "Bắt đầu",
+  "wc.subnav.groupBuilder": "Xếp bảng",
+  "wc.subnav.bracketBoard": "Bảng nhánh",
+  "wc.subnav.firstRound": "Vòng đầu",
+  "wc.subnav.opsTools": "Công cụ vận hành",
+  "wc.subnav.rankSnapshot": "Ảnh xếp hạng",
+  "wc.subnav.inviteCenter": "Trung tâm mời",
 
   // ── Mobile bottom nav: short labels ──────────────────────────────────
   "wc.tab.leaderboard.short": "Hạng",
