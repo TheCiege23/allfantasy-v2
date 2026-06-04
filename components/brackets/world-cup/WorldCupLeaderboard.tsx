@@ -234,7 +234,7 @@ export default function WorldCupLeaderboard({
 
           {/* Recalculate / auto-update */}
           <div className="flex shrink-0 items-center gap-2">
-            {(view.isOwner || view.isAdmin) ? (
+            {view.isAdmin ? (
               <button
                 type="button"
                 onClick={onRecalculate}

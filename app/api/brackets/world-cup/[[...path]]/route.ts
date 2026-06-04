@@ -521,7 +521,7 @@ async function recalculateChallenge(request: Request, challengeId: string) {
     return NextResponse.json({ error: "Invalid challenge id" }, { status: 400 })
   }
 
-  const access = await assertWorldCupManager(request, params.data.challengeId, auth.user)
+  const access = await assertWorldCupAdminManager(request, params.data.challengeId, auth.user)
   if (!access.ok) return access.response
 
   const leaderboard = await recalculateWorldCupChallenge(params.data.challengeId)

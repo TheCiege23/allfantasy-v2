@@ -3740,7 +3740,7 @@ describe("WorldCupLeaderboard mobile score row", () => {
     expect(screen.getByTestId("world-cup-leaderboard-auto-update")).toHaveTextContent(/Updates automatically/i)
   })
 
-  it("shows Recalculate button to commissioner/owner only", async () => {
+  it("shows Recalculate button to admins only", async () => {
     const WorldCupLeaderboard = (await import("@/components/brackets/world-cup/WorldCupLeaderboard")).default
     const baseView = {
       challenge: {
@@ -3783,12 +3783,26 @@ describe("WorldCupLeaderboard mobile score row", () => {
       entries: [],
       picks: [],
       leaderboard: [],
-      isOwner: true,
-      isAdmin: false,
+      isOwner: false,
+      isAdmin: true,
       hasBracketBrainAi: false,
     }
     render(<WorldCupLeaderboard view={baseView as any} onRecalculate={() => {}} />)
     expect(screen.getByTestId("world-cup-leaderboard-recalculate")).toBeInTheDocument()
     expect(screen.queryByTestId("world-cup-leaderboard-auto-update")).not.toBeInTheDocument()
+  })
+
+  it("hides Recalculate button from pool owners", async () => {
+    const WorldCupLeaderboard = (await import("@/components/brackets/world-cup/WorldCupLeaderboard")).default
+    const ownerView = makeShellView({
+      isOwner: true,
+      isAdmin: false,
+      leaderboard: [],
+      matches: [],
+      picks: [],
+    })
+    render(<WorldCupLeaderboard view={ownerView as any} onRecalculate={() => {}} />)
+    expect(screen.queryByTestId("world-cup-leaderboard-recalculate")).not.toBeInTheDocument()
+    expect(screen.getByTestId("world-cup-leaderboard-auto-update")).toBeInTheDocument()
   })
 })

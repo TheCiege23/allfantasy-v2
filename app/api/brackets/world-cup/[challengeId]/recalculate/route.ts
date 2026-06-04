@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { recalculateWorldCupChallenge } from "@/lib/world-cup"
 import { notifyWorldCupLeaderboardUpdated } from "@/lib/world-cup/worldCupNotifications"
 import {
-  assertWorldCupManager,
+  assertWorldCupAdminManager,
   requireWorldCupApiUser,
   worldCupChallengeParamsSchema,
 } from "../../_utils"
@@ -18,7 +18,7 @@ export async function POST(request: Request, context: { params: { challengeId: s
     return NextResponse.json({ error: "Invalid challenge id" }, { status: 400 })
   }
 
-  const access = await assertWorldCupManager(request, params.data.challengeId, auth.user)
+  const access = await assertWorldCupAdminManager(request, params.data.challengeId, auth.user)
   if (!access.ok) return access.response
 
   const leaderboard = await recalculateWorldCupChallenge(params.data.challengeId)
