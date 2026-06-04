@@ -1,5 +1,7 @@
 import "server-only"
 import { prisma } from "@/lib/prisma"
+import { createPlatformNotification } from "@/lib/platform/notification-service"
+import { recordProviderSync } from "@/lib/provider-sync-logger"
 import { recalculateWorldCupChallenge } from "./worldCupScoringService"
 import {
   getWorldCupDataProvider,
@@ -8,6 +10,7 @@ import {
   type WorldCupProviderTeam,
   type WorldCupProviderFixture,
   type WorldCupProviderGroupStanding,
+  type WorldCupProviderInjury,
 } from "./worldCupDataProvider"
 import { normalizeWorldCupRound } from "./apiSportsWorldCup"
 import { normalizeFifaTeamCode } from "./worldCupSeedData"
@@ -59,6 +62,10 @@ export async function syncWorldCupTeams(
   } catch (err) {
     if (err instanceof WorldCupProviderConfigError) {
       result.warnings.push(err.message)
+      await recordWorldCupSyncState("world_cup_teams", options, {
+        skipped: 0,
+        error: err.message,
+      })
       return result
     }
     throw err
@@ -68,6 +75,10 @@ export async function syncWorldCupTeams(
     result.warnings.push(
       "Provider returned 0 teams. Check provider configuration and season year."
     )
+    await recordWorldCupSyncState("world_cup_teams", options, {
+      skipped: 0,
+      error: result.warnings[0],
+    })
     return result
   }
 
@@ -240,10 +251,40 @@ export type WorldCupGroupStandingsSyncResult = {
   standings: Array<{ teamId?: string; teamName: string; groupName: string; rank: number; action: "created" | "updated" | "skipped" | "error" }>
 }
 
+export type WorldCupInjurySyncResult = {
+  created: number
+  changed: number
+  skipped: number
+  notificationsCreated: number
+  warnings: string[]
+  injuries: Array<{
+    playerName: string
+    teamName: string
+    status: string
+    action: "created" | "changed" | "skipped" | "error"
+  }>
+}
+
 const WORLD_CUP_TOURNAMENT_KEY = "fifa_world_cup"
 
 function providerNameFor(options: WorldCupSyncOptions) {
   return (options.provider ?? process.env.WORLD_CUP_DATA_PROVIDER ?? "mock").toString()
+}
+
+async function recordWorldCupSyncState(
+  entityType: "world_cup_teams" | "world_cup_fixtures" | "world_cup_live_scores" | "world_cup_standings" | "world_cup_injuries",
+  options: WorldCupSyncOptions,
+  stats: { imported?: number; updated?: number; skipped?: number; error?: string | null }
+) {
+  await recordProviderSync(
+    { provider: providerNameFor(options), entityType, sport: "WC_SOCCER", key: String(options.seasonYear ?? 2026) },
+    {
+      recordsImported: stats.imported ?? 0,
+      recordsUpdated: stats.updated ?? 0,
+      recordsSkipped: stats.skipped ?? 0,
+      error: stats.error ?? null,
+    }
+  )
 }
 
 function dateOrNull(value?: string | null) {
@@ -307,6 +348,29 @@ function groupStandingsComplete(rows: WorldCupProviderGroupStanding[]) {
     if (![1, 2, 3, 4].every((rank) => ranks.has(rank))) return false
   }
   return true
+}
+
+function startOfUtcDay(value: Date) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()))
+}
+
+function parseProviderReportDate(value?: string | null) {
+  if (!value) return startOfUtcDay(new Date())
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? startOfUtcDay(new Date()) : startOfUtcDay(date)
+}
+
+function normalizeInjuryText(value?: string | null, fallback = "Unknown") {
+  const text = value?.replace(/\s+/g, " ").trim()
+  return text ? text.slice(0, 128) : fallback
+}
+
+function injuryStatusChanged(previous: { status?: string | null; notes?: string | null } | null, injury: WorldCupProviderInjury) {
+  if (!previous) return false
+  return (
+    normalizeInjuryText(previous.status, "").toLowerCase() !== normalizeInjuryText(injury.status, "").toLowerCase() ||
+    normalizeInjuryText(previous.notes, "").toLowerCase() !== normalizeInjuryText(injury.notes, "").toLowerCase()
+  )
 }
 
 async function upsertOfficialWorldCupFixtures(input: {
@@ -435,6 +499,10 @@ export async function syncWorldCupFixtures(
   } catch (err) {
     if (err instanceof WorldCupProviderConfigError) {
       result.warnings.push(err.message)
+      await recordWorldCupSyncState("world_cup_fixtures", options, {
+        skipped: 0,
+        error: err.message,
+      })
       return result
     }
     throw err
@@ -444,6 +512,10 @@ export async function syncWorldCupFixtures(
     result.warnings.push(
       "Provider returned 0 fixtures. Check provider configuration."
     )
+    await recordWorldCupSyncState("world_cup_fixtures", options, {
+      skipped: 0,
+      error: result.warnings[0],
+    })
     return result
   }
 
@@ -875,6 +947,10 @@ export async function syncWorldCupLiveScores(
       : await provider.getFixtures(seasonYear)
   } catch (err) {
     if (err instanceof WorldCupProviderConfigError) {
+      await recordWorldCupSyncState("world_cup_live_scores", options, {
+        skipped: 0,
+        error: err.message,
+      })
       return {
         updated: 0,
         skipped: 0,
@@ -887,6 +963,10 @@ export async function syncWorldCupLiveScores(
   }
 
   if (liveFixtures.length === 0) {
+    await recordWorldCupSyncState("world_cup_live_scores", options, {
+      skipped: 0,
+      error: "No live/updated fixtures returned by provider.",
+    })
     return {
       updated: 0,
       skipped: 0,
@@ -896,10 +976,16 @@ export async function syncWorldCupLiveScores(
     }
   }
 
-  return applyWorldCupLiveFixturesToChallenge(challengeId, liveFixtures, {
+  const result = await applyWorldCupLiveFixturesToChallenge(challengeId, liveFixtures, {
     dryRun,
     recalculate,
   })
+  await recordWorldCupSyncState("world_cup_live_scores", options, {
+    updated: result.updated,
+    skipped: result.skipped,
+    error: result.warnings.length > 0 ? result.warnings.slice(0, 3).join("; ") : null,
+  })
+  return result
 }
 
 /**
@@ -931,6 +1017,10 @@ export async function syncWorldCupLiveScoresBatch(
   } catch (err) {
     if (err instanceof WorldCupProviderConfigError) {
       const result = emptyFor([err.message])
+      await recordWorldCupSyncState("world_cup_live_scores", options, {
+        skipped: 0,
+        error: err.message,
+      })
       return challengeIds.map((challengeId) => ({ challengeId, result }))
     }
     throw err
@@ -938,10 +1028,14 @@ export async function syncWorldCupLiveScoresBatch(
 
   if (liveFixtures.length === 0) {
     const result = emptyFor(["No live/updated fixtures returned by provider."])
+    await recordWorldCupSyncState("world_cup_live_scores", options, {
+      skipped: 0,
+      error: result.warnings[0],
+    })
     return challengeIds.map((challengeId) => ({ challengeId, result }))
   }
 
-  return Promise.all(
+  const results = await Promise.all(
     challengeIds.map(async (challengeId) => ({
       challengeId,
       result: await applyWorldCupLiveFixturesToChallenge(challengeId, liveFixtures, {
@@ -950,6 +1044,12 @@ export async function syncWorldCupLiveScoresBatch(
       }),
     }))
   )
+  await recordWorldCupSyncState("world_cup_live_scores", options, {
+    updated: results.reduce((sum, row) => sum + row.result.updated, 0),
+    skipped: results.reduce((sum, row) => sum + row.result.skipped, 0),
+    error: results.flatMap((row) => row.result.warnings).slice(0, 3).join("; ") || null,
+  })
+  return results
 }
 
 export async function syncWorldCupProviderGroupStandings(
@@ -972,12 +1072,20 @@ export async function syncWorldCupProviderGroupStandings(
     const provider = await getWorldCupDataProvider(options.provider)
     if (!provider.getGroupStandings) {
       result.warnings.push("standings_not_available_yet: provider does not expose group standings.")
+      await recordWorldCupSyncState("world_cup_standings", options, {
+        skipped: 0,
+        error: result.warnings[0],
+      })
       return result
     }
     providerStandings = await provider.getGroupStandings(seasonYear)
   } catch (err) {
     if (err instanceof WorldCupProviderConfigError) {
       result.warnings.push(err.message)
+      await recordWorldCupSyncState("world_cup_standings", options, {
+        skipped: 0,
+        error: err.message,
+      })
       return result
     }
     throw err
@@ -985,6 +1093,10 @@ export async function syncWorldCupProviderGroupStandings(
 
   if (providerStandings.length === 0) {
     result.warnings.push("standings_not_available_yet: provider returned 0 group standings rows.")
+    await recordWorldCupSyncState("world_cup_standings", options, {
+      skipped: 0,
+      error: result.warnings[0],
+    })
     return result
   }
 
@@ -1102,6 +1214,12 @@ export async function syncWorldCupProviderGroupStandings(
   result.groupsComplete = groupStandingsComplete(providerStandings)
   if (!result.groupsComplete) {
     result.warnings.push("standings_not_available_yet: complete 12-group standings are not available.")
+    await recordWorldCupSyncState("world_cup_standings", options, {
+      imported: result.created,
+      updated: result.updated,
+      skipped: result.skipped,
+      error: result.warnings.slice(0, 3).join("; "),
+    })
     return result
   }
 
@@ -1149,6 +1267,20 @@ export async function syncWorldCupProviderGroupStandings(
     result.warnings.push(`Expected 8 third-place advancers, found ${result.thirdPlaceAdvancers.length}.`)
   }
 
+  await recordWorldCupSyncState("world_cup_standings", options, {
+    imported: result.created,
+    updated: result.updated,
+    skipped: result.skipped,
+    error: result.warnings.length > 0 ? result.warnings.slice(0, 3).join("; ") : null,
+  })
+
+  await recordWorldCupSyncState("world_cup_teams", options, {
+    imported: result.created,
+    updated: result.updated,
+    skipped: result.skipped,
+    error: result.warnings.length > 0 ? result.warnings.slice(0, 3).join("; ") : null,
+  })
+
   return result
 }
 
@@ -1158,6 +1290,244 @@ export async function syncWorldCupProviderGroupStandings(
  * Maps provider status strings to the internal WorldCupMatchStatus type.
  * Exported for use in admin tools; canonical display formatting is in worldCupMatchStatus.ts.
  */
+async function notifyWorldCupInjuryAffectedPicks(input: {
+  injury: WorldCupProviderInjury
+  reportDate: Date
+  sourceProvider: string
+}) {
+  const teamName = normalizeInjuryText(input.injury.teamName, "")
+  if (!teamName) return 0
+
+  const entries = await (prisma as any).worldCupBracketEntry.findMany({
+    where: {
+      challenge: { status: { in: ["open", "locked", "live"] } },
+      OR: [
+        { championTeamName: { equals: teamName, mode: "insensitive" } },
+        { picks: { some: { selectedTeamName: { equals: teamName, mode: "insensitive" } } } },
+        { groupRankingPicks: { some: { team: { name: { equals: teamName, mode: "insensitive" } } } } },
+      ],
+    },
+    select: {
+      id: true,
+      userId: true,
+      challengeId: true,
+      name: true,
+      challenge: {
+        select: {
+          id: true,
+          name: true,
+          ownerUserId: true,
+        },
+      },
+    },
+    take: 250,
+  }) as Array<{
+    id: string
+    userId: string
+    challengeId: string
+    name: string
+    challenge?: { id: string; name?: string | null; ownerUserId?: string | null } | null
+  }>
+
+  let created = 0
+  for (const entry of entries) {
+    const recipients = Array.from(new Set([entry.userId, entry.challenge?.ownerUserId].filter(Boolean))) as string[]
+    for (const userId of recipients) {
+      const wasCreated = await createPlatformNotification({
+        userId,
+        productType: "bracket",
+        type: "world_cup_injury_update",
+        title: `World Cup injury update: ${input.injury.playerName}`,
+        body: `${input.injury.playerName} (${teamName}) is listed as ${input.injury.status}. This may affect picks in ${entry.challenge?.name ?? "your World Cup pool"}.`,
+        severity: "medium",
+        sourceKey: [
+          "world-cup-injury",
+          input.sourceProvider,
+          input.injury.providerPlayerId,
+          input.injury.status,
+          input.reportDate.toISOString().slice(0, 10),
+          entry.challengeId,
+          userId,
+        ].join(":"),
+        meta: {
+          challengeId: entry.challengeId,
+          entryId: entry.id,
+          teamName,
+          playerName: input.injury.playerName,
+          status: input.injury.status,
+          bodyPart: input.injury.bodyPart ?? null,
+          fixtureProviderId: input.injury.fixtureProviderId ?? null,
+          sourceProvider: input.sourceProvider,
+        },
+      })
+      if (wasCreated) created++
+    }
+  }
+
+  return created
+}
+
+export async function syncWorldCupInjuries(
+  options: WorldCupSyncOptions = {}
+): Promise<WorldCupInjurySyncResult> {
+  const { dryRun = false, seasonYear = 2026 } = options
+  const sourceProvider = providerNameFor(options)
+  const result: WorldCupInjurySyncResult = {
+    created: 0,
+    changed: 0,
+    skipped: 0,
+    notificationsCreated: 0,
+    warnings: [],
+    injuries: [],
+  }
+
+  let providerInjuries: WorldCupProviderInjury[] = []
+  try {
+    const provider = await getWorldCupDataProvider(options.provider)
+    if (!provider.getInjuries) {
+      result.warnings.push("injuries_not_available_yet: provider does not expose World Cup injury data.")
+      await recordProviderSync(
+        { provider: sourceProvider, entityType: "world_cup_injuries", sport: "WC_SOCCER", key: String(seasonYear) },
+        { recordsImported: 0, recordsUpdated: 0, recordsSkipped: 0 }
+      )
+      return result
+    }
+    providerInjuries = await provider.getInjuries(seasonYear)
+  } catch (err) {
+    if (err instanceof WorldCupProviderConfigError) {
+      result.warnings.push(err.message)
+      await recordProviderSync(
+        { provider: sourceProvider, entityType: "world_cup_injuries", sport: "WC_SOCCER", key: String(seasonYear) },
+        { recordsImported: 0, recordsUpdated: 0, recordsSkipped: 0, error: err.message }
+      )
+      return result
+    }
+    await recordProviderSync(
+      { provider: sourceProvider, entityType: "world_cup_injuries", sport: "WC_SOCCER", key: String(seasonYear) },
+      { recordsImported: 0, recordsUpdated: 0, recordsSkipped: 0, error: err instanceof Error ? err.message : String(err) }
+    )
+    throw err
+  }
+
+  if (providerInjuries.length === 0) {
+    result.warnings.push("injuries_not_available_yet: provider returned 0 injury rows.")
+    await recordProviderSync(
+      { provider: sourceProvider, entityType: "world_cup_injuries", sport: "WC_SOCCER", key: String(seasonYear) },
+      { recordsImported: 0, recordsUpdated: 0, recordsSkipped: 0 }
+    )
+    return result
+  }
+
+  for (const injury of providerInjuries) {
+    const playerId = normalizeInjuryText(injury.providerPlayerId, "")
+    const playerName = normalizeInjuryText(injury.playerName, "")
+    const teamName = normalizeInjuryText(injury.teamName, "").slice(0, 32)
+    const status = normalizeInjuryText(injury.status, "injured").slice(0, 32)
+    if (!playerId || !playerName || !teamName) {
+      result.skipped++
+      result.injuries.push({
+        playerName: playerName || "Unknown",
+        teamName: teamName || "Unknown",
+        status,
+        action: "skipped",
+      })
+      continue
+    }
+
+    const reportDate = parseProviderReportDate(injury.fixtureDate)
+    try {
+      const previous = await (prisma as any).injuryReportRecord.findFirst({
+        where: {
+          sport: "WC_SOCCER",
+          playerId,
+        },
+        orderBy: [{ reportDate: "desc" }, { createdAt: "desc" }],
+        select: { id: true, status: true, notes: true },
+      }) as { id: string; status: string | null; notes: string | null } | null
+      const changed = injuryStatusChanged(previous, { ...injury, status })
+
+      if (dryRun) {
+        result.injuries.push({ playerName, teamName, status, action: previous ? (changed ? "changed" : "skipped") : "created" })
+        if (!previous) result.created++
+        else if (changed) result.changed++
+        else result.skipped++
+        continue
+      }
+
+      await (prisma as any).injuryReportRecord.upsert({
+        where: {
+          uniq_injury_reports_player_report_status: {
+            sport: "WC_SOCCER",
+            playerId,
+            reportDate,
+            status,
+          },
+        },
+        create: {
+          sport: "WC_SOCCER",
+          playerId,
+          playerName,
+          team: teamName,
+          status,
+          bodyPart: normalizeInjuryText(injury.bodyPart, "").slice(0, 64) || null,
+          notes: normalizeInjuryText(injury.notes, ""),
+          gameStatus: injury.fixtureProviderId ? `fixture:${injury.fixtureProviderId}`.slice(0, 32) : null,
+          reportDate,
+          week: null,
+        },
+        update: {
+          playerName,
+          team: teamName,
+          bodyPart: normalizeInjuryText(injury.bodyPart, "").slice(0, 64) || null,
+          notes: normalizeInjuryText(injury.notes, ""),
+          gameStatus: injury.fixtureProviderId ? `fixture:${injury.fixtureProviderId}`.slice(0, 32) : null,
+        },
+      })
+
+      if (!previous) {
+        result.created++
+        result.injuries.push({ playerName, teamName, status, action: "created" })
+      } else if (changed) {
+        result.changed++
+        result.injuries.push({ playerName, teamName, status, action: "changed" })
+      } else {
+        result.skipped++
+        result.injuries.push({ playerName, teamName, status, action: "skipped" })
+      }
+
+      if (!previous || changed) {
+        result.notificationsCreated += await notifyWorldCupInjuryAffectedPicks({
+          injury: { ...injury, playerName, teamName, status },
+          reportDate,
+          sourceProvider,
+        })
+      }
+    } catch (err) {
+      result.injuries.push({ playerName, teamName, status, action: "error" })
+      result.warnings.push(`Injury ${playerName} (${teamName}): ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  await recordProviderSync(
+    { provider: sourceProvider, entityType: "world_cup_injuries", sport: "WC_SOCCER", key: String(seasonYear) },
+    {
+      recordsImported: result.created,
+      recordsUpdated: result.changed,
+      recordsSkipped: result.skipped,
+      error: result.warnings.length > 0 ? result.warnings.slice(0, 3).join("; ") : null,
+    }
+  )
+
+  await recordWorldCupSyncState("world_cup_fixtures", options, {
+    imported: result.officialFixturesCreated ?? result.created,
+    updated: (result.officialFixturesUpdated ?? 0) + (result.bracketMatchesUpdated ?? 0),
+    skipped: result.skipped,
+    error: result.warnings.length > 0 ? result.warnings.slice(0, 3).join("; ") : null,
+  })
+
+  return result
+}
+
 export function normalizeProviderStatus(
   raw?: string | null
 ): "scheduled" | "live" | "halftime" | "final" | "postponed" | "cancelled" {

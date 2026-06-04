@@ -900,11 +900,17 @@ export async function joinWorldCupChallengeByInvite(input: {
   if (i.expiresAt && new Date(i.expiresAt) <= new Date()) {
     throw new Error("This invite link has expired.")
   }
+  const existingParticipantBeforeLimit = await (prisma as any).worldCupBracketParticipant?.findUnique?.({
+    where: { challengeId_userId: { challengeId: i.challengeId, userId } },
+  }) ?? null
+  if (!existingParticipantBeforeLimit && i.maxUses != null && i.useCount >= i.maxUses) {
+    throw new Error("This invite has reached its maximum number of uses.")
+  }
 
   const name = await displayName(input.user)
   let createdJoinEntryId: string | null = null
   const p = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const existing = await tx.worldCupBracketParticipant.findUnique({
+    const existing = existingParticipantBeforeLimit ?? await tx.worldCupBracketParticipant.findUnique({
       where: { challengeId_userId: { challengeId: i.challengeId, userId } },
     })
     if (existing) {
@@ -916,10 +922,6 @@ export async function joinWorldCupChallengeByInvite(input: {
         createdJoinEntryId = e.id
       }
       return { participant: existing, joinedNew: false }
-    }
-
-    if (i.maxUses != null && i.useCount >= i.maxUses) {
-      throw new Error("This invite has reached its maximum number of uses.")
     }
 
     const passwordHash = getWorldCupJoinPasswordHashFromPayload(i.challenge.sourcePayload)

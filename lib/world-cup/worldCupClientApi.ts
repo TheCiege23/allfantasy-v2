@@ -472,6 +472,18 @@ export type WorldCupAdminSyncLiveResult = {
   dryRun: boolean
 }
 
+export type WorldCupAdminSyncInjuriesResult = {
+  ok: boolean
+  created: number
+  changed: number
+  skipped: number
+  notificationsCreated: number
+  warnings: string[]
+  injuryCount: number
+  syncedAt: string
+  dryRun: boolean
+}
+
 export type WorldCupAdminSyncGroupStandingsResult = {
   ok: boolean
   provider: WorldCupAdminSyncProvider
@@ -585,6 +597,19 @@ export async function adminSyncWorldCupLive(
   const data = await res.json()
   if (!res.ok) throw new Error((data as { error?: string }).error ?? "Sync live failed")
   return data as WorldCupAdminSyncLiveResult
+}
+
+export async function adminSyncWorldCupInjuries(
+  challengeId: string,
+  opts: { provider?: WorldCupAdminSyncProvider; dryRun?: boolean }
+): Promise<WorldCupAdminSyncInjuriesResult> {
+  const res = await apiFetch(
+    `/api/brackets/world-cup/${challengeId}/admin/sync-injuries`,
+    { method: "POST", body: JSON.stringify(opts) }
+  )
+  const data = await res.json()
+  if (!res.ok) throw new Error((data as { error?: string; message?: string }).message ?? (data as { error?: string }).error ?? "Sync injuries failed")
+  return data as WorldCupAdminSyncInjuriesResult
 }
 
 export async function adminSyncWorldCupGroupStandings(

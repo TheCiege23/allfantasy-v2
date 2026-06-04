@@ -5,6 +5,7 @@ import { WorldCupProviderConfigError } from "@/lib/world-cup/worldCupDataProvide
 import {
   recalculateWorldCupChallenge,
   syncWorldCupFixtures,
+  syncWorldCupInjuries,
   syncWorldCupLiveScoresBatch,
   syncWorldCupProviderGroupStandings,
   syncWorldCupTeams,
@@ -15,7 +16,7 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
-const jobSchema = z.enum(["teams", "fixtures", "live", "standings", "recalculate", "all"])
+const jobSchema = z.enum(["teams", "fixtures", "live", "standings", "injuries", "recalculate", "all"])
 const booleanLike = z.preprocess((value) => {
   if (typeof value === "string") return value === "true" || value === "1"
   return value
@@ -88,7 +89,7 @@ function classifyCronError(error: unknown): {
   }
 
   const message = sanitizeErrorMessage(error instanceof Error ? error.message : String(error))
-  if (/api-football|apisports|sportsdata|fetch|network|response\.json|unexpected token/i.test(message)) {
+  if (/api-football|apisports|sportsdata|fetch|network|response\.json|unexpected token|budget|cooldown|quota|rate limit/i.test(message)) {
     return { kind: "provider_fetch_failed", message }
   }
   if (/prisma|database|worldCup|unique constraint|foreign key|timed out|connection/i.test(message)) {
@@ -146,6 +147,10 @@ async function runWorldCupCronSync(input: z.infer<typeof bodySchema>) {
         result: await syncWorldCupProviderGroupStandings({ challengeId: id, provider, seasonYear }),
       })
     }
+  }
+
+  if (job === "injuries" || job === "all") {
+    result.injuries = await syncWorldCupInjuries({ provider, seasonYear, dryRun })
   }
 
   if (job === "recalculate" || job === "all") {

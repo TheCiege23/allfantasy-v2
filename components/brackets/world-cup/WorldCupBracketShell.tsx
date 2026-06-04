@@ -14,6 +14,7 @@ import type {
   WorldCupAdminSyncFixturesResult,
   WorldCupAdminSyncGroupStandingsResult,
   WorldCupAdminSyncLiveResult,
+  WorldCupAdminSyncInjuriesResult,
   WorldCupAdminSimulationStrategy,
   WorldCupEntryCompletionReviewClient,
   WorldCupGroupStageViewClient,
@@ -26,6 +27,7 @@ import {
   adminSimulateWorldCupTournament,
   adminSyncWorldCupFixtures,
   adminSyncWorldCupGroupStandings,
+  adminSyncWorldCupInjuries,
   adminSyncWorldCupLive,
   adminSyncWorldCupTeams,
   clearWorldCupBracketEntryPicks,
@@ -76,6 +78,12 @@ import {
   type WorldCupChatFont,
   type WorldCupChatRichTextSegment,
 } from "@/lib/world-cup/worldCupChatRichText"
+import {
+  EMOJI_CATEGORIES,
+  EMOJI_BY_CATEGORY,
+  getEmojiCategoryLabel,
+  type EmojiCategory,
+} from "@/lib/rich-message/EmojiPickerService"
 import { worldCupTabToQueryValue, type WorldCupBracketTab } from "@/lib/world-cup/worldCupTabs"
 import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
@@ -175,7 +183,7 @@ type WorldCupNotificationPreferenceState = {
   generalChatEnabled: boolean
   chimmyRepliesEnabled: boolean
 }
-type WorldCupComposerPanel = "gif" | "poll" | "image" | "voice" | null
+type WorldCupComposerPanel = "emoji" | "gif" | "poll" | "image" | "voice" | null
 type WorldCupChatMode = "ai" | "pool" | "dm"
 type WorldCupAdminSimulationRound =
   | "round_of_32"
@@ -625,6 +633,7 @@ export default function WorldCupBracketShell({
   const [syncTeamsResult, setSyncTeamsResult] = useState<WorldCupAdminSyncTeamsResult | null>(null)
   const [syncFixturesResult, setSyncFixturesResult] = useState<WorldCupAdminSyncFixturesResult | null>(null)
   const [syncLiveResult, setSyncLiveResult] = useState<WorldCupAdminSyncLiveResult | null>(null)
+  const [syncInjuriesResult, setSyncInjuriesResult] = useState<WorldCupAdminSyncInjuriesResult | null>(null)
   const [syncStandingsResult, setSyncStandingsResult] = useState<WorldCupAdminSyncGroupStandingsResult | null>(null)
   const [simulationStrategy, setSimulationStrategy] = useState<WorldCupAdminSimulationStrategy>("random")
   const [simulationRound, setSimulationRound] = useState<WorldCupAdminSimulationRound>("round_of_32")
@@ -1547,6 +1556,27 @@ export default function WorldCupBracketShell({
       setIsSyncing(false)
     }
   }, [challengeId, refreshChallengeView, syncProvider, syncDryRun])
+
+  const runSyncInjuries = useCallback(async () => {
+    setIsSyncing(true)
+    setSyncInjuriesResult(null)
+    try {
+      const result = await adminSyncWorldCupInjuries(challengeId, {
+        provider: syncProvider,
+        dryRun: syncDryRun,
+      })
+      setSyncInjuriesResult(result)
+      toast.success(
+        syncDryRun
+          ? `Dry run: ${result.created + result.changed} injury row(s) would sync`
+          : `Injuries synced: ${result.created} new, ${result.changed} changed`
+      )
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Sync injuries failed")
+    } finally {
+      setIsSyncing(false)
+    }
+  }, [challengeId, syncProvider, syncDryRun])
 
   const runSyncGroupStandings = useCallback(async () => {
     setIsSyncing(true)
@@ -2923,6 +2953,16 @@ export default function WorldCupBracketShell({
                 </button>
                 <button
                   type="button"
+                  onClick={() => void runSyncInjuries()}
+                  disabled={isSyncing}
+                  title="Sync provider injuries into Neon and notify users with affected picks."
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300/20 bg-amber-500/10 px-3 py-1.5 text-[11px] font-bold text-amber-100 disabled:opacity-50"
+                >
+                  {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bell className="h-3.5 w-3.5" />}
+                  Sync Injuries
+                </button>
+                <button
+                  type="button"
                   onClick={() => void runSyncGroupStandings()}
                   disabled={isSyncing || syncDryRun}
                   title={syncDryRun ? "Disable dry run before applying official standings." : "Apply provider group standings, derive third-place actuals, and recalculate leaderboard."}
@@ -2970,6 +3010,21 @@ export default function WorldCupBracketShell({
                     <p key={w} className="mt-1 text-white/70">{w}</p>
                   ))}
                   <p className="mt-1 text-white/30">{new Date(syncLiveResult.syncedAt).toLocaleTimeString()}</p>
+                </div>
+              )}
+              {syncInjuriesResult && (
+                <div className="mt-2 rounded-lg border border-amber-300/10 bg-amber-500/[0.04] p-2 text-[11px]">
+                  <div className="flex flex-wrap gap-3 text-white/60">
+                    <span>New <span className="font-bold text-white/80">{syncInjuriesResult.created}</span></span>
+                    <span>Changed <span className="font-bold text-white/80">{syncInjuriesResult.changed}</span></span>
+                    <span>Skipped <span className="font-bold text-white/80">{syncInjuriesResult.skipped}</span></span>
+                    <span>Notified <span className="font-bold text-white/80">{syncInjuriesResult.notificationsCreated}</span></span>
+                    {syncInjuriesResult.dryRun && <span className="text-white/70">dry run</span>}
+                  </div>
+                  {syncInjuriesResult.warnings.slice(0, 2).map((w) => (
+                    <p key={w} className="mt-1 text-white/70">{w}</p>
+                  ))}
+                  <p className="mt-1 text-white/30">{new Date(syncInjuriesResult.syncedAt).toLocaleTimeString()}</p>
                 </div>
               )}
               {syncStandingsResult && (
@@ -5086,6 +5141,8 @@ function WorldCupCommunityFoundationPanel({
     limit?: number
   } | null>(null)
   const [composerPanel, setComposerPanel] = useState<WorldCupComposerPanel>(null)
+  const [emojiCategory, setEmojiCategory] = useState<EmojiCategory>("recent")
+  const [emojiQuery, setEmojiQuery] = useState("")
   const [gifQuery, setGifQuery] = useState("")
   const [gifResults, setGifResults] = useState<WorldCupChatGifAttachment[]>([])
   const [selectedGif, setSelectedGif] = useState<WorldCupChatGifAttachment | null>(null)
@@ -5271,20 +5328,22 @@ function WorldCupCommunityFoundationPanel({
     }
   }
 
-  async function searchWorldCupGifs() {
-    const query = gifQuery.trim()
-    if (!query) {
-      setGifResults([])
-      return
-    }
+  const searchWorldCupGifs = useCallback(async (queryOverride?: string) => {
+    const query = queryOverride ?? gifQuery.trim()
     setIsGifSearching(true)
     setGifError(null)
     try {
-      const params = new URLSearchParams({ action: "gifs", q: query, limit: "12" })
+      const params = new URLSearchParams({ action: "gifs", limit: "12" })
+      if (query.trim()) params.set("q", query.trim())
       const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat?${params.toString()}`, {
         cache: "no-store",
       })
       const data = await res.json().catch(() => ({}))
+      if (data.disabled) {
+        setGifError(data.message || "GIF search is not configured yet.")
+        setGifResults([])
+        return
+      }
       if (!res.ok) throw new Error(data.error || "Could not search GIFs")
       setGifResults(Array.isArray(data.gifs) ? data.gifs : [])
     } catch (err) {
@@ -5293,7 +5352,15 @@ function WorldCupCommunityFoundationPanel({
     } finally {
       setIsGifSearching(false)
     }
-  }
+  }, [challengeId, gifQuery])
+
+  useEffect(() => {
+    if (composerPanel !== "gif") return
+    const handle = window.setTimeout(() => {
+      void searchWorldCupGifs(gifQuery)
+    }, 350)
+    return () => window.clearTimeout(handle)
+  }, [composerPanel, gifQuery, searchWorldCupGifs])
 
   async function createWorldCupPoll() {
     const question = pollQuestion.trim()
@@ -5610,7 +5677,7 @@ function WorldCupCommunityFoundationPanel({
                 ))}
               </select>
             </label>
-            {["🔥", "😂", "👏", "🏆", "⚽", "👀"].map((emoji) => (
+            {EMOJI_BY_CATEGORY.recent.slice(0, 6).map((emoji) => (
               <button
                 key={emoji}
                 type="button"
@@ -5621,7 +5688,7 @@ function WorldCupCommunityFoundationPanel({
                 {emoji}
               </button>
             ))}
-            <ComposerUtilityButton icon={Smile} label="Emoji" onClick={() => insertComposerText("🙂")} />
+            <ComposerUtilityButton icon={Smile} label="Emoji" onClick={() => setComposerPanel(composerPanel === "emoji" ? null : "emoji")} />
             <ComposerUtilityButton icon={Film} label="GIF" onClick={() => setComposerPanel(composerPanel === "gif" ? null : "gif")} />
             <ComposerUtilityButton icon={BarChart3} label="Poll" onClick={() => setComposerPanel(composerPanel === "poll" ? null : "poll")} />
             <ComposerUtilityButton icon={ImageIcon} label="Image" onClick={() => setComposerPanel(composerPanel === "image" ? null : "image")} />
@@ -5681,7 +5748,16 @@ function WorldCupCommunityFoundationPanel({
               <WorldCupImagePreview image={selectedImage} />
             </div>
           ) : null}
-          {composerPanel === "gif" ? (
+          {composerPanel === "emoji" ? (
+            <WorldCupEmojiPickerPanel
+              category={emojiCategory}
+              query={emojiQuery}
+              language={language}
+              onCategoryChange={setEmojiCategory}
+              onQueryChange={setEmojiQuery}
+              onSelect={(emoji) => insertComposerText(emoji)}
+            />
+          ) : composerPanel === "gif" ? (
             <WorldCupGifSearchPanel
               query={gifQuery}
               onQueryChange={setGifQuery}
@@ -5715,7 +5791,7 @@ function WorldCupCommunityFoundationPanel({
               onRemoveOption={(index) => setPollOptions((current) => current.length <= 2 ? current : current.filter((_, optionIndex) => optionIndex !== index))}
               onSubmit={() => void createWorldCupPoll()}
             />
-          ) : composerPanel ? <WorldCupComposerFoundationPanel panel={composerPanel} /> : null}
+          ) : composerPanel === "voice" ? <WorldCupComposerFoundationPanel panel="voice" /> : null}
           <p
             data-testid="wc-chat-trust-note"
             className="mt-2 text-[11px] leading-5 text-white/35"
@@ -6169,6 +6245,76 @@ function WorldCupPollComposer({
   )
 }
 
+function WorldCupEmojiPickerPanel({
+  category,
+  query,
+  language,
+  onCategoryChange,
+  onQueryChange,
+  onSelect,
+}: {
+  category: EmojiCategory
+  query: string
+  language: string
+  onCategoryChange: (value: EmojiCategory) => void
+  onQueryChange: (value: string) => void
+  onSelect: (emoji: string) => void
+}) {
+  const visibleEmojis = useMemo(() => {
+    const normalized = query.trim().toLowerCase()
+    if (!normalized) return EMOJI_BY_CATEGORY[category]
+    const matchedCategory = EMOJI_CATEGORIES.find((item) => item.includes(normalized))
+    return matchedCategory ? EMOJI_BY_CATEGORY[matchedCategory] : EMOJI_BY_CATEGORY[category]
+  }, [category, query])
+
+  return (
+    <div className="mt-2 rounded-xl border border-dashed border-white/15 bg-black/25 p-3 text-xs leading-5 text-white/50">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-black text-white/75">Emoji</p>
+          <p className="mt-1">Browse the full local emoji catalog. Emoji sends as message text and persists with the chat.</p>
+        </div>
+        <input
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="Search categories..."
+          className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-cyan-300/50 focus:outline-none"
+        />
+      </div>
+      <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+        {EMOJI_CATEGORIES.map((item) => (
+          <button
+            key={item}
+            type="button"
+            onClick={() => onCategoryChange(item)}
+            className={[
+              "shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-black transition",
+              item === category
+                ? "border-cyan-300/50 bg-cyan-300/15 text-white"
+                : "border-white/10 bg-white/[0.04] text-white/55 hover:border-cyan-300/30 hover:text-white/80",
+            ].join(" ")}
+          >
+            {getEmojiCategoryLabel(item, language)}
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 grid grid-cols-8 gap-1.5 sm:grid-cols-12">
+        {visibleEmojis.map((emoji) => (
+          <button
+            key={`${category}-${emoji}`}
+            type="button"
+            onClick={() => onSelect(emoji)}
+            className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-lg transition hover:border-cyan-300/35 hover:bg-cyan-300/10"
+            aria-label={`Insert ${emoji}`}
+          >
+            {emoji}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function WorldCupGifSearchPanel({
   query,
   onQueryChange,
@@ -6191,7 +6337,7 @@ function WorldCupGifSearchPanel({
   return (
     <div className="mt-2 rounded-xl border border-dashed border-white/15 bg-black/25 p-3 text-xs leading-5 text-white/50">
       <p className="font-black text-white/75">GIF Search</p>
-      <p className="mt-1">Search is routed through the World Cup pool API. Provider keys stay server-side.</p>
+      <p className="mt-1">Browse default World Cup GIFs or search the provider cache. Provider keys stay server-side.</p>
       <div className="mt-2 flex flex-col gap-2 sm:flex-row">
         <input
           value={query}
@@ -6203,16 +6349,16 @@ function WorldCupGifSearchPanel({
             }
           }}
           maxLength={64}
-          placeholder="Search Klipy GIFs..."
+          placeholder="Search Klipy GIFs or leave blank for trending..."
           className="min-h-10 flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-cyan-300/50 focus:outline-none"
         />
         <button
           type="button"
           onClick={onSearch}
-          disabled={isSearching || !query.trim()}
+          disabled={isSearching}
           className="rounded-lg border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-[11px] font-black text-white/90 disabled:opacity-45"
         >
-          {isSearching ? "Searching..." : "Search GIFs"}
+          {isSearching ? "Searching..." : query.trim() ? "Search GIFs" : "Trending GIFs"}
         </button>
       </div>
       {error ? (
@@ -6250,20 +6396,8 @@ function WorldCupGifSearchPanel({
   )
 }
 
-function WorldCupComposerFoundationPanel({ panel }: { panel: Exclude<WorldCupComposerPanel, null> }) {
+function WorldCupComposerFoundationPanel({ panel }: { panel: "voice" }) {
   const copy = {
-    gif: {
-      title: "GIF Search",
-      body: "Klipy-ready GIF search is planned for this composer. GIFs stay disabled until the World Cup pool-scoped search route and moderation checks are enabled.",
-    },
-    poll: {
-      title: "Polls Coming Soon",
-      body: "Poll creation will support question text, options, close time, and one vote per pool member. No poll is created yet.",
-    },
-    image: {
-      title: "Image Uploads",
-      body: "Image uploads are coming soon with Cloudinary planning. Uploads stay disabled until pool membership checks, type limits, and metadata storage are wired.",
-    },
     voice: {
       title: "Voice Notes",
       body: "Voice notes are coming soon. Recording and upload are disabled until audio limits, consent UX, and storage rules are implemented.",

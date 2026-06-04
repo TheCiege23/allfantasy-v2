@@ -9,11 +9,11 @@ function getKlipyKey(): string {
 }
 function getTenorKey(): string {
   if (typeof process === "undefined") return ""
-  return process.env.NEXT_PUBLIC_TENOR_API_KEY ?? ""
+  return process.env.TENOR_API_KEY ?? process.env.NEXT_PUBLIC_TENOR_API_KEY ?? ""
 }
 function getGiphyKey(): string {
   if (typeof process === "undefined") return ""
-  return process.env.NEXT_PUBLIC_GIPHY_API_KEY ?? ""
+  return process.env.GIPHY_API_KEY ?? process.env.NEXT_PUBLIC_GIPHY_API_KEY ?? ""
 }
 
 export function isGifSearchConfigured(): boolean {
@@ -27,19 +27,19 @@ export function getGifProviderName(): "klipy" | "tenor" | "giphy" | null {
   return null
 }
 
-/** Base URL for Tenor search (client-side). */
+/** Base URL for Tenor search. Use through server-side proxy routes only. */
 export function getTenorSearchUrl(query: string, limit = 12): string {
   const key = getTenorKey()
   if (!key) return ""
-  const params = new URLSearchParams({ q: query, key, limit: String(limit), media_filter: "gif" })
+  const params = new URLSearchParams({ q: query, key, limit: String(limit), media_filter: "gif", contentfilter: "medium" })
   return `https://tenor.googleapis.com/v2/search?${params.toString()}`
 }
 
-/** Base URL for Giphy search (client-side). */
+/** Base URL for Giphy search. Use through server-side proxy routes only. */
 export function getGiphySearchUrl(query: string, limit = 12): string {
   const key = getGiphyKey()
   if (!key) return ""
-  const params = new URLSearchParams({ q: query, api_key: key, limit: String(limit) })
+  const params = new URLSearchParams({ q: query, api_key: key, limit: String(limit), rating: "g" })
   return `https://api.giphy.com/v1/gifs/search?${params.toString()}`
 }
 

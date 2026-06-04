@@ -4,16 +4,19 @@ import {
   fetchWorldCupFixtures,
   fetchWorldCupTodayAndActiveFixtures,
   fetchWorldCupStandings,
+  fetchWorldCupInjuries,
   normalizeWorldCupStatus,
   normalizeWorldCupRound,
   getWorldCupLeagueId,
   type ApiFootballWorldCupFixture,
+  type ApiFootballWorldCupInjury,
 } from "../apiSportsWorldCup"
 import {
   WorldCupProviderConfigError,
   type WorldCupDataProvider,
   type WorldCupProviderFixture,
   type WorldCupProviderGroupStanding,
+  type WorldCupProviderInjury,
   type WorldCupProviderTeam,
 } from "../worldCupDataProvider"
 
@@ -105,6 +108,12 @@ export class ApiFootballWorldCupProvider implements WorldCupDataProvider {
       }))
   }
 
+  async getInjuries(seasonYear: number): Promise<WorldCupProviderInjury[]> {
+    this.checkConfig()
+    const rows = await fetchWorldCupInjuries(seasonYear)
+    return rows.map((row) => this.normalizeInjury(row)).filter(Boolean) as WorldCupProviderInjury[]
+  }
+
   async getFixtureById(
     providerId: string,
     _seasonYear: number
@@ -186,6 +195,33 @@ export class ApiFootballWorldCupProvider implements WorldCupDataProvider {
       winnerProviderId,
       winnerName,
       raw: f,
+    }
+  }
+
+  private normalizeInjury(row: ApiFootballWorldCupInjury): WorldCupProviderInjury | null {
+    const playerId = row.player?.id == null ? "" : String(row.player.id)
+    const playerName = row.player?.name?.trim() ?? ""
+    const teamName = row.team?.name?.trim() ?? ""
+    if (!playerId || !playerName || !teamName) return null
+
+    const type = row.player?.type?.trim() ?? ""
+    const reason = row.player?.reason?.trim() ?? ""
+    const status = type || reason || "injured"
+    const notes = [type && `Type: ${type}`, reason && `Reason: ${reason}`]
+      .filter(Boolean)
+      .join(" | ")
+
+    return {
+      providerPlayerId: playerId,
+      playerName,
+      teamProviderId: row.team?.id == null ? null : String(row.team.id),
+      teamName,
+      status,
+      bodyPart: reason || null,
+      notes: notes || null,
+      fixtureProviderId: row.fixture?.id == null ? null : String(row.fixture.id),
+      fixtureDate: row.fixture?.date ?? null,
+      raw: row,
     }
   }
 }

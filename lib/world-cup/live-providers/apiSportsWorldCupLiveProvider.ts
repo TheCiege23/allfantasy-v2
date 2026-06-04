@@ -1,5 +1,5 @@
 import "server-only"
-import { fetchWorldCupFixtures } from "../apiSportsWorldCup"
+import { fetchWorldCupTodayAndActiveFixtures } from "../apiSportsWorldCup"
 import { apiFootballFixtureToNormalizedLive } from "../worldCupLiveScoreNormalizer"
 import type { WorldCupLiveScoreAdapter } from "./worldCupLiveProviderTypes"
 
@@ -25,7 +25,7 @@ export class ApiSportsWorldCupLiveProvider implements WorldCupLiveScoreAdapter {
 
   async fetchLiveMatches(seasonYear: number) {
     if (!this.isConfigured()) return []
-    const rows = await fetchWorldCupFixtures(seasonYear)
+    const rows = await fetchWorldCupTodayAndActiveFixtures(seasonYear)
     return rows.map(apiFootballFixtureToNormalizedLive)
   }
 }

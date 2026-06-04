@@ -1,4 +1,5 @@
 import "server-only"
+import { withWorldCupProviderBudget } from "../worldCupProviderBudget"
 import { normalizeManualLivePayload } from "../worldCupLiveScoreNormalizer"
 import type {
   NormalizedWorldCupLiveMatch,
@@ -32,11 +33,15 @@ export class RealitySportsWorldCupLiveProvider implements WorldCupLiveScoreAdapt
       headers["x-api-key"] = token
     }
 
-    const res = await fetch(url.toString(), { cache: "no-store", headers })
-    if (!res.ok) {
-      throw new Error(`Reality Sports live fetch failed: ${res.status}`)
-    }
-    const body = await res.json()
+    const body = await withWorldCupProviderBudget("rolling_insights", "world_cup:fixtures:today", async () => {
+      const res = await fetch(url.toString(), { cache: "no-store", headers })
+      if (!res.ok) {
+        const error = new Error(`Reality Sports live fetch failed: ${res.status}`) as Error & { status?: number }
+        error.status = res.status
+        throw error
+      }
+      return res.json()
+    })
     return normalizeManualLivePayload(body)
   }
 }

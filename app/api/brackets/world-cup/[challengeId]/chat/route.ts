@@ -4,7 +4,12 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { userHasBracketBrainAi } from "@/lib/bracket-brain/bracketBrainAccess"
 import { prisma } from "@/lib/prisma"
-import { searchGifs } from "@/lib/rich-message/GIFIntegrationResolver"
+import {
+  getGifProviderName,
+  isGifSearchConfigured,
+  searchGifs,
+} from "@/lib/rich-message/GIFIntegrationResolver"
+import { rateLimitManager } from "@/lib/workers/rate-limit-manager"
 import {
   isCloudinaryConfigured,
   isWorldCupChatImageType,
@@ -43,12 +48,25 @@ export const runtime = "nodejs"
 const _textMsgTimestamps = new Map<string, number[]>()
 const TEXT_MSG_WINDOW_MS = 10_000
 const TEXT_MSG_BURST_MAX = 5
+const _gifSearchTimestamps = new Map<string, number[]>()
+const GIF_SEARCH_WINDOW_MS = 60_000
+const GIF_SEARCH_BURST_MAX = 12
+const WORLD_CUP_DEFAULT_GIF_QUERY = "world cup soccer"
+const WORLD_CUP_GIF_CACHE_TTL_MS = 30 * 60 * 1000
 
 function checkAndRecordTextMessageRate(userId: string): boolean {
   const now = Date.now()
   const prev = (_textMsgTimestamps.get(userId) ?? []).filter((t) => now - t < TEXT_MSG_WINDOW_MS)
   if (prev.length >= TEXT_MSG_BURST_MAX) return false
   _textMsgTimestamps.set(userId, [...prev, now])
+  return true
+}
+
+function checkAndRecordGifSearchRate(userId: string): boolean {
+  const now = Date.now()
+  const prev = (_gifSearchTimestamps.get(userId) ?? []).filter((t) => now - t < GIF_SEARCH_WINDOW_MS)
+  if (prev.length >= GIF_SEARCH_BURST_MAX) return false
+  _gifSearchTimestamps.set(userId, [...prev, now])
   return true
 }
 
@@ -233,6 +251,59 @@ function safeNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0
 }
 
+function worldCupGifCacheKey(query: string, limit: number) {
+  return `world-cup-chat:gifs:${query.toLowerCase()}:${limit}`
+}
+
+function parseCachedGifs(value: unknown) {
+  const data = value && typeof value === "object" ? value as Record<string, unknown> : {}
+  const gifs = Array.isArray(data.gifs) ? data.gifs : []
+  return gifs
+    .map((gif) => metadataObject(gif))
+    .map((gif) => ({
+      id: typeof gif.id === "string" ? gif.id : "",
+      title: typeof gif.title === "string" ? gif.title : "GIF",
+      previewUrl: typeof gif.previewUrl === "string" ? gif.previewUrl : "",
+      gifUrl: typeof gif.gifUrl === "string" ? gif.gifUrl : "",
+      width: safeNumber(gif.width),
+      height: safeNumber(gif.height),
+      provider: gif.provider,
+    }))
+    .filter((gif) => gif.id && gif.previewUrl && gif.gifUrl && ALLOWED_GIF_PROVIDERS.includes(gif.provider as any))
+}
+
+async function readCachedWorldCupGifs(cacheKey: string) {
+  try {
+    const row = await (prisma as any).sportsDataCache.findUnique({
+      where: { cacheKey },
+      select: { data: true, expiresAt: true },
+    })
+    if (!row || new Date(row.expiresAt).getTime() <= Date.now()) return null
+    return parseCachedGifs(row.data)
+  } catch {
+    return null
+  }
+}
+
+async function writeCachedWorldCupGifs(cacheKey: string, gifs: unknown[]) {
+  try {
+    await (prisma as any).sportsDataCache.upsert({
+      where: { cacheKey },
+      create: {
+        cacheKey,
+        data: { gifs },
+        expiresAt: new Date(Date.now() + WORLD_CUP_GIF_CACHE_TTL_MS),
+      },
+      update: {
+        data: { gifs },
+        expiresAt: new Date(Date.now() + WORLD_CUP_GIF_CACHE_TTL_MS),
+      },
+    })
+  } catch {
+    // GIF cache misses should never break chat.
+  }
+}
+
 function sanitizePollText(value: string, maxLength: number) {
   return value
     .replace(/[<>]/g, "")
@@ -386,14 +457,39 @@ async function listChatMessages(challengeId: string, requesterUserId: string) {
     .map((row) => serializeChatMessage(row, requesterUserId))
 }
 
-async function searchWorldCupChatGifs(request: Request) {
+async function searchWorldCupChatGifs(request: Request, userId: string) {
   const url = new URL(request.url)
-  const q = sanitizeGifQuery(url.searchParams.get("q"))
-  if (!q) {
-    return NextResponse.json({ gifs: [], total: 0 })
+  const q = sanitizeGifQuery(url.searchParams.get("q")) || WORLD_CUP_DEFAULT_GIF_QUERY
+
+  if (!isGifSearchConfigured()) {
+    return NextResponse.json({
+      gifs: [],
+      total: 0,
+      disabled: true,
+      message: "GIF search is not configured yet.",
+    })
+  }
+
+  if (!checkAndRecordGifSearchRate(userId)) {
+    return NextResponse.json(
+      { gifs: [], total: 0, error: "Too many GIF searches. Please wait a minute." },
+      { status: 429 }
+    )
   }
 
   const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 12), 1), 24)
+  const cacheKey = worldCupGifCacheKey(q, limit)
+  const cached = await readCachedWorldCupGifs(cacheKey)
+  if (cached) {
+    const provider = getGifProviderName()
+    if (provider) {
+      await rateLimitManager.recordCall(provider, "world_cup:gifs", 200, 0, { cached: true })
+    }
+    return NextResponse.json({ gifs: cached, total: cached.length, cached: true, query: q })
+  }
+
+  const started = Date.now()
+  const provider = getGifProviderName()
   const results = await searchGifs(q, limit)
   const gifs = results.map((gif) => ({
     id: gif.id,
@@ -404,8 +500,12 @@ async function searchWorldCupChatGifs(request: Request) {
     height: safeNumber((gif as { height?: unknown }).height),
     provider: gif.provider,
   }))
+  await writeCachedWorldCupGifs(cacheKey, gifs)
+  if (provider) {
+    await rateLimitManager.recordCall(provider, "world_cup:gifs", 200, Date.now() - started)
+  }
 
-  return NextResponse.json({ gifs, total: gifs.length })
+  return NextResponse.json({ gifs, total: gifs.length, cached: false, query: q })
 }
 
 async function getNotificationPreferences(userId: string, challengeId: string) {
@@ -766,7 +866,7 @@ export async function GET(
   const url = new URL(request.url)
   const action = url.searchParams.get("action")
   if (action === "gifs") {
-    return searchWorldCupChatGifs(request)
+    return searchWorldCupChatGifs(request, auth.user.id)
   }
   if (action === "notification_preferences") {
     return getNotificationPreferences(auth.user.id, params.data.challengeId)

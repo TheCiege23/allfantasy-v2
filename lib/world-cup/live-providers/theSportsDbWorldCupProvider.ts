@@ -1,5 +1,6 @@
 import "server-only"
 import { buildTheSportsDbV1Url } from "@/lib/providers/theSportsDbUrls"
+import { withWorldCupProviderBudget } from "../worldCupProviderBudget"
 import { normalizeWorldCupStatus } from "../apiSportsWorldCup"
 import {
   coerceNormalizedLiveMatch,
@@ -93,11 +94,15 @@ export class TheSportsDbWorldCupLiveProvider implements WorldCupLiveScoreAdapter
       params: { id: tsdbLeagueId(), s: season },
     })
 
-    const res = await fetch(url, { cache: "no-store" })
-    if (!res.ok) {
-      throw new Error(`TheSportsDB eventsSeason failed: ${res.status}`)
-    }
-    const payload = (await res.json()) as { events?: unknown[] | null }
+    const payload = await withWorldCupProviderBudget("thesportsdb", "world_cup:fixtures:today", async () => {
+      const res = await fetch(url, { cache: "no-store" })
+      if (!res.ok) {
+        const error = new Error(`TheSportsDB eventsSeason failed: ${res.status}`) as Error & { status?: number }
+        error.status = res.status
+        throw error
+      }
+      return (await res.json()) as { events?: unknown[] | null }
+    })
     const events = Array.isArray(payload.events) ? payload.events : []
     const out: NormalizedWorldCupLiveMatch[] = []
     for (const ev of events) {

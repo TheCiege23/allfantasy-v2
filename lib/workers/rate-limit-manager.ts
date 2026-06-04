@@ -20,6 +20,9 @@ export const RATE_LIMITS = {
   openai: { callsPerHour: 200, callsPerDay: 2000 },
   elevenlabs: { callsPerHour: 100, callsPerDay: 1000 },
   resend: { callsPerHour: 100, callsPerDay: 1000 },
+  klipy: { callsPerHour: 120, callsPerDay: 1000 },
+  giphy: { callsPerHour: 120, callsPerDay: 1000 },
+  tenor: { callsPerHour: 120, callsPerDay: 1000 },
 } as const
 
 type RateLimitedProvider = keyof typeof RATE_LIMITS

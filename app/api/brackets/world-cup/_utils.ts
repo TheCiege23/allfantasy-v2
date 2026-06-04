@@ -79,7 +79,7 @@ function classifyWorldCupSyncError(error: unknown): {
     }
   }
 
-  if (/api-football|apisports|sportsdata|fetch|network|response\.json|unexpected token|rate limit|timeout/i.test(detail)) {
+  if (/api-football|apisports|sportsdata|fetch|network|response\.json|unexpected token|rate limit|timeout|budget|cooldown|quota/i.test(detail)) {
     return {
       kind: "provider_fetch_failed",
       message: "World Cup data provider request failed. Check provider status, credentials, and rate limits.",

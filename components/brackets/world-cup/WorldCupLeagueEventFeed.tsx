@@ -31,6 +31,8 @@ export default function WorldCupLeagueEventFeed({ challengeId }: { challengeId: 
         if (!cancelled && Array.isArray(data.events)) {
           setEvents(data.events)
         }
+      } catch {
+        if (!cancelled) setEvents([])
       } finally {
         if (!cancelled) setLoading(false)
       }

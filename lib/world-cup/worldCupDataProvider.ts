@@ -80,6 +80,19 @@ export type WorldCupProviderGroupStanding = {
   raw?: unknown
 }
 
+export type WorldCupProviderInjury = {
+  providerPlayerId: string
+  playerName: string
+  teamProviderId?: string | null
+  teamName: string
+  status: string
+  bodyPart?: string | null
+  notes?: string | null
+  fixtureProviderId?: string | null
+  fixtureDate?: string | null
+  raw?: unknown
+}
+
 // ── Provider interface ────────────────────────────────────────────────────────
 
 export interface WorldCupDataProvider {
@@ -99,6 +112,9 @@ export interface WorldCupDataProvider {
    * Not all providers support this; falls back to getFixtures() if not implemented.
    */
   getLiveFixtures?(seasonYear: number): Promise<WorldCupProviderFixture[]>
+
+  /** Fetch player/team injury reports when the provider exposes them. */
+  getInjuries?(seasonYear: number): Promise<WorldCupProviderInjury[]>
 
   /**
    * Fetch a single fixture by provider ID.
