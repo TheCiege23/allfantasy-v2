@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { loadWorldCupTestFixtures } from "@/lib/world-cup/worldCupSimulationService"
-import {
-  assertWorldCupManager,
-  requireWorldCupApiUser,
-} from "@/app/api/brackets/world-cup/_utils"
+import { requireAdminOrBearer } from "@/lib/adminAuth"
 
 export const runtime = "nodejs"
 
@@ -15,8 +12,8 @@ const bodySchema = z.object({
 })
 
 export async function POST(request: Request) {
-  const auth = await requireWorldCupApiUser(request)
-  if (!auth.ok) return auth.response
+  const gate = await requireAdminOrBearer(request)
+  if (!gate.ok) return gate.res
 
   const body = await request.json().catch(() => ({}))
   const parsed = bodySchema.safeParse(body)
@@ -26,9 +23,6 @@ export async function POST(request: Request) {
       { status: 400 }
     )
   }
-
-  const access = await assertWorldCupManager(request, parsed.data.challengeId, auth.user)
-  if (!access.ok) return access.response
 
   const result = await loadWorldCupTestFixtures(parsed.data.challengeId, {
     dryRun: parsed.data.dryRun,

@@ -2,15 +2,7 @@ import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextResponse } from "next/server";
 import { getResendClient } from "@/lib/resend-client";
 import { signAdminMagicToken } from "@/lib/adminSession";
-
-function isAdminAllowed(email: string) {
-  const e = email.toLowerCase().trim();
-  const allow = (process.env.ADMIN_EMAILS || "")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  return allow.includes(e);
-}
+import { isAdminEmailAllowed } from "@/lib/adminAuth";
 
 function sanitizeNext(next?: string) {
   if (!next) return "/admin";
@@ -29,7 +21,7 @@ export const POST = withApiUsage({ endpoint: "/api/auth/admin-magic/request", to
     const safeOk = NextResponse.json({ ok: true });
 
     if (!email || !email.includes("@")) return safeOk;
-    if (!isAdminAllowed(email)) return safeOk;
+    if (!isAdminEmailAllowed(email)) return safeOk;
 
     const token = signAdminMagicToken(email, next, 10 * 60);
     const baseUrl = process.env.PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || "";

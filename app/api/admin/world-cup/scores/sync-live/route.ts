@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import {
-  getWorldCupAdminState,
-  requireWorldCupApiUser,
-} from "@/app/api/brackets/world-cup/_utils"
+import { requireAdminOrBearer } from "@/lib/adminAuth"
 import { syncWorldCupLiveScoresWithProviderChain } from "@/lib/world-cup/worldCupLiveScoreSyncService"
 import type { WorldCupLiveProviderId } from "@/lib/world-cup/live-providers/worldCupLiveProviderTypes"
 import { WORLD_CUP_LIVE_PROVIDER_DEFAULT_CHAIN } from "@/lib/world-cup/live-providers/worldCupLiveProviderTypes"
@@ -27,13 +24,8 @@ const bodySchema = z.object({
 })
 
 export async function POST(request: Request) {
-  const auth = await requireWorldCupApiUser(request)
-  if (!auth.ok) return auth.response
-
-  const isAdmin = await getWorldCupAdminState(request, auth.user)
-  if (!isAdmin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  const gate = await requireAdminOrBearer(request)
+  if (!gate.ok) return gate.res
 
   const body = await request.json().catch(() => ({}))
   const parsed = bodySchema.safeParse(body)

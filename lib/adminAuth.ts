@@ -1,25 +1,37 @@
 import crypto from "crypto";
 import { cookies } from "next/headers";
+import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { verifyAdminSessionCookie } from "@/lib/adminSession";
-import { isAllFantasyTestEmail } from "@/lib/auth/admin";
+import { authOptions } from "@/lib/auth";
+import { isAllFantasyTestEmail, isSiteAdmin } from "@/lib/auth/admin";
 
 export type AdminUser = {
   id?: string;
   email?: string;
   name?: string;
+  username?: string;
   role?: string;
 };
 
+export type AdminAccessState =
+  | { status: "admin"; source: "admin_session" | "app_session"; user: AdminUser }
+  | { status: "unauthenticated"; source: "none"; user?: undefined }
+  | { status: "forbidden"; source: "app_session" | "admin_session"; user?: AdminUser };
+
 export function adminUnauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+
+export function adminForbidden() {
+  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 
 export function isAdminEmailAllowed(email?: string | null) {
   const e = (email || "").toLowerCase();
   if (isAllFantasyTestEmail(e)) return true;
   const allow = (process.env.ADMIN_EMAILS || "")
-    .split(",")
+    .split(/[\n\r,;]+/)
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
   return Boolean(e) && allow.includes(e);
@@ -61,19 +73,28 @@ function checkAdminSecret(request: Request): boolean {
   return timingSafeCompare(headerSecret, adminSecret);
 }
 
-export async function requireAdmin() {
+function getCookieAdminAccessState(): AdminAccessState | null {
   const cookieStore = cookies();
   const adminSession = cookieStore.get("admin_session");
-  if (!adminSession?.value) return { ok: false as const, res: adminUnauthorized() };
+  if (!adminSession?.value) return null;
 
   const payload = verifyAdminSessionCookie(adminSession.value);
-  if (!payload?.authenticated) return { ok: false as const, res: adminUnauthorized() };
+  if (!payload?.authenticated) return { status: "unauthenticated", source: "none" };
 
   const email = payload.email?.toLowerCase();
   const role = payload.role?.toLowerCase();
 
   if (!(role === "admin" || isAdminEmailAllowed(email))) {
-    return { ok: false as const, res: adminUnauthorized() };
+    return {
+      status: "forbidden",
+      source: "admin_session",
+      user: {
+        id: payload.id,
+        email: payload.email,
+        name: payload.name,
+        role: payload.role,
+      },
+    };
   }
 
   const user: AdminUser = {
@@ -83,7 +104,56 @@ export async function requireAdmin() {
     role: payload.role,
   };
 
-  return { ok: true as const, user };
+  return { status: "admin", source: "admin_session", user };
+}
+
+async function getAppSessionAdminAccessState(): Promise<AdminAccessState> {
+  const session = (await getServerSession(authOptions as any).catch(() => null)) as {
+    user?: {
+      id?: string | null;
+      email?: string | null;
+      name?: string | null;
+      username?: string | null;
+    };
+  } | null;
+
+  if (!session?.user?.id) {
+    return { status: "unauthenticated", source: "none" };
+  }
+
+  const user: AdminUser = {
+    id: session.user.id ?? undefined,
+    email: session.user.email ?? undefined,
+    name: session.user.name ?? undefined,
+    username: session.user.username ?? undefined,
+    role: isAdminEmailAllowed(session.user.email) || isSiteAdmin(session.user) ? "admin" : undefined,
+  };
+
+  if (isAdminEmailAllowed(session.user.email) || isSiteAdmin(session.user)) {
+    return { status: "admin", source: "app_session", user };
+  }
+
+  return { status: "forbidden", source: "app_session", user };
+}
+
+export async function getAdminAccessState(): Promise<AdminAccessState> {
+  const cookieState = getCookieAdminAccessState();
+  if (cookieState?.status === "admin") return cookieState;
+  const sessionState = await getAppSessionAdminAccessState();
+  if (sessionState.status === "admin") return sessionState;
+  return cookieState?.status === "forbidden" ? cookieState : sessionState;
+}
+
+export async function requireAdmin() {
+  const state = await getAdminAccessState();
+  if (state.status === "admin") {
+    return { ok: true as const, user: state.user };
+  }
+
+  return {
+    ok: false as const,
+    res: state.status === "forbidden" ? adminForbidden() : adminUnauthorized(),
+  };
 }
 
 export async function requireAdminOrBearer(request: Request) {

@@ -36,6 +36,7 @@ describe("admin bootstrap route", () => {
     delete process.env.ADMIN_BOOTSTRAP_PASSWORD
     delete process.env.ADMIN_BOOTSTRAP_USERNAME
     delete process.env.ADMIN_BOOTSTRAP_DISPLAY_NAME
+    delete process.env.ADMIN_SESSION_SECRET
     mocks.bcryptHash.mockResolvedValue("hashed-bootstrap-password")
     mocks.signAdminSessionCookie.mockReturnValue("signed-admin-session")
   })
@@ -58,6 +59,7 @@ describe("admin bootstrap route", () => {
     process.env.ADMIN_BOOTSTRAP_ENABLED = "true"
     process.env.ADMIN_BOOTSTRAP_EMAIL = "Founder@Example.com"
     process.env.ADMIN_BOOTSTRAP_PASSWORD = "long-secret-password"
+    process.env.ADMIN_SESSION_SECRET = "signed-session-secret"
     mocks.appUserFindFirst.mockResolvedValueOnce({ id: "user-1", username: "TheCiege26" })
     mocks.appUserUpdate.mockResolvedValueOnce({ id: "user-1", username: "TheCiege26" })
 
@@ -89,6 +91,7 @@ describe("admin bootstrap route", () => {
     process.env.ADMIN_BOOTSTRAP_ENABLED = "true"
     process.env.ADMIN_BOOTSTRAP_EMAIL = "founder@example.com"
     process.env.ADMIN_BOOTSTRAP_PASSWORD = "long-secret-password"
+    process.env.ADMIN_SESSION_SECRET = "signed-session-secret"
 
     const { POST } = await import("@/app/api/admin/bootstrap/route")
     const res = await POST(
@@ -101,5 +104,25 @@ describe("admin bootstrap route", () => {
     expect(res.status).toBe(401)
     expect(mocks.appUserUpdate).not.toHaveBeenCalled()
     expect(mocks.appUserCreate).not.toHaveBeenCalled()
+  })
+
+  it("fails clearly when the session secret is missing", async () => {
+    process.env.ADMIN_BOOTSTRAP_ENABLED = "true"
+    process.env.ADMIN_BOOTSTRAP_EMAIL = "founder@example.com"
+    process.env.ADMIN_BOOTSTRAP_PASSWORD = "long-secret-password"
+
+    const { POST } = await import("@/app/api/admin/bootstrap/route")
+    const res = await POST(
+      new Request("http://localhost/api/admin/bootstrap", {
+        method: "POST",
+        body: JSON.stringify({ email: "founder@example.com", password: "long-secret-password" }),
+      })
+    )
+    const body = await res.json()
+
+    expect(res.status).toBe(500)
+    expect(body.error).toContain("ADMIN_SESSION_SECRET")
+    expect(mocks.appUserUpdate).not.toHaveBeenCalled()
+    expect(mocks.signAdminSessionCookie).not.toHaveBeenCalled()
   })
 })

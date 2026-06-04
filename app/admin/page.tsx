@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
-import { requireAdmin } from "@/lib/adminAuth"
+import { getAdminAccessState } from "@/lib/adminAuth"
 import {
   getAdminCommandCenterMetrics,
   type AdminMetric,
@@ -37,14 +37,62 @@ function Section({ title, items }: { title: string; items: AdminMetric[] }) {
   )
 }
 
+function formatDate(value: string | null) {
+  if (!value) return "Not set"
+  return new Date(value).toLocaleString("en-US", {
+    timeZone: "America/New_York",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  })
+}
+
+function AdminAccessDenied() {
+  return (
+    <main className="min-h-dvh bg-[#020817] px-4 py-8 text-white">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(34,211,238,0.20),transparent_34%),radial-gradient(circle_at_85%_8%,rgba(251,191,36,0.14),transparent_30%),linear-gradient(180deg,#020817_0%,#06111f_48%,#020817_100%)]" />
+      <section className="relative mx-auto max-w-xl rounded-3xl border border-amber-300/20 bg-black/45 p-6 shadow-[0_28px_90px_-54px_rgba(251,191,36,0.75)] backdrop-blur-xl sm:p-8">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-200">
+          Admin Access
+        </p>
+        <h1 className="mt-3 text-3xl font-black tracking-tight text-white">
+          Access denied
+        </h1>
+        <p className="mt-3 text-sm leading-6 text-white/62">
+          You are signed in, but this account is not on the AllFantasy admin allowlist.
+          Ask an existing admin to add your email to `ADMIN_EMAILS`, or use the bootstrap recovery path if you are the founder.
+        </p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <a
+            href="/dashboard"
+            className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-black text-white hover:border-cyan-300/45"
+          >
+            Back to dashboard
+          </a>
+          <a
+            href="/admin/bootstrap"
+            className="rounded-2xl bg-cyan-300 px-4 py-3 text-sm font-black text-slate-950 hover:bg-cyan-200"
+          >
+            Admin recovery
+          </a>
+        </div>
+      </section>
+    </main>
+  )
+}
+
 export default async function AdminPage({
   searchParams,
 }: {
   searchParams?: { q?: string | string[] }
 }) {
-  const gate = await requireAdmin()
-  if (!gate.ok) {
+  const gate = await getAdminAccessState()
+  if (gate.status === "unauthenticated") {
     redirect("/admin-login?next=/admin")
+  }
+  if (gate.status === "forbidden") {
+    return <AdminAccessDenied />
   }
 
   const q = Array.isArray(searchParams?.q) ? searchParams?.q[0] ?? "" : searchParams?.q ?? ""
@@ -157,6 +205,157 @@ export default async function AdminPage({
                   No World Cup pool activity recorded yet.
                 </p>
               )}
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-2">
+          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_20px_70px_-52px_rgba(34,211,238,0.7)]">
+            <h2 className="text-sm font-black uppercase tracking-[0.18em] text-cyan-100/80">Recent Users</h2>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-sm">
+                <thead className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                  <tr>
+                    <th className="py-2">User</th>
+                    <th className="py-2">Email</th>
+                    <th className="py-2">Sub</th>
+                    <th className="py-2">Tokens</th>
+                    <th className="py-2">Created</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {data.recentUsers.map((user) => (
+                    <tr key={user.id} className="text-white/76">
+                      <td className="py-3 font-black text-white">@{user.username}</td>
+                      <td className="py-3">{user.emailMasked}</td>
+                      <td className="py-3">{user.subscriptionStatus}</td>
+                      <td className="py-3">{user.tokenBalance ?? "Not tracked"}</td>
+                      <td className="py-3">{formatDate(user.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_20px_70px_-52px_rgba(251,191,36,0.55)]">
+            <h2 className="text-sm font-black uppercase tracking-[0.18em] text-amber-100/80">Recent Subscriptions</h2>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[700px] text-left text-sm">
+                <thead className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                  <tr>
+                    <th className="py-2">User</th>
+                    <th className="py-2">Plan</th>
+                    <th className="py-2">Status</th>
+                    <th className="py-2">SKU</th>
+                    <th className="py-2">Updated</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {data.recentSubscriptions.length > 0 ? (
+                    data.recentSubscriptions.map((sub) => (
+                      <tr key={sub.id} className="text-white/76">
+                        <td className="py-3">
+                          <div className="font-black text-white">@{sub.username}</div>
+                          <div className="text-xs text-white/40">{sub.emailMasked}</div>
+                        </td>
+                        <td className="py-3">{sub.plan}</td>
+                        <td className="py-3">{sub.status}</td>
+                        <td className="py-3">{sub.sku ?? "Not set"}</td>
+                        <td className="py-3">{formatDate(sub.updatedAt)}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td className="py-5 text-white/45" colSpan={5}>
+                        No subscription rows recorded yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-2">
+          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_20px_70px_-52px_rgba(34,211,238,0.7)]">
+            <h2 className="text-sm font-black uppercase tracking-[0.18em] text-cyan-100/80">Recent Payments</h2>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-sm">
+                <thead className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                  <tr>
+                    <th className="py-2">User</th>
+                    <th className="py-2">Type</th>
+                    <th className="py-2">Status</th>
+                    <th className="py-2">Amount</th>
+                    <th className="py-2">Created</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {data.recentPayments.length > 0 ? (
+                    data.recentPayments.map((payment) => (
+                      <tr key={payment.id} className="text-white/76">
+                        <td className="py-3">
+                          <div className="font-black text-white">@{payment.username}</div>
+                          <div className="text-xs text-white/40">{payment.emailMasked}</div>
+                        </td>
+                        <td className="py-3">{payment.paymentType}</td>
+                        <td className="py-3">{payment.status}</td>
+                        <td className="py-3 text-amber-100">{payment.amount}</td>
+                        <td className="py-3">{formatDate(payment.createdAt)}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td className="py-5 text-white/45" colSpan={5}>
+                        No payment rows recorded yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_20px_70px_-52px_rgba(34,211,238,0.7)]">
+            <h2 className="text-sm font-black uppercase tracking-[0.18em] text-cyan-100/80">Recent Token Activity</h2>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[700px] text-left text-sm">
+                <thead className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                  <tr>
+                    <th className="py-2">User</th>
+                    <th className="py-2">Type</th>
+                    <th className="py-2">Delta</th>
+                    <th className="py-2">Balance</th>
+                    <th className="py-2">Created</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {data.recentTokenActivity.length > 0 ? (
+                    data.recentTokenActivity.map((entry) => (
+                      <tr key={entry.id} className="text-white/76">
+                        <td className="py-3">
+                          <div className="font-black text-white">@{entry.username}</div>
+                          <div className="text-xs text-white/40">{entry.emailMasked}</div>
+                        </td>
+                        <td className="py-3">{entry.entryType}</td>
+                        <td className={entry.tokenDelta >= 0 ? "py-3 text-emerald-200" : "py-3 text-amber-100"}>
+                          {entry.tokenDelta}
+                        </td>
+                        <td className="py-3">{entry.balanceAfter}</td>
+                        <td className="py-3">{formatDate(entry.createdAt)}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td className="py-5 text-white/45" colSpan={5}>
+                        No token ledger rows recorded yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </section>

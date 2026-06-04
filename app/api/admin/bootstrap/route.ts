@@ -8,6 +8,8 @@ import { validateUsername } from "@/lib/auth/username-validation"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
+const BOOTSTRAP_SESSION_TTL_SECONDS = 60 * 60 * 24
+
 function isBootstrapEnabled(): boolean {
   return process.env.ADMIN_BOOTSTRAP_ENABLED === "true"
 }
@@ -68,9 +70,16 @@ export async function POST(request: Request) {
 
   const configuredEmail = normalizeEmail(process.env.ADMIN_BOOTSTRAP_EMAIL)
   const configuredPassword = String(process.env.ADMIN_BOOTSTRAP_PASSWORD ?? "")
+  const sessionSecretConfigured = Boolean(process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_PASSWORD)
   if (!configuredEmail || !configuredEmail.includes("@") || configuredPassword.length < 12) {
     return NextResponse.json(
       { error: "Admin bootstrap is not configured safely." },
+      { status: 500 }
+    )
+  }
+  if (!sessionSecretConfigured) {
+    return NextResponse.json(
+      { error: "ADMIN_SESSION_SECRET must be configured before admin bootstrap can set a secure session." },
       { status: 500 }
     )
   }
@@ -122,7 +131,8 @@ export async function POST(request: Request) {
     userId: user.id,
     username: user.username,
     next: "/admin",
-    reminder: "Disable ADMIN_BOOTSTRAP_ENABLED in Vercel immediately after confirming admin access.",
+    reminder:
+      "Disable ADMIN_BOOTSTRAP_ENABLED in Vercel immediately after confirming admin access. Add ADMIN_BOOTSTRAP_EMAIL to ADMIN_EMAILS for durable admin access.",
   })
 
   response.cookies.set(
@@ -132,14 +142,14 @@ export async function POST(request: Request) {
       id: user.id,
       email: configuredEmail,
       role: "admin",
-      expiresAt: Date.now() + 60 * 60 * 1000,
+      expiresAt: Date.now() + BOOTSTRAP_SESSION_TTL_SECONDS * 1000,
     }),
     {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60,
+      maxAge: BOOTSTRAP_SESSION_TTL_SECONDS,
     }
   )
 

@@ -1,15 +1,7 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextResponse } from "next/server";
 import { verifyAdminMagicToken, signAdminSessionCookie } from "@/lib/adminSession";
-
-function isAdminAllowed(email: string) {
-  const e = email.toLowerCase().trim();
-  const allow = (process.env.ADMIN_EMAILS || "")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  return allow.includes(e);
-}
+import { isAdminEmailAllowed } from "@/lib/adminAuth";
 
 function sanitizeNext(next?: string) {
   if (!next) return "/admin";
@@ -24,7 +16,7 @@ export const GET = withApiUsage({ endpoint: "/api/auth/admin-magic/consume", too
   const token = url.searchParams?.get("token") || "";
   const payload = verifyAdminMagicToken(token);
 
-  if (!payload?.email || !isAdminAllowed(payload.email)) {
+  if (!payload?.email || !isAdminEmailAllowed(payload.email)) {
     // Send expired/invalid tokens back to the admin login page so the user lands in a
     // surface that understands "err=magic" and shows a clear retry prompt.
     return NextResponse.redirect(new URL("/admin-login?err=magic", url));

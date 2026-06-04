@@ -30,6 +30,48 @@ export type AdminActivePoolRow = {
   chatEvents: number
 }
 
+export type AdminRecentUserRow = {
+  id: string
+  username: string
+  emailMasked: string
+  createdAt: string
+  subscriptionStatus: string
+  tokenBalance: number | null
+}
+
+export type AdminRecentSubscriptionRow = {
+  id: string
+  username: string
+  emailMasked: string
+  plan: string
+  sku: string | null
+  status: string
+  updatedAt: string
+  currentPeriodEnd: string | null
+}
+
+export type AdminRecentPaymentRow = {
+  id: string
+  username: string
+  emailMasked: string
+  status: string
+  paymentType: string
+  amount: string
+  createdAt: string
+  completedAt: string | null
+}
+
+export type AdminRecentTokenActivityRow = {
+  id: string
+  username: string
+  emailMasked: string
+  entryType: string
+  tokenDelta: number
+  balanceAfter: number
+  createdAt: string
+  description: string | null
+}
+
 export type AdminCommandCenterMetrics = {
   generatedAt: string
   users: AdminMetric[]
@@ -40,6 +82,10 @@ export type AdminCommandCenterMetrics = {
   health: AdminMetric[]
   usersSearch: AdminUserSearchRow[]
   activeWorldCupPools: AdminActivePoolRow[]
+  recentUsers: AdminRecentUserRow[]
+  recentSubscriptions: AdminRecentSubscriptionRow[]
+  recentPayments: AdminRecentPaymentRow[]
+  recentTokenActivity: AdminRecentTokenActivityRow[]
 }
 
 const ACTIVE_SUBSCRIPTION_STATUSES = ["active", "trialing", "past_due"]
@@ -181,6 +227,115 @@ async function getMostActiveWorldCupPools(): Promise<AdminActivePoolRow[]> {
     .slice(0, 8)
 }
 
+async function getRecentUsers(): Promise<AdminRecentUserRow[]> {
+  const rows = await prisma.appUser.findMany({
+    select: {
+      id: true,
+      username: true,
+      email: true,
+      createdAt: true,
+      userSubscriptions: {
+        select: { status: true },
+        orderBy: { updatedAt: "desc" },
+        take: 1,
+      },
+      tokenBalance: { select: { balance: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  })
+
+  return rows.map((user) => ({
+    id: user.id,
+    username: user.username,
+    emailMasked: maskAdminEmail(user.email),
+    createdAt: user.createdAt.toISOString(),
+    subscriptionStatus: user.userSubscriptions[0]?.status ?? "free",
+    tokenBalance: user.tokenBalance?.balance ?? null,
+  }))
+}
+
+async function getRecentSubscriptions(): Promise<AdminRecentSubscriptionRow[]> {
+  const rows = await prisma.userSubscription.findMany({
+    select: {
+      id: true,
+      sku: true,
+      status: true,
+      updatedAt: true,
+      currentPeriodEnd: true,
+      plan: { select: { code: true, name: true } },
+      user: { select: { username: true, email: true } },
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 10,
+  })
+
+  return rows.map((sub) => ({
+    id: sub.id,
+    username: sub.user.username,
+    emailMasked: maskAdminEmail(sub.user.email),
+    plan: sub.plan.name || sub.plan.code,
+    sku: sub.sku,
+    status: sub.status,
+    updatedAt: sub.updatedAt.toISOString(),
+    currentPeriodEnd: sub.currentPeriodEnd?.toISOString() ?? null,
+  }))
+}
+
+async function getRecentPayments(): Promise<AdminRecentPaymentRow[]> {
+  const rows = await prisma.bracketPayment.findMany({
+    select: {
+      id: true,
+      status: true,
+      amountCents: true,
+      paymentType: true,
+      createdAt: true,
+      completedAt: true,
+      user: { select: { username: true, email: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  })
+
+  return rows.map((payment) => ({
+    id: payment.id,
+    username: payment.user.username,
+    emailMasked: maskAdminEmail(payment.user.email),
+    status: payment.status,
+    paymentType: payment.paymentType,
+    amount: `$${(payment.amountCents / 100).toFixed(2)}`,
+    createdAt: payment.createdAt.toISOString(),
+    completedAt: payment.completedAt?.toISOString() ?? null,
+  }))
+}
+
+async function getRecentTokenActivity(): Promise<AdminRecentTokenActivityRow[]> {
+  const rows = await prisma.tokenLedger.findMany({
+    select: {
+      id: true,
+      entryType: true,
+      tokenDelta: true,
+      balanceAfter: true,
+      description: true,
+      createdAt: true,
+      user: { select: { username: true, email: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  })
+
+  return rows.map((entry) => ({
+    id: entry.id,
+    username: entry.user.username,
+    emailMasked: maskAdminEmail(entry.user.email),
+    entryType: entry.entryType,
+    tokenDelta: entry.tokenDelta,
+    balanceAfter: entry.balanceAfter,
+    createdAt: entry.createdAt.toISOString(),
+    description: entry.description,
+  }))
+}
+
 export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<AdminCommandCenterMetrics> {
   const today = startOfUtcDay()
   const sevenDaysAgo = daysAgo(7)
@@ -200,6 +355,8 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     stripeEvents,
     tokenGranted,
     tokenSpent,
+    tokenBalanceSummary,
+    tokenBalanceUsers,
     tokenBalances,
     chatConversations,
     chatMessages,
@@ -210,9 +367,16 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     worldCupParticipants,
     commissionerPools,
     worldCupChatEvents,
+    worldCupInvites,
+    inviteLinks,
+    inviteEvents,
     platformChatMessages,
     activeWorldCupPools,
     usersSearch,
+    recentUsers,
+    recentSubscriptions,
+    recentPayments,
+    recentTokenActivity,
     databaseHealth,
   ] = await Promise.all([
     prisma.appUser.count(),
@@ -248,6 +412,14 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
       where: { tokenDelta: { lt: 0 } },
       _sum: { tokenDelta: true },
     }),
+    prisma.userTokenBalance.aggregate({
+      _sum: {
+        balance: true,
+        lifetimePurchased: true,
+        lifetimeSpent: true,
+      },
+    }),
+    prisma.userTokenBalance.count(),
     prisma.userTokenBalance.findMany({
       select: {
         balance: true,
@@ -267,9 +439,16 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     prisma.worldCupBracketParticipant.count(),
     prisma.worldCupBracketChallenge.count({ where: { ownerUserId: { not: "" } } }),
     prisma.worldCupBracketChatEvent.count(),
+    prisma.worldCupBracketInvite.count(),
+    prisma.inviteLink.count(),
+    prisma.inviteLinkEvent.count(),
     prisma.platformChatMessage.count(),
     getMostActiveWorldCupPools(),
     getUserSearchRows(searchQuery),
+    getRecentUsers(),
+    getRecentSubscriptions(),
+    getRecentPayments(),
+    getRecentTokenActivity(),
     prisma.$queryRaw`SELECT 1`.then(() => "healthy").catch(() => "down"),
   ])
 
@@ -310,9 +489,12 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
       notTracked("MRR estimate", "Subscription prices are not reliably stored on subscription rows"),
     ],
     tokens: [
+      metric("Token balances total", tokenBalanceSummary._sum.balance ?? 0),
       metric("Total tokens granted", tokenGranted._sum.tokenDelta ?? 0),
       metric("Total tokens spent", Math.abs(tokenSpent._sum.tokenDelta ?? 0)),
-      metric("Users with token balances", tokenBalances.length, "Top spenders listed below"),
+      metric("Users with token balances", tokenBalanceUsers, "Top spenders listed below"),
+      metric("Lifetime tokens purchased", tokenBalanceSummary._sum.lifetimePurchased ?? 0),
+      metric("Lifetime tokens spent", tokenBalanceSummary._sum.lifetimeSpent ?? 0),
       ...tokenBalances.slice(0, 5).map((row) =>
         metric(
           `@${row.user.username}`,
@@ -334,8 +516,10 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
       metric("Pool participants", worldCupParticipants),
       metric("Commissioner-created pools", commissionerPools),
       metric("World Cup chat events", worldCupChatEvents),
+      metric("World Cup invites", worldCupInvites),
+      metric("Universal invite links", inviteLinks),
+      metric("Invite activity events", inviteEvents),
       metric("Shared chat messages", platformChatMessages),
-      notTracked("Invite activity", "Invite creation exists, click/open activity is not tracked yet"),
     ],
     health: [
       metric("Database", databaseHealth),
@@ -343,5 +527,9 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     ],
     usersSearch,
     activeWorldCupPools,
+    recentUsers,
+    recentSubscriptions,
+    recentPayments,
+    recentTokenActivity,
   }
 }

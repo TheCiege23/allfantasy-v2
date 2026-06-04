@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
-import { isInternalChimmyUser } from "@/lib/chimmy-context/internal-user"
+import { requireAdmin } from "@/lib/adminAuth"
 import {
   getStripeWebhookHealth,
   getTokenLedgerHealth,
@@ -23,23 +21,8 @@ const SHORT_HOURS = 24
 const LONG_HOURS = 168
 
 export async function GET(request: Request) {
-  const session = (await getServerSession(authOptions as any)) as {
-    user?: { id?: string | null; email?: string | null; name?: string | null; username?: string | null }
-  } | null
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const accepted = isInternalChimmyUser({
-    userId: session.user.id,
-    userEmail: session.user.email,
-    username: session.user.username ?? undefined,
-  })
-
-  if (!accepted) {
-    return NextResponse.json({ ok: true, accepted: false, generatedAt: new Date().toISOString() })
-  }
+  const gate = await requireAdmin()
+  if (!gate.ok) return gate.res
 
   const [
     stripeWebhookHealth,
