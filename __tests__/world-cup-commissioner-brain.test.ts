@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { readFileSync } from "fs"
 
 const challengeFindUniqueMock = vi.hoisted(() => vi.fn())
 
@@ -215,5 +216,14 @@ describe("World Cup AI recap builder", () => {
     expect(text).toContain("argentina")
     expect(text).not.toContain("unfinalized")
     expect(text).not.toMatch(/\bdfs\b|\bbetting\b|\bwager|\bsportsbook\b|\bodds\b/)
+  })
+
+  it("grounds the optional OpenAI wrapper to stored pool facts only", () => {
+    const source = readFileSync("lib/world-cup/worldCupCommissionerBrainService.ts", "utf8")
+
+    expect(source).toContain("Rewrite only the provided World Cup pool facts")
+    expect(source).toContain("Do not add scores, schedules, match minutes, player stats, injuries, odds, lineups, or standings")
+    expect(source).toContain("Source: stored AllFantasy pool data only; no external live feed is included")
+    expect(source).toContain("sanitizeRecapLine(text)")
   })
 })

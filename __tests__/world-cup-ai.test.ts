@@ -79,6 +79,7 @@ describe("worldCupAIService buildWorldCupMatchupIntelligence", () => {
 
   beforeEach(() => {
     delete process.env.OPENAI_API_KEY
+    vi.mocked(openaiChatText).mockClear()
   })
 
   afterEach(() => {
@@ -153,7 +154,42 @@ describe("worldCupAIService buildWorldCupMatchupIntelligence", () => {
     })
 
     expect(spy).toHaveBeenCalled()
+    const call = spy.mock.calls[0]?.[0]
+    const system = call?.messages?.find((message) => message.role === "system")?.content ?? ""
+    const user = call?.messages?.find((message) => message.role === "user")?.content ?? ""
+    expect(system).toContain("provided AllFantasy bracket model inputs")
+    expect(system).toContain("Do not imply live data")
+    expect(system).not.toContain("No caveats about live data")
+    expect(user).toContain("Source: stored AllFantasy bracket model only")
     expect(intel.generative).toBe(true)
     expect(intel.summary.length).toBeGreaterThan(20)
+  })
+
+  it("grounds explicit matchup explanations to provided bracket model data", async () => {
+    process.env.OPENAI_API_KEY = "sk-test"
+    const spy = vi.mocked(openaiChatText)
+    spy.mockResolvedValueOnce({
+      ok: true,
+      text: "WHY: Bracket-model guidance favors Alpha.\nRISK: This is a projection, not a live fact.\nBRACKET: Pick Alpha if you want the model lean.",
+      status: 200,
+      details: "",
+      model: "gpt-4",
+      baseUrl: "",
+    })
+
+    const intel = await buildWorldCupMatchupIntelligence({
+      match: baseMatch(),
+      strategy: "balanced",
+      intent: "explain",
+      bracketBrainAiEntitled: true,
+    })
+
+    const call = spy.mock.calls[0]?.[0]
+    const system = call?.messages?.find((message) => message.role === "system")?.content ?? ""
+    const user = call?.messages?.find((message) => message.role === "user")?.content ?? ""
+    expect(system).toContain("GROUNDING")
+    expect(system).toContain("I don't have reliable data for that yet")
+    expect(user).toContain("no live feed")
+    expect(intel.narrativesGenerative).toBe(true)
   })
 })

@@ -6,7 +6,10 @@ import {
   enforceWorldCupChimmyReplyGuard,
   isBracketImpactQuestion,
   isPoolStandingQuestion,
+  isScheduleQuestion,
   isScoringExplanationQuestion,
+  isUnsupportedVerifiedDataQuestion,
+  reliableDataUnavailableMessage,
   serializeChimmyContext,
   tryDeterministicWorldCupChimmyReply,
 } from "@/lib/world-cup/worldCupChimmyReplyPolicy"
@@ -95,6 +98,8 @@ describe("World Cup Chimmy reply policy", () => {
     expect(prompt).toMatch(/bracket pool analyst/i)
     expect(prompt).toMatch(/Never invent scores/i)
     expect(prompt).toMatch(/NOT in scope: general sports chat/i)
+    expect(prompt).toMatch(/SOURCE CUE/i)
+    expect(prompt).toMatch(/I don't have reliable data for that yet/i)
   })
 
   it("serializes leaderboard and scoring for pool standing questions", () => {
@@ -108,6 +113,8 @@ describe("World Cup Chimmy reply policy", () => {
   it("detects bracket impact and scoring explanation intents", () => {
     expect(isBracketImpactQuestion("if Argentina wins, how does that affect my bracket?")).toBe(true)
     expect(isScoringExplanationQuestion("how do quarterfinal points work?")).toBe(true)
+    expect(isScheduleQuestion("when is the next match?")).toBe(true)
+    expect(isUnsupportedVerifiedDataQuestion("who has injury news and player stats?")).toBe(true)
   })
 })
 
@@ -270,5 +277,90 @@ describe("generateWorldCupChimmyPrivateReply — stabilization", () => {
       context: baseContext({ liveDataStatus: "unavailable" }),
     })
     expect(result.reply).not.toMatch(/3-2/)
+  })
+
+  it("schedule question without synced schedule data does not call the model", async () => {
+    const result = await replyWith({
+      prompt: "@chimmy when does the next match start?",
+      context: baseContext({
+        liveDataStatus: "unavailable",
+        liveMatches: [],
+        upcomingMatches: [],
+        recentMatches: [],
+      }),
+    })
+
+    expect(routeTextCallMock).not.toHaveBeenCalled()
+    expect(result.provider).toBe("deterministic")
+    expect(result.reply).toContain("I don't have reliable data for that yet")
+  })
+
+  it("unsupported exact-data question does not call the model", async () => {
+    const result = await replyWith({
+      prompt: "@chimmy give me Brazil player stats, lineup injuries, and odds",
+      context: baseContext({
+        liveDataStatus: "fixture_only",
+        upcomingMatches: [
+          {
+            matchId: "m2",
+            round: "round_of_32",
+            homeTeamName: "Brazil",
+            awayTeamName: "Japan",
+            homeScore: null,
+            awayScore: null,
+            homePenaltyScore: null,
+            awayPenaltyScore: null,
+            winnerTeamName: null,
+            status: "scheduled",
+            minute: null,
+            injuryTime: null,
+            startsAt: "2026-06-16T20:00:00.000Z",
+            venueName: null,
+            venueCity: null,
+            apiStatusShort: "NS",
+            lastSyncedAt: "2026-06-15T20:30:00.000Z",
+          },
+        ],
+      }),
+    })
+
+    expect(routeTextCallMock).not.toHaveBeenCalled()
+    expect(result.provider).toBe("deterministic")
+    expect(result.reply).toBe(reliableDataUnavailableMessage("en"))
+  })
+
+  it("hallucination guard blocks unknown score even when a live feed exists", () => {
+    const guarded = enforceWorldCupChimmyReplyGuard({
+      reply: "Argentina are live at 2-1, but Brazil are somehow up 9-8 too.",
+      prompt: "what is happening live?",
+      context: baseContext({
+        liveDataStatus: "live",
+        liveMatches: [
+          {
+            matchId: "m1",
+            round: "round_of_16",
+            homeTeamName: "Argentina",
+            awayTeamName: "France",
+            homeScore: 2,
+            awayScore: 1,
+            homePenaltyScore: null,
+            awayPenaltyScore: null,
+            winnerTeamName: null,
+            status: "live",
+            minute: 67,
+            injuryTime: null,
+            startsAt: "2026-06-15T20:00:00.000Z",
+            venueName: null,
+            venueCity: null,
+            apiStatusShort: "LIVE",
+            lastSyncedAt: "2026-06-15T20:30:00.000Z",
+          },
+        ],
+      }),
+      locale: "en",
+    })
+
+    expect(guarded).not.toMatch(/9-8/)
+    expect(guarded).toMatch(/won't guess/i)
   })
 })

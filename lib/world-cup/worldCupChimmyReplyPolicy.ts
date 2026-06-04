@@ -25,6 +25,14 @@ const INVENTED_SCORE_BLOCKED: Record<WorldCupLocale, string> = {
 const SCORE_PATTERN = /\b(\d{1,2})\s*[-–]\s*(\d{1,2})\b/g
 const MINUTE_PATTERN = /\b(\d{1,3})\s*(?:'|′|min(?:ute)?s?)\b/gi
 
+const RELIABLE_DATA_UNAVAILABLE: Record<WorldCupLocale, string> = {
+  en: "I don't have reliable data for that yet. I can still help with saved bracket picks, pool standings, scoring rules, and what is visible in this pool.",
+  es: "No tengo datos confiables para eso todavia. Si puedo ayudarte con picks guardados, tabla del pool, reglas de puntuacion y lo que esta visible en este pool.",
+  zh: "I don't have reliable data for that yet. I can still help with saved bracket picks, pool standings, scoring rules, and what is visible in this pool.",
+  fil: "I don't have reliable data for that yet. I can still help with saved bracket picks, pool standings, scoring rules, and what is visible in this pool.",
+  vi: "I don't have reliable data for that yet. I can still help with saved bracket picks, pool standings, scoring rules, and what is visible in this pool.",
+}
+
 export function buildWorldCupChimmySystemPrompt(locale: string | null | undefined): string {
   const lang = getAiLanguageInstruction(locale)
   return [
@@ -32,7 +40,9 @@ export function buildWorldCupChimmySystemPrompt(locale: string | null | undefine
     "SCOPE: Answer questions about this bracket pool — picks, standings, scoring rules, how results affect points, and schedule/live scores ONLY using the POOL DATA block.",
     "NOT in scope: general sports chat, other leagues, betting advice, rumors, or World Cup trivia unrelated to this pool.",
     "LIVE DATA: Use only scores, minutes, and results listed under LIVE NOW, RECENT RESULTS, or UPCOMING. Never invent scores, minutes, stats, teams, or outcomes.",
+    "SOURCE CUE: For factual answers, plainly say whether the answer is based on live match data, stored pool data, or unavailable reliable data. Use the live-data cue only when LIVE NOW or RECENT RESULTS support it.",
     `If DATA AS OF shows live data: unavailable, say clearly the live feed is not available and pivot to bracket/standings/scoring help.`,
+    "If asked for schedules, match times, player stats, injuries, lineups, odds, or other facts not present in POOL DATA, say: \"I don't have reliable data for that yet.\"",
     "VOICE: Sound like a sharp, friendly World Cup analyst in a group chat — confident, specific, warm. Short bullets or 1–2 tight paragraphs. No robotic disclaimers.",
     `Respond in ${lang}.`,
     "Keep team and country names exactly as written in POOL DATA.",
@@ -166,6 +176,11 @@ export function isScheduleQuestion(prompt: string): boolean {
   return /\b(when\s+(is|does|do)|kickoff|schedule|fixture|starts?\s+at|next\s+match|horario|calendario)\b/i.test(p)
 }
 
+export function isUnsupportedVerifiedDataQuestion(prompt: string): boolean {
+  const p = prompt.toLowerCase()
+  return /\b(player\s+stats?|key\s+players?|lineups?|rosters?|injur(?:y|ies|ed)|suspensions?|odds|over\s*\/\s*under|over-under|spread|goalscorers?|cards?)\b/i.test(p)
+}
+
 export function isPoolStandingQuestion(prompt: string): boolean {
   const p = prompt.toLowerCase()
   return /\b(standing|leaderboard|rank|table|who\s+is\s+leading|top\s+of\s+the\s+pool|tabla|clasificaci[oó]n)\b/i.test(p)
@@ -228,8 +243,12 @@ export function inventedScoreBlockedMessage(locale: string | null | undefined): 
   return INVENTED_SCORE_BLOCKED[getWorldCupLocale(locale)]
 }
 
+export function reliableDataUnavailableMessage(locale: string | null | undefined): string {
+  return RELIABLE_DATA_UNAVAILABLE[getWorldCupLocale(locale)]
+}
+
 /**
- * Skip the LLM when live scores are requested but the pool has no live feed.
+ * Skip the LLM when a user asks for facts the pool context cannot verify.
  */
 export function tryDeterministicWorldCupChimmyReply(input: {
   prompt: string
@@ -237,14 +256,32 @@ export function tryDeterministicWorldCupChimmyReply(input: {
   locale?: string | null
 }): string | null {
   const prompt = input.prompt.trim()
+  const context = input.context
+
+  if (isUnsupportedVerifiedDataQuestion(prompt)) {
+    return reliableDataUnavailableMessage(input.locale)
+  }
+
+  if (isScheduleQuestion(prompt)) {
+    const hasScheduleData = Boolean(
+      context &&
+        [...context.liveMatches, ...context.upcomingMatches, ...context.recentMatches].some(
+          (match) => Boolean(match.startsAt)
+        )
+    )
+    if (!hasScheduleData) {
+      return reliableDataUnavailableMessage(input.locale)
+    }
+  }
+
   if (!isLiveScoreQuestion(prompt)) return null
 
-  const status = input.context?.liveDataStatus ?? "unavailable"
-  if (status === "unavailable" || !input.context) {
+  const status = context?.liveDataStatus ?? "unavailable"
+  if (status === "unavailable" || !context) {
     return liveFeedUnavailableMessage(input.locale)
   }
 
-  if (status === "fixture_only" && input.context.liveMatches.length === 0) {
+  if (status === "fixture_only" && context.liveMatches.length === 0) {
     return liveFeedUnavailableMessage(input.locale)
   }
 
@@ -277,11 +314,11 @@ export function enforceWorldCupChimmyReplyGuard(input: {
     return liveFeedUnavailableMessage(input.locale)
   }
 
-  if (hasUnknownScore && (isLiveScoreQuestion(input.prompt) || status !== "live")) {
+  if (hasUnknownScore) {
     return inventedScoreBlockedMessage(input.locale)
   }
 
-  if (hasUnknownMinute && isLiveScoreQuestion(input.prompt) && input.context?.liveMatches.length === 0) {
+  if (hasUnknownMinute && (isLiveScoreQuestion(input.prompt) || status !== "live" || input.context?.liveMatches.length === 0)) {
     return liveFeedUnavailableMessage(input.locale)
   }
 

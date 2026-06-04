@@ -510,9 +510,14 @@ async function maybeEnhanceWithOpenAi(prompt: string): Promise<string | null> {
           {
             role: "system",
             content:
-              "You are Chimmy, calm bracket commissioner copywriter. Short paragraphs, no hype slang.",
+              "You are Chimmy, calm bracket commissioner copywriter. Rewrite only the provided World Cup pool facts. Do not add scores, schedules, match minutes, player stats, injuries, odds, lineups, or standings that are not present in the prompt. If a requested fact is missing, say reliable data is not available yet. Short paragraphs, no hype slang.",
           },
-          { role: "user", content: prompt },
+          {
+            role: "user",
+            content:
+              "Source: stored AllFantasy pool data only; no external live feed is included in this request.\n\n" +
+              prompt,
+          },
         ],
         max_tokens: 400,
       }),
@@ -521,7 +526,8 @@ async function maybeEnhanceWithOpenAi(prompt: string): Promise<string | null> {
     const data = (await res.json()) as {
       choices?: Array<{ message?: { content?: string } }>
     }
-    return data.choices?.[0]?.message?.content?.trim() ?? null
+    const text = data.choices?.[0]?.message?.content?.trim() ?? null
+    return text ? sanitizeRecapLine(text) : null
   } catch {
     return null
   }

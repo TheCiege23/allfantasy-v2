@@ -125,13 +125,20 @@ async function tryGenerativeNarratives(params: {
       ? "Explain the matchup mechanics for a bracket picker using bracket-only guidance."
       : "Give actionable bracket guidance."
 
-  const system = `You are a concise World Cup bracket assistant. ${focus} Respond with exactly three short paragraphs labeled:
-WHY:
-RISK:
-BRACKET:
-Each paragraph max 2 sentences. Plain text only.`
+  const system = [
+    `You are a concise World Cup bracket assistant. ${focus}`,
+    "GROUNDING: Use only the provided AllFantasy bracket model inputs. Do not claim live scores, match minutes, injuries, lineups, odds, player stats, schedules, or current form unless they are explicitly provided in the prompt.",
+    "Predictions must be labeled as bracket-model projections, not verified facts.",
+    "If the user needs live or external facts not provided here, say: \"I don't have reliable data for that yet.\"",
+    "Respond with exactly three short paragraphs labeled:",
+    "WHY:",
+    "RISK:",
+    "BRACKET:",
+    "Each paragraph max 2 sentences. Plain text only.",
+  ].join("\n")
 
   const userMsg =
+    "Source: stored AllFantasy bracket model only; no live feed, injury report, player stat feed, odds feed, or schedule feed is included.\n" +
     `${params.homeName} vs ${params.awayName}. Win model: ${params.homeName} ${params.homePct}%, ${params.awayName} ${params.awayPct}%. ` +
     `Upset risk: ${params.upsetRisk}. Strategy: ${params.strategy}. Recommended lean: ${params.recommendedTeamName}. ` +
     `Factors: ${params.keyFactors.join("; ")}.`
@@ -196,7 +203,7 @@ export async function buildWorldCupMatchupIntelligence(
   const awayName = eff.away.teamName
 
   const deterministicSummary =
-    `${rec.recommendedTeamName} recommended (${strategy}). ${homeName} ${homePct}% vs ${awayName} ${awayPct}%. Upset risk: ${upsetRisk}. ${rec.explanation}`
+    `Bracket-model guidance: ${rec.recommendedTeamName} recommended (${strategy}). ${homeName} ${homePct}% vs ${awayName} ${awayPct}%. Upset risk: ${upsetRisk}. ${rec.explanation}`
 
   const bracketImpactRecommended =
     describeBracketImpactIfTeamWins(match, rec.recommendedSide ?? sides.safePickSide)
@@ -261,11 +268,12 @@ export async function buildWorldCupMatchupIntelligence(
           {
             role: "system",
             content:
-              "You are a World Cup bracket strategy assistant. Give a concise 2-sentence matchup preview. No caveats about live data.",
+              "You are a World Cup bracket strategy assistant. Give a concise 2-sentence matchup preview using only the provided AllFantasy bracket model inputs. Do not imply live data, current scores, injuries, lineups, odds, player stats, schedules, or current form. Label predictions as bracket-model guidance.",
           },
           {
             role: "user",
             content:
+              "Source: stored AllFantasy bracket model only; no live feed, injury report, player stat feed, odds feed, or schedule feed is included.\n" +
               `Match: ${homeName} vs ${awayName}${venue}.\n` +
               `Win probability: ${homeName} ${homePct}%, ${awayName} ${awayPct}%.\n` +
               `Upset risk: ${upsetRisk}. Strategy: ${strategy}.\n` +
