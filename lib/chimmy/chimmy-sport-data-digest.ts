@@ -194,7 +194,13 @@ ${gameRows
       if (parsed.length) {
         const sourceKey = `standings_${sp}`
         sources.push(sourceKey)
-        setSourceFreshness(sourceKey, standingsRows.map((row) => row.createdAt))
+        setSourceFreshness(
+          sourceKey,
+          standingsRows.map((row) => {
+            const cacheRow = row as typeof row & { updatedAt?: Date | string | null }
+            return cacheRow.updatedAt ?? row.createdAt ?? row.expiresAt
+          })
+        )
         chunks.push(
           `### ${sp} — Standings snapshot (DB)
 ${parsed
@@ -222,6 +228,27 @@ ${parsed
           )
           .join('\n')}`
       )
+    } else {
+      const legacyNewsRows = await prisma.sportsNews.findMany({
+        where: { sport: sp },
+        orderBy: { publishedAt: 'desc' },
+        take: args.sport === 'all' ? 6 : 15,
+      })
+      if (legacyNewsRows.length) {
+        const sourceKey = `sports_news_${sp}`
+        sources.push(sourceKey)
+        setSourceFreshness(sourceKey, legacyNewsRows.map((n) => n.publishedAt ?? n.fetchedAt ?? n.updatedAt))
+        chunks.push(
+          `### ${sp} - Sports news (DB cache)\n${legacyNewsRows
+            .map(
+              (n) =>
+                `- ${n.title}${n.playerName ? ` - ${n.playerName}` : ''}${n.team ? ` (${n.team})` : ''} [${n.source}] ${
+                  n.publishedAt ? n.publishedAt.toISOString().slice(0, 10) : 'recent'
+                }`
+            )
+            .join('\n')}`
+        )
+      }
     }
 
     if (injRows.length) {
@@ -237,6 +264,28 @@ ${parsed
           )
           .join('\n')}`
       )
+    } else {
+      const legacyInjuryRows =
+        (await (prisma as any).sportsInjury?.findMany?.({
+          where: { sport: sp },
+          orderBy: { date: 'desc' },
+          take: args.sport === 'all' ? 12 : 35,
+        })) ?? []
+      if (legacyInjuryRows.length) {
+        const sourceKey = `sports_injuries_${sp}`
+        sources.push(sourceKey)
+        setSourceFreshness(sourceKey, legacyInjuryRows.map((r: any) => r.date ?? r.fetchedAt ?? r.updatedAt))
+        chunks.push(
+          `### ${sp} - Injuries (DB cache)\n${legacyInjuryRows
+            .map(
+              (r: any) =>
+                `- ${r.playerName}${r.team ? ` (${r.team})` : ''}: ${r.status ?? 'Unknown'}${
+                  r.description ? ` - ${String(r.description).slice(0, 120)}` : ''
+                }`
+            )
+            .join('\n')}`
+        )
+      }
     }
 
     if (transactionRows.length) {

@@ -42,6 +42,28 @@ export type AdminProviderHealthRow = {
   note: string
 }
 
+export type AdminSportDataReliabilityRow = {
+  id: string
+  sport: string
+  label: string
+  counts: {
+    teams: number | null
+    players: number | null
+    schedules: number | null
+    games: number | null
+    liveScores: number | null
+    standings: number | null
+    injuries: number | null
+    news: number | null
+    playerStats: number | null
+  }
+  lastSyncAtByType: Record<string, string | null>
+  staleWarnings: string[]
+  configuredProviders: string[]
+  missingProviders: string[]
+  note: string
+}
+
 type ProviderCallSummary = {
   requestCount24h: number
   avgLatencyMs24h: number | null
@@ -76,6 +98,22 @@ function hasAnyEnv(keys: string[]): boolean {
 
 function hasAllEnv(keys: string[]): boolean {
   return keys.every((key) => Boolean(clean(process.env[key])))
+}
+
+function latestIso(values: Array<Date | string | null | undefined>): string | null {
+  let latest = 0
+  for (const value of values) {
+    if (!value) continue
+    const stamp = value instanceof Date ? value.getTime() : new Date(value).getTime()
+    if (Number.isFinite(stamp) && stamp > latest) latest = stamp
+  }
+  return latest > 0 ? new Date(latest).toISOString() : null
+}
+
+function isOlderThan(value: string | null, hours: number): boolean {
+  if (!value) return true
+  const stamp = new Date(value).getTime()
+  return !Number.isFinite(stamp) || Date.now() - stamp > hours * 60 * 60 * 1000
 }
 
 function safeError(value: string | null | undefined): string | null {
@@ -305,6 +343,300 @@ async function getWorldCupCounts() {
   } catch {
     return { teams: 0, fixtures: 0, standings: 0, syncLogs: 0 }
   }
+}
+
+type CountDelegate = {
+  count: (args?: Record<string, unknown>) => Promise<number>
+}
+
+type FindFirstDelegate = {
+  findFirst: (args?: Record<string, unknown>) => Promise<Record<string, unknown> | null>
+}
+
+function modelDelegate<T>(name: string): T | null {
+  const delegate = (prisma as unknown as Record<string, unknown>)[name]
+  return delegate ? (delegate as T) : null
+}
+
+async function safeCount(modelName: string, args?: Record<string, unknown>): Promise<number | null> {
+  const delegate = modelDelegate<CountDelegate>(modelName)
+  if (!delegate?.count) return null
+  try {
+    return await delegate.count(args)
+  } catch {
+    return null
+  }
+}
+
+async function latestFieldIso(
+  modelName: string,
+  field: string,
+  args?: Record<string, unknown>
+): Promise<string | null> {
+  const delegate = modelDelegate<FindFirstDelegate>(modelName)
+  if (!delegate?.findFirst) return null
+  try {
+    const row = await delegate.findFirst({
+      ...(args ?? {}),
+      orderBy: { [field]: "desc" },
+      select: { [field]: true },
+    })
+    return latestIso([row?.[field] as Date | string | null | undefined])
+  } catch {
+    return null
+  }
+}
+
+function providerEnvStatus(providerNames: string[]) {
+  const configured: string[] = []
+  const missing: string[] = []
+  for (const provider of providerNames) {
+    let isConfigured = false
+    if (provider === "API-Football") {
+      isConfigured =
+        hasAnyEnv(["API_SPORTS_KEY", "API_FOOTBALL_KEY", "APISPORTS_FOOTBALL_KEY", "RAPIDAPI_KEY"]) &&
+        hasAnyEnv(["WORLD_CUP_CRON_SECRET"]) &&
+        hasAnyEnv(["API_FOOTBALL_WORLD_CUP_LEAGUE_ID"])
+    } else if (provider === "API-Sports") {
+      isConfigured = hasAnyEnv(["API_SPORTS_KEY", "APISPORTS_API_KEY"])
+    } else if (provider === "Rolling Insights") {
+      isConfigured = Boolean(getRollingInsightsConfigFromEnv())
+    } else if (provider === "ClearSports") {
+      isConfigured = Boolean(getClearSportsConfigFromEnv())
+    } else if (provider === "TheSportsDB") {
+      isConfigured = hasAnyEnv(["THESPORTSDB_API_KEY", "SPORTSDB_API_KEY", "THE_SPORTS_DB_API_KEY"])
+    } else if (provider === "CFBD") {
+      isConfigured = hasAnyEnv(["CFBD_API_KEY", "CFBD_KEY"])
+    } else if (provider === "NewsAPI") {
+      isConfigured = hasAnyEnv(["NEWS_API_KEY", "NEWSAPI_KEY"])
+    } else if (provider === "OpenAI") {
+      isConfigured = Boolean(getOpenAIConfigFromEnv())
+    }
+    ;(isConfigured ? configured : missing).push(provider)
+  }
+  return { configured, missing }
+}
+
+async function standingsCountForSport(sport: string): Promise<number | null> {
+  const lower = sport.toLowerCase()
+  return safeCount("sportsDataCache", {
+    where: {
+      OR: [
+        { cacheKey: { contains: `${sport}:standings:` } },
+        { cacheKey: { contains: `${lower}:standings:` } },
+        { cacheKey: { contains: `${sport}:standings` } },
+        { cacheKey: { contains: `${lower}:standings` } },
+      ],
+    },
+  })
+}
+
+async function buildGenericSportReliabilityRow(input: {
+  id: string
+  sport: string
+  label: string
+  providers: string[]
+  note?: string
+}): Promise<AdminSportDataReliabilityRow> {
+  const sport = input.sport
+  const [
+    teams,
+    players,
+    schedules,
+    games,
+    liveScores,
+    standings,
+    sportsInjuries,
+    injuryReports,
+    sportsNews,
+    playerNews,
+    playerStats,
+    teamsSync,
+    playersSync,
+    schedulesSync,
+    gamesSync,
+    injuriesSync,
+    injuryReportsSync,
+    newsSync,
+    playerNewsSync,
+    playerStatsSync,
+  ] = await Promise.all([
+    safeCount("sportsTeam", { where: { sport } }),
+    safeCount("sportsPlayer", { where: { sport } }),
+    safeCount("gameSchedule", { where: { sportType: sport } }),
+    safeCount("sportsGame", { where: { sport } }),
+    safeCount("sportsGame", { where: { sport, source: { in: ["rolling_insights", "espn_live"] } } }),
+    standingsCountForSport(sport),
+    safeCount("sportsInjury", { where: { sport } }),
+    safeCount("injuryReportRecord", { where: { sport } }),
+    safeCount("sportsNews", { where: { sport } }),
+    safeCount("playerNewsRecord", { where: { sport } }),
+    safeCount("playerSeasonStats", { where: { sport } }),
+    latestFieldIso("sportsTeam", "fetchedAt", { where: { sport } }),
+    latestFieldIso("sportsPlayer", "fetchedAt", { where: { sport } }),
+    latestFieldIso("gameSchedule", "updatedAt", { where: { sportType: sport } }),
+    latestFieldIso("sportsGame", "fetchedAt", { where: { sport } }),
+    latestFieldIso("sportsInjury", "fetchedAt", { where: { sport } }),
+    latestFieldIso("injuryReportRecord", "reportDate", { where: { sport } }),
+    latestFieldIso("sportsNews", "fetchedAt", { where: { sport } }),
+    latestFieldIso("playerNewsRecord", "publishedAt", { where: { sport } }),
+    latestFieldIso("playerSeasonStats", "updatedAt", { where: { sport } }),
+  ])
+
+  const injuryCount = (sportsInjuries ?? 0) + (injuryReports ?? 0)
+  const newsCount = (sportsNews ?? 0) + (playerNews ?? 0)
+  const lastSyncAtByType = {
+    teams: teamsSync,
+    players: playersSync,
+    schedules: schedulesSync,
+    games: gamesSync,
+    injuries: latestIso([injuriesSync, injuryReportsSync]),
+    news: latestIso([newsSync, playerNewsSync]),
+    playerStats: playerStatsSync,
+  }
+  const staleWarnings = [
+    teams === 0 ? "No teams imported" : null,
+    players === 0 ? "No players imported" : null,
+    (schedules ?? 0) + (games ?? 0) === 0 ? "No schedules/games imported" : null,
+    injuryCount === 0 ? "No injuries imported" : null,
+    newsCount === 0 ? "No news imported" : null,
+    isOlderThan(lastSyncAtByType.games, 24) && (games ?? 0) > 0 ? "Games data older than 24h" : null,
+    isOlderThan(lastSyncAtByType.news, 24) && newsCount > 0 ? "News data older than 24h" : null,
+    isOlderThan(lastSyncAtByType.injuries, 24) && injuryCount > 0 ? "Injury data older than 24h" : null,
+  ].filter((item): item is string => Boolean(item))
+  const providerStatus = providerEnvStatus(input.providers)
+
+  return {
+    id: input.id,
+    sport,
+    label: input.label,
+    counts: {
+      teams,
+      players,
+      schedules,
+      games,
+      liveScores,
+      standings,
+      injuries: injuryCount,
+      news: newsCount,
+      playerStats,
+    },
+    lastSyncAtByType,
+    staleWarnings,
+    configuredProviders: providerStatus.configured,
+    missingProviders: providerStatus.missing,
+    note: input.note ?? "Counts are read from stored Neon tables only.",
+  }
+}
+
+async function buildWorldCupReliabilityRow(): Promise<AdminSportDataReliabilityRow> {
+  const [
+    teams,
+    fixtures,
+    standings,
+    injuries,
+    teamsSync,
+    fixturesSync,
+    standingsSync,
+    injuriesSync,
+  ] = await Promise.all([
+    safeCount("worldCupTeam"),
+    safeCount("worldCupOfficialFixture"),
+    safeCount("worldCupOfficialGroupStanding"),
+    safeCount("injuryReportRecord", { where: { sport: "WC_SOCCER" } }),
+    latestFieldIso("worldCupTeam", "updatedAt"),
+    latestFieldIso("worldCupOfficialFixture", "updatedAt"),
+    latestFieldIso("worldCupOfficialGroupStanding", "updatedAt"),
+    latestFieldIso("injuryReportRecord", "reportDate", { where: { sport: "WC_SOCCER" } }),
+  ])
+  const providerStatus = providerEnvStatus(["API-Football", "OpenAI"])
+  const staleWarnings = [
+    teams === 0 ? "No World Cup teams imported" : null,
+    fixtures === 0 ? "No World Cup fixtures imported" : null,
+    standings === 0 ? "No World Cup standings imported yet" : null,
+    isOlderThan(fixturesSync, 24) && (fixtures ?? 0) > 0 ? "Fixtures older than 24h" : null,
+    isOlderThan(injuriesSync, 24) && (injuries ?? 0) > 0 ? "Injury data older than 24h" : null,
+  ].filter((item): item is string => Boolean(item))
+
+  return {
+    id: "world-cup",
+    sport: "WC_SOCCER",
+    label: "World Cup",
+    counts: {
+      teams,
+      players: null,
+      schedules: fixtures,
+      games: fixtures,
+      liveScores: fixtures,
+      standings,
+      injuries,
+      news: null,
+      playerStats: null,
+    },
+    lastSyncAtByType: {
+      teams: teamsSync,
+      fixtures: fixturesSync,
+      standings: standingsSync,
+      injuries: injuriesSync,
+    },
+    staleWarnings,
+    configuredProviders: providerStatus.configured,
+    missingProviders: providerStatus.missing,
+    note: "World Cup pages use dedicated official fixture/standing tables; generic soccer rows are separate.",
+  }
+}
+
+export async function getAdminPerSportDataReliabilityRows(): Promise<AdminSportDataReliabilityRow[]> {
+  const rows = await Promise.all([
+    buildWorldCupReliabilityRow(),
+    buildGenericSportReliabilityRow({
+      id: "nfl",
+      sport: "NFL",
+      label: "NFL",
+      providers: ["Rolling Insights", "API-Sports", "ClearSports", "TheSportsDB", "NewsAPI", "OpenAI"],
+    }),
+    buildGenericSportReliabilityRow({
+      id: "mlb",
+      sport: "MLB",
+      label: "MLB",
+      providers: ["Rolling Insights", "ClearSports", "TheSportsDB", "NewsAPI", "OpenAI"],
+      note: "MLB player/game facts depend on Rolling Insights or ClearSports stat imports.",
+    }),
+    buildGenericSportReliabilityRow({
+      id: "nba",
+      sport: "NBA",
+      label: "NBA",
+      providers: ["Rolling Insights", "ClearSports", "TheSportsDB", "NewsAPI", "OpenAI"],
+    }),
+    buildGenericSportReliabilityRow({
+      id: "nhl",
+      sport: "NHL",
+      label: "NHL",
+      providers: ["Rolling Insights", "ClearSports", "TheSportsDB", "NewsAPI", "OpenAI"],
+    }),
+    buildGenericSportReliabilityRow({
+      id: "ncaaf",
+      sport: "NCAAF",
+      label: "NCAAF",
+      providers: ["Rolling Insights", "API-Sports", "CFBD", "ClearSports", "NewsAPI", "OpenAI"],
+      note: "CFBD covers teams/schedules; injuries/player stats require another configured provider.",
+    }),
+    buildGenericSportReliabilityRow({
+      id: "ncaab",
+      sport: "NCAAB",
+      label: "NCAAB",
+      providers: ["Rolling Insights", "ClearSports", "TheSportsDB", "NewsAPI", "OpenAI"],
+      note: "NCAAB is partial unless Rolling Insights or ClearSports returns player/injury/stat rows.",
+    }),
+    buildGenericSportReliabilityRow({
+      id: "soccer",
+      sport: "SOCCER",
+      label: "Soccer",
+      providers: ["Rolling Insights", "ClearSports", "TheSportsDB", "NewsAPI", "OpenAI"],
+      note: "Generic soccer is separate from dedicated World Cup official tables.",
+    }),
+  ])
+  return rows
 }
 
 async function getCacheCounts() {

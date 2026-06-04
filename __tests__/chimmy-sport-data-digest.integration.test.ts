@@ -5,6 +5,7 @@ const getInjuryReportMock = vi.fn()
 const sportsGameFindManyMock = vi.fn()
 const sportsDataCacheFindManyMock = vi.fn()
 const sportsNewsFindManyMock = vi.fn()
+const sportsInjuryFindManyMock = vi.fn()
 const playerSeasonStatsFindManyMock = vi.fn()
 const fetchNewsAPIEverythingMock = vi.fn()
 
@@ -25,6 +26,7 @@ vi.mock('@/lib/prisma', () => ({
     sportsGame: { findMany: sportsGameFindManyMock },
     sportsDataCache: { findMany: sportsDataCacheFindManyMock },
     sportsNews: { findMany: sportsNewsFindManyMock },
+    sportsInjury: { findMany: sportsInjuryFindManyMock },
     playerSeasonStats: { findMany: playerSeasonStatsFindManyMock },
   },
 }))
@@ -37,6 +39,7 @@ describe('buildChimmySportDataDigest seeded fixture scenarios', () => {
     sportsGameFindManyMock.mockResolvedValue([])
     sportsDataCacheFindManyMock.mockResolvedValue([])
     sportsNewsFindManyMock.mockResolvedValue([])
+    sportsInjuryFindManyMock.mockResolvedValue([])
     playerSeasonStatsFindManyMock.mockResolvedValue([])
     fetchNewsAPIEverythingMock.mockResolvedValue([])
   })
@@ -65,6 +68,66 @@ describe('buildChimmySportDataDigest seeded fixture scenarios', () => {
     expect(digest.sources).toContain('player_news_NFL')
     expect(digest.freshness.perSource.player_news_NFL).toBe('2026-04-25T12:00:00.000Z')
     expect(digest.freshness.overallLastSyncedAt).toBe('2026-04-25T12:00:00.000Z')
+  })
+
+  it('bridges cached MLB SportsNews rows into Chimmy context when player-news rows are absent', async () => {
+    sportsNewsFindManyMock.mockImplementation(async ({ where }: { where?: { sport?: string } }) => {
+      if (where?.sport !== 'MLB') return []
+      return [
+        {
+          title: 'Yankees game notes list two home runs from verified game recap.',
+          playerName: null,
+          team: 'NYY',
+          source: 'newsapi',
+          publishedAt: new Date('2026-06-04T13:00:00.000Z'),
+          fetchedAt: new Date('2026-06-04T13:05:00.000Z'),
+          updatedAt: new Date('2026-06-04T13:05:00.000Z'),
+        },
+      ]
+    })
+
+    const { buildChimmySportDataDigest } = await import('@/lib/chimmy/chimmy-sport-data-digest')
+    const digest = await buildChimmySportDataDigest({
+      sport: 'MLB',
+      question: 'What MLB news is available?',
+      includeNewsApi: false,
+      timezone: 'America/New_York',
+    })
+
+    expect(digest.text).toContain('MLB - Sports news (DB cache)')
+    expect(digest.text).toContain('Yankees game notes')
+    expect(digest.sources).toContain('sports_news_MLB')
+    expect(digest.freshness.perSource.sports_news_MLB).toBe('2026-06-04T13:00:00.000Z')
+  })
+
+  it('bridges cached NBA SportsInjury rows into Chimmy context when injury-report rows are absent', async () => {
+    sportsInjuryFindManyMock.mockImplementation(async ({ where }: { where?: { sport?: string } }) => {
+      if (where?.sport !== 'NBA') return []
+      return [
+        {
+          playerName: 'Example Guard',
+          team: 'NYK',
+          status: 'Questionable',
+          description: 'Ankle soreness',
+          date: new Date('2026-06-04T10:00:00.000Z'),
+          fetchedAt: new Date('2026-06-04T10:05:00.000Z'),
+          updatedAt: new Date('2026-06-04T10:05:00.000Z'),
+        },
+      ]
+    })
+
+    const { buildChimmySportDataDigest } = await import('@/lib/chimmy/chimmy-sport-data-digest')
+    const digest = await buildChimmySportDataDigest({
+      sport: 'NBA',
+      question: 'Any NBA injury updates?',
+      includeNewsApi: false,
+      timezone: 'America/New_York',
+    })
+
+    expect(digest.text).toContain('NBA - Injuries (DB cache)')
+    expect(digest.text).toContain('Example Guard')
+    expect(digest.sources).toContain('sports_injuries_NBA')
+    expect(digest.freshness.perSource.sports_injuries_NBA).toBe('2026-06-04T10:00:00.000Z')
   })
 
   it('builds NBA tonight games context from seeded sportsGame fixtures', async () => {

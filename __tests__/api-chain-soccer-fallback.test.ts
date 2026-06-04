@@ -11,6 +11,10 @@ const theSportsDbSupportsMock = vi.fn()
 const theSportsDbFetchMock = vi.fn()
 const apiSportsSupportsMock = vi.fn()
 const apiSportsFetchMock = vi.fn()
+const clearSportsSupportsMock = vi.fn()
+const clearSportsFetchMock = vi.fn()
+const cfbdSupportsMock = vi.fn()
+const cfbdFetchMock = vi.fn()
 const persistNormalizedSportsRowsMock = vi.fn()
 
 vi.mock('@/lib/prisma', () => ({
@@ -43,6 +47,22 @@ vi.mock('@/lib/workers/providers/api-sports', () => ({
   },
 }))
 
+vi.mock('@/lib/workers/providers/clearsports', () => ({
+  clearSportsProvider: {
+    name: 'clearsports',
+    supports: clearSportsSupportsMock,
+    fetch: clearSportsFetchMock,
+  },
+}))
+
+vi.mock('@/lib/workers/providers/cfbd', () => ({
+  cfbdProvider: {
+    name: 'cfbd',
+    supports: cfbdSupportsMock,
+    fetch: cfbdFetchMock,
+  },
+}))
+
 vi.mock('@/lib/workers/sports-cache-persist', () => ({
   persistNormalizedSportsRows: persistNormalizedSportsRowsMock,
 }))
@@ -56,6 +76,12 @@ describe('api-chain soccer fallback', () => {
     persistNormalizedSportsRowsMock.mockResolvedValue(undefined)
     theSportsDbSupportsMock.mockReturnValue(false)
     theSportsDbFetchMock.mockResolvedValue(null)
+    apiSportsSupportsMock.mockReturnValue(false)
+    apiSportsFetchMock.mockResolvedValue(null)
+    clearSportsSupportsMock.mockReturnValue(false)
+    clearSportsFetchMock.mockResolvedValue(null)
+    cfbdSupportsMock.mockReturnValue(false)
+    cfbdFetchMock.mockResolvedValue(null)
   })
 
   afterEach(() => {
@@ -149,5 +175,79 @@ describe('api-chain soccer fallback', () => {
     expect(result.fromCache).toBe(false)
     expect(result.source).toBe('api_sports')
     expect(result.data).toEqual([{ id: 'game-1' }])
+  })
+
+  it('builds deterministic cache keys that include query and options', async () => {
+    const { buildApiChainCacheKey } = await import('@/lib/workers/api-chain')
+
+    const a = buildApiChainCacheKey({
+      sport: 'nba',
+      dataType: 'players',
+      query: { playerName: 'Jalen Brunson', filters: { team: 'NYK', active: true } },
+      options: { limit: 10 },
+    })
+    const b = buildApiChainCacheKey({
+      sport: 'nba',
+      dataType: 'players',
+      query: { filters: { active: true, team: 'NYK' }, playerName: 'Jalen Brunson' },
+      options: { limit: 10 },
+    })
+    const c = buildApiChainCacheKey({
+      sport: 'nba',
+      dataType: 'players',
+      query: { playerName: 'Jayson Tatum', filters: { team: 'BOS', active: true } },
+      options: { limit: 10 },
+    })
+    const d = buildApiChainCacheKey({
+      sport: 'mlb',
+      dataType: 'players',
+      query: { playerName: 'Jalen Brunson', filters: { team: 'NYK', active: true } },
+      options: { limit: 10 },
+    })
+
+    expect(a).toBe(b)
+    expect(a).not.toBe(c)
+    expect(a).not.toBe(d)
+  })
+
+  it('does not collide cache rows between team, player, and news searches', async () => {
+    const { buildApiChainCacheKey } = await import('@/lib/workers/api-chain')
+
+    const keys = new Set([
+      buildApiChainCacheKey({ sport: 'mlb', dataType: 'players', query: { search: 'Judge' } }),
+      buildApiChainCacheKey({ sport: 'mlb', dataType: 'teams', query: { search: 'Yankees' } }),
+      buildApiChainCacheKey({ sport: 'mlb', dataType: 'news', query: { search: 'Yankees' } }),
+      buildApiChainCacheKey({ sport: 'mlb', dataType: 'news', query: { search: 'Mets' } }),
+    ])
+
+    expect(keys.size).toBe(4)
+  })
+
+  it('falls back to CFBD for lowercase ncaaf schedules when earlier providers are empty', async () => {
+    rollingInsightsProviderMock.mockResolvedValue({
+      data: null,
+      error: 'RI unavailable',
+      fromCache: false,
+      source: 'rolling_insights',
+      latency: 0,
+    })
+    theSportsDbSupportsMock.mockReturnValue(false)
+    apiSportsSupportsMock.mockReturnValue(false)
+    clearSportsSupportsMock.mockReturnValue(false)
+    cfbdSupportsMock.mockReturnValue(true)
+    cfbdFetchMock.mockResolvedValue([{ id: 'cfbd-1', homeTeam: 'Michigan', awayTeam: 'Ohio State' }])
+
+    const { fetchWithChain } = await import('@/lib/workers/api-chain')
+
+    const result = await fetchWithChain({
+      sport: 'ncaaf',
+      dataType: 'schedule',
+      query: { season: '2026' },
+    })
+
+    expect(cfbdSupportsMock).toHaveBeenCalledWith(expect.objectContaining({ sport: 'ncaaf' }))
+    expect(cfbdFetchMock).toHaveBeenCalledTimes(1)
+    expect(result.source).toBe('cfbd')
+    expect(result.data).toEqual([{ id: 'cfbd-1', homeTeam: 'Michigan', awayTeam: 'Ohio State' }])
   })
 })

@@ -35,6 +35,37 @@ function mergeQuery(params: ApiFetchParams): Record<string, unknown> {
   return { ...(params.query ?? {}), ...(params.options ?? {}) }
 }
 
+function normalizeCacheValue(value: unknown): unknown {
+  if (value == null) return null
+  if (value instanceof Date) return value.toISOString()
+  if (Array.isArray(value)) return value.map((item) => normalizeCacheValue(item))
+  if (typeof value === 'object') {
+    const input = value as Record<string, unknown>
+    return Object.keys(input)
+      .sort()
+      .reduce<Record<string, unknown>>((acc, key) => {
+        const normalized = normalizeCacheValue(input[key])
+        if (normalized !== undefined) acc[key] = normalized
+        return acc
+      }, {})
+  }
+  if (typeof value === 'undefined') return undefined
+  return value
+}
+
+export function buildApiChainCacheKey(params: {
+  sport: ApiChainSport
+  dataType: string
+  query?: Record<string, unknown>
+  options?: Record<string, unknown>
+}): string {
+  const payload = normalizeCacheValue({
+    query: params.query ?? {},
+    options: params.options ?? {},
+  })
+  return `${params.sport}:${params.dataType}:${JSON.stringify(payload)}`
+}
+
 async function tryRollingInsightsBlock(
   params: ApiFetchParams & { forceRefresh?: boolean },
   chainSport: ApiChainSport,
@@ -348,7 +379,7 @@ async function saveToNormalizedTables(
 
 /**
  * DB-first sports fetch: SportsDataCache → Rolling Insights → api-sports fallback.
- * Cache key uses `sport`, `dataType`, and `JSON.stringify(options ?? {})` (query is not part of the key).
+ * Cache key uses sport, data type, normalized query, and normalized options.
  */
 export async function fetchWithChain(
   params: ApiFetchParams & { forceRefresh?: boolean }
@@ -364,8 +395,13 @@ export async function fetchWithChain(
     dt in API_CHAIN_TTLS
       ? API_CHAIN_TTLS[dt as ApiDataType]
       : ttlSecondsForDataType(dt)
-  const cacheKey = `${chainSport}:${dt}:${JSON.stringify(params.options ?? {})}`
   const merged = mergeQuery(params)
+  const cacheKey = buildApiChainCacheKey({
+    sport: chainSport,
+    dataType: dt,
+    query: params.query,
+    options: params.options,
+  })
 
   // 1. CHECK DB CACHE FIRST (skip if forceRefresh)
   if (!forceRefresh) {

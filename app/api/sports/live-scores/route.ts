@@ -1,9 +1,9 @@
 import { withApiUsage } from '@/lib/telemetry/usage'
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  getLiveScoresForSport,
-  parseSportQueryParam,
+  getCachedLiveScoresForSport,
 } from '@/lib/sports-live-scores-service'
+import { parseSportsRouteSportParam } from '@/lib/sports-route-params'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,21 +12,36 @@ export const GET = withApiUsage({ endpoint: '/api/sports/live-scores', tool: 'Sp
     try {
       const searchParams = request.nextUrl.searchParams
       const team = searchParams?.get('team')
-      const refresh = searchParams?.get('refresh') === 'true'
-      const sport = parseSportQueryParam(searchParams?.get('sport'))
+      let parsedSport: ReturnType<typeof parseSportsRouteSportParam>
+      try {
+        parsedSport = parseSportsRouteSportParam(searchParams?.get('sport'))
+      } catch (error) {
+        return NextResponse.json(
+          {
+            error: 'Unsupported sport',
+            message: error instanceof Error ? error.message : 'Unsupported sport',
+            supportedSports: ['nfl', 'mlb', 'nba', 'nhl', 'ncaaf', 'ncaab', 'soccer', 'world-cup'],
+          },
+          { status: 400 }
+        )
+      }
 
-      const result = await getLiveScoresForSport({
-        sport,
+      const result = await getCachedLiveScoresForSport({
+        sport: parsedSport.sport,
         team,
-        forceRefresh: refresh,
       })
 
       return NextResponse.json({
-        sport,
+        sport: parsedSport.sport,
+        requestedSport: parsedSport.requestedSport,
+        isWorldCup: parsedSport.isWorldCup,
         scores: result.scores,
         count: result.scores.length,
         source: result.source,
         refreshed: result.refreshed,
+        isStale: result.isStale,
+        lastSyncedAt: result.lastSyncedAt,
+        message: result.message,
         hasLiveGames: result.hasLiveGames,
         nextRefreshMs: result.nextRefreshMs,
         fetchedAt: result.fetchedAt,

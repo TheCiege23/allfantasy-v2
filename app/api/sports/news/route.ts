@@ -2,7 +2,7 @@ import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { normalizeTeamAbbrev } from '@/lib/team-abbrev';
-import { syncNewsToDb } from './sync-helper';
+import { parseSportsRouteSportParam } from '@/lib/sports-route-params';
 import {
   buildApiCacheKey,
   getApiCached,
@@ -23,29 +23,37 @@ export const GET = withApiUsage({ endpoint: "/api/sports/news", tool: "SportsNew
     const source = searchParams?.get('source');
     const sentiment = searchParams?.get('sentiment');
     const player = searchParams?.get('player');
-    const refresh = searchParams?.get('refresh') === 'true';
+    const sportParam = searchParams?.get('sport');
+
+    let parsedSport: ReturnType<typeof parseSportsRouteSportParam>;
+    try {
+      parsedSport = parseSportsRouteSportParam(sportParam);
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: 'Unsupported sport',
+          message: error instanceof Error ? error.message : 'Unsupported sport',
+          supportedSports: ['nfl', 'mlb', 'nba', 'nhl', 'ncaaf', 'ncaab', 'soccer', 'world-cup'],
+        },
+        { status: 400 }
+      );
+    }
 
     const { limit, cursor } = parseCursorPageParams(request, 100);
 
-    if (!refresh) {
-      const cacheKey = buildApiCacheKey('GET', request.url, { excludeParams: ['refresh', '_t'] });
-      const cached = getApiCached(cacheKey);
-      if (cached) {
-        return NextResponse.json(cached.body, {
-          status: cached.status,
-          headers: { ...cached.headers, 'X-Cache': 'HIT' },
-        });
-      }
-    }
-
-    if (refresh) {
-      await syncNewsToDb(team || undefined);
+    const cacheKey = buildApiCacheKey('GET', request.url, { excludeParams: ['refresh', '_t'] });
+    const cached = getApiCached(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached.body, {
+        status: cached.status,
+        headers: { ...cached.headers, 'X-Cache': 'HIT' },
+      });
     }
 
     const andConditions: any[] = [];
 
     const where: Record<string, unknown> = {
-      sport: 'NFL',
+      sport: parsedSport.sport,
     };
 
     if (team) {
@@ -95,24 +103,16 @@ export const GET = withApiUsage({ endpoint: "/api/sports/news", tool: "SportsNew
     }
 
     const take = limit + 1;
-    let news = await prisma.sportsNews.findMany({
+    const news = await prisma.sportsNews.findMany({
       where,
       orderBy: { publishedAt: 'desc' },
       take,
     });
 
-    const stale = news.length === 0 || (news.length > 0 && news[0].expiresAt < new Date());
+    const latest = news[0] ?? null;
+    const stale = latest ? latest.expiresAt < new Date() : false;
 
-    if (stale && !refresh) {
-      await syncNewsToDb(team || undefined);
-      news = await prisma.sportsNews.findMany({
-        where,
-        orderBy: { publishedAt: 'desc' },
-        take,
-      });
-    }
-
-    const hasMore = news.length > take;
+    const hasMore = news.length > limit;
     const items = hasMore ? news.slice(0, limit) : news;
     const lastPublished = items.length > 0 ? items[items.length - 1].publishedAt : null;
     const nextCursor = hasMore && lastPublished != null
@@ -126,18 +126,27 @@ export const GET = withApiUsage({ endpoint: "/api/sports/news", tool: "SportsNew
     const body = {
       news: items,
       count: items.length,
+      sport: parsedSport.sport,
+      requestedSport: parsedSport.requestedSport,
+      isWorldCup: parsedSport.isWorldCup,
       sources,
       categories,
       sentiments,
       nextCursor,
       hasMore,
       limit,
+      refreshed: false,
+      isStale: stale,
+      lastSyncedAt: latest?.fetchedAt?.toISOString() ?? latest?.updatedAt?.toISOString() ?? null,
+      message:
+        items.length === 0
+          ? `No cached ${parsedSport.isWorldCup ? 'World Cup' : parsedSport.sport} news is available yet.`
+          : stale
+            ? 'Cached news is stale. Admin/cron sync must refresh provider data.'
+            : null,
     };
 
-    if (!refresh) {
-      const cacheKey = buildApiCacheKey('GET', request.url, { excludeParams: ['refresh', '_t'] });
-      setApiCached(cacheKey, body, { ttlMs: API_CACHE_TTL.SHORT });
-    }
+    setApiCached(cacheKey, body, { ttlMs: API_CACHE_TTL.SHORT });
 
     return NextResponse.json(body, {
       headers: cacheControlHeaders('short'),

@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { prisma } from '@/lib/prisma'
-import { fetchWithChain } from '@/lib/workers/api-chain'
+import { buildApiChainCacheKey, fetchWithChain } from '@/lib/workers/api-chain'
 import { SUPPORTED_SPORTS, type ApiChainSport, type ApiDataType } from '@/lib/workers/api-config'
 
 const SWEEP_TYPES: ApiDataType[] = [
@@ -13,9 +13,9 @@ const SWEEP_TYPES: ApiDataType[] = [
   'standings',
 ]
 
-/** Must match `fetchWithChain` (`options` only; default → `{}`). */
+/** Must match `fetchWithChain` default empty query/options key. */
 export function defaultSportsCacheKey(sport: ApiChainSport, dataType: ApiDataType): string {
-  return `${sport}:${dataType}:${JSON.stringify({})}`
+  return buildApiChainCacheKey({ sport, dataType, query: {}, options: {} })
 }
 
 /**

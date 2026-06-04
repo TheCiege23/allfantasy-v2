@@ -610,6 +610,79 @@ function dbRowToLiveScore(g: {
   }
 }
 
+async function readCachedLiveScoreRows(options: {
+  sport: LeagueSport
+  team?: string | null
+}) {
+  const team = options.team?.trim() || null
+  return prisma.sportsGame.findMany({
+    where: {
+      sport: options.sport,
+      source: { in: ['rolling_insights', 'espn_live'] },
+      ...(team
+        ? {
+            OR: [
+              { homeTeam: normalizeTeamAbbrev(team) || team },
+              { awayTeam: normalizeTeamAbbrev(team) || team },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { startTime: 'asc' },
+  })
+}
+
+export async function getCachedLiveScoresForSport(options: {
+  sport: string
+  team?: string | null
+}): Promise<{
+  scores: LiveScoreRow[]
+  source: string
+  refreshed: false
+  hasLiveGames: boolean
+  nextRefreshMs: number
+  fetchedAt: string | null
+  lastSyncedAt: string | null
+  isStale: boolean
+  message: string | null
+}> {
+  const sport = normalizeToSupportedSport(options.sport)
+  const team = options.team?.trim() || null
+  const cachedGames = await readCachedLiveScoreRows({ sport, team })
+  const preferredRi = cachedGames.filter((g) => g.source === 'rolling_insights')
+  const useRows = preferredRi.length > 0 ? preferredRi : cachedGames
+  const scores = useRows.map(dbRowToLiveScore)
+  const now = Date.now()
+  const latestFetched =
+    cachedGames
+      .map((g) => g.fetchedAt)
+      .filter((value): value is Date => Boolean(value))
+      .sort((a, b) => b.getTime() - a.getTime())[0] ?? null
+  const isStale =
+    cachedGames.length > 0 &&
+    cachedGames.some((g) => g.fetchedAt && now - g.fetchedAt.getTime() > LIVE_SCORES_FRESHNESS_MS)
+  const hasLiveGames = scores.some(
+    (s) => s.status === 'STATUS_IN_PROGRESS' || s.status === 'STATUS_HALFTIME'
+  )
+
+  return {
+    scores,
+    source: useRows[0]?.source === 'rolling_insights' ? 'db_cache_ri' : 'db_cache',
+    refreshed: false,
+    hasLiveGames,
+    nextRefreshMs: hasLiveGames ? LIVE_SCORES_FRESHNESS_MS : LIVE_SCORES_FRESHNESS_MS * 5,
+    fetchedAt: latestFetched?.toISOString() ?? null,
+    lastSyncedAt: latestFetched?.toISOString() ?? null,
+    isStale,
+    message:
+      cachedGames.length === 0
+        ? `No cached ${sport} live scores are available yet.`
+        : isStale
+          ? 'Cached live scores are stale. Admin/cron sync must refresh provider data.'
+          : null,
+  }
+}
+
 /**
  * DB-first live scores: prefer Rolling Insights (`fetchWithChain` scores), then ESPN, persisted under distinct `source` keys.
  */
@@ -629,21 +702,7 @@ export async function getLiveScoresForSport(options: {
   const team = options.team?.trim() || null
   const refresh = options.forceRefresh === true
 
-  const cachedGames = await prisma.sportsGame.findMany({
-    where: {
-      sport,
-      source: { in: ['rolling_insights', 'espn_live'] },
-      ...(team
-        ? {
-            OR: [
-              { homeTeam: normalizeTeamAbbrev(team) || team },
-              { awayTeam: normalizeTeamAbbrev(team) || team },
-            ],
-          }
-        : {}),
-    },
-    orderBy: { startTime: 'asc' },
-  })
+  const cachedGames = await readCachedLiveScoreRows({ sport, team })
 
   const now = new Date()
   const stale =

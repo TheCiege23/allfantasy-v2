@@ -1,4 +1,5 @@
 import type { ApiFetchParams, ApiProvider } from '@/lib/workers/api-config'
+import { toApiChainSport } from '@/lib/workers/api-config'
 
 const CFBD_BASE_URL = 'https://api.collegefootballdata.com'
 
@@ -34,7 +35,7 @@ async function cfbdFetch<T>(path: string, params?: Record<string, string>): Prom
 export const cfbdProvider: ApiProvider = {
   name: 'cfbd',
   supports: ({ sport, dataType }: ApiFetchParams) =>
-    sport === 'NCAAF' && ['teams', 'games', 'schedule'].includes(dataType),
+    toApiChainSport(sport as string) === 'ncaaf' && ['teams', 'games', 'schedule'].includes(dataType),
   async fetch({ dataType, query = {} }: ApiFetchParams) {
     const season = typeof query.season === 'string' && query.season.trim()
       ? query.season.trim()

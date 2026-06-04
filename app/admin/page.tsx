@@ -7,6 +7,7 @@ import {
 import type {
   AdminProviderHealthRow,
   AdminProviderHealthStatus,
+  AdminSportDataReliabilityRow,
 } from "@/lib/admin-dashboard/AdminProviderHealthService"
 
 export const dynamic = "force-dynamic"
@@ -178,6 +179,101 @@ function ProviderHealthPanel({ rows }: { rows: AdminProviderHealthRow[] }) {
   )
 }
 
+function formatCount(value: number | null) {
+  return value == null ? "Not tracked yet" : value.toLocaleString("en-US")
+}
+
+function SportDataReliabilityPanel({ rows }: { rows: AdminSportDataReliabilityRow[] }) {
+  return (
+    <section className="rounded-3xl border border-cyan-300/15 bg-white/[0.04] p-4 shadow-[0_24px_80px_-54px_rgba(34,211,238,0.75)] sm:p-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-sm font-black uppercase tracking-[0.18em] text-cyan-100/80">
+            Per-Sport Data Reliability
+          </h2>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-white/48">
+            Neon-backed import counts by sport. Missing rows mean Chimmy and user pages must refuse exact facts or show an unavailable state.
+          </p>
+        </div>
+        <span className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.08] px-3 py-2 text-xs font-black text-cyan-100">
+          {rows.length} sports
+        </span>
+      </div>
+
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[1120px] text-left text-xs">
+          <thead className="text-[10px] uppercase tracking-[0.16em] text-white/42">
+            <tr>
+              <th className="py-2 pr-3">Sport</th>
+              <th className="py-2 pr-3">Imported</th>
+              <th className="py-2 pr-3">AI-Critical</th>
+              <th className="py-2 pr-3">Last Sync</th>
+              <th className="py-2 pr-3">Providers</th>
+              <th className="py-2 pr-3">Warnings</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/10">
+            {rows.map((row) => (
+              <tr key={row.id} className="align-top text-white/70">
+                <td className="max-w-[180px] py-4 pr-3">
+                  <div className="font-black text-white">{row.label}</div>
+                  <div className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-cyan-100/45">
+                    {row.sport}
+                  </div>
+                  <div className="mt-2 text-[11px] text-white/40">{row.note}</div>
+                </td>
+                <td className="py-4 pr-3">
+                  <div>Teams: <b>{formatCount(row.counts.teams)}</b></div>
+                  <div>Players: <b>{formatCount(row.counts.players)}</b></div>
+                  <div>Schedules: <b>{formatCount(row.counts.schedules)}</b></div>
+                  <div>Games: <b>{formatCount(row.counts.games)}</b></div>
+                  <div>Live scores: <b>{formatCount(row.counts.liveScores)}</b></div>
+                </td>
+                <td className="py-4 pr-3">
+                  <div>Standings: <b>{formatCount(row.counts.standings)}</b></div>
+                  <div>Injuries: <b>{formatCount(row.counts.injuries)}</b></div>
+                  <div>News: <b>{formatCount(row.counts.news)}</b></div>
+                  <div>Player stats: <b>{formatCount(row.counts.playerStats)}</b></div>
+                </td>
+                <td className="max-w-[210px] py-4 pr-3 text-[11px] leading-5 text-white/50">
+                  {Object.entries(row.lastSyncAtByType).map(([key, value]) => (
+                    <div key={key}>
+                      {key}: <span className="text-white/75">{formatDate(value)}</span>
+                    </div>
+                  ))}
+                </td>
+                <td className="max-w-[220px] py-4 pr-3">
+                  <div className="font-bold text-emerald-100">
+                    Configured: {joinList(row.configuredProviders, "None")}
+                  </div>
+                  <div className="mt-2 text-[11px] text-amber-100/85">
+                    Missing: {joinList(row.missingProviders, "None")}
+                  </div>
+                </td>
+                <td className="max-w-[240px] py-4 pr-3">
+                  {row.staleWarnings.length > 0 ? (
+                    <div className="space-y-1">
+                      {row.staleWarnings.map((warning) => (
+                        <div key={warning} className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-2 py-1 text-[11px] text-amber-100">
+                          {warning}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="rounded-full border border-emerald-300/25 bg-emerald-300/10 px-2.5 py-1 text-[11px] font-black text-emerald-100">
+                      No stored warnings
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}
+
 function AdminAccessDenied() {
   return (
     <main className="min-h-dvh bg-[#020817] px-4 py-8 text-white">
@@ -256,6 +352,7 @@ export default async function AdminPage({
         <Section title="World Cup" items={data.worldCup} />
         <Section title="System Health" items={data.health} />
         <ProviderHealthPanel rows={data.providerHealth ?? []} />
+        <SportDataReliabilityPanel rows={data.sportDataReliability ?? []} />
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.75fr)]">
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_20px_70px_-52px_rgba(34,211,238,0.7)]">

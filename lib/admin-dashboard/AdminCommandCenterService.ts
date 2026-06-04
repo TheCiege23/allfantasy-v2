@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma"
 import {
+  getAdminPerSportDataReliabilityRows,
   getAdminProviderHealthRows,
+  type AdminSportDataReliabilityRow,
   type AdminProviderHealthRow,
 } from "@/lib/admin-dashboard/AdminProviderHealthService"
 
@@ -86,6 +88,7 @@ export type AdminCommandCenterMetrics = {
   worldCup: AdminMetric[]
   health: AdminMetric[]
   providerHealth: AdminProviderHealthRow[]
+  sportDataReliability: AdminSportDataReliabilityRow[]
   usersSearch: AdminUserSearchRow[]
   activeWorldCupPools: AdminActivePoolRow[]
   recentUsers: AdminRecentUserRow[]
@@ -390,6 +393,7 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     recentTokenActivity,
     databaseHealth,
     providerHealth,
+    sportDataReliability,
   ] = await Promise.all([
     prisma.appUser.count(),
     prisma.appUser.count({ where: { createdAt: { gte: today } } }),
@@ -481,6 +485,7 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     getRecentTokenActivity(),
     prisma.$queryRaw`SELECT 1`.then(() => "healthy").catch(() => "down"),
     getAdminProviderHealthRows(),
+    getAdminPerSportDataReliabilityRows(),
   ])
 
   const cycleCounts = subscriptions.reduce(
@@ -579,8 +584,10 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
       metric("Generated", new Date().toLocaleString("en-US", { timeZone: "America/New_York" }), "America/New_York"),
       metric("Providers configured", providerHealth.filter((row) => row.configured).length),
       metric("Provider gaps", providerGapCount),
+      metric("Sport data rows", sportDataReliability.length, "Per-sport reliability table below"),
     ],
     providerHealth,
+    sportDataReliability,
     usersSearch,
     activeWorldCupPools,
     recentUsers,

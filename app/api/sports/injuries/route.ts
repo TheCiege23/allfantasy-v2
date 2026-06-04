@@ -1,9 +1,8 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { syncAPISportsInjuriesToDb } from '@/lib/api-sports';
-import { syncESPNInjuriesToDb } from '@/lib/espn-data';
 import { normalizeTeamAbbrev } from '@/lib/team-abbrev';
+import { parseSportsRouteSportParam } from '@/lib/sports-route-params';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,66 +11,99 @@ export const GET = withApiUsage({ endpoint: "/api/sports/injuries", tool: "Sport
     const searchParams = request.nextUrl.searchParams;
     const team = searchParams?.get('team');
     const player = searchParams?.get('player');
-    const refresh = searchParams?.get('refresh') === 'true';
-    const season = searchParams?.get('season');
 
-    if (refresh) {
-      const [apiSportsResult, espnResult] = await Promise.allSettled([
-        syncAPISportsInjuriesToDb(season ? { season } : undefined),
-        syncESPNInjuriesToDb(),
-      ]);
-      if (apiSportsResult.status === 'rejected') {
-        console.warn('[Injuries] API-Sports sync failed:', apiSportsResult.reason);
-      }
-      if (espnResult.status === 'rejected') {
-        console.warn('[Injuries] ESPN sync failed:', espnResult.reason);
-      }
+    let parsedSport: ReturnType<typeof parseSportsRouteSportParam>;
+    try {
+      parsedSport = parseSportsRouteSportParam(searchParams?.get('sport'));
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: 'Unsupported sport',
+          message: error instanceof Error ? error.message : 'Unsupported sport',
+          supportedSports: ['nfl', 'mlb', 'nba', 'nhl', 'ncaaf', 'ncaab', 'soccer', 'world-cup'],
+        },
+        { status: 400 }
+      );
     }
 
+    const normalizedTeam = team ? normalizeTeamAbbrev(team) || team : null;
+    const normalizedInjurySport = parsedSport.isWorldCup ? 'WC_SOCCER' : parsedSport.sport;
     const where: Record<string, unknown> = {
-      sport: 'NFL',
+      sport: parsedSport.sport,
     };
 
-    if (team) {
-      where.team = normalizeTeamAbbrev(team) || team;
+    if (normalizedTeam) {
+      where.team = normalizedTeam;
     }
 
     if (player) {
       where.playerName = { contains: player, mode: 'insensitive' };
     }
 
-    const injuries = await prisma.sportsInjury.findMany({
-      where,
-      orderBy: { fetchedAt: 'desc' },
-      take: 300,
-    });
+    const reportWhere: Record<string, unknown> = {
+      sport: normalizedInjurySport,
+    };
+    if (normalizedTeam) reportWhere.team = normalizedTeam;
+    if (player) reportWhere.playerName = { contains: player, mode: 'insensitive' };
 
-    const stale = injuries.length > 0 && injuries[0].expiresAt < new Date();
-
-    if (stale && !refresh) {
-      await Promise.allSettled([
-        syncAPISportsInjuriesToDb(season ? { season } : undefined),
-        syncESPNInjuriesToDb(),
-      ]);
-      const freshInjuries = await prisma.sportsInjury.findMany({
+    const [sportsInjuries, injuryReports] = await Promise.all([
+      prisma.sportsInjury.findMany({
         where,
         orderBy: { fetchedAt: 'desc' },
         take: 300,
-      });
+      }),
+      prisma.injuryReportRecord.findMany({
+        where: reportWhere,
+        orderBy: { reportDate: 'desc' },
+        take: 300,
+      }),
+    ]);
 
-      return NextResponse.json({
-        injuries: freshInjuries,
-        count: freshInjuries.length,
-        sources: ['api_sports', 'espn'],
-        refreshed: true,
-      });
-    }
+    const reportRows = injuryReports.map((injury) => ({
+      id: injury.id,
+      sport: injury.sport,
+      externalId: injury.playerId,
+      playerName: injury.playerName,
+      playerId: injury.playerId,
+      team: injury.team,
+      status: injury.status,
+      type: injury.bodyPart,
+      description: injury.notes,
+      date: injury.reportDate,
+      source: 'injury_reports',
+      fetchedAt: injury.reportDate,
+      expiresAt: null,
+      normalized: true,
+    }));
+    const injuries = [...sportsInjuries, ...reportRows].slice(0, 300);
+    const latestFetched = injuries
+      .map((injury) => {
+        const value = injury.fetchedAt ?? injury.date ?? null;
+        return value instanceof Date ? value : value ? new Date(value) : null;
+      })
+      .filter((value): value is Date => Boolean(value) && Number.isFinite(value.getTime()))
+      .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+    const now = Date.now();
+    const staleSportsRows = sportsInjuries.some((injury) => injury.expiresAt < new Date());
+    const staleReportRows = injuryReports.some((injury) => now - injury.reportDate.getTime() > 6 * 60 * 60 * 1000);
+    const stale = injuries.length > 0 && (staleSportsRows || staleReportRows);
 
     return NextResponse.json({
       injuries,
       count: injuries.length,
+      sport: parsedSport.sport,
+      requestedSport: parsedSport.requestedSport,
+      isWorldCup: parsedSport.isWorldCup,
       sources: [...new Set(injuries.map(i => i.source))],
-      refreshed: refresh,
+      refreshed: false,
+      isStale: stale,
+      lastSyncedAt: latestFetched?.toISOString() ?? null,
+      message:
+        injuries.length === 0
+          ? `No cached ${parsedSport.isWorldCup ? 'World Cup' : parsedSport.sport} injuries are available yet.`
+          : stale
+            ? 'Cached injury data is stale. Admin/cron sync must refresh provider data.'
+            : null,
     });
   } catch (error) {
     console.error('[Injuries API] Error:', error);
