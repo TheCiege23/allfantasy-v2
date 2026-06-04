@@ -70,6 +70,8 @@ const USERNAME_GATE_EXEMPT: string[] = [
   "/onboarding",
   "/verify",
   "/reset-password",
+  "/admin",
+  "/admin-login",
   "/auth",           // /auth/error and similar
   "/api/auth",       // NextAuth session/signout/CSRF endpoints must always be reachable
   "/api/user/profile", // username write endpoint — must stay reachable

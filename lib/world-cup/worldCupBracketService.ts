@@ -612,6 +612,7 @@ function serialize(input: {
       visibility: c.visibility as WorldCupChallengeView["challenge"]["visibility"],
       pickLockStrategy: c.pickLockStrategy as WorldCupChallengeView["challenge"]["pickLockStrategy"],
       pickLockAt: iso(c.pickLockAt),
+      participantCount: c.participants.length,
       maxParticipants: c.maxParticipants,
       maxEntriesPerParticipant: c.maxEntriesPerParticipant,
       effectivePickLockAt: iso(effLock),
@@ -899,9 +900,6 @@ export async function joinWorldCupChallengeByInvite(input: {
   if (i.expiresAt && new Date(i.expiresAt) <= new Date()) {
     throw new Error("This invite link has expired.")
   }
-  if (i.maxUses != null && i.useCount >= i.maxUses) {
-    throw new Error("This invite has reached its maximum number of uses.")
-  }
 
   const name = await displayName(input.user)
   let createdJoinEntryId: string | null = null
@@ -918,6 +916,10 @@ export async function joinWorldCupChallengeByInvite(input: {
         createdJoinEntryId = e.id
       }
       return { participant: existing, joinedNew: false }
+    }
+
+    if (i.maxUses != null && i.useCount >= i.maxUses) {
+      throw new Error("This invite has reached its maximum number of uses.")
     }
 
     const passwordHash = getWorldCupJoinPasswordHashFromPayload(i.challenge.sourcePayload)
@@ -966,7 +968,22 @@ export async function joinWorldCupChallengeByInvite(input: {
     entryId = first?.id ?? null
   }
 
-  return { challengeId: i.challengeId, participantId: p.participant.id, entryId }
+  const [participantCount, freshInvite] = await Promise.all([
+    prisma.worldCupBracketParticipant.count({ where: { challengeId: i.challengeId } }),
+    prisma.worldCupBracketInvite.findUnique({
+      where: { id: i.id },
+      select: { useCount: true },
+    }),
+  ])
+
+  return {
+    challengeId: i.challengeId,
+    participantId: p.participant.id,
+    entryId,
+    participantCount,
+    inviteUseCount: freshInvite?.useCount ?? i.useCount,
+    joinedNew: p.joinedNew,
+  }
 }
 
 function side(match: WorldCupBracketMatch, pick: { selectedTeamId?: string | null; selectedSlotKey?: string | null }) {

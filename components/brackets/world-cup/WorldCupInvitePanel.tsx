@@ -71,6 +71,7 @@ export default function WorldCupInvitePanel({
     challenge.status === "final"
 
   const participantCount = Math.max(
+    challenge.participantCount,
     view.leaderboard?.length ?? 0,
     view.participant ? 1 : 0
   )

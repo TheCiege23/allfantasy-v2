@@ -20,6 +20,7 @@ import {
   syncWorldCupFixtures,
   syncWorldCupLiveScores,
 } from "@/lib/world-cup/worldCupDataSyncService"
+import { revalidateWorldCupJoinSurfaces } from "@/lib/world-cup/worldCupRevalidation"
 import {
   notifyWorldCupLeaderboardUpdated,
   notifyWorldCupResultsUpdated,
@@ -295,6 +296,10 @@ async function joinInvite(request: Request, inviteCode: string) {
       user: auth.user,
       joinPassword,
     })
+    revalidateWorldCupJoinSurfaces({
+      challengeId: result.challengeId,
+      inviteCode: params.data.inviteCode,
+    })
     return NextResponse.json({ ok: true, ...result })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to join bracket"
@@ -387,6 +392,10 @@ async function joinChallenge(challengeId: string) {
   const result = await joinWorldCupChallengeByInvite({
     inviteCode: challenge.inviteCode,
     user: auth.user,
+  })
+  revalidateWorldCupJoinSurfaces({
+    challengeId: result.challengeId,
+    inviteCode: challenge.inviteCode,
   })
 
   return NextResponse.json({ ok: true, ...result })

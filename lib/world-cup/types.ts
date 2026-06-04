@@ -84,6 +84,7 @@ export type WorldCupChallengeView = {
     visibility: WorldCupVisibility
     pickLockStrategy: WorldCupPickLockStrategy
     pickLockAt: string | null
+    participantCount: number
     maxParticipants: number
     maxEntriesPerParticipant: number
     /** Resolved tournament-start lock instant (explicit pickLockAt or earliest match kickoff). */

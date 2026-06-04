@@ -3,6 +3,7 @@ import {
   getWorldCupChallengeByInvite,
   joinWorldCupChallengeByInvite,
 } from "@/lib/world-cup"
+import { revalidateWorldCupJoinSurfaces } from "@/lib/world-cup/worldCupRevalidation"
 import { requireWorldCupApiUser, worldCupInviteParamsSchema } from "../../_utils"
 
 export const runtime = "nodejs"
@@ -41,6 +42,10 @@ export async function POST(request: Request, context: { params: { inviteCode: st
       inviteCode: params.data.inviteCode,
       user: auth.user,
       joinPassword,
+    })
+    revalidateWorldCupJoinSurfaces({
+      challengeId: result.challengeId,
+      inviteCode: params.data.inviteCode,
     })
     return NextResponse.json({ ok: true, ...result })
   } catch (error) {

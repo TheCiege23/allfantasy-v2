@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { joinWorldCupChallengeByInvite } from "@/lib/world-cup"
+import { revalidateWorldCupJoinSurfaces } from "@/lib/world-cup/worldCupRevalidation"
 import { requireWorldCupApiUser, worldCupChallengeParamsSchema } from "../../_utils"
 
 export const runtime = "nodejs"
@@ -33,6 +34,10 @@ export async function POST(request: Request, context: { params: { challengeId: s
       inviteCode: challenge.inviteCode,
       user: auth.user,
       joinPassword,
+    })
+    revalidateWorldCupJoinSurfaces({
+      challengeId: result.challengeId,
+      inviteCode: challenge.inviteCode,
     })
     return NextResponse.json({ ok: true, ...result })
   } catch (error) {

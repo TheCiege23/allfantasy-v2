@@ -310,6 +310,7 @@ function normalizeWorldCupView(input: WorldCupChallengeView | (Partial<WorldCupC
         visibility: challengeRaw?.visibility ?? "private",
         pickLockStrategy: challengeRaw?.pickLockStrategy ?? "tournament_start",
         pickLockAt: challengeRaw?.pickLockAt ?? null,
+        participantCount: typeof challengeRaw?.participantCount === "number" ? challengeRaw.participantCount : 0,
         maxParticipants: challengeRaw?.maxParticipants ?? 100,
         maxEntriesPerParticipant: challengeRaw?.maxEntriesPerParticipant ?? 5,
         effectivePickLockAt: challengeRaw?.effectivePickLockAt ?? null,
@@ -350,6 +351,7 @@ function normalizeWorldCupView(input: WorldCupChallengeView | (Partial<WorldCupC
       visibility: challengeRaw?.visibility ?? "private",
       pickLockStrategy: challengeRaw?.pickLockStrategy ?? "tournament_start",
       pickLockAt: challengeRaw?.pickLockAt ?? null,
+      participantCount: typeof challengeRaw?.participantCount === "number" ? challengeRaw.participantCount : 0,
       maxParticipants: challengeRaw?.maxParticipants ?? 100,
       maxEntriesPerParticipant: challengeRaw?.maxEntriesPerParticipant ?? 5,
       effectivePickLockAt: challengeRaw?.effectivePickLockAt ?? null,
@@ -1919,6 +1921,7 @@ export default function WorldCupBracketShell({
     (guidedPicksState === "fixtures_not_synced" || guidedPicksState === "fixtures_not_ready")
 
   const participantCount = Math.max(
+    view.challenge.participantCount,
     view.leaderboard.length > 0 ? new Set(view.leaderboard.map((row) => row.userId)).size : 0,
     view.participant ? 1 : 0
   )

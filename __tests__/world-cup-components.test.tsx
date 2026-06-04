@@ -837,6 +837,7 @@ function makeShellView(overrides: Record<string, unknown> = {}) {
       visibility: "private" as const,
       pickLockStrategy: "tournament_start" as const,
       pickLockAt: null,
+      participantCount: 1,
       maxParticipants: 100,
       maxEntriesPerParticipant: 5,
       effectivePickLockAt: "2099-07-01T18:00:00.000Z",
@@ -1072,6 +1073,22 @@ describe("WorldCupBracketShell fixture readiness", () => {
     render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="group-stage" initialEntryId="entry-1" />)
 
     expect(await screen.findByTestId("world-cup-group-stage-picks")).toHaveTextContent("entry-1")
+  })
+
+  it("shows actual joined participants even before they finalize leaderboard entries", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    const base = makeShellView()
+    render(
+      <WorldCupBracketShell
+        initialView={makeShellView({
+          challenge: { ...base.challenge, participantCount: 3, maxParticipants: 100 },
+          leaderboard: [],
+        }) as any}
+        defaultTab="home"
+      />
+    )
+
+    expect(await screen.findByText("3 / 100 participants")).toBeInTheDocument()
   })
 
   it("keeps predictive knockout generated from group predictions", async () => {

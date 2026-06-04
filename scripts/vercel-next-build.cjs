@@ -22,8 +22,6 @@ const routeDirsToDisable = [
   path.join('app', 'tools', 'social-share-engine-harness'),
   path.join('app', 'tools', 'public-league-discovery-harness'),
   // Keep non-core diagnostic/dev surfaces out of production route budget.
-  path.join('app', 'admin'),
-  path.join('app', 'api', 'admin'),
   path.join('app', 'api', 'cron'),
   path.join('app', 'api', 'audio-metadata'),
   path.join('app', 'ai-lab'),
@@ -68,7 +66,7 @@ const routeDirsToDisable = [
   // it is a developer-only seeding helper, not a production user action.
   path.join('app', 'api', 'marketplace', 'seed'),
   // AI provider registry/status endpoints — admin monitoring only, no production UI callers.
-  // Callers are the admin dashboard (app/admin excluded above) and /api/ai/tools (also excluded).
+  // Callers are limited to internal admin diagnostics and /api/ai/tools (also excluded).
   path.join('app', 'api', 'ai', 'providers'),
   // AI tools discovery endpoint — only referenced as an error-message string in the tool registry;
   // no production UI ever fetches it. Excluded to reduce route budget.

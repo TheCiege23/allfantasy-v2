@@ -68,6 +68,9 @@ declare module '@/lib/world-cup/worldCupNotifications' {
   export function notifyWorldCupLeaderboardUpdated(input: any): Promise<any>
   export function notifyWorldCupResultsUpdated(input: any): Promise<any>
 }
+declare module '@/lib/world-cup/worldCupRevalidation' {
+  export function revalidateWorldCupJoinSurfaces(input: any): void
+}
 declare module '@/lib/world-cup/worldCupDiagnosticsService' {
   export function runWorldCupDiagnostics(): Promise<any>
 }

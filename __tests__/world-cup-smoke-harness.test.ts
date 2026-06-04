@@ -454,6 +454,12 @@ describe("STEP-3 — joinWorldCupChallengeByInvite", () => {
 
   it("creates a new participant and entry when a second user joins via invite link", async () => {
     const { joinWorldCupChallengeByInvite } = await import("@/lib/world-cup/worldCupBracketService")
+    prismaMocks.worldCupBracketInvite.findUnique
+      .mockResolvedValueOnce(SMOKE_INVITE)
+      .mockResolvedValueOnce({ useCount: 1 })
+    prismaMocks.worldCupBracketParticipant.count
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(2)
 
     const result = await joinWorldCupChallengeByInvite({
       inviteCode: IDS.inviteCode,
@@ -462,6 +468,9 @@ describe("STEP-3 — joinWorldCupChallengeByInvite", () => {
 
     expect(result.challengeId).toBe(IDS.challengeId)
     expect(result.participantId).toBe(IDS.joinerParticipantId)
+    expect(result.participantCount).toBe(2)
+    expect(result.inviteUseCount).toBe(1)
+    expect(result.joinedNew).toBe(true)
     expect(prismaMocks.worldCupBracketParticipant.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ userId: IDS.joinerUserId }) })
     )
@@ -469,6 +478,37 @@ describe("STEP-3 — joinWorldCupChallengeByInvite", () => {
       IDS.challengeId, IDS.joinerUserId, expect.any(String)
     )
     expect(lifecycleMocks.entryCreated).toHaveBeenCalled()
+  })
+
+  it("returns the existing participant without double-counting duplicate invite joins", async () => {
+    const { joinWorldCupChallengeByInvite } = await import("@/lib/world-cup/worldCupBracketService")
+    prismaMocks.worldCupBracketInvite.findUnique
+      .mockResolvedValueOnce({ ...SMOKE_INVITE, maxUses: 1, useCount: 1 })
+      .mockResolvedValueOnce({ useCount: 1 })
+    prismaMocks.worldCupBracketParticipant.findUnique.mockResolvedValueOnce({
+      id: IDS.joinerParticipantId,
+      challengeId: IDS.challengeId,
+      userId: IDS.joinerUserId,
+      displayName: "Joiner",
+    })
+    prismaMocks.worldCupBracketEntry.count.mockResolvedValueOnce(1)
+    prismaMocks.worldCupBracketParticipant.count.mockResolvedValueOnce(2)
+
+    const result = await joinWorldCupChallengeByInvite({
+      inviteCode: IDS.inviteCode,
+      user: { id: IDS.joinerUserId, name: "Joiner" },
+    })
+
+    expect(result).toMatchObject({
+      challengeId: IDS.challengeId,
+      participantId: IDS.joinerParticipantId,
+      participantCount: 2,
+      inviteUseCount: 1,
+      joinedNew: false,
+    })
+    expect(prismaMocks.worldCupBracketParticipant.create).not.toHaveBeenCalled()
+    expect(prismaMocks.worldCupBracketInvite.update).not.toHaveBeenCalled()
+    expect(lifecycleMocks.userJoined).not.toHaveBeenCalled()
   })
 
   it("rejects a join when the invite has expired", async () => {
