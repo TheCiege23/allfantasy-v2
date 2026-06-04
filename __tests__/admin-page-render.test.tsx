@@ -33,6 +33,27 @@ function metricsFixture() {
     ai: [{ label: "Chimmy replies", value: 3, tracked: true }],
     worldCup: [{ label: "World Cup pools", value: 2, tracked: true }],
     health: [{ label: "Database", value: "healthy", tracked: true }],
+    providerHealth: [
+      {
+        id: "api_football_world_cup",
+        name: "API-Football / API-Sports World Cup",
+        category: "World Cup soccer",
+        status: "missing_env",
+        configured: false,
+        envVars: ["API_SPORTS_KEY"],
+        dataCategories: ["teams", "fixtures"],
+        consumedBy: ["World Cup sync cron"],
+        storage: ["world_cup_official_fixtures"],
+        requestCount24h: 0,
+        avgLatencyMs24h: null,
+        rateLimit: "Not tracked yet",
+        importedRows: 0,
+        lastSyncAt: null,
+        lastError: null,
+        costProtection: ["server-only provider client"],
+        note: "Missing provider key.",
+      },
+    ],
     usersSearch: [],
     activeWorldCupPools: [],
     recentUsers: [
@@ -93,6 +114,8 @@ describe("/admin page render states", () => {
     expect(screen.getByRole("heading", { name: /command center/i })).toBeInTheDocument()
     expect(screen.getByText("Total accounts")).toBeInTheDocument()
     expect(screen.getByText("World Cup pools")).toBeInTheDocument()
+    expect(screen.getByText(/Provider Health/i)).toBeInTheDocument()
+    expect(screen.getByText("API-Football / API-Sports World Cup")).toBeInTheDocument()
     expect(screen.getByText(/Recent Users/i)).toBeInTheDocument()
     expect(mocks.getAdminCommandCenterMetrics).toHaveBeenCalledWith("ciege")
   })

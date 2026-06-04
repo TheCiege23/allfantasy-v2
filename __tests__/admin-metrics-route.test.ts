@@ -42,6 +42,7 @@ describe("admin metrics route", () => {
       ai: [],
       worldCup: [{ label: "World Cup pools", value: 2, tracked: true }],
       health: [],
+      providerHealth: [],
       usersSearch: [],
       activeWorldCupPools: [],
       recentUsers: [],

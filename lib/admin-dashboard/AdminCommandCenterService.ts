@@ -1,4 +1,8 @@
 import { prisma } from "@/lib/prisma"
+import {
+  getAdminProviderHealthRows,
+  type AdminProviderHealthRow,
+} from "@/lib/admin-dashboard/AdminProviderHealthService"
 
 type MetricValue = number | string
 
@@ -80,6 +84,7 @@ export type AdminCommandCenterMetrics = {
   ai: AdminMetric[]
   worldCup: AdminMetric[]
   health: AdminMetric[]
+  providerHealth: AdminProviderHealthRow[]
   usersSearch: AdminUserSearchRow[]
   activeWorldCupPools: AdminActivePoolRow[]
   recentUsers: AdminRecentUserRow[]
@@ -378,6 +383,7 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     recentPayments,
     recentTokenActivity,
     databaseHealth,
+    providerHealth,
   ] = await Promise.all([
     prisma.appUser.count(),
     prisma.appUser.count({ where: { createdAt: { gte: today } } }),
@@ -450,6 +456,7 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     getRecentPayments(),
     getRecentTokenActivity(),
     prisma.$queryRaw`SELECT 1`.then(() => "healthy").catch(() => "down"),
+    getAdminProviderHealthRows(),
   ])
 
   const cycleCounts = subscriptions.reduce(
@@ -524,7 +531,10 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     health: [
       metric("Database", databaseHealth),
       metric("Generated", new Date().toLocaleString("en-US", { timeZone: "America/New_York" }), "America/New_York"),
+      metric("Providers configured", providerHealth.filter((row) => row.configured).length),
+      metric("Provider gaps", providerHealth.filter((row) => row.status === "missing_env" || row.status === "scaffold_only" || row.status === "not_production_ready").length),
     ],
+    providerHealth,
     usersSearch,
     activeWorldCupPools,
     recentUsers,

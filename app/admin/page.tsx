@@ -4,6 +4,10 @@ import {
   getAdminCommandCenterMetrics,
   type AdminMetric,
 } from "@/lib/admin-dashboard/AdminCommandCenterService"
+import type {
+  AdminProviderHealthRow,
+  AdminProviderHealthStatus,
+} from "@/lib/admin-dashboard/AdminProviderHealthService"
 
 export const dynamic = "force-dynamic"
 
@@ -46,6 +50,132 @@ function formatDate(value: string | null) {
     hour: "numeric",
     minute: "2-digit",
   })
+}
+
+function providerStatusLabel(status: AdminProviderHealthStatus) {
+  switch (status) {
+    case "configured":
+      return "Configured"
+    case "missing_env":
+      return "Missing env"
+    case "configured_failing":
+      return "Configured failing"
+    case "scaffold_only":
+      return "Scaffold only"
+    case "not_production_ready":
+      return "Not production ready"
+    case "disabled":
+      return "Disabled"
+    case "public_fallback":
+      return "Public fallback"
+    default:
+      return "Unknown"
+  }
+}
+
+function providerStatusClass(status: AdminProviderHealthStatus) {
+  if (status === "configured") return "border-emerald-300/35 bg-emerald-300/10 text-emerald-100"
+  if (status === "public_fallback") return "border-cyan-300/35 bg-cyan-300/10 text-cyan-100"
+  if (status === "scaffold_only" || status === "not_production_ready") {
+    return "border-amber-300/35 bg-amber-300/10 text-amber-100"
+  }
+  if (status === "missing_env" || status === "configured_failing") {
+    return "border-rose-300/35 bg-rose-300/10 text-rose-100"
+  }
+  return "border-white/15 bg-white/[0.06] text-white/70"
+}
+
+function joinList(values: string[], fallback = "Not tracked yet") {
+  return values.length > 0 ? values.join(", ") : fallback
+}
+
+function ProviderHealthPanel({ rows }: { rows: AdminProviderHealthRow[] }) {
+  return (
+    <section className="rounded-3xl border border-cyan-300/15 bg-white/[0.04] p-4 shadow-[0_24px_80px_-54px_rgba(34,211,238,0.75)] sm:p-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-sm font-black uppercase tracking-[0.18em] text-cyan-100/80">
+            Provider Health & Cost Guards
+          </h2>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-white/48">
+            Env readiness, stored data, request telemetry, sync state, and call-limit protection. This view does not call paid providers.
+          </p>
+        </div>
+        <span className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.08] px-3 py-2 text-xs font-black text-amber-100">
+          {rows.length} providers
+        </span>
+      </div>
+
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[1180px] text-left text-xs">
+          <thead className="text-[10px] uppercase tracking-[0.16em] text-white/42">
+            <tr>
+              <th className="py-2 pr-3">Provider</th>
+              <th className="py-2 pr-3">Status</th>
+              <th className="py-2 pr-3">Data / Consumers</th>
+              <th className="py-2 pr-3">Storage</th>
+              <th className="py-2 pr-3">Requests</th>
+              <th className="py-2 pr-3">Sync</th>
+              <th className="py-2 pr-3">Cost Protection</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/10">
+            {rows.map((row) => (
+              <tr key={row.id} className="align-top text-white/70">
+                <td className="max-w-[210px] py-4 pr-3">
+                  <div className="font-black text-white">{row.name}</div>
+                  <div className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-cyan-100/45">
+                    {row.category}
+                  </div>
+                  <div className="mt-2 text-[11px] text-white/38">
+                    Env: {joinList(row.envVars, "No env required")}
+                  </div>
+                </td>
+                <td className="py-4 pr-3">
+                  <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-black ${providerStatusClass(row.status)}`}>
+                    {providerStatusLabel(row.status)}
+                  </span>
+                  <div className="mt-2 max-w-[210px] text-[11px] leading-4 text-white/45">
+                    {row.note}
+                  </div>
+                </td>
+                <td className="max-w-[240px] py-4 pr-3">
+                  <div className="font-bold text-white/80">{joinList(row.dataCategories)}</div>
+                  <div className="mt-2 text-[11px] text-white/45">Used by: {joinList(row.consumedBy)}</div>
+                </td>
+                <td className="max-w-[210px] py-4 pr-3">
+                  <div className="font-bold text-white/75">{joinList(row.storage)}</div>
+                  <div className="mt-2 text-[11px] text-white/45">
+                    Imported rows: {row.importedRows ?? "Not tracked yet"}
+                  </div>
+                </td>
+                <td className="py-4 pr-3">
+                  <div className="font-black text-white">{row.requestCount24h ?? 0} / 24h</div>
+                  <div className="mt-1 text-[11px] text-white/45">
+                    Avg latency: {row.avgLatencyMs24h == null ? "Not tracked" : `${row.avgLatencyMs24h}ms`}
+                  </div>
+                  <div className="mt-1 text-[11px] text-white/45">{row.rateLimit}</div>
+                </td>
+                <td className="max-w-[180px] py-4 pr-3">
+                  <div className="font-bold text-white/75">{formatDate(row.lastSyncAt)}</div>
+                  {row.lastError ? (
+                    <div className="mt-2 rounded-xl border border-rose-300/25 bg-rose-300/10 p-2 text-[11px] text-rose-100">
+                      {row.lastError}
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-[11px] text-white/40">No recent stored error</div>
+                  )}
+                </td>
+                <td className="max-w-[240px] py-4 pr-3">
+                  <div className="text-[11px] leading-5 text-white/55">{joinList(row.costProtection)}</div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
 }
 
 function AdminAccessDenied() {
@@ -124,6 +254,7 @@ export default async function AdminPage({
         <Section title="Tokens & AI" items={[...data.tokens, ...data.ai]} />
         <Section title="World Cup" items={data.worldCup} />
         <Section title="System Health" items={data.health} />
+        <ProviderHealthPanel rows={data.providerHealth ?? []} />
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.75fr)]">
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_20px_70px_-52px_rgba(34,211,238,0.7)]">

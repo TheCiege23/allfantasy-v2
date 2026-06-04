@@ -7,6 +7,8 @@ const findUniqueMock = vi.fn()
 const upsertMock = vi.fn()
 
 const rollingInsightsProviderMock = vi.fn()
+const theSportsDbSupportsMock = vi.fn()
+const theSportsDbFetchMock = vi.fn()
 const apiSportsSupportsMock = vi.fn()
 const apiSportsFetchMock = vi.fn()
 const persistNormalizedSportsRowsMock = vi.fn()
@@ -23,6 +25,14 @@ vi.mock('@/lib/prisma', () => ({
 
 vi.mock('@/lib/workers/providers/rolling-insights', () => ({
   rollingInsightsProvider: rollingInsightsProviderMock,
+}))
+
+vi.mock('@/lib/workers/providers/thesportsdb', () => ({
+  theSportsDbProvider: {
+    name: 'thesportsdb',
+    supports: theSportsDbSupportsMock,
+    fetch: theSportsDbFetchMock,
+  },
 }))
 
 vi.mock('@/lib/workers/providers/api-sports', () => ({
@@ -44,6 +54,8 @@ describe('api-chain soccer fallback', () => {
     findUniqueMock.mockResolvedValue(null)
     upsertMock.mockResolvedValue({})
     persistNormalizedSportsRowsMock.mockResolvedValue(undefined)
+    theSportsDbSupportsMock.mockReturnValue(false)
+    theSportsDbFetchMock.mockResolvedValue(null)
   })
 
   afterEach(() => {
@@ -73,6 +85,7 @@ describe('api-chain soccer fallback', () => {
     })
 
     expect(rollingInsightsProviderMock).toHaveBeenCalledTimes(1)
+    expect(theSportsDbSupportsMock).toHaveBeenCalledTimes(1)
     expect(apiSportsSupportsMock).toHaveBeenCalledTimes(1)
     expect(apiSportsFetchMock).toHaveBeenCalledTimes(1)
 
