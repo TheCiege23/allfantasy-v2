@@ -85,6 +85,34 @@ describe("World Cup finalize route service imports", () => {
     expect(service.finalizeWorldCupEntry).toEqual(expect.any(Function))
   })
 
+  it("does not let a pool owner review or finalize another participant entry", async () => {
+    const service = await import("@/lib/world-cup/worldCupEntryFinalizeService")
+    prismaMocks.worldCupBracketEntry.findUnique.mockResolvedValue({
+      id: "entry-1",
+      challengeId: "c1",
+      userId: "participant-1",
+      challenge: {
+        id: "c1",
+        ownerUserId: "owner-1",
+      },
+    })
+
+    await expect(
+      service.getWorldCupEntryCompletionReview({
+        challengeId: "c1",
+        entryId: "entry-1",
+        userId: "owner-1",
+      })
+    ).rejects.toThrow("Entry not found")
+    await expect(
+      service.finalizeWorldCupEntry({
+        challengeId: "c1",
+        entryId: "entry-1",
+        userId: "owner-1",
+      })
+    ).rejects.toThrow("Entry not found")
+  })
+
   it("completion review counts generated knockout matchups from group predictions", async () => {
     const service = await import("@/lib/world-cup/worldCupEntryFinalizeService")
     const groupKeys = "ABCDEFGHIJKL".split("")

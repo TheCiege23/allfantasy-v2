@@ -653,6 +653,7 @@ export default function WorldCupBracketShell({
   const challengeId = view.challenge.id
 
   const showCommissionerTab = Boolean(view.isOwner || view.isAdmin)
+  const showAdminControls = Boolean(view.isAdmin)
   const entitlementSummary = useMemo(
     () => resolveWorldCupEntitlementSummary({
       isOwner: view.isOwner,
@@ -692,6 +693,12 @@ export default function WorldCupBracketShell({
   useEffect(() => {
     latestViewRef.current = view
   }, [view])
+
+  useEffect(() => {
+    if ((tab === "settings" || tab === "commissioner") && !showCommissionerTab) {
+      setTab("picks")
+    }
+  }, [showCommissionerTab, tab])
 
   const applyChallengeView = useCallback((nextView: WorldCupChallengeView) => {
     const mergedView = mergeWorldCupChallengeView(latestViewRef.current, nextView)
@@ -1947,7 +1954,7 @@ export default function WorldCupBracketShell({
   const showSeedTestFixturesCta =
     !isLocked &&
     knockoutMode !== "reseeded" &&
-    (view.isOwner || view.isAdmin) &&
+    showAdminControls &&
     (guidedPicksState === "fixtures_not_synced" || guidedPicksState === "fixtures_not_ready")
 
   const participantCount = Math.max(
@@ -2321,7 +2328,7 @@ export default function WorldCupBracketShell({
               ))}
             </select>
           )}
-          {view.isOwner || view.isAdmin ? (
+          {showAdminControls ? (
             <button
               type="button"
               onClick={() => runOwnerAction("sync")}
@@ -2453,7 +2460,7 @@ export default function WorldCupBracketShell({
                 if (nestedBoard) nestedBoard.scrollLeft = 0
               })
             }} />
-            {(view.isOwner || view.isAdmin) ? (
+            {showAdminControls ? (
               <JumpButton label={t("wc.subnav.adminTest")} onClick={() => scrollToAnchor("world-cup-admin", "picks")} />
             ) : null}
             <JumpButton label={t("wc.tab.leaderboard")} onClick={() => scrollToAnchor("world-cup-leaderboard", "leaderboard")} />
@@ -2588,7 +2595,7 @@ export default function WorldCupBracketShell({
             />
           )}
 
-          {(view.isOwner || view.isAdmin) && (
+          {showAdminControls && (
             <>
             <div id="world-cup-admin" className="mx-4 mb-2 h-0" aria-hidden="true" />
             <WorldCupReadinessPanel
@@ -2718,7 +2725,7 @@ export default function WorldCupBracketShell({
                 World Cup Simulation Panel
               </div>
               <p className="mb-3 text-[11px] text-white/65">
-                Owner/admin only. Testing only. Simulated results can change scores and leaderboard standings when dry run is off.
+                Admin only. Testing only. Simulated results can change scores and leaderboard standings when dry run is off.
               </p>
               {!simulationDryRun && (
                 <div
@@ -3452,15 +3459,17 @@ export default function WorldCupBracketShell({
                       <h3 className="text-sm font-black text-white">{t("wc.pool.commissioner.title")}</h3>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void runSyncFixtures()}
-                        disabled={isSyncing}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-bold text-white/75 disabled:opacity-50"
-                      >
-                        <RefreshCw className={`h-3 w-3 ${isSyncing ? "animate-spin" : ""}`} aria-hidden />
-                        {isSyncing ? t("wc.home.commissioner.syncing") : t("wc.home.commissioner.syncBtn")}
-                      </button>
+                      {showAdminControls ? (
+                        <button
+                          type="button"
+                          onClick={() => void runSyncFixtures()}
+                          disabled={isSyncing}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-bold text-white/75 disabled:opacity-50"
+                        >
+                          <RefreshCw className={`h-3 w-3 ${isSyncing ? "animate-spin" : ""}`} aria-hidden />
+                          {isSyncing ? t("wc.home.commissioner.syncing") : t("wc.home.commissioner.syncBtn")}
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         onClick={() => switchTab("settings")}
@@ -3553,7 +3562,7 @@ export default function WorldCupBracketShell({
                       </p>
                     )}
                   </div>
-                  {(view.isOwner || view.isAdmin) ? (
+                  {showAdminControls ? (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {showSeedTestFixturesCta ? (
                         <button
@@ -3738,13 +3747,13 @@ export default function WorldCupBracketShell({
                         {isLoadingTestFixtures ? "Loading..." : "Load Test Knockout Teams"}
                       </button>
                     ) : null}
-                    {(view.isOwner || view.isAdmin) ? (
+                    {showAdminControls ? (
                       <button
                         type="button"
                         onClick={() => scrollToAnchor("world-cup-admin", "picks")}
                         className="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-[11px] font-bold text-white/70"
                       >
-                        Jump to Admin/Test
+                        Admin diagnostics
                       </button>
                     ) : null}
                     <button
@@ -4418,7 +4427,7 @@ export default function WorldCupBracketShell({
             </p>
           </div>
         ) : null}
-        {tab === "settings" ? (
+        {tab === "settings" && showCommissionerTab ? (
           <div id="world-cup-settings" className="mx-auto max-w-3xl px-2 pb-28 sm:pb-8">
             <WorldCupBracketSettingsPanel
               challengeId={challengeId}
@@ -4426,7 +4435,7 @@ export default function WorldCupBracketShell({
             />
           </div>
         ) : null}
-        {tab === "commissioner" ? (
+        {tab === "commissioner" && showCommissionerTab ? (
           <div id="world-cup-commissioner" className="mx-auto max-w-3xl px-2 pb-28 sm:pb-8">
             <WorldCupCommissionerBrainPanel
               challengeId={challengeId}

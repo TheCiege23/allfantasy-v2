@@ -27,6 +27,7 @@ import {
 } from "@/lib/world-cup/worldCupNotifications"
 import {
   assertWorldCupCreateModeAccess,
+  assertWorldCupAdminManager,
   assertWorldCupManager,
   assertWorldCupSimulationAccess,
   getWorldCupAdminState,
@@ -346,6 +347,13 @@ async function patchChallenge(request: Request, challengeId: string) {
     return NextResponse.json({ error: "Invalid request", issues: parsed.error.flatten() }, { status: 400 })
   }
 
+  const simulationPatchRequested = ["isTestMode", "simulationEnabled", "simulationStatus"].some((key) =>
+    Object.prototype.hasOwnProperty.call(parsed.data, key)
+  )
+  if (simulationPatchRequested && !access.isAdmin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   await updateWorldCupChallengeSettings({
     challengeId: params.data.challengeId,
     name: parsed.data.name,
@@ -529,7 +537,7 @@ async function syncGroupStandings(request: Request, challengeId: string) {
     return NextResponse.json({ error: "Invalid challenge id" }, { status: 400 })
   }
 
-  const access = await assertWorldCupManager(request, params.data.challengeId, auth.user)
+  const access = await assertWorldCupAdminManager(request, params.data.challengeId, auth.user)
   if (!access.ok) return access.response
 
   const body = await request.json().catch(() => ({}))
@@ -577,7 +585,7 @@ async function adminIntegrityReport(request: Request, challengeId: string) {
     return NextResponse.json({ error: "Invalid challenge id" }, { status: 400 })
   }
 
-  const access = await assertWorldCupManager(request, params.data.challengeId, auth.user)
+  const access = await assertWorldCupAdminManager(request, params.data.challengeId, auth.user)
   if (!access.ok) return access.response
 
   const report = await getWorldCupChallengeIntegrityReport(params.data.challengeId)
@@ -597,7 +605,7 @@ async function adminSyncFixtures(request: Request, challengeId: string) {
     return NextResponse.json({ error: "Invalid challenge id" }, { status: 400 })
   }
 
-  const access = await assertWorldCupManager(request, params.data.challengeId, auth.user)
+  const access = await assertWorldCupAdminManager(request, params.data.challengeId, auth.user)
   if (!access.ok) return access.response
 
   const body = await request.json().catch(() => ({}))
@@ -646,7 +654,7 @@ async function adminSyncLive(request: Request, challengeId: string) {
     return NextResponse.json({ error: "Invalid challenge id" }, { status: 400 })
   }
 
-  const access = await assertWorldCupManager(request, params.data.challengeId, auth.user)
+  const access = await assertWorldCupAdminManager(request, params.data.challengeId, auth.user)
   if (!access.ok) return access.response
 
   const body = await request.json().catch(() => ({}))
@@ -833,7 +841,7 @@ async function adminLoadTestFixtures(request: Request, challengeId: string) {
     return NextResponse.json({ error: "Invalid challenge id" }, { status: 400 })
   }
 
-  const access = await assertWorldCupManager(request, params.data.challengeId, auth.user)
+  const access = await assertWorldCupAdminManager(request, params.data.challengeId, auth.user)
   if (!access.ok) return access.response
 
   const body = await request.json().catch(() => ({}))

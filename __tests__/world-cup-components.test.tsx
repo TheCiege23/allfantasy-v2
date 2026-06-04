@@ -1462,12 +1462,13 @@ describe("WorldCupBracketShell fixture readiness", () => {
 
     await waitFor(() => expect(clientApiMocks.listEntries).toHaveBeenCalled())
     expect(screen.queryByRole("button", { name: /Admin\/Test/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Settings/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/World Cup Simulation Panel/i)).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Commissioner/i })).not.toBeInTheDocument()
     expect(screen.queryByTestId("world-cup-readiness-panel")).not.toBeInTheDocument()
   })
 
-  it("renders owner simulation controls with dry run defaults and checklist results", async () => {
+  it("renders admin simulation controls with dry run defaults and checklist results", async () => {
     clientApiMocks.adminSimulateRound.mockResolvedValueOnce({
       ok: true,
       result: {
@@ -1484,6 +1485,8 @@ describe("WorldCupBracketShell fixture readiness", () => {
     render(
       <WorldCupBracketShell
         initialView={makeShellView({
+          isOwner: false,
+          isAdmin: true,
           matches: makeShellSeededMatches(),
           challenge: { ...makeShellView().challenge, simulationEnabled: true },
         }) as any}
@@ -1518,6 +1521,8 @@ describe("WorldCupBracketShell fixture readiness", () => {
     render(
       <WorldCupBracketShell
         initialView={makeShellView({
+          isOwner: false,
+          isAdmin: true,
           matches: makeShellSeededMatches(),
           challenge: { ...makeShellView().challenge, simulationEnabled: true },
         }) as any}
@@ -2426,7 +2431,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: true }) as any} />)
 
     await waitFor(() => expect(clientApiMocks.listEntries).toHaveBeenCalled())
-    expect(screen.getAllByRole("button", { name: /Admin\/Test/i }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole("button", { name: /Settings/i }).length).toBeGreaterThan(0)
     expect(screen.getAllByRole("button", { name: /Commissioner/i }).length).toBeGreaterThan(0)
     expect(screen.getByText(/World Cup Simulation Panel/i)).toBeInTheDocument()
   })
@@ -2523,7 +2528,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
   it("disables admin integrity after a missing route response", async () => {
     clientApiMocks.getIntegrityReport.mockRejectedValueOnce(new Error("Route not found"))
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
-    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: true, isAdmin: false }) as any} />)
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: true }) as any} />)
 
     const button = await screen.findByRole("button", { name: /Run Integrity Check/i })
     fireEvent.click(button)
@@ -2539,7 +2544,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     }))
     vi.stubGlobal("fetch", fetchMock)
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
-    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: true, isAdmin: false }) as any} />)
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: true }) as any} />)
 
     await screen.findByTestId("world-cup-readiness-panel")
     fireEvent.click(screen.getByRole("button", { name: /Run readiness check/i }))
@@ -2869,11 +2874,28 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(routerMocks.push).toHaveBeenLastCalledWith(expect.stringContaining("tab=review"))
   })
 
-  it("shows Seed Test Fixtures CTA for commissioner/admin when fixtures are missing", async () => {
+  it("hides Seed Test Fixtures CTA from commissioners when fixtures are missing", async () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(
       <WorldCupBracketShell
         initialView={makeShellView({
+          matches: [],
+          hasBracketBrainAi: true,
+        }) as any}
+      />
+    )
+
+    await waitFor(() => expect(clientApiMocks.listEntries).toHaveBeenCalled())
+    expect(screen.queryByRole("button", { name: /Seed Test Fixtures/i })).not.toBeInTheDocument()
+  })
+
+  it("shows Seed Test Fixtures CTA for admins when fixtures are missing", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(
+      <WorldCupBracketShell
+        initialView={makeShellView({
+          isOwner: false,
+          isAdmin: true,
           matches: [],
           hasBracketBrainAi: true,
         }) as any}

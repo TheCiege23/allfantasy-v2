@@ -278,6 +278,24 @@ export async function assertWorldCupManager(
   return { ok: true as const, challenge, isAdmin }
 }
 
+export async function assertWorldCupAdminManager(
+  request: Request,
+  challengeId: string,
+  user: WorldCupApiSessionUser
+) {
+  const access = await assertWorldCupManager(request, challengeId, user)
+  if (!access.ok) return access
+
+  if (!access.isAdmin) {
+    return {
+      ok: false as const,
+      response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+    }
+  }
+
+  return access
+}
+
 /** Allows challenge owner/admin OR any participant to read challenge-scoped resources (feed, etc.). */
 export async function assertWorldCupChallengeMemberOrManager(
   request: Request,
@@ -310,7 +328,7 @@ export async function assertWorldCupSimulationAccess(input: {
   user: WorldCupApiSessionUser
   confirmSimulation: boolean
 }) {
-  const manager = await assertWorldCupManager(input.request, input.challengeId, input.user)
+  const manager = await assertWorldCupAdminManager(input.request, input.challengeId, input.user)
   if (!manager.ok) return manager
 
   const simulationState = await getWorldCupSimulationAccessState(input.challengeId)

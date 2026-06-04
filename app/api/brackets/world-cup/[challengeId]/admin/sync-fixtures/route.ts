@@ -3,7 +3,7 @@ import { z } from "zod"
 import { syncWorldCupFixtures } from "@/lib/world-cup/worldCupDataSyncService"
 import {
   requireWorldCupApiUser,
-  assertWorldCupManager,
+  assertWorldCupAdminManager,
   worldCupChallengeParamsSchema,
   worldCupProviderSyncErrorResponse,
 } from "../../../_utils"
@@ -31,7 +31,7 @@ export async function POST(
     return NextResponse.json({ error: "Invalid challenge id" }, { status: 400 })
   }
 
-  const access = await assertWorldCupManager(
+  const access = await assertWorldCupAdminManager(
     request,
     params.data.challengeId,
     auth.user

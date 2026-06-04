@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { loadWorldCupTestFixtures } from "@/lib/world-cup/worldCupSimulationService"
 import {
-  assertWorldCupManager,
+  assertWorldCupAdminManager,
   requireWorldCupApiUser,
   worldCupChallengeParamsSchema,
 } from "../../../_utils"
@@ -23,7 +23,7 @@ export async function POST(request: Request, context: { params: { challengeId: s
     return NextResponse.json({ error: "Invalid challenge id" }, { status: 400 })
   }
 
-  const access = await assertWorldCupManager(request, params.data.challengeId, auth.user)
+  const access = await assertWorldCupAdminManager(request, params.data.challengeId, auth.user)
   if (!access.ok) return access.response
 
   const body = await request.json().catch(() => ({}))

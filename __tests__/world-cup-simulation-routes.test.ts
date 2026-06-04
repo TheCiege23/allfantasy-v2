@@ -16,6 +16,7 @@ const notifyResultsUpdatedMock = vi.hoisted(() => vi.fn())
 vi.mock("@/app/api/brackets/world-cup/_utils", () => ({
   requireWorldCupApiUser: requireUserMock,
   assertWorldCupSimulationAccess: accessMock,
+  assertWorldCupAdminManager: accessMock,
   assertWorldCupManager: accessMock,
   worldCupChallengeParamsSchema: z.object({ challengeId: z.string().min(1) }),
   worldCupProviderSyncErrorResponse: (error: unknown, context: { provider?: string | null; seasonYear?: number | null }) => {
@@ -93,7 +94,7 @@ describe("world cup simulation admin routes", () => {
     })
   })
 
-  it("enforces owner/admin simulation access", async () => {
+  it("enforces admin-only simulation access", async () => {
     accessMock.mockResolvedValueOnce({
       ok: false,
       response: new Response(JSON.stringify({ error: "Forbidden" }), {
@@ -237,7 +238,7 @@ describe("world cup simulation admin routes", () => {
     expect(loadFixturesMock).not.toHaveBeenCalled()
   })
 
-  it("requires owner/admin for load-test-fixtures route", async () => {
+  it("requires admin access for load-test-fixtures route", async () => {
     accessMock.mockResolvedValueOnce({
       ok: false,
       response: new Response(JSON.stringify({ error: "Forbidden" }), {

@@ -212,12 +212,12 @@ const EN: WorldCupDictionary = {
   "wc.tab.rules": "Rules",
   "wc.tab.invite": "Invite",
   "wc.tab.commissioner": "Commissioner",
-  "wc.tab.admin": "Admin",
+  "wc.tab.admin": "Settings",
 
   // ── Pool dashboard: sticky subnav labels ─────────────────────────────
   "wc.subnav.top": "Top",
   "wc.subnav.roundOf32": "Round of 32",
-  "wc.subnav.adminTest": "Admin/Test",
+  "wc.subnav.adminTest": "Admin Tools",
 
   // ── Mobile bottom nav: short labels ──────────────────────────────────
   "wc.tab.leaderboard.short": "Ranks",
@@ -229,7 +229,7 @@ const EN: WorldCupDictionary = {
   "wc.tab.review.short": "Review",
   "wc.tab.rules.short": "Rules",
   "wc.tab.invite.short": "Invite",
-  "wc.tab.admin.short": "Admin",
+  "wc.tab.admin.short": "Settings",
 
   // ── Rules tab ────────────────────────────────────────────────────────
   "wc.rules.hero.eyebrow": "Pool",
@@ -1412,12 +1412,12 @@ const ES: WorldCupDictionary = {
   "wc.tab.rules": "Reglas",
   "wc.tab.invite": "Invitar",
   "wc.tab.commissioner": "Comisionado",
-  "wc.tab.admin": "Admin",
+  "wc.tab.admin": "Ajustes",
 
   // ── Pool dashboard: sticky subnav labels ─────────────────────────────
   "wc.subnav.top": "Inicio",
   "wc.subnav.roundOf32": "Ronda de 32",
-  "wc.subnav.adminTest": "Admin/Test",
+  "wc.subnav.adminTest": "Herramientas admin",
 
   // ── Mobile bottom nav: short labels ──────────────────────────────────
   "wc.tab.leaderboard.short": "Ranking",
@@ -1429,7 +1429,7 @@ const ES: WorldCupDictionary = {
   "wc.tab.review.short": "Revisar",
   "wc.tab.rules.short": "Reglas",
   "wc.tab.invite.short": "Invitar",
-  "wc.tab.admin.short": "Admin",
+  "wc.tab.admin.short": "Ajustes",
 
   // ── Rules tab ────────────────────────────────────────────────────────
   "wc.rules.hero.eyebrow": "Pool",
@@ -2638,12 +2638,12 @@ const ZH: WorldCupDictionary = {
   "wc.tab.rules": "規則",
   "wc.tab.invite": "邀請",
   "wc.tab.commissioner": "管理員",
-  "wc.tab.admin": "後台",
+  "wc.tab.admin": "設定",
 
   // ── Pool dashboard: sticky subnav labels ─────────────────────────────
   "wc.subnav.top": "頂部",
   "wc.subnav.roundOf32": "32強",
-  "wc.subnav.adminTest": "後台/測試",
+  "wc.subnav.adminTest": "管理工具",
 
   // ── Mobile bottom nav: short labels ──────────────────────────────────
   "wc.tab.leaderboard.short": "排行",
@@ -2655,7 +2655,7 @@ const ZH: WorldCupDictionary = {
   "wc.tab.review.short": "檢閱",
   "wc.tab.rules.short": "規則",
   "wc.tab.invite.short": "邀請",
-  "wc.tab.admin.short": "後台",
+  "wc.tab.admin.short": "設定",
 
   // ── Rules tab ────────────────────────────────────────────────────────
   "wc.rules.hero.eyebrow": "水池",
@@ -3808,12 +3808,12 @@ const FIL: WorldCupDictionary = {
   "wc.tab.rules": "Mga Patakaran",
   "wc.tab.invite": "Mag-invite",
   "wc.tab.commissioner": "Commissioner",
-  "wc.tab.admin": "Admin",
+  "wc.tab.admin": "Mga Setting",
 
   // ── Pool dashboard: sticky subnav labels ─────────────────────────────
   "wc.subnav.top": "Tuktok",
   "wc.subnav.roundOf32": "Round of 32",
-  "wc.subnav.adminTest": "Admin/Test",
+  "wc.subnav.adminTest": "Admin Tools",
 
   // ── Mobile bottom nav: short labels ──────────────────────────────────
   "wc.tab.leaderboard.short": "Rank",
@@ -3825,7 +3825,7 @@ const FIL: WorldCupDictionary = {
   "wc.tab.review.short": "Review",
   "wc.tab.rules.short": "Patakaran",
   "wc.tab.invite.short": "Invite",
-  "wc.tab.admin.short": "Admin",
+  "wc.tab.admin.short": "Setting",
 
   // ── Rules tab ────────────────────────────────────────────────────────
   "wc.rules.hero.eyebrow": "Pool",
@@ -5022,12 +5022,12 @@ const VI: WorldCupDictionary = {
   "wc.tab.rules": "Luật chơi",
   "wc.tab.invite": "Mời",
   "wc.tab.commissioner": "Chủ pool",
-  "wc.tab.admin": "Quản trị",
+  "wc.tab.admin": "Cài đặt",
 
   // ── Pool dashboard: sticky subnav labels ─────────────────────────────
   "wc.subnav.top": "Đầu trang",
   "wc.subnav.roundOf32": "Vòng 32",
-  "wc.subnav.adminTest": "Quản trị/Test",
+  "wc.subnav.adminTest": "Công cụ quản trị",
 
   // ── Mobile bottom nav: short labels ──────────────────────────────────
   "wc.tab.leaderboard.short": "Hạng",
@@ -5039,7 +5039,7 @@ const VI: WorldCupDictionary = {
   "wc.tab.review.short": "Duyệt",
   "wc.tab.rules.short": "Luật",
   "wc.tab.invite.short": "Mời",
-  "wc.tab.admin.short": "Admin",
+  "wc.tab.admin.short": "Cài đặt",
 
   // ── Rules tab ────────────────────────────────────────────────────────
   "wc.rules.hero.eyebrow": "Pool",

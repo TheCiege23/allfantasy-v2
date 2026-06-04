@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getWorldCupChallengeIntegrityReport } from "@/lib/world-cup"
 import {
-  assertWorldCupManager,
+  assertWorldCupAdminManager,
   requireWorldCupApiUser,
   worldCupChallengeParamsSchema,
 } from "../../../_utils"
@@ -17,7 +17,7 @@ export async function GET(request: Request, context: { params: { challengeId: st
     return NextResponse.json({ error: "Invalid challenge id" }, { status: 400 })
   }
 
-  const access = await assertWorldCupManager(request, params.data.challengeId, auth.user)
+  const access = await assertWorldCupAdminManager(request, params.data.challengeId, auth.user)
   if (!access.ok) return access.response
 
   const report = await getWorldCupChallengeIntegrityReport(params.data.challengeId)

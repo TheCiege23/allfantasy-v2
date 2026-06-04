@@ -13,6 +13,7 @@ const notifyResultsMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/app/api/brackets/world-cup/_utils", () => ({
   requireWorldCupApiUser: requireUserMock,
+  assertWorldCupAdminManager: managerAccessMock,
   assertWorldCupManager: managerAccessMock,
   worldCupEntryParamsSchema: z.object({ challengeId: z.string().min(1), entryId: z.string().min(1) }),
   worldCupChallengeParamsSchema: z.object({ challengeId: z.string().min(1) }),

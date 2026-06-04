@@ -72,6 +72,13 @@ export async function PATCH(request: Request, context: { params: { challengeId: 
     return NextResponse.json({ error: "Invalid request", issues: parsed.error.flatten() }, { status: 400 })
   }
 
+  const simulationPatchRequested = ["isTestMode", "simulationEnabled", "simulationStatus"].some((key) =>
+    Object.prototype.hasOwnProperty.call(parsed.data, key)
+  )
+  if (simulationPatchRequested && !access.isAdmin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   await updateWorldCupChallengeSettings({
     challengeId: params.data.challengeId,
     name: parsed.data.name,

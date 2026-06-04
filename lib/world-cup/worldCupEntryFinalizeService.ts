@@ -85,7 +85,7 @@ export async function getWorldCupEntryCompletionReview(input: {
     },
   })
   if (!entry || entry.challengeId !== input.challengeId) throw new Error("Entry not found")
-  if (entry.userId !== input.userId && entry.challenge.ownerUserId !== input.userId) {
+  if (entry.userId !== input.userId) {
     throw new Error("Entry not found")
   }
 

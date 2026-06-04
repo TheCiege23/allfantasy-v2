@@ -7,7 +7,7 @@ import {
 } from "@/lib/world-cup/worldCupNotifications"
 import {
   requireWorldCupApiUser,
-  assertWorldCupManager,
+  assertWorldCupAdminManager,
   worldCupChallengeParamsSchema,
   worldCupProviderSyncErrorResponse,
 } from "../../../_utils"
@@ -37,7 +37,7 @@ export async function POST(
     return NextResponse.json({ error: "Invalid challenge id" }, { status: 400 })
   }
 
-  const access = await assertWorldCupManager(
+  const access = await assertWorldCupAdminManager(
     request,
     params.data.challengeId,
     auth.user
