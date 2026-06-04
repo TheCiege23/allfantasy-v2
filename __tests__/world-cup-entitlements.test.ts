@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   canCreateMultipleWorldCupEntries,
   canExportWorldCupLeaderboard,
+  canManageBasicWorldCupPool,
   canUseWorldCupAiTools,
   canUseWorldCupChat,
   canUseWorldCupCommissionerTools,
@@ -13,15 +14,17 @@ describe("World Cup entitlement helpers", () => {
     const input = { isOwner: false, isAdmin: false, hasBracketBrainAi: false }
 
     expect(canUseWorldCupCommissionerTools(input)).toBe(false)
-    expect(canCreateMultipleWorldCupEntries(input)).toBe(false)
+    expect(canCreateMultipleWorldCupEntries(input)).toBe(true)
     expect(canExportWorldCupLeaderboard(input)).toBe(false)
-    expect(canUseWorldCupChat(input)).toBe(false)
+    expect(canUseWorldCupChat(input)).toBe(true)
     expect(canUseWorldCupAiTools(input)).toBe(false)
   })
 
-  it("unlocks commissioner tools for owners, admins, and commissioner plans", () => {
-    expect(canUseWorldCupCommissionerTools({ isOwner: true })).toBe(true)
+  it("splits basic owner controls from paid AF Commissioner tools", () => {
+    expect(canManageBasicWorldCupPool({ isOwner: true })).toBe(true)
+    expect(canUseWorldCupCommissionerTools({ isOwner: true })).toBe(false)
     expect(canUseWorldCupCommissionerTools({ isAdmin: true })).toBe(true)
+    expect(canUseWorldCupCommissionerTools({ hasAfCommissioner: true })).toBe(true)
     expect(canUseWorldCupCommissionerTools({ plans: ["commissioner"] })).toBe(true)
     expect(canUseWorldCupCommissionerTools({ plans: ["supreme"] })).toBe(true)
   })

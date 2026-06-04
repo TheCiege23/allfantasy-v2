@@ -51,6 +51,8 @@ describe("worldCupDevQaAccess", () => {
 const requireUserMock = vi.hoisted(() => vi.fn())
 const hasBracketBrainAiMock = vi.hoisted(() => vi.fn())
 const buildIntelMock = vi.hoisted(() => vi.fn())
+const prepareTokenFallbackMock = vi.hoisted(() => vi.fn())
+const commitTokenSpendMock = vi.hoisted(() => vi.fn())
 
 const prismaChallengeMock = vi.hoisted(() => vi.fn())
 const prismaEntryMock = vi.hoisted(() => vi.fn())
@@ -68,6 +70,13 @@ vi.mock("@/lib/bracket-brain/bracketBrainAccess", () => ({
 
 vi.mock("@/lib/world-cup/worldCupAIService", () => ({
   buildWorldCupMatchupIntelligence: buildIntelMock,
+}))
+
+vi.mock("@/lib/world-cup/worldCupAiTokenFallback", () => ({
+  WORLD_CUP_AI_TOKEN_RULES: {
+    matchup: "world_cup_ai_matchup_analysis",
+  },
+  prepareWorldCupAiTokenFallback: prepareTokenFallbackMock,
 }))
 
 vi.mock("@/lib/prisma", () => ({
@@ -149,6 +158,8 @@ describe("POST /api/brackets/world-cup/.../ai/matchup (AF Pro)", () => {
     requireUserMock.mockReset()
     hasBracketBrainAiMock.mockReset()
     buildIntelMock.mockReset()
+    prepareTokenFallbackMock.mockReset()
+    commitTokenSpendMock.mockReset()
     prismaChallengeMock.mockReset()
     prismaEntryMock.mockReset()
     prismaMatchMock.mockReset()
@@ -163,10 +174,28 @@ describe("POST /api/brackets/world-cup/.../ai/matchup (AF Pro)", () => {
     prismaEntryMock.mockResolvedValue({ id: "e1" })
     prismaMatchMock.mockResolvedValue(sampleDbMatch)
     buildIntelMock.mockResolvedValue(baseIntel())
+    commitTokenSpendMock.mockResolvedValue({ id: "ledger-1", delta: -1 })
+    prepareTokenFallbackMock.mockResolvedValue({
+      ok: true,
+      mode: "subscription",
+      tokenPreview: null,
+      commitTokenSpend: null,
+    })
   })
 
-  it("returns 403 for ask_ai when user does not have Bracket Brain AI (no OpenAI build)", async () => {
+  it("returns token confirmation for ask_ai when user lacks AF Pro but may have tokens", async () => {
     hasBracketBrainAiMock.mockResolvedValue(false)
+    prepareTokenFallbackMock.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(
+        JSON.stringify({
+          error: "Token spend confirmation required.",
+          code: "token_confirmation_required",
+          preview: { tokenCost: 1 },
+        }),
+        { status: 409 }
+      ),
+    })
 
     const { POST } = await import(
       "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/ai/matchup/route"
@@ -181,9 +210,9 @@ describe("POST /api/brackets/world-cup/.../ai/matchup (AF Pro)", () => {
       { params: { challengeId: "c1", entryId: "e1" } }
     )
 
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(409)
     const json = await res.json()
-    expect(json.error).toBe("Bracket Brain requires AF Pro.")
+    expect(json.code).toBe("token_confirmation_required")
     expect(buildIntelMock).not.toHaveBeenCalled()
   })
 
@@ -229,6 +258,41 @@ describe("POST /api/brackets/world-cup/.../ai/matchup (AF Pro)", () => {
     )
 
     expect(res.status).toBe(200)
+    expect(buildIntelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bracketBrainAiEntitled: true,
+        intent: "ask_ai",
+      })
+    )
+  })
+
+  it("runs ask_ai through token fallback and commits only after generative AI succeeds", async () => {
+    hasBracketBrainAiMock.mockResolvedValue(false)
+    prepareTokenFallbackMock.mockResolvedValueOnce({
+      ok: true,
+      mode: "tokens",
+      tokenPreview: { tokenCost: 1, canSpend: true },
+      commitTokenSpend: commitTokenSpendMock,
+    })
+    buildIntelMock.mockResolvedValueOnce(baseIntel({ generative: true }))
+
+    const { POST } = await import(
+      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/ai/matchup/route"
+    )
+
+    const res = await POST(
+      new Request("http://localhost/api/brackets/world-cup/c1/entries/e1/ai/matchup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ matchId: "m1", intent: "ask_ai", confirmTokenSpend: true }),
+      }),
+      { params: { challengeId: "c1", entryId: "e1" } }
+    )
+
+    const json = await res.json()
+    expect(res.status).toBe(200)
+    expect(json.tokenSpend).toMatchObject({ id: "ledger-1" })
+    expect(commitTokenSpendMock).toHaveBeenCalledTimes(1)
     expect(buildIntelMock).toHaveBeenCalledWith(
       expect.objectContaining({
         bracketBrainAiEntitled: true,

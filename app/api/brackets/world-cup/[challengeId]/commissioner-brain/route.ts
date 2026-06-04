@@ -3,6 +3,11 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { userHasBracketBrainAi } from "@/lib/bracket-brain/bracketBrainAccess"
 import { prisma } from "@/lib/prisma"
+import { userHasWorldCupCommissionerAccess } from "@/lib/world-cup/worldCupCommissionerAccess"
+import {
+  prepareWorldCupAiTokenFallback,
+  WORLD_CUP_AI_TOKEN_RULES,
+} from "@/lib/world-cup/worldCupAiTokenFallback"
 import {
   buildWorldCupAiPoolRecapLines,
   generateAiWrappedLines,
@@ -39,6 +44,7 @@ const postSchema = z.object({
   entryId: z.string().optional(),
   tone: z.enum(["fun", "serious", "hype"]).optional().default("fun"),
   lines: z.array(z.string().trim().min(1).max(500)).max(12).optional(),
+  confirmTokenSpend: z.boolean().optional().default(false),
 })
 
 export async function GET(
@@ -60,10 +66,11 @@ export async function GET(
   )
   if (!access.ok) return access.response
 
-  const [snapshot, settings, hasAi, challengeRow] = await Promise.all([
+  const [snapshot, settings, hasAi, hasAfCommissioner, challengeRow] = await Promise.all([
     getWorldCupCommissionerBrainSnapshot(params.data.challengeId),
     getWorldCupCommissionerSettings(params.data.challengeId),
     userHasBracketBrainAi(auth.user.id, auth.user.email ?? null),
+    userHasWorldCupCommissionerAccess(auth.user.id, auth.user.email ?? null),
     prisma.worldCupBracketChallenge.findUnique({
       where: { id: params.data.challengeId },
       select: { sourcePayload: true },
@@ -73,7 +80,9 @@ export async function GET(
   return NextResponse.json({
     snapshot,
     settings,
-    hasBracketBrainAi: hasAi,
+    hasBracketBrainAi: Boolean(access.isAdmin || hasAfCommissioner),
+    hasAfPro: hasAi,
+    hasAfCommissioner: Boolean(access.isAdmin || hasAfCommissioner),
     bracketBrainEnabled: isWorldCupBracketBrainEnabledForChallenge(challengeRow?.sourcePayload),
   })
 }
@@ -106,29 +115,30 @@ export async function POST(
     )
   }
 
-  const hasAi = await userHasBracketBrainAi(auth.user.id, auth.user.email ?? null)
-  if (!hasAi && parsed.data.action === "drama_recap") {
-    const lines = await buildWorldCupAiPoolRecapLines(params.data.challengeId, parsed.data.tone as WorldCupAiRecapTone)
-    return NextResponse.json({
-      ok: true,
+  const [hasAi, hasAfCommissioner] = await Promise.all([
+    userHasBracketBrainAi(auth.user.id, auth.user.email ?? null),
+    userHasWorldCupCommissionerAccess(auth.user.id, auth.user.email ?? null),
+  ])
+  const hasCommissionerAiAccess = Boolean(access.isAdmin || hasAfCommissioner)
+  const tokenAccess = await prepareWorldCupAiTokenFallback({
+    userId: auth.user.id,
+    userEmail: auth.user.email ?? null,
+    entitled: hasCommissionerAiAccess,
+    ruleCode: WORLD_CUP_AI_TOKEN_RULES.commissionerReport,
+    confirmTokenSpend: parsed.data.confirmTokenSpend,
+    sourceType: "world_cup_commissioner_brain",
+    sourceId: `${params.data.challengeId}:${parsed.data.action}`,
+    idempotencyKey: `wc-commissioner-brain:${auth.user.id}:${params.data.challengeId}:${parsed.data.action}:${parsed.data.round ?? "none"}:${parsed.data.tone}`,
+    description: "World Cup commissioner AI report",
+    metadata: {
+      challengeId: params.data.challengeId,
       action: parsed.data.action,
-      lines: lines.slice(0, 3),
-      posted: false,
-      source: "deterministic",
-      proLocked: true,
-    })
-  }
-
-  if (!hasAi) {
-    return NextResponse.json(
-      {
-        error: "AF Pro required for Bracket Brain AI output.",
-        upgrade: true,
-        hasBracketBrainAi: false,
-      },
-      { status: 402 }
-    )
-  }
+      round: parsed.data.round ?? null,
+      hasAfPro: hasAi,
+    },
+    upgradePath: "/commissioner-upgrade?feature=commissioner_ai_tools",
+  })
+  if (!tokenAccess.ok) return tokenAccess.response
 
   const challengeRow = await prisma.worldCupBracketChallenge.findUnique({
     where: { id: params.data.challengeId },
@@ -163,12 +173,32 @@ export async function POST(
           entryId: parsed.data.entryId,
         })
 
+  let tokenSpend = null
+  if (isRecapPreview && tokenAccess.mode === "tokens") {
+    try {
+      tokenSpend = await tokenAccess.commitTokenSpend()
+    } catch {
+      return NextResponse.json(
+        {
+          error: "Token spend failed after Commissioner Brain generation. No tokens were deducted.",
+          code: "token_spend_failed_no_deduction",
+          upgrade: true,
+          upgradePath: "/tokens?ruleCode=world_cup_ai_commissioner_report",
+          preview: tokenAccess.tokenPreview,
+        },
+        { status: 402 }
+      )
+    }
+  }
+
   if (isRecapPreview) {
     return NextResponse.json({
       lines,
       action: parsed.data.action,
       posted: false,
       source: "deterministic_finalized_public",
+      tokenPreview: tokenAccess.mode === "tokens" ? tokenAccess.tokenPreview : null,
+      tokenSpend,
     })
   }
 
@@ -202,11 +232,30 @@ export async function POST(
     force: true,
   })
 
+  if (tokenAccess.mode === "tokens") {
+    try {
+      tokenSpend = await tokenAccess.commitTokenSpend()
+    } catch {
+      return NextResponse.json(
+        {
+          error: "Token spend failed after Commissioner Brain generation. No tokens were deducted.",
+          code: "token_spend_failed_no_deduction",
+          upgrade: true,
+          upgradePath: "/tokens?ruleCode=world_cup_ai_commissioner_report",
+          preview: tokenAccess.tokenPreview,
+        },
+        { status: 402 }
+      )
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     lines,
     action: parsed.data.action,
     posted: true,
     source: isDramaRecap ? "deterministic" : undefined,
+    tokenPreview: tokenAccess.mode === "tokens" ? tokenAccess.tokenPreview : null,
+    tokenSpend,
   })
 }

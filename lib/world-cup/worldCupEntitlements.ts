@@ -25,10 +25,13 @@ export function hasWorldCupAllAccess(input: WorldCupEntitlementInput) {
 export function canUseWorldCupCommissionerTools(input: WorldCupEntitlementInput) {
   return Boolean(
     hasWorldCupAllAccess(input) ||
-      input.isOwner ||
       input.hasAfCommissioner ||
       hasPlan(input, COMMISSIONER_PLANS)
   )
+}
+
+export function canManageBasicWorldCupPool(input: WorldCupEntitlementInput) {
+  return Boolean(hasWorldCupAllAccess(input) || input.isOwner)
 }
 
 export function canUseWorldCupAiTools(input: WorldCupEntitlementInput) {
@@ -41,7 +44,7 @@ export function canUseWorldCupAiTools(input: WorldCupEntitlementInput) {
 }
 
 export function canCreateMultipleWorldCupEntries(input: WorldCupEntitlementInput) {
-  return canUseWorldCupCommissionerTools(input)
+  return true
 }
 
 export function canExportWorldCupLeaderboard(input: WorldCupEntitlementInput) {
@@ -49,14 +52,16 @@ export function canExportWorldCupLeaderboard(input: WorldCupEntitlementInput) {
 }
 
 export function canUseWorldCupChat(input: WorldCupEntitlementInput) {
-  return canUseWorldCupCommissionerTools(input)
+  return true
 }
 
 export function resolveWorldCupEntitlementSummary(input: WorldCupEntitlementInput) {
   const commissioner = canUseWorldCupCommissionerTools(input)
   const ai = canUseWorldCupAiTools(input)
+  const basicCommissioner = canManageBasicWorldCupPool(input)
 
   return {
+    basicCommissioner,
     commissioner,
     ai,
     multipleEntries: canCreateMultipleWorldCupEntries(input),

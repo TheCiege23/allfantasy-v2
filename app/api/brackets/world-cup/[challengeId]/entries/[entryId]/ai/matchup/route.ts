@@ -9,6 +9,10 @@ import {
   incrementWcAiCap,
   resolveWcCapTier,
 } from "@/lib/world-cup/worldCupAiUsageLimits"
+import {
+  prepareWorldCupAiTokenFallback,
+  WORLD_CUP_AI_TOKEN_RULES,
+} from "@/lib/world-cup/worldCupAiTokenFallback"
 import type { WorldCupAiStrategy, WorldCupMatchView } from "@/lib/world-cup/types"
 import {
   getWorldCupAdminState,
@@ -19,6 +23,7 @@ const bodySchema = z.object({
   matchId: z.string().min(1),
   strategy: z.enum(["safe", "balanced", "upset", "chaos"]).optional().default("balanced"),
   intent: z.enum(["panel", "ask_ai", "explain"]).optional().default("panel"),
+  confirmTokenSpend: z.boolean().optional().default(false),
 })
 
 export async function POST(
@@ -43,21 +48,35 @@ export async function POST(
     userResult.user.id,
     userResult.user.email ?? null
   )
-  if ((intent === "ask_ai" || intent === "explain") && !hasBracketBrainAi) {
-    return NextResponse.json({
-      error: "Bracket Brain requires AF Pro.",
-      upgrade: true,
-      upgradePath: "/pricing?from=wc-matchup-ai",
-    }, { status: 403 })
+  const explicitAiIntent = intent === "ask_ai" || intent === "explain"
+  const tokenAccess = explicitAiIntent
+    ? await prepareWorldCupAiTokenFallback({
+        userId: userResult.user.id,
+        userEmail: userResult.user.email ?? null,
+        entitled: hasBracketBrainAi,
+        ruleCode: WORLD_CUP_AI_TOKEN_RULES.matchup,
+        confirmTokenSpend: body.confirmTokenSpend,
+        sourceType: "world_cup_matchup_ai",
+        sourceId: `${challengeId}:${entryId}:${matchId}:${intent}:${strategy}`,
+        idempotencyKey: `wc-matchup-ai:${userResult.user.id}:${challengeId}:${entryId}:${matchId}:${intent}:${strategy}`,
+        description: "World Cup matchup AI analysis",
+        metadata: { challengeId, entryId, matchId, intent, strategy },
+        upgradePath: "/pricing?from=wc-matchup-ai",
+      })
+    : { ok: true as const, mode: "subscription" as const, tokenPreview: null, commitTokenSpend: null }
+
+  if (!tokenAccess.ok) {
+    return tokenAccess.response
   }
 
   // Daily cap for generative matchup AI (panel summary + ask_ai/explain narratives).
   // Free users are already blocked above for ask_ai/explain; this cap applies to Pro+.
   const isAdmin = await getWorldCupAdminState(req, userResult.user)
-  const matchupTier = resolveWcCapTier({ isAdmin, hasPro: hasBracketBrainAi })
+  const aiEligible = Boolean(hasBracketBrainAi || tokenAccess.mode === "tokens")
+  const matchupTier = resolveWcCapTier({ isAdmin, hasPro: aiEligible })
   let capExceededForExplicit = false
 
-  if (hasBracketBrainAi) {
+  if (aiEligible) {
     const capResult = await checkWcAiCap("wc_matchup_narrative", userResult.user.id, matchupTier)
     if (!capResult.allowed) {
       // ask_ai / explain: block explicitly — user is deliberately invoking AI.
@@ -80,7 +99,7 @@ export async function POST(
   }
 
   // If panel cap exceeded, use deterministic path (bracketBrainAiEntitled: false).
-  const useGenerative = hasBracketBrainAi && !capExceededForExplicit
+  const useGenerative = aiEligible && !capExceededForExplicit
 
   const challenge = await (prisma as any).worldCupBracketChallenge.findUnique({
     where: { id: challengeId },
@@ -203,5 +222,28 @@ export async function POST(
     await incrementWcAiCap("wc_matchup_narrative", userResult.user.id, matchupTier)
   }
 
-  return NextResponse.json({ success: true, intelligence })
+  let tokenSpend = null
+  if (tokenAccess.mode === "tokens" && (intelligence.generative || intelligence.narrativesGenerative)) {
+    try {
+      tokenSpend = await tokenAccess.commitTokenSpend()
+    } catch {
+      return NextResponse.json(
+        {
+          error: "Token spend failed after AI generation. No tokens were deducted.",
+          code: "token_spend_failed_no_deduction",
+          upgrade: true,
+          upgradePath: "/tokens?ruleCode=world_cup_ai_matchup_analysis",
+          preview: tokenAccess.tokenPreview,
+        },
+        { status: 402 }
+      )
+    }
+  }
+
+  return NextResponse.json({
+    success: true,
+    intelligence,
+    tokenPreview: tokenAccess.mode === "tokens" ? tokenAccess.tokenPreview : null,
+    tokenSpend,
+  })
 }

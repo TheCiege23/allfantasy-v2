@@ -807,7 +807,7 @@ const EN: WorldCupDictionary = {
   "wc.explain.tierPro": "AF Pro",
   "wc.explain.tierLocked": "Locked",
   "wc.explain.locked":
-    "AF Pro unlocks a private AI explanation of your bracket strategy — including style, safest picks, riskiest picks, champion path, and one specific recommendation.",
+    "AF Pro unlocks private AI explanation of your bracket strategy. Token users can also confirm a one-off spend before generation; failed AI calls never deduct tokens.",
   "wc.explain.upgradeCta": "Upgrade to AF Pro →",
   "wc.explain.generate": "Generate explanation",
   "wc.explain.generating": "Generating...",
@@ -2026,7 +2026,7 @@ const ES: WorldCupDictionary = {
   "wc.explain.tierPro": "AF Pro",
   "wc.explain.tierLocked": "Bloqueado",
   "wc.explain.locked":
-    "AF Pro abre una explicación privada de IA sobre tu estrategia — estilo, picks más seguros, picks de mayor riesgo, camino del campeón, y una recomendación específica.",
+    "AF Pro abre una explicación privada de IA sobre tu estrategia. Los usuarios con tokens también pueden confirmar un uso único antes de generarla; las llamadas fallidas no descuentan tokens.",
   "wc.explain.upgradeCta": "Actualizar a AF Pro →",
   "wc.explain.generate": "Generar explicación",
   "wc.explain.generating": "Generando...",

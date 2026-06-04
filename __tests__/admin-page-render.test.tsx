@@ -24,6 +24,10 @@ vi.mock("@/lib/admin-dashboard/AdminCommandCenterService", () => ({
 function metricsFixture() {
   return {
     generatedAt: "2026-06-04T12:00:00.000Z",
+    morning: [
+      { label: "New signups", value: 1, tracked: true },
+      { label: "AI cost yesterday", value: "Not tracked yet", tracked: false },
+    ],
     users: [
       { label: "Total accounts", value: 4, tracked: true },
       { label: "Active users", value: "Not tracked yet", tracked: false },

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { userHasBracketBrainAi } from "@/lib/bracket-brain/bracketBrainAccess"
+import { userHasWorldCupCommissionerAccess } from "@/lib/world-cup/worldCupCommissionerAccess"
 import {
   applyWorldCupBracketSettingsPatch,
   getWorldCupBracketSettingsBundle,
@@ -39,12 +40,16 @@ export async function GET(
     return NextResponse.json({ error: "Challenge not found" }, { status: 404 })
   }
 
-  const hasAfPro = await userHasBracketBrainAi(auth.user.id, auth.user.email ?? null)
-  const isAdmin = await getWorldCupAdminState(request, auth.user)
+  const [hasAfPro, hasAfCommissioner, isAdmin] = await Promise.all([
+    userHasBracketBrainAi(auth.user.id, auth.user.email ?? null),
+    userHasWorldCupCommissionerAccess(auth.user.id, auth.user.email ?? null),
+    getWorldCupAdminState(request, auth.user),
+  ])
 
   return NextResponse.json({
     ...bundle,
     hasAfPro,
+    hasAfCommissioner: Boolean(isAdmin || hasAfCommissioner),
     isAdmin,
     earlyPublicPicksAllowed: worldCupPublicPicksEarlyGloballyAllowed(),
   })
@@ -82,13 +87,17 @@ export async function PATCH(
     return NextResponse.json({ error: "No changes provided" }, { status: 400 })
   }
 
-  const hasAfPro = await userHasBracketBrainAi(auth.user.id, auth.user.email ?? null)
-  const isAdmin = await getWorldCupAdminState(request, auth.user)
+  const [hasAfPro, hasAfCommissioner, isAdmin] = await Promise.all([
+    userHasBracketBrainAi(auth.user.id, auth.user.email ?? null),
+    userHasWorldCupCommissionerAccess(auth.user.id, auth.user.email ?? null),
+    getWorldCupAdminState(request, auth.user),
+  ])
 
   try {
     await applyWorldCupBracketSettingsPatch({
       challengeId: params.data.challengeId,
       userHasAfPro: hasAfPro,
+      userHasAfCommissioner: hasAfCommissioner,
       isAdmin,
       patch: parsed.data,
     })
@@ -96,7 +105,7 @@ export async function PATCH(
     const msg = e instanceof Error ? e.message : "Could not save settings"
     const lower = msg.toLowerCase()
     const status =
-      lower.includes("af pro") || lower.includes("platform approval") ? 403 : 400
+      lower.includes("af pro") || lower.includes("af commissioner") || lower.includes("platform approval") ? 403 : 400
     return NextResponse.json({ error: msg }, { status })
   }
 
@@ -106,6 +115,7 @@ export async function PATCH(
     ok: true,
     settings: bundle,
     hasAfPro,
+    hasAfCommissioner: Boolean(isAdmin || hasAfCommissioner),
     isAdmin,
     earlyPublicPicksAllowed: worldCupPublicPicksEarlyGloballyAllowed(),
   })

@@ -4,6 +4,9 @@ import { z } from "zod"
 const requireUserMock = vi.hoisted(() => vi.fn())
 const managerAccessMock = vi.hoisted(() => vi.fn())
 const hasAiMock = vi.hoisted(() => vi.fn())
+const hasCommissionerMock = vi.hoisted(() => vi.fn())
+const prepareTokenFallbackMock = vi.hoisted(() => vi.fn())
+const commitTokenSpendMock = vi.hoisted(() => vi.fn())
 const buildRecapMock = vi.hoisted(() => vi.fn())
 const generateLinesMock = vi.hoisted(() => vi.fn())
 const emitEventMock = vi.hoisted(() => vi.fn())
@@ -18,6 +21,17 @@ vi.mock("@/app/api/brackets/world-cup/_utils", () => ({
 
 vi.mock("@/lib/bracket-brain/bracketBrainAccess", () => ({
   userHasBracketBrainAi: hasAiMock,
+}))
+
+vi.mock("@/lib/world-cup/worldCupCommissionerAccess", () => ({
+  userHasWorldCupCommissionerAccess: hasCommissionerMock,
+}))
+
+vi.mock("@/lib/world-cup/worldCupAiTokenFallback", () => ({
+  WORLD_CUP_AI_TOKEN_RULES: {
+    commissionerReport: "world_cup_ai_commissioner_report",
+  },
+  prepareWorldCupAiTokenFallback: prepareTokenFallbackMock,
 }))
 
 vi.mock("@/lib/prisma", () => ({
@@ -60,6 +74,14 @@ describe("World Cup commissioner AI recap route", () => {
     })
     managerAccessMock.mockResolvedValue({ ok: true })
     hasAiMock.mockResolvedValue(true)
+    hasCommissionerMock.mockResolvedValue(true)
+    commitTokenSpendMock.mockResolvedValue({ id: "ledger-commissioner-1", delta: -3 })
+    prepareTokenFallbackMock.mockResolvedValue({
+      ok: true,
+      mode: "subscription",
+      tokenPreview: null,
+      commitTokenSpend: null,
+    })
     challengeFindUniqueMock.mockResolvedValue({ sourcePayload: {} })
     buildRecapMock.mockResolvedValue([
       "Chimmy pool recap: Office Cup",
@@ -94,35 +116,53 @@ describe("World Cup commissioner AI recap route", () => {
     expect(emitEventMock).not.toHaveBeenCalled()
   })
 
-  it("blocks recap generation for users without AI access", async () => {
+  it("requires AF Commissioner or token confirmation for recap generation", async () => {
     hasAiMock.mockResolvedValue(false)
+    hasCommissionerMock.mockResolvedValue(false)
+    prepareTokenFallbackMock.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(
+        JSON.stringify({
+          error: "Token spend confirmation required.",
+          code: "token_confirmation_required",
+          preview: { tokenCost: 3 },
+        }),
+        { status: 409 }
+      ),
+    })
     const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/commissioner-brain/route")
 
     const res = await POST(request({ action: "preview_recap", tone: "fun" }), { params: { challengeId: "c1" } })
     const json = await res.json()
 
-    expect(res.status).toBe(402)
-    expect(json.upgrade).toBe(true)
+    expect(res.status).toBe(409)
+    expect(json.code).toBe("token_confirmation_required")
     expect(buildRecapMock).not.toHaveBeenCalled()
     expect(emitEventMock).not.toHaveBeenCalled()
   })
 
-  it("returns a limited drama recap preview for users without AI access", async () => {
+  it("returns token confirmation for drama recap users without AF Commissioner", async () => {
     hasAiMock.mockResolvedValue(false)
+    hasCommissionerMock.mockResolvedValue(false)
+    prepareTokenFallbackMock.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(
+        JSON.stringify({
+          error: "Token spend confirmation required.",
+          code: "token_confirmation_required",
+          preview: { tokenCost: 3 },
+        }),
+        { status: 409 }
+      ),
+    })
     const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/commissioner-brain/route")
 
     const res = await POST(request({ action: "drama_recap", tone: "fun" }), { params: { challengeId: "c1" } })
     const json = await res.json()
 
-    expect(res.status).toBe(200)
-    expect(json).toMatchObject({
-      ok: true,
-      action: "drama_recap",
-      posted: false,
-      source: "deterministic",
-      proLocked: true,
-    })
-    expect(json.lines).toHaveLength(3)
+    expect(res.status).toBe(409)
+    expect(json.code).toBe("token_confirmation_required")
+    expect(buildRecapMock).not.toHaveBeenCalled()
     expect(emitEventMock).not.toHaveBeenCalled()
   })
 
@@ -267,16 +307,29 @@ describe("World Cup commissioner AI recap route", () => {
     )
   })
 
-  it("blocks hype/watch/recap for users without AI access (402 upgrade)", async () => {
+  it("blocks hype/watch/recap until token confirmation when user lacks AF Commissioner", async () => {
     hasAiMock.mockResolvedValue(false)
+    hasCommissionerMock.mockResolvedValue(false)
+    prepareTokenFallbackMock.mockImplementation(() =>
+      Promise.resolve({
+        ok: false,
+        response: new Response(
+          JSON.stringify({
+            error: "Token spend confirmation required.",
+            code: "token_confirmation_required",
+            preview: { tokenCost: 3 },
+          }),
+          { status: 409 }
+        ),
+      })
+    )
     const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/commissioner-brain/route")
 
     for (const action of ["hype", "watch", "recap", "standings"]) {
       const res = await POST(request({ action }), { params: { challengeId: "c1" } })
       const json = await res.json()
-      expect(res.status).toBe(402)
-      expect(json.upgrade).toBe(true)
-      expect(json.hasBracketBrainAi).toBe(false)
+      expect(res.status).toBe(409)
+      expect(json.code).toBe("token_confirmation_required")
     }
     // None of the non-AI actions should have posted to chat.
     expect(emitEventMock).not.toHaveBeenCalled()
@@ -308,5 +361,34 @@ describe("World Cup commissioner AI recap route", () => {
 
     const event = emitEventMock.mock.calls[0][0] as { eventBody: string }
     expect(event.eventBody.length).toBeLessThanOrEqual(4000)
+  })
+
+  it("commits token spend only after commissioner report lines are generated", async () => {
+    hasAiMock.mockResolvedValue(false)
+    hasCommissionerMock.mockResolvedValue(false)
+    prepareTokenFallbackMock.mockResolvedValueOnce({
+      ok: true,
+      mode: "tokens",
+      tokenPreview: { tokenCost: 3, canSpend: true },
+      commitTokenSpend: commitTokenSpendMock,
+    })
+    generateLinesMock.mockResolvedValueOnce(["Token-backed commissioner report"])
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/commissioner-brain/route")
+
+    const res = await POST(
+      request({ action: "hype", confirmTokenSpend: true }),
+      { params: { challengeId: "c1" } }
+    )
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.tokenSpend).toMatchObject({ id: "ledger-commissioner-1" })
+    expect(commitTokenSpendMock).toHaveBeenCalledTimes(1)
+    expect(emitEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventTitle: "Bracket hype",
+        eventBody: "Token-backed commissioner report",
+      })
+    )
   })
 })

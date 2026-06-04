@@ -36,6 +36,7 @@ import {
 import {
   canCreateMultipleWorldCupEntries,
   canExportWorldCupLeaderboard,
+  canManageBasicWorldCupPool,
   canUseWorldCupAiTools,
   canUseWorldCupChat,
   canUseWorldCupCommissionerTools,
@@ -1189,14 +1190,15 @@ describe("PROOF-E — AI gating: free users blocked, paid users unlocked", () =>
     const input = { isOwner: false, isAdmin: false, hasBracketBrainAi: false }
 
     expect(canUseWorldCupCommissionerTools(input)).toBe(false)
-    expect(canCreateMultipleWorldCupEntries(input)).toBe(false)
+    expect(canCreateMultipleWorldCupEntries(input)).toBe(true)
     expect(canExportWorldCupLeaderboard(input)).toBe(false)
-    expect(canUseWorldCupChat(input)).toBe(false)
+    expect(canUseWorldCupChat(input)).toBe(true)
     expect(canUseWorldCupAiTools(input)).toBe(false)
   })
 
-  it("unlocks commissioner tools for the pool owner", () => {
-    expect(canUseWorldCupCommissionerTools({ isOwner: true })).toBe(true)
+  it("keeps basic owner controls separate from paid commissioner tools", () => {
+    expect(canManageBasicWorldCupPool({ isOwner: true })).toBe(true)
+    expect(canUseWorldCupCommissionerTools({ isOwner: true })).toBe(false)
   })
 
   it("unlocks commissioner tools for site admins", () => {

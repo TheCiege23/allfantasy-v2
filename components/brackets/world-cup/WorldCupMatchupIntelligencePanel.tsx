@@ -284,7 +284,7 @@ export default function WorldCupMatchupIntelligencePanel({
             <button
               type="button"
               data-testid="wc-ai-ask-button"
-              disabled={disabled || busy || !hasBracketBrainAi}
+              disabled={disabled || busy}
               onClick={() => runIntent("ask_ai")}
               className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-2.5 py-1.5 text-[11px] font-bold text-white/85 disabled:opacity-40"
             >
@@ -294,7 +294,7 @@ export default function WorldCupMatchupIntelligencePanel({
             <button
               type="button"
               data-testid="wc-ai-explain-button"
-              disabled={disabled || busy || !hasBracketBrainAi}
+              disabled={disabled || busy}
               onClick={() => runIntent("explain")}
               className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/[0.06] px-2.5 py-1.5 text-[11px] font-bold text-white/75 disabled:opacity-40"
             >

@@ -78,6 +78,7 @@ export type AdminRecentTokenActivityRow = {
 
 export type AdminCommandCenterMetrics = {
   generatedAt: string
+  morning: AdminMetric[]
   users: AdminMetric[]
   subscriptions: AdminMetric[]
   tokens: AdminMetric[]
@@ -373,9 +374,14 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     commissionerPools,
     worldCupChatEvents,
     worldCupInvites,
+    worldCupInviteUseSummary,
+    worldCupPoolsToday,
+    worldCupEntriesToday,
     inviteLinks,
     inviteEvents,
     platformChatMessages,
+    tokenSalesPayments,
+    tokenSalesRevenue,
     activeWorldCupPools,
     usersSearch,
     recentUsers,
@@ -446,9 +452,27 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     prisma.worldCupBracketChallenge.count({ where: { ownerUserId: { not: "" } } }),
     prisma.worldCupBracketChatEvent.count(),
     prisma.worldCupBracketInvite.count(),
+    prisma.worldCupBracketInvite.aggregate({
+      _sum: { useCount: true },
+    }),
+    prisma.worldCupBracketChallenge.count({ where: { createdAt: { gte: today } } }),
+    prisma.worldCupBracketEntry.count({ where: { createdAt: { gte: today } } }),
     prisma.inviteLink.count(),
     prisma.inviteLinkEvent.count(),
     prisma.platformChatMessage.count(),
+    prisma.bracketPayment.count({
+      where: {
+        status: { in: ["completed", "paid", "succeeded"] },
+        paymentType: { contains: "token", mode: "insensitive" },
+      },
+    }),
+    prisma.bracketPayment.aggregate({
+      where: {
+        status: { in: ["completed", "paid", "succeeded"] },
+        paymentType: { contains: "token", mode: "insensitive" },
+      },
+      _sum: { amountCents: true },
+    }),
     getMostActiveWorldCupPools(),
     getUserSearchRows(searchQuery),
     getRecentUsers(),
@@ -469,9 +493,31 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
   )
   const activeSubscriptionUserCount = activeSubscriptionUsers.length
   const completedRevenueCents = bracketPaymentRevenue._sum.amountCents ?? null
+  const inviteAccepts = worldCupInviteUseSummary._sum.useCount ?? 0
+  const inviteAcceptancePct =
+    worldCupInvites > 0 ? `${Math.round((inviteAccepts / worldCupInvites) * 100)}%` : "0%"
+  const tokenSalesRevenueCents = tokenSalesRevenue._sum.amountCents ?? 0
+  const providerGapCount = providerHealth.filter((row) => row.status === "missing_env" || row.status === "scaffold_only" || row.status === "not_production_ready").length
+  const providerConfiguredCount = providerHealth.filter((row) => row.configured).length
 
   return {
     generatedAt: new Date().toISOString(),
+    morning: [
+      metric("New signups", accountsToday, "UTC day"),
+      metric("Active subscribers", activeSubscriptionUserCount),
+      metric("New pools", worldCupPoolsToday, "World Cup pools created today"),
+      metric("New brackets", worldCupEntriesToday, "World Cup entries created today"),
+      metric("Invite acceptance", inviteAcceptancePct, `${inviteAccepts} accepted / ${worldCupInvites} sent`),
+      notTracked("AI cost yesterday", "No unified AI cost ledger is tracked yet"),
+      notTracked("AI revenue yesterday", "No AI revenue attribution table is tracked yet"),
+      metric(
+        "Token sales",
+        `$${(tokenSalesRevenueCents / 100).toFixed(2)}`,
+        `${tokenSalesPayments} completed token payment rows`
+      ),
+      metric("API health", `${providerConfiguredCount}/${providerHealth.length} configured`, `${providerGapCount} gaps`),
+      metric("Top pools", activeWorldCupPools.length, "Ranked below by participants, entries, and chat"),
+    ],
     users: [
       metric("Total accounts", totalAccounts),
       metric("Created today", accountsToday, "UTC day"),
@@ -532,7 +578,7 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
       metric("Database", databaseHealth),
       metric("Generated", new Date().toLocaleString("en-US", { timeZone: "America/New_York" }), "America/New_York"),
       metric("Providers configured", providerHealth.filter((row) => row.configured).length),
-      metric("Provider gaps", providerHealth.filter((row) => row.status === "missing_env" || row.status === "scaffold_only" || row.status === "not_production_ready").length),
+      metric("Provider gaps", providerGapCount),
     ],
     providerHealth,
     usersSearch,

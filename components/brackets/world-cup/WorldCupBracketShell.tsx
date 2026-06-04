@@ -346,6 +346,7 @@ function normalizeWorldCupView(input: WorldCupChallengeView | (Partial<WorldCupC
       isOwner: Boolean(v.isOwner),
       isAdmin: Boolean(v.isAdmin),
       hasBracketBrainAi: Boolean(v.hasBracketBrainAi),
+      hasAfCommissioner: Boolean(v.hasAfCommissioner),
     }
   }
   return {
@@ -387,6 +388,7 @@ function normalizeWorldCupView(input: WorldCupChallengeView | (Partial<WorldCupC
     isOwner: Boolean(raw?.isOwner),
     isAdmin: Boolean(raw?.isAdmin),
     hasBracketBrainAi: Boolean(raw?.hasBracketBrainAi),
+    hasAfCommissioner: Boolean(raw?.hasAfCommissioner),
   }
 }
 
@@ -659,8 +661,9 @@ export default function WorldCupBracketShell({
       isOwner: view.isOwner,
       isAdmin: view.isAdmin,
       hasBracketBrainAi: view.hasBracketBrainAi,
+      hasAfCommissioner: view.hasAfCommissioner,
     }),
-    [view.hasBracketBrainAi, view.isAdmin, view.isOwner]
+    [view.hasAfCommissioner, view.hasBracketBrainAi, view.isAdmin, view.isOwner]
   )
   const aiInsightsUnlocked = entitlementSummary.ai
   const tabList = useMemo(() => {
@@ -4429,18 +4432,20 @@ export default function WorldCupBracketShell({
         ) : null}
         {tab === "settings" && showCommissionerTab ? (
           <div id="world-cup-settings" className="mx-auto max-w-3xl px-2 pb-28 sm:pb-8">
-            <WorldCupBracketSettingsPanel
-              challengeId={challengeId}
-              onSaved={() => void refreshChallengeView()}
-            />
+          <WorldCupBracketSettingsPanel
+            challengeId={challengeId}
+            hasAfCommissioner={entitlementSummary.commissioner}
+            onSaved={() => void refreshChallengeView()}
+          />
           </div>
         ) : null}
         {tab === "commissioner" && showCommissionerTab ? (
           <div id="world-cup-commissioner" className="mx-auto max-w-3xl px-2 pb-28 sm:pb-8">
-            <WorldCupCommissionerBrainPanel
-              challengeId={challengeId}
-              onOpenLeagueSettings={() => switchTab("settings")}
-              poolName={view.challenge.name}
+          <WorldCupCommissionerBrainPanel
+            challengeId={challengeId}
+            hasAfCommissioner={entitlementSummary.commissioner}
+            onOpenLeagueSettings={() => switchTab("settings")}
+            poolName={view.challenge.name}
               poolUrl={
                 typeof window !== "undefined"
                   ? `${window.location.origin}/brackets/world-cup/${challengeId}`

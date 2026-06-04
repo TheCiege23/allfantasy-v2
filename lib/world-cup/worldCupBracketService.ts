@@ -5,6 +5,7 @@ import type { WorldCupBracketChallenge, WorldCupBracketEntry, WorldCupBracketMat
 import { isAdminEmailAllowed } from "@/lib/adminAuth"
 import { prisma } from "@/lib/prisma"
 import { userHasBracketBrainAi } from "@/lib/bracket-brain/bracketBrainAccess"
+import { userHasWorldCupCommissionerAccess } from "./worldCupCommissionerAccess"
 import { WORLD_CUP_TOURNAMENT_KEY, type WorldCupChallengeView, type WorldCupMatchView, type WorldCupPickView } from "./types"
 import {
   DEFAULT_WORLD_CUP_SCORING,
@@ -738,6 +739,7 @@ function serialize(input: {
     isOwner: Boolean(input.userId && input.userId === c.ownerUserId),
     isAdmin: Boolean(input.isAdmin),
     hasBracketBrainAi: false,
+    hasAfCommissioner: false,
   }
 }
 
@@ -826,8 +828,11 @@ export async function getWorldCupChallengeView(input: { challengeId: string; use
   const hasBracketBrainAi = userId
     ? await userHasBracketBrainAi(userId, input.user?.email ?? null)
     : false
+  const hasAfCommissioner = userId
+    ? await userHasWorldCupCommissionerAccess(userId, input.user?.email ?? null)
+    : false
 
-  return { ...baseView, hasBracketBrainAi }
+  return { ...baseView, hasBracketBrainAi, hasAfCommissioner }
 }
 
 export async function getWorldCupChallengeByInvite(inviteCode: string) {

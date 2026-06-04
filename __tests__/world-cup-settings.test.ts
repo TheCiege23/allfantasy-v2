@@ -112,6 +112,7 @@ describe("World Cup bracket settings validation", () => {
       applyWorldCupBracketSettingsPatch({
         challengeId: "c1",
         userHasAfPro: false,
+        userHasAfCommissioner: true,
         isAdmin: false,
         patch: { bracketBrainEnabled: true },
       })
@@ -154,6 +155,7 @@ describe("World Cup bracket settings validation", () => {
     await applyWorldCupBracketSettingsPatch({
       challengeId: "c1",
       userHasAfPro: true,
+      userHasAfCommissioner: true,
       isAdmin: false,
       patch: { bracketBrainEnabled: true },
     })
@@ -170,6 +172,7 @@ describe("World Cup bracket settings validation", () => {
       applyWorldCupBracketSettingsPatch({
         challengeId: "c1",
         userHasAfPro: true,
+        userHasAfCommissioner: true,
         isAdmin: false,
         patch: { showPublicPicks: "always" },
       })
@@ -211,7 +214,7 @@ describe("World Cup bracket settings validation", () => {
     expect(ls?.commissionerNote).toBe("keep")
   })
 
-  it("applyPatch stores confidence scoring without AF Pro gating", async () => {
+  it("applyPatch allows a basic owner to save pool identity without AF Commissioner", async () => {
     findUnique.mockResolvedValueOnce({
       id: "c1",
       sourcePayload: {
@@ -234,6 +237,53 @@ describe("World Cup bracket settings validation", () => {
     await applyWorldCupBracketSettingsPatch({
       challengeId: "c1",
       userHasAfPro: false,
+      isAdmin: false,
+      patch: { name: "Renamed Basic Pool", visibility: "private" },
+    })
+
+    expect(challengeUpdate).toHaveBeenCalled()
+  })
+
+  it("applyPatch rejects confidence scoring without AF Commissioner", async () => {
+    vi.resetModules()
+    const { applyWorldCupBracketSettingsPatch } = await import(
+      "@/lib/world-cup/worldCupBracketSettingsService"
+    )
+
+    await expect(
+      applyWorldCupBracketSettingsPatch({
+        challengeId: "c1",
+        userHasAfPro: false,
+        isAdmin: false,
+        patch: { confidenceScoringEnabled: true },
+      })
+    ).rejects.toThrow(/AF Commissioner/)
+  })
+
+  it("applyPatch stores confidence scoring for AF Commissioner without AF Pro gating", async () => {
+    findUnique.mockResolvedValueOnce({
+      id: "c1",
+      sourcePayload: {
+        leagueSettings: { scoringStyle: "standard", commissionerNote: "keep" },
+      },
+      scoringProfileId: "sp1",
+      status: "open",
+      pickLockAt: null,
+      entries: [],
+      picks: [],
+    })
+    challengeUpdate.mockResolvedValueOnce({})
+    scoringUpdate.mockResolvedValueOnce({})
+
+    vi.resetModules()
+    const { applyWorldCupBracketSettingsPatch } = await import(
+      "@/lib/world-cup/worldCupBracketSettingsService"
+    )
+
+    await applyWorldCupBracketSettingsPatch({
+      challengeId: "c1",
+      userHasAfPro: false,
+      userHasAfCommissioner: true,
       isAdmin: false,
       patch: { confidenceScoringEnabled: true },
     })
@@ -265,6 +315,7 @@ describe("World Cup bracket settings validation", () => {
       applyWorldCupBracketSettingsPatch({
         challengeId: "c1",
         userHasAfPro: true,
+        userHasAfCommissioner: true,
         isAdmin: false,
         patch: { knockoutMode: "reseeded" },
       })

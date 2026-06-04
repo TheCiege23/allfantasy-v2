@@ -6,9 +6,13 @@ import { generateWorldCupBracketExplanation } from "@/lib/world-cup/worldCupExpl
 import {
   checkWcAiCap,
   incrementWcAiCap,
-  resolveWcCapTierForUser,
+  resolveWcCapTier,
 } from "@/lib/world-cup/worldCupAiUsageLimits"
-import { requireWorldCupApiUser } from "../../../../_utils"
+import {
+  prepareWorldCupAiTokenFallback,
+  WORLD_CUP_AI_TOKEN_RULES,
+} from "@/lib/world-cup/worldCupAiTokenFallback"
+import { getWorldCupAdminState, requireWorldCupApiUser } from "../../../../_utils"
 import { resolveLanguage } from "@/lib/i18n/constants"
 
 export const runtime = "nodejs"
@@ -23,7 +27,7 @@ export const runtime = "nodejs"
  */
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { challengeId: string; entryId: string } }
 ) {
   const userResult = await requireWorldCupApiUser()
@@ -35,24 +39,33 @@ export async function POST(
   }
 
   // AF Pro gate — return 402 with upgrade flag (consistent with commissioner-brain).
+  const body = await req.json().catch(() => ({}))
+
   const hasBracketBrainAi = await userHasBracketBrainAi(
     userResult.user.id,
     userResult.user.email ?? null
   )
-  if (!hasBracketBrainAi) {
-    return NextResponse.json(
-      {
-        error: "AF Pro required for the private bracket explanation.",
-        upgrade: true,
-        upgradePath: "/pricing?from=wc-explain",
-        hasBracketBrainAi: false,
-      },
-      { status: 402 }
-    )
-  }
+  const tokenAccess = await prepareWorldCupAiTokenFallback({
+    userId: userResult.user.id,
+    userEmail: userResult.user.email ?? null,
+    entitled: hasBracketBrainAi,
+    ruleCode: WORLD_CUP_AI_TOKEN_RULES.bracketExplanation,
+    confirmTokenSpend: body?.confirmTokenSpend === true,
+    sourceType: "world_cup_bracket_explanation",
+    sourceId: `${challengeId}:${entryId}`,
+    idempotencyKey: `wc-bracket-explain:${userResult.user.id}:${challengeId}:${entryId}`,
+    description: "World Cup private bracket explanation",
+    metadata: { challengeId, entryId },
+    upgradePath: "/pricing?from=wc-explain",
+  })
+  if (!tokenAccess.ok) return tokenAccess.response
 
   // Daily cap — prevents unlimited AI calls per user per UTC day.
-  const tier = await resolveWcCapTierForUser(userResult.user.id, userResult.user.email)
+  const isAdmin = await getWorldCupAdminState(req, userResult.user)
+  const tier = resolveWcCapTier({
+    isAdmin,
+    hasPro: Boolean(hasBracketBrainAi || tokenAccess.mode === "tokens"),
+  })
   const capResult = await checkWcAiCap("explain_bracket", userResult.user.id, tier)
   if (!capResult.allowed) {
     return NextResponse.json(
@@ -94,11 +107,31 @@ export async function POST(
     await incrementWcAiCap("explain_bracket", userResult.user.id, tier)
   }
 
+  let tokenSpend = null
+  if (tokenAccess.mode === "tokens" && result.generative) {
+    try {
+      tokenSpend = await tokenAccess.commitTokenSpend()
+    } catch {
+      return NextResponse.json(
+        {
+          error: "Token spend failed after AI generation. No tokens were deducted.",
+          code: "token_spend_failed_no_deduction",
+          upgrade: true,
+          upgradePath: "/tokens?ruleCode=world_cup_ai_bracket_explanation",
+          preview: tokenAccess.tokenPreview,
+        },
+        { status: 402 }
+      )
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     summary: result.summary,
     lines: result.lines,
     generative: result.generative,
+    tokenPreview: tokenAccess.mode === "tokens" ? tokenAccess.tokenPreview : null,
+    tokenSpend,
   })
 }
 

@@ -62,12 +62,22 @@ type DbEntryForLb = {
   championTeamName?: string | null
   updatedAt: Date
   submittedAt?: Date | null
+  groupWinnersCorrect?: number | null
   picks: DbPick[]
   participant?: {
     displayName: string
     user?: { username: string; avatarUrl: string | null; displayName: string | null } | null
   }
 }
+
+const WORLD_CUP_KNOCKOUT_TIEBREAKER_ROUNDS = new Set<string>([
+  "round_of_32",
+  "round_of_16",
+  "quarterfinal",
+  "semifinal",
+  "third_place",
+  "final",
+])
 
 const WORLD_CUP_SCORING_PICK_WITH_MATCH_SELECT = {
   id: true,
@@ -121,6 +131,26 @@ function selectionWonMatch(
       (pick.selectedSlotKey && slot && pick.selectedSlotKey === slot) ||
       (selectedName && winnerName && selectedName === winnerName)
   )
+}
+
+function selectionMatchesTeam(
+  pick: Partial<Pick<DbPick, "selectedTeamId" | "selectedTeamName" | "selectedSlotKey">>,
+  team: { id?: string | null; name?: string | null; slotKey?: string | null }
+) {
+  const selectedName = normalizeTeamName(pick.selectedTeamName)
+  const teamName = normalizeTeamName(team.name)
+  return Boolean(
+    (pick.selectedTeamId && team.id && pick.selectedTeamId === team.id) ||
+      (pick.selectedSlotKey && team.slotKey && pick.selectedSlotKey === team.slotKey) ||
+      (selectedName && teamName && selectedName === teamName)
+  )
+}
+
+function compareIsoNullableAsc(a?: string | null, b?: string | null) {
+  if (a && b) return new Date(a).getTime() - new Date(b).getTime()
+  if (a) return -1
+  if (b) return 1
+  return 0
 }
 
 function isWorldCupPickSelectionStillAlive(
@@ -227,9 +257,15 @@ export function buildWorldCupLeaderboardRows(input: {
     let maxPossibleScore = 0
     let correctPicks = 0
     let incorrectPicks = 0
+    let knockoutPicksCorrect = 0
     for (const pick of picks) {
       const r = pick.match ? evaluateWorldCupPick(pick, pick.match, input.scoring) : { isCorrect: pick.isCorrect ?? null, pointsAwarded: pick.pointsAwarded ?? 0 }
-      if (r.isCorrect === true) correctPicks++
+      if (r.isCorrect === true) {
+        correctPicks++
+        if (WORLD_CUP_KNOCKOUT_TIEBREAKER_ROUNDS.has(String(pick.round))) {
+          knockoutPicksCorrect++
+        }
+      }
       if (r.isCorrect === false) incorrectPicks++
       totalScore += r.pointsAwarded
       if (pick.round) roundBreakdown[pick.round] = (roundBreakdown[pick.round] ?? 0) + r.pointsAwarded
@@ -258,6 +294,7 @@ export function buildWorldCupLeaderboardRows(input: {
         m.status === "final" &&
         (m.winnerTeamId || m.winnerTeamName)
     )
+    let championCorrect = false
     if (finalMatch) {
       // Tournament is over — award bonus if champion pick is correct
       const wonBonus = Boolean(
@@ -269,6 +306,7 @@ export function buildWorldCupLeaderboardRows(input: {
             normalizeTeamName(championTeamNameForBonus) ===
               normalizeTeamName(finalMatch.winnerTeamName))
       )
+      championCorrect = wonBonus
       if (wonBonus) {
         totalScore += championBonus
         maxPossibleScore += championBonus
@@ -287,6 +325,34 @@ export function buildWorldCupLeaderboardRows(input: {
         maxPossibleScore += championBonus
       }
     }
+
+    const finalFixture = input.matches.find(
+      (m) =>
+        m.round === "final" &&
+        (m.homeTeamId ||
+          m.awayTeamId ||
+          normalizeTeamName(m.homeTeamName) ||
+          normalizeTeamName(m.awayTeamName))
+    )
+    const semifinalPicks = picks.filter((pick) => pick.round === "semifinal")
+    const finalistsCorrect = finalFixture
+      ? [
+          {
+            id: finalFixture.homeTeamId,
+            name: finalFixture.homeTeamName,
+            slotKey: finalFixture.homeSlotKey,
+          },
+          {
+            id: finalFixture.awayTeamId,
+            name: finalFixture.awayTeamName,
+            slotKey: finalFixture.awaySlotKey,
+          },
+        ].filter((team) => semifinalPicks.some((pick) => selectionMatchesTeam(pick, team))).length
+      : 0
+    const groupWinnersCorrect = Math.max(
+      0,
+      Number((e as { groupWinnersCorrect?: number | null }).groupWinnersCorrect ?? 0)
+    )
 
     const joinedAt = e.createdAt instanceof Date ? e.createdAt.toISOString() : new Date(e.createdAt).toISOString()
     const updatedAt = e.updatedAt instanceof Date ? e.updatedAt.toISOString() : new Date(e.updatedAt).toISOString()
@@ -318,27 +384,38 @@ export function buildWorldCupLeaderboardRows(input: {
         { championTeamId, championTeamName: championPickName },
         input.matches
       ),
+      championCorrect,
+      finalistsCorrect,
+      knockoutPicksCorrect,
+      groupWinnersCorrect,
       roundBreakdown,
       joinedAt,
       updatedAt,
       submittedAt,
     }
   })
+  const compareVisionTieBreakers = (a: WorldCupLeaderboardRow, b: WorldCupLeaderboardRow) =>
+    b.totalScore - a.totalScore ||
+    Number(b.championCorrect) - Number(a.championCorrect) ||
+    b.finalistsCorrect - a.finalistsCorrect ||
+    b.knockoutPicksCorrect - a.knockoutPicksCorrect ||
+    b.groupWinnersCorrect - a.groupWinnersCorrect ||
+    compareIsoNullableAsc(a.submittedAt, b.submittedAt)
+
   rows.sort(
     (a, b) =>
-      b.totalScore - a.totalScore ||
-      b.maxPossibleScore - a.maxPossibleScore ||
-      Number(b.championStillAlive) - Number(a.championStillAlive) ||
-      (a.submittedAt && b.submittedAt
-        ? new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime()
-        : a.submittedAt
-          ? -1
-          : b.submittedAt
-            ? 1
-            : 0) ||
+      compareVisionTieBreakers(a, b) ||
       new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime()
   )
-  return rows.map(({ submittedAt, ...r }, i) => ({ ...r, rank: i + 1 }))
+
+  let lastRank = 0
+  let lastRow: WorldCupLeaderboardRow | null = null
+  return rows.map((row, i) => {
+    const rank = lastRow && compareVisionTieBreakers(lastRow, row) === 0 ? lastRank : i + 1
+    lastRank = rank
+    lastRow = row
+    return { ...row, rank }
+  })
 }
 
 export function isWorldCupEntryCompleteFromSelections(input: {

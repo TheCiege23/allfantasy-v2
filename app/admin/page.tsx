@@ -249,6 +249,7 @@ export default async function AdminPage({
           </div>
         </header>
 
+        <Section title="Morning Dashboard" items={data.morning} />
         <Section title="Users" items={data.users} />
         <Section title="Payments & Subscriptions" items={data.subscriptions} />
         <Section title="Tokens & AI" items={[...data.tokens, ...data.ai]} />

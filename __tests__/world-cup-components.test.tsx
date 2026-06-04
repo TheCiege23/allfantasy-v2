@@ -293,12 +293,12 @@ describe("World Cup commissioner UI modules", () => {
     render(<WorldCupCommissionerBrainPanel challengeId="c1" />)
 
     const panel = await screen.findByTestId("world-cup-ai-recap-panel")
-    expect(within(panel).getByText("Locked")).toBeInTheDocument()
-    expect(within(panel).getByText(/Locked users cannot generate or post AI recaps/i)).toBeInTheDocument()
-    expect(within(panel).getByRole("button", { name: /Generate AI Recap/i })).toBeDisabled()
+    expect(within(panel).getByText("Tokens or AF Commissioner")).toBeInTheDocument()
+    expect(within(panel).getByText(/Token users can confirm a one-off spend before generation/i)).toBeInTheDocument()
+    expect(within(panel).getByRole("button", { name: /Generate AI Recap/i })).not.toBeDisabled()
     const callsBeforeClick = fetchMock.mock.calls.length
     fireEvent.click(within(panel).getByRole("button", { name: /Generate AI Recap/i }))
-    expect(fetchMock).toHaveBeenCalledTimes(callsBeforeClick)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(callsBeforeClick + 1))
   })
 
   it("exits commissioner brain loading when the API returns an error", async () => {
@@ -438,12 +438,12 @@ describe("WorldCupBracketSettingsPanel", () => {
     expect(screen.getByText(/Max users must be between 1 and 100/)).toBeInTheDocument()
   })
 
-  it("shows Bracket Brain toggle for Pro", async () => {
+  it("shows Bracket Brain toggle for AF Commissioner with Pro", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => mockSettingsPayload({ hasAfPro: true }),
+        json: async () => mockSettingsPayload({ hasAfPro: true, hasAfCommissioner: true }),
       })
     )
     const WorldCupBracketSettingsPanel = (await import("@/components/brackets/world-cup/WorldCupBracketSettingsPanel"))
@@ -2383,21 +2383,21 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(routerMocks.push).not.toHaveBeenCalledWith(expect.stringContaining("/login?callbackUrl="))
   })
 
-  it("shows commissioner affordances unlocked for pool owners and all-access users", async () => {
+  it("keeps advanced commissioner affordances gated for pool owners without AF Commissioner", async () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: true, isAdmin: false, hasBracketBrainAi: false }) as any} defaultTab="home" />)
 
     await waitFor(() => expect(clientApiMocks.listEntries).toHaveBeenCalled())
     const panel = screen.getByTestId("world-cup-premium-access-panel")
-    expect(within(panel).getByText(/AF Commissioner active/i)).toBeInTheDocument()
+    expect(within(panel).getByText(/Requires AF Commissioner/i)).toBeInTheDocument()
     expect(within(panel).getByText(/AI Bracket Builder/i)).toBeInTheDocument()
     expect(within(panel).getAllByText(/Unlocked/i).length).toBeGreaterThan(0)
     expect(within(panel).getAllByText(/Requires AI\/Pro/i).length).toBeGreaterThan(0)
     const community = screen.getByTestId("world-cup-community-foundation")
     expect(within(community).getAllByText(/Commissioner Announcements/i).length).toBeGreaterThan(0)
     expect(within(community).getByText(/Pinned Announcement/i)).toBeInTheDocument()
-    expect(within(community).getByText(/System Reminders/i)).toBeInTheDocument()
-    expect(within(community).getByText(/Moderation/i)).toBeInTheDocument()
+    expect(within(community).queryByText(/System Reminders/i)).toBeNull()
+    expect(within(community).queryByText(/^Moderation$/i)).toBeNull()
   })
 
   it("shows AI affordances unlocked for all-access users", async () => {

@@ -67,9 +67,14 @@ export type WorldCupLeaderboardRow = {
   championPickName: string | null
   championTeamId: string | null
   championStillAlive: boolean
+  championCorrect: boolean
+  finalistsCorrect: number
+  knockoutPicksCorrect: number
+  groupWinnersCorrect: number
   roundBreakdown: Record<string, number>
   joinedAt: string
   updatedAt: string
+  submittedAt: string | null
 }
 /** Alias — leaderboard is entry-scoped. */
 export type WorldCupEntryLeaderboardRow = WorldCupLeaderboardRow
@@ -127,6 +132,8 @@ export type WorldCupChallengeView = {
   isAdmin: boolean
   /** AF Pro entitlement — Bracket Brain AI (matchup LLM, etc.). */
   hasBracketBrainAi: boolean
+  /** AF Commissioner entitlement — advanced scoring, locks, exports, and commissioner AI. */
+  hasAfCommissioner: boolean
 }
 
 // ── AI types ──────────────────────────────────────────────────────────────────

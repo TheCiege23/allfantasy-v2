@@ -1,12 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const requireUserMock = vi.hoisted(() => vi.fn())
+const getAdminStateMock = vi.hoisted(() => vi.fn())
 const hasAiMock = vi.hoisted(() => vi.fn())
 const generateMock = vi.hoisted(() => vi.fn())
 const cookiesGetMock = vi.hoisted(() => vi.fn())
+const prepareTokenFallbackMock = vi.hoisted(() => vi.fn())
+const commitTokenSpendMock = vi.hoisted(() => vi.fn())
+const checkCapMock = vi.hoisted(() => vi.fn())
+const incrementCapMock = vi.hoisted(() => vi.fn())
+const resolveTierMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/app/api/brackets/world-cup/_utils", () => ({
   requireWorldCupApiUser: requireUserMock,
+  getWorldCupAdminState: getAdminStateMock,
 }))
 
 vi.mock("@/lib/bracket-brain/bracketBrainAccess", () => ({
@@ -15,6 +22,19 @@ vi.mock("@/lib/bracket-brain/bracketBrainAccess", () => ({
 
 vi.mock("@/lib/world-cup/worldCupExplainBracketService", () => ({
   generateWorldCupBracketExplanation: generateMock,
+}))
+
+vi.mock("@/lib/world-cup/worldCupAiUsageLimits", () => ({
+  checkWcAiCap: checkCapMock,
+  incrementWcAiCap: incrementCapMock,
+  resolveWcCapTier: resolveTierMock,
+}))
+
+vi.mock("@/lib/world-cup/worldCupAiTokenFallback", () => ({
+  WORLD_CUP_AI_TOKEN_RULES: {
+    bracketExplanation: "world_cup_ai_bracket_explanation",
+  },
+  prepareWorldCupAiTokenFallback: prepareTokenFallbackMock,
 }))
 
 vi.mock("next/headers", () => ({
@@ -36,11 +56,27 @@ describe("POST /api/brackets/world-cup/[challengeId]/entries/[entryId]/explain",
   beforeEach(() => {
     vi.clearAllMocks()
     cookiesGetMock.mockReturnValue(undefined)
+    getAdminStateMock.mockResolvedValue(false)
+    resolveTierMock.mockReturnValue("pro")
+    checkCapMock.mockResolvedValue({
+      allowed: true,
+      used: 0,
+      limit: 50,
+      resetsAt: new Date("2026-06-05T00:00:00.000Z"),
+    })
+    incrementCapMock.mockResolvedValue(undefined)
     requireUserMock.mockResolvedValue({
       ok: true,
       user: { id: "user-1", email: "owner@example.com", name: "Owner" },
     })
     hasAiMock.mockResolvedValue(true)
+    commitTokenSpendMock.mockResolvedValue({ id: "ledger-explain-1", delta: -2 })
+    prepareTokenFallbackMock.mockResolvedValue({
+      ok: true,
+      mode: "subscription",
+      tokenPreview: null,
+      commitTokenSpend: null,
+    })
     generateMock.mockResolvedValue({
       ok: true,
       summary: "Bracket 1 is anchored around Argentina as your champion.",
@@ -72,8 +108,19 @@ describe("POST /api/brackets/world-cup/[challengeId]/entries/[entryId]/explain",
     expect(generateMock).not.toHaveBeenCalled()
   })
 
-  it("returns 402 with upgrade flag when user lacks AF Pro", async () => {
+  it("returns token confirmation when user lacks AF Pro but may have tokens", async () => {
     hasAiMock.mockResolvedValue(false)
+    prepareTokenFallbackMock.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(
+        JSON.stringify({
+          error: "Token spend confirmation required.",
+          code: "token_confirmation_required",
+          preview: { tokenCost: 2 },
+        }),
+        { status: 409 }
+      ),
+    })
 
     const { POST } = await import(
       "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/explain/route"
@@ -82,9 +129,8 @@ describe("POST /api/brackets/world-cup/[challengeId]/entries/[entryId]/explain",
     const res = await POST(request() as any, params)
     const json = await res.json()
 
-    expect(res.status).toBe(402)
-    expect(json.upgrade).toBe(true)
-    expect(json.hasBracketBrainAi).toBe(false)
+    expect(res.status).toBe(409)
+    expect(json.code).toBe("token_confirmation_required")
     expect(generateMock).not.toHaveBeenCalled()
   })
 
@@ -140,6 +186,34 @@ describe("POST /api/brackets/world-cup/[challengeId]/entries/[entryId]/explain",
         locale: "en",
       })
     )
+  })
+
+  it("commits token spend only after a successful generative explanation", async () => {
+    hasAiMock.mockResolvedValue(false)
+    prepareTokenFallbackMock.mockResolvedValueOnce({
+      ok: true,
+      mode: "tokens",
+      tokenPreview: { tokenCost: 2, canSpend: true },
+      commitTokenSpend: commitTokenSpendMock,
+    })
+
+    const { POST } = await import(
+      "@/app/api/brackets/world-cup/[challengeId]/entries/[entryId]/explain/route"
+    )
+
+    const res = await POST(
+      new Request("http://localhost/api/brackets/world-cup/c1/entries/e1/explain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmTokenSpend: true }),
+      }) as any,
+      params
+    )
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.tokenSpend).toMatchObject({ id: "ledger-explain-1" })
+    expect(commitTokenSpendMock).toHaveBeenCalledTimes(1)
   })
 
   it("response never contains emails or user IDs", async () => {

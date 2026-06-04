@@ -288,7 +288,7 @@ describe("World Cup scoring", () => {
     expect(rows).toEqual([])
   })
 
-  it("sorts leaderboard by score, possible points, champion alive, then earliest completed bracket", () => {
+  it("sorts leaderboard by score, product tie-breakers, then earliest finalized bracket", () => {
     const rows = buildWorldCupLeaderboardRows({
       entries: [
         {
@@ -424,6 +424,212 @@ describe("World Cup scoring", () => {
         DEFAULT_WORLD_CUP_SCORING.championBonusPoints
     )
     expect(rows[1].entryId).toBe("e1")
+  })
+
+  it("uses champion correctness before older max-possible style tie-breakers", () => {
+    const rows = buildWorldCupLeaderboardRows({
+      entries: [
+        {
+          id: "champion-correct",
+          participantId: "p1",
+          userId: "u1",
+          name: "Champion Correct",
+          createdAt: new Date("2026-01-02"),
+          updatedAt: new Date("2026-01-02"),
+          submittedAt: new Date("2026-01-03"),
+          championTeamId: "arg",
+          championTeamName: "Argentina",
+          picks: [
+            {
+              matchId: "m1",
+              round: "round_of_32",
+              selectedTeamId: "usa",
+              selectedTeamName: "USA",
+              selectedSlotKey: "A1",
+              pointsAwarded: 10,
+              isCorrect: true,
+            },
+          ],
+          participant: { displayName: "A", user: { username: "a", avatarUrl: null, displayName: null } },
+        },
+        {
+          id: "champion-wrong",
+          participantId: "p2",
+          userId: "u2",
+          name: "Champion Wrong",
+          createdAt: new Date("2026-01-01"),
+          updatedAt: new Date("2026-01-01"),
+          submittedAt: new Date("2026-01-02"),
+          championTeamId: "bra",
+          championTeamName: "Brazil",
+          picks: [
+            {
+              matchId: "m1",
+              round: "round_of_32",
+              selectedTeamId: "usa",
+              selectedTeamName: "USA",
+              selectedSlotKey: "A1",
+              pointsAwarded: 10,
+              isCorrect: true,
+            },
+          ],
+          participant: { displayName: "B", user: { username: "b", avatarUrl: null, displayName: null } },
+        },
+      ],
+      matches: [
+        {
+          id: "final",
+          round: "final",
+          status: "final",
+          homeTeamId: "arg",
+          awayTeamId: "bra",
+          homeTeamName: "Argentina",
+          awayTeamName: "Brazil",
+          winnerTeamId: "arg",
+          winnerTeamName: "Argentina",
+          homeSlotKey: "ARG",
+          awaySlotKey: "BRA",
+        },
+      ],
+      scoring: { ...DEFAULT_WORLD_CUP_SCORING, championBonusPoints: 0 },
+    })
+
+    expect(rows[0].entryId).toBe("champion-correct")
+    expect(rows[0].championCorrect).toBe(true)
+    expect(rows[1].championCorrect).toBe(false)
+  })
+
+  it("uses finalist, knockout, and group-winner tie-breaker fields before earliest finalized time", () => {
+    const base = {
+      createdAt: new Date("2026-01-01"),
+      updatedAt: new Date("2026-01-01"),
+      participant: { displayName: "Player", user: { username: "player", avatarUrl: null, displayName: null } },
+    }
+
+    const rows = buildWorldCupLeaderboardRows({
+      entries: [
+        {
+          ...base,
+          id: "finalist-late",
+          participantId: "p1",
+          userId: "u1",
+          name: "Finalist Late",
+          submittedAt: new Date("2026-01-05"),
+          groupWinnersCorrect: 0,
+          picks: [
+            {
+              matchId: "semi",
+              round: "semifinal",
+              selectedTeamId: "arg",
+              selectedTeamName: "Argentina",
+              selectedSlotKey: "ARG",
+              pointsAwarded: 0,
+              isCorrect: null,
+            },
+          ],
+        },
+        {
+          ...base,
+          id: "knockout-middle",
+          participantId: "p2",
+          userId: "u2",
+          name: "Knockout Middle",
+          submittedAt: new Date("2026-01-04"),
+          groupWinnersCorrect: 0,
+          picks: [
+            {
+              matchId: "r16",
+              round: "round_of_16",
+              selectedTeamId: "usa",
+              selectedTeamName: "USA",
+              selectedSlotKey: "USA",
+              pointsAwarded: 0,
+              isCorrect: true,
+            },
+          ],
+        },
+        {
+          ...base,
+          id: "group-earlier",
+          participantId: "p3",
+          userId: "u3",
+          name: "Group Earlier",
+          submittedAt: new Date("2026-01-03"),
+          groupWinnersCorrect: 3,
+          picks: [],
+        },
+        {
+          ...base,
+          id: "earliest-only",
+          participantId: "p4",
+          userId: "u4",
+          name: "Earliest Only",
+          submittedAt: new Date("2026-01-02"),
+          groupWinnersCorrect: 0,
+          picks: [],
+        },
+      ],
+      matches: [
+        {
+          id: "final",
+          round: "final",
+          status: "scheduled",
+          homeTeamId: "arg",
+          awayTeamId: "fra",
+          homeTeamName: "Argentina",
+          awayTeamName: "France",
+          winnerTeamId: null,
+          winnerTeamName: null,
+          homeSlotKey: "ARG",
+          awaySlotKey: "FRA",
+        },
+      ],
+      scoring: DEFAULT_WORLD_CUP_SCORING,
+    })
+
+    expect(rows.map((row) => row.entryId)).toEqual([
+      "finalist-late",
+      "knockout-middle",
+      "group-earlier",
+      "earliest-only",
+    ])
+    expect(rows[0].finalistsCorrect).toBe(1)
+    expect(rows[1].knockoutPicksCorrect).toBe(1)
+    expect(rows[2].groupWinnersCorrect).toBe(3)
+  })
+
+  it("shares rank when entries are still tied after all product tie-breakers", () => {
+    const submittedAt = new Date("2026-01-02")
+    const rows = buildWorldCupLeaderboardRows({
+      entries: [
+        {
+          id: "tie-a",
+          participantId: "p1",
+          userId: "u1",
+          name: "Tie A",
+          createdAt: new Date("2026-01-01"),
+          updatedAt: new Date("2026-01-01"),
+          submittedAt,
+          picks: [],
+        },
+        {
+          id: "tie-b",
+          participantId: "p2",
+          userId: "u2",
+          name: "Tie B",
+          createdAt: new Date("2026-01-01"),
+          updatedAt: new Date("2026-01-01"),
+          submittedAt,
+          picks: [],
+        },
+      ],
+      matches: [],
+      scoring: DEFAULT_WORLD_CUP_SCORING,
+    })
+
+    expect(rows).toHaveLength(2)
+    expect(rows[0].rank).toBe(1)
+    expect(rows[1].rank).toBe(1)
   })
 
   it("detects when a champion pick has been eliminated before the final", () => {

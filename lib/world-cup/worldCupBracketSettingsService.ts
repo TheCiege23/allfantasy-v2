@@ -169,10 +169,12 @@ export async function getWorldCupBracketSettingsBundle(challengeId: string) {
 export async function applyWorldCupBracketSettingsPatch(input: {
   challengeId: string
   userHasAfPro: boolean
+  userHasAfCommissioner?: boolean
   isAdmin: boolean
   patch: WorldCupBracketSettingsPatch
 }) {
-  const { challengeId, userHasAfPro, isAdmin, patch } = input
+  const { challengeId, userHasAfPro, userHasAfCommissioner, isAdmin, patch } = input
+  const hasAdvancedCommissioner = Boolean(isAdmin || userHasAfCommissioner)
 
   if (patch.maxParticipants !== undefined) {
     if (patch.maxParticipants < 1 || patch.maxParticipants > WORLD_CUP_MAX_PARTICIPANTS_CAP) {
@@ -190,6 +192,23 @@ export async function applyWorldCupBracketSettingsPatch(input: {
 
   if (patch.scoring) {
     assertPositiveScoringValues(patch.scoring as Partial<WorldCupScoringValues>)
+  }
+
+  const advancedSettingTouched = Boolean(
+    patch.scoring ||
+      patch.scoringStyle === "custom" ||
+      patch.tiebreakerFinalScore !== undefined ||
+      patch.allowLateJoin !== undefined ||
+      patch.showPublicPicks !== undefined ||
+      patch.knockoutMode !== undefined ||
+      patch.confidenceScoringEnabled !== undefined ||
+      patch.commissioner ||
+      Object.prototype.hasOwnProperty.call(patch, "joinPassword")
+  )
+  if (advancedSettingTouched && !hasAdvancedCommissioner) {
+    throw new Error(
+      "AF Commissioner is required for custom scoring, custom locks, advanced invite controls, advanced notifications, and commissioner AI settings."
+    )
   }
 
   if (patch.showPublicPicks === "always") {
@@ -246,7 +265,7 @@ export async function applyWorldCupBracketSettingsPatch(input: {
     if (
       patch.knockoutMode !== undefined &&
       patch.knockoutMode !== getWorldCupKnockoutModeFromPayload(ch.sourcePayload) &&
-      !input.isAdmin &&
+      !isAdmin &&
       ((ch.entries?.length ?? 0) > 0 ||
         (ch.picks?.length ?? 0) > 0 ||
         ch.status !== "open" ||

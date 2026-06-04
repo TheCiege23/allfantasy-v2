@@ -44,7 +44,7 @@ describe("WorldCupMatchupIntelligencePanel AF Pro gating", () => {
     getIntelMock.mockResolvedValue(baseIntel())
   })
 
-  it("shows locked card and disables AI-only buttons when user does not have Bracket Brain AI", async () => {
+  it("shows locked card but leaves AI buttons clickable for token fallback when user does not have Bracket Brain AI", async () => {
     const WorldCupMatchupIntelligencePanel = (await import(
       "@/components/brackets/world-cup/WorldCupMatchupIntelligencePanel"
     )).default
@@ -65,8 +65,8 @@ describe("WorldCupMatchupIntelligencePanel AF Pro gating", () => {
     )
 
     expect(await screen.findByTestId("wc-bracket-brain-locked-card")).toBeInTheDocument()
-    expect(screen.getByTestId("wc-ai-ask-button")).toBeDisabled()
-    expect(screen.getByTestId("wc-ai-explain-button")).toBeDisabled()
+    expect(screen.getByTestId("wc-ai-ask-button")).not.toBeDisabled()
+    expect(screen.getByTestId("wc-ai-explain-button")).not.toBeDisabled()
     expect(screen.getByText(/Basic stats \(non-AI\)/i)).toBeInTheDocument()
   })
 

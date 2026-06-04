@@ -11,6 +11,10 @@ import type {
   WorldCupMatchupIntelligence,
   WorldCupPickView,
 } from "./types"
+import {
+  confirmWorldCupTokenSpend,
+  isWorldCupTokenConfirmationResponse,
+} from "./worldCupClientTokenConfirm"
 
 // ── Local types ──────────────────────────────────────────────────────────────
 
@@ -404,6 +408,7 @@ export async function getWorldCupMatchupIntelligence(
     matchId: string
     strategy?: WorldCupAiStrategy
     intent?: "panel" | "ask_ai" | "explain"
+    confirmTokenSpend?: boolean
   }
 ): Promise<WorldCupMatchupIntelligence> {
   const res = await apiFetch(
@@ -411,6 +416,15 @@ export async function getWorldCupMatchupIntelligence(
     { method: "POST", body: JSON.stringify(payload) }
   )
   const data = await res.json()
+  if (isWorldCupTokenConfirmationResponse(res.status, data)) {
+    if (!confirmWorldCupTokenSpend(data)) {
+      throw new Error("Token spend was not confirmed.")
+    }
+    return getWorldCupMatchupIntelligence(challengeId, entryId, {
+      ...payload,
+      confirmTokenSpend: true,
+    })
+  }
   if (!res.ok) throw new Error((data as { error?: string }).error ?? "Matchup intelligence failed")
   return (data as { intelligence: WorldCupMatchupIntelligence }).intelligence
 }

@@ -5,6 +5,10 @@ import { Loader2, Lock, Send, Settings, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import {
+  confirmWorldCupTokenSpend,
+  isWorldCupTokenConfirmationResponse,
+} from "@/lib/world-cup/worldCupClientTokenConfirm"
 import WorldCupLeagueEventFeed from "./WorldCupLeagueEventFeed"
 import WorldCupCommissionerChecklistCard from "./WorldCupCommissionerChecklistCard"
 
@@ -53,13 +57,21 @@ type BrainActionResult = {
   proLocked?: boolean
 }
 
+type BrainPostResult = {
+  ok: boolean
+  data: Record<string, any>
+  cancelled?: boolean
+}
+
 export default function WorldCupCommissionerBrainPanel({
   challengeId,
+  hasAfCommissioner,
   onOpenLeagueSettings,
   poolName,
   poolUrl,
 }: {
   challengeId: string
+  hasAfCommissioner?: boolean
   onOpenLeagueSettings?: () => void
   /** Pool display name — used by the checklist's reminder copy. */
   poolName?: string
@@ -70,7 +82,7 @@ export default function WorldCupCommissionerBrainPanel({
   const t = useMemo(() => makeWcT(language), [language])
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const [settings, setSettings] = useState<CommissionerPrefs | null>(null)
-  const [hasAi, setHasAi] = useState(false)
+  const [hasAi, setHasAi] = useState(Boolean(hasAfCommissioner))
   const [bracketBrainEnabled, setBracketBrainEnabled] = useState(true)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
@@ -91,7 +103,7 @@ export default function WorldCupCommissionerBrainPanel({
       if (res.ok) {
         setSnapshot(data.snapshot ?? null)
         setSettings(data.settings ?? null)
-        setHasAi(Boolean(data.hasBracketBrainAi))
+        setHasAi(Boolean(data.hasBracketBrainAi || data.hasAfCommissioner || hasAfCommissioner))
         setBracketBrainEnabled(data.bracketBrainEnabled !== false)
         return
       }
@@ -101,36 +113,47 @@ export default function WorldCupCommissionerBrainPanel({
     } finally {
       setLoading(false)
     }
-  }, [challengeId, t])
+  }, [challengeId, hasAfCommissioner, t])
 
   useEffect(() => {
     void reload()
   }, [reload])
+
+  async function postCommissionerBrain(payload: Record<string, unknown>): Promise<BrainPostResult> {
+    const res = await fetch(`/api/brackets/world-cup/${challengeId}/commissioner-brain`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (isWorldCupTokenConfirmationResponse(res.status, data)) {
+      if (!confirmWorldCupTokenSpend(data)) {
+        return {
+          ok: false,
+          data: { error: "Token spend was not confirmed." },
+          cancelled: true,
+        }
+      }
+      return postCommissionerBrain({ ...payload, confirmTokenSpend: true })
+    }
+    return { ok: res.ok, data }
+  }
 
   async function runBrain(action: "hype" | "standings" | "watch" | "recap" | "drama_recap") {
     if (!bracketBrainEnabled) {
       toast.error("Bracket Brain is disabled — turn it on under Pool settings.")
       return
     }
-    if (!hasAi && action !== "drama_recap") {
-      toast.info("Upgrade to AF Pro to generate Bracket Brain messages.")
-      return
-    }
     setBusy(action)
     setBrainActionResult(null)
     try {
-      const res = await fetch(`/api/brackets/world-cup/${challengeId}/commissioner-brain`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action,
-          round: action === "recap" ? "round_of_16" : undefined,
-          tone: action === "drama_recap" ? recapTone : undefined,
-        }),
+      const { ok, data, cancelled } = await postCommissionerBrain({
+        action,
+        round: action === "recap" ? "round_of_16" : undefined,
+        tone: action === "drama_recap" ? recapTone : undefined,
       })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        toast.error(data.error || "Could not generate")
+      if (!ok) {
+        toast[cancelled ? "info" : "error"](data.error || "Could not generate")
         return
       }
       const lines = Array.isArray(data.lines) ? data.lines.filter((line: unknown): line is string => typeof line === "string") : []
@@ -206,20 +229,14 @@ export default function WorldCupCommissionerBrainPanel({
       toast.error("Bracket Brain is disabled — turn it on under Pool settings.")
       return
     }
-    if (!hasAi) {
-      toast.info("Upgrade to AI/Pro to generate World Cup AI recaps.")
-      return
-    }
     setBusy("preview-recap")
     try {
-      const res = await fetch(`/api/brackets/world-cup/${challengeId}/commissioner-brain`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "preview_recap", tone: recapTone }),
+      const { ok, data, cancelled } = await postCommissionerBrain({
+        action: "preview_recap",
+        tone: recapTone,
       })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        toast.error(data.error || "Could not generate recap preview")
+      if (!ok) {
+        toast[cancelled ? "info" : "error"](data.error || "Could not generate recap preview")
         return
       }
       setRecapLines(Array.isArray(data.lines) ? data.lines : [])
@@ -230,24 +247,19 @@ export default function WorldCupCommissionerBrainPanel({
   }
 
   async function postRecapToChat() {
-    if (!hasAi) {
-      toast.info("Upgrade to AI/Pro to post World Cup AI recaps.")
-      return
-    }
     if (recapLines.length === 0) {
       toast.info("Generate a recap preview first.")
       return
     }
     setBusy("post-recap")
     try {
-      const res = await fetch(`/api/brackets/world-cup/${challengeId}/commissioner-brain`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "post_recap", tone: recapTone, lines: recapLines }),
+      const { ok, data, cancelled } = await postCommissionerBrain({
+        action: "post_recap",
+        tone: recapTone,
+        lines: recapLines,
       })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        toast.error(data.error || "Could not post recap")
+      if (!ok) {
+        toast[cancelled ? "info" : "error"](data.error || "Could not post recap")
         return
       }
       toast.success("AI recap posted to pool chat.")
@@ -308,13 +320,11 @@ export default function WorldCupCommissionerBrainPanel({
           Bracket Brain
         </div>
         <p className="mt-2 text-xs leading-relaxed text-white/55">
-          Basic lock reminders post for every commissioner. AI-enhanced Bracket Brain copy (optional checkbox below)
-          requires{" "}
-          <span className="font-semibold text-white/85">AF Pro</span>. Hype, standings, watch list, and recaps remain
-          AF Pro–only.
+          Basic lock reminders post for every commissioner. AI-enhanced Bracket Brain reports require{" "}
+          <span className="font-semibold text-white/85">AF Commissioner</span> or a confirmed token spend.
         </p>
         {hasAi ? (
-          <p className="mt-1 text-[11px] text-white/65">AF Pro active — you can polish reminders with AI.</p>
+          <p className="mt-1 text-[11px] text-white/65">Commissioner AI access active.</p>
         ) : null}
       </div>
 
@@ -416,28 +426,28 @@ export default function WorldCupCommissionerBrainPanel({
           Broadcast Pool Reminder
         </BrainButton>
         <BrainButton
-          disabled={!bracketBrainEnabled || !hasAi || busy !== null}
+          disabled={!bracketBrainEnabled || busy !== null}
           loading={busy === "hype"}
           onClick={() => void runBrain("hype")}
         >
           Generate Hype
         </BrainButton>
         <BrainButton
-          disabled={!bracketBrainEnabled || !hasAi || busy !== null}
+          disabled={!bracketBrainEnabled || busy !== null}
           loading={busy === "standings"}
           onClick={() => void runBrain("standings")}
         >
           Summarize Standings
         </BrainButton>
         <BrainButton
-          disabled={!bracketBrainEnabled || !hasAi || busy !== null}
+          disabled={!bracketBrainEnabled || busy !== null}
           loading={busy === "watch"}
           onClick={() => void runBrain("watch")}
         >
           What To Watch
         </BrainButton>
         <BrainButton
-          disabled={!bracketBrainEnabled || !hasAi || busy !== null}
+          disabled={!bracketBrainEnabled || busy !== null}
           loading={busy === "recap"}
           onClick={() => void runBrain("recap")}
         >
@@ -486,7 +496,7 @@ export default function WorldCupCommissionerBrainPanel({
             </p>
           </div>
           <span className="rounded-full border border-cyan-200/25 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-white/90">
-            {hasAi ? "AI/Pro active" : "Locked"}
+            {hasAi ? "Commissioner AI active" : "Tokens or AF Commissioner"}
           </span>
         </div>
 
@@ -496,7 +506,7 @@ export default function WorldCupCommissionerBrainPanel({
             <select
               value={recapTone}
               onChange={(event) => setRecapTone(event.target.value as RecapTone)}
-              disabled={!hasAi || busy !== null}
+              disabled={busy !== null}
               className="mt-1 w-full rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-xs font-bold normal-case tracking-normal text-white/80 disabled:opacity-45"
             >
               <option value="fun">Fun</option>
@@ -506,7 +516,7 @@ export default function WorldCupCommissionerBrainPanel({
           </label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <BrainButton
-              disabled={!bracketBrainEnabled || !hasAi || busy !== null}
+              disabled={!bracketBrainEnabled || busy !== null}
               loading={busy === "preview-recap"}
               onClick={() => void generateRecapPreview()}
               icon={<Sparkles className="h-3.5 w-3.5" />}
@@ -514,7 +524,7 @@ export default function WorldCupCommissionerBrainPanel({
               Generate AI Recap
             </BrainButton>
             <BrainButton
-              disabled={!hasAi || busy !== null || recapLines.length === 0}
+              disabled={busy !== null || recapLines.length === 0}
               loading={busy === "post-recap"}
               onClick={() => void postRecapToChat()}
               icon={<Send className="h-3.5 w-3.5" />}
@@ -526,7 +536,7 @@ export default function WorldCupCommissionerBrainPanel({
 
         {!hasAi ? (
           <p className="mt-3 rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-xs text-white/60">
-            Upgrade to AI/Pro to generate pool recaps. Locked users cannot generate or post AI recaps.
+            AF Commissioner unlocks advanced commissioner reports. Token users can confirm a one-off spend before generation.
           </p>
         ) : null}
 

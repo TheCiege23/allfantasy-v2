@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createWorldCupBracketChallenge } from "@/lib/world-cup"
+import { userHasWorldCupCommissionerAccess } from "@/lib/world-cup/worldCupCommissionerAccess"
 import { assertWorldCupCreateModeAccess, requireWorldCupApiUser } from "../_utils"
 
 export const runtime = "nodejs"
@@ -114,6 +115,23 @@ export async function POST(request: Request) {
       false,
     scoring: parsed.data.scoring,
   } as const
+
+  if (normalized.pickLockStrategy !== "tournament_start" && !modeAccess.isAdmin) {
+    const hasAfCommissioner = await userHasWorldCupCommissionerAccess(
+      auth.user.id,
+      auth.user.email ?? null
+    )
+    if (!hasAfCommissioner) {
+      return NextResponse.json(
+        {
+          error: "AF Commissioner is required for custom World Cup lock rules.",
+          upgrade: true,
+          upgradePath: "/commissioner-upgrade?feature=advanced_scoring",
+        },
+        { status: 403 }
+      )
+    }
+  }
 
   console.info("[world-cup/create] normalized create data", {
     userId: normalized.user.id,

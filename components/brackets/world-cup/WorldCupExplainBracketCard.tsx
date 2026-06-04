@@ -5,6 +5,10 @@ import Link from "next/link"
 import { Loader2, Lock, Sparkles } from "lucide-react"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import { makeWcT } from "@/lib/world-cup/worldCupI18n"
+import {
+  confirmWorldCupTokenSpend,
+  isWorldCupTokenConfirmationResponse,
+} from "@/lib/world-cup/worldCupClientTokenConfirm"
 
 type ExplainResult = {
   summary: string
@@ -30,16 +34,29 @@ export default function WorldCupExplainBracketCard({
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<ExplainResult | null>(null)
 
-  async function handleGenerate() {
+  async function handleGenerate(confirmTokenSpend = false) {
     if (!entryId) return
     setLoading(true)
     setError(null)
     try {
       const res = await fetch(
         `/api/brackets/world-cup/${challengeId}/entries/${entryId}/explain`,
-        { method: "POST" }
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmTokenSpend }),
+        }
       )
       const body = await res.json().catch(() => ({}))
+      if (isWorldCupTokenConfirmationResponse(res.status, body)) {
+        if (confirmWorldCupTokenSpend(body)) {
+          setLoading(false)
+          await handleGenerate(true)
+        } else {
+          setError("Token spend was not confirmed.")
+        }
+        return
+      }
       if (!res.ok) {
         setError(
           typeof body?.error === "string"
@@ -118,10 +135,10 @@ export default function WorldCupExplainBracketCard({
         </div>
       ) : null}
 
-      {hasBracketBrainAi && !result ? (
+      {!result ? (
         <button
           type="button"
-          onClick={handleGenerate}
+          onClick={() => void handleGenerate()}
           disabled={loading || !entryId}
           data-testid="world-cup-explain-bracket-generate"
           className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-black text-black transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:scale-100 sm:w-auto"
@@ -173,7 +190,7 @@ export default function WorldCupExplainBracketCard({
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={handleGenerate}
+              onClick={() => void handleGenerate()}
               disabled={loading}
               data-testid="world-cup-explain-bracket-regenerate"
               className="rounded-lg border border-white/15 bg-white/[0.05] px-3 py-1.5 text-[11px] font-bold text-white/70 hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"

@@ -54,6 +54,7 @@ type LoadedPayload = {
   leagueSettings: BundleLeague
   commissioner: BundleCommissioner
   hasAfPro: boolean
+  hasAfCommissioner: boolean
   isAdmin: boolean
   earlyPublicPicksAllowed: boolean
 }
@@ -78,11 +79,36 @@ function AfProGateCard({ title, body }: { title: string; body: string }) {
   )
 }
 
+function AfCommissionerGateCard() {
+  return (
+    <div className="rounded-xl border border-amber-300/25 bg-gradient-to-br from-amber-300/12 to-cyan-300/5 p-4">
+      <div className="flex items-start gap-3">
+        <Lock className="mt-0.5 h-5 w-5 shrink-0 text-amber-100/90" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-black text-white">AF Commissioner required</p>
+          <p className="mt-1 text-xs leading-relaxed text-white/60">
+            Custom scoring, custom lock rules, invite gates, advanced alerts, and commissioner AI reports are paid
+            commissioner controls.
+          </p>
+          <Link
+            href="/commissioner-upgrade?feature=advanced_scoring"
+            className="mt-3 inline-flex rounded-lg bg-amber-300 px-4 py-2 text-xs font-black text-black"
+          >
+            Upgrade Commissioner
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function WorldCupBracketSettingsPanel({
   challengeId,
+  hasAfCommissioner: initialHasAfCommissioner,
   onSaved,
 }: {
   challengeId: string
+  hasAfCommissioner?: boolean
   onSaved?: () => void
 }) {
   const { language } = useOptionalLanguage()
@@ -367,6 +393,9 @@ export default function WorldCupBracketSettingsPanel({
         hydrate({
           ...next,
           hasAfPro: (data as { hasAfPro?: boolean }).hasAfPro ?? payload.hasAfPro,
+          hasAfCommissioner:
+            (data as { hasAfCommissioner?: boolean }).hasAfCommissioner ??
+            payload.hasAfCommissioner,
           isAdmin: (data as { isAdmin?: boolean }).isAdmin ?? payload.isAdmin,
           earlyPublicPicksAllowed:
             (data as { earlyPublicPicksAllowed?: boolean }).earlyPublicPicksAllowed ??
@@ -392,6 +421,11 @@ export default function WorldCupBracketSettingsPanel({
   }
 
   const hasAfPro = payload.hasAfPro
+  const hasAfCommissioner = Boolean(
+    payload.isAdmin ||
+      payload.hasAfCommissioner ||
+      initialHasAfCommissioner
+  )
 
   return (
     <div data-testid="world-cup-settings-panel" className="space-y-6 px-1 pb-10 sm:px-0">
@@ -459,6 +493,7 @@ export default function WorldCupBracketSettingsPanel({
           <input
             type="password"
             autoComplete="new-password"
+            disabled={!hasAfCommissioner}
             placeholder={
               payload.leagueSettings.inviteGateConfigured ? "Enter new password or leave blank to remove" : "Set a password"
             }
@@ -467,7 +502,7 @@ export default function WorldCupBracketSettingsPanel({
               setJoinPasswordInput(e.target.value)
               setJoinPasswordTouched(true)
             }}
-            className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+            className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white disabled:opacity-45"
           />
           <span className="mt-1 block text-[10px] text-white/40">
             Stored securely — never shown again after save. Leave blank and save to clear.
@@ -478,8 +513,9 @@ export default function WorldCupBracketSettingsPanel({
           <select
             data-testid="world-cup-settings-knockout-mode"
             value={knockoutMode}
+            disabled={!hasAfCommissioner}
             onChange={(e) => setKnockoutMode(e.target.value as "predictive" | "reseeded")}
-            className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+            className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white disabled:opacity-45"
           >
             <option value="predictive">Predictive Bracket</option>
             <option value="reseeded">Reseeded Knockout</option>
@@ -488,6 +524,7 @@ export default function WorldCupBracketSettingsPanel({
             Predictive Bracket generates the knockout path from each manager’s group predictions. Reseeded Knockout keeps knockout picks locked until official Round of 32 fixtures are available.
           </span>
         </label>
+        {!hasAfCommissioner ? <div className="mt-3"><AfCommissionerGateCard /></div> : null}
       </section>
 
       <section className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
@@ -498,6 +535,7 @@ export default function WorldCupBracketSettingsPanel({
               type="radio"
               name="wc-scoring-style"
               checked={scoringStyle === "standard"}
+              disabled={!hasAfCommissioner}
               onChange={() => setScoringStyle("standard")}
               className="accent-cyan-400"
             />
@@ -508,6 +546,7 @@ export default function WorldCupBracketSettingsPanel({
               type="radio"
               name="wc-scoring-style"
               checked={scoringStyle === "custom"}
+              disabled={!hasAfCommissioner}
               onChange={() => setScoringStyle("custom")}
               className="accent-cyan-400"
             />
@@ -530,6 +569,7 @@ export default function WorldCupBracketSettingsPanel({
             data-testid="world-cup-settings-confidence-scoring"
             type="checkbox"
             checked={confidenceScoringEnabled}
+            disabled={!hasAfCommissioner}
             onChange={(e) => setConfidenceScoringEnabled(e.target.checked)}
             className="mt-0.5 h-4 w-4 accent-cyan-400"
           />
@@ -543,14 +583,14 @@ export default function WorldCupBracketSettingsPanel({
 
         {scoringStyle === "custom" ? (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <Num label="Round of 32" value={roundOf32Points} onChange={setRoundOf32Points} />
-            <Num label="Round of 16" value={roundOf16Points} onChange={setRoundOf16Points} />
-            <Num label="Quarterfinals" value={quarterFinalPoints} onChange={setQuarterFinalPoints} />
-            <Num label="Semifinals" value={semiFinalPoints} onChange={setSemiFinalPoints} />
-            <Num label="Final" value={finalPoints} onChange={setFinalPoints} />
-            <Num label="Champion bonus" value={championBonusPoints} onChange={setChampionBonusPoints} />
+            <Num label="Round of 32" value={roundOf32Points} disabled={!hasAfCommissioner} onChange={setRoundOf32Points} />
+            <Num label="Round of 16" value={roundOf16Points} disabled={!hasAfCommissioner} onChange={setRoundOf16Points} />
+            <Num label="Quarterfinals" value={quarterFinalPoints} disabled={!hasAfCommissioner} onChange={setQuarterFinalPoints} />
+            <Num label="Semifinals" value={semiFinalPoints} disabled={!hasAfCommissioner} onChange={setSemiFinalPoints} />
+            <Num label="Final" value={finalPoints} disabled={!hasAfCommissioner} onChange={setFinalPoints} />
+            <Num label="Champion bonus" value={championBonusPoints} disabled={!hasAfCommissioner} onChange={setChampionBonusPoints} />
             {includeThirdPlace ? (
-              <Num label="Third-place game" value={thirdPlacePoints} onChange={setThirdPlacePoints} />
+              <Num label="Third-place game" value={thirdPlacePoints} disabled={!hasAfCommissioner} onChange={setThirdPlacePoints} />
             ) : null}
           </div>
         ) : null}
@@ -572,6 +612,7 @@ export default function WorldCupBracketSettingsPanel({
             ) : null}
           </ul>
         </div>
+        {!hasAfCommissioner ? <div className="mt-4"><AfCommissionerGateCard /></div> : null}
       </section>
 
       <section className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
@@ -580,6 +621,7 @@ export default function WorldCupBracketSettingsPanel({
           <input
             type="checkbox"
             checked={tiebreakerFinalScore}
+            disabled={!hasAfCommissioner}
             onChange={(e) => setTiebreakerFinalScore(e.target.checked)}
             className="h-4 w-4 accent-cyan-400"
           />
@@ -589,6 +631,7 @@ export default function WorldCupBracketSettingsPanel({
           <input
             type="checkbox"
             checked={allowLateJoin}
+            disabled={!hasAfCommissioner}
             onChange={(e) => setAllowLateJoin(e.target.checked)}
             className="h-4 w-4 accent-cyan-400"
           />
@@ -599,10 +642,11 @@ export default function WorldCupBracketSettingsPanel({
           <select
             data-testid="world-cup-settings-public-picks"
             value={showPublicPicks}
+            disabled={!hasAfCommissioner}
             onChange={(e) =>
               setShowPublicPicks(e.target.value as "after_lock" | "never" | "always")
             }
-            className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+            className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white disabled:opacity-45"
           >
             <option value="after_lock">Only after lock</option>
             <option value="never">Never (private picks)</option>
@@ -614,22 +658,27 @@ export default function WorldCupBracketSettingsPanel({
             </span>
           ) : null}
         </label>
+        {!hasAfCommissioner ? <div className="mt-4"><AfCommissionerGateCard /></div> : null}
       </section>
 
       <section className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
         <h3 className="text-[11px] font-bold uppercase tracking-wide text-white/45">Alerts & reminders</h3>
         <p className="mt-2 text-[11px] text-white/45">
-          System events and lock reminders work for every commissioner. AI-powered summaries require AF Pro.
+          Advanced pool notifications require AF Commissioner. AI-powered summaries also require AF Pro.
         </p>
         <div className="mt-3 space-y-2">
-          <Toggle label="Enable system events" checked={enableSystemEvents} onChange={setEnableSystemEvents} />
-          <Toggle label="Upset alerts" checked={enableUpsetAlerts} onChange={setEnableUpsetAlerts} />
-          <Toggle label="Leaderboard alerts" checked={enableLeaderboardAlerts} onChange={setEnableLeaderboardAlerts} />
-          <Toggle label="Champion bust alerts" checked={enableChampionBustAlerts} onChange={setEnableChampionBustAlerts} />
-          <Toggle label="Lock reminders" checked={enableLockReminders} onChange={setEnableLockReminders} />
+          <Toggle label="Enable system events" checked={enableSystemEvents} disabled={!hasAfCommissioner} onChange={setEnableSystemEvents} />
+          <Toggle label="Upset alerts" checked={enableUpsetAlerts} disabled={!hasAfCommissioner} onChange={setEnableUpsetAlerts} />
+          <Toggle label="Leaderboard alerts" checked={enableLeaderboardAlerts} disabled={!hasAfCommissioner} onChange={setEnableLeaderboardAlerts} />
+          <Toggle label="Champion bust alerts" checked={enableChampionBustAlerts} disabled={!hasAfCommissioner} onChange={setEnableChampionBustAlerts} />
+          <Toggle label="Lock reminders" checked={enableLockReminders} disabled={!hasAfCommissioner} onChange={setEnableLockReminders} />
         </div>
 
-        {!hasAfPro ? (
+        {!hasAfCommissioner ? (
+          <div className="mt-4">
+            <AfCommissionerGateCard />
+          </div>
+        ) : !hasAfPro ? (
           <div className="mt-4">
             <AfProGateCard
               title="AI summaries"
@@ -646,9 +695,13 @@ export default function WorldCupBracketSettingsPanel({
       <section className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
         <h3 className="text-[11px] font-bold uppercase tracking-wide text-white/45">Bracket Brain</h3>
         <p className="mt-2 text-[11px] text-white/45">
-          Lets commissioners generate Bracket Brain chat posts from the Commissioner tab. Requires AF Pro to run AI output.
+          Lets commissioners generate Bracket Brain chat posts from the Commissioner tab. Requires AF Commissioner and AF Pro to run AI output.
         </p>
-        {!hasAfPro ? (
+        {!hasAfCommissioner ? (
+          <div className="mt-3">
+            <AfCommissionerGateCard />
+          </div>
+        ) : !hasAfPro ? (
           <div className="mt-3">
             <AfProGateCard
               title="Bracket Brain controls"
@@ -691,10 +744,12 @@ export default function WorldCupBracketSettingsPanel({
 function Toggle({
   label,
   checked,
+  disabled,
   onChange,
 }: {
   label: string
   checked: boolean
+  disabled?: boolean
   onChange: (v: boolean) => void
 }) {
   return (
@@ -703,8 +758,9 @@ function Toggle({
       <input
         type="checkbox"
         checked={checked}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4 accent-cyan-400"
+        className="h-4 w-4 accent-cyan-400 disabled:opacity-45"
       />
     </label>
   )
@@ -713,10 +769,12 @@ function Toggle({
 function Num({
   label,
   value,
+  disabled,
   onChange,
 }: {
   label: string
   value: number
+  disabled?: boolean
   onChange: (n: number) => void
 }) {
   return (
@@ -727,8 +785,9 @@ function Num({
         min={1}
         step={1}
         value={Number.isFinite(value) ? value : ""}
+        disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+        className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white disabled:opacity-45"
       />
     </label>
   )
