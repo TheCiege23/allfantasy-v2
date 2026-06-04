@@ -3,8 +3,8 @@
  *
  * Covers:
  *   - 401 when unauthenticated
- *   - Non-internal user gets { ok: true, accepted: false } (no data leak)
- *   - Internal admin gets full health shape with stripeWebhookHealth + tokenLedgerHealth
+ *   - Non-admin user gets 403 (no data leak)
+ *   - Admin gets full health shape with stripeWebhookHealth + tokenLedgerHealth
  *   - Health shape is ok: false but still returns HTTP 200 when sub-queries degrade
  */
 
@@ -14,8 +14,7 @@ import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest
 // ---------------------------------------------------------------------------
 // Hoisted mocks
 // ---------------------------------------------------------------------------
-const getServerSessionMock = vi.hoisted(() => vi.fn())
-const isInternalChimmyUserMock = vi.hoisted(() => vi.fn())
+const requireAdminMock = vi.hoisted(() => vi.fn())
 const getStripeWebhookHealthMock = vi.hoisted(() => vi.fn())
 const getTokenLedgerHealthMock = vi.hoisted(() => vi.fn())
 
@@ -28,17 +27,8 @@ const getTopRisksFrequencyMock = vi.hoisted(() => vi.fn())
 const getFeedbackSummaryMock = vi.hoisted(() => vi.fn())
 const getCardSentimentMock = vi.hoisted(() => vi.fn())
 
-vi.mock("next-auth", () => ({
-  getServerSession: getServerSessionMock,
-}))
-
-vi.mock("@/lib/auth", () => ({
-  authOptions: {},
-}))
-
-// Route imports isInternalChimmyUser from @/lib/chimmy-context/internal-user
-vi.mock("@/lib/chimmy-context/internal-user", () => ({
-  isInternalChimmyUser: isInternalChimmyUserMock,
+vi.mock("@/lib/adminAuth", () => ({
+  requireAdmin: requireAdminMock,
 }))
 
 vi.mock("@/lib/admin/paymentHealthQueries", () => ({
@@ -88,9 +78,7 @@ const MOCK_CARD_SENTIMENT = { positive: 8, negative: 1, neutral: 3 }
 describe("GET /api/admin/chimmy/health", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // Default: authenticated non-admin user
-    getServerSessionMock.mockResolvedValue({ user: { id: "u1", email: "user@example.com" } })
-    isInternalChimmyUserMock.mockReturnValue(false)
+    requireAdminMock.mockResolvedValue({ ok: true, user: { id: "admin-1", role: "admin" } })
 
     // Payment health defaults
     getStripeWebhookHealthMock.mockResolvedValue(MOCK_STRIPE_HEALTH)
@@ -107,22 +95,27 @@ describe("GET /api/admin/chimmy/health", () => {
   })
 
   it("returns 401 when unauthenticated", async () => {
-    getServerSessionMock.mockResolvedValue(null)
+    requireAdminMock.mockResolvedValue({
+      ok: false,
+      res: Response.json({ error: "Unauthorized" }, { status: 401 }),
+    })
     const { GET } = await import("@/app/api/admin/chimmy/health/route")
     const req = createMockNextRequest("http://localhost/api/admin/chimmy/health")
     const res = await GET(req)
     expect(res.status).toBe(401)
   })
 
-  it("returns ok:true accepted:false for non-internal user (no data leak)", async () => {
-    isInternalChimmyUserMock.mockReturnValue(false)
+  it("returns 403 for non-admin user (no data leak)", async () => {
+    requireAdminMock.mockResolvedValue({
+      ok: false,
+      res: Response.json({ error: "Forbidden" }, { status: 403 }),
+    })
     const { GET } = await import("@/app/api/admin/chimmy/health/route")
     const req = createMockNextRequest("http://localhost/api/admin/chimmy/health")
     const res = await GET(req)
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(403)
     const body = await res.json()
-    expect(body.ok).toBe(true)
-    expect(body.accepted).toBe(false)
+    expect(body.error).toBe("Forbidden")
     // No health data should be leaked to non-admin users
     expect(body.stripeWebhookHealth).toBeUndefined()
     expect(body.tokenLedgerHealth).toBeUndefined()
@@ -130,8 +123,7 @@ describe("GET /api/admin/chimmy/health", () => {
     expect(getTokenLedgerHealthMock).not.toHaveBeenCalled()
   })
 
-  it("returns full health shape with stripeWebhookHealth and tokenLedgerHealth for internal user", async () => {
-    isInternalChimmyUserMock.mockReturnValue(true)
+  it("returns full health shape with stripeWebhookHealth and tokenLedgerHealth for admin user", async () => {
     const { GET } = await import("@/app/api/admin/chimmy/health/route")
     const req = createMockNextRequest("http://localhost/api/admin/chimmy/health")
     const res = await GET(req)
@@ -159,7 +151,6 @@ describe("GET /api/admin/chimmy/health", () => {
   })
 
   it("returns HTTP 200 with ok:false when stripe webhook health is degraded", async () => {
-    isInternalChimmyUserMock.mockReturnValue(true)
     getStripeWebhookHealthMock.mockResolvedValue({
       ok: false,
       errorCount: 3,
@@ -184,7 +175,6 @@ describe("GET /api/admin/chimmy/health", () => {
   })
 
   it("both payment health queries are called with the long window hours", async () => {
-    isInternalChimmyUserMock.mockReturnValue(true)
     const { GET } = await import("@/app/api/admin/chimmy/health/route")
     const req = createMockNextRequest("http://localhost/api/admin/chimmy/health")
     await GET(req)

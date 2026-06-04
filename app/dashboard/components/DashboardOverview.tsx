@@ -39,6 +39,7 @@ import { DashboardIntelligenceRail } from './DashboardIntelligenceRail'
 import { TodaysMissionStrip } from './TodaysMissionStrip'
 import { WarRoomPreviewBlock } from './WarRoomPreviewBlock'
 import { LegacySnapshotCard } from './LegacySnapshotCard'
+import { WorldCupDashboardPromo } from './WorldCupDashboardPromo'
 import { Swords, Sparkles, Crown, Trophy } from 'lucide-react'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
@@ -649,6 +650,7 @@ export function DashboardOverview({
   return (
     <div className="h-full min-h-0 w-full overflow-y-auto [scrollbar-gutter:stable]">
       <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6">
+        <WorldCupDashboardPromo />
         {(() => {
           const inSeasonNflLeagues = leagues.filter(
             (l) => l.sport === 'NFL' && l.status === 'in_season'
