@@ -770,6 +770,12 @@ export async function getWorldCupChallengeView(input: { challengeId: string; use
               user: { select: { username: true, avatarUrl: true, displayName: true } },
             },
           },
+          groupRankingPicks: {
+            select: {
+              predictedRank: true,
+              actualRank: true,
+            },
+          },
         },
       },
     },

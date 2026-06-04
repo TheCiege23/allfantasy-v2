@@ -63,6 +63,7 @@ type DbEntryForLb = {
   updatedAt: Date
   submittedAt?: Date | null
   groupWinnersCorrect?: number | null
+  groupRankingPicks?: Array<{ predictedRank: number; actualRank?: number | null }> | null
   picks: DbPick[]
   participant?: {
     displayName: string
@@ -151,6 +152,13 @@ function compareIsoNullableAsc(a?: string | null, b?: string | null) {
   if (a) return -1
   if (b) return 1
   return 0
+}
+
+function countCorrectGroupWinners(entry: DbEntryForLb) {
+  if (entry.groupWinnersCorrect != null) return Math.max(0, Number(entry.groupWinnersCorrect))
+  return (entry.groupRankingPicks ?? []).filter(
+    (pick) => pick.predictedRank === 1 && pick.actualRank === 1
+  ).length
 }
 
 function isWorldCupPickSelectionStillAlive(
@@ -349,10 +357,7 @@ export function buildWorldCupLeaderboardRows(input: {
           },
         ].filter((team) => semifinalPicks.some((pick) => selectionMatchesTeam(pick, team))).length
       : 0
-    const groupWinnersCorrect = Math.max(
-      0,
-      Number((e as { groupWinnersCorrect?: number | null }).groupWinnersCorrect ?? 0)
-    )
+    const groupWinnersCorrect = countCorrectGroupWinners(e)
 
     const joinedAt = e.createdAt instanceof Date ? e.createdAt.toISOString() : new Date(e.createdAt).toISOString()
     const updatedAt = e.updatedAt instanceof Date ? e.updatedAt.toISOString() : new Date(e.updatedAt).toISOString()
@@ -521,6 +526,12 @@ export async function recalculateWorldCupChallenge(challengeId: string) {
           participant: {
             include: {
               user: { select: { username: true, avatarUrl: true, displayName: true } },
+            },
+          },
+          groupRankingPicks: {
+            select: {
+              predictedRank: true,
+              actualRank: true,
             },
           },
         },

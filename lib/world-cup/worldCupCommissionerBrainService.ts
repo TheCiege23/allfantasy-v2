@@ -96,6 +96,12 @@ export async function buildWorldCupAiPoolRecapLines(
         include: {
           picks: { select: COMMISSIONER_BRAIN_PICK_SELECT },
           participant: true,
+          groupRankingPicks: {
+            select: {
+              predictedRank: true,
+              actualRank: true,
+            },
+          },
         },
       },
     },
@@ -167,6 +173,12 @@ export async function getWorldCupCommissionerBrainSnapshot(
         include: {
           picks: { select: COMMISSIONER_BRAIN_PICK_SELECT },
           participant: true,
+          groupRankingPicks: {
+            select: {
+              predictedRank: true,
+              actualRank: true,
+            },
+          },
         },
       },
     },
@@ -392,6 +404,12 @@ export async function buildStandingsSummaryLines(challengeId: string) {
         include: {
           picks: { select: COMMISSIONER_BRAIN_PICK_SELECT },
           participant: true,
+          groupRankingPicks: {
+            select: {
+              predictedRank: true,
+              actualRank: true,
+            },
+          },
         },
       },
     },
@@ -460,6 +478,12 @@ export async function buildPostRoundRecapLines(challengeId: string, round: World
         include: {
           picks: { select: COMMISSIONER_BRAIN_PICK_WITH_MATCH_SELECT },
           participant: true,
+          groupRankingPicks: {
+            select: {
+              predictedRank: true,
+              actualRank: true,
+            },
+          },
         },
       },
     },
