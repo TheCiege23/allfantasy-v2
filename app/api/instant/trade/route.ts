@@ -391,6 +391,12 @@ export const POST = withApiUsage({ endpoint: "/api/instant/trade", tool: "Instan
         eventSourceUrl: (req.headers as any).get?.('referer') || 'https://allfantasy.ai/',
         fbp,
         fbc,
+        customData: {
+          content_name: 'Trade Analysis',
+          content_category: 'Fantasy Football',
+          value: 0,
+          currency: 'USD',
+        },
       }).catch(() => {})
     }
 

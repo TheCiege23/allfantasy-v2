@@ -1,6 +1,6 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextResponse } from "next/server";
-import { sendMetaCAPIEvent } from "@/lib/meta-capi";
+import { trackMetaServerEvent } from "@/lib/meta-capi";
 
 export const POST = withApiUsage({ endpoint: "/api/meta/complete-registration", tool: "MetaCompleteRegistration" })(async (req: Request) => {
   try {
@@ -13,38 +13,38 @@ export const POST = withApiUsage({ endpoint: "/api/meta/complete-registration", 
       fbc,
       test_event_code,
       source_url,
+      custom_data,
     } = body ?? {};
 
     if (!event_id) {
       return NextResponse.json({ ok: false, error: "Missing event_id" }, { status: 400 });
     }
 
-    if (test_event_code) {
-      process.env.META_TEST_EVENT_CODE = test_event_code;
-    }
-
-    const ua = req.headers.get("user-agent") || undefined;
-    const clientIp = (req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "").split(",")[0].trim() || undefined;
-
-    const result = await sendMetaCAPIEvent({
+    const result = await trackMetaServerEvent({
       eventName: "CompleteRegistration",
       eventId: event_id,
       email: email || "",
       phone,
-      clientIp,
-      clientUserAgent: ua,
       eventSourceUrl: source_url,
       fbp,
       fbc,
+      customData: {
+        content_name: "Account signup",
+        content_category: "Registration",
+        ...(custom_data && typeof custom_data === "object" ? custom_data : {}),
+      },
+      testEventCode: typeof test_event_code === "string" ? test_event_code : null,
+      request: req,
+      source: "complete_registration_endpoint",
     });
 
-    if (!result.success) {
-      console.error("Meta CAPI error:", result.error);
-      return NextResponse.json({ ok: false, error: result.error, meta: result.meta }, { status: 500 });
+    if (!result.capi.success) {
+      console.error("Meta CAPI error:", result.capi.error);
+      return NextResponse.json({ ok: false, error: result.capi.error, meta: result.capi.meta }, { status: 500 });
     }
 
     console.log("Meta CAPI CompleteRegistration sent:", event_id);
-    return NextResponse.json({ ok: true, meta: result.meta });
+    return NextResponse.json({ ok: true, meta: result.capi.meta });
   } catch (e: any) {
     console.error("Meta CAPI error:", e);
     return NextResponse.json({ ok: false, error: e?.message || "Unknown error" }, { status: 500 });

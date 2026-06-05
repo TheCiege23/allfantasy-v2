@@ -7,6 +7,7 @@ import { SpotifyMiniPlayer } from '@/components/spotify/SpotifyMiniPlayer';
 import { FloatingMusicWidget } from '@/components/MusicWidget';
 import { DefaultJsonLd } from '@/components/seo/JsonLd';
 import { SafeGlobalChrome } from '@/components/shell/SafeGlobalChrome';
+import { MetaPixelPageViewTracker } from '@/components/meta/MetaPixelPageViewTracker';
 import { ErrorBoundaryClient } from '@/components/error-handling/ErrorBoundaryClient';
 import { PlayerComparisonUIProvider } from '@/components/player-comparison-ui';
 import { buildSeoMeta } from '@/lib/seo';
@@ -211,7 +212,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             rather than replacing it with an amber error UI.
           */}
           <ErrorBoundaryClient fallback={null}>
-            <SafeGlobalChrome metaPixelId={metaPixelId} fbAppId={fbAppId} />
+            <MetaPixelPageViewTracker pixelId={metaPixelId} />
+            <SafeGlobalChrome fbAppId={fbAppId} />
           </ErrorBoundaryClient>
 
           {/* Music widgets deferred until Spotify Web Playback SDK is integrated.

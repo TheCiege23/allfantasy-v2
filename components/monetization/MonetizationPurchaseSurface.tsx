@@ -7,6 +7,7 @@ import { HIGHLIGHT_TO_PLAN_FAMILY } from "@/lib/monetization/entitlements";
 import { usePostPurchaseSync } from "@/hooks/usePostPurchaseSync";
 import { TokenBalanceWidget } from "@/components/tokens/TokenBalanceWidget";
 import { resolveCheckoutUrl } from "@/lib/monetization/checkout-client";
+import { trackMetaBrowserEvent } from "@/lib/meta-client";
 import { MonetizationComplianceNotice } from "@/components/monetization/MonetizationComplianceNotice";
 import { AFProPlanSpotlight } from "@/components/monetization/AFProPlanSpotlight";
 import { AFWarRoomPlanSpotlight } from "@/components/monetization/AFWarRoomPlanSpotlight";
@@ -292,6 +293,9 @@ export default function MonetizationPurchaseSurface({
       setCheckoutError(result.error);
       setPendingSku(null);
       return;
+    }
+    if (productType === "subscription") {
+      trackMetaBrowserEvent(result.metaEvent);
     }
     window.location.assign(result.url);
   }

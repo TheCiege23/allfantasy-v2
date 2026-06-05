@@ -22,6 +22,8 @@ import {
   getLeagueCreateOptionsCatalog,
 } from '@/lib/league-creation/options-catalog'
 import { normalizeDraftTypeForEngineValidation } from '@/lib/draft-types/draftTypeRegistry'
+import { buildFantasyLeagueLeadMetaEvent } from '@/lib/meta-funnel-events'
+import { trackMetaServerEvent } from '@/lib/meta-capi'
 
 const LOG_PREFIX = '[create-league-canonical]'
 
@@ -152,5 +154,24 @@ export async function postCreateLeague(req: Request): Promise<NextResponse<Creat
     return NextResponse.json(exec.response, { status: exec.status })
   }
 
-  return NextResponse.json(exec.response)
+  const metaEvent = buildFantasyLeagueLeadMetaEvent({
+    leagueId: exec.response.league.id,
+    leagueName: exec.response.league.leagueName,
+    sport: exec.response.league.sport,
+    leagueType: exec.response.league.concept,
+    draftType: exec.response.league.draftType,
+  })
+  await trackMetaServerEvent({
+    eventName: metaEvent.eventName,
+    eventId: metaEvent.eventId,
+    customData: metaEvent.customData,
+    email: session.user.email ?? null,
+    userId: resolvedUser.appUserId,
+    request: req,
+    source: 'canonical_league_create',
+  }).catch((metaError) => {
+    console.warn('[create-league-canonical] Meta Lead failed', metaError)
+  })
+
+  return NextResponse.json({ ...exec.response, metaEvent })
 }

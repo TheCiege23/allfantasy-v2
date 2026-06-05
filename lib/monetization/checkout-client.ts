@@ -1,3 +1,5 @@
+import type { MetaEventPayload } from "@/lib/meta-events"
+
 export type MonetizationCheckoutProductType = "subscription" | "token_pack"
 
 type CheckoutEndpoint = "/api/monetization/checkout/subscription" | "/api/monetization/checkout/tokens"
@@ -9,7 +11,7 @@ export type MonetizationCheckoutRequest = {
 }
 
 export type MonetizationCheckoutResult =
-  | { ok: true; url: string }
+  | { ok: true; url: string; metaEvent?: MetaEventPayload }
   | { ok: false; error: string }
 
 const CHECKOUT_TIMEOUT_MS = 12_000
@@ -58,14 +60,18 @@ export async function resolveCheckoutUrl(
         }),
         signal: controller.signal,
       })
-      const data = (await response.json().catch(() => ({}))) as { url?: string; error?: string }
+      const data = (await response.json().catch(() => ({}))) as {
+        url?: string
+        error?: string
+        metaEvent?: MetaEventPayload
+      }
       if (!response.ok || !data.url) {
         return {
           ok: false,
           error: data.error ?? "Unable to start checkout. Please try again.",
         }
       }
-      return { ok: true, url: data.url }
+      return { ok: true, url: data.url, metaEvent: data.metaEvent }
     } catch {
       return { ok: false, error: "Unable to start checkout. Please try again." }
     } finally {

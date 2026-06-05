@@ -14,6 +14,7 @@ import { resolveEffectiveDraftType, isThirdRoundReversalAvailable } from '@/lib/
 import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigation'
 import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
 import { normalizeBestBallSettings } from '@/lib/bestball/rules'
+import { trackMetaEventsFromResponse } from '@/lib/meta-client'
 
 /** Execution modes must stay verbatim on the wire so persistence keeps isOffline / isAuto flags. */
 const EXECUTION_DRAFT_IDS = new Set(['offline', 'auto', 'team'])
@@ -393,6 +394,7 @@ export async function submitCreateLeagueV2(state: CreateLeagueV2State): Promise<
 
   const leagueId = parseLeagueId(json)
   const redirectTo = parseRedirectUrl(state, json)
+  trackMetaEventsFromResponse(json)
 
   return { ok: true, leagueId, redirectTo }
 }

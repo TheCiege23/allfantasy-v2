@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, Copy, Sparkles, X, Search, TrendingUp, TrendingDown, Minus, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { gtagEvent } from '@/lib/gtag'
+import { trackMetaBrowserEvent } from '@/lib/meta-client'
 import ImproveTradeModal from './ImproveTradeModal'
 
 const track = gtagEvent
@@ -487,7 +488,16 @@ export default function InstantTradeAnalyzer() {
       if (res.ok) {
         setResult(data)
         track('trade_analysis_completed', { league_size: leagueSize, scoring, dynasty: isDynasty, tePremium, isSuperFlex, verdict: data.verdict, confidence: data.confidence })
-        ;(window as any).fbq?.('track', 'ViewContent', { content_name: 'Trade Analysis', content_category: 'Fantasy Football' }, { eventID: eventId })
+        trackMetaBrowserEvent({
+          eventName: 'ViewContent',
+          eventId,
+          customData: {
+            content_name: 'Trade Analysis',
+            content_category: 'Fantasy Football',
+            value: 0,
+            currency: 'USD',
+          },
+        })
       } else {
         setError(data?.error || 'Analysis failed')
       }

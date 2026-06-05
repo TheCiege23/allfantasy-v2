@@ -34,6 +34,7 @@ import { clampTeamCountForSport } from '@/lib/league-creation-wizard/sport-team-
 import { COLLEGE_PAIR_WIZARD_PRIMARY_SPORTS } from '@/lib/sport-scope'
 import type { LeagueSport } from '@prisma/client'
 import { readFetchJson } from '@/lib/http/readFetchJson'
+import { trackMetaEventsFromResponse } from '@/lib/meta-client'
 import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigation'
 import { useSportPreset } from '@/hooks/useSportPreset'
 import { useEntitlement } from '@/hooks/useEntitlement'
@@ -1045,6 +1046,7 @@ export function LeagueCreationWizard({
       }
       const leagueId = data?.league?.id
       if (leagueId) {
+        trackMetaEventsFromResponse(data)
         if (typeof window !== 'undefined') {
           window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
         }

@@ -15,6 +15,7 @@ import {
   confirmWorldCupTokenSpend,
   isWorldCupTokenConfirmationResponse,
 } from "./worldCupClientTokenConfirm"
+import { trackMetaEventsFromResponse } from "@/lib/meta-client"
 
 // ── Local types ──────────────────────────────────────────────────────────────
 
@@ -209,9 +210,10 @@ export async function createWorldCupBracketEntry(
     method: "POST",
     body: JSON.stringify({ name: name ?? null }),
   })
-  const data = await readApiJson<{ error?: string; entry?: WorldCupBracketEntryClient }>(res)
+  const data = await readApiJson<{ error?: string; entry?: WorldCupBracketEntryClient; metaEvent?: unknown }>(res)
   if (!res.ok) throw new Error(data.error ?? "Failed to create entry")
   if (!data.entry) throw new Error("Create entry response missing entry")
+  trackMetaEventsFromResponse(data)
   return data.entry
 }
 

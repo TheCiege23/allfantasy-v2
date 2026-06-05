@@ -29,6 +29,8 @@ import { runLegacyWizardSpecialtyBootstrapsAfterLeagueCreate } from '@/lib/leagu
 import { assertImportCommissioner } from '@/lib/league-import/commissionerGate';
 import { isCategoryPresetId } from '@/lib/category-scoring';
 import { isAllowedIdpDraftType, supportsIdpLeagueSport } from '@/lib/sport-scope';
+import { buildFantasyLeagueLeadMetaEvent } from '@/lib/meta-funnel-events';
+import { trackMetaServerEvent } from '@/lib/meta-capi';
 
 const createSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -75,9 +77,41 @@ const createSchema = z.object({
   categoryPresetId: z.string().max(64).optional(),
 });
 
+async function trackFantasyLeagueLead(input: {
+  request: Request;
+  userId: string;
+  email?: string | null;
+  leagueId: string;
+  leagueName: string;
+  sport?: string | null;
+  leagueType?: string | null;
+  draftType?: string | null;
+  source: string;
+}) {
+  const metaEvent = buildFantasyLeagueLeadMetaEvent({
+    leagueId: input.leagueId,
+    leagueName: input.leagueName,
+    sport: input.sport,
+    leagueType: input.leagueType,
+    draftType: input.draftType,
+  });
+  await trackMetaServerEvent({
+    eventName: metaEvent.eventName,
+    eventId: metaEvent.eventId,
+    customData: metaEvent.customData,
+    email: input.email ?? null,
+    userId: input.userId,
+    request: input.request,
+    source: input.source,
+  }).catch((metaError) => {
+    console.warn('[league/create] Meta Lead failed:', metaError);
+  });
+  return metaEvent;
+}
+
 export async function POST(req: Request) {
   const session = (await getServerSession(authOptions as any)) as {
-    user?: { id?: string };
+    user?: { id?: string; email?: string | null };
   } | null;
 
   const userId = session?.user?.id;
@@ -399,10 +433,23 @@ export async function POST(req: Request) {
         throw error;
       }
 
+      const metaEvent = await trackFantasyLeagueLead({
+        request: req,
+        userId: verifiedAuth.userId,
+        email: session?.user?.email ?? null,
+        leagueId: persisted.league.id,
+        leagueName: persisted.league.name,
+        sport: persisted.league.sport,
+        leagueType: 'imported',
+        draftType: null,
+        source: 'sleeper_import_league_create',
+      });
+
       return NextResponse.json({
         league: persisted.league,
         historicalBackfill: persisted.historicalBackfill,
         importRunId: persisted.importRunId,
+        metaEvent,
       });
     }
 
@@ -598,7 +645,18 @@ export async function POST(req: Request) {
       const legacyBody = mapCanonicalSuccessToLegacyLeagueCreateResponse(exec.response, {
         createdVia: 'canonical_pipeline',
       });
-      return NextResponse.json(legacyBody, {
+      const metaEvent = await trackFantasyLeagueLead({
+        request: req,
+        userId: resolvedForCreate.appUserId,
+        email: session?.user?.email ?? null,
+        leagueId: legacyBody.league.id,
+        leagueName: legacyBody.league.name,
+        sport: legacyBody.league.sport,
+        leagueType: legacyBody.league.concept,
+        draftType: legacyBody.league.draftType,
+        source: 'legacy_manual_canonical_league_create',
+      });
+      return NextResponse.json({ ...legacyBody, metaEvent }, {
         headers: {
           'X-Create-League-Pipeline': 'canonical',
           'X-Deprecated-Route': 'true',
@@ -1193,9 +1251,22 @@ export async function POST(req: Request) {
       }
     }
 
+    const metaEvent = await trackFantasyLeagueLead({
+      request: req,
+      userId,
+      email: session?.user?.email ?? null,
+      leagueId: league.id,
+      leagueName: league.name,
+      sport: league.sport,
+      leagueType: String(leagueVariantEffective ?? requestedLeagueType ?? league.type ?? 'league'),
+      draftType: String(requestedDraftType ?? (initialSettings as Record<string, unknown>).draft_type ?? ''),
+      source: 'legacy_native_league_create',
+    });
+
     return NextResponse.json({
       success: true,
       league: { id: league.id, name: league.name, sport: league.sport },
+      metaEvent,
     });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);

@@ -12,6 +12,8 @@ import {
 import { resolveSafeReturnPath } from "@/lib/monetization/checkout-urls"
 import { buildStripeCheckoutDestinationForSku } from "@/lib/monetization/StripeCheckoutLinkRegistry"
 import { enforcePaidSubscriptionGeo } from "@/lib/geo/enforcePaidSubscriptionGeo"
+import { buildSubscriptionMetaEvent } from "@/lib/monetization/meta"
+import { trackMetaServerEvent } from "@/lib/meta-capi"
 
 type CheckoutSubscriptionBody = {
   sku?: string
@@ -64,10 +66,27 @@ export async function POST(req: Request) {
       )
     }
 
+    const metaEvent = buildSubscriptionMetaEvent("InitiateCheckout", item, {
+      sourceId: `subscription:${session.user.id}:${item.sku}`,
+    })
+    await trackMetaServerEvent({
+      eventName: metaEvent.eventName,
+      eventId: metaEvent.eventId,
+      customData: metaEvent.customData,
+      email: session.user.email ?? null,
+      userId: session.user.id,
+      request: req,
+      source: "subscription_checkout_start",
+    }).catch((metaError) => {
+      console.warn("[monetization checkout] Meta InitiateCheckout failed:", metaError)
+      return null
+    })
+
     return NextResponse.json({
       url: destination.url,
       sku: item.sku,
       purchaseType: "subscription",
+      metaEvent,
     })
   } catch (error) {
     if (isMonetizationComplianceError(error)) {
