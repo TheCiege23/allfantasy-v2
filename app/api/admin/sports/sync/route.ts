@@ -6,6 +6,7 @@ import {
   getDashboardAiToolAvailability,
   getSportImportMatrix,
 } from "@/lib/admin-dashboard/SportImportMatrixService"
+import { getPlayerGameLogHealthDashboard } from "@/lib/sports-os/PlayerGameLogImportService"
 
 export const dynamic = "force-dynamic"
 
@@ -18,12 +19,16 @@ export async function GET(request: NextRequest) {
   const gate = await requireAdminOrBearer(request)
   if (!gate.ok) return gate.res
 
-  const rows = await getAdminPerSportDataReliabilityRows()
+  const [rows, playerGameLogHealth] = await Promise.all([
+    getAdminPerSportDataReliabilityRows(),
+    getPlayerGameLogHealthDashboard(),
+  ])
   return NextResponse.json({
     ok: true,
     generatedAt: new Date().toISOString(),
     importMatrix: getSportImportMatrix(rows),
     aiToolAvailability: getDashboardAiToolAvailability(rows),
+    playerGameLogHealth,
     controls: {
       endpoint: "/api/admin/sports/sync",
       methods: ["GET status", "POST sync"],
@@ -32,6 +37,7 @@ export async function GET(request: NextRequest) {
         "injuries",
         "news",
         "players",
+        "player_game_logs",
         "player_stats",
         "rankings",
         "projections",
@@ -57,6 +63,11 @@ export async function POST(request: NextRequest) {
     type?: string
     sports?: unknown
     season?: unknown
+    leagueId?: string
+    seasonId?: string
+    playerIds?: string[]
+    weeks?: Array<number | string> | number | string
+    limit?: number
     dryRun?: boolean
   }
 
@@ -65,6 +76,11 @@ export async function POST(request: NextRequest) {
       type: body.type,
       sports: body.sports,
       season: parseSeason(body.season),
+      leagueId: body.leagueId,
+      seasonId: body.seasonId,
+      playerIds: body.playerIds,
+      weeks: body.weeks,
+      limit: body.limit,
       dryRun: body.dryRun === true,
     })
     return NextResponse.json(result, { status: result.ok ? 200 : 429 })

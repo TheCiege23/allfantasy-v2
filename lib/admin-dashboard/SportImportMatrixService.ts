@@ -88,7 +88,7 @@ const STORAGE_LABELS: Record<SportImportDataType, string> = {
   standings: "sports_data_cache / world_cup_official_group_standings",
   injuries: "sports_injuries / injury_report_records",
   news: "sports_news / player_news_records",
-  playerStats: "player_season_stats / team_season_stats",
+  playerStats: "player_game_log_cache / player_season_stats / team_season_stats",
   projectionsRankings: "sports_player_records projections/rankings fields",
   odds: "Not persisted as a user-facing source of truth",
 }
