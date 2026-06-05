@@ -535,6 +535,33 @@ describe("World Cup pool chat route", () => {
     expect(json.messages).toHaveLength(0)
   })
 
+  it("allows cache-grounded Chimmy pool questions for non-Pro users without opening the LLM gate", async () => {
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
+
+    const res = await POST(request({ action: "chimmy_private", body: "Who is leading?" }), { params: { challengeId: "c1" } })
+    const json = await res.json()
+
+    expect(res.status).toBe(201)
+    expect(generateChimmyReplyMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "user-1",
+      challengeId: "c1",
+      prompt: "Who is leading?",
+      deterministicOnly: true,
+    }))
+    expect(createMessageMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        eventTitle: "Private Chimmy prompt",
+        eventBody: "Who is leading?",
+        metadata: expect.objectContaining({
+          visibility: "private_to_user",
+          targetUserId: "user-1",
+          messageType: "chimmy_private_prompt",
+        }),
+      }),
+    }))
+    expect(json.messages).toHaveLength(2)
+  })
+
   it("shows sender both private Chimmy prompt and response on GET", async () => {
     hasAiMock.mockResolvedValue(true)
     findManyMessagesMock.mockResolvedValue([

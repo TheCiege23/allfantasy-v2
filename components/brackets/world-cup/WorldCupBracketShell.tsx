@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowUp, BarChart3, Baseline, Bell, Bold, Bot, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Clock, Copy, Edit3, Film, Globe2, ImageIcon, Italic, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Mic, Pin, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Smile, Sparkles, Strikethrough, Trophy, Underline, Users, X, Zap } from "lucide-react"
+import { ArrowLeft, ArrowUp, AtSign, BarChart3, Baseline, Bell, Bold, Bot, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Clock, Copy, Edit3, Film, Globe2, Hash, ImageIcon, Italic, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Mic, Pin, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Smile, Sparkles, Strikethrough, Trophy, Underline, Users, X, Zap } from "lucide-react"
 import { toast } from "sonner"
 import type { WorldCupChallengeView, WorldCupMatchView, WorldCupPickView } from "@/lib/world-cup/types"
 import { isWorldCupChallengeLocked } from "@/lib/world-cup/worldCupBracketBuilder"
@@ -5577,20 +5577,20 @@ function WorldCupCommunityFoundationPanel({
       role="dialog"
       aria-modal="false"
       aria-label="World Cup Chimmy and pool chat"
-      className="mode-readable fixed inset-x-2 bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] top-[calc(env(safe-area-inset-top,0px)+4.25rem)] z-[135] mx-auto grid max-w-4xl gap-3 overflow-y-auto rounded-[1.35rem] border border-cyan-300/20 bg-[#020711]/92 p-2 shadow-[0_30px_90px_-36px_rgba(34,211,238,0.95)] backdrop-blur-2xl sm:inset-auto sm:bottom-20 sm:right-5 sm:max-h-[min(82dvh,780px)] sm:w-[min(92vw,720px)] sm:p-0"
+      className="mode-readable fixed inset-x-2 bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] top-[calc(env(safe-area-inset-top,0px)+4.25rem)] z-[135] mx-auto flex max-h-[calc(100dvh-8.5rem-env(safe-area-inset-bottom,0px)-env(safe-area-inset-top,0px))] max-w-4xl flex-col gap-3 overflow-hidden rounded-[1.35rem] border border-cyan-300/20 bg-[#020711]/92 p-2 shadow-[0_30px_90px_-36px_rgba(34,211,238,0.95)] backdrop-blur-2xl sm:inset-auto sm:bottom-20 sm:right-5 sm:top-auto sm:max-h-[min(82dvh,780px)] sm:w-[min(92vw,720px)] sm:p-0"
     >
-      <div className="overflow-hidden rounded-[1.25rem] border border-cyan-300/15 bg-[#020711]/95 shadow-[0_26px_80px_-56px_rgba(34,211,238,0.85)]">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.25rem] border border-cyan-300/15 bg-[#020711]/95 shadow-[0_26px_80px_-56px_rgba(34,211,238,0.85)]">
         {/* ── Chat Hero ──────────────────────────────────────────────── */}
         <div
           data-testid="wc-chat-hero"
-          className="flex flex-col gap-4 border-b border-cyan-300/12 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(251,191,36,0.12),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.065),rgba(255,255,255,0.018))] p-4 sm:flex-row sm:items-start sm:justify-between"
+          className="shrink-0 flex flex-col gap-2 border-b border-cyan-300/12 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(251,191,36,0.12),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.065),rgba(255,255,255,0.018))] p-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3 sm:p-4"
         >
           <div className="min-w-0">
             <p className="flex items-center gap-2 text-sm font-black text-white">
               <MessageSquare className="h-4 w-4 text-white/70" aria-hidden />
               {tChat("wc.chat.hero.title")}
             </p>
-            <p className="mt-1 text-xs leading-5 text-white/50">
+            <p className="mt-1 hidden text-xs leading-5 text-white/50 sm:block">
               {tChat("wc.chat.hero.subtitle")}
             </p>
           </div>
@@ -5632,7 +5632,7 @@ function WorldCupCommunityFoundationPanel({
         {/* ── Chimmy Prompt Chips ────────────────────────────────────── */}
         <div
           data-testid="wc-chat-prompt-chips"
-          className="mx-4 mb-4 mt-4 flex flex-nowrap gap-1.5 overflow-x-auto pb-1 scrollbar-none"
+          className="mx-2 mb-1 mt-2 flex shrink-0 flex-nowrap gap-1.5 overflow-x-auto pb-1 scrollbar-none sm:mx-4 sm:mb-4 sm:mt-4"
         >
           {aiPromptActions.map((action) => (
             <button
@@ -5645,13 +5645,13 @@ function WorldCupCommunityFoundationPanel({
             </button>
           ))}
         </div>
-        <div className="mx-4">
+        <div className="mx-4 hidden shrink-0 sm:block">
           <WorldCupNotificationSettingsCard challengeId={challengeId} />
         </div>
         {chatDrawerOpen ? (
         <>
-        <div className="mx-4 mt-4 rounded-[1rem] border border-cyan-300/12 bg-black/35 p-3 shadow-[0_18px_46px_-36px_rgba(34,211,238,0.72)]">
-          <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="mx-2 mt-1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1rem] border border-cyan-300/12 bg-black/35 p-2 shadow-[0_18px_46px_-36px_rgba(34,211,238,0.72)] sm:mx-4 sm:mt-4 sm:p-3">
+          <div className="mb-2 flex shrink-0 items-center justify-between gap-2 sm:mb-3">
             <p className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
               {chatMode === "ai" ? <Bot className="h-3.5 w-3.5 text-cyan-200" aria-hidden /> : chatMode === "dm" ? <Users className="h-3.5 w-3.5 text-white/55" aria-hidden /> : <MessageSquare className="h-3.5 w-3.5 text-white/55" aria-hidden />}
               {chatMode === "ai" ? tChat("wc.chat.drawer.aiTitle") : chatMode === "dm" ? tChat("wc.chat.drawer.dmTitle") : tChat("wc.chat.drawer.poolTitle")}
@@ -5677,12 +5677,12 @@ function WorldCupCommunityFoundationPanel({
             </div>
           ) : null}
           {isChatLoading ? (
-            <div className="flex items-center gap-2 py-3 text-xs text-white/40">
+            <div className="flex min-h-0 flex-1 items-center gap-2 overflow-y-auto py-3 text-xs text-white/40">
               <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
               {tChat("wc.chat.loading")}
             </div>
           ) : messages.length > 0 ? (
-            <div className="max-h-[34rem] space-y-2 overflow-y-auto pr-1">
+            <div data-testid="wc-chat-message-list" className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
               {messages.map((message) => {
                 const isChimmyReply = message.messageType === "chimmy_private_response"
                 return (
@@ -5741,7 +5741,7 @@ function WorldCupCommunityFoundationPanel({
           ) : (
             <div
               data-testid="wc-chat-empty-state"
-              className="rounded-2xl border border-dashed border-cyan-300/18 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.10),transparent_42%),rgba(0,0,0,0.22)] px-4 py-7 text-center"
+              className="flex min-h-[8rem] flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-cyan-300/18 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.10),transparent_42%),rgba(0,0,0,0.22)] px-4 py-6 text-center"
             >
               <p className="text-sm font-black text-white/75">
                 {tChat("wc.chat.empty.headline")}
@@ -5751,7 +5751,8 @@ function WorldCupCommunityFoundationPanel({
               </p>
             </div>
           )}
-          <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
+          <div data-testid="wc-chat-composer-shell" className="mt-2 max-h-[min(36dvh,20rem)] shrink-0 overflow-y-auto border-t border-white/10 bg-[#020711]/98 pt-2 sm:max-h-[52dvh]">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-2">
             <textarea
               value={chatBody}
               onChange={(event) => setChatBody(event.target.value)}
@@ -5762,10 +5763,10 @@ function WorldCupCommunityFoundationPanel({
                 }
               }}
               maxLength={1000}
-              rows={3}
+              rows={2}
               disabled={chatMode === "dm"}
               placeholder={composerPlaceholder}
-              className="min-h-24 w-full resize-none rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm leading-5 text-white placeholder:text-white/30 focus:border-cyan-300/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              className="min-h-20 w-full resize-none rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm leading-5 text-white placeholder:text-white/30 focus:border-cyan-300/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-24"
             />
             <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-[11px] leading-5 text-white/35">
@@ -5782,7 +5783,7 @@ function WorldCupCommunityFoundationPanel({
               </button>
             </div>
           </div>
-          <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <div className="mt-2 grid shrink-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             <ComposerFormatButton icon={Bold} label="Bold" onClick={() => wrapComposerText("**")} />
             <ComposerFormatButton icon={Italic} label="Italic" onClick={() => wrapComposerText("_")} />
             <ComposerFormatButton icon={Underline} label="Underline" onClick={() => wrapComposerText("__")} />
@@ -5838,6 +5839,8 @@ function WorldCupCommunityFoundationPanel({
             <ComposerUtilityButton icon={Smile} label="Emoji" onClick={() => setComposerPanel(composerPanel === "emoji" ? null : "emoji")} />
             <ComposerUtilityButton icon={Film} label="GIF" onClick={() => setComposerPanel(composerPanel === "gif" ? null : "gif")} />
             <ComposerUtilityButton icon={BarChart3} label="Poll" onClick={() => setComposerPanel(composerPanel === "poll" ? null : "poll")} />
+            <ComposerUtilityButton icon={AtSign} label="Mention" onClick={() => insertComposerText("@")} />
+            <ComposerUtilityButton icon={Hash} label="Hashtag" onClick={() => insertComposerText("#")} />
             <ComposerUtilityButton icon={ImageIcon} label="Image" onClick={() => setComposerPanel(composerPanel === "image" ? null : "image")} />
             <ComposerUtilityButton icon={Mic} label="Voice" onClick={() => setComposerPanel(composerPanel === "voice" ? null : "voice")} />
           </div>
@@ -5994,8 +5997,9 @@ function WorldCupCommunityFoundationPanel({
               {chatError}
             </p>
           ) : null}
+          </div>
         </div>
-        <div className="mx-4 mb-4 mt-4 rounded-[1rem] border border-white/10 bg-black/35 p-3">
+        <div className="mx-4 mb-4 mt-4 hidden max-h-52 shrink-0 overflow-y-auto rounded-[1rem] border border-white/10 bg-black/35 p-3 sm:block">
           <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-white/35">
             Latest Pool Updates
           </p>
@@ -6025,7 +6029,7 @@ function WorldCupCommunityFoundationPanel({
         )}
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+      <div className="hidden shrink-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4 sm:block">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="flex items-center gap-2 text-sm font-black text-white">

@@ -31,6 +31,7 @@ export async function generateWorldCupChimmyPrivateReply(input: {
   challengeName?: string | null
   locale?: string | null
   context?: WorldCupChimmyContext | null
+  deterministicOnly?: boolean
 }) {
   const userPrompt = stripChimmyMention(input.prompt)
   const conversationId = buildChimmyConversationId({
@@ -63,6 +64,8 @@ export async function generateWorldCupChimmyPrivateReply(input: {
 
   if (deterministic) {
     reply = deterministic
+  } else if (input.deterministicOnly) {
+    reply = "I can answer saved pool questions here, but deeper Chimmy AI analysis requires AF Pro. Ask me who is leading, explain the scoring, summarize this pool, or show your path to win and I will use only stored pool data."
   } else {
     const system = buildWorldCupChimmySystemPrompt(input.locale)
     const contextBlock = input.context ? serializeChimmyContext(input.context) : null

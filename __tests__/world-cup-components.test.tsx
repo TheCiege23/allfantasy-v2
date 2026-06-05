@@ -1644,6 +1644,29 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.queryByText(/^Moderation$/i)).not.toBeInTheDocument()
   })
 
+  it("keeps World Cup chat tabs and composer usable inside a bounded drawer", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
+
+    const drawer = await openWorldCupChatDrawer()
+    expect(drawer).toHaveClass("overflow-hidden")
+    expect(within(drawer).getByTestId("wc-chat-composer-shell")).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Message the pool or ask Chimmy/i)).toBeInTheDocument()
+    expect(within(drawer).getByRole("button", { name: /Mention/i })).toBeInTheDocument()
+    expect(within(drawer).getByRole("button", { name: /Hashtag/i })).toBeInTheDocument()
+
+    fireEvent.click(within(drawer).getByRole("button", { name: /Chimmy AI/i }))
+    expect(screen.getByPlaceholderText(/Ask Chimmy about the bracket/i)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Ask Chimmy/i })).toBeDisabled()
+
+    fireEvent.click(within(drawer).getByRole("button", { name: /DM Chat/i }))
+    expect(within(drawer).getByText(/DM Chat coming soon/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/DM Chat is coming soon/i)).toBeDisabled()
+
+    fireEvent.click(within(drawer).getByRole("button", { name: /Pool Chat/i }))
+    expect(screen.getByPlaceholderText(/Message the pool or ask Chimmy/i)).toBeInTheDocument()
+  })
+
   it("keeps mobile pick help manual and does not expose active AI builder controls", async () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView() as any} />)
