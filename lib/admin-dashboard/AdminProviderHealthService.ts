@@ -451,6 +451,7 @@ async function buildGenericSportReliabilityRow(input: {
     sportsNews,
     playerNews,
     playerStats,
+    playerGameLogs,
     teamsSync,
     playersSync,
     schedulesSync,
@@ -460,6 +461,7 @@ async function buildGenericSportReliabilityRow(input: {
     newsSync,
     playerNewsSync,
     playerStatsSync,
+    playerGameLogsSync,
   ] = await Promise.all([
     safeCount("sportsTeam", { where: { sport } }),
     safeCount("sportsPlayer", { where: { sport } }),
@@ -472,6 +474,7 @@ async function buildGenericSportReliabilityRow(input: {
     safeCount("sportsNews", { where: { sport } }),
     safeCount("playerNewsRecord", { where: { sport } }),
     safeCount("playerSeasonStats", { where: { sport } }),
+    safeCount("playerGameLogCache", { where: { sport } }),
     latestFieldIso("sportsTeam", "fetchedAt", { where: { sport } }),
     latestFieldIso("sportsPlayer", "fetchedAt", { where: { sport } }),
     latestFieldIso("gameSchedule", "updatedAt", { where: { sportType: sport } }),
@@ -481,10 +484,12 @@ async function buildGenericSportReliabilityRow(input: {
     latestFieldIso("sportsNews", "fetchedAt", { where: { sport } }),
     latestFieldIso("playerNewsRecord", "publishedAt", { where: { sport } }),
     latestFieldIso("playerSeasonStats", "updatedAt", { where: { sport } }),
+    latestFieldIso("playerGameLogCache", "syncedAt", { where: { sport } }),
   ])
 
   const injuryCount = (sportsInjuries ?? 0) + (injuryReports ?? 0)
   const newsCount = (sportsNews ?? 0) + (playerNews ?? 0)
+  const playerStatsCount = (playerStats ?? 0) + (playerGameLogs ?? 0)
   const lastSyncAtByType = {
     teams: teamsSync,
     players: playersSync,
@@ -492,7 +497,7 @@ async function buildGenericSportReliabilityRow(input: {
     games: gamesSync,
     injuries: latestIso([injuriesSync, injuryReportsSync]),
     news: latestIso([newsSync, playerNewsSync]),
-    playerStats: playerStatsSync,
+    playerStats: latestIso([playerStatsSync, playerGameLogsSync]),
   }
   const staleWarnings = [
     teams === 0 ? "No teams imported" : null,
@@ -519,7 +524,7 @@ async function buildGenericSportReliabilityRow(input: {
       standings,
       injuries: injuryCount,
       news: newsCount,
-      playerStats,
+      playerStats: playerStatsCount,
     },
     lastSyncAtByType,
     staleWarnings,

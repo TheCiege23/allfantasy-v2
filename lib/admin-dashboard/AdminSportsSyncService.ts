@@ -7,12 +7,14 @@ import { runNewsImporter } from "@/lib/workers/news-importer"
 import { runScheduleImporter } from "@/lib/workers/schedule-importer"
 import { runSportsDataImporter } from "@/lib/workers/sports-data-importer"
 import { getSportsIdentityHealthSnapshot } from "@/lib/sports-os/SportsIdentityHealthService"
+import { importPlayerGameLogs } from "@/lib/sports-os/PlayerGameLogImportService"
 
 export type AdminSportsSyncType =
   | "schedules"
   | "injuries"
   | "news"
   | "players"
+  | "player_game_logs"
   | "player_stats"
   | "rankings"
   | "projections"
@@ -47,10 +49,11 @@ function normalizeSyncType(raw: string | null | undefined): AdminSportsSyncType 
   if (value === "schedule") return "schedules"
   if (value === "injury") return "injuries"
   if (value === "player_stats" || value === "stats") return "player_stats"
+  if (value === "player_game_logs" || value === "game_logs" || value === "gamelogs") return "player_game_logs"
   if (value === "identity" || value === "identity_health") return "identity_health"
   if (value === "image" || value === "images" || value === "image_audit") return "image_audit"
   if (value === "fantasy_value" || value === "fantasy_value_snapshots") return "fantasy_value_snapshots"
-  if (["schedules", "injuries", "news", "players", "rankings", "projections", "all"].includes(value)) {
+  if (["schedules", "injuries", "news", "players", "player_game_logs", "rankings", "projections", "all"].includes(value)) {
     return value as AdminSportsSyncType
   }
   return "all"
@@ -102,6 +105,11 @@ export async function runAdminSportsSync(input: {
   type?: string | null
   sports?: unknown
   season?: number | null
+  leagueId?: string | null
+  seasonId?: string | null
+  playerIds?: string[] | null
+  weeks?: Array<number | string> | number | string | null
+  limit?: number | null
   dryRun?: boolean
 }): Promise<AdminSportsSyncResult> {
   const type = normalizeSyncType(input.type)
@@ -173,6 +181,33 @@ export async function runAdminSportsSync(input: {
     jobs.push({ type: jobType, imported: result.imported, sports: result.sports, warning })
     if (warning) warnings.push(warning)
     await recordJobSync({ entityType: jobType, sports: result.sports, imported: result.imported })
+  }
+
+  if (type === "player_game_logs") {
+    const targetSports = sports.length ? sports : ["NFL"]
+    let imported = 0
+    const jobWarnings: string[] = []
+    for (const sport of targetSports) {
+      const result = await importPlayerGameLogs({
+        sport,
+        season: season ?? undefined,
+        leagueId: input.leagueId,
+        seasonId: input.seasonId,
+        playerIds: input.playerIds ?? undefined,
+        weeks: input.weeks ?? undefined,
+        limit: input.limit,
+        dryRun,
+        trigger: "admin_sports_sync",
+      })
+      imported += result.importedCount + result.updatedCount
+      jobWarnings.push(...result.warnings, ...result.providerErrors)
+    }
+    const warning = jobWarnings.length
+      ? jobWarnings.slice(0, 3).join(" ")
+      : "Player game logs imported into PlayerGameLogCache; PlayerWeeklyScore sync remains cache-only."
+    jobs.push({ type: "player_game_logs", imported, sports: targetSports, warning })
+    if (warning) warnings.push(warning)
+    await recordJobSync({ entityType: "player_game_logs", sports: targetSports, imported })
   }
 
   if (shouldRun("identity_health")) {
