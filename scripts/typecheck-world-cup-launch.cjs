@@ -52,6 +52,38 @@ declare module '@/lib/world-cup/worldCupCommissionerAccess' {
   export const WORLD_CUP_ADVANCED_COMMISSIONER_FEATURE: any
   export function userHasWorldCupCommissionerAccess(userId: string, email?: string | null): Promise<boolean>
 }
+declare module '@/lib/meta-capi' {
+  export type MetaCapiEventParams = {
+    eventName: string
+    eventId: string
+    email?: string | null
+    phone?: string | null
+    userId?: string | null
+    customData?: Record<string, unknown> | null
+    request?: Request | null
+    source?: string | null
+  }
+  export function trackMetaServerEvent(params: MetaCapiEventParams): Promise<any>
+}
+declare module '@/lib/world-cup/worldCupMetaEvents' {
+  export type MetaEventPayload = {
+    eventName: string
+    eventId: string
+    customData: Record<string, unknown>
+  }
+  export function buildWorldCupBracketLeadMetaEvent(input: {
+    challengeId: string
+    entryId: string
+    entryName: string
+    poolName?: string | null
+  }): MetaEventPayload
+  export function buildWorldCupPoolLeadMetaEvent(input: {
+    challengeId: string
+    poolName: string
+    seasonYear?: number | null
+    visibility?: string | null
+  }): MetaEventPayload
+}
 declare module '@/lib/world-cup/worldCupSimulationService' {
   export function getWorldCupSimulationAccessState(challengeId: string): Promise<any>
   export function isWorldCupSimulationAllowed(input: any): { allowed: boolean; reason?: string }
