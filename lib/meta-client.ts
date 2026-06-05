@@ -1,5 +1,4 @@
 import {
-  DEFAULT_META_PIXEL_ID,
   buildMetaEventPayload,
   isMetaStandardPixelEvent,
   normalizeMetaCustomData,
@@ -23,7 +22,7 @@ type MetaResponseCarrier = {
 }
 
 const META_PIXEL_SCRIPT_SRC = "https://connect.facebook.net/en_US/fbevents.js"
-const PUBLIC_META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID || DEFAULT_META_PIXEL_ID
+const PUBLIC_META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID || ""
 
 function getCookieValue(name: string): string | undefined {
   if (typeof document === "undefined") return undefined

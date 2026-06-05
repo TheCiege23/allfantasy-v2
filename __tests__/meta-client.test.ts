@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ensureMetaPixel, trackMetaBrowserEvent } from "@/lib/meta-client"
-import { DEFAULT_META_PIXEL_ID } from "@/lib/meta-events"
 
 const META_PIXEL_SCRIPT_SRC = "https://connect.facebook.net/en_US/fbevents.js"
+const TEST_PIXEL_ID = "1607977376870461"
 
 function fbqQueue(): unknown[][] {
   return ((window.fbq as typeof window.fbq & { queue?: unknown[][] })?.queue ?? [])
@@ -33,6 +33,8 @@ describe("Meta browser client", () => {
   })
 
   it("uses the initialized fbq for standard browser events", () => {
+    expect(ensureMetaPixel(TEST_PIXEL_ID)).toBe(true)
+
     const tracked = trackMetaBrowserEvent({
       eventName: "ViewContent",
       eventId: "evt_view_content_1",
@@ -43,8 +45,8 @@ describe("Meta browser client", () => {
     })
 
     expect(tracked).toBe(true)
-    expect(window.__afMetaPixelIds?.has(DEFAULT_META_PIXEL_ID)).toBe(true)
-    expect(fbqQueue()).toContainEqual(["init", DEFAULT_META_PIXEL_ID])
+    expect(window.__afMetaPixelIds?.has(TEST_PIXEL_ID)).toBe(true)
+    expect(fbqQueue()).toContainEqual(["init", TEST_PIXEL_ID])
     expect(fbqQueue()).toContainEqual([
       "track",
       "ViewContent",
@@ -61,6 +63,7 @@ describe("Meta browser client", () => {
   it("logs production-safe Meta debug output only when requested", () => {
     window.history.pushState({}, "", "/?af_debug_meta=1")
     const info = vi.spyOn(console, "info").mockImplementation(() => undefined)
+    expect(ensureMetaPixel(TEST_PIXEL_ID)).toBe(true)
 
     trackMetaBrowserEvent({
       eventName: "PageView",
@@ -71,7 +74,7 @@ describe("Meta browser client", () => {
       },
     })
 
-    expect(info).toHaveBeenCalledWith("[AF Meta] metaPixelId", DEFAULT_META_PIXEL_ID)
+    expect(info).toHaveBeenCalledWith("[AF Meta] metaPixelId", TEST_PIXEL_ID)
     expect(info).toHaveBeenCalledWith("[AF Meta] typeof window.fbq", "function")
     expect(info).toHaveBeenCalledWith(
       "[AF Meta] PageView fired",
