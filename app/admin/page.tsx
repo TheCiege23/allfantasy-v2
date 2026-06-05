@@ -9,6 +9,12 @@ import type {
   AdminProviderHealthStatus,
   AdminSportDataReliabilityRow,
 } from "@/lib/admin-dashboard/AdminProviderHealthService"
+import type {
+  DashboardAiToolAvailability,
+  DashboardAiToolStatus,
+  SportImportMatrixRow,
+  SportImportStatus,
+} from "@/lib/admin-dashboard/SportImportMatrixService"
 
 export const dynamic = "force-dynamic"
 
@@ -274,6 +280,190 @@ function SportDataReliabilityPanel({ rows }: { rows: AdminSportDataReliabilityRo
   )
 }
 
+function importStatusLabel(status: SportImportStatus) {
+  switch (status) {
+    case "active_importer":
+      return "Active importer"
+    case "partial_importer":
+      return "Partial importer"
+    case "cached_only":
+      return "Cached only"
+    case "provider_available_no_importer":
+      return "Provider, no importer"
+    default:
+      return "Not tracked yet"
+  }
+}
+
+function importStatusClass(status: SportImportStatus) {
+  if (status === "active_importer") return "border-emerald-300/30 bg-emerald-300/10 text-emerald-100"
+  if (status === "cached_only") return "border-cyan-300/30 bg-cyan-300/10 text-cyan-100"
+  if (status === "partial_importer") return "border-amber-300/30 bg-amber-300/10 text-amber-100"
+  if (status === "provider_available_no_importer") return "border-fuchsia-300/25 bg-fuchsia-300/10 text-fuchsia-100"
+  return "border-white/10 bg-white/[0.05] text-white/45"
+}
+
+function SportImportMatrixPanel({ rows }: { rows: SportImportMatrixRow[] }) {
+  const columns = [
+    "teams",
+    "players",
+    "schedules",
+    "liveScores",
+    "standings",
+    "injuries",
+    "news",
+    "playerStats",
+    "projectionsRankings",
+    "odds",
+  ] as const
+
+  return (
+    <section className="rounded-3xl border border-cyan-300/15 bg-white/[0.04] p-4 shadow-[0_24px_80px_-54px_rgba(34,211,238,0.75)] sm:p-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-sm font-black uppercase tracking-[0.18em] text-cyan-100/80">
+            Sports Import Matrix
+          </h2>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-white/48">
+            Exact data-type readiness for sports pages and Chimmy. Provider calls belong to admin/cron sync only.
+          </p>
+        </div>
+        <span className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.08] px-3 py-2 text-xs font-black text-amber-100">
+          cache-first
+        </span>
+      </div>
+
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[1320px] text-left text-xs">
+          <thead className="text-[10px] uppercase tracking-[0.16em] text-white/42">
+            <tr>
+              <th className="py-2 pr-3">Sport</th>
+              {columns.map((key) => (
+                <th key={key} className="py-2 pr-3">{rows[0]?.cells[key].label ?? key}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/10">
+            {rows.map((row) => (
+              <tr key={row.id} className="align-top text-white/70">
+                <td className="max-w-[150px] py-4 pr-3">
+                  <div className="font-black text-white">{row.label}</div>
+                  <div className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-cyan-100/45">{row.sport}</div>
+                </td>
+                {columns.map((key) => {
+                  const cell = row.cells[key]
+                  return (
+                    <td key={key} className="max-w-[150px] py-4 pr-3">
+                      <span className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-black ${importStatusClass(cell.status)}`}>
+                        {importStatusLabel(cell.status)}
+                      </span>
+                      <div className="mt-2 font-black text-white">{cell.count == null ? "Not tracked" : cell.count.toLocaleString("en-US")}</div>
+                      <div className="mt-1 text-[11px] text-white/42">{formatDate(cell.lastSyncedAt)}</div>
+                      {cell.stale ? <div className="mt-1 text-[11px] font-bold text-amber-100">Stale</div> : null}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}
+
+function toolStatusLabel(status: DashboardAiToolStatus) {
+  if (status === "active") return "Active"
+  if (status === "preview") return "Preview"
+  if (status === "coming_soon") return "Coming soon"
+  return "Missing data"
+}
+
+function toolStatusClass(status: DashboardAiToolStatus) {
+  if (status === "active") return "border-emerald-300/35 bg-emerald-300/10 text-emerald-100"
+  if (status === "preview") return "border-amber-300/35 bg-amber-300/10 text-amber-100"
+  if (status === "coming_soon") return "border-white/15 bg-white/[0.06] text-white/55"
+  return "border-rose-300/35 bg-rose-300/10 text-rose-100"
+}
+
+function AiToolAvailabilityPanel({ rows }: { rows: DashboardAiToolAvailability[] }) {
+  return (
+    <section className="rounded-3xl border border-cyan-300/15 bg-white/[0.04] p-4 shadow-[0_24px_80px_-54px_rgba(34,211,238,0.75)] sm:p-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-sm font-black uppercase tracking-[0.18em] text-cyan-100/80">
+            Dashboard AI Tool Availability
+          </h2>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-white/48">
+            Tools should charge tokens only when the supporting cached data exists or the route can provide a safe deterministic answer.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {rows.map((row) => (
+          <div key={row.id} className="rounded-2xl border border-white/10 bg-black/25 p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="font-black text-white">{row.label}</div>
+              <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-black ${toolStatusClass(row.status)}`}>
+                {toolStatusLabel(row.status)}
+              </span>
+            </div>
+            <div className="mt-2 text-[11px] leading-4 text-white/48">{row.note}</div>
+            <div className="mt-3 text-[11px] text-cyan-100/75">Last sync: {formatDate(row.lastSyncedAt)}</div>
+            <div className="mt-2 text-[11px] text-white/50">
+              Sports: {row.supportedSports.length > 0 ? row.supportedSports.join(", ") : "None ready"}
+            </div>
+            <div className="mt-2 text-[11px] text-amber-100/80">
+              Missing: {row.missingData.length > 0 ? row.missingData.join(", ") : "No critical gaps"}
+            </div>
+            <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] font-bold text-white/58">
+              {row.requiredAccess}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function AdminSportsSyncControlsPanel() {
+  return (
+    <section className="rounded-3xl border border-amber-300/15 bg-white/[0.04] p-4 shadow-[0_24px_80px_-54px_rgba(251,191,36,0.65)] sm:p-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-sm font-black uppercase tracking-[0.18em] text-amber-100/80">
+            Admin Sports Sync Controls
+          </h2>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-white/48">
+            Admin-only route for controlled imports. Use dry-run before expensive syncs; public pages never trigger these provider calls.
+          </p>
+        </div>
+        <a
+          href="/api/admin/sports/sync"
+          className="rounded-2xl border border-cyan-300/30 bg-cyan-300/10 px-3 py-2 text-xs font-black text-cyan-100 hover:bg-cyan-300/15"
+        >
+          Status JSON
+        </a>
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        {[
+          { label: "Schedules", body: '{ "type": "schedules", "sports": ["NFL","NBA"], "dryRun": true }' },
+          { label: "Injuries", body: '{ "type": "injuries", "sports": ["NFL","NCAAF"], "dryRun": true }' },
+          { label: "News / players", body: '{ "type": "all", "sports": ["MLB","NHL"], "dryRun": true }' },
+        ].map((item) => (
+          <div key={item.label} className="rounded-2xl border border-white/10 bg-black/25 p-4">
+            <div className="text-xs font-black uppercase tracking-[0.14em] text-amber-100/80">{item.label}</div>
+            <code className="mt-3 block whitespace-pre-wrap rounded-xl border border-white/10 bg-black/35 p-3 text-[11px] leading-5 text-cyan-100/75">
+              POST /api/admin/sports/sync{"\n"}{item.body}
+            </code>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function AdminAccessDenied() {
   return (
     <main className="min-h-dvh bg-[#020817] px-4 py-8 text-white">
@@ -353,6 +543,9 @@ export default async function AdminPage({
         <Section title="System Health" items={data.health} />
         <ProviderHealthPanel rows={data.providerHealth ?? []} />
         <SportDataReliabilityPanel rows={data.sportDataReliability ?? []} />
+        <SportImportMatrixPanel rows={data.sportImportMatrix ?? []} />
+        <AiToolAvailabilityPanel rows={data.aiToolAvailability ?? []} />
+        <AdminSportsSyncControlsPanel />
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.75fr)]">
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_20px_70px_-52px_rgba(34,211,238,0.7)]">

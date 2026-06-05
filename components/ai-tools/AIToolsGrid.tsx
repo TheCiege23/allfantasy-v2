@@ -38,6 +38,7 @@ import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { useIntelligenceSnapshot } from '@/hooks/useIntelligenceSnapshot'
 import type { IntelligenceChipState } from '@/lib/intelligence/types'
 import type { LongTermCoachingAnalysis } from '@/lib/long-term-coaching/types'
+import type { DashboardAiToolAvailability } from '@/lib/admin-dashboard/SportImportMatrixService'
 
 type ToolId = AIToolGridId
 
@@ -444,6 +445,50 @@ export function AIToolsGrid({
     }
   }, [leagueId])
 
+  const readinessByToolId = useMemo(() => {
+    return new Map<string, DashboardAiToolAvailability>(
+      (intel?.aiToolAvailability ?? []).map((row) => [row.id, row])
+    )
+  }, [intel?.aiToolAvailability])
+
+  const applyReadinessToCard = useCallback(
+    (row: AIToolCardConfig & { id: ToolId }) => {
+      const readiness = readinessByToolId.get(row.id)
+      if (!readiness) return row
+      const missing = readiness.missingData.slice(0, 2).join(', ')
+      const sports = readiness.supportedSports.slice(0, 3).join(', ')
+      const label =
+        readiness.lastSyncedAt
+          ? formatShortAgo(readiness.lastSyncedAt)
+          : readiness.status === 'missing_data'
+            ? 'Missing data'
+            : 'Sync pending'
+      return {
+        ...row,
+        status:
+          readiness.status === 'active'
+            ? ('ready' as const)
+            : readiness.status === 'preview'
+              ? ('preview' as const)
+              : ('missing' as const),
+        insight:
+          readiness.status === 'missing_data'
+            ? `Missing ${missing || 'required cached data'}`
+            : `${sports || 'Limited sports'} · ${readiness.note}`,
+        freshness: {
+          status:
+            readiness.status === 'active'
+              ? ('recent' as const)
+              : readiness.status === 'preview'
+                ? ('stale' as const)
+                : ('stale' as const),
+          label,
+        },
+      }
+    },
+    [readinessByToolId],
+  )
+
   useEffect(() => {
     setInjuryPreview(null)
     setWarRoomPreview(null)
@@ -538,7 +583,7 @@ export function AIToolsGrid({
           }
         }
       }
-      return row
+      return applyReadinessToCard(row)
     })
   }, [
     leagueId,
@@ -550,6 +595,7 @@ export function AIToolsGrid({
     matchupPreviewLoading,
     longTermPreview,
     longTermPreviewLoading,
+    applyReadinessToCard,
   ])
 
   const sportsConn: IntelligenceChipState | 'loading' =

@@ -6,6 +6,11 @@ import type { FantasyTimeEngineExtras } from '@/lib/time-engine/fantasyTimePaylo
 import { getServerNowISO, getServerNowUTC } from '@/lib/time-engine/serverClock'
 import { computeIntelligencePlatformHealth } from '@/lib/intelligence/computePlatformHealth'
 import { resolveLeagueIntelligenceContext } from '@/lib/intelligence/resolveLeagueIntelligenceContext'
+import { getAdminPerSportDataReliabilityRows } from '@/lib/admin-dashboard/AdminProviderHealthService'
+import {
+  getChimmySportReadiness,
+  getDashboardAiToolAvailability,
+} from '@/lib/admin-dashboard/SportImportMatrixService'
 import type { IntelligenceSnapshot } from '@/lib/intelligence/types'
 
 /**
@@ -34,9 +39,10 @@ export async function buildIntelligenceSnapshot(args: {
     }
   }
 
-  const [time, health] = await Promise.all([
+  const [time, health, sportReliability] = await Promise.all([
     buildAiTimeContextPayload(args.userId, timeExtras),
     computeIntelligencePlatformHealth(),
+    getAdminPerSportDataReliabilityRows(),
   ])
 
   let league: IntelligenceSnapshot['league'] = null
@@ -56,6 +62,8 @@ export async function buildIntelligenceSnapshot(args: {
     serverTimeUtc: getServerNowISO(),
     time,
     health,
+    aiToolAvailability: getDashboardAiToolAvailability(sportReliability),
+    chimmySportReadiness: getChimmySportReadiness(sportReliability),
     league,
     leagueError,
   }

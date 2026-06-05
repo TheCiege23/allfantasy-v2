@@ -1,10 +1,14 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server';
 import { syncESPNRostersToDb } from '@/lib/espn-data';
+import { requireAdminOrBearer } from '@/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
 
 export const GET = withApiUsage({ endpoint: "/api/sports/espn-rosters", tool: "ESPNRosters" })(async (request: NextRequest) => {
+  const gate = await requireAdminOrBearer(request)
+  if (!gate.ok) return gate.res
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const team = searchParams?.get('team');

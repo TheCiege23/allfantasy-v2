@@ -68,8 +68,8 @@ export type AIToolCardConfig = {
   /** React icon node; pick from lucide-react. */
   icon: ReactNode
   accent: AIToolAccent
-  /** Card status chip. 'new' overrides to a "New" badge. */
-  status?: 'ready' | 'loading' | 'new'
+  /** Card status chip. */
+  status?: 'ready' | 'loading' | 'new' | 'preview' | 'missing'
   /** Optional one-line preview insight shown under the subtitle. */
   insight?: string | null
   /** Live freshness pill (e.g. "3m ago"). */

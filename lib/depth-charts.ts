@@ -1,7 +1,6 @@
 import 'server-only'
 
 import { prisma } from '@/lib/prisma'
-import { fetchWithChain } from '@/lib/workers/api-chain'
 
 export type DepthChartEntry = {
   team: string
@@ -10,7 +9,7 @@ export type DepthChartEntry = {
   source: string
 }
 
-/** DB-first depth chart lookup: checks DepthChart table then falls back to api-chain. */
+/** Cache-only depth chart lookup: checks DepthChart table and never calls providers. */
 export async function getDepthCharts(sport: string, options?: { team?: string }): Promise<DepthChartEntry[]> {
   // 1. Check DepthChart table
   try {
@@ -29,17 +28,6 @@ export async function getDepthCharts(sport: string, options?: { team?: string })
       }))
     }
   } catch {}
-
-  // 2. API chain fallback (roster data type includes depth charts from Rolling Insights)
-  const chain = await fetchWithChain({ sport: sport.toLowerCase(), dataType: 'roster' })
-  if (Array.isArray(chain.data)) {
-    return chain.data.slice(0, 200).map((r: any) => ({
-      team: String(r.team ?? ''),
-      position: String(r.position ?? ''),
-      players: Array.isArray(r.players) ? r.players : [],
-      source: 'api-chain',
-    }))
-  }
 
   return []
 }

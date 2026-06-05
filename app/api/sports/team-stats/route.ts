@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { syncNFLTeamStatsToDb } from '@/lib/rolling-insights';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,10 +12,6 @@ export async function GET(req: Request) {
   const refresh = url.searchParams?.get('refresh') === 'true';
 
   try {
-    if (refresh) {
-      await syncNFLTeamStatsToDb();
-    }
-
     const where: Record<string, unknown> = {
       sport: 'NFL',
       seasonType,
@@ -31,16 +26,17 @@ export async function GET(req: Request) {
 
     const stale = stats.length === 0 || (stats.length > 0 && stats[0].expiresAt < new Date());
 
-    if (stale && !refresh) {
-      await syncNFLTeamStatsToDb();
-      const refreshed = await prisma.teamSeasonStats.findMany({
-        where,
-        orderBy: [{ team: 'asc' }, { season: 'desc' }],
-      });
-      return NextResponse.json({ stats: refreshed, synced: true });
-    }
-
-    return NextResponse.json({ stats, synced: refresh });
+    return NextResponse.json({
+      stats,
+      synced: false,
+      refreshed: false,
+      refreshIgnored: refresh,
+      isStale: stale,
+      lastSyncedAt: stats[0]?.fetchedAt?.toISOString() ?? null,
+      message: stale
+        ? 'Cached NFL team stats are stale or missing. Admin/cron sync must refresh provider data.'
+        : null,
+    });
   } catch (error: any) {
     console.error('[team-stats] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

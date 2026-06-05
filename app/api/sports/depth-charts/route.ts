@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { syncNFLDepthChartsToDb } from '@/lib/rolling-insights';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,10 +11,6 @@ export async function GET(req: Request) {
   const refresh = url.searchParams?.get('refresh') === 'true';
 
   try {
-    if (refresh) {
-      await syncNFLDepthChartsToDb();
-    }
-
     const where: Record<string, unknown> = { sport: 'NFL' };
     if (team) where.team = team.toUpperCase();
     if (position) where.position = position.toUpperCase();
@@ -27,16 +22,17 @@ export async function GET(req: Request) {
 
     const stale = charts.length === 0 || (charts.length > 0 && charts[0].expiresAt < new Date());
 
-    if (stale && !refresh) {
-      await syncNFLDepthChartsToDb();
-      const refreshed = await prisma.depthChart.findMany({
-        where,
-        orderBy: [{ team: 'asc' }, { position: 'asc' }],
-      });
-      return NextResponse.json({ charts: refreshed, synced: true });
-    }
-
-    return NextResponse.json({ charts, synced: refresh });
+    return NextResponse.json({
+      charts,
+      synced: false,
+      refreshed: false,
+      refreshIgnored: refresh,
+      isStale: stale,
+      lastSyncedAt: charts[0]?.fetchedAt?.toISOString() ?? null,
+      message: stale
+        ? 'Cached NFL depth charts are stale or missing. Admin/cron sync must refresh provider data.'
+        : null,
+    });
   } catch (error: any) {
     console.error('[depth-charts] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -5,6 +5,10 @@
 import type { LeagueToolAccessErrorCode } from '@/lib/ai-tools/league-tool-context-types'
 import type { NormalizedLeagueContext } from '@/lib/league-context-engine/types'
 import type { AiTimeContextPayload } from '@/lib/time-engine/types'
+import type {
+  ChimmySportReadiness,
+  DashboardAiToolAvailability,
+} from '@/lib/admin-dashboard/SportImportMatrixService'
 
 export type IntelligenceChipState = 'connected' | 'degraded' | 'unavailable'
 
@@ -67,6 +71,8 @@ export type IntelligenceSnapshot = {
   serverTimeUtc: string
   time: AiTimeContextPayload
   health: IntelligencePlatformHealth
+  aiToolAvailability: DashboardAiToolAvailability[]
+  chimmySportReadiness: ChimmySportReadiness[]
   league: ResolvedLeagueIntelligenceContext | null
   leagueError: LeagueToolAccessErrorCode | null
 }

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma"
-import { getLiveScoresForSport, type LiveScoreRow } from "@/lib/sports-live-scores-service"
+import { getCachedLiveScoresForSport, type LiveScoreRow } from "@/lib/sports-live-scores-service"
 import { bracketSportToLeagueSport } from "@/lib/brackets/espn-playoff-sync"
 import { fetchTeamNewsForBracket, type BracketTeamNewsLine } from "@/lib/brackets/bracket-team-news"
 import { normalizeTeamAbbrev } from "@/lib/team-abbrev"
@@ -71,7 +71,7 @@ export async function getEntryBracketData(tournamentId: string, entryId: string)
   let liveRows: LiveScoreRow[] = []
   try {
     const leagueSport = bracketSportToLeagueSport(tournament?.sport ?? "NFL")
-    const live = await getLiveScoresForSport({ sport: leagueSport, forceRefresh: false })
+    const live = await getCachedLiveScoresForSport({ sport: leagueSport })
     liveRows = live.scores
   } catch {
     liveRows = []

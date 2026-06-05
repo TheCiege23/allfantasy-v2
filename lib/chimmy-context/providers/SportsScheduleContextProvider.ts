@@ -13,7 +13,7 @@
  * so it does not inflate prompt budget for unrelated fantasy questions.
  */
 
-import { getLiveScoresForSport, type LiveScoreRow } from "@/lib/sports-live-scores-service"
+import { getCachedLiveScoresForSport, type LiveScoreRow } from "@/lib/sports-live-scores-service"
 import type {
   ChimmyContextProvider,
   ChimmyContextRequest,
@@ -74,7 +74,7 @@ export class SportsScheduleContextProvider
     try {
       const results = await Promise.allSettled(
         SPORTS_TO_FETCH.map((sport) =>
-          getLiveScoresForSport({ sport, forceRefresh: false })
+          getCachedLiveScoresForSport({ sport })
             .then((res) => ({ sport, scores: res.scores ?? [] }))
             .catch(() => ({ sport, scores: [] as LiveScoreRow[] }))
         )

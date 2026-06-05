@@ -19,6 +19,7 @@ import {
   syncAPIFootballTeamsToDb,
 } from '@/lib/api-football'
 import { syncClearSportsToDb } from '@/lib/clear-sports'
+import { requireAdminOrBearer } from '@/lib/adminAuth'
 
 export const POST = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSync" })(async (request: NextRequest) => {
   /**
@@ -33,12 +34,8 @@ export const POST = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSy
    * NCAAF full sync (teams + games + injuries + standings + identity):
    * { "source": "api_sports", "type": "all", "sport": "NCAAF", "season": "2025" }
    */
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  const authHeader = request.headers.get('authorization');
-
-  if (!adminPassword || authHeader !== `Bearer ${adminPassword}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const gate = await requireAdminOrBearer(request)
+  if (!gate.ok) return gate.res
 
   try {
     const body = await request.json().catch(() => ({}));
@@ -183,12 +180,8 @@ export const POST = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSy
 })
 
 export const GET = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSync" })(async (request: NextRequest) => {
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  const authHeader = request.headers.get('authorization');
-
-  if (!adminPassword || authHeader !== `Bearer ${adminPassword}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const gate = await requireAdminOrBearer(request)
+  if (!gate.ok) return gate.res
 
   try {
     const { prisma } = await import('@/lib/prisma');

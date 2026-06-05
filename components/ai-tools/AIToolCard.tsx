@@ -131,6 +131,8 @@ const ACCENT_STYLES: Record<AIToolAccent, AccentStyle> = {
 function statusLabel(config: AIToolCardConfig): string {
   if (config.status === 'new') return 'New'
   if (config.status === 'loading') return 'Syncing'
+  if (config.status === 'preview') return 'Preview'
+  if (config.status === 'missing') return 'Missing data'
   return 'Ready'
 }
 

@@ -1,7 +1,6 @@
 import 'server-only'
 
 import { prisma } from '@/lib/prisma'
-import { fetchWithChain } from '@/lib/workers/api-chain'
 
 export type LiveGameScore = {
   homeTeam: string
@@ -15,13 +14,12 @@ export type LiveGameScore = {
   startTime: Date | null
 }
 
-/** DB-first live scores: checks sportsGame table (recent), then api-chain. */
+/** Cache-only live scores: checks sportsGame table and never calls providers. */
 export async function getLiveScores(sport: string, options?: { hoursBack?: number; limit?: number }): Promise<LiveGameScore[]> {
   const hoursBack = options?.hoursBack ?? 12
   const limit = options?.limit ?? 20
   const cutoff = new Date(Date.now() - hoursBack * 60 * 60 * 1000)
 
-  // 1. Check sportsGame table
   try {
     const games = await prisma.sportsGame.findMany({
       where: {
@@ -45,22 +43,6 @@ export async function getLiveScores(sport: string, options?: { hoursBack?: numbe
       }))
     }
   } catch {}
-
-  // 2. API chain fallback
-  const chain = await fetchWithChain({ sport: sport.toLowerCase(), dataType: 'scores' })
-  if (Array.isArray(chain.data)) {
-    return chain.data.slice(0, limit).map((g: any) => ({
-      homeTeam: String(g.homeTeam ?? g.home_team ?? ''),
-      awayTeam: String(g.awayTeam ?? g.away_team ?? ''),
-      homeScore: Number(g.homeScore ?? g.home_score ?? 0),
-      awayScore: Number(g.awayScore ?? g.away_score ?? 0),
-      status: String(g.status ?? 'scheduled'),
-      quarter: g.quarter ?? g.period ?? null,
-      clock: g.clock ?? g.time ?? null,
-      sport: sport.toUpperCase(),
-      startTime: g.startTime ? new Date(g.startTime) : null,
-    }))
-  }
 
   return []
 }

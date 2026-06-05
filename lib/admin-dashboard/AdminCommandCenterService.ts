@@ -5,6 +5,14 @@ import {
   type AdminSportDataReliabilityRow,
   type AdminProviderHealthRow,
 } from "@/lib/admin-dashboard/AdminProviderHealthService"
+import {
+  getChimmySportReadiness,
+  getDashboardAiToolAvailability,
+  getSportImportMatrix,
+  type ChimmySportReadiness,
+  type DashboardAiToolAvailability,
+  type SportImportMatrixRow,
+} from "@/lib/admin-dashboard/SportImportMatrixService"
 
 type MetricValue = number | string
 
@@ -89,6 +97,9 @@ export type AdminCommandCenterMetrics = {
   health: AdminMetric[]
   providerHealth: AdminProviderHealthRow[]
   sportDataReliability: AdminSportDataReliabilityRow[]
+  sportImportMatrix: SportImportMatrixRow[]
+  aiToolAvailability: DashboardAiToolAvailability[]
+  chimmySportReadiness: ChimmySportReadiness[]
   usersSearch: AdminUserSearchRow[]
   activeWorldCupPools: AdminActivePoolRow[]
   recentUsers: AdminRecentUserRow[]
@@ -504,6 +515,9 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
   const tokenSalesRevenueCents = tokenSalesRevenue._sum.amountCents ?? 0
   const providerGapCount = providerHealth.filter((row) => row.status === "missing_env" || row.status === "scaffold_only" || row.status === "not_production_ready").length
   const providerConfiguredCount = providerHealth.filter((row) => row.configured).length
+  const sportImportMatrix = getSportImportMatrix(sportDataReliability)
+  const aiToolAvailability = getDashboardAiToolAvailability(sportDataReliability)
+  const chimmySportReadiness = getChimmySportReadiness(sportDataReliability)
 
   return {
     generatedAt: new Date().toISOString(),
@@ -588,6 +602,9 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     ],
     providerHealth,
     sportDataReliability,
+    sportImportMatrix,
+    aiToolAvailability,
+    chimmySportReadiness,
     usersSearch,
     activeWorldCupPools,
     recentUsers,

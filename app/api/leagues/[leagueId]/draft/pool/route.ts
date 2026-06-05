@@ -13,8 +13,6 @@ import {
   starterEligiblePlayerPositionsFromTemplate,
 } from '@/lib/league/getEffectiveLeagueRosterTemplate'
 import type { LeagueSport } from '@prisma/client'
-import { apiChain } from '@/lib/workers/api-chain'
-import { legacySupportedSportToApiChain } from '@/lib/workers/api-config'
 import {
   API_CACHE_TTL,
   buildApiCacheKey,
@@ -351,21 +349,6 @@ export async function GET(
       })
       return responsePayload
     })
-
-    if (
-      payload &&
-      typeof payload === 'object' &&
-      'sport' in payload &&
-      !dbFirstMode.useDbCacheOnly &&
-      !dbFirstMode.disableLiveApiOnPageLoad
-    ) {
-      const s = (payload as { sport: LeagueSport }).sport
-      const chainSport = legacySupportedSportToApiChain(s)
-      void Promise.allSettled([
-        apiChain.fetch({ sport: chainSport, dataType: 'injuries' }),
-        apiChain.fetch({ sport: chainSport, dataType: 'schedule' }),
-      ]).catch(() => {})
-    }
 
     const outward = { ...payload } as DraftPoolResponseBody
     await injectDraftPoolDiagnosticsIfRequested(outward, leagueId, req)

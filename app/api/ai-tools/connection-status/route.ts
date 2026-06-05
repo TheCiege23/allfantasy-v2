@@ -7,6 +7,11 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { computeIntelligencePlatformHealth } from '@/lib/intelligence/computePlatformHealth'
+import { getAdminPerSportDataReliabilityRows } from '@/lib/admin-dashboard/AdminProviderHealthService'
+import {
+  getChimmySportReadiness,
+  getDashboardAiToolAvailability,
+} from '@/lib/admin-dashboard/SportImportMatrixService'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +21,10 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const health = await computeIntelligencePlatformHealth()
+  const [health, sportReliability] = await Promise.all([
+    computeIntelligencePlatformHealth(),
+    getAdminPerSportDataReliabilityRows(),
+  ])
 
   return NextResponse.json({
     database: health.database,
@@ -26,5 +34,7 @@ export async function GET() {
     rollingInsights: health.rollingInsights,
     clearSports: health.clearSports,
     computedAt: health.computedAt,
+    aiToolAvailability: getDashboardAiToolAvailability(sportReliability),
+    chimmySportReadiness: getChimmySportReadiness(sportReliability),
   })
 }

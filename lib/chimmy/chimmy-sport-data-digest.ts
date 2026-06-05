@@ -23,6 +23,16 @@ export type ChimmyDataDigest = {
     overallLastSyncedAt: string | null
     perSource: Record<string, string | null>
   }
+  readiness: Record<string, {
+    hasSchedules: boolean
+    hasLiveScores: boolean
+    hasStandings: boolean
+    hasInjuries: boolean
+    hasNews: boolean
+    hasPlayerStats: boolean
+    hasRankings: boolean
+    missingData: string[]
+  }>
 }
 
 /**
@@ -37,6 +47,7 @@ export async function buildChimmySportDataDigest(args: {
   const sources: string[] = []
   const chunks: string[] = []
   const sourceFreshness: Record<string, string | null> = {}
+  const readiness: ChimmyDataDigest['readiness'] = {}
   const questionLower = String(args.question ?? '').toLowerCase()
   const timezone = args.timezone ?? 'America/New_York'
   const now = new Date()
@@ -114,7 +125,22 @@ export async function buildChimmySportDataDigest(args: {
     sourceFreshness[sourceKey] = maxIso(values)
   }
 
+  const ensureReadiness = (sport: SupportedSport) => {
+    readiness[sport] ??= {
+      hasSchedules: false,
+      hasLiveScores: false,
+      hasStandings: false,
+      hasInjuries: false,
+      hasNews: false,
+      hasPlayerStats: false,
+      hasRankings: false,
+      missingData: [],
+    }
+    return readiness[sport]
+  }
+
   for (const sp of sports) {
+    const sportReady = ensureReadiness(sp)
     const [newsRows, injRows, gameRows, standingsRows, transactionRows] = await Promise.all([
       getLatestNews(sp, args.sport === 'all' ? 8 : 20),
       getInjuryReport(sp),
@@ -161,6 +187,8 @@ export async function buildChimmySportDataDigest(args: {
     ])
 
     if (gameRows.length) {
+      sportReady.hasSchedules = true
+      sportReady.hasLiveScores = true
       const sourceKey = `games_${sp}`
       sources.push(sourceKey)
       setSourceFreshness(sourceKey, gameRows.map((g) => g.updatedAt ?? g.startTime))
@@ -176,6 +204,7 @@ ${gameRows
     }
 
     if (standingsRows.length) {
+      sportReady.hasStandings = true
       const parsed = standingsRows
         .map((row) => {
           const data = row.data as Record<string, unknown>
@@ -216,6 +245,7 @@ ${parsed
     }
 
     if (newsRows.length) {
+      sportReady.hasNews = true
       const sourceKey = `player_news_${sp}`
       sources.push(sourceKey)
       setSourceFreshness(sourceKey, newsRows.map((n) => n.publishedAt))
@@ -235,6 +265,7 @@ ${parsed
         take: args.sport === 'all' ? 6 : 15,
       })
       if (legacyNewsRows.length) {
+        sportReady.hasNews = true
         const sourceKey = `sports_news_${sp}`
         sources.push(sourceKey)
         setSourceFreshness(sourceKey, legacyNewsRows.map((n) => n.publishedAt ?? n.fetchedAt ?? n.updatedAt))
@@ -252,6 +283,7 @@ ${parsed
     }
 
     if (injRows.length) {
+      sportReady.hasInjuries = true
       const sourceKey = `injury_report_${sp}`
       sources.push(sourceKey)
       setSourceFreshness(sourceKey, injRows.map((r) => r.reportDate))
@@ -272,6 +304,7 @@ ${parsed
           take: args.sport === 'all' ? 12 : 35,
         })) ?? []
       if (legacyInjuryRows.length) {
+        sportReady.hasInjuries = true
         const sourceKey = `sports_injuries_${sp}`
         sources.push(sourceKey)
         setSourceFreshness(sourceKey, legacyInjuryRows.map((r: any) => r.date ?? r.fetchedAt ?? r.updatedAt))
@@ -318,6 +351,7 @@ ${transactionRows
       })
 
       if (playerStatsRows.length) {
+        sportReady.hasPlayerStats = true
         const sourceKey = `player_stats_${sp}`
         sources.push(sourceKey)
         setSourceFreshness(sourceKey, playerStatsRows.map((row) => row.updatedAt))
@@ -344,6 +378,16 @@ ${playerStatsRows
         )
       }
     }
+
+    sportReady.missingData = [
+      !sportReady.hasSchedules ? 'schedules' : null,
+      !sportReady.hasLiveScores ? 'live scores' : null,
+      !sportReady.hasStandings ? 'standings' : null,
+      !sportReady.hasInjuries ? 'injuries' : null,
+      !sportReady.hasNews ? 'news' : null,
+      !sportReady.hasPlayerStats ? 'player stats' : null,
+      !sportReady.hasRankings ? 'rankings/projections' : null,
+    ].filter((item): item is string => Boolean(item))
   }
 
   if (args.includeNewsApi !== false && (process.env.NEWS_API_KEY || process.env.NEWSAPI_KEY)) {
@@ -378,10 +422,18 @@ ${playerStatsRows
         overallLastSyncedAt: null,
         perSource: sourceFreshness,
       },
+      readiness,
     }
   }
 
-  const body = ['Use only the facts below when answering; do not invent scores, standings, transactions, schedules, or player statuses.', ...chunks].join(
+  const readinessLines = Object.entries(readiness).map(([sport, state]) =>
+    `- ${sport}: missing ${state.missingData.length ? state.missingData.join(', ') : 'no critical cached categories'}`
+  )
+  const body = [
+    'Use only the facts below when answering; do not invent scores, standings, transactions, schedules, or player statuses.',
+    readinessLines.length ? `### Cached data readiness\n${readinessLines.join('\n')}` : '',
+    ...chunks,
+  ].filter(Boolean).join(
     '\n\n'
   )
   return {
@@ -391,5 +443,6 @@ ${playerStatsRows
       overallLastSyncedAt: maxIso(Object.values(sourceFreshness)),
       perSource: sourceFreshness,
     },
+    readiness,
   }
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { getLiveScoresForSport, type LiveScoreRow } from "@/lib/sports-live-scores-service"
+import { getCachedLiveScoresForSport, type LiveScoreRow } from "@/lib/sports-live-scores-service"
 import { bracketSportToLeagueSport } from "@/lib/brackets/espn-playoff-sync"
 import { normalizeTeamAbbrev } from "@/lib/team-abbrev"
 import { fetchTeamNewsForBracket } from "@/lib/brackets/bracket-team-news"
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
     let liveScoreRows: LiveScoreRow[] = []
     try {
       const leagueSport = bracketSportToLeagueSport(tournament.sport)
-      liveScoreRows = (await getLiveScoresForSport({ sport: leagueSport, forceRefresh: false })).scores
+      liveScoreRows = (await getCachedLiveScoresForSport({ sport: leagueSport })).scores
     } catch {
       liveScoreRows = []
     }

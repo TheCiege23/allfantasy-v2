@@ -1,7 +1,6 @@
 import 'server-only'
 
 import { prisma } from '@/lib/prisma'
-import { fetchWithChain } from '@/lib/workers/api-chain'
 import type { SupportedSport } from '@/lib/sport-scope'
 
 export type InjuryRecord = {
@@ -14,7 +13,7 @@ export type InjuryRecord = {
   reportDate: Date
 }
 
-/** DB-first injury lookup: checks injuryReportRecord then falls back to sportsInjury, then api-chain. */
+/** Cache-only injury lookup: checks injuryReportRecord then sportsInjury; never calls providers. */
 export async function getInjuries(sport: SupportedSport | string, options?: { team?: string; limit?: number }): Promise<InjuryRecord[]> {
   const limit = options?.limit ?? 50
 
@@ -61,20 +60,6 @@ export async function getInjuries(sport: SupportedSport | string, options?: { te
       }))
     }
   } catch {}
-
-  // 3. API chain fallback
-  const chain = await fetchWithChain({ sport: sport.toLowerCase(), dataType: 'injuries' })
-  if (Array.isArray(chain.data)) {
-    return chain.data.slice(0, limit).map((r: any) => ({
-      playerName: String(r.playerName ?? r.player ?? ''),
-      team: String(r.team ?? 'FA'),
-      status: String(r.status ?? 'unknown'),
-      bodyPart: r.bodyPart ?? null,
-      notes: r.notes ?? null,
-      sport: sport.toUpperCase(),
-      reportDate: r.reportDate ? new Date(r.reportDate) : new Date(),
-    }))
-  }
 
   return []
 }

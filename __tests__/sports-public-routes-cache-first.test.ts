@@ -16,6 +16,27 @@ const prismaMock = vi.hoisted(() => ({
   sportsGame: {
     findMany: vi.fn(),
   },
+  sportsTeam: {
+    findMany: vi.fn(),
+  },
+  sportsPlayer: {
+    findMany: vi.fn(),
+  },
+  sportsDataCache: {
+    findMany: vi.fn(),
+  },
+  playerSeasonStats: {
+    findMany: vi.fn(),
+  },
+  teamSeasonStats: {
+    findMany: vi.fn(),
+  },
+  depthChart: {
+    findMany: vi.fn(),
+  },
+  trendingPlayer: {
+    findMany: vi.fn(),
+  },
 }))
 
 vi.mock('@/lib/prisma', () => ({
@@ -24,6 +45,10 @@ vi.mock('@/lib/prisma', () => ({
 
 vi.mock('@/lib/telemetry/usage', () => ({
   withApiUsage: () => (handler: unknown) => handler,
+}))
+
+vi.mock('@/lib/workers/api-chain', () => ({
+  fetchWithChain: vi.fn(),
 }))
 
 function request(url: string) {
@@ -37,6 +62,13 @@ describe('public sports data routes are cache-first', () => {
     prismaMock.sportsInjury.findMany.mockResolvedValue([])
     prismaMock.injuryReportRecord.findMany.mockResolvedValue([])
     prismaMock.sportsGame.findMany.mockResolvedValue([])
+    prismaMock.sportsTeam.findMany.mockResolvedValue([])
+    prismaMock.sportsPlayer.findMany.mockResolvedValue([])
+    prismaMock.sportsDataCache.findMany.mockResolvedValue([])
+    prismaMock.playerSeasonStats.findMany.mockResolvedValue([])
+    prismaMock.teamSeasonStats.findMany.mockResolvedValue([])
+    prismaMock.depthChart.findMany.mockResolvedValue([])
+    prismaMock.trendingPlayer.findMany.mockResolvedValue([])
   })
 
   it('returns NBA cached news instead of forcing NFL', async () => {
@@ -258,5 +290,67 @@ describe('public sports data routes are cache-first', () => {
     expect(body.scores).toEqual([])
     expect(body.message).toContain('No cached NBA live scores')
     fetchSpy.mockRestore()
+  })
+
+  it('keeps the generic /api/sports route cache-only even when refresh=true', async () => {
+    const { fetchWithChain } = await import('@/lib/workers/api-chain')
+    prismaMock.sportsPlayer.findMany.mockResolvedValueOnce([
+      {
+        id: 'player-1',
+        sport: 'NBA',
+        externalId: 'nba-1',
+        name: 'Cached Player',
+        team: 'BOS',
+        source: 'rolling_insights',
+      },
+    ])
+
+    const { GET } = await import('@/app/api/sports/route')
+    const response = await GET(request('http://localhost/api/sports?sport=nba&type=players&refresh=true'))
+    const body = await response.json()
+
+    expect(fetchWithChain).not.toHaveBeenCalled()
+    expect(prismaMock.sportsPlayer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ sport: 'NBA' }),
+      })
+    )
+    expect(body.fromCache).toBe(true)
+    expect(body.refreshed).toBe(false)
+    expect(body.refreshIgnored).toBe(true)
+    expect(body.count).toBe(1)
+  })
+
+  it('does not auto-sync NFL team stats when stale or refresh is requested', async () => {
+    const { GET } = await import('@/app/api/sports/team-stats/route')
+    const response = await GET(request('http://localhost/api/sports/team-stats?team=kc&refresh=true'))
+    const body = await response.json()
+
+    expect(prismaMock.teamSeasonStats.findMany).toHaveBeenCalled()
+    expect(body.synced).toBe(false)
+    expect(body.refreshIgnored).toBe(true)
+    expect(body.isStale).toBe(true)
+  })
+
+  it('does not auto-sync NFL depth charts when stale or refresh is requested', async () => {
+    const { GET } = await import('@/app/api/sports/depth-charts/route')
+    const response = await GET(request('http://localhost/api/sports/depth-charts?team=kc&refresh=true'))
+    const body = await response.json()
+
+    expect(prismaMock.depthChart.findMany).toHaveBeenCalled()
+    expect(body.synced).toBe(false)
+    expect(body.refreshIgnored).toBe(true)
+    expect(body.isStale).toBe(true)
+  })
+
+  it('does not call Sleeper from public trending route', async () => {
+    const { GET } = await import('@/app/api/sports/trending/route')
+    const response = await GET(request('http://localhost/api/sports/trending?sport=nfl&refresh=true'))
+    const body = await response.json()
+
+    expect(prismaMock.trendingPlayer.findMany).toHaveBeenCalled()
+    expect(body.synced).toBe(false)
+    expect(body.refreshIgnored).toBe(true)
+    expect(body.isStale).toBe(true)
   })
 })
