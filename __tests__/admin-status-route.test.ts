@@ -2,16 +2,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   getAdminAccessState: vi.fn(),
+  getAdminProductionReadiness: vi.fn(),
 }))
 
 vi.mock("@/lib/adminAuth", () => ({
   getAdminAccessState: mocks.getAdminAccessState,
 }))
 
+vi.mock("@/lib/admin-dashboard/AdminProductionReadinessService", () => ({
+  getAdminProductionReadiness: mocks.getAdminProductionReadiness,
+}))
+
 describe("admin status route", () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    mocks.getAdminProductionReadiness.mockResolvedValue({
+      env: [],
+      crons: [],
+      trafficLocations: [],
+      trafficNotes: [],
+    })
   })
 
   it("returns 401 for unauthenticated users", async () => {
@@ -61,6 +72,7 @@ describe("admin status route", () => {
       authenticated: true,
       admin: true,
       source: "app_session",
+      readiness: { missingCriticalEnv: [], missingCronJobs: [] },
       user: { id: "admin-1", username: "TheCiege26", emailMasked: "fo***@example.com" },
     })
     expect(JSON.stringify(body)).not.toContain("founder@example.com")

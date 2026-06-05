@@ -8,6 +8,7 @@ import { withApiUsage } from '@/lib/telemetry/usage'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import { httpStatusForLeagueToolCode } from '@/lib/ai-tools/league-tool-access-messages'
 import { RANKING_MODE_IDS, type RankingModeId } from '@/lib/power-rankings-dashboard/types'
+import { aiToolDataUnavailableResponse, checkAiToolDataAvailability } from '@/lib/ai-tools/aiToolDataAvailability'
 
 const SPORT_FILTER = ['ALL', ...SUPPORTED_SPORTS] as const
 
@@ -65,6 +66,14 @@ export const POST = withApiUsage({ endpoint: '/api/ai-tools/power-rankings/dashb
       const parsed = bodySchema.safeParse(json)
       if (!parsed.success) {
         return NextResponse.json({ error: 'Invalid request', details: parsed.error.flatten() }, { status: 400 })
+      }
+
+      if (!parsed.data.skipAi) {
+        const availability = await checkAiToolDataAvailability({
+          toolId: 'power',
+          sportFilter: parsed.data.sportFilter,
+        })
+        if (!availability.ok) return aiToolDataUnavailableResponse(availability)
       }
 
       const out = await runPowerRankingsDashboard({

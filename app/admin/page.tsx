@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import type { ReactNode } from "react"
 import { getAdminAccessState } from "@/lib/adminAuth"
 import {
   getAdminCommandCenterMetrics,
@@ -15,6 +16,12 @@ import type {
   SportImportMatrixRow,
   SportImportStatus,
 } from "@/lib/admin-dashboard/SportImportMatrixService"
+import type {
+  AdminProductionReadiness,
+  CronReadinessStatus,
+  EnvReadinessStatus,
+} from "@/lib/admin-dashboard/AdminProductionReadinessService"
+import type { AdminEmailStatus } from "@/lib/admin-dashboard/AdminEmailCenterService"
 
 export const dynamic = "force-dynamic"
 
@@ -32,19 +39,45 @@ function MetricCard({ item }: { item: AdminMetric }) {
   )
 }
 
+function AccordionSection({
+  title,
+  eyebrow,
+  children,
+  defaultOpen = true,
+}: {
+  title: string
+  eyebrow?: string
+  children: ReactNode
+  defaultOpen?: boolean
+}) {
+  return (
+    <details
+      className="group rounded-3xl border border-cyan-300/15 bg-white/[0.035] p-4 shadow-[0_24px_80px_-58px_rgba(34,211,238,0.75)] backdrop-blur-xl sm:p-5"
+      open={defaultOpen}
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-left">
+        <div>
+          {eyebrow ? <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200/55">{eyebrow}</p> : null}
+          <h2 className="text-sm font-black uppercase tracking-[0.18em] text-cyan-100/80">{title}</h2>
+        </div>
+        <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-black text-cyan-100 transition group-open:rotate-180">
+          v
+        </span>
+      </summary>
+      <div className="mt-4">{children}</div>
+    </details>
+  )
+}
+
 function Section({ title, items }: { title: string; items: AdminMetric[] }) {
   return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-black uppercase tracking-[0.18em] text-cyan-100/80">{title}</h2>
-        <span className="h-px flex-1 bg-gradient-to-r from-cyan-300/25 to-transparent" />
-      </div>
+    <AccordionSection title={title}>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {items.map((item) => (
           <MetricCard key={`${title}-${item.label}`} item={item} />
         ))}
       </div>
-    </section>
+    </AccordionSection>
   )
 }
 
@@ -94,6 +127,155 @@ function providerStatusClass(status: AdminProviderHealthStatus) {
 
 function joinList(values: string[], fallback = "Not tracked yet") {
   return values.length > 0 ? values.join(", ") : fallback
+}
+
+function statusPillClass(status: string) {
+  if (status === "configured" || status === "active_importer" || status === "active") {
+    return "border-emerald-300/35 bg-emerald-300/10 text-emerald-100"
+  }
+  if (status === "partial" || status === "partial_importer" || status === "preview") {
+    return "border-amber-300/35 bg-amber-300/10 text-amber-100"
+  }
+  return "border-rose-300/35 bg-rose-300/10 text-rose-100"
+}
+
+function envStatusLabel(status: EnvReadinessStatus) {
+  return status === "configured" ? "Configured" : "Missing"
+}
+
+function cronStatusLabel(status: CronReadinessStatus) {
+  if (status === "configured") return "Configured"
+  if (status === "partial") return "Partial"
+  return "Missing"
+}
+
+function ProductionReadinessPanel({ data }: { data: AdminProductionReadiness }) {
+  const criticalMissing = data.env.filter((row) => row.status === "missing" && row.severity === "critical")
+  return (
+    <AccordionSection title="Production Env & Cron Readiness" eyebrow="launch trust">
+      <div className="mb-4 rounded-2xl border border-amber-300/20 bg-amber-300/[0.08] p-4 text-sm text-amber-100">
+        {criticalMissing.length > 0
+          ? `${criticalMissing.length} critical production env groups are missing. Add them in Vercel before trusting live sync/AI.`
+          : "Critical production env groups are configured in this runtime."}
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-left text-xs">
+            <thead className="text-[10px] uppercase tracking-[0.16em] text-white/42">
+              <tr>
+                <th className="py-2 pr-3">Env group</th>
+                <th className="py-2 pr-3">Status</th>
+                <th className="py-2 pr-3">Required</th>
+                <th className="py-2 pr-3">Note</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {data.env.map((row) => (
+                <tr key={row.id} className="align-top text-white/70">
+                  <td className="py-3 pr-3">
+                    <div className="font-black text-white">{row.label}</div>
+                    <div className="text-[11px] uppercase tracking-[0.12em] text-cyan-100/45">{row.category} · {row.severity}</div>
+                  </td>
+                  <td className="py-3 pr-3">
+                    <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${statusPillClass(row.status)}`}>
+                      {envStatusLabel(row.status)}
+                    </span>
+                  </td>
+                  <td className="max-w-[220px] py-3 pr-3 font-mono text-[11px] text-white/55">{row.required}</td>
+                  <td className="max-w-[260px] py-3 pr-3 text-[11px] leading-4 text-white/50">{row.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="space-y-3">
+          {data.crons.map((row) => (
+            <div key={row.id} className="rounded-2xl border border-white/10 bg-black/25 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-black text-white">{row.label}</div>
+                  <div className="mt-1 text-[11px] uppercase tracking-[0.14em] text-cyan-100/45">{row.category}</div>
+                </div>
+                <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${statusPillClass(row.status)}`}>
+                  {cronStatusLabel(row.status)}
+                </span>
+              </div>
+              <div className="mt-3 text-[11px] leading-5 text-white/55">{row.note}</div>
+              <div className="mt-2 text-[11px] text-amber-100/80">Recommended: {row.recommended}</div>
+              <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.04] p-3 font-mono text-[10px] leading-4 text-cyan-100/70">
+                {row.configuredPaths.length ? row.configuredPaths.join("\n") : "No matching Vercel cron found"}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </AccordionSection>
+  )
+}
+
+function TrafficGeoPanel({ data, metrics }: { data: AdminProductionReadiness; metrics: AdminMetric[] }) {
+  return (
+    <AccordionSection title="Traffic / Visitors / IP Geo" eyebrow="privacy-safe analytics">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {metrics.map((item) => <MetricCard key={`traffic-${item.label}`} item={item} />)}
+      </div>
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_0.8fr]">
+        <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+          <h3 className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100/75">Approximate location map</h3>
+          <div className="mt-4 grid gap-2">
+            {data.trafficLocations.length > 0 ? data.trafficLocations.map((row) => (
+              <div key={row.label} className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm">
+                <span className="font-bold text-white">{row.label}</span>
+                <span className="text-xs text-cyan-100/70">{row.visits} visits · {row.visitors} visitors</span>
+              </div>
+            )) : (
+              <p className="rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-white/50">
+                Geo tracking not configured yet. Use Vercel/Cloudflare geo headers or cached server-side lookup, then store aggregate city/region/country only.
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+          <h3 className="text-xs font-black uppercase tracking-[0.16em] text-amber-100/75">Privacy notes</h3>
+          <ul className="mt-3 space-y-2 text-xs leading-5 text-white/55">
+            {data.trafficNotes.map((note) => <li key={note}>- {note}</li>)}
+          </ul>
+        </div>
+      </div>
+    </AccordionSection>
+  )
+}
+
+function EmailCenterPanel({ status }: { status: AdminEmailStatus }) {
+  return (
+    <AccordionSection title="Email Notifications" eyebrow="admin broadcast safety" defaultOpen={false}>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard item={{ label: "Email provider", value: status.configured ? "Configured" : "Missing env", tracked: status.configured, note: status.missingEnv.join(", ") || "Resend ready" }} />
+        <MetricCard item={{ label: "Users with email", value: status.totalUsersWithEmail, tracked: true }} />
+        <MetricCard item={{ label: "Opt-outs", value: status.productUpdateOptOuts + status.unsubscribed, tracked: true, note: "Product updates false or unsubscribed" }} />
+        <MetricCard item={{ label: "Pending email outbox", value: status.pendingEmailOutbox, tracked: true }} />
+      </div>
+      <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100/75">Admin API</h3>
+            <p className="mt-1 text-xs text-white/50">Preview, test-send, then confirm broadcast. Opt-outs are excluded and every send is logged.</p>
+          </div>
+          <a href="/api/admin/email/broadcast" className="rounded-2xl border border-cyan-300/30 bg-cyan-300/10 px-3 py-2 text-xs font-black text-cyan-100">
+            Email status JSON
+          </a>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {status.audiences.map((audience) => (
+            <div key={audience.id} className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+              <div className="font-black text-white">{audience.label}</div>
+              <div className="mt-1 text-xs text-white/48">{audience.description}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </AccordionSection>
+  )
 }
 
 function ProviderHealthPanel({ rows }: { rows: AdminProviderHealthRow[] }) {
@@ -541,11 +723,26 @@ export default async function AdminPage({
         <Section title="Tokens & AI" items={[...data.tokens, ...data.ai]} />
         <Section title="World Cup" items={data.worldCup} />
         <Section title="System Health" items={data.health} />
-        <ProviderHealthPanel rows={data.providerHealth ?? []} />
-        <SportDataReliabilityPanel rows={data.sportDataReliability ?? []} />
-        <SportImportMatrixPanel rows={data.sportImportMatrix ?? []} />
-        <AiToolAvailabilityPanel rows={data.aiToolAvailability ?? []} />
-        <AdminSportsSyncControlsPanel />
+        <ProductionReadinessPanel data={data.productionReadiness} />
+        <TrafficGeoPanel data={data.productionReadiness} metrics={data.traffic} />
+        <EmailCenterPanel status={data.emailStatus} />
+        <Section title="Integrity / Fraud Signals" items={data.integrity} />
+        <Section title="Admin Data Quality" items={data.dataQuality} />
+        <AccordionSection title="Sports API Health" eyebrow="providers" defaultOpen={false}>
+          <ProviderHealthPanel rows={data.providerHealth ?? []} />
+        </AccordionSection>
+        <AccordionSection title="Sports Data Freshness" eyebrow="per-sport cache" defaultOpen={false}>
+          <SportDataReliabilityPanel rows={data.sportDataReliability ?? []} />
+        </AccordionSection>
+        <AccordionSection title="Provider Sync / Import Matrix" eyebrow="cache-first imports" defaultOpen={false}>
+          <SportImportMatrixPanel rows={data.sportImportMatrix ?? []} />
+        </AccordionSection>
+        <AccordionSection title="AI Tool Availability" eyebrow="paid tool safety" defaultOpen={false}>
+          <AiToolAvailabilityPanel rows={data.aiToolAvailability ?? []} />
+        </AccordionSection>
+        <AccordionSection title="Provider Sync Controls" eyebrow="admin manual imports" defaultOpen={false}>
+          <AdminSportsSyncControlsPanel />
+        </AccordionSection>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.75fr)]">
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_20px_70px_-52px_rgba(34,211,238,0.7)]">

@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server"
 import { getAdminAccessState } from "@/lib/adminAuth"
-import { maskAdminEmail } from "@/lib/admin-dashboard/AdminCommandCenterService"
+import { maskAdminEmail } from "@/lib/admin-dashboard/format"
+import { getAdminProductionReadiness } from "@/lib/admin-dashboard/AdminProductionReadinessService"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 export async function GET() {
   const state = await getAdminAccessState()
+  const readiness = state.status === "admin" ? await getAdminProductionReadiness() : null
 
   if (state.status === "unauthenticated") {
     return NextResponse.json(
@@ -38,6 +40,12 @@ export async function GET() {
     admin: true,
     status: state.status,
     source: state.source,
+    readiness: readiness
+      ? {
+          missingCriticalEnv: readiness.env.filter((row) => row.status === "missing" && row.severity === "critical").map((row) => row.label),
+          missingCronJobs: readiness.crons.filter((row) => row.status !== "configured").map((row) => row.label),
+        }
+      : null,
     user: {
       id: state.user.id ?? null,
       username: state.user.username ?? null,

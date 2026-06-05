@@ -13,6 +13,15 @@ import {
   type DashboardAiToolAvailability,
   type SportImportMatrixRow,
 } from "@/lib/admin-dashboard/SportImportMatrixService"
+import {
+  getAdminProductionReadiness,
+  type AdminProductionReadiness,
+} from "@/lib/admin-dashboard/AdminProductionReadinessService"
+import {
+  getEmailCenterStatus,
+  type AdminEmailStatus,
+} from "@/lib/admin-dashboard/AdminEmailCenterService"
+import { maskAdminEmail } from "@/lib/admin-dashboard/format"
 
 type MetricValue = number | string
 
@@ -100,6 +109,11 @@ export type AdminCommandCenterMetrics = {
   sportImportMatrix: SportImportMatrixRow[]
   aiToolAvailability: DashboardAiToolAvailability[]
   chimmySportReadiness: ChimmySportReadiness[]
+  productionReadiness: AdminProductionReadiness
+  emailStatus: AdminEmailStatus
+  traffic: AdminMetric[]
+  integrity: AdminMetric[]
+  dataQuality: AdminMetric[]
   usersSearch: AdminUserSearchRow[]
   activeWorldCupPools: AdminActivePoolRow[]
   recentUsers: AdminRecentUserRow[]
@@ -126,14 +140,6 @@ function daysAgo(days: number): Date {
 function startOfUtcDay(): Date {
   const now = new Date()
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-}
-
-export function maskAdminEmail(email: string | null | undefined): string {
-  const value = String(email ?? "").trim()
-  if (!value.includes("@")) return "No email"
-  const [name, domain] = value.split("@")
-  const visible = name.length <= 2 ? `${name.slice(0, 1)}*` : `${name.slice(0, 2)}***`
-  return `${visible}@${domain}`
 }
 
 function parseAdminEmails(): string[] {
@@ -405,6 +411,18 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     databaseHealth,
     providerHealth,
     sportDataReliability,
+    productionReadiness,
+    emailStatus,
+    analyticsEventsToday,
+    analyticsEvents7Days,
+    uniqueSessionsToday,
+    uniqueSessions7Days,
+    visitorLocationsToday,
+    visitorLocations7Days,
+    worldCupVisitors7Days,
+    topReferrers,
+    multipleAccountsSameLocation,
+    syncJobsFailed24h,
   ] = await Promise.all([
     prisma.appUser.count(),
     prisma.appUser.count({ where: { createdAt: { gte: today } } }),
@@ -497,6 +515,48 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     prisma.$queryRaw`SELECT 1`.then(() => "healthy").catch(() => "down"),
     getAdminProviderHealthRows(),
     getAdminPerSportDataReliabilityRows(),
+    getAdminProductionReadiness(),
+    getEmailCenterStatus(),
+    prisma.analyticsEvent.count({ where: { createdAt: { gte: today } } }),
+    prisma.analyticsEvent.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+    prisma.analyticsEvent.groupBy({
+      by: ["sessionId"],
+      where: { createdAt: { gte: today }, sessionId: { not: null } },
+    }),
+    prisma.analyticsEvent.groupBy({
+      by: ["sessionId"],
+      where: { createdAt: { gte: sevenDaysAgo }, sessionId: { not: null } },
+    }),
+    prisma.visitorLocation.count({ where: { lastSeen: { gte: today } } }).catch(() => 0),
+    prisma.visitorLocation.count({ where: { lastSeen: { gte: sevenDaysAgo } } }).catch(() => 0),
+    prisma.analyticsEvent.count({
+      where: {
+        createdAt: { gte: sevenDaysAgo },
+        OR: [
+          { path: { contains: "world-cup", mode: "insensitive" } },
+          { path: { contains: "brackets", mode: "insensitive" } },
+        ],
+      },
+    }),
+    prisma.analyticsEvent.groupBy({
+      by: ["referrer"],
+      where: { createdAt: { gte: sevenDaysAgo }, referrer: { not: null } },
+      _count: { _all: true },
+    }).then((rows) => rows.sort((a, b) => b._count._all - a._count._all).slice(0, 5)).catch(() => []),
+    prisma.visitorLocation
+      .findMany({
+        where: { visits: { gte: 5 } },
+        select: { country: true, region: true, city: true, visits: true },
+        orderBy: { visits: "desc" },
+        take: 5,
+      })
+      .catch(() => []),
+    prisma.syncJobRun.count({
+      where: {
+        status: { in: ["failed", "error"] },
+        startedAt: { gte: daysAgo(1) },
+      },
+    }).catch(() => 0),
   ])
 
   const cycleCounts = subscriptions.reduce(
@@ -600,11 +660,42 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
       metric("Provider gaps", providerGapCount),
       metric("Sport data rows", sportDataReliability.length, "Per-sport reliability table below"),
     ],
+    traffic: [
+      metric("Analytics events today", analyticsEventsToday, "Server/client tracked events"),
+      metric("Analytics events 7 days", analyticsEvents7Days),
+      metric("Unique sessions today", uniqueSessionsToday.length || "Not tracked yet", "Requires sessionId on analytics events"),
+      metric("Unique sessions 7 days", uniqueSessions7Days.length || "Not tracked yet"),
+      metric("Approx unique IPs today", visitorLocationsToday || "Not tracked yet", "Uses aggregate VisitorLocation rows only"),
+      metric("Approx unique IPs 7 days", visitorLocations7Days || "Not tracked yet"),
+      metric("World Cup visitor events", worldCupVisitors7Days, "7-day paths containing world-cup/brackets"),
+      metric(
+        "Top referrers",
+        topReferrers.length,
+        topReferrers
+          .map((row) => `${row.referrer ?? "unknown"} (${row._count._all})`)
+          .join(", ") || "Not tracked yet"
+      ),
+    ],
+    integrity: [
+      metric("High-repeat visitor locations", multipleAccountsSameLocation.length, "Approximate geo rows with 5+ visits; no raw IP rendered"),
+      metric("Failed sync jobs 24h", syncJobsFailed24h),
+      notTracked("Duplicate-account confidence score", "Requires privacy-safe IP/session/device aggregation beyond current tables"),
+      notTracked("Lock bypass attempts", "No unified lock-bypass event table is tracked yet"),
+    ],
+    dataQuality: [
+      metric("Provider env gaps", providerGapCount),
+      metric("Sports with stale warnings", sportDataReliability.filter((row) => row.staleWarnings.length > 0).length),
+      notTracked("Duplicate player identities", "No canonical PlayerMaster dedupe report is tracked yet"),
+      notTracked("Missing headshots count", "No cross-sport image coverage aggregate is tracked yet"),
+      notTracked("Retired players marked active", "No status-quality audit table is tracked yet"),
+    ],
     providerHealth,
     sportDataReliability,
     sportImportMatrix,
     aiToolAvailability,
     chimmySportReadiness,
+    productionReadiness,
+    emailStatus,
     usersSearch,
     activeWorldCupPools,
     recentUsers,

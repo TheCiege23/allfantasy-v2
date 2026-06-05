@@ -37,6 +37,60 @@ function metricsFixture() {
     ai: [{ label: "Chimmy replies", value: 3, tracked: true }],
     worldCup: [{ label: "World Cup pools", value: 2, tracked: true }],
     health: [{ label: "Database", value: "healthy", tracked: true }],
+    traffic: [{ label: "Analytics events today", value: 8, tracked: true }],
+    integrity: [{ label: "Failed sync jobs 24h", value: 0, tracked: true }],
+    dataQuality: [{ label: "Provider env gaps", value: 1, tracked: true }],
+    productionReadiness: {
+      env: [
+        {
+          id: "database",
+          category: "Platform",
+          label: "Database",
+          status: "configured",
+          severity: "critical",
+          required: "DATABASE_URL",
+          note: "Required.",
+        },
+      ],
+      crons: [
+        {
+          id: "world-cup-official",
+          category: "World Cup",
+          label: "Official teams/fixtures/standings/live sync",
+          status: "configured",
+          schedule: "/api/brackets/world-cup/cron/sync?job=live (*/5 * * * *)",
+          configuredPaths: ["/api/brackets/world-cup/cron/sync?job=live (*/5 * * * *)"],
+          missing: [],
+          recommended: "Live every 5m.",
+          note: "Cron ready.",
+        },
+      ],
+      trafficLocations: [
+        {
+          label: "Atlanta, Georgia, United States",
+          country: "United States",
+          region: "Georgia",
+          city: "Atlanta",
+          visits: 5,
+          visitors: 2,
+        },
+      ],
+      trafficNotes: ["Raw IPs are not rendered."],
+    },
+    emailStatus: {
+      configured: false,
+      missingEnv: ["RESEND_API_KEY"],
+      senderConfigured: false,
+      totalUsersWithEmail: 4,
+      productUpdateOptOuts: 1,
+      unsubscribed: 0,
+      pendingEmailOutbox: 0,
+      recentBroadcasts: 0,
+      recentProviderFailures: 0,
+      lastSendAt: null,
+      lastError: null,
+      audiences: [{ id: "all", label: "All signed-up users", description: "All users." }],
+    },
     providerHealth: [
       {
         id: "api_football_world_cup",
@@ -119,6 +173,10 @@ describe("/admin page render states", () => {
     expect(screen.getByText("Total accounts")).toBeInTheDocument()
     expect(screen.getByText("World Cup pools")).toBeInTheDocument()
     expect(screen.getByText(/Provider Health/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Production Env/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/Traffic \/ Visitors/i)).toBeInTheDocument()
+    expect(screen.getByText(/Email Notifications/i)).toBeInTheDocument()
+    expect(screen.getByText(/Integrity \/ Fraud/i)).toBeInTheDocument()
     expect(screen.getByText("API-Football / API-Sports World Cup")).toBeInTheDocument()
     expect(screen.getByText(/Recent Users/i)).toBeInTheDocument()
     expect(mocks.getAdminCommandCenterMetrics).toHaveBeenCalledWith("ciege")
