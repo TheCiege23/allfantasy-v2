@@ -10,6 +10,7 @@ import { SafeGlobalChrome } from '@/components/shell/SafeGlobalChrome';
 import { MetaPixelPageViewTracker } from '@/components/meta/MetaPixelPageViewTracker';
 import { ErrorBoundaryClient } from '@/components/error-handling/ErrorBoundaryClient';
 import { PlayerComparisonUIProvider } from '@/components/player-comparison-ui';
+import { DEFAULT_META_PIXEL_ID } from '@/lib/meta-events';
 import { buildSeoMeta } from '@/lib/seo';
 import { resolveEffectiveDataMode } from '@/lib/theme';
 import './globals.css';
@@ -107,7 +108,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   }
 
   const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || '';
-  const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID || '';
+  const metaPixelId =
+    process.env.NEXT_PUBLIC_META_PIXEL_ID ||
+    process.env.META_PIXEL_ID ||
+    DEFAULT_META_PIXEL_ID;
   const fbAppId = process.env.NEXT_PUBLIC_FB_APP_ID || '1790659191546539';
   const useRailwayStylesFallback = railwayRuntimeEnvKeys.some((key) => Boolean(process.env[key]));
   return (
@@ -124,6 +128,84 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       >
         {useRailwayStylesFallback ? (
           <link rel="stylesheet" href="/railway-styles.css" />
+        ) : null}
+
+        {metaPixelId ? (
+          <Script id="meta-pixel-base" strategy="beforeInteractive">
+            {`
+              (function(w,d,pixelId) {
+                if (!pixelId) return;
+
+                var scriptSrc = 'https://connect.facebook.net/en_US/fbevents.js';
+                function shouldDebug() {
+                  try {
+                    return new URLSearchParams(w.location.search).get('af_debug_meta') === '1';
+                  } catch (err) {
+                    return false;
+                  }
+                }
+                function ensureScript() {
+                  var scripts = d.getElementsByTagName('script');
+                  for (var i = 0; i < scripts.length; i += 1) {
+                    if (scripts[i].src === scriptSrc) return;
+                  }
+                  var script = d.createElement('script');
+                  script.id = 'af-meta-pixel-script';
+                  script.async = true;
+                  script.src = scriptSrc;
+                  var firstScript = scripts[0];
+                  if (firstScript && firstScript.parentNode) {
+                    firstScript.parentNode.insertBefore(script, firstScript);
+                    return;
+                  }
+                  (d.head || d.body || d.documentElement).appendChild(script);
+                }
+
+                if (typeof w.fbq !== 'function') {
+                  var n = function() {
+                    if (n.callMethod) {
+                      n.callMethod.apply(n, arguments);
+                    } else {
+                      n.queue.push(arguments);
+                    }
+                  };
+                  if (!w._fbq) w._fbq = n;
+                  n.push = n;
+                  n.loaded = true;
+                  n.version = '2.0';
+                  n.queue = [];
+                  w.fbq = n;
+                }
+
+                ensureScript();
+                w.__afMetaPixelId = pixelId;
+                w.__afMetaPixelIds = w.__afMetaPixelIds instanceof Set
+                  ? w.__afMetaPixelIds
+                  : new Set();
+                if (!w.__afMetaPixelIds.has(pixelId)) {
+                  w.fbq('init', pixelId);
+                  w.__afMetaPixelIds.add(pixelId);
+                }
+
+                if (shouldDebug() && w.console) {
+                  w.console.info('[AF Meta] metaPixelId', pixelId);
+                  w.console.info('[AF Meta] typeof window.fbq', typeof w.fbq);
+                }
+              })(window, document, ${JSON.stringify(metaPixelId)});
+            `}
+          </Script>
+        ) : null}
+        {metaPixelId ? (
+          <noscript>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              alt=""
+              height="1"
+              width="1"
+              style={{ display: 'none' }}
+              src={`https://www.facebook.com/tr?id=${encodeURIComponent(metaPixelId)}&ev=PageView&noscript=1`}
+            />
+          </noscript>
         ) : null}
 
         {gaMeasurementId && (

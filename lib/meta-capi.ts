@@ -1,6 +1,7 @@
 import crypto from "crypto"
 import { recordAnalyticsEvent } from "@/lib/analytics/recordAnalyticsEvent"
 import {
+  DEFAULT_META_PIXEL_ID,
   normalizeMetaCustomData,
   type MetaCustomData,
   type MetaEventName,
@@ -9,7 +10,7 @@ import {
 const PIXEL_ID =
   process.env.META_PIXEL_ID ||
   process.env.NEXT_PUBLIC_META_PIXEL_ID ||
-  "1607977376870461"
+  DEFAULT_META_PIXEL_ID
 
 function sha256(input: string): string {
   return crypto.createHash("sha256").update(input).digest("hex")

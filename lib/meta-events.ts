@@ -11,6 +11,8 @@ export const META_EVENT_NAMES = [
 
 export type MetaEventName = (typeof META_EVENT_NAMES)[number]
 
+export const DEFAULT_META_PIXEL_ID = "1607977376870461"
+
 export const META_STANDARD_PIXEL_EVENTS = [
   "PageView",
   "ViewContent",

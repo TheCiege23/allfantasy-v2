@@ -1,4 +1,5 @@
 import {
+  DEFAULT_META_PIXEL_ID,
   buildMetaEventPayload,
   isMetaStandardPixelEvent,
   normalizeMetaCustomData,
@@ -11,6 +12,8 @@ declare global {
   interface Window {
     fbq?: (...args: unknown[]) => void
     _fbq?: (...args: unknown[]) => void
+    __afMetaPixelId?: string
+    __afMetaPixelIds?: Set<string>
   }
 }
 
@@ -18,6 +21,9 @@ type MetaResponseCarrier = {
   metaEvent?: MetaEventPayload | null
   metaEvents?: MetaEventPayload[] | Record<string, MetaEventPayload | null | undefined> | null
 }
+
+const META_PIXEL_SCRIPT_SRC = "https://connect.facebook.net/en_US/fbevents.js"
+const PUBLIC_META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID || DEFAULT_META_PIXEL_ID
 
 function getCookieValue(name: string): string | undefined {
   if (typeof document === "undefined") return undefined
@@ -29,58 +35,108 @@ function getCookieValue(name: string): string | undefined {
     ?.slice(prefix.length)
 }
 
-export function ensureMetaPixel(pixelId: string | null | undefined): void {
-  if (typeof window === "undefined" || typeof document === "undefined") return
-  const id = pixelId?.trim()
-  if (!id) return
+function isMetaDebugEnabled(): boolean {
+  if (typeof window === "undefined") return false
+  return new URLSearchParams(window.location.search).get("af_debug_meta") === "1"
+}
 
-  if (!window.fbq) {
-    const fbq = function fbqShim(...args: unknown[]) {
-      const q = fbqShim as typeof fbqShim & {
-        callMethod?: (...callArgs: unknown[]) => void
-        queue?: unknown[][]
-        push?: typeof fbqShim
-        loaded?: boolean
-        version?: string
-      }
-      if (q.callMethod) {
-        q.callMethod(...args)
-      } else {
-        q.queue = q.queue ?? []
-        q.queue.push(args)
-      }
-    } as typeof window.fbq & {
+function debugMeta(message: string, value?: unknown): void {
+  if (!isMetaDebugEnabled()) return
+  if (value === undefined) {
+    console.info(`[AF Meta] ${message}`)
+  } else {
+    console.info(`[AF Meta] ${message}`, value)
+  }
+}
+
+function resolveClientMetaPixelId(pixelId?: string | null): string {
+  return (
+    pixelId?.trim() ||
+    (typeof window !== "undefined" ? window.__afMetaPixelId?.trim() : "") ||
+    PUBLIC_META_PIXEL_ID
+  )
+}
+
+function ensureMetaPixelScript(): void {
+  if (typeof document === "undefined") return
+
+  const alreadyLoaded = Array.from(document.getElementsByTagName("script")).some(
+    (script) => script.src === META_PIXEL_SCRIPT_SRC
+  )
+  if (alreadyLoaded) return
+
+  const script = document.createElement("script")
+  script.id = "af-meta-pixel-script"
+  script.async = true
+  script.src = META_PIXEL_SCRIPT_SRC
+
+  const firstScript = document.getElementsByTagName("script")[0]
+  if (firstScript?.parentNode) {
+    firstScript.parentNode.insertBefore(script, firstScript)
+    return
+  }
+
+  const parent = document.head || document.body || document.documentElement
+  parent.appendChild(script)
+}
+
+function installFbqShim(): void {
+  if (typeof window === "undefined" || typeof window.fbq === "function") return
+
+  const fbq = function fbqShim(...args: unknown[]) {
+    const q = fbqShim as typeof fbqShim & {
+      callMethod?: (...callArgs: unknown[]) => void
       queue?: unknown[][]
-      push?: unknown
+      push?: typeof fbqShim
       loaded?: boolean
       version?: string
     }
-
-    fbq.push = fbq
-    fbq.loaded = true
-    fbq.version = "2.0"
-    fbq.queue = []
-    window.fbq = fbq
-    window._fbq = fbq
-
-    const script = document.createElement("script")
-    script.async = true
-    script.src = "https://connect.facebook.net/en_US/fbevents.js"
-    const firstScript = document.getElementsByTagName("script")[0]
-    firstScript?.parentNode?.insertBefore(script, firstScript)
+    if (q.callMethod) {
+      q.callMethod(...args)
+    } else {
+      q.queue = q.queue ?? []
+      q.queue.push(args)
+    }
+  } as typeof window.fbq & {
+    queue?: unknown[][]
+    push?: unknown
+    loaded?: boolean
+    version?: string
   }
 
-  const w = window as typeof window & { __afMetaPixelIds?: Set<string> }
-  w.__afMetaPixelIds = w.__afMetaPixelIds ?? new Set<string>()
-  if (!w.__afMetaPixelIds.has(id)) {
+  fbq.push = fbq
+  fbq.loaded = true
+  fbq.version = "2.0"
+  fbq.queue = []
+  window.fbq = fbq
+  window._fbq = fbq
+}
+
+export function ensureMetaPixel(pixelId?: string | null): boolean {
+  if (typeof window === "undefined" || typeof document === "undefined") return false
+  const id = resolveClientMetaPixelId(pixelId)
+  if (!id) return false
+
+  window.__afMetaPixelId = id
+  installFbqShim()
+  ensureMetaPixelScript()
+
+  window.__afMetaPixelIds = window.__afMetaPixelIds instanceof Set
+    ? window.__afMetaPixelIds
+    : new Set<string>()
+  if (!window.__afMetaPixelIds.has(id)) {
     window.fbq?.("init", id)
-    w.__afMetaPixelIds.add(id)
+    window.__afMetaPixelIds.add(id)
   }
+
+  debugMeta("metaPixelId", id)
+  debugMeta("typeof window.fbq", typeof window.fbq)
+  return typeof window.fbq === "function"
 }
 
 export function trackMetaBrowserEvent(event: MetaEventPayload | null | undefined): boolean {
   if (!event?.eventName || !event.eventId) return false
-  if (typeof window === "undefined" || typeof window.fbq !== "function") return false
+  if (typeof window === "undefined" || !ensureMetaPixel()) return false
   const command = isMetaStandardPixelEvent(event.eventName) ? "track" : "trackCustom"
   window.fbq(
     command,
@@ -88,6 +144,14 @@ export function trackMetaBrowserEvent(event: MetaEventPayload | null | undefined
     normalizeMetaCustomData(event.customData, { eventName: event.eventName }),
     { eventID: event.eventId }
   )
+  if (event.eventName === "PageView") {
+    debugMeta("PageView fired", {
+      eventId: event.eventId,
+      typeofFbq: typeof window.fbq,
+      contentName: event.customData?.content_name,
+      contentCategory: event.customData?.content_category,
+    })
+  }
   return true
 }
 
