@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
+import { calculateScoreFromSportConfig } from '@/lib/redraft/scoringEngine'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,13 +38,29 @@ export async function GET(req: NextRequest) {
     : []
   const scoreByPlayer = new Map(scores.map((score) => [`${score.playerId}:${score.sport}`, score]))
 
+  const players = await Promise.all(
+    roster.players.map(async (player) => {
+      const weeklyScore = scoreByPlayer.get(`${player.playerId}:${player.sport}`) ?? null
+      if (!weeklyScore) return { ...player, weeklyScore: null }
+      return {
+        ...player,
+        weeklyScore: {
+          ...weeklyScore,
+          fantasyPts: await calculateScoreFromSportConfig(
+            roster.leagueId,
+            player.playerId,
+            week,
+            weeklyScore.stats as Record<string, number>,
+          ),
+        },
+      }
+    }),
+  )
+
   return NextResponse.json({
     roster: {
       ...roster,
-      players: roster.players.map((player) => ({
-        ...player,
-        weeklyScore: scoreByPlayer.get(`${player.playerId}:${player.sport}`) ?? null,
-      })),
+      players,
     },
     week,
   })

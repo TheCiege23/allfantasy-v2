@@ -188,7 +188,12 @@ async function scoreRosterStarters(args: {
       allFinal = false
       continue
     }
-    pts += row.fantasyPts ?? 0
+    pts += await calculateScoreFromSportConfig(
+      args.leagueId,
+      p.playerId,
+      args.week,
+      row.stats as Record<string, number>,
+    )
     scoredStarterCount += 1
     if (!row.isFinalized) allFinal = false
   }
