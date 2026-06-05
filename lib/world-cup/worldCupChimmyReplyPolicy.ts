@@ -189,14 +189,168 @@ export function isPoolStandingQuestion(prompt: string): boolean {
 export function isBracketImpactQuestion(prompt: string): boolean {
   const p = prompt.toLowerCase()
   return (
-    /\b(bracket|pick|path\s+to\s+win|champion\s+pick|still\s+alive|eliminated|busted)\b/i.test(p) &&
-    /\b(affect|impact|hurt|help|points|lose|gain|if\s+.+\s+wins?)\b/i.test(p)
+    /\b(path\s+to\s+win|explain\s+my\s+path|how\s+can\s+i\s+win|still\s+alive|mathematically\s+alive)\b/i.test(p) ||
+    (/\b(bracket|pick|path\s+to\s+win|champion\s+pick|still\s+alive|eliminated|busted)\b/i.test(p) &&
+      /\b(affect|impact|hurt|help|points|lose|gain|if\s+.+\s+wins?)\b/i.test(p))
   )
 }
 
 export function isScoringExplanationQuestion(prompt: string): boolean {
   const p = prompt.toLowerCase()
   return /\b(scoring|points?\s+work|how\s+(many\s+)?points|round\s+of\s+32|champion\s+bonus|puntos)\b/i.test(p)
+}
+
+function isPoolSummaryQuestion(prompt: string): boolean {
+  const p = prompt.toLowerCase()
+  return /\b(summarize|summary|pool\s+health|commissioner\s+summary|health\s+report|recap|storylines?)\b/i.test(p)
+}
+
+function isBestBracketQuestion(prompt: string): boolean {
+  const p = prompt.toLowerCase()
+  return /\b(best\s+bracket|who\s+has\s+the\s+best|who\s+is\s+leading|leader|top\s+bracket|favorite)\b/i.test(p)
+}
+
+function isWatchTodayQuestion(prompt: string): boolean {
+  const p = prompt.toLowerCase()
+  return /\b(watch\s+today|watch\s+now|matches?\s+matter|what\s+picks\s+should\s+i\s+watch|root\s+for|support)\b/i.test(p)
+}
+
+function isGroupDangerQuestion(prompt: string): boolean {
+  const p = prompt.toLowerCase()
+  return /\b(group|grupo).*\b(danger|dangerous|strong|weak|tight|upset|hard)\b/i.test(p)
+}
+
+function dataDisclosure(ctx: WorldCupChimmyContext | null | undefined): string {
+  if (!ctx) return "Source: no pool context was available, so I will not guess."
+  const live =
+    ctx.liveDataStatus === "live"
+      ? "live match data is synced"
+      : ctx.liveDataStatus === "fixture_only"
+        ? "fixtures are cached, but live scores are not active"
+        : "live scores are not synced"
+  return `Source: stored pool data as of ${ctx.fetchedAt.slice(0, 16)}Z; ${live}.`
+}
+
+function topLeaderboardLine(ctx: WorldCupChimmyContext): string {
+  if (ctx.leaderboard.length === 0) return "No ranked entries are available yet."
+  return ctx.leaderboard
+    .slice(0, 3)
+    .map((row) => `#${row.rank} ${row.entryName}: ${row.totalScore} pts, max ${row.maxPossibleScore}, champion ${row.championPickName ?? "not picked"}`)
+    .join("; ")
+}
+
+function buildScoringReply(ctx: WorldCupChimmyContext | null | undefined): string {
+  const scoring = ctx?.scoring
+  if (!scoring) return reliableDataUnavailableMessage(ctx?.locale)
+  return [
+    dataDisclosure(ctx),
+    `Scoring rules: Round of 32 ${scoring.roundOf32Points}, Round of 16 ${scoring.roundOf16Points}, quarterfinal ${scoring.quarterFinalPoints}, semifinal ${scoring.semiFinalPoints}, final ${scoring.finalPoints}, champion bonus ${scoring.championBonusPoints}.`,
+    "Later rounds matter more, and the champion bonus is the swing piece. I can explain your path using only your saved picks and the current leaderboard.",
+  ].join(" ")
+}
+
+function buildStandingReply(ctx: WorldCupChimmyContext | null | undefined): string {
+  if (!ctx || ctx.leaderboard.length === 0) {
+    return [
+      dataDisclosure(ctx),
+      "No ranked leaderboard rows are available yet. Once entries finalize or scoring lands, I can call out the leader, closest chase pack, and path-to-win storylines.",
+    ].join(" ")
+  }
+  const leader = ctx.leaderboard[0]
+  const entry = ctx.entry
+  const gap =
+    entry && entry.rank !== 1
+      ? ` Your entry is ${entry.rank ? `#${entry.rank}` : "unranked"} with ${entry.totalScore} pts, ${Math.max(0, leader.totalScore - entry.totalScore)} behind the leader.`
+      : entry?.rank === 1
+        ? " Your entry is currently leading."
+        : ""
+  return [
+    dataDisclosure(ctx),
+    `Best bracket so far: #${leader.rank} ${leader.entryName} with ${leader.totalScore} pts and max possible ${leader.maxPossibleScore}.`,
+    `Top pool snapshot: ${topLeaderboardLine(ctx)}.`,
+    gap,
+  ].join(" ")
+}
+
+function buildPathReply(ctx: WorldCupChimmyContext | null | undefined): string {
+  const entry = ctx?.entry
+  if (!ctx || !entry) {
+    return [
+      dataDisclosure(ctx),
+      "I do not see a saved entry for you yet. Create or open a bracket and I can explain champion exposure, alive picks, and what needs to break your way.",
+    ].join(" ")
+  }
+  const leader = ctx.leaderboard[0]
+  const gap = leader && entry.rank !== 1 ? Math.max(0, leader.totalScore - entry.totalScore) : 0
+  const alive = entry.knockoutPicks.filter((pick) => pick.isCorrect !== false).slice(0, 6)
+  const lost = entry.knockoutPicks.filter((pick) => pick.isCorrect === false).slice(0, 4)
+  return [
+    dataDisclosure(ctx),
+    `Your path: ${entry.entryName} is ${entry.rank ? `#${entry.rank}` : "unranked"} with ${entry.totalScore} pts, max possible ${entry.maxPossibleScore}, champion ${entry.championPick ?? "not picked"}.`,
+    gap > 0 ? `You are ${gap} pts behind the current leader.` : "You are not behind the current leader in the stored leaderboard.",
+    alive.length > 0 ? `Still useful picks: ${alive.map((pick) => `${pick.pickedTeam} (${pick.round})`).join(", ")}.` : "I do not see scored alive knockout picks yet.",
+    lost.length > 0 ? `Damaged picks: ${lost.map((pick) => `${pick.pickedTeam} (${pick.round})`).join(", ")}.` : "No incorrect knockout picks are stored for your entry yet.",
+  ].join(" ")
+}
+
+function buildPoolSummaryReply(ctx: WorldCupChimmyContext | null | undefined): string {
+  if (!ctx) return reliableDataUnavailableMessage(null)
+  const completeText = ctx.entry
+    ? `Your bracket is ${ctx.entry.isComplete ? "complete" : "not complete"} and champion is ${ctx.entry.championPick ?? "not picked"}.`
+    : "You do not have a saved bracket entry in this context yet."
+  return [
+    dataDisclosure(ctx),
+    `${ctx.poolName} has ${ctx.participantCount} participant${ctx.participantCount === 1 ? "" : "s"} and ${ctx.leaderboard.length} ranked entr${ctx.leaderboard.length === 1 ? "y" : "ies"} in the stored leaderboard.`,
+    `Top snapshot: ${topLeaderboardLine(ctx)}.`,
+    completeText,
+    "Commissioner note: remind unfinished entries to finalize before lock; that is the highest-confidence action I can suggest from stored pool data.",
+  ].join(" ")
+}
+
+function buildWatchReply(ctx: WorldCupChimmyContext | null | undefined): string {
+  if (!ctx) return reliableDataUnavailableMessage(null)
+  const matches = [...ctx.liveMatches, ...ctx.upcomingMatches].slice(0, 5)
+  if (matches.length === 0) {
+    return [
+      dataDisclosure(ctx),
+      "I do not have a reliable live/upcoming match list in cache right now. Based on saved bracket data, watch your champion pick and any still-alive knockout picks because those are the biggest scoring swings.",
+    ].join(" ")
+  }
+  const entryPicks = new Set((ctx.entry?.knockoutPicks ?? []).map((pick) => pick.pickedTeam.toLowerCase()))
+  const lines = matches.map((match) => {
+    const tagged =
+      entryPicks.has(match.homeTeamName.toLowerCase()) || entryPicks.has(match.awayTeamName.toLowerCase())
+        ? " affects one of your saved picks"
+        : ""
+    const when = match.startsAt ? new Date(match.startsAt).toUTCString().slice(0, 22) + " UTC" : "time TBD"
+    return `${match.homeTeamName} vs ${match.awayTeamName} (${match.round}, ${when})${tagged}`
+  })
+  return [dataDisclosure(ctx), `Picks to watch: ${lines.join("; ")}.`].join(" ")
+}
+
+function buildGroupReply(ctx: WorldCupChimmyContext | null | undefined): string {
+  if (!ctx || ctx.groupStandings.length === 0) {
+    return [
+      dataDisclosure(ctx),
+      "I do not have reliable official group standings cached yet. I can still review your saved group picks once they are available, but I will not invent group strength or current form.",
+    ].join(" ")
+  }
+  const groups = new Map<string, typeof ctx.groupStandings>()
+  for (const row of ctx.groupStandings) groups.set(row.groupName, [...(groups.get(row.groupName) ?? []), row])
+  const ranked = [...groups.entries()]
+    .map(([group, rows]) => {
+      const sorted = [...rows].sort((a, b) => b.points - a.points)
+      const spread = (sorted[0]?.points ?? 0) - (sorted[2]?.points ?? 0)
+      return { group, spread, rows: sorted.slice(0, 4) }
+    })
+    .sort((a, b) => a.spread - b.spread)
+  const tight = ranked[0]
+  if (!tight) return reliableDataUnavailableMessage(ctx.locale)
+  return [
+    dataDisclosure(ctx),
+    `Most dangerous group from cached standings: ${tight.group}, because the top-to-third points spread is ${tight.spread}.`,
+    `Snapshot: ${tight.rows.map((row) => `${row.teamName} ${row.points} pts`).join(", ")}.`,
+  ].join(" ")
 }
 
 export function collectKnownScoreTokens(ctx: WorldCupChimmyContext | null | undefined): Set<string> {
@@ -258,8 +412,35 @@ export function tryDeterministicWorldCupChimmyReply(input: {
   const prompt = input.prompt.trim()
   const context = input.context
 
+  if (isScoringExplanationQuestion(prompt)) {
+    return buildScoringReply(context)
+  }
+
+  if (isPoolStandingQuestion(prompt) || isBestBracketQuestion(prompt)) {
+    return buildStandingReply(context)
+  }
+
+  if (isBracketImpactQuestion(prompt)) {
+    return buildPathReply(context)
+  }
+
+  if (isPoolSummaryQuestion(prompt)) {
+    return buildPoolSummaryReply(context)
+  }
+
+  if (isWatchTodayQuestion(prompt)) {
+    return buildWatchReply(context)
+  }
+
+  if (isGroupDangerQuestion(prompt)) {
+    return buildGroupReply(context)
+  }
+
   if (isUnsupportedVerifiedDataQuestion(prompt)) {
-    return reliableDataUnavailableMessage(input.locale)
+    return [
+      reliableDataUnavailableMessage(input.locale),
+      context ? ` ${dataDisclosure(context)} Ask me for pool standings, scoring rules, path to win, or a commissioner summary and I can answer from saved pool data.` : "",
+    ].join("")
   }
 
   if (isScheduleQuestion(prompt)) {

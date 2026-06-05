@@ -887,6 +887,12 @@ function makeShellView(overrides: Record<string, unknown> = {}) {
   }
 }
 
+async function openWorldCupChatDrawer() {
+  const bubble = await screen.findByTestId("world-cup-chat-bubble")
+  fireEvent.click(bubble)
+  return screen.findByTestId("world-cup-community-foundation")
+}
+
 function makeShellGroupStageView(overrides: Record<string, unknown> = {}) {
   return {
     challengeId: "c1",
@@ -1616,7 +1622,9 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getByText(/AI What-If Scenarios/i)).toBeInTheDocument()
     expect(screen.getAllByText(/Requires AF Commissioner/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/Requires AI\/Pro/i).length).toBeGreaterThan(0)
-    const community = screen.getByTestId("world-cup-community-foundation")
+    expect(screen.getByTestId("world-cup-chat-bubble")).toBeInTheDocument()
+    expect(screen.queryByTestId("world-cup-community-foundation")).not.toBeInTheDocument()
+    const community = await openWorldCupChatDrawer()
     expect(community).toHaveTextContent("Pool Chat")
     expect(within(community).getByText(/Talk strategy, call your shots, and keep the pool alive/i)).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/Message the pool or ask Chimmy/i)).toBeInTheDocument()
@@ -1644,6 +1652,27 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getByText(/Use the sticky Start Making Picks button on mobile/i)).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /^Safe$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /^Balanced$/i })).not.toBeInTheDocument()
+  })
+
+  it("keeps one World Cup chat bubble available across shell tabs", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="home" />)
+
+    expect(await screen.findByTestId("world-cup-chat-bubble")).toBeInTheDocument()
+    expect(screen.queryByTestId("world-cup-community-foundation")).not.toBeInTheDocument()
+
+    await openWorldCupChatDrawer()
+    expect(screen.getAllByTestId("world-cup-community-foundation")).toHaveLength(1)
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Group Stage/i })[0])
+    expect(screen.getByTestId("world-cup-chat-bubble")).toBeInTheDocument()
+    expect(screen.getAllByTestId("world-cup-community-foundation")).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole("button", { name: /Collapse/i }))
+    await waitFor(() => {
+      expect(screen.queryByTestId("world-cup-community-foundation")).not.toBeInTheDocument()
+    })
+    expect(screen.getByTestId("world-cup-chat-bubble")).toBeInTheDocument()
   })
 
   it("loads and sends World Cup pool chat messages from the community panel", async () => {
@@ -1723,7 +1752,8 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
 
-    expect(await screen.findByText("Opening message")).toBeInTheDocument()
+    const community = await openWorldCupChatDrawer()
+    expect(await within(community).findByText("Opening message")).toBeInTheDocument()
     fireEvent.change(screen.getByPlaceholderText(/Message the pool or ask Chimmy/i), {
       target: { value: "Let us go" },
     })
@@ -1788,6 +1818,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
 
+    await openWorldCupChatDrawer()
     const muteSwitch = await screen.findByRole("switch", { name: /Pool muted/i })
     fireEvent.click(muteSwitch)
 
@@ -1806,6 +1837,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
 
+    await openWorldCupChatDrawer()
     const input = await screen.findByPlaceholderText(/Message the pool or ask Chimmy/i)
     fireEvent.click(screen.getByRole("button", { name: /Insert 🔥/i }))
     expect(input).toHaveValue("🔥")
@@ -1865,6 +1897,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
 
+    await openWorldCupChatDrawer()
     expect(await screen.findByText("Bold", { selector: "span" })).toHaveClass("font-black")
     expect(screen.getByText("Italic", { selector: "span" })).toHaveClass("italic")
     expect(screen.getByText("Under", { selector: "span" })).toHaveClass("underline")
@@ -1952,6 +1985,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
 
+    await openWorldCupChatDrawer()
     fireEvent.click(await screen.findByRole("button", { name: /^GIF$/i }))
     fireEvent.change(screen.getByPlaceholderText(/Search Klipy GIFs/i), { target: { value: "goal" } })
     fireEvent.click(screen.getByRole("button", { name: /Search GIFs/i }))
@@ -2038,6 +2072,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
 
+    await openWorldCupChatDrawer()
     fireEvent.click(await screen.findByRole("button", { name: /^Image$/i }))
     const fileInput = screen.getByLabelText(/Choose Image/i, { selector: "input" })
     fireEvent.change(fileInput, {
@@ -2160,6 +2195,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
 
+    await openWorldCupChatDrawer()
     fireEvent.click(await screen.findByRole("button", { name: /^Poll$/i }))
     fireEvent.change(screen.getByPlaceholderText(/Poll question/i), { target: { value: "Who wins Group A?" } })
     fireEvent.change(screen.getByPlaceholderText(/Option 1/i), { target: { value: "Mexico" } })
@@ -2274,6 +2310,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: true, isAdmin: false, hasBracketBrainAi: true }) as any} defaultTab="home" />)
 
+    await openWorldCupChatDrawer()
     const input = await screen.findByPlaceholderText(/Message the pool or ask Chimmy/i)
     fireEvent.change(input, { target: { value: "@chimmy who should I pick?" } })
 
@@ -2438,7 +2475,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(within(panel).getByText(/AI Bracket Builder/i)).toBeInTheDocument()
     expect(within(panel).getAllByText(/Unlocked/i).length).toBeGreaterThan(0)
     expect(within(panel).getAllByText(/Requires AI\/Pro/i).length).toBeGreaterThan(0)
-    const community = screen.getByTestId("world-cup-community-foundation")
+    const community = await openWorldCupChatDrawer()
     expect(within(community).getAllByText(/Commissioner Announcements/i).length).toBeGreaterThan(0)
     expect(within(community).getByText(/Pinned Announcement/i)).toBeInTheDocument()
     expect(within(community).queryByText(/System Reminders/i)).toBeNull()

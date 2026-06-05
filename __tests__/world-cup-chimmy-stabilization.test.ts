@@ -202,36 +202,54 @@ describe("generateWorldCupChimmyPrivateReply — stabilization", () => {
     expect(result.reply).not.toMatch(/\b\d{1,2}-\d{1,2}\b/)
   })
 
-  it("pool standing question — includes leaderboard in model context", async () => {
-    routeTextCallMock.mockResolvedValue({
-      ok: true,
-      text: "You're #2 on 120pts — Leader has 140pts at the top.",
-      model: "gpt-test",
-      provider: "openai",
-      tokensUsed: 10,
-    })
+  it("pool standing question answers from stored leaderboard without model calls", async () => {
+    const result = await replyWith({ prompt: "@chimmy where am I on the leaderboard?" })
 
-    await replyWith({ prompt: "@chimmy where am I on the leaderboard?" })
-
-    const userMessage = routeTextCallMock.mock.calls[0]?.[0]?.messages?.[1]?.content as string
-    expect(userMessage).toContain("LEADERBOARD")
-    expect(userMessage).toContain("120pts")
+    expect(routeTextCallMock).not.toHaveBeenCalled()
+    expect(result.provider).toBe("deterministic")
+    expect(result.reply).toContain("Best bracket so far")
+    expect(result.reply).toContain("Leader")
+    expect(result.reply).toContain("Guap Bracket")
+    expect(result.reply).toContain("Source: stored pool data")
   })
 
-  it("bracket impact question — includes picks alive in model context", async () => {
-    await replyWith({ prompt: "@chimmy if Argentina wins, how does that affect my bracket?" })
+  it("bracket impact question answers from saved entry and picks", async () => {
+    const result = await replyWith({ prompt: "@chimmy explain my path to win" })
 
-    const userMessage = routeTextCallMock.mock.calls[0]?.[0]?.messages?.[1]?.content as string
-    expect(userMessage).toContain("PICKS ALIVE")
-    expect(userMessage).toContain("Argentina")
+    expect(routeTextCallMock).not.toHaveBeenCalled()
+    expect(result.provider).toBe("deterministic")
+    expect(result.reply).toContain("Your path")
+    expect(result.reply).toContain("Guap Bracket")
+    expect(result.reply).toContain("Argentina")
   })
 
-  it("scoring explanation — includes scoring rules in model context", async () => {
-    await replyWith({ prompt: "@chimmy how do quarterfinal points work in this pool?" })
+  it("scoring explanation answers from pool scoring rules", async () => {
+    const result = await replyWith({ prompt: "@chimmy how do quarterfinal points work in this pool?" })
 
-    const userMessage = routeTextCallMock.mock.calls[0]?.[0]?.messages?.[1]?.content as string
-    expect(userMessage).toContain("SCORING:")
-    expect(userMessage).toContain("QF=40")
+    expect(routeTextCallMock).not.toHaveBeenCalled()
+    expect(result.provider).toBe("deterministic")
+    expect(result.reply).toContain("Scoring rules")
+    expect(result.reply).toContain("quarterfinal 40")
+    expect(result.reply).toContain("champion bonus 320")
+  })
+
+  it("commissioner summary uses stored pool context instead of refusing everything", async () => {
+    const result = await replyWith({ prompt: "@chimmy Commissioner: give me a pool health report" })
+
+    expect(routeTextCallMock).not.toHaveBeenCalled()
+    expect(result.provider).toBe("deterministic")
+    expect(result.reply).toContain("Office Cup has 8 participants")
+    expect(result.reply).toContain("Top snapshot")
+    expect(result.reply).toContain("Commissioner note")
+  })
+
+  it("watch-today prompt pivots to saved picks when live fixtures are missing", async () => {
+    const result = await replyWith({ prompt: "@chimmy what picks should I watch today?" })
+
+    expect(routeTextCallMock).not.toHaveBeenCalled()
+    expect(result.provider).toBe("deterministic")
+    expect(result.reply).toContain("watch your champion pick")
+    expect(result.reply).toContain("Source: stored pool data")
   })
 
   it("Spanish response when locale is Spanish", async () => {
@@ -326,7 +344,9 @@ describe("generateWorldCupChimmyPrivateReply — stabilization", () => {
 
     expect(routeTextCallMock).not.toHaveBeenCalled()
     expect(result.provider).toBe("deterministic")
-    expect(result.reply).toBe(reliableDataUnavailableMessage("en"))
+    expect(result.reply).toContain(reliableDataUnavailableMessage("en"))
+    expect(result.reply).toContain("Ask me for pool standings")
+    expect(result.reply).not.toMatch(/\b\d{1,2}-\d{1,2}\b/)
   })
 
   it("hallucination guard blocks unknown score even when a live feed exists", () => {

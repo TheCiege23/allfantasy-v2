@@ -3446,12 +3446,6 @@ export default function WorldCupBracketShell({
               isOwnerOrAdmin={Boolean(view.isOwner || view.isAdmin)}
             />
 
-            <WorldCupCommunityFoundationPanel
-              challengeId={challengeId}
-              entitlementSummary={entitlementSummary}
-              poolName={view.challenge.name}
-            />
-
             <section className="mx-auto max-w-[min(100%,1600px)] px-2 sm:px-4">
               <AllFantasyBracketBoard
                 mode={dashboardPreviewMode === "starting" ? "preview" : "ai"}
@@ -4600,6 +4594,12 @@ export default function WorldCupBracketShell({
       </nav>
 
       {/* ── Guided matchup picker ── */}
+      <WorldCupCommunityFoundationPanel
+        challengeId={challengeId}
+        entitlementSummary={entitlementSummary}
+        poolName={view.challenge.name}
+      />
+
       {selectedEntry && isGuidedPickerOpen && (
         <WorldCupGuidedMatchupPicker
           challengeId={challengeId}
@@ -5276,7 +5276,7 @@ function WorldCupCommunityFoundationPanel({
   const [pollVotingMessageId, setPollVotingMessageId] = useState<string | null>(null)
   const richPreviewSegments = useMemo(() => parseWorldCupChatRichText(chatBody), [chatBody])
   const [chatMode, setChatMode] = useState<WorldCupChatMode>("pool")
-  const [chatDrawerOpen, setChatDrawerOpen] = useState(true)
+  const [chatDrawerOpen, setChatDrawerOpen] = useState(false)
   const isChimmyPrompt = chatMode === "ai" || /(^|[\s*_~\]])@chimmy\b/i.test(chatBody)
   const chatModeOptions: Array<{ mode: WorldCupChatMode; label: string; icon: typeof MessageSquare }> = [
     { mode: "ai", label: tChat("wc.chat.mode.ai"), icon: Bot },
@@ -5285,11 +5285,11 @@ function WorldCupCommunityFoundationPanel({
   ]
   const aiPromptActions = useMemo(
     () => [
-      { key: "ask", label: tChat("wc.chat.chip.askChimmy"), prompt: tChat("wc.chat.prompt.askChimmy") },
-      { key: "analyze", label: tChat("wc.chat.chip.analyzePool"), prompt: tChat("wc.chat.prompt.analyzePool") },
-      { key: "losing", label: tChat("wc.chat.chip.whyLosing"), prompt: tChat("wc.chat.prompt.whyLosing") },
-      { key: "root", label: tChat("wc.chat.chip.rootFor"), prompt: tChat("wc.chat.prompt.rootFor") },
-      { key: "champion", label: tChat("wc.chat.chip.championLoses"), prompt: tChat("wc.chat.prompt.championLoses") },
+      { key: "best", label: tChat("wc.chat.chip.bestBracket"), prompt: tChat("wc.chat.prompt.bestBracket") },
+      { key: "path", label: tChat("wc.chat.chip.pathToWin"), prompt: tChat("wc.chat.prompt.pathToWin") },
+      { key: "danger", label: tChat("wc.chat.chip.dangerGroup"), prompt: tChat("wc.chat.prompt.dangerGroup") },
+      { key: "watch", label: tChat("wc.chat.chip.watchToday"), prompt: tChat("wc.chat.prompt.watchToday") },
+      { key: "summary", label: tChat("wc.chat.chip.summarizePool"), prompt: tChat("wc.chat.prompt.summarizePool") },
       { key: "scoring", label: tChat("wc.chat.chip.scoringRules"), prompt: tChat("wc.chat.prompt.scoringRules") },
       { key: "commissioner", label: tChat("wc.chat.chip.commissionerSummary"), prompt: tChat("wc.chat.prompt.commissionerSummary") },
     ],
@@ -5352,8 +5352,9 @@ function WorldCupCommunityFoundationPanel({
   }, [challengeId])
 
   useEffect(() => {
+    if (!chatDrawerOpen) return
     void loadChat()
-  }, [loadChat])
+  }, [chatDrawerOpen, loadChat])
 
   async function sendChatMessage() {
     const rawBody = chatBody.trim()
@@ -5545,10 +5546,38 @@ function WorldCupCommunityFoundationPanel({
     }
   }
 
+  const privateChimmyReplyCount = messages.filter((message) => message.messageType === "chimmy_private_response").length
+
   return (
+    <>
+    <button
+      type="button"
+      data-testid="world-cup-chat-bubble"
+      onClick={() => setChatDrawerOpen(true)}
+      className="mode-readable fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] left-1/2 z-[140] inline-flex min-h-14 -translate-x-1/2 items-center gap-2 rounded-full border border-cyan-200/45 bg-[linear-gradient(135deg,rgba(34,211,238,0.98),rgba(147,197,253,0.96)_58%,rgba(251,191,36,0.9))] px-4 py-2 text-sm font-black text-slate-950 shadow-[0_18px_46px_-22px_rgba(34,211,238,1)] transition hover:scale-[1.03] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 sm:bottom-6 sm:left-auto sm:right-5 sm:translate-x-0"
+      aria-label="Open World Cup Chimmy and pool chat"
+      aria-expanded={chatDrawerOpen}
+    >
+      <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-950 text-cyan-200 shadow-inner">
+        <Bot className="h-5 w-5" aria-hidden />
+        {privateChimmyReplyCount > 0 ? (
+          <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border border-slate-950 bg-amber-300" aria-hidden />
+        ) : null}
+      </span>
+      <span className="leading-tight">
+        <span className="block text-[10px] uppercase tracking-[0.16em] text-slate-800/70">Chimmy</span>
+        <span className="block">Pool Chat</span>
+      </span>
+    </button>
+
+    {chatDrawerOpen ? (
     <section
       data-testid="world-cup-community-foundation"
-      className="mode-readable mx-auto grid max-w-7xl gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]"
+      data-wc-chat-drawer
+      role="dialog"
+      aria-modal="false"
+      aria-label="World Cup Chimmy and pool chat"
+      className="mode-readable fixed inset-x-2 bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] top-[calc(env(safe-area-inset-top,0px)+4.25rem)] z-[135] mx-auto grid max-w-4xl gap-3 overflow-y-auto rounded-[1.35rem] border border-cyan-300/20 bg-[#020711]/92 p-2 shadow-[0_30px_90px_-36px_rgba(34,211,238,0.95)] backdrop-blur-2xl sm:inset-auto sm:bottom-20 sm:right-5 sm:max-h-[min(82dvh,780px)] sm:w-[min(92vw,720px)] sm:p-0"
     >
       <div className="overflow-hidden rounded-[1.25rem] border border-cyan-300/15 bg-[#020711]/95 shadow-[0_26px_80px_-56px_rgba(34,211,238,0.85)]">
         {/* ── Chat Hero ──────────────────────────────────────────────── */}
@@ -6052,7 +6081,9 @@ function WorldCupCommunityFoundationPanel({
           </p>
         )}
       </div>
-    </section>
+      </section>
+    ) : null}
+    </>
   )
 }
 
