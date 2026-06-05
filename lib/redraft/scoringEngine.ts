@@ -117,7 +117,93 @@ export async function calculateScoreFromSportConfig(
   return sum
 }
 
-export async function updateMatchupScores(matchupId: string): Promise<void> {
+export type RosterScoreSummary = {
+  rosterId: string
+  starterCount: number
+  scoredStarterCount: number
+  points: number
+  missingPlayerIds: string[]
+  allFinal: boolean
+}
+
+export type MatchupScoreUpdateSummary = {
+  matchupId: string
+  week: number
+  homeScore: number
+  awayScore: number
+  isComplete: boolean
+  missingPlayerIds: string[]
+}
+
+function isStarterSlot(slotType: string | null | undefined): boolean {
+  const slot = String(slotType ?? '').toLowerCase()
+  return slot !== 'bench' && slot !== 'taxi' && slot !== 'devy'
+}
+
+async function scoreRosterStarters(args: {
+  leagueId: string
+  rosterId: string
+  week: number
+  seasonYear: number
+  useDevyEngine: boolean
+}): Promise<RosterScoreSummary> {
+  if (args.useDevyEngine) {
+    const r = await calculateOfficialTeamScore(args.leagueId, args.rosterId, args.week, args.seasonYear)
+    return {
+      rosterId: args.rosterId,
+      starterCount: 1,
+      scoredStarterCount: 1,
+      points: r.officialScore,
+      missingPlayerIds: [],
+      allFinal: true,
+    }
+  }
+
+  const starters = await prisma.redraftRosterPlayer.findMany({
+    where: {
+      rosterId: args.rosterId,
+      droppedAt: null,
+    },
+  })
+  const activeStarters = starters.filter((p) => isStarterSlot(p.slotType))
+
+  let pts = 0
+  let scoredStarterCount = 0
+  let allFinal = true
+  const missingPlayerIds: string[] = []
+
+  for (const p of activeStarters) {
+    const row = await prisma.playerWeeklyScore.findUnique({
+      where: {
+        playerId_week_season_sport: {
+          playerId: p.playerId,
+          week: args.week,
+          season: args.seasonYear,
+          sport: p.sport,
+        },
+      },
+    })
+    if (!row) {
+      missingPlayerIds.push(p.playerId)
+      allFinal = false
+      continue
+    }
+    pts += row.fantasyPts ?? 0
+    scoredStarterCount += 1
+    if (!row.isFinalized) allFinal = false
+  }
+
+  return {
+    rosterId: args.rosterId,
+    starterCount: activeStarters.length,
+    scoredStarterCount,
+    points: Math.round(pts * 100) / 100,
+    missingPlayerIds,
+    allFinal,
+  }
+}
+
+export async function updateMatchupScores(matchupId: string): Promise<MatchupScoreUpdateSummary | null> {
   const m = await prisma.redraftMatchup.findFirst({
     where: { id: matchupId },
     include: {
@@ -125,7 +211,7 @@ export async function updateMatchupScores(matchupId: string): Promise<void> {
       awayRoster: { include: { players: true } },
     },
   })
-  if (!m || !m.homeRoster || !m.awayRosterId) return
+  if (!m || !m.homeRoster || !m.awayRosterId) return null
 
   const leagueId = m.leagueId
   const week = m.week
@@ -135,55 +221,82 @@ export async function updateMatchupScores(matchupId: string): Promise<void> {
 
   if (await leagueUsesC2CEngine(leagueId)) {
     await updateC2CMatchupScores(matchupId)
-    return
+    return null
   }
 
   const season = await prisma.redraftSeason.findFirst({ where: { id: seasonRowId } })
-  if (!season) return
+  if (!season) return null
   const seasonYear = season.season
 
   const useDevyEngine = await leagueUsesDevyEngine(leagueId)
 
-  async function sumStarters(rosterId: string): Promise<number> {
-    if (useDevyEngine) {
-      const r = await calculateOfficialTeamScore(leagueId, rosterId, week, seasonYear)
-      return r.officialScore
-    }
-    const starters = await prisma.redraftRosterPlayer.findMany({
-      where: {
-        rosterId,
-        droppedAt: null,
-        slotType: { notIn: ['bench', 'taxi', 'devy'] },
-      },
-    })
-    let pts = 0
-    for (const p of starters) {
-      const row = await prisma.playerWeeklyScore.findUnique({
-        where: {
-          playerId_week_season_sport: {
-            playerId: p.playerId,
-            week,
-            season: seasonYear,
-            sport: p.sport,
-          },
-        },
-      })
-      pts += row?.fantasyPts ?? 0
-    }
-    return pts
-  }
-
-  const homePts = await sumStarters(homeRosterId)
-  const awayPts = await sumStarters(awayRosterId)
+  const home = await scoreRosterStarters({
+    leagueId,
+    rosterId: homeRosterId,
+    week,
+    seasonYear,
+    useDevyEngine,
+  })
+  const away = await scoreRosterStarters({
+    leagueId,
+    rosterId: awayRosterId,
+    week,
+    seasonYear,
+    useDevyEngine,
+  })
+  const missingPlayerIds = [...home.missingPlayerIds, ...away.missingPlayerIds]
+  const isComplete =
+    missingPlayerIds.length === 0 &&
+    home.starterCount > 0 &&
+    away.starterCount > 0 &&
+    home.scoredStarterCount === home.starterCount &&
+    away.scoredStarterCount === away.starterCount
 
   await prisma.redraftMatchup.update({
     where: { id: matchupId },
     data: {
-      homeScore: homePts,
-      awayScore: awayPts,
-      status: 'active',
+      homeScore: home.points,
+      awayScore: away.points,
+      status: isComplete && home.allFinal && away.allFinal ? 'final' : 'active',
+      lineupSnapshots: {
+        redraftScoring: {
+          scoredAt: new Date().toISOString(),
+          isComplete,
+          home,
+          away,
+          missingPlayerIds,
+        },
+      },
     },
   })
+
+  return {
+    matchupId,
+    week,
+    homeScore: home.points,
+    awayScore: away.points,
+    isComplete,
+    missingPlayerIds,
+  }
+}
+
+export async function recalculateMatchupsForSeasonWeek(
+  seasonId: string,
+  week: number,
+): Promise<{ updated: number; incomplete: number; summaries: MatchupScoreUpdateSummary[] }> {
+  const matchups = await prisma.redraftMatchup.findMany({
+    where: { seasonId, week },
+    select: { id: true },
+  })
+  const summaries: MatchupScoreUpdateSummary[] = []
+  let incomplete = 0
+  for (const matchup of matchups) {
+    const summary = await updateMatchupScores(matchup.id)
+    if (!summary) continue
+    summaries.push(summary)
+    if (!summary.isComplete) incomplete += 1
+  }
+  return { updated: summaries.length, incomplete, summaries }
 }
 
 export async function lockPlayersAtGameStart(_sport: string, _week: number): Promise<void> {

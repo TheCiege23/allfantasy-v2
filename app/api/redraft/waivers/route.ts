@@ -25,6 +25,13 @@ export async function GET(req: NextRequest) {
   const gate = await assertLeagueMember(season.leagueId, userId)
   if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
 
+  const roster = await prisma.redraftRoster.findFirst({
+    where: { id: rosterId, seasonId, leagueId: season.leagueId },
+    select: { ownerId: true },
+  })
+  if (!roster) return NextResponse.json({ error: 'Roster not found' }, { status: 404 })
+  if (roster.ownerId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
   const claims = await prisma.redraftWaiverClaim.findMany({
     where: { seasonId, rosterId },
     orderBy: { submittedAt: 'desc' },
@@ -67,6 +74,30 @@ export async function POST(req: NextRequest) {
   const gate = await assertLeagueMember(leagueId, userId)
   if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
 
+  const roster = await prisma.redraftRoster.findFirst({
+    where: { id: rosterId, seasonId, leagueId },
+    select: { ownerId: true, waiverPriority: true },
+  })
+  if (!roster) return NextResponse.json({ error: 'Roster not found' }, { status: 404 })
+  if (roster.ownerId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const bidAmount = body.bidAmount == null ? null : Number(body.bidAmount)
+  if (bidAmount != null && (!Number.isFinite(bidAmount) || bidAmount < 0)) {
+    return NextResponse.json({ error: 'Invalid bid amount' }, { status: 400 })
+  }
+
+  const existingPending = await prisma.redraftWaiverClaim.findFirst({
+    where: {
+      seasonId,
+      leagueId,
+      rosterId,
+      addPlayerId,
+      dropPlayerId: body.dropPlayerId ?? null,
+      status: 'pending',
+    },
+  })
+  if (existingPending) return NextResponse.json({ claim: existingPending, duplicate: true })
+
   const claim = await prisma.redraftWaiverClaim.create({
     data: {
       seasonId,
@@ -76,7 +107,8 @@ export async function POST(req: NextRequest) {
       addPlayerName,
       dropPlayerId: body.dropPlayerId ?? null,
       dropPlayerName: body.dropPlayerName ?? null,
-      bidAmount: body.bidAmount ?? null,
+      bidAmount,
+      priority: roster.waiverPriority,
     },
   })
 
@@ -89,7 +121,7 @@ export async function POST(req: NextRequest) {
       source: 'redraft_waiver_claim',
       payload: {
         claimId: claim.id,
-        bidAmount: body.bidAmount ?? null,
+        bidAmount,
         hasDrop: Boolean(body.dropPlayerId),
       },
     }),
@@ -116,6 +148,14 @@ export async function DELETE(req: NextRequest) {
 
   const c = await prisma.redraftWaiverClaim.findFirst({ where: { id: claimId, rosterId } })
   if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const roster = await prisma.redraftRoster.findFirst({
+    where: { id: rosterId, seasonId: c.seasonId, leagueId: c.leagueId },
+    select: { ownerId: true },
+  })
+  if (!roster) return NextResponse.json({ error: 'Roster not found' }, { status: 404 })
+  if (roster.ownerId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (c.status !== 'pending') return NextResponse.json({ error: 'Only pending claims can be cancelled' }, { status: 409 })
 
   await prisma.redraftWaiverClaim.update({
     where: { id: claimId },

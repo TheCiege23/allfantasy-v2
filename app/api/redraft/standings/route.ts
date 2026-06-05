@@ -22,9 +22,22 @@ export async function GET(req: NextRequest) {
 
   const rosters = await prisma.redraftRoster.findMany({
     where: { seasonId },
-    orderBy: [{ wins: 'desc' }, { pointsFor: 'desc' }],
+    orderBy: [{ wins: 'desc' }, { losses: 'asc' }, { pointsFor: 'desc' }, { pointsAgainst: 'asc' }],
   })
 
-  return NextResponse.json({ rosters })
+  const countedMatchups = await prisma.redraftMatchup.count({
+    where: {
+      seasonId,
+      OR: [{ status: 'final' }, { status: 'completed' }],
+    },
+  })
+
+  return NextResponse.json({
+    rosters,
+    dataStatus:
+      countedMatchups > 0
+        ? 'scored'
+        : 'No finalized redraft matchup scores yet. Run score sync after cached weekly stats are available.',
+  })
 }
 

@@ -12,6 +12,7 @@ const updateC2CMatchupScoresMock = vi.fn()
 const syncWeeklyScoresMock = vi.fn()
 const checkAllMatchupsCompleteMock = vi.fn()
 const runWeeklyResolutionMock = vi.fn()
+const requireAdminOrBearerMock = vi.fn()
 
 const prismaMock = {
   league: {
@@ -27,6 +28,9 @@ const prismaMock = {
     create: vi.fn(),
     findFirst: vi.fn(),
     update: vi.fn(),
+  },
+  redraftRoster: {
+    findFirst: vi.fn(),
   },
   redraftMatchup: {
     findFirst: vi.fn(),
@@ -86,6 +90,10 @@ vi.mock('@/lib/zombie/weeklyResolutionEngine', () => ({
   runWeeklyResolution: runWeeklyResolutionMock,
 }))
 
+vi.mock('@/lib/adminAuth', () => ({
+  requireAdminOrBearer: requireAdminOrBearerMock,
+}))
+
 describe('Redraft multi-sport route parity', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -93,6 +101,7 @@ describe('Redraft multi-sport route parity', () => {
     assertLeagueMemberMock.mockResolvedValue({ ok: true, status: 200 })
     leagueUsesDevyEngineMock.mockResolvedValue(false)
     leagueUsesC2CEngineMock.mockResolvedValue(false)
+    requireAdminOrBearerMock.mockResolvedValue({ ok: true, user: { id: 'admin-1' } })
     calculateOfficialTeamScoreMock.mockResolvedValue({ officialScore: 0 })
     generateScheduleMock.mockReturnValue([{ week: 1, home: 'r-1', away: 'r-2', type: 'regular', sport: 'NFL' }])
   })
@@ -159,6 +168,8 @@ describe('Redraft multi-sport route parity', () => {
     const matchup = await import('../app/api/redraft/matchup/route')
 
     for (const sport of sports) {
+      prismaMock.redraftRoster.findFirst.mockResolvedValueOnce({ ownerId: 'u-1', waiverPriority: 1 })
+      prismaMock.redraftWaiverClaim.findFirst.mockResolvedValueOnce(null)
       prismaMock.redraftWaiverClaim.create.mockResolvedValueOnce({ id: `wc-${sport}`, addPlayerId: 'p-1' })
       const postReq = createMockNextRequest('http://localhost/api/redraft/waivers', {
         method: 'POST',
@@ -192,7 +203,11 @@ describe('Redraft multi-sport route parity', () => {
     prismaMock.c2CLeague.findMany.mockResolvedValueOnce([])
 
     const { POST } = await import('../app/api/redraft/score-sync/route')
-    const res = await POST()
+    const req = createMockNextRequest('http://localhost/api/redraft/score-sync', {
+      method: 'POST',
+      body: {},
+    })
+    const res = await POST(req as any)
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toHaveProperty('message')

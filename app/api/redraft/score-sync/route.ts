@@ -1,16 +1,33 @@
 import { NextResponse } from 'next/server'
+import { requireAdminOrBearer } from '@/lib/adminAuth'
 import { prisma } from '@/lib/prisma'
 import { updateC2CMatchupScores } from '@/lib/c2c/scoringEngine'
 import { syncWeeklyScores } from '@/lib/survivor/gameStateMachine'
 import { checkAllMatchupsComplete } from '@/lib/zombie/matchupCompletion'
 import { runWeeklyResolution } from '@/lib/zombie/weeklyResolutionEngine'
 import { getZombieLeagueConfig } from '@/lib/zombie/ZombieLeagueConfig'
+import { syncPlayerWeeklyScoresForRedraftSeason } from '@/lib/redraft/playerWeeklyScoreService'
+import { recalculateMatchupsForSeasonWeek } from '@/lib/redraft/scoringEngine'
+import { updateStandings } from '@/lib/redraft/standingsEngine'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-export async function POST() {
-  // Placeholder: Rolling Insights / sport stats ingestion → PlayerWeeklyScore upserts.
+type ScoreSyncBody = {
+  leagueId?: string
+  seasonId?: string
+  week?: number
+}
+
+async function readBody(request: Request): Promise<ScoreSyncBody> {
+  try {
+    return ((await request.json()) ?? {}) as ScoreSyncBody
+  } catch {
+    return {}
+  }
+}
+
+async function runLegacyAutomationBridge() {
   const survivorBridge = { synced: 0, failed: 0 }
 
   const survivorLeagues = await prisma.league.findMany({
@@ -79,13 +96,57 @@ export async function POST() {
     }
   }
 
-  return NextResponse.json({
+  return {
     updated: 0,
     matchupsRecalculated: c2cMatchupsRecalculated,
-    message: 'score-sync stub — connect stats provider',
+    message: 'score-sync automation bridge ran; pass leagueId or seasonId to sync NFL PlayerWeeklyScore cache.',
     survivorBridge,
     zombieResolutionAttempts: zombieRes.length,
     zombieResolutionFailed: zombieRes.filter((r) => r.status === 'rejected').length,
     c2cLeaguesSynced: c2cLeagues.length,
-  })
+  }
+}
+
+export async function POST(request: Request) {
+  const gate = await requireAdminOrBearer(request)
+  if (!gate.ok) return gate.res
+
+  const body = await readBody(request)
+  const leagueId = body.leagueId?.trim()
+  const seasonId = body.seasonId?.trim()
+  const week = body.week != null ? Number(body.week) : undefined
+  const actorId = gate.user.id ?? gate.user.email ?? 'system'
+
+  if (!leagueId && !seasonId) {
+    return NextResponse.json(await runLegacyAutomationBridge())
+  }
+
+  try {
+    const syncSummary = await syncPlayerWeeklyScoresForRedraftSeason({
+      leagueId,
+      seasonId,
+      week,
+      actorId,
+    })
+    const matchups = await recalculateMatchupsForSeasonWeek(syncSummary.seasonId, syncSummary.week)
+    const standings = await updateStandings(syncSummary.seasonId, syncSummary.week)
+    const status = syncSummary.scoresUpserted > 0 ? 'synced' : 'unavailable'
+
+    return NextResponse.json({
+      ok: true,
+      status,
+      updated: syncSummary.scoresUpserted,
+      message:
+        status === 'synced'
+          ? 'NFL weekly cached stats synced into PlayerWeeklyScore.'
+          : 'No cached NFL weekly stats were available to sync. Run the provider/cache job first.',
+      sync: syncSummary,
+      matchups,
+      standings,
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Score sync failed'
+    const status = message.includes('not found') ? 404 : 500
+    return NextResponse.json({ ok: false, error: message }, { status })
+  }
 }

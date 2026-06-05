@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Loader2, TrendingUp, Zap } from 'lucide-react'
 import { ProjectionChip } from '@/components/sports/ProjectionCard'
 import { PlayerAvatar } from '@/components/app/draft-room/PlayerAvatar'
+import { fetchRedraftWaiverClaims, type RedraftWaiverClaimClient } from '@/lib/redraft/client'
 
 type WaiverTarget = {
   name: string
@@ -18,10 +19,40 @@ type WaiverTarget = {
   teamLogoUrl?: string | null
 }
 
-export function WaiverCenter({ seasonId, leagueId, sport }: { seasonId: string | null; leagueId?: string; sport?: string }) {
+export function WaiverCenter({
+  seasonId,
+  leagueId,
+  rosterId,
+  sport,
+}: {
+  seasonId: string | null
+  leagueId?: string
+  rosterId?: string | null
+  sport?: string
+}) {
   const [targets, setTargets] = useState<WaiverTarget[]>([])
+  const [claims, setClaims] = useState<RedraftWaiverClaimClient[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!seasonId || !rosterId) {
+      setClaims([])
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const rows = await fetchRedraftWaiverClaims(seasonId, rosterId)
+        if (!cancelled) setClaims(rows)
+      } catch {
+        if (!cancelled) setClaims([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [seasonId, rosterId])
 
   async function fetchSuggestions() {
     if (!leagueId) return
@@ -126,6 +157,49 @@ export function WaiverCenter({ seasonId, leagueId, sport }: { seasonId: string |
           ))}
         </div>
       )}
+
+      <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h4 className="text-[12px] font-bold text-white">Waiver claims</h4>
+          <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] text-white/45">
+            {sport ?? 'NFL'}
+          </span>
+        </div>
+        {!seasonId || !rosterId ? (
+          <p className="text-[11px] text-white/40">Select a roster to view waiver claims.</p>
+        ) : claims.length === 0 ? (
+          <p className="text-[11px] text-white/40">No waiver claims submitted for this roster.</p>
+        ) : (
+          <div className="space-y-2">
+            {claims.map((claim) => (
+              <div key={claim.id} className="rounded-lg border border-white/[0.06] bg-black/20 p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-[12px] font-semibold text-white">{claim.addPlayerName}</p>
+                    <p className="text-[10px] text-white/40">
+                      {claim.dropPlayerName ? `Drop ${claim.dropPlayerName}` : 'No drop'} - FAAB{' '}
+                      {claim.bidAmount ?? 0}
+                    </p>
+                  </div>
+                  <span
+                    className={[
+                      'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase',
+                      claim.status === 'approved'
+                        ? 'bg-emerald-400/15 text-emerald-200'
+                        : claim.status === 'denied'
+                          ? 'bg-rose-400/15 text-rose-200'
+                          : 'bg-cyan-400/15 text-cyan-100',
+                    ].join(' ')}
+                  >
+                    {claim.status}
+                  </span>
+                </div>
+                {claim.denialReason ? <p className="mt-1 text-[10px] text-amber-100/80">{claim.denialReason}</p> : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

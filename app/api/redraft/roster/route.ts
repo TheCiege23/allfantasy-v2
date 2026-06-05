@@ -24,7 +24,29 @@ export async function GET(req: NextRequest) {
   const gate = await assertLeagueMember(roster.leagueId, userId)
   if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
 
-  return NextResponse.json({ roster, week })
+  const playerIds = roster.players.map((p) => p.playerId)
+  const scores = playerIds.length
+    ? await prisma.playerWeeklyScore.findMany({
+        where: {
+          playerId: { in: playerIds },
+          week,
+          season: roster.season.season,
+          sport: { in: Array.from(new Set(roster.players.map((p) => p.sport))) },
+        },
+      })
+    : []
+  const scoreByPlayer = new Map(scores.map((score) => [`${score.playerId}:${score.sport}`, score]))
+
+  return NextResponse.json({
+    roster: {
+      ...roster,
+      players: roster.players.map((player) => ({
+        ...player,
+        weeklyScore: scoreByPlayer.get(`${player.playerId}:${player.sport}`) ?? null,
+      })),
+    },
+    week,
+  })
 }
 
 export async function PATCH(req: NextRequest) {

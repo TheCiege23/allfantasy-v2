@@ -7,7 +7,18 @@ export function StandingsView({
   rows,
   seasonId,
 }: {
-  rows: { id: string; teamName: string | null; wins: number; losses: number; pointsFor: number }[]
+  rows: {
+    id: string
+    teamName: string | null
+    ownerName?: string | null
+    wins: number
+    losses: number
+    ties?: number
+    pointsFor: number
+    pointsAgainst?: number
+    playoffSeed?: number | null
+    streak?: string | null
+  }[]
   seasonId: string | null
 }) {
   const [playoffTeams, setPlayoffTeams] = useState<number>(Math.min(6, Math.max(2, rows.length || 6)))
@@ -66,19 +77,23 @@ export function StandingsView({
           <tr>
             <th className="px-3 py-2">#</th>
             <th className="px-3 py-2">Team</th>
-            <th className="px-3 py-2">W-L</th>
+            <th className="px-3 py-2">W-L-T</th>
             <th className="px-3 py-2">PF</th>
+            <th className="px-3 py-2">PA</th>
+            <th className="px-3 py-2">Streak</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r, i) => (
             <tr key={r.id} className="border-b border-white/[0.05]">
-              <td className="px-3 py-2 text-white/45">{i + 1}</td>
-              <td className="px-3 py-2">{r.teamName ?? r.id.slice(0, 6)}</td>
+              <td className="px-3 py-2 text-white/45">{r.playoffSeed ?? i + 1}</td>
+              <td className="px-3 py-2">{r.teamName ?? r.ownerName ?? r.id.slice(0, 6)}</td>
               <td className="px-3 py-2">
-                {r.wins}-{r.losses}
+                {r.wins}-{r.losses}-{r.ties ?? 0}
               </td>
               <td className="px-3 py-2">{r.pointsFor.toFixed(1)}</td>
+              <td className="px-3 py-2">{(r.pointsAgainst ?? 0).toFixed(1)}</td>
+              <td className="px-3 py-2">{r.streak ?? '-'}</td>
             </tr>
           ))}
         </tbody>
