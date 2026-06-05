@@ -19,6 +19,10 @@ export type ChimmyIntent =
   | "rankings"
   | "matchup"
   | "draft"
+  | "commissioner"
+  | "bracket"
+  | "injury"
+  | "weather"
   | "start_sit"
   | "sports_schedule"
   | "general"
@@ -109,11 +113,48 @@ const INTENT_TERMS: Record<Exclude<ChimmyIntent, "general">, RegExp[]> = {
     /\bpick (?:\d|number)\b/i,
     /\b\d+\.\d+\b/, // round.pick notation like "2.05"
   ],
+  commissioner: [
+    /\bcommissioner\b/i,
+    /\bcommish\b/i,
+    /\bleague health\b/i,
+    /\bannouncement\b/i,
+    /\bweekly recap\b/i,
+    /\bintegrity report\b/i,
+    /\binactive managers?\b/i,
+    /\bmember activity\b/i,
+  ],
+  bracket: [
+    /\bbracket\b/i,
+    /\bworld\s*cup\b/i,
+    /\bpool\b.*\b(picks?|leaderboard|champion)\b/i,
+    /\bchampion pick\b/i,
+    /\bknockout\b/i,
+    /\bgroup stage\b/i,
+  ],
+  injury: [
+    /\binjur(?:y|ies|ed)\b/i,
+    /\bquestionable\b/i,
+    /\bdoubtful\b/i,
+    /\bgame[- ]?time decision\b/i,
+    /\binactives?\b/i,
+  ],
+  weather: [
+    /\bweather\b/i,
+    /\bwind\b/i,
+    /\brain\b/i,
+    /\bsnow\b/i,
+    /\bstorm\b/i,
+    /\btemperature\b/i,
+  ],
 }
 
 /** Order matters for tie-breaks. More specific intents win. */
 const PRIORITY: ChimmyIntent[] = [
   "sports_schedule",
+  "weather",
+  "injury",
+  "commissioner",
+  "bracket",
   "start_sit",
   "trade",
   "waiver",

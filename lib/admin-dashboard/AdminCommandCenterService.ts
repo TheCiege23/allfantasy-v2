@@ -21,6 +21,10 @@ import {
   getEmailCenterStatus,
   type AdminEmailStatus,
 } from "@/lib/admin-dashboard/AdminEmailCenterService"
+import {
+  buildSportsOperatingSystemAudit,
+  type SportsOperatingSystemAudit,
+} from "@/lib/sports-os/SportsOperatingSystemReadinessService"
 import { maskAdminEmail } from "@/lib/admin-dashboard/format"
 
 type MetricValue = number | string
@@ -111,6 +115,7 @@ export type AdminCommandCenterMetrics = {
   chimmySportReadiness: ChimmySportReadiness[]
   productionReadiness: AdminProductionReadiness
   emailStatus: AdminEmailStatus
+  sportsOperatingSystem: SportsOperatingSystemAudit
   traffic: AdminMetric[]
   integrity: AdminMetric[]
   dataQuality: AdminMetric[]
@@ -578,6 +583,10 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
   const sportImportMatrix = getSportImportMatrix(sportDataReliability)
   const aiToolAvailability = getDashboardAiToolAvailability(sportDataReliability)
   const chimmySportReadiness = getChimmySportReadiness(sportDataReliability)
+  const sportsOperatingSystem = buildSportsOperatingSystemAudit({
+    importMatrix: sportImportMatrix,
+    aiToolAvailability,
+  })
 
   return {
     generatedAt: new Date().toISOString(),
@@ -696,6 +705,7 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     chimmySportReadiness,
     productionReadiness,
     emailStatus,
+    sportsOperatingSystem,
     usersSearch,
     activeWorldCupPools,
     recentUsers,

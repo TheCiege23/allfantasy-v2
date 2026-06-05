@@ -22,6 +22,10 @@ import type {
   EnvReadinessStatus,
 } from "@/lib/admin-dashboard/AdminProductionReadinessService"
 import type { AdminEmailStatus } from "@/lib/admin-dashboard/AdminEmailCenterService"
+import type {
+  SportsOperatingSystemAudit,
+  SportsOsStatus,
+} from "@/lib/sports-os/SportsOperatingSystemReadinessService"
 
 export const dynamic = "force-dynamic"
 
@@ -137,6 +141,18 @@ function statusPillClass(status: string) {
     return "border-amber-300/35 bg-amber-300/10 text-amber-100"
   }
   return "border-rose-300/35 bg-rose-300/10 text-rose-100"
+}
+
+function sportsOsStatusClass(status: SportsOsStatus) {
+  if (status === "ready") return "border-emerald-300/35 bg-emerald-300/10 text-emerald-100"
+  if (status === "partial") return "border-amber-300/35 bg-amber-300/10 text-amber-100"
+  return "border-rose-300/35 bg-rose-300/10 text-rose-100"
+}
+
+function sportsOsStatusLabel(status: SportsOsStatus) {
+  if (status === "ready") return "Ready"
+  if (status === "partial") return "Partial"
+  return "Missing"
 }
 
 function envStatusLabel(status: EnvReadinessStatus) {
@@ -272,6 +288,143 @@ function EmailCenterPanel({ status }: { status: AdminEmailStatus }) {
               <div className="mt-1 text-xs text-white/48">{audience.description}</div>
             </div>
           ))}
+        </div>
+      </div>
+    </AccordionSection>
+  )
+}
+
+function SportsOperatingSystemPanel({ audit }: { audit: SportsOperatingSystemAudit }) {
+  const phaseGroups = [
+    { title: "Identity", rows: audit.identityFindings },
+    { title: "Historical Data", rows: audit.historicalDataFindings },
+    { title: "Images / Logos", rows: audit.imageLogoFindings },
+    { title: "Fantasy Value", rows: audit.fantasyValueEngine },
+    { title: "Trade Analyzer", rows: audit.tradeAnalyzer },
+    { title: "Draft Advisor", rows: audit.draftAdvisor },
+    { title: "Commissioner Copilot", rows: audit.commissionerCopilot },
+    { title: "Bracket Intelligence", rows: audit.bracketIntelligence },
+    { title: "Freshness", rows: audit.dataFreshness },
+  ]
+
+  return (
+    <AccordionSection title="Sports OS / Chimmy Brain Readiness" eyebrow="master data and commissioner value">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <MetricCard item={{ label: "Ready signals", value: audit.summary.ready, tracked: true }} />
+        <MetricCard item={{ label: "Partial signals", value: audit.summary.partial, tracked: true }} />
+        <MetricCard item={{ label: "Missing signals", value: audit.summary.missing, tracked: true }} />
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/[0.08] p-4">
+        <h3 className="text-xs font-black uppercase tracking-[0.16em] text-amber-100/85">Biggest data holes</h3>
+        <div className="mt-3 grid gap-2 lg:grid-cols-2">
+          {audit.biggestDataHoles.map((hole) => (
+            <div key={hole} className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs font-semibold text-white/65">
+              {hole}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 xl:grid-cols-3">
+        {phaseGroups.map((group) => (
+          <div key={group.title} className="rounded-2xl border border-white/10 bg-black/25 p-4">
+            <h3 className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100/75">{group.title}</h3>
+            <div className="mt-3 space-y-3">
+              {group.rows.map((row) => (
+                <div key={row.id} className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="font-black text-white">{row.label}</div>
+                    <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-black ${sportsOsStatusClass(row.status)}`}>
+                      {sportsOsStatusLabel(row.status)}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-[11px] leading-4 text-white/48">{row.recommendation}</div>
+                  {row.gaps.length > 0 ? (
+                    <div className="mt-2 text-[11px] leading-4 text-amber-100/75">
+                      Gaps: {row.gaps.slice(0, 3).join("; ")}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10 bg-black/25 p-4">
+        <h3 className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100/75">Per-sport grounding</h3>
+        <table className="mt-3 w-full min-w-[980px] text-left text-xs">
+          <thead className="text-[10px] uppercase tracking-[0.16em] text-white/42">
+            <tr>
+              <th className="py-2 pr-3">Sport</th>
+              <th className="py-2 pr-3">Identity</th>
+              <th className="py-2 pr-3">History</th>
+              <th className="py-2 pr-3">Current facts</th>
+              <th className="py-2 pr-3">Images/logos</th>
+              <th className="py-2 pr-3">AI grounding</th>
+              <th className="py-2 pr-3">Missing</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/10">
+            {audit.sports.map((row) => (
+              <tr key={row.id} className="align-top text-white/70">
+                <td className="py-3 pr-3 font-black text-white">{row.label}</td>
+                {[row.identityStatus, row.historicalStatus, row.currentFactsStatus, row.imageLogoStatus, row.aiGroundingStatus].map((status, index) => (
+                  <td key={`${row.id}-${index}`} className="py-3 pr-3">
+                    <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${sportsOsStatusClass(status)}`}>
+                      {sportsOsStatusLabel(status)}
+                    </span>
+                  </td>
+                ))}
+                <td className="max-w-[280px] py-3 pr-3 text-[11px] leading-4 text-white/48">
+                  {row.missingData.length ? row.missingData.slice(0, 6).join(", ") : "No critical gaps"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+        <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+          <h3 className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100/75">Chimmy intent routes</h3>
+          <div className="mt-3 grid gap-2">
+            {audit.chimmyIntentRoutes.map((route) => (
+              <div key={route.intent} className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-black text-white">{route.intent}</div>
+                    <div className="text-[11px] text-white/45">{route.targetEngine}</div>
+                  </div>
+                  <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${sportsOsStatusClass(route.status)}`}>
+                    {sportsOsStatusLabel(route.status)}
+                  </span>
+                </div>
+                <div className="mt-2 text-[11px] text-white/50">{route.tokenPolicy}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+          <h3 className="text-xs font-black uppercase tracking-[0.16em] text-amber-100/75">Specialty league support</h3>
+          <div className="mt-3 grid gap-2">
+            {audit.leagueFormats.map((format) => (
+              <div key={format.id} className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-black text-white">{format.label}</div>
+                    <div className="text-[11px] text-white/45">{format.supportedSports.join(", ")}</div>
+                  </div>
+                  <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${sportsOsStatusClass(format.status)}`}>
+                    {sportsOsStatusLabel(format.status)}
+                  </span>
+                </div>
+                <div className="mt-2 text-[11px] text-white/50">{format.commissionerValue}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </AccordionSection>
@@ -726,6 +879,7 @@ export default async function AdminPage({
         <ProductionReadinessPanel data={data.productionReadiness} />
         <TrafficGeoPanel data={data.productionReadiness} metrics={data.traffic} />
         <EmailCenterPanel status={data.emailStatus} />
+        <SportsOperatingSystemPanel audit={data.sportsOperatingSystem} />
         <Section title="Integrity / Fraud Signals" items={data.integrity} />
         <Section title="Admin Data Quality" items={data.dataQuality} />
         <AccordionSection title="Sports API Health" eyebrow="providers" defaultOpen={false}>

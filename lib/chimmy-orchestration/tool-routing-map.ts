@@ -29,6 +29,14 @@ export function intentToToolId(intent: ChimmyOrchestrationIntent): ChimmyToolId 
       return 'player_outlook'
     case 'draft':
       return 'draft_assistant'
+    case 'commissioner':
+      return 'commissioner_report'
+    case 'bracket':
+      return 'bracket_intelligence'
+    case 'injury':
+      return 'injury_report'
+    case 'weather':
+      return 'weather_engine'
     case 'matchup':
       return 'matchup_simulator'
     case 'league_strength':
@@ -115,6 +123,40 @@ export function resolveToolLaunches(
         })
       }
       break
+    case 'commissioner':
+      push(
+        'commissioner_report',
+        'Commissioner Copilot',
+        ctx.leagueId
+          ? `/app/league/${encodeURIComponent(ctx.leagueId)}?tab=commissioner`
+          : `/leagues${qs({ sport, source: 'chimmy_orchestration' })}`,
+        'League health, activity, integrity, announcements, and commissioner reports.'
+      )
+      break
+    case 'bracket':
+      push(
+        'bracket_intelligence',
+        'Bracket Intelligence',
+        `/brackets/world-cup${qs({ source: 'chimmy_orchestration' })}`,
+        'Cache-grounded bracket, pool, and tournament context.'
+      )
+      break
+    case 'injury':
+      push(
+        'injury_report',
+        'Injury Impact',
+        `/ai/tools${qs({ tool: 'injury-impact', sport, leagueId: ctx.leagueId ?? undefined })}`,
+        'Roster-aware injury impact using cached injury data.'
+      )
+      break
+    case 'weather':
+      push(
+        'weather_engine',
+        'Weather Engine',
+        `/ai/tools${qs({ tool: 'weather', sport, leagueId: ctx.leagueId ?? undefined })}`,
+        'Game weather context when cached provider data is available.'
+      )
+      break
     case 'matchup':
       push(
         'matchup_simulator',
@@ -186,6 +228,18 @@ export function buildFollowUps(intent: ChimmyOrchestrationIntent, ctx: ToolRouti
       break
     case 'player_value':
       out.push({ label: 'ROS priority', prompt: `Who should I prioritize for the rest of the season?` })
+      break
+    case 'commissioner':
+      out.push({ label: 'League health', prompt: `What should I do next as commissioner${league}?` })
+      break
+    case 'bracket':
+      out.push({ label: 'Bracket risks', prompt: `What bracket picks need the most attention?` })
+      break
+    case 'injury':
+      out.push({ label: 'Injury impact', prompt: `Which injuries matter most for my roster${league}?` })
+      break
+    case 'weather':
+      out.push({ label: 'Weather check', prompt: `Which games have weather risk this week?` })
       break
     case 'matchup':
       out.push({ label: 'Ceiling week', prompt: `Which of my starters has the highest ceiling this week?` })

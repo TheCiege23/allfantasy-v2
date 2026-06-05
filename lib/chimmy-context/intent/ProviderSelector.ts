@@ -52,6 +52,10 @@ const INTENT_ADDITIONS: Record<ChimmyIntent, ProviderName[]> = {
   dynasty: ["ranking", "leagueDifficulty", "standings"],
   rankings: ["ranking", "leagueDifficulty"],
   draft: ["ranking"],
+  commissioner: ["standings", "leagueDifficulty"],
+  bracket: ["sportsSchedule"],
+  injury: ["roster", "ranking", "sportsSchedule"],
+  weather: ["sportsSchedule"],
 }
 
 /**

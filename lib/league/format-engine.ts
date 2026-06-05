@@ -502,6 +502,10 @@ export function mapImportedLeagueToFormat(input: {
   }
 }
 
+export function getLeagueFormatDefinitions(): LeagueFormatDefinition[] {
+  return Object.values(FORMAT_REGISTRY)
+}
+
 export function getFormatIntroMetadata(options: {
   sport: LeagueSport | string
   leagueType?: string | null

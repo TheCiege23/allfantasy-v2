@@ -91,6 +91,136 @@ function metricsFixture() {
       lastError: null,
       audiences: [{ id: "all", label: "All signed-up users", description: "All users." }],
     },
+    sportsOperatingSystem: {
+      generatedAt: "2026-06-04T12:00:00.000Z",
+      summary: { ready: 1, partial: 3, missing: 2 },
+      biggestDataHoles: ["News incomplete for: MLB"],
+      identityFindings: [
+        {
+          id: "identity",
+          label: "Canonical player/team identity",
+          status: "partial",
+          evidence: ["Some identity rows exist."],
+          gaps: ["MLB: players incomplete"],
+          recommendation: "Use canonical identity before AI answers.",
+        },
+      ],
+      historicalDataFindings: [
+        {
+          id: "history",
+          label: "Historical sports data cache",
+          status: "partial",
+          evidence: ["Some stats exist."],
+          gaps: ["Player stats incomplete"],
+          recommendation: "Import stats before career-trend answers.",
+        },
+      ],
+      imageLogoFindings: [
+        {
+          id: "images",
+          label: "Player headshots and team logos",
+          status: "partial",
+          evidence: ["Some player rows exist."],
+          gaps: ["Broken-image audit missing"],
+          recommendation: "Add image audit.",
+        },
+      ],
+      fantasyValueEngine: [
+        {
+          id: "value",
+          label: "Fantasy Value Engine",
+          status: "partial",
+          evidence: ["Trade tool exists."],
+          gaps: ["Unified value missing"],
+          recommendation: "Promote engines behind one value contract.",
+        },
+      ],
+      tradeAnalyzer: [
+        {
+          id: "trade",
+          label: "Trade Analyzer",
+          status: "ready",
+          evidence: ["Tool active."],
+          gaps: [],
+          recommendation: "Keep route grounded.",
+        },
+      ],
+      draftAdvisor: [
+        {
+          id: "draft",
+          label: "Draft Advisor",
+          status: "partial",
+          evidence: ["Draft room exists."],
+          gaps: ["ADP readiness missing"],
+          recommendation: "Use live draft brain when data is fresh.",
+        },
+      ],
+      commissionerCopilot: [
+        {
+          id: "commissioner",
+          label: "Commissioner Copilot",
+          status: "partial",
+          evidence: ["AI commissioner exists."],
+          gaps: ["Reports incomplete"],
+          recommendation: "Gate advanced reports.",
+        },
+      ],
+      bracketIntelligence: [
+        {
+          id: "bracket",
+          label: "World Cup / bracket intelligence",
+          status: "partial",
+          evidence: ["World Cup cache exists."],
+          gaps: ["Future brackets missing"],
+          recommendation: "Use cache-first fixtures.",
+        },
+      ],
+      dataFreshness: [
+        {
+          id: "freshness",
+          label: "Data freshness engine",
+          status: "partial",
+          evidence: ["lastSyncedAt exists."],
+          gaps: ["Some stale rows"],
+          recommendation: "Refuse missing exact facts.",
+        },
+      ],
+      sports: [
+        {
+          id: "nfl",
+          label: "NFL",
+          identityStatus: "partial",
+          historicalStatus: "partial",
+          currentFactsStatus: "partial",
+          imageLogoStatus: "partial",
+          aiGroundingStatus: "partial",
+          missingData: ["News"],
+          lastSyncedAt: null,
+        },
+      ],
+      leagueFormats: [
+        {
+          id: "dynasty",
+          label: "Dynasty",
+          supportedSports: ["NFL"],
+          deterministicFeatures: ["scoring"],
+          premiumAiFeatures: ["dynasty_trade_advice"],
+          status: "partial",
+          commissionerValue: "Premium AI should be gated.",
+        },
+      ],
+      chimmyIntentRoutes: [
+        {
+          intent: "trade",
+          targetEngine: "Trade Analyzer",
+          status: "ready",
+          requiredData: ["identity"],
+          tokenPolicy: "No charge when data unavailable.",
+          note: "Tracked.",
+        },
+      ],
+      remainingGaps: ["Weather engine not proven."],
+    },
     providerHealth: [
       {
         id: "api_football_world_cup",
@@ -176,6 +306,7 @@ describe("/admin page render states", () => {
     expect(screen.getAllByText(/Production Env/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/Traffic \/ Visitors/i)).toBeInTheDocument()
     expect(screen.getByText(/Email Notifications/i)).toBeInTheDocument()
+    expect(screen.getByText(/Sports OS \/ Chimmy Brain/i)).toBeInTheDocument()
     expect(screen.getByText(/Integrity \/ Fraud/i)).toBeInTheDocument()
     expect(screen.getByText("API-Football / API-Sports World Cup")).toBeInTheDocument()
     expect(screen.getByText(/Recent Users/i)).toBeInTheDocument()
