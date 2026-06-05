@@ -48,6 +48,10 @@ declare module '@/lib/world-cup/worldCupDataProvider' {
     constructor(provider: any, message: string)
   }
 }
+declare module '@/lib/world-cup/worldCupCommissionerAccess' {
+  export const WORLD_CUP_ADVANCED_COMMISSIONER_FEATURE: any
+  export function userHasWorldCupCommissionerAccess(userId: string, email?: string | null): Promise<boolean>
+}
 declare module '@/lib/world-cup/worldCupSimulationService' {
   export function getWorldCupSimulationAccessState(challengeId: string): Promise<any>
   export function isWorldCupSimulationAllowed(input: any): { allowed: boolean; reason?: string }

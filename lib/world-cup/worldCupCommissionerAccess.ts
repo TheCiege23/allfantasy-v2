@@ -7,7 +7,7 @@ export const WORLD_CUP_ADVANCED_COMMISSIONER_FEATURE: SubscriptionFeatureId = "a
 export async function userHasWorldCupCommissionerAccess(
   userId: string,
   email?: string | null
-) {
+): Promise<boolean> {
   const resolver = new EntitlementResolver()
   const result = await resolver.resolveForUser(
     userId,
