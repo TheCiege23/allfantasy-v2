@@ -6,6 +6,7 @@ import { runInjuryImporter } from "@/lib/workers/injury-importer"
 import { runNewsImporter } from "@/lib/workers/news-importer"
 import { runScheduleImporter } from "@/lib/workers/schedule-importer"
 import { runSportsDataImporter } from "@/lib/workers/sports-data-importer"
+import { getSportsIdentityHealthSnapshot } from "@/lib/sports-os/SportsIdentityHealthService"
 
 export type AdminSportsSyncType =
   | "schedules"
@@ -15,6 +16,9 @@ export type AdminSportsSyncType =
   | "player_stats"
   | "rankings"
   | "projections"
+  | "identity_health"
+  | "image_audit"
+  | "fantasy_value_snapshots"
   | "all"
 
 export type AdminSportsSyncResult = {
@@ -43,6 +47,9 @@ function normalizeSyncType(raw: string | null | undefined): AdminSportsSyncType 
   if (value === "schedule") return "schedules"
   if (value === "injury") return "injuries"
   if (value === "player_stats" || value === "stats") return "player_stats"
+  if (value === "identity" || value === "identity_health") return "identity_health"
+  if (value === "image" || value === "images" || value === "image_audit") return "image_audit"
+  if (value === "fantasy_value" || value === "fantasy_value_snapshots") return "fantasy_value_snapshots"
   if (["schedules", "injuries", "news", "players", "rankings", "projections", "all"].includes(value)) {
     return value as AdminSportsSyncType
   }
@@ -112,7 +119,9 @@ export async function runAdminSportsSync(input: {
   }
 
   if (dryRun) {
-    const planned = type === "all" ? ["schedules", "injuries", "news", "players"] : [type]
+    const planned = type === "all"
+      ? ["schedules", "injuries", "news", "players", "identity_health", "image_audit", "fantasy_value_snapshots"]
+      : [type]
     const finishedAt = new Date().toISOString()
     return {
       ok: true,
@@ -164,6 +173,38 @@ export async function runAdminSportsSync(input: {
     jobs.push({ type: jobType, imported: result.imported, sports: result.sports, warning })
     if (warning) warnings.push(warning)
     await recordJobSync({ entityType: jobType, sports: result.sports, imported: result.imported })
+  }
+
+  if (shouldRun("identity_health")) {
+    const snapshot = await getSportsIdentityHealthSnapshot()
+    jobs.push({
+      type: "identity_health",
+      imported: 0,
+      sports: sports.length ? sports : snapshot.rows.map((row) => row.sport),
+      warning: `${snapshot.summary.identityProblems} cached identity problem(s) detected across ${snapshot.summary.sportsAudited} sport(s).`,
+    })
+    warnings.push("Identity health refresh is cache-only. No provider calls or DB writes were made.")
+  }
+
+  if (shouldRun("image_audit")) {
+    const snapshot = await getSportsIdentityHealthSnapshot()
+    jobs.push({
+      type: "image_audit",
+      imported: 0,
+      sports: sports.length ? sports : snapshot.imageRows.map((row) => row.sport),
+      warning: `${snapshot.summary.imageProblems} cached image/logo problem(s) detected. External image URLs were not probed.`,
+    })
+    warnings.push("Image audit checks URL metadata only. It does not fetch thousands of remote images.")
+  }
+
+  if (shouldRun("fantasy_value_snapshots")) {
+    jobs.push({
+      type: "fantasy_value_snapshots",
+      imported: 0,
+      sports,
+      warning: "FantasyValueSnapshot is generated on demand from cached player/stat/news/injury rows; no persistent snapshot table exists yet.",
+    })
+    warnings.push("Persistent FantasyValueSnapshot refresh is not tracked yet; on-demand snapshots are available for grounded tools.")
   }
 
   const finishedAt = new Date().toISOString()

@@ -27,7 +27,19 @@ export async function GET(request: NextRequest) {
     controls: {
       endpoint: "/api/admin/sports/sync",
       methods: ["GET status", "POST sync"],
-      syncTypes: ["schedules", "injuries", "news", "players", "player_stats", "rankings", "projections", "all"],
+      syncTypes: [
+        "schedules",
+        "injuries",
+        "news",
+        "players",
+        "player_stats",
+        "rankings",
+        "projections",
+        "identity_health",
+        "image_audit",
+        "fantasy_value_snapshots",
+        "all",
+      ],
       notes: [
         "Admin/bearer protected.",
         "Public user routes remain cache-only.",

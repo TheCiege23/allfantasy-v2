@@ -221,6 +221,66 @@ function metricsFixture() {
       ],
       remainingGaps: ["Weather engine not proven."],
     },
+    sportsIdentityHealth: {
+      generatedAt: "2026-06-04T12:00:00.000Z",
+      summary: {
+        sportsAudited: 1,
+        totalPlayers: 900,
+        totalTeams: 32,
+        identityProblems: 3,
+        imageProblems: 4,
+        readySports: 0,
+        partialSports: 1,
+        missingSports: 0,
+      },
+      rows: [
+        {
+          id: "nfl",
+          sport: "NFL",
+          label: "NFL",
+          playerCount: 900,
+          teamCount: 32,
+          canonicalIdentityCount: 850,
+          playersMissingProviderIds: 1,
+          playersMissingTeam: 1,
+          playersMissingPosition: 0,
+          playersMissingStatus: 0,
+          duplicatePlayerNameGroups: 1,
+          duplicateProviderMappingGroups: 0,
+          activeStatusTeamMismatches: 0,
+          teamMappingMismatches: 0,
+          status: "partial",
+          topProblems: ["Missing provider ids: 1"],
+        },
+      ],
+      imageRows: [
+        {
+          id: "nfl",
+          sport: "NFL",
+          label: "NFL",
+          playersMissingHeadshots: 3,
+          teamsMissingLogos: 1,
+          duplicateHeadshotGroups: 0,
+          duplicateLogoGroups: 0,
+          invalidHeadshotUrlPatterns: 0,
+          invalidLogoUrlPatterns: 0,
+          status: "partial",
+          topProblems: ["Missing headshots: 3"],
+        },
+      ],
+      topProblems: [
+        {
+          id: "nfl:missing-headshots",
+          sport: "NFL",
+          label: "NFL",
+          severity: "medium",
+          category: "image",
+          message: "Players missing usable headshot URLs.",
+          count: 3,
+          recommendation: "Backfill headshots.",
+        },
+      ],
+    },
     providerHealth: [
       {
         id: "api_football_world_cup",
@@ -307,6 +367,7 @@ describe("/admin page render states", () => {
     expect(screen.getByText(/Traffic \/ Visitors/i)).toBeInTheDocument()
     expect(screen.getByText(/Email Notifications/i)).toBeInTheDocument()
     expect(screen.getByText(/Sports OS \/ Chimmy Brain/i)).toBeInTheDocument()
+    expect(screen.getByText(/Sports OS Identity/i)).toBeInTheDocument()
     expect(screen.getByText(/Integrity \/ Fraud/i)).toBeInTheDocument()
     expect(screen.getByText("API-Football / API-Sports World Cup")).toBeInTheDocument()
     expect(screen.getByText(/Recent Users/i)).toBeInTheDocument()

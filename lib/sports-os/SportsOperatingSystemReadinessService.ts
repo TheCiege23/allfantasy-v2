@@ -6,6 +6,7 @@ import type {
 } from "@/lib/admin-dashboard/SportImportMatrixService"
 import type { LeagueFormatDefinition } from "@/lib/league/format-engine"
 import { getLeagueFormatDefinitions } from "@/lib/league/format-engine"
+import type { SportsIdentityHealthSnapshot } from "@/lib/sports-os/SportsIdentityHealthService"
 
 export type SportsOsStatus = "ready" | "partial" | "missing"
 
@@ -173,7 +174,11 @@ function item(input: SportsOsReadinessItem): SportsOsReadinessItem {
   return input
 }
 
-function buildPhaseItems(rows: SportImportMatrixRow[], tools: DashboardAiToolAvailability[]): Pick<
+function buildPhaseItems(
+  rows: SportImportMatrixRow[],
+  tools: DashboardAiToolAvailability[],
+  identityHealth?: SportsIdentityHealthSnapshot
+): Pick<
   SportsOperatingSystemAudit,
   | "identityFindings"
   | "historicalDataFindings"
@@ -189,7 +194,7 @@ function buildPhaseItems(rows: SportImportMatrixRow[], tools: DashboardAiToolAva
   const identityReady = sportsRows.filter((row) => row.identityStatus === "ready").length
   const historyReady = sportsRows.filter((row) => row.historicalStatus === "ready").length
   const currentFactsReady = sportsRows.filter((row) => row.currentFactsStatus === "ready").length
-  const imagePartial = sportsRows.some((row) => row.imageLogoStatus === "partial")
+  const imagePartial = sportsRows.some((row) => row.imageLogoStatus === "partial") || Boolean(identityHealth?.summary.totalPlayers)
   const trade = toolById(tools, "trade")
   const startSit = toolById(tools, "startSit")
   const power = toolById(tools, "power")
@@ -210,10 +215,12 @@ function buildPhaseItems(rows: SportImportMatrixRow[], tools: DashboardAiToolAva
       item({
         id: "external-provider-mappings",
         label: "External provider mapping coverage",
-        status: "partial",
-        evidence: ["PlayerIdentityMap exists in Prisma and provider-specific import code exists."],
-        gaps: ["No single admin count yet for API Sports, Rolling Insights, ClearSports, Sleeper, CFBD, TheSportsDB, and ESPN mappings per sport."],
-        recommendation: "Add per-provider identity-map counts to admin before trusting cross-provider merges at scale.",
+        status: identityHealth ? "partial" : "missing",
+        evidence: identityHealth
+          ? [`Admin identity health tracks ${identityHealth.summary.identityProblems} cached identity problem(s).`]
+          : ["PlayerIdentityMap exists in Prisma and provider-specific import code exists."],
+        gaps: ["Per-provider mapping counts are still aggregated into problem totals instead of a full provider-by-provider grid."],
+        recommendation: "Use the cached identity health panel for launch triage, then expand it into provider-specific mapping counts.",
       }),
     ],
     historicalDataFindings: [
@@ -231,9 +238,13 @@ function buildPhaseItems(rows: SportImportMatrixRow[], tools: DashboardAiToolAva
         id: "headshots-logos",
         label: "Player headshots and team logos",
         status: imagePartial ? "partial" : "missing",
-        evidence: imagePartial ? ["Some team/player rows exist that may carry image fields."] : [],
-        gaps: ["No full cross-sport broken-image, duplicate-image, or wrong-logo audit is wired into admin yet."],
-        recommendation: "Add a cached image audit using SportsPlayer/SportsTeam/TeamAsset URL fields and HTTP status sampling from admin jobs only.",
+        evidence: identityHealth
+          ? [`Cached image/logo health reports ${identityHealth.summary.imageProblems} metadata problem(s).`]
+          : imagePartial
+            ? ["Some team/player rows exist that may carry image fields."]
+            : [],
+        gaps: ["External HTTP image status sampling is intentionally not run from page requests."],
+        recommendation: "Use cached image metadata for launch triage; run remote status sampling only from a bounded admin job.",
       }),
     ],
     fantasyValueEngine: [
@@ -245,9 +256,10 @@ function buildPhaseItems(rows: SportImportMatrixRow[], tools: DashboardAiToolAva
           `Start/Sit: ${startSit?.status ?? "missing"}`,
           `Trade: ${trade?.status ?? "missing"}`,
           `Power: ${power?.status ?? "missing"}`,
+          "FantasyValueSnapshot contract now produces cached partial snapshots with missingData/confidence.",
         ],
-        gaps: ["No single value output yet for redraft, dynasty, keeper, best ball, IDP, salary cap, devy, and C2C across every sport."],
-        recommendation: "Promote existing trade/draft/projection engines behind one deterministic value contract with confidence and required-data checks.",
+        gaps: ["Not every legacy trade/draft route consumes FantasyValueSnapshot yet."],
+        recommendation: "Route paid AI actions through FantasyValueSnapshot before model execution and refuse unsupported exact claims.",
       }),
     ],
     tradeAnalyzer: [
@@ -257,7 +269,7 @@ function buildPhaseItems(rows: SportImportMatrixRow[], tools: DashboardAiToolAva
         status: toolStatus(trade?.status),
         evidence: [`Admin AI tool status: ${trade?.status ?? "missing"}.`],
         gaps: trade?.missingData ?? ["players", "stats", "news"],
-        recommendation: "Keep trade routes grounded in cached player identity, league scoring, injuries, news, and schedule; refuse if critical data is unavailable.",
+        recommendation: "Use FantasyValueSnapshot for cached value comparison; refuse and do not charge when critical value data is unavailable.",
       }),
     ],
     draftAdvisor: [
@@ -267,7 +279,7 @@ function buildPhaseItems(rows: SportImportMatrixRow[], tools: DashboardAiToolAva
         status: toolStatus(startSit?.status) === "ready" || toolStatus(power?.status) === "ready" ? "partial" : "missing",
         evidence: ["Draft room, live draft brain, ADP, and mock draft engines exist in code."],
         gaps: ["No admin-readiness row yet proves all sports have available-player pools, ADP, roster fit, and league-type scoring simultaneously."],
-        recommendation: "Route draft prompts to live draft brain/draft intelligence only when available-player and ADP caches are fresh.",
+        recommendation: "Use FantasyValueSnapshot plus ADP/available-player context; refuse and do not charge when candidates cannot be valued.",
       }),
     ],
     commissionerCopilot: [
@@ -370,10 +382,11 @@ export function buildSportsOperatingSystemAudit(input: {
   importMatrix: SportImportMatrixRow[]
   aiToolAvailability: DashboardAiToolAvailability[]
   leagueFormats?: LeagueFormatDefinition[]
+  identityHealth?: SportsIdentityHealthSnapshot
 }): SportsOperatingSystemAudit {
   const leagueFormats = buildLeagueFormatRows(input.leagueFormats ?? getLeagueFormatDefinitions())
   const sports = buildSportsRows(input.importMatrix)
-  const phases = buildPhaseItems(input.importMatrix, input.aiToolAvailability)
+  const phases = buildPhaseItems(input.importMatrix, input.aiToolAvailability, input.identityHealth)
   const chimmyIntentRoutes = buildIntentRoutes(input.aiToolAvailability)
   const statusList = [
     ...sports.flatMap((row) => [row.identityStatus, row.historicalStatus, row.currentFactsStatus, row.imageLogoStatus, row.aiGroundingStatus]),
@@ -396,7 +409,7 @@ export function buildSportsOperatingSystemAudit(input: {
     chimmyIntentRoutes,
     remainingGaps: [
       "No automatic wrong-player/wrong-logo visual verification yet.",
-      "No single Fantasy Value Engine contract exposes redraft/dynasty/keeper/best ball/IDP/salary cap/devy/C2C values together yet.",
+      "FantasyValueSnapshot exists, but legacy trade/draft routes still need full adoption.",
       "Weather and betting/odds data are not approved as grounded user-facing sources in the current readiness matrix.",
       "Future bracket challenges need their own cache-first fixture/standings/injury tables before Chimmy can answer exact facts.",
       "Token reserve/commit/refund must remain enforced at the route wrapper level for every AI action.",

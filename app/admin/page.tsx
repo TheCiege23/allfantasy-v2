@@ -26,6 +26,10 @@ import type {
   SportsOperatingSystemAudit,
   SportsOsStatus,
 } from "@/lib/sports-os/SportsOperatingSystemReadinessService"
+import type {
+  SportsIdentityHealthSnapshot,
+  SportsIdentityHealthStatus,
+} from "@/lib/sports-os/SportsIdentityHealthService"
 
 export const dynamic = "force-dynamic"
 
@@ -150,6 +154,18 @@ function sportsOsStatusClass(status: SportsOsStatus) {
 }
 
 function sportsOsStatusLabel(status: SportsOsStatus) {
+  if (status === "ready") return "Ready"
+  if (status === "partial") return "Partial"
+  return "Missing"
+}
+
+function identityStatusClass(status: SportsIdentityHealthStatus) {
+  if (status === "ready") return "border-emerald-300/35 bg-emerald-300/10 text-emerald-100"
+  if (status === "partial") return "border-amber-300/35 bg-amber-300/10 text-amber-100"
+  return "border-rose-300/35 bg-rose-300/10 text-rose-100"
+}
+
+function identityStatusLabel(status: SportsIdentityHealthStatus) {
   if (status === "ready") return "Ready"
   if (status === "partial") return "Partial"
   return "Missing"
@@ -425,6 +441,115 @@ function SportsOperatingSystemPanel({ audit }: { audit: SportsOperatingSystemAud
               </div>
             ))}
           </div>
+        </div>
+      </div>
+    </AccordionSection>
+  )
+}
+
+function SportsIdentityHealthPanel({ snapshot }: { snapshot: SportsIdentityHealthSnapshot }) {
+  return (
+    <AccordionSection title="Sports OS Identity & Image Health" eyebrow="cached data quality">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard item={{ label: "Sports audited", value: snapshot.summary.sportsAudited, tracked: true }} />
+        <MetricCard item={{ label: "Total players", value: snapshot.summary.totalPlayers, tracked: true }} />
+        <MetricCard item={{ label: "Identity problems", value: snapshot.summary.identityProblems, tracked: true }} />
+        <MetricCard item={{ label: "Image/logo problems", value: snapshot.summary.imageProblems, tracked: true }} />
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_0.9fr]">
+        <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/25 p-4">
+          <h3 className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100/75">Identity coverage</h3>
+          <table className="mt-3 w-full min-w-[980px] text-left text-xs">
+            <thead className="text-[10px] uppercase tracking-[0.16em] text-white/42">
+              <tr>
+                <th className="py-2 pr-3">Sport</th>
+                <th className="py-2 pr-3">Status</th>
+                <th className="py-2 pr-3">Players</th>
+                <th className="py-2 pr-3">Teams</th>
+                <th className="py-2 pr-3">Provider ID gaps</th>
+                <th className="py-2 pr-3">No team</th>
+                <th className="py-2 pr-3">No position</th>
+                <th className="py-2 pr-3">Duplicate names</th>
+                <th className="py-2 pr-3">Team mismatch</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {snapshot.rows.map((row) => (
+                <tr key={row.id} className="align-top text-white/70">
+                  <td className="py-3 pr-3 font-black text-white">{row.label}</td>
+                  <td className="py-3 pr-3">
+                    <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${identityStatusClass(row.status)}`}>
+                      {identityStatusLabel(row.status)}
+                    </span>
+                  </td>
+                  <td className="py-3 pr-3">{row.playerCount}</td>
+                  <td className="py-3 pr-3">{row.teamCount}</td>
+                  <td className="py-3 pr-3">{row.playersMissingProviderIds}</td>
+                  <td className="py-3 pr-3">{row.playersMissingTeam}</td>
+                  <td className="py-3 pr-3">{row.playersMissingPosition}</td>
+                  <td className="py-3 pr-3">{row.duplicatePlayerNameGroups}</td>
+                  <td className="py-3 pr-3">{row.teamMappingMismatches}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/25 p-4">
+          <h3 className="text-xs font-black uppercase tracking-[0.16em] text-amber-100/75">Image / logo coverage</h3>
+          <table className="mt-3 w-full min-w-[760px] text-left text-xs">
+            <thead className="text-[10px] uppercase tracking-[0.16em] text-white/42">
+              <tr>
+                <th className="py-2 pr-3">Sport</th>
+                <th className="py-2 pr-3">Status</th>
+                <th className="py-2 pr-3">Missing headshots</th>
+                <th className="py-2 pr-3">Missing logos</th>
+                <th className="py-2 pr-3">Duplicate heads</th>
+                <th className="py-2 pr-3">Duplicate logos</th>
+                <th className="py-2 pr-3">Bad URL pattern</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {snapshot.imageRows.map((row) => (
+                <tr key={row.id} className="align-top text-white/70">
+                  <td className="py-3 pr-3 font-black text-white">{row.label}</td>
+                  <td className="py-3 pr-3">
+                    <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${identityStatusClass(row.status)}`}>
+                      {identityStatusLabel(row.status)}
+                    </span>
+                  </td>
+                  <td className="py-3 pr-3">{row.playersMissingHeadshots}</td>
+                  <td className="py-3 pr-3">{row.teamsMissingLogos}</td>
+                  <td className="py-3 pr-3">{row.duplicateHeadshotGroups}</td>
+                  <td className="py-3 pr-3">{row.duplicateLogoGroups}</td>
+                  <td className="py-3 pr-3">{row.invalidHeadshotUrlPatterns + row.invalidLogoUrlPatterns}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/[0.08] p-4">
+        <h3 className="text-xs font-black uppercase tracking-[0.16em] text-amber-100/85">Top data quality problems</h3>
+        <div className="mt-3 grid gap-2 lg:grid-cols-2">
+          {snapshot.topProblems.length > 0 ? snapshot.topProblems.map((problem) => (
+            <div key={problem.id} className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-white/65">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-black text-white">{problem.label}</span>
+                <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${identityStatusClass(problem.severity === "low" ? "ready" : "partial")}`}>
+                  {problem.severity}
+                </span>
+              </div>
+              <div className="mt-2">{problem.message} Count: {problem.count}.</div>
+              <div className="mt-1 text-cyan-100/58">{problem.recommendation}</div>
+            </div>
+          )) : (
+            <p className="rounded-xl border border-white/10 bg-black/25 p-4 text-sm text-white/50">
+              No identity/image data quality problems detected from cached metadata.
+            </p>
+          )}
         </div>
       </div>
     </AccordionSection>
@@ -786,6 +911,9 @@ function AdminSportsSyncControlsPanel() {
           { label: "Schedules", body: '{ "type": "schedules", "sports": ["NFL","NBA"], "dryRun": true }' },
           { label: "Injuries", body: '{ "type": "injuries", "sports": ["NFL","NCAAF"], "dryRun": true }' },
           { label: "News / players", body: '{ "type": "all", "sports": ["MLB","NHL"], "dryRun": true }' },
+          { label: "Identity health", body: '{ "type": "identity_health", "dryRun": false }' },
+          { label: "Image audit", body: '{ "type": "image_audit", "dryRun": false }' },
+          { label: "Fantasy value", body: '{ "type": "fantasy_value_snapshots", "dryRun": false }' },
         ].map((item) => (
           <div key={item.label} className="rounded-2xl border border-white/10 bg-black/25 p-4">
             <div className="text-xs font-black uppercase tracking-[0.14em] text-amber-100/80">{item.label}</div>
@@ -880,6 +1008,7 @@ export default async function AdminPage({
         <TrafficGeoPanel data={data.productionReadiness} metrics={data.traffic} />
         <EmailCenterPanel status={data.emailStatus} />
         <SportsOperatingSystemPanel audit={data.sportsOperatingSystem} />
+        <SportsIdentityHealthPanel snapshot={data.sportsIdentityHealth} />
         <Section title="Integrity / Fraud Signals" items={data.integrity} />
         <Section title="Admin Data Quality" items={data.dataQuality} />
         <AccordionSection title="Sports API Health" eyebrow="providers" defaultOpen={false}>

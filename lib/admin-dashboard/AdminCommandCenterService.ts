@@ -25,6 +25,10 @@ import {
   buildSportsOperatingSystemAudit,
   type SportsOperatingSystemAudit,
 } from "@/lib/sports-os/SportsOperatingSystemReadinessService"
+import {
+  getSportsIdentityHealthSnapshot,
+  type SportsIdentityHealthSnapshot,
+} from "@/lib/sports-os/SportsIdentityHealthService"
 import { maskAdminEmail } from "@/lib/admin-dashboard/format"
 
 type MetricValue = number | string
@@ -116,6 +120,7 @@ export type AdminCommandCenterMetrics = {
   productionReadiness: AdminProductionReadiness
   emailStatus: AdminEmailStatus
   sportsOperatingSystem: SportsOperatingSystemAudit
+  sportsIdentityHealth: SportsIdentityHealthSnapshot
   traffic: AdminMetric[]
   integrity: AdminMetric[]
   dataQuality: AdminMetric[]
@@ -418,6 +423,7 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     sportDataReliability,
     productionReadiness,
     emailStatus,
+    sportsIdentityHealth,
     analyticsEventsToday,
     analyticsEvents7Days,
     uniqueSessionsToday,
@@ -522,6 +528,7 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     getAdminPerSportDataReliabilityRows(),
     getAdminProductionReadiness(),
     getEmailCenterStatus(),
+    getSportsIdentityHealthSnapshot(),
     prisma.analyticsEvent.count({ where: { createdAt: { gte: today } } }),
     prisma.analyticsEvent.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
     prisma.analyticsEvent.groupBy({
@@ -586,6 +593,7 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
   const sportsOperatingSystem = buildSportsOperatingSystemAudit({
     importMatrix: sportImportMatrix,
     aiToolAvailability,
+    identityHealth: sportsIdentityHealth,
   })
 
   return {
@@ -694,9 +702,13 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     dataQuality: [
       metric("Provider env gaps", providerGapCount),
       metric("Sports with stale warnings", sportDataReliability.filter((row) => row.staleWarnings.length > 0).length),
-      notTracked("Duplicate player identities", "No canonical PlayerMaster dedupe report is tracked yet"),
-      notTracked("Missing headshots count", "No cross-sport image coverage aggregate is tracked yet"),
-      notTracked("Retired players marked active", "No status-quality audit table is tracked yet"),
+      metric("Identity problems", sportsIdentityHealth.summary.identityProblems, "Derived from cached player/team/identity tables"),
+      metric("Image/logo problems", sportsIdentityHealth.summary.imageProblems, "No external image probes; URL metadata only"),
+      metric("Duplicate player name groups", sportsIdentityHealth.rows.reduce((sum, row) => sum + row.duplicatePlayerNameGroups, 0)),
+      metric("Missing headshots", sportsIdentityHealth.imageRows.reduce((sum, row) => sum + row.playersMissingHeadshots, 0)),
+      metric("Missing team logos", sportsIdentityHealth.imageRows.reduce((sum, row) => sum + row.teamsMissingLogos, 0)),
+      metric("Team mapping mismatches", sportsIdentityHealth.rows.reduce((sum, row) => sum + row.teamMappingMismatches, 0)),
+      notTracked("Retired players marked active", "Only basic active-without-team mismatch is tracked until status imports are normalized"),
     ],
     providerHealth,
     sportDataReliability,
@@ -706,6 +718,7 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     productionReadiness,
     emailStatus,
     sportsOperatingSystem,
+    sportsIdentityHealth,
     usersSearch,
     activeWorldCupPools,
     recentUsers,
