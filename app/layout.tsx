@@ -220,6 +220,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             `}
           </Script>
         ) : null}
+
         {metaPixelId ? (
           <noscript>
             {/* eslint-disable-next-line @next/next/no-img-element */}
