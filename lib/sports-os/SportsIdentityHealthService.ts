@@ -16,7 +16,11 @@ export type SportsIdentityHealthRow = {
   playersMissingPosition: number
   playersMissingStatus: number
   duplicatePlayerNameGroups: number
+  duplicateTeamIdentityGroups: number
   duplicateProviderMappingGroups: number
+  unmappedProviderPlayers: number
+  unmappedProviderTeams: number
+  inactiveOrUnknownPlayers: number
   activeStatusTeamMismatches: number
   teamMappingMismatches: number
   status: SportsIdentityHealthStatus
@@ -42,10 +46,26 @@ export type SportsDataQualityProblem = {
   sport: string
   label: string
   severity: "high" | "medium" | "low"
-  category: "identity" | "image"
+  category: "identity" | "image" | "provider"
   message: string
   count: number
   recommendation: string
+}
+
+export type SportsProviderMappingHealthRow = {
+  id: string
+  sport: string
+  label: string
+  provider: string
+  providerPlayerRows: number
+  mappedPlayerIds: number
+  unmappedProviderPlayers: number
+  providerTeamRows: number
+  mappedTeamRows: number
+  unmappedProviderTeams: number
+  duplicatePlayerMappingGroups: number
+  duplicateTeamMappingGroups: number
+  status: SportsIdentityHealthStatus
 }
 
 export type SportsIdentityHealthSnapshot = {
@@ -56,13 +76,27 @@ export type SportsIdentityHealthSnapshot = {
     totalTeams: number
     identityProblems: number
     imageProblems: number
+    providerMappingProblems: number
     readySports: number
     partialSports: number
     missingSports: number
   }
   rows: SportsIdentityHealthRow[]
   imageRows: SportsImageHealthRow[]
+  providerRows: SportsProviderMappingHealthRow[]
   topProblems: SportsDataQualityProblem[]
+}
+
+export type SportsProviderMappingAggregate = {
+  provider: string
+  providerPlayerRows?: number | null
+  mappedPlayerIds?: number | null
+  unmappedProviderPlayers?: number | null
+  providerTeamRows?: number | null
+  mappedTeamRows?: number | null
+  unmappedProviderTeams?: number | null
+  duplicatePlayerMappingGroups?: number | null
+  duplicateTeamMappingGroups?: number | null
 }
 
 export type SportsIdentityHealthAggregate = {
@@ -81,7 +115,11 @@ export type SportsIdentityHealthAggregate = {
   playerRecordsMissingPosition?: number | null
   playersMissingStatus?: number | null
   duplicatePlayerNameGroups?: number | null
+  duplicateTeamIdentityGroups?: number | null
   duplicateProviderMappingGroups?: number | null
+  unmappedProviderPlayers?: number | null
+  unmappedProviderTeams?: number | null
+  inactiveOrUnknownPlayers?: number | null
   activeStatusTeamMismatches?: number | null
   teamMappingMismatches?: number | null
   playersMissingHeadshots?: number | null
@@ -92,7 +130,19 @@ export type SportsIdentityHealthAggregate = {
   duplicateLogoGroups?: number | null
   invalidHeadshotUrlPatterns?: number | null
   invalidLogoUrlPatterns?: number | null
+  providerMappings?: SportsProviderMappingAggregate[]
 }
+
+const PROVIDER_MAPPINGS = [
+  { provider: "Sleeper", playerField: "sleeperId", aliases: ["sleeper"] },
+  { provider: "FantasyCalc", playerField: "fantasyCalcId", aliases: ["fantasycalc", "fantasy_calc"] },
+  { provider: "Rolling Insights", playerField: "rollingInsightsId", aliases: ["rollinginsights", "rolling_insights"] },
+  { provider: "API-Sports", playerField: "apiSportsId", aliases: ["api_sports", "apisports", "api-football", "api_football"] },
+  { provider: "ESPN", playerField: "espnId", aliases: ["espn"] },
+  { provider: "ClearSports", playerField: "clearSportsId", aliases: ["clearsports", "clear_sports"] },
+  { provider: "MFL", playerField: "mflId", aliases: ["mfl"] },
+  { provider: "Fleaflicker", playerField: "fleaflickerId", aliases: ["fleaflicker"] },
+] as const
 
 const SPORTS_TO_AUDIT = [
   { id: "nfl", sport: "NFL", label: "NFL" },
@@ -134,7 +184,7 @@ function topProblem(input: {
   id: string
   sport: string
   label: string
-  category: "identity" | "image"
+  category: SportsDataQualityProblem["category"]
   count: number
   total: number
   message: string
@@ -168,7 +218,11 @@ export function buildSportsIdentityHealthSnapshot(input: {
       playersMissingPosition +
       n(row.playersMissingStatus) +
       n(row.duplicatePlayerNameGroups) +
+      n(row.duplicateTeamIdentityGroups) +
       n(row.duplicateProviderMappingGroups) +
+      n(row.unmappedProviderPlayers) +
+      n(row.unmappedProviderTeams) +
+      n(row.inactiveOrUnknownPlayers) +
       n(row.activeStatusTeamMismatches) +
       n(row.teamMappingMismatches)
     const topProblems: string[] = []
@@ -176,7 +230,11 @@ export function buildSportsIdentityHealthSnapshot(input: {
     pushProblem(topProblems, "Missing team", playersMissingTeam)
     pushProblem(topProblems, "Missing position", playersMissingPosition)
     pushProblem(topProblems, "Duplicate player names", n(row.duplicatePlayerNameGroups))
+    pushProblem(topProblems, "Duplicate team identity", n(row.duplicateTeamIdentityGroups))
     pushProblem(topProblems, "Duplicate provider mappings", n(row.duplicateProviderMappingGroups))
+    pushProblem(topProblems, "Unmapped provider players", n(row.unmappedProviderPlayers))
+    pushProblem(topProblems, "Unmapped provider teams", n(row.unmappedProviderTeams))
+    pushProblem(topProblems, "Inactive/unknown status", n(row.inactiveOrUnknownPlayers))
     pushProblem(topProblems, "Team mapping mismatch", n(row.teamMappingMismatches))
     return {
       id: row.id,
@@ -190,7 +248,11 @@ export function buildSportsIdentityHealthSnapshot(input: {
       playersMissingPosition,
       playersMissingStatus: n(row.playersMissingStatus),
       duplicatePlayerNameGroups: n(row.duplicatePlayerNameGroups),
+      duplicateTeamIdentityGroups: n(row.duplicateTeamIdentityGroups),
       duplicateProviderMappingGroups: n(row.duplicateProviderMappingGroups),
+      unmappedProviderPlayers: n(row.unmappedProviderPlayers),
+      unmappedProviderTeams: n(row.unmappedProviderTeams),
+      inactiveOrUnknownPlayers: n(row.inactiveOrUnknownPlayers),
       activeStatusTeamMismatches: n(row.activeStatusTeamMismatches),
       teamMappingMismatches: n(row.teamMappingMismatches),
       status: statusFor(playerCount, problemCount),
@@ -231,6 +293,39 @@ export function buildSportsIdentityHealthSnapshot(input: {
     }
   })
 
+  const providerRows: SportsProviderMappingHealthRow[] = input.rows.flatMap((row) => {
+    const providerMappings = row.providerMappings ?? []
+    return providerMappings.map((provider) => {
+      const unmappedProviderPlayers =
+        n(provider.unmappedProviderPlayers) ||
+        Math.max(0, n(provider.providerPlayerRows) - n(provider.mappedPlayerIds))
+      const unmappedProviderTeams =
+        n(provider.unmappedProviderTeams) ||
+        Math.max(0, n(provider.providerTeamRows) - n(provider.mappedTeamRows))
+      const problemCount =
+        unmappedProviderPlayers +
+        unmappedProviderTeams +
+        n(provider.duplicatePlayerMappingGroups) +
+        n(provider.duplicateTeamMappingGroups)
+
+      return {
+        id: `${row.id}:${provider.provider.toLowerCase().replace(/\s+/g, "-")}`,
+        sport: row.sport,
+        label: row.label,
+        provider: provider.provider,
+        providerPlayerRows: n(provider.providerPlayerRows),
+        mappedPlayerIds: n(provider.mappedPlayerIds),
+        unmappedProviderPlayers,
+        providerTeamRows: n(provider.providerTeamRows),
+        mappedTeamRows: n(provider.mappedTeamRows),
+        unmappedProviderTeams,
+        duplicatePlayerMappingGroups: n(provider.duplicatePlayerMappingGroups),
+        duplicateTeamMappingGroups: n(provider.duplicateTeamMappingGroups),
+        status: statusFor(n(provider.providerPlayerRows) + n(provider.providerTeamRows), problemCount),
+      }
+    })
+  })
+
   const topProblems = rows
     .flatMap((row) => [
       topProblem({
@@ -254,6 +349,16 @@ export function buildSportsIdentityHealthSnapshot(input: {
         recommendation: "Require canonical id resolution before Trade Analyzer or Draft Advisor uses exact player facts.",
       }),
       topProblem({
+        id: `${row.id}:duplicate-team-identities`,
+        sport: row.sport,
+        label: row.label,
+        category: "identity" as const,
+        count: row.duplicateTeamIdentityGroups,
+        total: row.teamCount,
+        message: "Duplicate team names or team assets within the same sport.",
+        recommendation: "Resolve duplicate team identity rows before logos, schedules, and live score joins render.",
+      }),
+      topProblem({
         id: `${row.id}:team-mismatch`,
         sport: row.sport,
         label: row.label,
@@ -263,7 +368,41 @@ export function buildSportsIdentityHealthSnapshot(input: {
         message: "Player team values do not match known team codes/names.",
         recommendation: "Backfill team aliases and normalize provider team abbreviations before live launch.",
       }),
+      topProblem({
+        id: `${row.id}:inactive-unknown-status`,
+        sport: row.sport,
+        label: row.label,
+        category: "identity" as const,
+        count: row.inactiveOrUnknownPlayers,
+        total: row.playerCount,
+        message: "Cached player statuses are inactive, retired, or unknown.",
+        recommendation: "Keep these players out of exact-answer AI contexts unless their current status is refreshed.",
+      }),
     ])
+    .concat(
+      providerRows.flatMap((row) => [
+        topProblem({
+          id: `${row.id}:unmapped-provider-players`,
+          sport: row.sport,
+          label: `${row.label} ${row.provider}`,
+          category: "provider" as const,
+          count: row.unmappedProviderPlayers,
+          total: row.providerPlayerRows,
+          message: "Provider player rows are not mapped to canonical player identities.",
+          recommendation: "Backfill provider ids in PlayerIdentityMap before using this provider for AI grounding.",
+        }),
+        topProblem({
+          id: `${row.id}:duplicate-provider-player-maps`,
+          sport: row.sport,
+          label: `${row.label} ${row.provider}`,
+          category: "provider" as const,
+          count: row.duplicatePlayerMappingGroups,
+          total: row.mappedPlayerIds,
+          message: "Multiple canonical identities share the same provider player id.",
+          recommendation: "Resolve duplicate provider ids before using cross-provider stat or injury facts.",
+        }),
+      ])
+    )
     .concat(
       imageRows.flatMap((row) => [
         topProblem({
@@ -320,7 +459,11 @@ export function buildSportsIdentityHealthSnapshot(input: {
           row.playersMissingPosition +
           row.playersMissingStatus +
           row.duplicatePlayerNameGroups +
+          row.duplicateTeamIdentityGroups +
           row.duplicateProviderMappingGroups +
+          row.unmappedProviderPlayers +
+          row.unmappedProviderTeams +
+          row.inactiveOrUnknownPlayers +
           row.activeStatusTeamMismatches +
           row.teamMappingMismatches,
         0
@@ -336,12 +479,22 @@ export function buildSportsIdentityHealthSnapshot(input: {
           row.invalidLogoUrlPatterns,
         0
       ),
+      providerMappingProblems: providerRows.reduce(
+        (sum, row) =>
+          sum +
+          row.unmappedProviderPlayers +
+          row.unmappedProviderTeams +
+          row.duplicatePlayerMappingGroups +
+          row.duplicateTeamMappingGroups,
+        0
+      ),
       readySports: summaryStatuses.filter((status) => status === "ready").length,
       partialSports: summaryStatuses.filter((status) => status === "partial").length,
       missingSports: summaryStatuses.filter((status) => status === "missing").length,
     },
     rows,
     imageRows,
+    providerRows,
     topProblems,
   }
 }
@@ -402,7 +555,16 @@ async function duplicateGroupCount(modelName: string, field: string, where: Reco
 }
 
 async function duplicateProviderMappingGroups(sport: string): Promise<number> {
-  const fields = ["sleeperId", "fantasyCalcId", "rollingInsightsId", "apiSportsId", "espnId", "clearSportsId"]
+  const fields = [
+    "sleeperId",
+    "fantasyCalcId",
+    "rollingInsightsId",
+    "apiSportsId",
+    "espnId",
+    "clearSportsId",
+    "mflId",
+    "fleaflickerId",
+  ]
   const counts = await Promise.all(
     fields.map((field) =>
       duplicateGroupCount("playerIdentityMap", field, {
@@ -412,6 +574,101 @@ async function duplicateProviderMappingGroups(sport: string): Promise<number> {
     )
   )
   return counts.reduce((sum, count) => sum + count, 0)
+}
+
+function providerSourceWhere(sport: string, aliases: readonly string[]) {
+  return {
+    sport,
+    OR: aliases.map((alias) => ({
+      source: { equals: alias, mode: "insensitive" },
+    })),
+  }
+}
+
+async function buildProviderMappingAggregate(
+  sport: string,
+  mapping: (typeof PROVIDER_MAPPINGS)[number]
+): Promise<SportsProviderMappingAggregate> {
+  const where = providerSourceWhere(sport, mapping.aliases)
+  const [
+    providerPlayerRows,
+    playerRows,
+    identityRows,
+    duplicatePlayerMappingGroups,
+    providerTeamRows,
+    teamRows,
+    teamAssetRows,
+    duplicateTeamMappingGroups,
+  ] = await Promise.all([
+    safeCount("sportsPlayer", { where }),
+    safeFindMany("sportsPlayer", {
+      where,
+      select: { externalId: true },
+      take: 10000,
+    }),
+    safeFindMany("playerIdentityMap", {
+      where: {
+        sport,
+        [mapping.playerField]: { not: null },
+      },
+      select: { [mapping.playerField]: true },
+      take: 10000,
+    }),
+    duplicateGroupCount("playerIdentityMap", mapping.playerField, {
+      sport,
+      [mapping.playerField]: { not: null },
+    }),
+    safeCount("sportsTeam", { where }),
+    safeFindMany("sportsTeam", {
+      where,
+      select: { externalId: true, name: true, shortName: true },
+      take: 5000,
+    }),
+    safeFindMany("teamAsset", {
+      where: { sport },
+      select: { teamCode: true, teamName: true },
+      take: 5000,
+    }),
+    duplicateGroupCount("sportsTeam", "name", where),
+  ])
+
+  const mappedPlayerIds = new Set(
+    identityRows
+      .map((row) => row[mapping.playerField])
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .map((value) => value.trim().toLowerCase())
+  )
+  const unmappedProviderPlayers = playerRows.filter((row) => {
+    const externalId = typeof row.externalId === "string" ? row.externalId.trim().toLowerCase() : ""
+    return Boolean(externalId) && !mappedPlayerIds.has(externalId)
+  }).length
+
+  const knownTeamKeys = new Set<string>()
+  for (const row of teamAssetRows) {
+    for (const key of ["teamCode", "teamName"]) {
+      const value = row[key]
+      if (typeof value === "string" && value.trim()) knownTeamKeys.add(value.trim().toLowerCase())
+    }
+  }
+  const mappedTeamRows = teamRows.filter((row) => {
+    if (knownTeamKeys.size === 0) return false
+    return ["externalId", "name", "shortName"].some((key) => {
+      const value = row[key]
+      return typeof value === "string" && knownTeamKeys.has(value.trim().toLowerCase())
+    })
+  }).length
+
+  return {
+    provider: mapping.provider,
+    providerPlayerRows,
+    mappedPlayerIds: mappedPlayerIds.size,
+    unmappedProviderPlayers,
+    providerTeamRows,
+    mappedTeamRows,
+    unmappedProviderTeams: Math.max(0, providerTeamRows - mappedTeamRows),
+    duplicatePlayerMappingGroups,
+    duplicateTeamMappingGroups,
+  }
 }
 
 async function teamMappingMismatchCount(sport: string): Promise<number> {
@@ -470,6 +727,8 @@ async function buildAggregateForSport(row: (typeof SPORTS_TO_AUDIT)[number]): Pr
       { OR: [{ apiSportsId: null }, { apiSportsId: "" }] },
       { OR: [{ espnId: null }, { espnId: "" }] },
       { OR: [{ clearSportsId: null }, { clearSportsId: "" }] },
+      { OR: [{ mflId: null }, { mflId: "" }] },
+      { OR: [{ fleaflickerId: null }, { fleaflickerId: "" }] },
     ],
   }
   const invalidUrl = (field: string) => ({
@@ -499,7 +758,11 @@ async function buildAggregateForSport(row: (typeof SPORTS_TO_AUDIT)[number]): Pr
     playersMissingStatus,
     duplicateSportsPlayerNames,
     duplicateSportsPlayerRecordNames,
+    duplicateSportsTeamNames,
+    duplicateTeamAssetNames,
     duplicateProviderMappings,
+    providerMappings,
+    inactiveOrUnknownPlayers,
     activeStatusTeamMismatches,
     teamMappingMismatches,
     playersMissingHeadshots,
@@ -528,7 +791,20 @@ async function buildAggregateForSport(row: (typeof SPORTS_TO_AUDIT)[number]): Pr
     safeCount("sportsPlayer", { where: { sport, OR: [{ status: null }, { status: "" }] } }),
     duplicateGroupCount("sportsPlayer", "name", { sport }),
     duplicateGroupCount("sportsPlayerRecord", "name", { sport }),
+    duplicateGroupCount("sportsTeam", "name", { sport }),
+    duplicateGroupCount("teamAsset", "teamName", { sport }),
     duplicateProviderMappingGroups(sport),
+    Promise.all(PROVIDER_MAPPINGS.map((mapping) => buildProviderMappingAggregate(sport, mapping))),
+    safeCount("sportsPlayer", {
+      where: {
+        sport,
+        OR: [
+          { status: { contains: "inactive", mode: "insensitive" } },
+          { status: { contains: "retired", mode: "insensitive" } },
+          { status: { contains: "unknown", mode: "insensitive" } },
+        ],
+      },
+    }),
     safeCount("sportsPlayer", {
       where: {
         sport,
@@ -583,7 +859,11 @@ async function buildAggregateForSport(row: (typeof SPORTS_TO_AUDIT)[number]): Pr
     playerRecordsMissingPosition,
     playersMissingStatus,
     duplicatePlayerNameGroups: duplicateSportsPlayerNames + duplicateSportsPlayerRecordNames,
+    duplicateTeamIdentityGroups: duplicateSportsTeamNames + duplicateTeamAssetNames,
     duplicateProviderMappingGroups: duplicateProviderMappings,
+    unmappedProviderPlayers: providerMappings.reduce((sum, provider) => sum + n(provider.unmappedProviderPlayers), 0),
+    unmappedProviderTeams: providerMappings.reduce((sum, provider) => sum + n(provider.unmappedProviderTeams), 0),
+    inactiveOrUnknownPlayers,
     activeStatusTeamMismatches,
     teamMappingMismatches,
     playersMissingHeadshots,
@@ -594,6 +874,7 @@ async function buildAggregateForSport(row: (typeof SPORTS_TO_AUDIT)[number]): Pr
     duplicateLogoGroups: duplicateSportsTeamLogos + duplicateTeamAssetLogos,
     invalidHeadshotUrlPatterns: invalidSportsPlayerHeadshots + invalidSportsPlayerRecordHeadshots,
     invalidLogoUrlPatterns: invalidSportsTeamLogos + invalidTeamAssetLogos,
+    providerMappings,
   }
 }
 

@@ -229,6 +229,7 @@ function metricsFixture() {
         totalTeams: 32,
         identityProblems: 3,
         imageProblems: 4,
+        providerMappingProblems: 2,
         readySports: 0,
         partialSports: 1,
         missingSports: 0,
@@ -246,7 +247,11 @@ function metricsFixture() {
           playersMissingPosition: 0,
           playersMissingStatus: 0,
           duplicatePlayerNameGroups: 1,
+          duplicateTeamIdentityGroups: 0,
           duplicateProviderMappingGroups: 0,
+          unmappedProviderPlayers: 2,
+          unmappedProviderTeams: 0,
+          inactiveOrUnknownPlayers: 0,
           activeStatusTeamMismatches: 0,
           teamMappingMismatches: 0,
           status: "partial",
@@ -266,6 +271,23 @@ function metricsFixture() {
           invalidLogoUrlPatterns: 0,
           status: "partial",
           topProblems: ["Missing headshots: 3"],
+        },
+      ],
+      providerRows: [
+        {
+          id: "nfl:sleeper",
+          sport: "NFL",
+          label: "NFL",
+          provider: "Sleeper",
+          providerPlayerRows: 10,
+          mappedPlayerIds: 8,
+          unmappedProviderPlayers: 2,
+          providerTeamRows: 32,
+          mappedTeamRows: 32,
+          unmappedProviderTeams: 0,
+          duplicatePlayerMappingGroups: 0,
+          duplicateTeamMappingGroups: 0,
+          status: "partial",
         },
       ],
       topProblems: [
@@ -360,6 +382,7 @@ describe("/admin page render states", () => {
     render(await AdminPage({ searchParams: { q: "ciege" } }))
 
     expect(screen.getByRole("heading", { name: /command center/i })).toBeInTheDocument()
+    expect(screen.getByTestId("admin-exit-button")).toHaveAttribute("href", "/dashboard")
     expect(screen.getByText("Total accounts")).toBeInTheDocument()
     expect(screen.getByText("World Cup pools")).toBeInTheDocument()
     expect(screen.getByText(/Provider Health/i)).toBeInTheDocument()
@@ -368,6 +391,8 @@ describe("/admin page render states", () => {
     expect(screen.getByText(/Email Notifications/i)).toBeInTheDocument()
     expect(screen.getByText(/Sports OS \/ Chimmy Brain/i)).toBeInTheDocument()
     expect(screen.getByText(/Sports OS Identity/i)).toBeInTheDocument()
+    expect(screen.getByText(/Provider mapping counts/i)).toBeInTheDocument()
+    expect(screen.getByText("Sleeper")).toBeInTheDocument()
     expect(screen.getByText(/Integrity \/ Fraud/i)).toBeInTheDocument()
     expect(screen.getByText("API-Football / API-Sports World Cup")).toBeInTheDocument()
     expect(screen.getByText(/Recent Users/i)).toBeInTheDocument()

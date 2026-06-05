@@ -19,7 +19,10 @@ describe("Sports OS identity and image health", () => {
           playerRecordsMissingTeam: 1,
           playersMissingPosition: 3,
           duplicatePlayerNameGroups: 2,
+          duplicateTeamIdentityGroups: 1,
           duplicateProviderMappingGroups: 1,
+          unmappedProviderPlayers: 7,
+          inactiveOrUnknownPlayers: 2,
           teamMappingMismatches: 4,
           playersMissingHeadshots: 40,
           teamsMissingLogos: 1,
@@ -44,7 +47,10 @@ describe("Sports OS identity and image health", () => {
       playersMissingProviderIds: 12,
       playersMissingTeam: 6,
       duplicatePlayerNameGroups: 2,
+      duplicateTeamIdentityGroups: 1,
       duplicateProviderMappingGroups: 1,
+      unmappedProviderPlayers: 7,
+      inactiveOrUnknownPlayers: 2,
       teamMappingMismatches: 4,
       status: "partial",
     })
@@ -84,5 +90,59 @@ describe("Sports OS identity and image health", () => {
       status: "partial",
     })
     expect(snapshot.summary.imageProblems).toBe(95)
+  })
+
+  it("reports provider mapping and duplicate team identity counts from cached data only", () => {
+    const snapshot = buildSportsIdentityHealthSnapshot({
+      rows: [
+        {
+          id: "world-cup",
+          sport: "WC_SOCCER",
+          label: "World Cup",
+          playerCount: 120,
+          teamCount: 48,
+          duplicateTeamIdentityGroups: 2,
+          unmappedProviderPlayers: 3,
+          unmappedProviderTeams: 1,
+          inactiveOrUnknownPlayers: 4,
+          providerMappings: [
+            {
+              provider: "API-Sports",
+              providerPlayerRows: 20,
+              mappedPlayerIds: 17,
+              unmappedProviderPlayers: 3,
+              providerTeamRows: 48,
+              mappedTeamRows: 47,
+              unmappedProviderTeams: 1,
+              duplicatePlayerMappingGroups: 2,
+              duplicateTeamMappingGroups: 0,
+            },
+          ],
+        },
+      ],
+    })
+
+    expect(snapshot.rows[0]).toMatchObject({
+      duplicateTeamIdentityGroups: 2,
+      unmappedProviderPlayers: 3,
+      unmappedProviderTeams: 1,
+      inactiveOrUnknownPlayers: 4,
+      status: "partial",
+    })
+    expect(snapshot.providerRows[0]).toMatchObject({
+      id: "world-cup:api-sports",
+      provider: "API-Sports",
+      providerPlayerRows: 20,
+      mappedPlayerIds: 17,
+      unmappedProviderPlayers: 3,
+      providerTeamRows: 48,
+      mappedTeamRows: 47,
+      unmappedProviderTeams: 1,
+      duplicatePlayerMappingGroups: 2,
+      status: "partial",
+    })
+    expect(snapshot.summary.providerMappingProblems).toBe(6)
+    expect(snapshot.topProblems.map((problem) => problem.id)).toContain("world-cup:duplicate-team-identities")
+    expect(snapshot.topProblems.map((problem) => problem.id)).toContain("world-cup:api-sports:unmapped-provider-players")
   })
 })

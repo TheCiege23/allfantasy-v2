@@ -999,6 +999,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     clientApiMocks.clearPicks.mockReset()
     clientApiMocks.savePick.mockReset()
     vi.unstubAllGlobals()
+    window.sessionStorage.setItem("af:world-cup:path-to-greatness-seen:v1", "1")
     clientApiMocks.listEntries.mockResolvedValue([makeShellEntry()])
     clientApiMocks.getEntry.mockResolvedValue({ ...makeShellEntry(), picks: [] })
     clientApiMocks.fetchCompletionReview.mockResolvedValue({
@@ -1065,7 +1066,28 @@ describe("WorldCupBracketShell fixture readiness", () => {
         ok: true,
         json: async () => ({}),
       }
-    }))
+  }))
+  })
+
+  it("renders the cinematic World Cup background and dismissible entry video once per session", async () => {
+    window.sessionStorage.removeItem("af:world-cup:path-to-greatness-seen:v1")
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+
+    render(<WorldCupBracketShell initialView={makeShellView() as any} defaultTab="home" />)
+
+    expect(screen.getByTestId("world-cup-atmosphere-backdrop")).toBeInTheDocument()
+    const overlay = await screen.findByTestId("world-cup-entry-video-overlay")
+    expect(within(overlay).getByTestId("world-cup-entry-video")).toHaveAttribute(
+      "src",
+      "/videos/world-cup/allfantasy-world-cup-path-to-greatness.mp4"
+    )
+
+    fireEvent.click(within(overlay).getByRole("button", { name: /skip/i }))
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("world-cup-entry-video-overlay")).not.toBeInTheDocument()
+    })
+    expect(window.sessionStorage.getItem("af:world-cup:path-to-greatness-seen:v1")).toBe("1")
   })
 
   it("renders Group Stage when initialized from the group-stage tab", async () => {

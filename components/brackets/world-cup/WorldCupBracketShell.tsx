@@ -214,6 +214,79 @@ const WORLD_CUP_CHAT_FONT_OPTIONS: Array<{ value: WorldCupChatFont; label: strin
   { value: "sport", label: "Sport" },
   { value: "mono", label: "Mono" },
 ]
+
+const WORLD_CUP_ENTRY_VIDEO_SRC = "/videos/world-cup/allfantasy-world-cup-path-to-greatness.mp4"
+const WORLD_CUP_ENTRY_VIDEO_SESSION_KEY = "af:world-cup:path-to-greatness-seen:v1"
+
+function WorldCupAtmosphereBackdrop() {
+  return (
+    <div
+      data-testid="world-cup-atmosphere-backdrop"
+      className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+      aria-hidden
+    >
+      <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(34,211,238,0.18),transparent_30%),linear-gradient(245deg,rgba(251,191,36,0.16),transparent_32%),linear-gradient(180deg,#02050b_0%,#05101c_45%,#02050b_100%)]" />
+      <div className="absolute inset-x-[-8%] top-10 h-56 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.13)_48%,transparent)] blur-2xl sm:h-72" />
+      <div className="absolute left-1/2 top-12 h-[52rem] w-[78rem] -translate-x-1/2 border-t border-cyan-200/10 bg-[conic-gradient(from_180deg_at_50%_0%,transparent_0deg,rgba(34,211,238,0.10)_38deg,rgba(251,191,36,0.08)_62deg,transparent_98deg)] opacity-80" />
+      <div className="absolute inset-x-0 bottom-0 h-[38%] bg-[linear-gradient(180deg,transparent,rgba(2,5,11,0.92)_72%),repeating-linear-gradient(90deg,rgba(34,211,238,0.08)_0_1px,transparent_1px_64px)]" />
+      <div className="absolute bottom-[-10rem] left-1/2 h-72 w-[120vw] -translate-x-1/2 rounded-[50%] border-t border-cyan-200/15 bg-[linear-gradient(180deg,rgba(34,211,238,0.08),transparent_66%)] sm:bottom-[-12rem] sm:h-96" />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(2,5,11,0.72),transparent_28%,transparent_72%,rgba(2,5,11,0.72)),linear-gradient(180deg,rgba(2,5,11,0.40),transparent_26%,rgba(2,5,11,0.72))]" />
+    </div>
+  )
+}
+
+function WorldCupEntryVideoOverlay({
+  src,
+  onDismiss,
+}: {
+  src: string
+  onDismiss: () => void
+}) {
+  return (
+    <div
+      data-testid="world-cup-entry-video-overlay"
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/88 px-3 py-[calc(env(safe-area-inset-top,0px)+0.75rem)] pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] backdrop-blur-md sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label="AllFantasy World Cup intro video"
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_8%,rgba(251,191,36,0.20),transparent_30%),radial-gradient(circle_at_12%_18%,rgba(34,211,238,0.20),transparent_34%),linear-gradient(180deg,rgba(3,7,18,0.50),rgba(0,0,0,0.88))]" aria-hidden />
+      <div className="relative flex max-h-full w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-cyan-200/20 bg-[#02050b] shadow-[0_0_90px_-28px_rgba(34,211,238,0.95)]">
+        <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-black/35 px-3 py-2 sm:px-4 sm:py-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-100/70">AllFantasy World Cup</p>
+            <h2 className="truncate text-sm font-black text-white sm:text-base">Path to Greatness</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-2xl border border-white/12 bg-white/[0.07] px-3 py-2 text-xs font-black text-white/85 transition hover:border-cyan-300/35 hover:bg-cyan-300/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+          >
+            <X className="h-4 w-4" aria-hidden />
+            Skip
+          </button>
+        </div>
+        <div className="flex min-h-0 flex-1 items-center justify-center bg-black">
+          <video
+            data-testid="world-cup-entry-video"
+            className="max-h-[calc(100dvh-7rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] w-full bg-black object-contain"
+            src={src}
+            autoPlay
+            muted
+            playsInline
+            controls
+            preload="metadata"
+            onEnded={onDismiss}
+            onError={onDismiss}
+          />
+        </div>
+        <div className="border-t border-white/10 bg-black/35 px-4 py-2 text-[11px] leading-5 text-white/50">
+          This intro only plays once per browser session after you close it.
+        </div>
+      </div>
+    </div>
+  )
+}
 /**
  * Localizable tab definitions.
  *
@@ -589,6 +662,28 @@ export default function WorldCupBracketShell({
   const [headerRenameOpen, setHeaderRenameOpen] = useState(false)
   const [headerRenameValue, setHeaderRenameValue] = useState("")
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
+  const [showEntryVideo, setShowEntryVideo] = useState(false)
+
+  const dismissEntryVideo = useCallback(() => {
+    try {
+      window.sessionStorage.setItem(WORLD_CUP_ENTRY_VIDEO_SESSION_KEY, "1")
+    } catch {
+      // Session storage can be blocked; the visible dismissal should still work.
+    }
+    setShowEntryVideo(false)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false
+    if (prefersReducedMotion) return
+    try {
+      if (window.sessionStorage.getItem(WORLD_CUP_ENTRY_VIDEO_SESSION_KEY) === "1") return
+    } catch {
+      return
+    }
+    setShowEntryVideo(true)
+  }, [])
 
   // Picks per-entry: keyed by entryId → array of picks
   const [entryPicks, setEntryPicks] = useState<Record<string, WorldCupPickView[]>>(() => {
@@ -2207,8 +2302,9 @@ export default function WorldCupBracketShell({
     // globals.css light-mode rescue layer so muted labels, tab text,
     // and helper copy stay readable on white. Dark + AF (legacy) modes
     // keep the original `bg-[#05070b]` styling unchanged.
-    <div id="world-cup-top" data-wc-dark className="mode-readable fixed inset-0 z-50 flex flex-col bg-[#05070b] text-white">
-      <header className="shrink-0 border-b border-cyan-300/15 bg-[radial-gradient(circle_at_50%_0%,rgba(251,191,36,0.16),transparent_34%),radial-gradient(circle_at_8%_0%,rgba(34,211,238,0.16),transparent_38%),linear-gradient(180deg,rgba(3,7,18,0.98),rgba(5,7,11,0.96))] pt-[env(safe-area-inset-top,0px)] shadow-[0_20px_64px_-46px_rgba(34,211,238,0.85)] backdrop-blur-xl">
+    <div id="world-cup-top" data-wc-dark className="mode-readable fixed inset-0 z-50 isolate flex flex-col overflow-hidden bg-[#05070b] text-white">
+      <WorldCupAtmosphereBackdrop />
+      <header className="relative z-20 shrink-0 border-b border-cyan-300/15 bg-[radial-gradient(circle_at_50%_0%,rgba(251,191,36,0.16),transparent_34%),radial-gradient(circle_at_8%_0%,rgba(34,211,238,0.16),transparent_38%),linear-gradient(180deg,rgba(3,7,18,0.98),rgba(5,7,11,0.96))] pt-[env(safe-area-inset-top,0px)] shadow-[0_20px_64px_-46px_rgba(34,211,238,0.85)] backdrop-blur-xl">
         <div className="flex items-center gap-1.5 px-2 py-1.5 sm:gap-2 sm:px-4 sm:py-2">
           {showBoard ? (
             <button
@@ -2404,6 +2500,10 @@ export default function WorldCupBracketShell({
         </nav>
       </header>
 
+      {showEntryVideo ? (
+        <WorldCupEntryVideoOverlay src={WORLD_CUP_ENTRY_VIDEO_SRC} onDismiss={dismissEntryVideo} />
+      ) : null}
+
       {inviteModalOpen ? (
         <div
           className="fixed inset-0 z-[90] flex items-end justify-center bg-black/72 p-0 backdrop-blur-md sm:items-center sm:p-5"
@@ -2446,7 +2546,7 @@ export default function WorldCupBracketShell({
         </div>
       ) : null}
 
-      <div ref={pageScrollRef} className="flex-1 overflow-y-auto scroll-smooth">
+      <div ref={pageScrollRef} className="relative z-10 flex-1 overflow-y-auto scroll-smooth">
         <nav
           data-testid="world-cup-sticky-subnav"
           aria-label={t("wc.subnav.quickJump")}

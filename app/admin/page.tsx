@@ -450,17 +450,18 @@ function SportsOperatingSystemPanel({ audit }: { audit: SportsOperatingSystemAud
 function SportsIdentityHealthPanel({ snapshot }: { snapshot: SportsIdentityHealthSnapshot }) {
   return (
     <AccordionSection title="Sports OS Identity & Image Health" eyebrow="cached data quality">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard item={{ label: "Sports audited", value: snapshot.summary.sportsAudited, tracked: true }} />
         <MetricCard item={{ label: "Total players", value: snapshot.summary.totalPlayers, tracked: true }} />
         <MetricCard item={{ label: "Identity problems", value: snapshot.summary.identityProblems, tracked: true }} />
         <MetricCard item={{ label: "Image/logo problems", value: snapshot.summary.imageProblems, tracked: true }} />
+        <MetricCard item={{ label: "Provider mapping problems", value: snapshot.summary.providerMappingProblems, tracked: true }} />
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_0.9fr]">
         <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/25 p-4">
           <h3 className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100/75">Identity coverage</h3>
-          <table className="mt-3 w-full min-w-[980px] text-left text-xs">
+          <table className="mt-3 w-full min-w-[1280px] text-left text-xs">
             <thead className="text-[10px] uppercase tracking-[0.16em] text-white/42">
               <tr>
                 <th className="py-2 pr-3">Sport</th>
@@ -471,6 +472,10 @@ function SportsIdentityHealthPanel({ snapshot }: { snapshot: SportsIdentityHealt
                 <th className="py-2 pr-3">No team</th>
                 <th className="py-2 pr-3">No position</th>
                 <th className="py-2 pr-3">Duplicate names</th>
+                <th className="py-2 pr-3">Duplicate teams</th>
+                <th className="py-2 pr-3">Unmapped players</th>
+                <th className="py-2 pr-3">Unmapped teams</th>
+                <th className="py-2 pr-3">Inactive/unknown</th>
                 <th className="py-2 pr-3">Team mismatch</th>
               </tr>
             </thead>
@@ -489,6 +494,10 @@ function SportsIdentityHealthPanel({ snapshot }: { snapshot: SportsIdentityHealt
                   <td className="py-3 pr-3">{row.playersMissingTeam}</td>
                   <td className="py-3 pr-3">{row.playersMissingPosition}</td>
                   <td className="py-3 pr-3">{row.duplicatePlayerNameGroups}</td>
+                  <td className="py-3 pr-3">{row.duplicateTeamIdentityGroups}</td>
+                  <td className="py-3 pr-3">{row.unmappedProviderPlayers}</td>
+                  <td className="py-3 pr-3">{row.unmappedProviderTeams}</td>
+                  <td className="py-3 pr-3">{row.inactiveOrUnknownPlayers}</td>
                   <td className="py-3 pr-3">{row.teamMappingMismatches}</td>
                 </tr>
               ))}
@@ -529,6 +538,64 @@ function SportsIdentityHealthPanel({ snapshot }: { snapshot: SportsIdentityHealt
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="mt-4 overflow-x-auto rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.04] p-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100/75">Provider mapping counts</h3>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-white/48">
+              Cached rows only. This panel compares stored provider player/team rows against canonical identity and team metadata without remote image or provider checks.
+            </p>
+          </div>
+          <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">
+            {snapshot.providerRows.length} provider sport maps
+          </span>
+        </div>
+        {snapshot.providerRows.length > 0 ? (
+          <table className="mt-3 w-full min-w-[1180px] text-left text-xs">
+            <thead className="text-[10px] uppercase tracking-[0.16em] text-white/42">
+              <tr>
+                <th className="py-2 pr-3">Sport</th>
+                <th className="py-2 pr-3">Provider</th>
+                <th className="py-2 pr-3">Status</th>
+                <th className="py-2 pr-3">Provider players</th>
+                <th className="py-2 pr-3">Mapped IDs</th>
+                <th className="py-2 pr-3">Unmapped players</th>
+                <th className="py-2 pr-3">Provider teams</th>
+                <th className="py-2 pr-3">Mapped teams</th>
+                <th className="py-2 pr-3">Unmapped teams</th>
+                <th className="py-2 pr-3">Duplicate player IDs</th>
+                <th className="py-2 pr-3">Duplicate team IDs</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {snapshot.providerRows.map((row) => (
+                <tr key={row.id} className="align-top text-white/70">
+                  <td className="py-3 pr-3 font-black text-white">{row.label}</td>
+                  <td className="py-3 pr-3">{row.provider}</td>
+                  <td className="py-3 pr-3">
+                    <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${identityStatusClass(row.status)}`}>
+                      {identityStatusLabel(row.status)}
+                    </span>
+                  </td>
+                  <td className="py-3 pr-3">{row.providerPlayerRows}</td>
+                  <td className="py-3 pr-3">{row.mappedPlayerIds}</td>
+                  <td className="py-3 pr-3">{row.unmappedProviderPlayers}</td>
+                  <td className="py-3 pr-3">{row.providerTeamRows}</td>
+                  <td className="py-3 pr-3">{row.mappedTeamRows}</td>
+                  <td className="py-3 pr-3">{row.unmappedProviderTeams}</td>
+                  <td className="py-3 pr-3">{row.duplicatePlayerMappingGroups}</td>
+                  <td className="py-3 pr-3">{row.duplicateTeamMappingGroups}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="mt-3 rounded-xl border border-white/10 bg-black/25 p-4 text-sm text-white/50">
+            Provider mapping counts are not tracked yet for cached identity rows.
+          </p>
+        )}
       </div>
 
       <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/[0.08] p-4">
@@ -992,8 +1059,17 @@ export default async function AdminPage({
                 Production metrics from existing AllFantasy tables. Unavailable metrics are labeled instead of estimated.
               </p>
             </div>
-            <div className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.08] px-4 py-3 text-sm font-bold text-amber-100">
-              Generated {new Date(data.generatedAt).toLocaleString("en-US", { timeZone: "America/New_York" })}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:flex-col lg:items-end">
+              <a
+                href="/dashboard"
+                data-testid="admin-exit-button"
+                className="inline-flex min-h-11 items-center justify-center rounded-full border border-cyan-200/35 bg-gradient-to-r from-cyan-300 to-sky-300 px-4 py-2 text-sm font-black text-slate-950 shadow-[0_12px_34px_-18px_rgba(34,211,238,0.95)] transition hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+              >
+                Exit Admin / Back to App
+              </a>
+              <div className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.08] px-4 py-3 text-sm font-bold text-amber-100">
+                Generated {new Date(data.generatedAt).toLocaleString("en-US", { timeZone: "America/New_York" })}
+              </div>
             </div>
           </div>
         </header>

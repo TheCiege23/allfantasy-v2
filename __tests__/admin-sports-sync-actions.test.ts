@@ -44,9 +44,10 @@ describe("admin sports sync actions", () => {
     vi.clearAllMocks()
     mocks.canCall.mockResolvedValue(true)
     mocks.getSportsIdentityHealthSnapshot.mockResolvedValue({
-      summary: { identityProblems: 7, imageProblems: 11, sportsAudited: 2 },
+      summary: { identityProblems: 7, imageProblems: 11, providerMappingProblems: 3, sportsAudited: 2 },
       rows: [{ sport: "NFL" }, { sport: "MLB" }],
       imageRows: [{ sport: "NFL" }, { sport: "MLB" }],
+      providerRows: [{ sport: "NFL", provider: "Sleeper" }],
     })
   })
 
