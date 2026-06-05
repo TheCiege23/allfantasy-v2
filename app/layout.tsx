@@ -125,6 +125,114 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <link rel="stylesheet" href="/railway-styles.css" />
         ) : null}
 
+        {metaPixelId ? (
+          <script
+            id="meta-pixel-immediate-bootstrap"
+            dangerouslySetInnerHTML={{
+              __html: `
+                (function(f,b,e,v,pixelId,n,t,s) {
+                  if (!pixelId) return;
+                  if (typeof f.fbq !== 'function') {
+                    n=f.fbq=function(){n.callMethod?
+                    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+                    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+                    n.queue=[];t=b.createElement(e);t.async=!0;
+                    t.onload=function(){f.__afMetaFbeventsLoaded=!0};
+                    t.onerror=function(){f.__afMetaFbeventsLoaded=!1};
+                    t.src=v;s=b.getElementsByTagName(e)[0];
+                    if (s && s.parentNode) {
+                      s.parentNode.insertBefore(t,s);
+                    } else {
+                      (b.head || b.body || b.documentElement).appendChild(t);
+                    }
+                  }
+                  f.__afMetaPixelId=pixelId;
+                  f.__afMetaPixelIds=f.__afMetaPixelIds instanceof Set
+                    ? f.__afMetaPixelIds
+                    : new Set();
+                  if(!f.__afMetaPixelIds.has(pixelId)) {
+                    f.fbq('init', pixelId);
+                    f.__afMetaPixelIds.add(pixelId);
+                  }
+                  if(!f.__afMetaBasePageViewFired) {
+                    f.fbq('track', 'PageView');
+                    f.__afMetaBasePageViewFired=!0;
+                  }
+                  try {
+                    if (new URLSearchParams(f.location.search).get('af_debug_meta') === '1') {
+                      setTimeout(function() {
+                        var script = b.querySelector('script[src="https://connect.facebook.net/en_US/fbevents.js"]');
+                        console.info('[AF Meta] NEXT_PUBLIC_META_PIXEL_ID value', pixelId);
+                        console.info('[AF Meta] typeof window.fbq', typeof f.fbq);
+                        console.info('[AF Meta] fbevents.js loaded', f.__afMetaFbeventsLoaded === true || Boolean(script && f.fbq && f.fbq.callMethod));
+                      }, 1500);
+                    }
+                  } catch (err) {}
+                })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js', ${JSON.stringify(metaPixelId)});
+              `,
+            }}
+          />
+        ) : null}
+
+        {metaPixelId ? (
+          <Script id="meta-pixel-base" strategy="afterInteractive">
+            {`
+              !function(f,b,e,v,n,t,s)
+              {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+              n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+              if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+              n.queue=[];t=b.createElement(e);t.async=!0;
+              t.onload=function(){f.__afMetaFbeventsLoaded=!0};
+              t.onerror=function(){f.__afMetaFbeventsLoaded=!1};
+              t.src=v;s=b.getElementsByTagName(e)[0];
+              s.parentNode.insertBefore(t,s)}(window, document,'script',
+              'https://connect.facebook.net/en_US/fbevents.js');
+              window.__afMetaPixelId=${JSON.stringify(metaPixelId)};
+              window.__afMetaPixelIds = window.__afMetaPixelIds instanceof Set
+                ? window.__afMetaPixelIds
+                : new Set();
+              if (!window.__afMetaPixelIds.has(${JSON.stringify(metaPixelId)})) {
+                fbq('init', ${JSON.stringify(metaPixelId)});
+                window.__afMetaPixelIds.add(${JSON.stringify(metaPixelId)});
+              }
+              if (!window.__afMetaBasePageViewFired) {
+                fbq('track', 'PageView');
+                window.__afMetaBasePageViewFired = true;
+              }
+
+              (function() {
+                function shouldDebug() {
+                  try {
+                    return new URLSearchParams(window.location.search).get('af_debug_meta') === '1';
+                  } catch (err) {
+                    return false;
+                  }
+                }
+                if (!shouldDebug()) return;
+                setTimeout(function() {
+                  var script = document.querySelector('script[src="https://connect.facebook.net/en_US/fbevents.js"]');
+                  console.info('[AF Meta] NEXT_PUBLIC_META_PIXEL_ID value', ${JSON.stringify(metaPixelId)});
+                  console.info('[AF Meta] typeof window.fbq', typeof window.fbq);
+                  console.info('[AF Meta] fbevents.js loaded', window.__afMetaFbeventsLoaded === true || Boolean(script && window.fbq && window.fbq.callMethod));
+                }, 1500);
+              })();
+            `}
+          </Script>
+        ) : null}
+
+        {metaPixelId ? (
+          <noscript>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              alt=""
+              height="1"
+              width="1"
+              style={{ display: 'none' }}
+              src={`https://www.facebook.com/tr?id=${encodeURIComponent(metaPixelId)}&ev=PageView&noscript=1`}
+            />
+          </noscript>
+        ) : null}
+
         {gaMeasurementId && (
           <>
             <Script
@@ -211,7 +319,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             rather than replacing it with an amber error UI.
           */}
           <ErrorBoundaryClient fallback={null}>
-            <SafeGlobalChrome metaPixelId={metaPixelId} fbAppId={fbAppId} />
+            <SafeGlobalChrome fbAppId={fbAppId} />
           </ErrorBoundaryClient>
 
           {/* Music widgets deferred until Spotify Web Playback SDK is integrated.
