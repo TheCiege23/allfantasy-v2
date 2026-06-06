@@ -23,6 +23,7 @@ import { listUserWorldCupChallenges } from "@/lib/world-cup"
 import { resolveServerRenderPreferences } from "@/lib/preferences/ServerRenderPreferenceResolver"
 import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 import LanguageToggle from "@/components/i18n/LanguageToggle"
+import { ModeToggle } from "@/components/theme/ModeToggle"
 
 const WC_LOGO_SRC = "/images/brackets/world-cup/af-world-cup-logo.png"
 const WC_VIDEO_SRC = "/videos/brackets/world-cup/af-world-cup-hero.mp4"
@@ -134,12 +135,10 @@ export default async function WorldCupBracketsPage() {
   const { language } = await resolveServerRenderPreferences()
   const t = makeWcT(language)
 
-  // data-wc-dark: marks this element for the globals.css [data-wc-dark] rules that
-  // prevent the DEFAULT_THEME="light" palette overrides from washing out the page.
   return (
-    <main className="mode-readable relative min-h-screen overflow-hidden bg-[#05070b] text-white" data-wc-dark="">
+    <main className="af-world-cup-page mode-readable relative min-h-screen overflow-hidden bg-[#05070b] text-white">
       {/* ── Atmospheric background ──────────────────────────────────── */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-0">
+      <div aria-hidden className="af-world-cup-atmosphere pointer-events-none absolute inset-0 -z-0">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(20,184,166,0.16),transparent_55%),radial-gradient(ellipse_at_bottom,rgba(67,56,202,0.12),transparent_60%)]" />
         <div className="absolute inset-0 bg-[linear-gradient(rgba(34,211,238,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(34,211,238,0.045)_1px,transparent_1px)] bg-[size:48px_48px] [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]" />
         <div className="absolute inset-x-0 top-0 h-[28rem] bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.04),transparent_70%)]" />
@@ -154,6 +153,7 @@ export default async function WorldCupBracketsPage() {
           {t("wc.publicHub.backToBrackets")}
         </Link>
         <div className="flex items-center gap-2">
+          <ModeToggle className="rounded-lg border px-3 py-2 text-xs font-bold shadow-sm" />
           <LanguageToggle variant="compact" refreshOnChange />
           {userId && (
             <Link

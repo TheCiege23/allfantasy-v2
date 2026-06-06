@@ -52,6 +52,7 @@ export function buildThemeInitScript(serverMode?: string | null): string {
         var fallbackEffective = ${JSON.stringify(fallbackEffective)};
         var raw = localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});
         var stored = raw;
+        if (stored === "af") stored = "legacy";
         if (stored !== "dark" && stored !== "light" && stored !== "legacy" && stored !== "system") {
           stored = ${JSON.stringify(fallbackStored)};
         }

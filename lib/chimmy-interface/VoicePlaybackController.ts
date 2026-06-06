@@ -199,11 +199,9 @@ export function speakChimmy(
 
       if (!res.ok) {
         if (res.status === 503) {
-          console.warn("[TTS] ElevenLabs not configured (503); no browser fallback");
           options?.onUnavailable?.("Voice unavailable — check ElevenLabs API key in settings");
           options?.onEnd?.();
         } else {
-          console.warn("[TTS] falling back to browser speech:", res.status);
           if (hasBrowserSpeechFallback) {
             const did = fallbackSpeak(text, preset, sessionId, options);
             if (!did) {
@@ -264,8 +262,7 @@ export function speakChimmy(
         }
       };
 
-      await audio.play().catch((err) => {
-        console.warn("[TTS] audio.play failed, using fallback:", err);
+      await audio.play().catch(() => {
         URL.revokeObjectURL(url);
         if (currentAudio === audio) currentAudio = null;
         if (activeObjectUrl === url) activeObjectUrl = null;
@@ -286,7 +283,6 @@ export function speakChimmy(
       if (activeSessionId !== sessionId) return;
       const aborted = err instanceof DOMException && err.name === "AbortError";
       if (!aborted) {
-        console.warn("[TTS] error, using fallback:", err);
         if (hasBrowserSpeechFallback) {
           const did = fallbackSpeak(text, preset, sessionId, options);
           if (!did) {

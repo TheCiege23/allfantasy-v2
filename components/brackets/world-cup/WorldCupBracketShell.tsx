@@ -93,6 +93,7 @@ import {
 } from "@/lib/world-cup/worldCupMetaEvents"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import LanguageToggle from "@/components/i18n/LanguageToggle"
+import { ThemeModeSelect } from "@/components/theme/ThemeModeSelect"
 import WorldCupBracketBoard from "./WorldCupBracketBoard"
 import WorldCupBracketHealthCard from "./WorldCupBracketHealthCard"
 import WorldCupRootingGuideCard from "./WorldCupRootingGuideCard"
@@ -227,7 +228,7 @@ function WorldCupAtmosphereBackdrop() {
   return (
     <div
       data-testid="world-cup-atmosphere-backdrop"
-      className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+      className="af-world-cup-atmosphere pointer-events-none absolute inset-0 -z-10 overflow-hidden"
       aria-hidden
     >
       <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(34,211,238,0.18),transparent_30%),linear-gradient(245deg,rgba(251,191,36,0.16),transparent_32%),linear-gradient(180deg,#02050b_0%,#05101c_45%,#02050b_100%)]" />
@@ -2335,9 +2336,9 @@ export default function WorldCupBracketShell({
     // globals.css light-mode rescue layer so muted labels, tab text,
     // and helper copy stay readable on white. Dark + AF (legacy) modes
     // keep the original `bg-[#05070b]` styling unchanged.
-    <div id="world-cup-top" data-wc-dark className="mode-readable fixed inset-0 z-50 isolate flex flex-col overflow-hidden bg-[#05070b] text-white">
+    <div id="world-cup-top" className="af-world-cup-page mode-readable fixed inset-0 z-50 isolate flex flex-col overflow-hidden bg-[#05070b] text-white">
       <WorldCupAtmosphereBackdrop />
-      <header className="relative z-20 shrink-0 border-b border-cyan-300/15 bg-[radial-gradient(circle_at_50%_0%,rgba(251,191,36,0.16),transparent_34%),radial-gradient(circle_at_8%_0%,rgba(34,211,238,0.16),transparent_38%),linear-gradient(180deg,rgba(3,7,18,0.98),rgba(5,7,11,0.96))] pt-[env(safe-area-inset-top,0px)] shadow-[0_20px_64px_-46px_rgba(34,211,238,0.85)] backdrop-blur-xl">
+      <header className="af-world-cup-header relative z-20 shrink-0 border-b pt-[env(safe-area-inset-top,0px)] backdrop-blur-xl">
         <div className="flex items-center gap-1.5 px-2 py-1.5 sm:gap-2 sm:px-4 sm:py-2">
           {showBoard ? (
             <button
@@ -2481,6 +2482,9 @@ export default function WorldCupBracketShell({
               the Invite CTA off small screens. */}
           <div data-testid="wc-shell-language-toggle">
             <LanguageToggle variant="compact" refreshOnChange />
+          </div>
+          <div data-testid="wc-shell-theme-toggle">
+            <ThemeModeSelect size="sm" />
           </div>
           {(view.isOwner || view.isAdmin) && (
             <button

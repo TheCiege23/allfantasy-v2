@@ -412,13 +412,12 @@ export default function ChimmyChatShell({
       }
       try {
         const r = await fetch('/api/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'GET',
           credentials: 'include',
-          body: JSON.stringify({ text: 'test', voiceId: elevenLabsVoiceId }),
+          cache: 'no-store',
         })
-        const ct = r.headers.get('content-type') || ''
-        const ok = r.ok && (ct.includes('audio') || ct.includes('mpeg'))
+        const data = r.ok ? await r.json().catch(() => null) : null
+        const ok = r.ok && data?.available === true
         if (cancelled) return
         setTtsUnavailable(!ok)
         if (!ok) {

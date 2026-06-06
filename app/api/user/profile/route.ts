@@ -171,6 +171,8 @@ async function handleProfileWrite(req: Request, userId: string) {
       themePreference === "legacy" ||
       themePreference === "system"
         ? themePreference
+        : themePreference === "af"
+          ? "legacy"
         : null
     ) as ThemePreference | null
   if (displayName !== undefined) profilePayload.displayName = displayName ?? null

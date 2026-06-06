@@ -45,6 +45,7 @@ export function normalizeStoredTheme(value: string | null | undefined): ThemeId 
   if (value === 'light' || value === 'dark' || value === 'legacy' || value === 'system') {
     return value
   }
+  if (value === 'af') return 'legacy'
   return DEFAULT_THEME
 }
 
