@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, typ
 import { Send, Volume2, VolumeX, Image as ImageIcon, Mic, MicOff, Loader2, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import { getDefaultChimmyChips } from '@/lib/chimmy-interface';
+import { isNoChargeChimmyIntent } from '@/lib/ai/chimmyIntentRouter';
 import { confirmTokenSpend } from '@/lib/tokens/client-confirm';
 import { sendChimmyMessage } from '@/lib/chimmy-chat/ChimmyChatService';
 import {
@@ -407,37 +408,40 @@ export default function ChimmyChat({
     }
     setIsTyping(true);
 
-    try {
-      const { confirmed, preview } = await confirmTokenSpend('ai_chimmy_chat_message');
-      if (!preview.canSpend) {
-        setMessages((prev) => [
-          ...prev.slice(0, -1),
-          {
-            id: createMessageId(),
-            role: 'assistant',
-            content: CHIMMY_PREMIUM_FEATURE_MESSAGE,
-            upgradePath: CHIMMY_DEFAULT_UPGRADE_PATH,
-            createdAt: Date.now(),
-          },
-        ]);
-        setIsTyping(false);
-        return;
-      }
-      if (!confirmed) {
-        setMessages((prev) => prev.slice(0, -1));
-        setInput(capturedInput);
-        if (capturedImageFile) {
-          setImageFile(capturedImageFile);
-          setImagePreview(capturedImagePreview);
+    const skipClientTokenPreflight = outgoingText ? isNoChargeChimmyIntent(outgoingText) : false;
+    if (!skipClientTokenPreflight) {
+      try {
+        const { confirmed, preview } = await confirmTokenSpend('ai_chimmy_chat_message');
+        if (!preview.canSpend) {
+          setMessages((prev) => [
+            ...prev.slice(0, -1),
+            {
+              id: createMessageId(),
+              role: 'assistant',
+              content: CHIMMY_PREMIUM_FEATURE_MESSAGE,
+              upgradePath: CHIMMY_DEFAULT_UPGRADE_PATH,
+              createdAt: Date.now(),
+            },
+          ]);
+          setIsTyping(false);
+          return;
         }
-        setIsTyping(false);
-        return;
+        if (!confirmed) {
+          setMessages((prev) => prev.slice(0, -1));
+          setInput(capturedInput);
+          if (capturedImageFile) {
+            setImageFile(capturedImageFile);
+            setImagePreview(capturedImagePreview);
+          }
+          setIsTyping(false);
+          return;
+        }
+      } catch (error) {
+        console.error(
+          '[ChimmyChat] Token preview failed, continuing without preflight:',
+          error instanceof Error ? error.message : error
+        );
       }
-    } catch (error) {
-      console.error(
-        '[ChimmyChat] Token preview failed, continuing without preflight:',
-        error instanceof Error ? error.message : error
-      );
     }
 
     try {
@@ -550,9 +554,10 @@ export default function ChimmyChat({
 
   return (
     <div
-      className={`flex min-h-0 flex-col overflow-hidden touch-scroll bg-slate-950 ${
+      className={`mode-readable flex min-h-0 flex-col overflow-hidden touch-scroll bg-slate-950 text-white ${
         embedded ? embeddedShell : 'h-fill-dynamic rounded-3xl border border-slate-800'
       }`}
+      data-testid="chimmy-chat-shell"
     >
       {!embedded ? (
         <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900 p-5">

@@ -399,10 +399,32 @@ html[data-mode="light"] .mode-readable [class*="bg-black"] {
   background-color: color-mix(in srgb, var(--panel2) 88%, transparent) !important;
 }
 
+html[data-mode="light"] .mode-readable [class*="bg-slate-950"],
+html[data-mode="light"] .mode-readable [class*="bg-slate-900"],
+html[data-mode="light"] .mode-readable [class*="bg-slate-800"],
+html[data-mode="light"] .mode-readable [class*="bg-slate-700"] {
+  background-color: color-mix(in srgb, var(--panel) 94%, transparent) !important;
+  color: var(--text) !important;
+}
+
+html[data-mode="light"] .mode-readable [class*="text-slate-500"],
+html[data-mode="light"] .mode-readable [class*="text-slate-400"],
+html[data-mode="light"] .mode-readable [class*="text-slate-300"],
+html[data-mode="light"] .mode-readable [class*="text-slate-200"] {
+  color: var(--muted) !important;
+}
+
+html[data-mode="light"] .mode-readable [class*="border-slate-800"],
+html[data-mode="light"] .mode-readable [class*="border-slate-700"],
+html[data-mode="light"] .mode-readable [class*="border-slate-600"] {
+  border-color: var(--border) !important;
+}
+
 /* Common arbitrary dark backgrounds used across app pages (light mode fallback).
    Covers the frequent dark navy/midnight/slate hex values used as page + panel bg.
    Grouped by function: page roots, panel/card, gradient stops, gradient intermediates. */
 html[data-mode="light"] .mode-readable [class*="bg-[#020617]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#020711]"],
 html[data-mode="light"] .mode-readable [class*="bg-[#02061a]"],
 html[data-mode="light"] .mode-readable [class*="bg-[#030816]"],
 html[data-mode="light"] .mode-readable [class*="bg-[#030a1f]"],
@@ -478,7 +500,11 @@ html[data-mode="light"] .mode-readable [class*="border-white"] {
    full-screen pages need equivalent self rules in light mode. */
 html[data-mode="light"] .mode-readable[class*="bg-[#05070b]"],
 html[data-mode="light"] .mode-readable[class*="bg-[#020713]"],
-html[data-mode="light"] .mode-readable[class*="bg-[#0a0a1f]"] {
+html[data-mode="light"] .mode-readable[class*="bg-[#020711]"],
+html[data-mode="light"] .mode-readable[class*="bg-[#0a0a1f]"],
+html[data-mode="light"] .mode-readable[class*="bg-slate-950"],
+html[data-mode="light"] .mode-readable[class*="bg-slate-900"],
+html[data-mode="light"] .mode-readable[class*="bg-slate-800"] {
   background-color: var(--bg) !important;
   background-image: none !important;
   color: var(--text) !important;

@@ -490,6 +490,7 @@ export async function POST(req: NextRequest) {
     // cookies() unavailable in this context; default to 'en'
   }
   const afLang = resolveLanguage(cookieStore?.get('af_lang')?.value)
+  const wantsStream = parseResult.data.stream === true
 
   const anthropicImage = normalizeAnthropicImagePayload(parseResult.data.image)
   const leagueGroundingRequired = requiresLeagueGrounding({
@@ -539,6 +540,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(buildCompatibilityPayload({ error: 'Unauthorized' }, 401), { status: 401 })
   }
 
+  const earlyDeterministicAnswer = await tryDeterministicAnswer(parseResult.data.message, afLang)
+  if (earlyDeterministicAnswer !== null) {
+    const deterministicPayload = buildCompatibilityPayload(
+      { response: earlyDeterministicAnswer, result: earlyDeterministicAnswer, source: DETERMINISTIC_SOURCE },
+      200
+    )
+    if (wantsStream) {
+      const encoder = new TextEncoder()
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode(encodeSseEvent('chunk', { delta: earlyDeterministicAnswer, response: earlyDeterministicAnswer })))
+          controller.enqueue(encoder.encode(encodeSseEvent('done', deterministicPayload)))
+          controller.close()
+        },
+      })
+      return new Response(stream, { status: 200, headers: SSE_HEADERS })
+    }
+    return NextResponse.json(deterministicPayload, { status: 200 })
+  }
+
   const gate = await requireFeatureEntitlement({
     userId,
     userEmail: session?.user?.email,
@@ -562,7 +583,6 @@ export async function POST(req: NextRequest) {
   const resolvedTier = resolveServerTier(gate.decision.entitlement.plans)
   const anthropicContext = buildAnthropicUserContext(parseResult.data, userId, resolvedTier, afLang, anthropicImage)
   const tokenSpendId = gate.tokenSpend?.id ?? null
-  const wantsStream = parseResult.data.stream === true
 
   // ── Daily cap check ──────────────────────────────────────────────────────────
   const capTier = resolveCapTier(gate.decision.entitlement.plans)
