@@ -10,6 +10,7 @@ import {
   searchGifs,
 } from "@/lib/rich-message/GIFIntegrationResolver"
 import { rateLimitManager } from "@/lib/workers/rate-limit-manager"
+import { createPlatformThread } from "@/lib/platform/chat-service"
 import {
   isCloudinaryConfigured,
   isWorldCupChatImageType,
@@ -114,6 +115,12 @@ const postSchema = z.object({
   }).optional(),
 })
 
+const startDmSchema = z.object({
+  action: z.literal("start_dm"),
+  memberUserIds: z.array(z.string().trim().min(1)).min(1).max(12),
+  title: z.string().trim().min(1).max(100).optional(),
+})
+
 const postActionSchema = z.object({
   action: z.string().trim().optional(),
 }).passthrough()
@@ -151,6 +158,19 @@ type RawWorldCupChatEvent = {
 type WorldCupChallengeSummary = {
   id: string
   name?: string | null
+}
+
+type WorldCupChatMemberRow = {
+  userId: string
+  displayName: string
+  joinedAt: Date
+  user?: {
+    id: string
+    username?: string | null
+    displayName?: string | null
+    email?: string | null
+    avatarUrl?: string | null
+  } | null
 }
 
 type UploadedImageFile = Blob & { name?: string; arrayBuffer: () => Promise<ArrayBuffer> }
@@ -775,6 +795,89 @@ async function resolveMentionedUsers(challengeId: string, names: string[]) {
   }))
 }
 
+async function listWorldCupChatMembers(challengeId: string, requesterUserId: string) {
+  const participants = await (prisma as any).worldCupBracketParticipant.findMany({
+    where: { challengeId },
+    orderBy: [{ rank: "asc" }, { joinedAt: "asc" }],
+    take: 100,
+    include: {
+      user: {
+        select: {
+          id: true,
+          username: true,
+          displayName: true,
+          email: true,
+          avatarUrl: true,
+        },
+      },
+    },
+  }) as WorldCupChatMemberRow[]
+
+  return participants.map((participant) => {
+    const user = participant.user
+    const username = user?.username ?? null
+    const label =
+      user?.displayName ||
+      username ||
+      participant.displayName ||
+      user?.email?.split("@")[0] ||
+      "Pool member"
+    return {
+      userId: participant.userId,
+      username,
+      displayName: label,
+      avatarUrl: user?.avatarUrl ?? null,
+      joinedAt: participant.joinedAt.toISOString(),
+      isCurrentUser: participant.userId === requesterUserId,
+    }
+  })
+}
+
+async function startWorldCupDmThread(input: {
+  challengeId: string
+  userId: string
+  payload: unknown
+}) {
+  const parsed = startDmSchema.safeParse(input.payload)
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid DM request", issues: parsed.error.flatten() }, { status: 400 })
+  }
+
+  const requestedMembers = Array.from(new Set(parsed.data.memberUserIds.filter((id) => id !== input.userId)))
+  if (requestedMembers.length === 0) {
+    return NextResponse.json({ error: "Choose at least one other pool member." }, { status: 400 })
+  }
+
+  const rows = await (prisma as any).worldCupBracketParticipant.findMany({
+    where: {
+      challengeId: input.challengeId,
+      userId: { in: requestedMembers },
+    },
+    select: { userId: true },
+  }) as Array<{ userId: string }>
+  const allowed = new Set(rows.map((row) => row.userId))
+  const allMembersAreInPool = requestedMembers.every((userId) => allowed.has(userId))
+  if (!allMembersAreInPool) {
+    return NextResponse.json({ error: "Direct messages can only include members of this World Cup pool." }, { status: 403 })
+  }
+
+  const thread = await createPlatformThread({
+    creatorUserId: input.userId,
+    threadType: requestedMembers.length === 1 ? "dm" : "group",
+    productType: "bracket",
+    title: requestedMembers.length === 1
+      ? undefined
+      : parsed.data.title ?? "World Cup private chat",
+    memberUserIds: requestedMembers,
+  })
+
+  if (!thread) {
+    return NextResponse.json({ error: "Unable to start private chat." }, { status: 400 })
+  }
+
+  return NextResponse.json({ ok: true, thread }, { status: 201 })
+}
+
 async function getWorldCupChallengeSummary(challengeId: string): Promise<WorldCupChallengeSummary | null> {
   try {
     const delegate = (prisma as any).worldCupBracketChallenge
@@ -883,6 +986,10 @@ export async function GET(
   if (action === "notification_preferences") {
     return getNotificationPreferences(auth.user.id, params.data.challengeId)
   }
+  if (action === "members") {
+    const members = await listWorldCupChatMembers(params.data.challengeId, auth.user.id)
+    return NextResponse.json({ members })
+  }
 
   const messages = await listChatMessages(params.data.challengeId, auth.user.id)
   return NextResponse.json({ messages })
@@ -915,7 +1022,8 @@ export async function POST(
     queryAction !== "send_message" &&
     queryAction !== "chimmy_private" &&
     queryAction !== "create_poll" &&
-    queryAction !== "poll_vote"
+    queryAction !== "poll_vote" &&
+    queryAction !== "start_dm"
   ) {
     return NextResponse.json({ error: "Unknown World Cup chat action" }, { status: 400 })
   }
@@ -934,6 +1042,13 @@ export async function POST(
   }
   if (action === "poll_vote") {
     return voteWorldCupPoll({
+      challengeId: params.data.challengeId,
+      userId: auth.user.id,
+      payload: json,
+    })
+  }
+  if (action === "start_dm") {
+    return startWorldCupDmThread({
       challengeId: params.data.challengeId,
       userId: auth.user.id,
       payload: json,

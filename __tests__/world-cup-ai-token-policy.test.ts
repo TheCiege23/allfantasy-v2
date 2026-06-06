@@ -5,11 +5,17 @@ import type { WorldCupChimmyContext } from "@/lib/world-cup/worldCupChimmyContex
 const routeTextCallMock = vi.hoisted(() => vi.fn())
 const appendChatHistoryMock = vi.hoisted(() => vi.fn())
 const buildChimmyConversationIdMock = vi.hoisted(() => vi.fn())
+const tryDeterministicAnswerMock = vi.hoisted(() => vi.fn())
 
 vi.mock("server-only", () => ({}))
 
 vi.mock("@/lib/ai/providerRouter", () => ({
   routeTextCall: routeTextCallMock,
+}))
+
+vi.mock("@/lib/ai/deterministic", () => ({
+  DETERMINISTIC_SOURCE: "deterministic",
+  tryDeterministicAnswer: tryDeterministicAnswerMock,
 }))
 
 vi.mock("@/lib/ai-memory/chat-history-store", () => ({
@@ -48,6 +54,7 @@ describe("World Cup Chimmy token/no-charge policy", () => {
     vi.clearAllMocks()
     appendChatHistoryMock.mockResolvedValue(undefined)
     buildChimmyConversationIdMock.mockReturnValue("chimmy:user-1:world-cup:wc-1")
+    tryDeterministicAnswerMock.mockResolvedValue(null)
     routeTextCallMock.mockResolvedValue({
       ok: true,
       text: "Grounded answer.",

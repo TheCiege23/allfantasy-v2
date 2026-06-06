@@ -16,6 +16,7 @@ import 'server-only'
 import { prisma } from '@/lib/prisma'
 import { resolveChimmyIntentRoute } from '@/lib/ai/chimmyIntentRouter'
 import { DEFAULT_WORLD_CUP_SCORING } from '@/lib/world-cup/worldCupBracketBuilder'
+import { fetchFantasyCalcValues, findPlayerByName, getValueTier } from '@/lib/fantasycalc'
 
 // ── Schedule question detection ───────────────────────────────────────────────
 
@@ -65,6 +66,229 @@ const SCHEDULE_REFUSAL_BY_LOCALE: Record<string, string> = {
   vi: "Tôi cần dữ liệu lịch thi đấu trực tiếp để trả lời chính xác về các trận hôm nay.",
 }
 
+const SPORT_ALIASES: Array<{ sport: string; pattern: RegExp }> = [
+  { sport: 'NBA', pattern: /\b(nba|basketball|knicks|lakers|warriors|celtics|mavericks|thunder|nuggets|timberwolves|pacers)\b/i },
+  { sport: 'MLB', pattern: /\b(mlb|baseball|yankees|mets|dodgers|red\s+sox|braves|cubs|phillies)\b/i },
+  { sport: 'NHL', pattern: /\b(nhl|hockey|rangers|islanders|bruins|maple\s+leafs|panthers|oilers)\b/i },
+  { sport: 'NFL', pattern: /\b(nfl|football|chiefs|mahomes|patrick\s+mahomes|cowboys|eagles|giants|jets|bills|ravens)\b/i },
+  { sport: 'SOCCER', pattern: /\b(soccer|fifa|world\s+cup|mundial|copa\s+mundial|football tournament|futbol|f[uú]tbol)\b/i },
+  { sport: 'NCAAF', pattern: /\b(ncaaf|college football|cfb)\b/i },
+  { sport: 'NCAAB', pattern: /\b(ncaab|college basketball|cbb|march madness)\b/i },
+]
+
+const TEAM_ALIASES: Record<string, Array<{ canonical: string; aliases: string[] }>> = {
+  NBA: [
+    { canonical: 'New York Knicks', aliases: ['knicks', 'nyk', 'new york knicks'] },
+    { canonical: 'Los Angeles Lakers', aliases: ['lakers', 'lal', 'los angeles lakers'] },
+    { canonical: 'Golden State Warriors', aliases: ['warriors', 'gsw', 'golden state warriors'] },
+    { canonical: 'Boston Celtics', aliases: ['celtics', 'bos', 'boston celtics'] },
+    { canonical: 'Indiana Pacers', aliases: ['pacers', 'ind', 'indiana pacers'] },
+  ],
+  MLB: [
+    { canonical: 'New York Yankees', aliases: ['yankees', 'nyy', 'new york yankees'] },
+    { canonical: 'New York Mets', aliases: ['mets', 'nym', 'new york mets'] },
+    { canonical: 'Los Angeles Dodgers', aliases: ['dodgers', 'lad', 'los angeles dodgers'] },
+  ],
+  NHL: [
+    { canonical: 'New York Rangers', aliases: ['rangers', 'nyr', 'new york rangers'] },
+    { canonical: 'New York Islanders', aliases: ['islanders', 'nyi', 'new york islanders'] },
+  ],
+  NFL: [
+    { canonical: 'Kansas City Chiefs', aliases: ['chiefs', 'kc', 'kansas city chiefs'] },
+    { canonical: 'Dallas Cowboys', aliases: ['cowboys', 'dal', 'dallas cowboys'] },
+    { canonical: 'Philadelphia Eagles', aliases: ['eagles', 'phi', 'philadelphia eagles'] },
+  ],
+}
+
+function resolveSportFromMessage(message: string): string | null {
+  for (const item of SPORT_ALIASES) {
+    if (item.pattern.test(message)) return item.sport
+  }
+  return null
+}
+
+function resolveTeamAlias(message: string, sport: string | null): { canonical: string; aliases: string[] } | null {
+  const lower = message.toLowerCase()
+  const sportsToCheck = sport ? [sport] : Object.keys(TEAM_ALIASES)
+  for (const sp of sportsToCheck) {
+    for (const team of TEAM_ALIASES[sp] ?? []) {
+      if (team.aliases.some((alias) => new RegExp(`\\b${alias.replace(/\s+/g, '\\s+')}\\b`, 'i').test(lower))) {
+        return team
+      }
+    }
+  }
+  return null
+}
+
+function dayWindowUtc(input: 'today' | 'yesterday') {
+  const now = new Date()
+  const base = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  const start = input === 'yesterday'
+    ? new Date(base.getTime() - 24 * 60 * 60 * 1000)
+    : base
+  return {
+    start,
+    end: new Date(start.getTime() + 24 * 60 * 60 * 1000),
+  }
+}
+
+function formatEt(value: Date | string | null | undefined): string {
+  if (!value) return 'time TBD'
+  const date = value instanceof Date ? value : new Date(value)
+  if (!Number.isFinite(date.getTime())) return 'time TBD'
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  }).format(date)
+}
+
+function isFinalStatus(status: string | null | undefined): boolean {
+  return /\b(final|completed|complete|ended|ft|full time|post|closed)\b/i.test(String(status ?? ''))
+}
+
+function teamFieldMatches(value: string | null | undefined, aliases: string[]): boolean {
+  const lower = String(value ?? '').toLowerCase()
+  return aliases.some((alias) => lower === alias.toLowerCase() || lower.includes(alias.toLowerCase()))
+}
+
+async function buildWorldCupStartAnswer(locale?: string): Promise<string | null> {
+  if (locale === 'es') {
+    // Keep the static fallback short and explicit about cache availability.
+    return 'La Copa Mundial FIFA 2026 está programada para comenzar el 11 de junio de 2026. Si el fixture sincronizado no está en caché, no afirmaré el partido inaugural exacto.'
+  }
+
+  const firstMatch = await (prisma as any).worldCupBracketMatch?.findFirst?.({
+    where: { startsAt: { not: null } },
+    orderBy: { startsAt: 'asc' },
+    select: {
+      homeTeamName: true,
+      awayTeamName: true,
+      startsAt: true,
+      venueName: true,
+      venueCity: true,
+    },
+  }).catch(() => null)
+
+  if (firstMatch?.startsAt) {
+    const teams = `${firstMatch.awayTeamName || 'TBD'} vs ${firstMatch.homeTeamName || 'TBD'}`
+    const venue = [firstMatch.venueName, firstMatch.venueCity].filter(Boolean).join(', ')
+    return `The first cached World Cup kickoff is ${teams} on ${formatEt(firstMatch.startsAt)}${venue ? ` at ${venue}` : ''}. Source: AllFantasy World Cup fixture cache.`
+  }
+
+  return 'The 2026 FIFA World Cup is scheduled to start on June 11, 2026. I do not have the opening-match fixture cached here yet, so I will not claim the exact first matchup from provider data.'
+}
+
+async function buildTeamResultAnswer(message: string): Promise<string | null> {
+  if (!/\b(did|do|does|won|win|winner|result|score)\b/i.test(message)) return null
+  const sport = resolveSportFromMessage(message)
+  const team = resolveTeamAlias(message, sport)
+  if (!team) return null
+
+  const targetDay = /\b(last night|yesterday)\b/i.test(message) ? 'yesterday' : 'today'
+  const { start, end } = dayWindowUtc(targetDay)
+  const games = await (prisma as any).sportsGame?.findMany?.({
+    where: {
+      ...(sport ? { sport } : {}),
+      startTime: { gte: start, lt: end },
+      OR: [
+        ...team.aliases.map((alias) => ({ homeTeam: { contains: alias, mode: 'insensitive' as const } })),
+        ...team.aliases.map((alias) => ({ awayTeam: { contains: alias, mode: 'insensitive' as const } })),
+      ],
+    },
+    orderBy: { startTime: 'desc' },
+    take: 3,
+  }).catch(() => []) ?? []
+
+  const game = games.find((row: any) =>
+    teamFieldMatches(row.homeTeam, team.aliases) || teamFieldMatches(row.awayTeam, team.aliases)
+  ) ?? games[0]
+  if (!game) {
+    return `I do not have reliable cached ${sport ?? 'sports'} score data for ${team.canonical} from ${targetDay} yet.`
+  }
+
+  const homeScore = typeof game.homeScore === 'number' ? game.homeScore : null
+  const awayScore = typeof game.awayScore === 'number' ? game.awayScore : null
+  const scoreKnown = homeScore != null && awayScore != null
+  if (!scoreKnown) {
+    return `I found a cached ${sport ?? 'sports'} game for ${game.awayTeam} at ${game.homeTeam} on ${formatEt(game.startTime)}, but the final score is not cached yet. Status: ${game.status ?? 'unknown'}.`
+  }
+
+  const isHomeTeam = teamFieldMatches(game.homeTeam, team.aliases)
+  const teamScore = isHomeTeam ? homeScore : awayScore
+  const opponentScore = isHomeTeam ? awayScore : homeScore
+  const opponent = isHomeTeam ? game.awayTeam : game.homeTeam
+  const won = teamScore > opponentScore
+  const tied = teamScore === opponentScore
+  const finalNote = isFinalStatus(game.status) ? 'Final' : `Status: ${game.status ?? 'cached'}`
+  return tied
+    ? `${team.canonical} tied ${opponent} ${teamScore}-${opponentScore}. ${finalNote}. Source: cached SportsGame row.`
+    : `${won ? 'Yes' : 'No'} — ${team.canonical} ${won ? 'beat' : 'lost to'} ${opponent} ${teamScore}-${opponentScore}. ${finalNote}. Source: cached SportsGame row.`
+}
+
+async function buildCachedGamesAnswer(message: string): Promise<string | null> {
+  if (!detectScheduleQuestion(message) && !/\b(live scores?|scores?|games? today|tonight|playing now)\b/i.test(message)) {
+    return null
+  }
+  const sport = resolveSportFromMessage(message)
+  const { start, end } = dayWindowUtc(/\b(yesterday|last night)\b/i.test(message) ? 'yesterday' : 'today')
+  const games = await (prisma as any).sportsGame?.findMany?.({
+    where: {
+      ...(sport ? { sport } : {}),
+      startTime: { gte: start, lt: end },
+    },
+    orderBy: { startTime: 'asc' },
+    take: 12,
+  }).catch(() => []) ?? []
+
+  if (!games.length) return null
+
+  const lines = games.map((game: any) => {
+    const score =
+      typeof game.awayScore === 'number' && typeof game.homeScore === 'number'
+        ? `${game.awayScore}-${game.homeScore}`
+        : 'score TBD'
+    return `- ${game.awayTeam} @ ${game.homeTeam}: ${score} (${game.status ?? 'scheduled'}) — ${formatEt(game.startTime)}`
+  })
+  return `Here are the cached ${sport ?? 'sports'} games I can verify for that window:\n${lines.join('\n')}\nSource: cached SportsGame rows.`
+}
+
+function extractLikelyPlayerName(message: string): string | null {
+  const afterValue = message.match(/\b(?:value|worth|on|for)\s+([A-Z][a-z'.-]+(?:\s+[A-Z][a-z'.-]+){1,3})/)
+  if (afterValue?.[1]) return afterValue[1].trim()
+  const proper = message.match(/\b([A-Z][a-z'.-]+(?:\s+[A-Z][a-z'.-]+){1,3})\b/)
+  if (proper?.[1] && !/World Cup|All Fantasy|AllFantasy/.test(proper[1])) return proper[1].trim()
+  return null
+}
+
+async function buildFantasyCalcValueAnswer(message: string): Promise<string | null> {
+  if (!/\b(trade value|fantasycalc|value|worth)\b/i.test(message)) return null
+  const playerName = extractLikelyPlayerName(message)
+  if (!playerName) return null
+  const isDynasty = /\bdynasty|keeper|future\b/i.test(message)
+  const isSuperflex = /\bsuperflex|\bsf\b|2qb|two qb/i.test(message)
+
+  try {
+    const values = await fetchFantasyCalcValues({
+      isDynasty,
+      numQbs: isSuperflex ? 2 : 1,
+      numTeams: 12,
+      ppr: 1,
+    })
+    const found = findPlayerByName(values, playerName)
+    if (!found) {
+      return `I could not find ${playerName} in the FantasyCalc value feed I can access right now.`
+    }
+    const tier = getValueTier(found.value)
+    return `${found.player.name}'s FantasyCalc ${isDynasty ? 'dynasty' : 'redraft'} value is ${found.value} (${tier} tier), overall rank #${found.overallRank}, position rank #${found.positionRank}, with a 30-day trend of ${found.trend30Day > 0 ? '+' : ''}${found.trend30Day}. Settings: ${isSuperflex ? 'superflex' : '1QB'}, 12-team PPR. Source: FantasyCalc current values.`
+  } catch {
+    return `I do not have reliable FantasyCalc value data for ${playerName} right now.`
+  }
+}
+
 function buildWorldCupScoringAnswer(locale?: string): string {
   const s = DEFAULT_WORLD_CUP_SCORING
   const base =
@@ -100,6 +324,15 @@ function buildUnsupportedLiveWorldCupAnswer(locale?: string): string {
  */
 export async function tryDeterministicAnswer(message: string, locale?: string): Promise<string | null> {
   const intentRoute = resolveChimmyIntentRoute(message)
+  if (/\bwhen\s+(does|is|do).*\bworld\s*cup\b.*\b(start|begin|kick\s*off)|\bworld\s*cup\b.*\b(start|begin|kick\s*off)\b/i.test(message)) {
+    return buildWorldCupStartAnswer(locale)
+  }
+  const teamResult = await buildTeamResultAnswer(message)
+  if (teamResult) return teamResult
+  const fantasyCalcValue = await buildFantasyCalcValueAnswer(message)
+  if (fantasyCalcValue) return fantasyCalcValue
+  const cachedGames = await buildCachedGamesAnswer(message)
+  if (cachedGames) return cachedGames
   if (intentRoute.category === 'world_cup_scoring') {
     return buildWorldCupScoringAnswer(locale)
   }
