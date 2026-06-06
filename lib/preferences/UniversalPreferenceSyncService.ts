@@ -7,6 +7,8 @@
  * SyncProfilePreferences component which calls the API and applies results.
  */
 
+import { resolveLanguage } from "@/lib/i18n/constants"
+
 export const PREFERENCE_SYNC_API = "/api/user/profile"
 
 export interface SyncResult {
@@ -24,8 +26,8 @@ export function parseProfileForSync(data: Record<string, unknown> | null): SyncR
   }
   return {
     preferredLanguage:
-      data.preferredLanguage === "en" || data.preferredLanguage === "es"
-        ? (data.preferredLanguage as string)
+      typeof data.preferredLanguage === "string"
+        ? resolveLanguage(data.preferredLanguage)
         : null,
     themePreference:
       data.themePreference === "light" ||

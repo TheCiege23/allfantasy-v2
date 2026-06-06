@@ -42,6 +42,13 @@ import { isSignupAgreementGateOpen } from "@/lib/legal/SignupAgreementGate"
 import SocialLoginButtons from "@/components/auth/SocialLoginButtons"
 import { IdentityImageRenderer } from "@/components/identity/IdentityImageRenderer"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import {
+  DEFAULT_LANG,
+  SUPPORTED_LANGUAGES,
+  getLanguageDisplayName,
+  resolveLanguage,
+  type LanguageCode,
+} from "@/lib/i18n/constants"
 import { trackLandingSignupComplete } from "@/lib/landing-analytics"
 import { trackMetaEventsFromResponse } from "@/lib/meta-client"
 import { useGeoRestriction } from "@/lib/geo/useGeoRestriction"
@@ -98,6 +105,16 @@ const SIGNUP_PHONE_COUNTRIES = [
   { code: "+91", label: "IN" },
 ]
 
+const SIGNUP_LANGUAGE_BADGES: Record<LanguageCode, string> = {
+  en: "EN",
+  es: "ES",
+  zh: "ZH",
+  fil: "FIL",
+  vi: "VI",
+  fr: "FR",
+  ar: "AR",
+}
+
 export default function SignupContent() {
   const { t, language } = useOptionalLanguage()
   const mode = DEFAULT_THEME
@@ -121,9 +138,7 @@ export default function SignupContent() {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [timezone, setTimezone] = useState(DEFAULT_SIGNUP_TIMEZONE)
-  const [preferredLanguage, setPreferredLanguage] = useState<"en" | "es">(
-    language === "es" ? "es" : "en"
-  )
+  const [preferredLanguage, setPreferredLanguage] = useState<LanguageCode>(() => resolveLanguage(language))
   const [preferredLanguageTouched, setPreferredLanguageTouched] = useState(false)
   const [avatarPreset, setAvatarPreset] = useState<string | null>("crest")
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
@@ -317,7 +332,7 @@ export default function SignupContent() {
 
   useEffect(() => {
     if (preferredLanguageTouched) return
-    setPreferredLanguage(language === "es" ? "es" : "en")
+    setPreferredLanguage(resolveLanguage(language))
   }, [language, preferredLanguageTouched])
 
   useEffect(() => {
@@ -600,10 +615,7 @@ export default function SignupContent() {
 
       if (!signInResult?.error) {
         if (typeof window !== "undefined") {
-          window.localStorage.setItem(
-            "af_lang",
-            preferredLanguage === "es" ? "es" : "en"
-          )
+          window.localStorage.setItem("af_lang", preferredLanguage)
           window.localStorage.setItem("af_mode", mode)
         }
         clearUnifiedAuthDestination()
@@ -1438,7 +1450,31 @@ export default function SignupContent() {
                   <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted)" }}>
                     Language <span style={{ color: "var(--accent-cyan)" }}>*</span>
                   </label>
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {SUPPORTED_LANGUAGES.map((lang) => (
+                      <button
+                        key={lang}
+                        type="button"
+                        onClick={() => {
+                          setPreferredLanguageTouched(true)
+                          setPreferredLanguage(lang)
+                        }}
+                        className="flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition"
+                        style={{
+                          borderColor: preferredLanguage === lang ? "var(--accent-cyan)" : "var(--border)",
+                          background: preferredLanguage === lang ? "color-mix(in srgb, var(--accent-cyan) 8%, transparent)" : "var(--panel2)",
+                        }}
+                      >
+                        <span className="text-xl">{SIGNUP_LANGUAGE_BADGES[lang]}</span>
+                        <span>
+                          <strong className="block text-sm">{getLanguageDisplayName(lang)}</strong>
+                          <small style={{ color: "var(--muted)" }}>
+                            {lang === DEFAULT_LANG ? "Default language" : "Available language"}
+                          </small>
+                        </span>
+                      </button>
+                    ))}
+                    <div className="hidden" aria-hidden="true">
                     <button
                       type="button"
                       onClick={() => {
@@ -1475,6 +1511,7 @@ export default function SignupContent() {
                         <small style={{ color: "var(--muted)" }}>Spanish</small>
                       </span>
                     </button>
+                  </div>
                   </div>
                 </div>
 

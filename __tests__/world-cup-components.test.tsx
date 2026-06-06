@@ -1634,6 +1634,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getByPlaceholderText(/Message the pool or ask Chimmy/i)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /^Send$/i })).toBeDisabled()
     expect(screen.getByRole("button", { name: /^GIF$/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /Open chat tools/i }))
     expect(screen.getByRole("button", { name: /^Poll$/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /^Image$/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /^Voice$/i })).toBeInTheDocument()
@@ -1654,6 +1655,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(drawer).toHaveClass("overflow-hidden")
     expect(within(drawer).getByTestId("wc-chat-composer-shell")).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/Message the pool or ask Chimmy/i)).toBeInTheDocument()
+    fireEvent.click(within(drawer).getByRole("button", { name: /Open chat tools/i }))
     expect(within(drawer).getByRole("button", { name: /Mention/i })).toBeInTheDocument()
     expect(within(drawer).getByRole("button", { name: /Hashtag/i })).toBeInTheDocument()
 
@@ -1866,6 +1868,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
 
     await openWorldCupChatDrawer()
     const input = await screen.findByPlaceholderText(/Message the pool or ask Chimmy/i)
+    fireEvent.click(screen.getByRole("button", { name: /^Emoji$/i }))
     fireEvent.click(screen.getByRole("button", { name: /Insert 🔥/i }))
     expect(input).toHaveValue("🔥")
 
@@ -1873,14 +1876,17 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getByText(/^GIF Search$/i)).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/Search Klipy GIFs/i)).toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole("button", { name: /Open chat tools/i }))
     fireEvent.click(screen.getByRole("button", { name: /^Poll$/i }))
     expect(screen.getByRole("button", { name: /^Create Poll$/i })).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/Poll question/i)).toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole("button", { name: /Open chat tools/i }))
     fireEvent.click(screen.getByRole("button", { name: /^Image$/i }))
     expect(screen.getByText(/^Image Upload$/i)).toBeInTheDocument()
     expect(screen.getByText(/Upload a pool chat image through the World Cup Cloudinary route/i)).toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole("button", { name: /Open chat tools/i }))
     fireEvent.click(screen.getByRole("button", { name: /^Voice$/i }))
     expect(screen.getByText(/Voice notes are coming soon/i)).toBeInTheDocument()
   })
@@ -1934,6 +1940,8 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(document.querySelector("script")).toBeNull()
 
     const input = screen.getByPlaceholderText(/Message the pool or ask Chimmy/i)
+    fireEvent.click(screen.getByRole("button", { name: /Open chat tools/i }))
+    fireEvent.click(screen.getByRole("button", { name: /^Format$/i }))
     fireEvent.click(screen.getByRole("button", { name: /^Bold$/i }))
     expect(input).toHaveValue("**text**")
     expect(screen.getByText(/Formatting Preview/i)).toBeInTheDocument()
@@ -2100,6 +2108,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
 
     await openWorldCupChatDrawer()
+    fireEvent.click(screen.getByRole("button", { name: /Open chat tools/i }))
     fireEvent.click(await screen.findByRole("button", { name: /^Image$/i }))
     const fileInput = screen.getByLabelText(/Choose Image/i, { selector: "input" })
     fireEvent.change(fileInput, {
@@ -2223,6 +2232,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
 
     await openWorldCupChatDrawer()
+    fireEvent.click(screen.getByRole("button", { name: /Open chat tools/i }))
     fireEvent.click(await screen.findByRole("button", { name: /^Poll$/i }))
     fireEvent.change(screen.getByPlaceholderText(/Poll question/i), { target: { value: "Who wins Group A?" } })
     fireEvent.change(screen.getByPlaceholderText(/Option 1/i), { target: { value: "Mexico" } })

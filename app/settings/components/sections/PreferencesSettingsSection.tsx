@@ -15,7 +15,7 @@ import {
   type SupportedSport,
 } from "@/lib/sport-scope"
 import { formatInTimezone } from "@/lib/preferences/TimezoneFormattingResolver"
-import type { LanguageCode } from "@/lib/i18n/constants"
+import { SUPPORTED_LANGUAGES, getLanguageDisplayName, type LanguageCode } from "@/lib/i18n/constants"
 import type { SettingsOnSave, SettingsProfile } from "./settings-types"
 
 export function PreferencesSettingsSection({
@@ -100,7 +100,7 @@ export function PreferencesSettingsSection({
           role="radiogroup"
           aria-label={t("settings.preferences.languageToggleAria")}
         >
-          {(["en", "es"] as const).map((l) => (
+          {SUPPORTED_LANGUAGES.map((l) => (
             <button
               key={l}
               type="button"
@@ -122,7 +122,7 @@ export function PreferencesSettingsSection({
               role="radio"
               aria-checked={lang === l}
             >
-              {l === "en" ? t("common.english") : t("common.spanish")}
+              {getLanguageDisplayName(l)}
             </button>
           ))}
         </div>

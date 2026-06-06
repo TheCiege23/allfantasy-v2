@@ -3,10 +3,10 @@
  * and hallucination guards. Safe to import from Vitest (no server-only).
  */
 
-import { getAiLanguageInstruction, getWorldCupLocale, type WorldCupLocale } from "./worldCupI18n"
+import { getAiLanguageInstruction, getWorldCupLocale } from "./worldCupI18n"
 import type { WorldCupChimmyContext } from "./worldCupChimmyContext"
 
-const LIVE_FEED_UNAVAILABLE: Record<WorldCupLocale, string> = {
+const LIVE_FEED_UNAVAILABLE: Record<string, string> = {
   en: "I don't have a live score feed for this pool right now — live match data isn't synced yet. I can still help with your bracket picks, pool standings, and how scoring works once results land.",
   es: "Ahora mismo no tengo marcador en vivo para este pool: los datos en vivo aún no están sincronizados. Sí puedo ayudarte con tus picks, la tabla del pool y cómo suman los puntos cuando entren resultados.",
   zh: "目前這個 pool 沒有即時比分來源，直播資料尚未同步。我仍可協助你的 bracket 選擇、pool 排名與計分方式。",
@@ -14,7 +14,7 @@ const LIVE_FEED_UNAVAILABLE: Record<WorldCupLocale, string> = {
   vi: "Hiện tại tôi chưa có nguồn tỉ số trực tiếp cho pool này — dữ liệu trực tiếp chưa được đồng bộ. Tôi vẫn có thể giúp bạn về pick bracket, bảng xếp hạng pool và cách tính điểm.",
 }
 
-const INVENTED_SCORE_BLOCKED: Record<WorldCupLocale, string> = {
+const INVENTED_SCORE_BLOCKED: Record<string, string> = {
   en: "I won't guess a live score — that number isn't in our pool's live feed. Check back after sync, or ask about your bracket and standings.",
   es: "No voy a inventar un marcador en vivo: ese resultado no está en el feed del pool. Pregúntame por tu bracket o la tabla cuando quieras.",
   zh: "我不會猜測即時比分——這個數字不在 pool 的直播資料裡。你可以改問 bracket 或排名。",
@@ -25,7 +25,7 @@ const INVENTED_SCORE_BLOCKED: Record<WorldCupLocale, string> = {
 const SCORE_PATTERN = /\b(\d{1,2})\s*[-–]\s*(\d{1,2})\b/g
 const MINUTE_PATTERN = /\b(\d{1,3})\s*(?:'|′|min(?:ute)?s?)\b/gi
 
-const RELIABLE_DATA_UNAVAILABLE: Record<WorldCupLocale, string> = {
+const RELIABLE_DATA_UNAVAILABLE: Record<string, string> = {
   en: "I don't have reliable data for that yet. I can still help with saved bracket picks, pool standings, scoring rules, and what is visible in this pool.",
   es: "No tengo datos confiables para eso todavia. Si puedo ayudarte con picks guardados, tabla del pool, reglas de puntuacion y lo que esta visible en este pool.",
   zh: "I don't have reliable data for that yet. I can still help with saved bracket picks, pool standings, scoring rules, and what is visible in this pool.",
@@ -614,15 +614,15 @@ export function extractMinuteTokens(text: string): string[] {
 }
 
 export function liveFeedUnavailableMessage(locale: string | null | undefined): string {
-  return LIVE_FEED_UNAVAILABLE[getWorldCupLocale(locale)]
+  return LIVE_FEED_UNAVAILABLE[getWorldCupLocale(locale)] ?? LIVE_FEED_UNAVAILABLE.en
 }
 
 export function inventedScoreBlockedMessage(locale: string | null | undefined): string {
-  return INVENTED_SCORE_BLOCKED[getWorldCupLocale(locale)]
+  return INVENTED_SCORE_BLOCKED[getWorldCupLocale(locale)] ?? INVENTED_SCORE_BLOCKED.en
 }
 
 export function reliableDataUnavailableMessage(locale: string | null | undefined): string {
-  return RELIABLE_DATA_UNAVAILABLE[getWorldCupLocale(locale)]
+  return RELIABLE_DATA_UNAVAILABLE[getWorldCupLocale(locale)] ?? RELIABLE_DATA_UNAVAILABLE.en
 }
 
 /**

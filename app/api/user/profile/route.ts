@@ -9,6 +9,7 @@ import {
 import { ensureUserProfileForUserId } from "@/lib/user-profile/ensureUserProfileForUserId"
 import type { PreferredLanguage, ThemePreference } from "@/lib/user-settings"
 import type { ProfileUpdatePayload } from "@/lib/user-settings/types"
+import { resolveLanguage } from "@/lib/i18n/constants"
 
 export const dynamic = "force-dynamic"
 
@@ -158,11 +159,9 @@ async function handleProfileWrite(req: Request, userId: string) {
   const profilePayload: ProfileUpdatePayload = {}
 
   if (preferredLanguage !== undefined)
-    profilePayload.preferredLanguage = (preferredLanguage === "es"
-      ? "es"
-      : preferredLanguage === "en"
-        ? "en"
-        : null) as PreferredLanguage | null
+    profilePayload.preferredLanguage = (typeof preferredLanguage === "string"
+      ? resolveLanguage(preferredLanguage)
+      : null) as PreferredLanguage | null
   if (timezone !== undefined) profilePayload.timezone = timezone ?? null
   if (themePreference !== undefined)
     profilePayload.themePreference = (

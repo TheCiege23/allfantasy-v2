@@ -67,6 +67,7 @@ import { buildChimmyAnswerContract } from '@/lib/chimmy-chat/response-contract'
 import { persistChimmyAIAnalyticsEvent } from '@/lib/chimmy-chat/analytics-events'
 import { checkChimmyHallucination } from '@/lib/chimmy-chat/hallucination-guard'
 import { tryDeterministicAnswer, DETERMINISTIC_SOURCE } from '@/lib/ai/deterministic'
+import { resolveLanguage } from '@/lib/i18n/constants'
 import {
   TokenInsufficientBalanceError,
   TokenSpendConfirmationRequiredError,
@@ -1083,7 +1084,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     })
   }
 
-  const deterministicAnswer = await tryDeterministicAnswer(message, 'en')
+  const requestLocale = resolveLanguage(req.cookies.get('af_lang')?.value)
+  const deterministicAnswer = await tryDeterministicAnswer(message, requestLocale)
   if (deterministicAnswer !== null) {
     return NextResponse.json({
       response: deterministicAnswer,
@@ -1517,7 +1519,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             const digest = await buildChimmySportDataDigest({
               sport: digestSport,
               question: planInput.message,
-              includeNewsApi: false,
+              includeNewsApi: true,
               timezone: CHIMMY_REFERENCE_TIMEZONE,
             })
             chimmySportDigestFreshness = digest.freshness

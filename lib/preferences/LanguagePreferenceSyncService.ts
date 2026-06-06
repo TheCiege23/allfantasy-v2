@@ -17,22 +17,18 @@ export interface LanguagePreferenceSyncResult {
 export function resolveLanguagePreferenceSync(
   input: LanguagePreferenceSyncInput
 ): LanguagePreferenceSyncResult {
-  if (
-    input.profilePreferredLanguage === "en" ||
-    input.profilePreferredLanguage === "es"
-  ) {
+  const profileLanguage = resolveLanguage(input.profilePreferredLanguage)
+  if (input.profilePreferredLanguage === profileLanguage) {
     return {
-      language: input.profilePreferredLanguage,
+      language: profileLanguage,
       shouldPersistToProfile: false,
     }
   }
 
-  if (
-    input.storedLanguagePreference === "en" ||
-    input.storedLanguagePreference === "es"
-  ) {
+  const storedLanguage = resolveLanguage(input.storedLanguagePreference)
+  if (input.storedLanguagePreference === storedLanguage) {
     return {
-      language: input.storedLanguagePreference,
+      language: storedLanguage,
       shouldPersistToProfile: true,
     }
   }
