@@ -5806,25 +5806,77 @@ function WorldCupCommunityFoundationPanel({
       role="dialog"
       aria-modal="false"
       aria-label="World Cup Chimmy and pool chat"
-      className="fixed inset-x-2 bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] top-[calc(env(safe-area-inset-top,0px)+4.25rem)] z-[135] mx-auto flex max-h-[calc(100dvh-8.5rem-env(safe-area-inset-bottom,0px)-env(safe-area-inset-top,0px))] max-w-4xl flex-col gap-3 overflow-hidden rounded-[1.35rem] border border-cyan-300/20 bg-[#020711]/92 p-2 shadow-[0_30px_90px_-36px_rgba(34,211,238,0.95)] backdrop-blur-2xl sm:inset-auto sm:bottom-20 sm:right-5 sm:top-auto sm:max-h-[min(82dvh,780px)] sm:w-[min(92vw,720px)] sm:p-0"
+      className="fixed inset-x-2 bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] top-[calc(env(safe-area-inset-top,0px)+3.75rem)] z-[135] mx-auto flex max-h-[calc(100dvh-8rem-env(safe-area-inset-bottom,0px)-env(safe-area-inset-top,0px))] max-w-4xl flex-col gap-2 overflow-hidden rounded-[1.35rem] border border-cyan-300/20 bg-[#020711]/96 p-2 text-slate-50 shadow-[0_30px_90px_-36px_rgba(34,211,238,0.95)] backdrop-blur-2xl sm:inset-auto sm:bottom-20 sm:right-5 sm:top-auto sm:h-[min(86dvh,820px)] sm:max-h-[min(86dvh,820px)] sm:w-[min(94vw,780px)] sm:p-0 lg:w-[min(90vw,840px)]"
+      style={{
+        backgroundColor: "rgba(2, 7, 17, 0.96)",
+        borderColor: "rgba(103, 232, 249, 0.24)",
+        color: "#f8fafc",
+      }}
     >
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.25rem] border border-cyan-300/15 bg-[#020711]/95 shadow-[0_26px_80px_-56px_rgba(34,211,238,0.85)]">
+      <style>{`
+        html[data-mode="light"] .mode-readable [data-wc-chat-drawer][data-wc-chat-drawer],
+        html[data-mode="light"] .mode-readable [data-wc-chat-drawer][data-wc-chat-drawer] [data-wc-chat-surface],
+        html[data-mode="light"] .mode-readable [data-wc-chat-drawer][data-wc-chat-drawer] [data-wc-chat-hero],
+        html[data-mode="light"] .mode-readable [data-wc-chat-drawer][data-wc-chat-drawer] [data-wc-chat-active-panel],
+        html[data-mode="light"] .mode-readable [data-wc-chat-drawer][data-wc-chat-drawer] [data-wc-chat-composer-shell] {
+          background-color: rgba(2, 7, 17, 0.98) !important;
+          color: #f8fafc !important;
+        }
+        html[data-mode="light"] .mode-readable [data-wc-chat-drawer][data-wc-chat-drawer] [data-wc-chat-hero] {
+          background-image:
+            radial-gradient(circle at top left, rgba(34, 211, 238, 0.18), transparent 38%),
+            radial-gradient(circle at top right, rgba(251, 191, 36, 0.13), transparent 32%),
+            linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(2, 7, 17, 0.98)) !important;
+        }
+        html[data-mode="light"] .mode-readable [data-wc-chat-drawer][data-wc-chat-drawer] [data-wc-chat-active-panel] {
+          background-color: rgba(2, 6, 23, 0.78) !important;
+        }
+        html[data-mode="light"] .mode-readable [data-wc-chat-drawer][data-wc-chat-drawer] textarea,
+        html[data-mode="light"] .mode-readable [data-wc-chat-drawer][data-wc-chat-drawer] input {
+          background-color: #050b18 !important;
+          color: #f8fafc !important;
+          -webkit-text-fill-color: #f8fafc !important;
+        }
+        [data-wc-chat-drawer],
+        [data-wc-chat-drawer] [data-wc-chat-surface],
+        [data-wc-chat-drawer] [data-wc-chat-active-panel],
+        [data-wc-chat-drawer] [data-wc-chat-composer-shell] {
+          color: #f8fafc !important;
+        }
+        [data-wc-chat-drawer] textarea,
+        [data-wc-chat-drawer] input {
+          background-color: #050b18 !important;
+          color: #f8fafc !important;
+          -webkit-text-fill-color: #f8fafc !important;
+        }
+        [data-wc-chat-drawer] textarea::placeholder,
+        [data-wc-chat-drawer] input::placeholder {
+          color: rgba(203, 213, 225, 0.62) !important;
+          -webkit-text-fill-color: rgba(203, 213, 225, 0.62) !important;
+        }
+      `}</style>
+      <div
+        data-wc-chat-surface
+        className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.25rem] border border-cyan-300/15 bg-[#020711]/98 text-slate-50 shadow-[0_26px_80px_-56px_rgba(34,211,238,0.85)]"
+        style={{ backgroundColor: "rgba(2, 7, 17, 0.98)", color: "#f8fafc" }}
+      >
         {/* ── Chat Hero ──────────────────────────────────────────────── */}
         <div
           data-testid="wc-chat-hero"
-          className="shrink-0 flex flex-col gap-2 border-b border-cyan-300/12 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(251,191,36,0.12),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.065),rgba(255,255,255,0.018))] p-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3 sm:p-4"
+          data-wc-chat-hero
+          className="shrink-0 flex flex-col gap-2 border-b border-cyan-300/12 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(251,191,36,0.12),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.065),rgba(255,255,255,0.018))] p-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-3 sm:py-2.5"
         >
           <div className="min-w-0">
-            <p className="flex items-center gap-2 text-sm font-black text-white">
+            <p className="flex items-center gap-2 text-sm font-black text-slate-50">
               <MessageSquare className="h-4 w-4 text-white/70" aria-hidden />
               {tChat("wc.chat.hero.title")}
             </p>
-            <p className="mt-1 hidden text-xs leading-5 text-white/50 sm:block">
+            <p className="mt-0.5 hidden text-[11px] leading-4 text-slate-300/72 sm:block">
               {tChat("wc.chat.hero.subtitle")}
             </p>
           </div>
-          <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
-            <span className="self-start rounded-full border border-cyan-300/25 bg-cyan-300/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-cyan-50/75 sm:self-auto">
+          <div className="flex shrink-0 flex-col items-stretch gap-1.5 sm:items-end">
+            <span className="hidden self-start rounded-full border border-cyan-300/25 bg-cyan-300/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-cyan-50/75 sm:self-auto md:inline-flex">
               {tChat("wc.chat.hero.badge")}
             </span>
             <div className="grid grid-cols-3 gap-1 rounded-full border border-white/10 bg-black/35 p-1">
@@ -5837,7 +5889,7 @@ function WorldCupCommunityFoundationPanel({
                     setChatDrawerOpen(true)
                   }}
                   className={[
-                    "inline-flex min-h-9 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-[10px] font-black transition touch-manipulation sm:px-3 sm:text-[11px]",
+                    "inline-flex min-h-8 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-[10px] font-black transition touch-manipulation sm:px-3 sm:text-[11px]",
                     chatMode === mode
                       ? "bg-gradient-to-r from-amber-300 to-cyan-200 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.28)]"
                       : "text-white/55 hover:bg-white/[0.06] hover:text-white",
@@ -5852,7 +5904,7 @@ function WorldCupCommunityFoundationPanel({
             <button
               type="button"
               onClick={() => setChatDrawerOpen((open) => !open)}
-              className="self-start rounded-full border border-cyan-300/18 bg-cyan-300/[0.06] px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-cyan-50/68 transition hover:border-cyan-300/35 hover:text-white sm:self-auto"
+              className="self-start rounded-full border border-cyan-300/18 bg-cyan-300/[0.06] px-3 py-1 text-[10px] font-black uppercase tracking-wide text-cyan-50/68 transition hover:border-cyan-300/35 hover:text-white sm:self-auto"
             >
               {chatDrawerOpen ? tChat("wc.chat.collapse") : tChat("wc.chat.open")}
             </button>
@@ -5861,14 +5913,14 @@ function WorldCupCommunityFoundationPanel({
         {/* ── Chimmy Prompt Chips ────────────────────────────────────── */}
         <div
           data-testid="wc-chat-prompt-chips"
-          className="mx-2 mb-1 mt-2 flex shrink-0 flex-nowrap gap-1.5 overflow-x-auto pb-1 scrollbar-none sm:mx-4 sm:mb-4 sm:mt-4"
+          className="mx-2 mb-1 mt-2 flex shrink-0 flex-nowrap gap-1.5 overflow-x-auto pb-1 scrollbar-none sm:mx-3 sm:mb-2 sm:mt-2"
         >
           {aiPromptActions.map((action) => (
             <button
               key={action.key}
               type="button"
               onClick={() => openAiPrompt(action.prompt)}
-              className="inline-flex min-h-9 shrink-0 items-center rounded-full border border-cyan-300/15 bg-white/[0.045] px-3 py-1.5 text-[11px] font-black text-white/72 transition hover:border-cyan-300/35 hover:bg-cyan-300/[0.08] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55"
+              className="inline-flex min-h-8 shrink-0 items-center rounded-full border border-cyan-300/15 bg-white/[0.045] px-3 py-1 text-[10px] font-black text-slate-100/78 transition hover:border-cyan-300/35 hover:bg-cyan-300/[0.08] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 sm:text-[11px]"
             >
               {action.label}
             </button>
@@ -5876,10 +5928,12 @@ function WorldCupCommunityFoundationPanel({
         </div>
         <div
           data-testid="wc-chat-active-panel"
-          className="mx-2 mb-2 mt-1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1rem] border border-cyan-300/12 bg-black/35 p-2 shadow-[0_18px_46px_-36px_rgba(34,211,238,0.72)] sm:mx-4 sm:mb-4 sm:mt-4 sm:p-3"
+          data-wc-chat-active-panel
+          className="mx-2 mb-2 mt-1 flex min-h-[18rem] flex-1 flex-col overflow-hidden rounded-[1rem] border border-cyan-300/12 bg-black/45 p-2 shadow-[0_18px_46px_-36px_rgba(34,211,238,0.72)] sm:mx-3 sm:mb-3 sm:mt-2 sm:min-h-[24rem] sm:p-3"
+          style={{ backgroundColor: "rgba(2, 6, 23, 0.78)", color: "#f8fafc" }}
         >
-          <div className="mb-2 flex shrink-0 items-center justify-between gap-2 sm:mb-3">
-            <p className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
+          <div className="mb-1.5 flex shrink-0 items-center justify-between gap-2">
+            <p className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-300/70">
               {chatMode === "ai" ? <Bot className="h-3.5 w-3.5 text-cyan-200" aria-hidden /> : chatMode === "dm" ? <Users className="h-3.5 w-3.5 text-white/55" aria-hidden /> : <MessageSquare className="h-3.5 w-3.5 text-white/55" aria-hidden />}
               {chatMode === "ai" ? tChat("wc.chat.drawer.aiTitle") : chatMode === "dm" ? tChat("wc.chat.drawer.dmTitle") : tChat("wc.chat.drawer.poolTitle")}
             </p>
@@ -5887,7 +5941,7 @@ function WorldCupCommunityFoundationPanel({
               type="button"
               onClick={() => void loadChat()}
               disabled={isChatLoading}
-              className="rounded-xl border border-white/10 bg-white/[0.05] px-2.5 py-1.5 text-[10px] font-bold text-white/62 transition hover:border-cyan-300/25 hover:bg-cyan-300/[0.08] disabled:opacity-40"
+              className="rounded-xl border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[10px] font-bold text-slate-200/72 transition hover:border-cyan-300/25 hover:bg-cyan-300/[0.08] disabled:opacity-40"
             >
               {isChatLoading ? "…" : tChat("wc.chat.refresh")}
             </button>
@@ -5997,16 +6051,16 @@ function WorldCupCommunityFoundationPanel({
                       Loading private chat...
                     </div>
                   ) : selectedDmThreadId && dmMessages.length > 0 ? (
-                    <div data-testid="wc-dm-message-list" className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                    <div data-testid="wc-dm-message-list" className="min-h-[16rem] space-y-2 overflow-y-auto pr-1 sm:min-h-[22rem]">
                       {dmMessages.map((message) => (
-                        <div key={message.id} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs">
+                        <div key={message.id} className="rounded-xl border border-white/10 bg-white/[0.055] px-3.5 py-2.5 text-sm">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="font-black text-white/82">{message.senderName}</span>
-                            <span className="text-[10px] text-white/30">
+                            <span className="font-black text-slate-50">{message.senderName}</span>
+                            <span className="text-[10px] text-slate-300/58">
                               {new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
                             </span>
                           </div>
-                          <p className="mt-1 whitespace-pre-wrap break-words leading-5 text-white/65">{message.body}</p>
+                          <p className="mt-1.5 whitespace-pre-wrap break-words leading-6 text-slate-100/86">{message.body}</p>
                         </div>
                       ))}
                     </div>
@@ -6035,19 +6089,19 @@ function WorldCupCommunityFoundationPanel({
               {tChat("wc.chat.loading")}
             </div>
           ) : visibleChatMessages.length > 0 ? (
-            <div data-testid="wc-chat-message-list" className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+            <div data-testid="wc-chat-message-list" className="min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
               {visibleChatMessages.map((message) => {
                 const isChimmyReply = message.messageType === "chimmy_private_response"
                 return (
                 <div
                   key={message.id}
                   className={[
-                    "rounded-xl border px-3 py-2 text-xs",
+                    "rounded-xl border px-3.5 py-2.5 text-sm shadow-[0_12px_32px_-28px_rgba(15,23,42,0.8)]",
                     isChimmyReply
-                      ? "border-cyan-400/35 bg-gradient-to-br from-cyan-500/[0.12] to-violet-500/[0.07] shadow-[0_0_0_1px_rgba(34,211,238,0.08)]"
+                      ? "border-cyan-400/45 bg-gradient-to-br from-cyan-500/[0.18] to-violet-500/[0.10] shadow-[0_0_0_1px_rgba(34,211,238,0.10)]"
                       : message.isPrivate
-                      ? "border-purple-300/20 bg-purple-400/10"
-                      : "border-white/10 bg-white/[0.04]",
+                      ? "border-purple-300/28 bg-purple-400/14"
+                      : "border-white/12 bg-white/[0.055]",
                   ].join(" ")}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -6056,21 +6110,21 @@ function WorldCupCommunityFoundationPanel({
                         <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-cyan-400/20 text-cyan-300">
                           <Bot className="h-2.5 w-2.5" aria-hidden />
                         </span>
-                        <span className="text-cyan-200">Chimmy</span>
+                            <span className="text-cyan-100">Chimmy</span>
                         <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-1.5 py-px text-[9px] font-black uppercase tracking-wide text-cyan-300/80">
                           AI
                         </span>
                       </span>
                     ) : (
-                      <span className="font-black text-white/80">{message.authorName}</span>
+                      <span className="font-black text-slate-50">{message.authorName}</span>
                     )}
-                    <span className="text-[10px] text-white/30">
+                    <span className="text-[10px] text-slate-300/55">
                       {new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
                     </span>
                   </div>
                   <WorldCupChatRichTextRenderer
                     text={message.body}
-                    className={["mt-1 whitespace-pre-wrap break-words leading-5", isChimmyReply ? "text-white/80" : "text-white/65"].join(" ")}
+                    className={["mt-1.5 whitespace-pre-wrap break-words leading-6", isChimmyReply ? "text-cyan-50/92" : "text-slate-100/86"].join(" ")}
                   />
                   {message.gif ? <WorldCupGifPreview gif={message.gif} compact /> : null}
                   {message.image ? <WorldCupImagePreview image={message.image} compact /> : null}
@@ -6094,7 +6148,7 @@ function WorldCupCommunityFoundationPanel({
           ) : (
             <div
               data-testid="wc-chat-empty-state"
-              className="flex min-h-[8rem] flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-cyan-300/18 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.10),transparent_42%),rgba(0,0,0,0.22)] px-4 py-6 text-center"
+              className="flex min-h-[14rem] flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-cyan-300/18 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.10),transparent_42%),rgba(0,0,0,0.22)] px-4 py-6 text-center sm:min-h-[20rem]"
             >
               <p className="text-sm font-black text-white/75">
                 {tChat("wc.chat.empty.headline")}
@@ -6104,21 +6158,29 @@ function WorldCupCommunityFoundationPanel({
               </p>
             </div>
           )}
-          <div data-testid="wc-chat-composer-shell" className="mt-3 shrink-0 border-t border-white/10 bg-[#020711]/98 pt-3">
-          <div className="rounded-[1.35rem] border border-cyan-300/15 bg-gradient-to-r from-slate-950/96 via-slate-900/96 to-slate-950/96 p-2 shadow-[0_-12px_40px_-30px_rgba(34,211,238,0.8)]">
-            <div className="flex items-end gap-2">
+          <div
+            data-testid="wc-chat-composer-shell"
+            data-wc-chat-composer-shell
+            className="mt-2 shrink-0 border-t border-white/10 bg-[#020711]/98 pt-2.5"
+            style={{ backgroundColor: "rgba(2, 7, 17, 0.98)", color: "#f8fafc" }}
+          >
+          <div
+            className="rounded-[1.35rem] border border-cyan-300/20 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 p-2 shadow-[0_-12px_40px_-30px_rgba(34,211,238,0.8)] sm:p-2.5"
+            style={{ backgroundColor: "#020711", color: "#f8fafc" }}
+          >
+            <div className="flex items-end gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={() => setComposerPanel(composerPanel === "tools" ? null : "tools")}
                 aria-label="Open chat tools"
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.055] text-white/70 transition hover:border-cyan-300/35 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/12 bg-white/[0.07] text-slate-100/78 transition hover:border-cyan-300/35 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 sm:h-11 sm:w-11"
               >
                 <Plus className="h-4 w-4" aria-hidden />
               </button>
               <button
                 type="button"
                 onClick={() => setComposerPanel(composerPanel === "gif" ? null : "gif")}
-                className="inline-flex h-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-white/70 transition hover:border-cyan-300/35 hover:text-white"
+                className="hidden h-11 shrink-0 items-center justify-center rounded-2xl border border-white/12 bg-white/[0.07] px-3 text-[11px] font-black text-slate-100/78 transition hover:border-cyan-300/35 hover:text-white sm:inline-flex"
               >
                 GIF
               </button>
@@ -6135,13 +6197,20 @@ function WorldCupCommunityFoundationPanel({
                 rows={1}
                 disabled={chatMode === "dm" && !selectedDmThreadId}
                 placeholder={composerPlaceholder}
-                className="min-h-11 max-h-32 flex-1 resize-none rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-sm leading-5 text-white placeholder:text-white/38 focus:border-cyan-300/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                dir="auto"
+                className="min-h-[3rem] max-h-36 min-w-0 flex-[1_1_auto] resize-none rounded-2xl border border-cyan-300/18 bg-[#050b18] px-3 py-2.5 text-[15px] font-semibold leading-6 !text-slate-50 shadow-inner shadow-black/25 placeholder:!text-slate-300/60 selection:bg-cyan-300/25 focus:border-cyan-300/60 focus:outline-none focus:ring-2 focus:ring-cyan-300/18 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-[3.25rem] sm:px-4 sm:py-3"
+                style={{
+                  backgroundColor: "#050b18",
+                  color: "#f8fafc",
+                  caretColor: "#67e8f9",
+                  WebkitTextFillColor: "#f8fafc",
+                }}
               />
               <button
                 type="button"
                 onClick={() => setComposerPanel(composerPanel === "emoji" ? null : "emoji")}
                 aria-label="Emoji"
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.055] text-white/70 transition hover:border-cyan-300/35 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/12 bg-white/[0.07] text-slate-100/78 transition hover:border-cyan-300/35 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 sm:h-11 sm:w-11"
               >
                 <Smile className="h-4 w-4" aria-hidden />
               </button>
@@ -6150,12 +6219,12 @@ function WorldCupCommunityFoundationPanel({
                 onClick={() => void sendChatMessage()}
                 disabled={isSendingChat || !chatBody.trim() || (chatMode === "dm" && !selectedDmThreadId)}
                 aria-label={chatMode === "ai" ? tChat("wc.chat.askChimmy") : tChat("wc.chat.composer.send")}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-300 to-violet-500 text-black shadow-[0_8px_22px_-10px_rgba(34,211,238,0.85)] transition-transform hover:scale-[1.03] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45 disabled:transform-none"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-300 to-violet-500 text-black shadow-[0_8px_22px_-10px_rgba(34,211,238,0.85)] transition-transform hover:scale-[1.03] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45 disabled:transform-none sm:h-11 sm:w-11"
               >
                 {isSendingChat ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}
               </button>
             </div>
-            <p data-testid="wc-chat-trust-note" className="mt-2 px-2 text-[11px] leading-5 text-white/38">
+            <p data-testid="wc-chat-trust-note" className="mt-1.5 px-2 text-[11px] leading-5 text-slate-300/62">
               {chatMode === "ai" ? tChat("wc.chat.drawer.aiTrust") : tChat("wc.chat.trustNote")}
             </p>
           </div>
@@ -6450,7 +6519,7 @@ function WorldCupChatRichTextSegments({
   className?: string
 }) {
   return (
-    <p className={className}>
+    <p className={className} dir="auto">
       {segments.map((segment, index) => (
         <span key={`${segment.text}-${index}`} className={getWorldCupRichTextClassName(segment)}>
           {segment.text}
