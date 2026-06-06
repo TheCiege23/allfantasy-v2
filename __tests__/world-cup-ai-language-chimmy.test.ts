@@ -6,10 +6,13 @@
  * and that the reply is never made public.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { DEFAULT_WORLD_CUP_SCORING } from "@/lib/world-cup/worldCupBracketBuilder"
+import type { WorldCupChimmyContext } from "@/lib/world-cup/worldCupChimmyContext"
 
 const routeTextCallMock = vi.hoisted(() => vi.fn())
 const appendHistoryMock = vi.hoisted(() => vi.fn())
 const buildConversationIdMock = vi.hoisted(() => vi.fn())
+const tryDeterministicAnswerMock = vi.hoisted(() => vi.fn())
 
 vi.mock("server-only", () => ({}))
 
@@ -17,16 +20,58 @@ vi.mock("@/lib/ai/providerRouter", () => ({
   routeTextCall: routeTextCallMock,
 }))
 
+vi.mock("@/lib/ai/deterministic", () => ({
+  DETERMINISTIC_SOURCE: "deterministic",
+  tryDeterministicAnswer: tryDeterministicAnswerMock,
+}))
+
 vi.mock("@/lib/ai-memory/chat-history-store", () => ({
   appendChatHistory: appendHistoryMock,
   buildChimmyConversationId: buildConversationIdMock,
 }))
+
+function baseContext(locale: string | null | undefined = "en"): WorldCupChimmyContext {
+  return {
+    challengeId: "c1",
+    poolName: "Office Cup",
+    isLocked: false,
+    lockReason: null,
+    participantCount: 4,
+    entryCount: 4,
+    finalizedEntryCount: 2,
+    inviteCount: 1,
+    scoring: { ...DEFAULT_WORLD_CUP_SCORING },
+    userRole: "participant",
+    commissionerSettings: null,
+    entry: null,
+    liveMatches: [],
+    upcomingMatches: [],
+    recentMatches: [],
+    groupStandings: [],
+    leaderboard: [
+      {
+        rank: 1,
+        entryId: "e1",
+        entryName: "Leader",
+        userId: "u1",
+        totalScore: 140,
+        maxPossibleScore: 400,
+        championPickName: "Brazil",
+      },
+    ],
+    liveDataStatus: "unavailable",
+    lastSyncedAt: null,
+    locale: locale === "es" || locale === "zh" || locale === "fil" || locale === "vi" ? locale : "en",
+    fetchedAt: "2026-06-06T12:00:00.000Z",
+  }
+}
 
 describe("generateWorldCupChimmyPrivateReply — AI language instruction", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     buildConversationIdMock.mockReturnValue("chimmy:user-1:world-cup:c1")
     appendHistoryMock.mockResolvedValue(undefined)
+    tryDeterministicAnswerMock.mockResolvedValue(null)
     routeTextCallMock.mockResolvedValue({
       ok: true,
       text: "Here is your bracket advice.",
@@ -46,6 +91,7 @@ describe("generateWorldCupChimmyPrivateReply — AI language instruction", () =>
       prompt: "@chimmy who should I pick?",
       challengeName: "Office Cup",
       locale,
+      context: baseContext(locale),
     })
     const call = routeTextCallMock.mock.calls[0]?.[0]
     return call?.messages?.[0]?.content as string
@@ -99,6 +145,7 @@ describe("generateWorldCupChimmyPrivateReply — AI language instruction", () =>
       challengeId: "c1",
       prompt: "@chimmy who should I pick?",
       locale: "vi",
+      context: baseContext("vi"),
     })
 
     // appendChatHistory is called twice: once for user turn, once for assistant turn.
@@ -125,6 +172,7 @@ describe("generateWorldCupChimmyPrivateReply — AI language instruction", () =>
       challengeId: "c1",
       prompt: "@chimmy help",
       locale: "zh",
+      context: baseContext("zh"),
     })
 
     expect(result.reply).toMatch(/try again/i)

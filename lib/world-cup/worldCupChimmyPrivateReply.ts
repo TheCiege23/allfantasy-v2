@@ -1,6 +1,7 @@
 import "server-only"
 
 import { appendChatHistory, buildChimmyConversationId } from "@/lib/ai-memory/chat-history-store"
+import { DETERMINISTIC_SOURCE, tryDeterministicAnswer } from "@/lib/ai/deterministic"
 import { routeTextCall } from "@/lib/ai/providerRouter"
 import type { WorldCupChimmyContext } from "./worldCupChimmyContext"
 import {
@@ -28,6 +29,10 @@ function sanitizeChimmyText(value: string) {
 
 function stripChimmyMention(value: string) {
   return sanitizeChimmyText(value.replace(/(^|[\s*_~\]])@chimmy\b/gi, "$1"))
+}
+
+function isGlobalWorldCupStartQuestion(value: string) {
+  return /\bwhen\s+(does|is|do).*\bworld\s*cup\b.*\b(start|begin|kick\s*off)|\bworld\s*cup\b.*\b(start|begin|kick\s*off)\b/i.test(value)
 }
 
 export async function generateWorldCupChimmyPrivateReply(input: {
@@ -59,13 +64,24 @@ export async function generateWorldCupChimmyPrivateReply(input: {
     },
   })
 
-  const deterministic = tryDeterministicWorldCupChimmyReply({
-    prompt: userPrompt || input.prompt,
-    context: input.context,
-    locale: input.locale,
-  })
+  const prompt = userPrompt || input.prompt
+  const earlyGlobalDeterministic = isGlobalWorldCupStartQuestion(prompt)
+    ? await tryDeterministicAnswer(prompt, input.locale ?? undefined)
+    : null
+  const worldCupDeterministic = earlyGlobalDeterministic
+    ? null
+    : tryDeterministicWorldCupChimmyReply({
+        prompt,
+        context: input.context,
+        locale: input.locale,
+      })
+  const generalDeterministic = worldCupDeterministic || earlyGlobalDeterministic
+    ? null
+    : await tryDeterministicAnswer(prompt, input.locale ?? undefined)
+  const deterministic = earlyGlobalDeterministic ?? worldCupDeterministic ?? generalDeterministic
+  const isGeneralDeterministicReply = Boolean(earlyGlobalDeterministic || generalDeterministic)
   const grounding = buildWorldCupChimmyGrounding({
-    prompt: userPrompt || input.prompt,
+    prompt,
     context: input.context,
     userRole: input.userRole,
   })
@@ -75,6 +91,8 @@ export async function generateWorldCupChimmyPrivateReply(input: {
   let reply: string
 
   if (deterministic) {
+    provider = isGeneralDeterministicReply ? DETERMINISTIC_SOURCE : "deterministic"
+    model = isGeneralDeterministicReply ? "sports-cache" : "policy"
     reply = deterministic
   } else if (input.deterministicOnly) {
     reply = "I can answer saved pool questions here, but deeper Chimmy AI analysis requires AF Pro. Ask me who is leading, explain the scoring, summarize this pool, or show your path to win and I will use only stored pool data."
@@ -106,7 +124,7 @@ export async function generateWorldCupChimmyPrivateReply(input: {
       challengeLine,
       `\n--- GROUNDING JSON ---\n${groundingBlock}\n--- END GROUNDING JSON ---`,
       contextBlock ? `\n--- POOL DATA ---\n${contextBlock}\n--- END POOL DATA ---` : "",
-      `\nUser private prompt: ${userPrompt || input.prompt}`,
+      `\nUser private prompt: ${prompt}`,
     ]
       .filter(Boolean)
       .join("")
@@ -129,12 +147,15 @@ export async function generateWorldCupChimmyPrivateReply(input: {
       : "I could not reach Chimmy AI right now. Your prompt stayed private, and you can try again in a moment."
   }
 
-  reply = enforceWorldCupChimmyReplyGuard({
-    reply,
-    prompt: userPrompt || input.prompt,
-    context: input.context,
-    locale: input.locale,
-  }).slice(0, MAX_REPLY_CHARS)
+  reply = (isGeneralDeterministicReply
+    ? reply
+    : enforceWorldCupChimmyReplyGuard({
+        reply,
+        prompt,
+        context: input.context,
+        locale: input.locale,
+      })
+  ).slice(0, MAX_REPLY_CHARS)
 
   await appendChatHistory({
     conversationId,

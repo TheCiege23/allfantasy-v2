@@ -1662,8 +1662,9 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getByRole("button", { name: /Ask Chimmy/i })).toBeDisabled()
 
     fireEvent.click(within(drawer).getByRole("button", { name: /DM Chat/i }))
-    expect(within(drawer).getByText(/DM Chat coming soon/i)).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/DM Chat is coming soon/i)).toBeDisabled()
+    expect(within(drawer).getByTestId("wc-dm-panel")).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Message this private chat/i)).toBeDisabled()
+    expect(within(drawer).getByText(/No private chats yet/i)).toBeInTheDocument()
 
     fireEvent.click(within(drawer).getByRole("button", { name: /Pool Chat/i }))
     expect(screen.getByPlaceholderText(/Message the pool or ask Chimmy/i)).toBeInTheDocument()

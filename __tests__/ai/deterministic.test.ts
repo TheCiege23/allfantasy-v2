@@ -6,7 +6,22 @@ vi.mock('@/lib/prisma', () => ({
     gameSchedule: {
       count: vi.fn(),
     },
+    sportsGame: {
+      findMany: vi.fn(),
+    },
+    worldCupBracketMatch: {
+      findFirst: vi.fn(),
+    },
   },
+}))
+
+const fetchFantasyCalcValuesMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/lib/fantasycalc', () => ({
+  fetchFantasyCalcValues: fetchFantasyCalcValuesMock,
+  findPlayerByName: (players: any[], name: string) =>
+    players.find((row) => row.player.name.toLowerCase() === name.toLowerCase()) ?? null,
+  getValueTier: (value: number) => value >= 5000 ? 'high' : 'mid',
 }))
 
 import { prisma } from '@/lib/prisma'
@@ -18,9 +33,13 @@ import {
 } from '@/lib/ai/deterministic'
 
 const mockCount = prisma.gameSchedule.count as ReturnType<typeof vi.fn>
+const mockSportsGameFindMany = (prisma as any).sportsGame.findMany as ReturnType<typeof vi.fn>
+const mockWorldCupMatchFindFirst = (prisma as any).worldCupBracketMatch.findFirst as ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   vi.resetAllMocks()
+  mockSportsGameFindMany.mockResolvedValue([])
+  mockWorldCupMatchFindFirst.mockResolvedValue(null)
 })
 
 // ── detectScheduleQuestion ────────────────────────────────────────────────────
@@ -157,6 +176,48 @@ describe('tryDeterministicAnswer', () => {
 
     expect(result).toBeNull()
     expect(mockCount).not.toHaveBeenCalled()
+  })
+
+  it('answers the World Cup start date without charging or calling AI', async () => {
+    const result = await tryDeterministicAnswer('When does the World Cup start?')
+
+    expect(result).toContain('June 11, 2026')
+    expect(result).toContain('opening-match fixture cached')
+  })
+
+  it('answers a cached Knicks result from SportsGame rows', async () => {
+    mockSportsGameFindMany.mockResolvedValueOnce([{
+      sport: 'NBA',
+      awayTeam: 'New York Knicks',
+      homeTeam: 'Boston Celtics',
+      awayScore: 101,
+      homeScore: 99,
+      status: 'Final',
+      startTime: new Date('2026-06-05T23:30:00.000Z'),
+    }])
+
+    const result = await tryDeterministicAnswer('Did the Knicks win last night?')
+
+    expect(result).toContain('Yes')
+    expect(result).toContain('New York Knicks')
+    expect(result).toContain('101-99')
+    expect(result).toContain('cached SportsGame')
+  })
+
+  it('answers FantasyCalc trade value questions from the configured value feed', async () => {
+    fetchFantasyCalcValuesMock.mockResolvedValueOnce([{
+      player: { name: 'Patrick Mahomes', position: 'QB', maybeTeam: 'KC' },
+      value: 6200,
+      overallRank: 18,
+      positionRank: 3,
+      trend30Day: 120,
+    }])
+
+    const result = await tryDeterministicAnswer("What's the trade value on Patrick Mahomes?")
+
+    expect(result).toContain("Patrick Mahomes")
+    expect(result).toContain("6200")
+    expect(result).toContain("FantasyCalc")
   })
 
   it('returns refusal (not null) when DB errors on schedule question (fail-safe)', async () => {

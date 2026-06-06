@@ -9,6 +9,7 @@ const notifyMentionMock = vi.hoisted(() => vi.fn())
 const notifyAllMentionMock = vi.hoisted(() => vi.fn())
 const notifyChimmyReplyMock = vi.hoisted(() => vi.fn())
 const generateChimmyReplyMock = vi.hoisted(() => vi.fn())
+const createPlatformThreadMock = vi.hoisted(() => vi.fn())
 const findManyMessagesMock = vi.hoisted(() => vi.fn())
 const findFirstMessageMock = vi.hoisted(() => vi.fn())
 const createMessageMock = vi.hoisted(() => vi.fn())
@@ -35,6 +36,10 @@ vi.mock("@/lib/world-cup/worldCupNotifications", () => ({
 
 vi.mock("@/lib/world-cup/worldCupChimmyPrivateReply", () => ({
   generateWorldCupChimmyPrivateReply: generateChimmyReplyMock,
+}))
+
+vi.mock("@/lib/platform/chat-service", () => ({
+  createPlatformThread: createPlatformThreadMock,
 }))
 
 // next/headers cookies() requires an AsyncLocalStorage request scope that vitest
@@ -103,6 +108,16 @@ describe("World Cup pool chat route", () => {
       provider: "openai",
       model: "gpt-test",
     })
+    createPlatformThreadMock.mockResolvedValue({
+      id: "thread-1",
+      threadType: "dm",
+      productType: "bracket",
+      title: "Friend",
+      lastMessageAt: "2026-06-01T12:00:00.000Z",
+      unreadCount: 0,
+      memberCount: 2,
+      context: {},
+    })
     findManyMessagesMock.mockResolvedValue([])
     findFirstMessageMock.mockResolvedValue(null)
     countMessagesMock.mockResolvedValue(0)
@@ -141,6 +156,66 @@ describe("World Cup pool chat route", () => {
     const res = await GET(request(), { params: { challengeId: "c1" } })
 
     expect(res.status).toBe(403)
+  })
+
+  it("lists World Cup pool members for the DM picker", async () => {
+    findManyParticipantsMock.mockResolvedValue([
+      {
+        userId: "user-1",
+        displayName: "Owner",
+        joinedAt: new Date("2026-06-01T12:00:00.000Z"),
+        user: { id: "user-1", username: "owner", displayName: "Owner", email: "owner@example.com", avatarUrl: null },
+      },
+      {
+        userId: "user-2",
+        displayName: "Friend",
+        joinedAt: new Date("2026-06-01T12:10:00.000Z"),
+        user: { id: "user-2", username: "friend", displayName: "Friend", email: "friend@example.com", avatarUrl: "https://example.com/a.png" },
+      },
+    ])
+    const { GET } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
+
+    const res = await GET(new Request("http://localhost/api/brackets/world-cup/c1/chat?action=members"), { params: { challengeId: "c1" } })
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.members).toEqual([
+      expect.objectContaining({ userId: "user-1", username: "owner", isCurrentUser: true }),
+      expect.objectContaining({ userId: "user-2", username: "friend", isCurrentUser: false }),
+    ])
+  })
+
+  it("starts a World Cup private DM only with pool members", async () => {
+    findManyParticipantsMock.mockResolvedValue([{ userId: "user-2" }])
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
+
+    const res = await POST(request({
+      action: "start_dm",
+      memberUserIds: ["user-2"],
+    }), { params: { challengeId: "c1" } })
+    const json = await res.json()
+
+    expect(res.status).toBe(201)
+    expect(createPlatformThreadMock).toHaveBeenCalledWith(expect.objectContaining({
+      creatorUserId: "user-1",
+      threadType: "dm",
+      productType: "bracket",
+      memberUserIds: ["user-2"],
+    }))
+    expect(json.thread.id).toBe("thread-1")
+  })
+
+  it("blocks World Cup private DMs to users outside the pool", async () => {
+    findManyParticipantsMock.mockResolvedValue([])
+    const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
+
+    const res = await POST(request({
+      action: "start_dm",
+      memberUserIds: ["outsider"],
+    }), { params: { challengeId: "c1" } })
+
+    expect(res.status).toBe(403)
+    expect(createPlatformThreadMock).not.toHaveBeenCalled()
   })
 
   it("allows a member to POST public text", async () => {

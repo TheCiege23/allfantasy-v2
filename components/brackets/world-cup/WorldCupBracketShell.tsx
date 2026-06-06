@@ -138,6 +138,36 @@ type WorldCupPoolChatMessage = {
   isOwnMessage: boolean
   isPrivate: boolean
 }
+type WorldCupDmMember = {
+  userId: string
+  username: string | null
+  displayName: string
+  avatarUrl: string | null
+  joinedAt: string
+  isCurrentUser: boolean
+}
+type WorldCupDmThread = {
+  id: string
+  threadType: "dm" | "group" | "league" | "bracket_pool" | "ai"
+  productType: "shared" | "app" | "bracket" | "legacy"
+  title: string
+  lastMessageAt: string
+  unreadCount: number
+  memberCount: number
+  context?: Record<string, unknown>
+}
+type WorldCupDmMessage = {
+  id: string
+  threadId: string
+  senderUserId: string | null
+  senderName: string
+  senderUsername?: string | null
+  senderAvatarUrl?: string | null
+  messageType: string
+  body: string
+  createdAt: string
+  metadata?: Record<string, unknown>
+}
 type WorldCupChatGifAttachment = {
   id: string
   title: string
@@ -5288,6 +5318,14 @@ function WorldCupCommunityFoundationPanel({
   const [isChatLoading, setIsChatLoading] = useState(true)
   const [isSendingChat, setIsSendingChat] = useState(false)
   const [chatError, setChatError] = useState<string | null>(null)
+  const [dmMembers, setDmMembers] = useState<WorldCupDmMember[]>([])
+  const [dmThreads, setDmThreads] = useState<WorldCupDmThread[]>([])
+  const [selectedDmThreadId, setSelectedDmThreadId] = useState<string | null>(null)
+  const [selectedDmMemberIds, setSelectedDmMemberIds] = useState<string[]>([])
+  const [dmMessages, setDmMessages] = useState<WorldCupDmMessage[]>([])
+  const [isDmLoading, setIsDmLoading] = useState(false)
+  const [isDmStarting, setIsDmStarting] = useState(false)
+  const [dmError, setDmError] = useState<string | null>(null)
   // Structured AI gate error — replaces the generic rose error box with upgrade/limit cards
   const [chatAiGate, setChatAiGate] = useState<{
     type: 'chimmy_locked' | 'daily_limit'
@@ -5356,6 +5394,10 @@ function WorldCupCommunityFoundationPanel({
       !message.isPrivate && message.messageType !== "chimmy_private_response"
     )
   }, [chatMode, messages])
+  const activeDmThread = useMemo(
+    () => dmThreads.find((thread) => thread.id === selectedDmThreadId) ?? null,
+    [dmThreads, selectedDmThreadId]
+  )
 
   function insertComposerText(value: string) {
     setChatBody((current) => `${current}${value}`)
@@ -5400,16 +5442,146 @@ function WorldCupCommunityFoundationPanel({
     }
   }, [challengeId])
 
+  const loadDmThreads = useCallback(async () => {
+    const res = await fetch("/api/shared/chat/threads", { cache: "no-store" })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || "Could not load private chats")
+    const threads = Array.isArray(data.threads)
+      ? data.threads.filter((thread: WorldCupDmThread) => thread.threadType === "dm" || thread.threadType === "group")
+      : []
+    setDmThreads(threads)
+    setSelectedDmThreadId((current) => current ?? threads[0]?.id ?? null)
+  }, [])
+
+  const loadDmMembersAndThreads = useCallback(async () => {
+    setIsDmLoading(true)
+    setDmError(null)
+    try {
+      const [membersRes] = await Promise.all([
+        fetch(`/api/brackets/world-cup/${challengeId}/chat?action=members`, { cache: "no-store" }),
+        loadDmThreads(),
+      ])
+      const membersData = await membersRes.json().catch(() => ({}))
+      if (!membersRes.ok) throw new Error(membersData.error || "Could not load pool members")
+      setDmMembers(Array.isArray(membersData.members) ? membersData.members : [])
+    } catch (err) {
+      setDmError(err instanceof Error ? err.message : "Could not load private chat")
+    } finally {
+      setIsDmLoading(false)
+    }
+  }, [challengeId, loadDmThreads])
+
+  const loadDmMessages = useCallback(async (threadId: string) => {
+    setIsDmLoading(true)
+    setDmError(null)
+    try {
+      const res = await fetch(`/api/shared/chat/threads/${encodeURIComponent(threadId)}/messages`, {
+        cache: "no-store",
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || "Could not load private messages")
+      setDmMessages(Array.isArray(data.messages) ? data.messages : [])
+    } catch (err) {
+      setDmError(err instanceof Error ? err.message : "Could not load private messages")
+      setDmMessages([])
+    } finally {
+      setIsDmLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     if (!chatDrawerOpen) return
     void loadChat()
   }, [chatDrawerOpen, loadChat])
 
+  useEffect(() => {
+    if (!chatDrawerOpen || chatMode !== "dm") return
+    void loadDmMembersAndThreads()
+  }, [chatDrawerOpen, chatMode, loadDmMembersAndThreads])
+
+  useEffect(() => {
+    if (!chatDrawerOpen || chatMode !== "dm" || !selectedDmThreadId) return
+    void loadDmMessages(selectedDmThreadId)
+  }, [chatDrawerOpen, chatMode, selectedDmThreadId, loadDmMessages])
+
+  async function startDmThread() {
+    const memberUserIds = selectedDmMemberIds.filter(Boolean)
+    if (memberUserIds.length === 0) {
+      setDmError("Choose at least one pool member for a private chat.")
+      return
+    }
+    setIsDmStarting(true)
+    setDmError(null)
+    try {
+      const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "start_dm",
+          memberUserIds,
+          title: memberUserIds.length > 1 ? "World Cup private chat" : undefined,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || "Could not start private chat")
+      if (data.thread) {
+        setDmThreads((prev) => {
+          const withoutDuplicate = prev.filter((thread) => thread.id !== data.thread.id)
+          return [data.thread, ...withoutDuplicate]
+        })
+        setSelectedDmThreadId(data.thread.id)
+        setSelectedDmMemberIds([])
+        setDmMessages([])
+      }
+    } catch (err) {
+      setDmError(err instanceof Error ? err.message : "Could not start private chat")
+    } finally {
+      setIsDmStarting(false)
+    }
+  }
+
+  async function sendDmMessage() {
+    const rawBody = chatBody.trim()
+    if (!rawBody) return
+    if (!selectedDmThreadId) {
+      setDmError("Choose or start a private chat first.")
+      return
+    }
+    setIsSendingChat(true)
+    setDmError(null)
+    try {
+      const res = await fetch(`/api/shared/chat/threads/${encodeURIComponent(selectedDmThreadId)}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          body: rawBody,
+          metadata: {
+            source: "world_cup_private_chat",
+            challengeId,
+          },
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || "Could not send private message")
+      if (data.message) {
+        setDmMessages((prev) => [...prev, data.message])
+      } else {
+        await loadDmMessages(selectedDmThreadId)
+      }
+      setChatBody("")
+      await loadDmThreads().catch(() => null)
+    } catch (err) {
+      setDmError(err instanceof Error ? err.message : "Could not send private message")
+    } finally {
+      setIsSendingChat(false)
+    }
+  }
+
   async function sendChatMessage() {
     const rawBody = chatBody.trim()
     if (!rawBody) return
     if (chatMode === "dm") {
-      setChatError("Direct messages are not available in the World Cup MVP yet.")
+      await sendDmMessage()
       return
     }
     const body = chatMode === "ai" && !/(^|[\s*_~\]])@chimmy\b/i.test(rawBody)
@@ -5721,17 +5893,143 @@ function WorldCupCommunityFoundationPanel({
             </button>
           </div>
           {chatMode === "dm" ? (
-            <div className="mb-3 rounded-2xl border border-amber-300/25 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.14),transparent_42%),rgba(251,191,36,0.06)] px-4 py-4 text-xs leading-5 text-white/68">
-              <div className="mb-2 flex items-center gap-2">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-amber-300/30 bg-amber-300/[0.10]">
-                  <Users className="h-4 w-4 text-amber-100" aria-hidden />
-                </span>
-                <p className="text-sm font-black text-white">{tChat("wc.chat.dm.comingSoonTitle")}</p>
+            <div data-testid="wc-dm-panel" className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-cyan-300/12 bg-white/[0.025] p-2 sm:p-3">
+              <div className="grid min-h-0 gap-2 sm:grid-cols-[minmax(12rem,16rem)_1fr]">
+                <div className="min-h-0 rounded-xl border border-white/10 bg-black/25 p-2">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/45">Private Chats</p>
+                    <button
+                      type="button"
+                      onClick={() => void loadDmMembersAndThreads()}
+                      disabled={isDmLoading}
+                      className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-bold text-white/55 disabled:opacity-40"
+                    >
+                      {isDmLoading ? "..." : "Refresh"}
+                    </button>
+                  </div>
+                  <div className="max-h-32 space-y-1 overflow-y-auto pr-1 sm:max-h-48">
+                    {dmThreads.length > 0 ? dmThreads.map((thread) => (
+                      <button
+                        key={thread.id}
+                        type="button"
+                        onClick={() => setSelectedDmThreadId(thread.id)}
+                        className={[
+                          "w-full rounded-lg border px-2 py-2 text-left text-[11px] transition",
+                          selectedDmThreadId === thread.id
+                            ? "border-cyan-300/55 bg-cyan-300/[0.12] text-white"
+                            : "border-white/10 bg-white/[0.035] text-white/62 hover:border-cyan-300/25 hover:text-white",
+                        ].join(" ")}
+                      >
+                        <span className="block truncate font-black">{thread.title || "Private chat"}</span>
+                        <span className="mt-0.5 block text-[10px] text-white/35">
+                          {thread.memberCount} member{thread.memberCount === 1 ? "" : "s"}
+                          {thread.unreadCount ? ` · ${thread.unreadCount} unread` : ""}
+                        </span>
+                      </button>
+                    )) : (
+                      <p className="rounded-lg border border-dashed border-white/10 px-3 py-3 text-[11px] leading-5 text-white/42">
+                        No private chats yet. Pick pool members below to start one.
+                      </p>
+                    )}
+                  </div>
+                  <div className="mt-3 border-t border-white/10 pt-3">
+                    <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/45">Pool Members</p>
+                    <div className="max-h-32 space-y-1 overflow-y-auto pr-1 sm:max-h-44">
+                      {dmMembers.filter((member) => !member.isCurrentUser).map((member) => {
+                        const selected = selectedDmMemberIds.includes(member.userId)
+                        return (
+                          <button
+                            key={member.userId}
+                            type="button"
+                            onClick={() => {
+                              setSelectedDmMemberIds((current) =>
+                                selected
+                                  ? current.filter((id) => id !== member.userId)
+                                  : [...current, member.userId]
+                              )
+                            }}
+                            className={[
+                              "flex w-full items-center justify-between gap-2 rounded-lg border px-2 py-2 text-left text-[11px] transition",
+                              selected
+                                ? "border-amber-300/50 bg-amber-300/[0.10] text-white"
+                                : "border-white/10 bg-white/[0.03] text-white/60 hover:border-cyan-300/25 hover:text-white",
+                            ].join(" ")}
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate font-black">{member.displayName}</span>
+                              {member.username ? <span className="block truncate text-[10px] text-white/35">@{member.username}</span> : null}
+                            </span>
+                            {selected ? <Check className="h-3.5 w-3.5 shrink-0 text-amber-200" aria-hidden /> : null}
+                          </button>
+                        )
+                      })}
+                      {dmMembers.filter((member) => !member.isCurrentUser).length === 0 ? (
+                        <p className="rounded-lg border border-dashed border-white/10 px-3 py-3 text-[11px] leading-5 text-white/42">
+                          Invite members to this pool before starting a private chat.
+                        </p>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void startDmThread()}
+                      disabled={isDmStarting || selectedDmMemberIds.length === 0}
+                      className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl border border-amber-300/25 bg-amber-300/[0.10] px-3 text-[11px] font-black text-amber-100 transition hover:bg-amber-300/[0.16] disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {isDmStarting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Users className="h-3.5 w-3.5" aria-hidden />}
+                      Start Private Chat
+                    </button>
+                  </div>
+                </div>
+                <div className="min-h-0 rounded-xl border border-white/10 bg-black/25 p-2">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="min-w-0 truncate text-xs font-black text-white/78">
+                      {activeDmThread?.title || "Choose a private chat"}
+                    </p>
+                    {activeDmThread ? (
+                      <span className="shrink-0 rounded-full border border-cyan-300/20 bg-cyan-300/[0.08] px-2 py-1 text-[10px] font-bold text-cyan-100/75">
+                        {activeDmThread.memberCount} members
+                      </span>
+                    ) : null}
+                  </div>
+                  {isDmLoading ? (
+                    <div className="flex min-h-32 items-center gap-2 text-xs text-white/42">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                      Loading private chat...
+                    </div>
+                  ) : selectedDmThreadId && dmMessages.length > 0 ? (
+                    <div data-testid="wc-dm-message-list" className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                      {dmMessages.map((message) => (
+                        <div key={message.id} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-black text-white/82">{message.senderName}</span>
+                            <span className="text-[10px] text-white/30">
+                              {new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                            </span>
+                          </div>
+                          <p className="mt-1 whitespace-pre-wrap break-words leading-5 text-white/65">{message.body}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : selectedDmThreadId ? (
+                    <div className="flex min-h-32 flex-col items-center justify-center rounded-xl border border-dashed border-cyan-300/15 px-4 py-5 text-center">
+                      <p className="text-sm font-black text-white/72">Start the private conversation.</p>
+                      <p className="mt-1 text-xs leading-5 text-white/42">Messages here only go to the members of this private thread.</p>
+                    </div>
+                  ) : (
+                    <div className="flex min-h-32 flex-col items-center justify-center rounded-xl border border-dashed border-cyan-300/15 px-4 py-5 text-center">
+                      <p className="text-sm font-black text-white/72">Choose a private chat.</p>
+                      <p className="mt-1 text-xs leading-5 text-white/42">Pick an existing thread or select pool members to start a new one.</p>
+                    </div>
+                  )}
+                </div>
               </div>
-              <p>{tChat("wc.chat.dm.comingSoon")}</p>
+              {dmError ? (
+                <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-white/85">
+                  {dmError}
+                </p>
+              ) : null}
             </div>
-          ) : null}
-          {isChatLoading ? (
+          ) : isChatLoading ? (
             <div className="flex min-h-0 flex-1 items-center gap-2 overflow-y-auto py-3 text-xs text-white/40">
               <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
               {tChat("wc.chat.loading")}
@@ -5819,7 +6117,7 @@ function WorldCupCommunityFoundationPanel({
               }}
               maxLength={1000}
               rows={2}
-              disabled={chatMode === "dm"}
+              disabled={chatMode === "dm" && !selectedDmThreadId}
               placeholder={composerPlaceholder}
               className="min-h-20 w-full resize-none rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm leading-5 text-white placeholder:text-white/30 focus:border-cyan-300/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-24"
             />
@@ -5830,7 +6128,7 @@ function WorldCupCommunityFoundationPanel({
               <button
                 type="button"
                 onClick={() => void sendChatMessage()}
-                disabled={isSendingChat || !chatBody.trim() || chatMode === "dm"}
+                disabled={isSendingChat || !chatBody.trim() || (chatMode === "dm" && !selectedDmThreadId)}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-300 to-cyan-200 px-4 py-2 text-xs font-black text-black shadow-[0_4px_14px_-6px_rgba(34,211,238,0.5)] transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:transform-none touch-manipulation"
               >
                 {isSendingChat ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}
