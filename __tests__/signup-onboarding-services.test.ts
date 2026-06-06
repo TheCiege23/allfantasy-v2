@@ -35,7 +35,9 @@ describe("Signup onboarding services", () => {
 
   it("resolves language preference to supported values", () => {
     expect(resolvePreferredLanguage("es")).toBe("es")
-    expect(resolvePreferredLanguage("fr")).toBe("en")
+    expect(resolvePreferredLanguage("fr")).toBe("fr")
+    expect(resolvePreferredLanguage("ar")).toBe("ar")
+    expect(resolvePreferredLanguage("de")).toBe("en")
   })
 
   it("handles avatar preset and file validation", () => {

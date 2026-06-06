@@ -61,7 +61,15 @@ function baseContext(locale: string | null | undefined = "en"): WorldCupChimmyCo
     ],
     liveDataStatus: "unavailable",
     lastSyncedAt: null,
-    locale: locale === "es" || locale === "zh" || locale === "fil" || locale === "vi" ? locale : "en",
+    locale:
+      locale === "es" ||
+      locale === "zh" ||
+      locale === "fil" ||
+      locale === "vi" ||
+      locale === "fr" ||
+      locale === "ar"
+        ? locale
+        : "en",
     fetchedAt: "2026-06-06T12:00:00.000Z",
   }
 }
@@ -115,6 +123,16 @@ describe("generateWorldCupChimmyPrivateReply — AI language instruction", () =>
   it("includes 'Respond in Vietnamese' for vi locale", async () => {
     const prompt = await getSystemPrompt("vi")
     expect(prompt).toContain("Respond in Vietnamese")
+  })
+
+  it("includes 'Respond in French' for fr locale", async () => {
+    const prompt = await getSystemPrompt("fr")
+    expect(prompt).toContain("Respond in French")
+  })
+
+  it("includes 'Respond in Arabic' for ar locale", async () => {
+    const prompt = await getSystemPrompt("ar")
+    expect(prompt).toContain("Respond in Arabic")
   })
 
   it("falls back to 'Respond in English' for unknown locale", async () => {

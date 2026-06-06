@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { resolveLanguage } from "@/lib/i18n/constants"
 import { getUserSettingsRecord } from "./UserSettingsService"
 import { resolveSharedProfileBootstrap } from "./SharedProfileBootstrapService"
 import { updateUserProfile } from "./UserProfileService"
@@ -127,10 +128,7 @@ async function queryBaseProfile(
   if (!user) return null
 
   const profile = user.profile
-  const preferredLanguage =
-    profile?.preferredLanguage === "es" || profile?.preferredLanguage === "en"
-      ? (profile.preferredLanguage as "en" | "es")
-      : null
+  const preferredLanguage = profile?.preferredLanguage ? resolveLanguage(profile.preferredLanguage) : null
   const resolvedEmailVerifiedAt = profile?.emailVerifiedAt ?? user.emailVerified ?? null
 
   return {
@@ -217,10 +215,7 @@ async function queryBaseProfileMinimal(
   if (!user) return null
 
   const profile = user.profile
-  const preferredLanguage =
-    profile?.preferredLanguage === "es" || profile?.preferredLanguage === "en"
-      ? (profile.preferredLanguage as "en" | "es")
-      : null
+  const preferredLanguage = profile?.preferredLanguage ? resolveLanguage(profile.preferredLanguage) : null
   const resolvedEmailVerifiedAt = profile?.emailVerifiedAt ?? user.emailVerified ?? null
 
   return {

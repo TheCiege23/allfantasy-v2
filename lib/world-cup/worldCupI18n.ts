@@ -42,7 +42,7 @@
  *    language.
  *  - Placeholder syntax `{{name}}` is interpolated.
  */
-export type WorldCupLocale = "en" | "es" | "zh" | "fil" | "vi"
+export type WorldCupLocale = "en" | "es" | "zh" | "fil" | "vi" | "fr" | "ar"
 
 export const WORLD_CUP_SUPPORTED_LOCALES: WorldCupLocale[] = [
   "en",
@@ -50,6 +50,8 @@ export const WORLD_CUP_SUPPORTED_LOCALES: WorldCupLocale[] = [
   "zh",
   "fil",
   "vi",
+  "fr",
+  "ar",
 ]
 export const WORLD_CUP_DEFAULT_LOCALE: WorldCupLocale = "en"
 
@@ -63,6 +65,8 @@ export const WORLD_CUP_LOCALE_NATIVE_NAMES: Record<WorldCupLocale, string> = {
   es: "Español",
   zh: "繁體中文",
   fil: "Filipino",
+  fr: "Fran\u00e7ais",
+  ar: "\u0627\u0644\u0639\u0631\u0628\u064a\u0629",
   vi: "Tiếng Việt",
 }
 
@@ -77,6 +81,8 @@ export function getWorldCupLocale(input: unknown): WorldCupLocale {
   if (input === "zh") return "zh"
   if (input === "fil") return "fil"
   if (input === "vi") return "vi"
+  if (input === "fr") return "fr"
+  if (input === "ar") return "ar"
   return WORLD_CUP_DEFAULT_LOCALE
 }
 
@@ -6227,6 +6233,8 @@ export const WORLD_CUP_TRANSLATIONS: Record<WorldCupLocale, WorldCupDictionary> 
   zh: { ...WORLD_CUP_CHAT_COMMAND_FALLBACKS, ...ZH },
   fil: { ...WORLD_CUP_CHAT_COMMAND_FALLBACKS, ...FIL },
   vi: { ...WORLD_CUP_CHAT_COMMAND_FALLBACKS, ...VI },
+  fr: WORLD_CUP_CHAT_COMMAND_FALLBACKS,
+  ar: WORLD_CUP_CHAT_COMMAND_FALLBACKS,
 }
 
 /**
@@ -6354,6 +6362,10 @@ export function getAiLanguageInstruction(
       return "Filipino"
     case "vi":
       return "Vietnamese"
+    case "fr":
+      return "French"
+    case "ar":
+      return "Arabic"
     case "en":
     default:
       return "English"

@@ -39,7 +39,7 @@ import {
 export const WORLD_CUP_SOCIAL_HASHTAGS =
   "#fantasyfootball #NFL #football #fantasyfootballadvice #sports #nflnews #fantasyfootballdraft"
 
-const POWERED_BY_BY_LOCALE: Record<WorldCupLocale, string> = {
+const POWERED_BY_BY_LOCALE: Record<string, string> = {
   en: "Powered by AllFantasy.",
   es: "Hecho con AllFantasy.",
   zh: "由 AllFantasy 提供支援。",
@@ -98,7 +98,7 @@ type InviteMessageTemplates = {
   inviteCodeLine: (code: string) => string
 }
 
-const INVITE_MESSAGE_TEMPLATES: Record<WorldCupLocale, InviteMessageTemplates> = {
+const INVITE_MESSAGE_TEMPLATES: Record<string, InviteMessageTemplates> = {
   en: {
     memberHeading: (p) => `Want to join the AllFantasy World Cup Bracket Pool "${p}"?`,
     memberAsk: "Ask the pool commissioner for the invite link.",
@@ -175,8 +175,8 @@ export function buildWorldCupInviteMessage(
   } = input
 
   const lang = getWorldCupLocale(locale)
-  const tpl = INVITE_MESSAGE_TEMPLATES[lang]
-  const poweredBy = POWERED_BY_BY_LOCALE[lang]
+  const tpl = INVITE_MESSAGE_TEMPLATES[lang] ?? INVITE_MESSAGE_TEMPLATES.en
+  const poweredBy = POWERED_BY_BY_LOCALE[lang] ?? POWERED_BY
 
   if (audience === "member") {
     const lines = [
@@ -244,7 +244,7 @@ type BracketShareTemplates = {
   ctaIncomplete: string
 }
 
-const BRACKET_SHARE_TEMPLATES: Record<WorldCupLocale, BracketShareTemplates> = {
+const BRACKET_SHARE_TEMPLATES: Record<string, BracketShareTemplates> = {
   en: {
     heading: (p) => `My AllFantasy World Cup Bracket — ${p}.`,
     entryLine: (n, c) => `${n} — ${c ? "locked in" : "in progress"}.`,
@@ -325,8 +325,8 @@ export function buildWorldCupBracketShareMessage(
   } = input
 
   const lang = getWorldCupLocale(locale)
-  const tpl = BRACKET_SHARE_TEMPLATES[lang]
-  const poweredBy = POWERED_BY_BY_LOCALE[lang]
+  const tpl = BRACKET_SHARE_TEMPLATES[lang] ?? BRACKET_SHARE_TEMPLATES.en
+  const poweredBy = POWERED_BY_BY_LOCALE[lang] ?? POWERED_BY
 
   if (prebuiltShareText && prebuiltShareText.trim().length > 0) {
     const cleaned = sanitize(prebuiltShareText)
@@ -416,7 +416,7 @@ type CaptionTemplates = {
   redditBody: (c: CaptionContext) => string
 }
 
-const GENERIC_POOL_BY_LOCALE: Record<WorldCupLocale, string> = {
+const GENERIC_POOL_BY_LOCALE: Record<string, string> = {
   en: "World Cup pool",
   es: "grupo de la Copa del Mundo",
   zh: "世界盃對戰群組",
@@ -424,7 +424,7 @@ const GENERIC_POOL_BY_LOCALE: Record<WorldCupLocale, string> = {
   vi: "pool World Cup",
 }
 
-const CHAMPION_LABEL_BY_LOCALE: Record<WorldCupLocale, (n: string) => string> = {
+const CHAMPION_LABEL_BY_LOCALE: Record<string, (n: string) => string> = {
   en: (n) => `Champion: ${n}.`,
   es: (n) => `Campeón: ${n}.`,
   zh: (n) => `冠軍:${n}。`,
@@ -432,7 +432,7 @@ const CHAMPION_LABEL_BY_LOCALE: Record<WorldCupLocale, (n: string) => string> = 
   vi: (n) => `Nhà vô địch: ${n}.`,
 }
 
-const GRADE_LABEL_BY_LOCALE: Record<WorldCupLocale, (g: string) => string> = {
+const GRADE_LABEL_BY_LOCALE: Record<string, (g: string) => string> = {
   en: (g) => `Grade: ${g}.`,
   es: (g) => `Calificación: ${g}.`,
   zh: (g) => `評分:${g}。`,
@@ -441,7 +441,7 @@ const GRADE_LABEL_BY_LOCALE: Record<WorldCupLocale, (g: string) => string> = {
 }
 
 const CAPTION_TEMPLATES: Record<
-  WorldCupLocale,
+  string,
   Record<WorldCupShareTone, CaptionTemplates>
 > = {
   en: {
@@ -934,17 +934,17 @@ export function buildWorldCupSocialCaptions(
   const tone = resolveTone(input.tone)
 
   const championLn = input.championName
-    ? CHAMPION_LABEL_BY_LOCALE[lang](input.championName)
+    ? (CHAMPION_LABEL_BY_LOCALE[lang] ?? CHAMPION_LABEL_BY_LOCALE.en)(input.championName)
     : ""
   const gradeLn = input.gradeLabel
-    ? GRADE_LABEL_BY_LOCALE[lang](input.gradeLabel)
+    ? (GRADE_LABEL_BY_LOCALE[lang] ?? GRADE_LABEL_BY_LOCALE.en)(input.gradeLabel)
     : ""
   const poolUrl = input.poolUrl ?? ""
-  const pool = input.poolName ? input.poolName : GENERIC_POOL_BY_LOCALE[lang]
+  const pool = input.poolName ? input.poolName : (GENERIC_POOL_BY_LOCALE[lang] ?? GENERIC_POOL_BY_LOCALE.en)
   const ctaTail = poolUrl ? ` ${poolUrl}` : ""
 
   const ctx: CaptionContext = { pool, championLn, gradeLn, ctaTail, poolUrl }
-  const tpl = CAPTION_TEMPLATES[lang][tone]
+  const tpl = (CAPTION_TEMPLATES[lang] ?? CAPTION_TEMPLATES.en)[tone]
 
   // Twitter/X — keep under ~280 chars including hashtags. Critically, the
   // hashtag block must survive trimming (locale-invariant tests assert it

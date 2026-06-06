@@ -17,6 +17,9 @@ import { prisma } from '@/lib/prisma'
 import { resolveChimmyIntentRoute } from '@/lib/ai/chimmyIntentRouter'
 import { DEFAULT_WORLD_CUP_SCORING } from '@/lib/world-cup/worldCupBracketBuilder'
 import { fetchFantasyCalcValues, findPlayerByName, getValueTier } from '@/lib/fantasycalc'
+import { getEnrichedNewsFeed } from '@/lib/fantasy-news-aggregator/FantasyNewsAggregatorService'
+import { getCachedGameWeather } from '@/lib/weather/weatherService'
+import { resolveLanguage } from '@/lib/i18n/constants'
 
 // ── Schedule question detection ───────────────────────────────────────────────
 
@@ -66,6 +69,19 @@ const SCHEDULE_REFUSAL_BY_LOCALE: Record<string, string> = {
   vi: "Tôi cần dữ liệu lịch thi đấu trực tiếp để trả lời chính xác về các trận hôm nay.",
 }
 
+SCHEDULE_REFUSAL_BY_LOCALE.fr = "J'ai besoin de donnees de calendrier fiables avant de pouvoir repondre avec precision sur les matchs d'aujourd'hui."
+SCHEDULE_REFUSAL_BY_LOCALE.ar = "أحتاج إلى بيانات جدول موثوقة قبل أن أجيب بدقة عن مباريات اليوم."
+
+const RELIABLE_UNAVAILABLE_BY_LOCALE: Record<string, string> = {
+  en: "I don't have reliable data for that yet.",
+  es: "No tengo datos confiables para eso todavía.",
+  zh: "I don't have reliable data for that yet.",
+  fil: "I don't have reliable data for that yet.",
+  vi: "I don't have reliable data for that yet.",
+  fr: "Je n'ai pas encore de donnees fiables pour cela.",
+  ar: "لا أملك بيانات موثوقة لذلك بعد.",
+}
+
 const SPORT_ALIASES: Array<{ sport: string; pattern: RegExp }> = [
   { sport: 'NBA', pattern: /\b(nba|basketball|knicks|lakers|warriors|celtics|mavericks|thunder|nuggets|timberwolves|pacers)\b/i },
   { sport: 'MLB', pattern: /\b(mlb|baseball|yankees|mets|dodgers|red\s+sox|braves|cubs|phillies)\b/i },
@@ -98,6 +114,52 @@ const TEAM_ALIASES: Record<string, Array<{ canonical: string; aliases: string[] 
     { canonical: 'Dallas Cowboys', aliases: ['cowboys', 'dal', 'dallas cowboys'] },
     { canonical: 'Philadelphia Eagles', aliases: ['eagles', 'phi', 'philadelphia eagles'] },
   ],
+}
+
+const NFL_TEAM_ABBREV_ALIASES: Array<{ abbrev: string; label: string; aliases: string[] }> = [
+  { abbrev: 'KC', label: 'Kansas City Chiefs', aliases: ['chiefs', 'kansas city chiefs', 'kc'] },
+  { abbrev: 'DAL', label: 'Dallas Cowboys', aliases: ['cowboys', 'dallas cowboys', 'dal'] },
+  { abbrev: 'PHI', label: 'Philadelphia Eagles', aliases: ['eagles', 'philadelphia eagles', 'phi'] },
+  { abbrev: 'NYG', label: 'New York Giants', aliases: ['giants', 'new york giants', 'nyg'] },
+  { abbrev: 'NYJ', label: 'New York Jets', aliases: ['jets', 'new york jets', 'nyj'] },
+  { abbrev: 'BUF', label: 'Buffalo Bills', aliases: ['bills', 'buffalo bills', 'buf'] },
+  { abbrev: 'BAL', label: 'Baltimore Ravens', aliases: ['ravens', 'baltimore ravens', 'bal'] },
+  { abbrev: 'SF', label: 'San Francisco 49ers', aliases: ['49ers', 'niners', 'san francisco 49ers', 'sf'] },
+  { abbrev: 'LAR', label: 'Los Angeles Rams', aliases: ['rams', 'los angeles rams', 'lar'] },
+  { abbrev: 'LAC', label: 'Los Angeles Chargers', aliases: ['chargers', 'los angeles chargers', 'lac'] },
+  { abbrev: 'GB', label: 'Green Bay Packers', aliases: ['packers', 'green bay packers', 'gb'] },
+  { abbrev: 'CHI', label: 'Chicago Bears', aliases: ['bears', 'chicago bears', 'chi'] },
+]
+
+function reliableUnavailable(locale?: string): string {
+  const safe = resolveLanguage(locale)
+  return RELIABLE_UNAVAILABLE_BY_LOCALE[safe] ?? RELIABLE_UNAVAILABLE_BY_LOCALE.en
+}
+
+function detectNewsQuestion(message: string): boolean {
+  return /\b(news|latest|updates?|headlines?|report|reports|what happened|breaking)\b/i.test(message)
+}
+
+function detectInjuryQuestion(message: string): boolean {
+  return /\b(injur(?:y|ies|ed)|hurt|questionable|doubtful|out|suspension|suspended|availability)\b/i.test(message)
+}
+
+function detectWeatherQuestion(message: string): boolean {
+  return /\b(weather|forecast|wind|rain|snow|temperature|temp|cold|hot|dome|outdoor)\b/i.test(message)
+}
+
+function detectUnsupportedStatEventQuestion(message: string): boolean {
+  return /\b(home runs?|homers?|hit a home run|touchdowns?|goalscorers?|who scored|box score|player stats?)\b/i.test(message)
+}
+
+function resolveNflTeamForWeather(message: string): { abbrev: string; label: string } | null {
+  const lower = message.toLowerCase()
+  for (const team of NFL_TEAM_ABBREV_ALIASES) {
+    if (team.aliases.some((alias) => new RegExp(`\\b${alias.replace(/\s+/g, '\\s+')}\\b`, 'i').test(lower))) {
+      return { abbrev: team.abbrev, label: team.label }
+    }
+  }
+  return null
 }
 
 function resolveSportFromMessage(message: string): string | null {
@@ -289,6 +351,95 @@ async function buildFantasyCalcValueAnswer(message: string): Promise<string | nu
   }
 }
 
+async function buildCachedNewsAnswer(message: string, locale?: string): Promise<string | null> {
+  if (!detectNewsQuestion(message) && !/\bwhat'?s new\b/i.test(message)) return null
+  const sport = resolveSportFromMessage(message) ?? 'NFL'
+  const playerName = extractLikelyPlayerName(message)
+  const team = resolveTeamAlias(message, sport)
+
+  try {
+    const feed = await getEnrichedNewsFeed({
+      sport,
+      feedType: playerName ? 'player' : team ? 'team' : 'sport',
+      playerQuery: playerName ?? undefined,
+      teamQuery: team?.canonical ?? undefined,
+      limit: 5,
+      enrich: false,
+      refresh: false,
+    })
+
+    if (!feed.length) {
+      return `${reliableUnavailable(locale)} I do not have cached ${sport} news${playerName ? ` for ${playerName}` : team ? ` for ${team.canonical}` : ''} right now. Source checked: AllFantasy SportsNews cache.`
+    }
+
+    const lines = feed.slice(0, 5).map((item, index) => {
+      const published = item.publishedAt ? new Date(item.publishedAt).toISOString().slice(0, 10) : 'recent'
+      return `${index + 1}. ${item.headline ?? item.title} (${item.source}, ${published})`
+    })
+    return `Here are the cached ${sport} news items I can verify:\n${lines.join('\n')}\nSource: AllFantasy SportsNews cache${playerName ? ` for ${playerName}` : team ? ` for ${team.canonical}` : ''}.`
+  } catch {
+    return `${reliableUnavailable(locale)} The news cache could not be read safely.`
+  }
+}
+
+async function buildCachedInjuryAnswer(message: string, locale?: string): Promise<string | null> {
+  if (!detectInjuryQuestion(message)) return null
+  const sport = resolveSportFromMessage(message) ?? 'NFL'
+  const playerName = extractLikelyPlayerName(message)
+  const team = resolveTeamAlias(message, sport)
+
+  try {
+    const rows = await (prisma as any).sportsInjury?.findMany?.({
+      where: {
+        sport,
+        ...(playerName ? { playerName: { contains: playerName, mode: 'insensitive' as const } } : {}),
+        ...(!playerName && team ? {
+          OR: team.aliases.map((alias) => ({ team: { contains: alias, mode: 'insensitive' as const } })),
+        } : {}),
+      },
+      orderBy: [{ date: 'desc' }, { updatedAt: 'desc' }],
+      take: 6,
+    }).catch(() => []) ?? []
+
+    if (!rows.length) {
+      return `${reliableUnavailable(locale)} I do not have cached ${sport} injury data${playerName ? ` for ${playerName}` : team ? ` for ${team.canonical}` : ''} right now.`
+    }
+
+    const lines = rows.map((row: any) =>
+      `- ${row.playerName}${row.team ? ` (${row.team})` : ''}: ${row.status ?? row.type ?? 'status unknown'}${row.description ? ` - ${String(row.description).slice(0, 140)}` : ''}`
+    )
+    return `Cached ${sport} injury report:\n${lines.join('\n')}\nSource: AllFantasy SportsInjury cache.`
+  } catch {
+    return `${reliableUnavailable(locale)} The injury cache could not be read safely.`
+  }
+}
+
+async function buildCachedWeatherAnswer(message: string, locale?: string): Promise<string | null> {
+  if (!detectWeatherQuestion(message)) return null
+  const team = resolveNflTeamForWeather(message)
+  if (!team) {
+    return `${reliableUnavailable(locale)} Tell me the NFL team or game and I can check cached WeatherCache venue data when it exists.`
+  }
+
+  try {
+    const weather = await getCachedGameWeather({ sport: 'NFL', homeTeam: team.abbrev, referenceDate: new Date() })
+    if (!weather) {
+      return `${reliableUnavailable(locale)} I do not have cached weather for ${team.label} right now.`
+    }
+    if (weather.isDome) {
+      return `${team.label} plays in ${weather.venue}; cached weather says this is an indoor/dome setup, so there is no weather impact. Source: WeatherCache/OpenWeather venue layer.`
+    }
+    return `${team.label} weather at ${weather.venue}: ${Math.round(weather.weather.temp)}F, wind ${Math.round(weather.weather.windSpeed)} mph, ${weather.weather.description}. Fantasy impact: ${weather.weather.fantasyImpact}. Source: WeatherCache/OpenWeather venue layer.`
+  } catch {
+    return `${reliableUnavailable(locale)} The weather cache could not be read safely.`
+  }
+}
+
+function buildUnsupportedStatEventAnswer(message: string, locale?: string): string | null {
+  if (!detectUnsupportedStatEventQuestion(message)) return null
+  return `${reliableUnavailable(locale)} I need cached play-by-play/player event data before I can answer that exact stat question. I will not invent home runs, touchdowns, player stats, goals, injuries, or box-score details.`
+}
+
 function buildWorldCupScoringAnswer(locale?: string): string {
   const s = DEFAULT_WORLD_CUP_SCORING
   const base =
@@ -323,27 +474,35 @@ function buildUnsupportedLiveWorldCupAnswer(locale?: string): string {
  * @param locale   The user's selected locale (af_lang cookie value). Defaults to 'en'.
  */
 export async function tryDeterministicAnswer(message: string, locale?: string): Promise<string | null> {
+  const safeLocale = resolveLanguage(locale)
   const intentRoute = resolveChimmyIntentRoute(message)
   if (/\bwhen\s+(does|is|do).*\bworld\s*cup\b.*\b(start|begin|kick\s*off)|\bworld\s*cup\b.*\b(start|begin|kick\s*off)\b/i.test(message)) {
-    return buildWorldCupStartAnswer(locale)
+    return buildWorldCupStartAnswer(safeLocale)
   }
   const teamResult = await buildTeamResultAnswer(message)
   if (teamResult) return teamResult
   const fantasyCalcValue = await buildFantasyCalcValueAnswer(message)
   if (fantasyCalcValue) return fantasyCalcValue
+  const weather = await buildCachedWeatherAnswer(message, safeLocale)
+  if (weather) return weather
+  const injuries = await buildCachedInjuryAnswer(message, safeLocale)
+  if (injuries) return injuries
+  const news = await buildCachedNewsAnswer(message, safeLocale)
+  if (news) return news
+  const unsupportedStatEvent = buildUnsupportedStatEventAnswer(message, safeLocale)
+  if (unsupportedStatEvent) return unsupportedStatEvent
   const cachedGames = await buildCachedGamesAnswer(message)
   if (cachedGames) return cachedGames
   if (intentRoute.category === 'world_cup_scoring') {
-    return buildWorldCupScoringAnswer(locale)
+    return buildWorldCupScoringAnswer(safeLocale)
   }
   if (intentRoute.category === 'unsupported_live_data') {
-    return buildUnsupportedLiveWorldCupAnswer(locale)
+    return buildUnsupportedLiveWorldCupAnswer(safeLocale)
   }
   if (detectScheduleQuestion(message)) {
     const hasContext = await checkScheduleContextAvailable()
     if (!hasContext) {
-      const safeLocale = locale && SCHEDULE_REFUSAL_BY_LOCALE[locale] ? locale : 'en'
-      return SCHEDULE_REFUSAL_BY_LOCALE[safeLocale]
+      return SCHEDULE_REFUSAL_BY_LOCALE[safeLocale] ?? SCHEDULE_REFUSAL_BY_LOCALE.en
     }
   }
   return null

@@ -118,7 +118,7 @@ type ReminderTemplates = {
   noMembersEmptyLine: string
 }
 
-const REMINDER_TEMPLATES: Record<WorldCupLocale, ReminderTemplates> = {
+const REMINDER_TEMPLATES: Record<string, ReminderTemplates> = {
   en: {
     poweredBy: "Powered by AllFantasy.",
     askCommissioner: (p) =>
@@ -265,7 +265,7 @@ export function buildWorldCupCommissionerChecklist(
   } = input
 
   const lang = getWorldCupLocale(locale)
-  const tpl = REMINDER_TEMPLATES[lang]
+  const tpl = REMINDER_TEMPLATES[lang] ?? REMINDER_TEMPLATES.en
 
   if (!isCommissioner) {
     return {

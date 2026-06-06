@@ -4,6 +4,7 @@ const resolvePlatformUserMock = vi.fn()
 const dispatchNotificationMock = vi.fn()
 const getLeagueMemberUserIdsMock = vi.fn()
 const createLeagueChatMessageMock = vi.fn()
+const tryDeterministicAnswerMock = vi.fn()
 
 const prismaMock = {
   leagueChatMessage: { findFirst: vi.fn() },
@@ -84,6 +85,11 @@ vi.mock('@/lib/league-chat/LeagueChatMessageService', () => ({
   createLeagueChatMessage: createLeagueChatMessageMock,
 }))
 
+vi.mock('@/lib/ai/deterministic', () => ({
+  DETERMINISTIC_SOURCE: 'deterministic',
+  tryDeterministicAnswer: tryDeterministicAnswerMock,
+}))
+
 describe('chat prompt contracts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -99,7 +105,12 @@ describe('chat prompt contracts', () => {
       { userId: 'u4' },
     ])
     getLeagueMemberUserIdsMock.mockResolvedValue(['u1', 'u3', 'u4'])
-    createLeagueChatMessageMock.mockResolvedValue({ id: 'created-1', body: 'help', threadId: 'league:l1' })
+    createLeagueChatMessageMock.mockImplementation(async (_leagueId, _userId, body) => ({
+      id: `created-${createLeagueChatMessageMock.mock.calls.length}`,
+      body,
+      threadId: 'league:l1',
+    }))
+    tryDeterministicAnswerMock.mockResolvedValue('Cached Chimmy answer')
   })
 
   it('@username and @all fan-out while skipping @global and @chimmy control tokens', async () => {
@@ -138,6 +149,7 @@ describe('chat prompt contracts', () => {
 
     const json = await res.json()
     expect(json?.commandResult?.intent).toBe('chimmy_prompt')
+    expect(json?.aiReply?.body).toBe('Cached Chimmy answer')
     expect(createLeagueChatMessageMock).toHaveBeenCalledWith(
       'l1',
       'u1',
@@ -146,6 +158,16 @@ describe('chat prompt contracts', () => {
         isPrivate: true,
         visibleToUserId: 'u1',
         messageSubtype: 'chimmy_prompt',
+      })
+    )
+    expect(createLeagueChatMessageMock).toHaveBeenCalledWith(
+      'l1',
+      'u1',
+      'Cached Chimmy answer',
+      expect.objectContaining({
+        isPrivate: true,
+        visibleToUserId: 'u1',
+        messageSubtype: 'chimmy_private_response',
       })
     )
   })

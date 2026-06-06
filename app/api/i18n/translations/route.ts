@@ -12,6 +12,8 @@ const LANG_TO_GOOGLE_CODE: Record<string, string> = {
   zh: "zh-CN", // Simplified Chinese
   fil: "tl", // Filipino (Tagalog)
   vi: "vi",
+  fr: "fr",
+  ar: "ar",
 }
 
 export async function GET(req: Request) {

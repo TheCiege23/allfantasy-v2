@@ -9,6 +9,9 @@ vi.mock('@/lib/prisma', () => ({
     sportsGame: {
       findMany: vi.fn(),
     },
+    sportsInjury: {
+      findMany: vi.fn(),
+    },
     worldCupBracketMatch: {
       findFirst: vi.fn(),
     },
@@ -16,12 +19,22 @@ vi.mock('@/lib/prisma', () => ({
 }))
 
 const fetchFantasyCalcValuesMock = vi.hoisted(() => vi.fn())
+const getEnrichedNewsFeedMock = vi.hoisted(() => vi.fn())
+const getCachedGameWeatherMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/fantasycalc', () => ({
   fetchFantasyCalcValues: fetchFantasyCalcValuesMock,
   findPlayerByName: (players: any[], name: string) =>
     players.find((row) => row.player.name.toLowerCase() === name.toLowerCase()) ?? null,
   getValueTier: (value: number) => value >= 5000 ? 'high' : 'mid',
+}))
+
+vi.mock('@/lib/fantasy-news-aggregator/FantasyNewsAggregatorService', () => ({
+  getEnrichedNewsFeed: getEnrichedNewsFeedMock,
+}))
+
+vi.mock('@/lib/weather/weatherService', () => ({
+  getCachedGameWeather: getCachedGameWeatherMock,
 }))
 
 import { prisma } from '@/lib/prisma'
@@ -34,12 +47,16 @@ import {
 
 const mockCount = prisma.gameSchedule.count as ReturnType<typeof vi.fn>
 const mockSportsGameFindMany = (prisma as any).sportsGame.findMany as ReturnType<typeof vi.fn>
+const mockSportsInjuryFindMany = (prisma as any).sportsInjury.findMany as ReturnType<typeof vi.fn>
 const mockWorldCupMatchFindFirst = (prisma as any).worldCupBracketMatch.findFirst as ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   vi.resetAllMocks()
   mockSportsGameFindMany.mockResolvedValue([])
+  mockSportsInjuryFindMany.mockResolvedValue([])
   mockWorldCupMatchFindFirst.mockResolvedValue(null)
+  getEnrichedNewsFeedMock.mockResolvedValue([])
+  getCachedGameWeatherMock.mockResolvedValue(null)
 })
 
 // ── detectScheduleQuestion ────────────────────────────────────────────────────
@@ -220,6 +237,71 @@ describe('tryDeterministicAnswer', () => {
     expect(result).toContain("FantasyCalc")
   })
 
+  it('answers cached sports news without calling a paid model', async () => {
+    getEnrichedNewsFeedMock.mockResolvedValueOnce([
+      {
+        headline: 'Chiefs update their depth chart',
+        title: 'Chiefs update their depth chart',
+        source: 'ESPN',
+        publishedAt: '2026-06-06T12:00:00.000Z',
+      },
+    ])
+
+    const result = await tryDeterministicAnswer('Any latest Chiefs news?')
+
+    expect(result).toContain('Chiefs update their depth chart')
+    expect(result).toContain('SportsNews cache')
+    expect(getEnrichedNewsFeedMock).toHaveBeenCalledWith(expect.objectContaining({
+      sport: 'NFL',
+      refresh: false,
+      enrich: false,
+    }))
+  })
+
+  it('answers cached NFL weather from WeatherCache data', async () => {
+    getCachedGameWeatherMock.mockResolvedValueOnce({
+      venue: 'GEHA Field at Arrowhead Stadium',
+      isDome: false,
+      weather: {
+        temp: 43,
+        windSpeed: 17,
+        description: 'light rain',
+        fantasyImpact: 'Wind can reduce deep passing efficiency.',
+      },
+    })
+
+    const result = await tryDeterministicAnswer('What is the weather for the Chiefs game?')
+
+    expect(result).toContain('Kansas City Chiefs')
+    expect(result).toContain('43F')
+    expect(result).toContain('WeatherCache')
+  })
+
+  it('answers cached injury reports from SportsInjury rows', async () => {
+    mockSportsInjuryFindMany.mockResolvedValueOnce([
+      {
+        playerName: 'Patrick Mahomes',
+        team: 'KC',
+        status: 'Questionable',
+        description: 'Limited practice',
+      },
+    ])
+
+    const result = await tryDeterministicAnswer('Patrick Mahomes injury update')
+
+    expect(result).toContain('Patrick Mahomes')
+    expect(result).toContain('Questionable')
+    expect(result).toContain('SportsInjury cache')
+  })
+
+  it('refuses exact stat-event questions when event data is unavailable', async () => {
+    const result = await tryDeterministicAnswer('Who hit home runs across MLB yesterday?')
+
+    expect(result).toContain("I don't have reliable data")
+    expect(result).toContain('home runs')
+    expect(result).toContain('not invent')
+  })
+
   it('returns refusal (not null) when DB errors on schedule question (fail-safe)', async () => {
     // checkScheduleContextAvailable returns false on DB error,
     // so a schedule question with a DB error returns the refusal.
@@ -273,6 +355,22 @@ describe('tryDeterministicAnswer', () => {
     const result = await tryDeterministicAnswer('What games are on today?', 'vi')
     expect(result).not.toBeNull()
     expect(result).toContain('lịch')
+    expect(result).not.toContain('live schedule data')
+  })
+
+  it('returns French refusal for fr locale', async () => {
+    mockCount.mockResolvedValue(0)
+    const result = await tryDeterministicAnswer('What games are on today?', 'fr')
+    expect(result).not.toBeNull()
+    expect(result).toContain('calendrier')
+    expect(result).not.toContain('live schedule data')
+  })
+
+  it('returns Arabic refusal for ar locale', async () => {
+    mockCount.mockResolvedValue(0)
+    const result = await tryDeterministicAnswer('What games are on today?', 'ar')
+    expect(result).not.toBeNull()
+    expect(result).toContain('بيانات')
     expect(result).not.toContain('live schedule data')
   })
 

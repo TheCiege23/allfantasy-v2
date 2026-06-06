@@ -203,7 +203,7 @@ type WorldCupChatPollAttachment = {
   createdByUserId: string | null
   createdAt: string | null
 }
-type WorldCupComposerPanel = "emoji" | "gif" | "poll" | "image" | "voice" | null
+type WorldCupComposerPanel = "tools" | "format" | "emoji" | "gif" | "poll" | "image" | "voice" | null
 type WorldCupChatMode = "ai" | "pool" | "dm"
 type WorldCupAdminSimulationRound =
   | "round_of_32"
@@ -5806,7 +5806,7 @@ function WorldCupCommunityFoundationPanel({
       role="dialog"
       aria-modal="false"
       aria-label="World Cup Chimmy and pool chat"
-      className="mode-readable fixed inset-x-2 bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] top-[calc(env(safe-area-inset-top,0px)+4.25rem)] z-[135] mx-auto flex max-h-[calc(100dvh-8.5rem-env(safe-area-inset-bottom,0px)-env(safe-area-inset-top,0px))] max-w-4xl flex-col gap-3 overflow-hidden rounded-[1.35rem] border border-cyan-300/20 bg-[#020711]/92 p-2 shadow-[0_30px_90px_-36px_rgba(34,211,238,0.95)] backdrop-blur-2xl sm:inset-auto sm:bottom-20 sm:right-5 sm:top-auto sm:max-h-[min(82dvh,780px)] sm:w-[min(92vw,720px)] sm:p-0"
+      className="fixed inset-x-2 bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] top-[calc(env(safe-area-inset-top,0px)+4.25rem)] z-[135] mx-auto flex max-h-[calc(100dvh-8.5rem-env(safe-area-inset-bottom,0px)-env(safe-area-inset-top,0px))] max-w-4xl flex-col gap-3 overflow-hidden rounded-[1.35rem] border border-cyan-300/20 bg-[#020711]/92 p-2 shadow-[0_30px_90px_-36px_rgba(34,211,238,0.95)] backdrop-blur-2xl sm:inset-auto sm:bottom-20 sm:right-5 sm:top-auto sm:max-h-[min(82dvh,780px)] sm:w-[min(92vw,720px)] sm:p-0"
     >
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.25rem] border border-cyan-300/15 bg-[#020711]/95 shadow-[0_26px_80px_-56px_rgba(34,211,238,0.85)]">
         {/* ── Chat Hero ──────────────────────────────────────────────── */}
@@ -6104,103 +6104,123 @@ function WorldCupCommunityFoundationPanel({
               </p>
             </div>
           )}
-          <div data-testid="wc-chat-composer-shell" className="mt-2 max-h-[min(36dvh,20rem)] shrink-0 overflow-y-auto border-t border-white/10 bg-[#020711]/98 pt-2 sm:max-h-[52dvh]">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-2">
-            <textarea
-              value={chatBody}
-              onChange={(event) => setChatBody(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault()
-                  void sendChatMessage()
-                }
-              }}
-              maxLength={1000}
-              rows={2}
-              disabled={chatMode === "dm" && !selectedDmThreadId}
-              placeholder={composerPlaceholder}
-              className="min-h-20 w-full resize-none rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm leading-5 text-white placeholder:text-white/30 focus:border-cyan-300/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-24"
-            />
-            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-[11px] leading-5 text-white/35">
-                {chatMode === "ai" ? tChat("wc.chat.drawer.aiTrust") : tChat("wc.chat.trustNote")}
-              </p>
+          <div data-testid="wc-chat-composer-shell" className="mt-3 shrink-0 border-t border-white/10 bg-[#020711]/98 pt-3">
+          <div className="rounded-[1.35rem] border border-cyan-300/15 bg-gradient-to-r from-slate-950/96 via-slate-900/96 to-slate-950/96 p-2 shadow-[0_-12px_40px_-30px_rgba(34,211,238,0.8)]">
+            <div className="flex items-end gap-2">
+              <button
+                type="button"
+                onClick={() => setComposerPanel(composerPanel === "tools" ? null : "tools")}
+                aria-label="Open chat tools"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.055] text-white/70 transition hover:border-cyan-300/35 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55"
+              >
+                <Plus className="h-4 w-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                onClick={() => setComposerPanel(composerPanel === "gif" ? null : "gif")}
+                className="inline-flex h-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-white/70 transition hover:border-cyan-300/35 hover:text-white"
+              >
+                GIF
+              </button>
+              <textarea
+                value={chatBody}
+                onChange={(event) => setChatBody(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault()
+                    void sendChatMessage()
+                  }
+                }}
+                maxLength={1000}
+                rows={1}
+                disabled={chatMode === "dm" && !selectedDmThreadId}
+                placeholder={composerPlaceholder}
+                className="min-h-11 max-h-32 flex-1 resize-none rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-sm leading-5 text-white placeholder:text-white/38 focus:border-cyan-300/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              />
+              <button
+                type="button"
+                onClick={() => setComposerPanel(composerPanel === "emoji" ? null : "emoji")}
+                aria-label="Emoji"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.055] text-white/70 transition hover:border-cyan-300/35 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55"
+              >
+                <Smile className="h-4 w-4" aria-hidden />
+              </button>
               <button
                 type="button"
                 onClick={() => void sendChatMessage()}
                 disabled={isSendingChat || !chatBody.trim() || (chatMode === "dm" && !selectedDmThreadId)}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-300 to-cyan-200 px-4 py-2 text-xs font-black text-black shadow-[0_4px_14px_-6px_rgba(34,211,238,0.5)] transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:transform-none touch-manipulation"
+                aria-label={chatMode === "ai" ? tChat("wc.chat.askChimmy") : tChat("wc.chat.composer.send")}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-300 to-violet-500 text-black shadow-[0_8px_22px_-10px_rgba(34,211,238,0.85)] transition-transform hover:scale-[1.03] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45 disabled:transform-none"
               >
                 {isSendingChat ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}
-                {chatMode === "ai" ? tChat("wc.chat.askChimmy") : tChat("wc.chat.composer.send")}
               </button>
             </div>
+            <p data-testid="wc-chat-trust-note" className="mt-2 px-2 text-[11px] leading-5 text-white/38">
+              {chatMode === "ai" ? tChat("wc.chat.drawer.aiTrust") : tChat("wc.chat.trustNote")}
+            </p>
           </div>
-          <div className="mt-2 grid shrink-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-            <ComposerFormatButton icon={Bold} label="Bold" onClick={() => wrapComposerText("**")} />
-            <ComposerFormatButton icon={Italic} label="Italic" onClick={() => wrapComposerText("_")} />
-            <ComposerFormatButton icon={Underline} label="Underline" onClick={() => wrapComposerText("__")} />
-            <ComposerFormatButton icon={Strikethrough} label="Strike" onClick={() => wrapComposerText("~~")} />
-            <label className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2 text-[11px] font-bold text-white/55">
-              <Baseline className="h-3.5 w-3.5" aria-hidden />
-              <span className="sr-only">Chat color</span>
-              <select
-                aria-label="Chat color"
-                defaultValue="default"
-                onChange={(event) => {
-                  applyComposerColor(event.target.value as WorldCupChatColor)
-                  event.target.value = "default"
-                }}
-                className="bg-transparent text-[11px] text-white/70 focus:outline-none"
-              >
-                {WORLD_CUP_CHAT_COLOR_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value} className="bg-slate-950 text-white">
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2 text-[11px] font-bold text-white/55">
-              <span>Font</span>
-              <select
-                aria-label="Chat font"
-                defaultValue="default"
-                onChange={(event) => {
-                  applyComposerFont(event.target.value as WorldCupChatFont)
-                  event.target.value = "default"
-                }}
-                className="bg-transparent text-[11px] text-white/70 focus:outline-none"
-              >
-                {WORLD_CUP_CHAT_FONT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value} className="bg-slate-950 text-white">
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {EMOJI_BY_CATEGORY.recent.slice(0, 6).map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                onClick={() => insertComposerText(emoji)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-base"
-                aria-label={`Insert ${emoji}`}
-              >
-                {emoji}
-              </button>
-            ))}
-            <ComposerUtilityButton icon={Smile} label="Emoji" onClick={() => setComposerPanel(composerPanel === "emoji" ? null : "emoji")} />
-            <ComposerUtilityButton icon={Film} label="GIF" onClick={() => setComposerPanel(composerPanel === "gif" ? null : "gif")} />
-            <ComposerUtilityButton icon={BarChart3} label="Poll" onClick={() => setComposerPanel(composerPanel === "poll" ? null : "poll")} />
-            <ComposerUtilityButton icon={AtSign} label="Mention" onClick={() => insertComposerText("@")} />
-            <ComposerUtilityButton icon={Hash} label="Hashtag" onClick={() => insertComposerText("#")} />
-            <ComposerUtilityButton icon={ImageIcon} label="Image" onClick={() => setComposerPanel(composerPanel === "image" ? null : "image")} />
-            <ComposerUtilityButton icon={Mic} label="Voice" onClick={() => setComposerPanel(composerPanel === "voice" ? null : "voice")} />
-          </div>
-          {sanitizeWorldCupChatMessage(chatBody).trim() ? (
-            <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-xs">
-              <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-white/35">Formatting Preview</p>
-              <WorldCupChatRichTextSegments segments={richPreviewSegments} className="whitespace-pre-wrap break-words leading-5 text-white/65" />
+          {composerPanel === "tools" ? (
+            <div className="mt-2 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
+              <ComposerUtilityButton icon={Baseline} label="Format" onClick={() => setComposerPanel("format")} />
+              <ComposerUtilityButton icon={Film} label="GIF" onClick={() => setComposerPanel("gif")} />
+              <ComposerUtilityButton icon={BarChart3} label="Poll" onClick={() => setComposerPanel("poll")} />
+              <ComposerUtilityButton icon={AtSign} label="Mention" onClick={() => insertComposerText("@")} />
+              <ComposerUtilityButton icon={Hash} label="Hashtag" onClick={() => insertComposerText("#")} />
+              <ComposerUtilityButton icon={ImageIcon} label="Image" onClick={() => setComposerPanel("image")} />
+              <ComposerUtilityButton icon={Mic} label="Voice" onClick={() => setComposerPanel("voice")} />
+            </div>
+          ) : null}
+          {composerPanel === "format" ? (
+            <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
+              <div className="flex flex-wrap gap-2">
+                <ComposerFormatButton icon={Bold} label="Bold" onClick={() => wrapComposerText("**")} />
+                <ComposerFormatButton icon={Italic} label="Italic" onClick={() => wrapComposerText("_")} />
+                <ComposerFormatButton icon={Underline} label="Underline" onClick={() => wrapComposerText("__")} />
+                <ComposerFormatButton icon={Strikethrough} label="Strike" onClick={() => wrapComposerText("~~")} />
+                <label className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] px-2 text-[11px] font-bold text-white/55">
+                  <Baseline className="h-3.5 w-3.5" aria-hidden />
+                  <span className="sr-only">Chat color</span>
+                  <select
+                    aria-label="Chat color"
+                    defaultValue="default"
+                    onChange={(event) => {
+                      applyComposerColor(event.target.value as WorldCupChatColor)
+                      event.target.value = "default"
+                    }}
+                    className="bg-transparent text-[11px] text-white/70 focus:outline-none"
+                  >
+                    {WORLD_CUP_CHAT_COLOR_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value} className="bg-slate-950 text-white">
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] px-2 text-[11px] font-bold text-white/55">
+                  <span>Font</span>
+                  <select
+                    aria-label="Chat font"
+                    defaultValue="default"
+                    onChange={(event) => {
+                      applyComposerFont(event.target.value as WorldCupChatFont)
+                      event.target.value = "default"
+                    }}
+                    className="bg-transparent text-[11px] text-white/70 focus:outline-none"
+                  >
+                    {WORLD_CUP_CHAT_FONT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value} className="bg-slate-950 text-white">
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              {sanitizeWorldCupChatMessage(chatBody).trim() ? (
+                <div className="mt-2 rounded-xl border border-white/10 bg-black/20 p-3 text-xs">
+                  <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-white/35">Formatting Preview</p>
+                  <WorldCupChatRichTextSegments segments={richPreviewSegments} className="whitespace-pre-wrap break-words leading-5 text-white/65" />
+                </div>
+              ) : null}
             </div>
           ) : null}
           {isChimmyPrompt ? (
@@ -6295,12 +6315,6 @@ function WorldCupCommunityFoundationPanel({
               onSubmit={() => void createWorldCupPoll()}
             />
           ) : composerPanel === "voice" ? <WorldCupComposerFoundationPanel panel="voice" /> : null}
-          <p
-            data-testid="wc-chat-trust-note"
-            className="mt-2 text-[11px] leading-5 text-white/35"
-          >
-            {tChat("wc.chat.trustNote")}
-          </p>
           {/* ── AI gate errors — shown instead of generic rose error ── */}
           {chatAiGate?.type === "chimmy_locked" ? (
             <div className="mt-2 rounded-xl border border-cyan-400/30 bg-gradient-to-br from-cyan-500/[0.10] to-violet-500/[0.07] px-4 py-3">

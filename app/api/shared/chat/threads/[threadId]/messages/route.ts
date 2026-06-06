@@ -24,6 +24,7 @@ import { prisma } from '@/lib/prisma'
 import { getBlockedUserIds } from '@/lib/moderation'
 import { filterMessagesByBlocked } from '@/lib/moderation'
 import { publishDraftIntelState } from '@/lib/draft-intelligence'
+import { DETERMINISTIC_SOURCE, tryDeterministicAnswer } from '@/lib/ai/deterministic'
 
 const bracketMessageInclude = {
   user: {
@@ -277,13 +278,33 @@ export async function POST(
           visibleToUserId: user.appUserId,
           messageSubtype: 'chimmy_prompt',
         })
+        const replyText =
+          await tryDeterministicAnswer(chimmyBody || 'help', req.cookies?.get?.('af_lang')?.value)
+            .catch(() => null) ??
+          "I don't have reliable data for that yet. I can answer cached scores, schedules, news, weather, FantasyCalc values, and league context when those data sources are available."
+        const reply = await createLeagueChatMessage(leagueId, user.appUserId, replyText, {
+          type: 'text',
+          metadata: {
+            chimmyResponse: true,
+            privateReplyToMessageId: created?.id ?? null,
+            source: DETERMINISTIC_SOURCE,
+            discordAuthorName: 'Chimmy',
+          },
+          source,
+          parentMessageId: created?.id ?? parentMessageId,
+          isPrivate: true,
+          visibleToUserId: user.appUserId,
+          messageSubtype: 'chimmy_private_response',
+        })
         return NextResponse.json({
           status: 'ok',
           message: created,
+          aiReply: reply,
+          messages: [created, reply].filter(Boolean),
           commandResult: {
             ok: true,
             intent: 'chimmy_prompt',
-            message: 'Private Chimmy prompt sent. Open Chimmy for the response.',
+            message: 'Private Chimmy reply added to this chat.',
           },
         })
       }
