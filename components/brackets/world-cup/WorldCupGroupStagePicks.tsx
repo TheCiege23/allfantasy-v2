@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Check, Loader2, Sparkles } from "lucide-react"
+import { Check, Info, Loader2, Sparkles } from "lucide-react"
 import {
   fetchWorldCupGroupStageView,
   saveWorldCupGroupRankingClient,
@@ -12,6 +12,7 @@ import {
 import {
   buildWorldCupGroupStageGroupInsights,
   buildWorldCupGroupStageThirdPlaceInsights,
+  getWorldCupSeedStrength,
 } from "@/lib/world-cup/worldCupAiInsights"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import { makeWcT } from "@/lib/world-cup/worldCupI18n"
@@ -129,6 +130,91 @@ function savedThirdPlaceTeamIds(view: WorldCupGroupStageViewClient): string[] {
     .map((pick) => pick.teamId)
 }
 
+function teamSlotKey(groupKey: string, seedOrder: number | null | undefined) {
+  return `${groupKey}${seedOrder ?? ""}`
+}
+
+function formatSigned(value: number | null | undefined) {
+  if (value == null) return null
+  return value > 0 ? `+${value}` : String(value)
+}
+
+function teamAdvanceSignal(strength: number, t: TranslateFn) {
+  if (strength >= 80) return t("wc.groupStage.signalFavorite")
+  if (strength >= 65) return t("wc.groupStage.signalContender")
+  if (strength >= 52) return t("wc.groupStage.signalBubble")
+  return t("wc.groupStage.signalLongShot")
+}
+
+function teamWatchNote(seedOrder: number | null | undefined, t: TranslateFn) {
+  if (seedOrder === 1) return t("wc.groupStage.watchSeed1")
+  if (seedOrder === 2) return t("wc.groupStage.watchSeed2")
+  if (seedOrder === 3) return t("wc.groupStage.watchSeed3")
+  return t("wc.groupStage.watchSeed4")
+}
+
+function TeamPickInfo({
+  groupKey,
+  predictedRank,
+  team,
+  t,
+}: {
+  groupKey: string
+  predictedRank: number
+  team: WorldCupGroupStageTeamClient
+  t: TranslateFn
+}) {
+  const slotKey = teamSlotKey(groupKey, team.seedOrder)
+  const strength = getWorldCupSeedStrength(slotKey)
+  const hasCachedStats =
+    team.points != null ||
+    team.goalDifference != null ||
+    team.goalsFor != null ||
+    team.actualRank != null
+  const cachedStats = hasCachedStats
+    ? [
+        team.points != null ? t("wc.groupStage.statPoints", { value: team.points }) : null,
+        team.goalDifference != null ? t("wc.groupStage.statGoalDiff", { value: formatSigned(team.goalDifference) ?? team.goalDifference }) : null,
+        team.goalsFor != null ? t("wc.groupStage.statGoalsFor", { value: team.goalsFor }) : null,
+        team.actualRank != null ? t("wc.groupStage.statActualRank", { rank: team.actualRank }) : null,
+      ].filter(Boolean).join(" · ")
+    : t("wc.groupStage.noCachedStats")
+
+  return (
+    <details
+      data-testid={`world-cup-team-info-${groupKey}-${team.teamId}`}
+      className="w-full rounded-xl border border-cyan-200/15 bg-cyan-300/[0.045] px-3 py-2 text-[11px] leading-5 text-white/75"
+    >
+      <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-2 font-black text-white">
+        <span className="inline-flex items-center gap-1.5">
+          <Info className="h-3.5 w-3.5 text-cyan-200" />
+          {t("wc.groupStage.teamInfo")}
+        </span>
+        <span className="rounded-full border border-cyan-200/25 bg-cyan-200/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-cyan-50">
+          {t("wc.groupStage.freeSignal")}
+        </span>
+      </summary>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5">
+          <span className="block font-black text-white">{t("wc.groupStage.seedSignal")}</span>
+          {t("wc.groupStage.seedSignalValue", { value: strength })} · {teamAdvanceSignal(strength, t)}
+        </p>
+        <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5">
+          <span className="block font-black text-white">{t("wc.groupStage.cachedStats")}</span>
+          {cachedStats}
+        </p>
+        <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 sm:col-span-2">
+          <span className="block font-black text-white">{t("wc.groupStage.whatToWatch")}</span>
+          {teamWatchNote(team.seedOrder, t)} {t("wc.groupStage.predictedRankContext", { rank: predictedRank })}
+        </p>
+        <p className="rounded-lg border border-amber-200/20 bg-amber-300/[0.08] px-2 py-1.5 text-amber-50 sm:col-span-2">
+          {t("wc.groupStage.deeperCta")}
+        </p>
+      </div>
+    </details>
+  )
+}
+
 function GroupAiInsightPanel({
   groupName,
   groupKey,
@@ -169,22 +255,16 @@ function GroupAiInsightPanel({
           {unlocked ? t("wc.groupStage.aiTierOpen") : t("wc.groupStage.aiTierLocked")}
         </span>
       </summary>
-      {unlocked ? (
-        <div className="mt-3 space-y-2 leading-5 text-white/75">
-          {insights.map((line, idx) => (
-            <p key={idx} data-testid={`world-cup-group-ai-insight-line-${idx}`}>
-              {line}
-            </p>
-          ))}
-          <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/55">
-            {t("wc.groupStage.aiPrivacyNote")}
+      <div className="mt-3 space-y-2 leading-5 text-white/75">
+        {insights.map((line, idx) => (
+          <p key={idx} data-testid={`world-cup-group-ai-insight-line-${idx}`}>
+            {line}
           </p>
-        </div>
-      ) : (
-        <div className="mt-3 rounded-lg border border-white/10 bg-black/25 px-2 py-2 text-[11px] leading-5 text-white/60" hidden>
-          {t("wc.groupStage.aiLockedBody")}
-        </div>
-      )}
+        ))}
+        <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/55">
+          {unlocked ? t("wc.groupStage.aiPrivacyNote") : t("wc.groupStage.aiLockedBody")}
+        </p>
+      </div>
     </details>
   )
 }
@@ -220,22 +300,16 @@ function ThirdPlaceAiInsightPanel({
         <span className="inline-flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" /> {t("wc.thirdPlace.aiTitle")}</span>
         <span className="rounded-full border border-cyan-200/25 px-2 py-0.5 text-[10px] uppercase tracking-wide">{unlocked ? t("wc.groupStage.aiTierOpen") : t("wc.groupStage.aiTierLocked")}</span>
       </summary>
-      {unlocked ? (
-        <div className="mt-3 space-y-2 leading-5 text-white/75">
-          {insights.map((line, idx) => (
-            <p key={idx} data-testid={`world-cup-third-place-ai-insight-line-${idx}`}>
-              {line}
-            </p>
-          ))}
-          <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/55">
-            {t("wc.groupStage.aiPrivacyNote")}
+      <div className="mt-3 space-y-2 leading-5 text-white/75">
+        {insights.map((line, idx) => (
+          <p key={idx} data-testid={`world-cup-third-place-ai-insight-line-${idx}`}>
+            {line}
           </p>
-        </div>
-      ) : (
-        <div className="mt-3 rounded-lg border border-white/10 bg-black/25 px-2 py-2 text-[11px] leading-5 text-white/60" hidden>
-          {t("wc.thirdPlace.aiLockedBody")}
-        </div>
-      )}
+        ))}
+        <p className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/55">
+          {unlocked ? t("wc.groupStage.aiPrivacyNote") : t("wc.thirdPlace.aiLockedBody")}
+        </p>
+      </div>
     </details>
   )
 }
@@ -326,10 +400,6 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
     if (savingGroupIdsRef.current.has(groupId)) return
     const orderedTeamIds = localOrders[groupId] ?? []
     const group = view?.groups.find((row) => row.id === groupId)
-    if (view && isGroupRanked(view, groupId) && sameOrderedValues(orderedTeamIds, orderedTeamIdsForGroup(view, groupId))) {
-      setSaveStates((prev) => ({ ...prev, [groupId]: "saved" }))
-      return
-    }
     if (group && group.teams.length !== 4) {
       setSaveStates((prev) => ({ ...prev, [groupId]: "error" }))
       setError(t("wc.groupStage.needsFourTeams", { group: group.displayName }))
@@ -477,7 +547,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                       key={teamId}
                       data-testid={`world-cup-group-pick-result-${group.groupKey}-${teamId}`}
                       data-result-state={status}
-                      className={`flex flex-wrap items-center gap-2 rounded-xl border bg-black/20 px-2 py-2 sm:flex-nowrap ${resultBorderClass(status)}`}
+                      className={`flex flex-wrap items-center gap-2 rounded-2xl border bg-black/20 px-2 py-2 shadow-[0_12px_30px_rgba(0,0,0,0.18)] ${resultBorderClass(status)}`}
                     >
                       <span className="w-7 shrink-0 text-center text-sm font-black text-white/90">{index + 1}</span>
                       <div className="min-w-0 flex-1">
@@ -511,6 +581,9 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                           {t("wc.groupStage.moveDown")}
                         </button>
                       </div>
+                      {team ? (
+                        <TeamPickInfo groupKey={group.groupKey} predictedRank={index + 1} team={team} t={t} />
+                      ) : null}
                     </div>
                   )
                 })}
@@ -571,7 +644,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
             <button
               type="button"
               onClick={() => void saveThirdPlace()}
-              disabled={isLocked || !view.completion.allGroupsRanked || thirdPlaceStatus === "saving" || !hasUnsavedThirdPlaceChanges}
+              disabled={isLocked || !view.completion.allGroupsRanked || thirdPlaceStatus === "saving"}
               className="min-h-11 rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black touch-manipulation disabled:cursor-not-allowed disabled:opacity-45"
             >
               {thirdPlaceStatus === "saving"
@@ -661,6 +734,11 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                   <span className={isSelected ? "mt-0.5 block text-[11px] font-bold text-white/90" : "mt-0.5 block text-[11px] text-white/40"}>
                     {isSelected ? t("wc.thirdPlace.selectedToAdvance") : t("wc.thirdPlace.tapToSelect")}
                   </span>
+                  {candidate.team ? (
+                    <span className="mt-1 block text-[11px] font-bold text-cyan-50/80">
+                      {teamAdvanceSignal(getWorldCupSeedStrength(teamSlotKey(candidate.groupKey, candidate.team.seedOrder)), t)}
+                    </span>
+                  ) : null}
                 </span>
                 {badge ? (
                   <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-black ${badge.className}`}>
@@ -675,7 +753,7 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
         <button
           type="button"
           onClick={() => void saveThirdPlace()}
-          disabled={isLocked || !view.completion.allGroupsRanked || thirdPlaceStatus === "saving" || !hasUnsavedThirdPlaceChanges}
+          disabled={isLocked || !view.completion.allGroupsRanked || thirdPlaceStatus === "saving"}
           className="mt-4 min-h-11 w-full rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-black touch-manipulation disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto"
         >
           {thirdPlaceStatus === "saving"

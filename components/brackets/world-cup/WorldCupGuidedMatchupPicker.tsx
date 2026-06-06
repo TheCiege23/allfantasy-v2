@@ -705,7 +705,7 @@ export default function WorldCupGuidedMatchupPicker({
         setTimeout(() => {
           setSaveState("idle")
           goToNext(currentMatch.id, serverPicks)
-        }, 400)
+        }, 120)
       } catch (err) {
         // Roll back optimistic update
         setPicks(picks)

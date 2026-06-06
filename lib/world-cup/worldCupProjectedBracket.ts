@@ -335,14 +335,15 @@ export function resetWorldCupProjectedMatchStatus<T extends WorldCupProjectedMat
 
 // ── Projected bracket ─────────────────────────────────────────────────────────
 
-const BEST_THIRD_SLOT_KEYS = new Set(["C3", "D3", "G3", "H3", "K3", "L3"])
+const BEST_THIRD_SLOT_KEYS = ["C3", "D3", "G3", "H3", "K3", "L3", "TBD1", "TBD2"] as const
+const BEST_THIRD_SLOT_KEY_SET = new Set<string>(BEST_THIRD_SLOT_KEYS)
 
 function isGroupRankSlot(slotKey: string) {
   return /^([A-L])([12])$/.test(slotKey)
 }
 
 function isBestThirdSlot(slotKey: string) {
-  return BEST_THIRD_SLOT_KEYS.has(slotKey)
+  return BEST_THIRD_SLOT_KEY_SET.has(slotKey)
 }
 
 function teamForGroupRank(view: WorldCupGroupStageProjectionView, groupKey: string, rank: number) {
@@ -432,8 +433,7 @@ export function buildWorldCupMatchesFromGroupPredictions(input: {
   const thirdPlaceTeams = selectedThirdPlaceTeams(view)
   const bestThirdBySlot = new Map<string, WorldCupGroupStageProjectionTeam>()
   if (view.completion.thirdPlaceComplete) {
-    const bestThirdSlots = [...BEST_THIRD_SLOT_KEYS]
-    for (const [index, slotKey] of bestThirdSlots.entries()) {
+    for (const [index, slotKey] of BEST_THIRD_SLOT_KEYS.entries()) {
       const team = thirdPlaceTeams[index]
       if (team) bestThirdBySlot.set(slotKey, team)
     }
