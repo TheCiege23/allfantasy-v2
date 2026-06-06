@@ -59,6 +59,10 @@ vi.mock("next-auth/react", () => ({
   useSession: () => ({ status: "unauthenticated", data: null }),
 }))
 
+vi.mock("@/components/theme/ThemeModeSelect", () => ({
+  ThemeModeSelect: () => <select aria-label="Theme" data-testid="theme-mode-select" />,
+}))
+
 vi.mock("@/components/brackets/world-cup/WorldCupMatchupIntelligencePanel", () => ({
   default: () => <div data-testid="wc-intel-stub" />,
 }))
@@ -1633,15 +1637,13 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getByRole("button", { name: /^Poll$/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /^Image$/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /^Voice$/i })).toBeInTheDocument()
-    expect(screen.getByText(/^Notification Settings$/i)).toBeInTheDocument()
-    expect(screen.getByText(/In-app notifications are on by default/i)).toBeInTheDocument()
-    expect(screen.getByText(/SMS alerts require a verified phone number and opt-in/i)).toBeInTheDocument()
-    expect(screen.getByText(/Pool muted/i)).toBeInTheDocument()
-    expect(screen.getByText(/Requires verified phone/i)).toBeInTheDocument()
-    expect(screen.getByText(/Pool owners and commissioners cannot override/i)).toBeInTheDocument()
-    expect(screen.getByText(/Free users can follow pool updates here/i)).toBeInTheDocument()
-    expect(screen.queryByText(/System Reminders/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/^Moderation$/i)).not.toBeInTheDocument()
+    expect(within(community).getByTestId("wc-chat-active-panel")).toBeInTheDocument()
+    expect(within(community).queryByText(/^Notification Settings$/i)).not.toBeInTheDocument()
+    expect(within(community).queryByText(/In-app notifications are on by default/i)).not.toBeInTheDocument()
+    expect(within(community).queryByText(/Pool muted/i)).not.toBeInTheDocument()
+    expect(within(community).queryByText(/Commissioner Announcements/i)).not.toBeInTheDocument()
+    expect(within(community).queryByText(/System Reminders/i)).not.toBeInTheDocument()
+    expect(within(community).queryByText(/^Moderation$/i)).not.toBeInTheDocument()
   })
 
   it("keeps World Cup chat tabs and composer usable inside a bounded drawer", async () => {
@@ -1686,9 +1688,10 @@ describe("WorldCupBracketShell fixture readiness", () => {
 
     await openWorldCupChatDrawer()
     expect(screen.getAllByTestId("world-cup-community-foundation")).toHaveLength(1)
+    expect(screen.queryByTestId("world-cup-chat-bubble")).not.toBeInTheDocument()
 
     fireEvent.click(screen.getAllByRole("button", { name: /Group Stage/i })[0])
-    expect(screen.getByTestId("world-cup-chat-bubble")).toBeInTheDocument()
+    expect(screen.queryByTestId("world-cup-chat-bubble")).not.toBeInTheDocument()
     expect(screen.getAllByTestId("world-cup-community-foundation")).toHaveLength(1)
 
     fireEvent.click(screen.getByRole("button", { name: /Collapse/i }))
@@ -1818,37 +1821,13 @@ describe("WorldCupBracketShell fixture readiness", () => {
     })
   })
 
-  it("updates World Cup pool notification preferences for the current user", async () => {
+  it("does not render old notification settings inside the World Cup chat drawer", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
-      if (url.includes("/chat") && init?.method === "POST" && String(init.body ?? "").includes("update_notification_preferences")) {
-        return {
-          ok: true,
-          json: async () => ({
-            ok: true,
-            preferences: { poolMuted: true, inAppEnabled: true, smsEnabled: false },
-          }),
-        } as Response
-      }
       if (url.includes("/chat") && url.includes("notification_preferences")) {
         return {
           ok: true,
-          json: async () => ({
-            preferences: {
-              poolMuted: false,
-              inAppEnabled: true,
-              smsEnabled: false,
-              usernameMentionsEnabled: true,
-              allMentionsEnabled: true,
-              commissionerAnnouncementsEnabled: true,
-              deadlineRemindersEnabled: true,
-              bracketFinalizedEnabled: true,
-              resultsUpdatedEnabled: true,
-              leaderboardUpdatedEnabled: true,
-              generalChatEnabled: false,
-              chimmyRepliesEnabled: true,
-            },
-          }),
+          json: async () => ({ preferences: { poolMuted: false } }),
         } as Response
       }
       if (url.includes("/chat")) {
@@ -1866,19 +1845,18 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
 
-    await openWorldCupChatDrawer()
-    const muteSwitch = await screen.findByRole("switch", { name: /Pool muted/i })
-    fireEvent.click(muteSwitch)
-
+    const community = await openWorldCupChatDrawer()
+    expect(within(community).getByTestId("wc-chat-active-panel")).toBeInTheDocument()
+    expect(within(community).queryByText(/^Notification Settings$/i)).not.toBeInTheDocument()
+    expect(within(community).queryByRole("switch", { name: /Pool muted/i })).not.toBeInTheDocument()
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/brackets/world-cup/c1/chat"),
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({ action: "update_notification_preferences", poolMuted: true }),
-        })
-      )
+      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/brackets/world-cup/c1/chat"), {
+        cache: "no-store",
+      })
     })
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes("notification_preferences"))
+    ).toBe(false)
   })
 
   it("supports World Cup composer emoji and rich media foundations", async () => {
@@ -2524,8 +2502,10 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(within(panel).getAllByText(/Unlocked/i).length).toBeGreaterThan(0)
     expect(within(panel).getAllByText(/Requires AI\/Pro/i).length).toBeGreaterThan(0)
     const community = await openWorldCupChatDrawer()
-    expect(within(community).getAllByText(/Commissioner Announcements/i).length).toBeGreaterThan(0)
-    expect(within(community).getByText(/Pinned Announcement/i)).toBeInTheDocument()
+    expect(within(community).getByTestId("wc-chat-active-panel")).toBeInTheDocument()
+    expect(within(community).getByPlaceholderText(/Message the pool or ask Chimmy/i)).toBeInTheDocument()
+    expect(within(community).queryByText(/Commissioner Announcements/i)).toBeNull()
+    expect(within(community).queryByText(/Pinned Announcement/i)).toBeNull()
     expect(within(community).queryByText(/System Reminders/i)).toBeNull()
     expect(within(community).queryByText(/^Moderation$/i)).toBeNull()
   })
