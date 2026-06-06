@@ -14,6 +14,11 @@ import {
   hasWorldCupPickSelection,
   isWorldCupMatchPickable,
 } from "@/lib/world-cup/worldCupProjectedBracket"
+import {
+  estimateWorldCupWinProbability,
+  getWorldCupPickRecommendation,
+  getWorldCupUpsetRisk,
+} from "@/lib/world-cup/worldCupAiInsights"
 import WorldCupTeamFlag from "./WorldCupTeamFlag"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import { makeWcT } from "@/lib/world-cup/worldCupI18n"
@@ -55,6 +60,10 @@ function matchupPickVisualState(
   if (pick.isCorrect === true) return "correct"
   if (pick.isCorrect === false) return "incorrect"
   return "pending"
+}
+
+function formatPercent(value: number): string {
+  return `${Math.round(value * 100)}%`
 }
 
 export default function WorldCupMatchupCard({
@@ -122,6 +131,14 @@ export default function WorldCupMatchupCard({
   ]
   const aiHomeLabel = aiMatchupSideLabel(match.homeSlotKey, match.homeTeamName, match.homeTeamId, t("wc.matchup.aiHomeSideFallback"))
   const aiAwayLabel = aiMatchupSideLabel(match.awaySlotKey, match.awayTeamName, match.awayTeamId, t("wc.matchup.aiAwaySideFallback"))
+  const freeMatchupSignal = useMemo(() => {
+    if (!matchIsPickable) return null
+    return {
+      probabilities: estimateWorldCupWinProbability(match),
+      recommendation: getWorldCupPickRecommendation(match, "balanced"),
+      upsetRisk: getWorldCupUpsetRisk(match),
+    }
+  }, [match, matchIsPickable])
 
   // Derive human-readable lock hint.
   // Locale-dependent date strings render only after mount to keep SSR HTML
@@ -351,21 +368,60 @@ export default function WorldCupMatchupCard({
             {aiInsightsUnlocked ? t("wc.matchup.aiTierOpen") : t("wc.matchup.aiTierLocked")}
           </span>
         </summary>
-        {aiInsightsUnlocked ? (
-          <div className="mt-2 space-y-1.5 leading-4 text-white/75">
-            <p><span className="font-black text-white">{t("wc.matchup.aiSaferPick")}</span> {t("wc.matchup.aiSaferBody", { name: aiHomeLabel })}</p>
-            <p><span className="font-black text-white">{t("wc.matchup.aiUpsidePick")}</span> {t("wc.matchup.aiUpsideBody", { name: aiAwayLabel })}</p>
-            <p><span className="font-black text-white">{t("wc.matchup.aiBracketImpact")}</span> {t("wc.matchup.aiBracketImpactBody")}</p>
-            <p><span className="font-black text-white">{t("wc.matchup.aiUpsetRisk")}</span> {t("wc.matchup.aiUpsetRiskBody")}</p>
-            <p className="rounded-md border border-white/10 bg-black/20 px-2 py-1 text-white/55">
-              {t("wc.matchup.aiPrivacyNote")}
+        <div className="mt-2 space-y-1.5 leading-4 text-white/75">
+          {freeMatchupSignal ? (
+            <div
+              data-testid={`world-cup-match-free-insight-${match.id}`}
+              className="space-y-1.5 rounded-md border border-white/10 bg-black/20 px-2 py-1.5"
+            >
+              <p>
+                <span className="font-black text-white">{t("wc.matchup.freeSignalTitle")}</span>{" "}
+                <span>{t("wc.matchup.freeRecommendedBody", { name: freeMatchupSignal.recommendation.recommendedTeamName })}</span>
+              </p>
+              <p>
+                <span className="font-black text-white">{t("wc.matchup.freeChanceLabel")}</span>{" "}
+                <span>
+                  {t("wc.matchup.freeChanceBody", {
+                    home: aiHomeLabel,
+                    homePct: formatPercent(freeMatchupSignal.probabilities.homeWinProbability),
+                    away: aiAwayLabel,
+                    awayPct: formatPercent(freeMatchupSignal.probabilities.awayWinProbability),
+                  })}
+                </span>
+              </p>
+              <p>
+                <span className="font-black text-white">{t("wc.matchup.freeUpsetLabel")}</span>{" "}
+                {t(`wc.matchup.upsetRisk.${freeMatchupSignal.upsetRisk}`)}
+              </p>
+              <p className="text-white/55">{freeMatchupSignal.recommendation.explanation}</p>
+            </div>
+          ) : (
+            <p className="rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-white/60">
+              {t("wc.matchup.freeMissingTeams")}
             </p>
-          </div>
-        ) : (
-          <p className="mt-2 rounded-md border border-white/10 bg-black/25 px-2 py-1.5 leading-4 text-white/60" hidden>
-            {t("wc.matchup.aiLockedBody")}
+          )}
+          <p className="rounded-md border border-white/10 bg-black/20 px-2 py-1 text-white/55">
+            <span className="font-black text-white">{t("wc.matchup.scoreboardLabel")}</span>{" "}
+            {showScore
+              ? `${match.homeScore ?? 0}-${match.awayScore ?? 0} · ${statusLabel}`
+              : statusLabel || t("wc.matchup.scoreboardAwaiting")}
           </p>
-        )}
+          {aiInsightsUnlocked ? (
+            <>
+              <p><span className="font-black text-white">{t("wc.matchup.aiSaferPick")}</span> {t("wc.matchup.aiSaferBody", { name: aiHomeLabel })}</p>
+              <p><span className="font-black text-white">{t("wc.matchup.aiUpsidePick")}</span> {t("wc.matchup.aiUpsideBody", { name: aiAwayLabel })}</p>
+              <p><span className="font-black text-white">{t("wc.matchup.aiBracketImpact")}</span> {t("wc.matchup.aiBracketImpactBody")}</p>
+              <p><span className="font-black text-white">{t("wc.matchup.aiUpsetRisk")}</span> {t("wc.matchup.aiUpsetRiskBody")}</p>
+              <p className="rounded-md border border-white/10 bg-black/20 px-2 py-1 text-white/55">
+                {t("wc.matchup.aiPrivacyNote")}
+              </p>
+            </>
+          ) : (
+            <p className="rounded-md border border-amber-200/20 bg-amber-300/[0.08] px-2 py-1.5 text-amber-50">
+              {t("wc.matchup.aiLockedBody")}
+            </p>
+          )}
+        </div>
       </details>
 
       {/* Score row — shown during / after match */}

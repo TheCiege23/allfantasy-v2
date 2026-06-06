@@ -684,6 +684,34 @@ describe("World Cup pick readiness guards", () => {
     expect(result.matches[0].awayTeamName).toBe("Morocco")
   })
 
+  it("fills Match 16 TBD third-place qualifier slots from selected third-place advancers", () => {
+    const matches = [
+      makeMatch({
+        id: "m16",
+        matchNumber: 16,
+        homeSlotKey: "TBD1",
+        awaySlotKey: "TBD2",
+        homeTeamId: null,
+        awayTeamId: null,
+        homeTeamName: "TBD Qualifier 1",
+        awayTeamName: "TBD Qualifier 2",
+      }),
+    ]
+
+    const result = buildWorldCupMatchesFromGroupPredictions({
+      matches,
+      groupStageView: makeCompleteGroupStageProjection(),
+      bestThirdMappingConfirmed: false,
+    })
+
+    expect(result.status).toBe("best_third_mapping_unconfirmed")
+    expect(result.matches[0].homeTeamId).toBe("team-g3")
+    expect(result.matches[0].awayTeamId).toBe("team-h3")
+    expect(result.matches[0].homeTeamName).toBe("Team G3")
+    expect(result.matches[0].awayTeamName).toBe("Team H3")
+    expect(isWorldCupMatchPickable(result.matches[0])).toBe(true)
+  })
+
   it("shows an incomplete bracket state when group predictions are missing", () => {
     const result = buildWorldCupMatchesFromGroupPredictions({
       matches: [makeMatch({ homeTeamId: null, awayTeamId: null, homeTeamName: "Group A Winner", awayTeamName: "Group B Runner-up" })],

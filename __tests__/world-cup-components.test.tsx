@@ -569,6 +569,25 @@ describe("World Cup mobile polish — matchup card & guided picker", () => {
     expect(screen.getByText(/Upside pick:/i).parentElement).toHaveTextContent("France if you need a differentiated path.")
   })
 
+  it("shows basic matchup signal and scoreboard context for free users", async () => {
+    const WorldCupMatchupCard = (await import("@/components/brackets/world-cup/WorldCupMatchupCard")).default
+    render(
+      <WorldCupMatchupCard
+        match={sampleMatch}
+        locked={false}
+        aiInsightsUnlocked={false}
+        onPick={() => {}}
+      />
+    )
+
+    fireEvent.click(screen.getByText("AI Insights"))
+    const freeInsight = screen.getByTestId("world-cup-match-free-insight-m1")
+    expect(freeInsight).toHaveTextContent("Basic pick signal")
+    expect(freeInsight).toHaveTextContent("Seed-model chance")
+    expect(screen.getByText(/Scoreboard:/i).parentElement).toHaveTextContent("Scheduled")
+    expect(screen.getByText(/Basic matchup signals are free/i)).toBeInTheDocument()
+  })
+
   it("guided picker renders close control and team pick labels", async () => {
     const WorldCupGuidedMatchupPicker = (await import("@/components/brackets/world-cup/WorldCupGuidedMatchupPicker")).default
     const onSavePick = vi.fn().mockResolvedValue([])

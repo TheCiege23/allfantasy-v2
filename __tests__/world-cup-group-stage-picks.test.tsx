@@ -90,15 +90,19 @@ describe("WorldCupGroupStagePicks", () => {
     await waitFor(() => expect(onCompletionChanged).toHaveBeenCalledTimes(1))
   })
 
-  it("shows locked AI CTA near Save Group for free users without opening detailed insights", async () => {
+  it("shows free deterministic team and group signals near Save Group for free users", async () => {
     const WorldCupGroupStagePicks = (await import("@/components/brackets/world-cup/WorldCupGroupStagePicks")).default
     render(<WorldCupGroupStagePicks challengeId="c1" entryId="entry-1" aiInsightsUnlocked={false} />)
 
     const group = await screen.findByTestId("world-cup-group-A")
     expect(within(group).getByText("AI Insights")).toBeInTheDocument()
     expect(within(group).getByText("Locked")).toBeInTheDocument()
-    expect(within(group).getByText(/No AI is called while this is locked/i)).toBeInTheDocument()
-    expect(within(group).queryByText(/Safest group winner/i)).toBeNull()
+    expect(within(group).getByText(/Basic deterministic signals are free/i)).toBeInTheDocument()
+    expect(within(group).getByTestId("world-cup-group-ai-insight-line-0").textContent).toMatch(/Safest group winner/i)
+    expect(within(group).getAllByText("Team info")).toHaveLength(4)
+    fireEvent.click(within(group).getAllByText("Team info")[0])
+    expect(within(group).getAllByText(/Seed model/i).length).toBeGreaterThan(0)
+    expect(within(group).getAllByText(/AF Pro or tokens unlock deeper Chimmy analysis/i).length).toBeGreaterThan(0)
     expect(within(group).getByText("AI Insights").compareDocumentPosition(within(group).getByRole("button", { name: /Saved/i }))).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
@@ -169,7 +173,7 @@ describe("WorldCupGroupStagePicks", () => {
     ))
   })
 
-  it("preserves already submitted default group state without a duplicate save", async () => {
+  it("saves already submitted unchanged group state to refresh the saved view", async () => {
     const WorldCupGroupStagePicks = (await import("@/components/brackets/world-cup/WorldCupGroupStagePicks")).default
     render(<WorldCupGroupStagePicks challengeId="c1" entryId="entry-1" />)
 
@@ -179,7 +183,12 @@ describe("WorldCupGroupStagePicks", () => {
 
     fireEvent.click(savedButton)
 
-    expect(clientApiMocks.saveGroupRanking).not.toHaveBeenCalled()
+    await waitFor(() => expect(clientApiMocks.saveGroupRanking).toHaveBeenCalledWith(
+      "c1",
+      "entry-1",
+      "group-a",
+      ["team-a", "team-b", "team-c", "team-d"],
+    ))
   })
 
   it("renders group ranking result borders from saved pick scoring", async () => {

@@ -15,7 +15,7 @@ const R32: Array<[string, string, string, string]> = [
   ["A1", "Group A Winner", "B2", "Group B Runner-up"], ["C1", "Group C Winner", "D3", "Best 3rd Place Team 1"], ["E1", "Group E Winner", "F2", "Group F Runner-up"], ["G1", "Group G Winner", "H3", "Best 3rd Place Team 2"],
   ["I1", "Group I Winner", "J2", "Group J Runner-up"], ["K1", "Group K Winner", "L3", "Best 3rd Place Team 3"], ["B1", "Group B Winner", "A2", "Group A Runner-up"], ["D1", "Group D Winner", "C3", "Best 3rd Place Team 4"],
   ["F1", "Group F Winner", "E2", "Group E Runner-up"], ["H1", "Group H Winner", "G3", "Best 3rd Place Team 5"], ["J1", "Group J Winner", "I2", "Group I Runner-up"], ["L1", "Group L Winner", "K3", "Best 3rd Place Team 6"],
-  ["C2", "Group C Runner-up", "D2", "Group D Runner-up"], ["G2", "Group G Runner-up", "H2", "Group H Runner-up"], ["K2", "Group K Runner-up", "L2", "Group L Runner-up"], ["TBD1", "TBD Qualifier 1", "TBD2", "TBD Qualifier 2"],
+  ["C2", "Group C Runner-up", "D2", "Group D Runner-up"], ["G2", "Group G Runner-up", "H2", "Group H Runner-up"], ["K2", "Group K Runner-up", "L2", "Group L Runner-up"], ["TBD1", "Best 3rd Place Team 7", "TBD2", "Best 3rd Place Team 8"],
 ]
 export function getWorldCupRoundPoints(round: WorldCupRound, scoring?: Partial<WorldCupScoringValues> | null) { return Number(({ ...DEFAULT_WORLD_CUP_SCORING, ...(scoring ?? {}) })[POINT_KEY[round]] ?? 0) }
 function slotMeta(slotKey: string, displayName: string) {
