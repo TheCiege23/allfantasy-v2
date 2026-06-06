@@ -5,6 +5,7 @@
 import type { LeagueSport } from '@prisma/client'
 import type { LeagueFormatResolution } from '@/lib/league/format-engine'
 import type { SettingsSnapshot } from '@/lib/league-contract/types'
+import type { MetaEventPayload } from '@/lib/meta-events'
 
 export type CanonicalDraftType =
   | 'snake'
@@ -87,6 +88,7 @@ export interface CreateLeagueSuccessResponse {
   homepageUrl?: string
   /** Non-fatal preset warnings (e.g. odd team count). */
   warnings?: ValidationIssue[]
+  metaEvent?: MetaEventPayload
 }
 
 export interface CreateLeagueErrorResponse {

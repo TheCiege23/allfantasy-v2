@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { normalizeLegacyManualCreateBody } from '@/lib/league-creation/normalizeCreateLeaguePayload'
+import { trackMetaEventsFromResponse } from '@/lib/meta-client'
 
 type QuickCreateSettings = {
   name: string
@@ -134,6 +135,7 @@ export function QuickCreateModal({
         return
       }
       const data = await res.json()
+      trackMetaEventsFromResponse(data)
       const leagueId = data.leagueId ?? data.id ?? data.league?.id
       onClose()
       if (leagueId) {

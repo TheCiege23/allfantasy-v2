@@ -6,6 +6,11 @@ import { EntitlementResolver } from "@/lib/subscription/EntitlementResolver"
 import { resolveBundleInheritance } from "@/lib/subscription/feature-access"
 import { syncUserProfileFromSubscriptions } from "@/lib/subscription/syncBridge"
 import { TokenBalanceResolver } from "@/lib/tokens/TokenBalanceResolver"
+import {
+  getMonetizationCatalogItemBySku,
+  type MonetizationSku,
+} from "@/lib/monetization/catalog"
+import { buildSubscriptionPurchaseMetaEvent } from "@/lib/monetization/meta"
 
 export const dynamic = "force-dynamic"
 
@@ -40,7 +45,7 @@ export async function GET(req: Request) {
           ? (prisma as any).userSubscription
               .findFirst({
                 where: { userId, stripeCheckoutSessionId: sessionId },
-                select: { id: true },
+                select: { id: true, sku: true },
               })
               .catch(() => null)
           : Promise.resolve(null),
@@ -74,6 +79,15 @@ export async function GET(req: Request) {
           ? "Purchase is still finalizing. Retry shortly."
           : "No checkout session id provided. Refreshed current state."
 
+    const subscriptionItem =
+      subscriptionHit?.sku
+        ? getMonetizationCatalogItemBySku(subscriptionHit.sku as MonetizationSku)
+        : null
+    const purchaseMetaEvent =
+      sessionId && subscriptionItem?.type === "subscription"
+        ? buildSubscriptionPurchaseMetaEvent(subscriptionItem, sessionId)
+        : null
+
     return NextResponse.json({
       syncStatus,
       syncMessage,
@@ -82,6 +96,7 @@ export async function GET(req: Request) {
         subscription: Boolean(subscriptionHit),
         tokens: Boolean(tokenLedgerHit),
       },
+      metaEvents: purchaseMetaEvent ? { purchase: purchaseMetaEvent } : {},
       entitlement: entitlementResult.entitlement,
       bundleInheritance: resolveBundleInheritance(entitlementResult.entitlement.plans),
       tokenBalance: {

@@ -130,7 +130,6 @@ function ServiceWorkerLifecycle() {
 }
 
 export interface SafeGlobalChromeProps {
-  metaPixelId?: string
   fbAppId?: string
 }
 
@@ -147,14 +146,13 @@ export interface SafeGlobalChromeProps {
  * Railway when the header was stripped.
  */
 export function SafeGlobalChrome({
-  metaPixelId = "",
   fbAppId = "",
 }: SafeGlobalChromeProps) {
   const pathname = usePathname()
   // EMERGENCY HARD BAIL: /brackets root has been crashing with React #418/#423,
   // HierarchyRequestError, and body-wipe even after the page was rolled back to
   // the minimal Phase 6 hardened JSX. The culprit lives somewhere in this chrome
-  // umbrella (Meta Pixel race, double SW registration, Toaster portal, etc.).
+  // umbrella (third-party scripts, double SW registration, Toaster portal, etc.).
   // While we bisect, refuse to mount ANY chrome on the exact /brackets path, and
   // also treat an unknown pathname (first client render) as unsafe.
   if (pathname === null || pathname === undefined) {
@@ -171,30 +169,11 @@ export function SafeGlobalChrome({
   // chrome but suppress the DOM-mutating third-party scripts that race
   // against React hydration.
   const allowThirdPartyScripts = !shouldBailThirdPartyScripts(pathname)
-  const renderMetaPixel = allowThirdPartyScripts && Boolean(metaPixelId)
   const renderFacebookSdk = allowThirdPartyScripts && Boolean(fbAppId)
 
   return (
     <>
       <ServiceWorkerLifecycle />
-
-      {renderMetaPixel ? (
-        <Script id="meta-pixel" strategy="afterInteractive">
-          {`!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${metaPixelId}');fbq('track','PageView');`}
-        </Script>
-      ) : null}
-      {renderMetaPixel ? (
-        <noscript>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            height="1"
-            width="1"
-            style={{ display: "none" }}
-            src={`https://www.facebook.com/tr?id=${metaPixelId}&ev=PageView&noscript=1`}
-            alt=""
-          />
-        </noscript>
-      ) : null}
 
       {renderFacebookSdk ? <div id="fb-root" /> : null}
       {renderFacebookSdk ? (

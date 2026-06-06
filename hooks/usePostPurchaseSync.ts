@@ -16,6 +16,7 @@ import {
   trackSubscriptionPurchaseSuccess,
   trackTokenPurchaseSuccess,
 } from '@/lib/monetization-analytics'
+import { trackMetaEventsFromResponse } from '@/lib/meta-client'
 import { dispatchPostPurchaseSyncEvent } from '@/lib/state-consistency/post-purchase-sync-events'
 import { dispatchStateRefreshEvent } from '@/lib/state-consistency/state-events'
 
@@ -56,6 +57,8 @@ type PostPurchaseSyncApiResponse = {
   tokenBalance?: {
     balance?: number
   }
+  metaEvent?: unknown
+  metaEvents?: unknown
 }
 
 export type PostPurchaseSyncPhase =
@@ -272,6 +275,9 @@ export function usePostPurchaseSync(options: UsePostPurchaseSyncOptions = {}): U
         }
 
         if (syncStatus === 'synced' || syncStatus === 'no_session') {
+          if (response) {
+            trackMetaEventsFromResponse(response)
+          }
           const successCopy = evidence.tokens && !evidence.subscription
             ? tokenSuccessMessage
             : successMessage

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { ArrowLeft, CheckCircle, Info, Loader2, Lock, Trophy, Users } from "lucide-react"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import { makeWcT } from "@/lib/world-cup/worldCupI18n"
+import { trackMetaEventsFromResponse } from "@/lib/meta-client"
 
 const WC_LOGO_SRC = "/images/brackets/world-cup/af-world-cup-logo.png"
 
@@ -102,6 +103,7 @@ export default function WorldCupBracketCreateModal() {
         throw new Error(t("wc.create.error.noId"))
       }
 
+      trackMetaEventsFromResponse(data)
       setStatus("opening")
       router.push(`/brackets/world-cup/${createdId}${allowCreateWithTestFixtures && seedTestFixtures ? "?guided=1" : ""}`)
     } catch (err) {

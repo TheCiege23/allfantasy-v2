@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { isAuthorizedRequest } from "@/lib/adminAuth"
 import { prisma } from "@/lib/prisma"
+import { trackMetaServerEvent } from "@/lib/meta-capi"
 import {
   createAdditionalWorldCupInvite,
   createWorldCupBracketChallenge,
@@ -15,6 +16,10 @@ import {
   syncWorldCupChallenge,
   updateWorldCupChallengeSettings,
 } from "@/lib/world-cup"
+import {
+  buildWorldCupBracketLeadMetaEvent,
+  buildWorldCupPoolLeadMetaEvent,
+} from "@/lib/world-cup/worldCupMetaEvents"
 import { syncWorldCupProviderGroupStandings } from "@/lib/world-cup/worldCupGroupStageResultService"
 import {
   syncWorldCupFixtures,
@@ -203,6 +208,43 @@ async function createChallenge(request: Request) {
     console.error("[world-cup/create] service returned no challengeId", result)
     return NextResponse.json({ error: "Bracket created but ID could not be determined. Please refresh." }, { status: 500 })
   }
+  const firstEntry = (prisma as any).worldCupBracketEntry?.findFirst
+    ? await prisma.worldCupBracketEntry.findFirst({
+        where: { challengeId, userId: auth.user.id },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, name: true },
+      }).catch(() => null)
+    : null
+  const poolMetaEvent = buildWorldCupPoolLeadMetaEvent({
+    challengeId,
+    poolName: parsed.data.name,
+    seasonYear: parsed.data.seasonYear,
+    visibility: parsed.data.visibility,
+  })
+  const bracketMetaEvent = firstEntry
+    ? buildWorldCupBracketLeadMetaEvent({
+        challengeId,
+        entryId: firstEntry.id,
+        entryName: firstEntry.name,
+        poolName: parsed.data.name,
+      })
+    : null
+
+  await Promise.all(
+    [poolMetaEvent, bracketMetaEvent].filter(Boolean).map((event) =>
+      trackMetaServerEvent({
+        eventName: event!.eventName,
+        eventId: event!.eventId,
+        customData: event!.customData,
+        email: auth.user.email ?? null,
+        userId: auth.user.id,
+        request,
+        source: "world_cup_catchall_create",
+      }).catch((metaError) => {
+        console.warn("[world-cup/create] Meta Lead failed:", metaError)
+      })
+    )
+  )
   return NextResponse.json({
     ok: true,
     challengeId,
@@ -210,6 +252,10 @@ async function createChallenge(request: Request) {
     inviteCode: result.inviteCode,
     inviteUrl: result.inviteUrl,
     challenge: { id: challengeId },
+    metaEvents: {
+      worldCupPool: poolMetaEvent,
+      worldCupBracket: bracketMetaEvent,
+    },
   })
 }
 

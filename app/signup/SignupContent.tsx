@@ -43,6 +43,7 @@ import SocialLoginButtons from "@/components/auth/SocialLoginButtons"
 import { IdentityImageRenderer } from "@/components/identity/IdentityImageRenderer"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import { trackLandingSignupComplete } from "@/lib/landing-analytics"
+import { trackMetaEventsFromResponse } from "@/lib/meta-client"
 import { useGeoRestriction } from "@/lib/geo/useGeoRestriction"
 import { DEFAULT_THEME } from "@/lib/theme"
 import {
@@ -562,6 +563,7 @@ export default function SignupContent() {
         return
       }
 
+      trackMetaEventsFromResponse(data)
       trackSignupConversion(refParam ? "signup_form_referral" : "signup_form")
 
       if (typeof data.emailVerificationPrepared === "boolean") {

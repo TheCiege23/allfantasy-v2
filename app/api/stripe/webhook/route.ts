@@ -18,6 +18,8 @@ import {
   updateSubscriptionFromStripeEvent,
 } from "@/lib/subscription/webhookHandlers"
 import { persistLeagueEntryFeeFromStripeSession } from "@/lib/league-finance/leagueFinanceService"
+import { buildSubscriptionPurchaseMetaEvent } from "@/lib/monetization/meta"
+import { trackMetaServerEvent } from "@/lib/meta-capi"
 
 export const runtime = "nodejs"
 
@@ -251,6 +253,40 @@ async function persistTokenPurchaseFromCheckout(
   })
 }
 
+function resolveStripeCheckoutEmail(session: Stripe.Checkout.Session): string | null {
+  return (
+    session.customer_details?.email ??
+    session.customer_email ??
+    (typeof session.metadata?.email === "string" ? session.metadata.email : null) ??
+    null
+  )
+}
+
+async function trackSubscriptionPurchaseFromCheckout(
+  session: Stripe.Checkout.Session,
+  context: { userId: string; sku: MonetizationSku } | null
+): Promise<void> {
+  if (!context?.userId || !context.sku) return
+  const item = getMonetizationCatalogItemBySku(context.sku)
+  if (!item || item.type !== "subscription") return
+
+  const metaEvent = buildSubscriptionPurchaseMetaEvent(item, session.id)
+  await trackMetaServerEvent({
+    eventName: metaEvent.eventName,
+    eventId: metaEvent.eventId,
+    customData: metaEvent.customData,
+    email: resolveStripeCheckoutEmail(session),
+    userId: context.userId,
+    eventSourceUrl:
+      process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+      process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+      "https://allfantasy.ai/pricing",
+    source: "stripe_webhook_checkout_completed",
+  }).catch((metaError) => {
+    console.warn("[stripe webhook] Meta Purchase failed:", metaError)
+  })
+}
+
 async function routeCheckoutSessionCompleted(session: Stripe.Checkout.Session): Promise<string | null> {
   const purchaseType = resolveCheckoutPurchaseType(session)
   const checkoutContext = resolveCheckoutContext(session)
@@ -268,6 +304,7 @@ async function routeCheckoutSessionCompleted(session: Stripe.Checkout.Session): 
       if (checkoutContext?.userId) {
         await syncUserProfileFromSubscriptions(checkoutContext.userId)
       }
+      await trackSubscriptionPurchaseFromCheckout(session, checkoutContext)
     } else if (purchaseType === "tokens") {
       await persistTokenPurchaseFromCheckout(session, checkoutContext)
     }

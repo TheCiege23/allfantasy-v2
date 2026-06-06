@@ -86,6 +86,11 @@ import {
 } from "@/lib/rich-message/EmojiPickerService"
 import { worldCupTabToQueryValue, type WorldCupBracketTab } from "@/lib/world-cup/worldCupTabs"
 import { makeWcT } from "@/lib/world-cup/worldCupI18n"
+import { mirrorMetaEventServerSide, trackMetaBrowserEvent } from "@/lib/meta-client"
+import {
+  buildWorldCupBracketViewContentMetaEvent,
+  buildWorldCupPoolViewContentMetaEvent,
+} from "@/lib/world-cup/worldCupMetaEvents"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import LanguageToggle from "@/components/i18n/LanguageToggle"
 import WorldCupBracketBoard from "./WorldCupBracketBoard"
@@ -910,6 +915,34 @@ export default function WorldCupBracketShell({
     () => entries.find((e) => e.id === selectedEntryId) ?? null,
     [entries, selectedEntryId]
   )
+  const viewedMetaContentRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    const key = `pool:${view.challenge.id}`
+    if (viewedMetaContentRef.current.has(key)) return
+    viewedMetaContentRef.current.add(key)
+    const event = buildWorldCupPoolViewContentMetaEvent({
+      challengeId: view.challenge.id,
+      poolName: view.challenge.name,
+    })
+    trackMetaBrowserEvent(event)
+    void mirrorMetaEventServerSide(event)
+  }, [view.challenge.id, view.challenge.name])
+
+  useEffect(() => {
+    if (!selectedEntry) return
+    const key = `entry:${selectedEntry.id}`
+    if (viewedMetaContentRef.current.has(key)) return
+    viewedMetaContentRef.current.add(key)
+    const event = buildWorldCupBracketViewContentMetaEvent({
+      challengeId: view.challenge.id,
+      entryId: selectedEntry.id,
+      entryName: selectedEntry.name,
+      poolName: view.challenge.name,
+    })
+    trackMetaBrowserEvent(event)
+    void mirrorMetaEventServerSide(event)
+  }, [selectedEntry, view.challenge.id, view.challenge.name])
 
   const lockState = useMemo(
     () =>

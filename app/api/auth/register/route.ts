@@ -26,6 +26,8 @@ import { getTierFromXP, getXPRemainingToNextTier } from "@/lib/xp-progression/Ti
 import { lookupSleeperUser } from "@/lib/sleeper/user-lookup"
 import { detectUserState } from "@/lib/geo/detectUserState"
 import { isFullyBlocked, isPaidBlocked } from "@/lib/geo/restrictedStates"
+import { buildMetaEventPayload } from "@/lib/meta-events"
+import { trackMetaServerEvent } from "@/lib/meta-capi"
 
 export const runtime = "nodejs"
 
@@ -546,12 +548,39 @@ export async function POST(req: Request) {
       console.warn("[register] EarlyAccessSignup mirror failed (non-blocking):", mirrorErr)
     }
 
+    const registrationMetaEvent = buildMetaEventPayload(
+      "CompleteRegistration",
+      {
+        content_name: "Account signup",
+        content_category: "Registration",
+        status: method === "PHONE" ? "phone_verified" : "email_pending_verification",
+        verification_method: method,
+      },
+      { sourceId: `user:${user.id}` }
+    )
+
+    if (!isE2ERequest) {
+      await trackMetaServerEvent({
+        eventName: registrationMetaEvent.eventName,
+        eventId: registrationMetaEvent.eventId,
+        customData: registrationMetaEvent.customData,
+        email,
+        phone: normalizedPhone,
+        userId: user.id,
+        request: req,
+        source: "account_registration",
+      }).catch((metaErr) => {
+        console.warn("[register] Meta CompleteRegistration failed (non-blocking):", metaErr)
+      })
+    }
+
     if (method === "PHONE") {
       return NextResponse.json({
         ok: true,
         userId: user.id,
         verificationMethod: "PHONE",
         message: "Account created. Please sign in and verify your phone number.",
+        metaEvent: registrationMetaEvent,
       })
     }
 
@@ -605,6 +634,7 @@ export async function POST(req: Request) {
         ? "Account created. Please check your email to verify."
         : "Account created. Sign in to continue verification setup.",
       emailVerificationPrepared,
+      metaEvent: registrationMetaEvent,
     })
   } catch (err: any) {
     if (err instanceof Response) {

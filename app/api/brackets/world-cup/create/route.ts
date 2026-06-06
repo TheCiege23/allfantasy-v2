@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createWorldCupBracketChallenge } from "@/lib/world-cup"
+import { prisma } from "@/lib/prisma"
 import { userHasWorldCupCommissionerAccess } from "@/lib/world-cup/worldCupCommissionerAccess"
 import { assertWorldCupCreateModeAccess, requireWorldCupApiUser } from "../_utils"
+import {
+  buildWorldCupBracketLeadMetaEvent,
+  buildWorldCupPoolLeadMetaEvent,
+} from "@/lib/world-cup/worldCupMetaEvents"
+import { trackMetaServerEvent } from "@/lib/meta-capi"
 
 export const runtime = "nodejs"
 
@@ -151,12 +157,56 @@ export async function POST(request: Request) {
   try {
     const result = await createWorldCupBracketChallenge(normalized)
     const challengeId = result.challengeId ?? (result as { id?: string }).id
+    const firstEntry = challengeId && (prisma as any).worldCupBracketEntry?.findFirst
+      ? await prisma.worldCupBracketEntry.findFirst({
+          where: { challengeId, userId: auth.user.id },
+          orderBy: { createdAt: "asc" },
+          select: { id: true, name: true },
+        }).catch(() => null)
+      : null
+    const poolMetaEvent = challengeId
+      ? buildWorldCupPoolLeadMetaEvent({
+          challengeId,
+          poolName: normalized.name,
+          seasonYear: normalized.seasonYear,
+          visibility: normalized.visibility,
+        })
+      : null
+    const bracketMetaEvent =
+      challengeId && firstEntry
+        ? buildWorldCupBracketLeadMetaEvent({
+            challengeId,
+            entryId: firstEntry.id,
+            entryName: firstEntry.name,
+            poolName: normalized.name,
+          })
+        : null
+
+    await Promise.all(
+      [poolMetaEvent, bracketMetaEvent].filter(Boolean).map((event) =>
+        trackMetaServerEvent({
+          eventName: event!.eventName,
+          eventId: event!.eventId,
+          customData: event!.customData,
+          email: auth.user.email ?? null,
+          userId: auth.user.id,
+          request,
+          source: "world_cup_create",
+        }).catch((metaError) => {
+          console.warn("[world-cup/create] Meta Lead failed:", metaError)
+        })
+      )
+    )
 
     return NextResponse.json({
       ok: true,
       ...result,
       id: challengeId,
       challenge: { id: challengeId },
+      metaEvents: {
+        worldCupPool: poolMetaEvent,
+        worldCupBracket: bracketMetaEvent,
+      },
     })
   } catch (error) {
     console.error("[world-cup/create] failed", serializeCreateError(error))
