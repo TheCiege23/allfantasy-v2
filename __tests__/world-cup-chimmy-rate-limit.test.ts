@@ -83,13 +83,28 @@ function dbMessage(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function generatedAiRows(count: number, userId = "user-1") {
+  return Array.from({ length: count }, (_, index) => ({
+    metadata: {
+      targetUserId: userId,
+      provider: "openai",
+      model: `gpt-test-${index}`,
+    },
+  }))
+}
+
 describe("Chimmy rate limit helper", () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it("counts only the caller's own Chimmy prompts in the current UTC day", async () => {
-    countMessagesMock.mockResolvedValue(5)
+  it("counts only the caller's model-backed Chimmy replies in the current UTC day", async () => {
+    findManyMessagesMock.mockResolvedValue([
+      ...generatedAiRows(5, "user-42"),
+      { metadata: { targetUserId: "user-42", provider: "deterministic", model: "policy" } },
+      { metadata: { targetUserId: "other-user", provider: "openai", model: "gpt-test" } },
+      { metadata: { targetUserId: "user-42", provider: "unavailable", model: "policy" } },
+    ])
 
     const { countChimmyAiCallsToday, WORLD_CUP_CHIMMY_DAILY_LIMIT } = await import(
       "@/lib/world-cup/worldCupChimmyRateLimit"
@@ -100,20 +115,20 @@ describe("Chimmy rate limit helper", () => {
 
     expect(used).toBe(5)
     expect(WORLD_CUP_CHIMMY_DAILY_LIMIT).toBe(20)
-    expect(countMessagesMock).toHaveBeenCalledWith(
+    expect(findManyMessagesMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          userId: "user-42",
-          isAiGenerated: false,
+          isAiGenerated: true,
           eventType: "world_cup.pool_chat_chimmy_private",
           createdAt: { gte: new Date("2026-06-15T00:00:00.000Z") },
         }),
+        select: { metadata: true },
       })
     )
   })
 
   it("fails open (returns 0) if the count query throws", async () => {
-    countMessagesMock.mockRejectedValue(new Error("db unreachable"))
+    findManyMessagesMock.mockRejectedValue(new Error("db unreachable"))
 
     const { countChimmyAiCallsToday } = await import(
       "@/lib/world-cup/worldCupChimmyRateLimit"
@@ -130,7 +145,7 @@ describe("Chimmy rate limit helper", () => {
     // WORLD_CUP_CHIMMY_DAILY_LIMIT (=20) is deprecated; pass tier explicitly.
     const proLimit = DAILY_CAP_LIMITS.chimmy.pro
 
-    countMessagesMock.mockResolvedValue(proLimit - 1)
+    findManyMessagesMock.mockResolvedValue(generatedAiRows(proLimit - 1))
     const under = await checkWorldCupChimmyRateLimit("user-1", undefined, "pro")
     expect(under).toEqual({
       allowed: true,
@@ -138,11 +153,11 @@ describe("Chimmy rate limit helper", () => {
       limit: proLimit,
     })
 
-    countMessagesMock.mockResolvedValue(proLimit)
+    findManyMessagesMock.mockResolvedValue(generatedAiRows(proLimit))
     const at = await checkWorldCupChimmyRateLimit("user-1", undefined, "pro")
     expect(at.allowed).toBe(false)
 
-    countMessagesMock.mockResolvedValue(proLimit + 99)
+    findManyMessagesMock.mockResolvedValue(generatedAiRows(proLimit + 99))
     const over = await checkWorldCupChimmyRateLimit("user-1", undefined, "pro")
     expect(over.allowed).toBe(false)
   })
@@ -195,11 +210,12 @@ describe("World Cup chat route — Chimmy rate-limit integration", () => {
     expect(res.status).toBe(402)
     expect(json.code).toBe("WORLD_CUP_CHIMMY_LOCKED")
     expect(countMessagesMock).not.toHaveBeenCalled()
+    expect(findManyMessagesMock).not.toHaveBeenCalled()
     expect(generateChimmyReplyMock).not.toHaveBeenCalled()
   })
 
   it("Pro user UNDER limit triggers OpenAI and creates the reply (201)", async () => {
-    countMessagesMock.mockResolvedValue(5)
+    findManyMessagesMock.mockResolvedValue(generatedAiRows(5))
     const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
 
     const res = await POST(request({ body: "@chimmy help me" }), { params: { challengeId: "c1" } })
@@ -210,7 +226,7 @@ describe("World Cup chat route — Chimmy rate-limit integration", () => {
 
   it("Pro user AT limit returns 429 with daily_ai_limit_reached and skips OpenAI", async () => {
     // Pro tier is 30/day (DAILY_CAP_LIMITS.chimmy.pro). Use count == limit to trigger cap.
-    countMessagesMock.mockResolvedValue(30)
+    findManyMessagesMock.mockResolvedValue(generatedAiRows(30))
     const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
 
     const res = await POST(request({ body: "@chimmy help me" }), { params: { challengeId: "c1" } })
@@ -230,7 +246,7 @@ describe("World Cup chat route — Chimmy rate-limit integration", () => {
   })
 
   it("Pro user OVER limit also returns 429 (defensive — count > limit)", async () => {
-    countMessagesMock.mockResolvedValue(50)
+    findManyMessagesMock.mockResolvedValue(generatedAiRows(50))
     const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
 
     const res = await POST(request({ body: "@chimmy help me" }), { params: { challengeId: "c1" } })
@@ -240,23 +256,24 @@ describe("World Cup chat route — Chimmy rate-limit integration", () => {
   })
 
   it("non-Chimmy normal chat messages are NOT rate-limited (no count query made)", async () => {
-    countMessagesMock.mockResolvedValue(50) // would block Chimmy but should not affect normal chat
+    findManyMessagesMock.mockResolvedValue(generatedAiRows(50)) // would block Chimmy but should not affect normal chat
     const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
 
     const res = await POST(request({ body: "regular pool chat message" }), { params: { challengeId: "c1" } })
 
     expect(res.status).toBe(201)
     expect(countMessagesMock).not.toHaveBeenCalled()
+    expect(findManyMessagesMock).not.toHaveBeenCalled()
     expect(generateChimmyReplyMock).not.toHaveBeenCalled()
   })
 
   it("count window starts at UTC 00:00 (cross-day boundary check)", async () => {
-    countMessagesMock.mockResolvedValue(0)
+    findManyMessagesMock.mockResolvedValue([])
     const { POST } = await import("@/app/api/brackets/world-cup/[challengeId]/chat/route")
 
     await POST(request({ body: "@chimmy hello" }), { params: { challengeId: "c1" } })
 
-    expect(countMessagesMock).toHaveBeenCalledWith(
+    expect(findManyMessagesMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           createdAt: expect.objectContaining({
@@ -265,7 +282,7 @@ describe("World Cup chat route — Chimmy rate-limit integration", () => {
         }),
       })
     )
-    const args = countMessagesMock.mock.calls[0][0]
+    const args = findManyMessagesMock.mock.calls[0][0]
     const gte: Date = args.where.createdAt.gte
     expect(gte.getUTCHours()).toBe(0)
     expect(gte.getUTCMinutes()).toBe(0)

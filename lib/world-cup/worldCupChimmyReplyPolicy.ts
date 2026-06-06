@@ -37,15 +37,17 @@ export function buildWorldCupChimmySystemPrompt(locale: string | null | undefine
   const lang = getAiLanguageInstruction(locale)
   return [
     "You are Chimmy, AllFantasy's World Cup bracket pool analyst for THIS pool only.",
+    "GROUNDING CONTRACT: The user message must include a GROUNDING JSON object. Treat that object as the only source of exact pool, bracket, schedule, score, standing, injury, odds, team, and player facts.",
+    "SOCCER BASICS: You may answer stable general soccer/futbol concepts like offside, pressing, low block, counterattack, false nine, formations, tiebreakers, and penalty shootouts. Clearly separate those from fresh tournament facts.",
     "SCOPE: Answer questions about this bracket pool — picks, standings, scoring rules, how results affect points, and schedule/live scores ONLY using the POOL DATA block.",
-    "NOT in scope: general sports chat, other leagues, betting advice, rumors, or World Cup trivia unrelated to this pool.",
+    "NOT in scope: betting advice, rumors, private user data, or exact current facts outside GROUNDING JSON.",
     "LIVE DATA: Use only scores, minutes, and results listed under LIVE NOW, RECENT RESULTS, or UPCOMING. Never invent scores, minutes, stats, teams, or outcomes.",
     "SOURCE CUE: For factual answers, plainly say whether the answer is based on live match data, stored pool data, or unavailable reliable data. Use the live-data cue only when LIVE NOW or RECENT RESULTS support it.",
     `If DATA AS OF shows live data: unavailable, say clearly the live feed is not available and pivot to bracket/standings/scoring help.`,
-    "If asked for schedules, match times, player stats, injuries, lineups, odds, or other facts not present in POOL DATA, say: \"I don't have reliable data for that yet.\"",
+    "If asked for schedules, match times, player stats, injuries, lineups, odds, or other facts not present in GROUNDING JSON, say: \"I don't have reliable data for that yet.\"",
     "VOICE: Sound like a sharp, friendly World Cup analyst in a group chat — confident, specific, warm. Short bullets or 1–2 tight paragraphs. No robotic disclaimers.",
     `Respond in ${lang}.`,
-    "Keep team and country names exactly as written in POOL DATA.",
+    "Keep team and country names exactly as written in GROUNDING JSON.",
     "You may discuss leaderboard names and champion picks (public in the pool). Never mention user IDs, emails, or invite codes.",
     "Product terms: bracket pool, Chimmy, Bracket Brain.",
   ].join(" ")
@@ -173,7 +175,7 @@ export function isLiveScoreQuestion(prompt: string): boolean {
 
 export function isScheduleQuestion(prompt: string): boolean {
   const p = prompt.toLowerCase()
-  return /\b(when\s+(is|does|do)|kickoff|schedule|fixture|starts?\s+at|next\s+match|horario|calendario)\b/i.test(p)
+  return /\b(when\s+(is|does|do)|kickoff|schedule|fixture|starts?\s+at|next\s+match|games?\s+today|play\s+next|plays?\s+next|horario|calendario)\b/i.test(p)
 }
 
 export function isUnsupportedVerifiedDataQuestion(prompt: string): boolean {
@@ -220,6 +222,36 @@ function isGroupDangerQuestion(prompt: string): boolean {
   return /\b(group|grupo).*\b(danger|dangerous|strong|weak|tight|upset|hard)\b/i.test(p)
 }
 
+function isUserPointsQuestion(prompt: string): boolean {
+  const p = prompt.toLowerCase()
+  return /\b(how\s+many\s+points\s+do\s+i\s+have|my\s+points|what'?s\s+my\s+score|what\s+is\s+my\s+score|score\s+in\s+this\s+pool)\b/i.test(p)
+}
+
+function isChampionPickQuestion(prompt: string): boolean {
+  const p = prompt.toLowerCase()
+  return /\b(show\s+my\s+champion|my\s+champion\s+pick|who\s+did\s+i\s+pick\s+to\s+win|champion\s+pick)\b/i.test(p)
+}
+
+function isMostPickedChampionQuestion(prompt: string): boolean {
+  const p = prompt.toLowerCase()
+  return /\b(most\s+picked\s+champion|popular\s+champion|most\s+popular\s+champion|champion\s+most\s+people)\b/i.test(p)
+}
+
+function isTopThreeQuestion(prompt: string): boolean {
+  const p = prompt.toLowerCase()
+  return /\b(top\s*3|top\s+three|first\s+three|podium)\b/i.test(p)
+}
+
+function isIncompleteEntriesQuestion(prompt: string): boolean {
+  const p = prompt.toLowerCase()
+  return /\b(incomplete|not\s+complete|unfinished|who\s+has\s+not\s+completed|who\s+hasn'?t\s+completed)\b/i.test(p)
+}
+
+function isSoccerKnowledgeQuestion(prompt: string): boolean {
+  const p = prompt.toLowerCase()
+  return /\b(false\s+nine|pressing|low\s+block|counter(?:attack|ing)|offside|penalt(?:y|ies)|shootout|formation|tiebreakers?|tie-breakers?|group\s+stage\s+rules|why\s+is\s+\w+\s+dangerous)\b/i.test(p)
+}
+
 function dataDisclosure(ctx: WorldCupChimmyContext | null | undefined): string {
   if (!ctx) return "Source: no pool context was available, so I will not guess."
   const live =
@@ -229,6 +261,12 @@ function dataDisclosure(ctx: WorldCupChimmyContext | null | undefined): string {
         ? "fixtures are cached, but live scores are not active"
         : "live scores are not synced"
   return `Source: stored pool data as of ${ctx.fetchedAt.slice(0, 16)}Z; ${live}.`
+}
+
+function confidenceDisclosure(ctx: WorldCupChimmyContext | null | undefined, confidence: "high" | "medium" | "low" = "high"): string {
+  if (!ctx) return "Confidence: none; missing pool context."
+  const freshness = ctx.lastSyncedAt ? `cached provider sync ${ctx.lastSyncedAt}` : "provider freshness timestamp unavailable"
+  return `Confidence: ${confidence}; ${freshness}.`
 }
 
 function topLeaderboardLine(ctx: WorldCupChimmyContext): string {
@@ -246,6 +284,24 @@ function buildScoringReply(ctx: WorldCupChimmyContext | null | undefined): strin
     dataDisclosure(ctx),
     `Scoring rules: Round of 32 ${scoring.roundOf32Points}, Round of 16 ${scoring.roundOf16Points}, quarterfinal ${scoring.quarterFinalPoints}, semifinal ${scoring.semiFinalPoints}, final ${scoring.finalPoints}, champion bonus ${scoring.championBonusPoints}.`,
     "Later rounds matter more, and the champion bonus is the swing piece. I can explain your path using only your saved picks and the current leaderboard.",
+    confidenceDisclosure(ctx),
+  ].join(" ")
+}
+
+function buildUserPointsReply(ctx: WorldCupChimmyContext | null | undefined): string {
+  if (!ctx?.entry) {
+    return [
+      dataDisclosure(ctx),
+      "I do not see a saved bracket entry for you yet, so I cannot report your points. Open or create a bracket entry and I can read your score from the stored pool data.",
+      confidenceDisclosure(ctx, "low"),
+    ].join(" ")
+  }
+  const entry = ctx.entry
+  return [
+    dataDisclosure(ctx),
+    `Your stored score is ${entry.totalScore} pts. Max possible is ${entry.maxPossibleScore} pts, and your rank is ${entry.rank ? `#${entry.rank}` : "not ranked yet"}.`,
+    `Your champion pick is ${entry.championPick ?? "not picked"}.`,
+    confidenceDisclosure(ctx),
   ].join(" ")
 }
 
@@ -254,6 +310,7 @@ function buildStandingReply(ctx: WorldCupChimmyContext | null | undefined): stri
     return [
       dataDisclosure(ctx),
       "No ranked leaderboard rows are available yet. Once entries finalize or scoring lands, I can call out the leader, closest chase pack, and path-to-win storylines.",
+      confidenceDisclosure(ctx, "low"),
     ].join(" ")
   }
   const leader = ctx.leaderboard[0]
@@ -269,6 +326,61 @@ function buildStandingReply(ctx: WorldCupChimmyContext | null | undefined): stri
     `Best bracket so far: #${leader.rank} ${leader.entryName} with ${leader.totalScore} pts and max possible ${leader.maxPossibleScore}.`,
     `Top pool snapshot: ${topLeaderboardLine(ctx)}.`,
     gap,
+    confidenceDisclosure(ctx),
+  ].join(" ")
+}
+
+function buildTopThreeReply(ctx: WorldCupChimmyContext | null | undefined): string {
+  if (!ctx || ctx.leaderboard.length === 0) return buildStandingReply(ctx)
+  return [
+    dataDisclosure(ctx),
+    `Top 3: ${ctx.leaderboard.slice(0, 3).map((row) => `#${row.rank} ${row.entryName} (${row.totalScore} pts, max ${row.maxPossibleScore}, champion ${row.championPickName ?? "not picked"})`).join("; ")}.`,
+    confidenceDisclosure(ctx),
+  ].join(" ")
+}
+
+function buildChampionPickReply(ctx: WorldCupChimmyContext | null | undefined): string {
+  if (!ctx?.entry) {
+    return [
+      dataDisclosure(ctx),
+      "I do not see your saved entry in this pool context yet, so I cannot name your champion pick.",
+      confidenceDisclosure(ctx, "low"),
+    ].join(" ")
+  }
+  return [
+    dataDisclosure(ctx),
+    `Your champion pick is ${ctx.entry.championPick ?? "not picked yet"}.`,
+    `Entry: ${ctx.entry.entryName}; rank ${ctx.entry.rank ? `#${ctx.entry.rank}` : "not ranked yet"}; score ${ctx.entry.totalScore} pts.`,
+    confidenceDisclosure(ctx),
+  ].join(" ")
+}
+
+function buildMostPickedChampionReply(ctx: WorldCupChimmyContext | null | undefined): string {
+  if (!ctx || ctx.leaderboard.length === 0) {
+    return [
+      dataDisclosure(ctx),
+      "I do not have ranked entries with champion picks yet, so I cannot identify the most picked champion.",
+      confidenceDisclosure(ctx, "low"),
+    ].join(" ")
+  }
+  const counts = new Map<string, number>()
+  for (const row of ctx.leaderboard) {
+    if (!row.championPickName) continue
+    counts.set(row.championPickName, (counts.get(row.championPickName) ?? 0) + 1)
+  }
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3)
+  if (top.length === 0) {
+    return [
+      dataDisclosure(ctx),
+      "Champion picks are not stored on the ranked rows I can see yet.",
+      confidenceDisclosure(ctx, "low"),
+    ].join(" ")
+  }
+  return [
+    dataDisclosure(ctx),
+    `Most picked champion from visible leaderboard rows: ${top.map(([team, count]) => `${team} (${count})`).join(", ")}.`,
+    "This is based on the leaderboard rows in the pool context, not every hidden or unranked entry.",
+    confidenceDisclosure(ctx, "medium"),
   ].join(" ")
 }
 
@@ -278,6 +390,7 @@ function buildPathReply(ctx: WorldCupChimmyContext | null | undefined): string {
     return [
       dataDisclosure(ctx),
       "I do not see a saved entry for you yet. Create or open a bracket and I can explain champion exposure, alive picks, and what needs to break your way.",
+      confidenceDisclosure(ctx, "low"),
     ].join(" ")
   }
   const leader = ctx.leaderboard[0]
@@ -290,6 +403,7 @@ function buildPathReply(ctx: WorldCupChimmyContext | null | undefined): string {
     gap > 0 ? `You are ${gap} pts behind the current leader.` : "You are not behind the current leader in the stored leaderboard.",
     alive.length > 0 ? `Still useful picks: ${alive.map((pick) => `${pick.pickedTeam} (${pick.round})`).join(", ")}.` : "I do not see scored alive knockout picks yet.",
     lost.length > 0 ? `Damaged picks: ${lost.map((pick) => `${pick.pickedTeam} (${pick.round})`).join(", ")}.` : "No incorrect knockout picks are stored for your entry yet.",
+    confidenceDisclosure(ctx, entry.knockoutPicks.length > 0 || ctx.leaderboard.length > 0 ? "medium" : "low"),
   ].join(" ")
 }
 
@@ -304,6 +418,24 @@ function buildPoolSummaryReply(ctx: WorldCupChimmyContext | null | undefined): s
     `Top snapshot: ${topLeaderboardLine(ctx)}.`,
     completeText,
     "Commissioner note: remind unfinished entries to finalize before lock; that is the highest-confidence action I can suggest from stored pool data.",
+    confidenceDisclosure(ctx),
+  ].join(" ")
+}
+
+function buildIncompleteEntriesReply(ctx: WorldCupChimmyContext | null | undefined): string {
+  if (!ctx) return reliableDataUnavailableMessage(null)
+  const finalized = ctx.finalizedEntryCount ?? null
+  const totalEntries = ctx.entryCount ?? null
+  const openEntries =
+    finalized != null && totalEntries != null ? Math.max(0, totalEntries - finalized) : null
+  return [
+    dataDisclosure(ctx),
+    totalEntries != null && finalized != null
+      ? `Completion snapshot: ${finalized} finalized entr${finalized === 1 ? "y" : "ies"} out of ${totalEntries}. ${openEntries} entr${openEntries === 1 ? "y is" : "ies are"} not finalized yet.`
+      : "I do not have full entry completion counts loaded yet.",
+    ctx.entry ? `Your bracket is ${ctx.entry.isComplete ? "complete" : "not complete"}.` : "I do not see your entry in this context.",
+    "I will not name specific unfinished users without a stored completion roster in the grounding data.",
+    confidenceDisclosure(ctx, totalEntries != null && finalized != null ? "medium" : "low"),
   ].join(" ")
 }
 
@@ -314,6 +446,7 @@ function buildWatchReply(ctx: WorldCupChimmyContext | null | undefined): string 
     return [
       dataDisclosure(ctx),
       "I do not have a reliable live/upcoming match list in cache right now. Based on saved bracket data, watch your champion pick and any still-alive knockout picks because those are the biggest scoring swings.",
+      confidenceDisclosure(ctx, "low"),
     ].join(" ")
   }
   const entryPicks = new Set((ctx.entry?.knockoutPicks ?? []).map((pick) => pick.pickedTeam.toLowerCase()))
@@ -325,7 +458,7 @@ function buildWatchReply(ctx: WorldCupChimmyContext | null | undefined): string 
     const when = match.startsAt ? new Date(match.startsAt).toUTCString().slice(0, 22) + " UTC" : "time TBD"
     return `${match.homeTeamName} vs ${match.awayTeamName} (${match.round}, ${when})${tagged}`
   })
-  return [dataDisclosure(ctx), `Picks to watch: ${lines.join("; ")}.`].join(" ")
+  return [dataDisclosure(ctx), `Picks to watch: ${lines.join("; ")}.`, confidenceDisclosure(ctx, "medium")].join(" ")
 }
 
 function buildGroupReply(ctx: WorldCupChimmyContext | null | undefined): string {
@@ -333,6 +466,7 @@ function buildGroupReply(ctx: WorldCupChimmyContext | null | undefined): string 
     return [
       dataDisclosure(ctx),
       "I do not have reliable official group standings cached yet. I can still review your saved group picks once they are available, but I will not invent group strength or current form.",
+      confidenceDisclosure(ctx, "low"),
     ].join(" ")
   }
   const groups = new Map<string, typeof ctx.groupStandings>()
@@ -350,6 +484,96 @@ function buildGroupReply(ctx: WorldCupChimmyContext | null | undefined): string 
     dataDisclosure(ctx),
     `Most dangerous group from cached standings: ${tight.group}, because the top-to-third points spread is ${tight.spread}.`,
     `Snapshot: ${tight.rows.map((row) => `${row.teamName} ${row.points} pts`).join(", ")}.`,
+    confidenceDisclosure(ctx, "medium"),
+  ].join(" ")
+}
+
+function allCachedMatches(ctx: WorldCupChimmyContext | null | undefined): NonNullable<WorldCupChimmyContext["liveMatches"]> {
+  return ctx ? [...ctx.liveMatches, ...ctx.upcomingMatches, ...ctx.recentMatches] : []
+}
+
+function promptTeamMatch(prompt: string, matches: NonNullable<WorldCupChimmyContext["liveMatches"]>): string | null {
+  const p = prompt.toLowerCase()
+  const candidates = new Set<string>()
+  for (const match of matches) {
+    if (match.homeTeamName && match.homeTeamName !== "?") candidates.add(match.homeTeamName)
+    if (match.awayTeamName && match.awayTeamName !== "?") candidates.add(match.awayTeamName)
+  }
+  return [...candidates].find((team) => p.includes(team.toLowerCase())) ?? null
+}
+
+function buildScheduleReply(ctx: WorldCupChimmyContext | null | undefined, prompt: string): string {
+  const matches = allCachedMatches(ctx)
+  if (!ctx || matches.length === 0) {
+    return [
+      reliableDataUnavailableMessage(ctx?.locale),
+      dataDisclosure(ctx),
+      "Missing data: cached fixture schedule.",
+    ].join(" ")
+  }
+
+  const requestedTeam = promptTeamMatch(prompt, matches)
+  const now = new Date()
+  const relevant = requestedTeam
+    ? matches
+        .filter((match) =>
+          match.homeTeamName.toLowerCase() === requestedTeam.toLowerCase() ||
+          match.awayTeamName.toLowerCase() === requestedTeam.toLowerCase()
+        )
+        .filter((match) => !match.startsAt || new Date(match.startsAt) >= now || match.status === "live")
+    : matches.filter((match) => match.startsAt && new Date(match.startsAt) >= now).slice(0, 5)
+
+  if (requestedTeam && relevant.length === 0) {
+    return [
+      reliableDataUnavailableMessage(ctx.locale),
+      dataDisclosure(ctx),
+      `Missing data: no fresh cached fixture for ${requestedTeam} in this pool context.`,
+      confidenceDisclosure(ctx, "low"),
+    ].join(" ")
+  }
+
+  const rows = (relevant.length > 0 ? relevant : matches.slice(0, 5)).slice(0, 5).map((match) => {
+    const when = match.startsAt ? `${new Date(match.startsAt).toUTCString().slice(0, 22)} UTC` : "time TBD"
+    const score = match.homeScore != null && match.awayScore != null ? ` score ${match.homeScore}-${match.awayScore}` : ""
+    const minute = match.minute != null ? ` ${match.minute}'` : ""
+    return `${match.homeTeamName} vs ${match.awayTeamName} (${match.round}, ${when}, ${match.status}${score}${minute})`
+  })
+
+  return [
+    dataDisclosure(ctx),
+    requestedTeam ? `${requestedTeam} fixture from cache: ${rows.join("; ")}.` : `Cached World Cup fixtures: ${rows.join("; ")}.`,
+    confidenceDisclosure(ctx, ctx.lastSyncedAt ? "medium" : "low"),
+  ].join(" ")
+}
+
+function buildSoccerKnowledgeReply(ctx: WorldCupChimmyContext | null | undefined, prompt: string): string {
+  const p = prompt.toLowerCase()
+  let answer: string
+  if (p.includes("false nine")) {
+    answer = "A false nine is a forward who drops away from the defensive line instead of staying as a traditional striker. That can pull center backs out, open lanes for runners, and make marking assignments messy."
+  } else if (p.includes("pressing")) {
+    answer = "Pressing means a team tries to win the ball back quickly by closing space after the opponent receives it. High pressing can create turnovers near goal, but it can also leave space behind."
+  } else if (p.includes("low block")) {
+    answer = "A low block is a compact defensive shape near a team's own box. It is hard to break down, but it can invite pressure and make counters the main attacking outlet."
+  } else if (p.includes("counter")) {
+    answer = "A counterattack is a fast attack right after winning the ball. The idea is to hit open space before the opponent's defense resets."
+  } else if (p.includes("offside")) {
+    answer = "Offside is called when an attacker is nearer to the opponent's goal than both the ball and the second-last defender when a teammate plays the ball, and then becomes involved in the play."
+  } else if (p.includes("penalt") || p.includes("shootout")) {
+    answer = "In knockout soccer, a tied match can go to extra time and then penalties. A shootout is not the same as normal goals for team style, but it decides who advances."
+  } else if (p.includes("tiebreak") || p.includes("tie-break") || p.includes("group stage rules")) {
+    answer = "Group-stage tiebreakers usually start with points, then goal difference, goals scored, and head-to-head or fair-play style rules depending on the tournament rulebook. I need cached official rules to claim the exact 2026 order."
+  } else if (/\bwhy\s+is\s+\w+\s+dangerous\b/.test(p)) {
+    const team = prompt.match(/\bwhy\s+is\s+([a-zA-Z .'-]+?)\s+dangerous\b/i)?.[1]?.trim()
+    answer = `Based on general soccer principles, ${team || "a team"} can be dangerous when it defends compactly, transitions quickly, wins set pieces, or creates overloads in wide areas. I do not have fresh squad, form, or injury data loaded here.`
+  } else {
+    answer = "I can explain stable soccer basics, but I need cached provider/team data before making fresh claims about current squads, form, injuries, odds, or exact tournament facts."
+  }
+  return [
+    "Source: stable soccer knowledge, not live provider data.",
+    answer,
+    ctx ? dataDisclosure(ctx) : "No pool context was needed for this general soccer answer.",
+    "Confidence: high for the general concept; low for any current team-specific facts not in cache.",
   ].join(" ")
 }
 
@@ -412,6 +636,37 @@ export function tryDeterministicWorldCupChimmyReply(input: {
   const prompt = input.prompt.trim()
   const context = input.context
 
+  if (isUnsupportedVerifiedDataQuestion(prompt)) {
+    return [
+      reliableDataUnavailableMessage(input.locale),
+      context ? ` ${dataDisclosure(context)} Ask me for pool standings, scoring rules, path to win, or a commissioner summary and I can answer from saved pool data.` : "",
+    ].join("")
+  }
+
+  if (isSoccerKnowledgeQuestion(prompt)) {
+    return buildSoccerKnowledgeReply(context, prompt)
+  }
+
+  if (isUserPointsQuestion(prompt)) {
+    return buildUserPointsReply(context)
+  }
+
+  if (isMostPickedChampionQuestion(prompt)) {
+    return buildMostPickedChampionReply(context)
+  }
+
+  if (isChampionPickQuestion(prompt)) {
+    return buildChampionPickReply(context)
+  }
+
+  if (isTopThreeQuestion(prompt)) {
+    return buildTopThreeReply(context)
+  }
+
+  if (isIncompleteEntriesQuestion(prompt)) {
+    return buildIncompleteEntriesReply(context)
+  }
+
   if (isScoringExplanationQuestion(prompt)) {
     return buildScoringReply(context)
   }
@@ -436,23 +691,8 @@ export function tryDeterministicWorldCupChimmyReply(input: {
     return buildGroupReply(context)
   }
 
-  if (isUnsupportedVerifiedDataQuestion(prompt)) {
-    return [
-      reliableDataUnavailableMessage(input.locale),
-      context ? ` ${dataDisclosure(context)} Ask me for pool standings, scoring rules, path to win, or a commissioner summary and I can answer from saved pool data.` : "",
-    ].join("")
-  }
-
   if (isScheduleQuestion(prompt)) {
-    const hasScheduleData = Boolean(
-      context &&
-        [...context.liveMatches, ...context.upcomingMatches, ...context.recentMatches].some(
-          (match) => Boolean(match.startsAt)
-        )
-    )
-    if (!hasScheduleData) {
-      return reliableDataUnavailableMessage(input.locale)
-    }
+    return buildScheduleReply(context, prompt)
   }
 
   if (!isLiveScoreQuestion(prompt)) return null

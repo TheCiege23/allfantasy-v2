@@ -795,6 +795,7 @@ async function createPrivateChimmyResponse(input: {
   promptMessage: RawWorldCupChatEvent
   locale?: string | null
   context?: WorldCupChimmyContext | null
+  userRole?: WorldCupChimmyContext["userRole"]
   deterministicOnly?: boolean
 }) {
   // Build rich context and challenge summary in parallel — neither is blocking.
@@ -806,6 +807,7 @@ async function createPrivateChimmyResponse(input: {
       challengeId: input.challengeId,
       userId: input.userId,
       locale: input.locale,
+      userRole: input.userRole,
     }).catch(() => null), // swallow — context is best-effort, chat must not fail
   ])
   const ai = await generateWorldCupChimmyPrivateReply({
@@ -815,6 +817,7 @@ async function createPrivateChimmyResponse(input: {
     challengeName: challenge?.name ?? null,
     locale: input.locale,
     context,
+    userRole: input.userRole,
     deterministicOnly: input.deterministicOnly,
   })
 
@@ -835,6 +838,9 @@ async function createPrivateChimmyResponse(input: {
         conversationId: ai.conversationId,
         provider: ai.provider,
         model: ai.model,
+        groundingIntent: ai.grounding?.prompt.intent.category,
+        groundingConfidence: ai.grounding?.dataQuality.confidence,
+        noChargeReason: ai.grounding?.dataQuality.noChargeReason,
         authorName: "Chimmy",
         source: "world_cup_pool_chat",
       },
@@ -957,6 +963,8 @@ export async function POST(
   const hasChimmy = action === "chimmy_private" || mentions.some((mention) => mention.type === "chimmy")
   let chimmyLocale: string | null = null
   let chimmyContext: WorldCupChimmyContext | null | undefined
+  const chimmyUserRole: WorldCupChimmyContext["userRole"] =
+    access.isAdmin ? "admin" : access.challenge ? "commissioner" : "participant"
   let deterministicOnlyChimmy = false
 
   if (hasGlobal) {
@@ -980,34 +988,22 @@ export async function POST(
   if (hasChimmy) {
     const cookieStore = await cookies()
     chimmyLocale = resolveLanguage(cookieStore.get("af_lang")?.value)
-    const hasAi = await userHasBracketBrainAi(auth.user.id, auth.user.email ?? null)
-    // Per-user per-UTC-day cost control. Tier-aware: admin 75/day, pro 30/day.
-    // access.isAdmin is already resolved above via assertWorldCupChallengeMemberOrManager.
-    const chimmyTier = resolveWcCapTier({ isAdmin: access.isAdmin, hasPro: hasAi })
-    const rateLimit = await checkWorldCupChimmyRateLimit(auth.user.id, new Date(), chimmyTier)
-    if (!rateLimit.allowed) {
-      return NextResponse.json(
-        {
-          error: "daily_ai_limit_reached",
-          message: getWcUpgradeMessage("chimmy", chimmyTier),
-          used: rateLimit.used,
-          limit: rateLimit.limit,
-          upgradePath: chimmyTier === "free" ? "/pricing?from=wc-chimmy" : "/pricing",
-        },
-        { status: 429 }
-      )
+    chimmyContext = await buildWorldCupChimmyContext({
+      challengeId: params.data.challengeId,
+      userId: auth.user.id,
+      locale: chimmyLocale,
+      userRole: chimmyUserRole,
+    }).catch(() => null)
+    const deterministicPreview = tryDeterministicWorldCupChimmyReply({
+      prompt: body.replace(/(^|[\s*_~\]])@chimmy\b/gi, "$1"),
+      context: chimmyContext,
+      locale: chimmyLocale,
+    })
+    if (deterministicPreview) {
+      deterministicOnlyChimmy = true
     }
+    const hasAi = deterministicOnlyChimmy ? false : await userHasBracketBrainAi(auth.user.id, auth.user.email ?? null)
     if (!hasAi && !access.isAdmin) {
-      chimmyContext = await buildWorldCupChimmyContext({
-        challengeId: params.data.challengeId,
-        userId: auth.user.id,
-        locale: chimmyLocale,
-      }).catch(() => null)
-      const deterministicPreview = tryDeterministicWorldCupChimmyReply({
-        prompt: body.replace(/(^|[\s*_~\]])@chimmy\b/gi, "$1"),
-        context: chimmyContext,
-        locale: chimmyLocale,
-      })
       if (!deterministicPreview) {
         return NextResponse.json({
           error: "@chimmy premium analysis requires AI/Pro.",
@@ -1017,7 +1013,23 @@ export async function POST(
           private: true,
         }, { status: 402 })
       }
-      deterministicOnlyChimmy = true
+    }
+    if (!deterministicOnlyChimmy) {
+      // Per-user per-UTC-day cost control. Tier-aware: admin 75/day, pro 30/day.
+      const chimmyTier = resolveWcCapTier({ isAdmin: access.isAdmin, hasPro: hasAi })
+      const rateLimit = await checkWorldCupChimmyRateLimit(auth.user.id, new Date(), chimmyTier)
+      if (!rateLimit.allowed) {
+        return NextResponse.json(
+          {
+            error: "daily_ai_limit_reached",
+            message: getWcUpgradeMessage("chimmy", chimmyTier),
+            used: rateLimit.used,
+            limit: rateLimit.limit,
+            upgradePath: chimmyTier === "free" ? "/pricing?from=wc-chimmy" : "/pricing",
+          },
+          { status: 429 }
+        )
+      }
     }
   }
 
@@ -1100,6 +1112,7 @@ export async function POST(
       promptMessage: created,
       locale: chimmyLocale,
       context: chimmyContext,
+      userRole: chimmyUserRole,
       deterministicOnly: deterministicOnlyChimmy,
     })
     chimmyResponseMessage = serializeChatMessage(response, auth.user.id)
