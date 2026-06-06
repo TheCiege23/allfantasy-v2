@@ -754,11 +754,10 @@ export default function WorldCupGuidedMatchupPicker({
       role="dialog"
       aria-modal="true"
       aria-label={t("wc.guided.dialogLabel")}
-      data-wc-dark
-      className="fixed inset-0 z-[80] flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#05070b] pt-[env(safe-area-inset-top)] text-white"
+      className="af-world-cup-page mode-readable fixed inset-0 z-[80] flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#05070b] pt-[env(safe-area-inset-top)] text-white"
     >
       {/* ── Header ────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-10 shrink-0 border-b border-white/10 bg-zinc-950/95 px-3 py-2.5 backdrop-blur sm:px-4 sm:py-3">
+      <header className="af-world-cup-header sticky top-0 z-10 shrink-0 border-b px-3 py-2.5 backdrop-blur sm:px-4 sm:py-3">
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="min-w-0 flex-1">
             <p className="truncate text-[10px] font-bold uppercase tracking-widest text-white/35">
@@ -861,7 +860,7 @@ export default function WorldCupGuidedMatchupPicker({
 
       {/* ── Footer nav ────────────────────────────────────────────────────── */}
       {!guardedShowComplete && currentMatch && !isLocked && (
-        <footer className="shrink-0 border-t border-white/10 bg-zinc-950/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] pt-2.5 sm:px-4 sm:pt-3">
+        <footer className="af-world-cup-header shrink-0 border-t px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] pt-2.5 sm:px-4 sm:pt-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <div className="order-2 grid grid-cols-2 gap-2 sm:order-1 sm:flex sm:flex-1 sm:justify-between">
               <button

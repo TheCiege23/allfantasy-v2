@@ -258,6 +258,64 @@
   color: var(--muted2);
 }
 
+.af-dashboard-topbar {
+  background:
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--accent-cyan) 14%, transparent), transparent 34%),
+    color-mix(in srgb, var(--panel) 96%, transparent);
+  border-color: var(--border);
+  box-shadow: 0 18px 54px -42px color-mix(in srgb, var(--accent-cyan) 50%, transparent);
+}
+
+.af-world-cup-page {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+}
+
+.af-world-cup-header {
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--accent-cyan) 14%, transparent), transparent 34%),
+    color-mix(in srgb, var(--panel) 96%, transparent) !important;
+  border-color: var(--border) !important;
+  box-shadow: 0 18px 54px -42px color-mix(in srgb, var(--accent-cyan) 55%, transparent);
+}
+
+.af-world-cup-promo-card {
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--accent-cyan) 18%, transparent), transparent 32%),
+    radial-gradient(circle at 88% 12%, color-mix(in srgb, var(--accent-amber) 16%, transparent), transparent 30%),
+    color-mix(in srgb, var(--panel) 96%, transparent) !important;
+  border-color: color-mix(in srgb, var(--accent-cyan) 28%, var(--border));
+  box-shadow: 0 28px 80px -56px color-mix(in srgb, var(--accent-cyan) 72%, transparent);
+}
+
+html[data-mode="dark"] .af-world-cup-page,
+html[data-mode="legacy"] .af-world-cup-page {
+  background: #05070b !important;
+  color: white !important;
+}
+
+html[data-mode="dark"] .af-world-cup-header,
+html[data-mode="legacy"] .af-world-cup-header {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(251,191,36,0.16), transparent 34%),
+    radial-gradient(circle at 8% 0%, rgba(34,211,238,0.16), transparent 38%),
+    linear-gradient(180deg, rgba(3,7,18,0.98), rgba(5,7,11,0.96)) !important;
+  border-color: rgba(103,232,249,0.15) !important;
+}
+
+html[data-mode="dark"] .af-world-cup-promo-card,
+html[data-mode="legacy"] .af-world-cup-promo-card {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(34,211,238,0.22), transparent 32%),
+    radial-gradient(circle at 88% 12%, rgba(251,191,36,0.18), transparent 30%),
+    linear-gradient(135deg, rgba(2,7,20,0.98), rgba(6,12,30,0.97) 54%, rgba(11,18,44,0.95)) !important;
+  border-color: rgba(165,243,252,0.25);
+}
+
+html[data-mode="light"] .af-world-cup-atmosphere {
+  display: none !important;
+}
+
 .mode-image-safe {
   filter: none;
   mix-blend-mode: normal;
@@ -415,38 +473,15 @@ html[data-mode="light"] .mode-readable [class*="border-white"] {
   border-color: var(--border) !important;
 }
 
-/* ── World Cup landing: always-dark design ────────────────────────────────────
-   WC shell components mark their root element with data-wc-dark. Two rule
-   groups keep the premium dark aesthetic intact in light mode:
-
-   1. Self-protection (specificity 0,3,1 — same as the destructive rules above,
-      but placed LATER so source-order wins): the root element that carries
-      data-wc-dark itself has bg-[#05070b] + text-white. The descendant rules
-      below cannot cover it because an element is never its own descendant.
-
-   2. Descendant protection (specificity 0,4,1 — one extra selector, always
-      wins): covers every child element with a dark-bg or text-white class.  */
-
-/* 1 ─ protect the [data-wc-dark] root element itself */
-html[data-mode="light"] .mode-readable [data-wc-dark] {
-  background-color: #05070b !important;
+/* Root-level rescue for full-page surfaces that carry mode-readable themselves.
+   The descendant rules above do not match the root element, so fixed or
+   full-screen pages need equivalent self rules in light mode. */
+html[data-mode="light"] .mode-readable[class*="bg-[#05070b]"],
+html[data-mode="light"] .mode-readable[class*="bg-[#020713]"],
+html[data-mode="light"] .mode-readable[class*="bg-[#0a0a1f]"] {
+  background-color: var(--bg) !important;
   background-image: none !important;
-  color: white !important;
-}
-
-/* 2 ─ protect descendants */
-html[data-mode="light"] .mode-readable [data-wc-dark] [class*="text-white"] {
-  color: white !important;
-}
-html[data-mode="light"] .mode-readable [data-wc-dark] [class*="bg-[#05070b]"] {
-  background-color: #05070b !important;
-  background-image: none !important;
-}
-html[data-mode="light"] .mode-readable [data-wc-dark] [class*="border-white"] {
-  border-color: rgba(255, 255, 255, 0.12) !important;
-}
-html[data-mode="light"] .mode-readable [data-wc-dark] [class*="bg-black"] {
-  background-color: #000 !important;
+  color: var(--text) !important;
 }
 
 html[data-mode="legacy"] .mode-readable [class*="text-black"] {

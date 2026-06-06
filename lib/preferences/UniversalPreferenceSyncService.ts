@@ -30,8 +30,11 @@ export function parseProfileForSync(data: Record<string, unknown> | null): SyncR
     themePreference:
       data.themePreference === "light" ||
       data.themePreference === "dark" ||
-      data.themePreference === "legacy"
+      data.themePreference === "legacy" ||
+      data.themePreference === "system"
         ? (data.themePreference as string)
+        : data.themePreference === "af"
+          ? "legacy"
         : null,
     timezone: typeof data.timezone === "string" ? data.timezone : null,
   }

@@ -3,6 +3,7 @@ import Link from "next/link"
 import WorldCupInviteJoinPanel from "@/components/brackets/world-cup/WorldCupInviteJoinPanel"
 import { resolveServerRenderPreferences } from "@/lib/preferences/ServerRenderPreferenceResolver"
 import { makeWcT } from "@/lib/world-cup/worldCupI18n"
+import { ModeToggle } from "@/components/theme/ModeToggle"
 
 const WC_LOGO_SRC = "/images/brackets/world-cup/af-world-cup-logo.png"
 
@@ -17,14 +18,17 @@ export default async function WorldCupJoinWithCodePage() {
 
   return (
     // `mode-readable` opts into the globals.css light-mode rescue layer.
-    <main className="mode-readable min-h-screen bg-[#05070b] text-white">
+    <main className="af-world-cup-page mode-readable min-h-screen bg-[#05070b] text-white">
       <div className="mx-auto max-w-lg px-4 py-10">
-        <Link
-          href="/brackets/world-cup"
-          className="mb-6 inline-block rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-white/60 hover:text-white"
-        >
-          {t("wc.join.backToHub")}
-        </Link>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
+          <Link
+            href="/brackets/world-cup"
+            className="inline-block rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-white/60 hover:text-white"
+          >
+            {t("wc.join.backToHub")}
+          </Link>
+          <ModeToggle className="rounded-lg border px-3 py-2 text-xs font-bold shadow-sm" />
+        </div>
 
         {/* WC branding lockup */}
         <div className="mb-6 flex items-center gap-3">

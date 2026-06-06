@@ -207,13 +207,12 @@ export default function ChimmyChat({
       }
       try {
         const r = await fetch('/api/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'GET',
           credentials: 'include',
-          body: JSON.stringify({ text: 'test', voiceId: effectiveVoiceId }),
+          cache: 'no-store',
         });
-        const ct = r.headers.get('content-type') || '';
-        const ok = r.ok && (ct.includes('audio') || ct.includes('mpeg'));
+        const data = r.ok ? await r.json().catch(() => null) : null;
+        const ok = r.ok && data?.available === true;
         if (cancelled) return;
         setTtsServerReady(ok);
         if (!ok) {

@@ -19,6 +19,20 @@ function ttsCacheKey(text: string, voiceId: string): string {
   return createHash('sha256').update(`${voiceId}:${text}`).digest('hex').slice(0, 48);
 }
 
+export async function GET() {
+  return NextResponse.json(
+    {
+      ok: true,
+      available: Boolean(process.env.ELEVENLABS_API_KEY),
+    },
+    {
+      headers: {
+        "Cache-Control": "private, max-age=60",
+      },
+    }
+  );
+}
+
 export async function POST(req: Request) {
   const session = (await getServerSession(authOptions as never)) as {
     user?: { id?: string };
@@ -32,7 +46,6 @@ export async function POST(req: Request) {
   const envVoiceId = process.env.ELEVENLABS_VOICE_ID?.trim();
 
   if (!apiKey) {
-    console.error("[TTS] ELEVENLABS_API_KEY is not set in environment");
     return NextResponse.json({ error: "TTS not configured" }, { status: 503 });
   }
 

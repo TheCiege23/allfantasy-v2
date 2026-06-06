@@ -4,6 +4,7 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, CheckCircle, Info, Loader2, Lock, Trophy, Users } from "lucide-react"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import { ThemeModeSelect } from "@/components/theme/ThemeModeSelect"
 import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 import { trackMetaEventsFromResponse } from "@/lib/meta-client"
 
@@ -124,7 +125,7 @@ export default function WorldCupBracketCreateModal() {
   return (
     // `mode-readable` opts the create modal into the globals.css light-mode
     // rescue layer so muted form helpers and validation hints stay readable.
-    <div data-wc-dark className="mode-readable fixed inset-0 z-50 flex flex-col bg-[#05070b] text-white">
+    <div className="af-world-cup-page mode-readable fixed inset-0 z-50 flex flex-col bg-[#05070b] text-white">
       <header className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
         <button
           type="button"
@@ -138,6 +139,7 @@ export default function WorldCupBracketCreateModal() {
           <h1 className="text-lg font-black">{t("wc.create.header")}</h1>
           <p className="text-xs text-white/45">{t("wc.create.subheader")}</p>
         </div>
+        <ThemeModeSelect className="ml-auto inline-flex items-center gap-1.5 text-[10px]" size="sm" />
       </header>
 
       <main className="overflow-y-auto">

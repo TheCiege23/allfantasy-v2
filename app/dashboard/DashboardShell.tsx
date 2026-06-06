@@ -16,6 +16,7 @@ import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import LanguageToggle from '@/components/i18n/LanguageToggle'
 import { useMyLeaguesRailCollapse } from '@/hooks/useMyLeaguesRailCollapse'
 import { StartSitLauncher } from '@/components/dashboard/StartSitLauncher'
+import { ThemeModeSelect } from '@/components/theme/ThemeModeSelect'
 
 type DashboardShellProps = {
   userId: string
@@ -592,7 +593,7 @@ export function DashboardShell({
           </div>
         ) : null}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="border-b border-cyan-300/15 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_42%),linear-gradient(135deg,rgba(3,7,18,0.98),rgba(8,13,31,0.96))] px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] shadow-[0_18px_44px_-34px_rgba(34,211,238,0.85)] md:hidden">
+          <div className="af-dashboard-topbar border-b px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] md:hidden">
             <div className="flex items-center justify-between gap-2">
               <button
                 type="button"
@@ -624,14 +625,15 @@ export function DashboardShell({
               </div>
             </div>
             {!isLeagueRoute ? (
-              <div className="mt-2 flex justify-center">
+              <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
                 <DashboardLegacyRankBadge initialUserRankPayload={initialUserRankPayload} />
+                <ThemeModeSelect size="sm" />
               </div>
             ) : null}
           </div>
 
           <div
-            className="hidden border-b border-cyan-300/15 bg-[radial-gradient(circle_at_8%_0%,rgba(34,211,238,0.14),transparent_34%),linear-gradient(90deg,rgba(3,7,18,0.98),rgba(8,13,31,0.96),rgba(3,7,18,0.98))] px-6 py-3 shadow-[0_18px_54px_-42px_rgba(34,211,238,0.75)] md:flex md:items-center md:justify-between md:gap-3 [&>p:first-child]:hidden"
+            className="af-dashboard-topbar hidden border-b px-6 py-3 md:flex md:items-center md:justify-between md:gap-3 [&>p:first-child]:hidden"
           >
             <p className="text-[11px] font-bold uppercase tracking-widest text-white/25">AllFantasy · Dashboard</p>
             <div className="min-w-0">
@@ -647,6 +649,7 @@ export function DashboardShell({
               <div className="hidden md:block">
                 <LanguageToggle />
               </div>
+              <ThemeModeSelect size="sm" />
               {!isLeagueRoute ? (
                 <DashboardLegacyRankBadge initialUserRankPayload={initialUserRankPayload} />
               ) : null}

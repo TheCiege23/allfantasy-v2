@@ -18,7 +18,7 @@ export function WorldCupDashboardPromo() {
 
   return (
     <section
-      className="relative isolate overflow-hidden rounded-[1.35rem] border border-cyan-200/25 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.22),transparent_32%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.18),transparent_30%),linear-gradient(135deg,rgba(2,7,20,0.98),rgba(6,12,30,0.97)_54%,rgba(11,18,44,0.95))] p-4 shadow-[0_28px_90px_-54px_rgba(34,211,238,0.95)] sm:p-5"
+      className="af-world-cup-promo-card relative isolate overflow-hidden rounded-[1.35rem] border p-4 sm:p-5"
       data-testid="dashboard-world-cup-promo"
     >
       <div
