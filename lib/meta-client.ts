@@ -13,6 +13,9 @@ declare global {
     _fbq?: (...args: unknown[]) => void
     __afMetaPixelId?: string
     __afMetaPixelIds?: Set<string>
+    __afMetaBasePageViewEventId?: string
+    __afMetaBasePageViewFired?: boolean
+    __afMetaBasePageViewMirrorKey?: string
   }
 }
 

@@ -156,7 +156,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     f.__afMetaPixelIds.add(pixelId);
                   }
                   if(!f.__afMetaBasePageViewFired) {
-                    f.fbq('track', 'PageView');
+                    f.__afMetaBasePageViewEventId=f.__afMetaBasePageViewEventId||('af_PageView_bootstrap_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,10));
+                    f.fbq('track', 'PageView', {
+                      content_name: b.title || 'PageView',
+                      content_category: 'Page',
+                      page_path: f.location.pathname,
+                      value: 0,
+                      currency: 'USD'
+                    }, {eventID: f.__afMetaBasePageViewEventId});
                     f.__afMetaBasePageViewFired=!0;
                   }
                   try {
@@ -197,7 +204,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 window.__afMetaPixelIds.add(${JSON.stringify(metaPixelId)});
               }
               if (!window.__afMetaBasePageViewFired) {
-                fbq('track', 'PageView');
+                window.__afMetaBasePageViewEventId = window.__afMetaBasePageViewEventId || ('af_PageView_bootstrap_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10));
+                fbq('track', 'PageView', {
+                  content_name: document.title || 'PageView',
+                  content_category: 'Page',
+                  page_path: window.location.pathname,
+                  value: 0,
+                  currency: 'USD'
+                }, { eventID: window.__afMetaBasePageViewEventId });
                 window.__afMetaBasePageViewFired = true;
               }
 

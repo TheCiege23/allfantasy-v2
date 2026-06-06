@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
-import { ensureMetaPixel, trackMetaEventAndMirror } from "@/lib/meta-client"
+import { buildMetaEventPayload } from "@/lib/meta-events"
+import { ensureMetaPixel, mirrorMetaEventServerSide, trackMetaEventAndMirror } from "@/lib/meta-client"
 
 function resolveAiChimmyContent(pathname: string): { name: string; category: string } | null {
   if (pathname === "/ai-chat" || pathname.startsWith("/ai-chat/")) {
@@ -34,16 +35,26 @@ export function MetaPixelPageViewTracker({ pixelId }: { pixelId: string }) {
     if (!pathname || typeof window === "undefined") return
     const sourceUrl = window.location.href
     const title = document.title || pathname
+    const pageViewCustomData = {
+      content_name: title,
+      content_category: "Page",
+      page_path: pathname,
+    }
 
-    trackMetaEventAndMirror(
-      "PageView",
-      {
-        content_name: title,
-        content_category: "Page",
-        page_path: pathname,
-      },
-      { sourceId: routeKey, sourceUrl }
-    )
+    if (
+      window.__afMetaBasePageViewEventId &&
+      window.__afMetaBasePageViewFired &&
+      !window.__afMetaBasePageViewMirrorKey
+    ) {
+      const event = buildMetaEventPayload("PageView", pageViewCustomData, {
+        eventId: window.__afMetaBasePageViewEventId,
+        sourceId: routeKey,
+      })
+      window.__afMetaBasePageViewMirrorKey = routeKey
+      void mirrorMetaEventServerSide(event, { sourceUrl })
+    } else {
+      trackMetaEventAndMirror("PageView", pageViewCustomData, { sourceId: routeKey, sourceUrl })
+    }
 
     const chimmy = resolveAiChimmyContent(pathname)
     if (chimmy) {
