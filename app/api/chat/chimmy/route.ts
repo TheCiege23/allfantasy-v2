@@ -66,6 +66,7 @@ import { getChimmyFeatureFlags } from '@/lib/chimmy-chat/feature-flags'
 import { buildChimmyAnswerContract } from '@/lib/chimmy-chat/response-contract'
 import { persistChimmyAIAnalyticsEvent } from '@/lib/chimmy-chat/analytics-events'
 import { checkChimmyHallucination } from '@/lib/chimmy-chat/hallucination-guard'
+import { tryDeterministicAnswer, DETERMINISTIC_SOURCE } from '@/lib/ai/deterministic'
 import {
   TokenInsufficientBalanceError,
   TokenSpendConfirmationRequiredError,
@@ -291,7 +292,9 @@ const SPORTS_KEYWORDS = [
   'standings', 'bench', 'injury', 'bye week', 'matchup', 'projection',
   'qb', 'rb', 'wr', 'te', 'flex', 'superflex', 'ppr', 'dynasty', 'keeper',
   'faab', 'auction', 'nfl', 'nba', 'mlb', 'basketball', 'baseball', 'football',
-  'nhl', 'hockey', 'soccer', 'ncaab', 'ncaaf',
+  'nhl', 'hockey', 'soccer', 'futbol', 'fútbol', 'ncaab', 'ncaaf',
+  'world cup', 'fifa', 'mundial', 'bracket', 'pool', 'champion', 'knockout',
+  'group stage', 'leaderboard', 'commissioner',
 ]
 
 function hasSportsContent(text: string, hasImage: boolean): boolean {
@@ -1075,6 +1078,30 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           shortAnswer: 'I can help with fantasy sports questions only.',
           recommendedAction: 'Share your fantasy question and league context.',
           caveats: ['Off-topic requests are redirected to fantasy guidance.'],
+        },
+      },
+    })
+  }
+
+  const deterministicAnswer = await tryDeterministicAnswer(message, 'en')
+  if (deterministicAnswer !== null) {
+    return NextResponse.json({
+      response: deterministicAnswer,
+      result: deterministicAnswer,
+      source: DETERMINISTIC_SOURCE,
+      sessionId,
+      tokenSpend: null,
+      meta: {
+        confidencePct: 100,
+        providerStatus: {
+          openai: 'skipped',
+          deepseek: 'skipped',
+          grok: 'skipped',
+        },
+        dataSources: [DETERMINISTIC_SOURCE],
+        responseStructure: {
+          shortAnswer: deterministicAnswer,
+          caveats: ['No live provider call was made for this answer.'],
         },
       },
     })
