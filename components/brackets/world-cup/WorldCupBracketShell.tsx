@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowUp, AtSign, BarChart3, Baseline, Bell, Bold, Bot, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Clock, Copy, Edit3, Film, Globe2, Hash, ImageIcon, Italic, ListOrdered, Loader2, Lock, MessageSquare, Megaphone, Mic, Pin, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Smile, Sparkles, Strikethrough, Trophy, Underline, Users, X, Zap } from "lucide-react"
+import { ArrowLeft, ArrowUp, AtSign, BarChart3, Baseline, Bell, Bold, Bot, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Clock, Copy, Edit3, Film, Globe2, Hash, ImageIcon, Italic, ListOrdered, Loader2, Lock, MessageSquare, Mic, PlayCircle, Plus, RefreshCw, Send, Settings, Share2, Smile, Sparkles, Strikethrough, Trophy, Underline, Users, X, Zap } from "lucide-react"
 import { toast } from "sonner"
 import type { WorldCupChallengeView, WorldCupMatchView, WorldCupPickView } from "@/lib/world-cup/types"
 import { isWorldCupChallengeLocked } from "@/lib/world-cup/worldCupBracketBuilder"
@@ -114,12 +114,10 @@ import WorldCupScoreSummary from "./WorldCupScoreSummary"
 import WorldCupLeaderboard from "./WorldCupLeaderboard"
 import WorldCupLeaderboardInsights from "./WorldCupLeaderboardInsights"
 import WorldCupLiveScoreTicker from "./WorldCupLiveScoreTicker"
-import WorldCupShareCard from "./WorldCupShareCards"
 import WorldCupBracketSettingsPanel from "./WorldCupBracketSettingsPanel"
 import WorldCupCommissionerBrainPanel from "./WorldCupCommissionerBrainPanel"
 import WorldCupGroupStagePicks from "./WorldCupGroupStagePicks"
 import WorldCupReadinessPanel from "./WorldCupReadinessPanel"
-import WorldCupLeagueEventFeed from "./WorldCupLeagueEventFeed"
 import WorldCupPoolCountdownBanner from "./WorldCupPoolCountdownBanner"
 import type { WorldCupCountdownFirstMatch } from "./WorldCupPoolCountdownBanner"
 type Tab = WorldCupBracketTab
@@ -174,20 +172,6 @@ type WorldCupChatPollAttachment = {
   closedAt: string | null
   createdByUserId: string | null
   createdAt: string | null
-}
-type WorldCupNotificationPreferenceState = {
-  poolMuted: boolean
-  inAppEnabled: boolean
-  smsEnabled: boolean
-  usernameMentionsEnabled: boolean
-  allMentionsEnabled: boolean
-  commissionerAnnouncementsEnabled: boolean
-  deadlineRemindersEnabled: boolean
-  bracketFinalizedEnabled: boolean
-  resultsUpdatedEnabled: boolean
-  leaderboardUpdatedEnabled: boolean
-  generalChatEnabled: boolean
-  chimmyRepliesEnabled: boolean
 }
 type WorldCupComposerPanel = "emoji" | "gif" | "poll" | "image" | "voice" | null
 type WorldCupChatMode = "ai" | "pool" | "dm"
@@ -4634,7 +4618,6 @@ export default function WorldCupBracketShell({
       <WorldCupCommunityFoundationPanel
         challengeId={challengeId}
         entitlementSummary={entitlementSummary}
-        poolName={view.challenge.name}
         promptAvailability={{
           hasLeaderboard: view.leaderboard.length > 0,
           hasUserEntry: Boolean(selectedEntry),
@@ -5289,12 +5272,10 @@ type WorldCupChimmyPromptAvailability = {
 function WorldCupCommunityFoundationPanel({
   challengeId,
   entitlementSummary,
-  poolName,
   promptAvailability,
 }: {
   challengeId: string
   entitlementSummary: ReturnType<typeof resolveWorldCupEntitlementSummary>
-  poolName: string
   promptAvailability?: WorldCupChimmyPromptAvailability
 }) {
   const commissionerUnlocked = entitlementSummary.commissioner
@@ -5363,12 +5344,18 @@ function WorldCupCommunityFoundationPanel({
       : chatMode === "dm"
         ? tChat("wc.chat.placeholder.dm")
         : tChat("wc.chat.composer.placeholder")
-  const latestAiRecap = useMemo(
-    () => messages
-      .filter((message) => message.visibility === "public" && message.messageType === "ai_recap")
-      .at(-1) ?? null,
-    [messages]
-  )
+  const visibleChatMessages = useMemo(() => {
+    if (chatMode === "dm") return []
+    if (chatMode === "ai") {
+      return messages.filter((message) =>
+        message.messageType === "chimmy_private_response" ||
+        /(^|[\s*_~\]])@chimmy\b/i.test(message.body)
+      )
+    }
+    return messages.filter((message) =>
+      !message.isPrivate && message.messageType !== "chimmy_private_response"
+    )
+  }, [chatMode, messages])
 
   function insertComposerText(value: string) {
     setChatBody((current) => `${current}${value}`)
@@ -5463,8 +5450,14 @@ function WorldCupCommunityFoundationPanel({
       }
       if (Array.isArray(data.messages) && data.messages.length > 0) {
         setMessages((prev) => [...prev, ...data.messages])
+        if (data.messages.some((message: WorldCupPoolChatMessage) => message.messageType === "chimmy_private_response")) {
+          setChatMode("ai")
+        }
       } else if (data.message) {
         setMessages((prev) => [...prev, data.message])
+        if (data.message.messageType === "chimmy_private_response") {
+          setChatMode("ai")
+        }
       } else {
         await loadChat()
       }
@@ -5612,6 +5605,7 @@ function WorldCupCommunityFoundationPanel({
 
   return (
     <>
+    {!chatDrawerOpen ? (
     <button
       type="button"
       data-testid="world-cup-chat-bubble"
@@ -5631,6 +5625,7 @@ function WorldCupCommunityFoundationPanel({
         <span className="block">Pool Chat</span>
       </span>
     </button>
+    ) : null}
 
     {chatDrawerOpen ? (
     <section
@@ -5707,12 +5702,10 @@ function WorldCupCommunityFoundationPanel({
             </button>
           ))}
         </div>
-        <div className="mx-4 hidden shrink-0 sm:block">
-          <WorldCupNotificationSettingsCard challengeId={challengeId} />
-        </div>
-        {chatDrawerOpen ? (
-        <>
-        <div className="mx-2 mt-1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1rem] border border-cyan-300/12 bg-black/35 p-2 shadow-[0_18px_46px_-36px_rgba(34,211,238,0.72)] sm:mx-4 sm:mt-4 sm:p-3">
+        <div
+          data-testid="wc-chat-active-panel"
+          className="mx-2 mb-2 mt-1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1rem] border border-cyan-300/12 bg-black/35 p-2 shadow-[0_18px_46px_-36px_rgba(34,211,238,0.72)] sm:mx-4 sm:mb-4 sm:mt-4 sm:p-3"
+        >
           <div className="mb-2 flex shrink-0 items-center justify-between gap-2 sm:mb-3">
             <p className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
               {chatMode === "ai" ? <Bot className="h-3.5 w-3.5 text-cyan-200" aria-hidden /> : chatMode === "dm" ? <Users className="h-3.5 w-3.5 text-white/55" aria-hidden /> : <MessageSquare className="h-3.5 w-3.5 text-white/55" aria-hidden />}
@@ -5743,9 +5736,9 @@ function WorldCupCommunityFoundationPanel({
               <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
               {tChat("wc.chat.loading")}
             </div>
-          ) : messages.length > 0 ? (
+          ) : visibleChatMessages.length > 0 ? (
             <div data-testid="wc-chat-message-list" className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-              {messages.map((message) => {
+              {visibleChatMessages.map((message) => {
                 const isChimmyReply = message.messageType === "chimmy_private_response"
                 return (
                 <div
@@ -6061,91 +6054,6 @@ function WorldCupCommunityFoundationPanel({
           ) : null}
           </div>
         </div>
-        <div className="mx-4 mb-4 mt-4 hidden max-h-52 shrink-0 overflow-y-auto rounded-[1rem] border border-white/10 bg-black/35 p-3 sm:block">
-          <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-white/35">
-            Latest Pool Updates
-          </p>
-          {latestAiRecap ? (
-            <WorldCupShareCard
-              kind="recap"
-              poolName={poolName}
-              recapBody={latestAiRecap.body}
-              className="mb-3"
-            />
-          ) : null}
-          <WorldCupLeagueEventFeed challengeId={challengeId} />
-        </div>
-        </>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setChatDrawerOpen(true)}
-            className="mx-4 mb-4 mt-4 flex w-[calc(100%-2rem)] items-center justify-between rounded-[1rem] border border-cyan-300/20 bg-cyan-300/[0.08] px-4 py-3 text-left text-sm font-black text-white transition hover:bg-cyan-300/[0.12]"
-          >
-            <span className="inline-flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-cyan-200" aria-hidden />
-              Open World Cup chat
-            </span>
-            <ChevronRight className="h-4 w-4 text-white/50" aria-hidden />
-          </button>
-        )}
-      </div>
-
-      <div className="hidden shrink-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4 sm:block">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="flex items-center gap-2 text-sm font-black text-white">
-              <Megaphone className="h-4 w-4 text-white/70" aria-hidden />
-              Commissioner Announcements
-            </p>
-            <p className="mt-2 text-xs leading-5 text-white/50">
-              Post a pinned message for your pool.
-            </p>
-          </div>
-          <span
-            className={[
-              "rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
-              commissionerUnlocked
-                ? "border-white/20 bg-white/[0.06] text-white/70"
-                : "border-white/15 bg-white/[0.04] text-white/50",
-            ].join(" ")}
-          >
-            {commissionerUnlocked ? "Unlocked" : "AF Commissioner feature"}
-          </span>
-        </div>
-
-        <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-          <p className="flex items-center gap-2 text-xs font-black text-white/80">
-            <Pin className="h-3.5 w-3.5" aria-hidden />
-            Pinned Announcement
-          </p>
-          <p className="mt-2 text-xs leading-5 text-white/50">
-            {commissionerUnlocked
-              ? "Announcement composer coming soon. Commissioner reminders can already post system-style updates to the activity feed."
-              : "AF Commissioner feature. Pool owners and all-access users will be able to pin one announcement here."}
-          </p>
-        </div>
-
-        {commissionerUnlocked ? (
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs font-black text-white">System Reminders</p>
-              <p className="mt-1 text-[11px] leading-5 text-white/45">
-                Deadline and incomplete-bracket reminders are wired through the existing World Cup event feed.
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs font-black text-white">Moderation</p>
-              <p className="mt-1 text-[11px] leading-5 text-white/45">
-                Delete/pin controls stay locked until the chat composer backend is added.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <p className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-xs leading-5 text-white/45">
-            Free users can follow pool updates here, but commissioner announcements, pinned posts, and moderation controls require AF Commissioner access.
-          </p>
-        )}
       </div>
       </section>
     ) : null}
@@ -6623,133 +6531,6 @@ function WorldCupComposerFoundationPanel({ panel }: { panel: "voice" }) {
     <div className="mt-2 rounded-xl border border-dashed border-white/15 bg-black/25 p-3 text-xs leading-5 text-white/50">
       <p className="font-black text-white/75">{copy.title}</p>
       <p className="mt-1">{copy.body}</p>
-    </div>
-  )
-}
-
-function WorldCupNotificationSettingsCard({ challengeId }: { challengeId: string }) {
-  const defaultPrefs: WorldCupNotificationPreferenceState = {
-    poolMuted: false,
-    inAppEnabled: true,
-    smsEnabled: false,
-    usernameMentionsEnabled: true,
-    allMentionsEnabled: true,
-    commissionerAnnouncementsEnabled: true,
-    deadlineRemindersEnabled: true,
-    bracketFinalizedEnabled: true,
-    resultsUpdatedEnabled: true,
-    leaderboardUpdatedEnabled: true,
-    generalChatEnabled: false,
-    chimmyRepliesEnabled: true,
-  }
-  const [preferences, setPreferences] = useState(defaultPrefs)
-  const [isSaving, setIsSaving] = useState<string | null>(null)
-  const [settingsError, setSettingsError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    async function loadPreferences() {
-      try {
-        const params = new URLSearchParams({ action: "notification_preferences" })
-        const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat?${params.toString()}`, { cache: "no-store" })
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok) throw new Error(data.error || "Could not load notification preferences")
-        if (!cancelled && data.preferences) {
-          setPreferences((current) => ({ ...current, ...data.preferences }))
-        }
-      } catch (err) {
-        if (!cancelled) setSettingsError(err instanceof Error ? err.message : "Could not load notification preferences")
-      }
-    }
-    void loadPreferences()
-    return () => {
-      cancelled = true
-    }
-  }, [challengeId])
-
-  async function togglePreference(key: keyof WorldCupNotificationPreferenceState) {
-    const nextValue = !preferences[key]
-    setPreferences((current) => ({ ...current, [key]: nextValue }))
-    setIsSaving(key)
-    setSettingsError(null)
-    try {
-      const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "update_notification_preferences", [key]: nextValue }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || "Could not save notification preferences")
-      if (data.preferences) setPreferences((current) => ({ ...current, ...data.preferences }))
-    } catch (err) {
-      setPreferences((current) => ({ ...current, [key]: !nextValue }))
-      setSettingsError(err instanceof Error ? err.message : "Could not save notification preferences")
-    } finally {
-      setIsSaving(null)
-    }
-  }
-
-  const rows: Array<{ key: keyof WorldCupNotificationPreferenceState; label: string; helper?: string }> = [
-    { key: "poolMuted", label: "Pool muted" },
-    { key: "inAppEnabled", label: "In-app notifications" },
-    { key: "smsEnabled", label: "SMS notifications", helper: "Requires verified phone." },
-    { key: "usernameMentionsEnabled", label: "@username mentions" },
-    { key: "allMentionsEnabled", label: "@all mentions" },
-    { key: "commissionerAnnouncementsEnabled", label: "Commissioner announcements" },
-    { key: "deadlineRemindersEnabled", label: "Deadline reminders" },
-    { key: "bracketFinalizedEnabled", label: "Bracket finalized" },
-    { key: "resultsUpdatedEnabled", label: "Results updated" },
-    { key: "leaderboardUpdatedEnabled", label: "Leaderboard updated" },
-    { key: "generalChatEnabled", label: "General chat messages" },
-    { key: "chimmyRepliesEnabled", label: "Chimmy private replies" },
-  ]
-
-  return (
-    <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
-      <p className="flex items-center gap-2 text-xs font-black text-white">
-        <Bell className="h-3.5 w-3.5 text-white/70" aria-hidden />
-        Notification Settings
-      </p>
-      <p className="mt-2 text-xs leading-5 text-white/50">
-        In-app notifications are on by default. SMS alerts require a verified phone number and opt-in.
-      </p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        {rows.map((row) => (
-          <div key={row.key} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2">
-            <span>
-              <span className="block text-[11px] text-white/60">{row.label}</span>
-              {row.helper ? <span className="block text-[10px] text-white/30">{row.helper}</span> : null}
-            </span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={preferences[row.key]}
-              aria-label={row.label}
-              disabled={Boolean(isSaving)}
-              onClick={() => void togglePreference(row.key)}
-              className={[
-                "relative h-5 w-9 rounded-full border transition disabled:opacity-50",
-                preferences[row.key] ? "border-cyan-300/60 bg-cyan-300/40" : "border-white/15 bg-white/[0.06]",
-              ].join(" ")}
-            >
-              <span
-                className={[
-                  "absolute top-0.5 h-4 w-4 rounded-full bg-white transition",
-                  preferences[row.key] ? "left-4" : "left-0.5",
-                ].join(" ")}
-              />
-            </button>
-          </div>
-        ))}
-      </div>
-      {settingsError ? (
-        <p className="mt-3 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-white/85">
-          {settingsError}
-        </p>
-      ) : null}
-      <p className="mt-3 text-[11px] leading-5 text-white/35">
-        Pool owners and commissioners cannot override a user's mute, SMS opt-in, or phone verification state.
-      </p>
     </div>
   )
 }
