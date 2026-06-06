@@ -45,6 +45,13 @@ export type ChimmyKnockoutPickRow = {
   pointsAwarded: number
 }
 
+export type ChimmyThirdPlacePickRow = {
+  groupName: string
+  teamName: string
+  isCorrect: boolean | null
+  pointsAwarded: number
+}
+
 export type ChimmyUserEntry = {
   entryId: string
   entryName: string
@@ -58,6 +65,7 @@ export type ChimmyUserEntry = {
   isLocked: boolean
   groupPicks: ChimmyGroupPickRow[]
   knockoutPicks: ChimmyKnockoutPickRow[]
+  thirdPlacePicks?: ChimmyThirdPlacePickRow[]
 }
 
 export type ChimmyGroupStandingRow = {
@@ -89,7 +97,19 @@ export type WorldCupChimmyContext = {
   isLocked: boolean
   lockReason: string | null
   participantCount: number
+  entryCount?: number
+  finalizedEntryCount?: number
+  inviteCount?: number
   scoring: WorldCupScoringValues
+  userRole?: "participant" | "commissioner" | "admin" | "non_member"
+  commissionerSettings?: {
+    enableSystemEvents: boolean
+    enableAiSummaries: boolean
+    enableUpsetAlerts: boolean
+    enableLeaderboardAlerts: boolean
+    enableChampionBustAlerts: boolean
+    enableLockReminders: boolean
+  } | null
   entry: ChimmyUserEntry | null
   liveMatches: ChimmyMatchSummary[]
   upcomingMatches: ChimmyMatchSummary[]
@@ -109,7 +129,11 @@ async function fetchChallengeSummary(challengeId: string): Promise<{
   isLocked: boolean
   lockReason: string | null
   participantCount: number
+  entryCount: number
+  finalizedEntryCount: number
+  inviteCount: number
   scoring: WorldCupScoringValues
+  commissionerSettings: WorldCupChimmyContext["commissionerSettings"]
 } | null> {
   try {
     const row = await (prisma as any).worldCupBracketChallenge.findUnique({
@@ -119,7 +143,17 @@ async function fetchChallengeSummary(challengeId: string): Promise<{
         name: true,
         status: true,
         pickLockAt: true,
-        _count: { select: { participants: true } },
+        _count: { select: { participants: true, entries: true, invites: true } },
+        commissionerSettings: {
+          select: {
+            enableSystemEvents: true,
+            enableAiSummaries: true,
+            enableUpsetAlerts: true,
+            enableLeaderboardAlerts: true,
+            enableChampionBustAlerts: true,
+            enableLockReminders: true,
+          },
+        },
         scoringProfile: {
           select: {
             roundOf32Points: true,
@@ -134,6 +168,9 @@ async function fetchChallengeSummary(challengeId: string): Promise<{
       },
     })
     if (!row) return null
+    const finalizedEntryCount = await (prisma as any).worldCupBracketEntry.count({
+      where: { challengeId, isComplete: true },
+    }).catch(() => 0)
 
     const now = new Date()
     const isLocked =
@@ -159,7 +196,20 @@ async function fetchChallengeSummary(challengeId: string): Promise<{
       isLocked,
       lockReason: null, // derived from status/pickLockAt, not stored separately
       participantCount: Number(row._count?.participants ?? 0),
+      entryCount: Number(row._count?.entries ?? 0),
+      finalizedEntryCount: Number(finalizedEntryCount ?? 0),
+      inviteCount: Number(row._count?.invites ?? 0),
       scoring,
+      commissionerSettings: row.commissionerSettings
+        ? {
+            enableSystemEvents: Boolean(row.commissionerSettings.enableSystemEvents),
+            enableAiSummaries: Boolean(row.commissionerSettings.enableAiSummaries),
+            enableUpsetAlerts: Boolean(row.commissionerSettings.enableUpsetAlerts),
+            enableLeaderboardAlerts: Boolean(row.commissionerSettings.enableLeaderboardAlerts),
+            enableChampionBustAlerts: Boolean(row.commissionerSettings.enableChampionBustAlerts),
+            enableLockReminders: Boolean(row.commissionerSettings.enableLockReminders),
+          }
+        : null,
     }
   } catch {
     return null
@@ -203,6 +253,15 @@ async function fetchUserEntry(challengeId: string, userId: string): Promise<Chim
           orderBy: { round: "asc" },
           take: 24,
         },
+        thirdPlaceAdvancerPicks: {
+          select: {
+            isCorrect: true,
+            pointsAwarded: true,
+            group: { select: { displayName: true } },
+            team: { select: { name: true } },
+          },
+          orderBy: [{ group: { groupKey: "asc" } }],
+        },
       },
     })
     if (!row) return null
@@ -225,6 +284,13 @@ async function fetchUserEntry(challengeId: string, userId: string): Promise<Chim
       pointsAwarded: Number(p.pointsAwarded ?? 0),
     }))
 
+    const thirdPlacePicks: ChimmyThirdPlacePickRow[] = (row.thirdPlaceAdvancerPicks ?? []).map((p: any) => ({
+      groupName: String(p.group?.displayName ?? "?"),
+      teamName: String(p.team?.name ?? "Unknown"),
+      isCorrect: typeof p.isCorrect === "boolean" ? p.isCorrect : null,
+      pointsAwarded: Number(p.pointsAwarded ?? 0),
+    }))
+
     return {
       entryId: String(row.id),
       entryName: String(row.name ?? "My Entry"),
@@ -238,9 +304,91 @@ async function fetchUserEntry(challengeId: string, userId: string): Promise<Chim
       isLocked: Boolean(row.isLocked),
       groupPicks,
       knockoutPicks,
+      thirdPlacePicks,
     }
   } catch {
     return null
+  }
+}
+
+function mapMatchSummary(r: any, source: "challenge" | "official"): ChimmyMatchSummary {
+  return {
+    matchId: source === "official" ? `official:${String(r.id)}` : String(r.id),
+    round: String(r.round ?? r.stage ?? "unknown"),
+    homeTeamName: String(r.homeTeamName ?? "?"),
+    awayTeamName: String(r.awayTeamName ?? "?"),
+    homeScore: typeof r.homeScore === "number" ? r.homeScore : null,
+    awayScore: typeof r.awayScore === "number" ? r.awayScore : null,
+    homePenaltyScore: typeof r.homePenaltyScore === "number" ? r.homePenaltyScore : null,
+    awayPenaltyScore: typeof r.awayPenaltyScore === "number" ? r.awayPenaltyScore : null,
+    winnerTeamName: typeof r.winnerTeamName === "string" ? r.winnerTeamName : null,
+    status: String(r.status ?? "scheduled"),
+    minute: typeof r.elapsedMinute === "number" ? r.elapsedMinute : null,
+    injuryTime: typeof r.injuryTime === "number" ? r.injuryTime : null,
+    startsAt:
+      r.startsAt instanceof Date
+        ? r.startsAt.toISOString()
+        : typeof r.startsAt === "string"
+        ? r.startsAt
+        : null,
+    venueName: typeof r.venueName === "string" ? r.venueName : null,
+    venueCity: typeof r.venueCity === "string" ? r.venueCity : null,
+    apiStatusShort: typeof r.apiStatusShort === "string" ? r.apiStatusShort : null,
+    lastSyncedAt:
+      r.lastScoreSyncedAt instanceof Date
+        ? r.lastScoreSyncedAt.toISOString()
+        : r.updatedAt instanceof Date
+        ? r.updatedAt.toISOString()
+        : typeof r.lastScoreSyncedAt === "string"
+        ? r.lastScoreSyncedAt
+        : typeof r.updatedAt === "string"
+        ? r.updatedAt
+        : null,
+  }
+}
+
+async function fetchOfficialFixtures(): Promise<ChimmyMatchSummary[]> {
+  try {
+    const now = new Date()
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
+
+    const rows = await (prisma as any).worldCupOfficialFixture.findMany({
+      where: {
+        seasonYear: 2026,
+        OR: [
+          { status: { in: ["live", "halftime"] } },
+          { status: "scheduled", startsAt: { gte: now, lte: in48h } },
+          { status: { in: ["final", "cancelled", "postponed"] }, startsAt: { gte: yesterday } },
+        ],
+      },
+      select: {
+        id: true,
+        round: true,
+        stage: true,
+        homeTeamName: true,
+        awayTeamName: true,
+        homeScore: true,
+        awayScore: true,
+        homePenaltyScore: true,
+        awayPenaltyScore: true,
+        winnerTeamName: true,
+        status: true,
+        elapsedMinute: true,
+        injuryTime: true,
+        startsAt: true,
+        venueName: true,
+        venueCity: true,
+        apiStatusShort: true,
+        updatedAt: true,
+      },
+      orderBy: { startsAt: "asc" },
+      take: 20,
+    })
+
+    return (rows as any[]).map((r) => mapMatchSummary(r, "official"))
+  } catch {
+    return []
   }
 }
 
@@ -282,37 +430,10 @@ async function fetchRelevantMatches(challengeId: string): Promise<ChimmyMatchSum
       take: 20,
     })
 
-    return (rows as any[]).map((r): ChimmyMatchSummary => ({
-      matchId: String(r.id),
-      round: String(r.round ?? "unknown"),
-      homeTeamName: String(r.homeTeamName ?? "?"),
-      awayTeamName: String(r.awayTeamName ?? "?"),
-      homeScore: typeof r.homeScore === "number" ? r.homeScore : null,
-      awayScore: typeof r.awayScore === "number" ? r.awayScore : null,
-      homePenaltyScore: typeof r.homePenaltyScore === "number" ? r.homePenaltyScore : null,
-      awayPenaltyScore: typeof r.awayPenaltyScore === "number" ? r.awayPenaltyScore : null,
-      winnerTeamName: typeof r.winnerTeamName === "string" ? r.winnerTeamName : null,
-      status: String(r.status ?? "scheduled"),
-      minute: typeof r.elapsedMinute === "number" ? r.elapsedMinute : null,
-      injuryTime: typeof r.injuryTime === "number" ? r.injuryTime : null,
-      startsAt:
-        r.startsAt instanceof Date
-          ? r.startsAt.toISOString()
-          : typeof r.startsAt === "string"
-          ? r.startsAt
-          : null,
-      venueName: typeof r.venueName === "string" ? r.venueName : null,
-      venueCity: typeof r.venueCity === "string" ? r.venueCity : null,
-      apiStatusShort: typeof r.apiStatusShort === "string" ? r.apiStatusShort : null,
-      lastSyncedAt:
-        r.lastScoreSyncedAt instanceof Date
-          ? r.lastScoreSyncedAt.toISOString()
-          : typeof r.lastScoreSyncedAt === "string"
-          ? r.lastScoreSyncedAt
-          : null,
-    }))
+    const mapped = (rows as any[]).map((r) => mapMatchSummary(r, "challenge"))
+    return mapped.length > 0 ? mapped : fetchOfficialFixtures()
   } catch {
-    return []
+    return fetchOfficialFixtures()
   }
 }
 
@@ -394,7 +515,12 @@ function emptyContext(
     isLocked: false,
     lockReason: null,
     participantCount: 0,
+    entryCount: 0,
+    finalizedEntryCount: 0,
+    inviteCount: 0,
     scoring: { ...DEFAULT_WORLD_CUP_SCORING },
+    userRole: "participant",
+    commissionerSettings: null,
     entry: null,
     liveMatches: [],
     upcomingMatches: [],
@@ -419,10 +545,12 @@ export async function buildWorldCupChimmyContext({
   challengeId,
   userId,
   locale,
+  userRole,
 }: {
   challengeId: string
   userId: string
   locale?: string | null
+  userRole?: WorldCupChimmyContext["userRole"]
 }): Promise<WorldCupChimmyContext> {
   const fetchedAt = new Date().toISOString()
 
@@ -463,7 +591,12 @@ export async function buildWorldCupChimmyContext({
     isLocked: challengeSummary.isLocked,
     lockReason: challengeSummary.lockReason,
     participantCount: challengeSummary.participantCount,
+    entryCount: challengeSummary.entryCount,
+    finalizedEntryCount: challengeSummary.finalizedEntryCount,
+    inviteCount: challengeSummary.inviteCount,
     scoring: challengeSummary.scoring,
+    userRole: userRole ?? "participant",
+    commissionerSettings: challengeSummary.commissionerSettings,
     entry,
     liveMatches,
     upcomingMatches,

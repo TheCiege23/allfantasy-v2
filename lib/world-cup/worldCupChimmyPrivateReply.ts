@@ -6,9 +6,15 @@ import type { WorldCupChimmyContext } from "./worldCupChimmyContext"
 import {
   buildWorldCupChimmySystemPrompt,
   enforceWorldCupChimmyReplyGuard,
+  reliableDataUnavailableMessage,
   serializeChimmyContext,
   tryDeterministicWorldCupChimmyReply,
 } from "./worldCupChimmyReplyPolicy"
+import {
+  buildWorldCupChimmyGrounding,
+  serializeWorldCupChimmyGrounding,
+  type WorldCupChimmyUserRole,
+} from "./worldCupChimmyGroundingService"
 
 const MAX_REPLY_CHARS = 2000
 
@@ -31,6 +37,7 @@ export async function generateWorldCupChimmyPrivateReply(input: {
   challengeName?: string | null
   locale?: string | null
   context?: WorldCupChimmyContext | null
+  userRole?: WorldCupChimmyUserRole | null
   deterministicOnly?: boolean
 }) {
   const userPrompt = stripChimmyMention(input.prompt)
@@ -57,6 +64,11 @@ export async function generateWorldCupChimmyPrivateReply(input: {
     context: input.context,
     locale: input.locale,
   })
+  const grounding = buildWorldCupChimmyGrounding({
+    prompt: userPrompt || input.prompt,
+    context: input.context,
+    userRole: input.userRole,
+  })
 
   let provider: string = "deterministic"
   let model: string = "policy"
@@ -66,15 +78,33 @@ export async function generateWorldCupChimmyPrivateReply(input: {
     reply = deterministic
   } else if (input.deterministicOnly) {
     reply = "I can answer saved pool questions here, but deeper Chimmy AI analysis requires AF Pro. Ask me who is leading, explain the scoring, summarize this pool, or show your path to win and I will use only stored pool data."
+  } else if (!input.context || grounding.dataQuality.confidence === "none") {
+    provider = "unavailable"
+    model = "policy"
+    reply = [
+      reliableDataUnavailableMessage(input.locale),
+      "Missing data: World Cup pool grounding context.",
+      "No tokens should be charged for this unavailable answer.",
+    ].join(" ")
+  } else if (grounding.dataQuality.noChargeReason && grounding.prompt.intent.access.tokenPolicy === "blocked_no_charge") {
+    provider = "unavailable"
+    model = "policy"
+    reply = [
+      reliableDataUnavailableMessage(input.locale),
+      grounding.dataQuality.noChargeReason,
+      "No tokens should be charged for this unavailable answer.",
+    ].join(" ")
   } else {
     const system = buildWorldCupChimmySystemPrompt(input.locale)
     const contextBlock = input.context ? serializeChimmyContext(input.context) : null
+    const groundingBlock = serializeWorldCupChimmyGrounding(grounding)
     const challengeLine = input.challengeName
       ? `Pool: ${input.challengeName}.`
       : "Pool: World Cup bracket challenge."
 
     const userContent = [
       challengeLine,
+      `\n--- GROUNDING JSON ---\n${groundingBlock}\n--- END GROUNDING JSON ---`,
       contextBlock ? `\n--- POOL DATA ---\n${contextBlock}\n--- END POOL DATA ---` : "",
       `\nUser private prompt: ${userPrompt || input.prompt}`,
     ]
@@ -118,6 +148,9 @@ export async function generateWorldCupChimmyPrivateReply(input: {
       surface: "world_cup_pool_chat",
       provider,
       model,
+      groundingIntent: grounding.prompt.intent.category,
+      groundingConfidence: grounding.dataQuality.confidence,
+      noChargeReason: grounding.dataQuality.noChargeReason,
     },
   })
 
@@ -126,5 +159,6 @@ export async function generateWorldCupChimmyPrivateReply(input: {
     conversationId,
     provider,
     model,
+    grounding,
   }
 }

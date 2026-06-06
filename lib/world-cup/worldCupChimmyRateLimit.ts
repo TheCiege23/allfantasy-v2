@@ -43,16 +43,24 @@ export async function countChimmyAiCallsToday(
 ): Promise<number> {
   const dayStart = startOfUtcDay(now)
   try {
-    const count = await (prisma as any).worldCupBracketChatEvent.count({
+    const rows = await (prisma as any).worldCupBracketChatEvent.findMany({
       where: {
-        userId,
         eventType: WORLD_CUP_POOL_CHAT_EVENT_TYPES.CHIMMY_PRIVATE,
-        // Prompts (user-authored). Each prompt triggers one OpenAI reply.
-        isAiGenerated: false,
+        isAiGenerated: true,
         createdAt: { gte: dayStart },
       },
+      select: { metadata: true },
+      take: 500,
     })
-    return typeof count === "number" ? count : 0
+    if (!Array.isArray(rows)) return 0
+    return rows.filter((row) => {
+      const metadata = row?.metadata && typeof row.metadata === "object" ? row.metadata as Record<string, unknown> : {}
+      if (metadata.targetUserId !== userId) return false
+      const provider = typeof metadata.provider === "string" ? metadata.provider.toLowerCase() : ""
+      const model = typeof metadata.model === "string" ? metadata.model.toLowerCase() : ""
+      if (!provider && !model) return true
+      return provider !== "deterministic" && provider !== "unavailable" && model !== "policy"
+    }).length
   } catch {
     // Fail open — never block the user because the counter query crashed.
     return 0

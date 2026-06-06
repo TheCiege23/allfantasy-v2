@@ -4631,6 +4631,17 @@ export default function WorldCupBracketShell({
         challengeId={challengeId}
         entitlementSummary={entitlementSummary}
         poolName={view.challenge.name}
+        promptAvailability={{
+          hasLeaderboard: view.leaderboard.length > 0,
+          hasUserEntry: Boolean(selectedEntry),
+          hasCachedMatches: view.matches.some((match) =>
+            Boolean(match.startsAt) ||
+            typeof match.homeScore === "number" ||
+            typeof match.awayScore === "number" ||
+            ["live", "halftime", "final"].includes(String(match.status ?? "").toLowerCase())
+          ),
+          isCommissioner: Boolean(view.isOwner || view.isAdmin || view.hasAfCommissioner),
+        }}
       />
 
       {selectedEntry && isGuidedPickerOpen && (
@@ -5264,14 +5275,23 @@ function WorldCupPremiumAccessPanel({
   )
 }
 
+type WorldCupChimmyPromptAvailability = {
+  hasLeaderboard: boolean
+  hasUserEntry: boolean
+  hasCachedMatches: boolean
+  isCommissioner: boolean
+}
+
 function WorldCupCommunityFoundationPanel({
   challengeId,
   entitlementSummary,
   poolName,
+  promptAvailability,
 }: {
   challengeId: string
   entitlementSummary: ReturnType<typeof resolveWorldCupEntitlementSummary>
   poolName: string
+  promptAvailability?: WorldCupChimmyPromptAvailability
 }) {
   const commissionerUnlocked = entitlementSummary.commissioner
   const aiUnlocked = entitlementSummary.ai
@@ -5316,18 +5336,23 @@ function WorldCupCommunityFoundationPanel({
     { mode: "pool", label: tChat("wc.chat.mode.pool"), icon: MessageSquare },
     { mode: "dm", label: tChat("wc.chat.mode.dm"), icon: Users },
   ]
-  const aiPromptActions = useMemo(
-    () => [
-      { key: "best", label: tChat("wc.chat.chip.bestBracket"), prompt: tChat("wc.chat.prompt.bestBracket") },
-      { key: "path", label: tChat("wc.chat.chip.pathToWin"), prompt: tChat("wc.chat.prompt.pathToWin") },
+  const aiPromptActions = useMemo(() => {
+    const availability = promptAvailability ?? {
+      hasLeaderboard: true,
+      hasUserEntry: true,
+      hasCachedMatches: false,
+      isCommissioner: commissionerUnlocked,
+    }
+    return [
+      availability.hasLeaderboard ? { key: "best", label: tChat("wc.chat.chip.bestBracket"), prompt: tChat("wc.chat.prompt.bestBracket") } : null,
+      availability.hasUserEntry ? { key: "path", label: tChat("wc.chat.chip.pathToWin"), prompt: tChat("wc.chat.prompt.pathToWin") } : null,
       { key: "danger", label: tChat("wc.chat.chip.dangerGroup"), prompt: tChat("wc.chat.prompt.dangerGroup") },
-      { key: "watch", label: tChat("wc.chat.chip.watchToday"), prompt: tChat("wc.chat.prompt.watchToday") },
+      availability.hasCachedMatches || availability.hasUserEntry ? { key: "watch", label: tChat("wc.chat.chip.watchToday"), prompt: tChat("wc.chat.prompt.watchToday") } : null,
       { key: "summary", label: tChat("wc.chat.chip.summarizePool"), prompt: tChat("wc.chat.prompt.summarizePool") },
       { key: "scoring", label: tChat("wc.chat.chip.scoringRules"), prompt: tChat("wc.chat.prompt.scoringRules") },
-      { key: "commissioner", label: tChat("wc.chat.chip.commissionerSummary"), prompt: tChat("wc.chat.prompt.commissionerSummary") },
-    ],
-    [tChat]
-  )
+      availability.isCommissioner ? { key: "commissioner", label: tChat("wc.chat.chip.commissionerSummary"), prompt: tChat("wc.chat.prompt.commissionerSummary") } : null,
+    ].filter((action): action is { key: string; label: string; prompt: string } => action !== null)
+  }, [commissionerUnlocked, promptAvailability, tChat])
   const composerPlaceholder =
     chatMode === "ai"
       ? tChat("wc.chat.placeholder.ai")

@@ -96,8 +96,10 @@ describe("World Cup Chimmy reply policy", () => {
   it("system prompt is pool-scoped and forbids inventing live data", () => {
     const prompt = buildWorldCupChimmySystemPrompt("en")
     expect(prompt).toMatch(/bracket pool analyst/i)
+    expect(prompt).toMatch(/GROUNDING JSON/i)
+    expect(prompt).toMatch(/SOCCER BASICS/i)
     expect(prompt).toMatch(/Never invent scores/i)
-    expect(prompt).toMatch(/NOT in scope: general sports chat/i)
+    expect(prompt).toMatch(/NOT in scope: betting advice/i)
     expect(prompt).toMatch(/SOURCE CUE/i)
     expect(prompt).toMatch(/I don't have reliable data for that yet/i)
   })
@@ -233,6 +235,23 @@ describe("generateWorldCupChimmyPrivateReply — stabilization", () => {
     expect(result.reply).toContain("champion bonus 320")
   })
 
+  it("points question answers from saved entry without model calls", async () => {
+    const result = await replyWith({ prompt: "@chimmy how many points do I have?" })
+
+    expect(routeTextCallMock).not.toHaveBeenCalled()
+    expect(result.provider).toBe("deterministic")
+    expect(result.reply).toContain("120 pts")
+    expect(result.reply).toContain("Confidence:")
+  })
+
+  it("champion pick question answers from saved entry without model calls", async () => {
+    const result = await replyWith({ prompt: "@chimmy show my champion pick" })
+
+    expect(routeTextCallMock).not.toHaveBeenCalled()
+    expect(result.provider).toBe("deterministic")
+    expect(result.reply).toContain("Brazil")
+  })
+
   it("commissioner summary uses stored pool context instead of refusing everything", async () => {
     const result = await replyWith({ prompt: "@chimmy Commissioner: give me a pool health report" })
 
@@ -250,6 +269,15 @@ describe("generateWorldCupChimmyPrivateReply — stabilization", () => {
     expect(result.provider).toBe("deterministic")
     expect(result.reply).toContain("watch your champion pick")
     expect(result.reply).toContain("Source: stored pool data")
+  })
+
+  it("general soccer knowledge answers without model calls or fresh-data claims", async () => {
+    const result = await replyWith({ prompt: "@chimmy what is a false nine?" })
+
+    expect(routeTextCallMock).not.toHaveBeenCalled()
+    expect(result.provider).toBe("deterministic")
+    expect(result.reply).toContain("stable soccer knowledge")
+    expect(result.reply).toContain("false nine")
   })
 
   it("Spanish response when locale is Spanish", async () => {
@@ -311,6 +339,61 @@ describe("generateWorldCupChimmyPrivateReply — stabilization", () => {
     expect(routeTextCallMock).not.toHaveBeenCalled()
     expect(result.provider).toBe("deterministic")
     expect(result.reply).toContain("I don't have reliable data for that yet")
+  })
+
+  it("team schedule question uses cached fixtures without model calls", async () => {
+    const result = await replyWith({
+      prompt: "@chimmy who does Brazil play next?",
+      context: baseContext({
+        liveDataStatus: "fixture_only",
+        upcomingMatches: [
+          {
+            matchId: "m2",
+            round: "round_of_32",
+            homeTeamName: "Brazil",
+            awayTeamName: "Japan",
+            homeScore: null,
+            awayScore: null,
+            homePenaltyScore: null,
+            awayPenaltyScore: null,
+            winnerTeamName: null,
+            status: "scheduled",
+            minute: null,
+            injuryTime: null,
+            startsAt: "2026-06-16T20:00:00.000Z",
+            venueName: null,
+            venueCity: null,
+            apiStatusShort: "NS",
+            lastSyncedAt: "2026-06-15T20:30:00.000Z",
+          },
+        ],
+      }),
+    })
+
+    expect(routeTextCallMock).not.toHaveBeenCalled()
+    expect(result.provider).toBe("deterministic")
+    expect(result.reply).toContain("Brazil fixture from cache")
+    expect(result.reply).toContain("Brazil vs Japan")
+  })
+
+  it("model prompts include structured grounding JSON", async () => {
+    routeTextCallMock.mockResolvedValue({
+      ok: true,
+      text: "Grounded story: your pool is tight, with Leader ahead and Brazil as your swing pick.",
+      model: "gpt-test",
+      provider: "openai",
+      tokensUsed: 10,
+    })
+
+    const result = await replyWith({ prompt: "@chimmy run a premium multi-scenario optimization report" })
+
+    expect(routeTextCallMock).toHaveBeenCalled()
+    const call = routeTextCallMock.mock.calls[0][0]
+    const userMessage = call.messages.find((message: { role: string }) => message.role === "user")
+    expect(userMessage.content).toContain("--- GROUNDING JSON ---")
+    expect(userMessage.content).toContain('"contractVersion": "wc-chimmy-grounding-v1"')
+    expect(userMessage.content).toContain('"dataQuality"')
+    expect(result.provider).toBe("openai")
   })
 
   it("unsupported exact-data question does not call the model", async () => {

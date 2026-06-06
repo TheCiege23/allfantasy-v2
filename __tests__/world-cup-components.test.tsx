@@ -1698,6 +1698,31 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getByTestId("world-cup-chat-bubble")).toBeInTheDocument()
   })
 
+  it("filters Chimmy prompt chips to grounded prompts for non-commissioners without entries", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(
+      <WorldCupBracketShell
+        initialView={makeShellView({
+          isOwner: false,
+          isAdmin: false,
+          hasAfCommissioner: false,
+          activeEntry: null,
+          entries: [],
+          leaderboard: [],
+          matches: [],
+        }) as any}
+        defaultTab="home"
+      />
+    )
+
+    await openWorldCupChatDrawer()
+    const chips = await screen.findByTestId("wc-chat-prompt-chips")
+    expect(chips).toHaveTextContent(/scoring|rules/i)
+    expect(chips).toHaveTextContent(/summar/i)
+    expect(chips).not.toHaveTextContent(/commissioner/i)
+    expect(chips).not.toHaveTextContent(/path/i)
+  })
+
   it("loads and sends World Cup pool chat messages from the community panel", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
@@ -2654,7 +2679,11 @@ describe("WorldCupBracketShell fixture readiness", () => {
     await screen.findByTestId("world-cup-readiness-panel")
     fireEvent.click(screen.getByRole("button", { name: /Run readiness check/i }))
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    const readinessCalls = () =>
+      fetchMock.mock.calls.filter(([url]) =>
+        String(url).includes("/api/brackets/world-cup/admin/readiness?")
+      )
+    await waitFor(() => expect(readinessCalls()).toHaveLength(2))
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/api/brackets/world-cup/admin/readiness?"),
       expect.objectContaining({ cache: "no-store" })
