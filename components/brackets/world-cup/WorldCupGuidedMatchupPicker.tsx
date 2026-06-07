@@ -459,7 +459,7 @@ export default function WorldCupGuidedMatchupPicker({
     if (!isOpen) return
     if (initialMatchId) {
       const requested = projected.find((m) => m.id === initialMatchId)
-      setCurrentMatchId(requested && isWorldCupMatchPickable(requested) ? initialMatchId : null)
+      setCurrentMatchId(requested ? initialMatchId : null)
       setShowComplete(false)
       return
     }

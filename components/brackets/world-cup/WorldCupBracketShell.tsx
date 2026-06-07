@@ -3966,7 +3966,7 @@ export default function WorldCupBracketShell({
                 </div>
               </div>
 
-              <div ref={knockoutScrollRef} data-testid="world-cup-bracket-scroll" className="max-h-[72vh] overflow-auto">
+              <div ref={knockoutScrollRef} data-testid="world-cup-bracket-scroll" className="overflow-x-hidden overflow-y-visible">
                 {knockoutPicksLockedByMode ? (
                   <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-8 text-center">
                     <Lock className="mx-auto h-8 w-8 text-white/55" />
@@ -3976,7 +3976,7 @@ export default function WorldCupBracketShell({
                     </p>
                   </div>
                 ) : entryPicksHydrated ? (
-                  <AllFantasyBracketBoard mode="pick" isReadOnly={false} showBranding frameClassName="w-max min-w-max !overflow-visible" contentClassName="min-h-0 w-max min-w-max">
+                  <AllFantasyBracketBoard mode="pick" isReadOnly={false} showBranding frameClassName="w-full min-w-0 !overflow-hidden" contentClassName="min-h-0 w-full min-w-0">
                     <WorldCupBracketBoard
                       view={view}
                       picks={picks}
@@ -3987,10 +3987,7 @@ export default function WorldCupBracketShell({
                       confidenceScoringEnabled={view.challenge.confidenceScoringEnabled}
                       onPick={persistPick}
                       onOpenMatchupPicker={(matchId) => {
-                        if (!hasPickableFixtures) {
-                          toast.info(groupSeededKnockout.message)
-                          return
-                        }
+                        if (!hasPickableFixtures) toast.info(groupSeededKnockout.message)
                         setGuidedInitialMatchId(matchId)
                         setIsGuidedPickerOpen(true)
                       }}

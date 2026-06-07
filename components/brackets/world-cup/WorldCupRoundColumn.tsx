@@ -19,6 +19,7 @@ export default function WorldCupRoundColumn({
   align = "left",
   fillHeight = false,
   connectorSide = "none",
+  compactBoard = false,
 }: {
   round: WorldCupRound
   /** Translated round label supplied by the parent (avoids an extra locale hook in this component). */
@@ -36,6 +37,7 @@ export default function WorldCupRoundColumn({
   align?: "left" | "right" | "center"
   fillHeight?: boolean
   connectorSide?: "left" | "right" | "both" | "none"
+  compactBoard?: boolean
 }) {
   // Hydration-safe: seed with epoch so SSR and the first CSR render produce
   // identical HTML (kickoffPast/tournamentPast both false). After mount, swap
@@ -61,13 +63,18 @@ export default function WorldCupRoundColumn({
   return (
     <section
       className={[
-        "relative flex min-w-[17.75rem] shrink-0 flex-col gap-3 sm:min-w-[19rem]",
+        compactBoard
+          ? "relative flex min-w-0 flex-col gap-2"
+          : "relative flex min-w-[17.75rem] shrink-0 flex-col gap-3 sm:min-w-[19rem]",
         fillHeight ? "h-full" : "",
         alignClass,
       ].filter(Boolean).join(" ")}
     >
-      <div className="sticky top-0 z-20 w-full rounded-xl border border-cyan-300/15 bg-slate-950/80 px-3 py-2 shadow-[0_12px_30px_-24px_rgba(34,211,238,0.7)] backdrop-blur">
-        <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white/70">
+      <div className={[
+        "sticky top-0 z-20 w-full rounded-xl border border-cyan-300/15 bg-slate-950/80 shadow-[0_12px_30px_-24px_rgba(34,211,238,0.7)] backdrop-blur",
+        compactBoard ? "px-2 py-1.5" : "px-3 py-2",
+      ].join(" ")}>
+        <h2 className={`${compactBoard ? "text-[10px] tracking-[0.16em]" : "text-xs tracking-[0.2em]"} font-black uppercase text-white/70`}>
           {label}
         </h2>
       </div>
@@ -115,6 +122,8 @@ export default function WorldCupRoundColumn({
               isSaving={savingMatchIds?.has(match.id) ?? false}
               aiInsightsUnlocked={aiInsightsUnlocked}
               confidenceScoringEnabled={confidenceScoringEnabled}
+              compactBoard={compactBoard}
+              pickInModalOnly={compactBoard}
             />
           )
         })}

@@ -1,8 +1,9 @@
 "use client"
 import { useMemo, useState } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, CheckCircle, Info, Loader2, Lock, Trophy, Users } from "lucide-react"
+import { ArrowLeft, CheckCircle, Coins, Info, Loader2, Lock, Sparkles, Trophy, Users } from "lucide-react"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import { ThemeModeSelect } from "@/components/theme/ThemeModeSelect"
 import { makeWcT } from "@/lib/world-cup/worldCupI18n"
@@ -285,6 +286,34 @@ export default function WorldCupBracketCreateModal() {
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/50" />
               <div className="text-xs text-white/45">
                 <span className="font-bold text-white/60">{t("wc.create.scoring.intro")}</span> {t("wc.create.scoring.values")}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-amber-300/20 bg-gradient-to-br from-amber-300/[0.10] via-white/[0.035] to-cyan-300/[0.06] p-3">
+              <div className="flex items-start gap-2">
+                <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-200" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-black text-white">{t("wc.create.monetization.title")}</p>
+                  <p className="mt-1 text-xs leading-5 text-white/55">
+                    {t("wc.create.monetization.body")}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  href="/pricing?from=wc-create"
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-amber-300 px-3 py-2 text-[11px] font-black text-slate-950"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {t("wc.create.monetization.proCta")}
+                </Link>
+                <Link
+                  href="/tokens?from=wc-create"
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-cyan-200/25 bg-cyan-300/[0.08] px-3 py-2 text-[11px] font-black text-cyan-50"
+                >
+                  <Coins className="h-3.5 w-3.5" />
+                  {t("wc.create.monetization.tokensCta")}
+                </Link>
               </div>
             </div>
 
