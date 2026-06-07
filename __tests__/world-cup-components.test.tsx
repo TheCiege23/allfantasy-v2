@@ -142,6 +142,7 @@ function mockSettingsPayload(overrides: Partial<Record<string, unknown>> = {}) {
       scoringStyle: "standard",
       tiebreakerFinalScore: false,
       allowLateJoin: false,
+      knockoutEditOverrideEnabled: false,
       showPublicPicks: "after_lock",
       knockoutMode: "predictive",
       bracketBrainEnabled: true,
@@ -156,6 +157,7 @@ function mockSettingsPayload(overrides: Partial<Record<string, unknown>> = {}) {
       enableAiSummaries: false,
     },
     hasAfPro: false,
+    hasAfCommissioner: true,
     isAdmin: false,
     earlyPublicPicksAllowed: false,
     ...overrides,
@@ -445,6 +447,55 @@ describe("WorldCupBracketSettingsPanel", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
     expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toMatchObject({ knockoutMode: "knockout_only" })
     expect(document.body.textContent).toMatch(/Knockout Only/)
+  })
+
+  it("lets commissioners enable the audited post-lock knockout override", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockSettingsPayload({
+          hasAfCommissioner: true,
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          settings: mockSettingsPayload({
+            hasAfCommissioner: true,
+            leagueSettings: {
+              scoringStyle: "standard",
+              tiebreakerFinalScore: false,
+              allowLateJoin: false,
+              knockoutEditOverrideEnabled: true,
+              showPublicPicks: "after_lock",
+              knockoutMode: "predictive",
+              bracketBrainEnabled: true,
+              inviteGateConfigured: false,
+            },
+          }),
+          hasAfPro: false,
+          hasAfCommissioner: true,
+          isAdmin: false,
+          earlyPublicPicksAllowed: false,
+        }),
+      })
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupBracketSettingsPanel = (await import("@/components/brackets/world-cup/WorldCupBracketSettingsPanel"))
+      .default
+    render(<WorldCupBracketSettingsPanel challengeId="ch1" />)
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("world-cup-settings-loading")).not.toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId("world-cup-settings-knockout-edit-override"))
+    fireEvent.click(screen.getByTestId("world-cup-settings-save"))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toMatchObject({
+      knockoutEditOverrideEnabled: true,
+    })
   })
 
   it("does not show Bracket Brain toggle for non-Pro", async () => {

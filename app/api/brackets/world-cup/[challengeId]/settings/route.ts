@@ -99,6 +99,7 @@ export async function PATCH(
       userHasAfPro: hasAfPro,
       userHasAfCommissioner: hasAfCommissioner,
       isAdmin,
+      actorUserId: auth.user.id,
       patch: parsed.data,
     })
   } catch (e) {

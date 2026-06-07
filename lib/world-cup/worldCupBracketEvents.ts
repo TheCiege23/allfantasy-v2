@@ -28,6 +28,7 @@ export const WORLD_CUP_BRACKET_EVENT_TYPES = {
   /** Commissioner / system nudge listing incomplete entries before lock */
   INCOMPLETE_BRACKETS_WARNING: "world_cup.incomplete_brackets_warning",
   COMMISSIONER_BRAIN_MESSAGE: "world_cup.commissioner_brain_message",
+  KNOCKOUT_OVERRIDE: "world_cup.knockout_override",
 } as const
 
 export type WorldCupBracketEventType =

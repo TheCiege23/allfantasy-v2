@@ -21,6 +21,7 @@ export const worldCupBracketSettingsPatchSchema = z
       .optional(),
     tiebreakerFinalScore: z.boolean().optional(),
     allowLateJoin: z.boolean().optional(),
+    knockoutEditOverrideEnabled: z.boolean().optional(),
     showPublicPicks: z.enum(["after_lock", "never", "always"]).optional(),
     knockoutMode: z.enum(["predictive", "reseeded", "knockout_only"]).optional(),
     confidenceScoringEnabled: z.boolean().optional(),

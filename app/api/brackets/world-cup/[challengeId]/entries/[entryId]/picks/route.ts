@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import {
   WORLD_CUP_BRACKET_LOCKED_MESSAGE,
+  emitWorldCupKnockoutOverrideAuditEvent,
+  canUseWorldCupPostLockKnockoutEditOverride,
   getWorldCupChallengeView,
   getWorldCupBracketEntryDetail,
   saveWorldCupBracketPickForEntry,
@@ -194,7 +196,16 @@ export async function DELETE(
       matches: entry.challenge.matches,
       entry,
     })
-    if (lock.locked) {
+    const allowPostLockKnockoutOverride =
+      lock.locked &&
+      parsed.data.matchIds.every((matchId) =>
+        canUseWorldCupPostLockKnockoutEditOverride({
+          challenge: entry.challenge,
+          match: entry.challenge.matches.find((match) => match.id === matchId) ?? null,
+          matches: entry.challenge.matches,
+        })
+      )
+    if (lock.locked && !allowPostLockKnockoutOverride) {
       return NextResponse.json({ error: WORLD_CUP_BRACKET_LOCKED_MESSAGE }, { status: 423 })
     }
 
@@ -209,6 +220,15 @@ export async function DELETE(
       await prisma.worldCupBracketEntry.update({
         where: { id: params.data.entryId },
         data: { submittedAt: null, isComplete: false },
+      })
+    }
+    if (deleted.count > 0 && allowPostLockKnockoutOverride) {
+      await emitWorldCupKnockoutOverrideAuditEvent({
+        action: "pick_cleared",
+        challengeId: params.data.challengeId,
+        entryId: params.data.entryId,
+        userId: auth.user.id,
+        matchIds: parsed.data.matchIds,
       })
     }
 

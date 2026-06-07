@@ -32,6 +32,7 @@ type BundleLeague = {
   scoringStyle?: "standard" | "custom"
   tiebreakerFinalScore?: boolean
   allowLateJoin?: boolean
+  knockoutEditOverrideEnabled?: boolean
   showPublicPicks?: "after_lock" | "never" | "always"
   knockoutMode?: "predictive" | "reseeded" | "knockout_only"
   confidenceScoringEnabled?: boolean
@@ -134,6 +135,7 @@ export default function WorldCupBracketSettingsPanel({
 
   const [tiebreakerFinalScore, setTiebreakerFinalScore] = useState(false)
   const [allowLateJoin, setAllowLateJoin] = useState(false)
+  const [knockoutEditOverrideEnabled, setKnockoutEditOverrideEnabled] = useState(false)
   const [showPublicPicks, setShowPublicPicks] = useState<"after_lock" | "never" | "always">("after_lock")
   const [knockoutMode, setKnockoutMode] = useState<"predictive" | "reseeded" | "knockout_only">("predictive")
   const [confidenceScoringEnabled, setConfidenceScoringEnabled] = useState(false)
@@ -173,6 +175,7 @@ export default function WorldCupBracketSettingsPanel({
 
     setTiebreakerFinalScore(l.tiebreakerFinalScore ?? false)
     setAllowLateJoin(l.allowLateJoin ?? false)
+    setKnockoutEditOverrideEnabled(l.knockoutEditOverrideEnabled === true)
     setShowPublicPicks(l.showPublicPicks ?? "after_lock")
     setKnockoutMode(l.knockoutMode ?? "predictive")
     setConfidenceScoringEnabled(l.confidenceScoringEnabled === true)
@@ -304,6 +307,9 @@ export default function WorldCupBracketSettingsPanel({
     }
     if (allowLateJoin !== (payload.leagueSettings.allowLateJoin ?? false)) {
       patch.allowLateJoin = allowLateJoin
+    }
+    if (knockoutEditOverrideEnabled !== (payload.leagueSettings.knockoutEditOverrideEnabled === true)) {
+      patch.knockoutEditOverrideEnabled = knockoutEditOverrideEnabled
     }
     if (showPublicPicks !== (payload.leagueSettings.showPublicPicks ?? "after_lock")) {
       patch.showPublicPicks = showPublicPicks
@@ -637,6 +643,22 @@ export default function WorldCupBracketSettingsPanel({
             className="h-4 w-4 accent-cyan-400"
           />
           Allow late join after bracket lock (off by default)
+        </label>
+        <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-lg border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-xs text-white/75">
+          <input
+            data-testid="world-cup-settings-knockout-edit-override"
+            type="checkbox"
+            checked={knockoutEditOverrideEnabled}
+            disabled={!hasAfCommissioner}
+            onChange={(e) => setKnockoutEditOverrideEnabled(e.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-amber-300"
+          />
+          <span>
+            <span className="block font-bold text-white/85">Commissioner post-lock knockout override</span>
+            <span className="mt-1 block text-[11px] leading-5 text-white/50">
+              Lets participants edit their own scheduled knockout picks after pool lock. Live, final, and per-match-started games stay locked and every use is audited.
+            </span>
+          </span>
         </label>
         <label className="mt-3 block text-xs text-white/70">
           Show public picks
