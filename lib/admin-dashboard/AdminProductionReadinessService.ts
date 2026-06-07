@@ -118,7 +118,7 @@ const ENV_REQUIREMENTS: EnvRequirement[] = [
     category: "General sports",
     label: "College Football Data",
     severity: "optional",
-    anyOf: ["CFBD_API_KEY"],
+    anyOf: ["CFBD_API_KEY", "CFBD_KEY"],
     note: "NCAAF schedule/team fallback only; does not cover every fantasy need.",
   },
   {

@@ -1,5 +1,5 @@
 /** Public Discord application id (OAuth + bot install). */
-export const DISCORD_CLIENT_ID = '1482905012542767275'
+export const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID?.trim() || '1482905012542767275'
 
 /** Must match Discord Developer Portal redirect and the authorize request. */
 export const DISCORD_OAUTH_REDIRECT_URI =
