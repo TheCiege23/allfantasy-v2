@@ -1,9 +1,10 @@
 import type { WorldCupMatchView } from "./types"
 
-export const WORLD_CUP_KNOCKOUT_MODES = ["predictive", "reseeded"] as const
+export const WORLD_CUP_KNOCKOUT_MODES = ["predictive", "reseeded", "knockout_only"] as const
 export type WorldCupKnockoutMode = (typeof WORLD_CUP_KNOCKOUT_MODES)[number]
 
 export function normalizeWorldCupKnockoutMode(value: unknown): WorldCupKnockoutMode {
+  if (value === "knockout_only") return "knockout_only"
   return value === "reseeded" ? "reseeded" : "predictive"
 }
 

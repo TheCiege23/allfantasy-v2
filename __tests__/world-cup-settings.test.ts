@@ -73,11 +73,13 @@ describe("World Cup bracket settings validation", () => {
     expect(parseWorldCupLeagueSettings(null).knockoutMode).toBe("predictive")
     expect(parseWorldCupLeagueSettings({ leagueSettings: {} }).knockoutMode).toBe("predictive")
     expect(parseWorldCupLeagueSettings({ leagueSettings: { knockoutMode: "reseeded" } }).knockoutMode).toBe("reseeded")
+    expect(parseWorldCupLeagueSettings({ leagueSettings: { knockoutMode: "knockout_only" } }).knockoutMode).toBe("knockout_only")
   })
 
-  it("schema accepts predictive and reseeded knockout modes", () => {
+  it("schema accepts predictive, reseeded, and knockout-only modes", () => {
     expect(worldCupBracketSettingsPatchSchema.safeParse({ knockoutMode: "predictive" }).success).toBe(true)
     expect(worldCupBracketSettingsPatchSchema.safeParse({ knockoutMode: "reseeded" }).success).toBe(true)
+    expect(worldCupBracketSettingsPatchSchema.safeParse({ knockoutMode: "knockout_only" }).success).toBe(true)
     expect(worldCupBracketSettingsPatchSchema.safeParse({ knockoutMode: "moneyline" }).success).toBe(false)
   })
 
@@ -344,11 +346,11 @@ describe("World Cup bracket settings validation", () => {
       challengeId: "c1",
       userHasAfPro: true,
       isAdmin: true,
-      patch: { knockoutMode: "reseeded" },
+      patch: { knockoutMode: "knockout_only" },
     })
 
     const payload = challengeUpdate.mock.calls[0]?.[0]?.data?.sourcePayload as Record<string, unknown>
-    expect((payload.leagueSettings as Record<string, unknown>).knockoutMode).toBe("reseeded")
+    expect((payload.leagueSettings as Record<string, unknown>).knockoutMode).toBe("knockout_only")
   })
 })
 

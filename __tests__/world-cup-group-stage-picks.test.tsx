@@ -106,6 +106,17 @@ describe("WorldCupGroupStagePicks", () => {
     expect(within(group).getByText("AI Insights").compareDocumentPosition(within(group).getByRole("button", { name: /Saved/i }))).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
+  it("renders drag handles while preserving tap-friendly up/down controls", async () => {
+    const WorldCupGroupStagePicks = (await import("@/components/brackets/world-cup/WorldCupGroupStagePicks")).default
+    render(<WorldCupGroupStagePicks challengeId="c1" entryId="entry-1" />)
+
+    const group = await screen.findByTestId("world-cup-group-A")
+    expect(within(group).getByText(/Drag teams to rank the group/i)).toBeInTheDocument()
+    expect(within(group).getAllByRole("button", { name: /Drag team to rank/i })).toHaveLength(4)
+    expect(within(group).getAllByRole("button", { name: /Move Up/i })).toHaveLength(4)
+    expect(within(group).getAllByRole("button", { name: /Move Down/i })).toHaveLength(4)
+  })
+
   it("opens deterministic group AI insights for AI/Pro users without betting copy", async () => {
     const WorldCupGroupStagePicks = (await import("@/components/brackets/world-cup/WorldCupGroupStagePicks")).default
     render(<WorldCupGroupStagePicks challengeId="c1" entryId="entry-1" aiInsightsUnlocked />)

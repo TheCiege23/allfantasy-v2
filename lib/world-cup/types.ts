@@ -4,7 +4,7 @@ export type WorldCupRound = (typeof WORLD_CUP_ROUNDS)[number]
 export type WorldCupMatchStatus = "scheduled" | "live" | "halftime" | "final" | "postponed" | "cancelled"
 export type WorldCupPickLockStrategy = "per_match" | "tournament_start"
 export type WorldCupVisibility = "public" | "private"
-export type WorldCupKnockoutMode = "predictive" | "reseeded"
+export type WorldCupKnockoutMode = "predictive" | "reseeded" | "knockout_only"
 export const WORLD_CUP_ROUND_LABELS: Record<WorldCupRound, string> = {
   round_of_32: "Round of 32",
   round_of_16: "Round of 16",

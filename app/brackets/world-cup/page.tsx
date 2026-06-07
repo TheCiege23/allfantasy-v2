@@ -136,7 +136,7 @@ export default async function WorldCupBracketsPage() {
   const t = makeWcT(language)
 
   return (
-    <main className="af-world-cup-page mode-readable relative min-h-screen overflow-hidden bg-[#05070b] text-white">
+    <main className="mode-readable af-world-cup-page relative min-h-screen overflow-hidden bg-[#05070b] text-white">
       {/* ── Atmospheric background ──────────────────────────────────── */}
       <div aria-hidden className="af-world-cup-atmosphere pointer-events-none absolute inset-0 -z-0">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(20,184,166,0.16),transparent_55%),radial-gradient(ellipse_at_bottom,rgba(67,56,202,0.12),transparent_60%)]" />

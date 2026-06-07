@@ -185,6 +185,27 @@ describe("World Cup bracket creation fixture readiness", () => {
     expect(prismaMocks.challengeCreate.mock.calls[0]?.[0]?.data.sourcePayload).toBeUndefined()
   })
 
+  it("stores knockout-only league settings and disables third-place on create", async () => {
+    await createWorldCupBracketChallenge({
+      user: { id: "user-1", name: "Owner" },
+      name: "Knockout Only",
+      knockoutMode: "knockout_only",
+      includeThirdPlace: true,
+    })
+
+    const challengeData = prismaMocks.challengeCreate.mock.calls[0]?.[0]?.data
+    expect(challengeData).toMatchObject({
+      includeThirdPlace: false,
+      sourcePayload: {
+        leagueSettings: {
+          knockoutMode: "knockout_only",
+        },
+      },
+    })
+    expect(prismaMocks.matchCreateMany.mock.calls[0]?.[0]?.data).toHaveLength(31)
+    expect(loadTestFixturesMock).not.toHaveBeenCalled()
+  })
+
   it("blocks direct joins when an invite link is expired", async () => {
     prismaMocks.inviteFindUnique.mockResolvedValueOnce({
       id: "invite-1",

@@ -89,24 +89,35 @@ export async function getWorldCupEntryCompletionReview(input: {
     throw new Error("Entry not found")
   }
 
-  const groupCompletion = getWorldCupGroupStageCompletionState({
-    groupRankingPicks: entry.groupRankingPicks,
-    thirdPlaceAdvancerPicks: entry.thirdPlaceAdvancerPicks,
-  })
+  const knockoutMode = getWorldCupKnockoutModeFromPayload(entry.challenge.sourcePayload)
+  const knockoutOnly = knockoutMode === "knockout_only"
+  const groupCompletion = knockoutOnly
+    ? {
+        groupsRankedCount: 0,
+        allGroupsRanked: true,
+        thirdPlaceSelectedCount: 0,
+        thirdPlaceComplete: true,
+        groupStageComplete: true,
+      }
+    : getWorldCupGroupStageCompletionState({
+        groupRankingPicks: entry.groupRankingPicks,
+        thirdPlaceAdvancerPicks: entry.thirdPlaceAdvancerPicks,
+      })
   const rankedKeys = rankedGroupKeys({
     groups: entry.challenge.groups,
     groupRankingPicks: entry.groupRankingPicks,
   })
-  const missingGroups = entry.challenge.groups
-    .map((group) => group.groupKey)
-    .filter((groupKey) => !rankedKeys.has(groupKey))
-  const knockoutMode = getWorldCupKnockoutModeFromPayload(entry.challenge.sourcePayload)
+  const missingGroups = knockoutOnly
+    ? []
+    : entry.challenge.groups
+        .map((group) => group.groupKey)
+        .filter((groupKey) => !rankedKeys.has(groupKey))
   const reseededReady = hasOfficialWorldCupReseededKnockoutFixtures(
     entry.challenge.matches as Parameters<typeof hasOfficialWorldCupReseededKnockoutFixtures>[0]
   )
-  const groupStageView = await getWorldCupGroupStageView(input)
+  const groupStageView = knockoutOnly ? null : await getWorldCupGroupStageView(input)
   const generatedKnockoutMatches =
-    knockoutMode === "reseeded"
+    knockoutMode === "reseeded" || knockoutOnly
       ? entry.challenge.matches
       : buildWorldCupMatchesFromGroupPredictions({
           matches: entry.challenge.matches as Parameters<typeof isWorldCupEntryCompleteFromSelections>[0]["matches"],

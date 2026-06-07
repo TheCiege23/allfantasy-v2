@@ -1,7 +1,24 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
-import { Check, Info, Loader2, Sparkles } from "lucide-react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { Check, GripVertical, Info, Loader2, Sparkles } from "lucide-react"
 import {
   fetchWorldCupGroupStageView,
   saveWorldCupGroupRankingClient,
@@ -215,6 +232,61 @@ function TeamPickInfo({
   )
 }
 
+function SortableTeamPickCard({
+  id,
+  disabled,
+  className,
+  testId,
+  resultState,
+  t,
+  children,
+}: {
+  id: string
+  disabled: boolean
+  className: string
+  testId: string
+  resultState: "correct" | "wrong" | "pending" | "none"
+  t: TranslateFn
+  children: ReactNode
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id,
+    disabled,
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      data-testid={testId}
+      data-result-state={resultState}
+      className={`${className} ${isDragging ? "z-20 scale-[1.015] border-cyan-200/90 bg-cyan-300/[0.13] shadow-[0_20px_60px_rgba(34,211,238,0.28)]" : ""}`}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+    >
+      <button
+        type="button"
+        aria-label={t("wc.groupStage.dragHandle")}
+        disabled={disabled}
+        className="flex min-h-11 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-200/20 bg-cyan-300/[0.08] text-cyan-100 touch-none disabled:cursor-not-allowed disabled:opacity-35"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4" aria-hidden="true" />
+      </button>
+      {children}
+    </div>
+  )
+}
+
 function GroupAiInsightPanel({
   groupName,
   groupKey,
@@ -331,6 +403,10 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
   const [thirdPlaceError, setThirdPlaceError] = useState<string | null>(null)
   const savingGroupIdsRef = useRef<Set<string>>(new Set())
   const savingThirdPlaceRef = useRef(false)
+  const dragSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -394,6 +470,15 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
   function setGroupOrder(groupId: string, orderedTeamIds: string[]) {
     setLocalOrders((prev) => ({ ...prev, [groupId]: orderedTeamIds }))
     setSaveStates((prev) => ({ ...prev, [groupId]: "dirty" }))
+  }
+
+  function handleGroupDragEnd(groupId: string, order: string[], event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = order.indexOf(String(active.id))
+    const newIndex = order.indexOf(String(over.id))
+    if (oldIndex < 0 || newIndex < 0) return
+    setGroupOrder(groupId, arrayMove(order, oldIndex, newIndex))
   }
 
   async function saveGroup(groupId: string) {
@@ -536,17 +621,29 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                 <h3 className="font-black text-white">{group.displayName}</h3>
                 <span className="text-xs text-white/45">{t("wc.groupStage.teamCount", { count: order.length })}</span>
               </div>
-              <div className="space-y-2">
+              <p className="mb-2 rounded-xl border border-cyan-200/15 bg-cyan-300/[0.05] px-3 py-2 text-[11px] font-bold text-cyan-50/80">
+                {t("wc.groupStage.dragHint")}
+              </p>
+              <DndContext
+                sensors={dragSensors}
+                collisionDetection={closestCenter}
+                onDragEnd={(event) => handleGroupDragEnd(group.id, order, event)}
+              >
+                <SortableContext items={order} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-2">
                 {order.map((teamId, index) => {
                   const team = findTeam(group.teams, teamId)
                   const pick = groupPickForTeam(view, group.id, teamId)
                   const status = groupRankingResultStatus(view, group.id, teamId)
                   const badge = resultBadge(status, t, pick?.pointsAwarded ?? 0)
                   return (
-                    <div
+                    <SortableTeamPickCard
                       key={teamId}
-                      data-testid={`world-cup-group-pick-result-${group.groupKey}-${teamId}`}
-                      data-result-state={status}
+                      id={teamId}
+                      disabled={isLocked}
+                      testId={`world-cup-group-pick-result-${group.groupKey}-${teamId}`}
+                      resultState={status}
+                      t={t}
                       className={`flex flex-wrap items-center gap-2 rounded-2xl border bg-black/20 px-2 py-2 shadow-[0_12px_30px_rgba(0,0,0,0.18)] ${resultBorderClass(status)}`}
                     >
                       <span className="w-7 shrink-0 text-center text-sm font-black text-white/90">{index + 1}</span>
@@ -584,10 +681,12 @@ export default function WorldCupGroupStagePicks({ challengeId, entryId, onComple
                       {team ? (
                         <TeamPickInfo groupKey={group.groupKey} predictedRank={index + 1} team={team} t={t} />
                       ) : null}
-                    </div>
+                    </SortableTeamPickCard>
                   )
                 })}
-              </div>
+                  </div>
+                </SortableContext>
+              </DndContext>
               {!hasCompleteTeams ? (
                 <p className="mt-3 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-xs font-bold text-white/80">
                   {t("wc.groupStage.needsFourTeams", { group: group.displayName })}

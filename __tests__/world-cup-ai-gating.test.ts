@@ -27,6 +27,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     worldCupBracketChatEvent: {
       count: vi.fn(),
+      findMany: vi.fn(),
     },
   },
 }))
@@ -317,15 +318,26 @@ describe("checkWcAiCap", () => {
 
 describe("checkWorldCupChimmyRateLimit — tier-aware", () => {
   const mockPrisma = prisma as unknown as {
-    worldCupBracketChatEvent: { count: ReturnType<typeof vi.fn> }
+    worldCupBracketChatEvent: { count: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> }
   }
 
   beforeEach(() => {
     mockPrisma.worldCupBracketChatEvent.count.mockReset()
+    mockPrisma.worldCupBracketChatEvent.findMany.mockReset()
   })
 
+  function generatedAiRows(count: number, userId: string) {
+    return Array.from({ length: count }, () => ({
+      metadata: {
+        targetUserId: userId,
+        provider: "openai",
+        model: "gpt-4o-mini",
+      },
+    }))
+  }
+
   it("free tier: blocks at 3 calls", async () => {
-    mockPrisma.worldCupBracketChatEvent.count.mockResolvedValue(3)
+    mockPrisma.worldCupBracketChatEvent.findMany.mockResolvedValue(generatedAiRows(3, "user-1"))
     const result = await checkWorldCupChimmyRateLimit("user-1", new Date(), "free")
     expect(result.allowed).toBe(false)
     expect(result.limit).toBe(DAILY_CAP_LIMITS.chimmy.free)
@@ -333,33 +345,33 @@ describe("checkWorldCupChimmyRateLimit — tier-aware", () => {
   })
 
   it("free tier: allows at 2 calls", async () => {
-    mockPrisma.worldCupBracketChatEvent.count.mockResolvedValue(2)
+    mockPrisma.worldCupBracketChatEvent.findMany.mockResolvedValue(generatedAiRows(2, "user-2"))
     const result = await checkWorldCupChimmyRateLimit("user-2", new Date(), "free")
     expect(result.allowed).toBe(true)
   })
 
   it("pro tier: blocks at 30 calls", async () => {
-    mockPrisma.worldCupBracketChatEvent.count.mockResolvedValue(30)
+    mockPrisma.worldCupBracketChatEvent.findMany.mockResolvedValue(generatedAiRows(30, "user-3"))
     const result = await checkWorldCupChimmyRateLimit("user-3", new Date(), "pro")
     expect(result.allowed).toBe(false)
     expect(result.limit).toBe(30)
   })
 
   it("pro tier: allows at 29 calls", async () => {
-    mockPrisma.worldCupBracketChatEvent.count.mockResolvedValue(29)
+    mockPrisma.worldCupBracketChatEvent.findMany.mockResolvedValue(generatedAiRows(29, "user-4"))
     const result = await checkWorldCupChimmyRateLimit("user-4", new Date(), "pro")
     expect(result.allowed).toBe(true)
   })
 
   it("admin tier: blocks at 75 calls", async () => {
-    mockPrisma.worldCupBracketChatEvent.count.mockResolvedValue(75)
+    mockPrisma.worldCupBracketChatEvent.findMany.mockResolvedValue(generatedAiRows(75, "user-5"))
     const result = await checkWorldCupChimmyRateLimit("user-5", new Date(), "admin")
     expect(result.allowed).toBe(false)
     expect(result.limit).toBe(75)
   })
 
   it("default tier (no tier arg) is 'pro' — allows at 29 calls", async () => {
-    mockPrisma.worldCupBracketChatEvent.count.mockResolvedValue(29)
+    mockPrisma.worldCupBracketChatEvent.findMany.mockResolvedValue(generatedAiRows(29, "user-6"))
     // Should default to 'pro' tier (30/day)
     const result = await checkWorldCupChimmyRateLimit("user-6", new Date())
     expect(result.allowed).toBe(true)
@@ -367,7 +379,7 @@ describe("checkWorldCupChimmyRateLimit — tier-aware", () => {
   })
 
   it("fails open (allowed:true) on DB error", async () => {
-    mockPrisma.worldCupBracketChatEvent.count.mockRejectedValue(new Error("timeout"))
+    mockPrisma.worldCupBracketChatEvent.findMany.mockRejectedValue(new Error("timeout"))
     const result = await checkWorldCupChimmyRateLimit("user-7", new Date(), "pro")
     expect(result.allowed).toBe(true)
     expect(result.used).toBe(0)

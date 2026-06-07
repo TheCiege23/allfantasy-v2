@@ -21,6 +21,7 @@ const createWorldCupChallengeSchema = z.object({
   pickLockStrategy: z.enum(["per_match", "tournament_start"]).optional(),
   lockRule: z.enum(["per_match", "tournament_start"]).optional(),
   pickLockAt: z.string().datetime().nullable().optional(),
+  knockoutMode: z.enum(["predictive", "reseeded", "knockout_only"]).optional(),
   includeThirdPlace: z.boolean().optional(),
   includeThirdPlaceMatch: z.boolean().optional(),
   maxParticipants: z.coerce.number().int().min(2).max(100).optional(),
@@ -77,6 +78,7 @@ export async function POST(request: Request) {
     isPrivate: body?.isPrivate ?? null,
     pickLockStrategy: body?.pickLockStrategy ?? null,
     lockRule: body?.lockRule ?? null,
+    knockoutMode: body?.knockoutMode ?? null,
     includeThirdPlace: body?.includeThirdPlace ?? null,
     includeThirdPlaceMatch: body?.includeThirdPlaceMatch ?? null,
     maxParticipants: body?.maxParticipants ?? null,
@@ -107,7 +109,11 @@ export async function POST(request: Request) {
       (parsed.data.isPrivate === undefined ? "private" : parsed.data.isPrivate ? "private" : "public"),
     pickLockStrategy: parsed.data.pickLockStrategy ?? parsed.data.lockRule ?? "tournament_start",
     pickLockAt: parsed.data.pickLockAt ? new Date(parsed.data.pickLockAt) : null,
-    includeThirdPlace: parsed.data.includeThirdPlace ?? parsed.data.includeThirdPlaceMatch ?? false,
+    knockoutMode: parsed.data.knockoutMode ?? "predictive",
+    includeThirdPlace:
+      parsed.data.knockoutMode === "knockout_only"
+        ? false
+        : parsed.data.includeThirdPlace ?? parsed.data.includeThirdPlaceMatch ?? false,
     maxParticipants: parsed.data.maxParticipants ?? parsed.data.maxUsers ?? 100,
     maxEntriesPerParticipant: parsed.data.maxEntriesPerParticipant ?? parsed.data.bracketsPerUser ?? 5,
     isTestMode: parsed.data.isTestMode ?? parsed.data.seedTestFixtures ?? parsed.data.loadTestFixtures ?? parsed.data.useTestFixtures ?? false,
@@ -122,7 +128,10 @@ export async function POST(request: Request) {
     scoring: parsed.data.scoring,
   } as const
 
-  if (normalized.pickLockStrategy !== "tournament_start" && !modeAccess.isAdmin) {
+  const advancedCreateMode =
+    normalized.pickLockStrategy !== "tournament_start" ||
+    normalized.knockoutMode !== "predictive"
+  if (advancedCreateMode && !modeAccess.isAdmin) {
     const hasAfCommissioner = await userHasWorldCupCommissionerAccess(
       auth.user.id,
       auth.user.email ?? null
@@ -130,7 +139,7 @@ export async function POST(request: Request) {
     if (!hasAfCommissioner) {
       return NextResponse.json(
         {
-          error: "AF Commissioner is required for custom World Cup lock rules.",
+          error: "AF Commissioner is required for custom World Cup lock rules and advanced bracket formats.",
           upgrade: true,
           upgradePath: "/commissioner-upgrade?feature=advanced_scoring",
         },
@@ -145,6 +154,7 @@ export async function POST(request: Request) {
     visibility: normalized.visibility,
     pickLockStrategy: normalized.pickLockStrategy,
     pickLockAt: normalized.pickLockAt?.toISOString() ?? null,
+    knockoutMode: normalized.knockoutMode,
     includeThirdPlace: normalized.includeThirdPlace,
     maxParticipants: normalized.maxParticipants,
     maxEntriesPerParticipant: normalized.maxEntriesPerParticipant,

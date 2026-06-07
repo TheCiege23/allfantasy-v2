@@ -60,7 +60,7 @@ import {
   buildWorldCupProjectedMatches,
   getOrderedRounds,
 } from "@/lib/world-cup/worldCupProjectedBracket"
-import { hasOfficialWorldCupReseededKnockoutFixtures } from "@/lib/world-cup/worldCupKnockoutMode"
+import { hasOfficialWorldCupReseededKnockoutFixtures, normalizeWorldCupKnockoutMode } from "@/lib/world-cup/worldCupKnockoutMode"
 import { calculateWorldCupBracketHealth } from "@/lib/world-cup/worldCupAiInsights"
 import {
   buildWorldCupPathToWinInsight,
@@ -417,7 +417,7 @@ function normalizeWorldCupView(input: WorldCupChallengeView | (Partial<WorldCupC
         effectivePickLockAt: challengeRaw?.effectivePickLockAt ?? null,
         status: challengeRaw?.status ?? "open",
         includeThirdPlace: Boolean(challengeRaw?.includeThirdPlace),
-        knockoutMode: challengeRaw?.knockoutMode === "reseeded" ? "reseeded" : "predictive",
+        knockoutMode: normalizeWorldCupKnockoutMode(challengeRaw?.knockoutMode),
         confidenceScoringEnabled: Boolean(challengeRaw?.confidenceScoringEnabled),
         isTestMode: Boolean(challengeRaw?.isTestMode),
         simulationEnabled: Boolean(challengeRaw?.simulationEnabled),
@@ -459,7 +459,7 @@ function normalizeWorldCupView(input: WorldCupChallengeView | (Partial<WorldCupC
       effectivePickLockAt: challengeRaw?.effectivePickLockAt ?? null,
       status: challengeRaw?.status ?? "open",
       includeThirdPlace: Boolean(challengeRaw?.includeThirdPlace),
-      knockoutMode: challengeRaw?.knockoutMode === "reseeded" ? "reseeded" : "predictive",
+      knockoutMode: normalizeWorldCupKnockoutMode(challengeRaw?.knockoutMode),
       confidenceScoringEnabled: Boolean(challengeRaw?.confidenceScoringEnabled),
       isTestMode: Boolean(challengeRaw?.isTestMode),
       simulationEnabled: Boolean(challengeRaw?.simulationEnabled),
@@ -768,6 +768,7 @@ export default function WorldCupBracketShell({
   const latestViewRef = useRef(normalizedInitialView)
 
   const challengeId = view.challenge.id
+  const isKnockoutOnlyPool = view.challenge.knockoutMode === "knockout_only"
 
   const showCommissionerTab = Boolean(view.isOwner || view.isAdmin)
   const showAdminControls = Boolean(view.isAdmin)
@@ -782,11 +783,13 @@ export default function WorldCupBracketShell({
   )
   const aiInsightsUnlocked = entitlementSummary.ai
   const tabList = useMemo(() => {
-    const list = BASE_TABS.map((entry) => ({
-      ...entry,
-      label: t(entry.labelKey),
-      shortLabel: t(entry.shortLabelKey),
-    }))
+    const list = BASE_TABS
+      .filter((entry) => !isKnockoutOnlyPool || entry.id !== "group-stage")
+      .map((entry) => ({
+        ...entry,
+        label: t(entry.labelKey),
+        shortLabel: t(entry.shortLabelKey),
+      }))
     if (showCommissionerTab) {
       list.push({
         id: "settings",
@@ -806,7 +809,7 @@ export default function WorldCupBracketShell({
       })
     }
     return list
-  }, [showCommissionerTab, t])
+  }, [isKnockoutOnlyPool, showCommissionerTab, t])
 
   useEffect(() => {
     latestViewRef.current = view
@@ -882,6 +885,13 @@ export default function WorldCupBracketShell({
     },
     [router, selectedEntryId]
   )
+
+  useEffect(() => {
+    if (!isKnockoutOnlyPool || tab !== "group-stage") return
+    setHasUnsavedGroupChanges(false)
+    setTab("picks")
+    updateTabUrl("picks", selectedEntryId, "replace")
+  }, [isKnockoutOnlyPool, selectedEntryId, tab, updateTabUrl])
 
   const confirmLeavingGroupStage = useCallback(() => {
     if (tab !== "group-stage" || !hasUnsavedGroupChanges) return true
@@ -1040,6 +1050,11 @@ export default function WorldCupBracketShell({
       setKnockoutGroupStageError(null)
       return
     }
+    if (isKnockoutOnlyPool) {
+      setKnockoutGroupStageView(null)
+      setKnockoutGroupStageError(null)
+      return
+    }
     let cancelled = false
     fetchWorldCupGroupStageView(challengeId, selectedEntryId)
       .then((nextView) => {
@@ -1055,7 +1070,7 @@ export default function WorldCupBracketShell({
     return () => {
       cancelled = true
     }
-  }, [challengeId, selectedEntryId, knockoutGroupStageRefreshKey])
+  }, [challengeId, isKnockoutOnlyPool, selectedEntryId, knockoutGroupStageRefreshKey])
 
   const completedPickCount = useMemo(
     () => picks.filter(hasWorldCupPickSelection).length,
@@ -1071,14 +1086,13 @@ export default function WorldCupBracketShell({
     [knockoutGroupStageView, view.matches]
   )
   const knockoutMode = view.challenge.knockoutMode ?? "predictive"
+  const usesOfficialKnockoutFixtures = knockoutMode === "reseeded" || knockoutMode === "knockout_only"
   const reseededOfficialFixturesReady = hasOfficialWorldCupReseededKnockoutFixtures(view.matches)
-  const baseKnockoutMatches = groupSeededKnockout.matches
+  const baseKnockoutMatches =
+    knockoutMode === "predictive" ? groupSeededKnockout.matches : view.matches
   const projectedMatches = useMemo(
-    () => buildWorldCupProjectedMatches(
-      knockoutMode === "reseeded" && reseededOfficialFixturesReady ? view.matches : baseKnockoutMatches,
-      picks
-    ),
-    [baseKnockoutMatches, knockoutMode, picks, reseededOfficialFixturesReady, view.matches]
+    () => buildWorldCupProjectedMatches(baseKnockoutMatches, picks),
+    [baseKnockoutMatches, picks]
   )
   const pickableMatches = useMemo(
     () => projectedMatches.filter(isWorldCupMatchPickable),
@@ -1107,7 +1121,7 @@ export default function WorldCupBracketShell({
     () => getWorldCupGuidedPicksState(baseKnockoutMatches),
     [baseKnockoutMatches]
   )
-  const knockoutPicksLockedByMode = knockoutMode === "reseeded" && !reseededOfficialFixturesReady
+  const knockoutPicksLockedByMode = usesOfficialKnockoutFixtures && !reseededOfficialFixturesReady
   const hasPickableFixtures = projectedPickableMatchCount > 0 && !knockoutPicksLockedByMode
   const unresolvedMatchesCount = view.matches.length - rawPickableMatches.length
 
@@ -2099,7 +2113,7 @@ export default function WorldCupBracketShell({
   }, [blockedFuturePickCount, firstUnpickedMatchId, guidedPickerAvailable, knockoutPicksLockedByMode])
   const showSeedTestFixturesCta =
     !isLocked &&
-    knockoutMode !== "reseeded" &&
+    knockoutMode === "predictive" &&
     showAdminControls &&
     (guidedPicksState === "fixtures_not_synced" || guidedPicksState === "fixtures_not_ready")
 
@@ -2350,7 +2364,7 @@ export default function WorldCupBracketShell({
     // globals.css light-mode rescue layer so muted labels, tab text,
     // and helper copy stay readable on white. Dark + AF (legacy) modes
     // keep the original `bg-[#05070b]` styling unchanged.
-    <div id="world-cup-top" className="af-world-cup-page mode-readable fixed inset-0 z-50 isolate flex flex-col overflow-hidden bg-[#05070b] text-white">
+    <div id="world-cup-top" className="mode-readable af-world-cup-page fixed inset-0 z-50 isolate flex flex-col overflow-hidden bg-[#05070b] text-white">
       <WorldCupAtmosphereBackdrop />
       <header className="af-world-cup-header relative z-20 shrink-0 border-b pt-[env(safe-area-inset-top,0px)] backdrop-blur-xl">
         <div className="flex items-center gap-1.5 px-2 py-1.5 sm:gap-2 sm:px-4 sm:py-2">
@@ -3794,12 +3808,16 @@ export default function WorldCupBracketShell({
             <section id="world-cup-bracket" className="space-y-3">
               <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm text-white/90">
                 <p className="font-black">
-                  {knockoutMode === "reseeded"
+                  {knockoutMode === "knockout_only"
+                    ? t("wc.knockouts.intro.knockoutOnly")
+                    : knockoutMode === "reseeded"
                     ? t("wc.knockouts.intro.reseeded")
                     : t("wc.knockouts.intro.predictive")}
                 </p>
                 <p className="mt-1 text-xs text-white/65">
-                  {knockoutMode === "reseeded"
+                  {knockoutMode === "knockout_only"
+                    ? t("wc.knockouts.subintro.knockoutOnly")
+                    : knockoutMode === "reseeded"
                     ? t("wc.knockouts.subintro.reseeded")
                     : t("wc.knockouts.subintro.predictive")}
                 </p>
@@ -3812,7 +3830,9 @@ export default function WorldCupBracketShell({
                     data-testid="world-cup-reseeded-knockout-locked"
                     className="mt-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-2 py-1.5 text-xs font-bold text-white/80"
                   >
-                    Reseeded Knockout is enabled. Official knockout fixtures are not available yet, so generated knockout picks are locked.
+                    {knockoutMode === "knockout_only"
+                      ? t("wc.knockouts.locked.knockoutOnly")
+                      : t("wc.knockouts.locked.reseeded")}
                   </p>
                 ) : groupSeededKnockout.status !== "ready" ? (
                   <p className="mt-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-2 py-1.5 text-xs font-bold text-white/80">
@@ -3878,11 +3898,11 @@ export default function WorldCupBracketShell({
                   {!isLocked && guidedPicksState !== "ready" ? (
                     <div className="min-w-[min(100%,22rem)] rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-[11px] text-white/80">
                       <p className="font-bold">
-                        {knockoutMode === "reseeded" ? "Official knockout fixtures required." : "Knockout teams come from your group predictions."}
+                        {usesOfficialKnockoutFixtures ? t("wc.pickHelp.officialRequired") : t("wc.pickHelp.groupGenerated")}
                       </p>
                       <p className="mt-1 text-white/65">
-                        {knockoutMode === "reseeded"
-                          ? "Do not fake official fixtures. Picks stay closed until provider fixtures are ready."
+                        {usesOfficialKnockoutFixtures
+                          ? t("wc.pickHelp.officialRequiredBody")
                           : groupSeededKnockout.message}
                       </p>
                     </div>
