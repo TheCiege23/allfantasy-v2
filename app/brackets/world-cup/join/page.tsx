@@ -18,7 +18,7 @@ export default async function WorldCupJoinWithCodePage() {
 
   return (
     // `mode-readable` opts into the globals.css light-mode rescue layer.
-    <main className="af-world-cup-page mode-readable min-h-screen bg-[#05070b] text-white">
+    <main className="mode-readable af-world-cup-page min-h-screen bg-[#05070b] text-white">
       <div className="mx-auto max-w-lg px-4 py-10">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
           <Link

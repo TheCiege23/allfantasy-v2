@@ -152,14 +152,15 @@ describe("WorldCupMatchupCard AI insight entrypoint", () => {
     venueCity: "City",
   } as any
 
-  it("shows locked matchup AI CTA without opening detailed insights", async () => {
+  it("shows locked matchup AI CTA while keeping free deterministic matchup context visible", async () => {
     const WorldCupMatchupCard = (await import("@/components/brackets/world-cup/WorldCupMatchupCard")).default
     render(<WorldCupMatchupCard match={match} aiInsightsUnlocked={false} />)
 
     const card = screen.getByTestId("world-cup-match-ai-insight-m1")
     expect(within(card).getByText("Locked")).toBeInTheDocument()
-    expect(within(card).getByText(/Locked users do not trigger AI calls/i)).toBeInTheDocument()
-    expect(within(card).queryByText(/Safer pick/i)).toBeNull()
+    expect(within(card).getByText(/Basic matchup signals are free/i)).toBeInTheDocument()
+    expect(within(card).getByTestId("world-cup-match-free-insight-m1")).toBeInTheDocument()
+    expect(within(card).queryByText(/bracket guidance stays limited/i)).toBeNull()
   })
 
   it("opens deterministic matchup insights for AI/Pro users with safe copy", async () => {

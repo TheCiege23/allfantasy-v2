@@ -30,6 +30,7 @@ import {
 import {
   getWorldCupKnockoutModeFromPayload,
   hasOfficialWorldCupReseededKnockoutFixtures,
+  type WorldCupKnockoutMode,
 } from "./worldCupKnockoutMode"
 import {
   emitWorldCupChallengeCreated,
@@ -292,18 +293,30 @@ function buildWorldCupCreateSourcePayload(input: {
   isTestMode: boolean
   simulationEnabled: boolean
   seedTestFixtures: boolean
+  knockoutMode?: WorldCupKnockoutMode
 }): Prisma.JsonObject | undefined {
-  if (!input.isTestMode && !input.simulationEnabled && !input.seedTestFixtures) {
+  const knockoutMode = input.knockoutMode ?? "predictive"
+  if (
+    !input.isTestMode &&
+    !input.simulationEnabled &&
+    !input.seedTestFixtures &&
+    knockoutMode === "predictive"
+  ) {
     return undefined
   }
-  return {
-    simulation: {
+  const payload: Prisma.JsonObject = {}
+  if (knockoutMode !== "predictive") {
+    payload.leagueSettings = { knockoutMode }
+  }
+  if (input.isTestMode || input.simulationEnabled || input.seedTestFixtures) {
+    payload.simulation = {
       isTestMode: input.isTestMode || input.seedTestFixtures,
       simulationEnabled: input.simulationEnabled,
       testFixturesOnCreate: input.seedTestFixtures,
       fixtureTemplate: input.seedTestFixtures ? "mock_round_of_32" : "slot_template",
-    },
+    }
   }
+  return payload
 }
 
 async function createWorldCupBracketTemplateRows(
@@ -420,6 +433,7 @@ export async function createWorldCupBracketChallenge(input: {
   pickLockStrategy?: "per_match" | "tournament_start"
   pickLockAt?: Date | null
   includeThirdPlace?: boolean
+  knockoutMode?: WorldCupKnockoutMode
   maxParticipants?: number
   maxEntriesPerParticipant?: number
   scoring?: Partial<typeof DEFAULT_WORLD_CUP_SCORING>
@@ -431,7 +445,9 @@ export async function createWorldCupBracketChallenge(input: {
   const userId = input.user.id
   const inviteCode = await generateWorldCupInviteCode()
   const inviteUrl = `${getWorldCupAppBaseUrl()}/join/bracket/${inviteCode}`
-  const template = generateWorldCupBracketTemplate({ includeThirdPlace: input.includeThirdPlace })
+  const knockoutMode = input.knockoutMode ?? "predictive"
+  const includeThirdPlace = knockoutMode === "knockout_only" ? false : Boolean(input.includeThirdPlace)
+  const template = generateWorldCupBracketTemplate({ includeThirdPlace })
   const ownerDisplay = await displayName(input.user)
   const maxParticipants = input.maxParticipants ?? 100
   const maxEntriesPerParticipant = input.maxEntriesPerParticipant ?? 5
@@ -443,7 +459,8 @@ export async function createWorldCupBracketChallenge(input: {
     visibility: input.visibility ?? "private",
     pickLockStrategy: input.pickLockStrategy ?? "tournament_start",
     pickLockAt: input.pickLockAt?.toISOString() ?? null,
-    includeThirdPlace: Boolean(input.includeThirdPlace),
+    includeThirdPlace,
+    knockoutMode,
     maxParticipants,
     maxEntriesPerParticipant,
     isTestMode: Boolean(input.isTestMode),
@@ -476,11 +493,12 @@ export async function createWorldCupBracketChallenge(input: {
           maxEntriesPerParticipant,
           scoringProfileId: scoringProfile.id,
           status: "open",
-          includeThirdPlace: Boolean(input.includeThirdPlace),
+          includeThirdPlace,
           sourcePayload: buildWorldCupCreateSourcePayload({
             isTestMode: Boolean(input.isTestMode),
             simulationEnabled: Boolean(input.simulationEnabled),
             seedTestFixtures,
+            knockoutMode,
           }),
         },
       })
@@ -492,7 +510,7 @@ export async function createWorldCupBracketChallenge(input: {
       })
       await createWorldCupBracketTemplateRows(tx, {
         challengeId: challenge.id,
-        includeThirdPlace: input.includeThirdPlace,
+        includeThirdPlace,
       })
 
       console.info("[world-cup/create] step before participant create", { challengeId: challenge.id, userId })

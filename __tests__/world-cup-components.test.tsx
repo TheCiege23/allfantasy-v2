@@ -404,6 +404,49 @@ describe("WorldCupBracketSettingsPanel", () => {
     expect(document.body.textContent?.toLowerCase()).not.toMatch(/dfs|betting|wager/)
   })
 
+  it("lets commissioners select knockout-only mode in settings", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockSettingsPayload(),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          settings: mockSettingsPayload({
+            leagueSettings: {
+              scoringStyle: "standard",
+              tiebreakerFinalScore: false,
+              allowLateJoin: false,
+              showPublicPicks: "after_lock",
+              knockoutMode: "knockout_only",
+              bracketBrainEnabled: true,
+              inviteGateConfigured: false,
+            },
+          }),
+          hasAfPro: false,
+          isAdmin: false,
+          earlyPublicPicksAllowed: false,
+        }),
+      })
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupBracketSettingsPanel = (await import("@/components/brackets/world-cup/WorldCupBracketSettingsPanel"))
+      .default
+    render(<WorldCupBracketSettingsPanel challengeId="ch1" />)
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("world-cup-settings-loading")).not.toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByTestId("world-cup-settings-knockout-mode"), { target: { value: "knockout_only" } })
+    fireEvent.click(screen.getByTestId("world-cup-settings-save"))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toMatchObject({ knockoutMode: "knockout_only" })
+    expect(document.body.textContent).toMatch(/Knockout Only/)
+  })
+
   it("does not show Bracket Brain toggle for non-Pro", async () => {
     const WorldCupBracketSettingsPanel = (await import("@/components/brackets/world-cup/WorldCupBracketSettingsPanel"))
       .default
@@ -1174,7 +1217,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
 
     expect(await screen.findByText("Knockout picks open after official Round of 32 fixtures are available.")).toBeInTheDocument()
     expect(screen.getByTestId("world-cup-reseeded-knockout-locked")).toHaveTextContent(
-      /Official knockout fixtures are not available yet/i
+      /Official knockout fixtures are not synced yet/i
     )
     expect(screen.getAllByRole("button", { name: /Knockout Locked/i }).every((button) => button.hasAttribute("disabled"))).toBe(true)
     expect(screen.queryByText(/Load Test Knockout Teams/i)).not.toBeInTheDocument()
@@ -1195,6 +1238,25 @@ describe("WorldCupBracketShell fixture readiness", () => {
     )
 
     expect(await screen.findByText("Knockout picks open after official Round of 32 fixtures are available.")).toBeInTheDocument()
+    expect(screen.queryByTestId("world-cup-reseeded-knockout-locked")).not.toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: /Start Making Picks/i }).some((button) => !button.hasAttribute("disabled"))).toBe(true)
+  })
+
+  it("hides group-stage tab and opens official fixtures for knockout-only pools", async () => {
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(
+      <WorldCupBracketShell
+        initialView={makeShellView({
+          challenge: { ...makeShellView().challenge, knockoutMode: "knockout_only", includeThirdPlace: false },
+          matches: [makeShellMatch({ apiFixtureId: 9001, apiStatusShort: "NS" })],
+        }) as any}
+        defaultTab="picks"
+        initialEntryId="entry-1"
+      />
+    )
+
+    expect(await screen.findByText("This pool starts with the official knockout bracket. Group Stage and third-place picks are skipped.")).toBeInTheDocument()
+    expect(screen.queryByText("Group Stage")).not.toBeInTheDocument()
     expect(screen.queryByTestId("world-cup-reseeded-knockout-locked")).not.toBeInTheDocument()
     expect(screen.getAllByRole("button", { name: /Start Making Picks/i }).some((button) => !button.hasAttribute("disabled"))).toBe(true)
   })

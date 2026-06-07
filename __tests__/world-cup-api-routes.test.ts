@@ -15,6 +15,7 @@ const challengeFindUniqueMock = vi.hoisted(() => vi.fn())
 const isAdminEmailAllowedMock = vi.hoisted(() => vi.fn())
 const isAuthorizedRequestMock = vi.hoisted(() => vi.fn())
 const syncGroupStandingsMock = vi.hoisted(() => vi.fn())
+const userHasWorldCupCommissionerAccessMock = vi.hoisted(() => vi.fn())
 
 vi.mock("next-auth", () => ({
   getServerSession: getServerSessionMock,
@@ -46,6 +47,10 @@ vi.mock("@/lib/world-cup/worldCupDiagnosticsService", () => ({
 
 vi.mock("@/lib/world-cup/worldCupGroupStageResultService", () => ({
   syncWorldCupProviderGroupStandings: syncGroupStandingsMock,
+}))
+
+vi.mock("@/lib/world-cup/worldCupCommissionerAccess", () => ({
+  userHasWorldCupCommissionerAccess: userHasWorldCupCommissionerAccessMock,
 }))
 
 vi.mock("@/lib/prisma", () => ({
@@ -94,6 +99,7 @@ describe("World Cup API catch-all route", () => {
     challengeFindUniqueMock.mockResolvedValue({ id: "wc1", ownerUserId: "u1", inviteCode: "INVITE", visibility: "public" })
     isAdminEmailAllowedMock.mockReturnValue(true)
     isAuthorizedRequestMock.mockReturnValue(true)
+    userHasWorldCupCommissionerAccessMock.mockResolvedValue(true)
   })
 
   // ── Create ──────────────────────────────────────────────────────────────────
@@ -210,6 +216,57 @@ describe("World Cup API catch-all route", () => {
         seedTestFixtures: true,
       })
     )
+  })
+
+  it("normalizes knockout-only create mode and disables third-place picks", async () => {
+    const { POST } = await import("@/app/api/brackets/world-cup/create/route")
+    const res = await POST(
+      new Request("http://localhost/api/brackets/world-cup/create", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "Knockout Only",
+          seasonYear: 2026,
+          knockoutMode: "knockout_only",
+          includeThirdPlaceMatch: true,
+        }),
+      })
+    )
+
+    expect(res.status).toBe(200)
+    expect(createChallengeMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Knockout Only",
+        knockoutMode: "knockout_only",
+        includeThirdPlace: false,
+      })
+    )
+  })
+
+  it("blocks regular users from creating knockout-only pools without AF Commissioner", async () => {
+    isAuthorizedRequestMock.mockReturnValue(false)
+    isAdminEmailAllowedMock.mockReturnValue(false)
+    userHasWorldCupCommissionerAccessMock.mockResolvedValueOnce(false)
+    createChallengeMock.mockClear()
+
+    const { POST } = await import("@/app/api/brackets/world-cup/create/route")
+    const res = await POST(
+      new Request("http://localhost/api/brackets/world-cup/create", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "Knockout Only",
+          seasonYear: 2026,
+          knockoutMode: "knockout_only",
+        }),
+      })
+    )
+
+    expect(res.status).toBe(403)
+    await expect(res.json()).resolves.toMatchObject({
+      upgrade: true,
+    })
+    expect(createChallengeMock).not.toHaveBeenCalled()
   })
 
   it("blocks non-admin users from creating test or simulation pools through the dedicated create route", async () => {

@@ -432,12 +432,20 @@ const EN: WorldCupDictionary = {
   // ── Knockouts tab ────────────────────────────────────────────────────
   "wc.knockouts.intro.reseeded":
     "Knockout picks open after official Round of 32 fixtures are available.",
+  "wc.knockouts.intro.knockoutOnly":
+    "This pool starts with the official knockout bracket. Group Stage and third-place picks are skipped.",
   "wc.knockouts.intro.predictive":
     "Your knockout bracket is generated from your predicted group results.",
   "wc.knockouts.subintro.reseeded":
     "Group Stage picks work normally now. Once real knockout fixtures are synced, you will make fresh knockout picks from the official bracket.",
+  "wc.knockouts.subintro.knockoutOnly":
+    "Commissioners can run a knockout-only pool when the official Round of 32 field is ready. Picks stay locked until fixtures are synced.",
   "wc.knockouts.subintro.predictive":
     "Knockout matchups update based on your Group Stage predictions. Changing group predictions may reset affected knockout picks.",
+  "wc.knockouts.locked.reseeded":
+    "Official knockout fixtures are not synced yet.",
+  "wc.knockouts.locked.knockoutOnly":
+    "Knockout-only pools open after official Round of 32 fixtures are synced.",
   "wc.knockouts.startPicks": "Start Picks",
   "wc.knockouts.continuePicks": "Continue Picks",
   "wc.knockouts.guidance.complete":
@@ -545,6 +553,18 @@ const EN: WorldCupDictionary = {
     "Picks can be edited until the first World Cup match begins.",
   "wc.create.lockRule.copyPerMatch":
     "Each matchup can be edited until that match kicks off.",
+  "wc.create.bracketFormat.label": "Bracket Format",
+  "wc.create.bracketFormat.predictive.title": "Full Pool",
+  "wc.create.bracketFormat.predictive.body":
+    "Groups, third-place advancers, and knockouts.",
+  "wc.create.bracketFormat.reseeded.title": "Official Knockouts",
+  "wc.create.bracketFormat.reseeded.body":
+    "Lock knockout picks until official fixtures load.",
+  "wc.create.bracketFormat.knockoutOnly.title": "Knockout Only",
+  "wc.create.bracketFormat.knockoutOnly.body":
+    "Skip group picks and run a knockout bracket.",
+  "wc.create.bracketFormat.commissionerRequired":
+    "AF Commissioner is required for advanced bracket formats. The server will block this setting if your account is not eligible.",
   "wc.create.scoring.intro": "Round-by-round scoring:",
   "wc.create.scoring.values":
     "10 pts Round of 32 · 20 pts Round of 16 · 40 pts QF · 80 pts SF · 160 pts Final · 320 pts Champion bonus",
@@ -557,6 +577,8 @@ const EN: WorldCupDictionary = {
   "wc.create.helper.inviteLink":
     "An invite link will be shown after creation.",
   "wc.create.thirdPlace": "Include third-place match",
+  "wc.create.thirdPlace.knockoutOnlyOff":
+    "Third-place match is off for knockout-only pools",
   "wc.create.testFixtures.label": "Seed Test Fixtures",
   "wc.create.testFixtures.hint":
     "Adds mock Round of 32 teams, flags, kickoff times, and venues so this pool is pickable immediately.",
@@ -922,6 +944,9 @@ const EN: WorldCupDictionary = {
   "wc.groupStage.actualRank": "Actual #{{rank}}",
   "wc.groupStage.moveUp": "Move Up",
   "wc.groupStage.moveDown": "Move Down",
+  "wc.groupStage.dragHint":
+    "Drag teams to rank the group, or use Move Up / Move Down as a tap-friendly fallback.",
+  "wc.groupStage.dragHandle": "Drag team to rank",
   "wc.groupStage.needsFourTeams":
     "{{group}} needs 4 teams before it can be saved.",
   "wc.groupStage.unsavedOrder":
@@ -1304,6 +1329,10 @@ const EN: WorldCupDictionary = {
   "wc.pickHelp.seedBtn": "Seed Test Fixtures",
   "wc.pickHelp.seeding": "Seeding...",
   "wc.pickHelp.knockoutFromGroups": "Your knockout matchups are generated from your Group Stage predictions. Rank all groups and choose third-place advancers to unlock more slots.",
+  "wc.pickHelp.officialRequired": "Official fixtures required",
+  "wc.pickHelp.groupGenerated": "Generated from groups",
+  "wc.pickHelp.officialRequiredBody":
+    "This pool uses official knockout fixtures. Picks open after the Round of 32 teams are synced by an admin or commissioner workflow.",
   "wc.pickHelp.title": "Guided Pick Help",
   "wc.pickHelp.body": "Use the sticky Start Making Picks button on mobile to move through matchups one at a time. AI bracket builder tools stay gated for a later pass.",
   "wc.pickHelp.knockoutLocked": "Knockout Locked",
@@ -6262,12 +6291,12 @@ const WORLD_CUP_CHAT_COMMAND_FALLBACKS = Object.fromEntries(
 
 export const WORLD_CUP_TRANSLATIONS: Record<WorldCupLocale, WorldCupDictionary> = {
   en: EN,
-  es: { ...WORLD_CUP_CHAT_COMMAND_FALLBACKS, ...ES },
-  zh: { ...WORLD_CUP_CHAT_COMMAND_FALLBACKS, ...ZH },
-  fil: { ...WORLD_CUP_CHAT_COMMAND_FALLBACKS, ...FIL },
-  vi: { ...WORLD_CUP_CHAT_COMMAND_FALLBACKS, ...VI },
-  fr: WORLD_CUP_CHAT_COMMAND_FALLBACKS,
-  ar: WORLD_CUP_CHAT_COMMAND_FALLBACKS,
+  es: { ...EN, ...WORLD_CUP_CHAT_COMMAND_FALLBACKS, ...ES },
+  zh: { ...EN, ...WORLD_CUP_CHAT_COMMAND_FALLBACKS, ...ZH },
+  fil: { ...EN, ...WORLD_CUP_CHAT_COMMAND_FALLBACKS, ...FIL },
+  vi: { ...EN, ...WORLD_CUP_CHAT_COMMAND_FALLBACKS, ...VI },
+  fr: { ...EN, "wc.common.loading": "Chargement..." },
+  ar: { ...EN, "wc.common.loading": "\u062c\u0627\u0631\u064a \u0627\u0644\u062a\u062d\u0645\u064a\u0644..." },
 }
 
 /**

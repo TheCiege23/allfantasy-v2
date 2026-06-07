@@ -99,3 +99,11 @@ export function useThemeMode() {
   if (!v) throw new Error("useThemeMode must be used inside ThemeProvider")
   return v
 }
+
+export function useOptionalThemeMode() {
+  return useContext(Ctx) ?? {
+    mode: readInitialModeFromDocument(),
+    setMode: () => {},
+    cycleMode: () => {},
+  }
+}

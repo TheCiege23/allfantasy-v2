@@ -33,7 +33,7 @@ type BundleLeague = {
   tiebreakerFinalScore?: boolean
   allowLateJoin?: boolean
   showPublicPicks?: "after_lock" | "never" | "always"
-  knockoutMode?: "predictive" | "reseeded"
+  knockoutMode?: "predictive" | "reseeded" | "knockout_only"
   confidenceScoringEnabled?: boolean
   bracketBrainEnabled?: boolean
   inviteGateConfigured?: boolean
@@ -135,7 +135,7 @@ export default function WorldCupBracketSettingsPanel({
   const [tiebreakerFinalScore, setTiebreakerFinalScore] = useState(false)
   const [allowLateJoin, setAllowLateJoin] = useState(false)
   const [showPublicPicks, setShowPublicPicks] = useState<"after_lock" | "never" | "always">("after_lock")
-  const [knockoutMode, setKnockoutMode] = useState<"predictive" | "reseeded">("predictive")
+  const [knockoutMode, setKnockoutMode] = useState<"predictive" | "reseeded" | "knockout_only">("predictive")
   const [confidenceScoringEnabled, setConfidenceScoringEnabled] = useState(false)
 
   const [bracketBrainEnabled, setBracketBrainEnabled] = useState(true)
@@ -514,14 +514,15 @@ export default function WorldCupBracketSettingsPanel({
             data-testid="world-cup-settings-knockout-mode"
             value={knockoutMode}
             disabled={!hasAfCommissioner}
-            onChange={(e) => setKnockoutMode(e.target.value as "predictive" | "reseeded")}
+            onChange={(e) => setKnockoutMode(e.target.value as "predictive" | "reseeded" | "knockout_only")}
             className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white disabled:opacity-45"
           >
             <option value="predictive">Predictive Bracket</option>
             <option value="reseeded">Reseeded Knockout</option>
+            <option value="knockout_only">Knockout Only</option>
           </select>
           <span className="mt-2 block rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-[11px] leading-5 text-white/45">
-            Predictive Bracket generates the knockout path from each manager’s group predictions. Reseeded Knockout keeps knockout picks locked until official Round of 32 fixtures are available.
+            Predictive Bracket generates the knockout path from each manager’s group predictions. Reseeded Knockout keeps groups active while later picks wait for official Round of 32 fixtures. Knockout Only skips groups and third-place picks entirely.
           </span>
         </label>
         {!hasAfCommissioner ? <div className="mt-3"><AfCommissionerGateCard /></div> : null}

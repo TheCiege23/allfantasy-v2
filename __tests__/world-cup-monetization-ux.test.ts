@@ -110,7 +110,7 @@ describe("WC chat route 429 response (daily limit reached)", () => {
 
   it("429 response includes upgradePath", () => {
     const src = read("app/api/brackets/world-cup/[challengeId]/chat/route.ts")
-    expect(src).toContain('upgradePath: "/pricing"')
+    expect(src).toContain('upgradePath: chimmyTier === "free" ? "/pricing?from=wc-chimmy" : "/pricing"')
   })
 })
 

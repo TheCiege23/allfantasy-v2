@@ -27,6 +27,7 @@ export default function WorldCupBracketCreateModal() {
   const [name, setName] = useState(() => t("wc.create.poolName.default"))
   const [visibility, setVisibility] = useState<"private" | "public">("private")
   const [lockStrategy, setLockStrategy] = useState<"per_match" | "tournament_start">("tournament_start")
+  const [knockoutMode, setKnockoutMode] = useState<"predictive" | "reseeded" | "knockout_only">("predictive")
   const [includeThirdPlace, setIncludeThirdPlace] = useState(false)
   const [seedTestFixtures, setSeedTestFixtures] = useState(false)
   const [maxUsers, setMaxUsers] = useState(MAX_USERS)
@@ -67,7 +68,8 @@ export default function WorldCupBracketCreateModal() {
           seasonYear: 2026,
           visibility,
           pickLockStrategy: lockStrategy,
-          includeThirdPlace,
+          knockoutMode,
+          includeThirdPlace: knockoutMode === "knockout_only" ? false : includeThirdPlace,
           maxParticipants: maxUsers,
           maxEntriesPerParticipant: maxEntries,
           isTestMode: allowCreateWithTestFixtures && seedTestFixtures,
@@ -125,7 +127,7 @@ export default function WorldCupBracketCreateModal() {
   return (
     // `mode-readable` opts the create modal into the globals.css light-mode
     // rescue layer so muted form helpers and validation hints stay readable.
-    <div className="af-world-cup-page mode-readable fixed inset-0 z-50 flex flex-col bg-[#05070b] text-white">
+    <div className="mode-readable af-world-cup-page fixed inset-0 z-50 flex flex-col bg-[#05070b] text-white">
       <header className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
         <button
           type="button"
@@ -286,6 +288,49 @@ export default function WorldCupBracketCreateModal() {
               </div>
             </div>
 
+            <div>
+              <label className="block text-xs font-black uppercase tracking-[0.16em] text-white/45">
+                {t("wc.create.bracketFormat.label")}
+              </label>
+              <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                {[
+                  {
+                    id: "predictive" as const,
+                    title: t("wc.create.bracketFormat.predictive.title"),
+                    body: t("wc.create.bracketFormat.predictive.body"),
+                  },
+                  {
+                    id: "reseeded" as const,
+                    title: t("wc.create.bracketFormat.reseeded.title"),
+                    body: t("wc.create.bracketFormat.reseeded.body"),
+                  },
+                  {
+                    id: "knockout_only" as const,
+                    title: t("wc.create.bracketFormat.knockoutOnly.title"),
+                    body: t("wc.create.bracketFormat.knockoutOnly.body"),
+                  },
+                ].map((mode) => (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => {
+                      setKnockoutMode(mode.id)
+                      if (mode.id === "knockout_only") setIncludeThirdPlace(false)
+                    }}
+                    className={`rounded-lg border p-3 text-left transition-colors ${knockoutMode === mode.id ? "border-amber-200/70 bg-amber-300/12" : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"}`}
+                  >
+                    <div className="text-sm font-black">{mode.title}</div>
+                    <div className="mt-0.5 text-xs text-white/45">{mode.body}</div>
+                  </button>
+                ))}
+              </div>
+              {knockoutMode !== "predictive" ? (
+                <p className="mt-2 rounded-lg border border-amber-300/25 bg-amber-300/[0.08] px-3 py-2 text-[11px] font-bold leading-5 text-amber-50">
+                  {t("wc.create.bracketFormat.commissionerRequired")}
+                </p>
+              ) : null}
+            </div>
+
             {/* Helper notes */}
             <ul className="space-y-1 text-[11px] text-white/40">
               <li>• {t(
@@ -306,10 +351,11 @@ export default function WorldCupBracketCreateModal() {
               <input
                 type="checkbox"
                 checked={includeThirdPlace}
+                disabled={knockoutMode === "knockout_only"}
                 onChange={(e) => setIncludeThirdPlace(e.target.checked)}
                 className="h-4 w-4 rounded"
               />
-              {t("wc.create.thirdPlace")}
+              {knockoutMode === "knockout_only" ? t("wc.create.thirdPlace.knockoutOnlyOff") : t("wc.create.thirdPlace")}
             </label>
 
             {allowCreateWithTestFixtures && (

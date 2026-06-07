@@ -1,9 +1,9 @@
 "use client"
 
 import { useOptionalSession } from "@/components/auth/useOptionalSession"
-import { useThemeMode } from "@/components/theme/ThemeProvider"
+import { useOptionalThemeMode } from "@/components/theme/ThemeProvider"
 import { type ThemeId } from "@/lib/theme"
-import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 
 const ROW: ThemeId[] = ["light", "dark", "legacy", "system"]
 
@@ -16,8 +16,8 @@ export function ThemeModeSelect(props: {
   size?: "sm" | "md"
 }) {
   const { data: session } = useOptionalSession()
-  const { mode, setMode } = useThemeMode()
-  const { t, tInterpolate } = useLanguage()
+  const { mode, setMode } = useOptionalThemeMode()
+  const { t, tInterpolate } = useOptionalLanguage()
   const size = props.size ?? "md"
 
   const onChange = (next: ThemeId) => {

@@ -20,6 +20,7 @@ import {
   buildWorldCupBracketLeadMetaEvent,
   buildWorldCupPoolLeadMetaEvent,
 } from "@/lib/world-cup/worldCupMetaEvents"
+import { userHasWorldCupCommissionerAccess } from "@/lib/world-cup/worldCupCommissionerAccess"
 import { syncWorldCupProviderGroupStandings } from "@/lib/world-cup/worldCupGroupStageResultService"
 import {
   syncWorldCupFixtures,
@@ -64,6 +65,7 @@ const createWorldCupChallengeSchema = z.object({
   visibility: z.enum(["public", "private"]).default("private"),
   pickLockStrategy: z.enum(["per_match", "tournament_start"]).default("tournament_start"),
   pickLockAt: z.string().datetime().nullable().optional(),
+  knockoutMode: z.enum(["predictive", "reseeded", "knockout_only"]).optional(),
   includeThirdPlace: z.boolean().optional(),
   isTestMode: z.boolean().optional(),
   simulationEnabled: z.boolean().optional(),
@@ -182,6 +184,26 @@ async function createChallenge(request: Request) {
 
   const modeAccess = await assertWorldCupCreateModeAccess(request, auth.user, body)
   if (!modeAccess.ok) return modeAccess.response
+  const knockoutMode = parsed.data.knockoutMode ?? "predictive"
+  const advancedCreateMode =
+    parsed.data.pickLockStrategy !== "tournament_start" ||
+    knockoutMode !== "predictive"
+  if (advancedCreateMode && !modeAccess.isAdmin) {
+    const hasAfCommissioner = await userHasWorldCupCommissionerAccess(
+      auth.user.id,
+      auth.user.email ?? null
+    )
+    if (!hasAfCommissioner) {
+      return NextResponse.json(
+        {
+          error: "AF Commissioner is required for custom World Cup lock rules and advanced bracket formats.",
+          upgrade: true,
+          upgradePath: "/commissioner-upgrade?feature=advanced_scoring",
+        },
+        { status: 403 }
+      )
+    }
+  }
 
   const result = await createWorldCupBracketChallenge({
     user: auth.user,
@@ -190,7 +212,8 @@ async function createChallenge(request: Request) {
     visibility: parsed.data.visibility,
     pickLockStrategy: parsed.data.pickLockStrategy,
     pickLockAt: parsed.data.pickLockAt ? new Date(parsed.data.pickLockAt) : null,
-    includeThirdPlace: parsed.data.includeThirdPlace,
+    knockoutMode,
+    includeThirdPlace: knockoutMode === "knockout_only" ? false : parsed.data.includeThirdPlace,
     isTestMode: parsed.data.isTestMode ?? parsed.data.seedTestFixtures ?? parsed.data.loadTestFixtures ?? parsed.data.useTestFixtures ?? false,
     simulationEnabled: parsed.data.simulationEnabled ?? false,
     seedTestFixtures:
