@@ -6,9 +6,11 @@ import { DEFAULT_WORLD_CUP_SCORING } from "./worldCupBracketBuilder"
 import type { WorldCupScoringValues } from "./types"
 import {
   ensureWorldCupCommissionerSettings,
+  emitWorldCupBracketChatEvent,
   getWorldCupCommissionerSettings,
   updateWorldCupCommissionerSettings,
 } from "./worldCupBracketEventService"
+import { WORLD_CUP_BRACKET_EVENT_TYPES } from "./worldCupBracketEvents"
 import type { WorldCupBracketSettingsPatch } from "./worldCupBracketSettingsSchema"
 import {
   getWorldCupKnockoutModeFromPayload,
@@ -29,6 +31,8 @@ export type WorldCupLeagueSettingsStored = {
   tiebreakerFinalScore?: boolean
   /** When false, new users cannot join after the bracket lock boundary. */
   allowLateJoin?: boolean
+  /** Paid commissioner safety valve: participants may edit their own scheduled knockout picks after pool lock. */
+  knockoutEditOverrideEnabled?: boolean
   showPublicPicks?: "after_lock" | "never" | "always"
   knockoutMode?: WorldCupKnockoutMode
   confidenceScoringEnabled?: boolean
@@ -80,6 +84,7 @@ export function parseWorldCupLeagueSettings(
     scoringStyle: ls.scoringStyle ?? "standard",
     tiebreakerFinalScore: ls.tiebreakerFinalScore ?? false,
     allowLateJoin: ls.allowLateJoin ?? false,
+    knockoutEditOverrideEnabled: ls.knockoutEditOverrideEnabled === true,
     showPublicPicks: ls.showPublicPicks ?? "after_lock",
     knockoutMode: normalizeWorldCupKnockoutMode(ls.knockoutMode),
     confidenceScoringEnabled: ls.confidenceScoringEnabled === true,
@@ -96,6 +101,10 @@ export function isWorldCupBracketBrainEnabledForChallenge(sourcePayload: unknown
 
 export function isWorldCupConfidenceScoringEnabled(sourcePayload: unknown): boolean {
   return parseWorldCupLeagueSettings(sourcePayload).confidenceScoringEnabled === true
+}
+
+export function isWorldCupPostLockKnockoutEditOverrideEnabled(sourcePayload: unknown): boolean {
+  return parseWorldCupLeagueSettings(sourcePayload).knockoutEditOverrideEnabled === true
 }
 
 /** Validates numeric scoring patch — exported for tests. */
@@ -171,6 +180,7 @@ export async function applyWorldCupBracketSettingsPatch(input: {
   userHasAfPro: boolean
   userHasAfCommissioner?: boolean
   isAdmin: boolean
+  actorUserId?: string | null
   patch: WorldCupBracketSettingsPatch
 }) {
   const { challengeId, userHasAfPro, userHasAfCommissioner, isAdmin, patch } = input
@@ -199,6 +209,7 @@ export async function applyWorldCupBracketSettingsPatch(input: {
       patch.scoringStyle === "custom" ||
       patch.tiebreakerFinalScore !== undefined ||
       patch.allowLateJoin !== undefined ||
+      patch.knockoutEditOverrideEnabled !== undefined ||
       patch.showPublicPicks !== undefined ||
       patch.knockoutMode !== undefined ||
       patch.confidenceScoringEnabled !== undefined ||
@@ -277,6 +288,9 @@ export async function applyWorldCupBracketSettingsPatch(input: {
     if (patch.scoringStyle !== undefined) nextLeague.scoringStyle = patch.scoringStyle
     if (patch.tiebreakerFinalScore !== undefined) nextLeague.tiebreakerFinalScore = patch.tiebreakerFinalScore
     if (patch.allowLateJoin !== undefined) nextLeague.allowLateJoin = patch.allowLateJoin
+    if (patch.knockoutEditOverrideEnabled !== undefined) {
+      nextLeague.knockoutEditOverrideEnabled = patch.knockoutEditOverrideEnabled
+    }
     if (patch.showPublicPicks !== undefined) nextLeague.showPublicPicks = patch.showPublicPicks
     if (patch.knockoutMode !== undefined) nextLeague.knockoutMode = patch.knockoutMode
     if (patch.confidenceScoringEnabled !== undefined) nextLeague.confidenceScoringEnabled = patch.confidenceScoringEnabled
@@ -356,6 +370,27 @@ export async function applyWorldCupBracketSettingsPatch(input: {
     patch.includeThirdPlace !== undefined
   if (shouldRecalc) {
     await recalculateIfScoringChanged(challengeId)
+  }
+
+  if (patch.knockoutEditOverrideEnabled !== undefined) {
+    await emitWorldCupBracketChatEvent({
+      challengeId,
+      userId: input.actorUserId ?? null,
+      eventType: WORLD_CUP_BRACKET_EVENT_TYPES.KNOCKOUT_OVERRIDE,
+      eventTitle: patch.knockoutEditOverrideEnabled
+        ? "Commissioner knockout override enabled"
+        : "Commissioner knockout override disabled",
+      eventBody: patch.knockoutEditOverrideEnabled
+        ? "Participants may edit scheduled knockout picks after the pool lock. Live, final, and per-match-started games remain locked."
+        : "Post-lock knockout editing is disabled for this pool.",
+      idempotencyKey: `world-cup:knockout-override-setting:${challengeId}:${crypto.randomUUID()}`,
+      metadata: {
+        enabled: patch.knockoutEditOverrideEnabled,
+        audited: true,
+        scope: "scheduled_knockout_picks_only",
+      },
+      force: true,
+    }).catch(() => undefined)
   }
 }
 

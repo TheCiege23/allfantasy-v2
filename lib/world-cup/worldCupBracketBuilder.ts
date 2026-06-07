@@ -39,7 +39,12 @@ export function generateWorldCupBracketTemplate(params?: { includeThirdPlace?: b
   return { slots, matches, requiredPickCount: matches.length }
 }
 export const buildWorldCupBracketTemplate = generateWorldCupBracketTemplate
-type LockMatchLike = { startsAt?: Date | string | null; status?: string | null; apiStatusShort?: string | null }
+type LockMatchLike = {
+  round?: string | null
+  startsAt?: Date | string | null
+  status?: string | null
+  apiStatusShort?: string | null
+}
 type LockChallengeLike = {
   pickLockStrategy?: string | null
   pickLockAt?: Date | string | null
@@ -155,6 +160,53 @@ export function isWorldCupMatchLocked(input: {
   if (challengeLock.locked) return true
   const start = match.startsAt ? new Date(match.startsAt) : null
   if (["live", "halftime", "final"].includes(match.status ?? "") && apiStatus !== "SIM" && apiStatus !== "TEST") return true
+  if (strategy === "per_match" && start && now >= start) {
+    if (apiStatus === "SIM" || apiStatus === "TEST") return false
+    return true
+  }
+  return false
+}
+
+const WORLD_CUP_KNOCKOUT_EDIT_ROUNDS = new Set([
+  "round_of_32",
+  "round_of_16",
+  "quarterfinal",
+  "semifinal",
+  "third_place",
+  "final",
+])
+
+export function isWorldCupKnockoutRound(round?: string | null): boolean {
+  return WORLD_CUP_KNOCKOUT_EDIT_ROUNDS.has(String(round ?? ""))
+}
+
+/**
+ * Lock check used only by the paid commissioner post-lock knockout override.
+ * It ignores the pool-level tournament-start lock, but still blocks non-knockout,
+ * live/final, final-status, and per-match-started picks.
+ */
+export function isWorldCupMatchLockedForPostLockKnockoutOverride(input: {
+  challenge?: LockChallengeLike
+  match?: LockMatchLike
+  matches?: LockMatchLike[]
+  pickLockStrategy?: string | null
+  startsAt?: Date | string | null
+  status?: string | null
+  round?: string | null
+  now?: Date
+}) {
+  const challenge = input.challenge ?? input
+  const match: LockMatchLike = input.match ?? (input as LockMatchLike)
+  if (!isWorldCupKnockoutRound(match.round)) return true
+  if (challenge.status === "final") return true
+
+  const now = input.now ?? new Date()
+  const strategy = challenge.pickLockStrategy ?? "per_match"
+  const apiStatus = (match.apiStatusShort ?? "").trim().toUpperCase()
+  const start = match.startsAt ? new Date(match.startsAt) : null
+  if (["live", "halftime", "final"].includes(match.status ?? "") && apiStatus !== "SIM" && apiStatus !== "TEST") {
+    return true
+  }
   if (strategy === "per_match" && start && now >= start) {
     if (apiStatus === "SIM" || apiStatus === "TEST") return false
     return true

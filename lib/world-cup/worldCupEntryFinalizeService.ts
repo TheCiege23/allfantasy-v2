@@ -2,7 +2,11 @@ import "server-only"
 import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { isWorldCupChallengeLocked } from "./worldCupBracketBuilder"
-import { WORLD_CUP_BRACKET_LOCKED_MESSAGE } from "./worldCupBracketService"
+import {
+  WORLD_CUP_BRACKET_LOCKED_MESSAGE,
+  emitWorldCupKnockoutOverrideAuditEvent,
+} from "./worldCupBracketService"
+import { isWorldCupPostLockKnockoutEditOverrideEnabled } from "./worldCupBracketSettingsService"
 import { buildWorldCupMatchesFromGroupPredictions, isWorldCupMatchPickable } from "./worldCupProjectedBracket"
 import {
   getWorldCupKnockoutModeFromPayload,
@@ -27,6 +31,7 @@ export type WorldCupEntryCompletionReview = {
   requiredKnockoutPicks: number
   completedKnockoutPicks: number
   isLocked: boolean
+  postLockKnockoutOverrideEnabled: boolean
   isComplete: boolean
   submittedAt: string | null
   staleSubmittedIncomplete: boolean
@@ -144,6 +149,7 @@ export async function getWorldCupEntryCompletionReview(input: {
     matches: entry.challenge.matches,
     entry,
   })
+  const postLockKnockoutOverrideEnabled = isWorldCupPostLockKnockoutEditOverrideEnabled(entry.challenge.sourcePayload)
   const fullEntryComplete = groupCompletion.groupStageComplete && knockoutComplete
   const rawSubmittedAt = entry.submittedAt ? entry.submittedAt.toISOString() : null
   const staleSubmittedIncomplete = Boolean(rawSubmittedAt && !fullEntryComplete)
@@ -163,6 +169,7 @@ export async function getWorldCupEntryCompletionReview(input: {
     requiredKnockoutPicks,
     completedKnockoutPicks,
     isLocked: lock.locked,
+    postLockKnockoutOverrideEnabled,
     isComplete: entry.isComplete,
     submittedAt,
     staleSubmittedIncomplete,
@@ -176,7 +183,7 @@ export async function finalizeWorldCupEntry(input: {
   userId: string
 }) {
   const review = await getWorldCupEntryCompletionReview(input)
-  if (review.isLocked) {
+  if (review.isLocked && !review.postLockKnockoutOverrideEnabled) {
     throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
   }
   if (!review.fullEntryComplete) {
@@ -197,6 +204,14 @@ export async function finalizeWorldCupEntry(input: {
       submittedAt,
     },
   })
+  if (review.isLocked && review.postLockKnockoutOverrideEnabled) {
+    await emitWorldCupKnockoutOverrideAuditEvent({
+      action: "entry_finalized",
+      challengeId: input.challengeId,
+      entryId: input.entryId,
+      userId: input.userId,
+    })
+  }
   return {
     entry,
     completion: {

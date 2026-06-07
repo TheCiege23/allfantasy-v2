@@ -5,6 +5,10 @@ import {
   parseWorldCupLeagueSettings,
   worldCupPublicPicksEarlyGloballyAllowed,
 } from "@/lib/world-cup/worldCupBracketSettingsService"
+import {
+  isWorldCupMatchLocked,
+  isWorldCupMatchLockedForPostLockKnockoutOverride,
+} from "@/lib/world-cup/worldCupBracketBuilder"
 
 const findUnique = vi.fn()
 const challengeUpdate = vi.fn()
@@ -35,6 +39,7 @@ vi.mock("@/lib/prisma", () => ({
 
 vi.mock("@/lib/world-cup/worldCupBracketEventService", () => ({
   ensureWorldCupCommissionerSettings: vi.fn(async () => ({})),
+  emitWorldCupBracketChatEvent: vi.fn(async () => ({ ok: true })),
   getWorldCupCommissionerSettings: vi.fn(async () => ({
     enableSystemEvents: true,
     enableAiSummaries: false,
@@ -83,6 +88,17 @@ describe("World Cup bracket settings validation", () => {
     expect(worldCupBracketSettingsPatchSchema.safeParse({ knockoutMode: "moneyline" }).success).toBe(false)
   })
 
+  it("defaults post-lock knockout override off and accepts the advanced toggle", () => {
+    expect(parseWorldCupLeagueSettings(null).knockoutEditOverrideEnabled).toBe(false)
+    expect(parseWorldCupLeagueSettings({ leagueSettings: {} }).knockoutEditOverrideEnabled).toBe(false)
+    expect(
+      parseWorldCupLeagueSettings({ leagueSettings: { knockoutEditOverrideEnabled: true } })
+        .knockoutEditOverrideEnabled
+    ).toBe(true)
+    expect(worldCupBracketSettingsPatchSchema.safeParse({ knockoutEditOverrideEnabled: true }).success).toBe(true)
+    expect(worldCupBracketSettingsPatchSchema.safeParse({ knockoutEditOverrideEnabled: false }).success).toBe(true)
+  })
+
   it("defaults existing pools to confidence scoring disabled", () => {
     expect(parseWorldCupLeagueSettings(null).confidenceScoringEnabled).toBe(false)
     expect(parseWorldCupLeagueSettings({ leagueSettings: {} }).confidenceScoringEnabled).toBe(false)
@@ -92,6 +108,48 @@ describe("World Cup bracket settings validation", () => {
   it("schema accepts commissioner confidence scoring toggle", () => {
     expect(worldCupBracketSettingsPatchSchema.safeParse({ confidenceScoringEnabled: true }).success).toBe(true)
     expect(worldCupBracketSettingsPatchSchema.safeParse({ confidenceScoringEnabled: false }).success).toBe(true)
+  })
+
+  it("post-lock knockout override ignores pool lock but not live or non-knockout matches", () => {
+    const lockedChallenge = {
+      pickLockStrategy: "tournament_start",
+      pickLockAt: new Date("2026-06-11T00:00:00.000Z"),
+      status: "open",
+    }
+    const scheduledKnockout = {
+      round: "round_of_32",
+      status: "scheduled",
+      startsAt: new Date("2026-06-20T00:00:00.000Z"),
+    }
+
+    expect(
+      isWorldCupMatchLocked({
+        challenge: lockedChallenge,
+        match: scheduledKnockout,
+        now: new Date("2026-06-12T00:00:00.000Z"),
+      })
+    ).toBe(true)
+    expect(
+      isWorldCupMatchLockedForPostLockKnockoutOverride({
+        challenge: lockedChallenge,
+        match: scheduledKnockout,
+        now: new Date("2026-06-12T00:00:00.000Z"),
+      })
+    ).toBe(false)
+    expect(
+      isWorldCupMatchLockedForPostLockKnockoutOverride({
+        challenge: lockedChallenge,
+        match: { ...scheduledKnockout, status: "live" },
+        now: new Date("2026-06-12T00:00:00.000Z"),
+      })
+    ).toBe(true)
+    expect(
+      isWorldCupMatchLockedForPostLockKnockoutOverride({
+        challenge: lockedChallenge,
+        match: { round: "group", status: "scheduled" },
+        now: new Date("2026-06-12T00:00:00.000Z"),
+      })
+    ).toBe(true)
   })
 
   it("normalizes valid confidence points and rejects invalid values", async () => {
@@ -351,6 +409,58 @@ describe("World Cup bracket settings validation", () => {
 
     const payload = challengeUpdate.mock.calls[0]?.[0]?.data?.sourcePayload as Record<string, unknown>
     expect((payload.leagueSettings as Record<string, unknown>).knockoutMode).toBe("knockout_only")
+  })
+
+  it("applyPatch rejects post-lock knockout override without AF Commissioner", async () => {
+    vi.resetModules()
+    const { applyWorldCupBracketSettingsPatch } = await import(
+      "@/lib/world-cup/worldCupBracketSettingsService"
+    )
+
+    await expect(
+      applyWorldCupBracketSettingsPatch({
+        challengeId: "c1",
+        userHasAfPro: false,
+        isAdmin: false,
+        patch: { knockoutEditOverrideEnabled: true },
+      })
+    ).rejects.toThrow(/AF Commissioner/)
+  })
+
+  it("applyPatch stores post-lock knockout override for AF Commissioner", async () => {
+    findUnique.mockResolvedValueOnce({
+      id: "c1",
+      sourcePayload: {
+        leagueSettings: { scoringStyle: "standard", commissionerNote: "keep" },
+      },
+      scoringProfileId: "sp1",
+      status: "open",
+      pickLockAt: null,
+      entries: [],
+      picks: [],
+    })
+    challengeUpdate.mockResolvedValueOnce({})
+    scoringUpdate.mockResolvedValueOnce({})
+
+    vi.resetModules()
+    const { applyWorldCupBracketSettingsPatch } = await import(
+      "@/lib/world-cup/worldCupBracketSettingsService"
+    )
+
+    await applyWorldCupBracketSettingsPatch({
+      challengeId: "c1",
+      userHasAfPro: false,
+      userHasAfCommissioner: true,
+      isAdmin: false,
+      actorUserId: "owner-1",
+      patch: { knockoutEditOverrideEnabled: true },
+    })
+
+    const updateArg = challengeUpdate.mock.calls[0]?.[0]
+    const payload = updateArg?.data?.sourcePayload as Record<string, unknown>
+    const ls = payload?.leagueSettings as Record<string, unknown>
+    expect(ls?.knockoutEditOverrideEnabled).toBe(true)
+    expect(ls?.commissionerNote).toBe("keep")
   })
 })
 

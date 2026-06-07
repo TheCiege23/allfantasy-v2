@@ -335,6 +335,96 @@ describe("World Cup finalize route service imports", () => {
     expect(prismaMocks.worldCupGroup.findMany).not.toHaveBeenCalled()
   })
 
+  it("allows finalized submit after lock only when knockout override is enabled", async () => {
+    const service = await import("@/lib/world-cup/worldCupEntryFinalizeService")
+    prismaMocks.worldCupBracketEntry.update.mockResolvedValue({
+      id: "entry-1",
+      challengeId: "c1",
+      userId: "user-1",
+      isComplete: true,
+      submittedAt: new Date("2026-06-12T00:00:00.000Z"),
+    })
+    prismaMocks.worldCupBracketEntry.findUnique.mockResolvedValue({
+      id: "entry-1",
+      challengeId: "c1",
+      userId: "user-1",
+      submittedAt: null,
+      isComplete: false,
+      challenge: {
+        id: "c1",
+        ownerUserId: "owner-1",
+        pickLockStrategy: "tournament_start",
+        pickLockAt: new Date("2026-01-01T00:00:00.000Z"),
+        status: "open",
+        includeThirdPlace: false,
+        sourcePayload: {
+          leagueSettings: {
+            knockoutMode: "knockout_only",
+            knockoutEditOverrideEnabled: true,
+          },
+        },
+        groups: [],
+        matches: [{
+          id: "m1",
+          apiFixtureId: 1001,
+          round: "round_of_32",
+          roundIndex: 1,
+          matchNumber: 1,
+          homeSlotKey: "ARG",
+          awaySlotKey: "BRA",
+          homeTeamId: "team-argentina",
+          awayTeamId: "team-brazil",
+          homeTeamName: "Argentina",
+          awayTeamName: "Brazil",
+          homeTeamLogo: null,
+          awayTeamLogo: null,
+          homeScore: null,
+          awayScore: null,
+          homePenaltyScore: null,
+          awayPenaltyScore: null,
+          status: "scheduled",
+          startsAt: new Date("2026-06-20T00:00:00.000Z"),
+          winnerTeamId: null,
+          winnerTeamName: null,
+          nextMatchId: null,
+          nextMatchSlot: null,
+          elapsedMinute: null,
+          injuryTime: null,
+          period: null,
+          venueName: null,
+          venueCity: null,
+          apiStatusShort: null,
+          lastScoreSyncedAt: null,
+        }],
+      },
+      picks: [{
+        id: "pick-m1",
+        matchId: "m1",
+        round: "round_of_32",
+        selectedTeamId: "team-argentina",
+        selectedSlotKey: "ARG",
+        selectedTeamName: "Argentina",
+      }],
+      groupRankingPicks: [],
+      thirdPlaceAdvancerPicks: [],
+    })
+
+    const result = await service.finalizeWorldCupEntry({
+      challengeId: "c1",
+      entryId: "entry-1",
+      userId: "user-1",
+    })
+
+    expect(prismaMocks.worldCupBracketEntry.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "entry-1" },
+        data: expect.objectContaining({ isComplete: true }),
+      })
+    )
+    expect(result.completion.postLockKnockoutOverrideEnabled).toBe(true)
+    expect(result.completion.isLocked).toBe(true)
+  })
+
   it("reports stale finalized entries as needing refinalize when picks become incomplete", async () => {
     const service = await import("@/lib/world-cup/worldCupEntryFinalizeService")
     const challengeGroups = "ABCDEFGHIJKL".split("").map((groupKey, groupIndex) => ({

@@ -13,6 +13,7 @@ import {
   isWorldCupBracketChallengePicksLocked,
   isWorldCupChallengeLocked,
   isWorldCupMatchLocked,
+  isWorldCupMatchLockedForPostLockKnockoutOverride,
   resolveWorldCupEffectivePickLockAt,
 } from "./worldCupBracketBuilder"
 import {
@@ -20,11 +21,16 @@ import {
   isWorldCupEntryCompleteFromSelections,
   recalculateWorldCupChallenge,
 } from "./worldCupScoringService"
-import { ensureWorldCupCommissionerSettings } from "./worldCupBracketEventService"
+import {
+  emitWorldCupBracketChatEvent,
+  ensureWorldCupCommissionerSettings,
+} from "./worldCupBracketEventService"
+import { WORLD_CUP_BRACKET_EVENT_TYPES } from "./worldCupBracketEvents"
 import {
   getWorldCupJoinPasswordHashFromPayload,
   hashWorldCupJoinPassword,
   isWorldCupConfidenceScoringEnabled,
+  isWorldCupPostLockKnockoutEditOverrideEnabled,
   parseWorldCupLeagueSettings,
 } from "./worldCupBracketSettingsService"
 import {
@@ -54,6 +60,62 @@ type SessionUser = { id?: string | null; email?: string | null; name?: string | 
 export const WORLD_CUP_BRACKET_LOCKED_MESSAGE = "Bracket is locked."
 
 const iso = (v: Date | string | null | undefined) => (v ? (v instanceof Date ? v.toISOString() : new Date(v).toISOString()) : null)
+
+type WorldCupKnockoutOverrideAuditAction = "pick_saved" | "pick_cleared" | "entry_finalized"
+
+export function canUseWorldCupPostLockKnockoutEditOverride(input: {
+  challenge: WorldCupBracketChallenge & { matches?: WorldCupBracketMatch[] }
+  match?: WorldCupBracketMatch | WorldCupMatchView | null
+  matches?: Array<WorldCupBracketMatch | WorldCupMatchView>
+  sourcePayload?: unknown
+}): boolean {
+  if (!input.match) return false
+  const sourcePayload = input.sourcePayload ?? input.challenge.sourcePayload
+  if (!isWorldCupPostLockKnockoutEditOverrideEnabled(sourcePayload)) return false
+  return !isWorldCupMatchLockedForPostLockKnockoutOverride({
+    challenge: input.challenge,
+    match: input.match,
+    matches: input.matches ?? input.challenge.matches ?? [],
+  })
+}
+
+export async function emitWorldCupKnockoutOverrideAuditEvent(input: {
+  action: WorldCupKnockoutOverrideAuditAction
+  challengeId: string
+  entryId?: string | null
+  userId: string
+  matchId?: string | null
+  matchIds?: string[]
+  round?: string | null
+  matchNumber?: number | null
+}) {
+  const label =
+    input.action === "entry_finalized"
+      ? "Entry finalized under knockout override"
+      : input.action === "pick_cleared"
+        ? "Knockout picks cleared under override"
+        : "Knockout pick saved under override"
+  await emitWorldCupBracketChatEvent({
+    challengeId: input.challengeId,
+    bracketEntryId: input.entryId ?? null,
+    userId: input.userId,
+    eventType: WORLD_CUP_BRACKET_EVENT_TYPES.KNOCKOUT_OVERRIDE,
+    eventTitle: label,
+    eventBody:
+      "A scheduled knockout bracket action was completed after pool lock under the commissioner override. Live, final, and per-match-started games remain locked.",
+    idempotencyKey: `world-cup:knockout-override:${input.action}:${input.challengeId}:${input.entryId ?? "entry"}:${crypto.randomUUID()}`,
+    metadata: {
+      action: input.action,
+      matchId: input.matchId ?? null,
+      matchIds: input.matchIds ?? null,
+      round: input.round ?? null,
+      matchNumber: input.matchNumber ?? null,
+      audited: true,
+      scope: "scheduled_knockout_picks_only",
+    },
+    force: true,
+  }).catch(() => undefined)
+}
 
 type WorldCupPickForView = Pick<
   WorldCupBracketPick,
@@ -1043,6 +1105,7 @@ async function savePicksForEntryTx(
     challenge: WorldCupBracketChallenge & { matches: WorldCupBracketMatch[] }
     completionMatches?: WorldCupMatchView[]
     entry: WorldCupBracketEntry & { participantId: string; userId: string; isLocked?: boolean | null }
+    allowPostLockKnockoutOverride?: boolean
     confidenceColumnEnabled: boolean
     picks: Array<{
       matchId: string
@@ -1056,9 +1119,21 @@ async function savePicksForEntryTx(
   }
 ) {
   const { challenge: c, completionMatches, entry, confidenceColumnEnabled, picks: pickInputs } = input
-  const lock = isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry })
-  if (lock.locked) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
   const byId = new Map(c.matches.map((m) => [m.id, m] as const))
+  const lock = isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry })
+  if (lock.locked) {
+    const allOverrideEligible =
+      input.allowPostLockKnockoutOverride === true &&
+      pickInputs.every((pick) => {
+        const match = byId.get(pick.matchId)
+        return canUseWorldCupPostLockKnockoutEditOverride({
+          challenge: c,
+          match,
+          matches: c.matches,
+        })
+      })
+    if (!allOverrideEligible) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
+  }
   let meaningfulPickChange = false
   for (const pick of pickInputs) {
     const m = byId.get(pick.matchId)
@@ -1101,7 +1176,16 @@ async function savePicksForEntryTx(
       }
     }
 
-    if (isWorldCupMatchLocked({ challenge: c, match: m, matches: c.matches })) throw new Error("This matchup is locked")
+    if (isWorldCupMatchLocked({ challenge: c, match: m, matches: c.matches })) {
+      const canOverride =
+        input.allowPostLockKnockoutOverride === true &&
+        canUseWorldCupPostLockKnockoutEditOverride({
+          challenge: c,
+          match: m,
+          matches: c.matches,
+        })
+      if (!canOverride) throw new Error("This matchup is locked")
+    }
     const s = side(m, pick)
     if (!s && !pick.selectedTeamName) throw new Error("Selected team is not in this matchup")
     const selectedTeamId = pick.selectedTeamId ?? (s === "home" ? m.homeTeamId : s === "away" ? m.awayTeamId : null)
@@ -1214,7 +1298,18 @@ export async function saveWorldCupPicks(input: {
     })) ?? null
   if (!entry) throw new Error("No bracket entry found — create a bracket first")
 
-  if (isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry }).locked) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
+  const lock = isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry })
+  const allowPostLockKnockoutOverride =
+    lock.locked &&
+    input.picks.every((pick) => {
+      const match = c.matches.find((m) => m.id === pick.matchId)
+      return canUseWorldCupPostLockKnockoutEditOverride({
+        challenge: c,
+        match,
+        matches: c.matches,
+      })
+    })
+  if (lock.locked && !allowPostLockKnockoutOverride) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
 
   const wasComplete = Boolean(entry.isComplete)
   const confidenceColumnEnabled = await worldCupConfidencePointsColumnReadyForWrites()
@@ -1223,10 +1318,20 @@ export async function saveWorldCupPicks(input: {
     await savePicksForEntryTx(tx, {
       challenge: c,
       entry: { ...entry, participantId: participant.id, userId: input.userId },
+      allowPostLockKnockoutOverride,
       confidenceColumnEnabled,
       picks: input.picks,
     })
   })
+  if (allowPostLockKnockoutOverride) {
+    await emitWorldCupKnockoutOverrideAuditEvent({
+      action: "pick_saved",
+      challengeId: c.id,
+      entryId: entry.id,
+      userId: input.userId,
+      matchIds: input.picks.map((pick) => pick.matchId),
+    })
+  }
 
   await recalculateWorldCupChallenge(c.id)
 
@@ -1430,7 +1535,13 @@ export async function saveWorldCupBracketPickForEntry(input: {
       ? c.matches.find((x: WorldCupBracketMatch) => x.matchNumber === input.matchNumber && x.round === input.round)
       : null)
   if (!m) throw new Error("Match not found")
-  if (isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry }).locked) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
+  const lock = isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry })
+  const allowPostLockKnockoutOverride = lock.locked && canUseWorldCupPostLockKnockoutEditOverride({
+    challenge: c,
+    match: m,
+    matches: c.matches,
+  })
+  if (lock.locked && !allowPostLockKnockoutOverride) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
 
   const existingPicks = entry.picks.filter(hasWorldCupPickSelection).map(toWorldCupPickView)
   const knockoutMode = getWorldCupKnockoutModeFromPayload(c.sourcePayload)
@@ -1461,7 +1572,14 @@ export async function saveWorldCupBracketPickForEntry(input: {
     projectedMatches.find((match) => match.round === m.round && match.matchNumber === m.matchNumber)
   if (!projectedMatch) throw new Error("Match not found")
   if (isWorldCupMatchLocked({ challenge: c, match: projectedMatch, matches: c.matches })) {
-    throw new Error("This matchup is locked")
+    const canOverrideProjected =
+      allowPostLockKnockoutOverride &&
+      canUseWorldCupPostLockKnockoutEditOverride({
+        challenge: c,
+        match: projectedMatch,
+        matches: projectedMatches,
+      })
+    if (!canOverrideProjected) throw new Error("This matchup is locked")
   }
   if (!isWorldCupMatchPickable(projectedMatch)) {
     throw new Error("This matchup is not ready for picks yet.")
@@ -1539,10 +1657,22 @@ export async function saveWorldCupBracketPickForEntry(input: {
       challenge: c,
       completionMatches: groupSeededMatches,
       entry: { ...entry, participantId: entry.participantId, userId: entry.userId },
+      allowPostLockKnockoutOverride,
       confidenceColumnEnabled,
       picks: [pickPayload],
     })
   })
+  if (allowPostLockKnockoutOverride) {
+    await emitWorldCupKnockoutOverrideAuditEvent({
+      action: "pick_saved",
+      challengeId: c.id,
+      entryId: entry.id,
+      userId: input.userId,
+      matchId: m.id,
+      round: m.round,
+      matchNumber: m.matchNumber,
+    })
+  }
   await recalculateWorldCupChallenge(c.id)
 
   const updatedEntry = await prisma.worldCupBracketEntry.findUnique({
@@ -1601,17 +1731,38 @@ export async function saveWorldCupPicksForEntry(input: {
     where: { id: input.entryId, challengeId: input.challengeId, userId: input.userId },
   })
   if (!entry) throw new Error("Entry not found")
-  if (isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry }).locked) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
+  const lock = isWorldCupChallengeLocked({ challenge: c, matches: c.matches, entry })
+  const allowPostLockKnockoutOverride =
+    lock.locked &&
+    input.picks.every((pick) => {
+      const match = c.matches.find((m) => m.id === pick.matchId)
+      return canUseWorldCupPostLockKnockoutEditOverride({
+        challenge: c,
+        match,
+        matches: c.matches,
+      })
+    })
+  if (lock.locked && !allowPostLockKnockoutOverride) throw new Error(WORLD_CUP_BRACKET_LOCKED_MESSAGE)
 
   const confidenceColumnEnabled = await worldCupConfidencePointsColumnReadyForWrites()
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await savePicksForEntryTx(tx, {
       challenge: c,
       entry: { ...entry, participantId: entry.participantId, userId: input.userId },
+      allowPostLockKnockoutOverride,
       confidenceColumnEnabled,
       picks: input.picks,
     })
   })
+  if (allowPostLockKnockoutOverride) {
+    await emitWorldCupKnockoutOverrideAuditEvent({
+      action: "pick_saved",
+      challengeId: c.id,
+      entryId: entry.id,
+      userId: input.userId,
+      matchIds: input.picks.map((pick) => pick.matchId),
+    })
+  }
   await recalculateWorldCupChallenge(c.id)
   const updatedEntry = await prisma.worldCupBracketEntry.findUnique({
     where: { id: entry.id },
