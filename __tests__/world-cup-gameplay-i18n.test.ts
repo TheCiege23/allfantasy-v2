@@ -178,6 +178,7 @@ describe("WC gameplay i18n: dictionary parity for new keys", () => {
     "wc.review.refinalizeEntry",
     "wc.review.completeAllToUnlock",
     "wc.review.tapRefresh",
+    "wc.review.resultPendingNote",
     "wc.review.createEntryFirstTitle",
     "wc.review.createEntryFirstBody",
     "wc.review.createMyBracket",
@@ -419,6 +420,7 @@ describe("WC gameplay i18n: Review/finalize wiring", () => {
     expect(SHELL_SRC).toContain(`t("wc.review.refinalizeEntry")`)
     expect(SHELL_SRC).toContain(`t("wc.review.completeAllToUnlock")`)
     expect(SHELL_SRC).toContain(`t("wc.review.tapRefresh")`)
+    expect(SHELL_SRC).toContain(`t("wc.review.resultPendingNote")`)
     expect(SHELL_SRC).toContain(`t("wc.review.createEntryFirstTitle")`)
     expect(SHELL_SRC).toContain(`t("wc.review.createEntryFirstBody")`)
     expect(SHELL_SRC).toContain(`t("wc.review.createMyBracket")`)

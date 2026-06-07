@@ -51,6 +51,8 @@ describe("worldCupI18n: getWorldCupLocale", () => {
     expect(getWorldCupLocale("zh")).toBe("zh")
     expect(getWorldCupLocale("fil")).toBe("fil")
     expect(getWorldCupLocale("vi")).toBe("vi")
+    expect(getWorldCupLocale("fr")).toBe("fr")
+    expect(getWorldCupLocale("ar")).toBe("ar")
   })
 })
 
@@ -60,12 +62,19 @@ describe("worldCupI18n: native locale names", () => {
     expect(WORLD_CUP_LOCALE_NATIVE_NAMES.es).toBe("Español")
     expect(WORLD_CUP_LOCALE_NATIVE_NAMES.zh).toBe("繁體中文")
     expect(WORLD_CUP_LOCALE_NATIVE_NAMES.fil).toBe("Filipino")
+    expect(WORLD_CUP_LOCALE_NATIVE_NAMES.fr).toBe("Français")
+    expect(WORLD_CUP_LOCALE_NATIVE_NAMES.ar).toBe("العربية")
     expect(WORLD_CUP_LOCALE_NATIVE_NAMES.vi).toBe("Tiếng Việt")
   })
 
   it("getWorldCupLocaleNativeName returns the native name", () => {
     expect(getWorldCupLocaleNativeName("zh")).toBe("繁體中文")
     expect(getWorldCupLocaleNativeName("vi")).toBe("Tiếng Việt")
+  })
+
+  it("getWorldCupLocaleNativeName returns French and Arabic native names", () => {
+    expect(getWorldCupLocaleNativeName("fr")).toBe("Français")
+    expect(getWorldCupLocaleNativeName("ar")).toBe("العربية")
   })
 
   it("getWorldCupLocaleNativeName falls back to English for unknown input", () => {
@@ -99,6 +108,20 @@ describe("worldCupI18n: wcT", () => {
   it("returns the Vietnamese value when locale is 'vi'", () => {
     expect(wcT("vi", "wc.tab.picks")).toBe("Vòng loại trực tiếp")
     expect(wcT("vi", "wc.tab.groupStage")).toBe("Vòng bảng")
+  })
+
+  it("returns French values for visible World Cup chat/review surfaces", () => {
+    expect(wcT("fr", "wc.tab.groupStage")).toBe("Phase de groupes")
+    expect(wcT("fr", "wc.chat.mode.pool")).toBe("Chat du pool")
+    expect(wcT("fr", "wc.chat.mention.allManagerOnly")).toContain("@all")
+    expect(wcT("fr", "wc.groupStage.resultPending")).toBe("Resultat en attente")
+  })
+
+  it("returns Arabic values for visible World Cup chat/review surfaces", () => {
+    expect(wcT("ar", "wc.tab.groupStage")).toBe("دور المجموعات")
+    expect(wcT("ar", "wc.chat.mode.pool")).toBe("دردشة المجموعة")
+    expect(wcT("ar", "wc.chat.mention.allManagerOnly")).toContain("@all")
+    expect(wcT("ar", "wc.groupStage.resultPending")).toBe("النتيجة معلقة")
   })
 
   it("returns the English value when locale is 'en'", () => {
@@ -161,10 +184,14 @@ describe("worldCupI18n: makeWcT", () => {
     const tZh = makeWcT("zh")
     const tFil = makeWcT("fil")
     const tVi = makeWcT("vi")
+    const tFr = makeWcT("fr")
+    const tAr = makeWcT("ar")
     expect(tEn("wc.tab.picks")).toBe("Knockouts")
     expect(tEs("wc.tab.picks")).toBe("Eliminatorias")
     expect(tZh("wc.tab.picks")).toBe("淘汰賽")
     expect(tFil("wc.tab.picks")).toBe("Knockouts")
+    expect(tFr("wc.chat.askChimmy")).toBe("Demander a Chimmy")
+    expect(tAr("wc.chat.askChimmy")).toBe("اسأل Chimmy")
     expect(tVi("wc.tab.picks")).toBe("Vòng loại trực tiếp")
   })
 
@@ -320,8 +347,8 @@ describe("worldCupI18n: safety properties", () => {
       if (locale === "fr" || locale === "ar") {
         expect(
           diffs.length,
-          `Locale "${locale}" currently uses English World Cup fallback copy with at least one localized marker`
-        ).toBeGreaterThanOrEqual(1)
+          `Locale "${locale}" should localize the visible World Cup launch/chat/review surfaces`
+        ).toBeGreaterThanOrEqual(35)
         continue
       }
       expect(
