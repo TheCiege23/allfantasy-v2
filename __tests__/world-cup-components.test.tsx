@@ -828,7 +828,9 @@ describe("World Cup mobile polish — matchup card & guided picker", () => {
     )
 
     expect(screen.getByText(/Fixtures Not Ready/i)).toBeInTheDocument()
-    expect(screen.getByText(/M29:missing_home_team/)).toBeInTheDocument()
+    expect(screen.getByText(/Pick earlier round winners first/i)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Pick Winner Match 27 to win/i })).toBeDisabled()
+    expect(screen.getByRole("button", { name: /Pick Winner Match 28 to win/i })).toBeDisabled()
   })
 })
 
@@ -3110,8 +3112,11 @@ describe("WorldCupBracketShell fixture readiness", () => {
 
     await waitFor(() => expect(clientApiMocks.fetchCompletionReview).toHaveBeenCalledTimes(1))
     fireEvent.click(screen.getAllByRole("button", { name: /Knockouts/i })[0])
-    fireEvent.click(await screen.findByRole("button", { name: /Pick Brazil to win/i }))
+    fireEvent.click(await screen.findByRole("button", { name: /^Open guided picker for match 1$/i }))
+    const dialog = await screen.findByRole("dialog", { name: /Guided Matchup Picker/i })
+    fireEvent.click(within(dialog).getByRole("button", { name: /Pick Brazil to win/i }))
     await waitFor(() => expect(clientApiMocks.savePick).toHaveBeenCalled())
+    fireEvent.click(within(dialog).getByTestId("world-cup-guided-close"))
     fireEvent.click(screen.getAllByRole("button", { name: /Review/i })[0])
 
     expect(confirm).not.toHaveBeenCalled()
@@ -3152,6 +3157,7 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(await screen.findByTestId("world-cup-knockout-pick-guidance")).toHaveTextContent("0/2 currently available picks complete.")
     expect(screen.getByTestId("world-cup-match-disabled-reason-m17")).toHaveTextContent("Pick earlier round winners first.")
     expect(screen.getByTestId("world-cup-knockout-board-scroll")).toBeInTheDocument()
+    expect(screen.getByTestId("world-cup-knockout-board-fit")).toHaveClass("w-full", "min-w-0", "overflow-hidden")
   })
 
   it("blocks duplicate clicks while a knockout pick is saving", async () => {
@@ -3162,12 +3168,13 @@ describe("WorldCupBracketShell fixture readiness", () => {
     const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
     render(<WorldCupBracketShell initialView={makeShellView() as any} />)
 
-    const brazilButton = await screen.findByRole("button", { name: /Pick Brazil to win/i })
+    fireEvent.click(await screen.findByRole("button", { name: /^Open guided picker for match 1$/i }))
+    const dialog = await screen.findByRole("dialog", { name: /Guided Matchup Picker/i })
+    const brazilButton = within(dialog).getByRole("button", { name: /Pick Brazil to win/i })
     fireEvent.click(brazilButton)
     fireEvent.click(brazilButton)
 
     expect(clientApiMocks.savePick).toHaveBeenCalledTimes(1)
-    await waitFor(() => expect(screen.getByRole("button", { name: /Pick Argentina to win/i })).toBeDisabled())
 
     resolveSave({
       success: true,

@@ -77,6 +77,8 @@ export default function WorldCupMatchupCard({
   isSaving = false,
   aiInsightsUnlocked = false,
   confidenceScoringEnabled = false,
+  compactBoard = false,
+  pickInModalOnly = false,
 }: {
   match: WorldCupMatchView
   pick?: WorldCupPickView
@@ -90,6 +92,8 @@ export default function WorldCupMatchupCard({
   isSaving?: boolean
   aiInsightsUnlocked?: boolean
   confidenceScoringEnabled?: boolean
+  compactBoard?: boolean
+  pickInModalOnly?: boolean
 }) {
   const { language } = useOptionalLanguage()
   const t = useMemo(() => makeWcT(language), [language])
@@ -166,6 +170,7 @@ export default function WorldCupMatchupCard({
   const isSimulated = match.apiStatusShort === "SIM"
   const isTestFixture = match.apiStatusShort === "TEST"
   const pickVisual = matchupPickVisualState(match, pick)
+  const openMatchupPicker = () => onOpenMatchupPicker?.(match.id)
 
   // Pick live state color helpers
   const pickStateBorderClass =
@@ -178,7 +183,12 @@ export default function WorldCupMatchupCard({
   return (
     <article
       data-testid={`world-cup-match-${match.id}`}
-      className={`w-[min(20rem,calc(100vw-2.5rem))] shrink-0 rounded-lg border bg-zinc-950/80 p-3 shadow-2xl shadow-black/30 transition sm:w-72 ${pickStateBorderClass}`}
+      className={[
+        compactBoard
+          ? "w-full min-w-0 rounded-lg border bg-zinc-950/78 p-2 shadow-lg shadow-black/25 transition"
+          : "w-[min(20rem,calc(100vw-2.5rem))] shrink-0 rounded-lg border bg-zinc-950/80 p-3 shadow-2xl shadow-black/30 transition sm:w-72",
+        pickStateBorderClass,
+      ].join(" ")}
     >
       {/* Header row — clicking opens guided picker */}
       <div
@@ -290,21 +300,23 @@ export default function WorldCupMatchupCard({
                     : "—"}
             </span>
           </div>
-          <div
-            data-testid="wc-match-pick-visual"
-            data-state={pickVisual}
-            className="mt-1 flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide"
-          >
-            {pickVisual === "correct" && (
-              <span className="text-white/90">{t("wc.matchup.pickVisualCorrect")}</span>
-            )}
-            {pickVisual === "incorrect" && (
-              <span className="text-white/70">{t("wc.matchup.pickVisualIncorrect")}</span>
-            )}
-            {pickVisual === "pending" && (
-              <span className="text-white/65">{t("wc.matchup.pickVisualPending")}</span>
-            )}
-          </div>
+          {!compactBoard ? (
+            <div
+              data-testid="wc-match-pick-visual"
+              data-state={pickVisual}
+              className="mt-1 flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide"
+            >
+              {pickVisual === "correct" && (
+                <span className="text-white/90">{t("wc.matchup.pickVisualCorrect")}</span>
+              )}
+              {pickVisual === "incorrect" && (
+                <span className="text-white/70">{t("wc.matchup.pickVisualIncorrect")}</span>
+              )}
+              {pickVisual === "pending" && (
+                <span className="text-white/65">{t("wc.matchup.pickVisualPending")}</span>
+              )}
+            </div>
+          ) : null}
         </div>
       )}
 
@@ -327,7 +339,7 @@ export default function WorldCupMatchupCard({
         </p>
       ) : null}
 
-      {confidenceScoringEnabled && matchIsPickable && !locked ? (
+      {confidenceScoringEnabled && matchIsPickable && !locked && !compactBoard ? (
         <label
           data-testid={`wc-match-confidence-selector-${match.id}`}
           className="mb-2 block rounded-lg border border-cyan-300/15 bg-cyan-300/[0.055] px-2 py-2 text-[11px] leading-4 text-white/75"
@@ -355,6 +367,7 @@ export default function WorldCupMatchupCard({
         </label>
       ) : null}
 
+      {compactBoard ? null : (
       <details
         data-testid={`world-cup-match-ai-insight-${match.id}`}
         className="mb-2 rounded-lg border border-cyan-300/20 bg-cyan-300/[0.055] px-2 py-2 text-[10px] text-white/90"
@@ -423,6 +436,7 @@ export default function WorldCupMatchupCard({
           )}
         </div>
       </details>
+      )}
 
       {/* Score row — shown during / after match */}
       {showScore && (
@@ -462,21 +476,21 @@ export default function WorldCupMatchupCard({
 
       {/* Kickoff date — only before match. Gated on hasMounted because toLocaleString output
           differs between Node SSR (UTC default) and the browser (user locale + timezone). */}
-      {hasMounted && isScheduled && match.startsAt && (
+      {hasMounted && isScheduled && match.startsAt && !compactBoard && (
         <div className="mb-2 text-center text-[10px] text-white/40" data-testid={`wc-match-kickoff-${match.id}`}>
           {formatWorldCupKickoffShort(match.startsAt)}
         </div>
       )}
 
       {/* Venue — small hint line */}
-      {match.venueName && isScheduled && (
+      {match.venueName && isScheduled && !compactBoard && (
         <div className="mb-2 truncate text-center text-[10px] text-white/25">
           {match.venueName}{match.venueCity ? `, ${match.venueCity}` : ""}
         </div>
       )}
 
       {/* Team buttons */}
-      <div className="space-y-2">
+      <div className={compactBoard ? "space-y-1" : "space-y-2"}>
         {/* Iterator renamed from `t` to `team` to avoid shadowing the
             outer translator function `t`. */}
         {teams.map((team) => {
@@ -503,6 +517,9 @@ export default function WorldCupMatchupCard({
               : !matchIsPickable
                 ? unpickableMessage
                 : undefined
+          const teamButtonDisabled = pickInModalOnly
+            ? isSaving || !onOpenMatchupPicker
+            : locked || isSaving || !matchIsPickable
           // Team name (displayName) intentionally NOT translated — Phase 5 brief.
           const pickAriaLabel = selected
             ? t("wc.matchup.pickAriaSelected", { name: displayName })
@@ -514,11 +531,19 @@ export default function WorldCupMatchupCard({
               data-testid={`world-cup-team-${match.id}-${team.side}`}
               aria-pressed={selected}
               aria-label={pickAriaLabel}
-              disabled={locked || isSaving || !matchIsPickable}
-              onClick={() => locked || isSaving || !matchIsPickable ? undefined : onPick?.(match, team.side, confidenceScoringEnabled ? confidenceDraft : null)}
-              title={disabledReason}
+              disabled={teamButtonDisabled}
+              onClick={() => {
+                if (pickInModalOnly && onOpenMatchupPicker) {
+                  onOpenMatchupPicker(match.id)
+                  return
+                }
+                return locked || isSaving || !matchIsPickable ? undefined : onPick?.(match, team.side, confidenceScoringEnabled ? confidenceDraft : null)
+              }}
+              title={pickInModalOnly ? t("wc.matchup.openGuidedAria", { number: match.matchNumber }) : disabledReason}
               className={[
-                "flex min-h-[3.5rem] w-full touch-manipulation items-center gap-2 rounded-md border px-2 py-1 text-left transition sm:h-14 sm:py-0",
+                compactBoard
+                  ? "flex min-h-[2.3rem] w-full touch-manipulation items-center gap-1.5 rounded-md border px-2 py-0.5 text-left transition"
+                  : "flex min-h-[3.5rem] w-full touch-manipulation items-center gap-2 rounded-md border px-2 py-1 text-left transition sm:h-14 sm:py-0",
                 winner ? "border-emerald-400/80 bg-emerald-400/[0.14] shadow-[0_0_0_1px_rgba(52,211,153,0.15)]"
                 : isFinal && !winner ? "border-white/[0.06] bg-white/[0.02] opacity-45"
                 : selected && isLive && pickLiveState === "winning" ? "border-cyan-300/60 bg-cyan-300/[0.08]"
@@ -526,18 +551,18 @@ export default function WorldCupMatchupCard({
                 : selected ? "border-cyan-300/70 bg-cyan-300/10"
                 : teamIsLeading ? "border-white/20 bg-white/[0.06]"
                 : "border-white/10 bg-white/[0.03]",
-                locked || isSaving || !matchIsPickable ? "cursor-not-allowed" : !isFinal ? "hover:bg-white/[0.06]" : "",
+                teamButtonDisabled ? "cursor-not-allowed" : !isFinal ? "hover:bg-white/[0.06]" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}
             >
               <WorldCupTeamFlag flagUrl={team.logo} teamName={displayName} size="sm" />
               <span className="min-w-0 flex-1 overflow-hidden">
-                <span className={`block truncate text-sm font-bold leading-tight ${isPlaceholder ? "italic text-white/40" : winner ? "text-emerald-200 font-black" : isFinal ? "text-white/50" : "text-white"}`}>
+                <span className={`block truncate font-bold leading-tight ${compactBoard ? "text-[11px]" : "text-sm"} ${isPlaceholder ? "italic text-white/40" : winner ? "text-emerald-200 font-black" : isFinal ? "text-white/50" : "text-white"}`}>
                   {displayName}
                 </span>
                 <span className="block truncate text-[10px] text-white/30">{team.slotKey}</span>
-                {hasMounted && isScheduled && match.startsAt && (
+                {hasMounted && isScheduled && match.startsAt && !compactBoard && (
                   <span className="mt-0.5 block text-[9px] text-white/35" data-testid={`wc-row-kickoff-${match.id}-${team.side}`}>
                     {formatWorldCupKickoffShort(match.startsAt)}
                   </span>
@@ -569,7 +594,7 @@ export default function WorldCupMatchupCard({
       </div>
 
       {/* Lock hint / venue footer */}
-      {lockHint && isScheduled && (
+      {lockHint && isScheduled && !compactBoard && (
         <div className="mt-2 flex items-center gap-1 text-[10px] text-white/30">
           <Clock className="h-3 w-3" />
           {lockHint}

@@ -134,6 +134,12 @@ export default async function WorldCupBracketsPage() {
     : []
   const { language } = await resolveServerRenderPreferences()
   const t = makeWcT(language)
+  const createIntentPath = "/brackets/world-cup/create"
+  const encodedCreateIntent = encodeURIComponent(createIntentPath)
+  const createPoolHref = userId
+    ? createIntentPath
+    : `/signup?next=${encodedCreateIntent}&callbackUrl=${encodedCreateIntent}`
+  const signInHref = `/login?callbackUrl=${encodeURIComponent("/brackets/world-cup")}`
 
   return (
     <main className="mode-readable af-world-cup-page relative min-h-screen overflow-hidden bg-[#05070b] text-white">
@@ -240,7 +246,7 @@ export default async function WorldCupBracketsPage() {
         {/* Primary CTA — Create is the dominant action */}
         <div className="mt-9 flex flex-col items-center gap-3">
           <Link
-            href="/brackets/world-cup/create"
+            href={createPoolHref}
             className="inline-flex min-h-14 items-center gap-2.5 rounded-xl bg-gradient-to-b from-cyan-300 to-cyan-400 px-8 py-3.5 text-base font-black text-slate-950 shadow-[0_12px_40px_-10px_rgba(34,211,238,0.7)] transition-transform hover:scale-[1.02] active:scale-[0.98]"
             data-testid="wc-cta-create"
           >
@@ -367,7 +373,7 @@ export default async function WorldCupBracketsPage() {
                   <p className="mt-1 text-xs text-white/30">{t("wc.publicHub.emptyHint")}</p>
                 </div>
                 <Link
-                  href="/brackets/world-cup/create"
+                  href={createPoolHref}
                   className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-2.5 text-sm font-black text-black"
                 >
                   <Plus className="h-4 w-4" />
@@ -383,12 +389,20 @@ export default async function WorldCupBracketsPage() {
               </div>
               <p className="font-black text-white">{t("wc.publicHub.signInTitle")}</p>
               <p className="mt-1 text-sm text-white/55">{t("wc.publicHub.signInBody")}</p>
-              <Link
-                href="/login?next=/brackets/world-cup"
-                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-2.5 text-sm font-black text-black"
-              >
-                {t("wc.publicHub.signInCta")}
-              </Link>
+              <div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
+                <Link
+                  href={createPoolHref}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-300 px-5 py-2.5 text-sm font-black text-black"
+                >
+                  {t("wc.publicHub.createWorldCupPool")}
+                </Link>
+                <Link
+                  href={signInHref}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.05] px-5 py-2.5 text-sm font-black text-white/80"
+                >
+                  {t("wc.publicHub.signInCta")}
+                </Link>
+              </div>
             </div>
           )}
         </section>
@@ -421,7 +435,7 @@ export default async function WorldCupBracketsPage() {
               return (
                 <Link
                   key={key}
-                  href={href}
+                  href={key === "create" ? createPoolHref : href}
                   className={`group flex flex-col gap-4 rounded-2xl border p-5 backdrop-blur transition-colors ${borderCls}`}
                   data-testid={`wc-action-card-${key}`}
                 >
@@ -505,6 +519,20 @@ export default async function WorldCupBracketsPage() {
             ))}
           </div>
           <p className="text-xs text-white/35">{t("wc.publicHub.ai.gating")}</p>
+          <div className="flex flex-wrap gap-2 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-3">
+            <Link
+              href="/pricing?from=wc-public-hub"
+              className="inline-flex min-h-10 items-center justify-center rounded-xl bg-amber-300 px-4 py-2 text-xs font-black text-slate-950"
+            >
+              AF Pro
+            </Link>
+            <Link
+              href="/tokens?from=wc-public-hub"
+              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-cyan-200/25 bg-cyan-300/[0.08] px-4 py-2 text-xs font-black text-cyan-50"
+            >
+              Tokens
+            </Link>
+          </div>
         </section>
 
         {/* ── Social / Invite ──────────────────────────────────────── */}
@@ -524,7 +552,7 @@ export default async function WorldCupBracketsPage() {
             </p>
           </div>
           <Link
-            href="/brackets/world-cup/create"
+            href={createPoolHref}
             className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-white/15 bg-white/[0.05] px-5 py-2.5 text-sm font-bold text-white/80 transition-colors hover:border-white/25 hover:bg-white/[0.09]"
           >
             <Plus className="h-4 w-4" />

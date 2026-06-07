@@ -574,6 +574,11 @@ const EN: WorldCupDictionary = {
   "wc.create.scoring.intro": "Round-by-round scoring:",
   "wc.create.scoring.values":
     "10 pts Round of 32 · 20 pts Round of 16 · 40 pts QF · 80 pts SF · 160 pts Final · 320 pts Champion bonus",
+  "wc.create.monetization.title": "Make Chimmy visible when users are ready",
+  "wc.create.monetization.body":
+    "Pools are free to create. AF Pro unlocks deeper AI bracket analysis, and tokens cover one-off premium AI actions.",
+  "wc.create.monetization.proCta": "AF Pro",
+  "wc.create.monetization.tokensCta": "Tokens",
   "wc.create.helper.entriesOne":
     "Each user can create up to {{max}} bracket entry.",
   "wc.create.helper.entriesOther":
@@ -1845,6 +1850,11 @@ const ES: WorldCupDictionary = {
   "wc.create.scoring.intro": "Puntuación ronda por ronda:",
   "wc.create.scoring.values":
     "10 pts Ronda de 32 · 20 pts Ronda de 16 · 40 pts QF · 80 pts SF · 160 pts Final · 320 pts bonus de campeón",
+  "wc.create.monetization.title": "Haz visible a Chimmy cuando tus usuarios estén listos",
+  "wc.create.monetization.body":
+    "Crear grupos es gratis. AF Pro desbloquea análisis de bracket más profundos, y los tokens cubren acciones premium de IA de una sola vez.",
+  "wc.create.monetization.proCta": "AF Pro",
+  "wc.create.monetization.tokensCta": "Tokens",
   "wc.create.helper.entriesOne":
     "Cada usuario puede crear hasta {{max}} bracket.",
   "wc.create.helper.entriesOther":
