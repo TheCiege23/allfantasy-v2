@@ -4,6 +4,7 @@ import { readFantasyCalcValuesFromDb } from '@/lib/fantasycalc-db'
 import { prisma } from '@/lib/prisma'
 import { computeAllDevyIntelMetrics } from '@/lib/devy-intel'
 import { getCFBPlayerStats } from '@/lib/cfb-player-data'
+import { hasCfbdApiKey } from '@/lib/cfbd-env'
 import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
 import type { MarketSignal, MarketAlert, MarketAlertResponse } from '@/lib/types/market-alerts'
 
@@ -33,7 +34,7 @@ async function fetchCFBDStatsForDevyPlayers(schools: string[]): Promise<Map<stri
 
   const statsMap = new Map<string, { passingYards: number; passingTDs: number; rushingYards: number; rushingTDs: number; receivingYards: number; receivingTDs: number; receptions: number }>()
 
-  if (!process.env.CFBD_KEY) return statsMap
+  if (!hasCfbdApiKey()) return statsMap
 
   const season = new Date().getFullYear() - 1
   const uniqueSchools = [...new Set(schools)].slice(0, 30)

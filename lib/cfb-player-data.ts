@@ -1,5 +1,6 @@
 // CFB Player Data - Integrates with CollegeFootballData.com API for devy player info
 import { prisma } from '@/lib/prisma'
+import { getCfbdApiKey } from '@/lib/cfbd-env'
 
 export interface CFBPlayer {
   id: number
@@ -130,9 +131,9 @@ function calculateDevyValue(
 }
 
 export async function searchCFBPlayers(searchTerm: string): Promise<CFBPlayer[]> {
-  const apiKey = process.env.CFBD_KEY
+  const apiKey = getCfbdApiKey()
   if (!apiKey) {
-    console.error('CFBD_KEY not found')
+    console.error('CFBD key not found')
     return []
   }
 
@@ -179,7 +180,7 @@ export async function searchCFBPlayers(searchTerm: string): Promise<CFBPlayer[]>
 }
 
 export async function getCFBPlayerStats(year: number, team?: string): Promise<CFBPlayerStats[]> {
-  const apiKey = process.env.CFBD_KEY
+  const apiKey = getCfbdApiKey()
   if (!apiKey) return []
 
   try {
@@ -261,7 +262,7 @@ export interface CFBDraftPick {
 }
 
 export async function getCFBDraftPicks(year: number, college?: string): Promise<CFBDraftPick[]> {
-  const apiKey = process.env.CFBD_KEY
+  const apiKey = getCfbdApiKey()
   if (!apiKey) return []
 
   try {
@@ -303,7 +304,7 @@ export async function getCFBDraftPicks(year: number, college?: string): Promise<
 }
 
 export async function getCFBTeamRoster(team: string, year?: number): Promise<CFBPlayer[]> {
-  const apiKey = process.env.CFBD_KEY
+  const apiKey = getCfbdApiKey()
   if (!apiKey) return []
 
   try {
@@ -522,7 +523,7 @@ export interface CFBRecruit {
 }
 
 export async function getCFBRecruits(year: number, team?: string, position?: string): Promise<CFBRecruit[]> {
-  const apiKey = process.env.CFBD_KEY
+  const apiKey = getCfbdApiKey()
   if (!apiKey) return []
 
   const cacheKey = `cfbd-recruits-${year}-${team || 'all'}-${position || 'all'}`
@@ -571,7 +572,7 @@ export async function getCFBTeamRecruitingRankings(year: number, team?: string):
   rank: number
   points: number
 }>> {
-  const apiKey = process.env.CFBD_KEY
+  const apiKey = getCfbdApiKey()
   if (!apiKey) return []
 
   const cacheKey = `cfbd-recruiting-team-${year}-${team || 'all'}`
@@ -616,7 +617,7 @@ export interface CFBTransferPortalEntry {
 }
 
 export async function getCFBTransferPortal(year: number): Promise<CFBTransferPortalEntry[]> {
-  const apiKey = process.env.CFBD_KEY
+  const apiKey = getCfbdApiKey()
   if (!apiKey) return []
 
   const cacheKey = `cfbd-transfer-portal-${year}`
@@ -673,7 +674,7 @@ export interface CFBReturningProduction {
 }
 
 export async function getCFBReturningProduction(year: number, team?: string): Promise<CFBReturningProduction[]> {
-  const apiKey = process.env.CFBD_KEY
+  const apiKey = getCfbdApiKey()
   if (!apiKey) return []
 
   const cacheKey = `cfbd-returning-prod-${year}-${team || 'all'}`
@@ -727,7 +728,7 @@ export interface CFBPlayerUsage {
 }
 
 export async function getCFBPlayerUsage(year: number, team?: string, position?: string): Promise<CFBPlayerUsage[]> {
-  const apiKey = process.env.CFBD_KEY
+  const apiKey = getCfbdApiKey()
   if (!apiKey) return []
 
   const cacheKey = `cfbd-player-usage-${year}-${team || 'all'}-${position || 'all'}`
@@ -776,7 +777,7 @@ export interface CFBPlayerPPA {
 }
 
 export async function getCFBPlayerPPA(year: number, team?: string, position?: string): Promise<CFBPlayerPPA[]> {
-  const apiKey = process.env.CFBD_KEY
+  const apiKey = getCfbdApiKey()
   if (!apiKey) return []
 
   const cacheKey = `cfbd-player-ppa-${year}-${team || 'all'}-${position || 'all'}`
@@ -829,7 +830,7 @@ export interface CFBTeamSPRating {
 }
 
 export async function getCFBSPRatings(year: number, team?: string): Promise<CFBTeamSPRating[]> {
-  const apiKey = process.env.CFBD_KEY
+  const apiKey = getCfbdApiKey()
   if (!apiKey) return []
 
   const cacheKey = `cfbd-sp-ratings-${year}-${team || 'all'}`
@@ -876,7 +877,7 @@ export interface CFBPlayerWEPA {
 }
 
 export async function getCFBPlayerWEPAPassing(year: number, team?: string): Promise<CFBPlayerWEPA[]> {
-  const apiKey = process.env.CFBD_KEY
+  const apiKey = getCfbdApiKey()
   if (!apiKey) return []
 
   const cacheKey = `cfbd-wepa-passing-${year}-${team || 'all'}`
@@ -907,7 +908,7 @@ export async function getCFBPlayerWEPAPassing(year: number, team?: string): Prom
 }
 
 export async function getCFBPlayerWEPARushing(year: number, team?: string): Promise<CFBPlayerWEPA[]> {
-  const apiKey = process.env.CFBD_KEY
+  const apiKey = getCfbdApiKey()
   if (!apiKey) return []
 
   const cacheKey = `cfbd-wepa-rushing-${year}-${team || 'all'}`

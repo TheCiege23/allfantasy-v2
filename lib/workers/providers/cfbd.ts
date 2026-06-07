@@ -1,5 +1,6 @@
 import type { ApiFetchParams, ApiProvider } from '@/lib/workers/api-config'
 import { toApiChainSport } from '@/lib/workers/api-config'
+import { getCfbdApiKey } from '@/lib/cfbd-env'
 
 const CFBD_BASE_URL = 'https://api.collegefootballdata.com'
 
@@ -8,7 +9,7 @@ function currentSeason(): string {
 }
 
 function apiKey(): string {
-  return process.env.CFBD_API_KEY?.trim() || ''
+  return getCfbdApiKey()
 }
 
 async function cfbdFetch<T>(path: string, params?: Record<string, string>): Promise<T | null> {
