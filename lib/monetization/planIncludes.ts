@@ -22,28 +22,28 @@ export const PLAN_FAMILY_SHORT_TAGLINE: Record<PlanFamilyKey, string> = {
 /** Bullets for pricing cards (short lines for narrow columns). */
 export const PLAN_FAMILY_INCLUDES: Record<PlanFamilyKey, readonly string[]> = {
   af_pro: [
-    "Chimmy AI chat & tools (metered with tokens)",
-    "Trade analyzer, waiver wire, matchup breakdowns",
-    "NFL, NBA, NHL, MLB, NCAA FB/BB, Soccer coverage",
+    "Advanced Chimmy, bracket grading, and matchup analysis",
+    "Dark horse, upset finder, confidence, and pick comparison",
+    "250 monthly tokens or 3,500 yearly tokens included",
   ],
   af_commissioner: [
-    "Commissioner dashboards & league controls",
-    "Automations, approvals, broadcast-style updates",
-    "Pairs with free league creation — money flows via FanCred",
+    "Custom scoring, lock settings, invites, exports, and analytics",
+    "Commissioner AI summaries, recaps, and leaderboard explanations",
+    "100 monthly tokens or 1,500 yearly tokens included",
   ],
   af_all_access: [
     "Full Chimmy AI + trade/waiver/matchup tools",
     "Commissioner dashboards & league automation",
-    "Draft room, dynasty planning & War Room tools",
+    "Legacy bundle: 650 monthly tokens or 8,500 yearly tokens included",
   ],
   af_war_room: [
-    "Draft room intelligence & prep workflows",
-    "Dynasty / keeper & multi-season planning",
-    "Built for deep leagues and roster architects",
+    "Live tournament and draft-room intelligence",
+    "Dynasty, keeper, and multi-season planning workflows",
+    "300 monthly tokens or 3,500 yearly tokens included",
   ],
   af_supreme: [
-    "Full All-Access capability across NFL–Soccer",
-    "Highest monthly token credit + deepest subscriber discount on spends",
-    "Best for commissioners who live in the product year-round",
+    "AF Pro + Commissioner + War Room in one plan",
+    "1,000 monthly tokens or 15,000 yearly tokens included",
+    "Best for commissioners and power users who live in the product",
   ],
 }

@@ -29,7 +29,7 @@ const ALL_CONFIGURED_DATA = {
     },
     {
       sku: "af_tokens_10",
-      title: "AllFantasy AI Tokens (10)",
+      title: "AllFantasy AI Tokens (600)",
       checkoutConfigured: true,
       expectedPurchaseType: "tokens" as const,
       mappedPurchaseType: "tokens",
@@ -54,7 +54,7 @@ const PARTIAL_DATA = {
     },
     {
       sku: "af_tokens_10",
-      title: "AllFantasy AI Tokens (10)",
+      title: "AllFantasy AI Tokens (600)",
       checkoutConfigured: false,
       expectedPurchaseType: "tokens" as const,
       mappedPurchaseType: "tokens",
@@ -141,7 +141,7 @@ describe("CheckoutCoveragePanel", () => {
 
     const missingList = screen.getByTestId("checkout-coverage-missing-list")
     expect(missingList).toBeInTheDocument()
-    expect(missingList).toHaveTextContent("AllFantasy AI Tokens (10)")
+    expect(missingList).toHaveTextContent("AllFantasy AI Tokens (600)")
     expect(missingList).toHaveTextContent("af_tokens_10")
     expect(missingList).toHaveTextContent("checkout link missing or invalid")
   })
@@ -206,7 +206,7 @@ describe("CheckoutCoveragePanel", () => {
     await waitFor(() => {
       expect(screen.getByText("AF Pro Monthly")).toBeInTheDocument()
     })
-    expect(screen.getByText("AllFantasy AI Tokens (10)")).toBeInTheDocument()
+    expect(screen.getByText("AllFantasy AI Tokens (600)")).toBeInTheDocument()
 
     // Clicking again collapses
     fireEvent.click(screen.getByTestId("checkout-coverage-toggle-all"))

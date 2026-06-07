@@ -563,7 +563,7 @@ export class TokenSpendService {
    * Called from the `invoice.payment_succeeded` Stripe webhook handler for
    * `subscription_cycle` and `subscription_create` billing reasons.
    *
-   * Uses `monthly_grant:{invoiceId}` as the idempotency key — exactly-once
+   * Uses `subscription_credit:{invoiceId}` as the idempotency key — exactly-once
    * delivery even on Stripe retries.  Does NOT require a tokenPackage DB row;
    * writes directly to the balance and ledger.
    *
@@ -578,7 +578,7 @@ export class TokenSpendService {
   }): Promise<TokenLedgerEntryView | null> {
     if (!input.tokenAmount || input.tokenAmount <= 0) return null
 
-    const idempotencyKey = `monthly_grant:${input.invoiceId}`
+    const idempotencyKey = `subscription_credit:${input.invoiceId}`
 
     return (prisma as any).$transaction(async (tx: any) => {
       // Idempotency: skip if we already granted for this invoice
@@ -620,15 +620,15 @@ export class TokenSpendService {
           balanceBefore,
           balanceAfter,
           tokenPackageSku: null,
-          sourceType: "subscription_monthly_grant",
+          sourceType: "subscription_included_credit",
           sourceId: input.invoiceId,
           idempotencyKey,
-          description: `Monthly subscription credit — ${input.planFamily} (${input.billingReason})`,
+          description: `Subscription included credit — ${input.planFamily} (${input.billingReason})`,
           metadata: {
             planFamily: input.planFamily,
             invoiceId: input.invoiceId,
             billingReason: input.billingReason,
-            grantType: "monthly_subscription_credit",
+            grantType: "subscription_included_credit",
           },
         },
         include: {

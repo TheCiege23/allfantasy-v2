@@ -134,7 +134,7 @@ describe("POST /api/trade-evaluator contract", () => {
       response: new Response(
         JSON.stringify({
           code: "token_confirmation_required",
-          message: "Use 3 tokens to unlock this request once.",
+          message: "Use 50 tokens to unlock this request once.",
         }),
         {
           status: 409,
@@ -163,7 +163,7 @@ describe("POST /api/trade-evaluator contract", () => {
       response: new Response(
         JSON.stringify({
           code: "insufficient_token_balance",
-          message: "Need 3 tokens for this one-time unlock.",
+          message: "Need 50 tokens for this one-time unlock.",
         }),
         {
           status: 402,
@@ -206,7 +206,7 @@ describe("POST /api/trade-evaluator contract", () => {
       },
       tokenPreview: {
         ruleCode: "ai_trade_analyzer_full_review",
-        tokenCost: 3,
+        tokenCost: 50,
       },
     })
 
@@ -229,7 +229,7 @@ describe("POST /api/trade-evaluator contract", () => {
     expect(body.evaluation?.verdict?.overall).toBe("FAIR")
     expect(body.tokenSpend).toMatchObject({
       ruleCode: "ai_trade_analyzer_full_review",
-      tokenCost: 3,
+      tokenCost: 50,
       balanceAfter: 14,
       ledgerId: "ledger-123",
     })

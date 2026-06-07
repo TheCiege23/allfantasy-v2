@@ -57,12 +57,12 @@ describe("Admin checkout-link mapping diagnostics route", () => {
         {
           sku: "af_tokens_10",
           type: "token_pack",
-          title: "AllFantasy AI Tokens (10)",
+          title: "AllFantasy AI Tokens (600)",
           description: "desc",
           amountUsd: 8.99,
           currency: "usd",
           interval: null,
-          tokenAmount: 10,
+          tokenAmount: 600,
           planFamily: null,
           stripePriceEnvVar: "unused",
         },
@@ -108,7 +108,7 @@ describe("Admin checkout-link mapping diagnostics route", () => {
         },
         {
           sku: "af_tokens_10",
-          title: "AllFantasy AI Tokens (10)",
+          title: "AllFantasy AI Tokens (600)",
           checkoutConfigured: false,
           expectedPurchaseType: "tokens",
           mappedPurchaseType: "tokens",

@@ -25,6 +25,11 @@ describe("Token pricing matrix and subscription coexistence policy", () => {
       "commissioner_ai_full_draft_recap",
       "commissioner_ai_full_league_recap",
       "commissioner_ai_large_analysis",
+      "world_cup_commissioner_ai_pool_summary",
+      "world_cup_commissioner_ai_weekly_recap",
+      "world_cup_commissioner_ai_leaderboard_analysis",
+      "world_cup_commissioner_ai_who_can_still_win",
+      "world_cup_commissioner_ai_full_pool_intelligence_report",
     ]
 
     const codes = new Set(TOKEN_SPEND_RULE_MATRIX.map((rule) => rule.code))
@@ -47,11 +52,11 @@ describe("Token pricing matrix and subscription coexistence policy", () => {
         gracePeriodEnd: null,
       },
       ruleCode: "ai_trade_analyzer_full_review",
-      baseTokenCost: 3,
+      baseTokenCost: 50,
     })
 
     expect(decision.chargeMode).toBe("tokens_only")
-    expect(decision.effectiveTokenCost).toBe(3)
+    expect(decision.effectiveTokenCost).toBe(50)
     expect(decision.subscriptionEligible).toBe(false)
   })
 
@@ -64,12 +69,26 @@ describe("Token pricing matrix and subscription coexistence policy", () => {
         gracePeriodEnd: null,
       },
       ruleCode: "commissioner_ai_large_analysis",
-      baseTokenCost: 9,
+      baseTokenCost: 100,
     })
 
     expect(decision.chargeMode).toBe("subscriber_discounted_tokens")
     expect(decision.discountPct).toBeGreaterThan(0)
-    expect(decision.effectiveTokenCost).toBeLessThan(9)
+    expect(decision.effectiveTokenCost).toBeLessThan(100)
     expect(decision.effectiveTokenCost).toBeGreaterThanOrEqual(1)
+  })
+
+  it("matches launch token costs for core AI and World Cup commissioner actions", () => {
+    const byCode = new Map(TOKEN_SPEND_RULE_MATRIX.map((rule) => [rule.code, rule]))
+
+    expect(byCode.get("ai_chimmy_chat_message")?.tokenCost).toBe(15)
+    expect(byCode.get("world_cup_ai_matchup_analysis")?.tokenCost).toBe(15)
+    expect(byCode.get("world_cup_ai_bracket_explanation")?.tokenCost).toBe(50)
+    expect(byCode.get("world_cup_ai_commissioner_report")?.tokenCost).toBe(100)
+    expect(byCode.get("world_cup_commissioner_ai_pool_summary")?.tokenCost).toBe(25)
+    expect(byCode.get("world_cup_commissioner_ai_weekly_recap")?.tokenCost).toBe(50)
+    expect(byCode.get("world_cup_commissioner_ai_leaderboard_analysis")?.tokenCost).toBe(50)
+    expect(byCode.get("world_cup_commissioner_ai_who_can_still_win")?.tokenCost).toBe(75)
+    expect(byCode.get("world_cup_commissioner_ai_full_pool_intelligence_report")?.tokenCost).toBe(100)
   })
 })

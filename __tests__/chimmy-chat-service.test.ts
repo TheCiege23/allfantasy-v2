@@ -50,7 +50,7 @@ describe("sendChimmyMessage", () => {
       preview: {
         ruleCode: "ai_chimmy_chat_message",
         featureLabel: "Chimmy chat message",
-        tokenCost: 2,
+        tokenCost: 15,
         currentBalance: 0,
         canSpend: false,
         requiresConfirmation: true,
@@ -87,8 +87,8 @@ describe("sendChimmyMessage", () => {
       preview: {
         ruleCode: "ai_chimmy_chat_message",
         featureLabel: "Chimmy chat message",
-        tokenCost: 1,
-        currentBalance: 4,
+        tokenCost: 15,
+        currentBalance: 20,
         canSpend: true,
         requiresConfirmation: true,
       },

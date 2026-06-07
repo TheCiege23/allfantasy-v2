@@ -74,7 +74,7 @@ describe("GET /api/monetization/context", () => {
     previewSpendWithEntitlementMock.mockResolvedValue({
       ruleCode: "ai_chimmy_chat_message",
       featureLabel: "Chimmy chat message",
-      tokenCost: 1,
+      tokenCost: 15,
       currentBalance: 8,
       canSpend: true,
       requiresConfirmation: true,
@@ -102,7 +102,7 @@ describe("GET /api/monetization/context", () => {
         {
           ruleCode: "ai_chimmy_chat_message",
           preview: expect.objectContaining({
-            tokenCost: 1,
+            tokenCost: 15,
             currentBalance: 8,
           }),
           error: null,

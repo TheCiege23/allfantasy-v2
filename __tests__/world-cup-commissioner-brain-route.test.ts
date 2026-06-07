@@ -75,7 +75,7 @@ describe("World Cup commissioner AI recap route", () => {
     managerAccessMock.mockResolvedValue({ ok: true })
     hasAiMock.mockResolvedValue(true)
     hasCommissionerMock.mockResolvedValue(true)
-    commitTokenSpendMock.mockResolvedValue({ id: "ledger-commissioner-1", delta: -3 })
+    commitTokenSpendMock.mockResolvedValue({ id: "ledger-commissioner-1", delta: -100 })
     prepareTokenFallbackMock.mockResolvedValue({
       ok: true,
       mode: "subscription",
@@ -125,7 +125,7 @@ describe("World Cup commissioner AI recap route", () => {
         JSON.stringify({
           error: "Token spend confirmation required.",
           code: "token_confirmation_required",
-          preview: { tokenCost: 3 },
+          preview: { tokenCost: 100 },
         }),
         { status: 409 }
       ),
@@ -150,7 +150,7 @@ describe("World Cup commissioner AI recap route", () => {
         JSON.stringify({
           error: "Token spend confirmation required.",
           code: "token_confirmation_required",
-          preview: { tokenCost: 3 },
+          preview: { tokenCost: 100 },
         }),
         { status: 409 }
       ),
@@ -317,7 +317,7 @@ describe("World Cup commissioner AI recap route", () => {
           JSON.stringify({
             error: "Token spend confirmation required.",
             code: "token_confirmation_required",
-            preview: { tokenCost: 3 },
+            preview: { tokenCost: 100 },
           }),
           { status: 409 }
         ),
@@ -369,7 +369,7 @@ describe("World Cup commissioner AI recap route", () => {
     prepareTokenFallbackMock.mockResolvedValueOnce({
       ok: true,
       mode: "tokens",
-      tokenPreview: { tokenCost: 3, canSpend: true },
+      tokenPreview: { tokenCost: 100, canSpend: true },
       commitTokenSpend: commitTokenSpendMock,
     })
     generateLinesMock.mockResolvedValueOnce(["Token-backed commissioner report"])

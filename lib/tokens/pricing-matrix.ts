@@ -28,7 +28,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Fast side-by-side player comparison summary.",
     tier: "low",
     complexity: "simple",
-    tokenCost: 1,
+    tokenCost: 15,
     requiredPlan: "pro",
   },
   {
@@ -38,7 +38,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Single waiver add/drop recommendation.",
     tier: "low",
     complexity: "simple",
-    tokenCost: 1,
+    tokenCost: 15,
     requiredPlan: "pro",
   },
   {
@@ -48,7 +48,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Single matchup confidence explanation.",
     tier: "low",
     complexity: "simple",
-    tokenCost: 1,
+    tokenCost: 15,
     requiredPlan: "pro",
   },
   {
@@ -58,7 +58,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Single start/sit recommendation explanation.",
     tier: "low",
     complexity: "simple",
-    tokenCost: 1,
+    tokenCost: 15,
     requiredPlan: "pro",
   },
   {
@@ -68,7 +68,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Single lineup recommendation reasoning.",
     tier: "low",
     complexity: "simple",
-    tokenCost: 1,
+    tokenCost: 15,
     requiredPlan: "pro",
   },
 
@@ -80,7 +80,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Full trade context + fairness + action plan review.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 3,
+    tokenCost: 50,
     requiredPlan: "pro",
   },
   {
@@ -90,7 +90,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Session-level draft recommendation flow.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 3,
+    tokenCost: 50,
     requiredPlan: "war_room",
   },
   {
@@ -100,7 +100,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Single pick explanation with contextual tradeoffs.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 15,
     requiredPlan: "war_room",
   },
   {
@@ -110,7 +110,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Weekly multi-step planning guidance.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 3,
+    tokenCost: 50,
     requiredPlan: "pro",
   },
   {
@@ -120,7 +120,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Rankings interpretation with explainable context.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 15,
     requiredPlan: "commissioner",
   },
   {
@@ -130,7 +130,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Draft ranking context and strategic implications.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 15,
     requiredPlan: "war_room",
   },
 
@@ -142,7 +142,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Extended multi-step draft war room planning.",
     tier: "high",
     complexity: "heavy",
-    tokenCost: 6,
+    tokenCost: 100,
     requiredPlan: "war_room",
   },
   {
@@ -152,7 +152,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Long-horizon 3-5 year strategic planning output.",
     tier: "high",
     complexity: "heavy",
-    tokenCost: 7,
+    tokenCost: 100,
     requiredPlan: "war_room",
   },
   {
@@ -162,7 +162,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "League storyline generation with narrative synthesis.",
     tier: "high",
     complexity: "heavy",
-    tokenCost: 5,
+    tokenCost: 50,
     requiredPlan: "commissioner",
   },
   {
@@ -172,7 +172,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "League-wide collusion signal analysis scan.",
     tier: "high",
     complexity: "heavy",
-    tokenCost: 8,
+    tokenCost: 100,
     requiredPlan: "commissioner",
   },
   {
@@ -182,7 +182,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "League-wide tanking signal analysis scan.",
     tier: "high",
     complexity: "heavy",
-    tokenCost: 7,
+    tokenCost: 100,
     requiredPlan: "commissioner",
   },
   {
@@ -192,7 +192,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "AI-assisted manager action recommendations.",
     tier: "high",
     complexity: "heavy",
-    tokenCost: 6,
+    tokenCost: 100,
     requiredPlan: "commissioner",
   },
   {
@@ -202,7 +202,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Full draft recap across league activity.",
     tier: "high",
     complexity: "heavy",
-    tokenCost: 6,
+    tokenCost: 100,
     requiredPlan: "commissioner",
   },
   {
@@ -212,7 +212,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Cross-surface full league recap generation.",
     tier: "high",
     complexity: "heavy",
-    tokenCost: 7,
+    tokenCost: 100,
     requiredPlan: "commissioner",
   },
   {
@@ -222,7 +222,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Large-scope commissioner-wide analysis run.",
     tier: "high",
     complexity: "heavy",
-    tokenCost: 9,
+    tokenCost: 100,
     requiredPlan: "commissioner",
   },
 
@@ -234,7 +234,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Unified Chimmy chat response generation.",
     tier: "low",
     complexity: "simple",
-    tokenCost: 1,
+    tokenCost: 15,
     requiredPlan: "pro",
   },
   {
@@ -244,7 +244,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "One World Cup matchup explanation or Ask Chimmy-style bracket insight.",
     tier: "low",
     complexity: "simple",
-    tokenCost: 1,
+    tokenCost: 15,
     requiredPlan: "pro",
   },
   {
@@ -254,7 +254,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Private World Cup bracket review with pool and pick context.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 50,
     requiredPlan: "pro",
   },
   {
@@ -264,7 +264,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Commissioner-facing World Cup pool report, recap, or activity summary.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 3,
+    tokenCost: 100,
     requiredPlan: "commissioner",
   },
   {
@@ -274,7 +274,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Legacy trade evaluator route mapped to full review pricing.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 3,
+    tokenCost: 50,
     requiredPlan: "pro",
   },
   {
@@ -284,7 +284,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Legacy waiver route mapped to one-off waiver pricing.",
     tier: "low",
     complexity: "simple",
-    tokenCost: 1,
+    tokenCost: 15,
     requiredPlan: "pro",
   },
   {
@@ -294,7 +294,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Legacy AI Commissioner cycle endpoint mapped to large analysis pricing.",
     tier: "high",
     complexity: "heavy",
-    tokenCost: 9,
+    tokenCost: 100,
     requiredPlan: "commissioner",
   },
   {
@@ -304,11 +304,61 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Single AI Commissioner question and response.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 25,
     requiredPlan: "commissioner",
   },
 
-  // Survivor — player AI (AF Pro) + host AI (AF Commissioner); costs are 1 / 2 / 3 tokens
+  {
+    code: "world_cup_commissioner_ai_pool_summary",
+    category: "commissioner_function",
+    featureLabel: "World Cup pool summary",
+    description: "Commissioner pool summary from cached pool, entry, and leaderboard context.",
+    tier: "mid",
+    complexity: "moderate",
+    tokenCost: 25,
+    requiredPlan: "commissioner",
+  },
+  {
+    code: "world_cup_commissioner_ai_weekly_recap",
+    category: "commissioner_function",
+    featureLabel: "World Cup weekly recap",
+    description: "Weekly commissioner recap for pool activity and bracket movement.",
+    tier: "mid",
+    complexity: "moderate",
+    tokenCost: 50,
+    requiredPlan: "commissioner",
+  },
+  {
+    code: "world_cup_commissioner_ai_leaderboard_analysis",
+    category: "commissioner_function",
+    featureLabel: "World Cup leaderboard analysis",
+    description: "Commissioner leaderboard explanation with score and remaining-path context.",
+    tier: "mid",
+    complexity: "moderate",
+    tokenCost: 50,
+    requiredPlan: "commissioner",
+  },
+  {
+    code: "world_cup_commissioner_ai_who_can_still_win",
+    category: "commissioner_function",
+    featureLabel: "World Cup who can still win",
+    description: "Commissioner analysis of remaining possible winners and paths.",
+    tier: "high",
+    complexity: "heavy",
+    tokenCost: 75,
+    requiredPlan: "commissioner",
+  },
+  {
+    code: "world_cup_commissioner_ai_full_pool_intelligence_report",
+    category: "commissioner_function",
+    featureLabel: "World Cup full pool intelligence report",
+    description: "Full premium commissioner intelligence report for one World Cup pool.",
+    tier: "high",
+    complexity: "heavy",
+    tokenCost: 100,
+    requiredPlan: "commissioner",
+  },
+  // Survivor AI token costs
   {
     code: "survivor_ai_vote_risk_quick",
     category: "ai_feature",
@@ -316,7 +366,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Fast vote exposure and swing-vote hint.",
     tier: "low",
     complexity: "simple",
-    tokenCost: 1,
+    tokenCost: 15,
     requiredPlan: "pro",
   },
   {
@@ -326,7 +376,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Short idol timing / play recommendation.",
     tier: "low",
     complexity: "simple",
-    tokenCost: 1,
+    tokenCost: 15,
     requiredPlan: "pro",
   },
   {
@@ -336,7 +386,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Single pick for an active mini-game.",
     tier: "low",
     complexity: "simple",
-    tokenCost: 1,
+    tokenCost: 15,
     requiredPlan: "pro",
   },
   {
@@ -346,7 +396,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Brief weekly or tribal recap blurb.",
     tier: "low",
     complexity: "simple",
-    tokenCost: 1,
+    tokenCost: 15,
     requiredPlan: "pro",
   },
   {
@@ -356,7 +406,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Light jury perception cue (private to user).",
     tier: "low",
     complexity: "simple",
-    tokenCost: 1,
+    tokenCost: 15,
     requiredPlan: "pro",
   },
   {
@@ -366,7 +416,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Rewrite / tighten a confessional draft.",
     tier: "low",
     complexity: "simple",
-    tokenCost: 1,
+    tokenCost: 15,
     requiredPlan: "pro",
   },
   {
@@ -376,7 +426,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Bundled player strategy for the week.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 50,
     requiredPlan: "pro",
   },
   {
@@ -386,7 +436,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Tribe dynamics and numbers breakdown.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 50,
     requiredPlan: "pro",
   },
   {
@@ -396,7 +446,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Props, spreads, and lineup picks coaching.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 50,
     requiredPlan: "pro",
   },
   {
@@ -406,7 +456,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Finale and jury-facing narrative coaching.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 50,
     requiredPlan: "pro",
   },
   {
@@ -416,7 +466,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Who might flip and why.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 50,
     requiredPlan: "pro",
   },
   {
@@ -426,7 +476,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "When to play advantages vs hold.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 50,
     requiredPlan: "pro",
   },
   {
@@ -436,7 +486,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Full-map alliance and threat read.",
     tier: "high",
     complexity: "heavy",
-    tokenCost: 3,
+    tokenCost: 100,
     requiredPlan: "pro",
   },
   {
@@ -446,7 +496,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Long-form episode narrative recap.",
     tier: "high",
     complexity: "heavy",
-    tokenCost: 3,
+    tokenCost: 100,
     requiredPlan: "pro",
   },
   {
@@ -456,7 +506,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Season-long storyline and arc package.",
     tier: "high",
     complexity: "heavy",
-    tokenCost: 3,
+    tokenCost: 100,
     requiredPlan: "pro",
   },
   {
@@ -466,7 +516,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Automation assist for tallying and validating votes.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 50,
     requiredPlan: "commissioner",
   },
   {
@@ -476,7 +526,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Rules check for idol and advantage plays.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 50,
     requiredPlan: "commissioner",
   },
   {
@@ -486,7 +536,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Score mini-game submissions with explainable audit.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 50,
     requiredPlan: "commissioner",
   },
   {
@@ -496,7 +546,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Deep scan for coordinated voting or messaging patterns.",
     tier: "high",
     complexity: "heavy",
-    tokenCost: 3,
+    tokenCost: 100,
     requiredPlan: "commissioner",
   },
   {
@@ -506,7 +556,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "League-wide fairness and competitive balance report.",
     tier: "high",
     complexity: "heavy",
-    tokenCost: 3,
+    tokenCost: 100,
     requiredPlan: "commissioner",
   },
   {
@@ -516,7 +566,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Commissioner recap engine for story mode.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 50,
     requiredPlan: "commissioner",
   },
   {
@@ -526,37 +576,37 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Tone, spoilers, and chapter breaks for season narrative.",
     tier: "high",
     complexity: "heavy",
-    tokenCost: 3,
+    tokenCost: 100,
     requiredPlan: "commissioner",
   },
   {
     code: "big_brother_ai_vote_prediction",
     category: "ai_feature",
     featureLabel: "Big Brother quick insight / vote read",
-    description: "Single-lens strategy or vote-dynamic read (1 token).",
+    description: "Single-lens strategy or vote-dynamic read.",
     tier: "low",
     complexity: "simple",
-    tokenCost: 1,
+    tokenCost: 15,
     requiredPlan: "pro",
   },
   {
     code: "big_brother_ai_alliance_read",
     category: "ai_feature",
     featureLabel: "Big Brother house / alliance analysis",
-    description: "Deeper social and threat read (2 tokens).",
+    description: "Deeper social and threat read.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 50,
     requiredPlan: "pro",
   },
   {
     code: "big_brother_ai_strategy_report",
     category: "ai_feature",
     featureLabel: "Big Brother full weekly strategy report",
-    description: "Full house breakdown and narrative recap (3 tokens).",
+    description: "Full house breakdown and narrative recap.",
     tier: "high",
     complexity: "heavy",
-    tokenCost: 3,
+    tokenCost: 100,
     requiredPlan: "pro",
   },
   {
@@ -566,7 +616,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Themed challenge copy for commissioner runs.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 50,
     requiredPlan: "commissioner",
   },
   {
@@ -576,7 +626,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Host narration and schedule framing.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 50,
     requiredPlan: "commissioner",
   },
   {
@@ -586,7 +636,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Finale tone and jury framing (no vote reveals).",
     tier: "high",
     complexity: "heavy",
-    tokenCost: 3,
+    tokenCost: 100,
     requiredPlan: "commissioner",
   },
   {
@@ -596,7 +646,7 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     description: "Commissioner oversight narrative and checks.",
     tier: "mid",
     complexity: "moderate",
-    tokenCost: 2,
+    tokenCost: 50,
     requiredPlan: "commissioner",
   },
 ] as const

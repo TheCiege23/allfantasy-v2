@@ -4,7 +4,7 @@ import {
   getMonetizationCatalogItemBySku,
   type MonetizationSku,
 } from "@/lib/monetization/catalog"
-import { SUBSCRIPTION_TOKEN_POLICY_CONFIG } from "@/lib/tokens/subscription-policy"
+import { getIncludedPremiumCreditsForSubscription } from "@/lib/tokens/subscription-policy"
 import type { SubscriptionPlanId } from "@/lib/subscription/types"
 import { TokenSpendService } from "@/lib/tokens/TokenSpendService"
 
@@ -257,13 +257,13 @@ export async function refreshSubscriptionPeriod(
 }
 
 /**
- * Grant monthly subscription credits after a successful billing cycle.
+ * Grant included subscription credits after a successful billing cycle.
  *
  * Resolves the user's plan from the invoice's Stripe subscription ID,
- * looks up the configured monthly credit amount for that plan, and calls
+ * looks up the configured monthly/yearly credit amount for that plan, and calls
  * `TokenSpendService.grantMonthlySubscriptionCredits`.
  *
- * Safe to call speculatively — the idempotency key `monthly_grant:{invoiceId}`
+ * Safe to call speculatively — the idempotency key `subscription_credit:{invoiceId}`
  * guarantees exactly-once delivery on Stripe retries.  Returns early without
  * throwing if the subscription/plan cannot be resolved.
  */
@@ -293,10 +293,10 @@ export async function grantMonthlyCreditsFromInvoice(
   if (!item || item.type !== "subscription" || !item.planFamily) return
 
   const planId = item.planFamily.replace(/^af_/, "") as SubscriptionPlanId
-  const planPolicy = SUBSCRIPTION_TOKEN_POLICY_CONFIG.plans[planId]
-  if (!planPolicy) return
-
-  const tokenAmount = planPolicy.monthlyIncludedPremiumCredits
+  const tokenAmount = getIncludedPremiumCreditsForSubscription({
+    planId,
+    interval: item.interval,
+  })
   if (!tokenAmount || tokenAmount <= 0) return
 
   const service = new TokenSpendService()
