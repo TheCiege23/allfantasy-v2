@@ -232,7 +232,7 @@ describe("WorldCupGroupStagePicks", () => {
     expect(screen.getByTestId("world-cup-group-pick-result-A-team-b")).toHaveAttribute("data-result-state", "wrong")
     expect(screen.getByTestId("world-cup-group-pick-result-A-team-b")).toHaveTextContent("Wrong +0")
     expect(screen.getByTestId("world-cup-group-pick-result-A-team-c")).toHaveAttribute("data-result-state", "pending")
-    expect(screen.getByTestId("world-cup-group-pick-result-A-team-c")).toHaveTextContent("Pending")
+    expect(screen.getByTestId("world-cup-group-pick-result-A-team-c")).toHaveTextContent("Result pending")
   })
 
   it("renders third-place advancer result borders from saved pick scoring", async () => {

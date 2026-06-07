@@ -1466,7 +1466,10 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(within(savedPicks).getByTestId("world-cup-review-group-A")).toHaveTextContent("#2 Brazil")
     expect(within(savedPicks).getByTestId("world-cup-review-group-A")).toHaveTextContent("Wrong +0")
     expect(savedPicks).toHaveTextContent("Canada")
-    expect(savedPicks).toHaveTextContent("Pending")
+    expect(savedPicks).toHaveTextContent("Result pending")
+    expect(screen.getByTestId("world-cup-review-result-state-note")).toHaveTextContent(
+      /your pick is saved/i
+    )
   })
 
   it("Review shows saved knockout picks with automatic result states after finalize", async () => {
@@ -1751,6 +1754,107 @@ describe("WorldCupBracketShell fixture readiness", () => {
 
     fireEvent.click(within(drawer).getByRole("button", { name: /Pool Chat/i }))
     expect(screen.getByPlaceholderText(/Message the pool or ask Chimmy/i)).toBeInTheDocument()
+  })
+
+  it("suggests pool members after @ and commissioner @all broadcast safely", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes("/chat?action=members")) {
+        return {
+          ok: true,
+          json: async () => ({
+            members: [
+              {
+                userId: "user-1",
+                username: "Owner",
+                displayName: "Owner",
+                avatarUrl: null,
+                joinedAt: "2026-01-01T00:00:00.000Z",
+                isCurrentUser: true,
+              },
+              {
+                userId: "user-2",
+                username: "Friend_24",
+                displayName: "Friendly Rival",
+                avatarUrl: null,
+                joinedAt: "2026-01-02T00:00:00.000Z",
+                isCurrentUser: false,
+              },
+            ],
+          }),
+        } as Response
+      }
+      if (url.includes("/chat")) {
+        return {
+          ok: true,
+          json: async () => ({ messages: [] }),
+        } as Response
+      }
+      return {
+        ok: true,
+        json: async () => makeReadinessResponse(),
+      } as Response
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: true, isAdmin: false }) as any} defaultTab="home" />)
+
+    const drawer = await openWorldCupChatDrawer()
+    const input = await screen.findByPlaceholderText(/Message the pool or ask Chimmy/i)
+    fireEvent.change(input, { target: { value: "@fr" } })
+
+    const suggestions = await within(drawer).findByTestId("wc-chat-mention-suggestions")
+    expect(await within(suggestions).findByRole("button", { name: /Mention @Friend_24/i })).toBeInTheDocument()
+    fireEvent.click(within(suggestions).getByRole("button", { name: /Mention @Friend_24/i }))
+    expect(input).toHaveValue("@Friend_24 ")
+
+    fireEvent.change(input, { target: { value: "@a" } })
+    const allSuggestions = await within(drawer).findByTestId("wc-chat-mention-suggestions")
+    expect(await within(allSuggestions).findByRole("button", { name: /Mention all pool members/i })).toBeInTheDocument()
+    fireEvent.click(within(allSuggestions).getByRole("button", { name: /Mention all pool members/i }))
+    expect(input).toHaveValue("@all ")
+  })
+
+  it("does not expose @all broadcast suggestion to regular pool members", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes("/chat?action=members")) {
+        return {
+          ok: true,
+          json: async () => ({
+            members: [{
+              userId: "user-2",
+              username: "Friend_24",
+              displayName: "Friendly Rival",
+              avatarUrl: null,
+              joinedAt: "2026-01-02T00:00:00.000Z",
+              isCurrentUser: false,
+            }],
+          }),
+        } as Response
+      }
+      if (url.includes("/chat")) {
+        return {
+          ok: true,
+          json: async () => ({ messages: [] }),
+        } as Response
+      }
+      return {
+        ok: true,
+        json: async () => makeReadinessResponse(),
+      } as Response
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const WorldCupBracketShell = (await import("@/components/brackets/world-cup/WorldCupBracketShell")).default
+    render(<WorldCupBracketShell initialView={makeShellView({ isOwner: false, isAdmin: false }) as any} defaultTab="home" />)
+
+    const drawer = await openWorldCupChatDrawer()
+    const input = await screen.findByPlaceholderText(/Message the pool or ask Chimmy/i)
+    fireEvent.change(input, { target: { value: "@a" } })
+
+    const suggestions = await within(drawer).findByTestId("wc-chat-mention-suggestions")
+    expect(within(suggestions).queryByRole("button", { name: /Mention all pool members/i })).not.toBeInTheDocument()
+    expect(within(suggestions).getByText(/reserved for pool commissioners/i)).toBeInTheDocument()
   })
 
   it("keeps mobile pick help manual and does not expose active AI builder controls", async () => {

@@ -146,6 +146,13 @@ type WorldCupDmMember = {
   joinedAt: string
   isCurrentUser: boolean
 }
+type WorldCupMentionSuggestion = {
+  id: string
+  token: string
+  label: string
+  helper: string
+  isBroadcast?: boolean
+}
 type WorldCupDmThread = {
   id: string
   threadType: "dm" | "group" | "league" | "bracket_pool" | "ai"
@@ -237,6 +244,26 @@ const WORLD_CUP_CHAT_FONT_OPTIONS: Array<{ value: WorldCupChatFont; label: strin
 
 const WORLD_CUP_ENTRY_VIDEO_SRC = "/videos/world-cup/allfantasy-world-cup-path-to-greatness.mp4"
 const WORLD_CUP_ENTRY_VIDEO_SESSION_KEY = "af:world-cup:path-to-greatness-seen:v1"
+const WORLD_CUP_MENTION_TOKEN_PATTERN =
+  /^[a-zA-Z0-9](?:(?:[a-zA-Z0-9.-]|_(?=[a-zA-Z0-9])){0,30}[a-zA-Z0-9])?$/
+
+function getWorldCupMentionTokenForMember(member: WorldCupDmMember) {
+  const raw = (member.username || member.displayName || "").trim().replace(/^@+/, "")
+  return WORLD_CUP_MENTION_TOKEN_PATTERN.test(raw) ? raw : null
+}
+
+function getActiveWorldCupMentionQuery(value: string) {
+  const match = value.match(/(^|[\s\n])@([a-zA-Z0-9._-]{0,31})$/)
+  return match ? match[2] ?? "" : null
+}
+
+function replaceActiveWorldCupMentionToken(value: string, token: string) {
+  const match = value.match(/(^|[\s\n])@([a-zA-Z0-9._-]{0,31})$/)
+  if (!match || match.index == null) return `${value}${token} `
+  const leading = match[1] ?? ""
+  const start = match.index + leading.length
+  return `${value.slice(0, start)}${token} `
+}
 
 function WorldCupAtmosphereBackdrop() {
   return (
@@ -591,7 +618,7 @@ function worldCupReviewStatusClass(status: "correct" | "wrong" | "pending") {
 function worldCupReviewStatusLabel(input: { isCorrect?: boolean | null; pointsAwarded?: number | null }) {
   if (input.isCorrect === true) return { status: "correct" as const, label: `Correct +${input.pointsAwarded ?? 0}` }
   if (input.isCorrect === false) return { status: "wrong" as const, label: "Wrong +0" }
-  return { status: "pending" as const, label: "Pending" }
+  return { status: "pending" as const, label: "Result pending" }
 }
 
 function teamNameFromGroupStageReview(view: WorldCupGroupStageViewClient, teamId: string) {
@@ -4130,6 +4157,12 @@ export default function WorldCupBracketShell({
                       <p className="mt-1 text-xs leading-5 text-white/50">
                         {t("wc.review.scoringNoteBody")}
                       </p>
+                      <p
+                        data-testid="world-cup-review-result-state-note"
+                        className="mt-2 rounded-lg border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-white/70"
+                      >
+                        {t("wc.review.resultPendingNote")}
+                      </p>
                     </div>
 
                     <section
@@ -4668,6 +4701,7 @@ export default function WorldCupBracketShell({
       <WorldCupCommunityFoundationPanel
         challengeId={challengeId}
         entitlementSummary={entitlementSummary}
+        canBroadcastAll={Boolean(view.isOwner || view.isAdmin)}
         promptAvailability={{
           hasLeaderboard: view.leaderboard.length > 0,
           hasUserEntry: Boolean(selectedEntry),
@@ -5322,10 +5356,12 @@ type WorldCupChimmyPromptAvailability = {
 function WorldCupCommunityFoundationPanel({
   challengeId,
   entitlementSummary,
+  canBroadcastAll,
   promptAvailability,
 }: {
   challengeId: string
   entitlementSummary: ReturnType<typeof resolveWorldCupEntitlementSummary>
+  canBroadcastAll?: boolean
   promptAvailability?: WorldCupChimmyPromptAvailability
 }) {
   const commissionerUnlocked = entitlementSummary.commissioner
@@ -5335,9 +5371,13 @@ function WorldCupCommunityFoundationPanel({
   const tChat = useMemo(() => makeWcT(language), [language])
   const [messages, setMessages] = useState<WorldCupPoolChatMessage[]>([])
   const [chatBody, setChatBody] = useState("")
+  const chatTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [isChatLoading, setIsChatLoading] = useState(true)
   const [isSendingChat, setIsSendingChat] = useState(false)
   const [chatError, setChatError] = useState<string | null>(null)
+  const [mentionMembers, setMentionMembers] = useState<WorldCupDmMember[]>([])
+  const [isMentionLoading, setIsMentionLoading] = useState(false)
+  const [mentionError, setMentionError] = useState<string | null>(null)
   const [dmMembers, setDmMembers] = useState<WorldCupDmMember[]>([])
   const [dmThreads, setDmThreads] = useState<WorldCupDmThread[]>([])
   const [selectedDmThreadId, setSelectedDmThreadId] = useState<string | null>(null)
@@ -5414,6 +5454,37 @@ function WorldCupCommunityFoundationPanel({
       !message.isPrivate && message.messageType !== "chimmy_private_response"
     )
   }, [chatMode, messages])
+  const activeMentionQuery = useMemo(() => getActiveWorldCupMentionQuery(chatBody), [chatBody])
+  const mentionSuggestions = useMemo<WorldCupMentionSuggestion[]>(() => {
+    if (chatMode === "dm" || activeMentionQuery === null) return []
+    const query = activeMentionQuery.toLowerCase()
+    const broadcast: WorldCupMentionSuggestion[] = canBroadcastAll && "all".startsWith(query)
+      ? [{
+          id: "broadcast-all",
+          token: "@all",
+          label: "@all",
+          helper: tChat("wc.chat.mention.allHelper"),
+          isBroadcast: true,
+        }]
+      : []
+    const members = mentionMembers
+      .filter((member) => !member.isCurrentUser)
+      .map((member) => {
+        const token = getWorldCupMentionTokenForMember(member)
+        if (!token) return null
+        const searchable = `${token} ${member.displayName}`.toLowerCase()
+        if (query && !searchable.includes(query)) return null
+        return {
+          id: member.userId,
+          token: `@${token}`,
+          label: `@${token}`,
+          helper: member.displayName,
+        }
+      })
+      .filter((item): item is WorldCupMentionSuggestion => Boolean(item))
+      .slice(0, 8)
+    return [...broadcast, ...members]
+  }, [activeMentionQuery, canBroadcastAll, chatMode, mentionMembers, tChat])
   const activeDmThread = useMemo(
     () => dmThreads.find((thread) => thread.id === selectedDmThreadId) ?? null,
     [dmThreads, selectedDmThreadId]
@@ -5421,6 +5492,11 @@ function WorldCupCommunityFoundationPanel({
 
   function insertComposerText(value: string) {
     setChatBody((current) => `${current}${value}`)
+  }
+
+  function insertMentionSuggestion(suggestion: WorldCupMentionSuggestion) {
+    setChatBody((current) => replaceActiveWorldCupMentionToken(current, suggestion.token))
+    window.requestAnimationFrame(() => chatTextareaRef.current?.focus())
   }
 
   function openAiPrompt(prompt: string) {
@@ -5459,6 +5535,24 @@ function WorldCupCommunityFoundationPanel({
       setChatError(err instanceof Error ? err.message : "Could not load pool chat")
     } finally {
       setIsChatLoading(false)
+    }
+  }, [challengeId])
+
+  const loadMentionMembers = useCallback(async () => {
+    setIsMentionLoading(true)
+    setMentionError(null)
+    try {
+      const res = await fetch(`/api/brackets/world-cup/${challengeId}/chat?action=members`, {
+        cache: "no-store",
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || "Could not load pool members")
+      setMentionMembers(Array.isArray(data.members) ? data.members : [])
+    } catch (err) {
+      setMentionError(err instanceof Error ? err.message : "Could not load pool members")
+      setMentionMembers([])
+    } finally {
+      setIsMentionLoading(false)
     }
   }, [challengeId])
 
@@ -5513,6 +5607,12 @@ function WorldCupCommunityFoundationPanel({
     if (!chatDrawerOpen) return
     void loadChat()
   }, [chatDrawerOpen, loadChat])
+
+  useEffect(() => {
+    if (!chatDrawerOpen || chatMode === "dm" || activeMentionQuery === null) return
+    if (mentionMembers.length > 0 || isMentionLoading) return
+    void loadMentionMembers()
+  }, [activeMentionQuery, chatDrawerOpen, chatMode, isMentionLoading, loadMentionMembers, mentionMembers.length])
 
   useEffect(() => {
     if (!chatDrawerOpen || chatMode !== "dm") return
@@ -6205,6 +6305,7 @@ function WorldCupCommunityFoundationPanel({
                 GIF
               </button>
               <textarea
+                ref={chatTextareaRef}
                 value={chatBody}
                 onChange={(event) => setChatBody(event.target.value)}
                 onKeyDown={(event) => {
@@ -6244,6 +6345,57 @@ function WorldCupCommunityFoundationPanel({
                 {isSendingChat ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}
               </button>
             </div>
+            {activeMentionQuery !== null && chatMode !== "dm" ? (
+              <div
+                data-testid="wc-chat-mention-suggestions"
+                className="mt-2 rounded-2xl border border-cyan-300/18 bg-slate-950/95 p-2 shadow-[0_18px_50px_-32px_rgba(34,211,238,0.85)]"
+              >
+                <div className="mb-1 flex items-center justify-between gap-2 px-1">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100/70">
+                    {tChat("wc.chat.mention.title")}
+                  </p>
+                  {isMentionLoading ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white/45">
+                      <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                      {tChat("wc.chat.mention.loading")}
+                    </span>
+                  ) : null}
+                </div>
+                {mentionSuggestions.length > 0 ? (
+                  <div className="grid gap-1.5 sm:grid-cols-2">
+                    {mentionSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.id}
+                        type="button"
+                        onClick={() => insertMentionSuggestion(suggestion)}
+                        className={[
+                          "flex min-h-11 items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55",
+                          suggestion.isBroadcast
+                            ? "border-amber-300/35 bg-amber-300/[0.10] text-amber-50 hover:bg-amber-300/[0.16]"
+                            : "border-white/10 bg-white/[0.045] text-slate-100/82 hover:border-cyan-300/35 hover:bg-cyan-300/[0.08]",
+                        ].join(" ")}
+                        aria-label={suggestion.isBroadcast ? tChat("wc.chat.mention.allAria") : `Mention ${suggestion.label}`}
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-xs font-black">{suggestion.label}</span>
+                          <span className="mt-0.5 block truncate text-[10px] text-white/45">{suggestion.helper}</span>
+                        </span>
+                        {suggestion.isBroadcast ? <Bell className="h-3.5 w-3.5 shrink-0" aria-hidden /> : <AtSign className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+                      </button>
+                    ))}
+                  </div>
+                ) : !isMentionLoading ? (
+                  <p className="rounded-xl border border-dashed border-white/10 px-3 py-2 text-xs leading-5 text-white/45">
+                    {mentionError ?? tChat("wc.chat.mention.noMatches")}
+                  </p>
+                ) : null}
+                {!canBroadcastAll ? (
+                  <p className="mt-2 px-1 text-[10px] leading-4 text-white/35">
+                    {tChat("wc.chat.mention.allManagerOnly")}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <p data-testid="wc-chat-trust-note" className="mt-1.5 px-2 text-[11px] leading-5 text-slate-300/62">
               {chatMode === "ai" ? tChat("wc.chat.drawer.aiTrust") : tChat("wc.chat.trustNote")}
             </p>
@@ -6253,7 +6405,14 @@ function WorldCupCommunityFoundationPanel({
               <ComposerUtilityButton icon={Baseline} label="Format" onClick={() => setComposerPanel("format")} />
               <ComposerUtilityButton icon={Film} label="GIF" onClick={() => setComposerPanel("gif")} />
               <ComposerUtilityButton icon={BarChart3} label="Poll" onClick={() => setComposerPanel("poll")} />
-              <ComposerUtilityButton icon={AtSign} label="Mention" onClick={() => insertComposerText("@")} />
+              <ComposerUtilityButton
+                icon={AtSign}
+                label="Mention"
+                onClick={() => {
+                  insertComposerText("@")
+                  window.requestAnimationFrame(() => chatTextareaRef.current?.focus())
+                }}
+              />
               <ComposerUtilityButton icon={Hash} label="Hashtag" onClick={() => insertComposerText("#")} />
               <ComposerUtilityButton icon={ImageIcon} label="Image" onClick={() => setComposerPanel("image")} />
               <ComposerUtilityButton icon={Mic} label="Voice" onClick={() => setComposerPanel("voice")} />
