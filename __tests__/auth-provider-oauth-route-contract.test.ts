@@ -11,6 +11,10 @@ const yahooConnectionUpsertMock = vi.hoisted(() => vi.fn())
 const userProfileUpsertMock = vi.hoisted(() => vi.fn())
 const userProfileFindUniqueMock = vi.hoisted(() => vi.fn())
 const userProfileUpdateMock = vi.hoisted(() => vi.fn())
+const authAccountFindFirstMock = vi.hoisted(() => vi.fn())
+const authAccountUpdateMock = vi.hoisted(() => vi.fn())
+const authAccountDeleteManyMock = vi.hoisted(() => vi.fn())
+const authAccountCreateMock = vi.hoisted(() => vi.fn())
 
 vi.mock("next-auth", () => ({
   getServerSession: getServerSessionMock,
@@ -46,6 +50,12 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: userProfileFindUniqueMock,
       update: userProfileUpdateMock,
     },
+    authAccount: {
+      findFirst: authAccountFindFirstMock,
+      update: authAccountUpdateMock,
+      deleteMany: authAccountDeleteManyMock,
+      create: authAccountCreateMock,
+    },
   },
 }))
 
@@ -69,6 +79,10 @@ describe("Auth provider OAuth route contracts", () => {
 
     userProfileFindUniqueMock.mockResolvedValue({ discordAccessToken: null })
     userProfileUpdateMock.mockResolvedValue({})
+    authAccountFindFirstMock.mockResolvedValue(null)
+    authAccountUpdateMock.mockResolvedValue({})
+    authAccountDeleteManyMock.mockResolvedValue({ count: 0 })
+    authAccountCreateMock.mockResolvedValue({})
     yahooConnectionUpsertMock.mockResolvedValue({})
     userProfileUpsertMock.mockResolvedValue({})
 
@@ -84,7 +98,7 @@ describe("Auth provider OAuth route contracts", () => {
     )
 
     expect(res.status).toBe(307)
-    expect(res.headers.get("location")).toContain("/login?callbackUrl=/settings")
+    expect(res.headers.get("location")).toContain("/login?callbackUrl=%2Fsettings%3Ftab%3Dconnected")
   })
 
   it("Discord callback rejects invalid state/user binding", async () => {
@@ -104,7 +118,7 @@ describe("Auth provider OAuth route contracts", () => {
     )
 
     expect(res.status).toBe(307)
-    expect(res.headers.get("location")).toContain("/settings?discord=error")
+    expect(res.headers.get("location")).toContain("/settings?tab=connected&discord=error")
     expect(deleteMock).toHaveBeenCalledWith("discord_oauth_state")
     expect(deleteMock).toHaveBeenCalledWith("discord_oauth_user_id")
     expect(global.fetch).not.toHaveBeenCalled()
@@ -159,5 +173,66 @@ describe("Auth provider OAuth route contracts", () => {
     const revokeBody = ((global.fetch as any).mock.calls[0]?.[1]?.body as URLSearchParams).get("token")
     expect(revokeBody).toBe("legacy-plain-token")
     expect(userProfileUpdateMock).toHaveBeenCalled()
+  })
+
+  it("Spotify callback upserts profile connection and returns to connected settings tab", async () => {
+    process.env.SPOTIFY_CLIENT_ID = "spotify-client-id"
+    process.env.SPOTIFY_CLIENT_SECRET = "spotify-client-secret"
+    cookiesMock.mockReturnValueOnce({
+      get: vi.fn((name: string) => {
+        if (name === "spotify_oauth_state") return { value: "spotify-state" }
+        if (name === "spotify_oauth_user_id") return { value: "u1" }
+        return undefined
+      }),
+      delete: vi.fn(),
+    })
+    ;(global.fetch as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: "spotify-access",
+          refresh_token: "spotify-refresh",
+          expires_in: 3600,
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: "spotify-user-1", display_name: "Founder Spotify" }),
+      })
+
+    const { GET } = await import("@/app/api/auth/spotify/callback/route")
+    const res = await GET(
+      createMockNextRequest("http://localhost:3000/api/auth/spotify/callback?code=abc&state=spotify-state") as any
+    )
+
+    expect(res.status).toBe(307)
+    expect(res.headers.get("location")).toContain("/settings?tab=connected&spotify=connected")
+    expect(userProfileUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "u1" },
+        create: expect.objectContaining({
+          userId: "u1",
+          spotifyAccessToken: "spotify-access",
+          spotifyRefreshToken: "spotify-refresh",
+          spotifyDisplayName: "Founder Spotify",
+        }),
+        update: expect.objectContaining({
+          spotifyAccessToken: "spotify-access",
+          spotifyRefreshToken: "spotify-refresh",
+          spotifyDisplayName: "Founder Spotify",
+        }),
+      })
+    )
+    expect(authAccountCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: "u1",
+          provider: "spotify",
+          providerAccountId: "spotify-user-1",
+          access_token: "spotify-access",
+          refresh_token: "spotify-refresh",
+        }),
+      })
+    )
   })
 })

@@ -26,7 +26,7 @@ export async function GET() {
 
   if (!session?.user?.id) {
     return NextResponse.redirect(
-      new URL('/login?callbackUrl=/settings?tab=connected', process.env.NEXTAUTH_URL ?? 'https://www.allfantasy.ai')
+      new URL(`/login?callbackUrl=${encodeURIComponent('/settings?tab=connected')}`, process.env.NEXTAUTH_URL ?? 'https://www.allfantasy.ai')
     )
   }
 

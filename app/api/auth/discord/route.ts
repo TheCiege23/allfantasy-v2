@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   if (!session?.user?.id) {
-    return NextResponse.redirect(new URL('/login?callbackUrl=/settings', process.env.NEXTAUTH_URL ?? 'https://www.allfantasy.ai'))
+    return NextResponse.redirect(new URL(`/login?callbackUrl=${encodeURIComponent('/settings?tab=connected')}`, process.env.NEXTAUTH_URL ?? 'https://www.allfantasy.ai'))
   }
 
   const state = crypto.randomUUID()

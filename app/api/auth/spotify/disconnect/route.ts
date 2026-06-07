@@ -14,7 +14,7 @@ export async function POST() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  await prisma.userProfile.update({
+  await prisma.userProfile.updateMany({
     where: { userId: session.user.id },
     data: {
       spotifyAccessToken: null,
@@ -22,6 +22,13 @@ export async function POST() {
       spotifyExpiresAt: null,
       spotifyDisplayName: null,
       spotifyConnectedAt: null,
+    },
+  })
+
+  await prisma.authAccount.deleteMany({
+    where: {
+      userId: session.user.id,
+      provider: 'spotify',
     },
   })
 

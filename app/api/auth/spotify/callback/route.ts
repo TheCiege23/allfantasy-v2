@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 export const dynamic = 'force-dynamic'
 
 const BASE = process.env.NEXTAUTH_URL ?? 'https://www.allfantasy.ai'
+const CONNECTED_SETTINGS_PATH = '/settings?tab=connected'
 const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID ?? ''
 const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET ?? ''
 const SPOTIFY_REDIRECT_URI =
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
   } | null
 
   if (!session?.user?.id) {
-    return NextResponse.redirect(new URL('/login?callbackUrl=/settings?tab=connected', BASE))
+    return NextResponse.redirect(new URL(`/login?callbackUrl=${encodeURIComponent(CONNECTED_SETTINGS_PATH)}`, BASE))
   }
 
   const searchParams = req.nextUrl.searchParams
@@ -72,11 +73,33 @@ export async function GET(req: NextRequest) {
   const profile = profileRes.ok
     ? ((await profileRes.json()) as { display_name?: string; id?: string; images?: Array<{ url: string }> })
     : null
+  const spotifyProviderAccountId = profile?.id?.trim()
+
+  if (!spotifyProviderAccountId) {
+    return NextResponse.redirect(new URL('/settings?tab=connected&spotify=error', BASE))
+  }
 
   try {
-    await prisma.userProfile.update({
+    const existingAccount = await prisma.authAccount.findFirst({
+      where: { provider: 'spotify', providerAccountId: spotifyProviderAccountId },
+      select: { id: true, userId: true },
+    })
+
+    if (existingAccount && existingAccount.userId !== session.user.id) {
+      return NextResponse.redirect(new URL('/settings?tab=connected&spotify=error', BASE))
+    }
+
+    await prisma.userProfile.upsert({
       where: { userId: session.user.id },
-      data: {
+      create: {
+        userId: session.user.id,
+        spotifyAccessToken: tokens.access_token,
+        spotifyRefreshToken: tokens.refresh_token,
+        spotifyExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+        spotifyDisplayName: profile?.display_name ?? null,
+        spotifyConnectedAt: new Date(),
+      },
+      update: {
         spotifyAccessToken: tokens.access_token,
         spotifyRefreshToken: tokens.refresh_token,
         spotifyExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
@@ -84,6 +107,34 @@ export async function GET(req: NextRequest) {
         spotifyConnectedAt: new Date(),
       },
     })
+
+    const authAccountPayload = {
+      userId: session.user.id,
+      type: 'oauth',
+      provider: 'spotify',
+      providerAccountId: spotifyProviderAccountId,
+      refresh_token: tokens.refresh_token ?? null,
+      access_token: tokens.access_token ?? null,
+      expires_at: Math.floor((Date.now() + tokens.expires_in * 1000) / 1000),
+      token_type: 'Bearer',
+      scope: null,
+      id_token: null,
+      session_state: null,
+    }
+
+    if (existingAccount) {
+      await prisma.authAccount.update({
+        where: { id: existingAccount.id },
+        data: authAccountPayload,
+      })
+    } else {
+      await prisma.authAccount.deleteMany({
+        where: { userId: session.user.id, provider: 'spotify' },
+      })
+      await prisma.authAccount.create({
+        data: authAccountPayload,
+      })
+    }
   } catch (e) {
     console.error('[spotify-callback] DB update failed:', e)
     return NextResponse.redirect(new URL('/settings?tab=connected&spotify=error', BASE))

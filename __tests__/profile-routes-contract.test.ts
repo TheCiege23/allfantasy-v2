@@ -115,4 +115,54 @@ describe("Profile route contracts", () => {
       })
     )
   })
+
+  it("persists AI settings through the unified settings route without dropping existing notification prefs", async () => {
+    const { PATCH } = await import("@/app/api/user/settings/route")
+    getServerSessionMock.mockResolvedValueOnce({ user: { id: "u1" } })
+    getSettingsSnapshotMock.mockResolvedValueOnce({
+      profile: {
+        preferredLanguage: "en",
+        themePreference: "dark",
+        timezone: "America/New_York",
+        notificationPreferences: {
+          categories: { lineup_reminders: { enabled: true } },
+          existing: "kept",
+        },
+      },
+    })
+    saveSettingsOrchestratedMock.mockResolvedValueOnce({ ok: true })
+
+    const req = new Request("http://localhost/api/user/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        aiSettings: {
+          ai_draft_helper: false,
+          ai_chimmy_advanced: true,
+          ignored: "not-boolean",
+        },
+      }),
+    })
+    const res = await PATCH(req)
+
+    expect(res.status).toBe(200)
+    expect(saveSettingsOrchestratedMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "u1",
+        payload: {
+          profile: {
+            notificationPreferences: {
+              categories: { lineup_reminders: { enabled: true } },
+              existing: "kept",
+              aiSettings: {
+                ai_draft_helper: false,
+                ai_chimmy_advanced: true,
+              },
+            },
+          },
+          settings: undefined,
+        },
+      })
+    )
+  })
 })

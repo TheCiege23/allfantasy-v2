@@ -50,6 +50,19 @@ export async function PATCH(req: Request) {
 
   const body = (await req.json().catch(() => ({}))) as SettingsSavePayload
   const current = await getSettingsSnapshot(session.user.id)
+  const currentNotificationPreferences =
+    (current?.profile.notificationPreferences &&
+    typeof current.profile.notificationPreferences === "object"
+      ? current.profile.notificationPreferences
+      : {}) as Record<string, unknown>
+  const aiSettings =
+    body?.aiSettings && typeof body.aiSettings === "object"
+      ? Object.fromEntries(
+          Object.entries(body.aiSettings).filter(
+            ([, value]) => typeof value === "boolean"
+          )
+        )
+      : null
   const result = await saveSettingsOrchestrated({
     userId: session.user.id,
     existingPreferenceFallback: {
@@ -58,7 +71,15 @@ export async function PATCH(req: Request) {
       timezone: current?.profile.timezone ?? null,
     },
     payload: {
-      profile: body?.profile,
+      profile: aiSettings
+        ? {
+            ...(body?.profile ?? {}),
+            notificationPreferences: {
+              ...currentNotificationPreferences,
+              aiSettings,
+            },
+          }
+        : body?.profile,
       settings: body?.settings,
     },
   })

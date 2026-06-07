@@ -9,11 +9,12 @@ import { encrypt } from '@/lib/league-auth-crypto'
 export const dynamic = 'force-dynamic'
 
 const SETTINGS_BASE = process.env.NEXTAUTH_URL ?? 'https://www.allfantasy.ai'
+const CONNECTED_SETTINGS_PATH = '/settings?tab=connected'
 
 export async function GET(req: NextRequest) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   if (!session?.user?.id) {
-    return NextResponse.redirect(new URL('/login?callbackUrl=/settings', SETTINGS_BASE))
+    return NextResponse.redirect(new URL(`/login?callbackUrl=${encodeURIComponent(CONNECTED_SETTINGS_PATH)}`, SETTINGS_BASE))
   }
 
   const searchParams = req.nextUrl.searchParams
@@ -28,13 +29,13 @@ export async function GET(req: NextRequest) {
   if (err) {
     cookieStore.delete('discord_oauth_state')
     cookieStore.delete('discord_oauth_user_id')
-    return NextResponse.redirect(new URL(`/settings?discord=error`, SETTINGS_BASE))
+    return NextResponse.redirect(new URL(`${CONNECTED_SETTINGS_PATH}&discord=error`, SETTINGS_BASE))
   }
 
   if (!code || !state || !stored || stored !== state || !initiatingUserId || initiatingUserId !== session.user.id) {
     cookieStore.delete('discord_oauth_state')
     cookieStore.delete('discord_oauth_user_id')
-    return NextResponse.redirect(new URL('/settings?discord=error', SETTINGS_BASE))
+    return NextResponse.redirect(new URL(`${CONNECTED_SETTINGS_PATH}&discord=error`, SETTINGS_BASE))
   }
 
   cookieStore.delete('discord_oauth_state')
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
 
   const secret = process.env.DISCORD_CLIENT_SECRET
   if (!secret) {
-    return NextResponse.redirect(new URL('/settings?discord=error', SETTINGS_BASE))
+    return NextResponse.redirect(new URL(`${CONNECTED_SETTINGS_PATH}&discord=error`, SETTINGS_BASE))
   }
 
   const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
@@ -58,7 +59,7 @@ export async function GET(req: NextRequest) {
   })
 
   if (!tokenRes.ok) {
-    return NextResponse.redirect(new URL('/settings?discord=error', SETTINGS_BASE))
+    return NextResponse.redirect(new URL(`${CONNECTED_SETTINGS_PATH}&discord=error`, SETTINGS_BASE))
   }
 
   const tokens = (await tokenRes.json()) as {
@@ -68,7 +69,7 @@ export async function GET(req: NextRequest) {
   }
   const access_token = tokens.access_token
   if (!access_token) {
-    return NextResponse.redirect(new URL('/settings?discord=error', SETTINGS_BASE))
+    return NextResponse.redirect(new URL(`${CONNECTED_SETTINGS_PATH}&discord=error`, SETTINGS_BASE))
   }
 
   const userRes = await fetch('https://discord.com/api/users/@me', {
@@ -76,7 +77,7 @@ export async function GET(req: NextRequest) {
   })
 
   if (!userRes.ok) {
-    return NextResponse.redirect(new URL('/settings?discord=error', SETTINGS_BASE))
+    return NextResponse.redirect(new URL(`${CONNECTED_SETTINGS_PATH}&discord=error`, SETTINGS_BASE))
   }
 
   const data = (await userRes.json()) as {
@@ -116,9 +117,9 @@ export async function GET(req: NextRequest) {
     })
   } catch (e) {
     console.error("[api/auth/discord/callback] profile upsert failed:", e)
-    return NextResponse.redirect(new URL("/settings?discord=error", SETTINGS_BASE))
+    return NextResponse.redirect(new URL(`${CONNECTED_SETTINGS_PATH}&discord=error`, SETTINGS_BASE))
   }
 
-  return NextResponse.redirect(new URL("/settings?discord=connected", SETTINGS_BASE))
+  return NextResponse.redirect(new URL(`${CONNECTED_SETTINGS_PATH}&discord=connected`, SETTINGS_BASE))
 }
 
