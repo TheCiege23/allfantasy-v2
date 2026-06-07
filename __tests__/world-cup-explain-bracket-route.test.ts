@@ -70,7 +70,7 @@ describe("POST /api/brackets/world-cup/[challengeId]/entries/[entryId]/explain",
       user: { id: "user-1", email: "owner@example.com", name: "Owner" },
     })
     hasAiMock.mockResolvedValue(true)
-    commitTokenSpendMock.mockResolvedValue({ id: "ledger-explain-1", delta: -2 })
+    commitTokenSpendMock.mockResolvedValue({ id: "ledger-explain-1", delta: -50 })
     prepareTokenFallbackMock.mockResolvedValue({
       ok: true,
       mode: "subscription",
@@ -116,7 +116,7 @@ describe("POST /api/brackets/world-cup/[challengeId]/entries/[entryId]/explain",
         JSON.stringify({
           error: "Token spend confirmation required.",
           code: "token_confirmation_required",
-          preview: { tokenCost: 2 },
+          preview: { tokenCost: 50 },
         }),
         { status: 409 }
       ),
@@ -193,7 +193,7 @@ describe("POST /api/brackets/world-cup/[challengeId]/entries/[entryId]/explain",
     prepareTokenFallbackMock.mockResolvedValueOnce({
       ok: true,
       mode: "tokens",
-      tokenPreview: { tokenCost: 2, canSpend: true },
+      tokenPreview: { tokenCost: 50, canSpend: true },
       commitTokenSpend: commitTokenSpendMock,
     })
 

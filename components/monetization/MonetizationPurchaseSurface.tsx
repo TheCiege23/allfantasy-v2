@@ -614,6 +614,11 @@ export default function MonetizationPurchaseSurface({
                             <span className="text-sm font-medium">Billed monthly</span>
                             <span className="text-lg font-bold tabular-nums text-cyan-200">{formatUsd(monthly.amountUsd)}</span>
                           </div>
+                          {monthly.tokenAmount != null && monthly.tokenAmount > 0 ? (
+                            <p className="mt-1 text-[11px] font-medium text-cyan-100/85">
+                              Includes {monthly.tokenAmount.toLocaleString()} AI tokens each month
+                            </p>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => startCheckout("subscription", monthly.sku)}
@@ -640,6 +645,11 @@ export default function MonetizationPurchaseSurface({
                             <span className="text-sm font-medium">Billed yearly</span>
                             <span className="text-lg font-bold tabular-nums text-cyan-200">{formatUsd(yearly.amountUsd)}</span>
                           </div>
+                          {yearly.tokenAmount != null && yearly.tokenAmount > 0 ? (
+                            <p className="mt-1 text-[11px] font-medium text-cyan-100/85">
+                              Includes {yearly.tokenAmount.toLocaleString()} AI tokens each year
+                            </p>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => startCheckout("subscription", yearly.sku)}

@@ -18,8 +18,13 @@ describe("Monetization catalog", () => {
     expect(catalog.tokenPacks.length).toBe(3)
     expect(catalog.all.length).toBe(13)
 
-    expect(getMonetizationCatalogItemBySku("af_supreme_monthly")?.amountUsd).toBe(29.99)
-    expect(getMonetizationCatalogItemBySku("af_tokens_25")?.tokenAmount).toBe(25)
+    expect(getMonetizationCatalogItemBySku("af_supreme_monthly")?.amountUsd).toBe(19.99)
+    expect(getMonetizationCatalogItemBySku("af_supreme_monthly")?.tokenAmount).toBe(1000)
+    expect(getMonetizationCatalogItemBySku("af_supreme_yearly")?.amountUsd).toBe(199.99)
+    expect(getMonetizationCatalogItemBySku("af_supreme_yearly")?.tokenAmount).toBe(15000)
+    expect(getMonetizationCatalogItemBySku("af_tokens_5")?.tokenAmount).toBe(250)
+    expect(getMonetizationCatalogItemBySku("af_tokens_10")?.tokenAmount).toBe(600)
+    expect(getMonetizationCatalogItemBySku("af_tokens_25")?.tokenAmount).toBe(1500)
   })
 
   it("resolves Stripe price IDs by env var map", () => {

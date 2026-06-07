@@ -104,7 +104,7 @@ describe("grantMonthlyCreditsFromInvoice", () => {
     expect(grantMonthlySubscriptionCreditsMock).not.toHaveBeenCalled()
   })
 
-  it("grants 80 tokens for af_pro_monthly plan", async () => {
+  it("grants 250 tokens for af_pro_monthly plan", async () => {
     const { grantMonthlyCreditsFromInvoice } = await import(
       "@/lib/subscription/webhookHandlers"
     )
@@ -121,14 +121,14 @@ describe("grantMonthlyCreditsFromInvoice", () => {
     expect(grantMonthlySubscriptionCreditsMock).toHaveBeenCalledOnce()
     expect(grantMonthlySubscriptionCreditsMock).toHaveBeenCalledWith({
       userId: "user_pro",
-      tokenAmount: 80,
+      tokenAmount: 250,
       planFamily: "af_pro",
       invoiceId: "in_pro_cycle",
       billingReason: "subscription_cycle",
     })
   })
 
-  it("grants 220 tokens for af_all_access_monthly plan on subscription_create", async () => {
+  it("grants 650 tokens for af_all_access_monthly plan on subscription_create", async () => {
     const { grantMonthlyCreditsFromInvoice } = await import(
       "@/lib/subscription/webhookHandlers"
     )
@@ -144,14 +144,14 @@ describe("grantMonthlyCreditsFromInvoice", () => {
 
     expect(grantMonthlySubscriptionCreditsMock).toHaveBeenCalledWith({
       userId: "user_aa",
-      tokenAmount: 220,
+      tokenAmount: 650,
       planFamily: "af_all_access",
       invoiceId: "in_aa_create",
       billingReason: "subscription_create",
     })
   })
 
-  it("grants 90 tokens for af_war_room_monthly plan", async () => {
+  it("grants 300 tokens for af_war_room_monthly plan", async () => {
     const { grantMonthlyCreditsFromInvoice } = await import(
       "@/lib/subscription/webhookHandlers"
     )
@@ -166,7 +166,7 @@ describe("grantMonthlyCreditsFromInvoice", () => {
     await grantMonthlyCreditsFromInvoice(invoice as any, "user_wr")
 
     expect(grantMonthlySubscriptionCreditsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ tokenAmount: 90, planFamily: "af_war_room" })
+      expect.objectContaining({ tokenAmount: 300, planFamily: "af_war_room" })
     )
   })
 
@@ -254,9 +254,28 @@ describe("TokenSpendService.grantMonthlySubscriptionCredits — null guards", ()
     }
     await grantMonthlyCreditsFromInvoice(invoice as any, "user_pro_y")
 
-    // af_pro_yearly belongs to plan family af_pro → 80 tokens
+    // af_pro_yearly belongs to plan family af_pro and grants the yearly allowance.
     expect(grantMonthlySubscriptionCreditsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ tokenAmount: 80, planFamily: "af_pro" })
+      expect.objectContaining({ tokenAmount: 3500, planFamily: "af_pro" })
+    )
+  })
+
+  it("yearly Supreme grants the annual flagship allowance", async () => {
+    const { grantMonthlyCreditsFromInvoice } = await import(
+      "@/lib/subscription/webhookHandlers"
+    )
+
+    prismaMock.userSubscription.findFirst.mockResolvedValue({ sku: "af_supreme_yearly" })
+
+    const invoice = {
+      id: "in_supreme_yearly",
+      billing_reason: "subscription_create",
+      subscription: "sub_supreme_yearly",
+    }
+    await grantMonthlyCreditsFromInvoice(invoice as any, "user_supreme_y")
+
+    expect(grantMonthlySubscriptionCreditsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ tokenAmount: 15000, planFamily: "af_supreme" })
     )
   })
 })

@@ -174,7 +174,7 @@ describe("POST /api/brackets/world-cup/.../ai/matchup (AF Pro)", () => {
     prismaEntryMock.mockResolvedValue({ id: "e1" })
     prismaMatchMock.mockResolvedValue(sampleDbMatch)
     buildIntelMock.mockResolvedValue(baseIntel())
-    commitTokenSpendMock.mockResolvedValue({ id: "ledger-1", delta: -1 })
+    commitTokenSpendMock.mockResolvedValue({ id: "ledger-1", delta: -15 })
     prepareTokenFallbackMock.mockResolvedValue({
       ok: true,
       mode: "subscription",
@@ -191,7 +191,7 @@ describe("POST /api/brackets/world-cup/.../ai/matchup (AF Pro)", () => {
         JSON.stringify({
           error: "Token spend confirmation required.",
           code: "token_confirmation_required",
-          preview: { tokenCost: 1 },
+          preview: { tokenCost: 15 },
         }),
         { status: 409 }
       ),
@@ -271,7 +271,7 @@ describe("POST /api/brackets/world-cup/.../ai/matchup (AF Pro)", () => {
     prepareTokenFallbackMock.mockResolvedValueOnce({
       ok: true,
       mode: "tokens",
-      tokenPreview: { tokenCost: 1, canSpend: true },
+      tokenPreview: { tokenCost: 15, canSpend: true },
       commitTokenSpend: commitTokenSpendMock,
     })
     buildIntelMock.mockResolvedValueOnce(baseIntel({ generative: true }))

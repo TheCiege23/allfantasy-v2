@@ -74,7 +74,7 @@ describe("Monetization checkout routes", () => {
     const payload = await res.json()
     expect(payload).toMatchObject({
       sku: "af_tokens_10",
-      tokenAmount: 10,
+      tokenAmount: 600,
       purchaseType: "tokens",
     })
     const checkoutUrl = new URL(String(payload.url))

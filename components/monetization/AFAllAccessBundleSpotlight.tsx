@@ -74,13 +74,13 @@ export function AFAllAccessBundleSpotlight({ className = '' }: { className?: str
           className="rounded-full border border-emerald-300/40 bg-emerald-500/15 px-2.5 py-1 font-semibold text-emerald-100"
           data-testid="af-all-access-price-monthly"
         >
-          $29.99 monthly
+          $19.99 monthly
         </span>
         <span
           className="rounded-full border border-emerald-300/40 bg-emerald-500/15 px-2.5 py-1 font-semibold text-emerald-100"
           data-testid="af-all-access-price-yearly"
         >
-          $299.99 yearly
+          $199.99 yearly
         </span>
       </div>
 
@@ -96,7 +96,7 @@ export function AFAllAccessBundleSpotlight({ className = '' }: { className?: str
             ))}
           </ul>
           <p className="mt-2 text-[11px] text-white/65" data-testid="af-all-access-token-clarity-copy">
-            Included plan features do not require tokens. Tokens only apply to token-metered actions where policy requires.
+            Includes 1,000 AI tokens monthly or 15,000 yearly. Tokens only apply to token-metered actions where policy requires.
           </p>
         </article>
 

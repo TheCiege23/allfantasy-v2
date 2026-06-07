@@ -176,13 +176,13 @@ describe("POST /api/chat/chimmy contract", () => {
     prismaAiCustomRuleFindManyMock.mockResolvedValue([])
     previewSpendMock.mockResolvedValue({
       ruleCode: "ai_chimmy_chat_message",
-      tokenCost: 1,
+      tokenCost: 15,
       canSpend: true,
-      currentBalance: 10,
+      currentBalance: 20,
     })
     spendTokensForRuleMock.mockResolvedValue({
       id: "ledger-1",
-      balanceAfter: 9,
+      balanceAfter: 5,
     })
     refundSpendByLedgerMock.mockResolvedValue(null)
     requestContractToUnifiedMock.mockReturnValue({ envelope: {} })
