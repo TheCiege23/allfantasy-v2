@@ -39,7 +39,14 @@ export async function GET() {
   const [profile, spotifyAccount] = await Promise.all([
     prisma.userProfile.findUnique({
       where: { userId: session.user.id },
-      select: { notificationPreferences: true },
+      select: {
+        notificationPreferences: true,
+        spotifyAccessToken: true,
+        spotifyRefreshToken: true,
+        spotifyExpiresAt: true,
+        spotifyDisplayName: true,
+        spotifyConnectedAt: true,
+      },
     }),
     prisma.authAccount.findFirst({
       where: { userId: session.user.id, provider: 'spotify' },
@@ -54,9 +61,13 @@ export async function GET() {
 
   const prefs = (profile?.notificationPreferences ?? {}) as Record<string, unknown>
   const spotify = (prefs.spotify ?? {}) as SpotifyData
-  const accessToken = spotifyAccount?.access_token ?? null
-  const refreshToken = spotifyAccount?.refresh_token ?? null
-  const expiresAt = spotifyAccount?.expires_at ? spotifyAccount.expires_at * 1000 : 0
+  const accessToken = spotifyAccount?.access_token ?? profile?.spotifyAccessToken ?? null
+  const refreshToken = spotifyAccount?.refresh_token ?? profile?.spotifyRefreshToken ?? null
+  const expiresAt = spotifyAccount?.expires_at
+    ? spotifyAccount.expires_at * 1000
+    : profile?.spotifyExpiresAt
+      ? profile.spotifyExpiresAt.getTime()
+      : 0
 
   if (!accessToken) {
     return NextResponse.json({ error: 'Spotify not connected', connected: false }, { status: 404 })
@@ -65,7 +76,7 @@ export async function GET() {
   // Check if token is expired (with 5-minute buffer)
   const isExpired = Date.now() > expiresAt - 5 * 60 * 1000
 
-  if (isExpired && refreshToken && spotifyAccount) {
+  if (isExpired && refreshToken) {
     // Credentials presence already asserted at the top of the handler.
     const refreshRes = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
@@ -89,20 +100,33 @@ export async function GET() {
       refresh_token?: string
     }
 
-    await prisma.authAccount.update({
-      where: { id: spotifyAccount.id },
-      data: {
-        access_token: tokens.access_token,
-        expires_at: Math.floor(Date.now() / 1000) + tokens.expires_in,
-        refresh_token: tokens.refresh_token ?? refreshToken,
-      },
-    })
+    const nextExpiresAtMs = Date.now() + tokens.expires_in * 1000
+    if (spotifyAccount) {
+      await prisma.authAccount.update({
+        where: { id: spotifyAccount.id },
+        data: {
+          access_token: tokens.access_token,
+          expires_at: Math.floor(nextExpiresAtMs / 1000),
+          refresh_token: tokens.refresh_token ?? refreshToken,
+        },
+      })
+    } else {
+      await prisma.userProfile.updateMany({
+        where: { userId: session.user.id },
+        data: {
+          spotifyAccessToken: tokens.access_token,
+          spotifyRefreshToken: tokens.refresh_token ?? refreshToken,
+          spotifyExpiresAt: new Date(nextExpiresAtMs),
+          spotifyConnectedAt: profile?.spotifyConnectedAt ?? new Date(),
+        },
+      })
+    }
 
     return NextResponse.json({
       token: tokens.access_token,
       expiresIn: tokens.expires_in,
       isPremium: spotify.isPremium ?? false,
-      displayName: spotify.displayName ?? null,
+      displayName: spotify.displayName ?? profile?.spotifyDisplayName ?? null,
       connected: true,
     })
   }
@@ -124,7 +148,7 @@ export async function GET() {
     token: accessToken,
     expiresIn: expiresAt > 0 ? Math.max(0, Math.floor((expiresAt - Date.now()) / 1000)) : 3600,
     isPremium: spotify.isPremium ?? false,
-    displayName: spotify.displayName ?? null,
+    displayName: spotify.displayName ?? profile?.spotifyDisplayName ?? null,
     connected: true,
   })
 }

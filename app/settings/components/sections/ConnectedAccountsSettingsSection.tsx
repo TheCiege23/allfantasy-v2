@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { signIn } from "next-auth/react"
 import { DiscordIcon } from "@/app/components/icons/DiscordIcon"
@@ -37,6 +38,7 @@ export function ConnectedAccountsSettingsSection({
   onRefetchProfile: () => void
 }) {
   const { t, tInterpolate } = useLanguage()
+  const searchParams = useSearchParams()
   const [providers, setProviders] = useState<ProviderStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -68,6 +70,24 @@ export function ConnectedAccountsSettingsSection({
   useEffect(() => {
     loadProviders()
   }, [])
+
+  useEffect(() => {
+    const discordStatus = searchParams?.get("discord")
+    const spotifyStatus = searchParams?.get("spotify")
+    if (discordStatus === "connected") {
+      setStatusTone("success")
+      setStatusMessage("Discord connected. Your pool and league sharing tools can now use this account.")
+    } else if (discordStatus === "error") {
+      setStatusTone("error")
+      setStatusMessage("Discord could not be connected. Check the Discord app redirect URL and try again.")
+    } else if (spotifyStatus === "connected") {
+      setStatusTone("success")
+      setStatusMessage("Spotify connected. Music controls are now available where supported.")
+    } else if (spotifyStatus === "error") {
+      setStatusTone("error")
+      setStatusMessage("Spotify could not be connected. Check the Spotify app redirect URL and try again.")
+    }
+  }, [searchParams])
 
   useEffect(() => {
     const onFocus = () => {
@@ -130,6 +150,11 @@ export function ConnectedAccountsSettingsSection({
     if (res.ok) {
       onRefetchProfile()
       await loadProviders(true)
+      setStatusTone("success")
+      setStatusMessage("Discord disconnected.")
+    } else {
+      setStatusTone("error")
+      setStatusMessage("Discord could not be disconnected. Please try again.")
     }
   }
 
@@ -350,6 +375,11 @@ export function ConnectedAccountsSettingsSection({
                 if (res.ok) {
                   onRefetchProfile()
                   await loadProviders(true)
+                  setStatusTone("success")
+                  setStatusMessage("Spotify disconnected.")
+                } else {
+                  setStatusTone("error")
+                  setStatusMessage("Spotify could not be disconnected. Please try again.")
                 }
               }}
               className="rounded-lg border px-3 py-2 text-xs font-medium"

@@ -13,6 +13,7 @@ export type PreferredSportCode = string
 export type SignInProviderId =
   | "google"
   | "apple"
+  | "spotify"
   | "facebook"
   | "instagram"
   | "x"
@@ -101,6 +102,8 @@ export interface UserProfileForSettings {
   discordAvatar: string | null
   discordGuildId: string | null
   discordConnectedAt: Date | null
+  spotifyDisplayName: string | null
+  spotifyConnectedAt: Date | null
   bio: string | null
   preferredSports: PreferredSportCode[] | null
   /** Notification preferences (NotificationPreferences shape from lib/notification-settings). */
@@ -173,4 +176,5 @@ export interface SettingsSnapshot {
 export interface SettingsSavePayload {
   profile?: ProfileUpdatePayload
   settings?: UserSettingsUpdatePayload
+  aiSettings?: Record<string, boolean>
 }
