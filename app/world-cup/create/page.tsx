@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -22,6 +23,7 @@ import {
   trackWcSignupStarted,
   trackWcFunnelEvent,
 } from "@/lib/world-cup/worldCupFunnelAnalytics"
+import { WC_ASSETS } from "@/lib/world-cup/worldCupMarketingAssets"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -364,9 +366,11 @@ export default function WorldCupGuestCreatePage() {
 
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-slate-950 text-white">
-      {/* Background */}
+      {/* Background — stadium atmosphere */}
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.20),transparent_40%),linear-gradient(180deg,#07111f_0%,#020617_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.22),transparent_38%),radial-gradient(circle_at_85%_60%,rgba(251,191,36,0.10),transparent_32%),radial-gradient(circle_at_15%_70%,rgba(168,85,247,0.08),transparent_28%),linear-gradient(180deg,#07111f_0%,#020617_100%)]" />
+        {/* Stadium arc glow */}
+        <div className="absolute inset-x-0 top-0 h-[22rem] bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.04),transparent_70%)]" />
       </div>
 
       {/* Header */}
@@ -383,6 +387,36 @@ export default function WorldCupGuestCreatePage() {
 
       {/* Content */}
       <div className="mx-auto max-w-lg px-4 pb-16 pt-4 sm:px-6">
+
+        {/* ── World Cup identity strip ─────────────────────────────────── */}
+        <div className="mb-5 flex items-center gap-3 overflow-hidden rounded-2xl border border-cyan-300/20 bg-gradient-to-r from-cyan-300/[0.08] via-cyan-300/[0.04] to-transparent px-4 py-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-300/[0.12] p-1.5 shadow-[0_0_20px_-6px_rgba(34,211,238,0.45)]">
+            <Image
+              src={WC_ASSETS.logoSrc}
+              alt="AllFantasy World Cup"
+              width={36}
+              height={36}
+              className="h-full w-full object-contain drop-shadow-[0_2px_6px_rgba(34,211,238,0.35)]"
+              priority
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300/70">2026 FIFA World Cup</p>
+            <p className="text-sm font-black text-white">World Cup Pool Setup</p>
+          </div>
+          {/* Visual steps indicator */}
+          <div className="hidden shrink-0 items-center gap-1 sm:flex">
+            {["Setup", "Invite", "Picks"].map((label, i) => (
+              <div key={label} className="flex items-center gap-1">
+                <span className="rounded-full border border-white/15 bg-white/[0.05] px-2 py-0.5 text-[10px] font-bold text-white/50">
+                  {label}
+                </span>
+                {i < 2 && <span className="text-white/20 text-[10px]">›</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Step indicator */}
         <div className="mb-6">
           <div className="flex items-center justify-between text-xs text-white/40">

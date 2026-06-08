@@ -25,6 +25,14 @@ export type WcFunnelEvent =
   | "WcSponsorCouponViewed"
   | "WcSponsorCouponCopyClicked"
   | "WcSponsorCouponClaimClicked"
+  // ── Media events ─────────────────────────────────────────────────────────
+  | "WorldCupHeroVideoViewed"
+  | "WorldCupHeroVideoPlayed"
+  | "WorldCupHeroVideoFallbackShown"
+  | "WorldCupMediaCtaClicked"
+  // ── Mobile funnel events ─────────────────────────────────────────────────
+  | "WorldCupInviteOverlayViewed"
+  | "WorldCupNativeShareClicked"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -106,4 +114,38 @@ export function trackWcSponsorCouponCopyClicked(surface: string): void {
 /** Track "Claim Discount" CTA on sponsor coupon card. */
 export function trackWcSponsorCouponClaimClicked(surface: string): void {
   gtagEvent("WcSponsorCouponClaimClicked", { surface, coupon_code: "WASSUPFRED" })
+}
+
+// ── Media analytics ────────────────────────────────────────────────────────────
+
+/** Track when the WC hero video element is visible (impression). */
+export function trackWcHeroVideoViewed(): void {
+  gtagEvent("WorldCupHeroVideoViewed", {})
+}
+
+/** Track first play event on the hero video. */
+export function trackWcHeroVideoPlayed(): void {
+  gtagEvent("WorldCupHeroVideoPlayed", {})
+}
+
+/** Track when the poster fallback is displayed instead of the video. */
+export function trackWcHeroVideoFallbackShown(): void {
+  gtagEvent("WorldCupHeroVideoFallbackShown", {})
+}
+
+/** Track CTA clicks inside/below the hero media card. */
+export function trackWcMediaCtaClicked(source: string): void {
+  gtagEvent("WorldCupMediaCtaClicked", { source })
+}
+
+// ── Mobile invite overlay ─────────────────────────────────────────────────────
+
+/** Track when the welcome=invite overlay is shown. */
+export function trackWcInviteOverlayViewed(challengeId?: string): void {
+  gtagEvent("WorldCupInviteOverlayViewed", { challenge_id: challengeId ?? null })
+}
+
+/** Track native share sheet trigger from the invite panel. */
+export function trackWcNativeShareClicked(surface: string): void {
+  gtagEvent("WorldCupNativeShareClicked", { surface })
 }
