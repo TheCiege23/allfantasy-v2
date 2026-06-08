@@ -14,10 +14,18 @@ import { buildStripeCheckoutDestinationForSku } from "@/lib/monetization/StripeC
 import { enforcePaidSubscriptionGeo } from "@/lib/geo/enforcePaidSubscriptionGeo"
 import { buildSubscriptionMetaEvent } from "@/lib/monetization/meta"
 import { trackMetaServerEvent } from "@/lib/meta-capi"
+import {
+  validateCouponForUser,
+  createPendingRedemption,
+  calculateDiscountedAmounts,
+  findSponsorCoupon,
+} from "@/lib/promotions/sponsorCoupon"
 
 type CheckoutSubscriptionBody = {
   sku?: string
   returnPath?: string
+  /** Optional sponsor/promo code entered by user at checkout (e.g. "WassupFred") */
+  couponCode?: string
 }
 
 export async function POST(req: Request) {
@@ -49,12 +57,51 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid subscription sku" }, { status: 400 })
     }
 
+    // ── Coupon validation (server-side, client discount never trusted) ──────
+    let resolvedCouponCode: string | null = null
+    let couponDiscountPercent = 0
+    let discountInfo: { discountAmountCents: number; totalCents: number } | null = null
+    const rawCouponCode = String(body?.couponCode ?? "").trim()
+    if (rawCouponCode) {
+      const validation = await validateCouponForUser({
+        userId: session.user.id,
+        rawCode: rawCouponCode,
+        productType: "subscription",
+      })
+      if (validation.valid) {
+        resolvedCouponCode = validation.normalizedCode
+        couponDiscountPercent = validation.discountPercent
+        const subtotalCents = Math.round(item.amountUsd * 100)
+        discountInfo = calculateDiscountedAmounts(subtotalCents, couponDiscountPercent)
+
+        const coupon = findSponsorCoupon(validation.normalizedCode)
+        if (coupon) {
+          await createPendingRedemption({
+            userId: session.user.id,
+            normalizedCode: coupon.normalizedCode,
+            displayCode: coupon.displayCode,
+            sponsorName: coupon.sponsorName,
+            campaignName: coupon.campaignName,
+            discountPercent: coupon.discountPercent,
+            appliesTo: "subscription",
+            productKey: item.sku,
+            amountSubtotalCents: Math.round(item.amountUsd * 100),
+            discountAmountCents: discountInfo.discountAmountCents,
+            amountTotalCents: discountInfo.totalCents,
+          }).catch((err) =>
+            console.error("[checkout/subscription] createPendingRedemption failed:", err)
+          )
+        }
+      }
+    }
+
     const returnPath = resolveSafeReturnPath(body?.returnPath, "/pricing")
     const destination = buildStripeCheckoutDestinationForSku({
       sku: item.sku,
       userId: session.user.id,
       userEmail: session.user.email ?? null,
       returnPath,
+      couponCode: resolvedCouponCode,
     })
     if (!destination || destination.purchaseType !== "subscription") {
       return NextResponse.json(
@@ -87,6 +134,14 @@ export async function POST(req: Request) {
       sku: item.sku,
       purchaseType: "subscription",
       metaEvent,
+      ...(resolvedCouponCode
+        ? {
+            couponApplied: true,
+            couponCode: resolvedCouponCode,
+            discountPercent: couponDiscountPercent,
+            discountAmountCents: discountInfo?.discountAmountCents ?? null,
+          }
+        : { couponApplied: false }),
     })
   } catch (error) {
     if (isMonetizationComplianceError(error)) {

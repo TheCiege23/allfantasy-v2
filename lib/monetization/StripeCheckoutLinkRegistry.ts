@@ -18,6 +18,8 @@ type StripeCheckoutReferencePayload = {
   u: string
   s: MonetizationSku
   p: StripeCheckoutPurchaseType
+  /** Normalized sponsor coupon code (WASSUPFRED) if user applied one at checkout */
+  c?: string
 }
 
 const STRIPE_CHECKOUT_LINK_REGISTRY: readonly StripeCheckoutLinkRegistryEntry[] = [
@@ -151,6 +153,8 @@ export function buildStripeCheckoutClientReferenceId(input: {
   userId: string
   sku: MonetizationSku
   purchaseType: StripeCheckoutPurchaseType
+  /** Normalized sponsor coupon code to carry through to the webhook for redemption tracking */
+  couponCode?: string | null
 }): string {
   const payload: StripeCheckoutReferencePayload = {
     v: 1,
@@ -158,13 +162,22 @@ export function buildStripeCheckoutClientReferenceId(input: {
     s: input.sku,
     p: input.purchaseType,
   }
+  if (input.couponCode) {
+    payload.c = input.couponCode
+  }
   const encoded = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url")
   return `af1_${encoded}`
 }
 
 export function parseStripeCheckoutClientReferenceId(
   value: string | null | undefined
-): { userId: string; sku: MonetizationSku; purchaseType: StripeCheckoutPurchaseType } | null {
+): {
+  userId: string
+  sku: MonetizationSku
+  purchaseType: StripeCheckoutPurchaseType
+  /** Normalized sponsor coupon code if one was applied at checkout */
+  couponCode: string | null
+} | null {
   if (!value || !value.startsWith("af1_")) return null
   try {
     const encoded = value.slice(4)
@@ -178,6 +191,7 @@ export function parseStripeCheckoutClientReferenceId(
       userId: parsed.u.trim(),
       sku: parsed.s as MonetizationSku,
       purchaseType: parsed.p,
+      couponCode: typeof parsed.c === "string" && parsed.c.trim() ? parsed.c.trim() : null,
     }
   } catch {
     return null
@@ -189,6 +203,8 @@ export function buildStripeCheckoutDestinationForSku(input: {
   userId: string
   userEmail?: string | null
   returnPath?: string | null
+  /** Normalized sponsor coupon code (e.g. "WASSUPFRED") — pre-fills Stripe promo code */
+  couponCode?: string | null
   env?: NodeJS.ProcessEnv
 }): { url: string; purchaseType: StripeCheckoutPurchaseType } | null {
   const env = input.env ?? process.env
@@ -204,6 +220,7 @@ export function buildStripeCheckoutDestinationForSku(input: {
       userId: input.userId,
       sku: input.sku,
       purchaseType: registry.purchaseType,
+      couponCode: input.couponCode ?? null,
     })
   )
   if (input.userEmail && input.userEmail.trim()) {
@@ -211,6 +228,11 @@ export function buildStripeCheckoutDestinationForSku(input: {
   }
   if (input.returnPath && input.returnPath.trim()) {
     url.searchParams.set("af_return_path", input.returnPath.trim())
+  }
+  // Pre-fill Stripe's native promo code input — user sees 20% discount applied at checkout.
+  // The Stripe promotion code "WASSUPFRED" must exist in the Stripe dashboard.
+  if (input.couponCode && input.couponCode.trim()) {
+    url.searchParams.set("prefilled_promo_code", input.couponCode.trim())
   }
 
   return {
