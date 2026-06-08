@@ -135,10 +135,7 @@ export default async function WorldCupBracketsPage() {
   const { language } = await resolveServerRenderPreferences()
   const t = makeWcT(language)
   const createIntentPath = "/brackets/world-cup/create"
-  const encodedCreateIntent = encodeURIComponent(createIntentPath)
-  const createPoolHref = userId
-    ? createIntentPath
-    : `/signup?next=${encodedCreateIntent}&callbackUrl=${encodedCreateIntent}`
+  const createPoolHref = userId ? createIntentPath : "/world-cup/create"
   const signInHref = `/login?callbackUrl=${encodeURIComponent("/brackets/world-cup")}`
 
   return (
