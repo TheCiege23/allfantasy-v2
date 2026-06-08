@@ -30,6 +30,7 @@ export const runtime = "nodejs"
 
 const postSchema = z.object({
   action: z.enum([
+    // existing
     "hype",
     "standings",
     "watch",
@@ -39,6 +40,14 @@ const postSchema = z.object({
     "drama_recap",
     "path",
     "reminder",
+    // new proactive generators
+    "chalk_bust",
+    "match_swing",
+    "trash_talk",
+    "at_risk",
+    "social_invite",
+    "quiet_pool",
+    "tomorrow_hype",
   ]),
   round: z.string().optional(),
   entryId: z.string().optional(),
@@ -157,13 +166,10 @@ export async function POST(
   const isRecapPreview = parsed.data.action === "preview_recap"
   const isRecapPost = parsed.data.action === "post_recap"
   const isDramaRecap = parsed.data.action === "drama_recap"
-  const wrappedAction = parsed.data.action as
-    | "hype"
-    | "standings"
-    | "watch"
-    | "recap"
-    | "path"
-    | "reminder"
+
+  type WrappedAction = Parameters<typeof generateAiWrappedLines>[0]
+  const wrappedAction = parsed.data.action as WrappedAction
+
   const lines = isRecapPost && parsed.data.lines?.length
     ? parsed.data.lines
     : isRecapPreview || isRecapPost || isDramaRecap
@@ -212,6 +218,13 @@ export async function POST(
     drama_recap: "Pool Drama Report",
     path: "Path to win",
     reminder: "Reminder",
+    chalk_bust: "Chalk Bust Alert",
+    match_swing: "Match Swing Report",
+    trash_talk: "Pool Trash Talk",
+    at_risk: "At-Risk Report",
+    social_invite: "Social Invite",
+    quiet_pool: "Engagement Nudge",
+    tomorrow_hype: "Tomorrow's Hype",
   }
 
   const bodyText = lines.join("\n").slice(0, 4000)

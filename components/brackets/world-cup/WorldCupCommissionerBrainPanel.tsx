@@ -50,8 +50,22 @@ type CommissionerPrefs = {
 
 type RecapTone = "fun" | "serious" | "hype"
 
+type BrainAction =
+  | "hype"
+  | "standings"
+  | "watch"
+  | "recap"
+  | "drama_recap"
+  | "chalk_bust"
+  | "match_swing"
+  | "trash_talk"
+  | "at_risk"
+  | "social_invite"
+  | "quiet_pool"
+  | "tomorrow_hype"
+
 type BrainActionResult = {
-  action: "hype" | "standings" | "watch" | "recap" | "drama_recap"
+  action: BrainAction
   lines: string[]
   posted: boolean
   proLocked?: boolean
@@ -139,7 +153,7 @@ export default function WorldCupCommissionerBrainPanel({
     return { ok: res.ok, data }
   }
 
-  async function runBrain(action: "hype" | "standings" | "watch" | "recap" | "drama_recap") {
+  async function runBrain(action: BrainAction) {
     if (!bracketBrainEnabled) {
       toast.error("Bracket Brain is disabled — turn it on under Pool settings.")
       return
@@ -405,6 +419,7 @@ export default function WorldCupCommissionerBrainPanel({
         </label>
       ) : null}
 
+      {/* ── Reminders & classic tools ── */}
       <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
         <BrainButton
           disabled={
@@ -461,6 +476,72 @@ export default function WorldCupCommissionerBrainPanel({
           Pool Drama Recap
         </BrainButton>
       </div>
+
+      {/* ── Proactive Insights (new) ── */}
+      <section className="rounded-xl border border-violet-400/20 bg-violet-400/[0.04] p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-violet-300/70" />
+          <h3 className="text-sm font-black text-white">Proactive Insights</h3>
+          <span className="ml-auto rounded-full border border-violet-300/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/70">
+            {hasAi ? "AI active" : "AF Commissioner"}
+          </span>
+        </div>
+        <p className="mb-3 text-xs leading-relaxed text-white/50">
+          Generate ready-to-post messages, alerts, and narratives. Each result posts directly to pool chat.
+        </p>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <InsightButton
+            label="Chalk Bust Alert"
+            description="Who's riding the chalk pick — and what happens if they get knocked out"
+            loading={busy === "chalk_bust"}
+            disabled={!bracketBrainEnabled || busy !== null}
+            onClick={() => void runBrain("chalk_bust")}
+          />
+          <InsightButton
+            label="Match Swing Report"
+            description="The upcoming match with the biggest leaderboard impact"
+            loading={busy === "match_swing"}
+            disabled={!bracketBrainEnabled || busy !== null}
+            onClick={() => void runBrain("match_swing")}
+          />
+          <InsightButton
+            label="Trash Talk Prompt"
+            description="Playful group chat fire-starter based on real pool dynamics"
+            loading={busy === "trash_talk"}
+            disabled={!bracketBrainEnabled || busy !== null}
+            onClick={() => void runBrain("trash_talk")}
+          />
+          <InsightButton
+            label="At-Risk Report"
+            description="Entries falling behind — who needs results to break their way"
+            loading={busy === "at_risk"}
+            disabled={!bracketBrainEnabled || busy !== null}
+            onClick={() => void runBrain("at_risk")}
+          />
+          <InsightButton
+            label="Engagement Nudge"
+            description="Ready-to-post message to spark activity if the pool goes quiet"
+            loading={busy === "quiet_pool"}
+            disabled={!bracketBrainEnabled || busy !== null}
+            onClick={() => void runBrain("quiet_pool")}
+          />
+          <InsightButton
+            label="Tomorrow's Hype"
+            description="Tomorrow's matches and kickoff times — build pre-game energy"
+            loading={busy === "tomorrow_hype"}
+            disabled={!bracketBrainEnabled || busy !== null}
+            onClick={() => void runBrain("tomorrow_hype")}
+          />
+          <InsightButton
+            label="Social Invite Post"
+            description="Shareable post to recruit new participants before the lock"
+            loading={busy === "social_invite"}
+            disabled={!bracketBrainEnabled || busy !== null}
+            onClick={() => void runBrain("social_invite")}
+            className="sm:col-span-2 lg:col-span-1"
+          />
+        </div>
+      </section>
 
       {brainActionResult ? (
         <section data-testid="world-cup-brain-action-result" className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3">
@@ -605,6 +686,41 @@ function BrainButton({
     >
       {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : icon}
       {children}
+    </button>
+  )
+}
+
+function InsightButton({
+  label,
+  description,
+  onClick,
+  disabled,
+  loading,
+  className = "",
+}: {
+  label: string
+  description: string
+  onClick: () => void
+  disabled?: boolean
+  loading?: boolean
+  className?: string
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled || loading}
+      onClick={onClick}
+      className={`group flex min-h-[4.5rem] w-full flex-col items-start gap-1 rounded-lg border border-violet-400/20 bg-violet-400/[0.06] px-3 py-2.5 text-left transition-colors hover:border-violet-400/35 hover:bg-violet-400/10 disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
+    >
+      <span className="flex w-full items-center gap-2 text-[11px] font-bold text-white/90">
+        {loading ? (
+          <Loader2 className="h-3 w-3 shrink-0 animate-spin text-violet-300" />
+        ) : (
+          <Sparkles className="h-3 w-3 shrink-0 text-violet-300/70 transition-colors group-hover:text-violet-300" />
+        )}
+        {label}
+      </span>
+      <span className="text-[10px] leading-snug text-white/40">{description}</span>
     </button>
   )
 }

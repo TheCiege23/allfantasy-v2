@@ -557,6 +557,411 @@ async function maybeEnhanceWithOpenAi(prompt: string): Promise<string | null> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// New proactive commissioner generators
+// ---------------------------------------------------------------------------
+
+/** Chalk concentration + "if X loses, the leaderboard flips" narrative. */
+export async function buildChalkBustNarrativeLines(challengeId: string): Promise<string[]> {
+  const challenge = await prisma.worldCupBracketChallenge.findUnique({
+    where: { id: challengeId },
+    include: {
+      matches: true,
+      scoringProfile: true,
+      entries: {
+        where: { isComplete: true, submittedAt: { not: null } },
+        include: { picks: { select: COMMISSIONER_BRAIN_PICK_SELECT } },
+      },
+    },
+  })
+  if (!challenge || challenge.entries.length === 0) {
+    return ["No finalized entries yet to analyze champion pick concentration."]
+  }
+
+  const entries = challenge.entries
+  const champCounts = new Map<string, number>()
+  const entryChampMap = new Map<string, string>()
+
+  type EntryRow = { id: string; name: string; championTeamName?: string | null; picks?: Array<{ round: string; selectedTeamName?: string | null }> }
+  for (const entry of entries as EntryRow[]) {
+    const name =
+      entry.championTeamName?.trim() ||
+      entry.picks?.find((p) => p.round === "final")?.selectedTeamName?.trim()
+    if (!name) continue
+    champCounts.set(name, (champCounts.get(name) ?? 0) + 1)
+    entryChampMap.set(entry.id, name)
+  }
+
+  const sortedChamps = [...champCounts.entries()].sort((a, b) => b[1] - a[1])
+  const topChamp = sortedChamps[0]
+  if (!topChamp) return ["Champion picks are not recorded yet."]
+
+  const topChampPct = Math.round((topChamp[1] / entries.length) * 100)
+
+  const rows = buildWorldCupLeaderboardRows({
+    entries: entries as any,
+    matches: challenge.matches as any,
+    scoring: challenge.scoringProfile,
+  })
+  const topEntries = rows.slice(0, 10)
+  const topTenChalk = topEntries.filter((row) => {
+    const entry = (entries as EntryRow[]).find((e) => e.name === row.entryName)
+    return entry != null && entryChampMap.get(entry.id) === topChamp[0]
+  }).length
+
+  const lines: string[] = [
+    `Chalk watch: ${topChamp[0]} is the champion pick on ${topChamp[1]} of ${entries.length} finalized entr${entries.length === 1 ? "y" : "ies"} (${topChampPct}%).`,
+  ]
+
+  if (topEntries.length > 0 && topTenChalk > 0) {
+    lines.push(
+      `${topTenChalk} of the top ${topEntries.length} entries are riding ${topChamp[0]} — if they get eliminated, the leaderboard reshuffles.`
+    )
+  }
+
+  const secondChamp = sortedChamps[1]
+  if (secondChamp && secondChamp[1] >= 2) {
+    const secondPct = Math.round((secondChamp[1] / entries.length) * 100)
+    lines.push(
+      `Contrarian angle: ${secondChamp[0]} has ${secondChamp[1]} entries (${secondPct}%) — could be the sleeper if ${topChamp[0]} falters.`
+    )
+  }
+
+  if (topChampPct >= 60) {
+    lines.push(`Heavy chalk pool — one big upset and half the field takes damage.`)
+  } else if (topChampPct <= 25 && entries.length >= 4) {
+    lines.push(`Diverse picks across the pool — no single chalk pick dominates.`)
+  }
+
+  return lines.map(sanitizeRecapLine)
+}
+
+/** Which upcoming match has the biggest leaderboard swing potential. */
+export async function buildMatchSwingLines(challengeId: string): Promise<string[]> {
+  const challenge = await prisma.worldCupBracketChallenge.findUnique({
+    where: { id: challengeId },
+    include: {
+      matches: true,
+      scoringProfile: true,
+      entries: {
+        where: { isComplete: true, submittedAt: { not: null } },
+        include: { picks: { select: COMMISSIONER_BRAIN_PICK_SELECT } },
+      },
+    },
+  })
+  if (!challenge) return []
+
+  type MatchRow = { id: string; status: string; homeTeamName: string; awayTeamName: string; round: string; startsAt?: Date | string | null }
+  type PickRow = { matchId: string; selectedTeamName: string | null }
+  type EntryWithPicks = { picks?: PickRow[] }
+
+  const upcoming = (challenge.matches as MatchRow[]).filter(
+    (m) => m.status !== "final" && m.homeTeamName && m.awayTeamName
+  )
+  if (upcoming.length === 0) return ["No upcoming matches to analyze for leaderboard swing."]
+  if (challenge.entries.length === 0) {
+    return ["No finalized entries yet — swing analysis requires submitted brackets."]
+  }
+
+  const allPicks = (challenge.entries as EntryWithPicks[]).flatMap((e) => e.picks ?? [])
+  const sc = challenge.scoringProfile
+  const roundPoints: Record<string, number> = {
+    group: sc?.roundOf32Points ?? 1,
+    round_of_32: sc?.roundOf32Points ?? 1,
+    round_of_16: sc?.roundOf16Points ?? 2,
+    quarter_final: sc?.quarterFinalPoints ?? 4,
+    semi_final: sc?.semiFinalPoints ?? 8,
+    final: sc?.finalPoints ?? 16,
+    third_place: 2,
+  }
+
+  type SwingCandidate = {
+    home: string
+    away: string
+    homePicks: number
+    awayPicks: number
+    swingScore: number
+    round: string
+    pts: number
+  }
+
+  let topSwing: SwingCandidate | null = null
+
+  for (const match of upcoming) {
+    const matchPicks = allPicks.filter((p: PickRow) => p.matchId === match.id)
+    const homePicks = matchPicks.filter((p: PickRow) => p.selectedTeamName === match.homeTeamName).length
+    const awayPicks = matchPicks.filter((p: PickRow) => p.selectedTeamName === match.awayTeamName).length
+    const totalPicks = homePicks + awayPicks
+    if (totalPicks === 0) continue
+
+    const pts = roundPoints[match.round] ?? 1
+    const loserCount = Math.min(homePicks, awayPicks)
+    const swingScore = loserCount * pts
+
+    if (!topSwing || swingScore > topSwing.swingScore) {
+      topSwing = { home: match.homeTeamName, away: match.awayTeamName, homePicks, awayPicks, swingScore, round: match.round, pts }
+    }
+  }
+
+  if (!topSwing) {
+    return ["No pick data found for upcoming matches yet — swing analysis needs submitted brackets."]
+  }
+
+  const biggerCount = Math.max(topSwing.homePicks, topSwing.awayPicks)
+  const smallerCount = Math.min(topSwing.homePicks, topSwing.awayPicks)
+  const biggerTeam = topSwing.homePicks >= topSwing.awayPicks ? topSwing.home : topSwing.away
+  const smallerTeam = topSwing.homePicks >= topSwing.awayPicks ? topSwing.away : topSwing.home
+
+  return [
+    `Biggest leaderboard swing: ${topSwing.home} vs ${topSwing.away} (${topSwing.round.replace(/_/g, " ")}).`,
+    `${biggerCount} ${biggerCount === 1 ? "entry" : "entries"} picked ${biggerTeam} · ${smallerCount} picked ${smallerTeam}.`,
+    `The ${smallerCount} ${smallerTeam} side each risk losing ${topSwing.pts} pts — whoever is wrong drops. Watch this one closely.`,
+  ].map(sanitizeRecapLine)
+}
+
+/** Playful trash-talk prompt ready to post to the group. */
+export async function buildTrashTalkLines(challengeId: string): Promise<string[]> {
+  const [snap, challenge] = await Promise.all([
+    getWorldCupCommissionerBrainSnapshot(challengeId),
+    prisma.worldCupBracketChallenge.findUnique({
+      where: { id: challengeId },
+      select: { name: true },
+    }),
+  ])
+  if (!snap || !challenge) return []
+
+  const leader = snap.biggestUpsetLean?.split(" leads")[0]?.trim() ?? null
+  const popular = snap.mostPopularChampion?.teamName ?? null
+
+  const lines: string[] = []
+
+  if (leader) {
+    lines.push(`${leader} is sitting on top of "${challenge.name}" right now. Comfortable? Don't be. 👀`)
+  }
+
+  if (popular && snap.mostPopularChampion && snap.mostPopularChampion.count >= 2) {
+    lines.push(
+      `${snap.mostPopularChampion.count} of you went chalk and picked ${popular} to win it all. Bold. Hope you're right. 🏆`
+    )
+  }
+
+  if (snap.mostUniqueLean) {
+    lines.push(`Someone in this pool has a completely unique bracket. You already know who you are. 🎯`)
+  }
+
+  if (snap.incompleteBracketCount > 0 && !snap.isLocked) {
+    lines.push(
+      `Still ${snap.incompleteBracketCount} bracket${snap.incompleteBracketCount === 1 ? "" : "s"} not submitted — don't be that person when the results start landing. 🔒`
+    )
+  }
+
+  lines.push(`Let's gooo 🔥 — ${challenge.name}`)
+
+  return lines.map(sanitizeRecapLine)
+}
+
+/** Entries that face a steep uphill to reach the leader — names the gap explicitly. */
+export async function buildAtRiskUsersLines(challengeId: string): Promise<string[]> {
+  const challenge = await prisma.worldCupBracketChallenge.findUnique({
+    where: { id: challengeId },
+    include: {
+      matches: true,
+      scoringProfile: true,
+      entries: {
+        where: { isComplete: true, submittedAt: { not: null } },
+        include: {
+          picks: { select: COMMISSIONER_BRAIN_PICK_SELECT },
+          participant: true,
+        },
+      },
+    },
+  })
+  if (!challenge || challenge.entries.length < 2) {
+    return ["Not enough finalized entries for an at-risk report yet."]
+  }
+
+  const rows = buildWorldCupLeaderboardRows({
+    entries: challenge.entries as any,
+    matches: challenge.matches as any,
+    scoring: challenge.scoringProfile,
+  })
+  const leader = rows[0]
+  if (!leader) return ["No ranked entries available yet."]
+
+  const remainingMatches = (challenge.matches as Array<{ status: string }>).filter((m) => m.status !== "final").length
+  const sc = challenge.scoringProfile
+  const avgPointsPerMatch =
+    ((sc?.roundOf16Points ?? 2) + (sc?.quarterFinalPoints ?? 4)) / 2
+  const approxRemaining = Math.round(remainingMatches * avgPointsPerMatch * 0.6)
+
+  const atRisk = rows.filter((row, i) => {
+    if (i === 0) return false
+    const gap = leader.totalScore - row.totalScore
+    return approxRemaining > 0 ? gap > approxRemaining * 0.5 : gap >= 10
+  }).slice(0, 6)
+
+  if (atRisk.length === 0) {
+    return [
+      `Pool is still wide open — every entry has a realistic path.`,
+      `${leader.entryName} leads at ${leader.totalScore} pts with ~${approxRemaining} pts still available.`,
+    ]
+  }
+
+  const lines: string[] = [
+    `${leader.entryName} leads at ${leader.totalScore} pts. These entries face a tough climb:`,
+  ]
+  for (const row of atRisk) {
+    const gap = leader.totalScore - row.totalScore
+    lines.push(`• ${row.entryName}: ${row.totalScore} pts — ${gap} pts behind.`)
+  }
+  if (approxRemaining > 0) {
+    lines.push(`~${approxRemaining} pts still on the table — possible, but they need results to break their way.`)
+  }
+  return lines.map(sanitizeRecapLine)
+}
+
+/** Ready-to-share social post to invite more participants. */
+export async function buildSocialInviteLines(challengeId: string): Promise<string[]> {
+  const [challenge, snap] = await Promise.all([
+    prisma.worldCupBracketChallenge.findUnique({
+      where: { id: challengeId },
+      select: { name: true, maxParticipants: true },
+    }),
+    getWorldCupCommissionerBrainSnapshot(challengeId),
+  ])
+  if (!snap || !challenge) return []
+
+  const url = worldCupBracketPicksPublicUrl(challengeId)
+  const lockLabel = snap.effectiveLockAt
+    ? new Date(snap.effectiveLockAt).toLocaleString("en-US", {
+        dateStyle: "short",
+        timeStyle: "short",
+        timeZone: "America/New_York",
+      })
+    : "soon"
+
+  const spotsLeft =
+    challenge.maxParticipants != null
+      ? Math.max(0, challenge.maxParticipants - snap.totalEntries)
+      : null
+
+  const joinLine =
+    spotsLeft != null && spotsLeft > 0
+      ? `Only ${spotsLeft} spot${spotsLeft === 1 ? "" : "s"} left — ${snap.totalEntries} entr${snap.totalEntries === 1 ? "y" : "ies"} already in.`
+      : snap.totalEntries > 0
+        ? `${snap.totalEntries} ${snap.totalEntries === 1 ? "entry" : "entries"} in. Come compete.`
+        : "Brackets are open — be the first in."
+
+  return [
+    `Join "${challenge.name}" — World Cup bracket pool on AllFantasy.`,
+    joinLine,
+    `Picks lock: ${lockLabel} ET.`,
+    url,
+  ].map(sanitizeRecapLine)
+}
+
+/** Engagement message ready to post — sparks pool activity. */
+export async function buildEngagementNudgeLines(challengeId: string): Promise<string[]> {
+  const [snap, challenge] = await Promise.all([
+    getWorldCupCommissionerBrainSnapshot(challengeId),
+    prisma.worldCupBracketChallenge.findUnique({
+      where: { id: challengeId },
+      select: { name: true },
+    }),
+  ])
+  if (!snap || !challenge) return []
+
+  const popular = snap.mostPopularChampion?.teamName ?? null
+  const entryCount = snap.totalEntries
+  const incomplete = snap.incompleteBracketCount
+
+  const lines: string[] = [
+    popular
+      ? `${entryCount} bracket${entryCount === 1 ? "" : "s"} in for "${challenge.name}" — ${popular} is the most popular champion pick.`
+      : `${entryCount} bracket${entryCount === 1 ? "" : "s"} in for "${challenge.name}" so far.`,
+  ]
+
+  if (incomplete > 0 && !snap.isLocked) {
+    lines.push(
+      `${incomplete} ${incomplete === 1 ? "entry is" : "entries are"} still incomplete — finish your picks before the lock!`
+    )
+  } else if (snap.isLocked) {
+    lines.push(`Picks are locked — let the tournament handle the rest. Good luck! 🏆`)
+  }
+
+  if (snap.biggestUpsetLean) {
+    lines.push(snap.biggestUpsetLean)
+  }
+
+  lines.push(`Drop your takes in the chat 👇`)
+
+  return lines.map(sanitizeRecapLine)
+}
+
+/** Hype post for tomorrow's matches — kickoff times ET + round. */
+export async function buildTomorrowHypeLines(challengeId: string): Promise<string[]> {
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  tomorrow.setHours(0, 0, 0, 0)
+  const dayAfterTomorrow = new Date(tomorrow)
+  dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1)
+
+  const [challenge, tomorrowMatches] = await Promise.all([
+    prisma.worldCupBracketChallenge.findUnique({
+      where: { id: challengeId },
+      select: { name: true },
+    }),
+    prisma.worldCupBracketMatch.findMany({
+      where: {
+        challengeId,
+        status: { not: "final" },
+        startsAt: { gte: tomorrow.toISOString(), lt: dayAfterTomorrow.toISOString() },
+      },
+      orderBy: [{ startsAt: "asc" }],
+    }),
+  ])
+
+  // Fallback to next 4 upcoming if nothing is scheduled tomorrow
+  const matches =
+    tomorrowMatches.length > 0
+      ? tomorrowMatches
+      : await prisma.worldCupBracketMatch.findMany({
+          where: {
+            challengeId,
+            status: { not: "final" },
+            startsAt: { gte: new Date().toISOString() },
+          },
+          orderBy: [{ startsAt: "asc" }],
+          take: 4,
+        })
+
+  if (matches.length === 0) {
+    return ["No upcoming matches found in the schedule yet — check back after the next sync."]
+  }
+
+  const label = tomorrowMatches.length > 0 ? "Tomorrow" : "Coming up"
+  const lines: string[] = [`${label} in "${challenge?.name ?? "the pool"}":` ]
+
+  for (const m of matches.slice(0, 5)) {
+    const time = m.startsAt
+      ? new Date(m.startsAt).toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+          timeZone: "America/New_York",
+        }) + " ET"
+      : "Time TBD"
+    lines.push(`${m.homeTeamName} vs ${m.awayTeamName} — ${time} (${m.round.replace(/_/g, " ")})`)
+  }
+
+  lines.push(`Who are you rooting for? 🏆`)
+  return lines.map(sanitizeRecapLine)
+}
+
+// ---------------------------------------------------------------------------
+// AI-wrapped dispatcher — includes all actions
+// ---------------------------------------------------------------------------
+
 export async function generateAiWrappedLines(
   kind:
     | "hype"
@@ -566,7 +971,14 @@ export async function generateAiWrappedLines(
     | "path"
     | "reminder"
     | "incomplete_reminder"
-    | "pool_broadcast",
+    | "pool_broadcast"
+    | "chalk_bust"
+    | "match_swing"
+    | "trash_talk"
+    | "at_risk"
+    | "social_invite"
+    | "quiet_pool"
+    | "tomorrow_hype",
   challengeId: string,
   extra?: { round?: WorldCupRound; entryId?: string }
 ): Promise<string[]> {
@@ -585,9 +997,7 @@ export async function generateAiWrappedLines(
       base = await buildPostRoundRecapLines(challengeId, extra?.round ?? "round_of_16")
       break
     case "path":
-      base = extra?.entryId
-        ? await buildPathToWinLines(challengeId, extra.entryId)
-        : []
+      base = extra?.entryId ? await buildPathToWinLines(challengeId, extra.entryId) : []
       break
     case "reminder":
       base = await buildIncompleteBracketReminderLines(challengeId)
@@ -598,14 +1008,45 @@ export async function generateAiWrappedLines(
     case "pool_broadcast":
       base = await buildPoolBroadcastReminderLines(challengeId)
       break
+    case "chalk_bust":
+      base = await buildChalkBustNarrativeLines(challengeId)
+      break
+    case "match_swing":
+      base = await buildMatchSwingLines(challengeId)
+      break
+    case "trash_talk":
+      base = await buildTrashTalkLines(challengeId)
+      break
+    case "at_risk":
+      base = await buildAtRiskUsersLines(challengeId)
+      break
+    case "social_invite":
+      base = await buildSocialInviteLines(challengeId)
+      break
+    case "quiet_pool":
+      base = await buildEngagementNudgeLines(challengeId)
+      break
+    case "tomorrow_hype":
+      base = await buildTomorrowHypeLines(challengeId)
+      break
     default:
       base = []
   }
-  const ai =
-    kind === "incomplete_reminder"
-      ? await maybeEnhanceWithOpenAi(
-          `${base.join("\n")}\n\nVoice: confident commissioner nudge — clear, energetic, still professional.`
-        )
-      : await maybeEnhanceWithOpenAi(base.join("\n"))
+
+  const aiVoiceHint: Partial<Record<typeof kind, string>> = {
+    trash_talk: "Voice: playful, confident, light trash-talk energy for a friend group — fun, not mean.",
+    quiet_pool: "Voice: warm commissioner nudge — energetic, inviting, short.",
+    social_invite: "Voice: punchy social copy — one strong hook, clear CTA, under 3 lines.",
+    tomorrow_hype: "Voice: exciting preview — build anticipation without inventing facts.",
+    chalk_bust: "Voice: sharp analyst — make the stakes clear without sensationalism.",
+    at_risk: "Voice: honest commissioner — factual, not cruel.",
+    incomplete_reminder: "Voice: confident commissioner nudge — clear, energetic, professional.",
+  }
+
+  const hint = aiVoiceHint[kind]
+  const ai = hint
+    ? await maybeEnhanceWithOpenAi(`${base.join("\n")}\n\n${hint}`)
+    : await maybeEnhanceWithOpenAi(base.join("\n"))
+
   return ai ? [ai] : base
 }
