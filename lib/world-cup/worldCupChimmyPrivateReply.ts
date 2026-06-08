@@ -3,17 +3,19 @@ import "server-only"
 import { appendChatHistory, buildChimmyConversationId } from "@/lib/ai-memory/chat-history-store"
 import { DETERMINISTIC_SOURCE, tryDeterministicAnswer } from "@/lib/ai/deterministic"
 import { routeTextCall } from "@/lib/ai/providerRouter"
+import {
+  buildWcChimmyGroundingPacket,
+  serializeChimmyGroundingPacket,
+} from "@/lib/ai/chimmyGroundingPacket"
 import type { WorldCupChimmyContext } from "./worldCupChimmyContext"
 import {
   buildWorldCupChimmySystemPrompt,
   enforceWorldCupChimmyReplyGuard,
   reliableDataUnavailableMessage,
-  serializeChimmyContext,
   tryDeterministicWorldCupChimmyReply,
 } from "./worldCupChimmyReplyPolicy"
 import {
   buildWorldCupChimmyGrounding,
-  serializeWorldCupChimmyGrounding,
   type WorldCupChimmyUserRole,
 } from "./worldCupChimmyGroundingService"
 
@@ -44,6 +46,10 @@ export async function generateWorldCupChimmyPrivateReply(input: {
   context?: WorldCupChimmyContext | null
   userRole?: WorldCupChimmyUserRole | null
   deterministicOnly?: boolean
+  entitlements?: {
+    plan?: "free" | "pro" | "commissioner" | "supreme" | "war_room"
+    tokenBalance?: number
+  }
 }) {
   const userPrompt = stripChimmyMention(input.prompt)
   const conversationId = buildChimmyConversationId({
@@ -114,20 +120,21 @@ export async function generateWorldCupChimmyPrivateReply(input: {
     ].join(" ")
   } else {
     const system = buildWorldCupChimmySystemPrompt(input.locale)
-    const contextBlock = input.context ? serializeChimmyContext(input.context) : null
-    const groundingBlock = serializeWorldCupChimmyGrounding(grounding)
-    const challengeLine = input.challengeName
-      ? `Pool: ${input.challengeName}.`
-      : "Pool: World Cup bracket challenge."
+
+    // Build the unified grounding packet — the ONLY data payload the LLM sees.
+    // It consolidates pool context, bracket state, sports data, allowed claims,
+    // and missing data into one structured object enforced by the system prompt.
+    const packet = buildWcChimmyGroundingPacket({
+      userQuestion: prompt,
+      context: input.context,
+      grounding,
+      entitlements: input.entitlements,
+    })
 
     const userContent = [
-      challengeLine,
-      `\n--- GROUNDING JSON ---\n${groundingBlock}\n--- END GROUNDING JSON ---`,
-      contextBlock ? `\n--- POOL DATA ---\n${contextBlock}\n--- END POOL DATA ---` : "",
-      `\nUser private prompt: ${prompt}`,
-    ]
-      .filter(Boolean)
-      .join("")
+      `--- GROUNDING PACKET ---\n${serializeChimmyGroundingPacket(packet)}\n--- END GROUNDING PACKET ---`,
+      `\nUser question: ${prompt}`,
+    ].join("")
 
     const result = await routeTextCall({
       messages: [
