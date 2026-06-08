@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { Loader2, Lock, Sparkles } from "lucide-react"
+import { Coins, Loader2, Lock, Sparkles } from "lucide-react"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
 import { makeWcT } from "@/lib/world-cup/worldCupI18n"
 import {
@@ -136,24 +136,32 @@ export default function WorldCupExplainBracketCard({
       ) : null}
 
       {!result ? (
-        <button
-          type="button"
-          onClick={() => void handleGenerate()}
-          disabled={loading || !entryId}
-          data-testid="world-cup-explain-bracket-generate"
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-black text-black transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:scale-100 sm:w-auto"
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Sparkles className="h-4 w-4" />
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={() => void handleGenerate()}
+            disabled={loading || !entryId}
+            data-testid="world-cup-explain-bracket-generate"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-black text-black transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:scale-100 sm:w-auto"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            {loading
+              ? t("wc.explain.generating")
+              : entryId
+                ? t("wc.explain.generate")
+                : t("wc.explain.selectFirst")}
+          </button>
+          {!loading && entryId && (
+            <span className="inline-flex items-center gap-1 text-[10px] text-white/40 sm:ml-1">
+              <Coins className="h-3 w-3" />
+              Uses AI tokens
+            </span>
           )}
-          {loading
-            ? t("wc.explain.generating")
-            : entryId
-              ? t("wc.explain.generate")
-              : t("wc.explain.selectFirst")}
-        </button>
+        </div>
       ) : null}
 
       {error ? (

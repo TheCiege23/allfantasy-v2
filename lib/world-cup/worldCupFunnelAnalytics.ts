@@ -14,11 +14,17 @@ export type WcFunnelEvent =
   | "WorldCupSignupStarted"
   | "WorldCupPoolCreated"
   | "WorldCupInviteCopied"
+  | "WorldCupShareClicked"
   | "WorldCupBracketStarted"
   | "WorldCupBracketCompleted"
+  | "WorldCupUpgradeClicked"
   | "AFProUpsellViewed"
   | "AFCommissionerUpsellViewed"
+  | "AFSupremeUpsellViewed"
   | "TokenUpsellViewed"
+  | "WcSponsorCouponViewed"
+  | "WcSponsorCouponCopyClicked"
+  | "WcSponsorCouponClaimClicked"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -75,4 +81,29 @@ export function trackWcPoolCreated(challengeId: string, poolName: string): void 
 /** Track invite link copied. */
 export function trackWcInviteCopied(challengeId: string): void {
   gtagEvent("WorldCupInviteCopied", { challenge_id: challengeId })
+}
+
+/** Track share button/link clicked. */
+export function trackWcShareClicked(source: string, challengeId?: string): void {
+  gtagEvent("WorldCupShareClicked", { source, challenge_id: challengeId ?? null })
+}
+
+/** Track upgrade CTA clicked from any WC context. */
+export function trackWcUpgradeClicked(plan: string, source: string): void {
+  gtagEvent("WorldCupUpgradeClicked", { plan, source })
+}
+
+/** Track sponsor coupon card viewed on WC landing. */
+export function trackWcSponsorCouponViewed(surface: string): void {
+  gtagEvent("WcSponsorCouponViewed", { surface, coupon_code: "WASSUPFRED" })
+}
+
+/** Track copy-code button on sponsor coupon card. */
+export function trackWcSponsorCouponCopyClicked(surface: string): void {
+  gtagEvent("WcSponsorCouponCopyClicked", { surface, coupon_code: "WASSUPFRED" })
+}
+
+/** Track "Claim Discount" CTA on sponsor coupon card. */
+export function trackWcSponsorCouponClaimClicked(surface: string): void {
+  gtagEvent("WcSponsorCouponClaimClicked", { surface, coupon_code: "WASSUPFRED" })
 }

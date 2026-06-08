@@ -10,11 +10,19 @@ import { confirmTokenSpend } from '@/lib/tokens/client-confirm'
 import { resolveCheckoutUrl } from '@/lib/monetization/checkout-client'
 import { MonetizationComplianceNotice } from '@/components/monetization/MonetizationComplianceNotice'
 import { StripePaymentHint } from '@/components/monetization/StripePaymentHint'
+import CouponInput from '@/components/promotions/CouponInput'
+import SponsorCouponCard from '@/components/promotions/SponsorCouponCard'
 import {
   trackInsufficientTokenFlowViewed,
   trackMonetizationPageVisited,
   trackTokenPurchaseClicked,
 } from '@/lib/monetization-analytics'
+import {
+  trackCouponViewed,
+  trackCouponApplied,
+  trackCouponRejected,
+  trackTokenPackCheckoutClicked,
+} from '@/lib/promotions/couponAnalytics'
 
 type TokenPack = {
   sku: string
@@ -71,6 +79,8 @@ export default function TokensPage() {
   const [error, setError] = useState<string | null>(null)
   const [pendingSku, setPendingSku] = useState<string | null>(null)
   const [pendingSpend, setPendingSpend] = useState(false)
+  const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null)
+  const [appliedCouponPct, setAppliedCouponPct] = useState<number>(0)
   const [selectedRuleCode, setSelectedRuleCode] = useState<string>('')
   const [historyOpen, setHistoryOpen] = useState(true)
   const [spendMessage, setSpendMessage] = useState<string | null>(null)
@@ -278,7 +288,18 @@ export default function TokensPage() {
       surface: 'tokens_page_pack_card',
       pagePath: '/tokens',
     })
-    const result = await resolveCheckoutUrl({ sku, productType: 'token_pack', returnPath: '/tokens' })
+    trackTokenPackCheckoutClicked({
+      sku,
+      surface: 'tokens_page_pack_card',
+      couponApplied: Boolean(appliedCouponCode),
+      couponCode: appliedCouponCode ?? undefined,
+    })
+    const result = await resolveCheckoutUrl({
+      sku,
+      productType: 'token_pack',
+      returnPath: '/tokens',
+      couponCode: appliedCouponCode,
+    })
     if (!result.ok) {
       setError(result.error)
       setPendingSku(null)
@@ -475,6 +496,34 @@ export default function TokensPage() {
                 </Link>
                 {t('tokens.packs.subtitleAfter')}
               </p>
+
+              {/* Coupon input */}
+              <div className="mt-4 space-y-3">
+                <CouponInput
+                  productType="token_pack"
+                  placeholder="WassupFred"
+                  onApplied={(code, pct) => {
+                    setAppliedCouponCode(code)
+                    setAppliedCouponPct(pct)
+                    trackCouponApplied({ couponCode: code, discountPercent: pct, surface: 'tokens_page', productType: 'token_pack' })
+                  }}
+                  onRemoved={() => {
+                    setAppliedCouponCode(null)
+                    setAppliedCouponPct(0)
+                  }}
+                />
+                {!appliedCouponCode && (
+                  <SponsorCouponCard
+                    compact
+                    surface="tokens_page_packs"
+                    href="/tokens"
+                    onView={() => trackCouponViewed({ couponCode: 'WASSUPFRED', surface: 'tokens_page_packs', productType: 'token_pack' })}
+                    onCopyClicked={() => {}}
+                    onClaimClicked={() => {}}
+                  />
+                )}
+              </div>
+
               <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {tokenPacks.map((pack) => (
                   <article
@@ -492,9 +541,21 @@ export default function TokensPage() {
                         {tInterpolate('tokens.packs.tokenCount', { count: pack.tokenAmount.toLocaleString() })}
                       </p>
                     ) : null}
-                    <div className="mt-3 text-xl font-bold tabular-nums text-cyan-300">
-                      {formatUsd(pack.amountUsd)}
+                    <div className="mt-3 flex items-baseline gap-2">
+                      <span className={`text-xl font-bold tabular-nums ${appliedCouponCode ? 'text-white/40 line-through' : 'text-cyan-300'}`}>
+                        {formatUsd(pack.amountUsd)}
+                      </span>
+                      {appliedCouponCode && appliedCouponPct > 0 && (
+                        <span className="text-base font-black tabular-nums text-emerald-300">
+                          {formatUsd(pack.amountUsd * (1 - appliedCouponPct / 100))}
+                        </span>
+                      )}
                     </div>
+                    {appliedCouponCode && (
+                      <p className="mt-1 text-[10px] font-bold text-emerald-400">
+                        {appliedCouponPct}% off with {appliedCouponCode}
+                      </p>
+                    )}
                     <button
                       type="button"
                       onClick={() => void startCheckout(pack.sku)}

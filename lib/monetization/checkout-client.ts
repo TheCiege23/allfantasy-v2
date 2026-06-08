@@ -8,6 +8,8 @@ export type MonetizationCheckoutRequest = {
   sku: string
   productType: MonetizationCheckoutProductType
   returnPath: string
+  /** Optional sponsor/promo code to pre-apply at checkout (e.g. "WassupFred"). Server validates — client cannot spoof discounts. */
+  couponCode?: string | null
 }
 
 export type MonetizationCheckoutResult =
@@ -37,13 +39,15 @@ export async function resolveCheckoutUrl(
     return { ok: false, error: "Missing checkout sku." }
   }
 
+  const normalizedCoupon = String(request.couponCode ?? "").trim() || null
   const normalizedRequest: MonetizationCheckoutRequest = {
     sku,
     productType: request.productType,
     returnPath: normalizeReturnPath(request.returnPath),
+    couponCode: normalizedCoupon,
   }
   const endpoint = resolveCheckoutEndpoint(request.productType)
-  const requestKey = `${normalizedRequest.productType}:${normalizedRequest.sku}:${normalizedRequest.returnPath}`
+  const requestKey = `${normalizedRequest.productType}:${normalizedRequest.sku}:${normalizedRequest.returnPath}:${normalizedCoupon ?? ""}`
   const existing = inFlightCheckoutRequests.get(requestKey)
   if (existing) return existing
 
@@ -57,6 +61,7 @@ export async function resolveCheckoutUrl(
         body: JSON.stringify({
           sku: normalizedRequest.sku,
           returnPath: normalizedRequest.returnPath,
+          ...(normalizedRequest.couponCode ? { couponCode: normalizedRequest.couponCode } : {}),
         }),
         signal: controller.signal,
       })

@@ -23,6 +23,8 @@ import { useGeoRestriction } from "@/lib/geo/useGeoRestriction";
 import { Check } from "lucide-react";
 import { PLAN_FAMILY_INCLUDES, PLAN_FAMILY_SHORT_TAGLINE } from "@/lib/monetization/planIncludes";
 import { StripePaymentHint } from "@/components/monetization/StripePaymentHint";
+import CouponInput from "@/components/promotions/CouponInput";
+import { trackCouponApplied } from "@/lib/promotions/couponAnalytics";
 
 export type PlanFamily =
   | "af_pro"
@@ -160,6 +162,8 @@ export default function MonetizationPurchaseSurface({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [pendingSku, setPendingSku] = useState<string | null>(null);
+  const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null);
+  const [appliedCouponPct, setAppliedCouponPct] = useState<number>(0);
   const didTrackPageVisit = useRef(false);
 
   const postPurchaseSync = usePostPurchaseSync({
@@ -288,7 +292,12 @@ export default function MonetizationPurchaseSurface({
         pagePath,
       });
     }
-    const result = await resolveCheckoutUrl({ sku, productType, returnPath: pagePath });
+    const result = await resolveCheckoutUrl({
+      sku,
+      productType,
+      returnPath: pagePath,
+      couponCode: appliedCouponCode,
+    });
     if (!result.ok) {
       setCheckoutError(result.error);
       setPendingSku(null);
@@ -531,6 +540,31 @@ export default function MonetizationPurchaseSurface({
           <TokenBalanceWidget />
         </div>
 
+        {/* Sponsor / promo coupon input */}
+        <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-white/60">
+            Have a promo code?
+          </p>
+          <CouponInput
+            productType="subscription"
+            placeholder="WassupFred"
+            onApplied={(code, pct) => {
+              setAppliedCouponCode(code)
+              setAppliedCouponPct(pct)
+              trackCouponApplied({ couponCode: code, discountPercent: pct, surface: 'pricing_page', productType: 'subscription' })
+            }}
+            onRemoved={() => {
+              setAppliedCouponCode(null)
+              setAppliedCouponPct(0)
+            }}
+          />
+          {!appliedCouponCode && (
+            <p className="mt-2 text-[11px] text-white/35">
+              Try <span className="font-black text-amber-300/60">WassupFred</span> for 20% off your first subscription or token pack
+            </p>
+          )}
+        </div>
+
         {loading ? (
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-sm text-white/60">
             Loading pricing catalog...
@@ -544,6 +578,13 @@ export default function MonetizationPurchaseSurface({
             {checkoutError ? (
               <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
                 {checkoutError}
+              </div>
+            ) : null}
+            {appliedCouponCode && appliedCouponPct > 0 ? (
+              <div className="mb-4 flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2.5 text-xs">
+                <Check className="h-4 w-4 shrink-0 text-emerald-400" />
+                <span className="font-black text-emerald-300">{appliedCouponCode}</span>
+                <span className="text-white/60">applied — {appliedCouponPct}% discount will be deducted at Stripe checkout</span>
               </div>
             ) : null}
             <div className="grid gap-5 md:grid-cols-2">
@@ -628,8 +669,15 @@ export default function MonetizationPurchaseSurface({
                           >
                             {pendingSku === monthly.sku
                               ? "Opening Stripe…"
-                              : "Continue with Stripe — Monthly"}
+                              : appliedCouponCode
+                                ? `Continue — ${appliedCouponPct}% off applied`
+                                : "Continue with Stripe — Monthly"}
                           </button>
+                          {!appliedCouponCode && (
+                            <p className="mt-1.5 text-center text-[10px] text-white/30">
+                              Use <span className="font-bold text-amber-300/60">WassupFred</span> for 20% off first purchase
+                            </p>
+                          )}
                           {monthly.stripePriceConfigured ? (
                             <StripePaymentHint className="mt-2" />
                           ) : (
