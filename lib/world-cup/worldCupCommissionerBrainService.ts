@@ -9,6 +9,16 @@ import {
 import { worldCupBracketPicksPublicUrl } from "./worldCupBracketReminderService"
 import { buildWorldCupLeaderboardRows } from "./worldCupScoringService"
 import type { WorldCupRound } from "./types"
+import {
+  buildPoolSwingAlertCard,
+  buildChampionPickRiskCard,
+  buildRootingGuideCard,
+  buildCommissionerRecapCard,
+  type InsightCard,
+} from "./worldCupInsightCards"
+
+// Re-export so callers only need one import
+export type { InsightCard } from "./worldCupInsightCards"
 
 export type WorldCupCommissionerBrainSnapshot = {
   incompleteBracketCount: number
@@ -1049,4 +1059,101 @@ export async function generateAiWrappedLines(
     : await maybeEnhanceWithOpenAi(base.join("\n"))
 
   return ai ? [ai] : base
+}
+
+// ---------------------------------------------------------------------------
+// Structured Insight Card generator
+// Deterministic builders compute all numbers; AI writes ONLY the narrative.
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate a structured InsightCard with deterministic data + a short AI narrative.
+ * The AI call receives ONLY the pre-computed facts — it cannot invent scores or picks.
+ */
+export async function generateInsightCard(
+  kind: "pool_swing" | "rooting_guide" | "champion_risk" | "commissioner_recap",
+  challengeId: string,
+  extra?: { entryId?: string },
+): Promise<InsightCard | null> {
+  switch (kind) {
+    case "pool_swing": {
+      const card = await buildPoolSwingAlertCard(challengeId)
+      if (!card) return null
+      const prompt = [
+        `Pool swing analysis for a World Cup bracket pool.`,
+        `Match: ${card.homeTeam} vs ${card.awayTeam} (${card.roundLabel}).`,
+        `${card.favoredCount} entries picked ${card.favoredTeam}, ${card.underdogCount} picked ${card.underdogTeam}.`,
+        `Max leaderboard points at risk: ${card.maxPointsAtRisk}. Chaos rating: ${card.chaosRating}/10.`,
+        `Voice: sharp analyst, 1-2 sentences. Do NOT invent scores, odds, or facts not listed here.`,
+      ].join(" ")
+      const ai = await maybeEnhanceWithOpenAi(prompt)
+      return { ...card, aiNarrative: ai }
+    }
+
+    case "rooting_guide": {
+      const card = await buildRootingGuideCard(challengeId, extra?.entryId)
+      if (!card) return null
+      const above = card.usersAboveWithThreat.length
+      const abovePhrase = above > 0
+        ? `${above} higher-ranked entr${above === 1 ? "y" : "ies"} picked ${card.threatTeam}.`
+        : `No higher-ranked entries chose ${card.threatTeam}.`
+      const prompt = [
+        `Rooting guide for a World Cup bracket pool.`,
+        `Entry "${card.entryName}" (rank ${card.rank}, ${card.currentScore} pts; leader at ${card.leaderScore} pts).`,
+        `They need ${card.rootFor} to beat ${card.threatTeam} in the ${card.roundLabel}.`,
+        `Points at risk: ${card.pointsAtRisk}. ${abovePhrase}`,
+        `Voice: 1 sentence, clear stakes, no invented scores or odds.`,
+      ].join(" ")
+      const ai = await maybeEnhanceWithOpenAi(prompt)
+      return { ...card, aiNarrative: ai }
+    }
+
+    case "champion_risk": {
+      const card = await buildChampionPickRiskCard(challengeId, extra?.entryId)
+      if (!card) return null
+      const altPhrase = card.alternativeLeverage.length > 0
+        ? `Alternative picks: ${card.alternativeLeverage.join(", ")}.`
+        : ""
+      const prompt = [
+        `Champion pick risk for a World Cup bracket pool.`,
+        `${card.topChampion} is picked by ${card.topChampionCount} of ${card.totalEntries} entries (${card.poolPickPercent}%).`,
+        `Differentiation: ${card.differentiation}.`,
+        altPhrase,
+        `Voice: 1 sentence, analyst take on the pool's risk profile. No invented results.`,
+      ].filter(Boolean).join(" ")
+      const ai = await maybeEnhanceWithOpenAi(prompt)
+      return { ...card, aiNarrative: ai }
+    }
+
+    case "commissioner_recap": {
+      const card = await buildCommissionerRecapCard(challengeId)
+      if (!card) return null
+      // Build a facts-only prompt for the suggested group-chat post
+      const lines: string[] = [
+        `Commissioner recap for ${card.periodLabel} in a World Cup bracket pool.`,
+      ]
+      if (card.biggestWinner) {
+        lines.push(
+          `Biggest winner this round: ${card.biggestWinner.displayName} ("${card.biggestWinner.entryName}") — ${card.biggestWinner.roundScore} pts, now rank ${card.biggestWinner.rank}.`,
+        )
+      }
+      if (card.biggestLoser) {
+        lines.push(
+          `Struggled most: ${card.biggestLoser.displayName} ("${card.biggestLoser.entryName}") — ${card.biggestLoser.roundScore} pts, rank ${card.biggestLoser.rank}.`,
+        )
+      }
+      if (card.bestUpcomingMatch) {
+        const m = card.bestUpcomingMatch
+        lines.push(
+          `Best upcoming match: ${m.homeTeam} vs ${m.awayTeam} (${m.roundLabel}${m.kickoffEt ? `, ${m.kickoffEt}` : ""}) — chaos ${m.chaosRating}/10.`,
+        )
+      }
+      lines.push(
+        `Current leader: ${card.leaderName ?? "TBD"} at ${card.leaderScore} pts. ${card.totalEntries} entries total.`,
+        `Write a short, energetic commissioner message ready to post to the group chat. Use names. Under 3 sentences. No invented facts.`,
+      )
+      const ai = await maybeEnhanceWithOpenAi(lines.join("\n"))
+      return { ...card, suggestedPost: ai }
+    }
+  }
 }

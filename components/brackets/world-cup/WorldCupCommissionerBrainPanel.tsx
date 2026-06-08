@@ -11,6 +11,7 @@ import {
 } from "@/lib/world-cup/worldCupClientTokenConfirm"
 import WorldCupLeagueEventFeed from "./WorldCupLeagueEventFeed"
 import WorldCupCommissionerChecklistCard from "./WorldCupCommissionerChecklistCard"
+import { InsightCardView, type InsightCard } from "./InsightCards"
 
 type Snapshot = {
   incompleteBracketCount: number
@@ -64,6 +65,8 @@ type BrainAction =
   | "quiet_pool"
   | "tomorrow_hype"
 
+type CardAction = "pool_swing_card" | "rooting_guide_card" | "champion_risk_card" | "commissioner_recap_card"
+
 type BrainActionResult = {
   action: BrainAction
   lines: string[]
@@ -105,6 +108,8 @@ export default function WorldCupCommissionerBrainPanel({
   const [recapTone, setRecapTone] = useState<RecapTone>("fun")
   const [recapLines, setRecapLines] = useState<string[]>([])
   const [brainActionResult, setBrainActionResult] = useState<BrainActionResult | null>(null)
+  const [insightCard, setInsightCard] = useState<InsightCard | null>(null)
+  const [cardBusy, setCardBusy] = useState<CardAction | null>(null)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -235,6 +240,48 @@ export default function WorldCupCommissionerBrainPanel({
       void reload()
     } finally {
       setBusy(null)
+    }
+  }
+
+  async function runCardAction(action: CardAction) {
+    if (!bracketBrainEnabled) {
+      toast.error("Bracket Brain is disabled — turn it on under Pool settings.")
+      return
+    }
+    setCardBusy(action)
+    setInsightCard(null)
+    try {
+      const { ok, data, cancelled } = await postCommissionerBrain({ action })
+      if (!ok) {
+        toast[cancelled ? "info" : "error"](data.error || "Could not generate card")
+        return
+      }
+      if (data.card) {
+        setInsightCard(data.card as InsightCard)
+        toast.success("Insight card generated.")
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not generate card")
+    } finally {
+      setCardBusy(null)
+    }
+  }
+
+  async function postCardNarrativeToChat(text: string) {
+    try {
+      // post_recap with explicit lines posts immediately without re-generating
+      const { ok, data, cancelled } = await postCommissionerBrain({
+        action: "post_recap",
+        lines: [text],
+      })
+      if (!ok) {
+        toast[cancelled ? "info" : "error"](data.error || "Could not post to chat")
+        return
+      }
+      toast.success("Posted to pool chat.")
+      void reload()
+    } catch {
+      toast.error("Could not post to chat")
     }
   }
 
@@ -543,6 +590,72 @@ export default function WorldCupCommissionerBrainPanel({
         </div>
       </section>
 
+      {/* ── AI Insight Cards (new) ── */}
+      <section className="rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-amber-300/70" />
+          <h3 className="text-sm font-black text-white">AI Insight Cards</h3>
+          <span className="ml-auto rounded-full border border-amber-300/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white/70">
+            Structured
+          </span>
+        </div>
+        <p className="mb-3 text-xs leading-relaxed text-white/50">
+          Cards built from real pool numbers — deterministic data, not hallucinated stats. AI adds one sentence of analysis.
+        </p>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <CardInsightButton
+            label="Pool Swing Alert"
+            description="Upcoming match with the biggest leaderboard swing potential"
+            loading={cardBusy === "pool_swing_card"}
+            disabled={!bracketBrainEnabled || cardBusy !== null || busy !== null}
+            onClick={() => void runCardAction("pool_swing_card")}
+          />
+          <CardInsightButton
+            label="Rooting Guide"
+            description="Who the pool leader needs to win — and what's at stake"
+            loading={cardBusy === "rooting_guide_card"}
+            disabled={!bracketBrainEnabled || cardBusy !== null || busy !== null}
+            onClick={() => void runCardAction("rooting_guide_card")}
+          />
+          <CardInsightButton
+            label="Champion Pick Risk"
+            description="Champion pick concentration — crowded vs. contrarian"
+            loading={cardBusy === "champion_risk_card"}
+            disabled={!bracketBrainEnabled || cardBusy !== null || busy !== null}
+            onClick={() => void runCardAction("champion_risk_card")}
+          />
+          <CardInsightButton
+            label="Commissioner Recap"
+            description="Round winner, loser, best upcoming match + suggested post"
+            loading={cardBusy === "commissioner_recap_card"}
+            disabled={!bracketBrainEnabled || cardBusy !== null || busy !== null}
+            onClick={() => void runCardAction("commissioner_recap_card")}
+          />
+        </div>
+      </section>
+
+      {/* ── Active insight card display ── */}
+      {insightCard ? (
+        <section data-testid="world-cup-insight-card">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[10px] font-black uppercase tracking-wide text-white/40">
+              Insight Card
+            </p>
+            <button
+              type="button"
+              onClick={() => setInsightCard(null)}
+              className="text-[10px] text-white/30 hover:text-white/60"
+            >
+              Dismiss
+            </button>
+          </div>
+          <InsightCardView
+            card={insightCard}
+            onPostToChat={(text) => void postCardNarrativeToChat(text)}
+          />
+        </section>
+      ) : null}
+
       {brainActionResult ? (
         <section data-testid="world-cup-brain-action-result" className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.055] p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -717,6 +830,42 @@ function InsightButton({
           <Loader2 className="h-3 w-3 shrink-0 animate-spin text-violet-300" />
         ) : (
           <Sparkles className="h-3 w-3 shrink-0 text-violet-300/70 transition-colors group-hover:text-violet-300" />
+        )}
+        {label}
+      </span>
+      <span className="text-[10px] leading-snug text-white/40">{description}</span>
+    </button>
+  )
+}
+
+/** Amber-tinted button for structured card actions. */
+function CardInsightButton({
+  label,
+  description,
+  onClick,
+  disabled,
+  loading,
+  className = "",
+}: {
+  label: string
+  description: string
+  onClick: () => void
+  disabled?: boolean
+  loading?: boolean
+  className?: string
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled || loading}
+      onClick={onClick}
+      className={`group flex min-h-[4.5rem] w-full flex-col items-start gap-1 rounded-lg border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2.5 text-left transition-colors hover:border-amber-400/35 hover:bg-amber-400/10 disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
+    >
+      <span className="flex w-full items-center gap-2 text-[11px] font-bold text-white/90">
+        {loading ? (
+          <Loader2 className="h-3 w-3 shrink-0 animate-spin text-amber-300" />
+        ) : (
+          <Sparkles className="h-3 w-3 shrink-0 text-amber-300/70 transition-colors group-hover:text-amber-300" />
         )}
         {label}
       </span>

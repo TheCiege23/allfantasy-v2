@@ -11,8 +11,10 @@ import {
 import {
   buildWorldCupAiPoolRecapLines,
   generateAiWrappedLines,
+  generateInsightCard,
   getWorldCupCommissionerBrainSnapshot,
   type WorldCupAiRecapTone,
+  type InsightCard,
 } from "@/lib/world-cup/worldCupCommissionerBrainService"
 import { WORLD_CUP_BRACKET_EVENT_TYPES } from "@/lib/world-cup/worldCupBracketEvents"
 import {
@@ -28,9 +30,18 @@ import {
 
 export const runtime = "nodejs"
 
+const CARD_ACTIONS = ["pool_swing_card", "rooting_guide_card", "champion_risk_card", "commissioner_recap_card"] as const
+type CardAction = typeof CARD_ACTIONS[number]
+const CARD_ACTION_TO_KIND: Record<CardAction, Parameters<typeof generateInsightCard>[0]> = {
+  pool_swing_card: "pool_swing",
+  rooting_guide_card: "rooting_guide",
+  champion_risk_card: "champion_risk",
+  commissioner_recap_card: "commissioner_recap",
+}
+
 const postSchema = z.object({
   action: z.enum([
-    // existing
+    // existing text-line generators
     "hype",
     "standings",
     "watch",
@@ -40,7 +51,7 @@ const postSchema = z.object({
     "drama_recap",
     "path",
     "reminder",
-    // new proactive generators
+    // proactive text generators
     "chalk_bust",
     "match_swing",
     "trash_talk",
@@ -48,6 +59,11 @@ const postSchema = z.object({
     "social_invite",
     "quiet_pool",
     "tomorrow_hype",
+    // structured insight card generators (return { card }, do not auto-post)
+    "pool_swing_card",
+    "rooting_guide_card",
+    "champion_risk_card",
+    "commissioner_recap_card",
   ]),
   round: z.string().optional(),
   entryId: z.string().optional(),
@@ -161,6 +177,22 @@ export async function POST(
       },
       { status: 403 }
     )
+  }
+
+  // ── Structured card actions — return { card }, never auto-post ──────────────
+  const isCardAction = (CARD_ACTIONS as readonly string[]).includes(parsed.data.action)
+  if (isCardAction) {
+    const cardKind = CARD_ACTION_TO_KIND[parsed.data.action as CardAction]
+    const card: InsightCard | null = await generateInsightCard(cardKind, params.data.challengeId, {
+      entryId: parsed.data.entryId,
+    })
+    if (!card) {
+      return NextResponse.json(
+        { error: "Not enough pool data to generate this insight card yet." },
+        { status: 422 },
+      )
+    }
+    return NextResponse.json({ ok: true, card, posted: false })
   }
 
   const isRecapPreview = parsed.data.action === "preview_recap"
