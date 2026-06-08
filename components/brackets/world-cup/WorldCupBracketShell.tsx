@@ -2404,6 +2404,9 @@ export default function WorldCupBracketShell({
           aria-modal="true"
           aria-label="Your pool is live — share invite"
         >
+          {/* Atmospheric glow behind dialog */}
+          <div className="pointer-events-none absolute left-1/2 top-1/4 h-96 w-96 -translate-x-1/2 rounded-full bg-cyan-400/[0.08] blur-[100px]" aria-hidden />
+
           <div className="relative mx-auto w-full max-w-lg rounded-t-3xl border border-cyan-300/20 bg-slate-950 p-5 pb-safe sm:rounded-3xl sm:p-6">
             {/* Close */}
             <button
@@ -2415,10 +2418,18 @@ export default function WorldCupBracketShell({
               <X className="h-4 w-4" />
             </button>
 
-            {/* Success header */}
+            {/* Success header with pulse glow */}
             <div className="mb-5 flex flex-col items-center gap-3 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-3xl border border-emerald-300/30 bg-emerald-300/10 shadow-[0_0_40px_-10px_rgba(16,185,129,0.5)]">
-                <CheckCircle2 className="h-8 w-8 text-emerald-300" />
+              <div className="relative">
+                {/* Pulse ring — fades after 3 beats */}
+                <div
+                  className="absolute inset-0 rounded-3xl border border-emerald-300/50 animate-ping"
+                  style={{ animationDuration: "1.8s", animationIterationCount: "3" }}
+                  aria-hidden
+                />
+                <div className="relative flex h-16 w-16 items-center justify-center rounded-3xl border border-emerald-300/30 bg-emerald-300/10 shadow-[0_0_50px_-8px_rgba(16,185,129,0.55)]">
+                  <CheckCircle2 className="h-8 w-8 text-emerald-300" />
+                </div>
               </div>
               <div>
                 <h2 className="text-2xl font-black text-white sm:text-3xl">Your pool is live!</h2>
@@ -2433,6 +2444,38 @@ export default function WorldCupBracketShell({
               isCommissioner={Boolean(view.isOwner || view.isAdmin)}
             />
 
+            {/* Chimmy teaser */}
+            <button
+              type="button"
+              onClick={() => setShowWelcomeOverlay(false)}
+              className="mt-3 flex w-full items-center gap-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.06] px-4 py-3 text-left transition hover:border-cyan-300/35 hover:bg-cyan-300/[0.10]"
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-cyan-300/30 bg-cyan-300/10">
+                <Bot className="h-4 w-4 text-cyan-300" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-black text-white">Ask Chimmy for a Pool Intro</p>
+                <p className="mt-0.5 text-[10px] text-white/50">AI-written intro to share with your players — free to try</p>
+              </div>
+              <Sparkles className="h-4 w-4 shrink-0 text-cyan-300/50" />
+            </button>
+
+            {/* Commissioner upsell */}
+            <Link
+              href="/pricing?highlight=af-commissioner&intent=world-cup&source=welcome_overlay"
+              className="mt-2 flex w-full items-center gap-3 rounded-xl border border-violet-400/20 bg-violet-400/[0.05] px-4 py-3 text-left transition hover:border-violet-400/35 hover:bg-violet-400/[0.09]"
+              onClick={() => setShowWelcomeOverlay(false)}
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-violet-400/30 bg-violet-400/10">
+                <Users className="h-4 w-4 text-violet-300" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-black text-white">Unlock Commissioner Tools</p>
+                <p className="mt-0.5 text-[10px] text-white/50">Custom scoring, bigger pools, invite tools — $4.99/mo</p>
+              </div>
+              <Zap className="h-4 w-4 shrink-0 text-violet-300/50" />
+            </Link>
+
             {/* Dismiss CTA */}
             <button
               type="button"
@@ -2442,6 +2485,12 @@ export default function WorldCupBracketShell({
               <ClipboardList className="h-4 w-4" />
               Build my bracket
             </button>
+
+            <p className="mt-2 text-center text-[10px] text-white/30">
+              Use code{" "}
+              <span className="font-bold text-amber-300/60">WassupFred</span>
+              {" "}for 20% off your first AI upgrade
+            </p>
           </div>
         </div>
       )}
