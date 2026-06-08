@@ -16,6 +16,11 @@ import {
   buildCommissionerRecapCard,
   type InsightCard,
 } from "./worldCupInsightCards"
+import { routeTextCall } from "@/lib/ai/providerRouter"
+import { applyValidationPipeline } from "@/lib/ai/responseValidator"
+import { buildFreshnessLabel, type AIGroundingContract } from "@/lib/ai/aiGroundingContract"
+import { logAiInteraction } from "@/lib/ai/auditLogger"
+import type { UserRole, FeatureKey } from "@/lib/ai/engine/types"
 
 // Re-export so callers only need one import
 export type { InsightCard } from "./worldCupInsightCards"
@@ -528,40 +533,91 @@ export async function buildPathToWinLines(challengeId: string, entryId: string) 
   ]
 }
 
-async function maybeEnhanceWithOpenAi(prompt: string): Promise<string | null> {
-  const key = process.env.OPENAI_API_KEY
-  if (!key) return null
+// Static minimal contract for commissioner brain validation.
+// liveScores=null → score_invention rule fires if AI invents a score.
+// oddsData=null   → odds_without_data rule fires if AI references favorites.
+// plan="commissioner" → plan_gate_violation rule does NOT fire.
+const COMMISSIONER_VALIDATION_CONTRACT: AIGroundingContract = {
+  contractVersion: "af-contract-v1",
+  sport: "world_cup",
+  feature: "commissioner_brain" as FeatureKey,
+  userRole: "commissioner" as UserRole,
+  plan: "commissioner",
+  locale: null,
+  sourceFreshness: buildFreshnessLabel("pool_only", null),
+  poolContext: {
+    poolId: "commissioner-brain",
+    poolName: "World Cup Pool",
+    totalEntries: 0,
+    sport: "world_cup",
+    format: "bracket",
+    currentPhase: "active",
+    prizePool: null,
+  },
+  scoringContext: null,
+  userPicks: null,
+  leaderboard: null,
+  providerFixtures: null,
+  liveScores: null,
+  oddsData: null,
+  computedInsights: {},
+  missingData: ["live match scores (live feed not loaded)", "odds and favorites data"],
+  allowedClaims: ["AllFantasy pool data, pick distribution, and entry scores"],
+  forbiddenClaims: [
+    "any live match score or current result — live feed not loaded",
+    "team favorite status or any odds/spread — no odds data loaded",
+  ],
+}
+
+async function maybeEnhanceWithOpenAi(
+  prompt: string,
+  opts?: { featureHint?: string },
+): Promise<string | null> {
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: process.env.WORLD_CUP_BRAIN_MODEL ?? "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are Chimmy, calm bracket commissioner copywriter. Rewrite only the provided World Cup pool facts. Do not add scores, schedules, match minutes, player stats, injuries, odds, lineups, or standings that are not present in the prompt. If a requested fact is missing, say reliable data is not available yet. Short paragraphs, no hype slang.",
-          },
-          {
-            role: "user",
-            content:
-              "Source: stored AllFantasy pool data only; no external live feed is included in this request.\n\n" +
-              prompt,
-          },
-        ],
-        max_tokens: 400,
-      }),
+    const result = await routeTextCall({
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are Chimmy, calm bracket commissioner copywriter. Rewrite only the provided World Cup pool facts. Do not add scores, schedules, match minutes, player stats, injuries, odds, lineups, or standings that are not present in the prompt. If a requested fact is missing, say reliable data is not available yet. Short paragraphs, no hype slang.",
+        },
+        {
+          role: "user",
+          content:
+            "Source: stored AllFantasy pool data only; no external live feed is included in this request.\n\n" +
+            prompt,
+        },
+      ],
+      profile: "cheap",
+      temperature: 0.4,
+      maxTokens: 400,
+      skipCache: true,
     })
-    if (!res.ok) return null
-    const data = (await res.json()) as {
-      choices?: Array<{ message?: { content?: string } }>
-    }
-    const text = data.choices?.[0]?.message?.content?.trim() ?? null
-    return text ? sanitizeRecapLine(text) : null
+    if (!result.ok) return null
+    const rawText = result.text?.trim() ?? null
+    if (!rawText) return null
+
+    // Primary sanitizer (betting/gambling terms)
+    const sanitized = sanitizeRecapLine(rawText)
+
+    // Contract validator: score invention + odds overclaim + PII guards
+    const validated = applyValidationPipeline(sanitized, COMMISSIONER_VALIDATION_CONTRACT)
+
+    // Fire-and-forget audit log
+    logAiInteraction({
+      sport: "world_cup",
+      feature: opts?.featureHint ?? "commissioner_brain",
+      route: "/api/brackets/world-cup/[challengeId]/commissioner-brain",
+      plan: "commissioner",
+      providerSource: result.provider,
+      freshnessTier: "pool_only",
+      validatorResult: "clean",
+      modelUsed: result.model,
+      tokenCost: result.tokensUsed ?? null,
+      wasDeterministic: false,
+    })
+
+    return validated
   } catch {
     return null
   }

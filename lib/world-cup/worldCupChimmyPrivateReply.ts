@@ -7,6 +7,15 @@ import {
   buildWcChimmyGroundingPacket,
   serializeChimmyGroundingPacket,
 } from "@/lib/ai/chimmyGroundingPacket"
+import {
+  buildFreshnessLabel,
+  buildMissingDataList,
+  type AIGroundingContract,
+  type FreshnessLabel,
+} from "@/lib/ai/aiGroundingContract"
+import { validateAIResponse, buildFallbackResponse as buildContractFallback } from "@/lib/ai/responseValidator"
+import { logAiInteraction, type AiValidatorResult } from "@/lib/ai/auditLogger"
+import type { UserRole } from "@/lib/ai/engine/types"
 import type { WorldCupChimmyContext } from "./worldCupChimmyContext"
 import {
   buildWorldCupChimmySystemPrompt,
@@ -20,6 +29,68 @@ import {
 } from "./worldCupChimmyGroundingService"
 
 const MAX_REPLY_CHARS = 2000
+
+// ─── Minimal validation contract builder ──────────────────────────────────────
+// The private-reply path uses the old grounding packet system (not the WC plugin
+// full pipeline), so we build just enough of the AIGroundingContract to give the
+// responseValidator the fields it actually checks:
+//   liveScores=null  → score_invention rule fires if AI invents a score
+//   oddsData=null    → odds_without_data rule fires if AI references a favorite
+//   plan             → plan_gate_violation rule fires for free users
+
+function buildMinimalChimmyContract(opts: {
+  challengeId: string
+  context: WorldCupChimmyContext | null | undefined
+  plan: string
+  userRole: WorldCupChimmyUserRole | null | undefined
+  locale: string | null | undefined
+}): AIGroundingContract {
+  const freshness = buildFreshnessLabel("pool_only", null)
+  const poolName = opts.context?.poolName ?? "World Cup Pool"
+  const totalEntries =
+    (opts.context?.entryCount ?? opts.context?.participantCount) ?? 0
+  const missingData = buildMissingDataList({
+    liveScores: null,
+    oddsData: null,
+    providerFixtures: null,
+    scoringContext: null,
+    userPicks: null,
+    leaderboard: null,
+  })
+  return {
+    contractVersion: "af-contract-v1",
+    sport: "world_cup",
+    feature: "pool_chat",
+    userRole: (opts.userRole ?? "user") as UserRole,
+    plan: opts.plan,
+    locale: opts.locale ?? null,
+    sourceFreshness: freshness,
+    poolContext: {
+      poolId: opts.challengeId,
+      poolName,
+      totalEntries,
+      sport: "world_cup",
+      format: "bracket",
+      currentPhase: "active",
+      prizePool: null,
+    },
+    scoringContext: null,
+    userPicks: null,
+    leaderboard: null,
+    providerFixtures: null,
+    /** null = AI MUST NOT state any score */
+    liveScores: null,
+    /** null = AI MUST NOT reference any favorite or spread */
+    oddsData: null,
+    computedInsights: {},
+    missingData,
+    allowedClaims: ["AllFantasy pool data, pick distribution, and entry scores"],
+    forbiddenClaims: [
+      "any live match score or current result — live feed not loaded",
+      "team favorite status or any odds/spread — no odds data loaded",
+    ],
+  }
+}
 
 function sanitizeChimmyText(value: string) {
   return value
@@ -95,6 +166,9 @@ export async function generateWorldCupChimmyPrivateReply(input: {
   let provider: string = "deterministic"
   let model: string = "policy"
   let reply: string
+  let validatorResult: AiValidatorResult | null = null
+  let blockedReason: string | null = null
+  let tokensUsed: number | null = null
 
   if (deterministic) {
     provider = isGeneralDeterministicReply ? DETERMINISTIC_SOURCE : "deterministic"
@@ -149,9 +223,33 @@ export async function generateWorldCupChimmyPrivateReply(input: {
 
     provider = result.ok ? result.provider : "unavailable"
     model = result.ok ? result.model : "unavailable"
-    reply = result.ok
-      ? sanitizeChimmyText(result.text).slice(0, MAX_REPLY_CHARS)
-      : "I could not reach Chimmy AI right now. Your prompt stayed private, and you can try again in a moment."
+
+    if (result.ok) {
+      // Sanitize raw text, then run through the contract validator.
+      // The minimal contract sets liveScores=null and oddsData=null,
+      // which catches score invention and odds overclaims before they reach users.
+      const rawText = sanitizeChimmyText(result.text).slice(0, MAX_REPLY_CHARS)
+      const contract = buildMinimalChimmyContract({
+        challengeId: input.challengeId,
+        context: input.context,
+        plan: input.entitlements?.plan ?? "free",
+        userRole: input.userRole,
+        locale: input.locale,
+      })
+      const validation = validateAIResponse(rawText, contract)
+      if (validation.blockedByRule) {
+        reply = buildContractFallback(contract, validation.blockedByRule)
+        validatorResult = "blocked"
+        blockedReason = validation.blockedByRule
+      } else {
+        reply = validation.sanitized
+        validatorResult = validation.failures.length > 0 ? "warned" : "clean"
+      }
+      tokensUsed = result.tokensUsed ?? null
+    } else {
+      reply = "I could not reach Chimmy AI right now. Your prompt stayed private, and you can try again in a moment."
+      validatorResult = "unavailable"
+    }
   }
 
   reply = (isGeneralDeterministicReply
@@ -163,6 +261,28 @@ export async function generateWorldCupChimmyPrivateReply(input: {
         locale: input.locale,
       })
   ).slice(0, MAX_REPLY_CHARS)
+
+  // sourceFreshness — this path always uses pool-only data (no live sports feed)
+  const sourceFreshness: FreshnessLabel = buildFreshnessLabel("pool_only", null)
+
+  // Audit log — fire and forget, must never throw or delay the response
+  logAiInteraction({
+    userId: input.userId,
+    sport: "world_cup",
+    feature: "pool_chat",
+    route: "/api/brackets/world-cup/[challengeId]/chat",
+    plan: input.entitlements?.plan ?? null,
+    providerSource: provider,
+    freshnessTier: "pool_only",
+    promptIntent: grounding.prompt.intent.category,
+    missingData: ["live match scores", "odds and favorites data"],
+    allowedClaims: ["AllFantasy pool data"],
+    validatorResult: deterministic ? "deterministic" : validatorResult,
+    blockedReason,
+    modelUsed: model,
+    tokenCost: tokensUsed,
+    wasDeterministic: Boolean(deterministic),
+  })
 
   await appendChatHistory({
     conversationId,
@@ -179,6 +299,8 @@ export async function generateWorldCupChimmyPrivateReply(input: {
       groundingIntent: grounding.prompt.intent.category,
       groundingConfidence: grounding.dataQuality.confidence,
       noChargeReason: grounding.dataQuality.noChargeReason,
+      validatorResult,
+      blockedReason,
     },
   })
 
@@ -188,5 +310,6 @@ export async function generateWorldCupChimmyPrivateReply(input: {
     provider,
     model,
     grounding,
+    sourceFreshness,
   }
 }

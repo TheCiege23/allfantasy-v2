@@ -14803,4 +14803,47 @@ model SponsorCouponRedemption {
   @@map("sponsor_coupon_redemptions")
 }
 
+/// Append-only audit log for every AI interaction across all sports.
+/// One row per LLM call (or deterministic bypass). Never mutate rows.
+/// Used for billing reconciliation, debugging, compliance, and cost monitoring.
+model AiInteractionLog {
+  id               String   @id @default(cuid())
+  /// Null for unauthenticated / guest requests.
+  userId           String?  @db.VarChar(64)
+  /// SportKey: "world_cup" | "nba" | "nfl" | etc.
+  sport            String   @db.VarChar(32)
+  /// FeatureKey: "pool_chat" | "commissioner_brain" | etc.
+  feature          String   @db.VarChar(64)
+  /// The Next.js API route path that triggered this call.
+  route            String?  @db.VarChar(128)
+  /// User's plan at time of call: "free" | "pro" | "commissioner" | "supreme" | "war_room".
+  plan             String?  @db.VarChar(32)
+  /// AI provider that generated the response: "openai" | "anthropic" | "deterministic" | "unavailable".
+  providerSource   String?  @db.VarChar(32)
+  /// DataFreshnessTier: "live" | "cached" | "schedule_only" | "pool_only" | "none".
+  freshnessTier    String?  @db.VarChar(32)
+  /// Coarse intent category from grounding (e.g. "leaderboard", "picks", "live_score").
+  promptIntent     String?  @db.VarChar(64)
+  /// What data was NOT available for this call.
+  missingData      String[]
+  /// What Chimmy was authorized to claim.
+  allowedClaims    String[]
+  /// "clean" | "warned" | "blocked" | "deterministic".
+  validatorResult  String?  @db.VarChar(32)
+  /// Which validation rule triggered a block, if any.
+  blockedReason    String?  @db.VarChar(64)
+  /// Model identifier returned by the provider (e.g. "gpt-4o-mini", "claude-3-haiku").
+  modelUsed        String?  @db.VarChar(64)
+  /// Approximate token cost as reported by the provider.
+  tokenCost        Int?
+  /// True when the response was served from deterministic logic with no LLM call.
+  wasDeterministic Boolean  @default(false)
+  createdAt        DateTime @default(now())
 
+  @@index([userId, createdAt])
+  @@index([sport, feature, createdAt])
+  @@index([validatorResult])
+  @@index([providerSource, createdAt])
+  @@index([createdAt])
+  @@map("ai_interaction_logs")
+}

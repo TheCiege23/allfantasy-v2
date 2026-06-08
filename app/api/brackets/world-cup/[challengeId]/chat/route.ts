@@ -944,6 +944,9 @@ async function createPrivateChimmyResponse(input: {
         groundingIntent: ai.grounding?.prompt.intent.category,
         groundingConfidence: ai.grounding?.dataQuality.confidence,
         noChargeReason: ai.grounding?.dataQuality.noChargeReason,
+        /** Freshness chip — read by the UI to show "Pool data" / "Live" / "Cached" badge */
+        dataSourceTier: ai.sourceFreshness?.tier ?? "pool_only",
+        dataSourceDisplay: ai.sourceFreshness?.shortDisplay ?? "Pool data",
         authorName: "Chimmy",
         source: "world_cup_pool_chat",
       },
