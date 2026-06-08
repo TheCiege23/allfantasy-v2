@@ -12,10 +12,19 @@ import {
 import { resolveSafeReturnPath } from "@/lib/monetization/checkout-urls"
 import { buildStripeCheckoutDestinationForSku } from "@/lib/monetization/StripeCheckoutLinkRegistry"
 import { enforcePaidSubscriptionGeo } from "@/lib/geo/enforcePaidSubscriptionGeo"
+import {
+  normalizeCouponCode,
+  validateCouponForUser,
+  createPendingRedemption,
+  calculateDiscountedAmounts,
+  findSponsorCoupon,
+} from "@/lib/promotions/sponsorCoupon"
 
 type CheckoutTokensBody = {
   sku?: string
   returnPath?: string
+  /** Optional sponsor/promo code entered by user at checkout (e.g. "WassupFred") */
+  couponCode?: string
 }
 
 export async function POST(req: Request) {
@@ -47,12 +56,53 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid token pack sku" }, { status: 400 })
     }
 
+    // ── Coupon validation (server-side, client discount never trusted) ──────
+    let resolvedCouponCode: string | null = null
+    let couponDiscountPercent = 0
+    let discountInfo: { discountAmountCents: number; totalCents: number } | null = null
+    const rawCouponCode = String(body?.couponCode ?? "").trim()
+    if (rawCouponCode) {
+      const validation = await validateCouponForUser({
+        userId: session.user.id,
+        rawCode: rawCouponCode,
+        productType: "token_pack",
+      })
+      if (validation.valid) {
+        resolvedCouponCode = validation.normalizedCode
+        couponDiscountPercent = validation.discountPercent
+        const subtotalCents = Math.round(item.amountUsd * 100)
+        discountInfo = calculateDiscountedAmounts(subtotalCents, couponDiscountPercent)
+
+        // Create pending redemption (idempotent — safe to call multiple times)
+        const coupon = findSponsorCoupon(validation.normalizedCode)
+        if (coupon) {
+          await createPendingRedemption({
+            userId: session.user.id,
+            normalizedCode: coupon.normalizedCode,
+            displayCode: coupon.displayCode,
+            sponsorName: coupon.sponsorName,
+            campaignName: coupon.campaignName,
+            discountPercent: coupon.discountPercent,
+            appliesTo: "token_pack",
+            productKey: item.sku,
+            amountSubtotalCents: Math.round(item.amountUsd * 100),
+            discountAmountCents: discountInfo.discountAmountCents,
+            amountTotalCents: discountInfo.totalCents,
+          }).catch((err) =>
+            console.error("[checkout/tokens] createPendingRedemption failed:", err)
+          )
+        }
+      }
+      // Silently ignore invalid coupons — user still completes checkout without discount
+    }
+
     const returnPath = resolveSafeReturnPath(body?.returnPath, "/pricing")
     const destination = buildStripeCheckoutDestinationForSku({
       sku: item.sku,
       userId: session.user.id,
       userEmail: session.user.email ?? null,
       returnPath,
+      couponCode: resolvedCouponCode,
     })
     if (!destination || destination.purchaseType !== "tokens") {
       return NextResponse.json(
@@ -68,6 +118,14 @@ export async function POST(req: Request) {
       sku: item.sku,
       tokenAmount: item.tokenAmount ?? 0,
       purchaseType: "tokens",
+      ...(resolvedCouponCode
+        ? {
+            couponApplied: true,
+            couponCode: resolvedCouponCode,
+            discountPercent: couponDiscountPercent,
+            discountAmountCents: discountInfo?.discountAmountCents ?? null,
+          }
+        : { couponApplied: false }),
     })
   } catch (error) {
     if (isMonetizationComplianceError(error)) {

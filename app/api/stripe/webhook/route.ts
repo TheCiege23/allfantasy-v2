@@ -20,12 +20,16 @@ import {
 import { persistLeagueEntryFeeFromStripeSession } from "@/lib/league-finance/leagueFinanceService"
 import { buildSubscriptionPurchaseMetaEvent } from "@/lib/monetization/meta"
 import { trackMetaServerEvent } from "@/lib/meta-capi"
+import { redeemCouponFromWebhook } from "@/lib/promotions/sponsorCoupon"
 
 export const runtime = "nodejs"
 
 const SUPPORTED_PURCHASE_TYPES = new Set(["subscription", "tokens"])
 const FINANCE_PURCHASE_TYPES = new Set(["league_entry_fee"])
-const PROCESSING_EVENT_STALE_MS = 5 * 60 * 1000
+// 24-hour window prevents the same event from being processed twice if Stripe
+// retries after a crash. The idempotency key on TokenLedger handles double-grants,
+// but the DB period-update calls also need to be shielded from duplicate execution.
+const PROCESSING_EVENT_STALE_MS = 24 * 60 * 60 * 1000
 const LEGACY_PURCHASE_TYPES = new Set([
   "donate",
   "donation",
@@ -308,6 +312,30 @@ async function routeCheckoutSessionCompleted(session: Stripe.Checkout.Session): 
     } else if (purchaseType === "tokens") {
       await persistTokenPurchaseFromCheckout(session, checkoutContext)
     }
+
+    // ── Sponsor coupon redemption ─────────────────────────────────────
+    // If a coupon code was embedded in client_reference_id, mark it redeemed.
+    // This is idempotent — if already redeemed it silently no-ops.
+    if (checkoutContext?.userId && checkoutContext.couponCode) {
+      redeemCouponFromWebhook({
+        userId: checkoutContext.userId,
+        normalizedCode: checkoutContext.couponCode,
+        stripeCheckoutSessionId: session.id,
+        stripePaymentIntentId:
+          typeof session.payment_intent === "string" ? session.payment_intent : null,
+        stripeSubscriptionId:
+          typeof session.subscription === "string" ? session.subscription : null,
+        amountSubtotalCents: session.amount_subtotal ?? null,
+        discountAmountCents:
+          session.amount_subtotal != null && session.amount_total != null
+            ? session.amount_subtotal - session.amount_total
+            : null,
+        amountTotalCents: session.amount_total ?? null,
+      }).catch((err) =>
+        console.error("[stripe webhook] redeemCouponFromWebhook failed (non-fatal):", err)
+      )
+    }
+
     return purchaseType
   }
 

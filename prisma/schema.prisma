@@ -2951,6 +2951,7 @@ model AppUser {
   worldCupBracketChatEventsAuthored        WorldCupBracketChatEvent[]             @relation("WorldCupBracketChatEventActor")
   playoffBracketChallengesOwned            PlayoffBracketChallenge[]              @relation("PlayoffBracketChallengeOwner")
   playoffBracketEntries                    PlayoffBracketEntry[]                  @relation("PlayoffBracketEntryUser")
+  sponsorCouponRedemptions                 SponsorCouponRedemption[]
 
   @@map("app_users")
 }
@@ -14761,6 +14762,45 @@ model FranchiseHistoryEvent {
   @@index([rosterId, eventType])
   @@index([leagueId, eventType])
   @@map("franchise_history_events")
+}
+
+/// Sponsor / promotional coupon redemption tracking.
+/// One row per checkout attempt; only one status=redeemed row allowed per (userId, normalizedCode).
+/// Enforced via unique partial index on the DB side (see migration SQL).
+model SponsorCouponRedemption {
+  id                      String    @id @default(uuid())
+  userId                  String
+  normalizedCode          String    @db.VarChar(64)
+  displayCode             String    @db.VarChar(64)
+  sponsorName             String    @db.VarChar(128)
+  campaignName            String    @db.VarChar(128)
+  discountPercent         Int
+  appliesTo               String    @db.VarChar(32)
+  productKey              String?   @db.VarChar(128)
+  stripeCheckoutSessionId String?   @db.VarChar(128)
+  stripePaymentIntentId   String?   @db.VarChar(128)
+  stripeInvoiceId         String?   @db.VarChar(128)
+  stripeSubscriptionId    String?   @db.VarChar(128)
+  purchaseRecordId        String?   @db.VarChar(128)
+  /// pending | redeemed | expired | cancelled | refunded
+  status                  String    @default("pending") @db.VarChar(32)
+  amountSubtotalCents     Int?
+  discountAmountCents     Int?
+  amountTotalCents        Int?
+  currency                String    @default("usd") @db.VarChar(8)
+  redeemedAt              DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  user                    AppUser   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, normalizedCode])
+  @@index([normalizedCode])
+  @@index([stripeCheckoutSessionId])
+  @@index([stripeInvoiceId])
+  @@index([status])
+  @@index([sponsorName, campaignName])
+  @@index([createdAt])
+  @@map("sponsor_coupon_redemptions")
 }
 
 
