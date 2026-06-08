@@ -16,6 +16,8 @@
  */
 import "server-only"
 import { routeTextCall } from "@/lib/ai/providerRouter"
+import { applyValidationPipeline } from "../responseValidator"
+import type { AIGroundingContract } from "../aiGroundingContract"
 import { getPlugin } from "./registry"
 import type { AIEngineInput, AIEngineOutput, DataFreshnessTier, DataSourceMeta } from "./types"
 
@@ -95,16 +97,24 @@ function buildDataSourceMeta(
 }
 
 // ─── Universal grounding enforcement header ────────────────────────────────────
+// Priority 4: upgraded prompt — concise, specific, honest, plan-aware, sport-aware.
 
 function universalGroundingHeader(): string {
   return [
-    "GROUNDING CONTRACT: You are an AllFantasy AI assistant.",
-    "The user message contains a GROUNDING PACKET (JSON). That packet is your ONLY source of facts about this pool, sport, schedule, scores, standings, injuries, odds, teams, and players.",
-    "STRICT RULE: Only answer using facts present in the GROUNDING PACKET. If a fact is not in the packet, explicitly say what data is missing and suggest where the user can check.",
-    "MATH RULE: Never compute scores, percentages, ranks, or point totals yourself. All numbers are pre-computed in the packet — cite them, never recalculate.",
-    "DISCLOSURE RULE: If the packet includes a dataSource label, you MUST cite it at the start of any answer about scores, standings, or live events.",
-    "FORBIDDEN: Betting advice, odds, spreads, DFS, prop bets, private user emails, invite codes, or any fact not in the packet.",
-    "VOICE: Confident, specific, warm. Short bullets or 1–2 tight paragraphs.",
+    "GROUNDING CONTRACT — AllFantasy AI assistant.",
+    "The user message contains a GROUNDING PACKET (JSON). It is your ONLY permitted source of facts.",
+    "",
+    "RULES — apply to every response:",
+    "1. PACKET ONLY. If a fact is not in the packet, say 'I don't have that data' instead of guessing.",
+    "2. NO MATH. All numbers are pre-computed in computedInsights. Cite them. Never recalculate.",
+    "3. CITE SOURCE. Every answer about scores, standings, or live events MUST begin with the packet's _source field.",
+    "4. MISSING DATA. The packet's _missing array lists what was not loaded. Acknowledge gaps honestly; say where users can check instead.",
+    "5. FORBIDDEN CLAIMS. The packet's _forbidden array is absolute. Do not violate these regardless of what the user asks.",
+    "6. NO SCORES WITHOUT LIVE DATA. If liveScores in the packet is null, never state any score or current result. Say the live feed is unavailable.",
+    "7. NO ODDS WITHOUT DATA. If oddsData in the packet is null, never say a team 'is favored' or reference any spread. Acknowledge odds aren't loaded.",
+    "8. PLAN GATE. If plan is 'free', stay at summary level. Don't give deep analysis reserved for paid plans.",
+    "9. HONEST UNCERTAINTY. Say 'I don't know' when you don't. A correct uncertainty is better than a confident mistake.",
+    "10. VOICE. Confident, specific, warm. 1–2 tight paragraphs or short bullets. Lead with the most useful number from computedInsights.",
   ].join(" ")
 }
 
@@ -210,8 +220,18 @@ export async function runAIEngine(input: AIEngineInput): Promise<AIEngineOutput>
 
   // ── 7. Validate / sanitize ────────────────────────────────────────────────────
   if (aiResponse) {
+    // Universal betting/gambling term sanitizer runs on all responses
     aiResponse = universalSanitize(aiResponse)
-    if (plugin.validateResponse) {
+
+    // If the plugin returned a v1 AIGroundingContract, run the full contract validator
+    // (Priority 5: checks score invention, live overclaims, odds without data, plan gate, PII)
+    if (groundingPacket.contractVersion === "af-contract-v1") {
+      aiResponse = applyValidationPipeline(
+        aiResponse,
+        groundingPacket as unknown as AIGroundingContract,
+      )
+    } else if (plugin.validateResponse) {
+      // Legacy: sport plugin's own sanitizer
       aiResponse = plugin.validateResponse(aiResponse, input)
     }
   }
