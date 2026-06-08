@@ -148,6 +148,10 @@ function daysAgo(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000)
 }
 
+function hoursAgo(hours: number): Date {
+  return new Date(Date.now() - hours * 60 * 60 * 1000)
+}
+
 function startOfUtcDay(): Date {
   const now = new Date()
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
@@ -377,6 +381,7 @@ async function getRecentTokenActivity(): Promise<AdminRecentTokenActivityRow[]> 
 
 export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<AdminCommandCenterMetrics> {
   const today = startOfUtcDay()
+  const sevenHoursAgo = hoursAgo(7)
   const sevenDaysAgo = daysAgo(7)
   const thirtyDaysAgo = daysAgo(30)
 
@@ -450,6 +455,15 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     tokenSpentToday,
     couponRedemptions,
     couponRedemptionsRedeemed,
+    // ── 7-hour rolling window ────────────────────────────────────────────────
+    accounts7h,
+    loginSessions7h,
+    wcPools7h,
+    wcEntries7h,
+    revenue7h,
+    subscriptionsCreated7h,
+    tokenGranted7h,
+    tokenSpent7h,
   ] = await Promise.all([
     prisma.appUser.count(),
     prisma.appUser.count({ where: { createdAt: { gte: today } } }),
@@ -616,6 +630,24 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     // ── Coupon redemptions ───────────────────────────────────────────────────
     prisma.sponsorCouponRedemption.count().catch(() => 0),
     prisma.sponsorCouponRedemption.count({ where: { status: "redeemed" } }).catch(() => 0),
+    // ── 7-hour rolling window ────────────────────────────────────────────────
+    prisma.appUser.count({ where: { createdAt: { gte: sevenHoursAgo } } }),
+    prisma.authSession.count({ where: { createdAt: { gte: sevenHoursAgo } } }).catch(() => 0),
+    prisma.worldCupBracketChallenge.count({ where: { createdAt: { gte: sevenHoursAgo } } }),
+    prisma.worldCupBracketEntry.count({ where: { createdAt: { gte: sevenHoursAgo } } }),
+    prisma.bracketPayment.aggregate({
+      where: { status: { in: ["completed", "paid", "succeeded"] }, createdAt: { gte: sevenHoursAgo } },
+      _sum: { amountCents: true },
+    }),
+    prisma.userSubscription.count({ where: { createdAt: { gte: sevenHoursAgo } } }),
+    prisma.tokenLedger.aggregate({
+      where: { tokenDelta: { gt: 0 }, createdAt: { gte: sevenHoursAgo } },
+      _sum: { tokenDelta: true },
+    }),
+    prisma.tokenLedger.aggregate({
+      where: { tokenDelta: { lt: 0 }, createdAt: { gte: sevenHoursAgo } },
+      _sum: { tokenDelta: true },
+    }),
   ])
 
   const cycleCounts = subscriptions.reduce(
@@ -646,24 +678,31 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
   return {
     generatedAt: new Date().toISOString(),
     morning: [
-      metric("New signups today", accountsToday, "UTC day"),
+      metric("Signups last 7h", accounts7h, "Rolling 7-hour window"),
+      metric("Signups today", accountsToday, "UTC day"),
+      metric("Logins last 7h", loginSessions7h, "New auth sessions last 7h"),
       metric("Logins today", loginSessionsToday, "New auth sessions today"),
       metric("Active sessions now", activeSessionsNow),
       metric("Active subscribers", activeSubscriptionUserCount),
-      metric("New pools today", worldCupPoolsToday, "World Cup pools created today"),
-      metric("New brackets today", worldCupEntriesToday, "World Cup entries created today"),
-      metric("Invite acceptance", inviteAcceptancePct, `${inviteAccepts} accepted / ${worldCupInvites} sent`),
+      metric("Pools last 7h", wcPools7h, "WC pools created last 7h"),
+      metric("Brackets last 7h", wcEntries7h, "WC entries created last 7h"),
+      metric("Pools today", worldCupPoolsToday, "UTC day"),
+      metric("Brackets today", worldCupEntriesToday, "UTC day"),
+      metric("Revenue last 7h", `$${((revenue7h._sum.amountCents ?? 0) / 100).toFixed(2)}`, "Rolling 7h"),
       metric("Revenue today", `$${((revenueToday._sum.amountCents ?? 0) / 100).toFixed(2)}`, "UTC day"),
       metric("Revenue 7 days", `$${((revenue7Days._sum.amountCents ?? 0) / 100).toFixed(2)}`),
+      metric("Invite acceptance", inviteAcceptancePct, `${inviteAccepts} accepted / ${worldCupInvites} sent`),
       notTracked("AI cost yesterday", "No unified AI cost ledger is tracked yet"),
       metric("API health", `${providerConfiguredCount}/${providerHealth.length} configured`, `${providerGapCount} gaps`),
       metric("Top pools", activeWorldCupPools.length, "Ranked below by participants, entries, and chat"),
     ],
     users: [
       metric("Total accounts", totalAccounts),
+      metric("Created last 7h", accounts7h, "Rolling 7-hour window"),
       metric("Created today", accountsToday, "UTC day"),
       metric("Created 7 days", accounts7Days),
       metric("Created 30 days", accounts30Days),
+      metric("Logins last 7h", loginSessions7h, "New auth sessions last 7h"),
       metric("Logins today", loginSessionsToday, "New auth sessions UTC day"),
       metric("Logins 7 days", loginSessions7Days, "New auth sessions"),
       metric("Active sessions now", activeSessionsNow, "Sessions where expires > now()"),
@@ -673,6 +712,7 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     ],
     subscriptions: [
       metric("Total subscriptions", subscriptions.length),
+      metric("New subscriptions last 7h", subscriptionsCreated7h, "Rolling 7-hour window"),
       metric("New subscriptions today", subscriptionsCreatedToday, "UTC day"),
       metric("New subscriptions 7 days", subscriptionsCreated7Days),
       metric("Monthly subscriptions", cycleCounts.monthly, "Derived from plan code/SKU text"),
@@ -684,6 +724,7 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
       completedRevenueCents === null
         ? notTracked("Total revenue", "No completed bracket payments recorded")
         : metric("Total revenue", `$${(completedRevenueCents / 100).toFixed(2)}`),
+      metric("Revenue last 7h", `$${((revenue7h._sum.amountCents ?? 0) / 100).toFixed(2)}`, "Rolling 7-hour window"),
       metric("Revenue today", `$${((revenueToday._sum.amountCents ?? 0) / 100).toFixed(2)}`, "UTC day"),
       metric("Revenue 7 days", `$${((revenue7Days._sum.amountCents ?? 0) / 100).toFixed(2)}`),
       metric("Token sales revenue", `$${(tokenSalesRevenueCents / 100).toFixed(2)}`, `${tokenSalesPayments} completed token payment rows`),
@@ -692,6 +733,8 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     ],
     tokens: [
       metric("Token balances total", tokenBalanceSummary._sum.balance ?? 0),
+      metric("Tokens granted last 7h", tokenGranted7h._sum.tokenDelta ?? 0, "Rolling 7-hour window"),
+      metric("Tokens spent last 7h", Math.abs(tokenSpent7h._sum.tokenDelta ?? 0), "Rolling 7-hour window"),
       metric("Tokens granted today", tokenGrantedToday._sum.tokenDelta ?? 0, "UTC day"),
       metric("Tokens spent today", Math.abs(tokenSpentToday._sum.tokenDelta ?? 0), "UTC day"),
       metric("Total tokens granted (all time)", tokenGranted._sum.tokenDelta ?? 0),
@@ -716,9 +759,11 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     worldCup: [
       metric("World Cup pools", worldCupPools),
       metric("Pools with members", wcPoolsWithMembers, "Pools where ≥1 participant has joined"),
+      metric("Pools last 7h", wcPools7h, "Rolling 7-hour window"),
       metric("Pools today", worldCupPoolsToday, "UTC day"),
       metric("Pools 7 days", wcPools7Days),
       metric("Bracket entries", worldCupEntries),
+      metric("Entries last 7h", wcEntries7h, "Rolling 7-hour window"),
       metric("Entries today", worldCupEntriesToday, "UTC day"),
       metric("Entries 7 days", wcEntries7Days),
       metric("Finalized entries", finalizedEntries, "isComplete or submittedAt set"),
