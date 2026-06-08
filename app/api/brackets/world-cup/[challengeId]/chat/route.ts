@@ -420,6 +420,10 @@ function serializeChatMessage(row: RawWorldCupChatEvent, requesterUserId: string
     (row.isAiGenerated ? "Chimmy" : null) ||
     (row.userId === requesterUserId ? "You" : "Pool member")
 
+  // Freshness chip data — only set on AI/Chimmy messages, null on user messages
+  const dataSourceTier = typeof metadata.dataSourceTier === "string" ? metadata.dataSourceTier : null
+  const dataSourceDisplay = typeof metadata.dataSourceDisplay === "string" ? metadata.dataSourceDisplay : null
+
   return {
     id: row.id,
     challengeId: row.challengeId,
@@ -437,6 +441,8 @@ function serializeChatMessage(row: RawWorldCupChatEvent, requesterUserId: string
     createdAt: row.createdAt.toISOString(),
     isOwnMessage: row.userId === requesterUserId,
     isPrivate: visibility === "private_to_user",
+    dataSourceTier,
+    dataSourceDisplay,
   }
 }
 

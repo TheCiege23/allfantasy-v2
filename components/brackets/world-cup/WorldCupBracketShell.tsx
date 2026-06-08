@@ -120,6 +120,7 @@ import WorldCupGroupStagePicks from "./WorldCupGroupStagePicks"
 import WorldCupReadinessPanel from "./WorldCupReadinessPanel"
 import WorldCupPoolCountdownBanner from "./WorldCupPoolCountdownBanner"
 import type { WorldCupCountdownFirstMatch } from "./WorldCupPoolCountdownBanner"
+import { ChimmyFreshnessChip } from "./ChimmyFreshnessChip"
 type Tab = WorldCupBracketTab
 type WorldCupPoolChatMessage = {
   id: string
@@ -137,6 +138,10 @@ type WorldCupPoolChatMessage = {
   createdAt: string
   isOwnMessage: boolean
   isPrivate: boolean
+  /** Freshness tier — e.g. "live" | "cached" | "pool_only" | "none". Null on user messages. */
+  dataSourceTier?: string | null
+  /** Short display text for the chip — e.g. "Live" | "Cached" | "Pool data". Null on user messages. */
+  dataSourceDisplay?: string | null
 }
 type WorldCupDmMember = {
   userId: string
@@ -6325,7 +6330,7 @@ function WorldCupCommunityFoundationPanel({
                 >
                   <div className="flex items-center justify-between gap-2">
                     {isChimmyReply ? (
-                      <span className="inline-flex items-center gap-1.5 font-black">
+                      <span className="inline-flex flex-wrap items-center gap-1.5 font-black">
                         <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-cyan-400/20 text-cyan-300">
                           <Bot className="h-2.5 w-2.5" aria-hidden />
                         </span>
@@ -6333,6 +6338,12 @@ function WorldCupCommunityFoundationPanel({
                         <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-1.5 py-px text-[9px] font-black uppercase tracking-wide text-cyan-300/80">
                           AI
                         </span>
+                        {message.dataSourceDisplay ? (
+                          <ChimmyFreshnessChip
+                            tier={message.dataSourceTier ?? "pool_only"}
+                            label={message.dataSourceDisplay}
+                          />
+                        ) : null}
                       </span>
                     ) : (
                       <span className="font-black text-slate-50">{message.authorName}</span>

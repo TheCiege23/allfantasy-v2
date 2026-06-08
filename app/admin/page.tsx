@@ -5,6 +5,7 @@ import {
   getAdminCommandCenterMetrics,
   type AdminMetric,
 } from "@/lib/admin-dashboard/AdminCommandCenterService"
+import { AiAuditLogsPanel } from "@/components/admin/AiAuditLogsPanel"
 import type {
   AdminProviderHealthRow,
   AdminProviderHealthStatus,
@@ -1119,6 +1120,9 @@ export default async function AdminPage({
         </AccordionSection>
         <AccordionSection title="Provider Sync Controls" eyebrow="admin manual imports" defaultOpen={false}>
           <AdminSportsSyncControlsPanel />
+        </AccordionSection>
+        <AccordionSection title="AI Audit Logs" eyebrow="validator + cost monitoring" defaultOpen={false}>
+          <AiAuditLogsPanel />
         </AccordionSection>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.75fr)]">
