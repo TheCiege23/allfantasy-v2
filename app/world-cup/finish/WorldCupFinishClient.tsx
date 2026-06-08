@@ -102,7 +102,10 @@ export default function WorldCupFinishClient() {
         trackWcPoolCreated(challengeId, draft.poolName)
         trackWcFunnelEvent("WorldCupPoolCreated", { challenge_id: challengeId })
 
-        router.replace(`/world-cup/success/${challengeId}`)
+        // Redirect into the existing WC shell with welcome=invite so the
+        // invite-first overlay appears without requiring a separate route
+        // (keeps Vercel route count within the 2048 limit).
+        router.replace(`/brackets/world-cup/${challengeId}?welcome=invite`)
       } catch (err) {
         setState({
           status: "error",

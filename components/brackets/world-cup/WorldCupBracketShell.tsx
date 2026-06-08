@@ -635,6 +635,7 @@ export default function WorldCupBracketShell({
   defaultTab = "picks",
   initialGuidedOpen = false,
   initialEntryId = null,
+  welcomeInvite = false,
 }: {
   initialView?: WorldCupChallengeView
   challenge?: WorldCupChallengeView | any
@@ -643,6 +644,8 @@ export default function WorldCupBracketShell({
   initialGuidedOpen?: boolean
   /** From `?entry=` — selects bracket entry after join */
   initialEntryId?: string | null
+  /** From `?welcome=invite` — shows invite-first overlay after pool creation via funnel */
+  welcomeInvite?: boolean
 }) {
   const router = useRouter()
   // World Cup translation helper. The language source comes from the
@@ -680,6 +683,7 @@ export default function WorldCupBracketShell({
     }
     return defaultTab
   })
+  const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(welcomeInvite)
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error" | "locked">("idle")
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savingPickMatchIds, setSavingPickMatchIds] = useState<Set<string>>(() => new Set())
@@ -2392,6 +2396,55 @@ export default function WorldCupBracketShell({
     // and helper copy stay readable on white. Dark + AF (legacy) modes
     // keep the original `bg-[#05070b]` styling unchanged.
     <div id="world-cup-top" className="mode-readable af-world-cup-page fixed inset-0 z-50 isolate flex flex-col overflow-hidden bg-[#05070b] text-white">
+      {/* ── Welcome / invite overlay — shown after guest-funnel pool creation ── */}
+      {showWelcomeOverlay && (
+        <div
+          className="fixed inset-0 z-[200] flex items-end justify-center overflow-y-auto bg-slate-950/80 backdrop-blur-sm sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Your pool is live — share invite"
+        >
+          <div className="relative mx-auto w-full max-w-lg rounded-t-3xl border border-cyan-300/20 bg-slate-950 p-5 pb-safe sm:rounded-3xl sm:p-6">
+            {/* Close */}
+            <button
+              type="button"
+              onClick={() => setShowWelcomeOverlay(false)}
+              aria-label="Close"
+              className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/[0.06] text-white/50 transition hover:bg-white/[0.12] hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            {/* Success header */}
+            <div className="mb-5 flex flex-col items-center gap-3 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-3xl border border-emerald-300/30 bg-emerald-300/10 shadow-[0_0_40px_-10px_rgba(16,185,129,0.5)]">
+                <CheckCircle2 className="h-8 w-8 text-emerald-300" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-white sm:text-3xl">Your pool is live!</h2>
+                <p className="mt-1 text-sm font-bold text-cyan-200">{view.challenge.name}</p>
+                <p className="mt-2 text-xs text-white/55">Invite your crew before picks lock.</p>
+              </div>
+            </div>
+
+            {/* Invite panel re-uses the existing production component */}
+            <WorldCupInvitePanel
+              view={view}
+              isCommissioner={Boolean(view.isOwner || view.isAdmin)}
+            />
+
+            {/* Dismiss CTA */}
+            <button
+              type="button"
+              onClick={() => setShowWelcomeOverlay(false)}
+              className="mt-4 inline-flex w-full min-h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-cyan-200 to-cyan-400 px-6 py-3 text-sm font-black text-slate-950 shadow-[0_10px_30px_-8px_rgba(34,211,238,0.6)] transition hover:scale-[1.015]"
+            >
+              <ClipboardList className="h-4 w-4" />
+              Build my bracket
+            </button>
+          </div>
+        </div>
+      )}
       <WorldCupAtmosphereBackdrop />
       <header className="af-world-cup-header relative z-20 shrink-0 border-b pt-[env(safe-area-inset-top,0px)] backdrop-blur-xl">
         <div className="flex items-center gap-1.5 px-2 py-1.5 sm:gap-2 sm:px-4 sm:py-2">
