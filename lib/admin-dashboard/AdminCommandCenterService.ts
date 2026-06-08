@@ -77,6 +77,7 @@ export type AdminRecentSubscriptionRow = {
   plan: string
   sku: string | null
   status: string
+  createdAt: string
   updatedAt: string
   currentPeriodEnd: string | null
 }
@@ -210,7 +211,7 @@ async function getUserSearchRows(query: string): Promise<AdminUserSearchRow[]> {
       },
     },
     orderBy: { createdAt: "desc" },
-    take: 20,
+    take: 30,
   })
 
   return rows.map((user) => {
@@ -278,7 +279,7 @@ async function getRecentUsers(): Promise<AdminRecentUserRow[]> {
       tokenBalance: { select: { balance: true } },
     },
     orderBy: { createdAt: "desc" },
-    take: 10,
+    take: 25,
   })
 
   return rows.map((user) => ({
@@ -297,13 +298,14 @@ async function getRecentSubscriptions(): Promise<AdminRecentSubscriptionRow[]> {
       id: true,
       sku: true,
       status: true,
+      createdAt: true,
       updatedAt: true,
       currentPeriodEnd: true,
       plan: { select: { code: true, name: true } },
       user: { select: { username: true, email: true } },
     },
     orderBy: { updatedAt: "desc" },
-    take: 10,
+    take: 25,
   })
 
   return rows.map((sub) => ({
@@ -313,6 +315,7 @@ async function getRecentSubscriptions(): Promise<AdminRecentSubscriptionRow[]> {
     plan: sub.plan.name || sub.plan.code,
     sku: sub.sku,
     status: sub.status,
+    createdAt: sub.createdAt.toISOString(),
     updatedAt: sub.updatedAt.toISOString(),
     currentPeriodEnd: sub.currentPeriodEnd?.toISOString() ?? null,
   }))
@@ -330,7 +333,7 @@ async function getRecentPayments(): Promise<AdminRecentPaymentRow[]> {
       user: { select: { username: true, email: true } },
     },
     orderBy: { createdAt: "desc" },
-    take: 10,
+    take: 25,
   })
 
   return rows.map((payment) => ({
@@ -357,7 +360,7 @@ async function getRecentTokenActivity(): Promise<AdminRecentTokenActivityRow[]> 
       user: { select: { username: true, email: true } },
     },
     orderBy: { createdAt: "desc" },
-    take: 10,
+    take: 25,
   })
 
   return rows.map((entry) => ({
@@ -401,7 +404,7 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     worldCupEntries,
     finalizedEntries,
     worldCupParticipants,
-    commissionerPools,
+    wcPoolsWithMembers,
     worldCupChatEvents,
     worldCupInvites,
     worldCupInviteUseSummary,
@@ -434,6 +437,19 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     topReferrers,
     multipleAccountsSameLocation,
     syncJobsFailed24h,
+    activeSessionsNow,
+    loginSessionsToday,
+    loginSessions7Days,
+    subscriptionsCreatedToday,
+    subscriptionsCreated7Days,
+    revenueToday,
+    revenue7Days,
+    wcEntries7Days,
+    wcPools7Days,
+    tokenGrantedToday,
+    tokenSpentToday,
+    couponRedemptions,
+    couponRedemptionsRedeemed,
   ] = await Promise.all([
     prisma.appUser.count(),
     prisma.appUser.count({ where: { createdAt: { gte: today } } }),
@@ -493,7 +509,7 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     prisma.worldCupBracketEntry.count(),
     prisma.worldCupBracketEntry.count({ where: { OR: [{ isComplete: true }, { submittedAt: { not: null } }] } }),
     prisma.worldCupBracketParticipant.count(),
-    prisma.worldCupBracketChallenge.count({ where: { ownerUserId: { not: "" } } }),
+    prisma.worldCupBracketChallenge.count({ where: { participants: { some: {} } } }),
     prisma.worldCupBracketChatEvent.count(),
     prisma.worldCupBracketInvite.count(),
     prisma.worldCupBracketInvite.aggregate({
@@ -569,6 +585,37 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
         startedAt: { gte: daysAgo(1) },
       },
     }).catch(() => 0),
+    // ── Login / session metrics ───────────────────────────────────────────────
+    prisma.authSession.count({ where: { expires: { gt: new Date() } } }).catch(() => 0),
+    prisma.authSession.count({ where: { createdAt: { gte: today } } }).catch(() => 0),
+    prisma.authSession.count({ where: { createdAt: { gte: sevenDaysAgo } } }).catch(() => 0),
+    // ── Subscription velocity ────────────────────────────────────────────────
+    prisma.userSubscription.count({ where: { createdAt: { gte: today } } }),
+    prisma.userSubscription.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+    // ── Revenue breakdown ────────────────────────────────────────────────────
+    prisma.bracketPayment.aggregate({
+      where: { status: { in: ["completed", "paid", "succeeded"] }, createdAt: { gte: today } },
+      _sum: { amountCents: true },
+    }),
+    prisma.bracketPayment.aggregate({
+      where: { status: { in: ["completed", "paid", "succeeded"] }, createdAt: { gte: sevenDaysAgo } },
+      _sum: { amountCents: true },
+    }),
+    // ── World Cup 7-day velocity ─────────────────────────────────────────────
+    prisma.worldCupBracketEntry.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+    prisma.worldCupBracketChallenge.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+    // ── Token activity today ─────────────────────────────────────────────────
+    prisma.tokenLedger.aggregate({
+      where: { tokenDelta: { gt: 0 }, createdAt: { gte: today } },
+      _sum: { tokenDelta: true },
+    }),
+    prisma.tokenLedger.aggregate({
+      where: { tokenDelta: { lt: 0 }, createdAt: { gte: today } },
+      _sum: { tokenDelta: true },
+    }),
+    // ── Coupon redemptions ───────────────────────────────────────────────────
+    prisma.sponsorCouponRedemption.count().catch(() => 0),
+    prisma.sponsorCouponRedemption.count({ where: { status: "redeemed" } }).catch(() => 0),
   ])
 
   const cycleCounts = subscriptions.reduce(
@@ -599,18 +646,16 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
   return {
     generatedAt: new Date().toISOString(),
     morning: [
-      metric("New signups", accountsToday, "UTC day"),
+      metric("New signups today", accountsToday, "UTC day"),
+      metric("Logins today", loginSessionsToday, "New auth sessions today"),
+      metric("Active sessions now", activeSessionsNow),
       metric("Active subscribers", activeSubscriptionUserCount),
-      metric("New pools", worldCupPoolsToday, "World Cup pools created today"),
-      metric("New brackets", worldCupEntriesToday, "World Cup entries created today"),
+      metric("New pools today", worldCupPoolsToday, "World Cup pools created today"),
+      metric("New brackets today", worldCupEntriesToday, "World Cup entries created today"),
       metric("Invite acceptance", inviteAcceptancePct, `${inviteAccepts} accepted / ${worldCupInvites} sent`),
+      metric("Revenue today", `$${((revenueToday._sum.amountCents ?? 0) / 100).toFixed(2)}`, "UTC day"),
+      metric("Revenue 7 days", `$${((revenue7Days._sum.amountCents ?? 0) / 100).toFixed(2)}`),
       notTracked("AI cost yesterday", "No unified AI cost ledger is tracked yet"),
-      notTracked("AI revenue yesterday", "No AI revenue attribution table is tracked yet"),
-      metric(
-        "Token sales",
-        `$${(tokenSalesRevenueCents / 100).toFixed(2)}`,
-        `${tokenSalesPayments} completed token payment rows`
-      ),
       metric("API health", `${providerConfiguredCount}/${providerHealth.length} configured`, `${providerGapCount} gaps`),
       metric("Top pools", activeWorldCupPools.length, "Ranked below by participants, entries, and chat"),
     ],
@@ -619,28 +664,38 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
       metric("Created today", accountsToday, "UTC day"),
       metric("Created 7 days", accounts7Days),
       metric("Created 30 days", accounts30Days),
-      notTracked("Active users", "Login/activity heartbeat is not tracked yet"),
+      metric("Logins today", loginSessionsToday, "New auth sessions UTC day"),
+      metric("Logins 7 days", loginSessions7Days, "New auth sessions"),
+      metric("Active sessions now", activeSessionsNow, "Sessions where expires > now()"),
       metric("Free users", Math.max(0, totalAccounts - activeSubscriptionUserCount), "Derived from active subscriptions"),
       metric("Pro/subscribed users", activeSubscriptionUserCount),
       metric("Admin users", adminUsers, "Derived from ADMIN_EMAILS allowlist"),
     ],
     subscriptions: [
       metric("Total subscriptions", subscriptions.length),
+      metric("New subscriptions today", subscriptionsCreatedToday, "UTC day"),
+      metric("New subscriptions 7 days", subscriptionsCreated7Days),
       metric("Monthly subscriptions", cycleCounts.monthly, "Derived from plan code/SKU text"),
       metric("Annual subscriptions", cycleCounts.annual, "Derived from plan code/SKU text"),
       metric("Unknown billing cycle", cycleCounts.unknown),
       metric("Failed/canceled subscriptions", failedOrCanceledSubscriptions),
       metric("Stripe webhook events", stripeEvents),
-      metric("Completed bracket payments", bracketPaymentsCompleted),
+      metric("Completed payments (all time)", bracketPaymentsCompleted),
       completedRevenueCents === null
-        ? notTracked("Bracket payment revenue", "No completed bracket payments recorded")
-        : metric("Bracket payment revenue", `$${(completedRevenueCents / 100).toFixed(2)}`),
+        ? notTracked("Total revenue", "No completed bracket payments recorded")
+        : metric("Total revenue", `$${(completedRevenueCents / 100).toFixed(2)}`),
+      metric("Revenue today", `$${((revenueToday._sum.amountCents ?? 0) / 100).toFixed(2)}`, "UTC day"),
+      metric("Revenue 7 days", `$${((revenue7Days._sum.amountCents ?? 0) / 100).toFixed(2)}`),
+      metric("Token sales revenue", `$${(tokenSalesRevenueCents / 100).toFixed(2)}`, `${tokenSalesPayments} completed token payment rows`),
+      metric("Coupon redemptions", couponRedemptions, `${couponRedemptionsRedeemed} redeemed`),
       notTracked("MRR estimate", "Subscription prices are not reliably stored on subscription rows"),
     ],
     tokens: [
       metric("Token balances total", tokenBalanceSummary._sum.balance ?? 0),
-      metric("Total tokens granted", tokenGranted._sum.tokenDelta ?? 0),
-      metric("Total tokens spent", Math.abs(tokenSpent._sum.tokenDelta ?? 0)),
+      metric("Tokens granted today", tokenGrantedToday._sum.tokenDelta ?? 0, "UTC day"),
+      metric("Tokens spent today", Math.abs(tokenSpentToday._sum.tokenDelta ?? 0), "UTC day"),
+      metric("Total tokens granted (all time)", tokenGranted._sum.tokenDelta ?? 0),
+      metric("Total tokens spent (all time)", Math.abs(tokenSpent._sum.tokenDelta ?? 0)),
       metric("Users with token balances", tokenBalanceUsers, "Top spenders listed below"),
       metric("Lifetime tokens purchased", tokenBalanceSummary._sum.lifetimePurchased ?? 0),
       metric("Lifetime tokens spent", tokenBalanceSummary._sum.lifetimeSpent ?? 0),
@@ -660,12 +715,17 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     ],
     worldCup: [
       metric("World Cup pools", worldCupPools),
+      metric("Pools with members", wcPoolsWithMembers, "Pools where ≥1 participant has joined"),
+      metric("Pools today", worldCupPoolsToday, "UTC day"),
+      metric("Pools 7 days", wcPools7Days),
       metric("Bracket entries", worldCupEntries),
-      metric("Finalized entries", finalizedEntries),
+      metric("Entries today", worldCupEntriesToday, "UTC day"),
+      metric("Entries 7 days", wcEntries7Days),
+      metric("Finalized entries", finalizedEntries, "isComplete or submittedAt set"),
       metric("Pool participants", worldCupParticipants),
-      metric("Commissioner-created pools", commissionerPools),
       metric("World Cup chat events", worldCupChatEvents),
-      metric("World Cup invites", worldCupInvites),
+      metric("World Cup invites sent", worldCupInvites),
+      metric("Invite accepts", inviteAccepts, inviteAcceptancePct + " acceptance rate"),
       metric("Universal invite links", inviteLinks),
       metric("Invite activity events", inviteEvents),
       metric("Shared chat messages", platformChatMessages),

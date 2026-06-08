@@ -137,6 +137,24 @@ function joinList(values: string[], fallback = "Not tracked yet") {
   return values.length > 0 ? values.join(", ") : fallback
 }
 
+function subStatusClass(status: string) {
+  const s = status.toLowerCase()
+  if (s === "active" || s === "trialing") return "border-emerald-300/35 bg-emerald-300/10 text-emerald-100"
+  if (s === "past_due") return "border-amber-300/35 bg-amber-300/10 text-amber-100"
+  if (s === "canceled" || s === "cancelled" || s === "failed" || s === "incomplete" || s === "unpaid") {
+    return "border-rose-300/35 bg-rose-300/10 text-rose-100"
+  }
+  return "border-white/15 bg-white/[0.06] text-white/55"
+}
+
+function paymentStatusClass(status: string) {
+  const s = status.toLowerCase()
+  if (s === "completed" || s === "paid" || s === "succeeded") return "border-emerald-300/35 bg-emerald-300/10 text-emerald-100"
+  if (s === "pending") return "border-amber-300/35 bg-amber-300/10 text-amber-100"
+  if (s === "failed" || s === "canceled" || s === "refunded") return "border-rose-300/35 bg-rose-300/10 text-rose-100"
+  return "border-white/15 bg-white/[0.06] text-white/55"
+}
+
 function statusPillClass(status: string) {
   if (status === "configured" || status === "active_importer" || status === "active") {
     return "border-emerald-300/35 bg-emerald-300/10 text-emerald-100"
@@ -1123,32 +1141,39 @@ export default async function AdminPage({
               </form>
             </div>
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[760px] text-left text-sm">
+              <table className="w-full min-w-[860px] text-left text-sm">
                 <thead className="text-[11px] uppercase tracking-[0.16em] text-white/45">
                   <tr>
-                    <th className="py-2">User</th>
-                    <th className="py-2">Email</th>
-                    <th className="py-2">Sub</th>
-                    <th className="py-2">Tokens</th>
-                    <th className="py-2">WC Entries</th>
-                    <th className="py-2">WC Pools</th>
+                    <th className="py-2 pr-3">User</th>
+                    <th className="py-2 pr-3">Email</th>
+                    <th className="py-2 pr-3">Sub</th>
+                    <th className="py-2 pr-3">Tokens</th>
+                    <th className="py-2 pr-3">WC</th>
+                    <th className="py-2 pr-3">Signed up</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
                   {data.usersSearch.length > 0 ? (
                     data.usersSearch.map((user) => (
                       <tr key={user.id} className="text-white/76">
-                        <td className="py-3">
+                        <td className="py-3 pr-3">
                           <div className="font-black text-white">@{user.username}</div>
                           {user.displayName && user.displayName !== user.username ? (
                             <div className="text-xs text-white/40">{user.displayName}</div>
                           ) : null}
                         </td>
-                        <td className="py-3">{user.emailMasked}</td>
-                        <td className="py-3">{user.subscriptionStatus}</td>
-                        <td className="py-3">{user.tokenBalance ?? "Not tracked"}</td>
-                        <td className="py-3">{user.worldCupEntries}</td>
-                        <td className="py-3">{user.worldCupPoolsCreated}</td>
+                        <td className="py-3 pr-3">{user.emailMasked}</td>
+                        <td className="py-3 pr-3">
+                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${subStatusClass(user.subscriptionStatus)}`}>
+                            {user.subscriptionStatus}
+                          </span>
+                        </td>
+                        <td className="py-3 pr-3">{user.tokenBalance ?? "—"}</td>
+                        <td className="py-3 pr-3">
+                          <div className="text-xs">{user.worldCupEntries} entries</div>
+                          <div className="text-xs text-white/45">{user.worldCupPoolsCreated} pools</div>
+                        </td>
+                        <td className="py-3 text-xs text-white/55">{formatDate(user.createdAt)}</td>
                       </tr>
                     ))
                   ) : (
@@ -1206,9 +1231,13 @@ export default async function AdminPage({
                     <tr key={user.id} className="text-white/76">
                       <td className="py-3 font-black text-white">@{user.username}</td>
                       <td className="py-3">{user.emailMasked}</td>
-                      <td className="py-3">{user.subscriptionStatus}</td>
-                      <td className="py-3">{user.tokenBalance ?? "Not tracked"}</td>
-                      <td className="py-3">{formatDate(user.createdAt)}</td>
+                      <td className="py-3">
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${subStatusClass(user.subscriptionStatus)}`}>
+                          {user.subscriptionStatus}
+                        </span>
+                      </td>
+                      <td className="py-3">{user.tokenBalance ?? "—"}</td>
+                      <td className="py-3 text-xs text-white/55">{formatDate(user.createdAt)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1219,28 +1248,35 @@ export default async function AdminPage({
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_20px_70px_-52px_rgba(251,191,36,0.55)]">
             <h2 className="text-sm font-black uppercase tracking-[0.18em] text-amber-100/80">Recent Subscriptions</h2>
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[700px] text-left text-sm">
+              <table className="w-full min-w-[820px] text-left text-sm">
                 <thead className="text-[11px] uppercase tracking-[0.16em] text-white/45">
                   <tr>
-                    <th className="py-2">User</th>
-                    <th className="py-2">Plan</th>
-                    <th className="py-2">Status</th>
-                    <th className="py-2">SKU</th>
-                    <th className="py-2">Updated</th>
+                    <th className="py-2 pr-3">User</th>
+                    <th className="py-2 pr-3">Plan / SKU</th>
+                    <th className="py-2 pr-3">Status</th>
+                    <th className="py-2 pr-3">Since</th>
+                    <th className="py-2 pr-3">Renews / Ends</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
                   {data.recentSubscriptions.length > 0 ? (
                     data.recentSubscriptions.map((sub) => (
                       <tr key={sub.id} className="text-white/76">
-                        <td className="py-3">
+                        <td className="py-3 pr-3">
                           <div className="font-black text-white">@{sub.username}</div>
                           <div className="text-xs text-white/40">{sub.emailMasked}</div>
                         </td>
-                        <td className="py-3">{sub.plan}</td>
-                        <td className="py-3">{sub.status}</td>
-                        <td className="py-3">{sub.sku ?? "Not set"}</td>
-                        <td className="py-3">{formatDate(sub.updatedAt)}</td>
+                        <td className="py-3 pr-3">
+                          <div className="font-semibold text-white/85">{sub.plan}</div>
+                          {sub.sku ? <div className="mt-0.5 font-mono text-[10px] text-white/38">{sub.sku}</div> : null}
+                        </td>
+                        <td className="py-3 pr-3">
+                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${subStatusClass(sub.status)}`}>
+                            {sub.status}
+                          </span>
+                        </td>
+                        <td className="py-3 pr-3 text-xs text-white/55">{formatDate(sub.createdAt)}</td>
+                        <td className="py-3 pr-3 text-xs text-white/55">{formatDate(sub.currentPeriodEnd)}</td>
                       </tr>
                     ))
                   ) : (
@@ -1274,14 +1310,18 @@ export default async function AdminPage({
                   {data.recentPayments.length > 0 ? (
                     data.recentPayments.map((payment) => (
                       <tr key={payment.id} className="text-white/76">
-                        <td className="py-3">
+                        <td className="py-3 pr-3">
                           <div className="font-black text-white">@{payment.username}</div>
                           <div className="text-xs text-white/40">{payment.emailMasked}</div>
                         </td>
-                        <td className="py-3">{payment.paymentType}</td>
-                        <td className="py-3">{payment.status}</td>
-                        <td className="py-3 text-amber-100">{payment.amount}</td>
-                        <td className="py-3">{formatDate(payment.createdAt)}</td>
+                        <td className="py-3 pr-3 text-xs">{payment.paymentType}</td>
+                        <td className="py-3 pr-3">
+                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${paymentStatusClass(payment.status)}`}>
+                            {payment.status}
+                          </span>
+                        </td>
+                        <td className="py-3 pr-3 font-black text-amber-100">{payment.amount}</td>
+                        <td className="py-3 text-xs text-white/55">{formatDate(payment.createdAt)}</td>
                       </tr>
                     ))
                   ) : (
@@ -1299,13 +1339,13 @@ export default async function AdminPage({
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_20px_70px_-52px_rgba(34,211,238,0.7)]">
             <h2 className="text-sm font-black uppercase tracking-[0.18em] text-cyan-100/80">Recent Token Activity</h2>
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[700px] text-left text-sm">
+              <table className="w-full min-w-[760px] text-left text-sm">
                 <thead className="text-[11px] uppercase tracking-[0.16em] text-white/45">
                   <tr>
-                    <th className="py-2">User</th>
-                    <th className="py-2">Type</th>
-                    <th className="py-2">Delta</th>
-                    <th className="py-2">Balance</th>
+                    <th className="py-2 pr-3">User</th>
+                    <th className="py-2 pr-3">Type / Description</th>
+                    <th className="py-2 pr-3">Delta</th>
+                    <th className="py-2 pr-3">Balance</th>
                     <th className="py-2">Created</th>
                   </tr>
                 </thead>
@@ -1313,16 +1353,19 @@ export default async function AdminPage({
                   {data.recentTokenActivity.length > 0 ? (
                     data.recentTokenActivity.map((entry) => (
                       <tr key={entry.id} className="text-white/76">
-                        <td className="py-3">
+                        <td className="py-3 pr-3">
                           <div className="font-black text-white">@{entry.username}</div>
                           <div className="text-xs text-white/40">{entry.emailMasked}</div>
                         </td>
-                        <td className="py-3">{entry.entryType}</td>
-                        <td className={entry.tokenDelta >= 0 ? "py-3 text-emerald-200" : "py-3 text-amber-100"}>
-                          {entry.tokenDelta}
+                        <td className="py-3 pr-3">
+                          <div className="font-semibold text-white/85">{entry.entryType}</div>
+                          {entry.description ? <div className="mt-0.5 text-[11px] text-white/40">{entry.description}</div> : null}
                         </td>
-                        <td className="py-3">{entry.balanceAfter}</td>
-                        <td className="py-3">{formatDate(entry.createdAt)}</td>
+                        <td className={entry.tokenDelta >= 0 ? "py-3 pr-3 font-black text-emerald-200" : "py-3 pr-3 font-black text-amber-100"}>
+                          {entry.tokenDelta >= 0 ? `+${entry.tokenDelta}` : entry.tokenDelta}
+                        </td>
+                        <td className="py-3 pr-3">{entry.balanceAfter}</td>
+                        <td className="py-3 text-xs text-white/55">{formatDate(entry.createdAt)}</td>
                       </tr>
                     ))
                   ) : (
