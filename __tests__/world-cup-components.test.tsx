@@ -2175,7 +2175,9 @@ describe("WorldCupBracketShell fixture readiness", () => {
     expect(screen.getByText("Strike", { selector: "span" })).toHaveClass("line-through")
     expect(screen.getByText("Blue", { selector: "span" })).toHaveClass("text-white/85")
     expect(screen.getByText("Mono", { selector: "span" })).toHaveClass("font-mono")
-    expect(document.querySelector("script")).toBeNull()
+    // Verify chat-injected <script> tags are not rendered as real DOM elements (XSS safety).
+    // Remote-src scripts (e.g. Meta Pixel) may be present; only inline scripts are dangerous.
+    expect(document.querySelector("script:not([src])")).toBeNull()
 
     const input = screen.getByPlaceholderText(/Message the pool or ask Chimmy/i)
     fireEvent.click(screen.getByRole("button", { name: /Open chat tools/i }))

@@ -135,10 +135,8 @@ export default async function WorldCupBracketsPage() {
   const { language } = await resolveServerRenderPreferences()
   const t = makeWcT(language)
   const createIntentPath = "/brackets/world-cup/create"
-  const encodedCreateIntent = encodeURIComponent(createIntentPath)
-  const createPoolHref = userId
-    ? createIntentPath
-    : `/signup?next=${encodedCreateIntent}&callbackUrl=${encodedCreateIntent}`
+  // Unauthenticated visitors go through the guest-first funnel instead of hitting signup immediately.
+  const createPoolHref = userId ? createIntentPath : "/world-cup/create"
   const signInHref = `/login?callbackUrl=${encodeURIComponent("/brackets/world-cup")}`
 
   return (
