@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
+import Image from "next/image"
 import Link from "next/link"
 import {
   ArrowRight,
@@ -29,8 +30,14 @@ import {
   trackWcSponsorCouponCopyClicked,
   trackWcSponsorCouponClaimClicked,
   trackWcUpgradeClicked,
+  trackWcHeroVideoViewed,
+  trackWcHeroVideoPlayed,
+  trackWcHeroVideoFallbackShown,
+  trackWcMediaCtaClicked,
 } from "@/lib/world-cup/worldCupFunnelAnalytics"
 import SponsorCouponCard from "@/components/promotions/SponsorCouponCard"
+import { WorldCupHeroMedia } from "@/components/world-cup/WorldCupHeroMedia"
+import { WC_ASSETS } from "@/lib/world-cup/worldCupMarketingAssets"
 
 // ── Route constants ────────────────────────────────────────────────────────────
 
@@ -206,23 +213,6 @@ export default function WorldCupAdLandingPage() {
         </span>
       </div>
 
-      {/* ── Sponsor coupon strip ─────────────────────────────────────────── */}
-      <div className="border-b border-amber-300/10 bg-amber-300/[0.03] px-4 py-2 sm:px-6">
-        <div className="mx-auto max-w-6xl">
-          <SponsorCouponCard
-            compact
-            surface="wc_landing_banner"
-            href={tokensHref}
-            onView={() => trackWcSponsorCouponViewed("wc_landing_banner")}
-            onCopyClicked={() => trackWcSponsorCouponCopyClicked("wc_landing_banner")}
-            onClaimClicked={() => {
-              trackWcSponsorCouponClaimClicked("wc_landing_banner")
-              trackWcFunnelEvent("WcSponsorCouponClaimClicked", { surface: "wc_landing_banner" })
-            }}
-          />
-        </div>
-      </div>
-
       {/* ── Atmosphere ──────────────────────────────────────────────────── */}
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.35),transparent_34%),radial-gradient(circle_at_12%_18%,rgba(250,204,21,0.22),transparent_28%),radial-gradient(circle_at_86%_20%,rgba(168,85,247,0.16),transparent_26%),linear-gradient(180deg,#07111f_0%,#020617_58%,#01030a_100%)]" />
@@ -259,6 +249,24 @@ export default function WorldCupAdLandingPage() {
         <div className="grid items-center gap-10 lg:grid-cols-[1.08fr_0.92fr]">
           {/* Copy */}
           <div className="text-center lg:text-left">
+            {/* WC identity badge */}
+            <div className="mx-auto mb-5 inline-flex items-center gap-2.5 lg:mx-0">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-300/[0.10] p-1.5 shadow-[0_0_24px_-6px_rgba(34,211,238,0.5)]">
+                <Image
+                  src={WC_ASSETS.logoSrc}
+                  alt="AllFantasy World Cup"
+                  width={40}
+                  height={40}
+                  className="h-full w-full object-contain drop-shadow-[0_2px_6px_rgba(34,211,238,0.4)]"
+                  priority
+                />
+              </div>
+              <div className="text-left">
+                <p className="text-[10px] font-black uppercase tracking-[0.20em] text-cyan-300/70">AllFantasy.AI</p>
+                <p className="text-sm font-black text-white/80">2026 World Cup Pools</p>
+              </div>
+            </div>
+
             <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-emerald-300/30 bg-emerald-300/10 px-3.5 py-1.5 text-[11px] font-black uppercase tracking-[0.20em] text-emerald-200 lg:mx-0">
               <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(110,231,183,0.9)]" />
               World Cup pools are open
@@ -328,10 +336,29 @@ export default function WorldCupAdLandingPage() {
             </div>
           </div>
 
-          {/* Pool preview card */}
+          {/* Media + pool preview column */}
           <div className="relative mx-auto w-full max-w-md lg:max-w-none">
-            <div className="absolute -inset-6 rounded-[2.5rem] bg-cyan-400/15 blur-3xl" aria-hidden />
-            <div className="relative overflow-hidden rounded-[2rem] border border-white/15 bg-white/[0.08] p-4 shadow-2xl backdrop-blur-xl">
+            <div className="absolute -inset-8 rounded-[2.5rem] bg-cyan-400/12 blur-3xl" aria-hidden />
+
+            {/* Hero video/poster */}
+            <WorldCupHeroMedia
+              videoSrc={WC_ASSETS.heroVideoSrc}
+              posterSrc={WC_ASSETS.heroPosterSrc}
+              logoSrc={WC_ASSETS.logoSrc}
+              badges={[
+                { label: "48 Teams", color: "cyan" },
+                { label: "104 Matches", color: "amber" },
+                { label: "Free Pools", color: "emerald" },
+                { label: "AI Picks", color: "violet" },
+              ]}
+              className="relative w-full"
+              onVideoViewed={trackWcHeroVideoViewed}
+              onVideoPlayed={trackWcHeroVideoPlayed}
+              onFallbackShown={trackWcHeroVideoFallbackShown}
+            />
+
+            {/* Pool preview card */}
+            <div className="relative mt-3 overflow-hidden rounded-[2rem] border border-white/15 bg-white/[0.08] p-4 shadow-2xl backdrop-blur-xl">
               <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -390,6 +417,89 @@ export default function WorldCupAdLandingPage() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ── Sponsor coupon strip (post-hero) ────────────────────────────── */}
+      <div className="border-y border-amber-300/10 bg-amber-300/[0.03] px-4 py-2.5 sm:px-6">
+        <div className="mx-auto max-w-6xl">
+          <SponsorCouponCard
+            compact
+            surface="wc_landing_post_hero"
+            href={tokensHref}
+            onView={() => trackWcSponsorCouponViewed("wc_landing_post_hero")}
+            onCopyClicked={() => trackWcSponsorCouponCopyClicked("wc_landing_post_hero")}
+            onClaimClicked={() => {
+              trackWcSponsorCouponClaimClicked("wc_landing_post_hero")
+              trackWcFunnelEvent("WcSponsorCouponClaimClicked", { surface: "wc_landing_post_hero" })
+            }}
+          />
+        </div>
+      </div>
+
+      {/* ── Choose your World Cup experience ─────────────────────────── */}
+      <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+        <div className="mb-6 text-center">
+          <h2 className="text-2xl font-black tracking-tight text-white sm:text-3xl">Choose your World Cup experience</h2>
+          <p className="mt-2 text-sm text-white/55">Three ways to get in on the action — all free to start.</p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[
+            {
+              emoji: "🏆",
+              title: "Create a Pool",
+              desc: "Set up a World Cup pool in 60 seconds. Invite your crew and run the leaderboard as commissioner.",
+              cta: "Create Pool",
+              href: createHref,
+              source: "experience_create",
+              accent: "border-cyan-300/25 bg-cyan-300/[0.06] hover:border-cyan-300/40",
+              btnCls: "bg-gradient-to-b from-cyan-200 to-cyan-400 text-slate-950",
+            },
+            {
+              emoji: "🔗",
+              title: "Join a Pool",
+              desc: "Got an invite link? Paste your code and jump straight into a friend's World Cup pool.",
+              cta: "Join Pool",
+              href: joinHref,
+              source: "experience_join",
+              accent: "border-violet-400/20 bg-violet-400/[0.04] hover:border-violet-400/35",
+              btnCls: "border border-violet-400/40 bg-violet-400/10 text-violet-200 hover:bg-violet-400/20",
+            },
+            {
+              emoji: "📋",
+              title: "Build a Bracket",
+              desc: "Jump straight to your bracket. Pick group winners and knockout round matchups for all 48 teams.",
+              cta: "My Bracket",
+              href: bracketHref,
+              source: "experience_bracket",
+              accent: "border-amber-300/20 bg-amber-300/[0.04] hover:border-amber-300/35",
+              btnCls: "border border-amber-300/40 bg-amber-300/10 text-amber-200 hover:bg-amber-300/20",
+            },
+          ].map(({ emoji, title, desc, cta, href, source, accent, btnCls }) => (
+            <div
+              key={title}
+              className={`flex flex-col gap-4 rounded-2xl border p-5 backdrop-blur transition-colors ${accent}`}
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-2xl">
+                {emoji}
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-black text-white">{title}</h3>
+                <p className="mt-1.5 text-sm leading-6 text-white/60">{desc}</p>
+              </div>
+              <Link
+                href={href}
+                onClick={() => {
+                  trackWcFunnelEvent("WorldCupCreatePoolClicked", { source })
+                  trackWcMediaCtaClicked(source)
+                }}
+                className={`inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black transition ${btnCls}`}
+              >
+                <ArrowRight className="h-4 w-4" />
+                {cta}
+              </Link>
+            </div>
+          ))}
         </div>
       </section>
 
