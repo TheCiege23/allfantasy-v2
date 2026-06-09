@@ -6,6 +6,7 @@ import {
   type AdminMetric,
 } from "@/lib/admin-dashboard/AdminCommandCenterService"
 import { AiAuditLogsPanel } from "@/components/admin/AiAuditLogsPanel"
+import { AiProviderHealthPanel } from "@/components/admin/AiProviderHealthPanel"
 import type {
   AdminProviderHealthRow,
   AdminProviderHealthStatus,
@@ -1120,6 +1121,9 @@ export default async function AdminPage({
         </AccordionSection>
         <AccordionSection title="Provider Sync Controls" eyebrow="admin manual imports" defaultOpen={false}>
           <AdminSportsSyncControlsPanel />
+        </AccordionSection>
+        <AccordionSection title="AI Provider Health" eyebrow="interaction stats + WC provider" defaultOpen={false}>
+          <AiProviderHealthPanel />
         </AccordionSection>
         <AccordionSection title="AI Audit Logs" eyebrow="validator + cost monitoring" defaultOpen={false}>
           <AiAuditLogsPanel />

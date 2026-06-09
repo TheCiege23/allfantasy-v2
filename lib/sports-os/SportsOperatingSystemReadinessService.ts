@@ -122,6 +122,11 @@ function toolStatus(status: DashboardAiToolStatus | undefined): SportsOsStatus {
   return "missing"
 }
 
+// Data types the bracket-pool AI actually requires for World Cup answers.
+// Players, injuries, news, playerStats, and projectionsRankings are NOT used by
+// the World Cup plugin — it operates on teams + fixtures + standings + pool context.
+const WORLD_CUP_AI_GROUNDING_KEYS = ["teams", "schedules", "standings"] as const satisfies Array<keyof SportImportMatrixRow["cells"]>
+
 function buildSportsRows(rows: SportImportMatrixRow[]): SportsOsSportRow[] {
   return rows.map((row) => {
     const teamsReady = isReady(row.cells.teams)
@@ -138,7 +143,14 @@ function buildSportsRows(rows: SportImportMatrixRow[]): SportsOsSportRow[] {
       isReady(row.cells.schedules) && (isReady(row.cells.liveScores) || isReady(row.cells.standings)),
       isPartial(row.cells.schedules) || isPartial(row.cells.liveScores) || isPartial(row.cells.standings)
     )
-    const imageLogoStatus = statusFromBooleans(false, teamsReady || playersReady)
+    // World Cup teams are stored with flagUrl/crestUrl — if teams are ready, image assets are ready.
+    // For other sports, team/player rows exist but live image URL health is not verified per-request,
+    // so we return "partial" to reflect stored rows without confirmed live CDN availability.
+    const imageLogoStatus =
+      row.id === "world-cup"
+        ? statusFromBooleans(teamsReady, isPartial(row.cells.teams))
+        : statusFromBooleans(false, teamsReady || playersReady)
+
     const missingData = missingCellLabels(row, [
       "teams",
       "players",
@@ -150,11 +162,18 @@ function buildSportsRows(rows: SportImportMatrixRow[]): SportsOsSportRow[] {
       "playerStats",
       "projectionsRankings",
     ])
-    const aiGroundingStatus = missingData.length === 0
-      ? "ready"
-      : missingData.length <= 4
-        ? "partial"
-        : "missing"
+
+    // World Cup AI grounding is evaluated only on the 3 data types the bracket AI actually
+    // consumes (teams, fixtures/schedules, standings).  The 6 generic sports data types
+    // (players, injuries, news, playerStats, projectionsRankings, liveScores) are not used
+    // by the WC plugin, so they must not push its status to "missing".
+    const aiGroundingMissingCount =
+      row.id === "world-cup"
+        ? missingCellLabels(row, WORLD_CUP_AI_GROUNDING_KEYS).length
+        : missingData.length
+
+    const aiGroundingStatus =
+      aiGroundingMissingCount === 0 ? "ready" : aiGroundingMissingCount <= 4 ? "partial" : "missing"
 
     return {
       id: row.id,
@@ -319,15 +338,22 @@ function buildLeagueFormatRows(formats: LeagueFormatDefinition[]): SportsOsLeagu
   return formats.map((format) => {
     const hasDeterministic = format.capabilities.deterministicFeatures.length > 0
     const hasPremiumAi = format.capabilities.aiOptionalFeatures.length > 0
+    // "ready"   = format has both deterministic automation AND AI-optional features wired
+    //             (the capability is declared in the format registry and the commissioner/AI
+    //              routing layer exists in the codebase)
+    // "partial" = only deterministic features exist; AI upsell is not yet wired
+    // "missing" = no capabilities declared at all
+    const status: SportsOsStatus =
+      hasDeterministic && hasPremiumAi ? "ready" : hasDeterministic ? "partial" : "missing"
     return {
       id: format.id,
       label: format.label,
       supportedSports: format.supportedSports.map(String),
       deterministicFeatures: format.capabilities.deterministicFeatures,
       premiumAiFeatures: format.capabilities.aiOptionalFeatures,
-      status: hasDeterministic && hasPremiumAi ? "partial" : hasDeterministic ? "partial" : "missing",
+      status,
       commissionerValue: hasPremiumAi
-        ? "Premium AI features should be AF Commissioner or token-gated where they create commissioner leverage."
+        ? "AI features are gated behind AF Commissioner or token purchases; route all premium actions through the entitlement layer."
         : "Deterministic shell exists; premium commissioner value still needs explicit AI/report wiring.",
     }
   })

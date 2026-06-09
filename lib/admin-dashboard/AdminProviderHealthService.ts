@@ -1087,3 +1087,168 @@ export async function getAdminProviderHealthRows(): Promise<AdminProviderHealthR
     }),
   ]
 }
+
+// ─── AI Interaction Health ────────────────────────────────────────────────────
+
+export type AiInteractionHealthModelRow = {
+  model: string
+  count: number
+}
+
+export type AiInteractionHealthBlockedRow = {
+  reason: string
+  count: number
+}
+
+export type AdminAiInteractionHealth = {
+  windowHours: number
+  since: string
+  total: number
+  deterministic: number
+  deterministicPct: number
+  llmCalls: number
+  clean: number
+  warned: number
+  blocked: number
+  blockedPct: number
+  unavailable: number
+  avgTokenCost: number | null
+  modelBreakdown: AiInteractionHealthModelRow[]
+  topBlockedReasons: AiInteractionHealthBlockedRow[]
+  lastCallAt: string | null
+  worldCupTotal: number
+  worldCupBlocked: number
+}
+
+export async function getAdminAiInteractionHealth(
+  windowHours = 24
+): Promise<AdminAiInteractionHealth> {
+  const since = nowMinusHours(windowHours)
+  const sinceIso = since.toISOString()
+
+  try {
+    const [
+      allRows,
+      modelRows,
+      blockedReasonRows,
+      lastRow,
+      wcTotal,
+      wcBlocked,
+    ] = await Promise.all([
+      // aggregate validator result counts
+      prisma.aiInteractionLog.groupBy({
+        by: ["validatorResult"],
+        where: { createdAt: { gte: since } },
+        _count: { _all: true },
+      }),
+      // model distribution for LLM calls
+      prisma.aiInteractionLog.groupBy({
+        by: ["modelUsed"],
+        where: {
+          createdAt: { gte: since },
+          wasDeterministic: false,
+          modelUsed: { not: null },
+        },
+        _count: { _all: true },
+        orderBy: { _count: { _all: "desc" } },
+        take: 8,
+      }),
+      // blocked reason breakdown
+      prisma.aiInteractionLog.groupBy({
+        by: ["blockedReason"],
+        where: {
+          createdAt: { gte: since },
+          validatorResult: "blocked",
+          blockedReason: { not: null },
+        },
+        _count: { _all: true },
+        orderBy: { _count: { _all: "desc" } },
+        take: 8,
+      }),
+      // last call time
+      prisma.aiInteractionLog.findFirst({
+        where: { createdAt: { gte: since } },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
+      }),
+      // world cup total
+      prisma.aiInteractionLog.count({
+        where: { sport: "world_cup", createdAt: { gte: since } },
+      }),
+      // world cup blocked
+      prisma.aiInteractionLog.count({
+        where: { sport: "world_cup", validatorResult: "blocked", createdAt: { gte: since } },
+      }),
+    ])
+
+    // aggregate token costs for LLM (non-deterministic) calls
+    const tokenAgg = await prisma.aiInteractionLog.aggregate({
+      where: {
+        createdAt: { gte: since },
+        wasDeterministic: false,
+        tokenCost: { not: null },
+      },
+      _avg: { tokenCost: true },
+    })
+
+    const countMap: Record<string, number> = {}
+    let total = 0
+    for (const row of allRows) {
+      const key = row.validatorResult ?? "unknown"
+      countMap[key] = row._count._all
+      total += row._count._all
+    }
+
+    const deterministicCount = countMap["deterministic"] ?? 0
+    const cleanCount = countMap["clean"] ?? 0
+    const warnedCount = countMap["warned"] ?? 0
+    const blockedCount = countMap["blocked"] ?? 0
+    const unavailableCount = countMap["unavailable"] ?? 0
+    const llmCalls = total - deterministicCount
+
+    return {
+      windowHours,
+      since: sinceIso,
+      total,
+      deterministic: deterministicCount,
+      deterministicPct: total > 0 ? Math.round((deterministicCount / total) * 100) : 0,
+      llmCalls,
+      clean: cleanCount,
+      warned: warnedCount,
+      blocked: blockedCount,
+      blockedPct: llmCalls > 0 ? Math.round((blockedCount / llmCalls) * 100) : 0,
+      unavailable: unavailableCount,
+      avgTokenCost: tokenAgg._avg.tokenCost != null ? Math.round(tokenAgg._avg.tokenCost) : null,
+      modelBreakdown: (modelRows as Array<{ modelUsed: string | null; _count: { _all: number } }>)
+        .filter((r) => r.modelUsed != null)
+        .map((r) => ({ model: r.modelUsed as string, count: r._count._all })),
+      topBlockedReasons: (blockedReasonRows as Array<{ blockedReason: string | null; _count: { _all: number } }>)
+        .filter((r) => r.blockedReason != null)
+        .map((r) => ({ reason: r.blockedReason as string, count: r._count._all })),
+      lastCallAt: lastRow?.createdAt?.toISOString() ?? null,
+      worldCupTotal: wcTotal,
+      worldCupBlocked: wcBlocked,
+    }
+  } catch (err) {
+    console.error("[AdminAiInteractionHealth] Failed to query audit logs:", err)
+    return {
+      windowHours,
+      since: sinceIso,
+      total: 0,
+      deterministic: 0,
+      deterministicPct: 0,
+      llmCalls: 0,
+      clean: 0,
+      warned: 0,
+      blocked: 0,
+      blockedPct: 0,
+      unavailable: 0,
+      avgTokenCost: null,
+      modelBreakdown: [],
+      topBlockedReasons: [],
+      lastCallAt: null,
+      worldCupTotal: 0,
+      worldCupBlocked: 0,
+    }
+  }
+}
