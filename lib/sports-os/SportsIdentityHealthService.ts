@@ -878,7 +878,79 @@ async function buildAggregateForSport(row: (typeof SPORTS_TO_AUDIT)[number]): Pr
   }
 }
 
+/**
+ * World Cup uses dedicated tables (worldCupTeam, worldCupOfficialFixture,
+ * worldCupOfficialGroupStanding) rather than the generic sportsTeam/sportsPlayer
+ * tables, so it needs its own aggregate builder.
+ *
+ * Status logic:
+ *   - Missing  → 0 worldCupTeam rows
+ *   - Partial  → teams exist but some are missing both flagUrl and logoUrl
+ *   - Ready    → teams exist and all have at least one image URL
+ *
+ * We map teamCount into the aggregate's `playerCount` field so the shared
+ * `statusFor(playerCount, problemCount)` helper works without modification:
+ *   statusFor(teamCount, teamsWithNoLogo) → correct status
+ */
+async function buildAggregateForWorldCup(
+  row: (typeof SPORTS_TO_AUDIT)[number]
+): Promise<SportsIdentityHealthAggregate> {
+  const [teamCount, teamsWithLogo, fixtureCount, standingCount] = await Promise.all([
+    safeCount("worldCupTeam"),
+    safeCount("worldCupTeam", {
+      where: {
+        OR: [{ flagUrl: { not: null } }, { logoUrl: { not: null } }],
+      },
+    }),
+    safeCount("worldCupOfficialFixture"),
+    safeCount("worldCupOfficialGroupStanding"),
+  ])
+
+  const teamsWithNoLogo = Math.max(0, teamCount - teamsWithLogo)
+
+  return {
+    ...row,
+    // Use teamCount as the entity count so statusFor() returns "missing" when 0
+    playerCount: teamCount,
+    sportsPlayerRecordCount: 0,
+    teamCount,
+    teamAssetCount: 0,
+    // canonicalIdentityCount repurposed to surface fixture + standing row totals
+    canonicalIdentityCount: fixtureCount + standingCount,
+    // No player-identity metrics apply to World Cup
+    playersMissingProviderIds: 0,
+    playersMissingTeam: 0,
+    playerRecordsMissingTeam: 0,
+    playersMissingPosition: 0,
+    playerRecordsMissingPosition: 0,
+    playersMissingStatus: 0,
+    duplicatePlayerNameGroups: 0,
+    duplicateTeamIdentityGroups: 0,
+    duplicateProviderMappingGroups: 0,
+    unmappedProviderPlayers: 0,
+    unmappedProviderTeams: 0,
+    inactiveOrUnknownPlayers: 0,
+    activeStatusTeamMismatches: 0,
+    teamMappingMismatches: 0,
+    // Image health — only team logos are applicable; headshots do not exist
+    playersMissingHeadshots: 0,
+    playerRecordsMissingHeadshots: 0,
+    teamsMissingLogos: teamsWithNoLogo,
+    teamAssetsMissingLogos: 0,
+    duplicateHeadshotGroups: 0,
+    duplicateLogoGroups: 0,
+    invalidHeadshotUrlPatterns: 0,
+    invalidLogoUrlPatterns: 0,
+    // No provider mappings for World Cup
+    providerMappings: [],
+  }
+}
+
 export async function getSportsIdentityHealthSnapshot(): Promise<SportsIdentityHealthSnapshot> {
-  const rows = await Promise.all(SPORTS_TO_AUDIT.map((row) => buildAggregateForSport(row)))
+  const rows = await Promise.all(
+    SPORTS_TO_AUDIT.map((row) =>
+      row.id === "world-cup" ? buildAggregateForWorldCup(row) : buildAggregateForSport(row)
+    )
+  )
   return buildSportsIdentityHealthSnapshot({ rows })
 }
