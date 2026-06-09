@@ -278,6 +278,16 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     requiredPlan: null,
   },
   {
+    code: "world_cup_ai_edge_report",
+    category: "ai_feature",
+    featureLabel: "World Cup Daily Edge Report coaching",
+    description: "AI coaching insight + commissioner post idea for the daily edge report. The deterministic report sections (match that matters, threats, best path, etc.) are always free. This 1-token charge unlocks the strategic coaching explanation and ready-to-post pool message. Cached per user per pool per day — same-day repeats are free.",
+    tier: "low",
+    complexity: "simple",
+    tokenCost: 1,
+    requiredPlan: null,
+  },
+  {
     code: "ai_trade_eval_consensus",
     category: "ai_feature",
     featureLabel: "Trade analyzer full review (legacy)",
