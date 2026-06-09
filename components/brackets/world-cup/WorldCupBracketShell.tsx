@@ -122,102 +122,40 @@ import WorldCupPoolCountdownBanner from "./WorldCupPoolCountdownBanner"
 import type { WorldCupCountdownFirstMatch } from "./WorldCupPoolCountdownBanner"
 import { ChimmyFreshnessChip } from "./ChimmyFreshnessChip"
 import WorldCupAiInsightsCTA from "./WorldCupAiInsightsCTA"
+import {
+  WorldCupChatMessageBubble,
+  WorldCupChatModeTabs,
+  WorldCupChatEmptyState,
+  WorldCupAiPromptChips,
+} from "./chat"
+import type {
+  WorldCupChatMode as WcChatMode,
+  WorldCupPoolChatMessage as WcPoolChatMsg,
+  WorldCupChatGifAttachment as WcGifAttachment,
+  WorldCupChatImageAttachment as WcImageAttachment,
+  WorldCupChatPollAttachment as WcPollAttachment,
+  WorldCupChatPollOption as WcPollOption,
+  WorldCupDmMember as WcDmMember,
+  WorldCupMentionSuggestion as WcMentionSuggestion,
+  WorldCupDmThread as WcDmThread,
+  WorldCupDmMessage as WcDmMsg,
+  WorldCupAiPromptAction as WcAiPromptAction,
+  WorldCupChatAiGate as WcChatAiGate,
+  WorldCupComposerPanel as WcComposerPanel,
+} from "./chat"
 type Tab = WorldCupBracketTab
-type WorldCupPoolChatMessage = {
-  id: string
-  userId: string | null
-  authorName: string
-  authorAvatarUrl: string | null
-  body: string
-  messageType: string
-  gif?: WorldCupChatGifAttachment | null
-  image?: WorldCupChatImageAttachment | null
-  poll?: WorldCupChatPollAttachment | null
-  visibility: string
-  targetUserId: string | null
-  mentions: unknown[]
-  createdAt: string
-  isOwnMessage: boolean
-  isPrivate: boolean
-  /** Freshness tier — e.g. "live" | "cached" | "pool_only" | "none". Null on user messages. */
-  dataSourceTier?: string | null
-  /** Short display text for the chip — e.g. "Live" | "Cached" | "Pool data". Null on user messages. */
-  dataSourceDisplay?: string | null
-}
-type WorldCupDmMember = {
-  userId: string
-  username: string | null
-  displayName: string
-  avatarUrl: string | null
-  joinedAt: string
-  isCurrentUser: boolean
-}
-type WorldCupMentionSuggestion = {
-  id: string
-  token: string
-  label: string
-  helper: string
-  isBroadcast?: boolean
-}
-type WorldCupDmThread = {
-  id: string
-  threadType: "dm" | "group" | "league" | "bracket_pool" | "ai"
-  productType: "shared" | "app" | "bracket" | "legacy"
-  title: string
-  lastMessageAt: string
-  unreadCount: number
-  memberCount: number
-  context?: Record<string, unknown>
-}
-type WorldCupDmMessage = {
-  id: string
-  threadId: string
-  senderUserId: string | null
-  senderName: string
-  senderUsername?: string | null
-  senderAvatarUrl?: string | null
-  messageType: string
-  body: string
-  createdAt: string
-  metadata?: Record<string, unknown>
-}
-type WorldCupChatGifAttachment = {
-  id: string
-  title: string
-  previewUrl: string
-  gifUrl: string
-  width: number
-  height: number
-  provider: "klipy" | "tenor" | "giphy"
-}
-type WorldCupChatImageAttachment = {
-  assetId: string
-  publicId: string
-  secureUrl: string
-  width: number
-  height: number
-  format: string
-  bytes: number
-  provider: "cloudinary"
-}
-type WorldCupChatPollOption = {
-  id: string
-  label: string
-  votes: number
-  percentage: number
-}
-type WorldCupChatPollAttachment = {
-  question: string
-  options: WorldCupChatPollOption[]
-  currentUserVote: string | null
-  totalVotes: number
-  closed: boolean
-  closedAt: string | null
-  createdByUserId: string | null
-  createdAt: string | null
-}
-type WorldCupComposerPanel = "tools" | "format" | "emoji" | "gif" | "poll" | "image" | "voice" | null
-type WorldCupChatMode = "ai" | "pool" | "dm"
+// Chat types are now imported from ./chat — local aliases kept for zero-diff usages below
+type WorldCupPoolChatMessage = WcPoolChatMsg
+type WorldCupDmMember = WcDmMember
+type WorldCupMentionSuggestion = WcMentionSuggestion
+type WorldCupDmThread = WcDmThread
+type WorldCupDmMessage = WcDmMsg
+type WorldCupChatGifAttachment = WcGifAttachment
+type WorldCupChatImageAttachment = WcImageAttachment
+type WorldCupChatPollOption = WcPollOption
+type WorldCupChatPollAttachment = WcPollAttachment
+type WorldCupComposerPanel = WcComposerPanel
+type WorldCupChatMode = WcChatMode
 type WorldCupAdminSimulationRound =
   | "round_of_32"
   | "round_of_16"
@@ -5455,7 +5393,21 @@ function WorldCupCommunityFoundationPanel({
   const { language } = useOptionalLanguage()
   const tChat = useMemo(() => makeWcT(language), [language])
   const [messages, setMessages] = useState<WorldCupPoolChatMessage[]>([])
-  const [chatBody, setChatBody] = useState("")
+  // chatMode must be declared before chatBody so the draft derivation can use it
+  const [chatMode, setChatMode] = useState<WorldCupChatMode>("pool")
+  const [chatDrawerOpen, setChatDrawerOpen] = useState(false)
+  // Separate drafts per mode — switching modes preserves the other draft
+  const [poolDraft, setPoolDraft] = useState("")
+  const [chimmyDraft, setChimmyDraft] = useState("")
+  // The active draft is whichever mode is selected; "dm" mode reuses poolDraft
+  const chatBody = chatMode === "ai" ? chimmyDraft : poolDraft
+  function setChatBody(value: string | ((prev: string) => string)) {
+    if (chatMode === "ai") {
+      setChimmyDraft(typeof value === "function" ? value(chimmyDraft) : value)
+    } else {
+      setPoolDraft(typeof value === "function" ? value(poolDraft) : value)
+    }
+  }
   const chatTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [isChatLoading, setIsChatLoading] = useState(true)
   const [isSendingChat, setIsSendingChat] = useState(false)
@@ -5496,14 +5448,14 @@ function WorldCupCommunityFoundationPanel({
   const [pollError, setPollError] = useState<string | null>(null)
   const [pollVotingMessageId, setPollVotingMessageId] = useState<string | null>(null)
   const richPreviewSegments = useMemo(() => parseWorldCupChatRichText(chatBody), [chatBody])
-  const [chatMode, setChatMode] = useState<WorldCupChatMode>("pool")
-  const [chatDrawerOpen, setChatDrawerOpen] = useState(false)
+  // chatMode + chatDrawerOpen are declared earlier so chatBody derivation can use chatMode
 
-  // Open chat drawer with pre-filled AI prompt when a CTA fires from WorldCupAiInsightsCTA
+  // Open chat drawer with pre-filled AI prompt when a CTA fires from WorldCupAiInsightsCTA.
+  // Only fills the AI draft when it's empty — never overwrites a draft the user is composing.
   useEffect(() => {
     if (!pendingChimmyPrompt) return
     setChatMode("ai")
-    setChatBody(pendingChimmyPrompt)
+    setChimmyDraft((prev) => (prev.trim() ? prev : pendingChimmyPrompt))
     setChatDrawerOpen(true)
     onPendingChimmyPromptConsumed?.()
   }, [pendingChimmyPrompt, onPendingChimmyPromptConsumed])
@@ -5597,7 +5549,8 @@ function WorldCupCommunityFoundationPanel({
   function openAiPrompt(prompt: string) {
     setChatMode("ai")
     setChatDrawerOpen(true)
-    setChatBody(prompt)
+    // Explicit CTA click — always set the AI draft (user chose this prompt deliberately)
+    setChimmyDraft(prompt)
   }
 
   function wrapComposerText(open: string, close = open) {
@@ -6094,28 +6047,20 @@ function WorldCupCommunityFoundationPanel({
             <span className="hidden self-start rounded-full border border-cyan-300/25 bg-cyan-300/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-cyan-50/75 sm:self-auto md:inline-flex">
               {tChat("wc.chat.hero.badge")}
             </span>
-            <div className="grid grid-cols-3 gap-1 rounded-full border border-white/10 bg-black/35 p-1">
-              {chatModeOptions.map(({ mode, label, icon: Icon }) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => {
-                    setChatMode(mode)
-                    setChatDrawerOpen(true)
-                  }}
-                  className={[
-                    "inline-flex min-h-8 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-[10px] font-black transition touch-manipulation sm:px-3 sm:text-[11px]",
-                    chatMode === mode
-                      ? "bg-gradient-to-r from-amber-300 to-cyan-200 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.28)]"
-                      : "text-white/55 hover:bg-white/[0.06] hover:text-white",
-                  ].join(" ")}
-                  aria-pressed={chatMode === mode}
-                >
-                  <Icon className="h-3.5 w-3.5" aria-hidden />
-                  {label}
-                </button>
-              ))}
-            </div>
+            <WorldCupChatModeTabs
+                mode={chatMode}
+                onModeChange={(mode) => {
+                  setChatMode(mode)
+                  setChatDrawerOpen(true)
+                }}
+                labels={{
+                  pool: tChat("wc.chat.mode.pool"),
+                  ai: tChat("wc.chat.mode.ai"),
+                  dm: tChat("wc.chat.mode.dm"),
+                }}
+                poolUnread={privateChimmyReplyCount > 0 ? privateChimmyReplyCount : 0}
+                aiAvailable={aiUnlocked}
+              />
             <button
               type="button"
               onClick={() => setChatDrawerOpen((open) => !open)}
@@ -6126,21 +6071,10 @@ function WorldCupCommunityFoundationPanel({
           </div>
         </div>
         {/* ── Chimmy Prompt Chips ────────────────────────────────────── */}
-        <div
-          data-testid="wc-chat-prompt-chips"
-          className="mx-2 mb-1 mt-2 flex shrink-0 flex-nowrap gap-1.5 overflow-x-auto pb-1 scrollbar-none sm:mx-3 sm:mb-2 sm:mt-2"
-        >
-          {aiPromptActions.map((action) => (
-            <button
-              key={action.key}
-              type="button"
-              onClick={() => openAiPrompt(action.prompt)}
-              className="inline-flex min-h-8 shrink-0 items-center rounded-full border border-cyan-300/15 bg-white/[0.045] px-3 py-1 text-[10px] font-black text-slate-100/78 transition hover:border-cyan-300/35 hover:bg-cyan-300/[0.08] hover:text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 sm:text-[11px]"
-            >
-              {action.label}
-            </button>
-          ))}
-        </div>
+        <WorldCupAiPromptChips
+          actions={aiPromptActions}
+          onSelect={openAiPrompt}
+        />
         <div
           data-testid="wc-chat-active-panel"
           data-wc-chat-active-panel
@@ -6299,85 +6233,32 @@ function WorldCupCommunityFoundationPanel({
               ) : null}
             </div>
           ) : isChatLoading ? (
-            <div className="flex min-h-0 flex-1 items-center gap-2 overflow-y-auto py-3 text-xs text-white/40">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-              {tChat("wc.chat.loading")}
-            </div>
+            <WorldCupChatEmptyState mode={chatMode} isLoading />
           ) : visibleChatMessages.length > 0 ? (
             <div data-testid="wc-chat-message-list" className="min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
-              {visibleChatMessages.map((message) => {
-                const isChimmyReply = message.messageType === "chimmy_private_response"
-                return (
-                <div
+              {visibleChatMessages.map((message) => (
+                <WorldCupChatMessageBubble
                   key={message.id}
-                  className={[
-                    "rounded-xl border px-3.5 py-2.5 text-sm shadow-[0_12px_32px_-28px_rgba(15,23,42,0.8)]",
-                    isChimmyReply
-                      ? "border-cyan-400/45 bg-gradient-to-br from-cyan-500/[0.18] to-violet-500/[0.10] shadow-[0_0_0_1px_rgba(34,211,238,0.10)]"
-                      : message.isPrivate
-                      ? "border-purple-300/28 bg-purple-400/14"
-                      : "border-white/12 bg-white/[0.055]",
-                  ].join(" ")}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    {isChimmyReply ? (
-                      <span className="inline-flex flex-wrap items-center gap-1.5 font-black">
-                        <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-cyan-400/20 text-cyan-300">
-                          <Bot className="h-2.5 w-2.5" aria-hidden />
-                        </span>
-                            <span className="text-cyan-100">Chimmy</span>
-                        <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-1.5 py-px text-[9px] font-black uppercase tracking-wide text-cyan-300/80">
-                          AI
-                        </span>
-                        {message.dataSourceDisplay ? (
-                          <ChimmyFreshnessChip
-                            tier={message.dataSourceTier ?? "pool_only"}
-                            label={message.dataSourceDisplay}
-                          />
-                        ) : null}
-                      </span>
-                    ) : (
-                      <span className="font-black text-slate-50">{message.authorName}</span>
-                    )}
-                    <span className="text-[10px] text-slate-300/55">
-                      {new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                    </span>
-                  </div>
-                  <WorldCupChatRichTextRenderer
-                    text={message.body}
-                    className={["mt-1.5 whitespace-pre-wrap break-words leading-6", isChimmyReply ? "text-cyan-50/92" : "text-slate-100/86"].join(" ")}
-                  />
-                  {message.gif ? <WorldCupGifPreview gif={message.gif} compact /> : null}
-                  {message.image ? <WorldCupImagePreview image={message.image} compact /> : null}
-                  {message.poll ? (
-                    <WorldCupPollMessage
-                      poll={message.poll}
-                      messageId={message.id}
-                      isVoting={pollVotingMessageId === message.id}
-                      onVote={(optionId) => void voteWorldCupPoll(message.id, optionId)}
-                    />
-                  ) : null}
-                  {message.isPrivate ? (
-                    <p className={`mt-1 text-[10px] font-bold uppercase tracking-wide ${isChimmyReply ? "text-cyan-300/60" : "text-white/70"}`}>
-                      {tChat("wc.chat.privateLabel")}
-                    </p>
-                  ) : null}
-                </div>
-                )
-              })}
+                  message={message}
+                  isVoting={pollVotingMessageId === message.id}
+                  onVote={(optionId) => void voteWorldCupPoll(message.id, optionId)}
+                  onPostToPool={message.isPrivate ? (msg) => {
+                    // Switch to pool mode and pre-fill with the Chimmy answer
+                    setChatMode("pool")
+                    setPoolDraft(msg.body)
+                  } : undefined}
+                  labels={{ privateLabel: tChat("wc.chat.privateLabel") }}
+                />
+              ))}
             </div>
           ) : (
-            <div
-              data-testid="wc-chat-empty-state"
-              className="flex min-h-[14rem] flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-cyan-300/18 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.10),transparent_42%),rgba(0,0,0,0.22)] px-4 py-6 text-center sm:min-h-[20rem]"
-            >
-              <p className="text-sm font-black text-white/75">
-                {tChat("wc.chat.empty.headline")}
-              </p>
-              <p className="mx-auto mt-1 max-w-xs text-xs leading-5 text-white/40">
-                {tChat("wc.chat.empty.body")}
-              </p>
-            </div>
+            <WorldCupChatEmptyState
+              mode={chatMode}
+              isLoading={false}
+              error={chatError}
+              onSuggestPrompt={openAiPrompt}
+              suggestedPrompts={aiPromptActions.slice(0, 3)}
+            />
           )}
           <div
             data-testid="wc-chat-composer-shell"
