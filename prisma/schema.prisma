@@ -14847,3 +14847,29 @@ model AiInteractionLog {
   @@index([createdAt])
   @@map("ai_interaction_logs")
 }
+
+/// Thumbs-up / thumbs-down feedback on AI answers from any feature.
+/// Keyed by (userId, feature, resultKey) — one row per user×answer.
+/// No raw prompt text is stored — only a hash for analytics aggregation.
+model AiFeedback {
+  id          String   @id @default(cuid())
+  /// AllFantasy user id — same as AppUser.id.
+  userId      String   @db.VarChar(64)
+  /// Which AI feature generated the answer: "wc_chimmy" | "wc_explain_bracket" | etc.
+  feature     String   @db.VarChar(64)
+  /// Optional: AiResult.resultKey this feedback is attached to.
+  resultKey   String?  @db.VarChar(255)
+  /// "helpful" or "not_helpful"
+  rating      String   @db.VarChar(32)
+  /// SHA-256 hash (first 16 chars) of the normalized prompt — for analytics, never raw text.
+  promptHash  String?  @db.VarChar(32)
+  /// Sport context at the time of the answer.
+  sport       String?  @db.VarChar(32)
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, feature, resultKey])
+  @@index([feature, rating, createdAt])
+  @@index([userId, createdAt])
+  @@index([resultKey])
+  @@map("ai_feedback")
+}
