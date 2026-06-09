@@ -13,6 +13,7 @@ export const WORLD_CUP_AI_TOKEN_RULES = {
   matchup: "world_cup_ai_matchup_analysis",
   bracketExplanation: "world_cup_ai_bracket_explanation",
   commissionerReport: "world_cup_ai_commissioner_report",
+  chimmyCoaching: "world_cup_ai_chimmy_coaching",
 } as const satisfies Record<string, TokenSpendRuleCode>
 
 export type WorldCupAiTokenAccess =

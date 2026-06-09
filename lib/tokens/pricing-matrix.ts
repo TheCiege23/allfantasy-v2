@@ -268,6 +268,16 @@ export const TOKEN_SPEND_RULE_MATRIX: readonly TokenPricingMatrixEntry[] = [
     requiredPlan: "commissioner",
   },
   {
+    code: "world_cup_ai_chimmy_coaching",
+    category: "ai_feature",
+    featureLabel: "World Cup Chimmy coaching answer",
+    description: "Private World Cup pool coaching answer from Chimmy AI. 1 token per validated LLM response. Deterministic and cached answers are always free.",
+    tier: "low",
+    complexity: "simple",
+    tokenCost: 1,
+    requiredPlan: null,
+  },
+  {
     code: "ai_trade_eval_consensus",
     category: "ai_feature",
     featureLabel: "Trade analyzer full review (legacy)",

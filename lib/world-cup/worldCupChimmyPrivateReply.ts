@@ -34,6 +34,9 @@ import {
   hashGroundingPacket,
   getOrCreateWcChimmyInsight,
 } from "@/lib/ai/aiInsightCache"
+import { routeAiIntent, type AiRouteDecision } from "@/lib/ai/aiIntentRouter"
+import { buildTeachingSystemSuffix } from "@/lib/ai/teachingAnswer"
+import { resolveBillingDecision, type AiBillingDecision } from "@/lib/ai/aiBillingDecision"
 
 const MAX_REPLY_CHARS = 2000
 
@@ -274,6 +277,23 @@ function isGlobalWorldCupStartQuestion(value: string) {
   return /\bwhen\s+(does|is|do).*\bworld\s*cup\b.*\b(start|begin|kick\s*off)|\bworld\s*cup\b.*\b(start|begin|kick\s*off)\b/i.test(value)
 }
 
+/**
+ * Thrown by generateWorldCupChimmyPrivateReply when the LLM response succeeded
+ * and passed validation, but the post-validation token deduction failed.
+ *
+ * The caller (route) must:
+ *  - Return a clean error response to the client (do NOT save the AI message).
+ *  - The audit log entry for this interaction has already been written with
+ *    tokenChargeStatus = "spend_failed".
+ */
+export class ChimmyTokenSpendFailedError extends Error {
+  readonly code = "chimmy_token_spend_failed"
+  constructor(cause?: string) {
+    super(cause ?? "Token spend failed after validated Chimmy LLM response")
+    this.name = "ChimmyTokenSpendFailedError"
+  }
+}
+
 export async function generateWorldCupChimmyPrivateReply(input: {
   userId: string
   challengeId: string
@@ -284,9 +304,22 @@ export async function generateWorldCupChimmyPrivateReply(input: {
   userRole?: WorldCupChimmyUserRole | null
   deterministicOnly?: boolean
   entitlements?: {
-    plan?: "free" | "pro" | "commissioner" | "supreme" | "war_room"
+    /** Subscription plan, or null/undefined for free/token users. */
+    plan?: string | null
     tokenBalance?: number
   }
+  /**
+   * Callback to commit a token spend after a successful validated LLM response.
+   *
+   * Provided by the route only for token-path users (non-subscribers who confirmed
+   * the spend). Leave null/undefined for subscription-covered users and deterministic
+   * paths — the billing decision already ensures it won't be called incorrectly.
+   *
+   * Called exactly once, AFTER the LLM response passes the contract validator.
+   * If it throws, generateWorldCupChimmyPrivateReply throws ChimmyTokenSpendFailedError
+   * and the caller must NOT save the AI message to the DB.
+   */
+  commitTokenSpend?: (() => Promise<unknown>) | null
 }) {
   const userPrompt = stripChimmyMention(input.prompt)
   const conversationId = buildChimmyConversationId({
@@ -335,6 +368,8 @@ export async function generateWorldCupChimmyPrivateReply(input: {
   let validatorResult: AiValidatorResult | null = null
   let blockedReason: string | null = null
   let tokensUsed: number | null = null
+  // Populated in the LLM path — used by the audit log for intent analytics.
+  let routeDecision: AiRouteDecision | null = null
 
   if (deterministic) {
     provider = isGeneralDeterministicReply ? DETERMINISTIC_SOURCE : "deterministic"
@@ -359,15 +394,49 @@ export async function generateWorldCupChimmyPrivateReply(input: {
       "No tokens should be charged for this unavailable answer.",
     ].join(" ")
   } else {
+    // ── AiIntentRouter pre-flight ─────────────────────────────────────────────
+    // Classify the question before touching cache or LLM.
+    // The existing deterministic layer above already handles score/standings/
+    // scoring_rules/schedule — the router's value here is:
+    //  1. Detecting missing_data so we don't hallucinate a polite empty answer.
+    //  2. Providing modelHint so complex questions (path_to_win, pool_analysis)
+    //     get a larger model while simple ones stay on the cheap model.
+    //  3. Recording intent in the audit log for analytics.
+    routeDecision = routeAiIntent({
+      prompt,
+      sport: "world_cup",
+      groundingAvailable: {
+        standings: (input.context?.leaderboard?.length ?? 0) > 0,
+        scoringRules: input.context !== null && input.context !== undefined,
+        poolState: input.context !== null && input.context !== undefined,
+        liveScores: input.context?.liveDataStatus === "live",
+        schedule: true,
+      },
+      hasAiEntitlement: Boolean(input.entitlements?.plan && input.entitlements.plan !== "free"),
+    })
+
+    // missing_data: user asked for something specific that isn't loaded.
+    // Return a targeted message without spending any tokens or cache lookups.
+    if (routeDecision.mode === "missing_data") {
+      reply = "I don't have that specific data loaded right now. Try asking about your pool standings, how scoring works, your bracket path to win, or a match schedule — I can answer those from the pool data."
+      provider = "deterministic"
+      model = "policy"
+    } else {
     // ── LLM path — check AiInsightCache first ─────────────────────────────────
     //
-    // Cache key: userId × challengeId × normalizedPrompt × groundingHash.
-    // Same user, same pool state, same question → cache hit within TTL.
+    // Cache key: userId × challengeId × normalizedPrompt × groundingHash × locale.
+    // Same user, same pool state, same locale, same question → cache hit within TTL.
     // Pool data changes (new match, leaderboard update) → groundingHash changes
     // → cache miss → fresh LLM call + validation.
     //
     // The onCacheMiss closure MUST still validate the response — cached answers
     // are post-validation text saved by the first call.
+    //
+    // LLM profile follows routeDecision.modelHint:
+    //  "large" → "fast" (GPT-4o / Sonnet for complex pool-analysis questions)
+    //  otherwise → "cheap" (GPT-4o-mini / Haiku for quick explanations)
+    const llmProfile = routeDecision.modelHint === "large" ? "fast" : "cheap"
+
     const groundingHash = hashGroundingPacket({
       participantCount: input.context?.participantCount ?? 0,
       entryCount: input.context?.entryCount ?? null,
@@ -388,9 +457,14 @@ export async function generateWorldCupChimmyPrivateReply(input: {
         challengeId: input.challengeId,
         promptNormalized: prompt.toLowerCase().trim().slice(0, 400),
         groundingHash,
+        locale: input.locale ?? null,
       },
       async () => {
-        const system = buildWorldCupChimmySystemPrompt(input.locale)
+        // Append teaching format instructions so LLM responses are structured
+        // as QUICK/WHY/EDGE/AVOID/CONFIDENCE sections that the UI can parse
+        // into a TeachingAnswerCard. Falls back to plain-text rendering if the
+        // model doesn't follow the format.
+        const system = buildWorldCupChimmySystemPrompt(input.locale) + buildTeachingSystemSuffix()
 
         // Build the unified grounding packet — the ONLY data payload the LLM sees.
         // It consolidates pool context, bracket state, sports data, allowed claims,
@@ -413,7 +487,7 @@ export async function generateWorldCupChimmyPrivateReply(input: {
             { role: "system", content: system },
             { role: "user", content: userContent },
           ],
-          profile: "cheap",
+          profile: llmProfile,
           temperature: 0.45,
           maxTokens: 520,
           skipCache: true,
@@ -478,6 +552,7 @@ export async function generateWorldCupChimmyPrivateReply(input: {
       tokensUsed = cacheResult.tokensUsed
       // validatorResult already set inside onCacheMiss
     }
+    } // end: mode !== "missing_data"
   }
 
   reply = (isGeneralDeterministicReply
@@ -490,18 +565,96 @@ export async function generateWorldCupChimmyPrivateReply(input: {
       })
   ).slice(0, MAX_REPLY_CHARS)
 
+  // Resolve the billing intent for this response.
+  // Priority: deterministic > cache > unavailable > validator_blocked > plan_check > llm_required.
+  const billingDecision: AiBillingDecision = resolveBillingDecision({
+    provider,
+    validatorBlocked: validatorResult === "blocked",
+    plan: input.entitlements?.plan ?? null,
+  })
+
   // Build the same validation contract for telemetry and the UI freshness chip.
   const auditContract = buildMinimalChimmyContract({
     challengeId: input.challengeId,
     context: input.context,
-    plan: input.entitlements?.plan ?? "free",
+    plan: typeof input.entitlements?.plan === "string" ? input.entitlements.plan : "free",
     userRole: input.userRole,
     locale: input.locale,
     userId: input.userId,
   })
   const sourceFreshness: FreshnessLabel = auditContract.sourceFreshness
 
-  // Audit log — fire and forget, must never throw or delay the response
+  // Derive the initial token charge status from the billing decision (before spend attempt).
+  let tokenCharged = false
+  let tokenChargeStatus: string
+  switch (billingDecision.reason) {
+    case "deterministic":
+    case "provider_missing":
+    case "validator_blocked":
+    case "error":
+      tokenChargeStatus = "not_applicable"
+      break
+    case "cache_hit":
+      tokenChargeStatus = "cache_no_charge"
+      break
+    case "premium_plan_included":
+      tokenChargeStatus = "covered_by_plan"
+      break
+    case "llm_required":
+      // Updated to "charged" or "spend_failed" below if commitTokenSpend is provided.
+      tokenChargeStatus = "not_applicable"
+      break
+    default:
+      tokenChargeStatus = "not_applicable"
+  }
+
+  // ── Post-validation token spend ───────────────────────────────────────────────
+  // IMPORTANT: This runs AFTER the LLM response was generated AND passed the
+  // contract validator. "Charge after validation, not before" is the fairness rule.
+  //
+  // Only called when:
+  //  - billingDecision says the user should be charged (no subscription, valid LLM)
+  //  - the route provided a commitTokenSpend callback (confirmed free-user path)
+  //
+  // If the spend fails AFTER a valid LLM response, we log the failure and throw
+  // ChimmyTokenSpendFailedError so the route can return a clean error and avoid
+  // saving a misleading AI message to the DB.
+  if (billingDecision.shouldChargeToken && input.commitTokenSpend) {
+    try {
+      await input.commitTokenSpend()
+      tokenCharged = true
+      tokenChargeStatus = "charged"
+    } catch (spendErr) {
+      // Log spend_failed before throwing — the normal log below is NOT reached.
+      logAiInteraction({
+        userId: input.userId,
+        sport: "world_cup",
+        feature: "pool_chat",
+        route: "/api/brackets/world-cup/[challengeId]/chat",
+        plan: input.entitlements?.plan ?? null,
+        providerSource: provider,
+        freshnessTier: sourceFreshness.tier,
+        promptIntent: routeDecision?.intent ?? grounding.prompt.intent.category,
+        missingData: auditContract.missingData,
+        allowedClaims: auditContract.allowedClaims,
+        validatorResult: deterministic ? "deterministic" : validatorResult,
+        blockedReason,
+        modelUsed: model,
+        tokenCost: tokensUsed,
+        wasDeterministic: Boolean(deterministic),
+        billingReason: billingDecision.reason,
+        shouldChargeToken: true,
+        tokenCharged: false,
+        tokenChargeStatus: "spend_failed",
+      })
+      throw new ChimmyTokenSpendFailedError(
+        spendErr instanceof Error ? spendErr.message : undefined
+      )
+    }
+  }
+
+  // Audit log — fire and forget, must never throw or delay the response.
+  // Not reached when spend failed (thrown above instead).
   logAiInteraction({
     userId: input.userId,
     sport: "world_cup",
@@ -510,7 +663,9 @@ export async function generateWorldCupChimmyPrivateReply(input: {
     plan: input.entitlements?.plan ?? null,
     providerSource: provider,
     freshnessTier: sourceFreshness.tier,
-    promptIntent: grounding.prompt.intent.category,
+    // routeDecision.intent is more precise than grounding.prompt.intent.category
+    // when the LLM path was taken — use it for richer analytics.
+    promptIntent: routeDecision?.intent ?? grounding.prompt.intent.category,
     missingData: auditContract.missingData,
     allowedClaims: auditContract.allowedClaims,
     validatorResult: deterministic ? "deterministic" : validatorResult,
@@ -518,6 +673,11 @@ export async function generateWorldCupChimmyPrivateReply(input: {
     modelUsed: model,
     tokenCost: tokensUsed,
     wasDeterministic: Boolean(deterministic),
+    // Billing decision fields — prove the policy was applied
+    billingReason: billingDecision.reason,
+    shouldChargeToken: billingDecision.shouldChargeToken,
+    tokenCharged,
+    tokenChargeStatus,
   })
 
   await appendChatHistory({
@@ -547,5 +707,6 @@ export async function generateWorldCupChimmyPrivateReply(input: {
     model,
     grounding,
     sourceFreshness,
+    billingDecision,
   }
 }

@@ -18,7 +18,15 @@ import {
   WORLD_CUP_CHAT_IMAGE_MAX_BYTES,
 } from "@/lib/world-cup/worldCupChatImageUpload"
 import { buildWorldCupChimmyContext, type WorldCupChimmyContext } from "@/lib/world-cup/worldCupChimmyContext"
-import { generateWorldCupChimmyPrivateReply } from "@/lib/world-cup/worldCupChimmyPrivateReply"
+import {
+  ChimmyTokenSpendFailedError,
+  generateWorldCupChimmyPrivateReply,
+} from "@/lib/world-cup/worldCupChimmyPrivateReply"
+import {
+  prepareWorldCupAiTokenFallback,
+  WORLD_CUP_AI_TOKEN_RULES,
+  type WorldCupAiTokenAccess,
+} from "@/lib/world-cup/worldCupAiTokenFallback"
 import { checkWorldCupChimmyRateLimit } from "@/lib/world-cup/worldCupChimmyRateLimit"
 import { getWcUpgradeMessage, resolveWcCapTier } from "@/lib/world-cup/worldCupAiUsageLimits"
 import { tryDeterministicWorldCupChimmyReply } from "@/lib/world-cup/worldCupChimmyReplyPolicy"
@@ -94,6 +102,13 @@ const preferencePatchSchema = z.object({
 const postSchema = z.object({
   action: z.enum(["send_message", "chimmy_private"]).optional(),
   body: z.string().trim().min(1).max(MAX_BODY_CHARS),
+  /**
+   * Set to true when the user has explicitly confirmed a token spend for a
+   * Chimmy LLM coaching answer. Without this flag, non-subscribed users receive
+   * a 409 token_confirmation_required response so the UI can show a cost preview.
+   * Deterministic and cached answers ignore this flag — they are always free.
+   */
+  confirmedTokenSpend: z.boolean().optional().default(false),
   gif: z.object({
     id: z.string().trim().min(1).max(120),
     title: z.string().trim().max(160).optional().default("GIF"),
@@ -424,6 +439,9 @@ function serializeChatMessage(row: RawWorldCupChatEvent, requesterUserId: string
   const dataSourceTier = typeof metadata.dataSourceTier === "string" ? metadata.dataSourceTier : null
   const dataSourceDisplay = typeof metadata.dataSourceDisplay === "string" ? metadata.dataSourceDisplay : null
 
+  // Billing transparency hint — only set on AI/Chimmy messages
+  const billingHint = typeof metadata.billingDisplayHint === "string" ? metadata.billingDisplayHint : null
+
   return {
     id: row.id,
     challengeId: row.challengeId,
@@ -443,6 +461,7 @@ function serializeChatMessage(row: RawWorldCupChatEvent, requesterUserId: string
     isPrivate: visibility === "private_to_user",
     dataSourceTier,
     dataSourceDisplay,
+    billingHint,
   }
 }
 
@@ -906,6 +925,14 @@ async function createPrivateChimmyResponse(input: {
   context?: WorldCupChimmyContext | null
   userRole?: WorldCupChimmyContext["userRole"]
   deterministicOnly?: boolean
+  /** Subscription plan for billing decision — "pro" for subscribed users, null for free. */
+  entitlements?: { plan?: string | null }
+  /**
+   * Callback to commit a token spend after a successful validated LLM response.
+   * Null for subscription-covered and deterministic paths. If provided and the spend
+   * fails after a valid LLM response, throws ChimmyTokenSpendFailedError.
+   */
+  commitTokenSpend?: (() => Promise<unknown>) | null
 }) {
   // Build rich context and challenge summary in parallel — neither is blocking.
   const [challenge, context] = await Promise.all([
@@ -928,6 +955,8 @@ async function createPrivateChimmyResponse(input: {
     context,
     userRole: input.userRole,
     deterministicOnly: input.deterministicOnly,
+    entitlements: input.entitlements,
+    commitTokenSpend: input.commitTokenSpend ?? null,
   })
 
   const response = await (prisma as any).worldCupBracketChatEvent.create({
@@ -953,6 +982,10 @@ async function createPrivateChimmyResponse(input: {
         /** Freshness chip — read by the UI to show "Pool data" / "Live" / "Cached" badge */
         dataSourceTier: ai.sourceFreshness?.tier ?? "pool_only",
         dataSourceDisplay: ai.sourceFreshness?.shortDisplay ?? "Pool data",
+        /** Token billing decision — surfaced in the UI bubble for transparency */
+        billingReason: ai.billingDecision.reason,
+        billingDisplayHint: ai.billingDecision.displayHint,
+        shouldChargeToken: ai.billingDecision.shouldChargeToken,
         authorName: "Chimmy",
         source: "world_cup_pool_chat",
       },
@@ -1090,6 +1123,10 @@ export async function POST(
   const chimmyUserRole: WorldCupChimmyContext["userRole"] =
     access.isAdmin ? "admin" : access.challenge ? "commissioner" : "participant"
   let deterministicOnlyChimmy = false
+  // Token access resolved in the hasChimmy block; used when calling createPrivateChimmyResponse.
+  let chimmyTokenAccess: WorldCupAiTokenAccess | null = null
+  // Whether this user has subscription AI entitlement (for billing hint in audit log).
+  let chimmyHasAi = false
 
   if (hasGlobal) {
     const manager = await assertWorldCupManager(request, params.data.challengeId, auth.user)
@@ -1126,19 +1163,36 @@ export async function POST(
     if (deterministicPreview) {
       deterministicOnlyChimmy = true
     }
-    const hasAi = deterministicOnlyChimmy ? false : await userHasBracketBrainAi(auth.user.id, auth.user.email ?? null)
-    if (!hasAi && !access.isAdmin) {
-      if (!deterministicPreview) {
-        return NextResponse.json({
-          error: "@chimmy premium analysis requires AI/Pro.",
-          code: "WORLD_CUP_CHIMMY_LOCKED",
-          upgrade: true,
-          upgradePath: "/pricing?from=wc-chimmy",
-          private: true,
-        }, { status: 402 })
-      }
-    }
+
+    // Check subscription entitlement — only needed for the LLM path.
+    const hasAi = deterministicOnlyChimmy
+      ? false
+      : await userHasBracketBrainAi(auth.user.id, auth.user.email ?? null)
+    chimmyHasAi = hasAi
+
     if (!deterministicOnlyChimmy) {
+      // ── Token access gate ───────────────────────────────────────────────────
+      // Subscribed users and platform admins: token check is bypassed (entitled = true).
+      // Free users: must either confirm a 1-token spend or receive a 409 preview first.
+      // Deterministic answers always bypass this block — they are never charged.
+      const entitled = hasAi || access.isAdmin
+      chimmyTokenAccess = await prepareWorldCupAiTokenFallback({
+        userId: auth.user.id,
+        userEmail: auth.user.email ?? null,
+        entitled,
+        ruleCode: WORLD_CUP_AI_TOKEN_RULES.chimmyCoaching,
+        confirmTokenSpend: parsed.data.confirmedTokenSpend ?? false,
+        sourceType: "world_cup_chimmy_coaching",
+        sourceId: params.data.challengeId,
+        idempotencyKey: `chimmy-coaching:${auth.user.id}:${randomUUID()}`,
+        description: "World Cup Chimmy AI coaching answer",
+        metadata: { challengeId: params.data.challengeId },
+        upgradePath: "/pricing?from=wc-chimmy",
+      })
+      if (!chimmyTokenAccess.ok) {
+        return chimmyTokenAccess.response
+      }
+
       // Per-user per-UTC-day cost control. Tier-aware: admin 75/day, pro 30/day.
       const chimmyTier = resolveWcCapTier({ isAdmin: access.isAdmin, hasPro: hasAi })
       const rateLimit = await checkWorldCupChimmyRateLimit(auth.user.id, new Date(), chimmyTier)
@@ -1229,16 +1283,49 @@ export async function POST(
   const message = serializeChatMessage(created, auth.user.id)
   let chimmyResponseMessage: ReturnType<typeof serializeChatMessage> | null = null
   if (hasChimmy) {
-    const response = await createPrivateChimmyResponse({
-      challengeId: params.data.challengeId,
-      userId: auth.user.id,
-      prompt: body,
-      promptMessage: created,
-      locale: chimmyLocale,
-      context: chimmyContext,
-      userRole: chimmyUserRole,
-      deterministicOnly: deterministicOnlyChimmy,
-    })
+    // Derive billing entitlements from the subscription check above.
+    // "pro" is used as the plan signal for all subscribed users — the billing decision
+    // only needs to know paid vs unpaid, not the exact plan tier.
+    const chimmyEntitlements = chimmyHasAi || access.isAdmin
+      ? { plan: "pro" as const }
+      : undefined
+
+    // commitTokenSpend is non-null only for the token-path (non-subscribed + confirmed).
+    // For subscription users and deterministic paths it is null — safe to pass always.
+    const commitTokenSpend = chimmyTokenAccess?.ok
+      ? chimmyTokenAccess.commitTokenSpend
+      : null
+
+    let response: RawWorldCupChatEvent
+    try {
+      response = await createPrivateChimmyResponse({
+        challengeId: params.data.challengeId,
+        userId: auth.user.id,
+        prompt: body,
+        promptMessage: created,
+        locale: chimmyLocale,
+        context: chimmyContext,
+        userRole: chimmyUserRole,
+        deterministicOnly: deterministicOnlyChimmy,
+        entitlements: chimmyEntitlements,
+        commitTokenSpend,
+      })
+    } catch (err) {
+      if (err instanceof ChimmyTokenSpendFailedError) {
+        // The LLM ran and passed validation, but token deduction failed.
+        // Do not return the AI message — the user should retry once their balance
+        // issue is resolved. The audit log already has tokenChargeStatus=spend_failed.
+        return NextResponse.json(
+          {
+            error: "Your Chimmy answer was generated but the token could not be deducted. Please check your balance and try again.",
+            code: err.code,
+            promptMessageId: created.id,
+          },
+          { status: 402 }
+        )
+      }
+      throw err
+    }
     chimmyResponseMessage = serializeChatMessage(response, auth.user.id)
   }
   if (!hasChimmy && resolvedMentions.length > 0) {
