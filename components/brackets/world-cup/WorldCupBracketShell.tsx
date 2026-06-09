@@ -121,6 +121,7 @@ import WorldCupReadinessPanel from "./WorldCupReadinessPanel"
 import WorldCupPoolCountdownBanner from "./WorldCupPoolCountdownBanner"
 import type { WorldCupCountdownFirstMatch } from "./WorldCupPoolCountdownBanner"
 import { ChimmyFreshnessChip } from "./ChimmyFreshnessChip"
+import WorldCupAiInsightsCTA from "./WorldCupAiInsightsCTA"
 type Tab = WorldCupBracketTab
 type WorldCupPoolChatMessage = {
   id: string
@@ -802,6 +803,9 @@ export default function WorldCupBracketShell({
   const knockoutScrollRef = useRef<HTMLDivElement | null>(null)
   const guidedAutoOpenedRef = useRef(false)
   const latestViewRef = useRef(normalizedInitialView)
+
+  // Pending Chimmy prompt — set by WorldCupAiInsightsCTA, consumed by WorldCupCommunityFoundationPanel
+  const [pendingChimmyPrompt, setPendingChimmyPrompt] = useState<string | null>(null)
 
   const challengeId = view.challenge.id
   const isKnockoutOnlyPool = view.challenge.knockoutMode === "knockout_only"
@@ -3702,48 +3706,19 @@ export default function WorldCupBracketShell({
               />
             </section>
 
-            {/* AI features teaser — always visible so users discover Chimmy + Explain My Bracket */}
+            {/* AI Insights CTA — entitlement-aware action chips */}
             <section
               data-testid="world-cup-ai-features-teaser"
               className="mx-auto max-w-5xl px-2 sm:px-0"
             >
-              <div className="rounded-2xl border border-cyan-300/20 bg-gradient-to-br from-cyan-300/[0.06] to-indigo-400/[0.04] p-4 sm:p-5">
-                <div className="flex items-start gap-3">
-                  <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-white/65" aria-hidden />
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-black text-white">{t("wc.home.ai.title")}</h3>
-                    {aiInsightsUnlocked ? (
-                      <ul className="mt-2 space-y-1.5">
-                        <li className="flex items-start gap-2 text-xs text-white/65">
-                          <MessageSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/50" aria-hidden />
-                          {t("wc.home.ai.chimmyHint")}
-                        </li>
-                        <li className="flex items-start gap-2 text-xs text-white/65">
-                          <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-300/60" aria-hidden />
-                          <button
-                            type="button"
-                            onClick={() => switchTab("review")}
-                            className="text-left text-white/65 underline-offset-2 hover:underline"
-                          >
-                            {t("wc.home.ai.explainHint")}
-                          </button>
-                        </li>
-                      </ul>
-                    ) : (
-                      <div className="mt-1.5">
-                        <p className="text-xs text-white/50">{t("wc.home.ai.unlockHint")}</p>
-                        <Link
-                          href="/pricing?from=wc-ai-teaser"
-                          className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-cyan-400 to-cyan-300 px-4 py-1.5 text-[11px] font-black text-black shadow-[0_2px_10px_-4px_rgba(34,211,238,0.5)] transition-transform hover:scale-[1.02] active:scale-[0.98]"
-                        >
-                          <Zap className="h-3 w-3" aria-hidden />
-                          Upgrade to AF Pro
-                        </Link>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+              <WorldCupAiInsightsCTA
+                challengeId={challengeId}
+                entitlementSummary={entitlementSummary}
+                selectedEntryId={selectedEntryId ?? null}
+                selectedEntryName={selectedEntry?.name ?? null}
+                onOpenChimmyWithPrompt={(prompt) => setPendingChimmyPrompt(prompt)}
+                onSwitchToReviewTab={() => switchTab("review")}
+              />
             </section>
 
             {/* ── Commissioner Quick Panel ──────────────────────────────────────── */}
@@ -4806,6 +4781,8 @@ export default function WorldCupBracketShell({
         challengeId={challengeId}
         entitlementSummary={entitlementSummary}
         canBroadcastAll={Boolean(view.isOwner || view.isAdmin)}
+        pendingChimmyPrompt={pendingChimmyPrompt}
+        onPendingChimmyPromptConsumed={() => setPendingChimmyPrompt(null)}
         promptAvailability={{
           hasLeaderboard: view.leaderboard.length > 0,
           hasUserEntry: Boolean(selectedEntry),
@@ -5462,11 +5439,15 @@ function WorldCupCommunityFoundationPanel({
   entitlementSummary,
   canBroadcastAll,
   promptAvailability,
+  pendingChimmyPrompt,
+  onPendingChimmyPromptConsumed,
 }: {
   challengeId: string
   entitlementSummary: ReturnType<typeof resolveWorldCupEntitlementSummary>
   canBroadcastAll?: boolean
   promptAvailability?: WorldCupChimmyPromptAvailability
+  pendingChimmyPrompt?: string | null
+  onPendingChimmyPromptConsumed?: () => void
 }) {
   const commissionerUnlocked = entitlementSummary.commissioner
   const aiUnlocked = entitlementSummary.ai
@@ -5517,6 +5498,16 @@ function WorldCupCommunityFoundationPanel({
   const richPreviewSegments = useMemo(() => parseWorldCupChatRichText(chatBody), [chatBody])
   const [chatMode, setChatMode] = useState<WorldCupChatMode>("pool")
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false)
+
+  // Open chat drawer with pre-filled AI prompt when a CTA fires from WorldCupAiInsightsCTA
+  useEffect(() => {
+    if (!pendingChimmyPrompt) return
+    setChatMode("ai")
+    setChatBody(pendingChimmyPrompt)
+    setChatDrawerOpen(true)
+    onPendingChimmyPromptConsumed?.()
+  }, [pendingChimmyPrompt, onPendingChimmyPromptConsumed])
+
   const isChimmyPrompt = chatMode === "ai" || /(^|[\s*_~\]])@chimmy\b/i.test(chatBody)
   const chatModeOptions: Array<{ mode: WorldCupChatMode; label: string; icon: typeof MessageSquare }> = [
     { mode: "ai", label: tChat("wc.chat.mode.ai"), icon: Bot },

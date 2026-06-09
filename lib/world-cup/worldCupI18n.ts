@@ -295,6 +295,34 @@ const EN: WorldCupDictionary = {
   "wc.home.ai.explainHint": "Go to the Review tab to get an AI explanation of your bracket strategy.",
   "wc.home.ai.unlockHint": "Upgrade to AF Pro to unlock Chimmy AI and Explain My Bracket.",
 
+  // ── AI Insights CTA panel ──────────────────────────────────────────────────
+  "wc.cta.panelTitle": "AI Insights",
+  "wc.cta.aiRowLabel": "AI / Pro",
+  "wc.cta.commissionerRowLabel": "Commissioner",
+  // AI tier CTAs
+  "wc.cta.askChimmy": "Ask Chimmy",
+  "wc.cta.askChimmyDesc": "Open Chimmy with a bracket question",
+  "wc.cta.askChimmyPrompt": "What should I know about my bracket picks?",
+  "wc.cta.pathToFirst": "Path to First",
+  "wc.cta.pathToFirstDesc": "Ask Chimmy what your bracket needs to climb to first",
+  "wc.cta.pathToFirstPrompt": "What does my bracket {{name}} need to climb to first place in this pool?",
+  "wc.cta.pathToFirstPromptGeneric": "What does my bracket need to climb to first place in this pool?",
+  "wc.cta.explainBracket": "Explain My Bracket",
+  "wc.cta.explainBracketDesc": "Get an AI explanation of your bracket strategy",
+  // Commissioner tier CTAs
+  "wc.cta.rootingGuide": "Rooting Guide",
+  "wc.cta.rootingGuideDesc": "Generate a rooting guide for this entry",
+  "wc.cta.poolSwing": "Pool Swing",
+  "wc.cta.poolSwingDesc": "Find the biggest upcoming leaderboard swing",
+  "wc.cta.championRisk": "Champion Risk",
+  "wc.cta.championRiskDesc": "Analyze champion pick risk across the pool",
+  "wc.cta.commissionerRecap": "Commissioner Recap",
+  "wc.cta.commissionerRecapDesc": "Generate an AI pool recap (preview before posting)",
+  "wc.cta.postHype": "Post Hype",
+  "wc.cta.postHypeDesc": "Post a hype message to pool chat",
+  "wc.cta.findIncomplete": "Incomplete Picks",
+  "wc.cta.findIncompleteDesc": "Find entries that are most at risk of missing picks",
+
   // ── Pool Chat community panel (Goal 9) ───────────────────────────────
   "wc.chat.hero.title": "Pool Chat",
   "wc.chat.hero.subtitle": "Talk strategy, call your shots, and keep the pool alive.",
