@@ -19,9 +19,58 @@
 import "server-only"
 import { prisma } from "@/lib/prisma"
 import { routeTextCall } from "@/lib/ai/providerRouter"
+import { applyValidationPipeline } from "@/lib/ai/responseValidator"
+import {
+  buildFreshnessLabel,
+  type AIGroundingContract,
+} from "@/lib/ai/aiGroundingContract"
+import type { UserRole } from "@/lib/ai/engine/types"
+import { logAiInteraction } from "@/lib/ai/auditLogger"
 import { getWorldCupSeedStrength } from "./worldCupAiInsights"
 import { WORLD_CUP_ROUND_LABELS, type WorldCupRound } from "./types"
 import { getAiLanguageInstruction } from "./worldCupI18n"
+
+// ─── Grounding contract for bracket explanation ───────────────────────────────
+// Bracket explanation uses only the user's own picks + the challenge name.
+// liveScores: null → any invented score claim is BLOCKED.
+// oddsData:   null → any odds/favorite claim is WARNED.
+function buildExplainContract(opts: { poolName: string; locale?: string | null }): AIGroundingContract {
+  const freshness = buildFreshnessLabel("pool_only", null)
+  return {
+    contractVersion: "af-contract-v1",
+    sport: "world_cup",
+    feature: "bracket_explanation",
+    userRole: "member" as UserRole,
+    plan: "pro",
+    locale: opts.locale ?? null,
+    sourceFreshness: freshness,
+    poolContext: {
+      poolId: "explain",
+      poolName: opts.poolName,
+      totalEntries: 0,
+      sport: "world_cup",
+      format: "bracket",
+      currentPhase: "active",
+      prizePool: null,
+    },
+    scoringContext: null,
+    userPicks: null,
+    leaderboard: null,
+    providerFixtures: null,
+    liveScores: null,
+    oddsData: null,
+    computedInsights: {},
+    missingData: [
+      "live match scores (live feed not loaded — do not guess any score)",
+      "odds, spreads, and betting favorites (not loaded — do not mention)",
+    ],
+    allowedClaims: ["user's own bracket picks (teams, rounds, champion selection)"],
+    forbiddenClaims: [
+      "any live match score or current result",
+      "team favorite status or any odds/spread",
+    ],
+  }
+}
 
 export type WorldCupBracketExplanationResult =
   | {
@@ -246,6 +295,17 @@ export async function generateWorldCupBracketExplanation(
 
   if (!result.ok) {
     // Graceful deterministic fallback. Never reveal provider error details.
+    logAiInteraction({
+      userId,
+      sport: "world_cup",
+      feature: "bracket_explanation",
+      route: "/api/brackets/world-cup/[challengeId]/entries/[entryId]/explain",
+      plan: "pro",
+      freshnessTier: "pool_only",
+      promptIntent: "bracket_explain",
+      validatorResult: "unavailable",
+      wasDeterministic: false,
+    })
     const fallback = buildDeterministicExplanation({
       entryName: entry.name,
       championName,
@@ -260,8 +320,31 @@ export async function generateWorldCupBracketExplanation(
     }
   }
 
+  // Validate: ensure no live score invention or ungrounded odds claims slip through.
+  const contract = buildExplainContract({
+    poolName: entry.challenge.name,
+    locale: input.locale,
+  })
+  const validated = applyValidationPipeline(result.text, contract)
+
+  // Fire-and-forget audit log.
+  logAiInteraction({
+    userId,
+    sport: "world_cup",
+    feature: "bracket_explanation",
+    route: "/api/brackets/world-cup/[challengeId]/entries/[entryId]/explain",
+    plan: "pro",
+    providerSource: result.provider,
+    freshnessTier: "pool_only",
+    promptIntent: "bracket_explain",
+    validatorResult: "clean",
+    modelUsed: result.model,
+    tokenCost: result.tokensUsed,
+    wasDeterministic: false,
+  })
+
   // Parse and sanitize AI output.
-  const rawLines = result.text
+  const rawLines = validated
     .split(/\n+/)
     .map(sanitizeLine)
     .filter((l) => l.length > 0)

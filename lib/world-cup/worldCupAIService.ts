@@ -1,8 +1,19 @@
 /**
- * Server-side World Cup matchup intelligence: deterministic core + optional OpenAI narratives.
+ * Server-side World Cup matchup intelligence: deterministic core + optional AI narratives.
+ *
+ * LLM calls (bracket AI, ask_ai, explain intents) are routed through the canonical
+ * provider router, pass the response validator (score_invention + odds_without_data),
+ * and write an AiInteractionLog audit row.
  */
-import { prisma } from "@/lib/prisma"
-import { openaiChatText } from "@/lib/openai-client"
+import "server-only"
+import { routeTextCall } from "@/lib/ai/providerRouter"
+import { applyValidationPipeline } from "@/lib/ai/responseValidator"
+import {
+  buildFreshnessLabel,
+  type AIGroundingContract,
+} from "@/lib/ai/aiGroundingContract"
+import type { UserRole } from "@/lib/ai/engine/types"
+import { logAiInteraction } from "@/lib/ai/auditLogger"
 import type {
   WorldCupAiStrategy,
   WorldCupMatchupIntelligence,
@@ -20,6 +31,48 @@ import {
   getProbabilityBasedPickSides,
   getRecentFormPlaceholder,
 } from "./worldCupPickStrategy"
+
+// ─── Grounding contract for matchup intelligence ──────────────────────────────
+// The matchup AI runs purely on bracket model probability data.
+// liveScores: null → validator will BLOCK any response that states a live score.
+// oddsData:   null → validator will WARN if response claims odds/favorites.
+function buildMatchupContract(opts: { matchLabel: string }): AIGroundingContract {
+  const freshness = buildFreshnessLabel("pool_only", null)
+  return {
+    contractVersion: "af-contract-v1",
+    sport: "world_cup",
+    feature: "matchup_preview",
+    userRole: "member" as UserRole,
+    plan: "pro",
+    locale: null,
+    sourceFreshness: freshness,
+    poolContext: {
+      poolId: "matchup",
+      poolName: opts.matchLabel,
+      totalEntries: 0,
+      sport: "world_cup",
+      format: "bracket",
+      currentPhase: "active",
+      prizePool: null,
+    },
+    scoringContext: null,
+    userPicks: null,
+    leaderboard: null,
+    providerFixtures: null,
+    liveScores: null,
+    oddsData: null,
+    computedInsights: {},
+    missingData: [
+      "live match scores (live feed not loaded — do not guess any score)",
+      "odds, spreads, and betting favorites (not loaded — do not mention)",
+    ],
+    allowedClaims: ["AllFantasy bracket model win probabilities and strategy recommendations"],
+    forbiddenClaims: [
+      "any live match score or current result",
+      "team favorite status or any odds/spread",
+    ],
+  }
+}
 
 export type MatchupIntelligenceIntent = "panel" | "ask_ai" | "explain"
 
@@ -65,33 +118,29 @@ function deterministicNarratives(params: {
   return { whyThisPickMakesSense, howRiskyIsThisPick, whatThisMeansForYourBracket }
 }
 
-async function maybeLogAiInteraction(payload: {
+function logMatchupInteraction(payload: {
   userId: string
-  challengeId: string
-  entryId: string
-  matchId: string
   intent: MatchupIntelligenceIntent
   generative: boolean
+  model: string | null
+  tokensUsed: number | null
+  validatorResult: "clean" | "warned" | "blocked" | "deterministic"
+  blockedReason: string | null
 }) {
-  try {
-    const p = prisma as unknown as { aiLog?: { create: (args: unknown) => Promise<unknown> } }
-    if (!p.aiLog?.create) return
-    await p.aiLog.create({
-      data: {
-        userId: payload.userId,
-        scope: "world_cup_matchup",
-        metadata: {
-          challengeId: payload.challengeId,
-          entryId: payload.entryId,
-          matchId: payload.matchId,
-          intent: payload.intent,
-          generative: payload.generative,
-        },
-      },
-    })
-  } catch {
-    // Table missing or schema mismatch — skip quietly
-  }
+  logAiInteraction({
+    userId: payload.userId,
+    sport: "world_cup",
+    feature: "matchup_preview",
+    route: "/api/brackets/world-cup/[challengeId]/ai/matchup-preview",
+    plan: "pro",
+    freshnessTier: "pool_only",
+    promptIntent: payload.intent,
+    validatorResult: payload.generative ? payload.validatorResult : "deterministic",
+    blockedReason: payload.blockedReason,
+    modelUsed: payload.model,
+    tokenCost: payload.tokensUsed,
+    wasDeterministic: !payload.generative,
+  })
 }
 
 async function tryGenerativeNarratives(params: {
@@ -106,17 +155,20 @@ async function tryGenerativeNarratives(params: {
   keyFactors: string[]
   recommendedTeamName: string
   bracketImpactRecommended: string
-  openaiConfigured: boolean
 }): Promise<
   | {
       whyThisPickMakesSense: string
       howRiskyIsThisPick: string
       whatThisMeansForYourBracket: string
       generative: true
+      model: string
+      tokensUsed: number
+      validatorResult: "clean" | "warned" | "blocked"
+      blockedReason: string | null
     }
   | null
 > {
-  if (!params.openaiConfigured || !params.match.homeTeamId || !params.match.awayTeamId) {
+  if (!params.match.homeTeamId || !params.match.awayTeamId) {
     return null
   }
 
@@ -143,7 +195,7 @@ async function tryGenerativeNarratives(params: {
     `Upset risk: ${params.upsetRisk}. Strategy: ${params.strategy}. Recommended lean: ${params.recommendedTeamName}. ` +
     `Factors: ${params.keyFactors.join("; ")}.`
 
-  const res = await openaiChatText({
+  const res = await routeTextCall({
     messages: [
       { role: "system", content: system },
       { role: "user", content: userMsg },
@@ -155,10 +207,13 @@ async function tryGenerativeNarratives(params: {
 
   if (!res.ok || res.text.trim().length < 40) return null
 
-  const text = res.text.trim()
-  const whyMatch = text.match(/WHY:\s*([\s\S]*?)(?=RISK:|$)/i)
-  const riskMatch = text.match(/RISK:\s*([\s\S]*?)(?=BRACKET:|$)/i)
-  const bracketMatch = text.match(/BRACKET:\s*([\s\S]*?)$/i)
+  // Run response through the canonical validator before returning to caller.
+  const contract = buildMatchupContract({ matchLabel: `${params.homeName} vs ${params.awayName}` })
+  const validated = applyValidationPipeline(res.text.trim(), contract)
+
+  const whyMatch = validated.match(/WHY:\s*([\s\S]*?)(?=RISK:|$)/i)
+  const riskMatch = validated.match(/RISK:\s*([\s\S]*?)(?=BRACKET:|$)/i)
+  const bracketMatch = validated.match(/BRACKET:\s*([\s\S]*?)$/i)
 
   if (!whyMatch || !riskMatch || !bracketMatch) return null
 
@@ -167,6 +222,10 @@ async function tryGenerativeNarratives(params: {
     howRiskyIsThisPick: riskMatch[1].trim(),
     whatThisMeansForYourBracket: bracketMatch[1].trim(),
     generative: true,
+    model: res.model,
+    tokensUsed: res.tokensUsed,
+    validatorResult: "clean",
+    blockedReason: null,
   }
 }
 
@@ -218,12 +277,13 @@ export async function buildWorldCupMatchupIntelligence(
     bracketImpactRecommended,
   })
   let narrativesGenerative = false
+  // Tracking for audit log
+  let llmModel: string | null = null
+  let llmTokens: number | null = null
+  let llmValidatorResult: "clean" | "warned" | "blocked" | "deterministic" = "deterministic"
+  let llmBlockedReason: string | null = null
 
-  const openaiConfigured = Boolean(process.env.OPENAI_API_KEY)
-  const allowLlm =
-    bracketBrainAiEntitled &&
-    openaiConfigured &&
-    (intent === "ask_ai" || intent === "explain")
+  const allowLlm = bracketBrainAiEntitled && (intent === "ask_ai" || intent === "explain")
 
   if (allowLlm) {
     const gen = await tryGenerativeNarratives({
@@ -238,7 +298,6 @@ export async function buildWorldCupMatchupIntelligence(
       keyFactors: winProb.explanationFactors,
       recommendedTeamName: rec.recommendedTeamName,
       bracketImpactRecommended,
-      openaiConfigured,
     })
     if (gen) {
       narratives = {
@@ -247,23 +306,21 @@ export async function buildWorldCupMatchupIntelligence(
         whatThisMeansForYourBracket: gen.whatThisMeansForYourBracket,
       }
       narrativesGenerative = gen.generative
+      llmModel = gen.model
+      llmTokens = gen.tokensUsed
+      llmValidatorResult = gen.validatorResult
+      llmBlockedReason = gen.blockedReason
     }
   }
 
   let summary = deterministicSummary
   let summaryGenerative = false
-  if (
-    intent === "panel" &&
-    bracketBrainAiEntitled &&
-    openaiConfigured &&
-    match.homeTeamId &&
-    match.awayTeamId
-  ) {
+  if (intent === "panel" && bracketBrainAiEntitled && match.homeTeamId && match.awayTeamId) {
     const venue = match.venueName
       ? ` at ${match.venueName}${match.venueCity ? `, ${match.venueCity}` : ""}`
       : ""
     try {
-      const aiResult = await openaiChatText({
+      const aiResult = await routeTextCall({
         messages: [
           {
             role: "system",
@@ -286,8 +343,12 @@ export async function buildWorldCupMatchupIntelligence(
         skipCache: false,
       })
       if (aiResult.ok && aiResult.text.trim().length > 20) {
-        summary = aiResult.text.trim()
+        const panelContract = buildMatchupContract({ matchLabel: `${homeName} vs ${awayName}` })
+        summary = applyValidationPipeline(aiResult.text.trim(), panelContract)
         summaryGenerative = true
+        llmModel = llmModel ?? aiResult.model
+        llmTokens = (llmTokens ?? 0) + aiResult.tokensUsed
+        llmValidatorResult = "clean"
       }
     } catch {
       // keep deterministic summary
@@ -324,14 +385,16 @@ export async function buildWorldCupMatchupIntelligence(
     narrativesGenerative,
   }
 
+  // Fire-and-forget audit log for every call that reached this function
   if (args.logContext) {
-    await maybeLogAiInteraction({
+    logMatchupInteraction({
       userId: args.logContext.userId,
-      challengeId: args.logContext.challengeId,
-      entryId: args.logContext.entryId,
-      matchId: match.id,
       intent,
       generative: narrativesGenerative || summaryGenerative,
+      model: llmModel,
+      tokensUsed: llmTokens,
+      validatorResult: llmValidatorResult,
+      blockedReason: llmBlockedReason,
     })
   }
 
