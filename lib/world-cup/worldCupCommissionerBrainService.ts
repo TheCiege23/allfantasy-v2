@@ -22,6 +22,10 @@ import { applyValidationPipeline } from "@/lib/ai/responseValidator"
 import { buildFreshnessLabel, type AIGroundingContract } from "@/lib/ai/aiGroundingContract"
 import { logAiInteraction } from "@/lib/ai/auditLogger"
 import type { UserRole, FeatureKey } from "@/lib/ai/engine/types"
+import {
+  hashGroundingPacket,
+  getOrCreateWcCommissionerInsight,
+} from "@/lib/ai/aiInsightCache"
 
 // Re-export so callers only need one import
 export type { InsightCard } from "./worldCupInsightCards"
@@ -572,9 +576,74 @@ const COMMISSIONER_VALIDATION_CONTRACT: AIGroundingContract = {
 
 async function maybeEnhanceWithOpenAi(
   prompt: string,
-  opts?: { featureHint?: string },
+  opts?: { featureHint?: string; challengeId?: string; kind?: string },
 ): Promise<string | null> {
   try {
+    // ── AiInsightCache: skip LLM if same pool state + same kind was recently generated
+    // groundingHash = sha256 of the deterministic prompt (captures pool state).
+    // When pool data changes → base lines change → new prompt → new hash → cache miss.
+    const groundingHash = hashGroundingPacket({ prompt })
+
+    const cacheResult = opts?.challengeId
+      ? await getOrCreateWcCommissionerInsight(
+          {
+            challengeId: opts.challengeId,
+            kind: opts.kind ?? opts.featureHint ?? "generic",
+            groundingHash,
+          },
+          async () => {
+            const llmResult = await routeTextCall({
+              messages: [
+                {
+                  role: "system",
+                  content:
+                    "You are Chimmy, calm bracket commissioner copywriter. Rewrite only the provided World Cup pool facts. Do not add scores, schedules, match minutes, player stats, injuries, odds, lineups, or standings that are not present in the prompt. If a requested fact is missing, say reliable data is not available yet. Short paragraphs, no hype slang.",
+                },
+                {
+                  role: "user",
+                  content:
+                    "Source: stored AllFantasy pool data only; no external live feed is included in this request.\n\n" +
+                    prompt,
+                },
+              ],
+              profile: "cheap",
+              temperature: 0.4,
+              maxTokens: 400,
+              skipCache: true,
+            })
+            if (!llmResult.ok) return { resultText: null }
+            const rawText = llmResult.text?.trim() ?? null
+            if (!rawText) return { resultText: null }
+            const sanitized = sanitizeRecapLine(rawText)
+            const validated = applyValidationPipeline(sanitized, COMMISSIONER_VALIDATION_CONTRACT)
+            return {
+              resultText: validated,
+              tokensUsed: llmResult.tokensUsed ?? null,
+              provider: llmResult.provider,
+              model: llmResult.model,
+            }
+          }
+        )
+      : null
+
+    if (cacheResult) {
+      // Fire-and-forget audit log (skip token count on cache hits)
+      logAiInteraction({
+        sport: "world_cup",
+        feature: opts?.featureHint ?? "commissioner_brain",
+        route: "/api/brackets/world-cup/[challengeId]/commissioner-brain",
+        plan: "commissioner",
+        providerSource: cacheResult.cacheHit ? "cache" : (cacheResult.provider ?? "unknown"),
+        freshnessTier: "pool_only",
+        validatorResult: "clean",
+        modelUsed: cacheResult.cacheHit ? null : cacheResult.model,
+        tokenCost: cacheResult.cacheHit ? null : cacheResult.tokensUsed,
+        wasDeterministic: false,
+      })
+      return cacheResult.text || null
+    }
+
+    // Fallback: no challengeId supplied — call LLM directly (legacy callers)
     const result = await routeTextCall({
       messages: [
         {
@@ -598,13 +667,9 @@ async function maybeEnhanceWithOpenAi(
     const rawText = result.text?.trim() ?? null
     if (!rawText) return null
 
-    // Primary sanitizer (betting/gambling terms)
     const sanitized = sanitizeRecapLine(rawText)
-
-    // Contract validator: score invention + odds overclaim + PII guards
     const validated = applyValidationPipeline(sanitized, COMMISSIONER_VALIDATION_CONTRACT)
 
-    // Fire-and-forget audit log
     logAiInteraction({
       sport: "world_cup",
       feature: opts?.featureHint ?? "commissioner_brain",
@@ -1112,8 +1177,16 @@ export async function generateAiWrappedLines(
 
   const hint = aiVoiceHint[kind]
   const ai = hint
-    ? await maybeEnhanceWithOpenAi(`${base.join("\n")}\n\n${hint}`)
-    : await maybeEnhanceWithOpenAi(base.join("\n"))
+    ? await maybeEnhanceWithOpenAi(`${base.join("\n")}\n\n${hint}`, {
+        featureHint: "commissioner_brain",
+        challengeId,
+        kind,
+      })
+    : await maybeEnhanceWithOpenAi(base.join("\n"), {
+        featureHint: "commissioner_brain",
+        challengeId,
+        kind,
+      })
 
   return ai ? [ai] : base
 }
@@ -1143,7 +1216,11 @@ export async function generateInsightCard(
         `Max leaderboard points at risk: ${card.maxPointsAtRisk}. Chaos rating: ${card.chaosRating}/10.`,
         `Voice: sharp analyst, 1-2 sentences. Do NOT invent scores, odds, or facts not listed here.`,
       ].join(" ")
-      const ai = await maybeEnhanceWithOpenAi(prompt)
+      const ai = await maybeEnhanceWithOpenAi(prompt, {
+        featureHint: "commissioner_insight_pool_swing",
+        challengeId,
+        kind: "pool_swing",
+      })
       return { ...card, aiNarrative: ai }
     }
 
@@ -1161,7 +1238,11 @@ export async function generateInsightCard(
         `Points at risk: ${card.pointsAtRisk}. ${abovePhrase}`,
         `Voice: 1 sentence, clear stakes, no invented scores or odds.`,
       ].join(" ")
-      const ai = await maybeEnhanceWithOpenAi(prompt)
+      const ai = await maybeEnhanceWithOpenAi(prompt, {
+        featureHint: "commissioner_insight_rooting_guide",
+        challengeId,
+        kind: "rooting_guide",
+      })
       return { ...card, aiNarrative: ai }
     }
 
@@ -1178,7 +1259,11 @@ export async function generateInsightCard(
         altPhrase,
         `Voice: 1 sentence, analyst take on the pool's risk profile. No invented results.`,
       ].filter(Boolean).join(" ")
-      const ai = await maybeEnhanceWithOpenAi(prompt)
+      const ai = await maybeEnhanceWithOpenAi(prompt, {
+        featureHint: "commissioner_insight_champion_risk",
+        challengeId,
+        kind: "champion_risk",
+      })
       return { ...card, aiNarrative: ai }
     }
 
@@ -1209,7 +1294,11 @@ export async function generateInsightCard(
         `Current leader: ${card.leaderName ?? "TBD"} at ${card.leaderScore} pts. ${card.totalEntries} entries total.`,
         `Write a short, energetic commissioner message ready to post to the group chat. Use names. Under 3 sentences. No invented facts.`,
       )
-      const ai = await maybeEnhanceWithOpenAi(lines.join("\n"))
+      const ai = await maybeEnhanceWithOpenAi(lines.join("\n"), {
+        featureHint: "commissioner_insight_recap",
+        challengeId,
+        kind: "commissioner_recap",
+      })
       return { ...card, suggestedPost: ai }
     }
   }

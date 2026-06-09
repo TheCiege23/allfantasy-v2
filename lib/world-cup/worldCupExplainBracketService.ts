@@ -29,6 +29,10 @@ import { logAiInteraction } from "@/lib/ai/auditLogger"
 import { getWorldCupSeedStrength } from "./worldCupAiInsights"
 import { WORLD_CUP_ROUND_LABELS, type WorldCupRound } from "./types"
 import { getAiLanguageInstruction } from "./worldCupI18n"
+import {
+  hashGroundingPacket,
+  getOrCreateWcExplainBracketInsight,
+} from "@/lib/ai/aiInsightCache"
 
 // ─── Grounding contract for bracket explanation ───────────────────────────────
 // Bracket explanation uses only the user's own picks + the challenge name.
@@ -284,17 +288,57 @@ export async function generateWorldCupBracketExplanation(
     knockoutContext || "(none)",
   ].join("\n")
 
-  const result = await routeTextCall({
-    messages: [
-      { role: "system", content: buildSystemPrompt(input.locale) },
-      { role: "user", content: userPrompt },
-    ],
-    temperature: 0.5,
-    maxTokens: 600,
+  // ── AiInsightCache: check before calling the LLM ─────────────────────────
+  // groundingHash covers pick state — if the user changes a pick, the hash
+  // changes → cache miss → fresh narrative generated.
+  const groundingHash = hashGroundingPacket({
+    champion: championName ?? null,
+    pickCount: entry.picks.length,
+    entryName: entry.name,
+    challengeName: entry.challenge.name,
+    seasonYear: entry.challenge.seasonYear,
+    rounds: Object.keys(knockoutPicksByRound).sort().join(","),
   })
 
-  if (!result.ok) {
-    // Graceful deterministic fallback. Never reveal provider error details.
+  const cacheResult = await getOrCreateWcExplainBracketInsight(
+    {
+      userId,
+      entryId,
+      groundingHash,
+      locale: input.locale,
+    },
+    async () => {
+      const llmResult = await routeTextCall({
+        messages: [
+          { role: "system", content: buildSystemPrompt(input.locale) },
+          { role: "user", content: userPrompt },
+        ],
+        temperature: 0.5,
+        maxTokens: 600,
+      })
+
+      if (!llmResult.ok) {
+        return { resultText: null }
+      }
+
+      // Validate before caching — only validated text is stored
+      const contract = buildExplainContract({
+        poolName: entry.challenge.name,
+        locale: input.locale,
+      })
+      const validated = applyValidationPipeline(llmResult.text, contract)
+
+      return {
+        resultText: validated,
+        tokensUsed: llmResult.tokensUsed ?? null,
+        provider: llmResult.provider,
+        model: llmResult.model,
+      }
+    }
+  )
+
+  if (!cacheResult.text) {
+    // LLM was unavailable — serve deterministic fallback
     logAiInteraction({
       userId,
       sport: "world_cup",
@@ -320,31 +364,24 @@ export async function generateWorldCupBracketExplanation(
     }
   }
 
-  // Validate: ensure no live score invention or ungrounded odds claims slip through.
-  const contract = buildExplainContract({
-    poolName: entry.challenge.name,
-    locale: input.locale,
-  })
-  const validated = applyValidationPipeline(result.text, contract)
-
-  // Fire-and-forget audit log.
+  // Fire-and-forget audit log — skip token count on cache hits
   logAiInteraction({
     userId,
     sport: "world_cup",
     feature: "bracket_explanation",
     route: "/api/brackets/world-cup/[challengeId]/entries/[entryId]/explain",
     plan: "pro",
-    providerSource: result.provider,
+    providerSource: cacheResult.cacheHit ? "cache" : (cacheResult.provider ?? "unknown"),
     freshnessTier: "pool_only",
     promptIntent: "bracket_explain",
     validatorResult: "clean",
-    modelUsed: result.model,
-    tokenCost: result.tokensUsed,
+    modelUsed: cacheResult.cacheHit ? null : cacheResult.model,
+    tokenCost: cacheResult.cacheHit ? null : cacheResult.tokensUsed,
     wasDeterministic: false,
   })
 
   // Parse and sanitize AI output.
-  const rawLines = validated
+  const rawLines = cacheResult.text
     .split(/\n+/)
     .map(sanitizeLine)
     .filter((l) => l.length > 0)
@@ -359,6 +396,8 @@ export async function generateWorldCupBracketExplanation(
     ok: true,
     summary,
     lines: rawLines.slice(0, MAX_LINES),
-    generative: true,
+    // generative=false on cache hit (no LLM call) — route uses this to decide
+    // whether to increment the daily cap and charge tokens
+    generative: !cacheResult.cacheHit,
   }
 }

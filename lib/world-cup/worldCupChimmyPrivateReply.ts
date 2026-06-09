@@ -8,6 +8,8 @@ import {
   serializeChimmyGroundingPacket,
 } from "@/lib/ai/chimmyGroundingPacket"
 import {
+  buildAllowedClaims,
+  buildForbiddenClaims,
   buildFreshnessLabel,
   buildMissingDataList,
   type AIGroundingContract,
@@ -25,18 +27,154 @@ import {
 } from "./worldCupChimmyReplyPolicy"
 import {
   buildWorldCupChimmyGrounding,
+  serializeWorldCupChimmyGrounding,
   type WorldCupChimmyUserRole,
 } from "./worldCupChimmyGroundingService"
+import {
+  hashGroundingPacket,
+  getOrCreateWcChimmyInsight,
+} from "@/lib/ai/aiInsightCache"
 
 const MAX_REPLY_CHARS = 2000
 
 // ─── Minimal validation contract builder ──────────────────────────────────────
-// The private-reply path uses the old grounding packet system (not the WC plugin
-// full pipeline), so we build just enough of the AIGroundingContract to give the
-// responseValidator the fields it actually checks:
-//   liveScores=null  → score_invention rule fires if AI invents a score
-//   oddsData=null    → odds_without_data rule fires if AI references a favorite
-//   plan             → plan_gate_violation rule fires for free users
+// The private-reply path sends ChimmyGroundingPacket to the model, then uses this
+// v1 contract for shared validation. Scores/fixtures/picks are loaded when the
+// World Cup context has them; odds remain null so favorites/spreads stay blocked.
+
+function toFreshnessDate(value: string | null | undefined): Date | null {
+  if (!value) return null
+  const date = new Date(value)
+  return Number.isFinite(date.getTime()) ? date : null
+}
+
+function validatorRole(role: WorldCupChimmyUserRole | null | undefined): UserRole {
+  if (role === "commissioner") return "commissioner"
+  if (role === "admin") return "admin"
+  if (role === "non_member") return "guest"
+  return "owner"
+}
+
+function pickResult(value: boolean | null): "correct" | "incorrect" | "pending" {
+  if (value === true) return "correct"
+  if (value === false) return "incorrect"
+  return "pending"
+}
+
+function buildValidatorFixtures(
+  context: WorldCupChimmyContext | null | undefined
+): AIGroundingContract["providerFixtures"] {
+  if (!context) return null
+  const live = context.liveMatches.map((match) => ({
+    matchId: match.matchId,
+    homeTeam: match.homeTeamName,
+    awayTeam: match.awayTeamName,
+    kickoffUtc: match.startsAt,
+    round: match.round,
+    venue: [match.venueName, match.venueCity].filter(Boolean).join(", ") || null,
+    status: "live" as const,
+  }))
+  const upcoming = context.upcomingMatches.map((match) => ({
+    matchId: match.matchId,
+    homeTeam: match.homeTeamName,
+    awayTeam: match.awayTeamName,
+    kickoffUtc: match.startsAt,
+    round: match.round,
+    venue: [match.venueName, match.venueCity].filter(Boolean).join(", ") || null,
+    status: "scheduled" as const,
+  }))
+  const recent = context.recentMatches.map((match) => ({
+    matchId: match.matchId,
+    homeTeam: match.homeTeamName,
+    awayTeam: match.awayTeamName,
+    kickoffUtc: match.startsAt,
+    round: match.round,
+    venue: [match.venueName, match.venueCity].filter(Boolean).join(", ") || null,
+    status: "final" as const,
+  }))
+  const fixtures = [...live, ...upcoming, ...recent]
+  return fixtures.length ? fixtures : null
+}
+
+function buildValidatorScoreRows(
+  context: WorldCupChimmyContext | null | undefined
+): AIGroundingContract["liveScores"] {
+  if (!context) return null
+  const rows = [...context.liveMatches, ...context.recentMatches]
+    .filter((match) => typeof match.homeScore === "number" && typeof match.awayScore === "number")
+    .map((match) => ({
+      matchId: match.matchId,
+      homeTeam: match.homeTeamName,
+      awayTeam: match.awayTeamName,
+      homeScore: match.homeScore as number,
+      awayScore: match.awayScore as number,
+      minute: match.minute,
+      extraTime: Boolean(match.injuryTime),
+      // responseValidator only checks null vs loaded. The exact score-token
+      // guard later still verifies every score against live/recent matches.
+      status: "live" as const,
+    }))
+  return rows.length ? rows : null
+}
+
+function buildValidatorScoring(
+  context: WorldCupChimmyContext | null | undefined
+): AIGroundingContract["scoringContext"] {
+  if (!context?.scoring) return null
+  return {
+    description: "World Cup bracket pool scoring",
+    pointsByRound: {
+      roundOf32: context.scoring.roundOf32Points,
+      roundOf16: context.scoring.roundOf16Points,
+      quarterFinal: context.scoring.quarterFinalPoints,
+      semiFinal: context.scoring.semiFinalPoints,
+      final: context.scoring.finalPoints,
+      thirdPlace: context.scoring.thirdPlacePoints,
+    },
+    bonusRules: [`Champion bonus: ${context.scoring.championBonusPoints} points`],
+    championMultiplier: null,
+  }
+}
+
+function buildValidatorPicks(
+  context: WorldCupChimmyContext | null | undefined
+): AIGroundingContract["userPicks"] {
+  const entry = context?.entry
+  if (!entry) return null
+  const groupPicks = entry.groupPicks.map((pick) => ({
+    matchId: `group:${pick.groupKey}:${pick.rank}`,
+    matchDescription: `${pick.groupName} rank ${pick.rank}`,
+    pickedTeam: pick.teamName,
+    phase: "group_stage",
+    pointsAtStake: pick.pointsAwarded,
+    result: pickResult(pick.isCorrect),
+  }))
+  const knockoutPicks = entry.knockoutPicks.map((pick, index) => ({
+    matchId: `knockout:${pick.round}:${index}`,
+    matchDescription: `${pick.homeTeamName} vs ${pick.awayTeamName}`,
+    pickedTeam: pick.pickedTeam,
+    phase: pick.round,
+    pointsAtStake: pick.pointsAwarded,
+    result: pickResult(pick.isCorrect),
+  }))
+  const picks = [...groupPicks, ...knockoutPicks]
+  return picks.length ? picks : null
+}
+
+function buildValidatorLeaderboard(
+  context: WorldCupChimmyContext | null | undefined,
+  userId: string
+): AIGroundingContract["leaderboard"] {
+  if (!context?.leaderboard.length) return null
+  return context.leaderboard.map((row) => ({
+    rank: row.rank,
+    displayName: row.entryName,
+    score: row.totalScore,
+    maxPossible: row.maxPossibleScore,
+    isCurrentUser: row.userId === userId,
+    isTied: context.leaderboard.some((other) => other.entryId !== row.entryId && other.rank === row.rank),
+  }))
+}
 
 function buildMinimalChimmyContract(opts: {
   challengeId: string
@@ -44,24 +182,55 @@ function buildMinimalChimmyContract(opts: {
   plan: string
   userRole: WorldCupChimmyUserRole | null | undefined
   locale: string | null | undefined
+  userId: string
 }): AIGroundingContract {
-  const freshness = buildFreshnessLabel("pool_only", null)
+  const providerFixtures = buildValidatorFixtures(opts.context)
+  const liveScores = buildValidatorScoreRows(opts.context)
+  const scoringContext = buildValidatorScoring(opts.context)
+  const userPicks = buildValidatorPicks(opts.context)
+  const leaderboard = buildValidatorLeaderboard(opts.context, opts.userId)
+  const freshnessTier =
+    opts.context?.liveDataStatus === "live" && liveScores
+      ? "live"
+      : liveScores
+        ? "cached"
+        : providerFixtures
+          ? "schedule_only"
+          : "pool_only"
+  const freshness = buildFreshnessLabel(freshnessTier, toFreshnessDate(opts.context?.lastSyncedAt))
   const poolName = opts.context?.poolName ?? "World Cup Pool"
   const totalEntries =
     (opts.context?.entryCount ?? opts.context?.participantCount) ?? 0
   const missingData = buildMissingDataList({
-    liveScores: null,
+    liveScores,
     oddsData: null,
-    providerFixtures: null,
-    scoringContext: null,
-    userPicks: null,
-    leaderboard: null,
+    providerFixtures,
+    scoringContext,
+    userPicks,
+    leaderboard,
   })
+  const computedInsights = {
+    participantCount: opts.context?.participantCount ?? 0,
+    entryCount: opts.context?.entryCount ?? null,
+    finalizedEntryCount: opts.context?.finalizedEntryCount ?? null,
+    userScore: opts.context?.entry?.totalScore ?? null,
+    userMaxPossibleScore: opts.context?.entry?.maxPossibleScore ?? null,
+    userRank: opts.context?.entry?.rank ?? null,
+  }
+  const claimParts = {
+    liveScores,
+    oddsData: null,
+    providerFixtures,
+    scoringContext,
+    userPicks,
+    leaderboard,
+    computedInsights,
+  }
   return {
     contractVersion: "af-contract-v1",
     sport: "world_cup",
     feature: "pool_chat",
-    userRole: (opts.userRole ?? "user") as UserRole,
+    userRole: validatorRole(opts.userRole),
     plan: opts.plan,
     locale: opts.locale ?? null,
     sourceFreshness: freshness,
@@ -74,21 +243,18 @@ function buildMinimalChimmyContract(opts: {
       currentPhase: "active",
       prizePool: null,
     },
-    scoringContext: null,
-    userPicks: null,
-    leaderboard: null,
-    providerFixtures: null,
+    scoringContext,
+    userPicks,
+    leaderboard,
+    providerFixtures,
     /** null = AI MUST NOT state any score */
-    liveScores: null,
+    liveScores,
     /** null = AI MUST NOT reference any favorite or spread */
     oddsData: null,
-    computedInsights: {},
+    computedInsights,
     missingData,
-    allowedClaims: ["AllFantasy pool data, pick distribution, and entry scores"],
-    forbiddenClaims: [
-      "any live match score or current result — live feed not loaded",
-      "team favorite status or any odds/spread — no odds data loaded",
-    ],
+    allowedClaims: buildAllowedClaims(claimParts),
+    forbiddenClaims: buildForbiddenClaims({ liveScores, oddsData: null, plan: opts.plan }),
   }
 }
 
@@ -193,62 +359,124 @@ export async function generateWorldCupChimmyPrivateReply(input: {
       "No tokens should be charged for this unavailable answer.",
     ].join(" ")
   } else {
-    const system = buildWorldCupChimmySystemPrompt(input.locale)
-
-    // Build the unified grounding packet — the ONLY data payload the LLM sees.
-    // It consolidates pool context, bracket state, sports data, allowed claims,
-    // and missing data into one structured object enforced by the system prompt.
-    const packet = buildWcChimmyGroundingPacket({
-      userQuestion: prompt,
-      context: input.context,
-      grounding,
-      entitlements: input.entitlements,
+    // ── LLM path — check AiInsightCache first ─────────────────────────────────
+    //
+    // Cache key: userId × challengeId × normalizedPrompt × groundingHash.
+    // Same user, same pool state, same question → cache hit within TTL.
+    // Pool data changes (new match, leaderboard update) → groundingHash changes
+    // → cache miss → fresh LLM call + validation.
+    //
+    // The onCacheMiss closure MUST still validate the response — cached answers
+    // are post-validation text saved by the first call.
+    const groundingHash = hashGroundingPacket({
+      participantCount: input.context?.participantCount ?? 0,
+      entryCount: input.context?.entryCount ?? null,
+      finalizedEntryCount: input.context?.finalizedEntryCount ?? null,
+      userRank: input.context?.entry?.rank ?? null,
+      userScore: input.context?.entry?.totalScore ?? null,
+      isLocked: input.context?.isLocked ?? false,
+      liveDataStatus: input.context?.liveDataStatus ?? "unavailable",
+      lastSyncedAt: input.context?.lastSyncedAt ?? null,
+      leaderTop3: (input.context?.leaderboard ?? [])
+        .slice(0, 3)
+        .map((r) => ({ id: r.entryId, score: r.totalScore })),
     })
 
-    const userContent = [
-      `--- GROUNDING PACKET ---\n${serializeChimmyGroundingPacket(packet)}\n--- END GROUNDING PACKET ---`,
-      `\nUser question: ${prompt}`,
-    ].join("")
-
-    const result = await routeTextCall({
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: userContent },
-      ],
-      profile: "cheap",
-      temperature: 0.45,
-      maxTokens: 520,
-      skipCache: true,
-    })
-
-    provider = result.ok ? result.provider : "unavailable"
-    model = result.ok ? result.model : "unavailable"
-
-    if (result.ok) {
-      // Sanitize raw text, then run through the contract validator.
-      // The minimal contract sets liveScores=null and oddsData=null,
-      // which catches score invention and odds overclaims before they reach users.
-      const rawText = sanitizeChimmyText(result.text).slice(0, MAX_REPLY_CHARS)
-      const contract = buildMinimalChimmyContract({
+    const cacheResult = await getOrCreateWcChimmyInsight(
+      {
+        userId: input.userId,
         challengeId: input.challengeId,
-        context: input.context,
-        plan: input.entitlements?.plan ?? "free",
-        userRole: input.userRole,
-        locale: input.locale,
-      })
-      const validation = validateAIResponse(rawText, contract)
-      if (validation.blockedByRule) {
-        reply = buildContractFallback(contract, validation.blockedByRule)
-        validatorResult = "blocked"
-        blockedReason = validation.blockedByRule
-      } else {
-        reply = validation.sanitized
-        validatorResult = validation.failures.length > 0 ? "warned" : "clean"
+        promptNormalized: prompt.toLowerCase().trim().slice(0, 400),
+        groundingHash,
+      },
+      async () => {
+        const system = buildWorldCupChimmySystemPrompt(input.locale)
+
+        // Build the unified grounding packet — the ONLY data payload the LLM sees.
+        // It consolidates pool context, bracket state, sports data, allowed claims,
+        // and missing data into one structured object enforced by the system prompt.
+        const packet = buildWcChimmyGroundingPacket({
+          userQuestion: prompt,
+          context: input.context,
+          grounding,
+          entitlements: input.entitlements,
+        })
+
+        const userContent = [
+          `--- GROUNDING PACKET ---\n${serializeChimmyGroundingPacket(packet)}\n--- END GROUNDING PACKET ---`,
+          `\n--- GROUNDING JSON ---\n${serializeWorldCupChimmyGrounding(grounding)}\n--- END GROUNDING JSON ---`,
+          `\nUser question: ${prompt}`,
+        ].join("")
+
+        const llmResult = await routeTextCall({
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: userContent },
+          ],
+          profile: "cheap",
+          temperature: 0.45,
+          maxTokens: 520,
+          skipCache: true,
+        })
+
+        if (!llmResult.ok) {
+          return { resultText: null, provider: "unavailable", model: "unavailable" }
+        }
+
+        // Sanitize raw text, then run through the contract validator.
+        // The minimal contract sets liveScores and oddsData to the appropriate
+        // values, which catches score invention and odds overclaims before they
+        // reach users. The validated text is what gets cached.
+        const rawText = sanitizeChimmyText(llmResult.text).slice(0, MAX_REPLY_CHARS)
+        const contract = buildMinimalChimmyContract({
+          challengeId: input.challengeId,
+          context: input.context,
+          plan: input.entitlements?.plan ?? "free",
+          userRole: input.userRole,
+          locale: input.locale,
+          userId: input.userId,
+        })
+        const validation = validateAIResponse(rawText, contract)
+        const finalText = validation.blockedByRule
+          ? buildContractFallback(contract, validation.blockedByRule)
+          : validation.sanitized
+
+        // Surface validation outcome so the audit log can record it
+        validatorResult = validation.blockedByRule
+          ? "blocked"
+          : validation.failures.length > 0
+            ? "warned"
+            : "clean"
+        blockedReason = validation.blockedByRule ?? null
+
+        return {
+          resultText: finalText,
+          tokensUsed: llmResult.tokensUsed ?? null,
+          provider: llmResult.provider,
+          model: llmResult.model,
+          status: validation.blockedByRule ? "blocked" : "ready",
+        }
       }
-      tokensUsed = result.tokensUsed ?? null
-    } else {
+    )
+
+    if (cacheResult.cacheHit) {
+      // Served from cache — no LLM call was made
+      reply = cacheResult.text || "I could not reach Chimmy AI right now. Your prompt stayed private, and you can try again in a moment."
+      provider = "cache"
+      model = "cache"
+      validatorResult = "clean" // cached text was already validated
+    } else if (!cacheResult.text) {
+      // LLM was unavailable
       reply = "I could not reach Chimmy AI right now. Your prompt stayed private, and you can try again in a moment."
-      validatorResult = "unavailable"
+      provider = cacheResult.provider ?? "unavailable"
+      model = cacheResult.model ?? "unavailable"
+      validatorResult = validatorResult ?? "unavailable"
+    } else {
+      reply = cacheResult.text
+      provider = cacheResult.provider ?? "unavailable"
+      model = cacheResult.model ?? "unavailable"
+      tokensUsed = cacheResult.tokensUsed
+      // validatorResult already set inside onCacheMiss
     }
   }
 
@@ -262,8 +490,16 @@ export async function generateWorldCupChimmyPrivateReply(input: {
       })
   ).slice(0, MAX_REPLY_CHARS)
 
-  // sourceFreshness — this path always uses pool-only data (no live sports feed)
-  const sourceFreshness: FreshnessLabel = buildFreshnessLabel("pool_only", null)
+  // Build the same validation contract for telemetry and the UI freshness chip.
+  const auditContract = buildMinimalChimmyContract({
+    challengeId: input.challengeId,
+    context: input.context,
+    plan: input.entitlements?.plan ?? "free",
+    userRole: input.userRole,
+    locale: input.locale,
+    userId: input.userId,
+  })
+  const sourceFreshness: FreshnessLabel = auditContract.sourceFreshness
 
   // Audit log — fire and forget, must never throw or delay the response
   logAiInteraction({
@@ -273,10 +509,10 @@ export async function generateWorldCupChimmyPrivateReply(input: {
     route: "/api/brackets/world-cup/[challengeId]/chat",
     plan: input.entitlements?.plan ?? null,
     providerSource: provider,
-    freshnessTier: "pool_only",
+    freshnessTier: sourceFreshness.tier,
     promptIntent: grounding.prompt.intent.category,
-    missingData: ["live match scores", "odds and favorites data"],
-    allowedClaims: ["AllFantasy pool data"],
+    missingData: auditContract.missingData,
+    allowedClaims: auditContract.allowedClaims,
     validatorResult: deterministic ? "deterministic" : validatorResult,
     blockedReason,
     modelUsed: model,

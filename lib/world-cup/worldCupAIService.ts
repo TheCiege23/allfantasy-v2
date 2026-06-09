@@ -31,6 +31,7 @@ import {
   getProbabilityBasedPickSides,
   getRecentFormPlaceholder,
 } from "./worldCupPickStrategy"
+import { getOrCreateWcMatchupInsight } from "@/lib/ai/aiInsightCache"
 
 // ─── Grounding contract for matchup intelligence ──────────────────────────────
 // The matchup AI runs purely on bracket model probability data.
@@ -122,6 +123,7 @@ function logMatchupInteraction(payload: {
   userId: string
   intent: MatchupIntelligenceIntent
   generative: boolean
+  cacheHit: boolean
   model: string | null
   tokensUsed: number | null
   validatorResult: "clean" | "warned" | "blocked" | "deterministic"
@@ -133,12 +135,13 @@ function logMatchupInteraction(payload: {
     feature: "matchup_preview",
     route: "/api/brackets/world-cup/[challengeId]/ai/matchup-preview",
     plan: "pro",
+    providerSource: payload.cacheHit ? "cache" : null,
     freshnessTier: "pool_only",
     promptIntent: payload.intent,
     validatorResult: payload.generative ? payload.validatorResult : "deterministic",
     blockedReason: payload.blockedReason,
-    modelUsed: payload.model,
-    tokenCost: payload.tokensUsed,
+    modelUsed: payload.cacheHit ? null : payload.model,
+    tokenCost: payload.cacheHit ? null : payload.tokensUsed,
     wasDeterministic: !payload.generative,
   })
 }
@@ -161,8 +164,9 @@ async function tryGenerativeNarratives(params: {
       howRiskyIsThisPick: string
       whatThisMeansForYourBracket: string
       generative: true
-      model: string
-      tokensUsed: number
+      cacheHit: boolean
+      model: string | null
+      tokensUsed: number | null
       validatorResult: "clean" | "warned" | "blocked"
       blockedReason: string | null
     }
@@ -195,25 +199,51 @@ async function tryGenerativeNarratives(params: {
     `Upset risk: ${params.upsetRisk}. Strategy: ${params.strategy}. Recommended lean: ${params.recommendedTeamName}. ` +
     `Factors: ${params.keyFactors.join("; ")}.`
 
-  const res = await routeTextCall({
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: userMsg },
-    ],
-    temperature: params.intent === "explain" ? 0.35 : 0.45,
-    maxTokens: 320,
-    skipCache: true,
-  })
+  // ── AiInsightCache: check before calling the LLM ─────────────────────────
+  // Key: match × strategy × intent × probability split × upset risk.
+  // Cache TTL: 60 min — bracket model probabilities are static per round.
+  const cacheResult = await getOrCreateWcMatchupInsight(
+    {
+      matchId: params.match.id,
+      strategy: params.strategy,
+      intent: params.intent,
+      homePct: params.homePct,
+      awayPct: params.awayPct,
+      upsetRisk: params.upsetRisk,
+    },
+    async () => {
+      const res = await routeTextCall({
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: userMsg },
+        ],
+        temperature: params.intent === "explain" ? 0.35 : 0.45,
+        maxTokens: 320,
+      })
 
-  if (!res.ok || res.text.trim().length < 40) return null
+      if (!res.ok || res.text.trim().length < 40) return { resultText: null }
 
-  // Run response through the canonical validator before returning to caller.
-  const contract = buildMatchupContract({ matchLabel: `${params.homeName} vs ${params.awayName}` })
-  const validated = applyValidationPipeline(res.text.trim(), contract)
+      // Run response through the canonical validator before caching.
+      const contract = buildMatchupContract({
+        matchLabel: `${params.homeName} vs ${params.awayName}`,
+      })
+      const validated = applyValidationPipeline(res.text.trim(), contract)
 
-  const whyMatch = validated.match(/WHY:\s*([\s\S]*?)(?=RISK:|$)/i)
-  const riskMatch = validated.match(/RISK:\s*([\s\S]*?)(?=BRACKET:|$)/i)
-  const bracketMatch = validated.match(/BRACKET:\s*([\s\S]*?)$/i)
+      return {
+        resultText: validated,
+        tokensUsed: res.tokensUsed,
+        provider: res.provider,
+        model: res.model,
+      }
+    }
+  )
+
+  if (!cacheResult.text) return null
+
+  // Parse the WHY / RISK / BRACKET sections from cached or fresh text.
+  const whyMatch = cacheResult.text.match(/WHY:\s*([\s\S]*?)(?=RISK:|$)/i)
+  const riskMatch = cacheResult.text.match(/RISK:\s*([\s\S]*?)(?=BRACKET:|$)/i)
+  const bracketMatch = cacheResult.text.match(/BRACKET:\s*([\s\S]*?)$/i)
 
   if (!whyMatch || !riskMatch || !bracketMatch) return null
 
@@ -222,8 +252,9 @@ async function tryGenerativeNarratives(params: {
     howRiskyIsThisPick: riskMatch[1].trim(),
     whatThisMeansForYourBracket: bracketMatch[1].trim(),
     generative: true,
-    model: res.model,
-    tokensUsed: res.tokensUsed,
+    cacheHit: cacheResult.cacheHit,
+    model: cacheResult.model,
+    tokensUsed: cacheResult.tokensUsed,
     validatorResult: "clean",
     blockedReason: null,
   }
@@ -280,6 +311,7 @@ export async function buildWorldCupMatchupIntelligence(
   // Tracking for audit log
   let llmModel: string | null = null
   let llmTokens: number | null = null
+  let llmCacheHit = false
   let llmValidatorResult: "clean" | "warned" | "blocked" | "deterministic" = "deterministic"
   let llmBlockedReason: string | null = null
 
@@ -306,6 +338,7 @@ export async function buildWorldCupMatchupIntelligence(
         whatThisMeansForYourBracket: gen.whatThisMeansForYourBracket,
       }
       narrativesGenerative = gen.generative
+      llmCacheHit = gen.cacheHit
       llmModel = gen.model
       llmTokens = gen.tokensUsed
       llmValidatorResult = gen.validatorResult
@@ -320,34 +353,57 @@ export async function buildWorldCupMatchupIntelligence(
       ? ` at ${match.venueName}${match.venueCity ? `, ${match.venueCity}` : ""}`
       : ""
     try {
-      const aiResult = await routeTextCall({
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a World Cup bracket strategy assistant. Give a concise 2-sentence matchup preview using only the provided AllFantasy bracket model inputs. Do not imply live data, current scores, injuries, lineups, odds, player stats, schedules, or current form. Label predictions as bracket-model guidance.",
-          },
-          {
-            role: "user",
-            content:
-              "Source: stored AllFantasy bracket model only; no live feed, injury report, player stat feed, odds feed, or schedule feed is included.\n" +
-              `Match: ${homeName} vs ${awayName}${venue}.\n` +
-              `Win probability: ${homeName} ${homePct}%, ${awayName} ${awayPct}%.\n` +
-              `Upset risk: ${upsetRisk}. Strategy: ${strategy}.\n` +
-              `Key factors: ${winProb.explanationFactors.join("; ")}.\n` +
-              `End with the recommended pick: "${rec.recommendedTeamName}".`,
-          },
-        ],
-        temperature: 0.4,
-        maxTokens: 150,
-        skipCache: false,
-      })
-      if (aiResult.ok && aiResult.text.trim().length > 20) {
-        const panelContract = buildMatchupContract({ matchLabel: `${homeName} vs ${awayName}` })
-        summary = applyValidationPipeline(aiResult.text.trim(), panelContract)
+      // ── AiInsightCache: panel summary — TTL 60 min (static per round) ──────
+      const panelCacheResult = await getOrCreateWcMatchupInsight(
+        {
+          matchId: match.id,
+          strategy,
+          intent: "panel",
+          homePct,
+          awayPct,
+          upsetRisk,
+        },
+        async () => {
+          const aiResult = await routeTextCall({
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You are a World Cup bracket strategy assistant. Give a concise 2-sentence matchup preview using only the provided AllFantasy bracket model inputs. Do not imply live data, current scores, injuries, lineups, odds, player stats, schedules, or current form. Label predictions as bracket-model guidance.",
+              },
+              {
+                role: "user",
+                content:
+                  "Source: stored AllFantasy bracket model only; no live feed, injury report, player stat feed, odds feed, or schedule feed is included.\n" +
+                  `Match: ${homeName} vs ${awayName}${venue}.\n` +
+                  `Win probability: ${homeName} ${homePct}%, ${awayName} ${awayPct}%.\n` +
+                  `Upset risk: ${upsetRisk}. Strategy: ${strategy}.\n` +
+                  `Key factors: ${winProb.explanationFactors.join("; ")}.\n` +
+                  `End with the recommended pick: "${rec.recommendedTeamName}".`,
+              },
+            ],
+            temperature: 0.4,
+            maxTokens: 150,
+          })
+          if (!aiResult.ok || aiResult.text.trim().length <= 20) return { resultText: null }
+          const panelContract = buildMatchupContract({ matchLabel: `${homeName} vs ${awayName}` })
+          return {
+            resultText: applyValidationPipeline(aiResult.text.trim(), panelContract),
+            tokensUsed: aiResult.tokensUsed,
+            provider: aiResult.provider,
+            model: aiResult.model,
+          }
+        }
+      )
+      if (panelCacheResult.text) {
+        summary = panelCacheResult.text
         summaryGenerative = true
-        llmModel = llmModel ?? aiResult.model
-        llmTokens = (llmTokens ?? 0) + aiResult.tokensUsed
+        llmCacheHit = llmCacheHit || panelCacheResult.cacheHit
+        llmModel = llmModel ?? panelCacheResult.model
+        // Don't add to token count on cache hits — nothing was spent
+        if (!panelCacheResult.cacheHit) {
+          llmTokens = (llmTokens ?? 0) + (panelCacheResult.tokensUsed ?? 0)
+        }
         llmValidatorResult = "clean"
       }
     } catch {
@@ -391,6 +447,7 @@ export async function buildWorldCupMatchupIntelligence(
       userId: args.logContext.userId,
       intent,
       generative: narrativesGenerative || summaryGenerative,
+      cacheHit: llmCacheHit,
       model: llmModel,
       tokensUsed: llmTokens,
       validatorResult: llmValidatorResult,
