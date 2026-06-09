@@ -122,6 +122,7 @@ import WorldCupPoolCountdownBanner from "./WorldCupPoolCountdownBanner"
 import type { WorldCupCountdownFirstMatch } from "./WorldCupPoolCountdownBanner"
 import { ChimmyFreshnessChip } from "./ChimmyFreshnessChip"
 import WorldCupAiInsightsCTA from "./WorldCupAiInsightsCTA"
+import WorldCupDailyEdgeReportCard from "./WorldCupDailyEdgeReportCard"
 import {
   WorldCupChatMessageBubble,
   WorldCupChatModeTabs,
@@ -744,6 +745,19 @@ export default function WorldCupBracketShell({
 
   // Pending Chimmy prompt — set by WorldCupAiInsightsCTA, consumed by WorldCupCommunityFoundationPanel
   const [pendingChimmyPrompt, setPendingChimmyPrompt] = useState<string | null>(null)
+
+  // Edge Report: post commissioner idea directly to pool chat (plain text, no Chimmy prefix)
+  const handleEdgeReportPostToChat = useCallback(async (text: string) => {
+    const res = await fetch(`/api/brackets/world-cup/${view.challenge.id}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body: text }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(typeof data?.error === "string" ? data.error : `HTTP ${res.status}`)
+    }
+  }, [view.challenge.id])
 
   const challengeId = view.challenge.id
   const isKnockoutOnlyPool = view.challenge.knockoutMode === "knockout_only"
@@ -3659,6 +3673,19 @@ export default function WorldCupBracketShell({
               />
             </section>
 
+            {/* Daily Edge Report — deterministic pool intelligence + optional AI coaching */}
+            <section
+              data-testid="world-cup-daily-edge-report-section"
+              className="mx-auto max-w-5xl px-2 sm:px-0"
+            >
+              <WorldCupDailyEdgeReportCard
+                challengeId={challengeId}
+                aiEntitled={entitlementSummary.ai}
+                isCommissioner={view.isOwner || view.isAdmin}
+                onPostToChat={handleEdgeReportPostToChat}
+              />
+            </section>
+
             {/* ── Commissioner Quick Panel ──────────────────────────────────────── */}
             {(view.isOwner || view.isAdmin) && (
               <section
@@ -6247,6 +6274,18 @@ function WorldCupCommunityFoundationPanel({
                     setChatMode("pool")
                     setPoolDraft(msg.body)
                   } : undefined}
+                  onFeedback={(messageId, rating) => {
+                    // Fire-and-forget: feedback failure is silent
+                    void fetch("/api/ai/feedback", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        feature: "wc_chimmy",
+                        rating,
+                        resultKey: messageId,
+                      }),
+                    }).catch(() => {})
+                  }}
                   labels={{ privateLabel: tChat("wc.chat.privateLabel") }}
                 />
               ))}

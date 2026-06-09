@@ -82,6 +82,22 @@ export const WORLD_CUP_CTA = {
   TOKEN_CONFIRM_ACCEPTED: 'wc.ai_cta.token_confirm_accepted',
 } as const
 
+/** World Cup Daily Edge Report events (client-side beacons). */
+export const WORLD_CUP_EDGE_REPORT = {
+  /** Card mounted and deterministic sections became visible. */
+  VIEWED: 'wc.edge_report.viewed',
+  /** User clicked the "Unlock coaching" button. */
+  UNLOCK_CLICKED: 'wc.edge_report.unlock_clicked',
+  /** User confirmed the token spend dialog. */
+  TOKEN_CONFIRMED: 'wc.edge_report.token_confirmed',
+  /** Coaching was served from cache (same-day free repeat access). */
+  CACHE_HIT: 'wc.edge_report.cache_hit',
+  /** Fetch or coaching generation returned an error. */
+  ERROR: 'wc.edge_report.error',
+  /** Commissioner clicked "Post to pool chat" on the coaching post idea. */
+  POST_TO_CHAT_CLICKED: 'wc.edge_report.post_to_chat_clicked',
+} as const
+
 /** Engine / ops (often sampled before persist). */
 export const ENGINE = {
   JOB: 'engine.job',
