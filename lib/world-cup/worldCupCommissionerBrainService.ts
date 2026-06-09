@@ -8,6 +8,7 @@ import {
 } from "./worldCupBracketBuilder"
 import { worldCupBracketPicksPublicUrl } from "./worldCupBracketReminderService"
 import { buildWorldCupLeaderboardRows } from "./worldCupScoringService"
+import type { DbEntryForLb, DbMatch, DbPick } from "./worldCupScoringService"
 import type { WorldCupRound } from "./types"
 import {
   buildPoolSwingAlertCard,
@@ -125,8 +126,8 @@ export async function buildWorldCupAiPoolRecapLines(
 
   const finalizedEntries = challenge.entries
   const rows = buildWorldCupLeaderboardRows({
-    entries: finalizedEntries as any,
-    matches: challenge.matches as any,
+    entries: finalizedEntries as unknown as DbEntryForLb[],
+    matches: challenge.matches as unknown as DbMatch[],
     scoring: challenge.scoringProfile,
   })
   const sortedRows = [...rows].sort((a, b) => a.rank - b.rank || b.totalScore - a.totalScore)
@@ -203,8 +204,8 @@ export async function getWorldCupCommissionerBrainSnapshot(
   const entries = challenge.entries
   const analyses = entries.map((e) =>
     analyzeWorldCupEntryPickCompletion({
-      matches: challenge.matches as any,
-      picks: e.picks as any,
+      matches: challenge.matches as unknown as DbMatch[],
+      picks: e.picks as unknown as DbPick[],
       includeThirdPlace: challenge.includeThirdPlace,
       entryId: e.id,
       userId: e.userId,
@@ -302,8 +303,8 @@ export async function getWorldCupCommissionerBrainSnapshot(
   }).locked
 
   const rows = buildWorldCupLeaderboardRows({
-    entries: entries as any,
-    matches: challenge.matches as any,
+    entries: entries as unknown as DbEntryForLb[],
+    matches: challenge.matches as unknown as DbMatch[],
     scoring: challenge.scoringProfile,
   })
   let biggestUpsetLean: string | null = null
@@ -436,8 +437,8 @@ export async function buildStandingsSummaryLines(challengeId: string) {
     ]
   }
   const rows = buildWorldCupLeaderboardRows({
-    entries: challenge.entries as any,
-    matches: challenge.matches as any,
+    entries: challenge.entries as unknown as DbEntryForLb[],
+    matches: challenge.matches as unknown as DbMatch[],
     scoring: challenge.scoringProfile,
   })
   const lines: string[] = [`Standings (${challenge.name})`]
@@ -509,8 +510,8 @@ export async function buildPostRoundRecapLines(challengeId: string, round: World
   lines.push(`${inRound.length} match${inRound.length === 1 ? "" : "es"} final.`)
 
   const rows = buildWorldCupLeaderboardRows({
-    entries: challenge.entries as any,
-    matches: challenge.matches as any,
+    entries: challenge.entries as unknown as DbEntryForLb[],
+    matches: challenge.matches as unknown as DbMatch[],
     scoring: challenge.scoringProfile,
   })
   if (rows[0]) lines.push(`Leader: ${rows[0].entryName} (${rows[0].totalScore} pts)`)
@@ -665,8 +666,8 @@ export async function buildChalkBustNarrativeLines(challengeId: string): Promise
   const topChampPct = Math.round((topChamp[1] / entries.length) * 100)
 
   const rows = buildWorldCupLeaderboardRows({
-    entries: entries as any,
-    matches: challenge.matches as any,
+    entries: entries as unknown as DbEntryForLb[],
+    matches: challenge.matches as unknown as DbMatch[],
     scoring: challenge.scoringProfile,
   })
   const topEntries = rows.slice(0, 10)
@@ -847,8 +848,8 @@ export async function buildAtRiskUsersLines(challengeId: string): Promise<string
   }
 
   const rows = buildWorldCupLeaderboardRows({
-    entries: challenge.entries as any,
-    matches: challenge.matches as any,
+    entries: challenge.entries as unknown as DbEntryForLb[],
+    matches: challenge.matches as unknown as DbMatch[],
     scoring: challenge.scoringProfile,
   })
   const leader = rows[0]

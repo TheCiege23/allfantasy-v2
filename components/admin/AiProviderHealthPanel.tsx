@@ -11,7 +11,8 @@
  */
 
 import { useEffect, useState, useCallback } from "react"
-import { RefreshCw, ShieldCheck, ShieldAlert, ShieldOff, Database, Globe, Zap } from "lucide-react"
+import { RefreshCw, ShieldCheck, ShieldAlert, ShieldOff, Database, Globe, Zap, Play, CheckCircle2, XCircle } from "lucide-react"
+import type { AdminWorldCupAction, AdminWorldCupActionResult } from "@/app/api/admin/world-cup/actions/route"
 
 // ─── API response types (mirror the route's JSON shape) ──────────────────────
 
@@ -137,6 +138,132 @@ function WcStatusPill({ status }: { status: WcData["productionStatus"] }) {
   return <Pill label="Not Ready" color="rose" />
 }
 
+// ─── Admin actions ────────────────────────────────────────────────────────────
+
+type ActionState = {
+  loading: boolean
+  result: AdminWorldCupActionResult | null
+  error: string | null
+}
+
+const INITIAL_ACTION_STATE: ActionState = { loading: false, result: null, error: null }
+
+const ACTION_LABELS: Record<AdminWorldCupAction, string> = {
+  "sync-fixtures":    "Sync Fixtures Now",
+  "sync-live-scores": "Sync Live Scores Now",
+  "sync-standings":   "Refresh Standings Now",
+  "recompute-scores": "Recompute Pool Scores",
+  "rebuild-grounding":"Check AI Grounding",
+}
+
+const ACTION_DESCRIPTIONS: Record<AdminWorldCupAction, string> = {
+  "sync-fixtures":    "Pull latest fixture data from the provider into WC bracket matches.",
+  "sync-live-scores": "Apply live score updates for all active challenges.",
+  "sync-standings":   "Refresh group standings from the data provider.",
+  "recompute-scores": "Re-evaluate all bracket picks against final match results.",
+  "rebuild-grounding":"Diagnostic check of AI grounding readiness (read-only).",
+}
+
+const ALL_ACTIONS: AdminWorldCupAction[] = [
+  "sync-fixtures",
+  "sync-live-scores",
+  "sync-standings",
+  "recompute-scores",
+  "rebuild-grounding",
+]
+
+function ActionButton({
+  action,
+  state,
+  onRun,
+}: {
+  action: AdminWorldCupAction
+  state: ActionState
+  onRun: (action: AdminWorldCupAction) => void
+}) {
+  return (
+    <div
+      className="rounded-xl border border-white/10 bg-white/[0.04] p-4 space-y-2"
+      data-testid={`wc-action-${action}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-white/80">{ACTION_LABELS[action]}</p>
+          <p className="mt-0.5 text-[11px] text-white/40">{ACTION_DESCRIPTIONS[action]}</p>
+        </div>
+        <button
+          aria-label={ACTION_LABELS[action]}
+          disabled={state.loading}
+          onClick={() => onRun(action)}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-white/70 transition hover:bg-white/[0.12] disabled:opacity-40"
+        >
+          {state.loading ? (
+            <RefreshCw className="h-3 w-3 animate-spin" />
+          ) : (
+            <Play className="h-3 w-3" />
+          )}
+          {state.loading ? "Running…" : "Run"}
+        </button>
+      </div>
+
+      {/* Result */}
+      {state.result ? (
+        <div
+          className={`rounded-lg border px-3 py-2 text-[11px] space-y-1 ${
+            state.result.ok
+              ? "border-emerald-500/30 bg-emerald-500/[0.07] text-emerald-300"
+              : "border-rose-500/30 bg-rose-500/[0.07] text-rose-300"
+          }`}
+          data-testid={`wc-action-result-${action}`}
+        >
+          <div className="flex items-center gap-1.5 font-semibold">
+            {state.result.ok ? (
+              <CheckCircle2 className="h-3 w-3" />
+            ) : (
+              <XCircle className="h-3 w-3" />
+            )}
+            {state.result.ok ? "Success" : "Failed"}
+            <span className="font-normal text-white/30 ml-auto">
+              {new Date(state.result.timestamp).toLocaleTimeString()}
+            </span>
+          </div>
+          {Object.entries(state.result.counts).length > 0 ? (
+            <p className="text-white/60">
+              {Object.entries(state.result.counts)
+                .map(([k, v]) => `${k.replace(/([A-Z])/g, " $1").toLowerCase()}: ${v}`)
+                .join(" · ")}
+            </p>
+          ) : null}
+          {state.result.challengesProcessed > 0 ? (
+            <p className="text-white/50">
+              {state.result.challengesProcessed} challenge{state.result.challengesProcessed !== 1 ? "s" : ""} processed
+            </p>
+          ) : null}
+          {state.result.error ? (
+            <p className="text-rose-300/80">{state.result.error}</p>
+          ) : null}
+          {state.result.warnings.length > 0 ? (
+            <p className="text-amber-300/70">
+              ⚠ {state.result.warnings.slice(0, 2).join(" · ")}
+              {state.result.warnings.length > 2 ? ` (+${state.result.warnings.length - 2} more)` : ""}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Error (network/auth) */}
+      {state.error && !state.result ? (
+        <p
+          className="rounded-lg border border-rose-500/30 bg-rose-500/[0.07] px-3 py-2 text-[11px] text-rose-300"
+          data-testid={`wc-action-error-${action}`}
+        >
+          {state.error}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function AiProviderHealthPanel() {
@@ -144,6 +271,25 @@ export function AiProviderHealthPanel() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [windowHours, setWindowHours] = useState(24)
+  const [actionStates, setActionStates] = useState<Record<AdminWorldCupAction, ActionState>>(
+    () => Object.fromEntries(ALL_ACTIONS.map((a) => [a, INITIAL_ACTION_STATE])) as Record<AdminWorldCupAction, ActionState>
+  )
+
+  const runAction = useCallback(async (action: AdminWorldCupAction) => {
+    setActionStates((prev) => ({ ...prev, [action]: { loading: true, result: null, error: null } }))
+    try {
+      const res = await fetch("/api/admin/world-cup/actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      })
+      const json = await res.json() as AdminWorldCupActionResult
+      setActionStates((prev) => ({ ...prev, [action]: { loading: false, result: json, error: null } }))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Request failed"
+      setActionStates((prev) => ({ ...prev, [action]: { loading: false, result: null, error: msg } }))
+    }
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -415,6 +561,24 @@ export function AiProviderHealthPanel() {
                   </ul>
                 </div>
               ) : null}
+            </div>
+          </section>
+
+          {/* World Cup Admin Actions */}
+          <section aria-label="World Cup admin actions" data-testid="wc-admin-actions">
+            <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white/40">
+              <Play className="h-3.5 w-3.5 text-amber-400" />
+              World Cup Admin Actions
+            </h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {ALL_ACTIONS.map((action) => (
+                <ActionButton
+                  key={action}
+                  action={action}
+                  state={actionStates[action]}
+                  onRun={runAction}
+                />
+              ))}
             </div>
           </section>
 

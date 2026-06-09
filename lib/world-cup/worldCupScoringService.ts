@@ -11,7 +11,7 @@ import {
   resetWorldCupProjectedMatchStatus,
 } from "./worldCupProjectedBracket"
 
-type DbMatch = {
+export type DbMatch = {
   id: string
   round: WorldCupRound | string
   homeSlotKey: string
@@ -38,7 +38,7 @@ type DbMatch = {
   nextMatchSlot?: string | null
 }
 
-type DbPick = {
+export type DbPick = {
   id: string
   matchId: string
   matchNumber?: number | null
@@ -52,7 +52,7 @@ type DbPick = {
   isCorrect?: boolean | null
 }
 
-type DbEntryForLb = {
+export type DbEntryForLb = {
   id: string
   participantId: string
   userId: string
