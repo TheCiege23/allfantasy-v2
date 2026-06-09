@@ -30,6 +30,11 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }))
 
+// Silence analytics beacons — they use fetch internally and would pollute fetch call counts
+vi.mock("@/lib/analytics/client", () => ({
+  sendProductAnalyticsBeacon: vi.fn(),
+}))
+
 // Provide a simple stub for InsightCardView
 vi.mock("@/components/brackets/world-cup/InsightCards", () => ({
   InsightCardView: ({ card }: { card: { kind: string } }) => (

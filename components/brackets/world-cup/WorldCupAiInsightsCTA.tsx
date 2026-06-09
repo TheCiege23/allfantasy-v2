@@ -19,7 +19,7 @@
  * wires to open the Chimmy drawer with a pre-filled message.
  */
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useEffect } from "react"
 import Link from "next/link"
 import {
   Loader2,
@@ -44,6 +44,16 @@ import {
   isWorldCupTokenConfirmationResponse,
 } from "@/lib/world-cup/worldCupClientTokenConfirm"
 import { InsightCardView, type InsightCard } from "./InsightCards"
+import {
+  trackWcCtaViewed,
+  trackWcCtaClicked,
+  trackWcCtaLockedClicked,
+  trackWcCtaUpgradeClicked,
+  trackWcCtaSuccess,
+  trackWcCtaError,
+  trackWcTokenConfirmOpened,
+  trackWcTokenConfirmAccepted,
+} from "@/lib/world-cup/worldCupCtaAnalytics"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -191,18 +201,23 @@ function CtaChip({
   state,
   onRun,
   onSwitchToReviewTab,
+  onLockedClick,
 }: {
   cta: CTA
   unlocked: boolean
   state: ActionState
   onRun: (cta: CTA) => void
   onSwitchToReviewTab: () => void
+  onLockedClick?: () => void
 }) {
   const isLocked = !unlocked
   const isLoading = state.loading
 
   const handleClick = () => {
-    if (isLocked) return
+    if (isLocked) {
+      onLockedClick?.()
+      return
+    }
     if (cta.kind === "tab") {
       onSwitchToReviewTab()
       return
@@ -301,12 +316,22 @@ export default function WorldCupAiInsightsCTA({
   )
   const [activeResultKey, setActiveResultKey] = useState<string | null>(null)
 
+  // Fire once on mount so we can measure CTA panel impressions vs. interactions
+  useEffect(() => {
+    trackWcCtaViewed({
+      challengeId,
+      aiUnlocked: aiUnlocked,
+      commissionerUnlocked: commissionerUnlocked,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const updateActionState = useCallback((key: string, patch: Partial<ActionState>) => {
     setActionStates((prev) => ({ ...prev, [key]: { ...prev[key]!, ...patch } }))
   }, [])
 
   const postCommissionerBrain = useCallback(
-    async (payload: Record<string, unknown>): Promise<{ ok: boolean; data: Record<string, unknown>; cancelled?: boolean }> => {
+    async (payload: Record<string, unknown>, actionKey: string): Promise<{ ok: boolean; data: Record<string, unknown>; cancelled?: boolean }> => {
       const res = await fetch(`/api/brackets/world-cup/${challengeId}/commissioner-brain`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -314,10 +339,14 @@ export default function WorldCupAiInsightsCTA({
       })
       const data = await res.json().catch(() => ({})) as Record<string, unknown>
       if (isWorldCupTokenConfirmationResponse(res.status, data)) {
+        const preview = data.preview as Record<string, unknown> | undefined
+        const tokenCost = typeof preview?.tokenCost === "number" ? preview.tokenCost : undefined
+        trackWcTokenConfirmOpened({ challengeId, actionKey, tokenCost })
         if (!confirmWorldCupTokenSpend(data)) {
           return { ok: false, data: { error: "Token spend was not confirmed." }, cancelled: true }
         }
-        return postCommissionerBrain({ ...payload, confirmTokenSpend: true })
+        trackWcTokenConfirmAccepted({ challengeId, actionKey, tokenCost })
+        return postCommissionerBrain({ ...payload, confirmTokenSpend: true }, actionKey)
       }
       return { ok: res.ok, data }
     },
@@ -327,12 +356,14 @@ export default function WorldCupAiInsightsCTA({
   const runCta = useCallback(async (cta: CTA) => {
     // Chimmy prompt — just open the chat, no API call needed
     if (cta.kind === "chimmy") {
+      trackWcCtaClicked({ sport: "world_cup", challengeId, actionKey: cta.key, tier: cta.tier, kind: cta.kind, unlocked: true })
       onOpenChimmyWithPrompt(cta.chimmyPrompt ?? t("wc.cta.askChimmyPrompt"))
       return
     }
 
     if (!cta.action) return
 
+    trackWcCtaClicked({ sport: "world_cup", challengeId, actionKey: cta.key, tier: cta.tier, kind: cta.kind, unlocked: true })
     updateActionState(cta.key, { loading: true, result: null, error: null })
     setActiveResultKey(cta.key)
 
@@ -342,7 +373,7 @@ export default function WorldCupAiInsightsCTA({
         payload.entryId = selectedEntryId
       }
 
-      const { ok, data, cancelled } = await postCommissionerBrain(payload)
+      const { ok, data, cancelled } = await postCommissionerBrain(payload, cta.key)
 
       if (cancelled) {
         updateActionState(cta.key, { loading: false })
@@ -351,6 +382,7 @@ export default function WorldCupAiInsightsCTA({
       if (!ok) {
         const errMsg = typeof data.error === "string" ? data.error : "Could not generate"
         updateActionState(cta.key, { loading: false, error: errMsg })
+        trackWcCtaError({ sport: "world_cup", challengeId, actionKey: cta.key, tier: cta.tier, kind: cta.kind, unlocked: true, errorMessage: errMsg })
         toast.error(errMsg)
         return
       }
@@ -358,10 +390,13 @@ export default function WorldCupAiInsightsCTA({
       if (cta.kind === "card") {
         const card = data.card as InsightCard | undefined
         if (!card) {
-          updateActionState(cta.key, { loading: false, error: "No card data returned." })
+          const errMsg = "No card data returned."
+          updateActionState(cta.key, { loading: false, error: errMsg })
+          trackWcCtaError({ sport: "world_cup", challengeId, actionKey: cta.key, tier: cta.tier, kind: cta.kind, unlocked: true, errorMessage: errMsg })
           return
         }
         updateActionState(cta.key, { loading: false, result: { kind: "card", card } })
+        trackWcCtaSuccess({ sport: "world_cup", challengeId, actionKey: cta.key, tier: cta.tier, kind: cta.kind, unlocked: true, resultKind: "card" })
       } else {
         // text action
         const lines = Array.isArray(data.lines)
@@ -371,6 +406,7 @@ export default function WorldCupAiInsightsCTA({
           loading: false,
           result: { kind: "lines", lines, posted: data.posted === true },
         })
+        trackWcCtaSuccess({ sport: "world_cup", challengeId, actionKey: cta.key, tier: cta.tier, kind: cta.kind, unlocked: true, resultKind: "lines" })
         if (data.posted === true) {
           toast.success("Posted to pool chat.")
         }
@@ -378,6 +414,7 @@ export default function WorldCupAiInsightsCTA({
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "Could not generate"
       updateActionState(cta.key, { loading: false, error: errMsg })
+      trackWcCtaError({ sport: "world_cup", challengeId, actionKey: cta.key, tier: cta.tier, kind: cta.kind, unlocked: true, errorMessage: errMsg })
       toast.error(errMsg)
     }
   }, [challengeId, selectedEntryId, onOpenChimmyWithPrompt, updateActionState, postCommissionerBrain, t])
@@ -402,6 +439,7 @@ export default function WorldCupAiInsightsCTA({
           <Link
             href="/pricing?from=wc-ai-cta&highlight=af-pro"
             className="text-[10px] font-bold text-cyan-300/60 hover:text-cyan-300 transition-colors"
+            onClick={() => trackWcCtaUpgradeClicked({ challengeId, tier: "ai", source: "panel_header" })}
           >
             Unlock All →
           </Link>
@@ -419,6 +457,7 @@ export default function WorldCupAiInsightsCTA({
               href="/pricing?from=wc-ai-cta-row&highlight=af-pro"
               className="inline-flex items-center gap-0.5 rounded-full border border-cyan-400/25 bg-cyan-400/[0.07] px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-cyan-300/70 transition hover:text-cyan-300"
               data-testid="wc-ai-cta-upgrade-ai"
+              onClick={() => trackWcCtaUpgradeClicked({ challengeId, tier: "ai", source: "row_label" })}
             >
               <Lock className="h-2.5 w-2.5" />
               AF Pro
@@ -434,6 +473,7 @@ export default function WorldCupAiInsightsCTA({
               state={actionStates[cta.key] ?? { loading: false, result: null, error: null }}
               onRun={runCta}
               onSwitchToReviewTab={onSwitchToReviewTab}
+              onLockedClick={() => trackWcCtaLockedClicked({ challengeId, actionKey: cta.key, tier: cta.tier })}
             />
           ))}
         </div>
@@ -450,6 +490,7 @@ export default function WorldCupAiInsightsCTA({
               href="/pricing?from=wc-ai-cta-commissioner-row&highlight=af-commissioner"
               className="inline-flex items-center gap-0.5 rounded-full border border-amber-400/25 bg-amber-400/[0.07] px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-300/70 transition hover:text-amber-300"
               data-testid="wc-ai-cta-upgrade-commissioner"
+              onClick={() => trackWcCtaUpgradeClicked({ challengeId, tier: "commissioner", source: "row_label" })}
             >
               <Lock className="h-2.5 w-2.5" />
               AF Commissioner
@@ -465,6 +506,7 @@ export default function WorldCupAiInsightsCTA({
               state={actionStates[cta.key] ?? { loading: false, result: null, error: null }}
               onRun={runCta}
               onSwitchToReviewTab={onSwitchToReviewTab}
+              onLockedClick={() => trackWcCtaLockedClicked({ challengeId, actionKey: cta.key, tier: cta.tier })}
             />
           ))}
         </div>

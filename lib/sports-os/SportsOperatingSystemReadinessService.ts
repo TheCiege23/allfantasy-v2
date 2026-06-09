@@ -127,6 +127,11 @@ function toolStatus(status: DashboardAiToolStatus | undefined): SportsOsStatus {
 // the World Cup plugin — it operates on teams + fixtures + standings + pool context.
 const WORLD_CUP_AI_GROUNDING_KEYS = ["teams", "schedules", "standings"] as const satisfies Array<keyof SportImportMatrixRow["cells"]>
 
+// Missing-data keys for the World Cup "Missing" admin column.
+// We exclude players/injuries/news/playerStats/projectionsRankings because those
+// are intentionally absent for the bracket product and should not show as gaps.
+const WORLD_CUP_MISSING_DATA_KEYS = ["teams", "schedules", "liveScores", "standings"] as const satisfies Array<keyof SportImportMatrixRow["cells"]>
+
 function buildSportsRows(rows: SportImportMatrixRow[]): SportsOsSportRow[] {
   return rows.map((row) => {
     const teamsReady = isReady(row.cells.teams)
@@ -151,17 +156,23 @@ function buildSportsRows(rows: SportImportMatrixRow[]): SportsOsSportRow[] {
         ? statusFromBooleans(teamsReady, isPartial(row.cells.teams))
         : statusFromBooleans(false, teamsReady || playersReady)
 
-    const missingData = missingCellLabels(row, [
-      "teams",
-      "players",
-      "schedules",
-      "liveScores",
-      "standings",
-      "injuries",
-      "news",
-      "playerStats",
-      "projectionsRankings",
-    ])
+    // World Cup only tracks teams/fixtures/standings — exclude optional enrichments
+    // (players, injuries, news, playerStats, projectionsRankings) so they don't
+    // show as critical gaps in the admin "Missing" column.
+    const missingData =
+      row.id === "world-cup"
+        ? missingCellLabels(row, WORLD_CUP_MISSING_DATA_KEYS)
+        : missingCellLabels(row, [
+            "teams",
+            "players",
+            "schedules",
+            "liveScores",
+            "standings",
+            "injuries",
+            "news",
+            "playerStats",
+            "projectionsRankings",
+          ])
 
     // World Cup AI grounding is evaluated only on the 3 data types the bracket AI actually
     // consumes (teams, fixtures/schedules, standings).  The 6 generic sports data types
@@ -392,9 +403,13 @@ function buildIntentRoutes(tools: DashboardAiToolAvailability[]): SportsOsIntent
 
 function buildBiggestDataHoles(sports: SportsOsSportRow[], routes: SportsOsIntentRoute[]): string[] {
   const holes = new Set<string>()
-  const missingInjurySports = sports.filter((row) => row.missingData.includes("Injuries")).map((row) => row.label)
-  const missingNewsSports = sports.filter((row) => row.missingData.includes("News")).map((row) => row.label)
-  const missingStatsSports = sports.filter((row) => row.missingData.includes("Player stats")).map((row) => row.label)
+  // Exclude World Cup — injuries/news/playerStats are optional enrichment for the bracket
+  // product and are not tracked in the WC-specific tables. They must not inflate the
+  // "Biggest Data Holes" list as critical gaps.
+  const fantasyRows = sports.filter((row) => row.id !== "world-cup")
+  const missingInjurySports = fantasyRows.filter((row) => row.missingData.includes("Injuries")).map((row) => row.label)
+  const missingNewsSports = fantasyRows.filter((row) => row.missingData.includes("News")).map((row) => row.label)
+  const missingStatsSports = fantasyRows.filter((row) => row.missingData.includes("Player stats")).map((row) => row.label)
   if (missingInjurySports.length) holes.add(`Injuries incomplete for: ${missingInjurySports.join(", ")}`)
   if (missingNewsSports.length) holes.add(`News incomplete for: ${missingNewsSports.join(", ")}`)
   if (missingStatsSports.length) holes.add(`Player stats/history incomplete for: ${missingStatsSports.join(", ")}`)

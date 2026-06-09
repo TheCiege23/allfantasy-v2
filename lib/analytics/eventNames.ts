@@ -62,6 +62,26 @@ export const DRAFT_ROOM = {
   TRADE_OPEN_FROM_BOARD: 'engagement.draft_room.trade_open_from_board',
 } as const
 
+/** World Cup AI CTA panel events (client-side beacons). */
+export const WORLD_CUP_CTA = {
+  /** Panel mounted and chips became visible (fires once per mount). */
+  VIEWED: 'wc.ai_cta.viewed',
+  /** User clicked an unlocked CTA chip. */
+  CLICKED: 'wc.ai_cta.clicked',
+  /** User clicked a locked CTA chip (shows they noticed it but aren't entitled). */
+  LOCKED_CLICKED: 'wc.ai_cta.locked_clicked',
+  /** User clicked an upgrade/unlock link next to a tier row label. */
+  UPGRADE_CLICKED: 'wc.ai_cta.upgrade_clicked',
+  /** API call completed successfully and a result was rendered. */
+  SUCCESS: 'wc.ai_cta.success',
+  /** API call failed or returned an error. */
+  ERROR: 'wc.ai_cta.error',
+  /** Token-confirmation dialog was surfaced to the user (status 409). */
+  TOKEN_CONFIRM_OPENED: 'wc.ai_cta.token_confirm_opened',
+  /** User accepted the token-confirmation dialog. */
+  TOKEN_CONFIRM_ACCEPTED: 'wc.ai_cta.token_confirm_accepted',
+} as const
+
 /** Engine / ops (often sampled before persist). */
 export const ENGINE = {
   JOB: 'engine.job',
