@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { runDraftWarRoomRecommendation, type DraftWarRoomInput, type WarRoomPlayer } from '@/lib/ai/aiDraftHelper'
 import { assertLeagueAccess } from '@/lib/ai/league-settings-ai/access'
 import { getDraftEligiblePositionsFromPayload, getLeagueDraftTemplatePayload } from '@/lib/league/league-draft-template-payload'
+import { getDraftAdvisorContext } from '@/lib/sports-os/DraftAdvisorContextService'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,8 +73,35 @@ export async function POST(req: Request) {
     ...(draftEligibleFromLeague ? { draftEligiblePositions: draftEligibleFromLeague } : {}),
   }
 
+  // Assemble grounded context (injury, bye weeks, scarcity, roster needs) from DB.
+  // Enriches the top 40 available candidates; degrades gracefully if DB unavailable.
+  // We only enrich the top 40 by incoming order (caller already sorts by ADP) to
+  // keep response latency acceptable while covering the real decision window.
+  const scoringFormat =
+    typeof input.scoringSettings?.scoringFormat === 'string'
+      ? input.scoringSettings.scoringFormat
+      : typeof input.scoringSettings?.type === 'string'
+        ? input.scoringSettings.type
+        : 'ppr'
+
+  const groundedContext = await getDraftAdvisorContext({
+    sport: input.sport,
+    candidates: input.availablePlayers.slice(0, 40).map((p) => ({
+      playerName: p.name,
+      position: p.position,
+      team: p.team ?? null,
+      adp: p.adp ?? null,
+    })),
+    currentRoster: input.userRoster,
+    leagueFormat: input.isDynasty ? 'dynasty' : 'redraft',
+    scoringFormat,
+    draftPosition: input.currentPick?.slot ?? null,
+    totalTeams: input.totalTeams,
+    round: input.round,
+  }).catch(() => undefined)
+
   try {
-    const result = await runDraftWarRoomRecommendation(input)
+    const result = await runDraftWarRoomRecommendation({ ...input, groundedContext })
     return NextResponse.json({ ok: true, ...result })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'War room failed'

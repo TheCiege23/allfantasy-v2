@@ -7,6 +7,7 @@ import { openaiChatJson, parseJsonContentFromChatCompletion } from '@/lib/openai
 import { deepseekChat } from '@/lib/deepseek-client'
 import { computeDraftRecommendation, type RecommendationResult } from '@/lib/draft-helper/RecommendationEngine'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import type { DraftAdvisorContext } from '@/lib/sports-os/DraftAdvisorContextService'
 
 export type WarRoomPlayer = {
   name: string
@@ -35,6 +36,13 @@ export type DraftWarRoomInput = {
   draftEligiblePositions?: ReadonlySet<string>
   aiAdpByKey?: Record<string, number>
   mode?: 'needs' | 'bpa'
+  /**
+   * Pre-assembled grounded draft context from DraftAdvisorContextService.
+   * When present, enriches the LLM prompt with injury flags, bye weeks,
+   * positional scarcity ratings, and roster needs derived from DB data.
+   * Optional — the route assembles this when the service is available.
+   */
+  groundedContext?: DraftAdvisorContext
 }
 
 export type DraftWarRoomOutput = {
@@ -132,29 +140,85 @@ function mapDeterministicToWarRoom(
 }
 
 function buildUserPayload(input: DraftWarRoomInput, pool: WarRoomPlayer[]): string {
-  const avail = pool.slice(0, 80).map((p) => `${p.name}|${p.position}|${p.team ?? ''}|${p.adp ?? ''}`).join('\n')
+  const ctx = input.groundedContext
+
+  // Build enriched player rows, incorporating grounded injury + bye week data when available.
+  // Index grounded candidates by normalized name for O(1) lookup.
+  const groundedByName = new Map<string, { injuryRisk: string; byeWeek: number | null }>()
+  if (ctx) {
+    for (const c of ctx.enrichedCandidates) {
+      groundedByName.set(c.playerName.trim().toLowerCase(), {
+        injuryRisk: c.snapshot.injuryRisk,
+        byeWeek: c.byeWeek,
+      })
+    }
+  }
+
+  const avail = pool.slice(0, 80).map((p) => {
+    const key = p.name.trim().toLowerCase()
+    const grounded = groundedByName.get(key)
+    const baseRow = `${p.name}|${p.position}|${p.team ?? ''}|${p.adp ?? ''}`
+    if (!grounded) return baseRow
+    const parts: string[] = [baseRow]
+    if (grounded.injuryRisk === 'high' || grounded.injuryRisk === 'medium') {
+      parts.push(`injury:${grounded.injuryRisk}`)
+    }
+    if (grounded.byeWeek != null) parts.push(`bye:${grounded.byeWeek}`)
+    return parts.join('|')
+  }).join('\n')
+
   const recent = input.recentPicks
     .slice(-12)
     .map((p) => `${p.pickLabel ?? ''} ${p.playerName} ${p.position}`)
     .join('; ')
   const roster = input.userRoster.map((r) => r.position).join(',')
-  return [
+
+  const sections: string[] = [
     `SPORT: ${input.sport}`,
     `DRAFT_TYPE: ${input.draftType}`,
     `ROUND: ${input.round} PICK_IN_ROUND: ${input.pickInRound ?? 1} TOTAL_TEAMS: ${input.totalTeams}`,
     `USER_ROSTER_POSITIONS: ${roster}`,
     `RECENT_PICKS: ${recent || 'none'}`,
     `NEXT_TEAMS: ${(input.nextTeams ?? []).join(', ') || 'n/a'}`,
-    `AVAILABLE_PLAYERS (name|pos|team|adp):\n${avail}`,
-    `Return JSON:
+  ]
+
+  // Grounded context sections — only appended when DB data was available.
+  if (ctx) {
+    // Positional scarcity: positions with high/medium scarcity get explicit flags.
+    const scarcityLines = Object.entries(ctx.positionalScarcity)
+      .filter(([, s]) => s.scarcityRating !== 'low')
+      .map(([pos, s]) => `${pos}:${s.scarcityRating}(${s.totalAvailable} left)`)
+    if (scarcityLines.length > 0) {
+      sections.push(`POSITIONAL_SCARCITY: ${scarcityLines.join(', ')}`)
+    }
+
+    // Roster needs: what positions are still required.
+    if (ctx.rosterNeeds.length > 0) {
+      sections.push(`ROSTER_NEEDS: ${ctx.rosterNeeds.join(', ')}`)
+    }
+
+    // Bye week conflicts on the current roster.
+    if (ctx.byeWeekConflicts.length > 0) {
+      sections.push(`BYE_CONFLICTS_ON_ROSTER: ${ctx.byeWeekConflicts.join(', ')} — avoid stacking more from same bye week`)
+    }
+
+    // Grounding confidence — let the LLM know data quality.
+    if (ctx.confidence < 0.4 && ctx.missingData.length > 0) {
+      sections.push(`DATA_NOTE: grounded context confidence=${ctx.confidence.toFixed(2)} — lean on ADP/positional heuristics`)
+    }
+  }
+
+  sections.push(`AVAILABLE_PLAYERS (name|pos|team|adp[|injury:level][|bye:week]):\n${avail}`)
+  sections.push(`Return JSON:
 {
   "reasoning": [string, string, string, string],
   "strategyTip": string,
   "risk": "low"|"medium"|"high",
   "riskNote": string,
-  "alternativeNames": [string, string]  
-}`,
-  ].join('\n')
+  "alternativeNames": [string, string]
+}`)
+
+  return sections.join('\n')
 }
 
 async function callLlmWarRoom(userBlock: string): Promise<{ raw: Record<string, unknown>; provider: 'openai' | 'deepseek' } | null> {
