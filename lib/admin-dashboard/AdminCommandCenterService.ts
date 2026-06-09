@@ -29,6 +29,10 @@ import {
   getSportsIdentityHealthSnapshot,
   type SportsIdentityHealthSnapshot,
 } from "@/lib/sports-os/SportsIdentityHealthService"
+import {
+  getProviderTeamReconciliationSummaries,
+  type ProviderTeamReconciliationSummary,
+} from "@/lib/sports-os/ProviderTeamReconciliationService"
 import { maskAdminEmail } from "@/lib/admin-dashboard/format"
 
 type MetricValue = number | string
@@ -122,6 +126,11 @@ export type AdminCommandCenterMetrics = {
   emailStatus: AdminEmailStatus
   sportsOperatingSystem: SportsOperatingSystemAudit
   sportsIdentityHealth: SportsIdentityHealthSnapshot
+  providerTeamReconciliation: {
+    summaries: ProviderTeamReconciliationSummary[]
+    totalProblems: number
+    generatedAt: string
+  }
   traffic: AdminMetric[]
   integrity: AdminMetric[]
   dataQuality: AdminMetric[]
@@ -432,6 +441,7 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     productionReadiness,
     emailStatus,
     sportsIdentityHealth,
+    providerTeamReconciliation,
     analyticsEventsToday,
     analyticsEvents7Days,
     uniqueSessionsToday,
@@ -559,6 +569,7 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     getAdminProductionReadiness(),
     getEmailCenterStatus(),
     getSportsIdentityHealthSnapshot(),
+    getProviderTeamReconciliationSummaries().catch(() => ({ summaries: [], totalProblems: 0, generatedAt: new Date().toISOString() })),
     prisma.analyticsEvent.count({ where: { createdAt: { gte: today } } }),
     prisma.analyticsEvent.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
     prisma.analyticsEvent.groupBy({
@@ -827,6 +838,7 @@ export async function getAdminCommandCenterMetrics(searchQuery = ""): Promise<Ad
     emailStatus,
     sportsOperatingSystem,
     sportsIdentityHealth,
+    providerTeamReconciliation,
     usersSearch,
     activeWorldCupPools,
     recentUsers,

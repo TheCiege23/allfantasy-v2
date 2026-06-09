@@ -32,6 +32,9 @@ import type {
   SportsIdentityHealthSnapshot,
   SportsIdentityHealthStatus,
 } from "@/lib/sports-os/SportsIdentityHealthService"
+import type {
+  ProviderTeamReconciliationSummary,
+} from "@/lib/sports-os/ProviderTeamReconciliationService"
 
 export const dynamic = "force-dynamic"
 
@@ -643,6 +646,178 @@ function SportsIdentityHealthPanel({ snapshot }: { snapshot: SportsIdentityHealt
   )
 }
 
+type ReconStatus = "ready" | "partial" | "critical"
+
+function reconStatusClass(status: ReconStatus) {
+  if (status === "ready") return "border-emerald-300/35 bg-emerald-300/10 text-emerald-100"
+  if (status === "partial") return "border-amber-300/35 bg-amber-300/10 text-amber-100"
+  return "border-rose-300/35 bg-rose-300/10 text-rose-100"
+}
+
+function reconStatusLabel(status: ReconStatus): string {
+  if (status === "ready") return "Ready"
+  if (status === "partial") return "Partial"
+  return "Critical"
+}
+
+function deriveReconStatus(row: ProviderTeamReconciliationSummary): ReconStatus {
+  if (row.coveredPct >= 98 && row.ambiguous === 0 && row.duplicate === 0) return "ready"
+  if (row.coveredPct >= 85) return "partial"
+  return "critical"
+}
+
+function ProviderTeamReconciliationPanel({
+  data,
+}: {
+  data: { summaries: ProviderTeamReconciliationSummary[]; totalProblems: number; generatedAt: string }
+}) {
+  const { summaries, totalProblems } = data
+  const readyCount = summaries.filter((s) => deriveReconStatus(s) === "ready").length
+  const partialCount = summaries.filter((s) => deriveReconStatus(s) === "partial").length
+  const criticalCount = summaries.filter((s) => deriveReconStatus(s) === "critical").length
+
+  return (
+    <AccordionSection
+      title="Provider Team Reconciliation"
+      eyebrow="cached data quality · fuzzy match"
+      defaultOpen={false}
+    >
+      <div className="mb-4 rounded-2xl border border-white/10 bg-black/25 p-4 text-xs text-white/58 leading-5">
+        Fuzzy-match reconciliation of{" "}
+        <span className="font-black text-white">SportsTeam</span> provider rows against canonical{" "}
+        <span className="font-black text-white">TeamAsset</span> and{" "}
+        <span className="font-black text-white">WorldCupTeam</span> tables. Uses 6-tier matching (exact code →
+        alias → full name → normalized → city → word overlap). Unlike the raw identity health counts above, this
+        view shows{" "}
+        <span className="font-bold text-cyan-200">true unmapped teams</span> after alias resolution — a much
+        smaller real-blocker count.{" "}
+        <a
+          href="/api/admin/sports/provider-team-reconciliation"
+          className="text-cyan-300 underline underline-offset-2 hover:text-cyan-200"
+        >
+          Full drilldown JSON ↗
+        </a>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <MetricCard item={{ label: "Sport/provider pairs", value: summaries.length, tracked: true }} />
+        <MetricCard item={{ label: "True problems", value: totalProblems, tracked: true, note: "Ambiguous + unmapped + duplicate after fuzzy match" }} />
+        <MetricCard item={{ label: "Ready pairs", value: readyCount, tracked: true, note: "≥98% covered, no ambiguous/duplicate" }} />
+        <MetricCard item={{ label: "Partial pairs", value: partialCount, tracked: true, note: "≥85% covered" }} />
+        <MetricCard item={{ label: "Critical pairs", value: criticalCount, tracked: true, note: "<85% covered" }} />
+      </div>
+
+      {summaries.length === 0 ? (
+        <p
+          data-testid="recon-empty-state"
+          className="mt-4 rounded-xl border border-white/10 bg-black/25 p-4 text-sm text-white/50"
+        >
+          No SportsTeam provider rows found. Provider team sync has not run yet, or all sports use World Cup-specific
+          tables.
+        </p>
+      ) : (
+        <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10 bg-black/25 p-4">
+          <h3 className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100/75">
+            Summary by sport / provider
+          </h3>
+          <table className="mt-3 w-full min-w-[1100px] text-left text-xs" data-testid="recon-summary-table">
+            <thead className="text-[10px] uppercase tracking-[0.16em] text-white/42">
+              <tr>
+                <th className="py-2 pr-3">Sport</th>
+                <th className="py-2 pr-3">Provider</th>
+                <th className="py-2 pr-3">Status</th>
+                <th className="py-2 pr-3">Total</th>
+                <th className="py-2 pr-3">Mapped</th>
+                <th className="py-2 pr-3">Probable</th>
+                <th className="py-2 pr-3">Ambiguous</th>
+                <th className="py-2 pr-3">Unmapped</th>
+                <th className="py-2 pr-3">Duplicate</th>
+                <th className="py-2 pr-3">Mapped %</th>
+                <th className="py-2 pr-3">Covered %</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {summaries.map((row) => {
+                const status = deriveReconStatus(row)
+                return (
+                  <tr key={`${row.sport}|${row.provider}`} className="align-top text-white/70">
+                    <td className="py-3 pr-3 font-black text-white">{row.sport}</td>
+                    <td className="py-3 pr-3">{row.provider}</td>
+                    <td className="py-3 pr-3">
+                      <span
+                        className={`rounded-full border px-2 py-1 text-[10px] font-black ${reconStatusClass(status)}`}
+                        data-testid={`recon-status-${row.sport}-${row.provider}`}
+                      >
+                        {reconStatusLabel(status)}
+                      </span>
+                    </td>
+                    <td className="py-3 pr-3">{row.totalProviderTeams}</td>
+                    <td className="py-3 pr-3 text-emerald-300/90">{row.mapped}</td>
+                    <td className="py-3 pr-3 text-cyan-300/80">{row.probableMatch}</td>
+                    <td className={`py-3 pr-3 ${row.ambiguous > 0 ? "font-bold text-amber-300" : ""}`}>
+                      {row.ambiguous}
+                    </td>
+                    <td className={`py-3 pr-3 ${row.unmapped > 0 ? "font-bold text-rose-300" : ""}`}>
+                      {row.unmapped}
+                    </td>
+                    <td className={`py-3 pr-3 ${row.duplicate > 0 ? "font-bold text-amber-300" : ""}`}>
+                      {row.duplicate}
+                    </td>
+                    <td className="py-3 pr-3">{row.mappedPct}%</td>
+                    <td className={`py-3 pr-3 font-black ${row.coveredPct >= 98 ? "text-emerald-300" : row.coveredPct >= 85 ? "text-amber-300" : "text-rose-300"}`}>
+                      {row.coveredPct}%
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="mt-3 rounded-2xl border border-white/10 bg-black/25 p-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-xs font-black uppercase tracking-[0.16em] text-amber-100/75">
+            Drilldown — unmapped &amp; ambiguous
+          </h3>
+          <a
+            href="/api/admin/sports/provider-team-reconciliation"
+            className="rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1 text-[10px] font-black text-amber-100 hover:bg-amber-300/15"
+          >
+            topUnmapped + topAmbiguous JSON ↗
+          </a>
+        </div>
+        <p className="mt-2 text-[11px] leading-5 text-white/48">
+          The JSON endpoint includes up to 50 topUnmapped rows (the real gaps to fix) and up to 20 topAmbiguous
+          rows (need alias or manual mapping). Add aliases to{" "}
+          <code className="rounded bg-white/[0.06] px-1 py-0.5 font-mono text-cyan-200/80">lib/team-abbrev.ts</code>{" "}
+          or a new TeamAsset row to clear ambiguous and unmapped counts.
+        </p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-rose-300/80">
+              Fix unmapped first
+            </div>
+            <p className="mt-2 text-[11px] leading-4 text-white/55">
+              Each unmapped row has no canonical match even after alias resolution. Usually means the provider
+              uses a different abbreviation, name format, or the TeamAsset row is missing entirely.
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-300/80">
+              Then fix ambiguous
+            </div>
+            <p className="mt-2 text-[11px] leading-4 text-white/55">
+              Ambiguous rows matched 2+ canonical teams. Pick the correct canonical and add an alias or exact
+              code to collapse it to a single mapped result.
+            </p>
+          </div>
+        </div>
+      </div>
+    </AccordionSection>
+  )
+}
+
 function ProviderHealthPanel({ rows }: { rows: AdminProviderHealthRow[] }) {
   return (
     <section className="rounded-3xl border border-cyan-300/15 bg-white/[0.04] p-4 shadow-[0_24px_80px_-54px_rgba(34,211,238,0.75)] sm:p-5">
@@ -1105,6 +1280,7 @@ export default async function AdminPage({
         <EmailCenterPanel status={data.emailStatus} />
         <SportsOperatingSystemPanel audit={data.sportsOperatingSystem} />
         <SportsIdentityHealthPanel snapshot={data.sportsIdentityHealth} />
+        <ProviderTeamReconciliationPanel data={data.providerTeamReconciliation} />
         <Section title="Integrity / Fraud Signals" items={data.integrity} />
         <Section title="Admin Data Quality" items={data.dataQuality} />
         <AccordionSection title="Sports API Health" eyebrow="providers" defaultOpen={false}>
