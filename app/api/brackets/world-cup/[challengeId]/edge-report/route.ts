@@ -55,7 +55,12 @@ export async function GET(
   // Check if coaching is already cached for today (lets the UI show "unlocked")
   const utcDate = todayUtcDate()
   const cacheKey = edgeReportCacheKey(challengeId, userId, utcDate)
-  const cachedCoaching = await getCachedAiResult({ key: cacheKey }).catch(() => null)
+  const cachedCoaching = await getCachedAiResult({
+    feature: "world_cup_daily_edge_report",
+    scopeType: "user_pool_day",
+    scopeId: cacheKey,
+    payload: {},
+  }).catch(() => null)
   const coachingFromCache = Boolean(cachedCoaching?.resultText)
 
   return NextResponse.json({

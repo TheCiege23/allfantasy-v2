@@ -12,7 +12,7 @@ import "server-only"
  * Free on cache hit. The route caller handles confirmation + token commit.
  */
 
-import { routeTextCall } from "@/lib/ai/providerRouter"
+import { routeTextCall, type RouterMessage } from "@/lib/ai/providerRouter"
 import { logAiInteraction } from "@/lib/ai/auditLogger"
 import { getCachedAiResult, saveAiResult } from "@/lib/ai/ai-result-cache"
 import type { EdgeReportGrounding, WorldCupEdgeReport } from "./worldCupEdgeReport"
@@ -129,7 +129,13 @@ export async function generateEdgeReportCoaching(input: {
   const cacheKey = edgeReportCacheKey(challengeId, userId, utcDate)
 
   // ── Cache check (free on hit) ──────────────────────────────────────────────
-  const cached = await getCachedAiResult({ key: cacheKey }).catch(() => null)
+  // Cache is keyed by feature + per-user/pool/day scopeId — same key the save uses.
+  const cached = await getCachedAiResult({
+    feature: "world_cup_daily_edge_report",
+    scopeType: "user_pool_day",
+    scopeId: cacheKey,
+    payload: {},
+  }).catch(() => null)
   if (cached?.resultText) {
     try {
       const parsed = JSON.parse(cached.resultText) as {
@@ -173,31 +179,29 @@ export async function generateEdgeReportCoaching(input: {
 
   // ── LLM call ──────────────────────────────────────────────────────────────
   const prompt = buildCoachingPrompt(report, report.sections)
+  const messages: RouterMessage[] = [{ role: "user", content: prompt }]
 
   const llmResult = await routeTextCall({
-    sport: "world_cup",
-    feature: "world_cup_daily_edge_report",
-    userId,
-    prompt,
+    messages,
     maxTokens: 400,
     temperature: 0.4,
   }).catch(() => null)
 
-  if (!llmResult?.ok || !llmResult.text) {
+  if (!llmResult || !llmResult.ok) {
     logAiInteraction({
       userId,
       sport: "world_cup",
       feature: "world_cup_daily_edge_report",
       route: "/api/brackets/world-cup/[challengeId]/edge-report",
       plan,
-      providerSource: llmResult?.provider ?? "unavailable",
+      providerSource: "unavailable",
       freshnessTier: "static",
       promptIntent: "coaching",
       missingData: [],
       allowedClaims: [],
       validatorResult: "unavailable",
       blockedReason: null,
-      modelUsed: llmResult?.model ?? "unavailable",
+      modelUsed: "unavailable",
       tokenCost: 0,
       wasDeterministic: false,
       billingReason: "provider_missing",
@@ -284,10 +288,13 @@ export async function generateEdgeReportCoaching(input: {
 
   // ── Cache the result (keyed to today — expires naturally at day rollover) ──
   await saveAiResult({
-    key: cacheKey,
-    resultText: JSON.stringify(parsed),
+    feature: "world_cup_daily_edge_report",
+    scopeType: "user_pool_day",
+    scopeId: cacheKey,
     provider: llmResult.provider,
     model: llmResult.model ?? null,
+    payload: {},
+    resultText: JSON.stringify(parsed),
     ttlSeconds: 86400,  // 24h — daily report
   }).catch(() => undefined)  // cache write failure must never block the response
 

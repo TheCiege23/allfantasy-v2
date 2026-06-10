@@ -427,4 +427,52 @@ describe("D — cost-health feature naming", () => {
     expect(WORLD_CUP_EDGE_REPORT.COACHING_LOADED).toBe("wc.edge_report.coaching_loaded")
     expect(WORLD_CUP_EDGE_REPORT.FEEDBACK_CLICKED).toBe("wc.edge_report.feedback_clicked")
   })
+
+  it("D4 (regression): worldCupEdgeReportAi.ts calls getCachedAiResult with feature param, not key", () => {
+    // Bug fix: was calling { key: cacheKey } which the function doesn't accept.
+    // That caused cache lookup to always miss, charging tokens on every POST.
+    const { readFileSync } = require("node:fs")
+    const { join } = require("node:path")
+    const src = readFileSync(
+      join(process.cwd(), "lib/world-cup/worldCupEdgeReportAi.ts"),
+      "utf8"
+    )
+    // Must NOT use the broken key-based interface
+    expect(src).not.toMatch(/getCachedAiResult\(\{\s*key:/)
+    expect(src).not.toMatch(/saveAiResult\(\{\s*key:/)
+    // Must use the correct feature+scopeType+scopeId interface
+    expect(src).toContain('feature: "world_cup_daily_edge_report"')
+    expect(src).toContain('scopeType: "user_pool_day"')
+    expect(src).toContain("scopeId: cacheKey")
+  })
+
+  it("D5 (regression): edge-report route calls getCachedAiResult with feature param, not key", () => {
+    // Same cache bug existed in the route's GET handler (coaching-cached check).
+    const { readFileSync } = require("node:fs")
+    const { join } = require("node:path")
+    const src = readFileSync(
+      join(process.cwd(), "app/api/brackets/world-cup/[challengeId]/edge-report/route.ts"),
+      "utf8"
+    )
+    expect(src).not.toMatch(/getCachedAiResult\(\{\s*key:/)
+    expect(src).toContain('feature: "world_cup_daily_edge_report"')
+    expect(src).toContain("scopeId: cacheKey")
+  })
+
+  it("D6 (regression): worldCupEdgeReportAi.ts calls routeTextCall with messages array, not prompt", () => {
+    // Bug fix: was passing { sport, feature, userId, prompt } which aren't valid
+    // routeTextCall params → LLM was never actually called (result always { ok: false }).
+    const { readFileSync } = require("node:fs")
+    const { join } = require("node:path")
+    const src = readFileSync(
+      join(process.cwd(), "lib/world-cup/worldCupEdgeReportAi.ts"),
+      "utf8"
+    )
+    // Must NOT use the invalid param signature
+    expect(src).not.toMatch(/routeTextCall\(\{\s*sport:/)
+    expect(src).not.toMatch(/routeTextCall\(\{\s*prompt:/)
+    // Must use the correct messages interface
+    expect(src).toContain("messages,")
+    expect(src).toContain("role: \"user\"")
+  })
 })
