@@ -71,6 +71,16 @@ const routeDirsToDisable = [
   // AI tools discovery endpoint — only referenced as an error-message string in the tool registry;
   // no production UI ever fetches it. Excluded to reduce route budget.
   path.join('app', 'api', 'ai', 'tools'),
+  // Big Brother game mode — deferred; not yet shipped to production users.
+  // 4 API routes + 2 pages = 6 routes freed.
+  path.join('app', 'big-brother'),
+  path.join('app', 'api', 'big-brother'),
+  // Devy (development dynasty picks) — deferred; not yet shipped to production users.
+  // 15 API routes + 4 pages = 19 routes freed.
+  path.join('app', 'devy'),
+  path.join('app', 'api', 'devy'),
+  // Debug-only endpoints — no production UI callers; 2 routes freed.
+  path.join('app', 'api', 'af-debug'),
 ]
 
 const movedFiles = []
