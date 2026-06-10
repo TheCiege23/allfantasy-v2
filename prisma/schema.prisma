@@ -2160,6 +2160,113 @@ model TeamSeasonStats {
   @@map("team_season_stats")
 }
 
+/// Canonical fantasy-facing player cache used by AI grounding and importer diagnostics.
+/// Provider-specific identifiers live in providerIds; source/freshness metadata gates AI use.
+model FantasyPlayer {
+  id                 String   @id @default(cuid())
+  sport              String
+  providerIds        Json     @map("provider_ids")
+  fullName           String   @map("full_name")
+  team               String?
+  collegeTeam        String?  @map("college_team")
+  position           String?
+  fantasyPositions   String[] @default([]) @map("fantasy_positions")
+  headshotUrl        String?  @map("headshot_url")
+  status             String?
+  injuryStatus       String?  @map("injury_status")
+  byeWeek            Int?     @map("bye_week")
+  depthChartPosition String?  @map("depth_chart_position")
+  source             String
+  fetchedAt          DateTime @default(now()) @map("fetched_at")
+  expiresAt          DateTime @map("expires_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@index([sport, fullName])
+  @@index([sport, team])
+  @@index([sport, position])
+  @@index([source])
+  @@index([expiresAt])
+  @@map("fantasy_players")
+}
+
+/// Canonical fantasy projection cache. Importers must write provider-backed values only.
+model FantasyProjection {
+  id              String   @id @default(cuid())
+  playerId        String   @map("player_id")
+  sport           String
+  season          String
+  week            Int
+  scoringPresetId String   @map("scoring_preset_id")
+  projectedPoints Float    @map("projected_points")
+  stats           Json
+  source          String
+  fetchedAt       DateTime @default(now()) @map("fetched_at")
+  expiresAt       DateTime @map("expires_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([playerId, sport, season, week, scoringPresetId, source], name: "uniq_fantasy_projection_player_week_scoring_source")
+  @@index([sport, season, week])
+  @@index([playerId])
+  @@index([source])
+  @@index([expiresAt])
+  @@map("fantasy_projections")
+}
+
+/// Canonical fantasy stat-line cache. Weekly/stat-period rows stay source-backed and scoring-preset aware.
+model FantasyStatLine {
+  id                           String   @id @default(cuid())
+  playerId                     String   @map("player_id")
+  sport                        String
+  season                       String
+  week                         Int
+  team                         String?
+  opponent                     String?
+  stats                        Json
+  fantasyPointsByScoringPreset Json     @map("fantasy_points_by_scoring_preset")
+  source                       String
+  fetchedAt                    DateTime @default(now()) @map("fetched_at")
+  expiresAt                    DateTime @map("expires_at")
+  createdAt                    DateTime @default(now()) @map("created_at")
+  updatedAt                    DateTime @updatedAt @map("updated_at")
+
+  @@unique([playerId, sport, season, week, source], name: "uniq_fantasy_stat_line_player_week_source")
+  @@index([sport, season, week])
+  @@index([playerId])
+  @@index([team])
+  @@index([source])
+  @@index([expiresAt])
+  @@map("fantasy_stat_lines")
+}
+
+/// Canonical fantasy schedule cache. Scores are provider evidence, not model-generated state.
+model FantasyScheduleGame {
+  id             String    @id @default(cuid())
+  sport          String
+  season         String
+  week           Int
+  homeTeam       String    @map("home_team")
+  awayTeam       String    @map("away_team")
+  kickoffTime    DateTime? @map("kickoff_time")
+  status         String?
+  score          Json?
+  providerGameId String    @map("provider_game_id")
+  source         String
+  fetchedAt      DateTime  @default(now()) @map("fetched_at")
+  expiresAt      DateTime  @map("expires_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@unique([sport, providerGameId, source], name: "uniq_fantasy_schedule_game_provider")
+  @@index([sport, season, week])
+  @@index([homeTeam])
+  @@index([awayTeam])
+  @@index([source])
+  @@index([expiresAt])
+  @@map("fantasy_schedule_games")
+}
+
 model ProviderSyncState {
   id               String    @id @default(uuid())
   provider         String
@@ -5984,6 +6091,51 @@ model LeagueTemplate {
 
   @@index([userId])
   @@map("league_templates")
+}
+
+/// Product-owned concept preset for sport/league-type creation defaults and AI/data-feed gating.
+/// User-created copies live in LeagueTemplate; this row is the canonical preset source.
+model ConceptPreset {
+  id                 String   @id @default(cuid())
+  presetKey          String?  @unique @map("preset_key")
+  sport              String
+  leagueType         String   @map("league_type")
+  draftTypesAllowed  String[] @default([]) @map("draft_types_allowed")
+  defaultTeamCount   Int      @map("default_team_count")
+  rosterSlots        Json     @map("roster_slots")
+  benchSlots         Int      @default(0) @map("bench_slots")
+  irSlots            Int      @default(0) @map("ir_slots")
+  taxiSlots          Int      @default(0) @map("taxi_slots")
+  scoringPreset      String   @map("scoring_preset")
+  waiverRules        Json     @map("waiver_rules")
+  tradeRules         Json     @map("trade_rules")
+  playoffRules       Json     @map("playoff_rules")
+  scheduleRules      Json     @map("schedule_rules")
+  draftRules         Json     @map("draft_rules")
+  aiEnabledFeatures  String[] @default([]) @map("ai_enabled_features")
+  requiredDataFeeds  String[] @default([]) @map("required_data_feeds")
+  readiness          String   @default("coming_soon")
+  visibility         String   @default("hidden")
+  isLaunchReady      Boolean  @default(false) @map("is_launch_ready")
+  featureFlagKey     String?  @map("feature_flag_key")
+  marketingLabel     String?  @map("marketing_label")
+  shortDescription   String?  @map("short_description")
+  commissionerWarning String? @map("commissioner_warning")
+  userFacingWarning  String?  @map("user_facing_warning")
+  unsupportedReason  String?  @map("unsupported_reason")
+  metadata           Json?
+  source             String   @default("allfantasy")
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@index([sport, leagueType])
+  @@index([sport])
+  @@index([leagueType])
+  @@index([readiness])
+  @@index([visibility])
+  @@index([active])
+  @@map("concept_presets")
 }
 
 model LegacyTournament {
@@ -14837,13 +14989,24 @@ model AiInteractionLog {
   /// Approximate token cost as reported by the provider.
   tokenCost        Int?
   /// True when the response was served from deterministic logic with no LLM call.
-  wasDeterministic Boolean  @default(false)
-  createdAt        DateTime @default(now())
+  wasDeterministic   Boolean  @default(false)
+  /// Billing intent reason from resolveBillingDecision():
+  /// "deterministic" | "cache_hit" | "llm_required" | "premium_plan_included" | "validator_blocked" | "provider_missing" | "error"
+  billingReason      String?  @db.VarChar(32)
+  /// Policy decision: was this call supposed to charge a token?
+  shouldChargeToken  Boolean  @default(false)
+  /// Outcome: was a token actually deducted via TokenSpendService?
+  tokenCharged       Boolean  @default(false)
+  /// Settlement status: "not_applicable" | "plan_included" | "charged" | "failed"
+  tokenChargeStatus  String?  @db.VarChar(32)
+  createdAt          DateTime @default(now())
 
   @@index([userId, createdAt])
   @@index([sport, feature, createdAt])
   @@index([validatorResult])
   @@index([providerSource, createdAt])
+  @@index([shouldChargeToken, createdAt])
+  @@index([tokenCharged, createdAt])
   @@index([createdAt])
   @@map("ai_interaction_logs")
 }
@@ -14865,10 +15028,14 @@ model AiFeedback {
   promptHash  String?  @db.VarChar(32)
   /// Sport context at the time of the answer.
   sport       String?  @db.VarChar(32)
+  /// Optional user-selected reason for "not_helpful" ratings.
+  /// e.g. "too_basic" | "not_actionable" | "wrong_data" | "great_insight"
+  reason      String?  @db.VarChar(32)
   createdAt   DateTime @default(now())
 
   @@unique([userId, feature, resultKey])
   @@index([feature, rating, createdAt])
+  @@index([feature, reason, createdAt])
   @@index([userId, createdAt])
   @@index([resultKey])
   @@map("ai_feedback")

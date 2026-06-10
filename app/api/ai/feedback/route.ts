@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Body must be an object" }, { status: 400 })
   }
 
-  const { feature, rating, resultKey, promptText, sport } = body as Record<string, unknown>
+  const { feature, rating, resultKey, promptText, sport, reason } = body as Record<string, unknown>
 
   // ── Validate ──────────────────────────────────────────────────────────────
   if (typeof feature !== "string" || !VALID_FEATURES.has(feature)) {
@@ -67,6 +67,11 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  // reason is optional — only accept known values to prevent arbitrary strings in the DB
+  const VALID_REASONS = new Set<string>(["too_basic", "not_actionable", "wrong_data", "great_insight"])
+  const validatedReason =
+    typeof reason === "string" && VALID_REASONS.has(reason) ? reason : null
+
   // ── Save ──────────────────────────────────────────────────────────────────
   const saved = await saveAiFeedback({
     userId: session.user.id,
@@ -75,6 +80,7 @@ export async function POST(req: NextRequest) {
     resultKey: typeof resultKey === "string" ? resultKey : null,
     promptText: typeof promptText === "string" ? promptText : null,
     sport: typeof sport === "string" ? sport : null,
+    reason: validatedReason,
   })
 
   if (!saved) {

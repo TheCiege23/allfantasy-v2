@@ -245,6 +245,8 @@ function FeedbackRow({
           feature: "world_cup_daily_edge_report",
           rating,
           sport: "world_cup",
+          // reason is optional — only sent when user selects a chip
+          ...(reason ? { reason } : {}),
         }),
         keepalive: true,
       })

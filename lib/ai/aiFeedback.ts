@@ -33,6 +33,11 @@ export type SaveAiFeedbackInput = {
   promptText?: string | null
   /** Sport context. */
   sport?: string | null
+  /**
+   * Optional reason for "not_helpful" ratings.
+   * e.g. "too_basic" | "not_actionable" | "wrong_data" | "great_insight"
+   */
+  reason?: string | null
 }
 
 export type AiFeedbackRow = {
@@ -43,6 +48,7 @@ export type AiFeedbackRow = {
   rating: AiFeedbackRating
   promptHash: string | null
   sport: string | null
+  reason: string | null
   createdAt: Date
 }
 
@@ -80,9 +86,13 @@ export async function saveAiFeedback(input: SaveAiFeedbackInput): Promise<AiFeed
         rating: input.rating,
         promptHash,
         sport: input.sport ?? null,
+        reason: input.reason ?? null,
       },
       update: {
         rating: input.rating,
+        // Always update reason — user may change from no-reason "not_helpful"
+        // click to a chip selection on a second tap.
+        reason: input.reason ?? null,
         // Update promptHash and sport in case they've changed
         ...(promptHash ? { promptHash } : {}),
         ...(input.sport ? { sport: input.sport } : {}),

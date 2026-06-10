@@ -313,7 +313,7 @@ describe("B — feedback", () => {
     expect(feedbackCalls.length).toBe(0)
   })
 
-  it("B3: reason chip click POSTs not_helpful with feature=world_cup_daily_edge_report", async () => {
+  it("B3: reason chip click POSTs not_helpful + reason in body", async () => {
     await loadCoachingAndGetFeedbackRow()
 
     await act(async () => {
@@ -335,6 +335,7 @@ describe("B — feedback", () => {
       feature: "world_cup_daily_edge_report",
       rating: "not_helpful",
       sport: "world_cup",
+      reason: "too_basic",  // reason is now persisted, not analytics-only
     })
   })
 
@@ -350,6 +351,24 @@ describe("B — feedback", () => {
     expect(trackFeedbackMock).toHaveBeenCalledWith(
       expect.objectContaining({ challengeId: "pool-1", rating: "helpful" })
     )
+  })
+
+  it("B5: 'helpful' click does not include reason in POST body", async () => {
+    await loadCoachingAndGetFeedbackRow()
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("edge-report-feedback-helpful"))
+    })
+
+    await waitFor(() => screen.getByTestId("edge-report-feedback-thanks"))
+
+    const feedbackCall = fetchMock.mock.calls.find(
+      (call) => typeof call[0] === "string" && call[0].includes("/api/ai/feedback")
+    )
+    expect(feedbackCall).toBeTruthy()
+    const body = JSON.parse(feedbackCall![1].body as string)
+    // reason should be absent — helpful clicks have no chip selection
+    expect(body).not.toHaveProperty("reason")
   })
 })
 
