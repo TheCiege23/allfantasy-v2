@@ -616,12 +616,27 @@ export default function WorldCupDailyEdgeReportCard({
             </p>
           </div>
         </div>
-        <span
-          className="shrink-0 rounded-full border border-emerald-300/25 bg-emerald-300/[0.07] px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-300/70"
-          data-testid="edge-report-free-badge"
-        >
-          {t("wc.edgeReport.badge.free")}
-        </span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {loadState === "loaded" && (
+            <span
+              className="flex items-center gap-1 rounded-full border border-green-400/25 bg-green-400/[0.08] px-2 py-0.5 text-[9px] font-semibold text-green-300/80"
+              data-testid="edge-report-cue-ready"
+              aria-live="polite"
+            >
+              <span className="relative flex h-1.5 w-1.5" aria-hidden>
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-60" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-400" />
+              </span>
+              {t("wc.edgeReport.cue.ready")}
+            </span>
+          )}
+          <span
+            className="rounded-full border border-emerald-300/25 bg-emerald-300/[0.07] px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-300/70"
+            data-testid="edge-report-free-badge"
+          >
+            {t("wc.edgeReport.badge.free")}
+          </span>
+        </div>
       </div>
 
       {/* Loading state */}
