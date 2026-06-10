@@ -139,7 +139,7 @@ export async function generateEdgeReportCoaching(input: {
       logAiInteraction({
         userId,
         sport: "world_cup",
-        feature: "edge_report_coaching",
+        feature: "world_cup_daily_edge_report",
         route: "/api/brackets/world-cup/[challengeId]/edge-report",
         plan,
         providerSource: "cache",
@@ -176,7 +176,7 @@ export async function generateEdgeReportCoaching(input: {
 
   const llmResult = await routeTextCall({
     sport: "world_cup",
-    feature: "edge_report_coaching",
+    feature: "world_cup_daily_edge_report",
     userId,
     prompt,
     maxTokens: 400,
@@ -187,7 +187,7 @@ export async function generateEdgeReportCoaching(input: {
     logAiInteraction({
       userId,
       sport: "world_cup",
-      feature: "edge_report_coaching",
+      feature: "world_cup_daily_edge_report",
       route: "/api/brackets/world-cup/[challengeId]/edge-report",
       plan,
       providerSource: llmResult?.provider ?? "unavailable",
@@ -218,7 +218,7 @@ export async function generateEdgeReportCoaching(input: {
     logAiInteraction({
       userId,
       sport: "world_cup",
-      feature: "edge_report_coaching",
+      feature: "world_cup_daily_edge_report",
       route: "/api/brackets/world-cup/[challengeId]/edge-report",
       plan,
       providerSource: llmResult.provider,
@@ -258,7 +258,7 @@ export async function generateEdgeReportCoaching(input: {
       logAiInteraction({
         userId,
         sport: "world_cup",
-        feature: "edge_report_coaching",
+        feature: "world_cup_daily_edge_report",
         route: "/api/brackets/world-cup/[challengeId]/edge-report",
         plan,
         providerSource: llmResult.provider,
@@ -294,7 +294,7 @@ export async function generateEdgeReportCoaching(input: {
   logAiInteraction({
     userId,
     sport: "world_cup",
-    feature: "edge_report_coaching",
+    feature: "world_cup_daily_edge_report",
     route: "/api/brackets/world-cup/[challengeId]/edge-report",
     plan,
     providerSource: llmResult.provider,

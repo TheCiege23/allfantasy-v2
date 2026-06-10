@@ -31,6 +31,7 @@ const VALID_FEATURES = new Set<string>([
   "draft_advisor",
   "commissioner_brain",
   "general",
+  "world_cup_daily_edge_report",
 ])
 
 export async function POST(req: NextRequest) {

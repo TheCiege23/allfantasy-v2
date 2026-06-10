@@ -92,10 +92,14 @@ export const WORLD_CUP_EDGE_REPORT = {
   TOKEN_CONFIRMED: 'wc.edge_report.token_confirmed',
   /** Coaching was served from cache (same-day free repeat access). */
   CACHE_HIT: 'wc.edge_report.cache_hit',
+  /** Coaching block successfully rendered (after POST returns coaching data). */
+  COACHING_LOADED: 'wc.edge_report.coaching_loaded',
   /** Fetch or coaching generation returned an error. */
   ERROR: 'wc.edge_report.error',
   /** Commissioner clicked "Post to pool chat" on the coaching post idea. */
   POST_TO_CHAT_CLICKED: 'wc.edge_report.post_to_chat_clicked',
+  /** User clicked a feedback button (👍/👎 + optional not-helpful reason). */
+  FEEDBACK_CLICKED: 'wc.edge_report.feedback_clicked',
 } as const
 
 /** Engine / ops (often sampled before persist). */

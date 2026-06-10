@@ -20,16 +20,31 @@
  *    → POST confirmedTokenSpend=true
  *    → renders coaching insight + commissioner post idea
  *
+ * ── Billing clarity ──────────────────────────────────────────────────────────
+ *  After coaching loads, shows one of:
+ *  - "No token used · coaching was already unlocked today"
+ *  - "Included with your plan"
+ *  - "1 token used"
+ *
+ * ── Feedback ─────────────────────────────────────────────────────────────────
+ *  Helpful / Not helpful buttons on coaching block.
+ *  "Not helpful" expands reason chips: too_basic, not_actionable, wrong_data, great_insight
+ *  Posts to /api/ai/feedback + fires analytics beacon.
+ *
  * ── Commissioner post ────────────────────────────────────────────────────────
- *  Commissioners (isOwner / AF Commissioner) see a "Post to pool chat" button
- *  under the commissioner post idea. Calls onPostToChat(text).
+ *  Commissioners (isOwner / AF Commissioner) see a "Post to pool chat" button.
+ *
+ * ── Analytics dedup ──────────────────────────────────────────────────────────
+ *  "viewed" fires at most once per mount via useRef guard.
+ *  "cache_hit" fires inside the same mount guard.
  *
  * ── Analytics events ─────────────────────────────────────────────────────────
  *  edge_report_viewed, edge_report_unlock_clicked, edge_report_token_confirmed,
- *  edge_report_cache_hit, edge_report_error, edge_report_post_to_chat_clicked
+ *  edge_report_cache_hit, edge_report_coaching_loaded, edge_report_error,
+ *  edge_report_post_to_chat_clicked, edge_report_feedback_clicked
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import {
   AlertTriangle,
   ChevronDown,
@@ -37,6 +52,8 @@ import {
   Loader2,
   Sparkles,
   Target,
+  ThumbsDown,
+  ThumbsUp,
   TrendingUp,
   Trophy,
   Users,
@@ -55,8 +72,10 @@ import {
   trackEdgeReportUnlockClicked,
   trackEdgeReportTokenConfirmed,
   trackEdgeReportCacheHit,
+  trackEdgeReportCoachingLoaded,
   trackEdgeReportError,
   trackEdgeReportPostToChatClicked,
+  trackEdgeReportFeedbackClicked,
 } from "@/lib/world-cup/worldCupEdgeReportAnalytics"
 import type { EdgeSection, WorldCupEdgeReport } from "@/lib/world-cup/worldCupEdgeReport"
 import type { EdgeReportCoaching } from "@/lib/world-cup/worldCupEdgeReportAi"
@@ -79,6 +98,12 @@ export type WorldCupDailyEdgeReportCardProps = {
 type LoadState = "idle" | "loading" | "loaded" | "error"
 type CoachingState = "idle" | "loading" | "loaded" | "error"
 
+type BillingInfo = {
+  tokenCharged: boolean
+  fromCache: boolean
+  coveredByPlan: boolean
+}
+
 type ReportResponse = {
   report: WorldCupEdgeReport
   coachingAvailable: boolean
@@ -93,12 +118,12 @@ type ReportResponse = {
 type CoachingResponse = {
   report: WorldCupEdgeReport
   coaching: EdgeReportCoaching
-  billing: {
-    tokenCharged: boolean
-    fromCache: boolean
-    coveredByPlan: boolean
-  }
+  billing: BillingInfo
 }
+
+type FeedbackRating = "helpful" | "not_helpful"
+type FeedbackReason = "too_basic" | "not_actionable" | "wrong_data" | "great_insight"
+type FeedbackState = "idle" | "choosing_reason" | "submitting" | "done"
 
 // ── Section icons ─────────────────────────────────────────────────────────────
 
@@ -191,21 +216,151 @@ function SectionRow({
   )
 }
 
+// ── Feedback subcomponent ─────────────────────────────────────────────────────
+
+const NOT_HELPFUL_REASONS: Array<{ code: FeedbackReason; labelKey: string }> = [
+  { code: "too_basic",       labelKey: "wc.edgeReport.feedback.tooBasic" },
+  { code: "not_actionable",  labelKey: "wc.edgeReport.feedback.notActionable" },
+  { code: "wrong_data",      labelKey: "wc.edgeReport.feedback.wrongData" },
+  { code: "great_insight",   labelKey: "wc.edgeReport.feedback.greatInsight" },
+]
+
+function FeedbackRow({
+  challengeId,
+  t,
+}: {
+  challengeId: string
+  t: ReturnType<typeof makeWcT>
+}) {
+  const [state, setState] = useState<FeedbackState>("idle")
+
+  async function submitFeedback(rating: FeedbackRating, reason?: FeedbackReason) {
+    setState("submitting")
+    trackEdgeReportFeedbackClicked({ challengeId, rating, reason: reason ?? null })
+    try {
+      await fetch("/api/ai/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          feature: "world_cup_daily_edge_report",
+          rating,
+          sport: "world_cup",
+        }),
+        keepalive: true,
+      })
+    } catch {
+      // Non-fatal — analytics beacon already fired
+    }
+    setState("done")
+  }
+
+  function handleHelpful() {
+    void submitFeedback("helpful")
+  }
+
+  function handleNotHelpful() {
+    // Show reason chips before submitting
+    setState("choosing_reason")
+    trackEdgeReportFeedbackClicked({ challengeId, rating: "not_helpful", reason: null })
+  }
+
+  function handleReason(reason: FeedbackReason) {
+    void submitFeedback("not_helpful", reason)
+  }
+
+  if (state === "done") {
+    return (
+      <p
+        className="text-[10px] text-white/40"
+        data-testid="edge-report-feedback-thanks"
+      >
+        {t("wc.edgeReport.feedback.thanks")}
+      </p>
+    )
+  }
+
+  if (state === "choosing_reason") {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5" data-testid="edge-report-feedback-reasons">
+        {NOT_HELPFUL_REASONS.map(({ code, labelKey }) => (
+          <button
+            key={code}
+            type="button"
+            onClick={() => handleReason(code)}
+            data-testid={`edge-report-feedback-reason-${code}`}
+            className="rounded-full border border-white/12 bg-white/[0.04] px-2.5 py-1 text-[10px] font-semibold text-white/60 transition hover:border-white/20 hover:text-white/80"
+          >
+            {t(labelKey)}
+          </button>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="flex items-center gap-2"
+      data-testid="edge-report-feedback-row"
+    >
+      <span className="text-[10px] text-white/35">
+        {t("wc.edgeReport.feedback.title")}
+      </span>
+      <button
+        type="button"
+        onClick={handleHelpful}
+        disabled={state === "submitting"}
+        data-testid="edge-report-feedback-helpful"
+        aria-label={t("wc.edgeReport.feedback.helpful")}
+        className="inline-flex items-center gap-1 rounded-full border border-emerald-300/20 bg-emerald-300/[0.05] px-2 py-1 text-[10px] text-emerald-300/70 transition hover:bg-emerald-300/[0.12] disabled:opacity-40"
+      >
+        <ThumbsUp className="h-3 w-3" aria-hidden />
+        {t("wc.edgeReport.feedback.helpful")}
+      </button>
+      <button
+        type="button"
+        onClick={handleNotHelpful}
+        disabled={state === "submitting"}
+        data-testid="edge-report-feedback-not-helpful"
+        aria-label={t("wc.edgeReport.feedback.notHelpful")}
+        className="inline-flex items-center gap-1 rounded-full border border-white/12 bg-white/[0.03] px-2 py-1 text-[10px] text-white/40 transition hover:bg-white/[0.08] disabled:opacity-40"
+      >
+        <ThumbsDown className="h-3 w-3" aria-hidden />
+        {t("wc.edgeReport.feedback.notHelpful")}
+      </button>
+    </div>
+  )
+}
+
 // ── Coaching block subcomponent ────────────────────────────────────────────────
 
 function CoachingBlock({
   coaching,
+  billingInfo,
+  challengeId,
   isCommissioner,
   isPostingToChat,
   onPostToChat,
   t,
 }: {
   coaching: EdgeReportCoaching
+  billingInfo: BillingInfo | null
+  challengeId: string
   isCommissioner: boolean
   isPostingToChat: boolean
   onPostToChat?: (text: string) => void
   t: ReturnType<typeof makeWcT>
 }) {
+  // ── Billing clarity label ────────────────────────────────────────────────
+  const billingLabel = billingInfo
+    ? billingInfo.fromCache
+      ? t("wc.edgeReport.billing.cached")
+      : billingInfo.coveredByPlan
+      ? t("wc.edgeReport.billing.included")
+      : billingInfo.tokenCharged
+      ? t("wc.edgeReport.billing.charged")
+      : null
+    : null
+
   return (
     <div
       className="space-y-3"
@@ -230,6 +385,16 @@ function CoachingBlock({
         <p className="text-[12px] leading-relaxed text-white/80">
           {coaching.coachingInsight}
         </p>
+
+        {/* Billing clarity */}
+        {billingLabel && (
+          <p
+            className="mt-2 text-[9px] text-white/30"
+            data-testid="edge-report-billing-label"
+          >
+            {billingLabel}
+          </p>
+        )}
       </div>
 
       {/* Commissioner post idea */}
@@ -264,6 +429,9 @@ function CoachingBlock({
           </button>
         )}
       </div>
+
+      {/* Feedback */}
+      <FeedbackRow challengeId={challengeId} t={t} />
     </div>
   )
 }
@@ -283,7 +451,11 @@ export default function WorldCupDailyEdgeReportCard({
   const [coachingState, setCoachingState] = useState<CoachingState>("idle")
   const [reportData, setReportData] = useState<ReportResponse | null>(null)
   const [coachingData, setCoachingData] = useState<EdgeReportCoaching | null>(null)
+  const [coachingBilling, setCoachingBilling] = useState<BillingInfo | null>(null)
   const [isPostingToChat, setIsPostingToChat] = useState(false)
+
+  // ── Analytics dedup guard — "viewed" fires at most once per mount ─────────
+  const viewedFiredRef = useRef(false)
 
   // ── Load report on mount ─────────────────────────────────────────────────
   useEffect(() => {
@@ -302,15 +474,21 @@ export default function WorldCupDailyEdgeReportCard({
         const hasEntry = !data.report.noEntry
         const fromCache = data.coachingFromCache
 
-        trackEdgeReportViewed({
-          challengeId,
-          hasEntry,
-          coachingFromCache: fromCache,
-          aiEntitled,
-        })
+        // Fire "viewed" exactly once
+        if (!viewedFiredRef.current) {
+          viewedFiredRef.current = true
+          trackEdgeReportViewed({
+            challengeId,
+            hasEntry,
+            coachingFromCache: fromCache,
+            aiEntitled,
+          })
+          if (fromCache) {
+            trackEdgeReportCacheHit({ challengeId })
+          }
+        }
 
         if (fromCache) {
-          trackEdgeReportCacheHit({ challengeId })
           // Fetch cached coaching immediately — free, no token
           void fetchCoaching(false)
         } else if (aiEntitled) {
@@ -375,7 +553,21 @@ export default function WorldCupDailyEdgeReportCard({
 
         const coachingResponse = data as CoachingResponse
         setCoachingData(coachingResponse.coaching)
+        setCoachingBilling(coachingResponse.billing ?? null)
         setCoachingState("loaded")
+
+        // Determine billing mode for analytics
+        const billing = coachingResponse.billing
+        const billingMode = billing?.fromCache
+          ? "cache"
+          : billing?.coveredByPlan
+          ? "plan"
+          : "token_charged"
+        trackEdgeReportCoachingLoaded({
+          challengeId,
+          billingMode,
+          fromCache: Boolean(billing?.fromCache),
+        })
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Unknown error"
         setCoachingState("error")
@@ -502,6 +694,8 @@ export default function WorldCupDailyEdgeReportCard({
             {coachingState === "loaded" && coachingData && (
               <CoachingBlock
                 coaching={coachingData}
+                billingInfo={coachingBilling}
+                challengeId={challengeId}
                 isCommissioner={isCommissioner}
                 isPostingToChat={isPostingToChat}
                 onPostToChat={handlePostToChat}

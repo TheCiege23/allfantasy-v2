@@ -64,3 +64,27 @@ export function trackEdgeReportPostToChatClicked(params: {
     ...params,
   })
 }
+
+export function trackEdgeReportCoachingLoaded(params: {
+  challengeId: string
+  /** How the coaching was served: "cache", "plan", or "token_charged" */
+  billingMode: "cache" | "plan" | "token_charged"
+  fromCache: boolean
+}): void {
+  sendProductAnalyticsBeacon(WORLD_CUP_EDGE_REPORT.COACHING_LOADED, {
+    sport: "world_cup",
+    ...params,
+  })
+}
+
+export function trackEdgeReportFeedbackClicked(params: {
+  challengeId: string
+  rating: "helpful" | "not_helpful"
+  /** Specific reason code for not_helpful (optional). */
+  reason?: "too_basic" | "not_actionable" | "wrong_data" | "great_insight" | null
+}): void {
+  sendProductAnalyticsBeacon(WORLD_CUP_EDGE_REPORT.FEEDBACK_CLICKED, {
+    sport: "world_cup",
+    ...params,
+  })
+}

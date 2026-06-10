@@ -349,6 +349,19 @@ const EN: WorldCupDictionary = {
   "wc.edgeReport.commissionerPost.posted": "Posted!",
   "wc.edgeReport.freshness": "Deterministic · updates each match day",
   "wc.edgeReport.noEntry": "Add your bracket picks to see your daily edge report.",
+  // Billing clarity — shown beneath coaching block after it loads
+  "wc.edgeReport.billing.cached": "No token used · coaching was already unlocked today",
+  "wc.edgeReport.billing.included": "Included with your plan",
+  "wc.edgeReport.billing.charged": "1 token used",
+  // Feedback
+  "wc.edgeReport.feedback.title": "Was this helpful?",
+  "wc.edgeReport.feedback.helpful": "Helpful",
+  "wc.edgeReport.feedback.notHelpful": "Not helpful",
+  "wc.edgeReport.feedback.tooBasic": "Too basic",
+  "wc.edgeReport.feedback.notActionable": "Not actionable",
+  "wc.edgeReport.feedback.wrongData": "Wrong data",
+  "wc.edgeReport.feedback.greatInsight": "Great insight",
+  "wc.edgeReport.feedback.thanks": "Thanks for your feedback",
 
   // ── Pool Chat community panel (Goal 9) ───────────────────────────────
   "wc.chat.hero.title": "Pool Chat",

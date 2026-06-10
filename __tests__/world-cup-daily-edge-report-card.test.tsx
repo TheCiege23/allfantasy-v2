@@ -35,14 +35,16 @@ vi.mock("@/lib/world-cup/worldCupI18n", () => ({
   makeWcT: () => (key: string) => key,
 }))
 
-// Analytics — no-ops
+// Analytics — no-ops (all exported tracking functions must be listed)
 vi.mock("@/lib/world-cup/worldCupEdgeReportAnalytics", () => ({
   trackEdgeReportViewed: vi.fn(),
   trackEdgeReportUnlockClicked: vi.fn(),
   trackEdgeReportTokenConfirmed: vi.fn(),
   trackEdgeReportCacheHit: vi.fn(),
+  trackEdgeReportCoachingLoaded: vi.fn(),
   trackEdgeReportError: vi.fn(),
   trackEdgeReportPostToChatClicked: vi.fn(),
+  trackEdgeReportFeedbackClicked: vi.fn(),
 }))
 
 vi.mock("@/lib/world-cup/worldCupClientTokenConfirm", () => ({
