@@ -72,12 +72,14 @@ const routeDirsToDisable = [
   // no production UI ever fetches it. Excluded to reduce route budget.
   path.join('app', 'api', 'ai', 'tools'),
   // Big Brother game mode — deferred; not yet shipped to production users.
-  // 4 API routes + 2 pages = 6 routes freed.
-  path.join('app', 'big-brother'),
+  // Exclude only the route-bearing page dirs; components/ stays because other
+  // committed files may import shared BB UI components.
+  path.join('app', 'big-brother', '[bblId]'),
   path.join('app', 'api', 'big-brother'),
   // Devy (development dynasty picks) — deferred; not yet shipped to production users.
-  // 15 API routes + 4 pages = 19 routes freed.
-  path.join('app', 'devy'),
+  // Exclude only the route-bearing [leagueId] pages — NOT app/devy/components/
+  // because CommissionerSettingsModal and C2CRosterClient import devy components directly.
+  path.join('app', 'devy', '[leagueId]'),
   path.join('app', 'api', 'devy'),
   // Debug-only endpoints — no production UI callers; 2 routes freed.
   path.join('app', 'api', 'af-debug'),
