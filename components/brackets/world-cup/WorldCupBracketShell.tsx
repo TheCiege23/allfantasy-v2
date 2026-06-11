@@ -123,7 +123,7 @@ import type { WorldCupCountdownFirstMatch } from "./WorldCupPoolCountdownBanner"
 import { ChimmyFreshnessChip } from "./ChimmyFreshnessChip"
 import WorldCupAiInsightsCTA from "./WorldCupAiInsightsCTA"
 import WorldCupDailyEdgeReportCard from "./WorldCupDailyEdgeReportCard"
-import WorldCupPersonalImpactStrip from "./WorldCupPersonalImpactStrip"
+import WorldCupMatchImpactCenter from "./WorldCupMatchImpactCenter"
 import {
   WorldCupChatMessageBubble,
   WorldCupChatModeTabs,
@@ -3659,15 +3659,16 @@ export default function WorldCupBracketShell({
               />
             </section>
 
-            {/* Why This Match Matters — personal points-at-stake summary */}
+            {/* Why This Match Matters — highest-stakes personal impact card */}
             {selectedEntry && picks.length > 0 && (
-              <section className="mx-auto max-w-5xl px-2 sm:px-0">
-                <WorldCupPersonalImpactStrip
-                  picks={picks}
-                  matches={view.matches}
-                  scoring={view.scoring}
-                />
-              </section>
+              <WorldCupMatchImpactCenter
+                challengeId={view.challenge.id}
+                picks={picks}
+                matches={view.matches}
+                scoring={view.scoring}
+                userLeaderboardRow={selectedLeaderboardRow}
+                poolParticipantCount={view.leaderboard.length}
+              />
             )}
 
             {/* AI Insights CTA — entitlement-aware action chips */}

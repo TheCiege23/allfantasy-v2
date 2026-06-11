@@ -356,6 +356,13 @@ const EN: WorldCupDictionary = {
   "wc.personalImpact.title": "Why This Match Matters",
   "wc.personalImpact.rootFor": "Root for",
   "wc.personalImpact.ptsAtStake": "pts at stake",
+  "wc.matchImpact.title": "Why This Match Matters",
+  "wc.matchImpact.rootFor": "Root for",
+  "wc.matchImpact.worstResult": "Worst result",
+  "wc.matchImpact.ptsAtStake": "Points at stake",
+  "wc.matchImpact.poolSize": "Pool size",
+  "wc.matchImpact.championRisk": "Champion risk",
+  "wc.matchImpact.noEntry": "Add your bracket picks to see your match impact.",
   "wc.edgeReport.noEntry": "Add your bracket picks to see your daily edge report.",
   // Billing clarity — shown beneath coaching block after it loads
   "wc.edgeReport.billing.cached": "No token used · coaching was already unlocked today",

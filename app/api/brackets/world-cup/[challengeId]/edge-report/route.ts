@@ -14,6 +14,7 @@ import {
   edgeReportCacheKey,
 } from "@/lib/world-cup/worldCupEdgeReportAi"
 import { getCachedAiResult } from "@/lib/ai/ai-result-cache"
+import { getWorldCupDataTrustReport } from "@/lib/world-cup/worldCupDataTrustService"
 import {
   requireWorldCupApiUser,
   worldCupChallengeParamsSchema,
@@ -52,19 +53,25 @@ export async function GET(
 
   const report = computeWorldCupEdgeReport(context, userId)
 
-  // Check if coaching is already cached for today (lets the UI show "unlocked")
   const utcDate = todayUtcDate()
   const cacheKey = edgeReportCacheKey(challengeId, userId, utcDate)
-  const cachedCoaching = await getCachedAiResult({
-    feature: "world_cup_daily_edge_report",
-    scopeType: "user_pool_day",
-    scopeId: cacheKey,
-    payload: {},
-  }).catch(() => null)
+
+  // Run data-trust and coaching-cache check in parallel — failures are non-fatal
+  const [dataTrust, cachedCoaching] = await Promise.all([
+    getWorldCupDataTrustReport(challengeId).catch(() => null),
+    getCachedAiResult({
+      feature: "world_cup_daily_edge_report",
+      scopeType: "user_pool_day",
+      scopeId: cacheKey,
+      payload: {},
+    }).catch(() => null),
+  ])
+
   const coachingFromCache = Boolean(cachedCoaching?.resultText)
 
   return NextResponse.json({
     report,
+    dataTrust,
     coachingAvailable: true,
     coachingFromCache,
     billing: {

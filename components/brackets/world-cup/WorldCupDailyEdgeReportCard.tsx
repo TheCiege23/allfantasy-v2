@@ -79,6 +79,7 @@ import {
 } from "@/lib/world-cup/worldCupEdgeReportAnalytics"
 import type { EdgeSection, WorldCupEdgeReport } from "@/lib/world-cup/worldCupEdgeReport"
 import type { EdgeReportCoaching } from "@/lib/world-cup/worldCupEdgeReportAi"
+import type { WorldCupDataTrustReport } from "@/lib/world-cup/worldCupDataTrustService"
 import { ChimmyFreshnessChip } from "./ChimmyFreshnessChip"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -107,12 +108,52 @@ type BillingInfo = {
 
 type ReportResponse = {
   report: WorldCupEdgeReport
+  dataTrust?: WorldCupDataTrustReport | null
   coachingAvailable: boolean
   coachingFromCache: boolean
   billing: {
     deterministicSections: string
     coachingTokenCost: number
     coachingCached: boolean
+  }
+}
+
+function formatSyncAgo(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const ageMs = Date.now() - new Date(iso).getTime()
+  if (ageMs < 0) return null
+  const m = Math.floor(ageMs / 60_000)
+  if (m < 60) return `${m} min ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h} hr ago`
+  return `${Math.floor(h / 24)}d ago`
+}
+
+function trustChipProps(
+  dataTrust: WorldCupDataTrustReport | null | undefined,
+  hasLiveData: boolean
+): { tier: string; label: string } {
+  if (!dataTrust) {
+    return hasLiveData
+      ? { tier: "live", label: "Live scores" }
+      : { tier: "cached", label: "Pool data" }
+  }
+  const { dataFreshness, lastScoreSyncAt, lastFixtureSyncAt } = dataTrust
+  switch (dataFreshness) {
+    case "live": {
+      const ago = formatSyncAgo(lastScoreSyncAt)
+      return { tier: "live", label: ago ? `Live · synced ${ago}` : "Live scores active" }
+    }
+    case "cached": {
+      const ago = formatSyncAgo(lastFixtureSyncAt)
+      return { tier: "cached", label: ago ? `Cached · synced ${ago}` : "Updated within 24 hrs" }
+    }
+    case "schedule_only":
+      return { tier: "schedule_only", label: "Schedule only" }
+    case "pool_only":
+      return { tier: "pool_only", label: "Pool data only" }
+    default:
+      return { tier: "none", label: "No data loaded" }
   }
 }
 
@@ -620,12 +661,12 @@ export default function WorldCupDailyEdgeReportCard({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          {loadState === "loaded" && reportData && (
-            <ChimmyFreshnessChip
-              tier={reportData.report.hasLiveData ? "live" : "cached"}
-              label={reportData.report.hasLiveData ? "Live scores" : "Pool data"}
-            />
-          )}
+          {loadState === "loaded" && reportData && (() => {
+            const cp = trustChipProps(reportData.dataTrust, reportData.report.hasLiveData)
+            return (
+              <ChimmyFreshnessChip tier={cp.tier} label={cp.label} />
+            )
+          })()}
           {loadState === "loaded" && (
             <span
               className="flex items-center gap-1 rounded-full border border-green-400/25 bg-green-400/[0.08] px-2 py-0.5 text-[9px] font-semibold text-green-300/80"

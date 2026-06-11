@@ -5,6 +5,7 @@
 
 import { getAiLanguageInstruction, getWorldCupLocale } from "./worldCupI18n"
 import type { WorldCupChimmyContext } from "./worldCupChimmyContext"
+import type { WorldCupCurrentDataKey } from "./worldCupCurrentDataGate"
 
 const LIVE_FEED_UNAVAILABLE: Record<string, string> = {
   en: "I don't have a live score feed for this pool right now — live match data isn't synced yet. I can still help with your bracket picks, pool standings, and how scoring works once results land.",
@@ -33,13 +34,16 @@ const RELIABLE_DATA_UNAVAILABLE: Record<string, string> = {
   vi: "I don't have reliable data for that yet. I can still help with saved bracket picks, pool standings, scoring rules, and what is visible in this pool.",
 }
 
+const SAFE_UNAVAILABLE_PATTERN =
+  /\b(?:do(?:n't| not) have|not available|unavailable|not loaded|missing|cannot verify|can't verify|reliable data for that yet)\b/i
+
 export function buildWorldCupChimmySystemPrompt(locale: string | null | undefined): string {
   const lang = getAiLanguageInstruction(locale)
   return [
     "You are Chimmy, AllFantasy's World Cup bracket pool analyst for THIS pool only.",
 
     // --- Grounding contract ---
-    "GROUNDING CONTRACT: The user message contains a GROUNDING PACKET (JSON). That packet is your ONLY source of facts about this pool, bracket, schedule, scores, standings, injuries, odds, teams, and players.",
+    "GROUNDING CONTRACT: The user message contains a GROUNDING PACKET plus legacy GROUNDING JSON. Those blocks are your ONLY source of facts about this pool, bracket, schedule, scores, standings, injuries, odds, teams, and players.",
     "STRICT RULE: Only answer using facts present in the GROUNDING PACKET. If the packet does not contain a fact, explicitly say what data is missing and suggest where the user can check.",
     "ALLOWED CLAIMS: Only assert claims that correspond to items in allowedClaims. Never assert facts from missingData.",
     "MISSING DATA: When asked for something in missingData, name what is missing clearly and do not guess.",
@@ -50,6 +54,7 @@ export function buildWorldCupChimmySystemPrompt(locale: string | null | undefine
     "Use dataSourceDisclosure.cachedDataLabel when answering from cached scores or fixture schedule (tier=cached or schedule_only).",
     "Use dataSourceDisclosure.poolDataLabel when answering about pool standings, bracket picks, or scoring (always include this for pool questions).",
     "When tier is 'none' or 'pool_only', open with dataSourceDisclosure.unavailableExplanation and pivot to pool/bracket help. NEVER answer a live score or match-event question without first stating the data source.",
+    "SOURCE CUE: If the requested data is missing, say \"I don't have reliable data for that yet\" and name the missing cached source before pivoting to bracket, pool standings, or scoring help.",
 
     // --- Soccer knowledge ---
     "SOCCER BASICS: Stable general soccer concepts (offside, formations, pressing, false nine, counterattack, penalty shootouts, tiebreakers) are allowed only when listed in allowedClaims. Clearly separate general concepts from current tournament facts.",
@@ -194,7 +199,57 @@ export function isScheduleQuestion(prompt: string): boolean {
 
 export function isUnsupportedVerifiedDataQuestion(prompt: string): boolean {
   const p = prompt.toLowerCase()
-  return /\b(player\s+stats?|key\s+players?|lineups?|rosters?|injur(?:y|ies|ed)|suspensions?|odds|over\s*\/\s*under|over-under|spread|goalscorers?|cards?)\b/i.test(p)
+  return /\b(player\s+stats?|team\s+stats?|team\s+form|key\s+players?|lineups?|rosters?|injur(?:y|ies|ed)|suspensions?|odds|over\s*\/\s*under|over-under|spread|goalscorers?|cards?|squad\s+news|team\s+news|xg|expected\s+goals)\b/i.test(p)
+}
+
+const CURRENT_DATA_PATTERNS: Record<WorldCupCurrentDataKey, RegExp[]> = {
+  injuries: [/\binjur(?:y|ies|ed)\b/i, /\bquestionable\b/i, /\bdoubtful\b/i],
+  player_stats: [/\bplayer\s+stats?\b/i, /\bgoalscorers?\b/i, /\bassists?\b/i, /\bcards?\b/i],
+  team_stats: [/\bteam\s+stats?\b/i, /\bteam\s+form\b/i, /\bpossession\b/i, /\bshots?\b/i, /\bxg\b/i, /\bexpected\s+goals\b/i],
+  squad_news: [/\bsquad\s+news\b/i, /\bteam\s+news\b/i, /\brosters?\b/i, /\bcall-?ups?\b/i],
+  lineups: [/\blineups?\b/i, /\bstarting\s+(?:xi|11)\b/i, /\bstarters?\b/i],
+  odds: [/\bodds\b/i, /\bspread\b/i, /\bover\s*\/\s*under\b/i, /\bover-under\b/i, /\bmoneyline\b/i, /\bfavorites?\b/i],
+}
+
+function requestedCurrentDataKeys(text: string): WorldCupCurrentDataKey[] {
+  const keys = new Set<WorldCupCurrentDataKey>()
+  for (const [key, patterns] of Object.entries(CURRENT_DATA_PATTERNS) as Array<[WorldCupCurrentDataKey, RegExp[]]>) {
+    if (patterns.some((pattern) => pattern.test(text))) keys.add(key)
+  }
+  return [...keys]
+}
+
+function hasCurrentDataEvidence(ctx: WorldCupChimmyContext | null | undefined, key: WorldCupCurrentDataKey): boolean {
+  return (
+    ctx?.currentDataAvailability?.[key]?.status === "available" &&
+    (ctx.currentDataEvidence?.[key]?.rows.length ?? 0) > 0
+  )
+}
+
+function missingCurrentDataKeys(
+  ctx: WorldCupChimmyContext | null | undefined,
+  keys: WorldCupCurrentDataKey[],
+): WorldCupCurrentDataKey[] {
+  return keys.filter((key) => !hasCurrentDataEvidence(ctx, key))
+}
+
+function currentDataUnavailableReply(
+  prompt: string,
+  ctx: WorldCupChimmyContext | null | undefined,
+  locale: string | null | undefined,
+): string {
+  const availability = ctx?.currentDataAvailability
+  const keys = requestedCurrentDataKeys(prompt)
+  const targets = keys.length ? keys : (availability ? (Object.keys(availability) as WorldCupCurrentDataKey[]) : [])
+  const actions = targets
+    .map((key) => availability?.[key])
+    .filter((row) => row?.status !== "available")
+    .map((row) => `${row?.label}: ${row?.adminAction}`)
+  return [
+    reliableDataUnavailableMessage(locale),
+    actions.length ? `Admin/backfill needed: ${actions.join(" ")}` : "Admin/backfill needed: load fresh validated World Cup current-data evidence rows.",
+    "No tokens should be charged for this unavailable answer.",
+  ].join(" ")
 }
 
 export function isPoolStandingQuestion(prompt: string): boolean {
@@ -231,6 +286,11 @@ function isWatchTodayQuestion(prompt: string): boolean {
   return /\b(watch\s+today|watch\s+now|matches?\s+matter|what\s+picks\s+should\s+i\s+watch|root\s+for|support)\b/i.test(p)
 }
 
+function isPersonalImpactQuestion(prompt: string): boolean {
+  const p = prompt.toLowerCase()
+  return /\b(who\s+should\s+i\s+root\s+for|why\s+does?\s+this\s+match\s+matter|why\s+do\s+(the\s+)?matches?\s+matter\s+to\s+me|personal\s+impact|what\s+match\s+matters?\s+most\s+(for\s+me|to\s+me)?|which\s+match\s+is\s+most\s+important\s+(for\s+me|to\s+me)|my\s+picks?\s+(at\s+stake|impact|stakes?)\b|impact\s+on\s+my\s+(bracket|picks?|score)|how\s+does?\s+this\s+affect\s+my\s+(bracket|picks?|score))\b/i.test(p)
+}
+
 function isGroupDangerQuestion(prompt: string): boolean {
   const p = prompt.toLowerCase()
   return /\b(group|grupo).*\b(danger|dangerous|strong|weak|tight|upset|hard)\b/i.test(p)
@@ -243,7 +303,7 @@ function isUserPointsQuestion(prompt: string): boolean {
 
 function isChampionPickQuestion(prompt: string): boolean {
   const p = prompt.toLowerCase()
-  return /\b(show\s+my\s+champion|my\s+champion\s+pick|who\s+did\s+i\s+pick\s+to\s+win|champion\s+pick)\b/i.test(p)
+  return /\b(show\s+my\s+champion|my\s+champion\s+pick|who\s+did\s+i\s+pick\s+to\s+win|champion\s+pick|who\s+did\s+i\s+pick\s+(as|for)\s+(my\s+)?champion|what\s+(is|was)\s+my\s+champion|did\s+i\s+pick\s+.+\s+as\s+champion)\b/i.test(p)
 }
 
 function isMostPickedChampionQuestion(prompt: string): boolean {
@@ -475,6 +535,95 @@ function buildWatchReply(ctx: WorldCupChimmyContext | null | undefined): string 
   return [dataDisclosure(ctx), `Picks to watch: ${lines.join("; ")}.`, confidenceDisclosure(ctx, "medium")].join(" ")
 }
 
+function buildPersonalImpactReply(ctx: WorldCupChimmyContext | null | undefined): string {
+  if (!ctx) return reliableDataUnavailableMessage(null)
+  if (!ctx.entry) {
+    return [
+      dataDisclosure(ctx),
+      "I do not see a saved bracket entry for you yet. Once you create one, I can tell you exactly which upcoming matches affect your picks and how many points are at stake.",
+      confidenceDisclosure(ctx, "low"),
+    ].join(" ")
+  }
+
+  const ROUND_ORDER = ["round_of_32", "round_of_16", "quarterfinal", "semifinal", "third_place", "final"]
+  const ROUND_SCORING: Record<string, number> = {
+    round_of_32: ctx.scoring.roundOf32Points,
+    round_of_16: ctx.scoring.roundOf16Points,
+    quarterfinal: ctx.scoring.quarterFinalPoints,
+    semifinal: ctx.scoring.semiFinalPoints,
+    third_place: ctx.scoring.thirdPlacePoints ?? 0,
+    final: ctx.scoring.finalPoints,
+  }
+  const ROUND_LABEL_MAP: Record<string, string> = {
+    round_of_32: "Round of 32",
+    round_of_16: "Round of 16",
+    quarterfinal: "Quarterfinal",
+    semifinal: "Semifinal",
+    third_place: "Third Place",
+    final: "Final",
+  }
+
+  const alivePicks = ctx.entry.knockoutPicks.filter((p) => p.isCorrect !== false)
+  const pickTeamSet = new Set(alivePicks.map((p) => p.pickedTeam.toLowerCase()))
+  const relevantMatches = [...ctx.liveMatches, ...ctx.upcomingMatches].filter(
+    (m) =>
+      pickTeamSet.has(m.homeTeamName.toLowerCase()) || pickTeamSet.has(m.awayTeamName.toLowerCase())
+  )
+
+  if (relevantMatches.length === 0) {
+    return [
+      dataDisclosure(ctx),
+      "I do not see any upcoming or live matches in the stored feed that overlap with your alive picks right now. This may mean results haven't been fully synced yet — check back after the next sync.",
+      confidenceDisclosure(ctx, "low"),
+    ].join(" ")
+  }
+
+  relevantMatches.sort((a, b) => {
+    const diff = ROUND_ORDER.indexOf(b.round) - ROUND_ORDER.indexOf(a.round)
+    if (diff !== 0) return diff
+    return (ROUND_SCORING[b.round] ?? 0) - (ROUND_SCORING[a.round] ?? 0)
+  })
+
+  const top = relevantMatches[0]
+  const topPick = alivePicks.find(
+    (p) =>
+      p.pickedTeam.toLowerCase() === top.homeTeamName.toLowerCase() ||
+      p.pickedTeam.toLowerCase() === top.awayTeamName.toLowerCase()
+  )
+  const pts = ROUND_SCORING[top.round] ?? 0
+  const rootFor = topPick?.pickedTeam ?? top.homeTeamName
+  const against =
+    rootFor.toLowerCase() === top.homeTeamName.toLowerCase() ? top.awayTeamName : top.homeTeamName
+
+  const championNote =
+    ctx.entry.championPick &&
+    (ctx.entry.championPick.toLowerCase() === top.homeTeamName.toLowerCase() ||
+      ctx.entry.championPick.toLowerCase() === top.awayTeamName.toLowerCase())
+      ? ` ${ctx.entry.championPick} is also your champion pick — a loss here ends your champion bonus.`
+      : ""
+
+  const otherLines = relevantMatches.slice(1, 3).map((m) => {
+    const mPts = ROUND_SCORING[m.round] ?? 0
+    const rFor =
+      alivePicks.find(
+        (p) =>
+          p.pickedTeam.toLowerCase() === m.homeTeamName.toLowerCase() ||
+          p.pickedTeam.toLowerCase() === m.awayTeamName.toLowerCase()
+      )?.pickedTeam ?? m.homeTeamName
+    return `${m.homeTeamName} vs ${m.awayTeamName} (${ROUND_LABEL_MAP[m.round] ?? m.round}, root for ${rFor}, ${mPts} pts)`
+  })
+
+  return [
+    dataDisclosure(ctx),
+    `Your most important match: ${top.homeTeamName} vs ${top.awayTeamName} (${ROUND_LABEL_MAP[top.round] ?? top.round}).`,
+    `Root for ${rootFor} — a ${against} win costs you ${pts} pts.${championNote}`,
+    otherLines.length > 0 ? `Other picks on the line: ${otherLines.join("; ")}.` : "",
+    confidenceDisclosure(ctx, "medium"),
+  ]
+    .filter(Boolean)
+    .join(" ")
+}
+
 function buildGroupReply(ctx: WorldCupChimmyContext | null | undefined): string {
   if (!ctx || ctx.groupStandings.length === 0) {
     return [
@@ -651,8 +800,12 @@ export function tryDeterministicWorldCupChimmyReply(input: {
   const context = input.context
 
   if (isUnsupportedVerifiedDataQuestion(prompt)) {
+    const requested = requestedCurrentDataKeys(prompt)
+    if (requested.length > 0 && missingCurrentDataKeys(context, requested).length === 0) {
+      return null
+    }
     return [
-      reliableDataUnavailableMessage(input.locale),
+      currentDataUnavailableReply(prompt, context, input.locale),
       context ? ` ${dataDisclosure(context)} Ask me for pool standings, scoring rules, path to win, or a commissioner summary and I can answer from saved pool data.` : "",
     ].join("")
   }
@@ -687,6 +840,10 @@ export function tryDeterministicWorldCupChimmyReply(input: {
 
   if (isPoolStandingQuestion(prompt) || isBestBracketQuestion(prompt)) {
     return buildStandingReply(context)
+  }
+
+  if (isPersonalImpactQuestion(prompt)) {
+    return buildPersonalImpactReply(context)
   }
 
   if (isBracketImpactQuestion(prompt)) {
@@ -755,6 +912,14 @@ export function enforceWorldCupChimmyReplyGuard(input: {
 
   if (hasUnknownMinute && (isLiveScoreQuestion(input.prompt) || status !== "live" || input.context?.liveMatches.length === 0)) {
     return liveFeedUnavailableMessage(input.locale)
+  }
+
+  const currentDataClaims = requestedCurrentDataKeys(reply)
+  const blockedCurrentDataClaims = SAFE_UNAVAILABLE_PATTERN.test(reply)
+    ? []
+    : missingCurrentDataKeys(input.context, currentDataClaims)
+  if (blockedCurrentDataClaims.length > 0) {
+    return currentDataUnavailableReply(blockedCurrentDataClaims.join(" "), input.context, input.locale)
   }
 
   return reply
