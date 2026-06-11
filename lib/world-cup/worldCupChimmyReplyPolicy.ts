@@ -197,6 +197,16 @@ export function isScheduleQuestion(prompt: string): boolean {
   return /\b(when\s+(is|does|do)|kickoff|schedule|fixture|starts?\s+at|next\s+match|games?\s+today|play\s+next|plays?\s+next|horario|calendario)\b/i.test(p)
 }
 
+export function isRosterQuestion(prompt: string): boolean {
+  const p = prompt.toLowerCase()
+  return /\b(roster|squad|players?\s+(on|for|in)|who\s+(is|are)\s+(on|in)\s+the\s+(roster|squad)|show\s+(me\s+)?(the\s+)?(roster|squad)|team\s+members?|full\s+(roster|squad)|starting\s+(xi|11)|lineup|who\s+plays?\s+for)\b/i.test(p)
+}
+
+export function isCaptainQuestion(prompt: string): boolean {
+  const p = prompt.toLowerCase()
+  return /\b(captain|armband|captains?|who\s+(leads?|wears?|has\s+the\s+armband|is\s+the\s+captain)|team\s+(captain|leader)|wearing\s+the\s+armband)\b/i.test(p)
+}
+
 export function isUnsupportedVerifiedDataQuestion(prompt: string): boolean {
   const p = prompt.toLowerCase()
   return /\b(player\s+stats?|team\s+stats?|team\s+form|key\s+players?|lineups?|rosters?|injur(?:y|ies|ed)|suspensions?|odds|over\s*\/\s*under|over-under|spread|goalscorers?|cards?|squad\s+news|team\s+news|xg|expected\s+goals)\b/i.test(p)
@@ -630,6 +640,109 @@ function buildPersonalImpactReply(ctx: WorldCupChimmyContext | null | undefined)
     .join(" ")
 }
 
+function buildRosterReply(
+  ctx: WorldCupChimmyContext | null | undefined,
+  prompt: string
+): string {
+  const teamName = extractRosterTeamFromPrompt(prompt, ctx)
+
+  if (!ctx?.rosterDigest || ctx.rosterDigest.length === 0) {
+    return [
+      dataDisclosure(ctx),
+      teamName
+        ? `I do not have ${teamName}'s roster loaded yet — squad data has not been synced to this pool. An admin needs to run the roster sync first.`
+        : "I do not have squad/roster data loaded yet for any team. An admin needs to run the roster sync first.",
+      "Admin/backfill needed: run syncWorldCupRosters via the admin sports sync panel.",
+      confidenceDisclosure(ctx, "low"),
+    ].join(" ")
+  }
+
+  const digest = teamName
+    ? ctx.rosterDigest.find((d) => d.teamName.toLowerCase() === teamName.toLowerCase())
+    : null
+
+  if (!digest) {
+    return [
+      dataDisclosure(ctx),
+      teamName
+        ? `I do not have ${teamName}'s roster loaded yet. Available teams with roster data: ${ctx.rosterDigest.map((d) => d.teamName).slice(0, 6).join(", ")}.`
+        : `I need a team name to show a roster. Teams I have loaded: ${ctx.rosterDigest.map((d) => d.teamName).slice(0, 6).join(", ")}.`,
+      confidenceDisclosure(ctx, "low"),
+    ].join(" ")
+  }
+
+  const lines: string[] = [dataDisclosure(ctx)]
+  lines.push(`${digest.teamName} roster (${digest.playerCount} players loaded):`)
+  if (digest.captain) lines.push(`Captain: ${digest.captain}`)
+  if (digest.gk.length > 0) lines.push(`GK: ${digest.gk.join(", ")}`)
+  if (digest.def.length > 0) lines.push(`DEF: ${digest.def.join(", ")}`)
+  if (digest.mid.length > 0) lines.push(`MID: ${digest.mid.join(", ")}`)
+  if (digest.att.length > 0) lines.push(`ATT/FWD: ${digest.att.join(", ")}`)
+  if (digest.injuredNames.length > 0) lines.push(`Injury/availability concerns: ${digest.injuredNames.join(", ")}`)
+  if (digest.lastSyncedAt) lines.push(`Roster last synced: ${digest.lastSyncedAt.slice(0, 10)}`)
+  lines.push(confidenceDisclosure(ctx, "medium"))
+  return lines.join(" ")
+}
+
+function buildCaptainReply(
+  ctx: WorldCupChimmyContext | null | undefined,
+  prompt: string
+): string {
+  const teamName = extractRosterTeamFromPrompt(prompt, ctx)
+
+  if (!ctx?.rosterDigest || ctx.rosterDigest.length === 0) {
+    return [
+      dataDisclosure(ctx),
+      teamName
+        ? `I do not have ${teamName}'s captain loaded — squad data has not been synced yet.`
+        : "I do not have captain data loaded for any team — squad data has not been synced yet.",
+      "Admin/backfill needed: run syncWorldCupRosters via the admin sports sync panel.",
+      confidenceDisclosure(ctx, "low"),
+    ].join(" ")
+  }
+
+  const digest = teamName
+    ? ctx.rosterDigest.find((d) => d.teamName.toLowerCase() === teamName.toLowerCase())
+    : null
+
+  if (!digest) {
+    return [
+      dataDisclosure(ctx),
+      teamName
+        ? `I do not have ${teamName}'s roster loaded yet. Try: ${ctx.rosterDigest.map((d) => d.teamName).slice(0, 4).join(", ")}.`
+        : "Name the team and I can look up the captain from the loaded roster data.",
+      confidenceDisclosure(ctx, "low"),
+    ].join(" ")
+  }
+
+  if (!digest.captain) {
+    return [
+      dataDisclosure(ctx),
+      `${digest.teamName} has ${digest.playerCount} players synced, but the captain flag has not been set yet. An admin can mark the captain in the player roster.`,
+      confidenceDisclosure(ctx, "low"),
+    ].join(" ")
+  }
+
+  return [
+    dataDisclosure(ctx),
+    `${digest.teamName}'s captain is ${digest.captain} (from synced squad data).`,
+    digest.injuredNames.length > 0 ? `Current availability notes: ${digest.injuredNames.slice(0, 3).join(", ")}.` : "",
+    confidenceDisclosure(ctx, "medium"),
+  ].filter(Boolean).join(" ")
+}
+
+function extractRosterTeamFromPrompt(
+  prompt: string,
+  ctx: WorldCupChimmyContext | null | undefined
+): string | null {
+  if (ctx?.rosterDigest) {
+    const p = prompt.toLowerCase()
+    const match = ctx.rosterDigest.find((d) => p.includes(d.teamName.toLowerCase()))
+    if (match) return match.teamName
+  }
+  return extractTeamNameFromPrompt(prompt, ctx)
+}
+
 function extractTeamNameFromPrompt(
   prompt: string,
   ctx: WorldCupChimmyContext | null | undefined
@@ -727,9 +840,20 @@ function buildTeamKnowledgeReply(
     lines.push(`Next match: vs ${opponent} (${next.round}, ${when}).`)
   }
 
-  lines.push(
-    "What I do NOT have loaded: coach, captain, key players, formation, FIFA rank, injuries, odds, or squad details. These require live provider data not stored in this pool context."
+  // Include roster digest if loaded
+  const rosterRow = ctx?.rosterDigest?.find(
+    (d) => d.teamName.toLowerCase() === teamName.toLowerCase()
   )
+  if (rosterRow) {
+    if (rosterRow.captain) lines.push(`Captain: ${rosterRow.captain}`)
+    const topPlayers = [...rosterRow.att, ...rosterRow.mid].slice(0, 4).join(", ")
+    if (topPlayers) lines.push(`Key players: ${topPlayers}`)
+    if (rosterRow.injuredNames.length > 0) lines.push(`Availability concerns: ${rosterRow.injuredNames.slice(0, 3).join(", ")}`)
+  } else {
+    lines.push(
+      "What I do NOT have loaded: coach, captain, key players, formation, FIFA rank, injuries, odds, or squad details. Ask me to run a roster sync if you need squad data."
+    )
+  }
   lines.push(confidenceDisclosure(ctx, standing ? "medium" : "low"))
 
   return lines.join(" ")
@@ -909,6 +1033,14 @@ export function tryDeterministicWorldCupChimmyReply(input: {
 }): string | null {
   const prompt = input.prompt.trim()
   const context = input.context
+
+  if (isRosterQuestion(prompt)) {
+    return buildRosterReply(context, prompt)
+  }
+
+  if (isCaptainQuestion(prompt)) {
+    return buildCaptainReply(context, prompt)
+  }
 
   if (isUnsupportedVerifiedDataQuestion(prompt)) {
     const requested = requestedCurrentDataKeys(prompt)

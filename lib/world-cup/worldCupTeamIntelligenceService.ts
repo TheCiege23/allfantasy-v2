@@ -45,15 +45,16 @@ export type WorldCupTeamIntelligenceReport = {
   recentForm: TeamFormResult[]
   formSummary: string
 
-  // Always null — no table in schema yet. Explicitly surfaced so Chimmy is honest.
+  // coach/style/strengths/weaknesses are not stored — always null
   coach: null
-  captain: null
-  keyPlayers: null
+  // captain/keyPlayers/injuryNotes loaded from WorldCupPlayer + InjuryReportRecord when synced
+  captain: string | null
+  keyPlayers: string[] | null
   styleSummary: null
   strengths: null
   weaknesses: null
-  injuryNotes: null
-  suspensionNotes: null
+  injuryNotes: string | null
+  suspensionNotes: string | null
 
   missingData: string[]
   dataSourceLabel: string
@@ -67,7 +68,7 @@ const FINAL_STATUSES = new Set(["FT", "AET", "PEN", "final"])
 export async function getWorldCupTeamIntelligence(
   teamId: string
 ): Promise<WorldCupTeamIntelligenceReport | null> {
-  const [team, standing, fixtures] = await Promise.all([
+  const [team, standing, fixtures, rosterPlayers] = await Promise.all([
     (prisma as any).worldCupTeam.findUnique({
       where: { id: teamId },
       select: {
@@ -121,6 +122,13 @@ export async function getWorldCupTeamIntelligence(
         apiStatusShort: true,
       },
     }),
+    (prisma as any).worldCupPlayer
+      .findMany({
+        where: { teamId, isActive: true },
+        orderBy: [{ isCaptain: "desc" }, { positionCode: "asc" }, { shirtNumber: "asc" }],
+        select: { name: true, positionCode: true, shirtNumber: true, isCaptain: true, providerPlayerId: true },
+      })
+      .catch(() => []) as Promise<any[]>,
   ])
 
   if (!team) return null
@@ -190,14 +198,51 @@ export async function getWorldCupTeamIntelligence(
 
   const formSummary = recentForm.map((r) => r.result).join(" ")
 
-  const missingData: string[] = [
-    "coach",
-    "captain",
-    "key players",
-    "style / formation",
-    "strengths & weaknesses",
-    "injury / suspension report",
-  ]
+  // ── Roster data ───────────────────────────────────────────────────────────
+  const captainPlayer = (rosterPlayers as any[]).find((p) => p.isCaptain)
+  const captain: string | null = captainPlayer ? String(captainPlayer.name) : null
+
+  const keyPlayersRaw = (rosterPlayers as any[])
+    .filter((p) => !p.isCaptain)
+    .slice(0, 8)
+    .map((p) => {
+      const pos = p.positionCode ? `(${p.positionCode})` : ""
+      const num = p.shirtNumber ? `#${p.shirtNumber}` : ""
+      return [p.name, pos, num].filter(Boolean).join(" ")
+    })
+  const keyPlayers: string[] | null = keyPlayersRaw.length > 0 ? keyPlayersRaw : null
+
+  // ── Injury/suspension data from InjuryReportRecord ────────────────────────
+  const providerIds = (rosterPlayers as any[]).map((p) => p.providerPlayerId)
+  const injuryRows = providerIds.length > 0
+    ? await (prisma as any).injuryReportRecord
+        .findMany({
+          where: { sport: "WC_SOCCER", playerId: { in: providerIds } },
+          orderBy: { reportDate: "desc" },
+          take: 20,
+          select: { playerName: true, status: true },
+        })
+        .catch(() => []) as any[]
+    : []
+
+  const injuredPlayers = (injuryRows as any[]).filter((r) => {
+    const s = (r.status ?? "").toLowerCase()
+    return !s.includes("suspend") && !s.includes("ban")
+  }).map((r) => `${r.playerName} (${r.status})`)
+
+  const suspendedPlayers = (injuryRows as any[]).filter((r) => {
+    const s = (r.status ?? "").toLowerCase()
+    return s.includes("suspend") || s.includes("ban")
+  }).map((r) => `${r.playerName} (${r.status})`)
+
+  const injuryNotes: string | null = injuredPlayers.length > 0 ? injuredPlayers.slice(0, 5).join(", ") : null
+  const suspensionNotes: string | null = suspendedPlayers.length > 0 ? suspendedPlayers.slice(0, 3).join(", ") : null
+
+  // ── Build missingData list based on what was actually loaded ──────────────
+  const missingData: string[] = ["coach", "style / formation", "strengths & weaknesses"]
+  if (!captain) missingData.push("captain")
+  if (!keyPlayers) missingData.push("key players")
+  if (!injuryNotes && !suspensionNotes) missingData.push("injury / suspension report")
 
   const lastUpdatedAt =
     standing?.updatedAt
@@ -220,13 +265,13 @@ export async function getWorldCupTeamIntelligence(
     recentForm,
     formSummary,
     coach: null,
-    captain: null,
-    keyPlayers: null,
+    captain,
+    keyPlayers,
     styleSummary: null,
     strengths: null,
     weaknesses: null,
-    injuryNotes: null,
-    suspensionNotes: null,
+    injuryNotes,
+    suspensionNotes,
     missingData,
     dataSourceLabel: "Pool DB — group standings and fixture results",
     lastUpdatedAt,

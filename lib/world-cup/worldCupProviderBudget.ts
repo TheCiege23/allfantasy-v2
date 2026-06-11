@@ -9,6 +9,7 @@ export type WorldCupProviderBudgetEndpoint =
   | "world_cup:fixtures:today"
   | "world_cup:standings"
   | "world_cup:injuries"
+  | "world_cup:squads"
   | "world_cup:gifs"
 
 type BudgetProviderName = "api_football" | "api_sports" | "klipy" | "tenor" | "giphy" | string
@@ -19,6 +20,7 @@ const ENDPOINT_COOLDOWN_MS: Record<WorldCupProviderBudgetEndpoint, number> = {
   "world_cup:fixtures:today": 60 * 1000,
   "world_cup:standings": 5 * 60 * 1000,
   "world_cup:injuries": 6 * 60 * 60 * 1000,
+  "world_cup:squads": 24 * 60 * 60 * 1000,
   "world_cup:gifs": 60 * 1000,
 }
 

@@ -1541,3 +1541,118 @@ export function normalizeProviderStatus(
   // tbd, scheduled, ns, upcoming all map to scheduled
   return "scheduled"
 }
+
+// ── Roster sync ───────────────────────────────────────────────────────────────
+
+export type WorldCupRosterSyncResult = {
+  created: number
+  updated: number
+  skipped: number
+  teams: number
+  warnings: string[]
+}
+
+export async function syncWorldCupRosters(
+  options: WorldCupSyncOptions = {}
+): Promise<WorldCupRosterSyncResult> {
+  const { dryRun = false, seasonYear = 2026 } = options
+  const result: WorldCupRosterSyncResult = { created: 0, updated: 0, skipped: 0, teams: 0, warnings: [] }
+
+  const provider = await getWorldCupDataProvider(options.provider)
+  if (!provider.getSquads) {
+    result.warnings.push(`Provider "${provider.name}" does not implement getSquads().`)
+    return result
+  }
+
+  let squads
+  try {
+    squads = await provider.getSquads(seasonYear)
+  } catch (err) {
+    if (err instanceof WorldCupProviderConfigError) {
+      result.warnings.push(err.message)
+      return result
+    }
+    throw err
+  }
+
+  if (squads.length === 0) {
+    result.warnings.push("Provider returned 0 squads. Check provider configuration and season year.")
+    return result
+  }
+
+  result.teams = squads.length
+
+  for (const squad of squads) {
+    const apiTeamId = !Number.isNaN(Number(squad.providerTeamId)) ? Number(squad.providerTeamId) : null
+    const teamRow = apiTeamId
+      ? await (prisma as any).worldCupTeam.findUnique({ where: { apiTeamId }, select: { id: true } }).catch(() => null)
+      : await (prisma as any).worldCupTeam.findFirst({ where: { name: { contains: squad.teamName, mode: "insensitive" } }, select: { id: true } }).catch(() => null)
+
+    if (!teamRow) {
+      result.warnings.push(`Team not found for squad: ${squad.teamName} (${squad.providerTeamId}) — run team sync first.`)
+      continue
+    }
+
+    const teamId: string = teamRow.id
+    const sourceProvider = provider.name
+
+    for (const player of squad.players) {
+      try {
+        const existing = await (prisma as any).worldCupPlayer.findUnique({
+          where: { uniq_wc_player_provider: { providerPlayerId: player.providerPlayerId, sourceProvider } },
+          select: { id: true },
+        }).catch(() => null)
+
+        if (dryRun) {
+          if (existing) result.updated++
+          else result.created++
+          continue
+        }
+
+        const upsertData = {
+          teamId,
+          name: player.name,
+          shortName: player.shortName ?? null,
+          position: player.position ?? null,
+          positionCode: player.positionCode ?? null,
+          shirtNumber: player.shirtNumber ?? null,
+          age: player.age ?? null,
+          photoUrl: player.photoUrl ?? null,
+          isCaptain: player.isCaptain ?? false,
+          isActive: true,
+          sourcePayload: (player.raw as object) ?? undefined,
+          lastSyncedAt: new Date(),
+        }
+
+        if (existing) {
+          await (prisma as any).worldCupPlayer.update({
+            where: { id: existing.id },
+            data: { ...upsertData, updatedAt: new Date() },
+          })
+          result.updated++
+        } else {
+          await (prisma as any).worldCupPlayer.create({
+            data: { providerPlayerId: player.providerPlayerId, sourceProvider, ...upsertData },
+          })
+          result.created++
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        result.warnings.push(`Player ${player.name} (${player.providerPlayerId}): ${msg}`)
+        result.skipped++
+      }
+    }
+  }
+
+  await recordProviderSync(
+    { provider: provider.name, entityType: "world_cup_rosters", sport: "WC_SOCCER", key: String(seasonYear) },
+    {
+      recordsImported: result.created,
+      recordsUpdated: result.updated,
+      recordsSkipped: result.skipped,
+      error: result.warnings.length > 0 ? result.warnings.slice(0, 3).join("; ") : null,
+    }
+  )
+
+  return result
+}

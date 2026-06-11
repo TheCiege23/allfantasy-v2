@@ -2,6 +2,20 @@ import "server-only"
 import { prisma } from "@/lib/prisma"
 import { DEFAULT_WORLD_CUP_SCORING } from "./worldCupBracketBuilder"
 import type { WorldCupScoringValues } from "./types"
+import {
+  buildWorldCupCurrentDataAvailability,
+  type WorldCupCurrentDataAvailability,
+} from "./worldCupCurrentDataGate"
+import {
+  loadWorldCupCurrentDataEvidence,
+  type WorldCupCurrentDataEvidenceSnapshot,
+} from "./worldCupCurrentDataEvidence"
+import {
+  loadRosterDigest,
+  type ChimmyRosterDigestRow,
+} from "./worldCupRosterService"
+
+export type { ChimmyRosterDigestRow }
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -116,6 +130,9 @@ export type WorldCupChimmyContext = {
   recentMatches: ChimmyMatchSummary[]
   groupStandings: ChimmyGroupStandingRow[]
   leaderboard: ChimmyLeaderboardRow[]
+  currentDataAvailability?: WorldCupCurrentDataAvailability
+  currentDataEvidence?: WorldCupCurrentDataEvidenceSnapshot
+  rosterDigest?: ChimmyRosterDigestRow[]
   liveDataStatus: ChimmyLiveDataStatus
   lastSyncedAt: string | null
   locale: string | null
@@ -527,6 +544,7 @@ function emptyContext(
     recentMatches: [],
     groupStandings: [],
     leaderboard: [],
+    currentDataAvailability: buildWorldCupCurrentDataAvailability(),
     liveDataStatus: "unavailable",
     lastSyncedAt: null,
     locale: locale ?? null,
@@ -554,12 +572,14 @@ export async function buildWorldCupChimmyContext({
 }): Promise<WorldCupChimmyContext> {
   const fetchedAt = new Date().toISOString()
 
-  const [challengeSummary, entry, matches, groupStandings, leaderboard] = await Promise.all([
+  const [challengeSummary, entry, matches, groupStandings, leaderboard, currentDataEvidence, rosterDigest] = await Promise.all([
     fetchChallengeSummary(challengeId),
     fetchUserEntry(challengeId, userId),
     fetchRelevantMatches(challengeId),
     fetchGroupStandings(),
     fetchTopLeaderboard(challengeId, 10),
+    loadWorldCupCurrentDataEvidence({ includeRows: true }),
+    loadRosterDigest().catch(() => [] as ChimmyRosterDigestRow[]),
   ])
 
   if (!challengeSummary) {
@@ -577,6 +597,7 @@ export async function buildWorldCupChimmyContext({
 
   const liveDataStatus: ChimmyLiveDataStatus =
     liveMatches.length > 0 ? "live" : matches.length > 0 ? "fixture_only" : "unavailable"
+  const currentDataAvailability = buildWorldCupCurrentDataAvailability({ evidence: currentDataEvidence })
 
   const lastSyncedAt =
     matches
@@ -603,6 +624,9 @@ export async function buildWorldCupChimmyContext({
     recentMatches,
     groupStandings,
     leaderboard,
+    currentDataAvailability,
+    currentDataEvidence,
+    rosterDigest: rosterDigest.length > 0 ? rosterDigest : undefined,
     liveDataStatus,
     lastSyncedAt,
     locale: locale ?? null,

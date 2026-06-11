@@ -5,6 +5,7 @@ import {
   fetchWorldCupTodayAndActiveFixtures,
   fetchWorldCupStandings,
   fetchWorldCupInjuries,
+  fetchWorldCupSquads,
   normalizeWorldCupStatus,
   normalizeWorldCupRound,
   getWorldCupLeagueId,
@@ -17,6 +18,7 @@ import {
   type WorldCupProviderFixture,
   type WorldCupProviderGroupStanding,
   type WorldCupProviderInjury,
+  type WorldCupProviderSquad,
   type WorldCupProviderTeam,
 } from "../worldCupDataProvider"
 
@@ -114,11 +116,30 @@ export class ApiFootballWorldCupProvider implements WorldCupDataProvider {
     return rows.map((row) => this.normalizeInjury(row)).filter(Boolean) as WorldCupProviderInjury[]
   }
 
+  async getSquads(seasonYear: number): Promise<WorldCupProviderSquad[]> {
+    this.checkConfig()
+    const rows = await fetchWorldCupSquads(seasonYear)
+    return rows.map((row) => ({
+      providerTeamId: String(row.team.id),
+      teamName: row.team.name,
+      players: (row.players ?? []).map((p) => ({
+        providerPlayerId: String(p.id),
+        name: p.name,
+        position: p.position ?? null,
+        positionCode: normalizePositionCode(p.position),
+        shirtNumber: typeof p.number === "number" ? p.number : null,
+        age: typeof p.age === "number" ? p.age : null,
+        photoUrl: p.photo ?? null,
+        isCaptain: false,
+        raw: p,
+      })),
+    }))
+  }
+
   async getFixtureById(
     providerId: string,
     _seasonYear: number
   ): Promise<WorldCupProviderFixture | null> {
-    // TODO: implement GET /fixtures?id={providerId} when needed.
     void providerId
     return null
   }
@@ -228,6 +249,15 @@ export class ApiFootballWorldCupProvider implements WorldCupDataProvider {
 
 // Export the league id helper so admin routes can display it
 export { getWorldCupLeagueId }
+
+function normalizePositionCode(position?: string | null): string | null {
+  const p = (position ?? "").toLowerCase()
+  if (p.startsWith("goal")) return "GK"
+  if (p.startsWith("def")) return "DEF"
+  if (p.startsWith("mid")) return "MID"
+  if (p.startsWith("att") || p.startsWith("fwd") || p.startsWith("forward")) return "ATT"
+  return null
+}
 
 function normalizeApiFootballGroupName(value?: string | null) {
   const text = value?.trim() ?? ""

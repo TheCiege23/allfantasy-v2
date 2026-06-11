@@ -42,6 +42,18 @@ export type ApiFootballWorldCupStanding = {
     goals?: { for?: number | null; against?: number | null } | null
   } | null
 }
+export type ApiFootballWorldCupSquadPlayer = {
+  id: number
+  name: string
+  age?: number | null
+  number?: number | null
+  position?: string | null
+  photo?: string | null
+}
+export type ApiFootballWorldCupSquadRow = {
+  team: { id: number; name: string; logo?: string | null }
+  players: ApiFootballWorldCupSquadPlayer[]
+}
 export type ApiFootballWorldCupInjury = {
   player?: {
     id?: number | string | null
@@ -71,6 +83,7 @@ function getBudgetEndpoint(endpoint: string, params: Record<string, string>): Wo
   if (endpoint === "teams") return "world_cup:teams"
   if (endpoint === "standings") return "world_cup:standings"
   if (endpoint === "injuries") return "world_cup:injuries"
+  if (endpoint === "players/squads") return "world_cup:squads"
   if (endpoint === "fixtures" && (params.from || params.to)) return "world_cup:fixtures:today"
   return "world_cup:fixtures"
 }
@@ -97,6 +110,7 @@ export async function fetchWorldCupStandings(seasonYear: number) {
   return rows.flatMap((row) => row.league?.standings ?? []).flat()
 }
 export async function fetchWorldCupInjuries(seasonYear: number) { return apiFootballFetch<ApiFootballWorldCupInjury>("injuries", { league: getWorldCupLeagueId(), season: String(seasonYear) }) }
+export async function fetchWorldCupSquads(seasonYear: number): Promise<ApiFootballWorldCupSquadRow[]> { return apiFootballFetch<ApiFootballWorldCupSquadRow>("players/squads", { league: getWorldCupLeagueId(), season: String(seasonYear) }) }
 export function normalizeWorldCupStatus(short?: string | null, long?: string | null): WorldCupMatchStatus { const c = (short || long || "").toUpperCase(); if (["1H", "2H", "ET", "BT", "P", "LIVE"].includes(c)) return "live"; if (c === "HT") return "halftime"; if (["FT", "AET", "PEN"].includes(c) || long?.toLowerCase() === "match finished") return "final"; if (["PST", "SUSP", "INT"].includes(c)) return "postponed"; if (["CANC", "ABD", "AWD", "WO"].includes(c)) return "cancelled"; return "scheduled" }
 export function normalizeWorldCupRound(roundText?: string | null): WorldCupRound | null { const v = (roundText || "").toLowerCase(); if (v.includes("round of 32") || v.includes("1/16")) return "round_of_32"; if (v.includes("round of 16") || v.includes("1/8")) return "round_of_16"; if (v.includes("quarter")) return "quarterfinal"; if (v.includes("semi")) return "semifinal"; if (v.includes("3rd") || v.includes("third")) return "third_place"; if (v.includes("final")) return "final"; return null }
 export function normalizeWorldCupFixture(fixture: ApiFootballWorldCupFixture): NormalizedWorldCupFixture {

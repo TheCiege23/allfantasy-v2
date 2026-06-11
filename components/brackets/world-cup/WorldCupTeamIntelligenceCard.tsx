@@ -111,6 +111,39 @@ export default function WorldCupTeamIntelligenceCard({ report, onClose }: Props)
         </div>
       )}
 
+      {/* Captain + key players */}
+      {(report.captain || (report.keyPlayers && report.keyPlayers.length > 0)) && (
+        <div data-testid="team-intel-roster" className="mb-3 rounded-xl border border-white/[0.07] bg-white/[0.04] px-3 py-2">
+          <p className="mb-1.5 text-[9px] font-black uppercase tracking-widest text-white/35">
+            Squad
+          </p>
+          {report.captain && (
+            <p className="mb-1 text-[11px] text-white/70">
+              <span className="text-white/40 text-[9px] uppercase tracking-widest mr-1.5">Captain</span>
+              {report.captain}
+            </p>
+          )}
+          {report.injuryNotes && (
+            <p className="mb-1 text-[10px] text-amber-300/70">
+              <span className="text-white/40 text-[9px] uppercase tracking-widest mr-1.5">Injuries</span>
+              {report.injuryNotes}
+            </p>
+          )}
+          {report.suspensionNotes && (
+            <p className="mb-1 text-[10px] text-rose-300/70">
+              <span className="text-white/40 text-[9px] uppercase tracking-widest mr-1.5">Suspended</span>
+              {report.suspensionNotes}
+            </p>
+          )}
+          {report.keyPlayers && report.keyPlayers.length > 0 && (
+            <div>
+              <p className="text-[9px] uppercase tracking-widest text-white/35 mb-0.5">Key Players</p>
+              <p className="text-[10px] text-white/60">{report.keyPlayers.slice(0, 6).join(" · ")}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Recent form */}
       {report.recentForm.length > 0 && (
         <div data-testid="team-intel-form" className="mb-3">

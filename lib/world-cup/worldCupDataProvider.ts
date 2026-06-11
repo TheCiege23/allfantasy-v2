@@ -80,6 +80,28 @@ export type WorldCupProviderGroupStanding = {
   raw?: unknown
 }
 
+export type WorldCupProviderSquadPlayer = {
+  providerPlayerId: string
+  name: string
+  shortName?: string | null
+  position?: string | null
+  positionCode?: string | null
+  shirtNumber?: number | null
+  birthDate?: string | null
+  age?: number | null
+  club?: string | null
+  nationality?: string | null
+  photoUrl?: string | null
+  isCaptain?: boolean
+  raw?: unknown
+}
+
+export type WorldCupProviderSquad = {
+  providerTeamId: string
+  teamName: string
+  players: WorldCupProviderSquadPlayer[]
+}
+
 export type WorldCupProviderInjury = {
   providerPlayerId: string
   playerName: string
@@ -115,6 +137,9 @@ export interface WorldCupDataProvider {
 
   /** Fetch player/team injury reports when the provider exposes them. */
   getInjuries?(seasonYear: number): Promise<WorldCupProviderInjury[]>
+
+  /** Fetch squad rosters for all teams in the tournament. */
+  getSquads?(seasonYear: number): Promise<WorldCupProviderSquad[]>
 
   /**
    * Fetch a single fixture by provider ID.

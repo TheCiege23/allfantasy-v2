@@ -2679,10 +2679,20 @@ model ApiUsageRollup {
 model Player {
   id                   String   @id
   name                 String
+  normalizedName       String?  @map("normalized_name")
+  canonicalSlug        String?  @map("canonical_slug")
   sport                String
   position             String
   team                 String?
+  sportLeagueKey       String?  @map("sport_league_key")
+  currentTeamId        String?  @map("current_team_id")
+  providerIds          Json?    @map("provider_ids")
   birthYear            Int?
+  birthDate            DateTime? @map("birth_date")
+  height               String?
+  weight               String?
+  nationality          String?
+  imageUrl             String?  @map("image_url")
   league               String
   devyEligible         Boolean  @default(false)
   graduatedToNFL       Boolean  @default(false)
@@ -2701,11 +2711,23 @@ model Player {
   nflTeam              String?
   active               Boolean  @default(true)
   injuryStatus         String?
+  source               String?
+  sourceUpdatedAt      DateTime? @map("source_updated_at")
+  fetchedAt            DateTime? @map("fetched_at")
+  expiresAt            DateTime? @map("expires_at")
+  lastSeenAt           DateTime? @map("last_seen_at")
+  confidence           Float?
+  rawPayload           Json?    @map("raw_payload")
   lastSyncedAt         DateTime @updatedAt
   createdAt            DateTime @default(now())
 
   @@index([league])
   @@index([devyEligible])
+  @@index([sport, normalizedName])
+  @@index([sport, team])
+  @@index([sportLeagueKey])
+  @@index([currentTeamId])
+  @@index([fetchedAt])
 }
 
 model DevyPlayer {
@@ -3090,10 +3112,43 @@ model WorldCupTeam {
   groupTeams           WorldCupGroupTeam[]
   groupRankingPicks    WorldCupGroupRankingPick[]
   thirdPlacePicks      WorldCupThirdPlaceAdvancerPick[]
+  players              WorldCupPlayer[]
 
   @@index([qualificationStatus])
   @@index([name])
   @@map("world_cup_teams")
+}
+
+model WorldCupPlayer {
+  id               String    @id @default(cuid())
+  providerPlayerId String    @map("provider_player_id") @db.VarChar(64)
+  sourceProvider   String    @map("source_provider") @db.VarChar(32)
+  teamId           String    @map("team_id")
+  name             String    @db.VarChar(128)
+  shortName        String?   @map("short_name") @db.VarChar(64)
+  position         String?   @db.VarChar(32)
+  positionCode     String?   @map("position_code") @db.VarChar(8)
+  shirtNumber      Int?      @map("shirt_number")
+  birthDate        DateTime? @map("birth_date")
+  age              Int?
+  club             String?   @db.VarChar(64)
+  nationality      String?   @db.VarChar(64)
+  photoUrl         String?   @map("photo_url")
+  isCaptain        Boolean   @default(false) @map("is_captain")
+  isActive         Boolean   @default(true) @map("is_active")
+  sourcePayload    Json?     @map("source_payload")
+  lastSyncedAt     DateTime? @map("last_synced_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  team             WorldCupTeam @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([providerPlayerId, sourceProvider], name: "uniq_wc_player_provider")
+  @@index([teamId])
+  @@index([teamId, positionCode])
+  @@index([name])
+  @@index([isCaptain])
+  @@map("world_cup_players")
 }
 
 model WorldCupBracketScoringProfile {
@@ -10489,17 +10544,27 @@ model PlayerGameStat {
   id                String   @id @default(cuid())
   playerId          String   @db.VarChar(64)
   gameId            String   @db.VarChar(64)
+  providerPlayerId  String?  @map("provider_player_id") @db.VarChar(128)
+  providerGameId    String?  @map("provider_game_id") @db.VarChar(128)
   season            Int
   weekOrRound       Int
   statPayload       Json     @map("stat_payload")
   normalizedStatMap Json     @map("normalized_stat_map")
   fantasyPoints     Float    @default(0)
+  source            String?  @db.VarChar(64)
+  confidence        Float?
+  sourceUpdatedAt   DateTime? @map("source_updated_at")
+  fetchedAt         DateTime? @map("fetched_at")
+  expiresAt         DateTime? @map("expires_at")
   updatedAt         DateTime @updatedAt
   sportType         String   @db.VarChar(12)
 
   @@unique([playerId, sportType, gameId])
   @@index([playerId, sportType, season])
   @@index([sportType, season, weekOrRound])
+  @@index([sportType, source])
+  @@index([fetchedAt])
+  @@index([expiresAt])
   @@map("player_game_stats")
 }
 
@@ -10508,14 +10573,24 @@ model TeamGameStat {
   id          String   @id @default(cuid())
   gameId      String   @db.VarChar(64)
   teamId      String   @db.VarChar(32)
+  providerTeamId String? @map("provider_team_id") @db.VarChar(128)
+  providerGameId String? @map("provider_game_id") @db.VarChar(128)
   season      Int
   weekOrRound Int
   statPayload Json     @map("stat_payload")
+  source      String?  @db.VarChar(64)
+  confidence  Float?
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  fetchedAt   DateTime? @map("fetched_at")
+  expiresAt   DateTime? @map("expires_at")
   updatedAt   DateTime @updatedAt
   sportType   String   @db.VarChar(12)
 
   @@unique([sportType, gameId, teamId])
   @@index([sportType, season, weekOrRound])
+  @@index([sportType, source])
+  @@index([fetchedAt])
+  @@index([expiresAt])
   @@map("team_game_stats")
 }
 
@@ -15039,4 +15114,612 @@ model AiFeedback {
   @@index([userId, createdAt])
   @@index([resultKey])
   @@map("ai_feedback")
+}
+
+/// Phase 1 sports-data foundation: normalized sport registry used by provider identity,
+/// ingestion health, and AI evidence services. Existing legacy/cache tables remain valid.
+model Sport {
+  id        String   @id @default(cuid())
+  key       String   @unique @db.VarChar(32)
+  name      String   @db.VarChar(96)
+  category  String?  @db.VarChar(32)
+  gender    String?  @db.VarChar(16)
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@map("sports_core_sports")
+}
+
+model SportLeague {
+  id             String    @id @default(cuid())
+  sportKey       String    @map("sport_key") @db.VarChar(32)
+  leagueKey      String    @map("league_key") @db.VarChar(64)
+  name           String    @db.VarChar(128)
+  region         String?   @db.VarChar(64)
+  level          String?   @db.VarChar(32)
+  governingBody  String?   @map("governing_body") @db.VarChar(64)
+  active         Boolean   @default(true)
+  source         String?   @db.VarChar(64)
+  confidence     Float?
+  fetchedAt      DateTime? @map("fetched_at")
+  expiresAt      DateTime? @map("expires_at")
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  lastSeenAt     DateTime? @map("last_seen_at")
+  metadata       Json?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@unique([sportKey, leagueKey], name: "uniq_sports_core_league")
+  @@index([sportKey])
+  @@index([active])
+  @@index([fetchedAt])
+  @@map("sports_core_leagues")
+}
+
+model Season {
+  id             String    @id @default(cuid())
+  sportKey       String    @map("sport_key") @db.VarChar(32)
+  leagueKey      String    @map("league_key") @db.VarChar(64)
+  seasonKey      String    @map("season_key") @db.VarChar(32)
+  year           Int?
+  seasonType     String?   @map("season_type") @db.VarChar(32)
+  startsAt       DateTime? @map("starts_at")
+  endsAt         DateTime? @map("ends_at")
+  currentWeek    Int?      @map("current_week")
+  currentRound   String?   @map("current_round") @db.VarChar(64)
+  source         String?   @db.VarChar(64)
+  fetchedAt      DateTime? @map("fetched_at")
+  expiresAt      DateTime? @map("expires_at")
+  metadata       Json?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@unique([sportKey, leagueKey, seasonKey], name: "uniq_sports_core_season")
+  @@index([sportKey, leagueKey])
+  @@index([year])
+  @@index([startsAt])
+  @@map("sports_core_seasons")
+}
+
+model Team {
+  id              String    @id @default(cuid())
+  sportKey        String    @map("sport_key") @db.VarChar(32)
+  leagueKey       String?   @map("league_key") @db.VarChar(64)
+  seasonKey       String?   @map("season_key") @db.VarChar(32)
+  canonicalName   String    @map("canonical_name") @db.VarChar(160)
+  normalizedName  String    @map("normalized_name") @db.VarChar(160)
+  shortName       String?   @map("short_name") @db.VarChar(80)
+  abbreviation    String?   @db.VarChar(24)
+  city            String?   @db.VarChar(96)
+  country         String?   @db.VarChar(96)
+  fifaCode        String?   @map("fifa_code") @db.VarChar(8)
+  conference      String?   @db.VarChar(64)
+  division        String?   @db.VarChar(64)
+  confederation   String?   @db.VarChar(32)
+  colors          Json?
+  active          Boolean   @default(true)
+  source          String?   @db.VarChar(64)
+  confidence      Float?
+  fetchedAt       DateTime? @map("fetched_at")
+  expiresAt       DateTime? @map("expires_at")
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  lastSeenAt      DateTime? @map("last_seen_at")
+  rawPayload      Json?     @map("raw_payload")
+  metadata        Json?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([sportKey, leagueKey, normalizedName], name: "uniq_sports_core_team_identity")
+  @@index([sportKey, leagueKey])
+  @@index([sportKey, abbreviation])
+  @@index([country])
+  @@index([fifaCode])
+  @@index([fetchedAt])
+  @@index([expiresAt])
+  @@map("sports_core_teams")
+}
+
+model TeamProviderIdentity {
+  id              String    @id @default(cuid())
+  teamId          String?   @map("team_id") @db.VarChar(128)
+  sportKey        String    @map("sport_key") @db.VarChar(32)
+  leagueKey       String?   @map("league_key") @db.VarChar(64)
+  provider        String    @db.VarChar(64)
+  providerTeamId  String    @map("provider_team_id") @db.VarChar(128)
+  providerSlug    String?   @map("provider_slug") @db.VarChar(160)
+  displayName     String?   @map("display_name") @db.VarChar(160)
+  aliases         Json?
+  confidence      Float     @default(1)
+  verified        Boolean   @default(false)
+  source          String?   @db.VarChar(64)
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  fetchedAt       DateTime? @map("fetched_at")
+  expiresAt       DateTime? @map("expires_at")
+  lastSeenAt      DateTime? @map("last_seen_at")
+  rawPayload      Json?     @map("raw_payload")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([provider, sportKey, leagueKey, providerTeamId], name: "uniq_team_provider_identity")
+  @@index([teamId])
+  @@index([sportKey, leagueKey])
+  @@index([provider, providerTeamId])
+  @@index([confidence])
+  @@map("sports_core_team_provider_identities")
+}
+
+model TeamImage {
+  id              String    @id @default(cuid())
+  teamId          String?   @map("team_id") @db.VarChar(128)
+  sportKey        String    @map("sport_key") @db.VarChar(32)
+  leagueKey       String?   @map("league_key") @db.VarChar(64)
+  imageType       String    @map("image_type") @db.VarChar(32)
+  url             String
+  provider        String?   @db.VarChar(64)
+  width           Int?
+  height          Int?
+  isPrimary       Boolean   @default(false) @map("is_primary")
+  confidence      Float?
+  fetchedAt       DateTime? @map("fetched_at")
+  expiresAt       DateTime? @map("expires_at")
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  lastSeenAt      DateTime? @map("last_seen_at")
+  rawPayload      Json?     @map("raw_payload")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([teamId, imageType, url], name: "uniq_team_image_url")
+  @@index([sportKey, leagueKey])
+  @@index([imageType, isPrimary])
+  @@index([fetchedAt])
+  @@map("sports_core_team_images")
+}
+
+model CountryFlag {
+  id              String    @id @default(cuid())
+  countryCode     String    @map("country_code") @db.VarChar(8)
+  countryName     String    @map("country_name") @db.VarChar(96)
+  flagUrl         String    @map("flag_url")
+  provider        String?   @db.VarChar(64)
+  confidence      Float?
+  fetchedAt       DateTime? @map("fetched_at")
+  expiresAt       DateTime? @map("expires_at")
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  metadata        Json?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([countryCode, provider], name: "uniq_country_flag_provider")
+  @@index([countryName])
+  @@map("sports_core_country_flags")
+}
+
+model PlayerProviderIdentity {
+  id               String    @id @default(cuid())
+  playerId         String?   @map("player_id") @db.VarChar(128)
+  sportKey         String    @map("sport_key") @db.VarChar(32)
+  leagueKey        String?   @map("league_key") @db.VarChar(64)
+  provider         String    @db.VarChar(64)
+  providerPlayerId String    @map("provider_player_id") @db.VarChar(128)
+  providerSlug     String?   @map("provider_slug") @db.VarChar(160)
+  displayName      String?   @map("display_name") @db.VarChar(160)
+  teamId           String?   @map("team_id") @db.VarChar(128)
+  aliases          Json?
+  confidence       Float     @default(1)
+  verified         Boolean   @default(false)
+  source           String?   @db.VarChar(64)
+  sourceUpdatedAt  DateTime? @map("source_updated_at")
+  fetchedAt        DateTime? @map("fetched_at")
+  expiresAt        DateTime? @map("expires_at")
+  lastSeenAt       DateTime? @map("last_seen_at")
+  rawPayload       Json?     @map("raw_payload")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@unique([provider, sportKey, leagueKey, providerPlayerId], name: "uniq_player_provider_identity")
+  @@index([playerId])
+  @@index([teamId])
+  @@index([sportKey, leagueKey])
+  @@index([provider, providerPlayerId])
+  @@index([confidence])
+  @@map("sports_core_player_provider_identities")
+}
+
+model PlayerImage {
+  id              String    @id @default(cuid())
+  playerId        String?   @map("player_id") @db.VarChar(128)
+  sportKey        String    @map("sport_key") @db.VarChar(32)
+  leagueKey       String?   @map("league_key") @db.VarChar(64)
+  imageType       String    @map("image_type") @db.VarChar(32)
+  url             String
+  provider        String?   @db.VarChar(64)
+  width           Int?
+  height          Int?
+  isPrimary       Boolean   @default(false) @map("is_primary")
+  confidence      Float?
+  fetchedAt       DateTime? @map("fetched_at")
+  expiresAt       DateTime? @map("expires_at")
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  lastSeenAt      DateTime? @map("last_seen_at")
+  rawPayload      Json?     @map("raw_payload")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([playerId, imageType, url], name: "uniq_player_image_url")
+  @@index([sportKey, leagueKey])
+  @@index([imageType, isPrimary])
+  @@index([fetchedAt])
+  @@map("sports_core_player_images")
+}
+
+model Game {
+  id              String    @id @default(cuid())
+  sportKey        String    @map("sport_key") @db.VarChar(32)
+  leagueKey       String?   @map("league_key") @db.VarChar(64)
+  seasonKey       String?   @map("season_key") @db.VarChar(32)
+  weekOrRound     String?   @map("week_or_round") @db.VarChar(64)
+  homeTeamId      String?   @map("home_team_id") @db.VarChar(128)
+  awayTeamId      String?   @map("away_team_id") @db.VarChar(128)
+  homeTeamName    String?   @map("home_team_name") @db.VarChar(160)
+  awayTeamName    String?   @map("away_team_name") @db.VarChar(160)
+  startsAt        DateTime? @map("starts_at")
+  status          String?   @db.VarChar(48)
+  venueName       String?   @map("venue_name") @db.VarChar(160)
+  venueCity       String?   @map("venue_city") @db.VarChar(96)
+  homeScore       Int?      @map("home_score")
+  awayScore       Int?      @map("away_score")
+  source          String?   @db.VarChar(64)
+  confidence      Float?
+  fetchedAt       DateTime? @map("fetched_at")
+  expiresAt       DateTime? @map("expires_at")
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  lastSeenAt      DateTime? @map("last_seen_at")
+  rawPayload      Json?     @map("raw_payload")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([sportKey, leagueKey, seasonKey])
+  @@index([homeTeamId])
+  @@index([awayTeamId])
+  @@index([startsAt])
+  @@index([status])
+  @@index([fetchedAt])
+  @@map("sports_core_games")
+}
+
+model GameProviderIdentity {
+  id             String    @id @default(cuid())
+  gameId         String?   @map("game_id") @db.VarChar(128)
+  sportKey       String    @map("sport_key") @db.VarChar(32)
+  leagueKey      String?   @map("league_key") @db.VarChar(64)
+  provider       String    @db.VarChar(64)
+  providerGameId String    @map("provider_game_id") @db.VarChar(128)
+  confidence     Float     @default(1)
+  verified       Boolean   @default(false)
+  fetchedAt      DateTime? @map("fetched_at")
+  expiresAt      DateTime? @map("expires_at")
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  lastSeenAt     DateTime? @map("last_seen_at")
+  rawPayload     Json?     @map("raw_payload")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@unique([provider, sportKey, leagueKey, providerGameId], name: "uniq_game_provider_identity")
+  @@index([gameId])
+  @@index([sportKey, leagueKey])
+  @@map("sports_core_game_provider_identities")
+}
+
+model LiveGameState {
+  id              String    @id @default(cuid())
+  gameId          String    @map("game_id") @db.VarChar(128)
+  sportKey        String    @map("sport_key") @db.VarChar(32)
+  period          String?   @db.VarChar(48)
+  clock           String?   @db.VarChar(32)
+  elapsedMinute   Int?      @map("elapsed_minute")
+  injuryTime      Int?      @map("injury_time")
+  homeScore       Int?      @map("home_score")
+  awayScore       Int?      @map("away_score")
+  status          String?   @db.VarChar(48)
+  events          Json?
+  source          String?   @db.VarChar(64)
+  confidence      Float?
+  fetchedAt       DateTime  @default(now()) @map("fetched_at")
+  expiresAt       DateTime? @map("expires_at")
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  rawPayload      Json?     @map("raw_payload")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([gameId, fetchedAt])
+  @@index([sportKey, status])
+  @@index([expiresAt])
+  @@map("sports_core_live_game_states")
+}
+
+model PlayerSeasonStat {
+  id              String    @id @default(cuid())
+  playerId        String    @map("player_id") @db.VarChar(128)
+  sportKey        String    @map("sport_key") @db.VarChar(32)
+  leagueKey       String?   @map("league_key") @db.VarChar(64)
+  teamId          String?   @map("team_id") @db.VarChar(128)
+  seasonKey       String    @map("season_key") @db.VarChar(32)
+  seasonType      String    @default("regular") @map("season_type") @db.VarChar(32)
+  position        String?   @db.VarChar(32)
+  stats           Json
+  fantasyPoints   Float?    @map("fantasy_points")
+  gamesPlayed     Int?      @map("games_played")
+  source          String?   @db.VarChar(64)
+  confidence      Float?
+  fetchedAt       DateTime? @map("fetched_at")
+  expiresAt       DateTime? @map("expires_at")
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  rawPayload      Json?     @map("raw_payload")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([playerId, sportKey, seasonKey, seasonType, source], name: "uniq_player_season_stat_source")
+  @@index([sportKey, leagueKey, seasonKey])
+  @@index([teamId])
+  @@index([fetchedAt])
+  @@map("sports_core_player_season_stats")
+}
+
+model PlayerCareerStat {
+  id              String    @id @default(cuid())
+  playerId        String    @map("player_id") @db.VarChar(128)
+  sportKey        String    @map("sport_key") @db.VarChar(32)
+  leagueKey       String?   @map("league_key") @db.VarChar(64)
+  stats           Json
+  source          String?   @db.VarChar(64)
+  confidence      Float?
+  fetchedAt       DateTime? @map("fetched_at")
+  expiresAt       DateTime? @map("expires_at")
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  rawPayload      Json?     @map("raw_payload")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([playerId, sportKey, leagueKey, source], name: "uniq_player_career_stat_source")
+  @@index([sportKey, leagueKey])
+  @@index([fetchedAt])
+  @@map("sports_core_player_career_stats")
+}
+
+model InjuryReport {
+  id              String    @id @default(cuid())
+  playerId        String?   @map("player_id") @db.VarChar(128)
+  teamId          String?   @map("team_id") @db.VarChar(128)
+  sportKey        String    @map("sport_key") @db.VarChar(32)
+  leagueKey       String?   @map("league_key") @db.VarChar(64)
+  seasonKey       String?   @map("season_key") @db.VarChar(32)
+  weekOrRound     String?   @map("week_or_round") @db.VarChar(64)
+  playerName      String    @map("player_name") @db.VarChar(160)
+  teamName        String?   @map("team_name") @db.VarChar(160)
+  status          String?   @db.VarChar(64)
+  practiceStatus  String?   @map("practice_status") @db.VarChar(64)
+  gameStatus      String?   @map("game_status") @db.VarChar(64)
+  bodyPart        String?   @map("body_part") @db.VarChar(96)
+  description     String?
+  reportDate      DateTime? @map("report_date")
+  source          String?   @db.VarChar(64)
+  confidence      Float?
+  identityConfidence Float? @map("identity_confidence")
+  fetchedAt       DateTime? @map("fetched_at")
+  expiresAt       DateTime? @map("expires_at")
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  rawPayload      Json?     @map("raw_payload")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([sportKey, leagueKey, reportDate])
+  @@index([playerId, reportDate])
+  @@index([teamId, reportDate])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("sports_core_injury_reports")
+}
+
+model PlayerNewsItem {
+  id              String    @id @default(cuid())
+  playerId        String?   @map("player_id") @db.VarChar(128)
+  teamId          String?   @map("team_id") @db.VarChar(128)
+  sportKey        String    @map("sport_key") @db.VarChar(32)
+  leagueKey       String?   @map("league_key") @db.VarChar(64)
+  headline        String    @db.VarChar(512)
+  body            String?
+  url             String?
+  category        String?   @db.VarChar(64)
+  source          String?   @db.VarChar(96)
+  author          String?   @db.VarChar(128)
+  publishedAt     DateTime? @map("published_at")
+  fetchedAt       DateTime? @map("fetched_at")
+  expiresAt       DateTime? @map("expires_at")
+  confidence      Float?
+  identityConfidence Float? @map("identity_confidence")
+  sentiment       String?   @db.VarChar(32)
+  rawPayload      Json?     @map("raw_payload")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([sportKey, leagueKey, publishedAt])
+  @@index([playerId, publishedAt])
+  @@index([teamId, publishedAt])
+  @@index([category, publishedAt])
+  @@index([expiresAt])
+  @@map("sports_core_player_news_items")
+}
+
+model Lineup {
+  id              String    @id @default(cuid())
+  gameId          String?   @map("game_id") @db.VarChar(128)
+  teamId          String?   @map("team_id") @db.VarChar(128)
+  sportKey        String    @map("sport_key") @db.VarChar(32)
+  leagueKey       String?   @map("league_key") @db.VarChar(64)
+  seasonKey       String?   @map("season_key") @db.VarChar(32)
+  lineupType      String    @map("lineup_type") @db.VarChar(64)
+  players         Json
+  formation       String?   @db.VarChar(64)
+  source          String?   @db.VarChar(64)
+  confidence      Float?
+  fetchedAt       DateTime? @map("fetched_at")
+  expiresAt       DateTime? @map("expires_at")
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  rawPayload      Json?     @map("raw_payload")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([sportKey, leagueKey, seasonKey])
+  @@index([gameId, teamId])
+  @@index([lineupType])
+  @@index([expiresAt])
+  @@map("sports_core_lineups")
+}
+
+model FantasyLeagueContext {
+  id              String    @id @default(cuid())
+  leagueId        String    @map("league_id") @db.VarChar(128)
+  sportKey        String    @map("sport_key") @db.VarChar(32)
+  leagueKey       String?   @map("league_key") @db.VarChar(64)
+  seasonKey       String?   @map("season_key") @db.VarChar(32)
+  platform        String?   @db.VarChar(64)
+  platformLeagueId String?  @map("platform_league_id") @db.VarChar(128)
+  scoringProfileId String?  @map("scoring_profile_id") @db.VarChar(128)
+  rosterSettings  Json?     @map("roster_settings")
+  scoringSettings Json?     @map("scoring_settings")
+  metadata        Json?
+  source          String?   @db.VarChar(64)
+  confidence      Float?
+  fetchedAt       DateTime? @map("fetched_at")
+  expiresAt       DateTime? @map("expires_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([leagueId, sportKey, seasonKey], name: "uniq_fantasy_league_context")
+  @@index([sportKey, leagueKey])
+  @@index([platform, platformLeagueId])
+  @@map("sports_core_fantasy_league_contexts")
+}
+
+model FantasyRosterSnapshot {
+  id              String    @id @default(cuid())
+  leagueId        String    @map("league_id") @db.VarChar(128)
+  rosterId        String    @map("roster_id") @db.VarChar(128)
+  sportKey        String    @map("sport_key") @db.VarChar(32)
+  seasonKey       String?   @map("season_key") @db.VarChar(32)
+  weekOrRound     String?   @map("week_or_round") @db.VarChar(64)
+  rosterPlayers   Json      @map("roster_players")
+  lineupPlayers   Json?     @map("lineup_players")
+  source          String?   @db.VarChar(64)
+  confidence      Float?
+  fetchedAt       DateTime? @map("fetched_at")
+  expiresAt       DateTime? @map("expires_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([leagueId, rosterId, sportKey, seasonKey, weekOrRound], name: "uniq_fantasy_roster_snapshot")
+  @@index([rosterId, seasonKey])
+  @@index([sportKey, fetchedAt])
+  @@map("sports_core_fantasy_roster_snapshots")
+}
+
+model FantasyScoringProfile {
+  id              String    @id @default(cuid())
+  leagueId        String?   @map("league_id") @db.VarChar(128)
+  sportKey        String    @map("sport_key") @db.VarChar(32)
+  profileKey      String    @map("profile_key") @db.VarChar(128)
+  name            String    @db.VarChar(160)
+  rules           Json
+  source          String?   @db.VarChar(64)
+  confidence      Float?
+  fetchedAt       DateTime? @map("fetched_at")
+  expiresAt       DateTime? @map("expires_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([sportKey, profileKey, leagueId], name: "uniq_fantasy_scoring_profile")
+  @@index([leagueId])
+  @@map("sports_core_fantasy_scoring_profiles")
+}
+
+model SportsDataSyncLog {
+  id              String    @id @default(cuid())
+  provider        String    @db.VarChar(64)
+  sportKey        String    @map("sport_key") @db.VarChar(32)
+  leagueKey       String?   @map("league_key") @db.VarChar(64)
+  entityType      String    @map("entity_type") @db.VarChar(64)
+  status          String    @db.VarChar(32)
+  startedAt       DateTime  @default(now()) @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  recordsFetched  Int       @default(0) @map("records_fetched")
+  recordsInserted Int       @default(0) @map("records_inserted")
+  recordsUpdated  Int       @default(0) @map("records_updated")
+  recordsSkipped  Int       @default(0) @map("records_skipped")
+  errorMessage    String?   @map("error_message")
+  metadata        Json?
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([provider, sportKey, entityType, startedAt])
+  @@index([status, startedAt])
+  @@map("sports_core_sync_logs")
+}
+
+model SportsProviderHealth {
+  id              String    @id @default(cuid())
+  provider        String    @db.VarChar(64)
+  sportKey        String    @map("sport_key") @db.VarChar(32)
+  leagueKey       String?   @map("league_key") @db.VarChar(64)
+  entityType      String    @map("entity_type") @db.VarChar(64)
+  status          String    @db.VarChar(32)
+  configured      Boolean   @default(false)
+  lastSuccessAt   DateTime? @map("last_success_at")
+  lastFailureAt   DateTime? @map("last_failure_at")
+  lastError       String?   @map("last_error")
+  freshnessStatus String?   @map("freshness_status") @db.VarChar(32)
+  coveragePct     Float?    @map("coverage_pct")
+  recordCount     Int?      @map("record_count")
+  metadata        Json?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([provider, sportKey, leagueKey, entityType], name: "uniq_provider_health_scope")
+  @@index([sportKey, entityType])
+  @@index([status])
+  @@index([lastSuccessAt])
+  @@map("sports_core_provider_health")
+}
+
+model AIEvidenceItem {
+  id              String    @id @default(cuid())
+  responseId      String?   @map("response_id") @db.VarChar(128)
+  traceId         String?   @map("trace_id") @db.VarChar(128)
+  userId          String?   @map("user_id") @db.VarChar(128)
+  leagueId        String?   @map("league_id") @db.VarChar(128)
+  sportKey        String    @map("sport_key") @db.VarChar(32)
+  feature         String?   @db.VarChar(64)
+  entityType      String    @map("entity_type") @db.VarChar(64)
+  entityId        String?   @map("entity_id") @db.VarChar(128)
+  evidenceType    String    @map("evidence_type") @db.VarChar(64)
+  source          String    @db.VarChar(96)
+  sourceTable     String?   @map("source_table") @db.VarChar(96)
+  sourceRowId     String?   @map("source_row_id") @db.VarChar(128)
+  claim           String?
+  payload         Json
+  confidence      Float?
+  fetchedAt       DateTime? @map("fetched_at")
+  expiresAt       DateTime? @map("expires_at")
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  allowed         Boolean   @default(true)
+  stale           Boolean   @default(false)
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([responseId])
+  @@index([traceId])
+  @@index([sportKey, feature])
+  @@index([entityType, entityId])
+  @@index([source, fetchedAt])
+  @@index([expiresAt])
+  @@map("sports_core_ai_evidence_items")
 }
