@@ -123,6 +123,7 @@ import type { WorldCupCountdownFirstMatch } from "./WorldCupPoolCountdownBanner"
 import { ChimmyFreshnessChip } from "./ChimmyFreshnessChip"
 import WorldCupAiInsightsCTA from "./WorldCupAiInsightsCTA"
 import WorldCupDailyEdgeReportCard from "./WorldCupDailyEdgeReportCard"
+import WorldCupPersonalImpactStrip from "./WorldCupPersonalImpactStrip"
 import {
   WorldCupChatMessageBubble,
   WorldCupChatModeTabs,
@@ -3657,6 +3658,17 @@ export default function WorldCupBracketShell({
                 hasBracketBrainAi={aiInsightsUnlocked}
               />
             </section>
+
+            {/* Why This Match Matters — personal points-at-stake summary */}
+            {selectedEntry && picks.length > 0 && (
+              <section className="mx-auto max-w-5xl px-2 sm:px-0">
+                <WorldCupPersonalImpactStrip
+                  picks={picks}
+                  matches={view.matches}
+                  scoring={view.scoring}
+                />
+              </section>
+            )}
 
             {/* AI Insights CTA — entitlement-aware action chips */}
             <section

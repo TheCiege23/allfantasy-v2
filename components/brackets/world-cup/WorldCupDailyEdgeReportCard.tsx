@@ -79,6 +79,7 @@ import {
 } from "@/lib/world-cup/worldCupEdgeReportAnalytics"
 import type { EdgeSection, WorldCupEdgeReport } from "@/lib/world-cup/worldCupEdgeReport"
 import type { EdgeReportCoaching } from "@/lib/world-cup/worldCupEdgeReportAi"
+import { ChimmyFreshnessChip } from "./ChimmyFreshnessChip"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -619,6 +620,12 @@ export default function WorldCupDailyEdgeReportCard({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          {loadState === "loaded" && reportData && (
+            <ChimmyFreshnessChip
+              tier={reportData.report.hasLiveData ? "live" : "cached"}
+              label={reportData.report.hasLiveData ? "Live scores" : "Pool data"}
+            />
+          )}
           {loadState === "loaded" && (
             <span
               className="flex items-center gap-1 rounded-full border border-green-400/25 bg-green-400/[0.08] px-2 py-0.5 text-[9px] font-semibold text-green-300/80"
