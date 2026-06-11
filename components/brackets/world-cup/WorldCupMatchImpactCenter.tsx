@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Target, Shield } from "lucide-react"
+import { Target, Shield, ChevronDown } from "lucide-react"
 import { ChimmyFreshnessChip } from "./ChimmyFreshnessChip"
 import type {
   WorldCupMatchView,
@@ -11,6 +11,7 @@ import type {
 } from "@/lib/world-cup/types"
 import { WORLD_CUP_ROUNDS } from "@/lib/world-cup/types"
 import type { WorldCupDataTrustReport } from "@/lib/world-cup/worldCupDataTrustService"
+import type { WorldCupTeamIntelligenceReport } from "@/lib/world-cup/worldCupTeamIntelligenceService"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -113,6 +114,9 @@ export default function WorldCupMatchImpactCenter({
   poolParticipantCount,
 }: WorldCupMatchImpactCenterProps) {
   const [dataTrust, setDataTrust] = useState<WorldCupDataTrustReport | null>(null)
+  const [teamIntel, setTeamIntel] = useState<WorldCupTeamIntelligenceReport | null>(null)
+  const [teamIntelTeamId, setTeamIntelTeamId] = useState<string | null>(null)
+  const [teamIntelLoading, setTeamIntelLoading] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -126,6 +130,25 @@ export default function WorldCupMatchImpactCenter({
       cancelled = true
     }
   }, [challengeId])
+
+  function handleTeamInsight(teamId: string) {
+    if (teamIntelTeamId === teamId) {
+      setTeamIntel(null)
+      setTeamIntelTeamId(null)
+      return
+    }
+    setTeamIntelLoading(true)
+    setTeamIntelTeamId(teamId)
+    fetch(`/api/brackets/world-cup/${challengeId}/teams/${teamId}/intelligence`)
+      .then((res) =>
+        res.ok ? (res.json() as Promise<{ report?: WorldCupTeamIntelligenceReport }>) : null
+      )
+      .then((data) => {
+        setTeamIntel(data?.report ?? null)
+      })
+      .catch(() => setTeamIntel(null))
+      .finally(() => setTeamIntelLoading(false))
+  }
 
   const topImpact = useMemo<MatchImpact | null>(() => {
     const active = matches.filter(
@@ -264,6 +287,36 @@ export default function WorldCupMatchImpactCenter({
           </p>
         </div>
       )}
+
+      {/* Team insight button */}
+      {topImpact.rootFor && (
+        <div className="mt-3 flex items-center gap-2">
+          <TeamInsightButton
+            label={topImpact.rootFor}
+            teamId={
+              picks.find(
+                (p) =>
+                  p.matchId === topImpact.matchId && p.selectedTeamId != null
+              )?.selectedTeamId ?? null
+            }
+            active={
+              teamIntelTeamId ===
+              (picks.find(
+                (p) => p.matchId === topImpact.matchId && p.selectedTeamId != null
+              )?.selectedTeamId ?? null)
+            }
+            loading={teamIntelLoading}
+            onToggle={handleTeamInsight}
+          />
+        </div>
+      )}
+
+      {/* Inline team intelligence card */}
+      {teamIntel && !teamIntelLoading && (
+        <div className="mt-3" data-testid="match-impact-team-intel">
+          <TeamIntelligenceInline report={teamIntel} onClose={() => { setTeamIntel(null); setTeamIntelTeamId(null) }} />
+        </div>
+      )}
     </section>
   )
 }
@@ -286,6 +339,131 @@ function ImpactCell({
     >
       <p className="text-[9px] font-black uppercase tracking-widest text-white/35">{label}</p>
       <p className={`mt-0.5 text-xs font-bold ${valueClass ?? "text-white/80"}`}>{value}</p>
+    </div>
+  )
+}
+
+function TeamInsightButton({
+  label,
+  teamId,
+  active,
+  loading,
+  onToggle,
+}: {
+  label: string
+  teamId: string | null
+  active: boolean
+  loading: boolean
+  onToggle: (teamId: string) => void
+}) {
+  if (!teamId) return null
+  return (
+    <button
+      onClick={() => onToggle(teamId)}
+      data-testid="match-impact-team-insight-btn"
+      disabled={loading}
+      className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold transition-colors ${
+        active
+          ? "border-indigo-400/40 bg-indigo-500/15 text-indigo-200"
+          : "border-white/[0.08] bg-white/[0.03] text-white/50 hover:border-white/15 hover:text-white/70"
+      }`}
+      aria-expanded={active}
+    >
+      {loading ? (
+        <span className="animate-spin h-3 w-3 border border-white/30 border-t-white/80 rounded-full" />
+      ) : (
+        <ChevronDown
+          className={`h-3 w-3 transition-transform ${active ? "rotate-180" : ""}`}
+          aria-hidden
+        />
+      )}
+      Team insight: {label}
+    </button>
+  )
+}
+
+function TeamIntelligenceInline({
+  report,
+  onClose,
+}: {
+  report: WorldCupTeamIntelligenceReport
+  onClose: () => void
+}) {
+  const [showMissing, setShowMissing] = useState(false)
+
+  const formDisplay = report.recentForm.map((f, i) => (
+    <span
+      key={i}
+      className={`text-[11px] font-black ${
+        f.result === "W"
+          ? "text-emerald-300"
+          : f.result === "L"
+            ? "text-rose-300/80"
+            : "text-white/50"
+      }`}
+      title={`${f.result} vs ${f.opponent} ${f.score}`}
+    >
+      {f.result}
+    </span>
+  ))
+
+  return (
+    <div
+      data-testid="team-intel-inline"
+      className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-3"
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          {report.flagUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={report.flagUrl} alt="" className="h-4 w-6 rounded-sm object-cover" />
+          )}
+          <span className="text-[11px] font-black text-white">{report.teamName}</span>
+          {report.fifaCode && (
+            <span className="text-[9px] text-white/40 font-semibold">{report.fifaCode}</span>
+          )}
+        </div>
+        <button
+          onClick={onClose}
+          aria-label="Close team insight"
+          className="text-[10px] text-white/30 hover:text-white/60 transition-colors px-1"
+        >
+          Close
+        </button>
+      </div>
+
+      {report.groupStanding && (
+        <div data-testid="team-intel-standing" className="mb-2 flex flex-wrap gap-2 text-[10px]">
+          <span className="text-white/50">
+            Grp {report.groupStanding.groupName} · #{report.groupStanding.rank ?? "—"} · {report.groupStanding.points} pts
+          </span>
+          <span className="text-white/40">
+            {report.groupStanding.wins}W-{report.groupStanding.draws}D-{report.groupStanding.losses}L
+          </span>
+          <span className="text-white/40">
+            GD {report.groupStanding.goalDifference >= 0 ? "+" : ""}{report.groupStanding.goalDifference}
+          </span>
+        </div>
+      )}
+
+      {report.recentForm.length > 0 && (
+        <div data-testid="team-intel-form" className="mb-2 flex items-center gap-1">
+          <span className="text-[9px] text-white/35 font-semibold mr-1">Form:</span>
+          {formDisplay}
+        </div>
+      )}
+
+      <button
+        onClick={() => setShowMissing((v) => !v)}
+        className="text-[9px] text-white/30 hover:text-white/50 transition-colors"
+      >
+        {showMissing ? "Hide" : "What's not loaded?"}
+      </button>
+      {showMissing && (
+        <p data-testid="team-intel-missing-list" className="mt-1 text-[9px] text-white/30">
+          Not loaded: {report.missingData.join(", ")}.
+        </p>
+      )}
     </div>
   )
 }

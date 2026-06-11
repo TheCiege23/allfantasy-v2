@@ -291,6 +291,12 @@ function isPersonalImpactQuestion(prompt: string): boolean {
   return /\b(who\s+should\s+i\s+root\s+for|why\s+does?\s+this\s+match\s+matter|why\s+do\s+(the\s+)?matches?\s+matter\s+to\s+me|personal\s+impact|what\s+match\s+matters?\s+most\s+(for\s+me|to\s+me)?|which\s+match\s+is\s+most\s+important\s+(for\s+me|to\s+me)|my\s+picks?\s+(at\s+stake|impact|stakes?)\b|impact\s+on\s+my\s+(bracket|picks?|score)|how\s+does?\s+this\s+affect\s+my\s+(bracket|picks?|score))\b/i.test(p)
 }
 
+function isTeamKnowledgeQuestion(prompt: string): boolean {
+  const p = prompt.toLowerCase()
+  return /\b(tell\s+me\s+about|who\s+are|what\s+do\s+you\s+know\s+about|info\s+on|profile\s+of|team\s+profile|team\s+info|how\s+(?:good|strong|dangerous)\s+(?:is|are)|why\s+is\s+\w+\s+(?:good|strong|a\s+threat|favored|an\s+underdog)|underdog|bracket\s+buster|which\s+team\s+should\s+i\s+fear|can\s+\w+\s+upset|surprise\s+team|dark\s+horse)\b/i.test(p) &&
+    !/\b(lineup|roster|injur|odds|stats?\s+for|player\s+stats?)\b/i.test(p)
+}
+
 function isGroupDangerQuestion(prompt: string): boolean {
   const p = prompt.toLowerCase()
   return /\b(group|grupo).*\b(danger|dangerous|strong|weak|tight|upset|hard)\b/i.test(p)
@@ -624,6 +630,111 @@ function buildPersonalImpactReply(ctx: WorldCupChimmyContext | null | undefined)
     .join(" ")
 }
 
+function extractTeamNameFromPrompt(
+  prompt: string,
+  ctx: WorldCupChimmyContext | null | undefined
+): string | null {
+  const allMatches = ctx ? [...ctx.liveMatches, ...ctx.upcomingMatches, ...ctx.recentMatches] : []
+  const candidates = new Set<string>()
+  for (const m of allMatches) {
+    if (m.homeTeamName && m.homeTeamName !== "?") candidates.add(m.homeTeamName)
+    if (m.awayTeamName && m.awayTeamName !== "?") candidates.add(m.awayTeamName)
+  }
+  if (ctx?.groupStandings) {
+    for (const row of ctx.groupStandings) {
+      if (row.teamName) candidates.add(row.teamName)
+    }
+  }
+  const p = prompt.toLowerCase()
+  return [...candidates].find((t) => p.includes(t.toLowerCase())) ?? null
+}
+
+function buildTeamKnowledgeReply(
+  ctx: WorldCupChimmyContext | null | undefined,
+  prompt: string
+): string {
+  const teamName = extractTeamNameFromPrompt(prompt, ctx)
+
+  if (!teamName) {
+    return [
+      dataDisclosure(ctx),
+      "I can look up a team profile from the loaded pool data, but I need to match the team name to the pool's cached fixture list. Try naming the team exactly as it appears in the schedule, or ask about a team that has upcoming or recent matches in this pool.",
+      confidenceDisclosure(ctx, "low"),
+    ].join(" ")
+  }
+
+  const standing = ctx?.groupStandings.find(
+    (row) => row.teamName.toLowerCase() === teamName.toLowerCase()
+  )
+
+  const recentMatches = ctx
+    ? [...ctx.recentMatches].filter(
+        (m) =>
+          m.homeTeamName.toLowerCase() === teamName.toLowerCase() ||
+          m.awayTeamName.toLowerCase() === teamName.toLowerCase()
+      )
+    : []
+
+  const upcomingForTeam = ctx
+    ? [...ctx.upcomingMatches].filter(
+        (m) =>
+          m.homeTeamName.toLowerCase() === teamName.toLowerCase() ||
+          m.awayTeamName.toLowerCase() === teamName.toLowerCase()
+      )
+    : []
+
+  const lines: string[] = [dataDisclosure(ctx)]
+
+  if (standing) {
+    lines.push(
+      `${teamName} — Group ${standing.groupName}: ${standing.points} pts, ${standing.wins}W-${standing.draws}D-${standing.losses}L, goal difference ${standing.goalDifference >= 0 ? "+" : ""}${standing.goalDifference}, rank ${standing.rank ? `#${standing.rank}` : "TBD"}.`
+    )
+  } else {
+    lines.push(`${teamName}: group standing data is not loaded in the current pool context yet.`)
+  }
+
+  if (recentMatches.length > 0) {
+    const formStr = recentMatches
+      .slice(0, 3)
+      .map((m) => {
+        const isHome = m.homeTeamName.toLowerCase() === teamName.toLowerCase()
+        const opponent = isHome ? m.awayTeamName : m.homeTeamName
+        const result =
+          m.winnerTeamName?.toLowerCase() === teamName.toLowerCase()
+            ? "W"
+            : m.winnerTeamName
+              ? "L"
+              : "D"
+        const score =
+          m.homeScore != null && m.awayScore != null
+            ? isHome
+              ? `${m.homeScore}-${m.awayScore}`
+              : `${m.awayScore}-${m.homeScore}`
+            : "?"
+        return `${result} ${score} vs ${opponent}`
+      })
+      .join(", ")
+    lines.push(`Recent results (from cached fixtures): ${formStr}.`)
+  }
+
+  if (upcomingForTeam.length > 0) {
+    const next = upcomingForTeam[0]
+    const when = next.startsAt ? new Date(next.startsAt).toUTCString().slice(0, 22) + " UTC" : "TBD"
+    const opponent =
+      next.homeTeamName.toLowerCase() === teamName.toLowerCase()
+        ? next.awayTeamName
+        : next.homeTeamName
+    lines.push(`Next match: vs ${opponent} (${next.round}, ${when}).`)
+  }
+
+  lines.push(
+    "What I do NOT have loaded: coach, captain, key players, formation, FIFA rank, injuries, odds, or squad details. These require live provider data not stored in this pool context."
+  )
+  lines.push(confidenceDisclosure(ctx, standing ? "medium" : "low"))
+
+  return lines.join(" ")
+}
+
 function buildGroupReply(ctx: WorldCupChimmyContext | null | undefined): string {
   if (!ctx || ctx.groupStandings.length === 0) {
     return [
@@ -856,6 +967,10 @@ export function tryDeterministicWorldCupChimmyReply(input: {
 
   if (isWatchTodayQuestion(prompt)) {
     return buildWatchReply(context)
+  }
+
+  if (isTeamKnowledgeQuestion(prompt)) {
+    return buildTeamKnowledgeReply(context, prompt)
   }
 
   if (isGroupDangerQuestion(prompt)) {

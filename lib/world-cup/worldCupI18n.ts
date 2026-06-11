@@ -1471,6 +1471,31 @@ const EN: WorldCupDictionary = {
   "wc.premium.card.whatIf.desc": "Leaderboard scenarios for what needs to happen next.",
   "wc.premium.card.alerts.title": "AI Alerts",
   "wc.premium.card.alerts.desc": "Future alerts for bracket swings, group-stage optimizer notes, and upset finder signals.",
+
+  // ── Match Impact Center ───────────────────────────────────────────────
+  "wc.matchImpact.title": "Why This Match Matters",
+  "wc.matchImpact.rootFor": "Root for",
+  "wc.matchImpact.worstResult": "Worst result",
+  "wc.matchImpact.ptsAtStake": "Points at stake",
+  "wc.matchImpact.poolSize": "Pool size",
+  "wc.matchImpact.championRisk": "Champion risk",
+  "wc.matchImpact.championRiskBody": "Your champion {{name}} is playing. A loss ends your champion bonus points.",
+  "wc.matchImpact.noEntry": "Create a bracket to see which matches affect your picks.",
+  "wc.matchImpact.teamInsightBtn": "Team insight",
+
+  // ── Team Intelligence Card ────────────────────────────────────────────
+  "wc.teamIntel.title": "Team Profile",
+  "wc.teamIntel.standing": "Group Standing",
+  "wc.teamIntel.form": "Recent Form",
+  "wc.teamIntel.missingToggle": "What data is not loaded?",
+  "wc.teamIntel.missingTitle": "Not loaded for this team:",
+  "wc.teamIntel.source": "Source",
+  "wc.teamIntel.noStanding": "Group standings not loaded yet.",
+  "wc.teamIntel.noForm": "No completed matches in cache.",
+  "wc.teamIntel.loading": "Loading team profile...",
+  "wc.teamIntel.notFound": "Team profile not available.",
+  "wc.teamIntel.close": "Close team profile",
+  "wc.teamIntel.thirdPlaceAdvancer": "3rd-place advancer",
 }
 
 const ES: WorldCupDictionary = {
