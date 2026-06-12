@@ -35,7 +35,7 @@ export interface ClaimCandidate {
 export interface PlaceholderClaimResult {
   claimed: boolean
   rosterId?: string
-  matchedBy?: 'source_manager_id' | 'display_name' | 'team_name' | 'sleeper_username' | 'email_local'
+  matchedBy?: 'source_manager_id' | 'display_name' | 'team_name' | 'sleeper_username' | 'email_local' | 'native_open_slot'
 }
 
 interface RosterRow {
@@ -51,6 +51,32 @@ function rosterImportMeta(row: RosterRow): Record<string, unknown> | null {
   return meta && typeof meta === 'object' && !Array.isArray(meta)
     ? (meta as Record<string, unknown>)
     : null
+}
+
+function rosterFoundationMeta(row: RosterRow): Record<string, unknown> | null {
+  const data = row.playerData as Record<string, unknown> | null
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null
+  const meta = data.foundation
+  return meta && typeof meta === 'object' && !Array.isArray(meta)
+    ? (meta as Record<string, unknown>)
+    : null
+}
+
+function isNativeOpenRoster(row: RosterRow): boolean {
+  return rosterFoundationMeta(row)?.openTeam === true
+}
+
+function foundationSlotNumber(row: RosterRow): number | null {
+  const raw = rosterFoundationMeta(row)?.slotNumber
+  const n = Number(raw)
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : null
+}
+
+function claimDisplayName(candidate: ClaimCandidate): string {
+  const explicit = candidate.displayName?.trim() || candidate.sleeperUsername?.trim()
+  if (explicit) return explicit
+  const emailLocal = candidate.email?.split('@')[0]?.trim()
+  return emailLocal || 'Manager'
 }
 
 function sourceManagerIdFromPlatformField(platformUserId: string): string | null {
@@ -147,6 +173,61 @@ export async function claimPlaceholderRoster(args: {
         label === 'displayName' ? 'display_name' : label === 'sleeperUsername' ? 'sleeper_username' : 'email_local'
       return { claimed: true, rosterId: match.id, matchedBy }
     }
+  }
+
+  const nativeOpenRoster = placeholders
+    .filter(isNativeOpenRoster)
+    .sort((a, b) => (foundationSlotNumber(a) ?? 9999) - (foundationSlotNumber(b) ?? 9999))[0]
+
+  if (nativeOpenRoster) {
+    const slotNumber = foundationSlotNumber(nativeOpenRoster)
+    const displayName = claimDisplayName(candidate)
+    const data = nativeOpenRoster.playerData as Record<string, unknown>
+    const foundation = rosterFoundationMeta(nativeOpenRoster) ?? {}
+    await tx.roster.update({
+      where: { id: nativeOpenRoster.id },
+      data: {
+        platformUserId: candidate.appUserId,
+        playerData: {
+          ...data,
+          foundation: {
+            ...foundation,
+            openTeam: false,
+            claimedBy: candidate.appUserId,
+            claimedAt: new Date().toISOString(),
+          },
+        } as Prisma.InputJsonValue,
+        settings: {
+          openSlot: false,
+          aiManaged: false,
+        },
+      },
+    })
+    await tx.leagueTeam.updateMany({
+      where: { leagueId, externalId: nativeOpenRoster.id },
+      data: {
+        ownerName: displayName,
+        teamName: `${displayName}'s Team`,
+        platformUserId: candidate.appUserId,
+        claimedByUserId: candidate.appUserId,
+        isOrphan: false,
+      },
+    })
+    await tx.leagueEntrySlot.updateMany({
+      where: { leagueId, rosterId: nativeOpenRoster.id },
+      data: { status: 'FILLED' },
+    })
+    await tx.redraftLeagueMember
+      .create({
+        data: {
+          leagueId,
+          userId: candidate.appUserId,
+          role: 'MEMBER',
+          teamNumber: slotNumber,
+        },
+      })
+      .catch(() => {})
+    return { claimed: true, rosterId: nativeOpenRoster.id, matchedBy: 'native_open_slot' }
   }
 
   return { claimed: false }

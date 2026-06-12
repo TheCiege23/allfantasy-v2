@@ -5,7 +5,8 @@
 
 import { randomUUID } from 'crypto'
 import type { LeagueFormatId } from '@/lib/league/format-engine'
-import type { LeagueSport, Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
+import type { LeagueSport } from '@prisma/client'
 import { SETTINGS_SNAPSHOT_VERSION } from '@/lib/league-contract/types'
 import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigation'
 import { getRedraftSportIntegration } from '@/lib/redraft-creation/sport-config'
@@ -18,6 +19,7 @@ import { mapCanonicalDraftTypeToEngineCore } from '@/lib/draft-types/draftTypeRe
 import { mapKeeperCreationFromWizard } from '@/lib/keeper/mapKeeperCreationFromWizard'
 import { supportsIdpLeagueSport } from '@/lib/sport-scope'
 import { normalizeBestBallSettings } from '@/lib/bestball/rules'
+import { getLeagueDefaults as getFoundationLeagueDefaults } from '@/lib/league-defaults/getLeagueDefaults'
 
 type Tx = Prisma.TransactionClient
 
@@ -81,6 +83,29 @@ function resolvePreferredManagerName(input: {
   return 'AllFantasy Manager'
 }
 
+function readNumber(
+  source: Record<string, unknown> | null | undefined,
+  key: string,
+  fallback: number
+): number {
+  const value = source?.[key]
+  const n = Number(value)
+  return Number.isFinite(n) ? n : fallback
+}
+
+function readString(
+  source: Record<string, unknown> | null | undefined,
+  key: string,
+  fallback: string
+): string {
+  const value = source?.[key]
+  return typeof value === 'string' && value.trim().length > 0 ? value : fallback
+}
+
+function buildOpenTeamName(slotNumber: number): string {
+  return `Open Team ${slotNumber}`
+}
+
 export type CanonicalCreateTransactionResult = {
   leagueId: string
   homepageUrl: string
@@ -128,6 +153,14 @@ export async function createCanonicalLeagueInTransaction(
           language: body.language ?? null,
         })
       : null
+  const foundationDefaults = getFoundationLeagueDefaults({
+    sport,
+    format: formatId,
+    draftType: body.draftType,
+    managerCount: body.teamCount,
+    scoringPreset: body.scoringPreset,
+  })
+  const managerCount = foundationDefaults.managerCount
 
   const tradeReview =
     bestBallSettings && !bestBallSettings.tradesEnabled
@@ -168,7 +201,16 @@ export async function createCanonicalLeagueInTransaction(
     requested_draft_type: body.draftType,
     canonical_draft_mode: body.draftType,
     language: body.language ?? 'en',
-    default_team_count: body.teamCount,
+    default_team_count: managerCount,
+    foundation_defaults: {
+      roster: foundationDefaults.rosterSettings,
+      scoring: foundationDefaults.scoringSettings,
+      draft: foundationDefaults.draftSettings,
+      waiver: foundationDefaults.waiverSettings,
+      playoff: foundationDefaults.playoffSettings,
+      schedule: foundationDefaults.scheduleSettings,
+      conceptPreset: foundationDefaults.conceptPreset,
+    },
     soccer_pipeline: sport === 'SOCCER' ? soccerPipeline : undefined,
     canonical_creation_source: 'post_api_leagues_v1',
     constitution_request: {
@@ -207,6 +249,20 @@ export async function createCanonicalLeagueInTransaction(
   const isGuillotine = formatId === 'guillotine'
   const guillotineProfile = isGuillotine ? getGuillotineSportConfig(sport) : undefined
   const guillotineDefaultWaiverDelayHours = guillotineProfile?.dailyGames ? 48 : 24
+  const scoringSettings = foundationDefaults.scoringSettings
+  const playoffSettings = foundationDefaults.playoffSettings
+  const draftSettings = foundationDefaults.draftSettings
+  const scoringFormat = String(
+    scoringSettings.scoringFormat ?? scoringSettings.preset ?? body.scoringPreset ?? 'standard',
+  )
+  const scoringMode = String(scoringSettings.scoringMode ?? 'points')
+  const playoffTeamsDefault = readNumber(playoffSettings, 'playoffTeams', isGuillotine ? 1 : 6)
+  const playoffStartWeekRaw = playoffSettings.playoffStartWeek
+  const playoffStartWeekDefault =
+    playoffStartWeekRaw == null ? null : Number.isFinite(Number(playoffStartWeekRaw)) ? Number(playoffStartWeekRaw) : null
+  const playoffWeeksPerRoundDefault = readNumber(playoffSettings, 'playoffWeeksPerRound', 1)
+  const playoffSeedingRuleDefault = readString(playoffSettings, 'seedingRule', 'record_then_points')
+  const playoffLowerBracketDefault = readString(playoffSettings, 'lowerBracket', 'consolation')
 
   const league = await tx.league.create({
     data: {
@@ -216,7 +272,7 @@ export async function createCanonicalLeagueInTransaction(
       platform: 'manual',
       platformLeagueId,
       season: seasonYear,
-      leagueSize: body.teamCount,
+      leagueSize: managerCount,
       sport,
       leagueType: formatId,
       leagueVariant: resolution.modifiers.includes('idp') && supportsIdpLeagueSport(sport) ? 'idp' : null,
@@ -227,8 +283,8 @@ export async function createCanonicalLeagueInTransaction(
       lifecycleState: 'setup',
       settings: mergedSettings as Prisma.InputJsonValue,
       syncStatus: 'manual',
-      scoring: null,
-      rosterSize: null,
+      scoring: scoringFormat,
+      rosterSize: readNumber(foundationDefaults.rosterSettings, 'roster_size', readNumber(foundationDefaults.rosterSettings, 'rosterSize', 0)) || null,
       presetKey: engine.presetKey,
       scoringPresetId: body.scoringPreset,
       settingsSnapshotVersion: SETTINGS_SNAPSHOT_VERSION,
@@ -247,21 +303,22 @@ export async function createCanonicalLeagueInTransaction(
       bbMatchupFormat: bestBallSettings?.matchupFormat,
       bbTiebreaker: bestBallSettings?.tieRule,
       bbOptimizerTiming: 'period_end',
-      playoffTeams: bestBallSettings?.playoffTeams,
+      playoffTeams: bestBallSettings?.playoffTeams ?? playoffTeamsDefault,
       playoffSeedingRule:
         bestBallSettings?.matchupFormat === 'cumulative'
           ? 'points_only'
           : bestBallSettings?.playoffFormat === 'advancement'
             ? 'points_only'
-            : undefined,
+            : playoffSeedingRuleDefault,
       playoffStartWeek:
         bestBallSettings && bestBallSettings.playoffTeams > 0
           ? bestBallSettings.regularSeasonLength + 1
-          : undefined,
+          : playoffStartWeekDefault,
       playoffWeeksPerRound:
         bestBallSettings && bestBallSettings.playoffTeams > 0 && bestBallSettings.playoffFormat !== 'none'
           ? 1
-          : undefined,
+          : playoffWeeksPerRoundDefault,
+      playoffLowerBracket: playoffLowerBracketDefault,
       ...(keeperBootstrap ? keeperBootstrap.league : {}),
       ...(isGuillotine
         ? {
@@ -284,6 +341,21 @@ export async function createCanonicalLeagueInTransaction(
     },
   })
 
+  await tx.scoringSettingsSnapshot.create({
+    data: {
+      leagueId: league.id,
+      season: seasonYear,
+      week: null,
+      formatKey: formatId,
+      scoringMode,
+      scoringFormat,
+      templateId: body.scoringPreset,
+      modifiers: resolution.modifiers.map((modifier) => String(modifier)),
+      effectiveRules: scoringSettings as Prisma.InputJsonValue,
+      overrides: Prisma.JsonNull,
+    },
+  })
+
   if (isGuillotine) {
     await tx.guillotineLeagueConfig.upsert({
       where: { leagueId: league.id },
@@ -302,6 +374,72 @@ export async function createCanonicalLeagueInTransaction(
       update: {
         eliminationEndWeek: guillotineProfile?.regularSeasonWeeks ?? null,
         statCorrectionHours: guillotineProfile?.correctionWindowHours ?? 48,
+      },
+    })
+  }
+
+  const isIdpLeague = resolution.modifiers.includes('idp') && supportsIdpLeagueSport(sport)
+  if (isIdpLeague) {
+    await tx.idpLeagueConfig.upsert({
+      where: { leagueId: league.id },
+      create: {
+        leagueId: league.id,
+        positionMode: 'standard',
+        rosterPreset: 'standard',
+        scoringPreset: body.scoringPreset.toLowerCase().includes('idp') ? 'balanced' : 'balanced',
+        bestBallEnabled: formatId === 'best_ball',
+        draftType: coreDraft,
+        benchSlots: readNumber(foundationDefaults.rosterSettings, 'benchSlots', 7),
+        irSlots: readNumber(foundationDefaults.rosterSettings, 'irSlots', 2),
+      },
+      update: {
+        draftType: coreDraft,
+        benchSlots: readNumber(foundationDefaults.rosterSettings, 'benchSlots', 7),
+        irSlots: readNumber(foundationDefaults.rosterSettings, 'irSlots', 2),
+      },
+    })
+  }
+
+  if (formatId === 'devy') {
+    const setup = (body.conceptSetup ?? {}) as Record<string, unknown>
+    await tx.devyLeagueConfig.upsert({
+      where: { leagueId: league.id },
+      create: {
+        leagueId: league.id,
+        devySlotCount: readNumber(setup, 'devySlotCount', readNumber(foundationDefaults.rosterSettings, 'collegeRosterSlots', 8)),
+        taxiSize: readNumber(setup, 'taxiSize', readNumber(foundationDefaults.rosterSettings, 'taxiSlots', 6)),
+        devyIRSlots: readNumber(setup, 'devyIRSlots', 0),
+        collegeSports: [sport] as Prisma.InputJsonValue,
+        startupDraftType: coreDraft,
+        rookieDraftType: 'linear',
+        devyDraftType: 'snake',
+      },
+      update: {
+        startupDraftType: coreDraft,
+      },
+    })
+  }
+
+  if (formatId === 'c2c') {
+    const setup = (body.conceptSetup ?? {}) as Record<string, unknown>
+    await tx.c2CLeagueConfig.upsert({
+      where: { leagueId: league.id },
+      create: {
+        leagueId: league.id,
+        startupFormat: readString(setup, 'startupFormat', 'merged'),
+        mergedStartupDraft: setup.startupFormat !== 'separate',
+        separateStartupCollegeDraft: setup.startupFormat === 'separate',
+        collegeRosterSize: readNumber(setup, 'collegeRosterSize', readNumber(foundationDefaults.rosterSettings, 'collegeRosterSlots', 20)),
+        collegeSports: [sport] as Prisma.InputJsonValue,
+        collegeScoringSystem: readString(setup, 'collegeScoringSystem', 'ppr'),
+        mixProPlayers: setup.mixProPlayers !== false,
+        taxiSize: readNumber(setup, 'taxiSize', readNumber(foundationDefaults.rosterSettings, 'taxiSlots', 6)),
+        startupDraftType: coreDraft,
+        rookieDraftType: 'linear',
+        collegeDraftType: 'snake',
+      },
+      update: {
+        startupDraftType: coreDraft,
       },
     })
   }
@@ -455,7 +593,18 @@ export async function createCanonicalLeagueInTransaction(
     data: {
       leagueId: league.id,
       platformUserId: appUserId,
-      playerData: { draftPicks: [] },
+      playerData: {
+        draftPicks: [],
+        foundation: {
+          slotNumber: 1,
+          openTeam: false,
+          createdBy: 'canonical_create',
+        },
+      },
+      settings: {
+        openSlot: false,
+        commissioner: true,
+      },
     },
   })
 
@@ -481,14 +630,71 @@ export async function createCanonicalLeagueInTransaction(
     },
   })
 
+  const draftSlotOrder: Prisma.InputJsonValue[] = [
+    {
+      slot: 1,
+      rosterId: roster.id,
+      displayName: managerName,
+      open: false,
+    },
+  ]
   const slotData: Prisma.LeagueEntrySlotCreateManyInput[] = []
-  for (let slot = 1; slot <= body.teamCount; slot++) {
+  slotData.push({
+    id: randomUUID(),
+    leagueId: league.id,
+    slotNumber: 1,
+    status: 'FILLED',
+    rosterId: roster.id,
+  })
+
+  for (let slot = 2; slot <= managerCount; slot++) {
+    const openTeamName = buildOpenTeamName(slot)
+    const openRoster = await tx.roster.create({
+      data: {
+        leagueId: league.id,
+        platformUserId: `open-slot-${league.id}-${slot}`,
+        playerData: {
+          draftPicks: [],
+          foundation: {
+            slotNumber: slot,
+            openTeam: true,
+            label: openTeamName,
+            createdBy: 'canonical_create',
+          },
+        },
+        settings: {
+          openSlot: true,
+          aiManaged: false,
+        },
+      },
+    })
+
+    await tx.leagueTeam.create({
+      data: {
+        leagueId: league.id,
+        externalId: openRoster.id,
+        ownerName: openTeamName,
+        teamName: openTeamName,
+        claimedByUserId: null,
+        platformUserId: openRoster.platformUserId,
+        isOrphan: true,
+        isCommissioner: false,
+        role: 'member',
+      },
+    })
+
     slotData.push({
       id: randomUUID(),
       leagueId: league.id,
       slotNumber: slot,
       status: 'OPEN',
-      rosterId: null,
+      rosterId: openRoster.id,
+    })
+    draftSlotOrder.push({
+      slot,
+      rosterId: openRoster.id,
+      displayName: openTeamName,
+      open: true,
     })
   }
   await tx.leagueEntrySlot.createMany({ data: slotData })
@@ -499,15 +705,17 @@ export async function createCanonicalLeagueInTransaction(
       leagueId: league.id,
       status: 'pre_draft',
       draftType: coreDraft,
-      rounds: draftDefaults.rounds_default,
-      teamCount: body.teamCount,
+      rounds: readNumber(draftSettings, 'rounds', draftDefaults.rounds_default),
+      teamCount: managerCount,
       timerSeconds,
-      slotOrder: [],
+      slotOrder: draftSlotOrder as Prisma.InputJsonValue,
       auctionBudgetPerTeam: auctionBudget,
       sportType: sport,
       sessionKind: 'live',
       cpuAutoPick: true,
       aiAutoPick: isAuto,
+      ...(draftSettings.devyConfig ? { devyConfig: draftSettings.devyConfig as Prisma.InputJsonValue } : {}),
+      ...(draftSettings.c2cConfig ? { c2cConfig: draftSettings.c2cConfig as Prisma.InputJsonValue } : {}),
       ...(keeperBootstrap
         ? {
             keeperConfig: keeperBootstrap.draftKeeperConfig as unknown as Prisma.InputJsonValue,
@@ -604,12 +812,12 @@ export async function createCanonicalLeagueInTransaction(
     draftType: body.draftType,
     scoringPreset: body.scoringPreset,
     currentTeams: 1,
-    maxTeams: body.teamCount,
+    maxTeams: managerCount,
     creatorRankLevel,
     minRankLevel,
     maxRankLevel,
     visibility,
-    teamCount: body.teamCount,
+    teamCount: managerCount,
     timezone: body.timezone ?? 'America/New_York',
     language: body.language ?? 'en',
     inviteUrl,

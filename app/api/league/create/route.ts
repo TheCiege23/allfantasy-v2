@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import type { Prisma } from '@prisma/client';
 import { authOptions } from '@/lib/auth';
 import { requireVerifiedUser } from '@/lib/auth-guard';
 import { prisma } from '@/lib/prisma';
@@ -31,6 +32,11 @@ import { isCategoryPresetId } from '@/lib/category-scoring';
 import { isAllowedIdpDraftType, supportsIdpLeagueSport } from '@/lib/sport-scope';
 import { buildFantasyLeagueLeadMetaEvent } from '@/lib/meta-funnel-events';
 import { trackMetaServerEvent } from '@/lib/meta-capi';
+import {
+  mergeConceptPresetSettings,
+  resolveConceptPreset,
+  type ConceptPresetResolution,
+} from '@/lib/league-concepts/resolveConceptPreset';
 
 const createSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -107,6 +113,41 @@ async function trackFantasyLeagueLead(input: {
     console.warn('[league/create] Meta Lead failed:', metaError);
   });
   return metaEvent;
+}
+
+function isConceptPresetSport(sport: string | null | undefined): boolean {
+  const normalized = String(sport ?? '').toUpperCase();
+  return normalized === 'NFL' || normalized === 'NCAAF';
+}
+
+function asCreateSettingsRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readEnabledConceptFlags(settings: Record<string, unknown> | undefined): string[] | null {
+  const fromSettings = settings?.enabledConceptFeatureFlags;
+  if (!Array.isArray(fromSettings)) return null;
+  return fromSettings.filter((flag): flag is string => typeof flag === 'string' && flag.trim().length > 0);
+}
+
+function buildConceptPresetModifiers(args: {
+  modifiers?: string[];
+  isSuperflex?: boolean;
+  isIdpRequested: boolean;
+  leagueVariant?: string | null;
+  requestedLeagueType?: string | null;
+  requestedDraftType?: string | null;
+}): string[] {
+  return [
+    ...(args.modifiers ?? []),
+    args.isSuperflex ? 'superflex' : null,
+    args.isIdpRequested ? 'idp' : null,
+    args.leagueVariant ?? null,
+    args.requestedLeagueType ?? null,
+    args.requestedDraftType ?? null,
+  ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
 }
 
 export async function POST(req: Request) {
@@ -457,6 +498,53 @@ export async function POST(req: Request) {
      * DEPRECATED ROUTE — POST /api/league/create: `platform=manual` native leagues delegate to the same pipeline as
      * POST /api/leagues (`executeCanonicalLeagueCreation`). Do not add a second Prisma `league.create` shell for manual leagues.
      */
+    let conceptResolution: Extract<ConceptPresetResolution, { ok: true }> | null = null;
+    if (isConceptPresetSport(sport)) {
+      const resolved = resolveConceptPreset({
+        sport,
+        leagueType: requestedLeagueType ?? (isDynasty ? 'dynasty' : 'redraft'),
+        scoringPreset: scoringPresetIdInput ?? scoring ?? null,
+        draftType: requestedDraftType ?? 'snake',
+        modifiers: buildConceptPresetModifiers({
+          modifiers,
+          isSuperflex,
+          isIdpRequested,
+          leagueVariant: leagueVariantEffective ?? null,
+          requestedLeagueType,
+          requestedDraftType,
+        }),
+        options: {
+          allowAdmin:
+            process.env.NODE_ENV !== 'production' &&
+            ((body as { allowFutureConcepts?: unknown }).allowFutureConcepts === true ||
+              (body as { adminConceptPreview?: unknown }).adminConceptPreview === true),
+          enabledFeatureFlags: readEnabledConceptFlags(settingsWizard as Record<string, unknown> | undefined),
+          userOverrides: asCreateSettingsRecord(settingsWizard?.conceptPresetOverrides),
+        },
+      });
+      if (!resolved.ok) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: resolved.message,
+            code: resolved.code,
+            requiredFeatureFlag: resolved.requiredFeatureFlag ?? null,
+            conceptPreset: resolved.preset
+              ? {
+                  presetKey: resolved.preset.presetKey,
+                  readiness: resolved.preset.readiness,
+                  visibility: resolved.preset.visibility,
+                  isLaunchReady: resolved.preset.isLaunchReady,
+                  unsupportedReason: resolved.preset.unsupportedReason ?? null,
+                }
+              : null,
+          },
+          { status: resolved.status }
+        );
+      }
+      conceptResolution = resolved;
+    }
+
     if (platform === 'manual' && !createFromSleeperImport) {
       const { clampSurvivorCastSize } = await import('@/lib/league-creation-wizard/sport-team-limits');
       let effectiveLeagueSize = leagueSize as number;
@@ -586,10 +674,21 @@ export async function POST(req: Request) {
         );
       }
 
+      const leagueAfterSettings = asCreateSettingsRecord(leagueAfter.settings) ?? {};
+      const conceptMergedLeagueSettings = conceptResolution
+        ? mergeConceptPresetSettings(conceptResolution.settingsSnapshot, leagueAfterSettings)
+        : leagueAfterSettings;
+      if (conceptResolution) {
+        await prisma.league.update({
+          where: { id: leagueAfter.id },
+          data: {
+            settings: conceptMergedLeagueSettings,
+          },
+        });
+      }
+
       const initialMerged: Record<string, unknown> = {
-        ...(typeof leagueAfter.settings === 'object' && leagueAfter.settings !== null
-          ? (leagueAfter.settings as Record<string, unknown>)
-          : {}),
+        ...conceptMergedLeagueSettings,
         ...((settingsWizard ?? {}) as Record<string, unknown>),
       };
 
@@ -1084,6 +1183,14 @@ export async function POST(req: Request) {
         ? 'custom'
         : 'auto';
 
+    if (conceptResolution) {
+      const mergedConceptSettings = mergeConceptPresetSettings(
+        conceptResolution.settingsSnapshot,
+        initialSettings as Record<string, unknown>
+      );
+      Object.assign(initialSettings, mergedConceptSettings);
+    }
+
     (initialSettings as Record<string, unknown>).snapshotVersion = SETTINGS_SNAPSHOT_VERSION;
 
     const presetKeyCanonical = scoringPresetIdInput?.trim()
@@ -1148,7 +1255,7 @@ export async function POST(req: Request) {
           profile?.displayName?.trim() ||
           profile?.sleeperUsername?.trim() ||
           'Commissioner';
-        await prisma.$transaction(async (tx) => {
+        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
           const existingRoster = await tx.roster.findUnique({
             where: {
               leagueId_platformUserId: { leagueId: league.id, platformUserId: userId },

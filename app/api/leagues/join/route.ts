@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const joinResult = await prisma.$transaction(async (tx) => {
+  const joinResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const existing = await tx.roster.findUnique({
       where: { leagueId_platformUserId: { leagueId: result.leagueId, platformUserId: userId } },
       select: { id: true },
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
       return { success: true as const, leagueId: result.leagueId, alreadyMember: true as const }
     }
 
-    const [league, rosterCount, draftSession, profile] = await Promise.all([
+    const [league, leagueRosters, draftSession, profile] = await Promise.all([
       tx.league.findUnique({
         where: { id: result.leagueId },
         select: {
@@ -102,8 +102,9 @@ export async function POST(req: NextRequest) {
           leagueVariant: true,
         },
       }),
-      tx.roster.count({
+      tx.roster.findMany({
         where: { leagueId: result.leagueId },
+        select: { platformUserId: true },
       }),
       tx.draftSession.findUnique({
         where: { leagueId: result.leagueId },
@@ -119,7 +120,13 @@ export async function POST(req: NextRequest) {
       return { success: false as const, status: 404, error: 'League not found' }
     }
 
-    if (league.leagueSize != null && rosterCount >= league.leagueSize) {
+    const realRosterUsers = await tx.appUser.findMany({
+      where: { id: { in: leagueRosters.map((r: { platformUserId: string }) => r.platformUserId) } },
+      select: { id: true },
+    })
+    const claimedRosterCount = realRosterUsers.length
+
+    if (league.leagueSize != null && claimedRosterCount >= league.leagueSize) {
       return { success: false as const, status: 409, error: 'League is full' }
     }
 
@@ -143,7 +150,7 @@ export async function POST(req: NextRequest) {
     // fresh empty roster.
     const userEmail = await tx.appUser
       .findUnique({ where: { id: userId }, select: { email: true } })
-      .then((u) => u?.email ?? null)
+      .then((u: { email: string | null } | null) => u?.email ?? null)
     const claim = await claimPlaceholderRoster({
       tx: tx as Prisma.TransactionClient,
       leagueId: result.leagueId,
@@ -175,12 +182,12 @@ export async function POST(req: NextRequest) {
                           where: { leagueId: result.leagueId },
                           select: { platformUserId: true },
                         })
-                      ).map((r) => r.platformUserId),
+                      ).map((r: { platformUserId: string }) => r.platformUserId),
                     },
                   },
                   select: { id: true },
                 })
-              ).map((u) => u.id),
+              ).map((u: { id: string }) => u.id),
             },
           },
         },
@@ -221,6 +228,45 @@ export async function POST(req: NextRequest) {
       rosterId: roster.id,
       tx: tx as Prisma.TransactionClient,
     })
+
+    let teamNumber: number | null = null
+    const slotForRoster = await tx.leagueEntrySlot.findFirst({
+      where: { leagueId: result.leagueId, rosterId: roster.id },
+      select: { id: true, slotNumber: true, status: true },
+    })
+    if (slotForRoster) {
+      teamNumber = slotForRoster.slotNumber
+      if (slotForRoster.status === 'OPEN') {
+        await tx.leagueEntrySlot.update({
+          where: { id: slotForRoster.id },
+          data: { status: 'FILLED' },
+        })
+      }
+    } else {
+      const firstOpenSlot = await tx.leagueEntrySlot.findFirst({
+        where: { leagueId: result.leagueId, rosterId: null, status: 'OPEN' },
+        orderBy: { slotNumber: 'asc' },
+        select: { id: true, slotNumber: true },
+      })
+      if (firstOpenSlot) {
+        teamNumber = firstOpenSlot.slotNumber
+        await tx.leagueEntrySlot.update({
+          where: { id: firstOpenSlot.id },
+          data: { rosterId: roster.id, status: 'FILLED' },
+        })
+      }
+    }
+
+    await tx.redraftLeagueMember
+      .create({
+        data: {
+          leagueId: result.leagueId,
+          userId,
+          role: 'MEMBER',
+          teamNumber,
+        },
+      })
+      .catch(() => null)
 
     if (league.platform === 'manual') {
       const manualTeamCount = await tx.leagueTeam.count({
