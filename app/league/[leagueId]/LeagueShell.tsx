@@ -1244,6 +1244,8 @@ export function LeagueShell({
               seasonSnapshot={seasonSnapshot}
               leagueDashboard={leagueDashboard}
               onOpenLeagueSettingsModal={openLeagueSettingsModal}
+              isPredraftLifecycle={isPredraftLifecycle}
+              draftDateIso={draftDateIso}
             />
           </div>
         </main>
@@ -1398,7 +1400,7 @@ export function LeagueShell({
               userId={userId}
               enabled
               mode="c2c"
-              videoSrc={conceptIntroVideoUrl ?? '/league-type-c2c-intro.mp4'}
+              videoSrc='/league-type-c2c-intro.mp4'
               onClose={() => {}}
             />,
             document.body,
@@ -1519,6 +1521,8 @@ function LeagueTabRouter({
   seasonSnapshot,
   leagueDashboard,
   onOpenLeagueSettingsModal,
+  isPredraftLifecycle,
+  draftDateIso,
 }: {
   activeTab: string
   tabDefs: TabDef[]
@@ -1537,6 +1541,8 @@ function LeagueTabRouter({
   seasonSnapshot: LeagueSeasonSnapshot | null
   leagueDashboard: LeagueDashboardView
   onOpenLeagueSettingsModal: (initialPanel?: string | null) => void
+  isPredraftLifecycle: boolean
+  draftDateIso: string | null
 }) {
   const router = useRouter()
   const tab = tabDefs.find((t) => t.id === activeTab)

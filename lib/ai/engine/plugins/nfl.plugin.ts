@@ -187,13 +187,13 @@ export const nflPlugin: SportPlugin<NflContext, NflProviderData, NflInsights> = 
           pointsFor: true,
           wins: true,
           losses: true,
-          rank: true,
+          currentRank: true,
         },
       }).catch(() => null)
 
       const standings = await (prisma as any).leagueTeam.findMany({
         where: { leagueId: input.contextId },
-        select: { teamName: true, pointsFor: true, wins: true, losses: true, rank: true },
+        select: { teamName: true, pointsFor: true, pointsAgainst: true, wins: true, losses: true, currentRank: true },
         orderBy: [{ wins: "desc" }, { pointsFor: "desc" }],
         take: 20,
       }).catch(() => []) as Array<Record<string, unknown>>
@@ -218,7 +218,7 @@ export const nflPlugin: SportPlugin<NflContext, NflProviderData, NflInsights> = 
             }
           : null,
         leagueStandings: standings.map((t, i) => ({
-          rank: t.rank != null ? Number(t.rank) : i + 1,
+          rank: t.currentRank != null ? Number(t.currentRank) : i + 1,
           teamId: String(t.id ?? ""),
           teamName: String(t.teamName ?? ""),
           pointsFor: Number(t.pointsFor ?? 0),
