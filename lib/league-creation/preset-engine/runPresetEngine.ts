@@ -16,6 +16,7 @@ import { normalizeConceptToFormat, type NormalizedConcept } from '@/lib/league-c
 import type { DerivedLeagueFlags, PresetEngineOutput } from '@/lib/league-creation/canonical/types'
 import { buildRedraftSettingsSnapshot } from '@/lib/league-concepts/redraftDefaults'
 import { buildDynastySettingsSnapshot, isDynastyEligibleSport } from '@/lib/league-concepts/dynastyDefaults'
+import { buildBestBallSettingsSnapshot, isBestBallEligibleSport } from '@/lib/league-concepts/bestBallDefaults'
 
 export const PRESET_ENGINE_VERSION = '1'
 
@@ -150,6 +151,16 @@ export function runPresetEngine(input: RunPresetEngineInput): PresetEngineOutput
         })
       : null
 
+  const bestBallSnapshot =
+    formatId === 'best_ball' && isBestBallEligibleSport(sport)
+      ? buildBestBallSettingsSnapshot({
+          sport,
+          draftType: input.draftType,
+          scoringPresetId: input.scoringPreset,
+          teamCount: input.teamCount,
+        })
+      : null
+
   const derivedFlags = deriveFlags(formatId, resolution)
   const conceptRules = buildConceptRulesBlock({
     formatId,
@@ -158,7 +169,7 @@ export function runPresetEngine(input: RunPresetEngineInput): PresetEngineOutput
     resolution,
   })
 
-  const canonicalSnapshot = redraftSnapshot ?? dynastySnapshot ?? null
+  const canonicalSnapshot = redraftSnapshot ?? dynastySnapshot ?? bestBallSnapshot ?? null
 
   const settingsSnapshot: SettingsSnapshot = {
     snapshotVersion: SETTINGS_SNAPSHOT_VERSION,
