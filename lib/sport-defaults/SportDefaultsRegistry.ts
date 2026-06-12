@@ -631,7 +631,6 @@ export function getDraftDefaults(sportType: SportType, formatType?: string | nul
   const base = DRAFT_DEFAULTS[sportType] ?? DRAFT_DEFAULTS.NFL
   const normalizedVariant = (formatType ?? '').trim().toUpperCase()
   const variantLower = (formatType ?? '').trim().toLowerCase()
-
   // Dynasty-specific defaults: deeper roster startup draft, dynasty ADP ranking
   if (normalizedVariant === 'DYNASTY' && (sportType === 'NFL' || sportType === 'NCAAF')) {
     // Startup draft covers starters(9) + bench(12) + taxi(4) = 25 rounds
@@ -643,6 +642,20 @@ export function getDraftDefaults(sportType: SportType, formatType?: string | nul
       queue_size_limit: queueLimit,
       pre_draft_ranking_source: 'dynasty_adp',
       roster_fill_order: 'position_scarcity',
+      draft_order_rules: 'snake',
+      snake_or_linear_behavior: 'snake',
+      keeper_dynasty_carryover_supported: true,
+    }
+  }
+
+  if (normalizedVariant === 'KEEPER' && (sportType === 'NFL' || sportType === 'NCAAF')) {
+    return {
+      ...base,
+      rounds_default: sportType === 'NCAAF' ? 17 : 16,
+      queue_size_limit: sportType === 'NCAAF' ? 70 : 60,
+      pre_draft_ranking_source: sportType === 'NCAAF' ? 'projections' : 'adp',
+      roster_fill_order: 'position_scarcity',
+      position_filter_behavior: 'by_eligibility',
       draft_order_rules: 'snake',
       snake_or_linear_behavior: 'snake',
       keeper_dynasty_carryover_supported: true,

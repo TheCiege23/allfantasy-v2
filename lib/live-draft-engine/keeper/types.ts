@@ -9,6 +9,19 @@ export interface KeeperConfig {
   deadline?: string | null
   /** Optional max keepers per position, e.g. { QB: 1, RB: 2 }. */
   maxKeepersPerPosition?: Record<string, number>
+  costSystem?: string
+  maxYears?: number
+  roundPenalty?: number
+  auctionPctIncrease?: number
+  waiverAllowed?: boolean
+  eligibilityRule?: string
+  conflictRule?: string
+  missedDeadlineRule?: string
+  keptPlayersRemovedFromPool?: boolean
+  keptPlayerRoundCostsEnabled?: boolean
+  draftRoundAdjustmentsEnabled?: boolean
+  keptPlayerBudgetDeductionsEnabled?: boolean
+  rosterNeedsAccountForKeepers?: boolean
 }
 
 export interface KeeperSelection {
