@@ -75,9 +75,10 @@ describe('Left chat rail — defaults to collapsed, respects openChat param', ()
     expect(appShellSrc).toContain('chat-rail-collapse')
   })
 
-  it('LeagueShell initializes desktopChatOpen based on defaultOpenChat prop', () => {
+  it('LeagueShell initializes desktopChatOpen to true (chat visible by default)', () => {
+    // Chat is shown by default so users can immediately use League/Chimmy/AF Huddle/DMs.
     expect(leagueShellSrc).toContain('desktopChatOpen')
-    expect(leagueShellSrc).toContain('defaultOpenChat != null')
+    expect(leagueShellSrc).toContain('useState<boolean>(true)')
   })
 
   it('LeagueShell syncs desktopChatOpen with openChatQuery via useEffect', () => {
@@ -101,12 +102,14 @@ describe('Left chat rail — defaults to collapsed, respects openChat param', ()
 // ─── AppShell: dynamic grid columns reflect collapse state ────────────────────
 
 describe('AppShell balanced-three-panel — dynamic column widths', () => {
-  it('left collapsed column is 3rem', () => {
-    expect(appShellSrc).toContain("leftRailCollapsed ? '3rem'")
+  it('left collapsed column is 3rem (static literal in BALANCED_COLS)', () => {
+    // Static class literals required — Tailwind JIT cannot detect dynamically constructed strings.
+    expect(appShellSrc).toContain('BALANCED_COLS')
+    expect(appShellSrc).toContain('3rem_minmax(0,1fr)_minmax(280px,30fr)')
   })
 
-  it('right collapsed column is 3rem', () => {
-    expect(appShellSrc).toContain("rightRailCollapsed ? '3rem'")
+  it('right collapsed column is 3rem (static literal in BALANCED_COLS)', () => {
+    expect(appShellSrc).toContain('minmax(280px,40fr)_minmax(0,1fr)_3rem')
   })
 
   it('left expanded column uses minmax(280px,40fr)', () => {

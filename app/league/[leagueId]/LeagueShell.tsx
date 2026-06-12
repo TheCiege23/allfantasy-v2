@@ -265,9 +265,9 @@ export function LeagueShell({
     () => defaultOpenChat ?? normalizeOpenChatQueryParam(openChatQuery) ?? 'league',
     [defaultOpenChat, openChatQuery],
   )
-  // Left chat panel: collapsed by default on league pages.
-  // Opens when ?openChat= param is explicitly provided (via link or post-create flow).
-  const [desktopChatOpen, setDesktopChatOpen] = useState<boolean>(defaultOpenChat != null)
+  // Left chat panel: visible by default so users can immediately interact with
+  // League/Chimmy/AF Huddle/DMs. Can be minimised via the collapse button.
+  const [desktopChatOpen, setDesktopChatOpen] = useState<boolean>(true)
   useEffect(() => {
     if (openChatQuery != null) setDesktopChatOpen(true)
   }, [openChatQuery])

@@ -39,6 +39,21 @@ export type AppShellProps = {
 }
 
 /**
+ * All four static column combinations for balanced-three-panel.
+ * Must be literal strings — Tailwind's JIT scanner cannot detect dynamically constructed class names.
+ */
+const BALANCED_COLS = {
+  // left open, right open
+  both:       'md:[grid-template-columns:minmax(280px,40fr)_minmax(0,1fr)_minmax(280px,30fr)]',
+  // left collapsed, right open
+  leftOnly:   'md:[grid-template-columns:3rem_minmax(0,1fr)_minmax(280px,30fr)]',
+  // left open, right collapsed
+  rightOnly:  'md:[grid-template-columns:minmax(280px,40fr)_minmax(0,1fr)_3rem]',
+  // both collapsed
+  none:       'md:[grid-template-columns:3rem_minmax(0,1fr)_3rem]',
+}
+
+/**
  * Single source of truth for the 3-panel layout (chat | workspace | My Leagues).
  * Adjust widths only here so dashboard, league, and future pages stay aligned.
  */
@@ -84,13 +99,12 @@ export default function AppShell({
   const rootBg = immersive ? { background: 'transparent' as const } : { background: 'var(--bg)' }
   const balancedDesktopLayout = layoutMode === 'balanced-three-panel'
 
-  // Build desktop grid-template-columns for balanced-three-panel based on collapse states
-  const balancedDesktopColumns = (() => {
-    if (!balancedDesktopLayout) return ''
-    const leftCol = leftRailCollapsed ? '3rem' : 'minmax(280px,40fr)'
-    const rightCol = rightRailCollapsed ? '3rem' : 'minmax(280px,30fr)'
-    return `md:[grid-template-columns:${leftCol}_minmax(0,1fr)_${rightCol}]`
-  })()
+  // Use static class literals so Tailwind's JIT scanner can detect all variants.
+  const balancedDesktopColumns = !balancedDesktopLayout ? '' :
+    leftRailCollapsed && rightRailCollapsed ? BALANCED_COLS.none :
+    leftRailCollapsed ? BALANCED_COLS.leftOnly :
+    rightRailCollapsed ? BALANCED_COLS.rightOnly :
+    BALANCED_COLS.both
 
   return (
     <div
@@ -113,7 +127,7 @@ export default function AppShell({
           balancedDesktopLayout
             ? 'hidden h-full min-h-0 flex-col overflow-hidden md:flex md:min-w-0'
             : 'hidden h-full min-h-0 flex-shrink-0 flex-col overflow-hidden transition-[width] duration-200 ease-out md:flex md:w-[clamp(300px,24vw,360px)]',
-          leftRailCollapsed ? 'w-12 max-w-[3rem]' : '',
+          leftRailCollapsed && 'w-12 max-w-[3rem]',
           leftRailClass,
         )}
         style={immersive ? undefined : { background: 'var(--panel2)' }}
@@ -138,12 +152,12 @@ export default function AppShell({
               <button
                 type="button"
                 onClick={onLeftRailCollapse}
-                className="absolute right-2 top-2 z-10 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/[0.08] bg-white/[0.04] text-white/50 transition hover:bg-white/[0.08] hover:text-white/80"
+                className="absolute right-1 top-1 z-10 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-white/[0.08] bg-black/40 text-white/40 transition hover:text-white/70"
                 aria-label="Collapse chat"
                 title="Collapse chat"
                 data-testid="chat-rail-collapse"
               >
-                <ChevronRight className="h-4 w-4" aria-hidden />
+                <ChevronRight className="h-3.5 w-3.5" aria-hidden />
               </button>
             ) : null}
             {leftPanel}
