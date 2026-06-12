@@ -5,8 +5,10 @@ import { LeagueEmbedGate } from '@/components/navigation/LeagueEmbedGate'
 
 export default function LeagueSegmentLayout({ children }: { children: ReactNode }) {
   return (
-    <Suspense fallback={<ProductShellLayout>{children}</ProductShellLayout>}>
-      <LeagueEmbedGate fallback={<ProductShellLayout>{children}</ProductShellLayout>}>{children}</LeagueEmbedGate>
+    <Suspense fallback={<ProductShellLayout hideSidebar>{children}</ProductShellLayout>}>
+      <LeagueEmbedGate fallback={<ProductShellLayout hideSidebar>{children}</ProductShellLayout>}>
+        {children}
+      </LeagueEmbedGate>
     </Suspense>
   )
 }
