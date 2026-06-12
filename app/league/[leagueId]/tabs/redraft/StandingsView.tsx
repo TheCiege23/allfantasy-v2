@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { generatePlayoffs } from '@/lib/redraft/client'
+import { finalizeRedraftSeason, generatePlayoffs } from '@/lib/redraft/client'
 
 export function StandingsView({
   rows,
@@ -25,6 +25,32 @@ export function StandingsView({
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [finalizeBusy, setFinalizeBusy] = useState(false)
+  const [finalizeResult, setFinalizeResult] = useState<string | null>(null)
+  const [finalizeError, setFinalizeError] = useState<string | null>(null)
+
+  const onFinalize = async () => {
+    if (!seasonId) return
+    setFinalizeBusy(true)
+    setFinalizeError(null)
+    setFinalizeResult(null)
+    try {
+      const res = await finalizeRedraftSeason({ seasonId })
+      if (res.alreadyFinalized) {
+        setFinalizeResult('Season already finalized.')
+      } else if (res.status === 'ok') {
+        setFinalizeResult(
+          res.championTeamName ? `Champion: ${res.championTeamName}` : 'Season finalized.',
+        )
+      } else {
+        setFinalizeError(`Cannot finalize: ${res.status.replace(/_/g, ' ')}`)
+      }
+    } catch (e) {
+      setFinalizeError(e instanceof Error ? e.message : 'Failed to finalize season')
+    } finally {
+      setFinalizeBusy(false)
+    }
+  }
 
   const onGenerate = async () => {
     if (!seasonId) return
@@ -69,6 +95,17 @@ export function StandingsView({
         </button>
         {result ? <span className="text-[11px] text-emerald-300">{result}</span> : null}
         {error ? <span className="text-[11px] text-rose-300">{error}</span> : null}
+        <span className="ml-auto" />
+        <button
+          type="button"
+          onClick={() => void onFinalize()}
+          disabled={!seasonId || finalizeBusy}
+          className="rounded border border-white/20 bg-white/10 px-2 py-1 text-[11px] font-semibold text-white/80 disabled:opacity-50"
+        >
+          {finalizeBusy ? 'Finalizing...' : 'Finalize Season'}
+        </button>
+        {finalizeResult ? <span className="text-[11px] text-amber-300">{finalizeResult}</span> : null}
+        {finalizeError ? <span className="text-[11px] text-rose-300">{finalizeError}</span> : null}
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-white/[0.08]">

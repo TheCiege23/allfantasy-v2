@@ -244,3 +244,196 @@ export async function advancePlayoffWinners(
   // No next round — the final round just completed
   return { ...base, advanced, skipped, blocked, status: 'ready_for_champion_finalization' }
 }
+
+// ─── Season Finalization ──────────────────────────────────────────────────────
+
+export type FinalizeSeasonResult = {
+  seasonId: string
+  leagueId: string
+  season: number
+  alreadyFinalized: boolean
+  /**
+   * 'ok'                      — champion crowned, season marked complete
+   * 'already_finalized'       — idempotent re-run; no changes made
+   * 'no_bracket'              — bracket does not exist yet
+   * 'no_final_round'          — no rounds found in bracket
+   * 'final_round_incomplete'  — final round exists but not yet status=complete
+   * 'no_winner'               — final matchup missing winnerRosterId
+   */
+  status:
+    | 'ok'
+    | 'already_finalized'
+    | 'no_bracket'
+    | 'no_final_round'
+    | 'final_round_incomplete'
+    | 'no_winner'
+  championRosterId: string | null
+  championUserId: string | null
+  championTeamName: string | null
+  runnerUpRosterId: string | null
+}
+
+/**
+ * Crown the champion and mark the redraft season complete after the final
+ * playoff round finishes.
+ *
+ * Idempotent: if the season is already finalized, returns `alreadyFinalized: true`
+ * without re-writing any records.
+ *
+ * Writes:
+ *  - `LeagueChampionship` upsert (@@unique on leagueId + season)
+ *  - `RedraftSeason.status = 'complete'`
+ *  - `RedraftPlayoffBracket.status = 'complete'`
+ *  - `League.lifecycleState = 'completed'`
+ *
+ * Does NOT call provider APIs, AI services, or anything external.
+ */
+export async function finalizeRedraftSeasonChampion(
+  seasonId: string,
+  recordedByUserId: string,
+): Promise<FinalizeSeasonResult> {
+  // Load the season
+  const season = await prisma.redraftSeason.findUnique({
+    where: { id: seasonId },
+    select: { id: true, leagueId: true, season: true, status: true },
+  })
+  if (!season) {
+    // Season not found — treat as a safe no-op with a clear status
+    return {
+      seasonId,
+      leagueId: '',
+      season: 0,
+      alreadyFinalized: false,
+      status: 'no_bracket',
+      championRosterId: null,
+      championUserId: null,
+      championTeamName: null,
+      runnerUpRosterId: null,
+    }
+  }
+
+  const base = { seasonId, leagueId: season.leagueId, season: season.season }
+
+  // Idempotency: already finalized
+  if (season.status === 'complete') {
+    return {
+      ...base,
+      alreadyFinalized: true,
+      status: 'already_finalized',
+      championRosterId: null,
+      championUserId: null,
+      championTeamName: null,
+      runnerUpRosterId: null,
+    }
+  }
+
+  // Load bracket
+  const bracket = await prisma.redraftPlayoffBracket.findUnique({ where: { seasonId } })
+  if (!bracket) {
+    return { ...base, alreadyFinalized: false, status: 'no_bracket', championRosterId: null, championUserId: null, championTeamName: null, runnerUpRosterId: null }
+  }
+
+  // Load all rounds to find the final one (highest roundNumber)
+  const rounds = await prisma.redraftPlayoffRound.findMany({
+    where: { seasonId },
+    orderBy: { roundNumber: 'desc' },
+    take: 1,
+    include: {
+      matchups: {
+        orderBy: { matchupNumber: 'asc' },
+        select: {
+          id: true,
+          homeRosterId: true,
+          awayRosterId: true,
+          winnerRosterId: true,
+          status: true,
+          nextMatchupId: true,
+        },
+      },
+    },
+  })
+
+  if (rounds.length === 0) {
+    return { ...base, alreadyFinalized: false, status: 'no_final_round', championRosterId: null, championUserId: null, championTeamName: null, runnerUpRosterId: null }
+  }
+
+  const finalRound = rounds[0]!
+
+  // The final round must be complete
+  if (finalRound.status !== 'complete') {
+    return { ...base, alreadyFinalized: false, status: 'final_round_incomplete', championRosterId: null, championUserId: null, championTeamName: null, runnerUpRosterId: null }
+  }
+
+  // Find the championship matchup — the one with no nextMatchupId
+  type FinalMatchup = { id: string; homeRosterId: string | null; awayRosterId: string | null; winnerRosterId: string | null; status: string; nextMatchupId: string | null }
+  const champMatchup = (finalRound.matchups as FinalMatchup[]).find((m) => !m.nextMatchupId)
+  if (!champMatchup?.winnerRosterId) {
+    return { ...base, alreadyFinalized: false, status: 'no_winner', championRosterId: null, championUserId: null, championTeamName: null, runnerUpRosterId: null }
+  }
+
+  const championRosterId = champMatchup.winnerRosterId
+  const runnerUpRosterId =
+    champMatchup.homeRosterId === championRosterId
+      ? champMatchup.awayRosterId
+      : champMatchup.homeRosterId
+
+  // Load champion roster details
+  const championRoster = await prisma.redraftRoster.findUnique({
+    where: { id: championRosterId },
+    select: { ownerId: true, ownerName: true, teamName: true, pointsFor: true },
+  })
+
+  const championUserId = championRoster?.ownerId ?? null
+  const championTeamName = championRoster?.teamName ?? championRoster?.ownerName ?? null
+  const championPointsFor = championRoster?.pointsFor ?? null
+
+  // Persist champion + mark season complete — all in one transaction
+  await prisma.$transaction(async (tx) => {
+    // Record championship
+    await (tx as typeof prisma).leagueChampionship.upsert({
+      where: { leagueId_season: { leagueId: season.leagueId, season: season.season } },
+      create: {
+        leagueId: season.leagueId,
+        season: season.season,
+        championUserId: championUserId ?? '',
+        teamName: championTeamName,
+        pointsFor: championPointsFor,
+        recordedBy: recordedByUserId,
+      },
+      update: {
+        championUserId: championUserId ?? '',
+        teamName: championTeamName,
+        pointsFor: championPointsFor,
+        recordedBy: recordedByUserId,
+      },
+    })
+
+    // Mark redraft season complete
+    await (tx as typeof prisma).redraftSeason.update({
+      where: { id: seasonId },
+      data: { status: 'complete' },
+    })
+
+    // Mark bracket complete
+    await (tx as typeof prisma).redraftPlayoffBracket.update({
+      where: { seasonId },
+      data: { status: 'complete' },
+    })
+
+    // Transition league lifecycle to completed
+    await (tx as typeof prisma).league.update({
+      where: { id: season.leagueId },
+      data: { lifecycleState: 'completed' },
+    })
+  })
+
+  return {
+    ...base,
+    alreadyFinalized: false,
+    status: 'ok',
+    championRosterId,
+    championUserId,
+    championTeamName,
+    runnerUpRosterId,
+  }
+}

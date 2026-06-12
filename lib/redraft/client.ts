@@ -223,6 +223,21 @@ export async function submitTradeVote(payload: {
   return parseJson<{ proposal: RedraftTradeProposal; resolved: boolean }>(res)
 }
 
+export async function finalizeRedraftSeason(payload: { seasonId: string }) {
+  const res = await fetch('/api/redraft/seasons/finalize', {
+    method: 'POST',
+    credentials: 'include',
+    headers: jsonHeaders,
+    body: JSON.stringify(payload),
+  })
+  return parseJson<{
+    status: string
+    alreadyFinalized: boolean
+    championTeamName: string | null
+    championUserId: string | null
+  }>(res)
+}
+
 export async function generatePlayoffs(payload: {
   seasonId: string
   playoffTeams?: number
