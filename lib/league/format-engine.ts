@@ -385,7 +385,7 @@ export function getCreateLeagueDraftTypes(
   const all = getAllowedDraftTypesForFormat(sport, rawFormat)
   const fmt = String(rawFormat ?? 'redraft').trim().toLowerCase()
   // Specialty formats keep their full variant list on the create form.
-  if (fmt === 'devy' || fmt === 'c2c' || fmt === 'salary_cap' || fmt === 'guillotine' || fmt === 'best_ball') {
+  if (fmt === 'redraft' || fmt === 'devy' || fmt === 'c2c' || fmt === 'salary_cap' || fmt === 'guillotine' || fmt === 'best_ball') {
     return all
   }
   // All other formats: only snake at create time.

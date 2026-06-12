@@ -5,6 +5,11 @@ import type { ConceptPresetSeed } from '@/lib/league-concepts/conceptPresetCatal
 import { normalizeConceptToFormat } from '@/lib/league-creation/canonical/normalizeConcept'
 import { resolveLeagueFormat, type LeagueFormatId } from '@/lib/league/format-engine'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import {
+  buildRedraftSettingsSnapshot,
+  getRedraftDefaultContract,
+  type RedraftDefaultContract,
+} from '@/lib/league-concepts/redraftDefaults'
 
 export type LeagueFoundationDefaultsInput = {
   sport: LeagueSport | string
@@ -26,6 +31,12 @@ export type LeagueFoundationDefaults = {
   waiverSettings: Record<string, unknown>
   playoffSettings: Record<string, unknown>
   scheduleSettings: Record<string, unknown>
+  redraftContract?: RedraftDefaultContract | null
+  playerPoolRules?: Record<string, unknown>
+  tabsEnabled?: Record<string, unknown>
+  mockDraftRules?: Record<string, unknown>
+  liveDraftRules?: Record<string, unknown>
+  disabledSettings?: Record<string, unknown>
   conceptPreset: {
     presetKey: string | null
     readiness: string
@@ -92,6 +103,24 @@ export function getLeagueDefaults(input: LeagueFoundationDefaultsInput): LeagueF
   const format = normalizeFormat(input.format)
   const engineDraftType = mapCanonicalDraftTypeToEngineCore(input.draftType)
   const scoringPreset = String(input.scoringPreset ?? '').trim()
+  const redraftContract =
+    format === 'redraft'
+      ? getRedraftDefaultContract({
+          sport,
+          draftType: input.draftType,
+          scoringPresetId: scoringPreset || null,
+          teamCount: input.managerCount,
+        })
+      : null
+  const redraftSnapshot =
+    redraftContract
+      ? buildRedraftSettingsSnapshot({
+          sport,
+          draftType: input.draftType,
+          scoringPresetId: redraftContract.scoring_preset_id,
+          teamCount: input.managerCount,
+        })
+      : null
   const resolution = resolveLeagueFormat({
     sport,
     leagueType: format,
@@ -108,10 +137,11 @@ export function getLeagueDefaults(input: LeagueFoundationDefaultsInput): LeagueF
   })
   const managerCount = numericOr(
     input.managerCount,
-    preset?.defaultTeamCount ?? resolution.leagueDefaults.default_team_count ?? 12,
+    redraftContract?.teams ?? preset?.defaultTeamCount ?? resolution.leagueDefaults.default_team_count ?? 12,
   )
-  const rounds = numericOr(resolution.draftDefaults.rounds_default, engineDraftType === 'auction' ? 15 : 15)
-  const timerSeconds = numericOr(resolution.draftDefaults.timer_seconds_default, 90)
+  const redraftDraftSettings = (redraftSnapshot?.draftSettings as Record<string, unknown> | undefined) ?? null
+  const rounds = numericOr(redraftDraftSettings?.rounds ?? resolution.draftDefaults.rounds_default, engineDraftType === 'auction' ? 15 : 15)
+  const timerSeconds = numericOr(redraftDraftSettings?.timerSeconds ?? resolution.draftDefaults.timer_seconds_default, 90)
   const playoff = resolution.playoffDefaults as unknown as Record<string, unknown>
   const scoring = resolution.scoring as unknown as Record<string, unknown>
   const roster = resolution.roster as unknown as Record<string, unknown>
@@ -126,6 +156,7 @@ export function getLeagueDefaults(input: LeagueFoundationDefaultsInput): LeagueF
     managerCount,
     rosterSettings: {
       ...roster,
+      ...((redraftSnapshot?.rosterSettings as Record<string, unknown> | undefined) ?? {}),
       rosterSlots: preset?.rosterSlots,
       benchSlots: preset?.benchSlots,
       irSlots: preset?.irSlots,
@@ -134,6 +165,7 @@ export function getLeagueDefaults(input: LeagueFoundationDefaultsInput): LeagueF
     },
     scoringSettings: {
       ...scoring,
+      ...((redraftSnapshot?.scoringSettings as Record<string, unknown> | undefined) ?? {}),
       preset: scoringPreset || preset?.scoringPreset || scoring.scoringTemplateId,
       scoringTemplateId: scoringPreset || preset?.scoringPreset || scoring.scoringTemplateId,
       scoringMode: scoring.scoringMode ?? 'points',
@@ -144,6 +176,7 @@ export function getLeagueDefaults(input: LeagueFoundationDefaultsInput): LeagueF
     },
     draftSettings: {
       ...resolution.draftDefaults,
+      ...redraftDraftSettings,
       draftType: engineDraftType,
       requestedDraftType: String(input.draftType).trim().toLowerCase(),
       rounds,
@@ -162,6 +195,12 @@ export function getLeagueDefaults(input: LeagueFoundationDefaultsInput): LeagueF
       lowerBracket: playoff.lowerBracket ?? 'consolation',
     },
     scheduleSettings: scheduleDefaults,
+    redraftContract,
+    playerPoolRules: (redraftSnapshot?.playerPoolRules as Record<string, unknown> | undefined) ?? undefined,
+    tabsEnabled: (redraftSnapshot?.tabsEnabled as Record<string, unknown> | undefined) ?? undefined,
+    mockDraftRules: (redraftSnapshot?.mockDraftRules as Record<string, unknown> | undefined) ?? undefined,
+    liveDraftRules: (redraftSnapshot?.liveDraftRules as Record<string, unknown> | undefined) ?? undefined,
+    disabledSettings: redraftContract?.disabledSettings,
     conceptPreset: {
       presetKey: preset?.presetKey ?? null,
       readiness: preset?.readiness ?? 'launch_ready',

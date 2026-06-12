@@ -92,8 +92,8 @@ const ROSTER_DEFAULTS: Record<SportType, RosterDefaults> = {
   NFL: {
     sport_type: 'NFL',
     starter_slots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 },
-    bench_slots: 7,
-    IR_slots: 2,
+    bench_slots: 6,
+    IR_slots: 1,
     taxi_slots: 0,
     devy_slots: 0,
     flex_definitions: [{ slotName: 'FLEX', allowedPositions: ['RB', 'WR', 'TE'] }],
@@ -130,12 +130,12 @@ const ROSTER_DEFAULTS: Record<SportType, RosterDefaults> = {
   },
   NCAAF: {
     sport_type: 'NCAAF',
-    starter_slots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, SUPERFLEX: 1, K: 1, DST: 1 },
-    bench_slots: 7,
-    IR_slots: 2,
+    starter_slots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DEF: 1 },
+    bench_slots: 8,
+    IR_slots: 1,
     taxi_slots: 0,
     devy_slots: 0,
-    flex_definitions: [{ slotName: 'FLEX', allowedPositions: ['RB', 'WR', 'TE'] }, { slotName: 'SUPERFLEX', allowedPositions: ['QB', 'RB', 'WR', 'TE'] }],
+    flex_definitions: [{ slotName: 'FLEX', allowedPositions: ['RB', 'WR', 'TE'] }],
   },
   NCAAB: {
     sport_type: 'NCAAB',
@@ -187,11 +187,11 @@ const DEVY_DYNASTY_ROSTER_DEFAULTS: Record<'NFL' | 'NBA', RosterDefaults> = {
 }
 
 const SCORING_DEFAULTS: Record<SportType, ScoringDefaults> = {
-  NFL: { sport_type: 'NFL', scoring_template_id: 'default-NFL-PPR', scoring_format: 'PPR', category_type: 'points' },
+  NFL: { sport_type: 'NFL', scoring_template_id: 'default-NFL-HALF_PPR', scoring_format: 'Half PPR', category_type: 'points' },
   NBA: { sport_type: 'NBA', scoring_template_id: 'default-NBA-points', scoring_format: 'points', category_type: 'points' },
   MLB: { sport_type: 'MLB', scoring_template_id: 'default-MLB-standard', scoring_format: 'standard', category_type: 'points' },
   NHL: { sport_type: 'NHL', scoring_template_id: 'default-NHL-standard', scoring_format: 'standard', category_type: 'points' },
-  NCAAF: { sport_type: 'NCAAF', scoring_template_id: 'default-NCAAF-PPR', scoring_format: 'PPR', category_type: 'points' },
+  NCAAF: { sport_type: 'NCAAF', scoring_template_id: 'default-NCAAF-HALF_PPR', scoring_format: 'Half PPR College', category_type: 'points' },
   NCAAB: { sport_type: 'NCAAB', scoring_template_id: 'default-NCAAB-points', scoring_format: 'points', category_type: 'points' },
   SOCCER: { sport_type: 'SOCCER', scoring_template_id: 'default-SOCCER-standard', scoring_format: 'standard', category_type: 'points' },
 }
@@ -560,6 +560,7 @@ export function getRosterDefaults(sportType: SportType, formatType?: string): Ro
     const overlay = getRosterOverlayForVariant(sportType, 'IDP')
     const starter_slots = { ...base.starter_slots, ...(overlay ?? {}) }
     delete starter_slots.DST
+    delete starter_slots.DEF
     starter_slots['DL'] = 1
     starter_slots['DB'] = 1
     starter_slots['IDP_FLEX'] = 1

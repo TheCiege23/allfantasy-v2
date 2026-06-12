@@ -139,8 +139,6 @@ export async function createCanonicalLeagueInTransaction(
   }
 
   const coreDraft = mapCanonicalDraftTypeToEngineCore(body.draftType)
-  const timerSeconds = draftDefaults.timer_seconds_default ?? 90
-  const pickTimerPreset = secondsToPickTimerPreset(timerSeconds)
   const isOffline = body.draftType.toLowerCase() === 'offline'
   const isAuto = body.draftType.toLowerCase() === 'auto'
   const bestBallSettings =
@@ -161,6 +159,10 @@ export async function createCanonicalLeagueInTransaction(
     scoringPreset: body.scoringPreset,
   })
   const managerCount = foundationDefaults.managerCount
+  const draftSettings = foundationDefaults.draftSettings
+  const draftRounds = readNumber(draftSettings, 'rounds', draftDefaults.rounds_default)
+  const timerSeconds = readNumber(draftSettings, 'timerSeconds', draftDefaults.timer_seconds_default ?? 90)
+  const pickTimerPreset = secondsToPickTimerPreset(timerSeconds)
 
   const tradeReview =
     bestBallSettings && !bestBallSettings.tradesEnabled
@@ -209,6 +211,11 @@ export async function createCanonicalLeagueInTransaction(
       waiver: foundationDefaults.waiverSettings,
       playoff: foundationDefaults.playoffSettings,
       schedule: foundationDefaults.scheduleSettings,
+      redraftContract: foundationDefaults.redraftContract ?? undefined,
+      playerPoolRules: foundationDefaults.playerPoolRules ?? undefined,
+      tabsEnabled: foundationDefaults.tabsEnabled ?? undefined,
+      mockDraftRules: foundationDefaults.mockDraftRules ?? undefined,
+      liveDraftRules: foundationDefaults.liveDraftRules ?? undefined,
       conceptPreset: foundationDefaults.conceptPreset,
     },
     soccer_pipeline: sport === 'SOCCER' ? soccerPipeline : undefined,
@@ -251,7 +258,6 @@ export async function createCanonicalLeagueInTransaction(
   const guillotineDefaultWaiverDelayHours = guillotineProfile?.dailyGames ? 48 : 24
   const scoringSettings = foundationDefaults.scoringSettings
   const playoffSettings = foundationDefaults.playoffSettings
-  const draftSettings = foundationDefaults.draftSettings
   const scoringFormat = String(
     scoringSettings.scoringFormat ?? scoringSettings.preset ?? body.scoringPreset ?? 'standard',
   )
@@ -489,7 +495,7 @@ export async function createCanonicalLeagueInTransaction(
       leagueId: league.id,
       timezone: body.timezone ?? 'America/New_York',
       draftType: coreDraft,
-      rounds: draftDefaults.rounds_default,
+      rounds: draftRounds,
       pickTimerPreset,
       pickTimerCustomValue: null,
       cpuAutoPick: true,
@@ -539,7 +545,7 @@ export async function createCanonicalLeagueInTransaction(
       draftType: body.draftType,
       isOffline,
       isAuto,
-      rounds: draftDefaults.rounds_default,
+      rounds: draftRounds,
       timerSeconds,
       orderMode: coreDraft,
       auctionBudget: body.draftType.toLowerCase().includes('auction') ? 200 : null,
@@ -705,7 +711,7 @@ export async function createCanonicalLeagueInTransaction(
       leagueId: league.id,
       status: 'pre_draft',
       draftType: coreDraft,
-      rounds: readNumber(draftSettings, 'rounds', draftDefaults.rounds_default),
+      rounds: draftRounds,
       teamCount: managerCount,
       timerSeconds,
       slotOrder: draftSlotOrder as Prisma.InputJsonValue,

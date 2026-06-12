@@ -7,6 +7,11 @@
 import { CONCEPT_PRESET_CATALOG, type ConceptPresetSeed } from './conceptPresetCatalog'
 import { normalizeConceptToFormat } from '@/lib/league-creation/canonical/normalizeConcept'
 import type { LeagueFormatId } from '@/lib/league/format-engine'
+import {
+  buildRedraftSettingsSnapshot,
+  isFootballRedraftDefaultsSport,
+  normalizeRedraftSettingsSnapshot,
+} from '@/lib/league-concepts/redraftDefaults'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -66,7 +71,17 @@ function scorePreset(
 }
 
 function buildSettingsSnapshot(preset: ConceptPresetSeed): Record<string, unknown> {
+  const redraftSnapshot =
+    preset.leagueType === 'redraft' && isFootballRedraftDefaultsSport(preset.sport)
+      ? buildRedraftSettingsSnapshot({
+          sport: preset.sport,
+          draftType: preset.draftTypesAllowed[0] ?? 'snake',
+          scoringPresetId: preset.scoringPreset,
+          teamCount: preset.defaultTeamCount,
+        })
+      : null
   return {
+    ...(redraftSnapshot ?? {}),
     conceptPresetKey: preset.presetKey,
     leagueType: preset.leagueType,
     sport: preset.sport,
@@ -175,10 +190,20 @@ export function resolveConceptPreset(args: {
   }
 
   const base = buildSettingsSnapshot(preset)
-  const snapshot: Record<string, unknown> = {
+  const snapshotBase: Record<string, unknown> = {
     ...base,
     ...(opts.userOverrides ?? {}),
   }
+  const snapshot =
+    preset.leagueType === 'redraft' && isFootballRedraftDefaultsSport(sport)
+      ? normalizeRedraftSettingsSnapshot({
+          sport,
+          draftType,
+          scoringPresetId: preset.scoringPreset,
+          teamCount: preset.defaultTeamCount,
+          settings: snapshotBase,
+        })
+      : snapshotBase
 
   return {
     ok: true,
@@ -196,6 +221,38 @@ export function mergeConceptPresetSettings(
   presetSnapshot: Record<string, unknown>,
   leagueSettings: Record<string, unknown>,
 ): Record<string, unknown> {
+  const sport = String(presetSnapshot.sport ?? presetSnapshot.sport_type ?? leagueSettings.sport ?? leagueSettings.sport_type ?? '').toUpperCase()
+  const leagueType = String(presetSnapshot.leagueType ?? presetSnapshot.league_type ?? leagueSettings.leagueType ?? leagueSettings.league_type ?? '').toLowerCase()
+  if (leagueType === 'redraft' && isFootballRedraftDefaultsSport(sport)) {
+    const merged = {
+      ...presetSnapshot,
+      ...leagueSettings,
+      // Preserve user-supplied league name / language / timezone if present
+      leagueName: leagueSettings.leagueName ?? presetSnapshot.leagueName,
+      language: leagueSettings.language ?? presetSnapshot.language ?? 'en',
+      timezone: leagueSettings.timezone ?? presetSnapshot.timezone,
+    }
+    return normalizeRedraftSettingsSnapshot({
+      sport,
+      draftType: leagueSettings.requested_draft_type ?? leagueSettings.draft_type ?? presetSnapshot.requested_draft_type ?? presetSnapshot.draft_type,
+      scoringPresetId:
+        typeof leagueSettings.scoring_preset_id === 'string'
+          ? leagueSettings.scoring_preset_id
+          : typeof presetSnapshot.scoring_preset_id === 'string'
+            ? presetSnapshot.scoring_preset_id
+            : typeof presetSnapshot.scoringPreset === 'string'
+              ? presetSnapshot.scoringPreset
+              : null,
+      teamCount:
+        typeof leagueSettings.default_team_count === 'number'
+          ? leagueSettings.default_team_count
+          : typeof presetSnapshot.default_team_count === 'number'
+            ? presetSnapshot.default_team_count
+            : null,
+      settings: merged,
+    })
+  }
+
   return {
     ...leagueSettings,
     ...presetSnapshot,

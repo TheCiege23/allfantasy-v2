@@ -141,7 +141,7 @@ export const LEAGUE_CREATE_OPTIONS_CATALOG_V1: LeagueCreateOptionsCatalog = {
     big_brother: ALL_SPORTS,
   },
   allowedDraftTypesByConcept: {
-    redraft: ['snake', 'linear', 'auction', 'offline', 'auto'],
+    redraft: ['snake', 'linear', 'auction', 'slow_draft', 'mock_draft', 'offline', 'auto'],
     dynasty: ['snake', 'linear', 'auction', 'offline', 'auto'],
     keeper: ['snake', 'linear', 'auction', 'offline', 'auto'],
     best_ball: ['snake', 'linear', 'auction', 'offline', 'auto'],
@@ -161,7 +161,7 @@ export const LEAGUE_CREATE_OPTIONS_CATALOG_V1: LeagueCreateOptionsCatalog = {
       NBA: ['nba_points', 'nba_categories'],
       MLB: ['mlb_roto_5x5', 'mlb_points'],
       NHL: ['nhl_points', 'nhl_category'],
-      NCAAF: ['ncaaf_half_ppr', 'ncaaf_ppr'],
+      NCAAF: ['ncaaf_half_ppr', 'ncaaf_ppr', 'ncaaf_standard'],
       NCAAB: ['ncaab_points', 'ncaab_categories'],
       SOCCER: ['soccer_classic', 'soccer_draft'],
     },

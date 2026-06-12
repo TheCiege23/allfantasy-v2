@@ -194,9 +194,10 @@ export function getDraftTypeOptions(leagueType: LeagueTypeId, sport: SupportedSp
 
   // Best Ball keeps execution modes visible on the create surface so the
   // underlying order algorithm and execution mode can both be selected up front.
-  if (leagueType === 'best_ball') {
+  if (leagueType === 'best_ball' || leagueType === 'redraft') {
     const existing = new Set(result.map((option) => option.id))
-    for (const mode of BEST_BALL_DRAFT_MODES) {
+    const executionModes = leagueType === 'best_ball' ? BEST_BALL_DRAFT_MODES : EXECUTION_DRAFT_IDS
+    for (const mode of executionModes) {
       if (mode === 'snake' || mode === 'linear' || mode === 'auction') continue
       if (existing.has(mode)) continue
       result.push({

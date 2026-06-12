@@ -14,6 +14,7 @@ import {
 import { normalizeToSupportedSport, supportsIdpLeagueSport } from '@/lib/sport-scope'
 import { normalizeConceptToFormat, type NormalizedConcept } from '@/lib/league-creation/canonical/normalizeConcept'
 import type { DerivedLeagueFlags, PresetEngineOutput } from '@/lib/league-creation/canonical/types'
+import { buildRedraftSettingsSnapshot } from '@/lib/league-concepts/redraftDefaults'
 
 export const PRESET_ENGINE_VERSION = '1'
 
@@ -128,6 +129,15 @@ export function runPresetEngine(input: RunPresetEngineInput): PresetEngineOutput
       scoring_preset_id: input.scoringPreset,
     },
   })
+  const redraftSnapshot =
+    formatId === 'redraft'
+      ? buildRedraftSettingsSnapshot({
+          sport,
+          draftType: input.draftType,
+          scoringPresetId: input.scoringPreset,
+          teamCount: input.teamCount,
+        })
+      : null
 
   const derivedFlags = deriveFlags(formatId, resolution)
   const conceptRules = buildConceptRulesBlock({
@@ -140,18 +150,20 @@ export function runPresetEngine(input: RunPresetEngineInput): PresetEngineOutput
   const settingsSnapshot: SettingsSnapshot = {
     snapshotVersion: SETTINGS_SNAPSHOT_VERSION,
     ...(legacy as Record<string, unknown>),
-    rosterSettings: resolution.roster as unknown as SettingsSnapshot['rosterSettings'],
-    scoringSettings: {
+    ...(redraftSnapshot ?? {}),
+    rosterSettings: (redraftSnapshot?.rosterSettings ??
+      resolution.roster) as unknown as SettingsSnapshot['rosterSettings'],
+    scoringSettings: (redraftSnapshot?.scoringSettings ?? {
       ...(resolution.scoring as Record<string, unknown>),
       preset: input.scoringPreset,
       scoringTemplateId: input.scoringPreset,
       format: (resolution.scoring as { format?: string })?.format,
-    },
-    draftSettings: {
+    }) as SettingsSnapshot['scoringSettings'],
+    draftSettings: (redraftSnapshot?.draftSettings ?? {
       draftType: resolution.draftType,
       rounds: resolution.draftDefaults.rounds_default,
       timerSeconds: resolution.draftDefaults.timer_seconds_default ?? undefined,
-    },
+    }) as SettingsSnapshot['draftSettings'],
     waiverSettings: resolution.waiverDefaults as unknown as SettingsSnapshot['waiverSettings'],
     playoffSettings: resolution.playoffDefaults as unknown as SettingsSnapshot['playoffSettings'],
     commissionerSettings: {},

@@ -60,13 +60,14 @@ export type DraftTypeDefinition = {
 const ALL_SPORTS = [...SUPPORTED_SPORTS]
 const SURVIVOR_ELIGIBLE_SPORTS: LeagueSport[] = [...ALL_SPORTS]
 const BEST_BALL_SPORTS: LeagueSport[] = [...BEST_BALL_SUPPORTED_SPORTS]
+const DRAFT_TYPES_REDRAFT: DraftTypeId[] = ['snake', 'linear', 'auction', 'slow_draft', 'mock_draft']
 const DRAFT_TYPES_STANDARD: DraftTypeId[] = ['snake', 'linear', 'auction']
 const DRAFT_TYPES_SURVIVOR: DraftTypeId[] = ['snake', 'auction']
 const DRAFT_TYPES_BIG_BROTHER: DraftTypeId[] = ['snake', 'auction']
 
 /** Exported for format-engine — authoritative draft-type lists per league format concept. */
 export const DRAFT_TYPES_BY_LEAGUE_FORMAT: Record<DraftMatrixLeagueFormatId, readonly DraftTypeId[]> = {
-  redraft: DRAFT_TYPES_STANDARD,
+  redraft: DRAFT_TYPES_REDRAFT,
   dynasty: DRAFT_TYPES_STANDARD,
   keeper: DRAFT_TYPES_STANDARD,
   best_ball: DRAFT_TYPES_STANDARD,

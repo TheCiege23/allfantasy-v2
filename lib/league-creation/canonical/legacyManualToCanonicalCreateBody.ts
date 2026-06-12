@@ -54,6 +54,21 @@ function mapLegacyScoringLabelToPresetCandidate(
   const norm = trimmed.toUpperCase().replace(/\s+/g, '_').replace(/-/g, '_')
 
   if (isFootballLike(sport) && !ctx.idpSelected) {
+    if (sport === 'NCAAF') {
+      const ncaafAlias: Record<string, string> = {
+        PPR: 'ncaaf_ppr',
+        FULL_PPR: 'ncaaf_ppr',
+        FULL: 'ncaaf_ppr',
+        HALF_PPR: 'ncaaf_half_ppr',
+        HALF: 'ncaaf_half_ppr',
+        STANDARD: 'ncaaf_standard',
+        NON_PPR: 'ncaaf_standard',
+        STD: 'ncaaf_standard',
+        NONPPR: 'ncaaf_standard',
+      }
+      const mapped = ncaafAlias[norm]
+      if (mapped && isScoringPresetValidForContext(mapped, ctx)) return mapped
+    }
     const footballAlias: Record<string, string> = {
       PPR: 'fb_full_ppr',
       FULL_PPR: 'fb_full_ppr',

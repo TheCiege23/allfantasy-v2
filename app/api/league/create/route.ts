@@ -37,6 +37,7 @@ import {
   resolveConceptPreset,
   type ConceptPresetResolution,
 } from '@/lib/league-concepts/resolveConceptPreset';
+import { normalizeRedraftSettingsSnapshot } from '@/lib/league-concepts/redraftDefaults';
 
 const createSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -966,6 +967,21 @@ export async function POST(req: Request) {
       }
       if (initialSettings.waiver_game_lock_behavior == null && waiverDefaults.game_lock_behavior != null) {
         initialSettings.waiver_game_lock_behavior = waiverDefaults.game_lock_behavior;
+      }
+      if (
+        String(requestedLeagueType ?? initialSettings.league_type ?? '').toLowerCase() === 'redraft' &&
+        (sport === 'NFL' || sport === 'NCAAF')
+      ) {
+        const normalizedRedraftSettings = normalizeRedraftSettingsSnapshot({
+          sport,
+          draftType: requestedDraftType ?? initialSettings.requested_draft_type ?? initialSettings.draft_type,
+          scoringPresetId:
+            scoringPresetIdInput?.trim() ||
+            (typeof initialSettings.scoring_preset_id === 'string' ? initialSettings.scoring_preset_id : null),
+          teamCount: typeof leagueSize === 'number' ? leagueSize : null,
+          settings: initialSettings,
+        });
+        Object.assign(initialSettings, normalizedRedraftSettings);
       }
     }
 

@@ -86,7 +86,63 @@ function fbPreset(
   }
 }
 
+function ncaafPreset(
+  id: string,
+  label: string,
+  hint: string,
+  opts: {
+    ppr: keyof typeof pprMap
+  },
+): PresetRule {
+  return {
+    id,
+    label,
+    hint,
+    matches: (ctx) =>
+      ctx.sport === 'NCAAF' &&
+      !ctx.idpSelected &&
+      [
+        'redraft',
+        'dynasty',
+        'keeper',
+        'best_ball',
+        'guillotine',
+        'survivor',
+        'tournament',
+        'devy',
+        'c2c',
+        'salary_cap',
+        'big_brother',
+      ].includes(ctx.leagueType),
+    build: () => {
+      const pprValue = pprMap[opts.ppr]
+      const scoring = opts.ppr === 'full' ? 'ppr' : opts.ppr === 'half' ? 'half_ppr' : 'standard'
+      return {
+        scoring,
+        isSuperflex: false,
+        scoringSettings: {
+          source: 'af',
+          preset: id,
+          ppr: pprValue,
+          superflex: false,
+          tePremium: false,
+          tePremiumMultiplier: 1,
+          scoringFormat: `${scoring}_college`,
+        },
+      }
+    },
+  }
+}
+
 const RULES: PresetRule[] = [
+  ncaafPreset('ncaaf_standard', 'College Standard', 'No PPR for college football.', { ppr: 'standard' }),
+  ncaafPreset('ncaaf_standard_college', 'College Standard', 'No PPR for college football.', { ppr: 'standard' }),
+  ncaafPreset('ncaaf_half_ppr', 'College Half PPR', '0.5 per reception for college football.', { ppr: 'half' }),
+  ncaafPreset('ncaaf_half_ppr_college', 'College Half PPR', '0.5 per reception for college football.', { ppr: 'half' }),
+  ncaafPreset('ncaaf_ppr', 'College Full PPR', '1.0 per reception for college football.', { ppr: 'full' }),
+  ncaafPreset('ncaaf_ppr_college', 'College Full PPR', '1.0 per reception for college football.', { ppr: 'full' }),
+  fbPreset('fb_std', 'Standard', 'No PPR classic yardage + TD scoring.', { ppr: 'standard' }),
+  fbPreset('fb_ppr', 'Full PPR', '1.0 per reception, WR/TE friendly.', { ppr: 'full' }),
   fbPreset('fb_standard', 'Standard', 'No PPR — classic yardage + TD scoring.', { ppr: 'standard' }),
   fbPreset('fb_half_ppr', 'Half PPR', '0.5 per reception — balanced modern default.', { ppr: 'half' }),
   fbPreset('fb_full_ppr', 'Full PPR', '1.0 per reception — WR/TE friendly.', { ppr: 'full' }),
@@ -116,6 +172,60 @@ const RULES: PresetRule[] = [
     }),
   },
   // Non-football: sport-native “points” presets (stored as default + preset key for downstream settings).
+  {
+    id: 'fb_idp_ppr',
+    label: 'IDP balanced',
+    hint: 'Individual defensive players with balanced scoring.',
+    matches: (ctx) => ctx.idpSelected && supportsIdpLeagueSport(ctx.sport),
+    build: () => ({
+      scoring: 'IDP',
+      isSuperflex: false,
+      scoringSettings: {
+        source: 'af',
+        preset: 'idp_balanced',
+        ppr: 0.5,
+        superflex: false,
+        tePremium: false,
+        tePremiumMultiplier: 1,
+      },
+    }),
+  },
+  {
+    id: 'fb_idp_balanced',
+    label: 'IDP balanced',
+    hint: 'Individual defensive players with balanced scoring.',
+    matches: (ctx) => ctx.idpSelected && supportsIdpLeagueSport(ctx.sport),
+    build: () => ({
+      scoring: 'IDP',
+      isSuperflex: false,
+      scoringSettings: {
+        source: 'af',
+        preset: 'idp_balanced',
+        ppr: 0.5,
+        superflex: false,
+        tePremium: false,
+        tePremiumMultiplier: 1,
+      },
+    }),
+  },
+  {
+    id: 'idp_balanced',
+    label: 'IDP balanced',
+    hint: 'Individual defensive players with balanced scoring.',
+    matches: (ctx) => ctx.idpSelected && supportsIdpLeagueSport(ctx.sport),
+    build: () => ({
+      scoring: 'IDP',
+      isSuperflex: false,
+      scoringSettings: {
+        source: 'af',
+        preset: 'idp_balanced',
+        ppr: 0.5,
+        superflex: false,
+        tePremium: false,
+        tePremiumMultiplier: 1,
+      },
+    }),
+  },
   ...(
     [
       { sport: 'NBA' as const, id: 'nba_points', label: 'Points (classic)', hint: 'Fantasy points from NBA stats.' },
@@ -203,8 +313,16 @@ export function getDefaultScoringPresetId(ctx: PresetCtx): string {
   const opts = listScoringPresetOptions(ctx)
   if (opts.length === 0) return ''
   if (ctx.idpSelected) {
+    const balanced = opts.find((o) => o.id === 'idp_balanced')
+    if (balanced) return balanced.id
+    const fbBalanced = opts.find((o) => o.id === 'fb_idp_balanced')
+    if (fbBalanced) return fbBalanced.id
     const idp = opts.find((o) => o.id === 'fb_idp')
     if (idp) return idp.id
+  }
+  if (ctx.sport === 'NCAAF') {
+    const collegeHalf = opts.find((o) => o.id === 'ncaaf_half_ppr')
+    if (collegeHalf) return collegeHalf.id
   }
   const half = opts.find((o) => o.id === 'fb_half_ppr')
   return half?.id ?? opts[0]!.id
