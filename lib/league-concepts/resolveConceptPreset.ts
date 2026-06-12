@@ -1,0 +1,207 @@
+/**
+ * Resolves the best-matching concept preset for a given league creation request.
+ * Used by the league create route to gate unsupported formats and merge preset
+ * settings into the league settings blob.
+ */
+
+import { CONCEPT_PRESET_CATALOG, type ConceptPresetSeed } from './conceptPresetCatalog'
+import { normalizeConceptToFormat } from '@/lib/league-creation/canonical/normalizeConcept'
+import type { LeagueFormatId } from '@/lib/league/format-engine'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export type ConceptPresetResolutionOk = {
+  ok: true
+  preset: ConceptPresetSeed
+  settingsSnapshot: Record<string, unknown>
+  presetKey: string
+}
+
+export type ConceptPresetResolutionFail = {
+  ok: false
+  message: string
+  code: string
+  status: number
+  requiredFeatureFlag?: string | null
+  preset?: ConceptPresetSeed | null
+}
+
+export type ConceptPresetResolution = ConceptPresetResolutionOk | ConceptPresetResolutionFail
+
+type ResolveOptions = {
+  /** Allow admin-only / coming_soon presets (dev/staging only). */
+  allowAdmin?: boolean
+  /** Feature flags enabled for the requesting user. */
+  enabledFeatureFlags?: string[] | null
+  /** User-supplied overrides merged on top of the preset snapshot. */
+  userOverrides?: Record<string, unknown> | null
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function normalizeFormat(raw: string | null | undefined): LeagueFormatId {
+  if (!raw) return 'redraft'
+  const result = normalizeConceptToFormat(raw)
+  return (result?.formatId ?? 'redraft') as LeagueFormatId
+}
+
+function scorePreset(
+  preset: ConceptPresetSeed,
+  sport: string,
+  format: LeagueFormatId,
+  scoringPreset: string,
+  draftType: string,
+  modifiers: string[],
+): number {
+  if (preset.sport !== sport || preset.leagueType !== format) return -1
+  let score = 0
+  if (preset.scoringPreset === scoringPreset) score += 20
+  if (preset.draftTypesAllowed.includes(draftType)) score += 10
+  const presetMods = new Set(preset.metadata.modifiers ?? [])
+  for (const m of modifiers) {
+    if (presetMods.has(m)) score += 3
+  }
+  if (preset.isLaunchReady) score += 1
+  return score
+}
+
+function buildSettingsSnapshot(preset: ConceptPresetSeed): Record<string, unknown> {
+  return {
+    conceptPresetKey: preset.presetKey,
+    leagueType: preset.leagueType,
+    sport: preset.sport,
+    scoringPreset: preset.scoringPreset,
+    requiredDataFeeds: preset.requiredDataFeeds,
+    aiEnabledFeatures: preset.aiEnabledFeatures,
+    roster: {
+      rosterSlots: preset.rosterSlots,
+      benchSlots: preset.benchSlots,
+      irSlots: preset.irSlots,
+      taxiSlots: preset.taxiSlots ?? null,
+      collegeRosterSlots: preset.collegeRosterSlots ?? null,
+    },
+    idpRules: preset.idpRules ?? null,
+    modifiers: preset.metadata.modifiers ?? [],
+    readiness: preset.readiness,
+  }
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+export function resolveConceptPreset(args: {
+  sport: string
+  leagueType: string | null | undefined
+  scoringPreset: string | null | undefined
+  draftType: string | null | undefined
+  modifiers?: string[]
+  options?: ResolveOptions
+}): ConceptPresetResolution {
+  const sport = String(args.sport ?? '').toUpperCase()
+  const format = normalizeFormat(args.leagueType)
+  const scoringPreset = String(args.scoringPreset ?? '').trim()
+  const draftType = String(args.draftType ?? 'snake').toLowerCase()
+  const modifiers = args.modifiers ?? []
+  const opts = args.options ?? {}
+
+  // Find best-scoring preset
+  let best: { preset: ConceptPresetSeed; score: number } | null = null
+  for (const preset of CONCEPT_PRESET_CATALOG) {
+    const s = scorePreset(preset, sport as any, format, scoringPreset, draftType, modifiers)
+    if (s < 0) continue
+    if (!best || s > best.score) best = { preset, score: s }
+  }
+
+  if (!best) {
+    // No preset registered — allow the create flow to proceed with format-engine defaults
+    return {
+      ok: true,
+      preset: {
+        presetKey: `af:v2|concept=${format}|sport=${sport}|scoring=${scoringPreset || 'default'}|draft=${draftType}`,
+        sport: sport as any,
+        leagueType: format,
+        scoringPreset: scoringPreset || 'default',
+        draftTypesAllowed: [draftType],
+        defaultTeamCount: 12,
+        isLaunchReady: true,
+        readiness: 'launch_ready',
+        visibility: 'public',
+        requiredDataFeeds: [],
+        aiEnabledFeatures: [],
+        metadata: { modifiers },
+      },
+      settingsSnapshot: {
+        conceptPresetKey: null,
+        leagueType: format,
+        sport,
+        scoringPreset,
+        requiredDataFeeds: [],
+        aiEnabledFeatures: [],
+        modifiers,
+        readiness: 'launch_ready',
+      },
+      presetKey: `af:v2|concept=${format}|sport=${sport}|scoring=${scoringPreset || 'default'}|draft=${draftType}`,
+    }
+  }
+
+  const { preset } = best
+
+  // Gate admin-only and coming-soon presets
+  if (preset.visibility === 'admin_only' && !opts.allowAdmin) {
+    return {
+      ok: false,
+      message: 'This league format is not yet available.',
+      code: 'CONCEPT_NOT_AVAILABLE',
+      status: 403,
+      preset,
+    }
+  }
+
+  // Gate beta presets — require a feature flag or allowAdmin
+  if (preset.visibility === 'beta_only') {
+    const flagKey = `beta_${preset.leagueType}_${sport.toLowerCase()}`
+    const hasBetaFlag =
+      opts.allowAdmin ||
+      (Array.isArray(opts.enabledFeatureFlags) && opts.enabledFeatureFlags.includes(flagKey))
+    if (!hasBetaFlag) {
+      return {
+        ok: false,
+        message: `${preset.leagueType.toUpperCase()} is in beta. Access requires the ${flagKey} feature flag.`,
+        code: 'CONCEPT_REQUIRES_FEATURE_FLAG',
+        status: 403,
+        requiredFeatureFlag: flagKey,
+        preset,
+      }
+    }
+  }
+
+  const base = buildSettingsSnapshot(preset)
+  const snapshot: Record<string, unknown> = {
+    ...base,
+    ...(opts.userOverrides ?? {}),
+  }
+
+  return {
+    ok: true,
+    preset,
+    settingsSnapshot: snapshot,
+    presetKey: preset.presetKey,
+  }
+}
+
+/**
+ * Merges preset settings into the league settings record (preset wins on conflicts
+ * for structural keys; user settings win for optional overrides).
+ */
+export function mergeConceptPresetSettings(
+  presetSnapshot: Record<string, unknown>,
+  leagueSettings: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    ...leagueSettings,
+    ...presetSnapshot,
+    // Preserve user-supplied league name / language / timezone if present
+    leagueName: leagueSettings.leagueName ?? presetSnapshot.leagueName,
+    language: leagueSettings.language ?? presetSnapshot.language ?? 'en',
+    timezone: leagueSettings.timezone ?? presetSnapshot.timezone,
+  }
+}

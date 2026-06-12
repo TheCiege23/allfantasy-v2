@@ -1,0 +1,310 @@
+/**
+ * Concept preset catalog — one seed per supported (sport × format × scoring) combination.
+ * Each seed drives getLeagueDefaults() and the canonical creation pipeline.
+ * Formats without a seed still work via format-engine fallbacks; the seed adds
+ * enriched defaults (roster slots, AI features, readiness state).
+ */
+
+import type { LeagueSport } from '@prisma/client'
+import type { LeagueFormatId } from '@/lib/league/format-engine'
+
+export type ConceptPresetSeed = {
+  presetKey: string
+  sport: LeagueSport
+  leagueType: LeagueFormatId
+  scoringPreset: string
+  draftTypesAllowed: string[]
+  defaultTeamCount: number
+  isLaunchReady: boolean
+  readiness: 'launch_ready' | 'beta' | 'coming_soon'
+  visibility: 'public' | 'beta_only' | 'admin_only'
+  unsupportedReason?: string
+  requiredDataFeeds: string[]
+  aiEnabledFeatures: string[]
+  rosterSlots?: number
+  benchSlots?: number
+  irSlots?: number
+  taxiSlots?: number
+  collegeRosterSlots?: number
+  idpRules?: Record<string, unknown>
+  metadata: {
+    modifiers?: string[]
+    [key: string]: unknown
+  }
+}
+
+export const CONCEPT_PRESET_CATALOG: ConceptPresetSeed[] = [
+  // ── NFL Redraft ──────────────────────────────────────────────────────────────
+  {
+    presetKey: 'af:v2|concept=redraft|sport=NFL|scoring=fb_half_ppr|draft=snake',
+    sport: 'NFL',
+    leagueType: 'redraft',
+    scoringPreset: 'fb_half_ppr',
+    draftTypesAllowed: ['snake', 'linear', 'auction', 'auto', 'offline'],
+    defaultTeamCount: 12,
+    isLaunchReady: true,
+    readiness: 'launch_ready',
+    visibility: 'public',
+    requiredDataFeeds: ['af_nfl_schedule', 'af_nfl_players', 'af_nfl_projections'],
+    aiEnabledFeatures: ['waiver_advice', 'trade_eval', 'lineup_optimizer', 'draft_assistant'],
+    rosterSlots: 9,
+    benchSlots: 6,
+    irSlots: 1,
+    metadata: { modifiers: [] },
+  },
+  {
+    presetKey: 'af:v2|concept=redraft|sport=NFL|scoring=fb_ppr|draft=snake',
+    sport: 'NFL',
+    leagueType: 'redraft',
+    scoringPreset: 'fb_ppr',
+    draftTypesAllowed: ['snake', 'linear', 'auction', 'auto', 'offline'],
+    defaultTeamCount: 12,
+    isLaunchReady: true,
+    readiness: 'launch_ready',
+    visibility: 'public',
+    requiredDataFeeds: ['af_nfl_schedule', 'af_nfl_players', 'af_nfl_projections'],
+    aiEnabledFeatures: ['waiver_advice', 'trade_eval', 'lineup_optimizer', 'draft_assistant'],
+    rosterSlots: 9,
+    benchSlots: 6,
+    irSlots: 1,
+    metadata: { modifiers: [] },
+  },
+  {
+    presetKey: 'af:v2|concept=redraft|sport=NFL|scoring=fb_std|draft=snake',
+    sport: 'NFL',
+    leagueType: 'redraft',
+    scoringPreset: 'fb_std',
+    draftTypesAllowed: ['snake', 'linear', 'auction', 'auto', 'offline'],
+    defaultTeamCount: 12,
+    isLaunchReady: true,
+    readiness: 'launch_ready',
+    visibility: 'public',
+    requiredDataFeeds: ['af_nfl_schedule', 'af_nfl_players', 'af_nfl_projections'],
+    aiEnabledFeatures: ['waiver_advice', 'trade_eval', 'lineup_optimizer', 'draft_assistant'],
+    rosterSlots: 9,
+    benchSlots: 6,
+    irSlots: 1,
+    metadata: { modifiers: [] },
+  },
+  // ── NFL Dynasty ──────────────────────────────────────────────────────────────
+  {
+    presetKey: 'af:v2|concept=dynasty|sport=NFL|scoring=fb_dynasty_ppr|draft=snake',
+    sport: 'NFL',
+    leagueType: 'dynasty',
+    scoringPreset: 'fb_dynasty_ppr',
+    draftTypesAllowed: ['snake', 'linear', 'auction', 'offline'],
+    defaultTeamCount: 12,
+    isLaunchReady: true,
+    readiness: 'launch_ready',
+    visibility: 'public',
+    requiredDataFeeds: ['af_nfl_schedule', 'af_nfl_players', 'af_nfl_projections', 'af_nfl_rookies'],
+    aiEnabledFeatures: ['waiver_advice', 'trade_eval', 'lineup_optimizer', 'draft_assistant', 'dynasty_ranker'],
+    rosterSlots: 9,
+    benchSlots: 12,
+    irSlots: 2,
+    taxiSlots: 5,
+    metadata: { modifiers: ['dynasty', 'taxi'] },
+  },
+  // ── NFL Keeper ───────────────────────────────────────────────────────────────
+  {
+    presetKey: 'af:v2|concept=keeper|sport=NFL|scoring=fb_half_ppr|draft=snake',
+    sport: 'NFL',
+    leagueType: 'keeper',
+    scoringPreset: 'fb_half_ppr',
+    draftTypesAllowed: ['snake', 'linear', 'auction', 'offline'],
+    defaultTeamCount: 12,
+    isLaunchReady: true,
+    readiness: 'launch_ready',
+    visibility: 'public',
+    requiredDataFeeds: ['af_nfl_schedule', 'af_nfl_players', 'af_nfl_projections'],
+    aiEnabledFeatures: ['waiver_advice', 'trade_eval', 'draft_assistant', 'keeper_advisor'],
+    rosterSlots: 9,
+    benchSlots: 6,
+    irSlots: 1,
+    metadata: { modifiers: ['keeper'] },
+  },
+  // ── NFL Best Ball ────────────────────────────────────────────────────────────
+  {
+    presetKey: 'af:v2|concept=best_ball|sport=NFL|scoring=fb_ppr|draft=snake',
+    sport: 'NFL',
+    leagueType: 'best_ball',
+    scoringPreset: 'fb_ppr',
+    draftTypesAllowed: ['snake', 'linear'],
+    defaultTeamCount: 12,
+    isLaunchReady: true,
+    readiness: 'launch_ready',
+    visibility: 'public',
+    requiredDataFeeds: ['af_nfl_schedule', 'af_nfl_players', 'af_nfl_projections'],
+    aiEnabledFeatures: ['draft_assistant', 'best_ball_optimizer'],
+    rosterSlots: 18,
+    benchSlots: 0,
+    irSlots: 0,
+    metadata: { modifiers: ['best_ball'] },
+  },
+  // ── NFL IDP ──────────────────────────────────────────────────────────────────
+  {
+    presetKey: 'af:v2|concept=redraft|sport=NFL|scoring=fb_idp_ppr|draft=snake',
+    sport: 'NFL',
+    leagueType: 'redraft',
+    scoringPreset: 'fb_idp_ppr',
+    draftTypesAllowed: ['snake', 'linear', 'auction', 'offline'],
+    defaultTeamCount: 12,
+    isLaunchReady: true,
+    readiness: 'launch_ready',
+    visibility: 'public',
+    requiredDataFeeds: ['af_nfl_schedule', 'af_nfl_players', 'af_nfl_projections', 'af_nfl_idp_stats'],
+    aiEnabledFeatures: ['waiver_advice', 'trade_eval', 'lineup_optimizer', 'draft_assistant', 'idp_ranker'],
+    rosterSlots: 13,
+    benchSlots: 7,
+    irSlots: 2,
+    idpRules: { positionMode: 'standard', scoringPreset: 'balanced' },
+    metadata: { modifiers: ['idp'] },
+  },
+  // ── NFL Guillotine ───────────────────────────────────────────────────────────
+  {
+    presetKey: 'af:v2|concept=guillotine|sport=NFL|scoring=fb_half_ppr|draft=snake',
+    sport: 'NFL',
+    leagueType: 'guillotine',
+    scoringPreset: 'fb_half_ppr',
+    draftTypesAllowed: ['snake', 'linear', 'auction'],
+    defaultTeamCount: 12,
+    isLaunchReady: true,
+    readiness: 'launch_ready',
+    visibility: 'public',
+    requiredDataFeeds: ['af_nfl_schedule', 'af_nfl_players', 'af_nfl_projections'],
+    aiEnabledFeatures: ['waiver_advice', 'draft_assistant', 'guillotine_danger_alert'],
+    rosterSlots: 9,
+    benchSlots: 6,
+    irSlots: 0,
+    metadata: { modifiers: ['guillotine'] },
+  },
+  // ── NFL Survivor ─────────────────────────────────────────────────────────────
+  {
+    presetKey: 'af:v2|concept=survivor|sport=NFL|scoring=fb_half_ppr|draft=snake',
+    sport: 'NFL',
+    leagueType: 'survivor',
+    scoringPreset: 'fb_half_ppr',
+    draftTypesAllowed: ['snake'],
+    defaultTeamCount: 12,
+    isLaunchReady: true,
+    readiness: 'launch_ready',
+    visibility: 'public',
+    requiredDataFeeds: ['af_nfl_schedule', 'af_nfl_players'],
+    aiEnabledFeatures: ['draft_assistant', 'survivor_pick_advisor'],
+    rosterSlots: 9,
+    benchSlots: 0,
+    irSlots: 0,
+    metadata: { modifiers: ['survivor'] },
+  },
+  // ── NFL Salary Cap ───────────────────────────────────────────────────────────
+  {
+    presetKey: 'af:v2|concept=salary_cap|sport=NFL|scoring=fb_half_ppr|draft=auction',
+    sport: 'NFL',
+    leagueType: 'salary_cap',
+    scoringPreset: 'fb_half_ppr',
+    draftTypesAllowed: ['auction'],
+    defaultTeamCount: 12,
+    isLaunchReady: true,
+    readiness: 'launch_ready',
+    visibility: 'public',
+    requiredDataFeeds: ['af_nfl_schedule', 'af_nfl_players', 'af_nfl_projections', 'af_nfl_contracts'],
+    aiEnabledFeatures: ['waiver_advice', 'trade_eval', 'draft_assistant', 'cap_advisor'],
+    rosterSlots: 9,
+    benchSlots: 6,
+    irSlots: 2,
+    taxiSlots: 3,
+    metadata: { modifiers: ['salary_cap', 'dynasty'] },
+  },
+  // ── NFL Tournament / Big Brother / Zombie ────────────────────────────────────
+  {
+    presetKey: 'af:v2|concept=tournament|sport=NFL|scoring=fb_half_ppr|draft=snake',
+    sport: 'NFL',
+    leagueType: 'tournament',
+    scoringPreset: 'fb_half_ppr',
+    draftTypesAllowed: ['snake'],
+    defaultTeamCount: 8,
+    isLaunchReady: true,
+    readiness: 'launch_ready',
+    visibility: 'public',
+    requiredDataFeeds: ['af_nfl_schedule', 'af_nfl_players'],
+    aiEnabledFeatures: ['draft_assistant'],
+    rosterSlots: 9,
+    benchSlots: 4,
+    irSlots: 0,
+    metadata: { modifiers: ['tournament'] },
+  },
+  {
+    presetKey: 'af:v2|concept=big_brother|sport=NFL|scoring=fb_half_ppr|draft=snake',
+    sport: 'NFL',
+    leagueType: 'big_brother',
+    scoringPreset: 'fb_half_ppr',
+    draftTypesAllowed: ['snake'],
+    defaultTeamCount: 10,
+    isLaunchReady: true,
+    readiness: 'launch_ready',
+    visibility: 'public',
+    requiredDataFeeds: ['af_nfl_schedule', 'af_nfl_players'],
+    aiEnabledFeatures: ['draft_assistant'],
+    rosterSlots: 9,
+    benchSlots: 4,
+    irSlots: 0,
+    metadata: { modifiers: ['big_brother'] },
+  },
+  {
+    presetKey: 'af:v2|concept=zombie|sport=NFL|scoring=fb_half_ppr|draft=snake',
+    sport: 'NFL',
+    leagueType: 'zombie',
+    scoringPreset: 'fb_half_ppr',
+    draftTypesAllowed: ['snake'],
+    defaultTeamCount: 12,
+    isLaunchReady: true,
+    readiness: 'launch_ready',
+    visibility: 'public',
+    requiredDataFeeds: ['af_nfl_schedule', 'af_nfl_players'],
+    aiEnabledFeatures: ['draft_assistant'],
+    rosterSlots: 9,
+    benchSlots: 6,
+    irSlots: 0,
+    metadata: { modifiers: ['zombie'] },
+  },
+  // ── NCAAF Devy ───────────────────────────────────────────────────────────────
+  {
+    presetKey: 'af:v2|concept=devy|sport=NCAAF|scoring=ncaaf_devy_ppr|draft=snake',
+    sport: 'NCAAF',
+    leagueType: 'devy',
+    scoringPreset: 'ncaaf_devy_ppr',
+    draftTypesAllowed: ['snake', 'linear'],
+    defaultTeamCount: 12,
+    isLaunchReady: false,
+    readiness: 'beta',
+    visibility: 'beta_only',
+    requiredDataFeeds: ['af_ncaaf_players', 'af_ncaaf_schedule', 'af_ncaaf_stats'],
+    aiEnabledFeatures: ['draft_assistant', 'devy_ranker'],
+    rosterSlots: 9,
+    benchSlots: 8,
+    irSlots: 2,
+    taxiSlots: 5,
+    collegeRosterSlots: 4,
+    metadata: { modifiers: ['devy', 'taxi'] },
+  },
+  // ── NCAAF C2C ────────────────────────────────────────────────────────────────
+  {
+    presetKey: 'af:v2|concept=c2c|sport=NCAAF|scoring=ncaaf_c2c_ppr|draft=snake',
+    sport: 'NCAAF',
+    leagueType: 'c2c',
+    scoringPreset: 'ncaaf_c2c_ppr',
+    draftTypesAllowed: ['snake', 'linear'],
+    defaultTeamCount: 12,
+    isLaunchReady: false,
+    readiness: 'beta',
+    visibility: 'beta_only',
+    requiredDataFeeds: ['af_ncaaf_players', 'af_ncaaf_schedule', 'af_nfl_players', 'af_nfl_schedule'],
+    aiEnabledFeatures: ['draft_assistant', 'c2c_ranker'],
+    rosterSlots: 9,
+    benchSlots: 8,
+    irSlots: 2,
+    taxiSlots: 4,
+    collegeRosterSlots: 4,
+    metadata: { modifiers: ['c2c', 'taxi'] },
+  },
+]
