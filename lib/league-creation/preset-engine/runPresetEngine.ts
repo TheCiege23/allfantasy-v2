@@ -17,6 +17,7 @@ import type { DerivedLeagueFlags, PresetEngineOutput } from '@/lib/league-creati
 import { buildRedraftSettingsSnapshot } from '@/lib/league-concepts/redraftDefaults'
 import { buildDynastySettingsSnapshot, isDynastyEligibleSport } from '@/lib/league-concepts/dynastyDefaults'
 import { buildBestBallSettingsSnapshot, isBestBallEligibleSport } from '@/lib/league-concepts/bestBallDefaults'
+import { buildKeeperSettingsSnapshot } from '@/lib/league-concepts/keeperDefaults'
 import { buildGuillotineSettingsSnapshot, isGuillotineEligibleSport } from '@/lib/league-concepts/guillotineDefaults'
 
 export const PRESET_ENGINE_VERSION = '1'
@@ -141,6 +142,15 @@ export function runPresetEngine(input: RunPresetEngineInput): PresetEngineOutput
           teamCount: input.teamCount,
         })
       : null
+  const keeperSnapshot =
+    formatId === 'keeper'
+      ? buildKeeperSettingsSnapshot({
+          sport,
+          draftType: input.draftType,
+          scoringPresetId: input.scoringPreset,
+          teamCount: input.teamCount,
+        })
+      : null
 
   const dynastySnapshot =
     formatId === 'dynasty' && isDynastyEligibleSport(sport)
@@ -169,7 +179,6 @@ export function runPresetEngine(input: RunPresetEngineInput): PresetEngineOutput
     conceptSetup: input.conceptSetup ?? null,
     resolution,
   })
-
   const guillotineSnapshot =
     formatId === 'guillotine' && isGuillotineEligibleSport(sport)
       ? buildGuillotineSettingsSnapshot({
@@ -180,7 +189,7 @@ export function runPresetEngine(input: RunPresetEngineInput): PresetEngineOutput
         })
       : null
 
-  const canonicalSnapshot = redraftSnapshot ?? dynastySnapshot ?? bestBallSnapshot ?? guillotineSnapshot ?? null
+  const canonicalSnapshot = redraftSnapshot ?? dynastySnapshot ?? bestBallSnapshot ?? keeperSnapshot ?? guillotineSnapshot ?? null
 
   const settingsSnapshot: SettingsSnapshot = {
     snapshotVersion: SETTINGS_SNAPSHOT_VERSION,
@@ -199,7 +208,8 @@ export function runPresetEngine(input: RunPresetEngineInput): PresetEngineOutput
       rounds: resolution.draftDefaults.rounds_default,
       timerSeconds: resolution.draftDefaults.timer_seconds_default ?? undefined,
     }) as SettingsSnapshot['draftSettings'],
-    waiverSettings: resolution.waiverDefaults as unknown as SettingsSnapshot['waiverSettings'],
+    waiverSettings: (canonicalSnapshot?.waiverSettings ??
+      resolution.waiverDefaults) as unknown as SettingsSnapshot['waiverSettings'],
     playoffSettings: resolution.playoffDefaults as unknown as SettingsSnapshot['playoffSettings'],
     commissionerSettings: {},
     mediaSettings: {

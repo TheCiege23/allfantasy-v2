@@ -10,6 +10,11 @@ import {
   getRedraftDefaultContract,
   type RedraftDefaultContract,
 } from '@/lib/league-concepts/redraftDefaults'
+import {
+  buildKeeperSettingsSnapshot,
+  getKeeperDefaultContract,
+  type KeeperDefaultContract,
+} from '@/lib/league-concepts/keeperDefaults'
 
 export type LeagueFoundationDefaultsInput = {
   sport: LeagueSport | string
@@ -32,11 +37,14 @@ export type LeagueFoundationDefaults = {
   playoffSettings: Record<string, unknown>
   scheduleSettings: Record<string, unknown>
   redraftContract?: RedraftDefaultContract | null
+  keeperContract?: KeeperDefaultContract | null
   playerPoolRules?: Record<string, unknown>
   tabsEnabled?: Record<string, unknown>
   mockDraftRules?: Record<string, unknown>
   liveDraftRules?: Record<string, unknown>
   disabledSettings?: Record<string, unknown>
+  keeperPolicy?: Record<string, unknown>
+  tradeSettings?: Record<string, unknown>
   conceptPreset: {
     presetKey: string | null
     readiness: string
@@ -121,6 +129,24 @@ export function getLeagueDefaults(input: LeagueFoundationDefaultsInput): LeagueF
           teamCount: input.managerCount,
         })
       : null
+  const keeperContract =
+    format === 'keeper'
+      ? getKeeperDefaultContract({
+          sport,
+          draftType: input.draftType,
+          scoringPresetId: scoringPreset || null,
+          teamCount: input.managerCount,
+        })
+      : null
+  const keeperSnapshot =
+    keeperContract
+      ? buildKeeperSettingsSnapshot({
+          sport,
+          draftType: input.draftType,
+          scoringPresetId: keeperContract.scoring_preset_id,
+          teamCount: input.managerCount,
+        })
+      : null
   const resolution = resolveLeagueFormat({
     sport,
     leagueType: format,
@@ -137,16 +163,18 @@ export function getLeagueDefaults(input: LeagueFoundationDefaultsInput): LeagueF
   })
   const managerCount = numericOr(
     input.managerCount,
-    redraftContract?.teams ?? preset?.defaultTeamCount ?? resolution.leagueDefaults.default_team_count ?? 12,
+    keeperContract?.teams ?? redraftContract?.teams ?? preset?.defaultTeamCount ?? resolution.leagueDefaults.default_team_count ?? 12,
   )
-  const redraftDraftSettings = (redraftSnapshot?.draftSettings as Record<string, unknown> | undefined) ?? null
-  const rounds = numericOr(redraftDraftSettings?.rounds ?? resolution.draftDefaults.rounds_default, engineDraftType === 'auction' ? 15 : 15)
-  const timerSeconds = numericOr(redraftDraftSettings?.timerSeconds ?? resolution.draftDefaults.timer_seconds_default, 90)
+  const canonicalSnapshot = redraftSnapshot ?? keeperSnapshot ?? null
+  const canonicalDraftSettings = (canonicalSnapshot?.draftSettings as Record<string, unknown> | undefined) ?? null
+  const rounds = numericOr(canonicalDraftSettings?.rounds ?? resolution.draftDefaults.rounds_default, engineDraftType === 'auction' ? 15 : 15)
+  const timerSeconds = numericOr(canonicalDraftSettings?.timerSeconds ?? resolution.draftDefaults.timer_seconds_default, 90)
   const playoff = resolution.playoffDefaults as unknown as Record<string, unknown>
   const scoring = resolution.scoring as unknown as Record<string, unknown>
   const roster = resolution.roster as unknown as Record<string, unknown>
   const waiverDefaults = resolution.waiverDefaults as unknown as Record<string, unknown>
   const scheduleDefaults = resolution.scheduleDefaults as unknown as Record<string, unknown>
+  const canonicalRosterSettings = (canonicalSnapshot?.rosterSettings as Record<string, unknown> | undefined) ?? {}
 
   return {
     sport,
@@ -156,16 +184,16 @@ export function getLeagueDefaults(input: LeagueFoundationDefaultsInput): LeagueF
     managerCount,
     rosterSettings: {
       ...roster,
-      ...((redraftSnapshot?.rosterSettings as Record<string, unknown> | undefined) ?? {}),
-      rosterSlots: preset?.rosterSlots,
-      benchSlots: preset?.benchSlots,
-      irSlots: preset?.irSlots,
-      taxiSlots: preset?.taxiSlots,
-      collegeRosterSlots: preset?.collegeRosterSlots,
+      ...canonicalRosterSettings,
+      rosterSlots: canonicalRosterSettings.rosterSlots ?? preset?.rosterSlots,
+      benchSlots: canonicalRosterSettings.benchSlots ?? preset?.benchSlots,
+      irSlots: canonicalRosterSettings.irSlots ?? preset?.irSlots,
+      taxiSlots: canonicalRosterSettings.taxiSlots ?? preset?.taxiSlots,
+      collegeRosterSlots: canonicalRosterSettings.collegeRosterSlots ?? preset?.collegeRosterSlots,
     },
     scoringSettings: {
       ...scoring,
-      ...((redraftSnapshot?.scoringSettings as Record<string, unknown> | undefined) ?? {}),
+      ...((canonicalSnapshot?.scoringSettings as Record<string, unknown> | undefined) ?? {}),
       preset: scoringPreset || preset?.scoringPreset || scoring.scoringTemplateId,
       scoringTemplateId: scoringPreset || preset?.scoringPreset || scoring.scoringTemplateId,
       scoringMode: scoring.scoringMode ?? 'points',
@@ -176,7 +204,7 @@ export function getLeagueDefaults(input: LeagueFoundationDefaultsInput): LeagueF
     },
     draftSettings: {
       ...resolution.draftDefaults,
-      ...redraftDraftSettings,
+      ...canonicalDraftSettings,
       draftType: engineDraftType,
       requestedDraftType: String(input.draftType).trim().toLowerCase(),
       rounds,
@@ -196,11 +224,14 @@ export function getLeagueDefaults(input: LeagueFoundationDefaultsInput): LeagueF
     },
     scheduleSettings: scheduleDefaults,
     redraftContract,
-    playerPoolRules: (redraftSnapshot?.playerPoolRules as Record<string, unknown> | undefined) ?? undefined,
-    tabsEnabled: (redraftSnapshot?.tabsEnabled as Record<string, unknown> | undefined) ?? undefined,
-    mockDraftRules: (redraftSnapshot?.mockDraftRules as Record<string, unknown> | undefined) ?? undefined,
-    liveDraftRules: (redraftSnapshot?.liveDraftRules as Record<string, unknown> | undefined) ?? undefined,
-    disabledSettings: redraftContract?.disabledSettings,
+    keeperContract,
+    playerPoolRules: (canonicalSnapshot?.playerPoolRules as Record<string, unknown> | undefined) ?? undefined,
+    tabsEnabled: (canonicalSnapshot?.tabsEnabled as Record<string, unknown> | undefined) ?? undefined,
+    mockDraftRules: (canonicalSnapshot?.mockDraftRules as Record<string, unknown> | undefined) ?? undefined,
+    liveDraftRules: (canonicalSnapshot?.liveDraftRules as Record<string, unknown> | undefined) ?? undefined,
+    disabledSettings: redraftContract?.disabledSettings ?? keeperContract?.disabledSettings,
+    keeperPolicy: (keeperSnapshot?.keeperSettings as Record<string, unknown> | undefined) ?? undefined,
+    tradeSettings: (keeperSnapshot?.tradeSettings as Record<string, unknown> | undefined) ?? undefined,
     conceptPreset: {
       presetKey: preset?.presetKey ?? null,
       readiness: preset?.readiness ?? 'launch_ready',

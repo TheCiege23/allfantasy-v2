@@ -385,7 +385,7 @@ export function getCreateLeagueDraftTypes(
   const all = getAllowedDraftTypesForFormat(sport, rawFormat)
   const fmt = String(rawFormat ?? 'redraft').trim().toLowerCase()
   // Specialty formats keep their full variant list on the create form.
-  if (fmt === 'redraft' || fmt === 'devy' || fmt === 'c2c' || fmt === 'salary_cap' || fmt === 'guillotine' || fmt === 'best_ball') {
+  if (fmt === 'redraft' || fmt === 'keeper' || fmt === 'devy' || fmt === 'c2c' || fmt === 'salary_cap' || fmt === 'guillotine' || fmt === 'best_ball') {
     return all
   }
   // All other formats: only snake at create time.
@@ -439,9 +439,11 @@ export function resolveLeagueFormat(options: {
           ? 'merged_devy_c2c'
           : format.id === 'dynasty'
             ? 'dynasty'
-            : scopedModifiers.includes('superflex')
-              ? 'SUPERFLEX'
-              : null
+            : format.id === 'keeper'
+              ? 'KEEPER'
+              : scopedModifiers.includes('superflex')
+                ? 'SUPERFLEX'
+                : null
   )
   const waiverDefaults = getWaiverDefaults(sport, format.id)
   const playoffDefaults = resolveDefaultPlayoffConfig(sport, format.id)

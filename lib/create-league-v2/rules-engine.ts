@@ -160,6 +160,7 @@ export function getDefaultTeamCount(
  * core Best Ball product surface. Other formats keep `offline` settings-tab-only.
  */
 const EXECUTION_DRAFT_IDS = ['auto', 'offline'] as const
+const KEEPER_EXECUTION_DRAFT_IDS = ['auto', 'offline', 'team'] as const
 
 /** Widened string type so the UI can accept execution-mode ids that aren't Prisma DraftTypeIds. */
 export type WizardDraftTypeId = DraftTypeId | 'auto' | 'offline' | 'team'
@@ -194,16 +195,26 @@ export function getDraftTypeOptions(leagueType: LeagueTypeId, sport: SupportedSp
 
   // Best Ball keeps execution modes visible on the create surface so the
   // underlying order algorithm and execution mode can both be selected up front.
-  if (leagueType === 'best_ball' || leagueType === 'redraft') {
+  if (leagueType === 'best_ball' || leagueType === 'redraft' || leagueType === 'keeper') {
     const existing = new Set(result.map((option) => option.id))
-    const executionModes = leagueType === 'best_ball' ? BEST_BALL_DRAFT_MODES : EXECUTION_DRAFT_IDS
+    const executionModes =
+      leagueType === 'best_ball'
+        ? BEST_BALL_DRAFT_MODES
+        : leagueType === 'keeper'
+          ? KEEPER_EXECUTION_DRAFT_IDS
+          : EXECUTION_DRAFT_IDS
     for (const mode of executionModes) {
       if (mode === 'snake' || mode === 'linear' || mode === 'auction') continue
       if (existing.has(mode)) continue
       result.push({
         id: mode,
-        label: mode === 'auto' ? 'Auto' : 'Offline',
-        hint: mode === 'auto' ? 'CPU drafts for every team' : 'Commissioner records picks manually',
+        label: mode === 'auto' ? 'Auto' : mode === 'team' ? 'Team' : 'Offline',
+        hint:
+          mode === 'auto'
+            ? 'CPU drafts for every team'
+            : mode === 'team'
+              ? 'Co-managers share draft controls'
+              : 'Commissioner records picks manually',
       })
     }
   } else if (leagueType !== 'big_brother' && leagueType !== 'zombie') {

@@ -38,6 +38,7 @@ import {
   type ConceptPresetResolution,
 } from '@/lib/league-concepts/resolveConceptPreset';
 import { normalizeRedraftSettingsSnapshot } from '@/lib/league-concepts/redraftDefaults';
+import { normalizeKeeperSettingsSnapshot } from '@/lib/league-concepts/keeperDefaults';
 
 const createSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -982,6 +983,21 @@ export async function POST(req: Request) {
           settings: initialSettings,
         });
         Object.assign(initialSettings, normalizedRedraftSettings);
+      }
+      if (
+        String(requestedLeagueType ?? initialSettings.league_type ?? '').toLowerCase() === 'keeper' &&
+        (sport === 'NFL' || sport === 'NCAAF')
+      ) {
+        const normalizedKeeperSettings = normalizeKeeperSettingsSnapshot({
+          sport,
+          draftType: requestedDraftType ?? initialSettings.requested_draft_type ?? initialSettings.draft_type,
+          scoringPresetId:
+            scoringPresetIdInput?.trim() ||
+            (typeof initialSettings.scoring_preset_id === 'string' ? initialSettings.scoring_preset_id : null),
+          teamCount: typeof leagueSize === 'number' ? leagueSize : null,
+          settings: initialSettings,
+        });
+        Object.assign(initialSettings, normalizedKeeperSettings);
       }
     }
 

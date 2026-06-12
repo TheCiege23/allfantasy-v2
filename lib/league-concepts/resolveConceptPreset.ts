@@ -23,6 +23,11 @@ import {
   normalizeBestBallSettingsSnapshot,
 } from '@/lib/league-concepts/bestBallDefaults'
 import {
+  buildKeeperSettingsSnapshot,
+  isFootballKeeperDefaultsSport,
+  normalizeKeeperSettingsSnapshot,
+} from '@/lib/league-concepts/keeperDefaults'
+import {
   buildGuillotineSettingsSnapshot,
   isGuillotineEligibleSport,
   normalizeGuillotineSettingsSnapshot,
@@ -113,6 +118,15 @@ function buildSettingsSnapshot(preset: ConceptPresetSeed): Record<string, unknow
           teamCount: preset.defaultTeamCount,
         })
       : null
+  const keeperSnapshot =
+    preset.leagueType === 'keeper' && isFootballKeeperDefaultsSport(preset.sport)
+      ? buildKeeperSettingsSnapshot({
+          sport: preset.sport,
+          draftType: preset.draftTypesAllowed[0] ?? 'snake',
+          scoringPresetId: preset.scoringPreset,
+          teamCount: preset.defaultTeamCount,
+        })
+      : null
   const guillotineSnapshot =
     preset.leagueType === 'guillotine' && isGuillotineEligibleSport(preset.sport)
       ? buildGuillotineSettingsSnapshot({
@@ -126,6 +140,7 @@ function buildSettingsSnapshot(preset: ConceptPresetSeed): Record<string, unknow
     ...(redraftSnapshot ?? {}),
     ...(dynastySnapshot ?? {}),
     ...(bestBallSnapshot ?? {}),
+    ...(keeperSnapshot ?? {}),
     ...(guillotineSnapshot ?? {}),
     conceptPresetKey: preset.presetKey,
     leagueType: preset.leagueType,
@@ -264,15 +279,23 @@ export function resolveConceptPreset(args: {
               teamCount: preset.defaultTeamCount,
               settings: snapshotBase,
             })
-          : preset.leagueType === 'guillotine' && isGuillotineEligibleSport(sport)
-            ? normalizeGuillotineSettingsSnapshot({
+          : preset.leagueType === 'keeper' && isFootballKeeperDefaultsSport(sport)
+            ? normalizeKeeperSettingsSnapshot({
                 sport,
                 draftType,
                 scoringPresetId: preset.scoringPreset,
                 teamCount: preset.defaultTeamCount,
                 settings: snapshotBase,
               })
-            : snapshotBase
+            : preset.leagueType === 'guillotine' && isGuillotineEligibleSport(sport)
+              ? normalizeGuillotineSettingsSnapshot({
+                  sport,
+                  draftType,
+                  scoringPresetId: preset.scoringPreset,
+                  teamCount: preset.defaultTeamCount,
+                  settings: snapshotBase,
+                })
+              : snapshotBase
 
   return {
     ok: true,
@@ -359,6 +382,35 @@ export function mergeConceptPresetSettings(
       timezone: leagueSettings.timezone ?? presetSnapshot.timezone,
     }
     return normalizeBestBallSettingsSnapshot({
+      sport,
+      draftType: leagueSettings.requested_draft_type ?? leagueSettings.draft_type ?? presetSnapshot.requested_draft_type ?? presetSnapshot.draft_type,
+      scoringPresetId:
+        typeof leagueSettings.scoring_preset_id === 'string'
+          ? leagueSettings.scoring_preset_id
+          : typeof presetSnapshot.scoring_preset_id === 'string'
+            ? presetSnapshot.scoring_preset_id
+            : typeof presetSnapshot.scoringPreset === 'string'
+              ? presetSnapshot.scoringPreset
+              : null,
+      teamCount:
+        typeof leagueSettings.default_team_count === 'number'
+          ? leagueSettings.default_team_count
+          : typeof presetSnapshot.default_team_count === 'number'
+            ? presetSnapshot.default_team_count
+            : null,
+      settings: merged,
+    })
+  }
+
+  if (leagueType === 'keeper' && isFootballKeeperDefaultsSport(sport)) {
+    const merged = {
+      ...presetSnapshot,
+      ...leagueSettings,
+      leagueName: leagueSettings.leagueName ?? presetSnapshot.leagueName,
+      language: leagueSettings.language ?? presetSnapshot.language ?? 'en',
+      timezone: leagueSettings.timezone ?? presetSnapshot.timezone,
+    }
+    return normalizeKeeperSettingsSnapshot({
       sport,
       draftType: leagueSettings.requested_draft_type ?? leagueSettings.draft_type ?? presetSnapshot.requested_draft_type ?? presetSnapshot.draft_type,
       scoringPresetId:

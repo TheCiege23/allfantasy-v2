@@ -12,6 +12,10 @@ function str(v: unknown, fallback: string): string {
   return String(v)
 }
 
+function obj(v: unknown): Record<string, unknown> {
+  return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {}
+}
+
 /**
  * Maps wizard / API payload fields onto Prisma `League` keeper columns and `DraftSession.keeperConfig`.
  * Used by canonical create and legacy POST /api/league/create for keeper leagues.
@@ -27,7 +31,17 @@ export function mapKeeperCreationFromWizard(args: {
 } {
   const ks = args.keeperSettings && typeof args.keeperSettings === 'object' ? args.keeperSettings : {}
   const cs = args.conceptSetup && typeof args.conceptSetup === 'object' ? args.conceptSetup : {}
-  const merged: Record<string, unknown> = { ...args.settings, ...ks, ...cs }
+  const nestedSettings = obj(args.settings.keeperSettings)
+  const nestedPolicy = obj(args.settings.keeperPolicy)
+  const nestedConcept = obj(cs.keeperSettings)
+  const merged: Record<string, unknown> = {
+    ...args.settings,
+    ...nestedSettings,
+    ...nestedPolicy,
+    ...ks,
+    ...cs,
+    ...nestedConcept,
+  }
 
   const maxKeepers = Math.max(
     0,
@@ -103,6 +117,35 @@ export function mapKeeperCreationFromWizard(args: {
     maxKeepers,
     ...(deadline ? { deadline: deadline.toISOString() } : {}),
     ...(maxPerPos ? { maxKeepersPerPosition: maxPerPos } : {}),
+    costSystem,
+    maxYears,
+    roundPenalty,
+    auctionPctIncrease: auctionPct,
+    waiverAllowed,
+    eligibilityRule,
+    conflictRule: String(league.keeperConflictRule ?? 'player_chooses'),
+    missedDeadlineRule: String(league.keeperMissedDeadlineRule ?? 'auto_no_keepers'),
+    keptPlayersRemovedFromPool:
+      merged.kept_players_removed_from_pool === false || merged.keptPlayersRemovedFromPool === false ? false : true,
+    keptPlayerRoundCostsEnabled:
+      isAuction
+        ? false
+        : merged.kept_player_round_costs_enabled === false || merged.keptPlayerRoundCostsEnabled === false
+          ? false
+          : true,
+    draftRoundAdjustmentsEnabled:
+      isAuction
+        ? false
+        : merged.draft_round_adjustments_enabled === false || merged.draftRoundAdjustmentsEnabled === false
+          ? false
+          : true,
+    keptPlayerBudgetDeductionsEnabled:
+      isAuction &&
+      !(merged.kept_player_budget_deductions_enabled === false || merged.keptPlayerBudgetDeductionsEnabled === false),
+    rosterNeedsAccountForKeepers:
+      merged.roster_needs_account_for_keepers === false || merged.rosterNeedsAccountForKeepers === false
+        ? false
+        : true,
   }
 
   return { league, draftKeeperConfig }
