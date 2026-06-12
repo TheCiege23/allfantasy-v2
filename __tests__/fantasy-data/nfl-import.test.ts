@@ -20,6 +20,16 @@ vi.mock("@/lib/workers/injury-importer", () => ({
 vi.mock("@/lib/workers/schedule-importer", () => ({
   runScheduleImporter: vi.fn(),
 }))
+vi.mock("@/lib/workers/news-importer", () => ({
+  runNewsImporter: vi.fn(),
+}))
+vi.mock("@/lib/fantasy-data/importProviderDomainData", () => ({
+  importProviderDomainData: vi.fn(),
+}))
+vi.mock("@/lib/rolling-insights", () => ({
+  syncNFLDepthChartsToDb: vi.fn(),
+  syncNFLTeamStatsToDb: vi.fn(),
+}))
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     syncJobRun: {
@@ -33,11 +43,18 @@ import { runSportsDataImporter } from "@/lib/workers/sports-data-importer"
 import { runAdpImporter } from "@/lib/workers/adp-importer"
 import { runInjuryImporter } from "@/lib/workers/injury-importer"
 import { runScheduleImporter } from "@/lib/workers/schedule-importer"
+import { runNewsImporter } from "@/lib/workers/news-importer"
+import { importProviderDomainData } from "@/lib/fantasy-data/importProviderDomainData"
+import { syncNFLDepthChartsToDb, syncNFLTeamStatsToDb } from "@/lib/rolling-insights"
 
 const mockImporter = runSportsDataImporter as ReturnType<typeof vi.fn>
 const mockAdp = runAdpImporter as ReturnType<typeof vi.fn>
 const mockInjury = runInjuryImporter as ReturnType<typeof vi.fn>
 const mockSchedule = runScheduleImporter as ReturnType<typeof vi.fn>
+const mockNews = runNewsImporter as ReturnType<typeof vi.fn>
+const mockDomains = importProviderDomainData as ReturnType<typeof vi.fn>
+const mockDepthCharts = syncNFLDepthChartsToDb as ReturnType<typeof vi.fn>
+const mockTeamStats = syncNFLTeamStatsToDb as ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   vi.resetAllMocks()
@@ -46,6 +63,10 @@ beforeEach(() => {
   mockAdp.mockResolvedValue({ imported: 0, sports: ["NFL"] })
   mockInjury.mockResolvedValue({ imported: 0, sports: ["NFL"], priorityWindow: false })
   mockSchedule.mockResolvedValue({ imported: 0, sports: ["NFL"], season: 2026 })
+  mockNews.mockResolvedValue({ imported: 0, sports: ["NFL"] })
+  mockDomains.mockResolvedValue({ imported: 0, results: [], warnings: [], errors: [] })
+  mockDepthCharts.mockResolvedValue(0)
+  mockTeamStats.mockResolvedValue(0)
 })
 
 describe("importNflFantasyData", () => {
@@ -73,6 +94,8 @@ describe("importNflFantasyData", () => {
     expect(mockAdp).toHaveBeenCalledWith(expect.objectContaining({ sports: ["NFL"] }))
     expect(mockInjury).toHaveBeenCalledWith(expect.objectContaining({ sports: ["NFL"] }))
     expect(mockSchedule).toHaveBeenCalledWith(expect.objectContaining({ sports: ["NFL"] }))
+    expect(mockNews).toHaveBeenCalledWith(expect.objectContaining({ sports: ["NFL"] }))
+    expect(mockDomains).toHaveBeenCalledWith(expect.objectContaining({ sport: "NFL" }))
   })
 
   it("dryRun skips all DB writes and workers", async () => {
@@ -82,6 +105,7 @@ describe("importNflFantasyData", () => {
     expect(result.counts.players).toBe(0)
     expect(mockImporter).not.toHaveBeenCalled()
     expect(mockAdp).not.toHaveBeenCalled()
+    expect(mockDomains).not.toHaveBeenCalled()
   })
 
   it("returns missingEnv list when provider keys absent", async () => {
@@ -92,7 +116,7 @@ describe("importNflFantasyData", () => {
 
     const result = await importNflFantasyData({ season: 2026 })
 
-    expect(result.missingEnv).toContain("ROLLING_INSIGHTS_API_KEY")
+    expect(result.missingEnv.some((key) => key.includes("ROLLING_INSIGHTS"))).toBe(true)
 
     if (original !== undefined) process.env.ROLLING_INSIGHTS_API_KEY = original
   })

@@ -9,8 +9,17 @@ vi.mock("server-only", () => ({}))
 vi.mock("@/lib/workers/sports-data-importer", () => ({
   runSportsDataImporter: vi.fn().mockResolvedValue({ imported: 0, sports: ["NCAAF"], staleFallbackApplied: false }),
 }))
+vi.mock("@/lib/workers/injury-importer", () => ({
+  runInjuryImporter: vi.fn().mockResolvedValue({ imported: 0, sports: ["NCAAF"], priorityWindow: false }),
+}))
+vi.mock("@/lib/workers/news-importer", () => ({
+  runNewsImporter: vi.fn().mockResolvedValue({ imported: 0, sports: ["NCAAF"] }),
+}))
 vi.mock("@/lib/workers/schedule-importer", () => ({
   runScheduleImporter: vi.fn().mockResolvedValue({ imported: 0, sports: ["NCAAF"], season: 2026 }),
+}))
+vi.mock("@/lib/fantasy-data/importProviderDomainData", () => ({
+  importProviderDomainData: vi.fn().mockResolvedValue({ imported: 0, results: [], warnings: [], errors: [] }),
 }))
 vi.mock("@/lib/prisma", () => ({
   prisma: { syncJobRun: { create: vi.fn().mockResolvedValue({}) } },
@@ -22,21 +31,36 @@ const CFBD_KEY = "CFBD_API_KEY"
 
 describe("importNcaafFantasyData — provider unavailable", () => {
   let savedKey: string | undefined
+  let savedCfbdAlias: string | undefined
+  let savedApiSports: string | undefined
+  let savedApiSportsAlias: string | undefined
 
   beforeEach(() => {
     savedKey = process.env[CFBD_KEY]
+    savedCfbdAlias = process.env.CFBD_KEY
+    savedApiSports = process.env.APISPORTS_API_KEY
+    savedApiSportsAlias = process.env.API_SPORTS_KEY
     delete process.env[CFBD_KEY]
-    delete process.env.COLLEGE_FOOTBALL_DATA_API_KEY
+    delete process.env.CFBD_KEY
+    delete process.env.APISPORTS_API_KEY
+    delete process.env.API_SPORTS_KEY
   })
 
   afterEach(() => {
     if (savedKey !== undefined) process.env[CFBD_KEY] = savedKey
     else delete process.env[CFBD_KEY]
+    if (savedCfbdAlias !== undefined) process.env.CFBD_KEY = savedCfbdAlias
+    else delete process.env.CFBD_KEY
+    if (savedApiSports !== undefined) process.env.APISPORTS_API_KEY = savedApiSports
+    else delete process.env.APISPORTS_API_KEY
+    if (savedApiSportsAlias !== undefined) process.env.API_SPORTS_KEY = savedApiSportsAlias
+    else delete process.env.API_SPORTS_KEY
   })
 
   it("returns ok: false when CFBD key is missing", async () => {
     const result = await importNcaafFantasyData()
     expect(result.ok).toBe(false)
+    expect(result.sport).toBe("NCAAF")
   })
 
   it("returns all zero counts when provider unavailable", async () => {
@@ -75,15 +99,20 @@ describe("importNcaafFantasyData — provider unavailable", () => {
 
 describe("importNcaafFantasyData — provider available", () => {
   let savedKey: string | undefined
+  let savedApiSports: string | undefined
 
   beforeEach(() => {
     savedKey = process.env[CFBD_KEY]
+    savedApiSports = process.env.APISPORTS_API_KEY
     process.env[CFBD_KEY] = "test-cfbd-key-12345"
+    process.env.APISPORTS_API_KEY = "test-api-sports-key-12345"
   })
 
   afterEach(() => {
     if (savedKey !== undefined) process.env[CFBD_KEY] = savedKey
     else delete process.env[CFBD_KEY]
+    if (savedApiSports !== undefined) process.env.APISPORTS_API_KEY = savedApiSports
+    else delete process.env.APISPORTS_API_KEY
   })
 
   it("attempts player import when CFBD key is set", async () => {

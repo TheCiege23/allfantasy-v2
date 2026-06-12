@@ -5,6 +5,7 @@
  */
 import { describe, it, expect, vi } from "vitest"
 import {
+  buildLeagueDataUsageAnswer,
   serializeLeagueGroundingForPrompt,
 } from "@/lib/ai/leagueSportsGroundingPacket"
 import type { LeagueGroundingPacket } from "@/lib/ai/leagueSportsGroundingPacket"
@@ -26,6 +27,17 @@ function makeEvidence(overrides?: Partial<FantasyDataEvidenceSnapshot>): Fantasy
     adp: { count: 400, lastImportedAt: new Date().toISOString(), provider: "sleeper", formats: ["redraft"] },
     injuries: { count: 50, lastImportedAt: new Date().toISOString(), provider: "api_sports" },
     schedules: { count: 272, lastImportedAt: new Date().toISOString(), provider: "rolling_insights" },
+    teams: { count: 32, lastImportedAt: new Date().toISOString(), provider: "rolling_insights" },
+    scores: { count: 20, lastImportedAt: new Date().toISOString(), provider: "api_sports" },
+    standings: { count: 1, lastImportedAt: new Date().toISOString(), provider: "sports_data_cache" },
+    news: { count: 10, lastImportedAt: new Date().toISOString(), provider: "espn" },
+    weather: { count: 4, lastImportedAt: new Date().toISOString(), provider: "openweathermap" },
+    projections: { count: 0, lastImportedAt: null, provider: null },
+    fantasyValues: { count: 400, lastImportedAt: new Date().toISOString(), provider: "sleeper" },
+    depthCharts: { count: 32, lastImportedAt: new Date().toISOString(), provider: "rolling_insights" },
+    seasonStats: { count: 200, lastImportedAt: new Date().toISOString(), provider: "rolling_insights" },
+    gameLogs: { count: 0, lastImportedAt: null, provider: null },
+    idpStats: { count: 0, lastImportedAt: null, provider: null },
     lastFullSyncAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
     lastImportRun: null,
     dataAvailability: "full",
@@ -125,6 +137,68 @@ function makePacket(overrides?: Partial<LeagueGroundingPacket>): LeagueGrounding
     },
     evidence,
     freshness,
+    providerHealth: {
+      sport: "NFL",
+      counts: {
+        total: 1000,
+        players: 500,
+        teams: 32,
+        player_headshots: 300,
+        team_logos: 32,
+        schedules: 272,
+        scores: 20,
+        standings: 1,
+        injuries: 50,
+        depth_charts: 32,
+        news: 10,
+        weather: 4,
+        adp: 400,
+        projections: 0,
+        fantasy_values: 400,
+        season_stats: 200,
+        game_logs: 0,
+        idp_stats: 0,
+      },
+      lastSyncedAt: evidence.lastFullSyncAt,
+      missingEnv: [],
+      stale: false,
+      errors: [],
+      warnings: [],
+      providers: [
+        {
+          id: "rolling_insights",
+          priority: 1,
+          configured: true,
+          status: "working",
+          lastSuccessfulImport: evidence.lastFullSyncAt,
+          freshness: "fresh",
+        },
+      ],
+      domains: [
+        {
+          domain: "players",
+          count: 500,
+          lastSyncedAt: evidence.players.lastImportedAt,
+          freshness: "fresh",
+          status: "working",
+          evidenceReturnedToAI: true,
+        },
+      ],
+    },
+    newsDigest: [],
+    weatherEvidence: [],
+    scheduleSummary: {
+      gameCount: 272,
+      upcomingCount: 200,
+      completedCount: 20,
+      lastSyncedAt: evidence.schedules.lastImportedAt,
+    },
+    standingsSummary: {
+      available: true,
+      rowCount: 1,
+      lastSyncedAt: evidence.standings.lastImportedAt,
+      source: "sports_data_cache",
+    },
     unavailable: [],
     safeAnswerRules: [
       "Answer ONLY from facts in this grounding packet.",
@@ -187,12 +261,23 @@ describe("serializeLeagueGroundingForPrompt", () => {
     const parsed = JSON.parse(serializeLeagueGroundingForPrompt(packet))
     expect(parsed.evidence.dataAvailability).toBe("full")
     expect(typeof parsed.evidence.playerCount).toBe("number")
+    expect(typeof parsed.evidence.newsCount).toBe("number")
+    expect(typeof parsed.evidence.weatherCount).toBe("number")
   })
 
   it("safeAnswerRules contain anti-hallucination instruction", () => {
     const packet = makePacket()
     const rules = packet.safeAnswerRules.join(" ")
     expect(rules).toMatch(/only.*facts|never invent|do not.*invent/i)
+  })
+
+  it("builds deterministic data-usage answer from league settings and evidence", () => {
+    const answer = buildLeagueDataUsageAnswer(makePacket())
+    expect(answer).toContain("Sport NFL")
+    expect(answer).toContain("scoring half_ppr")
+    expect(answer).toContain("players:")
+    expect(answer).toContain("ADP:")
+    expect(answer).toContain("weather:")
   })
 })
 

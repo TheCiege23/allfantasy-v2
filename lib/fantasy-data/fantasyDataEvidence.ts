@@ -345,6 +345,29 @@ function checkMissingEnv(sport: string): string[] {
   return missing
 }
 
+function checkMissingProviderEnv(sport: string): string[] {
+  const missing: string[] = []
+  const hasRollingInsights =
+    Boolean(process.env.ROLLING_INSIGHTS_API_KEY?.trim()) ||
+    (Boolean(process.env.ROLLING_INSIGHTS_CLIENT_ID?.trim()) &&
+      Boolean(process.env.ROLLING_INSIGHTS_CLIENT_SECRET?.trim())) ||
+    (Boolean(process.env.ROLLING_INSIGHTS_CLIENT_ID2?.trim()) &&
+      Boolean(process.env.ROLLING_INSIGHTS_CLIENT_SECRET2?.trim()))
+  const hasApiSports = Boolean(process.env.APISPORTS_API_KEY?.trim()) || Boolean(process.env.API_SPORTS_KEY?.trim())
+  const hasCfbd = Boolean(process.env.CFBD_API_KEY?.trim()) || Boolean(process.env.CFBD_KEY?.trim())
+
+  if (!hasRollingInsights) {
+    missing.push("ROLLING_INSIGHTS_API_KEY or ROLLING_INSIGHTS_CLIENT_ID/ROLLING_INSIGHTS_CLIENT_SECRET")
+  }
+  if (!hasApiSports) {
+    missing.push("APISPORTS_API_KEY or API_SPORTS_KEY")
+  }
+  if (sport === "NCAAF" && !hasCfbd) {
+    missing.push("CFBD_API_KEY or CFBD_KEY (CollegeFootballData) - NCAAF data limited without it")
+  }
+  return missing
+}
+
 export async function loadFantasyDataEvidence(options: {
   sport: string
   season?: number
@@ -354,11 +377,40 @@ export async function loadFantasyDataEvidence(options: {
   const season = options.season ?? currentSeason()
   const builtAt = new Date().toISOString()
 
-  const [players, adp, injuries, schedules, lastRun] = await Promise.all([
+  const extendedLoaders = getExtendedEvidenceLoaders(sport, season)
+  const [
+    players,
+    adp,
+    injuries,
+    schedules,
+    teams,
+    scores,
+    standings,
+    news,
+    weather,
+    projections,
+    fantasyValues,
+    depthCharts,
+    seasonStats,
+    gameLogs,
+    idpStats,
+    lastRun,
+  ] = await Promise.all([
     getPlayerEvidence(sport, season),
     getAdpEvidence(sport),
     getInjuryEvidence(sport),
     getScheduleEvidence(sport, season),
+    extendedLoaders.teams,
+    extendedLoaders.scores,
+    extendedLoaders.standings,
+    extendedLoaders.news,
+    extendedLoaders.weather,
+    extendedLoaders.projections,
+    extendedLoaders.fantasyValues,
+    extendedLoaders.depthCharts,
+    extendedLoaders.seasonStats,
+    extendedLoaders.gameLogs,
+    extendedLoaders.idpStats,
     getLastImportRun(sport),
   ])
 
@@ -367,6 +419,17 @@ export async function loadFantasyDataEvidence(options: {
     adp.lastImportedAt,
     injuries.lastImportedAt,
     schedules.lastImportedAt,
+    teams.lastImportedAt,
+    scores.lastImportedAt,
+    standings.lastImportedAt,
+    news.lastImportedAt,
+    weather.lastImportedAt,
+    projections.lastImportedAt,
+    fantasyValues.lastImportedAt,
+    depthCharts.lastImportedAt,
+    seasonStats.lastImportedAt,
+    gameLogs.lastImportedAt,
+    idpStats.lastImportedAt,
   ].filter((d): d is string => d !== null)
 
   const lastFullSyncAt = allDates.length > 0
@@ -374,7 +437,7 @@ export async function loadFantasyDataEvidence(options: {
     : null
 
   const dataAvailability = resolveAvailability(players, adp)
-  const missingEnv = checkMissingEnv(sport)
+  const missingEnv = checkMissingProviderEnv(sport)
   const warnings: string[] = []
   if (missingEnv.length > 0) {
     warnings.push(`Missing provider keys — data may be stale or unavailable: ${missingEnv.join(", ")}`)
@@ -391,6 +454,17 @@ export async function loadFantasyDataEvidence(options: {
     adp,
     injuries,
     schedules,
+    teams,
+    scores,
+    standings,
+    news,
+    weather,
+    projections,
+    fantasyValues,
+    depthCharts,
+    seasonStats,
+    gameLogs,
+    idpStats,
     lastFullSyncAt,
     lastImportRun: lastRun,
     dataAvailability,

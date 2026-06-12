@@ -67,6 +67,11 @@ import { buildChimmyAnswerContract } from '@/lib/chimmy-chat/response-contract'
 import { persistChimmyAIAnalyticsEvent } from '@/lib/chimmy-chat/analytics-events'
 import { checkChimmyHallucination } from '@/lib/chimmy-chat/hallucination-guard'
 import { tryDeterministicAnswer, DETERMINISTIC_SOURCE } from '@/lib/ai/deterministic'
+import {
+  buildLeagueDataUsageAnswer,
+  buildLeagueSportsGroundingPacket,
+  serializeLeagueGroundingForPrompt,
+} from '@/lib/ai/leagueSportsGroundingPacket'
 import { resolveLanguage } from '@/lib/i18n/constants'
 import {
   TokenInsufficientBalanceError,
@@ -787,6 +792,12 @@ function buildUserMessage(input: {
   return parts.join('\n\n---\n\n')
 }
 
+function isLeagueDataUsageQuestion(message: string): boolean {
+  return /what\s+(player\s+)?data\s+(and\s+league\s+settings\s+)?(are\s+you|you're)\s+using/i.test(message) ||
+    /what\s+league\s+settings\s+(are\s+you|you're)\s+using/i.test(message) ||
+    /what\s+data\s+sources\s+(are\s+you|you're)\s+using/i.test(message)
+}
+
 function buildLeagueGroundingLine(args: {
   leagueSnapshot: Awaited<ReturnType<typeof loadLeagueSnapshotForUser>>
   leagueNameHint?: string
@@ -1109,6 +1120,47 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     })
   }
 
+  if (leagueId && userId && isLeagueDataUsageQuestion(message)) {
+    try {
+      const packet = await buildLeagueSportsGroundingPacket({
+        leagueId,
+        userId,
+        sport: sport ?? undefined,
+        season: season ?? undefined,
+      })
+      const usageAnswer = buildLeagueDataUsageAnswer(packet)
+      return NextResponse.json({
+        response: usageAnswer,
+        result: usageAnswer,
+        source: 'league_sports_grounding_packet',
+        sessionId,
+        tokenSpend: null,
+        meta: {
+          confidencePct: 100,
+          providerStatus: {
+            openai: 'skipped',
+            deepseek: 'skipped',
+            grok: 'skipped',
+          },
+          dataSources: ['league_sports_grounding_packet'],
+          grounding: {
+            sport: packet.sport,
+            season: packet.season,
+            freshness: packet.freshness,
+            providerHealth: packet.providerHealth,
+            unavailable: packet.unavailable,
+          },
+          responseStructure: {
+            shortAnswer: usageAnswer,
+            caveats: ['No live model call was made for this answer.'],
+          },
+        },
+      })
+    } catch {
+      // Fall through to the normal model path if deterministic grounding cannot load.
+    }
+  }
+
   const dataSources: string[] = []
   let chimmySportDigestFreshness: {
     overallLastSyncedAt: string | null
@@ -1145,10 +1197,26 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           .catch(() => undefined)
       : Promise.resolve(undefined)
 
-  const [screenshotResult, insightResult, memoryResult] = await Promise.allSettled([
+  const leagueSportsGroundingTask: Promise<{ serialized: string; packet: Awaited<ReturnType<typeof buildLeagueSportsGroundingPacket>> } | null> =
+    leagueId && userId
+      ? buildLeagueSportsGroundingPacket({
+          leagueId,
+          userId,
+          sport: sport ?? undefined,
+          season: season ?? undefined,
+        })
+          .then((packet) => ({
+            packet,
+            serialized: serializeLeagueGroundingForPrompt(packet),
+          }))
+          .catch(() => null)
+      : Promise.resolve(null)
+
+  const [screenshotResult, insightResult, memoryResult, leagueSportsGroundingResult] = await Promise.allSettled([
     screenshotTask,
     insightTask,
     memoryTask,
+    leagueSportsGroundingTask,
   ])
   const [personalizationResult, profileClock] = await Promise.all([
     resolveChimmyPersonalizationProfile(userId).catch(() => null),
@@ -1183,6 +1251,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const insightSummary = insightResult.status === 'fulfilled' ? insightResult.value?.summary : undefined
   const insightSources = insightResult.status === 'fulfilled' ? insightResult.value?.sources ?? [] : []
   const memorySection = memoryResult.status === 'fulfilled' ? memoryResult.value : undefined
+  const leagueSportsGrounding =
+    leagueSportsGroundingResult.status === 'fulfilled' ? leagueSportsGroundingResult.value : null
 
   const recentUserSnippet = conversation
     .filter((t) => t.role === 'user')
@@ -1209,7 +1279,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     memorySummary: chimmyMemorySummaryLine,
   })
 
-  const combinedMemorySection = [memPrompt.contextBlock, memorySection, personalizationDirectives, chimmyOrchestrationPrompt]
+  const combinedMemorySection = [
+    memPrompt.contextBlock,
+    memorySection,
+    leagueSportsGrounding
+      ? `## NFL/NCAAF LEAGUE SPORTS GROUNDING\n${leagueSportsGrounding.serialized}`
+      : undefined,
+    personalizationDirectives,
+    chimmyOrchestrationPrompt,
+  ]
     .concat(
       staleness.warning
         ? [`## DATA FRESHNESS\n${staleness.warning}\nAlways include this warning when answering.`]
@@ -1232,6 +1310,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (insightSources.length > 0) dataSources.push(...insightSources)
   if (memorySection) dataSources.push('ai_memory', 'chat_history')
   if (memPrompt.contextBlock) dataSources.push('working_memory')
+  if (leagueSportsGrounding) dataSources.push('league_sports_grounding_packet')
   if (personalizationDirectives) dataSources.push('chimmy_personalization')
   if (sourceReferences.length > 0) dataSources.push('league_source_references')
   if (staleness.warning) dataSources.push('stale_data_warning')
@@ -1283,6 +1362,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           timezone: leagueSnapshot.timezone,
           lastSyncedAt: leagueSnapshot.lastSyncedAt?.toISOString() ?? null,
           importedAt: leagueSnapshot.importedAt?.toISOString() ?? null,
+        })
+      : undefined,
+    leagueSportsGrounding: leagueSportsGrounding
+      ? compactRecord({
+          sport: leagueSportsGrounding.packet.sport,
+          season: leagueSportsGrounding.packet.season,
+          settings: leagueSportsGrounding.packet.settings,
+          leagueContext: leagueSportsGrounding.packet.leagueContext,
+          fantasyData: leagueSportsGrounding.packet.fantasyData,
+          freshness: leagueSportsGrounding.packet.freshness,
+          providerHealth: leagueSportsGrounding.packet.providerHealth,
+          unavailable: leagueSportsGrounding.packet.unavailable,
+          newsDigest: leagueSportsGrounding.packet.newsDigest,
+          weatherEvidence: leagueSportsGrounding.packet.weatherEvidence,
+          scheduleSummary: leagueSportsGrounding.packet.scheduleSummary,
+          standingsSummary: leagueSportsGrounding.packet.standingsSummary,
         })
       : undefined,
     leagueContextEngine: normalizedLeagueContext ?? undefined,

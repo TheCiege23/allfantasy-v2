@@ -15,8 +15,10 @@ import "server-only"
 import { prisma } from "@/lib/prisma"
 import { loadFantasyDataEvidence } from "@/lib/fantasy-data/fantasyDataEvidence"
 import { computeFantasyFreshness } from "@/lib/fantasy-data/fantasyFreshness"
+import { loadFantasyProviderHealth } from "@/lib/fantasy-data/providerHealth"
 import type { FantasyDataEvidenceSnapshot } from "@/lib/fantasy-data/fantasyDataEvidence"
 import type { FantasyFreshnessReport } from "@/lib/fantasy-data/fantasyFreshness"
+import type { FantasyProviderHealthReport } from "@/lib/fantasy-data/providerHealth"
 
 // ─── League grounding sub-types ───────────────────────────────────────────────
 
@@ -151,6 +153,39 @@ export type LeagueGroundingPacket = {
   // ── Evidence & freshness ──────────────────────────────────────────────────
   evidence: FantasyDataEvidenceSnapshot | null
   freshness: FantasyFreshnessReport | null
+  providerHealth: (Pick<FantasyProviderHealthReport, "sport" | "counts" | "lastSyncedAt" | "missingEnv" | "stale" | "errors" | "warnings"> & {
+    providers: Array<Pick<FantasyProviderHealthReport["providers"][number], "id" | "priority" | "configured" | "status" | "lastSuccessfulImport" | "freshness">>
+    domains: Array<Pick<FantasyProviderHealthReport["domains"][number], "domain" | "count" | "lastSyncedAt" | "freshness" | "status" | "evidenceReturnedToAI">>
+  }) | null
+  newsDigest: Array<{
+    headline: string
+    playerName: string | null
+    team: string | null
+    source: string | null
+    publishedAt: string | null
+    impact: string | null
+  }> | null
+  weatherEvidence: Array<{
+    eventId: string | null
+    forecastForTime: string | null
+    condition: string | null
+    temperatureF: number | null
+    windSpeedMph: number | null
+    isIndoor: boolean
+    source: string | null
+  }> | null
+  scheduleSummary: {
+    gameCount: number
+    upcomingCount: number
+    completedCount: number
+    lastSyncedAt: string | null
+  } | null
+  standingsSummary: {
+    available: boolean
+    rowCount: number
+    lastSyncedAt: string | null
+    source: string | null
+  } | null
 
   // ── AI enforcement ────────────────────────────────────────────────────────
   unavailable: string[]
@@ -245,6 +280,11 @@ function buildUnavailableList(
     if (evidence.players.count === 0) missing.push("player records")
     if (evidence.adp.count === 0) missing.push("ADP data")
     if (evidence.injuries.count === 0) missing.push("current injury reports")
+    if (evidence.schedules.count === 0) missing.push("schedules")
+    if (evidence.projections.count === 0) missing.push("fantasy projections")
+    if (evidence.news.count === 0) missing.push("player news")
+    if (evidence.weather.count === 0) missing.push("game weather")
+    if (evidence.standings.count === 0) missing.push("standings/rankings")
   }
   if (!draft || draft.status === "unknown") {
     missing.push("draft status (no draft session found)")
@@ -487,10 +527,11 @@ async function loadPlayerPoolSummary(
 
 async function loadFantasyData(sport: string): Promise<LeagueGroundingPacket["fantasyData"]> {
   try {
-    const [playerCount, adpCount, injuryCount, topInjuries] = await Promise.all([
+    const [playerCount, adpCount, injuryCount, scheduleCount, topInjuries] = await Promise.all([
       (prisma as any).sportsPlayerRecord.count({ where: { sport } }).catch(() => 0) as Promise<number>,
       (prisma as any).adpDataRecord.count({ where: { sport } }).catch(() => 0) as Promise<number>,
       (prisma as any).injuryReportRecord.count({ where: { sport } }).catch(() => 0) as Promise<number>,
+      (prisma as any).sportsGame.count({ where: { sport } }).catch(() => 0) as Promise<number>,
       (prisma as any).injuryReportRecord.findMany({
         where: { sport, status: { in: ["Out", "Doubtful", "Questionable"] } },
         select: { playerName: true, team: true, status: true, position: true },
@@ -503,7 +544,7 @@ async function loadFantasyData(sport: string): Promise<LeagueGroundingPacket["fa
       hasPlayerData: Number(playerCount) > 0,
       hasAdpData: Number(adpCount) > 0,
       hasInjuryData: Number(injuryCount) > 0,
-      hasScheduleData: false, // loaded separately if needed
+      hasScheduleData: Number(scheduleCount) > 0,
       playerCount: Number(playerCount),
       adpCount: Number(adpCount),
       injuryCount: Number(injuryCount),
@@ -521,6 +562,189 @@ async function loadFantasyData(sport: string): Promise<LeagueGroundingPacket["fa
 
 // ─── Public builder ────────────────────────────────────────────────────────────
 
+function toIso(value: unknown): string | null {
+  if (value instanceof Date) return value.toISOString()
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Date.parse(value)
+    return Number.isFinite(parsed) ? new Date(parsed).toISOString() : value
+  }
+  return null
+}
+
+function compactProviderHealth(
+  report: FantasyProviderHealthReport | null,
+): LeagueGroundingPacket["providerHealth"] {
+  if (!report) return null
+  return {
+    sport: report.sport,
+    counts: report.counts,
+    lastSyncedAt: report.lastSyncedAt,
+    missingEnv: report.missingEnv,
+    stale: report.stale,
+    errors: report.errors.slice(0, 5),
+    warnings: report.warnings.slice(0, 12),
+    providers: report.providers.map((provider) => ({
+      id: provider.id,
+      priority: provider.priority,
+      configured: provider.configured,
+      status: provider.status,
+      lastSuccessfulImport: provider.lastSuccessfulImport,
+      freshness: provider.freshness,
+    })),
+    domains: report.domains.map((domain) => ({
+      domain: domain.domain,
+      count: domain.count,
+      lastSyncedAt: domain.lastSyncedAt,
+      freshness: domain.freshness,
+      status: domain.status,
+      evidenceReturnedToAI: domain.evidenceReturnedToAI,
+    })),
+  }
+}
+
+async function loadNewsDigest(sport: string): Promise<LeagueGroundingPacket["newsDigest"]> {
+  try {
+    const [playerNews, sportsNews] = await Promise.all([
+      (prisma as any).playerNewsRecord.findMany({
+        where: { sport },
+        select: { headline: true, playerName: true, team: true, source: true, publishedAt: true, impact: true },
+        orderBy: { publishedAt: "desc" },
+        take: 8,
+      }).catch(() => []) as Promise<Array<Record<string, unknown>>>,
+      (prisma as any).sportsNews.findMany({
+        where: { sport },
+        select: { title: true, playerName: true, team: true, source: true, publishedAt: true, category: true },
+        orderBy: { publishedAt: "desc" },
+        take: 8,
+      }).catch(() => []) as Promise<Array<Record<string, unknown>>>,
+    ])
+
+    const rows = [
+      ...playerNews.map((row) => ({
+        headline: String(row.headline ?? ""),
+        playerName: row.playerName ? String(row.playerName) : null,
+        team: row.team ? String(row.team) : null,
+        source: row.source ? String(row.source) : null,
+        publishedAt: toIso(row.publishedAt),
+        impact: row.impact ? String(row.impact) : null,
+      })),
+      ...sportsNews.map((row) => ({
+        headline: String(row.title ?? ""),
+        playerName: row.playerName ? String(row.playerName) : null,
+        team: row.team ? String(row.team) : null,
+        source: row.source ? String(row.source) : null,
+        publishedAt: toIso(row.publishedAt),
+        impact: row.category ? String(row.category) : null,
+      })),
+    ]
+      .filter((row) => row.headline)
+      .sort((a, b) => Date.parse(b.publishedAt ?? "0") - Date.parse(a.publishedAt ?? "0"))
+      .slice(0, 8)
+
+    return rows.length > 0 ? rows : null
+  } catch {
+    return null
+  }
+}
+
+async function loadWeatherEvidence(sport: string): Promise<LeagueGroundingPacket["weatherEvidence"]> {
+  try {
+    const rows = await (prisma as any).weatherCache.findMany({
+      where: { sport },
+      select: {
+        eventId: true,
+        forecastForTime: true,
+        conditionLabel: true,
+        temperatureF: true,
+        windSpeedMph: true,
+        isIndoor: true,
+        isDome: true,
+        roofClosed: true,
+        dataSource: true,
+      },
+      orderBy: { fetchedAt: "desc" },
+      take: 8,
+    }).catch(() => []) as Array<Record<string, unknown>>
+
+    const mapped = rows.map((row) => ({
+      eventId: row.eventId ? String(row.eventId) : null,
+      forecastForTime: toIso(row.forecastForTime),
+      condition: row.conditionLabel ? String(row.conditionLabel) : null,
+      temperatureF: row.temperatureF != null ? Number(row.temperatureF) : null,
+      windSpeedMph: row.windSpeedMph != null ? Number(row.windSpeedMph) : null,
+      isIndoor: Boolean(row.isIndoor || row.isDome || row.roofClosed),
+      source: row.dataSource ? String(row.dataSource) : null,
+    }))
+    return mapped.length > 0 ? mapped : null
+  } catch {
+    return null
+  }
+}
+
+async function loadScheduleSummary(
+  sport: string,
+  season: number,
+): Promise<LeagueGroundingPacket["scheduleSummary"]> {
+  try {
+    const now = new Date()
+    const [gameCount, upcomingCount, completedCount, latest] = await Promise.all([
+      (prisma as any).sportsGame.count({ where: { sport, season } }).catch(() => 0) as Promise<number>,
+      (prisma as any).sportsGame.count({ where: { sport, season, startTime: { gte: now } } }).catch(() => 0) as Promise<number>,
+      (prisma as any).sportsGame.count({
+        where: {
+          sport,
+          season,
+          OR: [
+            { homeScore: { not: null } },
+            { awayScore: { not: null } },
+            { status: { in: ["final", "Final", "completed", "Completed"] } },
+          ],
+        },
+      }).catch(() => 0) as Promise<number>,
+      (prisma as any).sportsGame.findFirst({
+        where: { sport, season },
+        select: { fetchedAt: true },
+        orderBy: { fetchedAt: "desc" },
+      }).catch(() => null) as Promise<Record<string, unknown> | null>,
+    ])
+
+    return {
+      gameCount: Number(gameCount),
+      upcomingCount: Number(upcomingCount),
+      completedCount: Number(completedCount),
+      lastSyncedAt: toIso(latest?.fetchedAt),
+    }
+  } catch {
+    return null
+  }
+}
+
+async function loadStandingsSummary(
+  sport: string,
+): Promise<LeagueGroundingPacket["standingsSummary"]> {
+  try {
+    const cacheKeyPrefix = `${sport.toLowerCase()}:standings:`
+    const [rowCount, latest] = await Promise.all([
+      (prisma as any).sportsDataCache.count({
+        where: { cacheKey: { startsWith: cacheKeyPrefix } },
+      }).catch(() => 0) as Promise<number>,
+      (prisma as any).sportsDataCache.findFirst({
+        where: { cacheKey: { startsWith: cacheKeyPrefix } },
+        select: { createdAt: true },
+        orderBy: { createdAt: "desc" },
+      }).catch(() => null) as Promise<Record<string, unknown> | null>,
+    ])
+    return {
+      available: Number(rowCount) > 0,
+      rowCount: Number(rowCount),
+      lastSyncedAt: toIso(latest?.createdAt),
+      source: Number(rowCount) > 0 ? "sports_data_cache" : null,
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function buildLeagueSportsGroundingPacket(args: {
   leagueId: string
   userId: string
@@ -534,16 +758,34 @@ export async function buildLeagueSportsGroundingPacket(args: {
   const sport = String(args.sport ?? leagueRow?.sport ?? "NFL").toUpperCase()
   const season = args.season ?? (leagueRow?.season ? Number(leagueRow.season) : currentSeason())
 
-  const [managers, viewerRoster, draft, playerPool, fantasyData, evidence] = await Promise.all([
+  const [
+    managers,
+    viewerRoster,
+    draft,
+    playerPool,
+    fantasyData,
+    evidence,
+    providerHealthReport,
+    newsDigest,
+    weatherEvidence,
+    scheduleSummary,
+    standingsSummary,
+  ] = await Promise.all([
     loadManagers(leagueId, userId),
     loadViewerRoster(leagueId, userId),
     loadDraftStatus(leagueId),
     loadPlayerPoolSummary(sport, season),
     loadFantasyData(sport),
     loadFantasyDataEvidence({ sport, season }),
+    loadFantasyProviderHealth({ sport, season }).catch(() => null),
+    loadNewsDigest(sport),
+    loadWeatherEvidence(sport),
+    loadScheduleSummary(sport, season),
+    loadStandingsSummary(sport),
   ])
 
   const freshness = evidence ? computeFantasyFreshness(evidence) : null
+  const providerHealth = compactProviderHealth(providerHealthReport)
 
   const settings = leagueRow ? resolveSettings(leagueRow) : null
 
@@ -578,6 +820,11 @@ export async function buildLeagueSportsGroundingPacket(args: {
     fantasyData,
     evidence,
     freshness,
+    providerHealth,
+    newsDigest,
+    weatherEvidence,
+    scheduleSummary,
+    standingsSummary,
     unavailable,
     safeAnswerRules,
   }
@@ -601,6 +848,18 @@ export function serializeLeagueGroundingForPrompt(packet: LeagueGroundingPacket)
           playerCount: evidence.players.count,
           adpCount: evidence.adp.count,
           injuryCount: evidence.injuries.count,
+          scheduleCount: evidence.schedules.count,
+          teamCount: evidence.teams.count,
+          scoreCount: evidence.scores.count,
+          standingsCount: evidence.standings.count,
+          newsCount: evidence.news.count,
+          weatherCount: evidence.weather.count,
+          projectionCount: evidence.projections.count,
+          fantasyValueCount: evidence.fantasyValues.count,
+          depthChartCount: evidence.depthCharts.count,
+          seasonStatCount: evidence.seasonStats.count,
+          gameLogCount: evidence.gameLogs.count,
+          idpStatCount: evidence.idpStats.count,
           lastFullSyncAt: evidence.lastFullSyncAt,
           missingEnv: evidence.missingEnv,
           warnings: evidence.warnings,
@@ -608,4 +867,67 @@ export function serializeLeagueGroundingForPrompt(packet: LeagueGroundingPacket)
       : null,
     ...rest,
   })
+}
+
+function domainStatusLine(
+  label: string,
+  domain: { count: number; lastImportedAt?: string | null; provider?: string | null } | null | undefined,
+): string {
+  if (!domain) return `${label}: unavailable`
+  const provider = domain.provider ? ` via ${domain.provider}` : ""
+  const updated = domain.lastImportedAt ? `, updated ${domain.lastImportedAt}` : ""
+  return `${label}: ${domain.count} row(s)${provider}${updated}`
+}
+
+export function buildLeagueDataUsageAnswer(packet: LeagueGroundingPacket): string {
+  const settings = packet.settings
+  const evidence = packet.evidence
+  const leagueContext = packet.leagueContext
+  const managerCount = packet.managers?.length ?? 0
+  const openSlots = leagueContext.openSlots
+  const commissionerStatus = leagueContext.isCommissioner
+    ? "you are commissioner"
+    : leagueContext.isCoCommissioner
+      ? "you are co-commissioner"
+      : "you are not marked as commissioner"
+
+  const settingLine = settings
+    ? [
+        `Sport ${settings.sport}`,
+        `format ${settings.leagueType}`,
+        settings.scoringPreset ? `scoring ${settings.scoringPreset}` : null,
+        settings.draftType ? `draft ${settings.draftType}` : null,
+        `${settings.numTeams} teams`,
+      ].filter(Boolean).join(", ")
+    : `Sport ${packet.sport}; league settings were not loaded from DB.`
+
+  const domains = evidence
+    ? [
+        domainStatusLine("players", evidence.players),
+        domainStatusLine("ADP", evidence.adp),
+        domainStatusLine("projections", evidence.projections),
+        domainStatusLine("injuries", evidence.injuries),
+        domainStatusLine("news", evidence.news),
+        domainStatusLine("weather", evidence.weather),
+        domainStatusLine("schedules", evidence.schedules),
+        domainStatusLine("standings", evidence.standings),
+      ]
+    : ["provider-backed player data: unavailable"]
+
+  const providerSummary = packet.providerHealth
+    ? `Provider freshness: ${packet.freshness?.summary ?? "unknown"} Last synced: ${packet.providerHealth.lastSyncedAt ?? "unknown"}.`
+    : `Provider freshness: ${packet.freshness?.summary ?? "unknown"}.`
+
+  const missing = packet.unavailable.length > 0
+    ? `Missing or stale domains: ${packet.unavailable.join(", ")}.`
+    : "No missing domains are flagged in the current grounding packet."
+
+  return [
+    `I am using deterministic league settings from the AllFantasy database: ${settingLine}.`,
+    `League context: ${managerCount} manager slot(s), ${openSlots} open slot(s), ${commissionerStatus}.`,
+    `Player/provider data status: ${domains.join("; ")}.`,
+    providerSummary,
+    missing,
+    "I will treat league settings as authoritative when leagueId is present, but I will label provider-backed player, injury, news, weather, schedule, standings, ADP, and projection data as missing or stale when the evidence says so.",
+  ].join("\n")
 }
