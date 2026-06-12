@@ -10,6 +10,8 @@ import { useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
 import { ProjectionDisplay } from '@/components/weather/ProjectionDisplay'
 import { placeholderBaselineProjection } from '@/components/weather/placeholderBaseline'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { getNcaafBetaStatus, getNcaafBetaBannerInfo, isNcaafPlayerPoolPending } from '@/lib/league/ncaaf-beta-guard'
+import { NcaafBetaDataBanner } from '@/components/NcaafBetaDataBanner'
 import {
   fmtStat,
   type RollingInsightsTableStats,
@@ -258,6 +260,32 @@ export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {(() => {
+        const betaStatus = getNcaafBetaStatus(league)
+        const bannerInfo = getNcaafBetaBannerInfo(betaStatus)
+        if (bannerInfo) {
+          return (
+            <div className="px-5 pt-4">
+              <NcaafBetaDataBanner info={bannerInfo} />
+            </div>
+          )
+        }
+        return null
+      })()}
+      {isNcaafPlayerPoolPending(league) ? (
+        <div
+          className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-16 text-center"
+          data-testid="player-pool-pending-state"
+        >
+          <p className="text-[28px]">📋</p>
+          <p className="text-[14px] font-semibold text-white/80">Draft player pool pending</p>
+          <p className="max-w-xs text-[12px] leading-relaxed text-white/40">
+            Player data import is not connected yet for this league format. Roster shells, scoring
+            settings, and league structure are ready — player pool data will appear once the NCAAF
+            import pipeline is complete.
+          </p>
+        </div>
+      ) : null}
       <div className="sticky top-0 z-10 space-y-3 border-b border-white/[0.07] bg-[#07071a] px-5 pb-3 pt-4">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[140px] flex-1">

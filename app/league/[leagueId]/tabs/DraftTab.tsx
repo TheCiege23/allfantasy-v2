@@ -14,6 +14,8 @@ import { getDraftIdFromSettings, getSleeperLikeBundle } from '@/app/league/[leag
 import { IDPDraftFilters } from '@/app/idp/components/IDPDraftFilters'
 import { isNflRedraftCoreDashboardFromUserLeague } from '@/lib/league/is-nfl-redraft-core-dashboard'
 import { openDraftFromEmbeddedLeague } from '@/lib/dashboard/dashboard-draft-overlay-bridge'
+import { getNcaafBetaStatus, getNcaafBetaBannerInfo } from '@/lib/league/ncaaf-beta-guard'
+import { NcaafBetaDataBanner } from '@/components/NcaafBetaDataBanner'
 
 export type DraftTabProps = {
   league: UserLeague
@@ -450,8 +452,11 @@ export function DraftTab({
     }
   }, [cap, isCommissioner, isOwner, league.id])
 
+  const ncaafBetaInfo = getNcaafBetaBannerInfo(getNcaafBetaStatus(league))
+
   return (
     <div className={isLeagueHome ? 'space-y-4' : 'space-y-4 p-5'}>
+      {ncaafBetaInfo ? <NcaafBetaDataBanner info={ncaafBetaInfo} /> : null}
       {idpLeagueUi ? <IDPDraftFilters /> : null}
       {showInvite ? (
         <section
