@@ -17,6 +17,7 @@ import type { DerivedLeagueFlags, PresetEngineOutput } from '@/lib/league-creati
 import { buildRedraftSettingsSnapshot } from '@/lib/league-concepts/redraftDefaults'
 import { buildDynastySettingsSnapshot, isDynastyEligibleSport } from '@/lib/league-concepts/dynastyDefaults'
 import { buildBestBallSettingsSnapshot, isBestBallEligibleSport } from '@/lib/league-concepts/bestBallDefaults'
+import { buildGuillotineSettingsSnapshot, isGuillotineEligibleSport } from '@/lib/league-concepts/guillotineDefaults'
 
 export const PRESET_ENGINE_VERSION = '1'
 
@@ -169,7 +170,17 @@ export function runPresetEngine(input: RunPresetEngineInput): PresetEngineOutput
     resolution,
   })
 
-  const canonicalSnapshot = redraftSnapshot ?? dynastySnapshot ?? bestBallSnapshot ?? null
+  const guillotineSnapshot =
+    formatId === 'guillotine' && isGuillotineEligibleSport(sport)
+      ? buildGuillotineSettingsSnapshot({
+          sport,
+          draftType: input.draftType,
+          scoringPresetId: input.scoringPreset,
+          teamCount: input.teamCount,
+        })
+      : null
+
+  const canonicalSnapshot = redraftSnapshot ?? dynastySnapshot ?? bestBallSnapshot ?? guillotineSnapshot ?? null
 
   const settingsSnapshot: SettingsSnapshot = {
     snapshotVersion: SETTINGS_SNAPSHOT_VERSION,
