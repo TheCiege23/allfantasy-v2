@@ -102,8 +102,8 @@ async function getAdpEvidence(sport: string) {
     }).catch(() => 0)
     const latest = await (prisma as any).adpDataRecord.findFirst({
       where: { sport },
-      orderBy: { fetchedAt: "desc" },
-      select: { fetchedAt: true, dataSource: true, format: true },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true, source: true, format: true },
     }).catch(() => null)
     const formats = await (prisma as any).adpDataRecord.findMany({
       where: { sport },
@@ -113,8 +113,8 @@ async function getAdpEvidence(sport: string) {
     }).catch(() => []) as Array<{ format: string }>
     return {
       count: Number(count),
-      lastImportedAt: toIso(latest?.fetchedAt),
-      provider: typeof latest?.dataSource === "string" ? latest.dataSource : null,
+      lastImportedAt: toIso(latest?.createdAt),
+      provider: typeof latest?.source === "string" ? latest.source : null,
       formats: formats.map((f) => f.format).filter(Boolean),
     }
   } catch {
@@ -222,6 +222,12 @@ async function getDomainEvidence(metrics: EvidenceMetric[]): Promise<FantasyEvid
 function getExtendedEvidenceLoaders(sport: string, season: number) {
   const seasonString = String(season)
   const sportLower = sport.toLowerCase()
+  const standingsCacheWhere = {
+    OR: [
+      { cacheKey: { startsWith: `${sport}:standings:` } },
+      { cacheKey: { startsWith: `${sportLower}:standings:` } },
+    ],
+  }
   return {
     teams: getDomainEvidence([
       { model: "sportsTeam", where: { sport }, dateField: "fetchedAt", providerField: "source" },
@@ -260,7 +266,7 @@ function getExtendedEvidenceLoaders(sport: string, season: number) {
     standings: getDomainEvidence([
       {
         model: "sportsDataCache",
-        where: { cacheKey: { startsWith: `${sportLower}:standings:` } },
+        where: standingsCacheWhere,
         dateField: "createdAt",
         staticProvider: "sports_data_cache",
       },
@@ -290,11 +296,11 @@ function getExtendedEvidenceLoaders(sport: string, season: number) {
     ]),
     gameLogs: getDomainEvidence([
       { model: "playerGameLogCache", where: { sport, season: seasonString }, dateField: "syncedAt", staticProvider: "player_game_log_cache" },
-      { model: "playerGameStat", where: { sportType: sport, season }, dateField: "updatedAt", providerField: "source" },
+      { model: "playerGameStat", where: { sportType: sport, season }, dateField: "updatedAt", staticProvider: "player_game_stats" },
     ]),
     idpStats: getDomainEvidence([
       { model: "playerSeasonStats", where: { sport, season: seasonString, position: { in: ["DL", "DE", "DT", "LB", "CB", "S", "DB", "IDP"] } }, dateField: "fetchedAt", providerField: "source" },
-      { model: "playerGameStat", where: { sportType: sport, season }, dateField: "updatedAt", providerField: "source" },
+      { model: "playerGameStat", where: { sportType: sport, season }, dateField: "updatedAt", staticProvider: "player_game_stats" },
     ]),
   }
 }

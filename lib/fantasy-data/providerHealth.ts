@@ -559,6 +559,12 @@ async function domainMetricSummary(metrics: ModelMetric[]): Promise<{ count: num
 function domainMetrics(domain: FantasyDataDomain, sport: FantasyProviderSport, season: number): ModelMetric[] {
   const seasonString = String(season)
   const sportLower = sport.toLowerCase()
+  const standingsCacheWhere = {
+    OR: [
+      { cacheKey: { startsWith: `${sport}:standings:` } },
+      { cacheKey: { startsWith: `${sportLower}:standings:` } },
+    ],
+  }
   switch (domain) {
     case "players":
       return [
@@ -626,7 +632,7 @@ function domainMetrics(domain: FantasyDataDomain, sport: FantasyProviderSport, s
         },
       ]
     case "standings":
-      return [{ model: "sportsDataCache", where: { cacheKey: { startsWith: `${sportLower}:standings:` } }, dateField: "createdAt" }]
+      return [{ model: "sportsDataCache", where: standingsCacheWhere, dateField: "createdAt" }]
     case "injuries":
       return [
         { model: "injuryReportRecord", where: { sport }, dateField: "reportDate" },

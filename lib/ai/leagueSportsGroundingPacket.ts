@@ -198,31 +198,77 @@ function currentSeason(): number {
   return new Date().getFullYear()
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {}
+}
+
+function firstString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim()
+  }
+  return null
+}
+
+function firstNumber(...values: unknown[]): number | null {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) return value
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value)
+      if (Number.isFinite(parsed)) return parsed
+    }
+  }
+  return null
+}
+
+function firstBoolean(...values: unknown[]): boolean {
+  for (const value of values) {
+    if (typeof value === "boolean") return value
+  }
+  return false
+}
+
 function resolveSettings(league: Record<string, unknown>): LeagueGroundingSettings {
-  const scoring = String(league.scoringPreset ?? league.scoring ?? "").toLowerCase()
+  const settings = asRecord(league.settings)
+  const scoringSettings = asRecord(settings.scoringSettings ?? settings.scoring)
+  const draftSettings = asRecord(settings.draftSettings ?? settings.draft)
+  const rosterSettings = asRecord(settings.rosterSettings ?? settings.roster)
+  const flags = asRecord(settings.flags)
+  const leagueSettings = asRecord(league.leagueSettings)
+  const scoringPreset = firstString(
+    league.scoringPreset,
+    settings.scoringPreset,
+    scoringSettings.preset,
+    league.scoring,
+    league.scoringPresetId,
+  )
+  const scoring = String(scoringPreset ?? league.scoring ?? "").toLowerCase()
+  const draftType = firstString(league.draftType, leagueSettings.draftType, settings.draftType, draftSettings.draftType)
+  const numTeams = firstNumber(league.numTeams, league.leagueSize, settings.numTeams, settings.teamCount, settings.leagueSize) ?? 12
   return {
     sport: String(league.sport ?? "NFL"),
     leagueType: String(league.leagueType ?? league.format ?? "redraft"),
-    scoringPreset: String(league.scoringPreset ?? scoring ?? "") || null,
-    draftType: String(league.draftType ?? "") || null,
-    numTeams: Number(league.numTeams ?? league.teamCount ?? 12),
-    isSuperflex: Boolean(league.isSuperflex ?? league.superflex),
+    scoringPreset,
+    draftType,
+    numTeams,
+    isSuperflex: firstBoolean(league.isSuperflex, league.superflex, settings.isSuperflex, flags.isSuperFlex, flags.isSuperflex),
     isPPR: scoring.includes("ppr") && !scoring.includes("half"),
     isHalfPPR: scoring.includes("half_ppr") || scoring.includes("half-ppr"),
     isStandard: scoring.includes("std") || scoring.includes("standard"),
-    isIDP: Boolean(league.idp) || scoring.includes("idp"),
+    isIDP: firstBoolean(league.idp, settings.idp, flags.isIDP) || scoring.includes("idp"),
     isBestBall: String(league.leagueType ?? "").includes("best_ball"),
-    isDynasty: String(league.leagueType ?? "").includes("dynasty"),
+    isDynasty: firstBoolean(league.isDynasty, settings.isDynasty) || String(league.leagueType ?? "").includes("dynasty"),
     isKeeper: String(league.leagueType ?? "").includes("keeper"),
     playoffTeams: league.playoffTeams != null ? Number(league.playoffTeams) : null,
-    playoffWeekStart: league.playoffWeekStart != null ? Number(league.playoffWeekStart) : null,
-    rosterSlots: league.rosterSlots != null ? Number(league.rosterSlots) : null,
-    benchSlots: league.benchSlots != null ? Number(league.benchSlots) : null,
+    playoffWeekStart: firstNumber(league.playoffWeekStart, league.playoffStartWeek),
+    rosterSlots: firstNumber(league.rosterSlots, league.rosterSize, rosterSettings.rosterSize, rosterSettings.totalSlots),
+    benchSlots: firstNumber(league.benchSlots, rosterSettings.benchSlots),
     irSlots: league.irSlots != null ? Number(league.irSlots) : null,
     taxiSlots: league.taxiSlots != null ? Number(league.taxiSlots) : null,
     waiverType: String(league.waiverType ?? "") || null,
-    faabBudget: league.faabBudget != null ? Number(league.faabBudget) : null,
-    tradeDeadline: league.tradeDeadline != null ? Number(league.tradeDeadline) : null,
+    faabBudget: firstNumber(league.faabBudget, league.waiverBudget),
+    tradeDeadline: firstNumber(league.tradeDeadline, league.tradeDeadlineWeek),
     season: league.season != null ? Number(league.season) : currentSeason(),
   }
 }
@@ -306,13 +352,27 @@ async function loadLeagueRow(leagueId: string): Promise<Record<string, unknown> 
         name: true,
         sport: true,
         leagueType: true,
-        scoringPreset: true,
-        draftType: true,
-        numTeams: true,
+        leagueSize: true,
+        scoring: true,
+        scoringPresetId: true,
+        isDynasty: true,
+        rosterSize: true,
         status: true,
         season: true,
         settings: true,
         userId: true,
+        playoffTeams: true,
+        playoffStartWeek: true,
+        irSlots: true,
+        taxiSlots: true,
+        waiverType: true,
+        waiverBudget: true,
+        tradeDeadlineWeek: true,
+        leagueSettings: {
+          select: {
+            draftType: true,
+          },
+        },
       },
     })) ?? null
   } catch {
@@ -331,8 +391,10 @@ async function loadManagers(leagueId: string, viewerUserId: string): Promise<Lea
         pointsFor: true,
         wins: true,
         losses: true,
-        rank: true,
+        currentRank: true,
         isCommissioner: true,
+        isCoCommissioner: true,
+        role: true,
       },
       take: 30,
     }).catch(() => []) as Array<Record<string, unknown>>
@@ -362,8 +424,8 @@ async function loadManagers(leagueId: string, viewerUserId: string): Promise<Lea
         displayName: String(user?.name ?? user?.username ?? (uid ? uid.slice(0, 8) : "Open slot")),
         teamName: t.teamName ? String(t.teamName) : null,
         isCommissioner: Boolean(t.isCommissioner) || role === "commissioner",
-        isCoCommissioner: role === "co_commissioner",
-        rank: t.rank != null ? Number(t.rank) : null,
+        isCoCommissioner: Boolean(t.isCoCommissioner) || role === "co_commissioner",
+        rank: t.currentRank != null ? Number(t.currentRank) : null,
         pointsFor: t.pointsFor != null ? Number(t.pointsFor) : null,
         wins: t.wins != null ? Number(t.wins) : null,
         losses: t.losses != null ? Number(t.losses) : null,
@@ -380,12 +442,37 @@ async function loadViewerRoster(
   userId: string,
 ): Promise<LeagueGroundingRoster | null> {
   try {
-    const roster = await (prisma as any).roster.findFirst({
-      where: { leagueId, userId },
+    const team = await (prisma as any).leagueTeam.findFirst({
+      where: {
+        leagueId,
+        OR: [
+          { claimedByUserId: userId },
+          { platformUserId: userId },
+        ],
+      },
       select: {
         teamName: true,
+        externalId: true,
+        platformUserId: true,
+      },
+    }).catch(() => null) as Record<string, unknown> | null
+
+    const rosterOwnerIds = [
+      userId,
+      team?.platformUserId,
+      team?.externalId,
+    ]
+      .map((value) => (typeof value === "string" ? value.trim() : ""))
+      .filter(Boolean)
+
+    const roster = await (prisma as any).roster.findFirst({
+      where: {
+        leagueId,
+        OR: rosterOwnerIds.map((platformUserId) => ({ platformUserId })),
+      },
+      select: {
         playerData: true,
-        starters: true,
+        settings: true,
       },
     }).catch(() => null)
     if (!roster) return null
@@ -412,13 +499,14 @@ async function loadViewerRoster(
       if (parsed) allPlayers.push(parsed)
     }
 
+    const rosterSettings = asRecord(roster.settings)
     const starterIds = new Set<string>(
-      Array.isArray(roster.starters) ? roster.starters.map(String) : [],
+      Array.isArray(rosterSettings.starters) ? rosterSettings.starters.map(String) : [],
     )
 
     return {
       userId,
-      teamName: roster.teamName ? String(roster.teamName) : null,
+      teamName: team?.teamName ? String(team.teamName) : null,
       starters: allPlayers.filter((p) => starterIds.has(p.playerId) || p.isStarter),
       bench: allPlayers.filter((p) => !starterIds.has(p.playerId) && !p.isStarter),
     }
@@ -434,8 +522,8 @@ async function loadDraftStatus(leagueId: string): Promise<LeagueGroundingDraft |
       orderBy: { createdAt: "desc" },
       select: {
         status: true,
-        currentRound: true,
-        currentPick: true,
+        currentRoundNum: true,
+        nextOverallPick: true,
         draftType: true,
         completedAt: true,
       },
@@ -453,8 +541,8 @@ async function loadDraftStatus(leagueId: string): Promise<LeagueGroundingDraft |
     return {
       status,
       type: session.draftType ? String(session.draftType) : null,
-      round: session.currentRound != null ? Number(session.currentRound) : null,
-      pick: session.currentPick != null ? Number(session.currentPick) : null,
+      round: session.currentRoundNum != null ? Number(session.currentRoundNum) : null,
+      pick: session.nextOverallPick != null ? Number(session.nextOverallPick) : null,
       completedAt:
         session.completedAt instanceof Date
           ? session.completedAt.toISOString()
@@ -472,34 +560,55 @@ async function loadPlayerPoolSummary(
   season: number,
 ): Promise<LeagueGroundingPlayerPoolSummary | null> {
   try {
-    const players = await (prisma as any).sportsPlayerRecord.findMany({
-      where: { sport },
-      select: {
-        name: true,
-        position: true,
-        team: true,
-        adp: true,
-        injuryStatus: true,
-        dataSource: true,
-      },
-      orderBy: { adp: "asc" },
-      take: 500,
-    }).catch(() => []) as Array<Record<string, unknown>>
+    const [players, adpRows] = await Promise.all([
+      (prisma as any).sportsPlayerRecord.findMany({
+        where: { sport },
+        select: {
+          id: true,
+          name: true,
+          position: true,
+          team: true,
+          adp: true,
+          injuryStatus: true,
+          dataSource: true,
+        },
+        orderBy: [{ adp: "asc" }, { name: "asc" }],
+        take: 500,
+      }).catch(() => []) as Promise<Array<Record<string, unknown>>>,
+      (prisma as any).adpDataRecord.findMany({
+        where: { sport, season },
+        select: {
+          playerId: true,
+          playerName: true,
+          position: true,
+          team: true,
+          adp: true,
+          source: true,
+        },
+        orderBy: { adp: "asc" },
+        distinct: ["playerId"],
+        take: 30,
+      }).catch(() => []) as Promise<Array<Record<string, unknown>>>,
+    ])
 
     if (players.length === 0) return null
 
     const byPosition: Record<string, number> = {}
     let missingAdp = 0
     let missingProj = 0
+    const playerById = new Map<string, Record<string, unknown>>()
+    const playerByName = new Map<string, Record<string, unknown>>()
 
     for (const p of players) {
       const pos = String(p.position ?? "FLEX")
       byPosition[pos] = (byPosition[pos] ?? 0) + 1
       if (p.adp == null) missingAdp++
       missingProj++ // projections not in SportsPlayerRecord yet
+      if (p.id) playerById.set(String(p.id), p)
+      if (p.name) playerByName.set(String(p.name).trim().toLowerCase(), p)
     }
 
-    const topAdp = players
+    let topAdp = players
       .filter((p) => p.adp != null)
       .slice(0, 30)
       .map((p) => ({
@@ -510,7 +619,25 @@ async function loadPlayerPoolSummary(
         injuryStatus: p.injuryStatus ? String(p.injuryStatus) : null,
       }))
 
-    const dataSource = players[0]?.dataSource ? String(players[0].dataSource) : null
+    if (topAdp.length === 0 && adpRows.length > 0) {
+      topAdp = adpRows.map((row) => {
+        const player =
+          playerById.get(String(row.playerId ?? "")) ??
+          playerByName.get(String(row.playerName ?? "").trim().toLowerCase())
+        return {
+          playerName: String(row.playerName ?? player?.name ?? ""),
+          position: String(row.position ?? player?.position ?? ""),
+          team: row.team ? String(row.team) : player?.team ? String(player.team) : null,
+          adp: Number(row.adp),
+          injuryStatus: player?.injuryStatus ? String(player.injuryStatus) : null,
+        }
+      })
+    }
+
+    const dataSource =
+      players[0]?.dataSource ? String(players[0].dataSource)
+      : adpRows[0]?.source ? String(adpRows[0].source)
+      : null
 
     return {
       totalAvailable: players.length,
@@ -525,16 +652,16 @@ async function loadPlayerPoolSummary(
   }
 }
 
-async function loadFantasyData(sport: string): Promise<LeagueGroundingPacket["fantasyData"]> {
+async function loadFantasyData(sport: string, season: number): Promise<LeagueGroundingPacket["fantasyData"]> {
   try {
     const [playerCount, adpCount, injuryCount, scheduleCount, topInjuries] = await Promise.all([
       (prisma as any).sportsPlayerRecord.count({ where: { sport } }).catch(() => 0) as Promise<number>,
       (prisma as any).adpDataRecord.count({ where: { sport } }).catch(() => 0) as Promise<number>,
       (prisma as any).injuryReportRecord.count({ where: { sport } }).catch(() => 0) as Promise<number>,
-      (prisma as any).sportsGame.count({ where: { sport } }).catch(() => 0) as Promise<number>,
+      (prisma as any).sportsGame.count({ where: { sport, season } }).catch(() => 0) as Promise<number>,
       (prisma as any).injuryReportRecord.findMany({
         where: { sport, status: { in: ["Out", "Doubtful", "Questionable"] } },
-        select: { playerName: true, team: true, status: true, position: true },
+        select: { playerName: true, team: true, status: true },
         orderBy: { reportDate: "desc" },
         take: 20,
       }).catch(() => []) as Promise<Array<Record<string, unknown>>>,
@@ -552,7 +679,7 @@ async function loadFantasyData(sport: string): Promise<LeagueGroundingPacket["fa
         playerName: String(i.playerName ?? ""),
         team: i.team ? String(i.team) : null,
         status: String(i.status ?? ""),
-        position: String(i.position ?? ""),
+        position: "",
       })),
     }
   } catch {
@@ -723,13 +850,20 @@ async function loadStandingsSummary(
   sport: string,
 ): Promise<LeagueGroundingPacket["standingsSummary"]> {
   try {
-    const cacheKeyPrefix = `${sport.toLowerCase()}:standings:`
+    const sportUpper = sport.toUpperCase()
+    const sportLower = sport.toLowerCase()
+    const standingsCacheWhere = {
+      OR: [
+        { cacheKey: { startsWith: `${sportUpper}:standings:` } },
+        { cacheKey: { startsWith: `${sportLower}:standings:` } },
+      ],
+    }
     const [rowCount, latest] = await Promise.all([
       (prisma as any).sportsDataCache.count({
-        where: { cacheKey: { startsWith: cacheKeyPrefix } },
+        where: standingsCacheWhere,
       }).catch(() => 0) as Promise<number>,
       (prisma as any).sportsDataCache.findFirst({
-        where: { cacheKey: { startsWith: cacheKeyPrefix } },
+        where: standingsCacheWhere,
         select: { createdAt: true },
         orderBy: { createdAt: "desc" },
       }).catch(() => null) as Promise<Record<string, unknown> | null>,
@@ -775,7 +909,7 @@ export async function buildLeagueSportsGroundingPacket(args: {
     loadViewerRoster(leagueId, userId),
     loadDraftStatus(leagueId),
     loadPlayerPoolSummary(sport, season),
-    loadFantasyData(sport),
+    loadFantasyData(sport, season),
     loadFantasyDataEvidence({ sport, season }),
     loadFantasyProviderHealth({ sport, season }).catch(() => null),
     loadNewsDigest(sport),
