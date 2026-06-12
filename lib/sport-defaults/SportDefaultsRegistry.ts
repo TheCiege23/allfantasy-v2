@@ -281,7 +281,7 @@ const DRAFT_DEFAULTS: Record<SportType, DraftDefaults> = {
     pre_draft_ranking_source: 'adp',
     roster_fill_order: 'position_scarcity',
     position_filter_behavior: 'by_eligibility',
-    keeper_dynasty_carryover_supported: false,
+    keeper_dynasty_carryover_supported: true,
   },
   NCAAB: {
     sport_type: 'NCAAB',
@@ -631,6 +631,24 @@ export function getDraftDefaults(sportType: SportType, formatType?: string | nul
   const base = DRAFT_DEFAULTS[sportType] ?? DRAFT_DEFAULTS.NFL
   const normalizedVariant = (formatType ?? '').trim().toUpperCase()
   const variantLower = (formatType ?? '').trim().toLowerCase()
+
+  // Dynasty-specific defaults: deeper roster startup draft, dynasty ADP ranking
+  if (normalizedVariant === 'DYNASTY' && (sportType === 'NFL' || sportType === 'NCAAF')) {
+    // Startup draft covers starters(9) + bench(12) + taxi(4) = 25 rounds
+    const startupRounds = sportType === 'NCAAF' ? 25 : 25
+    const queueLimit = sportType === 'NCAAF' ? 80 : 60
+    return {
+      ...base,
+      rounds_default: startupRounds,
+      queue_size_limit: queueLimit,
+      pre_draft_ranking_source: 'dynasty_adp',
+      roster_fill_order: 'position_scarcity',
+      draft_order_rules: 'snake',
+      snake_or_linear_behavior: 'snake',
+      keeper_dynasty_carryover_supported: true,
+    }
+  }
+
   if (variantLower === 'devy_dynasty' && (sportType === 'NFL' || sportType === 'NBA')) {
     const roster = DEVY_DYNASTY_ROSTER_DEFAULTS[sportType]
     const totalProSlots =

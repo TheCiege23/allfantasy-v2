@@ -175,7 +175,7 @@ export type SnakeOrLinear = 'snake' | 'linear'
 export type AutopickBehavior = 'queue-first' | 'bpa' | 'need-based' | 'skip'
 
 /** Pre-draft ranking source for AI and queue. */
-export type PreDraftRankingSource = 'adp' | 'ecr' | 'projections' | 'tiers' | 'custom' | 'sport_default'
+export type PreDraftRankingSource = 'adp' | 'dynasty_adp' | 'ecr' | 'projections' | 'tiers' | 'custom' | 'sport_default' | 'adp_projection_rank_fallback'
 
 /** Roster fill order for AI/autopick (slot priority). */
 export type RosterFillOrder = 'starter_first' | 'need_based' | 'bpa' | 'position_scarcity'

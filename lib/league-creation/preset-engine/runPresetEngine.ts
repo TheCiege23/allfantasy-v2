@@ -15,6 +15,7 @@ import { normalizeToSupportedSport, supportsIdpLeagueSport } from '@/lib/sport-s
 import { normalizeConceptToFormat, type NormalizedConcept } from '@/lib/league-creation/canonical/normalizeConcept'
 import type { DerivedLeagueFlags, PresetEngineOutput } from '@/lib/league-creation/canonical/types'
 import { buildRedraftSettingsSnapshot } from '@/lib/league-concepts/redraftDefaults'
+import { buildDynastySettingsSnapshot, isDynastyEligibleSport } from '@/lib/league-concepts/dynastyDefaults'
 
 export const PRESET_ENGINE_VERSION = '1'
 
@@ -139,6 +140,16 @@ export function runPresetEngine(input: RunPresetEngineInput): PresetEngineOutput
         })
       : null
 
+  const dynastySnapshot =
+    formatId === 'dynasty' && isDynastyEligibleSport(sport)
+      ? buildDynastySettingsSnapshot({
+          sport,
+          draftType: input.draftType,
+          scoringPresetId: input.scoringPreset,
+          teamCount: input.teamCount,
+        })
+      : null
+
   const derivedFlags = deriveFlags(formatId, resolution)
   const conceptRules = buildConceptRulesBlock({
     formatId,
@@ -147,19 +158,21 @@ export function runPresetEngine(input: RunPresetEngineInput): PresetEngineOutput
     resolution,
   })
 
+  const canonicalSnapshot = redraftSnapshot ?? dynastySnapshot ?? null
+
   const settingsSnapshot: SettingsSnapshot = {
     snapshotVersion: SETTINGS_SNAPSHOT_VERSION,
     ...(legacy as Record<string, unknown>),
-    ...(redraftSnapshot ?? {}),
-    rosterSettings: (redraftSnapshot?.rosterSettings ??
+    ...(canonicalSnapshot ?? {}),
+    rosterSettings: (canonicalSnapshot?.rosterSettings ??
       resolution.roster) as unknown as SettingsSnapshot['rosterSettings'],
-    scoringSettings: (redraftSnapshot?.scoringSettings ?? {
+    scoringSettings: (canonicalSnapshot?.scoringSettings ?? {
       ...(resolution.scoring as Record<string, unknown>),
       preset: input.scoringPreset,
       scoringTemplateId: input.scoringPreset,
       format: (resolution.scoring as { format?: string })?.format,
     }) as SettingsSnapshot['scoringSettings'],
-    draftSettings: (redraftSnapshot?.draftSettings ?? {
+    draftSettings: (canonicalSnapshot?.draftSettings ?? {
       draftType: resolution.draftType,
       rounds: resolution.draftDefaults.rounds_default,
       timerSeconds: resolution.draftDefaults.timer_seconds_default ?? undefined,

@@ -437,9 +437,11 @@ export function resolveLeagueFormat(options: {
         ? 'devy_dynasty'
         : format.id === 'c2c'
           ? 'merged_devy_c2c'
-          : scopedModifiers.includes('superflex')
-            ? 'SUPERFLEX'
-            : null
+          : format.id === 'dynasty'
+            ? 'dynasty'
+            : scopedModifiers.includes('superflex')
+              ? 'SUPERFLEX'
+              : null
   )
   const waiverDefaults = getWaiverDefaults(sport, format.id)
   const playoffDefaults = resolveDefaultPlayoffConfig(sport, format.id)
