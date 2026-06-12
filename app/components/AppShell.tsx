@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { ChevronLeft } from 'lucide-react'
+import { Bot, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export type AppShellProps = {
@@ -17,6 +17,10 @@ export type AppShellProps = {
   onRightRailExpand?: () => void
   /** e.g. league count — shown on the collapsed strip */
   rightRailCollapsedHint?: string
+  /** Desktop: collapse left chat rail — center column expands. */
+  leftRailCollapsed?: boolean
+  onLeftRailExpand?: () => void
+  onLeftRailCollapse?: () => void
   /**
    * When true, center column is transparent and side rails use glass (for `SpecialtyLeagueAtmosphere` behind shell).
    */
@@ -46,6 +50,9 @@ export default function AppShell({
   rightRailCollapsed = false,
   onRightRailExpand,
   rightRailCollapsedHint,
+  leftRailCollapsed = false,
+  onLeftRailExpand,
+  onLeftRailCollapse,
   immersive = false,
   rootClassName,
   embedCenterOnly = false,
@@ -76,9 +83,14 @@ export default function AppShell({
   const centerBg = immersive ? { background: 'transparent' as const } : { background: 'var(--bg)' }
   const rootBg = immersive ? { background: 'transparent' as const } : { background: 'var(--bg)' }
   const balancedDesktopLayout = layoutMode === 'balanced-three-panel'
-  const balancedDesktopColumns = rightRailCollapsed
-    ? 'md:[grid-template-columns:minmax(280px,40fr)_minmax(0,60fr)_3rem]'
-    : 'md:[grid-template-columns:minmax(280px,40fr)_minmax(0,30fr)_minmax(280px,30fr)]'
+
+  // Build desktop grid-template-columns for balanced-three-panel based on collapse states
+  const balancedDesktopColumns = (() => {
+    if (!balancedDesktopLayout) return ''
+    const leftCol = leftRailCollapsed ? '3rem' : 'minmax(280px,40fr)'
+    const rightCol = rightRailCollapsed ? '3rem' : 'minmax(280px,30fr)'
+    return `md:[grid-template-columns:${leftCol}_minmax(0,1fr)_${rightCol}]`
+  })()
 
   return (
     <div
@@ -91,25 +103,57 @@ export default function AppShell({
       style={rootBg}
       data-af-immersive={immersive ? '1' : undefined}
       data-af-layout-mode={balancedDesktopLayout ? 'balanced-three-panel' : 'legacy-rail-clamp'}
+      data-af-left-collapsed={leftRailCollapsed ? '1' : undefined}
+      data-af-right-collapsed={rightRailCollapsed ? '1' : undefined}
       {...rootProps}
     >
-      {/* Left chat rail */}
+      {/* Left chat rail — slim strip when collapsed */}
       <aside
         className={cn(
           balancedDesktopLayout
             ? 'hidden h-full min-h-0 flex-col overflow-hidden md:flex md:min-w-0'
             : 'hidden h-full min-h-0 flex-shrink-0 flex-col overflow-hidden transition-[width] duration-200 ease-out md:flex md:w-[clamp(300px,24vw,360px)]',
+          leftRailCollapsed ? 'w-12 max-w-[3rem]' : '',
           leftRailClass,
         )}
         style={immersive ? undefined : { background: 'var(--panel2)' }}
+        data-testid="app-shell-left-rail"
       >
-        {leftPanel}
+        {leftRailCollapsed ? (
+          <div className="flex h-full w-full flex-col items-center gap-2 border-r border-white/[0.06] bg-[#0a0a1f] py-3">
+            <button
+              type="button"
+              onClick={onLeftRailExpand}
+              className="inline-flex h-10 w-9 shrink-0 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-white/80 transition hover:bg-white/[0.08]"
+              aria-label="Open chat"
+              title="Open chat"
+              data-testid="chat-rail-expand"
+            >
+              <Bot className="h-5 w-5" aria-hidden />
+            </button>
+          </div>
+        ) : (
+          <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden">
+            {onLeftRailCollapse ? (
+              <button
+                type="button"
+                onClick={onLeftRailCollapse}
+                className="absolute right-2 top-2 z-10 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/[0.08] bg-white/[0.04] text-white/50 transition hover:bg-white/[0.08] hover:text-white/80"
+                aria-label="Collapse chat"
+                title="Collapse chat"
+                data-testid="chat-rail-collapse"
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </button>
+            ) : null}
+            {leftPanel}
+          </div>
+        )}
       </aside>
 
-      {/* Center workspace — grows when right rail is collapsed */}
+      {/* Center workspace — grows when side rails are collapsed */}
       <div
         className={cn(
-          // flex-1 below md so the center column gets height when side rails are display:none
           balancedDesktopLayout
             ? 'flex min-h-0 min-w-0 w-full flex-col overflow-hidden'
             : 'flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden transition-[flex] duration-200 ease-out',

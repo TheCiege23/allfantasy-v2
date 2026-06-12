@@ -19,9 +19,11 @@ describe('League shell layout and waivers integration', () => {
   const commissionerPanel = read('components/waivers/CommissionerWaiverInsightsPanel.tsx')
   const sportAwareWaiverWire = read('components/waiver-wire/SportAwareWaiverWire.tsx')
 
-  it('uses the balanced three-panel desktop preset with adjacent 40/30/30 columns', () => {
+  it('uses the balanced three-panel desktop preset with dynamic collapsible columns', () => {
     expect(appShell).toContain("layoutMode?: 'legacy-rail-clamp' | 'balanced-three-panel'")
-    expect(appShell).toContain('md:[grid-template-columns:minmax(280px,40fr)_minmax(0,30fr)_minmax(280px,30fr)]')
+    // Columns are now dynamic based on left/right collapse state (minmax(280px,40fr) or 3rem for each side)
+    expect(appShell).toContain('minmax(280px,40fr)')
+    expect(appShell).toContain('minmax(280px,30fr)')
     expect(appShell).toContain("data-af-layout-mode={balancedDesktopLayout ? 'balanced-three-panel' : 'legacy-rail-clamp'}")
     expect(dashboardShell).toContain('layoutMode="balanced-three-panel"')
     expect(leagueShell).toContain('layoutMode="balanced-three-panel"')

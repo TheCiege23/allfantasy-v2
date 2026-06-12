@@ -253,13 +253,24 @@ export function LeagueShell({
 }: LeagueShellProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const myLeaguesRail = useMyLeaguesRailCollapse()
+  // Use a league-specific storage key so league and dashboard have independent collapse states.
+  // Default to collapsed on league pages — side panels are drawers/overlays by default.
+  const myLeaguesRail = useMyLeaguesRailCollapse({
+    storageKey: 'af-league-myleagues-rail-collapsed',
+    defaultCollapsed: true,
+  })
   const searchParams = useSearchParams()
   const openChatQuery = searchParams?.get('openChat') ?? null
   const initialOpenChat = useMemo(
     () => defaultOpenChat ?? normalizeOpenChatQueryParam(openChatQuery) ?? 'league',
     [defaultOpenChat, openChatQuery],
   )
+  // Left chat panel: collapsed by default on league pages.
+  // Opens when ?openChat= param is explicitly provided (via link or post-create flow).
+  const [desktopChatOpen, setDesktopChatOpen] = useState<boolean>(defaultOpenChat != null)
+  useEffect(() => {
+    if (openChatQuery != null) setDesktopChatOpen(true)
+  }, [openChatQuery])
   const { rosterId: capRosterId } = useRedraftRosterId(league.id)
   const { summary: capSummary } = useIdpCapSummary(league.id, capRosterId)
   const idpCapEnabled = Boolean(capSummary)
@@ -1020,6 +1031,9 @@ export function LeagueShell({
           rightRailCollapsed={myLeaguesRail.collapsed}
           onRightRailExpand={() => myLeaguesRail.setCollapsed(false)}
           rightRailCollapsedHint={leagueList.length ? String(leagueList.length) : undefined}
+          leftRailCollapsed={!desktopChatOpen}
+          onLeftRailExpand={() => setDesktopChatOpen(true)}
+          onLeftRailCollapse={() => setDesktopChatOpen(false)}
           leftPanel={
           <LeftChatPanel
             selectedLeague={selectedLeague}

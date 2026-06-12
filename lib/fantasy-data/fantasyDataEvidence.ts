@@ -6,6 +6,12 @@
 import "server-only"
 import { prisma } from "@/lib/prisma"
 
+export type FantasyEvidenceDomainSnapshot = {
+  count: number
+  lastImportedAt: string | null
+  provider: string | null
+}
+
 export type FantasyDataEvidenceSnapshot = {
   sport: string
   season: number
@@ -32,6 +38,17 @@ export type FantasyDataEvidenceSnapshot = {
     lastImportedAt: string | null
     provider: string | null
   }
+  teams: FantasyEvidenceDomainSnapshot
+  scores: FantasyEvidenceDomainSnapshot
+  standings: FantasyEvidenceDomainSnapshot
+  news: FantasyEvidenceDomainSnapshot
+  weather: FantasyEvidenceDomainSnapshot
+  projections: FantasyEvidenceDomainSnapshot
+  fantasyValues: FantasyEvidenceDomainSnapshot
+  depthCharts: FantasyEvidenceDomainSnapshot
+  seasonStats: FantasyEvidenceDomainSnapshot
+  gameLogs: FantasyEvidenceDomainSnapshot
+  idpStats: FantasyEvidenceDomainSnapshot
   lastFullSyncAt: string | null
   lastImportRun: {
     jobName: string
@@ -142,6 +159,143 @@ async function getScheduleEvidence(sport: string, season: number) {
     }
   } catch {
     return { count: 0, lastImportedAt: null, provider: null }
+  }
+}
+
+type EvidenceMetric = {
+  model: string
+  where?: Record<string, unknown>
+  dateField: string
+  providerField?: string
+  staticProvider?: string
+}
+
+function getPrismaModel(name: string): any | null {
+  const model = (prisma as any)[name]
+  return model && typeof model === "object" ? model : null
+}
+
+async function getDomainEvidence(metrics: EvidenceMetric[]): Promise<FantasyEvidenceDomainSnapshot> {
+  let count = 0
+  let latestDate: string | null = null
+  let provider: string | null = null
+
+  for (const metric of metrics) {
+    const model = getPrismaModel(metric.model)
+    if (!model) continue
+
+    try {
+      const metricCount = typeof model.count === "function"
+        ? Number(await model.count({ where: metric.where ?? {} }).catch(() => 0))
+        : 0
+      count += metricCount
+
+      if (typeof model.findFirst !== "function") continue
+      const select: Record<string, boolean> = { [metric.dateField]: true }
+      if (metric.providerField) select[metric.providerField] = true
+      const latest = await model.findFirst({
+        where: metric.where ?? {},
+        orderBy: { [metric.dateField]: "desc" },
+        select,
+      }).catch(() => null)
+
+      const iso = toIso(latest?.[metric.dateField])
+      if (iso && (!latestDate || Date.parse(iso) > Date.parse(latestDate))) {
+        latestDate = iso
+        provider = metric.staticProvider ??
+          (metric.providerField && typeof latest?.[metric.providerField] === "string"
+            ? latest[metric.providerField]
+            : provider)
+      }
+    } catch {
+      // keep evidence resilient; one missing model/column should not hide other domains
+    }
+  }
+
+  return {
+    count,
+    lastImportedAt: latestDate,
+    provider,
+  }
+}
+
+function getExtendedEvidenceLoaders(sport: string, season: number) {
+  const seasonString = String(season)
+  const sportLower = sport.toLowerCase()
+  return {
+    teams: getDomainEvidence([
+      { model: "sportsTeam", where: { sport }, dateField: "fetchedAt", providerField: "source" },
+      { model: "teamAsset", where: { sport }, dateField: "lastUpdated", providerField: "logoSource" },
+    ]),
+    scores: getDomainEvidence([
+      {
+        model: "sportsGame",
+        where: {
+          sport,
+          season,
+          OR: [
+            { homeScore: { not: null } },
+            { awayScore: { not: null } },
+            { status: { in: ["live", "Live", "in_progress", "final", "Final", "completed", "Completed"] } },
+          ],
+        },
+        dateField: "fetchedAt",
+        providerField: "source",
+      },
+      {
+        model: "gameSchedule",
+        where: {
+          sportType: sport,
+          season,
+          OR: [
+            { homeScore: { not: null } },
+            { awayScore: { not: null } },
+            { status: { in: ["live", "Live", "in_progress", "final", "Final", "completed", "Completed"] } },
+          ],
+        },
+        dateField: "updatedAt",
+        staticProvider: "game_schedule",
+      },
+    ]),
+    standings: getDomainEvidence([
+      {
+        model: "sportsDataCache",
+        where: { cacheKey: { startsWith: `${sportLower}:standings:` } },
+        dateField: "createdAt",
+        staticProvider: "sports_data_cache",
+      },
+    ]),
+    news: getDomainEvidence([
+      { model: "playerNewsRecord", where: { sport }, dateField: "publishedAt", providerField: "source" },
+      { model: "sportsNews", where: { sport }, dateField: "publishedAt", providerField: "source" },
+    ]),
+    weather: getDomainEvidence([
+      { model: "weatherCache", where: { sport }, dateField: "fetchedAt", providerField: "dataSource" },
+      { model: "gameSchedule", where: { sportType: sport, season, weather: { not: null } }, dateField: "updatedAt", staticProvider: "game_schedule" },
+    ]),
+    projections: getDomainEvidence([
+      { model: "fantasyProjection", where: { sport, season: seasonString }, dateField: "fetchedAt", providerField: "source" },
+      { model: "aFProjectionSnapshot", where: { sport, season }, dateField: "computedAt", staticProvider: "allfantasy" },
+    ]),
+    fantasyValues: getDomainEvidence([
+      { model: "sportsPlayerRecord", where: { sport, OR: [{ dynastyValue: { not: null } }, { adp: { not: null } }] }, dateField: "lastUpdated", providerField: "dataSource" },
+      { model: "adpDataRecord", where: { sport, season }, dateField: "createdAt", providerField: "source" },
+    ]),
+    depthCharts: getDomainEvidence([
+      { model: "depthChart", where: { sport, season: seasonString }, dateField: "fetchedAt", providerField: "source" },
+    ]),
+    seasonStats: getDomainEvidence([
+      { model: "playerSeasonStats", where: { sport, season: seasonString }, dateField: "fetchedAt", providerField: "source" },
+      { model: "teamSeasonStats", where: { sport, season: seasonString }, dateField: "fetchedAt", providerField: "source" },
+    ]),
+    gameLogs: getDomainEvidence([
+      { model: "playerGameLogCache", where: { sport, season: seasonString }, dateField: "syncedAt", staticProvider: "player_game_log_cache" },
+      { model: "playerGameStat", where: { sportType: sport, season }, dateField: "updatedAt", providerField: "source" },
+    ]),
+    idpStats: getDomainEvidence([
+      { model: "playerSeasonStats", where: { sport, season: seasonString, position: { in: ["DL", "DE", "DT", "LB", "CB", "S", "DB", "IDP"] } }, dateField: "fetchedAt", providerField: "source" },
+      { model: "playerGameStat", where: { sportType: sport, season }, dateField: "updatedAt", providerField: "source" },
+    ]),
   }
 }
 

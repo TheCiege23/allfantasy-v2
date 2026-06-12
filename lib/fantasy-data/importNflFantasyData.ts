@@ -9,11 +9,14 @@ import { runSportsDataImporter } from "@/lib/workers/sports-data-importer"
 import { runAdpImporter } from "@/lib/workers/adp-importer"
 import { runInjuryImporter } from "@/lib/workers/injury-importer"
 import { runScheduleImporter } from "@/lib/workers/schedule-importer"
+import { runNewsImporter } from "@/lib/workers/news-importer"
+import { syncNFLDepthChartsToDb, syncNFLTeamStatsToDb } from "@/lib/rolling-insights"
 import { prisma } from "@/lib/prisma"
+import { importProviderDomainData } from "./importProviderDomainData"
 
 export type FantasyImportSummary = {
   ok: boolean
-  sport: "NFL"
+  sport: "NFL" | "NCAAF"
   provider: string
   season: number
   counts: {
@@ -21,6 +24,19 @@ export type FantasyImportSummary = {
     adp: number
     injuries: number
     schedules: number
+    teams: number
+    scores: number
+    standings: number
+    news: number
+    playerHeadshots: number
+    teamLogos: number
+    depthCharts: number
+    projections: number
+    fantasyValues: number
+    seasonStats: number
+    gameLogs: number
+    weather: number
+    idpStats: number
   }
   skipped: number
   missingEnv: string[]
@@ -39,11 +55,17 @@ function currentSeason(): number {
 
 function checkNflEnv(): string[] {
   const missing: string[] = []
-  if (!process.env.ROLLING_INSIGHTS_API_KEY && !process.env.ROLLING_INSIGHTS_API_SECRET) {
-    missing.push("ROLLING_INSIGHTS_API_KEY")
+  const hasRollingInsights =
+    Boolean(process.env.ROLLING_INSIGHTS_API_KEY?.trim()) ||
+    (Boolean(process.env.ROLLING_INSIGHTS_CLIENT_ID?.trim()) &&
+      Boolean(process.env.ROLLING_INSIGHTS_CLIENT_SECRET?.trim())) ||
+    (Boolean(process.env.ROLLING_INSIGHTS_CLIENT_ID2?.trim()) &&
+      Boolean(process.env.ROLLING_INSIGHTS_CLIENT_SECRET2?.trim()))
+  if (!hasRollingInsights) {
+    missing.push("ROLLING_INSIGHTS_API_KEY or ROLLING_INSIGHTS_CLIENT_ID/ROLLING_INSIGHTS_CLIENT_SECRET")
   }
-  if (!process.env.API_SPORTS_KEY && !process.env.X_RAPIDAPI_KEY) {
-    missing.push("API_SPORTS_KEY")
+  if (!process.env.APISPORTS_API_KEY?.trim() && !process.env.API_SPORTS_KEY?.trim()) {
+    missing.push("APISPORTS_API_KEY or API_SPORTS_KEY")
   }
   return missing
 }
@@ -92,6 +114,16 @@ export async function importNflFantasyData(options?: {
   let adpImported = 0
   let injuriesImported = 0
   let schedulesImported = 0
+  let teamsImported = 0
+  let scoresImported = 0
+  let standingsImported = 0
+  let newsImported = 0
+  let playerHeadshotsImported = 0
+  let teamLogosImported = 0
+  let depthChartsImported = 0
+  let projectionsImported = 0
+  let fantasyValuesImported = 0
+  let seasonStatsImported = 0
   let skipped = 0
 
   if (missingEnv.length > 0) {
@@ -159,8 +191,82 @@ export async function importNflFantasyData(options?: {
     warnings.push(`Schedule import failed (non-critical): ${msg.slice(0, 200)}`)
   }
 
+  try {
+    if (!dryRun) {
+      const result = await runNewsImporter({ sports: ["NFL"] })
+      newsImported += result.imported
+    } else {
+      skipped += 1
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    warnings.push(`News import failed (non-critical): ${msg.slice(0, 200)}`)
+  }
+
+  try {
+    if (!dryRun) {
+      const result = await importProviderDomainData({
+        sport: "NFL",
+        season,
+        week: options?.week,
+      })
+      teamsImported += result.results.find((row) => row.domain === "teams")?.imported ?? 0
+      schedulesImported += result.results.find((row) => row.domain === "schedules")?.imported ?? 0
+      scoresImported += result.results.find((row) => row.domain === "scores")?.imported ?? 0
+      standingsImported += result.results.find((row) => row.domain === "standings")?.imported ?? 0
+      newsImported += result.results.find((row) => row.domain === "news")?.imported ?? 0
+      playerHeadshotsImported += result.results.find((row) => row.domain === "player_headshots")?.imported ?? 0
+      teamLogosImported += result.results.find((row) => row.domain === "team_logos")?.imported ?? 0
+      projectionsImported += result.results.find((row) => row.domain === "projections")?.imported ?? 0
+      fantasyValuesImported += result.results.find((row) => row.domain === "fantasy_values")?.imported ?? 0
+      warnings.push(...result.warnings)
+      errors.push(...result.errors)
+    } else {
+      skipped += 1
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    warnings.push(`Provider domain import failed (non-critical): ${msg.slice(0, 200)}`)
+  }
+
+  try {
+    if (!dryRun) {
+      depthChartsImported = await syncNFLDepthChartsToDb({ season: String(season) })
+    } else {
+      skipped += 1
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    warnings.push(`Depth chart import failed (non-critical): ${msg.slice(0, 200)}`)
+  }
+
+  try {
+    if (!dryRun) {
+      seasonStatsImported = await syncNFLTeamStatsToDb({ season: String(season) })
+    } else {
+      skipped += 1
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    warnings.push(`Team season stats import failed (non-critical): ${msg.slice(0, 200)}`)
+  }
+
   const completedAt = new Date()
-  const totalWritten = playersImported + adpImported + injuriesImported + schedulesImported
+  const totalWritten =
+    playersImported +
+    adpImported +
+    injuriesImported +
+    schedulesImported +
+    teamsImported +
+    scoresImported +
+    standingsImported +
+    newsImported +
+    playerHeadshotsImported +
+    teamLogosImported +
+    depthChartsImported +
+    projectionsImported +
+    fantasyValuesImported +
+    seasonStatsImported
 
   if (!dryRun) {
     await recordImportRun({
@@ -181,6 +287,19 @@ export async function importNflFantasyData(options?: {
       adp: adpImported,
       injuries: injuriesImported,
       schedules: schedulesImported,
+      teams: teamsImported,
+      scores: scoresImported,
+      standings: standingsImported,
+      news: newsImported,
+      playerHeadshots: playerHeadshotsImported,
+      teamLogos: teamLogosImported,
+      depthCharts: depthChartsImported,
+      projections: projectionsImported,
+      fantasyValues: fantasyValuesImported,
+      seasonStats: seasonStatsImported,
+      gameLogs: 0,
+      weather: 0,
+      idpStats: 0,
     },
     skipped,
     missingEnv,

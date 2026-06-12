@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdminOrBearer } from "@/lib/adminAuth"
 import { loadFantasyDataEvidence } from "@/lib/fantasy-data/fantasyDataEvidence"
 import { computeFantasyFreshness } from "@/lib/fantasy-data/fantasyFreshness"
+import { loadFantasyProviderHealth } from "@/lib/fantasy-data/providerHealth"
 
 export const dynamic = "force-dynamic"
 
@@ -26,9 +27,11 @@ export async function GET(request: NextRequest) {
     ? Number(url.searchParams.get("season"))
     : undefined
 
-  const [nfl, ncaaf] = await Promise.all([
+  const [nfl, ncaaf, nflHealth, ncaafHealth] = await Promise.all([
     loadFantasyDataEvidence({ sport: "NFL", season }),
     loadFantasyDataEvidence({ sport: "NCAAF", season }),
+    loadFantasyProviderHealth({ sport: "NFL", season }),
+    loadFantasyProviderHealth({ sport: "NCAAF", season }),
   ])
 
   const nflFreshness = computeFantasyFreshness(nfl)
@@ -39,10 +42,12 @@ export async function GET(request: NextRequest) {
     generatedAt: new Date().toISOString(),
     sports: {
       NFL: {
+        ...nflHealth,
         evidence: nfl,
         freshness: nflFreshness,
       },
       NCAAF: {
+        ...ncaafHealth,
         evidence: ncaaf,
         freshness: ncaafFreshness,
       },
