@@ -18,6 +18,7 @@
 import "server-only"
 import type { SportPlugin, AIEngineInput } from "../types"
 import { getAiLanguageInstruction } from "@/lib/world-cup/worldCupI18n"
+import { prisma } from "@/lib/prisma"
 
 // ─── Context type ─────────────────────────────────────────────────────────────
 
@@ -145,26 +146,157 @@ export const nflPlugin: SportPlugin<NflContext, NflProviderData, NflInsights> = 
   ],
 
   async fetchContext(input: AIEngineInput): Promise<NflContext> {
-    // TODO: query league + roster + standings from DB
-    // const league = await prisma.league.findUnique({ where: { id: input.contextId }, ... })
-    return {
-      leagueId: input.contextId,
-      leagueName: "NFL League",
-      scoringFormat: "ppr",
-      numTeams: 12,
-      currentWeek: 1,
-      isSuperflex: false,
-      userTeam: null,
-      leagueStandings: [],
-      waiverClaims: [],
+    try {
+      const league = await (prisma as any).league.findUnique({
+        where: { id: input.contextId },
+        select: {
+          id: true,
+          name: true,
+          scoringPreset: true,
+          numTeams: true,
+          season: true,
+          settings: true,
+          leagueType: true,
+        },
+      }).catch(() => null)
+
+      const scoring = String(league?.scoringPreset ?? "ppr").toLowerCase()
+      const scoringFormat =
+        scoring.includes("half") ? "half_ppr"
+        : scoring.includes("std") || scoring.includes("standard") ? "standard"
+        : "ppr"
+
+      const settings = league?.settings && typeof league.settings === "object"
+        ? (league.settings as Record<string, unknown>)
+        : {}
+
+      const currentWeek = (() => {
+        const d = new Date()
+        const sep1 = new Date(d.getFullYear(), 8, 1)
+        const diffMs = d.getTime() - sep1.getTime()
+        if (diffMs < 0) return 1
+        return Math.min(18, Math.max(1, Math.floor(diffMs / (7 * 86_400_000)) + 1))
+      })()
+
+      // Load viewer's team from LeagueTeam
+      const viewerTeam = await (prisma as any).leagueTeam.findFirst({
+        where: { leagueId: input.contextId, claimedByUserId: input.userId },
+        select: {
+          id: true,
+          teamName: true,
+          pointsFor: true,
+          wins: true,
+          losses: true,
+          rank: true,
+        },
+      }).catch(() => null)
+
+      const standings = await (prisma as any).leagueTeam.findMany({
+        where: { leagueId: input.contextId },
+        select: { teamName: true, pointsFor: true, wins: true, losses: true, rank: true },
+        orderBy: [{ wins: "desc" }, { pointsFor: "desc" }],
+        take: 20,
+      }).catch(() => []) as Array<Record<string, unknown>>
+
+      return {
+        leagueId: input.contextId,
+        leagueName: league?.name ? String(league.name) : "NFL League",
+        scoringFormat,
+        numTeams: league?.numTeams ? Number(league.numTeams) : 12,
+        currentWeek,
+        isSuperflex: Boolean(settings.isSuperflex ?? settings.superflex),
+        userTeam: viewerTeam
+          ? {
+              teamId: String(viewerTeam.id),
+              teamName: viewerTeam.teamName ? String(viewerTeam.teamName) : "My Team",
+              record: {
+                wins: Number(viewerTeam.wins ?? 0),
+                losses: Number(viewerTeam.losses ?? 0),
+                ties: 0,
+              },
+              rosterSpots: [],
+            }
+          : null,
+        leagueStandings: standings.map((t, i) => ({
+          rank: t.rank != null ? Number(t.rank) : i + 1,
+          teamId: String(t.id ?? ""),
+          teamName: String(t.teamName ?? ""),
+          pointsFor: Number(t.pointsFor ?? 0),
+          pointsAgainst: Number(t.pointsAgainst ?? 0),
+          wins: Number(t.wins ?? 0),
+          losses: Number(t.losses ?? 0),
+        })),
+        waiverClaims: [],
+      }
+    } catch {
+      return {
+        leagueId: input.contextId,
+        leagueName: "NFL League",
+        scoringFormat: "ppr",
+        numTeams: 12,
+        currentWeek: 1,
+        isSuperflex: false,
+        userTeam: null,
+        leagueStandings: [],
+        waiverClaims: [],
+      }
     }
   },
 
-  async fetchProviderData(_context, _input) {
-    // TODO: call NFL data provider (e.g. Sleeper API, ESPN, or internal stats feed)
-    // const projections = await fetchWeeklyNflProjections(context.currentWeek)
-    // const injuries = await fetchNflInjuryReport()
-    return null
+  async fetchProviderData(context, _input) {
+    try {
+      const [dbPlayers, dbInjuries] = await Promise.all([
+        (prisma as any).sportsPlayerRecord.findMany({
+          where: { sport: "NFL" },
+          select: {
+            name: true, position: true, team: true,
+            injuryStatus: true, adp: true, projections: true,
+          },
+          orderBy: { adp: "asc" },
+          take: 300,
+        }).catch(() => []) as Promise<Array<Record<string, unknown>>>,
+        (prisma as any).injuryReportRecord.findMany({
+          where: { sport: "NFL" },
+          orderBy: { reportDate: "desc" },
+          select: { playerName: true, team: true, status: true, position: true, bodyPart: true, notes: true },
+          take: 100,
+        }).catch(() => []) as Promise<Array<Record<string, unknown>>>,
+      ])
+
+      if (dbPlayers.length === 0 && dbInjuries.length === 0) return null
+
+      const providerData: NflProviderData = {
+        weeklyProjections: dbPlayers
+          .filter((p) => p.projections && typeof p.projections === "object")
+          .map((p) => {
+            const proj = p.projections as Record<string, unknown>
+            return {
+              playerId: String(p.name ?? "").toLowerCase().replace(/\s+/g, "-"),
+              playerName: String(p.name ?? ""),
+              position: String(p.position ?? ""),
+              opponentTeam: "",
+              projectedPoints: Number(proj.total ?? proj.points ?? 0),
+              confidenceScore: 50,
+            }
+          }),
+        injuryReport: dbInjuries.map((i) => ({
+          playerId: String(i.playerName ?? "").toLowerCase().replace(/\s+/g, "-"),
+          playerName: String(i.playerName ?? ""),
+          status: String(i.status ?? ""),
+          practice: "",
+          reason: String(i.notes ?? i.bodyPart ?? ""),
+        })),
+        defenseRankings: [],
+      }
+
+      return {
+        data: providerData,
+        freshness: "cached" as const,
+        fetchedAt: new Date(),
+      }
+    } catch {
+      return null
+    }
   },
 
   async computeInsights(context, providerData, _input): Promise<NflInsights> {
