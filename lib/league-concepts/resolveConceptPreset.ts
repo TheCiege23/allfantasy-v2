@@ -37,6 +37,11 @@ import {
   isTournamentEligibleSport,
   normalizeTournamentSettingsSnapshot,
 } from '@/lib/league-concepts/tournamentDefaults'
+import {
+  buildSurvivorSettingsSnapshot,
+  isSurvivorEligibleSport,
+  normalizeSurvivorSettingsSnapshot,
+} from '@/lib/league-concepts/survivorDefaults'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -150,6 +155,15 @@ function buildSettingsSnapshot(preset: ConceptPresetSeed): Record<string, unknow
           teamCount: preset.defaultTeamCount,
         })
       : null
+  const survivorSnapshot =
+    preset.leagueType === 'survivor' && isSurvivorEligibleSport(preset.sport)
+      ? buildSurvivorSettingsSnapshot({
+          sport: preset.sport,
+          draftType: preset.draftTypesAllowed[0] ?? 'snake',
+          scoringPresetId: preset.scoringPreset,
+          teamCount: preset.defaultTeamCount,
+        })
+      : null
   return {
     ...(redraftSnapshot ?? {}),
     ...(dynastySnapshot ?? {}),
@@ -157,6 +171,7 @@ function buildSettingsSnapshot(preset: ConceptPresetSeed): Record<string, unknow
     ...(keeperSnapshot ?? {}),
     ...(guillotineSnapshot ?? {}),
     ...(tournamentSnapshot ?? {}),
+    ...(survivorSnapshot ?? {}),
     conceptPresetKey: preset.presetKey,
     leagueType: preset.leagueType,
     sport: preset.sport,
@@ -318,7 +333,15 @@ export function resolveConceptPreset(args: {
                     teamCount: preset.defaultTeamCount,
                     settings: snapshotBase,
                   })
-                : snapshotBase
+                : preset.leagueType === 'survivor' && isSurvivorEligibleSport(sport)
+                  ? normalizeSurvivorSettingsSnapshot({
+                      sport,
+                      draftType,
+                      scoringPresetId: preset.scoringPreset,
+                      teamCount: preset.defaultTeamCount,
+                      settings: snapshotBase,
+                    })
+                  : snapshotBase
 
   return {
     ok: true,
@@ -492,6 +515,35 @@ export function mergeConceptPresetSettings(
       timezone: leagueSettings.timezone ?? presetSnapshot.timezone,
     }
     return normalizeTournamentSettingsSnapshot({
+      sport,
+      draftType: leagueSettings.requested_draft_type ?? leagueSettings.draft_type ?? presetSnapshot.requested_draft_type ?? presetSnapshot.draft_type,
+      scoringPresetId:
+        typeof leagueSettings.scoring_preset_id === 'string'
+          ? leagueSettings.scoring_preset_id
+          : typeof presetSnapshot.scoring_preset_id === 'string'
+            ? presetSnapshot.scoring_preset_id
+            : typeof presetSnapshot.scoringPreset === 'string'
+              ? presetSnapshot.scoringPreset
+              : null,
+      teamCount:
+        typeof leagueSettings.default_team_count === 'number'
+          ? leagueSettings.default_team_count
+          : typeof presetSnapshot.default_team_count === 'number'
+            ? presetSnapshot.default_team_count
+            : null,
+      settings: merged,
+    })
+  }
+
+  if (leagueType === 'survivor' && isSurvivorEligibleSport(sport)) {
+    const merged = {
+      ...presetSnapshot,
+      ...leagueSettings,
+      leagueName: leagueSettings.leagueName ?? presetSnapshot.leagueName,
+      language: leagueSettings.language ?? presetSnapshot.language ?? 'en',
+      timezone: leagueSettings.timezone ?? presetSnapshot.timezone,
+    }
+    return normalizeSurvivorSettingsSnapshot({
       sport,
       draftType: leagueSettings.requested_draft_type ?? leagueSettings.draft_type ?? presetSnapshot.requested_draft_type ?? presetSnapshot.draft_type,
       scoringPresetId:

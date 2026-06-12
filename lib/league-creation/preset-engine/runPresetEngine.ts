@@ -20,6 +20,7 @@ import { buildBestBallSettingsSnapshot, isBestBallEligibleSport } from '@/lib/le
 import { buildKeeperSettingsSnapshot } from '@/lib/league-concepts/keeperDefaults'
 import { buildGuillotineSettingsSnapshot, isGuillotineEligibleSport } from '@/lib/league-concepts/guillotineDefaults'
 import { buildTournamentSettingsSnapshot, isTournamentEligibleSport } from '@/lib/league-concepts/tournamentDefaults'
+import { buildSurvivorSettingsSnapshot, isSurvivorEligibleSport } from '@/lib/league-concepts/survivorDefaults'
 
 export const PRESET_ENGINE_VERSION = '1'
 
@@ -200,7 +201,17 @@ export function runPresetEngine(input: RunPresetEngineInput): PresetEngineOutput
         })
       : null
 
-  const canonicalSnapshot = redraftSnapshot ?? dynastySnapshot ?? bestBallSnapshot ?? keeperSnapshot ?? guillotineSnapshot ?? tournamentSnapshot ?? null
+  const survivorSnapshot =
+    formatId === 'survivor' && isSurvivorEligibleSport(sport)
+      ? buildSurvivorSettingsSnapshot({
+          sport,
+          draftType: input.draftType,
+          scoringPresetId: input.scoringPreset,
+          teamCount: input.teamCount,
+        })
+      : null
+
+  const canonicalSnapshot = redraftSnapshot ?? dynastySnapshot ?? bestBallSnapshot ?? keeperSnapshot ?? guillotineSnapshot ?? tournamentSnapshot ?? survivorSnapshot ?? null
 
   const settingsSnapshot: SettingsSnapshot = {
     snapshotVersion: SETTINGS_SNAPSHOT_VERSION,
