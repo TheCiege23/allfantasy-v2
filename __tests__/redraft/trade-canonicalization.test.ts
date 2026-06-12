@@ -124,7 +124,13 @@ describe('Legacy route — unused imports removed', () => {
 describe('lib/redraft/client.ts — canonical route usage', () => {
   it('createTradeProposal calls /api/redraft/trade-proposals (not legacy /api/redraft/trades)', () => {
     expect(clientLib).toContain('/api/redraft/trade-proposals')
-    expect(clientLib).not.toContain('/api/redraft/trades')
+    // Check createTradeProposal function body specifically — the file may also contain
+    // /api/redraft/trades/veto from the new vetoRedraftTradeProposal helper (that's fine)
+    const createFnStart = clientLib.indexOf('export async function createTradeProposal')
+    const createFnEnd = clientLib.indexOf('\nexport async function', createFnStart + 1)
+    const createFnBody = clientLib.slice(createFnStart, createFnEnd > 0 ? createFnEnd : undefined)
+    expect(createFnBody).toContain('/api/redraft/trade-proposals')
+    expect(createFnBody).not.toContain("'/api/redraft/trades'")
   })
 
   it('submitTradeVote calls /api/redraft/trade-votes', () => {

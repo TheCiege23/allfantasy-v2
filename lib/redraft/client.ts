@@ -223,6 +223,22 @@ export async function submitTradeVote(payload: {
   return parseJson<{ proposal: RedraftTradeProposal; resolved: boolean }>(res)
 }
 
+export async function vetoRedraftTradeProposal(payload: { proposalId: string; reason?: string }) {
+  const res = await fetch('/api/redraft/trades/veto', {
+    method: 'POST',
+    credentials: 'include',
+    headers: jsonHeaders,
+    body: JSON.stringify(payload),
+  })
+  return parseJson<{
+    proposalId: string
+    leagueId: string
+    status: string
+    vetoedBy: string
+    reason: string | null
+  }>(res)
+}
+
 export async function finalizeRedraftSeason(payload: { seasonId: string }) {
   const res = await fetch('/api/redraft/seasons/finalize', {
     method: 'POST',

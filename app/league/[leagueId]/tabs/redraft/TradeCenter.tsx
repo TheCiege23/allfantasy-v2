@@ -5,6 +5,7 @@ import {
   createTradeProposal,
   listTradeProposals,
   submitTradeVote,
+  vetoRedraftTradeProposal,
   type RedraftRosterRow,
   type RedraftTradeProposal,
 } from '@/lib/redraft/client'
@@ -13,10 +14,12 @@ export function TradeCenter({
   leagueId,
   seasonId,
   standings,
+  isCommissioner = false,
 }: {
   leagueId: string
   seasonId: string | null
   standings: RedraftRosterRow[]
+  isCommissioner?: boolean
 }) {
   const [proposals, setProposals] = useState<RedraftTradeProposal[]>([])
   const [loading, setLoading] = useState(false)
@@ -99,6 +102,19 @@ export function TradeCenter({
       await refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : `Failed to ${action}`)
+    } finally {
+      setBusyProposalId(null)
+    }
+  }
+
+  const onVeto = async (proposalId: string) => {
+    setBusyProposalId(proposalId)
+    setError(null)
+    try {
+      await vetoRedraftTradeProposal({ proposalId })
+      await refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to veto proposal')
     } finally {
       setBusyProposalId(null)
     }
@@ -221,6 +237,16 @@ export function TradeCenter({
                 >
                   Vote Veto
                 </button>
+                {isCommissioner ? (
+                  <button
+                    type="button"
+                    className="rounded border border-rose-500/40 px-2 py-1 text-rose-300 disabled:opacity-50"
+                    disabled={busyProposalId === p.id || p.status !== 'pending'}
+                    onClick={() => void onVeto(p.id)}
+                  >
+                    Commissioner Veto
+                  </button>
+                ) : null}
               </div>
             </div>
           ))
