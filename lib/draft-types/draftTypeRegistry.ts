@@ -113,6 +113,7 @@ export function mapDraftTypeToSportRulesBase(draftType: string): PlatformSportRu
   const x = String(draftType ?? '').trim().toLowerCase()
   if (x === 'offline' || x === 'auto' || x === 'team') return 'snake'
   if (x === 'devy_snake' || x === 'c2c_snake') return 'snake'
+  if (x === 'devy_linear' || x === 'c2c_linear') return 'linear'
   if (x === 'devy_auction' || x === 'c2c_auction') return 'auction'
   if ((PLATFORM_SPORT_RULES_DRAFT_TYPES as readonly string[]).includes(x)) {
     return x as PlatformSportRulesDraftTypeId

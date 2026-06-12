@@ -213,8 +213,14 @@ export async function createCanonicalLeagueInTransaction(
       schedule: foundationDefaults.scheduleSettings,
       redraftContract: foundationDefaults.redraftContract ?? undefined,
       keeperContract: foundationDefaults.keeperContract ?? undefined,
+      devyContract: foundationDefaults.devyContract ?? undefined,
       keeperPolicy: foundationDefaults.keeperPolicy ?? undefined,
+      devySettings: foundationDefaults.devySettings ?? undefined,
+      devyConfig: foundationDefaults.devyConfig ?? undefined,
       playerPoolRules: foundationDefaults.playerPoolRules ?? undefined,
+      proPlayerPoolRules: foundationDefaults.proPlayerPoolRules ?? undefined,
+      devyPlayerPoolRules: foundationDefaults.devyPlayerPoolRules ?? undefined,
+      rookiePlayerPoolRules: foundationDefaults.rookiePlayerPoolRules ?? undefined,
       tabsEnabled: foundationDefaults.tabsEnabled ?? undefined,
       mockDraftRules: foundationDefaults.mockDraftRules ?? undefined,
       liveDraftRules: foundationDefaults.liveDraftRules ?? undefined,
@@ -411,20 +417,86 @@ export async function createCanonicalLeagueInTransaction(
 
   if (formatId === 'devy') {
     const setup = (body.conceptSetup ?? {}) as Record<string, unknown>
+    const devyConfig = foundationDefaults.devyConfig ?? {}
+    const devySettings = foundationDefaults.devySettings ?? {}
+    const rosterSettings = foundationDefaults.rosterSettings
+    const collegeSportsRaw = devySettings.collegeSports ?? devyConfig.collegeSports
+    const collegeSports = Array.isArray(collegeSportsRaw)
+      ? collegeSportsRaw.map((entry) => String(entry)).filter(Boolean)
+      : ['NCAAF']
+    const devySlotCount = readNumber(
+      setup,
+      'devySlotCount',
+      readNumber(devyConfig, 'devySlotCount', readNumber(rosterSettings, 'collegeRosterSlots', 6)),
+    )
+    const taxiSize = readNumber(
+      setup,
+      'taxiSize',
+      readNumber(devyConfig, 'taxiSize', readNumber(rosterSettings, 'taxiSlots', 6)),
+    )
+    const devyIRSlots = readNumber(
+      setup,
+      'devyIRSlots',
+      readNumber(devyConfig, 'devyIRSlots', readNumber(rosterSettings, 'devyIRSlots', 2)),
+    )
+    const rookieDraftRounds = readNumber(setup, 'rookieDraftRounds', readNumber(devyConfig, 'rookieDraftRounds', 4))
+    const devyDraftRounds = readNumber(setup, 'devyDraftRounds', readNumber(devyConfig, 'devyDraftRounds', 4))
+    const startupVetRounds = readNumber(devyConfig, 'startupVetRounds', draftRounds)
+    const startupDraftType = readString(devyConfig, 'startupDraftType', coreDraft)
+    const rookieDraftType = readString(devyConfig, 'rookieDraftType', 'linear')
+    const devyDraftType = readString(devyConfig, 'devyDraftType', coreDraft === 'auction' ? 'auction' : 'linear')
     await tx.devyLeagueConfig.upsert({
       where: { leagueId: league.id },
       create: {
         leagueId: league.id,
-        devySlotCount: readNumber(setup, 'devySlotCount', readNumber(foundationDefaults.rosterSettings, 'collegeRosterSlots', 8)),
-        taxiSize: readNumber(setup, 'taxiSize', readNumber(foundationDefaults.rosterSettings, 'taxiSlots', 6)),
-        devyIRSlots: readNumber(setup, 'devyIRSlots', 0),
-        collegeSports: [sport] as Prisma.InputJsonValue,
-        startupDraftType: coreDraft,
-        rookieDraftType: 'linear',
-        devyDraftType: 'snake',
+        dynastyOnly: true,
+        supportsStartupVetDraft: true,
+        supportsRookieDraft: true,
+        supportsDevyDraft: true,
+        supportsBestBall: true,
+        supportsSnakeDraft: true,
+        supportsLinearDraft: true,
+        supportsTaxi: true,
+        supportsFuturePicks: true,
+        supportsTradeableDevyPicks: true,
+        supportsTradeableRookiePicks: true,
+        devySlotCount,
+        taxiSize,
+        devyIRSlots,
+        collegeSports: collegeSports as Prisma.InputJsonValue,
+        rookieDraftRounds,
+        devyDraftRounds,
+        startupVetRounds,
+        bestBallEnabled: false,
+        startupDraftType,
+        rookieDraftType,
+        devyDraftType,
+        rookiePickOrderMethod: readString(devyConfig, 'rookiePickOrderMethod', 'reverse_standings'),
+        devyPickOrderMethod: readString(devyConfig, 'devyPickOrderMethod', 'reverse_standings'),
+        devyPickTradeRules: readString(devyConfig, 'devyPickTradeRules', 'allowed'),
+        rookiePickTradeRules: readString(devyConfig, 'rookiePickTradeRules', 'allowed'),
+        nflDevyExcludeKDST: Boolean(devyConfig.nflDevyExcludeKDST ?? true),
+        promotionTiming: readString(devyConfig, 'promotionTiming', 'manager_choice_before_rookie_draft'),
+        returnToSchoolHandling: readString(devyConfig, 'returnToSchoolHandling', 'restore_rights'),
       },
       update: {
-        startupDraftType: coreDraft,
+        devySlotCount,
+        taxiSize,
+        devyIRSlots,
+        collegeSports: collegeSports as Prisma.InputJsonValue,
+        rookieDraftRounds,
+        devyDraftRounds,
+        startupVetRounds,
+        startupDraftType,
+        rookieDraftType,
+        devyDraftType,
+        rookiePickOrderMethod: readString(devyConfig, 'rookiePickOrderMethod', 'reverse_standings'),
+        devyPickOrderMethod: readString(devyConfig, 'devyPickOrderMethod', 'reverse_standings'),
+        devyPickTradeRules: readString(devyConfig, 'devyPickTradeRules', 'allowed'),
+        rookiePickTradeRules: readString(devyConfig, 'rookiePickTradeRules', 'allowed'),
+        nflDevyExcludeKDST: Boolean(devyConfig.nflDevyExcludeKDST ?? true),
+        promotionTiming: readString(devyConfig, 'promotionTiming', 'manager_choice_before_rookie_draft'),
+        returnToSchoolHandling: readString(devyConfig, 'returnToSchoolHandling', 'restore_rights'),
       },
     })
   }
@@ -458,6 +530,12 @@ export async function createCanonicalLeagueInTransaction(
     const ds = (body.conceptSetup ?? {}) as Record<string, unknown>
     const num = (v: unknown, fallback: number) => (v !== undefined && v !== null ? Number(v) : fallback)
     const str = (v: unknown, fallback: string) => (v !== undefined && v !== null ? String(v) : fallback)
+    const dynastyFallbackTaxiSlots =
+      formatId === 'devy' ? readNumber(foundationDefaults.rosterSettings, 'taxiSlots', 6) : 4
+    const dynastyFallbackRookieRounds =
+      formatId === 'devy' ? readNumber(foundationDefaults.devyConfig, 'rookieDraftRounds', 4) : 4
+    const dynastyFallbackRookieDraftType =
+      formatId === 'devy' ? readString(foundationDefaults.devyConfig, 'rookieDraftType', 'linear') : 'linear'
     await tx.dynastyLeagueConfig.upsert({
       where: { leagueId: league.id },
       create: {
@@ -465,12 +543,12 @@ export async function createCanonicalLeagueInTransaction(
         regularSeasonWeeks: num(ds.regularSeasonWeeks, 14),
         rookiePickOrderMethod: str(ds.rookieDraftOrderMethod, 'max_pf'),
         useMaxPfForNonPlayoff: true,
-        rookieDraftRounds: num(ds.rookieDraftRounds, 4),
-        rookieDraftType: str(ds.rookieDraftType, 'linear'),
+        rookieDraftRounds: num(ds.rookieDraftRounds, dynastyFallbackRookieRounds),
+        rookieDraftType: str(ds.rookieDraftType, dynastyFallbackRookieDraftType),
         divisionsEnabled: num(ds.divisionCount, 0) > 0,
         futurePicksYearsOut: num(ds.futurePicksYearsOut, 3),
         waiverTypeRecommended: str(ds.waiverTypeRecommended, 'faab'),
-        taxiSlots: num(ds.taxiSlots, 4),
+        taxiSlots: num(ds.taxiSlots, dynastyFallbackTaxiSlots),
         taxiEligibilityYears: num(ds.taxiEligibilityYears, 1),
         taxiLockBehavior: 'once_promoted_no_return',
         taxiInSeasonMoves: true,
@@ -481,12 +559,12 @@ export async function createCanonicalLeagueInTransaction(
       update: {
         regularSeasonWeeks: num(ds.regularSeasonWeeks, 14),
         rookiePickOrderMethod: str(ds.rookieDraftOrderMethod, 'max_pf'),
-        rookieDraftRounds: num(ds.rookieDraftRounds, 4),
-        rookieDraftType: str(ds.rookieDraftType, 'linear'),
+        rookieDraftRounds: num(ds.rookieDraftRounds, dynastyFallbackRookieRounds),
+        rookieDraftType: str(ds.rookieDraftType, dynastyFallbackRookieDraftType),
         divisionsEnabled: num(ds.divisionCount, 0) > 0,
         futurePicksYearsOut: num(ds.futurePicksYearsOut, 3),
         waiverTypeRecommended: str(ds.waiverTypeRecommended, 'faab'),
-        taxiSlots: num(ds.taxiSlots, 4),
+        taxiSlots: num(ds.taxiSlots, dynastyFallbackTaxiSlots),
         taxiEligibilityYears: num(ds.taxiEligibilityYears, 1),
         taxiDeadlineWeek: ds.taxiLockDeadlineWeek != null ? num(ds.taxiLockDeadlineWeek, 0) || null : null,
       },
@@ -559,6 +637,8 @@ export async function createCanonicalLeagueInTransaction(
         presetKey: engine.presetKey,
         ...(bestBallSettings ? { bestBallSettings } : {}),
         ...(foundationDefaults.keeperPolicy ? { keeperPolicy: foundationDefaults.keeperPolicy } : {}),
+        ...(foundationDefaults.devyConfig ? { devyConfig: foundationDefaults.devyConfig } : {}),
+        ...(foundationDefaults.playerPoolRules ? { playerPoolRules: foundationDefaults.playerPoolRules } : {}),
       } as Prisma.InputJsonValue,
     },
   })

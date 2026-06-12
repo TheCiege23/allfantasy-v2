@@ -217,6 +217,16 @@ export function getDraftTypeOptions(leagueType: LeagueTypeId, sport: SupportedSp
               : 'Commissioner records picks manually',
       })
     }
+  } else if (leagueType === 'devy') {
+    const existing = new Set(result.map((option) => option.id))
+    for (const mode of EXECUTION_DRAFT_IDS) {
+      if (existing.has(mode)) continue
+      result.push({
+        id: mode,
+        label: mode === 'auto' ? 'Auto' : 'Offline',
+        hint: mode === 'auto' ? 'CPU drafts for everyone' : 'Commissioner records picks manually',
+      })
+    }
   } else if (leagueType !== 'big_brother' && leagueType !== 'zombie') {
     result.push({
       id: 'auto',

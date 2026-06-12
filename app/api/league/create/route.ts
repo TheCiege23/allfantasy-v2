@@ -39,6 +39,7 @@ import {
 } from '@/lib/league-concepts/resolveConceptPreset';
 import { normalizeRedraftSettingsSnapshot } from '@/lib/league-concepts/redraftDefaults';
 import { normalizeKeeperSettingsSnapshot } from '@/lib/league-concepts/keeperDefaults';
+import { normalizeDevySettingsSnapshot } from '@/lib/league-concepts/devyDefaults';
 
 const createSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -999,6 +1000,21 @@ export async function POST(req: Request) {
         });
         Object.assign(initialSettings, normalizedKeeperSettings);
       }
+      if (
+        String(requestedLeagueType ?? initialSettings.league_type ?? '').toLowerCase() === 'devy' &&
+        (sport === 'NFL' || sport === 'NCAAF')
+      ) {
+        const normalizedDevySettings = normalizeDevySettingsSnapshot({
+          sport,
+          draftType: requestedDraftType ?? initialSettings.requested_draft_type ?? initialSettings.draft_type,
+          scoringPresetId:
+            scoringPresetIdInput?.trim() ||
+            (typeof initialSettings.scoring_preset_id === 'string' ? initialSettings.scoring_preset_id : null),
+          teamCount: typeof leagueSize === 'number' ? leagueSize : null,
+          settings: initialSettings,
+        });
+        Object.assign(initialSettings, normalizedDevySettings);
+      }
     }
 
     // Survivor: cast size 16/20/24 only — align Prisma `leagueSize` + settings JSON (wizard may send size only under settings).
@@ -1082,7 +1098,15 @@ export async function POST(req: Request) {
         }
         const dr = s.devy_rounds ?? s.devyRounds;
         if (!Array.isArray(dr) || dr.length === 0) {
-          s.devy_rounds = [1];
+          const configuredRounds = Number(
+            s.devy_draft_rounds ??
+              ((s.devyConfig && typeof s.devyConfig === 'object')
+                ? (s.devyConfig as Record<string, unknown>).devyDraftRounds
+                : undefined) ??
+              4,
+          );
+          const safeRounds = Number.isFinite(configuredRounds) && configuredRounds > 0 ? Math.floor(configuredRounds) : 4;
+          s.devy_rounds = Array.from({ length: safeRounds }, (_, idx) => idx + 1);
         }
       }
     }

@@ -22,6 +22,7 @@ import {
   isBestBallSupportedSport,
   normalizeBestBallSettings,
 } from '@/lib/bestball/rules'
+import { isSupportedDevyCreateDraftType } from '@/lib/league-concepts/devyDefaults'
 
 /** Maps execution modes (offline/auto/team) to a core draft id for format-engine checks. */
 export function normalizeDraftTypeForEngine(draftType: string): string {
@@ -154,6 +155,19 @@ export function validateCreatePayload(input: unknown): ValidateCreateLeagueResul
   }
 
   const engineBase = normalizeDraftTypeForEngineValidation(data.draftType)
+  if (formatId === 'devy' && !isSupportedDevyCreateDraftType(data.draftType)) {
+    return {
+      ok: false,
+      error: 'Invalid draft type for Devy leagues',
+      status: 400,
+      errors: [
+        {
+          path: 'draftType',
+          message: 'Devy leagues support devy_snake, devy_linear, devy_auction, snake, linear, auction, mock_draft, offline, or auto',
+        },
+      ],
+    }
+  }
   if (idpRequested && !isAllowedIdpDraftType(data.draftType)) {
     return {
       ok: false,

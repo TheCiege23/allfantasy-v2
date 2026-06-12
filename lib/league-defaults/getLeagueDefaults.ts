@@ -15,6 +15,11 @@ import {
   getKeeperDefaultContract,
   type KeeperDefaultContract,
 } from '@/lib/league-concepts/keeperDefaults'
+import {
+  buildDevySettingsSnapshot,
+  getDevyDefaultContract,
+  type DevyDefaultContract,
+} from '@/lib/league-concepts/devyDefaults'
 
 export type LeagueFoundationDefaultsInput = {
   sport: LeagueSport | string
@@ -38,12 +43,18 @@ export type LeagueFoundationDefaults = {
   scheduleSettings: Record<string, unknown>
   redraftContract?: RedraftDefaultContract | null
   keeperContract?: KeeperDefaultContract | null
+  devyContract?: DevyDefaultContract | null
   playerPoolRules?: Record<string, unknown>
+  proPlayerPoolRules?: Record<string, unknown>
+  devyPlayerPoolRules?: Record<string, unknown>
+  rookiePlayerPoolRules?: Record<string, unknown>
   tabsEnabled?: Record<string, unknown>
   mockDraftRules?: Record<string, unknown>
   liveDraftRules?: Record<string, unknown>
   disabledSettings?: Record<string, unknown>
   keeperPolicy?: Record<string, unknown>
+  devySettings?: Record<string, unknown>
+  devyConfig?: Record<string, unknown>
   tradeSettings?: Record<string, unknown>
   conceptPreset: {
     presetKey: string | null
@@ -147,6 +158,24 @@ export function getLeagueDefaults(input: LeagueFoundationDefaultsInput): LeagueF
           teamCount: input.managerCount,
         })
       : null
+  const devyContract =
+    format === 'devy'
+      ? getDevyDefaultContract({
+          sport,
+          draftType: input.draftType,
+          scoringPresetId: scoringPreset || null,
+          teamCount: input.managerCount,
+        })
+      : null
+  const devySnapshot =
+    devyContract
+      ? buildDevySettingsSnapshot({
+          sport,
+          draftType: input.draftType,
+          scoringPresetId: devyContract.scoring_preset_id,
+          teamCount: input.managerCount,
+        })
+      : null
   const resolution = resolveLeagueFormat({
     sport,
     leagueType: format,
@@ -163,9 +192,9 @@ export function getLeagueDefaults(input: LeagueFoundationDefaultsInput): LeagueF
   })
   const managerCount = numericOr(
     input.managerCount,
-    keeperContract?.teams ?? redraftContract?.teams ?? preset?.defaultTeamCount ?? resolution.leagueDefaults.default_team_count ?? 12,
+    devyContract?.teams ?? keeperContract?.teams ?? redraftContract?.teams ?? preset?.defaultTeamCount ?? resolution.leagueDefaults.default_team_count ?? 12,
   )
-  const canonicalSnapshot = redraftSnapshot ?? keeperSnapshot ?? null
+  const canonicalSnapshot = redraftSnapshot ?? keeperSnapshot ?? devySnapshot ?? null
   const canonicalDraftSettings = (canonicalSnapshot?.draftSettings as Record<string, unknown> | undefined) ?? null
   const rounds = numericOr(canonicalDraftSettings?.rounds ?? resolution.draftDefaults.rounds_default, engineDraftType === 'auction' ? 15 : 15)
   const timerSeconds = numericOr(canonicalDraftSettings?.timerSeconds ?? resolution.draftDefaults.timer_seconds_default, 90)
@@ -207,10 +236,19 @@ export function getLeagueDefaults(input: LeagueFoundationDefaultsInput): LeagueF
       ...canonicalDraftSettings,
       draftType: engineDraftType,
       requestedDraftType: String(input.draftType).trim().toLowerCase(),
+      ...(canonicalDraftSettings?.requestedDraftType
+        ? { requestedDraftType: canonicalDraftSettings.requestedDraftType }
+        : {}),
       rounds,
       timerSeconds,
       auctionBudgetPerTeam: engineDraftType === 'auction' ? 200 : null,
-      devyConfig: format === 'devy' ? { enabled: true, devyRounds: [Math.max(1, rounds - 1), rounds] } : null,
+      devyConfig:
+        format === 'devy'
+          ? ((devySnapshot?.devyConfig as Record<string, unknown> | undefined) ?? {
+              enabled: true,
+              devyRounds: [Math.max(1, rounds - 1), rounds],
+            })
+          : null,
       c2cConfig: format === 'c2c' ? { enabled: true, collegeRounds: [Math.max(1, rounds - 1), rounds] } : null,
     },
     waiverSettings: waiverDefaults,
@@ -225,13 +263,19 @@ export function getLeagueDefaults(input: LeagueFoundationDefaultsInput): LeagueF
     scheduleSettings: scheduleDefaults,
     redraftContract,
     keeperContract,
+    devyContract,
     playerPoolRules: (canonicalSnapshot?.playerPoolRules as Record<string, unknown> | undefined) ?? undefined,
+    proPlayerPoolRules: (canonicalSnapshot?.proPlayerPoolRules as Record<string, unknown> | undefined) ?? undefined,
+    devyPlayerPoolRules: (canonicalSnapshot?.devyPlayerPoolRules as Record<string, unknown> | undefined) ?? undefined,
+    rookiePlayerPoolRules: (canonicalSnapshot?.rookiePlayerPoolRules as Record<string, unknown> | undefined) ?? undefined,
     tabsEnabled: (canonicalSnapshot?.tabsEnabled as Record<string, unknown> | undefined) ?? undefined,
     mockDraftRules: (canonicalSnapshot?.mockDraftRules as Record<string, unknown> | undefined) ?? undefined,
     liveDraftRules: (canonicalSnapshot?.liveDraftRules as Record<string, unknown> | undefined) ?? undefined,
-    disabledSettings: redraftContract?.disabledSettings ?? keeperContract?.disabledSettings,
+    disabledSettings: redraftContract?.disabledSettings ?? keeperContract?.disabledSettings ?? devyContract?.disabledSettings,
     keeperPolicy: (keeperSnapshot?.keeperSettings as Record<string, unknown> | undefined) ?? undefined,
-    tradeSettings: (keeperSnapshot?.tradeSettings as Record<string, unknown> | undefined) ?? undefined,
+    devySettings: (devySnapshot?.devySettings as Record<string, unknown> | undefined) ?? undefined,
+    devyConfig: (devySnapshot?.devyConfig as Record<string, unknown> | undefined) ?? undefined,
+    tradeSettings: ((keeperSnapshot ?? devySnapshot)?.tradeSettings as Record<string, unknown> | undefined) ?? undefined,
     conceptPreset: {
       presetKey: preset?.presetKey ?? null,
       readiness: preset?.readiness ?? 'launch_ready',

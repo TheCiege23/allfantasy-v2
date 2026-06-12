@@ -157,8 +157,8 @@ const ROSTER_DEFAULTS: Record<SportType, RosterDefaults> = {
   },
 }
 
-/** Devy Dynasty roster defaults by sport (PROMPT 2/6). NFL: 12 teams, SUPER_FLEX optional ON; NBA: G/F/C + FLEX. */
-const DEVY_DYNASTY_ROSTER_DEFAULTS: Record<'NFL' | 'NBA', RosterDefaults> = {
+/** Devy Dynasty roster defaults by sport (PROMPT 2/6). Football devy uses NCAAF prospect pools. */
+const DEVY_DYNASTY_ROSTER_DEFAULTS: Record<'NFL' | 'NCAAF' | 'NBA', RosterDefaults> = {
   NFL: {
     sport_type: 'NFL',
     starter_slots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 2, SUPER_FLEX: 1 },
@@ -169,6 +169,17 @@ const DEVY_DYNASTY_ROSTER_DEFAULTS: Record<'NFL' | 'NBA', RosterDefaults> = {
     flex_definitions: [
       { slotName: 'FLEX', allowedPositions: ['RB', 'WR', 'TE'] },
       { slotName: 'SUPER_FLEX', allowedPositions: ['QB', 'RB', 'WR', 'TE'] },
+    ],
+  },
+  NCAAF: {
+    sport_type: 'NCAAF',
+    starter_slots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DEF: 1 },
+    bench_slots: 12,
+    IR_slots: 2,
+    taxi_slots: 6,
+    devy_slots: 6,
+    flex_definitions: [
+      { slotName: 'FLEX', allowedPositions: ['RB', 'WR', 'TE'] },
     ],
   },
   NBA: {
@@ -549,11 +560,11 @@ export function getLeagueDefaults(sportType: SportType): LeagueDefaults {
 
 /**
  * Get roster defaults for a sport. When formatType is IDP for supported sports, returns football + IDP slots.
- * When formatType is 'devy_dynasty' for NFL or NBA, returns Devy Dynasty roster (devy slots, taxi, etc.).
+ * When formatType is 'devy_dynasty', returns Devy Dynasty roster (devy slots, taxi, etc.).
  */
 export function getRosterDefaults(sportType: SportType, formatType?: string): RosterDefaults {
   const base = ROSTER_DEFAULTS[sportType] ?? ROSTER_DEFAULTS.NFL
-  if (formatType === 'devy_dynasty' && (sportType === 'NFL' || sportType === 'NBA')) {
+  if (formatType === 'devy_dynasty' && (sportType === 'NFL' || sportType === 'NCAAF' || sportType === 'NBA')) {
     return DEVY_DYNASTY_ROSTER_DEFAULTS[sportType]
   }
   if (supportsIdpLeagueSport(sportType) && (formatType === 'IDP' || formatType === 'idp' || formatType === 'DYNASTY_IDP')) {
@@ -662,17 +673,19 @@ export function getDraftDefaults(sportType: SportType, formatType?: string | nul
     }
   }
 
-  if (variantLower === 'devy_dynasty' && (sportType === 'NFL' || sportType === 'NBA')) {
+  if (variantLower === 'devy_dynasty' && (sportType === 'NFL' || sportType === 'NCAAF' || sportType === 'NBA')) {
     const roster = DEVY_DYNASTY_ROSTER_DEFAULTS[sportType]
     const totalProSlots =
       Object.values(roster.starter_slots).reduce((a, b) => a + b, 0) + roster.bench_slots + roster.taxi_slots
     return {
       ...base,
       rounds_default: totalProSlots,
-      queue_size_limit: Math.max(base.queue_size_limit ?? 50, 60),
-      pre_draft_ranking_source: 'adp',
+      queue_size_limit: Math.max(base.queue_size_limit ?? 50, sportType === 'NCAAF' ? 80 : 60),
+      pre_draft_ranking_source: sportType === 'NCAAF' ? 'adp_projection_rank_fallback' : 'adp',
       draft_order_rules: 'snake',
       snake_or_linear_behavior: 'snake',
+      roster_fill_order: 'position_scarcity',
+      position_filter_behavior: 'by_eligibility',
       keeper_dynasty_carryover_supported: true,
     }
   }

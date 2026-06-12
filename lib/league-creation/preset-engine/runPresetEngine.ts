@@ -21,6 +21,7 @@ import { buildKeeperSettingsSnapshot } from '@/lib/league-concepts/keeperDefault
 import { buildGuillotineSettingsSnapshot, isGuillotineEligibleSport } from '@/lib/league-concepts/guillotineDefaults'
 import { buildTournamentSettingsSnapshot, isTournamentEligibleSport } from '@/lib/league-concepts/tournamentDefaults'
 import { buildSurvivorSettingsSnapshot, isSurvivorEligibleSport } from '@/lib/league-concepts/survivorDefaults'
+import { buildDevySettingsSnapshot, isFootballDevyDefaultsSport } from '@/lib/league-concepts/devyDefaults'
 
 export const PRESET_ENGINE_VERSION = '1'
 
@@ -173,6 +174,15 @@ export function runPresetEngine(input: RunPresetEngineInput): PresetEngineOutput
           teamCount: input.teamCount,
         })
       : null
+  const devySnapshot =
+    formatId === 'devy' && isFootballDevyDefaultsSport(sport)
+      ? buildDevySettingsSnapshot({
+          sport,
+          draftType: input.draftType,
+          scoringPresetId: input.scoringPreset,
+          teamCount: input.teamCount,
+        })
+      : null
 
   const derivedFlags = deriveFlags(formatId, resolution)
   const conceptRules = buildConceptRulesBlock({
@@ -211,7 +221,16 @@ export function runPresetEngine(input: RunPresetEngineInput): PresetEngineOutput
         })
       : null
 
-  const canonicalSnapshot = redraftSnapshot ?? dynastySnapshot ?? bestBallSnapshot ?? keeperSnapshot ?? guillotineSnapshot ?? tournamentSnapshot ?? survivorSnapshot ?? null
+  const canonicalSnapshot =
+    redraftSnapshot ??
+    dynastySnapshot ??
+    bestBallSnapshot ??
+    keeperSnapshot ??
+    guillotineSnapshot ??
+    tournamentSnapshot ??
+    survivorSnapshot ??
+    devySnapshot ??
+    null
 
   const settingsSnapshot: SettingsSnapshot = {
     snapshotVersion: SETTINGS_SNAPSHOT_VERSION,
