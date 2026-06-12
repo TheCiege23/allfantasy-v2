@@ -176,11 +176,13 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
   }
 
   if (leagueId && section === 'standings') {
-    return proxyToExisting(req, { targetPath: `/api/bracket/leagues/${leagueId}/standings` })
+    // Route through the dedicated standings handler which detects fantasy vs bracket leagues.
+    return proxyToExisting(req, { targetPath: `/api/app/leagues/${leagueId}/standings` })
   }
 
   if (leagueId && section === 'playoffs') {
-    return proxyToExisting(req, { targetPath: `/api/bracket/leagues/${leagueId}/standings` })
+    // Route through the dedicated standings handler (playoffs seeding comes from same source).
+    return proxyToExisting(req, { targetPath: `/api/app/leagues/${leagueId}/standings` })
   }
 
   if (leagueId && section === 'league') {
