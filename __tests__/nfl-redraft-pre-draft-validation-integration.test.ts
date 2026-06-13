@@ -72,9 +72,13 @@ describe('Pre-draft validation — orchestrator is navigation-free + schema-corr
     expect(src).not.toMatch(/(?<!platform)userId:\s*true/)
   })
 
-  it('queries League.rosterSize / League.starters / League.scoring (no LeagueSettings.starterSlots etc)', () => {
-    expect(src).toMatch(/rosterSize:\s*true/)
-    expect(src).toMatch(/starters:\s*true/)
+  it('resolves roster shape via the canonical template resolver + League.scoring (no LeagueSettings.starterSlots etc)', () => {
+    // Roster-shape validation now delegates to getEffectiveLeagueRosterTemplate
+    // — the single canonical resolver (LeagueRosterConfig / League.starters /
+    // settings.rosterPositions / sport-specific *_roster_config) — instead of
+    // selecting raw League.rosterSize/starters columns. Scoring is still read
+    // from League.scoring (+ scoringPresetId / settings fallbacks).
+    expect(src).toMatch(/getEffectiveLeagueRosterTemplate\(/)
     expect(src).toMatch(/scoring:\s*true/)
     // Negative: do not query the non-existent LeagueSettings fields.
     expect(src).not.toMatch(/leagueSettings\.findUnique[\s\S]*?starterSlots/)

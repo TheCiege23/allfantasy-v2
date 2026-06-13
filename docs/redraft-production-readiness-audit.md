@@ -76,16 +76,21 @@ client/validation data-shape changes. They were **not** edited here to avoid mis
 real regression (e.g. validation `rosterSize`, player-card data shape) as "stale" without a per-file
 source audit.
 
-| Suite | Failures | Apparent class |
-| --- | --- | --- |
-| `nfl-redraft-snake-draft-board-state` | 7 | draft-room client/route patterns (pause/resume, fetch URL, `/drafts` redirect, `DraftBoard kind="live"`) |
-| `nfl-redraft-responsive-ux-smoke` | 3 | testid refactors incl. the same `draft-chat-pick-headshot` → `PlayerAvatar` change |
-| `nfl-redraft-player-card-data` | 3 | player image/injury/devy data-shape helpers |
-| `nfl-redraft-pre-draft-validation-integration` | 1 | `DraftValidationOrchestrator` field shape (`rosterSize`) |
+### RESOLVED (follow-up pass, 2026-06-13)
+All 14 were triaged per-file against source + git history. **Every one was a stale source-pattern
+lock broken by an intentional, verified refactor — no real source regression was found.** Tests were
+updated narrowly to pin the new (often stronger) contract; no source was changed, no coverage weakened.
 
-**Recommendation:** scope a focused follow-up to triage these 14 the same way (confirm each is an
-intentional refactor before updating the lock; fix any that prove to be real draft-room regressions).
-They do not touch the Redraft War Room or the route budget.
+| Suite | # | Classification & resolution |
+| --- | --- | --- |
+| `nfl-redraft-snake-draft-board-state` | 7 | **Stale (refactor).** (a) Commissioner-action logic extracted into the `useCommissionerActions` hook → re-pointed the `handleCommissionerAction` body slice to `hooks/useCommissionerActions.ts`. (b) Resume **intentionally** no longer optimistically sets `status:'in_progress'` (defers to server snapshot to avoid clock drift; documented in source) → assertion now locks that behavior. (c) `/drafts/[draftId]` canonicalization → `/draft/live` redirects there; `/draft/room` redirects live drafts there and renders only mock inline. (d) Stricter inline gating `(in_progress&&onPause)||(paused&&onResume)`. |
+| `nfl-redraft-responsive-ux-smoke` | 3 | **Stale (refactor).** (a) `draft-mobile-layout` testid moved to a separate JSX line (className/testid split) → whitespace-tolerant regex. (b) Commissioner controls consolidated into the topbar menu (commit `5e331bdbb`) → assert `draft-topbar-menu-toggle` instead of removed `draft-topbar-commissioner-primary`. (c) Chat headshot via shared `<PlayerAvatar testIdBase=…>`. |
+| `nfl-redraft-player-card-data` | 3 | **Stale (enhancement).** Headshot + injury chains gained extra `unifiedProductView` fallbacks (primary source unchanged, now multiline); devy-rookie derivation reformatted across a newline (behavior identical). Regexes made whitespace-tolerant / lock the primary source. |
+| `nfl-redraft-pre-draft-validation-integration` | 1 | **Stale (improvement, NOT a regression).** Roster-shape validation now delegates to the canonical `getEffectiveLeagueRosterTemplate` resolver instead of raw `League.rosterSize/starters` column selects; `League.scoring` still selected; phantom-`LeagueSettings` negative guards intact. Assertion updated to lock the canonical-resolver contract. |
+
+**Verification:** all 4 suites pass; the previously-fixed 8 suites + both War Room suites still pass
+(11 suites / 281 tests). Full redraft sweep: **30 suites / 585 tests, 0 failures.** Route budget GREEN
+(1678). No source files changed — only test locks updated.
 
 ---
 
@@ -127,15 +132,21 @@ panel itself is typecheck/lint-clean and its buttons call the real routes via `l
 ---
 
 ## Remaining blockers / recommendations
-1. **14 additional pre-existing NFL-redraft source-pattern failures** (table above) — triage in a
-   focused follow-up; likely the same stale-lock class but require per-file confirmation.
+1. ~~14 additional pre-existing NFL-redraft source-pattern failures~~ — **RESOLVED** (see §RESOLVED
+   above). All confirmed stale locks from intentional refactors; locks updated, no source bugs found.
+   **Full redraft/draft-room sweep is now green: 30 suites / 585 tests, 0 failures.**
 2. **Live runtime verification** of the War Room panel + Spanish/visual modes still needs a seeded
-   redraft league + authenticated session (or Playwright E2E).
+   redraft league + authenticated session (or Playwright E2E). This is the main remaining item before
+   Redraft War Room Phase 2.
 3. **Provider integrations** remain the functional gap for Phase 2 (free-agent/waiver pool, live
    stats/projections, injuries/news) — the War Room already degrades safely without them.
 
+## Redraft cleared for War Room Phase 2?
+**Yes — the draft-room test blocker is cleared.** Full redraft sweep is green (30/30 suites, 585 tests),
+route budget is GREEN (1678 production-adjusted), and no source regressions were found. The only
+pre-Phase-2 gap that is not test-covered is live in-browser/auth runtime verification (item 2).
+
 ## Should Vercel deploy?
-**Yes for the route budget** — GREEN at 1791 production-adjusted signals, well under the 2048 cap.
-The repo-wide pre-existing typecheck baseline and the 14 unrelated source-pattern test failures are
-not deploy-blocking for Vercel (the build does not run these vitest suites), but should be cleared
-before relying on the redraft draft-room test suite for CI confidence.
+**Yes for the route budget** — GREEN at 1678 production-adjusted signals, well under the 2048 cap.
+The repo-wide pre-existing typecheck baseline (unrelated files) is not deploy-blocking for Vercel
+(the build does not run vitest), and the redraft draft-room suite is now fully green for CI confidence.

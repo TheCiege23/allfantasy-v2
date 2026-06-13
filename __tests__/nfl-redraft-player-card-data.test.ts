@@ -82,9 +82,11 @@ describe('DraftPlayerCard — name / position / team rendering', () => {
 describe('DraftPlayerCard — headshot fallback chain', () => {
   const src = read('components/app/draft-room/DraftPlayerCard.tsx')
 
-  it('headshotUrl chain: getPlayerImage(normalized) → display.assets.headshotUrl → null', () => {
+  it('headshotUrl chain: getPlayerImage(normalized) → assets.headshotUrl → … → null', () => {
+    // Primary chain is locked; the chain was later extended with additional
+    // unifiedProductView fallbacks before the final `null` (enhancement).
     expect(src).toMatch(
-      /const headshotUrl = getPlayerImage\(normalized, draftSport\) \?\? assets\?\.headshotUrl \?\? null/,
+      /const headshotUrl =\s*getPlayerImage\(normalized, draftSport\) \?\?\s*assets\?\.headshotUrl \?\?/,
     )
   })
 
@@ -134,9 +136,11 @@ describe('PlayerAvatar — fallback chain (URL classification + DEF special case
 describe('DraftPlayerCard — injury status badge', () => {
   const src = read('components/app/draft-room/DraftPlayerCard.tsx')
 
-  it('reads injuryStatus from display.metadata.injuryStatus', () => {
+  it('reads injuryStatus from display.metadata.injuryStatus (primary source)', () => {
+    // Primary source locked; later extended with unifiedProductView fallbacks
+    // before the final `null` (enhancement).
     expect(src).toMatch(
-      /const injuryStatus = display\?\.metadata\?\.injuryStatus \?\? null/,
+      /const injuryStatus =\s*display\?\.metadata\?\.injuryStatus \?\?/,
     )
   })
 
@@ -253,7 +257,7 @@ describe('Pool resolver dedupe + isRookie derivation (Commits N/O still pinned)'
   })
 
   it('marks non-graduated devy as rookie regardless of yearsExp', () => {
-    expect(src).toMatch(/row\.isDevy && !row\.graduatedToNFL \? \{ isRookie: true \}/)
+    expect(src).toMatch(/row\.isDevy && !row\.graduatedToNFL\s*\?\s*\{ isRookie: true \}/)
   })
 })
 

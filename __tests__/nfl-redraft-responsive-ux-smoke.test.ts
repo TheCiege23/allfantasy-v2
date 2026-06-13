@@ -101,7 +101,8 @@ describe('DraftRoomShell — desktop + mobile branches both render with stable t
   })
 
   it('mobile layout branch uses md:hidden + draft-mobile-layout testid', () => {
-    expect(src).toMatch(/md:hidden" data-testid="draft-mobile-layout"/)
+    // className + data-testid may sit on separate JSX lines after formatting.
+    expect(src).toMatch(/md:hidden"[\s\S]{0,40}data-testid="draft-mobile-layout"/)
   })
 
   it('desktop board zone, team aside, and bottom dock all carry stable testids', () => {
@@ -130,7 +131,10 @@ describe('DraftTopBar exposes stable timer + commissioner testids', () => {
 
   it('start-draft + commissioner primary entry points', () => {
     expect(src).toMatch(/data-testid="draft-topbar-start-draft"/)
-    expect(src).toMatch(/data-testid="draft-topbar-commissioner-primary"/)
+    // Commissioner controls were consolidated into the topbar menu in the
+    // sleeper-style reorg (commit 5e331bdbb); the menu toggle is now the
+    // primary commissioner entry point.
+    expect(src).toMatch(/data-testid="draft-topbar-menu-toggle"/)
   })
 })
 
@@ -231,7 +235,9 @@ describe('DraftChatPanel (Commit T) is read-only + empty/error tolerant', () => 
   it('exposes chat-panel + pick-event + composer testids', () => {
     expect(src).toMatch(/data-testid="draft-chat-panel"/)
     expect(src).toMatch(/data-testid="draft-chat-pick-event"/)
-    expect(src).toMatch(/data-testid="draft-chat-pick-headshot"/)
+    // Headshot now renders via shared <PlayerAvatar testIdBase="…" /> (emits
+    // draft-chat-pick-headshot-{root,image,fallback,…} testids at runtime).
+    expect(src).toMatch(/testIdBase="draft-chat-pick-headshot"/)
     expect(src).toMatch(/data-testid="draft-chat-pick-drafter"/)
     expect(src).toMatch(/data-testid="draft-chat-pick-ai-badge"/)
   })

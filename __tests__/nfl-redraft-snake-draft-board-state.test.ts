@@ -3,9 +3,9 @@
  *
  * The audit for this commit confirmed that committed HEAD already implements
  * the unified-state model:
- *   - one <DraftRoomPageClient> mounted by the canonical /draft/[draftId]
- *     router (legacy /draft/live/[draftId] and /draft/room/[draftId] are
- *     redirect-only)
+ *   - one <DraftRoomPageClient> mounted by the canonical /drafts/[draftId]
+ *     room (legacy /draft/live/[draftId] redirects there; /draft/room/[draftId]
+ *     redirects live drafts there and renders only mock inline)
  *   - one <DraftRoomShell> rendered inside the page client
  *   - one <DraftBoard> mounted at a stable site, NOT swapped by
  *     `session.status`
@@ -84,16 +84,20 @@ describe('NFL redraft snake draft — single shell + single board', () => {
 
 describe('NFL redraft snake draft — start / pause / resume stay in place', () => {
   const src = read('components/app/draft-room/DraftRoomPageClient.tsx')
+  // The Commit-E commissioner-action logic was extracted into the reusable
+  // useCommissionerActions hook — handleCommissionerAction (pause/resume/etc.)
+  // now lives there. handleStartDraft still lives in DraftRoomPageClient and
+  // delegates to the hook, so it is still sliced from `src` below.
+  const hookSrc = read('hooks/useCommissionerActions.ts')
 
   /**
    * Pull a precise slice of `handleCommissionerAction`'s body so the
    * navigation regex doesn't accidentally hit unrelated `window.location`
-   * usage elsewhere in the 5000-line file (invite link builder, login
-   * redirect, etc.).
+   * usage elsewhere in the file.
    */
-  const actionStart = src.indexOf('const handleCommissionerAction = useCallback(')
-  const actionEnd = actionStart >= 0 ? src.indexOf('const handleCommissionerUndoPick =', actionStart) : -1
-  const actionBody = actionStart >= 0 && actionEnd > actionStart ? src.slice(actionStart, actionEnd) : ''
+  const actionStart = hookSrc.indexOf('const handleCommissionerAction = useCallback(')
+  const actionEnd = actionStart >= 0 ? hookSrc.indexOf('const handleCommissionerUndoPick =', actionStart) : -1
+  const actionBody = actionStart >= 0 && actionEnd > actionStart ? hookSrc.slice(actionStart, actionEnd) : ''
 
   const startStart = src.indexOf('const handleStartDraft = useCallback(')
   const startEnd = startStart >= 0 ? src.indexOf('const handleSettingsPatch', startStart) : -1
@@ -121,9 +125,13 @@ describe('NFL redraft snake draft — start / pause / resume stay in place', () 
     expect(actionBody).toMatch(/status: 'paused'/)
   })
 
-  it('handleCommissionerAction performs an in-place setSession optimistic patch on resume', () => {
+  it('handleCommissionerAction handles resume in place and defers in_progress to the server snapshot', () => {
+    // Resume intentionally does NOT optimistically set status: 'in_progress'
+    // before the server confirms (avoids client/server clock drift and a false
+    // "pick available" state during the POST flight). It still patches in place
+    // via setSession and POSTs the action — no navigation.
     expect(actionBody).toMatch(/action === 'resume'/)
-    expect(actionBody).toMatch(/status: 'in_progress'/)
+    expect(actionBody).toMatch(/if \(action === 'resume'\)[\s\S]{0,400}return prev/)
   })
 
   it("handleCommissionerAction calls /api/leagues/{leagueId}/draft/controls", () => {
@@ -162,10 +170,11 @@ describe('NFL redraft snake draft — DraftTopBar commissioner gating', () => {
   })
 
   it('inline pause/resume buttons are gated on isCommissioner', () => {
-    // The commissioner-only inline strip renders only when `rs &&
-    // isCommissioner && (in_progress || paused) && (onPause || onResume)`.
+    // The commissioner-only inline strip renders only for commissioners in an
+    // active/paused draft, and (tightened) gates the pause control to
+    // in_progress and the resume control to paused.
     expect(src).toMatch(
-      /rs && isCommissioner && \(draftStatus === 'in_progress' \|\| draftStatus === 'paused'\) && \(onPause \|\| onResume\)/,
+      /isCommissioner && \(draftStatus === 'in_progress' \|\| draftStatus === 'paused'\) && \(\(draftStatus === 'in_progress' && onPause\) \|\| \(draftStatus === 'paused' && onResume\)\)/,
     )
   })
 
@@ -216,27 +225,27 @@ describe('NFL redraft snake draft — single currentPick source of truth', () =>
 })
 
 describe('NFL redraft snake draft — legacy /draft/live and /draft/room are redirect-only', () => {
-  it('app/draft/live/[draftId]/page.tsx redirects to /draft/[draftId] without rendering a board', () => {
+  it('app/draft/live/[draftId]/page.tsx redirects to the canonical /drafts/[draftId] without rendering a board', () => {
+    // The canonical full-screen live room moved to /drafts/[draftId]; this
+    // legacy route is now redirect-only (resolves session-id or league-id).
     const src = read('app/draft/live/[draftId]/page.tsx')
     expect(src).toMatch(/import \{ redirect \} from 'next\/navigation'/)
-    expect(src).toMatch(/redirect\(`\/draft\/\$\{param\}`\)/)
+    expect(src).toMatch(/redirect\(`\/drafts\/\$\{param\}`\)/)
     expect(src).not.toMatch(/<DraftRoomPageClient\b/)
     expect(src).not.toMatch(/<DraftBoard\b/)
     expect(src).not.toMatch(/<DraftRoomShell\b/)
   })
 
-  it('app/draft/room/[draftId]/page.tsx mounts the canonical <DraftBoard> wrapper (single-shell preserved)', () => {
-    // The room route is the canonical "draft room" deep-link target. It
-    // mounts `<DraftBoard kind="live">` — the same wrapper used by
-    // `/draft/[draftId]/snake` — which routes through DraftRoomPageClient.
-    // It is NOT a separate shell. The unified-state contract requires this
-    // entrypoint funnel into the same client mount, not that the route
-    // itself redirects.
+  it('app/draft/room/[draftId]/page.tsx funnels live drafts to the canonical /drafts mount and renders only mock inline', () => {
+    // The room route is the canonical "draft room" deep-link target. LIVE
+    // drafts redirect into the single /drafts/[draftId] mount (preserving the
+    // unified-state contract — no parallel live shell here); only MOCK drafts
+    // render inline via <DraftBoard kind="mock">.
     const src = read('app/draft/room/[draftId]/page.tsx')
     expect(src).toMatch(/import \{ DraftBoard \} from '@\/components\/draft\/DraftBoard'/)
-    expect(src).toMatch(/<DraftBoard\s+kind="live"/)
-    // Must NOT mount the inner client or the shell directly — the wrapper
-    // is the only sanctioned way in.
+    expect(src).toMatch(/redirect\(`\/drafts\/\$\{encodeURIComponent\(context\.draftId\)\}`\)/)
+    expect(src).toMatch(/<DraftBoard\s+kind="mock"/)
+    // Must NOT mount a parallel live client/shell directly here.
     expect(src).not.toMatch(/<DraftRoomPageClient\b/)
     expect(src).not.toMatch(/<DraftRoomShell\b/)
   })
