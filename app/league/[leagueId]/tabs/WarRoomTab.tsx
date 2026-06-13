@@ -17,6 +17,7 @@ import type { UserLeague } from '@/app/dashboard/types'
 import { AFWarRoomPlanSpotlight } from '@/components/monetization/AFWarRoomPlanSpotlight'
 import WarRoomMetaWidget from '@/components/meta-insights/WarRoomMetaWidget'
 import { WarRoomPanel } from '@/components/war-room'
+import { RedraftWarRoomPanel } from './redraft/RedraftWarRoomPanel'
 import { FeatureGate } from '@/components/subscription/FeatureGate'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import type { SubscriptionFeatureId } from '@/lib/subscription/types'
@@ -239,6 +240,11 @@ export function WarRoomTab({ league, sport, dashboardEmbed = false }: WarRoomTab
       </header>
 
       <AFWarRoomPlanSpotlight className="border-white/[0.06]" />
+
+      {/* Redraft leagues get a data-grounded War Room scoped to THIS league. */}
+      {String(league.leagueType ?? '').toLowerCase() === 'redraft' && !league.isDynasty ? (
+        <RedraftWarRoomPanel leagueId={league.id} />
+      ) : null}
 
       {liveDraftCompanion && leagueDraftCompanion.error ? (
         <p

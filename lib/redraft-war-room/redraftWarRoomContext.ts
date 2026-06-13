@@ -1,0 +1,477 @@
+/**
+ * REDRAFT AF WAR ROOM — canonical context builder.
+ *
+ * This is the ONLY file in the War Room that performs DB I/O. It assembles a
+ * deterministic, serializable `RedraftWarRoomContext` from the native redraft
+ * data layer (RedraftSeason/Roster/Player/Matchup), the resolved roster template,
+ * config-driven scoring, and best-effort provider tables (projections/injuries).
+ *
+ * It NEVER calls OpenAI and NEVER fabricates values. When a data source is empty
+ * it sets the matching `availability` flag to 'missing' and records a human-readable
+ * `missingDataFlags` entry so engines and the AI layer degrade safely.
+ *
+ * See lib/redraft-war-room/types.ts for the contract.
+ */
+
+import { prisma } from '@/lib/prisma'
+import { getEffectiveLeagueRosterTemplate } from '@/lib/league/getEffectiveLeagueRosterTemplate'
+import { resolveLeagueAccess } from '@/lib/league-access'
+import type {
+  DataState,
+  RedraftDataAvailability,
+  RedraftLineupSlot,
+  RedraftMatchupSummary,
+  RedraftPlayerFact,
+  RedraftRosterSettings,
+  RedraftScoringSettings,
+  RedraftTeamSummary,
+  RedraftWaiverSettings,
+  RedraftWarRoomContext,
+} from './types'
+
+const SUPERFLEX_RE = /^SUPER[_\s]?FLEX$|^SUPERFLEX$|^SFLEX$/i
+const FLEX_RE = /FLEX|^UTIL$|^SUPER_UTIL$/i
+
+function isStarterSlotType(slotType: string | null | undefined): boolean {
+  const s = String(slotType ?? '').toLowerCase()
+  return s !== 'bench' && s !== 'taxi' && s !== 'devy' && s !== 'ir' && s !== 'reserve'
+}
+
+/** Read the league's config-driven scoring summary without recomputing points. */
+function resolveScoring(sport: string, settings: Record<string, unknown> | null | undefined): RedraftScoringSettings {
+  const sc = (settings?.sportConfig as Record<string, unknown> | undefined) ?? {}
+  const preset = String(sc.scoringPreset ?? 'PPR').toUpperCase()
+  const overrides =
+    typeof sc.categoryPoints === 'object' && sc.categoryPoints !== null
+      ? (sc.categoryPoints as Record<string, number>)
+      : {}
+  let ppr: number | null =
+    overrides.rec != null
+      ? Number(overrides.rec)
+      : preset === 'PPR'
+        ? 1
+        : preset === 'HALF_PPR'
+          ? 0.5
+          : preset === 'STANDARD'
+            ? 0
+            : null
+  if (ppr != null && !Number.isFinite(ppr)) ppr = null
+  return {
+    sport,
+    scoringPreset: preset,
+    pointsPerReception: ppr,
+    superflex: sc.enableSuperflex === true,
+    tePremium: sc.enableTEPremium === true,
+    idp: sc.enableIDP === true,
+  }
+}
+
+/** Distribute FLEX slot counts across RB/WR/TE the way league-decision-context does. */
+function buildRosterSettings(
+  slots: RedraftLineupSlot[],
+): RedraftRosterSettings {
+  const requiredByPosition: Record<string, number> = {}
+  let totalStarterSlots = 0
+  let flexCount = 0
+  let superflexCount = 0
+
+  for (const slot of slots) {
+    const count = slot.starterCount ?? 0
+    if (count <= 0) continue
+    totalStarterSlots += count
+    if (slot.isSuperflex) {
+      superflexCount += count
+      continue
+    }
+    if (slot.isFlex) {
+      flexCount += count
+      continue
+    }
+    // Dedicated positional slot: attribute to its single allowed position when unambiguous.
+    const pos = slot.allowedPositions.length === 1 ? slot.allowedPositions[0] : slot.slotName
+    requiredByPosition[pos] = (requiredByPosition[pos] ?? 0) + count
+  }
+
+  if (flexCount > 0) {
+    requiredByPosition.RB = (requiredByPosition.RB ?? 0) + Math.ceil(flexCount * 0.4)
+    requiredByPosition.WR = (requiredByPosition.WR ?? 0) + Math.ceil(flexCount * 0.4)
+    requiredByPosition.TE = (requiredByPosition.TE ?? 0) + Math.ceil(flexCount * 0.2)
+  }
+  if (superflexCount > 0) {
+    requiredByPosition.QB = (requiredByPosition.QB ?? 0) + superflexCount
+  }
+
+  return {
+    totalStarterSlots,
+    benchSlots: 0, // filled by caller from template bench rows
+    irSlots: 0,
+    lineupSlots: slots,
+    requiredByPosition,
+  }
+}
+
+function resolveWaivers(settings: Record<string, unknown> | null | undefined): RedraftWaiverSettings {
+  const sc = (settings?.sportConfig as Record<string, unknown> | undefined) ?? {}
+  const raw =
+    String(sc.waiverType ?? (settings?.waiverType as string | undefined) ?? '').toLowerCase()
+  const type: RedraftWaiverSettings['type'] = raw.includes('faab')
+    ? 'faab'
+    : raw.includes('roll')
+      ? 'rolling'
+      : raw.includes('rev')
+        ? 'reverse'
+        : 'unknown'
+  const budgetRaw = sc.waiverBudget ?? settings?.waiverBudget
+  const faabBudget = typeof budgetRaw === 'number' && Number.isFinite(budgetRaw) ? budgetRaw : null
+  return { type, faabBudget }
+}
+
+export interface BuildRedraftWarRoomContextInput {
+  leagueId: string
+  userId: string | null | undefined
+  /** Optional explicit season id; defaults to the most recent season for the league. */
+  seasonId?: string
+}
+
+export type BuildRedraftWarRoomContextResult =
+  | { ok: true; context: RedraftWarRoomContext }
+  | { ok: false; status: 401 | 403 | 404; error: string }
+
+/**
+ * Build the canonical redraft War Room context. Enforces league membership.
+ * Commissioners see league-wide team rosters; members see all teams but only their own
+ * roster is flagged `isUserTeam` for personalized recommendations.
+ */
+export async function buildRedraftWarRoomContext(
+  input: BuildRedraftWarRoomContextInput,
+): Promise<BuildRedraftWarRoomContextResult> {
+  const { leagueId, userId } = input
+  if (!userId) return { ok: false, status: 401, error: 'Unauthorized' }
+
+  const access = await resolveLeagueAccess(leagueId, userId)
+  if (!access?.isMember) return { ok: false, status: 403, error: 'Forbidden' }
+
+  // The generated Prisma client types are loose for these nested includes in this
+  // repo, so we pin the shape we rely on to keep this module fully type-safe.
+  type RosterPlayerRow = {
+    playerId: string
+    playerName: string
+    position: string
+    team: string | null
+    slotType: string
+    injuryStatus: string | null
+    byeWeek: number | null
+  }
+  type RosterRow = {
+    id: string
+    ownerId: string
+    ownerName: string
+    teamName: string | null
+    wins: number
+    losses: number
+    ties: number
+    pointsFor: number
+    pointsAgainst: number
+    streak: string | null
+    playoffSeed: number | null
+    faabBalance: number | null
+    waiverPriority: number
+    isEliminated: boolean
+    players: RosterPlayerRow[]
+  }
+  type MatchupRow = {
+    id: string
+    week: number
+    status: string
+    homeRosterId: string
+    awayRosterId: string | null
+    homeScore: number
+    awayScore: number
+    homeProjected: number | null
+    awayProjected: number | null
+  }
+  type SeasonWithRelations = {
+    id: string
+    sport: string
+    season: number
+    status: string
+    currentWeek: number
+    totalWeeks: number
+    playoffStartWeek: number
+    rosters: RosterRow[]
+    schedule: MatchupRow[]
+  }
+
+  const season = (await prisma.redraftSeason.findFirst({
+    where: { leagueId, ...(input.seasonId ? { id: input.seasonId } : {}) },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      rosters: { include: { players: { where: { droppedAt: null } } } },
+      schedule: true,
+    },
+  })) as SeasonWithRelations | null
+  if (!season) return { ok: false, status: 404, error: 'No redraft season for this league' }
+
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { settings: true, sport: true },
+  })
+  const settings = (league?.settings as Record<string, unknown> | null) ?? null
+
+  // Roster template → lineup slots.
+  let lineupSlots: RedraftLineupSlot[] = []
+  let benchSlots = 0
+  let irSlots = 0
+  let rosterRulesState: DataState = 'available'
+  try {
+    const tmpl = await getEffectiveLeagueRosterTemplate(leagueId)
+    for (const s of tmpl.template.slots) {
+      const name = String(s.slotName ?? '')
+      const isSuper = SUPERFLEX_RE.test(name)
+      const isFlex = !isSuper && (s.isFlexibleSlot || FLEX_RE.test(name))
+      if ((s.starterCount ?? 0) > 0) {
+        lineupSlots.push({
+          slotName: name,
+          allowedPositions: (s.allowedPositions ?? []).map((p) => p.toUpperCase()),
+          starterCount: s.starterCount,
+          isFlex,
+          isSuperflex: isSuper,
+        })
+      }
+      benchSlots += s.benchCount ?? 0
+      irSlots += s.reserveCount ?? 0
+    }
+  } catch {
+    rosterRulesState = 'missing'
+  }
+
+  const roster = buildRosterSettings(lineupSlots)
+  roster.benchSlots = benchSlots
+  roster.irSlots = irSlots
+
+  const scoring = resolveScoring(season.sport, settings)
+  const waivers = resolveWaivers(settings)
+
+  // --- provider data (best-effort, flagged when empty) ---
+  const seasonStr = String(season.season)
+  const allPlayerIds = season.rosters.flatMap((r) => r.players.map((p) => p.playerId))
+  const week = season.currentWeek > 0 ? season.currentWeek : 1
+
+  // Projections for the current week.
+  type ProjectionRow = { playerId: string; projectedPoints: number; fetchedAt: Date }
+  const projectionRows: ProjectionRow[] = allPlayerIds.length
+    ? ((await prisma.fantasyProjection
+        .findMany({
+          where: { sport: season.sport, season: seasonStr, week, playerId: { in: allPlayerIds } },
+          select: { playerId: true, projectedPoints: true, fetchedAt: true },
+        })
+        .catch(() => [])) as ProjectionRow[])
+    : []
+  const projectionByPlayer = new Map(projectionRows.map((p) => [p.playerId, p.projectedPoints]))
+  const projectionsAsOf =
+    projectionRows.length > 0
+      ? projectionRows.reduce<Date | null>((max, r) => (!max || r.fetchedAt > max ? r.fetchedAt : max), null)
+      : null
+
+  // Season-to-date actuals (finalized weekly scores) → average per player.
+  type ScoreRow = { playerId: string; fantasyPts: number; updatedAt: Date }
+  const scoreRows: ScoreRow[] = allPlayerIds.length
+    ? ((await prisma.playerWeeklyScore
+        .findMany({
+          where: {
+            sport: season.sport,
+            season: season.season,
+            isFinalized: true,
+            playerId: { in: allPlayerIds },
+          },
+          select: { playerId: true, fantasyPts: true, updatedAt: true },
+        })
+        .catch(() => [])) as ScoreRow[])
+    : []
+  const actualAgg = new Map<string, { sum: number; n: number }>()
+  let statsAsOf: Date | null = null
+  for (const row of scoreRows) {
+    const cur = actualAgg.get(row.playerId) ?? { sum: 0, n: 0 }
+    cur.sum += row.fantasyPts
+    cur.n += 1
+    actualAgg.set(row.playerId, cur)
+    if (!statsAsOf || row.updatedAt > statsAsOf) statsAsOf = row.updatedAt
+  }
+
+  // Injuries: prefer per-roster injuryStatus; cross-check sports_core InjuryReport freshness only.
+  type InjuryRow = { playerId: string | null; status: string | null; reportDate: Date | null }
+  const injuryRows: InjuryRow[] = allPlayerIds.length
+    ? ((await prisma.injuryReport
+        .findMany({
+          where: { playerId: { in: allPlayerIds } },
+          select: { playerId: true, status: true, reportDate: true },
+          orderBy: { reportDate: 'desc' },
+          take: 500,
+        })
+        .catch(() => [])) as InjuryRow[])
+    : []
+  const injuryByPlayer = new Map<string, string>()
+  let injuriesAsOf: Date | null = null
+  for (const row of injuryRows) {
+    if (row.playerId && !injuryByPlayer.has(row.playerId) && row.status) {
+      injuryByPlayer.set(row.playerId, row.status)
+    }
+    if (row.reportDate && (!injuriesAsOf || row.reportDate > injuriesAsOf)) injuriesAsOf = row.reportDate
+  }
+
+  // News presence (existence only — not surfaced as content in Phase 1).
+  const newsCount = allPlayerIds.length
+    ? await prisma.playerNewsItem.count({ where: { playerId: { in: allPlayerIds } } }).catch(() => 0)
+    : 0
+
+  function toPlayerFact(p: {
+    playerId: string
+    playerName: string
+    position: string
+    team: string | null
+    slotType: string
+    injuryStatus: string | null
+    byeWeek: number | null
+  }): RedraftPlayerFact {
+    const proj = projectionByPlayer.get(p.playerId)
+    const agg = actualAgg.get(p.playerId)
+    const seasonAvg = agg && agg.n > 0 ? Math.round((agg.sum / agg.n) * 100) / 100 : null
+    const weekProjection = typeof proj === 'number' ? Math.round(proj * 100) / 100 : null
+    return {
+      playerId: p.playerId,
+      playerName: p.playerName,
+      position: (p.position || 'UNK').toUpperCase(),
+      team: p.team,
+      slotType: p.slotType,
+      isStarterSlot: isStarterSlotType(p.slotType),
+      injuryStatus: p.injuryStatus ?? injuryByPlayer.get(p.playerId) ?? null,
+      byeWeek: p.byeWeek,
+      weekProjection,
+      seasonAvgActual: seasonAvg,
+      hasNoValueSignal: weekProjection == null && seasonAvg == null,
+    }
+  }
+
+  const teams: RedraftTeamSummary[] = season.rosters.map((r) => ({
+    rosterId: r.id,
+    ownerId: r.ownerId,
+    ownerName: r.ownerName,
+    teamName: r.teamName,
+    wins: r.wins,
+    losses: r.losses,
+    ties: r.ties,
+    pointsFor: r.pointsFor,
+    pointsAgainst: r.pointsAgainst,
+    streak: r.streak,
+    playoffSeed: r.playoffSeed ?? null,
+    faabBalance: r.faabBalance ?? null,
+    waiverPriority: r.waiverPriority,
+    isEliminated: r.isEliminated,
+    isUserTeam: r.ownerId === userId,
+    players: r.players.map(toPlayerFact),
+  }))
+
+  const userRosterId = teams.find((t) => t.isUserTeam)?.rosterId ?? null
+
+  // Matchups for the user (or league when commissioner-only view).
+  function toMatchupSummary(m: MatchupRow): RedraftMatchupSummary {
+    const isUser =
+      userRosterId != null && (m.homeRosterId === userRosterId || m.awayRosterId === userRosterId)
+    const opponent =
+      userRosterId == null
+        ? null
+        : m.homeRosterId === userRosterId
+          ? m.awayRosterId
+          : m.awayRosterId === userRosterId
+            ? m.homeRosterId
+            : null
+    return {
+      matchupId: m.id,
+      week: m.week,
+      status: m.status,
+      homeRosterId: m.homeRosterId,
+      awayRosterId: m.awayRosterId,
+      homeScore: m.homeScore,
+      awayScore: m.awayScore,
+      homeProjected: m.homeProjected ?? null,
+      awayProjected: m.awayProjected ?? null,
+      isUserMatchup: isUser,
+      opponentRosterId: opponent,
+    }
+  }
+  const userSchedule = season.schedule
+    .filter((m) => userRosterId != null && (m.homeRosterId === userRosterId || m.awayRosterId === userRosterId))
+    .sort((a, b) => a.week - b.week)
+  const upcomingMatchup =
+    userSchedule.find((m) => m.week >= week && m.status !== 'final') ??
+    userSchedule.find((m) => m.week >= week) ??
+    null
+  const recentMatchup =
+    [...userSchedule].reverse().find((m) => m.week < week || m.status === 'final') ?? null
+
+  // --- availability contract ---
+  const availability: RedraftDataAvailability = {
+    scoringRules: 'available',
+    rosterRules: rosterRulesState,
+    standings: 'available',
+    schedule: season.schedule.length > 0 ? 'available' : 'missing',
+    playerStats: actualAgg.size > 0 ? 'available' : 'missing',
+    projections: projectionByPlayer.size > 0 ? 'available' : 'missing',
+    injuries:
+      injuryByPlayer.size > 0 || teams.some((t) => t.players.some((p) => p.injuryStatus))
+        ? 'available'
+        : 'missing',
+    news: newsCount > 0 ? 'available' : 'missing',
+    waiverPool: 'missing', // free-agent pool route is a placeholder — no provider yet
+    tradeValues: projectionByPlayer.size > 0 || actualAgg.size > 0 ? 'available' : 'missing',
+  }
+
+  const missingDataFlags: string[] = []
+  if (availability.rosterRules === 'missing') missingDataFlags.push('Roster template could not be resolved.')
+  if (availability.projections === 'missing')
+    missingDataFlags.push('No player projections available — start/sit falls back to season actuals where present.')
+  if (availability.playerStats === 'missing')
+    missingDataFlags.push('No finalized player stats yet (preseason or pre-ingestion).')
+  if (availability.waiverPool === 'missing')
+    missingDataFlags.push('Free-agent pool requires provider integration — specific add targets are unavailable.')
+  if (availability.injuries === 'missing') missingDataFlags.push('No injury data available.')
+
+  const hasValueSignal = availability.projections === 'available' || availability.playerStats === 'available'
+
+  const context: RedraftWarRoomContext = {
+    leagueId,
+    leagueType: 'redraft',
+    sport: season.sport,
+    season: season.season,
+    currentWeek: season.currentWeek,
+    totalWeeks: season.totalWeeks,
+    playoffStartWeek: season.playoffStartWeek,
+    seasonStatus: season.status,
+    scoring,
+    roster,
+    waivers,
+    userRosterId,
+    isCommissioner: access.isCommissioner,
+    teams,
+    upcomingMatchup: upcomingMatchup ? toMatchupSummary(upcomingMatchup) : null,
+    recentMatchup: recentMatchup ? toMatchupSummary(recentMatchup) : null,
+    freeAgents: [],
+    availability,
+    freshness: {
+      generatedAt: new Date().toISOString(),
+      statsAsOf: statsAsOf ? statsAsOf.toISOString() : null,
+      projectionsAsOf: projectionsAsOf ? projectionsAsOf.toISOString() : null,
+      injuriesAsOf: injuriesAsOf ? injuriesAsOf.toISOString() : null,
+    },
+    missingDataFlags,
+    featureAvailability: {
+      teamNeeds: availability.rosterRules === 'available',
+      lineup: availability.rosterRules === 'available',
+      waivers: availability.waiverPool === 'available',
+      tradeAnalyze: true, // roster-fit analysis works even without values; verdict degrades to needs_more_data
+      tradeFind: hasValueSignal,
+    },
+  }
+
+  return { ok: true, context }
+}
