@@ -41,9 +41,9 @@ function read(rel: string): string {
 describe('Legacy executeDraftPick is guarded against live-mode writes', () => {
   const src = read('lib/draft/execute-pick.ts')
 
-  it('imports the legacy-runtime-write-guard helpers', () => {
+  it('imports the legacy-runtime-write-guard', () => {
     expect(src).toMatch(
-      /import \{[\s\S]*?assertLegacyDraftRuntimeWriteAllowed[\s\S]*?LegacyDraftRuntimeWriteBlockedError[\s\S]*?\} from '@\/lib\/draft\/legacy-runtime-write-guard'/,
+      /import \{[\s\S]*?assertLegacyDraftRuntimeWriteAllowed[\s\S]*?\} from '@\/lib\/draft\/legacy-runtime-write-guard'/,
     )
   })
 
@@ -55,24 +55,34 @@ describe('Legacy executeDraftPick is guarded against live-mode writes', () => {
     expect(writeIdx).toBeGreaterThan(guardIdx)
   })
 
-  it('returns a 410 with a canonical-path redirect message when blocked', () => {
-    expect(src).toMatch(/status: 410/)
-    expect(src).toMatch(
-      /Live-mode pick writes must go through the canonical draft authority/,
-    )
-    expect(src).toMatch(/POST \/api\/leagues\/\{leagueId\}\/draft\/pick/)
+  it('routes live-mode picks through the canonical submitPick before any legacy write', () => {
+    // Stronger contract than the old 410 block: live sessions never reach the
+    // legacy DraftRoom writer at all. The `parsed.mode === 'live'` branch
+    // delegates to PickSubmissionService.submitPick and returns before the
+    // guard and the legacy prisma writes run.
+    expect(src).toMatch(/import \{ submitPick \} from '@\/lib\/live-draft-engine\/PickSubmissionService'/)
+    const liveIdx = src.indexOf("parsed.mode === 'live'")
+    const submitIdx = src.indexOf('submitPick(', liveIdx)
+    const guardIdx = src.indexOf('assertLegacyDraftRuntimeWriteAllowed({')
+    const writeIdx = src.indexOf('prisma.draftRoomPickRecord')
+    expect(liveIdx).toBeGreaterThan(0)
+    expect(submitIdx).toBeGreaterThan(liveIdx)
+    expect(submitIdx).toBeLessThan(guardIdx)
+    expect(submitIdx).toBeLessThan(writeIdx)
   })
 
   it('forwards the parsed mode to the guard (so mock writes pass through)', () => {
     expect(src).toMatch(/mode: parsed\.mode/)
   })
 
-  it('non-LegacyDraftRuntimeWriteBlockedError errors still propagate (no swallowing)', () => {
-    // The catch block must rethrow non-guard errors so transient DB
-    // failures surface normally.
-    expect(src).toMatch(
-      /if \(err instanceof LegacyDraftRuntimeWriteBlockedError\)[\s\S]+?throw err/,
-    )
+  it('the live branch returns before the legacy guard (legacy path is mock-only)', () => {
+    // The legacy guard + DraftRoom writes are only reachable for mock sessions:
+    // the live branch returns its canonical result first, so a live session can
+    // never fall through to a legacy-table write.
+    const liveIdx = src.indexOf("parsed.mode === 'live'")
+    const guardIdx = src.indexOf('assertLegacyDraftRuntimeWriteAllowed({')
+    const liveBlock = src.slice(liveIdx, guardIdx)
+    expect(liveBlock).toMatch(/return \{ ok: true, overallPick:/)
   })
 })
 

@@ -100,7 +100,9 @@ describe('NFL redraft pre-draft Home regression lock', () => {
   it('enters the draft room through the safe league draft resolver instead of /draft/live', () => {
     expect(draftTabSrc).toMatch(/const enterDraftRoomHref = `\/league\/\$\{league\.id\}\/draft`/)
     expect(draftTabSrc).not.toMatch(/\/draft\/live\//)
-    expect(leagueDraftResolverSrc).toMatch(/redirect\(`\/draft\/\$\{ds\.id\}`\)/)
+    // The canonical full-screen draft room moved to /drafts/[draftId]
+    // (commit 50b53831c). The resolver upserts the session then redirects there.
+    expect(leagueDraftResolverSrc).toMatch(/redirect\(`\/drafts\/\$\{ds\.id\}`\)/)
   })
 
   it('keeps Enter Draft Room explicitly user-driven and gated on draft-room states', () => {

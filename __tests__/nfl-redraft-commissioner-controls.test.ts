@@ -94,8 +94,11 @@ describe('start / complete / undo_pick — state-transition contract', () => {
     )
   })
 
-  it('undo_pick delegates to undoLastPick and refuses with 400 when nothing to undo', () => {
-    expect(src).toMatch(/await undoLastPick\(leagueId\)/)
+  it('undo_pick delegates to undoLastPick (with audit reason + actor) and refuses with 400 when nothing to undo', () => {
+    // Slice 4 added a required commissioner reason + actor to the undo call,
+    // persisted to DraftPickAuditLog. Lock that the leagueId + audit options
+    // are forwarded, not just leagueId.
+    expect(src).toMatch(/await undoLastPick\(leagueId,\s*\{[\s\S]*?actorUserId: userId/)
     expect(src).toMatch(/'No pick to undo'[\s\S]+?status: 400/)
   })
 

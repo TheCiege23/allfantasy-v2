@@ -200,7 +200,9 @@ describe('DraftChatPanel — read-only client surface with stable test ids', () 
 
   it('exposes pick-event test ids for chat pick cards', () => {
     expect(src).toMatch(/data-testid="draft-chat-pick-event"/)
-    expect(src).toMatch(/data-testid="draft-chat-pick-headshot"/)
+    // Headshot now renders via the shared <PlayerAvatar testIdBase="…" />, which
+    // emits draft-chat-pick-headshot-{root,image,fallback,…} testids at runtime.
+    expect(src).toMatch(/testIdBase="draft-chat-pick-headshot"/)
     expect(src).toMatch(/data-testid="draft-chat-pick-drafter"/)
     expect(src).toMatch(/data-testid="draft-chat-pick-ai-badge"/)
   })

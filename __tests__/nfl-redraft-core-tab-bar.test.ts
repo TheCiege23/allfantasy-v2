@@ -1,13 +1,16 @@
 /**
  * NFL redraft core dashboard — tab-bar regression lock.
  *
- * The NFL redraft shell is intentionally limited to six core tabs:
- *   Home / Roster / Matchups / Players / Trades / League.
+ * The NFL redraft shell leads with the core tabs:
+ *   Home / Roster / Matchups / Players / Waivers / Trades / League,
+ * plus a commissioner-only Settings tab (added by commit 1fc276d58
+ * "waivers tab integration"). The exported NFL_REDRAFT_CORE_TAB_IDS still
+ * pins the six Phase 1 ids that anchor the bar order.
  *
- * Settings, History, War Room, AI Coaching, Redraft, Trend, and Finance must
- * NOT appear in the primary tab bar for these leagues. Settings is reachable
- * via the header gear (data-testid="league-header-settings") which opens the
- * settings modal, not a tab.
+ * History, War Room, AI Coaching, Redraft, Trend, and Finance must NOT appear
+ * in the primary tab bar for these leagues. Settings is also reachable via the
+ * header gear (data-testid="league-header-settings"), which stays available
+ * regardless of the commissioner Settings tab.
  *
  * Three independent guards in LeagueShell.tsx keep the bar clean:
  *   1. The nflRedraftCore branch in tabDefs returns BEFORE the generic
@@ -74,24 +77,35 @@ describe('NFL redraft core — LeagueShell tabDefs branch', () => {
     expect(branch).toMatch(/return localizeLeagueTabs\(core, t\)/)
   })
 
-  it('does NOT inject settings/history/war_room/ai_coaching/redraft/trend/finance into the nflRedraftCore branch', () => {
+  it('does NOT inject history/war_room/ai_coaching/redraft/trend/finance into the nflRedraftCore branch', () => {
     // Each forbidden id, when present in the branch, would surface as a
-    // primary tab — defeating the gear-only settings flow and the AI/War-Room
-    // hide spec. The branch is short by design (six tab literals); any of
-    // these strings inside it is a regression.
-    const forbidden = ['settings', 'history', 'war_room', 'ai_coaching', 'redraft', 'trend', 'finance']
+    // primary tab — defeating the AI/War-Room hide spec. (Waivers and a
+    // commissioner-gated Settings tab were intentionally added by commit
+    // 1fc276d58 "waivers tab integration" and are asserted separately below.)
+    const forbidden = ['history', 'war_room', 'ai_coaching', 'redraft', 'trend', 'finance']
     for (const id of forbidden) {
       const re = new RegExp(`id:\\s*'${id}'`)
       expect(branch, `forbidden tab id '${id}' leaked into the nflRedraftCore branch`).not.toMatch(re)
     }
   })
 
+  it('only exposes the Settings tab in the redraft branch behind an isCommissioner gate', () => {
+    // Settings is no longer gear-only: commissioners get a Settings tab. But it
+    // must stay commissioner-gated — a non-commissioner redraft member must not
+    // see it. Lock that the only `id: 'settings'` in the branch is the gated push.
+    const settingsCount = (branch.match(/id:\s*'settings'/g) ?? []).length
+    expect(settingsCount).toBe(1)
+    expect(branch).toMatch(/if \(isCommissioner\) core\.push\(\{ id: 'settings'/)
+  })
+
   it('the generic withSettings append path (non-redraft branch) lives AFTER the redraft return', () => {
     // The generic path adds `{ id: 'settings', label: '⚙ Settings' }` to every
     // non-redraft sport tab list. If this append moves above the redraft
     // branch's return, the redraft bar would inherit it — regression guard.
-    const withSettingsIdx = src.indexOf("{ id: 'settings', label: '⚙ Settings' }")
-    expect(withSettingsIdx).toBeGreaterThan(branchEnd)
+    // (The redraft branch has its own commissioner-gated settings push, so use
+    // the LAST occurrence to locate the generic append.)
+    const genericSettingsIdx = src.lastIndexOf("{ id: 'settings', label: '⚙ Settings' }")
+    expect(genericSettingsIdx).toBeGreaterThan(branchEnd)
   })
 })
 
