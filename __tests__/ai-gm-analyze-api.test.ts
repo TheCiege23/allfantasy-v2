@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest, NextResponse } from 'next/server'
-import { POST as legacyPost, GET as legacyGet } from '@/app/api/legacy/ai-gm-analyze/route'
+import { POST as legacyPost, GET as legacyGet } from '@/server/api-route-modules/legacy/ai-gm-analyze/route'
 
 // Mock dependencies
 vi.mock('@/lib/rate-limit', () => ({

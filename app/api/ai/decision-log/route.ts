@@ -9,7 +9,7 @@
 
 import { NextRequest } from 'next/server'
 import { withApiUsage } from '@/lib/telemetry/usage'
-import { POST as legacyPost, GET as legacyGet } from '@/app/api/legacy/decision-log/route'
+import { POST as legacyPost, GET as legacyGet } from '@/server/api-route-modules/legacy/decision-log/route'
 
 export const POST = withApiUsage({ endpoint: '/api/ai/decision-log', tool: 'AiDecisionLog' })(
   async (req: NextRequest) => {

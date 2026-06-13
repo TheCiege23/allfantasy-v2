@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
-import { POST as legacyPost } from '@/app/api/legacy/trade/league-analyze/route'
+import { POST as legacyPost } from '@/server/api-route-modules/legacy/trade/league-analyze/route'
 
 vi.mock('@/lib/ai/openai-route-client', () => ({
   getOpenAIRouteClient: vi.fn(() => ({

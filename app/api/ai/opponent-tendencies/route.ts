@@ -9,7 +9,7 @@
 
 import { NextRequest } from 'next/server'
 import { withApiUsage } from '@/lib/telemetry/usage'
-import { POST as legacyPost, GET as legacyGet } from '@/app/api/legacy/opponent-tendencies/route'
+import { POST as legacyPost, GET as legacyGet } from '@/server/api-route-modules/legacy/opponent-tendencies/route'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60

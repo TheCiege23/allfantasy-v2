@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
-import { GET as legacyGet } from '@/app/api/legacy/waiver/leagues/route'
+import { GET as legacyGet } from '@/server/api-route-modules/legacy/waiver/leagues/route'
 
 // Mock dependencies
 vi.mock('@/lib/prisma', () => ({

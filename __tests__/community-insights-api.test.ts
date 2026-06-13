@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest, NextResponse } from 'next/server'
-import { GET as legacyGet } from '@/app/api/legacy/community-insights/route'
+import { GET as legacyGet } from '@/server/api-route-modules/legacy/community-insights/route'
 
 // Mock dependencies
 vi.mock('@/lib/api-auth', () => ({

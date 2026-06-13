@@ -12,7 +12,7 @@
 
 import { NextRequest } from 'next/server'
 import { withApiUsage } from '@/lib/telemetry/usage'
-import { POST as legacyPost, GET as legacyGet } from '@/app/api/legacy/manager-dna/route'
+import { POST as legacyPost, GET as legacyGet } from '@/server/api-route-modules/legacy/manager-dna/route'
 
 export const POST = withApiUsage({ endpoint: '/api/ai/manager-dna', tool: 'AiManagerDna' })(
   async (req: NextRequest) => {

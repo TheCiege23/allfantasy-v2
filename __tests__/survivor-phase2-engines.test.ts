@@ -34,7 +34,7 @@ describe('rocksEngine determinism', () => {
 // ── Token shop catalog ────────────────────────────────────────────────────────
 describe('token shop catalog', () => {
   it('buy_clue costs 2 tokens and is available', async () => {
-    const mod = await import('../app/api/leagues/[leagueId]/survivor/token-shop/route') as any
+    const mod = await import('../server/api-route-modules/league-survivor/token-shop/route') as any
     // token-shop route exports TOKEN_SHOP_CATALOG via a named export (or we parse it from GET)
     // Smoke: the module loads without error
     expect(mod).toBeDefined()
@@ -86,22 +86,23 @@ describe('SurvivorExileEngine exports', () => {
 // ── Phase 2 route files load without syntax errors ────────────────────────────
 describe('phase 2 routes — import smoke tests', () => {
   const routes = [
-    '../app/api/leagues/[leagueId]/survivor/vote/route',
-    '../app/api/leagues/[leagueId]/survivor/votes/route',
-    '../app/api/leagues/[leagueId]/survivor/votes/lock/route',
-    '../app/api/leagues/[leagueId]/survivor/votes/reveal/route',
-    '../app/api/leagues/[leagueId]/survivor/exile/route',
-    '../app/api/leagues/[leagueId]/survivor/exile/assign/route',
-    '../app/api/leagues/[leagueId]/survivor/exile/complete/route',
-    '../app/api/leagues/[leagueId]/survivor/idols/route',
-    '../app/api/leagues/[leagueId]/survivor/idols/assign/route',
-    '../app/api/leagues/[leagueId]/survivor/idols/play/route',
-    '../app/api/leagues/[leagueId]/survivor/idols/expire/route',
-    '../app/api/leagues/[leagueId]/survivor/tokens/route',
-    '../app/api/leagues/[leagueId]/survivor/tokens/grant/route',
-    '../app/api/leagues/[leagueId]/survivor/tokens/spend/route',
-    '../app/api/leagues/[leagueId]/survivor/token-shop/route',
-    '../app/api/leagues/[leagueId]/survivor/state/route',
+    '../server/api-route-modules/league-survivor/vote/route',
+    '../server/api-route-modules/league-survivor/votes/route',
+    '../server/api-route-modules/league-survivor/votes/lock/route',
+    '../server/api-route-modules/league-survivor/votes/reveal/route',
+    '../server/api-route-modules/league-survivor/exile/route',
+    '../server/api-route-modules/league-survivor/exile/assign/route',
+    '../server/api-route-modules/league-survivor/exile/complete/route',
+    '../server/api-route-modules/league-survivor/idols/route',
+    '../server/api-route-modules/league-survivor/idols/assign/route',
+    '../server/api-route-modules/league-survivor/idols/play/route',
+    '../server/api-route-modules/league-survivor/idols/expire/route',
+    '../server/api-route-modules/league-survivor/tokens/route',
+    '../server/api-route-modules/league-survivor/tokens/grant/route',
+    '../server/api-route-modules/league-survivor/tokens/spend/route',
+    '../server/api-route-modules/league-survivor/token-shop/route',
+    '../server/api-route-modules/league-survivor/state/route',
+    '../app/api/leagues/[leagueId]/survivor/[...path]/route',
   ]
 
   for (const r of routes) {

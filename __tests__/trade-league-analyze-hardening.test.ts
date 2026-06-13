@@ -18,7 +18,7 @@ describe('trade/league-analyze Hardening Verification', () => {
   describe('1. maxDuration Export', () => {
     it('exports maxDuration = 120 in legacy route (code verification)', () => {
       // Arrange
-      const legacyRoutePath = join(process.cwd(), 'app/api/legacy/trade/league-analyze/route.ts')
+      const legacyRoutePath = join(process.cwd(), 'server/api-route-modules/legacy/trade/league-analyze/route.ts')
       const content = readFileSync(legacyRoutePath, 'utf8')
 
       // Assert
@@ -38,7 +38,7 @@ describe('trade/league-analyze Hardening Verification', () => {
   describe('2. withTimeout Guard Function', () => {
     it('withTimeout() function exists and is callable', () => {
       // Arrange
-      const legacyRoutePath = join(process.cwd(), 'app/api/legacy/trade/league-analyze/route.ts')
+      const legacyRoutePath = join(process.cwd(), 'server/api-route-modules/legacy/trade/league-analyze/route.ts')
       const content = readFileSync(legacyRoutePath, 'utf8')
 
       // Assert - verify withTimeout is defined
@@ -52,7 +52,7 @@ describe('trade/league-analyze Hardening Verification', () => {
   describe('3. Early Exit for Empty/Small Leagues', () => {
     it('code contains early exit check for rosters.length < 2', () => {
       // Arrange
-      const legacyRoutePath = join(process.cwd(), 'app/api/legacy/trade/league-analyze/route.ts')
+      const legacyRoutePath = join(process.cwd(), 'server/api-route-modules/legacy/trade/league-analyze/route.ts')
       const content = readFileSync(legacyRoutePath, 'utf8')
 
       // Assert
@@ -65,7 +65,7 @@ describe('trade/league-analyze Hardening Verification', () => {
   describe('4. Batch Rate Limiting Mitigation', () => {
     it('code contains batch delay of 100ms between FantasyCalc iterations', () => {
       // Arrange
-      const legacyRoutePath = join(process.cwd(), 'app/api/legacy/trade/league-analyze/route.ts')
+      const legacyRoutePath = join(process.cwd(), 'server/api-route-modules/legacy/trade/league-analyze/route.ts')
       const content = readFileSync(legacyRoutePath, 'utf8')
 
       // Assert - verify batch delay logic
@@ -77,7 +77,7 @@ describe('trade/league-analyze Hardening Verification', () => {
   describe('5. Graceful Degradation for OpenAI Failure', () => {
     it('code wraps main OpenAI call in try-catch', () => {
       // Arrange
-      const legacyRoutePath = join(process.cwd(), 'app/api/legacy/trade/league-analyze/route.ts')
+      const legacyRoutePath = join(process.cwd(), 'server/api-route-modules/legacy/trade/league-analyze/route.ts')
       const content = readFileSync(legacyRoutePath, 'utf8')
 
       // Assert
@@ -88,7 +88,7 @@ describe('trade/league-analyze Hardening Verification', () => {
 
     it('degraded response preserves output shape by not throwing', () => {
       // Arrange
-      const legacyRoutePath = join(process.cwd(), 'app/api/legacy/trade/league-analyze/route.ts')
+      const legacyRoutePath = join(process.cwd(), 'server/api-route-modules/legacy/trade/league-analyze/route.ts')
       const content = readFileSync(legacyRoutePath, 'utf8')
 
       // Assert - verify degraded response doesn't crash the handler
@@ -103,7 +103,7 @@ describe('trade/league-analyze Hardening Verification', () => {
   describe('6. Response Shape Consistency', () => {
     it('response includes expected fields for trade analysis', () => {
       // Arrange
-      const legacyRoutePath = join(process.cwd(), 'app/api/legacy/trade/league-analyze/route.ts')
+      const legacyRoutePath = join(process.cwd(), 'server/api-route-modules/legacy/trade/league-analyze/route.ts')
       const content = readFileSync(legacyRoutePath, 'utf8')
 
       // Assert - response should have these fields
@@ -115,7 +115,7 @@ describe('trade/league-analyze Hardening Verification', () => {
 
     it('degraded response includes aiDegraded and dataQuality flags', () => {
       // Arrange
-      const legacyRoutePath = join(process.cwd(), 'app/api/legacy/trade/league-analyze/route.ts')
+      const legacyRoutePath = join(process.cwd(), 'server/api-route-modules/legacy/trade/league-analyze/route.ts')
       const content = readFileSync(legacyRoutePath, 'utf8')
 
       // Assert - degraded mode adds these flags
@@ -127,7 +127,7 @@ describe('trade/league-analyze Hardening Verification', () => {
   describe('7. Telemetry and Logging', () => {
     it('code logs timeout events and degradation', () => {
       // Arrange
-      const legacyRoutePath = join(process.cwd(), 'app/api/legacy/trade/league-analyze/route.ts')
+      const legacyRoutePath = join(process.cwd(), 'server/api-route-modules/legacy/trade/league-analyze/route.ts')
       const content = readFileSync(legacyRoutePath, 'utf8')
 
       // Assert
@@ -138,7 +138,7 @@ describe('trade/league-analyze Hardening Verification', () => {
 
     it('code tracks degradation in analytics', () => {
       // Arrange
-      const legacyRoutePath = join(process.cwd(), 'app/api/legacy/trade/league-analyze/route.ts')
+      const legacyRoutePath = join(process.cwd(), 'server/api-route-modules/legacy/trade/league-analyze/route.ts')
       const content = readFileSync(legacyRoutePath, 'utf8')
 
       // Assert - verify degradation tracking
@@ -150,7 +150,7 @@ describe('trade/league-analyze Hardening Verification', () => {
   describe('8. Integration: All Hardening in Place', () => {
     it('trade/league-analyze is hardened and ready for production', () => {
       // Arrange
-      const legacyRoutePath = join(process.cwd(), 'app/api/legacy/trade/league-analyze/route.ts')
+      const legacyRoutePath = join(process.cwd(), 'server/api-route-modules/legacy/trade/league-analyze/route.ts')
       const content = readFileSync(legacyRoutePath, 'utf8')
 
       // Assert - ALL hardening measures present

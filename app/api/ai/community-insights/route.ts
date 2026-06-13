@@ -9,7 +9,7 @@
 
 import { NextRequest } from 'next/server'
 import { withApiUsage } from '@/lib/telemetry/usage'
-import { GET as legacyGet } from '@/app/api/legacy/community-insights/route'
+import { GET as legacyGet } from '@/server/api-route-modules/legacy/community-insights/route'
 
 export const GET = withApiUsage({ endpoint: '/api/ai/community-insights', tool: 'AiCommunityInsights' })(
   async (req: NextRequest) => {

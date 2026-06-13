@@ -9,7 +9,7 @@
 
 import { NextRequest } from 'next/server'
 import { withApiUsage } from '@/lib/telemetry/usage'
-import { GET as legacyGet } from '@/app/api/legacy/waiver/leagues/route'
+import { GET as legacyGet } from '@/server/api-route-modules/legacy/waiver/leagues/route'
 
 export const GET = withApiUsage({ endpoint: '/api/ai/waiver/leagues', tool: 'AiWaiverLeagues' })(
   async (req: NextRequest) => {
