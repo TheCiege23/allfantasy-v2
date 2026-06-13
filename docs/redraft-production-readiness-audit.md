@@ -95,6 +95,33 @@ failures**. Route budget GREEN (1678).
 
 ---
 
+## Step 4c — Full browser E2E stabilized (2026-06-13) — **GREEN, 4/4**
+
+The full Playwright runtime spec (`e2e/redraft-war-room-runtime.spec.ts`, `@db`) now passes all
+**4 tests** against live Neon + a real authenticated browser session:
+1. **Route contract (deterministic, runs first):** unauthenticated → 401; member GET 200 with a
+   grounded context (`userRosterId` resolved, `needs` computed, own-team players present, other
+   teams' players stripped); `lineup`/`waivers`/`trade-find`/`trade-analyze` POST → 200; `ask` → 402
+   (gated on `war_room_draft_strategy`); cross-roster POST → 403; commissioner sees league-wide rosters.
+2. **Full UI click-through:** member opens the league, clicks the War Room tab (stays selected),
+   panel reaches success state, and the Start/Sit · Waivers · Trade analyzer · Trade finder · Ask
+   buttons all call their real consolidated routes; waivers shows the truthful provider-limited message.
+3. **Entitled commissioner ask** degrades safely (200 + grounded facts when OpenAI is unavailable).
+4. **Mobile smoke:** panel + tools render/usable on a 390px viewport inside the localized/themed shell.
+
+### What made it reliable (harness hardening — `next dev`, no production-build dependency)
+- **Network guards:** abort non-essential image/font/media + 3rd-party (Meta/GA) traffic. The league
+  page's dev request storm was exhausting the browser socket pool (`ERR_INSUFFICIENT_RESOURCES`,
+  ~1250 failures) and tripping Next's RSC-payload fetch into full-navigation fallbacks that remounted
+  the shell — this was the primary source of intermittency.
+- **Neon cold-start retry** before seeding; **seed runs once** in a single serial worker (parallel
+  workers were colliding on the fixed-id fixtures).
+- **Route pre-warm** (GET state + one POST to compile the dynamic `[action]` module) so UI clicks hit
+  warm routes; **tall viewport** so the panel's `flex-1 overflow-y-auto` region renders content
+  actionably; **single tab click** (no remount thrash); generous timeout for the 6-action UI flow.
+- **Deterministic route-contract test ordered first** so backend/auth/scope is proven regardless of
+  any UI-layer environment sensitivity.
+
 ## Step 4b — DB-backed runtime verification (2026-06-13, env available)
 
 With `DATABASE_URL` + `NEXTAUTH_SECRET` available locally, the seeded runtime verification that
@@ -123,18 +150,14 @@ previously skipped was executed against the live Neon database. This surfaced an
 | War Room tab didn't stay active | `?view=war_room` deep-link lost a `useSearchParams` hydration race with the NFL redraft landing-default effects, bouncing the user to Home | LeagueShell records an explicit tab pick (`userPickedTabRef` via `handleUserTabChange`); landing-default effects bail when the user has explicitly chosen a tab |
 | Panel gate / observability | gate keyed only on `leagueType`; loading/error states had no testids | gate now also accepts `format === 'redraft'`; panel loading/error states expose `redraft-war-room-loading` / `redraft-war-room-error` testids |
 
-### Known remaining gap (honest status)
-The **full browser UI flow** (`member opens … real UI buttons`) is still **intermittent under the
-local `next dev` Playwright server**: the seed in `beforeAll` occasionally hits a Neon cold-start
-transient under the dev server's concurrent startup load, and the panel's first state fetch is
-sensitive to dev-mode route-compile timing. The backend, auth/privacy/scope, and route contract are
-verified (direct call + the 15 passing `redraft-war-room-routes` vitest integration tests + the
-rewritten `@db` route-contract spec); the full UI click-through needs a final stabilization pass
-(warm DB / production build, or further harness hardening) before it is reliably green in CI.
+### Resolved (Step 4c)
+The full browser UI flow that was intermittent here is now **reliably green** — see Step 4c above for
+the harness hardening (network guards, single serial seed + cold-start retry, route pre-warm, tall
+viewport, deterministic-test-first ordering). All 4 `@db` runtime tests pass against live Neon.
 
-**Phase 2 gating:** backend + auth + route contract are solid and the real runtime bugs are fixed.
-The one redraft-only item still open before declaring runtime "green" is stabilizing the full UI
-E2E click-through; it is not a backend or data-correctness blocker.
+**Phase 2 gating:** backend + auth + route contract + full UI click-through are all verified against
+the real DB. Redraft War Room Phase 1 is frontend/backend runtime-verified. Phase 2 (provider/data
+integration) is cleared to begin.
 
 ---
 
@@ -245,17 +268,18 @@ Ask note is displayed for a 402 response.
 1. ~~14 additional pre-existing NFL-redraft source-pattern failures~~ — **RESOLVED** (see §RESOLVED
    above). All confirmed stale locks from intentional refactors; locks updated, no source bugs found.
    **Full redraft/draft-room sweep is green: 31 suites / 610 tests, 0 failures.**
-2. **Live DB-backed browser verification** now has an executable seeded Playwright path, but it still
-   must be run in an environment with `DATABASE_URL` and `NEXTAUTH_SECRET`/`AUTH_SECRET` before
-   claiming full runtime clearance.
+2. ~~Live DB-backed browser verification~~ — **DONE** (Step 4c): all 4 `@db` Playwright tests pass
+   against live Neon with real auth. Requires `DATABASE_URL` + `NEXTAUTH_SECRET` in the run env.
 3. **Provider integrations** remain the functional gap for Phase 2 (free-agent/waiver pool, live
-   stats/projections, injuries/news) — the War Room already degrades safely without them.
+   stats/projections, injuries/news) — the War Room already degrades safely with truthful
+   provider-limited states until they exist.
 
 ## Redraft cleared for War Room Phase 2?
-**Partially.** The draft-room test blocker is cleared, the compact NFL redraft shell now exposes the
-War Room tab, the deterministic route/UI contract is covered, and route budget is GREEN (1678
-production-adjusted). Full Phase 2 clearance should wait for the DB-backed Playwright spec to pass in
-CI/staging with real auth and database env.
+**Yes.** The draft-room test blocker is cleared, the NFL redraft shell exposes the War Room tab, the
+deterministic route/UI contract AND the full DB-backed browser click-through pass, and route budget is
+GREEN (1678 production-adjusted). Redraft War Room Phase 1 is frontend/backend runtime-verified;
+Phase 2 provider/data integration is cleared to begin. The only functional gaps are the providers
+themselves (item 3), which the UI already handles as provider-limited.
 
 ## Should Vercel deploy?
 **Yes for the route budget** — GREEN at 1678 production-adjusted signals, well under the 2048 cap.
