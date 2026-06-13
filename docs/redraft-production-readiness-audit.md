@@ -95,6 +95,49 @@ failures**. Route budget GREEN (1678).
 
 ---
 
+## Step 4b — DB-backed runtime verification (2026-06-13, env available)
+
+With `DATABASE_URL` + `NEXTAUTH_SECRET` available locally, the seeded runtime verification that
+previously skipped was executed against the live Neon database. This surfaced and fixed several
+**real** runtime bugs, and proved the backend end-to-end.
+
+### Verified
+- **Prisma/Neon connectivity:** confirmed (`SELECT 1`).
+- **Seed runs against real Neon:** `scripts/seed-redraft-war-room-runtime.ts` creates the league,
+  RedraftSeason, member + commissioner rosters/players, matchups, projections, and weekly scores.
+- **Backend route logic proven:** calling `buildRedraftWarRoomContext({ leagueId, memberUserId })`
+  directly returns `ok: true` in ~1.2s with `teams=2` and the correct member roster — i.e. the
+  consolidated `GET /redraft-war-room` state route works against real data, with correct
+  member-vs-commissioner roster scoping.
+- **Route-contract E2E (`@db`) rewritten** to assert auth/privacy/scope via `page.request`
+  (unauthenticated → 401; member sees other teams with players stripped; cross-roster POST → 403;
+  commissioner sees league-wide rosters).
+
+### Real bugs fixed during runtime verification
+| Bug | Root cause | Fix |
+| --- | --- | --- |
+| Seed crashed (`P2021`) | `sports_core_injury_reports` / `_player_news_items` tables are a separate platform-backend foundation not present in this DB | Seed now skips optional provider-table ops when absent (`tryOptionalProviderOp`); War Room already flags injuries/news as missing — truthful provider-limited state |
+| Seed flaky on Neon cold-start | Neon serverless auto-suspends; first connection after idle fails | `connectWithRetry()` before seeding |
+| Playwright `beforeAll` crash | `await import('../scripts/…ts')` — Playwright doesn't transform TS outside `e2e/` | Seed now runs as a child process (`node --import tsx`) |
+| **Auth P2002 race (app-wide)** | `ensureSharedAccountProfile` did a `userProfile.upsert`; the league page's parallel authenticated requests race the create → `Unique constraint failed on userId` → 500s `getServerSession` and every API call behind it (including the War Room state route) | `lib/auth/SharedAccountBootstrapService.ts` now tolerates P2002 (row exists → settle with an update) |
+| War Room tab didn't stay active | `?view=war_room` deep-link lost a `useSearchParams` hydration race with the NFL redraft landing-default effects, bouncing the user to Home | LeagueShell records an explicit tab pick (`userPickedTabRef` via `handleUserTabChange`); landing-default effects bail when the user has explicitly chosen a tab |
+| Panel gate / observability | gate keyed only on `leagueType`; loading/error states had no testids | gate now also accepts `format === 'redraft'`; panel loading/error states expose `redraft-war-room-loading` / `redraft-war-room-error` testids |
+
+### Known remaining gap (honest status)
+The **full browser UI flow** (`member opens … real UI buttons`) is still **intermittent under the
+local `next dev` Playwright server**: the seed in `beforeAll` occasionally hits a Neon cold-start
+transient under the dev server's concurrent startup load, and the panel's first state fetch is
+sensitive to dev-mode route-compile timing. The backend, auth/privacy/scope, and route contract are
+verified (direct call + the 15 passing `redraft-war-room-routes` vitest integration tests + the
+rewritten `@db` route-contract spec); the full UI click-through needs a final stabilization pass
+(warm DB / production build, or further harness hardening) before it is reliably green in CI.
+
+**Phase 2 gating:** backend + auth + route contract are solid and the real runtime bugs are fixed.
+The one redraft-only item still open before declaring runtime "green" is stabilizing the full UI
+E2E click-through; it is not a backend or data-correctness blocker.
+
+---
+
 ## Step 4 - Redraft War Room Phase 1 runtime verification
 
 Follow-up runtime coverage was added on 2026-06-13 for the Redraft War Room Phase 1 surface. The

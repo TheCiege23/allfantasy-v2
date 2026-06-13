@@ -52,6 +52,28 @@ const opponentPlayers = [
 
 const allPlayers = [...memberPlayers, ...opponentPlayers]
 
+/**
+ * Run an optional provider-table operation, tolerating the table being absent
+ * from this database. The sports_core_* provider tables (injury reports, news)
+ * are part of a separate platform-backend foundation that is not present in
+ * every environment. When missing, the Redraft War Room context already degrades
+ * to a truthful "provider-limited" state via its own `.catch(() => [])` guards,
+ * so the seed should not hard-fail — it just skips the synthetic injury/news rows.
+ * Only the "table does not exist" error (P2021) is swallowed; anything else throws.
+ */
+async function tryOptionalProviderOp(label: string, fn: () => Promise<unknown>): Promise<void> {
+  try {
+    await fn()
+  } catch (error) {
+    const code = (error as { code?: string } | null)?.code
+    if (code === 'P2021') {
+      console.warn(`[seed] skipping optional provider op "${label}" — backing table not present in this database.`)
+      return
+    }
+    throw error
+  }
+}
+
 async function upsertUser(input: {
   id: string
   email: string
@@ -152,8 +174,12 @@ async function seedUsersAndEntitlement() {
 async function seedLeague() {
   await prisma.fantasyProjection.deleteMany({ where: { playerId: { in: allPlayers.map((p) => p.playerId) } } })
   await prisma.playerWeeklyScore.deleteMany({ where: { playerId: { in: allPlayers.map((p) => p.playerId) } } })
-  await prisma.injuryReport.deleteMany({ where: { playerId: { in: allPlayers.map((p) => p.playerId) } } })
-  await prisma.playerNewsItem.deleteMany({ where: { playerId: { in: allPlayers.map((p) => p.playerId) } } })
+  await tryOptionalProviderOp('injuryReport.deleteMany', () =>
+    prisma.injuryReport.deleteMany({ where: { playerId: { in: allPlayers.map((p) => p.playerId) } } }),
+  )
+  await tryOptionalProviderOp('playerNewsItem.deleteMany', () =>
+    prisma.playerNewsItem.deleteMany({ where: { playerId: { in: allPlayers.map((p) => p.playerId) } } }),
+  )
   await prisma.redraftSeason.deleteMany({ where: { leagueId: REDRAFT_WAR_ROOM_RUNTIME_SEED.leagueId } })
   await prisma.roster.deleteMany({ where: { leagueId: REDRAFT_WAR_ROOM_RUNTIME_SEED.leagueId } })
   await prisma.leagueTeam.deleteMany({ where: { leagueId: REDRAFT_WAR_ROOM_RUNTIME_SEED.leagueId } })
@@ -423,48 +449,73 @@ async function seedLeague() {
     })),
   })
 
-  await prisma.injuryReport.create({
-    data: {
-      playerId: 'rwr-member-wr-3',
-      sportKey: 'NFL',
-      leagueKey: 'NFL',
-      seasonKey: '2026',
-      weekOrRound: '6',
-      playerName: 'Runtime Seed Bench WR',
-      teamName: 'LAC',
-      status: 'Questionable',
-      bodyPart: 'Hamstring',
-      description: 'Synthetic runtime seed injury row.',
-      reportDate: now,
-      source: 'runtime-seed',
-      confidence: 1,
-      identityConfidence: 1,
-      fetchedAt: now,
-      expiresAt: nextMonth,
-      rawPayload: { seed: 'redraft-war-room-runtime', synthetic: true },
-    },
-  })
+  await tryOptionalProviderOp('injuryReport.create', () =>
+    prisma.injuryReport.create({
+      data: {
+        playerId: 'rwr-member-wr-3',
+        sportKey: 'NFL',
+        leagueKey: 'NFL',
+        seasonKey: '2026',
+        weekOrRound: '6',
+        playerName: 'Runtime Seed Bench WR',
+        teamName: 'LAC',
+        status: 'Questionable',
+        bodyPart: 'Hamstring',
+        description: 'Synthetic runtime seed injury row.',
+        reportDate: now,
+        source: 'runtime-seed',
+        confidence: 1,
+        identityConfidence: 1,
+        fetchedAt: now,
+        expiresAt: nextMonth,
+        rawPayload: { seed: 'redraft-war-room-runtime', synthetic: true },
+      },
+    }),
+  )
 
-  await prisma.playerNewsItem.create({
-    data: {
-      playerId: 'rwr-member-wr-3',
-      sportKey: 'NFL',
-      leagueKey: 'NFL',
-      headline: 'Runtime Seed Bench WR limited in synthetic practice report',
-      body: 'Synthetic runtime seed news row used only for Redraft War Room QA.',
-      category: 'injury',
-      source: 'runtime-seed',
-      publishedAt: now,
-      fetchedAt: now,
-      expiresAt: nextMonth,
-      confidence: 1,
-      identityConfidence: 1,
-      rawPayload: { seed: 'redraft-war-room-runtime', synthetic: true },
-    },
-  })
+  await tryOptionalProviderOp('playerNewsItem.create', () =>
+    prisma.playerNewsItem.create({
+      data: {
+        playerId: 'rwr-member-wr-3',
+        sportKey: 'NFL',
+        leagueKey: 'NFL',
+        headline: 'Runtime Seed Bench WR limited in synthetic practice report',
+        body: 'Synthetic runtime seed news row used only for Redraft War Room QA.',
+        category: 'injury',
+        source: 'runtime-seed',
+        publishedAt: now,
+        fetchedAt: now,
+        expiresAt: nextMonth,
+        confidence: 1,
+        identityConfidence: 1,
+        rawPayload: { seed: 'redraft-war-room-runtime', synthetic: true },
+      },
+    }),
+  )
+}
+
+/**
+ * Neon serverless databases auto-suspend; the first connection after idle can
+ * fail with a transient "Can't reach database server" before the compute wakes.
+ * Establish the connection with a short retry loop so the seed (and the E2E
+ * beforeAll that runs it) is not flaky against cold starts.
+ */
+async function connectWithRetry(attempts = 5): Promise<void> {
+  for (let i = 1; i <= attempts; i += 1) {
+    try {
+      await prisma.$queryRaw`SELECT 1`
+      return
+    } catch (error) {
+      if (i === attempts) throw error
+      const waitMs = 1500 * i
+      console.warn(`[seed] database not reachable yet (attempt ${i}/${attempts}); retrying in ${waitMs}ms…`)
+      await new Promise((resolve) => setTimeout(resolve, waitMs))
+    }
+  }
 }
 
 export async function seedRedraftWarRoomRuntime() {
+  await connectWithRetry()
   await seedUsersAndEntitlement()
   await seedLeague()
   return {

@@ -406,6 +406,10 @@ export function LeagueShell({
   const zombieLandingApplied = useRef(false)
   const bigBrotherLandingApplied = useRef(false)
   const predraftLandingApplied = useRef(false)
+  // Set once the viewer explicitly picks a tab (click or deep-link). Auto-landing
+  // defaults below must not clobber an explicit choice — otherwise a late
+  // hydration/searchParams render can bounce the user off (e.g.) the War Room tab.
+  const userPickedTabRef = useRef(false)
 
   useEffect(() => {
     guillotineLandingApplied.current = false
@@ -413,7 +417,15 @@ export function LeagueShell({
     zombieLandingApplied.current = false
     bigBrotherLandingApplied.current = false
     predraftLandingApplied.current = false
+    userPickedTabRef.current = false
   }, [league.id])
+
+  /** Explicit tab selection (user click). Records the choice so auto-landing
+   * defaults below stop firing, then updates the active tab. */
+  const handleUserTabChange = useCallback((t: string) => {
+    userPickedTabRef.current = true
+    setActiveTab(t)
+  }, [])
 
   useEffect(() => {
     setRosterLegalityIssueCount(0)
@@ -450,6 +462,7 @@ export function LeagueShell({
 
   useEffect(() => {
     const deepLink = searchParams?.get('view') ?? searchParams?.get('tab')
+    if (userPickedTabRef.current) return
     if (deepLink?.trim() || nflMatchupLandingDeepLinkSeen.current) return
     if (!nflRedraftCore || !shouldUseMatchupPrimary || nflMatchupLandingApplied.current) return
     const ids = new Set(tabDefs.map((t) => t.id))
@@ -461,6 +474,7 @@ export function LeagueShell({
   /** Predraft leagues open on Draft/Draft Setup by default when no explicit deep link is provided. */
   useEffect(() => {
     const deepLink = searchParams?.get('view') ?? searchParams?.get('tab')
+    if (userPickedTabRef.current) return
     if (deepLink?.trim()) return
     if (!isPredraftLifecycle || predraftLandingApplied.current) return
     const ids = new Set(tabDefs.map((t) => t.id))
@@ -1158,7 +1172,7 @@ export function LeagueShell({
               leagueId={league.id}
               tabs={tabDefs}
               activeTab={activeTab}
-              onTabChange={setActiveTab}
+              onTabChange={handleUserTabChange}
               rosterIssueCount={rosterLegalityIssueCount}
               compactTitleRow={showSpecialtyHero || showDevyHero}
               onOpenLeagueSettingsModal={() => openLeagueSettingsModal(null)}

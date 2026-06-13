@@ -128,14 +128,20 @@ export function RedraftWarRoomPanel({ leagueId }: { leagueId: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-[#07071a] p-4 text-[12px] text-white/50">
+      <div
+        className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-[#07071a] p-4 text-[12px] text-white/50"
+        data-testid="redraft-war-room-loading"
+      >
         <Loader2 className="h-4 w-4 animate-spin text-violet-300" /> Loading Redraft War Room…
       </div>
     )
   }
   if (error || !context) {
     return (
-      <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-100/90">
+      <div
+        className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-100/90"
+        data-testid="redraft-war-room-error"
+      >
         {error ?? 'Redraft War Room is unavailable for this league.'}
       </div>
     )

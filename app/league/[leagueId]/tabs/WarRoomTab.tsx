@@ -83,6 +83,14 @@ function GatedToolCard({ tool }: { tool: GatedTool }) {
 export function WarRoomTab({ league, sport, dashboardEmbed = false }: WarRoomTabProps) {
   const resolved = normalizeToSupportedSport(sport ?? league.sport) ?? 'NFL'
   const sportU = resolved.toUpperCase()
+  // Redraft (non-dynasty) leagues mount the data-grounded Redraft AF War Room panel.
+  // `format` is the canonical UserLeague discriminator ('redraft' for non-dynasty,
+  // non-variant leagues; specialty variants carry their own format). Fall back to
+  // `leagueType` when present. Dynasty/specialty formats keep the strategy/meta view.
+  const isRedraftLeague =
+    !league.isDynasty &&
+    (String(league.format ?? '').toLowerCase() === 'redraft' ||
+      String(league.leagueType ?? '').toLowerCase() === 'redraft')
   const [metaFrame, setMetaFrame] = useState<'24h' | '7d' | '30d'>('7d')
   const liveDraftCompanion = league.status === 'drafting'
   const leagueDraftCompanion = useLeagueWarRoomCompanion({
@@ -242,9 +250,7 @@ export function WarRoomTab({ league, sport, dashboardEmbed = false }: WarRoomTab
       <AFWarRoomPlanSpotlight className="border-white/[0.06]" />
 
       {/* Redraft leagues get a data-grounded War Room scoped to THIS league. */}
-      {String(league.leagueType ?? '').toLowerCase() === 'redraft' && !league.isDynasty ? (
-        <RedraftWarRoomPanel leagueId={league.id} />
-      ) : null}
+      {isRedraftLeague ? <RedraftWarRoomPanel leagueId={league.id} /> : null}
 
       {liveDraftCompanion && leagueDraftCompanion.error ? (
         <p
