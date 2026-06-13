@@ -311,6 +311,7 @@ export function LeagueShell({
         { id: 'players', label: 'Players' },
         { id: 'waivers', label: 'Waivers' },
         { id: 'trades', label: 'Trades' },
+        { id: 'war_room', label: 'War Room' },
         { id: 'league', label: 'League' },
       ]
       if (isCommissioner) core.push({ id: 'settings', label: '⚙ Settings' })

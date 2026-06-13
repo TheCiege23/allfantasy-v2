@@ -40,11 +40,17 @@ Logical endpoints (per the spec):
 - `POST /api/leagues/:id/redraft-war-room/lineup`
 - `POST /api/leagues/:id/redraft-war-room/trade-analyze`  _(spec's `trade/analyze`)_
 - `POST /api/leagues/:id/redraft-war-room/trade-find`     _(spec's `trade/find`)_
-- `POST /api/leagues/:id/redraft-war-room/ask`            _(AF-gated)_
+- `POST /api/leagues/:id/redraft-war-room/ask`            _(AF War Room-gated)_
 
 ### UI
-- `app/league/[leagueId]/tabs/redraft/RedraftWarRoomPanel.tsx` — wired panel: team needs, Start/Sit, Waivers, Trade finder buttons (each calls a real route), and an "Ask the War Room" box. Surfaces missing-data flags. Degrades to grounded facts if AI is unavailable.
-- Rendered inside the existing `war_room` tab (`WarRoomTab.tsx`) only for redraft, non-dynasty leagues. No new tab; no copy added outside this panel (English-only strings inside an English component — no translation keys removed/changed).
+- `app/league/[leagueId]/tabs/redraft/RedraftWarRoomPanel.tsx` - wired panel: team needs,
+  Start/Sit, Waivers, Trade analyzer, Trade finder, and an "Ask the War Room" box. Each tool calls a
+  real consolidated redraft route. Missing-data flags and provider-limited waiver messaging are
+  surfaced, and Ask degrades to grounded facts if AI is unavailable.
+- Rendered inside the existing `war_room` tab (`WarRoomTab.tsx`) only for redraft, non-dynasty
+  leagues. The compact NFL redraft shell now exposes that tab in
+  `app/league/[leagueId]/LeagueTabs.tsx` and `app/league/[leagueId]/LeagueShell.tsx`; without that
+  tab-list fix, pure NFL redraft leagues could have a working panel that was not reachable.
 
 ## Data sources used & liveness
 See [`redraft-war-room-audit.md` §5](./redraft-war-room-audit.md). Summary: scoring/roster/standings/schedule = live DB; player stats = `PlayerWeeklyScore` (when ingested); projections/injuries/news = provider tables (flagged when empty); **waiver pool & redraft trade values = missing/needs provider**.
@@ -63,7 +69,25 @@ deterministic grounding instead of an error.
   is `403` unless the viewer is the **commissioner** (who may target any roster).
 - The `GET` state route returns full per-player rosters only for the viewer's own team to members;
   commissioners receive league-wide team rosters.
-- `ask` additionally requires the AF subscription entitlement (`requireAfSub`).
+- `ask` additionally requires the AF War Room entitlement (`war_room_draft_strategy`).
+
+## Runtime verification harness
+Follow-up verification on 2026-06-13 added an idempotent seeded runtime fixture plus Playwright
+coverage for the real browser/auth route chain:
+
+- `scripts/seed-redraft-war-room-runtime.ts` seeds `rwr-runtime-nfl-redraft-league` with synthetic
+  NFL redraft rosters, matchup context, projections, weekly stats, injuries, and news.
+- Member login: `rwr_runtime_member` / `Password123!` (not AF-entitled, so Ask should lock).
+- Commissioner login: `rwr_runtime_commish` / `Password123!` (seeded with `af_war_room`, so Ask
+  should return 200 and then either grounded AI output or the safe AI-unavailable fallback).
+- Outsider login: `rwr_runtime_outsider` / `Password123!` for access-control checks.
+- `e2e/redraft-war-room-runtime.spec.ts` verifies the War Room tab/panel, real UI POST calls for
+  lineup/waivers/trade-analyze/trade-find, member privacy, commissioner league-wide context,
+  unauthenticated 401, entitlement behavior, and a mobile Spanish/dark-mode smoke path.
+
+The spec is gated on `DATABASE_URL` plus `NEXTAUTH_SECRET` or `AUTH_SECRET`. In this local worktree it
+was parse/list verified and executed as 4 skipped because those env vars were not present. That is an
+environment gap, not a route/UI implementation failure.
 
 ## Decision: existing AI/trade routes (build requirement 9)
 - `app/api/trade-evaluator/route.ts` and `app/api/legacy/trade/analyze/route.ts` are **dynasty /
@@ -90,12 +114,20 @@ worsening it, the six logical POST endpoints are served by a single dynamic `[ac
   when pool present (incl. FAAB suggestion); trade analyze accept on value+fit; trade
   `needs_more_data` with no signal; trade finder fit + needs-more-data; prompt grounding includes
   availability/missing-data/no-invention rules.
-- **Typecheck:** `npm run typecheck` — all `redraft-war-room` / panel / tab files clean (repo has a
-  pre-existing unrelated error baseline).
-- **Lint:** `eslint` clean on all new/changed files. `git diff --check` clean.
-- **Regression:** redraft defaults + nfl-redraft suites — the 8 failing tests are **pre-existing**
-  (verified by re-running with my changes stashed; they exercise `LeagueShell`/draft-authority
-  sources untouched by this work).
+- **New:** `__tests__/redraft-war-room-panel.test.ts` - 2 passing. Covers panel rendering, tool
+  button/client wiring for lineup/waivers/trade-analyze/trade-find, provider-limited waiver
+  messaging, and AF entitlement lock messaging for Ask.
+- **New:** `e2e/redraft-war-room-runtime.spec.ts` - Playwright DB/auth runtime harness. The spec
+  lists and parses successfully; local execution skipped 4/4 without `DATABASE_URL` and auth secret.
+- **Updated:** `__tests__/nfl-redraft-core-tab-bar.test.ts` now locks War Room into the compact NFL
+  redraft tab bar.
+- **Typecheck:** full repo `npm run typecheck` still has a pre-existing unrelated baseline. The new
+  seed helper and E2E spec have no remaining touched-file type errors after the CSRF-token narrowing
+  fix.
+- **Lint:** `next lint --file ...` clean on touched/new files except pre-existing warnings in
+  `LeagueShell.tsx` (hook dependency/no-img warnings). `git diff --check` clean.
+- **Regression:** focused War Room/tab suites pass; full redraft/draft-room sweep is 31 files / 610
+  tests passing (excluding only the playoff trade contract suite per the project restriction).
 
 ## Guardrails enforced
 Redraft-only (no dynasty values, taxi/devy/C2C, or future picks); season-horizon trade/waiver
@@ -103,6 +135,8 @@ framing; sport carried through context so NFL/NCAAF pools never mix; commissione
 data not leaked to members; no fabricated stats/injuries/odds/news; injury = listed status only.
 
 ## Phase 2 TODOs
+- Run `e2e/redraft-war-room-runtime.spec.ts` in CI/staging with real `DATABASE_URL` and auth secret
+  before declaring full runtime clearance.
 - Polished War Room dashboard UI (mobile-first redesign).
 - **Free-agent / waiver pool provider integration** (unblocks add recommendations + FAAB optimizer with historical context).
 - **Live stat / projection provider integration** (raises lineup/trade confidence to "high" league-wide).

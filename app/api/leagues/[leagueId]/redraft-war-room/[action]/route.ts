@@ -7,7 +7,7 @@
  *   - lineup         → deterministic start/sit
  *   - trade-analyze  → deterministic trade verdict (body: outgoingPlayerIds, incomingPlayerIds)
  *   - trade-find     → deterministic partner fit
- *   - ask            → grounded AI answer over deterministic facts (AF-gated)
+ *   - ask            -> grounded AI answer over deterministic facts (AF War Room-gated)
  *
  * Auth: league member or commissioner. A member may only target their OWN roster.
  * A commissioner may pass `rosterId` to target any roster in the league.
@@ -24,7 +24,7 @@ import {
   REDRAFT_WAR_ROOM_SYSTEM_RULES,
   buildRedraftWarRoomPrompt,
 } from '@/lib/redraft-war-room/redraftWarRoomPrompt'
-import { requireAfSub } from '@/lib/redraft/ai/requireAfSub'
+import { requireEntitlement } from '@/lib/subscription/requireEntitlement'
 import { openaiChatText } from '@/lib/openai-client'
 import type { RedraftWarRoomContext } from '@/lib/redraft-war-room/types'
 
@@ -106,7 +106,7 @@ export async function POST(
       return NextResponse.json({ tradeFinder: findTradeTargets(context, rosterId) })
 
     case 'ask': {
-      const gate = await requireAfSub()
+      const gate = await requireEntitlement('war_room_draft_strategy')
       if (gate instanceof Response) return gate
 
       const question = String(body.question ?? '').trim()

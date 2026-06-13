@@ -20,9 +20,9 @@ import type { RedraftWarRoomContext } from '@/lib/redraft-war-room/types'
 import type { TeamNeedsResult } from '@/lib/redraft-war-room/redraftTeamNeedsEngine'
 import type { LineupResult } from '@/lib/redraft-war-room/redraftLineupEngine'
 import type { WaiverResult } from '@/lib/redraft-war-room/redraftWaiverEngine'
-import type { TradeFinderResult } from '@/lib/redraft-war-room/redraftTradeEngine'
+import type { TradeAnalysis, TradeFinderResult } from '@/lib/redraft-war-room/redraftTradeEngine'
 
-type Tool = 'lineup' | 'waivers' | 'trade-find' | null
+type Tool = 'lineup' | 'waivers' | 'trade-analyze' | 'trade-find' | null
 
 function Flag({ children }: { children: React.ReactNode }) {
   return (
@@ -43,7 +43,10 @@ export function RedraftWarRoomPanel({ leagueId }: { leagueId: string }) {
   const [toolBusy, setToolBusy] = useState(false)
   const [lineup, setLineup] = useState<LineupResult | null>(null)
   const [waivers, setWaivers] = useState<WaiverResult | null>(null)
+  const [tradeAnalysis, setTradeAnalysis] = useState<TradeAnalysis | null>(null)
   const [tradeFinder, setTradeFinder] = useState<TradeFinderResult | null>(null)
+  const [tradeOutgoingId, setTradeOutgoingId] = useState('')
+  const [tradeIncomingIds, setTradeIncomingIds] = useState('')
 
   const [question, setQuestion] = useState('')
   const [askBusy, setAskBusy] = useState(false)
@@ -74,6 +77,24 @@ export function RedraftWarRoomPanel({ leagueId }: { leagueId: string }) {
       try {
         if (which === 'lineup') setLineup((await fetchRedraftWarRoomLineup(leagueId)).lineup)
         else if (which === 'waivers') setWaivers((await fetchRedraftWarRoomWaivers(leagueId)).waivers)
+        else if (which === 'trade-analyze') {
+          const ownPlayers = context?.teams.find((t) => t.isUserTeam)?.players ?? []
+          const fallbackOutgoing = ownPlayers.find((p) => !p.isStarterSlot)?.playerId ?? ownPlayers[0]?.playerId ?? ''
+          const outgoing = (tradeOutgoingId || fallbackOutgoing).trim()
+          const incoming = tradeIncomingIds
+            .split(',')
+            .map((id) => id.trim())
+            .filter(Boolean)
+          setTradeAnalysis(
+            (
+              await analyzeRedraftWarRoomTrade(leagueId, {
+                outgoingPlayerIds: outgoing ? [outgoing] : [],
+                incomingPlayerIds: incoming,
+              })
+            ).tradeAnalysis,
+          )
+          if (!tradeOutgoingId && fallbackOutgoing) setTradeOutgoingId(fallbackOutgoing)
+        }
         else if (which === 'trade-find') setTradeFinder((await findRedraftWarRoomTrades(leagueId)).tradeFinder)
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Tool failed.')
@@ -81,7 +102,7 @@ export function RedraftWarRoomPanel({ leagueId }: { leagueId: string }) {
         setToolBusy(false)
       }
     },
-    [leagueId],
+    [context, leagueId, tradeIncomingIds, tradeOutgoingId],
   )
 
   const onAsk = useCallback(async () => {
@@ -174,7 +195,7 @@ export function RedraftWarRoomPanel({ leagueId }: { leagueId: string }) {
 
       {/* Tool buttons — every one wired to a real route */}
       <div className="flex flex-wrap gap-2">
-        {(['lineup', 'waivers', 'trade-find'] as const).map((t) => (
+        {(['lineup', 'waivers', 'trade-analyze', 'trade-find'] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -183,7 +204,13 @@ export function RedraftWarRoomPanel({ leagueId }: { leagueId: string }) {
             data-testid={`redraft-war-room-tool-${t}`}
             className="rounded-lg border border-white/[0.1] bg-white/[0.03] px-3 py-1.5 text-[11px] font-semibold text-white/80 transition hover:border-violet-400/30 hover:bg-violet-500/10 disabled:opacity-50"
           >
-            {t === 'lineup' ? 'Start/Sit' : t === 'waivers' ? 'Waivers' : 'Trade finder'}
+            {t === 'lineup'
+              ? 'Start/Sit'
+              : t === 'waivers'
+                ? 'Waivers'
+                : t === 'trade-analyze'
+                  ? 'Trade analyzer'
+                  : 'Trade finder'}
           </button>
         ))}
       </div>
@@ -195,7 +222,10 @@ export function RedraftWarRoomPanel({ leagueId }: { leagueId: string }) {
         </p>
       )}
       {tool === 'lineup' && lineup && !toolBusy && (
-        <div className="rounded-lg border border-white/[0.06] bg-[#07071a] p-3 text-[11px] text-white/70">
+        <div
+          className="rounded-lg border border-white/[0.06] bg-[#07071a] p-3 text-[11px] text-white/70"
+          data-testid="redraft-war-room-lineup-result"
+        >
           <p className="mb-1 font-semibold text-white/80">Suggested starters (confidence: {lineup.confidence})</p>
           {lineup.suggestedStarters.map((s) => (
             <p key={s.slotName}>
@@ -213,7 +243,10 @@ export function RedraftWarRoomPanel({ leagueId }: { leagueId: string }) {
         </div>
       )}
       {tool === 'waivers' && waivers && !toolBusy && (
-        <div className="rounded-lg border border-white/[0.06] bg-[#07071a] p-3 text-[11px] text-white/70">
+        <div
+          className="rounded-lg border border-white/[0.06] bg-[#07071a] p-3 text-[11px] text-white/70"
+          data-testid="redraft-war-room-waivers-result"
+        >
           {waivers.needsProviderIntegration ? (
             <p className="text-amber-200/80">
               Free-agent add targets need provider integration. Drop-side analysis is grounded in your roster:
@@ -236,8 +269,81 @@ export function RedraftWarRoomPanel({ leagueId }: { leagueId: string }) {
           )}
         </div>
       )}
-      {tool === 'trade-find' && tradeFinder && !toolBusy && (
+      {tool === 'trade-analyze' && !toolBusy && (
         <div className="rounded-lg border border-white/[0.06] bg-[#07071a] p-3 text-[11px] text-white/70">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <select
+              value={tradeOutgoingId}
+              onChange={(event) => setTradeOutgoingId(event.target.value)}
+              data-testid="redraft-war-room-trade-outgoing-select"
+              className="min-w-0 rounded-md border border-white/[0.1] bg-[#05050f] px-2 py-1.5 text-[11px] text-white/80 focus:border-violet-400/40 focus:outline-none"
+            >
+              <option value="">Outgoing player</option>
+              {(context?.teams.find((t) => t.isUserTeam)?.players ?? []).map((p) => (
+                <option key={p.playerId} value={p.playerId}>
+                  {p.playerName} ({p.position})
+                </option>
+              ))}
+            </select>
+            <input
+              value={tradeIncomingIds}
+              onChange={(event) => setTradeIncomingIds(event.target.value)}
+              placeholder="Incoming player ID"
+              data-testid="redraft-war-room-trade-incoming-input"
+              className="min-w-0 rounded-md border border-white/[0.1] bg-[#05050f] px-2 py-1.5 text-[11px] text-white/80 placeholder:text-white/30 focus:border-violet-400/40 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => void runTool('trade-analyze')}
+              disabled={toolBusy}
+              data-testid="redraft-war-room-trade-analyze-submit"
+              className="rounded-lg border border-white/[0.1] bg-white/[0.03] px-3 py-1.5 text-[11px] font-semibold text-white/80 transition hover:border-violet-400/30 hover:bg-violet-500/10 disabled:opacity-50"
+            >
+              Analyze
+            </button>
+          </div>
+          {tradeAnalysis ? (
+            <div className="mt-2 space-y-1" data-testid="redraft-war-room-trade-analyze-result">
+              <p className="font-semibold text-white/80">
+                Verdict: {tradeAnalysis.verdict.replace(/_/g, ' ')}
+                {tradeAnalysis.valueDelta != null ? (
+                  <span className="text-white/40"> - value {tradeAnalysis.valueDelta}</span>
+                ) : null}
+              </p>
+              {tradeAnalysis.explanationFacts.map((f) => (
+                <p key={f}>{f}</p>
+              ))}
+              {tradeAnalysis.lineupImpact.map((f) => (
+                <p key={f}>{f}</p>
+              ))}
+              {tradeAnalysis.benchImpact.map((f) => (
+                <p key={f} className="text-white/55">{f}</p>
+              ))}
+              {tradeAnalysis.riskFlags.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {tradeAnalysis.riskFlags.map((f) => (
+                    <Flag key={f}>{f}</Flag>
+                  ))}
+                </ul>
+              )}
+              {tradeAnalysis.missingDataFlags.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {tradeAnalysis.missingDataFlags.map((f) => (
+                    <Flag key={f}>{f}</Flag>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
+            <p className="mt-2 text-white/40">No trade analysis loaded.</p>
+          )}
+        </div>
+      )}
+      {tool === 'trade-find' && tradeFinder && !toolBusy && (
+        <div
+          className="rounded-lg border border-white/[0.06] bg-[#07071a] p-3 text-[11px] text-white/70"
+          data-testid="redraft-war-room-trade-find-result"
+        >
           {tradeFinder.needsMoreData ? (
             <ul className="space-y-1">
               {tradeFinder.missingDataFlags.map((f) => (
@@ -288,7 +394,7 @@ export function RedraftWarRoomPanel({ leagueId }: { leagueId: string }) {
         >
           {askBusy && <Loader2 className="h-3 w-3 animate-spin" />} Ask
         </button>
-        {askNote && <p className="mt-2 text-[11px] text-amber-200/80">{askNote}</p>}
+        {askNote && <p className="mt-2 text-[11px] text-amber-200/80" data-testid="redraft-war-room-ask-note">{askNote}</p>}
         {answer && (
           <p className="mt-2 whitespace-pre-wrap text-[12px] leading-relaxed text-white/80" data-testid="redraft-war-room-answer">
             {answer}

@@ -2,13 +2,14 @@
 
 _Run 2026-06-13 on `origin/main` (base `b2fd56115`). Preserves `d045bd434` (C2C Phase 1) and `b2fd56115` (Redraft AF War Room Phase 1)._
 
-Goal: clear production blockers before Redraft War Room Phase 2 — Vercel route budget, the
-flagged NFL-redraft regression failures, and War Room Phase 1 verification. **No new War Room
-features were added.** No DB schema changes.
+Goal: clear production blockers before Redraft War Room Phase 2 - Vercel route budget, the
+flagged NFL-redraft regression failures, and War Room Phase 1 verification. Follow-up runtime work
+exposes the existing Phase 1 panel in NFL redraft, adds trade-analyzer UI wiring, and adds seeded
+runtime coverage. No DB schema changes and no route files were added.
 
 ---
 
-## Step 1–2 — Vercel route budget: ALREADY SAFE (no consolidation needed)
+## Step 1-2 - Vercel route budget: ALREADY SAFE (no consolidation needed)
 
 The route limit is **not currently a blocker.** The 2091 figure was a prior state, since resolved
 by ongoing route-budget work (456 route deletions across the last ~200 commits, multiple
@@ -18,33 +19,33 @@ Authoritative count via the canonical `scripts/audit-route-budget.cjs`:
 
 | Metric | Value |
 | --- | --- |
-| Source app route files (incl. dev/admin) | 1858 (1565 `route.ts` + 293 `page.tsx`) |
-| Build-excluded dev/admin/lab/e2e dirs | 43 dirs → 141 net routes excluded |
-| **Production source routes (after exclusions)** | **1717** |
+| Source app route files (incl. dev/admin) | 1745 (1452 `route.ts` + 293 `page.tsx`) |
+| Build-excluded dev/admin/lab/e2e dirs | 43 dirs -> 141 net routes excluded |
+| **Production source routes (after exclusions)** | **1604** |
 | Vercel config signals (crons) | 74 |
-| **Production-adjusted signals** | **1791** |
-| **Risk level** | **GREEN** (green < 1900, yellow 1900–2020, red 2021+) |
+| **Production-adjusted signals** | **1678** |
+| **Risk level** | **GREEN** (green < 1900, yellow 1900-2020, red 2021+) |
 
 ### Why it's safe
-- Vercel runs `vercel-build` → `scripts/vercel-next-build.cjs`, which **temporarily moves
+- Vercel runs `vercel-build` -> `scripts/vercel-next-build.cjs`, which **temporarily moves
   dev/admin/lab/e2e/debug routes out of `app/` before `next build`** (141 routes), then restores
   them. These never count toward the production route budget.
 - The exclusion list does **not** touch `app/api/leagues/[leagueId]/redraft-war-room/**` or any
-  `leagues/*` production routes — the War Room's 2 routes are correctly counted and in production.
-- Top clusters (`leagues/[leagueId]` 345, `commissioner/leagues` 59, `brackets/world-cup` 47) are
+  `leagues/*` production routes - the War Room's 2 routes are correctly counted and in production.
+- Top clusters (`leagues/[leagueId]` 318, `commissioner/leagues` 59, `brackets/world-cup` 47) are
   live production features; consolidating them carries real breakage risk for zero budget benefit
   at GREEN.
 
 ### Decision
 **No route consolidation performed.** Forcing dynamic-action refactors of large production clusters
 (draft 56, commissioner 58) would risk breaking working features against the explicit "do not break
-working features" constraint, with no budget need (we are 257 below the 2048 hard cap, 109 below the
+working features" constraint, with no budget need (we are 370 below the 2048 hard cap, 222 below the
 1900 green threshold). The War Room already uses the consolidated 2-file pattern
 (`route.ts` + `[action]/route.ts`). If budget pressure returns, the next safe lever is extending the
 `vercel-next-build.cjs` exclusion list with more admin/diagnostic routes (the auditor lists
 candidates under "Suspicious Production-Excludable Routes").
 
-**Headroom for Phase 2:** ~257 routes to the hard cap; ~109 to GREEN threshold. Comfortable.
+**Headroom for Phase 2:** ~370 routes to the hard cap; ~222 to GREEN threshold. Comfortable.
 
 ---
 
@@ -88,18 +89,76 @@ updated narrowly to pin the new (often stronger) contract; no source was changed
 | `nfl-redraft-player-card-data` | 3 | **Stale (enhancement).** Headshot + injury chains gained extra `unifiedProductView` fallbacks (primary source unchanged, now multiline); devy-rookie derivation reformatted across a newline (behavior identical). Regexes made whitespace-tolerant / lock the primary source. |
 | `nfl-redraft-pre-draft-validation-integration` | 1 | **Stale (improvement, NOT a regression).** Roster-shape validation now delegates to the canonical `getEffectiveLeagueRosterTemplate` resolver instead of raw `League.rosterSize/starters` column selects; `League.scoring` still selected; phantom-`LeagueSettings` negative guards intact. Assertion updated to lock the canonical-resolver contract. |
 
-**Verification:** all 4 suites pass; the previously-fixed 8 suites + both War Room suites still pass
-(11 suites / 281 tests). Full redraft sweep: **30 suites / 585 tests, 0 failures.** Route budget GREEN
-(1678). No source files changed — only test locks updated.
+**Verification:** all 4 suites pass; the previously-fixed suites + War Room suites still pass. After
+the runtime harness update, the full redraft/draft-room sweep is **31 suites / 610 tests, 0
+failures**. Route budget GREEN (1678).
 
 ---
 
-## Step 4 — Redraft War Room Phase 1 verification
+## Step 4 - Redraft War Room Phase 1 runtime verification
 
-No browser/auth runtime or seeded league was available, so per the Step 4 fallback the route contract
-was proven with **route-level integration tests** (`__tests__/redraft-war-room-routes.test.ts`, 15
-passing) that invoke the real handlers with the data/auth/AI boundaries mocked and the deterministic
-engines running for real:
+Follow-up runtime coverage was added on 2026-06-13 for the Redraft War Room Phase 1 surface. The
+work remains redraft-only and does not touch playoffs, standings, trades outside the redraft War
+Room tools, commissioner workflow, roster workflow, or league mechanics.
+
+### Frontend mount correction
+The Phase 1 panel was already implemented and gated in `WarRoomTab`, but pure NFL redraft leagues
+could not reliably reach it because the compact NFL redraft tab list omitted `war_room`. NFL redraft
+now exposes the War Room tab as a first-class redraft surface:
+
+- `app/league/[leagueId]/LeagueTabs.tsx` includes `war_room` in `NFL_REDRAFT_CORE_TAB_IDS`.
+- `app/league/[leagueId]/LeagueShell.tsx` includes `{ id: 'war_room', label: 'War Room' }` in the
+  compact NFL redraft tab array.
+- `__tests__/nfl-redraft-core-tab-bar.test.ts` locks the visible tab order:
+  Home / Roster / Matchups / Players / Waivers / Trades / War Room / League, plus commissioner-only
+  Settings.
+
+### UI tool wiring
+`app/league/[leagueId]/tabs/redraft/RedraftWarRoomPanel.tsx` now exposes all deterministic Phase 1
+tool actions from the consolidated route set:
+
+- Start/Sit (`lineup`)
+- Waivers (`waivers`)
+- Trade analyzer (`trade-analyze`)
+- Trade finder (`trade-find`)
+- AF War Room-gated Ask (`ask`, `war_room_draft_strategy`)
+
+The trade analyzer UI calls the existing redraft-specific client helper and route action. No new
+route files were added, so the Vercel route budget is unchanged.
+
+### Seeded runtime harness
+`scripts/seed-redraft-war-room-runtime.ts` creates an idempotent, synthetic NFL redraft league for
+browser/runtime testing:
+
+- League: `rwr-runtime-nfl-redraft-league`
+- Member: `rwr_runtime_member` / `Password123!` (not AF-entitled)
+- Commissioner: `rwr_runtime_commish` / `Password123!` (seeded with `af_war_room` entitlement)
+- Outsider: `rwr_runtime_outsider` / `Password123!`
+- Redraft season, legacy roster membership rows, league teams, redraft rosters, redraft players,
+  matchups, projections, weekly stats, injuries, and news are all labeled synthetic/runtime-seed.
+
+The package script `seed:redraft-war-room-runtime` runs the same helper directly.
+
+### Playwright runtime spec
+`e2e/redraft-war-room-runtime.spec.ts` verifies the real Next/auth route chain when `DATABASE_URL`
+and `NEXTAUTH_SECRET`/`AUTH_SECRET` are present:
+
+- member login and War Room tab/panel visibility
+- real UI POSTs for `lineup`, `waivers`, `trade-analyze`, and `trade-find`
+- non-entitled member `ask` returns the locked/402 state
+- unauthenticated GET returns 401
+- member privacy strips other team player lists and forbids targeting an opponent roster
+- commissioner can read league-wide roster context
+- entitled commissioner `ask` returns 200 and either an answer or the safe AI-unavailable fallback
+- mobile Spanish/dark-mode smoke with the panel still reachable
+
+Local execution in this worktree was parse-verified and ran as **4 skipped** because no DB/auth env
+was available. The gating is intentional: it prevents accidental writes to an unknown database while
+keeping the runtime proof executable in CI/staging with real credentials.
+
+### Non-browser fallback coverage
+Route-level integration tests still prove the server contract with mocked auth/data/AI boundaries and
+real deterministic engines (`__tests__/redraft-war-room-routes.test.ts`, 15 passing):
 
 | Requirement | Verified by test |
 | --- | --- |
@@ -108,43 +167,52 @@ engines running for real:
 | Commissioner can access league-wide context | ✅ other teams retain `players`; may target any `rosterId` |
 | POST waivers / lineup / trade-analyze / trade-find | ✅ each returns expected shape |
 | Missing provider data → clear missing-data flags | ✅ waivers `needsProviderIntegration: true`; `missingDataFlags` surfaced |
-| OpenAI failure does not crash `ask` | ✅ returns 200 `{ aiUnavailable: true, answer: null, grounding }` |
-| `ask` is AF-gated | ✅ `requireAfSub` gate Response returned verbatim (402) |
-| Unauthenticated / unknown action | ✅ 401 / 404 |
+| OpenAI failure does not crash `ask` | returns 200 `{ aiUnavailable: true, answer: null, grounding }` |
+| `ask` is AF War Room-gated | `war_room_draft_strategy` gate Response returned verbatim (402) |
+| Unauthenticated / unknown action | 401 / 404 |
 
-**Could not be verified without a runtime** (documented for a future manual/E2E pass): real Next.js
-session cookies, live Prisma reads, the panel rendering in-browser, and Spanish/visual modes. The
-panel itself is typecheck/lint-clean and its buttons call the real routes via `lib/redraft-war-room/client.ts`.
+Component-level UI integration was also added in `__tests__/redraft-war-room-panel.test.ts` (2
+passing). It renders the panel, proves the lineup/waivers/trade-analyze/trade-find buttons call the
+client helpers, confirms provider-limited waiver messaging is surfaced, and confirms the locked
+Ask note is displayed for a 402 response.
 
 ---
 
 ## Step 5 — Tests / lint / typecheck / diff
 
-- **Fixed suites + War Room:** 126/126 passing (`nfl-redraft-pick-authority`, `-commissioner-controls`,
-  `-core-tab-bar`, `-draft-chat-and-announcements`, `-league-dashboard`, `redraft-war-room`).
-- **New route integration suite:** `redraft-war-room-routes` — 15/15 passing.
-- **Lint:** clean on all touched/new files.
-- **Typecheck:** zero errors in touched files (repo has a large pre-existing unrelated error baseline
-  in other files; the touched test files add none).
+- **War Room UI/component suite:** `redraft-war-room-panel` - 2/2 passing.
+- **Route integration suite:** `redraft-war-room-routes` - 15/15 passing.
+- **Core deterministic suite:** `redraft-war-room` - 12/12 passing.
+- **NFL redraft tab regression lock:** `nfl-redraft-core-tab-bar` updated and passing with War Room
+  in the compact redraft tab list.
+- **Full redraft/draft-room sweep:** 31 files / 610 tests passing (excluding only the playoff trade
+  contract suite per the project restriction).
+- **Playwright runtime spec:** `e2e/redraft-war-room-runtime.spec.ts` parse/list verified; local run
+  skipped 4/4 because this worktree did not have `DATABASE_URL` and `NEXTAUTH_SECRET`/`AUTH_SECRET`.
+- **Lint:** clean on all touched/new files, with pre-existing `LeagueShell.tsx` hook/no-img warnings.
+- **Typecheck:** full repo `npm run typecheck` still fails on a large unrelated baseline. A
+  touched-file graph check shows no remaining errors in the new E2E spec or seed helper after the
+  CSRF-token narrowing fix; remaining errors are pre-existing imported-file issues.
 - **`git diff --check`:** clean.
-- **Route budget script:** GREEN (1791 production-adjusted), unchanged (no routes added).
+- **Route budget script:** GREEN (1678 production-adjusted), unchanged by this work (no route files added).
 
 ---
 
 ## Remaining blockers / recommendations
 1. ~~14 additional pre-existing NFL-redraft source-pattern failures~~ — **RESOLVED** (see §RESOLVED
    above). All confirmed stale locks from intentional refactors; locks updated, no source bugs found.
-   **Full redraft/draft-room sweep is now green: 30 suites / 585 tests, 0 failures.**
-2. **Live runtime verification** of the War Room panel + Spanish/visual modes still needs a seeded
-   redraft league + authenticated session (or Playwright E2E). This is the main remaining item before
-   Redraft War Room Phase 2.
+   **Full redraft/draft-room sweep is green: 31 suites / 610 tests, 0 failures.**
+2. **Live DB-backed browser verification** now has an executable seeded Playwright path, but it still
+   must be run in an environment with `DATABASE_URL` and `NEXTAUTH_SECRET`/`AUTH_SECRET` before
+   claiming full runtime clearance.
 3. **Provider integrations** remain the functional gap for Phase 2 (free-agent/waiver pool, live
    stats/projections, injuries/news) — the War Room already degrades safely without them.
 
 ## Redraft cleared for War Room Phase 2?
-**Yes — the draft-room test blocker is cleared.** Full redraft sweep is green (30/30 suites, 585 tests),
-route budget is GREEN (1678 production-adjusted), and no source regressions were found. The only
-pre-Phase-2 gap that is not test-covered is live in-browser/auth runtime verification (item 2).
+**Partially.** The draft-room test blocker is cleared, the compact NFL redraft shell now exposes the
+War Room tab, the deterministic route/UI contract is covered, and route budget is GREEN (1678
+production-adjusted). Full Phase 2 clearance should wait for the DB-backed Playwright spec to pass in
+CI/staging with real auth and database env.
 
 ## Should Vercel deploy?
 **Yes for the route budget** — GREEN at 1678 production-adjusted signals, well under the 2048 cap.

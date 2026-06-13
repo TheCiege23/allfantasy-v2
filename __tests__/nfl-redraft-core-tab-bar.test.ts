@@ -2,13 +2,12 @@
  * NFL redraft core dashboard — tab-bar regression lock.
  *
  * The NFL redraft shell leads with the core tabs:
- *   Home / Roster / Matchups / Players / Waivers / Trades / League,
- * plus a commissioner-only Settings tab (added by commit 1fc276d58
- * "waivers tab integration"). The exported NFL_REDRAFT_CORE_TAB_IDS still
- * pins the six Phase 1 ids that anchor the bar order.
+ *   Home / Roster / Matchups / Players / Waivers / Trades / War Room / League,
+ * plus a commissioner-only Settings tab. The exported NFL_REDRAFT_CORE_TAB_IDS
+ * pins that visible order.
  *
- * History, War Room, AI Coaching, Redraft, Trend, and Finance must NOT appear
- * in the primary tab bar for these leagues. Settings is also reachable via the
+ * History, AI Coaching, Redraft, Trend, and Finance must NOT appear in the
+ * primary tab bar for these leagues. Settings is also reachable via the
  * header gear (data-testid="league-header-settings"), which stays available
  * regardless of the commissioner Settings tab.
  *
@@ -36,13 +35,15 @@ function read(rel: string): string {
 }
 
 describe('NFL redraft core — exported tab ID list', () => {
-  it('NFL_REDRAFT_CORE_TAB_IDS is exactly the six Phase 1 tabs in order', () => {
+  it('NFL_REDRAFT_CORE_TAB_IDS is exactly the visible redraft tabs in order', () => {
     expect([...NFL_REDRAFT_CORE_TAB_IDS]).toEqual([
       'home',
       'roster',
       'matchups',
       'players',
+      'waivers',
       'trades',
+      'war_room',
       'league',
     ])
   })
@@ -54,7 +55,7 @@ describe('NFL redraft core — LeagueShell tabDefs branch', () => {
   /**
    * Slice the `if (nflRedraftCore)` block. The branch must:
    *   - sit at the top of the tabDefs useMemo
-   *   - declare `core` with exactly the six Phase 1 tabs in order
+   *   - declare `core` with exactly the visible redraft tabs in order
    *   - return localizeLeagueTabs(core, t) before the generic sport-tabs path
    */
   const branchStart = src.indexOf('if (nflRedraftCore) {')
@@ -66,10 +67,10 @@ describe('NFL redraft core — LeagueShell tabDefs branch', () => {
     expect(branchEnd).toBeGreaterThan(branchStart)
   })
 
-  it('declares the six core tabs in the canonical Phase 1 order', () => {
+  it('declares the core tabs in the canonical Phase 1 order', () => {
     // Order matters — the tab bar reads left-to-right.
     const orderRegex =
-      /\{\s*id:\s*'home'[^}]*\}[\s\S]*?\{\s*id:\s*'roster'[^}]*\}[\s\S]*?\{\s*id:\s*'matchups'[^}]*\}[\s\S]*?\{\s*id:\s*'players'[^}]*\}[\s\S]*?\{\s*id:\s*'trades'[^}]*\}[\s\S]*?\{\s*id:\s*'league'[^}]*\}/
+      /\{\s*id:\s*'home'[^}]*\}[\s\S]*?\{\s*id:\s*'roster'[^}]*\}[\s\S]*?\{\s*id:\s*'matchups'[^}]*\}[\s\S]*?\{\s*id:\s*'players'[^}]*\}[\s\S]*?\{\s*id:\s*'waivers'[^}]*\}[\s\S]*?\{\s*id:\s*'trades'[^}]*\}[\s\S]*?\{\s*id:\s*'war_room'[^}]*\}[\s\S]*?\{\s*id:\s*'league'[^}]*\}/
     expect(branch).toMatch(orderRegex)
   })
 
@@ -77,12 +78,11 @@ describe('NFL redraft core — LeagueShell tabDefs branch', () => {
     expect(branch).toMatch(/return localizeLeagueTabs\(core, t\)/)
   })
 
-  it('does NOT inject history/war_room/ai_coaching/redraft/trend/finance into the nflRedraftCore branch', () => {
+  it('does NOT inject hidden generic tabs into the nflRedraftCore branch', () => {
     // Each forbidden id, when present in the branch, would surface as a
-    // primary tab — defeating the AI/War-Room hide spec. (Waivers and a
-    // commissioner-gated Settings tab were intentionally added by commit
-    // 1fc276d58 "waivers tab integration" and are asserted separately below.)
-    const forbidden = ['history', 'war_room', 'ai_coaching', 'redraft', 'trend', 'finance']
+    // primary tab — defeating the compact redraft shell. War Room is intentionally
+    // present because Redraft AF War Room Phase 1 mounts there.
+    const forbidden = ['history', 'ai_coaching', 'redraft', 'trend', 'finance']
     for (const id of forbidden) {
       const re = new RegExp(`id:\\s*'${id}'`)
       expect(branch, `forbidden tab id '${id}' leaked into the nflRedraftCore branch`).not.toMatch(re)
@@ -121,8 +121,8 @@ describe('NFL redraft core — deep-link blocker', () => {
 
   it('only fires setActiveTab when the resolved target id is in tabDefs', () => {
     // Belt-and-suspenders: even if a non-settings deep link mapped to an id
-    // not in the redraft tabDefs (e.g. ?view=war_room), the gate below skips
-    // the setActiveTab call. Without this, history/war_room/etc. could render.
+    // not in the redraft tabDefs, the gate below skips the setActiveTab call.
+    // Without this, history/ai_coaching/etc. could render.
     expect(src).toMatch(/if \(ids\.has\(target\)\) setActiveTab\(target\)/)
   })
 

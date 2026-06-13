@@ -17,7 +17,7 @@ import type {
 const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   buildContext: vi.fn(),
-  requireAfSub: vi.fn(),
+  requireEntitlement: vi.fn(),
   openaiChatText: vi.fn(),
 }))
 
@@ -25,7 +25,7 @@ vi.mock('@/lib/get-current-user', () => ({ getCurrentUser: mocks.getCurrentUser 
 vi.mock('@/lib/redraft-war-room/redraftWarRoomContext', () => ({
   buildRedraftWarRoomContext: mocks.buildContext,
 }))
-vi.mock('@/lib/redraft/ai/requireAfSub', () => ({ requireAfSub: mocks.requireAfSub }))
+vi.mock('@/lib/subscription/requireEntitlement', () => ({ requireEntitlement: mocks.requireEntitlement }))
 vi.mock('@/lib/openai-client', () => ({ openaiChatText: mocks.openaiChatText }))
 
 function player(p: Partial<RedraftPlayerFact> & { playerId: string; position: string }): RedraftPlayerFact {
@@ -133,7 +133,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.getCurrentUser.mockResolvedValue({ id: 'u1', email: null })
   mocks.buildContext.mockImplementation(async () => ({ ok: true, context: makeContext() }))
-  mocks.requireAfSub.mockResolvedValue(undefined) // entitled by default
+  mocks.requireEntitlement.mockResolvedValue('u1') // entitled by default
   mocks.openaiChatText.mockResolvedValue({ ok: true, text: 'Start your WR1.', model: 'm', baseUrl: 'b' })
 })
 
@@ -208,10 +208,11 @@ describe('POST /redraft-war-room/[action]', () => {
     expect(res.status).toBe(200)
   })
 
-  it('ask is gated by requireAfSub (returns the gate Response)', async () => {
-    mocks.requireAfSub.mockResolvedValue(new Response('paywall', { status: 402 }))
+  it('ask is gated by AF War Room entitlement (returns the gate Response)', async () => {
+    mocks.requireEntitlement.mockResolvedValue(new Response('paywall', { status: 402 }))
     const res = await postAction('ask', { question: 'Who do I start?' })
     expect(res.status).toBe(402)
+    expect(mocks.requireEntitlement).toHaveBeenCalledWith('war_room_draft_strategy')
   })
 
   it('ask requires a question', async () => {

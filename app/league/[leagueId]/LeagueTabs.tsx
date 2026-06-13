@@ -4,13 +4,15 @@ export type TabDef = {
   icon?: string
 }
 
-/** NFL redraft simplified shell — settings use header gear only, not a tab. */
+/** NFL redraft simplified shell — redraft War Room is a first-class Phase 1 surface. */
 export const NFL_REDRAFT_CORE_TAB_IDS = [
   'home',
   'roster',
   'matchups',
   'players',
+  'waivers',
   'trades',
+  'war_room',
   'league',
 ] as const
 
