@@ -52,6 +52,11 @@ import {
   isSalaryCapEligibleSport,
   normalizeSalaryCapSettingsSnapshot,
 } from '@/lib/league-concepts/salaryCapDefaults'
+import {
+  buildC2CSettingsSnapshot,
+  isC2CEligibleSport,
+  normalizeC2CSettingsSnapshot,
+} from '@/lib/league-concepts/c2cDefaults'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -192,6 +197,15 @@ function buildSettingsSnapshot(preset: ConceptPresetSeed): Record<string, unknow
           teamCount: preset.defaultTeamCount,
         })
       : null
+  const c2cSnapshot =
+    preset.leagueType === 'c2c' && isC2CEligibleSport(preset.sport)
+      ? buildC2CSettingsSnapshot({
+          sport: preset.sport,
+          draftType: preset.draftTypesAllowed[0] ?? 'c2c_snake',
+          scoringPresetId: preset.scoringPreset,
+          teamCount: preset.defaultTeamCount,
+        })
+      : null
   return {
     ...(redraftSnapshot ?? {}),
     ...(dynastySnapshot ?? {}),
@@ -202,6 +216,7 @@ function buildSettingsSnapshot(preset: ConceptPresetSeed): Record<string, unknow
     ...(survivorSnapshot ?? {}),
     ...(devySnapshot ?? {}),
     ...(salaryCapSnapshot ?? {}),
+    ...(c2cSnapshot ?? {}),
     conceptPresetKey: preset.presetKey,
     leagueType: preset.leagueType,
     sport: preset.sport,
@@ -387,7 +402,15 @@ export function resolveConceptPreset(args: {
                           teamCount: preset.defaultTeamCount,
                           settings: snapshotBase,
                         })
-                      : snapshotBase
+                      : preset.leagueType === 'c2c' && isC2CEligibleSport(sport)
+                        ? normalizeC2CSettingsSnapshot({
+                            sport,
+                            draftType,
+                            scoringPresetId: preset.scoringPreset,
+                            teamCount: preset.defaultTeamCount,
+                            settings: snapshotBase,
+                          })
+                        : snapshotBase
 
   return {
     ok: true,
@@ -648,6 +671,35 @@ export function mergeConceptPresetSettings(
       timezone: leagueSettings.timezone ?? presetSnapshot.timezone,
     }
     return normalizeSalaryCapSettingsSnapshot({
+      sport,
+      draftType: leagueSettings.requested_draft_type ?? leagueSettings.draft_type ?? presetSnapshot.requested_draft_type ?? presetSnapshot.draft_type,
+      scoringPresetId:
+        typeof leagueSettings.scoring_preset_id === 'string'
+          ? leagueSettings.scoring_preset_id
+          : typeof presetSnapshot.scoring_preset_id === 'string'
+            ? presetSnapshot.scoring_preset_id
+            : typeof presetSnapshot.scoringPreset === 'string'
+              ? presetSnapshot.scoringPreset
+              : null,
+      teamCount:
+        typeof leagueSettings.default_team_count === 'number'
+          ? leagueSettings.default_team_count
+          : typeof presetSnapshot.default_team_count === 'number'
+            ? presetSnapshot.default_team_count
+            : null,
+      settings: merged,
+    })
+  }
+
+  if (leagueType === 'c2c' && isC2CEligibleSport(sport)) {
+    const merged = {
+      ...presetSnapshot,
+      ...leagueSettings,
+      leagueName: leagueSettings.leagueName ?? presetSnapshot.leagueName,
+      language: leagueSettings.language ?? presetSnapshot.language ?? 'en',
+      timezone: leagueSettings.timezone ?? presetSnapshot.timezone,
+    }
+    return normalizeC2CSettingsSnapshot({
       sport,
       draftType: leagueSettings.requested_draft_type ?? leagueSettings.draft_type ?? presetSnapshot.requested_draft_type ?? presetSnapshot.draft_type,
       scoringPresetId:
