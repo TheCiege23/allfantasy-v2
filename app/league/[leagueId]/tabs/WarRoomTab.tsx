@@ -19,6 +19,7 @@ import WarRoomMetaWidget from '@/components/meta-insights/WarRoomMetaWidget'
 import { WarRoomPanel } from '@/components/war-room'
 import { RedraftWarRoomPanel } from './redraft/RedraftWarRoomPanel'
 import { DynastyWarRoomPanel } from './dynasty/DynastyWarRoomPanel'
+import { KeeperWarRoomPanel } from './keeper/KeeperWarRoomPanel'
 import { FeatureGate } from '@/components/subscription/FeatureGate'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import type { SubscriptionFeatureId } from '@/lib/subscription/types'
@@ -88,8 +89,13 @@ export function WarRoomTab({ league, sport, dashboardEmbed = false }: WarRoomTab
   // `format` is the canonical UserLeague discriminator ('redraft' for non-dynasty,
   // non-variant leagues; specialty variants carry their own format). Fall back to
   // `leagueType` when present. Dynasty/specialty formats keep the strategy/meta view.
+  const isKeeperLeague =
+    !league.isDynasty &&
+    (String(league.format ?? '').toLowerCase() === 'keeper' ||
+      String(league.leagueType ?? '').toLowerCase() === 'keeper')
   const isRedraftLeague =
     !league.isDynasty &&
+    !isKeeperLeague &&
     (String(league.format ?? '').toLowerCase() === 'redraft' ||
       String(league.leagueType ?? '').toLowerCase() === 'redraft')
   const [metaFrame, setMetaFrame] = useState<'24h' | '7d' | '30d'>('7d')
@@ -255,6 +261,9 @@ export function WarRoomTab({ league, sport, dashboardEmbed = false }: WarRoomTab
 
       {/* Dynasty leagues get the dynasty-horizon War Room (value/age/direction). */}
       {league.isDynasty ? <DynastyWarRoomPanel leagueId={league.id} /> : null}
+
+      {/* Keeper leagues get the keeper War Room (value surplus / keep-cut / draft plan). */}
+      {isKeeperLeague ? <KeeperWarRoomPanel leagueId={league.id} /> : null}
 
       {liveDraftCompanion && leagueDraftCompanion.error ? (
         <p

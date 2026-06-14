@@ -59,6 +59,7 @@ import { buildC2CContextForChimmy } from '@/lib/merged-devy-c2c/ai/c2cContextFor
 import { buildSalaryCapContextForChimmy } from '@/lib/salary-cap/ai/salaryCapContextForChimmy'
 import { buildDynastyContextForChimmy } from '@/lib/dynasty-core/dynastyContextForChimmy'
 import { buildDynastyWarRoomContextForChimmy } from '@/lib/dynasty-war-room/dynastyChimmyGrounding'
+import { buildKeeperContextForChimmy } from '@/lib/keeper-war-room/keeperChimmyGrounding'
 import { CHIMMY_GENERIC_ERROR_MESSAGE } from '@/lib/chimmy-chat/response-copy'
 import {
   buildChimmyResponseForAssistantMode,
@@ -1725,6 +1726,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                 legacyEnrichmentContext = legacyEnrichmentContext
                   ? `${legacyEnrichmentContext}\n\n${redraftCtx}`
                   : redraftCtx
+              }
+            } catch { /* non-fatal */ }
+            try {
+              const keeperCtx = await buildKeeperContextForChimmy(planInput.leagueId, planInput.userId)
+              if (keeperCtx) {
+                legacyEnrichmentContext = legacyEnrichmentContext
+                  ? `${legacyEnrichmentContext}\n\n${keeperCtx}`
+                  : keeperCtx
               }
             } catch { /* non-fatal */ }
           }
