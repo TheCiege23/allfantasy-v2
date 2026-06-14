@@ -160,6 +160,43 @@ export function RedraftWarRoomPanel({ leagueId }: { leagueId: string }) {
         </span>
       </div>
 
+      {/* Matchup, standings & data status */}
+      {(() => {
+        const me = context.teams.find((t) => t.isUserTeam)
+        const m = context.upcomingMatchup
+        const opp = m?.opponentRosterId ? context.teams.find((t) => t.rosterId === m.opponentRosterId) : null
+        return (
+          <div
+            className="grid gap-2 rounded-lg border border-white/[0.06] bg-[#07071a] p-3 sm:grid-cols-3"
+            data-testid="redraft-war-room-matchup-card"
+          >
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-white/40">Standing</p>
+              <p className="text-[11px] text-white/70">
+                {me && me.wins != null ? `${me.wins}-${me.losses}${me.ties ? `-${me.ties}` : ''}` : '—'}
+                {me?.playoffSeed != null ? ` · seed ${me.playoffSeed}` : ''}
+                {me && me.pointsFor != null ? ` · PF ${me.pointsFor.toFixed(0)}` : ''}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-white/40">Next matchup</p>
+              <p className="text-[11px] text-white/70">
+                {m ? `W${m.week} vs ${opp?.teamName ?? opp?.ownerName ?? 'TBD'}` : 'No upcoming matchup'}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-white/40">Data</p>
+              <p className="text-[11px] text-white/60">
+                {context.freeAgents?.length ?? 0} FAs · proj{' '}
+                {context.availability?.projections === 'available' ? '✓' : '—'} · ADP{' '}
+                {context.availability?.tradeValues === 'available' ? '✓' : '—'} · inj{' '}
+                {context.availability?.injuries === 'available' ? '✓' : '—'}
+              </p>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Team needs */}
       {needs && (
         <div className="rounded-lg border border-white/[0.06] bg-[#07071a] p-3">

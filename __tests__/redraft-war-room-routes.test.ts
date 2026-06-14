@@ -40,7 +40,8 @@ function player(p: Partial<RedraftPlayerFact> & { playerId: string; position: st
     byeWeek: p.byeWeek ?? null,
     weekProjection: p.weekProjection ?? null,
     seasonAvgActual: p.seasonAvgActual ?? null,
-    hasNoValueSignal: p.weekProjection == null && p.seasonAvgActual == null,
+    adp: p.adp ?? null,
+    hasNoValueSignal: p.weekProjection == null && p.seasonAvgActual == null && (p.adp ?? null) == null,
   }
 }
 

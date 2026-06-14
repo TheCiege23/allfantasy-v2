@@ -207,8 +207,19 @@ test.describe('@db Redraft War Room runtime', () => {
     expect(memberRes.status()).toBe(200)
     const memberBody = (await memberRes.json()) as {
       needs: { tradeTargetPositions: string[] } | null
-      context: { userRosterId: string | null; teams: { isUserTeam: boolean; players: unknown[] }[] }
+      context: {
+        userRosterId: string | null
+        teams: { isUserTeam: boolean; players: unknown[] }[]
+        freeAgents: { playerName: string; position: string; adp: number | null }[]
+        availability: { waiverPool: string; tradeValues: string }
+      }
     }
+    // Phase 2: a real ADP-ranked free-agent pool is resolved for the NFL season,
+    // and ADP powers trade values — not provider-limited placeholders.
+    expect(memberBody.context.availability.waiverPool).toBe('available')
+    expect(memberBody.context.availability.tradeValues).toBe('available')
+    expect(memberBody.context.freeAgents.length).toBeGreaterThan(0)
+    expect(memberBody.context.freeAgents[0]?.adp).not.toBeNull()
     // Member gets a grounded context for THEIR team (roster resolved, needs computed).
     expect(memberBody.context.userRosterId).toBeTruthy()
     expect(memberBody.needs).toBeTruthy()
@@ -278,12 +289,13 @@ test.describe('@db Redraft War Room runtime', () => {
     await waitForAction(page, 'waivers', async () => {
       await page.getByTestId('redraft-war-room-tool-waivers').click()
     })
-    await rendered(page.getByTestId('redraft-war-room-waivers-result'))
-    // Truthful provider-limited state — the free-agent pool needs provider
-    // integration, so the waivers card surfaces that instead of fabricating adds.
-    await rendered(
-      page.getByTestId('redraft-war-room-waivers-result').getByText(/provider integration/i).first(),
-    )
+    const waiversResult = page.getByTestId('redraft-war-room-waivers-result')
+    await rendered(waiversResult)
+    // Phase 2: the seeded NFL league resolves a real ADP-ranked free-agent pool,
+    // so the waivers card shows actual add candidates (e.g. an ADP-tagged add).
+    // If the pool were genuinely empty it would show a truthful provider-limited
+    // message instead — accept either real adds OR the limited state, never a crash.
+    await rendered(waiversResult.getByText(/ADP|Best available|Fills|provider/i).first())
 
     await waitForAction(page, 'trade-analyze', async () => {
       await page.getByTestId('redraft-war-room-tool-trade-analyze').click()

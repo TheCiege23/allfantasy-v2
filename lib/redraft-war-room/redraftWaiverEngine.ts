@@ -14,6 +14,7 @@
  */
 
 import { evaluateTeamNeeds } from './redraftTeamNeedsEngine'
+import { playerValue, type ValueSource } from './playerValue'
 import type { RedraftPlayerFact, RedraftWarRoomContext } from './types'
 
 export interface WaiverAdd {
@@ -21,7 +22,9 @@ export interface WaiverAdd {
   playerName: string
   position: string
   value: number | null
-  valueSource: 'projection' | 'season_avg' | 'none'
+  valueSource: ValueSource
+  /** ADP (lower = more valued) when the add was ranked off ADP/ranking. */
+  adp: number | null
   reason: string
   faabBidSuggestion: number | null
   prioritySuggestion: number | null
@@ -46,10 +49,9 @@ export interface WaiverResult {
   needsProviderIntegration: boolean
 }
 
-function valueOf(p: RedraftPlayerFact): { value: number | null; source: 'projection' | 'season_avg' | 'none' } {
-  if (p.weekProjection != null) return { value: p.weekProjection, source: 'projection' }
-  if (p.seasonAvgActual != null) return { value: p.seasonAvgActual, source: 'season_avg' }
-  return { value: null, source: 'none' }
+function valueOf(p: RedraftPlayerFact): { value: number | null; source: ValueSource } {
+  const v = playerValue(p)
+  return { value: v.source === 'none' ? null : v.value, source: v.source }
 }
 
 export function buildWaiverRecommendations(
@@ -101,29 +103,41 @@ export function buildWaiverRecommendations(
     )
   } else {
     const faabBudget = context.waivers.type === 'faab' ? (team.faabBalance ?? context.waivers.faabBudget) : null
+    const targetSet = new Set(targetPositions)
     recommendedAdds = context.freeAgents
-      .map((p) => ({ p, ...valueOf(p) }))
-      .filter(({ p }) => targetPositions.length === 0 || targetPositions.includes(p.position))
-      .sort((a, b) => (b.value ?? -1) - (a.value ?? -1))
+      .map((p) => ({ p, ...valueOf(p), atNeed: targetSet.has(p.position) }))
+      // Surface need-position free agents first, then by value (ADP-derived for FAs).
+      .sort((a, b) => {
+        if (a.atNeed !== b.atNeed) return a.atNeed ? -1 : 1
+        return (b.value ?? -1) - (a.value ?? -1)
+      })
       .slice(0, 5)
-      .map(({ p, value, source }) => {
-        // FAAB suggestion: scale by value relative to top free agent, capped at 35% of budget.
+      .map(({ p, value, source, atNeed }) => {
+        // FAAB suggestion: scale by value (cap 35% of budget). value is on a
+        // points-like scale for projection/avg and an ADP-derived scale otherwise.
         const faabBidSuggestion =
           faabBudget != null && value != null
             ? Math.max(1, Math.round(Math.min(faabBudget * 0.35, (value / 20) * faabBudget * 0.35)))
             : null
         const prioritySuggestion =
           context.waivers.type === 'rolling' || context.waivers.type === 'reverse' ? team.waiverPriority : null
+        const needFrag = atNeed ? `Fills ${p.position} need` : `Best available ${p.position}`
+        const valFrag =
+          source === 'adp' && p.adp != null
+            ? `ADP ${p.adp.toFixed(1)}`
+            : source === 'projection'
+              ? `projected ${value?.toFixed(1)}`
+              : source === 'season_avg'
+                ? `season avg ${value?.toFixed(1)}`
+                : 'no value signal yet'
         return {
           playerId: p.playerId,
           playerName: p.playerName,
           position: p.position,
           value: value == null ? null : Math.round(value * 100) / 100,
           valueSource: source,
-          reason:
-            value == null
-              ? `Fills ${p.position} need (no value signal yet).`
-              : `Fills ${p.position} need; ${source === 'projection' ? 'projected' : 'season avg'} ${value.toFixed(1)}.`,
+          adp: p.adp ?? null,
+          reason: `${needFrag}; ${valFrag}.`,
           faabBidSuggestion,
           prioritySuggestion,
         }

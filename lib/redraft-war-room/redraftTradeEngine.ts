@@ -14,6 +14,7 @@
  */
 
 import { evaluateTeamNeeds } from './redraftTeamNeedsEngine'
+import { playerValue } from './playerValue'
 import type { RedraftPlayerFact, RedraftWarRoomContext } from './types'
 
 export type TradeVerdict = 'accept' | 'reject' | 'neutral' | 'needs_more_data'
@@ -48,9 +49,9 @@ export interface TradeFinderResult {
 }
 
 function valueOf(p: RedraftPlayerFact): number | null {
-  if (p.weekProjection != null) return p.weekProjection
-  if (p.seasonAvgActual != null) return p.seasonAvgActual
-  return null
+  // Projection → season avg → ADP/ROS-ranking proxy. Season-horizon for redraft.
+  const v = playerValue(p)
+  return v.source === 'none' ? null : v.value
 }
 
 function findPlayers(context: RedraftWarRoomContext, ids: string[]): RedraftPlayerFact[] {
@@ -180,8 +181,7 @@ export function analyzeTrade(context: RedraftWarRoomContext, input: AnalyzeTrade
 
 export function findTradeTargets(context: RedraftWarRoomContext, rosterId: string): TradeFinderResult {
   const missingDataFlags = [...context.missingDataFlags]
-  const hasValueSignal =
-    context.availability.projections === 'available' || context.availability.playerStats === 'available'
+  const hasValueSignal = context.availability.tradeValues === 'available'
   if (!hasValueSignal) {
     missingDataFlags.push('Trade finder needs projection or stat data to rank partner fit.')
     return { rosterId, targets: [], missingDataFlags: [...new Set(missingDataFlags)], needsMoreData: true }

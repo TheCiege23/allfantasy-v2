@@ -90,7 +90,10 @@ export interface RedraftPlayerFact {
   weekProjection: number | null
   /** Season-to-date average actual fantasy points (finalized weeks) when available, else null. */
   seasonAvgActual: number | null
-  /** True when neither a projection nor an actual signal exists for this player. */
+  /** Average overall ADP (lower = more valued) from AllFantasyAdpSnapshot, when matched. Used as a
+   * rest-of-season value/ranking proxy for redraft when projections/actuals are unavailable. */
+  adp: number | null
+  /** True when no projection, actual, or ADP/ranking signal exists for this player. */
   hasNoValueSignal: boolean
 }
 

@@ -2,6 +2,13 @@
 
 _Built 2026-06-12 on `origin/main`. Companion to the pre-build [`redraft-war-room-audit.md`](./redraft-war-room-audit.md)._
 
+> **Phase 2 (2026-06-13): real provider/data integration built and DB-verified** — ADP-ranked
+> free-agent pool (sport-isolated), ADP/ROS value signal across all engines, grounded prompt, panel
+> matchup/standings + real waiver candidates. See
+> [`redraft-af-war-room-phase-2-audit.md`](./redraft-af-war-room-phase-2-audit.md). Still
+> provider-limited: weekly projections/scores (seed/sync), injuries/news (`sports_core_*` unmigrated),
+> deep global-Chimmy-route grounding (the War Room `ask` is grounded today).
+
 Phase 1 delivers the **deterministic + AI-grounding backend** for the Redraft AF War Room,
 plus a wired UI panel. No live stats/projections/injuries/odds/news are fabricated; missing
 data is reported as such.

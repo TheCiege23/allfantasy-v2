@@ -2,15 +2,27 @@
  * REDRAFT LINEUP / START-SIT ENGINE — pure, deterministic. No AI, no fabrication.
  *
  * Greedy slot assignment that ranks eligible players by the BEST AVAILABLE value
- * signal (current-week projection → season-to-date actual average). When no signal
- * exists, it still fills slots structurally but flags the output as low-confidence
- * and surfaces a missing-data flag instead of inventing projections.
+ * signal (current-week projection → season-to-date actual average → ADP/ranking).
+ * Confidence reflects the weakest signal used (ADP-based ordering is low
+ * confidence). When no signal exists, it fills slots structurally and flags the
+ * output instead of inventing projections.
  *
  * Honours dedicated, FLEX, and SUPERFLEX slot eligibility from the resolved roster
  * template. Redraft-only (no taxi/devy slots are treated as startable).
  */
 
 import type { RedraftLineupSlot, RedraftPlayerFact, RedraftWarRoomContext } from './types'
+import { playerValue, type ValueSource } from './playerValue'
+
+function sourceLabel(source: ValueSource): string {
+  return source === 'projection'
+    ? 'projection'
+    : source === 'season_avg'
+      ? 'season average'
+      : source === 'adp'
+        ? 'ADP/ranking'
+        : 'eligibility'
+}
 
 export interface LineupAssignment {
   slotName: string
@@ -18,7 +30,7 @@ export interface LineupAssignment {
   playerName: string | null
   position: string | null
   valueUsed: number | null
-  valueSource: 'projection' | 'season_avg' | 'none'
+  valueSource: ValueSource
   reason: string
 }
 
@@ -43,13 +55,12 @@ export interface LineupResult {
 interface Ranked {
   player: RedraftPlayerFact
   value: number
-  source: 'projection' | 'season_avg' | 'none'
+  source: ValueSource
 }
 
 function rankValue(p: RedraftPlayerFact): Ranked {
-  if (p.weekProjection != null) return { player: p, value: p.weekProjection, source: 'projection' }
-  if (p.seasonAvgActual != null) return { player: p, value: p.seasonAvgActual, source: 'season_avg' }
-  return { player: p, value: 0, source: 'none' }
+  const v = playerValue(p)
+  return { player: p, value: v.value, source: v.source }
 }
 
 function slotEligible(slot: RedraftLineupSlot, pos: string): boolean {
@@ -130,8 +141,8 @@ export function buildLineupRecommendation(
       valueSource: candidate.source,
       reason:
         candidate.source === 'none'
-          ? `Placed by eligibility only — no projection or stat signal${injuryNote}.`
-          : `Top available ${candidate.player.position} by ${candidate.source === 'projection' ? 'projection' : 'season average'} (${candidate.value.toFixed(1)})${injuryNote}.`,
+          ? `Placed by eligibility only — no projection, stat, or ranking signal${injuryNote}.`
+          : `Top available ${candidate.player.position} by ${sourceLabel(candidate.source)}${candidate.source === 'adp' && candidate.player.adp != null ? ` (ADP ${candidate.player.adp.toFixed(1)})` : ` (${candidate.value.toFixed(1)})`}${injuryNote}.`,
     })
   }
 
@@ -178,14 +189,20 @@ export function buildLineupRecommendation(
         ) / 100
       : null
 
+  // Confidence reflects the WEAKEST signal among the filled starters (a lineup
+  // ranked partly on ADP is only as trustworthy as that fallback).
+  const filledSources = starters.filter((s) => s.playerId != null).map((s) => s.valueSource)
   let confidence: LineupResult['confidence']
-  if (!anySignal) confidence = 'none'
-  else if (context.availability.projections === 'available') confidence = 'high'
-  else if (context.availability.playerStats === 'available') confidence = 'medium'
-  else confidence = 'low'
+  if (!anySignal || filledSources.length === 0) confidence = 'none'
+  else if (filledSources.some((s) => s === 'none')) confidence = 'low'
+  else if (filledSources.some((s) => s === 'adp')) confidence = 'low'
+  else if (filledSources.some((s) => s === 'season_avg')) confidence = 'medium'
+  else confidence = 'high'
 
   if (!anySignal) {
-    missingDataFlags.push('Start/sit ordering is structural only — no projections or stats to rank starters.')
+    missingDataFlags.push('Start/sit ordering is structural only — no projections, stats, or rankings to rank starters.')
+  } else if (confidence === 'low') {
+    missingDataFlags.push('Start/sit is low confidence — based partly on ADP/ranking rather than weekly projections.')
   }
 
   return {

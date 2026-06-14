@@ -30,7 +30,8 @@ function player(p: Partial<RedraftPlayerFact> & { playerId: string; position: st
     byeWeek: p.byeWeek ?? null,
     weekProjection: p.weekProjection ?? null,
     seasonAvgActual: p.seasonAvgActual ?? null,
-    hasNoValueSignal: p.weekProjection == null && p.seasonAvgActual == null,
+    adp: p.adp ?? null,
+    hasNoValueSignal: p.weekProjection == null && p.seasonAvgActual == null && (p.adp ?? null) == null,
   }
 }
 
@@ -148,10 +149,16 @@ describe('redraftTeamNeedsEngine', () => {
   })
 
   it('returns structural-only flag when no value signal exists', () => {
-    const noValue = weakRoster().map((p) => ({ ...p, weekProjection: null, seasonAvgActual: null, hasNoValueSignal: true }))
+    const noValue = weakRoster().map((p) => ({
+      ...p,
+      weekProjection: null,
+      seasonAvgActual: null,
+      adp: null,
+      hasNoValueSignal: true,
+    }))
     const ctx = makeContext({
       teams: [teamWith('r1', noValue, true)],
-      availability: { ...FULL_AVAILABILITY, projections: 'missing', playerStats: 'missing' },
+      availability: { ...FULL_AVAILABILITY, projections: 'missing', playerStats: 'missing', tradeValues: 'missing' },
     })
     const result = evaluateTeamNeeds(ctx, 'r1')
     expect(result.missingDataFlags.some((f) => /structural only|no projection/i.test(f))).toBe(true)
@@ -272,7 +279,7 @@ describe('redraftTradeEngine', () => {
 
     const noData = makeContext({
       teams: [teamWith('r1', r1, true)],
-      availability: { ...FULL_AVAILABILITY, projections: 'missing', playerStats: 'missing' },
+      availability: { ...FULL_AVAILABILITY, projections: 'missing', playerStats: 'missing', tradeValues: 'missing' },
     })
     expect(findTradeTargets(noData, 'r1').needsMoreData).toBe(true)
   })

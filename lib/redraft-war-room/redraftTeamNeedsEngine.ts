@@ -6,6 +6,7 @@
  * Redraft-only: season-horizon framing, no dynasty/age/asset logic.
  */
 
+import { playerValue as sharedPlayerValue } from './playerValue'
 import type { RedraftPlayerFact, RedraftTeamSummary, RedraftWarRoomContext } from './types'
 
 export interface TeamNeed {
@@ -34,12 +35,6 @@ function countByPosition(players: RedraftPlayerFact[]): Record<string, RedraftPl
   return map
 }
 
-/** A player "counts" as roster depth if it isn't dropped; value signal optional. */
-function playerValue(p: RedraftPlayerFact): number {
-  if (p.weekProjection != null) return p.weekProjection
-  if (p.seasonAvgActual != null) return p.seasonAvgActual
-  return 0
-}
 
 export function evaluateTeamNeeds(
   context: RedraftWarRoomContext,
@@ -68,8 +63,7 @@ export function evaluateTeamNeeds(
 
   const byPos = countByPosition(team.players)
   const required = context.roster.requiredByPosition
-  const hasValueSignal =
-    context.availability.projections === 'available' || context.availability.playerStats === 'available'
+  const hasValueSignal = context.availability.tradeValues === 'available'
 
   // 1) Roster holes vs. required starting slots.
   for (const [pos, need] of Object.entries(required)) {
@@ -118,11 +112,27 @@ export function evaluateTeamNeeds(
   // 4) Positional value strength (only when a value signal exists).
   if (hasValueSignal) {
     for (const [pos, players] of Object.entries(byPos)) {
-      const best = players.reduce((m, p) => Math.max(m, playerValue(p)), 0)
-      if (best > 0 && best >= 15) strengths.push(`${pos} anchored by a high-output starter (${best.toFixed(1)} pts).`)
+      let bestScore = 0
+      let bestSource: ReturnType<typeof sharedPlayerValue>['source'] = 'none'
+      let bestAdp: number | null = null
+      for (const p of players) {
+        const v = sharedPlayerValue(p)
+        if (v.source !== 'none' && v.value > bestScore) {
+          bestScore = v.value
+          bestSource = v.source
+          bestAdp = p.adp
+        }
+      }
+      if (bestScore >= 15) {
+        if (bestSource === 'adp' && bestAdp != null) {
+          strengths.push(`${pos} anchored by a top-ADP player (ADP ${bestAdp.toFixed(1)}).`)
+        } else if (bestSource === 'projection' || bestSource === 'season_avg') {
+          strengths.push(`${pos} anchored by a high-output starter (${bestScore.toFixed(1)} pts).`)
+        }
+      }
     }
   } else {
-    missingDataFlags.push('Position strength is structural only — no projection/stat signal to rank player quality.')
+    missingDataFlags.push('Position strength is structural only — no projection/stat/ranking signal to rank player quality.')
   }
 
   // 5) Playoff-push context.

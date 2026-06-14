@@ -16,6 +16,12 @@
 import { prisma } from '@/lib/prisma'
 import { getEffectiveLeagueRosterTemplate } from '@/lib/league/getEffectiveLeagueRosterTemplate'
 import { resolveLeagueAccess } from '@/lib/league-access'
+import { buildPlayerKey } from '@/lib/adp/computeAllFantasyAdp'
+import {
+  fetchAdpByPlayerKey,
+  fetchRedraftFreeAgentPool,
+  rosteredPlayerKeys,
+} from './redraftFreeAgentPool'
 import type {
   DataState,
   RedraftDataAvailability,
@@ -324,6 +330,9 @@ export async function buildRedraftWarRoomContext(
     ? await prisma.playerNewsItem.count({ where: { playerId: { in: allPlayerIds } } }).catch(() => 0)
     : 0
 
+  // ADP / ranking value signal (real, sport-isolated) keyed by name|position.
+  const adpByKey = await fetchAdpByPlayerKey(season.sport, season.season)
+
   function toPlayerFact(p: {
     playerId: string
     playerName: string
@@ -337,6 +346,7 @@ export async function buildRedraftWarRoomContext(
     const agg = actualAgg.get(p.playerId)
     const seasonAvg = agg && agg.n > 0 ? Math.round((agg.sum / agg.n) * 100) / 100 : null
     const weekProjection = typeof proj === 'number' ? Math.round(proj * 100) / 100 : null
+    const adp = adpByKey.get(buildPlayerKey(p.playerName, p.position)) ?? null
     return {
       playerId: p.playerId,
       playerName: p.playerName,
@@ -348,7 +358,8 @@ export async function buildRedraftWarRoomContext(
       byeWeek: p.byeWeek,
       weekProjection,
       seasonAvgActual: seasonAvg,
-      hasNoValueSignal: weekProjection == null && seasonAvg == null,
+      adp,
+      hasNoValueSignal: weekProjection == null && seasonAvg == null && adp == null,
     }
   }
 
@@ -409,7 +420,35 @@ export async function buildRedraftWarRoomContext(
   const recentMatchup =
     [...userSchedule].reverse().find((m) => m.week < week || m.status === 'final') ?? null
 
+  // --- real free-agent pool (ADP-ranked, sport-isolated, minus rostered) ---
+  const allRosterPlayers = teams.flatMap((t) => t.players)
+  const rosteredKeys = rosteredPlayerKeys(
+    allRosterPlayers.map((p) => ({ playerName: p.playerName, position: p.position })),
+  )
+  const freeAgentRows = await fetchRedraftFreeAgentPool({
+    sport: season.sport,
+    season: season.season,
+    rosteredKeys,
+    scoringFormat: scoring.scoringPreset.toLowerCase(),
+    limit: 60,
+  })
+  const freeAgents: RedraftPlayerFact[] = freeAgentRows.map((fa) => ({
+    playerId: fa.playerKey,
+    playerName: fa.playerName,
+    position: fa.position,
+    team: fa.team,
+    slotType: 'free_agent',
+    isStarterSlot: false,
+    injuryStatus: null,
+    byeWeek: null,
+    weekProjection: null,
+    seasonAvgActual: null,
+    adp: fa.adp,
+    hasNoValueSignal: false, // ADP/ranking signal present
+  }))
+
   // --- availability contract ---
+  const adpAvailable = adpByKey.size > 0
   const availability: RedraftDataAvailability = {
     scoringRules: 'available',
     rosterRules: rosterRulesState,
@@ -422,21 +461,27 @@ export async function buildRedraftWarRoomContext(
         ? 'available'
         : 'missing',
     news: newsCount > 0 ? 'available' : 'missing',
-    waiverPool: 'missing', // free-agent pool route is a placeholder — no provider yet
-    tradeValues: projectionByPlayer.size > 0 || actualAgg.size > 0 ? 'available' : 'missing',
+    waiverPool: freeAgents.length > 0 ? 'available' : 'missing',
+    tradeValues:
+      projectionByPlayer.size > 0 || actualAgg.size > 0 || adpAvailable ? 'available' : 'missing',
   }
 
   const missingDataFlags: string[] = []
   if (availability.rosterRules === 'missing') missingDataFlags.push('Roster template could not be resolved.')
   if (availability.projections === 'missing')
-    missingDataFlags.push('No player projections available — start/sit falls back to season actuals where present.')
+    missingDataFlags.push(
+      adpAvailable
+        ? 'No weekly projections — start/sit uses season actuals and ADP/ranking value as fallback.'
+        : 'No player projections available — start/sit falls back to season actuals where present.',
+    )
   if (availability.playerStats === 'missing')
     missingDataFlags.push('No finalized player stats yet (preseason or pre-ingestion).')
   if (availability.waiverPool === 'missing')
-    missingDataFlags.push('Free-agent pool requires provider integration — specific add targets are unavailable.')
+    missingDataFlags.push('Free-agent pool unavailable for this sport/season — specific add targets cannot be listed.')
   if (availability.injuries === 'missing') missingDataFlags.push('No injury data available.')
 
-  const hasValueSignal = availability.projections === 'available' || availability.playerStats === 'available'
+  const hasValueSignal =
+    availability.projections === 'available' || availability.playerStats === 'available' || adpAvailable
 
   const context: RedraftWarRoomContext = {
     leagueId,
@@ -455,7 +500,7 @@ export async function buildRedraftWarRoomContext(
     teams,
     upcomingMatchup: upcomingMatchup ? toMatchupSummary(upcomingMatchup) : null,
     recentMatchup: recentMatchup ? toMatchupSummary(recentMatchup) : null,
-    freeAgents: [],
+    freeAgents,
     availability,
     freshness: {
       generatedAt: new Date().toISOString(),

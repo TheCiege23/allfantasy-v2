@@ -69,6 +69,14 @@ export function buildRedraftWarRoomPrompt(inputs: RedraftWarRoomPromptInputs): s
     `Freshness: generated=${context.freshness.generatedAt} statsAsOf=${context.freshness.statsAsOf ?? 'n/a'} projAsOf=${context.freshness.projectionsAsOf ?? 'n/a'}`,
   )
 
+  if (context.freeAgents.length > 0) {
+    lines.push('')
+    lines.push(`=== TOP FREE AGENTS (ADP-ranked, ${context.freeAgents.length} available) ===`)
+    for (const fa of context.freeAgents.slice(0, 12)) {
+      lines.push(`  ${fa.playerName} ${fa.position}${fa.adp != null ? ` (ADP ${fa.adp})` : ''}`)
+    }
+  }
+
   const userTeam = context.teams.find((t) => t.isUserTeam)
   if (userTeam) {
     lines.push('')
@@ -83,7 +91,9 @@ export function buildRedraftWarRoomPrompt(inputs: RedraftWarRoomPromptInputs): s
           ? `proj ${p.weekProjection}`
           : p.seasonAvgActual != null
             ? `avg ${p.seasonAvgActual}`
-            : 'no value signal'
+            : p.adp != null
+              ? `ADP ${p.adp}`
+              : 'no value signal'
       lines.push(
         `  [${p.isStarterSlot ? 'ST' : 'BN'}] ${p.playerName} ${p.position}${p.team ? ` (${p.team})` : ''} — ${val}${p.injuryStatus ? `, ${p.injuryStatus}` : ''}${p.byeWeek ? `, bye W${p.byeWeek}` : ''}`,
       )

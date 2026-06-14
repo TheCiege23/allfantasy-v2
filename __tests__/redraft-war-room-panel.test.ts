@@ -29,10 +29,23 @@ function makeState() {
       currentWeek: 6,
       totalWeeks: 17,
       missingDataFlags: ['Free-agent pool requires provider integration.'],
+      freeAgents: [{ playerName: 'FA Wideout', position: 'WR', adp: 22.5 }],
+      availability: {
+        projections: 'available',
+        tradeValues: 'available',
+        injuries: 'missing',
+        waiverPool: 'available',
+      },
+      upcomingMatchup: { week: 6, opponentRosterId: 'r2' },
       teams: [
         {
           rosterId: 'r1',
           isUserTeam: true,
+          wins: 4,
+          losses: 2,
+          ties: 0,
+          pointsFor: 742.4,
+          playoffSeed: 3,
           players: [
             {
               playerId: 'p-out',
@@ -42,6 +55,7 @@ function makeState() {
             },
           ],
         },
+        { rosterId: 'r2', isUserTeam: false, teamName: 'Rivals', players: [] },
       ],
     },
     needs: {
