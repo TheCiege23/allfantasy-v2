@@ -25,7 +25,7 @@ import { getEffectiveLeagueRosterTemplate } from '@/lib/league/getEffectiveLeagu
 import { getNormalizedLineupSections } from '@/lib/roster/LineupTemplateValidation'
 import { buildPlayerKey } from '@/lib/adp/computeAllFantasyAdp'
 import { fetchRedraftInjuryNews, injuryNameKey } from '@/lib/redraft-war-room/redraftInjuryNews'
-import { ageTrajectory, dynastyValue } from './dynastyPlayerValue'
+import { ageTrajectory, dynastyValue, pickHeuristicValue } from './dynastyPlayerValue'
 import {
   fetchDynastyFreeAgentPool,
   fetchDynastyValueByKey,
@@ -34,7 +34,9 @@ import {
 import type {
   DataState,
   DynastyDataAvailability,
+  DynastyFuturePick,
   DynastyPlayerFact,
+  DynastyRookieDraftWindow,
   DynastyRosterSettings,
   DynastyScoringSettings,
   DynastyTeamSummary,
@@ -320,6 +322,77 @@ export async function buildDynastyWarRoomContext(
     byRoster.set(p.rosterId, arr)
   }
 
+  // --- future draft pick capital (real, from future_draft_picks) ---
+  // The table may be absent in some environments (no migration applied) — in that
+  // case the query throws P2021 and we degrade to 'missing' without crashing.
+  type PickRow = {
+    id: string
+    pickSeason: number
+    round: number
+    originalRosterId: string
+    currentOwnerId: string
+    status: string
+    traded: boolean
+  }
+  let pickTableMissing = false
+  const pickRows = (await prisma.futureDraftPick
+    .findMany({
+      where: { leagueId, status: { in: ['active', 'traded'] } },
+      select: {
+        id: true,
+        pickSeason: true,
+        round: true,
+        originalRosterId: true,
+        currentOwnerId: true,
+        status: true,
+        traded: true,
+      },
+      orderBy: [{ pickSeason: 'asc' }, { round: 'asc' }],
+    })
+    .catch((e: unknown) => {
+      if ((e as { code?: string } | null)?.code === 'P2021') pickTableMissing = true
+      return [] as PickRow[]
+    })) as PickRow[]
+
+  const picksByOwner = new Map<string, DynastyFuturePick[]>()
+  for (const pk of pickRows) {
+    const seasonsOut = pk.pickSeason - season
+    const fact: DynastyFuturePick = {
+      id: pk.id,
+      season: pk.pickSeason,
+      round: pk.round,
+      originalRosterId: pk.originalRosterId,
+      currentOwnerId: pk.currentOwnerId,
+      traded: pk.traded,
+      status: pk.status,
+      estValue: pickHeuristicValue(pk.round, seasonsOut),
+    }
+    const arr = picksByOwner.get(pk.currentOwnerId) ?? []
+    arr.push(fact)
+    picksByOwner.set(pk.currentOwnerId, arr)
+  }
+
+  // --- rookie draft windows (real, from rookie_draft_windows) ---
+  type WindowRow = {
+    season: number
+    status: string
+    draftOrderMethod: string
+    scheduledDraftDate: Date | null
+  }
+  const windowRows = (await prisma.rookieDraftWindow
+    .findMany({
+      where: { leagueId },
+      select: { season: true, status: true, draftOrderMethod: true, scheduledDraftDate: true },
+      orderBy: { season: 'asc' },
+    })
+    .catch(() => [] as WindowRow[])) as WindowRow[]
+  const rookieDraftWindows: DynastyRookieDraftWindow[] = windowRows.map((w) => ({
+    season: w.season,
+    status: w.status,
+    draftOrderMethod: w.draftOrderMethod,
+    scheduledDraftDate: w.scheduledDraftDate ? w.scheduledDraftDate.toISOString() : null,
+  }))
+
   const teams: DynastyTeamSummary[] = rosterRows.map((r) => {
     const team = teamByUser.get(r.platformUserId) ?? null
     return {
@@ -334,7 +407,8 @@ export async function buildDynastyWarRoomContext(
       playoffSeed: team?.currentRank ?? null,
       isUserTeam: r.platformUserId === userId,
       players: (byRoster.get(r.id) ?? []).map(toPlayerFact),
-      picks: [], // FutureDraftPick tables not migrated here → provider-limited (never fabricated)
+      // Picks are keyed by currentOwnerId (the roster that holds them after trades).
+      picks: picksByOwner.get(r.id) ?? [],
     }
   })
 
@@ -376,6 +450,13 @@ export async function buildDynastyWarRoomContext(
   const standingsAvailable = teamRows.some(
     (t) => (t.wins ?? 0) + (t.losses ?? 0) + (t.ties ?? 0) > 0 || (t.pointsFor ?? 0) > 0,
   )
+  // futurePicks: 'missing' when the table is absent; 'available' when rows exist for
+  // this league; 'available_empty' when tracking is enabled but no picks recorded yet.
+  const futurePicksState: DataState = pickTableMissing
+    ? 'missing'
+    : pickRows.length > 0
+      ? 'available'
+      : 'available_empty'
   const availability: DynastyDataAvailability = {
     scoringRules: 'available',
     rosterRules: rosterRulesState,
@@ -383,7 +464,7 @@ export async function buildDynastyWarRoomContext(
     rosters: rosterRows.length > 0 ? 'available' : 'missing',
     playerValues: valuesAvailable ? 'available' : 'missing',
     playerAges: agesAvailable ? 'available' : 'missing',
-    futurePicks: 'missing', // FutureDraftPick/RookieDraftWindow not migrated in this DB
+    futurePicks: futurePicksState,
     injuries:
       injuryNews.injuryByName.size > 0 || allRosterPlayers.some((p) => p.injuryStatus)
         ? 'available'
@@ -403,7 +484,9 @@ export async function buildDynastyWarRoomContext(
   if (availability.playerAges === 'missing')
     missingDataFlags.push('No player ages available — age-trajectory signals are limited.')
   if (availability.futurePicks === 'missing')
-    missingDataFlags.push('Future draft pick data is not available in this environment — pick capital is not modeled.')
+    missingDataFlags.push('Future pick tracking is not enabled for this league yet — pick capital is not modeled.')
+  else if (availability.futurePicks === 'available_empty')
+    missingDataFlags.push('Future pick tracking is enabled, but no picks are recorded for this league yet.')
   if (availability.standings === 'missing')
     missingDataFlags.push('No standings/records yet — contention-window read relies on roster value only.')
   if (availability.injuries === 'missing') missingDataFlags.push('No injury data available.')
@@ -423,6 +506,7 @@ export async function buildDynastyWarRoomContext(
     isCommissioner: access.isCommissioner,
     teams,
     freeAgents,
+    rookieDraftWindows,
     availability,
     freshness: {
       generatedAt: new Date().toISOString(),

@@ -31,6 +31,8 @@ export interface BuySellHoldResult {
   rosterId: string
   window: ContentionWindow
   entries: BuySellHoldEntry[]
+  /** Honest, pick-aware note tying the calls to the team's pick capital (null when picks untracked). */
+  pickCapitalNote: string | null
   missingDataFlags: string[]
   needsValueSignal: boolean
 }
@@ -74,7 +76,7 @@ export function evaluateBuySellHold(
   const team = context.teams.find((t) => t.rosterId === rosterId)
   const missingDataFlags = [...context.missingDataFlags]
   if (!team) {
-    return { rosterId, window: 'unknown', entries: [], missingDataFlags: ['Roster not found in this league.'], needsValueSignal: true }
+    return { rosterId, window: 'unknown', entries: [], pickCapitalNote: null, missingDataFlags: ['Roster not found in this league.'], needsValueSignal: true }
   }
 
   const needsValueSignal = context.availability.playerValues !== 'available'
@@ -109,10 +111,26 @@ export function evaluateBuySellHold(
       return (b.value ?? -1) - (a.value ?? -1)
     })
 
+  // Pick-aware note (only when picks are really tracked).
+  let pickCapitalNote: string | null = null
+  if (context.availability.futurePicks === 'available') {
+    const early = direction.earlyPickCount
+    if (direction.window === 'contend' && early === 0) {
+      pickCapitalNote = 'Contending with no early picks — be willing to spend later picks to upgrade now.'
+    } else if (direction.window === 'contend' && early > 0) {
+      pickCapitalNote = `Contending with ${early} early pick(s) — strong currency to package for a win-now upgrade.`
+    } else if (direction.window === 'rebuild' && early >= 2) {
+      pickCapitalNote = `Rebuilding with ${early} early pick(s) — pick capital is healthy; keep accumulating youth.`
+    } else if (direction.window === 'rebuild') {
+      pickCapitalNote = 'Rebuilding with limited early picks — convert aging vets into future picks.'
+    }
+  }
+
   return {
     rosterId,
     window: direction.window,
     entries,
+    pickCapitalNote,
     missingDataFlags: [...new Set([...missingDataFlags, ...direction.missingDataFlags])],
     needsValueSignal,
   }

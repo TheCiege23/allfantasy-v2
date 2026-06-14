@@ -59,3 +59,19 @@ export function ageTrajectory(position: string, age: number | null): AgeTrajecto
   // K / DEF / IDP — age curve not modeled.
   return 'unknown'
 }
+
+/**
+ * Deterministic structural TIER for a future rookie pick, on the same rough scale
+ * as dynasty player value (so picks can be compared against players in a trade).
+ *
+ * This is NOT a fabricated market value — it is a transparent function of the pick's
+ * own attributes (round + how many seasons out), reflecting the well-known scaling
+ * that earlier rounds and nearer drafts are worth more. Far-out picks are discounted.
+ * Returns null when the round is unknown.
+ */
+export function pickHeuristicValue(round: number | null | undefined, seasonsOut: number): number | null {
+  if (round == null || !Number.isFinite(round) || round < 1) return null
+  const base = round === 1 ? 18 : round === 2 ? 10 : round === 3 ? 5 : 2
+  const discount = seasonsOut <= 0 ? 1.0 : seasonsOut === 1 ? 0.95 : seasonsOut === 2 ? 0.85 : 0.7
+  return Math.round(base * discount * 100) / 100
+}

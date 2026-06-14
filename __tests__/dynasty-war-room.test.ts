@@ -10,9 +10,10 @@ import {
   DYNASTY_WAR_ROOM_SYSTEM_RULES,
   buildDynastyWarRoomPrompt,
 } from '@/lib/dynasty-war-room/dynastyWarRoomPrompt'
-import { adpToDynastyValue, ageTrajectory, dynastyValue } from '@/lib/dynasty-war-room/dynastyPlayerValue'
+import { adpToDynastyValue, ageTrajectory, dynastyValue, pickHeuristicValue } from '@/lib/dynasty-war-room/dynastyPlayerValue'
 import type {
   DynastyDataAvailability,
+  DynastyFuturePick,
   DynastyPlayerFact,
   DynastyTeamSummary,
   DynastyWarRoomContext,
@@ -73,8 +74,27 @@ function team(over: Partial<DynastyTeamSummary> & { rosterId: string }): Dynasty
   }
 }
 
+function pick(
+  p: Partial<DynastyFuturePick> & { id: string; season: number; round: number; currentOwnerId: string },
+): DynastyFuturePick {
+  const seasonsOut = p.season - 2026
+  return {
+    id: p.id,
+    season: p.season,
+    round: p.round,
+    originalRosterId: p.originalRosterId ?? p.currentOwnerId,
+    currentOwnerId: p.currentOwnerId,
+    traded: p.traded ?? false,
+    status: p.status ?? 'active',
+    estValue: p.estValue ?? pickHeuristicValue(p.round, seasonsOut),
+  }
+}
+
 function makeContext(over: Partial<DynastyWarRoomContext> = {}): DynastyWarRoomContext {
   const availability = { ...FULL_AVAILABILITY, ...(over.availability ?? {}) }
+  // Strip the partial `availability` out of `over` so the trailing spread does not
+  // clobber the carefully MERGED availability with a partial override.
+  const { availability: _ignoredAvailability, featureAvailability: _ignoredFeature, ...restOver } = over
   return {
     leagueId: 'lg1',
     leagueType: 'dynasty',
@@ -92,6 +112,7 @@ function makeContext(over: Partial<DynastyWarRoomContext> = {}): DynastyWarRoomC
     isCommissioner: false,
     teams: over.teams ?? [],
     freeAgents: over.freeAgents ?? [],
+    rookieDraftWindows: over.rookieDraftWindows ?? [],
     availability,
     freshness: { generatedAt: new Date().toISOString(), valuesAsOf: null, injuriesAsOf: null },
     missingDataFlags: over.missingDataFlags ?? [],
@@ -106,7 +127,7 @@ function makeContext(over: Partial<DynastyWarRoomContext> = {}): DynastyWarRoomC
       pickValue: false,
       ...(over.featureAvailability ?? {}),
     },
-    ...over,
+    ...restOver,
   }
 }
 
@@ -337,12 +358,113 @@ describe('dynastyTradeEngine', () => {
 // --- pick value (provider-limited) -------------------------------------------
 
 describe('dynastyPickValueEngine', () => {
-  it('reports provider integration needed when pick data is missing', () => {
+  it('reports provider integration needed when the table is missing', () => {
     const ctx = makeContext({ teams: [contenderRoster()] })
     const res = evaluateDynastyPickValue(ctx, 'r1')
     expect(res.needsProviderIntegration).toBe(true)
     expect(res.picks).toHaveLength(0)
     expect(res.totalEstValue).toBeNull()
+  })
+
+  it('reports an honest empty (not provider-limited) state when tracking is enabled but empty', () => {
+    const ctx = makeContext({
+      teams: [contenderRoster()],
+      availability: { futurePicks: 'available_empty' },
+    })
+    const res = evaluateDynastyPickValue(ctx, 'r1')
+    expect(res.needsProviderIntegration).toBe(false)
+    expect(res.trackingEnabledEmpty).toBe(true)
+    expect(res.picks).toHaveLength(0)
+  })
+
+  it('summarizes real picks (early count + total tier) when picks exist', () => {
+    const team1 = contenderRoster()
+    team1.picks = [
+      pick({ id: 'p1', season: 2027, round: 1, currentOwnerId: 'r1' }),
+      pick({ id: 'p2', season: 2027, round: 3, currentOwnerId: 'r1' }),
+      pick({ id: 'p3', season: 2028, round: 2, currentOwnerId: 'r1', originalRosterId: 'r2', traded: true }),
+    ]
+    const ctx = makeContext({ teams: [team1], availability: { futurePicks: 'available' } })
+    const res = evaluateDynastyPickValue(ctx, 'r1')
+    expect(res.needsProviderIntegration).toBe(false)
+    expect(res.picks).toHaveLength(3)
+    expect(res.earlyPickCount).toBe(2) // R1 + R2
+    expect(res.totalEstValue).toBeGreaterThan(0)
+    // A traded-in pick is flagged as acquired, not original.
+    expect(res.picks.find((p) => p.id === 'p3')?.fromOriginalOwner).toBe(false)
+  })
+})
+
+// --- pick capital across engines ---------------------------------------------
+
+describe('dynasty pick capital integration', () => {
+  it('values picks via a deterministic structural tier (earlier round + nearer = higher)', () => {
+    expect(pickHeuristicValue(1, 0)!).toBeGreaterThan(pickHeuristicValue(2, 0)!)
+    expect(pickHeuristicValue(1, 0)!).toBeGreaterThan(pickHeuristicValue(1, 3)!)
+    expect(pickHeuristicValue(null, 0)).toBeNull()
+  })
+
+  it('contender with weak pick capital is advised to spend picks to upgrade now', () => {
+    const team1 = contenderRoster()
+    team1.picks = [pick({ id: 'l1', season: 2028, round: 4, currentOwnerId: 'r1' })] // late only
+    const ctx = makeContext({ teams: [team1], availability: { futurePicks: 'available' } })
+    const bsh = evaluateBuySellHold(ctx, 'r1')
+    expect(bsh.window).toBe('contend')
+    expect(bsh.pickCapitalNote).toMatch(/no early picks|spend/i)
+  })
+
+  it('rebuilder with strong pick capital is told its pick capital is healthy', () => {
+    const team2 = rebuilderRoster()
+    team2.picks = [
+      pick({ id: 'e1', season: 2027, round: 1, currentOwnerId: 'r2' }),
+      pick({ id: 'e2', season: 2027, round: 2, currentOwnerId: 'r2' }),
+      pick({ id: 'e3', season: 2028, round: 1, currentOwnerId: 'r2' }),
+    ]
+    const ctx = makeContext({ teams: [team2], userRosterId: 'r2', availability: { futurePicks: 'available' } })
+    const dir = evaluateDynastyTeamDirection(ctx, 'r2')
+    expect(dir.window).toBe('rebuild')
+    expect(dir.earlyPickCount).toBe(3)
+    expect(dir.pickCapitalValue).not.toBeNull()
+    const bsh = evaluateBuySellHold(ctx, 'r2')
+    expect(bsh.pickCapitalNote).toMatch(/healthy|accumulating/i)
+  })
+
+  it('prices picks inside a trade and excludes them when tracking is unavailable', () => {
+    const c = contenderRoster()
+    const r = rebuilderRoster()
+    r.picks = [pick({ id: 'rp1', season: 2027, round: 1, currentOwnerId: 'r2' })]
+    const ctx = makeContext({ teams: [c, r], availability: { futurePicks: 'available' } })
+    const withPick = analyzeDynastyTrade(ctx, {
+      rosterId: 'r1',
+      outgoingPlayerIds: ['rb2'],
+      incomingPlayerIds: [],
+      incomingPickIds: ['rp1'],
+    })
+    expect(withPick.pickImpact.some((s) => s.includes('2027 R1'))).toBe(true)
+    expect(withPick.valueDelta).not.toBeNull()
+
+    // Same pick id, but tracking unavailable → excluded + flagged, no crash.
+    const ctxNoPicks = makeContext({ teams: [c, r], availability: { futurePicks: 'missing' } })
+    const noPick = analyzeDynastyTrade(ctxNoPicks, {
+      rosterId: 'r1',
+      outgoingPlayerIds: ['rb2'],
+      incomingPlayerIds: [],
+      incomingPickIds: ['rp1'],
+    })
+    expect(noPick.riskFlags.some((s) => /not tracked/i.test(s))).toBe(true)
+  })
+
+  it('trade finder surfaces a pick angle between a contender and a pick-rich rebuilder', () => {
+    const c = contenderRoster()
+    const r = rebuilderRoster()
+    r.picks = [
+      pick({ id: 'rp1', season: 2027, round: 1, currentOwnerId: 'r2' }),
+      pick({ id: 'rp2', season: 2027, round: 2, currentOwnerId: 'r2' }),
+    ]
+    const ctx = makeContext({ teams: [c, r], availability: { futurePicks: 'available' } })
+    const res = findDynastyTradeTargets(ctx, 'r1')
+    const partner = res.targets.find((t) => t.rosterId === 'r2')
+    expect(partner?.reasons.some((s) => /pick/i.test(s))).toBe(true)
   })
 })
 
@@ -352,7 +474,7 @@ describe('dynastyWarRoomPrompt', () => {
   it('includes dynasty-only grounding rules and no redraft short-season framing', () => {
     expect(DYNASTY_WAR_ROOM_SYSTEM_RULES).toContain('DYNASTY')
     expect(DYNASTY_WAR_ROOM_SYSTEM_RULES.toLowerCase()).toContain('multi-year')
-    expect(DYNASTY_WAR_ROOM_SYSTEM_RULES.toLowerCase()).toContain('not priced')
+    expect(DYNASTY_WAR_ROOM_SYSTEM_RULES.toLowerCase()).toContain('never invent picks')
   })
 
   it('serializes context + engine outputs deterministically', () => {

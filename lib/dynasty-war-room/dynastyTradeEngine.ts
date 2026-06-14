@@ -2,19 +2,21 @@
  * DYNASTY TRADE ANALYZER / FINDER — pure, deterministic. No AI, no fabrication.
  *
  * analyzeDynastyTrade(): compares outgoing vs incoming using dynasty asset VALUE,
- * AGE-trajectory adjustment, and roster-fit. Dynasty horizon — value is long-term,
- * not weekly. When no value signal exists for the involved players the verdict is
- * 'needs_more_data' rather than a fabricated grade. Future picks are NOT priced
- * (provider-limited); a pick included in a trade is flagged as unpriced.
+ * AGE-trajectory adjustment, roster-fit, AND real future-pick capital. Dynasty
+ * horizon — value is long-term, not weekly. Picks are priced by their deterministic
+ * structural tier (round + seasons-out), never a fabricated market value. When no
+ * value signal exists for the involved assets the verdict is 'needs_more_data'.
  *
  * findDynastyTradeTargets(): ranks partners by complementary needs/surplus AND
- * contention windows — contenders pair with rebuilders (win-now vets ↔ youth/picks).
+ * contention windows — contenders pair with rebuilders (win-now vets ↔ youth/picks),
+ * surfacing player-for-pick / pick-for-player angles when pick capital is asymmetric.
  */
 
 import { dynastyValue, ageTrajectory, type AgeTrajectory } from './dynastyPlayerValue'
 import { evaluateDynastyTeamNeeds } from './dynastyRosterNeedsEngine'
 import { evaluateDynastyTeamDirection } from './dynastyTeamDirectionEngine'
-import type { DynastyPlayerFact, DynastyWarRoomContext } from './types'
+import { summarizePickCapital } from './dynastyPickValueEngine'
+import type { DynastyFuturePick, DynastyPlayerFact, DynastyWarRoomContext } from './types'
 
 export type DynastyTradeVerdict = 'accept' | 'reject' | 'neutral' | 'needs_more_data'
 
@@ -24,6 +26,8 @@ export interface DynastyTradeAnalysis {
   valueDelta: number | null
   rosterFitDelta: number
   ageImpact: string[]
+  /** Notes about draft picks included in the trade (priced by structural tier). */
+  pickImpact: string[]
   directionImpact: string | null
   riskFlags: string[]
   explanationFacts: string[]
@@ -62,6 +66,15 @@ function findPlayers(context: DynastyWarRoomContext, ids: string[]): DynastyPlay
   return ids.map((id) => all.find((p) => p.playerId === id)).filter((p): p is DynastyPlayerFact => Boolean(p))
 }
 
+function findPicks(context: DynastyWarRoomContext, ids: string[]): DynastyFuturePick[] {
+  const all = context.teams.flatMap((t) => t.picks)
+  return ids.map((id) => all.find((pk) => pk.id === id)).filter((pk): pk is DynastyFuturePick => Boolean(pk))
+}
+
+function pickLabel(pk: DynastyFuturePick): string {
+  return `${pk.season} R${pk.round}`
+}
+
 export interface AnalyzeDynastyTradeInput {
   rosterId: string
   outgoingPlayerIds: string[]
@@ -79,29 +92,42 @@ export function analyzeDynastyTrade(
   const facts: string[] = []
   const riskFlags: string[] = []
   const ageImpact: string[] = []
+  const pickImpact: string[] = []
 
   const outgoing = findPlayers(context, input.outgoingPlayerIds)
   const incoming = findPlayers(context, input.incomingPlayerIds)
+  const outgoingPicks = findPicks(context, input.outgoingPickIds ?? [])
+  const incomingPicks = findPicks(context, input.incomingPickIds ?? [])
 
-  if (outgoing.length === 0 && incoming.length === 0) {
+  if (outgoing.length === 0 && incoming.length === 0 && outgoingPicks.length === 0 && incomingPicks.length === 0) {
     return {
       verdict: 'needs_more_data',
       valueDelta: null,
       rosterFitDelta: 0,
       ageImpact: [],
+      pickImpact: [],
       directionImpact: null,
       riskFlags: [],
-      explanationFacts: ['No players resolved for this trade.'],
+      explanationFacts: ['No players or picks resolved for this trade.'],
       missingDataFlags,
     }
   }
 
-  if ((input.outgoingPickIds?.length ?? 0) > 0 || (input.incomingPickIds?.length ?? 0) > 0) {
-    riskFlags.push('Trade includes draft picks, which are not priced in this environment — value delta covers players only.')
+  // Picks priced by deterministic structural tier (round + seasons-out) — not market.
+  const picksAvailable = context.availability.futurePicks === 'available'
+  const requestedPickIds = (input.outgoingPickIds?.length ?? 0) + (input.incomingPickIds?.length ?? 0)
+  if (requestedPickIds > 0 && !picksAvailable) {
+    riskFlags.push('Pick capital is not tracked for this league — picks in this trade are excluded from the value delta.')
+  } else if (requestedPickIds > 0 && requestedPickIds !== outgoingPicks.length + incomingPicks.length) {
+    riskFlags.push('Some referenced picks could not be resolved and were excluded.')
   }
+  const outPickValues = outgoingPicks.map((pk) => pk.estValue)
+  const inPickValues = incomingPicks.map((pk) => pk.estValue)
+  for (const pk of incomingPicks) pickImpact.push(`Acquiring ${pickLabel(pk)} pick${pk.estValue != null ? ` (tier ${pk.estValue.toFixed(1)})` : ''}.`)
+  for (const pk of outgoingPicks) pickImpact.push(`Sending ${pickLabel(pk)} pick${pk.estValue != null ? ` (tier ${pk.estValue.toFixed(1)})` : ''}.`)
 
-  const outValues = outgoing.map(ageAdjustedValue)
-  const inValues = incoming.map(ageAdjustedValue)
+  const outValues = [...outgoing.map(ageAdjustedValue), ...outPickValues]
+  const inValues = [...incoming.map(ageAdjustedValue), ...inPickValues]
   const haveAllValues = [...outValues, ...inValues].every((v) => v != null)
   const haveAnyValue = [...outValues, ...inValues].some((v) => v != null)
 
@@ -110,8 +136,9 @@ export function analyzeDynastyTrade(
     const inSum = inValues.reduce<number>((s, v) => s + (v ?? 0), 0)
     const outSum = outValues.reduce<number>((s, v) => s + (v ?? 0), 0)
     valueDelta = Math.round((inSum - outSum) * 100) / 100
+    const pickNote = outgoingPicks.length + incomingPicks.length > 0 ? ' (incl. pick tiers)' : ''
     facts.push(
-      `Age-adjusted value in ${inSum.toFixed(1)} vs out ${outSum.toFixed(1)} (delta ${valueDelta >= 0 ? '+' : ''}${valueDelta}).`,
+      `Age-adjusted value in ${inSum.toFixed(1)} vs out ${outSum.toFixed(1)} (delta ${valueDelta >= 0 ? '+' : ''}${valueDelta})${pickNote}.`,
     )
   }
 
@@ -168,7 +195,7 @@ export function analyzeDynastyTrade(
   let verdict: DynastyTradeVerdict
   if (!haveAnyValue) {
     verdict = 'needs_more_data'
-    missingDataFlags.push('No dynasty value signal for the involved players — verdict unavailable.')
+    missingDataFlags.push('No dynasty value signal for the involved players or picks — verdict unavailable.')
   } else {
     if (!haveAllValues) riskFlags.push('Some players lack a value signal — verdict weighted by available data only.')
     const composite = (valueDelta ?? 0) + rosterFitDelta * 1.5
@@ -182,6 +209,7 @@ export function analyzeDynastyTrade(
     valueDelta,
     rosterFitDelta,
     ageImpact: [...new Set(ageImpact)],
+    pickImpact: [...new Set(pickImpact)],
     directionImpact,
     riskFlags: [...new Set(riskFlags)],
     explanationFacts: facts,
@@ -246,6 +274,19 @@ export function findDynastyTradeTargets(
       } else if (myDir.window === otherDir.window && myDir.window === 'contend') {
         fitScore -= 10
         windowFit = 'Both contending — overlapping win-now goals make a value-add trade harder.'
+      }
+    }
+
+    // Pick-capital angle (only when picks are really tracked).
+    if (context.availability.futurePicks === 'available') {
+      const myPicks = summarizePickCapital(me?.picks ?? [])
+      const otherPicks = summarizePickCapital(other.picks)
+      if (myDir.window === 'contend' && otherDir.window === 'rebuild' && otherPicks.earlyPickCount > 0) {
+        fitScore += 8
+        reasons.push(`They hold ${otherPicks.earlyPickCount} early pick(s) — target a pick-for-win-now-player package.`)
+      } else if (myDir.window === 'rebuild' && otherDir.window === 'contend' && myPicks.earlyPickCount === 0 && (myNeeds.tradeTargetPositions.length > 0)) {
+        fitScore += 8
+        reasons.push('Rebuilding: offer a productive vet for their future picks to stock pick capital.')
       }
     }
 

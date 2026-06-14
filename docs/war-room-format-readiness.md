@@ -20,7 +20,7 @@ runtime), versus what still routes through generic/strategy surfaces. Updated
 | Format | Status | Notes |
 | --- | --- | --- |
 | **Redraft** | ✅ Native War Room | `lib/redraft-war-room` — context, needs/lineup/waiver/trade engines, routes, Chimmy grounding, panel, runtime E2E. Season horizon. |
-| **Dynasty** | ✅ Native War Room | `lib/dynasty-war-room` — context (legacy `Roster` + dynasty ADP + ages), team-direction/needs/buy-sell-hold/trade/waiver/lineup/pick-value engines, routes, Chimmy grounding, panel, runtime E2E. Multi-year horizon; future picks provider-limited. |
+| **Dynasty** | ✅ Native War Room | `lib/dynasty-war-room` — context (legacy `Roster` + dynasty ADP + ages + **real future picks**), team-direction/needs/buy-sell-hold/trade/waiver/lineup/pick-value engines, routes, Chimmy grounding, panel, runtime E2E. Multi-year horizon; **pick capital real** (`future_draft_picks`/`rookie_draft_windows` migrated 2026-06-14). |
 | Dynasty (connected/Sleeper) | ☑ Grounded (shared) | `lib/league-decision-context` + `app/api/trade-evaluator` (FantasyCalc). The native War Room does not replace this for connected leagues. |
 | Keeper | ⛔ Strategy/meta only | Not started. |
 | Best Ball | ⛔ Strategy/meta only | Not started. |
@@ -39,9 +39,11 @@ runtime), versus what still routes through generic/strategy surfaces. Updated
 - **Direction**: dynasty adds a **contention-window** engine (contend / rebuild /
   middle) driven by record + starter age; it powers buy/sell/hold and trade-finder
   partner matching (contenders ↔ rebuilders).
-- **Picks**: future draft picks are **not priced** in this environment
-  (`FutureDraftPick`/`RookieDraftWindow` unmigrated) — flagged provider-limited, never
-  fabricated.
+- **Picks**: future draft picks are **real** (`future_draft_picks`/`rookie_draft_windows`
+  migrated 2026-06-14) and priced by a deterministic structural **tier** (round + years
+  out), never a fabricated market value. Engines (direction, buy/sell/hold, trade
+  analyze/find) are pick-aware; the panel shows a pick-capital card. Truthful states:
+  `available` / `available_empty` / `missing`. See `docs/dynasty-pick-capital-audit.md`.
 - **Lineup**: dynasty start/sit is explicitly **low confidence** (value/ADP proxy, no
   weekly projections) and is most useful for contenders.
 

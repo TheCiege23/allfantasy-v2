@@ -11,7 +11,12 @@
  * - NFL pools never mix with NCAAF pools (sport carried through).
  */
 
-export type DataState = 'available' | 'stale' | 'missing'
+/**
+ * `available_empty` = the backing table EXISTS but holds no rows for this league
+ * (a truthful "tracking enabled, nothing recorded yet" state). Distinct from
+ * `missing` (table/provider not available at all). Used by futurePicks.
+ */
+export type DataState = 'available' | 'stale' | 'missing' | 'available_empty'
 
 export interface DynastyDataAvailability {
   scoringRules: DataState
@@ -69,12 +74,32 @@ export interface DynastyPlayerFact {
 }
 
 export interface DynastyFuturePick {
+  /** Stable DB id (future_draft_picks.id) — used to reference a pick in a trade. */
+  id: string
   season: number
   round: number
-  /** Original owner team/roster id when known. */
+  /** Original owner team/roster id (immutable "home" of the pick). */
   originalRosterId: string | null
-  /** Rough value tier when derivable from round/season; null when no pick-value source. */
+  /** Roster currently holding the pick (differs from original when traded). */
+  currentOwnerId: string | null
+  /** True when this pick has changed hands at least once. */
+  traded: boolean
+  /** active | traded | forfeited | used (mirrors FutureDraftPickStatus). */
+  status: string
+  /**
+   * Deterministic structural TIER derived ONLY from round + seasons-out (a known
+   * rookie-pick scaling), used for relative comparison. This is NOT a market value
+   * and is never fabricated from external data; null when round is unknown.
+   */
   estValue: number | null
+}
+
+/** Rookie draft window state for a season (null when no window row exists). */
+export interface DynastyRookieDraftWindow {
+  season: number
+  status: string
+  draftOrderMethod: string
+  scheduledDraftDate: string | null
 }
 
 export interface DynastyTeamSummary {
@@ -108,6 +133,8 @@ export interface DynastyWarRoomContext {
   isCommissioner: boolean
   teams: DynastyTeamSummary[]
   freeAgents: DynastyPlayerFact[]
+  /** Rookie draft windows for upcoming seasons (empty when none recorded). */
+  rookieDraftWindows: DynastyRookieDraftWindow[]
   availability: DynastyDataAvailability
   freshness: DynastyFreshness
   missingDataFlags: string[]

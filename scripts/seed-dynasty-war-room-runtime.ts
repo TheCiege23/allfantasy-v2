@@ -345,6 +345,68 @@ async function seedLeague() {
   })
 }
 
+/**
+ * Seed real future-pick capital + a rookie draft window.
+ *
+ * Scenario: the MEMBER is a contender with WEAK pick capital (only late picks, and
+ * traded its 2027 1st + 2nd away). The OPPONENT/commissioner is a rebuilder with
+ * STRONG pick capital (multiple early picks, including the member's traded 1st/2nd).
+ * Picks reference rosterIds (currentOwnerId/originalRosterId). Wrapped so a test env
+ * WITHOUT the migration (P2021) degrades gracefully instead of hard-failing.
+ */
+async function seedPicks() {
+  const { leagueId, memberRosterId, opponentRosterId } = DYNASTY_WAR_ROOM_RUNTIME_SEED
+  type SeedPick = {
+    pickSeason: number
+    round: number
+    originalRosterId: string
+    currentOwnerId: string
+    traded: boolean
+  }
+  const picks: SeedPick[] = [
+    // Member (contender) keeps only late picks.
+    { pickSeason: 2027, round: 3, originalRosterId: memberRosterId, currentOwnerId: memberRosterId, traded: false },
+    { pickSeason: 2028, round: 3, originalRosterId: memberRosterId, currentOwnerId: memberRosterId, traded: false },
+    { pickSeason: 2028, round: 4, originalRosterId: memberRosterId, currentOwnerId: memberRosterId, traded: false },
+    // Opponent (rebuilder) owns its own early picks…
+    { pickSeason: 2027, round: 1, originalRosterId: opponentRosterId, currentOwnerId: opponentRosterId, traded: false },
+    { pickSeason: 2027, round: 2, originalRosterId: opponentRosterId, currentOwnerId: opponentRosterId, traded: false },
+    { pickSeason: 2028, round: 1, originalRosterId: opponentRosterId, currentOwnerId: opponentRosterId, traded: false },
+    { pickSeason: 2029, round: 1, originalRosterId: opponentRosterId, currentOwnerId: opponentRosterId, traded: false },
+    // …plus the member's traded-away 2027 1st + 2nd (traded scenario).
+    { pickSeason: 2027, round: 1, originalRosterId: memberRosterId, currentOwnerId: opponentRosterId, traded: true },
+    { pickSeason: 2027, round: 2, originalRosterId: memberRosterId, currentOwnerId: opponentRosterId, traded: true },
+  ]
+
+  try {
+    await prisma.futureDraftPick.deleteMany({ where: { leagueId } })
+    await prisma.futureDraftPick.createMany({
+      data: picks.map((p) => ({
+        leagueId,
+        pickSeason: p.pickSeason,
+        round: p.round,
+        originalRosterId: p.originalRosterId,
+        currentOwnerId: p.currentOwnerId,
+        // A traded pick is still a live, usable asset for its new owner — keep it
+        // 'active'; the `traded` boolean records that it changed hands.
+        status: 'active',
+        traded: p.traded,
+      })),
+      skipDuplicates: true,
+    })
+    await prisma.rookieDraftWindow.deleteMany({ where: { leagueId } })
+    await prisma.rookieDraftWindow.create({
+      data: { leagueId, season: 2027, status: 'pending', draftOrderMethod: 'max_pf' },
+    })
+  } catch (error) {
+    if ((error as { code?: string } | null)?.code === 'P2021') {
+      console.warn('[seed] future_draft_picks / rookie_draft_windows not migrated in this DB — skipping pick seed.')
+      return
+    }
+    throw error
+  }
+}
+
 async function connectWithRetry(attempts = 5): Promise<void> {
   for (let i = 1; i <= attempts; i += 1) {
     try {
@@ -365,6 +427,7 @@ export async function seedDynastyWarRoomRuntime() {
   await seedSportsPlayers()
   await seedDynastyAdp()
   await seedLeague()
+  await seedPicks()
   return { ...DYNASTY_WAR_ROOM_RUNTIME_SEED }
 }
 

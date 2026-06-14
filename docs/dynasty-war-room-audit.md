@@ -9,7 +9,7 @@ no redraft short-season logic for asset values. No fabrication; NFL/NCAAF pools 
 | --- | --- | --- |
 | Dynasty defaults | **complete** | `lib/league-concepts/dynastyDefaults.ts`, `lib/dynasty-core/*Presets`, `DynastySettingsService` |
 | League creation / settings | **complete** | `League.isDynasty` + `leagueVariant`; `getEffectiveDynastySettings`, taxi settings service |
-| Roster / taxi / pick models | **partial** | Native rosters use legacy `Roster` (`playerData.playerIds`) + `LeagueTeam`; taxi via `DevyTaxiSlot`/taxi settings; **`FutureDraftPick`/`RookieDraftWindow` tables MISSING in this DB (P2021)** → pick capital provider-limited |
+| Roster / taxi / pick models | **complete** | Native rosters use legacy `Roster` (`playerData.lineup_sections`) + `LeagueTeam`; taxi via `DevyTaxiSlot`/taxi settings; **`FutureDraftPick`/`RookieDraftWindow` tables NOW MIGRATED** (2026-06-14, scoped additive migration) → pick capital is real. See `docs/dynasty-pick-capital-audit.md`. |
 | Sleeper + FantasyCalc decision context | **complete (connected leagues)** | `lib/league-decision-context.ts` builds WIN_NOW/REBUILD/MIDDLE + needs/surplus + pickCapital + partnerFit from **Sleeper rosters + FantasyCalc**. Used by `app/api/trade-evaluator/route.ts` for connected leagues — NOT a native-league context. |
 | Dynasty trade analyzer | **complete (connected)** | `app/api/trade-evaluator/route.ts` (FantasyCalc-powered, dynasty-aware) |
 | Chimmy dynasty context | **stub (settings-only)** | `lib/dynasty-core/dynastyContextForChimmy.ts` explains playoff/SF/taxi/rookie-draft settings only — **no value/roster/trade/buy-sell grounding** |
@@ -30,7 +30,7 @@ no redraft short-season logic for asset values. No fabrication; NFL/NCAAF pools 
 | League settings | `League` row + `getEffectiveDynastySettings` + `League.settings` |
 | Player value / ranking | **`AllFantasyAdpSnapshot` (leagueType='dynasty')** — deterministic, cached, sport-isolated; the dynasty analog of redraft ADP. (FantasyCalc live remains the connected-league path via `trade-evaluator`.) |
 | Player age / trajectory | `SportsPlayer.age` / `dob` joined by name |
-| Future picks | `FutureDraftPick` (**table missing here → provider-limited flag**, never fabricated) |
+| Future picks | **`FutureDraftPick` (table migrated 2026-06-14)** — real pick capital; priced by deterministic structural tier (round + years out), never a fabricated market value. `available_empty` when enabled-but-empty; `missing` only if a target env lacks the migration. |
 | Free agents | dynasty-ADP players minus rostered (name+pos exclusion) |
 | Injuries / news | `injury_reports` / `player_news` (real, by name) — reuse `redraftInjuryNews` helper |
 | Global Chimmy context | new dynasty War Room context/engines/prompt (the existing settings-only `dynastyContextForChimmy` stays for rules explanation) |
@@ -41,10 +41,10 @@ instead of weekly projections/short-season. Connected/Sleeper leagues keep using
 `league-decision-context` + `trade-evaluator`; the native War Room does not flatten to redraft values.
 
 ## Classification summary
-- **complete:** defaults, settings, entitlement, connected-league decision context + trade evaluator.
-- **available (wire it):** dynasty ADP values, ages, injuries/news, free-agent pool.
-- **missing/provider-limited:** `FutureDraftPick`/`RookieDraftWindow` (pick capital), live weekly projections.
-- **to build:** dynasty War Room context, engines, routes, prompt, panel, global-Chimmy grounding, seed, runtime.
+- **complete:** defaults, settings, entitlement, connected-league decision context + trade evaluator, **native pick capital (`FutureDraftPick`/`RookieDraftWindow` migrated 2026-06-14, wired into context/engines/prompt/panel)**.
+- **available (wired):** dynasty ADP values, ages, injuries/news, free-agent pool, future pick capital.
+- **missing/provider-limited:** live weekly projections (not part of the native dynasty horizon by design).
+- **built:** dynasty War Room context, engines, routes, prompt, panel, global-Chimmy grounding, seed, runtime, pick capital.
 
 ## Build plan (mirrors redraft)
 `lib/dynasty-war-room/{types,dynastyWarRoomContext,playerValue,dynastyFreeAgentPool}` + engines

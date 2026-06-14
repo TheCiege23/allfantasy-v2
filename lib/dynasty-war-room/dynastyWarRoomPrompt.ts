@@ -33,7 +33,7 @@ export const DYNASTY_WAR_ROOM_SYSTEM_RULES = [
   'GROUNDING: Use ONLY the deterministic facts provided below. Do not invent player values, ages, draft picks, injury statuses, betting odds, or news.',
   'When a value, age, pick, injury, or pool is marked unavailable/missing, say so plainly instead of guessing.',
   'This is a DYNASTY league: reason on a MULTI-YEAR horizon. Weigh long-term asset value, AGE/trajectory, and the team\'s contention window (contend vs rebuild vs middle). Do NOT use redraft short-season logic for asset-value decisions.',
-  'Future draft picks are NOT priced in this environment — never assign a pick a fabricated value; treat picks as unpriced when included in a trade.',
+  'Future draft pick capital, when provided, is priced by a deterministic STRUCTURAL TIER (round + how many seasons out) — NOT a real market value. Never invent picks the team does not hold, and never assign a fabricated market value. When pick tracking is unavailable or empty, say so plainly.',
   'Never give betting/real-money advice. Never assert medical certainty about injuries — reference only the listed status.',
   'Be concise. Cite the specific facts you used. End with a one-line confidence note when you made a recommendation.',
   "Only discuss the viewer's own team for personalized advice unless they are the commissioner.",
@@ -86,9 +86,17 @@ export function buildDynastyWarRoomPrompt(inputs: DynastyWarRoomPromptInputs): s
       `${userTeam.teamName ?? userTeam.ownerName} — ${userTeam.wins}-${userTeam.losses}${userTeam.ties ? `-${userTeam.ties}` : ''}, PF ${userTeam.pointsFor.toFixed(1)}, seed ${userTeam.playoffSeed ?? 'n/a'}`,
     )
     if (userTeam.picks.length > 0) {
-      lines.push(`Picks: ${userTeam.picks.map((pk) => `${pk.season} R${pk.round}${pk.estValue != null ? ` (~${pk.estValue})` : ' (unpriced)'}`).join(', ')}`)
+      lines.push(
+        `Pick capital (structural tiers, not market values): ${userTeam.picks
+          .map((pk) => `${pk.season} R${pk.round}${pk.traded ? '*' : ''}${pk.estValue != null ? ` (tier ${pk.estValue})` : ''}`)
+          .join(', ')} ${userTeam.picks.some((pk) => pk.traded) ? '(* = acquired/traded)' : ''}`,
+      )
+    } else if (context.availability.futurePicks === 'available_empty') {
+      lines.push('Pick capital: tracking enabled, but no picks recorded for this team yet.')
+    } else if (context.availability.futurePicks === 'missing') {
+      lines.push('Pick capital: future pick tracking is not enabled for this league.')
     } else {
-      lines.push('Picks: none priced (future pick data unavailable).')
+      lines.push('Pick capital: none held.')
     }
     lines.push('Roster:')
     for (const p of userTeam.players) {
@@ -99,11 +107,19 @@ export function buildDynastyWarRoomPrompt(inputs: DynastyWarRoomPromptInputs): s
     }
   }
 
+  if (context.rookieDraftWindows.length > 0) {
+    lines.push('')
+    lines.push('=== ROOKIE DRAFT WINDOWS ===')
+    for (const w of context.rookieDraftWindows) {
+      lines.push(`  ${w.season}: status=${w.status}, order=${w.draftOrderMethod}${w.scheduledDraftDate ? `, scheduled ${w.scheduledDraftDate.slice(0, 10)}` : ''}`)
+    }
+  }
+
   if (inputs.direction) {
     lines.push('')
     lines.push('=== DETERMINISTIC TEAM DIRECTION ===')
     lines.push(
-      `window=${inputs.direction.window} posture=${inputs.direction.posture} contendScore=${inputs.direction.contendScore ?? 'n/a'} avgStarterAge=${inputs.direction.avgStarterAge ?? 'n/a'} youngValueShare=${inputs.direction.youngValueShare ?? 'n/a'}`,
+      `window=${inputs.direction.window} posture=${inputs.direction.posture} contendScore=${inputs.direction.contendScore ?? 'n/a'} avgStarterAge=${inputs.direction.avgStarterAge ?? 'n/a'} youngValueShare=${inputs.direction.youngValueShare ?? 'n/a'} pickCapitalTier=${inputs.direction.pickCapitalValue ?? 'n/a'} earlyPicks=${inputs.direction.earlyPickCount}`,
     )
     for (const f of inputs.direction.explanationFacts) lines.push(`  FACT: ${f}`)
   }
@@ -120,6 +136,7 @@ export function buildDynastyWarRoomPrompt(inputs: DynastyWarRoomPromptInputs): s
   if (inputs.buySellHold) {
     lines.push('')
     lines.push(`=== DETERMINISTIC BUY/SELL/HOLD (window=${inputs.buySellHold.window}) ===`)
+    if (inputs.buySellHold.pickCapitalNote) lines.push(`  PICK CAPITAL: ${inputs.buySellHold.pickCapitalNote}`)
     for (const e of inputs.buySellHold.entries.slice(0, 14)) {
       lines.push(`  ${e.call.toUpperCase()} ${e.playerName} ${e.position}${e.age != null ? ` (${e.age}, ${e.trajectory})` : ''}: ${e.reason}`)
     }
@@ -148,6 +165,7 @@ export function buildDynastyWarRoomPrompt(inputs: DynastyWarRoomPromptInputs): s
     )
     for (const f of inputs.tradeAnalysis.explanationFacts) lines.push(`  FACT: ${f}`)
     for (const a of inputs.tradeAnalysis.ageImpact) lines.push(`  AGE: ${a}`)
+    for (const pk of inputs.tradeAnalysis.pickImpact) lines.push(`  PICK: ${pk}`)
     for (const r of inputs.tradeAnalysis.riskFlags) lines.push(`  RISK: ${r}`)
     if (inputs.tradeAnalysis.directionImpact) lines.push(`  DIRECTION: ${inputs.tradeAnalysis.directionImpact}`)
   }

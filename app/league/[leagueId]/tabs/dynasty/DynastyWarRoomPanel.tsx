@@ -9,7 +9,7 @@
  * (e.g. future picks) instead of fabricating values. Dynasty horizon, not redraft.
  */
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Compass, Loader2, ShieldQuestion, Sparkles } from 'lucide-react'
+import { AlertTriangle, Compass, Layers, Loader2, ShieldQuestion, Sparkles } from 'lucide-react'
 import {
   analyzeDynastyWarRoomTrade,
   askDynastyWarRoom,
@@ -166,6 +166,9 @@ export function DynastyWarRoomPanel({ leagueId }: { leagueId: string }) {
 
   const me = context.teams.find((t) => t.isUserTeam)
   const taxiPlayers = me?.players.filter((p) => p.slotType === 'taxi') ?? []
+  const myPicks = me?.picks ?? []
+  const picksState = context.availability?.futurePicks
+  const pickTierTotal = myPicks.reduce((sum, pk) => sum + (pk.estValue ?? 0), 0)
 
   return (
     <section
@@ -271,6 +274,47 @@ export function DynastyWarRoomPanel({ leagueId }: { leagueId: string }) {
         </div>
       )}
 
+      {/* Pick capital — real future_draft_picks; honest provider-limited states. */}
+      <div
+        className="rounded-lg border border-white/[0.06] bg-[#07071a] p-3"
+        data-testid="dynasty-war-room-pick-capital"
+      >
+        <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-white/40">
+          <Layers className="h-3.5 w-3.5" /> Pick capital
+          {picksState === 'available' && myPicks.length > 0 ? (
+            <span className="ml-1 rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-semibold text-violet-200">
+              {myPicks.length} picks · tier {Math.round(pickTierTotal * 10) / 10}
+            </span>
+          ) : null}
+        </p>
+        {picksState === 'missing' ? (
+          <p className="mt-2 text-[11px] text-amber-200/80" data-testid="dynasty-war-room-pick-capital-limited">
+            Future pick tracking is not enabled for this league yet.
+          </p>
+        ) : myPicks.length === 0 ? (
+          <p className="mt-2 text-[11px] text-white/50" data-testid="dynasty-war-room-pick-capital-empty">
+            Pick tracking is enabled, but you have no future picks recorded yet.
+          </p>
+        ) : (
+          <div className="mt-2 flex flex-wrap gap-2" data-testid="dynasty-war-room-pick-capital-list">
+            {myPicks.map((pk) => (
+              <span
+                key={pk.id}
+                className="rounded-md bg-white/[0.04] px-2 py-1 text-[11px] text-white/70"
+                title={pk.traded ? 'Acquired via trade' : 'Original pick'}
+              >
+                {pk.season} R{pk.round}
+                {pk.traded ? <span className="text-amber-300/80"> ↔</span> : null}
+                {pk.estValue != null ? <span className="text-white/40"> · tier {pk.estValue}</span> : null}
+              </span>
+            ))}
+          </div>
+        )}
+        <p className="mt-1.5 text-[10px] text-white/30">
+          Tiers are structural (round + years out), not market values.
+        </p>
+      </div>
+
       {/* Tool buttons — every one wired to a real route */}
       <div className="flex flex-wrap gap-2">
         {(['buy-sell-hold', 'waivers', 'lineup', 'trade-analyze', 'trade-find'] as const).map((t) => (
@@ -310,6 +354,9 @@ export function DynastyWarRoomPanel({ leagueId }: { leagueId: string }) {
           <p className="mb-1 font-semibold text-white/80">
             Asset calls — window: {WINDOW_LABEL[buySellHold.window]}
           </p>
+          {buySellHold.pickCapitalNote ? (
+            <p className="mb-1 text-sky-300/70">{buySellHold.pickCapitalNote}</p>
+          ) : null}
           {buySellHold.entries.slice(0, 12).map((e) => (
             <p key={e.playerId}>
               <span className={`font-semibold ${CALL_COLOR[e.call]}`}>{e.call.toUpperCase()}</span> {e.playerName} (
@@ -427,6 +474,11 @@ export function DynastyWarRoomPanel({ leagueId }: { leagueId: string }) {
               ))}
               {tradeAnalysis.ageImpact.map((f) => (
                 <p key={f} className="text-emerald-300/70">
+                  {f}
+                </p>
+              ))}
+              {tradeAnalysis.pickImpact.map((f) => (
+                <p key={f} className="text-sky-300/70">
                   {f}
                 </p>
               ))}

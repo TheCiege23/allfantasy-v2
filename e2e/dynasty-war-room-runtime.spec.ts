@@ -152,12 +152,17 @@ test.describe('@db Dynasty War Room runtime', () => {
     const memberRes = await page.request.get(`/api/leagues/${seed.leagueId}/dynasty-war-room`)
     expect(memberRes.status()).toBe(200)
     const memberBody = (await memberRes.json()) as {
-      direction: { window: string; contendScore: number | null } | null
+      direction: { window: string; contendScore: number | null; earlyPickCount: number } | null
       needs: { tradeTargetPositions: string[] } | null
       context: {
         userRosterId: string | null
-        teams: { isUserTeam: boolean; players: { age: number | null; dynastyValue: number | null }[]; picks: unknown[] }[]
+        teams: {
+          isUserTeam: boolean
+          players: { age: number | null; dynastyValue: number | null }[]
+          picks: { id: string; season: number; round: number; traded: boolean; estValue: number | null }[]
+        }[]
         freeAgents: { playerName: string; position: string; adp: number | null }[]
+        rookieDraftWindows: { season: number; status: string }[]
         availability: {
           playerValues: string
           playerAges: string
@@ -165,17 +170,20 @@ test.describe('@db Dynasty War Room runtime', () => {
           futurePicks: string
           projections: string
         }
+        featureAvailability: { pickValue: boolean }
       }
     }
-    // Dynasty data path: real dynasty values + ages + a real free-agent pool are
-    // resolved; future picks are honestly provider-limited (NOT fabricated), and
-    // weekly projections are not part of the native dynasty context.
+    // Dynasty data path: real dynasty values + ages + a real free-agent pool, AND
+    // real future-pick capital (migrated table + seeded rows). Weekly projections
+    // are not part of the native dynasty context.
     expect(memberBody.context.availability.playerValues).toBe('available')
     expect(memberBody.context.availability.playerAges).toBe('available')
     expect(memberBody.context.availability.freeAgentPool).toBe('available')
-    expect(memberBody.context.availability.futurePicks).toBe('missing')
+    expect(memberBody.context.availability.futurePicks).toBe('available')
     expect(memberBody.context.availability.projections).toBe('missing')
+    expect(memberBody.context.featureAvailability.pickValue).toBe(true)
     expect(memberBody.context.freeAgents.length).toBeGreaterThan(0)
+    expect(memberBody.context.rookieDraftWindows.length).toBeGreaterThan(0)
     // Member gets a grounded context + classified contention window for THEIR team.
     expect(memberBody.context.userRosterId).toBeTruthy()
     expect(memberBody.direction?.window).toBe('contend')
@@ -183,6 +191,9 @@ test.describe('@db Dynasty War Room runtime', () => {
     const memberOwnTeam = memberBody.context.teams.find((team) => team.isUserTeam)
     expect(memberOwnTeam?.players.length ?? 0).toBeGreaterThan(0)
     expect(memberOwnTeam?.players.every((p) => p.age != null)).toBe(true)
+    // Member sees their OWN real pick capital (contender with weak/late picks → no early picks).
+    expect(memberOwnTeam?.picks.length ?? 0).toBeGreaterThan(0)
+    expect(memberBody.direction?.earlyPickCount).toBe(0)
     // No cross-roster leak: other team's players + picks are stripped for members.
     const memberOtherTeam = memberBody.context.teams.find((team) => !team.isUserTeam)
     expect(memberOtherTeam?.players).toHaveLength(0)
@@ -219,10 +230,17 @@ test.describe('@db Dynasty War Room runtime', () => {
     const commissionerRes = await commissionerPage.request.get(`/api/leagues/${seed.leagueId}/dynasty-war-room`)
     expect(commissionerRes.status()).toBe(200)
     const commissionerBody = (await commissionerRes.json()) as {
-      context: { teams: { isUserTeam: boolean; players: unknown[] }[] }
+      direction: { window: string; earlyPickCount: number } | null
+      context: { teams: { isUserTeam: boolean; players: unknown[]; picks: unknown[] }[] }
     }
     const commissionerOtherTeam = commissionerBody.context.teams.find((team) => !team.isUserTeam)
     expect(commissionerOtherTeam?.players.length ?? 0).toBeGreaterThan(0)
+    // Commissioner is the rebuilder with STRONG pick capital (multiple early picks,
+    // incl. the member's traded-away firsts) and sees league-wide rosters + picks.
+    const commissionerOwnTeam = commissionerBody.context.teams.find((team) => team.isUserTeam)
+    expect(commissionerOwnTeam?.picks.length ?? 0).toBeGreaterThan(0)
+    expect(commissionerBody.direction?.window).toBe('rebuild')
+    expect(commissionerBody.direction?.earlyPickCount ?? 0).toBeGreaterThan(0)
     await commissionerPage.close()
   })
 
@@ -236,6 +254,9 @@ test.describe('@db Dynasty War Room runtime', () => {
     await expect(page.getByTestId('league-war-room-tab')).toBeVisible()
     await shown(page.getByTestId('dynasty-war-room-panel'))
     await rendered(page.getByTestId('dynasty-war-room-direction-card'))
+    // Real pick capital card renders with the member's picks (not provider-limited).
+    await rendered(page.getByTestId('dynasty-war-room-pick-capital'))
+    await rendered(page.getByTestId('dynasty-war-room-pick-capital-list'))
 
     await waitForAction(page, 'buy-sell-hold', async () => {
       await page.getByTestId('dynasty-war-room-tool-buy-sell-hold').click()

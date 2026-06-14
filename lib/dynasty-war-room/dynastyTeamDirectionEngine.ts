@@ -11,6 +11,7 @@
  */
 
 import { dynastyValue, ageTrajectory } from './dynastyPlayerValue'
+import { summarizePickCapital } from './dynastyPickValueEngine'
 import type { ContentionWindow, DynastyPlayerFact, DynastyWarRoomContext } from './types'
 
 export interface DynastyDirectionResult {
@@ -22,6 +23,9 @@ export interface DynastyDirectionResult {
   avgStarterAge: number | null
   youngValueShare: number | null
   totalStarterValue: number | null
+  /** Sum of structural pick tiers held (null when pick tracking unavailable). */
+  pickCapitalValue: number | null
+  earlyPickCount: number
   explanationFacts: string[]
   missingDataFlags: string[]
 }
@@ -46,6 +50,8 @@ export function evaluateDynastyTeamDirection(
       avgStarterAge: null,
       youngValueShare: null,
       totalStarterValue: null,
+      pickCapitalValue: null,
+      earlyPickCount: 0,
       explanationFacts: ['Roster not found in this league.'],
       missingDataFlags,
     }
@@ -55,6 +61,12 @@ export function evaluateDynastyTeamDirection(
   const hasValue = context.availability.playerValues === 'available'
   const hasAge = context.availability.playerAges === 'available'
   const hasStandings = context.availability.standings === 'available'
+  const hasPicks = context.availability.futurePicks === 'available'
+
+  // Pick capital (real, structural tiers) — a secondary "future stock" signal.
+  const pickSummary = hasPicks ? summarizePickCapital(team.picks) : null
+  const pickCapitalValue = pickSummary?.totalEstValue ?? null
+  const earlyPickCount = pickSummary?.earlyPickCount ?? 0
 
   const starters = team.players.filter((p) => p.isStarterSlot)
 
@@ -111,6 +123,11 @@ export function evaluateDynastyTeamDirection(
       else if (avgStarterAge <= 23) score -= 6
       facts.push(`Average starter age ${avgStarterAge}.`)
     }
+    if (pickSummary != null) {
+      // Stockpiled early picks are a small lean toward building for the future.
+      if (earlyPickCount >= 3) score -= 4
+      facts.push(`Pick capital: ${pickSummary.count} future pick(s), ${earlyPickCount} early${pickCapitalValue != null ? `, tier total ${pickCapitalValue}` : ''}.`)
+    }
     contendScore = Math.max(0, Math.min(100, Math.round(score)))
   }
 
@@ -140,6 +157,8 @@ export function evaluateDynastyTeamDirection(
     avgStarterAge,
     youngValueShare,
     totalStarterValue,
+    pickCapitalValue,
+    earlyPickCount,
     explanationFacts: facts,
     missingDataFlags: [...new Set(missingDataFlags)],
   }
