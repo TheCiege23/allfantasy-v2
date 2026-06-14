@@ -3,7 +3,7 @@
 _Which league formats have a native, data-grounded War Room (context → deterministic
 engines → consolidated routes → global-Chimmy grounding → frontend panel → DB-backed
 runtime), versus what still routes through generic/strategy surfaces. Updated
-2026-06-13._
+2026-06-14._
 
 ## Legend
 
@@ -14,6 +14,15 @@ runtime), versus what still routes through generic/strategy surfaces. Updated
   FantasyCalc) rather than a native War Room.
 - **Strategy/meta only** — generic War Room hub links (meta, mock draft, trade tools);
   no league-data-grounded panel yet.
+
+## Current focus lock
+
+Survivor is the active specialty-format build. It should not receive a native War Room
+until the core Survivor product is fully set up on frontend and backend: creation,
+draft-to-tribe bootstrap, idols/powers, challenges, private voting, reveal, Exile, jury,
+finale, anti-cheat privacy, media, AI grounding, and DB-backed runtime. See
+`docs/survivor-full-concept-audit.md`, `docs/survivor-full-product-spec.md`,
+`docs/survivor-implementation-plan.md`, and `docs/survivor-runtime.md`.
 
 ## Status by format
 
@@ -82,6 +91,10 @@ consolidated `POST [action]`). Production-adjusted route signals: **1684** — G
 (`green < 1900`). No route bloat.
 
 ## Guardrails honored
+
+Survivor route gate: after any Survivor route work, run
+`node scripts/audit-route-budget.cjs` and keep new gameplay actions inside the
+consolidated league-scoped Survivor route dispatcher.
 
 No fabricated stats/projections/injuries/rankings/values/news/players. NFL and NCAAF
 pools never mix (sport carried through every query). Members see only their own
