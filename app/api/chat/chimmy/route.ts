@@ -60,6 +60,7 @@ import { buildSalaryCapContextForChimmy } from '@/lib/salary-cap/ai/salaryCapCon
 import { buildDynastyContextForChimmy } from '@/lib/dynasty-core/dynastyContextForChimmy'
 import { buildDynastyWarRoomContextForChimmy } from '@/lib/dynasty-war-room/dynastyChimmyGrounding'
 import { buildKeeperContextForChimmy } from '@/lib/keeper-war-room/keeperChimmyGrounding'
+import { buildBestBallContextForChimmy } from '@/lib/best-ball-war-room/bestBallChimmyGrounding'
 import { CHIMMY_GENERIC_ERROR_MESSAGE } from '@/lib/chimmy-chat/response-copy'
 import {
   buildChimmyResponseForAssistantMode,
@@ -1734,6 +1735,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                 legacyEnrichmentContext = legacyEnrichmentContext
                   ? `${legacyEnrichmentContext}\n\n${keeperCtx}`
                   : keeperCtx
+              }
+            } catch { /* non-fatal */ }
+            try {
+              const bestBallCtx = await buildBestBallContextForChimmy(planInput.leagueId, planInput.userId)
+              if (bestBallCtx) {
+                legacyEnrichmentContext = legacyEnrichmentContext
+                  ? `${legacyEnrichmentContext}\n\n${bestBallCtx}`
+                  : bestBallCtx
               }
             } catch { /* non-fatal */ }
           }

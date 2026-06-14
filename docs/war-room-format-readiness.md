@@ -23,7 +23,7 @@ runtime), versus what still routes through generic/strategy surfaces. Updated
 | **Dynasty** | ✅ Native War Room | `lib/dynasty-war-room` — context (legacy `Roster` + dynasty ADP + ages + **real future picks**), team-direction/needs/buy-sell-hold/trade/waiver/lineup/pick-value engines, routes, Chimmy grounding, panel, runtime E2E. Multi-year horizon; **pick capital real** (`future_draft_picks`/`rookie_draft_windows` migrated 2026-06-14). |
 | Dynasty (connected/Sleeper) | ☑ Grounded (shared) | `lib/league-decision-context` + `app/api/trade-evaluator` (FantasyCalc). The native War Room does not replace this for connected leagues. |
 | **Keeper** | ✅ Native War Room | `lib/keeper-war-room` — context (redraft-season rosters + `KeeperEligibility`/`KeeperRecord` costs + redraft ADP), value/recommendation/cut-list/roster-needs/draft-plan/trade/trade-finder/waiver/lineup engines, routes, Chimmy grounding, panel, runtime E2E. Single-season horizon; keeper COST vs VALUE surplus drives recommendations. NO future picks. |
-| Best Ball | ⛔ Strategy/meta only | Not started. |
+| **Best Ball** | ✅ Native War Room | `lib/best-ball-war-room` — context (legacy `Roster` draft roster + best-ball profile + redraft ADP + real weekly-score ceiling + `SportsPlayer.team` stacks), construction/depth/upside/draft-plan/stack/risk/waiver(if on)/trade(if on) engines, routes, Chimmy grounding, panel, runtime E2E. DRAFT-ONLY, AUTOMATIC lineup — NO start/sit. |
 | Guillotine | ⛔ Strategy/meta only | Has its own Chimmy settings context; no War Room panel. |
 | Tournament / Survivor / Zombie / Big Brother | ⛔ Strategy/meta only | Each has a Chimmy settings/context adapter; no native War Room. |
 | Salary Cap | ⛔ Strategy/meta only | Chimmy settings adapter only. |
@@ -59,11 +59,27 @@ runtime), versus what still routes through generic/strategy surfaces. Updated
 - **Data layer**: keeper reuses the redraft-season roster layer + redraft ADP + redraft
   providers, then layers keeper cost/eligibility on top.
 
+## Best ball vs the others — key differences (by design)
+
+- **AUTOMATIC lineup — NO start/sit**: best ball auto-selects the optimal lineup each
+  scoring period. The War Room has no lineup/start-sit action (the route 404s), the panel
+  shows an auto-lineup explainer, and the AI is instructed to pivot start/sit questions to
+  construction/depth/ceiling.
+- **Construction over weekly management**: engines focus on roster construction, depth
+  (fragility), spike-week CEILING, draft plan, and STACK/CORRELATION (same-team groupings
+  from `SportsPlayer.team`). Ceiling uses real max weekly scores (`high`) or an ADP proxy
+  (`low`, flagged) — never fabricated.
+- **Waivers/trades only when enabled**: most best-ball leagues are draft-only
+  (`settings.best_ball_settings` defaults OFF) — those actions return a truthful disabled
+  state and the buttons are disabled. NO future picks.
+- **Data layer**: legacy `Roster` draft roster + best-ball profile (auto-lineup slots +
+  recommended sizes) + redraft ADP + `weeklyScore` + `SportsPlayer` enrichment.
+
 ## Route budget
 
-The dynasty + keeper War Rooms each cost **2** route files (`GET` + consolidated
-`POST [action]`). Production-adjusted route signals: **1682** — GREEN (`green < 1900`).
-No route bloat.
+The dynasty, keeper, and best-ball War Rooms each cost **2** route files (`GET` +
+consolidated `POST [action]`). Production-adjusted route signals: **1684** — GREEN
+(`green < 1900`). No route bloat.
 
 ## Guardrails honored
 
