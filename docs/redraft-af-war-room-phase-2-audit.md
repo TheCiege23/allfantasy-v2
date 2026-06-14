@@ -71,15 +71,26 @@ Implemented and verified against live Neon:
   ADP ranking, trade ADP-as-ROS, lineup confidence); existing suites updated; the `@db` Playwright
   spec asserts real free agents + waiverPool available + real UI waiver candidates. **4/4 E2E green.**
 
-### Still provider-limited (honest)
-- **Weekly projections / weekly scores:** populated per-league only via seed/provider sync — real
-  free agents currently rank on **ADP** (projections show ✓ only for seeded roster players).
-- **Injuries / news:** `sports_core_*` tables unmigrated here → flagged missing; engines use
-  `RedraftRosterPlayer.injuryStatus` where set.
-- **Global Chimmy chat route** (`app/api/chat/chimmy/route.ts`): the War Room **`ask`** endpoint is
-  fully grounded in redraft context today; wiring the shared chimmy chat pipeline to inject the same
-  Redraft War Room context is a bounded follow-up (needs a redraft context provider in that pipeline)
-  and was deferred to avoid destabilizing the shared multi-format route.
+### Provider completeness update (2026-06-13) — injuries/news + global Chimmy NOW wired
+- **Injuries / news:** ✅ **wired to real populated tables** — `InjuryReportRecord` (`injury_reports`,
+  1,357 rows) + `PlayerNewsRecord` (`player_news`, 1,523), joined by player name
+  (`lib/redraft-war-room/redraftInjuryNews.ts`). `availability.injuries`/`news` now report **available**
+  with real freshness. (Previously pointed at the unmigrated `sports_core_*` tables.) The earlier
+  audit's "injuries/news missing" line is superseded.
+- **Global Chimmy chat route:** ✅ **wired** — `lib/redraft-war-room/redraftChimmyGrounding.ts`
+  (`buildRedraftContextForChimmy`) mirrors the existing `build*ContextForChimmy` adapters and is
+  injected in `app/api/chat/chimmy/route.ts` (non-fatal, gated to native redraft leagues only — not
+  dynasty/specialty). It reuses the War Room context + engines + grounded prompt (no duplication) so
+  global Chimmy answers carry redraft team needs / lineup / waivers / ADP free agents + the redraft-only
+  & no-invention rules. Other formats unaffected (own adapters / null short-circuit).
+- See [`redraft-provider-completeness-audit.md`](./redraft-provider-completeness-audit.md) for the full source matrix.
+
+### Still external-provider-limited (honest)
+- **Weekly projections:** no committed live import for `fantasy_projections` (populated by seed only
+  in this env). The context already consumes projection rows when present (lineup prioritizes them);
+  real free agents currently rank on **ADP** until a projection feed exists.
+- **Full-season weekly scores:** `player_weekly_scores` has a real service + `cron/import-scores`;
+  live coverage depends on the stat provider feed running.
 
 ## Migration/provider risks
 - `sports_core_injury_reports` / `sports_core_player_news_items` are unmigrated in this DB. Engines

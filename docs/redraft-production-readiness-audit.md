@@ -285,3 +285,19 @@ themselves (item 3), which the UI already handles as provider-limited.
 **Yes for the route budget** — GREEN at 1678 production-adjusted signals, well under the 2048 cap.
 The repo-wide pre-existing typecheck baseline (unrelated files) is not deploy-blocking for Vercel
 (the build does not run vitest), and the redraft draft-room suite is now fully green for CI confidence.
+
+---
+
+## Provider completeness + global Chimmy (2026-06-13)
+- **Injuries/news:** wired to the real populated `injury_reports` / `player_news` tables (were
+  pointed at the unmigrated `sports_core_*` mirror). `availability.injuries`/`news` = available.
+- **Free agents / ADP / trade values:** live (Phase 2).
+- **Global Chimmy chat:** grounded for native redraft leagues via `buildRedraftContextForChimmy`
+  (injected in `app/api/chat/chimmy/route.ts`, gated, reuses War Room context/engines/prompt).
+- **Entitlement:** War Room `ask` returns 402 without `war_room_draft_strategy`; member privacy +
+  commissioner scope verified (route-contract `@db` test).
+- **Runtime:** Playwright `@db` 4/4 green vs live Neon (asserts real free agents, ADP, injuries
+  available, injured roster player). Full redraft sweep: 585 tests passing. Route budget GREEN (1678).
+- **Only external-provider-limited:** live weekly **projections** feed and full-season weekly-score
+  coverage — both consumed by the context when present; no fabrication.
+- Full source matrix: [`redraft-provider-completeness-audit.md`](./redraft-provider-completeness-audit.md).

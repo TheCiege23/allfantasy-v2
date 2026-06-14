@@ -209,15 +209,17 @@ test.describe('@db Redraft War Room runtime', () => {
       needs: { tradeTargetPositions: string[] } | null
       context: {
         userRosterId: string | null
-        teams: { isUserTeam: boolean; players: unknown[] }[]
+        teams: { isUserTeam: boolean; players: { injuryStatus: string | null }[] }[]
         freeAgents: { playerName: string; position: string; adp: number | null }[]
-        availability: { waiverPool: string; tradeValues: string }
+        availability: { waiverPool: string; tradeValues: string; injuries: string }
       }
     }
     // Phase 2: a real ADP-ranked free-agent pool is resolved for the NFL season,
-    // and ADP powers trade values — not provider-limited placeholders.
+    // ADP powers trade values, and injuries come from the real injury_reports
+    // provider table — not provider-limited placeholders.
     expect(memberBody.context.availability.waiverPool).toBe('available')
     expect(memberBody.context.availability.tradeValues).toBe('available')
+    expect(memberBody.context.availability.injuries).toBe('available')
     expect(memberBody.context.freeAgents.length).toBeGreaterThan(0)
     expect(memberBody.context.freeAgents[0]?.adp).not.toBeNull()
     // Member gets a grounded context for THEIR team (roster resolved, needs computed).
@@ -225,6 +227,8 @@ test.describe('@db Redraft War Room runtime', () => {
     expect(memberBody.needs).toBeTruthy()
     const memberOwnTeam = memberBody.context.teams.find((team) => team.isUserTeam)
     expect(memberOwnTeam?.players.length ?? 0).toBeGreaterThan(0)
+    // The seeded roster carries an injured player (real injury field + provider).
+    expect(memberOwnTeam?.players.some((p) => p.injuryStatus)).toBe(true)
     const memberOtherTeam = memberBody.context.teams.find((team) => !team.isUserTeam)
     expect(memberOtherTeam?.players).toHaveLength(0)
 

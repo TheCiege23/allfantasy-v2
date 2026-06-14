@@ -51,6 +51,7 @@ import { buildTournamentContextForChimmy } from '@/lib/tournament-mode/ai/tourna
 import { buildBigBrotherContextForChimmy } from '@/lib/big-brother/ai/bigBrotherContextForChimmy'
 import { buildIdpContextForChimmy } from '@/lib/idp/ai/idpContextForChimmy'
 import { buildSurvivorContextForChimmy } from '@/lib/survivor/ai/survivorContextForChimmy'
+import { buildRedraftContextForChimmy } from '@/lib/redraft-war-room/redraftChimmyGrounding'
 import { buildZombieContextForChimmy } from '@/lib/zombie/ai/zombieContextForChimmy'
 import { buildDevyContextForChimmy } from '@/lib/devy/ai/devyContextForChimmy'
 import { buildGuillotineContextForChimmy } from '@/lib/guillotine/ai/guillotineContextForChimmy'
@@ -1707,6 +1708,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                 legacyEnrichmentContext = legacyEnrichmentContext
                   ? `${legacyEnrichmentContext}\n\n${dynastyCtx}`
                   : dynastyCtx
+              }
+            } catch { /* non-fatal */ }
+            try {
+              const redraftCtx = await buildRedraftContextForChimmy(planInput.leagueId, planInput.userId)
+              if (redraftCtx) {
+                legacyEnrichmentContext = legacyEnrichmentContext
+                  ? `${legacyEnrichmentContext}\n\n${redraftCtx}`
+                  : redraftCtx
               }
             } catch { /* non-fatal */ }
           }

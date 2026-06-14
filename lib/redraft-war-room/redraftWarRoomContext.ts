@@ -22,6 +22,7 @@ import {
   fetchRedraftFreeAgentPool,
   rosteredPlayerKeys,
 } from './redraftFreeAgentPool'
+import { fetchRedraftInjuryNews, injuryNameKey } from './redraftInjuryNews'
 import type {
   DataState,
   RedraftDataAvailability,
@@ -304,31 +305,12 @@ export async function buildRedraftWarRoomContext(
     if (!statsAsOf || row.updatedAt > statsAsOf) statsAsOf = row.updatedAt
   }
 
-  // Injuries: prefer per-roster injuryStatus; cross-check sports_core InjuryReport freshness only.
-  type InjuryRow = { playerId: string | null; status: string | null; reportDate: Date | null }
-  const injuryRows: InjuryRow[] = allPlayerIds.length
-    ? ((await prisma.injuryReport
-        .findMany({
-          where: { playerId: { in: allPlayerIds } },
-          select: { playerId: true, status: true, reportDate: true },
-          orderBy: { reportDate: 'desc' },
-          take: 500,
-        })
-        .catch(() => [])) as InjuryRow[])
-    : []
-  const injuryByPlayer = new Map<string, string>()
-  let injuriesAsOf: Date | null = null
-  for (const row of injuryRows) {
-    if (row.playerId && !injuryByPlayer.has(row.playerId) && row.status) {
-      injuryByPlayer.set(row.playerId, row.status)
-    }
-    if (row.reportDate && (!injuriesAsOf || row.reportDate > injuriesAsOf)) injuriesAsOf = row.reportDate
-  }
-
-  // News presence (existence only — not surfaced as content in Phase 1).
-  const newsCount = allPlayerIds.length
-    ? await prisma.playerNewsItem.count({ where: { playerId: { in: allPlayerIds } } }).catch(() => 0)
-    : 0
+  // Injuries + news: real provider data from injury_reports / player_news (populated
+  // by the import-injuries / import-news cron), joined by normalized player name.
+  const injuryNews = await fetchRedraftInjuryNews(season.sport)
+  const injuryByName = injuryNews.injuryByName
+  const injuriesAsOf = injuryNews.injuriesAsOf
+  const newsCount = injuryNews.newsCount
 
   // ADP / ranking value signal (real, sport-isolated) keyed by name|position.
   const adpByKey = await fetchAdpByPlayerKey(season.sport, season.season)
@@ -354,7 +336,7 @@ export async function buildRedraftWarRoomContext(
       team: p.team,
       slotType: p.slotType,
       isStarterSlot: isStarterSlotType(p.slotType),
-      injuryStatus: p.injuryStatus ?? injuryByPlayer.get(p.playerId) ?? null,
+      injuryStatus: p.injuryStatus ?? injuryByName.get(injuryNameKey(p.playerName))?.status ?? null,
       byeWeek: p.byeWeek,
       weekProjection,
       seasonAvgActual: seasonAvg,
@@ -439,7 +421,7 @@ export async function buildRedraftWarRoomContext(
     team: fa.team,
     slotType: 'free_agent',
     isStarterSlot: false,
-    injuryStatus: null,
+    injuryStatus: injuryByName.get(injuryNameKey(fa.playerName))?.status ?? null,
     byeWeek: null,
     weekProjection: null,
     seasonAvgActual: null,
@@ -457,7 +439,7 @@ export async function buildRedraftWarRoomContext(
     playerStats: actualAgg.size > 0 ? 'available' : 'missing',
     projections: projectionByPlayer.size > 0 ? 'available' : 'missing',
     injuries:
-      injuryByPlayer.size > 0 || teams.some((t) => t.players.some((p) => p.injuryStatus))
+      injuryByName.size > 0 || teams.some((t) => t.players.some((p) => p.injuryStatus))
         ? 'available'
         : 'missing',
     news: newsCount > 0 ? 'available' : 'missing',
