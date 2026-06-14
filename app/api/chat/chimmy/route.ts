@@ -58,6 +58,7 @@ import { buildGuillotineContextForChimmy } from '@/lib/guillotine/ai/guillotineC
 import { buildC2CContextForChimmy } from '@/lib/merged-devy-c2c/ai/c2cContextForChimmy'
 import { buildSalaryCapContextForChimmy } from '@/lib/salary-cap/ai/salaryCapContextForChimmy'
 import { buildDynastyContextForChimmy } from '@/lib/dynasty-core/dynastyContextForChimmy'
+import { buildDynastyWarRoomContextForChimmy } from '@/lib/dynasty-war-room/dynastyChimmyGrounding'
 import { CHIMMY_GENERIC_ERROR_MESSAGE } from '@/lib/chimmy-chat/response-copy'
 import {
   buildChimmyResponseForAssistantMode,
@@ -1708,6 +1709,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                 legacyEnrichmentContext = legacyEnrichmentContext
                   ? `${legacyEnrichmentContext}\n\n${dynastyCtx}`
                   : dynastyCtx
+              }
+            } catch { /* non-fatal */ }
+            try {
+              const dynastyWarRoomCtx = await buildDynastyWarRoomContextForChimmy(planInput.leagueId, planInput.userId)
+              if (dynastyWarRoomCtx) {
+                legacyEnrichmentContext = legacyEnrichmentContext
+                  ? `${legacyEnrichmentContext}\n\n${dynastyWarRoomCtx}`
+                  : dynastyWarRoomCtx
               }
             } catch { /* non-fatal */ }
             try {

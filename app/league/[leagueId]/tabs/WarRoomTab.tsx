@@ -18,6 +18,7 @@ import { AFWarRoomPlanSpotlight } from '@/components/monetization/AFWarRoomPlanS
 import WarRoomMetaWidget from '@/components/meta-insights/WarRoomMetaWidget'
 import { WarRoomPanel } from '@/components/war-room'
 import { RedraftWarRoomPanel } from './redraft/RedraftWarRoomPanel'
+import { DynastyWarRoomPanel } from './dynasty/DynastyWarRoomPanel'
 import { FeatureGate } from '@/components/subscription/FeatureGate'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import type { SubscriptionFeatureId } from '@/lib/subscription/types'
@@ -251,6 +252,9 @@ export function WarRoomTab({ league, sport, dashboardEmbed = false }: WarRoomTab
 
       {/* Redraft leagues get a data-grounded War Room scoped to THIS league. */}
       {isRedraftLeague ? <RedraftWarRoomPanel leagueId={league.id} /> : null}
+
+      {/* Dynasty leagues get the dynasty-horizon War Room (value/age/direction). */}
+      {league.isDynasty ? <DynastyWarRoomPanel leagueId={league.id} /> : null}
 
       {liveDraftCompanion && leagueDraftCompanion.error ? (
         <p

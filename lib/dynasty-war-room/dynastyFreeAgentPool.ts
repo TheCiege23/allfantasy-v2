@@ -1,0 +1,96 @@
+/**
+ * DYNASTY FREE-AGENT POOL — real, sport-isolated, deterministic.
+ *
+ * Available = dynasty-ADP-ranked players for the league's sport+season
+ * (AllFantasyAdpSnapshot, leagueType='dynasty') MINUS rostered players, filtered
+ * to real fantasy positions. Mirrors the redraft pool but uses the DYNASTY ADP
+ * context (long-term value), not redraft. NFL/NCAAF never mix. No fabrication.
+ */
+import { prisma } from '@/lib/prisma'
+import { buildPlayerKey } from '@/lib/adp/computeAllFantasyAdp'
+
+export interface DynastyFreeAgent {
+  playerKey: string
+  playerName: string
+  position: string
+  adp: number
+  adpRank: number
+}
+
+const FANTASY_POSITIONS = new Set([
+  'QB', 'RB', 'FB', 'HB', 'WR', 'TE', 'K', 'PK',
+  'DST', 'DEF', 'D/ST', 'DEF/ST',
+  'DL', 'DE', 'DT', 'EDGE', 'LB', 'ILB', 'OLB', 'MLB',
+  'DB', 'CB', 'S', 'FS', 'SS',
+])
+
+function sportVariants(sport: string): string[] {
+  const s = String(sport ?? '').trim()
+  return [s, s.toUpperCase(), s.toLowerCase()]
+}
+
+export function dynastyRosteredKeys(players: Array<{ playerName: string; position: string }>): Set<string> {
+  const set = new Set<string>()
+  for (const p of players) set.add(buildPlayerKey(p.playerName, p.position))
+  return set
+}
+
+/** Dynasty ADP value lookup keyed by name|pos (for enriching rostered players). */
+export async function fetchDynastyValueByKey(sport: string, season: number): Promise<Map<string, number>> {
+  const rows = await prisma.allFantasyAdpSnapshot
+    .findMany({
+      where: { sport: { in: sportVariants(sport) }, leagueType: 'dynasty', season: String(season) },
+      select: { playerKey: true, averageOverallPick: true },
+      orderBy: { averageOverallPick: 'asc' },
+      take: 4000,
+    })
+    .catch(() => [])
+  const map = new Map<string, number>()
+  for (const r of rows) if (r.playerKey && !map.has(r.playerKey)) map.set(r.playerKey, r.averageOverallPick)
+  return map
+}
+
+export async function fetchDynastyFreeAgentPool(input: {
+  sport: string
+  season: number
+  rosteredKeys: Set<string>
+  scoringFormat?: string
+  limit?: number
+}): Promise<DynastyFreeAgent[]> {
+  const rows = await prisma.allFantasyAdpSnapshot
+    .findMany({
+      where: { sport: { in: sportVariants(input.sport) }, leagueType: 'dynasty', season: String(input.season) },
+      select: { playerKey: true, playerName: true, scoringFormat: true, averageOverallPick: true },
+      orderBy: { averageOverallPick: 'asc' },
+      take: 4000,
+    })
+    .catch(() => [])
+  if (rows.length === 0) return []
+
+  const preferred = String(input.scoringFormat ?? '').trim().toLowerCase()
+  const best = new Map<string, { playerName: string; scoringFormat: string; adp: number }>()
+  for (const r of rows) {
+    if (!r.playerKey) continue
+    const prev = best.get(r.playerKey)
+    if (!prev) {
+      best.set(r.playerKey, { playerName: r.playerName, scoringFormat: r.scoringFormat, adp: r.averageOverallPick })
+      continue
+    }
+    const prevPref = preferred && prev.scoringFormat?.toLowerCase() === preferred
+    const curPref = preferred && r.scoringFormat?.toLowerCase() === preferred
+    if (curPref && !prevPref) best.set(r.playerKey, { playerName: r.playerName, scoringFormat: r.scoringFormat, adp: r.averageOverallPick })
+    else if (curPref === prevPref && r.averageOverallPick < prev.adp)
+      best.set(r.playerKey, { playerName: r.playerName, scoringFormat: r.scoringFormat, adp: r.averageOverallPick })
+  }
+
+  const available: DynastyFreeAgent[] = []
+  for (const [playerKey, v] of best) {
+    if (input.rosteredKeys.has(playerKey)) continue
+    const [, posRaw] = playerKey.split('|')
+    if (!FANTASY_POSITIONS.has((posRaw ?? '').trim().toUpperCase())) continue
+    available.push({ playerKey, playerName: v.playerName, position: (posRaw ?? '').toUpperCase(), adp: v.adp, adpRank: 0 })
+  }
+  available.sort((a, b) => a.adp - b.adp)
+  available.forEach((fa, i) => (fa.adpRank = i + 1))
+  return available.slice(0, input.limit ?? 60)
+}
