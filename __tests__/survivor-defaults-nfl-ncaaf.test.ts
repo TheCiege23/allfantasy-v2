@@ -28,7 +28,9 @@ describe('SURVIVOR_DRAFT_TYPE_IDS', () => {
     expect(SURVIVOR_DRAFT_TYPE_IDS).toContain('snake')
     expect(SURVIVOR_DRAFT_TYPE_IDS).toContain('auction')
   })
-  it('has exactly 2 entries', () => expect(SURVIVOR_DRAFT_TYPE_IDS).toHaveLength(2))
+  it('has the Phase 1 canonical draft types', () => {
+    expect(SURVIVOR_DRAFT_TYPE_IDS).toEqual(['snake', 'auction', 'linear', 'real_time', 'by_team', 'offline', 'auto'])
+  })
 })
 
 // ── getSurvivorDefaultContract — NFL ─────────────────────────────────────────
@@ -42,7 +44,7 @@ describe('getSurvivorDefaultContract — NFL', () => {
   it('survivor_phase is setup', () => expect(contract.survivor_phase).toBe('setup'))
   it('draft_type is snake by default', () => expect(contract.draft_type).toBe('snake'))
   it('roster_mode is survivor', () => expect(contract.roster_mode).toBe('survivor'))
-  it('teams = 16 (cast size)', () => expect(contract.teams).toBe(16))
+  it('teams = 20 (cast size)', () => expect(contract.teams).toBe(20))
 
   it('rosterTemplate has 9 starter slots', () => {
     const total = Object.values(contract.rosterTemplate.starterSlots).reduce((a, b) => a + b, 0)
@@ -61,9 +63,9 @@ describe('getSurvivorDefaultContract — NFL', () => {
   it('NFL pool: collegeOnly false', () => expect(contract.playerPoolRules.collegeOnly).toBe(false))
 
   // Tribe settings
-  it('survivorStructure: castSize = 16', () => expect(contract.survivorStructure.castSize).toBe(16))
-  it('survivorStructure: tribeCount = 2', () => expect(contract.survivorStructure.tribeSettings.tribeCount).toBe(2))
-  it('survivorStructure: mergeAtCount = 8', () => expect(contract.survivorStructure.tribeSettings.mergeAtCount).toBe(8))
+  it('survivorStructure: castSize = 20', () => expect(contract.survivorStructure.castSize).toBe(20))
+  it('survivorStructure: tribeCount = 4', () => expect(contract.survivorStructure.tribeSettings.tribeCount).toBe(4))
+  it('survivorStructure: mergeAtCount = 10', () => expect(contract.survivorStructure.tribeSettings.mergeAtCount).toBe(10))
   it('survivorStructure: commissionerPlays = false', () => expect(contract.survivorStructure.tribeSettings.commissionerPlays).toBe(false))
   it('survivorStructure: rocksEnabled = true', () => expect(contract.survivorStructure.tribeSettings.rocksEnabled).toBe(true))
   it('survivorStructure: tribeAssignmentMode = random', () => expect(contract.survivorStructure.tribeSettings.tribeAssignmentMode).toBe('random'))
@@ -107,7 +109,7 @@ describe('getSurvivorDefaultContract — NFL', () => {
 
   // Idol settings
   it('idolSettings: idolsEnabled = true', () => expect(contract.survivorStructure.idolSettings.idolsEnabled).toBe(true))
-  it('idolSettings: idolCount = 2', () => expect(contract.survivorStructure.idolSettings.idolCount).toBe(2))
+  it('idolSettings: idolCount = 24', () => expect(contract.survivorStructure.idolSettings.idolCount).toBe(24))
   it('idolSettings: idolPlayWindow = before_vote_reveal', () => {
     expect(contract.survivorStructure.idolSettings.idolPlayWindow).toBe('before_vote_reveal')
   })
@@ -174,7 +176,7 @@ describe('getSurvivorDefaultContract — NCAAF', () => {
 
   it('returns a contract for NCAAF', () => expect(contract).not.toBeNull())
   it('sport is NCAAF', () => expect(contract.sport).toBe('NCAAF'))
-  it('teams = 14 (cast size)', () => expect(contract.teams).toBe(14))
+  it('teams = 20 (cast size)', () => expect(contract.teams).toBe(20))
   it('NCAAF uses DEF position', () => expect(contract.rosterTemplate.defensePosition).toBe('DEF'))
   it('DEF in draftablePlayerPositions', () => {
     expect(contract.rosterTemplate.draftablePlayerPositions).toContain('DEF')
@@ -187,8 +189,8 @@ describe('getSurvivorDefaultContract — NCAAF', () => {
   it('NCAAF pool: collegeOnly true', () => expect(contract.playerPoolRules.collegeOnly).toBe(true))
   it('NCAAF pool: excludeNflPool true', () => expect(contract.playerPoolRules.excludeNflPool).toBe(true))
   it('scoringPreset = ncaaf_half_ppr', () => expect(contract.scoring_preset_id).toBe('ncaaf_half_ppr'))
-  it('survivorStructure: castSize = 14', () => expect(contract.survivorStructure.castSize).toBe(14))
-  it('survivorStructure: mergeAtCount = 7', () => expect(contract.survivorStructure.tribeSettings.mergeAtCount).toBe(7))
+  it('survivorStructure: castSize = 20', () => expect(contract.survivorStructure.castSize).toBe(20))
+  it('survivorStructure: mergeAtCount = 10', () => expect(contract.survivorStructure.tribeSettings.mergeAtCount).toBe(10))
 })
 
 // ── Auction draft type ────────────────────────────────────────────────────────
@@ -220,9 +222,9 @@ describe('buildSurvivorSettingsSnapshot — NFL', () => {
   it('c2c_enabled = false', () => expect(snap.c2c_enabled).toBe(false))
   it('has survivorStructure block', () => expect(snap.survivorStructure).toBeDefined())
   it('has survivor_structure block', () => expect(snap.survivor_structure).toBeDefined())
-  it('cast_size = 16', () => expect(snap.cast_size).toBe(16))
-  it('tribe_count = 2', () => expect(snap.tribe_count).toBe(2))
-  it('merge_at_count = 8', () => expect(snap.merge_at_count).toBe(8))
+  it('cast_size = 20', () => expect(snap.cast_size).toBe(20))
+  it('tribe_count = 4', () => expect(snap.tribe_count).toBe(4))
+  it('merge_at_count = 10', () => expect(snap.merge_at_count).toBe(10))
   it('weekly_challenges_enabled = true', () => expect(snap.weekly_challenges_enabled).toBe(true))
   it('challenge_automation_status = pending', () => expect(snap.challenge_automation_status).toBe('pending'))
   it('tribal_council_enabled = true', () => expect(snap.tribal_council_enabled).toBe(true))
@@ -230,7 +232,7 @@ describe('buildSurvivorSettingsSnapshot — NFL', () => {
   it('exile_enabled = true', () => expect(snap.exile_enabled).toBe(true))
   it('exile_automation_status = pending', () => expect(snap.exile_automation_status).toBe('pending'))
   it('idols_enabled = true', () => expect(snap.idols_enabled).toBe(true))
-  it('idol_count = 2', () => expect(snap.idol_count).toBe(2))
+  it('idol_count = 24', () => expect(snap.idol_count).toBe(24))
   it('idol_search_automation_status = pending', () => expect(snap.idol_search_automation_status).toBe('pending'))
   it('tokens_enabled = true', () => expect(snap.tokens_enabled).toBe(true))
   it('token_ledger_status = not_started', () => expect(snap.token_ledger_status).toBe('not_started'))
@@ -387,7 +389,7 @@ describe('normalizeSurvivorSettingsSnapshot', () => {
 // ── validateSurvivorStructure ─────────────────────────────────────────────────
 
 describe('validateSurvivorStructure', () => {
-  const valid = { castSize: 16, tribeCount: 2, mergeAtCount: 8 }
+  const valid = { castSize: 20, tribeCount: 4, mergeAtCount: 10 }
 
   it('passes for canonical NFL structure', () => {
     const result = validateSurvivorStructure(valid)
@@ -396,7 +398,7 @@ describe('validateSurvivorStructure', () => {
   })
 
   it('passes for canonical NCAAF structure', () => {
-    const result = validateSurvivorStructure({ castSize: 14, tribeCount: 2, mergeAtCount: 7 })
+    const result = validateSurvivorStructure({ castSize: 20, tribeCount: 4, mergeAtCount: 10 })
     expect(result.valid).toBe(true)
   })
 
@@ -413,7 +415,7 @@ describe('validateSurvivorStructure', () => {
   })
 
   it('fails when mergeAtCount >= castSize', () => {
-    const result = validateSurvivorStructure({ ...valid, mergeAtCount: 16 })
+    const result = validateSurvivorStructure({ ...valid, mergeAtCount: 20 })
     expect(result.valid).toBe(false)
     expect(result.errors.some(e => e.includes('mergeAtCount'))).toBe(true)
   })
@@ -439,8 +441,8 @@ describe('conceptPresetCatalog — survivor entries', () => {
   it('NFL survivor catalog entry exists', () => expect(nfl).toBeDefined())
   it('NCAAF survivor catalog entry exists', () => expect(ncaaf).toBeDefined())
 
-  it('NFL defaultTeamCount = 16', () => expect(nfl?.defaultTeamCount).toBe(16))
-  it('NCAAF defaultTeamCount = 14', () => expect(ncaaf?.defaultTeamCount).toBe(14))
+  it('NFL defaultTeamCount = 20', () => expect(nfl?.defaultTeamCount).toBe(20))
+  it('NCAAF defaultTeamCount = 20', () => expect(ncaaf?.defaultTeamCount).toBe(20))
 
   it('NFL draftTypesAllowed includes snake and auction', () => {
     expect(nfl?.draftTypesAllowed).toContain('snake')

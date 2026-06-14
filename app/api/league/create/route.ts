@@ -40,6 +40,11 @@ import {
 import { normalizeRedraftSettingsSnapshot } from '@/lib/league-concepts/redraftDefaults';
 import { normalizeKeeperSettingsSnapshot } from '@/lib/league-concepts/keeperDefaults';
 import { normalizeDevySettingsSnapshot } from '@/lib/league-concepts/devyDefaults';
+import {
+  buildSurvivorLeagueColumnPatch,
+  buildSurvivorSettingsSnapshotPatch,
+  normalizeSurvivorFoundationSettings,
+} from '@/lib/survivor/normalizeSurvivorSettings';
 
 const createSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -1246,6 +1251,18 @@ export async function POST(req: Request) {
       );
       Object.assign(initialSettings, mergedConceptSettings);
     }
+    const survivorFoundationSettings = isSurvivorLeague
+      ? normalizeSurvivorFoundationSettings(initialSettings as Record<string, unknown>)
+      : null;
+    const survivorColumnPatch = survivorFoundationSettings
+      ? buildSurvivorLeagueColumnPatch(survivorFoundationSettings)
+      : null;
+    if (survivorFoundationSettings) {
+      Object.assign(
+        initialSettings,
+        buildSurvivorSettingsSnapshotPatch(survivorFoundationSettings as unknown as Record<string, unknown>),
+      );
+    }
 
     (initialSettings as Record<string, unknown>).snapshotVersion = SETTINGS_SNAPSHOT_VERSION;
 
@@ -1282,13 +1299,10 @@ export async function POST(req: Request) {
         syncStatus: platform === 'manual' ? 'manual' : 'pending',
         /** List rail shows `League.season`; redraft/survivor/etc. must not inherit Prisma's stale default (2024). */
         season: foundingSeason,
-        ...(isSurvivorLeague && typeof leagueSize === 'number'
+        ...(isSurvivorLeague && survivorColumnPatch
           ? {
-              survivorMode: true,
-              survivorPlayerCount: leagueSize,
-              survivorTribeCount: survivorTribeCountColumn,
+              ...survivorColumnPatch,
               survivorTribeNaming: survivorTribeNamingColumn,
-              survivorTribeSize: Math.max(1, Math.ceil(leagueSize / survivorTribeCountColumn)),
             }
           : {}),
       },

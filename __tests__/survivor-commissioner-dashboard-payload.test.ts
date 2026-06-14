@@ -15,6 +15,7 @@ const {
   resolveSnapshot,
   resolveForUser,
   resolveAfPlanFromEntitlement,
+  resolveSurvivorAccessContext,
   prisma,
 } = vi.hoisted(() => ({
   getLeagueRole: vi.fn(),
@@ -31,6 +32,7 @@ const {
   resolveSnapshot: vi.fn(),
   resolveForUser: vi.fn(),
   resolveAfPlanFromEntitlement: vi.fn(),
+  resolveSurvivorAccessContext: vi.fn(),
   prisma: {
     league: { findUnique: vi.fn() },
     draftSession: { findUnique: vi.fn() },
@@ -97,6 +99,10 @@ vi.mock('@/lib/tournament/resolve-af-plan-from-subscription', () => ({
   resolveAfPlanFromEntitlement,
 }))
 
+vi.mock('@/lib/survivor/survivorAccessControl', () => ({
+  resolveSurvivorAccessContext,
+}))
+
 vi.mock('@/lib/prisma', () => ({ prisma }))
 
 import { buildSurvivorCommissionerDashboard } from '@/lib/survivor/buildSurvivorCommissionerDashboard'
@@ -105,6 +111,17 @@ describe('survivor commissioner dashboard payload', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getLeagueRole.mockResolvedValue('commissioner')
+    resolveSurvivorAccessContext.mockResolvedValue({
+      isLeagueMember: true,
+      settings: { commissionerParticipationMode: 'non_participating_host' },
+      isParticipatingCommissioner: false,
+      decisions: {
+        canSeeHiddenIdolAssignments: true,
+        canSeePrivateVotes: true,
+        canSeeVoteTallyBeforeReveal: true,
+      },
+      privacyWarnings: [],
+    })
     isSurvivorLeague.mockResolvedValue(true)
     getSurvivorConfig.mockResolvedValue({ configId: 'cfg-1', leagueId: 'league-1' })
     prisma.league.findUnique.mockResolvedValue({
@@ -180,6 +197,14 @@ describe('survivor commissioner dashboard payload', () => {
         tribalDeadline: '2026-04-20T12:00:00.000Z',
       }),
     )
+    expect(result.privacy).toEqual({
+      commissionerParticipationMode: 'non_participating_host',
+      blindModeActive: false,
+      canSeeHiddenIdolAssignments: true,
+      canSeePrivateVotes: true,
+      canSeeVoteTallyBeforeReveal: true,
+      warnings: [],
+    })
   })
 
   it('returns 404 when survivor config is missing after the league checks pass', async () => {

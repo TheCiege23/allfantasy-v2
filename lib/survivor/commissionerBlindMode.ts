@@ -12,23 +12,19 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { resolveSurvivorAccessContext } from './survivorAccessControl'
 
 /**
  * Check if the commissioner is participating as a player in this league.
  */
 export async function isCommissionerParticipating(leagueId: string): Promise<boolean> {
-  const league = await (prisma as any).league.findUnique({
+  const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { survivorCommissionerPlays: true, userId: true },
+    select: { userId: true },
   })
   if (!league) return false
-  if (league.survivorCommissionerPlays === true) return true
-
-  // Also check if commissioner has a SurvivorPlayer record (implicitly participating)
-  const commPlayer = await (prisma as any).survivorPlayer.findFirst({
-    where: { leagueId, userId: league.userId, playerState: { not: 'spectator' } },
-  })
-  return !!commPlayer
+  const access = await resolveSurvivorAccessContext(leagueId, league.userId)
+  return Boolean(access?.isCommissionerParticipating)
 }
 
 /**
@@ -36,16 +32,8 @@ export async function isCommissionerParticipating(leagueId: string): Promise<boo
  * When true, the system must filter out hidden information from their view.
  */
 export async function isUserInBlindMode(leagueId: string, userId: string): Promise<boolean> {
-  const league = await (prisma as any).league.findUnique({
-    where: { id: leagueId },
-    select: { userId: true, survivorCommissionerPlays: true },
-  })
-  if (!league) return false
-
-  // Only the commissioner can be in blind mode
-  if (league.userId !== userId) return false
-
-  return isCommissionerParticipating(leagueId)
+  const access = await resolveSurvivorAccessContext(leagueId, userId)
+  return Boolean(access?.isParticipatingCommissioner)
 }
 
 /**
@@ -89,18 +77,12 @@ export function filterForBlindMode(data: Record<string, unknown>): Record<string
  * Only allowed if they were voted off the main island (not just observing).
  */
 export async function canCommissionerPlayExileMiniGame(leagueId: string, userId: string): Promise<boolean> {
-  const league = await (prisma as any).league.findUnique({
+  const league = await prisma.league.findUnique({
     where: { id: leagueId },
     select: { userId: true },
   })
   if (!league || league.userId !== userId) return true // Not commissioner, always can play
 
-  // Commissioner can only play exile mini-games if they were voted out
-  const player = await (prisma as any).survivorPlayer.findFirst({
-    where: { leagueId, userId },
-    select: { playerState: true, eliminatedWeek: true },
-  })
-
-  // Must be on exile (voted out), not just observing
-  return player?.playerState === 'exile' && player?.eliminatedWeek != null
+  const access = await resolveSurvivorAccessContext(leagueId, userId)
+  return Boolean(access?.isUserExiled)
 }

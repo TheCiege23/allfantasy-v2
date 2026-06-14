@@ -11,14 +11,20 @@ Exile, jury, AI, notifications, privacy, and media.
 
 ## Current Runtime Status
 
-Not built yet.
+Phase 1 foundation runtime scaffold exists:
 
-Missing runtime deliverables:
+- `scripts/seed-survivor-foundation-runtime.ts`
+- `e2e/survivor-foundation-runtime.spec.ts`
+
+The full runtime remains deferred. The foundation scaffold verifies canonical setup state,
+commissioner participation privacy, DB-backed tribes/vote-window/idol shell data, and the
+no-fake-gameplay contract. It does not verify full idol/power, Exile, challenge, jury, or
+finale engines.
+
+Missing full-runtime deliverables:
 
 - `scripts/seed-survivor-full-runtime.ts`
 - `e2e/survivor-full-runtime.spec.ts`
-
-Existing Survivor tests are useful but do not prove the full product loop.
 
 ## Seed Requirements
 

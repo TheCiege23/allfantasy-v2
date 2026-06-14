@@ -84,6 +84,19 @@ async function dispatch(method: string, request: NextRequest, context: RouteCont
       },
     })
   }
+  if (method === 'POST' && path.length === 1) {
+    const mod = (await import('@/server/api-route-modules/league-survivor/foundation/route')) as unknown as RouteModule
+    const handler = mod.POST
+    if (handler) {
+      return handler(request, {
+        ...context,
+        params: {
+          ...context.params,
+          action: path[0],
+        },
+      })
+    }
+  }
   return NextResponse.json({ error: 'Route not found', path: path.join('/') }, { status: 404 })
 }
 

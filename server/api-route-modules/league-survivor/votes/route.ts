@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { assertLeagueMember } from '@/lib/league/league-access'
+import { resolveSurvivorAccessContext } from '@/lib/survivor/survivorAccessControl'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,11 +22,9 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { leagueId } = params
-  const gate = await assertLeagueMember(leagueId, userId)
-  if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status ?? 403 })
-
-  const league = await prisma.league.findUnique({ where: { id: leagueId }, select: { userId: true } })
-  const isCommissioner = league?.userId === userId
+  const access = await resolveSurvivorAccessContext(leagueId, userId)
+  if (!access) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!access.isLeagueMember) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const council = await prisma.survivorTribalCouncil.findFirst({
     where: { leagueId, status: { in: ['voting_open', 'votes_locked', 'reveal_in_progress', 'complete'] } },
@@ -36,17 +34,27 @@ export async function GET(
 
   if (!council) return NextResponse.json({ council: null, votes: [] })
 
-  const revealed = council.status === 'complete' || council.status === 'reveal_in_progress'
+  const revealed = council.isRevealed || council.status === 'complete' || council.status === 'reveal_in_progress'
 
-  if (isCommissioner || revealed) {
-    return NextResponse.json({ council: { id: council.id, status: council.status, week: council.week }, votes: council.votes })
+  if (access.decisions.canSeePrivateVotes || revealed) {
+    return NextResponse.json({
+      council: { id: council.id, status: council.status, week: council.week },
+      votes: council.votes,
+      hiddenUntilReveal: false,
+      privacyMode: access.isParticipatingCommissioner ? 'participating_commissioner_redacted' : 'host_visible',
+    })
   }
 
-  // Non-commissioner pre-reveal: return only own vote + status
-  const ownVote = council.votes.find((v: any) => v.voterUserId === userId || v.voterRosterId === userId)
+  const ownRoster = access.rosterId
+    ? { id: access.rosterId }
+    : await prisma.roster.findFirst({ where: { leagueId, platformUserId: userId }, select: { id: true } })
+  const ownVote = council.votes.find((v: any) => {
+    return v.voterUserId === userId || (ownRoster?.id && v.voterRosterId === ownRoster.id)
+  })
   return NextResponse.json({
     council: { id: council.id, status: council.status, week: council.week },
     votes: ownVote ? [ownVote] : [],
     hiddenUntilReveal: true,
+    privacyMode: access.isParticipatingCommissioner ? 'participating_commissioner_redacted' : 'player_redacted',
   })
 }

@@ -2,16 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getLeagueRole } from '@/lib/league/permissions'
 import { assertLeagueCommissioner, assertLeagueMember } from '@/lib/league/league-access'
 import {
-  parseSurvivorFairPlayFromLeagueSettings,
   redactSurvivorSeasonPayloadForFairPlay,
-  shouldApplySurvivorFairPlayRedaction,
 } from '@/lib/survivor/survivorFairPlay'
 import { seedIdolsAfterDraft } from '@/lib/survivor/idolEngine'
 import { assignPlayersToTribes } from '@/lib/survivor/tribeEngine'
 import { readSurvivorVisualThemeId, extractLeadingTribeIcon } from '@/lib/survivor/survivorVisuals'
+import { resolveSurvivorAccessContext } from '@/lib/survivor/survivorAccessControl'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,6 +83,8 @@ export async function GET(req: NextRequest) {
 
   const gate = await assertLeagueMember(leagueId, userId)
   if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
+  const access = await resolveSurvivorAccessContext(leagueId, userId)
+  if (!access?.isLeagueMember) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
@@ -114,16 +114,15 @@ export async function GET(req: NextRequest) {
     league?.settings && typeof league.settings === 'object' && !Array.isArray(league.settings)
       ? (league.settings as Record<string, unknown>)
       : {}
-  const { fairPlayLimited } = parseSurvivorFairPlayFromLeagueSettings(settingsJson)
-  const role = await getLeagueRole(leagueId, userId)
-  const isComm = role === 'commissioner' || role === 'co_commissioner'
-  const fairPlayRedact = shouldApplySurvivorFairPlayRedaction(fairPlayLimited, isComm, Boolean(me))
+  const fairPlayRedact =
+    access.isParticipatingCommissioner ||
+    Boolean(settingsJson.survivor_commissioner_fair_play_limited_visibility && access.isParticipant)
 
   const payload = {
     phase: league?.survivorPhase,
     mode: league?.survivorMode,
     visualThemeId: readSurvivorVisualThemeId((await prisma.survivorLeagueConfig.findUnique({ where: { leagueId }, select: { engineSpecV2: true } }))?.engineSpecV2, leagueId),
-    tribes: tribes.map((tribe) => ({
+    tribes: tribes.map((tribe: (typeof tribes)[number]) => ({
       ...tribe,
       emoji: extractLeadingTribeIcon(tribe.name),
     })),

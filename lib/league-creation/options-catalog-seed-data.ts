@@ -24,8 +24,7 @@ export interface LeagueCreateOptionsCatalog {
 
 const ALL_SPORTS: SupportedSport[] = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER']
 
-/** Survivor format is not enabled for soccer in create-league until backend supports it. */
-const SURVIVOR_ALLOWED_SPORTS: SupportedSport[] = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB']
+const SURVIVOR_ALLOWED_SPORTS: SupportedSport[] = ['NFL', 'NCAAF']
 
 export const LEAGUE_CREATE_OPTIONS_CATALOG_V1: LeagueCreateOptionsCatalog = {
   version: 1,
@@ -151,7 +150,7 @@ export const LEAGUE_CREATE_OPTIONS_CATALOG_V1: LeagueCreateOptionsCatalog = {
     c2c: ['snake', 'linear', 'auction', 'offline', 'auto'],
     guillotine: ['snake', 'linear', 'auction', 'offline', 'auto'],
     zombie: ['snake', 'linear', 'auction', 'offline', 'auto'],
-    survivor: ['snake', 'linear', 'offline', 'auto'],
+    survivor: ['snake', 'linear', 'auction', 'real_time', 'by_team', 'offline', 'auto'],
     tournament: ['snake', 'linear', 'auction', 'offline', 'auto'],
     big_brother: ['snake', 'linear', 'offline', 'auto'],
   },
@@ -229,11 +228,7 @@ export const LEAGUE_CREATE_OPTIONS_CATALOG_V1: LeagueCreateOptionsCatalog = {
     },
     survivor: {
       NFL: ['fb_half_ppr', 'fb_ppr'],
-      NBA: ['nba_points'],
-      MLB: ['mlb_points'],
-      NHL: ['nhl_points'],
       NCAAF: ['ncaaf_half_ppr'],
-      NCAAB: ['ncaab_points'],
     },
     tournament: {
       NFL: ['fb_half_ppr', 'fb_ppr', 'fb_standard'],
@@ -327,12 +322,8 @@ export const LEAGUE_CREATE_OPTIONS_CATALOG_V1: LeagueCreateOptionsCatalog = {
       NHL: [8, 10, 12, 14],
     },
     survivor: {
-      NFL: [16, 20, 24],
-      NBA: [16, 20, 24],
-      MLB: [16, 20, 24],
-      NHL: [16, 20, 24],
-      NCAAF: [16, 20, 24],
-      NCAAB: [16, 20, 24],
+      NFL: [16, 17, 18, 19, 20],
+      NCAAF: [16, 17, 18, 19, 20],
     },
     tournament: {
       NFL: [32, 64, 96, 128, 160, 192, 224],

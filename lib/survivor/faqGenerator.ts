@@ -24,7 +24,7 @@ export async function generateAndPinMainIslandFAQ(leagueId: string): Promise<voi
       survivorIdolExpiryWeek: true, survivorExileEnabled: true,
       survivorSelfVoteAllowed: true, survivorRocksEnabled: true, survivorTieRule: true,
       survivorRevealMode: true, survivorChallengeMode: true, survivorTokenEnabled: true,
-      survivorBossResetEnabled: true, survivorCommissionerPlays: true,
+      survivorBossResetEnabled: true,
     },
   })
   if (!league) return
@@ -163,7 +163,7 @@ export async function generateAndPinExileIslandFAQ(leagueId: string): Promise<vo
     where: { id: leagueId },
     select: {
       sport: true, survivorTokenEnabled: true, survivorBossResetEnabled: true,
-      survivorExileReturnWeek: true, survivorCommissionerPlays: true,
+      survivorExileReturnWeek: true,
     },
   })
   if (!league) return

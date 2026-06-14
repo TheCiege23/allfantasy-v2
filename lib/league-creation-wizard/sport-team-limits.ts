@@ -18,13 +18,13 @@ const MAX_TEAMS_BY_SPORT: Record<string, number> = {
 const NFL_TEAM_COUNT_OPTIONS = [16, 20, 24] as const
 
 /** Survivor cast sizes (one manager per team) — same for all sports in this flow. */
-export const SURVIVOR_CAST_SIZE_OPTIONS = [16, 20, 24] as const
+export const SURVIVOR_CAST_SIZE_OPTIONS = [16, 17, 18, 19, 20] as const
 
 export function clampSurvivorCastSize(raw: number): number {
   const n = Number.isFinite(raw) ? Math.round(raw) : 20
   return SURVIVOR_CAST_SIZE_OPTIONS.reduce((closest, opt) =>
     Math.abs(opt - n) < Math.abs(closest - n) ? opt : closest,
-  SURVIVOR_CAST_SIZE_OPTIONS[1])
+  SURVIVOR_CAST_SIZE_OPTIONS[SURVIVOR_CAST_SIZE_OPTIONS.length - 1])
 }
 
 export function getMaxTeamsForSport(sport: string): number {

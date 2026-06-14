@@ -1,0 +1,128 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { prisma, resolveSurvivorAccessContext, canSeeSurvivorChannel } = vi.hoisted(() => ({
+  prisma: {
+    league: { findUnique: vi.fn() },
+    survivorGameState: { findUnique: vi.fn() },
+    survivorPlayer: { findMany: vi.fn() },
+    survivorTribe: { findMany: vi.fn() },
+    survivorTribalCouncil: { findFirst: vi.fn() },
+    survivorIdol: { findMany: vi.fn() },
+    survivorChatChannel: { findMany: vi.fn() },
+    survivorAuditEntry: { count: vi.fn() },
+  },
+  resolveSurvivorAccessContext: vi.fn(),
+  canSeeSurvivorChannel: vi.fn(),
+}))
+
+vi.mock('@/lib/prisma', () => ({ prisma }))
+vi.mock('@/lib/survivor/survivorAccessControl', () => ({
+  resolveSurvivorAccessContext,
+  canSeeSurvivorChannel,
+}))
+
+import { buildSurvivorStateForUser } from '@/lib/survivor/survivorStateService'
+
+describe('Survivor state sanitizer', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resolveSurvivorAccessContext.mockResolvedValue({
+      leagueId: 'league-1',
+      userId: 'commish',
+      role: 'commissioner',
+      settings: { defaultTeamCount: 20, tribeCount: 4 },
+      isLeagueMember: true,
+      isLeagueCommissioner: true,
+      isCoCommissioner: false,
+      isParticipant: true,
+      isCommissionerParticipating: true,
+      isParticipatingCommissioner: true,
+      isNonParticipatingCommissionerHost: false,
+      playerState: 'active',
+      tribeId: 'tribe-a',
+      rosterId: 'roster-a',
+      decisions: {
+        canSeeHiddenIdolAssignments: false,
+        canSeePrivateVotes: false,
+        canSeeVoteTallyBeforeReveal: false,
+        canSeePrivateUserDm: false,
+        canSeeTribeChat: true,
+        canSeeExileChat: false,
+        canSeeJuryChat: false,
+        canPerformAdminAction: true,
+        canPerformSensitiveHostAction: false,
+        canOverrideVoteDeadline: false,
+        canRevealVotes: false,
+        canRunChallengeResolution: false,
+        canUpdateSettings: true,
+      },
+      privacyWarnings: ['blind mode'],
+    })
+    prisma.league.findUnique.mockResolvedValue({
+      survivorMode: true,
+      survivorPhase: 'pre_merge',
+      survivorPlayerCount: 20,
+      survivorMergeWeek: 7,
+      leagueVariant: 'survivor',
+    })
+    prisma.survivorGameState.findUnique.mockResolvedValue({
+      phase: 'pre_merge',
+      currentWeek: 3,
+      mergeTriggeredAt: null,
+    })
+    prisma.survivorPlayer.findMany.mockResolvedValue([
+      { userId: 'commish', displayName: 'Host Player', playerState: 'active', tribeId: 'tribe-a', redraftRosterId: 'roster-a' },
+      { userId: 'other', displayName: 'Other', playerState: 'active', tribeId: 'tribe-b', redraftRosterId: 'roster-b' },
+    ])
+    prisma.survivorTribe.findMany.mockResolvedValue([
+      { id: 'tribe-a', name: 'A', slotIndex: 0, isActive: true, isMerged: false, members: [{ rosterId: 'roster-a' }] },
+      { id: 'tribe-b', name: 'B', slotIndex: 1, isActive: true, isMerged: false, members: [{ rosterId: 'roster-b' }] },
+    ])
+    prisma.survivorTribalCouncil.findFirst.mockResolvedValue({
+      id: 'council-1',
+      status: 'voting_open',
+      week: 3,
+      isRevealed: false,
+      votingOpensAt: null,
+      votingDeadline: new Date('2026-09-15T20:00:00.000Z'),
+      voteDeadlineAt: null,
+      votes: [
+        { id: 'vote-1', voterRosterId: 'roster-a', voterUserId: 'commish' },
+        { id: 'vote-2', voterRosterId: 'roster-b', voterUserId: 'other' },
+      ],
+    })
+    prisma.survivorIdol.findMany.mockResolvedValue([
+      {
+        id: 'idol-own',
+        powerType: 'vote_shield',
+        status: 'hidden',
+        assignedAt: new Date('2026-09-01T12:00:00.000Z'),
+        expiresAtWeek: 5,
+        currentOwnerUserId: 'commish',
+        rosterId: 'roster-a',
+        isPubliclyKnown: false,
+      },
+    ])
+    prisma.survivorChatChannel.findMany.mockResolvedValue([
+      { id: 'chat-1', name: 'Tribe A', channelType: 'tribe', tribeId: 'tribe-a', memberUserIds: ['commish'] },
+    ])
+    prisma.survivorAuditEntry.count.mockResolvedValue(1)
+    canSeeSurvivorChannel.mockReturnValue(true)
+  })
+
+  it('hides cross-tribe members, hidden counts, and unrevealed vote totals for a playing commissioner', async () => {
+    const result = await buildSurvivorStateForUser('league-1', 'commish')
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    expect(result.state.noFakeGameplayState).toBe(true)
+    expect(result.state.tribes[0].membersVisible).toBe(true)
+    expect(result.state.tribes[1].membersVisible).toBe(false)
+    expect(result.state.tribes[1].members).toEqual([])
+    expect(result.state.voteWindow.ownVoteSubmitted).toBe(true)
+    expect(result.state.voteWindow.totalVoteCount).toBeNull()
+    expect(result.state.idols.hiddenInventoryVisible).toBe(false)
+    expect(result.state.idols.hiddenCount).toBeNull()
+    expect(result.state.idols.own).toHaveLength(1)
+  })
+})

@@ -25,9 +25,8 @@ const NAMING_LABEL: Record<string, string> = {
 
 function recommendedTribeSplit(players: number): string {
   if (players === 20) return '4 tribes of 5'
-  if (players === 18) return '3 tribes of 6'
-  if (players === 16) return '4 tribes of 4 or 2 tribes of 8'
-  return `${Math.ceil(players / 5)} tribes`
+  if (players === 16) return '4 tribes of 4'
+  return '4 tribes with commissioner-balanced extras'
 }
 
 export function SurvivorSetupStep({ state, setState }: LeagueCreateStepProps) {
@@ -87,8 +86,7 @@ export function SurvivorSetupStep({ state, setState }: LeagueCreateStepProps) {
               onChange={(e) =>
                 setState((c) => {
                   const count = Math.min(20, Math.max(16, Number(e.target.value) || 20))
-                  const tribes = count === 20 ? 4 : count === 18 ? 3 : count === 16 ? 4 : Math.ceil(count / 5)
-                  return { ...c, survivorPlayerCount: count, survivorTribeCount: tribes }
+                  return { ...c, survivorPlayerCount: count, survivorTribeCount: 4 }
                 })
               }
             />
@@ -273,7 +271,7 @@ export function SurvivorSetupStep({ state, setState }: LeagueCreateStepProps) {
               max={20}
               value={state.survivorIdolCount}
               onChange={(e) =>
-                setState((c) => ({ ...c, survivorIdolCount: Math.min(20, Math.max(1, Number(e.target.value) || 9)) }))
+                setState((c) => ({ ...c, survivorIdolCount: Math.min(24, Math.max(1, Number(e.target.value) || 24)) }))
               }
             />
           </div>

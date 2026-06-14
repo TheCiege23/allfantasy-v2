@@ -1,6 +1,44 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+
+type FoundationState = {
+  settings?: {
+    defaultTeamCount: number
+    minTeamCount: number
+    maxTeamCount: number
+    tribeCount: number
+    commissionerParticipationMode: 'non_participating_host' | 'participating_player'
+    mergeTriggerType: string
+    mergeWeek: number
+    mergeActivePlayerCount: number
+    idolsEnabled: boolean
+    powerupsEnabled: boolean
+    exileIslandEnabled: boolean
+  }
+  access?: {
+    isCommissionerParticipating: boolean
+    isNonParticipatingCommissionerHost: boolean
+    privacyWarnings: string[]
+  }
+  dashboard?: {
+    castSize: number
+    activePlayers: number
+    eliminatedPlayers: number
+    exilePlayers: number
+    juryPlayers: number
+    finalistPlayers: number
+    activeTribeCount: number
+    mergeTriggered: boolean
+  }
+  voteWindow?: {
+    status: string
+    ownVoteSubmitted: boolean
+    visibleVoteCount: number | null
+    totalVoteCount: number | null
+  }
+  pendingFoundationWarnings?: string[]
+}
 
 type SurvivorFormatTabProps = {
   leagueId: string
@@ -9,90 +47,185 @@ type SurvivorFormatTabProps = {
   onSave?: (values: { survivorIdolExpiryWeek: number | null }) => Promise<void> | void
 }
 
-/**
- * Survivor format settings tab. Currently exposes the Idol Expiry Week control
- * so commissioners can override the Final-5 default.
- */
-export function SurvivorFormatTab({
-  leagueId,
-  initialIdolExpiryWeek,
-  onSave,
-}: SurvivorFormatTabProps) {
-  const [idolExpiryWeek, setIdolExpiryWeek] = useState<string>(
-    typeof initialIdolExpiryWeek === 'number' ? String(initialIdolExpiryWeek) : '',
-  )
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return <label className="block text-xs font-medium uppercase tracking-wide text-neutral-400">{children}</label>
+}
+
+export function SurvivorFormatTab({ leagueId }: SurvivorFormatTabProps) {
+  const [state, setState] = useState<FoundationState | null>(null)
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
+  const [castSize, setCastSize] = useState('20')
+  const [tribeCount, setTribeCount] = useState('4')
+  const [hostMode, setHostMode] = useState<'non_participating_host' | 'participating_player'>('non_participating_host')
 
   useEffect(() => {
-    setIdolExpiryWeek(
-      typeof initialIdolExpiryWeek === 'number' ? String(initialIdolExpiryWeek) : '',
-    )
-  }, [initialIdolExpiryWeek])
+    if (!leagueId) return
+    setLoading(true)
+    fetch(`/api/leagues/${leagueId}/survivor`, { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Could not load Survivor foundation'))))
+      .then((json: FoundationState) => {
+        setState(json)
+        if (json.settings) {
+          setCastSize(String(json.settings.defaultTeamCount))
+          setTribeCount(String(json.settings.tribeCount))
+          setHostMode(json.settings.commissionerParticipationMode)
+        }
+      })
+      .catch((err) => setStatus(err instanceof Error ? err.message : String(err)))
+      .finally(() => setLoading(false))
+  }, [leagueId])
 
-  async function handleSave() {
+  const tribeSize = useMemo(() => {
+    const teams = Number(castSize)
+    const tribes = Number(tribeCount)
+    if (!Number.isFinite(teams) || !Number.isFinite(tribes) || tribes <= 0) return 0
+    return Math.ceil(teams / tribes)
+  }, [castSize, tribeCount])
+
+  async function saveFoundation() {
     setSaving(true)
     setStatus(null)
     try {
-      const parsed =
-        idolExpiryWeek.trim() === '' ? null : Number.parseInt(idolExpiryWeek, 10)
-      if (parsed !== null && (!Number.isFinite(parsed) || parsed < 1)) {
-        setStatus('Please enter a positive week number or leave blank.')
-        return
-      }
-      const payload = { survivorIdolExpiryWeek: parsed }
-      if (onSave) {
-        await onSave(payload)
-      } else {
-        await fetch(`/api/league/${leagueId}/survivor-format`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-      }
+      const res = await fetch(`/api/leagues/${leagueId}/survivor/update-settings`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          settings: {
+            defaultTeamCount: Number(castSize),
+            tribeCount: Number(tribeCount),
+            commissionerParticipationMode: hostMode,
+          },
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Save failed')
       setStatus('Saved.')
+      const fresh = await fetch(`/api/leagues/${leagueId}/survivor`, { credentials: 'include' })
+      if (fresh.ok) setState((await fresh.json()) as FoundationState)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      setStatus(`Error: ${msg}`)
+      setStatus(err instanceof Error ? err.message : String(err))
     } finally {
       setSaving(false)
     }
   }
 
+  const warnings = [
+    ...(state?.access?.privacyWarnings ?? []),
+    ...(state?.pendingFoundationWarnings ?? []),
+  ]
+
   return (
-    <div className="space-y-4 p-4">
-      <div>
-        <label
-          htmlFor="survivor-idol-expiry-week"
-          className="block text-sm font-medium text-neutral-200"
+    <div className="space-y-5 p-4 text-neutral-100">
+      {warnings.length > 0 ? (
+        <div className="rounded border border-amber-500/30 bg-amber-950/30 p-3 text-xs leading-relaxed text-amber-100">
+          {warnings[0]}
+        </div>
+      ) : null}
+
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold text-white">Survivor Foundation</h3>
+          <p className="mt-1 text-xs text-neutral-400">
+            Phase 1 stores setup and privacy state only. Gameplay engines stay off until their DB flows are ready.
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div>
+            <FieldLabel>Cast size</FieldLabel>
+            <input
+              type="number"
+              min={16}
+              max={20}
+              value={castSize}
+              onChange={(e) => setCastSize(e.target.value)}
+              className="mt-1 w-full rounded border border-neutral-700 bg-neutral-900 px-2 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <FieldLabel>Tribes</FieldLabel>
+            <input
+              type="number"
+              min={2}
+              max={5}
+              value={tribeCount}
+              onChange={(e) => setTribeCount(e.target.value)}
+              className="mt-1 w-full rounded border border-neutral-700 bg-neutral-900 px-2 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <FieldLabel>Tribe size</FieldLabel>
+            <div className="mt-1 rounded border border-neutral-800 bg-neutral-950 px-2 py-2 text-sm text-neutral-300">
+              {tribeSize || '-'}
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <FieldLabel>Commissioner privacy</FieldLabel>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setHostMode('non_participating_host')}
+              className={`rounded border px-3 py-2 text-left text-sm ${
+                hostMode === 'non_participating_host'
+                  ? 'border-sky-400 bg-sky-500/15 text-sky-100'
+                  : 'border-neutral-800 bg-neutral-950 text-neutral-300'
+              }`}
+            >
+              Non-playing host
+            </button>
+            <button
+              type="button"
+              onClick={() => setHostMode('participating_player')}
+              className={`rounded border px-3 py-2 text-left text-sm ${
+                hostMode === 'participating_player'
+                  ? 'border-amber-400 bg-amber-500/15 text-amber-100'
+                  : 'border-neutral-800 bg-neutral-950 text-neutral-300'
+              }`}
+            >
+              Playing commissioner
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          disabled={saving || loading}
+          onClick={saveFoundation}
+          className="rounded bg-orange-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
         >
-          Idol expiry week
-        </label>
-        <input
-          id="survivor-idol-expiry-week"
-          type="number"
-          min={1}
-          value={idolExpiryWeek}
-          onChange={(e) => setIdolExpiryWeek(e.target.value)}
-          className="mt-1 w-32 rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm"
-          placeholder="Final 5"
-        />
-        <p className="mt-1 text-xs text-neutral-400">
-          Week after which unused idols expire. Leave blank for Final 5 default.
-        </p>
-      </div>
-      <button
-        type="button"
-        disabled={saving}
-        onClick={handleSave}
-        className="rounded bg-orange-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
-      >
-        {saving ? 'Saving…' : 'Save'}
-      </button>
-      {status && <p className="text-xs text-neutral-400">{status}</p>}
+          {saving ? 'Saving...' : 'Save foundation'}
+        </button>
+        {status ? <p className="text-xs text-neutral-400">{status}</p> : null}
+      </section>
+
+      <section className="space-y-3 border-t border-neutral-800 pt-4">
+        <h3 className="text-sm font-semibold text-white">State Dashboard</h3>
+        <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+          <div className="rounded border border-neutral-800 bg-neutral-950 p-3">
+            <div className="text-neutral-500">Cast</div>
+            <div className="mt-1 text-lg font-semibold">{state?.dashboard?.castSize ?? '-'}</div>
+          </div>
+          <div className="rounded border border-neutral-800 bg-neutral-950 p-3">
+            <div className="text-neutral-500">Active</div>
+            <div className="mt-1 text-lg font-semibold">{state?.dashboard?.activePlayers ?? '-'}</div>
+          </div>
+          <div className="rounded border border-neutral-800 bg-neutral-950 p-3">
+            <div className="text-neutral-500">Tribes</div>
+            <div className="mt-1 text-lg font-semibold">{state?.dashboard?.activeTribeCount ?? '-'}</div>
+          </div>
+          <div className="rounded border border-neutral-800 bg-neutral-950 p-3">
+            <div className="text-neutral-500">Vote</div>
+            <div className="mt-1 text-sm font-semibold">{state?.voteWindow?.status ?? 'not_started'}</div>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }
 
 export default SurvivorFormatTab
-

@@ -256,7 +256,7 @@ export const DEFAULT_V2_STATE: CreateLeagueV2State = {
   scoringPresetId: '',
   teamCount: 12,
   tournamentPoolSize: 32,
-  survivorTribeCount: 2,
+  survivorTribeCount: 4,
   draftType: 'snake',
   thirdRoundReversal: false,
   name: '',

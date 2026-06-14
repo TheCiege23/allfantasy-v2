@@ -8,9 +8,52 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { assertLeagueMember } from '@/lib/league/league-access'
+import { resolveSurvivorAccessContext } from '@/lib/survivor/survivorAccessControl'
 
 export const dynamic = 'force-dynamic'
+
+type IdolRow = {
+  id: string
+  powerType: string
+  status: string
+  assignedAt: Date
+  usedAt: Date | null
+  expiredAt: Date | null
+  expiresAtWeek: number | null
+  currentOwnerUserId: string | null
+  originalOwnerUserId: string | null
+  rosterId: string
+  playerId: string
+  isPubliclyKnown: boolean
+  isSecret: boolean
+  isUsed: boolean
+  powerLabel: string | null
+}
+
+function isPublicIdol(row: Pick<IdolRow, 'status' | 'isPubliclyKnown'>): boolean {
+  return row.isPubliclyKnown || ['played', 'expired', 'revealed', 'used'].includes(row.status)
+}
+
+function redactIdol(row: IdolRow, owned: boolean, canSeeHidden: boolean) {
+  if (canSeeHidden || owned) return row
+  return {
+    id: row.id,
+    powerType: row.powerType,
+    status: row.status,
+    assignedAt: null,
+    usedAt: row.usedAt,
+    expiredAt: row.expiredAt,
+    expiresAtWeek: row.expiresAtWeek,
+    currentOwnerUserId: null,
+    originalOwnerUserId: null,
+    rosterId: null,
+    playerId: null,
+    isPubliclyKnown: row.isPubliclyKnown,
+    isSecret: row.isSecret,
+    isUsed: row.isUsed,
+    powerLabel: isPublicIdol(row) ? row.powerLabel : null,
+  }
+}
 
 export async function GET(
   req: NextRequest,
@@ -21,34 +64,50 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { leagueId } = params
-  const gate = await assertLeagueMember(leagueId, userId)
-  if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status ?? 403 })
+  const access = await resolveSurvivorAccessContext(leagueId, userId)
+  if (!access) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!access.isLeagueMember) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const league = await prisma.league.findUnique({ where: { id: leagueId }, select: { userId: true } })
-  const isCommissioner = league?.userId === userId
-
-  if (isCommissioner) {
-    const allIdols = await prisma.survivorIdol.findMany({ where: { leagueId } })
-    return NextResponse.json({ idols: allIdols, isCommissioner: true })
-  }
-
-  // Non-commissioner: own + publicly revealed (played/expired)
-  const visible = await prisma.survivorIdol.findMany({
-    where: {
-      leagueId,
-      OR: [
-        { currentOwnerUserId: userId },
-        { status: { in: ['played', 'expired', 'revealed'] } },
-      ],
-    },
+  const canSeeHidden = access.decisions.canSeeHiddenIdolAssignments
+  const rosterId = access.rosterId
+  const idols = await prisma.survivorIdol.findMany({
+    where: canSeeHidden
+      ? { leagueId }
+      : {
+          leagueId,
+          OR: [
+            { currentOwnerUserId: userId },
+            { rosterId: rosterId ?? '__none__' },
+            { isPubliclyKnown: true },
+            { status: { in: ['played', 'expired', 'revealed', 'used'] } },
+          ],
+        },
     select: {
       id: true,
       powerType: true,
       status: true,
-      foundWeek: true,
-      playedWeek: true,
+      assignedAt: true,
+      usedAt: true,
+      expiredAt: true,
+      expiresAtWeek: true,
       currentOwnerUserId: true,
+      originalOwnerUserId: true,
+      rosterId: true,
+      playerId: true,
+      isPubliclyKnown: true,
+      isSecret: true,
+      isUsed: true,
+      powerLabel: true,
     },
   })
-  return NextResponse.json({ idols: visible, isCommissioner: false })
+  const visible = idols.map((idol: IdolRow) => {
+    const owned = idol.currentOwnerUserId === userId || (rosterId != null && idol.rosterId === rosterId)
+    return redactIdol(idol, owned, canSeeHidden)
+  })
+
+  return NextResponse.json({
+    idols: visible,
+    hiddenInventoryVisible: canSeeHidden,
+    privacyMode: access.isParticipatingCommissioner ? 'participating_commissioner_redacted' : 'standard',
+  })
 }

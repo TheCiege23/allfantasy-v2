@@ -36,15 +36,20 @@
  *   NCAAF: 14 cast (2 tribes × 7), merge at 7, ~14 college weeks → mirrors season length
  */
 import type { LeagueSport } from '@prisma/client'
+import {
+  SURVIVOR_CANONICAL_DRAFT_TYPE_IDS,
+  SURVIVOR_DEFAULT_FOUNDATION_SETTINGS,
+  buildSurvivorSettingsSnapshotPatch,
+} from '@/lib/survivor/survivorSettings'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type SurvivorEligibleSport = 'NFL' | 'NCAAF'
 
-export const SURVIVOR_DRAFT_TYPE_IDS = ['snake', 'auction'] as const
+export const SURVIVOR_DRAFT_TYPE_IDS = SURVIVOR_CANONICAL_DRAFT_TYPE_IDS
 export type SurvivorDraftType = (typeof SURVIVOR_DRAFT_TYPE_IDS)[number]
 
-type EngineDraftType = 'snake' | 'auction'
+type EngineDraftType = SurvivorDraftType
 
 export type SurvivorPhase =
   | 'setup'
@@ -56,7 +61,7 @@ export type SurvivorPhase =
   | 'complete'
 
 export type AutomationStatus = 'not_started' | 'pending' | 'active' | 'finalized'
-export type TribeAssignmentMode = 'random' | 'snake_draft' | 'commissioner'
+export type TribeAssignmentMode = 'random' | 'snake_draft' | 'commissioner' | 'draft_pattern' | 'commissioner_manual'
 export type ChallengeType = 'tribe_score' | 'individual_score' | 'commissioner_assigned'
 export type ChallengeSource = 'fantasy_points_for' | 'commissioner_assigned'
 export type VotingMode = 'tribe_vote' | 'individual_vote'
@@ -219,9 +224,9 @@ const NFL_SURVIVOR_ROSTER_CONFIG = {
   queueSizeLimit: 50,
   scoringPreset: 'fb_half_ppr',
   // NFL: 16 cast = 2 tribes × 8 → merge at 8; 17-week NFL season provides enough rounds
-  castSize: 16,
-  tribeCount: 2,
-  mergeAtCount: 8,
+  castSize: 20,
+  tribeCount: 4,
+  mergeAtCount: 10,
 }
 
 const NCAAF_SURVIVOR_ROSTER_CONFIG = {
@@ -233,9 +238,9 @@ const NCAAF_SURVIVOR_ROSTER_CONFIG = {
   queueSizeLimit: 70,
   scoringPreset: 'ncaaf_half_ppr',
   // NCAAF: 14 cast = 2 tribes × 7 → merge at 7; 14-week NCAAF season is the ceiling
-  castSize: 14,
-  tribeCount: 2,
-  mergeAtCount: 7,
+  castSize: 20,
+  tribeCount: 4,
+  mergeAtCount: 10,
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -246,12 +251,13 @@ export function isSurvivorEligibleSport(sport: unknown): sport is SurvivorEligib
 }
 
 function normalizeEngineDraftType(draftType: unknown): EngineDraftType {
-  const raw = String(draftType ?? '').trim().toLowerCase()
-  return raw === 'auction' ? 'auction' : 'snake'
+  return normalizeSurvivorDraftType(draftType)
 }
 
 function normalizeSurvivorDraftType(value: unknown): SurvivorDraftType {
-  const raw = String(value ?? '').trim().toLowerCase()
+  const raw = String(value ?? '').trim().toLowerCase().replace(/-/g, '_')
+  if (raw === 'team') return 'by_team'
+  if (raw === 'realtime') return 'real_time'
   return (SURVIVOR_DRAFT_TYPE_IDS as readonly string[]).includes(raw)
     ? (raw as SurvivorDraftType)
     : 'snake'
@@ -326,7 +332,9 @@ function buildExileSettings(): SurvivorExileSettings {
 function buildIdolSettings(): SurvivorIdolSettings {
   return {
     idolsEnabled: true,
-    idolCount: 2,
+    idolCount:
+      SURVIVOR_DEFAULT_FOUNDATION_SETTINGS.defaultTeamCount +
+      SURVIVOR_DEFAULT_FOUNDATION_SETTINGS.tribeCount,
     idolPlayWindow: 'before_vote_reveal',
     idolEffect: 'cancels_votes_against_target',
     // Phase 2: idol search / clue engine and inventory not yet built
@@ -620,8 +628,18 @@ export function getSurvivorDefaultContract(input: {
 
   const sport = normalizedSport
   const cfg = rosterConfig(sport)
+  const teamCount =
+    typeof input.teamCount === 'number' && input.teamCount > 0
+      ? Math.floor(input.teamCount)
+      : cfg.castSize
   const requestedDraftType = normalizeSurvivorDraftType(input.draftType)
   const survivorStructure = buildSurvivorStructure(sport)
+  survivorStructure.castSize = teamCount
+  survivorStructure.tribeSettings.castSize = teamCount
+  survivorStructure.tribeSettings.mergeAtCount = Math.min(
+    survivorStructure.tribeSettings.mergeAtCount,
+    Math.ceil(teamCount / 2),
+  )
   const rosterTemplate = buildRosterTemplate(sport)
   const draftSettings = buildDraftSettings(sport, requestedDraftType, rosterTemplate)
   const scoringPresetId =
@@ -635,12 +653,6 @@ export function getSurvivorDefaultContract(input: {
   const tabsEnabled = buildTabsEnabled()
   const enabledFeatures = buildEnabledFeatures()
   const creationPlan = buildCreationPlan(sport, survivorStructure)
-  // teamCount for survivor = cast size (how many teams are in the league)
-  const teamCount =
-    typeof input.teamCount === 'number' && input.teamCount > 0
-      ? Math.floor(input.teamCount)
-      : cfg.castSize
-
   return {
     sport,
     league_type: 'survivor',
@@ -807,6 +819,15 @@ export function buildSurvivorSettingsSnapshot(input: {
     creation_plan: contract.creationPlan,
 
     ...contract.enabledFeatures,
+    ...buildSurvivorSettingsSnapshotPatch({
+      defaultTeamCount: contract.teams,
+      tribeCount: tribeSettings.tribeCount,
+      mergeActivePlayerCount: tribeSettings.mergeAtCount,
+      tribeAssignmentMode: tribeSettings.tribeAssignmentMode,
+      commissionerParticipationMode: 'non_participating_host',
+      idolsEnabled: idolSettings.idolsEnabled,
+      exileIslandEnabled: exileSettings.exileEnabled,
+    }),
 
     // Hard guardrails
     devyConfig: { enabled: false },

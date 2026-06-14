@@ -16,6 +16,7 @@ import { TokenBalanceResolver } from '@/lib/tokens/TokenBalanceResolver'
 import { resolveAfPlanFromEntitlement } from '@/lib/tournament/resolve-af-plan-from-subscription'
 import type { AfPlanId } from '@/lib/tournament/af-premium-plans'
 import { extractLeadingTribeIcon } from '@/lib/survivor/survivorVisuals'
+import { resolveSurvivorAccessContext } from '@/lib/survivor/survivorAccessControl'
 
 export type SurvivorCommissionerDashboardResult =
   | {
@@ -52,6 +53,14 @@ export type SurvivorCommissionerDashboardResult =
       rosterCount: number
       eliminatedCount: number
       auditTail: Awaited<ReturnType<typeof getSurvivorAuditLog>>
+      privacy: {
+        commissionerParticipationMode: string
+        blindModeActive: boolean
+        canSeeHiddenIdolAssignments: boolean
+        canSeePrivateVotes: boolean
+        canSeeVoteTallyBeforeReveal: boolean
+        warnings: string[]
+      }
       monetization: {
         afPlan: AfPlanId | null
         afTokensRemaining: number
@@ -67,6 +76,10 @@ export async function buildSurvivorCommissionerDashboard(
 ): Promise<SurvivorCommissionerDashboardResult> {
   const role = await getLeagueRole(leagueId, userId)
   if (role !== 'commissioner' && role !== 'co_commissioner') {
+    return { ok: false, error: 'Commissioner or co-commissioner access required', status: 403 }
+  }
+  const access = await resolveSurvivorAccessContext(leagueId, userId)
+  if (!access?.isLeagueMember) {
     return { ok: false, error: 'Commissioner or co-commissioner access required', status: 403 }
   }
 
@@ -117,7 +130,7 @@ export async function buildSurvivorCommissionerDashboard(
     getCurrentlyEliminatedRosterIds(leagueId),
   ])
 
-  const tribes = tribeRows.map((tribe) => ({
+  const tribes = tribeRows.map((tribe: Awaited<ReturnType<typeof getTribesWithMembers>>[number]) => ({
     ...tribe,
     emoji: extractLeadingTribeIcon(tribe.name),
   }))
@@ -165,6 +178,14 @@ export async function buildSurvivorCommissionerDashboard(
     rosterCount,
     eliminatedCount: eliminatedIds.size,
     auditTail,
+    privacy: {
+      commissionerParticipationMode: access.settings.commissionerParticipationMode,
+      blindModeActive: access.isParticipatingCommissioner,
+      canSeeHiddenIdolAssignments: access.decisions.canSeeHiddenIdolAssignments,
+      canSeePrivateVotes: access.decisions.canSeePrivateVotes,
+      canSeeVoteTallyBeforeReveal: access.decisions.canSeeVoteTallyBeforeReveal,
+      warnings: access.privacyWarnings,
+    },
     monetization: {
       afPlan,
       afTokensRemaining: Number(tokenBalance.balance ?? 0),
