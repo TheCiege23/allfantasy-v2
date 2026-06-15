@@ -16,10 +16,18 @@ Phase 1 foundation runtime scaffold exists:
 - `scripts/seed-survivor-foundation-runtime.ts`
 - `e2e/survivor-foundation-runtime.spec.ts`
 
-The full runtime remains deferred. The foundation scaffold verifies canonical setup state,
-commissioner participation privacy, DB-backed tribes/vote-window/idol shell data, and the
-no-fake-gameplay contract. It does not verify full idol/power, Exile, challenge, jury, or
-finale engines.
+Phase 2 (tribes, chats, idol seeding) runtime scaffold also exists and PASSES against real
+Neon (chromium, `@db`):
+
+- `scripts/seed-survivor-phase2-runtime.ts` (un-initialized leagues: active players + rosters,
+  no tribes/chats/idols — the route actions build them)
+- `e2e/survivor-phase2-runtime.spec.ts` (4/4): `initialize-survivor` builds 4 tribes + 4 tribe
+  chats + 19 Vote Shield idols + intro; idempotent re-run; participating commissioner blind to
+  hidden idols + other tribes; non-commissioner member 403 on admin actions.
+
+The full end-game runtime remains deferred. The Phase 1/2 scaffolds verify canonical setup,
+tribe assignment + chat visibility + idol seeding + privacy, and the no-fake-gameplay contract.
+They do not verify full idol/power RESOLUTION, Exile, challenge, jury, or finale engines.
 
 Missing full-runtime deliverables:
 

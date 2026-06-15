@@ -65,6 +65,17 @@ Neon SQL posture:
 
 ## Phase 2 - Draft Completion, Tribes, Chats, and Idol Seeding
 
+Status: **COMPLETE (2026-06-15).** Tribe assignment (random/manual/draft-pattern, balanced,
+deterministic seed), tribe + league chat provisioning, host intro announcement, and Vote Shield
+idol seeding (rosterSpots + tribeCount = 19, hidden, multiples allowed, final-5 expiry) ship as
+pure engines + idempotent server-only services orchestrated by `survivorPhase2Init`, wired into
+the existing consolidated foundation route (no new route file). Privacy reuses the Phase 1
+access-control + state sanitizer (participating commissioner blind to hidden idols + other
+tribes). Verified by unit tests (Survivor 243/243), completed-format regression (972/972), and a
+real-Neon `@db` Playwright runtime (4/4). See `docs/survivor-phase-2-tribes-idols-chat.md`. No
+migration required. Deferred to later phases: full powerup RESOLUTION, Exile, jury, finale,
+full challenge library, mentions command router.
+
 Tasks:
 
 - Wire draft-complete event to Survivor bootstrap for real leagues only.

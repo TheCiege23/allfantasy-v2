@@ -10,6 +10,16 @@ import {
   normalizeSurvivorFoundationSettings,
 } from '@/lib/survivor/normalizeSurvivorSettings'
 import { upsertSurvivorConfig } from '@/lib/survivor/SurvivorLeagueConfig'
+import {
+  initializeSurvivorPhase2,
+  getSurvivorPhase2Status,
+  resetSurvivorPhase2State,
+} from '@/lib/survivor/survivorPhase2Init'
+import { assignSurvivorTribes } from '@/lib/survivor/survivorTribeProvisioning'
+import { provisionSurvivorChats } from '@/lib/survivor/survivorTribeChatProvisioning'
+import { seedSurvivorIdols } from '@/lib/survivor/survivorIdolProvisioning'
+import { postSurvivorIntroAnnouncement } from '@/lib/survivor/survivorAnnouncementService'
+import type { SurvivorTribeAssignmentMode } from '@/lib/survivor/normalizeSurvivorSettings'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -219,6 +229,92 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
       },
     })
     return NextResponse.json({ ok: true, entries, noFakeGameplayState: true })
+  }
+
+  // ---- Phase 2: tribes, chats, idols, intro ----
+  const PHASE2_ADMIN_ACTIONS = new Set([
+    'initialize-survivor',
+    'assign-tribes',
+    'create-tribe-chats',
+    'seed-idols',
+    'post-intro',
+    'reset-phase-2-test-state',
+  ])
+  if (PHASE2_ADMIN_ACTIONS.has(action) && !access.decisions.canPerformAdminAction) {
+    return NextResponse.json({ error: 'Commissioner access required' }, { status: 403 })
+  }
+
+  function parseTribeMode(): SurvivorTribeAssignmentMode | undefined {
+    const raw = typeof body.mode === 'string' ? body.mode : undefined
+    if (raw === 'random' || raw === 'commissioner_manual' || raw === 'draft_pattern') return raw
+    return undefined
+  }
+  function parseManualMapping(): Record<string, number> | null {
+    const m = asRecord(body.manualMapping)
+    const out: Record<string, number> = {}
+    for (const [k, v] of Object.entries(m)) {
+      if (typeof v === 'number' && Number.isFinite(v)) out[k] = Math.floor(v)
+    }
+    return Object.keys(out).length > 0 ? out : null
+  }
+  function parseDraftOrder(): string[] | null {
+    return Array.isArray(body.draftOrder) ? body.draftOrder.filter((x): x is string => typeof x === 'string') : null
+  }
+  const seedInput = typeof body.seed === 'number' && Number.isFinite(body.seed) ? Math.floor(body.seed) : null
+  const allowReassign = body.allowReassign === true
+
+  if (action === 'initialize-survivor') {
+    const result = await initializeSurvivorPhase2(leagueId, {
+      actorUserId: userId,
+      mode: parseTribeMode(),
+      seed: seedInput,
+      manualMapping: parseManualMapping(),
+      draftOrder: parseDraftOrder(),
+      allowReassign,
+    })
+    return NextResponse.json({ ...result, action, noFakeGameplayState: true }, { status: result.ok ? 200 : 422 })
+  }
+
+  if (action === 'assign-tribes') {
+    const result = await assignSurvivorTribes(leagueId, {
+      actorUserId: userId,
+      mode: parseTribeMode(),
+      seed: seedInput,
+      manualMapping: parseManualMapping(),
+      draftOrder: parseDraftOrder(),
+      allowReassign,
+    })
+    if (!result.ok) return NextResponse.json({ ...result, action }, { status: result.status })
+    return NextResponse.json({ ...result, action, noFakeGameplayState: true })
+  }
+
+  if (action === 'create-tribe-chats') {
+    const result = await provisionSurvivorChats(leagueId, { actorUserId: userId })
+    return NextResponse.json({ ...result, action, noFakeGameplayState: true })
+  }
+
+  if (action === 'seed-idols') {
+    const result = await seedSurvivorIdols(leagueId, { actorUserId: userId, seed: seedInput, allowReseed: allowReassign })
+    if (!result.ok) return NextResponse.json({ ...result, action }, { status: result.status })
+    return NextResponse.json({ ...result, action, noFakeGameplayState: true })
+  }
+
+  if (action === 'post-intro') {
+    const result = await postSurvivorIntroAnnouncement(leagueId, { actorUserId: userId })
+    return NextResponse.json({ ...result, action, noFakeGameplayState: true })
+  }
+
+  if (action === 'phase-2-status') {
+    const status = await getSurvivorPhase2Status(leagueId)
+    return NextResponse.json({ ok: true, action, status, noFakeGameplayState: true })
+  }
+
+  if (action === 'reset-phase-2-test-state') {
+    if (process.env.NODE_ENV === 'production' && process.env.SURVIVOR_ALLOW_TEST_RESET !== 'true') {
+      return NextResponse.json({ error: 'Reset is disabled in production' }, { status: 403 })
+    }
+    const result = await resetSurvivorPhase2State(leagueId, { actorUserId: userId })
+    return NextResponse.json({ ...result, action, noFakeGameplayState: true })
   }
 
   if (action === 'open-vote-window-placeholder') {

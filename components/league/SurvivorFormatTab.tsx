@@ -17,9 +17,24 @@ type FoundationState = {
     exileIslandEnabled: boolean
   }
   access?: {
+    isCommissioner?: boolean
     isCommissionerParticipating: boolean
     isNonParticipatingCommissionerHost: boolean
     privacyWarnings: string[]
+    decisions?: {
+      canPerformAdminAction?: boolean
+      canSeeHiddenIdolAssignments?: boolean
+    }
+  }
+  initialization?: {
+    tribesAssigned: boolean
+    tribeCount: number
+    chatsProvisioned: boolean
+    tribeChatCount: number
+    idolsSeeded: boolean
+    voteShieldCount: number
+    introPosted: boolean
+    phase2Complete: boolean
   }
   dashboard?: {
     castSize: number
@@ -116,6 +131,44 @@ export function SurvivorFormatTab({ leagueId }: SurvivorFormatTabProps) {
     ...(state?.access?.privacyWarnings ?? []),
     ...(state?.pendingFoundationWarnings ?? []),
   ]
+
+  const canAdmin = Boolean(state?.access?.decisions?.canPerformAdminAction)
+  const init = state?.initialization
+
+  async function runPhase2Action(action: string, body: Record<string, unknown> = {}) {
+    setSaving(true)
+    setStatus(null)
+    try {
+      const res = await fetch(`/api/leagues/${leagueId}/survivor/${action}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? json.code ?? `${action} failed`)
+      setStatus(`${action}: ok`)
+      const fresh = await fetch(`/api/leagues/${leagueId}/survivor`, { credentials: 'include' })
+      if (fresh.ok) setState((await fresh.json()) as FoundationState)
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function StatusPill({ done, label }: { done: boolean; label: string }) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium ${
+          done ? 'bg-emerald-500/15 text-emerald-200' : 'bg-neutral-800 text-neutral-400'
+        }`}
+      >
+        <span className={`h-1.5 w-1.5 rounded-full ${done ? 'bg-emerald-400' : 'bg-neutral-500'}`} />
+        {label}
+      </span>
+    )
+  }
 
   return (
     <div className="space-y-5 p-4 text-neutral-100">
@@ -224,6 +277,74 @@ export function SurvivorFormatTab({ leagueId }: SurvivorFormatTabProps) {
           </div>
         </div>
       </section>
+
+      {canAdmin ? (
+        <section className="space-y-3 border-t border-neutral-800 pt-4">
+          <div>
+            <h3 className="text-sm font-semibold text-white">Phase 2 — Tribes, Chats & Idols</h3>
+            <p className="mt-1 text-xs text-neutral-400">
+              Assign tribes, open tribe chats, seed hidden Vote Shield idols, and post the host intro. Every step is
+              idempotent — re-running will not duplicate. Idol owners stay hidden from participating commissioners.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <StatusPill done={Boolean(init?.tribesAssigned)} label={`Tribes${init?.tribeCount ? ` (${init.tribeCount})` : ''}`} />
+            <StatusPill done={Boolean(init?.chatsProvisioned)} label={`Chats${init?.tribeChatCount ? ` (${init.tribeChatCount})` : ''}`} />
+            <StatusPill done={Boolean(init?.idolsSeeded)} label={`Idols${init?.voteShieldCount ? ` (${init.voteShieldCount})` : ''}`} />
+            <StatusPill done={Boolean(init?.introPosted)} label="Intro" />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={saving || loading}
+              onClick={() => runPhase2Action('initialize-survivor')}
+              className="rounded bg-orange-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
+            >
+              {init?.phase2Complete ? 'Re-run initialization' : 'Initialize Survivor'}
+            </button>
+            <button
+              type="button"
+              disabled={saving || loading}
+              onClick={() => runPhase2Action('assign-tribes')}
+              className="rounded border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-200 disabled:opacity-60"
+            >
+              Assign tribes
+            </button>
+            <button
+              type="button"
+              disabled={saving || loading}
+              onClick={() => runPhase2Action('create-tribe-chats')}
+              className="rounded border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-200 disabled:opacity-60"
+            >
+              Create chats
+            </button>
+            <button
+              type="button"
+              disabled={saving || loading}
+              onClick={() => runPhase2Action('seed-idols')}
+              className="rounded border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-200 disabled:opacity-60"
+            >
+              Seed idols
+            </button>
+            <button
+              type="button"
+              disabled={saving || loading}
+              onClick={() => runPhase2Action('post-intro')}
+              className="rounded border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-200 disabled:opacity-60"
+            >
+              Post intro
+            </button>
+          </div>
+
+          {init && state?.access?.decisions?.canSeeHiddenIdolAssignments ? (
+            <p className="text-[11px] text-neutral-500">
+              Hidden idol inventory is visible to you as a non-playing host. Playing commissioners never see idol owners.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
     </div>
   )
 }

@@ -122,6 +122,16 @@ export interface SurvivorFoundationState {
     hiddenCount: number | null
   }
   chats: Array<{ id: string; name: string; channelType: string; tribeId: string | null; memberCount: number }>
+  initialization: {
+    tribesAssigned: boolean
+    tribeCount: number
+    chatsProvisioned: boolean
+    tribeChatCount: number
+    idolsSeeded: boolean
+    voteShieldCount: number
+    introPosted: boolean
+    phase2Complete: boolean
+  }
   audit: {
     visibleRecentCount: number
   }
@@ -178,6 +188,8 @@ export async function buildSurvivorStateForUser(
     idols,
     channels,
     auditCount,
+    voteShieldCount,
+    introMessageCount,
   ] = await Promise.all([
     prisma.league.findUnique({
       where: { id: leagueId },
@@ -268,6 +280,8 @@ export async function buildSurvivorStateForUser(
             OR: [{ isVisibleToPublic: true }, { actorUserId: userId }, { targetUserId: userId }],
           },
     }),
+    prisma.survivorIdol.count({ where: { leagueId, powerType: 'vote_shield' } }),
+    prisma.survivorChatMessage.count({ where: { leagueId, contentType: 'survivor_intro' } }),
   ])
 
   if (!league || (league.leagueVariant !== 'survivor' && !league.survivorMode)) {
@@ -392,6 +406,24 @@ export async function buildSurvivorStateForUser(
       hiddenCount: access.decisions.canSeeHiddenIdolAssignments ? idolRows.length : null,
     },
     chats: visibleChannels,
+    initialization: (() => {
+      const tribeChatCount = channelRows.filter((c) => c.channelType === 'tribe').length
+      const tribeMemberTotal = tribeRows.reduce((n, t) => n + t.members.length, 0)
+      const tribesAssigned = tribeRows.length > 0 && tribeMemberTotal > 0
+      const chatsProvisioned = channelRows.some((c) => c.channelType === 'league') || tribeChatCount > 0
+      const idolsSeeded = (voteShieldCount as number) > 0
+      const introPosted = (introMessageCount as number) > 0
+      return {
+        tribesAssigned,
+        tribeCount: tribeRows.length,
+        chatsProvisioned,
+        tribeChatCount,
+        idolsSeeded,
+        voteShieldCount: voteShieldCount as number,
+        introPosted,
+        phase2Complete: tribesAssigned && chatsProvisioned && idolsSeeded && introPosted,
+      }
+    })(),
     audit: {
       visibleRecentCount: auditCount,
     },

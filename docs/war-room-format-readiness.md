@@ -24,6 +24,12 @@ finale, anti-cheat privacy, media, AI grounding, and DB-backed runtime. See
 `docs/survivor-full-concept-audit.md`, `docs/survivor-full-product-spec.md`,
 `docs/survivor-implementation-plan.md`, and `docs/survivor-runtime.md`.
 
+Progress: Phase 1 (privacy + canonical settings) and Phase 2 (tribe assignment, tribe/league
+chats, host intro, hidden Vote Shield idol seeding, with role-aware privacy) are COMPLETE and
+DB-runtime verified — see `docs/survivor-phase-2-tribes-idols-chat.md`. Still required before a
+native Survivor War Room: powerup RESOLUTION, challenges, vote reveal/tally, Exile, jury, and
+finale engines. Survivor remains "strategy/meta only" until those land.
+
 ## Status by format
 
 | Format | Status | Notes |

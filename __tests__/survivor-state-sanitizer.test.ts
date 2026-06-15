@@ -7,8 +7,9 @@ const { prisma, resolveSurvivorAccessContext, canSeeSurvivorChannel } = vi.hoist
     survivorPlayer: { findMany: vi.fn() },
     survivorTribe: { findMany: vi.fn() },
     survivorTribalCouncil: { findFirst: vi.fn() },
-    survivorIdol: { findMany: vi.fn() },
+    survivorIdol: { findMany: vi.fn(), count: vi.fn() },
     survivorChatChannel: { findMany: vi.fn() },
+    survivorChatMessage: { count: vi.fn() },
     survivorAuditEntry: { count: vi.fn() },
   },
   resolveSurvivorAccessContext: vi.fn(),
@@ -104,8 +105,11 @@ describe('Survivor state sanitizer', () => {
       },
     ])
     prisma.survivorChatChannel.findMany.mockResolvedValue([
+      { id: 'chat-league', name: 'Island', channelType: 'league', tribeId: null, memberUserIds: ['commish', 'other'] },
       { id: 'chat-1', name: 'Tribe A', channelType: 'tribe', tribeId: 'tribe-a', memberUserIds: ['commish'] },
     ])
+    prisma.survivorIdol.count.mockResolvedValue(19)
+    prisma.survivorChatMessage.count.mockResolvedValue(1)
     prisma.survivorAuditEntry.count.mockResolvedValue(1)
     canSeeSurvivorChannel.mockReturnValue(true)
   })
@@ -124,5 +128,22 @@ describe('Survivor state sanitizer', () => {
     expect(result.state.idols.hiddenInventoryVisible).toBe(false)
     expect(result.state.idols.hiddenCount).toBeNull()
     expect(result.state.idols.own).toHaveLength(1)
+  })
+
+  it('reports Phase 2 initialization status without leaking hidden ownership', async () => {
+    const result = await buildSurvivorStateForUser('league-1', 'commish')
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    expect(result.state.initialization.tribesAssigned).toBe(true)
+    expect(result.state.initialization.tribeCount).toBe(2)
+    expect(result.state.initialization.chatsProvisioned).toBe(true)
+    expect(result.state.initialization.tribeChatCount).toBe(1)
+    expect(result.state.initialization.idolsSeeded).toBe(true)
+    expect(result.state.initialization.voteShieldCount).toBe(19)
+    expect(result.state.initialization.introPosted).toBe(true)
+    expect(result.state.initialization.phase2Complete).toBe(true)
+    // status counts only — never an owner map (playing commissioner cannot see hidden assignments)
+    expect(result.state.idols.hiddenInventoryVisible).toBe(false)
   })
 })

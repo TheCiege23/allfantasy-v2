@@ -1,7 +1,12 @@
 # Survivor Full Concept Audit
 
-Updated: 2026-06-14
+Updated: 2026-06-14 (audit) / 2026-06-15 (build progress note)
 Base commit audited: 54f309e87b01ef3dcea186ad6d15594f7058836a
+
+> **Build progress:** Phase 1 (privacy + canonical settings) and Phase 2 (tribe assignment,
+> tribe/league chats, host intro, hidden Vote Shield idol seeding) are now implemented and
+> DB-runtime verified. See `docs/survivor-phase-2-tribes-idols-chat.md`. Powerup RESOLUTION,
+> challenges, vote reveal, Exile, jury, and finale remain deferred to later phases.
 
 ## Scope
 
