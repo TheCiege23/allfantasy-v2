@@ -6,8 +6,9 @@ const { prisma, resolveSurvivorAccessContext, canSeeSurvivorChannel } = vi.hoist
     survivorGameState: { findUnique: vi.fn() },
     survivorPlayer: { findMany: vi.fn() },
     survivorTribe: { findMany: vi.fn() },
-    survivorTribalCouncil: { findFirst: vi.fn() },
+    survivorTribalCouncil: { findFirst: vi.fn(), findUnique: vi.fn() },
     survivorIdol: { findMany: vi.fn(), count: vi.fn() },
+    survivorVote: { findUnique: vi.fn(), count: vi.fn() },
     survivorChatChannel: { findMany: vi.fn() },
     survivorChatMessage: { count: vi.fn() },
     survivorAuditEntry: { count: vi.fn() },
@@ -83,15 +84,23 @@ describe('Survivor state sanitizer', () => {
       id: 'council-1',
       status: 'voting_open',
       week: 3,
+      phase: 'pre_merge',
+      attendingTribeId: null,
       isRevealed: false,
       votingOpensAt: null,
       votingDeadline: new Date('2026-09-15T20:00:00.000Z'),
-      voteDeadlineAt: null,
+      voteDeadlineAt: new Date('2026-09-15T20:00:00.000Z'),
+      closedAt: null,
+      idolsPlayed: [],
+      doesNotCountVoteIds: [],
       votes: [
         { id: 'vote-1', voterRosterId: 'roster-a', voterUserId: 'commish' },
         { id: 'vote-2', voterRosterId: 'roster-b', voterUserId: 'other' },
       ],
     })
+    prisma.survivorTribalCouncil.findUnique.mockResolvedValue({ revealSequence: [], eliminatedName: null, isTie: false, tiePhase: null })
+    prisma.survivorVote.findUnique.mockResolvedValue(null)
+    prisma.survivorVote.count.mockResolvedValue(0)
     prisma.survivorIdol.findMany.mockResolvedValue([
       {
         id: 'idol-own',
@@ -145,5 +154,19 @@ describe('Survivor state sanitizer', () => {
     expect(result.state.initialization.phase2Complete).toBe(true)
     // status counts only — never an owner map (playing commissioner cannot see hidden assignments)
     expect(result.state.idols.hiddenInventoryVisible).toBe(false)
+  })
+
+  it('exposes the tribal council view but hides host tally + reveal from a playing commissioner', async () => {
+    const result = await buildSurvivorStateForUser('league-1', 'commish')
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    expect(result.state.tribalCouncil.active).toBe(true)
+    expect(result.state.tribalCouncil.councilId).toBe('council-1')
+    expect(result.state.tribalCouncil.status).toBe('voting_open')
+    // Playing commissioner: no operational host block, no pre-reveal tally.
+    expect(result.state.tribalCouncil.host).toBeNull()
+    expect(result.state.tribalCouncil.reveal).toBeNull()
+    expect(result.state.tribalCouncil.isRevealed).toBe(false)
   })
 })

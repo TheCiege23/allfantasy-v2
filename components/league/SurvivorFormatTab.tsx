@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { SurvivorTribalCouncilPanel, type TribalCouncilView } from './survivor/SurvivorTribalCouncilPanel'
 
 type FoundationState = {
   settings?: {
@@ -20,12 +21,17 @@ type FoundationState = {
     isCommissioner?: boolean
     isCommissionerParticipating: boolean
     isNonParticipatingCommissionerHost: boolean
+    isParticipant?: boolean
     privacyWarnings: string[]
     decisions?: {
       canPerformAdminAction?: boolean
       canSeeHiddenIdolAssignments?: boolean
+      canSeeVoteTallyBeforeReveal?: boolean
+      canOverrideVoteDeadline?: boolean
     }
   }
+  tribes?: Array<{ id: string; name: string }>
+  tribalCouncil?: TribalCouncilView
   initialization?: {
     tribesAssigned: boolean
     tribeCount: number
@@ -134,6 +140,11 @@ export function SurvivorFormatTab({ leagueId }: SurvivorFormatTabProps) {
 
   const canAdmin = Boolean(state?.access?.decisions?.canPerformAdminAction)
   const init = state?.initialization
+
+  async function refresh() {
+    const fresh = await fetch(`/api/leagues/${leagueId}/survivor`, { credentials: 'include' })
+    if (fresh.ok) setState((await fresh.json()) as FoundationState)
+  }
 
   async function runPhase2Action(action: string, body: Record<string, unknown> = {}) {
     setSaving(true)
@@ -344,6 +355,22 @@ export function SurvivorFormatTab({ leagueId }: SurvivorFormatTabProps) {
             </p>
           ) : null}
         </section>
+      ) : null}
+
+      {state?.tribalCouncil ? (
+        <SurvivorTribalCouncilPanel
+          leagueId={leagueId}
+          council={state.tribalCouncil}
+          access={{
+            canPerformAdminAction: state.access?.decisions?.canPerformAdminAction,
+            isCommissionerParticipating: state.access?.isCommissionerParticipating,
+            isParticipant: state.access?.isParticipant,
+          }}
+          tribes={state.tribes ?? []}
+          onRefresh={() => {
+            void refresh()
+          }}
+        />
       ) : null}
     </div>
   )

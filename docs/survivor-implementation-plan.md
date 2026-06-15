@@ -100,6 +100,15 @@ Potential migrations:
 
 ## Phase 3 - Powerup Execution
 
+Status: **Tribal Council voting + Vote Shield / Extra Vote / Skip Tribal SHIPPED (2026-06-15).**
+Private ballots, eligibility, self-vote/late/first-valid-locks policy, the three vote-affecting
+idol powers, deterministic tally with tie detection, TV-style reveal scrolls, and elimination
+scaffolding (removed-to-waivers pending release / pending-exile placeholder + tribe-chat removal)
+are implemented on the consolidated route with role-aware privacy, and DB-runtime verified
+(6/6 `@db` Playwright). See `docs/survivor-phase-3-tribal-council-voting.md`. **Auto Waiver Pickup
+and Triple Steal remain inventory-only (disabled with truthful copy) — their resolution is the
+remaining part of this phase**, alongside rocks/fire-making tie-break execution.
+
 Tasks:
 
 - Implement shippable power flows for Vote Shield, Extra Vote, Skip Tribal, Auto Waiver

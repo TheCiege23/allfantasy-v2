@@ -3,10 +3,13 @@
 Updated: 2026-06-14 (audit) / 2026-06-15 (build progress note)
 Base commit audited: 54f309e87b01ef3dcea186ad6d15594f7058836a
 
-> **Build progress:** Phase 1 (privacy + canonical settings) and Phase 2 (tribe assignment,
-> tribe/league chats, host intro, hidden Vote Shield idol seeding) are now implemented and
-> DB-runtime verified. See `docs/survivor-phase-2-tribes-idols-chat.md`. Powerup RESOLUTION,
-> challenges, vote reveal, Exile, jury, and finale remain deferred to later phases.
+> **Build progress:** Phase 1 (privacy + canonical settings), Phase 2 (tribe assignment,
+> tribe/league chats, host intro, hidden Vote Shield idol seeding), and Phase 3 (Tribal Council
+> private voting, Vote Shield / Extra Vote / Skip Tribal resolution, deterministic tally, TV-style
+> reveal, elimination scaffolding) are now implemented and DB-runtime verified. See
+> `docs/survivor-phase-2-tribes-idols-chat.md` and `docs/survivor-phase-3-tribal-council-voting.md`.
+> Remaining deferred: Exile Island engine, jury, finale, full challenge library, mentions router,
+> Triple Steal / Auto Waiver Pickup resolution, rocks/fire-making tie-breakers.
 
 ## Scope
 

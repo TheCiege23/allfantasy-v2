@@ -6,6 +6,7 @@ import {
   canSeeSurvivorChannel,
   type SurvivorAccessContext,
 } from './survivorAccessControl'
+import { buildTribalCouncilView, type TribalCouncilView } from './survivorTribalView'
 
 type VoteWindowStatus = 'not_started' | 'pending' | 'voting_open' | 'votes_locked' | 'revealed' | 'complete'
 
@@ -122,6 +123,7 @@ export interface SurvivorFoundationState {
     hiddenCount: number | null
   }
   chats: Array<{ id: string; name: string; channelType: string; tribeId: string | null; memberCount: number }>
+  tribalCouncil: TribalCouncilView
   initialization: {
     tribesAssigned: boolean
     tribeCount: number
@@ -337,6 +339,8 @@ export async function buildSurvivorStateForUser(
       memberCount: channel.memberUserIds.length,
     }))
 
+  const tribalCouncil = await buildTribalCouncilView(access)
+
   const state: SurvivorFoundationState = {
     ok: true,
     leagueId,
@@ -406,6 +410,7 @@ export async function buildSurvivorStateForUser(
       hiddenCount: access.decisions.canSeeHiddenIdolAssignments ? idolRows.length : null,
     },
     chats: visibleChannels,
+    tribalCouncil,
     initialization: (() => {
       const tribeChatCount = channelRows.filter((c) => c.channelType === 'tribe').length
       const tribeMemberTotal = tribeRows.reduce((n, t) => n + t.members.length, 0)

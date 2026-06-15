@@ -20,6 +20,11 @@ import { provisionSurvivorChats } from '@/lib/survivor/survivorTribeChatProvisio
 import { seedSurvivorIdols } from '@/lib/survivor/survivorIdolProvisioning'
 import { postSurvivorIntroAnnouncement } from '@/lib/survivor/survivorAnnouncementService'
 import type { SurvivorTribeAssignmentMode } from '@/lib/survivor/normalizeSurvivorSettings'
+import { openTribalCouncil, closeVoteWindow, cancelCouncil, loadCouncilContext, getLatestCouncil } from '@/lib/survivor/survivorCouncilService'
+import { submitVote } from '@/lib/survivor/survivorVoteService'
+import { playVoteShield, playExtraVote, playSkipTribal } from '@/lib/survivor/survivorIdolResolutionService'
+import { tallyCouncil, revealCouncil } from '@/lib/survivor/survivorVoteTallyService'
+import { resolveElimination } from '@/lib/survivor/survivorEliminationService'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -111,20 +116,6 @@ async function updateFoundationSettings(leagueId: string, body: JsonRecord) {
   })
 
   return NextResponse.json({ ok: true, settings, noFakeGameplayState: true })
-}
-
-function placeholder(action: string, detail: string) {
-  return NextResponse.json(
-    {
-      ok: true,
-      action,
-      status: 'deferred',
-      noMutation: true,
-      noFakeGameplayState: true,
-      detail,
-    },
-    { status: 202 },
-  )
 }
 
 export async function GET(_req: NextRequest, ctx: RouteContext) {
@@ -317,14 +308,126 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ ...result, action, noFakeGameplayState: true })
   }
 
-  if (action === 'open-vote-window-placeholder') {
-    return placeholder(action, 'Vote windows are DB-scaffolded, but Phase 1 does not create councils or ballots.')
+  // ---- Phase 3: Tribal Council voting, idol resolution, reveal, elimination ----
+  const PHASE3_ADMIN_ACTIONS = new Set([
+    'open-tribal',
+    'close-vote-window',
+    'tally-votes',
+    'reveal-votes',
+    'resolve-elimination',
+    'cancel-tribal',
+  ])
+  const PHASE3_PARTICIPANT_ACTIONS = new Set(['submit-vote', 'play-idol', 'play-extra-vote', 'play-skip-tribal'])
+
+  if (PHASE3_ADMIN_ACTIONS.has(action) && !access.decisions.canPerformAdminAction) {
+    return NextResponse.json({ error: 'Commissioner access required' }, { status: 403 })
   }
-  if (action === 'submit-vote-placeholder') {
-    return placeholder(action, 'Vote submission remains on the existing vote engine route; Phase 1 does not fake ballots.')
+  if (PHASE3_PARTICIPANT_ACTIONS.has(action) && !access.isParticipant) {
+    return NextResponse.json({ error: 'Only an active player can take this action' }, { status: 403 })
   }
-  if (action === 'close-vote-window-placeholder') {
-    return placeholder(action, 'Vote closing and reveal require the Phase 2 vote engine.')
+
+  const targetUserId = typeof body.targetUserId === 'string' ? body.targetUserId : null
+
+  if (action === 'tribal-status') {
+    // Sanitized council view comes from the state sanitizer (privacy-aware).
+    const result = await buildSurvivorStateForUser(leagueId, userId)
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
+    return NextResponse.json({ ok: true, action, tribalCouncil: result.state.tribalCouncil, noFakeGameplayState: true })
+  }
+
+  if (action === 'open-tribal') {
+    const result = await openTribalCouncil(leagueId, {
+      attendingTribeId: typeof body.attendingTribeId === 'string' ? body.attendingTribeId : null,
+      week: typeof body.week === 'number' ? body.week : undefined,
+      votingOpensAt: typeof body.votingOpensAt === 'string' ? new Date(body.votingOpensAt) : null,
+      voteDeadlineAt: typeof body.voteDeadlineAt === 'string' ? new Date(body.voteDeadlineAt) : null,
+      actorUserId: userId,
+    })
+    if (!result.ok) return NextResponse.json({ ...result, action }, { status: result.status })
+    return NextResponse.json({ ...result, action, noFakeGameplayState: true })
+  }
+
+  if (action === 'submit-vote') {
+    if (!targetUserId) return NextResponse.json({ error: 'targetUserId required', action }, { status: 422 })
+    const result = await submitVote(leagueId, userId, targetUserId, {
+      allowLateOverride: body.allowLateOverride === true && access.decisions.canOverrideVoteDeadline,
+    })
+    if (!result.ok) return NextResponse.json({ ...result, action }, { status: result.status })
+    return NextResponse.json({ ...result, action, noFakeGameplayState: true })
+  }
+
+  if (action === 'play-idol') {
+    const result = await playVoteShield(leagueId, userId)
+    if (!result.ok) return NextResponse.json({ ...result, action }, { status: result.status })
+    return NextResponse.json({ ...result, action, noFakeGameplayState: true })
+  }
+
+  if (action === 'play-extra-vote') {
+    if (!targetUserId) return NextResponse.json({ error: 'targetUserId required', action }, { status: 422 })
+    const result = await playExtraVote(leagueId, userId, targetUserId)
+    if (!result.ok) return NextResponse.json({ ...result, action }, { status: result.status })
+    return NextResponse.json({ ...result, action, noFakeGameplayState: true })
+  }
+
+  if (action === 'play-skip-tribal') {
+    const result = await playSkipTribal(leagueId, userId, { forfeitsVote: body.forfeitsVote === true })
+    if (!result.ok) return NextResponse.json({ ...result, action }, { status: result.status })
+    return NextResponse.json({ ...result, action, noFakeGameplayState: true })
+  }
+
+  // Resolve a council id for lifecycle actions: explicit body id, else the active council,
+  // else the latest council (so post-reveal actions like resolve-elimination still find it).
+  const resolveCouncilId = async (lid: string): Promise<string | null> => {
+    if (typeof body.councilId === 'string') return body.councilId
+    const active = await loadCouncilContext(lid)
+    if (active) return active.council.id
+    return (await getLatestCouncil(lid))?.id ?? null
+  }
+
+  if (action === 'close-vote-window') {
+    const councilId = await resolveCouncilId(leagueId)
+    if (!councilId) return NextResponse.json({ error: 'No council', action }, { status: 404 })
+    const result = await closeVoteWindow(leagueId, councilId, userId)
+    if (!result.ok) return NextResponse.json({ ...result, action }, { status: result.status })
+    return NextResponse.json({ ...result, action, noFakeGameplayState: true })
+  }
+
+  if (action === 'tally-votes') {
+    const councilId = await resolveCouncilId(leagueId)
+    if (!councilId) return NextResponse.json({ error: 'No council', action }, { status: 404 })
+    const result = await tallyCouncil(leagueId, councilId)
+    if (!result.ok) return NextResponse.json({ ...result, action }, { status: result.status })
+    // Participating commissioner must NOT see the pre-reveal tally; return only operational status.
+    if (!access.decisions.canSeeVoteTallyBeforeReveal) {
+      return NextResponse.json(
+        { ok: true, action, status: result.status, isTie: result.tally.isTie, tallied: true, noFakeGameplayState: true },
+        { status: 200 },
+      )
+    }
+    return NextResponse.json({ ...result, action, noFakeGameplayState: true })
+  }
+
+  if (action === 'reveal-votes') {
+    const councilId = await resolveCouncilId(leagueId)
+    if (!councilId) return NextResponse.json({ error: 'No council', action }, { status: 404 })
+    const result = await revealCouncil(leagueId, councilId, userId)
+    if (!result.ok) return NextResponse.json({ ...result, action }, { status: result.status })
+    return NextResponse.json({ ...result, action, noFakeGameplayState: true })
+  }
+
+  if (action === 'resolve-elimination') {
+    const councilId = await resolveCouncilId(leagueId)
+    if (!councilId) return NextResponse.json({ error: 'No council', action }, { status: 404 })
+    const result = await resolveElimination(leagueId, councilId, userId)
+    if (!result.ok) return NextResponse.json({ ...result, action }, { status: result.status })
+    return NextResponse.json({ ...result, action, noFakeGameplayState: true })
+  }
+
+  if (action === 'cancel-tribal') {
+    const councilId = await resolveCouncilId(leagueId)
+    if (!councilId) return NextResponse.json({ error: 'No council', action }, { status: 404 })
+    const result = await cancelCouncil(leagueId, councilId, userId)
+    return NextResponse.json({ ...result, action, noFakeGameplayState: true }, { status: result.ok ? 200 : 409 })
   }
 
   return NextResponse.json({ error: 'Unsupported Survivor foundation action', action }, { status: 400 })

@@ -25,9 +25,20 @@ Neon (chromium, `@db`):
   chats + 19 Vote Shield idols + intro; idempotent re-run; participating commissioner blind to
   hidden idols + other tribes; non-commissioner member 403 on admin actions.
 
-The full end-game runtime remains deferred. The Phase 1/2 scaffolds verify canonical setup,
-tribe assignment + chat visibility + idol seeding + privacy, and the no-fake-gameplay contract.
-They do not verify full idol/power RESOLUTION, Exile, challenge, jury, or finale engines.
+Phase 3 (Tribal Council voting, idol resolution, reveal, elimination) runtime scaffold also exists
+and PASSES against real Neon (chromium, `@db`):
+
+- `scripts/seed-survivor-phase3-runtime.ts` (initialized league + 19 Vote Shield + 1 Extra Vote +
+  1 Skip Tribal idol + an open council for the attending tribe)
+- `e2e/survivor-phase3-runtime.spec.ts` (6/6): private vote + self-vote block + first-valid lock;
+  Vote Shield / Extra Vote / Skip Tribal plays; member 403; host close→tally→reveal→resolve with
+  Vote Shield blocking ballots and the clean target eliminated + removed from tribe chat;
+  participating commissioner blocked from the pre-reveal tally + reveal; mobile page render.
+
+The full end-game runtime remains deferred. The Phase 1/2/3 scaffolds verify canonical setup,
+tribes + chats + idol seeding + privacy, and real private voting + idol resolution + tally +
+reveal + elimination scaffolding. They do not verify Auto Waiver Pickup / Triple Steal resolution,
+rocks/fire-making tie-breaks, Exile Island, challenge, jury, or finale engines.
 
 Missing full-runtime deliverables:
 
