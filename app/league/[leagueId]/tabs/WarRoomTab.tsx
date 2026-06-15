@@ -21,6 +21,7 @@ import { RedraftWarRoomPanel } from './redraft/RedraftWarRoomPanel'
 import { DynastyWarRoomPanel } from './dynasty/DynastyWarRoomPanel'
 import { KeeperWarRoomPanel } from './keeper/KeeperWarRoomPanel'
 import { BestBallWarRoomPanel } from './best-ball/BestBallWarRoomPanel'
+import { GuillotineWarRoomPanel } from './guillotine/GuillotineWarRoomPanel'
 import { FeatureGate } from '@/components/subscription/FeatureGate'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import type { SubscriptionFeatureId } from '@/lib/subscription/types'
@@ -90,14 +91,18 @@ export function WarRoomTab({ league, sport, dashboardEmbed = false }: WarRoomTab
   // `format` is the canonical UserLeague discriminator ('redraft' for non-dynasty,
   // non-variant leagues; specialty variants carry their own format). Fall back to
   // `leagueType` when present. Dynasty/specialty formats keep the strategy/meta view.
-  const isBestBallLeague = Boolean(league.bestBallMode)
+  const isGuillotineLeague =
+    Boolean(league.guillotineMode) || String(league.leagueVariant ?? '').toLowerCase() === 'guillotine'
+  const isBestBallLeague = !isGuillotineLeague && Boolean(league.bestBallMode)
   const isKeeperLeague =
     !league.isDynasty &&
+    !isGuillotineLeague &&
     !isBestBallLeague &&
     (String(league.format ?? '').toLowerCase() === 'keeper' ||
       String(league.leagueType ?? '').toLowerCase() === 'keeper')
   const isRedraftLeague =
     !league.isDynasty &&
+    !isGuillotineLeague &&
     !isKeeperLeague &&
     !isBestBallLeague &&
     (String(league.format ?? '').toLowerCase() === 'redraft' ||
@@ -271,6 +276,9 @@ export function WarRoomTab({ league, sport, dashboardEmbed = false }: WarRoomTab
 
       {/* Best-ball leagues get the best-ball War Room (construction / depth / upside / stacks). */}
       {isBestBallLeague ? <BestBallWarRoomPanel leagueId={league.id} /> : null}
+
+      {/* Guillotine leagues get the survival-first War Room (elimination risk / FAAB / weekly plan). */}
+      {isGuillotineLeague ? <GuillotineWarRoomPanel leagueId={league.id} /> : null}
 
       {liveDraftCompanion && leagueDraftCompanion.error ? (
         <p

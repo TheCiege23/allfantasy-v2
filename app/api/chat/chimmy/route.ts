@@ -61,6 +61,7 @@ import { buildDynastyContextForChimmy } from '@/lib/dynasty-core/dynastyContextF
 import { buildDynastyWarRoomContextForChimmy } from '@/lib/dynasty-war-room/dynastyChimmyGrounding'
 import { buildKeeperContextForChimmy } from '@/lib/keeper-war-room/keeperChimmyGrounding'
 import { buildBestBallContextForChimmy } from '@/lib/best-ball-war-room/bestBallChimmyGrounding'
+import { buildGuillotineWarRoomContextForChimmy } from '@/lib/guillotine-war-room/guillotineChimmyGrounding'
 import { CHIMMY_GENERIC_ERROR_MESSAGE } from '@/lib/chimmy-chat/response-copy'
 import {
   buildChimmyResponseForAssistantMode,
@@ -1743,6 +1744,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                 legacyEnrichmentContext = legacyEnrichmentContext
                   ? `${legacyEnrichmentContext}\n\n${bestBallCtx}`
                   : bestBallCtx
+              }
+            } catch { /* non-fatal */ }
+            try {
+              const guillotineWarRoomCtx = await buildGuillotineWarRoomContextForChimmy(planInput.leagueId, planInput.userId)
+              if (guillotineWarRoomCtx) {
+                legacyEnrichmentContext = legacyEnrichmentContext
+                  ? `${legacyEnrichmentContext}\n\n${guillotineWarRoomCtx}`
+                  : guillotineWarRoomCtx
               }
             } catch { /* non-fatal */ }
           }

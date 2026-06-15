@@ -33,7 +33,7 @@ finale, anti-cheat privacy, media, AI grounding, and DB-backed runtime. See
 | Dynasty (connected/Sleeper) | ☑ Grounded (shared) | `lib/league-decision-context` + `app/api/trade-evaluator` (FantasyCalc). The native War Room does not replace this for connected leagues. |
 | **Keeper** | ✅ Native War Room | `lib/keeper-war-room` — context (redraft-season rosters + `KeeperEligibility`/`KeeperRecord` costs + redraft ADP), value/recommendation/cut-list/roster-needs/draft-plan/trade/trade-finder/waiver/lineup engines, routes, Chimmy grounding, panel, runtime E2E. Single-season horizon; keeper COST vs VALUE surplus drives recommendations. NO future picks. |
 | **Best Ball** | ✅ Native War Room | `lib/best-ball-war-room` — context (legacy `Roster` draft roster + best-ball profile + redraft ADP + real weekly-score ceiling + `SportsPlayer.team` stacks), construction/depth/upside/draft-plan/stack/risk/waiver(if on)/trade(if on) engines, routes, Chimmy grounding, panel, runtime E2E. DRAFT-ONLY, AUTOMATIC lineup — NO start/sit. |
-| Guillotine | ⛔ Strategy/meta only | Has its own Chimmy settings context; no War Room panel. |
+| **Guillotine** | ✅ Native War Room | `lib/guillotine-war-room` — context (`getDangerTiers` elimination line + `GuillotineRosterState`/`GuillotinePeriodScore` + legacy `Roster` FAAB + `GuillotineWaiverRelease` dropped pool + redraft ADP/projections), survival-risk/roster-risk/lineup-safety/FAAB/waiver/dropped-player/trade(if on)/weekly-plan engines, routes, Chimmy grounding, panel, runtime E2E. SURVIVAL-FIRST. |
 | Tournament / Survivor / Zombie / Big Brother | ⛔ Strategy/meta only | Each has a Chimmy settings/context adapter; no native War Room. |
 | Salary Cap | ⛔ Strategy/meta only | Chimmy settings adapter only. |
 | Devy / C2C / Merged Devy-C2C | ⛔ Strategy/meta only | Chimmy settings adapters; dynasty War Room covers the dynasty-variant rosters where `isDynasty`/`devy_dynasty`/`merged_devy_c2c`. |
@@ -84,10 +84,25 @@ finale, anti-cheat privacy, media, AI grounding, and DB-backed runtime. See
 - **Data layer**: legacy `Roster` draft roster + best-ball profile (auto-lineup slots +
   recommended sizes) + redraft ADP + `weeklyScore` + `SportsPlayer` enrichment.
 
+## Guillotine vs the others — key differences (by design)
+
+- **SURVIVAL-FIRST, not standard strategy**: each scoring period the lowest team(s) are
+  CHOPPED. Every recommendation prioritizes NOT finishing last — safe weekly FLOOR + a
+  positive projected safety margin over ceiling, EXCEPT when in/near the chop zone where a
+  ceiling swing can be worth the variance to survive.
+- **Elimination line is real, never faked**: `getDangerTiers` (chop_zone/danger/safe +
+  `pointsFromChopZone`) from `GuillotinePeriodScore`; `limited` when no scores exist.
+- **FAAB discipline**: conserve when safe; spend aggressively only when survival is at risk
+  (the FAAB engine scales bid aggressiveness by danger tier; qualitative when budget unknown).
+- **Eliminated-team dropped pool**: `GuillotineWaiverRelease` is often the best waiver value;
+  surfaced when present, `limited` otherwise. Trades default OFF (truthful disabled state).
+- **Data layer**: `getGuillotineConfig` + `GuillotineRosterState`/`GuillotinePeriodScore` +
+  legacy `Roster` (lineup/FAAB) + redraft ADP/projections/injuries.
+
 ## Route budget
 
-The dynasty, keeper, and best-ball War Rooms each cost **2** route files (`GET` +
-consolidated `POST [action]`). Production-adjusted route signals: **1684** — GREEN
+The dynasty, keeper, best-ball, and guillotine War Rooms each cost **2** route files (`GET` +
+consolidated `POST [action]`). Production-adjusted route signals: **1686** — GREEN
 (`green < 1900`). No route bloat.
 
 ## Guardrails honored
