@@ -99,6 +99,7 @@ export async function getCanonicalNflDataCoverage(options?: {
     : now.getUTCFullYear()
   const week = options?.week != null && Number.isFinite(Number(options.week)) ? Number(options.week) : null
   const seasonString = String(season)
+  const previousSeasonString = String(season - 1)
 
   const weeklyWhere =
     week != null
@@ -126,7 +127,7 @@ export async function getCanonicalNflDataCoverage(options?: {
     countAndLatest((db as any).depthChart, { sport: 'NFL' }, 'fetchedAt'),
     countAndLatest(
       (db as any).playerSeasonStats,
-      { sport: 'NFL', season: seasonString, seasonType: 'regular' },
+      { sport: 'NFL', season: { in: [seasonString, previousSeasonString] }, seasonType: 'regular' },
       'fetchedAt',
     ),
     maxField(
@@ -198,6 +199,16 @@ export async function getCanonicalNflDataCoverage(options?: {
     counts,
     now,
   })
+  const [seasonStatsExactCount, seasonStatsPreviousSeasonCount] = await Promise.all([
+    (db as any).playerSeasonStats
+      ?.count?.({ where: { sport: 'NFL', season: seasonString, seasonType: 'regular' } })
+      .catch(() => 0) ?? Promise.resolve(0),
+    (db as any).playerSeasonStats
+      ?.count?.({ where: { sport: 'NFL', season: previousSeasonString, seasonType: 'regular' } })
+      .catch(() => 0) ?? Promise.resolve(0),
+  ])
+  counts.seasonStatsExact = Number(seasonStatsExactCount ?? 0)
+  counts.seasonStatsPreviousSeason = Number(seasonStatsPreviousSeasonCount ?? 0)
   const hasInjuries = pushState({
     key: 'injuries',
     label: 'injuries',

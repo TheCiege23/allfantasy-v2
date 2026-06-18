@@ -159,38 +159,117 @@ export function canonicalNflIdentityKey(input: {
   return `name:${name}|${position}|${team}`
 }
 
+function canonicalNflDedupeKey(input: {
+  playerId?: string | null
+  playerName?: string | null
+  position?: string | null
+  team?: string | null
+  providerIds?: Partial<CanonicalNflProviderIds> | null
+}): string {
+  const name = canonicalName(input.playerName)
+  const position = canonicalPosition(input.position)
+  const team = canonicalTeam(input.team)
+  if (name && position) return `name:${name}|${position}|${team}`
+  return canonicalNflIdentityKey({
+    playerId: input.playerId,
+    rollingInsightsId: input.providerIds?.rollingInsightsId,
+    sleeperId: input.providerIds?.sleeperId,
+    fantasyCalcId: input.providerIds?.fantasyCalcId,
+    name: input.playerName,
+    position: input.position,
+    team: input.team,
+  })
+}
+
+function canonicalNflCandidateScore(player: {
+  providerIds?: Partial<CanonicalNflProviderIds> | null
+  team?: string | null
+  headshotUrl?: string | null
+  projection?: { projectedPoints?: number | null; confidence?: number | null } | null
+  seasonStats?: { fantasyPointsPerGame?: number | null } | null
+  tradeValue?: number | null
+}): number {
+  return [
+    player.providerIds?.rollingInsightsId ? 40 : 0,
+    player.providerIds?.sleeperId ? 34 : 0,
+    player.providerIds?.fantasyCalcId ? 26 : 0,
+    player.team && !isFreeAgentTeam(player.team) ? 16 : 0,
+    player.projection?.projectedPoints != null ? 14 : 0,
+    player.seasonStats?.fantasyPointsPerGame != null ? 12 : 0,
+    player.tradeValue != null ? 8 : 0,
+    player.headshotUrl ? 4 : 0,
+    Math.min(10, Math.max(0, Number(player.projection?.confidence ?? 0) / 10)),
+  ].reduce((sum, value) => sum + value, 0)
+}
+
+export function resolveCanonicalNflDuplicateGroups<T extends Pick<CanonicalNflPlayer, 'playerId' | 'playerName' | 'position' | 'team' | 'providerIds'>>(
+  players: T[],
+): Array<{ key: string; selected: T; duplicates: T[] }> {
+  const groups = new Map<string, T[]>()
+  for (const player of players) {
+    const key = canonicalNflDedupeKey({
+      playerId: player.playerId,
+      providerIds: player.providerIds,
+      playerName: player.playerName,
+      position: player.position,
+      team: player.team,
+    })
+    const group = groups.get(key) ?? []
+    group.push(player)
+    groups.set(key, group)
+  }
+  return [...groups.entries()]
+    .filter(([, group]) => group.length > 1)
+    .map(([key, group]) => ({
+      key,
+      selected: [...group].sort((a, b) => canonicalNflCandidateScore(b as never) - canonicalNflCandidateScore(a as never))[0]!,
+      duplicates: group,
+    }))
+}
+
 export function dedupeCanonicalNflPlayers<T extends Pick<CanonicalNflPlayer, 'playerId' | 'playerName' | 'position' | 'team' | 'providerIds'>>(
   players: T[],
 ): T[] {
   const best = new Map<string, T>()
   for (const player of players) {
-    const key = canonicalNflIdentityKey({
+    const key = canonicalNflDedupeKey({
       playerId: player.playerId,
-      rollingInsightsId: player.providerIds.rollingInsightsId,
-      sleeperId: player.providerIds.sleeperId,
-      fantasyCalcId: player.providerIds.fantasyCalcId,
-      name: player.playerName,
+      playerName: player.playerName,
       position: player.position,
       team: player.team,
+      providerIds: player.providerIds,
     })
-    if (!best.has(key)) {
+    const current = best.get(key)
+    if (!current || canonicalNflCandidateScore(player as never) > canonicalNflCandidateScore(current as never)) {
       best.set(key, player)
-      continue
     }
-    const current = best.get(key)!
-    const currentSignals = [
-      current.providerIds.rollingInsightsId,
-      current.providerIds.sleeperId,
-      current.providerIds.fantasyCalcId,
-      current.team,
-    ].filter(Boolean).length
-    const nextSignals = [
-      player.providerIds.rollingInsightsId,
-      player.providerIds.sleeperId,
-      player.providerIds.fantasyCalcId,
-      player.team,
-    ].filter(Boolean).length
-    if (nextSignals > currentSignals) best.set(key, player)
+  }
+  return [...best.values()]
+}
+
+export function dedupeCanonicalNflDraftPoolEntries<T extends Record<string, any>>(entries: T[]): T[] {
+  const best = new Map<string, T>()
+  for (const entry of entries) {
+    const display = entry.display && typeof entry.display === 'object' ? entry.display : null
+    const canonical = entry.canonicalNfl && typeof entry.canonicalNfl === 'object' ? entry.canonicalNfl : null
+    const providerIds = canonical?.providerIds as Partial<CanonicalNflProviderIds> | undefined
+    const key = canonicalNflDedupeKey({
+      playerId: String(providerIds?.allFantasyId ?? entry.playerId ?? entry.id ?? ''),
+      playerName: String(entry.name ?? display?.displayName ?? ''),
+      position: String(entry.position ?? display?.metadata?.position ?? ''),
+      team: String(entry.team ?? display?.team?.abbreviation ?? ''),
+      providerIds,
+    })
+    const current = best.get(key)
+    const scoreEntry = (row: T) =>
+      canonicalNflCandidateScore({
+        providerIds: row.canonicalNfl?.providerIds,
+        team: row.team ?? row.display?.team?.abbreviation,
+        headshotUrl: row.headshotUrl ?? row.display?.assets?.headshotUrl,
+        projection: row.canonicalNfl?.projection,
+        tradeValue: row.canonicalNfl?.tradeValue,
+      })
+    if (!current || scoreEntry(entry) > scoreEntry(current)) best.set(key, entry)
   }
   return [...best.values()]
 }
@@ -288,6 +367,15 @@ export function buildCanonicalNflProjection(input: ProjectionSignalInput): Canon
     } else {
       reasonCodes.add('opponent_context_checked')
     }
+  }
+
+  if ((input.staleDataWarnings ?? []).some((warning) => /schedule data is unavailable/i.test(warning))) {
+    confidence = clamp(confidence - 6, 1, 96)
+    reasonCodes.add('schedule_unavailable_confidence_discount')
+  }
+  if ((input.staleDataWarnings ?? []).some((warning) => /season stats as the projection baseline/i.test(warning))) {
+    confidence = clamp(confidence - 5, 1, 96)
+    reasonCodes.add('previous_season_stats_baseline')
   }
 
   const unavailable =
@@ -444,19 +532,21 @@ async function loadSeasonStats(
   season: number,
 ): Promise<CanonicalNflPlayerStats | null> {
   const candidates = candidateIds(player, ids)
+  const seasons = [String(season), String(season - 1)]
   const rows = (await (db as any).playerSeasonStats
     .findMany({
       where: {
         sport: 'NFL',
-        season: String(season),
+        season: { in: seasons },
         seasonType: 'regular',
         OR: [{ playerId: { in: candidates } }, { playerName: player.name }],
       },
       take: 12,
-      orderBy: [{ source: 'desc' }, { fetchedAt: 'desc' }],
+      orderBy: [{ season: 'desc' }, { source: 'desc' }, { fetchedAt: 'desc' }],
     })
     .catch(() => [])) as Array<{
     playerId: string
+    season: string
     fantasyPoints: number | null
     fantasyPointsPerGame: number | null
     gamesPlayed: number | null
@@ -465,13 +555,15 @@ async function loadSeasonStats(
     fetchedAt: Date
   }>
   const row =
+    rows.find((r) => r.season === String(season) && r.source === 'rolling_insights') ??
+    rows.find((r) => r.season === String(season)) ??
     rows.find((r) => r.source === 'rolling_insights') ??
     rows[0] ??
     null
   if (!row) return null
   return {
     playerId: row.playerId,
-    season,
+    season: Number(row.season ?? season),
     gamesPlayed: row.gamesPlayed ?? null,
     fantasyPoints: row.fantasyPoints ?? null,
     fantasyPointsPerGame: row.fantasyPointsPerGame ?? null,
@@ -581,9 +673,9 @@ async function loadScheduleContext(
   team: string | null,
   season: number,
   week: number,
-): Promise<{ byeWeek: number | null; opponent: string | null }> {
+): Promise<{ byeWeek: number | null; opponent: string | null; hasWeekSchedule: boolean }> {
   const teamKey = canonicalTeam(team)
-  if (!teamKey) return { byeWeek: null, opponent: null }
+  if (!teamKey) return { byeWeek: null, opponent: null, hasWeekSchedule: false }
   const [weekGames, game] = await Promise.all([
     (db as any).gameSchedule.count({ where: { sportType: 'NFL', season, weekOrRound: week } }).catch(() => 0),
     (db as any).gameSchedule
@@ -598,10 +690,11 @@ async function loadScheduleContext(
       })
       .catch(() => null),
   ])
-  if (!game && Number(weekGames) > 0) return { byeWeek: week, opponent: null }
-  if (!game) return { byeWeek: null, opponent: null }
+  const hasWeekSchedule = Number(weekGames) > 0
+  if (!game && hasWeekSchedule) return { byeWeek: week, opponent: null, hasWeekSchedule }
+  if (!game) return { byeWeek: null, opponent: null, hasWeekSchedule }
   const opponent = canonicalTeam(game.homeTeam) === teamKey ? game.awayTeam : game.homeTeam
-  return { byeWeek: null, opponent: opponent ?? null }
+  return { byeWeek: null, opponent: opponent ?? null, hasWeekSchedule }
 }
 
 async function loadOpponentTeamStats(
@@ -711,15 +804,13 @@ async function buildCanonicalPlayerFromRow(
 ): Promise<CanonicalNflPlayer> {
   const db = options.prismaClient
   const providerIds = providerIdsFor(row, identity)
-  const [stats, injury, depth, schedule, adp, tradeValue, projectionRows] = await Promise.all([
-    loadSeasonStats(db, row, providerIds, options.season),
-    loadInjuryStatus(db, row, providerIds, options.season, options.week),
-    loadDepthChart(db, row, providerIds, options.season),
-    loadScheduleContext(db, row.team, options.season, options.week),
-    loadAdp(db, row, options.season),
-    loadTradeValue(db, row, providerIds),
-    loadProjectionRows(db, row, providerIds, options.season, options.week),
-  ])
+  const stats = await loadSeasonStats(db, row, providerIds, options.season)
+  const injury = await loadInjuryStatus(db, row, providerIds, options.season, options.week)
+  const depth = await loadDepthChart(db, row, providerIds, options.season)
+  const schedule = await loadScheduleContext(db, row.team, options.season, options.week)
+  const adp = await loadAdp(db, row, options.season)
+  const tradeValue = await loadTradeValue(db, row, providerIds)
+  const projectionRows = await loadProjectionRows(db, row, providerIds, options.season, options.week)
   const opponentStats = await loadOpponentTeamStats(db, schedule.opponent, options.season)
 
   const dataSources = new Set<string>(['sports_players'])
@@ -736,6 +827,10 @@ async function buildCanonicalPlayerFromRow(
     staleWarning('injury', injury.fetchedAt, 24),
     staleWarning('depth chart', depth.fetchedAt, 48),
     staleWarning('opponent team stats', opponentStats.fetchedAt, 72),
+    schedule.hasWeekSchedule ? null : `NFL schedule data is unavailable for week ${options.week}.`,
+    stats && stats.season !== options.season
+      ? `Using ${stats.season} season stats as the projection baseline for ${options.season}.`
+      : null,
   ].filter((v): v is string => Boolean(v))
 
   const projection = buildCanonicalNflProjection({
@@ -895,25 +990,93 @@ export async function persistCanonicalNflProjection(
   return true
 }
 
+export async function persistCanonicalNflRosProjection(
+  projection: CanonicalNflProjection,
+  options?: { prismaClient?: DbClient },
+): Promise<boolean> {
+  if (projection.restOfSeason == null) return false
+  const db = (options?.prismaClient ?? prisma) as DbClient
+  const expiresAt = projection.expiresAt ? new Date(projection.expiresAt) : new Date(Date.now() + 72 * 60 * 60 * 1000)
+  const snapshotLookupKey = `${projection.playerId}|${projection.season}|ros|nfl-data-foundation`
+  await (db as any).aFProjectionSnapshot.upsert({
+    where: { snapshotLookupKey },
+    create: {
+      playerId: projection.playerId,
+      playerName: projection.playerName,
+      sport: 'NFL',
+      position: projection.position ?? 'UNK',
+      week: null,
+      season: projection.season,
+      eventId: 'nfl-data-foundation-ros',
+      baselineProjection: projection.restOfSeason,
+      afProjection: projection.restOfSeason,
+      adjustmentFactors: {
+        weeklyProjectedPoints: projection.projectedPoints,
+        floor: projection.floor,
+        ceiling: projection.ceiling,
+        reasonCodes: projection.reasonCodes,
+        dataSources: projection.dataSources,
+        staleDataWarnings: projection.staleDataWarnings,
+      },
+      adjustmentReason: projection.reasonCodes.join(', ') || null,
+      confidenceLevel: projection.confidenceLevel,
+      isOutdoorGame: false,
+      venueOverride: false,
+      validUntil: expiresAt,
+      snapshotLookupKey,
+    },
+    update: {
+      playerName: projection.playerName,
+      position: projection.position ?? 'UNK',
+      baselineProjection: projection.restOfSeason,
+      afProjection: projection.restOfSeason,
+      adjustmentFactors: {
+        weeklyProjectedPoints: projection.projectedPoints,
+        floor: projection.floor,
+        ceiling: projection.ceiling,
+        reasonCodes: projection.reasonCodes,
+        dataSources: projection.dataSources,
+        staleDataWarnings: projection.staleDataWarnings,
+      },
+      adjustmentReason: projection.reasonCodes.join(', ') || null,
+      confidenceLevel: projection.confidenceLevel,
+      computedAt: new Date(),
+      validUntil: expiresAt,
+    },
+  })
+  return true
+}
+
 export async function generateAndPersistCanonicalNflProjections(options?: {
   season?: number
   week?: number
   limit?: number
+  write?: boolean
   prismaClient?: DbClient
-}): Promise<{ generated: number; persisted: number; skipped: number }> {
+}): Promise<{ generated: number; persisted: number; rosPersisted: number; skipped: number }> {
   const db = (options?.prismaClient ?? prisma) as DbClient
   const season = Number(options?.season ?? new Date().getUTCFullYear())
   const week = Math.max(1, Number(options?.week ?? 1))
-  const limit = Math.min(Math.max(Number(options?.limit ?? 500), 1), 5000)
-  const rows = (await (db as any).sportsPlayer
+  const limit = Math.min(Math.max(Number(options?.limit ?? 500), 1), 10000)
+  const rowsRaw = (await (db as any).sportsPlayer
     .findMany({
       where: { sport: 'NFL' },
       orderBy: [{ updatedAt: 'desc' }],
       take: limit,
     })
     .catch(() => [])) as SportsPlayerRow[]
+  const grouped = new Map<string, SportsPlayerRow[]>()
+  for (const row of rowsRaw) {
+    const key = `${canonicalName(row.name)}|${canonicalPosition(row.position)}|${canonicalTeam(row.team)}`
+    const group = grouped.get(key) ?? []
+    group.push(row)
+    grouped.set(key, group)
+  }
+  const rows = [...grouped.values()].map((group) => chooseBestSportsPlayer(group)).filter((row): row is SportsPlayerRow => Boolean(row))
+  const write = options?.write !== false
   let generated = 0
   let persisted = 0
+  let rosPersisted = 0
   let skipped = 0
   for (const row of rows) {
     const identity = await findIdentityById(db, row.externalId).catch(() => null)
@@ -923,10 +1086,12 @@ export async function generateAndPersistCanonicalNflProjections(options?: {
       continue
     }
     generated += 1
+    if (!write) continue
     if (await persistCanonicalNflProjection(player.projection, { prismaClient: db })) persisted += 1
     else skipped += 1
+    if (await persistCanonicalNflRosProjection(player.projection, { prismaClient: db })) rosPersisted += 1
   }
-  return { generated, persisted, skipped }
+  return { generated, persisted, rosPersisted, skipped }
 }
 
 function canonicalFact(player: CanonicalNflPlayer): CanonicalNflAiPlayerFact {

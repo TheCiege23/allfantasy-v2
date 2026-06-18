@@ -153,9 +153,13 @@ function normalizeRISchedule(raw: unknown): RIScheduleGame | null {
   const obj = asObj(raw);
   if (!obj) return null;
 
-  const gameId = asString(obj.gameId ?? obj.id ?? obj.game_id ?? obj.externalId);
-  const awayTeam = asString(obj.awayTeam ?? obj.away_team ?? obj.away ?? obj.away_name);
-  const homeTeam = asString(obj.homeTeam ?? obj.home_team ?? obj.home ?? obj.home_name);
+  const gameId = asString(obj.gameId ?? obj.game_ID ?? obj.id ?? obj.game_id ?? obj.externalId);
+  const awayTeam = asString(
+    obj.awayTeam ?? obj.away_team ?? obj.away_team_abbr ?? obj.away ?? obj.away_name
+  );
+  const homeTeam = asString(
+    obj.homeTeam ?? obj.home_team ?? obj.home_team_abbr ?? obj.home ?? obj.home_name
+  );
   if (!gameId || !awayTeam || !homeTeam) return null;
 
   const venueObj = asObj(obj.venue);
@@ -169,7 +173,10 @@ function normalizeRISchedule(raw: unknown): RIScheduleGame | null {
     gameId,
     awayTeam,
     homeTeam,
-    date: asString(obj.date ?? obj.start_time ?? obj.startTime) ?? new Date().toISOString(),
+    awayTeamId: asString(obj.awayTeamId ?? obj.away_team_ID ?? obj.away_team_id ?? obj.awayTeamID),
+    homeTeamId: asString(obj.homeTeamId ?? obj.home_team_ID ?? obj.home_team_id ?? obj.homeTeamID),
+    week: asNumber(obj.week ?? obj.weekNumber ?? obj.week_number ?? obj.period),
+    date: asString(obj.date ?? obj.game_time ?? obj.start_time ?? obj.startTime) ?? new Date().toISOString(),
     status: asString(obj.status ?? obj.game_status) ?? 'scheduled',
     season: asString(obj.season) ?? getCurrentNFLSeason(),
     venue:
@@ -372,6 +379,9 @@ export interface RIScheduleGame {
   gameId: string;
   awayTeam: string;
   homeTeam: string;
+  awayTeamId?: string | null;
+  homeTeamId?: string | null;
+  week?: number | null;
   date: string;
   status: string;
   season: string;

@@ -37,7 +37,7 @@ import {
 } from '@/lib/player-data/providerFallbackDiagnostics'
 import { soccerLeagueHintFromLeagueSettings } from '@/lib/player-data/leagueSoccerLeagueHint'
 import type { NormalizedDraftEntry } from '@/lib/draft-sports-models/types'
-import { enrichCanonicalNflDraftPoolEntries } from '@/lib/nfl-data-foundation'
+import { dedupeCanonicalNflDraftPoolEntries, enrichCanonicalNflDraftPoolEntries } from '@/lib/nfl-data-foundation'
 
 export const dynamic = 'force-dynamic'
 
@@ -348,7 +348,9 @@ export async function GET(
       const nflFoundationTiming = resolved.sport === 'NFL' ? await loadNflFoundationTiming(leagueId) : null
       const entries =
         resolved.sport === 'NFL'
-          ? await enrichCanonicalNflDraftPoolEntries(leagueId, resolved.entries, nflFoundationTiming ?? undefined)
+          ? dedupeCanonicalNflDraftPoolEntries(
+              await enrichCanonicalNflDraftPoolEntries(leagueId, resolved.entries, nflFoundationTiming ?? undefined),
+            )
           : resolved.entries
 
       const responsePayload = stripPoolEntryFallbacks(withDraftPoolMeta({

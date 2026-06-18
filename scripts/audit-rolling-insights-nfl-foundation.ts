@@ -6,18 +6,14 @@
  */
 
 import { prisma } from '../lib/prisma'
+import { prisma as aliasPrisma } from '@/lib/prisma'
 import { getCanonicalNflDataCoverage } from '../lib/nfl-data-foundation/nflDataCoverage'
+import { auditNflRollingInsightsIdentity } from '../lib/nfl-data-foundation/nflFoundationSync'
 
 type Args = {
   json: boolean
   season: number
   week: number | null
-}
-
-type DuplicateWarning = {
-  key: string
-  count: number
-  examples: Array<{ id: string; externalId: string; name: string; position: string | null; team: string | null; source: string }>
 }
 
 function parseArgs(argv: string[]): Args {
@@ -33,15 +29,6 @@ function parseArgs(argv: string[]): Args {
     }
   }
   return out
-}
-
-function normalize(value: string | null | undefined): string {
-  return String(value ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
 }
 
 async function identitySummary() {
@@ -74,50 +61,45 @@ async function identitySummary() {
   }
 }
 
-async function duplicateWarnings(): Promise<DuplicateWarning[]> {
-  const rows = await prisma.sportsPlayer
-    .findMany({
-      where: { sport: 'NFL' },
-      select: { id: true, externalId: true, name: true, position: true, team: true, source: true },
-      take: 10000,
-      orderBy: { updatedAt: 'desc' },
-    })
-    .catch(() => [])
-  const groups = new Map<string, typeof rows>()
-  for (const row of rows) {
-    const key = `${normalize(row.name)}|${normalize(row.position)}|${normalize(row.team)}`
-    if (!normalize(row.name) || !normalize(row.position)) continue
-    const group = groups.get(key) ?? []
-    group.push(row)
-    groups.set(key, group)
-  }
-  return [...groups.entries()]
-    .filter(([, group]) => group.length > 1)
-    .slice(0, 25)
-    .map(([key, group]) => ({
-      key,
-      count: group.length,
-      examples: group.slice(0, 5),
-    }))
+function writeCommand(args: Args): string {
+  return [
+    'node --env-file=.env --require ./scripts/_audit-preload.cjs --import tsx',
+    'scripts/sync-rolling-insights-nfl-foundation.ts',
+    '--',
+    `--season=${args.season}`,
+    args.week ? `--week=${args.week}` : '--week=1',
+    '--write',
+    '--json',
+  ].join(' ')
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2))
-  const [coverage, identity, duplicates] = await Promise.all([
-    getCanonicalNflDataCoverage({ season: args.season, week: args.week }),
+  const [coverage, identity, identityAudit] = await Promise.all([
+    getCanonicalNflDataCoverage({ season: args.season, week: args.week, prismaClient: prisma }),
     identitySummary(),
-    duplicateWarnings(),
+    auditNflRollingInsightsIdentity({ prismaClient: prisma }),
   ])
   const result = {
     ok: true,
     generatedAt: new Date().toISOString(),
     season: args.season,
     week: args.week,
+    readOnly: true,
     coverage,
+    beforeCounts: coverage.counts,
+    afterCounts: coverage.counts,
     identity,
-    duplicateWarnings: duplicates,
+    identityAudit,
+    duplicateWarnings: identityAudit.duplicateSamples,
+    duplicateCount: {
+      groups: identityAudit.duplicateCandidateGroups,
+      rows: identityAudit.duplicateCandidateRows,
+      extraRows: identityAudit.extraDuplicateRows,
+    },
     staleProviderWarnings: coverage.staleFields,
     missingProviderWarnings: coverage.missingFields,
+    writeCommand: writeCommand(args),
   }
 
   if (args.json) {
@@ -130,9 +112,11 @@ async function main() {
   console.log(`DepthCharts=${coverage.counts.depthCharts ?? 0} Injuries=${coverage.counts.injuries ?? 0} SeasonStats=${coverage.counts.seasonStats ?? 0}`)
   console.log(`WeeklyProjectionRows=${coverage.counts.weeklyProjections ?? 0} RosProjectionRows=${coverage.counts.rosProjections ?? 0} TradeValueRows=${coverage.counts.tradeValues ?? 0}`)
   console.log(`Identity match rate=${identity.identityMatchRate}% (${identity.identityRowsWithAnyProviderId}/${identity.sportsPlayerRows})`)
-  console.log(`Duplicate warnings=${duplicates.length}`)
+  console.log(`RI identity audit match rate=${identityAudit.matchRate}%`)
+  console.log(`Duplicate groups=${identityAudit.duplicateCandidateGroups} rows=${identityAudit.duplicateCandidateRows} extraRows=${identityAudit.extraDuplicateRows}`)
   console.log(`Missing=${coverage.missingFields.join(', ') || 'none'}`)
   console.log(`Stale=${coverage.staleFields.join(', ') || 'none'}`)
+  console.log(`Write mode command=${writeCommand(args)}`)
 }
 
 main()
@@ -142,4 +126,6 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect().catch(() => undefined)
+    if (aliasPrisma !== prisma) await aliasPrisma.$disconnect().catch(() => undefined)
+    process.exit(process.exitCode ?? 0)
   })
