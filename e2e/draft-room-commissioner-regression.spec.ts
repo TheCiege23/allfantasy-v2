@@ -98,6 +98,19 @@ async function mockDraftSettingsApi(page: Page, leagueId: string) {
     await route.fallback()
   })
 
+  await page.route(`**/api/leagues/${leagueId}/settings/draft`, async (route) => {
+    if (route.request().method() === 'PATCH') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      })
+      return
+    }
+
+    await route.fallback()
+  })
+
   return {
     getPatches: () => capturedPatches,
   }
