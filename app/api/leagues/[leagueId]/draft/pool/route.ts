@@ -37,6 +37,7 @@ import {
 } from '@/lib/player-data/providerFallbackDiagnostics'
 import { soccerLeagueHintFromLeagueSettings } from '@/lib/player-data/leagueSoccerLeagueHint'
 import type { NormalizedDraftEntry } from '@/lib/draft-sports-models/types'
+import { enrichCanonicalNflDraftPoolEntries } from '@/lib/nfl-data-foundation'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +50,20 @@ const DRAFT_POOL_CACHE_CONTROL = (() => {
   const swr = Math.max(ttl, ttl * 2)
   return `private, max-age=${ttl}, stale-while-revalidate=${swr}`
 })()
+
+async function loadNflFoundationTiming(leagueId: string): Promise<{ season: number; week: number }> {
+  const row = await prisma.redraftSeason
+    .findFirst({
+      where: { leagueId, sport: 'NFL' },
+      orderBy: { createdAt: 'desc' },
+      select: { season: true, currentWeek: true },
+    })
+    .catch(() => null)
+  return {
+    season: Number(row?.season ?? new Date().getUTCFullYear()),
+    week: Math.max(1, Number(row?.currentWeek ?? 1)),
+  }
+}
 
 type DraftPoolMetaSource = 'db-cache' | 'rebuilt'
 
@@ -197,7 +212,7 @@ export async function GET(
   const rosterFp = `${effectiveLeagueTemplate.hasPersistedRosterSchema ? 'cfg' : 'nocfg'}:starters:${rosterFingerprintFromEligible(
     starterEligible.size > 0 ? starterEligible : new Set(effectiveLeagueTemplate.allowedPositions),
   )}`
-  const cacheKey = `draft_pool:${leagueId}:${rosterFp}:dbmerge_v4:nflproj_v1:${buildApiCacheKey('GET', req.url)}`
+  const cacheKey = `draft_pool:${leagueId}:${rosterFp}:dbmerge_v4:nflproj_v2:nflfoundation_v1:${buildApiCacheKey('GET', req.url)}`
   // dbFirstMode persistent DB cache layer. Guarded because the DraftPoolCache
   // Prisma client may not be generated yet (the model is in schema.prisma but
   // requires `prisma generate` to surface on the client). Falls back to the
@@ -262,7 +277,11 @@ export async function GET(
       cacheKey,
       elapsedMs: Date.now() - routeStartedAt,
     })
-    const outward = { ...payload } as DraftPoolResponseBody
+    const payloadBody =
+      payload && typeof payload === 'object'
+        ? (payload as DraftPoolResponseBody)
+        : ({ entries: [] } as DraftPoolResponseBody)
+    const outward = { ...payloadBody } as DraftPoolResponseBody
     await injectDraftPoolDiagnosticsIfRequested(outward, leagueId, req)
     const response = NextResponse.json(outward, { status: cached.status })
     for (const [header, value] of Object.entries(cached.headers)) {
@@ -326,10 +345,16 @@ export async function GET(
         return responsePayload
       }
 
+      const nflFoundationTiming = resolved.sport === 'NFL' ? await loadNflFoundationTiming(leagueId) : null
+      const entries =
+        resolved.sport === 'NFL'
+          ? await enrichCanonicalNflDraftPoolEntries(leagueId, resolved.entries, nflFoundationTiming ?? undefined)
+          : resolved.entries
+
       const responsePayload = stripPoolEntryFallbacks(withDraftPoolMeta({
-        entries: resolved.entries,
+        entries,
         sport: resolved.sport,
-        count: resolved.count,
+        count: entries.length,
         rosterConfigurationIncomplete: false as const,
         poolType: resolved.poolType,
         devyConfig: resolved.devyConfig,
@@ -350,7 +375,11 @@ export async function GET(
       return responsePayload
     })
 
-    const outward = { ...payload } as DraftPoolResponseBody
+    const payloadBody =
+      payload && typeof payload === 'object'
+        ? (payload as DraftPoolResponseBody)
+        : ({ entries: [] } as DraftPoolResponseBody)
+    const outward = { ...payloadBody } as DraftPoolResponseBody
     await injectDraftPoolDiagnosticsIfRequested(outward, leagueId, req)
     const res = NextResponse.json(outward)
     res.headers.set('Cache-Control', DRAFT_POOL_CACHE_CONTROL)

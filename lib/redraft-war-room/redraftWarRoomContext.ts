@@ -24,6 +24,7 @@ import {
 } from './redraftFreeAgentPool'
 import { fetchRedraftInjuryNews, injuryNameKey } from './redraftInjuryNews'
 import { buildAllFantasyProjection } from '@/lib/redraft/projectionEngine'
+import { getCanonicalNflDataCoverage } from '@/lib/nfl-data-foundation/nflDataCoverage'
 import type {
   DataState,
   RedraftDataAvailability,
@@ -588,6 +589,25 @@ export async function buildRedraftWarRoomContext(
     missingDataFlags.push('Free-agent pool unavailable for this sport/season — specific add targets cannot be listed.')
   if (availability.injuries === 'missing') missingDataFlags.push('No injury data available.')
 
+  const nflDataCoverage =
+    season.sport.toUpperCase() === 'NFL'
+      ? await getCanonicalNflDataCoverage({
+          season: season.season,
+          week,
+          prismaClient: prisma,
+        }).catch(() => null)
+      : null
+  if (nflDataCoverage) {
+    for (const field of nflDataCoverage.missingFields) {
+      missingDataFlags.push(`NFL data foundation missing ${field}.`)
+    }
+    for (const field of nflDataCoverage.staleFields) {
+      missingDataFlags.push(`NFL data foundation ${field} is stale.`)
+    }
+  } else if (season.sport.toUpperCase() === 'NFL') {
+    missingDataFlags.push('NFL data foundation coverage could not be loaded.')
+  }
+
   const hasValueSignal =
     availability.projections === 'available' || availability.playerStats === 'available' || adpAvailable
 
@@ -617,6 +637,7 @@ export async function buildRedraftWarRoomContext(
       injuriesAsOf: injuriesAsOf ? injuriesAsOf.toISOString() : null,
     },
     missingDataFlags,
+    nflDataCoverage,
     featureAvailability: {
       teamNeeds: availability.rosterRules === 'available',
       lineup: availability.rosterRules === 'available',

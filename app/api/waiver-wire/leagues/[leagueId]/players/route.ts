@@ -8,6 +8,12 @@ import { serializeUnifiedPlayerForApi } from "@/lib/player-data/serializeUnified
 import { soccerLeagueHintFromLeagueSettings } from "@/lib/player-data/leagueSoccerLeagueHint"
 import { resolveIncludePlayerDataDiagnostics, logPrefixForSurface } from "@/lib/player-data/providerFallbackDiagnostics"
 import { buildAllFantasyProjection } from "@/lib/redraft/projectionEngine"
+import {
+  getCanonicalNflPlayerByNameTeam,
+  getCanonicalNflPlayerContext,
+  getCanonicalNflRosteredIdentityKeysForLeague,
+  playerMatchesRosteredKeys,
+} from "@/lib/nfl-data-foundation"
 
 /**
  * GET: list players available to add (not on any roster in this league).
@@ -54,6 +60,23 @@ export async function GET(
   for (const r of rosters) {
     getRosterPlayerIds(r.playerData).forEach((id) => rosteredIds.add(id))
   }
+  const redraftSeason = normalizedSport === 'NFL'
+    ? await (prisma as any).redraftSeason
+        .findFirst({
+          where: { leagueId, sport: 'NFL' },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, season: true, currentWeek: true },
+        })
+        .catch(() => null)
+    : null
+  const foundationSeason = Number(redraftSeason?.season ?? new Date().getUTCFullYear())
+  const foundationWeek = Math.max(1, Number(redraftSeason?.currentWeek ?? 1))
+  const canonicalRosteredKeys =
+    normalizedSport === 'NFL'
+      ? await getCanonicalNflRosteredIdentityKeysForLeague(leagueId, {
+          seasonId: redraftSeason?.id ?? null,
+        }).catch(() => new Set<string>())
+      : new Set<string>()
 
   const soccerHint =
     soccerLeagueHintFromLeagueSettings(league.settings) ??
@@ -71,9 +94,24 @@ export async function GET(
     includeProviderFallbackDiagnostics: diag,
   })
 
-  const players = unified.map((entry) => {
+  const players = (await Promise.all(unified.map(async (entry) => {
     const row = serializeUnifiedPlayerForApi(entry)
-    const projection = buildAllFantasyProjection({
+    if (rosteredIds.has(row.id) || (normalizedSport === 'NFL' && playerMatchesRosteredKeys(row, canonicalRosteredKeys))) {
+      return null
+    }
+    const canonical =
+      normalizedSport === 'NFL'
+        ? (await getCanonicalNflPlayerContext(row.id, {
+            season: foundationSeason,
+            week: foundationWeek,
+          }).catch(() => null)) ??
+          (await getCanonicalNflPlayerByNameTeam(row.name, row.team, {
+            position: row.position,
+            season: foundationSeason,
+            week: foundationWeek,
+          }).catch(() => null))
+        : null
+    const fallbackProjection = buildAllFantasyProjection({
       playerId: row.id,
       playerName: row.name,
       sport: row.sport,
@@ -84,22 +122,36 @@ export async function GET(
       providerWeeklyProjection: row.projectedPoints,
       rollingInsightsFantasyPointsPerGame: row.fantasyPointsPerGame,
       rollingInsightsStats: row.normalizedStats,
-      currentWeek: 1,
+      currentWeek: foundationWeek,
       totalWeeks: 17,
     })
     return {
       ...row,
-      projectedPoints: projection.weeklyProjection ?? row.projectedPoints,
+      projectedPoints: canonical?.projection?.projectedPoints ?? fallbackProjection.weeklyProjection ?? row.projectedPoints,
+      injuryStatus: canonical?.injuryStatus ?? row.injuryStatus,
       projectionsSource:
-        projection.source === 'missing'
+        canonical?.projection
+          ? `allfantasy:${canonical.projection.projectionSource}`
+          : fallbackProjection.source === 'missing'
           ? row.projectionsSource
-          : `allfantasy:${projection.source}`,
+          : `allfantasy:${fallbackProjection.source}`,
       normalizedProjections: {
         ...row.normalizedProjections,
-        allFantasyProjection: projection,
+        allFantasyProjection: canonical?.projection ?? fallbackProjection,
       },
+      canonicalNfl: canonical
+        ? {
+            playerId: canonical.playerId,
+            providerIds: canonical.providerIds,
+            projection: canonical.projection,
+            byeWeek: canonical.byeWeek,
+            depthChartRole: canonical.depthChartRole,
+            dataSources: canonical.dataSources,
+            staleDataWarnings: canonical.staleDataWarnings,
+          }
+        : undefined,
     }
-  })
+  }))).filter(Boolean)
   if (diag && process.env.NODE_ENV === 'development') {
     for (const row of unified.slice(0, 5)) {
       const d = row.providerFallbackDiagnostics

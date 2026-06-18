@@ -61,6 +61,14 @@ export function buildRedraftWarRoomPrompt(inputs: RedraftWarRoomPromptInputs): s
   )
   lines.push(`Waivers: type=${context.waivers.type} faabBudget=${context.waivers.faabBudget ?? 'n/a'}`)
   lines.push(`DATA AVAILABILITY: ${fmtAvailability(context)}`)
+  if (context.nflDataCoverage) {
+    const c = context.nflDataCoverage
+    lines.push(
+      `NFL DATA FOUNDATION: players=${c.counts.players ?? 0} teams=${c.counts.teams ?? 0} schedule=${c.hasSchedule} depthCharts=${c.hasDepthCharts} seasonStats=${c.hasSeasonStats} weeklyProjections=${c.hasWeeklyProjections} rosProjections=${c.hasRosProjections} tradeValues=${c.hasTradeValues}`,
+    )
+    if (c.missingFields.length) lines.push(`NFL FOUNDATION MISSING: ${c.missingFields.join(', ')}`)
+    if (c.staleFields.length) lines.push(`NFL FOUNDATION STALE: ${c.staleFields.join(', ')}`)
+  }
   if (context.missingDataFlags.length) {
     lines.push('MISSING-DATA FLAGS:')
     for (const f of context.missingDataFlags) lines.push(`  - ${f}`)

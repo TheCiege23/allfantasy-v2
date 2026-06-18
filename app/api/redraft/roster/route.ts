@@ -12,6 +12,10 @@ import {
   type RedraftLineupPlayer,
   type RedraftLineupValidationResult,
 } from '@/lib/redraft/lineupValidation'
+import {
+  getCanonicalNflPlayerByNameTeam,
+  getCanonicalNflPlayerContext,
+} from '@/lib/nfl-data-foundation'
 
 export const dynamic = 'force-dynamic'
 
@@ -251,14 +255,63 @@ export async function GET(req: NextRequest) {
         rollingInsightsGamesPlayed: seasonStats?.gamesPlayed ?? null,
         rollingInsightsStats: seasonStats?.stats ?? null,
       })
+      const canonical =
+        String(player.sport).toUpperCase() === 'NFL'
+          ? (await getCanonicalNflPlayerContext(player.playerId, {
+              season: roster.season.season,
+              week,
+            }).catch(() => null)) ??
+            (await getCanonicalNflPlayerByNameTeam(player.playerName, player.team, {
+              position: player.position,
+              season: roster.season.season,
+              week,
+            }).catch(() => null))
+          : null
+      const weeklyProjection = canonical?.projection?.projectedPoints ?? projection.weeklyProjection
+      const restOfSeasonProjection = canonical?.projection?.restOfSeason ?? projection.restOfSeasonProjection
+      const floorProjection = canonical?.projection?.floor ?? projection.floorProjection
+      const ceilingProjection = canonical?.projection?.ceiling ?? projection.ceilingProjection
+      const projectionConfidenceScore = canonical?.projection?.confidence ?? projection.confidenceScore
+      const projectionConfidenceLevel = canonical?.projection?.confidenceLevel ?? projection.confidenceLevel
+      const projectionSource = canonical?.projection?.projectionSource ?? projection.source
+      const availabilityWarnings = [
+        player.isLocked ? 'Player is locked for the current scoring period.' : null,
+        canonical?.byeWeek === week || player.byeWeek === week ? 'Player is on bye this week.' : null,
+        canonical?.injuryStatus ? `Injury status: ${canonical.injuryStatus}.` : null,
+      ].filter(Boolean)
       const projectionFields = {
-        weeklyProjection: projection.weeklyProjection,
-        restOfSeasonProjection: projection.restOfSeasonProjection,
-        floorProjection: projection.floorProjection,
-        ceilingProjection: projection.ceilingProjection,
-        projectionConfidenceScore: projection.confidenceScore,
-        projectionConfidenceLevel: projection.confidenceLevel,
-        projectionSource: projection.source,
+        weeklyProjection,
+        restOfSeasonProjection,
+        floorProjection,
+        ceilingProjection,
+        projectionConfidenceScore,
+        projectionConfidenceLevel,
+        projectionSource,
+        startSitRecommendation: {
+          recommendation:
+            player.isLocked
+              ? 'locked'
+              : weeklyProjection == null
+                ? 'needs-data'
+                : weeklyProjection >= 10
+                  ? 'start'
+                  : 'bench',
+          projectedPoints: weeklyProjection,
+          confidence: projectionConfidenceScore,
+          warnings: availabilityWarnings,
+        },
+        canonicalNfl: canonical
+          ? {
+              playerId: canonical.playerId,
+              providerIds: canonical.providerIds,
+              projection: canonical.projection,
+              injuryStatus: canonical.injuryStatus,
+              byeWeek: canonical.byeWeek,
+              depthChartRole: canonical.depthChartRole,
+              dataSources: canonical.dataSources,
+              staleDataWarnings: canonical.staleDataWarnings,
+            }
+          : undefined,
       }
       if (!weeklyScore) return { ...player, weeklyScore: null, ...projectionFields }
       return {

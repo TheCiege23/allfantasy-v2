@@ -15,6 +15,8 @@
  * - NFL pools never mix with NCAAF pools (sport is carried through context).
  */
 
+import type { CanonicalNflDataCoverage } from '@/lib/nfl-data-foundation/types'
+
 export type DataState = 'available' | 'stale' | 'missing'
 
 /** Per-source availability so every feature can degrade safely instead of fabricating. */
@@ -164,6 +166,8 @@ export interface RedraftWarRoomContext {
   freshness: RedraftFreshness
   /** Human-readable flags describing why data is degraded (surfaced to UI + AI). */
   missingDataFlags: string[]
+  /** NFL provider foundation coverage; null for non-NFL redraft contexts. */
+  nflDataCoverage?: CanonicalNflDataCoverage | null
   /** Which War Room features can run with the current data. */
   featureAvailability: {
     teamNeeds: boolean

@@ -2,6 +2,8 @@ import type { UserLeague } from '@/app/dashboard/types'
 import { prisma } from '@/lib/prisma'
 import { monitorLeagueHealth, type OverallStatus } from '@/lib/league-health/league-health-engine'
 import { getNormalizedLineupSections } from '@/lib/roster/LineupTemplateValidation'
+import { getCanonicalNflDataCoverage } from '@/lib/nfl-data-foundation/nflDataCoverage'
+import type { CanonicalNflDataCoverage } from '@/lib/nfl-data-foundation/types'
 
 export type CommissionerHealthDataConfidence = 'high' | 'medium' | 'low'
 export type CommissionerHealthDataSource = 'database' | 'dashboard-fallback'
@@ -80,6 +82,7 @@ export type CommissionerLeagueHealthSnapshot = {
   recommendations: string[]
   actions: CommissionerHealthAction[]
   assistantQuestions: CommissionerAssistantQuestion[]
+  nflDataCoverage?: CanonicalNflDataCoverage | null
 }
 
 type CountMap = Map<string, number>
@@ -117,6 +120,7 @@ export type CommissionerHealthBuildInput = {
   league: LeagueHealthRow
   now?: Date
   source?: CommissionerHealthDataSource
+  nflDataCoverage?: CanonicalNflDataCoverage | null
   counts?: Partial<{
     tradeActivity: number
     pendingTrades: number
@@ -593,6 +597,9 @@ export function buildCommissionerHealthSnapshot(
         : 'medium'
   const leagueName = String(league.name ?? 'League')
   const summary = health.summary
+  const nflDataCoverage = String(league.sport ?? 'NFL').toUpperCase() === 'NFL'
+    ? input.nflDataCoverage ?? null
+    : null
 
   return {
     leagueId: league.id,
@@ -620,6 +627,12 @@ export function buildCommissionerHealthSnapshot(
     ].slice(0, 4),
     recommendations: [
       ...health.interventionRecommendations,
+      ...(nflDataCoverage?.missingFields.length
+        ? [`NFL data foundation missing: ${nflDataCoverage.missingFields.join(', ')}.`]
+        : []),
+      ...(nflDataCoverage?.staleFields.length
+        ? [`NFL data foundation stale: ${nflDataCoverage.staleFields.join(', ')}.`]
+        : []),
       ...(projectionCoveragePct < 60
         ? ['Projection coverage is thin; run player stat/projection imports before relying on start/sit or waiver recommendations.']
         : []),
@@ -632,6 +645,7 @@ export function buildCommissionerHealthSnapshot(
       metrics.pendingTrades,
     ),
     assistantQuestions: buildAssistantQuestions({ leagueName, metrics, summary }),
+    nflDataCoverage,
   }
 }
 
@@ -754,6 +768,17 @@ export async function getCommissionerHubHealthForUser(
     const dbById = new Map<string, LeagueHealthRow>(
       (Array.isArray(dbLeagues) ? dbLeagues : []).map((league: LeagueHealthRow) => [league.id, league]),
     )
+    const nflCoverageByLeague = new Map<string, CanonicalNflDataCoverage | null>()
+    await Promise.all(
+      leagueIds.map(async (leagueId) => {
+        const dbLeague = dbById.get(leagueId)
+        if (String(dbLeague?.sport ?? '').toUpperCase() !== 'NFL') return
+        const season = Number(dbLeague?.season ?? new Date().getUTCFullYear())
+        const week = readCurrentWeek(dbLeague?.settings)
+        const coverage = await getCanonicalNflDataCoverage({ season, week }).catch(() => null)
+        nflCoverageByLeague.set(leagueId, coverage)
+      }),
+    )
 
     return leagueIds.map((leagueId) => {
       const dbLeague = dbById.get(leagueId)
@@ -763,6 +788,7 @@ export async function getCommissionerHubHealthForUser(
         league: dbLeague,
         now,
         source: 'database',
+        nflDataCoverage: nflCoverageByLeague.get(leagueId) ?? null,
         counts: {
           tradeActivity:
             countMapValue(tradeActivity, leagueId) +
