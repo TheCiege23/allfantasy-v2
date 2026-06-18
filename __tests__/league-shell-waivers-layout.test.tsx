@@ -41,6 +41,14 @@ describe('League shell layout and waivers integration', () => {
     expect(leagueShell).toContain("if (isPredraftLifecycle) return renderPredraftDraftSetup()")
   })
 
+  it('matches the dashboard command-center visual treatment on league pages', () => {
+    expect(leagueShell).toContain('data-testid="league-command-center-surface"')
+    expect(leagueShell).toContain('data-testid="league-command-center-header"')
+    expect(leagueShell).toContain('data-testid="league-command-center-tabs"')
+    expect(leagueShell).toContain('data-testid="league-command-center-card"')
+    expect(leagueShell).toContain('bg-gradient-to-br from-cyan-500/[0.07] via-[#050814] to-violet-500/[0.04]')
+  })
+
   it('includes waivers in league tab definitions and nfl redraft core tabs', () => {
     expect(leagueTabs).toContain("{ id: 'waivers', label: 'Waivers' }")
     expect(leagueShell).toContain("{ id: 'waivers', label: 'Waivers' }")
