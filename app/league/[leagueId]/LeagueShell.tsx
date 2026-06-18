@@ -254,10 +254,10 @@ export function LeagueShell({
   const router = useRouter()
   const pathname = usePathname()
   // Use a league-specific storage key so league and dashboard have independent collapse states.
-  // Default to collapsed on league pages — side panels are drawers/overlays by default.
+  // Default to the dashboard-style three-panel league shell.
   const myLeaguesRail = useMyLeaguesRailCollapse({
     storageKey: 'af-league-myleagues-rail-collapsed',
-    defaultCollapsed: true,
+    defaultCollapsed: false,
   })
   const searchParams = useSearchParams()
   const openChatQuery = searchParams?.get('openChat') ?? null
@@ -310,12 +310,16 @@ export function LeagueShell({
         { id: 'matchups', label: 'Matchups' },
         { id: 'players', label: 'Players' },
         { id: 'waivers', label: 'Waivers' },
-        { id: 'trades', label: 'Trades' },
+        { id: 'trades', label: 'Trade Center' },
         { id: 'war_room', label: 'War Room' },
-        { id: 'league', label: 'League' },
+        { id: 'league', label: isCommissioner ? 'Commissioner Hub' : 'League' },
       ]
       if (isCommissioner) core.push({ id: 'settings', label: '⚙ Settings' })
-      return localizeLeagueTabs(core, t)
+      return localizeLeagueTabs(core, t).map((tab) => {
+        if (tab.id === 'trades') return { ...tab, label: 'Trade Center' }
+        if (tab.id === 'league' && isCommissioner) return { ...tab, label: 'Commissioner Hub' }
+        return tab
+      })
     }
 
     let base = getLeagueTabs(String(league.sport))
@@ -1582,6 +1586,44 @@ function LeagueTabRouter({
   const renderPredraftDraftSetup = () => {
     const teamCount = selectedLeague.teamCount ?? teamSlots.length
     const joinedTeams = teamSlots.filter((team) => Boolean(team.id)).length
+    const settings =
+      selectedLeague.settings && typeof selectedLeague.settings === 'object' && !Array.isArray(selectedLeague.settings)
+        ? (selectedLeague.settings as Record<string, unknown>)
+        : {}
+    const foundationDefaults =
+      settings.foundation_defaults && typeof settings.foundation_defaults === 'object' && !Array.isArray(settings.foundation_defaults)
+        ? (settings.foundation_defaults as Record<string, unknown>)
+        : {}
+    const foundationDraft =
+      foundationDefaults.draft && typeof foundationDefaults.draft === 'object' && !Array.isArray(foundationDefaults.draft)
+        ? (foundationDefaults.draft as Record<string, unknown>)
+        : {}
+    const nestedDraftSettings =
+      settings.draftSettings && typeof settings.draftSettings === 'object' && !Array.isArray(settings.draftSettings)
+        ? (settings.draftSettings as Record<string, unknown>)
+        : foundationDraft
+    const readString = (...values: unknown[]): string | null => {
+      for (const value of values) {
+        if (typeof value === 'string' && value.trim().length > 0) return value.trim()
+      }
+      return null
+    }
+    const readNumber = (...values: unknown[]): number | null => {
+      for (const value of values) {
+        const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
+        if (Number.isFinite(n) && n > 0) return Math.round(n)
+      }
+      return null
+    }
+    const draftType = readString(
+      settings.requested_draft_type,
+      settings.canonical_draft_mode,
+      settings.draft_type,
+      nestedDraftSettings.draftType,
+      nestedDraftSettings.engineCore,
+    ) ?? 'snake'
+    const rounds = readNumber(settings.draft_rounds, nestedDraftSettings.rounds) ?? (sport === 'NCAAF' ? 20 : 15)
+    const timerSeconds = readNumber(settings.draft_timer_seconds, nestedDraftSettings.timerSeconds) ?? 90
     const draftDateLabel = draftDateIso
       ? new Date(draftDateIso).toLocaleString(undefined, {
           weekday: 'short',
@@ -1591,7 +1633,10 @@ function LeagueTabRouter({
           hour: 'numeric',
           minute: '2-digit',
         })
-      : 'Not scheduled yet'
+      : 'Optional - set when ready'
+    const mockDraftHref = `/mock-draft?leagueId=${encodeURIComponent(leagueId)}&sport=${encodeURIComponent(
+      String(sport).toLowerCase(),
+    )}`
 
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-5 lg:px-6">
@@ -1611,11 +1656,11 @@ function LeagueTabRouter({
             <div className="space-y-1">
               <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-400/60">Draft setup</p>
               <h2 className="text-[26px] font-black leading-tight tracking-tight text-white sm:text-[30px]">
-                Draft room is not open yet
+                Draft setup is ready
               </h2>
               <p className="max-w-2xl text-[13px] leading-relaxed text-white/55">
-                This view stays lightweight until the league is ready. The shell remains visible, and the draft tab
-                can safely point here before the live room is available.
+                The league has a draft shell. Open the room to review the board, set order, invite managers, or start
+                when the commissioner is ready.
               </p>
             </div>
             <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/[0.12] via-cyan-500/[0.06] to-transparent px-4 py-3 text-right shadow-[0_0_20px_rgba(34,211,238,0.08)]">
@@ -1632,28 +1677,47 @@ function LeagueTabRouter({
               <p className="mt-1 text-sm font-semibold text-white">{draftDateLabel}</p>
             </div>
             <div className="rounded-2xl border border-white/[0.07] bg-white/[0.04] p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">Current tab</p>
-              <p className="mt-1 text-sm font-semibold text-white">Draft / Draft Setup</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">Draft type</p>
+              <p className="mt-1 text-sm font-semibold text-white">{formatDraftTypeLabel(draftType)}</p>
             </div>
             <div className="rounded-2xl border border-white/[0.07] bg-white/[0.04] p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">Next step</p>
-              <p className="mt-1 text-sm font-semibold text-white">Open league settings or continue setup</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">Rounds / timer</p>
+              <p className="mt-1 text-sm font-semibold text-white">
+                {rounds} rounds / {timerSeconds}s
+              </p>
             </div>
           </div>
 
           <div className="relative mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => onOpenLeagueSettingsModal()}
+            <Link
+              href={`/league/${leagueId}/draft`}
+              data-testid="predraft-open-draft-room"
               className="touch-manipulation inline-flex min-h-[40px] items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-[12px] font-semibold text-cyan-200 transition hover:bg-cyan-500/20 active:bg-cyan-500/25"
             >
-              Open draft settings
-            </button>
+              Open draft room setup
+            </Link>
+            {isCommissioner ? (
+              <button
+                type="button"
+                onClick={() => onOpenLeagueSettingsModal('draft')}
+                data-testid="predraft-open-draft-settings"
+                className="touch-manipulation inline-flex min-h-[40px] items-center justify-center rounded-xl border border-white/15 bg-white/[0.03] px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10"
+              >
+                Draft settings
+              </button>
+            ) : null}
+            <Link
+              href={mockDraftHref}
+              data-testid="predraft-start-mock-draft"
+              className="touch-manipulation inline-flex min-h-[40px] items-center justify-center rounded-xl border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-[12px] font-semibold text-violet-100 transition hover:bg-violet-500/20 active:bg-violet-500/25"
+            >
+              Start mock draft
+            </Link>
             <Link
               href={`/league/${leagueId}?view=league`}
               className="touch-manipulation inline-flex min-h-[40px] items-center justify-center rounded-xl border border-white/15 bg-white/[0.03] px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10"
             >
-              Go to League tab
+              Go to {isCommissioner ? 'Commissioner Hub' : 'League'} tab
             </Link>
           </div>
         </section>

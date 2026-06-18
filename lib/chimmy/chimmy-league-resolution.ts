@@ -345,7 +345,7 @@ export function buildChimmySourceReferences(args: {
     refs.push({ label: 'Waivers', href: `/league/${args.leagueId}?tab=waivers` })
   }
   if (args.intent === 'trade') {
-    refs.push({ label: 'Trades', href: `/league/${args.leagueId}?tab=trades` })
+    refs.push({ label: 'Trade Center', href: `/league/${args.leagueId}?tab=trades` })
   }
   return refs
 }

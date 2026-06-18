@@ -961,7 +961,7 @@ export const translations: Record<string, Record<string, string>> = {
     "league.tab.league": "League",
     "league.tab.players": "Players",
     "league.tab.trend": "Trend",
-    "league.tab.trades": "Trades",
+    "league.tab.trades": "Trade Center",
     "league.tab.scores": "Scores",
     "league.tab.warRoom": "War Room",
     "league.tab.aiCoaching": "AI Coaching",

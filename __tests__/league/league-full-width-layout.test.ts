@@ -1,13 +1,11 @@
 /**
  * Regression tests for /league/[leagueId] full-width layout.
  *
- * Guards against re-introducing permanent side columns that shrink the center
- * content area. The league shell should default to:
- *  - left chat rail collapsed (3rem slim strip, opens on demand)
- *  - My Leagues right rail collapsed (3rem slim strip, opens on demand)
- *  - full viewport for the center workspace
- *
- * Side panels become overlays/drawers by default, not permanent grid columns.
+ * Guards the dashboard-style league shell. The league page should default to:
+ *  - left chat rail visible
+ *  - center dashboard visible in the middle
+ *  - My Leagues right rail visible
+ *  - either side can collapse into a slim strip while the center expands
  */
 import { describe, expect, it } from 'vitest'
 import fs from 'node:fs'
@@ -21,11 +19,11 @@ const leagueShellSrc = read('app/league/[leagueId]/LeagueShell.tsx')
 const appShellSrc = read('app/components/AppShell.tsx')
 const hookSrc = read('hooks/useMyLeaguesRailCollapse.ts')
 
-// ─── My Leagues right rail: collapsed by default on league pages ──────────────
+// ─── My Leagues right rail: visible by default on league pages ──────────────
 
-describe('My Leagues rail — league page defaults to collapsed', () => {
-  it('LeagueShell passes defaultCollapsed: true to useMyLeaguesRailCollapse', () => {
-    expect(leagueShellSrc).toContain('defaultCollapsed: true')
+describe('My Leagues rail — league page defaults to visible', () => {
+  it('LeagueShell passes defaultCollapsed: false to useMyLeaguesRailCollapse', () => {
+    expect(leagueShellSrc).toContain('defaultCollapsed: false')
   })
 
   it('LeagueShell uses a league-specific storage key (not shared with dashboard)', () => {
@@ -52,9 +50,9 @@ describe('My Leagues rail — league page defaults to collapsed', () => {
   })
 })
 
-// ─── Left chat rail: collapsed by default, opens on openChat param ────────────
+// ─── Left chat rail: visible by default, opens on openChat param ────────────
 
-describe('Left chat rail — defaults to collapsed, respects openChat param', () => {
+describe('Left chat rail — defaults to visible, respects openChat param', () => {
   it('AppShell accepts leftRailCollapsed prop', () => {
     expect(appShellSrc).toContain('leftRailCollapsed')
   })

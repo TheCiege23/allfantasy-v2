@@ -124,8 +124,8 @@ describe('League shell — chat visible by default on desktop', () => {
     expect(leagueShellSrc).toContain('useState<boolean>(true)')
   })
 
-  it('My Leagues right rail defaults to collapsed (less important than chat)', () => {
-    expect(leagueShellSrc).toContain("defaultCollapsed: true")
+  it('My Leagues right rail defaults to visible for the 40/35/25 shell', () => {
+    expect(leagueShellSrc).toContain("defaultCollapsed: false")
     expect(leagueShellSrc).toContain('af-league-myleagues-rail-collapsed')
   })
 })
