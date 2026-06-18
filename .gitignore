@@ -90,3 +90,5 @@ spotify-final-results.txt
 .next-build.lock
 .claude/scheduled_tasks.lock
 .env*.local
+
+.env.redraft-test
