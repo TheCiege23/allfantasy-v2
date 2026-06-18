@@ -7,6 +7,7 @@ import { getNormalizedPlayerData } from "@/lib/player-data/getNormalizedPlayerDa
 import { serializeUnifiedPlayerForApi } from "@/lib/player-data/serializeUnifiedPlayerForApi"
 import { soccerLeagueHintFromLeagueSettings } from "@/lib/player-data/leagueSoccerLeagueHint"
 import { resolveIncludePlayerDataDiagnostics, logPrefixForSurface } from "@/lib/player-data/providerFallbackDiagnostics"
+import { buildAllFantasyProjection } from "@/lib/redraft/projectionEngine"
 
 /**
  * GET: list players available to add (not on any roster in this league).
@@ -70,7 +71,35 @@ export async function GET(
     includeProviderFallbackDiagnostics: diag,
   })
 
-  const players = unified.map(serializeUnifiedPlayerForApi)
+  const players = unified.map((entry) => {
+    const row = serializeUnifiedPlayerForApi(entry)
+    const projection = buildAllFantasyProjection({
+      playerId: row.id,
+      playerName: row.name,
+      sport: row.sport,
+      position: row.position ?? 'UNK',
+      team: row.team,
+      injuryStatus: row.injuryStatus,
+      adp: row.adp,
+      providerWeeklyProjection: row.projectedPoints,
+      rollingInsightsFantasyPointsPerGame: row.fantasyPointsPerGame,
+      rollingInsightsStats: row.normalizedStats,
+      currentWeek: 1,
+      totalWeeks: 17,
+    })
+    return {
+      ...row,
+      projectedPoints: projection.weeklyProjection ?? row.projectedPoints,
+      projectionsSource:
+        projection.source === 'missing'
+          ? row.projectionsSource
+          : `allfantasy:${projection.source}`,
+      normalizedProjections: {
+        ...row.normalizedProjections,
+        allFantasyProjection: projection,
+      },
+    }
+  })
   if (diag && process.env.NODE_ENV === 'development') {
     for (const row of unified.slice(0, 5)) {
       const d = row.providerFallbackDiagnostics

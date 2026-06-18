@@ -127,6 +127,8 @@ export function buildWaiverRecommendations(
             ? `ADP ${p.adp.toFixed(1)}`
             : source === 'projection'
               ? `projected ${value?.toFixed(1)}`
+              : source === 'ros_projection'
+                ? `ROS value ${value?.toFixed(1)}`
               : source === 'season_avg'
                 ? `season avg ${value?.toFixed(1)}`
                 : 'no value signal yet'

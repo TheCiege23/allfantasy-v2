@@ -33,14 +33,26 @@ export async function GET(
 
   const type = req.nextUrl.searchParams?.get("type") || "pending"
   const limit = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams?.get("limit") || "50")))
+  const scope = req.nextUrl.searchParams?.get("scope") || "mine"
 
   if (type === "history") {
     const { claims, transactions } = await getProcessedClaimsAndTransactions(leagueId, limit)
     return NextResponse.json({ claims, transactions })
   }
 
-  const pending = await getPendingClaims(leagueId)
-  return NextResponse.json({ claims: pending })
+  const wantsLeagueScope = scope === "league" || !rosterAsMember
+  if (wantsLeagueScope) {
+    const role = await getLeagueRole(leagueId, userId)
+    if (!leagueAsOwner && role !== "commissioner" && role !== "co_commissioner") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+    const pending = await getPendingClaims(leagueId)
+    return NextResponse.json({ claims: pending, scope: "league" })
+  }
+
+  if (!rosterAsMember) return NextResponse.json({ error: "Roster not found" }, { status: 404 })
+  const pending = await getClaimsByRoster(rosterAsMember.id, "pending")
+  return NextResponse.json({ claims: pending, scope: "mine" })
 }
 
 export async function POST(

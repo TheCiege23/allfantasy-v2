@@ -88,6 +88,14 @@ export interface RedraftPlayerFact {
   byeWeek: number | null
   /** Provider projection for `currentWeek` when available, else null. */
   weekProjection: number | null
+  /** AllFantasy rest-of-season projection from current week through season end, else null. */
+  restOfSeasonProjection?: number | null
+  floorProjection?: number | null
+  ceilingProjection?: number | null
+  projectionConfidenceScore?: number | null
+  projectionConfidenceLevel?: 'high' | 'medium' | 'low' | 'none' | null
+  projectionSource?: string | null
+  projectionReasons?: string[]
   /** Season-to-date average actual fantasy points (finalized weeks) when available, else null. */
   seasonAvgActual: number | null
   /** Average overall ADP (lower = more valued) from AllFantasyAdpSnapshot, when matched. Used as a

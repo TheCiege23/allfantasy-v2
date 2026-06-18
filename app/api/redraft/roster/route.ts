@@ -3,9 +3,104 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
+import { buildPlayerKey } from '@/lib/adp/computeAllFantasyAdp'
+import { buildAllFantasyProjection } from '@/lib/redraft/projectionEngine'
 import { calculateScoreFromSportConfig } from '@/lib/redraft/scoringEngine'
+import {
+  applyRedraftLineupMoves,
+  validateRedraftLineup,
+  type RedraftLineupPlayer,
+  type RedraftLineupValidationResult,
+} from '@/lib/redraft/lineupValidation'
 
 export const dynamic = 'force-dynamic'
+
+type RosterPlayerRow = RedraftLineupPlayer & {
+  weeklyScore?: unknown
+}
+
+type PlayerWeeklyScoreRow = {
+  playerId: string
+  sport: string
+  stats: Record<string, unknown>
+  fantasyPts: number
+  isFinalized: boolean
+}
+
+type SportsInjuryRow = {
+  sport: string
+  playerId: string | null
+  playerName: string
+  status: string | null
+}
+
+type RedraftRosterRouteRow = {
+  id: string
+  leagueId: string
+  ownerId: string
+  players: RosterPlayerRow[]
+  season: {
+    season: number
+    sport: string
+    currentWeek?: number | null
+    totalWeeks?: number | null
+  }
+  [key: string]: unknown
+}
+
+function playerInjuryKey(player: { playerId?: string | null; playerName?: string | null; sport?: string | null }) {
+  const sport = String(player.sport ?? '').toUpperCase()
+  const playerId = String(player.playerId ?? '').trim()
+  if (playerId) return `${sport}:id:${playerId}`
+  return `${sport}:name:${String(player.playerName ?? '').trim().toLowerCase()}`
+}
+
+async function hydrateCurrentInjuryStatuses<T extends RosterPlayerRow>(
+  players: T[],
+  season: number,
+  week: number,
+): Promise<T[]> {
+  if (players.length === 0) return players
+  const playerIds = players.map((p) => p.playerId).filter(Boolean)
+  const playerNames = players.map((p) => p.playerName).filter(Boolean)
+  const sports = Array.from(new Set(players.map((p) => p.sport).filter(Boolean)))
+  const rows = (await prisma.sportsInjury.findMany({
+    where: {
+      sport: { in: sports },
+      expiresAt: { gte: new Date() },
+      AND: [
+        { OR: [{ playerId: { in: playerIds } }, { playerName: { in: playerNames } }] },
+        ...(Number.isFinite(season) ? [{ OR: [{ season }, { season: null }] }] : []),
+        ...(Number.isFinite(week) ? [{ OR: [{ week }, { week: null }] }] : []),
+      ],
+    },
+    orderBy: [{ fetchedAt: 'desc' }],
+    take: Math.max(50, players.length * 3),
+  })) as SportsInjuryRow[]
+
+  const statusByKey = new Map<string, string | null>()
+  for (const row of rows) {
+    const idKey = playerInjuryKey(row)
+    if (!statusByKey.has(idKey)) statusByKey.set(idKey, row.status ?? null)
+    const nameKey = `${String(row.sport ?? '').toUpperCase()}:name:${String(row.playerName ?? '').trim().toLowerCase()}`
+    if (!statusByKey.has(nameKey)) statusByKey.set(nameKey, row.status ?? null)
+  }
+
+  return players.map((player) => {
+    const status = statusByKey.get(playerInjuryKey(player))
+    return status ? { ...player, injuryStatus: status } : player
+  })
+}
+
+function buildLineupValidation(args: {
+  sport: string
+  week: number
+  players: RedraftLineupPlayer[]
+  previousPlayers?: RedraftLineupPlayer[]
+  extraIssues?: Parameters<typeof validateRedraftLineup>[0]['extraIssues']
+}): RedraftLineupValidationResult {
+  return validateRedraftLineup(args)
+}
 
 export async function GET(req: NextRequest) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
@@ -16,34 +111,159 @@ export async function GET(req: NextRequest) {
   const week = Number(req.nextUrl.searchParams?.get('week') ?? '1')
   if (!rosterId) return NextResponse.json({ error: 'rosterId required' }, { status: 400 })
 
-  const roster = await prisma.redraftRoster.findFirst({
+  const roster = (await prisma.redraftRoster.findFirst({
     where: { id: rosterId },
     include: { players: true, season: true },
-  })
+  })) as RedraftRosterRouteRow | null
   if (!roster) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const gate = await assertLeagueMember(roster.leagueId, userId)
   if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
 
   const playerIds = roster.players.map((p) => p.playerId)
-  const scores = playerIds.length
-    ? await prisma.playerWeeklyScore.findMany({
+  const sports = Array.from(new Set(roster.players.map((p) => p.sport).filter(Boolean)))
+  const seasonString = String(roster.season.season)
+  let scores: PlayerWeeklyScoreRow[] = []
+  let fantasyProjectionRows: FantasyProjectionRow[] = []
+  let afProjectionRows: AfProjectionRow[] = []
+  let seasonStatRows: SeasonStatsRow[] = []
+  let adpRows: Array<{ playerKey: string | null; averageOverallPick: number }> = []
+  if (playerIds.length) {
+    ;[
+      scores,
+      fantasyProjectionRows,
+      afProjectionRows,
+      seasonStatRows,
+      adpRows,
+    ] = await Promise.all([
+      prisma.playerWeeklyScore.findMany({
         where: {
           playerId: { in: playerIds },
           week,
           season: roster.season.season,
-          sport: { in: Array.from(new Set(roster.players.map((p) => p.sport))) },
+          sport: { in: sports },
         },
-      })
-    : []
+      }) as Promise<PlayerWeeklyScoreRow[]>,
+      prisma.fantasyProjection
+        .findMany({
+          where: {
+            playerId: { in: playerIds },
+            week,
+            season: seasonString,
+            sport: { in: sports },
+          },
+          select: { playerId: true, sport: true, projectedPoints: true, fetchedAt: true },
+        })
+        .catch(() => []) as Promise<FantasyProjectionRow[]>,
+      prisma.aFProjectionSnapshot
+        .findMany({
+          where: {
+            playerId: { in: playerIds },
+            week,
+            season: roster.season.season,
+            sport: { in: sports },
+          },
+          orderBy: { computedAt: 'desc' },
+          select: { playerId: true, sport: true, afProjection: true, confidenceLevel: true, computedAt: true },
+        })
+        .catch(() => []) as Promise<AfProjectionRow[]>,
+      prisma.playerSeasonStats
+        .findMany({
+          where: {
+            playerId: { in: playerIds },
+            season: seasonString,
+            seasonType: 'regular',
+            sport: { in: sports },
+          },
+          orderBy: [{ source: 'desc' }, { fetchedAt: 'desc' }],
+          select: {
+            playerId: true,
+            sport: true,
+            fantasyPointsPerGame: true,
+            gamesPlayed: true,
+            stats: true,
+            fetchedAt: true,
+            source: true,
+          },
+        })
+        .catch(() => []) as Promise<SeasonStatsRow[]>,
+      prisma.allFantasyAdpSnapshot
+        .findMany({
+          where: {
+            sport: { in: sports },
+            leagueType: 'redraft',
+            season: seasonString,
+          },
+          select: { playerKey: true, averageOverallPick: true },
+          orderBy: { averageOverallPick: 'asc' },
+          take: 4000,
+        })
+        .catch(() => []) as Promise<Array<{ playerKey: string | null; averageOverallPick: number }>>,
+    ])
+  }
   const scoreByPlayer = new Map(scores.map((score) => [`${score.playerId}:${score.sport}`, score]))
+  const projectionByPlayer = new Map(fantasyProjectionRows.map((row) => [`${row.playerId}:${row.sport}`, row]))
+  const afProjectionByPlayer = new Map<string, AfProjectionRow>()
+  for (const row of afProjectionRows) {
+    const key = `${row.playerId}:${row.sport}`
+    if (!afProjectionByPlayer.has(key)) afProjectionByPlayer.set(key, row)
+  }
+  const seasonStatsByPlayer = new Map<string, SeasonStatsRow>()
+  for (const row of seasonStatRows) {
+    const key = `${row.playerId}:${row.sport}`
+    const existing = seasonStatsByPlayer.get(key)
+    const rowIsRi = row.source === 'rolling_insights'
+    const existingIsRi = existing?.source === 'rolling_insights'
+    if (!existing || (rowIsRi && !existingIsRi) || (rowIsRi === existingIsRi && row.fetchedAt > existing.fetchedAt)) {
+      seasonStatsByPlayer.set(key, row)
+    }
+  }
+  const adpByPlayerKey = new Map<string, number>()
+  for (const row of adpRows) {
+    if (row.playerKey && !adpByPlayerKey.has(row.playerKey)) {
+      adpByPlayerKey.set(row.playerKey, row.averageOverallPick)
+    }
+  }
 
-  const players = await Promise.all(
+  const scoredPlayers = await Promise.all(
     roster.players.map(async (player) => {
       const weeklyScore = scoreByPlayer.get(`${player.playerId}:${player.sport}`) ?? null
-      if (!weeklyScore) return { ...player, weeklyScore: null }
+      const projectionKey = `${player.playerId}:${player.sport}`
+      const providerProjection = projectionByPlayer.get(projectionKey)
+      const afProjection = afProjectionByPlayer.get(projectionKey)
+      const seasonStats = seasonStatsByPlayer.get(projectionKey)
+      const adp = adpByPlayerKey.get(buildPlayerKey(player.playerName, player.position)) ?? null
+      const projection = buildAllFantasyProjection({
+        playerId: player.playerId,
+        playerName: player.playerName,
+        sport: player.sport,
+        position: player.position,
+        team: player.team,
+        currentWeek: week,
+        totalWeeks: roster.season.totalWeeks ?? 17,
+        byeWeek: player.byeWeek,
+        injuryStatus: player.injuryStatus,
+        adp,
+        providerWeeklyProjection: providerProjection?.projectedPoints ?? null,
+        allFantasyWeeklyProjection: afProjection?.afProjection ?? null,
+        allFantasyConfidenceLevel: afProjection?.confidenceLevel ?? null,
+        rollingInsightsFantasyPointsPerGame: seasonStats?.fantasyPointsPerGame ?? null,
+        rollingInsightsGamesPlayed: seasonStats?.gamesPlayed ?? null,
+        rollingInsightsStats: seasonStats?.stats ?? null,
+      })
+      const projectionFields = {
+        weeklyProjection: projection.weeklyProjection,
+        restOfSeasonProjection: projection.restOfSeasonProjection,
+        floorProjection: projection.floorProjection,
+        ceilingProjection: projection.ceilingProjection,
+        projectionConfidenceScore: projection.confidenceScore,
+        projectionConfidenceLevel: projection.confidenceLevel,
+        projectionSource: projection.source,
+      }
+      if (!weeklyScore) return { ...player, weeklyScore: null, ...projectionFields }
       return {
         ...player,
+        ...projectionFields,
         weeklyScore: {
           ...weeklyScore,
           fantasyPts: await calculateScoreFromSportConfig(
@@ -56,14 +276,46 @@ export async function GET(req: NextRequest) {
       }
     }),
   )
+  const players = await hydrateCurrentInjuryStatuses(scoredPlayers, roster.season.season, week)
+  const lineupValidation = buildLineupValidation({
+    sport: roster.season.sport,
+    week,
+    players,
+  })
 
   return NextResponse.json({
     roster: {
       ...roster,
       players,
+      lineupValidation,
     },
     week,
   })
+}
+
+type FantasyProjectionRow = {
+  playerId: string
+  sport: string
+  projectedPoints: number
+  fetchedAt: Date
+}
+
+type AfProjectionRow = {
+  playerId: string
+  sport: string
+  afProjection: number
+  confidenceLevel: string
+  computedAt: Date
+}
+
+type SeasonStatsRow = {
+  playerId: string
+  sport: string
+  fantasyPointsPerGame: number | null
+  gamesPlayed: number | null
+  stats: unknown
+  fetchedAt: Date
+  source: string
 }
 
 export async function PATCH(req: NextRequest) {
@@ -71,7 +323,7 @@ export async function PATCH(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  let body: { rosterId?: string; week?: number; moves?: { playerId: string; fromSlot: string; toSlot: string }[] }
+  let body: { rosterId?: string; week?: number; moves?: { playerId: string; fromSlot?: string; toSlot: string }[] }
   try {
     body = (await req.json()) as typeof body
   } catch {
@@ -83,22 +335,63 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'rosterId and moves required' }, { status: 400 })
   }
 
-  const roster = await prisma.redraftRoster.findFirst({ where: { id: rosterId } })
+  const roster = (await prisma.redraftRoster.findFirst({
+    where: { id: rosterId },
+    include: { players: true, season: true },
+  })) as RedraftRosterRouteRow | null
   if (!roster) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (roster.ownerId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  for (const m of body.moves) {
-    await prisma.redraftRosterPlayer.updateMany({
-      where: { rosterId, playerId: m.playerId, droppedAt: null },
-      data: { slotType: m.toSlot },
-    })
-  }
-
-  const updated = await prisma.redraftRoster.findFirst({
-    where: { id: rosterId },
-    include: { players: true },
+  const week = Math.max(1, Math.floor(Number(body.week ?? roster.season.currentWeek ?? 1) || 1))
+  const currentPlayers = await hydrateCurrentInjuryStatuses(roster.players, roster.season.season, week)
+  const applied = applyRedraftLineupMoves(currentPlayers, body.moves)
+  const lineupValidation = buildLineupValidation({
+    sport: roster.season.sport,
+    week,
+    players: applied.players,
+    previousPlayers: currentPlayers,
+    extraIssues: applied.issues,
   })
 
-  return NextResponse.json({ roster: updated })
-}
+  if (!lineupValidation.ok) {
+    return NextResponse.json(
+      {
+        error: 'Illegal lineup',
+        validation: lineupValidation,
+      },
+      { status: 422 },
+    )
+  }
 
+  await prisma.$transaction(
+    body.moves.map((m) =>
+      prisma.redraftRosterPlayer.updateMany({
+        where: { rosterId, playerId: m.playerId, droppedAt: null },
+        data: { slotType: m.toSlot },
+      }),
+    ),
+  )
+
+  const updated = (await prisma.redraftRoster.findFirst({
+    where: { id: rosterId },
+    include: { players: true, season: true },
+  })) as RedraftRosterRouteRow | null
+
+  const updatedPlayers = updated
+    ? await hydrateCurrentInjuryStatuses(updated.players, updated.season.season, week)
+    : []
+  const updatedValidation = updated
+    ? buildLineupValidation({ sport: updated.season.sport, week, players: updatedPlayers })
+    : lineupValidation
+
+  return NextResponse.json({
+    roster: updated
+      ? {
+          ...updated,
+          players: updatedPlayers,
+          lineupValidation: updatedValidation,
+        }
+      : updated,
+    validation: updatedValidation,
+  })
+}

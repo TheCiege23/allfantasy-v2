@@ -18,6 +18,7 @@ describe('League shell layout and waivers integration', () => {
   const waiverAiPanel = read('components/waivers/AIWaiverRecommendationsPanel.tsx')
   const commissionerPanel = read('components/waivers/CommissionerWaiverInsightsPanel.tsx')
   const sportAwareWaiverWire = read('components/waiver-wire/SportAwareWaiverWire.tsx')
+  const playersTab = read('app/league/[leagueId]/tabs/PlayersTab.tsx')
 
   it('uses the balanced three-panel desktop preset with dynamic collapsible columns', () => {
     expect(appShell).toContain("layoutMode?: 'legacy-rail-clamp' | 'balanced-three-panel'")
@@ -117,5 +118,16 @@ describe('League shell layout and waivers integration', () => {
     expect(waiverWire).toContain('<CommissionerWaiverInsightsPanel leagueId={leagueId} />')
     expect(commissionerPanel).toContain('AF_COMMISSIONER_REQUIRED')
     expect(commissionerPanel).toContain('League-wide AI waiver tools require AF Commissioner.')
+  })
+
+  it('promotes the complete waiver experience inside the league Players tab', () => {
+    expect(playersTab).toContain("'Available Players'")
+    expect(playersTab).toContain("'Waivers'")
+    expect(playersTab).toContain("'Free Agents'")
+    expect(playersTab).toContain("'My Claims'")
+    expect(playersTab).toContain('data-testid="players-tab-waiver-subnav"')
+    expect(playersTab).toContain('<WaiverWirePage')
+    expect(playersTab).toContain("initialTab={activeSubtab === 'claims' ? 'pending' : 'available'}")
+    expect(playersTab).toContain("lockedTab={activeSubtab === 'claims'}")
   })
 })

@@ -168,7 +168,13 @@ export function RedraftTab({ leagueId, idpLeagueUi = false }: { leagueId: string
         </div>
       </div>
 
-      <TradeCenter leagueId={leagueId} seasonId={seasonId} standings={standings} />
+      <TradeCenter
+        leagueId={leagueId}
+        seasonId={seasonId}
+        standings={standings}
+        currentWeek={currentWeek}
+        seasonYear={season?.season}
+      />
 
       <StandingsView rows={standings} seasonId={seasonId} />
     </div>

@@ -8,7 +8,7 @@
  */
 import type { RedraftPlayerFact } from './types'
 
-export type ValueSource = 'projection' | 'season_avg' | 'adp' | 'none'
+export type ValueSource = 'projection' | 'ros_projection' | 'season_avg' | 'adp' | 'none'
 
 export interface PlayerValue {
   value: number
@@ -23,6 +23,11 @@ export function adpToValue(adp: number): number {
 /** Best available value signal for a player, by the redraft precedence. */
 export function playerValue(p: RedraftPlayerFact): PlayerValue {
   if (p.weekProjection != null) return { value: p.weekProjection, source: 'projection' }
+  if (p.restOfSeasonProjection != null) {
+    const weeklyEquivalent =
+      p.restOfSeasonProjection > 40 ? p.restOfSeasonProjection / 12 : p.restOfSeasonProjection
+    return { value: Math.round(weeklyEquivalent * 100) / 100, source: 'ros_projection' }
+  }
   if (p.seasonAvgActual != null) return { value: p.seasonAvgActual, source: 'season_avg' }
   if (p.adp != null) return { value: adpToValue(p.adp), source: 'adp' }
   return { value: 0, source: 'none' }
@@ -31,6 +36,7 @@ export function playerValue(p: RedraftPlayerFact): PlayerValue {
 /** Confidence implied by the value source backing a recommendation. */
 export function confidenceForSource(source: ValueSource): 'high' | 'medium' | 'low' | 'none' {
   if (source === 'projection') return 'high'
+  if (source === 'ros_projection') return 'medium'
   if (source === 'season_avg') return 'medium'
   if (source === 'adp') return 'low'
   return 'none'

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { getDashboardLeagueListForUser } from '@/lib/dashboard/get-dashboard-league-list'
+import { getCommissionerHubHealthForUser } from '@/lib/commissioner-hub/commissionerHubHealth'
 import type { UserLeague } from '@/app/dashboard/types'
 import CommissionerHubPageClient from './CommissionerHubPageClient'
 
@@ -24,6 +25,7 @@ export default async function CommissionerHubPage() {
   // getDashboardLeagueListForUser returns { leagues, sleeperUserId } — extract the array
   const payload = await getDashboardLeagueListForUser(userId).catch(() => null)
   const leagues = (payload?.leagues ?? []) as UserLeague[]
+  const healthSnapshots = await getCommissionerHubHealthForUser(userId, leagues).catch(() => [])
 
-  return <CommissionerHubPageClient leagues={leagues} />
+  return <CommissionerHubPageClient leagues={leagues} healthSnapshots={healthSnapshots} />
 }
