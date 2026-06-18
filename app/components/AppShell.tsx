@@ -34,7 +34,7 @@ export type AppShellProps = {
    * Used when the same league hub is embedded in the dashboard center panel (see `?embed=1` on `/league/[id]`).
    */
   embedCenterOnly?: boolean
-  /** Desktop shell preset. Balanced uses adjacent 40/30/30 columns for league/dashboard views. */
+  /** Desktop shell preset. Balanced uses adjacent 40/35/25 columns for league/dashboard views. */
   layoutMode?: 'legacy-rail-clamp' | 'balanced-three-panel'
 }
 
@@ -43,12 +43,12 @@ export type AppShellProps = {
  * Must be literal strings — Tailwind's JIT scanner cannot detect dynamically constructed class names.
  */
 const BALANCED_COLS = {
-  // left open, right open
-  both:       'md:[grid-template-columns:minmax(280px,40fr)_minmax(0,1fr)_minmax(280px,30fr)]',
-  // left collapsed, right open
-  leftOnly:   'md:[grid-template-columns:3rem_minmax(0,1fr)_minmax(280px,30fr)]',
-  // left open, right collapsed
-  rightOnly:  'md:[grid-template-columns:minmax(280px,40fr)_minmax(0,1fr)_3rem]',
+  // left open, right open: chat 40%, workspace 35%, My Leagues 25%
+  both:       'md:[grid-template-columns:minmax(280px,40fr)_minmax(0,35fr)_minmax(240px,25fr)]',
+  // left collapsed, right open: preserve workspace/right 35/25 ratio.
+  leftOnly:   'md:[grid-template-columns:3rem_minmax(0,35fr)_minmax(240px,25fr)]',
+  // left open, right collapsed: preserve chat/workspace 40/35 ratio.
+  rightOnly:  'md:[grid-template-columns:minmax(280px,40fr)_minmax(0,35fr)_3rem]',
   // both collapsed
   none:       'md:[grid-template-columns:3rem_minmax(0,1fr)_3rem]',
 }

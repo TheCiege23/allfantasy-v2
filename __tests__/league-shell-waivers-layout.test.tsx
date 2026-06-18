@@ -22,9 +22,10 @@ describe('League shell layout and waivers integration', () => {
 
   it('uses the balanced three-panel desktop preset with dynamic collapsible columns', () => {
     expect(appShell).toContain("layoutMode?: 'legacy-rail-clamp' | 'balanced-three-panel'")
-    // Columns are now dynamic based on left/right collapse state (minmax(280px,40fr) or 3rem for each side)
+    // Columns are dynamic based on collapse state; the open shell is chat/workspace/leagues = 40/35/25.
     expect(appShell).toContain('minmax(280px,40fr)')
-    expect(appShell).toContain('minmax(280px,30fr)')
+    expect(appShell).toContain('minmax(0,35fr)')
+    expect(appShell).toContain('minmax(240px,25fr)')
     expect(appShell).toContain("data-af-layout-mode={balancedDesktopLayout ? 'balanced-three-panel' : 'legacy-rail-clamp'}")
     expect(dashboardShell).toContain('layoutMode="balanced-three-panel"')
     expect(leagueShell).toContain('layoutMode="balanced-three-panel"')
