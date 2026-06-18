@@ -4,7 +4,7 @@ import { MOCK_DRAFT_ROSTER_HINT_DELAY_MS } from '@/lib/draft-room/mock-draft-ui-
 test.describe.configure({ mode: 'serial', timeout: 180_000 })
 
 /** Mock roster-config latency; must be > `MOCK_DRAFT_ROSTER_HINT_DELAY_MS` so the delayed hint becomes visible before the response resolves. */
-const ROSTER_CONFIG_SLOW_MS = 550
+const ROSTER_CONFIG_SLOW_MS = 5_000
 
 if (ROSTER_CONFIG_SLOW_MS <= MOCK_DRAFT_ROSTER_HINT_DELAY_MS) {
   throw new Error(
@@ -259,7 +259,9 @@ test.describe('@mock-draft-room click audit', () => {
 
   test('league roster loading hint: delayed until ~400ms, then clears after slow roster-config', async ({ page }) => {
     await mockMockDraftApis(page)
-    await page.route('**/api/leagues/*/roster-config', async (route) => {
+    let rosterConfigHits = 0
+    await page.route('**/api/leagues/**/roster-config**', async (route) => {
+      rosterConfigHits += 1
       await new Promise<void>((resolve) => {
         setTimeout(resolve, ROSTER_CONFIG_SLOW_MS)
       })
@@ -280,13 +282,14 @@ test.describe('@mock-draft-room click audit', () => {
     const hint = page.getByTestId('mock-draft-league-roster-loading-hint')
     await page.getByTestId('mock-draft-league-select').click()
     await page.getByRole('option', { name: /E2E NFL League/i }).click()
+    await expect.poll(() => rosterConfigHits).toBeGreaterThan(0)
 
     await expect(hint).toHaveCount(0)
     await page.waitForTimeout(MOCK_DRAFT_ROSTER_HINT_DELAY_MS - 100)
     await expect(hint).toHaveCount(0)
 
-    await expect(hint).toBeVisible({ timeout: 4000 })
+    await expect(hint).toBeVisible({ timeout: ROSTER_CONFIG_SLOW_MS })
 
-    await expect(hint).toHaveCount(0, { timeout: 10_000 })
+    await expect(hint).toHaveCount(0, { timeout: ROSTER_CONFIG_SLOW_MS + 5_000 })
   })
 })

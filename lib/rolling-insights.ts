@@ -153,9 +153,13 @@ function normalizeRISchedule(raw: unknown): RIScheduleGame | null {
   const obj = asObj(raw);
   if (!obj) return null;
 
-  const gameId = asString(obj.gameId ?? obj.id ?? obj.game_id ?? obj.externalId);
-  const awayTeam = asString(obj.awayTeam ?? obj.away_team ?? obj.away ?? obj.away_name);
-  const homeTeam = asString(obj.homeTeam ?? obj.home_team ?? obj.home ?? obj.home_name);
+  const gameId = asString(obj.gameId ?? obj.game_ID ?? obj.id ?? obj.game_id ?? obj.externalId);
+  const awayTeam = asString(
+    obj.awayTeam ?? obj.away_team ?? obj.away_team_abbr ?? obj.away ?? obj.away_name
+  );
+  const homeTeam = asString(
+    obj.homeTeam ?? obj.home_team ?? obj.home_team_abbr ?? obj.home ?? obj.home_name
+  );
   if (!gameId || !awayTeam || !homeTeam) return null;
 
   const venueObj = asObj(obj.venue);
@@ -169,7 +173,10 @@ function normalizeRISchedule(raw: unknown): RIScheduleGame | null {
     gameId,
     awayTeam,
     homeTeam,
-    date: asString(obj.date ?? obj.start_time ?? obj.startTime) ?? new Date().toISOString(),
+    awayTeamId: asString(obj.awayTeamId ?? obj.away_team_ID ?? obj.away_team_id ?? obj.awayTeamID),
+    homeTeamId: asString(obj.homeTeamId ?? obj.home_team_ID ?? obj.home_team_id ?? obj.homeTeamID),
+    week: asNumber(obj.week ?? obj.weekNumber ?? obj.week_number ?? obj.period),
+    date: asString(obj.date ?? obj.game_time ?? obj.start_time ?? obj.startTime) ?? new Date().toISOString(),
     status: asString(obj.status ?? obj.game_status) ?? 'scheduled',
     season: asString(obj.season) ?? getCurrentNFLSeason(),
     venue:
@@ -372,6 +379,9 @@ export interface RIScheduleGame {
   gameId: string;
   awayTeam: string;
   homeTeam: string;
+  awayTeamId?: string | null;
+  homeTeamId?: string | null;
+  week?: number | null;
   date: string;
   status: string;
   season: string;
@@ -885,6 +895,34 @@ export interface RIDepthChart {
   positions: Record<string, RIDepthChartPlayer[]>;
 }
 
+export function normalizeRIDepthChartPlayers(
+  position: string,
+  players: unknown,
+): RIDepthChartPlayer[] {
+  if (!Array.isArray(players)) return [];
+
+  const normalized: RIDepthChartPlayer[] = [];
+  for (const raw of players) {
+    const obj = asObj(raw);
+    if (!obj) continue;
+
+    const id = asString(obj.id ?? obj.player_id ?? obj.playerId);
+    const player = asString(obj.player ?? obj.name ?? obj.full_name);
+    if (!id || !player) continue;
+
+    normalized.push({
+      id,
+      player,
+      position: asString(obj.position) ?? position,
+      number: asNumber(obj.number),
+      status: asString(obj.status),
+      img: asString(obj.img),
+    });
+  }
+
+  return normalized;
+}
+
 const DEPTH_CHART_POSITIONS = [
   'QB', 'RB', 'WR', 'WR1', 'WR2', 'WR3', 'TE', 'K', 'P',
   'LT', 'LG', 'C', 'RG', 'RT', 'FB',
@@ -925,23 +963,17 @@ export async function fetchNFLDepthCharts(options?: {
     }>;
   }>(query);
 
-  return (data.nflTeams || []).map((t) => {
+  return (data.nflTeams || []).flatMap((t) => {
+    if (!t) return [];
+
     const positions: Record<string, RIDepthChartPlayer[]> = {};
     if (t.rosterByPosition) {
       for (const [pos, players] of Object.entries(t.rosterByPosition)) {
-        if (Array.isArray(players) && players.length > 0) {
-          positions[pos] = players.map((p: any) => ({
-            id: p.id,
-            player: p.player,
-            position: p.position || pos,
-            number: p.number ?? null,
-            status: p.status ?? null,
-            img: p.img ?? null,
-          }));
-        }
+        const normalizedPlayers = normalizeRIDepthChartPlayers(pos, players);
+        if (normalizedPlayers.length > 0) positions[pos] = normalizedPlayers;
       }
     }
-    return { team: t.team, teamId: t.id, abbrv: t.abbrv, positions };
+    return [{ team: t.team, teamId: t.id, abbrv: t.abbrv, positions }];
   });
 }
 

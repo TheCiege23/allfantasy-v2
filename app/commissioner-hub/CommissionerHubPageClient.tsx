@@ -25,6 +25,10 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import type { UserLeague } from '@/app/dashboard/types'
+import type {
+  CommissionerHealthAction,
+  CommissionerLeagueHealthSnapshot,
+} from '@/lib/commissioner-hub/commissionerHubHealth'
 
 // ─── Copy constants (future i18n wiring) ───────────────────────────────────
 const COPY = {
@@ -428,15 +432,261 @@ function StatCard({
   )
 }
 
+const HEALTH_STATUS_CLASSES: Record<string, string> = {
+  excellent: 'border-emerald-500/25 bg-emerald-500/[0.08] text-emerald-300',
+  healthy: 'border-cyan-500/25 bg-cyan-500/[0.08] text-cyan-300',
+  watch: 'border-amber-500/25 bg-amber-500/[0.08] text-amber-300',
+  at_risk: 'border-orange-500/25 bg-orange-500/[0.08] text-orange-300',
+  critical: 'border-rose-500/30 bg-rose-500/[0.10] text-rose-300',
+}
+
+const ACTION_TONE_CLASSES: Record<CommissionerHealthAction['tone'], string> = {
+  standard: 'border-white/10 bg-white/[0.03] text-white/60 hover:border-white/20 hover:bg-white/[0.06]',
+  warning: 'border-amber-500/25 bg-amber-500/[0.08] text-amber-300 hover:bg-amber-500/[0.13]',
+  danger: 'border-rose-500/25 bg-rose-500/[0.08] text-rose-300 hover:bg-rose-500/[0.13]',
+}
+
+function sumMetric(
+  snapshots: CommissionerLeagueHealthSnapshot[],
+  key: keyof CommissionerLeagueHealthSnapshot['metrics'],
+): number {
+  return snapshots.reduce((sum, snapshot) => sum + Number(snapshot.metrics[key] ?? 0), 0)
+}
+
+function averageMetric(
+  snapshots: CommissionerLeagueHealthSnapshot[],
+  key: keyof CommissionerLeagueHealthSnapshot['metrics'],
+): number {
+  if (snapshots.length === 0) return 0
+  return Math.round(sumMetric(snapshots, key) / snapshots.length)
+}
+
+function formatPercent(value: number): string {
+  return `${Math.round(value * 100)}%`
+}
+
+function MetricTile({
+  icon: Icon,
+  label,
+  value,
+  tone = 'neutral',
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  value: string | number
+  tone?: 'neutral' | 'good' | 'warn'
+}) {
+  const toneClass =
+    tone === 'good'
+      ? 'border-emerald-500/[0.16] bg-emerald-500/[0.04] text-emerald-300'
+      : tone === 'warn'
+        ? 'border-amber-500/[0.18] bg-amber-500/[0.05] text-amber-300'
+        : 'border-white/[0.08] bg-white/[0.02] text-white/75'
+  return (
+    <div className={`flex min-h-[78px] flex-col justify-between rounded-2xl border p-3 ${toneClass}`}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-white/35">{label}</p>
+        <Icon className="h-3.5 w-3.5 text-current opacity-70" aria-hidden />
+      </div>
+      <p className="mt-2 text-[24px] font-black leading-none text-current">{value}</p>
+    </div>
+  )
+}
+
+function CommissionerActionLink({ action }: { action: CommissionerHealthAction }) {
+  const className = action.enabled
+    ? ACTION_TONE_CLASSES[action.tone]
+    : 'cursor-not-allowed border-white/[0.06] bg-white/[0.015] text-white/25'
+
+  if (!action.enabled) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold ${className}`}
+        title={action.disabledReason}
+      >
+        <Settings className="h-3 w-3" aria-hidden />
+        {action.label}
+      </span>
+    )
+  }
+
+  return (
+    <Link
+      href={action.href}
+      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition ${className}`}
+      title={action.requiresConfirmation ? 'Requires commissioner confirmation' : undefined}
+    >
+      <Settings className="h-3 w-3" aria-hidden />
+      {action.label}
+    </Link>
+  )
+}
+
+function LeagueHealthDashboard({
+  snapshots,
+}: {
+  snapshots: CommissionerLeagueHealthSnapshot[]
+}) {
+  if (snapshots.length === 0) return null
+
+  const averageEngagement = averageMetric(snapshots, 'leagueEngagement')
+  const averageProjectionCoverage = averageMetric(snapshots, 'projectionCoveragePct')
+  const averageLineupRate =
+    snapshots.reduce((sum, snapshot) => sum + snapshot.metrics.lineupSubmissionRate, 0) / snapshots.length
+
+  return (
+    <section data-testid="commissioner-health-dashboard">
+      <SectionHeader
+        label="League Health Dashboard"
+        hint="Live commissioner risk, activity, and engagement signals"
+      />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
+        <MetricTile
+          icon={Users}
+          label="Inactive Teams"
+          value={sumMetric(snapshots, 'inactiveTeams')}
+          tone={sumMetric(snapshots, 'inactiveTeams') > 0 ? 'warn' : 'good'}
+        />
+        <MetricTile
+          icon={AlertCircle}
+          label="Missed Lineups"
+          value={sumMetric(snapshots, 'missedLineups')}
+          tone={sumMetric(snapshots, 'missedLineups') > 0 ? 'warn' : 'good'}
+        />
+        <MetricTile icon={TrendingUp} label="Trade Activity" value={sumMetric(snapshots, 'tradeActivity')} />
+        <MetricTile icon={Zap} label="Waiver Activity" value={sumMetric(snapshots, 'waiverActivity')} />
+        <MetricTile
+          icon={Activity}
+          label="League Engagement"
+          value={`${averageEngagement}/100`}
+          tone={averageEngagement >= 65 ? 'good' : 'warn'}
+        />
+        <MetricTile icon={Shield} label="Commissioner Actions" value={sumMetric(snapshots, 'commissionerActions')} />
+        <MetricTile
+          icon={Target}
+          label="Projection Coverage"
+          value={`${averageProjectionCoverage}%`}
+          tone={averageProjectionCoverage >= 70 ? 'good' : 'warn'}
+        />
+      </div>
+
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        {snapshots.map((snapshot) => {
+          const statusClass =
+            HEALTH_STATUS_CLASSES[snapshot.overallStatus] ??
+            'border-white/10 bg-white/[0.03] text-white/50'
+          return (
+            <article
+              key={snapshot.leagueId}
+              className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-[14px] font-bold text-white/90">{snapshot.leagueName}</p>
+                  <p className="mt-0.5 text-[11px] text-white/38">
+                    {snapshot.sport} {snapshot.leagueType} · Week {snapshot.currentWeek} · {snapshot.teamCount} teams
+                  </p>
+                </div>
+                <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${statusClass}`}>
+                  {snapshot.healthScore}/100
+                </span>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                <div className="rounded-xl border border-white/[0.06] bg-black/10 p-2">
+                  <p className="text-[10px] text-white/35">Lineups</p>
+                  <p className="text-[13px] font-bold text-white/80">{formatPercent(snapshot.metrics.lineupSubmissionRate)}</p>
+                </div>
+                <div className="rounded-xl border border-white/[0.06] bg-black/10 p-2">
+                  <p className="text-[10px] text-white/35">Pending Waivers</p>
+                  <p className="text-[13px] font-bold text-white/80">{snapshot.metrics.pendingWaiverClaims}</p>
+                </div>
+                <div className="rounded-xl border border-white/[0.06] bg-black/10 p-2">
+                  <p className="text-[10px] text-white/35">Pending Trades</p>
+                  <p className="text-[13px] font-bold text-white/80">{snapshot.metrics.pendingTrades}</p>
+                </div>
+                <div className="rounded-xl border border-white/[0.06] bg-black/10 p-2">
+                  <p className="text-[10px] text-white/35">Open AI Alerts</p>
+                  <p className="text-[13px] font-bold text-white/80">{snapshot.metrics.openAiAlerts}</p>
+                </div>
+                <div className="rounded-xl border border-white/[0.06] bg-black/10 p-2">
+                  <p className="text-[10px] text-white/35">Projection Coverage</p>
+                  <p className="text-[13px] font-bold text-white/80">{snapshot.metrics.projectionCoveragePct}%</p>
+                </div>
+              </div>
+
+              <p className="mt-3 text-[12px] leading-relaxed text-white/48">{snapshot.summary}</p>
+
+              {snapshot.alerts.length > 0 && (
+                <div className="mt-3 space-y-1.5">
+                  {snapshot.alerts.slice(0, 2).map((alert) => (
+                    <p key={alert} className="rounded-lg border border-amber-500/15 bg-amber-500/[0.05] px-2.5 py-1.5 text-[11px] text-amber-200/80">
+                      {alert}
+                    </p>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-white/35">Commissioner Actions</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {snapshot.actions.map((action) => (
+                    <CommissionerActionLink key={action.key} action={action} />
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-violet-300/60">AI Commissioner Assistant</p>
+                <div className="mt-2 grid gap-2">
+                  {snapshot.assistantQuestions.slice(0, 5).map((question) => (
+                    <Link
+                      key={question.key}
+                      href={`/ai-chat?leagueId=${encodeURIComponent(snapshot.leagueId)}&prompt=${encodeURIComponent(question.prompt)}`}
+                      className="group rounded-xl border border-violet-500/[0.12] bg-violet-500/[0.035] px-3 py-2 transition hover:border-violet-500/25 hover:bg-violet-500/[0.06]"
+                    >
+                      <div className="flex items-start gap-2">
+                        <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-300/70" aria-hidden />
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-bold text-white/72 group-hover:text-white/90">{question.label}</p>
+                          <p className="mt-0.5 text-[11px] leading-snug text-white/38">{question.answer}</p>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-white/25">
+                <span>Source: {snapshot.source === 'database' ? 'Database' : 'Dashboard fallback'}</span>
+                <span>Confidence: {snapshot.dataConfidence}</span>
+              </div>
+            </article>
+          )
+        })}
+      </div>
+
+      <p className="mt-3 text-[11px] text-white/30">
+        Average lineup submission across managed leagues: {formatPercent(averageLineupRate)}.
+      </p>
+    </section>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 type CommissionerHubPageClientProps = {
   leagues: UserLeague[]
+  healthSnapshots: CommissionerLeagueHealthSnapshot[]
 }
 
-export default function CommissionerHubPageClient({ leagues }: CommissionerHubPageClientProps) {
+export default function CommissionerHubPageClient({ leagues, healthSnapshots }: CommissionerHubPageClientProps) {
   const commissionerLeagues = leagues.filter((l) => l.isCommissioner)
   const memberLeagues = leagues.filter((l) => !l.isCommissioner)
   const missionQueue = buildMissionQueue(commissionerLeagues)
+  const healthByLeagueId = new Map(healthSnapshots.map((snapshot) => [snapshot.leagueId, snapshot]))
+  const managedHealthSnapshots = commissionerLeagues
+    .map((league) => healthByLeagueId.get(league.id))
+    .filter((snapshot): snapshot is CommissionerLeagueHealthSnapshot => Boolean(snapshot))
 
   const totalManaged = commissionerLeagues.length
   const needsSetupCount = commissionerLeagues.filter(
@@ -559,6 +809,8 @@ export default function CommissionerHubPageClient({ leagues }: CommissionerHubPa
             </div>
           </section>
         )}
+
+        <LeagueHealthDashboard snapshots={managedHealthSnapshots} />
 
         {/* ── League Setup Health ── */}
         {commissionerLeagues.length > 0 && (

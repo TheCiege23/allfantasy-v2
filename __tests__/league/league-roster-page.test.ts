@@ -32,11 +32,11 @@ describe('AppShell — Tailwind class safety (prevents roster glitch)', () => {
   it('BALANCED_COLS lookup object holds all four static column combinations', () => {
     expect(appShellSrc).toContain('BALANCED_COLS')
     // both open
-    expect(appShellSrc).toContain('minmax(280px,40fr)_minmax(0,1fr)_minmax(280px,30fr)')
+    expect(appShellSrc).toContain('minmax(280px,40fr)_minmax(0,35fr)_minmax(240px,25fr)')
     // left collapsed
-    expect(appShellSrc).toContain('3rem_minmax(0,1fr)_minmax(280px,30fr)')
+    expect(appShellSrc).toContain('3rem_minmax(0,35fr)_minmax(240px,25fr)')
     // right collapsed
-    expect(appShellSrc).toContain('minmax(280px,40fr)_minmax(0,1fr)_3rem')
+    expect(appShellSrc).toContain('minmax(280px,40fr)_minmax(0,35fr)_3rem')
     // both collapsed
     expect(appShellSrc).toContain('3rem_minmax(0,1fr)_3rem')
   })
@@ -48,14 +48,13 @@ describe('AppShell — Tailwind class safety (prevents roster glitch)', () => {
     expect(appShellSrc).toContain('BALANCED_COLS.none')
   })
 
-  it('center column always uses minmax(0,1fr) — never a static number', () => {
-    // Center must be minmax(0,1fr) not minmax(0,30fr) so it can shrink to 0
-    // and won't force a minimum width that breaks narrow-viewport layout.
+  it('center column keeps a zero minimum while honoring the 35% desktop share', () => {
+    // Center must keep a zero minimum so it can shrink without overflow,
+    // while the open desktop layout honors the requested 40/35/25 split.
     const colLines = appShellSrc.split('\n').filter(l => l.includes('grid-template-columns'))
     expect(colLines.length).toBeGreaterThan(0)
-    for (const line of colLines) {
-      expect(line).toContain('minmax(0,1fr)')
-    }
+    expect(appShellSrc).toContain('minmax(0,35fr)')
+    expect(appShellSrc).toContain('3rem_minmax(0,1fr)_3rem')
   })
 })
 

@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
 import { calculateOfficialTeamScore, leagueUsesDevyEngine } from '@/lib/devy/scoringEligibilityEngine'
 import { leagueUsesC2CEngine } from '@/lib/c2c/scoringEngine'
+import { getCanonicalNflMatchupContext } from '@/lib/nfl-data-foundation/nflDataFoundationService'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,12 +22,16 @@ export async function GET(req: NextRequest) {
   if (matchupId) {
     const m = await prisma.redraftMatchup.findFirst({
       where: { id: matchupId },
-      include: { homeRoster: true, awayRoster: true },
+      include: { homeRoster: true, awayRoster: true, season: true },
     })
     if (!m) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     const gate = await assertLeagueMember(m.leagueId, userId)
     if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
-    return NextResponse.json({ matchup: m })
+    const canonicalNflMatchup =
+      String(m.season.sport).toUpperCase() === 'NFL'
+        ? await getCanonicalNflMatchupContext({ matchupId: m.id }).catch(() => null)
+        : null
+    return NextResponse.json({ matchup: m, canonicalNflMatchup })
   }
 
   if (seasonId && week != null) {
@@ -40,6 +45,17 @@ export async function GET(req: NextRequest) {
       where: { seasonId, week: w },
       include: { homeRoster: true, awayRoster: true },
     })
+    const canonicalNflMatchups =
+      String(season.sport).toUpperCase() === 'NFL'
+        ? Object.fromEntries(
+            await Promise.all(
+              matchups.map(async (mu: { id: string }) => [
+                mu.id,
+                await getCanonicalNflMatchupContext({ matchupId: mu.id }).catch(() => null),
+              ]),
+            ),
+          )
+        : null
     if (await leagueUsesC2CEngine(season.leagueId)) {
       const c2cScores: Record<string, { home: C2CMatchupScore | null; away: C2CMatchupScore | null }> = {}
       for (const mu of matchups) {
@@ -65,7 +81,7 @@ export async function GET(req: NextRequest) {
           : null
         c2cScores[mu.id] = { home, away }
       }
-      return NextResponse.json({ matchups, c2cScores })
+      return NextResponse.json({ matchups, c2cScores, canonicalNflMatchups })
     }
     if (await leagueUsesDevyEngine(season.leagueId)) {
       const devyScores: Record<
@@ -79,9 +95,9 @@ export async function GET(req: NextRequest) {
           : null
         devyScores[mu.id] = { home, away }
       }
-      return NextResponse.json({ matchups, devyScores })
+      return NextResponse.json({ matchups, devyScores, canonicalNflMatchups })
     }
-    return NextResponse.json({ matchups })
+    return NextResponse.json({ matchups, canonicalNflMatchups })
   }
 
   return NextResponse.json({ error: 'matchupId or seasonId+week required' }, { status: 400 })

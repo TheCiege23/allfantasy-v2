@@ -18,12 +18,14 @@ describe('League shell layout and waivers integration', () => {
   const waiverAiPanel = read('components/waivers/AIWaiverRecommendationsPanel.tsx')
   const commissionerPanel = read('components/waivers/CommissionerWaiverInsightsPanel.tsx')
   const sportAwareWaiverWire = read('components/waiver-wire/SportAwareWaiverWire.tsx')
+  const playersTab = read('app/league/[leagueId]/tabs/PlayersTab.tsx')
 
   it('uses the balanced three-panel desktop preset with dynamic collapsible columns', () => {
     expect(appShell).toContain("layoutMode?: 'legacy-rail-clamp' | 'balanced-three-panel'")
-    // Columns are now dynamic based on left/right collapse state (minmax(280px,40fr) or 3rem for each side)
+    // Columns are dynamic based on collapse state; the open shell is chat/workspace/leagues = 40/35/25.
     expect(appShell).toContain('minmax(280px,40fr)')
-    expect(appShell).toContain('minmax(280px,30fr)')
+    expect(appShell).toContain('minmax(0,35fr)')
+    expect(appShell).toContain('minmax(240px,25fr)')
     expect(appShell).toContain("data-af-layout-mode={balancedDesktopLayout ? 'balanced-three-panel' : 'legacy-rail-clamp'}")
     expect(dashboardShell).toContain('layoutMode="balanced-three-panel"')
     expect(leagueShell).toContain('layoutMode="balanced-three-panel"')
@@ -37,6 +39,14 @@ describe('League shell layout and waivers integration', () => {
     expect(leagueShell).toContain("const isPredraftLifecycle = useMemo(() =>")
     expect(leagueShell).toContain('Draft setup')
     expect(leagueShell).toContain("if (isPredraftLifecycle) return renderPredraftDraftSetup()")
+  })
+
+  it('matches the dashboard command-center visual treatment on league pages', () => {
+    expect(leagueShell).toContain('data-testid="league-command-center-surface"')
+    expect(leagueShell).toContain('data-testid="league-command-center-header"')
+    expect(leagueShell).toContain('data-testid="league-command-center-tabs"')
+    expect(leagueShell).toContain('data-testid="league-command-center-card"')
+    expect(leagueShell).toContain('bg-gradient-to-br from-cyan-500/[0.07] via-[#050814] to-violet-500/[0.04]')
   })
 
   it('includes waivers in league tab definitions and nfl redraft core tabs', () => {
@@ -117,5 +127,16 @@ describe('League shell layout and waivers integration', () => {
     expect(waiverWire).toContain('<CommissionerWaiverInsightsPanel leagueId={leagueId} />')
     expect(commissionerPanel).toContain('AF_COMMISSIONER_REQUIRED')
     expect(commissionerPanel).toContain('League-wide AI waiver tools require AF Commissioner.')
+  })
+
+  it('promotes the complete waiver experience inside the league Players tab', () => {
+    expect(playersTab).toContain("'Available Players'")
+    expect(playersTab).toContain("'Waivers'")
+    expect(playersTab).toContain("'Free Agents'")
+    expect(playersTab).toContain("'My Claims'")
+    expect(playersTab).toContain('data-testid="players-tab-waiver-subnav"')
+    expect(playersTab).toContain('<WaiverWirePage')
+    expect(playersTab).toContain("initialTab={activeSubtab === 'claims' ? 'pending' : 'available'}")
+    expect(playersTab).toContain("lockedTab={activeSubtab === 'claims'}")
   })
 })

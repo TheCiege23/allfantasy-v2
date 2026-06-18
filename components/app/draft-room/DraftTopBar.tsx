@@ -431,7 +431,8 @@ export function DraftTopBar({
             </span>
           ) : null}
           <Clock className="h-5 w-5 shrink-0 opacity-90" />
-          <span data-testid="draft-topbar-clock-time">{timerDisplay}</span>
+          <span data-testid="draft-topbar-timer-value">{timerDisplay}</span>
+          <span className="sr-only" data-testid="draft-topbar-clock-time">{timerDisplay}</span>
           {isPausedCommissioner ? (
             <span className="rounded border border-emerald-300/45 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-50">
               Resume
@@ -505,6 +506,9 @@ export function DraftTopBar({
       <div className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-white/12 bg-white/[0.06] px-4 py-2 text-sm text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm">
         <Clock className="h-4 w-4 shrink-0 text-cyan-300/90" />
         <span className="font-medium">{statusLabel}</span>
+        <span className="font-mono text-xs text-white/55" data-testid="draft-topbar-timer-value">
+          {timerDisplay}
+        </span>
       </div>
     )
   })()
@@ -649,7 +653,9 @@ export function DraftTopBar({
                 </div>
                 <div className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1">
                   <span className="block text-[9px] uppercase tracking-[0.14em] text-white/45">Clock</span>
-                  <span className="block font-semibold text-cyan-100">{timerDisplay}</span>
+                  <span className="block font-semibold text-cyan-100" data-testid="draft-topbar-mobile-timer-value">
+                    {timerDisplay}
+                  </span>
                 </div>
               </div>
             </div>

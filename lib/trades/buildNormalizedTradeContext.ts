@@ -11,6 +11,7 @@ import {
 import type { LeagueSport } from '@prisma/client'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import type { UnresolvedTradePlayerAsset } from '@/lib/trades/tradePlayerIdentityResolver'
+import { getCanonicalNflTradeContext } from '@/lib/nfl-data-foundation'
 
 export type NormalizedTradeContextSummary = {
   totalAssets: number
@@ -27,6 +28,12 @@ export type NormalizedTradePlayerEvidence = TradePlayerEvidenceSlice & {
   soccerLeague: string | null
   normalizedStats: Record<string, unknown>
   normalizedProjections: Record<string, unknown>
+  weeklyProjectionDelta: number | null
+  restOfSeasonProjection: number | null
+  fantasyCalcValue: number | null
+  injuryRisk: 'low' | 'medium' | 'high' | 'unknown'
+  canonicalNflDataSources?: string[]
+  canonicalNflWarnings?: string[]
   providerFallbackNote?: string
 }
 
@@ -99,8 +106,26 @@ export async function buildNormalizedTradeContext(params: {
   })
 
   const wireRows = rows.map((r) => serializeUnifiedPlayerForApi(r))
+  const canonicalTrade =
+    sport === 'NFL'
+      ? await getCanonicalNflTradeContext(
+          wireRows.map((w) => ({
+            assetType: 'player' as const,
+            playerId: w.id,
+            playerName: w.name,
+            position: w.position,
+            team: w.team,
+          })),
+        ).catch(() => null)
+      : null
+  const canonicalById = new Map(
+    canonicalTrade?.assets
+      .filter((asset) => asset.canonicalPlayer)
+      .map((asset) => [asset.playerId ?? asset.canonicalPlayer!.playerId, asset]) ?? [],
+  )
   const players: NormalizedTradePlayerEvidence[] = wireRows.map((w) => {
     const base = tradeEvidenceFromUnifiedWire(w)
+    const canonical = canonicalById.get(w.id) ?? null
     return {
       ...base,
       yearsExp: w.product.yearsExp ?? null,
@@ -112,9 +137,20 @@ export async function buildNormalizedTradeContext(params: {
       aiAdpSource: w.statsSource,
       experienceSource: w.profileSource,
       normalizedStats: w.normalizedStats,
-      normalizedProjections: w.normalizedProjections,
+      normalizedProjections: {
+        ...w.normalizedProjections,
+        canonicalNflProjection: canonical?.canonicalPlayer?.projection ?? null,
+      },
+      weeklyProjectionDelta: canonical?.weeklyProjectionDelta ?? null,
+      restOfSeasonProjection: canonical?.restOfSeasonProjection ?? null,
+      fantasyCalcValue: canonical?.fantasyCalcValue ?? null,
+      injuryRisk: canonical?.injuryRisk ?? 'unknown',
+      canonicalNflDataSources: canonical?.canonicalPlayer?.dataSources,
+      canonicalNflWarnings: canonical?.canonicalPlayer?.staleDataWarnings,
       lowConfidence: w.lowConfidence === true,
-      providerFallbackNote: w.providerFallbackDiagnostics?.summary,
+      providerFallbackNote: w.providerFallbackDiagnostics?.missingDomains?.length
+        ? `Missing ${w.providerFallbackDiagnostics.missingDomains.join(', ')}`
+        : undefined,
     }
   })
 
@@ -154,6 +190,10 @@ export function buildNormalizedTradeEvidencePrompt(result: BuildNormalizedTradeC
       p.aiAdpSource ? `aiAdpSrc=${p.aiAdpSource}` : null,
       p.statsSource ? `statsSrc=${p.statsSource}` : null,
       p.projectionsSource ? `projSrc=${p.projectionsSource}` : null,
+      p.weeklyProjectionDelta != null ? `weekProj=${p.weeklyProjectionDelta}` : null,
+      p.restOfSeasonProjection != null ? `rosProj=${p.restOfSeasonProjection}` : null,
+      p.fantasyCalcValue != null ? `tradeValue=${p.fantasyCalcValue}` : null,
+      p.injuryRisk !== 'unknown' ? `injuryRisk=${p.injuryRisk}` : null,
       p.experienceSource ? `expSrc=${p.experienceSource}` : null,
       p.yearsExp != null ? `yearsExp=${p.yearsExp}` : null,
       p.collegeClass ? `collegeClass=${p.collegeClass}` : null,

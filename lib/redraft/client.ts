@@ -35,12 +35,38 @@ export type RedraftRosterPlayerClient = {
   team: string | null
   sport: string
   slotType: string
+  isLocked?: boolean | null
   injuryStatus: string | null
+  byeWeek?: number | null
+  weeklyProjection?: number | null
+  restOfSeasonProjection?: number | null
+  floorProjection?: number | null
+  ceilingProjection?: number | null
+  projectionConfidenceScore?: number | null
+  projectionConfidenceLevel?: 'high' | 'medium' | 'low' | 'none' | null
+  projectionSource?: string | null
   weeklyScore: RedraftWeeklyScore | null
+}
+
+export type RedraftLineupValidationIssueClient = {
+  code: string
+  severity: 'error' | 'warning'
+  message: string
+  playerId?: string
+  playerName?: string
+  slotType?: string
+}
+
+export type RedraftLineupValidationClient = {
+  ok: boolean
+  issues: RedraftLineupValidationIssueClient[]
+  errorCount: number
+  warningCount: number
 }
 
 export type RedraftRosterClient = RedraftRosterRow & {
   players: RedraftRosterPlayerClient[]
+  lineupValidation?: RedraftLineupValidationClient
 }
 
 export type RedraftMatchupClient = {
@@ -93,6 +119,18 @@ export type RedraftTradeProposal = {
   }>
   votes: Array<{ id: string; rosterId: string; vote: string; reason: string | null }>
   decision?: { id: string; decision: string; decisionReason: string | null } | null
+}
+
+export type RedraftTradeAssetInput = {
+  fromRosterId: string
+  toRosterId: string
+  assetType: 'player' | 'draft_pick' | 'faab' | 'future_consideration'
+  playerId?: string
+  playerName?: string
+  pickSeason?: number
+  pickRound?: number
+  pickNumber?: number
+  metadata?: Record<string, unknown>
 }
 
 type JsonHeaders = Record<string, string>
@@ -182,21 +220,33 @@ export async function createTradeProposal(payload: {
   proposerRosterId: string
   receiverRosterId: string
   reason?: string
+  assets?: RedraftTradeAssetInput[]
 }) {
+  const assets =
+    payload.assets && payload.assets.length > 0
+      ? payload.assets
+      : [
+          {
+            fromRosterId: payload.proposerRosterId,
+            toRosterId: payload.receiverRosterId,
+            assetType: 'future_consideration' as const,
+            metadata: {},
+          },
+        ]
+  const proposalPayload = {
+    leagueId: payload.leagueId,
+    seasonId: payload.seasonId,
+    proposerRosterId: payload.proposerRosterId,
+    receiverRosterId: payload.receiverRosterId,
+    reason: payload.reason,
+  }
   const res = await fetch('/api/redraft/trade-proposals', {
     method: 'POST',
     credentials: 'include',
     headers: jsonHeaders,
     body: JSON.stringify({
-      ...payload,
-      assets: [
-        {
-          fromRosterId: payload.proposerRosterId,
-          toRosterId: payload.receiverRosterId,
-          assetType: 'future_consideration',
-          metadata: {},
-        },
-      ],
+      ...proposalPayload,
+      assets,
     }),
   })
   return parseJson<{ proposal: RedraftTradeProposal }>(res)

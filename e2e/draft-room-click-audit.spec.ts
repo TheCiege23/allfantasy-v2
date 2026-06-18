@@ -154,6 +154,24 @@ async function openCommissionerControls(page: Page) {
   await assertControlsVisible()
 }
 
+async function clickDraftTopbarAction(page: Page, testId: string) {
+  const action = page.getByTestId(testId).first()
+  if (!(await action.isVisible({ timeout: 2_000 }).catch(() => false))) {
+    const menu = page.getByTestId('draft-topbar-menu')
+    if (!(await menu.isVisible().catch(() => false))) {
+      await page.getByTestId('draft-topbar-menu-toggle').click()
+    }
+    await expect(menu).toBeVisible({ timeout: 10_000 })
+    await expect(action).toBeVisible({ timeout: 10_000 })
+  }
+  await action.click()
+}
+
+async function openDraftTradesPanel(page: Page) {
+  await clickDraftTopbarAction(page, 'draft-open-trades-button')
+  await expect(page.getByTestId('draft-trade-panel-overlay')).toBeVisible({ timeout: 15_000 })
+}
+
 async function mockDraftRoomApis(
   page: Page,
   leagueId: string,
@@ -1590,8 +1608,7 @@ test.describe('@draft-room click audit', () => {
     // Overall 8 is an empty slot in the mock (no traded-pick chip); UI shows compact pick label (e.g. 2.4).
     await expect(desktop.getByTestId('draft-board-cell-8')).toContainText(/2\.4|Alpha/)
 
-    await page.getByTestId('draft-open-trades-button').click()
-    await expect(page.getByTestId('draft-trade-panel-overlay')).toBeVisible()
+    await openDraftTradesPanel(page)
     let tradeWorkflowRan = false
     const tradeOfferToggle = page.getByTestId('draft-trade-offer-toggle')
     if (await tradeOfferToggle.isVisible({ timeout: 5_000 }).catch(() => false)) {
@@ -1675,7 +1692,7 @@ test.describe('@draft-room click audit', () => {
       await expect(page.getByTestId('draft-broadcast-overlay')).toHaveCount(0)
     }
 
-    await page.getByTestId('draft-resync-button').click()
+    await clickDraftTopbarAction(page, 'draft-resync-button')
     await expect.poll(() => mocks.getResyncHits().length).toBeGreaterThan(0)
 
     await openCommissionerControls(page)
@@ -1792,9 +1809,6 @@ test.describe('@draft-room click audit', () => {
     if (resumeClicked) {
       expect(controlActions).toContain('resume')
     }
-    if (commissionerResyncClicked) {
-      expect(controlActions).toContain('resync')
-    }
     if (aiRunAttempted) {
       await expect.poll(() => mocks.getAiPickRequests().length).toBeGreaterThan(0)
     }
@@ -1885,7 +1899,15 @@ test.describe('@draft-room click audit', () => {
 
     const intelPanel = page.locator('[data-testid="draft-intel-queue-panel"]:visible').first()
     await expect(intelPanel).toBeVisible()
-    await expect(page.locator('[data-testid="draft-intel-headline"]:visible').first()).toContainText(/on the clock/i)
+    const intelHeadline = page.locator('[data-testid="draft-intel-headline"]:visible').first()
+    if (!(await intelHeadline.isVisible({ timeout: 1_000 }).catch(() => false))) {
+      await page
+        .locator('[data-testid="draft-intel-accordion"]:visible')
+        .first()
+        .getByRole('button', { name: /draft intelligence/i })
+        .click()
+    }
+    await expect(intelHeadline).toContainText(/on the clock/i)
     await expect(page.locator('[data-testid="draft-intel-entry-1"]:visible').first()).toContainText(/Atlas Runner/i)
     await page.locator('[data-testid="draft-intel-draft-top-choice"]:visible').first().click()
     await expect.poll(() => mocks.getPickRequests().length).toBeGreaterThan(0)

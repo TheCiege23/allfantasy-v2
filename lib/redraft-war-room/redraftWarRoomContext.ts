@@ -23,6 +23,8 @@ import {
   rosteredPlayerKeys,
 } from './redraftFreeAgentPool'
 import { fetchRedraftInjuryNews, injuryNameKey } from './redraftInjuryNews'
+import { buildAllFantasyProjection } from '@/lib/redraft/projectionEngine'
+import { getCanonicalNflDataCoverage } from '@/lib/nfl-data-foundation/nflDataCoverage'
 import type {
   DataState,
   RedraftDataAvailability,
@@ -218,6 +220,7 @@ export async function buildRedraftWarRoomContext(
     },
   })) as SeasonWithRelations | null
   if (!season) return { ok: false, status: 404, error: 'No redraft season for this league' }
+  const resolvedSeason = season
 
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
@@ -275,10 +278,32 @@ export async function buildRedraftWarRoomContext(
         .catch(() => [])) as ProjectionRow[])
     : []
   const projectionByPlayer = new Map(projectionRows.map((p) => [p.playerId, p.projectedPoints]))
-  const projectionsAsOf =
+  type AfProjectionRow = {
+    playerId: string
+    afProjection: number
+    confidenceLevel: string
+    computedAt: Date
+  }
+  const afProjectionRows: AfProjectionRow[] = allPlayerIds.length
+    ? ((await prisma.aFProjectionSnapshot
+        .findMany({
+          where: { sport: season.sport, season: season.season, week, playerId: { in: allPlayerIds } },
+          orderBy: { computedAt: 'desc' },
+          select: { playerId: true, afProjection: true, confidenceLevel: true, computedAt: true },
+        })
+        .catch(() => [])) as AfProjectionRow[])
+    : []
+  const afProjectionByPlayer = new Map<string, AfProjectionRow>()
+  for (const row of afProjectionRows) {
+    if (!afProjectionByPlayer.has(row.playerId)) afProjectionByPlayer.set(row.playerId, row)
+  }
+  let projectionsAsOf =
     projectionRows.length > 0
       ? projectionRows.reduce<Date | null>((max, r) => (!max || r.fetchedAt > max ? r.fetchedAt : max), null)
       : null
+  for (const row of afProjectionRows) {
+    if (!projectionsAsOf || row.computedAt > projectionsAsOf) projectionsAsOf = row.computedAt
+  }
 
   // Season-to-date actuals (finalized weekly scores) → average per player.
   type ScoreRow = { playerId: string; fantasyPts: number; updatedAt: Date }
@@ -305,6 +330,46 @@ export async function buildRedraftWarRoomContext(
     if (!statsAsOf || row.updatedAt > statsAsOf) statsAsOf = row.updatedAt
   }
 
+  type SeasonStatsRow = {
+    playerId: string
+    fantasyPointsPerGame: number | null
+    gamesPlayed: number | null
+    stats: unknown
+    fetchedAt: Date
+    source: string
+  }
+  const seasonStatRows: SeasonStatsRow[] = allPlayerIds.length
+    ? ((await prisma.playerSeasonStats
+        .findMany({
+          where: {
+            sport: season.sport,
+            season: seasonStr,
+            seasonType: 'regular',
+            playerId: { in: allPlayerIds },
+          },
+          orderBy: [{ source: 'desc' }, { fetchedAt: 'desc' }],
+          select: {
+            playerId: true,
+            fantasyPointsPerGame: true,
+            gamesPlayed: true,
+            stats: true,
+            fetchedAt: true,
+            source: true,
+          },
+        })
+        .catch(() => [])) as SeasonStatsRow[])
+    : []
+  const seasonStatsByPlayer = new Map<string, SeasonStatsRow>()
+  for (const row of seasonStatRows) {
+    const existing = seasonStatsByPlayer.get(row.playerId)
+    const rowIsRi = row.source === 'rolling_insights'
+    const existingIsRi = existing?.source === 'rolling_insights'
+    if (!existing || (rowIsRi && !existingIsRi) || (rowIsRi === existingIsRi && row.fetchedAt > existing.fetchedAt)) {
+      seasonStatsByPlayer.set(row.playerId, row)
+    }
+    if (!statsAsOf || row.fetchedAt > statsAsOf) statsAsOf = row.fetchedAt
+  }
+
   // Injuries + news: real provider data from injury_reports / player_news (populated
   // by the import-injuries / import-news cron), joined by normalized player name.
   const injuryNews = await fetchRedraftInjuryNews(season.sport)
@@ -325,10 +390,32 @@ export async function buildRedraftWarRoomContext(
     byeWeek: number | null
   }): RedraftPlayerFact {
     const proj = projectionByPlayer.get(p.playerId)
+    const af = afProjectionByPlayer.get(p.playerId)
+    const seasonStats = seasonStatsByPlayer.get(p.playerId)
     const agg = actualAgg.get(p.playerId)
     const seasonAvg = agg && agg.n > 0 ? Math.round((agg.sum / agg.n) * 100) / 100 : null
-    const weekProjection = typeof proj === 'number' ? Math.round(proj * 100) / 100 : null
+    const injuryStatus = p.injuryStatus ?? injuryByName.get(injuryNameKey(p.playerName))?.status ?? null
     const adp = adpByKey.get(buildPlayerKey(p.playerName, p.position)) ?? null
+    const projection = buildAllFantasyProjection({
+      playerId: p.playerId,
+      playerName: p.playerName,
+      sport: resolvedSeason.sport,
+      position: p.position,
+      team: p.team,
+      currentWeek: week,
+      totalWeeks: resolvedSeason.totalWeeks,
+      byeWeek: p.byeWeek,
+      injuryStatus,
+      adp,
+      providerWeeklyProjection: proj,
+      allFantasyWeeklyProjection: af?.afProjection ?? null,
+      allFantasyConfidenceLevel: af?.confidenceLevel ?? null,
+      seasonAvgActual: seasonAvg,
+      rollingInsightsFantasyPointsPerGame: seasonStats?.fantasyPointsPerGame ?? null,
+      rollingInsightsGamesPlayed: seasonStats?.gamesPlayed ?? null,
+      rollingInsightsStats: seasonStats?.stats ?? null,
+    })
+    const weekProjection = projection.weeklyProjection
     return {
       playerId: p.playerId,
       playerName: p.playerName,
@@ -336,9 +423,16 @@ export async function buildRedraftWarRoomContext(
       team: p.team,
       slotType: p.slotType,
       isStarterSlot: isStarterSlotType(p.slotType),
-      injuryStatus: p.injuryStatus ?? injuryByName.get(injuryNameKey(p.playerName))?.status ?? null,
+      injuryStatus,
       byeWeek: p.byeWeek,
       weekProjection,
+      restOfSeasonProjection: projection.restOfSeasonProjection,
+      floorProjection: projection.floorProjection,
+      ceilingProjection: projection.ceilingProjection,
+      projectionConfidenceScore: projection.confidenceScore,
+      projectionConfidenceLevel: projection.confidenceLevel,
+      projectionSource: projection.source,
+      projectionReasons: projection.reasons,
       seasonAvgActual: seasonAvg,
       adp,
       hasNoValueSignal: weekProjection == null && seasonAvg == null && adp == null,
@@ -414,30 +508,54 @@ export async function buildRedraftWarRoomContext(
     scoringFormat: scoring.scoringPreset.toLowerCase(),
     limit: 60,
   })
-  const freeAgents: RedraftPlayerFact[] = freeAgentRows.map((fa) => ({
-    playerId: fa.playerKey,
-    playerName: fa.playerName,
-    position: fa.position,
-    team: fa.team,
-    slotType: 'free_agent',
-    isStarterSlot: false,
-    injuryStatus: injuryByName.get(injuryNameKey(fa.playerName))?.status ?? null,
-    byeWeek: null,
-    weekProjection: null,
-    seasonAvgActual: null,
-    adp: fa.adp,
-    hasNoValueSignal: false, // ADP/ranking signal present
-  }))
+  const freeAgents: RedraftPlayerFact[] = freeAgentRows.map((fa) => {
+    const injuryStatus = injuryByName.get(injuryNameKey(fa.playerName))?.status ?? null
+    const projection = buildAllFantasyProjection({
+      playerId: fa.playerKey,
+      playerName: fa.playerName,
+      sport: season.sport,
+      position: fa.position,
+      team: fa.team,
+      currentWeek: week,
+      totalWeeks: season.totalWeeks,
+      injuryStatus,
+      adp: fa.adp,
+    })
+    return {
+      playerId: fa.playerKey,
+      playerName: fa.playerName,
+      position: fa.position,
+      team: fa.team,
+      slotType: 'free_agent',
+      isStarterSlot: false,
+      injuryStatus,
+      byeWeek: null,
+      weekProjection: projection.weeklyProjection,
+      restOfSeasonProjection: projection.restOfSeasonProjection,
+      floorProjection: projection.floorProjection,
+      ceilingProjection: projection.ceilingProjection,
+      projectionConfidenceScore: projection.confidenceScore,
+      projectionConfidenceLevel: projection.confidenceLevel,
+      projectionSource: projection.source,
+      projectionReasons: projection.reasons,
+      seasonAvgActual: null,
+      adp: fa.adp,
+      hasNoValueSignal: false, // ADP/ranking signal present
+    }
+  })
 
   // --- availability contract ---
   const adpAvailable = adpByKey.size > 0
+  const allFantasyProjectionCount =
+    teams.flatMap((t) => t.players).filter((p) => p.weekProjection != null).length +
+    freeAgents.filter((p) => p.weekProjection != null).length
   const availability: RedraftDataAvailability = {
     scoringRules: 'available',
     rosterRules: rosterRulesState,
     standings: 'available',
     schedule: season.schedule.length > 0 ? 'available' : 'missing',
-    playerStats: actualAgg.size > 0 ? 'available' : 'missing',
-    projections: projectionByPlayer.size > 0 ? 'available' : 'missing',
+    playerStats: actualAgg.size > 0 || seasonStatsByPlayer.size > 0 ? 'available' : 'missing',
+    projections: allFantasyProjectionCount > 0 ? 'available' : 'missing',
     injuries:
       injuryByName.size > 0 || teams.some((t) => t.players.some((p) => p.injuryStatus))
         ? 'available'
@@ -445,7 +563,7 @@ export async function buildRedraftWarRoomContext(
     news: newsCount > 0 ? 'available' : 'missing',
     waiverPool: freeAgents.length > 0 ? 'available' : 'missing',
     tradeValues:
-      projectionByPlayer.size > 0 || actualAgg.size > 0 || adpAvailable ? 'available' : 'missing',
+      allFantasyProjectionCount > 0 || actualAgg.size > 0 || adpAvailable ? 'available' : 'missing',
   }
 
   const missingDataFlags: string[] = []
@@ -456,11 +574,39 @@ export async function buildRedraftWarRoomContext(
         ? 'No weekly projections — start/sit uses season actuals and ADP/ranking value as fallback.'
         : 'No player projections available — start/sit falls back to season actuals where present.',
     )
+  if (
+    availability.projections === 'available' &&
+    projectionByPlayer.size === 0 &&
+    afProjectionByPlayer.size === 0 &&
+    seasonStatsByPlayer.size === 0 &&
+    adpAvailable
+  ) {
+    missingDataFlags.push('Weekly projections are low-confidence ADP/ranking fallbacks until provider stats arrive.')
+  }
   if (availability.playerStats === 'missing')
     missingDataFlags.push('No finalized player stats yet (preseason or pre-ingestion).')
   if (availability.waiverPool === 'missing')
     missingDataFlags.push('Free-agent pool unavailable for this sport/season — specific add targets cannot be listed.')
   if (availability.injuries === 'missing') missingDataFlags.push('No injury data available.')
+
+  const nflDataCoverage =
+    season.sport.toUpperCase() === 'NFL'
+      ? await getCanonicalNflDataCoverage({
+          season: season.season,
+          week,
+          prismaClient: prisma,
+        }).catch(() => null)
+      : null
+  if (nflDataCoverage) {
+    for (const field of nflDataCoverage.missingFields) {
+      missingDataFlags.push(`NFL data foundation missing ${field}.`)
+    }
+    for (const field of nflDataCoverage.staleFields) {
+      missingDataFlags.push(`NFL data foundation ${field} is stale.`)
+    }
+  } else if (season.sport.toUpperCase() === 'NFL') {
+    missingDataFlags.push('NFL data foundation coverage could not be loaded.')
+  }
 
   const hasValueSignal =
     availability.projections === 'available' || availability.playerStats === 'available' || adpAvailable
@@ -491,6 +637,7 @@ export async function buildRedraftWarRoomContext(
       injuriesAsOf: injuriesAsOf ? injuriesAsOf.toISOString() : null,
     },
     missingDataFlags,
+    nflDataCoverage,
     featureAvailability: {
       teamNeeds: availability.rosterRules === 'available',
       lineup: availability.rosterRules === 'available',

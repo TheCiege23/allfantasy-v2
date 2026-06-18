@@ -1,4 +1,4 @@
-/** Legacy pixel hints; desktop shells use ~35% / 35% / 30% for left/center/right — see `app/components/AppShell.tsx`. */
+/** Legacy pixel hints; desktop shells use ~40% / 35% / 25% for left/center/right — see `app/components/AppShell.tsx`. */
 export const DASHBOARD_LEFT_PANEL_WIDTH = 280
 export const DASHBOARD_RIGHT_PANEL_WIDTH = 200
 

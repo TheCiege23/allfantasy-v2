@@ -61,6 +61,14 @@ export function buildRedraftWarRoomPrompt(inputs: RedraftWarRoomPromptInputs): s
   )
   lines.push(`Waivers: type=${context.waivers.type} faabBudget=${context.waivers.faabBudget ?? 'n/a'}`)
   lines.push(`DATA AVAILABILITY: ${fmtAvailability(context)}`)
+  if (context.nflDataCoverage) {
+    const c = context.nflDataCoverage
+    lines.push(
+      `NFL DATA FOUNDATION: players=${c.counts.players ?? 0} teams=${c.counts.teams ?? 0} schedule=${c.hasSchedule} depthCharts=${c.hasDepthCharts} seasonStats=${c.hasSeasonStats} weeklyProjections=${c.hasWeeklyProjections} rosProjections=${c.hasRosProjections} tradeValues=${c.hasTradeValues}`,
+    )
+    if (c.missingFields.length) lines.push(`NFL FOUNDATION MISSING: ${c.missingFields.join(', ')}`)
+    if (c.staleFields.length) lines.push(`NFL FOUNDATION STALE: ${c.staleFields.join(', ')}`)
+  }
   if (context.missingDataFlags.length) {
     lines.push('MISSING-DATA FLAGS:')
     for (const f of context.missingDataFlags) lines.push(`  - ${f}`)
@@ -71,9 +79,17 @@ export function buildRedraftWarRoomPrompt(inputs: RedraftWarRoomPromptInputs): s
 
   if (context.freeAgents.length > 0) {
     lines.push('')
-    lines.push(`=== TOP FREE AGENTS (ADP-ranked, ${context.freeAgents.length} available) ===`)
+    lines.push(`=== TOP FREE AGENTS (projection-ranked/ADP-backed, ${context.freeAgents.length} available) ===`)
     for (const fa of context.freeAgents.slice(0, 12)) {
-      lines.push(`  ${fa.playerName} ${fa.position}${fa.adp != null ? ` (ADP ${fa.adp})` : ''}`)
+      const projection =
+        fa.weekProjection != null
+          ? `proj ${fa.weekProjection}${fa.restOfSeasonProjection != null ? ` ROS ${fa.restOfSeasonProjection}` : ''}`
+          : fa.adp != null
+            ? `ADP ${fa.adp}`
+            : 'no projection'
+      lines.push(
+        `  ${fa.playerName} ${fa.position} - ${projection}; source=${fa.projectionSource ?? 'unknown'} confidence=${fa.projectionConfidenceLevel ?? 'n/a'}`,
+      )
     }
   }
 
@@ -86,14 +102,15 @@ export function buildRedraftWarRoomPrompt(inputs: RedraftWarRoomPromptInputs): s
     )
     lines.push('Roster:')
     for (const p of userTeam.players) {
-      const val =
+      let val =
         p.weekProjection != null
-          ? `proj ${p.weekProjection}`
+          ? `proj ${p.weekProjection}${p.restOfSeasonProjection != null ? ` ROS ${p.restOfSeasonProjection}` : ''}${p.floorProjection != null && p.ceilingProjection != null ? ` range ${p.floorProjection}-${p.ceilingProjection}` : ''}`
           : p.seasonAvgActual != null
             ? `avg ${p.seasonAvgActual}`
             : p.adp != null
               ? `ADP ${p.adp}`
               : 'no value signal'
+      val = `${val}; source=${p.projectionSource ?? 'unknown'} confidence=${p.projectionConfidenceLevel ?? 'n/a'}`
       lines.push(
         `  [${p.isStarterSlot ? 'ST' : 'BN'}] ${p.playerName} ${p.position}${p.team ? ` (${p.team})` : ''} — ${val}${p.injuryStatus ? `, ${p.injuryStatus}` : ''}${p.byeWeek ? `, bye W${p.byeWeek}` : ''}`,
       )

@@ -1095,8 +1095,9 @@ export function LeagueShell({
                     ? 'border-x border-sky-500/15 bg-gradient-to-b from-[#07111f] via-[#050a16] to-[#060b14]'
                     : league.leagueType === 'devy' || league.leagueVariant === 'devy_dynasty'
                       ? 'border-x border-indigo-500/15 bg-gradient-to-b from-[#0a1022] via-[#070a18] to-[#060913]'
-                  : ''
+                  : 'border-x border-cyan-500/10 bg-gradient-to-b from-[#071322] via-[#050814] to-[#020611]'
           }`}
+          data-testid="league-command-center-surface"
           data-league-variant={
             league.leagueVariant === 'survivor'
               ? 'survivor'
@@ -1594,55 +1595,68 @@ function LeagueTabRouter({
 
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-5 lg:px-6">
-        <div className="space-y-4 rounded-[28px] border border-white/[0.08] bg-[#070a16]/90 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.25)]">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+        <section
+          className="relative overflow-hidden rounded-2xl border border-cyan-500/[0.15] bg-gradient-to-br from-cyan-500/[0.07] via-[#050814] to-violet-500/[0.04] p-5 shadow-[0_18px_60px_rgba(0,0,0,0.28)]"
+          data-testid="league-command-center-card"
+        >
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-32 opacity-70"
+            style={{
+              background:
+                'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(34,211,238,0.16) 0%, transparent 70%)',
+            }}
+          />
+          <div className="relative flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-200/75">Draft setup</p>
-              <h2 className="text-2xl font-semibold text-white">Draft room is not open yet</h2>
-              <p className="max-w-2xl text-sm leading-6 text-white/70">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-400/60">Draft setup</p>
+              <h2 className="text-[26px] font-black leading-tight tracking-tight text-white sm:text-[30px]">
+                Draft room is not open yet
+              </h2>
+              <p className="max-w-2xl text-[13px] leading-relaxed text-white/55">
                 This view stays lightweight until the league is ready. The shell remains visible, and the draft tab
                 can safely point here before the live room is available.
               </p>
             </div>
-            <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-right">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-100/70">League fill</p>
-              <p className="mt-1 text-lg font-semibold text-white">
+            <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/[0.12] via-cyan-500/[0.06] to-transparent px-4 py-3 text-right shadow-[0_0_20px_rgba(34,211,238,0.08)]">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-200/70">League fill</p>
+              <p className="mt-1 text-lg font-bold text-white">
                 {joinedTeams}/{teamCount}
               </p>
             </div>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-2xl border border-white/[0.08] bg-black/20 p-4">
+          <div className="relative mt-5 grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-white/[0.07] bg-white/[0.04] p-4">
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">Draft date</p>
               <p className="mt-1 text-sm font-semibold text-white">{draftDateLabel}</p>
             </div>
-            <div className="rounded-2xl border border-white/[0.08] bg-black/20 p-4">
+            <div className="rounded-2xl border border-white/[0.07] bg-white/[0.04] p-4">
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">Current tab</p>
               <p className="mt-1 text-sm font-semibold text-white">Draft / Draft Setup</p>
             </div>
-            <div className="rounded-2xl border border-white/[0.08] bg-black/20 p-4">
+            <div className="rounded-2xl border border-white/[0.07] bg-white/[0.04] p-4">
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">Next step</p>
               <p className="mt-1 text-sm font-semibold text-white">Open league settings or continue setup</p>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="relative mt-3 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => onOpenLeagueSettingsModal()}
-              className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/20"
+              className="touch-manipulation inline-flex min-h-[40px] items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-[12px] font-semibold text-cyan-200 transition hover:bg-cyan-500/20 active:bg-cyan-500/25"
             >
               Open draft settings
             </button>
             <Link
               href={`/league/${leagueId}?view=league`}
-              className="rounded-full border border-white/[0.12] bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.1]"
+              className="touch-manipulation inline-flex min-h-[40px] items-center justify-center rounded-xl border border-white/15 bg-white/[0.03] px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10"
             >
               Go to League tab
             </Link>
           </div>
-        </div>
+        </section>
       </div>
     )
   }
@@ -2017,16 +2031,31 @@ function LeagueHeader({
         ? 'border-[color:var(--cap-amber)]/45 bg-[color:var(--cap-amber)]/15 text-amber-100'
         : 'border-[color:var(--cap-red)]/45 bg-[color:var(--cap-red)]/15 text-red-100'
   return (
-    <div className="sticky top-0 z-[45] flex-shrink-0 border-b border-white/[0.08] bg-[#050814] shadow-[0_10px_28px_rgba(0,0,0,0.42)]">
+    <div
+      className="sticky top-0 z-[45] isolate flex-shrink-0 border-b border-cyan-500/[0.14] bg-[#050814]/95 shadow-[0_12px_34px_rgba(0,0,0,0.46)] backdrop-blur-xl"
+      data-testid="league-command-center-header"
+    >
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-cyan-500/[0.08] via-[#050814]/95 to-violet-500/[0.05]"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-24 opacity-60"
+        style={{
+          background:
+            'radial-gradient(ellipse 80% 60% at 50% -20%, rgba(34,211,238,0.18) 0%, transparent 70%)',
+        }}
+      />
       <div
         className={cn(
-          'flex flex-wrap items-start gap-3 px-4 pb-2 sm:px-5',
+          'relative flex flex-wrap items-start gap-3 px-4 pb-2 sm:px-5',
           compactTitleRow ? 'pt-3' : 'pt-4',
         )}
       >
         <div
           className={cn(
-            'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] overflow-hidden',
+            'flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/[0.1] bg-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]',
             compactTitleRow && 'hidden',
             !headerAvatarSrc || headerAvatarFailed ? 'bg-gradient-to-br from-fuchsia-500 via-rose-500 to-rose-700 text-lg' : '',
           )}
@@ -2036,7 +2065,7 @@ function LeagueHeader({
             <img
               src={headerAvatarSrc}
               alt=""
-              className="h-10 w-10 object-cover rounded-xl"
+              className="h-10 w-10 rounded-2xl object-cover"
               onError={() => setHeaderAvatarFailed(true)}
             />
           ) : (
@@ -2051,7 +2080,7 @@ function LeagueHeader({
           )}
         >
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <h1 className="max-w-full truncate text-base font-bold leading-tight text-white sm:text-[17px]">
+            <h1 className="max-w-full truncate text-[17px] font-black leading-tight tracking-tight text-white sm:text-lg">
               {league.name}
             </h1>
             {isCommissioner ? (
@@ -2064,7 +2093,7 @@ function LeagueHeader({
                 Commish
               </span>
             ) : null}
-            <span className="whitespace-normal text-[12px] leading-snug text-white/45 sm:text-[13px]">
+            <span className="whitespace-normal text-[12px] leading-snug text-white/50 sm:text-[13px]">
               {headerSummary}
             </span>
           </div>
@@ -2199,7 +2228,7 @@ function LeagueHeader({
             <button
               type="button"
               onClick={onGoHome}
-              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-white/[0.1] bg-[#121826] text-white/55 transition hover:border-white/[0.14] hover:bg-[#161d2e] hover:text-white/90"
+              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-white/[0.12] bg-white/[0.04] text-white/60 transition hover:border-cyan-400/35 hover:bg-cyan-500/10 hover:text-cyan-100"
               aria-label={t('league.header.dashboardHome')}
               data-testid="league-header-home"
             >
@@ -2214,8 +2243,8 @@ function LeagueHeader({
               aria-expanded={memberGearMenu ? memberGearOpen : undefined}
               aria-haspopup={memberGearMenu ? 'menu' : undefined}
               className={cn(
-                'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-white/[0.1] bg-[#121826] transition hover:border-white/[0.14] hover:bg-[#161d2e]',
-                memberGearOpen ? 'text-cyan-300' : 'text-white/45 hover:text-white/85',
+                'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-white/[0.12] bg-white/[0.04] transition hover:border-cyan-400/35 hover:bg-cyan-500/10',
+                memberGearOpen ? 'text-cyan-300' : 'text-white/50 hover:text-cyan-100',
               )}
               aria-label={memberGearMenu ? t('league.header.leagueMenu') : t('league.header.leagueSettings')}
               data-testid="league-header-settings"
@@ -2473,9 +2502,10 @@ function LeagueHeader({
 
       <div className="scrollbar-none mt-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:pb-3">
         <div
-          className="flex snap-x snap-mandatory gap-1 overflow-x-auto scroll-pb-1 rounded-xl border border-white/[0.1] bg-[#0a1228] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] [-webkit-overflow-scrolling:touch]"
+          className="flex snap-x snap-mandatory gap-1 overflow-x-auto scroll-pb-1 rounded-xl border border-cyan-500/[0.16] bg-white/[0.04] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_0_24px_rgba(34,211,238,0.04)] [-webkit-overflow-scrolling:touch]"
           role="tablist"
           aria-label="League navigation"
+          data-testid="league-command-center-tabs"
         >
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id

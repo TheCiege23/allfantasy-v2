@@ -20,6 +20,6 @@ describe('Dashboard shell layout preset', () => {
 
   it('keeps the shared shell adjacent and full width on desktop', () => {
     expect(appShell).toContain('data-af-layout-mode={balancedDesktopLayout ? \'balanced-three-panel\' : \'legacy-rail-clamp\'}')
-    expect(appShell).toContain('md:[grid-template-columns:minmax(280px,40fr)_minmax(0,30fr)_minmax(280px,30fr)]')
+    expect(appShell).toContain('md:[grid-template-columns:minmax(280px,40fr)_minmax(0,35fr)_minmax(240px,25fr)]')
   })
 })

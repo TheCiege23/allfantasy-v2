@@ -45,11 +45,13 @@ export async function writeFantasyCalcValuesToDb(
     update: {
       data: payload,
       expiresAt,
+      createdAt: syncedAt,
     },
     create: {
       cacheKey,
       data: payload,
       expiresAt,
+      createdAt: syncedAt,
     },
   })
 

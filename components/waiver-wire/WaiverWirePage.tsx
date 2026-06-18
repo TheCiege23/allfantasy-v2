@@ -82,6 +82,15 @@ type Transaction = {
   isDefensiveDrop?: boolean
 }
 
+export type WaiverWireActiveTab = "available" | "trending" | "claimed" | "dropped" | "pending" | "history"
+
+type WaiverWirePageProps = {
+  leagueId: string
+  initialTab?: WaiverWireActiveTab
+  lockedTab?: boolean
+  chrome?: "full" | "embedded"
+}
+
 type WaiverEngineSuggestion = {
   playerId: string
   playerName: string
@@ -161,7 +170,12 @@ function getFallbackNeedPositionsForSport(sport: string | null | undefined): str
   return ["QB", "RB", "WR", "TE"]
 }
 
-export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
+export default function WaiverWirePage({
+  leagueId,
+  initialTab = "available",
+  lockedTab = false,
+  chrome = "full",
+}: WaiverWirePageProps) {
   const compareUi = usePlayerComparisonUIOptional()
   const defaultFilterState = getDefaultWaiverFilterState()
   const { formatInTimezone } = useUserTimezone()
@@ -177,9 +191,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
   const [rosterPlayerIds, setRosterPlayerIds] = useState<string[]>([])
   const [rosterCapacity, setRosterCapacity] = useState<number | null>(null)
   const [waiverPriority, setWaiverPriority] = useState<number | null>(null)
-  const [activeTab, setActiveTab] = useState<"available" | "trending" | "claimed" | "dropped" | "pending" | "history">(
-    defaultFilterState.activeTab
-  )
+  const [activeTab, setActiveTab] = useState<WaiverWireActiveTab>(initialTab)
 
   const [search, setSearch] = useState(defaultFilterState.search)
   const [positionFilter, setPositionFilter] = useState(defaultFilterState.position)
@@ -291,6 +303,10 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    setActiveTab(initialTab)
+  }, [initialTab])
 
   useEffect(() => {
     if (!leagueId) return
@@ -641,19 +657,29 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className={chrome === "embedded" ? "space-y-4" : "space-y-6"}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-0.5">
-          <h1 className="text-lg font-semibold text-white sm:text-xl">Waiver Wire</h1>
-          <p className="text-xs text-white/60">
-            Browse free agents, submit claims, and track your FAAB and priority with rule-aware waiver tools.
-          </p>
-          {nextRunAt && (
-            <p className="text-[11px] text-white/45" data-testid="waiver-next-run-hint">
-              Next scheduled run: {formatInTimezone(nextRunAt)}
+        {chrome === "embedded" ? (
+          <div className="space-y-0.5">
+            {nextRunAt && (
+              <p className="text-[11px] text-white/45" data-testid="waiver-next-run-hint">
+                Next scheduled run: {formatInTimezone(nextRunAt)}
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-0.5">
+            <h1 className="text-lg font-semibold text-white sm:text-xl">Waiver Wire</h1>
+            <p className="text-xs text-white/60">
+              Browse free agents, submit claims, and track your FAAB and priority with rule-aware waiver tools.
             </p>
-          )}
-        </div>
+            {nextRunAt && (
+              <p className="text-[11px] text-white/45" data-testid="waiver-next-run-hint">
+                Next scheduled run: {formatInTimezone(nextRunAt)}
+              </p>
+            )}
+          </div>
+        )}
         <div className="flex flex-wrap items-center justify-end gap-2">
           {isFaab && <FaabBudgetCard faabRemaining={faabRemaining} budgetCap={settings?.faabBudget ?? null} />}
           <WaiverPriorityCard waiverPriority={waiverPriority} />
@@ -743,21 +769,23 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
         </div>
       </section>
 
-      <div className="flex gap-2 border-b border-white/10 pb-2">
-        {(["available", "trending", "claimed", "dropped", "pending", "history"] as const).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => setActiveTab(tab)}
-            data-testid={`waiver-tab-${tab}`}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-              activeTab === tab ? "bg-cyan-500/20 text-cyan-200" : "text-white/70 hover:text-white"
-            }`}
-          >
-            {tab === "available" ? "All players" : getTabLabel(tab, claims.length)}
-          </button>
-        ))}
-      </div>
+      {!lockedTab && (
+        <div className="flex gap-2 border-b border-white/10 pb-2">
+          {(["available", "trending", "claimed", "dropped", "pending", "history"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              data-testid={`waiver-tab-${tab}`}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+                activeTab === tab ? "bg-cyan-500/20 text-cyan-200" : "text-white/70 hover:text-white"
+              }`}
+            >
+              {tab === "available" ? "All players" : getTabLabel(tab, claims.length)}
+            </button>
+          ))}
+        </div>
+      )}
 
       {(activeTab === "available" || activeTab === "trending") && (
         <div className="rounded-xl border border-white/10 bg-black/20 p-0 sm:p-3">
@@ -968,9 +996,10 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
         </div>
       )}
 
-      <AIWaiverRecommendationsPanel leagueId={leagueId} />
-      <CommissionerWaiverInsightsPanel leagueId={leagueId} />
+      {!lockedTab && <AIWaiverRecommendationsPanel leagueId={leagueId} />}
+      {!lockedTab && <CommissionerWaiverInsightsPanel leagueId={leagueId} />}
 
+      {!lockedTab && (
       <section id="waiver-ai-engine-panel" className="rounded-xl border border-cyan-500/20 bg-black/20 p-4" data-testid="waiver-ai-engine-panel">
         <InContextMonetizationCard
           title="Waiver AI access"
@@ -1074,7 +1103,9 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
           </div>
         )}
       </section>
+      )}
 
+      {!lockedTab && (
       <section className="rounded-xl border border-white/10 bg-black/20 p-4">
         <h2 className="mb-2 text-sm font-semibold text-white">League waiver rules</h2>
         <p className="mb-3 text-xs text-white/55">{waiverRuleSummary}</p>
@@ -1136,6 +1167,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
           </Link>
         </div>
       </section>
+      )}
 
       <WaiverClaimDrawer
         open={drawerOpen}

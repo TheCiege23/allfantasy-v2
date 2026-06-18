@@ -26,6 +26,7 @@ import {
 } from '@/lib/redraft-war-room/redraftWarRoomPrompt'
 import { requireEntitlement } from '@/lib/subscription/requireEntitlement'
 import { openaiChatText } from '@/lib/openai-client'
+import { classifyRedraftQuestionForModel, selectOpenAIModelForIntent } from '@/lib/ai/modelRouting'
 import type { RedraftWarRoomContext } from '@/lib/redraft-war-room/types'
 
 export const dynamic = 'force-dynamic'
@@ -117,12 +118,14 @@ export async function POST(
       const lineup = buildLineupRecommendation(context, rosterId)
       const waivers = buildWaiverRecommendations(context, rosterId)
       const prompt = buildRedraftWarRoomPrompt({ context, needs, lineup, waivers, question })
+      const modelRoute = selectOpenAIModelForIntent(classifyRedraftQuestionForModel(question))
 
       const ai = await openaiChatText({
         messages: [
           { role: 'system', content: REDRAFT_WAR_ROOM_SYSTEM_RULES },
           { role: 'user', content: prompt },
         ],
+        model: modelRoute.model ?? undefined,
         temperature: 0.4,
         maxTokens: 700,
       })
@@ -133,14 +136,14 @@ export async function POST(
           answer: null,
           aiUnavailable: true,
           detail: ai.details,
-          grounding: { needs, lineup, waivers, missingDataFlags: context.missingDataFlags },
+          grounding: { needs, lineup, waivers, missingDataFlags: context.missingDataFlags, modelRoute },
         })
       }
 
       return NextResponse.json({
         answer: ai.text,
         aiUnavailable: false,
-        grounding: { missingDataFlags: context.missingDataFlags },
+        grounding: { missingDataFlags: context.missingDataFlags, modelRoute },
       })
     }
 

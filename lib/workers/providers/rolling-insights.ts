@@ -109,10 +109,20 @@ function buildRestBaseCandidates(configBase: string): string[] {
   return dedupe([...explicit, ...derivedFromConfig, ...DEFAULT_RI_REST_BASES])
 }
 
-function buildRestPathCandidates(dataSeg: string, chainSport: ApiChainSport): string[] {
+function requestedYearFromQuery(query: Record<string, unknown>): string {
+  const raw = String(query.season ?? query.year ?? '').trim()
+  if (/^\d{4}/.test(raw)) return raw.slice(0, 4)
+  return String(new Date().getUTCFullYear())
+}
+
+function buildRestPathCandidates(
+  dataSeg: string,
+  chainSport: ApiChainSport,
+  requestedYear = String(new Date().getUTCFullYear()),
+): string[] {
   const sportCodes = REST_SPORT_CODES[chainSport]
   const sportLower = SPORT_PATH[chainSport]
-  const year = String(new Date().getUTCFullYear())
+  const year = requestedYear
   const today = new Date().toISOString().slice(0, 10)
 
   // Soccer endpoints are significantly less consistent; keep probes intentionally narrow
@@ -549,7 +559,7 @@ export async function rollingInsightsProvider(params: ApiFetchParams): Promise<C
     let rscTokenCandidates = collectRscTokenCandidates(accessToken)
 
     let restBases = buildRestBaseCandidates(base)
-    const restPaths = buildRestPathCandidates(dataSeg, chainSport)
+    const restPaths = buildRestPathCandidates(dataSeg, chainSport, requestedYearFromQuery(merged))
 
     if (chainSport === 'soccer_euro' || chainSport === 'soccer_mls') {
       // Keep soccer probing intentionally tight to reduce worst-case latency.

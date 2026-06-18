@@ -17,6 +17,8 @@ import { playerValue, type ValueSource } from './playerValue'
 function sourceLabel(source: ValueSource): string {
   return source === 'projection'
     ? 'projection'
+    : source === 'ros_projection'
+      ? 'rest-of-season projection'
     : source === 'season_avg'
       ? 'season average'
       : source === 'adp'
@@ -196,6 +198,7 @@ export function buildLineupRecommendation(
   if (!anySignal || filledSources.length === 0) confidence = 'none'
   else if (filledSources.some((s) => s === 'none')) confidence = 'low'
   else if (filledSources.some((s) => s === 'adp')) confidence = 'low'
+  else if (filledSources.some((s) => s === 'ros_projection')) confidence = 'medium'
   else if (filledSources.some((s) => s === 'season_avg')) confidence = 'medium'
   else confidence = 'high'
 

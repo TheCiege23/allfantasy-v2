@@ -17,6 +17,7 @@ import {
   type RollingInsightsTableStats,
 } from '@/lib/players/rolling-insights-stats-display'
 import { StartVsComparisonLauncher } from '@/components/app/player-comparison/StartVsComparisonLauncher'
+import WaiverWirePage from '@/components/waiver-wire/WaiverWirePage'
 
 type RiBatchEntry = {
   season: string | null
@@ -35,6 +36,7 @@ export type PlayersTabProps = {
 }
 
 type PosFilter = string
+type PlayerSubtab = 'available' | 'waivers' | 'freeAgents' | 'claims'
 
 const NFL_FILTERS: PosFilter[] = ['ALL', 'QB', 'RB', 'WR', 'TE', 'DL', 'LB', 'DB', 'K', 'DEF', 'MORE']
 
@@ -91,6 +93,13 @@ function matchesPosition(sportU: string, p: SlimPlayer, pos: PosFilter): boolean
 
 type FaRow = { id: string; name: string; position: string | null; team: string | null }
 
+const PLAYER_SUBTABS: Array<{ id: PlayerSubtab; label: string }> = [
+  { id: 'available', label: 'Available Players' },
+  { id: 'waivers', label: 'Waivers' },
+  { id: 'freeAgents', label: 'Free Agents' },
+  { id: 'claims', label: 'My Claims' },
+]
+
 export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
   const resolvedSport = normalizeToSupportedSport(sport ?? league.sport) ?? 'NFL'
   const sportU = resolvedSport.toUpperCase()
@@ -100,7 +109,7 @@ export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
   const [seasonSel, setSeasonSel] = useState(seasonYear)
   const [pos, setPos] = useState<PosFilter>('ALL')
   const [projection, setProjection] = useState(true)
-  const [freeAgents, setFreeAgents] = useState(false)
+  const [activeSubtab, setActiveSubtab] = useState<PlayerSubtab>('available')
   const [watchlist, setWatchlist] = useState(false)
   const [rookies, setRookies] = useState(false)
   const [playerQuery, setPlayerQuery] = useState('')
@@ -109,6 +118,8 @@ export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
   const [faLoading, setFaLoading] = useState(false)
   const [wlIds, setWlIds] = useState<Set<string>>(() => readWatchlist(league.id))
   const [riBySleeper, setRiBySleeper] = useState<Record<string, RiBatchEntry>>({})
+  const freeAgents = activeSubtab === 'freeAgents'
+  const waiverSurfaceMode = activeSubtab === 'waivers' || activeSubtab === 'claims'
 
   const positionRow = useMemo(() => {
     if (sportU === 'NBA') return NBA_FILTERS
@@ -225,7 +236,8 @@ export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
   )
 
   useEffect(() => {
-    if (filtered.length === 0) {
+    const sleeperIds = filteredIdsKey ? filteredIdsKey.split(',').filter(Boolean) : []
+    if (sleeperIds.length === 0) {
       setRiBySleeper({})
       return
     }
@@ -237,7 +249,7 @@ export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
         credentials: 'include',
         body: JSON.stringify({
           sport: sportU,
-          sleeperIds: filtered.map((p) => p.id),
+          sleeperIds,
           season: String(seasonSel),
         }),
       })
@@ -254,7 +266,7 @@ export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
       cancelled = true
       window.clearTimeout(t)
     }
-  }, [filteredIdsKey, seasonSel, sportU, filtered.length])
+  }, [filteredIdsKey, seasonSel, sportU])
 
   const busy = loading || (freeAgents && faLoading)
 
@@ -287,6 +299,25 @@ export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
         </div>
       ) : null}
       <div className="sticky top-0 z-10 space-y-3 border-b border-white/[0.07] bg-[#07071a] px-5 pb-3 pt-4">
+        <div className="flex flex-wrap gap-1.5" data-testid="players-tab-waiver-subnav">
+          {PLAYER_SUBTABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveSubtab(tab.id)}
+              data-testid={`players-tab-subtab-${tab.id}`}
+              className={`rounded-lg border px-3 py-1.5 text-[11px] font-semibold transition ${
+                activeSubtab === tab.id
+                  ? 'border-cyan-500/60 bg-cyan-500/20 text-cyan-100'
+                  : 'border-white/10 bg-white/[0.03] text-white/55 hover:border-white/25 hover:text-white/80'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {!waiverSurfaceMode && (
+          <>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[140px] flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/30" />
@@ -383,7 +414,6 @@ export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
 
           {(
             [
-              ['freeAgents', freeAgents, () => setFreeAgents((v) => !v), 'Free agents'],
               ['watchlist', watchlist, () => setWatchlist((v) => !v), 'Watchlist'],
               ['rookies', rookies, () => setRookies((v) => !v), 'Rookies'],
             ] as const
@@ -435,8 +465,20 @@ export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
             showNameInputs
           />
         </div>
+          </>
+        )}
       </div>
 
+      {waiverSurfaceMode ? (
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-4">
+          <WaiverWirePage
+            leagueId={league.id}
+            initialTab={activeSubtab === 'claims' ? 'pending' : 'available'}
+            lockedTab={activeSubtab === 'claims'}
+            chrome="embedded"
+          />
+        </div>
+      ) : (
       <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto px-5 pb-6">
         <div className="min-w-[960px]">
           <div className="sticky top-0 z-[1] border-b border-white/[0.07] bg-[#07071a]">
@@ -603,6 +645,7 @@ export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
           ) : null}
         </div>
       </div>
+      )}
     </div>
   )
 }

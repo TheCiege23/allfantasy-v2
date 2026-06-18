@@ -105,19 +105,19 @@ describe('AppShell balanced-three-panel — dynamic column widths', () => {
   it('left collapsed column is 3rem (static literal in BALANCED_COLS)', () => {
     // Static class literals required — Tailwind JIT cannot detect dynamically constructed strings.
     expect(appShellSrc).toContain('BALANCED_COLS')
-    expect(appShellSrc).toContain('3rem_minmax(0,1fr)_minmax(280px,30fr)')
+    expect(appShellSrc).toContain('3rem_minmax(0,35fr)_minmax(240px,25fr)')
   })
 
   it('right collapsed column is 3rem (static literal in BALANCED_COLS)', () => {
-    expect(appShellSrc).toContain('minmax(280px,40fr)_minmax(0,1fr)_3rem')
+    expect(appShellSrc).toContain('minmax(280px,40fr)_minmax(0,35fr)_3rem')
   })
 
   it('left expanded column uses minmax(280px,40fr)', () => {
     expect(appShellSrc).toContain('minmax(280px,40fr)')
   })
 
-  it('right expanded column uses minmax(280px,30fr)', () => {
-    expect(appShellSrc).toContain('minmax(280px,30fr)')
+  it('right expanded column uses minmax(240px,25fr)', () => {
+    expect(appShellSrc).toContain('minmax(240px,25fr)')
   })
 
   it('data-testid present on left rail for assertions', () => {
