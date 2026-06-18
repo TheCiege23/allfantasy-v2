@@ -2032,16 +2032,16 @@ function LeagueHeader({
         : 'border-[color:var(--cap-red)]/45 bg-[color:var(--cap-red)]/15 text-red-100'
   return (
     <div
-      className="sticky top-0 z-[45] flex-shrink-0 border-b border-cyan-500/[0.14] bg-[#050814]/95 shadow-[0_12px_34px_rgba(0,0,0,0.46)] backdrop-blur-xl"
+      className="sticky top-0 z-[45] isolate flex-shrink-0 border-b border-cyan-500/[0.14] bg-[#050814]/95 shadow-[0_12px_34px_rgba(0,0,0,0.46)] backdrop-blur-xl"
       data-testid="league-command-center-header"
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/[0.08] via-[#050814]/95 to-violet-500/[0.05]"
+        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-cyan-500/[0.08] via-[#050814]/95 to-violet-500/[0.05]"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-24 opacity-60"
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-24 opacity-60"
         style={{
           background:
             'radial-gradient(ellipse 80% 60% at 50% -20%, rgba(34,211,238,0.18) 0%, transparent 70%)',
