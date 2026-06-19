@@ -11,6 +11,9 @@ function read(rel: string): string {
 describe('redraft production smoke blockers', () => {
   const leagueShell = read('app/league/[leagueId]/LeagueShell.tsx')
   const leagueSettingsModal = read('app/league/[leagueId]/components/LeagueSettingsModal.tsx')
+  const rosterSettingsEditor = read('components/league-settings/RosterSettingsEditor.tsx')
+  const rosterRowControl = read('components/league-settings/roster/RosterRowControl.tsx')
+  const draftRoomShell = read('components/app/draft-room/DraftRoomShell.tsx')
   const rosterSettings = read('app/league/[leagueId]/components/settings/RosterComplianceSettingsPanel.tsx')
   const draftSettings = read('app/league/[leagueId]/components/settings/DraftSettingsPanel.tsx')
   const commissionerModal = read('components/app/draft-room/CommissionerControlCenterModal.tsx')
@@ -26,6 +29,8 @@ describe('redraft production smoke blockers', () => {
     expect(leagueShell).toContain('Open Live Draft Room')
     expect(leagueShell).toContain("onOpenLeagueSettingsModal('draft')")
     expect(leagueShell).toContain('setCommissionerSettingsOpen(false)')
+    expect(leagueSettingsModal).toContain("isCommissioner && initialActivePanel === 'draft'")
+    expect(leagueSettingsModal).toContain('setActivePanel(null)')
     expect(leagueShell).not.toContain('Open draft room setup')
   })
 
@@ -45,6 +50,20 @@ describe('redraft production smoke blockers', () => {
     expect(rosterSettings).toContain('data-testid={`roster-slot-${testKey}`}')
     expect(rosterSettings).toContain('SLOT_BADGE_CLASS')
     expect(rosterSettings).toContain('Advanced reserve settings')
+    expect(rosterSettingsEditor).toContain('SUPERFLEX: 0')
+    expect(rosterSettingsEditor).toContain('next.SUPERFLEX = Number(next.SF || 0)')
+    expect(rosterSettingsEditor).toContain("normalized === 'NFL' || normalized === 'NCAAF'")
+    expect(rosterSettingsEditor).toContain("['QB', 'RB', 'WR', 'TE', 'FLEX', 'SUPERFLEX', 'K', 'DEF', 'BN', 'IR']")
+    expect(rosterRowControl).toContain("QB: 'bg-red-400'")
+    expect(rosterRowControl).toContain("RB: 'bg-emerald-400'")
+    expect(rosterRowControl).toContain("WR: 'bg-sky-400'")
+    expect(rosterRowControl).toContain("SUPERFLEX: 'bg-violet-400'")
+  })
+
+  it('draft room uses viewport-constrained internal scrolling for the heavy player pool', () => {
+    expect(draftRoomShell).toContain('h-[100dvh]')
+    expect(draftRoomShell).toContain('overflow-hidden')
+    expect(draftRoomShell).toContain('data-testid="draft-premium-main-zones"')
   })
 
   it('regular redraft draft settings do not show dynasty carryover copy', () => {

@@ -166,8 +166,9 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
     if (!open) return
     if (initialActivePanel) {
       setMainTab('general')
-      // Deep-link into commissioner shell (e.g. Devy HQ) — do not open the card sub-panel overlay.
-      if (initialActivePanel === 'devy-command-center') {
+      // Deep-link into the commissioner control center without also opening
+      // the legacy card sub-panel overlay.
+      if (initialActivePanel === 'devy-command-center' || (isCommissioner && initialActivePanel === 'draft')) {
         setActivePanel(null)
       } else {
         setActivePanel(initialActivePanel)

@@ -155,8 +155,8 @@ export function DraftRoomShell({
 
   const surfaceClass =
     surfaceVariant === 'redraft_snake'
-      ? 'flex h-full min-h-[100dvh] flex-col bg-gradient-to-b from-[#0d1530] via-[#0b1224] to-[#070b18] text-white shadow-[inset_0_1px_0_rgba(125,211,252,0.06)]'
-      : 'flex h-full min-h-[100dvh] flex-col bg-[#0b1020] text-white'
+      ? 'flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-gradient-to-b from-[#0d1530] via-[#0b1224] to-[#070b18] text-white shadow-[inset_0_1px_0_rgba(125,211,252,0.06)]'
+      : 'flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#0b1020] text-white'
 
   return (
     <div className={surfaceClass} data-testid="draft-room-shell">
