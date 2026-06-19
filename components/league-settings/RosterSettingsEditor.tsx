@@ -43,9 +43,56 @@ function flattenSections(sections: UnifiedRosterSection[] | undefined): Record<s
   return merged
 }
 
+function getFootballSlotDefaults(sport: unknown): Record<string, number> {
+  const normalized = String(sport ?? '').trim().toUpperCase()
+  return {
+    QB: 1,
+    RB: 2,
+    WR: 2,
+    TE: 1,
+    FLEX: 1,
+    SUPERFLEX: 0,
+    K: 1,
+    DEF: 1,
+    BN: normalized === 'NCAAF' ? 8 : 6,
+    IR: 1,
+  }
+}
+
+const FOOTBALL_SLOT_ORDER = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'SUPERFLEX', 'K', 'DEF', 'BN', 'IR']
+
+function isFootballRosterSport(value: unknown): boolean {
+  const normalized = String(value ?? '').trim().toUpperCase()
+  return normalized === 'NFL' || normalized === 'NCAAF'
+}
+
+function normalizeFootballSlots(slots: Record<string, number>, sport: unknown): Record<string, number> {
+  if (!isFootballRosterSport(sport)) return slots
+  const next = { ...slots }
+  if (next.SUPERFLEX == null && next.SF != null) next.SUPERFLEX = Number(next.SF || 0)
+  if (next.DEF == null && next.DST != null) next.DEF = Number(next.DST || 0)
+  delete next.SF
+  delete next.DST
+  for (const [key, value] of Object.entries(getFootballSlotDefaults(sport))) {
+    if (next[key] == null || !Number.isFinite(Number(next[key]))) {
+      next[key] = value
+    }
+  }
+  return next
+}
+
 function buildSectionsFromSlots(slots: Record<string, number>): UnifiedRosterSection[] {
   const hasC2C = Object.keys(slots).some((k) => k.startsWith('C2C_'))
-  if (!hasC2C) return [{ key: 'primary', label: 'Primary', slots }]
+  if (!hasC2C) {
+    const ordered: Record<string, number> = {}
+    for (const key of FOOTBALL_SLOT_ORDER) {
+      if (Object.prototype.hasOwnProperty.call(slots, key)) ordered[key] = slots[key] ?? 0
+    }
+    for (const [key, value] of Object.entries(slots)) {
+      if (!Object.prototype.hasOwnProperty.call(ordered, key)) ordered[key] = value
+    }
+    return [{ key: 'primary', label: 'Primary', slots: ordered }]
+  }
 
   const primary: Record<string, number> = {}
   const c2c: Record<string, number> = {}
@@ -68,6 +115,7 @@ export function RosterSettingsEditor({ leagueId }: { leagueId: string }) {
   const [matchesTemplate, setMatchesTemplate] = useState(true)
   const [readOnlyMode, setReadOnlyMode] = useState(false)
   const [defaultTemplateKey, setDefaultTemplateKey] = useState<string | null>(null)
+  const [rosterSport, setRosterSport] = useState<string | null>(null)
   const [isCommissioner, setIsCommissioner] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -98,10 +146,14 @@ export function RosterSettingsEditor({ leagueId }: { leagueId: string }) {
         setMatchesTemplate(data.unifiedConfig?.rosterMatchesTemplate ?? true)
         setReadOnlyMode(Boolean(data.roleAwareReadOnlyMode))
         setDefaultTemplateKey((data.defaultTemplateKey as string | undefined) ?? null)
+        setRosterSport(typeof data.sport === 'string' ? data.sport : null)
         setIsCommissioner(data.isCommissioner ?? false)
         setSelectedTemplateKey(data.config?.templateKey ?? 'custom')
         const fromUnified = flattenSections(data.unifiedConfig?.rosterConfig?.sections)
-        setPendingSlots(Object.keys(fromUnified).length > 0 ? fromUnified : (data.config?.slots ?? {}))
+        setPendingSlots(normalizeFootballSlots(
+          Object.keys(fromUnified).length > 0 ? fromUnified : (data.config?.slots ?? {}),
+          data.sport,
+        ))
       })
       .catch(() => { if (active) setError('Failed to load') })
       .finally(() => { if (active) setLoading(false) })
@@ -241,7 +293,7 @@ export function RosterSettingsEditor({ leagueId }: { leagueId: string }) {
       const unified = data.unifiedConfig
       if (unified?.rosterConfig?.sections) {
         const merged = flattenSections(unified.rosterConfig.sections)
-        setPendingSlots(merged)
+        setPendingSlots(normalizeFootballSlots(merged, rosterSport))
       }
       setSelectedTemplateKey('custom')
       setWarnings(unified?.rosterWarnings ?? [])
@@ -254,7 +306,7 @@ export function RosterSettingsEditor({ leagueId }: { leagueId: string }) {
     } finally {
       setImporting(false)
     }
-  }, [importSourcePlatform, isCommissioner, leagueId, parseImportConfig])
+  }, [importSourcePlatform, isCommissioner, leagueId, parseImportConfig, rosterSport])
 
   const resetToLeagueDefault = useCallback(async () => {
     if (!isCommissioner) return
@@ -271,8 +323,12 @@ export function RosterSettingsEditor({ leagueId }: { leagueId: string }) {
       setSelectedTemplateKey(data.config?.templateKey ?? defaultTemplateKey ?? 'custom')
       setWarnings(data.unifiedConfig?.rosterWarnings ?? [])
       setMatchesTemplate(data.unifiedConfig?.rosterMatchesTemplate ?? true)
+      if (typeof data.sport === 'string') setRosterSport(data.sport)
       const fromUnified = flattenSections(data.unifiedConfig?.rosterConfig?.sections)
-      setPendingSlots(Object.keys(fromUnified).length > 0 ? fromUnified : (data.config?.slots ?? {}))
+      setPendingSlots(normalizeFootballSlots(
+        Object.keys(fromUnified).length > 0 ? fromUnified : (data.config?.slots ?? {}),
+        data.sport,
+      ))
       setSuccess(true)
       emitLeagueDraftRoomRevalidate(leagueId)
     } catch {

@@ -11,6 +11,22 @@ const CATEGORY_DOT_CLASS: Record<string, string> = {
   college: 'bg-violet-400',
 }
 
+const SLOT_DOT_CLASS: Record<string, string> = {
+  QB: 'bg-red-400',
+  RB: 'bg-emerald-400',
+  WR: 'bg-sky-400',
+  TE: 'bg-orange-400',
+  FLEX: 'bg-fuchsia-400',
+  FLX: 'bg-fuchsia-400',
+  SF: 'bg-violet-400',
+  SUPERFLEX: 'bg-violet-400',
+  K: 'bg-zinc-300',
+  DST: 'bg-slate-300',
+  DEF: 'bg-slate-300',
+  BN: 'bg-amber-400',
+  IR: 'bg-rose-400',
+}
+
 export function ReadOnlyRosterRow({
   def,
   count,
@@ -23,7 +39,7 @@ export function ReadOnlyRosterRow({
       <span className="w-[76px] text-left text-xs text-white/35">Read only</span>
       <span className="w-6 text-center font-mono text-sm text-white">{count}</span>
       <div className="flex items-center gap-2">
-        <div className={`h-3 w-3 rounded-full ${CATEGORY_DOT_CLASS[def.category] ?? 'bg-white/60'}`} />
+        <div className={`h-3 w-3 rounded-full ${SLOT_DOT_CLASS[def.key] ?? CATEGORY_DOT_CLASS[def.category] ?? 'bg-white/60'}`} />
         <span className="text-[12px] text-white/80">{def.label}</span>
       </div>
     </div>
