@@ -1,15 +1,7 @@
 import { z } from 'zod'
+import { NPC_DRAFT_PERSONALITIES } from '@/lib/live-draft-engine/npcDraftPersonalityTypes'
 
-export const NpcDraftPersonalitySchema = z.enum([
-  'BALANCED',
-  'NEED_BASED',
-  'BEST_PLAYER_AVAILABLE',
-  'YOUTH_DYNASTY_UPSIDE',
-  'WIN_NOW_VETERAN',
-  'STACK_TEAM_CORRELATION',
-  'CONTRARIAN_CHAOS',
-  'HOMER_TEAM_FAVORITE',
-])
+export const NpcDraftPersonalitySchema = z.enum(NPC_DRAFT_PERSONALITIES)
 
 export const AiStyleSchema = z.enum([
   'BPA',

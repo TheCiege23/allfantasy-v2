@@ -17,6 +17,8 @@ export interface AssignedAiTeamRow {
   aiStyle: string
   tradeAggression: string
   active: boolean
+  npcDraftPersonality?: string
+  npcFavoriteTeamAbbr?: string
 }
 
 export interface CommissionerAiDraftApiResponse {
@@ -55,6 +57,8 @@ export function buildApiResponse(
       aiStyle: a.aiStyle,
       tradeAggression: a.tradeAggression,
       active: true,
+      npcDraftPersonality: a.npcDraftPersonality,
+      npcFavoriteTeamAbbr: a.npcFavoriteTeamAbbr,
     }))
   return {
     assignedAiTeams,

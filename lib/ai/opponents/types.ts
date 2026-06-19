@@ -90,6 +90,10 @@ export type DraftPlayerOption = {
   tier: number | null
   isRookie?: boolean
   age?: number | null
+  byeWeek?: number | null
+  injuryStatus?: string | null
+  projectedFantasyPoints?: number | null
+  projectionConfidence?: number | null
   /** When set, must match `DraftDecisionContext.leagueSport` for scoring (wrong-sport guard). */
   sport?: string | null
 }

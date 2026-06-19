@@ -65,6 +65,29 @@ export interface SubmitPickResult {
   snapshot?: { sessionId: string; overall: number; pickLabel: string; rosterId: string }
 }
 
+async function resolveCurrentOverallForStalePreflight(leagueId: string): Promise<number | null> {
+  const session = await prisma.draftSession.findUnique({
+    where: { leagueId },
+    include: { picks: { orderBy: { overall: 'asc' } } },
+  })
+  if (!session) return null
+
+  const current = resolveCurrentOnTheClock({
+    totalPicks: session.rounds * session.teamCount,
+    picks: (session.picks ?? []).map((p) => ({
+      overall: p.overall,
+      playerName: p.playerName,
+      position: p.position,
+      pickMetadata: p.pickMetadata ?? null,
+    })),
+    teamCount: session.teamCount,
+    draftType: session.draftType as 'snake' | 'linear' | 'auction',
+    thirdRoundReversal: session.thirdRoundReversal,
+    slotOrder: (session.slotOrder as unknown as SlotOrderEntry[]) ?? [],
+  })
+  return current?.overall ?? null
+}
+
 /**
  * Internal: pick core logic — validation + transaction. Called under a distributed lock.
  * Not exported; external callers use the `submitPick` wrapper below.
@@ -517,6 +540,17 @@ async function _submitPickCore(input: SubmitPickInput): Promise<SubmitPickResult
  * lock so active drafts are never blocked by a Redis/DB monitoring issue.
  */
 export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResult> {
+  if (input.expectedOverall != null) {
+    const currentOverall = await resolveCurrentOverallForStalePreflight(input.leagueId)
+    if (currentOverall != null && currentOverall !== input.expectedOverall) {
+      return {
+        success: false,
+        error: 'Draft board moved; refresh and retry.',
+        code: DRAFT_PICK_STALE_OVERALL,
+      }
+    }
+  }
+
   const lockResult = await withPickLock(input.leagueId, () => _submitPickCore(input))
   if (!lockResult.acquired) {
     // Competing instance is writing — tell client to refresh and retry.
