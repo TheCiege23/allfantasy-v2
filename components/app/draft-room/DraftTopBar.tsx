@@ -946,12 +946,12 @@ export function DraftTopBar({
                     className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition duration-150 hover:bg-white/8"
                   >
                     <Settings2 className="mt-0.5 h-4 w-4 text-[#dbe1ff]" />
-                    <span>
-                      <span className="block text-sm font-semibold text-white">
-                        {isCommissioner ? t('draftRoom.topBar.editDraftSettings') : t('draftRoom.topBar.viewDraftSettings')}
+                      <span>
+                        <span className="block text-sm font-semibold text-white">
+                        {isCommissioner ? 'Draft Room Preferences' : t('draftRoom.topBar.viewDraftSettings')}
                       </span>
-                      <span className="block text-xs text-white/55">League timer, automation, and presentation</span>
-                    </span>
+                      <span className="block text-xs text-white/55">Room timer, automation, and presentation</span>
+                      </span>
                   </button>
                 ) : leagueDraftSettingsHref ? (
                   <Link
@@ -980,10 +980,10 @@ export function DraftTopBar({
                     className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition duration-150 hover:bg-white/8"
                   >
                     <Settings2 className="mt-0.5 h-4 w-4 text-[#dbe1ff]" />
-                    <span>
-                      <span className="block text-sm font-semibold text-white">Draft Settings</span>
+                      <span>
+                      <span className="block text-sm font-semibold text-white">Commissioner Control Center</span>
                       <span className="block text-xs text-white/55">
-                        Draft order, timer, scoring, and more
+                        Start, pause, resume, picks, and automation
                       </span>
                     </span>
                   </button>

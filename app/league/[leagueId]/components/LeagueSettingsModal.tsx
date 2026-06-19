@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -270,19 +270,24 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
   const leagueAvatar = leagueAvatarSrc(displayLeague.avatarUrl ?? league.avatarUrl)
   const panelTitle = activePanel ? PANEL_TITLES[activePanel] ?? 'Settings' : ''
 
+  const handleCloseAll = useCallback(() => {
+    setActivePanel(null)
+    onClose()
+  }, [onClose])
+
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
-      if (activePanel) {
-        setActivePanel(null)
-        return
-      }
-      onClose()
+      handleCloseAll()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, activePanel, onClose])
+  }, [open, handleCloseAll])
+
+  useEffect(() => {
+    if (!open) setActivePanel(null)
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -325,10 +330,7 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            onClick={() => {
-              if (activePanel) setActivePanel(null)
-              else onClose()
-            }}
+            onClick={handleCloseAll}
           />
 
           <div className="pointer-events-none fixed inset-0 z-50 flex items-end justify-center p-0 md:items-center md:p-4">
@@ -349,7 +351,7 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
                 <div className="flex items-start gap-3">
                   <button
                     type="button"
-                    onClick={onClose}
+                    onClick={handleCloseAll}
                     className="-ml-1 rounded-xl p-2 text-white/55 transition hover:bg-white/[0.08] hover:text-white"
                     aria-label="Close"
                   >
@@ -517,9 +519,9 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
                       <ArrowLeft className="h-5 w-5" />
                     </button>
                     <h2 className="min-w-0 flex-1 truncate text-[15px] font-bold text-white">{panelTitle}</h2>
-                    <button
-                      type="button"
-                      onClick={onClose}
+                  <button
+                    type="button"
+                    onClick={handleCloseAll}
                       className="rounded-lg p-2 text-white/45 hover:bg-white/[0.06] hover:text-white/80"
                       aria-label="Close settings"
                     >

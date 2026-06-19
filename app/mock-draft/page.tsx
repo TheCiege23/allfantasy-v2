@@ -17,10 +17,22 @@ export const metadata = buildMetadata(
   }
 )
 
-export default async function MockDraftPage() {
+type MockDraftPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>
+}
+
+function firstParam(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0] ?? ''
+  return value ?? ''
+}
+
+export default async function MockDraftPage({ searchParams }: MockDraftPageProps = {}) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) redirect('/login?callbackUrl=/mock-draft')
   const enabled = await isMockDraftsEnabled()
+  const resolvedSearchParams = await Promise.resolve(searchParams ?? {})
+  const initialLeagueId = firstParam(resolvedSearchParams.leagueId).trim()
+  const initialSport = firstParam(resolvedSearchParams.sport).trim()
 
   if (!enabled) {
     return (
@@ -58,10 +70,9 @@ export default async function MockDraftPage() {
               Run a full Sleeper-style AI mock room with league import, real manager slots, and shareable results.
             </p>
           </div>
-          <MockDraftSleeperRoomClient />
+          <MockDraftSleeperRoomClient initialLeagueId={initialLeagueId} initialSport={initialSport} />
         </div>
       </div>
     </>
   )
 }
-

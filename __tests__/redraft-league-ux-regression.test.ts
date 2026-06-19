@@ -45,6 +45,7 @@ describe('post-merge redraft league UX contracts', () => {
     expect(leagueShell).not.toContain('Draft room is not open yet')
     expect(leagueShell).toContain('data-testid="predraft-open-draft-room"')
     expect(leagueShell).toContain('href={`/league/${leagueId}/draft`}')
+    expect(leagueShell).toContain('Open Live Draft Room')
     expect(leagueShell).toContain("onOpenLeagueSettingsModal('draft')")
     expect(leagueShell).toContain('data-testid="predraft-start-mock-draft"')
     expect(leagueShell).toContain('Start mock draft')
@@ -62,6 +63,7 @@ describe('post-merge redraft league UX contracts', () => {
   it('settings modals have close button, overlay, Escape, and scroll-lock cleanup paths', () => {
     expect(leagueSettingsModal).toContain('aria-label="Close settings"')
     expect(leagueSettingsModal).toContain("if (e.key !== 'Escape') return")
+    expect(leagueSettingsModal).toContain('const handleCloseAll = useCallback')
     expect(leagueSettingsModal).toContain("document.body.style.overflow = 'hidden'")
     expect(leagueSettingsModal).toContain('document.body.style.overflow = prev')
     expect(leagueSettingsModal).toContain('setActivePanel(null)')

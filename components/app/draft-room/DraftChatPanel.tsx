@@ -112,7 +112,9 @@ export function DraftChatPanel({
 
   useEffect(() => {
     if (!stickBottomRef.current) return
-    bottomRef.current?.scrollIntoView({ behavior: rs ? 'auto' : 'smooth' })
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
   }, [messages, rs])
 
   useEffect(() => {
@@ -342,6 +344,7 @@ export function DraftChatPanel({
       <div
         ref={scrollRef}
         onScroll={handleScrollLog}
+        data-testid="draft-chat-scroll-root"
         className={`flex min-h-[140px] flex-1 flex-col overflow-y-auto overscroll-contain p-3 ${
           rs ? 'min-h-[180px] max-h-[min(420px,42vh)] sm:max-h-[min(480px,48vh)] bg-[#040814]' : 'max-h-[280px] sm:max-h-[220px]'
         }`}

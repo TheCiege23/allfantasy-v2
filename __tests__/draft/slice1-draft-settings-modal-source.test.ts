@@ -29,11 +29,12 @@ describe('Slice 1 — Draft Settings modal + canonical entry point', () => {
     expect(src).toMatch(/THIRD_ROUND_REVERSAL_LOCKED/)
   })
 
-  it('CommissionerControlCenterModal opens DraftSettingsModal via dedicated button', () => {
+  it('CommissionerControlCenterModal delegates to the single draft-room settings surface', () => {
     const src = read('components/app/draft-room/CommissionerControlCenterModal.tsx')
-    expect(src).toMatch(/import \{ DraftSettingsModal \} from '\.\/DraftSettingsModal'/)
+    expect(src).not.toMatch(/import \{ DraftSettingsModal \} from '\.\/DraftSettingsModal'/)
     expect(src).toMatch(/data-testid="draft-commissioner-open-draft-settings"/)
-    expect(src).toMatch(/<DraftSettingsModal leagueId=\{leagueId\}/)
+    expect(src).toMatch(/onOpenDraftRoomSettings\?\.\(\)/)
+    expect(src).not.toMatch(/<DraftSettingsModal leagueId=\{leagueId\}/)
   })
 })
 

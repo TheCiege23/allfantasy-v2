@@ -184,7 +184,7 @@ export function DraftRoomShell({
           <div
             className={cn(
               'shrink-0 overflow-auto overscroll-contain [overflow-anchor:none] border-b',
-              bottomDockExpanded ? 'max-h-[min(52vh,640px)]' : 'min-h-0 max-h-[unset] flex-1',
+              bottomDockExpanded ? 'max-h-[min(60vh,720px)]' : 'min-h-0 max-h-[unset] flex-1',
               surfaceVariant === 'redraft_snake'
                 ? 'border-cyan-500/15 bg-[linear-gradient(180deg,rgba(10,22,44,0.98),rgba(6,12,22,0.99))] shadow-[inset_0_-1px_0_rgba(34,211,238,0.06)]'
                 : 'border-white/[0.06] bg-[#0d1428]',
@@ -256,14 +256,14 @@ export function DraftRoomShell({
                 id="draft-premium-bottom-dock"
                 className={cn(
                   'flex w-full overflow-hidden transition-[max-height] duration-200 ease-out',
-                  bottomDockExpanded ? 'max-h-[min(280px,38vh)]' : 'max-h-0',
+                  bottomDockExpanded ? 'max-h-[min(220px,30vh)]' : 'max-h-0',
                 )}
                 data-testid="draft-premium-bottom-dock"
               >
                 <div
                   className={cn(
                     'flex w-full min-h-0 overflow-hidden',
-                  bottomDockExpanded ? 'h-[min(280px,38vh)] min-h-[160px]' : 'h-0 min-h-0',
+                  bottomDockExpanded ? 'h-[min(220px,30vh)] min-h-[150px]' : 'h-0 min-h-0',
                   )}
                 >
                   {bottomBar}

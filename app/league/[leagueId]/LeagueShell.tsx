@@ -849,6 +849,7 @@ export function LeagueShell({
   const closePlayerCard = () => setSelectedPlayer(null)
 
   const openLeagueSettingsModal = useCallback((initialPanel: string | null = null) => {
+    setCommissionerSettingsOpen(false)
     setSettingsInitialPanel(initialPanel)
     setSettingsOpen(true)
   }, [])
@@ -864,6 +865,7 @@ export function LeagueShell({
   const closeLeagueSettingsModal = () => {
     setSettingsOpen(false)
     setSettingsInitialPanel(null)
+    setCommissionerSettingsOpen(false)
   }
 
   const blockConceptIntroForInvitePrefill =
@@ -1694,7 +1696,7 @@ function LeagueTabRouter({
               data-testid="predraft-open-draft-room"
               className="touch-manipulation inline-flex min-h-[40px] items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-[12px] font-semibold text-cyan-200 transition hover:bg-cyan-500/20 active:bg-cyan-500/25"
             >
-              Open draft room setup
+              Open Live Draft Room
             </Link>
             {isCommissioner ? (
               <button

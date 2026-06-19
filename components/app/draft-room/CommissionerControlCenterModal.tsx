@@ -14,13 +14,11 @@ import {
   RefreshCw,
   CheckSquare,
   Upload,
-  Shield,
   Zap,
 } from 'lucide-react'
 import type { DraftUISettings, TimerMode } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { DEFAULT_TRADE_RULES } from '@/lib/commissioner-ai-draft-manager/types'
 import { DraftImportFlow } from './DraftImportFlow'
-import { DraftSettingsModal } from './DraftSettingsModal'
 import { SwapManagerModal } from './SwapManagerModal'
 import { DRAFT_ROOM } from '@/lib/analytics/eventNames'
 import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
@@ -59,6 +57,7 @@ export type CommissionerControlCenterModalProps = {
   onRunAiPick?: () => Promise<unknown> | void
   runAiPickLoading?: boolean
   onBroadcast?: () => void
+  onOpenDraftRoomSettings?: () => void
   onResync: () => void
   loading?: boolean
   commissionerAiDraft?: {
@@ -102,6 +101,7 @@ export function CommissionerControlCenterModal({
   onRunAiPick,
   runAiPickLoading = false,
   onBroadcast,
+  onOpenDraftRoomSettings,
   onResync,
   loading = false,
   commissionerAiDraft = null,
@@ -128,7 +128,6 @@ export function CommissionerControlCenterModal({
   >({})
   const [transitionLoading, setTransitionLoading] = useState(false)
   const [transitionMessage, setTransitionMessage] = useState<string | null>(null)
-  const [showDraftSettings, setShowDraftSettings] = useState(false)
   // Slice 5 — swap-managers modal state.
   const [showSwapManager, setShowSwapManager] = useState(false)
   // Slice 4 — undo-with-reason prompt state.
@@ -160,6 +159,8 @@ export function CommissionerControlCenterModal({
   const isInProgress = draftStatus === 'in_progress'
   const isPaused = draftStatus === 'paused'
   const isAuctionDraft = String(draftType ?? '').toLowerCase() === 'auction'
+  const hasDevyDraftConfig = Boolean(devyConfig?.enabled || (devyConfig?.devyRounds?.length ?? 0) > 0)
+  const hasC2CDraftConfig = Boolean(c2cConfig?.enabled || (c2cConfig?.collegeRounds?.length ?? 0) > 0)
   const pauseControlsEnabled = ui.commissionerPauseControlsEnabled ?? true
   const requestedOrphanMode = ui.orphanDrafterMode ?? orphanDrafterMode ?? 'cpu'
   const effectiveOrphanMode =
@@ -353,11 +354,15 @@ export function CommissionerControlCenterModal({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setShowDraftSettings(true)}
+            onClick={() => {
+              onOpenDraftRoomSettings?.()
+              onClose()
+            }}
             data-testid="draft-commissioner-open-draft-settings"
+            disabled={!onOpenDraftRoomSettings}
             className="rounded border border-white/15 px-2.5 py-1 text-xs font-medium text-white/80 hover:bg-white/10 hover:text-white"
           >
-            Draft Settings
+            Room Settings
           </button>
           <button
             type="button"
@@ -378,9 +383,6 @@ export function CommissionerControlCenterModal({
           </button>
         </div>
       </div>
-      {showDraftSettings ? (
-        <DraftSettingsModal leagueId={leagueId} onClose={() => setShowDraftSettings(false)} />
-      ) : null}
       {showSwapManager ? (
         <SwapManagerModal
           leagueId={leagueId}
@@ -650,16 +652,6 @@ export function CommissionerControlCenterModal({
                     >
                       <RefreshCw className="h-4 w-4" />
                       Run slow draft automation
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => run('keeper_tick', () => onAction('keeper_tick'))}
-                      disabled={loading || actionLoading !== null}
-                      data-testid="draft-commissioner-keeper-tick"
-                      className="inline-flex items-center gap-2 rounded-lg border border-emerald-300/30 bg-emerald-500/12 px-3 py-2 text-sm text-emerald-100 hover:bg-emerald-500/20 disabled:opacity-50"
-                    >
-                      <Shield className="h-4 w-4" />
-                      Run keeper automation
                     </button>
                   </>
                 )}
@@ -1129,6 +1121,7 @@ export function CommissionerControlCenterModal({
         </section>
 
         {/* Devy config */}
+        {hasDevyDraftConfig ? (
         <section>
           <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-3">Devy settings</h3>
           <div className="space-y-2 text-sm">
@@ -1181,8 +1174,10 @@ export function CommissionerControlCenterModal({
             )}
           </div>
         </section>
+        ) : null}
 
         {/* C2C config */}
+        {hasC2CDraftConfig ? (
         <section>
           <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-3">C2C settings</h3>
           <div className="space-y-2 text-sm">
@@ -1235,6 +1230,7 @@ export function CommissionerControlCenterModal({
             )}
           </div>
         </section>
+        ) : null}
 
         {/* Import draft */}
         <section>
@@ -1245,7 +1241,7 @@ export function CommissionerControlCenterModal({
               onClick={() => setShowImportFlow(true)}
               data-testid="draft-commissioner-open-import"
               className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-black/25 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
-              title="Import draft order, picks, traded picks, keepers"
+              title="Import draft order, picks, and traded picks"
             >
               <Upload className="h-4 w-4" />
               Import draft data

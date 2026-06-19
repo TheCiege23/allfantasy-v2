@@ -10,7 +10,7 @@
  * New behavior:
  *   - checkDraftPoolCacheFast: DB-only check, returns in <50 ms.
  *   - Cold path: triggerDraftPoolPrewarmBackground fires fire-and-forget,
- *     returns POOL_NOT_READY (503) immediately.
+ *     and start/resume proceed immediately.
  *   - Warm path: resume proceeds without building the pool.
  *   - pause: no pool check at all.
  *   - [draft-perf] logs at every decision point.
@@ -21,10 +21,10 @@
  *   3.  triggerDraftPoolPrewarmBackground is exported and calls ensureDraftPoolReady.
  *   4.  Controls resume uses checkDraftPoolCacheFast, NOT ensureDraftPoolReady directly.
  *   5.  Controls start uses checkDraftPoolCacheFast, NOT ensureDraftPoolReady directly.
- *   6.  Cold resume: triggerDraftPoolPrewarmBackground called + POOL_NOT_READY 503 returned.
- *   7.  Cold resume: resumeDraftSession is NOT called (timer does not start).
+ *   6.  Cold resume: triggerDraftPoolPrewarmBackground called + resume proceeds.
+ *   7.  Cold resume: resumeDraftSession IS called (timer is not stuck paused).
  *   8.  Warm resume: resumeDraftSession IS called.
- *   9.  Cold start: triggerDraftPoolPrewarmBackground called + POOL_NOT_READY 503.
+ *   9.  Cold start: triggerDraftPoolPrewarmBackground called + start proceeds.
  *   10. Warm start: startDraftSession IS called.
  *   11. Pause: no checkDraftPoolCacheFast call at all.
  *   12. [draft-perf] log emitted by checkDraftPoolCacheFast.
@@ -142,42 +142,38 @@ describe('Invariant 5: controls start uses checkDraftPoolCacheFast not ensureDra
 })
 
 // ---------------------------------------------------------------------------
-// Invariant 6-7: cold path returns POOL_NOT_READY immediately
+// Invariant 6-7: cold path warms in the background and proceeds immediately
 // ---------------------------------------------------------------------------
 
-describe('Invariant 6: cold resume triggers background prewarm + returns POOL_NOT_READY', () => {
+describe('Invariant 6: cold resume triggers background prewarm + proceeds', () => {
   it('resume cold path calls triggerDraftPoolPrewarmBackground', () => {
     const resumeIdx = controlsSrc.indexOf("if (action === 'resume')")
     const block = controlsSrc.slice(resumeIdx, resumeIdx + 900)
     expect(block).toContain('triggerDraftPoolPrewarmBackground(leagueId)')
   })
 
-  it('resume cold path returns 503 POOL_NOT_READY', () => {
+  it('resume cold path does not return POOL_NOT_READY', () => {
     const resumeIdx = controlsSrc.indexOf("if (action === 'resume')")
     const block = controlsSrc.slice(resumeIdx, resumeIdx + 900)
-    expect(block).toContain('POOL_NOT_READY')
-    expect(block).toContain('503')
+    expect(block).not.toContain('POOL_NOT_READY')
+    expect(block).not.toContain('503')
   })
 
-  it('resume cold path includes warming:true in the 503 response', () => {
+  it('resume cold path logs that it proceeds while warming', () => {
     const resumeIdx = controlsSrc.indexOf("if (action === 'resume')")
     const block = controlsSrc.slice(resumeIdx, resumeIdx + 900)
-    expect(block).toContain('warming: true')
+    expect(block).toContain('resume proceeding while pool warms')
   })
 })
 
-describe('Invariant 7: cold resume does NOT call resumeDraftSession (timer does not start)', () => {
-  it('triggerDraftPoolPrewarmBackground is called before any resumeDraftSession call in resume branch', () => {
+describe('Invariant 7: cold resume still calls resumeDraftSession (timer can recover)', () => {
+  it('triggerDraftPoolPrewarmBackground is called before resumeDraftSession in resume branch', () => {
     const resumeIdx = controlsSrc.indexOf("if (action === 'resume')")
     const block = controlsSrc.slice(resumeIdx, resumeIdx + 1000)
     const bgIdx = block.indexOf('triggerDraftPoolPrewarmBackground')
-    const returnIdx = block.indexOf('return NextResponse.json')
     const resumeDraftIdx = block.indexOf('resumeDraftSession')
-    // background trigger fires and 503 is returned BEFORE resumeDraftSession is called
     expect(bgIdx).toBeGreaterThan(-1)
-    expect(returnIdx).toBeGreaterThan(bgIdx)
-    // resumeDraftSession appears AFTER the cold-path return block (warm path only)
-    expect(resumeDraftIdx).toBeGreaterThan(returnIdx)
+    expect(resumeDraftIdx).toBeGreaterThan(bgIdx)
   })
 })
 
@@ -193,18 +189,18 @@ describe('Invariant 8: warm resume calls resumeDraftSession', () => {
   })
 })
 
-describe('Invariant 9: cold start fires background prewarm + returns POOL_NOT_READY', () => {
+describe('Invariant 9: cold start fires background prewarm + proceeds', () => {
   it('start cold path calls triggerDraftPoolPrewarmBackground', () => {
     const startIdx = controlsSrc.indexOf("if (action === 'start')")
     const block = controlsSrc.slice(startIdx, startIdx + 700)
     expect(block).toContain('triggerDraftPoolPrewarmBackground(leagueId)')
   })
 
-  it('start cold path returns 503 POOL_NOT_READY', () => {
+  it('start cold path does not return POOL_NOT_READY', () => {
     const startIdx = controlsSrc.indexOf("if (action === 'start')")
     const block = controlsSrc.slice(startIdx, startIdx + 700)
-    expect(block).toContain('POOL_NOT_READY')
-    expect(block).toContain('503')
+    expect(block).not.toContain('POOL_NOT_READY')
+    expect(block).not.toContain('503')
   })
 })
 
@@ -452,6 +448,7 @@ beforeEach(() => {
   checkDraftPoolCacheFastMock.mockResolvedValue({ warm: true })
   startDraftSessionMock.mockResolvedValue({ ok: true })
   resumeDraftSessionMock.mockResolvedValue(true)
+  buildSessionSnapshotMock.mockResolvedValue({ draftId: 'draft-1', currentPick: null })
 })
 
 describe('Behavioral: warm resume calls resumeDraftSession and does not return 503', () => {
@@ -471,22 +468,22 @@ describe('Behavioral: warm resume calls resumeDraftSession and does not return 5
   })
 })
 
-describe('Behavioral: cold resume returns 503 immediately, does NOT call resumeDraftSession', () => {
-  it('returns 503 POOL_NOT_READY when cache is cold', async () => {
+describe('Behavioral: cold resume triggers prewarm and still resumes', () => {
+  it('returns success when cache is cold', async () => {
     checkDraftPoolCacheFastMock.mockResolvedValueOnce({ warm: false })
     const [req, ctx] = makeReq('resume')
     const res = await controlsPOST(req, ctx)
-    expect(res.status).toBe(503)
+    expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.code).toBe('POOL_NOT_READY')
-    expect(body.warming).toBe(true)
+    expect(body.ok).toBe(true)
+    expect(body.action).toBe('resume')
   })
 
-  it('does NOT call resumeDraftSession when cache is cold', async () => {
+  it('calls resumeDraftSession when cache is cold', async () => {
     checkDraftPoolCacheFastMock.mockResolvedValueOnce({ warm: false })
     const [req, ctx] = makeReq('resume')
     await controlsPOST(req, ctx)
-    expect(resumeDraftSessionMock).not.toHaveBeenCalled()
+    expect(resumeDraftSessionMock).toHaveBeenCalledWith('league-1')
   })
 
   it('calls triggerDraftPoolPrewarmBackground when cache is cold', async () => {
@@ -497,21 +494,22 @@ describe('Behavioral: cold resume returns 503 immediately, does NOT call resumeD
   })
 })
 
-describe('Behavioral: cold start returns 503 immediately, does NOT call startDraftSession', () => {
-  it('returns 503 POOL_NOT_READY when cache is cold', async () => {
+describe('Behavioral: cold start triggers prewarm and still starts', () => {
+  it('returns success when cache is cold', async () => {
     checkDraftPoolCacheFastMock.mockResolvedValueOnce({ warm: false })
     const [req, ctx] = makeReq('start')
     const res = await controlsPOST(req, ctx)
-    expect(res.status).toBe(503)
+    expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.code).toBe('POOL_NOT_READY')
+    expect(body.ok).toBe(true)
+    expect(body.action).toBe('start')
   })
 
-  it('does NOT call startDraftSession when cache is cold', async () => {
+  it('calls startDraftSession when cache is cold', async () => {
     checkDraftPoolCacheFastMock.mockResolvedValueOnce({ warm: false })
     const [req, ctx] = makeReq('start')
     await controlsPOST(req, ctx)
-    expect(startDraftSessionMock).not.toHaveBeenCalled()
+    expect(startDraftSessionMock).toHaveBeenCalledWith('league-1')
   })
 })
 

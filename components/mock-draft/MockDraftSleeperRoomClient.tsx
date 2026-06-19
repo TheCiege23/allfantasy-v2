@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ManagerRoleBadge } from '@/components/ManagerRoleBadge'
 import { DEFAULT_SPORT, SUPPORTED_SPORTS, normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 
@@ -520,7 +520,16 @@ function buildPlayerContextMessage(state: DraftState, queue: string[]): string {
   ].join(' ')
 }
 
-export default function MockDraftSleeperRoomClient() {
+export default function MockDraftSleeperRoomClient({
+  initialLeagueId = '',
+  initialSport = DEFAULT_SPORT,
+}: {
+  initialLeagueId?: string
+  initialSport?: string
+}) {
+  const queryLeagueId = initialLeagueId.trim()
+  const querySport = normalizeToSupportedSport(initialSport)
+  const autoLoadedLeagueRef = useRef<string | null>(null)
   const [step, setStep] = useState<EntryStep>('entry')
   const [mode, setMode] = useState<DraftMode>('open')
   const [settings, setSettings] = useState<DraftSettings>(buildDefaultSettings())
@@ -849,7 +858,7 @@ export default function MockDraftSleeperRoomClient() {
 
     try {
       const query = new URLSearchParams()
-      const requestLeagueId = league.navigationLeagueId ?? league.unifiedLeagueId
+      const requestLeagueId = league.navigationLeagueId ?? league.unifiedLeagueId ?? league.id
       if (requestLeagueId) query.set('leagueId', requestLeagueId)
       if (league.platformLeagueId) query.set('platformLeagueId', league.platformLeagueId)
       query.set('sport', league.sport)
@@ -877,6 +886,39 @@ export default function MockDraftSleeperRoomClient() {
       setLoadingLeaguePayload(false)
     }
   }, [])
+
+  useEffect(() => {
+    if (!queryLeagueId || autoLoadedLeagueRef.current === queryLeagueId || loadingLeagues) return
+    const match = leagues.find((league) =>
+      [league.id, league.navigationLeagueId, league.unifiedLeagueId, league.platformLeagueId]
+        .filter(Boolean)
+        .some((value) => String(value) === queryLeagueId),
+    )
+    if (!match) {
+      const fallbackLeague: LeagueListItem = {
+        id: queryLeagueId,
+        name: 'League mock draft',
+        platform: 'allfantasy',
+        platformLeagueId: null,
+        sport: querySport,
+        scoring: 'Standard',
+        teamCount: 12,
+        isDynasty: false,
+        synced: true,
+        navigationLeagueId: queryLeagueId,
+        unifiedLeagueId: queryLeagueId,
+      }
+      autoLoadedLeagueRef.current = queryLeagueId
+      setMode('league')
+      setStep('league')
+      void loadLeaguePayload(fallbackLeague)
+      return
+    }
+    autoLoadedLeagueRef.current = queryLeagueId
+    setMode('league')
+    setStep('league')
+    void loadLeaguePayload(match)
+  }, [leagues, loadLeaguePayload, loadingLeagues, queryLeagueId, querySport])
 
   const loadPlayers = useCallback(async (nextSettings: DraftSettings): Promise<AvailablePlayer[]> => {
     const type = selectedLeague?.isDynasty ? 'dynasty' : 'redraft'
@@ -2134,11 +2176,23 @@ export default function MockDraftSleeperRoomClient() {
 
   function renderCompletion() {
     const myTeam = draftState?.teams.find((team) => team.isUser)
+    const sourceLeagueId =
+      leaguePayload?.leagueId ??
+      selectedLeague?.navigationLeagueId ??
+      selectedLeague?.unifiedLeagueId ??
+      selectedLeague?.id ??
+      null
+    const sourceLeaguePath = sourceLeagueId ? encodeURIComponent(sourceLeagueId) : null
+    const shareUrl = shareId && typeof window !== 'undefined'
+      ? `${window.location.origin}/mock-draft/share/${shareId}`
+      : null
     return (
       <div className="min-h-screen bg-[#070b16] px-4 py-10 text-white sm:px-6">
         <div className="mx-auto max-w-4xl rounded-[32px] border border-white/8 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.14),transparent_40%),#0a1124] p-6 sm:p-8">
           <div className="text-[11px] font-bold uppercase tracking-[0.3em] text-cyan-300">Mock Draft Complete</div>
-          <h1 className="mt-4 text-3xl font-black">Your room is finished</h1>
+          <h1 className="mt-4 text-3xl font-black">
+            {leaguePayload?.leagueName ? `Your ${leaguePayload.leagueName} mock draft is finished` : 'Your mock draft is finished'}
+          </h1>
           <p className="mt-3 text-sm text-white/55">
             {myTeam?.managerName ?? 'Your team'} finished with {myTeam?.picks.length ?? 0} picks.
           </p>
@@ -2164,6 +2218,24 @@ export default function MockDraftSleeperRoomClient() {
           ) : null}
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
+            {sourceLeaguePath ? (
+              <a
+                href={`/league/${sourceLeaguePath}`}
+                className="rounded-2xl border border-cyan-400/30 bg-cyan-500/10 px-4 py-3 text-sm font-bold text-cyan-100 hover:bg-cyan-500/18"
+                data-testid="mock-draft-back-to-league"
+              >
+                Back to League
+              </a>
+            ) : null}
+            {sourceLeaguePath ? (
+              <a
+                href={`/league/${sourceLeaguePath}/draft`}
+                className="rounded-2xl border border-violet-400/30 bg-violet-500/10 px-4 py-3 text-sm font-bold text-violet-100 hover:bg-violet-500/18"
+                data-testid="mock-draft-back-to-draft-room"
+              >
+                Back to Draft Room
+              </a>
+            ) : null}
             <button
               type="button"
               onClick={() => void shareDraft()}
@@ -2192,7 +2264,7 @@ export default function MockDraftSleeperRoomClient() {
 
           {shareId ? (
             <div className="mt-4 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-white/60">
-              Share URL: <span className="text-cyan-300">{`${window.location.origin}/mock-draft/share/${shareId}`}</span>
+              Share URL: <span className="text-cyan-300">{shareUrl}</span>
             </div>
           ) : null}
 
