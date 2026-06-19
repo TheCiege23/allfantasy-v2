@@ -99,16 +99,16 @@ export const NFL_CONFIG: SportConfigFull = {
 
   scoringCategories: NFL_SCORING_BASE,
 
-  scoringPresets: [nflPreset('PPR', 1), nflPreset('Half PPR', 0.5), nflPreset('Standard', 0)],
+  scoringPresets: [nflPreset('Half PPR', 0.5), nflPreset('PPR', 1), nflPreset('Standard', 0)],
 
   defaultRosterSlots: [
     { key: 'QB', label: 'Quarterback', eligiblePositions: ['QB'], defaultCount: 1, minCount: 1, maxCount: 3, isOptional: false },
-    { key: 'RB', label: 'Running Back', eligiblePositions: ['RB'], defaultCount: 2, minCount: 1, maxCount: 4, isOptional: false },
+    { key: 'RB', label: 'Running Back', eligiblePositions: ['RB'], defaultCount: 1, minCount: 1, maxCount: 4, isOptional: false },
     { key: 'WR', label: 'Wide Receiver', eligiblePositions: ['WR'], defaultCount: 2, minCount: 1, maxCount: 5, isOptional: false },
     { key: 'TE', label: 'Tight End', eligiblePositions: ['TE'], defaultCount: 1, minCount: 0, maxCount: 3, isOptional: false },
-    { key: 'FLEX', label: 'Flex (RB/WR/TE)', eligiblePositions: ['RB', 'WR', 'TE'], defaultCount: 1, minCount: 0, maxCount: 3, isOptional: true },
+    { key: 'FLX', label: 'Flex (RB/WR/TE)', eligiblePositions: ['RB', 'WR', 'TE'], defaultCount: 0, minCount: 0, maxCount: 3, isOptional: true },
     {
-      key: 'SUPERFLEX',
+      key: 'SF',
       label: 'Superflex (QB/RB/WR/TE)',
       eligiblePositions: ['QB', 'RB', 'WR', 'TE'],
       defaultCount: 0,
@@ -117,8 +117,8 @@ export const NFL_CONFIG: SportConfigFull = {
       isOptional: true,
       requiresToggle: 'SUPERFLEX',
     },
-    { key: 'K', label: 'Kicker', eligiblePositions: ['K'], defaultCount: 1, minCount: 0, maxCount: 2, isOptional: true },
-    { key: 'DEF', label: 'Team Defense', eligiblePositions: ['DEF'], defaultCount: 1, minCount: 0, maxCount: 2, isOptional: true },
+    { key: 'DEF', label: 'Team Defense', eligiblePositions: ['DEF', 'DST'], defaultCount: 1, minCount: 1, maxCount: 2, isOptional: false },
+    { key: 'K', label: 'Kicker', eligiblePositions: ['K'], defaultCount: 0, minCount: 0, maxCount: 2, isOptional: true },
     {
       key: 'IDP_DL',
       label: 'Defensive Line',
@@ -167,12 +167,13 @@ export const NFL_CONFIG: SportConfigFull = {
   defaultDevySlots: 0,
 
   positionEligibility: {
-    QB: ['QB', 'SUPERFLEX'],
-    RB: ['RB', 'FLEX', 'SUPERFLEX'],
-    WR: ['WR', 'FLEX', 'SUPERFLEX'],
-    TE: ['TE', 'FLEX', 'SUPERFLEX'],
+    QB: ['QB', 'SF', 'SUPERFLEX', 'SUPER_FLEX'],
+    RB: ['RB', 'FLX', 'FLEX', 'SF', 'SUPERFLEX', 'SUPER_FLEX'],
+    WR: ['WR', 'FLX', 'FLEX', 'SF', 'SUPERFLEX', 'SUPER_FLEX'],
+    TE: ['TE', 'FLX', 'FLEX', 'SF', 'SUPERFLEX', 'SUPER_FLEX'],
     K: ['K'],
     DEF: ['DEF'],
+    DST: ['DEF'],
     DE: ['IDP_DL', 'IDP_FLEX'],
     DT: ['IDP_DL', 'IDP_FLEX'],
     DL: ['IDP_DL', 'IDP_FLEX'],
@@ -235,11 +236,11 @@ export const NFL_CONFIG: SportConfigFull = {
       description: 'Extra 0.5 pts per reception for Tight Ends',
     },
     { key: 'qbCount', label: 'QB Slots', type: 'number', defaultValue: 1, min: 1, max: 3, section: 'roster' },
-    { key: 'rbCount', label: 'RB Slots', type: 'number', defaultValue: 2, min: 1, max: 4, section: 'roster' },
+    { key: 'rbCount', label: 'RB Slots', type: 'number', defaultValue: 1, min: 1, max: 4, section: 'roster' },
     { key: 'wrCount', label: 'WR Slots', type: 'number', defaultValue: 2, min: 1, max: 5, section: 'roster' },
     { key: 'teCount', label: 'TE Slots', type: 'number', defaultValue: 1, min: 0, max: 3, section: 'roster' },
-    { key: 'flexCount', label: 'FLEX Slots', type: 'number', defaultValue: 1, min: 0, max: 3, section: 'roster' },
-    { key: 'kCount', label: 'K Slots', type: 'number', defaultValue: 1, min: 0, max: 2, section: 'roster' },
+    { key: 'flexCount', label: 'FLX Slots', type: 'number', defaultValue: 0, min: 0, max: 3, section: 'roster' },
+    { key: 'kCount', label: 'K Slots', type: 'number', defaultValue: 0, min: 0, max: 2, section: 'roster' },
     { key: 'benchSlots', label: 'Bench Slots', type: 'number', defaultValue: 6, min: 3, max: 15, section: 'roster' },
     { key: 'irSlots', label: 'IR Slots', type: 'number', defaultValue: 1, min: 0, max: 5, section: 'roster' },
     {

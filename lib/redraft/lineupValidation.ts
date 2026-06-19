@@ -61,6 +61,8 @@ const INJURY_WARNING_STATUSES = new Set(['QUESTIONABLE', 'Q', 'DOUBTFUL', 'D'])
 function normalizeToken(input: string | null | undefined): string {
   const value = String(input ?? '').trim().toUpperCase().replace(/\s+/g, '_')
   if (value === 'D/ST' || value === 'DST' || value === 'DEFENSE') return 'DEF'
+  if (value === 'FLEX') return 'FLX'
+  if (value === 'SUPERFLEX' || value === 'SUPER_FLEX') return 'SF'
   if (value === 'BN') return 'BENCH'
   return value
 }

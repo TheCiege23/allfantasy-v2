@@ -23,7 +23,7 @@ function read(rel: string): string {
 }
 
 describe('D.6 — buildOrderedRosterSlots: standard offense', () => {
-  it('emits canonical order QB / RB / RB / WR / WR / TE / FLEX / DEF / K (no SF)', () => {
+  it('emits canonical order QB / RB / WR / WR / TE / FLX / DEF / K (no SF)', () => {
     const slots = buildOrderedRosterSlots({
       starterSlots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, DEF: 1, K: 1 },
       benchSlots: 0,
@@ -36,7 +36,7 @@ describe('D.6 — buildOrderedRosterSlots: standard offense', () => {
       'WR1',
       'WR2',
       'TE',
-      'FLEX',
+      'FLX',
       'DEF',
       'K',
     ])
@@ -48,8 +48,8 @@ describe('D.6 — buildOrderedRosterSlots: standard offense', () => {
       idpEnabled: false,
     })
     const labels = slots.map((s) => s.label)
-    // SF lives between FLEX and DEF.
-    expect(labels.indexOf('SF')).toBe(labels.indexOf('FLEX') + 1)
+    // SF lives between FLX and DEF.
+    expect(labels.indexOf('SF')).toBe(labels.indexOf('FLX') + 1)
     expect(labels.indexOf('SF')).toBe(labels.indexOf('DEF') - 1)
   })
 
@@ -73,7 +73,7 @@ describe('D.6 — buildOrderedRosterSlots: standard offense', () => {
 })
 
 describe('D.6 — buildOrderedRosterSlots: IDP', () => {
-  it('inserts IDP block (DL / LB / DB / IDP FLEX) between SF and DEF/K when enabled', () => {
+  it('inserts IDP block (DL / LB / DB / IDP) below DEF/K when enabled', () => {
     const slots = buildOrderedRosterSlots({
       starterSlots: {
         QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, SF: 1,
@@ -87,14 +87,14 @@ describe('D.6 — buildOrderedRosterSlots: IDP', () => {
       'RB1', 'RB2',
       'WR1', 'WR2',
       'TE',
-      'FLEX',
+      'FLX',
       'SF',
+      'DEF',
+      'K',
       'DL1', 'DL2',
       'LB1', 'LB2',
       'DB1', 'DB2',
-      'IDP FLEX',
-      'DEF',
-      'K',
+      'IDP',
     ])
   })
 
@@ -107,7 +107,7 @@ describe('D.6 — buildOrderedRosterSlots: IDP', () => {
     expect(labels).not.toContain('DL1')
     expect(labels).not.toContain('LB1')
     expect(labels).not.toContain('DB1')
-    expect(labels).not.toContain('IDP FLEX')
+    expect(labels).not.toContain('IDP')
   })
 })
 
@@ -153,13 +153,13 @@ describe('D.6 — assignPicksToSlots fills in canonical order', () => {
     const out = assignPicksToSlots(picks, standard)
     const rb1 = out.find((e) => e.slot.label === 'RB1')
     const rb2 = out.find((e) => e.slot.label === 'RB2')
-    const flex = out.find((e) => e.slot.label === 'FLEX')
+    const flex = out.find((e) => e.slot.label === 'FLX')
     expect(rb1?.pick?.playerName).toBe('Bijan Robinson')
     expect(rb2?.pick?.playerName).toBe('Jahmyr Gibbs')
     expect(flex?.pick?.playerName).toBe('Saquon Barkley') // overflow → FLEX
   })
 
-  it('FLEX accepts RB / WR / TE; SF accepts QB too', () => {
+  it('FLX accepts RB / WR / TE; SF accepts QB too', () => {
     const sfStandard = buildOrderedRosterSlots({
       starterSlots: { QB: 1, RB: 1, WR: 1, FLEX: 1, SF: 1 },
       benchSlots: 0,
@@ -172,12 +172,12 @@ describe('D.6 — assignPicksToSlots fills in canonical order', () => {
     ]
     const out = assignPicksToSlots(picks, sfStandard)
     const sf = out.find((e) => e.slot.label === 'SF')
-    const flex = out.find((e) => e.slot.label === 'FLEX')
+    const flex = out.find((e) => e.slot.label === 'FLX')
     expect(sf?.pick?.playerName).toBe('Patrick Mahomes')
     expect(flex?.pick?.playerName).toBe('CeeDee Lamb')
   })
 
-  it('IDP FLEX accepts DL / LB / DB', () => {
+  it('IDP accepts DL / LB / DB', () => {
     const idpSlots = buildOrderedRosterSlots({
       starterSlots: { DL: 1, LB: 1, 'IDP FLEX': 1 },
       idpEnabled: true,
@@ -188,7 +188,7 @@ describe('D.6 — assignPicksToSlots fills in canonical order', () => {
       { playerName: 'Defender C', position: 'DB', overall: 120 }, // → IDP FLEX
     ]
     const out = assignPicksToSlots(picks, idpSlots)
-    const idpFlex = out.find((e) => e.slot.label === 'IDP FLEX')
+    const idpFlex = out.find((e) => e.slot.label === 'IDP')
     expect(idpFlex?.pick?.playerName).toBe('Defender C')
   })
 

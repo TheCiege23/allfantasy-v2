@@ -12,6 +12,12 @@ import { getRedraftSportIntegration } from '@/lib/redraft-creation/sport-config'
 import type { SoccerPipeline } from '@/lib/redraft-creation/sport-config'
 import type { RedraftCreateBody } from '@/lib/redraft-creation/validate'
 import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigation'
+import {
+  getRedraftEngineDraftType,
+  isFootballRedraftDefaultsSport,
+  normalizeRedraftSettingsSnapshot,
+} from '@/lib/league-concepts/redraftDefaults'
+import { buildRedraftDraftSlotOrder } from '@/lib/redraft-core-contract'
 
 type Tx = Prisma.TransactionClient
 
@@ -100,15 +106,15 @@ export async function createRedraftLeagueInTransaction(
   const soccerPipeline = (body.soccerPipeline ?? null) as SoccerPipeline | null
   const integration = getRedraftSportIntegration(sport, soccerPipeline)
   const soccerPrismaVariant = soccerPipelineToPrismaVariant(sport, soccerPipeline)
+  const footballRedraft = isFootballRedraftDefaultsSport(sport)
 
-  const coreDraft = resolveCoreDraftSessionType(body.draftType)
-  const timerSeconds = draftDefaults.timer_seconds_default ?? 90
-  const pickTimerPreset = secondsToPickTimerPreset(timerSeconds)
+  const coreDraft = footballRedraft ? getRedraftEngineDraftType(body.draftType) : resolveCoreDraftSessionType(body.draftType)
+  const baseTimerSeconds = draftDefaults.timer_seconds_default ?? 90
   const isOffline = body.draftType === 'offline'
   const isAuto = body.draftType === 'auto'
 
   const initial = buildInitialLeagueSettings(sport, null)
-  const mergedSettings: Record<string, unknown> = {
+  const requestedSettings: Record<string, unknown> = {
     ...initial,
     league_type: 'redraft',
     leagueType: 'redraft',
@@ -125,6 +131,20 @@ export async function createRedraftLeagueInTransaction(
       notes: '',
     },
   }
+  const mergedSettings: Record<string, unknown> = footballRedraft
+    ? normalizeRedraftSettingsSnapshot({
+        sport,
+        draftType: body.draftType,
+        teamCount: body.teamCount,
+        settings: requestedSettings,
+      })
+    : requestedSettings
+  const draftSettings = (mergedSettings.draftSettings && typeof mergedSettings.draftSettings === 'object')
+    ? (mergedSettings.draftSettings as Record<string, unknown>)
+    : {}
+  const timerSeconds = Number(draftSettings.timerSeconds ?? mergedSettings.draft_timer_seconds ?? baseTimerSeconds) || baseTimerSeconds
+  const draftRounds = Number(draftSettings.rounds ?? mergedSettings.draft_rounds ?? draftDefaults.rounds_default) || draftDefaults.rounds_default
+  const pickTimerPreset = secondsToPickTimerPreset(timerSeconds)
 
   log?.('transaction_start', { appUserId, sport })
 
@@ -156,8 +176,9 @@ export async function createRedraftLeagueInTransaction(
       status: 'active',
       settings: mergedSettings as Prisma.InputJsonValue,
       syncStatus: 'manual',
-      scoring: null,
-      rosterSize: null,
+      scoring: footballRedraft ? String(mergedSettings.scoring_format ?? 'half_ppr') : null,
+      scoringPresetId: footballRedraft ? String(mergedSettings.scoring_preset_id ?? 'fb_half_ppr') : null,
+      rosterSize: footballRedraft ? draftRounds : null,
     },
   })
 
@@ -166,7 +187,7 @@ export async function createRedraftLeagueInTransaction(
       leagueId: league.id,
       timezone: body.timezone,
       draftType: coreDraft,
-      rounds: draftDefaults.rounds_default,
+      rounds: draftRounds,
       pickTimerPreset,
       pickTimerCustomValue: null,
       cpuAutoPick: true,
@@ -201,14 +222,18 @@ export async function createRedraftLeagueInTransaction(
       leagueId: league.id,
       commissionerTradeReviewType: body.tradeReviewMode,
       languageCode: body.language,
-      scoringTypeDefault: scoringTemplateId,
+      scoringTypeDefault: String(mergedSettings.scoring_template_id ?? scoringTemplateId),
       waiverTypeDefault: waiverDefaults.waiver_type,
-      rosterPresetKey: `default-${sport}-standard`,
-      playoffPresetKey: 'default',
+      rosterPresetKey: footballRedraft ? `default-${sport}-redraft-v2` : `default-${sport}-standard`,
+      playoffPresetKey: footballRedraft ? 'default-redraft-v2' : 'default',
       draftTimerSecondsDefault: timerSeconds,
       isPublic: false,
       allowInviteLinks: true,
-      settingsJson: { tradeReviewMode: body.tradeReviewMode },
+      settingsJson: {
+        tradeReviewMode: body.tradeReviewMode,
+        tradeSettings: mergedSettings.tradeSettings,
+        playoffSettings: mergedSettings.playoffSettings,
+      },
     },
   })
 
@@ -218,7 +243,7 @@ export async function createRedraftLeagueInTransaction(
       draftType: body.draftType,
       isOffline,
       isAuto,
-      rounds: draftDefaults.rounds_default,
+      rounds: draftRounds,
       timerSeconds,
       orderMode: coreDraft,
       auctionBudget: body.draftType === 'auction' ? getDefaultAuctionBudget(sport) : null,
@@ -226,6 +251,9 @@ export async function createRedraftLeagueInTransaction(
       configJson: {
         coreDraftSessionType: coreDraft,
         redraftWizard: true,
+        redraftCoreContractVersion: footballRedraft ? 2 : undefined,
+        mockDraftEntryAvailable: true,
+        liveDraftSetupAvailable: true,
       },
     },
   })
@@ -314,16 +342,21 @@ export async function createRedraftLeagueInTransaction(
   }
   await tx.leagueEntrySlot.createMany({ data: slotData })
 
+  const draftSlotOrder = buildRedraftDraftSlotOrder({
+    teamCount: body.teamCount,
+    rosters: [{ id: roster.id }],
+    teams: [{ ownerName: displayName, teamName: `${displayName}'s Team` }],
+  })
   const auctionBudget = body.draftType === 'auction' ? getDefaultAuctionBudget(sport) : null
   await tx.draftSession.create({
     data: {
       leagueId: league.id,
       status: isOffline ? 'pre_draft' : 'pre_draft',
       draftType: coreDraft,
-      rounds: draftDefaults.rounds_default,
+      rounds: draftRounds,
       teamCount: body.teamCount,
       timerSeconds,
-      slotOrder: [],
+      slotOrder: draftSlotOrder as Prisma.InputJsonValue,
       auctionBudgetPerTeam: auctionBudget,
       sportType: sport,
       sessionKind: 'live',

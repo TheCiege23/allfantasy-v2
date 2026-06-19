@@ -6,6 +6,7 @@ import { canAccessLeague } from '@/lib/draft/access'
 import { getDraftIdFromSettings } from '@/app/league/[leagueId]/components/league-settings-modal-utils'
 import { getOrCreateDraftSession } from '@/lib/live-draft-engine/DraftSessionService'
 import { autoMaterializeDraftForLeague } from '@/lib/league-setup/autoMaterializeDraftForLeague'
+import { ensureRedraftLeagueContract } from '@/lib/redraft-core-contract'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +34,13 @@ export default async function LeagueDraftResolverPage({
   if (!league) redirect('/dashboard')
 
   const sleeperDraftId = getDraftIdFromSettings(league.settings)
+
+  await ensureRedraftLeagueContract(leagueId).catch((error) => {
+    console.warn('[league-draft-resolver] redraft contract repair failed', {
+      leagueId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  })
 
   const { session: ds } = await getOrCreateDraftSession(leagueId)
 

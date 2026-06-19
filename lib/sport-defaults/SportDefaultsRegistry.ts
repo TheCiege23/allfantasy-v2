@@ -91,12 +91,15 @@ const LEAGUE_DEFAULTS: Record<SportType, LeagueDefaults> = {
 const ROSTER_DEFAULTS: Record<SportType, RosterDefaults> = {
   NFL: {
     sport_type: 'NFL',
-    starter_slots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 },
+    starter_slots: { QB: 1, RB: 1, WR: 2, TE: 1, DEF: 1 },
     bench_slots: 6,
     IR_slots: 1,
     taxi_slots: 0,
     devy_slots: 0,
-    flex_definitions: [{ slotName: 'FLEX', allowedPositions: ['RB', 'WR', 'TE'] }],
+    flex_definitions: [
+      { slotName: 'FLX', allowedPositions: ['RB', 'WR', 'TE'] },
+      { slotName: 'SF', allowedPositions: ['QB', 'RB', 'WR', 'TE'] },
+    ],
   },
   NBA: {
     sport_type: 'NBA',
@@ -130,12 +133,15 @@ const ROSTER_DEFAULTS: Record<SportType, RosterDefaults> = {
   },
   NCAAF: {
     sport_type: 'NCAAF',
-    starter_slots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DEF: 1 },
+    starter_slots: { QB: 1, RB: 1, WR: 2, TE: 1, DEF: 1 },
     bench_slots: 8,
     IR_slots: 1,
     taxi_slots: 0,
     devy_slots: 0,
-    flex_definitions: [{ slotName: 'FLEX', allowedPositions: ['RB', 'WR', 'TE'] }],
+    flex_definitions: [
+      { slotName: 'FLX', allowedPositions: ['RB', 'WR', 'TE'] },
+      { slotName: 'SF', allowedPositions: ['QB', 'RB', 'WR', 'TE'] },
+    ],
   },
   NCAAB: {
     sport_type: 'NCAAB',
@@ -212,7 +218,7 @@ const DRAFT_DEFAULTS: Record<SportType, DraftDefaults> = {
   NFL: {
     sport_type: 'NFL',
     draft_type: 'snake',
-    rounds_default: 15,
+    rounds_default: 12,
     timer_seconds_default: 90,
     pick_order_rules: 'snake',
     timer_defaults: { per_pick_seconds: 90, auto_pick_enabled: false },
@@ -280,7 +286,7 @@ const DRAFT_DEFAULTS: Record<SportType, DraftDefaults> = {
   NCAAF: {
     sport_type: 'NCAAF',
     draft_type: 'snake',
-    rounds_default: 20,
+    rounds_default: 14,
     timer_seconds_default: 90,
     pick_order_rules: 'snake',
     timer_defaults: { per_pick_seconds: 90, auto_pick_enabled: false },
@@ -571,15 +577,16 @@ export function getRosterDefaults(sportType: SportType, formatType?: string): Ro
     const overlay = getRosterOverlayForVariant(sportType, 'IDP')
     const starter_slots = { ...base.starter_slots, ...(overlay ?? {}) }
     delete starter_slots.DST
-    delete starter_slots.DEF
     starter_slots['DL'] = 1
+    starter_slots['LB'] = 1
     starter_slots['DB'] = 1
-    starter_slots['IDP_FLEX'] = 1
+    starter_slots['IDP'] = 1
     const flex_definitions = [
       ...base.flex_definitions,
       { slotName: 'DL', allowedPositions: ['DE', 'DT'] },
+      { slotName: 'LB', allowedPositions: ['LB', 'ILB', 'OLB'] },
       { slotName: 'DB', allowedPositions: ['CB', 'S'] },
-      { slotName: 'IDP_FLEX', allowedPositions: ['DE', 'DT', 'LB', 'CB', 'S'] },
+      { slotName: 'IDP', allowedPositions: ['DE', 'DT', 'DL', 'LB', 'ILB', 'OLB', 'CB', 'S', 'DB'] },
     ]
     return { ...base, starter_slots, flex_definitions }
   }
