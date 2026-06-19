@@ -198,7 +198,19 @@ function normalizePos(raw: string): string {
   if (u.includes('RB')) return 'RB'
   if (u.includes('WR')) return 'WR'
   if (u.includes('TE')) return 'TE'
+  if (u.includes('DL') || u.includes('DE') || u.includes('DT')) return 'DL'
+  if (u.includes('LB')) return 'LB'
+  if (u.includes('DB') || u.includes('CB') || u === 'S' || u.includes('SS') || u.includes('FS')) return 'DB'
   return 'FL'
+}
+
+function injuryPenalty(status: string | null | undefined): number {
+  const s = String(status ?? '').trim().toLowerCase()
+  if (!s) return 0
+  if (s.includes('out') || s.includes('ir') || s.includes('pup') || s.includes('suspend')) return -120
+  if (s.includes('doubt')) return -65
+  if (s.includes('question') || s === 'q') return -28
+  return 0
 }
 
 /**
@@ -229,6 +241,46 @@ export function applyNpcPersonalityScoreAdjustment(
       delta += parts.base * 0.45
       delta -= parts.need * 0.15
       break
+    case 'ADP_VALUE_HUNTER':
+      delta += parts.base * 0.55
+      if (p.adp != null && p.adp <= ctx.overallPick + 12) delta += 18
+      break
+    case 'UPSIDE_SWINGER':
+      delta += parts.reach > 0 ? parts.reach * 0.65 : 0
+      if (p.isRookie) delta += 20
+      if (p.age != null && p.age <= 24) delta += 16
+      delta += injuryPenalty(p.injuryStatus) * 0.35
+      break
+    case 'FLOOR_SAFE':
+      delta += parts.base * 0.22
+      delta -= Math.max(0, parts.reach) * 0.5
+      delta += injuryPenalty(p.injuryStatus)
+      break
+    case 'ZERO_RB':
+      if (pos === 'RB' && ctx.round <= 5) delta -= 72
+      if (pos === 'RB' && ctx.round >= 6) delta += 34
+      if (pos === 'WR' && ctx.round <= 5) delta += 42
+      break
+    case 'HERO_RB':
+      if (pos === 'RB' && (ctx.rosterCounts.RB ?? 0) < 1 && ctx.round <= 3) delta += 82
+      if (pos === 'RB' && (ctx.rosterCounts.RB ?? 0) >= 1 && ctx.round <= 5) delta -= 18
+      break
+    case 'RB_HEAVY':
+      if (pos === 'RB') delta += 48
+      break
+    case 'WR_HEAVY':
+      if (pos === 'WR') delta += 48
+      break
+    case 'ELITE_QB':
+      if (pos === 'QB' && (ctx.isSuperflex || ctx.round <= 5)) delta += 62
+      break
+    case 'LATE_QB':
+      if (pos === 'QB' && !ctx.isSuperflex && ctx.round <= 8) delta -= 80
+      if (pos === 'QB' && ctx.round >= 9) delta += 24
+      break
+    case 'EARLY_TE':
+      if (pos === 'TE' && (ctx.isTePremium || ctx.round <= 7)) delta += 56
+      break
     case 'YOUTH_DYNASTY_UPSIDE':
       if (p.isRookie) delta += 42
       if (p.age != null && p.age <= 24) delta += 28
@@ -244,6 +296,20 @@ export function applyNpcPersonalityScoreAdjustment(
       if (pt && teams.includes(pt)) delta += 55
       break
     }
+    case 'BYE_WEEK_DIVERSIFIER': {
+      const bye = p.byeWeek
+      if (bye != null && bye > 0) {
+        const currentByeCounts = ctx.available
+          .filter((row) => ctx.queue.includes(row.playerId))
+          .filter((row) => row.byeWeek === bye)
+          .length
+        if (currentByeCounts >= 2) delta -= 34
+      }
+      break
+    }
+    case 'INJURY_AVOIDANT':
+      delta += injuryPenalty(p.injuryStatus) * 1.25
+      break
     case 'CONTRARIAN_CHAOS':
       delta += Math.abs(parts.reach) * 0.35 + 18
       break
@@ -253,6 +319,9 @@ export function applyNpcPersonalityScoreAdjustment(
       if (fav && pt && fav === pt) delta += 70
       break
     }
+    case 'IDP_SPECIALIST':
+      if (pos === 'DL' || pos === 'LB' || pos === 'DB') delta += 54
+      break
     default:
       break
   }

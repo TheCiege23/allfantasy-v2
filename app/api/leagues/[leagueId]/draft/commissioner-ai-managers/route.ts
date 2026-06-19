@@ -15,6 +15,7 @@ import {
   CommissionerTradeRulesSchema,
   AiStyleSchema,
   TradeAggressionSchema,
+  NpcDraftPersonalitySchema,
   DEFAULT_TRADE_RULES,
 } from '@/lib/commissioner-ai-draft-manager/types'
 import type { SlotOrderEntry } from '@/lib/live-draft-engine/types'
@@ -101,6 +102,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ leagueId:
     active: Boolean(t.active),
     allowOutbound: t.allowOutbound === undefined ? undefined : Boolean(t.allowOutbound),
     allowInbound: t.allowInbound === undefined ? undefined : Boolean(t.allowInbound),
+    npcDraftPersonality: t.npcDraftPersonality === undefined ? undefined : NpcDraftPersonalitySchema.parse(t.npcDraftPersonality),
+    npcFavoriteTeamAbbr: t.npcFavoriteTeamAbbr === undefined ? undefined : String(t.npcFavoriteTeamAbbr).trim().toUpperCase().slice(0, 8),
   }))
 
   const validated = await validateAndMergeAssignments({
