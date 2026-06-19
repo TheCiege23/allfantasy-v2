@@ -17,9 +17,10 @@ function read(rel: string): string {
 describe('D.6.1 — DraftRightDockTabs component', () => {
   const src = read('components/app/draft-room/DraftRightDockTabs.tsx')
 
-  it('renders all three tabs (queue / roster / chat)', () => {
+  it('renders queue / roster / war room / chat tabs when a War Room body is supplied', () => {
     expect(src).toMatch(/id: 'queue', label: 'Queue'/)
     expect(src).toMatch(/id: 'roster', label: 'Roster'/)
+    expect(src).toMatch(/id: 'war_room', label: 'War Room'/)
     expect(src).toMatch(/id: 'chat', label: 'Chat'/)
     // The button uses `${testIdBase}-tab-${tab.id}` as its testid template.
     expect(src).toMatch(/data-testid=\{`\$\{testIdBase\}-tab-\$\{tab\.id\}`\}/)
@@ -33,10 +34,11 @@ describe('D.6.1 — DraftRightDockTabs component', () => {
     expect(src).toMatch(/aria-controls=\{`\$\{testIdBase\}-panel-\$\{tab\.id\}`\}/)
   })
 
-  it('keeps all three panels mounted; only the active one is visible (display:none on inactive)', () => {
+  it('keeps panels mounted; only the active one is visible (display:none on inactive)', () => {
     // Inactive panels use the `hidden` Tailwind class (display:none) — preserves React state.
     expect(src).toMatch(/effectiveTab === 'queue' \? 'flex h-full[\s\S]*?' : 'hidden'/)
     expect(src).toMatch(/effectiveTab === 'roster' \? 'flex h-full[\s\S]*?' : 'hidden'/)
+    expect(src).toMatch(/effectiveTab === 'war_room' \? 'flex h-full[\s\S]*?' : 'hidden'/)
     expect(src).toMatch(/effectiveTab === 'chat' \? 'flex h-full[\s\S]*?' : 'hidden'/)
   })
 
@@ -64,8 +66,9 @@ describe('D.6.1 — DraftRightDockTabs component', () => {
     expect(src).toMatch(/data-active-tab=\{effectiveTab\}/)
   })
 
-  it('does NOT include a War Room tab — popup stays separate', () => {
-    expect(src).not.toMatch(/war[\s-]*room/i)
+  it('exposes War Room as a dock tab without removing the popup shortcut', () => {
+    expect(src).toMatch(/warRoomBody\?: ReactNode/)
+    expect(src).toMatch(/data-testid=\{`\$\{testIdBase\}-panel-war-room`\}/)
   })
 })
 
@@ -81,9 +84,10 @@ describe('D.6.1 — DraftRoomPageClient wires the tabbed dock (replaces 3-col)',
     expect(src).toMatch(/<DraftRightDockTabs/)
   })
 
-  it('feeds the same nodes (queueStackNode / chatPanelNode / ResultsRosterPanel) into the tab bodies', () => {
+  it('feeds the same nodes plus DraftTeamPanel War Room into the tab bodies', () => {
     expect(src).toMatch(/queueBody=\{<div[\s\S]*?\{queueStackNode\}<\/div>\}/)
     expect(src).toMatch(/rosterBody=\{[\s\S]*?<ResultsRosterPanel/)
+    expect(src).toMatch(/warRoomBody=\{[\s\S]*?<DraftTeamPanel \{\.\.\.draftTeamPanelProps\}/)
     expect(src).toMatch(/chatBody=\{<div[\s\S]*?\{chatPanelNode\}<\/div>\}/)
   })
 
@@ -105,9 +109,8 @@ describe('D.6.1 — DraftRoomPageClient wires the tabbed dock (replaces 3-col)',
     expect(src).toMatch(/defaultTab="queue"/)
   })
 
-  it('War Room popup is still rendered as a SIBLING (not a tab inside the dock)', () => {
+  it('War Room popup is still rendered as a sibling shortcut', () => {
     expect(src).toMatch(/<WarRoomPopup hasNewIntel=\{warRoomHasNewIntel\}/)
-    // The popup must NOT live inside DraftRightDockTabs — assert by ordering.
     const dockIdx = src.indexOf('<DraftRightDockTabs')
     const popupIdx = src.indexOf('<WarRoomPopup')
     expect(popupIdx).toBeGreaterThan(dockIdx)
@@ -116,6 +119,7 @@ describe('D.6.1 — DraftRoomPageClient wires the tabbed dock (replaces 3-col)',
 
 describe('D.6.1 — Player pool filter bar redesign', () => {
   const src = read('components/app/draft-room/PlayerPanel.tsx')
+  const positionGroupsSrc = read('lib/draft-room/draftPoolPositionGroups.ts')
 
   it('removes the duplicate AI ADP morph on the ADP sort button (always says "ADP")', () => {
     // The morph was: `{useAiAdp ? 'AI ADP' : 'ADP'}` on the draft-sort-adp button.
@@ -151,8 +155,14 @@ describe('D.6.1 — Player pool filter bar redesign', () => {
   })
 
   it('FLEX pill includes RB/WR/TE candidates; IDP FLEX includes DL/LB/DB', () => {
-    expect(src).toMatch(/'FLEX'\) return pos === 'RB' \|\| pos === 'WR' \|\| pos === 'TE'/)
-    expect(src).toMatch(/'IDP FLEX'\) return pos === 'DL' \|\| pos === 'LB' \|\| pos === 'DB'/)
+    expect(src).toContain('poolPlayerMatchesPositionPill')
+    expect(positionGroupsSrc).toMatch(/return p === 'RB' \|\| p === 'WR' \|\| p === 'TE'/)
+    expect(positionGroupsSrc).toContain("if (v === 'IDP_FLEX')")
+    expect(positionGroupsSrc).toContain('isLikelyIdpFootballPosition(pos)')
+    expect(positionGroupsSrc).toContain("pos !== 'QB'")
+    expect(positionGroupsSrc).toContain("pos !== 'RB'")
+    expect(positionGroupsSrc).toContain("pos !== 'WR'")
+    expect(positionGroupsSrc).toContain("pos !== 'TE'")
   })
 
   it('Rookies Only toggle is always visible (no Devy/C2C gate)', () => {

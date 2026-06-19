@@ -24,6 +24,20 @@ describe('NFL redraft league shell gating', () => {
     ).toBe(true)
   })
 
+  it('accepts standard NCAAF redraft for the same core redraft setup shell', () => {
+    expect(
+      isNflRedraftCoreDashboardLeague({
+        sport: 'NCAAF',
+        leagueType: 'redraft',
+        isDynasty: false,
+        leagueVariant: null,
+        bestBallMode: false,
+        guillotineMode: false,
+        keeperPhaseActive: false,
+      }),
+    ).toBe(true)
+  })
+
   it('rejects dynasty', () => {
     expect(
       isNflRedraftCoreDashboardLeague({
@@ -47,6 +61,20 @@ describe('NFL redraft league shell gating', () => {
         leagueVariant: 'survivor',
         bestBallMode: false,
         guillotineMode: false,
+        keeperPhaseActive: false,
+      }),
+    ).toBe(false)
+  })
+
+  it('rejects guillotine mode even for NCAAF redraft', () => {
+    expect(
+      isNflRedraftCoreDashboardLeague({
+        sport: 'NCAAF',
+        leagueType: 'redraft',
+        isDynasty: false,
+        leagueVariant: null,
+        bestBallMode: false,
+        guillotineMode: true,
         keeperPhaseActive: false,
       }),
     ).toBe(false)

@@ -262,7 +262,7 @@ export function DraftRoomSettingsModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="rounded-lg border border-white/15 bg-black/30 p-2 text-white/80 hover:bg-white/10"
             aria-label="Close draft settings"
           >

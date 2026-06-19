@@ -85,7 +85,6 @@ export function DraftSettingsPanel({
   const [cpuAutoPick, setCpuAutoPick] = useState(r.cpuAutoPick !== false)
   const [aiAutoPick, setAiAutoPick] = useState(Boolean(r.aiAutoPick))
   const [alphabeticalSort, setAlphabeticalSort] = useState(Boolean(r.alphabeticalSort))
-  const [dynastyCarryover, setDynastyCarryover] = useState(Boolean(r.dynastyCarryover))
   const [draftDateLocal, setDraftDateLocal] = useState(() =>
     draftDateToLocalInput(typeof r.draftDateUtc === 'string' ? r.draftDateUtc : null),
   )
@@ -108,7 +107,6 @@ export function DraftSettingsPanel({
     setCpuAutoPick(row.cpuAutoPick !== false)
     setAiAutoPick(Boolean(row.aiAutoPick))
     setAlphabeticalSort(Boolean(row.alphabeticalSort))
-    setDynastyCarryover(Boolean(row.dynastyCarryover))
     setDraftDateLocal(draftDateToLocalInput(typeof row.draftDateUtc === 'string' ? row.draftDateUtc : null))
     setAiQueueSuggestions(row.aiQueueSuggestions !== false)
     setAiBestAvailable(row.aiBestAvailable !== false)
@@ -345,15 +343,6 @@ export function DraftSettingsPanel({
           onChange={(v) => {
             setAlphabeticalSort(v)
             void save({ alphabeticalSort: v })
-          }}
-        />
-        <SettingsToggleRow
-          label="Dynasty carryover draft defaults"
-          checked={dynastyCarryover}
-          disabled={disabled}
-          onChange={(v) => {
-            setDynastyCarryover(v)
-            void save({ dynastyCarryover: v })
           }}
         />
       </div>

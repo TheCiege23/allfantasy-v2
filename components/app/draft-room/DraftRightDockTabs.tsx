@@ -3,7 +3,8 @@
 /**
  * D.6.1 — Sleeper-style right-dock tabs.
  *
- * One shared body slot. Three tabs:  QUEUE | ROSTER | CHAT
+ * One shared body slot. Default tabs: QUEUE | ROSTER | CHAT.
+ * Draft rooms can also expose WAR ROOM when a deterministic draft-intel body is passed.
  * Only the active tab fills the dock body. Inactive tab BODIES stay mounted
  * (display:none via CSS) so:
  *   - the Roster tab keeps updating in real-time when picks land while you're
@@ -19,13 +20,14 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 
-export type DraftRightDockTab = 'queue' | 'roster' | 'chat'
+export type DraftRightDockTab = 'queue' | 'roster' | 'war_room' | 'chat'
 
 const TAB_PREF_KEY = 'af:draft-right-dock-active-tab'
 
 export interface DraftRightDockTabsProps {
   queueBody: ReactNode
   rosterBody: ReactNode
+  warRoomBody?: ReactNode
   chatBody: ReactNode
   /** Default tab when no preference stored. Spec calls for "Queue". */
   defaultTab?: DraftRightDockTab
@@ -36,15 +38,17 @@ export interface DraftRightDockTabsProps {
   testIdBase?: string
 }
 
-const TABS: ReadonlyArray<{ id: DraftRightDockTab; label: string }> = [
+const BASE_TABS: ReadonlyArray<{ id: DraftRightDockTab; label: string }> = [
   { id: 'queue', label: 'Queue' },
   { id: 'roster', label: 'Roster' },
+  { id: 'war_room', label: 'War Room' },
   { id: 'chat', label: 'Chat' },
 ]
 
 export function DraftRightDockTabs({
   queueBody,
   rosterBody,
+  warRoomBody = null,
   chatBody,
   defaultTab = 'queue',
   activeTabOverride = null,
@@ -57,7 +61,7 @@ export function DraftRightDockTabs({
   useEffect(() => {
     try {
       const v = window.localStorage.getItem(TAB_PREF_KEY)
-      if (v === 'queue' || v === 'roster' || v === 'chat') setActiveTab(v)
+      if (v === 'queue' || v === 'roster' || v === 'war_room' || v === 'chat') setActiveTab(v)
     } catch {
       /* ignore */
     }
@@ -72,7 +76,9 @@ export function DraftRightDockTabs({
     }
   }, [activeTab])
 
-  const effectiveTab = activeTabOverride ?? activeTab
+  const tabs = warRoomBody ? BASE_TABS : BASE_TABS.filter((tab) => tab.id !== 'war_room')
+  const rawEffectiveTab = activeTabOverride ?? activeTab
+  const effectiveTab = !warRoomBody && rawEffectiveTab === 'war_room' ? defaultTab : rawEffectiveTab
 
   const onSelect = useCallback((id: DraftRightDockTab) => {
     setActiveTab(id)
@@ -90,9 +96,9 @@ export function DraftRightDockTabs({
         role="tablist"
         aria-label="Draft right dock tabs"
         data-testid={`${testIdBase}-tablist`}
-        className="grid shrink-0 grid-cols-3 border-b border-white/[0.05] bg-[#101a30]"
+        className={`grid shrink-0 ${warRoomBody ? 'grid-cols-4' : 'grid-cols-3'} border-b border-white/[0.05] bg-[#101a30]`}
       >
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const isActive = effectiveTab === tab.id
           return (
             <button
@@ -155,6 +161,18 @@ export function DraftRightDockTabs({
         >
           {rosterBody}
         </div>
+        {warRoomBody ? (
+          <div
+            role="tabpanel"
+            id={`${testIdBase}-panel-war_room`}
+            aria-labelledby={`${testIdBase}-tab-war_room`}
+            data-testid={`${testIdBase}-panel-war-room`}
+            aria-hidden={effectiveTab !== 'war_room'}
+            className={effectiveTab === 'war_room' ? 'flex h-full min-h-0 flex-col overflow-hidden' : 'hidden'}
+          >
+            {warRoomBody}
+          </div>
+        ) : null}
         <div
           role="tabpanel"
           id={`${testIdBase}-panel-chat`}

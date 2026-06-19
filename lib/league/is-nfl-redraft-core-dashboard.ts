@@ -22,13 +22,15 @@ const SPECIALTY_VARIANTS = new Set([
   'devy_dynasty',
 ])
 
+const FOOTBALL_REDRAFT_CORE_SPORTS = new Set(['NFL', 'NCAAF'])
+
 /**
  * True when the league should use the simplified NFL redraft shell (Home / Roster / Matchups / …).
  * Excludes specialty formats, dynasty/keeper/devy/C2C, best ball, guillotine, etc.
  */
 export function isNflRedraftCoreDashboardLeague(league: NflRedraftCoreLeagueShape): boolean {
   const sport = normalizeToSupportedSport(String(league.sport)) ?? DEFAULT_SPORT
-  if (sport !== 'NFL') return false
+  if (!FOOTBALL_REDRAFT_CORE_SPORTS.has(sport)) return false
   if (league.isDynasty) return false
   if (league.bestBallMode) return false
   if (league.guillotineMode) return false

@@ -4403,6 +4403,11 @@ export function DraftRoomPageClient({
                     idpEnabled={Boolean(idpRosterSummary)}
                   />
                 }
+                warRoomBody={
+                  <div className="h-full min-h-0 overflow-auto bg-[linear-gradient(180deg,rgba(22,12,48,0.55),rgba(6,12,24,0.9))] px-1 py-1">
+                    <DraftTeamPanel {...draftTeamPanelProps} />
+                  </div>
+                }
                 chatBody={<div className="flex h-full min-h-0 flex-col overflow-hidden">{chatPanelNode}</div>}
                 queueCount={draftIntel?.queue?.length ?? 0}
                 defaultTab="queue"
@@ -4458,7 +4463,7 @@ export function DraftRoomPageClient({
                         : 'text-white/55 hover:bg-white/5'
                     }`}
                   >
-                    AI
+                    War Room
                   </button>
                   {isCommissioner ? (
                     <button
@@ -4494,7 +4499,7 @@ export function DraftRoomPageClient({
                       }`}
                       data-testid="draft-bottom-ai-panel"
                     >
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-200/90">Draft AI</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-200/90">War Room</p>
                       {entitlements.loading ? (
                         <div className="mt-2 rounded-lg border border-white/12 bg-black/25 p-3">
                           <p className="text-white/55">Checking access…</p>
@@ -5036,6 +5041,10 @@ export function DraftRoomPageClient({
             onRunAiPick={isCommissioner && isOrphanOnClock ? handleRunAiPick : undefined}
             runAiPickLoading={runAiPickLoading}
             onBroadcast={() => { setShowCommissionerModal(false); setShowBroadcastModal(true) }}
+            onOpenDraftRoomSettings={() => {
+              setShowCommissionerModal(false)
+              setDraftRoomSettingsOpen(true)
+            }}
             onResync={handleResync}
             loading={commissionerLoading}
             commissionerAiDraft={commissionerAiDraft ?? undefined}

@@ -178,9 +178,6 @@ export function useCommissionerActions({
           void fetchDraftPool()
           void fetchDraftAssistantContext()
         }
-        if (action === 'pause' || action === 'resume' || (action === 'start' && !usedSessionFallback)) {
-          void fetchDraftPool()
-        }
         if (action === 'resume' && !usedSessionFallback) {
           void fetchSession()
         }

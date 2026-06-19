@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 /**
  * D.6.2 — visual layout fixes after D.6.1:
- *   1. Board zone proportions match Sleeper (~52vh expanded; flex-1 collapsed).
+ *   1. Board zone proportions keep the board dominant (~60vh expanded; flex-1 collapsed).
  *   2. Collapse toggle (▲▼) between board and dock — when collapsed, board fills.
  *   3. LiveDraftStatusColumn (left of draft board) removed in live snake layout.
  *   4. Top-middle "RESUME DRAFT" button replaced with a prominent clock pill;
@@ -21,12 +21,12 @@ function read(rel: string): string {
 describe('D.6.2 — board zone proportions + dock collapse toggle (DraftRoomShell)', () => {
   const src = read('components/app/draft-room/DraftRoomShell.tsx')
 
-  it('expanded board zone caps at 52vh (was 42vh) so the board has more vertical room', () => {
-    expect(src).toMatch(/max-h-\[min\(52vh,640px\)\]/)
+  it('expanded board zone caps at 60vh so the board has more vertical room than the player pool', () => {
+    expect(src).toMatch(/max-h-\[min\(60vh,720px\)\]/)
   })
 
   it('collapsed board zone uses flex-1 + max-h-[unset] so it fills the screen when dock hides', () => {
-    expect(src).toMatch(/bottomDockExpanded \? 'max-h-\[min\(52vh,640px\)\]' : 'min-h-0 max-h-\[unset\] flex-1'/)
+    expect(src).toMatch(/bottomDockExpanded \? 'max-h-\[min\(60vh,720px\)\]' : 'min-h-0 max-h-\[unset\] flex-1'/)
   })
 
   it('collapse toggle button is rendered with the standard Sleeper-style ▲▼ chevron pair', () => {
