@@ -252,7 +252,7 @@ export const translationsEsParity: Record<string, string> = {
   "league.tab.survivorCommand": "🎛 Comando",
   "league.tab.table": "Tabla",
   "league.tab.team": "Equipo",
-  "league.tab.trades": "Traspasos",
+  "league.tab.trades": "Centro de traspasos",
   "league.tab.transfers": "Fichajes",
   "league.tab.trend": "Tendencia",
   "league.tab.zombie": "🧟 Zombie",

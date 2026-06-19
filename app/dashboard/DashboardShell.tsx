@@ -2,21 +2,28 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Bot, LayoutGrid, X } from 'lucide-react'
 import { useGeoRestriction } from '@/lib/geo/useGeoRestriction'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import AppShell from '@/app/components/AppShell'
 import type { DashboardLeagueListPayload } from '@/lib/dashboard/get-dashboard-league-list'
 import { DashboardOverview } from './components/DashboardOverview'
+import { DraftRoomOverlay } from './components/DraftRoomOverlay'
 import { LeftChatPanel } from './components/LeftChatPanel'
 import { RightControlPanel } from './components/RightControlPanel'
+import { SelectedLeagueHomePanel } from './components/SelectedLeagueHomePanel'
 import type { DashboardConnectedLeague, UserLeague } from './types'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import LanguageToggle from '@/components/i18n/LanguageToggle'
 import { useMyLeaguesRailCollapse } from '@/hooks/useMyLeaguesRailCollapse'
 import { StartSitLauncher } from '@/components/dashboard/StartSitLauncher'
 import { ThemeModeSelect } from '@/components/theme/ThemeModeSelect'
+import {
+  buildDashboardDraftOverlayUrl,
+  fetchLiveDraftSessionIdForLeague,
+  type DashboardDraftOverlayBridgePayload,
+} from '@/lib/dashboard/dashboard-draft-overlay-bridge'
 
 type DashboardShellProps = {
   userId: string
@@ -32,6 +39,34 @@ type DashboardShellProps = {
   initialLeagueList?: DashboardLeagueListPayload | null
   /** From dashboard RSC — rankings card + tier badge hydrate from same payload as `/api/user/rank`. */
   initialUserRankPayload?: Record<string, unknown> | null
+}
+
+type DraftOverlayState = {
+  leagueId: string
+  draftId?: string
+  dispersalDraftId?: string
+  iframeSrc: string | null
+  leagueName: string | null
+  loading: boolean
+  errorMessage: string | null
+}
+
+function buildDraftOverlayIframeSrc({
+  draftId,
+  dispersalDraftId,
+  leagueId,
+}: {
+  leagueId: string
+  draftId?: string
+  dispersalDraftId?: string
+}): string | null {
+  if (dispersalDraftId) {
+    return `/league/${encodeURIComponent(leagueId)}/dispersal-draft/${encodeURIComponent(dispersalDraftId)}?embed=1`
+  }
+  if (draftId) {
+    return `/draft/${encodeURIComponent(draftId)}`
+  }
+  return null
 }
 
 function toRecord(value: unknown): Record<string, unknown> | null {
@@ -292,10 +327,12 @@ function LeagueCenterContent({
   leagueId,
   league,
   leaguesLoading,
+  onDraftOverlayRequest,
 }: {
   leagueId: string
   league: UserLeague | null
   leaguesLoading: boolean
+  onDraftOverlayRequest: (payload: DashboardDraftOverlayBridgePayload) => void
 }) {
   const { t } = useLanguage()
   if (leaguesLoading) {
@@ -328,21 +365,7 @@ function LeagueCenterContent({
     )
   }
 
-  return (
-    <div className="h-full min-h-0 overflow-y-auto [scrollbar-gutter:stable]" style={{ background: 'var(--bg)' }}>
-      <div className="mx-auto w-full max-w-3xl space-y-4 px-6 py-6">
-        <p className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--muted2)' }}>
-          {t('dashboard.shell.leagueWorkspace')}
-        </p>
-        <h1 className="text-2xl font-black" style={{ color: 'var(--text)' }}>
-          {league.name}
-        </h1>
-        <p className="text-sm" style={{ color: 'var(--muted)' }}>
-          {t('dashboard.shell.leagueTabsPlaceholder')}
-        </p>
-      </div>
-    </div>
-  )
+  return <SelectedLeagueHomePanel league={league} onDraftOverlayRequest={onDraftOverlayRequest} />
 }
 
 export function DashboardShell({
@@ -357,6 +380,8 @@ export function DashboardShell({
 }: DashboardShellProps) {
   const { t } = useLanguage()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const [draftOverlay, setDraftOverlay] = useState<DraftOverlayState | null>(null)
   /**
    * Session-scoped tombstones: leagueIds that the user just deleted.
    * Filters any subsequent server response so replication lag / race conditions
@@ -411,6 +436,80 @@ export function DashboardShell({
     return found ?? null
   }, [leagues, activeLeagueId])
 
+  useEffect(() => {
+    const draftOverlayRequested = searchParams.get('draftOverlay') === '1'
+    const leagueId = searchParams.get('leagueId')?.trim() ?? ''
+    const draftId = searchParams.get('draftId')?.trim() || undefined
+    const dispersalDraftId = searchParams.get('dispersalDraftId')?.trim() || undefined
+
+    if (!draftOverlayRequested || !leagueId) {
+      setDraftOverlay(null)
+      return
+    }
+
+    const leagueName = leagues.find((l) => l.id === leagueId)?.name ?? null
+    const iframeSrc = buildDraftOverlayIframeSrc({ leagueId, draftId, dispersalDraftId })
+
+    if (iframeSrc) {
+      setDraftOverlay({
+        leagueId,
+        draftId,
+        dispersalDraftId,
+        iframeSrc,
+        leagueName,
+        loading: false,
+        errorMessage: null,
+      })
+      return
+    }
+
+    let active = true
+    setDraftOverlay({
+      leagueId,
+      iframeSrc: null,
+      leagueName,
+      loading: true,
+      errorMessage: null,
+    })
+
+    fetchLiveDraftSessionIdForLeague(leagueId)
+      .then((resolvedDraftId) => {
+        if (!active) return
+        if (!resolvedDraftId) {
+          setDraftOverlay({
+            leagueId,
+            iframeSrc: null,
+            leagueName,
+            loading: false,
+            errorMessage: 'Draft room is not available yet.',
+          })
+          return
+        }
+        setDraftOverlay({
+          leagueId,
+          draftId: resolvedDraftId,
+          iframeSrc: buildDraftOverlayIframeSrc({ leagueId, draftId: resolvedDraftId }),
+          leagueName,
+          loading: false,
+          errorMessage: null,
+        })
+      })
+      .catch(() => {
+        if (!active) return
+        setDraftOverlay({
+          leagueId,
+          iframeSrc: null,
+          leagueName,
+          loading: false,
+          errorMessage: 'Could not open the draft room.',
+        })
+      })
+
+    return () => {
+      active = false
+    }
+  }, [leagues, searchParams])
+
   const commissionerLeagues = useMemo(
     () =>
       leagues
@@ -418,6 +517,36 @@ export function DashboardShell({
         .map((l) => ({ id: l.id, name: l.name, teamCount: l.teamCount ?? 0 })),
     [leagues]
   )
+
+  const handleDraftOverlayRequest = useCallback((payload: DashboardDraftOverlayBridgePayload) => {
+    setDraftOverlay({
+      leagueId: payload.leagueId,
+      draftId: payload.draftId,
+      dispersalDraftId: payload.dispersalDraftId,
+      iframeSrc: buildDraftOverlayIframeSrc(payload),
+      leagueName: leagues.find((l) => l.id === payload.leagueId)?.name ?? null,
+      loading: !payload.draftId && !payload.dispersalDraftId,
+      errorMessage: null,
+    })
+    router.replace(
+      buildDashboardDraftOverlayUrl({
+        leagueId: payload.leagueId,
+        draftId: payload.draftId,
+        dispersalDraftId: payload.dispersalDraftId,
+      }),
+      { scroll: false },
+    )
+  }, [leagues, router])
+
+  const handleDraftOverlayClose = useCallback(() => {
+    setDraftOverlay(null)
+    router.replace('/dashboard', { scroll: false })
+  }, [router])
+
+  const handleDraftOverlayHome = useCallback(() => {
+    setDraftOverlay(null)
+    router.replace('/dashboard', { scroll: false })
+  }, [router])
 
   /** My Leagues rows use `<Link href={getLeagueListDestinationHref}>` — do not `router.push` here or it overrides tournament (and other) URLs. */
   const handleSelectLeague = useCallback((league: UserLeague | null) => {
@@ -662,6 +791,7 @@ export function DashboardShell({
               leagueId={activeLeagueId}
               league={selectedLeague}
               leaguesLoading={leaguesLoading}
+              onDraftOverlayRequest={handleDraftOverlayRequest}
             />
           ) : (
             <DashboardOverview
@@ -780,6 +910,18 @@ export function DashboardShell({
             {t('dashboard.shell.loadingLeagues')}
           </div>
         </div>
+      ) : null}
+
+      {draftOverlay ? (
+        <DraftRoomOverlay
+          leagueId={draftOverlay.leagueId}
+          iframeSrc={draftOverlay.iframeSrc}
+          leagueName={draftOverlay.leagueName}
+          loading={draftOverlay.loading}
+          errorMessage={draftOverlay.errorMessage}
+          onClose={handleDraftOverlayClose}
+          onHome={handleDraftOverlayHome}
+        />
       ) : null}
       </>
     </AppShell>

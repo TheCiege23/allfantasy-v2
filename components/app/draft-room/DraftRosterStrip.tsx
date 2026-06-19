@@ -60,7 +60,9 @@ const POSITION_COLORS: Record<string, { border: string; bg: string; text: string
   K: { border: 'border-violet-400/45', bg: 'bg-violet-500/12', text: 'text-violet-200' },
   DEF: { border: 'border-slate-400/45', bg: 'bg-slate-500/15', text: 'text-slate-200' },
   DST: { border: 'border-slate-400/45', bg: 'bg-slate-500/15', text: 'text-slate-200' },
+  FLX: { border: 'border-cyan-400/45', bg: 'bg-cyan-500/12', text: 'text-cyan-200' },
   FLEX: { border: 'border-cyan-400/45', bg: 'bg-cyan-500/12', text: 'text-cyan-200' },
+  SF: { border: 'border-fuchsia-400/45', bg: 'bg-fuchsia-500/12', text: 'text-fuchsia-200' },
   SUPERFLEX: { border: 'border-fuchsia-400/45', bg: 'bg-fuchsia-500/12', text: 'text-fuchsia-200' },
 }
 
@@ -68,11 +70,9 @@ const NEUTRAL_COLOR = { border: 'border-white/15', bg: 'bg-white/[0.04]', text: 
 
 const DEFAULT_NFL_STARTERS: Record<string, number> = {
   QB: 1,
-  RB: 2,
+  RB: 1,
   WR: 2,
   TE: 1,
-  FLEX: 1,
-  K: 1,
   DEF: 1,
 }
 
@@ -81,12 +81,16 @@ function colorForPosition(position: string): { border: string; bg: string; text:
 }
 
 function normalizeSlotKey(key: string): string {
-  return key.trim().toUpperCase().replace(/\s+/g, '')
+  const value = key.trim().toUpperCase().replace(/\s+/g, '')
+  if (value === 'FLEX') return 'FLX'
+  if (value === 'SUPERFLEX' || value === 'SUPER_FLEX') return 'SF'
+  if (value === 'DST' || value === 'D/ST' || value === 'DEFENSE') return 'DEF'
+  return value
 }
 
 function flexEligible(position: string, flexKey: string): boolean {
   const pos = position.toUpperCase()
-  if (flexKey === 'FLEX') return pos === 'RB' || pos === 'WR' || pos === 'TE'
+  if (flexKey === 'FLEX' || flexKey === 'FLX') return pos === 'RB' || pos === 'WR' || pos === 'TE'
   if (flexKey === 'SUPERFLEX' || flexKey === 'SUPER_FLEX' || flexKey === 'SF') {
     return pos === 'QB' || pos === 'RB' || pos === 'WR' || pos === 'TE'
   }

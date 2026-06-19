@@ -196,6 +196,8 @@ export function getLeagueDefaults(input: LeagueFoundationDefaultsInput): LeagueF
   )
   const canonicalSnapshot = redraftSnapshot ?? keeperSnapshot ?? devySnapshot ?? null
   const canonicalDraftSettings = (canonicalSnapshot?.draftSettings as Record<string, unknown> | undefined) ?? null
+  const canonicalWaiverSettings = (canonicalSnapshot?.waiverSettings as Record<string, unknown> | undefined) ?? null
+  const canonicalPlayoffSettings = (canonicalSnapshot?.playoffSettings as Record<string, unknown> | undefined) ?? null
   const rounds = numericOr(canonicalDraftSettings?.rounds ?? resolution.draftDefaults.rounds_default, engineDraftType === 'auction' ? 15 : 15)
   const timerSeconds = numericOr(canonicalDraftSettings?.timerSeconds ?? resolution.draftDefaults.timer_seconds_default, 90)
   const playoff = resolution.playoffDefaults as unknown as Record<string, unknown>
@@ -251,14 +253,26 @@ export function getLeagueDefaults(input: LeagueFoundationDefaultsInput): LeagueF
           : null,
       c2cConfig: format === 'c2c' ? { enabled: true, collegeRounds: [Math.max(1, rounds - 1), rounds] } : null,
     },
-    waiverSettings: waiverDefaults,
+    waiverSettings: {
+      ...waiverDefaults,
+      ...(canonicalWaiverSettings ?? {}),
+    },
     playoffSettings: {
       ...playoff,
-      playoffTeams: numericOr(playoff.playoffTeams ?? playoff.teams, format === 'guillotine' ? 1 : 6),
-      playoffStartWeek: playoff.playoffStartWeek ?? playoff.startWeek ?? (format === 'guillotine' ? null : 15),
-      playoffWeeksPerRound: playoff.playoffWeeksPerRound ?? playoff.weeksPerRound ?? 1,
-      seedingRule: playoff.seedingRule ?? playoff.seeding ?? 'record_then_points',
-      lowerBracket: playoff.lowerBracket ?? 'consolation',
+      ...(canonicalPlayoffSettings ?? {}),
+      playoffTeams: numericOr(
+        canonicalPlayoffSettings?.playoffTeams ?? playoff.playoffTeams ?? playoff.teams,
+        format === 'guillotine' ? 1 : 6,
+      ),
+      playoffStartWeek:
+        canonicalPlayoffSettings?.playoffStartWeek ??
+        playoff.playoffStartWeek ??
+        playoff.startWeek ??
+        (format === 'guillotine' ? null : 15),
+      playoffWeeksPerRound:
+        canonicalPlayoffSettings?.playoffWeeksPerRound ?? playoff.playoffWeeksPerRound ?? playoff.weeksPerRound ?? 1,
+      seedingRule: canonicalPlayoffSettings?.standingsRule ?? playoff.seedingRule ?? playoff.seeding ?? 'record_then_points',
+      lowerBracket: canonicalPlayoffSettings?.lowerBracket ?? playoff.lowerBracket ?? 'consolation',
     },
     scheduleSettings: scheduleDefaults,
     redraftContract,
@@ -275,7 +289,7 @@ export function getLeagueDefaults(input: LeagueFoundationDefaultsInput): LeagueF
     keeperPolicy: (keeperSnapshot?.keeperSettings as Record<string, unknown> | undefined) ?? undefined,
     devySettings: (devySnapshot?.devySettings as Record<string, unknown> | undefined) ?? undefined,
     devyConfig: (devySnapshot?.devyConfig as Record<string, unknown> | undefined) ?? undefined,
-    tradeSettings: ((keeperSnapshot ?? devySnapshot)?.tradeSettings as Record<string, unknown> | undefined) ?? undefined,
+    tradeSettings: ((redraftSnapshot ?? keeperSnapshot ?? devySnapshot)?.tradeSettings as Record<string, unknown> | undefined) ?? undefined,
     conceptPreset: {
       presetKey: preset?.presetKey ?? null,
       readiness: preset?.readiness ?? 'launch_ready',

@@ -18,31 +18,44 @@ export const NCAAF_CONFIG: SportConfigFull = {
     { key: 'rec', label: 'Reception', defaultPoints: 1, isToggleable: true, group: 'receiving', sport: 'NCAAF' },
     { key: 'rec_yds', label: 'Rec Yds', defaultPoints: 0.1, isToggleable: false, group: 'receiving', sport: 'NCAAF', unit: 'per_yard' },
     { key: 'rec_td', label: 'Rec TD', defaultPoints: 6, isToggleable: false, group: 'receiving', sport: 'NCAAF' },
+    { key: 'two_pt', label: '2-Point Conversion', defaultPoints: 2, isToggleable: true, group: 'special', sport: 'NCAAF' },
     { key: 'fum_lost', label: 'Fumble Lost', defaultPoints: -2, isToggleable: true, group: 'special', sport: 'NCAAF' },
+    { key: 'def_td', label: 'Defense/Special Teams TD', defaultPoints: 6, isToggleable: true, group: 'defense', sport: 'NCAAF' },
+    { key: 'def_int', label: 'Defense Interception', defaultPoints: 2, isToggleable: true, group: 'defense', sport: 'NCAAF' },
+    { key: 'def_fr', label: 'Defense Fumble Recovery', defaultPoints: 2, isToggleable: true, group: 'defense', sport: 'NCAAF' },
+    { key: 'def_sack', label: 'Defense Sack', defaultPoints: 1, isToggleable: true, group: 'defense', sport: 'NCAAF' },
   ],
 
-  scoringPresets: [{ name: 'Campus PPR', categories: [] }],
+  scoringPresets: [
+    { name: 'College Half PPR', categories: [] },
+    { name: 'College PPR', categories: [] },
+    { name: 'College Standard', categories: [] },
+  ],
 
   defaultRosterSlots: [
     { key: 'QB', label: 'Quarterback', eligiblePositions: ['QB'], defaultCount: 1, minCount: 1, maxCount: 2, isOptional: false },
-    { key: 'RB', label: 'Running Back', eligiblePositions: ['RB'], defaultCount: 2, minCount: 1, maxCount: 4, isOptional: false },
+    { key: 'RB', label: 'Running Back', eligiblePositions: ['RB'], defaultCount: 1, minCount: 1, maxCount: 4, isOptional: false },
     { key: 'WR', label: 'Wide Receiver', eligiblePositions: ['WR'], defaultCount: 2, minCount: 1, maxCount: 4, isOptional: false },
     { key: 'TE', label: 'Tight End', eligiblePositions: ['TE'], defaultCount: 1, minCount: 0, maxCount: 2, isOptional: false },
-    { key: 'FLEX', label: 'Flex', eligiblePositions: ['RB', 'WR', 'TE'], defaultCount: 1, minCount: 0, maxCount: 2, isOptional: true },
-    { key: 'K', label: 'Kicker', eligiblePositions: ['K'], defaultCount: 1, minCount: 0, maxCount: 1, isOptional: true },
+    { key: 'FLX', label: 'Flex', eligiblePositions: ['RB', 'WR', 'TE'], defaultCount: 0, minCount: 0, maxCount: 2, isOptional: true },
+    { key: 'SF', label: 'Superflex', eligiblePositions: ['QB', 'RB', 'WR', 'TE'], defaultCount: 0, minCount: 0, maxCount: 1, isOptional: true },
+    { key: 'DEF', label: 'Team Defense', eligiblePositions: ['DEF', 'DST'], defaultCount: 1, minCount: 1, maxCount: 2, isOptional: false },
+    { key: 'K', label: 'Kicker', eligiblePositions: ['K'], defaultCount: 0, minCount: 0, maxCount: 1, isOptional: true },
   ],
 
-  defaultBenchSlots: 5,
-  defaultIRSlots: 0,
+  defaultBenchSlots: 8,
+  defaultIRSlots: 1,
   defaultTaxiSlots: 0,
   defaultDevySlots: 0,
 
   positionEligibility: {
-    QB: ['QB'],
-    RB: ['RB', 'FLEX'],
-    WR: ['WR', 'FLEX'],
-    TE: ['TE', 'FLEX'],
+    QB: ['QB', 'SF', 'SUPERFLEX', 'SUPER_FLEX'],
+    RB: ['RB', 'FLX', 'FLEX', 'SF', 'SUPERFLEX', 'SUPER_FLEX'],
+    WR: ['WR', 'FLX', 'FLEX', 'SF', 'SUPERFLEX', 'SUPER_FLEX'],
+    TE: ['TE', 'FLX', 'FLEX', 'SF', 'SUPERFLEX', 'SUPER_FLEX'],
     K: ['K'],
+    DEF: ['DEF'],
+    DST: ['DEF'],
   },
 
   defaultSeasonWeeks: 13,
@@ -65,7 +78,7 @@ export const NCAAF_CONFIG: SportConfigFull = {
 
   commissionerSettings: [
     { key: 'seasonWeeks', label: 'Regular Season Weeks', type: 'number', defaultValue: 12, min: 8, max: 14, section: 'schedule', locksAfterStart: true },
-    { key: 'benchSlots', label: 'Bench Slots', type: 'number', defaultValue: 5, min: 3, max: 12, section: 'roster' },
+    { key: 'benchSlots', label: 'Bench Slots', type: 'number', defaultValue: 8, min: 3, max: 12, section: 'roster' },
   ],
 
   aiMetadata: {

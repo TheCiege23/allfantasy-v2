@@ -200,7 +200,7 @@ describe('chimmy staleness and source references', () => {
       expect.arrayContaining([
         { label: 'League Home', href: '/league/league-123' },
         { label: 'League Settings', href: '/league/league-123/settings' },
-        { label: 'Trades', href: '/league/league-123?tab=trades' },
+        { label: 'Trade Center', href: '/league/league-123?tab=trades' },
       ]),
     )
   })

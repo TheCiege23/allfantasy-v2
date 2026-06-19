@@ -54,7 +54,7 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
       with:
-        node-version: lts/*
+        node-version: 20.19.0
     - name: Install dependencies
       run: npm ci
     - name: Run foundation apply branch tests
@@ -75,25 +75,25 @@ jobs:
     # bootstrap and are intentionally NOT widened here — keep this fix
     # surgical to the lane it's known to break on.
     - name: Prepare DB schema
-      if: matrix.lane == 'referral-growth-db' || matrix.lane == 'core'
+      if: matrix.lane == 'referral-growth-db' || matrix.lane == 'onboarding-activation' || startsWith(matrix.lane, 'core-shard-')
       env:
         DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
         DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
       run: npx prisma db push --skip-generate
     - name: Apply platform-backend foundation SQL
-      if: matrix.lane == 'referral-growth-db' || matrix.lane == 'core'
+      if: matrix.lane == 'referral-growth-db' || matrix.lane == 'onboarding-activation' || startsWith(matrix.lane, 'core-shard-')
       env:
         DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
         DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
       run: npm run db:foundation:apply
     - name: Apply platform-backend supplemental indexes
-      if: matrix.lane == 'referral-growth-db' || matrix.lane == 'core'
+      if: matrix.lane == 'referral-growth-db' || startsWith(matrix.lane, 'core-shard-')
       env:
         DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
         DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
       run: npm run db:indexes:platform-backend
     - name: Verify platform-backend indexes
-      if: matrix.lane == 'referral-growth-db' || matrix.lane == 'core'
+      if: matrix.lane == 'referral-growth-db' || startsWith(matrix.lane, 'core-shard-')
       env:
         DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
         DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
@@ -159,7 +159,7 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
       with:
-        node-version: lts/*
+        node-version: 20.19.0
     - name: Install dependencies
       run: npm ci
     - name: Prepare DB schema

@@ -550,6 +550,19 @@ async function mockDraftRoomApis(
     await route.fallback()
   })
 
+  await page.route(`**/api/leagues/*/draft/*/validate-pre-draft**`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        canStartDraft: true,
+        issues: [],
+        warnings: [],
+      }),
+    })
+  })
+
   await page.route(`**/api/leagues/*/draft/events**`, async (route) => {
     resyncHits.push('events')
     await route.fulfill({
