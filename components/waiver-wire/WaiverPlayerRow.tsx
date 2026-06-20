@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { Plus, TrendingUp } from "lucide-react"
+import { Plus, TrendingUp, Loader2 } from "lucide-react"
 import { PlayerHeadshot } from "@/components/league/PlayerHeadshot"
 import { teamLogoUrl } from "@/lib/media-url"
 import { positionColor } from "@/lib/draft/positions"
@@ -30,6 +30,11 @@ type Props = {
   }
   sport?: string | null
   onAddClick: () => void
+  /** When set, the primary CTA performs an immediate free-agent add/drop instead of opening a claim. */
+  addMode?: boolean
+  onAdd?: () => void
+  /** Action-scoped loading for this row's add/claim button only. */
+  actionLoading?: boolean
   onRowClick?: () => void
   onToggleWatchlist?: () => void
   watchlisted?: boolean
@@ -97,6 +102,9 @@ export default function WaiverPlayerRow({
   player,
   sport,
   onAddClick,
+  addMode,
+  onAdd,
+  actionLoading,
   onRowClick,
   onToggleWatchlist,
   watchlisted,
@@ -229,17 +237,32 @@ export default function WaiverPlayerRow({
           <span className="inline-flex items-center justify-center rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-200">
             Pending
           </span>
+        ) : addMode ? (
+          <button
+            type="button"
+            disabled={actionLoading}
+            onClick={(e) => {
+              e.stopPropagation()
+              ;(onAdd ?? onAddClick)()
+            }}
+            data-testid={`waiver-add-${player.id}`}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-400/50 bg-emerald-500/15 px-3 py-1.5 text-xs font-medium text-emerald-100 hover:bg-emerald-500/25 disabled:opacity-50"
+          >
+            {actionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+            Add
+          </button>
         ) : (
           <button
             type="button"
+            disabled={actionLoading}
             onClick={(e) => {
               e.stopPropagation()
               onAddClick()
             }}
             data-testid={`waiver-claim-open-${player.id}`}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-cyan-400/50 bg-cyan-500/15 px-3 py-1.5 text-xs font-medium text-cyan-100 hover:bg-cyan-500/25"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-cyan-400/50 bg-cyan-500/15 px-3 py-1.5 text-xs font-medium text-cyan-100 hover:bg-cyan-500/25 disabled:opacity-50"
           >
-            <Plus className="h-3.5 w-3.5" />
+            {actionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
             Claim
           </button>
         )}
