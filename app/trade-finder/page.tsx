@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ManagerRoleBadge } from '@/components/ManagerRoleBadge'
 
@@ -164,11 +164,12 @@ function SkeletonCard() {
 
 // ─── LEAGUE GATE ──────────────────────────────────────────────────
 
-function LeagueGate({ onSelect }: { onSelect: (l: UserLeague) => void }) {
+function LeagueGate({ onSelect, requestedLeagueId }: { onSelect: (l: UserLeague) => void; requestedLeagueId?: string | null }) {
   const [leagues,  setLeagues]  = useState<UserLeague[]>([])
   const [loading,  setLoading]  = useState(true)
   const [error,    setError]    = useState<string | null>(null)
   const [hovered,  setHovered]  = useState<string | null>(null)
+  const autoSelectedRef = useRef(false)
 
   useEffect(() => {
     fetch('/api/league/list')
@@ -182,6 +183,18 @@ function LeagueGate({ onSelect }: { onSelect: (l: UserLeague) => void }) {
       )
       .finally(() => setLoading(false))
   }, [])
+
+  // Phase 4: when launched with an explicit league context (?leagueId=), skip the picker and open
+  // the trade flow directly for that league. The picker only shows for the global / AI Trade Finder
+  // entry (no league context) or when the id doesn't match a connected league.
+  useEffect(() => {
+    if (autoSelectedRef.current || !requestedLeagueId || leagues.length === 0) return
+    const match = leagues.find((l) => l.id === requestedLeagueId)
+    if (match) {
+      autoSelectedRef.current = true
+      onSelect(match)
+    }
+  }, [requestedLeagueId, leagues, onSelect])
 
   return (
     <div className="min-h-screen bg-[#07071a] text-white">
@@ -380,6 +393,8 @@ function TradeCard({
 
 export default function TradeFinderPage() {
   const router = useRouter()
+  // Phase 4: in-league entry deep-links with ?leagueId= to skip the global league picker.
+  const requestedLeagueId = useSearchParams()?.get('leagueId') ?? null
 
   // League gate
   const [league,       setLeague]       = useState<UserLeague | null>(null)
@@ -583,7 +598,7 @@ export default function TradeFinderPage() {
   }, [])
 
   // ── IF NO LEAGUE SELECTED: GATE ────────────────────────────────
-  if (!league) return <LeagueGate onSelect={setLeague}/>
+  if (!league) return <LeagueGate onSelect={setLeague} requestedLeagueId={requestedLeagueId}/>
 
   const plat = PLATFORM_CONFIG[league.platform] ?? PLATFORM_CONFIG.sleeper
 

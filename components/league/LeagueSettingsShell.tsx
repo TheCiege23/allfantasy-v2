@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Settings, ShieldCheck, Sparkles } from 'lucide-react'
+import { Settings, ShieldCheck, Sparkles } from 'lucide-react'
+import { AppModal } from '@/components/ui/AppModal'
 
 export type SettingsTabId = 'league' | 'commissioner' | 'format'
 
@@ -47,8 +48,6 @@ export function LeagueSettingsShell({
   const [tab, setTab] = useState<SettingsTabId>('league')
   const canEdit = isCommissioner || isCoCommissioner
 
-  if (!open) return null
-
   const tabs: { id: SettingsTabId; label: string; icon: typeof Settings; visible: boolean }[] = [
     { id: 'league', label: 'League', icon: Settings, visible: true },
     { id: 'commissioner', label: 'Commissioner', icon: ShieldCheck, visible: canEdit },
@@ -56,64 +55,53 @@ export function LeagueSettingsShell({
   ]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="relative flex w-full max-w-4xl max-h-[88vh] flex-col rounded-2xl border border-white/10 bg-[#0a1628] shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/10 px-5 py-3">
-          <h2 className="text-lg font-semibold text-white">League Settings</h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10">
-            <X className="h-5 w-5 text-white/60" />
-          </button>
-        </div>
-
-        {/* Tab bar */}
-        <div className="flex border-b border-white/10">
-          {tabs.filter((t) => t.visible).map((t) => {
-            const Icon = t.icon
-            return (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={`flex items-center gap-2 px-5 py-3 text-sm font-medium transition border-b-2 ${
-                  tab === t.id
-                    ? 'border-cyan-400 text-cyan-100 bg-cyan-400/5'
-                    : 'border-transparent text-white/50 hover:text-white/70'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {t.label}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-          {tab === 'league' && (
-            <div>
-              {!canEdit && (
-                <div className="mb-4 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-2.5 text-xs text-white/40">
-                  You are viewing league settings in read-only mode. Only commissioners can make changes.
-                </div>
-              )}
-              {leagueTabContent}
-            </div>
-          )}
-
-          {tab === 'commissioner' && canEdit && commissionerTabContent}
-
-          {tab === 'format' && canEdit && (
-            <div>
-              {!hasAfCommissionerSub && (
-                <div className="mb-4 rounded-lg border border-amber-400/20 bg-amber-400/5 px-4 py-2.5 text-xs text-amber-200/80">
-                  Some advanced features require an AF Commissioner Subscription. Locked features are marked with a lock icon.
-                </div>
-              )}
-              {formatTabContent}
-            </div>
-          )}
-        </div>
+    <AppModal open={open} onClose={onClose} title="League Settings" size="lg" bodyClassName="px-0 py-0" data-testid="league-settings-modal">
+      {/* Sticky tab bar inside the scroll container — stays visible while content scrolls. */}
+      <div className="sticky top-0 z-10 flex border-b border-white/10 bg-[#0a1628]">
+        {tabs.filter((t) => t.visible).map((t) => {
+          const Icon = t.icon
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex items-center gap-2 px-5 py-3 text-sm font-medium transition border-b-2 ${
+                tab === t.id
+                  ? 'border-cyan-400 text-cyan-100 bg-cyan-400/5'
+                  : 'border-transparent text-white/50 hover:text-white/70'
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {t.label}
+            </button>
+          )
+        })}
       </div>
-    </div>
+
+      <div className="px-5 py-4">
+        {tab === 'league' && (
+          <div>
+            {!canEdit && (
+              <div className="mb-4 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-2.5 text-xs text-white/40">
+                You are viewing league settings in read-only mode. Only commissioners can make changes.
+              </div>
+            )}
+            {leagueTabContent}
+          </div>
+        )}
+
+        {tab === 'commissioner' && canEdit && commissionerTabContent}
+
+        {tab === 'format' && canEdit && (
+          <div>
+            {!hasAfCommissionerSub && (
+              <div className="mb-4 rounded-lg border border-amber-400/20 bg-amber-400/5 px-4 py-2.5 text-xs text-amber-200/80">
+                Some advanced features require an AF Commissioner Subscription. Locked features are marked with a lock icon.
+              </div>
+            )}
+            {formatTabContent}
+          </div>
+        )}
+      </div>
+    </AppModal>
   )
 }
