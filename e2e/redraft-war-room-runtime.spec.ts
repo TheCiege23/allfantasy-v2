@@ -236,6 +236,19 @@ test.describe('@db Redraft War Room runtime', () => {
     expect(lineupRes.status()).toBe(200)
     const waiversRes = await page.request.post(`/api/leagues/${seed.leagueId}/redraft-war-room/waivers`, { data: {} })
     expect(waiversRes.status()).toBe(200)
+    // Step 3D: deterministic waiver intelligence — each add carries score/confidence/tier/explanation.
+    const waiversBody = (await waiversRes.json()) as {
+      waivers: { recommendedAdds: Array<{ tier: string; confidence: number; recommendationScore: number; confidenceLevel: string; explanation: string[]; faabBand: string | null }> }
+    }
+    if (waiversBody.waivers.recommendedAdds.length > 0) {
+      const add = waiversBody.waivers.recommendedAdds[0]
+      expect(['Must Add', 'Strong Add', 'Worth Considering', 'Watch List', 'Low Priority']).toContain(add.tier)
+      expect(typeof add.recommendationScore).toBe('number')
+      expect(typeof add.confidence).toBe('number')
+      expect(['high', 'medium', 'low']).toContain(add.confidenceLevel)
+      expect(Array.isArray(add.explanation)).toBe(true)
+      expect(add.explanation.length).toBeGreaterThan(0)
+    }
     const tradeFindRes = await page.request.post(`/api/leagues/${seed.leagueId}/redraft-war-room/trade-find`, { data: {} })
     expect(tradeFindRes.status()).toBe(200)
     const tradeAnalyzeRes = await page.request.post(`/api/leagues/${seed.leagueId}/redraft-war-room/trade-analyze`, {
@@ -299,7 +312,11 @@ test.describe('@db Redraft War Room runtime', () => {
     // so the waivers card shows actual add candidates (e.g. an ADP-tagged add).
     // If the pool were genuinely empty it would show a truthful provider-limited
     // message instead — accept either real adds OR the limited state, never a crash.
-    await rendered(waiversResult.getByText(/ADP|Best available|Fills|provider/i).first())
+    await rendered(
+      waiversResult
+        .getByText(/ADP|Best available|Fills|provider|Add|Score|Projected|depth need|Worth Considering|Watch List/i)
+        .first(),
+    )
 
     await waitForAction(page, 'trade-analyze', async () => {
       await page.getByTestId('redraft-war-room-tool-trade-analyze').click()

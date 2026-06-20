@@ -20,6 +20,7 @@ import type { RedraftWarRoomContext } from '@/lib/redraft-war-room/types'
 import type { TeamNeedsResult } from '@/lib/redraft-war-room/redraftTeamNeedsEngine'
 import type { LineupResult } from '@/lib/redraft-war-room/redraftLineupEngine'
 import type { WaiverResult } from '@/lib/redraft-war-room/redraftWaiverEngine'
+import { PRIORITY_GUIDANCE_LABEL, type WaiverTier } from '@/lib/redraft-war-room/redraftWaiverScoring'
 import type { TradeAnalysis, TradeFinderResult } from '@/lib/redraft-war-room/redraftTradeEngine'
 
 type Tool = 'lineup' | 'waivers' | 'trade-analyze' | 'trade-find' | null
@@ -31,6 +32,21 @@ function Flag({ children }: { children: React.ReactNode }) {
       <span>{children}</span>
     </li>
   )
+}
+
+function tierClass(tier: WaiverTier): string {
+  switch (tier) {
+    case 'Must Add':
+      return 'bg-rose-500/20 text-rose-200'
+    case 'Strong Add':
+      return 'bg-orange-500/20 text-orange-200'
+    case 'Worth Considering':
+      return 'bg-amber-500/15 text-amber-200'
+    case 'Watch List':
+      return 'bg-sky-500/15 text-sky-200'
+    default:
+      return 'bg-white/10 text-white/55'
+  }
 }
 
 export function RedraftWarRoomPanel({ leagueId }: { leagueId: string }) {
@@ -297,11 +313,51 @@ export function RedraftWarRoomPanel({ leagueId }: { leagueId: string }) {
           ) : (
             <p className="mb-1 font-semibold text-white/80">Recommended adds</p>
           )}
-          {waivers.recommendedAdds.map((a) => (
-            <p key={a.playerId}>+ {a.playerName} ({a.position}) — {a.reason}</p>
-          ))}
+          <div className="space-y-2">
+            {waivers.recommendedAdds.map((a) => (
+              <div
+                key={a.playerId}
+                className="rounded-md border border-white/[0.06] bg-white/[0.02] p-2"
+                data-testid={`redraft-war-room-waiver-add-${a.playerId}`}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-white/85">+ {a.playerName}</span>
+                  <span className="text-white/50">({a.position})</span>
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${tierClass(a.tier)}`}
+                    data-testid={`redraft-war-room-waiver-tier-${a.playerId}`}
+                  >
+                    {a.tier}
+                  </span>
+                  <span className="text-[10px] text-white/45">
+                    Score {a.recommendationScore} · Confidence {a.confidence} ({a.confidenceLevel})
+                  </span>
+                  {a.faabBand && (
+                    <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-200">
+                      FAAB {a.faabBand}
+                    </span>
+                  )}
+                  {a.priorityGuidance && (
+                    <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] text-sky-200">
+                      {PRIORITY_GUIDANCE_LABEL[a.priorityGuidance]}
+                    </span>
+                  )}
+                </div>
+                {a.explanation.length > 0 && (
+                  <ul className="mt-1 ml-3 list-disc space-y-0.5 text-[10.5px] text-white/55">
+                    {a.explanation.map((e, i) => (
+                      <li key={i}>{e}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+          {waivers.recommendedDrops.length > 0 && (
+            <p className="mt-2 mb-1 font-semibold text-white/80">Suggested drops</p>
+          )}
           {waivers.recommendedDrops.map((d) => (
-            <p key={d.playerId} className="text-white/55">– {d.playerName} ({d.position})</p>
+            <p key={d.playerId} className="text-white/55">– {d.playerName} ({d.position}) — {d.reason}</p>
           ))}
           {waivers.missingDataFlags.length > 0 && (
             <ul className="mt-2 space-y-1">

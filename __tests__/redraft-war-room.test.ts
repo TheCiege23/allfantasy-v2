@@ -226,6 +226,41 @@ describe('redraftWaiverEngine', () => {
     // FAAB suggestion present when budget known.
     expect(result.recommendedAdds[0].faabBidSuggestion).not.toBeNull()
   })
+
+  it('Step 3D: each add carries a tier, confidence, explanation, and FAAB band', () => {
+    const ctx = makeContext({
+      teams: [teamWith('r1', weakRoster(), true)],
+      availability: { ...FULL_AVAILABILITY, waiverPool: 'available' },
+      freeAgents: [
+        player({ playerId: 'qbFA', position: 'QB', weekProjection: 24 }), // fills QB hole, strong proj
+        player({ playerId: 'kFA', position: 'K', weekProjection: 6 }),
+      ],
+    })
+    const result = buildWaiverRecommendations(ctx, 'r1')
+    const add = result.recommendedAdds.find((a) => a.position === 'QB')!
+    expect(add).toBeTruthy()
+    expect(add.recommendationScore).toBeGreaterThan(0)
+    expect(add.confidence).toBeGreaterThan(0)
+    expect(['high', 'medium', 'low']).toContain(add.confidenceLevel)
+    expect(['Must Add', 'Strong Add', 'Worth Considering', 'Watch List', 'Low Priority']).toContain(add.tier)
+    expect(add.explanation.length).toBeGreaterThan(0)
+    // FAAB league (default fixture) → a band is present.
+    expect(add.faabBand).not.toBeNull()
+  })
+
+  it('Step 3D: NCAAF / missing projections reduce confidence and never block recs', () => {
+    const ctx = makeContext({
+      sport: 'NCAAF',
+      teams: [teamWith('r1', weakRoster(), true)],
+      availability: { ...FULL_AVAILABILITY, waiverPool: 'available', projections: 'missing' },
+      freeAgents: [player({ playerId: 'rbFA', position: 'RB', adp: 40 })],
+    })
+    const result = buildWaiverRecommendations(ctx, 'r1')
+    const add = result.recommendedAdds[0]
+    expect(add).toBeTruthy()
+    expect(add.confidenceLevel === 'low' || add.confidence < 60).toBe(true)
+    expect(add.explanation.some((e) => /limited data/i.test(e))).toBe(true)
+  })
 })
 
 // --- trades -------------------------------------------------------------------
