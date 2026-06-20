@@ -131,7 +131,12 @@ export function TradesTab({ league, teams }: TradesTabProps) {
 
   const badgeCount = activeCount > 0 ? activeCount : activeTrades.length
 
-  const tradeFinderHref = useMemo(() => '/trade-finder', [])
+  // Phase 4: carry the active league context so the trade flow opens directly for THIS league
+  // instead of showing the global league picker.
+  const tradeFinderHref = useMemo(
+    () => (league?.id ? `/trade-finder?leagueId=${encodeURIComponent(league.id)}` : '/trade-finder'),
+    [league?.id],
+  )
 
   const isZombie = String(league.leagueVariant ?? '').toLowerCase() === 'zombie'
   const nflRedraftTradesShell = isNflRedraftCoreDashboardFromUserLeague(league)
