@@ -16,6 +16,29 @@ import { assertRosterTransactionsAllowed } from '@/lib/roster-legality/rosterTra
 import { getLeagueRole } from "@/lib/league/permissions"
 import { mergeCommissionerOverrides } from "@/lib/waiver-wire/commissioner-claim-override"
 
+function waiverClaimErrorCode(message: string): string {
+  const m = message.toLowerCase()
+  if (m.includes("already have a pending claim")) return "CLAIM_EXISTS"
+  if (m.includes("claim not found")) return "CLAIM_NOT_FOUND"
+  if (m.includes("waiver claims are closed") || m.includes("submission window") || m.includes("waiver submissions are")) {
+    return "WAIVER_CLOSED"
+  }
+  if (m.includes("insufficient faab")) return "INSUFFICIENT_FAAB"
+  if (m.includes("minimum faab") || m.includes("faab bid")) return "INVALID_FAAB"
+  if (m.includes("roster full") || m.includes("drop required")) return "DROP_REQUIRED"
+  if (m.includes("drop player not on roster") || m.includes("invalid drop") || m.includes("undroppable")) return "INVALID_DROP"
+  if (m.includes("no longer available") || m.includes("unavailable")) return "PLAYER_UNAVAILABLE"
+  if (m.includes("locked") || m.includes("lineup lock") || m.includes("starter is locked") || m.includes("bench player is locked")) {
+    return "PLAYER_LOCKED"
+  }
+  if (m.includes("unauthorized")) return "UNAUTHORIZED"
+  return "VALIDATION_FAILED"
+}
+
+function waiverClaimError(message: string, status: number) {
+  return NextResponse.json({ error: message, code: waiverClaimErrorCode(message) }, { status })
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: { leagueId: string } }
@@ -103,10 +126,7 @@ export async function POST(
 
   const pending = await getClaimsByRoster(roster.id, "pending")
   if (pending.some((c: { addPlayerId: string }) => c.addPlayerId === String(addPlayerId))) {
-    return NextResponse.json(
-      { error: "You already have a pending claim for this player." },
-      { status: 409 }
-    )
+    return waiverClaimError("You already have a pending claim for this player.", 409)
   }
 
   try {
@@ -180,13 +200,13 @@ export async function POST(
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to create claim"
     if (message.includes("does not belong to this league") || message.includes("Roster not found")) {
-      return NextResponse.json({ error: message }, { status: 400 })
+      return waiverClaimError(message, 400)
     }
     if (message.includes("eliminated")) {
-      return NextResponse.json({ error: message }, { status: 403 })
+      return waiverClaimError(message, 403)
     }
     if (message.includes("locked")) {
-      return NextResponse.json({ error: message }, { status: 423 })
+      return waiverClaimError(message, 423)
     }
     if (
       message.includes("Claim limit") ||
@@ -212,7 +232,7 @@ export async function POST(
       message.includes("All roster moves are locked") ||
       message.includes("Weekly drop limit")
     ) {
-      return NextResponse.json({ error: message }, { status: 400 })
+      return waiverClaimError(message, 400)
     }
     throw e
   }
