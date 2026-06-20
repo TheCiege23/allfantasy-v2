@@ -7268,6 +7268,22 @@ model LeagueWaiverSettings {
   @@map("league_waiver_settings")
 }
 
+/// Per-user, per-league waiver/free-agent watchlist (Step 3C). Server-backed replacement for the
+/// previous localStorage watchlist. Standalone (no FK relation) to stay purely additive against
+/// the drifted live Neon database. Never affects ownership, claims, or eligibility.
+model WaiverWatchlist {
+  id        String   @id @default(cuid())
+  leagueId  String   @db.VarChar(64)
+  userId    String   @db.VarChar(64)
+  playerId  String   @db.VarChar(64)
+  sport     String?  @db.VarChar(16)
+  createdAt DateTime @default(now())
+
+  @@unique([leagueId, userId, playerId])
+  @@index([leagueId, userId])
+  @@map("waiver_watchlists")
+}
+
 /// Guillotine league config (1:1 with League when leagueVariant/format is guillotine).
 model GuillotineLeagueConfig {
   id                    String   @id @default(uuid())
