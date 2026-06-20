@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect, useMemo } from "react"
+import { useState, useCallback, useDeferredValue, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { RefreshCw, CheckCircle, Loader2, MessageSquare, GitCompare } from "lucide-react"
 import { toast } from "sonner"
@@ -151,6 +151,36 @@ const POSITION_BASE_VALUE: Record<string, number> = {
   DEFENDER: 2100,
 }
 
+const WAIVER_PLAYER_FETCH_LIMIT = 200
+const WAIVER_PLAYER_RENDER_LIMIT = 120
+
+function readFiniteNumber(value: unknown): number | null {
+  const num = Number(value)
+  return Number.isFinite(num) ? num : null
+}
+
+function playerNumber(row: Player, keys: string[]): number | null {
+  for (const key of keys) {
+    const own = readFiniteNumber((row as unknown as Record<string, unknown>)[key])
+    if (own != null) return own
+    const unified = row.product?.unified as unknown as Record<string, unknown> | undefined
+    const fromUnified = unified ? readFiniteNumber(unified[key]) : null
+    if (fromUnified != null) return fromUnified
+    const fromStats = row.normalizedStats ? readFiniteNumber(row.normalizedStats[key]) : null
+    if (fromStats != null) return fromStats
+    const fromProjection = row.normalizedProjections ? readFiniteNumber(row.normalizedProjections[key]) : null
+    if (fromProjection != null) return fromProjection
+  }
+  return null
+}
+
+function compareNumberWithNulls(a: number | null, b: number | null, direction: "asc" | "desc"): number {
+  if (a == null && b == null) return 0
+  if (a == null) return 1
+  if (b == null) return -1
+  return direction === "asc" ? a - b : b - a
+}
+
 function estimateWaiverCandidateValue(position: string | null, trendScore: number, watchlisted: boolean): number {
   const normalizedPosition = String(position ?? "").toUpperCase()
   const base = POSITION_BASE_VALUE[normalizedPosition] ?? 2200
@@ -198,6 +228,7 @@ export default function WaiverWirePage({
   const [statusFilter, setStatusFilter] = useState(defaultFilterState.status)
   const [teamFilter, setTeamFilter] = useState(defaultFilterState.team)
   const [sort, setSort] = useState(defaultFilterState.sort)
+  const deferredSearch = useDeferredValue(search)
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerPlayer, setDrawerPlayer] = useState<Player | null>(null)
@@ -220,7 +251,7 @@ export default function WaiverWirePage({
       const [settingsRes, claimsRes, playersRes, rosterRes, historyRes, stateRes] = await Promise.all([
         fetch(`/api/waiver-wire/leagues/${leagueId}/settings`),
         fetch(`/api/waiver-wire/leagues/${leagueId}/claims`),
-        fetch(`/api/waiver-wire/leagues/${leagueId}/players?limit=80`),
+        fetch(`/api/waiver-wire/leagues/${leagueId}/players?limit=${WAIVER_PLAYER_FETCH_LIMIT}`),
         fetch(`/api/league/roster?leagueId=${leagueId}`),
         fetch(`/api/waiver-wire/leagues/${leagueId}/claims?type=history&limit=30`),
         fetch(`/api/waiver-wire/leagues/${leagueId}/state`),
@@ -414,8 +445,8 @@ export default function WaiverWirePage({
     for (const claim of claims) {
       trendMap.set(claim.addPlayerId, (trendMap.get(claim.addPlayerId) ?? 0) + 1)
     }
-    if (search.trim()) {
-      const q = search.toLowerCase()
+    if (deferredSearch.trim()) {
+      const q = deferredSearch.toLowerCase()
       list = list.filter((p) => p.name.toLowerCase().includes(q) || p.team?.toLowerCase().includes(q))
     }
     if (positionFilter !== "ALL") {
@@ -425,6 +456,23 @@ export default function WaiverWirePage({
       const pendingIds = new Set(claims.map((c) => c.addPlayerId))
       list = list.filter((p) => !pendingIds.has(p.id))
     }
+    if (statusFilter === "on_waivers") {
+      list = list.filter((p) => p.id)
+    }
+    if (statusFilter === "free_agents") {
+      const pendingIds = new Set(claims.map((c) => c.addPlayerId))
+      list = list.filter((p) => !pendingIds.has(p.id))
+    }
+    if (statusFilter === "injured") {
+      list = list.filter((p) => {
+        const status = String(p.injuryStatus ?? "").trim().toLowerCase()
+        return Boolean(status && status !== "healthy" && status !== "active")
+      })
+    }
+    if (statusFilter === "rostered") {
+      // The route intentionally excludes rostered players from the addable pool.
+      list = []
+    }
     if (statusFilter === "watchlist") {
       list = list.filter((p) => watchlistIdSet.has(p.id))
     }
@@ -432,7 +480,48 @@ export default function WaiverWirePage({
       const t = teamFilter.toLowerCase()
       list = list.filter((p) => (p.team || "").toLowerCase() === t)
     }
-    if (sort === "name") {
+    if (sort === "projection") {
+      list.sort((a, b) => {
+        const byProjection = compareNumberWithNulls(
+          readFiniteNumber(a.projectedPoints),
+          readFiniteNumber(b.projectedPoints),
+          "desc",
+        )
+        return byProjection || a.name.localeCompare(b.name)
+      })
+    } else if (sort === "adp") {
+      list.sort((a, b) => {
+        const byAdp = compareNumberWithNulls(readFiniteNumber(a.adp ?? a.aiAdp), readFiniteNumber(b.adp ?? b.aiAdp), "asc")
+        return byAdp || a.name.localeCompare(b.name)
+      })
+    } else if (sort === "rank") {
+      list.sort((a, b) => {
+        const byRank = compareNumberWithNulls(
+          playerNumber(a, ["rank", "overallRank", "ecr", "consensusRank"]),
+          playerNumber(b, ["rank", "overallRank", "ecr", "consensusRank"]),
+          "asc",
+        )
+        return byRank || a.name.localeCompare(b.name)
+      })
+    } else if (sort === "ownership") {
+      list.sort((a, b) => {
+        const byOwnership = compareNumberWithNulls(
+          playerNumber(a, ["ownershipPercent", "rosteredPercent", "rosterPercent"]),
+          playerNumber(b, ["ownershipPercent", "rosteredPercent", "rosterPercent"]),
+          "desc",
+        )
+        return byOwnership || a.name.localeCompare(b.name)
+      })
+    } else if (sort === "recent") {
+      list.sort((a, b) => {
+        const byRecent = compareNumberWithNulls(
+          readFiniteNumber(a.fantasyPointsPerGame) ?? playerNumber(a, ["recentPoints", "lastGamePoints"]),
+          readFiniteNumber(b.fantasyPointsPerGame) ?? playerNumber(b, ["recentPoints", "lastGamePoints"]),
+          "desc",
+        )
+        return byRecent || a.name.localeCompare(b.name)
+      })
+    } else if (sort === "name") {
       list.sort((a, b) => a.name.localeCompare(b.name))
     } else if (sort === "position") {
       list.sort((a, b) => (a.position || "").localeCompare(b.position || ""))
@@ -446,7 +535,7 @@ export default function WaiverWirePage({
       })
     }
     return list
-  }, [players, history.transactions, search, positionFilter, statusFilter, teamFilter, sort, claims, watchlistIdSet])
+  }, [players, history.transactions, deferredSearch, positionFilter, statusFilter, teamFilter, sort, claims, watchlistIdSet])
 
   const trendScoreByPlayerId = useMemo(() => {
     const map = new Map<string, number>()
@@ -467,6 +556,10 @@ export default function WaiverWirePage({
       return a.name.localeCompare(b.name)
     })
   }, [filteredPlayers, trendScoreByPlayerId])
+
+  const activePlayerList = activeTab === "trending" ? trendingPlayers : filteredPlayers
+  const visiblePlayerList = activePlayerList.slice(0, WAIVER_PLAYER_RENDER_LIMIT)
+  const hiddenPlayerCount = Math.max(0, activePlayerList.length - visiblePlayerList.length)
 
   const claimedTransactions = useMemo(
     () => history.transactions.filter((tx) => Boolean(tx.addPlayerId)),
@@ -814,13 +907,13 @@ export default function WaiverWirePage({
             formatType={settings?.formatType ?? undefined}
           />
           <ul className="max-h-[480px] space-y-1.5 overflow-y-auto px-1 pb-3 pt-1 sm:px-0">
-            {(activeTab === "trending" ? trendingPlayers : filteredPlayers).length === 0 ? (
+            {activePlayerList.length === 0 ? (
               <li className="py-6 text-center text-sm text-white/50">
                 {WAIVER_EMPTY_PLAYERS_TITLE}
                 <span className="block text-xs text-white/40 mt-1">{WAIVER_EMPTY_PLAYERS_HINT}</span>
               </li>
             ) : (
-              (activeTab === "trending" ? trendingPlayers : filteredPlayers).map((p) => {
+              visiblePlayerList.map((p) => {
                 const alreadyClaimed = claims.some((c) => c.addPlayerId === p.id)
                 const row = adaptWaiverWirePlayer(p)
                 return (
@@ -834,6 +927,17 @@ export default function WaiverWirePage({
                       headshotUrl: row.displayHeadshotUrl ?? row.headshotUrl,
                       injuryStatus: row.displayInjury ?? row.injuryStatus,
                       experienceSummary: row.experienceSummary,
+                      projectedPoints: row.displayProjection,
+                      adp: row.displayAdp,
+                      aiAdp: row.displayAiAdp,
+                      byeWeek: row.displayByeWeek,
+                      rank: playerNumber(p, ["rank", "overallRank", "ecr", "consensusRank"]),
+                      ownershipPercent: playerNumber(p, ["ownershipPercent", "rosteredPercent", "rosterPercent"]),
+                      projectionSourceLabel: row.projectionSourceLabel,
+                      adpSourceLabel: row.adpSourceLabel,
+                      statsSourceLabel: row.statsSourceLabel,
+                      dataQualityLabels: row.dataQualityLabels,
+                      seasonStatsSummary: row.seasonStatsSummary,
                     }}
                     sport={settings?.sport ?? null}
                     trendScore={trendScoreByPlayerId.get(p.id) ?? 0}
@@ -853,6 +957,14 @@ export default function WaiverWirePage({
                   />
                 )
               })
+            )}
+            {hiddenPlayerCount > 0 && (
+              <li
+                className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-xs text-white/55"
+                data-testid="waiver-player-render-limit-note"
+              >
+                Showing {WAIVER_PLAYER_RENDER_LIMIT} of {activePlayerList.length}. Narrow search or filters for more players.
+              </li>
             )}
           </ul>
         </div>

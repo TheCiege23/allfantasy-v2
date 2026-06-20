@@ -4,6 +4,22 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { updateClaim, cancelClaim } from "@/lib/waiver-wire"
 
+function claimMutationErrorCode(message: string): string {
+  const m = message.toLowerCase()
+  if (m.includes("claim not found")) return "CLAIM_NOT_FOUND"
+  if (m.includes("insufficient faab")) return "INSUFFICIENT_FAAB"
+  if (m.includes("minimum faab") || m.includes("faab bid")) return "INVALID_FAAB"
+  if (m.includes("drop player not on roster") || m.includes("invalid drop") || m.includes("undroppable")) return "INVALID_DROP"
+  if (m.includes("no longer available") || m.includes("unavailable")) return "PLAYER_UNAVAILABLE"
+  if (m.includes("locked")) return "PLAYER_LOCKED"
+  if (m.includes("unauthorized")) return "UNAUTHORIZED"
+  return "VALIDATION_FAILED"
+}
+
+function claimMutationError(message: string, status: number) {
+  return NextResponse.json({ error: message, code: claimMutationErrorCode(message) }, { status })
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { leagueId: string; claimId: string } }
@@ -25,12 +41,12 @@ export async function PATCH(
       faabBid: body.faabBid,
       priorityOrder: body.priorityOrder,
     })
-    if (!updated) return NextResponse.json({ error: "Claim not found or not pending" }, { status: 404 })
+    if (!updated) return claimMutationError("Claim not found or not pending", 404)
     return NextResponse.json({ claim: updated })
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to update claim"
     if (message.includes("locked")) {
-      return NextResponse.json({ error: message }, { status: 423 })
+      return claimMutationError(message, 423)
     }
     throw e
   }
@@ -51,12 +67,12 @@ export async function DELETE(
 
   try {
     const ok = await cancelClaim(params.claimId, params.leagueId, roster.id)
-    if (!ok) return NextResponse.json({ error: "Claim not found or not pending" }, { status: 404 })
+    if (!ok) return claimMutationError("Claim not found or not pending", 404)
     return NextResponse.json({ status: "ok" })
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to cancel claim"
     if (message.includes("locked")) {
-      return NextResponse.json({ error: message }, { status: 423 })
+      return claimMutationError(message, 423)
     }
     throw e
   }

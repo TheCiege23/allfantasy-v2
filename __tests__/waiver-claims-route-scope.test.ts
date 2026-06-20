@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   getServerSession: vi.fn(),
   leagueFindFirst: vi.fn(),
   rosterFindFirst: vi.fn(),
+  createClaim: vi.fn(),
   getClaimsByRoster: vi.fn(),
   getPendingClaims: vi.fn(),
   getProcessedClaimsAndTransactions: vi.fn(),
@@ -26,7 +27,7 @@ vi.mock("@/lib/prisma", () => ({
 }))
 
 vi.mock("@/lib/waiver-wire", () => ({
-  createClaim: vi.fn(),
+  createClaim: mocks.createClaim,
   getClaimsByRoster: mocks.getClaimsByRoster,
   getEffectiveLeagueWaiverSettings: vi.fn(),
   getPendingClaims: mocks.getPendingClaims,
@@ -59,6 +60,12 @@ vi.mock("@/lib/waiver-wire/commissioner-claim-override", () => ({
 
 function req(url: string) {
   return { nextUrl: new URL(url) } as any
+}
+
+function postReq(body: unknown) {
+  return {
+    json: async () => body,
+  } as any
 }
 
 describe("waiver claim route scope", () => {
@@ -112,5 +119,22 @@ describe("waiver claim route scope", () => {
     expect(res.status).toBe(403)
     expect(body).toEqual({ error: "Forbidden" })
     expect(mocks.getPendingClaims).not.toHaveBeenCalled()
+  })
+
+  it("returns structured code for duplicate pending claim creation", async () => {
+    mocks.getClaimsByRoster.mockResolvedValueOnce([{ id: "claim-1", addPlayerId: "player-1" }])
+    const { POST } = await import("@/app/api/waiver-wire/leagues/[leagueId]/claims/route")
+
+    const res = await POST(postReq({ addPlayerId: "player-1" }), {
+      params: { leagueId: "league-1" },
+    })
+    const body = await res.json()
+
+    expect(res.status).toBe(409)
+    expect(body).toEqual({
+      error: "You already have a pending claim for this player.",
+      code: "CLAIM_EXISTS",
+    })
+    expect(mocks.createClaim).not.toHaveBeenCalled()
   })
 })
