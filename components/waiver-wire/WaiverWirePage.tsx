@@ -242,6 +242,57 @@ export default function WaiverWirePage({
   const [waiverAiError, setWaiverAiError] = useState("")
   const [waiverAiAnalysis, setWaiverAiAnalysis] = useState<WaiverEngineAnalysis | null>(null)
   const [nextRunAt, setNextRunAt] = useState<string | null>(null)
+  // Step 3B: per-row action loading + immediate add/drop drawer mode.
+  const [actionPlayerId, setActionPlayerId] = useState<string | null>(null)
+  const [immediateMode, setImmediateMode] = useState(false)
+
+  const applyRosterData = useCallback((rosterData: any) => {
+    const roster = rosterData.roster
+    setFaabRemaining(rosterData.faabRemaining ?? null)
+    setWaiverPriority(rosterData.waiverPriority ?? null)
+    const ids = getRosterPlayerIds(roster)
+    setRosterPlayerIds(ids)
+    const slotLimits = rosterData?.slotLimits as
+      | { starters?: number; bench?: number; ir?: number; taxi?: number; devy?: number }
+      | null
+      | undefined
+    const starterPositions = Array.isArray(rosterData?.starterAllowedPositions)
+      ? (rosterData.starterAllowedPositions as unknown[]).map((position) => String(position ?? "").toUpperCase()).filter(Boolean)
+      : []
+    setStarterAllowedPositions(starterPositions)
+    const capacityFromSlots = slotLimits ? Object.values(slotLimits).reduce((sum, value) => sum + (Number(value) || 0), 0) : 0
+    setRosterCapacity(capacityFromSlots > 0 ? capacityFromSlots : null)
+    const raw = Array.isArray(roster) ? roster : (roster as any)?.players ?? []
+    const withNames: Array<{ id: string; name: string | null }> = raw
+      .map((p: any) => {
+        const id = typeof p === "string" ? p : p?.id ?? p?.player_id ?? ""
+        const name = typeof p === "object" && p != null ? (p?.name ?? p?.displayName ?? null) : null
+        return { id: String(id), name: name != null ? String(name) : null }
+      })
+      .filter((x: { id: string }) => x.id)
+    setRosterPlayers(withNames)
+    const normalizedSnapshot = withNames.map((player: { id: string; name: string | null }, idx: number): RosterSnapshotPlayer => {
+      const source =
+        Array.isArray(raw) && typeof raw[idx] === "object" && raw[idx] != null ? (raw[idx] as Record<string, unknown>) : {}
+      const rawSlot = String(source.slot ?? source.rosterSlot ?? source.depthChartSlot ?? "").toLowerCase()
+      const slot: RosterSnapshotPlayer["slot"] =
+        rawSlot.includes("ir") ? "ir" : rawSlot.includes("taxi") ? "taxi" : rawSlot.includes("starter") ? "starter" : "bench"
+      const position = String(source.position ?? source.pos ?? source.primaryPosition ?? "").toUpperCase() || "UTIL"
+      const inferredValue =
+        Number(source.value ?? (source as any)?.assetValue?.marketValue ?? (source as any)?.assetValue?.impactValue ?? 0) ||
+        estimateWaiverCandidateValue(position, 0, false)
+      return {
+        id: player.id,
+        name: player.name ?? player.id,
+        position,
+        team: source.team != null ? String(source.team) : source.teamAbbr != null ? String(source.teamAbbr) : null,
+        slot,
+        age: typeof source.age === "number" ? source.age : null,
+        value: Math.max(200, Number.isFinite(inferredValue) ? Number(inferredValue) : 1200),
+      }
+    })
+    setRosterSnapshotPlayers(normalizedSnapshot)
+  }, [])
 
   const load = useCallback(async () => {
     if (!leagueId) return
@@ -272,56 +323,7 @@ export default function WaiverWirePage({
       else setPlayers(Array.isArray(playersData.players) ? playersData.players : [])
       if (!historyRes.ok) setHistory({ claims: [], transactions: [] })
       else setHistory({ claims: historyData.claims ?? [], transactions: historyData.transactions ?? [] })
-      const roster = rosterData.roster
-      setFaabRemaining(rosterData.faabRemaining ?? null)
-      setWaiverPriority(rosterData.waiverPriority ?? null)
-      const ids = getRosterPlayerIds(roster)
-      setRosterPlayerIds(ids)
-      const slotLimits = rosterData?.slotLimits as
-        | { starters?: number; bench?: number; ir?: number; taxi?: number; devy?: number }
-        | null
-        | undefined
-      const starterPositions = Array.isArray(rosterData?.starterAllowedPositions)
-        ? (rosterData.starterAllowedPositions as unknown[])
-            .map((position) => String(position ?? "").toUpperCase())
-            .filter(Boolean)
-        : []
-      setStarterAllowedPositions(starterPositions)
-      const capacityFromSlots = slotLimits
-        ? Object.values(slotLimits).reduce((sum, value) => sum + (Number(value) || 0), 0)
-        : 0
-      setRosterCapacity(capacityFromSlots > 0 ? capacityFromSlots : null)
-      const raw = Array.isArray(roster) ? roster : (roster as any)?.players ?? []
-      const withNames: Array<{ id: string; name: string | null }> = raw.map((p: any) => {
-        const id = typeof p === "string" ? p : p?.id ?? p?.player_id ?? ""
-        const name = typeof p === "object" && p != null ? (p?.name ?? p?.displayName ?? null) : null
-        return { id: String(id), name: name != null ? String(name) : null }
-      }).filter((x: { id: string }) => x.id)
-      setRosterPlayers(withNames)
-      const normalizedSnapshot = withNames.map((player: { id: string; name: string | null }, idx: number): RosterSnapshotPlayer => {
-        const source =
-          Array.isArray(raw) && typeof raw[idx] === "object" && raw[idx] != null
-            ? (raw[idx] as Record<string, unknown>)
-            : {}
-        const rawSlot = String(source.slot ?? source.rosterSlot ?? source.depthChartSlot ?? "").toLowerCase()
-        const slot: RosterSnapshotPlayer["slot"] =
-          rawSlot.includes("ir") ? "ir" : rawSlot.includes("taxi") ? "taxi" : rawSlot.includes("starter") ? "starter" : "bench"
-        const position = String(source.position ?? source.pos ?? source.primaryPosition ?? "").toUpperCase() || "UTIL"
-        const trendFallback = 0
-        const inferredValue =
-          Number(source.value ?? (source as any)?.assetValue?.marketValue ?? (source as any)?.assetValue?.impactValue ?? 0) ||
-          estimateWaiverCandidateValue(position, trendFallback, false)
-        return {
-          id: player.id,
-          name: player.name ?? player.id,
-          position,
-          team: source.team != null ? String(source.team) : source.teamAbbr != null ? String(source.teamAbbr) : null,
-          slot,
-          age: typeof source.age === "number" ? source.age : null,
-          value: Math.max(200, Number.isFinite(inferredValue) ? Number(inferredValue) : 1200),
-        }
-      })
-      setRosterSnapshotPlayers(normalizedSnapshot)
+      applyRosterData(rosterData)
     } catch (e) {
       const message = e instanceof Error ? e.message : "Failed to load waiver wire data."
       setLoadError(message)
@@ -329,7 +331,7 @@ export default function WaiverWirePage({
     } finally {
       setLoading(false)
     }
-  }, [leagueId])
+  }, [leagueId, applyRosterData])
 
   useEffect(() => {
     load()
@@ -389,7 +391,8 @@ export default function WaiverWirePage({
         }
         setDrawerOpen(false)
         setDrawerPlayer(null)
-        load()
+        setImmediateMode(false)
+        refreshAfterMutation()
         // Phase 3B.5: notify intelligence rail of waiver claim (fire-and-forget).
         invalidateIntelligence({ leagueId, reason: "waiver_claim" })
       } else {
@@ -401,9 +404,108 @@ export default function WaiverWirePage({
     }
   }
 
+  // Step 3B: targeted refresh — claims + history + roster only (no league shell / player-pool reload).
+  const refreshAfterMutation = useCallback(async () => {
+    if (!leagueId) return
+    try {
+      const [claimsRes, historyRes, rosterRes] = await Promise.all([
+        fetch(`/api/waiver-wire/leagues/${leagueId}/claims`),
+        fetch(`/api/waiver-wire/leagues/${leagueId}/claims?type=history&limit=30`),
+        fetch(`/api/league/roster?leagueId=${leagueId}`),
+      ])
+      const claimsData = await claimsRes.json().catch(() => ({}))
+      const historyData = await historyRes.json().catch(() => ({}))
+      const rosterData = await rosterRes.json().catch(() => ({}))
+      if (claimsRes.ok) setClaims(Array.isArray(claimsData.claims) ? claimsData.claims : [])
+      if (historyRes.ok) setHistory({ claims: historyData.claims ?? [], transactions: historyData.transactions ?? [] })
+      if (rosterRes.ok) applyRosterData(rosterData)
+    } catch {
+      // Non-blocking: the next full load reconciles. Avoid a disruptive shell reload here.
+    }
+  }, [leagueId, applyRosterData])
+
+  // Step 3B: immediate free-agent add/drop (FCFS or instant-FA leagues). Optimistic with rollback.
+  const addDropPlayer = useCallback(
+    async (player: Player, dropPlayerId: string | null) => {
+      if (actionPlayerId) return
+      setActionPlayerId(player.id)
+      const prevRosterIds = rosterPlayerIds
+      // Optimistic roster update.
+      setRosterPlayerIds((ids) => {
+        const next = dropPlayerId ? ids.filter((id) => id !== dropPlayerId) : [...ids]
+        return next.includes(player.id) ? next : [...next, player.id]
+      })
+      try {
+        const res = await fetch(`/api/waiver-wire/leagues/${leagueId}/add-drop`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ addPlayerId: player.id, dropPlayerId }),
+        })
+        const json = await res.json().catch(() => ({}))
+        if (res.ok && json?.ok) {
+          setDrawerOpen(false)
+          setDrawerPlayer(null)
+          setImmediateMode(false)
+          toast.success(dropPlayerId ? `Added ${player.name} and dropped a player.` : `Added ${player.name}.`)
+          await refreshAfterMutation()
+          invalidateIntelligence({ leagueId, reason: "waiver_add_drop" })
+          return
+        }
+        // Rollback optimistic change.
+        setRosterPlayerIds(prevRosterIds)
+        if (json?.code === "WAIVER_REQUIRED") {
+          // Not an immediate add — route to the claim drawer instead.
+          setImmediateMode(false)
+          setDrawerPlayer(player)
+          setDrawerOpen(true)
+          toast.message("This player must be claimed through waivers. Opening the claim form.")
+          return
+        }
+        if (json?.code === "DROP_REQUIRED") {
+          // Roster full — open the drawer so the user can pick a drop, in immediate mode.
+          setImmediateMode(true)
+          setDrawerPlayer(player)
+          setDrawerOpen(true)
+          toast.message("Your roster is full — choose a player to drop.")
+          return
+        }
+        toast.error(json?.error ?? "Could not complete add/drop.")
+      } catch {
+        setRosterPlayerIds(prevRosterIds)
+        toast.error("Could not complete add/drop.")
+      } finally {
+        setActionPlayerId(null)
+      }
+    },
+    [actionPlayerId, leagueId, rosterPlayerIds, refreshAfterMutation],
+  )
+
+  const handleAddClick = useCallback(
+    (player: Player) => {
+      const immediateAddAllowed = settings?.waiverType === "fcfs" || settings?.instantFaAfterClear === true
+      if (!immediateAddAllowed) {
+        // Waiver league — use the existing claim drawer.
+        setImmediateMode(false)
+        setDrawerPlayer(player)
+        setDrawerOpen(true)
+        return
+      }
+      const openSpot = rosterCapacity == null ? true : rosterPlayerIds.length < rosterCapacity
+      if (openSpot) {
+        void addDropPlayer(player, null)
+      } else {
+        // Roster full — collect a drop in the drawer (immediate mode).
+        setImmediateMode(true)
+        setDrawerPlayer(player)
+        setDrawerOpen(true)
+      }
+    },
+    [settings?.waiverType, settings?.instantFaAfterClear, rosterCapacity, rosterPlayerIds, addDropPlayer],
+  )
+
   const cancelClaimById = async (claimId: string) => {
     const res = await fetch(`/api/waiver-wire/leagues/${leagueId}/claims/${claimId}`, { method: "DELETE" })
-    if (res.ok) load()
+    if (res.ok) refreshAfterMutation()
     else {
       const json = await res.json().catch(() => ({}))
       toast.error(json?.error ?? "Failed to cancel waiver claim")
@@ -417,7 +519,7 @@ export default function WaiverWirePage({
       body: JSON.stringify(patch),
     })
     if (res.ok) {
-      load()
+      refreshAfterMutation()
     } else {
       const json = await res.json().catch(() => ({}))
       toast.error(json?.error ?? "Failed to update waiver claim")
@@ -426,6 +528,7 @@ export default function WaiverWirePage({
 
   const isFaab = settings?.waiverType === "faab"
   const hasOpenRosterSpot = rosterCapacity == null ? true : rosterPlayerIds.length < rosterCapacity
+  const immediateAddAllowed = settings?.waiverType === "fcfs" || settings?.instantFaAfterClear === true
   const watchlistIdSet = useMemo(() => new Set(watchlistPlayerIds), [watchlistPlayerIds])
   const uniqueTeams = useMemo(
     () =>
@@ -941,13 +1044,24 @@ export default function WaiverWirePage({
                     }}
                     sport={settings?.sport ?? null}
                     trendScore={trendScoreByPlayerId.get(p.id) ?? 0}
+                    addMode={immediateAddAllowed}
+                    actionLoading={actionPlayerId === p.id}
                     onRowClick={() => {
                       if (alreadyClaimed) return
-                      setDrawerPlayer(p)
-                      setDrawerOpen(true)
+                      if (immediateAddAllowed) handleAddClick(p)
+                      else {
+                        setImmediateMode(false)
+                        setDrawerPlayer(p)
+                        setDrawerOpen(true)
+                      }
+                    }}
+                    onAdd={() => {
+                      if (alreadyClaimed) return
+                      handleAddClick(p)
                     }}
                     onAddClick={() => {
                       if (alreadyClaimed) return
+                      setImmediateMode(false)
                       setDrawerPlayer(p)
                       setDrawerOpen(true)
                     }}
@@ -1297,6 +1411,11 @@ export default function WaiverWirePage({
         rosterPlayers={rosterPlayers.length > 0 ? rosterPlayers : undefined}
         onSubmit={async (opts) => {
           if (!drawerPlayer) return
+          // Immediate mode (FCFS / instant-FA, full roster): perform the add/drop directly.
+          if (immediateMode) {
+            await addDropPlayer(drawerPlayer, opts.dropPlayerId)
+            return
+          }
           await submitClaimForPlayer(drawerPlayer, opts)
         }}
       />
