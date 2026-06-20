@@ -341,28 +341,55 @@ export default function WaiverWirePage({
     setActiveTab(initialTab)
   }, [initialTab])
 
+  // Step 3C: server-backed watchlist. Load from the API; one-time migrate any legacy localStorage
+  // entries into the server, then clear them. Falls back to localStorage if the API is unreachable.
   useEffect(() => {
     if (!leagueId) return
+    let cancelled = false
     const storageKey = getWaiverWatchlistStorageKey(leagueId)
-    try {
-      const raw = window.localStorage.getItem(storageKey)
-      if (!raw) return
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) setWatchlistPlayerIds(parsed.map((id) => String(id)))
-    } catch {
-      // Non-blocking watchlist hydration.
+    const readLegacy = (): string[] => {
+      try {
+        const raw = window.localStorage.getItem(storageKey)
+        const parsed = raw ? JSON.parse(raw) : null
+        return Array.isArray(parsed) ? parsed.map((id) => String(id)) : []
+      } catch {
+        return []
+      }
     }
-  }, [leagueId])
-
-  useEffect(() => {
-    if (!leagueId) return
-    const storageKey = getWaiverWatchlistStorageKey(leagueId)
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(watchlistPlayerIds))
-    } catch {
-      // Non-blocking watchlist persistence.
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/waiver-wire/leagues/${leagueId}/watchlist`, { credentials: "include" })
+        if (!res.ok) throw new Error("watchlist load failed")
+        const data = await res.json()
+        let serverIds: string[] = Array.isArray(data.playerIds) ? data.playerIds.map(String) : []
+        const legacy = readLegacy()
+        if (serverIds.length === 0 && legacy.length > 0) {
+          // Migrate legacy localStorage watchlist into the server once, then clear it.
+          const migrateRes = await fetch(`/api/waiver-wire/leagues/${leagueId}/watchlist`, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ playerIds: legacy, sport: settings?.sport ?? null }),
+          })
+          if (migrateRes.ok) {
+            const migrated = await migrateRes.json()
+            serverIds = Array.isArray(migrated.playerIds) ? migrated.playerIds.map(String) : legacy
+          }
+        }
+        try {
+          window.localStorage.removeItem(storageKey)
+        } catch {
+          // ignore
+        }
+        if (!cancelled) setWatchlistPlayerIds(serverIds)
+      } catch {
+        if (!cancelled) setWatchlistPlayerIds(readLegacy())
+      }
+    })()
+    return () => {
+      cancelled = true
     }
-  }, [leagueId, watchlistPlayerIds])
+  }, [leagueId, settings?.sport])
 
   useEffect(() => {
     if (!aiAssistantEnabled && waiverAiIncludeExplanation) {
@@ -526,6 +553,36 @@ export default function WaiverWirePage({
     }
   }
 
+  // Step 3C: move a pending claim up/down by swapping its priority with the adjacent claim.
+  const reorderClaim = async (claimId: string, direction: "up" | "down") => {
+    const idx = claims.findIndex((c) => c.id === claimId)
+    if (idx < 0) return
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= claims.length) return
+    const a = claims[idx]
+    const b = claims[swapIdx]
+    const aPrio = a.priorityOrder ?? idx + 1
+    const bPrio = b.priorityOrder ?? swapIdx + 1
+    // Optimistic reorder so the list updates without waiting on the round-trip.
+    setClaims((prev) => {
+      const next = [...prev]
+      next[idx] = { ...a, priorityOrder: bPrio }
+      next[swapIdx] = { ...b, priorityOrder: aPrio }
+      return next.sort((x, y) => (x.priorityOrder ?? 0) - (y.priorityOrder ?? 0))
+    })
+    try {
+      const [ra, rb] = await Promise.all([
+        fetch(`/api/waiver-wire/leagues/${leagueId}/claims/${a.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ priorityOrder: bPrio }) }),
+        fetch(`/api/waiver-wire/leagues/${leagueId}/claims/${b.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ priorityOrder: aPrio }) }),
+      ])
+      if (!ra.ok || !rb.ok) throw new Error("reorder failed")
+      refreshAfterMutation()
+    } catch {
+      toast.error("Could not reorder claims.")
+      refreshAfterMutation()
+    }
+  }
+
   const isFaab = settings?.waiverType === "faab"
   const hasOpenRosterSpot = rosterCapacity == null ? true : rosterPlayerIds.length < rosterCapacity
   const immediateAddAllowed = settings?.waiverType === "fcfs" || settings?.instantFaAfterClear === true
@@ -684,9 +741,26 @@ export default function WaiverWirePage({
   }, [history.transactions])
 
   const toggleWatchlist = (playerId: string) => {
-    setWatchlistPlayerIds((prev) =>
-      prev.includes(playerId) ? prev.filter((id) => id !== playerId) : [...prev, playerId]
-    )
+    const wasWatched = watchlistPlayerIds.includes(playerId)
+    // Optimistic update.
+    setWatchlistPlayerIds((prev) => (wasWatched ? prev.filter((id) => id !== playerId) : [...prev, playerId]))
+    // Persist to the server; revert on failure.
+    void (async () => {
+      try {
+        const res = await fetch(`/api/waiver-wire/leagues/${leagueId}/watchlist`, {
+          method: wasWatched ? "DELETE" : "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ playerId, sport: settings?.sport ?? null }),
+        })
+        if (!res.ok) throw new Error("watchlist update failed")
+        const data = await res.json().catch(() => null)
+        if (data && Array.isArray(data.playerIds)) setWatchlistPlayerIds(data.playerIds.map(String))
+      } catch {
+        setWatchlistPlayerIds((prev) => (wasWatched ? [...prev, playerId] : prev.filter((id) => id !== playerId)))
+        toast.error("Could not update watchlist.")
+      }
+    })()
   }
 
   const waiverRuleSummary = getWaiverRuleSummary({
@@ -1147,6 +1221,9 @@ export default function WaiverWirePage({
             void updateClaimById(claimId, patch)
           }}
           onCancel={cancelClaimById}
+          onReorder={(claimId, direction) => {
+            void reorderClaim(claimId, direction)
+          }}
         />
       )}
 
@@ -1158,6 +1235,7 @@ export default function WaiverWirePage({
           ) : (
             <div className="space-y-4">
               {history.transactions.length > 0 && (
+                <div data-testid="waiver-history-transactions">
                 <WaiverResultsFeed
                   transactions={history.transactions.map((t) => ({
                     id: t.id,
@@ -1173,6 +1251,7 @@ export default function WaiverWirePage({
                   }))}
                   formatTime={formatInTimezone}
                 />
+                </div>
               )}
               {history.claims.filter((c) => c.status === "failed").length > 0 && (
                 <ul className="space-y-1.5 text-sm" data-testid="waiver-history-failed-claims">

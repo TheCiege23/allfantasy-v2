@@ -204,9 +204,53 @@ test.describe('@db Redraft waiver walkthrough (Step 3B)', () => {
     expect(leagueScope.status()).toBe(403)
   })
 
+  test('6. Watchlist — server-backed add/list/remove persists', async ({ page }) => {
+    const leagueId = seed.leagues.nflFcfsOpen
+    const pid = await firstAvailablePlayerId(page, leagueId)
+
+    const add = await page.request.post(`/api/waiver-wire/leagues/${leagueId}/watchlist`, { data: { playerId: pid, sport: 'NFL' } })
+    expect(add.status()).toBe(200)
+    expect(((await add.json()).playerIds as string[]).includes(pid)).toBe(true)
+
+    // Persists across a fresh GET.
+    const list = (await (await page.request.get(`/api/waiver-wire/leagues/${leagueId}/watchlist`)).json()) as { playerIds: string[] }
+    expect(list.playerIds.includes(pid)).toBe(true)
+
+    const del = await page.request.delete(`/api/waiver-wire/leagues/${leagueId}/watchlist`, { data: { playerId: pid } })
+    expect(del.status()).toBe(200)
+    const after = (await (await page.request.get(`/api/waiver-wire/leagues/${leagueId}/watchlist`)).json()) as { playerIds: string[] }
+    expect(after.playerIds.includes(pid)).toBe(false)
+  })
+
+  test('7. Claim reorder — priority swap persists', async ({ page }) => {
+    const leagueId = seed.leagues.nflFaab
+    const players = (await (await page.request.get(`/api/waiver-wire/leagues/${leagueId}/players?limit=2`)).json()) as { players: Array<{ id: string }> }
+    const [p1, p2] = players.players
+    await page.request.post(`/api/waiver-wire/leagues/${leagueId}/claims`, { data: { addPlayerId: p1.id, faabBid: 4, priorityOrder: 1 } })
+    await page.request.post(`/api/waiver-wire/leagues/${leagueId}/claims`, { data: { addPlayerId: p2.id, faabBid: 4, priorityOrder: 2 } })
+
+    const mine = (await (await page.request.get(`/api/waiver-wire/leagues/${leagueId}/claims`)).json()) as { claims: Array<{ id: string; addPlayerId: string; priorityOrder: number }> }
+    const c1 = mine.claims.find((c) => c.addPlayerId === p1.id)!
+    const c2 = mine.claims.find((c) => c.addPlayerId === p2.id)!
+    expect(c1 && c2).toBeTruthy()
+
+    // Swap priorities (what the up/down reorder control does).
+    await Promise.all([
+      page.request.patch(`/api/waiver-wire/leagues/${leagueId}/claims/${c1.id}`, { data: { priorityOrder: c2.priorityOrder } }),
+      page.request.patch(`/api/waiver-wire/leagues/${leagueId}/claims/${c2.id}`, { data: { priorityOrder: c1.priorityOrder } }),
+    ])
+    const after = (await (await page.request.get(`/api/waiver-wire/leagues/${leagueId}/claims`)).json()) as { claims: Array<{ id: string; priorityOrder: number }> }
+    expect(after.claims.find((c) => c.id === c1.id)?.priorityOrder).toBe(c2.priorityOrder)
+    expect(after.claims.find((c) => c.id === c2.id)?.priorityOrder).toBe(c1.priorityOrder)
+
+    // Cleanup.
+    await page.request.delete(`/api/waiver-wire/leagues/${leagueId}/claims/${c1.id}`)
+    await page.request.delete(`/api/waiver-wire/leagues/${leagueId}/claims/${c2.id}`)
+  })
+
   // Best-effort visual artifacts. The league shell is compile-heavy and environment-sensitive, so
   // this captures CTA screenshots opportunistically and always passes (the flow proof is above).
-  test('6. UI — capture Add/Claim CTA screenshots (best-effort)', async ({ page }) => {
+  test('8. UI — capture Add/Claim CTA screenshots (best-effort)', async ({ page }) => {
     test.setTimeout(360_000)
     const captures: Array<{ leagueId: string; cta: 'add' | 'claim'; name: string }> = [
       { leagueId: seed.leagues.nflFcfsOpen, cta: 'add', name: '01-fcfs-open-add-cta' },

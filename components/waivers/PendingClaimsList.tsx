@@ -1,7 +1,7 @@
 "use client"
 
 import type { Dispatch, SetStateAction } from "react"
-import { ArrowUpDown, ListOrdered, Trash2 } from "lucide-react"
+import { ArrowUpDown, ChevronDown, ChevronUp, ListOrdered, Trash2 } from "lucide-react"
 import { WAIVER_EMPTY_PENDING_TITLE } from "@/lib/waiver-wire/WaiverWireViewService"
 import { parseOptionalNumber } from "@/lib/waiver-wire/WaiverClaimFlowController"
 
@@ -26,6 +26,8 @@ type Props = {
   >
   onSave: (claimId: string, idx: number, c: PendingClaimRow) => void
   onCancel: (claimId: string) => void
+  /** Step 3C: move a claim up/down in the processing order (swaps priority with its neighbor). */
+  onReorder?: (claimId: string, direction: "up" | "down") => void
 }
 
 /**
@@ -39,6 +41,7 @@ export default function PendingClaimsList({
   setPendingEdits,
   onSave,
   onCancel,
+  onReorder,
 }: Props) {
   return (
     <div className="rounded-xl border border-white/10 bg-black/20 p-4" data-testid="pending-claims-list">
@@ -136,6 +139,30 @@ export default function PendingClaimsList({
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {onReorder && claims.length > 1 && (
+                  <div className="flex flex-col">
+                    <button
+                      type="button"
+                      disabled={idx === 0}
+                      onClick={() => onReorder(c.id, "up")}
+                      aria-label={`Move claim ${idx + 1} up`}
+                      data-testid={`waiver-claim-move-up-${c.id}`}
+                      className="rounded border border-white/20 px-1 text-white/70 hover:bg-white/10 disabled:opacity-30"
+                    >
+                      <ChevronUp className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={idx === claims.length - 1}
+                      onClick={() => onReorder(c.id, "down")}
+                      aria-label={`Move claim ${idx + 1} down`}
+                      data-testid={`waiver-claim-move-down-${c.id}`}
+                      className="rounded border border-white/20 px-1 text-white/70 hover:bg-white/10 disabled:opacity-30"
+                    >
+                      <ChevronDown className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => onSave(c.id, idx, c)}
