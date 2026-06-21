@@ -13122,6 +13122,7 @@ model RedraftTradeProposal {
   receiverRoster   RedraftRoster         @relation("RedraftTradeProposalReceiver", fields: [receiverRosterId], references: [id], onDelete: Cascade)
   season           RedraftSeason         @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   votes            RedraftTradeVote[]
+  valueSnapshot    RedraftTradeValueSnapshot?
 
   @@index([leagueId, status])
   @@index([seasonId, createdAt])
@@ -13176,6 +13177,24 @@ model RedraftTradeDecision {
   proposal        RedraftTradeProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
 
   @@map("redraft_trade_decisions")
+}
+
+/// T2: immutable deterministic value snapshot captured at proposal time. Never updated after
+/// creation — preserves the original grade/values for historical comparison even if live values
+/// change later. `payload` holds the full TradeValueSnapshot (sides, per-asset values, sources).
+model RedraftTradeValueSnapshot {
+  id              String               @id @default(cuid())
+  proposalId      String               @unique
+  version         String               @default("1.0")
+  payload         Json
+  grade           String
+  fairnessScore   Int
+  confidenceScore Int
+  valueDifference Int
+  createdAt       DateTime             @default(now())
+  proposal        RedraftTradeProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@map("redraft_trade_value_snapshots")
 }
 
 model RedraftPlayoffRound {

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
 import { recordAfLearningEvent } from '@/lib/ai-learning-system/recordEvent'
 import { resolveLeagueSport } from '@/lib/ai-learning-system/resolveLeagueSport'
+import { captureRedraftTradeValueSnapshot } from '@/lib/trade-value/captureSnapshot'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,6 +51,7 @@ export async function GET(req: NextRequest) {
       assets: true,
       votes: true,
       decision: true,
+      valueSnapshot: true,
     },
     orderBy: { createdAt: 'desc' },
     take: 100,
@@ -187,6 +189,35 @@ export async function POST(req: NextRequest) {
     })
   })
 
+  // T2: capture the immutable deterministic value snapshot at proposal time. Best-effort — a
+  // valuation issue must never block trade creation, but it is expected to succeed.
+  if (created?.id) {
+    try {
+      await captureRedraftTradeValueSnapshot({
+        proposalId: created.id,
+        seasonId,
+        proposerRosterId,
+        receiverRosterId,
+        sport: season.sport,
+        scoring: season.sport === 'NCAAF' ? 'standard' : 'ppr',
+        rosterFormat: 'standard',
+        currentSeason: season.season ?? null,
+        assets: assets.map((a) => ({
+          fromRosterId: a.fromRosterId!,
+          toRosterId: a.toRosterId!,
+          assetType: a.assetType!,
+          playerId: a.playerId,
+          playerName: a.playerName,
+          pickSeason: a.pickSeason,
+          pickRound: a.pickRound,
+          metadata: a.metadata,
+        })),
+      })
+    } catch (e) {
+      console.error('[redraft/trade-proposals] value snapshot capture failed', e)
+    }
+  }
+
   if (created?.id) {
     void resolveLeagueSport(leagueId).then((sport) =>
       recordAfLearningEvent({
@@ -200,5 +231,9 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  return NextResponse.json({ proposal: created })
+  const snapshotRow = created?.id
+    ? await prisma.redraftTradeValueSnapshot.findUnique({ where: { proposalId: created.id } })
+    : null
+
+  return NextResponse.json({ proposal: created, valueSnapshot: snapshotRow })
 }
