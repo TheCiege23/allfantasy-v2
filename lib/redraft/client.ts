@@ -151,11 +151,41 @@ export type RedraftTradeSettings = {
 export async function fetchRedraftTradeSettings(params: {
   leagueId: string
   seasonId?: string | null
-}): Promise<{ settings: RedraftTradeSettings; faabByRosterId: Record<string, number> }> {
+}): Promise<{ settings: RedraftTradeSettings; faabByRosterId: Record<string, number>; isCommissioner: boolean }> {
   const qs = new URLSearchParams({ leagueId: params.leagueId })
   if (params.seasonId) qs.set('seasonId', params.seasonId)
   const res = await fetch(`/api/redraft/trade-settings?${qs.toString()}`, { credentials: 'include' })
-  return parseJson<{ settings: RedraftTradeSettings; faabByRosterId: Record<string, number> }>(res)
+  return parseJson<{ settings: RedraftTradeSettings; faabByRosterId: Record<string, number>; isCommissioner: boolean }>(res)
+}
+
+export type CommissionerTradeReview = {
+  review: {
+    summary: {
+      reviewScore: number
+      fairnessScore: number
+      confidenceScore: number
+      valueDelta: number
+      grade: string | null
+      status: string
+      reviewRecommended: boolean
+      lopsided: boolean
+      deadlineFlag: boolean
+      expired: boolean
+      vetoMode: string
+      reviewHours: number | null
+    }
+    riskFlags: string[]
+    contextFlags: string[]
+    notes: string[]
+    marketContext: { sampleSize: number; averageFairness?: number; medianFairness?: number; acceptedCount?: number; vetoedCount?: number; recentCount?: number; message?: string }
+  }
+  eventTrail: Array<{ eventType: string; createdAt: string }>
+  settings: { vetoMode: string; vetoThreshold: number | null; reviewHours: number | null; tradeDeadlineWeek: number | null; draftPickTrading: boolean }
+}
+
+export async function fetchCommissionerTradeReview(proposalId: string): Promise<CommissionerTradeReview> {
+  const res = await fetch(`/api/redraft/trades/${encodeURIComponent(proposalId)}/commissioner-review`, { credentials: 'include' })
+  return parseJson<CommissionerTradeReview>(res)
 }
 
 type JsonHeaders = Record<string, string>

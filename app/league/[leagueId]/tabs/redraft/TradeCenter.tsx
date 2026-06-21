@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { TradeCenterModal } from './TradeCenterModal'
+import { CommissionerReviewPanel } from './CommissionerReviewPanel'
 import {
   fetchRedraftTradeSettings,
   listTradeProposals,
@@ -63,6 +64,7 @@ export function TradeCenter({
   const [modalOpen, setModalOpen] = useState(false)
   const [settings, setSettings] = useState<RedraftTradeSettings | null>(null)
   const [faabByRosterId, setFaabByRosterId] = useState<Record<string, number>>({})
+  const [settingsCommissioner, setSettingsCommissioner] = useState(false)
 
   const rosterNameById = useMemo(() => {
     const map = new Map<string, string>()
@@ -100,6 +102,7 @@ export function TradeCenter({
         if (!cancelled) {
           setSettings(res.settings)
           setFaabByRosterId(res.faabByRosterId)
+          setSettingsCommissioner(Boolean(res.isCommissioner))
         }
       } catch {
         if (!cancelled) setSettings(null)
@@ -244,7 +247,7 @@ export function TradeCenter({
                         {action.replace('_', ' ')}
                       </button>
                     ))}
-                    {isCommissioner ? (
+                    {isCommissioner || settingsCommissioner ? (
                       <button
                         type="button"
                         className="rounded border border-rose-500/40 px-2 py-1 text-rose-300 disabled:opacity-50"
@@ -256,6 +259,7 @@ export function TradeCenter({
                     ) : null}
                   </div>
                 ) : null}
+                {isCommissioner || settingsCommissioner ? <CommissionerReviewPanel proposalId={p.id} /> : null}
               </div>
             )
           })
