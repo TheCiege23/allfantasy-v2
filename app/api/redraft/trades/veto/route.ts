@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { recordTradeOutcomeForBothManagers } from '@/lib/ai-learning-system/recordTradeParticipants'
+import { recordRedraftTradeMarketEvent } from '@/lib/trade-market/redraftTradeMarketEvents'
 
 export const dynamic = 'force-dynamic'
 
@@ -130,6 +131,11 @@ export async function POST(req: NextRequest) {
     proposerUserId: proposerOwnerId,
     receiverUserId: receiverOwnerId,
     payload: { proposalId, source: 'commissioner_veto_route' },
+  })
+
+  await recordRedraftTradeMarketEvent({
+    leagueId: proposal.leagueId, seasonId: proposal.seasonId, tradeProposalId: proposalId,
+    eventType: 'commissioner_vetoed', actorUserId: userId,
   })
 
   return NextResponse.json({

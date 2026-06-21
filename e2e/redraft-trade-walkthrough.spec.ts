@@ -222,4 +222,63 @@ test.describe('@db Redraft Trade Center walkthrough', () => {
     // authoritative coverage, so a degraded UI render must not fail the suite.
     expect(typeof opened).toBe('boolean')
   })
+
+  test('7. Market ledger captures lifecycle events (commissioner-gated)', async ({ page }) => {
+    const { leagueId, seasonId } = seed.nfl
+    const r2 = rid(leagueId, 2), r3 = rid(leagueId, 3)
+
+    // Non-commissioner cannot read the league-wide ledger.
+    await loginAs(page, seed.mgr2)
+    const forbidden = await page.request.get(`/api/redraft/trades/market-events?leagueId=${leagueId}`)
+    expect(forbidden.status()).toBe(403)
+
+    // Propose (mgr2 -> mgr3) → proposal_created event.
+    const r2p = await rosterPlayerIds(page, r2)
+    const r3p = await rosterPlayerIds(page, r3)
+    const create = await page.request.post('/api/redraft/trade-proposals', {
+      data: {
+        leagueId, seasonId, proposerRosterId: r2, receiverRosterId: r3,
+        assets: [
+          { fromRosterId: r2, toRosterId: r3, assetType: 'player', playerId: r2p[0], metadata: { position: 'RB', restOfSeasonProjection: 175 } },
+          { fromRosterId: r3, toRosterId: r2, assetType: 'player', playerId: r3p[0], metadata: { position: 'WR', restOfSeasonProjection: 150 } },
+        ],
+      },
+    })
+    expect(create.status()).toBe(200)
+    const proposalId = (await create.json()).proposal.id as string
+
+    // Accept as receiver → proposal_accepted + trade_processed events.
+    await loginAs(page, seed.mgr3)
+    expect((await page.request.post('/api/redraft/trade-votes', { data: { proposalId, action: 'accept' } })).status()).toBe(200)
+
+    // Commissioner reads the ledger and sees the captured lifecycle events.
+    await loginAs(page, seed.commish)
+    const res = await page.request.get(`/api/redraft/trades/market-events?leagueId=${leagueId}&limit=200`)
+    expect(res.status()).toBe(200)
+    const events = ((await res.json()).events ?? []) as Array<{ tradeProposalId: string; eventType: string; grade?: string | null }>
+    const forProposal = events.filter((e) => e.tradeProposalId === proposalId).map((e) => e.eventType)
+    expect(forProposal).toContain('proposal_created')
+    expect(forProposal).toContain('proposal_accepted')
+    expect(forProposal).toContain('trade_processed')
+
+    // A fresh proposal vetoed by the commissioner → commissioner_vetoed event.
+    await loginAs(page, seed.mgr2)
+    const r2p2 = await rosterPlayerIds(page, r2)
+    const r3p2 = await rosterPlayerIds(page, r3)
+    const create2 = await page.request.post('/api/redraft/trade-proposals', {
+      data: {
+        leagueId, seasonId, proposerRosterId: r2, receiverRosterId: r3,
+        assets: [
+          { fromRosterId: r2, toRosterId: r3, assetType: 'player', playerId: r2p2[0] },
+          { fromRosterId: r3, toRosterId: r2, assetType: 'player', playerId: r3p2[0] },
+        ],
+      },
+    })
+    const proposalId2 = (await create2.json()).proposal.id as string
+    await loginAs(page, seed.commish)
+    expect((await page.request.post('/api/redraft/trade-votes', { data: { proposalId: proposalId2, action: 'commissioner_veto' } })).status()).toBe(200)
+    const res2 = await page.request.get(`/api/redraft/trades/market-events?leagueId=${leagueId}&limit=200`)
+    const events2 = ((await res2.json()).events ?? []) as Array<{ tradeProposalId: string; eventType: string }>
+    expect(events2.filter((e) => e.tradeProposalId === proposalId2).map((e) => e.eventType)).toContain('commissioner_vetoed')
+  })
 })

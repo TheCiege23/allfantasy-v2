@@ -13197,6 +13197,31 @@ model RedraftTradeValueSnapshot {
   @@map("redraft_trade_value_snapshots")
 }
 
+/// T3: append-only normalized trade-market event ledger. No FK to proposals — the ledger must
+/// survive even if a proposal row is later removed. Internal user ids only (no PII). This table is
+/// written-to only; nothing in this PR reads it back to change player values.
+model RedraftTradeMarketEvent {
+  id              String   @id @default(cuid())
+  leagueId        String
+  seasonId        String
+  tradeProposalId String
+  eventType       String
+  actorUserId     String?
+  idempotencyKey  String   @unique
+  statusAtEvent   String?
+  sport           String?
+  grade           String?
+  fairnessScore   Int?
+  confidenceScore Int?
+  payload         Json     @default("{}")
+  createdAt       DateTime @default(now())
+
+  @@index([leagueId, createdAt])
+  @@index([tradeProposalId])
+  @@index([eventType])
+  @@map("redraft_trade_market_events")
+}
+
 model RedraftPlayoffRound {
   id          String                  @id
   seasonId    String

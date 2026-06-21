@@ -6,6 +6,7 @@ import { assertLeagueMember } from '@/lib/league/league-access'
 import { recordAfLearningEvent } from '@/lib/ai-learning-system/recordEvent'
 import { resolveLeagueSport } from '@/lib/ai-learning-system/resolveLeagueSport'
 import { captureRedraftTradeValueSnapshot } from '@/lib/trade-value/captureSnapshot'
+import { recordRedraftTradeMarketEvent } from '@/lib/trade-market/redraftTradeMarketEvents'
 
 export const dynamic = 'force-dynamic'
 
@@ -234,6 +235,18 @@ export async function POST(req: NextRequest) {
   const snapshotRow = created?.id
     ? await prisma.redraftTradeValueSnapshot.findUnique({ where: { proposalId: created.id } })
     : null
+
+  // T3 market ledger: proposal_created (+ value_snapshot_created when a snapshot was captured).
+  if (created?.id) {
+    await recordRedraftTradeMarketEvent({
+      leagueId, seasonId, tradeProposalId: created.id, eventType: 'proposal_created', actorUserId: userId,
+    })
+    if (snapshotRow) {
+      await recordRedraftTradeMarketEvent({
+        leagueId, seasonId, tradeProposalId: created.id, eventType: 'value_snapshot_created', actorUserId: userId,
+      })
+    }
+  }
 
   return NextResponse.json({ proposal: created, valueSnapshot: snapshotRow })
 }
