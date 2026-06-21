@@ -161,9 +161,9 @@ describe('TradeCenter — commissioner veto button', () => {
     expect(tradeCenterSrc).toContain('isCommissioner = false')
   })
 
-  it('only renders Commissioner Veto button when isCommissioner is true', () => {
+  it('only renders the commissioner veto button when isCommissioner is true', () => {
     expect(tradeCenterSrc).toContain('isCommissioner ?')
-    expect(tradeCenterSrc).toContain('Commissioner Veto')
+    expect(tradeCenterSrc).toContain('commissioner veto')
   })
 
   it('has onVeto handler that calls vetoRedraftTradeProposal', () => {
@@ -171,16 +171,15 @@ describe('TradeCenter — commissioner veto button', () => {
     expect(tradeCenterSrc).toContain('vetoRedraftTradeProposal')
   })
 
-  it('existing action buttons (accept/reject/cancel/vote) are untouched', () => {
-    expect(tradeCenterSrc).toContain('onAction(p.id, \'accept\')')
-    expect(tradeCenterSrc).toContain('onAction(p.id, \'reject\')')
-    expect(tradeCenterSrc).toContain('onAction(p.id, \'cancel\')')
-    expect(tradeCenterSrc).toContain('onAction(p.id, \'vote_approve\')')
-    expect(tradeCenterSrc).toContain('onAction(p.id, \'vote_veto\')')
+  it('still wires every respond action (accept/reject/cancel/vote) through onAction', () => {
+    expect(tradeCenterSrc).toContain('onAction(p.id, action)')
+    for (const action of ['accept', 'reject', 'cancel', 'vote_approve', 'vote_veto']) {
+      expect(tradeCenterSrc).toContain(`'${action}'`)
+    }
   })
 
-  it('Commissioner Veto button is disabled when proposal is not pending', () => {
-    expect(tradeCenterSrc).toContain("p.status !== 'pending'")
+  it('gates respond + commissioner actions to pending proposals', () => {
+    expect(tradeCenterSrc).toContain("p.status === 'pending'")
   })
 })
 

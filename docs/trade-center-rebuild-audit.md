@@ -129,3 +129,46 @@ No `TradeInterest` model exists. Documented as deferred; no fake UI.
 5. **Playwright trade smoke** (entry/picker/partner/asset/submit/respond/veto/FAAB/NCAAF/modal-scroll;
    pick + multi-team + native-block scenarios assert the gated/disabled states).
 6. **Docs** (this file + smoke checklist), validation, PR (no merge).
+
+---
+
+## Implemented in this PR
+- **Settlement keystone** — `lib/redraft/tradeSettlement.ts` + wired into `redraft/trade-votes`:
+  accepting a redraft trade now moves `RedraftRosterPlayer` rows and transfers `faabBalance` atomically
+  (picks reference-only). Unit tests in `__tests__/redraft/trade-settlement.test.ts`.
+- **Stepped Trade Center** — `redraft/TradeCenterModal.tsx` (partner → assets → review → submit) on the
+  shared `AppModal`; `TradeCenter.tsx` rewritten to host it + the offers list + settings summary.
+  Removed the old fabricated picks (`buildPickOptions`).
+- **Settings route** — `/api/redraft/trade-settings` (read-only) + `fetchRedraftTradeSettings` client.
+- **Seeded QA** — `scripts/seed-redraft-trade-walkthrough.ts` + `e2e/redraft-trade-walkthrough.spec.ts`.
+
+## Deferred (documented, not faked)
+- **Native Trade Block** — needs a `RedraftTradeBlock { seasonId, rosterId, playerId, note, isActive }`
+  model + `GET/POST/DELETE /api/redraft/trade-block` routes + UI badges. `TradeBlockEntry` stays
+  Sleeper-import only.
+- **Trade Interest** — needs a `RedraftTradeInterest { seasonId, rosterId, playerId }` model + routes.
+- **Multi-team trades** — engine is two-party; UI shows a "coming soon" affordance.
+- **Native counter-offer / reversal**, **draft-pick ownership inventory + live-draft board update**.
+
+## Seeded credentials (dev/test only)
+- Commissioner: `tc_commish` · Managers: `tc_mgr_1` … `tc_mgr_4` · password `Password123!`
+- Leagues: `tc-nfl-league` (season `tc-nfl-season`), `tc-ncaaf-league` (season `tc-ncaaf-season`)
+- Seed: `node --env-file=.env --import tsx scripts/seed-redraft-trade-walkthrough.ts`
+
+## Playwright command
+```
+# Local: override NEXTAUTH_URL to localhost (the .env value points at production, which breaks the
+# secure session cookie over http://127.0.0.1). CI sets the host correctly.
+NEXTAUTH_URL=http://127.0.0.1:3101 node --env-file=.env node_modules/@playwright/test/cli.js \
+  test e2e/redraft-trade-walkthrough.spec.ts --project=chromium
+```
+
+## Production smoke checklist (post-deploy, logged in)
+1. League → Trade Center → **Propose Trade** opens the stepped modal (no league picker in-context).
+2. Step 1: partner cards render; selecting one enables **Next**; multi-team shows "coming soon".
+3. Step 2: roster player cards render with pos/team/proj; FAAB input bounded by balance; summary updates.
+4. Step 3: review shows both sides + warnings; **Submit** creates the offer (success state).
+5. Recipient sees the offer and can **accept** → players actually move; FAAB transfers.
+6. Commissioner can **veto** a pending offer.
+7. Modal scrolls internally on a long roster; X / backdrop / Esc close it.
+8. NCAAF league: same flow works (limited-data sport).

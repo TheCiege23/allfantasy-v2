@@ -39,6 +39,11 @@ const prismaMock = {
   redraftRoster: {
     findFirst: vi.fn(),
     findMany: vi.fn(),
+    findUnique: vi.fn(),
+    update: vi.fn(),
+  },
+  redraftRosterPlayer: {
+    updateMany: vi.fn(),
   },
   redraftPlayoffBracket: {
     upsert: vi.fn(),
@@ -61,7 +66,8 @@ const prismaMock = {
     findFirst: vi.fn(),
     findUnique: vi.fn(),
   },
-  $transaction: vi.fn(),
+  // Settlement runs inside a $transaction; execute the callback with the mock client as the tx.
+  $transaction: vi.fn(async (cb: (tx: unknown) => unknown) => cb(prismaMock)),
 }
 
 vi.mock('next-auth', () => ({
