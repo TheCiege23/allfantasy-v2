@@ -345,4 +345,29 @@ test.describe('@db Redraft Trade Center walkthrough', () => {
     expect(downgraded.status()).toBe(200)
     expect((await downgraded.json()).scope).toBe('league')
   })
+
+  test('10. Adaptive value preview is commissioner-gated, read-only, and bounded', async ({ page }) => {
+    const { leagueId } = seed.nfl
+
+    await loginAs(page, seed.mgr2)
+    const forbidden = await page.request.get(`/api/redraft/trades/adaptive-value-preview?leagueId=${leagueId}&topMovers=1`)
+    expect(forbidden.status()).toBe(403)
+
+    await loginAs(page, seed.commish)
+    const res = await page.request.get(`/api/redraft/trades/adaptive-value-preview?leagueId=${leagueId}&topMovers=1`)
+    expect(res.status()).toBe(200)
+    const body = await res.json()
+    expect(Array.isArray(body.topMovers)).toBe(true)
+    for (const m of body.topMovers as Array<{ adjustmentPercent: number; direction: string }>) {
+      expect(Math.abs(m.adjustmentPercent)).toBeLessThanOrEqual(15)
+      expect(m.direction).not.toBe('insufficient')
+    }
+    expect(JSON.stringify(body).toLowerCase()).not.toMatch(/official|recommend|collusion|cheat/)
+
+    const single = await page.request.get(`/api/redraft/trades/adaptive-value-preview?leagueId=${leagueId}&playerId=never-traded-xyz`)
+    expect(single.status()).toBe(200)
+    const sb = await single.json()
+    expect(sb.preview.direction).toBe('insufficient')
+    expect(sb.preview.adjustmentPercent).toBe(0)
+  })
 })
