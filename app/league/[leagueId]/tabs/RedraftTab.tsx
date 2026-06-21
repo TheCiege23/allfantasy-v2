@@ -173,7 +173,7 @@ export function RedraftTab({ leagueId, idpLeagueUi = false }: { leagueId: string
         seasonId={seasonId}
         standings={standings}
         currentWeek={currentWeek}
-        seasonYear={season?.season}
+        myRosterId={selectedRosterId}
       />
 
       <StandingsView rows={standings} seasonId={seasonId} />
