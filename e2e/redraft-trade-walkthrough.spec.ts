@@ -318,4 +318,31 @@ test.describe('@db Redraft Trade Center walkthrough', () => {
     // Non-accusatory copy guarantee.
     expect(JSON.stringify(body).toLowerCase()).not.toMatch(/collusion|cheat/)
   })
+
+  test('9. Market aggregates are commissioner-gated and read-only', async ({ page }) => {
+    const { leagueId } = seed.nfl
+
+    // Non-commissioner cannot read aggregates.
+    await loginAs(page, seed.mgr2)
+    const forbidden = await page.request.get(`/api/redraft/trades/market-aggregates?leagueId=${leagueId}&scope=league`)
+    expect(forbidden.status()).toBe(403)
+
+    // Commissioner gets deterministic aggregates (earlier tests produced accepted + vetoed proposals).
+    await loginAs(page, seed.commish)
+    const res = await page.request.get(`/api/redraft/trades/market-aggregates?leagueId=${leagueId}&scope=league`)
+    expect(res.status()).toBe(200)
+    const body = await res.json()
+    expect(['ok', 'insufficient', 'empty']).toContain(body.sampleStatus)
+    expect(typeof body.summary.sampleSize).toBe('number')
+    expect(typeof body.summary.acceptedCount).toBe('number')
+    expect(body.gradeDistribution).toBeTruthy()
+    expect(body.reviewDistribution.reviewRecommendedCount).toBeNull() // deferred
+    // Read-only: no value-mutation fields leak in.
+    expect(JSON.stringify(body).toLowerCase()).not.toMatch(/collusion|cheat|adjustedvalue|pricemovement/)
+
+    // An unrecognized scope is downgraded to a safe scope, not errored.
+    const downgraded = await page.request.get(`/api/redraft/trades/market-aggregates?leagueId=${leagueId}&scope=bogus`)
+    expect(downgraded.status()).toBe(200)
+    expect((await downgraded.json()).scope).toBe('league')
+  })
 })

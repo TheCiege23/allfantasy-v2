@@ -188,6 +188,35 @@ export async function fetchCommissionerTradeReview(proposalId: string): Promise<
   return parseJson<CommissionerTradeReview>(res)
 }
 
+export type TradeMarketAggregates = {
+  scope: string
+  requestedScope: string
+  sampleStatus: 'ok' | 'insufficient' | 'empty'
+  summary: {
+    sampleSize: number
+    acceptedCount: number
+    rejectedCount: number
+    canceledCount: number
+    vetoedCount: number
+    expiredCount: number
+    processedCount: number
+    averageFairness: number | null
+    medianFairness: number | null
+    averageConfidence: number | null
+    averageValueDelta: number | null
+    lastEventAt: string | null
+  }
+  gradeDistribution: { aRange: number; bRange: number; cRange: number; dfRange: number; unknown: number }
+  reviewDistribution: { lopsidedCount: number; lowConfidenceCount: number; highValueDeltaCount: number; reviewRecommendedCount: number | null }
+  generatedAt: string
+}
+
+export async function fetchTradeMarketAggregates(params: { leagueId: string; scope?: 'league' | 'sport' | 'sport_concept' }): Promise<TradeMarketAggregates> {
+  const qs = new URLSearchParams({ leagueId: params.leagueId, scope: params.scope ?? 'league' })
+  const res = await fetch(`/api/redraft/trades/market-aggregates?${qs.toString()}`, { credentials: 'include' })
+  return parseJson<TradeMarketAggregates>(res)
+}
+
 type JsonHeaders = Record<string, string>
 
 const jsonHeaders: JsonHeaders = {

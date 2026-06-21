@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { TradeCenterModal } from './TradeCenterModal'
 import { CommissionerReviewPanel } from './CommissionerReviewPanel'
+import { MarketSnapshotPanel } from './MarketSnapshotPanel'
 import {
   fetchRedraftTradeSettings,
   listTradeProposals,
@@ -187,6 +188,8 @@ export function TradeCenter({
           </span>
         </div>
       ) : null}
+
+      {isCommissioner || settingsCommissioner ? <MarketSnapshotPanel leagueId={leagueId} /> : null}
 
       {error ? <p className="text-[11px] text-rose-300">{error}</p> : null}
 
