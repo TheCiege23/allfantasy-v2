@@ -161,8 +161,9 @@ describe('TradeCenter — commissioner veto button', () => {
     expect(tradeCenterSrc).toContain('isCommissioner = false')
   })
 
-  it('only renders the commissioner veto button when isCommissioner is true', () => {
-    expect(tradeCenterSrc).toContain('isCommissioner ?')
+  it('only renders the commissioner veto button for commissioners', () => {
+    // T4 broadened the gate to `isCommissioner || settingsCommissioner` (commish derived from settings).
+    expect(tradeCenterSrc).toContain('isCommissioner || settingsCommissioner')
     expect(tradeCenterSrc).toContain('commissioner veto')
   })
 
