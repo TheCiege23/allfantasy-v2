@@ -203,7 +203,18 @@ export function TradeCenter({
                     {' ⇄ '}
                     {rosterNameById.get(p.receiverRosterId) ?? 'Team B'}
                   </p>
-                  <span className={`rounded border px-2 py-0.5 text-[10px] uppercase ${tone}`}>{p.status}</span>
+                  <div className="flex items-center gap-1.5">
+                    {p.valueSnapshot ? (
+                      <span
+                        className="rounded border border-cyan-300/40 bg-cyan-400/10 px-1.5 py-0.5 text-[10px] font-bold text-cyan-100"
+                        title={`Original grade at proposal time · fairness ${p.valueSnapshot.fairnessScore}/100`}
+                        data-testid="trade-proposal-grade"
+                      >
+                        {p.valueSnapshot.grade}
+                      </span>
+                    ) : null}
+                    <span className={`rounded border px-2 py-0.5 text-[10px] uppercase ${tone}`}>{p.status}</span>
+                  </div>
                 </div>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   <div className="rounded border border-white/10 bg-white/[0.03] p-2">

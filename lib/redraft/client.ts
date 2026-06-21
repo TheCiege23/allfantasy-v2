@@ -119,6 +119,14 @@ export type RedraftTradeProposal = {
   }>
   votes: Array<{ id: string; rosterId: string; vote: string; reason: string | null }>
   decision?: { id: string; decision: string; decisionReason: string | null } | null
+  /** T2 immutable value snapshot captured at proposal time (original grade/values for history). */
+  valueSnapshot?: {
+    grade: string
+    fairnessScore: number
+    confidenceScore: number
+    valueDifference: number
+    createdAt: string
+  } | null
 }
 
 export type RedraftTradeAssetInput = {

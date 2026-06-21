@@ -162,7 +162,35 @@ test.describe('@db Redraft Trade Center walkthrough', () => {
     void r1
   })
 
-  test('5. UI — Trade Center opens the stepped AppModal flow with a scroll body', async ({ page }) => {
+  test('5. Value snapshot captured at proposal time + retained in history', async ({ page }) => {
+    const { leagueId, seasonId } = seed.nfl
+    const r2 = rid(leagueId, 2), r3 = rid(leagueId, 3)
+    await loginAs(page, seed.mgr2)
+    const r2players = await rosterPlayerIds(page, r2)
+    const r3players = await rosterPlayerIds(page, r3)
+    const create = await page.request.post('/api/redraft/trade-proposals', {
+      data: {
+        leagueId, seasonId, proposerRosterId: r2, receiverRosterId: r3,
+        assets: [
+          { fromRosterId: r2, toRosterId: r3, assetType: 'player', playerId: r2players[0], metadata: { position: 'RB', restOfSeasonProjection: 180 } },
+          { fromRosterId: r3, toRosterId: r2, assetType: 'player', playerId: r3players[0], metadata: { position: 'WR', restOfSeasonProjection: 150 } },
+        ],
+      },
+    })
+    expect(create.status()).toBe(200)
+    const body = await create.json()
+    // Snapshot returned at proposal time with a deterministic grade.
+    expect(body.valueSnapshot).toBeTruthy()
+    expect(typeof body.valueSnapshot.grade).toBe('string')
+    const proposalId = body.proposal.id as string
+
+    // History retrieval carries the immutable snapshot.
+    const proposals = await listProposals(page, leagueId, seasonId)
+    const found = proposals.find((p) => p.id === proposalId) as { valueSnapshot?: { grade?: string } } | undefined
+    expect(found?.valueSnapshot?.grade).toBe(body.valueSnapshot.grade)
+  })
+
+  test('6. UI — Trade Center opens the stepped AppModal flow with a scroll body', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 1400 })
     await loginAs(page, seed.mgr1)
     let opened = false
@@ -177,6 +205,14 @@ test.describe('@db Redraft Trade Center walkthrough', () => {
       await page.locator('[data-testid^="trade-partner-card-"]').first().click()
       await page.getByTestId('trade-step-next').click()
       await expect(page.locator('[data-testid^="trade-asset-player-"]').first()).toBeVisible({ timeout: 15_000 })
+      // Select an asset on each side (a player on the proposer side + FAAB on the partner side),
+      // advance to review, and assert the deterministic value panel renders with a grade.
+      await page.locator('[data-testid^="trade-asset-player-"]').first().click()
+      await page.getByTestId('trade-faab-theirs').fill('5')
+      await page.getByTestId('trade-step-next').click()
+      await expect(page.getByTestId('trade-value-panel')).toBeVisible({ timeout: 10_000 })
+      await expect(page.getByTestId('trade-value-grade')).toBeVisible()
+      await expect(page.getByText('Values captured at proposal time')).toBeVisible()
       opened = true
       await page.screenshot({ path: resolve(ART, 'trade-center-modal.png'), fullPage: true })
     } catch {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AppModal } from '@/components/ui/AppModal'
+import { buildTradeValueSnapshot, type EnrichedTradeAsset } from '@/lib/trade-value/snapshot'
 import {
   createTradeProposal,
   fetchRedraftRoster,
@@ -227,6 +228,30 @@ export function TradeCenterModal({
     return out
   }, [proposerRosterId, receiverRosterId, selectedMinePlayers, selectedTheirsPlayers, mineFaab, theirsFaab])
 
+  // Deterministic value preview (same engine as the persisted snapshot; client-side has no ADP, so
+  // the authoritative captured snapshot may differ slightly — both are deterministic).
+  const valuePreview = useMemo(() => {
+    if (!proposerRosterId || !receiverRosterId || (!mineHasAssets && !theirsHasAssets)) return null
+    const enriched: EnrichedTradeAsset[] = [
+      ...selectedMinePlayers.map((p) => ({
+        kind: 'player' as const, fromRosterId: proposerRosterId, toRosterId: receiverRosterId,
+        playerId: p.playerId, playerName: p.playerName, position: p.position, team: p.team,
+        sources: { projectionValue: p.restOfSeasonProjection ?? p.weeklyProjection ?? null, rankingValue: null, adpValue: null, fantasyCalcValue: null },
+      })),
+      ...selectedTheirsPlayers.map((p) => ({
+        kind: 'player' as const, fromRosterId: receiverRosterId, toRosterId: proposerRosterId,
+        playerId: p.playerId, playerName: p.playerName, position: p.position, team: p.team,
+        sources: { projectionValue: p.restOfSeasonProjection ?? p.weeklyProjection ?? null, rankingValue: null, adpValue: null, fantasyCalcValue: null },
+      })),
+    ]
+    if (mineFaab > 0) enriched.push({ kind: 'faab', fromRosterId: proposerRosterId, toRosterId: receiverRosterId, faabAmount: mineFaab, sources: { projectionValue: null, rankingValue: null, adpValue: null, fantasyCalcValue: null } })
+    if (theirsFaab > 0) enriched.push({ kind: 'faab', fromRosterId: receiverRosterId, toRosterId: proposerRosterId, faabAmount: theirsFaab, sources: { projectionValue: null, rankingValue: null, adpValue: null, fantasyCalcValue: null } })
+    return buildTradeValueSnapshot({
+      proposerRosterId, receiverRosterId, assets: enriched, currentSeason: null,
+      context: { sport: '', leagueType: 'redraft', scoring: '', rosterFormat: 'standard', capturedAt: new Date().toISOString() },
+    })
+  }, [proposerRosterId, receiverRosterId, selectedMinePlayers, selectedTheirsPlayers, mineFaab, theirsFaab, mineHasAssets, theirsHasAssets])
+
   const canSubmit = Boolean(
     seasonId && proposerRosterId && receiverRosterId && mineHasAssets && theirsHasAssets &&
       !deadlinePassed && !faabOver && !submitting,
@@ -430,6 +455,43 @@ export function TradeCenterModal({
             <ReviewSide label={`${proposerName} sends`} players={selectedMinePlayers} faab={mineFaab} />
             <ReviewSide label={`${receiverName} sends`} players={selectedTheirsPlayers} faab={theirsFaab} />
           </div>
+
+          {valuePreview ? (
+            <div className="space-y-2 rounded-lg border border-white/10 bg-white/[0.03] p-3" data-testid="trade-value-panel">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[12px] font-semibold text-white">Trade Value</p>
+                <span
+                  className="rounded-md border border-cyan-300/40 bg-cyan-400/10 px-2 py-0.5 text-[13px] font-bold text-cyan-100"
+                  data-testid="trade-value-grade"
+                >
+                  {valuePreview.grade.grade}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="rounded border border-white/10 bg-black/20 p-2">
+                  <p className="text-white/50">{proposerName} value</p>
+                  <p className="text-[15px] font-bold text-white">{valuePreview.sides[0]?.total ?? 0}</p>
+                </div>
+                <div className="rounded border border-white/10 bg-black/20 p-2">
+                  <p className="text-white/50">{receiverName} value</p>
+                  <p className="text-[15px] font-bold text-white">{valuePreview.sides[1]?.total ?? 0}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 text-[10px] text-white/60">
+                <span className="rounded border border-white/10 px-2 py-0.5">Fairness {valuePreview.grade.fairnessScore}/100</span>
+                <span className="rounded border border-white/10 px-2 py-0.5">Confidence {valuePreview.grade.confidenceScore}/100</span>
+                <span className="rounded border border-white/10 px-2 py-0.5">Δ {Math.abs(valuePreview.grade.valueDifference)}</span>
+              </div>
+              <ul className="space-y-0.5 text-[11px] text-white/70">
+                {valuePreview.grade.bullets.map((b, i) => (
+                  <li key={i}>• {b}</li>
+                ))}
+              </ul>
+              <p className="text-[10px] text-white/40">
+                Values captured at proposal time · {new Date(valuePreview.context.capturedAt).toLocaleString()}
+              </p>
+            </div>
+          ) : null}
           {(deadlinePassed || lockedSelected || faabOver) && (
             <div className="space-y-1 rounded-lg border border-amber-400/25 bg-amber-400/5 px-3 py-2 text-[11px] text-amber-200/85">
               {deadlinePassed ? <p>⚠ Trade deadline (week {settings?.tradeDeadlineWeek}) has passed.</p> : null}
