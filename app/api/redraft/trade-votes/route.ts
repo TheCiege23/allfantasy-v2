@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
 import { applyRedraftTradeCapTransfers, validateRedraftTradeCap } from '@/lib/idp/capEngine'
 import { settleRedraftTradeAssets } from '@/lib/redraft/tradeSettlement'
+import { recordRedraftTradeMarketEvent, type RedraftMarketEventType } from '@/lib/trade-market/redraftTradeMarketEvents'
 import { enqueueCollusionScan } from '@/lib/integrity/enqueueCollusionScan'
 import { recordAfLearningEvent } from '@/lib/ai-learning-system/recordEvent'
 import { recordTradeOutcomeForBothManagers } from '@/lib/ai-learning-system/recordTradeParticipants'
@@ -70,7 +71,16 @@ async function finalizeAcceptedTrade(
   receiverOwnerId: string | undefined,
   decidedByUserId: string,
   decisionReason?: string,
+  terminalEventType: RedraftMarketEventType = 'proposal_accepted',
 ) {
+  const failEvent = () =>
+    recordRedraftTradeMarketEvent({
+      leagueId: proposal.leagueId,
+      seasonId: proposal.seasonId,
+      tradeProposalId: proposal.id,
+      eventType: 'trade_failed',
+      actorUserId: decidedByUserId,
+    })
   const proposerOffers = mapLegacyOffers(proposal.assets ?? [], proposal.proposerRosterId, proposal.receiverRosterId)
   const receiverOffers = mapLegacyOffers(proposal.assets ?? [], proposal.receiverRosterId, proposal.proposerRosterId)
 
@@ -82,6 +92,7 @@ async function finalizeAcceptedTrade(
     receiverOffers,
   )
   if (!cap.ok) {
+    await failEvent()
     return NextResponse.json({ error: cap.message }, { status: 409 })
   }
 
@@ -95,6 +106,7 @@ async function finalizeAcceptedTrade(
     )
   } catch (e) {
     console.error('[redraft/trade-votes] IDP cap transfer failed', e)
+    await failEvent()
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Cap transfer failed' },
       { status: 409 },
@@ -117,6 +129,7 @@ async function finalizeAcceptedTrade(
       })
     })
   } catch (e) {
+    await failEvent()
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Trade settlement failed' },
       { status: 409 },
@@ -155,6 +168,16 @@ async function finalizeAcceptedTrade(
       console.error('[redraft/trade-votes] enqueueCollusionScan failed', e),
     )
   }
+
+  // Market ledger: terminal acceptance event + processed event (best-effort, idempotent).
+  await recordRedraftTradeMarketEvent({
+    leagueId: proposal.leagueId, seasonId: proposal.seasonId, tradeProposalId: proposal.id,
+    eventType: terminalEventType, actorUserId: decidedByUserId,
+  })
+  await recordRedraftTradeMarketEvent({
+    leagueId: proposal.leagueId, seasonId: proposal.seasonId, tradeProposalId: proposal.id,
+    eventType: 'trade_processed', actorUserId: decidedByUserId,
+  })
 
   return NextResponse.json({ proposal: updated, resolved: true })
 }
@@ -242,6 +265,10 @@ export async function POST(req: NextRequest) {
       data: { status: 'expired' },
     })
     await upsertDecision(proposal.id, 'expired', userId, 'Proposal expired before action')
+    await recordRedraftTradeMarketEvent({
+      leagueId: proposal.leagueId, seasonId: proposal.seasonId, tradeProposalId: proposal.id,
+      eventType: 'proposal_expired', actorUserId: userId,
+    })
     const expiredProposer = await prisma.redraftRoster.findFirst({
       where: { id: proposal.proposerRosterId },
       select: { ownerId: true },
@@ -282,6 +309,10 @@ export async function POST(req: NextRequest) {
       data: { status: 'cancelled', cancelledAt: new Date(), processedAt: new Date() },
     })
     await upsertDecision(proposal.id, 'cancelled', userId, body.reason)
+    await recordRedraftTradeMarketEvent({
+      leagueId: proposal.leagueId, seasonId: proposal.seasonId, tradeProposalId: proposal.id,
+      eventType: 'proposal_canceled', actorUserId: userId,
+    })
     if (proposerOwnerId) {
       void resolveLeagueSport(proposal.leagueId).then((sport) =>
         recordAfLearningEvent({
@@ -302,7 +333,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only receiver can accept/reject' }, { status: 403 })
     }
     if (action === 'accept') {
-      return finalizeAcceptedTrade(proposal as ProposalWithAssets, proposerOwnerId, receiverOwnerId, userId, body.reason)
+      return finalizeAcceptedTrade(proposal as ProposalWithAssets, proposerOwnerId, receiverOwnerId, userId, body.reason, 'proposal_accepted')
     }
 
     const updated = await prisma.redraftTradeProposal.update({
@@ -310,6 +341,10 @@ export async function POST(req: NextRequest) {
       data: { status: 'rejected', rejectedAt: new Date(), processedAt: new Date() },
     })
     await upsertDecision(proposal.id, 'rejected', userId, body.reason)
+    await recordRedraftTradeMarketEvent({
+      leagueId: proposal.leagueId, seasonId: proposal.seasonId, tradeProposalId: proposal.id,
+      eventType: 'proposal_rejected', actorUserId: userId,
+    })
     void recordTradeOutcomeForBothManagers({
       leagueId: proposal.leagueId,
       eventType: 'trade_rejected',
@@ -325,7 +360,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Commissioner action required' }, { status: 403 })
     }
     if (action === 'commissioner_approve') {
-      return finalizeAcceptedTrade(proposal as ProposalWithAssets, proposerOwnerId, receiverOwnerId, userId, body.reason)
+      return finalizeAcceptedTrade(proposal as ProposalWithAssets, proposerOwnerId, receiverOwnerId, userId, body.reason, 'commissioner_approved')
     }
 
     const updated = await prisma.redraftTradeProposal.update({
@@ -336,6 +371,10 @@ export async function POST(req: NextRequest) {
       },
     })
     await upsertDecision(proposal.id, 'vetoed', userId, body.reason)
+    await recordRedraftTradeMarketEvent({
+      leagueId: proposal.leagueId, seasonId: proposal.seasonId, tradeProposalId: proposal.id,
+      eventType: 'commissioner_vetoed', actorUserId: userId,
+    })
     void recordTradeOutcomeForBothManagers({
       leagueId: proposal.leagueId,
       eventType: 'trade_vetoed',
@@ -385,12 +424,24 @@ export async function POST(req: NextRequest) {
     const vetoCount = votes.filter((v) => v.vote === 'veto').length
     const threshold = proposal.vetoThreshold ?? 4
 
+    // One ledger row per voter (updated on revote via the idempotency key).
+    await recordRedraftTradeMarketEvent({
+      leagueId: proposal.leagueId, seasonId: proposal.seasonId, tradeProposalId: proposal.id,
+      eventType: 'league_vote_cast', actorUserId: userId, idempotencySuffix: voterRoster.id,
+      voteDirection: voteValue, voteCounts: { approve: approveCount, veto: vetoCount, threshold },
+    })
+
     if (vetoCount >= threshold) {
       const updated = await prisma.redraftTradeProposal.update({
         where: { id: proposal.id },
         data: { status: 'vetoed', processedAt: new Date() },
       })
       await upsertDecision(proposal.id, 'vetoed', userId, `League vote veto threshold reached (${vetoCount}/${threshold})`)
+      await recordRedraftTradeMarketEvent({
+        leagueId: proposal.leagueId, seasonId: proposal.seasonId, tradeProposalId: proposal.id,
+        eventType: 'proposal_vetoed', actorUserId: userId,
+        voteCounts: { approve: approveCount, veto: vetoCount, threshold },
+      })
       void recordTradeOutcomeForBothManagers({
         leagueId: proposal.leagueId,
         eventType: 'trade_vetoed',
