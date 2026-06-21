@@ -26,7 +26,13 @@ export async function GET(req: NextRequest) {
   const [league, extended, rosters] = await Promise.all([
     prisma.league.findUnique({
       where: { id: leagueId },
-      select: { tradeReviewHours: true, tradeDeadlineWeek: true, draftPickTrading: true },
+      select: {
+        tradeReviewHours: true,
+        tradeDeadlineWeek: true,
+        draftPickTrading: true,
+        userId: true,
+        teams: { where: { claimedByUserId: userId }, select: { isCommissioner: true, isCoCommissioner: true } },
+      },
     }),
     prisma.redraftLeagueExtendedSettings.findUnique({
       where: { leagueId },
@@ -40,6 +46,9 @@ export async function GET(req: NextRequest) {
   const faabByRosterId: Record<string, number> = {}
   for (const r of rosters) faabByRosterId[r.id] = r.faabBalance ?? 0
 
+  const isCommissioner =
+    league?.userId === userId || (league?.teams ?? []).some((t) => t.isCommissioner || t.isCoCommissioner)
+
   return NextResponse.json({
     settings: {
       tradeReviewHours: league?.tradeReviewHours ?? 48,
@@ -48,5 +57,6 @@ export async function GET(req: NextRequest) {
       commissionerTradeReviewType: extended?.commissionerTradeReviewType ?? 'commissioner',
     },
     faabByRosterId,
+    isCommissioner,
   })
 }
