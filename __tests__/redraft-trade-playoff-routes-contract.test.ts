@@ -41,9 +41,18 @@ const prismaMock = {
     findMany: vi.fn(),
     findUnique: vi.fn(),
     update: vi.fn(),
+    count: vi.fn(async () => 2),
   },
   redraftRosterPlayer: {
     updateMany: vi.fn(),
+  },
+  // T2 value snapshot capture (best-effort in the route; defaults keep the contract test focused).
+  adpDataRecord: {
+    findMany: vi.fn(async () => []),
+  },
+  redraftTradeValueSnapshot: {
+    create: vi.fn(async () => ({})),
+    findUnique: vi.fn(async () => null),
   },
   redraftPlayoffBracket: {
     upsert: vi.fn(),
