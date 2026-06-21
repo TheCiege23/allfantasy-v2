@@ -217,6 +217,25 @@ export async function fetchTradeMarketAggregates(params: { leagueId: string; sco
   return parseJson<TradeMarketAggregates>(res)
 }
 
+export type AdaptiveValuePreview = {
+  playerId: string
+  playerName: string | null
+  position: string | null
+  baseValue: number | null
+  marketPreviewValue: number | null
+  adjustmentPercent: number
+  adjustmentPoints: number
+  confidence: number
+  sampleSize: number
+  direction: 'rising' | 'falling' | 'stable' | 'insufficient'
+  reasons: string[]
+}
+
+export async function fetchAdaptiveValueTopMovers(leagueId: string): Promise<{ topMovers: AdaptiveValuePreview[] }> {
+  const res = await fetch(`/api/redraft/trades/adaptive-value-preview?leagueId=${encodeURIComponent(leagueId)}&topMovers=1`, { credentials: 'include' })
+  return parseJson<{ topMovers: AdaptiveValuePreview[] }>(res)
+}
+
 type JsonHeaders = Record<string, string>
 
 const jsonHeaders: JsonHeaders = {

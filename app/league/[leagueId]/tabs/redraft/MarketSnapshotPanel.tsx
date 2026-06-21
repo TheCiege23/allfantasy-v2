@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { fetchTradeMarketAggregates, type TradeMarketAggregates } from '@/lib/redraft/client'
+import { fetchTradeMarketAggregates, fetchAdaptiveValueTopMovers, type TradeMarketAggregates, type AdaptiveValuePreview } from '@/lib/redraft/client'
 
 /**
  * T5 commissioner-only "Market Snapshot" — read-only AllFantasy trade-market aggregates. No player
@@ -11,6 +11,7 @@ import { fetchTradeMarketAggregates, type TradeMarketAggregates } from '@/lib/re
 export function MarketSnapshotPanel({ leagueId }: { leagueId: string }) {
   const [open, setOpen] = useState(false)
   const [data, setData] = useState<TradeMarketAggregates | null>(null)
+  const [movers, setMovers] = useState<AdaptiveValuePreview[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -18,7 +19,12 @@ export function MarketSnapshotPanel({ leagueId }: { leagueId: string }) {
     setLoading(true)
     setError(null)
     try {
-      setData(await fetchTradeMarketAggregates({ leagueId, scope: 'league' }))
+      const [agg, mv] = await Promise.all([
+        fetchTradeMarketAggregates({ leagueId, scope: 'league' }),
+        fetchAdaptiveValueTopMovers(leagueId).catch(() => ({ topMovers: [] as AdaptiveValuePreview[] })),
+      ])
+      setData(agg)
+      setMovers(mv.topMovers)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load market snapshot')
     } finally {
@@ -75,6 +81,25 @@ export function MarketSnapshotPanel({ leagueId }: { leagueId: string }) {
                   </p>
                 ) : null}
                 <p className="text-[9px] text-white/35">Read-only market history. Does not change player values.</p>
+
+                <div className="mt-1 border-t border-white/10 pt-1.5" data-testid="adaptive-preview-section">
+                  <p className="text-[10px] font-semibold text-white/70">AllFantasy Market Preview — top movers</p>
+                  {movers && movers.length ? (
+                    <ul className="mt-0.5 space-y-0.5 text-[10px] text-white/60">
+                      {movers.slice(0, 5).map((m) => (
+                        <li key={m.playerId} className="flex justify-between gap-2">
+                          <span className="truncate">{m.playerName ?? m.playerId}{m.position ? ` · ${m.position}` : ''}</span>
+                          <span className={m.direction === 'rising' ? 'text-emerald-300' : m.direction === 'falling' ? 'text-rose-300' : 'text-white/50'}>
+                            {m.adjustmentPercent > 0 ? '+' : ''}{m.adjustmentPercent}% ({m.direction})
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-0.5 text-[10px] text-white/45">Not enough AllFantasy trade history yet to adjust players.</p>
+                  )}
+                  <p className="text-[9px] text-white/35">Preview only. Does not change official player value.</p>
+                </div>
               </>
             )
           ) : null}
