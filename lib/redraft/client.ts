@@ -133,6 +133,23 @@ export type RedraftTradeAssetInput = {
   metadata?: Record<string, unknown>
 }
 
+export type RedraftTradeSettings = {
+  tradeReviewHours: number
+  tradeDeadlineWeek: number | null
+  draftPickTrading: boolean
+  commissionerTradeReviewType: string
+}
+
+export async function fetchRedraftTradeSettings(params: {
+  leagueId: string
+  seasonId?: string | null
+}): Promise<{ settings: RedraftTradeSettings; faabByRosterId: Record<string, number> }> {
+  const qs = new URLSearchParams({ leagueId: params.leagueId })
+  if (params.seasonId) qs.set('seasonId', params.seasonId)
+  const res = await fetch(`/api/redraft/trade-settings?${qs.toString()}`, { credentials: 'include' })
+  return parseJson<{ settings: RedraftTradeSettings; faabByRosterId: Record<string, number> }>(res)
+}
+
 type JsonHeaders = Record<string, string>
 
 const jsonHeaders: JsonHeaders = {

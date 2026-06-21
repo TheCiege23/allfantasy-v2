@@ -7,43 +7,56 @@ function read(rel: string): string {
 }
 
 const tradeCenterSrc = read('app/league/[leagueId]/tabs/redraft/TradeCenter.tsx')
+const tradeModalSrc = read('app/league/[leagueId]/tabs/redraft/TradeCenterModal.tsx')
 const redraftTabSrc = read('app/league/[leagueId]/tabs/RedraftTab.tsx')
 const clientSrc = read('lib/redraft/client.ts')
+const settlementSrc = read('lib/redraft/tradeSettlement.ts')
+const voteRouteSrc = read('app/api/redraft/trade-votes/route.ts')
 
-describe('redraft real trade builder UI contract', () => {
-  it('renders a creation surface for selecting players and picks from both rosters', () => {
-    expect(tradeCenterSrc).toContain('Trade Creation')
-    expect(tradeCenterSrc).toContain('Roster A')
-    expect(tradeCenterSrc).toContain('Roster B')
-    expect(tradeCenterSrc).toContain('Select Player')
-    expect(tradeCenterSrc).toContain('Select Pick')
-    expect(tradeCenterSrc).toContain('Search roster players')
+describe('redraft Trade Center rebuild — stepped flow contract', () => {
+  it('hosts a stepped propose flow (partner -> assets -> review) in the shared AppModal', () => {
+    expect(tradeModalSrc).toContain("from '@/components/ui/AppModal'")
+    expect(tradeModalSrc).toContain('Propose a Trade')
+    expect(tradeModalSrc).toContain("'partner'")
+    expect(tradeModalSrc).toContain("'assets'")
+    expect(tradeModalSrc).toContain("'review'")
+    expect(tradeCenterSrc).toContain('trade-center-open')
+    expect(tradeCenterSrc).toContain('<TradeCenterModal')
   })
 
-  it('loads actual roster players for the active redraft week', () => {
-    expect(tradeCenterSrc).toContain('fetchRedraftRoster')
-    expect(tradeCenterSrc).toContain('currentWeek')
+  it('loads actual roster players for the active redraft week (no fabricated picks)', () => {
+    expect(tradeModalSrc).toContain('fetchRedraftRoster')
     expect(redraftTabSrc).toContain('currentWeek={currentWeek}')
+    // The rebuild removed the synthetic buildPickOptions fake-pick generator.
+    expect(tradeCenterSrc).not.toContain('buildPickOptions')
+    expect(tradeModalSrc).not.toContain('buildPickOptions')
   })
 
-  it('sends selected player and pick assets to the canonical proposal API', () => {
-    expect(tradeCenterSrc).toContain('assets: apiAssets')
-    expect(tradeCenterSrc).toContain("assetType: 'player'")
-    expect(tradeCenterSrc).toContain("assetType: 'draft_pick'")
+  it('sends real player + FAAB assets to the canonical proposal API', () => {
+    expect(tradeModalSrc).toContain('createTradeProposal')
+    expect(tradeModalSrc).toContain("assetType: 'player'")
+    expect(tradeModalSrc).toContain("assetType: 'faab'")
     expect(clientSrc).toContain('export type RedraftTradeAssetInput')
-    expect(clientSrc).toContain('assets?: RedraftTradeAssetInput[]')
   })
 
-  it('shows the pre-submit analyzer fields requested for production', () => {
-    expect(tradeCenterSrc).toContain('Fairness score')
-    expect(tradeCenterSrc).toContain('Risk score')
-    expect(tradeCenterSrc).toContain('Positional impact')
-    expect(tradeCenterSrc).toContain('Chimmy Explanation')
-    expect(tradeCenterSrc).toContain('analyzeRedraftTradeBuilder')
+  it('gates draft-pick trading on the league setting and labels it reference-only', () => {
+    expect(tradeModalSrc).toContain('settings?.draftPickTrading')
+    expect(tradeModalSrc.toLowerCase()).toContain('reference-only')
+  })
+
+  it('settles accepted trades for real (players + FAAB) on the accept path', () => {
+    expect(settlementSrc).toContain('redraftRosterPlayer.updateMany')
+    expect(settlementSrc).toContain('faabBalance')
+    expect(voteRouteSrc).toContain('settleRedraftTradeAssets')
+  })
+
+  it('surfaces league trade settings and a multi-team coming-soon affordance', () => {
+    expect(tradeCenterSrc).toContain('trade-settings-summary')
+    expect(tradeModalSrc).toContain('Multi-team')
   })
 
   it('does not expose dynasty value copy in the redraft builder', () => {
     expect(tradeCenterSrc.toLowerCase()).not.toContain('dynasty value')
-    expect(tradeCenterSrc).not.toContain('Dynasty value')
+    expect(tradeModalSrc.toLowerCase()).not.toContain('dynasty value')
   })
 })

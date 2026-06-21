@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
 import { applyRedraftTradeCapTransfers, validateRedraftTradeCap } from '@/lib/idp/capEngine'
+import { settleRedraftTradeAssets } from '@/lib/redraft/tradeSettlement'
 import { enqueueCollusionScan } from '@/lib/integrity/enqueueCollusionScan'
 import { recordAfLearningEvent } from '@/lib/ai-learning-system/recordEvent'
 import { recordTradeOutcomeForBothManagers } from '@/lib/ai-learning-system/recordTradeParticipants'
@@ -100,10 +101,27 @@ async function finalizeAcceptedTrade(
     )
   }
 
-  const updated = await prisma.redraftTradeProposal.update({
-    where: { id: proposal.id },
-    data: { status: 'accepted', acceptedAt: new Date(), processedAt: new Date() },
-  })
+  // Settle the trade for real: move RedraftRosterPlayer rows + transfer faabBalance atomically with
+  // the status flip. (IDP salary records were moved above; this handles the standard redraft roster.)
+  let updated
+  try {
+    updated = await prisma.$transaction(async (tx) => {
+      await settleRedraftTradeAssets(tx, {
+        proposerRosterId: proposal.proposerRosterId,
+        receiverRosterId: proposal.receiverRosterId,
+        assets: proposal.assets ?? [],
+      })
+      return tx.redraftTradeProposal.update({
+        where: { id: proposal.id },
+        data: { status: 'accepted', acceptedAt: new Date(), processedAt: new Date() },
+      })
+    })
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Trade settlement failed' },
+      { status: 409 },
+    )
+  }
   await upsertDecision(proposal.id, 'accepted', decidedByUserId, decisionReason)
 
   if (proposerOwnerId && receiverOwnerId) {
