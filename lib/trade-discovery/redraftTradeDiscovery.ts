@@ -16,6 +16,11 @@ export const DISCOVERY_WARNINGS = [
   'FAAB_UNSUPPORTED_OR_LIMITED',
   'TRADE_BLOCK_UNAVAILABLE',
   'NCAAF_LIMITED_DATA',
+  // T8 — native trade block + interest signals.
+  'TRADE_BLOCK_MATCH',
+  'INTEREST_MATCH',
+  'PRIVATE_INTEREST_USED',
+  'BLOCK_ITEM_EXPIRED',
 ] as const
 export type DiscoveryWarning = (typeof DISCOVERY_WARNINGS)[number]
 
@@ -38,6 +43,15 @@ export interface DiscoveryRoster {
   players: DiscoveryPlayer[]
   faabBalance?: number | null
   recentTradeCount?: number
+  /** T8: playerIds this roster has actively listed on the native trade block. */
+  blockPlayerIds?: string[]
+}
+
+/** T8: the requesting manager's own interest signals (private allowed) used to bias their discovery. */
+export interface DiscoveryInterest {
+  playerIds: string[]
+  positions: string[]
+  hasPrivate?: boolean
 }
 
 export interface PartnerMatch {
@@ -109,9 +123,12 @@ export function findPartners(input: {
   myRoster: DiscoveryRoster
   otherRosters: DiscoveryRoster[]
   sport: string
+  myInterest?: DiscoveryInterest
+  hasNativeBlock?: boolean
 }): PartnerMatch[] {
   const isNcaaf = input.sport === 'NCAAF'
   const my = needsSurplus(input.myRoster.players)
+  const interestPlayerIds = new Set(input.myInterest?.playerIds ?? [])
 
   return input.otherRosters
     .filter((r) => r.rosterId !== input.myRoster.rosterId)
@@ -146,6 +163,26 @@ export function findPartners(input: {
       score += Math.min(10, (iCanGive.length + iCanGet.length) * 2)
 
       const warningFlags: DiscoveryWarning[] = []
+
+      // T8: native trade-block match — partner is actively shopping a player at one of my needs.
+      const partnerBlock = new Set(partner.blockPlayerIds ?? [])
+      const blockMatch = partner.players.some(
+        (p) => partnerBlock.has(p.playerId) && my.needs.includes(norm(p.position)),
+      )
+      if (blockMatch) {
+        score += 20
+        reasons.push('Player is on the trade block that fits your need')
+        warningFlags.push('TRADE_BLOCK_MATCH')
+      }
+      // T8: I marked interest in a player this partner owns.
+      const interestMatch = partner.players.some((p) => interestPlayerIds.has(p.playerId))
+      if (interestMatch) {
+        score += 15
+        reasons.push('You marked interest in a player on this team')
+        warningFlags.push('INTEREST_MATCH')
+        if (input.myInterest?.hasPrivate) warningFlags.push('PRIVATE_INTEREST_USED')
+      }
+
       if (isNcaaf) {
         warningFlags.push('NCAAF_LIMITED_DATA')
         score = Math.round(score * 0.8)
@@ -153,7 +190,8 @@ export function findPartners(input: {
       if (input.myRoster.players.some((p) => p.value == null) || partner.players.some((p) => p.value == null)) {
         warningFlags.push('LOW_DATA_CONFIDENCE')
       }
-      warningFlags.push('TRADE_BLOCK_UNAVAILABLE')
+      // Only warn that the block is unavailable when no native block data exists at all.
+      if (!input.hasNativeBlock) warningFlags.push('TRADE_BLOCK_UNAVAILABLE')
 
       return {
         rosterId: partner.rosterId,
@@ -229,7 +267,11 @@ export function findPackages(input: {
     if (gives.length === 1 && receives.length === 1 && norm(gives[0]!.position) === norm(receives[0]!.position)) warningFlags.push('SAME_POSITION_SWAP')
     if (faab > 0 && !input.faabSupported) warningFlags.push('FAAB_UNSUPPORTED_OR_LIMITED')
 
+    const partnerBlock = new Set(input.partnerRoster.blockPlayerIds ?? [])
+    if (receives.some((r) => partnerBlock.has(r.playerId))) warningFlags.push('TRADE_BLOCK_MATCH')
+
     const reasons: string[] = []
+    if (receives.some((r) => partnerBlock.has(r.playerId))) reasons.push('Target player is on the trade block')
     if (fairnessBand === 'balanced') reasons.push('Values are close — fair starting point')
     else if (fairnessBand === 'slight edge you') reasons.push('Slight value edge to you')
     else if (fairnessBand === 'slight edge partner') reasons.push('Slight value edge to your partner')

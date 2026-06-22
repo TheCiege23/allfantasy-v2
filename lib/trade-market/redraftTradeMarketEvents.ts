@@ -26,9 +26,52 @@ export const REDRAFT_MARKET_EVENT_TYPES = [
   'proposal_vetoed',
   'proposal_expired',
   'trade_failed',
+  // T8 — native trade block + interest signals (no proposal; signals only, never change values).
+  'trade_block_added',
+  'trade_block_updated',
+  'trade_block_removed',
+  'trade_interest_added',
+  'trade_interest_updated',
+  'trade_interest_removed',
 ] as const
 
 export type RedraftMarketEventType = (typeof REDRAFT_MARKET_EVENT_TYPES)[number]
+
+/**
+ * T8 — record a block/interest signal event (no trade proposal). Best-effort + idempotent: keyed by
+ * the block/interest ref id + eventType (+ updatedAt bucket so successive updates aren't dropped).
+ * Never throws; never changes player values.
+ */
+export async function recordRedraftTradeSignalEvent(input: {
+  leagueId: string
+  seasonId: string
+  refId: string
+  eventType: RedraftMarketEventType
+  actorUserId?: string | null
+  updatedAtMs?: number
+  payload?: Record<string, unknown>
+}): Promise<void> {
+  try {
+    const suffix = input.eventType.endsWith('_updated') && input.updatedAtMs ? `:${input.updatedAtMs}` : ''
+    await prisma.redraftTradeMarketEvent.create({
+      data: {
+        leagueId: input.leagueId,
+        seasonId: input.seasonId,
+        tradeProposalId: input.refId, // no FK — stores the block/interest id for signal events
+        eventType: input.eventType,
+        actorUserId: input.actorUserId ?? null,
+        idempotencyKey: `${input.refId}:${input.eventType}${suffix}`,
+        statusAtEvent: null,
+        sport: null,
+        payload: (input.payload ?? {}) as unknown as object,
+      },
+    })
+  } catch (e) {
+    const code = (e as { code?: string } | null)?.code
+    if (code === 'P2002') return
+    console.error('[trade-market] signal event capture failed', { eventType: input.eventType, refId: input.refId, error: e })
+  }
+}
 
 type AssetRow = {
   fromRosterId: string

@@ -42,6 +42,37 @@ describe('findPartners', () => {
   })
 })
 
+describe('findPartners — T8 native block/interest signals', () => {
+  it('boosts + flags a partner who has a needed player on the trade block', () => {
+    const baseline = findPartners({ myRoster, otherRosters: [partner], sport: 'NFL', hasNativeBlock: true })[0]
+    const withBlock = findPartners({
+      myRoster,
+      otherRosters: [{ ...partner, blockPlayerIds: ['w1'] }], // WR (my need) on the block
+      sport: 'NFL',
+      hasNativeBlock: true,
+    })[0]
+    expect(withBlock.matchScore).toBeGreaterThan(baseline.matchScore)
+    expect(withBlock.warningFlags).toContain('TRADE_BLOCK_MATCH')
+    expect(withBlock.warningFlags).not.toContain('TRADE_BLOCK_UNAVAILABLE')
+    expect(withBlock.matchReasons.join(' ')).toMatch(/trade block/i)
+  })
+  it('boosts + flags a partner I marked interest in, with private-interest disclosure', () => {
+    const m = findPartners({
+      myRoster,
+      otherRosters: [partner],
+      sport: 'NFL',
+      hasNativeBlock: true,
+      myInterest: { playerIds: ['w1'], positions: [], hasPrivate: true },
+    })[0]
+    expect(m.warningFlags).toContain('INTEREST_MATCH')
+    expect(m.warningFlags).toContain('PRIVATE_INTEREST_USED')
+  })
+  it('keeps TRADE_BLOCK_UNAVAILABLE only when there is no native block data', () => {
+    const m = findPartners({ myRoster, otherRosters: [partner], sport: 'NFL', hasNativeBlock: false })[0]
+    expect(m.warningFlags).toContain('TRADE_BLOCK_UNAVAILABLE')
+  })
+})
+
 describe('findPackages', () => {
   it('suggests deterministic packages and never includes unowned or locked assets', () => {
     const pkgs = findPackages({ myRoster, partnerRoster: partner, sport: 'NFL', faabSupported: true, draftPickTrading: false })

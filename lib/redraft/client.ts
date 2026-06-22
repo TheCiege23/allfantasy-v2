@@ -274,6 +274,54 @@ export async function fetchTradePackages(payload: { leagueId: string; myRosterId
   return parseJson(res)
 }
 
+export type TradeBlockItem = {
+  id: string
+  rosterId: string
+  playerId: string
+  playerName: string
+  position: string | null
+  team: string | null
+  askingForPositions: string[]
+  wantsFaab: boolean
+  wantsDraftPicks: boolean
+  note: string | null
+  expiresAt: string | null
+}
+export type TradeInterestItem = {
+  id: string
+  playerId: string | null
+  playerName: string | null
+  position: string | null
+  interestType: string
+  visibility: string
+  note: string | null
+}
+
+export async function fetchLeagueTradeBlock(leagueId: string): Promise<{ items: TradeBlockItem[] }> {
+  const res = await fetch(`/api/redraft/trades/trade-block?leagueId=${encodeURIComponent(leagueId)}`, { credentials: 'include' })
+  return parseJson(res)
+}
+export async function addTradeBlockItem(payload: { leagueId: string; playerId: string; playerName: string; position?: string | null; team?: string | null; askingForPositions?: string[]; wantsFaab?: boolean; wantsDraftPicks?: boolean; note?: string | null }) {
+  const res = await fetch('/api/redraft/trades/trade-block', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+  return parseJson<{ item: TradeBlockItem }>(res)
+}
+export async function removeTradeBlockItem(itemId: string) {
+  const res = await fetch(`/api/redraft/trades/trade-block/${encodeURIComponent(itemId)}`, { method: 'DELETE', credentials: 'include' })
+  return parseJson<{ ok: boolean }>(res)
+}
+export async function fetchMyInterests(leagueId: string): Promise<{ interests: TradeInterestItem[] }> {
+  const res = await fetch(`/api/redraft/trades/interests?leagueId=${encodeURIComponent(leagueId)}`, { credentials: 'include' })
+  return parseJson(res)
+}
+export async function addTradeInterest(payload: { leagueId: string; interestType: string; targetRosterId?: string | null; playerId?: string | null; playerName?: string | null; position?: string | null; note?: string | null; visibility?: 'private' | 'public' }) {
+  const res = await fetch('/api/redraft/trades/interests', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+  return parseJson<{ interest: TradeInterestItem }>(res)
+}
+export async function removeTradeInterest(interestId: string) {
+  const res = await fetch(`/api/redraft/trades/interests/${encodeURIComponent(interestId)}`, { method: 'DELETE', credentials: 'include' })
+  return parseJson<{ ok: boolean }>(res)
+}
+
 type JsonHeaders = Record<string, string>
 
 const jsonHeaders: JsonHeaders = {
