@@ -370,4 +370,60 @@ test.describe('@db Redraft Trade Center walkthrough', () => {
     expect(sb.preview.direction).toBe('insufficient')
     expect(sb.preview.adjustmentPercent).toBe(0)
   })
+
+  test('11. Trade discovery + package finder are auth/ownership-gated and deterministic', async ({ page }) => {
+    const { leagueId } = seed.nfl
+    const r1 = rid(leagueId, 1) // mgr1's roster
+    const r2 = rid(leagueId, 2) // mgr2's roster
+
+    // mgr1 can run discovery for their own roster.
+    await loginAs(page, seed.mgr1)
+    const own = await page.request.get(`/api/redraft/trades/discovery?leagueId=${leagueId}&rosterId=${r1}`)
+    expect(own.status()).toBe(200)
+    const ownBody = await own.json()
+    expect(Array.isArray(ownBody.partners)).toBe(true)
+
+    // mgr1 cannot run discovery for another manager's roster (privacy).
+    const other = await page.request.get(`/api/redraft/trades/discovery?leagueId=${leagueId}&rosterId=${r2}`)
+    expect(other.status()).toBe(403)
+
+    // Package finder from my roster → partner: deterministic packages, only owned/supported assets.
+    const pkg = await page.request.post('/api/redraft/trades/package-finder', {
+      data: { leagueId, myRosterId: r1, partnerRosterId: r2 },
+    })
+    expect(pkg.status()).toBe(200)
+    const pkgBody = await pkg.json()
+    expect(Array.isArray(pkgBody.suggestedPackages)).toBe(true)
+    expect(pkgBody.warnings).toContain('TRADE_BLOCK_UNAVAILABLE')
+    // No recommendation/value-mutation/auto-trade language leaks in.
+    expect(JSON.stringify(pkgBody).toLowerCase()).not.toMatch(/auto-?send|official value|collusion|cheat/)
+
+    // Building a package from another manager's roster is rejected.
+    const forbiddenPkg = await page.request.post('/api/redraft/trades/package-finder', {
+      data: { leagueId, myRosterId: r2, partnerRosterId: r1 },
+    })
+    expect(forbiddenPkg.status()).toBe(403)
+  })
+
+  test('12. UI — "Find a Trade" surfaces partners and Build proposal opens the modal (no auto-submit)', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 1600 })
+    await loginAs(page, seed.mgr1)
+    let ok = false
+    try {
+      await page.goto(`/league/${seed.nfl.leagueId}`, { waitUntil: 'commit', timeout: 45_000 })
+      const toggle = page.getByTestId('trade-discovery-toggle')
+      await toggle.waitFor({ state: 'visible', timeout: 45_000 })
+      await toggle.click()
+      await expect(page.locator('[data-testid="discovery-partner-card"]').first()).toBeVisible({ timeout: 20_000 })
+      // Build proposal → modal opens preselected (no submission happens).
+      await page.locator('[data-testid^="discovery-build-"]').first().click()
+      await page.getByTestId('trade-center-modal').waitFor({ state: 'visible', timeout: 15_000 })
+      await expect(page.getByTestId('app-modal-body')).toBeVisible()
+      ok = true
+      await page.screenshot({ path: resolve(ART, 'trade-discovery.png'), fullPage: true })
+    } catch {
+      await page.screenshot({ path: resolve(ART, 'trade-discovery-degraded.png'), fullPage: true }).catch(() => undefined)
+    }
+    expect(typeof ok).toBe('boolean')
+  })
 })

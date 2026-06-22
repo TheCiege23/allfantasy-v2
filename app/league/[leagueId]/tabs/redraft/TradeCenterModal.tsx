@@ -110,6 +110,7 @@ export function TradeCenterModal({
   settings,
   faabByRosterId,
   onSubmitted,
+  initialReceiverRosterId = null,
 }: {
   open: boolean
   onClose: () => void
@@ -121,6 +122,8 @@ export function TradeCenterModal({
   settings: RedraftTradeSettings | null
   faabByRosterId: Record<string, number>
   onSubmitted?: () => void
+  /** T7: when set (e.g. from "Build proposal"), preselect this partner and open at the assets step. */
+  initialReceiverRosterId?: string | null
 }) {
   const [step, setStep] = useState<Step>('partner')
   const [proposerRosterId, setProposerRosterId] = useState<string>('')
@@ -146,8 +149,9 @@ export function TradeCenterModal({
   // Reset when (re)opened. Proposer defaults to the viewer's own roster.
   useEffect(() => {
     if (!open) return
-    setStep('partner')
-    setReceiverRosterId('')
+    const preselect = initialReceiverRosterId && standings.some((r) => r.id === initialReceiverRosterId) ? initialReceiverRosterId : ''
+    setStep(preselect ? 'assets' : 'partner')
+    setReceiverRosterId(preselect)
     setMineSel([])
     setTheirsSel([])
     setMineFaab(0)
@@ -159,7 +163,7 @@ export function TradeCenterModal({
       ? myRosterId
       : standings[0]?.id ?? ''
     setProposerRosterId(defaultProposer)
-  }, [open, myRosterId, standings])
+  }, [open, myRosterId, standings, initialReceiverRosterId])
 
   // Load both rosters' players once a partner is chosen.
   useEffect(() => {

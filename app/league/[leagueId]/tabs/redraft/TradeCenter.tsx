@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { TradeCenterModal } from './TradeCenterModal'
 import { CommissionerReviewPanel } from './CommissionerReviewPanel'
+import { TradeDiscoveryPanel } from './TradeDiscoveryPanel'
 import { MarketSnapshotPanel } from './MarketSnapshotPanel'
 import {
   fetchRedraftTradeSettings,
@@ -66,6 +67,7 @@ export function TradeCenter({
   const [settings, setSettings] = useState<RedraftTradeSettings | null>(null)
   const [faabByRosterId, setFaabByRosterId] = useState<Record<string, number>>({})
   const [settingsCommissioner, setSettingsCommissioner] = useState(false)
+  const [discoveryPartnerId, setDiscoveryPartnerId] = useState<string | null>(null)
 
   const rosterNameById = useMemo(() => {
     const map = new Map<string, string>()
@@ -269,10 +271,24 @@ export function TradeCenter({
         )}
       </div>
 
+      {seasonId && myRosterId ? (
+        <TradeDiscoveryPanel
+          leagueId={leagueId}
+          myRosterId={myRosterId}
+          onBuildProposal={(partnerRosterId) => {
+            setDiscoveryPartnerId(partnerRosterId)
+            setModalOpen(true)
+          }}
+        />
+      ) : null}
+
       {seasonId ? (
         <TradeCenterModal
           open={modalOpen}
-          onClose={() => setModalOpen(false)}
+          onClose={() => {
+            setModalOpen(false)
+            setDiscoveryPartnerId(null)
+          }}
           leagueId={leagueId}
           seasonId={seasonId}
           standings={standings}
@@ -281,6 +297,7 @@ export function TradeCenter({
           settings={settings}
           faabByRosterId={faabByRosterId}
           onSubmitted={() => void refresh()}
+          initialReceiverRosterId={discoveryPartnerId}
         />
       ) : null}
     </div>

@@ -236,6 +236,44 @@ export async function fetchAdaptiveValueTopMovers(leagueId: string): Promise<{ t
   return parseJson<{ topMovers: AdaptiveValuePreview[] }>(res)
 }
 
+export type TradePartnerMatch = {
+  rosterId: string
+  teamName: string
+  managerDisplayName: string | null
+  partnerNeeds: string[]
+  partnerSurpluses: string[]
+  myNeeds: string[]
+  mySurpluses: string[]
+  matchScore: number
+  matchReasons: string[]
+  warningFlags: string[]
+}
+export type TradePackageAsset = { kind: 'player' | 'faab'; playerId?: string; playerName?: string; position?: string; faabAmount?: number; value: number | null }
+export type TradePackageSuggestion = {
+  packageId: string
+  giveAssets: TradePackageAsset[]
+  receiveAssets: TradePackageAsset[]
+  myTotalValue: number
+  partnerTotalValue: number
+  valueDelta: number
+  fairnessBand: string
+  confidence: number
+  reasons: string[]
+  warningFlags: string[]
+  canStartProposal: boolean
+}
+
+export async function fetchTradeDiscovery(params: { leagueId: string; rosterId: string }): Promise<{ partners: TradePartnerMatch[]; summary: { myNeeds: string[]; mySurpluses: string[]; partnerCount: number; sport: string }; warnings: string[] }> {
+  const qs = new URLSearchParams({ leagueId: params.leagueId, rosterId: params.rosterId })
+  const res = await fetch(`/api/redraft/trades/discovery?${qs.toString()}`, { credentials: 'include' })
+  return parseJson(res)
+}
+
+export async function fetchTradePackages(payload: { leagueId: string; myRosterId: string; partnerRosterId: string; targetPlayerId?: string | null; outgoingPlayerId?: string | null }): Promise<{ suggestedPackages: TradePackageSuggestion[]; warnings: string[]; canStartProposal: boolean }> {
+  const res = await fetch('/api/redraft/trades/package-finder', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+  return parseJson(res)
+}
+
 type JsonHeaders = Record<string, string>
 
 const jsonHeaders: JsonHeaders = {
