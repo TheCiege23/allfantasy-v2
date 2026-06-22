@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { TradeCenterModal } from './TradeCenterModal'
 import { CommissionerReviewPanel } from './CommissionerReviewPanel'
 import { TradeDiscoveryPanel } from './TradeDiscoveryPanel'
+import { TradeBlockPanel } from './TradeBlockPanel'
 import { MarketSnapshotPanel } from './MarketSnapshotPanel'
 import {
   fetchRedraftTradeSettings,
@@ -270,6 +271,18 @@ export function TradeCenter({
           })
         )}
       </div>
+
+      {seasonId && myRosterId ? (
+        <TradeBlockPanel
+          leagueId={leagueId}
+          myRosterId={myRosterId}
+          currentWeek={currentWeek}
+          onBuildProposal={(partnerRosterId) => {
+            setDiscoveryPartnerId(partnerRosterId)
+            setModalOpen(true)
+          }}
+        />
+      ) : null}
 
       {seasonId && myRosterId ? (
         <TradeDiscoveryPanel

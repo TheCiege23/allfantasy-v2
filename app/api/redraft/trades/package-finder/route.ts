@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
 import { assembleDiscoveryLeague } from '@/lib/trade-discovery/assembleRosters'
 import { findPackages } from '@/lib/trade-discovery/redraftTradeDiscovery'
+import { discoverySignals } from '@/lib/trade-block/redraftTradeBlockService'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,6 +55,11 @@ export async function POST(req: NextRequest) {
   const partnerRoster = league.rosters.find((r) => r.rosterId === partnerRosterId)
   if (!myRoster || !partnerRoster) return NextResponse.json({ error: 'Roster not found' }, { status: 404 })
 
+  // T8: attach native trade-block signals so package ideas can flag "on the trade block".
+  const signals = await discoverySignals(leagueId, myRosterId)
+  partnerRoster.blockPlayerIds = signals.blockPlayerIdsByRoster[partnerRosterId] ?? []
+  myRoster.blockPlayerIds = signals.blockPlayerIdsByRoster[myRosterId] ?? []
+
   const faabSupported = (myRoster.faabBalance ?? 0) > 0 || (partnerRoster.faabBalance ?? 0) > 0
   const suggestedPackages = findPackages({
     myRoster,
@@ -68,7 +74,7 @@ export async function POST(req: NextRequest) {
   const warnings: string[] = []
   if (league.sport === 'NCAAF') warnings.push('NCAAF_LIMITED_DATA')
   if (!league.draftPickTrading) warnings.push('DRAFT_PICK_REFERENCE_ONLY')
-  warnings.push('TRADE_BLOCK_UNAVAILABLE')
+  if (!signals.hasNativeBlock) warnings.push('TRADE_BLOCK_UNAVAILABLE')
 
   return NextResponse.json({
     suggestedPackages,

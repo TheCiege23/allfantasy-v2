@@ -13222,6 +13222,57 @@ model RedraftTradeMarketEvent {
   @@map("redraft_trade_market_events")
 }
 
+/// T8: native trade block — a manager publicly signals a player they will move (+ what they want
+/// back). League-visible. No FK (signal survives roster churn). Internal ids only.
+model RedraftTradeBlockItem {
+  id                 String    @id @default(cuid())
+  leagueId           String
+  rosterId           String
+  playerId           String
+  playerName         String
+  position           String?
+  team               String?
+  askingForPositions Json      @default("[]")
+  wantsFaab          Boolean   @default(false)
+  wantsDraftPicks    Boolean   @default(false)
+  packagePreference  String?
+  note               String?
+  visibility         String    @default("league")
+  status             String    @default("active")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  expiresAt          DateTime?
+
+  @@unique([leagueId, rosterId, playerId])
+  @@index([leagueId, status])
+  @@index([rosterId, status])
+  @@index([playerId, status])
+  @@map("redraft_trade_block_items")
+}
+
+/// T8: native trade interest — a manager marks interest in a player/position/package. Private by
+/// default (only affects the owner's own discovery) unless visibility = "public". Never a proposal.
+model RedraftTradeInterest {
+  id             String   @id @default(cuid())
+  leagueId       String
+  fromRosterId   String
+  targetRosterId String?
+  playerId       String?
+  playerName     String?
+  position       String?
+  interestType   String
+  note           String?
+  visibility     String   @default("private")
+  status         String   @default("active")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([leagueId, status])
+  @@index([fromRosterId, status])
+  @@index([playerId, status])
+  @@map("redraft_trade_interests")
+}
+
 model RedraftPlayoffRound {
   id          String                  @id
   seasonId    String

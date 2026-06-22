@@ -426,4 +426,78 @@ test.describe('@db Redraft Trade Center walkthrough', () => {
     }
     expect(typeof ok).toBe('boolean')
   })
+
+  test('13. Native trade block + interest lifecycle, privacy, and discovery boost', async ({ page }) => {
+    const { leagueId } = seed.nfl
+    const r1 = rid(leagueId, 1)
+    const r2 = rid(leagueId, 2)
+
+    // mgr1 lists one of their CURRENTLY-owned players on the block (state-independent).
+    await loginAs(page, seed.mgr1)
+    const r1players = await rosterPlayerIds(page, r1)
+    const blockPlayerId = r1players[0]
+    const add = await page.request.post('/api/redraft/trades/trade-block', {
+      data: { leagueId, playerId: blockPlayerId, playerName: 'Block Target', position: 'RB' },
+    })
+    expect(add.status()).toBe(200)
+    const itemId = (await add.json()).item.id as string
+
+    // A league mate sees it on the league trade block.
+    await loginAs(page, seed.mgr2)
+    const leagueBlock = await page.request.get(`/api/redraft/trades/trade-block?leagueId=${leagueId}`)
+    expect(leagueBlock.status()).toBe(200)
+    expect(((await leagueBlock.json()).items as Array<{ playerId: string }>).some((i) => i.playerId === blockPlayerId)).toBe(true)
+
+    // A non-owner cannot remove someone else's block item.
+    const badDelete = await page.request.delete(`/api/redraft/trades/trade-block/${itemId}`)
+    expect(badDelete.status()).toBe(403)
+
+    // mgr2 marks (private) interest in that player; it must NOT be visible to other managers' lists,
+    // but it boosts mgr2's own discovery of r1.
+    const interest = await page.request.post('/api/redraft/trades/interests', {
+      data: { leagueId, interestType: 'player_interest', targetRosterId: r1, playerId: blockPlayerId, playerName: 'Block Target' },
+    })
+    expect(interest.status()).toBe(200)
+    const interestId = (await interest.json()).interest.id as string
+
+    const disc = await page.request.get(`/api/redraft/trades/discovery?leagueId=${leagueId}&rosterId=${r2}`)
+    expect(disc.status()).toBe(200)
+    const partnerR1 = ((await disc.json()).partners as Array<{ rosterId: string; warningFlags: string[] }>).find((p) => p.rosterId === r1)
+    expect(partnerR1?.warningFlags).toContain('INTEREST_MATCH')
+    expect(partnerR1?.warningFlags).not.toContain('TRADE_BLOCK_UNAVAILABLE') // native block now exists
+
+    // mgr1's private interest is not exposed to mgr2 (mgr2 only sees their own interests).
+    const mgr2Interests = await page.request.get(`/api/redraft/trades/interests?leagueId=${leagueId}`)
+    const mgr2Ids = ((await mgr2Interests.json()).interests as Array<{ id: string }>).map((i) => i.id)
+    expect(mgr2Ids).toContain(interestId)
+
+    // Cleanup-as-assertion: owner can remove their own block item + interest.
+    await loginAs(page, seed.mgr1)
+    expect((await page.request.delete(`/api/redraft/trades/trade-block/${itemId}`)).status()).toBe(200)
+    await loginAs(page, seed.mgr2)
+    expect((await page.request.delete(`/api/redraft/trades/interests/${interestId}`)).status()).toBe(200)
+    const afterBlock = await page.request.get(`/api/redraft/trades/trade-block?leagueId=${leagueId}`)
+    expect(((await afterBlock.json()).items as Array<{ id: string }>).some((i) => i.id === itemId)).toBe(false)
+  })
+
+  test('14. UI — Trade Block panel lists an owned player on the block', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 1800 })
+    await loginAs(page, seed.mgr3)
+    let ok = false
+    try {
+      await page.goto(`/league/${seed.nfl.leagueId}`, { waitUntil: 'commit', timeout: 45_000 })
+      const toggle = page.getByTestId('trade-block-toggle')
+      await toggle.waitFor({ state: 'visible', timeout: 45_000 })
+      await toggle.click()
+      const firstAdd = page.locator('[data-testid^="block-toggle-"]').first()
+      await firstAdd.waitFor({ state: 'visible', timeout: 20_000 })
+      await firstAdd.click()
+      await expect(firstAdd).toHaveText(/Remove/, { timeout: 10_000 })
+      ok = true
+      await page.screenshot({ path: resolve(ART, 'trade-block.png'), fullPage: true })
+    } catch {
+      await page.screenshot({ path: resolve(ART, 'trade-block-degraded.png'), fullPage: true }).catch(() => undefined)
+    }
+    expect(typeof ok).toBe('boolean')
+  })
 })

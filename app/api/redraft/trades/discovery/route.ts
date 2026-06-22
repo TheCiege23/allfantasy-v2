@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
 import { assembleDiscoveryLeague } from '@/lib/trade-discovery/assembleRosters'
 import { findPartners } from '@/lib/trade-discovery/redraftTradeDiscovery'
+import { discoverySignals } from '@/lib/trade-block/redraftTradeBlockService'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,7 +43,16 @@ export async function GET(req: NextRequest) {
   const myRoster = league.rosters.find((r) => r.rosterId === rosterId)
   if (!myRoster) return NextResponse.json({ error: 'Roster not found' }, { status: 404 })
 
-  const partners = findPartners({ myRoster, otherRosters: league.rosters, sport: league.sport })
+  // T8: native trade-block + own-interest signals (privacy-safe).
+  const signals = await discoverySignals(leagueId, rosterId)
+  for (const r of league.rosters) r.blockPlayerIds = signals.blockPlayerIdsByRoster[r.rosterId] ?? []
+  const partners = findPartners({
+    myRoster,
+    otherRosters: league.rosters,
+    sport: league.sport,
+    myInterest: { playerIds: signals.myInterestPlayerIds, positions: signals.myInterestPositions, hasPrivate: true },
+    hasNativeBlock: signals.hasNativeBlock,
+  })
 
   return NextResponse.json({
     summary: {
