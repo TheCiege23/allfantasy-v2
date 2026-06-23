@@ -135,6 +135,21 @@ export function validateCreatePayload(input: unknown): ValidateCreateLeagueResul
 
   const formatId = normalized.formatId
   const idpRequested = normalized.aliasTags.includes('idp')
+  const rawDraftType = String(data.draftType ?? '').trim().toLowerCase()
+
+  if (formatId === 'redraft' && rawDraftType === 'slow_draft') {
+    return {
+      ok: false,
+      error: 'Slow draft is controlled by draft clock settings, not a draft type',
+      status: 400,
+      errors: [
+        {
+          path: 'draftType',
+          message: 'Choose snake, linear, auction, mock_draft, offline, or auto. Use a longer pick clock for a slow draft.',
+        },
+      ],
+    }
+  }
 
   if (idpRequested && !supportsIdpLeagueSport(sport)) {
     return {

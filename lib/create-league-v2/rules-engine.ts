@@ -161,6 +161,7 @@ export function getDefaultTeamCount(
  */
 const EXECUTION_DRAFT_IDS = ['auto', 'offline'] as const
 const KEEPER_EXECUTION_DRAFT_IDS = ['auto', 'offline', 'team'] as const
+const NON_PICKABLE_REDFRAFT_DRAFT_IDS = ['slow_draft'] as const
 
 /** Widened string type so the UI can accept execution-mode ids that aren't Prisma DraftTypeIds. */
 export type WizardDraftTypeId = DraftTypeId | 'auto' | 'offline' | 'team'
@@ -184,8 +185,11 @@ export function getDraftTypeOptions(leagueType: LeagueTypeId, sport: SupportedSp
     : []
   const allowed = seededNormalized.length > 0 ? seededNormalized : sportAllowed
   const result: DraftTypeOption[] = []
+  const blocked = leagueType === 'redraft' ? new Set<string>(NON_PICKABLE_REDFRAFT_DRAFT_IDS) : new Set<string>()
 
   for (const dt of allowed) {
+    if (blocked.has(dt)) continue
+
     result.push({
       id: dt as WizardDraftTypeId,
       label: getDraftTypeUiLabel(dt, leagueType),
@@ -280,7 +284,6 @@ export function isThirdRoundReversalAvailable(draftType: WizardDraftTypeId | str
     x === 'snake' ||
     x === 'devy_snake' ||
     x === 'c2c_snake' ||
-    x === 'slow_draft' ||
     x === 'mock_draft'
   )
 }

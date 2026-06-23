@@ -5,7 +5,6 @@ export type RedraftDraftType =
   | 'snake'
   | 'linear'
   | 'auction'
-  | 'slow_draft'
   | 'offline'
   | 'auto'
   | 'mock_draft'
@@ -113,13 +112,12 @@ export const REDRAFT_DRAFT_TYPE_IDS: readonly RedraftDraftType[] = [
   'snake',
   'linear',
   'auction',
-  'slow_draft',
   'offline',
   'auto',
   'mock_draft',
 ] as const
 
-const DEFAULT_STARTER_ORDER = ['QB', 'RB', 'WR', 'WR', 'TE', 'DEF'] as const
+const DEFAULT_STARTER_ORDER = ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLX', 'K', 'DEF'] as const
 const OLD_NFL_STANDARD_STARTERS = { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } as const
 const OLD_NCAAF_STANDARD_STARTERS = { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DEF: 1 } as const
 
@@ -148,11 +146,12 @@ export function isFootballRedraftDefaultsSport(sport: unknown): sport is Footbal
 export function normalizeRedraftDraftType(value: unknown): RedraftDraftType {
   const raw = String(value ?? '').trim().toLowerCase()
   const normalized =
-    raw === 'slow'
-      ? 'slow_draft'
-      : raw === 'mock'
-        ? 'mock_draft'
+    raw === 'mock'
+      ? 'mock_draft'
+      : raw === 'slow' || raw === 'slow_draft'
+        ? 'snake'
         : raw
+
   return (REDRAFT_DRAFT_TYPE_IDS as readonly string[]).includes(normalized)
     ? (normalized as RedraftDraftType)
     : 'snake'
@@ -197,8 +196,7 @@ export function getCanonicalRedraftRosterSlotOrder(input: {
   includeBench?: boolean
   includeIr?: boolean
 } = {}): string[] {
-  const order: string[] = ['QB', 'RB', 'WR', 'WR', 'TE']
-  if (input.flexEnabled) order.push('FLX')
+  const order: string[] = ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLX', 'K']
   if (input.superflexEnabled) order.push('SF')
   order.push('DEF')
   if (input.idpEnabled) {
@@ -357,10 +355,11 @@ function buildRosterTemplate(sport: FootballRedraftSport): RedraftRosterTemplate
   const starterSlots = getCanonicalRedraftStarterSlots()
   const rosterPositions = getCanonicalRedraftRosterSlotOrder({ includeIr: true })
   const compactRosterSlotOrder = getCanonicalRedraftRosterSlotOrder()
-  const draftablePlayerPositions = ['QB', 'RB', 'WR', 'TE', 'DEF']
+  const draftablePlayerPositions = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF']
   const benchSlots = sport === 'NCAAF' ? 8 : 6
   const irSlots = 1
   const rosterSlots = starterCount(starterSlots)
+
   return {
     rosterMode: 'redraft',
     starterSlots,
@@ -389,11 +388,12 @@ function buildRosterTemplate(sport: FootballRedraftSport): RedraftRosterTemplate
       FLX: ['FLEX'],
       SF: ['SUPERFLEX', 'SUPER_FLEX'],
       DEF: ['DST', 'D/ST', 'DEFENSE'],
+      K: ['PK', 'KICKER'],
       BN: ['BENCH'],
       IDP: ['IDP_FLEX'],
     },
     lineupValidationRules: {
-      requiredPositions: ['QB', 'RB', 'WR'],
+      requiredPositions: ['QB', 'RB', 'WR', 'TE', 'FLX', 'K', 'DEF'],
       enforceStarterCapacity: true,
       enforceSlotEligibility: true,
       lockedPlayerMovesBlocked: true,
@@ -411,6 +411,7 @@ function buildScoringSettings(
   const resolved = resolveRedraftScoringPreset({ sport, presetId: scoringPresetId })
   const format = resolved?.format ?? 'half_ppr'
   const ppr = resolved?.ppr ?? scoringPprValue(scoringPresetId)
+
   return {
     source: 'af',
     sport,
@@ -425,7 +426,7 @@ function buildScoringSettings(
     tePremium: false,
     tePremiumMultiplier: 1,
     idp: false,
-    kickerEnabled: false,
+    kickerEnabled: true,
     defenseEnabled: true,
     rules: {
       ppr,
@@ -438,15 +439,31 @@ function buildScoringSettings(
       receivingTouchdown: 6,
       fumbleLost: -2,
       twoPointConversion: 2,
+
+      fieldGoalMade0To19: 3,
+      fieldGoalMade20To29: 3,
+      fieldGoalMade30To39: 3,
+      fieldGoalMade40To49: 4,
+      fieldGoalMade50Plus: 5,
+      extraPointMade: 1,
+      fieldGoalMissed0To19: -1,
+      fieldGoalMissed20To29: -1,
+      extraPointMissed: -1,
+
       teamDefenseTouchdown: 6,
       teamDefenseInterception: 2,
       teamDefenseFumbleRecovery: 2,
       teamDefenseSack: 1,
       teamDefenseSafety: 2,
+      teamDefenseBlockedKick: 2,
       teamDefensePointsAllowed0: 10,
       teamDefensePointsAllowed1To6: 7,
       teamDefensePointsAllowed7To13: 4,
       teamDefensePointsAllowed14To20: 1,
+      teamDefensePointsAllowed21To27: 0,
+      teamDefensePointsAllowed28To34: -1,
+      teamDefensePointsAllowed35Plus: -4,
+
       idp: false,
     },
   }
@@ -459,11 +476,12 @@ function buildDraftSettings(
 ): RedraftDraftSettings {
   const engineDraftType = getRedraftEngineDraftType(draftType)
   const pickOrderRules = pickOrderForDraftType(draftType)
+
   return {
     draftType: engineDraftType,
     requestedDraftType: draftType,
     rounds: rosterTemplate.draftableRosterSlots,
-    fallbackRounds: sport === 'NCAAF' ? 20 : 15,
+    fallbackRounds: sport === 'NCAAF' ? 17 : 15,
     timerSeconds: 90,
     slowTimerSeconds: 28_800,
     pickOrderRules,
@@ -484,6 +502,7 @@ function buildPlayerPoolRules(
   rosterTemplate: RedraftRosterTemplate,
 ): Record<string, unknown> {
   const positions = rosterTemplate.draftablePlayerPositions
+
   if (sport === 'NCAAF') {
     return {
       sport: 'NCAAF',
@@ -496,10 +515,16 @@ function buildPlayerPoolRules(
       rookieOnly: false,
       excludeRookieOnlyPool: true,
       positions,
-      positionAliases: { DEF: ['DST', 'D/ST'], FLX: ['FLEX'], SF: ['SUPERFLEX', 'SUPER_FLEX'] },
+      positionAliases: {
+        DEF: ['DST', 'D/ST'],
+        FLX: ['FLEX'],
+        SF: ['SUPERFLEX', 'SUPER_FLEX'],
+        K: ['PK', 'KICKER'],
+      },
       rankingSource: 'adp_projection_rank_fallback',
     }
   }
+
   return {
     sport: 'NFL',
     poolKey: 'nfl_active_fantasy_players',
@@ -511,7 +536,12 @@ function buildPlayerPoolRules(
     rookieOnly: false,
     excludeRookieOnlyPool: true,
     positions,
-    positionAliases: { DEF: ['DST', 'D/ST'], FLX: ['FLEX'], SF: ['SUPERFLEX', 'SUPER_FLEX'] },
+    positionAliases: {
+      DEF: ['DST', 'D/ST'],
+      FLX: ['FLEX'],
+      SF: ['SUPERFLEX', 'SUPER_FLEX'],
+      K: ['PK', 'KICKER'],
+    },
     rankingSource: 'adp',
   }
 }
@@ -552,7 +582,6 @@ function buildTabsEnabled(): Record<string, true | 'commissioner'> {
     waivers: true,
     trade_center: true,
     war_room: true,
-    keeper_declarations: true,
     settings: 'commissioner',
     commissioner_tools: 'commissioner',
   }
@@ -797,8 +826,9 @@ export function buildRedraftSettingsSnapshot(input: {
   if (!contract) return null
 
   const { draftSettings, rosterTemplate } = contract
+
   return {
-    redraftDefaultsVersion: 2,
+    redraftDefaultsVersion: 3,
     sport: contract.sport,
     sport_type: contract.sport,
     leagueType: 'redraft',
@@ -950,6 +980,7 @@ export function normalizeRedraftSettingsSnapshot(input: {
     ...defaults,
     ...incoming,
   }
+
   const draftSettings = isRecord(incoming.draftSettings) ? incoming.draftSettings : {}
   const defaultDraftSettings = (defaults.draftSettings as RedraftDraftSettings | undefined) ?? null
   const defaultRounds = defaultDraftSettings?.rounds ?? asPositiveInt(defaults.draft_rounds, 15)
@@ -1055,6 +1086,8 @@ export function normalizeRedraftSettingsSnapshot(input: {
     scoringPresetId: resolvedScoringPresetId,
     scoringTemplateId: defaults.scoring_template_id,
     scoringMode: 'points',
+    kickerEnabled: true,
+    defenseEnabled: true,
   }
   merged.rosterTemplate = defaultRosterTemplate
   merged.rosterSettings = defaults.rosterSettings
