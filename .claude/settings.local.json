@@ -328,7 +328,8 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:59593/dashboard)",
       "Bash(git checkout *)",
       "Bash(echo \"exit: $?\")",
-      "Bash(git pull *)"
+      "Bash(git pull *)",
+      "Bash(awk -F'\\\\t' '{print $2\"\\\\t\"$1}')"
     ]
   }
 }

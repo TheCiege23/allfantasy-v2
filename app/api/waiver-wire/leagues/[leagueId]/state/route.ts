@@ -7,9 +7,10 @@ import { getEffectiveLeagueWaiverSettings } from "@/lib/waiver-wire"
 
 /**
  * League waiver snapshot: next run hint, priority order JSON, processing lock (for all members).
+ * Also returns FAAB budget, watchlist, and waiver order for the requesting user.
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { leagueId: string } }
 ) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
@@ -19,7 +20,7 @@ export async function GET(
   const leagueId = params.leagueId
   const [leagueAsOwner, rosterAsMember] = await Promise.all([
     (prisma as any).league.findFirst({ where: { id: leagueId, userId } }),
-    (prisma as any).roster.findFirst({ where: { leagueId, platformUserId: userId }, select: { id: true } }),
+    (prisma as any).roster.findFirst({ where: { leagueId, platformUserId: userId }, select: { id: true, playerData: true } }),
   ])
   if (!leagueAsOwner && !rosterAsMember) {
     return NextResponse.json({ error: "League not found" }, { status: 404 })
@@ -29,6 +30,46 @@ export async function GET(
     getLeagueWaiverState(leagueId),
     getEffectiveLeagueWaiverSettings(leagueId),
   ])
+
+  // Get user's FAAB balance and watchlist
+  let faabBudget = 100
+  let watchlist: string[] = []
+  let waiverPriority = 0
+
+  if (rosterAsMember) {
+    // Get FAAB from roster
+    const roster = await (prisma as any).redraftRoster.findFirst({
+      where: {
+        season: {
+          leagueId: leagueId,
+        },
+        ownerId: userId,
+      },
+      select: {
+        faabBalance: true,
+        waiverPriority: true,
+      },
+    })
+    faabBudget = roster?.faabBalance ?? 100
+    waiverPriority = roster?.waiverPriority ?? 0
+
+    // Get watchlist - using only fields that exist in your schema
+    try {
+      const watchlistData = await (prisma as any).waiverWatchlist.findMany({
+        where: {
+          leagueId: leagueId,
+          userId: userId,
+        },
+        select: {
+          playerId: true,
+        },
+      })
+      watchlist = watchlistData.map((w: any) => w.playerId)
+    } catch (e) {
+      // Watchlist table might not exist or have different fields
+      console.log("Watchlist table not found or fields mismatch")
+    }
+  }
 
   return NextResponse.json({
     state,
@@ -43,5 +84,9 @@ export async function GET(
       nextRunAt: state?.nextRunAt ?? null,
       processingLocked: state?.processingLocked ?? false,
     },
+    faabBudget,
+    balance: faabBudget,
+    watchlist,
+    waiverPriority,
   })
 }
