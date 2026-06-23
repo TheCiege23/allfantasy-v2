@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Post-draft artifacts after DraftSession is marked completed: roster materialization + persisted grades.
  * Kept separate from DraftSessionService to avoid circular imports with ranking/draft-grade code.
  */
@@ -26,12 +26,38 @@ function prunePostDraftArtifactThrottle() {
 
 /**
  * Apply finalized draft picks to league rosters and persist draft grades from the completed session snapshot.
- * Idempotent: safe to call multiple times (roster merge rules + grade upserts).
- * Grades must not fail silently — callers log; live polls use {@link syncPostDraftArtifactsIfCompletedThrottled} to retry.
+ * Idempotent: safe to call multiple times.
+ *
+ * Important:
+ * - finalizeRosterAssignments keeps the generic live-draft roster snapshot current.
+ * - syncCompletedDraftToRedraftSeason bridges completed redraft picks into
+ *   RedraftSeason / RedraftRoster / RedraftRosterPlayer so league tabs,
+ *   waivers, trades, scoring, and lineup tools see the drafted roster.
  */
 export async function runPostDraftFinalizationArtifacts(leagueId: string): Promise<void> {
   const { finalizeRosterAssignments } = await import('@/lib/live-draft-engine/RosterAssignmentService')
   await finalizeRosterAssignments(leagueId)
+
+  try {
+    const { syncCompletedDraftToRedraftSeason } = await import('@/lib/redraft/finalizeDraftToRedraftSeason')
+    const summary = await syncCompletedDraftToRedraftSeason(leagueId)
+    if (!summary.skipped) {
+      console.info('[postDraftFinalizeArtifacts] redraft season sync complete', {
+        leagueId,
+        seasonId: summary.seasonId,
+        redraftRostersCreated: summary.redraftRostersCreated,
+        redraftPlayersCreated: summary.redraftPlayersCreated,
+        redraftPlayersAlreadyPresent: summary.redraftPlayersAlreadyPresent,
+        skippedPicks: summary.skippedPicks,
+      })
+    }
+  } catch (err) {
+    console.error('[postDraftFinalizeArtifacts] redraft season sync failed', {
+      leagueId,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+
   const { computeAndPersistDraftRankings } = await import('@/lib/post-draft-manager-ranking')
   await computeAndPersistDraftRankings(leagueId)
 }
