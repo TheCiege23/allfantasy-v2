@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { normalizeOpenChatQueryParam } from '@/lib/dashboard/open-chat-query'
@@ -626,6 +626,11 @@ export function LeagueShell({
     }
     const target = map[key]
     if (!target) return
+
+    // NFL/NCAAF redraft Settings opens the modal. Do not also make it the active tab,
+    // or closing the modal can reintroduce ?view=settings and immediately reopen it.
+    if (target === 'settings' && nflRedraftCore) return
+
     const ids = new Set(tabDefs.map((t) => t.id))
     if (ids.has(target)) setActiveTab(target)
   }, [searchParams, tabDefs, league.sport, shouldUseMatchupPrimary, nflRedraftCore])
@@ -634,12 +639,16 @@ export function LeagueShell({
     const ids = new Set(tabDefs.map((t) => t.id))
     if (!ids.has(activeTab)) return
 
+    // Redraft Settings is modal-driven. Do not persist it as ?view=settings,
+    // because the settings deep-link effect treats that URL as "open modal".
+    if (nflRedraftCore && activeTab === 'settings') return
+
     const next = new URLSearchParams(searchParams?.toString() ?? '')
     if (next.get('view') === activeTab) return
 
     next.set('view', activeTab)
     router.replace(`${pathname}?${next.toString()}`, { scroll: false })
-  }, [activeTab, pathname, router, searchParams, tabDefs])
+  }, [activeTab, nflRedraftCore, pathname, router, searchParams, tabDefs])
 
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -861,11 +870,48 @@ export function LeagueShell({
     openLeagueSettingsModal('invite')
   }, [defaultShowInvite, league.id, openLeagueSettingsModal])
 
-  const closeLeagueSettingsModal = () => {
+  const closeLeagueSettingsModal = useCallback(() => {
     setSettingsOpen(false)
     setSettingsInitialPanel(null)
     setCommissionerSettingsOpen(false)
-  }
+
+    if (activeTab === 'settings') {
+      const ids = new Set(tabDefs.map((tab) => tab.id))
+      const fallback = nflRedraftCore
+        ? ids.has('league')
+          ? 'league'
+          : ids.has('draft')
+            ? 'draft'
+            : tabDefs[0]?.id ?? 'draft'
+        : tabDefs[0]?.id ?? 'league'
+
+      setActiveTab(fallback)
+    }
+
+    const params = new URLSearchParams(searchParams?.toString() ?? '')
+    let changed = false
+
+    if (params.get('view')?.trim().toLowerCase() === 'settings') {
+      params.delete('view')
+      changed = true
+    }
+
+    if (params.get('tab')?.trim().toLowerCase() === 'settings') {
+      params.delete('tab')
+      changed = true
+    }
+
+    if (params.has('settingsPanel')) {
+      params.delete('settingsPanel')
+      changed = true
+    }
+
+    if (changed) {
+      const q = params.toString()
+      const base = pathname ?? `/league/${league.id}`
+      router.replace(q ? `${base}?${q}` : base, { scroll: false })
+    }
+  }, [activeTab, league.id, nflRedraftCore, pathname, router, searchParams, tabDefs])
 
   const blockConceptIntroForInvitePrefill =
     defaultShowInvite && inviteAutoOpenedForLeague.current !== league.id
