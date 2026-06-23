@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -304,7 +304,7 @@ function buildNflRedraftRosterChimmyPrompt(args: {
   ].join('\n')
 }
 
-// ─── Player Detail Bottom Sheet ───────────────────────────────────────────────
+// â”€â”€â”€ Player Detail Bottom Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PlayerDetailSheet({
   playerId,
@@ -331,7 +331,7 @@ function PlayerDetailSheet({
   onOpenReplace?: () => void
 }) {
   const resolved = resolvePlayerName(playerId, players)
-  const pos = resolved.position || '—'
+  const pos = resolved.position || 'â€”'
   const baseline = placeholderBaselineProjection(playerId)
   const showCrest = isWeatherSensitiveSport(sport)
 
@@ -350,7 +350,7 @@ function PlayerDetailSheet({
       : (
         <span
           className="h-2 w-2 rounded-full bg-emerald-400"
-          title="Status (Active — live injury feed coming soon)"
+          title="Status (Active â€” live injury feed coming soon)"
           aria-label="Active"
         />
       )
@@ -423,7 +423,7 @@ function PlayerDetailSheet({
           <div className="flex flex-col items-center gap-0.5 bg-[#111827] px-3 py-3">
             <span className="text-[10px] font-bold uppercase tracking-wide text-white/35">Proj</span>
             <span className="text-[18px] font-bold text-white/90">
-              {baseline > 0 ? baseline.toFixed(1) : '—'}
+              {baseline > 0 ? baseline.toFixed(1) : 'â€”'}
             </span>
             {showCrest ? (
               <span className="text-[9px] text-white/30">via AF</span>
@@ -431,7 +431,7 @@ function PlayerDetailSheet({
           </div>
           <div className="flex flex-col items-center gap-0.5 bg-[#111827] px-3 py-3">
             <span className="text-[10px] font-bold uppercase tracking-wide text-white/35">Pts</span>
-            <span className="text-[18px] font-bold text-white/40">—</span>
+            <span className="text-[18px] font-bold text-white/40">â€”</span>
             <span className="text-[9px] text-white/25">live feed</span>
           </div>
           <div className="flex flex-col items-center gap-0.5 bg-[#111827] px-3 py-3">
@@ -555,8 +555,8 @@ function LineupReplacementPickerSheet({
           <div className="min-w-0">
             <p className="text-sm font-bold text-white">Replace in lineup</p>
             <p className="truncate text-[11px] text-white/50">
-              {source.name} · {source.position || '—'}
-              {sourceSlotLabel ? ` · ${sourceSlotLabel}` : ''}
+              {source.name} Â· {source.position || 'â€”'}
+              {sourceSlotLabel ? ` Â· ${sourceSlotLabel}` : ''}
             </p>
           </div>
           <button
@@ -621,7 +621,7 @@ function LineupReplacementPickerSheet({
                     >
                       <div className="flex items-center gap-2">
                         <span className="inline-flex min-w-[2.25rem] shrink-0 justify-center rounded-md border border-white/15 bg-white/[0.06] px-1.5 py-0.5 text-[10px] font-bold text-white/70">
-                          {c.badge ?? '—'}
+                          {c.badge ?? 'â€”'}
                         </span>
                         <PlayerHeadshot
                           sleeperId={c.id}
@@ -638,8 +638,8 @@ function LineupReplacementPickerSheet({
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-xs font-semibold text-white">{c.name}</p>
                           <p className="flex items-center gap-1 text-[10px] text-white/50">
-                            <span>{c.position || '—'}</span>
-                            <span className="text-white/25">·</span>
+                            <span>{c.position || 'â€”'}</span>
+                            <span className="text-white/25">Â·</span>
                             {c.team && c.team !== 'FA' ? (
                               <>
                                 <TeamLogo teamAbbr={c.team} sport={sport} size={14} />
@@ -657,8 +657,8 @@ function LineupReplacementPickerSheet({
                         ) : null}
                       </div>
                       <div className="mt-1.5 grid grid-cols-3 gap-2 text-[10px] text-white/55">
-                        <span>Proj: {baseline > 0 ? baseline.toFixed(1) : '—'}</span>
-                        <span>Pts: —</span>
+                        <span>Proj: {baseline > 0 ? baseline.toFixed(1) : 'â€”'}</span>
+                        <span>Pts: â€”</span>
                         <span>Status: {status}</span>
                       </div>
                     </button>
@@ -684,7 +684,7 @@ function LineupReplacementPickerSheet({
                 : 'border-cyan-400/35 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/25',
             ].join(' ')}
           >
-            {saving ? 'Saving replacement…' : 'Confirm replacement'}
+            {saving ? 'Saving replacementâ€¦' : 'Confirm replacement'}
           </button>
         </div>
       </div>
@@ -726,8 +726,8 @@ function RosterRow({
   onChimmyNoteChange?: (value: string) => void
   onAskChimmy?: () => void
 }) {
-  const leftBadgeEarly = slotLabel ?? '—'
-  const badgeClassEarly = slotLabel ? slotBadgeClass(slotLabel) : positionBadgeClass('—')
+  const leftBadgeEarly = slotLabel ?? 'â€”'
+  const badgeClassEarly = slotLabel ? slotBadgeClass(slotLabel) : positionBadgeClass('â€”')
   if (!playerId || playerId.trim() === '') {
     return (
       <div className="flex w-full items-center gap-2 rounded-lg border border-dashed border-white/[0.08] px-2 py-2 text-left">
@@ -748,7 +748,7 @@ function RosterRow({
 
   const resolved = resolvePlayerName(playerId, players)
   const label = playersLoading ? `Player ${playerId.slice(-4)}` : resolved.name
-  const pos = resolved.position || '—'
+  const pos = resolved.position || 'â€”'
   const showTeam = resolved.team && resolved.team !== 'FA'
   const leftBadge = slotLabel ?? pos
   const badgeClass = slotLabel ? slotBadgeClass(slotLabel) : positionBadgeClass(pos)
@@ -802,18 +802,18 @@ function RosterRow({
         <p className="truncate text-xs font-semibold text-white">{label}</p>
         <p className="flex flex-wrap items-center gap-1 text-[10px] text-white/40">
           {playersLoading ? (
-            '— · —'
+            'â€” Â· â€”'
           ) : (
             <>
-              <span>{resolved.position || '—'}</span>
-              <span className="text-white/25">·</span>
+              <span>{resolved.position || 'â€”'}</span>
+              <span className="text-white/25">Â·</span>
               {showTeam ? (
                 <>
                   <TeamLogo teamAbbr={resolved.team} sport={sport} size={16} />
                   <span className="text-white/45">{resolved.team}</span>
                 </>
               ) : (
-                <span>—</span>
+                <span>â€”</span>
               )}
             </>
           )}
@@ -841,7 +841,7 @@ function RosterRow({
             }
           />
         </span>
-        <span className="w-10">—</span>
+        <span className="w-10">â€”</span>
       </div>
     </>
   )
@@ -876,7 +876,7 @@ function RosterRow({
             id={`chimmy-note-${playerId}`}
             value={chimmyNote ?? ''}
             onChange={(e) => onChimmyNoteChange(e.target.value)}
-            placeholder="Optional context for Chimmy…"
+            placeholder="Optional context for Chimmyâ€¦"
             rows={2}
             data-testid={`roster-row-chimmy-note-${playerId}`}
             className="mb-2 w-full resize-y rounded-md border border-white/[0.08] bg-[#0a1228] px-2 py-1.5 text-[11px] text-white/85 placeholder:text-white/25 focus:border-cyan-500/40 focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
@@ -1028,8 +1028,8 @@ export function TeamTab({
             source: 'roster',
             prompt: buildNflRedraftRosterChimmyPrompt({
               playerName: resolved.name,
-              teamAbbr: resolved.team && resolved.team !== 'FA' ? resolved.team : '—',
-              position: resolved.position || '—',
+              teamAbbr: resolved.team && resolved.team !== 'FA' ? resolved.team : 'â€”',
+              position: resolved.position || 'â€”',
               rosterSlot: rosterSlotLabel,
               leagueName: String(league.name ?? 'League'),
               userQuestion: chimmyNotesByPlayer[playerId] ?? '',
@@ -1252,8 +1252,21 @@ export function TeamTab({
     league.isDynasty === true &&
     ((dbParts?.taxi.length ?? 0) > 0 || ((payload as DbRosterPayload)?.slotLimits?.taxi ?? 0) > 0)
   const showDevySectionDb = ((payload as DbRosterPayload)?.slotLimits?.devy ?? 0) > 0
-
-  const maxWeekMenu = useMemo(() => {
+  const dbBenchSlotCount =
+    payload && payload.source !== 'sleeper' && lineupLists
+      ? Math.max(payload.slotLimits?.bench ?? 0, lineupLists.bench.length)
+      : 0
+  const dbIrSlotCount =
+    payload && payload.source !== 'sleeper' && lineupLists
+      ? Math.max(payload.slotLimits?.ir ?? 0, lineupLists.ir.length)
+      : 0
+  const dbBenchRows = lineupLists
+    ? Array.from({ length: dbBenchSlotCount }, (_, i) => lineupLists.bench[i] ?? '')
+    : []
+  const dbIrRows = lineupLists
+    ? Array.from({ length: dbIrSlotCount }, (_, i) => lineupLists.ir[i] ?? '')
+    : []
+const maxWeekMenu = useMemo(() => {
     if (dbRosterMeta?.maxWeek && dbRosterMeta.maxWeek > 0) return dbRosterMeta.maxWeek
     if (payload && typeof payload === 'object' && 'maxWeek' in payload) {
       const m = (payload as { maxWeek?: number }).maxWeek
@@ -1481,10 +1494,10 @@ export function TeamTab({
 
   const waiverLine =
     payload?.source === 'sleeper' && payload.roster
-      ? `$FAAB: ${payload.roster.settings.waiver_budget_used}/1000 · Waiver position: #${payload.roster.settings.waiver_position}`
+      ? `$FAAB: ${payload.roster.settings.waiver_budget_used}/1000 Â· Waiver position: #${payload.roster.settings.waiver_position}`
       : payload && payload.source !== 'sleeper' && (payload as DbRosterPayload).faabRemaining != null
-        ? `FAAB: $${(payload as DbRosterPayload).faabRemaining} · Trade hub (soon)`
-        : 'FAAB: — · Trade hub (soon)'
+        ? `FAAB: $${(payload as DbRosterPayload).faabRemaining} Â· Trade hub (soon)`
+        : 'FAAB: â€” Â· Trade hub (soon)'
 
   const showIdpDashboard =
     idpLeagueUi &&
@@ -1576,7 +1589,7 @@ export function TeamTab({
               onClick={() => setWeek((w) => Math.max(1, w - 1))}
               aria-label="Previous week"
             >
-              ←
+              â†
             </button>
             <button
               type="button"
@@ -1594,7 +1607,7 @@ export function TeamTab({
               onClick={() => setWeek((w) => Math.min(maxWeekMenu, w + 1))}
               aria-label="Next week"
             >
-              →
+              â†’
             </button>
             {weekMenuOpen ? (
               <div
@@ -1638,19 +1651,19 @@ export function TeamTab({
       ) : null}
 
       {savingLineup ? (
-        <p className="text-[11px] text-cyan-200/80">Saving lineup…</p>
+        <p className="text-[11px] text-cyan-200/80">Saving lineupâ€¦</p>
       ) : null}
 
       <div className="rounded-xl border border-white/[0.08] p-4">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-bold text-white">⚡ AI Auto Start/Sit Protection</p>
+              <p className="text-sm font-bold text-white">âš¡ AI Auto Start/Sit Protection</p>
               {!hasProAutoCoach ? <SubscriptionGateBadge featureId="pro_autocoach" /> : null}
             </div>
             <p className="mt-0.5 text-xs text-white/50">
               Pre-lock automation only: swaps clearly unavailable starters (OUT, inactive, IR, etc.) using live
-              status and the same projection engine as Start/Sit. Each player locks at their own game time — not the
+              status and the same projection engine as Start/Sit. Each player locks at their own game time â€” not the
               first game of the slate. Not Best Ball; no in-game fixes.
             </p>
             {autoCoachRow && autoCoachRow.leagueAutoCoachEnabled === false ? (
@@ -1940,20 +1953,21 @@ export function TeamTab({
               <div className="h-px flex-1 bg-white/[0.07]" />
             </div>
             <div className="space-y-1">
-              {lineupLists.bench.map((id) => (
+              {dbBenchRows.map((id, i) => (
                 <RosterRow
-                  key={id}
+                  key={id ? `bench-${id}` : `bench-empty-${i}`}
                   playerId={id}
-                  issueHighlight={highlightSet.has(id)}
+                  issueHighlight={id ? highlightSet.has(id) : false}
                   sport={resolvedSport}
                   players={players}
                   playersLoading={playersLoading}
                   onPlayerClick={onPlayerClick}
                   slotLabel="BN"
+                  emptyLabel="Empty bench slot"
                   week={week}
                   season={seasonYear}
                   onSlotClick={
-                    lineupEditable
+                    lineupEditable && id
                       ? () => {
                           handleRowClick(id, 'BN')
                         }
@@ -1972,32 +1986,29 @@ export function TeamTab({
                 <div className="h-px flex-1 bg-white/[0.07]" />
               </div>
               <div className="space-y-1">
-                {lineupLists.ir.length > 0 ? (
-                  lineupLists.ir.map((id) => (
-                    <RosterRow
-                      key={id}
-                      playerId={id}
-                      issueHighlight={highlightSet.has(id)}
-                      sport={resolvedSport}
-                      players={players}
-                      playersLoading={playersLoading}
-                      onPlayerClick={onPlayerClick}
-                      slotLabel="IR"
-                      week={week}
-                      season={seasonYear}
-                      onSlotClick={
-                        lineupEditable
-                          ? () => {
-                              handleRowClick(id, 'IR')
-                            }
-                          : undefined
-                      }
-                      {...buildChimmyProps(id, 'IR')}
-                    />
-                  ))
-                ) : (
-                  <p className="text-xs text-white/35">No players on IR</p>
-                )}
+                {dbIrRows.map((id, i) => (
+                  <RosterRow
+                    key={id ? `ir-${id}` : `ir-empty-${i}`}
+                    playerId={id}
+                    issueHighlight={id ? highlightSet.has(id) : false}
+                    sport={resolvedSport}
+                    players={players}
+                    playersLoading={playersLoading}
+                    onPlayerClick={onPlayerClick}
+                    slotLabel="IR"
+                    emptyLabel="Empty IR slot"
+                    week={week}
+                    season={seasonYear}
+                    onSlotClick={
+                      lineupEditable && id
+                        ? () => {
+                            handleRowClick(id, 'IR')
+                          }
+                        : undefined
+                    }
+                    {...buildChimmyProps(id, 'IR')}
+                  />
+                ))}
               </div>
             </section>
           ) : null}
@@ -2338,7 +2349,7 @@ export function TeamTab({
               Draft pick
             </h3>
             {draftPickDetailLoading ? (
-              <p className="mt-3 text-xs text-white/50">Loading…</p>
+              <p className="mt-3 text-xs text-white/50">Loadingâ€¦</p>
             ) : draftPickDetail?.pick ? (
               <>
                 <p className="mt-2 text-sm text-white/90">{draftPickDetail.pick.label}</p>
@@ -2352,7 +2363,7 @@ export function TeamTab({
                       {draftPickDetail.tradeChain.map((t) => (
                         <li key={t.tradeId} className="rounded-lg border border-white/[0.06] bg-white/[0.04] px-2 py-1.5">
                           <span className="text-white/50">{new Date(t.createdAt).toLocaleString()}</span>
-                          <span className="mx-1 text-white/30">·</span>
+                          <span className="mx-1 text-white/30">Â·</span>
                           <span className="text-amber-200/90">{t.status}</span>
                           <p className="mt-0.5 text-[11px] text-white/60">{t.summary}</p>
                         </li>
@@ -2363,7 +2374,7 @@ export function TeamTab({
                     href={`/league/${encodeURIComponent(league.id)}?view=trades`}
                     className="mt-2 inline-block text-[10px] font-semibold text-cyan-400/90 hover:text-cyan-300"
                   >
-                    Open trades tab →
+                    Open trades tab â†’
                   </Link>
                 </div>
               </>
@@ -2426,3 +2437,4 @@ export function TeamTab({
     </div>
   )
 }
+

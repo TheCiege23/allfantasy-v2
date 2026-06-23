@@ -1,40 +1,40 @@
-export type TabDef = {
+﻿export type TabDef = {
   id: string
   label: string
   icon?: string
 }
 
-/** NFL redraft simplified shell — redraft War Room is a first-class Phase 1 surface. */
+/**
+ * Football redraft compact shell.
+ * Mock draft and live draft are actions inside Draft, not primary tabs.
+ * Players and Waivers are one combined tab.
+ */
 export const NFL_REDRAFT_CORE_TAB_IDS = [
-  'home',
+  'draft',
   'roster',
   'matchups',
   'players',
-  'waivers',
   'trades',
   'war_room',
   'league',
+  'settings',
 ] as const
 
 export type NflRedraftCoreTabId = (typeof NFL_REDRAFT_CORE_TAB_IDS)[number]
 
-/** Sleeper-style primary strip: Draft → Team (roster) → Matchups → League → Players → Trend → Trades → Scores; extras after. */
-const NFL_TABS: TabDef[] = [
+const FOOTBALL_REDRAFT_COMPACT_TABS: TabDef[] = [
   { id: 'draft', label: 'Draft' },
-  { id: 'team', label: 'Team' },
+  { id: 'roster', label: 'Roster' },
   { id: 'matchups', label: 'Matchups' },
-  { id: 'league', label: 'League' },
-  { id: 'players', label: 'Players' },
-  { id: 'waivers', label: 'Waivers' },
-  { id: 'trend', label: 'Trend' },
+  { id: 'players', label: 'Players / Waivers' },
   { id: 'trades', label: 'Trade Center' },
-  { id: 'scores', label: 'Scores' },
-  { id: 'finance', label: 'Finance' },
   { id: 'war_room', label: 'War Room' },
-  { id: 'ai_coaching', label: 'AI Coaching' },
-  { id: 'redraft', label: 'Redraft' },
-  { id: 'history', label: 'History' },
+  { id: 'league', label: 'Commissioner Hub' },
+  { id: 'settings', label: '⚙ Settings' },
 ]
+
+const NFL_TABS: TabDef[] = FOOTBALL_REDRAFT_COMPACT_TABS
+const NCAAF_TABS: TabDef[] = FOOTBALL_REDRAFT_COMPACT_TABS
 
 const BASKETBALL_LIKE_TABS: TabDef[] = [
   { id: 'roster', label: 'Roster' },
@@ -69,22 +69,6 @@ const SOCCER_TABS: TabDef[] = [
   { id: 'history', label: 'History' },
 ]
 
-const NCAAF_TABS: TabDef[] = [
-  { id: 'roster', label: 'Roster' },
-  { id: 'redraft', label: 'Redraft' },
-  { id: 'team', label: 'My Team' },
-  { id: 'league', label: 'League' },
-  { id: 'players', label: 'Players' },
-  { id: 'waivers', label: 'Waivers' },
-  { id: 'trend', label: 'Trend' },
-  { id: 'trades', label: 'Trade Center' },
-  { id: 'scores', label: 'Scores' },
-  { id: 'finance', label: 'Finance' },
-  { id: 'war_room', label: 'War Room' },
-  { id: 'ai_coaching', label: 'AI Coaching' },
-  { id: 'history', label: 'History' },
-]
-
 const PGA_TABS: TabDef[] = [
   { id: 'leaderboard', label: 'Leaderboard' },
   { id: 'redraft', label: 'Redraft' },
@@ -99,7 +83,6 @@ const PGA_TABS: TabDef[] = [
   { id: 'history', label: 'History' },
 ]
 
-/** Primary tab sets by canonical sport key (see Prisma `LeagueSport` + PGA for future). */
 const SPORT_TABS: Record<string, TabDef[]> = {
   NFL: NFL_TABS,
   NBA: BASKETBALL_LIKE_TABS,
@@ -126,7 +109,6 @@ export function getLeagueTabs(sport: string): TabDef[] {
   return SPORT_TABS.NFL ?? NFL_TABS
 }
 
-/** Maps tab id → i18n key under translations.en (`league.tab.*`). */
 const LEAGUE_TAB_I18N_KEY: Record<string, string> = {
   home: 'league.tab.home',
   matchup: 'league.tab.matchup',
@@ -176,13 +158,15 @@ const LEAGUE_TAB_I18N_KEY: Record<string, string> = {
   settings: 'league.tab.settings',
 }
 
-/**
- * Apply `t()` to tab labels so the league hub matches the selected language (es filled via API + Google).
- */
 export function localizeLeagueTabs(tabs: TabDef[], t: (key: string) => string): TabDef[] {
   return tabs.map((tab) => {
     const key = LEAGUE_TAB_I18N_KEY[tab.id] ?? `league.tab.${tab.id}`
     const next = t(key)
+
+    if (tab.id === 'players' && tab.label.includes('Waivers')) {
+      return { ...tab, label: 'Players / Waivers' }
+    }
+
     return { ...tab, label: next !== key ? next : tab.label }
   })
 }

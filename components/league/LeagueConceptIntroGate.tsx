@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ConceptIntroVideoOverlay } from '@/components/league/ConceptIntroVideoOverlay'
@@ -9,14 +9,17 @@ import { getLeagueTypeMedia, resolveLeagueConceptIntroKey } from '@/lib/league-m
 type LeagueConceptIntroGateProps = {
   leagueId: string
   shouldPlayIntro: boolean
+  blockedByModal?: boolean
   leagueType?: string | null
-  /** Modifier ids (scoring, specialty skins). Never overrides `leagueType` for intro media. */
+  /** Modifier ids should not override a true redraft intro. */
   leagueVariant?: string | null
   isDynasty?: boolean | null
   guillotineMode?: boolean | null
   bestBallMode?: boolean | null
   settings?: unknown
 }
+
+const REDRAFT_INTRO_VIDEO_URL = '/media/league-intros/redraft-league-intro.mp4'
 
 const CONCEPT_SEED = new Map(
   LEAGUE_CREATE_OPTIONS_CATALOG_V1.concepts.map((concept) => [
@@ -67,9 +70,20 @@ function readStoredIntro(settings: unknown): { videoUrl: string | null; posterUr
   return { videoUrl: url, posterUrl: poster }
 }
 
+function isRedraftLeagueType(leagueType?: string | null, settings?: unknown): boolean {
+  const raw = String(leagueType ?? '').trim().toLowerCase()
+  if (raw === 'redraft') return true
+
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return false
+  const root = settings as Record<string, unknown>
+  const settingsLeagueType = String(root.league_type ?? root.leagueType ?? '').trim().toLowerCase()
+  return settingsLeagueType === 'redraft'
+}
+
 export function LeagueConceptIntroGate({
   leagueId,
   shouldPlayIntro,
+  blockedByModal = false,
   leagueType,
   leagueVariant,
   isDynasty,
@@ -77,41 +91,55 @@ export function LeagueConceptIntroGate({
   bestBallMode,
   settings,
 }: LeagueConceptIntroGateProps) {
-  const conceptKey = useMemo(
-    () =>
-      resolveLeagueConceptIntroKey({
-        leagueType,
-        leagueVariant,
-        settings,
-        isDynasty,
-        guillotineMode,
-        bestBallMode,
-      }),
-    [leagueType, leagueVariant, settings, isDynasty, guillotineMode, bestBallMode],
+  const forceRedraftIntro = useMemo(
+    () => isRedraftLeagueType(leagueType, settings) && !guillotineMode && !bestBallMode && !isDynasty,
+    [leagueType, settings, guillotineMode, bestBallMode, isDynasty],
   )
+
+  const conceptKey = useMemo(() => {
+    if (forceRedraftIntro) return 'redraft'
+
+    return resolveLeagueConceptIntroKey({
+      leagueType,
+      leagueVariant,
+      settings,
+      isDynasty,
+      guillotineMode,
+      bestBallMode,
+    })
+  }, [forceRedraftIntro, leagueType, leagueVariant, settings, isDynasty, guillotineMode, bestBallMode])
+
   const seed = useMemo(() => CONCEPT_SEED.get(conceptKey) ?? null, [conceptKey])
   const mediaBundle = useMemo(() => getLeagueTypeMedia(conceptKey), [conceptKey])
   const storedIntro = useMemo(() => readStoredIntro(settings), [settings])
   const introEnabled = useMemo(() => readIntroSettingEnabled(settings), [settings])
 
   const videoSrc = useMemo(() => {
+    if (forceRedraftIntro || conceptKey === 'redraft') {
+      return mediaBundle.introVideo || getConceptIntroVideoUrl('redraft') || REDRAFT_INTRO_VIDEO_URL
+    }
+
     if (storedIntro.videoUrl) return storedIntro.videoUrl
     if (seed?.introVideoUrl) return seed.introVideoUrl
     return mediaBundle.introVideo || getConceptIntroVideoUrl(conceptKey) || null
-  }, [conceptKey, mediaBundle.introVideo, seed, storedIntro.videoUrl])
+  }, [conceptKey, forceRedraftIntro, mediaBundle.introVideo, seed, storedIntro.videoUrl])
 
   const posterSrc = useMemo(() => {
+    if (forceRedraftIntro || conceptKey === 'redraft') {
+      return mediaBundle.thumbnail
+    }
+
     if (storedIntro.posterUrl) return storedIntro.posterUrl
     if (seed?.introPosterUrl) return seed.introPosterUrl
     return mediaBundle.thumbnail
-  }, [mediaBundle.thumbnail, seed, storedIntro.posterUrl])
+  }, [conceptKey, forceRedraftIntro, mediaBundle.thumbnail, seed, storedIntro.posterUrl])
 
-  const conceptLabel = seed?.title ?? mediaBundle.label
+  const conceptLabel = forceRedraftIntro ? 'Redraft' : seed?.title ?? mediaBundle.label
 
   const [open, setOpen] = useState(false)
   const seenMarkedRef = useRef(false)
 
-  const shouldCheck = shouldPlayIntro && introEnabled && Boolean(videoSrc)
+  const shouldCheck = shouldPlayIntro && !blockedByModal && introEnabled && Boolean(videoSrc)
 
   useEffect(() => {
     seenMarkedRef.current = false
@@ -149,6 +177,7 @@ export function LeagueConceptIntroGate({
   const markSeen = useCallback(() => {
     if (seenMarkedRef.current) return
     seenMarkedRef.current = true
+
     void fetch(`/api/leagues/${encodeURIComponent(leagueId)}/intro-seen`, {
       method: 'POST',
       credentials: 'include',

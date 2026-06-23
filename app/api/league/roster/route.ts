@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -9,6 +9,8 @@ import { expandStarterSlots } from '@/lib/league/lineup-expand-template'
 import { evaluateLineupLock } from '@/lib/league/lineup-lock'
 import { resolveFullLineupLockContext } from '@/lib/roster-lineup-engine/lineupLockService'
 import type { UnifiedPlayerWireDto } from '@/lib/player-data/serializeUnifiedPlayerForApi'
+import { getRedraftDefaultContract } from '@/lib/league-concepts/redraftDefaults'
+import { isNflRedraftCoreDashboardLeague } from '@/lib/league/is-nfl-redraft-core-dashboard'
 
 const SLEEPER = 'https://api.sleeper.app/v1' // db-first-exception: base URL constant, fetch calls use template literals
 const CACHE = { next: { revalidate: 300 } } as const
@@ -57,6 +59,35 @@ function teamNameFromMetadata(metadata: SleeperUser['metadata']): string | null 
   return typeof tn === 'string' ? tn : null
 }
 
+function expandLockedRedraftStarterSlots(order: string[]): ReturnType<typeof expandStarterSlots> {
+  const totals = order.reduce<Record<string, number>>((acc, raw) => {
+    const key = raw === 'FLX' ? 'FLEX' : raw
+    acc[key] = (acc[key] ?? 0) + 1
+    return acc
+  }, {})
+
+  const seen: Record<string, number> = {}
+
+  return order.map((raw, index) => {
+    const key = raw === 'FLX' ? 'FLEX' : raw
+    seen[key] = (seen[key] ?? 0) + 1
+
+    const label = totals[key] > 1 ? `${key}${seen[key]}` : key
+    const allowedPositions =
+      key === 'FLEX'
+        ? ['RB', 'WR', 'TE']
+        : key === 'DEF'
+          ? ['DEF', 'DST', 'D/ST']
+          : [key]
+
+    return {
+      index,
+      label,
+      allowedPositions,
+      isFlexible: key === 'FLEX',
+    }
+  })
+}
 export async function GET(req: NextRequest) {
   const session = (await getServerSession(authOptions as never)) as {
     user?: { id?: string; name?: string | null; email?: string | null }
@@ -87,6 +118,11 @@ export async function GET(req: NextRequest) {
       leagueVariant: true,
       season: true,
       lifecycleState: true,
+      leagueType: true,
+      isDynasty: true,
+      bestBallMode: true,
+      guillotineMode: true,
+      keeperPhaseActive: true,
       lockAllMoves: true,
     },
   })
@@ -106,8 +142,8 @@ export async function GET(req: NextRequest) {
   if (league.platform !== 'sleeper') {
     // Self-heal: if the league's draft is completed but post-draft
     // finalization artifacts haven't been written to `Roster.playerData`
-    // yet (e.g. the route that normally fires this — `/draft/events` or
-    // `/draft/session` — was never hit before the user navigated to the
+    // yet (e.g. the route that normally fires this â€” `/draft/events` or
+    // `/draft/session` â€” was never hit before the user navigated to the
     // dashboard), run the throttled finalization here. The throttle (60s
     // success window) means dashboard reloads within the window skip the
     // re-run; the first read after a completed draft pays the heal cost
@@ -168,7 +204,45 @@ export async function GET(req: NextRequest) {
       // Template hydration failure should not block base roster rendering.
     }
 
-    const leagueWeek = weekFromLeagueSettings(league.settings)
+    const useLockedFootballRedraftSlots = isNflRedraftCoreDashboardLeague({
+      sport: leagueSport,
+      leagueType: league.leagueType,
+      isDynasty: league.isDynasty,
+      leagueVariant,
+      bestBallMode: league.bestBallMode,
+      guillotineMode: league.guillotineMode,
+      keeperPhaseActive: league.keeperPhaseActive,
+    })
+
+    if (useLockedFootballRedraftSlots) {
+      const settingsRecord =
+        league.settings && typeof league.settings === 'object' && !Array.isArray(league.settings)
+          ? (league.settings as Record<string, unknown>)
+          : {}
+
+      const contract = getRedraftDefaultContract({
+        sport: leagueSport,
+        draftType: settingsRecord.requested_draft_type ?? settingsRecord.draft_type ?? 'snake',
+        scoringPresetId:
+          typeof settingsRecord.scoring_preset_id === 'string'
+            ? settingsRecord.scoring_preset_id
+            : null,
+      })
+
+      if (contract) {
+        starterSlots = expandLockedRedraftStarterSlots(contract.rosterTemplate.starterSlotOrder)
+        slotLimits = {
+          starters: starterSlots.length,
+          bench: contract.rosterTemplate.benchSlots,
+          ir: contract.rosterTemplate.irSlots,
+          taxi: 0,
+          devy: 0,
+        }
+        starterAllowedPositions = contract.rosterTemplate.draftablePlayerPositions
+        rosterTemplateId = `${String(leagueSport).toLowerCase()}-redraft-default`
+      }
+    }
+const leagueWeek = weekFromLeagueSettings(league.settings)
     const lockCtx = await resolveFullLineupLockContext({
       leagueId,
       rosterId: roster.id,
@@ -419,4 +493,5 @@ export async function GET(req: NextRequest) {
       'Lineups for Sleeper leagues are managed in the Sleeper app. This view is read-only in AllFantasy.',
   })
 }
+
 
