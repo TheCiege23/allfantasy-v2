@@ -57,6 +57,7 @@ function checkNflEnv(): string[] {
   const missing: string[] = []
   const hasRollingInsights =
     Boolean(process.env.ROLLING_INSIGHTS_API_KEY?.trim()) ||
+    Boolean(process.env.ROLLINGINSIGHTS_API_KEY?.trim()) ||
     (Boolean(process.env.ROLLING_INSIGHTS_CLIENT_ID?.trim()) &&
       Boolean(process.env.ROLLING_INSIGHTS_CLIENT_SECRET?.trim())) ||
     (Boolean(process.env.ROLLING_INSIGHTS_CLIENT_ID2?.trim()) &&
@@ -64,8 +65,13 @@ function checkNflEnv(): string[] {
   if (!hasRollingInsights) {
     missing.push("ROLLING_INSIGHTS_API_KEY or ROLLING_INSIGHTS_CLIENT_ID/ROLLING_INSIGHTS_CLIENT_SECRET")
   }
-  if (!process.env.APISPORTS_API_KEY?.trim() && !process.env.API_SPORTS_KEY?.trim()) {
-    missing.push("APISPORTS_API_KEY or API_SPORTS_KEY")
+  const hasApiSports =
+    Boolean(process.env.APISPORTS_API_KEY?.trim()) ||
+    Boolean(process.env.APISPORTS_KEY?.trim()) ||
+    Boolean(process.env.API_SPORTS_KEY?.trim()) ||
+    Boolean(process.env.SPORTS_API_KEY?.trim())
+  if (!hasApiSports) {
+    missing.push("APISPORTS_API_KEY or APISPORTS_KEY or API_SPORTS_KEY or SPORTS_API_KEY")
   }
   return missing
 }

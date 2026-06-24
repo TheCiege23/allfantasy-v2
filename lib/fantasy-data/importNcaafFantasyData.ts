@@ -21,16 +21,23 @@ function currentSeason(): number {
 
 function checkNcaafEnv(): { missingEnv: string[]; providerAvailable: boolean } {
   const missingEnv: string[] = []
-
   const hasCfbd =
-    Boolean(process.env.CFBD_API_KEY) || Boolean(process.env.COLLEGE_FOOTBALL_DATA_API_KEY)
+    Boolean(process.env.CFBD_API_KEY?.trim()) ||
+    Boolean(process.env.CFBD_KEY?.trim()) ||
+    Boolean(process.env.COLLEGE_FOOTBALL_DATA_API_KEY?.trim())
+  const hasApiSports =
+    Boolean(process.env.APISPORTS_API_KEY?.trim()) ||
+    Boolean(process.env.APISPORTS_KEY?.trim()) ||
+    Boolean(process.env.API_SPORTS_KEY?.trim()) ||
+    Boolean(process.env.SPORTS_API_KEY?.trim()) ||
+    Boolean(process.env.X_RAPIDAPI_KEY?.trim())
 
   if (!hasCfbd) {
-    missingEnv.push("CFBD_API_KEY (CollegeFootballData) — required for NCAAF player data")
+    missingEnv.push("CFBD_API_KEY or CFBD_KEY or COLLEGE_FOOTBALL_DATA_API_KEY (CollegeFootballData) - required for NCAAF player data")
   }
 
-  if (!process.env.API_SPORTS_KEY && !process.env.X_RAPIDAPI_KEY) {
-    missingEnv.push("API_SPORTS_KEY — needed for NCAAF schedules/scores fallback")
+  if (!hasApiSports) {
+    missingEnv.push("APISPORTS_API_KEY or APISPORTS_KEY or API_SPORTS_KEY or SPORTS_API_KEY - needed for NCAAF schedules/scores fallback")
   }
 
   return {
@@ -41,14 +48,21 @@ function checkNcaafEnv(): { missingEnv: string[]; providerAvailable: boolean } {
 
 function checkNcaafProviderEnv(): { missingEnv: string[]; providerAvailable: boolean } {
   const missingEnv: string[] = []
-  const hasCfbd = Boolean(process.env.CFBD_API_KEY?.trim()) || Boolean(process.env.CFBD_KEY?.trim())
-  const hasApiSports = Boolean(process.env.APISPORTS_API_KEY?.trim()) || Boolean(process.env.API_SPORTS_KEY?.trim())
+  const hasCfbd =
+    Boolean(process.env.CFBD_API_KEY?.trim()) ||
+    Boolean(process.env.CFBD_KEY?.trim()) ||
+    Boolean(process.env.COLLEGE_FOOTBALL_DATA_API_KEY?.trim())
+  const hasApiSports =
+    Boolean(process.env.APISPORTS_API_KEY?.trim()) ||
+    Boolean(process.env.APISPORTS_KEY?.trim()) ||
+    Boolean(process.env.API_SPORTS_KEY?.trim()) ||
+    Boolean(process.env.SPORTS_API_KEY?.trim())
 
   if (!hasCfbd) {
-    missingEnv.push("CFBD_API_KEY or CFBD_KEY (CollegeFootballData) - required for NCAAF player data")
+    missingEnv.push("CFBD_API_KEY or CFBD_KEY or COLLEGE_FOOTBALL_DATA_API_KEY (CollegeFootballData) - required for NCAAF player data")
   }
   if (!hasApiSports) {
-    missingEnv.push("APISPORTS_API_KEY or API_SPORTS_KEY - needed for NCAAF schedules/scores/injuries fallback")
+    missingEnv.push("APISPORTS_API_KEY or APISPORTS_KEY or API_SPORTS_KEY or SPORTS_API_KEY - needed for NCAAF schedules/scores/injuries fallback")
   }
 
   return {
@@ -95,7 +109,7 @@ export async function importNcaafFantasyData(options?: {
   const { missingEnv, providerAvailable } = checkNcaafProviderEnv()
 
   // If CFBD is missing, return a structured "provider unavailable" result.
-  // This is the correct behaviour for devy/C2C beta state — no hallucinated data.
+  // This is the correct behavior for devy/C2C beta state; no hallucinated data.
   if (!providerAvailable) {
     return {
       ok: false,
@@ -126,7 +140,7 @@ export async function importNcaafFantasyData(options?: {
       stale: true,
       warnings: [
         "NCAAF provider key (CFBD_API_KEY) is not configured. " +
-          "NCAAF devy/C2C data is in beta — no player data is available until the provider is connected.",
+          "NCAAF devy/C2C data is in beta - no player data is available until the provider is connected.",
         "Devy and C2C leagues will show 'player pool pending' state. This is expected.",
       ],
       errors: [],
@@ -152,7 +166,6 @@ export async function importNcaafFantasyData(options?: {
   let fantasyValuesImported = 0
   let skipped = 0
 
-  // ── Players ──────────────────────────────────────────────────────────────────
   try {
     if (!dryRun) {
       const result = await runSportsDataImporter({ sports: ["NCAAF"] })
@@ -168,7 +181,6 @@ export async function importNcaafFantasyData(options?: {
     errors.push(`NCAAF player import failed: ${msg.slice(0, 200)}`)
   }
 
-  // ── Schedules ─────────────────────────────────────────────────────────────────
   try {
     if (!dryRun) {
       const result = await runScheduleImporter({
@@ -263,7 +275,7 @@ export async function importNcaafFantasyData(options?: {
     season,
     counts: {
       players: playersImported,
-      adp: 0, // NCAAF ADP not yet available via mainstream providers
+      adp: 0,
       injuries: injuriesImported,
       schedules: schedulesImported,
       teams: teamsImported,

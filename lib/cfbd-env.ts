@@ -1,7 +1,12 @@
-export const CFBD_ENV_VARS = ["CFBD_API_KEY", "CFBD_KEY"] as const
+export const CFBD_ENV_VARS = ["CFBD_API_KEY", "CFBD_KEY", "COLLEGE_FOOTBALL_DATA_API_KEY"] as const
 
 export function getCfbdApiKey(): string {
-  return process.env.CFBD_API_KEY?.trim() || process.env.CFBD_KEY?.trim() || ""
+  return (
+    process.env.CFBD_API_KEY?.trim() ||
+    process.env.CFBD_KEY?.trim() ||
+    process.env.COLLEGE_FOOTBALL_DATA_API_KEY?.trim() ||
+    ""
+  )
 }
 
 export function hasCfbdApiKey(): boolean {
