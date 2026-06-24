@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
+import { ensurePostDraftFinalized } from '@/lib/post-draft'
 import { generateSchedule } from '@/lib/redraft/scheduleEngine'
 import { leagueSportToConfigSport } from '@/lib/redraft/sportKey'
 import { tryGetSportConfig } from '@/lib/sportConfig'
@@ -20,11 +21,26 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'seasonId or leagueId required' }, { status: 400 })
   }
 
-  const season = await prisma.redraftSeason.findFirst({
-    where: seasonId ? { id: seasonId } : { leagueId: leagueId! },
+  const seasonWhere = seasonId ? { id: seasonId } : { leagueId: leagueId! }
+  let season = await prisma.redraftSeason.findFirst({
+    where: seasonWhere,
     orderBy: seasonId ? undefined : { createdAt: 'desc' },
     include: { rosters: true },
   })
+  if (!season && !seasonId && leagueId) {
+    const leagueGate = await assertLeagueMember(leagueId, userId)
+    if (!leagueGate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: leagueGate.status })
+
+    await ensurePostDraftFinalized(leagueId).catch((error) => {
+      console.error('[redraft/season GET] ensurePostDraftFinalized failed', { leagueId, error })
+    })
+
+    season = await prisma.redraftSeason.findFirst({
+      where: seasonWhere,
+      orderBy: { createdAt: 'desc' },
+      include: { rosters: true },
+    })
+  }
   if (!season) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const gate = await assertLeagueMember(season.leagueId, userId)

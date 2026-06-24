@@ -80,24 +80,31 @@ export function DraftRoomShell({
 }: DraftRoomShellProps) {
   const { t } = useLanguage()
   const [bottomDockExpanded, setBottomDockExpanded] = useState(true)
+  const allowPremiumDockCollapse = surfaceVariant !== 'redraft_snake'
 
   useEffect(() => {
+    if (!allowPremiumDockCollapse) {
+      setBottomDockExpanded(true)
+      return
+    }
     try {
       const v = window.localStorage.getItem(BOTTOM_DOCK_PREF_KEY)
       if (v === '0') setBottomDockExpanded(false)
     } catch {
       /* ignore */
     }
-  }, [])
+  }, [allowPremiumDockCollapse])
 
   const persistBottomDock = useCallback((expanded: boolean) => {
-    setBottomDockExpanded(expanded)
+    const nextExpanded = allowPremiumDockCollapse ? expanded : true
+    setBottomDockExpanded(nextExpanded)
+    if (!allowPremiumDockCollapse) return
     try {
-      window.localStorage.setItem(BOTTOM_DOCK_PREF_KEY, expanded ? '1' : '0')
+      window.localStorage.setItem(BOTTOM_DOCK_PREF_KEY, nextExpanded ? '1' : '0')
     } catch {
       /* ignore */
     }
-  }, [])
+  }, [allowPremiumDockCollapse])
 
   const touchStartX = useRef<number | null>(null)
   const touchStartY = useRef<number | null>(null)
@@ -196,21 +203,23 @@ export function DraftRoomShell({
           </div>
           {/* D.6.2 — collapse arrow toggle between the board and the dock.
               Two stacked chevrons that flip direction based on state. Click → toggle. */}
-          <div className="relative shrink-0">
-            <button
-              type="button"
-              onClick={() => persistBottomDock(!bottomDockExpanded)}
-              data-testid="draft-dock-collapse-toggle"
-              data-expanded={bottomDockExpanded ? 'true' : 'false'}
-              aria-expanded={bottomDockExpanded}
-              aria-label={bottomDockExpanded ? 'Collapse bottom dock' : 'Expand bottom dock'}
-              title={bottomDockExpanded ? 'Collapse bottom dock' : 'Expand bottom dock'}
-              className="absolute left-1/2 top-0 z-20 inline-flex h-8 w-12 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-white/15 bg-[#0a1228] text-white/85 shadow-[0_8px_22px_rgba(0,0,0,0.45)] transition hover:border-cyan-400/35 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
-            >
-              <ChevronUp className={cn('h-3 w-3', bottomDockExpanded ? 'opacity-90' : 'opacity-30')} />
-              <ChevronDown className={cn('h-3 w-3 -mt-0.5', bottomDockExpanded ? 'opacity-30' : 'opacity-90')} />
-            </button>
-          </div>
+          {allowPremiumDockCollapse ? (
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => persistBottomDock(!bottomDockExpanded)}
+                data-testid="draft-dock-collapse-toggle"
+                data-expanded={bottomDockExpanded ? 'true' : 'false'}
+                aria-expanded={bottomDockExpanded}
+                aria-label={bottomDockExpanded ? 'Collapse bottom dock' : 'Expand bottom dock'}
+                title={bottomDockExpanded ? 'Collapse bottom dock' : 'Expand bottom dock'}
+                className="absolute left-1/2 top-0 z-20 inline-flex h-8 w-12 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-white/15 bg-[#0a1228] text-white/85 shadow-[0_8px_22px_rgba(0,0,0,0.45)] transition hover:border-cyan-400/35 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+              >
+                <ChevronUp className={cn('h-3 w-3', bottomDockExpanded ? 'opacity-90' : 'opacity-30')} />
+                <ChevronDown className={cn('h-3 w-3 -mt-0.5', bottomDockExpanded ? 'opacity-30' : 'opacity-90')} />
+              </button>
+            </div>
+          ) : null}
           <div
             className={cn(
               'flex min-h-0 overflow-hidden',
@@ -239,19 +248,21 @@ export function DraftRoomShell({
           </div>
           {bottomBar ? (
             <div className="relative shrink-0 border-t border-white/10 bg-[#040915]" data-testid="draft-premium-bottom-dock-wrap">
-              <div className="pointer-events-none absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-1/2">
-                <button
-                  type="button"
-                  onClick={() => persistBottomDock(!bottomDockExpanded)}
-                  className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-[#0a1228] text-white/80 shadow-lg shadow-black/40 transition hover:bg-white/10 hover:text-white"
-                  aria-expanded={bottomDockExpanded}
-                  aria-controls="draft-premium-bottom-dock"
-                  data-testid="draft-bottom-dock-toggle"
-                  title={bottomDockExpanded ? t('draftRoom.shell.hideBottomDock') : t('draftRoom.shell.showBottomDock')}
-                >
-                  {bottomDockExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-                </button>
-              </div>
+              {allowPremiumDockCollapse ? (
+                <div className="pointer-events-none absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-1/2">
+                  <button
+                    type="button"
+                    onClick={() => persistBottomDock(!bottomDockExpanded)}
+                    className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-[#0a1228] text-white/80 shadow-lg shadow-black/40 transition hover:bg-white/10 hover:text-white"
+                    aria-expanded={bottomDockExpanded}
+                    aria-controls="draft-premium-bottom-dock"
+                    data-testid="draft-bottom-dock-toggle"
+                    title={bottomDockExpanded ? t('draftRoom.shell.hideBottomDock') : t('draftRoom.shell.showBottomDock')}
+                  >
+                    {bottomDockExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                  </button>
+                </div>
+              ) : null}
               <div
                 id="draft-premium-bottom-dock"
                 className={cn(
@@ -269,7 +280,7 @@ export function DraftRoomShell({
                   {bottomBar}
                 </div>
               </div>
-              {!bottomDockExpanded ? (
+              {allowPremiumDockCollapse && !bottomDockExpanded ? (
                 <button
                   type="button"
                   onClick={() => persistBottomDock(true)}

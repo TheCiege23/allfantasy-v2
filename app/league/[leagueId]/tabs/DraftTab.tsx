@@ -39,6 +39,8 @@ export type DraftTabProps = {
   dashboardEmbed?: boolean
 }
 
+type DraftSessionDisplayStatus = 'scheduled' | 'live' | 'paused' | 'completed'
+
 function isPreDraftLeagueStatus(league: UserLeague): boolean {
   const s = String(league.status ?? '').toLowerCase()
   if (!s) return true
@@ -51,6 +53,16 @@ function isPreDraftLeagueStatus(league: UserLeague): boolean {
 function isLiveDraftLeagueStatus(league: UserLeague): boolean {
   const s = String(league.status ?? '').toLowerCase()
   return s === 'in_progress' || s === 'in progress' || s === 'active' || s === 'live' || s === 'paused'
+}
+
+function normalizeDraftSessionStatus(value: unknown): DraftSessionDisplayStatus | null {
+  const normalized = String(value ?? '').trim().toLowerCase()
+  if (!normalized) return null
+  if (normalized === 'completed' || normalized === 'complete' || normalized === 'post_draft') return 'completed'
+  if (normalized === 'paused') return 'paused'
+  if (normalized === 'in_progress' || normalized === 'active' || normalized === 'live') return 'live'
+  if (normalized === 'pre_draft' || normalized === 'scheduled') return 'scheduled'
+  return null
 }
 
 function formatDraftTypeLabel(type: unknown): string {
@@ -224,10 +236,35 @@ export function DraftTab({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [displayTeams, setDisplayTeams] = useState<UserLeagueTeam[]>(teams)
+  const [draftSessionStatus, setDraftSessionStatus] = useState<DraftSessionDisplayStatus | null>(null)
 
   useEffect(() => {
     setDisplayTeams(teams)
   }, [teams])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/leagues/${encodeURIComponent(league.id)}/draft/session`, {
+          credentials: 'include',
+        })
+        if (!res.ok) {
+          if (!cancelled) setDraftSessionStatus(null)
+          return
+        }
+        const data = (await res.json()) as { session?: { status?: unknown } | null }
+        if (!cancelled) {
+          setDraftSessionStatus(normalizeDraftSessionStatus(data?.session?.status))
+        }
+      } catch {
+        if (!cancelled) setDraftSessionStatus(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [league.id])
 
   const filled = displayTeams.length
   const cap = league.teamCount
@@ -374,15 +411,20 @@ export function DraftTab({
   }, [league.id, league.sport, router])
 
   const nflRedraftShell = isNflRedraftCoreDashboardFromUserLeague(league)
-  const preDraft = isPreDraftLeagueStatus(league)
-  const liveDraft = isLiveDraftLeagueStatus(league)
+  const fallbackPreDraft = isPreDraftLeagueStatus(league)
+  const fallbackLiveDraft = isLiveDraftLeagueStatus(league)
+  const draftCompleted = draftSessionStatus === 'completed'
+  const preDraft = draftSessionStatus ? draftSessionStatus === 'scheduled' : fallbackPreDraft
+  const liveDraft = draftSessionStatus
+    ? draftSessionStatus === 'live' || draftSessionStatus === 'paused'
+    : fallbackLiveDraft
 
   const openSettingsDraft = useCallback(() => {
     if (onOpenLeagueSettings) onOpenLeagueSettings('draft')
     else router.push(`/league/${league.id}?view=settings`)
   }, [onOpenLeagueSettings, router, league.id])
 
-  const canEnterDraftRoom = (preDraft || liveDraft) && Boolean(league.id)
+  const canEnterDraftRoom = (preDraft || liveDraft || draftCompleted) && Boolean(league.id)
 
   /**
    * Always navigate to the draft route — `/league/[id]/draft` handles its own
