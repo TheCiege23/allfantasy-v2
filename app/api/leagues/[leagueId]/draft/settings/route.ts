@@ -21,6 +21,7 @@ import { getRecentAuditEntries } from '@/lib/orphan-ai-manager/OrphanAIManagerSe
 import { getProviderStatus } from '@/lib/provider-config'
 import { notifyOrphanAiManagerAssigned } from '@/lib/draft-notifications'
 import { supportsIdpLeagueSport } from '@/lib/sport-scope'
+import { triggerDraftPoolPrewarmBackground } from '@/lib/draft-room/ensureDraftPoolReady'
 
 export const dynamic = 'force-dynamic'
 
@@ -423,6 +424,7 @@ export async function PATCH(
       }
     }
     const orderModeAndLottery = await getDraftOrderModeAndLotteryConfig(leagueId)
+    triggerDraftPoolPrewarmBackground(leagueId)
 
     // Fetch team details for response if randomized
     let teamsForResponse: Array<{

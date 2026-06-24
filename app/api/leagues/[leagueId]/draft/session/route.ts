@@ -36,6 +36,7 @@ import { publishDraftIntelForUpcomingManagers, sendDraftIntelDm } from '@/lib/dr
 import { recordEngineTelemetrySample } from '@/lib/analytics/recordAnalyticsEvent'
 import { ENGINE } from '@/lib/analytics/eventNames'
 import { logStructured } from '@/lib/logging/structured'
+import { getDraftPoolReadiness, triggerDraftPoolPrewarmBackground } from '@/lib/draft-room/ensureDraftPoolReady'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,6 +81,11 @@ function paritySnapshot(summary: unknown): {
     currentPickNumber: safeNumber(s.currentPick?.overall),
     picksMade: Array.isArray(s.picks) ? s.picks.length : null,
   }
+}
+
+function shouldPrewarmDraftPool(status: unknown): boolean {
+  const normalized = String(status ?? '').trim().toLowerCase()
+  return ['pre_draft', 'scheduled', 'paused', 'in_progress'].includes(normalized)
 }
 
 export async function GET(
@@ -183,10 +189,30 @@ export async function GET(
       })
     }
 
-    const currentUserRosterId = await getCurrentUserRosterIdForLeague(leagueId, userId)
+    const [currentUserRosterId, poolReadiness] = await Promise.all([
+      getCurrentUserRosterIdForLeague(leagueId, userId),
+      getDraftPoolReadiness(leagueId).catch(() => ({
+        warm: false,
+        ready: false,
+        source: 'missing' as const,
+        entryCount: 0,
+        syncedAt: null,
+        cacheKey: null,
+        sourceFingerprint: null,
+      })),
+    ])
+    if (shared.snapshot && shouldPrewarmDraftPool(shared.snapshot.status) && !poolReadiness.ready) {
+      triggerDraftPoolPrewarmBackground(leagueId)
+    }
     const responseBody: {
       leagueId: string
       session: Record<string, unknown>
+      poolReadiness?: {
+        ready: boolean
+        entryCount: number
+        source: 'db-cache' | 'memory-cache' | 'cold' | 'missing'
+        syncedAt: string | null
+      }
       canonicalDraftState?: Awaited<ReturnType<typeof getCanonicalDraftState>> | null
       canonicalDraftStateParity?: {
         statusMatches: boolean
@@ -208,6 +234,12 @@ export async function GET(
             : shared.uiSettings.orphanDrafterMode,
         draftOrderMode: shared.orderMode?.draftOrderMode,
         lotteryLastRunAt: shared.orderMode?.lotteryLastRunAt ?? undefined,
+      },
+      poolReadiness: {
+        ready: poolReadiness.ready,
+        entryCount: poolReadiness.entryCount,
+        source: poolReadiness.source,
+        syncedAt: poolReadiness.syncedAt,
       },
     }
 
@@ -255,14 +287,43 @@ export async function POST(
   try {
     if (action === 'ensure' || action === 'create') {
       const { session: s, created } = await getOrCreateDraftSession(leagueId)
+      const poolReadiness = await getDraftPoolReadiness(leagueId).catch(() => null)
+      if (shouldPrewarmDraftPool(s.status)) {
+        triggerDraftPoolPrewarmBackground(leagueId)
+      }
       return NextResponse.json({
         sessionId: s.id,
         leagueId: s.leagueId,
         status: s.status,
         created,
+        poolReadiness: poolReadiness
+          ? {
+              ready: poolReadiness.ready,
+              entryCount: poolReadiness.entryCount,
+              source: poolReadiness.source,
+              syncedAt: poolReadiness.syncedAt,
+            }
+          : undefined,
       })
     }
     if (action === 'start') {
+      const poolReadiness = await getDraftPoolReadiness(leagueId)
+      if (!poolReadiness.ready) {
+        triggerDraftPoolPrewarmBackground(leagueId)
+        return NextResponse.json(
+          {
+            code: 'POOL_NOT_READY',
+            error: 'Preparing player pool. Try again in a few seconds.',
+            poolReadiness: {
+              ready: poolReadiness.ready,
+              entryCount: poolReadiness.entryCount,
+              source: poolReadiness.source,
+              syncedAt: poolReadiness.syncedAt,
+            },
+          },
+          { status: 409 },
+        )
+      }
       const started = await startDraftSession(leagueId)
       if (!started.ok) {
         if (started.reason === 'ROSTER_CONFIGURATION_INCOMPLETE') {
@@ -316,6 +377,12 @@ export async function POST(
             uiSettings.orphanDrafterMode === 'ai' && !providerStatus.anyAi
               ? 'cpu'
               : uiSettings.orphanDrafterMode,
+        },
+        poolReadiness: {
+          ready: true,
+          entryCount: poolReadiness.entryCount,
+          source: poolReadiness.source,
+          syncedAt: poolReadiness.syncedAt,
         },
       })
     }

@@ -1,5 +1,5 @@
 /**
- * Vercel Cron: prewarm DraftPoolCache for all scheduled/in_progress drafts.
+ * Vercel Cron: prewarm DraftPoolCache for all pre_draft/scheduled/paused/in_progress drafts.
  * Runs every 30 minutes so the pool is hot before users open the draft room.
  * Auth: requireCronAuth (CRON_SECRET / LEAGUE_CRON_SECRET).
  */
@@ -19,7 +19,7 @@ async function handle(req: NextRequest) {
   }
 
   const sessions = await prisma.draftSession.findMany({
-    where: { status: { in: ['scheduled', 'in_progress'] } },
+    where: { status: { in: ['pre_draft', 'scheduled', 'paused', 'in_progress'] } },
     select: { leagueId: true },
     distinct: ['leagueId'],
   })
@@ -28,7 +28,7 @@ async function handle(req: NextRequest) {
   const t = Date.now()
 
   const results = await Promise.all(
-    sessions.map(async ({ leagueId }) => {
+    sessions.map(async ({ leagueId }: { leagueId: string }) => {
       const { warm } = await checkDraftPoolCacheFast(leagueId).catch(() => ({ warm: false }))
       if (warm) return { leagueId, action: 'warm' }
       const result = await ensureDraftPoolReady(leagueId)

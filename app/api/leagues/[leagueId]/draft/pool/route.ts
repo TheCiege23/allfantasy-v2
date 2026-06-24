@@ -8,10 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
-import {
-  getEffectiveLeagueRosterTemplate,
-  starterEligiblePlayerPositionsFromTemplate,
-} from '@/lib/league/getEffectiveLeagueRosterTemplate'
+import { getEffectiveLeagueRosterTemplate } from '@/lib/league/getEffectiveLeagueRosterTemplate'
 import type { LeagueSport } from '@prisma/client'
 import {
   API_CACHE_TTL,
@@ -20,7 +17,6 @@ import {
   getApiCached,
   setApiCached,
 } from '@/lib/api-performance'
-import { rosterFingerprintFromEligible } from '@/lib/draft-room/draft-pool-eligible-positions'
 import {
   getResolvedDraftPoolForLeague,
   type DraftPoolRawRow,
@@ -38,6 +34,7 @@ import {
 import { soccerLeagueHintFromLeagueSettings } from '@/lib/player-data/leagueSoccerLeagueHint'
 import type { NormalizedDraftEntry } from '@/lib/draft-sports-models/types'
 import { dedupeCanonicalNflDraftPoolEntries, enrichCanonicalNflDraftPoolEntries } from '@/lib/nfl-data-foundation'
+import { buildDraftPoolCacheKey, resolveDraftPoolCacheContext } from '@/lib/draft-room/ensureDraftPoolReady'
 
 export const dynamic = 'force-dynamic'
 
@@ -208,11 +205,9 @@ export async function GET(
     return NextResponse.json({ error: 'League not found' }, { status: 404 })
   }
 
-  const starterEligible = starterEligiblePlayerPositionsFromTemplate(effectiveLeagueTemplate.template)
-  const rosterFp = `${effectiveLeagueTemplate.hasPersistedRosterSchema ? 'cfg' : 'nocfg'}:starters:${rosterFingerprintFromEligible(
-    starterEligible.size > 0 ? starterEligible : new Set(effectiveLeagueTemplate.allowedPositions),
-  )}`
-  const cacheKey = `draft_pool:${leagueId}:${rosterFp}:dbmerge_v4:nflproj_v2:nflfoundation_v1:${buildApiCacheKey('GET', req.url)}`
+  const cacheContext = await resolveDraftPoolCacheContext(leagueId, { effectiveLeagueTemplate })
+  const rosterFp = cacheContext.rosterFp
+  const cacheKey = buildDraftPoolCacheKey(leagueId, rosterFp, buildApiCacheKey('GET', req.url))
   // dbFirstMode persistent DB cache layer. Guarded because the DraftPoolCache
   // Prisma client may not be generated yet (the model is in schema.prisma but
   // requires `prisma generate` to surface on the client). Falls back to the
@@ -220,13 +215,28 @@ export async function GET(
   const draftPoolCacheModel = (prisma as { draftPoolCache?: { findFirst: Function; upsert: Function } }).draftPoolCache
   if (draftPoolCacheModel?.findFirst) {
     try {
-      const dbCached = await draftPoolCacheModel.findFirst({
+      let dbCached = await draftPoolCacheModel.findFirst({
         where: {
           cacheKey,
           expiresAt: { gt: new Date() },
         },
         select: { payload: true, entryCount: true, syncedAt: true },
       })
+      let cacheLayer: 'db' | 'db-league-fallback' = 'db'
+      if (!dbCached?.payload) {
+        dbCached = await draftPoolCacheModel.findFirst({
+          where: {
+            leagueId,
+            sourceFingerprint: rosterFp,
+            expiresAt: { gt: new Date() },
+          },
+          orderBy: { syncedAt: 'desc' },
+          select: { payload: true, entryCount: true, syncedAt: true },
+        })
+        if (dbCached?.payload) {
+          cacheLayer = 'db-league-fallback'
+        }
+      }
       if (dbCached?.payload && typeof dbCached.payload === 'object') {
         const payload = stripPoolEntryFallbacks(withDraftPoolMeta(dbCached.payload as DraftPoolResponseBody, {
           source: 'db-cache',
@@ -236,7 +246,7 @@ export async function GET(
           cachedAt: dbCached.syncedAt instanceof Date ? dbCached.syncedAt.toISOString() : null,
         }))
         console.info('[draft/pool GET] cache hit', {
-          layer: 'db',
+          layer: cacheLayer,
           leagueId,
           cacheKey,
           entryCount: Number(dbCached.entryCount ?? 0),

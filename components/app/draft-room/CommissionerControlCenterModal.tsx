@@ -48,6 +48,12 @@ export type CommissionerControlCenterModalProps = {
   rounds?: number
   devyConfig?: { enabled: boolean; devyRounds: number[] } | null
   c2cConfig?: { enabled: boolean; collegeRounds: number[] } | null
+  poolReadiness?: {
+    ready: boolean
+    entryCount: number
+    source: 'db-cache' | 'memory-cache' | 'cold' | 'missing'
+    syncedAt: string | null
+  } | null
   onClose: () => void
   onAction: (action: string, payload?: Record<string, unknown>) => Promise<unknown>
   onSettingsPatch: (patch: Partial<DraftUISettings>) => Promise<void>
@@ -92,6 +98,7 @@ export function CommissionerControlCenterModal({
   rounds = 15,
   devyConfig = null,
   c2cConfig = null,
+  poolReadiness = null,
   onClose,
   onAction,
   onSettingsPatch,
@@ -162,6 +169,10 @@ export function CommissionerControlCenterModal({
   const hasDevyDraftConfig = Boolean(devyConfig?.enabled || (devyConfig?.devyRounds?.length ?? 0) > 0)
   const hasC2CDraftConfig = Boolean(c2cConfig?.enabled || (c2cConfig?.collegeRounds?.length ?? 0) > 0)
   const pauseControlsEnabled = ui.commissionerPauseControlsEnabled ?? true
+  const poolReadinessLabel = poolReadiness?.ready
+    ? `Draft pool ready: ${poolReadiness.entryCount} players`
+    : 'Preparing NFL draft pool...'
+  const startDraftBlocked = isPreDraft && poolReadiness?.ready === false
   const requestedOrphanMode = ui.orphanDrafterMode ?? orphanDrafterMode ?? 'cpu'
   const effectiveOrphanMode =
     requestedOrphanMode === (orphanDrafterMode ?? 'cpu')
@@ -500,14 +511,27 @@ export function CommissionerControlCenterModal({
               </button>
             </div>
           )}
+          {isPreDraft && poolReadiness ? (
+            <div
+              className={`mb-3 rounded-lg border px-3 py-2 text-[12px] ${
+                poolReadiness.ready
+                  ? 'border-emerald-400/35 bg-emerald-500/10 text-emerald-100'
+                  : 'border-amber-400/35 bg-amber-500/10 text-amber-100'
+              }`}
+              data-testid="draft-commissioner-pool-readiness"
+            >
+              {poolReadinessLabel}
+            </div>
+          ) : null}
           <div className="flex flex-wrap gap-2">
             {isPreDraft && onStartDraft && (
               <button
                 type="button"
                 onClick={() => run('start', onStartDraft)}
-                disabled={loading || actionLoading !== null}
+                disabled={loading || actionLoading !== null || startDraftBlocked}
                 data-testid="draft-commissioner-start"
                 className="inline-flex items-center gap-2 rounded-lg border border-emerald-400/35 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100 hover:bg-emerald-500/20 disabled:opacity-50"
+                title={startDraftBlocked ? poolReadinessLabel : 'Start draft'}
               >
                 <Play className="h-4 w-4" />
                 Start draft
@@ -516,7 +540,7 @@ export function CommissionerControlCenterModal({
             <button
               type="button"
               onClick={handleTransitionToDrafting}
-              disabled={transitionLoading || loading || actionLoading !== null}
+              disabled={transitionLoading || loading || actionLoading !== null || startDraftBlocked}
               title="Manually transition league to drafting state (fixes stuck setup state)"
               className="inline-flex items-center gap-2 rounded-lg border border-blue-400/35 bg-blue-500/10 px-3 py-2 text-sm text-blue-100 hover:bg-blue-500/20 disabled:opacity-50"
             >

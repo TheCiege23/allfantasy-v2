@@ -15,6 +15,7 @@ import {
   stripForbiddenUserFieldsFromRedraftBody,
   validateRedraftCreatePayload,
 } from '@/lib/redraft-creation/validate'
+import { triggerDraftPoolPrewarmBackground } from '@/lib/draft-room/ensureDraftPoolReady'
 
 const LOG_PREFIX = '[redraft-create]'
 
@@ -143,9 +144,9 @@ export async function postRedraftCreate(req: Request): Promise<NextResponse> {
 
   try {
     const result = await prisma.$transaction(
-      async (tx) => {
+      async (tx: Prisma.TransactionClient) => {
         return createRedraftLeagueInTransaction(
-          tx as Prisma.TransactionClient,
+          tx,
           userIdForLeagueCreate,
           body,
           (ev, payload) => log(ev, payload)
@@ -183,6 +184,8 @@ export async function postRedraftCreate(req: Request): Promise<NextResponse> {
   } catch (e) {
     console.warn(`${LOG_PREFIX} constitution_non_fatal`, e)
   }
+
+  triggerDraftPoolPrewarmBackground(createdLeagueId)
 
   log('success', { homepageUrl, leagueId: createdLeagueId })
 

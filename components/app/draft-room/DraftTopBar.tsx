@@ -117,6 +117,13 @@ export type DraftTopBarProps = {
   } | null
   /** Shared toggle controlling whether AI overlays are shown cross-surface. */
   showAiOverlays?: boolean
+  poolReadiness?: {
+    ready: boolean
+    entryCount: number
+    source: 'db-cache' | 'memory-cache' | 'cold' | 'missing'
+    syncedAt: string | null
+  } | null
+  startDraftDisabled?: boolean
 }
 
 const TIMER_COLORS = {
@@ -172,6 +179,15 @@ function formatTimerSummary(timerSeconds: number | null | undefined): string {
   }
   const days = Math.round(timerSeconds / 86400)
   return `${days} Day${days === 1 ? '' : 's'} Per Pick`
+}
+
+function formatPoolReadinessLabel(
+  sport: string,
+  poolReadiness: DraftTopBarProps['poolReadiness'],
+): string | null {
+  if (!poolReadiness) return null
+  if (poolReadiness.ready) return `Draft pool ready: ${poolReadiness.entryCount} players`
+  return `Preparing ${sport} draft pool...`
 }
 
 export function DraftTopBar({
@@ -230,6 +246,8 @@ export function DraftTopBar({
   bigScreenHref = null,
   aiRecommendationOverlay = null,
   showAiOverlays = true,
+  poolReadiness = null,
+  startDraftDisabled = false,
 }: DraftTopBarProps) {
   const { t } = useLanguage()
   const liveRemaining = useDraftCountdownSeconds(
@@ -378,6 +396,7 @@ export function DraftTopBar({
   const draftTypeLabel = translateDraftType(draftType, t)
   const draftFormatLabel = resolveDraftFormatLabel(draftType, thirdRoundReversal)
   const timerModeLabel = translateTimerMode(timerMode, t)
+  const poolReadinessLabel = formatPoolReadinessLabel(sport, poolReadiness)
 
   const centerCta = (() => {
     /** Completed state: show a clear broadcast "Draft Complete" badge. */
@@ -395,9 +414,10 @@ export function DraftTopBar({
         <button
           type="button"
           onClick={onStartDraft}
-          disabled={commissionerLoading}
+          disabled={commissionerLoading || startDraftDisabled}
           data-testid="draft-topbar-start-draft"
           className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-[#aeb7ff]/40 bg-gradient-to-r from-[#9ca9ff] to-[#8b7fd8] px-5 py-2 text-sm font-semibold text-[#0a1030] shadow-[0_12px_36px_rgba(139,127,216,0.35)] transition duration-150 hover:brightness-110 hover:shadow-[0_14px_40px_rgba(156,169,255,0.4)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 active:scale-[0.98] disabled:opacity-55"
+          title={startDraftDisabled ? (poolReadinessLabel ?? 'Preparing draft pool...') : 'Start draft'}
         >
           <Grid2x2 className="h-4 w-4" />
           START DRAFT
@@ -609,6 +629,17 @@ export function DraftTopBar({
                 <span className="text-white/55">{sport}</span>
                 <span className="text-white/24">·</span>
                 <span title={`Draft type: ${draftTypeLabel}`}>{draftFormatLabel}</span>
+                {poolReadinessLabel ? (
+                  <>
+                    <span className="text-white/24">Â·</span>
+                    <span
+                      data-testid="draft-topbar-pool-readiness"
+                      className={poolReadiness?.ready ? 'text-emerald-200' : 'text-amber-200'}
+                    >
+                      {poolReadinessLabel}
+                    </span>
+                  </>
+                ) : null}
                 {thirdRoundReversal ? (
                   <>
                     <span className="text-white/24">·</span>
@@ -993,11 +1024,14 @@ export function DraftTopBar({
                   <button
                     type="button"
                     onClick={() => {
+                      if (startDraftDisabled) return
                       onStartDraft()
                       setMenuOpen(false)
                     }}
+                    disabled={startDraftDisabled || commissionerLoading}
                     data-testid="draft-topbar-menu-start"
-                    className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition duration-150 hover:bg-white/8"
+                    title={startDraftDisabled ? (poolReadinessLabel ?? 'Preparing draft pool...') : 'Start draft'}
+                    className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition duration-150 hover:bg-white/8 disabled:opacity-45"
                   >
                     <Sparkles className="mt-0.5 h-4 w-4 text-[#dbe1ff]" />
                     <span>

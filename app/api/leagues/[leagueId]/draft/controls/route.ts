@@ -58,7 +58,7 @@ import { getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import type { DraftSessionSnapshot } from '@/lib/live-draft-engine/types'
 import { getViewerAutopickPreference } from '@/lib/live-draft-engine/LiveDraftAutopickPreferenceService'
 import { EntitlementResolver } from '@/lib/subscription/EntitlementResolver'
-import { checkDraftPoolCacheFast, triggerDraftPoolPrewarmBackground } from '@/lib/draft-room/ensureDraftPoolReady'
+import { getDraftPoolReadiness, triggerDraftPoolPrewarmBackground } from '@/lib/draft-room/ensureDraftPoolReady'
 
 export const dynamic = 'force-dynamic'
 
@@ -179,11 +179,29 @@ export async function POST(
   try {
     if (action === 'start') {
       const _startPoolCheck = Date.now()
-      const cacheWarm = await checkDraftPoolCacheFast(leagueId)
-      console.info('[draft-perf] start pool cache check', { leagueId, warm: cacheWarm.warm, ms: Date.now() - _startPoolCheck })
-      if (!cacheWarm.warm) {
+      const poolReadiness = await getDraftPoolReadiness(leagueId)
+      console.info('[draft-perf] start pool cache check', {
+        leagueId,
+        warm: poolReadiness.warm,
+        source: poolReadiness.source,
+        entryCount: poolReadiness.entryCount,
+        ms: Date.now() - _startPoolCheck,
+      })
+      if (!poolReadiness.ready) {
         triggerDraftPoolPrewarmBackground(leagueId)
-        console.info('[draft-perf] start proceeding while pool warms', { leagueId })
+        return NextResponse.json(
+          {
+            code: 'POOL_NOT_READY',
+            error: 'Preparing player pool. Try again in a few seconds.',
+            poolReadiness: {
+              ready: poolReadiness.ready,
+              entryCount: poolReadiness.entryCount,
+              source: poolReadiness.source,
+              syncedAt: poolReadiness.syncedAt,
+            },
+          },
+          { status: 409 },
+        )
       }
       const started = await startDraftSession(leagueId)
       if (!started.ok) {
@@ -252,9 +270,15 @@ export async function POST(
     }
     if (action === 'resume') {
       const _resumeStart = Date.now()
-      const cacheWarm = await checkDraftPoolCacheFast(leagueId)
-      console.info('[draft-perf] resume pool cache check', { leagueId, warm: cacheWarm.warm, ms: Date.now() - _resumeStart })
-      if (!cacheWarm.warm) {
+      const poolReadiness = await getDraftPoolReadiness(leagueId)
+      console.info('[draft-perf] resume pool cache check', {
+        leagueId,
+        warm: poolReadiness.warm,
+        source: poolReadiness.source,
+        entryCount: poolReadiness.entryCount,
+        ms: Date.now() - _resumeStart,
+      })
+      if (!poolReadiness.ready) {
         triggerDraftPoolPrewarmBackground(leagueId)
         console.info('[draft-perf] resume proceeding while pool warms', { leagueId })
       }

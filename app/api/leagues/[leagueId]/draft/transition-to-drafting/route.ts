@@ -5,6 +5,7 @@ import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { getOrCreateDraftSession, startDraftSession, buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
 import { transitionLeagueState } from '@/server/services/leagueLifecycleService'
 import { rosterConfigurationIncompleteBody } from '@/lib/league/roster-configuration-gate-error'
+import { getDraftPoolReadiness, triggerDraftPoolPrewarmBackground } from '@/lib/draft-room/ensureDraftPoolReady'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,6 +38,24 @@ export async function POST(
 
     // Transition league to pre_draft
     await transitionLeagueState(leagueId, 'pre_draft', userId)
+
+    const poolReadiness = await getDraftPoolReadiness(leagueId)
+    if (!poolReadiness.ready) {
+      triggerDraftPoolPrewarmBackground(leagueId)
+      return NextResponse.json(
+        {
+          code: 'POOL_NOT_READY',
+          error: 'Preparing player pool. Try again in a few seconds.',
+          poolReadiness: {
+            ready: poolReadiness.ready,
+            entryCount: poolReadiness.entryCount,
+            source: poolReadiness.source,
+            syncedAt: poolReadiness.syncedAt,
+          },
+        },
+        { status: 409 },
+      )
+    }
 
     // Start the draft session
     const started = await startDraftSession(leagueId)

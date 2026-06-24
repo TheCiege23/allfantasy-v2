@@ -144,6 +144,13 @@ type DraftRoomChromeTeam = {
   isCoCommissioner?: boolean
 }
 
+type DraftPoolReadinessClientState = {
+  ready: boolean
+  entryCount: number
+  source: 'db-cache' | 'memory-cache' | 'cold' | 'missing'
+  syncedAt: string | null
+}
+
 function normalizeManagerKey(value: string | null | undefined): string {
   return String(value ?? '').trim().toLowerCase()
 }
@@ -174,6 +181,23 @@ function resolveManagerChromeTeam(
     teams.find((team) => normalizeManagerKey(team.ownerName) === displayName) ??
     null
   )
+}
+
+function normalizePoolReadiness(
+  value: unknown,
+): DraftPoolReadinessClientState | null {
+  if (!value || typeof value !== 'object') return null
+  const source = String((value as { source?: unknown }).source ?? '').trim()
+  if (!['db-cache', 'memory-cache', 'cold', 'missing'].includes(source)) return null
+  return {
+    ready: Boolean((value as { ready?: unknown }).ready),
+    entryCount: Number((value as { entryCount?: unknown }).entryCount ?? 0),
+    source: source as DraftPoolReadinessClientState['source'],
+    syncedAt:
+      typeof (value as { syncedAt?: unknown }).syncedAt === 'string'
+        ? ((value as { syncedAt: string }).syncedAt ?? null)
+        : null,
+  }
 }
 
 const POLL_MS = 8000
@@ -279,6 +303,7 @@ export function DraftRoomPageClient({
     variant: 'success' | 'error' | 'info'
     message: string
   } | null>(null)
+  const [poolReadiness, setPoolReadiness] = useState<DraftPoolReadinessClientState | null>(null)
   const governanceSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [pickSubmitting, setPickSubmitting] = useState(false)
   const [draftUISettings, setDraftUISettings] = useState<DraftUISettings | null>(null)
@@ -945,6 +970,17 @@ export function DraftRoomPageClient({
           c2cConfig: data.c2cConfig,
           isIdp: data.isIdp,
         })
+        setPoolReadiness({
+          ready: true,
+          entryCount:
+            typeof data?.meta?.entryCount === 'number'
+              ? Number(data.meta.entryCount)
+              : Array.isArray(data.entries)
+                ? data.entries.length
+                : 0,
+          source: data?.meta?.source === 'db-cache' ? 'db-cache' : 'memory-cache',
+          syncedAt: typeof data?.meta?.cachedAt === 'string' ? data.meta.cachedAt : null,
+        })
         // Preload headshots for first 20 rows so browser cache is warm when
         // IntersectionObserver fires for visible rows (P2 CDN latency mitigation).
         const poolSport = data.sport ?? sport
@@ -1361,6 +1397,10 @@ export function DraftRoomPageClient({
         setSessionMismatchRecovering(false)
         sessionMismatchAttemptsRef.current = 0
         setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
+        const nextPoolReadiness = normalizePoolReadiness((data as { poolReadiness?: unknown }).poolReadiness)
+        if (nextPoolReadiness) {
+          setPoolReadiness(nextPoolReadiness)
+        }
         // Store canonical state from the response for dev-mode divergence logging.
         if (data.canonicalDraftState && typeof data.canonicalDraftState === 'object') {
           const c = data.canonicalDraftState as {
@@ -4739,6 +4779,7 @@ export function DraftRoomPageClient({
               void handleCopyInvite(source)
             }}
             onStartDraft={draftRoomState.canStart ? () => void handleStartDraft() : undefined}
+            startDraftDisabled={draftRoomState.canStart && poolReadiness?.ready === false}
             onPause={() => void handleCommissionerAction('pause')}
             onResume={() => void handleCommissionerAction('resume')}
             onResetTimer={() => void handleCommissionerResetTimer()}
@@ -4774,6 +4815,7 @@ export function DraftRoomPageClient({
             thirdRoundReversal={Boolean(session.thirdRoundReversal)}
             aiRecommendationOverlay={showAiOverlays ? recommendationOverlaySummary : null}
             showAiOverlays={showAiOverlays}
+            poolReadiness={poolReadiness}
           />
           <AutopickMeToggle
             viewerAutopick={session.viewerAutopick}
@@ -5032,6 +5074,7 @@ export function DraftRoomPageClient({
             rounds={session?.rounds ?? 15}
             devyConfig={(session as DraftSessionSnapshot)?.devy ?? null}
             c2cConfig={(session as DraftSessionSnapshot)?.c2c ?? null}
+            poolReadiness={poolReadiness}
             onClose={() => setShowCommissionerModal(false)}
             onAction={handleCommissionerAction}
             onSettingsPatch={handleSettingsPatch}
