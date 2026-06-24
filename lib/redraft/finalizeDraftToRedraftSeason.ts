@@ -1,5 +1,6 @@
 ﻿import { prisma } from '@/lib/prisma'
 import { isDraftPickRowEmpty } from '@/lib/live-draft-engine/draftPickEmpty'
+import { buildRedraftOwnerIdCandidates } from '@/lib/redraft/redraftRosterIdentity'
 import { generateSchedule } from '@/lib/redraft/scheduleEngine'
 import { leagueSportToConfigSport } from '@/lib/redraft/sportKey'
 import { tryGetSportConfig } from '@/lib/sportConfig'
@@ -220,14 +221,60 @@ async function ensureRedraftRosterForGenericRoster(params: {
     String(team?.claimedByUserId ?? team?.platformUserId ?? genericRoster.platformUserId ?? '').trim() ||
     `roster:${genericRoster.id}`
 
+  const ownerIdCandidates = buildRedraftOwnerIdCandidates({
+    preferredOwnerId: ownerId,
+    claimedByUserId: team?.claimedByUserId,
+    teamPlatformUserId: team?.platformUserId,
+    genericRosterPlatformUserId: genericRoster.platformUserId,
+    genericRosterId: genericRoster.id,
+  })
+
   const existing = await prisma.redraftRoster.findFirst({
     where: {
       seasonId: params.seasonId,
-      ownerId,
+      ownerId: { in: ownerIdCandidates },
     },
   })
 
-  if (existing) return { redraftRoster: existing, created: false, genericRoster }
+  if (existing) {
+    if (existing.ownerId !== ownerId) {
+      const conflict = await prisma.redraftRoster.findFirst({
+        where: {
+          seasonId: params.seasonId,
+          ownerId,
+          NOT: { id: existing.id },
+        },
+        select: { id: true },
+      })
+
+      if (!conflict) {
+        const repaired = await prisma.redraftRoster.update({
+          where: { id: existing.id },
+          data: {
+            ownerId,
+            ownerName: team?.ownerName ?? existing.ownerName,
+            teamName: team?.teamName ?? team?.ownerName ?? existing.teamName,
+            avatarUrl: team?.avatarUrl ?? existing.avatarUrl,
+            faabBalance: genericRoster.faabRemaining ?? existing.faabBalance,
+            waiverPriority: genericRoster.waiverPriority ?? existing.waiverPriority,
+          },
+        })
+        return { redraftRoster: repaired, created: false, genericRoster }
+      }
+    }
+
+    const refreshed = await prisma.redraftRoster.update({
+      where: { id: existing.id },
+      data: {
+        ownerName: team?.ownerName ?? existing.ownerName,
+        teamName: team?.teamName ?? team?.ownerName ?? existing.teamName,
+        avatarUrl: team?.avatarUrl ?? existing.avatarUrl,
+        faabBalance: genericRoster.faabRemaining ?? existing.faabBalance,
+        waiverPriority: genericRoster.waiverPriority ?? existing.waiverPriority,
+      },
+    })
+    return { redraftRoster: refreshed, created: false, genericRoster }
+  }
 
   const redraftRoster = await prisma.redraftRoster.create({
     data: {

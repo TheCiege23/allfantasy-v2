@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
+import { resolveRedraftRosterLookup } from '@/lib/redraft/redraftRosterIdentity'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,11 +54,12 @@ export async function GET(req: NextRequest) {
 
   let viewerRoster: { id: string; seasonId: string } | null = null
   if (activeSession) {
-    const rr = await prisma.redraftRoster.findFirst({
-      where: { leagueId, ownerId: userId, seasonId: activeSession.seasonId },
-      select: { id: true, seasonId: true },
+    const lookup = await resolveRedraftRosterLookup({
+      userId,
+      seasonId: activeSession.seasonId,
+      leagueId,
     })
-    if (rr) viewerRoster = { id: rr.id, seasonId: rr.seasonId }
+    if (lookup.roster) viewerRoster = { id: lookup.roster.id, seasonId: lookup.roster.seasonId }
   }
 
   const suggestedIncomingSeasonId = seasons[0]?.id ?? null

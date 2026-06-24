@@ -16,6 +16,7 @@ import {
   getCanonicalNflPlayerByNameTeam,
   getCanonicalNflPlayerContext,
 } from '@/lib/nfl-data-foundation'
+import { resolveRedraftRosterLookup } from '@/lib/redraft/redraftRosterIdentity'
 
 export const dynamic = 'force-dynamic'
 
@@ -112,17 +113,29 @@ export async function GET(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const rosterId = req.nextUrl.searchParams?.get('rosterId')?.trim()
+  const seasonId = req.nextUrl.searchParams?.get('seasonId')?.trim()
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
   const week = Number(req.nextUrl.searchParams?.get('week') ?? '1')
-  if (!rosterId) return NextResponse.json({ error: 'rosterId required' }, { status: 400 })
+  if (!rosterId && !seasonId && !leagueId) {
+    return NextResponse.json({ error: 'rosterId, seasonId, or leagueId required' }, { status: 400 })
+  }
+
+  const lookup = await resolveRedraftRosterLookup({
+    userId,
+    requestedRosterId: rosterId,
+    seasonId,
+    leagueId,
+  })
+  if (!lookup.season || !lookup.roster) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const gate = await assertLeagueMember(lookup.season.leagueId, userId)
+  if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
 
   const roster = (await prisma.redraftRoster.findFirst({
-    where: { id: rosterId },
+    where: { id: lookup.roster.id },
     include: { players: true, season: true },
   })) as RedraftRosterRouteRow | null
   if (!roster) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-  const gate = await assertLeagueMember(roster.leagueId, userId)
-  if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
 
   const playerIds = roster.players.map((p) => p.playerId)
   const sports = Array.from(new Set(roster.players.map((p) => p.sport).filter(Boolean)))
@@ -343,6 +356,20 @@ export async function GET(req: NextRequest) {
       lineupValidation,
     },
     week,
+    ...(process.env.NODE_ENV === 'development'
+      ? {
+          rosterLookup: {
+            requestedRosterId: rosterId ?? null,
+            resolvedBy: lookup.resolvedBy,
+            repairedOwnerId: lookup.repairedOwnerId,
+            ownerId: lookup.roster.ownerId,
+            seasonId: lookup.season.id,
+            leagueId: lookup.season.leagueId,
+            ownerIdCandidates: lookup.ownerIdCandidates,
+            requestedOwnerIdCandidates: lookup.requestedOwnerIdCandidates,
+          },
+        }
+      : {}),
   })
 }
 
@@ -388,12 +415,28 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'rosterId and moves required' }, { status: 400 })
   }
 
+  const targetLookup = await resolveRedraftRosterLookup({
+    userId,
+    requestedRosterId: rosterId,
+  })
+  if (!targetLookup.season || !targetLookup.roster) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  const viewerLookup = await resolveRedraftRosterLookup({
+    userId,
+    seasonId: targetLookup.season.id,
+    leagueId: targetLookup.season.leagueId,
+  })
+  if (!viewerLookup.roster || viewerLookup.roster.id !== targetLookup.roster.id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const roster = (await prisma.redraftRoster.findFirst({
-    where: { id: rosterId },
+    where: { id: targetLookup.roster.id },
     include: { players: true, season: true },
   })) as RedraftRosterRouteRow | null
   if (!roster) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (roster.ownerId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const week = Math.max(1, Math.floor(Number(body.week ?? roster.season.currentWeek ?? 1) || 1))
   const currentPlayers = await hydrateCurrentInjuryStatuses(roster.players, roster.season.season, week)
@@ -419,14 +462,14 @@ export async function PATCH(req: NextRequest) {
   await prisma.$transaction(
     body.moves.map((m) =>
       prisma.redraftRosterPlayer.updateMany({
-        where: { rosterId, playerId: m.playerId, droppedAt: null },
+        where: { rosterId: roster.id, playerId: m.playerId, droppedAt: null },
         data: { slotType: m.toSlot },
       }),
     ),
   )
 
   const updated = (await prisma.redraftRoster.findFirst({
-    where: { id: rosterId },
+    where: { id: roster.id },
     include: { players: true, season: true },
   })) as RedraftRosterRouteRow | null
 
