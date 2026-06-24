@@ -130,7 +130,6 @@ export type DraftRoomPageClientProps = {
    * first render. Omit for the legacy client-fetch flow.
    */
   initialSnapshot?: DraftSessionSnapshot | null
-  initialDraftPool?: DraftPoolClientPayload | null
   initialPoolReadiness?: DraftPoolReadinessClientState | null
 }
 
@@ -256,7 +255,6 @@ export function DraftRoomPageClient({
   formatType,
   presentationVariant = 'default',
   initialSnapshot,
-  initialDraftPool = null,
   initialPoolReadiness = null,
 }: DraftRoomPageClientProps) {
   type CenterDockTab = 'queue' | 'chat' | 'ai' | 'commish'
@@ -267,15 +265,6 @@ export function DraftRoomPageClient({
   useEffect(() => {
     sessionRef.current = session
   }, [session])
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'production') return
-    if (!initialDraftPool || initialDraftPool.entries.length === 0) return
-    console.info('[draft-room] initial pool seeded', {
-      leagueId,
-      rowCount: initialDraftPool.entries.length,
-      source: initialDraftPool.meta?.source ?? null,
-    })
-  }, [leagueId, initialDraftPool])
   const [queue, setQueue] = useState<QueueEntry[]>([])
   const [draftIntel, setDraftIntel] = useState<DraftIntelState | null>(null)
   const [draftIntelLoading, setDraftIntelLoading] = useState(true)
@@ -461,8 +450,8 @@ export function DraftRoomPageClient({
   const roundOneSeenPickIdsRef = useRef(new Set<string>())
   const roundOneBootstrapRef = useRef(false)
   const [pickError, setPickError] = useState<string | null>(null)
-  const [draftPool, setDraftPool] = useState<DraftPoolClientPayload | null>(initialDraftPool)
-  const [poolFetching, setPoolFetching] = useState(!initialDraftPool)
+  const [draftPool, setDraftPool] = useState<DraftPoolClientPayload | null>(null)
+  const [poolFetching, setPoolFetching] = useState(true)
   const [poolError, setPoolError] = useState(false)
   const [draftAssistantContext, setDraftAssistantContext] = useState<{
     sport: string
@@ -1992,7 +1981,6 @@ export function DraftRoomPageClient({
   useEffect(() => {
     if (!leagueId) return
     let cancelled = false
-    let deferredPoolRevalidateTimer: ReturnType<typeof setTimeout> | null = null
 
     const bootstrapDraftRoom = async () => {
       if (initialSnapshot) {
@@ -2033,33 +2021,15 @@ export function DraftRoomPageClient({
 
       // Deferred — let panels populate after the room is interactive.
       void fetchDraftAssistantContext()
-      if (initialDraftPool && initialDraftPool.entries.length > 0) {
-        const scheduleRevalidate = () => {
-          if (cancelled) return
-          deferredPoolRevalidateTimer = setTimeout(() => {
-            if (cancelled) return
-            void fetchDraftPool()
-          }, 250)
-        }
-        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-          ;(window as Window & {
-            requestIdleCallback?: (cb: IdleRequestCallback, opts?: IdleRequestOptions) => number
-          }).requestIdleCallback?.(() => scheduleRevalidate(), { timeout: 1200 })
-        } else {
-          scheduleRevalidate()
-        }
-      } else {
-        void fetchDraftPool()
-      }
+      void fetchDraftPool()
     }
 
     void bootstrapDraftRoom()
 
     return () => {
       cancelled = true
-      if (deferredPoolRevalidateTimer) clearTimeout(deferredPoolRevalidateTimer)
     }
-  }, [leagueId, initialSnapshot, initialDraftPool, fetchSession, fetchQueue, fetchDraftSettings, fetchDraftChromeData, fetchChat, fetchDraftPool, fetchDraftAssistantContext])
+  }, [leagueId, initialSnapshot, fetchSession, fetchQueue, fetchDraftSettings, fetchDraftChromeData, fetchChat, fetchDraftPool, fetchDraftAssistantContext])
 
   useEffect(() => {
     if (!leagueId || !draftUISettings?.aiAdpEnabled) return

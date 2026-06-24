@@ -19,7 +19,7 @@ import { resolveDraftRouteContext } from '@/lib/draft/resolve-draft-context'
 import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
 import { DraftBoard } from '@/components/draft/DraftBoard'
-import { getWarmDraftPoolSnapshotFast, triggerDraftPoolPrewarmBackground } from '@/lib/draft-room/ensureDraftPoolReady'
+import { checkDraftPoolCacheFast, triggerDraftPoolPrewarmBackground } from '@/lib/draft-room/ensureDraftPoolReady'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,7 +91,7 @@ export default async function DraftsByIdPage({
   // Triggers a background prewarm if cold so the pool has a head start
   // before the client fetches GET /draft/pool.
   const [poolCacheResult, initialSnapshot] = await Promise.all([
-    getWarmDraftPoolSnapshotFast(context.leagueId).catch(() => ({
+    checkDraftPoolCacheFast(context.leagueId).catch(() => ({
       warm: false as const,
       source: 'missing' as const,
       entryCount: 0,
@@ -157,12 +157,11 @@ export default async function DraftsByIdPage({
             : 'default'
         }
         initialSnapshot={initialSnapshot}
-        initialDraftPool={poolCacheResult.warm ? (poolCacheResult.payload as any) : null}
         initialPoolReadiness={{
           ready: poolCacheResult.warm,
           entryCount: poolCacheResult.entryCount,
           syncedAt: poolCacheResult.syncedAt,
-          source: poolCacheResult.warm ? poolCacheResult.source : poolCacheResult.source,
+          source: poolCacheResult.source,
         }}
       />
     </div>

@@ -1,7 +1,6 @@
 import type { DraftSessionSnapshot } from '@/lib/live-draft-engine/types'
 import {
   DraftRoomPageClient,
-  type DraftPoolClientPayload,
   type DraftPoolReadinessClientState,
 } from '@/components/app/draft-room/DraftRoomPageClient'
 import { MockDraftSessionBoard } from '@/components/mock-draft/MockDraftSessionBoard'
@@ -23,7 +22,6 @@ type LiveDraftBoardProps = {
    * client-side.
    */
   initialSnapshot?: DraftSessionSnapshot | null
-  initialDraftPool?: DraftPoolClientPayload | null
   initialPoolReadiness?: DraftPoolReadinessClientState | null
 }
 
@@ -51,7 +49,6 @@ export function DraftBoard(props: DraftBoardProps) {
       formatType={props.formatType}
       presentationVariant={props.presentationVariant ?? 'default'}
       initialSnapshot={props.initialSnapshot ?? null}
-      initialDraftPool={props.initialDraftPool ?? null}
       initialPoolReadiness={props.initialPoolReadiness ?? null}
     />
   )
