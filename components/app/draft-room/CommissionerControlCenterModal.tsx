@@ -54,6 +54,7 @@ export type CommissionerControlCenterModalProps = {
     source: 'db-cache' | 'memory-cache' | 'cold' | 'missing'
     syncedAt: string | null
   } | null
+  startDraftDisabled?: boolean
   onClose: () => void
   onAction: (action: string, payload?: Record<string, unknown>) => Promise<unknown>
   onSettingsPatch: (patch: Partial<DraftUISettings>) => Promise<void>
@@ -99,6 +100,7 @@ export function CommissionerControlCenterModal({
   devyConfig = null,
   c2cConfig = null,
   poolReadiness = null,
+  startDraftDisabled = false,
   onClose,
   onAction,
   onSettingsPatch,
@@ -172,7 +174,7 @@ export function CommissionerControlCenterModal({
   const poolReadinessLabel = poolReadiness?.ready
     ? `Draft pool ready: ${poolReadiness.entryCount} players`
     : 'Preparing NFL draft pool...'
-  const startDraftBlocked = isPreDraft && poolReadiness?.ready === false
+  const startDraftBlocked = startDraftDisabled || (isPreDraft && poolReadiness?.ready === false)
   const requestedOrphanMode = ui.orphanDrafterMode ?? orphanDrafterMode ?? 'cpu'
   const effectiveOrphanMode =
     requestedOrphanMode === (orphanDrafterMode ?? 'cpu')

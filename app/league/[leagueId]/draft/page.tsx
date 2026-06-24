@@ -7,6 +7,7 @@ import { getDraftIdFromSettings } from '@/app/league/[leagueId]/components/leagu
 import { getOrCreateDraftSession } from '@/lib/live-draft-engine/DraftSessionService'
 import { autoMaterializeDraftForLeague } from '@/lib/league-setup/autoMaterializeDraftForLeague'
 import { ensureRedraftLeagueContract } from '@/lib/redraft-core-contract'
+import { triggerDraftPoolPrewarmBackground } from '@/lib/draft-room/ensureDraftPoolReady'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,17 +21,25 @@ export default async function LeagueDraftResolverPage({
 
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
+
   if (!userId) {
     redirect(`/login?callbackUrl=${encodeURIComponent(`/league/${leagueId}/draft`)}`)
   }
 
-  const ok = await canAccessLeague(leagueId, userId)
-  if (!ok) redirect('/dashboard')
+  const canAccess = await canAccessLeague(leagueId, userId)
+  if (!canAccess) redirect('/dashboard')
 
   const league = await prisma.league.findFirst({
     where: { id: leagueId },
-    select: { id: true, sport: true, leagueSize: true, settings: true },
+    select: {
+      id: true,
+      sport: true,
+      leagueSize: true,
+      leagueType: true,
+      settings: true,
+    },
   })
+
   if (!league) redirect('/dashboard')
 
   const sleeperDraftId = getDraftIdFromSettings(league.settings)
@@ -42,18 +51,30 @@ export default async function LeagueDraftResolverPage({
     })
   })
 
-  const { session: ds } = await getOrCreateDraftSession(leagueId)
+  const { session: draftSession } = await getOrCreateDraftSession(leagueId)
 
-  await prisma.draftSession.update({
-    where: { id: ds.id },
+  const updatedDraftSession = await prisma.draftSession.update({
+    where: { id: draftSession.id },
     data: {
       sportType: String(league.sport),
-      ...(ds.status === 'pre_draft' ? { teamCount: league.leagueSize ?? ds.teamCount } : {}),
-      ...(sleeperDraftId ? { sleeperDraftId } : {}),
+      ...(draftSession.status === 'pre_draft'
+        ? {
+            teamCount: league.leagueSize ?? draftSession.teamCount,
+          }
+        : {}),
+      ...(sleeperDraftId
+        ? {
+            sleeperDraftId,
+          }
+        : {}),
+    },
+    select: {
+      id: true,
+      status: true,
     },
   })
 
-  if (ds.status === 'pre_draft') {
+  if (updatedDraftSession.status === 'pre_draft') {
     await autoMaterializeDraftForLeague(leagueId).catch((error) => {
       console.warn('[league-draft-resolver] auto materialize failed', {
         leagueId,
@@ -62,5 +83,7 @@ export default async function LeagueDraftResolverPage({
     })
   }
 
-  redirect(`/drafts/${ds.id}`)
+  triggerDraftPoolPrewarmBackground(leagueId)
+
+  redirect(`/drafts/${encodeURIComponent(updatedDraftSession.id)}`)
 }

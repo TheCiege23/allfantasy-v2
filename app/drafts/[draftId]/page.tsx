@@ -19,7 +19,7 @@ import { resolveDraftRouteContext } from '@/lib/draft/resolve-draft-context'
 import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
 import { DraftBoard } from '@/components/draft/DraftBoard'
-import { checkDraftPoolCacheFast, triggerDraftPoolPrewarmBackground } from '@/lib/draft-room/ensureDraftPoolReady'
+import { getWarmDraftPoolSnapshotFast, triggerDraftPoolPrewarmBackground } from '@/lib/draft-room/ensureDraftPoolReady'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,7 +91,13 @@ export default async function DraftsByIdPage({
   // Triggers a background prewarm if cold so the pool has a head start
   // before the client fetches GET /draft/pool.
   const [poolCacheResult, initialSnapshot] = await Promise.all([
-    checkDraftPoolCacheFast(context.leagueId).catch(() => ({ warm: false as const })),
+    getWarmDraftPoolSnapshotFast(context.leagueId).catch(() => ({
+      warm: false as const,
+      source: 'missing' as const,
+      entryCount: 0,
+      syncedAt: null,
+      cacheKey: null,
+    })),
     buildSessionSnapshot(context.leagueId, new Date(), userId).catch((err) => {
       console.warn('[drafts:snapshot:error]', {
         draftId,
@@ -107,6 +113,16 @@ export default async function DraftsByIdPage({
     leagueId: context.leagueId,
     snapshot_null: initialSnapshot === null,
     pool_warm: poolCacheResult.warm,
+    pool_source: poolCacheResult.source,
+    pool_entry_count: poolCacheResult.entryCount,
+  })
+
+  console.info('[drafts:page] initial pool warm/cold', {
+    draftId,
+    leagueId: context.leagueId,
+    warm: poolCacheResult.warm,
+    source: poolCacheResult.source,
+    entryCount: poolCacheResult.entryCount,
   })
 
   if (!poolCacheResult.warm) {
@@ -141,6 +157,13 @@ export default async function DraftsByIdPage({
             : 'default'
         }
         initialSnapshot={initialSnapshot}
+        initialDraftPool={poolCacheResult.warm ? (poolCacheResult.payload as any) : null}
+        initialPoolReadiness={{
+          ready: poolCacheResult.warm,
+          entryCount: poolCacheResult.entryCount,
+          syncedAt: poolCacheResult.syncedAt,
+          source: poolCacheResult.warm ? poolCacheResult.source : poolCacheResult.source,
+        }}
       />
     </div>
   )

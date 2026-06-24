@@ -25,7 +25,7 @@ export type EnsureDraftPoolReadyResult =
 
 type EffectiveLeagueTemplate = Awaited<ReturnType<typeof getEffectiveLeagueRosterTemplate>>
 type DraftPoolReadinessSource = 'db-cache' | 'memory-cache' | 'cold' | 'missing'
-type DraftPoolReadiness = {
+export type DraftPoolReadiness = {
   warm: boolean
   ready: boolean
   source: DraftPoolReadinessSource
@@ -34,6 +34,42 @@ type DraftPoolReadiness = {
   cacheKey: string | null
   sourceFingerprint: string | null
 }
+
+export type DraftPoolSnapshotPayload = {
+  entries?: unknown[]
+  sport?: string
+  count?: number
+  rosterConfigurationIncomplete?: boolean
+  poolType?: string | null
+  devyConfig?: unknown
+  c2cConfig?: unknown
+  isIdp?: boolean
+  meta?: {
+    source?: 'db-cache' | 'memory-cache'
+    entryCount?: number
+    elapsedMs?: number
+    cacheKey?: string
+    cachedAt?: string | null
+  }
+  [key: string]: unknown
+}
+
+export type WarmDraftPoolSnapshotFastResult =
+  | {
+      warm: true
+      source: 'db-cache' | 'memory-cache'
+      payload: DraftPoolSnapshotPayload
+      entryCount: number
+      syncedAt: string | null
+      cacheKey: string
+    }
+  | {
+      warm: false
+      source: 'cold' | 'missing'
+      entryCount: 0
+      syncedAt: null
+      cacheKey: string | null
+    }
 
 type DraftPoolCacheModel = {
   findFirst: (args: Record<string, unknown>) => Promise<{
@@ -102,59 +138,85 @@ function inferEntryCountFromPayload(payload: unknown): number {
   return Array.isArray(record.entries) ? record.entries.length : 0
 }
 
-export async function getDraftPoolReadiness(
+function withWarmSnapshotMeta(
+  payload: unknown,
+  meta: {
+    source: 'db-cache' | 'memory-cache'
+    entryCount: number
+    cacheKey: string
+    cachedAt: string | null
+  },
+): DraftPoolSnapshotPayload {
+  const base = payload && typeof payload === 'object' ? { ...(payload as DraftPoolSnapshotPayload) } : {}
+  const currentMeta = base.meta && typeof base.meta === 'object' ? base.meta : {}
+  return {
+    ...base,
+    meta: {
+      ...currentMeta,
+      source: meta.source,
+      entryCount: meta.entryCount,
+      elapsedMs: 0,
+      cacheKey: meta.cacheKey,
+      cachedAt: meta.cachedAt,
+    },
+  }
+}
+
+export async function getWarmDraftPoolSnapshotFast(
   leagueId: string,
   options?: { effectiveLeagueTemplate?: EffectiveLeagueTemplate },
-): Promise<DraftPoolReadiness> {
+): Promise<WarmDraftPoolSnapshotFastResult> {
   const model = getDraftPoolCacheModel()
   if (!model) {
-    return {
-      warm: false,
-      ready: false,
-      source: 'missing',
-      entryCount: 0,
-      syncedAt: null,
-      cacheKey: null,
-      sourceFingerprint: null,
-    }
+    return { warm: false, source: 'missing', entryCount: 0, syncedAt: null, cacheKey: null }
   }
 
   try {
     const cacheContext = await resolveDraftPoolCacheContext(leagueId, options)
     const cached = getApiCached(cacheContext.standardCacheKey)
     if (cached) {
-      const cachedBody = cached.body && typeof cached.body === 'object' ? cached.body : null
-      const cachedAt =
-        cachedBody &&
-        typeof cachedBody === 'object' &&
-        typeof (cachedBody as { meta?: { cachedAt?: unknown } }).meta?.cachedAt === 'string'
-          ? (cachedBody as { meta: { cachedAt: string } }).meta.cachedAt
+      const syncedAt =
+        cached.body &&
+        typeof cached.body === 'object' &&
+        typeof (cached.body as DraftPoolSnapshotPayload).meta?.cachedAt === 'string'
+          ? ((cached.body as DraftPoolSnapshotPayload).meta?.cachedAt ?? null)
           : null
+      const entryCount = inferEntryCountFromPayload(cached.body)
       return {
         warm: true,
-        ready: true,
         source: 'memory-cache',
-        entryCount: inferEntryCountFromPayload(cached.body),
-        syncedAt: cachedAt,
+        payload: withWarmSnapshotMeta(cached.body, {
+          source: 'memory-cache',
+          entryCount,
+          cacheKey: cacheContext.standardCacheKey,
+          cachedAt: syncedAt,
+        }),
+        entryCount,
+        syncedAt,
         cacheKey: cacheContext.standardCacheKey,
-        sourceFingerprint: cacheContext.rosterFp,
       }
     }
 
     const now = new Date()
     const exactFresh = await model.findFirst({
       where: { cacheKey: cacheContext.standardCacheKey, expiresAt: { gt: now } },
-      select: { entryCount: true, syncedAt: true, payload: true },
+      select: { payload: true, entryCount: true, syncedAt: true },
     })
-    if (exactFresh) {
+    if (exactFresh?.payload && typeof exactFresh.payload === 'object') {
+      const syncedAt = exactFresh.syncedAt instanceof Date ? exactFresh.syncedAt.toISOString() : null
+      const entryCount = Number(exactFresh.entryCount ?? inferEntryCountFromPayload(exactFresh.payload))
       return {
         warm: true,
-        ready: true,
         source: 'db-cache',
-        entryCount: Number(exactFresh.entryCount ?? inferEntryCountFromPayload(exactFresh.payload)),
-        syncedAt: exactFresh.syncedAt instanceof Date ? exactFresh.syncedAt.toISOString() : null,
+        payload: withWarmSnapshotMeta(exactFresh.payload, {
+          source: 'db-cache',
+          entryCount,
+          cacheKey: cacheContext.standardCacheKey,
+          cachedAt: syncedAt,
+        }),
+        entryCount,
+        syncedAt,
         cacheKey: cacheContext.standardCacheKey,
-        sourceFingerprint: cacheContext.rosterFp,
       }
     }
 
@@ -165,40 +227,65 @@ export async function getDraftPoolReadiness(
         expiresAt: { gt: now },
       },
       orderBy: { syncedAt: 'desc' },
-      select: { entryCount: true, syncedAt: true, payload: true, cacheKey: true },
+      select: { payload: true, entryCount: true, syncedAt: true, cacheKey: true },
     })
-    if (fallbackFresh) {
+    if (fallbackFresh?.payload && typeof fallbackFresh.payload === 'object') {
+      const syncedAt = fallbackFresh.syncedAt instanceof Date ? fallbackFresh.syncedAt.toISOString() : null
+      const effectiveCacheKey =
+        typeof fallbackFresh.cacheKey === 'string' ? fallbackFresh.cacheKey : cacheContext.standardCacheKey
+      const entryCount = Number(fallbackFresh.entryCount ?? inferEntryCountFromPayload(fallbackFresh.payload))
       return {
         warm: true,
-        ready: true,
         source: 'db-cache',
-        entryCount: Number(fallbackFresh.entryCount ?? inferEntryCountFromPayload(fallbackFresh.payload)),
-        syncedAt: fallbackFresh.syncedAt instanceof Date ? fallbackFresh.syncedAt.toISOString() : null,
-        cacheKey: typeof fallbackFresh.cacheKey === 'string' ? fallbackFresh.cacheKey : cacheContext.standardCacheKey,
-        sourceFingerprint: cacheContext.rosterFp,
+        payload: withWarmSnapshotMeta(fallbackFresh.payload, {
+          source: 'db-cache',
+          entryCount,
+          cacheKey: effectiveCacheKey,
+          cachedAt: syncedAt,
+        }),
+        entryCount,
+        syncedAt,
+        cacheKey: effectiveCacheKey,
       }
     }
 
     return {
       warm: false,
-      ready: false,
       source: 'cold',
       entryCount: 0,
       syncedAt: null,
       cacheKey: cacheContext.standardCacheKey,
-      sourceFingerprint: cacheContext.rosterFp,
     }
   } catch (err) {
-    console.warn('[draft-perf] pool readiness check error (non-fatal):', (err as Error)?.message)
+    console.warn('[draft-perf] warm snapshot fast-check error (non-fatal):', (err as Error)?.message)
+    return { warm: false, source: 'missing', entryCount: 0, syncedAt: null, cacheKey: null }
+  }
+}
+
+export async function getDraftPoolReadiness(
+  leagueId: string,
+  options?: { effectiveLeagueTemplate?: EffectiveLeagueTemplate },
+): Promise<DraftPoolReadiness> {
+  const snapshot = await getWarmDraftPoolSnapshotFast(leagueId, options)
+  if (!snapshot.warm) {
     return {
       warm: false,
       ready: false,
-      source: 'missing',
-      entryCount: 0,
-      syncedAt: null,
-      cacheKey: null,
+      source: snapshot.source,
+      entryCount: snapshot.entryCount,
+      syncedAt: snapshot.syncedAt,
+      cacheKey: snapshot.cacheKey,
       sourceFingerprint: null,
     }
+  }
+  return {
+    warm: true,
+    ready: true,
+    source: snapshot.source,
+    entryCount: snapshot.entryCount,
+    syncedAt: snapshot.syncedAt,
+    cacheKey: snapshot.cacheKey,
+    sourceFingerprint: null,
   }
 }
 

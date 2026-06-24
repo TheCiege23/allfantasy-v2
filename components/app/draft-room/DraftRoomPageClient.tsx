@@ -130,6 +130,8 @@ export type DraftRoomPageClientProps = {
    * first render. Omit for the legacy client-fetch flow.
    */
   initialSnapshot?: DraftSessionSnapshot | null
+  initialDraftPool?: DraftPoolClientPayload | null
+  initialPoolReadiness?: DraftPoolReadinessClientState | null
 }
 
 type DraftRoomChromeTeam = {
@@ -144,11 +146,29 @@ type DraftRoomChromeTeam = {
   isCoCommissioner?: boolean
 }
 
-type DraftPoolReadinessClientState = {
+export type DraftPoolReadinessClientState = {
   ready: boolean
   entryCount: number
   source: 'db-cache' | 'memory-cache' | 'cold' | 'missing'
   syncedAt: string | null
+}
+
+export type DraftPoolClientPayload = {
+  entries: NormalizedDraftEntry[]
+  sport: string
+  devyConfig?: { enabled: boolean; devyRounds: number[] }
+  c2cConfig?: { enabled: boolean; collegeRounds: number[] }
+  isIdp?: boolean
+  count?: number
+  rosterConfigurationIncomplete?: boolean
+  poolType?: string | null
+  meta?: {
+    source?: string
+    entryCount?: number
+    elapsedMs?: number
+    cacheKey?: string
+    cachedAt?: string | null
+  }
 }
 
 function normalizeManagerKey(value: string | null | undefined): string {
@@ -236,6 +256,8 @@ export function DraftRoomPageClient({
   formatType,
   presentationVariant = 'default',
   initialSnapshot,
+  initialDraftPool = null,
+  initialPoolReadiness = null,
 }: DraftRoomPageClientProps) {
   type CenterDockTab = 'queue' | 'chat' | 'ai' | 'commish'
   const { data: authSession } = useSession()
@@ -245,6 +267,15 @@ export function DraftRoomPageClient({
   useEffect(() => {
     sessionRef.current = session
   }, [session])
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return
+    if (!initialDraftPool || initialDraftPool.entries.length === 0) return
+    console.info('[draft-room] initial pool seeded', {
+      leagueId,
+      rowCount: initialDraftPool.entries.length,
+      source: initialDraftPool.meta?.source ?? null,
+    })
+  }, [leagueId, initialDraftPool])
   const [queue, setQueue] = useState<QueueEntry[]>([])
   const [draftIntel, setDraftIntel] = useState<DraftIntelState | null>(null)
   const [draftIntelLoading, setDraftIntelLoading] = useState(true)
@@ -303,7 +334,7 @@ export function DraftRoomPageClient({
     variant: 'success' | 'error' | 'info'
     message: string
   } | null>(null)
-  const [poolReadiness, setPoolReadiness] = useState<DraftPoolReadinessClientState | null>(null)
+  const [poolReadiness, setPoolReadiness] = useState<DraftPoolReadinessClientState | null>(initialPoolReadiness)
   const governanceSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [pickSubmitting, setPickSubmitting] = useState(false)
   const [draftUISettings, setDraftUISettings] = useState<DraftUISettings | null>(null)
@@ -430,8 +461,8 @@ export function DraftRoomPageClient({
   const roundOneSeenPickIdsRef = useRef(new Set<string>())
   const roundOneBootstrapRef = useRef(false)
   const [pickError, setPickError] = useState<string | null>(null)
-  const [draftPool, setDraftPool] = useState<{ entries: NormalizedDraftEntry[]; sport: string; devyConfig?: { enabled: boolean; devyRounds: number[] }; c2cConfig?: { enabled: boolean; collegeRounds: number[] }; isIdp?: boolean } | null>(null)
-  const [poolFetching, setPoolFetching] = useState(true)
+  const [draftPool, setDraftPool] = useState<DraftPoolClientPayload | null>(initialDraftPool)
+  const [poolFetching, setPoolFetching] = useState(!initialDraftPool)
   const [poolError, setPoolError] = useState(false)
   const [draftAssistantContext, setDraftAssistantContext] = useState<{
     sport: string
@@ -499,6 +530,13 @@ export function DraftRoomPageClient({
   /** Draft room uses normalized pool from fetchDraftPool only; skip useLeagueSectionData to avoid duplicate /api/mock-draft/adp. */
   const draftData = null as { entries?: PlayerEntry[] } | null
   const poolLoading = poolFetching && draftPool === null
+  const poolLoadingMessage =
+    draftPool === null && poolReadiness?.ready === false
+      ? 'Preparing player pool...'
+      : 'Loading player pool...'
+  const startDraftBlocked =
+    draftRoomState.canStart &&
+    (poolReadiness?.ready === false || poolFetching || !draftPool || draftPool.entries.length === 0)
   const effectiveDraftSport = draftPool?.sport ?? sport
 
   const draftedNames = useMemo(
@@ -963,24 +1001,54 @@ export function DraftRoomPageClient({
         })
       }
       if (res.ok && Array.isArray(data.entries)) {
-        setDraftPool({
+        const nextPool: DraftPoolClientPayload = {
           entries: data.entries,
           sport: data.sport ?? sport,
           devyConfig: data.devyConfig,
           c2cConfig: data.c2cConfig,
           isIdp: data.isIdp,
+          count: typeof data.count === 'number' ? data.count : Array.isArray(data.entries) ? data.entries.length : undefined,
+          rosterConfigurationIncomplete: data.rosterConfigurationIncomplete === true,
+          poolType: typeof data.poolType === 'string' ? data.poolType : null,
+          meta:
+            data.meta && typeof data.meta === 'object'
+              ? {
+                  source: typeof data.meta.source === 'string' ? data.meta.source : undefined,
+                  entryCount: typeof data.meta.entryCount === 'number' ? data.meta.entryCount : undefined,
+                  elapsedMs: typeof data.meta.elapsedMs === 'number' ? data.meta.elapsedMs : undefined,
+                  cacheKey: typeof data.meta.cacheKey === 'string' ? data.meta.cacheKey : undefined,
+                  cachedAt: typeof data.meta.cachedAt === 'string' ? data.meta.cachedAt : null,
+                }
+              : undefined,
+        }
+        const nextEntryCount =
+          typeof data?.meta?.entryCount === 'number'
+            ? Number(data.meta.entryCount)
+            : Array.isArray(data.entries)
+              ? data.entries.length
+              : 0
+        setDraftPool((prev) => {
+          if (nextPool.entries.length === 0 && prev && prev.entries.length > 0) {
+            return prev
+          }
+          return nextPool
         })
-        setPoolReadiness({
-          ready: true,
-          entryCount:
-            typeof data?.meta?.entryCount === 'number'
-              ? Number(data.meta.entryCount)
-              : Array.isArray(data.entries)
-                ? data.entries.length
-                : 0,
-          source: data?.meta?.source === 'db-cache' ? 'db-cache' : 'memory-cache',
-          syncedAt: typeof data?.meta?.cachedAt === 'string' ? data.meta.cachedAt : null,
+        setPoolReadiness((prev) => {
+          if (nextEntryCount === 0 && prev?.ready) return prev
+          return {
+            ready: nextEntryCount > 0,
+            entryCount: nextEntryCount,
+            source: data?.meta?.source === 'db-cache' ? 'db-cache' : 'memory-cache',
+            syncedAt: typeof data?.meta?.cachedAt === 'string' ? data.meta.cachedAt : null,
+          }
         })
+        if (process.env.NODE_ENV !== 'production') {
+          console.info('[draft-room] pool revalidated', {
+            leagueId,
+            rowCount: nextEntryCount,
+            source: nextPool.meta?.source ?? null,
+          })
+        }
         // Preload headshots for first 20 rows so browser cache is warm when
         // IntersectionObserver fires for visible rows (P2 CDN latency mitigation).
         const poolSport = data.sport ?? sport
@@ -993,7 +1061,6 @@ export function DraftRoomPageClient({
           preloadPlayerImage(url as string | null | undefined)
         }
       } else {
-        setDraftPool(null)
         setPoolError(true)
       }
     } catch {
@@ -1005,7 +1072,6 @@ export function DraftRoomPageClient({
           elapsedMs,
         })
       }
-      setDraftPool(null)
       setPoolError(true)
     } finally {
       setPoolFetching(false)
@@ -1926,6 +1992,7 @@ export function DraftRoomPageClient({
   useEffect(() => {
     if (!leagueId) return
     let cancelled = false
+    let deferredPoolRevalidateTimer: ReturnType<typeof setTimeout> | null = null
 
     const bootstrapDraftRoom = async () => {
       if (initialSnapshot) {
@@ -1966,15 +2033,33 @@ export function DraftRoomPageClient({
 
       // Deferred — let panels populate after the room is interactive.
       void fetchDraftAssistantContext()
-      void fetchDraftPool()
+      if (initialDraftPool && initialDraftPool.entries.length > 0) {
+        const scheduleRevalidate = () => {
+          if (cancelled) return
+          deferredPoolRevalidateTimer = setTimeout(() => {
+            if (cancelled) return
+            void fetchDraftPool()
+          }, 250)
+        }
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+          ;(window as Window & {
+            requestIdleCallback?: (cb: IdleRequestCallback, opts?: IdleRequestOptions) => number
+          }).requestIdleCallback?.(() => scheduleRevalidate(), { timeout: 1200 })
+        } else {
+          scheduleRevalidate()
+        }
+      } else {
+        void fetchDraftPool()
+      }
     }
 
     void bootstrapDraftRoom()
 
     return () => {
       cancelled = true
+      if (deferredPoolRevalidateTimer) clearTimeout(deferredPoolRevalidateTimer)
     }
-  }, [leagueId, initialSnapshot, fetchSession, fetchQueue, fetchDraftSettings, fetchDraftChromeData, fetchChat, fetchDraftPool, fetchDraftAssistantContext])
+  }, [leagueId, initialSnapshot, initialDraftPool, fetchSession, fetchQueue, fetchDraftSettings, fetchDraftChromeData, fetchChat, fetchDraftPool, fetchDraftAssistantContext])
 
   useEffect(() => {
     if (!leagueId || !draftUISettings?.aiAdpEnabled) return
@@ -3574,6 +3659,7 @@ export function DraftRoomPageClient({
         onMakePick={handleMakePick}
         currentRoster={currentRoster}
         loading={poolLoading}
+        loadingMessage={poolLoadingMessage}
         poolError={poolError}
         useAiAdp={draftUISettings?.aiAdpEnabled ?? false}
         aiAdpUnavailable={aiAdpUnavailable}
@@ -3630,6 +3716,7 @@ export function DraftRoomPageClient({
       handleMakePick,
       currentRoster,
       poolLoading,
+      poolLoadingMessage,
       poolError,
       draftUISettings?.aiAdpEnabled,
       aiAdpUnavailable,
@@ -4779,7 +4866,7 @@ export function DraftRoomPageClient({
               void handleCopyInvite(source)
             }}
             onStartDraft={draftRoomState.canStart ? () => void handleStartDraft() : undefined}
-            startDraftDisabled={draftRoomState.canStart && poolReadiness?.ready === false}
+            startDraftDisabled={startDraftBlocked}
             onPause={() => void handleCommissionerAction('pause')}
             onResume={() => void handleCommissionerAction('resume')}
             onResetTimer={() => void handleCommissionerResetTimer()}
@@ -5081,6 +5168,7 @@ export function DraftRoomPageClient({
             onSaveDevyConfig={handleSaveDevyConfig}
             onSaveC2CConfig={handleSaveC2CConfig}
             onStartDraft={draftRoomState.canStart ? handleStartDraft : undefined}
+            startDraftDisabled={startDraftBlocked}
             onRunAiPick={isCommissioner && isOrphanOnClock ? handleRunAiPick : undefined}
             runAiPickLoading={runAiPickLoading}
             onBroadcast={() => { setShowCommissionerModal(false); setShowBroadcastModal(true) }}
