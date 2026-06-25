@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
-import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { getDashboardLeagueListForUser } from '@/lib/dashboard/get-dashboard-league-list'
 import { getCommissionerHubHealthForUser } from '@/lib/commissioner-hub/commissionerHubHealth'
@@ -20,12 +19,22 @@ export default async function CommissionerHubPage() {
     user?: { id?: string }
   } | null
   const userId = typeof session?.user?.id === 'string' ? session.user.id.trim() : ''
-  if (!userId) redirect('/login?callbackUrl=/commissioner-hub')
+  const isAuthenticated = userId.length > 0
 
   // getDashboardLeagueListForUser returns { leagues, sleeperUserId } — extract the array
-  const payload = await getDashboardLeagueListForUser(userId).catch(() => null)
+  const payload = isAuthenticated ? await getDashboardLeagueListForUser(userId).catch(() => null) : null
   const leagues = (payload?.leagues ?? []) as UserLeague[]
-  const healthSnapshots = await getCommissionerHubHealthForUser(userId, leagues).catch(() => [])
+  const healthSnapshots =
+    isAuthenticated && leagues.length > 0
+      ? await getCommissionerHubHealthForUser(userId, leagues).catch(() => [])
+      : []
 
-  return <CommissionerHubPageClient leagues={leagues} healthSnapshots={healthSnapshots} />
+  return (
+    <CommissionerHubPageClient
+      leagues={leagues}
+      healthSnapshots={healthSnapshots}
+      demoMode={!isAuthenticated || leagues.length === 0}
+      isAuthenticated={isAuthenticated}
+    />
+  )
 }

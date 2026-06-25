@@ -28,6 +28,7 @@ type CommissionerShowcasePanelProps = {
   leagues: UserLeague[]
   healthSnapshots: CommissionerLeagueHealthSnapshot[]
   foundationMetricOverride?: Partial<FoundationMetric>
+  demoMode?: boolean
 }
 
 type ShowcaseCard = {
@@ -160,6 +161,28 @@ function buildRecommendations(args: {
     0,
   )
   const managedTeams = teamTargets.reduce((sum, league) => sum + Number(league.teamCount ?? 0), 0)
+  const readinessPct =
+    commissionerLeagues.length === 0
+      ? 92
+      : Math.max(
+          58,
+          Math.min(
+            99,
+            Math.round(
+              ((commissionerLeagues.length - leaguesMissingDraftDate.length - needsSetup.length * 0.75) /
+                Math.max(commissionerLeagues.length, 1)) *
+                100,
+            ),
+          ),
+        )
+  const readinessActions: string[] = []
+  if (leaguesMissingDraftDate.length > 0) readinessActions.push('set the remaining draft date')
+  if (needsSetup.length > 0) readinessActions.push('finish commissioner setup')
+  if (managedTeams > 0 && activeManagers < managedTeams) {
+    readinessActions.push(`invite ${Math.max(managedTeams - activeManagers, 1)} manager${managedTeams - activeManagers === 1 ? '' : 's'}`)
+  }
+  if (managedTeams === 0) readinessActions.push('invite 2 managers')
+  if (waiverMode.preview) readinessActions.push('confirm the FAAB budget')
   const readyManagersBody =
     managedTeams > 0
       ? `Across your managed leagues, ${activeManagers}/${managedTeams} manager slots are active and tracked.`
@@ -168,13 +191,11 @@ function buildRecommendations(args: {
   return [
     {
       key: 'draft-readiness',
-      title: 'Draft readiness',
+      title: `Draft is ${readinessPct}% ready`,
       body:
-        leaguesMissingDraftDate.length > 0
-          ? `${pluralize(leaguesMissingDraftDate.length, 'league')} still need a draft date before the room is fully ready.`
-          : needsSetup.length > 0
-            ? `${pluralize(needsSetup.length, 'league')} still need commissioner setup before draft day.`
-            : 'Your commissioner flow is ready to demo with draft setup, roster structure, and manager actions in place.',
+        readinessActions.length > 0
+          ? `Still to confirm: ${readinessActions.join(', ')}.`
+          : 'Draft order, league settings, roster structure, and commissioner actions are all lined up for the demo.',
       tone: leaguesMissingDraftDate.length > 0 || needsSetup.length > 0 ? 'warn' : 'good',
     },
     {
@@ -188,7 +209,7 @@ function buildRecommendations(args: {
     },
     {
       key: 'player-foundation',
-      title: 'Player foundation',
+      title: 'Player foundation is live',
       body:
         foundation.headshotCoveragePct >= 90
           ? `NFL player media coverage is strong: ${foundation.headshotCoveragePct.toFixed(1)}% headshot coverage with real ADP, injury, and season-stat depth behind it.`
@@ -206,10 +227,88 @@ function buildRecommendations(args: {
   ]
 }
 
+function buildAiSummary(args: {
+  commissionerLeagues: UserLeague[]
+  healthSnapshots: CommissionerLeagueHealthSnapshot[]
+  waiverMode: { label: string; preview: boolean }
+}): {
+  score: number
+  items: string[]
+  recommendation: string
+  preview: boolean
+} {
+  const { commissionerLeagues, healthSnapshots, waiverMode } = args
+  if (healthSnapshots.length === 0) {
+    return {
+      score: 84,
+      items: [
+        '3 inactive managers need a nudge',
+        '1 trade is waiting for commissioner review',
+        'RB injury risk is trending up',
+        waiverMode.preview ? 'Waivers are ready for a final FAAB check' : `${waiverMode.label} is configured correctly`,
+        'League engagement needs a quick spark',
+      ],
+      recommendation: 'Send a league message tonight, confirm waivers for Thursday, and post a short draft-room reminder.',
+      preview: true,
+    }
+  }
+
+  const averageHealthScore = Math.round(
+    average(
+      healthSnapshots
+        .map((snapshot) => Number(snapshot.healthScore ?? 0))
+        .filter((value) => Number.isFinite(value) && value > 0),
+    ) || 84,
+  )
+  const inactiveManagers = healthSnapshots.reduce(
+    (sum, snapshot) => sum + Number(snapshot.metrics.inactiveTeams ?? 0),
+    0,
+  )
+  const pendingTrades = healthSnapshots.reduce(
+    (sum, snapshot) => sum + Number(snapshot.metrics.pendingTrades ?? 0),
+    0,
+  )
+  const injuredStarters = healthSnapshots.reduce(
+    (sum, snapshot) => sum + Number(snapshot.metrics.injuredStarters ?? 0),
+    0,
+  )
+  const engagementScore = Math.round(
+    average(
+      healthSnapshots
+        .map((snapshot) => Number(snapshot.metrics.leagueEngagement ?? 0))
+        .filter((value) => Number.isFinite(value) && value > 0),
+    ) || 72,
+  )
+  const items = [
+    inactiveManagers > 0
+      ? `${inactiveManagers} inactive manager${inactiveManagers === 1 ? '' : 's'} need attention`
+      : 'Managers are staying active across your leagues',
+    pendingTrades > 0
+      ? `${pendingTrades} trade${pendingTrades === 1 ? '' : 's'} ${pendingTrades === 1 ? 'is' : 'are'} waiting for review`
+      : 'No trade disputes are waiting on you',
+    injuredStarters > 0
+      ? `${injuredStarters} starter injury${injuredStarters === 1 ? '' : 'ies'} are affecting key lineups`
+      : 'Injury watch is stable heading into the next slate',
+    waiverMode.preview ? 'Waivers still need a final configuration check' : `${waiverMode.label} is configured correctly`,
+    engagementScore < 65 ? 'League engagement is cooling off' : 'League engagement is trending healthy',
+  ]
+
+  return {
+    score: averageHealthScore,
+    items,
+    recommendation:
+      inactiveManagers > 0 || engagementScore < 65
+        ? 'Send a league message tonight, review pending activity, and keep managers moving before engagement slips.'
+        : 'Keep the league moving with a quick update, then let Chimmy handle announcements and dispute prep.',
+    preview: commissionerLeagues.length === 0,
+  }
+}
+
 export default function CommissionerShowcasePanel({
   leagues,
   healthSnapshots,
   foundationMetricOverride,
+  demoMode = false,
 }: CommissionerShowcasePanelProps) {
   const commissionerLeagues = countCommissionerLeagues(leagues)
   const nflSnapshots = healthSnapshots.filter((snapshot) => snapshot.sport === 'NFL')
@@ -258,6 +357,11 @@ export default function CommissionerShowcasePanel({
     commissionerLeagues,
     healthSnapshots,
     foundation,
+    waiverMode,
+  })
+  const aiSummary = buildAiSummary({
+    commissionerLeagues,
+    healthSnapshots,
     waiverMode,
   })
 
@@ -363,6 +467,12 @@ export default function CommissionerShowcasePanel({
             Show commissioners what is ready, what still needs attention, and why the league feels supported instead
             of manually babysat.
           </p>
+          {demoMode ? (
+            <p className="mt-3 inline-flex max-w-3xl items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[11px] text-white/65">
+              <Sparkles className="h-3.5 w-3.5 text-violet-200/80" aria-hidden />
+              Preview mode stays populated with safe commissioner defaults until signed-in league data is available.
+            </p>
+          ) : null}
         </div>
 
         <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.08] px-3 py-2 text-right">
@@ -422,29 +532,64 @@ export default function CommissionerShowcasePanel({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-black/15 p-4">
-          <div className="flex items-center gap-2">
-            <Database className="h-4 w-4 text-cyan-300/75" aria-hidden />
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-200/80">
-              Data Foundation Proof
+        <div className="grid gap-4">
+          <div className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.08] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-violet-200/80">
+                  Commissioner AI Summary
+                </p>
+                <p className="mt-1 text-[22px] font-black text-white">League Health: {aiSummary.score}/100</p>
+              </div>
+              {aiSummary.preview ? (
+                <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white/60">
+                  Preview
+                </span>
+              ) : (
+                <Sparkles className="h-4 w-4 text-violet-200/75" aria-hidden />
+              )}
+            </div>
+            <ul className="mt-3 space-y-2 text-[12px] leading-relaxed text-white/78">
+              {aiSummary.items.map((item) => (
+                <li key={item} className="rounded-xl border border-white/8 bg-black/10 px-3 py-2">
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.08] px-3.5 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200/80">Recommendation</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-cyan-50/85">{aiSummary.recommendation}</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/15 p-4">
+            <div className="flex items-center gap-2">
+              <Database className="h-4 w-4 text-cyan-300/75" aria-hidden />
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-200/80">
+                Data Foundation Proof
+              </p>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <ProofStat icon={Users} label="Players" value={foundation.players.toLocaleString()} />
+              <ProofStat icon={ShieldCheck} label="Headshots" value={foundation.headshots.toLocaleString()} />
+              <ProofStat icon={Activity} label="ADP Rows" value={foundation.adp.toLocaleString()} />
+              <ProofStat icon={Waves} label="Injuries" value={foundation.injuries.toLocaleString()} />
+              <ProofStat icon={Bot} label="Season Stats" value={foundation.seasonStats.toLocaleString()} />
+              <ProofStat
+                icon={CalendarClock}
+                label="Coverage"
+                value={`${foundation.headshotCoveragePct.toFixed(1)}%`}
+              />
+            </div>
+            <p className="mt-3 text-[11px] leading-relaxed text-white/55">
+              Powered by {foundation.players.toLocaleString()} NFL players, {foundation.headshots.toLocaleString()}{' '}
+              headshots, {foundation.adp.toLocaleString()} ADP records, and live injury context.
+            </p>
+            <p className="mt-2 text-[11px] leading-relaxed text-white/42">
+              These proof numbers use live commissioner-hub coverage when available and fall back to the current NFL dry-run
+              baseline for demo safety.
             </p>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <ProofStat icon={Users} label="Players" value={foundation.players.toLocaleString()} />
-            <ProofStat icon={ShieldCheck} label="Headshots" value={foundation.headshots.toLocaleString()} />
-            <ProofStat icon={Activity} label="ADP Rows" value={foundation.adp.toLocaleString()} />
-            <ProofStat icon={Waves} label="Injuries" value={foundation.injuries.toLocaleString()} />
-            <ProofStat icon={Bot} label="Season Stats" value={foundation.seasonStats.toLocaleString()} />
-            <ProofStat
-              icon={CalendarClock}
-              label="Coverage"
-              value={`${foundation.headshotCoveragePct.toFixed(1)}%`}
-            />
-          </div>
-          <p className="mt-3 text-[11px] leading-relaxed text-white/42">
-            These proof numbers use live commissioner-hub coverage when available and fall back to the current NFL dry-run
-            baseline for demo safety.
-          </p>
         </div>
       </div>
     </section>

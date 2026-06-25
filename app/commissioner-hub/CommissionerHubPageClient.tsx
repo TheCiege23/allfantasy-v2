@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import {
   Crown,
@@ -125,6 +126,10 @@ const ACTION_VARIANT_CLASSES: Record<NextAction['variant'], string> = {
     'border-emerald-500/25 bg-emerald-500/[0.08] text-emerald-300 hover:bg-emerald-500/15',
   muted:
     'border-white/10 bg-white/[0.03] text-white/50 hover:bg-white/[0.06]',
+}
+
+function buildLoginHref(path: string): string {
+  return `/login?callbackUrl=${encodeURIComponent(path)}`
 }
 
 function resolveSetupStatus(league: UserLeague): SetupStatus {
@@ -525,22 +530,40 @@ function CommissionerActionLink({ action }: { action: CommissionerHealthAction }
 
 function LeagueHealthDashboard({
   snapshots,
+  demoMode = false,
 }: {
   snapshots: CommissionerLeagueHealthSnapshot[]
+  demoMode?: boolean
 }) {
+  const [showAll, setShowAll] = useState(false)
   if (snapshots.length === 0) return null
-
   const averageEngagement = averageMetric(snapshots, 'leagueEngagement')
   const averageProjectionCoverage = averageMetric(snapshots, 'projectionCoveragePct')
   const averageLineupRate =
     snapshots.reduce((sum, snapshot) => sum + snapshot.metrics.lineupSubmissionRate, 0) / snapshots.length
+  const visibleSnapshots = showAll ? snapshots : snapshots.slice(0, 3)
 
   return (
     <section data-testid="commissioner-health-dashboard">
-      <SectionHeader
-        label="League Health Dashboard"
-        hint="Live commissioner risk, activity, and engagement signals"
-      />
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <SectionHeader
+          label="League Health Dashboard"
+          hint={
+            demoMode
+              ? 'Preview-safe commissioner risk, activity, and engagement signals'
+              : 'Live commissioner risk, activity, and engagement signals'
+          }
+        />
+        {snapshots.length > 3 ? (
+          <button
+            type="button"
+            onClick={() => setShowAll((value) => !value)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-white/70 transition hover:border-white/20 hover:bg-white/[0.07]"
+          >
+            {showAll ? 'Show fewer leagues' : `View all ${snapshots.length} leagues`}
+          </button>
+        ) : null}
+      </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
         <MetricTile
           icon={Users}
@@ -572,7 +595,7 @@ function LeagueHealthDashboard({
       </div>
 
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
-        {snapshots.map((snapshot) => {
+        {visibleSnapshots.map((snapshot) => {
           const statusClass =
             HEALTH_STATUS_CLASSES[snapshot.overallStatus] ??
             'border-white/10 bg-white/[0.03] text-white/50'
@@ -667,6 +690,12 @@ function LeagueHealthDashboard({
         })}
       </div>
 
+      {!showAll && snapshots.length > visibleSnapshots.length ? (
+        <p className="mt-3 text-[11px] text-white/30">
+          Showing {visibleSnapshots.length} of {snapshots.length} managed leagues for presentation flow.
+        </p>
+      ) : null}
+
       <p className="mt-3 text-[11px] text-white/30">
         Average lineup submission across managed leagues: {formatPercent(averageLineupRate)}.
       </p>
@@ -678,9 +707,16 @@ function LeagueHealthDashboard({
 type CommissionerHubPageClientProps = {
   leagues: UserLeague[]
   healthSnapshots: CommissionerLeagueHealthSnapshot[]
+  demoMode?: boolean
+  isAuthenticated?: boolean
 }
 
-export default function CommissionerHubPageClient({ leagues, healthSnapshots }: CommissionerHubPageClientProps) {
+export default function CommissionerHubPageClient({
+  leagues,
+  healthSnapshots,
+  demoMode = false,
+  isAuthenticated = false,
+}: CommissionerHubPageClientProps) {
   const commissionerLeagues = leagues.filter((l) => l.isCommissioner)
   const memberLeagues = leagues.filter((l) => !l.isCommissioner)
   const missionQueue = buildMissionQueue(commissionerLeagues)
@@ -688,6 +724,19 @@ export default function CommissionerHubPageClient({ leagues, healthSnapshots }: 
   const managedHealthSnapshots = commissionerLeagues
     .map((league) => healthByLeagueId.get(league.id))
     .filter((snapshot): snapshot is CommissionerLeagueHealthSnapshot => Boolean(snapshot))
+  const showDemoMode = demoMode || leagues.length === 0
+  const primaryHeroHref = isAuthenticated ? '/create-league' : buildLoginHref('/commissioner-hub')
+  const primaryHeroLabel = isAuthenticated ? COPY.hero.ctaCreate : 'Sign In'
+  const secondaryHeroHref = isAuthenticated ? '/import' : buildLoginHref('/import')
+  const secondaryHeroLabel = isAuthenticated ? COPY.hero.ctaImport : 'Sign In to Import'
+  const emptyPrimaryHref = isAuthenticated ? '/create-league' : buildLoginHref('/commissioner-hub')
+  const emptyPrimaryLabel = isAuthenticated ? COPY.empty.ctaCreate : 'Sign In'
+  const emptySecondaryHref = isAuthenticated ? '/import' : buildLoginHref('/import')
+  const emptySecondaryLabel = isAuthenticated ? COPY.empty.ctaImport : 'Sign In to Import'
+  const emptyHeading = isAuthenticated ? COPY.empty.heading : 'Commissioner demo is ready.'
+  const emptySub = isAuthenticated
+    ? 'Create or import a league to replace the preview state with your real commissioner data.'
+    : 'You can tour the commissioner workflow now, then sign in when you are ready to load leagues and personalize the hub.'
 
   const totalManaged = commissionerLeagues.length
   const needsSetupCount = commissionerLeagues.filter(
@@ -744,21 +793,32 @@ export default function CommissionerHubPageClient({ leagues, healthSnapshots }: 
             <p className="mt-1.5 max-w-lg text-[13px] leading-relaxed text-white/38">
               {COPY.hero.sub2}
             </p>
+            {showDemoMode && (
+              <div className="mt-5 max-w-2xl rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.08] px-4 py-3">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-200/75">
+                  Presentation-safe preview
+                </p>
+                <p className="mt-1 text-[12px] leading-relaxed text-cyan-50/80">
+                  The hub now falls back to stable commissioner preview data when leagues, draft state, waiver state,
+                  roster data, or NFL foundation reads are still empty.
+                </p>
+              </div>
+            )}
 
             <div className="mt-6 flex flex-wrap gap-2.5">
               <Link
-                href="/create-league"
+                href={primaryHeroHref}
                 className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-5 py-2.5 text-[14px] font-bold text-black shadow-[0_0_20px_rgba(245,158,11,0.25)] transition hover:from-amber-300 hover:to-amber-400 active:opacity-90"
               >
                 <Plus className="h-4 w-4" aria-hidden />
-                {COPY.hero.ctaCreate}
+                {primaryHeroLabel}
               </Link>
               <Link
-                href="/import"
+                href={secondaryHeroHref}
                 className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/[0.04] px-5 py-2.5 text-[14px] font-semibold text-white/90 transition hover:border-white/35 hover:bg-white/[0.06]"
               >
                 <ArrowDownToLine className="h-4 w-4" aria-hidden />
-                {COPY.hero.ctaImport}
+                {secondaryHeroLabel}
               </Link>
             </div>
           </div>
@@ -814,9 +874,10 @@ export default function CommissionerHubPageClient({ leagues, healthSnapshots }: 
         <CommissionerShowcasePanel
           leagues={leagues}
           healthSnapshots={managedHealthSnapshots}
+          demoMode={showDemoMode}
         />
 
-        <LeagueHealthDashboard snapshots={managedHealthSnapshots} />
+        <LeagueHealthDashboard snapshots={managedHealthSnapshots} demoMode={showDemoMode} />
 
         {/* ── League Setup Health ── */}
         {commissionerLeagues.length > 0 && (
@@ -914,22 +975,22 @@ export default function CommissionerHubPageClient({ leagues, healthSnapshots }: 
         {leagues.length === 0 && (
           <section className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-8 text-center">
             <Crown className="mx-auto mb-3 h-8 w-8 text-amber-400/40" aria-hidden />
-            <p className="text-[14px] font-semibold text-white/60">{COPY.empty.heading}</p>
-            <p className="mt-1 text-[12px] text-white/35">{COPY.empty.sub}</p>
+            <p className="text-[14px] font-semibold text-white/60">{emptyHeading}</p>
+            <p className="mt-1 text-[12px] text-white/35">{emptySub}</p>
             <div className="mt-4 flex justify-center gap-3">
               <Link
-                href="/create-league"
+                href={emptyPrimaryHref}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-[13px] font-semibold text-amber-300 transition hover:bg-amber-500/20"
               >
                 <Plus className="h-3.5 w-3.5" aria-hidden />
-                {COPY.empty.ctaCreate}
+                {emptyPrimaryLabel}
               </Link>
               <Link
-                href="/import"
+                href={emptySecondaryHref}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 px-4 py-2 text-[13px] font-semibold text-white/70 transition hover:border-white/25 hover:bg-white/[0.04]"
               >
                 <ArrowDownToLine className="h-3.5 w-3.5" aria-hidden />
-                {COPY.empty.ctaImport}
+                {emptySecondaryLabel}
               </Link>
             </div>
           </section>
@@ -944,7 +1005,7 @@ export default function CommissionerHubPageClient({ leagues, healthSnapshots }: 
               return (
                 <Link
                   key={card.key}
-                  href={card.href}
+                  href={isAuthenticated ? card.href : buildLoginHref(card.href)}
                   className={`group relative flex flex-col gap-3 rounded-2xl border px-4 py-4 transition-all ${card.cardClass}`}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -984,7 +1045,7 @@ export default function CommissionerHubPageClient({ leagues, healthSnapshots }: 
               return (
                 <Link
                   key={card.key}
-                  href={card.href}
+                  href={isAuthenticated ? card.href : buildLoginHref(card.href)}
                   className="group flex flex-col gap-2.5 rounded-2xl border border-violet-500/[0.14] bg-gradient-to-br from-violet-500/[0.06] to-transparent px-4 py-4 transition-all hover:border-violet-500/25 hover:from-violet-500/[0.09]"
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -1049,7 +1110,7 @@ export default function CommissionerHubPageClient({ leagues, healthSnapshots }: 
               return platform.href ? (
                 <Link
                   key={platform.key}
-                  href={platform.href}
+                  href={isAuthenticated ? platform.href : buildLoginHref(platform.href)}
                   className="group flex flex-col gap-2 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-4 transition hover:border-emerald-500/20 hover:bg-emerald-500/[0.03]"
                 >
                   {inner}
