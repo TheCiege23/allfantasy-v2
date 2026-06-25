@@ -1,4 +1,5 @@
 import "server-only";
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
 import { Queue, type ConnectionOptions } from "bullmq";
 import IORedis, { type RedisOptions } from "ioredis";
 import { QUEUE_NAMES } from "@/lib/jobs/types";
@@ -8,6 +9,10 @@ const QUEUE_NAME_SIMULATIONS = QUEUE_NAMES.SIMULATIONS;
 let redisClient: IORedis | null | undefined;
 let simulationQueueInstance: Queue | null | undefined;
 const queuesByName = new Map<string, Queue>();
+
+function isBuildTimeRuntimeDisabled(): boolean {
+  return process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD;
+}
 
 function parseRedisPort(value: string | undefined): number | null {
   if (!value?.trim()) return null;
@@ -73,10 +78,17 @@ function getRedisOptions(): RedisOptions {
 }
 
 export function isRedisConfigured(): boolean {
+  if (isBuildTimeRuntimeDisabled()) {
+    return false;
+  }
   return Boolean(getRedisUrl() || (getRedisHost() && getRedisPort()));
 }
 
 export function getRedisConnection(): ConnectionOptions | null {
+  if (isBuildTimeRuntimeDisabled()) {
+    return null;
+  }
+
   const redisUrl = getRedisUrl();
   if (redisUrl) {
     return {
@@ -103,6 +115,11 @@ export function getRedisConnection(): ConnectionOptions | null {
 
 export function getRedisClient(): IORedis | null {
   if (redisClient !== undefined) {
+    return redisClient;
+  }
+
+  if (isBuildTimeRuntimeDisabled()) {
+    redisClient = null;
     return redisClient;
   }
 

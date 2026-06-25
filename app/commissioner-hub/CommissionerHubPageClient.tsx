@@ -25,6 +25,7 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import type { UserLeague } from '@/app/dashboard/types'
+import CommissionerShowcasePanel from '@/components/redraft/CommissionerShowcasePanel'
 import type {
   CommissionerHealthAction,
   CommissionerLeagueHealthSnapshot,
@@ -809,6 +810,11 @@ export default function CommissionerHubPageClient({ leagues, healthSnapshots }: 
             </div>
           </section>
         )}
+
+        <CommissionerShowcasePanel
+          leagues={leagues}
+          healthSnapshots={managedHealthSnapshots}
+        />
 
         <LeagueHealthDashboard snapshots={managedHealthSnapshots} />
 
