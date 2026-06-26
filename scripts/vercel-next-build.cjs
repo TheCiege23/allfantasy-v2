@@ -92,7 +92,6 @@ const routeDirsToDisable = [
   // routes with real non-admin/lib callers are preserved via filesToKeep below
   // (sports/sync, fantasy-data/import, fantasy-data/status) plus the existing
   // automation keeps. No app/api/admin route is a vercel cron target.
-  path.join('app', 'admin'),
   path.join('app', 'api', 'admin'),
   // Internal diagnostics / metrics / status / meta endpoints — verified to have
   // zero production (non-admin) fetch callers, no cron target, and no Chimmy/AI
@@ -169,8 +168,17 @@ const filesToKeep = new Set([
   // the rest of app/api/admin is disabled above.
   //   sports/sync + fantasy-data/import + fantasy-data/status ← lib/fantasy-data/providerHealth,
   //   lib/ai/leagueSportsGroundingPacket, app/api/chat/chimmy (live AI grounding).
+  path.join('app', 'api', 'admin', 'bootstrap', 'route.ts').replace(/\\/g, '/'),
+  path.join('app', 'api', 'admin', 'status', 'route.ts').replace(/\\/g, '/'),
+  path.join('app', 'api', 'admin', 'production-health', 'route.ts').replace(/\\/g, '/'),
+  path.join('app', 'api', 'admin', 'email', 'broadcast', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'admin', 'sports', 'sync', 'route.ts').replace(/\\/g, '/'),
+  path.join('app', 'api', 'admin', 'sports', 'provider-team-reconciliation', 'route.ts').replace(/\\/g, '/'),
+  path.join('app', 'api', 'admin', 'ai', 'provider-health', 'route.ts').replace(/\\/g, '/'),
+  path.join('app', 'api', 'admin', 'ai', 'audit-logs', 'route.ts').replace(/\\/g, '/'),
+  path.join('app', 'api', 'admin', 'world-cup', 'actions', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'admin', 'fantasy-data', 'import', 'route.ts').replace(/\\/g, '/'),
+  path.join('app', 'api', 'admin', 'fantasy-data', 'status', 'route.ts').replace(/\\/g, '/'),
 ])
 
 function directoryExists(targetPath) {
