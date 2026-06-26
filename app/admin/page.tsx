@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import { getAdminAccessState } from "@/lib/adminAuth"
 import {
   getAdminCommandCenterMetrics,
+  type AdminCommandCenterMetrics,
   type AdminMetric,
 } from "@/lib/admin-dashboard/AdminCommandCenterService"
 import { AiAuditLogsPanel } from "@/components/admin/AiAuditLogsPanel"
@@ -53,11 +54,13 @@ function MetricCard({ item }: { item: AdminMetric }) {
 }
 
 function AccordionSection({
+  id,
   title,
   eyebrow,
   children,
   defaultOpen = true,
 }: {
+  id?: string
   title: string
   eyebrow?: string
   children: ReactNode
@@ -65,6 +68,7 @@ function AccordionSection({
 }) {
   return (
     <details
+      id={id}
       className="group rounded-3xl border border-cyan-300/15 bg-white/[0.035] p-4 shadow-[0_24px_80px_-58px_rgba(34,211,238,0.75)] backdrop-blur-xl sm:p-5"
       open={defaultOpen}
     >
@@ -82,9 +86,9 @@ function AccordionSection({
   )
 }
 
-function Section({ title, items }: { title: string; items: AdminMetric[] }) {
+function Section({ id, title, items }: { id?: string; title: string; items: AdminMetric[] }) {
   return (
-    <AccordionSection title={title}>
+    <AccordionSection id={id} title={title}>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {items.map((item) => (
           <MetricCard key={`${title}-${item.label}`} item={item} />
@@ -103,6 +107,223 @@ function formatDate(value: string | null) {
     hour: "numeric",
     minute: "2-digit",
   })
+}
+
+function metricLookup(items: AdminMetric[]) {
+  return new Map(items.map((item) => [item.label, item]))
+}
+
+function metricDisplay(items: AdminMetric[], label: string, fallback = "Not tracked"): string {
+  const match = metricLookup(items).get(label)
+  if (!match) return fallback
+  return String(match.value)
+}
+
+function AdminOverviewDeck({
+  data,
+  accessSource,
+}: {
+  data: AdminCommandCenterMetrics
+  accessSource: "admin_session" | "app_session"
+}) {
+  const criticalEnvMissing = data.productionReadiness.env.filter(
+    (row) => row.status === "missing" && row.severity === "critical",
+  ).length
+  const cronGaps = data.productionReadiness.crons.filter(
+    (row) => row.status !== "configured",
+  ).length
+  const providerGaps = data.providerHealth.filter(
+    (row) => row.status !== "configured" && row.status !== "public_fallback",
+  ).length
+  const identityGapCount =
+    data.sportsIdentityHealth.summary.identityProblems +
+    data.sportsIdentityHealth.summary.imageProblems +
+    data.sportsIdentityHealth.summary.providerMappingProblems
+
+  const overviewCards = [
+    {
+      label: "Platform",
+      value: metricDisplay(data.health, "Database", "Unknown"),
+      note: `${metricDisplay(data.users, "Total accounts", "0")} accounts • ${metricDisplay(data.morning, "New signups", "0")} new today`,
+      tone: "cyan" as const,
+    },
+    {
+      label: "Revenue pulse",
+      value: metricDisplay(data.subscriptions, "Revenue today", "Not tracked"),
+      note: `${metricDisplay(data.subscriptions, "Active subscribers", "Not tracked")} active subscribers`,
+      tone: "amber" as const,
+    },
+    {
+      label: "Data foundation",
+      value: `${data.sportsOperatingSystem.summary.ready} ready / ${data.sportsOperatingSystem.summary.partial} partial`,
+      note: `${providerGaps} provider gaps • ${identityGapCount} identity/image issues`,
+      tone: "emerald" as const,
+    },
+    {
+      label: "Ops queue",
+      value: `${criticalEnvMissing + cronGaps} blockers`,
+      note: `${criticalEnvMissing} critical env gaps • ${cronGaps} cron gaps`,
+      tone: "rose" as const,
+    },
+  ]
+
+  const quickLinks = [
+    { href: "#overview", label: "Overview" },
+    { href: "#production-readiness", label: "Launch Readiness" },
+    { href: "#user-search", label: "Users" },
+    { href: "#sports-os", label: "Sports OS" },
+    { href: "#provider-health", label: "Providers" },
+    { href: "#ai-panels", label: "AI Ops" },
+  ]
+
+  return (
+    <section id="overview" className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+      <div className="rounded-3xl border border-cyan-300/15 bg-[linear-gradient(135deg,rgba(8,15,33,0.95),rgba(7,24,39,0.92))] p-5 shadow-[0_24px_90px_-56px_rgba(34,211,238,0.85)] backdrop-blur-xl sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-200/65">
+              Live Operations
+            </p>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">
+              Admin command deck
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/58">
+              Watch launch health, data coverage, AI safety, and user activity from one surface. This shell is designed
+              to stay useful even when one backend module is degraded.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-right">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/42">
+              Access Source
+            </p>
+            <p className="mt-1 text-sm font-black text-white">
+              {accessSource === "admin_session" ? "Admin session" : "App session"}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {overviewCards.map((card) => {
+            const toneClass =
+              card.tone === "amber"
+                ? "border-amber-300/20 bg-amber-300/[0.08] text-amber-100"
+                : card.tone === "emerald"
+                  ? "border-emerald-300/20 bg-emerald-300/[0.08] text-emerald-100"
+                  : card.tone === "rose"
+                    ? "border-rose-300/20 bg-rose-300/[0.08] text-rose-100"
+                    : "border-cyan-300/20 bg-cyan-300/[0.08] text-cyan-100"
+
+            return (
+              <div
+                key={card.label}
+                className={`rounded-2xl border p-4 shadow-[0_16px_44px_-32px_rgba(15,23,42,0.9)] ${toneClass}`}
+              >
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-current/75">
+                  {card.label}
+                </p>
+                <p className="mt-2 text-2xl font-black text-white">{card.value}</p>
+                <p className="mt-2 text-xs leading-5 text-white/58">{card.note}</p>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_90px_-60px_rgba(251,191,36,0.55)] backdrop-blur-xl sm:p-6">
+        <p className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-200/70">
+          Fast Paths
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {quickLinks.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              className="inline-flex min-h-10 items-center rounded-full border border-white/12 bg-black/25 px-4 text-sm font-bold text-white/80 transition hover:border-cyan-300/40 hover:text-white"
+            >
+              {link.label}
+            </a>
+          ))}
+        </div>
+        <div className="mt-5 grid gap-3">
+          <a
+            href="/admin/production-health"
+            className="flex items-center justify-between rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.08] px-4 py-3 text-sm font-bold text-cyan-100 transition hover:border-cyan-300/40"
+          >
+            <span>Production health console</span>
+            <span className="text-cyan-100/65">Open</span>
+          </a>
+          <a
+            href="/admin/bootstrap"
+            className="flex items-center justify-between rounded-2xl border border-amber-300/15 bg-amber-300/[0.08] px-4 py-3 text-sm font-bold text-amber-100 transition hover:border-amber-300/35"
+          >
+            <span>Admin recovery / bootstrap</span>
+            <span className="text-amber-100/65">Open</span>
+          </a>
+          <a
+            href="/api/admin/status"
+            className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-white/78 transition hover:border-white/25"
+          >
+            <span>Raw status payload</span>
+            <span className="text-white/45">JSON</span>
+          </a>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function AdminPageLoadFailure({
+  message,
+}: {
+  message: string
+}) {
+  return (
+    <main className="min-h-dvh bg-[#020817] text-white">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(34,211,238,0.20),transparent_34%),radial-gradient(circle_at_85%_8%,rgba(251,191,36,0.14),transparent_30%),linear-gradient(180deg,#020817_0%,#06111f_46%,#020817_100%)]" />
+      <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+        <section className="rounded-3xl border border-rose-300/20 bg-black/35 p-6 shadow-[0_28px_90px_-54px_rgba(244,63,94,0.65)] backdrop-blur-xl sm:p-8">
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-rose-200">
+            Admin degraded
+          </p>
+          <h1 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-5xl">
+            The admin shell loaded, but the data pipeline failed.
+          </h1>
+          <p className="mt-4 max-w-3xl text-sm leading-6 text-white/65">
+            This page now stays online and gives you recovery options instead of crashing. The most likely next step is
+            checking production health, env readiness, or a failing admin data dependency.
+          </p>
+          <div className="mt-6 rounded-2xl border border-rose-300/20 bg-rose-300/[0.08] p-4">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-rose-100/80">
+              Last error
+            </p>
+            <p className="mt-2 break-words font-mono text-xs leading-6 text-rose-50/90">
+              {message}
+            </p>
+          </div>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <a
+              href="/admin/production-health"
+              className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-cyan-300 px-4 py-2 text-sm font-black text-slate-950"
+            >
+              Open production health
+            </a>
+            <a
+              href="/admin/bootstrap"
+              className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-white/12 bg-white/[0.05] px-4 py-2 text-sm font-black text-white"
+            >
+              Admin recovery
+            </a>
+            <a
+              href="/dashboard"
+              className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-white/12 bg-black/25 px-4 py-2 text-sm font-black text-white/80"
+            >
+              Back to app
+            </a>
+          </div>
+        </section>
+      </div>
+    </main>
+  )
 }
 
 function providerStatusLabel(status: AdminProviderHealthStatus) {
@@ -1237,7 +1458,13 @@ export default async function AdminPage({
   }
 
   const q = Array.isArray(searchParams?.q) ? searchParams?.q[0] ?? "" : searchParams?.q ?? ""
-  const data = await getAdminCommandCenterMetrics(q)
+  let data: AdminCommandCenterMetrics
+  try {
+    data = await getAdminCommandCenterMetrics(q)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown admin data failure"
+    return <AdminPageLoadFailure message={message} />
+  }
 
   return (
     <main className="min-h-dvh bg-[#020817] text-white">
@@ -1269,21 +1496,27 @@ export default async function AdminPage({
           </div>
         </header>
 
-        <Section title="Morning Dashboard" items={data.morning} />
+        <AdminOverviewDeck data={data} accessSource={gate.source} />
+
+        <Section id="morning-dashboard" title="Morning Dashboard" items={data.morning} />
         <Section title="Users" items={data.users} />
         <Section title="Payments & Subscriptions" items={data.subscriptions} />
         <Section title="Tokens & AI" items={[...data.tokens, ...data.ai]} />
         <Section title="World Cup" items={data.worldCup} />
         <Section title="System Health" items={data.health} />
-        <ProductionReadinessPanel data={data.productionReadiness} />
+        <div id="production-readiness">
+          <ProductionReadinessPanel data={data.productionReadiness} />
+        </div>
         <TrafficGeoPanel data={data.productionReadiness} metrics={data.traffic} />
         <EmailCenterPanel status={data.emailStatus} />
-        <SportsOperatingSystemPanel audit={data.sportsOperatingSystem} />
+        <div id="sports-os">
+          <SportsOperatingSystemPanel audit={data.sportsOperatingSystem} />
+        </div>
         <SportsIdentityHealthPanel snapshot={data.sportsIdentityHealth} />
         <ProviderTeamReconciliationPanel data={data.providerTeamReconciliation} />
         <Section title="Integrity / Fraud Signals" items={data.integrity} />
         <Section title="Admin Data Quality" items={data.dataQuality} />
-        <AccordionSection title="Sports API Health" eyebrow="providers" defaultOpen={false}>
+        <AccordionSection id="provider-health" title="Sports API Health" eyebrow="providers" defaultOpen={false}>
           <ProviderHealthPanel rows={data.providerHealth ?? []} />
         </AccordionSection>
         <AccordionSection title="Sports Data Freshness" eyebrow="per-sport cache" defaultOpen={false}>
@@ -1298,14 +1531,16 @@ export default async function AdminPage({
         <AccordionSection title="Provider Sync Controls" eyebrow="admin manual imports" defaultOpen={false}>
           <AdminSportsSyncControlsPanel />
         </AccordionSection>
-        <AccordionSection title="AI Provider Health" eyebrow="interaction stats + WC provider" defaultOpen={false}>
-          <AiProviderHealthPanel />
-        </AccordionSection>
-        <AccordionSection title="AI Audit Logs" eyebrow="validator + cost monitoring" defaultOpen={false}>
-          <AiAuditLogsPanel />
-        </AccordionSection>
+        <div id="ai-panels" className="grid gap-4 xl:grid-cols-2">
+          <AccordionSection title="AI Provider Health" eyebrow="interaction stats + WC provider" defaultOpen={false}>
+            <AiProviderHealthPanel />
+          </AccordionSection>
+          <AccordionSection title="AI Audit Logs" eyebrow="validator + cost monitoring" defaultOpen={false}>
+            <AiAuditLogsPanel />
+          </AccordionSection>
+        </div>
 
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.75fr)]">
+        <section id="user-search" className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.75fr)]">
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_20px_70px_-52px_rgba(34,211,238,0.7)]">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>

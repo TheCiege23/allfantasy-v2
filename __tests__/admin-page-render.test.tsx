@@ -303,6 +303,27 @@ function metricsFixture() {
         },
       ],
     },
+    providerTeamReconciliation: {
+      generatedAt: "2026-06-04T12:00:00.000Z",
+      totalProblems: 2,
+      summaries: [
+        {
+          sport: "NFL",
+          provider: "Sleeper",
+          providerTeamCount: 32,
+          normalizedTeamCount: 32,
+          mappedTeamCount: 31,
+          exactCodeMatches: 30,
+          aliasMatches: 1,
+          unresolvedProviderTeams: ["JAX"],
+          unresolvedNormalizedTeams: [],
+          conflictingMatches: [],
+          duplicateProviderCodes: [],
+          duplicateNormalizedAliases: [],
+          notes: ["One alias still unresolved"],
+        },
+      ],
+    },
     providerHealth: [
       {
         id: "api_football_world_cup",
@@ -385,17 +406,42 @@ describe("/admin page render states", () => {
     expect(screen.getByTestId("admin-exit-button")).toHaveAttribute("href", "/dashboard")
     expect(screen.getByText("Total accounts")).toBeInTheDocument()
     expect(screen.getByText("World Cup pools")).toBeInTheDocument()
-    expect(screen.getByText(/Provider Health/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Provider Health/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/Production Env/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/Traffic \/ Visitors/i)).toBeInTheDocument()
     expect(screen.getByText(/Email Notifications/i)).toBeInTheDocument()
     expect(screen.getByText(/Sports OS \/ Chimmy Brain/i)).toBeInTheDocument()
     expect(screen.getByText(/Sports OS Identity/i)).toBeInTheDocument()
     expect(screen.getByText(/Provider mapping counts/i)).toBeInTheDocument()
-    expect(screen.getByText("Sleeper")).toBeInTheDocument()
+    expect(screen.getAllByText("Sleeper").length).toBeGreaterThan(0)
     expect(screen.getByText(/Integrity \/ Fraud/i)).toBeInTheDocument()
     expect(screen.getByText("API-Football / API-Sports World Cup")).toBeInTheDocument()
     expect(screen.getByText(/Recent Users/i)).toBeInTheDocument()
     expect(mocks.getAdminCommandCenterMetrics).toHaveBeenCalledWith("ciege")
+  })
+
+  it("renders a recovery shell when admin metrics fail to load", async () => {
+    mocks.getAdminAccessState.mockResolvedValueOnce({
+      status: "admin",
+      source: "admin_session",
+      user: { id: "admin-1", email: "founder@example.com", role: "admin" },
+    })
+    mocks.getAdminCommandCenterMetrics.mockRejectedValueOnce(
+      new Error("production metrics exploded"),
+    )
+    const { default: AdminPage } = await import("@/app/admin/page")
+
+    render(await AdminPage({ searchParams: {} }))
+
+    expect(
+      screen.getByRole("heading", {
+        name: /the admin shell loaded, but the data pipeline failed/i,
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/production metrics exploded/i)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /open production health/i })).toHaveAttribute(
+      "href",
+      "/admin/production-health",
+    )
   })
 })
