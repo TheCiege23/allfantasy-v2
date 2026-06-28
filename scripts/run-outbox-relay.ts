@@ -29,6 +29,9 @@ import {
   type AuditFeedPrisma,
   type RelayLogger,
 } from '../lib/events'
+// Import the consumer DIRECTLY (not via the lib/intelligence barrel) — the barrel
+// re-exports server-only-tainted modules that throw under tsx/Node (non-Server-Component).
+import { createIntelligenceSnapshotConsumer } from '../lib/intelligence/projections/snapshotProjection'
 
 const argv = process.argv.slice(2)
 const has = (name: string) => argv.includes(name)
@@ -43,10 +46,11 @@ const logger: RelayLogger = (level, message, meta) =>
 ;(async () => {
   const prisma = new PrismaClient()
   const store = new PrismaOutboxStore(prisma as unknown as PrismaLike)
-  const consumer = createPrismaAuditFeedConsumer(prisma as unknown as AuditFeedPrisma)
+  const auditConsumer = createPrismaAuditFeedConsumer(prisma as unknown as AuditFeedPrisma)
+  const intelligenceConsumer = createIntelligenceSnapshotConsumer(prisma)
 
   const relay = new OutboxRelay(store, {
-    consumers: [consumer],
+    consumers: [auditConsumer, intelligenceConsumer],
     bus: inProcessEventBus,
     batchSize: Number(val('--batch-size', '100')),
     maxRetries: Number(val('--max-retries', '5')),

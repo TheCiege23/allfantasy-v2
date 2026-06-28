@@ -13296,6 +13296,66 @@ model ProjectionCheckpoint {
   @@map("intelligence_projection_checkpoint")
 }
 
+/// G15.4 Intelligence read model — per-league activity/health rollup. DISPOSABLE
+/// (rebuildable from domain_events). Sport/concept-agnostic. Scalar counters use
+/// atomic increments; categoryCounts are columns to avoid read-modify-write races.
+model IntelligenceLeagueSnapshot {
+  id                 String    @id @default(cuid())
+  leagueId           String    @unique
+  tenantId           String    @default("allfantasy")
+  sport              String?
+  leagueConcept      String?
+  firstEventAt       DateTime?
+  lastActivityAt     DateTime?
+  totalEvents        Int       @default(0)
+  tradeCount         Int       @default(0)
+  waiverCount        Int       @default(0)
+  lineupCount        Int       @default(0)
+  draftCount         Int       @default(0)
+  scoringCount       Int       @default(0)
+  governanceCount    Int       @default(0)
+  lifecycleCount     Int       @default(0)
+  otherCount         Int       @default(0)
+  openTradeProposals Int       @default(0)
+  lastTradeAt        DateTime?
+  lastWaiverAt       DateTime?
+  lastLineupAt       DateTime?
+  lastDraftAt        DateTime?
+  lastScoringAt      DateTime?
+  updatedAt          DateTime  @updatedAt
+
+  @@index([tenantId, lastActivityAt])
+  @@map("intelligence_league_snapshot")
+}
+
+/// G15.4 Intelligence read model — per (league, manager) activity rollup.
+model IntelligenceManagerSnapshot {
+  id            String    @id @default(cuid())
+  leagueId      String
+  managerKey    String
+  lastActiveAt  DateTime?
+  totalActions  Int       @default(0)
+  tradeActions  Int       @default(0)
+  waiverActions Int       @default(0)
+  lineupActions Int       @default(0)
+  otherActions  Int       @default(0)
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([leagueId, managerKey])
+  @@map("intelligence_manager_snapshot")
+}
+
+/// G15.4 — idempotency ledger for incremental projections (at-least-once → exactly-once apply).
+model IntelligenceProcessedEvent {
+  id          String   @id @default(cuid())
+  projection  String
+  eventId     String
+  processedAt DateTime @default(now())
+
+  @@unique([projection, eventId])
+  @@map("intelligence_processed_event")
+}
+
 /// T8: native trade block — a manager publicly signals a player they will move (+ what they want
 /// back). League-visible. No FK (signal survives roster churn). Internal ids only.
 model RedraftTradeBlockItem {

@@ -24,3 +24,36 @@ export type {
   AiTeamContextPayload,
   StandardAiToolResponse,
 } from '@/lib/ai-payload/types'
+
+// ── G15.4 — event-derived Commissioner Intelligence read models (backend only) ──
+export {
+  INTELLIGENCE_SNAPSHOT_PROJECTION,
+  categorize,
+  tradeProposalDelta,
+  applyIntelligenceEvent,
+  createIntelligenceSnapshotConsumer,
+  rebuildIntelligenceSnapshots,
+  type LeagueCategory,
+} from '@/lib/intelligence/projections/snapshotProjection'
+export {
+  IntelligenceQueryService,
+  IntelligenceAccessError,
+  computeHealth,
+  deriveActionItems,
+  type LeagueActivitySummary,
+  type LeagueHealthSnapshot,
+  type LeagueHealthStatus,
+  type ManagerActivitySnapshot,
+  type CommissionerActionItem,
+  type ActionItemSeverity,
+  type ActionItemThresholds,
+} from '@/lib/intelligence/IntelligenceQueryService'
+export {
+  INTELLIGENCE_FEATURES,
+  AllowAllFeatureGate,
+  defaultFeatureGate,
+  type IFeatureGate,
+  type IntelligenceFeature,
+  type FeatureGatePrincipal,
+  type FeatureGateDecision,
+} from '@/lib/intelligence/featureGate'
