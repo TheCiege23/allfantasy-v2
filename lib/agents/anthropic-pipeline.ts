@@ -139,6 +139,8 @@ export interface UserContext {
   source?: string | null
   language?: string | null
   conversation?: ConversationTurn[]
+  /** G15.10 — optional, privacy-safe commissioner-intelligence grounding (read-only). */
+  commissionerGrounding?: string | null
   memory?: {
     tone?: 'strategic' | 'casual' | 'analytical'
     detailLevel?: 'concise' | 'standard' | 'detailed'
@@ -373,9 +375,13 @@ function buildRuntimeSystemPrompt(
       teamId: ctx.teamId ?? null,
     },
   })
+  // G15.10 — additive commissioner-intelligence grounding (read-only, privacy-safe).
+  const grounded = ctx.commissionerGrounding
+    ? `${base}\n\n## COMMISSIONER INTELLIGENCE\n${ctx.commissionerGrounding}`
+    : base
   const lang = getAiLanguageInstruction(ctx.language)
-  if (lang === 'English') return base
-  return `${base}\n\n## LANGUAGE\nRespond in ${lang}. Use natural sports-app language. Keep team, player, league, and AllFantasy feature names recognizable.`
+  if (lang === 'English') return grounded
+  return `${grounded}\n\n## LANGUAGE\nRespond in ${lang}. Use natural sports-app language. Keep team, player, league, and AllFantasy feature names recognizable.`
 }
 
 function isSimpleQuery(intent: IntentType, payload: Record<string, unknown>, userMessage: string): boolean {
