@@ -4,6 +4,7 @@
 
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { getPlatformEvents, EVENT } from '@/lib/events'
 import { logAction } from '@/server/services/auditService'
 import {
   type ApplyPostDraftLifecycleResult,
@@ -644,6 +645,18 @@ export async function startDraftSession(leagueId: string): Promise<StartDraftSes
       },
     })
   }
+
+  // G15.2b — best-effort emit (never throws). Past the pre_draft guard above, so the
+  // draft is committing to start; deterministic key → exactly one event per session.
+  // Draft is concept-agnostic here, so leagueConcept is left unset (not assumed).
+  await getPlatformEvents().emit(EVENT.DRAFT_STARTED, {
+    leagueId,
+    actor: { type: 'commissioner' },
+    source: 'service:draft',
+    subjects: [{ kind: 'draft', id: session.id }],
+    idempotencyKey: `draft.started:${session.id}`,
+    payload: { draftId: session.id },
+  })
 
   if (session.draftType === 'auction') {
     const { initializeAuctionForSession } = await import('./auction/AuctionEngine')

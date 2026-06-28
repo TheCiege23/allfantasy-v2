@@ -142,3 +142,44 @@ each, sport/concept from the league):
 - End-to-end: the NFL engine harness emits `draft.session.completed`, `lifecycle.season.activated`,
   `competition.standings.updated`, `competition.champion.crowned`, `lifecycle.season.completed`
   to staging `domain_events` (verified), with **PASS 32 / FAIL 0** (no behavior change).
+
+---
+
+## 6. G15.2b coverage update (2026-06-27)
+
+Wired the remaining high-value producers (all best-effort, never-throw → zero behavior change).
+Verification legend: **HV** = harness-verified end-to-end on staging; **WT** = wired +
+type-checked + backward-compat suite passes (not harness-exercised this run); **DEF** = deferred
+(high-frequency — wire in G15.3 with the relay to avoid unbounded outbox growth); **RDY** =
+catalog + producer ready, call site documented, not yet wired.
+
+| Domain | Wired (status) | Not yet wired |
+|---|---|---|
+| League lifecycle | `season.activated` (HV), `season.completed` (HV) | `league.created`, `league.archived`, `schedule.generated` (RDY) |
+| Draft lifecycle | `draft.session.completed` (HV), `draft.session.started` (WT) | `paused`, `resumed` (RDY) |
+| Draft picks | — | `draft.pick.made` (RDY — `PickSubmissionService`, bounded volume) |
+| Roster changes | — | `roster.player.added/dropped` (RDY) |
+| Trades | `transaction.trade.accepted` (WT), `transaction.trade.processed` (WT) | `proposed`, `rejected`, `canceled`, `vetoed` (RDY) |
+| Waivers | `transaction.waiver.processed` (HV), `transaction.waiver.window_processed` (HV) | `submitted`, `canceled` (RDY) |
+| Lineup changes | — | `roster.lineup.set/locked` (RDY) |
+| Matchups | `competition.matchup.finalized` (HV) | `competition.matchup.updated` (DEF), `created` (RDY) |
+| Score updates | — | `competition.score.updated` (DEF — per-player; wire at live tick in G15.3) |
+| Standings | `competition.standings.updated` (HV) | — |
+| Playoffs | `competition.champion.crowned` (HV) | `bracket_generated`, `advanced` (RDY — `playoffs/{generate,advance}` routes) |
+| Governance | `governance.settings.changed` (WT) | `governance.commissioner.action` (RDY) |
+| User activity | — | `user.activity.recorded` (RDY) |
+| Chat activity | — | `chat.message.posted` (RDY — emit ids only, never content) |
+| Authentication | `auth.user.registered` (WT) | `auth.user.signed_in` (RDY — NextAuth events callback) |
+| Billing / entitlement | — | `billing.subscription.changed/entitlement.changed` (RDY — Stripe webhook; complex/sensitive, wire deliberately) |
+
+**Newly wired call sites (G15.2b):**
+- `lib/redraft/waiverEngine.ts` (`processWaiverWindow`) → `waiver.processed` (per claim) + `waiver.window_processed`.
+- `lib/redraft/scoringEngine.ts` (`updateMatchupScores`) → `matchup.finalized` (on final only).
+- `app/api/redraft/trade-votes/route.ts` (race-winning finalizer) → `trade.accepted` + `trade.processed`.
+- `lib/commissioner-settings/CommissionerSettingsService.ts` (`updateLeagueSettings`) → `settings.changed`.
+- `lib/live-draft-engine/DraftSessionService.ts` (`startDraftSession`) → `draft.session.started`.
+- `app/api/auth/register/route.ts` (post user-create) → `auth.user.registered` (id only, no PII).
+
+**Deferred-by-design:** `matchup.updated` and `score.updated` are high-frequency (every recalc /
+per player). Emitting them before the relay exists would grow `domain_events`/`event_outbox`
+unbounded with no drain. They are wired in G15.3 alongside the relay + first consumers.
