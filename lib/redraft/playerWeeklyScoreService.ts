@@ -93,6 +93,79 @@ export function normalizeNflWeeklyStats(raw: unknown): Record<string, number> {
   return out
 }
 
+/**
+ * Team-Defense / Special-Teams (DST) stat normalizer. Kept SEPARATE from
+ * `normalizeNflWeeklyStats` because several DST keys collide with offensive
+ * keys under the same name from the provider (`sack`, `int`, `fum_rec` mean
+ * sacks/INTs/fumbles *by the defense* for a DST row, but the opposite for a QB).
+ * The score-sync chooses this normalizer only for team-defense roster rows, so
+ * offensive players never pick up def_* keys. Emits the canonical `def_*` keys
+ * the NFL `team_def` scoring categories read.
+ */
+export function normalizeNflTeamDefenseWeeklyStats(raw: unknown): Record<string, number> {
+  const source = isRecord(raw) && isRecord(raw.stats) ? raw.stats : raw
+  if (!isRecord(source)) return {}
+
+  const out: Record<string, number> = {}
+
+  setIfNumber(out, 'def_sack', firstNumber(source, ['def_sack', 'sack', 'sacks', 'def_sacks']))
+  setIfNumber(out, 'def_int', firstNumber(source, ['def_int', 'interceptions', 'int', 'def_interceptions']))
+  setIfNumber(out, 'def_fr', firstNumber(source, ['def_fr', 'fum_rec', 'fumble_recovery', 'fumbles_recovered']))
+  setIfNumber(out, 'def_safety', firstNumber(source, ['def_safety', 'def_safe', 'safe', 'safety', 'safeties']))
+  setIfNumber(out, 'def_blk_kick', firstNumber(source, ['def_blk_kick', 'blk_kick', 'blocked_kick', 'blocked_kicks']))
+  setIfNumber(out, 'def_td', firstNumber(source, ['def_td', 'defensive_td', 'def_tds']))
+  setIfNumber(
+    out,
+    'def_st_td',
+    sumNumbers(source, ['def_st_td', 'st_td', 'special_teams_td', 'ret_td', 'kr_td', 'pr_td']),
+  )
+  setIfNumber(
+    out,
+    'def_points_allowed',
+    firstNumber(source, ['def_points_allowed', 'pts_allow', 'points_allowed', 'pa']),
+  )
+  setIfNumber(
+    out,
+    'def_yds_allowed',
+    firstNumber(source, ['def_yds_allowed', 'yds_allow', 'yards_allowed', 'total_yards_allowed']),
+  )
+  // Return yardage (G9): Sleeper exposes def_kr_yd / def_pr_yd on the DST row.
+  setIfNumber(out, 'def_kr_yd', firstNumber(source, ['def_kr_yd', 'kr_yd', 'kick_return_yards', 'kr_yards']))
+  setIfNumber(out, 'def_pr_yd', firstNumber(source, ['def_pr_yd', 'pr_yd', 'punt_return_yards', 'pr_yards']))
+
+  return out
+}
+
+/** True for a roster row that represents a team defense (DEF/DST slot). */
+export function isTeamDefenseRow(playerId: string | null | undefined, position: string | null | undefined): boolean {
+  const pos = String(position ?? '').trim().toUpperCase()
+  if (pos === 'DEF' || pos === 'DST') return true
+  return String(playerId ?? '').toLowerCase().startsWith('nfl:def:')
+}
+
+/** Parse the team abbreviation from a synthetic team-defense player id (`nfl:def:KC` → `KC`). */
+export function teamAbbrevFromDefPlayerId(playerId: string | null | undefined): string | null {
+  const m = String(playerId ?? '').match(/^nfl:def:(.+)$/i)
+  return m ? m[1].trim().toUpperCase() : null
+}
+
+/**
+ * Points allowed by a team's defense in a game = the opponent's final score.
+ * Pure so it is unit-testable; returns null when the team is not in the game or
+ * the score is not yet final/available.
+ */
+export function pointsAllowedFromGame(
+  game: { homeTeam: string | null; awayTeam: string | null; homeScore: number | null; awayScore: number | null },
+  team: string,
+): number | null {
+  const want = team.trim().toUpperCase()
+  const home = String(game.homeTeam ?? '').trim().toUpperCase()
+  const away = String(game.awayTeam ?? '').trim().toUpperCase()
+  if (want === home) return typeof game.awayScore === 'number' ? game.awayScore : null
+  if (want === away) return typeof game.homeScore === 'number' ? game.homeScore : null
+  return null
+}
+
 function rowWeek(row: unknown): number | null {
   if (!isRecord(row)) return null
   const direct = asNumber(row.week)
@@ -175,11 +248,11 @@ export async function syncPlayerWeeklyScoresForRedraftSeason(params: {
   const rosterPlayers = rosterIds.length
     ? await prisma.redraftRosterPlayer.findMany({
         where: { rosterId: { in: rosterIds }, droppedAt: null },
-        select: { playerId: true, sport: true },
+        select: { playerId: true, sport: true, position: true, team: true },
       })
     : []
 
-  const playerIds = Array.from(new Set(rosterPlayers.map((p) => p.playerId).filter(Boolean)))
+  const playerIds: string[] = Array.from(new Set(rosterPlayers.map((p: { playerId: string }) => p.playerId).filter(Boolean)))
   const summary: WeeklyScoreSyncSummary = {
     leagueId: season.leagueId,
     seasonId: season.id,
@@ -211,10 +284,74 @@ export async function syncPlayerWeeklyScoresForRedraftSeason(params: {
   })
   summary.cacheRowsRead = cachedRows.length
 
-  const cacheByPlayer = new Map(cachedRows.map((row) => [row.playerId, row]))
+  const cacheByPlayer = new Map<string, { payload: unknown }>(
+    cachedRows.map((row: { playerId: string; payload: unknown }) => [row.playerId, row]),
+  )
   const sportByPlayer = new Map(rosterPlayers.map((p) => [p.playerId, String(p.sport || sport).toUpperCase()]))
+  const positionByPlayer = new Map(
+    rosterPlayers.map((p: { playerId: string; position: string | null }) => [p.playerId, p.position ?? null]),
+  )
+  const teamByPlayer = new Map(
+    rosterPlayers.map((p: { playerId: string; team: string | null }) => [p.playerId, p.team ?? null]),
+  )
+
+  // Team-defense points-allowed is derivable from the real game result we
+  // already ingest (`SportsGame`): a defense's points-allowed = the opponent's
+  // final score. Pre-load this week's finished games keyed by team abbrev so a
+  // DEF starter scores from data we have, even without a per-team box-score
+  // provider feed. (Sacks/INT/etc. still require the box-score feed — see G8.)
+  const teamDefensePlayerIds = playerIds.filter((id) => isTeamDefenseRow(id, positionByPlayer.get(id) ?? null))
+  const gameByTeam = new Map<string, { homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null }>()
+  if (teamDefensePlayerIds.length > 0) {
+    const games = await prisma.sportsGame.findMany({
+      where: { sport: { in: candidateSportKeys(sport) }, season: seasonYear, week },
+      select: { homeTeam: true, awayTeam: true, homeScore: true, awayScore: true },
+    })
+    for (const g of games) {
+      const home = String(g.homeTeam ?? '').trim().toUpperCase()
+      const away = String(g.awayTeam ?? '').trim().toUpperCase()
+      if (home) gameByTeam.set(home, g)
+      if (away) gameByTeam.set(away, g)
+    }
+  }
 
   for (const playerId of playerIds) {
+    const position = positionByPlayer.get(playerId) ?? null
+    const playerSport = sportByPlayer.get(playerId) ?? sport
+
+    if (isTeamDefenseRow(playerId, position)) {
+      const cached = cacheByPlayer.get(playerId)
+      const weekPayload = cached ? findCachedWeekPayload(cached.payload, week) : null
+      const stats: Record<string, number> = weekPayload ? normalizeNflTeamDefenseWeeklyStats(weekPayload) : {}
+
+      // Derive points allowed from the game result when the box-score feed did
+      // not already provide it.
+      if (stats.def_points_allowed === undefined) {
+        const team = teamAbbrevFromDefPlayerId(playerId) ?? String(teamByPlayer.get(playerId) ?? '').trim().toUpperCase()
+        const game = team ? gameByTeam.get(team) : undefined
+        if (game) {
+          const pa = pointsAllowedFromGame(game, team)
+          if (pa !== null) stats.def_points_allowed = pa
+        }
+      }
+
+      if (!Object.keys(stats).length) {
+        // No box score and no finished game yet — nothing to score this week.
+        if (!cached) summary.missingCachePlayerIds.push(playerId)
+        else summary.missingWeekPlayerIds.push(playerId)
+        continue
+      }
+
+      const fantasyPts = await calculateScoreFromSportConfig(season.leagueId, playerId, week, stats, position)
+      await prisma.playerWeeklyScore.upsert({
+        where: { playerId_week_season_sport: { playerId, week, season: seasonYear, sport: playerSport } },
+        update: { stats, fantasyPts, isFinalized: false },
+        create: { playerId, week, season: seasonYear, sport: playerSport, stats, fantasyPts, isFinalized: false },
+      })
+      summary.scoresUpserted += 1
+      continue
+    }
+
     const cached = cacheByPlayer.get(playerId)
     if (!cached) {
       summary.missingCachePlayerIds.push(playerId)
@@ -232,9 +369,7 @@ export async function syncPlayerWeeklyScoresForRedraftSeason(params: {
       summary.missingStatPlayerIds.push(playerId)
       continue
     }
-
-    const playerSport = sportByPlayer.get(playerId) ?? sport
-    const fantasyPts = await calculateScoreFromSportConfig(season.leagueId, playerId, week, stats)
+    const fantasyPts = await calculateScoreFromSportConfig(season.leagueId, playerId, week, stats, positionByPlayer.get(playerId) ?? null)
 
     await prisma.playerWeeklyScore.upsert({
       where: {
