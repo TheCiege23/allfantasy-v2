@@ -59,3 +59,12 @@ export {
   type FeatureGatePrincipal,
   type FeatureGateDecision,
 } from '@/lib/intelligence/featureGate'
+// G15.9 — Chimmy commissioner-intelligence grounding adapter
+export {
+  detectCommissionerIntelligenceIntent,
+  buildCommissionerGrounding,
+  formatCommissionerGroundingText,
+  type CommissionerGrounding,
+  type CommissionerGroundingSummary,
+  type CommissionerGroundingStatus,
+} from '@/lib/intelligence/chimmy/commissionerGrounding'
