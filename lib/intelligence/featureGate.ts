@@ -12,6 +12,7 @@ export const INTELLIGENCE_FEATURES = {
   HEALTH_SNAPSHOT: 'commissioner_intelligence.health_snapshot',
   MANAGER_ACTIVITY: 'commissioner_intelligence.manager_activity',
   ACTION_ITEMS: 'commissioner_intelligence.action_items',
+  AUDIT_FEED: 'commissioner_intelligence.audit_feed',
 } as const
 
 export type IntelligenceFeature = (typeof INTELLIGENCE_FEATURES)[keyof typeof INTELLIGENCE_FEATURES]

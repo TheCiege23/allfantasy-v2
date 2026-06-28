@@ -64,6 +64,21 @@ export interface CommissionerActionItem {
   meta?: Record<string, unknown>
 }
 
+/** Privacy-safe audit-feed item (no payload content, no PII). */
+export interface AuditFeedItem {
+  eventId: string
+  type: string
+  summary: string
+  occurredAt: string
+  actorType: string | null
+  sport: string | null
+  leagueConcept: string | null
+}
+export interface AuditFeedPage {
+  items: AuditFeedItem[]
+  nextCursor: string | null
+}
+
 export interface ActionItemThresholds {
   staleLeagueDays?: number
   inactiveManagerDays?: number
@@ -216,6 +231,34 @@ export class IntelligenceQueryService {
       totalActions: m?.totalActions ?? 0,
       actions: { trade: m?.tradeActions ?? 0, waiver: m?.waiverActions ?? 0, lineup: m?.lineupActions ?? 0, other: m?.otherActions ?? 0 },
     }
+  }
+
+  async getLeagueAuditFeed(
+    leagueId: string,
+    opts: { limit?: number; cursor?: string } = {},
+    principal?: FeatureGatePrincipal,
+  ): Promise<AuditFeedPage> {
+    this.check(principal, INTELLIGENCE_FEATURES.AUDIT_FEED)
+    const limit = Math.max(1, Math.min(opts.limit ?? 25, 100))
+    const rows = await this.prisma.auditFeedEntry.findMany({
+      where: { leagueId },
+      orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1, // fetch one extra to detect "more"
+      ...(opts.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
+    })
+    const hasMore = rows.length > limit
+    const page = rows.slice(0, limit)
+    const items: AuditFeedItem[] = page.map((r) => ({
+      eventId: r.eventId,
+      type: r.type,
+      summary: r.summary,
+      occurredAt: r.occurredAt.toISOString(),
+      actorType: r.actorType ?? null,
+      sport: r.sport ?? null,
+      leagueConcept: r.leagueConcept ?? null,
+    }))
+    const nextCursor = hasMore ? page[page.length - 1]!.id : null
+    return { items, nextCursor }
   }
 
   async getCommissionerActionItems(leagueId: string, principal?: FeatureGatePrincipal, now: Date = new Date()): Promise<CommissionerActionItem[]> {

@@ -47,6 +47,8 @@ export {
   type CommissionerActionItem,
   type ActionItemSeverity,
   type ActionItemThresholds,
+  type AuditFeedItem,
+  type AuditFeedPage,
 } from '@/lib/intelligence/IntelligenceQueryService'
 export {
   INTELLIGENCE_FEATURES,
