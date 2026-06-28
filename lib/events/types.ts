@@ -135,6 +135,12 @@ export interface PersistOptions {
   tx?: unknown
 }
 
+/** A pending outbox row with its delivery-attempt count (for retry/dead-letter decisions). */
+export interface OutboxItem {
+  event: DomainEvent
+  attempts: number
+}
+
 /**
  * Durable store for the transactional outbox. `enqueue` MUST run inside the
  * caller's transaction (when `tx` is provided) so the event commits atomically
@@ -142,9 +148,25 @@ export interface PersistOptions {
  */
 export interface IOutboxStore {
   enqueue(event: DomainEvent, opts?: PersistOptions): Promise<void>
+  /** Pending events only (events), oldest first. Retained for compatibility. */
   fetchPending(limit: number, now?: Date): Promise<DomainEvent[]>
+  /** Pending events with attempt counts (oldest first) — used by the relay for retry/dead-letter. */
+  claimPending(limit: number, now?: Date): Promise<OutboxItem[]>
   markDispatched(eventId: string): Promise<void>
+  /** Increment attempts, record the error, and reschedule (status stays 'pending'). */
   markFailed(eventId: string, error: string, nextAvailableAt: Date): Promise<void>
+  /** Terminal failure: status becomes 'dead' (excluded from future claims). */
+  markDead(eventId: string, error: string): Promise<void>
+}
+
+/**
+ * A durable consumer of dispatched events. Handlers MUST be idempotent (keyed on
+ * `event.eventId`) because delivery is at-least-once. A thrown error signals the
+ * relay to retry (and eventually dead-letter) the event.
+ */
+export interface EventConsumer {
+  readonly name: string
+  handle(event: DomainEvent): Promise<void> | void
 }
 
 /** Persists a normalized event (and its outbox entry) — does NOT dispatch. */

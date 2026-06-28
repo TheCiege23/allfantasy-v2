@@ -13257,6 +13257,42 @@ model EventOutbox {
   @@map("event_outbox")
 }
 
+/// G15.3 Event Projections — first read model (League Activity Timeline / Event Audit
+/// Feed). DISPOSABLE: rebuildable from DomainEvent; business behavior must not depend
+/// on it. Idempotent by `eventId` (at-least-once delivery → upsert on replay).
+model AuditFeedEntry {
+  id            String   @id @default(cuid())
+  eventId       String   @unique
+  tenantId      String   @default("allfantasy")
+  leagueId      String?
+  seasonId      String?
+  type          String
+  summary       String   @default("")
+  sport         String?
+  leagueConcept String?
+  actorType     String?
+  actorId       String?
+  occurredAt    DateTime
+  createdAt     DateTime @default(now())
+
+  @@index([leagueId, occurredAt])
+  @@index([tenantId, occurredAt])
+  @@index([type])
+  @@map("event_audit_feed")
+}
+
+/// G15.3 — per-projection cursor for rebuild/operational visibility.
+model ProjectionCheckpoint {
+  id              String    @id @default(cuid())
+  projection      String    @unique
+  lastEventId     String?
+  lastOccurredAt  DateTime?
+  eventsProcessed Int       @default(0)
+  updatedAt       DateTime  @updatedAt
+
+  @@map("intelligence_projection_checkpoint")
+}
+
 /// T8: native trade block — a manager publicly signals a player they will move (+ what they want
 /// back). League-visible. No FK (signal survives roster churn). Internal ids only.
 model RedraftTradeBlockItem {

@@ -30,7 +30,7 @@ d('transactional outbox against a real database', () => {
   const store = new PrismaOutboxStore(prisma as unknown as PrismaLike)
   const bus = new InProcessEventBus()
   const publisher = new EventPublisher(new EventNormalizer(new InMemoryEventSchemaRegistry()), store)
-  const relay = new OutboxRelay(store, bus)
+  const relay = new OutboxRelay(store, { bus })
   const created: string[] = []
   const mark = `EVTIT-${Date.now()}`
 

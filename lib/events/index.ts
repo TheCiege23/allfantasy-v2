@@ -23,7 +23,27 @@ export { InMemoryEventSchemaRegistry, zodValidator } from './schemaRegistry'
 export { InProcessEventBus, inProcessEventBus } from './eventBus'
 export { EventNormalizer, type EventNormalizerOptions } from './normalizer'
 export { EventPublisher } from './eventPublisher'
-export { OutboxRelay, type OutboxRelayOptions, type DispatchSummary } from './outboxRelay'
+export {
+  OutboxRelay,
+  type OutboxRelayOptions,
+  type DispatchSummary,
+  type RunOptions,
+  type RelayLogger,
+  type RelayLogLevel,
+} from './outboxRelay'
+// G15.3 — first projection (event audit feed / activity timeline)
+export {
+  AUDIT_FEED_PROJECTION,
+  summarizeEvent,
+  toAuditFeedEntry,
+  createAuditFeedConsumer,
+  createPrismaAuditFeedUpsert,
+  createPrismaAuditFeedConsumer,
+  rebuildAuditFeed,
+  type AuditFeedEntryInput,
+  type AuditFeedUpsert,
+  type AuditFeedPrisma,
+} from './projections/auditFeed'
 export {
   PrismaOutboxStore,
   InMemoryOutboxStore,

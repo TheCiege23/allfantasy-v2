@@ -10,7 +10,7 @@
  * pending rows and publishes to the bus. This decouples persistence from transport
  * and is what makes horizontal scaling possible without a Redis dependency today.
  */
-import type { DomainEvent, EventActor, EventPeriod, EventSubjectRef, IOutboxStore, PersistOptions } from './types'
+import type { DomainEvent, EventActor, EventPeriod, EventSubjectRef, IOutboxStore, OutboxItem, PersistOptions } from './types'
 
 // ── Row <-> DomainEvent mapping ──────────────────────────────────────────────
 
@@ -92,7 +92,7 @@ export interface PrismaLike {
   }
   eventOutbox: {
     create(args: { data: Record<string, unknown> }): Promise<unknown>
-    findMany(args: Record<string, unknown>): Promise<{ eventId: string }[]>
+    findMany(args: Record<string, unknown>): Promise<{ eventId: string; attempts: number }[]>
     update(args: Record<string, unknown>): Promise<unknown>
   }
 }
@@ -117,6 +117,10 @@ export class PrismaOutboxStore implements IOutboxStore {
   }
 
   async fetchPending(limit: number, now: Date = new Date()): Promise<DomainEvent[]> {
+    return (await this.claimPending(limit, now)).map((i) => i.event)
+  }
+
+  async claimPending(limit: number, now: Date = new Date()): Promise<OutboxItem[]> {
     const pending = await this.client.eventOutbox.findMany({
       where: { status: 'pending', availableAt: { lte: now } },
       orderBy: { createdAt: 'asc' },
@@ -124,10 +128,14 @@ export class PrismaOutboxStore implements IOutboxStore {
     })
     if (pending.length === 0) return []
     const ids = pending.map((p) => p.eventId)
+    const attemptsById = new Map(pending.map((p) => [p.eventId, p.attempts]))
     const rows = await this.client.domainEvent.findMany({ where: { eventId: { in: ids } } })
     const byId = new Map(rows.map((r) => [r.eventId, r]))
     // Preserve pending (createdAt asc) order.
-    return ids.map((id) => byId.get(id)).filter((r): r is DomainEventRow => Boolean(r)).map(rowToDomainEvent)
+    return ids
+      .map((id) => byId.get(id))
+      .filter((r): r is DomainEventRow => Boolean(r))
+      .map((r) => ({ event: rowToDomainEvent(r), attempts: attemptsById.get(r.eventId) ?? 0 }))
   }
 
   async markDispatched(eventId: string): Promise<void> {
@@ -140,7 +148,14 @@ export class PrismaOutboxStore implements IOutboxStore {
   async markFailed(eventId: string, error: string, nextAvailableAt: Date): Promise<void> {
     await this.client.eventOutbox.update({
       where: { eventId },
-      data: { attempts: { increment: 1 }, lastError: error.slice(0, 1000), availableAt: nextAvailableAt },
+      data: { status: 'pending', attempts: { increment: 1 }, lastError: error.slice(0, 1000), availableAt: nextAvailableAt },
+    })
+  }
+
+  async markDead(eventId: string, error: string): Promise<void> {
+    await this.client.eventOutbox.update({
+      where: { eventId },
+      data: { status: 'dead', attempts: { increment: 1 }, lastError: error.slice(0, 1000) },
     })
   }
 }
@@ -149,7 +164,7 @@ export class PrismaOutboxStore implements IOutboxStore {
 
 export class InMemoryOutboxStore implements IOutboxStore {
   readonly events = new Map<string, DomainEvent>()
-  readonly outbox = new Map<string, { status: 'pending' | 'dispatched'; attempts: number; availableAt: Date; createdAt: Date; lastError?: string; dispatchedAt?: Date }>()
+  readonly outbox = new Map<string, { status: 'pending' | 'dispatched' | 'dead'; attempts: number; availableAt: Date; createdAt: Date; lastError?: string; dispatchedAt?: Date }>()
 
   async enqueue(event: DomainEvent): Promise<void> {
     if (this.events.has(event.idempotencyKey)) {
@@ -160,13 +175,17 @@ export class InMemoryOutboxStore implements IOutboxStore {
   }
 
   async fetchPending(limit: number, now: Date = new Date()): Promise<DomainEvent[]> {
-    const ids = [...this.outbox.entries()]
+    return (await this.claimPending(limit, now)).map((i) => i.event)
+  }
+
+  async claimPending(limit: number, now: Date = new Date()): Promise<OutboxItem[]> {
+    const byEventId = new Map([...this.events.values()].map((e) => [e.eventId, e]))
+    return [...this.outbox.entries()]
       .filter(([, o]) => o.status === 'pending' && o.availableAt <= now)
       .sort((a, b) => a[1].createdAt.getTime() - b[1].createdAt.getTime())
       .slice(0, limit)
-      .map(([id]) => id)
-    const byEventId = new Map([...this.events.values()].map((e) => [e.eventId, e]))
-    return ids.map((id) => byEventId.get(id)).filter((e): e is DomainEvent => Boolean(e))
+      .map(([id, o]) => ({ event: byEventId.get(id), attempts: o.attempts }))
+      .filter((i): i is OutboxItem => Boolean(i.event))
   }
 
   async markDispatched(eventId: string): Promise<void> {
@@ -183,6 +202,16 @@ export class InMemoryOutboxStore implements IOutboxStore {
       o.attempts += 1
       o.lastError = error
       o.availableAt = nextAvailableAt
+      o.status = 'pending'
+    }
+  }
+
+  async markDead(eventId: string, error: string): Promise<void> {
+    const o = this.outbox.get(eventId)
+    if (o) {
+      o.attempts += 1
+      o.lastError = error
+      o.status = 'dead'
     }
   }
 }

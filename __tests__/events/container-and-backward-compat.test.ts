@@ -58,7 +58,7 @@ describe('event infrastructure container (DI)', () => {
     const bus = new InProcessEventBus()
     const reg = new InMemoryEventSchemaRegistry()
     const publisher = new EventPublisher(new EventNormalizer(reg), store)
-    const relay = new OutboxRelay(store, bus)
+    const relay = new OutboxRelay(store, { bus })
     const seen: string[] = []
     bus.subscribe('lifecycle.*', (e) => {
       seen.push(e.type)

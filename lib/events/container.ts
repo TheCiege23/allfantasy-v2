@@ -41,7 +41,10 @@ function build(overrides: EventInfrastructureOverrides = {}): EventInfrastructur
   const bus = overrides.bus ?? inProcessEventBus
   const outboxStore = overrides.outboxStore ?? new PrismaOutboxStore(prisma as unknown as PrismaLike)
   const publisher = overrides.publisher ?? new EventPublisher(normalizer, outboxStore)
-  const relay = overrides.relay ?? new OutboxRelay(outboxStore, bus)
+  // Default relay does best-effort fan-out only (no DB consumers) so unit tests and
+  // the default runtime stay side-effect-light. Durable consumers (e.g. the audit-feed
+  // projection) are wired by the relay runner — see scripts/run-outbox-relay.ts.
+  const relay = overrides.relay ?? new OutboxRelay(outboxStore, { bus })
   return { registry, normalizer, bus, outboxStore, publisher, relay }
 }
 

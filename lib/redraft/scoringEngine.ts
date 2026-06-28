@@ -357,11 +357,15 @@ export async function updateMatchupScores(matchupId: string): Promise<MatchupSco
     },
   })
 
-  // G15.2b — publish matchup.finalized when the matchup reaches a final result
-  // (best-effort, never throws; deterministic key → exactly one per matchup).
-  // matchup.updated/score.updated are high-frequency and intentionally DEFERRED to
-  // G15.3 (relay) to avoid unbounded outbox growth while nothing drains it.
+  // G15.2b/G15.3 — best-effort, never throws.
+  //  • matchup.finalized: once per matchup (deterministic key), on final result.
+  //  • matchup.updated: only when the score actually CHANGED (compared to the prior
+  //    persisted score) so high-frequency no-op recalcs don't flood the log. Safe to
+  //    wire now that the G15.3 relay drains the outbox.
+  //  • score.updated (per-player) stays DEFERRED — per-player-per-sync volume would grow
+  //    the permanent domain_events log unbounded; needs coalescing/retention (G15.4+).
   const isFinal = isComplete && home.allFinal && away.allFinal
+  const scoreChanged = home.points !== m.homeScore || away.points !== m.awayScore
   if (isFinal) {
     const winnerRosterId =
       home.points > away.points ? homeRosterId : away.points > home.points ? awayRosterId : null
@@ -376,6 +380,18 @@ export async function updateMatchupScores(matchupId: string): Promise<MatchupSco
       idempotencyKey: `matchup.finalized:${matchupId}`,
       subjects: [{ kind: 'matchup', id: matchupId }],
       payload: { matchupId, homeScore: home.points, awayScore: away.points, winnerRosterId: winnerRosterId ?? undefined },
+    })
+  } else if (scoreChanged) {
+    await getPlatformEvents().emit(EVENT.MATCHUP_UPDATED, {
+      leagueId,
+      seasonId: seasonRowId,
+      sport: season.sport ?? null,
+      leagueConcept: 'redraft',
+      actor: { type: 'system' },
+      source: 'engine:scoring',
+      period: { kind: 'week', index: week },
+      subjects: [{ kind: 'matchup', id: matchupId }],
+      payload: { matchupId },
     })
   }
 
