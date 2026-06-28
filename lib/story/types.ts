@@ -85,6 +85,10 @@ export interface StoryDraft {
   text: string
   /** True when there is not enough recorded activity to tell a story. */
   empty: boolean
+  /** When this draft was produced (context build time). */
+  generatedAt: string
+  /** Source freshness: last recorded league activity, or null. */
+  sourceFreshness: string | null
 }
 
 /** LLM-ready, privacy-safe prompt pair. Provided for later; G15.12 does NOT call an LLM. */

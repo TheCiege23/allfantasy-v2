@@ -71,6 +71,8 @@ function emptyDraft(type: StoryType, ctx: StoryContext): StoryDraft {
     bullets: [headline],
     text: renderText(title, headline, sections),
     empty: true,
+    generatedAt: ctx.generatedAt,
+    sourceFreshness: ctx.activity.lastActivityAt,
   }
 }
 
@@ -176,7 +178,11 @@ export function generateStoryDraft(type: StoryType, ctx: StoryContext): StoryDra
   const headline = headlineFor(type, ctx)
   const sections = (GENERATORS[type] ?? activityReport)(ctx)
   const bullets = sections.flatMap((s) => s.body.split('\n').map((l) => l.replace(/^•\s?/, '').trim()).filter(Boolean))
-  return { type, status: 'ok', title, headline, sections, bullets, text: renderText(title, headline, sections), empty: false }
+  return {
+    type, status: 'ok', title, headline, sections, bullets,
+    text: renderText(title, headline, sections), empty: false,
+    generatedAt: ctx.generatedAt, sourceFreshness: ctx.activity.lastActivityAt,
+  }
 }
 
 /**
