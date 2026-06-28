@@ -21,6 +21,17 @@ const healthOk = { status: 200, body: { data: { leagueId: 'L', healthScore: 80, 
 const actionItemsOk = { status: 200, body: { data: [{ kind: 'pending_trades', severity: 'warning', message: '1 trade proposal(s) awaiting resolution.' }] } }
 const auditOk = { status: 200, body: { data: [{ eventId: 'e1', type: 'competition.champion.crowned', summary: 'Champion crowned', occurredAt: '2026-06-27T00:00:00.000Z', actorType: 'system' }], meta: { nextCursor: null } } }
 
+// G15.14 — story preview responses keyed by ?type=
+const storyPreview = (type: string, over: Record<string, unknown> = {}) => ({
+  status: 200,
+  body: { data: { type, title: 'Title ' + type, summary: 'A summary line', sections: [{ heading: 'Activity', body: '• thing one\n• thing two' }], safetyNote: 'Observations, not accusations.', status: 'ok', empty: false, generatedAt: '2026-06-28T00:00:00.000Z', sourceFreshness: '2026-06-27T00:00:00.000Z', ...over } },
+})
+const storyRoute = (url: string) => {
+  const type = new URL('http://x' + url.slice(url.indexOf('/api'))).searchParams.get('type') ?? ''
+  if (type === 'commissioner_summary' || type === 'health_narrative') return { status: 403 } // commissioner-only
+  return storyPreview(type)
+}
+
 beforeEach(() => vi.restoreAllMocks())
 afterEach(() => vi.restoreAllMocks())
 
@@ -83,6 +94,40 @@ describe('CommissionerIntelligenceHub', () => {
     fireEvent.click(loadMore)
     expect(await screen.findByText('Trade accepted')).toBeInTheDocument()
     expect(screen.getByText('Champion crowned')).toBeInTheDocument() // first page still present (appended)
+  })
+
+  it('renders read-only story cards: member types show content, commissioner-only show restricted', async () => {
+    installFetch({ '/activity': activityOk, '/health': healthOk, '/action-items': actionItemsOk, '/audit-feed': auditOk, '/preview': storyRoute })
+    render(<CommissionerIntelligenceHub leagueId="L" />)
+    const weekly = await screen.findByTestId('story-card-weekly_recap')
+    expect(within(weekly).getByTestId('story-content-weekly_recap')).toBeInTheDocument()
+    expect(within(weekly).getByTestId('story-safety-weekly_recap').textContent).toMatch(/not accusations/i)
+    // commissioner-only story type renders restricted, never its content
+    const comm = await screen.findByTestId('story-card-commissioner_summary')
+    expect(within(comm).getByTestId('state-restricted').textContent).toContain('Commissioner only')
+    expect(within(comm).queryByTestId('story-content-commissioner_summary')).toBeNull()
+  })
+
+  it('shows a safe story empty-state when there is not enough activity', async () => {
+    installFetch({
+      '/activity': activityOk, '/health': healthOk, '/action-items': actionItemsOk, '/audit-feed': auditOk,
+      '/preview': (url: string) => {
+        const type = new URL('http://x' + url.slice(url.indexOf('/api'))).searchParams.get('type') ?? ''
+        return storyPreview(type, { empty: true, status: 'empty', summary: 'Not enough recorded league activity yet to tell this story.', sections: [] })
+      },
+    })
+    render(<CommissionerIntelligenceHub leagueId="L" />)
+    expect((await screen.findByTestId('story-empty-weekly_recap')).textContent).toMatch(/not enough recorded league activity/i)
+  })
+
+  it('shows upgrade state on a premium-gated story type (402)', async () => {
+    installFetch({
+      '/activity': activityOk, '/health': healthOk, '/action-items': actionItemsOk, '/audit-feed': auditOk,
+      '/preview': (url: string) => (url.includes('weekly_recap') ? { status: 402 } : storyRoute(url)),
+    })
+    render(<CommissionerIntelligenceHub leagueId="L" />)
+    const weekly = await screen.findByTestId('story-card-weekly_recap')
+    expect(within(weekly).getByTestId('state-upgrade')).toBeInTheDocument()
   })
 
   it('does not render raw payload/PII (only contract DTO fields)', async () => {

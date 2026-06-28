@@ -36,6 +36,35 @@ interface HealthSnapshot {
 interface ActionItem { kind: string; severity: 'info' | 'warning' | 'action'; message: string }
 interface AuditItem { eventId: string; type: string; summary: string; occurredAt: string; actorType: string | null }
 
+// G15.14 — Story preview contract (mirror /api/v1/stories DTOs).
+interface StorySection { heading: string; body: string }
+interface StoryPreview {
+  type: string
+  title: string
+  summary: string
+  sections: StorySection[]
+  safetyNote: string
+  status: 'ok' | 'empty' | 'restricted'
+  empty: boolean
+  generatedAt: string
+  sourceFreshness: string | null
+}
+const STORY_TITLES: Record<string, string> = {
+  weekly_recap: 'Weekly League Recap',
+  what_happened_recently: 'What Happened Recently',
+  activity_report: 'League Activity Report',
+  commissioner_summary: 'Commissioner Summary',
+  health_narrative: 'League Health Narrative',
+}
+// Member-readable vs commissioner-only (matches the story API permission model).
+const STORY_CARDS: { type: string; commissionerOnly: boolean }[] = [
+  { type: 'weekly_recap', commissionerOnly: false },
+  { type: 'what_happened_recently', commissionerOnly: false },
+  { type: 'activity_report', commissionerOnly: false },
+  { type: 'commissioner_summary', commissionerOnly: true },
+  { type: 'health_narrative', commissionerOnly: true },
+]
+
 type ResourceStatus = 'loading' | 'ok' | 'unauthorized' | 'forbidden' | 'not_found' | 'upgrade' | 'error'
 interface Resource<T> { status: ResourceStatus; data?: T; reload: () => void }
 
@@ -244,6 +273,52 @@ function AuditFeedModule({ leagueId }: { leagueId: string }) {
   )
 }
 
+// G15.14 — read-only Story Cards. Each card owns its loading/empty/restricted/upgrade state and
+// consumes ONLY the story preview API (deterministic; no LLM call, no writes, no auto-post).
+// Commissioner-only story types render a clean "Commissioner only" card on 401/403/404.
+function StoryCard({ leagueId, type, commissionerOnly }: { leagueId: string; type: string; commissionerOnly: boolean }) {
+  const r = useResource<StoryPreview>(`/api/v1/stories/leagues/${encodeURIComponent(leagueId)}/preview?type=${encodeURIComponent(type)}`)
+  const title = r.data?.title ?? STORY_TITLES[type] ?? 'League Story'
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/20 p-4" data-testid={`story-card-${type}`}>
+      <h3 className="text-sm font-semibold text-white">{title}</h3>
+      {r.status !== 'ok' ? (
+        <div className="mt-2">
+          <StateMessage status={r.status} commissionerOnly={commissionerOnly} />
+        </div>
+      ) : !r.data || r.data.empty ? (
+        <p className="mt-2 text-xs text-white/45" data-testid={`story-empty-${type}`}>
+          {r.data?.summary ?? 'Not enough recorded league activity yet to tell this story.'}
+        </p>
+      ) : (
+        <div className="mt-2 space-y-3" data-testid={`story-content-${type}`}>
+          <p className="text-xs text-white/70">{r.data.summary}</p>
+          {r.data.sections.map((s, i) => (
+            <div key={`${s.heading}-${i}`}>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-white/40">{s.heading}</div>
+              <p className="whitespace-pre-line text-xs text-white/75">{s.body}</p>
+            </div>
+          ))}
+          <p className="text-[10px] italic text-white/30" data-testid={`story-safety-${type}`}>{r.data.safetyNote}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StoriesModule({ leagueId }: { leagueId: string }) {
+  return (
+    <Card title="League Stories" testId="module-stories">
+      <p className="mb-3 text-[11px] text-white/40">Auto-generated, read-only narrative drafts from recorded league activity.</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {STORY_CARDS.map((c) => (
+          <StoryCard key={c.type} leagueId={leagueId} type={c.type} commissionerOnly={c.commissionerOnly} />
+        ))}
+      </div>
+    </Card>
+  )
+}
+
 export function CommissionerIntelligenceHub({ leagueId }: { leagueId: string }) {
   return (
     <main className="mx-auto max-w-3xl space-y-4 px-4 py-8 text-white" data-testid="commissioner-intelligence-hub">
@@ -254,6 +329,7 @@ export function CommissionerIntelligenceHub({ leagueId }: { leagueId: string }) 
       <ActivityModule leagueId={leagueId} />
       <HealthModule leagueId={leagueId} />
       <ActionItemsModule leagueId={leagueId} />
+      <StoriesModule leagueId={leagueId} />
       <AuditFeedModule leagueId={leagueId} />
     </main>
   )
