@@ -99,7 +99,7 @@ describe('OutboxRelay', () => {
 
     expect(summary).toMatchObject({ fetched: 1, dispatched: 0, retried: 1, deadLettered: 0 })
     const row = store.outbox.get(e1.eventId)!
-    expect(row.status).toBe('pending') // still pending, retried later
+    expect(row.status).toBe('retry') // scheduled for a later attempt
     expect(row.attempts).toBe(1)
     expect(row.availableAt.getTime()).toBe(fixedNow.getTime() + 5000) // base * 2^(1-1)
   })

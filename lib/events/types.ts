@@ -141,6 +141,14 @@ export interface OutboxItem {
   attempts: number
 }
 
+/** Options for an atomic claim by a relay worker. */
+export interface ClaimOptions {
+  batchSize: number
+  /** A claimed row whose `claimedAt` is older than this many ms is treated as stale and reclaimable. */
+  staleClaimMs: number
+  now?: Date
+}
+
 /**
  * Durable store for the transactional outbox. `enqueue` MUST run inside the
  * caller's transaction (when `tx` is provided) so the event commits atomically
@@ -148,12 +156,21 @@ export interface OutboxItem {
  */
 export interface IOutboxStore {
   enqueue(event: DomainEvent, opts?: PersistOptions): Promise<void>
-  /** Pending events only (events), oldest first. Retained for compatibility. */
+  /** Read-only peek: pending events only, oldest first. Used for dry-run (no claiming). */
   fetchPending(limit: number, now?: Date): Promise<DomainEvent[]>
-  /** Pending events with attempt counts (oldest first) — used by the relay for retry/dead-letter. */
+  /** Read-only peek with attempt counts (oldest first). No state change. */
   claimPending(limit: number, now?: Date): Promise<OutboxItem[]>
+  /**
+   * ATOMICALLY claim a batch for `workerId`: marks rows 'claimed' (claimedBy/claimedAt)
+   * and returns them. Claims rows that are due ('pending'/'retry' with availableAt<=now)
+   * OR stale ('claimed' with claimedAt older than staleClaimMs). Two workers never get the
+   * same row. Returns claimed events with their attempt counts.
+   */
+  claimBatch(workerId: string, opts: ClaimOptions): Promise<OutboxItem[]>
   markDispatched(eventId: string): Promise<void>
-  /** Increment attempts, record the error, and reschedule (status stays 'pending'). */
+  /** Failed attempt: status='retry', attempts++, reschedule at nextAvailableAt, release claim. */
+  markRetry(eventId: string, error: string, nextAvailableAt: Date): Promise<void>
+  /** @deprecated use markRetry — kept for compatibility. */
   markFailed(eventId: string, error: string, nextAvailableAt: Date): Promise<void>
   /** Terminal failure: status becomes 'dead' (excluded from future claims). */
   markDead(eventId: string, error: string): Promise<void>

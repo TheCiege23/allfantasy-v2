@@ -50,6 +50,8 @@ const logger: RelayLogger = (level, message, meta) =>
     bus: inProcessEventBus,
     batchSize: Number(val('--batch-size', '100')),
     maxRetries: Number(val('--max-retries', '5')),
+    claimTimeoutMs: Number(val('--claim-timeout', '60000')),
+    workerId: val('--worker-id', `relay-${process.pid}`),
     dryRun: has('--dry-run'),
     logger,
   })

@@ -13245,15 +13245,18 @@ model DomainEvent {
 model EventOutbox {
   id           String    @id @default(cuid())
   eventId      String    @unique
-  status       String    @default("pending")
+  status       String    @default("pending") // pending | claimed | retry | dispatched | dead
   attempts     Int       @default(0)
   availableAt  DateTime  @default(now())
+  claimedBy    String?
+  claimedAt    DateTime?
   lastError    String?
   dispatchedAt DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   @@index([status, availableAt])
+  @@index([status, claimedAt])
   @@map("event_outbox")
 }
 

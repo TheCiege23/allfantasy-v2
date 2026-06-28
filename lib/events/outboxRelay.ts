@@ -14,6 +14,7 @@
  * `status='claimed'` CAS) so two relays never dispatch the same row — see the runbook
  * in docs/g15-3-relay-and-projection.md. The default in-process bus is single-node.
  */
+import { randomUUID } from 'node:crypto'
 import type { DomainEvent, EventConsumer, IEventBus, IOutboxStore } from './types'
 
 export type RelayLogLevel = 'debug' | 'info' | 'warn' | 'error'
@@ -31,6 +32,10 @@ export interface OutboxRelayOptions {
   maxRetryMs?: number
   /** When true: report what would be dispatched without delivering or mutating state. */
   dryRun?: boolean
+  /** Identifies this worker on claimed rows (for ownership + debugging). Default: random. */
+  workerId?: string
+  /** A claim older than this is considered stale (crashed worker) and reclaimable. Default 60s. */
+  claimTimeoutMs?: number
   logger?: RelayLogger
   now?: () => Date
 }
@@ -68,6 +73,8 @@ export class OutboxRelay {
   private readonly baseRetryMs: number
   private readonly maxRetryMs: number
   private readonly dryRun: boolean
+  private readonly workerId: string
+  private readonly claimTimeoutMs: number
   private readonly logger: RelayLogger
   private readonly now: () => Date
 
@@ -82,8 +89,15 @@ export class OutboxRelay {
     this.baseRetryMs = opts.baseRetryMs ?? 5_000
     this.maxRetryMs = opts.maxRetryMs ?? 5 * 60_000
     this.dryRun = opts.dryRun ?? false
+    this.workerId = opts.workerId ?? `relay-${randomUUID().slice(0, 8)}`
+    this.claimTimeoutMs = opts.claimTimeoutMs ?? 60_000
     this.logger = opts.logger ?? noopLogger
     this.now = opts.now ?? (() => new Date())
+  }
+
+  /** This relay's worker id (stamped on claimed rows). */
+  get id(): string {
+    return this.workerId
   }
 
   private backoffMs(attempts: number): number {
@@ -92,7 +106,12 @@ export class OutboxRelay {
 
   /** Process exactly one batch. Never throws for a single bad event. */
   async runOnce(): Promise<DispatchSummary> {
-    const items = await this.store.claimPending(this.batchSize, this.now())
+    const now = this.now()
+    // Dry-run: read-only peek (no claim, no state change). Otherwise atomically claim.
+    const items = this.dryRun
+      ? await this.store.claimPending(this.batchSize, now)
+      : await this.store.claimBatch(this.workerId, { batchSize: this.batchSize, staleClaimMs: this.claimTimeoutMs, now })
+
     const summary: DispatchSummary = {
       fetched: items.length,
       dispatched: 0,
@@ -105,7 +124,7 @@ export class OutboxRelay {
 
     for (const { event, attempts } of items) {
       if (this.dryRun) {
-        this.logger('info', 'relay dry-run: would dispatch', { eventId: event.eventId, type: event.type, attempts })
+        this.logger('info', 'relay dry-run: would dispatch', { workerId: this.workerId, eventId: event.eventId, type: event.type, attempts })
         continue
       }
       try {
@@ -117,6 +136,7 @@ export class OutboxRelay {
             await this.bus.publish(event)
           } catch (busErr) {
             this.logger('warn', 'relay bus fan-out failed (non-fatal)', {
+              workerId: this.workerId,
               eventId: event.eventId,
               error: busErr instanceof Error ? busErr.message : String(busErr),
             })
@@ -130,12 +150,12 @@ export class OutboxRelay {
         if (nextAttempts >= this.maxRetries) {
           await this.store.markDead(event.eventId, error)
           summary.deadLettered += 1
-          this.logger('error', 'relay dead-lettered event', { eventId: event.eventId, type: event.type, attempts: nextAttempts, error })
+          this.logger('error', 'relay dead-lettered event', { workerId: this.workerId, eventId: event.eventId, type: event.type, attempts: nextAttempts, error })
         } else {
-          const nextAvailableAt = new Date(this.now().getTime() + this.backoffMs(nextAttempts))
-          await this.store.markFailed(event.eventId, error, nextAvailableAt)
+          const nextAvailableAt = new Date(now.getTime() + this.backoffMs(nextAttempts))
+          await this.store.markRetry(event.eventId, error, nextAvailableAt)
           summary.retried += 1
-          this.logger('warn', 'relay retry scheduled', { eventId: event.eventId, attempts: nextAttempts, nextAvailableAt, error })
+          this.logger('warn', 'relay retry scheduled', { workerId: this.workerId, eventId: event.eventId, attempts: nextAttempts, nextAvailableAt, error })
         }
         summary.failures.push({ eventId: event.eventId, error })
       }
@@ -143,6 +163,7 @@ export class OutboxRelay {
 
     summary.failed = summary.retried + summary.deadLettered
     this.logger('info', 'relay batch complete', {
+      workerId: this.workerId,
       fetched: summary.fetched,
       dispatched: summary.dispatched,
       retried: summary.retried,

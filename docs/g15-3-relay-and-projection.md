@@ -148,3 +148,53 @@ can be added when multiple projections need independent cursors.
 - Staging E2E: harness emitted 13 events → relay drained all (dispatched 13 / pending 0 /
   dead 0) → audit feed populated across 9 types incl. `matchup.updated`; then cleaned up.
   Engine harness **PASS 32 / FAIL 0** (no behavior change).
+
+---
+
+## 8. G15.3b — Production hardening (multi-worker safe)
+
+### Claim states (`event_outbox.status`)
+`pending` (new) → `claimed` (in-flight, `claimedBy`/`claimedAt` set) → `dispatched` (done).
+On failure: `retry` (scheduled at `availableAt = now + backoff`) until `dead` (terminal,
+`attempts >= maxRetries`). Migration `20260627030000_add_outbox_claim` adds `claimedBy`,
+`claimedAt` (+ index).
+
+### Claiming strategy — atomic, no double-processing
+`PrismaOutboxStore.claimBatch(workerId, opts)` runs a single statement:
+
+```sql
+UPDATE "event_outbox" SET status='claimed', "claimedBy"=$1, "claimedAt"=$2
+WHERE id IN (
+  SELECT id FROM "event_outbox"
+  WHERE ((status IN ('pending','retry') AND "availableAt" <= $2)
+         OR (status='claimed' AND "claimedAt" < $3))   -- $3 = now - claimTimeout (stale)
+  ORDER BY "createdAt" ASC LIMIT $4
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING "eventId", attempts
+```
+
+`FOR UPDATE SKIP LOCKED` makes two workers claim **disjoint** batches; the CAS flip to
+`claimed` makes the claim durable. (Proven: two concurrent workers process each event exactly
+once — `relay-claiming-db.integration.test.ts`.) The in-memory store mirrors this with a
+synchronous critical section.
+
+### Stale-claim recovery
+A `claimed` row whose `claimedAt` is older than `claimTimeoutMs` (default 60s) is treated as a
+crashed worker's claim and becomes eligible again — picked up by the same `claimBatch` query.
+(Proven: crashed claim recovered + dispatched after timeout.)
+
+### Operational controls (`scripts/run-outbox-relay.ts`)
+`--worker-id`, `--claim-timeout=MS`, `--batch-size`, `--max-retries`, `--once`, `--dry-run`
+(read-only peek — no claim/no state change), `--max-batches`, structured logs (every batch +
+per-event retry/dead-letter, all stamped with `workerId`).
+
+### Scaling status (updates §6)
+- **Atomic claiming is implemented** → multiple relay workers are now safe against one Postgres.
+- Still single-process **bus** fan-out (ephemeral SSE) — Redis/BullMQ `IEventBus` adapter is the
+  cross-node path (port exists).
+- DB integration tests share the **global** outbox, so they must run serially
+  (`vitest --no-file-parallelism`); they clean the event tables in `beforeAll`.
+- Edge case: an orphaned outbox row (its `domain_events` row deleted — should never happen in
+  prod, since the log is append-only) is skipped by `claimBatch` (no domain event to load) and
+  left claimed; harmless but noted.

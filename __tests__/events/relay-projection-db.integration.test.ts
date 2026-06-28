@@ -28,7 +28,14 @@ d('relay + audit-feed projection (real database)', () => {
   const mark = `RELAYIT-${Date.now()}`
   const ids: string[] = []
 
-  beforeAll(async () => { await prisma.$connect() })
+  // These DB ITs exercise the GLOBAL outbox/relay, so they must run serially
+  // (vitest --fileParallelism=false). Clean the event tables first for isolation.
+  beforeAll(async () => {
+    await prisma.$connect()
+    await prisma.auditFeedEntry.deleteMany({})
+    await prisma.eventOutbox.deleteMany({})
+    await prisma.domainEvent.deleteMany({})
+  })
   afterAll(async () => {
     await prisma.auditFeedEntry.deleteMany({ where: { eventId: { in: ids } } }).catch(() => undefined)
     await prisma.eventOutbox.deleteMany({ where: { eventId: { in: ids } } }).catch(() => undefined)
