@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { normalizeOpenChatQueryParam } from '@/lib/dashboard/open-chat-query'
+import { shouldApplyIncomingView } from '@/lib/league/leagueTabSync'
 import { LeagueLiveStrip } from '@/components/sports/LeagueLiveStrip'
 import { LeagueStoryCard } from '@/components/sports/LeagueStoryCard'
 import { createPortal } from 'react-dom'
@@ -414,6 +415,10 @@ export function LeagueShell({
   // defaults below must not clobber an explicit choice â€” otherwise a late
   // hydration/searchParams render can bounce the user off (e.g.) the War Room tab.
   const userPickedTabRef = useRef(false)
+  // The ?view= value this shell itself last wrote from activeTab. The URL->tab effect ignores this
+  // echo so it never fights the tab->URL effect (the Draft/League flicker). External deep-links /
+  // back-forward carry a different value and are still honored. See lib/league/leagueTabSync.
+  const lastSyncedViewRef = useRef<string | null>(null)
 
   useEffect(() => {
     guillotineLandingApplied.current = false
@@ -422,6 +427,7 @@ export function LeagueShell({
     bigBrotherLandingApplied.current = false
     predraftLandingApplied.current = false
     userPickedTabRef.current = false
+    lastSyncedViewRef.current = null
   }, [league.id])
 
   /** Explicit tab selection (user click). Records the choice so auto-landing
@@ -557,6 +563,10 @@ export function LeagueShell({
     const raw = view ?? tabParam
     if (!raw) return
     const key = raw.trim().toLowerCase()
+    // Ignore our own URL echo: if this ?view= is the value we just mirrored from activeTab,
+    // re-applying it would swap activeTab<->URL every render (the Draft/League flicker). Only
+    // external navigations / deep-links (a different value) drive a tab change here.
+    if (!shouldApplyIncomingView(key, lastSyncedViewRef.current)) return
     const sportU = String(league.sport ?? '').toUpperCase()
     const intelligenceFallback = sportU === 'NFL' || sportU === 'NCAAF' ? 'trend' : 'players'
     const map: Record<string, string> = {
@@ -642,6 +652,10 @@ export function LeagueShell({
     // Redraft Settings is modal-driven. Do not persist it as ?view=settings,
     // because the settings deep-link effect treats that URL as "open modal".
     if (nflRedraftCore && activeTab === 'settings') return
+
+    // activeTab is the single source of truth; mirror it into ?view= one-way and remember what we
+    // wrote so the URL->tab effect ignores this echo (prevents the activeTab<->URL swap flicker).
+    lastSyncedViewRef.current = activeTab
 
     const next = new URLSearchParams(searchParams?.toString() ?? '')
     if (next.get('view') === activeTab) return
