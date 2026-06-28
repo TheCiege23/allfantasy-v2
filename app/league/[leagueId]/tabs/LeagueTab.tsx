@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Settings, Zap, RotateCcw, Calendar, Trophy, Users, ClipboardList, CreditCard } from 'lucide-react'
 import { DepthChartPanel } from '@/components/sports/DepthChartPanel'
 import type { LeagueTeamSlot, UserLeague } from '@/app/dashboard/types'
@@ -18,6 +18,7 @@ import { resolveLeagueMedia } from '@/lib/league-home/league-media-resolver'
 import { LeagueManagersStandingsSection } from '@/app/league/[leagueId]/components/LeagueManagersStandingsSection'
 import { LeagueRecentActivity } from '@/app/league/[leagueId]/components/LeagueRecentActivity'
 import type { LeagueActivityItem, LeagueActivityLine } from '@/components/league/types'
+import { useLeagueRealtimeRefresh } from '@/hooks/useLeagueRealtimeRefresh'
 
 export type LeagueTabProps = {
   league: UserLeague
@@ -354,36 +355,72 @@ function activityDotClass(category: LeagueActivityFeedRow['category']): string {
   return 'bg-white/35'
 }
 
+type ActivityFeedItem = {
+  id: string
+  type: string
+  title?: string | null
+  message: string
+  category?: string | null
+  createdAt: string
+}
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
+}
+
+function mapFeedItemToRow(item: ActivityFeedItem): LeagueActivityFeedRow {
+  const cat = String(item.category ?? item.type ?? '').toLowerCase()
+  let category: LeagueActivityFeedRow['category'] = 'generic'
+  if (cat.includes('trade')) category = 'trade'
+  else if (cat.includes('waiver') || cat.includes('add') || cat.includes('drop')) category = 'add_drop'
+  else if (cat.includes('draft')) category = 'draft'
+  else if (cat.includes('announce') || cat.includes('commissioner')) category = 'announcement'
+  else if (cat.includes('score') || cat.includes('matchup')) category = 'scoring'
+
+  return {
+    id: item.id,
+    category,
+    title: item.title?.trim() || item.message?.slice(0, 80) || 'League event',
+    subtitle: item.message?.slice(0, 100) ?? '',
+    timestamp: relativeTime(item.createdAt),
+  }
+}
+
 function LeagueActivityFeed({ leagueId }: { leagueId: string }) {
   const [rows, setRows] = useState<LeagueActivityFeedRow[] | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-    fetch(`/api/leagues/${encodeURIComponent(leagueId)}/activity`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('activity'))))
-      .then((data: unknown) => {
-        if (cancelled) return
-        const parsed = Array.isArray(data)
-          ? data
-              .map(normalizeLeagueActivityItem)
-              .filter((x): x is LeagueActivityItem => x != null)
-              .map(mapActivityRow)
-          : []
-        setRows(parsed.slice(0, 10))
-      })
-      .catch(() => {
-        if (!cancelled) setRows([])
-      })
-    return () => {
-      cancelled = true
+  const loadFeed = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/activity-feed`, { credentials: 'include', cache: 'no-store' })
+      if (!res.ok) { setRows([]); return }
+      const data = (await res.json()) as { items?: ActivityFeedItem[] }
+      const items = Array.isArray(data.items) ? data.items : []
+      setRows(items.slice(0, 12).map(mapFeedItemToRow))
+    } catch {
+      setRows([])
     }
   }, [leagueId])
+
+  useEffect(() => { void loadFeed() }, [loadFeed])
+
+  useLeagueRealtimeRefresh(leagueId, (env) => {
+    const t = String(env.eventType ?? '')
+    if (t.includes('score') || t.includes('trade') || t.includes('waiver') || t.includes('matchup') || t.includes('player') || t === 'league_changed') {
+      void loadFeed()
+    }
+  })
 
   return (
     <section
       className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#121826]"
       aria-label="League activity feed"
-      data-testid="league-activity-feed"
+      data-testid="league-live-event-feed"
     >
       <div className="border-b border-white/[0.07] px-4 py-3 sm:px-5">
         <h2 className="text-[14px] font-bold text-white sm:text-[15px]">League Activity Feed</h2>
@@ -557,6 +594,19 @@ export function LeagueTab({
 
   return (
     <div className="space-y-4 p-5">
+      {/* G15.7 — nav entry to the read-only Commissioner Intelligence surface.
+          Security is enforced by the API (commissioner-only cards 403 there); this link is
+          shown to all members because the hub has member-readable sections too. */}
+      <Link
+        href={`/league/${league.id}/intelligence`}
+        data-testid="nav-commissioner-intelligence"
+        className="flex items-center justify-between gap-3 rounded-2xl border border-cyan-400/25 bg-cyan-500/[0.06] px-4 py-3 text-[13px] font-semibold text-cyan-100 hover:bg-cyan-500/[0.10]"
+      >
+        <span className="flex items-center gap-2">
+          <Trophy className="h-4 w-4" aria-hidden /> League Intelligence
+        </span>
+        <span aria-hidden className="text-cyan-300/80">→</span>
+      </Link>
       {showHomeHero ? (
         <>
           <LeagueHomeHero
