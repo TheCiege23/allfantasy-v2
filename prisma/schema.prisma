@@ -13206,6 +13206,57 @@ model RedraftTradeMarketEvent {
   @@map("redraft_trade_market_events")
 }
 
+/// G15.1 Event Foundation — append-only normalized domain event log.
+/// Sport/concept/provider agnostic: cadence lives in `period`, sport-specific
+/// detail in `payload`/`metadata` (JSON), entity refs in `subjects` (canonical ids).
+model DomainEvent {
+  id             String    @id @default(cuid())
+  eventId        String    @unique
+  type           String
+  schemaVersion  Int       @default(1)
+  occurredAt     DateTime
+  recordedAt     DateTime  @default(now())
+  sport          String?
+  leagueConcept  String?
+  tenantId       String    @default("allfantasy")
+  leagueId       String?
+  seasonId       String?
+  actorType      String    @default("system")
+  actorId        String?
+  source         String    @default("unknown")
+  correlationId  String?
+  causationId    String?
+  idempotencyKey String    @unique
+  payload        Json      @default("{}")
+  metadata       Json      @default("{}")
+  period         Json?
+  subjects       Json      @default("[]")
+
+  @@index([leagueId, occurredAt])
+  @@index([seasonId, occurredAt])
+  @@index([type, occurredAt])
+  @@index([tenantId, occurredAt])
+  @@index([correlationId])
+  @@map("domain_events")
+}
+
+/// G15.1 Event Foundation — transactional-outbox dispatch state for DomainEvent.
+/// One row per event; written in the same tx as the event, drained by OutboxRelay.
+model EventOutbox {
+  id           String    @id @default(cuid())
+  eventId      String    @unique
+  status       String    @default("pending")
+  attempts     Int       @default(0)
+  availableAt  DateTime  @default(now())
+  lastError    String?
+  dispatchedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status, availableAt])
+  @@map("event_outbox")
+}
+
 /// T8: native trade block — a manager publicly signals a player they will move (+ what they want
 /// back). League-visible. No FK (signal survives roster churn). Internal ids only.
 model RedraftTradeBlockItem {

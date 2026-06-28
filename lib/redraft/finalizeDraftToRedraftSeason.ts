@@ -4,6 +4,7 @@ import { buildRedraftOwnerIdCandidates } from '@/lib/redraft/redraftRosterIdenti
 import { generateSchedule } from '@/lib/redraft/scheduleEngine'
 import { leagueSportToConfigSport } from '@/lib/redraft/sportKey'
 import { tryGetSportConfig } from '@/lib/sportConfig'
+import { getPlatformEvents, EVENT } from '@/lib/events'
 
 export type RedraftDraftFinalizationSummary = {
   skipped: boolean
@@ -305,10 +306,13 @@ async function ensureScheduleForNewSeason(params: {
   })
   if (existingScheduleCount > 0) return
 
+  // RedraftRoster has no createdAt column; order by id (cuid, roughly
+  // creation-ordered) for a deterministic, schema-valid roster sequence so the
+  // round-robin schedule is reproducible across runs.
   const rosters = await prisma.redraftRoster.findMany({
     where: { seasonId: params.seasonId },
     select: { id: true },
-    orderBy: { createdAt: 'asc' },
+    orderBy: { id: 'asc' },
   })
 
   if (rosters.length < 2) return
@@ -471,6 +475,36 @@ export async function syncCompletedDraftToRedraftSeason(
       seasonId: season.id,
       error: err instanceof Error ? err.message : String(err),
     })
+  })
+
+  // G15.2 — publish (best-effort, never throws; deterministic keys → exactly one
+  // event per draft/season even across idempotent re-runs). Concept is 'redraft'
+  // because this is the redraft finalizer (gated above); sport is data, not assumed.
+  const events = getPlatformEvents()
+  await events.emit(EVENT.DRAFT_COMPLETED, {
+    leagueId,
+    seasonId: season.id,
+    sport: season.sport ?? null,
+    leagueConcept: 'redraft',
+    actor: { type: 'system' },
+    idempotencyKey: `draft.completed:${session.id}`,
+    source: 'engine:draft-finalize',
+    subjects: [
+      { kind: 'draft', id: session.id },
+      { kind: 'season', id: season.id },
+    ],
+    payload: { draftId: session.id, pickCount: session.picks.length },
+  })
+  await events.emit(EVENT.SEASON_ACTIVATED, {
+    leagueId,
+    seasonId: season.id,
+    sport: season.sport ?? null,
+    leagueConcept: 'redraft',
+    actor: { type: 'system' },
+    idempotencyKey: `season.activated:${season.id}`,
+    source: 'engine:draft-finalize',
+    subjects: [{ kind: 'season', id: season.id }],
+    payload: { seasonId: season.id, season: season.season ?? undefined },
   })
 
   return {
