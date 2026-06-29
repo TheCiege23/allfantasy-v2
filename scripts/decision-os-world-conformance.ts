@@ -55,19 +55,15 @@ function hostOf(url: string | null): string {
   const argvIds = process.argv.slice(2).filter((a) => !a.startsWith('-'))
   let leagueIds = argvIds
   if (leagueIds.length === 0) {
-    const imported = await prisma.league.findMany({
-      where: { platform: { not: null } },
+    // `League.platform` is a NON-nullable column (native AF leagues use 'manual', imports carry the
+    // provider name), so imported/native cannot be split by null. Validate the most-recently-synced
+    // leagues regardless of platform; each one self-labels via `provenance.provider` in the report below.
+    const recent = await prisma.league.findMany({
       select: { id: true },
-      take: 3,
+      take: 5,
       orderBy: { lastSyncedAt: 'desc' },
     })
-    const native = await prisma.league.findMany({
-      where: { platform: null },
-      select: { id: true },
-      take: 2,
-      orderBy: { id: 'desc' },
-    })
-    leagueIds = [...imported, ...native].map((l: { id: string }) => l.id)
+    leagueIds = recent.map((l: { id: string }) => l.id)
   }
 
   if (leagueIds.length === 0) {

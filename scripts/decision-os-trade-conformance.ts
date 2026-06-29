@@ -69,13 +69,19 @@ function hostOf(url: string | null): string {
   const argvIds = process.argv.slice(2).filter((a) => !a.startsWith('-'))
   let leagueIds = argvIds
   if (leagueIds.length === 0) {
-    const imported = await prisma.league.findMany({
-      where: { platform: { not: null } },
+    // `League.platform` is a NON-nullable column (native AF leagues use 'manual', imports carry the
+    // provider name), so imported leagues cannot be found by `platform != null`. Discover the
+    // most-recently-synced leagues regardless of platform; the loop below skips any that lack two
+    // rosters with players, so empty/native-only leagues fall through harmlessly.
+    const recent = await prisma.league.findMany({
       select: { id: true },
-      take: 3,
+      // Scan a wide window: most leagues have empty canonical rosters (players live in RedraftRoster or
+      // are unseeded), so a narrow take can land entirely on unstageable leagues and report a vacuous OK.
+      // The loop below skips any league without two rosters holding players, so empties cost only a read.
+      take: 50,
       orderBy: { lastSyncedAt: 'desc' },
     })
-    leagueIds = imported.map((l: { id: string }) => l.id)
+    leagueIds = recent.map((l: { id: string }) => l.id)
   }
   if (leagueIds.length === 0) {
     console.log('TRADE_CONFORMANCE SKIPPED (no imported leagues found in this database).')
