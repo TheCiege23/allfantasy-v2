@@ -172,6 +172,8 @@ function assembleRosterFacts(input: CanonicalWorldRawInput): RosterFacts[] {
       reserveIds: projection.reserve,
       taxiIds: projection.taxi,
       playerCount: projection.playerIds.length,
+      // Honest carry of the persisted per-team waiver order (priority leagues); null for FAAB / unset.
+      waiverPriority: roster.waiverPriority ?? null,
       // Raw provider/native player ids — enrichment (position/injury/bye) is a downstream concern.
       playerMetadataEnriched: false,
     }

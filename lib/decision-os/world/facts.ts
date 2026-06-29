@@ -199,6 +199,12 @@ export interface RosterFacts {
   reserveIds: string[]
   taxiIds: string[]
   playerCount: number
+  /**
+   * Per-team waiver order for priority-based leagues; null for FAAB leagues or when unset. Honest carry
+   * from `Roster.waiverPriority` — the canonical-sourced fact the waiver bridge consumes (`waiver ←
+   * canonical`, see PHASE_2_CANONICAL_BRIDGE_ARCHITECTURE §2). No logic: surfaced exactly as persisted.
+   */
+  waiverPriority: number | null
   /** Player ids are raw/unenriched here (no position/injury/bye). Enrichment is a downstream concern. */
   playerMetadataEnriched: boolean
 }
