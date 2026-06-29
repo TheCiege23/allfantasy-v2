@@ -1,0 +1,218 @@
+/**
+ * Decision OS — Phase 2 Canonical World Assembly: the stable, provider-agnostic FACT CONTRACT.
+ *
+ * This is the origin-blind substrate that future lineup/waiver/trade/commissioner assemblers consume.
+ * Decision OS business logic must NEVER branch on where a league came from (import / sync / native /
+ * future provider). Origin survives ONLY inside `provenance` (metadata), `freshness`, `completeness`
+ * warnings, and `uncertainty` — never as a fact the rules switch on.
+ *
+ * Nothing in this file performs IO. See `port.ts` for the (read-only) data-access surface and
+ * `index.ts` (`resolveCanonicalWorld`) for the orchestrator.
+ */
+
+/** Raw inputs the read-only port returns (one row group per league). Decoupled from Prisma types. */
+export interface RawLeagueRow {
+  id: string
+  sport: string
+  season: number
+  scoring: string | null
+  scoringPresetId: string | null
+  leagueType: string | null
+  isDynasty: boolean
+  rosterSize: number | null
+  starters: unknown
+  irSlots: number | null
+  taxiSlots: number | null
+  waiverType: string | null
+  waiverBudget: number | null
+  waiverMinBid: number | null
+  waiverHours: number | null
+  tradeReviewHours: number | null
+  tradeDeadlineWeek: number | null
+  draftPickTrading: boolean | null
+  settings: unknown
+  lastSyncedAt: Date | null
+  syncStatus: string | null
+  /** Provenance only — never read by decision logic. */
+  platform: string | null
+  /** Provenance only. */
+  platformLeagueId: string | null
+}
+
+export interface RawTeamRow {
+  id: string
+  externalId: string
+  ownerName: string
+  teamName: string
+  wins: number
+  losses: number
+  ties: number
+  pointsFor: number
+  pointsAgainst: number
+  currentRank: number | null
+  role: string
+  isOrphan: boolean
+  isCommissioner: boolean
+  isCoCommissioner: boolean
+  platformUserId: string | null
+  claimedByUserId: string | null
+}
+
+export interface RawRosterRow {
+  id: string
+  platformUserId: string
+  playerData: unknown
+  faabRemaining: number | null
+  waiverPriority: number | null
+  settings: unknown
+}
+
+export interface RawPerformanceRow {
+  teamId: string
+  week: number
+  season: number
+  points: number
+  opponent: string | null
+  result: string | null
+}
+
+export interface CanonicalWorldRawInput {
+  league: RawLeagueRow
+  teams: RawTeamRow[]
+  rosters: RawRosterRow[]
+  performances: RawPerformanceRow[]
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Fact contract (origin-blind)
+// ──────────────────────────────────────────────────────────────────────────
+
+export interface LeagueRosterSettingsFacts {
+  rosterSize: number | null
+  starterSlots: string[] | null
+  irSlots: number | null
+  taxiSlots: number | null
+}
+
+export interface LeagueWaiverSettingsFacts {
+  type: string | null
+  budget: number | null
+  minBid: number | null
+  hours: number | null
+}
+
+export interface LeagueTradeSettingsFacts {
+  reviewHours: number | null
+  deadlineWeek: number | null
+  pickTrading: boolean | null
+}
+
+export interface LeagueFacts {
+  leagueId: string
+  sport: string
+  season: number
+  leagueType: string | null
+  isDynasty: boolean
+  scoringPresetId: string | null
+  /** Resolved scoring settings blob (provider-neutral); null when unknown. */
+  scoringSettings: unknown
+  rosterSettings: LeagueRosterSettingsFacts
+  waiverSettings: LeagueWaiverSettingsFacts
+  tradeSettings: LeagueTradeSettingsFacts
+  /** Latest week with canonical data; null when not derivable. See `currentWeekBasis`. */
+  currentWeek: number | null
+  currentWeekBasis: 'team_performance' | 'unavailable'
+}
+
+export interface FaabFacts {
+  budget: number | null
+  used: number | null
+  remaining: number | null
+  /** True when `remaining` was derived (budget − used) rather than read from a stored remaining value. */
+  remainingDerived: boolean
+}
+
+export interface TeamRecordFacts {
+  wins: number
+  losses: number
+  ties: number
+}
+
+/** Provider/source identifiers — PROVENANCE ONLY. Never consumed by decision business logic. */
+export interface TeamSourceProvenance {
+  sourceTeamId: string | null
+  sourceManagerId: string | null
+}
+
+export interface TeamFacts {
+  teamId: string
+  displayName: string
+  ownerName: string
+  /** Resolved AF user id when claimed, else the raw provider manager id (provenance-typed). */
+  managerUserId: string | null
+  isCommissioner: boolean
+  isCoCommissioner: boolean
+  isOrphan: boolean
+  rank: number | null
+  record: TeamRecordFacts
+  pointsFor: number
+  /** Null when neither stored nor derivable from performances. */
+  pointsAgainst: number | null
+  pointsAgainstBasis: 'stored' | 'derived_from_performances' | 'unavailable'
+  faab: FaabFacts
+  source: TeamSourceProvenance
+}
+
+export interface RosterSlotProjection {
+  starters: string[]
+  bench: string[]
+  reserve: string[]
+  taxi: string[]
+}
+
+export interface RosterFacts {
+  rosterId: string
+  /** Joined canonical LeagueTeam id; null when no team could be matched (flagged in completeness). */
+  teamId: string | null
+  playerIds: string[]
+  starterIds: string[]
+  benchIds: string[]
+  reserveIds: string[]
+  taxiIds: string[]
+  playerCount: number
+  /** Player ids are raw/unenriched here (no position/injury/bye). Enrichment is a downstream concern. */
+  playerMetadataEnriched: boolean
+}
+
+export interface WorldFreshness {
+  lastSyncedAt: string | null
+  isStale: boolean
+  staleReason: string | null
+}
+
+export interface WorldProvenance {
+  /** Canonical models actually read to assemble this world. */
+  sourceModels: string[]
+  /** Provider name — METADATA ONLY (telemetry/debug). Never a decision input. */
+  provider: string | null
+  sourceLeagueId: string | null
+  assembledAt: string
+  freshness: WorldFreshness
+}
+
+export interface WorldCompleteness {
+  /** 0–100 honest completeness score. */
+  dataCompleteness: number
+  /** Soft gaps the world degraded around (not fatal). */
+  warnings: string[]
+  /** Fields explicitly unavailable — marked, never silently omitted. */
+  unsupported: string[]
+}
+
+export interface CanonicalWorld {
+  league: LeagueFacts
+  teams: TeamFacts[]
+  rosters: RosterFacts[]
+  provenance: WorldProvenance
+  completeness: WorldCompleteness
+}
