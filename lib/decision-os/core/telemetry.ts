@@ -1,0 +1,45 @@
+/**
+ * Decision OS — lightweight telemetry (Slice 1).
+ *
+ * No full telemetry system yet. This is a pluggable sink: by default it structured-logs in dev and
+ * is a no-op in production unless a sink is registered. Architecture/health flags travel on the
+ * Decision Object (DecisionTelemetryFlags); this emits lifecycle events around it.
+ */
+import type { DecisionTelemetryFlags } from './decision'
+
+export type DecisionTelemetryEventName =
+  | 'decision.issued'
+  | 'decision.adopted'
+  | 'decision.resolved'
+  | 'decision.parity'
+
+export interface DecisionTelemetryEvent {
+  event: DecisionTelemetryEventName
+  decision_type: string
+  decision_id?: string
+  flags?: Partial<DecisionTelemetryFlags> & Record<string, unknown>
+  at: string
+}
+
+export type DecisionTelemetrySink = (event: DecisionTelemetryEvent) => void
+
+let sink: DecisionTelemetrySink | null = null
+/** Tests/infra can register a sink (e.g., to assert emission) without a real telemetry backend. */
+export function registerDecisionTelemetrySink(s: DecisionTelemetrySink | null): void {
+  sink = s
+}
+
+export function emitDecisionTelemetry(
+  event: DecisionTelemetryEventName,
+  decision_type: string,
+  flags?: DecisionTelemetryEvent['flags'],
+  decision_id?: string,
+): void {
+  const payload: DecisionTelemetryEvent = { event, decision_type, decision_id, flags, at: new Date().toISOString() }
+  try {
+    if (sink) sink(payload)
+    else if (process.env.NODE_ENV !== 'production') console.debug('[decision-os]', JSON.stringify(payload))
+  } catch {
+    // telemetry must never break a decision
+  }
+}

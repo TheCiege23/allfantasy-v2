@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { computeLineupActionsForUser } from '@/lib/lineup-actions/computeLineupActionsForUser'
 import { attachChimmyAdviceToLineupSummary } from '@/lib/lineup-actions/chimmyLineupAdvice'
 import { buildAiTimeContextPayload } from '@/lib/time-engine/userContext'
+import { shouldRunLineupShadow, runLineupShadowForSummary } from '@/lib/decision-os/lineup/shadow'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,5 +21,17 @@ export async function GET() {
     schemaVersion: 1 as const,
     time: await buildAiTimeContextPayload(userId),
   }
+
+  // Decision OS Slice 1 — SHADOW ONLY (DECISION_OS_LINEUP_SHADOW=true). Runs the new
+  // manager.lineup.set path beside legacy, logs decision parity AND canonical-validator parity
+  // (primary vs rosterValidationService), and can NEVER alter or break this response.
+  if (shouldRunLineupShadow()) {
+    try {
+      await runLineupShadowForSummary(userId, summary, { maxLeagues: 1 })
+    } catch {
+      // shadow must never affect the legacy response
+    }
+  }
+
   return NextResponse.json({ ...withChimmy, intelligence })
 }
