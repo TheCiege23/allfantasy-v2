@@ -24,6 +24,8 @@ const PURE_LAYER = [
   'lib/decision-os/world/derive.ts',
   'lib/decision-os/world/assemble.ts',
   'lib/decision-os/world/index.ts',
+  // Phase E.1 — the reusable Canonical Asset contract is pure-layer too (no IO, no prisma, no trade import).
+  'lib/decision-os/world/assets.ts',
 ].map((p) => [p, read(p)] as const)
 
 const PORT = ['lib/decision-os/world/port.ts'].map((p) => [p, read(p)] as const)

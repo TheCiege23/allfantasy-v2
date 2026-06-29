@@ -73,3 +73,36 @@ export type {
   PlayerMetadataResult,
   PlayerMetadataPort,
 } from './playerMetadata'
+// Phase E.1 — the reusable Canonical Asset contract + pure Resolution-layer resolver/adapters.
+export {
+  resolveCanonicalAssets,
+  resolveCanonicalAsset,
+  normalizeAssetType,
+  fromAfLeagueTradeItems,
+  fromRedraftTradeAssets,
+  emptyEnrichment,
+  emptyContext,
+} from './assets'
+export type {
+  CanonicalAsset,
+  CanonicalAssetType,
+  AssetTrust,
+  AssetOwner,
+  AssetMetadata,
+  PlayerAssetMetadata,
+  PickAssetMetadata,
+  FaabAssetMetadata,
+  KeeperAssetMetadata,
+  ContractAssetMetadata,
+  SalaryAssetMetadata,
+  DevyAssetMetadata,
+  AssetEnrichment,
+  AssetContext,
+  AssetValue,
+  AssetProvenance,
+  AssetLayerPresence,
+  AssetCompleteness,
+  RawCanonicalAssetInput,
+  AfLeagueTradeItemRow,
+  RedraftTradeAssetRow,
+} from './assets'
