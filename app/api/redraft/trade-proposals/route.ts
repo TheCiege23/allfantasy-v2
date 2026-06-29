@@ -7,6 +7,7 @@ import { recordAfLearningEvent } from '@/lib/ai-learning-system/recordEvent'
 import { resolveLeagueSport } from '@/lib/ai-learning-system/resolveLeagueSport'
 import { captureRedraftTradeValueSnapshot } from '@/lib/trade-value/captureSnapshot'
 import { recordRedraftTradeMarketEvent } from '@/lib/trade-market/redraftTradeMarketEvents'
+import { shouldRunTradeShadow, runTradeShadowForProposal } from '@/lib/decision-os/trade/shadow'
 
 export const dynamic = 'force-dynamic'
 
@@ -245,6 +246,33 @@ export async function POST(req: NextRequest) {
       await recordRedraftTradeMarketEvent({
         leagueId, seasonId, tradeProposalId: created.id, eventType: 'value_snapshot_created', actorUserId: userId,
       })
+    }
+  }
+
+  // Decision OS Slice 3 — SHADOW ONLY (DECISION_OS_TRADE_SHADOW=true). Evaluates the new
+  // manager.trade.evaluate path beside legacy using the SAME persisted deterministic snapshot, logs
+  // wrap-fidelity parity, and can NEVER alter this response, block creation, execute, or mutate trade
+  // state. Skips when no snapshot was captured.
+  if (created?.id && snapshotRow && shouldRunTradeShadow()) {
+    try {
+      await runTradeShadowForProposal({
+        userId,
+        leagueId,
+        seasonId,
+        proposal: { proposalId: created.id, proposerRosterId, receiverRosterId, status: created.status ?? 'pending', vetoMode },
+        assets: assets.map((a) => ({
+          fromRosterId: a.fromRosterId!,
+          toRosterId: a.toRosterId!,
+          assetType: a.assetType!,
+          playerId: a.playerId ?? null,
+          playerName: a.playerName ?? null,
+          faabAmount: a.assetType === 'faab' ? Number((a.metadata as Record<string, unknown>)?.amount ?? 0) || null : null,
+        })),
+        snapshotPayload: (snapshotRow as { payload?: unknown }).payload,
+        snapshotConfidenceScore: (snapshotRow as { confidenceScore?: number | null }).confidenceScore ?? null,
+      })
+    } catch {
+      // shadow must never affect the legacy response
     }
   }
 
