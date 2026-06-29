@@ -61,6 +61,14 @@ export {
 } from './derive'
 export { defaultCanonicalWorldPort } from './port'
 export type { CanonicalWorldPort } from './port'
+// Native-redraft roster coverage (ADR_CANONICAL_WORLD_REDRAFT_COVERAGE.md) — pure, read-only projection.
+export {
+  projectRedraftRosterPlayerData,
+  normalizeRedraftWaiverPriority,
+  mapRedraftRosterRowToRawRoster,
+  unionRosterRows,
+} from './redraftRoster'
+export type { RawRedraftRosterRow, RawRedraftRosterPlayerRow } from './redraftRoster'
 export type { AssembleOptions } from './assemble'
 export type * from './facts'
 export {

@@ -65,6 +65,13 @@ export interface RawRosterRow {
   faabRemaining: number | null
   waiverPriority: number | null
   settings: unknown
+  /**
+   * PROVENANCE ONLY — which canonical store this raw roster was read from (`Roster.playerData` vs the
+   * native `RedraftRoster` / `RedraftRosterPlayer` relation). Drives `provenance.sourceModels` honesty;
+   * NEVER read by decision logic or folded into origin-blind `RosterFacts`. Absent ⇒ treated as `Roster`
+   * (the historical single source), so existing callers/fixtures are unaffected.
+   */
+  sourceModel?: 'Roster' | 'RedraftRoster'
 }
 
 export interface RawPerformanceRow {

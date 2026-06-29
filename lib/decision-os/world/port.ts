@@ -15,6 +15,7 @@ import type {
   RawRosterRow,
   RawTeamRow,
 } from './facts'
+import { mapRedraftRosterRowToRawRoster, unionRosterRows, type RawRedraftRosterRow } from './redraftRoster'
 
 export interface CanonicalWorldPort {
   loadLeague(leagueId: string): Promise<RawLeagueRow | null>
@@ -124,6 +125,7 @@ export const defaultCanonicalWorldPort: CanonicalWorldPort = {
   },
 
   async loadRosters(leagueId) {
+    // Source 1 — canonical `Roster.playerData` (imported leagues + some native AF leagues).
     const rows = await prisma.roster.findMany({
       where: { leagueId },
       select: {
@@ -135,14 +137,38 @@ export const defaultCanonicalWorldPort: CanonicalWorldPort = {
         settings: true,
       },
     })
-    return rows.map((row) => ({
+    const canonical: RawRosterRow[] = rows.map((row) => ({
       id: row.id,
       platformUserId: row.platformUserId ?? '',
       playerData: row.playerData ?? null,
       faabRemaining: row.faabRemaining ?? null,
       waiverPriority: row.waiverPriority ?? null,
       settings: row.settings ?? null,
+      sourceModel: 'Roster',
     }))
+
+    // Source 2 — native redraft `RedraftRoster` / `RedraftRosterPlayer` (read-only; only non-dropped
+    // players). Projected into the SAME RawRosterRow shape, then unioned with canonical (Roster wins on
+    // owner conflict). See ADR_CANONICAL_WORLD_REDRAFT_COVERAGE.md. This NEVER calls the write-prone
+    // `resolveRedraftRosterLookup`; it reads the rows directly with a `findMany`.
+    const redraftRows = await prisma.redraftRoster.findMany({
+      where: { leagueId },
+      select: {
+        id: true,
+        ownerId: true,
+        faabBalance: true,
+        waiverPriority: true,
+        players: {
+          where: { droppedAt: null },
+          select: { playerId: true, slotType: true },
+        },
+      },
+    })
+    const redraft: RawRosterRow[] = redraftRows.map((row: RawRedraftRosterRow) =>
+      mapRedraftRosterRowToRawRoster(row),
+    )
+
+    return unionRosterRows(canonical, redraft)
   },
 
   async loadPerformances(teamIds, season) {

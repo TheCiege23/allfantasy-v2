@@ -184,7 +184,17 @@ function assembleProvenance(input: CanonicalWorldRawInput, now: Date, staleAfter
   const { league, teams, rosters, performances } = input
   const sourceModels = ['League']
   if (teams.length > 0) sourceModels.push('LeagueTeam')
-  if (rosters.length > 0) sourceModels.push('Roster')
+  if (rosters.length > 0) {
+    // Honest provenance: report each store actually read. A raw roster without a `sourceModel` tag is
+    // treated as canonical `Roster` (the historical single source), preserving existing behavior; redraft
+    // rosters additionally surface `RedraftRoster` / `RedraftRosterPlayer`. Never a decision input.
+    const rosterSources = new Set(rosters.map((r) => r.sourceModel ?? 'Roster'))
+    if (rosterSources.has('Roster')) sourceModels.push('Roster')
+    if (rosterSources.has('RedraftRoster')) {
+      sourceModels.push('RedraftRoster')
+      sourceModels.push('RedraftRosterPlayer')
+    }
+  }
   if (performances.length > 0) sourceModels.push('TeamPerformance')
 
   const lastSyncedAt = league.lastSyncedAt ? league.lastSyncedAt.toISOString() : null

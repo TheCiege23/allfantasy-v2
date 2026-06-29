@@ -26,6 +26,8 @@ const PURE_LAYER = [
   'lib/decision-os/world/index.ts',
   // Phase E.1 — the reusable Canonical Asset contract is pure-layer too (no IO, no prisma, no trade import).
   'lib/decision-os/world/assets.ts',
+  // Native-redraft roster projection (ADR_CANONICAL_WORLD_REDRAFT_COVERAGE) — pure mapping, no prisma/IO.
+  'lib/decision-os/world/redraftRoster.ts',
 ].map((p) => [p, read(p)] as const)
 
 const PORT = ['lib/decision-os/world/port.ts'].map((p) => [p, read(p)] as const)
@@ -48,12 +50,16 @@ describe('architecture: the Canonical World pure layer performs NO IO', () => {
     }
   })
 
-  it('the substrate NEVER imports the write-capable resolveRedraftRosterLookup (read-only variant is allowed)', () => {
+  it('the substrate NEVER imports the write-capable resolveRedraftRosterLookup or WRITES the redraft store (read-only redraft projection is allowed)', () => {
     // Ban the write-capable symbol but permit `resolveRedraftRosterLookupReadOnly` — the bridge seam.
     const writeCapableResolver = /resolveRedraftRosterLookup(?!ReadOnly)/
+    // The substrate may READ the native redraft store (`prisma.redraftRoster.findMany` in the port +
+    // the pure `redraftRoster.ts` projection per ADR_CANONICAL_WORLD_REDRAFT_COVERAGE), but must NEVER
+    // write it — that owner-repair debt (`prisma.redraftRoster.update`) stays out of the world module.
+    const redraftWrite = /redraftRoster\.(create|update|upsert|delete|createMany|updateMany|deleteMany)\(/i
     for (const [path, src] of [...PURE_LAYER, ...PORT]) {
       expect(`${path}:${writeCapableResolver.test(src)}`).toBe(`${path}:false`)
-      expect(`${path}:${src.includes('redraftRoster')}`).toBe(`${path}:false`)
+      expect(`${path}:${redraftWrite.test(src)}`).toBe(`${path}:false`)
     }
   })
 
