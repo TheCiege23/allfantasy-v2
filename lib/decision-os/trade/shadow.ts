@@ -10,11 +10,13 @@
 import { emitShadowParity } from '@/lib/decision-os/core/parity'
 import { shouldRunShadow, type DecisionShadowScope } from '@/lib/decision-os/core/shadow'
 import type { TradeValueSnapshot } from '@/lib/trade-value/types'
+import type { CanonicalWorld } from '@/lib/decision-os/world/facts'
 import { runTradeEvaluateDecision, type RunTradeEvaluateResult } from './index'
 import type { TradeAssetSummary, TradeProposalContext } from './dco'
 import { loadTradeWorldFacts, worldInputFromFacts, parseTradeSnapshot, type TradeWorldFacts } from './loader'
 import { buildProductionTradeDecisionDeps } from './deps'
 import type { TradeDecisionDeps } from './decision'
+import { runCanonicalTradeShadowAttempt, type CanonicalTradeShadowResult } from './canonicalShadow'
 
 export function shouldRunTradeShadow(
   env: NodeJS.ProcessEnv = process.env,
@@ -28,15 +30,23 @@ export interface TradeShadowResult {
   proposalId: string
   result?: RunTradeEvaluateResult
   error?: string
+  /**
+   * E.4 — the canonical `TradeWorld` shadow attempt that ran BESIDE the native path. Best-effort and
+   * parity-only: present when the native path ran; a structured skip when canonical inputs are
+   * unavailable. Never affects `ran`/`result`/`error` (those reflect the native path alone).
+   */
+  canonical?: CanonicalTradeShadowResult
 }
 
 export interface TradeShadowDeps {
   loadWorldFacts: (input: { leagueId: string; seasonId: string; proposerRosterId: string; receiverRosterId: string }) => Promise<TradeWorldFacts | null>
   /** Build the decision deps from the persisted deterministic snapshot (the wrap-fidelity memo). */
   buildDecisionDeps: (memo: TradeValueSnapshot) => TradeDecisionDeps
+  /** E.4 — read-only canonical world resolver injected into the canonical TradeWorld shadow attempt. */
+  resolveCanonicalWorld?: (leagueId: string) => Promise<CanonicalWorld | null>
 }
 
-const defaultTradeShadowDeps: TradeShadowDeps = {
+const defaultTradeShadowDeps: Pick<TradeShadowDeps, 'loadWorldFacts' | 'buildDecisionDeps'> = {
   loadWorldFacts: (input) => loadTradeWorldFacts(input),
   buildDecisionDeps: (memo) => buildProductionTradeDecisionDeps(memo),
 }
@@ -93,7 +103,30 @@ export async function runTradeShadowForProposal(
         shadow: { snapshot },
       },
     )
-    return { ran: true, proposalId, result }
+
+    // E.4 — canonical TradeWorld shadow attempt, BESIDE the native path (parity-only, read-only). The
+    // native `result` above is already final; this never throws and never alters it. A structured skip
+    // is returned (not an error) when canonical inputs are unavailable.
+    let canonical: CanonicalTradeShadowResult | undefined
+    try {
+      canonical = await runCanonicalTradeShadowAttempt(
+        {
+          leagueId: args.leagueId,
+          proposerRosterId: args.proposal.proposerRosterId,
+          receiverRosterId: args.proposal.receiverRosterId,
+          assets: args.assets,
+          referenceSnapshot: snapshot,
+          proposalId,
+        },
+        deps.resolveCanonicalWorld ? { resolveWorld: deps.resolveCanonicalWorld } : {},
+      )
+    } catch {
+      // The canonical attempt is defensive internally; this is a second guard so it can NEVER affect
+      // the native shadow result.
+      canonical = undefined
+    }
+
+    return { ran: true, proposalId, result, canonical }
   } catch (e) {
     emitShadowParity('manager.trade.evaluate', { shadow: true, ran: false, reason: 'shadow_error', proposalId })
     return { ran: false, proposalId, error: e instanceof Error ? e.message : 'shadow_error' }
