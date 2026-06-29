@@ -1,8 +1,13 @@
 # Decision OS — Phase E: Trade Bridge Architecture (ADR-DOS-003)
 
 **Status:** **APPROVED 2026-06-29** and amended with the reusable **Canonical Asset contract** + four
-permanent principles (§0.1). Phase **E.1 is cleared to build** (read-only, shadow-only, flag-gated). The
-original audit (§1–§12) stands as the rationale of record; §0.1, §3, §7 carry the approved amendments.
+permanent principles (§0.1). Phases **E.1 + E.2 BUILT** (read-only, shadow-only). **Amendment 2026-06-29
+(post-E.2, approved):** added the decision-specific **`TradeWorld` contract** + **`MarketContext`** (§3.1);
+the memo consumes `TradeWorld`, never `CanonicalWorld` directly — trade now follows the same `Canonical
+World → Decision-specific World → Memo → Decision → Explainability → Telemetry` pipeline as lineup/waiver/
+commissioner. E.3 renamed **`TradeWorldResolver`** (consistent with World/Context/Decision Resolution). The
+P3 AI-governance rule (§0.1) was elevated to its formal standing wording. The original audit (§1–§12) stands
+as the rationale of record; §0.1, §3, §3.1, §7 carry the approved amendments.
 
 **Scope:** Design the provider-agnostic Trade Bridge that lets `manager.trade.evaluate` consume the
 **Canonical World** substrate (`lib/decision-os/world/`) while preserving parity with the existing
@@ -99,12 +104,20 @@ in the substrate (Phase F), shared by every decision once, never wired feature-b
 
 ### P3 — AI governance *(permanent Decision OS rule)*
 
-> **AI may explain a deterministic decision, summarize supporting evidence, or communicate uncertainty —
-> but it must never create or replace deterministic facts used by the Decision OS.**
+> **AI may summarize, explain, prioritize, or communicate deterministic decisions.**
+> **AI may never generate, replace, or fabricate deterministic facts used by the Decision OS.**
+
+*(Formalized 2026-06-29 — the standing governance wording. This is the canonical statement of the rule; the
+earlier phrasing "AI may explain a deterministic decision, summarize supporting evidence, or communicate
+uncertainty — but it must never create or replace deterministic facts used by the Decision OS" is preserved
+in spirit and superseded in wording. "Prioritize" is admitted because ranking already-deterministic options
+for presentation is a communication act; "generate/replace/fabricate" close the loop on fact creation.)*
 
 The deterministic World → DCO → Rules → Decision pipeline owns every fact and every grade. AI is an
-explanation/communication layer over a settled decision. This protects platform integrity as AI surface
-area grows (Chimmy and beyond) and is the boundary that keeps the Decision OS auditable and licensable.
+explanation/communication layer over a settled decision — it may order or surface what the deterministic
+layer already decided, but the values, grades, fairness, and confidence it speaks about are never of its
+own making. This protects platform integrity as AI surface area grows (Chimmy and beyond) and is the
+boundary that keeps the Decision OS auditable and licensable.
 
 ### The binding contract rule *(this ADR's design constraint for E.1)*
 
@@ -263,6 +276,75 @@ Coverage of the required (and now expanded) asset classes:
 
 ---
 
+## 3.1 The decision-specific `TradeWorld` contract *(amendment, approved 2026-06-29)*
+
+**The memo must consume a `TradeWorld`, not `CanonicalWorld` directly.** This is the missing contract that
+makes trade follow the *same* shape every other decision already uses:
+
+```
+Canonical World            ← origin-blind, purpose-blind FACTS only (it never knows "why")
+        ↓
+Decision-specific World     ← lineup / waiver / commissioner / TRADE  (decision-scoped, owns its context)
+        ↓
+Decision Memo               ← deterministic engine rehosted on the decision-specific world
+        ↓
+Decision Object             ← grade / recommendation
+        ↓
+Explainability (AI)         ← P3: explains/prioritizes, never fabricates
+        ↓
+Telemetry
+```
+
+Lineup, waiver, and commissioner each already resolve a decision-specific world off the Canonical World;
+trade is the last to adopt it. The `TradeWorld` is that contract:
+
+```
+TradeWorld {
+  participants:   TradeParticipant[]              // { rosterId, teamId, managerUserId } per side
+  assets:         TradeMovement[]                 // CanonicalAsset + { fromRosterId, toRosterId }
+  teamProfiles:   Record<rosterId, TeamProfile>   // resolved from TeamFacts (record/PF/rank → stance)
+  leagueContext:  TradeLeagueContext              // sport, season, scoring, rosterFormat, isDynasty, currentWeek, settings
+  marketContext:  MarketContext                   // see below — owned HERE, not by Canonical World
+  constraints:    TradeConstraints                // deadline week, review window, pick-trading allowed, roster legality
+  warnings:       string[]
+  provenance:     WorldProvenance                 // carried from the Canonical World (origin lives only here)
+  completeness:   number                          // 0–100, honest
+  uncertainty:    string[]                        // honest, never fabricated
+}
+```
+
+### `MarketContext` — decision-specific, owned by `TradeWorld` (never by Canonical World)
+
+Trade is unique: it depends on information *outside* the roster. The Canonical World owns **facts**; the
+*market interpretation* of those facts (scarcity, market value, news/injury impact) is **decision-specific**
+and therefore lives on the decision-specific world, not the substrate.
+
+```
+MarketContext {
+  adpByPlayerId:          Record<playerId, number | null>
+  marketValueByPlayerId:  Record<playerId, number | null>
+  projectionByPlayerId:   Record<playerId, number | null>
+  projectionSource:       string | null            // provenance/debug only — never a decision branch
+  positionalScarcity:     Record<position, number> // engine POSITION_SCARCITY, made explicit + auditable
+  leagueScarcity:         Record<position, number> // scarcity relative to THIS league's roster needs
+  injuryMarketImpact:     Record<playerId, number | null>   // Phase F enrichment; null+uncertainty until then
+  newsImpact:             Record<playerId, number | null>   // Phase F enrichment; null+uncertainty until then
+  confidence:             number                   // share of assets with a real market signal
+}
+```
+
+**Boundary rule (a corollary of P1 purpose-blindness):** the Canonical World stays facts-only. Market
+value, scarcity, injury-market, and news impact are *interpretations for the trade decision* and belong to
+`TradeWorld.marketContext`. Other decisions may compute different context off the same Canonical World facts
+— that is precisely why the substrate must not own it. Each `MarketContext` field that is not yet sourced is
+**honestly null + raised in `uncertainty[]`** (the E.2 degradation discipline), never fabricated (P3).
+
+The E.2 memo's injected `CanonicalMemoEnrichment` (adp/projection/position) is the *seed* of `MarketContext`:
+E.3 widens it into the full contract and the memo's signature moves from `(CanonicalWorld + enrichment)` to
+`(TradeWorld)`. The memo logic is unchanged — it simply reads its inputs from one settled contract.
+
+---
+
 ## 4. Trade evaluation memo architecture
 
 **Question:** should the Canonical World generate a reusable evaluation memo, or should the Trade Bridge
@@ -352,7 +434,7 @@ imported before advancing. **Platform phases (F–I)** follow once trade is shad
 |---|---|---|
 | **E.1 — Canonical Asset Resolution** ✅ **BUILT 2026-06-29** | The reusable **`CanonicalAsset` contract** (world layer) + a pure resolver that builds the **Resolution layer** from the canonical asset graph (`AfLeagueTradeItem`), with a read adapter from `RedraftTradeAsset` for parity. `enrichment`/`context` honest-empty. **No valuation.** | ✅ Asset graph + `deriveParticipants` identical between redraft and canonical assets for a known 2-team trade; **one reusable contract, no trade-specific asset type**; unit-tested with canonical fakes. Shipped: [`lib/decision-os/world/assets.ts`](world/assets.ts), test `__tests__/decision-os/canonical-asset-resolution.test.ts` (14 tests GREEN), architecture guard extended. Encoding: reusable `CanonicalAsset` (owner only) in the world layer; trade adds direction via the consumer's `toRosterId` (the §3 `TradeMovement` wrapper) — Trade *consumes*, never *defines*, the asset. |
 | **E.2 — Trade Memo on Canonical Assets** ✅ **BUILT 2026-06-29** | Rehost the pure `buildTradeValueSnapshot` on canonical assets + canonical team profiles (`TeamFacts` + D.1 positions; ADP canonical) → fills `value` + trade-relevant `context`. Pure, no writes. | ✅ Shipped: [`lib/decision-os/trade/canonicalMemo.ts`](trade/canonicalMemo.ts) — a pure adapter (`TradeMovement[]` + `CanonicalWorld` + injected enrichment → engine `EnrichedTradeAsset[]`), `buildCanonicalTradeMemo` (calls `buildTradeValueSnapshot` verbatim, deterministic `capturedAt = world.provenance.assembledAt`), `compareTradeMemos` (memo↔memo parity), `buildCanonicalMemoTelemetry` (provider only in provenance). **Engine reused, not duplicated** (memo values == `normalized*` fns). Parity with the redraft snapshot GREEN on equivalent inputs; missing canonical projection degrades honestly (confidence/value differ, surfaced as diffs — the documented intentional difference, no fake parity). Tested: `__tests__/decision-os/trade-memo.test.ts` (12 GREEN); ticket suite 47 GREEN; full trade+architecture regression 60 GREEN; zero new type errors (3197 baseline). The memo is byte-compatible with `RunTradeEvaluateDeps.shadow.snapshot` → slots into E.4. The enrichment seam (ADP/positions via ports) is built in E.3. |
-| **E.3 — Trade World Assembler** | `tradeWorldAssembler` projects `CanonicalWorld` → `TradeWorldInput` + `CanonicalAsset[]` movements; native-first, canonical fallback (mirror `resolveCanonicalLineupInputs`); honest `*_unavailable`. | Resolves inputs for an **imported** league (no `RedraftRoster`) without throwing; redraft path unchanged & GREEN. |
+| **E.3 — `TradeWorldResolver`** *(renamed from "Trade World Assembler", 2026-06-29)* | `resolveTradeWorld` projects `CanonicalWorld` → the **`TradeWorld` contract** (§3.1): participants, `TradeMovement[]`, `teamProfiles`, `leagueContext`, **`marketContext`** (ADP/positions/scarcity via read-only ports — widens the E.2 `CanonicalMemoEnrichment` seed), constraints, provenance, completeness, uncertainty. Native-first, canonical fallback (mirror `resolveCanonicalLineupInputs`); honest `*_unavailable`. The **memo's signature moves to `(TradeWorld)`** — it no longer reads `CanonicalWorld` directly. Naming is consistent with World/Context/Decision **Resolution**. | Resolves a `TradeWorld` for an **imported** league (no `RedraftRoster`) without throwing; memo fed `TradeWorld` is byte-identical to the E.2 memo fed the equivalent `(CanonicalWorld + enrichment)`; redraft path unchanged & GREEN; unsourced `marketContext` fields degrade to null + uncertainty. |
 | **E.4 — Trade Shadow Parity** | Mount the canonical assembler behind `DECISION_OS_TRADE_SHADOW` beside the redraft path; parity per-participant + grade; pick-only/3+ team degrade honestly. | Shadow GREEN for an imported 2-team trade; redraft snapshot = parity reference where both exist; 3+ team & missing pick inventory → `unsupported`/low-completeness, never a false grade. |
 | **E.5 — Trade Validation** | Real-data conformance (extend `scripts/decision-os-world-conformance.ts` with trade-view facts) against `theciege24` imports; readiness checklist; proposal-time `CanonicalTradeValueSnapshot` persistence **design** (the only net-new write, native flow — **not built here**). | Trade-view facts resolve for real imported leagues; registry row notes canonical-capable shadow; cutover stays a separate governed decision. |
 | **F — Canonical World Enrichment (all APIs)** | The permanent enrichment layer: sports/news/weather/injuries/projections/historical/market-value integrations land as origin-blind, purpose-blind **facts** that fill `CanonicalAsset.enrichment` once for every decision (§9). | Each integration answers *"what truth does this add"* (P2); a single substrate fact is consumed by ≥2 decision types. |
