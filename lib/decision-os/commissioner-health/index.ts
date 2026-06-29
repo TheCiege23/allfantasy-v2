@@ -51,7 +51,16 @@ export async function runCommissionerHealthDecision(
     parity = compareCommissionerHealthParity(decision, deps.shadow.snapshot)
     emitShadowParity(
       'commissioner.league.health',
-      { legacy_shadow_compared: true, wrap_fidelity: true, decider_scope: 'commissioner', parity_passed: parity.passed, parity_failed: !parity.passed, diffs: parity.diffs.length },
+      {
+        legacy_shadow_compared: true,
+        wrap_fidelity: true,
+        decider_scope: 'commissioner',
+        parity_passed: parity.passed,
+        parity_failed: !parity.passed,
+        diffs: parity.diffs.length,
+        userId: input.userId,
+        leagueId: input.snapshot.leagueId,
+      },
       decision.decision_id,
     )
   }

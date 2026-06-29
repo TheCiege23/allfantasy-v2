@@ -6,6 +6,7 @@
  * Decision Object (DecisionTelemetryFlags); this emits lifecycle events around it.
  */
 import type { DecisionTelemetryFlags } from './decision'
+import { recordDecisionTelemetryDebugEvent } from './telemetryDebugStore'
 
 export type DecisionTelemetryEventName =
   | 'decision.issued'
@@ -39,6 +40,7 @@ export function emitDecisionTelemetry(
 ): void {
   const payload: DecisionTelemetryEvent = { event, decision_type, decision_id, flags, at: new Date().toISOString() }
   try {
+    recordDecisionTelemetryDebugEvent(payload)
     if (sink) sink(payload)
     else if (process.env.NODE_ENV !== 'production') console.debug('[decision-os]', JSON.stringify(payload))
   } catch {

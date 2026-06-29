@@ -9,6 +9,8 @@ import { runWaiverAIService } from '@/lib/waiver-ai-engine'
 import { requireFeatureEntitlement } from '@/lib/subscription/entitlement-middleware'
 import { TokenSpendService } from '@/lib/tokens/TokenSpendService'
 import { shouldRunWaiverShadow, runWaiverShadowForEngine } from '@/lib/decision-os/waiver/shadow'
+import { getDecisionShadowScopeFilters } from '@/lib/decision-os/core/shadow'
+import { prisma } from '@/lib/prisma'
 
 const SUPPORTED_SPORTS_ENUM = SUPPORTED_SPORTS as [
   (typeof SUPPORTED_SPORTS)[number],
@@ -210,7 +212,21 @@ export const POST = withApiUsage({
     // Decision OS Slice 2 — SHADOW ONLY (DECISION_OS_WAIVER_SHADOW=true). Runs the new
     // manager.waiver.claim path beside legacy, logs wrap-fidelity parity, and can NEVER alter or
     // break this response. Never executes a claim.
-    if (input.leagueId && shouldRunWaiverShadow()) {
+    const shadowFilters = getDecisionShadowScopeFilters()
+    const shadowProfile = input.leagueId && shadowFilters.hasUsernameFilter
+      ? await prisma.userProfile.findUnique({
+          where: { userId },
+          select: { sleeperUsername: true },
+        })
+      : null
+
+    if (
+      input.leagueId &&
+      shouldRunWaiverShadow(process.env, {
+        username: shadowProfile?.sleeperUsername ?? null,
+        leagueId: input.leagueId,
+      })
+    ) {
       try {
         await runWaiverShadowForEngine({ userId, leagueId: input.leagueId, engineInput: input, legacyAnalysis: analysis })
       } catch {

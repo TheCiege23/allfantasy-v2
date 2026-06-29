@@ -8,14 +8,17 @@
  * locks teams, reverses trades, processes waivers, adjusts scores, or mutates any league state.
  */
 import { emitShadowParity } from '@/lib/decision-os/core/parity'
-import { shouldRunShadow } from '@/lib/decision-os/core/shadow'
+import { shouldRunShadow, type DecisionShadowScope } from '@/lib/decision-os/core/shadow'
 import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
 import { runCommissionerHealthDecision, type RunCommissionerHealthResult } from './index'
 import { buildProductionCommissionerHealthDecisionDeps } from './deps'
 import type { CommissionerHealthDecisionDeps } from './decision'
 
-export function shouldRunCommissionerHealthShadow(env: NodeJS.ProcessEnv = process.env): boolean {
-  return shouldRunShadow('DECISION_OS_COMMISSIONER_HEALTH_SHADOW', env)
+export function shouldRunCommissionerHealthShadow(
+  env: NodeJS.ProcessEnv = process.env,
+  scope?: DecisionShadowScope,
+): boolean {
+  return shouldRunShadow('DECISION_OS_COMMISSIONER_HEALTH_SHADOW', env, scope)
 }
 
 export interface CommissionerHealthShadowResult {
@@ -48,7 +51,7 @@ export async function runCommissionerHealthShadow(
   try {
     // Skip the non-authoritative fallback path (no live roster reads).
     if (!args.snapshot || args.snapshot.source === 'dashboard-fallback') {
-      emitShadowParity('commissioner.league.health', { shadow: true, ran: false, reason: 'fallback_or_missing_snapshot', leagueId })
+      emitShadowParity('commissioner.league.health', { shadow: true, ran: false, reason: 'fallback_or_missing_snapshot', userId: args.userId, leagueId })
       return { ran: false, leagueId, error: 'fallback_or_missing_snapshot' }
     }
     const result = await runCommissionerHealthDecision(
@@ -57,7 +60,7 @@ export async function runCommissionerHealthShadow(
     )
     return { ran: true, leagueId, result }
   } catch (e) {
-    emitShadowParity('commissioner.league.health', { shadow: true, ran: false, reason: 'shadow_error', leagueId })
+    emitShadowParity('commissioner.league.health', { shadow: true, ran: false, reason: 'shadow_error', userId: args.userId, leagueId })
     return { ran: false, leagueId, error: e instanceof Error ? e.message : 'shadow_error' }
   }
 }

@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   ShieldCheck,
   Sparkles,
+  Telescope,
   Users,
   Waves,
 } from 'lucide-react'
@@ -364,6 +365,7 @@ export default function CommissionerShowcasePanel({
     healthSnapshots,
     waiverMode,
   })
+  const shadowDecision = healthSnapshots.find((snapshot) => snapshot.decisionOsShadow?.card)?.decisionOsShadow ?? null
 
   const cards: ShowcaseCard[] = [
     {
@@ -561,6 +563,54 @@ export default function CommissionerShowcasePanel({
               <p className="mt-1 text-[12px] leading-relaxed text-cyan-50/85">{aiSummary.recommendation}</p>
             </div>
           </div>
+
+          {shadowDecision ? (
+            <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.08] p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-200/80">
+                    Decision OS Shadow
+                  </p>
+                  <p className="mt-1 text-[18px] font-black text-white">
+                    {shadowDecision.card.healthScore != null
+                      ? `League Health: ${shadowDecision.card.healthScore}/100`
+                      : 'Commissioner recommendation ready'}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white/60">
+                    <Telescope className="h-3 w-3" aria-hidden />
+                    Shadow Only
+                  </span>
+                  <p className="mt-2 text-[10px] text-white/45">
+                    {shadowDecision.parityPassed == null
+                      ? 'Parity pending'
+                      : shadowDecision.parityPassed
+                        ? 'Parity matched legacy'
+                        : 'Parity diff detected'}
+                  </p>
+                </div>
+              </div>
+              <p className="mt-3 text-[13px] font-semibold text-white/90">{shadowDecision.card.title}</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-white/70">{shadowDecision.card.subtitle}</p>
+              <p className="mt-2 text-[12px] leading-relaxed text-cyan-50/85">{shadowDecision.card.detail}</p>
+              {shadowDecision.card.topRisks.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {shadowDecision.card.topRisks.map((risk) => (
+                    <span
+                      key={risk.label}
+                      className="rounded-full border border-white/10 bg-black/15 px-2.5 py-1 text-[10px] font-semibold text-white/70"
+                    >
+                      {risk.label} {risk.score}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              <p className="mt-3 text-[11px] leading-relaxed text-white/45">
+                Read-only recommendation for scoped Sleeper proofing. No actions execute from this card.
+              </p>
+            </div>
+          ) : null}
 
           <div className="rounded-2xl border border-white/10 bg-black/15 p-4">
             <div className="flex items-center gap-2">

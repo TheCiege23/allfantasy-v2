@@ -34,7 +34,8 @@ export interface WaiverLoaderDeps {
     lockType: string | null
   }>
   loadLeagueSport: (leagueId: string) => Promise<string | null>
-  loadUserRoster: (leagueId: string, userId: string) => Promise<{ id: string; faabRemaining: number | null; waiverPriority: number | null; playerData: unknown } | null>
+  loadLinkedPlatformUserIds: (userId: string) => Promise<string[]>
+  loadUserRoster: (leagueId: string, platformUserIds: string[]) => Promise<{ id: string; faabRemaining: number | null; waiverPriority: number | null; playerData: unknown } | null>
   /** Whether a settings DB row exists (vs sport/variant defaults) — drives settingsKnown honesty. */
   hasSettingsRow: (leagueId: string) => Promise<boolean>
 }
@@ -43,9 +44,22 @@ export const defaultWaiverLoaderDeps: WaiverLoaderDeps = {
   loadEffectiveSettings: (leagueId) => getEffectiveLeagueWaiverSettings(leagueId),
   loadLeagueSport: async (leagueId) =>
     ((await prisma.league.findUnique({ where: { id: leagueId }, select: { sport: true } }))?.sport as string | undefined) ?? null,
-  loadUserRoster: async (leagueId, userId) =>
+  loadLinkedPlatformUserIds: async (userId) => {
+    const profile = await prisma.userProfile.findUnique({
+      where: { userId },
+      select: { sleeperUserId: true },
+    })
+    return Array.from(
+      new Set(
+        [userId, profile?.sleeperUserId]
+          .map((value) => String(value ?? '').trim())
+          .filter(Boolean),
+      ),
+    )
+  },
+  loadUserRoster: async (leagueId, platformUserIds) =>
     (await (prisma as unknown as { roster: { findFirst: (a: unknown) => Promise<{ id: string; faabRemaining: number | null; waiverPriority: number | null; playerData: unknown } | null> } }).roster.findFirst({
-      where: { leagueId, platformUserId: userId },
+      where: { leagueId, platformUserId: { in: platformUserIds } },
       select: { id: true, faabRemaining: true, waiverPriority: true, playerData: true },
     })),
   hasSettingsRow: async (leagueId) =>
@@ -62,12 +76,14 @@ export async function loadWaiverWorldFacts(
   deps: WaiverLoaderDeps = defaultWaiverLoaderDeps,
 ): Promise<WaiverWorldFacts | null> {
   try {
-    const [settings, sport, roster, hasRow] = await Promise.all([
+    const [settings, sport, platformUserIds, hasRow] = await Promise.all([
       deps.loadEffectiveSettings(leagueId),
       deps.loadLeagueSport(leagueId),
-      deps.loadUserRoster(leagueId, userId),
+      deps.loadLinkedPlatformUserIds(userId),
       deps.hasSettingsRow(leagueId),
     ])
+    if (platformUserIds.length === 0) return null
+    const roster = await deps.loadUserRoster(leagueId, platformUserIds)
     if (!roster) return null
     return {
       sport: String(sport ?? 'NFL'),

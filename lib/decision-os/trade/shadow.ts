@@ -8,7 +8,7 @@
  * mutates rosters/FAAB/trade state.
  */
 import { emitShadowParity } from '@/lib/decision-os/core/parity'
-import { shouldRunShadow } from '@/lib/decision-os/core/shadow'
+import { shouldRunShadow, type DecisionShadowScope } from '@/lib/decision-os/core/shadow'
 import type { TradeValueSnapshot } from '@/lib/trade-value/types'
 import { runTradeEvaluateDecision, type RunTradeEvaluateResult } from './index'
 import type { TradeAssetSummary, TradeProposalContext } from './dco'
@@ -16,8 +16,11 @@ import { loadTradeWorldFacts, worldInputFromFacts, parseTradeSnapshot, type Trad
 import { buildProductionTradeDecisionDeps } from './deps'
 import type { TradeDecisionDeps } from './decision'
 
-export function shouldRunTradeShadow(env: NodeJS.ProcessEnv = process.env): boolean {
-  return shouldRunShadow('DECISION_OS_TRADE_SHADOW', env)
+export function shouldRunTradeShadow(
+  env: NodeJS.ProcessEnv = process.env,
+  scope?: DecisionShadowScope,
+): boolean {
+  return shouldRunShadow('DECISION_OS_TRADE_SHADOW', env, scope)
 }
 
 export interface TradeShadowResult {

@@ -6,15 +6,18 @@
  * the legacy response. Gated by DECISION_OS_WAIVER_SHADOW. The Decision OS NEVER executes a claim.
  */
 import { emitShadowParity } from '@/lib/decision-os/core/parity'
-import { shouldRunShadow } from '@/lib/decision-os/core/shadow'
+import { shouldRunShadow, type DecisionShadowScope } from '@/lib/decision-os/core/shadow'
 import type { WaiverAIServiceInput, WaiverAIServiceOutput } from '@/lib/waiver-ai-engine'
 import { runWaiverClaimDecision, type RunWaiverClaimResult } from './index'
 import { worldInputFromFacts, loadWaiverWorldFacts, type WaiverWorldFacts } from './loader'
 import { buildProductionWaiverDecisionDeps } from './deps'
 import type { WaiverDecisionDeps } from './decision'
 
-export function shouldRunWaiverShadow(env: NodeJS.ProcessEnv = process.env): boolean {
-  return shouldRunShadow('DECISION_OS_WAIVER_SHADOW', env)
+export function shouldRunWaiverShadow(
+  env: NodeJS.ProcessEnv = process.env,
+  scope?: DecisionShadowScope,
+): boolean {
+  return shouldRunShadow('DECISION_OS_WAIVER_SHADOW', env, scope)
 }
 
 export interface WaiverShadowResult {
@@ -49,7 +52,7 @@ export async function runWaiverShadowForEngine(
   try {
     const facts = await loadWorldFacts(args.userId, args.leagueId)
     if (!facts) {
-      emitShadowParity('manager.waiver.claim', { shadow: true, ran: false, reason: 'inputs_unavailable', leagueId: args.leagueId })
+      emitShadowParity('manager.waiver.claim', { shadow: true, ran: false, reason: 'inputs_unavailable', userId: args.userId, leagueId: args.leagueId })
       return { ran: false, leagueId: args.leagueId, error: 'inputs_unavailable' }
     }
     const result = await runWaiverClaimDecision(
@@ -69,7 +72,7 @@ export async function runWaiverShadowForEngine(
     )
     return { ran: true, leagueId: args.leagueId, result }
   } catch (e) {
-    emitShadowParity('manager.waiver.claim', { shadow: true, ran: false, reason: 'shadow_error', leagueId: args.leagueId })
+    emitShadowParity('manager.waiver.claim', { shadow: true, ran: false, reason: 'shadow_error', userId: args.userId, leagueId: args.leagueId })
     return { ran: false, leagueId: args.leagueId, error: e instanceof Error ? e.message : 'shadow_error' }
   }
 }

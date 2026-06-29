@@ -17,6 +17,17 @@ describe('shouldRunCommissionerHealthShadow (feature flag)', () => {
     expect(shouldRunCommissionerHealthShadow({ DECISION_OS_COMMISSIONER_HEALTH_SHADOW: 'false' } as never)).toBe(false)
     expect(shouldRunCommissionerHealthShadow({} as never)).toBe(false)
   })
+
+  it('honors scoped test usernames and league ids', () => {
+    const env = {
+      DECISION_OS_COMMISSIONER_HEALTH_SHADOW: 'true',
+      DECISION_OS_TEST_USERNAMES: 'theciege24',
+      DECISION_OS_TEST_LEAGUE_IDS: 'L1',
+    } as never
+
+    expect(shouldRunCommissionerHealthShadow(env, { username: 'theciege24', leagueId: 'L1' })).toBe(true)
+    expect(shouldRunCommissionerHealthShadow(env, { username: 'other-user', leagueId: 'L1' })).toBe(false)
+  })
 })
 
 describe('runCommissionerHealthShadow — wrap-fidelity, never affecting the hub, never executing', () => {

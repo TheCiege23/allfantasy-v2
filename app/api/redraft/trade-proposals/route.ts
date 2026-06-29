@@ -8,6 +8,7 @@ import { resolveLeagueSport } from '@/lib/ai-learning-system/resolveLeagueSport'
 import { captureRedraftTradeValueSnapshot } from '@/lib/trade-value/captureSnapshot'
 import { recordRedraftTradeMarketEvent } from '@/lib/trade-market/redraftTradeMarketEvents'
 import { shouldRunTradeShadow, runTradeShadowForProposal } from '@/lib/decision-os/trade/shadow'
+import { getDecisionShadowScopeFilters } from '@/lib/decision-os/core/shadow'
 
 export const dynamic = 'force-dynamic'
 
@@ -154,7 +155,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const created = await prisma.$transaction(async (tx) => {
+  const created = await prisma.$transaction(async (tx: any) => {
     const proposal = await tx.redraftTradeProposal.create({
       data: {
         id: crypto.randomUUID(),
@@ -253,7 +254,18 @@ export async function POST(req: NextRequest) {
   // manager.trade.evaluate path beside legacy using the SAME persisted deterministic snapshot, logs
   // wrap-fidelity parity, and can NEVER alter this response, block creation, execute, or mutate trade
   // state. Skips when no snapshot was captured.
-  if (created?.id && snapshotRow && shouldRunTradeShadow()) {
+  const shadowFilters = getDecisionShadowScopeFilters()
+  const shadowProfile = created?.id && snapshotRow && shadowFilters.hasUsernameFilter
+    ? await prisma.userProfile.findUnique({
+        where: { userId },
+        select: { sleeperUsername: true },
+      })
+    : null
+
+  if (created?.id && snapshotRow && shouldRunTradeShadow(process.env, {
+    username: shadowProfile?.sleeperUsername ?? null,
+    leagueId,
+  })) {
     try {
       await runTradeShadowForProposal({
         userId,

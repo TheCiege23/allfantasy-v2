@@ -2,6 +2,8 @@ import type { UserLeague } from '@/app/dashboard/types'
 import { prisma } from '@/lib/prisma'
 import { monitorLeagueHealth, type OverallStatus } from '@/lib/league-health/league-health-engine'
 import { shouldRunCommissionerHealthShadow, runCommissionerHealthShadow } from '@/lib/decision-os/commissioner-health/shadow'
+import { getDecisionShadowScopeFilters } from '@/lib/decision-os/core/shadow'
+import { toCommissionerHealthCard, type CommissionerHealthCard } from '@/lib/decision-os/commissioner-health/healthCardAdapter'
 import { getNormalizedLineupSections } from '@/lib/roster/LineupTemplateValidation'
 import { getCanonicalNflDataCoverage } from '@/lib/nfl-data-foundation/nflDataCoverage'
 import type { CanonicalNflDataCoverage } from '@/lib/nfl-data-foundation/types'
@@ -84,6 +86,11 @@ export type CommissionerLeagueHealthSnapshot = {
   actions: CommissionerHealthAction[]
   assistantQuestions: CommissionerAssistantQuestion[]
   nflDataCoverage?: CanonicalNflDataCoverage | null
+  decisionOsShadow?: {
+    decisionId: string
+    parityPassed: boolean | null
+    card: CommissionerHealthCard
+  } | null
 }
 
 type CountMap = Map<string, number>
@@ -679,6 +686,7 @@ export async function getCommissionerHubHealthForUser(
 
   const now = new Date()
   const sevenDaysAgo = new Date(now.getTime() - WEEK_MS)
+  const shadowFilters = getDecisionShadowScopeFilters()
   const fallbackById = new Map(
     commissionerLeagues.map((league) => [
       league.id,
@@ -701,6 +709,7 @@ export async function getCommissionerHubHealthForUser(
       chatMessagesLast7Days,
       commissionerActions,
       openAiAlerts,
+      shadowProfile,
     ] = await Promise.all([
       (prisma as any).league.findMany({
         where: { id: { in: leagueIds } },
@@ -764,6 +773,12 @@ export async function getCommissionerHubHealthForUser(
         leagueId: { in: leagueIds },
         status: 'open',
       }),
+      shadowFilters.hasUsernameFilter
+        ? prisma.userProfile.findUnique({
+            where: { userId },
+            select: { sleeperUsername: true },
+          })
+        : Promise.resolve(null),
     ])
 
     const dbById = new Map<string, LeagueHealthRow>(
@@ -809,11 +824,30 @@ export async function getCommissionerHubHealthForUser(
     // logs wrap-fidelity parity, and can NEVER alter these snapshots, block the hub, execute a
     // commissioner action, or mutate league state. One database-source league per request; skips
     // fallback. Read-only.
-    if (shouldRunCommissionerHealthShadow()) {
-      const target = snapshots.find((s) => s && s.source === 'database')
+    const shadowTargetIndex = snapshots.findIndex((snapshot) =>
+      snapshot &&
+      snapshot.source === 'database' &&
+      shouldRunCommissionerHealthShadow(process.env, {
+        username: shadowProfile?.sleeperUsername ?? null,
+        leagueId: snapshot.leagueId,
+      }),
+    )
+
+    if (shadowTargetIndex >= 0) {
+      const target = snapshots[shadowTargetIndex]
       if (target) {
         try {
-          await runCommissionerHealthShadow({ userId, snapshot: target })
+          const shadow = await runCommissionerHealthShadow({ userId, snapshot: target })
+          if (shadow.ran && shadow.result) {
+            snapshots[shadowTargetIndex] = {
+              ...target,
+              decisionOsShadow: {
+                decisionId: shadow.result.decision.decision_id,
+                parityPassed: shadow.result.parity?.passed ?? null,
+                card: toCommissionerHealthCard(shadow.result.decision),
+              },
+            }
+          }
         } catch {
           // shadow must never affect the Commissioner Hub
         }

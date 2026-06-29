@@ -62,7 +62,16 @@ export async function runWaiverClaimDecision(input: RunWaiverClaimInput, deps: R
     parity = compareWaiverParity(decision, deps.shadow.legacySuggestions)
     emitShadowParity(
       'manager.waiver.claim',
-      { legacy_shadow_compared: true, wrap_fidelity: true, parity_passed: parity.passed, parity_failed: !parity.passed, diffs: parity.diffs.length },
+      {
+        legacy_shadow_compared: true,
+        wrap_fidelity: true,
+        parity_passed: parity.passed,
+        parity_failed: !parity.passed,
+        diffs: parity.diffs.length,
+        userId: input.userId,
+        leagueId: input.leagueId,
+        rosterId: input.rosterId,
+      },
       decision.decision_id,
     )
   }

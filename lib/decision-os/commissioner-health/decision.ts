@@ -138,7 +138,14 @@ export async function decideCommissionerHealth(
   emitDecisionTelemetry(
     'decision.issued',
     decision.decision_type,
-    { ...decision.telemetry, legal: isLegal(verdicts), decider_scope: 'commissioner', overall_status: assessment.overallStatus },
+    {
+      ...decision.telemetry,
+      legal: isLegal(verdicts),
+      decider_scope: 'commissioner',
+      overall_status: assessment.overallStatus,
+      userId: dco.user.userId,
+      leagueId: dco.league.leagueId,
+    },
     decision.decision_id,
   )
   return decision

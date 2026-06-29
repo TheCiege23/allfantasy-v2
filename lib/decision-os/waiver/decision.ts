@@ -137,6 +137,17 @@ export async function decideWaiverClaim(dco: WaiverDCO, deps: WaiverDecisionDeps
   }
 
   assertFourAnswers(decision)
-  emitDecisionTelemetry('decision.issued', decision.decision_type, { ...decision.telemetry, legal: isLegal(verdicts) }, decision.decision_id)
+  emitDecisionTelemetry(
+    'decision.issued',
+    decision.decision_type,
+    {
+      ...decision.telemetry,
+      legal: isLegal(verdicts),
+      userId: dco.user.userId,
+      leagueId: dco.league.leagueId,
+      rosterId: dco.roster.rosterId,
+    },
+    decision.decision_id,
+  )
   return decision
 }

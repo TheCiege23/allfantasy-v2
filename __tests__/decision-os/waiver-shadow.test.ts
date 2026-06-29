@@ -18,6 +18,16 @@ describe('shouldRunWaiverShadow (feature flag)', () => {
     expect(shouldRunWaiverShadow({ DECISION_OS_WAIVER_SHADOW: 'false' } as never)).toBe(false)
     expect(shouldRunWaiverShadow({} as never)).toBe(false)
   })
+
+  it('honors scoped league targeting', () => {
+    const env = {
+      DECISION_OS_WAIVER_SHADOW: 'true',
+      DECISION_OS_TEST_LEAGUE_IDS: 'L1',
+    } as never
+
+    expect(shouldRunWaiverShadow(env, { leagueId: 'L1' })).toBe(true)
+    expect(shouldRunWaiverShadow(env, { leagueId: 'L2' })).toBe(false)
+  })
 })
 
 describe('runWaiverShadowForEngine — beside legacy, wrap-fidelity parity, never affecting it', () => {

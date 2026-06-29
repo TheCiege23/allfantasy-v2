@@ -9,15 +9,18 @@ import type { LineupActionSummaryPayload } from '@/lib/lineup-actions/types'
 import type { LineupValidationContext } from '@/lib/roster-lineup-engine/types'
 import type { RuleVerdict } from '@/lib/decision-os/core/decision'
 import { emitShadowParity, emitValidatorParity } from '@/lib/decision-os/core/parity'
-import { shouldRunShadow } from '@/lib/decision-os/core/shadow'
+import { shouldRunShadow, type DecisionShadowScope } from '@/lib/decision-os/core/shadow'
 import { runLineupSetDecision, type LineupParityResult, type LineupWorld, type RunLineupSetInput } from './index'
 import { defaultLineupRuleDeps, evaluateLineupRulesWithParity, type LineupRuleContext, type LineupRuleDeps } from './rules'
 import type { ValidatorParity } from './validatorParity'
 import { loadLineupSetInputs, loadCanonicalValidatorContext } from './loader'
 import { buildProductionCanonicalValidatorDep } from './deps'
 
-export function shouldRunLineupShadow(env: NodeJS.ProcessEnv = process.env): boolean {
-  return shouldRunShadow('DECISION_OS_LINEUP_SHADOW', env)
+export function shouldRunLineupShadow(
+  env: NodeJS.ProcessEnv = process.env,
+  scope?: DecisionShadowScope,
+): boolean {
+  return shouldRunShadow('DECISION_OS_LINEUP_SHADOW', env, scope)
 }
 
 export interface LineupShadowResult {
