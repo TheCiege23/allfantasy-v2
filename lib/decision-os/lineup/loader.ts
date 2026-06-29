@@ -3,12 +3,14 @@
  *
  * This is the ONLY Decision-OS lineup module that touches prisma. It lives at the route seam (NOT
  * the decision layer) and loads the SAME league-scoped data the existing redraft roster route reads
- * (resolveRedraftRosterLookup → redraftRoster.players + season; league.settings), shaping it into a
- * RunLineupSetInput. READ-ONLY. Returns null when the league isn't a redraft league or data is
- * unavailable, so the shadow path skips gracefully. Prisma access is injectable for tests.
+ * (resolveRedraftRosterLookupReadOnly → redraftRoster.players + season; league.settings), shaping it
+ * into a RunLineupSetInput. READ-ONLY — the shadow path must never transitively write, so identity
+ * resolution uses the guaranteed write-free resolver (no owner repair). Returns null when the league
+ * isn't a redraft league or data is unavailable, so the shadow path skips gracefully (and the canonical
+ * fallback in ./canonicalBridge takes over). Prisma access is injectable for tests.
  */
 import { prisma } from '@/lib/prisma'
-import { resolveRedraftRosterLookup } from '@/lib/redraft/redraftRosterIdentity'
+import { resolveRedraftRosterLookupReadOnly } from '@/lib/redraft/redraftRosterIdentity'
 import { getRosterTemplateForLeague } from '@/lib/multi-sport/MultiSportRosterService'
 import { getFormatTypeForVariant } from '@/lib/sport-defaults/LeagueVariantRegistry'
 import type { RedraftLineupPlayer } from '@/lib/redraft/lineupValidation'
@@ -29,7 +31,10 @@ export interface LineupLoaderDeps {
 }
 
 export const defaultLineupLoaderDeps: LineupLoaderDeps = {
-  lookup: (args) => resolveRedraftRosterLookup({ userId: args.userId, leagueId: args.leagueId }),
+  // Read-only identity resolution: the shadow lineup path must never transitively write (no owner
+  // repair). See lib/redraft/redraftRosterIdentity.ts — resolveRedraftRosterLookupReadOnly shares the
+  // lookup core with the legacy write-capable resolver but layers no `redraftRoster.update` on top.
+  lookup: (args) => resolveRedraftRosterLookupReadOnly({ userId: args.userId, leagueId: args.leagueId }),
   loadRoster: async (rosterId) =>
     (await prisma.redraftRoster.findFirst({ where: { id: rosterId }, include: { players: true, season: true } })) as unknown as LoadedRoster | null,
   loadLeagueSettings: async (leagueId) =>

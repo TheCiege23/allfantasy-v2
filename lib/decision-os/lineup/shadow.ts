@@ -14,6 +14,11 @@ import { runLineupSetDecision, type LineupParityResult, type LineupWorld, type R
 import { defaultLineupRuleDeps, evaluateLineupRulesWithParity, type LineupRuleContext, type LineupRuleDeps } from './rules'
 import type { ValidatorParity } from './validatorParity'
 import { loadLineupSetInputs, loadCanonicalValidatorContext } from './loader'
+import {
+  resolveCanonicalLineupInputs,
+  type LineupInputSource,
+  type ResolvedLineupInputs,
+} from './canonicalBridge'
 import { buildProductionCanonicalValidatorDep } from './deps'
 
 export function shouldRunLineupShadow(
@@ -29,11 +34,22 @@ export interface LineupShadowResult {
   parity?: LineupParityResult
   /** The SECOND-validator parity (canonical vs primary), when the canonical context was available. */
   validatorParity?: ValidatorParity
+  /** Where the lineup inputs came from — PROVENANCE/DEBUG ONLY (never a decision input). */
+  source?: LineupInputSource
+  /** Honest degradation notes from the input resolution (provenance/debug only). */
+  warnings?: string[]
   error?: string
 }
 
 export interface LineupShadowDeps {
   loadInputs: (userId: string, leagueId: string) => Promise<RunLineupSetInput | null>
+  /**
+   * Canonical World fallback: invoked ONLY when the redraft-native loader yields nothing (imported /
+   * non-redraft / missing data). Read-only — projects the viewer's canonical roster facts into the
+   * lineup input shape. Default reads through `resolveCanonicalWorld`; tests inject a fake so they never
+   * touch prisma. When absent, the shadow simply skips the fallback (legacy behavior).
+   */
+  loadCanonicalInputs?: (userId: string, leagueId: string) => Promise<ResolvedLineupInputs>
   ruleDeps: LineupRuleDeps
   newId?: () => string
   /**
@@ -48,6 +64,8 @@ export interface LineupShadowDeps {
 
 const defaultShadowDeps: LineupShadowDeps = {
   loadInputs: (userId, leagueId) => loadLineupSetInputs(userId, leagueId),
+  // Default-ON within shadow mode: tried only AFTER the native loader returns null. Read-only.
+  loadCanonicalInputs: (userId, leagueId) => resolveCanonicalLineupInputs(userId, leagueId),
   ruleDeps: defaultLineupRuleDeps,
   // Default-ON within shadow mode: the route already gates this whole path behind the shadow flag.
   loadCanonicalContext: (leagueId, week) => loadCanonicalValidatorContext(leagueId, week),
@@ -64,12 +82,24 @@ export async function runLineupShadow(
   deps: Partial<LineupShadowDeps> = {},
 ): Promise<LineupShadowResult> {
   const loadInputs = deps.loadInputs ?? defaultShadowDeps.loadInputs
+  const loadCanonicalInputs = deps.loadCanonicalInputs ?? defaultShadowDeps.loadCanonicalInputs
   const ruleDeps = deps.ruleDeps ?? defaultShadowDeps.ruleDeps
   try {
-    const input = await loadInputs(args.userId, args.leagueId)
+    // 1) Redraft-native path (unchanged): when it resolves, the source is redraft_native.
+    let input = await loadInputs(args.userId, args.leagueId)
+    let source: LineupInputSource = input ? 'redraft_native' : 'canonical_world_unavailable'
+    let warnings: string[] = []
+    // 2) Canonical World fallback (read-only) for imported / non-redraft leagues. Origin-blind: the
+    //    source tag below is provenance only and does NOT alter any decision rule.
+    if (!input && loadCanonicalInputs) {
+      const resolved = await loadCanonicalInputs(args.userId, args.leagueId)
+      input = resolved.input
+      source = resolved.source
+      warnings = resolved.warnings
+    }
     if (!input) {
-      emitShadowParity('manager.lineup.set', { shadow: true, ran: false, reason: 'inputs_unavailable', leagueId: args.leagueId })
-      return { ran: false, leagueId: args.leagueId, error: 'inputs_unavailable' }
+      emitShadowParity('manager.lineup.set', { shadow: true, ran: false, reason: 'inputs_unavailable', source, warnings, leagueId: args.leagueId })
+      return { ran: false, leagueId: args.leagueId, source, warnings, error: 'inputs_unavailable' }
     }
     const memo = args.legacySummary
     const result = await runLineupSetDecision(input, {
@@ -78,7 +108,7 @@ export async function runLineupShadow(
     })
     emitShadowParity(
       'manager.lineup.set',
-      { shadow: true, ran: true, leagueId: args.leagueId, parity_passed: result.parity?.passed, parity_failed: result.parity ? !result.parity.passed : undefined, diffs: result.parity?.diffs?.length ?? 0 },
+      { shadow: true, ran: true, leagueId: args.leagueId, source, warnings, parity_passed: result.parity?.passed, parity_failed: result.parity ? !result.parity.passed : undefined, diffs: result.parity?.diffs?.length ?? 0 },
       result.decision.decision_id,
     )
 
@@ -86,7 +116,7 @@ export async function runLineupShadow(
     // active gate (the decision above already issued unchanged). Never throws.
     const validatorParity = await runValidatorParityShadow(args.leagueId, input, result.world, ruleDeps, deps, result.decision.decision_id)
 
-    return { ran: true, leagueId: args.leagueId, parity: result.parity, validatorParity }
+    return { ran: true, leagueId: args.leagueId, source, warnings, parity: result.parity, validatorParity }
   } catch (e) {
     emitShadowParity('manager.lineup.set', { shadow: true, ran: false, reason: 'shadow_error', leagueId: args.leagueId })
     return { ran: false, leagueId: args.leagueId, error: e instanceof Error ? e.message : 'shadow_error' }
