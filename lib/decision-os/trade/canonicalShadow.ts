@@ -11,18 +11,19 @@
  * (default `resolveCanonicalWorld`, whose default port is prisma find* only).
  *
  * When canonical inputs are unavailable it returns a STRUCTURED SKIP (never an error):
- *   • `canonical_trade_world_unavailable`      — no canonical world, or it doesn't describe BOTH
- *                                                participant rosters (the known redraft↔canonical
- *                                                roster-identity mismatch; full join lands in E.5).
+ *   • `canonical_trade_world_unavailable`      — no canonical world, or neither a direct id match nor the
+ *                                                E.5 roster-identity join (teamId/managerUserId) could map
+ *                                                BOTH participants to a canonical roster.
  *   • `canonical_asset_resolution_unavailable` — the trade assets could not be staged into canonical
  *                                                movements (no assets / resolution produced nothing).
  *   • `canonical_memo_unavailable`             — the two-sided canonical memo could not be produced
  *                                                (multi-team trade, or the engine threw).
  *
- * Honest-degraded parity (documented, intentional): E.3 deferred the ADP/projection port, so no market
- * enrichment is injected here yet. Player values floor to 0 and the canonical snapshot DIFFERS from the
- * redraft snapshot — parity records `passed: false` with the diffs honestly. Full parity arrives in E.5
- * once the read-only enrichment seam feeds `MarketContext`. The attempt never fabricates parity (P3).
+ * E.5 — read-only market enrichment is now wired: `resolveEnrichment` (default `resolveTradeEnrichment`)
+ * feeds ADP (`AdpDataRecord`) + position (SportsPlayer cache) into `MarketContext`, lifting parity from the
+ * E.4 honest-degraded floor toward meaningful parity. Projection still has NO canonical read-only source,
+ * so it stays null and player values without an ADP signal still floor to 0 — the residual honest gap. The
+ * attempt never fabricates a value or parity (P3); unsourced fields degrade to uncertainty, not invention.
  *
  * Telemetry: emits `decision.shadow_parity` with `source: 'canonical_trade_world'` and the completeness /
  * uncertainty / asset-count / participant-count / memo-source / valuation-source signals. The provider
@@ -42,6 +43,12 @@ import {
   type TradeMovement,
 } from './canonicalMemo'
 import { deriveParticipants, type TradeAssetSummary } from './dco'
+import { resolveTradeEnrichment, type TradeEnrichmentResult } from './enrichmentPort'
+import {
+  resolveRosterIdentityJoin,
+  type RosterIdentityResolver,
+  type RosterIdentityMethod,
+} from './rosterIdentity'
 
 export type CanonicalTradeShadowSkipReason =
   | 'canonical_trade_world_unavailable'
@@ -61,6 +68,13 @@ export interface CanonicalTradeShadowTelemetry {
   valuation_source?: 'deterministic_engine'
   completeness?: number
   uncertainty_count?: number
+  /** E.5 — which read-only market sources fed the enrichment (provenance/debug; no provider name). */
+  enrichment_source?: string | null
+  /** E.5 — counts of player ids that resolved a real ADP value / position from the read-only seam. */
+  adp_resolved?: number
+  position_resolved?: number
+  /** E.5 — how each participant mapped to a canonical roster (direct/team/manager). Origin-blind. */
+  identity_method?: { proposer: RosterIdentityMethod; receiver: RosterIdentityMethod }
   parity?: { passed: boolean; value_totals_match: boolean; grade_match: boolean; diffs: number }
   /** Provenance/debug ONLY — provider name never appears in a decision-facing field. */
   provenance?: { provider: string | null; asset_source_models: string[] }
@@ -90,10 +104,44 @@ export interface CanonicalTradeShadowArgs {
 export interface CanonicalTradeShadowDeps {
   /** READ-ONLY canonical world resolver. Default `resolveCanonicalWorld` (find* port only). */
   resolveWorld: (leagueId: string) => Promise<CanonicalWorld | null>
+  /**
+   * E.5 — READ-ONLY market-enrichment resolver (ADP + position). Default `resolveTradeEnrichment` (reads
+   * the persisted `AdpDataRecord` + SportsPlayer caches; honest-empty when prisma is unavailable). Feeds
+   * `MarketContext`; missing values stay null. Never writes, warms a cache, or calls a live provider API.
+   */
+  resolveEnrichment: (args: { sport: string; playerIds: string[] }) => Promise<TradeEnrichmentResult>
+  /**
+   * E.5 — OPTIONAL read-only roster-identity resolver mapping proposal-space roster ids to canonical join
+   * keys (teamId/managerUserId). Absent by default ⇒ direct-match only (production shadow behavior, E.4).
+   * The DB-gated validation script injects a real one to exercise the redraft↔canonical join.
+   */
+  resolveRosterIdentity?: RosterIdentityResolver
 }
 
-const defaultDeps: CanonicalTradeShadowDeps = {
+const defaultDeps: Pick<CanonicalTradeShadowDeps, 'resolveWorld' | 'resolveEnrichment'> = {
   resolveWorld: (leagueId) => resolveCanonicalWorld(leagueId),
+  resolveEnrichment: (args) => resolveTradeEnrichment(args),
+}
+
+/** Collect the canonical player ids carried by the movements (player/keeper/devy slots). */
+function playerIdsFromMovements(movements: TradeMovement[]): string[] {
+  const ids: string[] = []
+  for (const m of movements) {
+    const meta = m.asset.metadata
+    const pid = meta.player?.playerId ?? meta.keeper?.playerId ?? meta.devy?.playerId ?? null
+    if (pid) ids.push(pid)
+  }
+  return ids
+}
+
+/** Apply a proposal-space → canonical roster-id remap to the trade assets (1:1; identity when empty). */
+function remapAssets(assets: TradeAssetSummary[], remap: Record<string, string>): TradeAssetSummary[] {
+  if (Object.keys(remap).length === 0) return assets
+  return assets.map((a) => ({
+    ...a,
+    fromRosterId: remap[a.fromRosterId] ?? a.fromRosterId,
+    toRosterId: remap[a.toRosterId] ?? a.toRosterId,
+  }))
 }
 
 /** Stage the redraft trade-asset summaries into canonical `AfLeagueTradeItem` rows (neutral graph). */
@@ -132,6 +180,10 @@ function toShadowParityFlags(t: CanonicalTradeShadowTelemetry, proposalId: strin
     ...(t.valuation_source ? { valuation_source: t.valuation_source } : {}),
     ...(t.completeness != null ? { completeness: t.completeness } : {}),
     ...(t.uncertainty_count != null ? { uncertainty_count: t.uncertainty_count } : {}),
+    ...(t.enrichment_source != null ? { enrichment_source: t.enrichment_source } : {}),
+    ...(t.adp_resolved != null ? { adp_resolved: t.adp_resolved } : {}),
+    ...(t.position_resolved != null ? { position_resolved: t.position_resolved } : {}),
+    ...(t.identity_method ? { identity_method: t.identity_method } : {}),
     ...(t.parity
       ? {
           parity_passed: t.parity.passed,
@@ -172,13 +224,13 @@ export async function runCanonicalTradeShadowAttempt(
   deps: Partial<CanonicalTradeShadowDeps> = {},
 ): Promise<CanonicalTradeShadowResult> {
   const resolveWorld = deps.resolveWorld ?? defaultDeps.resolveWorld
+  const resolveEnrichment = deps.resolveEnrichment ?? defaultDeps.resolveEnrichment
   const assetCount = args.assets.length
   const participantCount = deriveParticipants(args.assets).length
   const counts = { asset_count: assetCount, participant_count: participantCount }
 
   try {
-    // 1. Canonical world (read-only). null or a world that doesn't cover BOTH participant rosters ⇒ the
-    //    canonical layer cannot describe THIS proposal yet (redraft↔canonical roster-identity mismatch).
+    // 1. Canonical world (read-only).
     let world: CanonicalWorld | null = null
     try {
       world = await resolveWorld(args.leagueId)
@@ -187,15 +239,24 @@ export async function runCanonicalTradeShadowAttempt(
     }
     if (!world) return skip('canonical_trade_world_unavailable', args, counts)
 
-    const rosterIds = new Set(world.rosters.map((r) => r.rosterId))
-    if (!rosterIds.has(args.proposerRosterId) || !rosterIds.has(args.receiverRosterId)) {
-      return skip('canonical_trade_world_unavailable', args, counts)
+    // 1b. Roster-identity join (E.5). Direct match (native id space) needs no resolver; for the redraft↔
+    //     canonical id mismatch an OPTIONAL read-only resolver supplies teamId/managerUserId join keys.
+    //     A participant that maps to no canonical roster ⇒ the world cannot describe THIS proposal (skip).
+    let identities: Awaited<ReturnType<RosterIdentityResolver['resolve']>> = []
+    if (deps.resolveRosterIdentity) {
+      try {
+        identities = await deps.resolveRosterIdentity.resolve(args.leagueId, [args.proposerRosterId, args.receiverRosterId])
+      } catch {
+        identities = []
+      }
     }
+    const join = resolveRosterIdentityJoin(world, args, identities)
+    if (!join.resolved) return skip('canonical_trade_world_unavailable', args, counts)
 
-    // 2. Assets → canonical movements.
+    // 2. Assets → canonical movements (roster ids remapped to canonical space when the join was non-direct).
     let movements: TradeMovement[]
     try {
-      movements = buildMovements(args.assets, world.provenance.provider)
+      movements = buildMovements(remapAssets(args.assets, join.remap), world.provenance.provider)
     } catch {
       return skip('canonical_asset_resolution_unavailable', args, counts)
     }
@@ -205,16 +266,26 @@ export async function runCanonicalTradeShadowAttempt(
     // unsupported by it (the native DCO already flags them) — skip, never invent a multi-team valuation.
     if (participantCount !== 2) return skip('canonical_memo_unavailable', args, counts)
 
-    // 3. TradeWorld → canonical memo. No enrichment is injected yet (E.5 ADP/projection port) ⇒ the memo
-    //    degrades honestly (player values floor to 0); it never fabricates a value.
+    // 3. Read-only market enrichment (E.5): ADP + position from persisted caches. Missing values stay null
+    //    so the engine degrades honestly; this never fabricates a value (P3) and never affects the native path.
+    let enrichmentResult: TradeEnrichmentResult
+    try {
+      enrichmentResult = await resolveEnrichment({ sport: world.league.sport, playerIds: playerIdsFromMovements(movements) })
+    } catch {
+      enrichmentResult = { enrichment: {}, valuationSource: null, adpResolved: 0, positionResolved: 0, projectionResolved: 0, unresolvedIds: [], warnings: ['enrichment_unavailable'] }
+    }
+
+    // 4. TradeWorld → canonical memo, fed the read-only enrichment. Unsourced market fields degrade to
+    //    honest uncertainty inside the resolver; player values still never get invented.
     let memo: CanonicalTradeMemo
     try {
       const tradeWorld = resolveTradeWorld({
         world,
         movements,
-        proposerRosterId: args.proposerRosterId,
-        receiverRosterId: args.receiverRosterId,
+        proposerRosterId: join.proposerRosterId,
+        receiverRosterId: join.receiverRosterId,
         currentSeason: args.currentSeason,
+        enrichment: enrichmentResult.enrichment,
       })
       memo = buildTradeMemo(tradeWorld)
     } catch {
@@ -222,7 +293,7 @@ export async function runCanonicalTradeShadowAttempt(
     }
     if (!memo?.snapshot) return skip('canonical_memo_unavailable', args, counts)
 
-    // 4. Parity vs the persisted redraft snapshot + telemetry. Differences are reported, never hidden.
+    // 5. Parity vs the persisted redraft snapshot + telemetry. Differences are reported, never hidden.
     const parity = compareTradeMemos(memo.snapshot, args.referenceSnapshot)
     const telemetry: CanonicalTradeShadowTelemetry = {
       decision_type: 'manager.trade.evaluate',
@@ -234,6 +305,10 @@ export async function runCanonicalTradeShadowAttempt(
       valuation_source: memo.provenance.valuationSource,
       completeness: memo.completeness,
       uncertainty_count: memo.uncertainty.length,
+      enrichment_source: enrichmentResult.valuationSource,
+      adp_resolved: enrichmentResult.adpResolved,
+      position_resolved: enrichmentResult.positionResolved,
+      identity_method: { proposer: join.proposerMethod, receiver: join.receiverMethod },
       parity: { passed: parity.passed, value_totals_match: parity.valueTotalsMatch, grade_match: parity.gradeMatch, diffs: parity.diffs.length },
       provenance: { provider: memo.provenance.provider, asset_source_models: memo.provenance.assetSourceModels },
     }

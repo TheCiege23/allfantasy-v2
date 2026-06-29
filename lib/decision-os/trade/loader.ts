@@ -120,3 +120,33 @@ export function parseTradeSnapshot(payload: unknown): TradeValueSnapshot | null 
   if (!p.grade || !Array.isArray(p.sides) || p.sides.length < 2) return null
   return payload as TradeValueSnapshot
 }
+
+/**
+ * E.5 — one freshest persisted ADP record per player id (provider-neutral market seam).
+ *
+ * READ-ONLY. Reads the SAME already-persisted `AdpDataRecord` table + key the redraft snapshot-capture
+ * path reads (`lib/trade-value/captureSnapshot.ts`): keyed by `playerId` + `sport`, freshest by
+ * `createdAt desc`. NEVER writes, warms a cache, or calls the live FFC endpoint (`lib/adp-data.ts`).
+ * Rows are returned freshest-first so the caller keeps the first row per id. The `position` carried on
+ * the record is provenance/fallback only — authoritative position comes from the SportsPlayer cache.
+ */
+export interface AdpRecordRow {
+  playerId: string
+  adp: number | null
+  position: string | null
+}
+
+export async function loadAdpRecords(sport: string, playerIds: string[]): Promise<AdpRecordRow[]> {
+  const clean = Array.from(new Set(playerIds.filter((x) => typeof x === 'string' && x.length > 0))).slice(0, 200)
+  if (clean.length === 0) return []
+  const rows = await prisma.adpDataRecord.findMany({
+    where: { playerId: { in: clean }, sport },
+    orderBy: { createdAt: 'desc' },
+    select: { playerId: true, adp: true, position: true },
+  })
+  return rows.map((row: { playerId: string; adp: number | null; position: string | null }) => ({
+    playerId: row.playerId,
+    adp: row.adp ?? null,
+    position: row.position ?? null,
+  }))
+}
