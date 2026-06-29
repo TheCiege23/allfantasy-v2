@@ -1,6 +1,7 @@
 import type { UserLeague } from '@/app/dashboard/types'
 import { prisma } from '@/lib/prisma'
 import { monitorLeagueHealth, type OverallStatus } from '@/lib/league-health/league-health-engine'
+import { shouldRunCommissionerHealthShadow, runCommissionerHealthShadow } from '@/lib/decision-os/commissioner-health/shadow'
 import { getNormalizedLineupSections } from '@/lib/roster/LineupTemplateValidation'
 import { getCanonicalNflDataCoverage } from '@/lib/nfl-data-foundation/nflDataCoverage'
 import type { CanonicalNflDataCoverage } from '@/lib/nfl-data-foundation/types'
@@ -780,7 +781,7 @@ export async function getCommissionerHubHealthForUser(
       }),
     )
 
-    return leagueIds.map((leagueId) => {
+    const snapshots = leagueIds.map((leagueId) => {
       const dbLeague = dbById.get(leagueId)
       if (!dbLeague) return fallbackById.get(leagueId)!
 
@@ -802,6 +803,24 @@ export async function getCommissionerHubHealthForUser(
         },
       })
     })
+
+    // Decision OS Slice 4 — SHADOW ONLY (DECISION_OS_COMMISSIONER_HEALTH_SHADOW=true). Assesses the
+    // new commissioner.league.health path beside legacy using the SAME built deterministic snapshot,
+    // logs wrap-fidelity parity, and can NEVER alter these snapshots, block the hub, execute a
+    // commissioner action, or mutate league state. One database-source league per request; skips
+    // fallback. Read-only.
+    if (shouldRunCommissionerHealthShadow()) {
+      const target = snapshots.find((s) => s && s.source === 'database')
+      if (target) {
+        try {
+          await runCommissionerHealthShadow({ userId, snapshot: target })
+        } catch {
+          // shadow must never affect the Commissioner Hub
+        }
+      }
+    }
+
+    return snapshots
   } catch (err) {
     console.error('[commissioner-hub-health] failed to load health dashboard', err)
     return leagueIds.map((leagueId) => fallbackById.get(leagueId)!).filter(Boolean)
