@@ -104,6 +104,36 @@ describe('Decision OS telemetry debug store', () => {
     expect(res.status).toBe(404)
   })
 
+  it('POST seeds a sample shadow event and redirects to the viewer', async () => {
+    process.env.DECISION_OS_DEBUG_TELEMETRY = 'true'
+    process.env.NODE_ENV = 'development'
+    mocks.getCurrentUser.mockResolvedValue({ id: 'admin-1', email: 'admin@example.com' })
+    mocks.isDevAdminUserId.mockReturnValue(true)
+
+    const { POST } = await import('@/app/api/dev/decision-os/telemetry/route')
+    const res = await POST(createMockNextRequest('http://localhost/api/dev/decision-os/telemetry', { method: 'POST' }))
+
+    expect(res.status).toBe(303)
+    const events = listDecisionTelemetryDebugEvents()
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      event: 'decision.shadow_parity',
+      decision_type: 'commissioner.league.health',
+    })
+  })
+
+  it('POST seed is blocked when the debug surface is disabled in production', async () => {
+    process.env.DECISION_OS_DEBUG_TELEMETRY = 'true'
+    process.env.NODE_ENV = 'production'
+    process.env.VERCEL_ENV = 'production'
+
+    const { POST } = await import('@/app/api/dev/decision-os/telemetry/route')
+    const res = await POST(createMockNextRequest('http://localhost/api/dev/decision-os/telemetry', { method: 'POST' }))
+
+    expect(res.status).toBe(404)
+    expect(listDecisionTelemetryDebugEvents()).toHaveLength(0)
+  })
+
   it('returns filtered telemetry events through the dev proxy for admin users', async () => {
     process.env.DECISION_OS_DEBUG_TELEMETRY = 'true'
     process.env.NODE_ENV = 'development'

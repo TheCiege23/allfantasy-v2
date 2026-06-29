@@ -93,13 +93,23 @@ export default async function DecisionOsTelemetryViewerPage({
             This route is hidden unless debug telemetry is enabled and the signed-in
             user has dev-admin access.
           </p>
-          <div className="mt-4 flex flex-wrap gap-2 text-xs">
-            <span className={`rounded-full border px-2.5 py-1 ${badgeClass('cyan')}`}>
-              `DECISION_OS_DEBUG_TELEMETRY=true`
-            </span>
-            <span className={`rounded-full border px-2.5 py-1 ${badgeClass('slate')}`}>
-              {events.length} visible events
-            </span>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className={`rounded-full border px-2.5 py-1 ${badgeClass('cyan')}`}>
+                `DECISION_OS_DEBUG_TELEMETRY=true`
+              </span>
+              <span className={`rounded-full border px-2.5 py-1 ${badgeClass('slate')}`}>
+                {events.length} visible events
+              </span>
+            </div>
+            <form method="POST" action="/api/dev/decision-os/telemetry">
+              <button
+                type="submit"
+                className="inline-flex h-8 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20"
+              >
+                Emit test event
+              </button>
+            </form>
           </div>
         </div>
 
