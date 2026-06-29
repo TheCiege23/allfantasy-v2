@@ -86,7 +86,7 @@ function legacySummaryFor(leagueId: string): LineupActionSummaryPayload {
     // 3) Telemetry observed.
     const issued = events.find((e) => e.event === 'decision.issued')
     check('telemetry: decision.issued with architecture flags', Boolean(issued?.flags?.dco_consumed && issued?.flags?.rule_gated && issued?.flags?.decision_object_emitted && issued?.flags?.world_resolution_read_only))
-    check('telemetry: decision.parity (shadow ran)', events.some((e) => e.event === 'decision.parity' && e.flags?.shadow === true && e.flags?.ran === true))
+    check('telemetry: decision.shadow_parity (shadow ran)', events.some((e) => e.event === 'decision.shadow_parity' && e.flags?.shadow === true && e.flags?.ran === true))
 
     // 4) Decision Object + Today Card on real data.
     const { decision } = await runLineupSetDecision(input!, { decision: { recommend: async () => legacy, ruleDeps: defaultLineupRuleDeps } })
@@ -123,7 +123,7 @@ function legacySummaryFor(leagueId: string): LineupActionSummaryPayload {
       { loadInputs: (u, l) => loadLineupSetInputs(u, l, loaderDeps) },
     )
     check('shadow ran validator parity end-to-end (validatorParity present)', Boolean(res2.validatorParity), `reason=${res2.validatorParity?.reason ?? 'n/a'}`)
-    check('telemetry: validator_parity_ran emitted', events.some((e) => e.event === 'decision.parity' && (e.flags as Record<string, unknown> | undefined)?.validator_parity_ran === true))
+    check('telemetry: validator_parity_ran emitted', events.some((e) => e.event === 'decision.validator_parity' && (e.flags as Record<string, unknown> | undefined)?.validator_parity_ran === true))
 
     console.log('--- DECISION (sample) ---')
     console.log(JSON.stringify({ four_answers: decision.four_answers, confidence: decision.confidence, data_completeness: decision.data_completeness, verdicts: decision.rule_verdicts.length, lock: input!.leagueWeek }, null, 2))

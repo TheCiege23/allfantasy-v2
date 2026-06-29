@@ -56,7 +56,7 @@ describe('shadow canonical validator parity — Ticket #6', () => {
       { userId: 'u1', leagueId: 'L1', legacySummary: payload('L1', [action('L1')]) },
       { loadInputs: async () => input('L1'), ruleDeps: { validateRedraft: fakeValidate() }, loadCanonicalContext: loadCtx, buildCanonicalDep: complementaryCanonicalDep },
     )
-    const ev = events.find((e) => e.event === 'decision.parity' && e.flags?.validator_parity_ran === true)
+    const ev = events.find((e) => e.event === 'decision.validator_parity' && e.flags?.validator_parity_ran === true)
     expect(ev).toBeDefined()
     expect(ev?.flags?.validator_retirement_safe).toBe(false)
     expect(ev?.flags?.validator_parity_shared_agreement).toBe(true)
@@ -81,7 +81,7 @@ describe('shadow canonical validator parity — Ticket #6', () => {
     // validator parity captured the canonical error rather than throwing
     expect(res.validatorParity?.reason).toBe('canonical_validator_error')
     expect(res.validatorParity?.retirementSafe).toBe(false)
-    const ev = events.find((e) => e.event === 'decision.parity' && e.flags?.validator_parity_ran === true)
+    const ev = events.find((e) => e.event === 'decision.validator_parity' && e.flags?.validator_parity_ran === true)
     expect(ev?.flags?.canonical_validator_error).toBeTruthy()
   })
 
@@ -100,7 +100,7 @@ describe('shadow canonical validator parity — Ticket #6', () => {
     expect(res.ran).toBe(true)
     expect(res.parity?.passed).toBe(true)
     expect(res.validatorParity).toBeUndefined()
-    expect(events.some((e) => e.event === 'decision.parity' && e.flags?.validator_parity_ran === false && e.flags?.reason === 'canonical_context_unavailable')).toBe(true)
+    expect(events.some((e) => e.event === 'decision.validator_parity' && e.flags?.validator_parity_ran === false && e.flags?.reason === 'canonical_context_unavailable')).toBe(true)
   })
 
   it('NEVER throws when the canonical context LOADER throws (decision/legacy still fine)', async () => {

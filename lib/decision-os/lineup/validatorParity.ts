@@ -1,12 +1,18 @@
 /**
- * Decision OS — validator parity for `manager.lineup.set` (Slice 1, Ticket #5).
+ * Decision OS — lineup validator parity (domain binding for `manager.lineup.set`).
  *
- * Compares the two legacy validators (now composed behind the Rule Framework) on a normalized
- * category vocabulary. They are COMPLEMENTARY — they share some categories and each covers some the
- * other doesn't — so parity here means "do they agree where they overlap", and retirement is only
- * safe if neither has unique coverage (it doesn't, today). Pure; no I/O.
+ * The reusable comparison engine lives in core (lib/decision-os/core/parity). This module supplies
+ * only the LINEUP category vocabulary (how each validator's raw codes normalize, and which categories
+ * are shared scope) and binds the core comparator to it — so callers keep the same signature. Pure.
  */
 import type { RuleVerdict } from '@/lib/decision-os/core/decision'
+import {
+  compareValidatorParity as compareValidatorParityCore,
+  type ValidatorParity,
+  type ValidatorParityConfig,
+} from '@/lib/decision-os/core/parity'
+
+export type { ValidatorParity }
 
 /** Map each validator's raw code → a normalized legality category. */
 const CATEGORY: Record<string, string> = {
@@ -51,62 +57,19 @@ function codeFromRule(rule: string): string {
   return m ? m[1] : rule
 }
 
-function illegalCategories(verdicts: RuleVerdict[]): Set<string> {
-  const out = new Set<string>()
-  for (const v of verdicts) {
-    if (v.verdict !== 'illegal') continue
+const LINEUP_VALIDATOR_PARITY_CONFIG: ValidatorParityConfig = {
+  categoryFor: (v: RuleVerdict) => {
     const code = codeFromRule(v.rule)
-    out.add(CATEGORY[code] ?? code)
-  }
-  return out
+    return CATEGORY[code] ?? code
+  },
+  sharedCategories: SHARED_CATEGORIES,
 }
 
-export interface ValidatorParity {
-  /** Do the validators agree on the categories they BOTH cover? */
-  agreeOnSharedScope: boolean
-  /** Shared categories where the two validators disagree (a real parity concern). */
-  sharedDisagreements: string[]
-  /** Categories only one validator covers (expected — they are complementary). */
-  coverageDifferences: string[]
-  diffs: string[]
-  /** Safe to retire one validator only if there are no disagreements AND no unique coverage. */
-  retirementSafe: boolean
-  reason: 'equivalent' | 'complementary_coverage' | 'shared_disagreement' | 'canonical_validator_error'
-  canonicalError?: string
-}
-
+/** Lineup-bound parity comparator — same signature callers already use. */
 export function compareValidatorParity(
   primary: RuleVerdict[],
   canonical: RuleVerdict[],
   canonicalError?: string,
 ): ValidatorParity {
-  const p = illegalCategories(primary)
-  const c = illegalCategories(canonical)
-
-  const sharedDisagreements: string[] = []
-  for (const cat of SHARED_CATEGORIES) {
-    if (p.has(cat) !== c.has(cat)) sharedDisagreements.push(cat)
-  }
-  const coverageDifferences: string[] = []
-  for (const cat of new Set([...p, ...c])) {
-    if (SHARED_CATEGORIES.has(cat)) continue
-    if (p.has(cat) !== c.has(cat)) coverageDifferences.push(cat)
-  }
-
-  const diffs = [
-    ...sharedDisagreements.map((cat) => `shared category '${cat}' differs (primary=${p.has(cat)}, canonical=${c.has(cat)})`),
-    ...coverageDifferences.map((cat) => `category '${cat}' covered by only one validator`),
-  ]
-
-  const agreeOnSharedScope = sharedDisagreements.length === 0
-  const retirementSafe = agreeOnSharedScope && coverageDifferences.length === 0 && !canonicalError
-  const reason: ValidatorParity['reason'] = canonicalError
-    ? 'canonical_validator_error'
-    : !agreeOnSharedScope
-      ? 'shared_disagreement'
-      : coverageDifferences.length
-        ? 'complementary_coverage'
-        : 'equivalent'
-
-  return { agreeOnSharedScope, sharedDisagreements, coverageDifferences, diffs, retirementSafe, reason, canonicalError }
+  return compareValidatorParityCore(primary, canonical, LINEUP_VALIDATOR_PARITY_CONFIG, canonicalError)
 }

@@ -19,6 +19,12 @@ const DCO = read('lib/decision-os/lineup/dco.ts')
 const RULES = read('lib/decision-os/lineup/rules.ts')
 const VALIDATOR_PARITY = read('lib/decision-os/lineup/validatorParity.ts')
 const CANONICAL_ADAPTER = read('lib/decision-os/lineup/canonicalAdapter.ts')
+const CORE_PARITY = [
+  'lib/decision-os/core/parity/validatorParity.ts',
+  'lib/decision-os/core/parity/shadowParity.ts',
+  'lib/decision-os/core/parity/telemetry.ts',
+  'lib/decision-os/core/shadow/flag.ts',
+].map((p) => [p, read(p)] as const)
 
 afterEach(() => registerDecisionTelemetrySink(null))
 
@@ -35,6 +41,17 @@ describe('architecture: the decision layer consumes only the DCO', () => {
     expect(DECISION).not.toMatch(/['"]NFL['"]/)
     expect(DECISION).not.toMatch(/['"]NCAAF['"]/)
     expect(DECISION).not.toMatch(/sport\s*===|toUpperCase\(\)\s*===/)
+  })
+})
+
+describe('architecture: core parity/shadow infrastructure is DOMAIN-BLIND (Ticket #10)', () => {
+  it('core/parity + core/shadow import no lineup/domain modules and no prisma', () => {
+    for (const [path, src] of CORE_PARITY) {
+      expect(`${path}: ${src.includes('@/lib/lineup-actions')}`).toBe(`${path}: false`)
+      expect(`${path}: ${src.includes('decision-os/lineup')}`).toBe(`${path}: false`)
+      expect(`${path}: ${src.includes('@/lib/roster-lineup-engine')}`).toBe(`${path}: false`)
+      expect(`${path}: ${src.includes('@/lib/prisma')}`).toBe(`${path}: false`)
+    }
   })
 })
 

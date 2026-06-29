@@ -70,7 +70,7 @@ describe('runLineupShadow — beside legacy, never affecting it', () => {
       { userId: 'u1', leagueId: 'L1', legacySummary: payload('L1', [action('L1')]) },
       { loadInputs: async () => input('L1'), ruleDeps: { validateRedraft: fakeValidate() } },
     )
-    expect(events.some((e) => (e as { event: string }).event === 'decision.parity')).toBe(true)
+    expect(events.some((e) => (e as { event: string }).event === 'decision.shadow_parity')).toBe(true)
   })
 })
 

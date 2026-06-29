@@ -1,16 +1,17 @@
 /**
- * Decision OS — Parity Gate for `manager.lineup.set` (Slice 1).
+ * Decision OS — Parity Gate binding for `manager.lineup.set` (Slice 1).
  *
- * Shadow comparison: the Decision OS path must produce the SAME recommendation as the legacy path
- * before cutover. Compares recommended action per slot, legality signal, and lock. Any diff is
- * reported (and must be explained) — cutover/legacy-retire only when `passed`.
+ * The reusable keyed-diff engine lives in core (lib/decision-os/core/parity). This module supplies
+ * the lineup key (slot+player) and the fields to compare (recommendation + suggested replacement),
+ * keeping the lineup-specific result shape. Any diff is reported (and must be explained) — cutover/
+ * legacy-retire only when `passed`.
  */
 import type { LineupActionItem, LineupActionSummaryPayload } from '@/lib/lineup-actions/types'
 import type { Decision } from '@/lib/decision-os/core/decision'
+import { compareKeyedParity, type ShadowParityResult } from '@/lib/decision-os/core/parity'
 
-export interface LineupParityResult {
-  passed: boolean
-  diffs: string[]
+export interface LineupParityResult extends ShadowParityResult {
+  /** Lineup-domain alias of comparedKeys. */
   comparedSlots: number
 }
 
@@ -27,28 +28,13 @@ export function compareLineupParity(
   leagueId: string,
 ): LineupParityResult {
   const legacyActions = (legacy.actions ?? []).filter((a) => a.leagueId === leagueId)
-  const newActions = decision.recommended_actions
-  const diffs: string[] = []
-
-  const legacyByKey = new Map(legacyActions.map((a) => [slotKey(a), a]))
-  const newByKey = new Map(newActions.map((a) => [slotKey(a), a]))
-
-  for (const [k, a] of newByKey) {
-    const b = legacyByKey.get(k)
-    if (!b) {
-      diffs.push(`slot ${k}: present in Decision OS, absent in legacy`)
-      continue
-    }
-    if ((a.recommendedAction ?? null) !== (b.recommendedAction ?? null)) {
-      diffs.push(`slot ${k}: recommendedAction differs`)
-    }
-    if ((a.suggestedReplacementPlayerId ?? null) !== (b.suggestedReplacementPlayerId ?? null)) {
-      diffs.push(`slot ${k}: suggested replacement differs`)
-    }
-  }
-  for (const k of legacyByKey.keys()) {
-    if (!newByKey.has(k)) diffs.push(`slot ${k}: present in legacy, absent in Decision OS`)
-  }
-
-  return { passed: diffs.length === 0, diffs, comparedSlots: Math.max(newByKey.size, legacyByKey.size) }
+  const result = compareKeyedParity(decision.recommended_actions, legacyActions, {
+    keyOf: slotKey,
+    entityLabel: 'slot',
+    fields: [
+      { label: 'recommendedAction', valueOf: (a) => a.recommendedAction },
+      { label: 'suggested replacement', valueOf: (a) => a.suggestedReplacementPlayerId },
+    ],
+  })
+  return { ...result, comparedSlots: result.comparedKeys }
 }

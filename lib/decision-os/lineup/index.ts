@@ -8,7 +8,7 @@
 import type { RedraftLineupPlayer } from '@/lib/redraft/lineupValidation'
 import type { LineupActionItem, LineupActionSummaryPayload } from '@/lib/lineup-actions/types'
 import type { Decision } from '@/lib/decision-os/core/decision'
-import { emitDecisionTelemetry } from '@/lib/decision-os/core/telemetry'
+import { emitShadowParity } from '@/lib/decision-os/core/parity'
 import { resolveLineupWorld, type LineupWorld, type LineupWorldDeps } from './world'
 import { buildLineupDCO, type LineupDCO } from './dco'
 import { decideLineupSet, type LineupDecisionDeps } from './decision'
@@ -72,8 +72,7 @@ export async function runLineupSetDecision(input: RunLineupSetInput, deps: RunLi
   if (deps.shadow) {
     const legacy = await deps.shadow.legacyRecommend(input.userId)
     parity = compareLineupParity(decision, legacy, input.leagueId)
-    emitDecisionTelemetry(
-      'decision.parity',
+    emitShadowParity(
       'manager.lineup.set',
       { legacy_shadow_compared: true, parity_passed: parity.passed, parity_failed: !parity.passed },
       decision.decision_id,

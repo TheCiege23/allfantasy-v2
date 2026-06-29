@@ -11,7 +11,9 @@ export type DecisionTelemetryEventName =
   | 'decision.issued'
   | 'decision.adopted'
   | 'decision.resolved'
-  | 'decision.parity'
+  // Parity taxonomy (split from the former single 'decision.parity'):
+  | 'decision.shadow_parity' // Decision OS recommendation vs legacy
+  | 'decision.validator_parity' // composed validators vs each other
 
 export interface DecisionTelemetryEvent {
   event: DecisionTelemetryEventName
