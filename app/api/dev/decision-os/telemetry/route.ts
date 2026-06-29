@@ -5,9 +5,7 @@ import {
   isDecisionTelemetryDebugSurfaceEnabled,
   normalizeDecisionTelemetryDebugFilters,
 } from '@/lib/decision-os/core/telemetryDebugAccess'
-import {
-  listDecisionTelemetryDebugEvents,
-} from '@/lib/decision-os/core/telemetryDebugStore'
+import { listDecisionTelemetryDebugEvents } from '@/lib/decision-os/core/telemetryDebugStore'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
