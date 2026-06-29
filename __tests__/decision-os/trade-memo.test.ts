@@ -4,11 +4,14 @@ import { describe, it, expect } from 'vitest'
 
 import {
   buildCanonicalTradeMemo,
+  buildTradeMemo,
   compareTradeMemos,
   buildCanonicalMemoTelemetry,
   type TradeMovement,
   type CanonicalMemoEnrichment,
+  type BuildCanonicalTradeMemoInput,
 } from '@/lib/decision-os/trade/canonicalMemo'
+import { resolveTradeWorld } from '@/lib/decision-os/trade/tradeWorld'
 import {
   resolveCanonicalAssets,
   fromAfLeagueTradeItems,
@@ -16,7 +19,7 @@ import {
 } from '@/lib/decision-os/world/assets'
 import type { CanonicalWorld, TeamFacts, RosterFacts } from '@/lib/decision-os/world/facts'
 import { buildTradeValueSnapshot, type EnrichedTradeAsset } from '@/lib/trade-value/snapshot'
-import { normalizedFaabValue, normalizedPickValue } from '@/lib/trade-value/valueEngine'
+import { normalizedFaabValue, normalizedPickValue, POSITION_SCARCITY } from '@/lib/trade-value/valueEngine'
 
 /**
  * Phase E.2 — Canonical Trade Memo (ADR-DOS-003 §7).
@@ -324,5 +327,153 @@ describe('Phase E.2 — architecture: pure, read-only, origin-blind, trade-consu
       expect(typeof m.fromRosterId).toBe('string')
       expect(typeof m.toRosterId).toBe('string')
     }
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────────
+// Phase E.3 — TradeWorldResolver: the decision-specific TradeWorld + wrapper memo
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * Phase E.3 (ADR-DOS-003 §3.1, §7). Trade now follows the same pipeline as every other decision:
+ *   CanonicalWorld → TradeWorldResolver → CanonicalTradeMemo → manager.trade.evaluate.
+ * The memo consumes a decision-specific `TradeWorld` (trade direction + MARKET interpretation), never a
+ * raw `CanonicalWorld`. These tests prove the new contract is an architectural WRAPPER, not a behavior
+ * change — `buildTradeMemo(resolveTradeWorld(x))` is BYTE-IDENTICAL to `buildCanonicalTradeMemo(x)`.
+ */
+function memoInput(world: CanonicalWorld, enrichment?: CanonicalMemoEnrichment): BuildCanonicalTradeMemoInput {
+  return { world, movements: makeMovements(), proposerRosterId: 'rA', receiverRosterId: 'rB', enrichment, currentSeason: 2025 }
+}
+
+function worldMissingReceiverTeam(): CanonicalWorld {
+  const world = makeWorld({ provider: null })
+  world.rosters = [makeRoster('rA', 'tA', ['p1', 'pX']), makeRoster('rB', 'tB', ['p2', 'pY'])]
+  world.rosters[1].teamId = null
+  return world
+}
+
+describe('Phase E.3 — byte-identity: memo from TradeWorld ≡ memo from CanonicalWorld', () => {
+  it('FULL enrichment: buildTradeMemo(resolveTradeWorld(x)) deep-equals buildCanonicalTradeMemo(x)', () => {
+    const input = memoInput(makeWorld({ provider: 'sleeper' }), FULL_ENRICHMENT)
+    const reference = buildCanonicalTradeMemo(input)
+    const viaWorld = buildTradeMemo(resolveTradeWorld(input))
+    // The whole memo envelope — snapshot, completeness, uncertainty (order included), provenance.
+    expect(viaWorld).toEqual(reference)
+  })
+
+  it('NO enrichment (honest degrade): the two paths stay byte-identical', () => {
+    const input = memoInput(makeWorld({ provider: 'sleeper' }))
+    expect(buildTradeMemo(resolveTradeWorld(input))).toEqual(buildCanonicalTradeMemo(input))
+  })
+
+  it('MISSING team profile: the two paths stay byte-identical (degradation reproduced, not re-derived)', () => {
+    const input = memoInput(worldMissingReceiverTeam(), FULL_ENRICHMENT)
+    const reference = buildCanonicalTradeMemo(input)
+    const viaWorld = buildTradeMemo(resolveTradeWorld(input))
+    expect(viaWorld).toEqual(reference)
+    // And the honest "profile unavailable" note survives the wrapper.
+    expect(viaWorld.uncertainty.some((u) => u.includes('Team profile unavailable for receiver roster rB'))).toBe(true)
+  })
+
+  it('NATIVE league: byte-identity holds regardless of origin', () => {
+    const input = memoInput(makeWorld({ provider: null }), FULL_ENRICHMENT)
+    expect(buildTradeMemo(resolveTradeWorld(input))).toEqual(buildCanonicalTradeMemo(input))
+  })
+})
+
+describe('Phase E.3 — TradeWorld contract shape', () => {
+  it('carries participants with direction roles, resolved team profiles, and the assets verbatim', () => {
+    const input = memoInput(makeWorld({ provider: 'sleeper' }), FULL_ENRICHMENT)
+    const world = resolveTradeWorld(input)
+
+    expect(world.participants.map((p) => p.role)).toEqual(['proposer', 'receiver'])
+    expect(world.participants.map((p) => p.rosterId)).toEqual(['rA', 'rB'])
+    expect(world.participants.every((p) => p.profileResolved)).toBe(true)
+    // Direction lives on the movements the world carries — not re-encoded on the world.
+    expect(world.assets).toBe(input.movements)
+    expect(Object.keys(world.teamProfiles).sort()).toEqual(['rA', 'rB'])
+    // Origin survives ONLY in provenance.
+    expect(world.provenance.provider).toBe('sleeper')
+    expect(JSON.stringify({ participants: world.participants, leagueContext: world.leagueContext, constraints: world.constraints }).includes('sleeper')).toBe(false)
+  })
+
+  it('league + constraint context is resolved from facts (not invented)', () => {
+    const input = memoInput(makeWorld({ provider: 'sleeper' }), FULL_ENRICHMENT)
+    const world = resolveTradeWorld(input)
+    expect(world.leagueContext.sport).toBe('nfl')
+    expect(world.leagueContext.season).toBe(2025)
+    expect(world.leagueContext.currentSeason).toBe(2025)
+    expect(world.leagueContext.isDynasty).toBe(false)
+    expect(world.leagueContext.capturedAt).toBe('2026-06-29T00:00:00.000Z')
+    expect(world.constraints.pickTradingAllowed).toBe(true)
+    expect(world.constraints.deadlineWeek).toBeNull()
+  })
+})
+
+describe('Phase E.3 — MarketContext: owned by TradeWorld, honest, never fabricated', () => {
+  it('surfaces the engine scarcity table and the injected market maps; Phase-F fields stay honest-empty', () => {
+    const input = memoInput(makeWorld({ provider: 'sleeper' }), FULL_ENRICHMENT)
+    const { marketContext } = resolveTradeWorld(input)
+
+    // The deterministic scarcity table is surfaced for audit — not re-invented here.
+    expect(marketContext.positionalScarcity).toBe(POSITION_SCARCITY)
+    // Injected (read-only port) market signals are carried through.
+    expect(marketContext.adpByPlayerId).toEqual(FULL_ENRICHMENT.adpByPlayerId)
+    expect(marketContext.projectionByPlayerId).toEqual(FULL_ENRICHMENT.projectionByPlayerId)
+    // Phase-F market interpretation not sourced yet ⇒ honest-empty, never faked.
+    expect(marketContext.marketValueByPlayerId).toEqual({})
+    expect(marketContext.leagueScarcity).toEqual({})
+    expect(marketContext.injuryMarketImpactByPlayerId).toEqual({})
+    expect(marketContext.newsImpactByPlayerId).toEqual({})
+    expect(marketContext.projectionSource).toBeNull()
+    // Full coverage ⇒ confidence 100.
+    expect(marketContext.confidence).toBe(100)
+  })
+
+  it('confidence reflects coverage and raises uncertainty when market signal is missing', () => {
+    const world = resolveTradeWorld(memoInput(makeWorld({ provider: 'sleeper' })))
+    expect(world.marketContext.confidence).toBe(0)
+    expect(world.uncertainty.some((u) => u.toLowerCase().includes('market signal incomplete'))).toBe(true)
+  })
+})
+
+describe('Phase E.3 — buildTradeMemo consumes TradeWorld (engine reused, not re-implemented)', () => {
+  it('values via the world path equal the pure normalized* functions', () => {
+    const memo = buildTradeMemo(resolveTradeWorld(memoInput(makeWorld({ provider: null }), FULL_ENRICHMENT)))
+    const all = memo.snapshot.sides.flatMap((s) => s.assets)
+    const faab = all.find((a) => a.kind === 'faab')!
+    const pick = all.find((a) => a.kind === 'draft_pick')!
+    expect(faab.internalValue).toBe(normalizedFaabValue(20))
+    expect(pick.internalValue).toBe(normalizedPickValue({ round: 1, pickSeason: 2026, currentSeason: 2025 }))
+  })
+
+  it('origin-blind through the world: native ≡ imported (provider only in provenance)', () => {
+    const imported = buildTradeMemo(resolveTradeWorld(memoInput(makeWorld({ provider: 'sleeper' }), FULL_ENRICHMENT)))
+    const native = buildTradeMemo(resolveTradeWorld(memoInput(makeWorld({ provider: null }), FULL_ENRICHMENT)))
+    expect(imported.snapshot.sides.map((s) => s.total)).toEqual(native.snapshot.sides.map((s) => s.total))
+    expect(imported.snapshot.grade.grade).toBe(native.snapshot.grade.grade)
+    expect(imported.provenance.provider).toBe('sleeper')
+    expect(native.provenance.provider).toBeNull()
+  })
+})
+
+describe('Phase E.3 — architecture: resolver is pure, read-only, origin-blind, reuses the shared leaves', () => {
+  const src = readFileSync(resolve(process.cwd(), 'lib/decision-os/trade/tradeWorld.ts'), 'utf8')
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+
+  it('imports no prisma and performs no writes', () => {
+    expect(code.includes('@/lib/prisma')).toBe(false)
+    expect(/prisma\./.test(code)).toBe(false)
+    expect(/\.(create|update|upsert|delete|createMany|updateMany|deleteMany)\(/.test(code)).toBe(false)
+  })
+
+  it('does not branch business logic on provider names (origin-blind)', () => {
+    expect(code).not.toMatch(/===\s*['"]sleeper['"]/)
+    expect(code).not.toMatch(/===\s*['"]espn['"]/)
+    expect(code).not.toMatch(/===\s*['"]yahoo['"]/)
+  })
+
+  it('reuses the E.2 shared leaf (profileForRoster) — the mechanism that guarantees byte-identity', () => {
+    expect(code.includes('profileForRoster')).toBe(true)
   })
 })

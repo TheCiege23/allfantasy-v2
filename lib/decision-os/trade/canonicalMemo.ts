@@ -21,6 +21,10 @@ import type { CanonicalAsset, CanonicalAssetType } from '@/lib/decision-os/world
 import { buildTradeValueSnapshot, type EnrichedTradeAsset } from '@/lib/trade-value/snapshot'
 import { buildTeamProfile } from '@/lib/trade-value/teamProfile'
 import type { TeamProfile, TradeValueContext, TradeValueSnapshot } from '@/lib/trade-value/types'
+// Type-only — the runtime edge is tradeWorld.ts → canonicalMemo.ts (it imports the leaf helpers). This
+// reverse type import is erased at compile, so the approved flow CanonicalWorld → TradeWorldResolver →
+// CanonicalTradeMemo introduces NO runtime import cycle.
+import type { TradeWorld } from './tradeWorld'
 
 /**
  * Trade adds direction to a reusable asset (ADR-DOS-003 §3). The `CanonicalAsset` records only its
@@ -106,8 +110,12 @@ function playerIdOf(asset: CanonicalAsset): string | null {
   return asset.metadata.player?.playerId ?? asset.metadata.keeper?.playerId ?? asset.metadata.devy?.playerId ?? null
 }
 
-/** Adapt ONE movement into the engine's `EnrichedTradeAsset`. Pure; returns honest degradation notes. */
-function toEnrichedAsset(
+/**
+ * Adapt ONE movement into the engine's `EnrichedTradeAsset`. Pure; returns honest degradation notes.
+ * @internal Shared with the E.3 `TradeWorldResolver` so both memo entry points use the SAME adaptation —
+ * this shared leaf is what makes `buildTradeMemo(resolveTradeWorld(x))` byte-identical to this path.
+ */
+export function toEnrichedAsset(
   movement: TradeMovement,
   enrich: CanonicalMemoEnrichment,
 ): { asset: EnrichedTradeAsset; notes: string[] } {
@@ -158,8 +166,9 @@ function toEnrichedAsset(
  * canonical standings `rank` (documented approximation: redraft uses `RedraftRoster.playoffSeed`; both
  * derive from standings). Positions come from the injected metadata seam; absent ⇒ depth context degrades
  * (stance/winPct/value are unaffected — they don't depend on positions).
+ * @internal Shared with the E.3 `TradeWorldResolver`, which builds `TradeWorld.teamProfiles` from it.
  */
-function profileForRoster(
+export function profileForRoster(
   world: CanonicalWorld,
   rosterId: string,
   enrich: CanonicalMemoEnrichment,
@@ -191,8 +200,9 @@ function profileForRoster(
  *   0.5 × avg asset Resolution-layer completeness (E.1)
  * + 0.25 × player enrichment coverage (share of player assets with adp OR projection)
  * + 0.25 × profile availability (both team profiles resolved)
+ * @internal Shared with the E.3 `buildTradeMemo` so completeness is computed identically from either path.
  */
-function computeMemoCompleteness(
+export function computeMemoCompleteness(
   movements: TradeMovement[],
   enriched: EnrichedTradeAsset[],
   profiles: { a?: TeamProfile; b?: TeamProfile },
@@ -260,6 +270,80 @@ export function buildCanonicalTradeMemo(input: BuildCanonicalTradeMemoInput): Ca
       valuationSource: 'deterministic_engine',
       assetSourceModels: dedupe(input.movements.map((m) => m.asset.provenance.sourceModel)),
       provider: input.world.provenance.provider,
+    },
+  }
+}
+
+/**
+ * Phase E.3 — the SAME memo, but consuming a decision-specific {@link TradeWorld} instead of a raw
+ * `CanonicalWorld + enrichment`. This is the contract the engine actually runs through in the approved
+ * pipeline: `CanonicalWorld → TradeWorldResolver → buildTradeMemo → manager.trade.evaluate`.
+ *
+ * It is a faithful WRAPPER, not a behavior change: every input is reconstructed from the `TradeWorld`
+ * (the resolver carried them there verbatim), then fed through the EXACT shared leaves
+ * (`toEnrichedAsset`, `profileForRoster`'s output via `teamProfiles`, `computeMemoCompleteness`) and the
+ * same deterministic engine, in the same order. The acceptance test proves this is byte-identical to
+ * {@link buildCanonicalTradeMemo} for equivalent inputs — i.e. the new contract added structure, not math.
+ */
+export function buildTradeMemo(tradeWorld: TradeWorld): CanonicalTradeMemo {
+  // Reconstruct the engine enrichment from the market interpretation the world owns. Lookups are
+  // null-equivalent to the E.2 path (`{}` and `undefined` both yield `?.[id] ?? null === null`).
+  const enrich: CanonicalMemoEnrichment = {
+    adpByPlayerId: tradeWorld.marketContext.adpByPlayerId,
+    projectionByPlayerId: tradeWorld.marketContext.projectionByPlayerId,
+    positionByPlayerId: tradeWorld.marketContext.positionByPlayerId,
+  }
+
+  const adapted = tradeWorld.assets.map((m) => toEnrichedAsset(m, enrich))
+  const enriched = adapted.map((x) => x.asset)
+  const adapterNotes = adapted.flatMap((x) => x.notes)
+
+  const proposer = tradeWorld.participants.find((p) => p.role === 'proposer')
+  const receiver = tradeWorld.participants.find((p) => p.role === 'receiver')
+  const proposerRosterId = proposer?.rosterId ?? ''
+  const receiverRosterId = receiver?.rosterId ?? ''
+  const profiles = {
+    a: proposer ? tradeWorld.teamProfiles[proposer.rosterId] : undefined,
+    b: receiver ? tradeWorld.teamProfiles[receiver.rosterId] : undefined,
+  }
+
+  const context: TradeValueContext = {
+    sport: tradeWorld.leagueContext.sport,
+    leagueType: tradeWorld.leagueContext.leagueType,
+    scoring: tradeWorld.leagueContext.scoring,
+    rosterFormat: tradeWorld.leagueContext.rosterFormat,
+    capturedAt: tradeWorld.leagueContext.capturedAt,
+  }
+
+  const snapshot = buildTradeValueSnapshot({
+    proposerRosterId,
+    receiverRosterId,
+    assets: enriched,
+    context,
+    currentSeason: tradeWorld.leagueContext.currentSeason,
+    profiles,
+  })
+
+  // Reproduce the E.2 uncertainty composition EXACTLY (same sources, same order). `positionsResolved`
+  // was computed by the resolver via the same `profileForRoster`, so it matches the reference path.
+  const uncertainty = dedupe([
+    ...tradeWorld.assets.flatMap((m) => m.asset.uncertainty),
+    ...adapterNotes,
+    ...(profiles.a ? [] : [`Team profile unavailable for proposer roster ${proposerRosterId} — depth context degraded.`]),
+    ...(profiles.b ? [] : [`Team profile unavailable for receiver roster ${receiverRosterId} — depth context degraded.`]),
+    ...(profiles.a && proposer && !proposer.positionsResolved ? [`Roster positions unavailable for ${proposerRosterId} — depth analysis degraded.`] : []),
+    ...(profiles.b && receiver && !receiver.positionsResolved ? [`Roster positions unavailable for ${receiverRosterId} — depth analysis degraded.`] : []),
+  ])
+
+  return {
+    snapshot,
+    completeness: computeMemoCompleteness(tradeWorld.assets, enriched, profiles),
+    uncertainty,
+    provenance: {
+      memoSource: 'canonical_world',
+      valuationSource: 'deterministic_engine',
+      assetSourceModels: dedupe(tradeWorld.assets.map((m) => m.asset.provenance.sourceModel)),
+      provider: tradeWorld.provenance.provider,
     },
   }
 }

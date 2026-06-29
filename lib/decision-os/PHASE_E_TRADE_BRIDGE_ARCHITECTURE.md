@@ -1,11 +1,15 @@
 # Decision OS — Phase E: Trade Bridge Architecture (ADR-DOS-003)
 
 **Status:** **APPROVED 2026-06-29** and amended with the reusable **Canonical Asset contract** + four
-permanent principles (§0.1). Phases **E.1 + E.2 BUILT** (read-only, shadow-only). **Amendment 2026-06-29
+permanent principles (§0.1). Phases **E.1 + E.2 + E.3 BUILT** (read-only, shadow-only). **Amendment 2026-06-29
 (post-E.2, approved):** added the decision-specific **`TradeWorld` contract** + **`MarketContext`** (§3.1);
 the memo consumes `TradeWorld`, never `CanonicalWorld` directly — trade now follows the same `Canonical
 World → Decision-specific World → Memo → Decision → Explainability → Telemetry` pipeline as lineup/waiver/
-commissioner. E.3 renamed **`TradeWorldResolver`** (consistent with World/Context/Decision Resolution). The
+commissioner. E.3 renamed **`TradeWorldResolver`** (consistent with World/Context/Decision Resolution). **E.3
+BUILT 2026-06-29:** `lib/decision-os/trade/tradeWorld.ts` (`resolveTradeWorld` + `TradeWorld`/`MarketContext`)
+and `buildTradeMemo(tradeWorld)` in `canonicalMemo.ts`; the acceptance gate — `buildTradeMemo(resolveTradeWorld(x))`
+**byte-identical** to E.2 `buildCanonicalTradeMemo(x)` for equivalent inputs — passes (proves the new contract
+is an architectural wrapper, not a behavior change). The
 P3 AI-governance rule (§0.1) was elevated to its formal standing wording. The original audit (§1–§12) stands
 as the rationale of record; §0.1, §3, §3.1, §7 carry the approved amendments.
 
@@ -434,7 +438,7 @@ imported before advancing. **Platform phases (F–I)** follow once trade is shad
 |---|---|---|
 | **E.1 — Canonical Asset Resolution** ✅ **BUILT 2026-06-29** | The reusable **`CanonicalAsset` contract** (world layer) + a pure resolver that builds the **Resolution layer** from the canonical asset graph (`AfLeagueTradeItem`), with a read adapter from `RedraftTradeAsset` for parity. `enrichment`/`context` honest-empty. **No valuation.** | ✅ Asset graph + `deriveParticipants` identical between redraft and canonical assets for a known 2-team trade; **one reusable contract, no trade-specific asset type**; unit-tested with canonical fakes. Shipped: [`lib/decision-os/world/assets.ts`](world/assets.ts), test `__tests__/decision-os/canonical-asset-resolution.test.ts` (14 tests GREEN), architecture guard extended. Encoding: reusable `CanonicalAsset` (owner only) in the world layer; trade adds direction via the consumer's `toRosterId` (the §3 `TradeMovement` wrapper) — Trade *consumes*, never *defines*, the asset. |
 | **E.2 — Trade Memo on Canonical Assets** ✅ **BUILT 2026-06-29** | Rehost the pure `buildTradeValueSnapshot` on canonical assets + canonical team profiles (`TeamFacts` + D.1 positions; ADP canonical) → fills `value` + trade-relevant `context`. Pure, no writes. | ✅ Shipped: [`lib/decision-os/trade/canonicalMemo.ts`](trade/canonicalMemo.ts) — a pure adapter (`TradeMovement[]` + `CanonicalWorld` + injected enrichment → engine `EnrichedTradeAsset[]`), `buildCanonicalTradeMemo` (calls `buildTradeValueSnapshot` verbatim, deterministic `capturedAt = world.provenance.assembledAt`), `compareTradeMemos` (memo↔memo parity), `buildCanonicalMemoTelemetry` (provider only in provenance). **Engine reused, not duplicated** (memo values == `normalized*` fns). Parity with the redraft snapshot GREEN on equivalent inputs; missing canonical projection degrades honestly (confidence/value differ, surfaced as diffs — the documented intentional difference, no fake parity). Tested: `__tests__/decision-os/trade-memo.test.ts` (12 GREEN); ticket suite 47 GREEN; full trade+architecture regression 60 GREEN; zero new type errors (3197 baseline). The memo is byte-compatible with `RunTradeEvaluateDeps.shadow.snapshot` → slots into E.4. The enrichment seam (ADP/positions via ports) is built in E.3. |
-| **E.3 — `TradeWorldResolver`** *(renamed from "Trade World Assembler", 2026-06-29)* | `resolveTradeWorld` projects `CanonicalWorld` → the **`TradeWorld` contract** (§3.1): participants, `TradeMovement[]`, `teamProfiles`, `leagueContext`, **`marketContext`** (ADP/positions/scarcity via read-only ports — widens the E.2 `CanonicalMemoEnrichment` seed), constraints, provenance, completeness, uncertainty. Native-first, canonical fallback (mirror `resolveCanonicalLineupInputs`); honest `*_unavailable`. The **memo's signature moves to `(TradeWorld)`** — it no longer reads `CanonicalWorld` directly. Naming is consistent with World/Context/Decision **Resolution**. | Resolves a `TradeWorld` for an **imported** league (no `RedraftRoster`) without throwing; memo fed `TradeWorld` is byte-identical to the E.2 memo fed the equivalent `(CanonicalWorld + enrichment)`; redraft path unchanged & GREEN; unsourced `marketContext` fields degrade to null + uncertainty. |
+| **E.3 — `TradeWorldResolver`** ✅ **BUILT 2026-06-29** *(renamed from "Trade World Assembler")* | `resolveTradeWorld` projects `CanonicalWorld` → the **`TradeWorld` contract** (§3.1): participants, `TradeMovement[]`, `teamProfiles`, `leagueContext`, **`marketContext`** (ADP/positions/scarcity via read-only ports — widens the E.2 `CanonicalMemoEnrichment` seed), constraints, provenance, completeness, uncertainty. Native-first, canonical fallback (mirror `resolveCanonicalLineupInputs`); honest `*_unavailable`. The **memo's signature moves to `(TradeWorld)`** — it no longer reads `CanonicalWorld` directly. Naming is consistent with World/Context/Decision **Resolution**. | ✅ Shipped: [`lib/decision-os/trade/tradeWorld.ts`](trade/tradeWorld.ts) (pure `resolveTradeWorld` + `TradeWorld`/`MarketContext`/`TradeParticipant`/`TradeLeagueContext`/`TradeConstraints`) + `buildTradeMemo(tradeWorld)` in `canonicalMemo.ts` (the memo's signature now `(TradeWorld)`). Both memo paths share the SAME leaf helpers (`toEnrichedAsset`/`profileForRoster`/`computeMemoCompleteness`), so **`buildTradeMemo(resolveTradeWorld(x))` is byte-identical to `buildCanonicalTradeMemo(x)`** for full-enrichment / no-enrichment / missing-profile / native inputs (the acceptance gate — wrapper, not behavior change). `MarketContext` owns the market interpretation (substrate stays facts-only, §3.1 boundary rule); unsourced Phase-F fields degrade to honest-empty + uncertainty. Pure/read-only/origin-blind (no prisma, no provider branching). Tested: `__tests__/decision-os/trade-memo.test.ts` now 25 GREEN (13 new E.3); full decision-os regression GREEN (only the 2 pre-existing `lineup-shadow-route` failures remain, unrelated); zero new type errors (3197 baseline). Coexistence: legacy Slice-3 `trade/world.ts` keeps the barrel export pre-cutover; canonical module imported by path to avoid the `TradeWorld`/`resolveTradeWorld` name collision. ADP/position **port wiring + live `theciege24` validation deferred to E.4/E.5** (DB-gated). |
 | **E.4 — Trade Shadow Parity** | Mount the canonical assembler behind `DECISION_OS_TRADE_SHADOW` beside the redraft path; parity per-participant + grade; pick-only/3+ team degrade honestly. | Shadow GREEN for an imported 2-team trade; redraft snapshot = parity reference where both exist; 3+ team & missing pick inventory → `unsupported`/low-completeness, never a false grade. |
 | **E.5 — Trade Validation** | Real-data conformance (extend `scripts/decision-os-world-conformance.ts` with trade-view facts) against `theciege24` imports; readiness checklist; proposal-time `CanonicalTradeValueSnapshot` persistence **design** (the only net-new write, native flow — **not built here**). | Trade-view facts resolve for real imported leagues; registry row notes canonical-capable shadow; cutover stays a separate governed decision. |
 | **F — Canonical World Enrichment (all APIs)** | The permanent enrichment layer: sports/news/weather/injuries/projections/historical/market-value integrations land as origin-blind, purpose-blind **facts** that fill `CanonicalAsset.enrichment` once for every decision (§9). | Each integration answers *"what truth does this add"* (P2); a single substrate fact is consumed by ≥2 decision types. |
@@ -611,14 +615,22 @@ provider-neutral terms. No Sleeper-specific behavior is designed into the bridge
 
 ---
 
-*End of audit + approved amendments. ADR-DOS-003 is **APPROVED**; Phases **E.1 (Canonical Asset Resolution)**
-and **E.2 (Trade Memo on Canonical Assets)** are ✅ **BUILT 2026-06-29**, both read-only. E.1: the reusable
+*End of audit + approved amendments. ADR-DOS-003 is **APPROVED**; Phases **E.1 (Canonical Asset Resolution)**,
+**E.2 (Trade Memo on Canonical Assets)**, and **E.3 (TradeWorldResolver)** are ✅ **BUILT 2026-06-29**, all
+read-only. E.1: the reusable
 `CanonicalAsset` contract per §3, the binding rule, and the four permanent principles (§0.1) live in
 [`lib/decision-os/world/assets.ts`](world/assets.ts) (14 tests GREEN). E.2: the pure Canonical Trade Memo
 [`lib/decision-os/trade/canonicalMemo.ts`](trade/canonicalMemo.ts) **rehosts** `buildTradeValueSnapshot` onto
 canonical assets + `TeamFacts` profiles — engine reused not duplicated, deterministic `capturedAt`, honest
-degradation, memo↔redraft parity GREEN on equivalent inputs (12 tests GREEN, zero new type errors). **Next:
-E.3 — Trade World Assembler** (the read-only seam that projects `CanonicalWorld → TradeWorldInput` and injects
-the ADP/position enrichment via ports; unblocks real-data validation against `theciege24`). Every E phase
-remains read-only + shadow-only + flag-gated; cutover (G), legacy retirement (H), and licensing (I) are later,
-separately governed phases.*
+degradation, memo↔redraft parity GREEN on equivalent inputs (12 tests GREEN, zero new type errors). E.3: the
+decision-specific `TradeWorld` + `MarketContext` contract and the pure `resolveTradeWorld` resolver live in
+[`lib/decision-os/trade/tradeWorld.ts`](trade/tradeWorld.ts); the memo's entry point `buildTradeMemo(tradeWorld)`
+(in `canonicalMemo.ts`) now consumes `TradeWorld`, not a raw `CanonicalWorld`. Both memo paths share the SAME
+leaf helpers, so `buildTradeMemo(resolveTradeWorld(x))` is **byte-identical** to `buildCanonicalTradeMemo(x)`
+(the acceptance gate — proves wrapper, not behavior change). 25 trade-memo tests GREEN (13 new E.3), zero new
+type errors. Coexistence note: the legacy Slice-3 `trade/world.ts` (`resolveTradeWorld`/`TradeWorld`) stays
+live and keeps the barrel export pre-cutover; the canonical module is imported by path to avoid the name
+collision until the barrel flips at cutover. **Next: E.4/E.5** — the read-only ADP/position port seam that
+feeds `MarketContext`, then live shadow-parity validation against `theciege24`'s real imported leagues. Every
+E phase remains read-only + shadow-only + flag-gated; cutover (G), legacy retirement (H), and licensing (I)
+are later, separately governed phases.*
