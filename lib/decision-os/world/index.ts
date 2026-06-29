@@ -63,3 +63,13 @@ export { defaultCanonicalWorldPort } from './port'
 export type { CanonicalWorldPort } from './port'
 export type { AssembleOptions } from './assemble'
 export type * from './facts'
+export {
+  projectPlayerMetadata,
+  resolvePlayerMetadata,
+  defaultPlayerMetadataPort,
+} from './playerMetadata'
+export type {
+  NormalizedPlayerMetadata,
+  PlayerMetadataResult,
+  PlayerMetadataPort,
+} from './playerMetadata'

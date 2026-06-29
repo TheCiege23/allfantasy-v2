@@ -8,17 +8,20 @@
  * only reads through `resolveCanonicalWorld` (port = prisma find* only). It NEVER writes, never repairs
  * ownership, and never fabricates player metadata.
  *
- * HONESTY CONTRACT: the substrate carries raw player ids + slot membership only — no name / position /
- * injury / bye / projection. Those are left blank and the input is flagged `scanIncomplete` with a null
- * projection confidence and a `player_metadata_missing` warning, so the decision degrades honestly
- * instead of inventing projections or injuries.
+ * HONESTY CONTRACT: the substrate carries raw player ids + slot membership only. The pure projector
+ * leaves name / position / injury / bye / projection blank and flags `scanIncomplete` with a null
+ * projection confidence + a `player_metadata_missing` warning. The read-only resolver then enriches those
+ * ids through the Canonical World player-metadata seam (SportsPlayer cache): real name / position / team /
+ * injury status fill in when available, and `scanIncomplete` clears ONLY when EVERY player resolves the
+ * required metadata. Bye week and projections remain null (no provider-id-keyed source carries them) —
+ * never fabricated — so projectionConfidence stays null and the decision still degrades honestly.
  *
  * ORIGIN-BLINDNESS: the returned `source` tag (redraft_native / canonical_world / canonical_world_-
  * unavailable) is PROVENANCE/DEBUG metadata only. It is recorded in telemetry but must never change a
  * decision rule — only completeness/uncertainty does.
  */
-import type { CanonicalWorld } from '@/lib/decision-os/world'
-import { resolveCanonicalWorld } from '@/lib/decision-os/world'
+import type { CanonicalWorld, PlayerMetadataResult } from '@/lib/decision-os/world'
+import { resolveCanonicalWorld, resolvePlayerMetadata } from '@/lib/decision-os/world'
 import type { RedraftLineupPlayer } from '@/lib/redraft/lineupValidation'
 import type { RunLineupSetInput } from './index'
 
@@ -111,19 +114,81 @@ export function projectCanonicalLineupInput(
   return { input, source: 'canonical_world', warnings }
 }
 
+/**
+ * Pure: fold resolved player metadata into a projected lineup input.
+ *
+ * REQUIRED metadata = name + position (what downstream lineup legality consumes). `scanIncomplete` clears
+ * ONLY when EVERY player resolved both — partial resolution stays incomplete. Bye week and projections are
+ * honest gaps in the source: they remain null and NEVER clear `scanIncomplete` on their own, and
+ * projectionConfidence stays null (no projection source — never fabricated). Provider ids stay the player
+ * key / provenance; the business fields are overwritten from metadata only when present (never blanked).
+ * A null/absent metadata result is a no-op, preserving the projector's honest-degradation output.
+ */
+export function enrichLineupInputWithMetadata(
+  resolved: ResolvedLineupInputs,
+  metadata: PlayerMetadataResult,
+): ResolvedLineupInputs {
+  const input = resolved.input
+  if (!input) return resolved
+
+  const players: RedraftLineupPlayer[] = input.players.map((p) => {
+    const m = metadata.byId.get(p.playerId)
+    if (!m) return p
+    return {
+      ...p,
+      playerName: m.name ?? p.playerName,
+      position: m.position ?? p.position,
+      team: m.team ?? p.team,
+      injuryStatus: m.injuryStatus ?? p.injuryStatus ?? null,
+      byeWeek: m.byeWeek ?? p.byeWeek ?? null,
+    }
+  })
+
+  const metadataComplete = metadata.complete
+  // Drop the projector's blanket `player_metadata_missing` once enrichment completed; otherwise keep the
+  // honest warnings from BOTH the projection and the metadata resolution (merged + de-duped).
+  const warnings = Array.from(
+    new Set([
+      ...resolved.warnings.filter((w) => (metadataComplete ? w !== 'player_metadata_missing' : true)),
+      ...metadata.warnings,
+    ]),
+  )
+
+  return {
+    ...resolved,
+    input: {
+      ...input,
+      players,
+      projectionConfidence: null, // projections unavailable → confidence stays null (never fabricated)
+      scanIncomplete: !metadataComplete, // clears ONLY when required metadata is complete for all players
+    },
+    warnings,
+  }
+}
+
 export interface CanonicalLineupFallbackDeps {
   /** Read-only canonical world resolver (default: resolveCanonicalWorld → prisma find* only). */
   resolveWorld: (leagueId: string) => Promise<CanonicalWorld | null>
+  /**
+   * Read-only player-metadata resolver (default: SportsPlayer cache via resolvePlayerMetadata). Invoked
+   * with the projected roster's player ids + sport to enrich name / position / team / injury. Never
+   * throws (degrades to an incomplete result). Injected so tests never touch prisma. When absent, the
+   * resolver skips enrichment and returns the projector's honest-degradation output unchanged.
+   */
+  resolveMetadata?: (sport: string, ids: string[]) => Promise<PlayerMetadataResult>
 }
 
 export const defaultCanonicalLineupFallbackDeps: CanonicalLineupFallbackDeps = {
   resolveWorld: (leagueId) => resolveCanonicalWorld(leagueId),
+  resolveMetadata: (sport, ids) => resolvePlayerMetadata(sport, ids),
 }
 
 /**
  * Resolve lineup inputs from the Canonical World substrate ONLY (the native path is tried first by the
  * shadow runner). Read-only and NEVER throws — any failure degrades to `canonical_world_unavailable`.
- * Returns `null` world → `canonical_world_unavailable`; otherwise delegates to the pure projector.
+ * Returns `null` world → `canonical_world_unavailable`; otherwise projects the roster facts, then enriches
+ * the player ids through the read-only metadata seam so the lineup input carries real name / position /
+ * injury when available (still honestly incomplete when metadata is missing).
  */
 export async function resolveCanonicalLineupInputs(
   userId: string,
@@ -135,7 +200,15 @@ export async function resolveCanonicalLineupInputs(
     if (!world) {
       return { input: null, source: 'canonical_world_unavailable', warnings: ['canonical_world_unavailable'] }
     }
-    return projectCanonicalLineupInput(world, userId, leagueId)
+    const projected = projectCanonicalLineupInput(world, userId, leagueId)
+    if (!projected.input) return projected
+
+    const resolveMetadata = deps.resolveMetadata ?? defaultCanonicalLineupFallbackDeps.resolveMetadata
+    if (!resolveMetadata) return projected
+
+    const ids = projected.input.players.map((p) => p.playerId)
+    const metadata = await resolveMetadata(projected.input.sport, ids)
+    return enrichLineupInputWithMetadata(projected, metadata)
   } catch {
     return { input: null, source: 'canonical_world_unavailable', warnings: ['canonical_world_error'] }
   }

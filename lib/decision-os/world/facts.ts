@@ -83,6 +83,25 @@ export interface CanonicalWorldRawInput {
   performances: RawPerformanceRow[]
 }
 
+/**
+ * Raw player-metadata row the read-only port returns when enriching canonical roster ids. Decoupled
+ * from Prisma. Sourced from the persisted SportsPlayer cache (the same table the existing imported-
+ * league lineup scan reads); `externalId` / `sleeperId` are the provider lookup keys (provenance only).
+ * Bye week and projections are intentionally ABSENT — no provider-id-keyed source carries them, so the
+ * enrichment seam leaves them null rather than fabricating.
+ */
+export interface RawPlayerMetadataRow {
+  externalId: string
+  sleeperId: string | null
+  name: string | null
+  position: string | null
+  team: string | null
+  /** Injury / availability status string as persisted (e.g. OUT / QUESTIONABLE); null when unknown. */
+  status: string | null
+  /** Provenance: which import source produced the cached row. */
+  source: string | null
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // Fact contract (origin-blind)
 // ──────────────────────────────────────────────────────────────────────────

@@ -11,6 +11,7 @@ import { prisma } from '@/lib/prisma'
 import type {
   RawLeagueRow,
   RawPerformanceRow,
+  RawPlayerMetadataRow,
   RawRosterRow,
   RawTeamRow,
 } from './facts'
@@ -166,4 +167,54 @@ export const defaultCanonicalWorldPort: CanonicalWorldPort = {
       result: row.result ?? null,
     }))
   },
+}
+
+/**
+ * READ-ONLY player-metadata read for the canonical enrichment seam (lib/decision-os/world/playerMetadata).
+ *
+ * Resolves raw canonical roster ids (provider ids for imported leagues, native ids for AF leagues) to
+ * persisted player rows from the SportsPlayer cache — the SAME table + key the existing imported-league
+ * lineup scan reads (lib/lineup-actions/sleeperLineupScan.ts). This is a single `findMany` ONLY: it never
+ * writes, never warms the cache, and NEVER calls a live provider API (it reads only already-persisted
+ * rows; the live Sleeper players endpoint in players-cache.ts is deliberately NOT touched). Freshest row
+ * per id wins (orderBy fetchedAt desc) so the projector's first-write-wins keeps the latest.
+ */
+export async function loadPlayerMetadataRows(
+  sport: string,
+  ids: string[],
+): Promise<RawPlayerMetadataRow[]> {
+  const clean = Array.from(new Set(ids.filter((x) => typeof x === 'string' && x.length > 0))).slice(0, 200)
+  if (clean.length === 0) return []
+  const rows = await prisma.sportsPlayer.findMany({
+    where: { sport, OR: [{ externalId: { in: clean } }, { sleeperId: { in: clean } }] },
+    orderBy: { fetchedAt: 'desc' },
+    select: {
+      externalId: true,
+      sleeperId: true,
+      name: true,
+      position: true,
+      team: true,
+      status: true,
+      source: true,
+    },
+  })
+  return rows.map(
+    (row: {
+      externalId: string
+      sleeperId: string | null
+      name: string | null
+      position: string | null
+      team: string | null
+      status: string | null
+      source: string | null
+    }) => ({
+      externalId: row.externalId,
+      sleeperId: row.sleeperId ?? null,
+      name: row.name ?? null,
+      position: row.position ?? null,
+      team: row.team ?? null,
+      status: row.status ?? null,
+      source: row.source ?? null,
+    }),
+  )
 }
