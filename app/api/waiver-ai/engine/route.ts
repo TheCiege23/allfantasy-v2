@@ -8,6 +8,7 @@ import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import { runWaiverAIService } from '@/lib/waiver-ai-engine'
 import { requireFeatureEntitlement } from '@/lib/subscription/entitlement-middleware'
 import { TokenSpendService } from '@/lib/tokens/TokenSpendService'
+import { shouldRunWaiverShadow, runWaiverShadowForEngine } from '@/lib/decision-os/waiver/shadow'
 
 const SUPPORTED_SPORTS_ENUM = SUPPORTED_SPORTS as [
   (typeof SUPPORTED_SPORTS)[number],
@@ -205,6 +206,18 @@ export const POST = withApiUsage({
     if (gate.tokenSpend) tokenFallbackLedgerId = gate.tokenSpend.id
 
     const analysis = await runWaiverAIService(input)
+
+    // Decision OS Slice 2 — SHADOW ONLY (DECISION_OS_WAIVER_SHADOW=true). Runs the new
+    // manager.waiver.claim path beside legacy, logs wrap-fidelity parity, and can NEVER alter or
+    // break this response. Never executes a claim.
+    if (input.leagueId && shouldRunWaiverShadow()) {
+      try {
+        await runWaiverShadowForEngine({ userId, leagueId: input.leagueId, engineInput: input, legacyAnalysis: analysis })
+      } catch {
+        // shadow must never affect the legacy response
+      }
+    }
+
     return NextResponse.json({
       success: true,
       analysis,
