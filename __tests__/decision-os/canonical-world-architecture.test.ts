@@ -46,11 +46,22 @@ describe('architecture: the Canonical World pure layer performs NO IO', () => {
     }
   })
 
-  it('the substrate NEVER calls the write-prone resolveRedraftRosterLookup', () => {
+  it('the substrate NEVER imports the write-capable resolveRedraftRosterLookup (read-only variant is allowed)', () => {
+    // Ban the write-capable symbol but permit `resolveRedraftRosterLookupReadOnly` — the bridge seam.
+    const writeCapableResolver = /resolveRedraftRosterLookup(?!ReadOnly)/
     for (const [path, src] of [...PURE_LAYER, ...PORT]) {
-      expect(`${path}:${src.includes('resolveRedraftRosterLookup')}`).toBe(`${path}:false`)
+      expect(`${path}:${writeCapableResolver.test(src)}`).toBe(`${path}:false`)
       expect(`${path}:${src.includes('redraftRoster')}`).toBe(`${path}:false`)
     }
+  })
+
+  it('the write-capable-import guard flags the write-capable symbol but allows the read-only one', () => {
+    // Positive control: proves the guard above actually catches an accidental write-capable import.
+    const writeCapableResolver = /resolveRedraftRosterLookup(?!ReadOnly)/
+    const offending = "import { resolveRedraftRosterLookup } from '@/lib/redraft/redraftRosterIdentity'"
+    const allowed = "import { resolveRedraftRosterLookupReadOnly } from '@/lib/redraft/redraftRosterIdentity'"
+    expect(writeCapableResolver.test(offending)).toBe(true)
+    expect(writeCapableResolver.test(allowed)).toBe(false)
   })
 })
 
