@@ -179,3 +179,20 @@ export {
   resolvePlatformIntelligenceBasic,
   resolvePlatformIntelligenceFull,
 } from './api/resolvers'
+
+// ── Phase 5.7: Intelligence API Gate + Route Handler Cores ───────────────────
+
+export type { GateEnv, GateOk, GateErr, GateResult } from './api/gate'
+export { checkIntelligenceGate } from './api/gate'
+
+export type {
+  IntelligenceApiContext,
+  IntelligenceHandlerResult,
+  IntelligenceDataProvider,
+} from './api/intelligence-handlers'
+export {
+  stubDataProvider,
+  platformIntelligenceHandler,
+  leagueIntelligenceHandler,
+  managerIntelligenceHandler,
+} from './api/intelligence-handlers'
