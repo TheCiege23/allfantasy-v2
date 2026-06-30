@@ -127,3 +127,21 @@ export type {
 } from './manager-intelligence'
 
 export { deriveManagerBehavioralIntelligence } from './manager-intelligence'
+
+// ── Phase 5.3: League Behavioral Intelligence (pure derived intelligence) ─────
+
+export type {
+  LeagueEngagementTier,
+  ActivityTier,
+  LeagueRetentionRisk,
+  CommissionerWorkloadLevel,
+  RecommendationPriority,
+  RecommendationCategory,
+  ManagerParticipationDistribution,
+  LeagueActivityDimension,
+  LeagueCommissionerRecommendation,
+  LeagueHealthNarrativeInputs,
+  LeagueBehavioralIntelligence,
+} from './league-intelligence'
+
+export { deriveLeagueBehavioralIntelligence } from './league-intelligence'
