@@ -58,7 +58,7 @@ never touched (prod host `ep-curly-block` is hard-refused everywhere).
 - `50220c15d` ADR — Canonical World redraft-roster coverage · `d163032ce` read native RedraftRoster (read-only; closes the storage gap)
 - `5949b1f68` **F.0** non-prod imported-league validation prerequisite — seeded real Sleeper "KBI Smoke Black"; trade conformance GREEN on imported data
 - `06e2d1cdf` **F.1** read-only real-league conformance for lineup/waiver/commissioner — all three GREEN on imported + native
-- **F0-1** (`scoringSettings` provider-name leak) — closed in the spawned task's worktree (`task_80628639`) via `narrowScoringSettings`; **pending merge into this branch**
+- **F0-1** (`scoringSettings` provider-name leak) — closed via `narrowScoringSettings` (purpose-blind scoring-key allow-list); merged onto this branch in `e5ebba9e8`, `WORLD_CONFORMANCE_OK` verified on imported + native
 
 **Governance:**
 - `95f391439` Decision Registry (ADR-first) · `bc1124ae2` **Architecture Freeze** (`lib/decision-os/ARCHITECTURE_FREEZE.md`)
